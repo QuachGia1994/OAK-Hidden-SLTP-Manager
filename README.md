@@ -47,7 +47,7 @@ Trước khi sử dụng tool, bạn cần mở MT5 và cài đặt:
 5. Nhấn **OK**.
 
 ### Bước 2: Cài đặt Tool
-1. Tải file `OAK Hidden SLTP Manager.exe` từ mục **[Releases](https://github.com/YOUR_USERNAME/OAK-Hidden-SLTP-Manager/releases)**.
+1. Tải file `OAK Hidden SLTP Manager.exe` từ mục **[Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)**.
 2. Chạy file `.exe` (Nên chuột phải chọn *Run as Administrator* để hoạt động ổn định nhất).
 
 ### Bước 3: Thiết lập Profile
