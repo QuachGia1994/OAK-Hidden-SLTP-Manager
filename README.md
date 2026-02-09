@@ -1,16 +1,19 @@
-# 🚀 OAK Hidden SLTP Manager v2.8.1
+# 🚀 OAK Hidden SLTP Manager v2.8.2
 
-**OAK Hidden SLTP Manager** là giải pháp quản lý rủi ro chuyên nghiệp dành cho nhà giao dịch MetaTrader 5 (MT5). Công cụ giúp bạn đặt Stop Loss (SL) và Take Profit (TP) ẩn (Broker không nhìn thấy), tự động đóng lệnh khi đạt lợi nhuận hoặc rủi ro mong muốn, và tính toán khối lượng vào lệnh nhanh chóng.
+**OAK Hidden SLTP Manager** là giải pháp quản lý rủi ro chuyên nghiệp dành cho nhà giao dịch MetaTrader 5 (MT5). Công cụ giúp bạn đặt Stop Loss (SL) và Take Profit (TP) ẩn (Broker không nhìn thấy), tự động đóng lệnh khi đạt lợi nhuận hoặc rủi ro mo...
 
 ---
 
-## ✨ Tính Năng Mới (v2.8.1) - Copy Trading Update
+## ✨ Tính Năng Mới (v2.8.2) - Copy Trading Filter
 
 ### 🚫 1. Bỏ Qua Symbol (Ignored Symbols) - Dành Cho Slave
 - Cho phép tài khoản Slave **từ chối copy** các cặp tiền cụ thể từ Master.
 - **Cách dùng:** Nhập danh sách symbol vào ô "Bỏ qua Symbol" (Ignored Symbols).
     - *Ví dụ:* `BTCUSD,ETHUSD` -> Slave sẽ copy mọi lệnh từ Master **TRỪ** Bitcoin và Ethereum.
-- Giúp Slave lọc bớt các cặp có Spread cao hoặc không muốn giao dịch.
+
+### ⛔ 2. Giới Hạn 1 Lệnh/Symbol (Max 1 Trade)
+- **Chức năng:** Chỉ cho phép Slave giữ tối đa **1 lệnh mở** cho mỗi Symbol.
+- **Tác dụng:** Ngăn chặn việc nhồi lệnh (Stacking/Martingale) từ Master. Nếu Slave đang có lệnh `GOLD`, mọi lệnh `GOLD` tiếp theo từ Master sẽ bị bỏ qua.
 
 ## ✨ Tính Năng Mới (v2.8.0) - Copy Trading & Stealth
 
