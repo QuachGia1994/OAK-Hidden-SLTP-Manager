@@ -47,7 +47,7 @@ Hệ thống hỗ trợ 2 chế độ chốt lời linh hoạt:
 - **Quản Lý Vốn (Risk Management) Cho Slave:**
     - **Fixed Lot:** Copy với khối lượng cố định.
     - **Multiplier:** Nhân khối lượng theo Master (VD: Master đánh 1 lot, Slave chỉnh 0.5 -> đánh 0.5 lot).
-    - **Risk % Balance:** Tự động tính lot theo % rủi ro tài khoản Slave (Dựa trên SL Points của Profile Slave).
+    - **Risk % Per Trade:** Tự động tính lot theo % rủi ro tài khoản Slave (Dựa trên SL Points của Profile Slave).
 
 ### 2. Quản Lý SL/TP Ẩn (Hidden SL/TP)
 - **Bảo mật chiến lược:** Đặt SL/TP trên máy tính, Broker không nhìn thấy.
