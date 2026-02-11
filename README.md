@@ -1,18 +1,28 @@
-# 🚀 OAK Hidden SLTP Manager v2.8.3
+# 🚀 OAK Hidden SLTP Manager v2.8.5
 
 **OAK Hidden SLTP Manager** là giải pháp quản lý rủi ro chuyên nghiệp dành cho nhà giao dịch MetaTrader 5 (MT5). Công cụ giúp bạn đặt Stop Loss (SL) và Take Profit (TP) ẩn (Broker không nhìn thấy), tự động đóng lệnh khi đạt lợi nhuận hoặc rủi ro mong muốn.
 
 ---
 
-## ✨ Tính Năng Mới (v2.8.3) - Lot Size Fix & Regional Support
+## ✨ Tính Năng Mới (v2.8.5) - UI Improvement
 
-### 🛠️ 1. Sửa Lỗi Lot Size 0.01 (Hotfix)
+### 📜 1. Thanh Cuộn Tab Position Size
+- Thêm thanh cuộn (Scrollbar) cho tab **Tính Lot & Vào lệnh**, giúp dễ dàng xem toàn bộ nội dung và danh sách lệnh chờ trên các màn hình nhỏ hoặc khi danh sách dài.
+
+---
+
+## ✨ Tính Năng Mới (v2.8.4) - Scheduled Orders
+
+### ⏰ 1. Hẹn Giờ Vào Lệnh (Scheduled Orders)
+- **Hẹn giờ thực thi:** Cho phép đặt lệnh BUY/SELL tự động tại một thời điểm cụ thể (Local Time).
+- **Quản lý danh sách chờ:** Giao diện Treeview hiển thị các lệnh đang chờ với đầy đủ thông tin (Symbol, Type, Lot, Time, Status).
+- **Lưu trữ thông minh:** Lệnh chờ được lưu tự động theo từng Profile vào file JSON, không lo mất dữ liệu khi tắt tool.
+- **Thao tác nhanh:** Hỗ trợ **Thêm, Sửa, Xóa** lệnh chờ ngay trên giao diện.
+
+### 🛠️ 2. Sửa Lỗi Lot Size 0.01 (v2.8.3)
 - Khắc phục triệt để lỗi tất cả các chế độ Copy Mode (Fixed, Multiplier, Risk) bị mặc định về 0.01.
 - **Hỗ trợ định dạng số vùng miền:** Tự động nhận diện và xử lý dấu phẩy (`,`) khi nhập khối lượng (VD: `0,1` sẽ được hiểu là `0.1`).
 - **Slave-Centric Calculation:** Chế độ Risk % hiện sử dụng chính xác thông số `tick_value` và `volume_step` của tài khoản Slave để tính toán lot.
-
-### 📈 2. Cải Thiện Độ Chính Xác Multiplier
-- Loại bỏ làm tròn sớm trong quá trình tính toán, đảm bảo khối lượng copy sát nhất với tỷ lệ mong muốn.
 
 ---
 
