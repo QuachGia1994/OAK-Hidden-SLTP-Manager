@@ -1,6 +1,18 @@
-# 🚀 OAK Hidden SLTP Manager v2.8.2
+# 🚀 OAK Hidden SLTP Manager v2.8.3
 
-**OAK Hidden SLTP Manager** là giải pháp quản lý rủi ro chuyên nghiệp dành cho nhà giao dịch MetaTrader 5 (MT5). Công cụ giúp bạn đặt Stop Loss (SL) và Take Profit (TP) ẩn (Broker không nhìn thấy), tự động đóng lệnh khi đạt lợi nhuận hoặc rủi ro mo...
+**OAK Hidden SLTP Manager** là giải pháp quản lý rủi ro chuyên nghiệp dành cho nhà giao dịch MetaTrader 5 (MT5). Công cụ giúp bạn đặt Stop Loss (SL) và Take Profit (TP) ẩn (Broker không nhìn thấy), tự động đóng lệnh khi đạt lợi nhuận hoặc rủi ro mong muốn.
+
+---
+
+## ✨ Tính Năng Mới (v2.8.3) - Lot Size Fix & Regional Support
+
+### 🛠️ 1. Sửa Lỗi Lot Size 0.01 (Hotfix)
+- Khắc phục triệt để lỗi tất cả các chế độ Copy Mode (Fixed, Multiplier, Risk) bị mặc định về 0.01.
+- **Hỗ trợ định dạng số vùng miền:** Tự động nhận diện và xử lý dấu phẩy (`,`) khi nhập khối lượng (VD: `0,1` sẽ được hiểu là `0.1`).
+- **Slave-Centric Calculation:** Chế độ Risk % hiện sử dụng chính xác thông số `tick_value` và `volume_step` của tài khoản Slave để tính toán lot.
+
+### 📈 2. Cải Thiện Độ Chính Xác Multiplier
+- Loại bỏ làm tròn sớm trong quá trình tính toán, đảm bảo khối lượng copy sát nhất với tỷ lệ mong muốn.
 
 ---
 
