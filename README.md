@@ -6,7 +6,17 @@
 
 ## ✨ Tính Năng Mới (v2.8.6) - UI Redesign & Profile Sync
 
-### 🎨 1. Thiết Kế Lại Nút BUY/SELL
+### 🛡️ 1. SL TP Hiện (Visible SL/TP)
+- **Tính năng mới:** Cho phép hiển thị SL/TP trực tiếp trên MT5 thay vì chỉ ẩn.
+- **Buffer an toàn:** Tự động đặt SL/TP trên sàn cách mức ẩn ±10 points để tránh sàn quét lệnh trước khi Robot xử lý.
+- **Tương thích BE:** Tự động cập nhật SL hiện khi kích hoạt tính năng dời SL về Entry (Auto BE).
+
+### 📱 2. Nâng Cấp Điều Khiển Telegram
+- **Admin Chat ID:** Cho phép cấu hình thêm Chat ID cá nhân (Admin) để điều khiển Bot, bên cạnh Chat ID của Group/Channel.
+- **Lệnh /help:** Bổ sung bảng hướng dẫn chi tiết các cú pháp điều khiển từ xa ngay trong Telegram.
+- **Phản hồi nhanh:** Tối ưu hóa tốc độ gửi tin nhắn và lệnh từ Telegram.
+
+### 🎨 3. Thiết Kế Lại Nút BUY/SELL
 - **Giao diện hiện đại:** Nút BUY/SELL được thiết kế lại theo dạng bo tròn (Round) cực lớn, dễ nhìn và dễ thao tác.
 - **Tối ưu không gian:** Các nút được bố trí gọn gàng hơn trong tab Position Size.
 
