@@ -1,4 +1,4 @@
-# 🚀 OAK Hidden SLTP Manager v2.8.6
+<!-- # 🚀 OAK Hidden SLTP Manager v2.8.6
 
 **OAK Hidden SLTP Manager** là giải pháp quản lý rủi ro chuyên nghiệp dành cho nhà giao dịch MetaTrader 5 (MT5). Công cụ giúp bạn đặt Stop Loss (SL) và Take Profit (TP) ẩn (Broker không nhìn thấy), tự động đóng lệnh khi đạt lợi nhuận hoặc rủi ro mong muốn.
 
@@ -17,6 +17,14 @@
 ### 🌐 3. Đồng Bộ Hóa Đa Ngôn Ngữ Hoàn Hảo
 - **Sửa lỗi hiển thị:** Nút "Bắt đầu/Dừng giám sát" và toàn bộ giao diện trên tất cả các tab (Dashboard, Copy Trade, Position Size, v.v.) giờ đây sẽ tự động cập nhật ngôn ngữ ngay lập tức khi bạn thay đổi cài đặt VN/EN.
 - **Hệ thống UI linh hoạt:** Cải tiến kiến trúc lưu trữ UI giúp quản lý đa ngôn ngữ chính xác và hiệu quả hơn.
+
+### 📱 4. Điều Khiển Từ Xa Qua Telegram
+- **Cú pháp linh hoạt:** Hỗ trợ quản lý theo từng Profile riêng biệt.
+- **Lệnh hỗ trợ:**
+    - `/pending <BUY/SELL> <SYM> <LOT> <TIME> [SL] [TP] [PROFILE]`
+    - `/list [PROFILE]` - Xem danh sách lệnh chờ.
+    - `/del <ID> [PROFILE]` - Xóa lệnh chờ theo ID.
+    - `/closeall [TIME] [PROFILE]` - Đóng lệnh ngay hoặc hẹn giờ.
 
 ---
 
@@ -69,4 +77,4 @@
 ## 📞 Liên Hệ & Hỗ Trợ
 - **Tác giả:** Quách Kim Phong
 - **Telegram:** [@bupbupchot](https://t.me/bupbupchot)
-- **Phiên bản:** v2.8.6 (Phát hành 2026)
+- **Phiên bản:** v2.8.6 (Phát hành 2026) -->
