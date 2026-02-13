@@ -1,90 +1,28 @@
-# 🚀 OAK Hidden SLTP Manager v2.8.6
+# RELEASE NOTES - v2.8.7 (2026-02-13)
 
-**OAK Hidden SLTP Manager** là giải pháp quản lý rủi ro chuyên nghiệp dành cho nhà giao dịch MetaTrader 5 (MT5). Công cụ giúp bạn đặt Stop Loss (SL) và Take Profit (TP) ẩn (Broker không nhìn thấy), tự động đóng lệnh khi đạt lợi nhuận hoặc rủi ro mong muốn.
+## 🚀 Tính Năng Mới & Cải Tiến
 
----
+### 🛡️ 1. Tinh Chỉnh SL TP Hiện (Visible SL/TP Refinement)
+- **Tôn trọng người dùng:** Nếu người dùng tự dời SL/TP trên MT5, Robot sẽ giữ nguyên vị trí đó và không tự động ghi đè lại (Cơ chế "Let user decide").
+- **Cơ chế khôi phục:** Robot chỉ đặt lại SL/TP khi người dùng xóa trắng (về 0) trên MT5.
+- **Thông minh hơn:** Khi đặt lại SL/TP bị xóa, Robot sẽ kiểm tra nếu giá đã vượt qua mức SL/TP đó thì sẽ không đặt nữa để tránh lỗi thực thi ngay lập tức.
 
-## ✨ Tính Năng Mới (v2.8.6) - UI Redesign & Profile Sync
+### ⏰ 2. Kiểm Soát Lệnh Chờ (Pending Order Control)
+- **Chống trùng lệnh:** Thêm điều kiện kiểm tra khi đặt lệnh hẹn giờ (Pending). Nếu symbol đó đang có lệnh mở hoặc đã có một lệnh chờ khác, Robot sẽ từ chối đặt thêm và thông báo lỗi.
+- **Áp dụng đa kênh:** Tính năng này hoạt động cho cả lệnh đặt trực tiếp trên giao diện và lệnh gửi qua Telegram.
 
-### 🛡️ 1. SL TP Hiện (Visible SL/TP)
-- **Tính năng mới:** Cho phép hiển thị SL/TP trực tiếp trên MT5 thay vì chỉ ẩn.
-- **Buffer an toàn:** Tự động đặt SL/TP trên sàn cách mức ẩn ±10 points để tránh sàn quét lệnh trước khi Robot xử lý.
-- **Tương thích BE:** Tự động cập nhật SL hiện khi kích hoạt tính năng dời SL về Entry (Auto BE).
+### 📱 3. Nâng Cấp Điều Khiển Telegram (v2.8.6+)
+- **Hỗ trợ Admin ID:** Ngoài Chat ID nhóm, bạn có thể nhập thêm Chat ID cá nhân của Admin để ra lệnh cho Bot một cách riêng tư.
+- **Lệnh /help mới:** Gõ `/help` trong Telegram để xem toàn bộ danh sách lệnh và ví dụ cú pháp.
+- **Tính ổn định:** Thêm timeout cho các yêu cầu Telegram để tránh treo ứng dụng khi mạng lỗi.
 
-### 📱 2. Nâng Cấp Điều Khiển Telegram
-- **Admin Chat ID:** Cho phép cấu hình thêm Chat ID cá nhân (Admin) để điều khiển Bot, bên cạnh Chat ID của Group/Channel.
-- **Lệnh /help:** Bổ sung bảng hướng dẫn chi tiết các cú pháp điều khiển từ xa ngay trong Telegram.
-- **Phản hồi nhanh:** Tối ưu hóa tốc độ gửi tin nhắn và lệnh từ Telegram.
+### 🔄 4. Đồng Bộ Hóa Profile & UI (v2.8.6+)
+- **Sync Profile:** Tự động đồng bộ lựa chọn Profile giữa các tab.
+- **Multi-language:** Sửa lỗi cập nhật ngôn ngữ tức thì cho toàn bộ giao diện.
 
-### 🎨 3. Thiết Kế Lại Nút BUY/SELL
-- **Giao diện hiện đại:** Nút BUY/SELL được thiết kế lại theo dạng bo tròn (Round) cực lớn, dễ nhìn và dễ thao tác.
-- **Tối ưu không gian:** Các nút được bố trí gọn gàng hơn trong tab Position Size.
-
-### 🔄 2. Chọn Profile Trực Tiếp Trong Tab Position Size
-- **Tiện lợi tối đa:** Đã thêm ComboBox chọn Profile ngay trong tab **Tính Lot & Vào lệnh**.
-- **Đồng bộ hóa (Sync):** Khi bạn thay đổi Profile ở tab này, Profile ở tab Dashboard cũng sẽ tự động thay đổi theo và ngược lại. Bạn không còn phải quay lại tab Dashboard mỗi khi muốn đổi tài khoản để tính Lot.
-
-### 🌐 3. Đồng Bộ Hóa Đa Ngôn Ngữ Hoàn Hảo
-- **Sửa lỗi hiển thị:** Nút "Bắt đầu/Dừng giám sát" và toàn bộ giao diện trên tất cả các tab (Dashboard, Copy Trade, Position Size, v.v.) giờ đây sẽ tự động cập nhật ngôn ngữ ngay lập tức khi bạn thay đổi cài đặt VN/EN.
-- **Hệ thống UI linh hoạt:** Cải tiến kiến trúc lưu trữ UI giúp quản lý đa ngôn ngữ chính xác và hiệu quả hơn.
-
-### 📱 4. Điều Khiển Từ Xa Qua Telegram
-- **Cú pháp linh hoạt:** Hỗ trợ quản lý theo từng Profile riêng biệt.
-- **Lệnh hỗ trợ:**
-    - `/pending <BUY/SELL> <SYM> <LOT> <TIME> [SL] [TP] [PROFILE]`
-    - `/list [PROFILE]` - Xem danh sách lệnh chờ.
-    - `/del <ID> [PROFILE]` - Xóa lệnh chờ theo ID.
-    - `/closeall [TIME] [PROFILE]` - Đóng lệnh ngay hoặc hẹn giờ.
+## 🛠️ Sửa Lỗi & Ổn Định
+- Cập nhật logic `move_sl_to_entry` để chỉ thực hiện trên MT5 khi bật tính năng **SL TP hiện**.
+- Tối ưu hóa hiệu suất quét lệnh trong MonitorWorker.
 
 ---
-
-## ✨ Tính Năng Mới (v2.8.5) - UI Improvement
-
-### 📜 1. Thanh Cuộn Tab Position Size
-- Thêm thanh cuộn (Scrollbar) cho tab **Tính Lot & Vào lệnh**, giúp dễ dàng xem toàn bộ nội dung và danh sách lệnh chờ trên các màn hình nhỏ hoặc khi danh sách dài.
-
----
-
-## ✨ Tính Năng Mới (v2.8.4) - Scheduled Orders
-
-### ⏰ 1. Hẹn Giờ Vào Lệnh (Scheduled Orders)
-- **Hẹn giờ thực thi:** Cho phép đặt lệnh BUY/SELL tự động tại một thời điểm cụ thể (Local Time).
-- **Quản lý danh sách chờ:** Giao diện Treeview hiển thị các lệnh đang chờ với đầy đủ thông tin (Symbol, Type, Lot, Time, Status).
-- **Lưu trữ thông minh:** Lệnh chờ được lưu tự động theo từng Profile vào file JSON, không lo mất dữ liệu khi tắt tool.
-- **Thao tác nhanh:** Hỗ trợ **Thêm, Sửa, Xóa** lệnh chờ ngay trên giao diện.
-
----
-
-## ✨ Tính Năng Mới (v2.8.3) - Fixes
-
-### 🛠️ 1. Sửa Lỗi Lot Size 0.01
-- Khắc phục triệt để lỗi tất cả các chế độ Copy Mode (Fixed, Multiplier, Risk) bị mặc định về 0.01.
-- **Hỗ trợ định dạng số vùng miền:** Tự động nhận diện và xử lý dấu phẩy (`,`) khi nhập khối lượng (VD: `0,1` sẽ được hiểu là `0.1`).
-- **Slave-Centric Calculation:** Chế độ Risk % hiện sử dụng chính xác thông số `tick_value` và `volume_step` của tài khoản Slave để tính toán lot.
-
----
-
-## ✨ Tính Năng Mới (v2.8.2) - Copy Trading Filter
-
-### 🚫 1. Bỏ Qua Symbol (Ignored Symbols) - Dành Cho Slave
-- Cho phép tài khoản Slave **từ chối copy** các cặp tiền cụ thể từ Master.
-
-### ⛔ 2. Giới Hạn 1 Lệnh/Symbol (Max 1 Trade)
-- **Chức năng:** Chỉ cho phép Slave giữ tối đa **1 lệnh mở** cho mỗi Symbol.
-
----
-
-## ✨ Tính Năng Mới (v2.8.0) - Copy Trading & Stealth
-
-### 🔥 1. Chốt Lời Từng Phần Nâng Cao (Advanced Partial Close)
-- Chốt lời linh hoạt theo khối lượng **HIỆN TẠI** hoặc khối lượng **GỐC**.
-
-### 🛡️ 2. Auto BE Bắt Buộc (Mandatory Break Even)
-- Cho phép cài đặt dời SL về Entry sớm để bảo toàn vốn tuyệt đối.
-
----
-
-## 📞 Liên Hệ & Hỗ Trợ
-- **Tác giả:** Quách Kim Phong
-- **Telegram:** [@bupbupchot](https://t.me/bupbupchot)
-- **Phiên bản:** v2.8.6 (Phát hành 2026)
+*Người thực hiện: Quách Kim Phong*
