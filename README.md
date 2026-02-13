@@ -4,26 +4,22 @@
 
 ---
 
-## ✨ Tính Năng Mới (v2.8.7) - Logic & Documentation Optimization
+## ✨ Tính Năng Mới (v2.8.7) - NLP AI & Advanced Analytics
 
-### 🛡️ 1. Tôn Trọng SL/TP Thủ Công
-- **Quyền tự quyết của người dùng:** Nếu bạn tự dời SL hoặc TP trực tiếp trên MT5, Robot sẽ **tôn trọng** mức giá mới này và không tự ý ghi đè lại.
-- **Cơ chế khôi phục thông minh:** Robot chỉ tự động đặt lại SL/TP hiện (Visible SL/TP) khi bạn **xoá hoàn toàn** SL hoặc TP (về giá trị 0) trên MT5.
-- **Kiểm tra trạng thái giá:** Khi khôi phục SL/TP, Robot sẽ kiểm tra xem giá hiện tại đã vượt qua mức SL/TP dự kiến chưa. Nếu đã vượt qua (lệnh đáng lẽ đã khớp SL/TP), Robot sẽ không đặt lại để tránh lỗi giao dịch.
+### 🤖 1. Điều Khiển Bằng Ngôn Ngữ Tự Nhiên (NLP)
+- **Đặt lệnh không cần cú pháp:** Hỗ trợ đặt lệnh bằng ngôn ngữ tự nhiên như: *"Mua vàng 0.1 lúc 19:30"*, *"Bán BTC 0.05 ngay bây giờ"*.
+- **Nhận diện thông minh:** Tự động hiểu các thuật ngữ phổ biến (vàng = XAUUSD, mua = BUY, bán = SELL).
+- **Linh hoạt thời gian:** Hiểu các mốc thời gian như *"ngay"*, *"bây giờ"*, hoặc giờ cụ thể *"20:00"*.
 
-### 🔄 2. Tối Ưu Lệnh Pending & Auto Close
-- **Lệnh Pending Linh Hoạt:** Cho phép đặt lệnh chờ (Hẹn giờ hoặc qua Telegram) ngay cả khi đang có lệnh mở, miễn là **ngược chiều** (VD: Đang giữ Buy vẫn có thể đặt Sell Pending). Robot chỉ từ chối nếu trùng cả Symbol và Chiều lệnh.
-- **Tự Động Đóng Lệnh Ngược Chiều (Auto Close):** Khi một lệnh (Hẹn giờ hoặc Vào tay) được kích hoạt, Robot sẽ tự động kiểm tra và **đóng toàn bộ** các vị thế đang mở của cùng Symbol nhưng ngược chiều, giúp bạn quản lý lệnh đối ứng một cách rảnh tay.
+### 📊 2. Phân Tích & Báo Cáo Hiệu Suất (Group 4 & 5)
+- **Báo cáo tuần tự động:** Tổng hợp kết quả giao dịch trong 7 ngày gần nhất, bao gồm: Tổng lợi nhuận, Tỉ lệ thắng (Win Rate), Drawdown lớn nhất.
+- **Đề xuất tối ưu (Advisory Only):** Dựa trên lịch sử giao dịch, Robot sẽ đưa ra các đề xuất điều chỉnh SL/TP hoặc quản lý vốn (VD: *"Tỉ lệ thắng thấp, hãy thử nới rộng SL"*). **Lưu ý:** Đây chỉ là đề xuất tham khảo, Robot không tự ý can thiệp vào lệnh.
+- **Tóm tắt tin tức kinh tế:** Cập nhật các sự kiện kinh tế quan trọng hàng ngày để người dùng có cái nhìn tổng quan về thị trường.
 
-### 🔄 3. Tối Ưu Hóa Giao Diện & Trải Nghiệm (UI/UX)
-- **Mở rộng không gian hiển thị:** Tăng chiều cao cửa sổ chính lên **800px**, giúp quan sát toàn bộ các tab mà không cần cuộn trang nhiều.
-- **Tăng diện tích làm việc:**
-    - Dashboard Console tăng lên **400px** (xem nhật ký dài hơn).
-    - Guide Textbox tăng lên **500px** (đọc hướng dẫn thoải mái hơn).
-    - Danh sách lệnh chờ tăng lên **10 dòng** (quản lý nhiều lệnh cùng lúc).
-- **Đồng bộ hóa Profile tuyệt đối:** Tự động tiêm ID Profile vào mọi tiến trình, đảm bảo tính năng đồng bộ Telegram và GUI luôn hoạt động 100% ổn định.
-- **Tối ưu hóa Auto BE:** Tính năng Auto BE (Dời SL về Entry) giờ đây hoạt động mượt mà hơn với chế độ SL/TP hiện, tự động cập nhật mức SL mới lên sàn MT5 khi đạt điều kiện.
-- **Bảo toàn vị thế:** Nếu người dùng đã tự dời SL thủ công, Robot sẽ không ghi đè lệnh Auto BE để tránh làm mất ý đồ chiến thuật của người dùng.
+### 📱 3. Nâng Cấp Quản Lý Từ Xa
+- **Đóng lệnh có điều kiện:** Hỗ trợ đóng lệnh theo trạng thái lời/lỗ hoặc theo Symbol (VD: *"Đóng các lệnh đang lời"*, *"Đóng toàn bộ lệnh XAUUSD"*).
+- **Kiểm tra trạng thái tài khoản:** Lệnh `/status` cung cấp thông tin chi tiết về Số dư (Balance), Tài sản (Equity), Lợi nhuận hiện tại và danh sách các vị thế đang mở.
+- **Sửa SL/TP từ xa:** Cho phép điều chỉnh mức Stop Loss/Take Profit ẩn thông qua Telegram bằng lệnh `/modify`.
 
 ---
 
