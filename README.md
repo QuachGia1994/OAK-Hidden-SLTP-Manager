@@ -4,15 +4,25 @@
 
 ---
 
-## ✨ Tính Năng Mới (v2.8.7) - User Autonomy & Sync Optimization
+## ✨ Tính Năng Mới (v2.8.7) - Logic & Documentation Optimization
 
 ### 🛡️ 1. Tôn Trọng SL/TP Thủ Công
 - **Quyền tự quyết của người dùng:** Nếu bạn tự dời SL hoặc TP trực tiếp trên MT5, Robot sẽ **tôn trọng** mức giá mới này và không tự ý ghi đè lại.
 - **Cơ chế khôi phục thông minh:** Robot chỉ tự động đặt lại SL/TP hiện (Visible SL/TP) khi bạn **xoá hoàn toàn** SL hoặc TP (về giá trị 0) trên MT5.
 - **Kiểm tra trạng thái giá:** Khi khôi phục SL/TP, Robot sẽ kiểm tra xem giá hiện tại đã vượt qua mức SL/TP dự kiến chưa. Nếu đã vượt qua (lệnh đáng lẽ đã khớp SL/TP), Robot sẽ không đặt lại để tránh lỗi giao dịch.
 
-### 🔄 2. Tối Ưu Hóa Auto BE
-- **Đồng bộ SL hiện:** Tính năng Auto BE (Dời SL về Entry) giờ đây hoạt động mượt mà hơn với chế độ SL/TP hiện, tự động cập nhật mức SL mới lên sàn MT5 khi đạt điều kiện.
+### 🔄 2. Tối Ưu Lệnh Pending & Auto Close
+- **Lệnh Pending Linh Hoạt:** Cho phép đặt lệnh chờ (Hẹn giờ hoặc qua Telegram) ngay cả khi đang có lệnh mở, miễn là **ngược chiều** (VD: Đang giữ Buy vẫn có thể đặt Sell Pending). Robot chỉ từ chối nếu trùng cả Symbol và Chiều lệnh.
+- **Tự Động Đóng Lệnh Ngược Chiều (Auto Close):** Khi một lệnh (Hẹn giờ hoặc Vào tay) được kích hoạt, Robot sẽ tự động kiểm tra và **đóng toàn bộ** các vị thế đang mở của cùng Symbol nhưng ngược chiều, giúp bạn quản lý lệnh đối ứng một cách rảnh tay.
+
+### 🔄 3. Tối Ưu Hóa Giao Diện & Trải Nghiệm (UI/UX)
+- **Mở rộng không gian hiển thị:** Tăng chiều cao cửa sổ chính lên **800px**, giúp quan sát toàn bộ các tab mà không cần cuộn trang nhiều.
+- **Tăng diện tích làm việc:**
+    - Dashboard Console tăng lên **400px** (xem nhật ký dài hơn).
+    - Guide Textbox tăng lên **500px** (đọc hướng dẫn thoải mái hơn).
+    - Danh sách lệnh chờ tăng lên **10 dòng** (quản lý nhiều lệnh cùng lúc).
+- **Đồng bộ hóa Profile tuyệt đối:** Tự động tiêm ID Profile vào mọi tiến trình, đảm bảo tính năng đồng bộ Telegram và GUI luôn hoạt động 100% ổn định.
+- **Tối ưu hóa Auto BE:** Tính năng Auto BE (Dời SL về Entry) giờ đây hoạt động mượt mà hơn với chế độ SL/TP hiện, tự động cập nhật mức SL mới lên sàn MT5 khi đạt điều kiện.
 - **Bảo toàn vị thế:** Nếu người dùng đã tự dời SL thủ công, Robot sẽ không ghi đè lệnh Auto BE để tránh làm mất ý đồ chiến thuật của người dùng.
 
 ---
@@ -47,7 +57,14 @@
     - `/pending <BUY/SELL> <SYM> <LOT> <TIME> [SL] [TP] [PROFILE]`
     - `/list [PROFILE]` - Xem danh sách lệnh chờ.
     - `/del <ID> [PROFILE]` - Xóa lệnh chờ theo ID.
+    - `/closeallpending [PROFILE]` - Xóa toàn bộ lệnh chờ.
     - `/closeall [TIME] [PROFILE]` - Đóng lệnh ngay hoặc hẹn giờ.
+    - `/help` - Xem hướng dẫn chi tiết.
+
+### 🔄 5. Đồng Bộ GUI & Telegram (Multi-Process Sync)
+- **Tự động cập nhật:** Khi đặt lệnh từ Telegram, danh sách lệnh chờ trong GUI sẽ tự động cập nhật sau tối đa 2 giây.
+- **Ổn định cao:** Sử dụng cơ chế giám sát file JSON giữa các tiến trình độc lập (GUI và Worker).
+- **Đồng bộ Profile:** Khi thay đổi Profile trong GUI, hệ thống sẽ tự động chuyển sang giám sát file dữ liệu của Profile đó.
 
 ---
 
