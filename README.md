@@ -113,7 +113,31 @@
 
 ---
 
-## 📞 Liên Hệ & Hỗ Trợ
+## � Hướng Dẫn Mang Robot Sang Máy Khác
+
+- **Yêu cầu chung:**
+  - Cài Python (phiên bản 3.x tương thích).
+  - Cài thư viện từ `requirements.txt` với lệnh `pip install -r requirements.txt`.
+
+- **1. Gói source chuẩn (chia sẻ được):**
+  - File nén: `OAK_Source_v2.8.7_Clean.zip`.
+  - Bao gồm: mã nguồn chính, README, Release Notes, script backup, batch chạy robot, file lịch giao dịch.
+  - Có thể gửi cho người khác mà không chứa cấu hình cá nhân, tài khoản, lịch sử lệnh.
+
+- **2. Gói cấu hình cá nhân:**
+  - File nén: `OAK_Profile_Backup.zip`.
+  - Bao gồm: `profiles.json`, `settings.json`, `trades.json`, `tele_inbox.json`, `tele_offset.json`, `copy_map_Darwinex.json`.
+  - Chỉ nên dùng để tự backup/khôi phục cấu hình của chính bạn (chứa thông tin profile broker, đường dẫn terminal, lịch sử).
+
+- **3. Các bước setup trên máy mới:**
+  1. Cài Python.
+  2. Giải nén `OAK_Source_v2.8.7_Clean.zip` vào một thư mục làm việc.
+  3. Chạy `pip install -r requirements.txt`.
+  4. (Tuỳ chọn) Giải nén thêm `OAK_Profile_Backup.zip` vào cùng thư mục nếu muốn giữ lại profile, cài đặt cũ.
+  5. Mở `profiles.json` và chỉnh lại đường dẫn `terminal64.exe` theo MT5 trên máy mới.
+  6. Chạy `CHAY_ROBOT.bat` để khởi động robot.
+
+## �📞 Liên Hệ & Hỗ Trợ
 - **Tác giả:** Quách Kim Phong
 - **Telegram:** [@bupbupchot](https://t.me/bupbupchot)
 - **Phiên bản:** v2.8.7 (Phát hành 2026)
