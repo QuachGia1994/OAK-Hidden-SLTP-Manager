@@ -10,6 +10,9 @@
 - **Đặt lệnh không cần cú pháp:** Hỗ trợ đặt lệnh bằng ngôn ngữ tự nhiên như: *"Mua vàng 0.1 lúc 19:30"*, *"Bán BTC 0.05 ngay bây giờ"*.
 - **Nhận diện thông minh:** Tự động hiểu các thuật ngữ phổ biến (vàng = XAUUSD, mua = BUY, bán = SELL).
 - **Linh hoạt thời gian:** Hiểu các mốc thời gian như *"ngay"*, *"bây giờ"*, hoặc giờ cụ thể *"20:00"*.
+- **Tự động tính Lot theo rủi ro:** Đọc rủi ro theo % Balance và SL (pips) ngay trong câu lệnh để tính khối lượng.
+- **Hỗ trợ rủi ro theo số tiền ($):** Ví dụ: *"Mua vàng sl 100 pips, chỉ lỗ 200$"* hoặc *"Buy gold sl 100 pips, risk $200"*.
+- **Chỉ định Profile bằng tên:** Cho phép chèn tên Profile trong câu (VD: thêm *"Vantage"*, *"Darwinex"* ở cuối câu) để route lệnh đúng tài khoản.
 
 ### 📊 2. Phân Tích & Báo Cáo Hiệu Suất (Group 4 & 5)
 - **Báo cáo tuần tự động:** Tổng hợp kết quả giao dịch trong 7 ngày gần nhất, bao gồm: Tổng lợi nhuận, Tỉ lệ thắng (Win Rate), Drawdown lớn nhất.
