@@ -29,7 +29,7 @@ Phiên bản này đã loại bỏ hoàn toàn Input thủ công tín hiệu và
         
 ### 4. Trading Reminders & Lịch Giao Dịch
 - Script `oak_trading_reminders.py` gửi nhắc nhở thời gian giao dịch, tin tức, ngày đặc biệt qua Telegram/ntfy.
-- Lịch hiển thị trong `oakschedule.html` (mở bằng trình duyệt) với cột Mùa Đông/Mùa Hè.
+- Lịch hiển thị trong `oakschedule.html` (mở bằng trình duyệt) với cột Mùa Đông/Mùa Hè và luôn đồng bộ với `oak_trading_reminders.py`.
 - Nhắc nhở cho XAUUSD, GBPUSD, GBPAUD, USDJPY, USDCAD và các “Quy tắc ngày đặc biệt” (cuối tháng, đầu tháng, trend năm...).
 - Không còn logic tự tính BUY/SELL; người dùng tự vào lệnh dựa trên nhắc nhở.
         
@@ -53,4 +53,3 @@ Phiên bản này đã loại bỏ hoàn toàn Input thủ công tín hiệu và
         
 ---
 Phát triển bởi Quách Kim Phong (OAK Group)
-
