@@ -44,7 +44,6 @@ Phiên bản này đã loại bỏ hoàn toàn Input thủ công tín hiệu và
 4. Nhấn BẮT ĐẦU GIÁM SÁT để Robot bắt đầu theo dõi và quản lý lệnh.
 5. Để dùng Reminders:
    - Cấu hình Telegram/ntfy trong `settings.json` nếu cần.
-   - Chạy `oak_trading_reminders.py` bằng Python.
    - Tham chiếu lịch trong `oakschedule.html` để lên kế hoạch.
         
 ## ⚠️ Lưu Ý Quan Trọng
@@ -53,3 +52,4 @@ Phiên bản này đã loại bỏ hoàn toàn Input thủ công tín hiệu và
         
 ---
 Phát triển bởi Quách Kim Phong (OAK Group)
+
