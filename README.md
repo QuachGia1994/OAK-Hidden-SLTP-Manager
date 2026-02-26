@@ -1,58 +1,36 @@
-# 🚀 OAK HIDDEN SLTP MANAGER - Signature Edition (Reminders Only)
-        
+# 🚀 OAK HIDDEN SLTP MANAGER - Signature Edition
+
 ## 🌟 Giới Thiệu
-OAK Hidden SLTP Manager là giải pháp quản lý lệnh MT5 toàn diện, tập trung vào:
-- Ẩn SL/TP (Hidden SLTP).
-- Bảo vệ tài khoản theo Balance.
-- Copy Trade liên sàn.
-- Hẹn giờ vào lệnh.
-- Hệ thống Trading Reminders độc lập qua Telegram/ntfy.
-        
-Phiên bản này đã loại bỏ hoàn toàn Input thủ công tín hiệu và Tab Tín Hiệu; chỉ giữ lại Reminders thuần theo lịch.
-        
-## 🔥 Tính Năng Chính
-        
-### 1. Quản Lý SL/TP & Rủi Ro
-- Hidden SL/TP: Giấu SL/TP khỏi Broker.
-- Auto Close theo SL/TP và Balance SL/TP.
-- Auto BE: Dời SL về Entry khi đạt R mong muốn.
-- Partial Close: Chốt lời từng phần theo các mức R.
-- Smart Execution: Tự động xử lý lỗi "Unsupported filling mode" (10030).
-- Min Lot Protection: Tự động dời BE nếu volume 0.01 không thể chốt từng phần.
-- Sync Hidden SL: Đồng bộ SL/TP ẩn theo thao tác tay trên MT5.
-        
-### 2. Copy Trading Đa Nền Tảng
-- Local Copy giữa nhiều terminal trên cùng máy.
-- Hỗ trợ Master/Slave, Cross-Broker, map symbol linh hoạt.
-- Chế độ Lot: Fixed, Multiplier, Risk %.
-        
-### 3. Hẹn Giờ Vào Lệnh (Pending Execution)
-- Đặt lệnh theo thời gian HH:MM:SS cho từng Profile.
-- Tự động xử lý trường hợp giờ đã qua (ngày mai) hoặc gần thời điểm hiện tại (vào ngay).
-        
-### 4. Trading Reminders & Lịch Giao Dịch
-- Script `oak_trading_reminders.py` gửi nhắc nhở thời gian giao dịch, tin tức, ngày đặc biệt qua Telegram/ntfy.
-- Lịch hiển thị trong `oakschedule.html` (mở bằng trình duyệt) với cột Mùa Đông/Mùa Hè và luôn đồng bộ với `oak_trading_reminders.py`.
-- Nhắc nhở cho XAUUSD, GBPUSD, GBPAUD, USDJPY, USDCAD và các “Quy tắc ngày đặc biệt” (cuối tháng, đầu tháng, trend năm...).
-- Không còn logic tự tính BUY/SELL; người dùng tự vào lệnh dựa trên nhắc nhở.
-        
-### 5. Điều Khiển Từ Xa (Telegram)
-- Theo dõi trạng thái và điều khiển đóng/mở lệnh.
-- Hỗ trợ câu lệnh tự nhiên, phù hợp thao tác nhanh trên điện thoại.
-        
-## 🛠️ Cài Đặt & Sử dụng Nhanh
-1. Giải nén và chạy `CHAY_ROBOT.bat`.
-2. Trong tab Quản Lý Profile, thêm đường dẫn `terminal64.exe` của Broker.
-3. Cấu hình SL/TP, Balance SL/TP, Copy Trade nếu dùng.
-4. Nhấn BẮT ĐẦU GIÁM SÁT để Robot bắt đầu theo dõi và quản lý lệnh.
-5. Để dùng Reminders:
-   - Cấu hình Telegram/ntfy trong `settings.json` nếu cần.
-   - Tham chiếu lịch trong `oakschedule.html` để lên kế hoạch.
-        
-## ⚠️ Lưu Ý Quan Trọng
-- Bắt buộc bật "Allow automated trading" trong MT5 (Tools -> Options -> Expert Advisors).
-- `profiles.json`/`settings.json`/`trades.json` chứa cấu hình cá nhân, nên được backup định kỳ (dùng `create_backup_final.py`).
-        
+Giải pháp quản lý lệnh MT5 chuyên nghiệp với khả năng Điều khiển bằng ngôn ngữ tự nhiên, Ẩn SL/TP và Copy Trade liên sàn.
+
+## 🔥 Tính Năng Nổi Bật
+
+### 1. 🗣️ Điều Khiển Tự Nhiên (NLP)
+Không cần nhớ lệnh `/cmd` khô khan. Hãy ra lệnh như một Trader thực thụ:
+- "Mua vàng 0.1 lot sl 50 pips"
+- "Sell EU risk 2% tài khoản"
+- "Đóng hết lệnh lời ngay lập tức"
+
+### 2. 🛡️ Quản Lý Rủi Ro & SL/TP Ẩn
+- Hidden SL/TP: Giấu SL/TP tuyệt đối khỏi Broker.
+- Smart Execution: Tự động xử lý lỗi Filling Mode (10030) bất chấp loại tài khoản.
+- Min Lot Protection: Tự động bảo vệ lệnh 0.01 lot bằng cách dời BE khi không thể cắt giảm volume.
+- Auto BE & Trailing: Dời SL về Entry hoặc chạy theo giá để bảo toàn lợi nhuận.
+
+### 3. 🔗 Copy Trading Đa Nền Tảng
+- Copy siêu tốc giữa các terminal trên cùng máy (Local Mapping).
+- Tùy chỉnh Lot (Fixed, Multiplier, Risk %), Đảo chiều, Ẩn danh.
+
+### 4. ⏰ Hẹn Giờ & Lịch Giao Dịch
+- Đặt lệnh chờ theo thời gian thực (Time-based Pending).
+- Tích hợp lịch kinh tế và nhắc nhở phiên giao dịch tự động.
+
+## 🛠️ Hướng Dẫn Nhanh
+1. Mở `OAK_Hidden_SLTP_Manager.exe` (hoặc chạy từ source).
+2. Cấu hình đường dẫn MT5 trong tab Profiles.
+3. Kết nối Telegram để nhận thông báo và điều khiển từ xa.
+4. Tận hưởng việc trading rảnh tay!
+
 ---
-Phát triển bởi Quách Kim Phong (OAK Group)
+Phát triển bởi OAK Group
 
