@@ -17,6 +17,9 @@ Phiên bản này đã loại bỏ hoàn toàn Input thủ công tín hiệu và
 - Auto Close theo SL/TP và Balance SL/TP.
 - Auto BE: Dời SL về Entry khi đạt R mong muốn.
 - Partial Close: Chốt lời từng phần theo các mức R.
+- Smart Execution: Tự động xử lý lỗi "Unsupported filling mode" (10030).
+- Min Lot Protection: Tự động dời BE nếu volume 0.01 không thể chốt từng phần.
+- Sync Hidden SL: Đồng bộ SL/TP ẩn theo thao tác tay trên MT5.
         
 ### 2. Copy Trading Đa Nền Tảng
 - Local Copy giữa nhiều terminal trên cùng máy.
