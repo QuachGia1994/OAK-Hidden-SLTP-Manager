@@ -32,5 +32,5 @@ Không cần nhớ lệnh `/cmd` khô khan. Hãy ra lệnh như một Trader th�
 4. Tận hưởng việc trading rảnh tay!
 
 ---
-Phát triển bởi OAK Group
+Phát triển bởi OAK Group - PhongQK
 
