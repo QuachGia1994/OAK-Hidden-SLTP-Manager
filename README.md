@@ -1,15 +1,16 @@
-# 🚀 OAK HIDDEN SLTP MANAGER - Signature Edition
+# 🚀 OAK HIDDEN SLTP MANAGER - Signature Edition (v2.8.9)
 
 ## 🌟 Giới Thiệu
 Giải pháp quản lý lệnh MT5 chuyên nghiệp với khả năng Điều khiển bằng ngôn ngữ tự nhiên, Ẩn SL/TP và Copy Trade liên sàn.
 
-## 🔥 Tính Năng Nổi Bật
+## 🔥 Tính Năng Nổi Bật (v2.8.9 Update)
 
-### 1. 🗣️ Điều Khiển Tự Nhiên (NLP)
-Không cần nhớ lệnh `/cmd` khô khan. Hãy ra lệnh như một Trader thực thụ:
-- "Mua vàng 0.1 lot sl 50 pips"
-- "Sell EU risk 2% tài khoản"
-- "Đóng hết lệnh lời ngay lập tức"
+### 1. 🗣️ Điều Khiển Tự Nhiên & Toàn Cục (NLP Global)
+- Global Modify: Ra lệnh một lần, áp dụng cho tất cả Profile.
+  + "Set SL Gold 50" -> Cài SL 50 points cho toàn bộ lệnh Vàng trên mọi tài khoản.
+  + "Set TP EU 1.0900" -> Cài TP theo giá thị trường.
+- Smart Parsing: Tự động phân biệt Giá (Price) và Points dựa trên giá hiện tại.
+- Hỗ trợ Tiếng Việt: "Cài", "Đặt", "Sửa", "Chỉnh" đều được hiểu.
 
 ### 2. 🛡️ Quản Lý Rủi Ro & SL/TP Ẩn
 - Hidden SL/TP: Giấu SL/TP tuyệt đối khỏi Broker.
@@ -32,5 +33,5 @@ Không cần nhớ lệnh `/cmd` khô khan. Hãy ra lệnh như một Trader th�
 4. Tận hưởng việc trading rảnh tay!
 
 ---
-Phát triển bởi OAK Group - PhongQK
+Phát triển bởi OAK Group
 
