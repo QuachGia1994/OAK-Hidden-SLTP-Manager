@@ -33,5 +33,5 @@ Giải pháp quản lý lệnh MT5 chuyên nghiệp với khả năng Điều kh
 4. Tận hưởng việc trading rảnh tay!
 
 ---
-Phát triển bởi OAK Group
+Phát triển bởi OAK Group - PhongQK
 
