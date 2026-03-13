@@ -1,37 +1,33 @@
-# 🚀 OAK HIDDEN SLTP MANAGER - Signature Edition (v2.8.9)
+# 🚀 OAK HIDDEN MANAGER (v2.9.0) - TRỢ LÝ TRADING ĐƠN GIẢN
 
-## 🌟 Giới Thiệu
-Giải pháp quản lý lệnh MT5 chuyên nghiệp với khả năng Điều khiển bằng ngôn ngữ tự nhiên, Ẩn SL/TP và Copy Trade liên sàn.
+## 🌟 Nó là gì?
+Đây là Robot quản lý lệnh (MT5) giúp bạn tự động hóa giao dịch một cách đơn giản nhất thông qua Telegram.
 
-## 🔥 Tính Năng Nổi Bật (v2.8.9 Update)
+## 🔥 Các tính năng nổi bật
+1. **Giấu SL/TP (Hidden SL/TP)**: Broker không thể nhìn thấy điểm cắt lỗ/chốt lời của bạn, giúp tránh tình trạng bị "quét SL" giả.
+2. **Hẹn giờ vào lệnh (Scheduled Orders)**: Bạn không cần ngồi canh biểu đồ. Chỉ cần nhắn tin "Mua Vàng 0.1 lúc 19:30", Robot sẽ tự động thực hiện.
+3. **Quản lý lệnh bằng Chat (Telegram Remote)**: Điều khiển hàng chục tài khoản chỉ bằng tin nhắn Telegram đơn giản.
+4. **Chốt lời từng phần (Auto Partial Close)**: Tự động cắt bớt volume khi lệnh đạt mức lợi nhuận mong muốn. Hỗ trợ cú pháp tiếng Việt linh hoạt ("lụm", "bỏ túi",...).
+5. **Hòa vốn tự động (Auto BE)**: Tự động dời SL về điểm vào lệnh khi lệnh đang có lãi.
+6. **Set SL/TP theo Giá**: Cơ chế mới luôn sử dụng mức giá cụ thể (Price Level) để chính xác tuyệt đối.
 
-### 1. 🗣️ Điều Khiển Tự Nhiên & Toàn Cục (NLP Global)
-- Global Modify: Ra lệnh một lần, áp dụng cho tất cả Profile.
-  + "Set SL Gold 50" -> Cài SL 50 points cho toàn bộ lệnh Vàng trên mọi tài khoản.
-  + "Set TP EU 1.0900" -> Cài TP theo giá thị trường.
-- Smart Parsing: Tự động phân biệt Giá (Price) và Points dựa trên giá hiện tại.
-- Hỗ trợ Tiếng Việt: "Cài", "Đặt", "Sửa", "Chỉnh" đều được hiểu.
+## 🛠️ Cú pháp cơ bản cho người mới
+- **Hẹn giờ**: "Mua/Bán [Cặp tiền] [Lot] lúc [Giờ:Phút]"
+- **Xóa hẹn giờ**: "del ID" hoặc "del all"
+- **Xóa hẹn giờ đóng**: "del allticketclose"
+- **Đóng hết lệnh**: "close all"
+- **Xem trạng thái**: `/status`, `/check` hoặc `/kiemtra` (hiển thị cả lệnh chờ và lệnh chốt lời từng phần)
 
-### 2. 🛡️ Quản Lý Rủi Ro & SL/TP Ẩn
-- Hidden SL/TP: Giấu SL/TP tuyệt đối khỏi Broker.
-- Smart Execution: Tự động xử lý lỗi Filling Mode (10030) bất chấp loại tài khoản.
-- Min Lot Protection: Tự động bảo vệ lệnh 0.01 lot bằng cách dời BE khi không thể cắt giảm volume.
-- Auto BE & Trailing: Dời SL về Entry hoặc chạy theo giá để bảo toàn lợi nhuận.
+## ⚙️ Hướng dẫn cài đặt
+1. Giải nén và chạy file `CHAY_ROBOT.bat`.
+2. Trong tab **Profiles**, chọn đường dẫn đến file `terminal64.exe` của MT5.
+3. Cấu hình SL/TP, Token Telegram và Chat ID.
+4. Bấm **START MONITOR** để bắt đầu.
 
-### 3. 🔗 Copy Trading Đa Nền Tảng
-- Copy siêu tốc giữa các terminal trên cùng máy (Local Mapping).
-- Tùy chỉnh Lot (Fixed, Multiplier, Risk %), Đảo chiều, Ẩn danh.
+## ⚠️ Lưu ý quan trọng
+- **Algo Trading**: Phải bật nút "Allow automated trading" trên MT5.
+- **Python API**: Phải tắt tùy chọn "Disable algorithmic trading via external Python API" trong MT5 Options.
 
-### 4. ⏰ Hẹn Giờ & Lịch Giao Dịch
-- Đặt lệnh chờ theo thời gian thực (Time-based Pending).
-- Tích hợp lịch kinh tế và nhắc nhở phiên giao dịch tự động.
-
-## 🛠️ Hướng Dẫn Nhanh
-1. Mở `OAK_Hidden_SLTP_Manager.exe` (hoặc chạy từ source).
-2. Cấu hình đường dẫn MT5 trong tab Profiles.
-3. Kết nối Telegram để nhận thông báo và điều khiển từ xa.
-4. Tận hưởng việc trading rảnh tay!
-
+*Đơn giản. Hiệu quả. Kỷ luật.*
 ---
-Phát triển bởi OAK Group - PhongQK
-
+*Phát triển bởi OAK Group - Telegram @bupbupchot*
