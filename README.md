@@ -8,8 +8,9 @@
 2. **Hẹn giờ vào lệnh (Scheduled Orders)**: Bạn không cần ngồi canh biểu đồ. Chỉ cần nhắn tin "Mua Vàng 0.1 lúc 19:30", Robot sẽ tự động thực hiện.
 3. **Quản lý lệnh bằng Chat (Telegram Remote)**: Điều khiển hàng chục tài khoản chỉ bằng tin nhắn Telegram đơn giản.
 4. **Chốt lời từng phần (Auto Partial Close)**: Tự động cắt bớt volume khi lệnh đạt mức lợi nhuận mong muốn. Hỗ trợ cú pháp tiếng Việt linh hoạt ("lụm", "bỏ túi",...).
-5. **Hòa vốn tự động (Auto BE)**: Tự động dời SL về điểm vào lệnh khi lệnh đang có lãi.
-6. **Set SL/TP theo Giá**: Cơ chế mới luôn sử dụng mức giá cụ thể (Price Level) để chính xác tuyệt đối.
+5. **Ghost Operator (Mới)**: Tự động giả lập thao tác tay khi sàn chặn Algo Trading, giúp che giấu Robot 100%.
+6. **Full Localization (Mới)**: Hỗ trợ chuyển đổi ngôn ngữ VN/EN cho toàn bộ Tin tức và Lịch trình nhắc nhở.
+7. **Set SL/TP theo Giá**: Cơ chế mới luôn sử dụng mức giá cụ thể (Price Level) để chính xác tuyệt đối.
 
 ## 🛠️ Cú pháp cơ bản cho người mới
 - **Hẹn giờ**: "Mua/Bán [Cặp tiền] [Lot] lúc [Giờ:Phút]"
@@ -27,6 +28,7 @@
 ## ⚠️ Lưu ý quan trọng
 - **Algo Trading**: Phải bật nút "Allow automated trading" trên MT5.
 - **Python API**: Phải tắt tùy chọn "Disable algorithmic trading via external Python API" trong MT5 Options.
+- **Ghost Mode**: Cần cài đặt thư viện `pywinauto` (đã đi kèm trong bộ cài) để kích hoạt tính năng giả lập thao tác tay.
 
 *Đơn giản. Hiệu quả. Kỷ luật.*
 ---
