@@ -1,4 +1,4 @@
-# 🚀 OAK HIDDEN MANAGER (v2.9.0) - TRỢ LÝ TRADING ĐƠN GIẢN
+# 🚀 OAK HIDDEN MANAGER (v3.0.0) - TRỢ LÝ TRADING ĐƠN GIẢN
 
 ## 🌟 Nó là gì?
 Đây là Robot quản lý lệnh (MT5) giúp bạn tự động hóa giao dịch một cách đơn giản nhất thông qua Telegram.
