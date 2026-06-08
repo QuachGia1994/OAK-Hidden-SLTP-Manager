@@ -1,0 +1,17 @@
+{
+  "Vantage": {
+    "path": "C:\\\\Path\\\\To\\\\Your\\\\MT5\\\\terminal64.exe",
+    "magic": -1,
+    "tele_token": "YOUR_TELEGRAM_BOT_TOKEN",
+    "tele_chat": "YOUR_CHAT_ID",
+    "tele_admin": "",
+    "visible_sltp": false,
+    "partial_r": "2,3",
+    "partial_pct": "50,30",
+    "auto_be": "1.0",
+    "sl": 0,
+    "tp": 0,
+    "gold_sl": 0,
+    "gold_tp": 0
+  }
+}
