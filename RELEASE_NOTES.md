@@ -18,6 +18,7 @@
 ### <c=#FF9800>🛠️</c> Hotfix - 2026-06-08
 - Cập nhật hệ thống nhắc nhở: bỏ toàn bộ nhắc theo lịch từng thứ trong ngày, chuyển sang “Rule Reminders” gửi 06:00 theo các điều kiện ngày/tháng.
 - Đồng bộ lại tài liệu (README/GUIDE) theo đúng các lệnh Telegram và tính năng đang có trong code.
+- Nâng cấp Scheduled Entry cho `XAUUSD/GOLD`: dùng `Open M5` để đặt Limit theo chiều đã hẹn, có giờ fallback riêng theo mùa, tự anti-hedge và tự đổi `xx:00 -> xx:05` để khớp nến M5.
 
 ---
 ## <c=#4CAF50>[v2.5.0]</c> - 2026-03-15

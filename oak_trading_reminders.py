@@ -562,18 +562,13 @@ def get_rule_reminders(now, lang="VN"):
     weekday = now.weekday()  # 0=Mon..6=Sun
 
     out = []
-    def _ordinal(n):
-        if 10 <= (n % 100) <= 20:
-            suffix = "th"
-        else:
-            suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-        return f"{n}{suffix}"
 
-    if month in [12, 1]:
-        if lang == "VN":
-            out.append("• Tháng 12/1: bật chế độ theo dõi Trend Năm mỗi ngày.")
-        else:
-            out.append("• Dec/Jan: enable daily Yearly Trend tracking mode.")
+    def _get_last_weekday(year, month, weekday_idx):
+        c = calendar.monthcalendar(year, month)
+        last_week = c[-1]
+        if last_week[weekday_idx] != 0:
+            return last_week[weekday_idx]
+        return c[-2][weekday_idx]
 
     if weekday == 2 and day in [30, 1]:
         if lang == "VN":
@@ -581,11 +576,23 @@ def get_rule_reminders(now, lang="VN"):
         else:
             out.append("• Today is Wednesday, day 30/1.")
 
+    if weekday == 2 and day == _get_last_weekday(year, month, calendar.WEDNESDAY):
+        if lang == "VN":
+            out.append("• Hôm nay là Thứ 4 cuối tháng.")
+        else:
+            out.append("• Today is the last Wednesday of the month.")
+
     if weekday == 4 and day in [3, 4, 7]:
         if lang == "VN":
             out.append("• Hôm nay Thứ 6 ngày 3/4/7.")
         else:
             out.append("• Today is Friday, day 3/4/7.")
+
+    if weekday == 4 and day == get_last_friday(year, month):
+        if lang == "VN":
+            out.append("• Hôm nay là Thứ 6 cuối tháng.")
+        else:
+            out.append("• Today is the last Friday of the month.")
 
     if weekday == 3 and month == 7:
         if day == get_last_thursday(year, 7):
@@ -594,17 +601,13 @@ def get_rule_reminders(now, lang="VN"):
             else:
                 out.append("• Today is the last Thursday of July: calculate Yearly Trend.")
 
-    if weekday == 4:
-        fridays = [d for d in range(1, calendar.monthrange(year, month)[1] + 1) if calendar.weekday(year, month, d) == 4]
-        try:
-            idx = fridays.index(day) + 1
-        except ValueError:
-            idx = None
-        if idx in [3, 4, 5]:
+    if weekday == 0:
+        prev_friday = now - timedelta(days=3)
+        if prev_friday.weekday() == 4 and prev_friday.day in [3, 4, 7]:
             if lang == "VN":
-                out.append(f"• Hôm nay Thứ 6 tuần {idx} của tháng.")
+                out.append("• Hôm nay Thứ 2: Thứ 6 trước đó rơi vào ngày 3/4/7.")
             else:
-                out.append(f"• Today is the {_ordinal(idx)} Friday of the month.")
+                out.append("• Today is Monday: the previous Friday fell on day 3/4/7.")
 
     return out
 

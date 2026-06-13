@@ -17,8 +17,20 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - `Close all`: Đóng tất cả các lệnh trên tất cả các sàn đang giám sát.
 
 ### 3. Hẹn giờ vào lệnh (Scheduled Entry)
-- `Mua Vàng 0.1 lúc 19:30`: Robot sẽ tự động đặt lệnh BUY 0.1 lot Vàng đúng 19:30:00.
+- `Mua Vàng 0.1 lúc 19:30`: Robot sẽ hẹn giờ cho lệnh BUY 0.1 lot Vàng.
 - `Sell GBPUSD 0.05 lúc 20:00`: Hẹn giờ lệnh bán.
+- Riêng `XAUUSD/GOLD`, nếu bạn nhập giờ tròn như `19:00` thì hệ thống tự lưu thành `19:05` để lấy đúng nến `M5`.
+- Đến giờ trigger, bot lấy `Open M5` làm mốc:
+  - `BUY`: đặt `Buy Limit = Open M5 - offset`
+  - `SELL`: đặt `Sell Limit = Open M5 + offset`
+- Nếu Limit chưa khớp tới giờ fallback, bot sẽ:
+  - hủy pending chưa khớp
+  - vào `Market` đúng chiều đã hẹn
+  - đóng/xóa chiều ngược lại để tránh hedge
+- Mốc đặc biệt cho vàng:
+  - Mùa đông `20:05`, `21:05`, `22:05` dùng `offset 15.0`
+  - Mùa hè `19:05`, `20:05`, `21:05` dùng `offset 15.0`
+  - Các giờ vàng khác mặc định dùng `offset 10.0`
 
 ---
 
@@ -54,4 +66,4 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - `/closeallpending`: Xóa toàn bộ lệnh chờ.
 
 ---
-*Mẹo: Bạn có thể gửi nhiều lệnh trong 1 tin nhắn (mỗi dòng 1 lệnh).*
+*Mẹo: Bạn có thể gửi nhiều lệnh trong 1 tin nhắn (mỗi dòng 1 lệnh). Với vàng, Telegram sẽ báo rõ Giờ hẹn, Trigger M5, M5 Open, Limit và Fallback Market.*
