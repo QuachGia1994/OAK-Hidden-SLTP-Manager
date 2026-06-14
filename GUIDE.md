@@ -22,23 +22,32 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - Riêng `XAUUSD/GOLD`, nếu bạn nhập giờ tròn như `19:00` thì hệ thống tự lưu thành `19:05` để lấy đúng nến `M5`.
 - Giờ bạn nhập là giờ local của máy; bot tự quy đổi sang giờ market `GMT+3/GMT+2` để match các mốc nội bộ.
 - Có 2 kiểu mốc cho vàng:
--  - `2 đầu limit`: đặt đồng thời `Buy Limit = M5 Open - offset` và `Sell Limit = M5 Open + offset`
--  - `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã nhập
+  - `2 đầu limit`: đặt đồng thời `Buy Limit = M5 Open - offset` và `Sell Limit = M5 Open + offset`
+  - `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã nhập
 - Khi một đầu limit khớp:
--  - bot xóa ngay pending còn lại
--  - bot đóng luôn position chiều ngược lại nếu có
+  - bot xóa ngay pending còn lại
+  - bot đóng luôn position chiều ngược lại nếu có
 - Khi tới fallback:
--  - một số mốc dùng `M30 lùi dần` để chọn chiều `Market`
--  - một số mốc dùng chính `bias` bạn đã hẹn
+  - một số mốc dùng `M30 lùi dần` để chọn chiều `Market`
+  - một số mốc dùng chính `bias` bạn đã hẹn
+- Với các mốc `M30 lùi dần`, hệ thống luôn neo từ nến `xx:30` gần nhất rồi mới lùi tiếp nếu gặp doji/không rõ.
 - Nếu giờ local quy đổi không rơi đúng mốc hỗ trợ, bot sẽ báo thiếu dữ liệu hoặc có thể bạn đã nhập sai múi giờ.
 - Bộ mốc cuối cùng cho vàng:
--  - `03:05` market: `2 đầu`, `offset 10.0`, fallback `04:05`, market theo `M30 lùi dần`
--  - `07:05` market: `2 đầu`, `offset 10.0`, fallback `08:05`, market theo `M30 lùi dần`, không áp dụng `thứ 3/4`
--  - `12:05` market: `2 đầu`, `offset 10.0`, fallback `14:35`, market theo `M30 lùi dần`
--  - `15:05` market: `2 đầu`, `offset 20.0`, fallback `17:35`, market theo `M30 lùi dần`
--  - `18:05` market: `bias-only`, `offset 10.0`, fallback `18:35`, market theo `bias`, không áp dụng `thứ 3/4`
--  - `20:05` market: `bias-only`, `offset 10.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
--  - `21:05` market: `2 đầu`, `offset 10.0`; `BUY -> 23:05`, `SELL -> 02:05` ngày market kế tiếp; cuối thứ 6 dời sang `02:05 thứ 2`; market theo `M30 lùi dần`
+  - `03:05` market: `2 đầu`, `offset 8.0`, fallback `04:05`, market theo `M30 lùi dần`, riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
+  - `07:05` market: `2 đầu`, `offset 8.0`, fallback `08:05`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 2/5/6`
+  - `12:05` market: `2 đầu`, `offset 8.0`, fallback `14:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
+  - `15:05` market: `2 đầu`, `offset 18.0`, fallback `17:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
+  - `18:05` market: `bias-only`, `offset 8.0`, fallback `18:35`, market theo `bias`, chỉ áp dụng `thứ 2/5/6`
+  - `20:05` market: `bias-only`, `offset 8.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
+  - `21:05` market: `2 đầu`, `offset 8.0`; `BUY -> 23:05`, `SELL -> 02:05` ngày market kế tiếp; cuối thứ 6 dời sang `02:05 thứ 2`; market theo `M30 lùi dần`; không áp dụng `thứ 2/3/4/5`
+
+### 4. Ngày đặc biệt nhắc nhở
+- `Thứ 4` rơi vào ngày `30` hoặc `1`
+- `Thứ 4 cuối tháng`
+- `Thứ 6` rơi vào ngày `3`, `4`, `7`
+- `Thứ 6 cuối tháng`
+- `Thứ 5 cuối cùng của tháng 7` để tính `Trend Năm`
+- `Thứ 2` nếu `Thứ 6` trước đó rơi vào ngày `3/4/7` hoặc `Thứ 4` trước đó rơi vào ngày `30/1`
 
 ---
 

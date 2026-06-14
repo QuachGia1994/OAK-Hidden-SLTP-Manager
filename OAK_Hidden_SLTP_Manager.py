@@ -473,15 +473,24 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - Khi tới fallback:
   - một số mốc dùng `M30 lùi dần` để chọn chiều Market
   - một số mốc dùng chính `bias` đã hẹn
+- Với các mốc `M30 lùi dần`, hệ thống luôn neo từ nến `xx:30` gần nhất rồi mới lùi tiếp nếu gặp doji/không rõ.
 - Nếu giờ local không khớp mốc nội bộ hỗ trợ, bot sẽ báo khả năng sai múi giờ hoặc mốc không hợp lệ.
 - Bộ mốc cuối cùng cho vàng:
-  - `03:05`: `2 đầu`, `offset 10.0`, fallback `04:05`, Market theo `M30 lùi dần`
-  - `07:05`: `2 đầu`, `offset 10.0`, fallback `08:05`, Market theo `M30 lùi dần`, không áp dụng `thứ 3/4`
-  - `12:05`: `2 đầu`, `offset 10.0`, fallback `14:35`, Market theo `M30 lùi dần`
-  - `15:05`: `2 đầu`, `offset 20.0`, fallback `17:35`, Market theo `M30 lùi dần`
-  - `18:05`: `bias-only`, `offset 10.0`, fallback `18:35`, Market theo `bias`, không áp dụng `thứ 3/4`
-  - `20:05`: `bias-only`, `offset 10.0`, fallback `20:35`, Market theo `bias`, chỉ áp dụng `thứ 3/4`
-  - `21:05`: `2 đầu`, `offset 10.0`; `BUY -> 23:05`, `SELL -> 02:05` ngày market kế tiếp; cuối thứ 6 dời sang `02:05 thứ 2`; Market theo `M30 lùi dần`
+  - `03:05`: `2 đầu`, `offset 8.0`, fallback `04:05`, Market theo `M30 lùi dần`, riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
+  - `07:05`: `2 đầu`, `offset 8.0`, fallback `08:05`, Market theo `M30 lùi dần`, chỉ áp dụng `thứ 2/5/6`
+  - `12:05`: `2 đầu`, `offset 8.0`, fallback `14:35`, Market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
+  - `15:05`: `2 đầu`, `offset 18.0`, fallback `17:35`, Market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
+  - `18:05`: `bias-only`, `offset 8.0`, fallback `18:35`, Market theo `bias`, chỉ áp dụng `thứ 2/5/6`
+  - `20:05`: `bias-only`, `offset 8.0`, fallback `20:35`, Market theo `bias`, chỉ áp dụng `thứ 3/4`
+  - `21:05`: `2 đầu`, `offset 8.0`; `BUY -> 23:05`, `SELL -> 02:05` ngày market kế tiếp; cuối thứ 6 dời sang `02:05 thứ 2`; Market theo `M30 lùi dần`; không áp dụng `thứ 2/3/4/5`
+
+### <c=#FF9800>4.</c> Ngày đặc biệt nhắc nhở
+- `Thứ 4` rơi vào ngày `30` hoặc `1`
+- `Thứ 4 cuối tháng`
+- `Thứ 6` rơi vào ngày `3`, `4`, `7`
+- `Thứ 6 cuối tháng`
+- `Thứ 5 cuối cùng của tháng 7` để tính `Trend Năm`
+- `Thứ 2` nếu `Thứ 6` trước đó rơi vào ngày `3/4/7` hoặc `Thứ 4` trước đó rơi vào ngày `30/1`
 
 ---
 
@@ -2807,13 +2816,13 @@ class CopyTradeManager:
 
     def _get_gold_market_rules(self):
         return [
-            {"trigger": (3, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (4, 5, 0), "fallback_sell": (4, 5, 0)},
-            {"trigger": (7, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (8, 5, 0), "fallback_sell": (8, 5, 0), "blocked_weekdays": [1, 2]},
-            {"trigger": (12, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (14, 35, 0), "fallback_sell": (14, 35, 0)},
-            {"trigger": (15, 5), "offset": 20.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (17, 35, 0), "fallback_sell": (17, 35, 0)},
-            {"trigger": (18, 5), "offset": 10.0, "fallback_mode": "same_direction", "placement_mode": "bias_only", "fallback_buy": (18, 35, 0), "fallback_sell": (18, 35, 0), "blocked_weekdays": [1, 2]},
-            {"trigger": (20, 5), "offset": 10.0, "fallback_mode": "same_direction", "placement_mode": "bias_only", "fallback_buy": (20, 35, 0), "fallback_sell": (20, 35, 0), "allowed_weekdays": [1, 2]},
-            {"trigger": (21, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (23, 5, 0), "fallback_sell": (2, 5, 1), "carry_weekend_to_monday": True},
+            {"trigger": (3, 5), "offset": 8.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (4, 5, 0), "fallback_sell": (4, 5, 0), "note_weekdays": [1, 2], "special_note": "Thứ 3/4 dễ sideway, cần check kỹ thêm."},
+            {"trigger": (7, 5), "offset": 8.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (8, 5, 0), "fallback_sell": (8, 5, 0), "allowed_weekdays": [0, 3, 4]},
+            {"trigger": (12, 5), "offset": 8.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (14, 35, 0), "fallback_sell": (14, 35, 0), "allowed_weekdays": [1, 2, 3, 4]},
+            {"trigger": (15, 5), "offset": 18.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (17, 35, 0), "fallback_sell": (17, 35, 0), "allowed_weekdays": [1, 2, 3, 4]},
+            {"trigger": (18, 5), "offset": 8.0, "fallback_mode": "same_direction", "placement_mode": "bias_only", "fallback_buy": (18, 35, 0), "fallback_sell": (18, 35, 0), "allowed_weekdays": [0, 3, 4]},
+            {"trigger": (20, 5), "offset": 8.0, "fallback_mode": "same_direction", "placement_mode": "bias_only", "fallback_buy": (20, 35, 0), "fallback_sell": (20, 35, 0), "allowed_weekdays": [1, 2]},
+            {"trigger": (21, 5), "offset": 8.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (23, 5, 0), "fallback_sell": (2, 5, 1), "carry_weekend_to_monday": True, "blocked_weekdays": [0, 1, 2, 3]},
         ]
 
     def _validate_gold_schedule_time(self, symbol, trade_dt, bias_order_type):
@@ -2899,6 +2908,7 @@ class CopyTradeManager:
                 "rule_source": "market",
                 "rule_market_trigger": market_trigger_dt.strftime("%H:%M"),
                 "rule_bias": bias_key.upper(),
+                "special_note": rule.get("special_note", "") if market_weekday in rule.get("note_weekdays", []) else "",
             }
         return None
 
@@ -2963,6 +2973,8 @@ class CopyTradeManager:
             lines.append(f"• Market Price: {market_price}")
         if trade.get("fallback_basis"):
             lines.append(f"• Fallback Rule: {trade.get('fallback_basis')}")
+        if trade.get("special_note"):
+            lines.append(f"• Lưu ý: {trade.get('special_note')}")
         lines.append("• Anti-Hedge: tự đóng/xóa chiều ngược lại")
         return "\n".join(lines)
 
@@ -3195,6 +3207,7 @@ class CopyTradeManager:
             trade["m5_open"] = m5_open
             trade["trigger_time"] = trigger_dt.strftime("%H:%M:%S")
             trade["limit_offset"] = plan["offset"]
+            trade["special_note"] = plan.get("special_note", "")
             trade["buy_limit_price"] = buy_limit_price
             trade["sell_limit_price"] = sell_limit_price
             trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
@@ -3209,6 +3222,7 @@ class CopyTradeManager:
             trade["m5_open"] = m5_open
             trade["trigger_time"] = trigger_dt.strftime("%H:%M:%S")
             trade["limit_offset"] = plan["offset"]
+            trade["special_note"] = plan.get("special_note", "")
             trade["buy_limit_price"] = buy_limit_price
             trade["sell_limit_price"] = sell_limit_price
             trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
@@ -3273,6 +3287,7 @@ class CopyTradeManager:
                 trade["m5_open"] = m5_open
                 trade["trigger_time"] = trigger_dt.strftime("%H:%M:%S")
                 trade["limit_offset"] = plan["offset"]
+                trade["special_note"] = plan.get("special_note", "")
                 trade["fallback_basis"] = ""
                 trade["preexisting_tickets"] = []
                 detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, fallback_dt=plan["fallback_dt"])
@@ -3300,6 +3315,7 @@ class CopyTradeManager:
             trade["buy_limit_price"] = buy_limit_price
             trade["sell_limit_price"] = sell_limit_price
             trade["limit_offset"] = plan["offset"]
+            trade["special_note"] = plan.get("special_note", "")
             trade["fallback_basis"] = ""
             trade["preexisting_tickets"] = []
             detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, fallback_dt=plan["fallback_dt"])
@@ -3320,8 +3336,17 @@ class CopyTradeManager:
             mt5.symbol_select(symbol, True)
         except:
             pass
-        lookup_dt = ref_dt - timedelta(seconds=1)
-        rates = mt5.copy_rates_from(symbol, mt5.TIMEFRAME_M30, lookup_dt, 48)
+
+        # Use the :30 anchor consistently for all fallback checks.
+        # Examples:
+        # - 04:05 => start from 03:30
+        # - 18:35 => start from 18:30
+        if ref_dt.minute < 30:
+            anchor_dt = (ref_dt - timedelta(hours=1)).replace(minute=30, second=0, microsecond=0)
+        else:
+            anchor_dt = ref_dt.replace(minute=30, second=0, microsecond=0)
+
+        rates = mt5.copy_rates_from(symbol, mt5.TIMEFRAME_M30, anchor_dt, 48)
         if rates is None or len(rates) == 0:
             return default_order_type, "Prev M30 unavailable -> giữ chiều gốc"
 
@@ -3338,11 +3363,11 @@ class CopyTradeManager:
                     continue
 
             if candle_close < candle_open:
-                return mt5.ORDER_TYPE_BUY, f"M30 lùi {back_idx} nến: đỏ ({candle_open} -> {candle_close}) => BUY"
+                return mt5.ORDER_TYPE_BUY, f"M30 lùi {back_idx} nến từ {anchor_dt.strftime('%H:%M')}: đỏ ({candle_open} -> {candle_close}) => BUY"
             if candle_close > candle_open:
-                return mt5.ORDER_TYPE_SELL, f"M30 lùi {back_idx} nến: xanh ({candle_open} -> {candle_close}) => SELL"
+                return mt5.ORDER_TYPE_SELL, f"M30 lùi {back_idx} nến từ {anchor_dt.strftime('%H:%M')}: xanh ({candle_open} -> {candle_close}) => SELL"
 
-        return default_order_type, "Các nến M30 gần nhất đều doji/không rõ -> giữ chiều gốc"
+        return default_order_type, f"Các nến M30 từ {anchor_dt.strftime('%H:%M')} lùi về đều doji/không rõ -> giữ chiều gốc"
 
     def _process_gold_scheduled_trade(self, trade, trade_full_dt, trigger_dt, now_dt):
         status = trade.get("status", "waiting")

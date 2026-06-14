@@ -603,11 +603,12 @@ def get_rule_reminders(now, lang="VN"):
 
     if weekday == 0:
         prev_friday = now - timedelta(days=3)
-        if prev_friday.weekday() == 4 and prev_friday.day in [3, 4, 7]:
+        prev_wednesday = now - timedelta(days=5)
+        if (prev_friday.weekday() == 4 and prev_friday.day in [3, 4, 7]) or (prev_wednesday.weekday() == 2 and prev_wednesday.day in [30, 1]):
             if lang == "VN":
-                out.append("• Hôm nay Thứ 2: Thứ 6 trước đó rơi vào ngày 3/4/7.")
+                out.append("• Hôm nay Thứ 2: Thứ 6 trước đó rơi vào ngày 3/4/7 hoặc Thứ 4 trước đó rơi vào ngày 30/1.")
             else:
-                out.append("• Today is Monday: the previous Friday fell on day 3/4/7.")
+                out.append("• Today is Monday: the previous Friday fell on day 3/4/7 or the previous Wednesday fell on day 30/1.")
 
     return out
 

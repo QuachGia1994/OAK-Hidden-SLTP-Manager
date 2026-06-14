@@ -16,15 +16,13 @@ Tài liệu chi tiết:
 - Scheduled Entry: hẹn giờ vào lệnh BUY/SELL theo thời gian (tự dời sang ngày mai nếu giờ đã qua, bỏ weekend).
 - Scheduled Gold Mode:
   - Riêng `XAUUSD/GOLD`, nếu hẹn `xx:00` thì hệ thống tự đổi sang `xx:05` để bám đúng nến `M5`.
--  - Giờ nhập trên Telegram/UI là giờ local của máy chạy bot; hệ thống tự quy đổi nội bộ sang giờ market `GMT+3` mùa hè và `GMT+2` mùa đông.
--  - Tùy mốc giờ, bot sẽ chạy theo `2 đầu limit` hoặc `1 đầu theo bias`.
--  - Mode `2 đầu limit`: đặt đồng thời `Buy Limit = M5 Open - offset` và `Sell Limit = M5 Open + offset`.
--  - Một đầu khớp trước thì bot xóa pending còn lại ngay và đóng luôn position chiều ngược lại để tránh hedge.
--  - Mode `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã hẹn; nếu thiếu bias thì bot báo lỗi dữ liệu.
--  - Khi tới fallback:
--    - một số mốc dùng `M30 lùi dần` để chọn chiều market
--    - một số mốc dùng chính `bias` đã hẹn
--  - Nếu giờ local quy đổi không khớp mốc nội bộ hỗ trợ, bot sẽ báo khả năng sai múi giờ hoặc mốc không hợp lệ.
+  - Giờ nhập trên Telegram/UI là giờ local của máy chạy bot; hệ thống tự quy đổi nội bộ sang giờ market `GMT+3` mùa hè và `GMT+2` mùa đông.
+  - Tùy mốc giờ, bot sẽ chạy theo `2 đầu limit` hoặc `1 đầu theo bias`.
+  - Mode `2 đầu limit`: đặt đồng thời `Buy Limit = M5 Open - offset` và `Sell Limit = M5 Open + offset`.
+  - Một đầu khớp trước thì bot xóa pending còn lại ngay và đóng luôn position chiều ngược lại để tránh hedge.
+  - Mode `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã hẹn; nếu thiếu bias thì bot báo lỗi dữ liệu.
+  - Khi tới fallback, các mốc `M30 lùi dần` đều neo từ nến `xx:30` gần nhất rồi lùi tiếp nếu gặp doji/không rõ.
+  - Nếu giờ local quy đổi không khớp mốc nội bộ hỗ trợ, bot sẽ báo khả năng sai múi giờ hoặc mốc không hợp lệ.
 - Telegram NLP:
   - Hẹn giờ vào lệnh bằng câu tự nhiên (vd: “Mua Vàng 0.1 lúc 19:30”).
   - Close all theo điều kiện (vd: “Đóng các lệnh lời lúc 20:00”, “Close all sym=XAUUSD”).
@@ -35,6 +33,14 @@ Tài liệu chi tiết:
 - Rule Reminders 06:00: gửi 1 tin nhắn checklist theo rule ngày/tháng (không còn nhắc theo lịch từng thứ trong ngày).
 - Multi-profile: 1 app quản lý nhiều terminal/account.
 - Session persistence: tự lưu trạng thái lệnh hẹn giờ để phục hồi sau restart.
+
+## Ngày đặc biệt nhắc nhở
+- `Thứ 4` rơi vào ngày `30` hoặc `1`
+- `Thứ 4 cuối tháng`
+- `Thứ 6` rơi vào ngày `3`, `4`, `7`
+- `Thứ 6 cuối tháng`
+- `Thứ 5 cuối cùng của tháng 7` để tính `Trend Năm`
+- `Thứ 2` nếu `Thứ 6` trước đó rơi vào ngày `3/4/7` hoặc `Thứ 4` trước đó rơi vào ngày `30/1`
 
 ## Yêu cầu
 - Windows (MT5 + pywinauto).
@@ -68,17 +74,14 @@ Các lệnh được parse theo dạng dòng đơn hoặc nhiều dòng (mỗi d
 - `/help`
 
 ## Logic vàng hẹn giờ
-- `03:05` market: `2 đầu limit`, `offset 10.0`, fallback `04:05`, market theo `M30 lùi dần`
-- `07:05` market: `2 đầu limit`, `offset 10.0`, fallback `08:05`, market theo `M30 lùi dần`, không áp dụng `thứ 3/4`
-- `12:05` market: `2 đầu limit`, `offset 10.0`, fallback `14:35`, market theo `M30 lùi dần`
-- `15:05` market: `2 đầu limit`, `offset 20.0`, fallback `17:35`, market theo `M30 lùi dần`
-- `18:05` market: `bias-only`, `offset 10.0`, fallback `18:35`, market theo `bias`, không áp dụng `thứ 3/4`
-- `20:05` market: `bias-only`, `offset 10.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
-- `21:05` market:
--  - `BUY bias -> fallback 23:05`
--  - `SELL bias -> fallback 02:05` ngày market kế tiếp
--  - cuối thứ 6 dời sang `02:05 thứ 2` theo giờ market
--  - `2 đầu limit`, `offset 10.0`, market theo `M30 lùi dần`
+- `03:05` market: `2 đầu limit`, `offset 8.0`, fallback `04:05`, market theo `M30 lùi dần`, riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
+- `07:05` market: `2 đầu limit`, `offset 8.0`, fallback `08:05`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 2/5/6`
+- `12:05` market: `2 đầu limit`, `offset 8.0`, fallback `14:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
+- `15:05` market: `2 đầu limit`, `offset 18.0`, fallback `17:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
+- `18:05` market: `bias-only`, `offset 8.0`, fallback `18:35`, market theo `bias`, chỉ áp dụng `thứ 2/5/6`
+- `20:05` market: `bias-only`, `offset 8.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
+- `21:05` market: `2 đầu limit`, `offset 8.0`; `BUY bias -> fallback 23:05`; `SELL bias -> fallback 02:05` ngày market kế tiếp; cuối thứ 6 dời sang `02:05 thứ 2` theo giờ market; market theo `M30 lùi dần`; không áp dụng `thứ 2/3/4/5`
+- Các mốc fallback kiểu `M30 lùi dần` đều dùng anchor `xx:30` gần nhất trước khi lùi tiếp.
 - Telegram notify cho vàng hiển thị rõ: `Giờ hẹn`, `Trigger M5`, `M5 Open`, `Buy Limit`, `Sell Limit`, `Fallback Market`, `Fallback Rule`, `Anti-Hedge`.
 
 ## Cấu hình & file dữ liệu
