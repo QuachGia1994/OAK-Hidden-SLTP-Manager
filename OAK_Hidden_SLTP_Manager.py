@@ -484,7 +484,7 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
   - `15:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; fallback `16:35` theo `M30 lùi dần`; chỉ áp dụng `thứ 3/4/5/6`
   - `18:05`: `bias-only`, `offset 15.0`, fallback `18:35`, Market theo `bias`, chỉ áp dụng `thứ 2/5/6`
   - `20:05`: `bias-only`, `offset 15.0`, fallback `20:35`, Market theo `bias`, chỉ áp dụng `thứ 3/4`
-  - `21:05`: `bias-only`, `BUY -> offset 25.0` rồi re-arm `22:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0` rồi re-arm `22:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 01:35`; chỉ áp dụng `thứ 6`
+  - `22:05`: `bias-only`, `BUY -> offset 25.0` rồi re-arm `23:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0` rồi re-arm `23:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 02:35`; chỉ áp dụng `thứ 6`
 
 ### <c=#FF9800>4.</c> Ngày đặc biệt nhắc nhở
 - `Thứ 4` rơi vào ngày `30` hoặc `1`
@@ -2901,16 +2901,16 @@ class CopyTradeManager:
                 "allowed_weekdays": [1, 2],
             },
             {
-                "trigger": (21, 5),
+                "trigger": (22, 5),
                 "stages": [
-                    {"trigger": (21, 5, 0), "offset": 25.0},
-                    {"trigger": (22, 5, 0), "offset": 15.0},
+                    {"trigger": (22, 5, 0), "offset": 25.0},
+                    {"trigger": (23, 5, 0), "offset": 15.0},
                 ],
                 "placement_mode": "bias_only",
                 "fallback_mode_buy": "m30_reverse",
                 "fallback_mode_sell": "same_direction",
                 "fallback_buy": (23, 35, 0),
-                "fallback_sell": (1, 35, 1),
+                "fallback_sell": (2, 35, 1),
                 "cancel_sell": (23, 35, 0),
                 "carry_weekend_to_monday_sell": True,
                 "allowed_weekdays": [4],

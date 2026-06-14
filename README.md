@@ -82,7 +82,7 @@ Các lệnh được parse theo dạng dòng đơn hoặc nhiều dòng (mỗi d
 - `15:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; fallback `16:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
 - `18:05` market: `bias-only`, `offset 15.0`, fallback `18:35`, market theo `bias`, chỉ áp dụng `thứ 2/5/6`
 - `20:05` market: `bias-only`, `offset 15.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
-- `21:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `22:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0`, re-arm `22:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 01:35`; chỉ áp dụng `thứ 6`
+- `22:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `23:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0`, re-arm `23:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 02:35`; chỉ áp dụng `thứ 6`
 - Các mốc fallback kiểu `M30 lùi dần` đều dùng anchor `xx:30` gần nhất trước khi lùi tiếp.
 - Telegram notify cho vàng hiển thị rõ: `Giờ hẹn`, `Trigger M5`, `M5 Open`, `Buy Limit`, `Sell Limit`, `Fallback Market`, `Fallback Rule`, `Anti-Hedge`.
 

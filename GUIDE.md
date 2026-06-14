@@ -41,7 +41,7 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
   - `15:05` market: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; fallback `16:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
   - `18:05` market: `bias-only`, `offset 15.0`, fallback `18:35`, market theo `bias`, chỉ áp dụng `thứ 2/5/6`
   - `20:05` market: `bias-only`, `offset 15.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
-  - `21:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `22:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0`, re-arm `22:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 01:35`; chỉ áp dụng `thứ 6`
+  - `22:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `23:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0`, re-arm `23:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 02:35`; chỉ áp dụng `thứ 6`
 
 ### 4. Ngày đặc biệt nhắc nhở
 - `Thứ 4` rơi vào ngày `30` hoặc `1`
