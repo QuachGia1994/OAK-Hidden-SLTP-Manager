@@ -18,8 +18,11 @@
 ### <c=#FF9800>🛠️</c> Hotfix - 2026-06-08
 - Cập nhật hệ thống nhắc nhở: bỏ toàn bộ nhắc theo lịch từng thứ trong ngày, chuyển sang “Rule Reminders” gửi 06:00 theo các điều kiện ngày/tháng.
 - Đồng bộ lại tài liệu (README/GUIDE) theo đúng các lệnh Telegram và tính năng đang có trong code.
-- Nâng cấp Scheduled Entry cho `XAUUSD/GOLD`: dùng `Open M5` để đặt Limit theo chiều đã hẹn, có giờ fallback riêng theo mùa, tự anti-hedge và tự đổi `xx:00 -> xx:05` để khớp nến M5.
-- Chốt bộ rule vàng mới nhất: offset `8.0/18.0`, fallback `M30` luôn neo từ nến `xx:30`, `03:05` có note sideway cho `thứ 3/4`, và `21:05` không áp dụng `thứ 2/3/4/5`.
+- Nâng cấp Scheduled Entry cho `XAUUSD/GOLD` sang `2-stage limit`: Stage 1 đặt lúc `xx:05` với `offset 25.0`, chưa khớp thì bot xóa limit cũ, re-arm Stage 2 với `offset 15.0`, vẫn giữ anti-hedge như cũ.
+- Chốt bộ mốc vàng mới nhất theo market time: `02:05 -> 03:05 -> 03:30`, `06:05 -> 07:05 -> 07:30`, `09:05 -> 10:05 -> 10:30`, `12:05 -> 13:05 -> 13:30`, `15:05 -> 16:05 -> 17:30`, `18:05 -> fallback 18:30`, `20:05 -> fallback 20:30`, `22:05 -> 23:05 -> 23:30`.
+- Thay lớp quyết định fallback từ `M30 reverse` sang `M15 decision`: tại mốc `xx:30`, bot đọc `M15 -1` để chọn chiều market theo quy ước `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` nếu cùng màu hoặc `xx:50` nếu ngược màu.
+- Hoàn thiện case đặc biệt `22:05 SELL`: vẫn khóa hướng và mốc execute tại `23:30`, nhưng nếu chưa khớp limit thì dời market sang `thứ 2 02:35/02:50` thay vì vào ngay tối thứ 6.
+- Bổ sung khả năng khôi phục Scheduled Gold sau restart cho cả các trạng thái `waiting`, `limit_pending`, `awaiting_fallback`, đồng thời thêm `Status Chi Tiết` và `Next Action` trên UI/Telegram để nhìn rõ bot đang ở Stage nào, chờ fallback hay đã khớp market.
 
 ---
 ## <c=#4CAF50>[v2.5.0]</c> - 2026-03-15
