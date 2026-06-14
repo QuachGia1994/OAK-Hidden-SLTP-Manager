@@ -75,15 +75,15 @@ Các lệnh được parse theo dạng dòng đơn hoặc nhiều dòng (mỗi d
 - `/help`
 
 ## Logic vàng hẹn giờ
-- `02:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `03:05 offset 15.0`; fallback `03:35`, market theo `M30 lùi dần`, riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
-- `06:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `07:05 offset 15.0`; fallback `07:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 2/5/6`
-- `09:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `10:05 offset 15.0`; fallback `10:35`, market theo `M30 lùi dần`
-- `12:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `13:05 offset 15.0`; fallback `13:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
-- `15:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; fallback `16:35`, market theo `M30 lùi dần`, chỉ áp dụng `thứ 3/4/5/6`
-- `18:05` market: `bias-only`, `offset 15.0`, fallback `18:35`, market theo `bias`, chỉ áp dụng `thứ 2/5/6`
-- `20:05` market: `bias-only`, `offset 15.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
-- `22:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `23:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0`, re-arm `23:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 02:35`; chỉ áp dụng `thứ 6`
-- Các mốc fallback kiểu `M30 lùi dần` đều dùng anchor `xx:30` gần nhất trước khi lùi tiếp.
+- `02:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `03:05 offset 15.0`; tới `03:30` bot đọc `M15 -1/-2`, rồi vào `03:35` nếu cùng màu hoặc `03:50` nếu ngược màu, riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
+- `06:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `07:05 offset 15.0`; tới `07:30` bot đọc `M15 -1/-2`, rồi vào `07:35` nếu cùng màu hoặc `07:50` nếu ngược màu, chỉ áp dụng `thứ 2/5/6`
+- `09:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `10:05 offset 15.0`; tới `10:30` bot đọc `M15 -1/-2`, rồi vào `10:35` nếu cùng màu hoặc `10:50` nếu ngược màu
+- `12:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `13:05 offset 15.0`; tới `13:30` bot đọc `M15 -1/-2`, rồi vào `13:35` nếu cùng màu hoặc `13:50` nếu ngược màu, chỉ áp dụng `thứ 3/4/5/6`
+- `15:05` market: `2 đầu limit`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; tới `17:30` bot đọc `M15 -1/-2`, rồi vào `17:35` nếu cùng màu hoặc `17:50` nếu ngược màu, chỉ áp dụng `thứ 3/4/5/6`
+- `18:05` market: `bias-only`, `offset 15.0`, fallback `18:30`, market theo `bias`, chỉ áp dụng `thứ 2/5/6`
+- `20:05` market: `bias-only`, `offset 15.0`, fallback `20:30`, market theo `bias`, chỉ áp dụng `thứ 3/4`
+- `22:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `23:05 offset 15.0`; tới `23:30` bot đọc `M15 -1/-2`, rồi vào `23:35` nếu cùng màu hoặc `23:50` nếu ngược màu; `SELL -> offset 25.0`, re-arm `23:05 offset 15.0`, nếu chưa khớp thì vẫn đọc `M15 -1/-2` tại `23:30` để chốt chiều và `:35/:50`, nhưng dời market sang `thứ 2 02:35/02:50`; chỉ áp dụng `thứ 6`
+- Với các mốc fallback theo `M15`, bot đọc `M15 -1` để chọn chiều market và phải xét đúng `open/close`: `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` hay `xx:50`.
 - Telegram notify cho vàng hiển thị rõ: `Giờ hẹn`, `Trigger M5`, `M5 Open`, `Buy Limit`, `Sell Limit`, `Fallback Market`, `Fallback Rule`, `Anti-Hedge`.
 
 ## Cấu hình & file dữ liệu

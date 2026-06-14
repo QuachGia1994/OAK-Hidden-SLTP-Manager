@@ -477,14 +477,15 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - Với các mốc `M30 lùi dần`, hệ thống luôn neo từ nến `xx:30` gần nhất rồi mới lùi tiếp nếu gặp doji/không rõ.
 - Nếu giờ local không khớp mốc nội bộ hỗ trợ, bot sẽ báo khả năng sai múi giờ hoặc mốc không hợp lệ.
 - Bộ mốc cuối cùng cho vàng:
-  - `02:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `03:05 offset 15.0`; fallback `03:35` theo `M30 lùi dần`; riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
-  - `06:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `07:05 offset 15.0`; fallback `07:35` theo `M30 lùi dần`; chỉ áp dụng `thứ 2/5/6`
-  - `09:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `10:05 offset 15.0`; fallback `10:35` theo `M30 lùi dần`
-  - `12:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `13:05 offset 15.0`; fallback `13:35` theo `M30 lùi dần`; chỉ áp dụng `thứ 3/4/5/6`
-  - `15:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; fallback `16:35` theo `M30 lùi dần`; chỉ áp dụng `thứ 3/4/5/6`
-  - `18:05`: `bias-only`, `offset 15.0`, fallback `18:35`, Market theo `bias`, chỉ áp dụng `thứ 2/5/6`
-  - `20:05`: `bias-only`, `offset 15.0`, fallback `20:35`, Market theo `bias`, chỉ áp dụng `thứ 3/4`
-  - `22:05`: `bias-only`, `BUY -> offset 25.0` rồi re-arm `23:05 offset 15.0`, fallback `23:35` theo `M30 lùi dần`; `SELL -> offset 25.0` rồi re-arm `23:05 offset 15.0`, nếu chưa khớp thì đóng limit và dời fallback sang `thứ 2 02:35`; chỉ áp dụng `thứ 6`
+  - `02:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `03:05 offset 15.0`; tới `03:30` bot đọc `M15 -1/-2`, rồi vào `03:35` nếu cùng màu hoặc `03:50` nếu ngược màu; riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
+  - `06:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `07:05 offset 15.0`; tới `07:30` bot đọc `M15 -1/-2`, rồi vào `07:35` nếu cùng màu hoặc `07:50` nếu ngược màu; chỉ áp dụng `thứ 2/5/6`
+  - `09:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `10:05 offset 15.0`; tới `10:30` bot đọc `M15 -1/-2`, rồi vào `10:35` nếu cùng màu hoặc `10:50` nếu ngược màu
+  - `12:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `13:05 offset 15.0`; tới `13:30` bot đọc `M15 -1/-2`, rồi vào `13:35` nếu cùng màu hoặc `13:50` nếu ngược màu; chỉ áp dụng `thứ 3/4/5/6`
+  - `15:05`: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; tới `17:30` bot đọc `M15 -1/-2`, rồi vào `17:35` nếu cùng màu hoặc `17:50` nếu ngược màu; chỉ áp dụng `thứ 3/4/5/6`
+  - `18:05`: `bias-only`, `offset 15.0`, fallback `18:30`, Market theo `bias`, chỉ áp dụng `thứ 2/5/6`
+  - `20:05`: `bias-only`, `offset 15.0`, fallback `20:30`, Market theo `bias`, chỉ áp dụng `thứ 3/4`
+  - `22:05`: `bias-only`, `BUY -> offset 25.0` rồi re-arm `23:05 offset 15.0`; tới `23:30` bot đọc `M15 -1/-2`, rồi vào `23:35` nếu cùng màu hoặc `23:50` nếu ngược màu; `SELL -> offset 25.0` rồi re-arm `23:05 offset 15.0`, nếu chưa khớp thì vẫn đọc `M15 -1/-2` tại `23:30` để chốt chiều và `:35/:50`, nhưng dời market sang `thứ 2 02:35/02:50`; chỉ áp dụng `thứ 6`
+  - Với các mốc fallback theo `M15`, phải xét đúng `open/close`: `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` hay `xx:50`
 
 ### <c=#FF9800>4.</c> Ngày đặc biệt nhắc nhở
 - `Thứ 4` rơi vào ngày `30` hoặc `1`
@@ -2824,10 +2825,10 @@ class CopyTradeManager:
                     {"trigger": (2, 5, 0), "offset": 25.0},
                     {"trigger": (3, 5, 0), "offset": 15.0},
                 ],
-                "fallback_mode": "m30_reverse",
+                "fallback_mode": "m15_signal",
                 "placement_mode": "two_way",
-                "fallback_buy": (3, 35, 0),
-                "fallback_sell": (3, 35, 0),
+                "fallback_buy": (3, 30, 0),
+                "fallback_sell": (3, 30, 0),
                 "note_weekdays": [1, 2],
                 "special_note": "Thứ 3/4 dễ sideway, cần check kỹ thêm.",
             },
@@ -2837,10 +2838,10 @@ class CopyTradeManager:
                     {"trigger": (6, 5, 0), "offset": 25.0},
                     {"trigger": (7, 5, 0), "offset": 15.0},
                 ],
-                "fallback_mode": "m30_reverse",
+                "fallback_mode": "m15_signal",
                 "placement_mode": "two_way",
-                "fallback_buy": (7, 35, 0),
-                "fallback_sell": (7, 35, 0),
+                "fallback_buy": (7, 30, 0),
+                "fallback_sell": (7, 30, 0),
                 "allowed_weekdays": [0, 3, 4],
             },
             {
@@ -2849,10 +2850,10 @@ class CopyTradeManager:
                     {"trigger": (9, 5, 0), "offset": 25.0},
                     {"trigger": (10, 5, 0), "offset": 15.0},
                 ],
-                "fallback_mode": "m30_reverse",
+                "fallback_mode": "m15_signal",
                 "placement_mode": "two_way",
-                "fallback_buy": (10, 35, 0),
-                "fallback_sell": (10, 35, 0),
+                "fallback_buy": (10, 30, 0),
+                "fallback_sell": (10, 30, 0),
             },
             {
                 "trigger": (12, 5),
@@ -2860,10 +2861,10 @@ class CopyTradeManager:
                     {"trigger": (12, 5, 0), "offset": 25.0},
                     {"trigger": (13, 5, 0), "offset": 15.0},
                 ],
-                "fallback_mode": "m30_reverse",
+                "fallback_mode": "m15_signal",
                 "placement_mode": "two_way",
-                "fallback_buy": (13, 35, 0),
-                "fallback_sell": (13, 35, 0),
+                "fallback_buy": (13, 30, 0),
+                "fallback_sell": (13, 30, 0),
                 "allowed_weekdays": [1, 2, 3, 4],
             },
             {
@@ -2872,10 +2873,10 @@ class CopyTradeManager:
                     {"trigger": (15, 5, 0), "offset": 25.0},
                     {"trigger": (16, 5, 0), "offset": 15.0},
                 ],
-                "fallback_mode": "m30_reverse",
+                "fallback_mode": "m15_signal",
                 "placement_mode": "two_way",
-                "fallback_buy": (16, 35, 0),
-                "fallback_sell": (16, 35, 0),
+                "fallback_buy": (17, 30, 0),
+                "fallback_sell": (17, 30, 0),
                 "allowed_weekdays": [1, 2, 3, 4],
             },
             {
@@ -2885,8 +2886,8 @@ class CopyTradeManager:
                 ],
                 "fallback_mode": "same_direction",
                 "placement_mode": "bias_only",
-                "fallback_buy": (18, 35, 0),
-                "fallback_sell": (18, 35, 0),
+                "fallback_buy": (18, 30, 0),
+                "fallback_sell": (18, 30, 0),
                 "allowed_weekdays": [0, 3, 4],
             },
             {
@@ -2896,8 +2897,8 @@ class CopyTradeManager:
                 ],
                 "fallback_mode": "same_direction",
                 "placement_mode": "bias_only",
-                "fallback_buy": (20, 35, 0),
-                "fallback_sell": (20, 35, 0),
+                "fallback_buy": (20, 30, 0),
+                "fallback_sell": (20, 30, 0),
                 "allowed_weekdays": [1, 2],
             },
             {
@@ -2907,12 +2908,13 @@ class CopyTradeManager:
                     {"trigger": (23, 5, 0), "offset": 15.0},
                 ],
                 "placement_mode": "bias_only",
-                "fallback_mode_buy": "m30_reverse",
-                "fallback_mode_sell": "same_direction",
-                "fallback_buy": (23, 35, 0),
-                "fallback_sell": (2, 35, 1),
-                "cancel_sell": (23, 35, 0),
-                "carry_weekend_to_monday_sell": True,
+                "fallback_mode_buy": "m15_signal",
+                "fallback_mode_sell": "m15_signal",
+                "fallback_buy": (23, 30, 0),
+                "fallback_sell": (23, 30, 0),
+                "cancel_sell": (23, 30, 0),
+                "defer_m15_anchor_sell": (2, 30, 1),
+                "carry_weekend_to_monday_defer_sell": True,
                 "allowed_weekdays": [4],
             },
         ]
@@ -3030,14 +3032,29 @@ class CopyTradeManager:
                     cancel_market_dt = self._carry_market_weekend_to_monday(cancel_market_dt)
                     cancel_limit_dt = self._market_dt_to_local_naive(cancel_market_dt)
 
+            defer_m15_anchor_dt = None
+            defer_slot = rule.get(f"defer_m15_anchor_{bias_key}")
+            if defer_slot:
+                defer_m15_anchor_dt, defer_market_dt = self._market_slot_to_local_dt(market_trigger_dt, defer_slot)
+                if rule.get(f"carry_weekend_to_monday_defer_{bias_key}", False):
+                    defer_market_dt = self._carry_market_weekend_to_monday(defer_market_dt)
+                    defer_m15_anchor_dt = self._market_dt_to_local_naive(defer_market_dt)
+
+            fallback_mode = rule.get(f"fallback_mode_{bias_key}", rule.get("fallback_mode", "same_direction"))
+            grace_minutes = 30 if fallback_mode == "m15_signal" else 10
+            grace_dt = fallback_dt + timedelta(minutes=grace_minutes)
+            if defer_m15_anchor_dt is not None:
+                grace_dt = defer_m15_anchor_dt + timedelta(minutes=30)
+
             return {
                 "offset": stages[0]["offset"],
                 "stages": stages,
                 "trigger_dt": stages[0]["dt"],
                 "fallback_dt": fallback_dt,
-                "grace_dt": fallback_dt + timedelta(minutes=10),
+                "grace_dt": grace_dt,
                 "cancel_limit_dt": cancel_limit_dt,
-                "fallback_mode": rule.get(f"fallback_mode_{bias_key}", rule.get("fallback_mode", "same_direction")),
+                "defer_m15_anchor_dt": defer_m15_anchor_dt,
+                "fallback_mode": fallback_mode,
                 "placement_mode": rule.get("placement_mode", "two_way"),
                 "rule_source": "market",
                 "rule_market_trigger": market_trigger_dt.strftime("%H:%M"),
@@ -3557,6 +3574,7 @@ class CopyTradeManager:
                 trade["next_stage_time"] = next_stage_dt.strftime("%H:%M:%S") if next_stage_dt else ""
                 trade["cancel_limit_time"] = plan["cancel_limit_dt"].strftime("%H:%M:%S") if plan.get("cancel_limit_dt") else ""
                 trade["limits_canceled_for_fallback"] = False
+                trade["fallback_execute_dt"] = ""
                 trade["preexisting_tickets"] = []
                 detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, fallback_dt=plan["fallback_dt"])
                 action_label = "Updated" if replacing else "Placed"
@@ -3591,6 +3609,7 @@ class CopyTradeManager:
             trade["next_stage_time"] = next_stage_dt.strftime("%H:%M:%S") if next_stage_dt else ""
             trade["cancel_limit_time"] = plan["cancel_limit_dt"].strftime("%H:%M:%S") if plan.get("cancel_limit_dt") else ""
             trade["limits_canceled_for_fallback"] = False
+            trade["fallback_execute_dt"] = ""
             trade["preexisting_tickets"] = []
             detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, fallback_dt=plan["fallback_dt"])
             action_label = "Updated" if replacing else "Placed"
@@ -3606,15 +3625,34 @@ class CopyTradeManager:
         trade["status"] = "failed"
         return "failed"
 
+    def _get_trade_resolved_fallback_dt(self, trade):
+        value = trade.get("fallback_execute_dt")
+        if not value:
+            return None
+        try:
+            return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return None
+
     def _resolve_gold_fallback_order_type(self, trade, plan):
         fallback_order_type = trade["type"]
-        if plan.get("fallback_mode") == "m30_reverse":
+        fallback_exec_dt = plan["fallback_dt"]
+        if plan.get("fallback_mode") == "m15_signal":
+            fallback_order_type, fallback_exec_dt, basis = self._get_prev_m15_signal_order_and_time(trade["symbol"], plan["fallback_dt"], trade["type"])
+            if plan.get("defer_m15_anchor_dt") is not None:
+                fallback_exec_dt = self._apply_deferred_m15_execution(fallback_exec_dt, plan["fallback_dt"], plan["defer_m15_anchor_dt"])
+                basis = f"{basis}; dời market sang {fallback_exec_dt.strftime('%H:%M')} theo lịch carry"
+            trade["fallback_basis"] = basis
+        elif plan.get("fallback_mode") == "m30_reverse":
             fallback_order_type, basis = self._get_prev_m30_reverse_order_type(trade["symbol"], plan["fallback_dt"], trade["type"])
             trade["fallback_basis"] = basis
         else:
             direction = "BUY" if fallback_order_type == mt5.ORDER_TYPE_BUY else "SELL"
             trade["fallback_basis"] = f"Fallback theo bias đã hẹn => {direction}"
-        return fallback_order_type
+
+        trade["fallback_time"] = fallback_exec_dt.strftime("%H:%M:%S")
+        trade["fallback_execute_dt"] = fallback_exec_dt.strftime("%Y-%m-%d %H:%M:%S")
+        return fallback_order_type, fallback_exec_dt
 
     def _start_gold_scheduled_trade(self, trade, trade_full_dt, trigger_dt, now_dt):
         symbol = trade["symbol"]
@@ -3634,12 +3672,18 @@ class CopyTradeManager:
             trade["status"] = "awaiting_fallback"
             trade["limits_canceled_for_fallback"] = True
             trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
+            trade["fallback_execute_dt"] = plan["fallback_dt"].strftime("%Y-%m-%d %H:%M:%S")
             detail = self._build_gold_schedule_summary(trade, fallback_dt=plan["fallback_dt"])
             self.notify(f"⏸️ [{profile_name}] Scheduled Gold {symbol} đang chờ fallback\n{detail}")
             return "awaiting_fallback"
 
         if now_dt >= plan["fallback_dt"]:
-            fallback_order_type = self._resolve_gold_fallback_order_type(trade, plan)
+            fallback_order_type, fallback_exec_dt = self._resolve_gold_fallback_order_type(trade, plan)
+            if now_dt < fallback_exec_dt:
+                trade["status"] = "awaiting_fallback"
+                detail = self._build_gold_schedule_summary(trade, fallback_dt=fallback_exec_dt)
+                self.notify(f"⏸️ [{profile_name}] Scheduled Gold {symbol} đã khóa hướng fallback, chờ market\n{detail}")
+                return "awaiting_fallback"
             market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Fallback", order_type_override=fallback_order_type)
             trade["status"] = "executed" if market_res in ["done", "skip"] else "failed"
             return trade["status"]
@@ -3684,6 +3728,86 @@ class CopyTradeManager:
                 return mt5.ORDER_TYPE_SELL, f"M30 lùi {back_idx} nến từ {anchor_dt.strftime('%H:%M')}: xanh ({candle_open} -> {candle_close}) => SELL"
 
         return default_order_type, f"Các nến M30 từ {anchor_dt.strftime('%H:%M')} lùi về đều doji/không rõ -> giữ chiều gốc"
+
+    def _get_prev_m15_signal_order_and_time(self, symbol, decision_dt, default_order_type):
+        try:
+            mt5.symbol_select(symbol, True)
+        except:
+            pass
+
+        if decision_dt.minute < 30:
+            anchor_dt = (decision_dt - timedelta(hours=1)).replace(minute=30, second=0, microsecond=0)
+        else:
+            anchor_dt = decision_dt.replace(minute=30, second=0, microsecond=0)
+
+        lookup_dt = anchor_dt - timedelta(minutes=1)
+        rates = mt5.copy_rates_from(symbol, mt5.TIMEFRAME_M15, lookup_dt, 64)
+        if rates is None or len(rates) == 0:
+            exec_dt = anchor_dt + timedelta(minutes=5)
+            return default_order_type, exec_dt, f"Prev M15 unavailable tại {anchor_dt.strftime('%H:%M')} -> giữ chiều gốc, vào {exec_dt.strftime('%H:%M')}"
+
+        signals = []
+        for back_idx, bar in enumerate(reversed(list(rates)), start=1):
+            try:
+                candle_open = float(bar["open"])
+                candle_close = float(bar["close"])
+                candle_time = datetime.fromtimestamp(int(bar["time"]))
+            except Exception:
+                try:
+                    candle_open = float(bar.open)
+                    candle_close = float(bar.close)
+                    candle_time = datetime.fromtimestamp(int(bar.time))
+                except Exception:
+                    continue
+
+            if candle_close == candle_open:
+                continue
+
+            color = "đỏ" if candle_close < candle_open else "xanh"
+            signals.append({
+                "idx": back_idx,
+                "time": candle_time.strftime("%H:%M"),
+                "open": candle_open,
+                "close": candle_close,
+                "color": color,
+            })
+            if len(signals) >= 2:
+                break
+
+        if not signals:
+            exec_dt = anchor_dt + timedelta(minutes=5)
+            return default_order_type, exec_dt, f"Các nến M15 trước {anchor_dt.strftime('%H:%M')} đều doji/không rõ -> giữ chiều gốc, vào {exec_dt.strftime('%H:%M')}"
+
+        signal_1 = signals[0]
+        fallback_order_type = mt5.ORDER_TYPE_BUY if signal_1["color"] == "đỏ" else mt5.ORDER_TYPE_SELL
+        color_rule = "quy ước: xanh = close > open => reverse SELL, đỏ = close < open => reverse BUY"
+
+        if len(signals) == 1:
+            exec_dt = anchor_dt + timedelta(minutes=5)
+            basis = (
+                f"M15 -1 tại {signal_1['time']} {signal_1['color']} ({signal_1['open']} -> {signal_1['close']}) => "
+                f"{'BUY' if fallback_order_type == mt5.ORDER_TYPE_BUY else 'SELL'}; {color_rule}; chưa đủ M15 -2 => vào {exec_dt.strftime('%H:%M')}"
+            )
+            return fallback_order_type, exec_dt, basis
+
+        signal_2 = signals[1]
+        same_color = signal_1["color"] == signal_2["color"]
+        exec_dt = anchor_dt + timedelta(minutes=5 if same_color else 20)
+        basis = (
+            f"M15 -1 tại {signal_1['time']} {signal_1['color']} ({signal_1['open']} -> {signal_1['close']}) => "
+            f"{'BUY' if fallback_order_type == mt5.ORDER_TYPE_BUY else 'SELL'}; {color_rule}; "
+            f"M15 -2 tại {signal_2['time']} {signal_2['color']} ({signal_2['open']} -> {signal_2['close']}) => "
+            f"{'cùng màu' if same_color else 'ngược màu'} -> vào {exec_dt.strftime('%H:%M')}"
+        )
+        return fallback_order_type, exec_dt, basis
+
+    def _apply_deferred_m15_execution(self, exec_dt, decision_dt, defer_anchor_dt):
+        if defer_anchor_dt is None:
+            return exec_dt
+        minute_delta = int((exec_dt - decision_dt).total_seconds() // 60)
+        if minute_delta < 0:
+            minute_delta = 0
+        return defer_anchor_dt + timedelta(minutes=minute_delta)
 
     def _process_gold_scheduled_trade(self, trade, trade_full_dt, trigger_dt, now_dt):
         status = trade.get("status", "waiting")
@@ -3730,12 +3854,15 @@ class CopyTradeManager:
                 self._remove_gold_pending_pair(trade)
                 trade["limits_canceled_for_fallback"] = True
                 trade["status"] = "awaiting_fallback"
+                trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
+                trade["fallback_execute_dt"] = plan["fallback_dt"].strftime("%Y-%m-%d %H:%M:%S")
                 detail = self._build_gold_schedule_summary(trade, fallback_dt=plan["fallback_dt"])
                 self.notify(f"⏸️ [{profile_name}] Closed pending Gold limits {symbol}, chờ fallback\n{detail}")
                 if now_dt < plan["fallback_dt"]:
                     return "awaiting_fallback"
 
-        if now_dt < plan["fallback_dt"]:
+        fallback_wait_dt = self._get_trade_resolved_fallback_dt(trade) or plan["fallback_dt"]
+        if now_dt < fallback_wait_dt:
             return "noop"
 
         if status == "limit_pending":
@@ -3746,7 +3873,12 @@ class CopyTradeManager:
             self.notify(f"⚠️ [{profile_name}] Scheduled Gold {symbol} expired after fallback window")
             return "expired"
 
-        fallback_order_type = self._resolve_gold_fallback_order_type(trade, plan)
+        fallback_order_type, fallback_exec_dt = self._resolve_gold_fallback_order_type(trade, plan)
+        if now_dt < fallback_exec_dt:
+            trade["status"] = "awaiting_fallback"
+            detail = self._build_gold_schedule_summary(trade, fallback_dt=fallback_exec_dt)
+            self.notify(f"⏸️ [{profile_name}] Scheduled Gold {symbol} đã khóa hướng fallback, chờ market\n{detail}")
+            return "awaiting_fallback"
         market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Fallback", order_type_override=fallback_order_type)
         trade["status"] = "executed" if market_res in ["done", "skip"] else "failed"
         return trade["status"]
