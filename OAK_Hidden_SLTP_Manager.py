@@ -3063,6 +3063,67 @@ class CopyTradeManager:
             except Exception:
                 return None
 
+    def _get_trade_status_detail(self, trade):
+        override = trade.get("_status_detail_override")
+        if override:
+            return override
+
+        status = str(trade.get("status", "waiting") or "waiting").lower()
+        if self._is_gold_limit_schedule(trade):
+            stage_label = str(trade.get("gold_stage_label", "") or "")
+            stage_idx = ""
+            if stage_label and "/" in stage_label:
+                stage_idx = stage_label.split("/", 1)[0]
+
+            if status == "waiting":
+                return "waiting_trigger"
+            if status == "limit_pending":
+                return f"limit_pending_s{stage_idx}" if stage_idx else "limit_pending"
+            if status == "awaiting_fallback":
+                return "awaiting_fallback"
+            if status == "executed":
+                return "executed"
+            if status == "failed":
+                return "failed"
+            if status == "expired":
+                return "expired"
+        return status
+
+    def _get_trade_next_action(self, trade):
+        override = trade.get("_next_action_override")
+        if override:
+            return override
+
+        status = str(trade.get("status", "waiting") or "waiting").lower()
+        trigger_time = trade.get("trigger_time") or trade.get("time") or ""
+        next_stage_time = trade.get("next_stage_time") or ""
+        cancel_limit_time = trade.get("cancel_limit_time") or ""
+        fallback_time = trade.get("fallback_time") or ""
+
+        if self._is_gold_limit_schedule(trade):
+            if status == "waiting":
+                return f"Trigger {trigger_time}" if trigger_time else "Trigger"
+            if status == "limit_pending":
+                if next_stage_time:
+                    return f"Re-arm {next_stage_time}"
+                if cancel_limit_time:
+                    return f"Close pending {cancel_limit_time}"
+                if fallback_time:
+                    return f"Fallback {fallback_time}"
+                return "-"
+            if status == "awaiting_fallback":
+                return f"Fallback {fallback_time}" if fallback_time else "Fallback"
+            if status == "executed":
+                return "Done"
+            if status in ["failed", "expired"]:
+                return "-"
+
+        if status == "waiting":
+            return f"Execute {trade.get('time', '')}".strip()
+        if status == "executed":
+            return "Done"
+        return "-"
+
     def _build_gold_schedule_summary(self, trade, trigger_dt=None, fallback_dt=None, market_price=None, limit_price=None, order_type=None):
         requested_time = trade.get("time", "00:00:00")
         if len(str(requested_time).split(":")) == 2:
@@ -3088,6 +3149,12 @@ class CopyTradeManager:
             f"• Giờ hẹn: {requested_time}",
             f"• Trigger M5: {trigger_time}",
         ]
+        status_detail = self._get_trade_status_detail(trade)
+        next_action = self._get_trade_next_action(trade)
+        if status_detail:
+            lines.append(f"• Status: {status_detail}")
+        if next_action:
+            lines.append(f"• Next Action: {next_action}")
         if trade.get("gold_stage_label"):
             lines.append(f"• Limit Stage: {trade.get('gold_stage_label')}")
         if anchor_open is not None:
@@ -3254,7 +3321,26 @@ class CopyTradeManager:
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             direction_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
             if self._is_gold_limit_schedule(trade) and ("Gold" in comment or "GOLD" in comment):
+                prev_status_override = trade.get("_status_detail_override")
+                prev_next_override = trade.get("_next_action_override")
+                if "Fallback" in comment:
+                    trade["_status_detail_override"] = "executed_fallback"
+                    trade["_next_action_override"] = "Done"
+                elif "Direct Market" in comment:
+                    trade["_status_detail_override"] = "executed_direct"
+                    trade["_next_action_override"] = "Done"
+                else:
+                    trade["_status_detail_override"] = "executed"
+                    trade["_next_action_override"] = "Done"
                 detail = self._build_gold_schedule_summary(trade, market_price=price, order_type=order_type)
+                if prev_status_override is None:
+                    trade.pop("_status_detail_override", None)
+                else:
+                    trade["_status_detail_override"] = prev_status_override
+                if prev_next_override is None:
+                    trade.pop("_next_action_override", None)
+                else:
+                    trade["_next_action_override"] = prev_next_override
                 self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot\n{detail}")
             else:
                 self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot")
@@ -3548,7 +3634,8 @@ class CopyTradeManager:
             trade["status"] = "awaiting_fallback"
             trade["limits_canceled_for_fallback"] = True
             trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
-            self.notify(f"⏸️ [{profile_name}] Scheduled Gold {symbol} đang chờ fallback tại {plan['fallback_dt'].strftime('%H:%M:%S')}")
+            detail = self._build_gold_schedule_summary(trade, fallback_dt=plan["fallback_dt"])
+            self.notify(f"⏸️ [{profile_name}] Scheduled Gold {symbol} đang chờ fallback\n{detail}")
             return "awaiting_fallback"
 
         if now_dt >= plan["fallback_dt"]:
@@ -3643,7 +3730,8 @@ class CopyTradeManager:
                 self._remove_gold_pending_pair(trade)
                 trade["limits_canceled_for_fallback"] = True
                 trade["status"] = "awaiting_fallback"
-                self.notify(f"⏸️ [{profile_name}] Closed pending Gold limits {symbol}, chờ fallback tại {plan['fallback_dt'].strftime('%H:%M:%S')}")
+                detail = self._build_gold_schedule_summary(trade, fallback_dt=plan["fallback_dt"])
+                self.notify(f"⏸️ [{profile_name}] Closed pending Gold limits {symbol}, chờ fallback\n{detail}")
                 if now_dt < plan["fallback_dt"]:
                     return "awaiting_fallback"
 
@@ -5902,19 +5990,23 @@ class App(ctk.CTk):
         style = ttk.Style()
         style.configure("Scheduled.Treeview", rowheight=30) 
         
-        self.tree_scheduled = ttk.Treeview(tree_container, columns=("Symbol", "Type", "Lot", "Time", "Status"), show="headings", height=20, style="Scheduled.Treeview")
+        self.tree_scheduled = ttk.Treeview(tree_container, columns=("Symbol", "Type", "Lot", "Time", "Status", "StatusDetail", "NextAction"), show="headings", height=20, style="Scheduled.Treeview")
         
         self.tree_scheduled.heading("Symbol", text="Symbol")
         self.tree_scheduled.heading("Type", text="Type")
         self.tree_scheduled.heading("Lot", text="Lot")
         self.tree_scheduled.heading("Time", text="Time")
         self.tree_scheduled.heading("Status", text="Status")
+        self.tree_scheduled.heading("StatusDetail", text="Status Chi Tiết")
+        self.tree_scheduled.heading("NextAction", text="Next Action")
         
         self.tree_scheduled.column("Symbol", width=70, anchor="center")
         self.tree_scheduled.column("Type", width=50, anchor="center")
         self.tree_scheduled.column("Lot", width=50, anchor="center")
         self.tree_scheduled.column("Time", width=120, anchor="center")
         self.tree_scheduled.column("Status", width=70, anchor="center")
+        self.tree_scheduled.column("StatusDetail", width=130, anchor="center")
+        self.tree_scheduled.column("NextAction", width=150, anchor="center")
         
         self.tree_scheduled.pack(side="left", fill="both", expand=True)
         
@@ -6455,13 +6547,28 @@ class App(ctk.CTk):
             t_time = trade.get("time", "00:00:00")
             t_date = trade.get("date", "")
             display_time = f"{t_time}\n{t_date}" if t_date else t_time
+            status_raw = trade.get("status", "Waiting")
+            status_detail = status_raw
+            next_action = "-"
+            if hasattr(self.copy_manager, "_get_trade_status_detail"):
+                try:
+                    status_detail = self.copy_manager._get_trade_status_detail(trade)
+                except Exception:
+                    status_detail = status_raw
+            if hasattr(self.copy_manager, "_get_trade_next_action"):
+                try:
+                    next_action = self.copy_manager._get_trade_next_action(trade)
+                except Exception:
+                    next_action = "-"
             
             self.tree_scheduled.insert("", "end", values=(
                 trade.get("symbol", "N/A"),
                 t_type,
                 trade.get("lot", 0.01),
                 display_time,
-                trade.get("status", "Waiting")
+                status_raw,
+                status_detail,
+                next_action
             ))
 
     def periodic_ui_refresh(self):
