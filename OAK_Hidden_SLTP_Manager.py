@@ -17,7 +17,7 @@ import sys
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import ctypes
 import random
 import re
@@ -465,10 +465,23 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - `Mua Vàng 0.1 lúc 19:30`: Robot sẽ hẹn giờ lệnh BUY cho Vàng.
 - `Sell GBPUSD 0.05 lúc 20:00`: Hẹn giờ lệnh bán.
 - Riêng `XAUUSD/GOLD`, nếu nhập giờ tròn như `19:00` thì hệ thống tự đổi thành `19:05` để lấy đúng nến `M5`.
-- Đến giờ trigger, bot lấy `Open M5` làm mốc:
-  - `BUY`: đặt `Buy Limit = Open M5 - offset`
-  - `SELL`: đặt `Sell Limit = Open M5 + offset`
-- Nếu Limit chưa khớp tới giờ fallback, bot sẽ hủy pending chưa khớp, vào Market đúng chiều đã hẹn và đóng/xóa chiều ngược lại để tránh hedge.
+- Giờ nhập là giờ local của máy; bot tự quy đổi sang giờ market `GMT+3/GMT+2`.
+ - Vàng có 2 mode:
+  - `2 đầu limit`: đặt đồng thời Buy Limit và Sell Limit quanh `M5 Open`
+  - `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã nhập
+- Khi một đầu limit khớp, bot xóa pending còn lại và đóng luôn chiều ngược lại để tránh hedge.
+- Khi tới fallback:
+  - một số mốc dùng `M30 lùi dần` để chọn chiều Market
+  - một số mốc dùng chính `bias` đã hẹn
+- Nếu giờ local không khớp mốc nội bộ hỗ trợ, bot sẽ báo khả năng sai múi giờ hoặc mốc không hợp lệ.
+- Bộ mốc cuối cùng cho vàng:
+  - `03:05`: `2 đầu`, `offset 10.0`, fallback `04:05`, Market theo `M30 lùi dần`
+  - `07:05`: `2 đầu`, `offset 10.0`, fallback `08:05`, Market theo `M30 lùi dần`, không áp dụng `thứ 3/4`
+  - `12:05`: `2 đầu`, `offset 10.0`, fallback `14:35`, Market theo `M30 lùi dần`
+  - `15:05`: `2 đầu`, `offset 20.0`, fallback `17:35`, Market theo `M30 lùi dần`
+  - `18:05`: `bias-only`, `offset 10.0`, fallback `18:35`, Market theo `bias`, không áp dụng `thứ 3/4`
+  - `20:05`: `bias-only`, `offset 10.0`, fallback `20:35`, Market theo `bias`, chỉ áp dụng `thứ 3/4`
+  - `21:05`: `2 đầu`, `offset 10.0`; `BUY -> 23:05`, `SELL -> 02:05` ngày market kế tiếp; cuối thứ 6 dời sang `02:05 thứ 2`; Market theo `M30 lùi dần`
 
 ---
 
@@ -504,7 +517,7 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - `/closeallpending`: Xóa toàn bộ lệnh chờ.
 
 ---
-*Mẹo: Với vàng, Telegram sẽ báo rõ Giờ hẹn, Trigger M5, M5 Open, Limit, Fallback Market và trạng thái Anti-Hedge.*
+*Mẹo: Với vàng, Telegram sẽ báo rõ Giờ hẹn, Trigger M5, M5 Open, Buy Limit, Sell Limit, Fallback Market, Fallback Rule và trạng thái Anti-Hedge.*
 """,
         "readme_info": f"""# <c=#2196F3>🚀</c> {APP_NAME} ({VERSION})
 **Ultimate MT5 Order Management System** - Trợ lý quản lý giao dịch tối thượng qua Telegram.
@@ -528,7 +541,7 @@ OAK MANAGER không chỉ là một ứng dụng quản lý lệnh thông thườ
 2. **Ghost Operator (Stealth)**: Khi sàn chặn Algo Trading, OAK sẽ tự động chuyển sang chế độ giả lập thao tác người dùng (nhấn phím, di chuột) để thực thi lệnh, khiến Broker không thể phân biệt được là người hay máy.
 3. **Multi-Profile Management**: Chuyển đổi và giám sát nhiều tài khoản (Vantage, Exness, IC Markets...) chỉ bằng cách chọn profile trong app hoặc ra lệnh qua Telegram.
 4. **Session Recovery**: Tự động khôi phục 100% trạng thái lệnh hẹn giờ và nhiệm vụ chốt lời nếu máy tính bị restart hoặc mất điện.
-5. **Scheduled Gold Mode**: Riêng `XAUUSD/GOLD`, bot dùng `Open M5` để đặt Limit theo chiều đã hẹn, có fallback riêng theo mùa và tự anti-hedge.
+5. **Scheduled Gold Mode**: Riêng `XAUUSD/GOLD`, bot dùng `Open M5`, hỗ trợ `2 đầu limit` hoặc `bias-only`, tự quy đổi giờ market, fallback theo `M30` hoặc `bias`, và tự anti-hedge.
 
 ## <c=#4CAF50>🛠️</c> Cài đặt nhanh (3 bước)
 1. **Khởi động**: Chạy file `CHAY_ROBOT.bat`.
@@ -1751,6 +1764,10 @@ class CopyTradeManager:
                 while target_dt.weekday() in (5, 6):
                     target_dt += timedelta(days=1)
                 target_dt = self._normalize_gold_schedule_create_dt(symbol, target_dt)
+                is_valid_gold_time, gold_time_msg = self._validate_gold_schedule_time(symbol, target_dt, t_type)
+                if not is_valid_gold_time:
+                    self.notify(f"[{profile_name}] {gold_time_msg}")
+                    return
                 time_val = target_dt.strftime("%H:%M:%S")
                 target_date_str = target_dt.strftime("%Y-%m-%d")
 
@@ -2788,35 +2805,102 @@ class CopyTradeManager:
             return target_dt.replace(minute=5, second=0, microsecond=0)
         return target_dt
 
+    def _get_gold_market_rules(self):
+        return [
+            {"trigger": (3, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (4, 5, 0), "fallback_sell": (4, 5, 0)},
+            {"trigger": (7, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (8, 5, 0), "fallback_sell": (8, 5, 0), "blocked_weekdays": [1, 2]},
+            {"trigger": (12, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (14, 35, 0), "fallback_sell": (14, 35, 0)},
+            {"trigger": (15, 5), "offset": 20.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (17, 35, 0), "fallback_sell": (17, 35, 0)},
+            {"trigger": (18, 5), "offset": 10.0, "fallback_mode": "same_direction", "placement_mode": "bias_only", "fallback_buy": (18, 35, 0), "fallback_sell": (18, 35, 0), "blocked_weekdays": [1, 2]},
+            {"trigger": (20, 5), "offset": 10.0, "fallback_mode": "same_direction", "placement_mode": "bias_only", "fallback_buy": (20, 35, 0), "fallback_sell": (20, 35, 0), "allowed_weekdays": [1, 2]},
+            {"trigger": (21, 5), "offset": 10.0, "fallback_mode": "m30_reverse", "placement_mode": "two_way", "fallback_buy": (23, 5, 0), "fallback_sell": (2, 5, 1), "carry_weekend_to_monday": True},
+        ]
+
+    def _validate_gold_schedule_time(self, symbol, trade_dt, bias_order_type):
+        symbol_upper = str(symbol).upper()
+        if not ("XAU" in symbol_upper or "GOLD" in symbol_upper):
+            return True, ""
+
+        is_winter = oak_trading_reminders.is_winter_time()
+        for rule in self._get_gold_market_rules():
+            _, market_dt = self._match_market_trigger_rule(trade_dt, rule["trigger"][0], rule["trigger"][1], is_winter)
+            if not market_dt:
+                continue
+
+            market_weekday = market_dt.weekday()
+            if market_weekday in rule.get("blocked_weekdays", []):
+                return False, f"❌ Mốc vàng {market_dt.strftime('%H:%M')} không áp dụng cho thứ này. Kiểm tra lại múi giờ hoặc ngày giao dịch."
+            allowed = rule.get("allowed_weekdays")
+            if allowed is not None and market_weekday not in allowed:
+                return False, f"❌ Mốc vàng {market_dt.strftime('%H:%M')} không áp dụng cho thứ này. Kiểm tra lại múi giờ hoặc ngày giao dịch."
+            if rule.get("placement_mode") == "bias_only" and bias_order_type not in [mt5.ORDER_TYPE_BUY, mt5.ORDER_TYPE_SELL]:
+                return False, "❌ Thiếu BUY/SELL bias cho mốc vàng này."
+            return True, ""
+
+        return False, "❌ Dữ liệu không có cho mốc giờ vàng này hoặc bạn có thể đang nhập sai múi giờ."
+
     def _get_gold_trigger_dt(self, trade_full_dt):
         if trade_full_dt.minute == 0 and trade_full_dt.second == 0:
             return trade_full_dt + timedelta(minutes=5)
         return trade_full_dt
 
-    def _get_gold_schedule_plan(self, trade_full_dt):
+    def _market_dt_to_local_dt(self, market_date, market_hour, market_minute, is_winter):
+        market_offset = 2 if is_winter else 3
+        market_tz = timezone(timedelta(hours=market_offset))
+        local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+        market_dt = datetime(
+            market_date.year,
+            market_date.month,
+            market_date.day,
+            market_hour,
+            market_minute,
+            tzinfo=market_tz,
+        )
+        return market_dt.astimezone(local_tz), market_dt
+
+    def _match_market_trigger_rule(self, trade_full_dt, market_hour, market_minute, is_winter):
+        local_tz = datetime.now().astimezone().tzinfo or timezone.utc
+        local_target = trade_full_dt.replace(tzinfo=local_tz, second=0, microsecond=0)
+        for day_shift in [-1, 0, 1]:
+            probe_date = (local_target + timedelta(days=day_shift)).date()
+            local_dt, market_dt = self._market_dt_to_local_dt(probe_date, market_hour, market_minute, is_winter)
+            if local_dt.replace(second=0, microsecond=0) == local_target:
+                return local_dt.replace(tzinfo=None), market_dt
+        return None, None
+
+    def _get_gold_schedule_plan(self, trade_full_dt, bias_order_type=None):
         is_winter = oak_trading_reminders.is_winter_time()
-        hhmm = trade_full_dt.strftime("%H:%M")
-        offset = 10.0
-        fallback_dt = trade_full_dt.replace(minute=25, second=0, microsecond=0)
+        bias_key = "buy" if bias_order_type == mt5.ORDER_TYPE_BUY else "sell"
 
-        if is_winter and hhmm in ["20:05", "21:05"]:
-            offset = 15.0
-            fallback_dt = trade_full_dt.replace(hour=trade_full_dt.hour + 1, minute=0, second=0, microsecond=0)
-        elif (not is_winter) and hhmm in ["19:05", "20:05"]:
-            offset = 15.0
-            fallback_dt = trade_full_dt.replace(hour=trade_full_dt.hour + 1, minute=0, second=0, microsecond=0)
-        elif is_winter and hhmm == "22:05":
-            offset = 15.0
-            fallback_dt = trade_full_dt.replace(minute=35, second=0, microsecond=0)
-        elif (not is_winter) and hhmm == "21:05":
-            offset = 15.0
-            fallback_dt = trade_full_dt.replace(minute=35, second=0, microsecond=0)
+        for rule in self._get_gold_market_rules():
+            _, market_trigger_dt = self._match_market_trigger_rule(trade_full_dt, rule["trigger"][0], rule["trigger"][1], is_winter)
+            if not market_trigger_dt:
+                continue
 
-        return {
-            "offset": offset,
-            "fallback_dt": fallback_dt,
-            "grace_dt": fallback_dt + timedelta(minutes=10),
-        }
+            market_weekday = market_trigger_dt.weekday()
+            if market_weekday in rule.get("blocked_weekdays", []):
+                continue
+            allowed = rule.get("allowed_weekdays")
+            if allowed is not None and market_weekday not in allowed:
+                continue
+
+            f_hour, f_min, day_add = rule[f"fallback_{bias_key}"]
+            fallback_market_dt = market_trigger_dt.replace(hour=f_hour, minute=f_min, second=0, microsecond=0) + timedelta(days=day_add)
+            if rule.get("carry_weekend_to_monday"):
+                while fallback_market_dt.weekday() in (5, 6):
+                    fallback_market_dt += timedelta(days=1)
+            fallback_dt = fallback_market_dt.astimezone(datetime.now().astimezone().tzinfo or timezone.utc).replace(tzinfo=None)
+            return {
+                "offset": rule["offset"],
+                "fallback_dt": fallback_dt,
+                "grace_dt": fallback_dt + timedelta(minutes=10),
+                "fallback_mode": rule.get("fallback_mode", "same_direction"),
+                "placement_mode": rule.get("placement_mode", "two_way"),
+                "rule_source": "market",
+                "rule_market_trigger": market_trigger_dt.strftime("%H:%M"),
+                "rule_bias": bias_key.upper(),
+            }
+        return None
 
     def _get_m5_open_price(self, symbol, ref_dt):
         try:
@@ -2835,7 +2919,7 @@ class CopyTradeManager:
             except Exception:
                 return None
 
-    def _build_gold_schedule_summary(self, trade, trigger_dt=None, fallback_dt=None, market_price=None, limit_price=None):
+    def _build_gold_schedule_summary(self, trade, trigger_dt=None, fallback_dt=None, market_price=None, limit_price=None, order_type=None):
         requested_time = trade.get("time", "00:00:00")
         if len(str(requested_time).split(":")) == 2:
             requested_time = f"{requested_time}:00"
@@ -2852,7 +2936,8 @@ class CopyTradeManager:
             fallback_dt = fallback_dt.strftime("%H:%M:%S")
 
         trigger_time = trigger_dt.strftime("%H:%M:%S") if hasattr(trigger_dt, "strftime") else trade.get("trigger_time", requested_time)
-        direction = "BUY" if trade.get("type") == mt5.ORDER_TYPE_BUY else "SELL"
+        active_type = trade.get("type") if order_type is None else order_type
+        direction = "BUY" if active_type == mt5.ORDER_TYPE_BUY else "SELL"
         formula_sign = "-" if direction == "BUY" else "+"
 
         lines = [
@@ -2861,14 +2946,23 @@ class CopyTradeManager:
         ]
         if anchor_open is not None:
             lines.append(f"• M5 Open: {anchor_open}")
-        if offset is not None and limit_price is not None:
-            lines.append(f"• Limit: {limit_price} (M5 Open {formula_sign} {offset})")
-        elif limit_price is not None:
-            lines.append(f"• Limit: {limit_price}")
+        buy_limit = trade.get("buy_limit_price")
+        sell_limit = trade.get("sell_limit_price")
+        if buy_limit is not None:
+            lines.append(f"• Buy Limit: {buy_limit} (M5 Open - {offset})")
+        if sell_limit is not None:
+            lines.append(f"• Sell Limit: {sell_limit} (M5 Open + {offset})")
+        if buy_limit is None and sell_limit is None:
+            if offset is not None and limit_price is not None:
+                lines.append(f"• Limit: {limit_price} (M5 Open {formula_sign} {offset})")
+            elif limit_price is not None:
+                lines.append(f"• Limit: {limit_price}")
         if fallback_dt:
             lines.append(f"• Fallback Market: {fallback_dt}")
         if market_price is not None:
             lines.append(f"• Market Price: {market_price}")
+        if trade.get("fallback_basis"):
+            lines.append(f"• Fallback Rule: {trade.get('fallback_basis')}")
         lines.append("• Anti-Hedge: tự đóng/xóa chiều ngược lại")
         return "\n".join(lines)
 
@@ -2886,9 +2980,9 @@ class CopyTradeManager:
             tp = entry_price + (tp_points * point) if order_type == mt5.ORDER_TYPE_BUY else entry_price - (tp_points * point)
         return sl, tp
 
-    def _prepare_scheduled_trade(self, trade):
+    def _prepare_scheduled_trade(self, trade, order_type_override=None):
         symbol = trade["symbol"]
-        order_type = trade["type"]
+        order_type = trade["type"] if order_type_override is None else order_type_override
         profile_name = self.config.get("profile_name", "Unknown")
 
         if not mt5.terminal_info():
@@ -2952,15 +3046,15 @@ class CopyTradeManager:
         except Exception:
             return False
 
-    def _send_scheduled_market_order(self, trade, comment="Scheduled Order"):
+    def _send_scheduled_market_order(self, trade, comment="Scheduled Order", order_type_override=None):
         symbol = trade["symbol"]
-        order_type = trade["type"]
+        order_type = trade["type"] if order_type_override is None else order_type_override
         lot = float(trade["lot"])
         sl_points = float(trade.get("sl", 0))
         tp_points = float(trade.get("tp", 0))
         profile_name = self.config.get("profile_name", "Unknown")
 
-        prep = self._prepare_scheduled_trade(trade)
+        prep = self._prepare_scheduled_trade(trade, order_type_override=order_type)
         if prep == "skip":
             return "skip"
         if prep != "ok":
@@ -3008,7 +3102,7 @@ class CopyTradeManager:
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             direction_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
             if self._is_gold_limit_schedule(trade) and ("Gold" in comment or "GOLD" in comment):
-                detail = self._build_gold_schedule_summary(trade, market_price=price)
+                detail = self._build_gold_schedule_summary(trade, market_price=price, order_type=order_type)
                 self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot\n{detail}")
             else:
                 self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot")
@@ -3017,13 +3111,53 @@ class CopyTradeManager:
         self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: {res.comment}")
         return "fail"
 
+    def _remove_gold_pending_pair(self, trade):
+        removed = True
+        for key in ["buy_pending_ticket", "sell_pending_ticket", "pending_ticket"]:
+            ticket = trade.get(key)
+            if ticket:
+                ok = self._remove_pending_order(ticket)
+                removed = removed and ok
+                trade[key] = 0
+        return removed
+
+    def _cleanup_opposite_after_gold_fill(self, trade, filled_order_type, keep_ticket=None):
+        symbol = trade["symbol"]
+        profile_name = self.config.get("profile_name", "Unknown")
+        self._remove_gold_pending_pair(trade)
+
+        opp_type = mt5.POSITION_TYPE_SELL if filled_order_type == mt5.ORDER_TYPE_BUY else mt5.POSITION_TYPE_BUY
+        positions = mt5.positions_get(symbol=symbol)
+        if positions:
+            for pos in positions:
+                if keep_ticket and pos.ticket == keep_ticket:
+                    continue
+                if pos.type == opp_type:
+                    if self._direct_close(pos):
+                        self.notify(f"🔄 [{profile_name}] Closed opposite filled-side {symbol} (Ticket: {pos.ticket}) after limit fill")
+                    else:
+                        self.notify(f"⚠️ [{profile_name}] Failed to close opposite filled-side {symbol} (Ticket: {pos.ticket})")
+
+    def _resolve_gold_fallback_order_type(self, trade, plan):
+        fallback_order_type = trade["type"]
+        if plan.get("fallback_mode") == "m30_reverse":
+            fallback_order_type, basis = self._get_prev_m30_reverse_order_type(trade["symbol"], plan["fallback_dt"], trade["type"])
+            trade["fallback_basis"] = basis
+        else:
+            direction = "BUY" if fallback_order_type == mt5.ORDER_TYPE_BUY else "SELL"
+            trade["fallback_basis"] = f"Fallback theo bias đã hẹn => {direction}"
+        return fallback_order_type
+
     def _start_gold_scheduled_trade(self, trade, trade_full_dt, trigger_dt, now_dt):
         symbol = trade["symbol"]
-        order_type = trade["type"]
         sl_points = float(trade.get("sl", 0))
         tp_points = float(trade.get("tp", 0))
         profile_name = self.config.get("profile_name", "Unknown")
-        plan = self._get_gold_schedule_plan(trigger_dt)
+        plan = self._get_gold_schedule_plan(trigger_dt, trade.get("type"))
+        if not plan:
+            trade["status"] = "failed"
+            self.notify(f"❌ [{profile_name}] Dữ liệu không có cho mốc giờ vàng này hoặc có thể sai múi giờ.")
+            return "failed"
 
         if now_dt > plan["grace_dt"]:
             trade["status"] = "expired"
@@ -3031,16 +3165,15 @@ class CopyTradeManager:
             return "expired"
 
         if now_dt >= plan["fallback_dt"]:
-            market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Fallback")
+            fallback_order_type = self._resolve_gold_fallback_order_type(trade, plan)
+            market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Fallback", order_type_override=fallback_order_type)
             trade["status"] = "executed" if market_res in ["done", "skip"] else "failed"
             return trade["status"]
 
-        prep = self._prepare_scheduled_trade(trade)
-        if prep == "skip":
-            trade["status"] = "executed"
-            return "executed"
-        if prep != "ok":
+        existing_positions = mt5.positions_get(symbol=symbol)
+        if existing_positions:
             trade["status"] = "failed"
+            self.notify(f"⚠️ [{profile_name}] Skipped Scheduled Gold {symbol}: existing position detected, avoid hedge/conflict")
             return "failed"
 
         m5_open = self._get_m5_open_price(symbol, trigger_dt)
@@ -3050,61 +3183,173 @@ class CopyTradeManager:
             trade["status"] = "failed"
             return "failed"
 
-        limit_price = m5_open - plan["offset"] if order_type == mt5.ORDER_TYPE_BUY else m5_open + plan["offset"]
-        limit_price = round(limit_price, info.digits)
-        sl, tp = self._calc_scheduled_sl_tp(symbol, order_type, limit_price, sl_points, tp_points)
+        buy_limit_price = round(m5_open - plan["offset"], info.digits)
+        sell_limit_price = round(m5_open + plan["offset"], info.digits)
         tick = mt5.symbol_info_tick(symbol)
         if not tick:
             trade["status"] = "failed"
             return "failed"
 
-        crossed = (order_type == mt5.ORDER_TYPE_BUY and tick.ask <= limit_price) or (order_type == mt5.ORDER_TYPE_SELL and tick.bid >= limit_price)
-        if crossed:
-            market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Direct Market")
+        if tick.ask <= buy_limit_price:
+            trade["entry_anchor_open"] = m5_open
+            trade["m5_open"] = m5_open
+            trade["trigger_time"] = trigger_dt.strftime("%H:%M:%S")
+            trade["limit_offset"] = plan["offset"]
+            trade["buy_limit_price"] = buy_limit_price
+            trade["sell_limit_price"] = sell_limit_price
+            trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
+            trade["fallback_basis"] = "Giá đã chạm Buy Limit ngay tại lúc trigger"
+            trade["preexisting_tickets"] = []
+            market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Direct Market", order_type_override=mt5.ORDER_TYPE_BUY)
             trade["status"] = "executed" if market_res in ["done", "skip"] else "failed"
             return trade["status"]
 
-        pending_type = mt5.ORDER_TYPE_BUY_LIMIT if order_type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_SELL_LIMIT
-        request = {
-            "action": mt5.TRADE_ACTION_PENDING,
-            "symbol": symbol,
-            "volume": float(trade["lot"]),
-            "type": pending_type,
-            "price": limit_price,
-            "sl": sl,
-            "tp": tp,
-            "magic": int(self.config.get("magic", 0)),
-            "comment": "Scheduled Gold Limit",
-            "type_time": mt5.ORDER_TIME_GTC,
-            "type_filling": get_filling_type(symbol),
-        }
-        res = mt5.order_send(request)
+        if tick.bid >= sell_limit_price:
+            trade["entry_anchor_open"] = m5_open
+            trade["m5_open"] = m5_open
+            trade["trigger_time"] = trigger_dt.strftime("%H:%M:%S")
+            trade["limit_offset"] = plan["offset"]
+            trade["buy_limit_price"] = buy_limit_price
+            trade["sell_limit_price"] = sell_limit_price
+            trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
+            trade["fallback_basis"] = "Giá đã chạm Sell Limit ngay tại lúc trigger"
+            trade["preexisting_tickets"] = []
+            market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Direct Market", order_type_override=mt5.ORDER_TYPE_SELL)
+            trade["status"] = "executed" if market_res in ["done", "skip"] else "failed"
+            return trade["status"]
+
         placed_codes = [mt5.TRADE_RETCODE_DONE]
         placed_code = getattr(mt5, "TRADE_RETCODE_PLACED", None)
         if placed_code is not None:
             placed_codes.append(placed_code)
 
-        if res.retcode in placed_codes:
+        buy_sl, buy_tp = self._calc_scheduled_sl_tp(symbol, mt5.ORDER_TYPE_BUY, buy_limit_price, sl_points, tp_points)
+        sell_sl, sell_tp = self._calc_scheduled_sl_tp(symbol, mt5.ORDER_TYPE_SELL, sell_limit_price, sl_points, tp_points)
+        base_request = {
+            "action": mt5.TRADE_ACTION_PENDING,
+            "symbol": symbol,
+            "volume": float(trade["lot"]),
+            "magic": int(self.config.get("magic", 0)),
+            "comment": "Scheduled Gold Limit",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": get_filling_type(symbol),
+        }
+        buy_request = dict(base_request)
+        buy_request.update({
+            "type": mt5.ORDER_TYPE_BUY_LIMIT,
+            "price": buy_limit_price,
+            "sl": buy_sl,
+            "tp": buy_tp,
+        })
+        sell_request = dict(base_request)
+        sell_request.update({
+            "type": mt5.ORDER_TYPE_SELL_LIMIT,
+            "price": sell_limit_price,
+            "sl": sell_sl,
+            "tp": sell_tp,
+        })
+
+        if plan.get("placement_mode") == "bias_only":
+            chosen_type = trade.get("type", mt5.ORDER_TYPE_BUY)
+            chosen_request = buy_request if chosen_type == mt5.ORDER_TYPE_BUY else sell_request
+            chosen_price = buy_limit_price if chosen_type == mt5.ORDER_TYPE_BUY else sell_limit_price
+            chosen_res = mt5.order_send(chosen_request)
+            if chosen_res.retcode in placed_codes:
+                trade["status"] = "limit_pending"
+                if chosen_type == mt5.ORDER_TYPE_BUY:
+                    trade["buy_pending_ticket"] = int(getattr(chosen_res, "order", 0) or 0)
+                    trade["sell_pending_ticket"] = 0
+                    trade["buy_limit_price"] = chosen_price
+                    trade["sell_limit_price"] = None
+                    direction_label = "BUY LIMIT"
+                else:
+                    trade["sell_pending_ticket"] = int(getattr(chosen_res, "order", 0) or 0)
+                    trade["buy_pending_ticket"] = 0
+                    trade["buy_limit_price"] = None
+                    trade["sell_limit_price"] = chosen_price
+                    direction_label = "SELL LIMIT"
+                trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
+                trade["entry_anchor_open"] = m5_open
+                trade["m5_open"] = m5_open
+                trade["trigger_time"] = trigger_dt.strftime("%H:%M:%S")
+                trade["limit_offset"] = plan["offset"]
+                trade["fallback_basis"] = ""
+                trade["preexisting_tickets"] = []
+                detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, fallback_dt=plan["fallback_dt"])
+                self.notify(f"⏳ [{profile_name}] Placed Scheduled {direction_label} {symbol}\n{detail}")
+                return "placed"
+
+            self.notify(f"❌ [{profile_name}] Failed Scheduled Bias Limit {symbol}: {chosen_res.comment}")
+            trade["status"] = "failed"
+            return "failed"
+
+        buy_res = mt5.order_send(buy_request)
+        sell_res = mt5.order_send(sell_request)
+
+        buy_ok = buy_res.retcode in placed_codes
+        sell_ok = sell_res.retcode in placed_codes
+
+        if buy_ok and sell_ok:
             trade["status"] = "limit_pending"
-            trade["pending_ticket"] = int(getattr(res, "order", 0) or 0)
+            trade["buy_pending_ticket"] = int(getattr(buy_res, "order", 0) or 0)
+            trade["sell_pending_ticket"] = int(getattr(sell_res, "order", 0) or 0)
             trade["fallback_time"] = plan["fallback_dt"].strftime("%H:%M:%S")
             trade["entry_anchor_open"] = m5_open
             trade["m5_open"] = m5_open
             trade["trigger_time"] = trigger_dt.strftime("%H:%M:%S")
-            trade["limit_price"] = limit_price
+            trade["buy_limit_price"] = buy_limit_price
+            trade["sell_limit_price"] = sell_limit_price
             trade["limit_offset"] = plan["offset"]
-            direction_str = "BUY LIMIT" if order_type == mt5.ORDER_TYPE_BUY else "SELL LIMIT"
-            detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, fallback_dt=plan["fallback_dt"], limit_price=limit_price)
-            self.notify(f"⏳ [{profile_name}] Placed Scheduled {direction_str} {symbol} @ {limit_price}\n{detail}")
+            trade["fallback_basis"] = ""
+            trade["preexisting_tickets"] = []
+            detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, fallback_dt=plan["fallback_dt"])
+            self.notify(f"⏳ [{profile_name}] Placed Scheduled 2-Way Limits {symbol}\n{detail}")
             return "placed"
 
-        self.notify(f"❌ [{profile_name}] Failed Scheduled Limit {symbol}: {res.comment}")
+        if buy_ok:
+            self._remove_pending_order(int(getattr(buy_res, "order", 0) or 0))
+        if sell_ok:
+            self._remove_pending_order(int(getattr(sell_res, "order", 0) or 0))
+
+        self.notify(f"❌ [{profile_name}] Failed Scheduled 2-Way Limits {symbol}: BUY={buy_res.comment} | SELL={sell_res.comment}")
         trade["status"] = "failed"
         return "failed"
 
+    def _get_prev_m30_reverse_order_type(self, symbol, ref_dt, default_order_type):
+        try:
+            mt5.symbol_select(symbol, True)
+        except:
+            pass
+        lookup_dt = ref_dt - timedelta(seconds=1)
+        rates = mt5.copy_rates_from(symbol, mt5.TIMEFRAME_M30, lookup_dt, 48)
+        if rates is None or len(rates) == 0:
+            return default_order_type, "Prev M30 unavailable -> giữ chiều gốc"
+
+        bars = list(rates)
+        for back_idx, bar in enumerate(reversed(bars), start=1):
+            try:
+                candle_open = float(bar["open"])
+                candle_close = float(bar["close"])
+            except Exception:
+                try:
+                    candle_open = float(bar.open)
+                    candle_close = float(bar.close)
+                except Exception:
+                    continue
+
+            if candle_close < candle_open:
+                return mt5.ORDER_TYPE_BUY, f"M30 lùi {back_idx} nến: đỏ ({candle_open} -> {candle_close}) => BUY"
+            if candle_close > candle_open:
+                return mt5.ORDER_TYPE_SELL, f"M30 lùi {back_idx} nến: xanh ({candle_open} -> {candle_close}) => SELL"
+
+        return default_order_type, "Các nến M30 gần nhất đều doji/không rõ -> giữ chiều gốc"
+
     def _process_gold_scheduled_trade(self, trade, trade_full_dt, trigger_dt, now_dt):
         status = trade.get("status", "waiting")
-        plan = self._get_gold_schedule_plan(trigger_dt)
+        plan = self._get_gold_schedule_plan(trigger_dt, trade.get("type"))
+        if not plan:
+            trade["status"] = "failed"
+            return "failed"
         symbol = trade["symbol"]
         order_type = trade["type"]
         profile_name = self.config.get("profile_name", "Unknown")
@@ -3118,32 +3363,32 @@ class CopyTradeManager:
             return "noop"
 
         positions = mt5.positions_get(symbol=symbol)
+        preexisting_tickets = set(trade.get("preexisting_tickets", []) or [])
         if positions:
             for pos in positions:
-                if pos.type == order_type:
-                    pending_ticket = trade.get("pending_ticket")
-                    if pending_ticket:
-                        self._remove_pending_order(pending_ticket)
+                if pos.ticket in preexisting_tickets:
+                    continue
+                if pos.type in [mt5.POSITION_TYPE_BUY, mt5.POSITION_TYPE_SELL]:
                     trade["status"] = "executed"
-                    direction_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
-                    detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt)
+                    filled_type = mt5.ORDER_TYPE_BUY if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_SELL
+                    self._cleanup_opposite_after_gold_fill(trade, filled_type, keep_ticket=pos.ticket)
+                    direction_str = "BUY" if filled_type == mt5.ORDER_TYPE_BUY else "SELL"
+                    detail = self._build_gold_schedule_summary(trade, trigger_dt=trigger_dt, order_type=filled_type)
                     self.notify(f"✅ [{profile_name}] Scheduled {direction_str} {symbol} filled from Limit\n{detail}")
                     return "executed"
 
         if now_dt < plan["fallback_dt"]:
             return "noop"
 
-        pending_ticket = trade.get("pending_ticket")
-        if pending_ticket:
-            self._remove_pending_order(pending_ticket)
-            trade["pending_ticket"] = 0
+        self._remove_gold_pending_pair(trade)
 
         if now_dt > plan["grace_dt"]:
             trade["status"] = "expired"
             self.notify(f"⚠️ [{profile_name}] Scheduled Gold {symbol} expired after fallback window")
             return "expired"
 
-        market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Fallback")
+        fallback_order_type = self._resolve_gold_fallback_order_type(trade, plan)
+        market_res = self._send_scheduled_market_order(trade, comment="Scheduled Gold Fallback", order_type_override=fallback_order_type)
         trade["status"] = "executed" if market_res in ["done", "skip"] else "failed"
         return trade["status"]
 
@@ -5823,6 +6068,10 @@ class App(ctk.CTk):
                 while target_dt.weekday() in (5, 6):
                     target_dt += timedelta(days=1)
                 target_dt = self.copy_manager._normalize_gold_schedule_create_dt(symbol, target_dt)
+                is_valid_gold_time, gold_time_msg = self.copy_manager._validate_gold_schedule_time(symbol, target_dt, t_type)
+                if not is_valid_gold_time:
+                    self.lbl_pos_msg.configure(text=gold_time_msg, text_color="red")
+                    return
                 
                 target_date_str = target_dt.strftime("%Y-%m-%d")
                 

@@ -16,10 +16,15 @@ Tài liệu chi tiết:
 - Scheduled Entry: hẹn giờ vào lệnh BUY/SELL theo thời gian (tự dời sang ngày mai nếu giờ đã qua, bỏ weekend).
 - Scheduled Gold Mode:
   - Riêng `XAUUSD/GOLD`, nếu hẹn `xx:00` thì hệ thống tự đổi sang `xx:05` để bám đúng nến `M5`.
-  - Đến giờ trigger, bot lấy `Open M5` làm mốc đặt `Limit` theo chiều đã hẹn.
-  - `BUY`: `Buy Limit = Open M5 - offset`; `SELL`: `Sell Limit = Open M5 + offset`.
-  - Nếu chưa khớp tới giờ fallback thì bot hủy pending còn lại và vào `Market` đúng chiều.
-  - Bot tự đóng position ngược chiều và xóa pending ngược chiều để tránh hedge.
+-  - Giờ nhập trên Telegram/UI là giờ local của máy chạy bot; hệ thống tự quy đổi nội bộ sang giờ market `GMT+3` mùa hè và `GMT+2` mùa đông.
+-  - Tùy mốc giờ, bot sẽ chạy theo `2 đầu limit` hoặc `1 đầu theo bias`.
+-  - Mode `2 đầu limit`: đặt đồng thời `Buy Limit = M5 Open - offset` và `Sell Limit = M5 Open + offset`.
+-  - Một đầu khớp trước thì bot xóa pending còn lại ngay và đóng luôn position chiều ngược lại để tránh hedge.
+-  - Mode `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã hẹn; nếu thiếu bias thì bot báo lỗi dữ liệu.
+-  - Khi tới fallback:
+-    - một số mốc dùng `M30 lùi dần` để chọn chiều market
+-    - một số mốc dùng chính `bias` đã hẹn
+-  - Nếu giờ local quy đổi không khớp mốc nội bộ hỗ trợ, bot sẽ báo khả năng sai múi giờ hoặc mốc không hợp lệ.
 - Telegram NLP:
   - Hẹn giờ vào lệnh bằng câu tự nhiên (vd: “Mua Vàng 0.1 lúc 19:30”).
   - Close all theo điều kiện (vd: “Đóng các lệnh lời lúc 20:00”, “Close all sym=XAUUSD”).
@@ -63,14 +68,18 @@ Các lệnh được parse theo dạng dòng đơn hoặc nhiều dòng (mỗi d
 - `/help`
 
 ## Logic vàng hẹn giờ
-- Mặc định với `XAUUSD/GOLD`: dùng `offset = 10.0`, fallback ở phút `25` của cùng giờ trigger.
-- Mùa đông:
-  - `20:05`, `21:05`: dùng `offset = 15.0`, fallback lần lượt `21:00`, `22:00`
-  - `22:05`: dùng `offset = 15.0`, fallback `22:35`
-- Mùa hè:
-  - `19:05`, `20:05`: dùng `offset = 15.0`, fallback lần lượt `20:00`, `21:00`
-  - `21:05`: dùng `offset = 15.0`, fallback `21:35`
-- Telegram notify cho vàng sẽ hiển thị rõ: `Giờ hẹn`, `Trigger M5`, `M5 Open`, `Limit`, `Fallback Market`, `Anti-Hedge`.
+- `03:05` market: `2 đầu limit`, `offset 10.0`, fallback `04:05`, market theo `M30 lùi dần`
+- `07:05` market: `2 đầu limit`, `offset 10.0`, fallback `08:05`, market theo `M30 lùi dần`, không áp dụng `thứ 3/4`
+- `12:05` market: `2 đầu limit`, `offset 10.0`, fallback `14:35`, market theo `M30 lùi dần`
+- `15:05` market: `2 đầu limit`, `offset 20.0`, fallback `17:35`, market theo `M30 lùi dần`
+- `18:05` market: `bias-only`, `offset 10.0`, fallback `18:35`, market theo `bias`, không áp dụng `thứ 3/4`
+- `20:05` market: `bias-only`, `offset 10.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
+- `21:05` market:
+-  - `BUY bias -> fallback 23:05`
+-  - `SELL bias -> fallback 02:05` ngày market kế tiếp
+-  - cuối thứ 6 dời sang `02:05 thứ 2` theo giờ market
+-  - `2 đầu limit`, `offset 10.0`, market theo `M30 lùi dần`
+- Telegram notify cho vàng hiển thị rõ: `Giờ hẹn`, `Trigger M5`, `M5 Open`, `Buy Limit`, `Sell Limit`, `Fallback Market`, `Fallback Rule`, `Anti-Hedge`.
 
 ## Cấu hình & file dữ liệu
 - `profiles.json`: danh sách profile (đường dẫn MT5, magic, telegram token/chat, rule quản trị lệnh…).

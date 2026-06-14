@@ -20,17 +20,25 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - `Mua Vàng 0.1 lúc 19:30`: Robot sẽ hẹn giờ cho lệnh BUY 0.1 lot Vàng.
 - `Sell GBPUSD 0.05 lúc 20:00`: Hẹn giờ lệnh bán.
 - Riêng `XAUUSD/GOLD`, nếu bạn nhập giờ tròn như `19:00` thì hệ thống tự lưu thành `19:05` để lấy đúng nến `M5`.
-- Đến giờ trigger, bot lấy `Open M5` làm mốc:
-  - `BUY`: đặt `Buy Limit = Open M5 - offset`
-  - `SELL`: đặt `Sell Limit = Open M5 + offset`
-- Nếu Limit chưa khớp tới giờ fallback, bot sẽ:
-  - hủy pending chưa khớp
-  - vào `Market` đúng chiều đã hẹn
-  - đóng/xóa chiều ngược lại để tránh hedge
-- Mốc đặc biệt cho vàng:
-  - Mùa đông `20:05`, `21:05`, `22:05` dùng `offset 15.0`
-  - Mùa hè `19:05`, `20:05`, `21:05` dùng `offset 15.0`
-  - Các giờ vàng khác mặc định dùng `offset 10.0`
+- Giờ bạn nhập là giờ local của máy; bot tự quy đổi sang giờ market `GMT+3/GMT+2` để match các mốc nội bộ.
+- Có 2 kiểu mốc cho vàng:
+-  - `2 đầu limit`: đặt đồng thời `Buy Limit = M5 Open - offset` và `Sell Limit = M5 Open + offset`
+-  - `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã nhập
+- Khi một đầu limit khớp:
+-  - bot xóa ngay pending còn lại
+-  - bot đóng luôn position chiều ngược lại nếu có
+- Khi tới fallback:
+-  - một số mốc dùng `M30 lùi dần` để chọn chiều `Market`
+-  - một số mốc dùng chính `bias` bạn đã hẹn
+- Nếu giờ local quy đổi không rơi đúng mốc hỗ trợ, bot sẽ báo thiếu dữ liệu hoặc có thể bạn đã nhập sai múi giờ.
+- Bộ mốc cuối cùng cho vàng:
+-  - `03:05` market: `2 đầu`, `offset 10.0`, fallback `04:05`, market theo `M30 lùi dần`
+-  - `07:05` market: `2 đầu`, `offset 10.0`, fallback `08:05`, market theo `M30 lùi dần`, không áp dụng `thứ 3/4`
+-  - `12:05` market: `2 đầu`, `offset 10.0`, fallback `14:35`, market theo `M30 lùi dần`
+-  - `15:05` market: `2 đầu`, `offset 20.0`, fallback `17:35`, market theo `M30 lùi dần`
+-  - `18:05` market: `bias-only`, `offset 10.0`, fallback `18:35`, market theo `bias`, không áp dụng `thứ 3/4`
+-  - `20:05` market: `bias-only`, `offset 10.0`, fallback `20:35`, market theo `bias`, chỉ áp dụng `thứ 3/4`
+-  - `21:05` market: `2 đầu`, `offset 10.0`; `BUY -> 23:05`, `SELL -> 02:05` ngày market kế tiếp; cuối thứ 6 dời sang `02:05 thứ 2`; market theo `M30 lùi dần`
 
 ---
 
@@ -66,4 +74,4 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - `/closeallpending`: Xóa toàn bộ lệnh chờ.
 
 ---
-*Mẹo: Bạn có thể gửi nhiều lệnh trong 1 tin nhắn (mỗi dòng 1 lệnh). Với vàng, Telegram sẽ báo rõ Giờ hẹn, Trigger M5, M5 Open, Limit và Fallback Market.*
+*Mẹo: Bạn có thể gửi nhiều lệnh trong 1 tin nhắn (mỗi dòng 1 lệnh). Với vàng, Telegram sẽ báo rõ Giờ hẹn, Trigger M5, M5 Open, Buy Limit, Sell Limit, Fallback Market, Fallback Rule và Anti-Hedge.*
