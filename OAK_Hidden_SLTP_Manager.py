@@ -490,7 +490,7 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 ### <c=#FF9800>4.</c> Ngày đặc biệt nhắc nhở
 - `Thứ 2` và `Thứ 3` thuộc `tuần đầu tháng`, tính theo `tuần chứa Thứ 6 đầu tiên của tháng`; nếu `Thứ 6` đầu tiên nằm trong `ngày 1-7` thì `Thứ 2/3` cùng tuần đó vẫn được tính, kể cả đang nằm ở tháng trước
 - `Thứ 4` rơi vào ngày `30` hoặc `1`: `không đánh`
-- `Thứ 6` cuối tháng: tính thêm mốc `18:00`, trừ khi đó là `Thứ 6 cuối cùng của tháng 2`
+- `Thứ 6` cuối tháng: tính thêm mốc `18:00`; riêng `Thứ 6 cuối cùng của tháng 2` và `tháng 7` thì mốc `18:00` đi `ngược chiều`
 
 ---
 

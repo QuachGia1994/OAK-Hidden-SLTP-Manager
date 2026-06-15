@@ -576,7 +576,12 @@ def get_rule_reminders(now, lang="VN"):
             out.append("• Today is Wednesday, day 30/1: no trade.")
 
     if weekday == 4 and day == get_last_friday(year, month):
-        if month != 2:
+        if month in (2, 7):
+            if lang == "VN":
+                out.append("• Hôm nay là Thứ 6 cuối tháng: vẫn tính mốc 18:00, nhưng đi ngược chiều vì rơi vào tháng 2 hoặc tháng 7.")
+            else:
+                out.append("• Today is the last Friday of the month: still include the 18:00 slot, but reverse direction because it falls in February or July.")
+        else:
             if lang == "VN":
                 out.append("• Hôm nay là Thứ 6 cuối tháng: tính thêm mốc 18:00.")
             else:
