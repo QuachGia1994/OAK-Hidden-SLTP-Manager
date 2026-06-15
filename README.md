@@ -36,12 +36,9 @@ Tài liệu chi tiết:
 - Session persistence: tự lưu trạng thái lệnh hẹn giờ để phục hồi sau restart.
 
 ## Ngày đặc biệt nhắc nhở
-- `Thứ 4` rơi vào ngày `30` hoặc `1`
-- `Thứ 4 cuối tháng`
-- `Thứ 6` rơi vào ngày `3`, `4`, `7`
-- `Thứ 6 cuối tháng`
-- `Thứ 5 cuối cùng của tháng 7` để tính `Trend Năm`
-- `Thứ 2` nếu `Thứ 6` trước đó rơi vào ngày `3/4/7` hoặc `Thứ 4` trước đó rơi vào ngày `30/1`
+- `Thứ 2` và `Thứ 3` thuộc `tuần đầu tháng`, tính theo `tuần chứa Thứ 6 đầu tiên của tháng`; nếu `Thứ 6` đầu tiên nằm trong `ngày 1-7` thì `Thứ 2/3` cùng tuần đó vẫn được tính, kể cả đang nằm ở tháng trước
+- `Thứ 4` rơi vào ngày `30` hoặc `1`: `không đánh`
+- `Thứ 6` cuối tháng: tính thêm mốc `18:00`, trừ khi rơi vào `ngày 30`
 
 ## Yêu cầu
 - Windows (MT5 + pywinauto).

@@ -563,52 +563,32 @@ def get_rule_reminders(now, lang="VN"):
 
     out = []
 
-    def _get_last_weekday(year, month, weekday_idx):
-        c = calendar.monthcalendar(year, month)
-        last_week = c[-1]
-        if last_week[weekday_idx] != 0:
-            return last_week[weekday_idx]
-        return c[-2][weekday_idx]
+    def _is_first_friday_week_member(date_obj):
+        if date_obj.weekday() not in (0, 1):
+            return False
+        first_friday_of_week = date_obj + timedelta(days=(4 - date_obj.weekday()))
+        return first_friday_of_week.weekday() == 4 and 1 <= first_friday_of_week.day <= 7
 
     if weekday == 2 and day in [30, 1]:
         if lang == "VN":
-            out.append("• Hôm nay Thứ 4 ngày 30/1.")
+            out.append("• Hôm nay Thứ 4 ngày 30/1: không đánh.")
         else:
-            out.append("• Today is Wednesday, day 30/1.")
-
-    if weekday == 2 and day == _get_last_weekday(year, month, calendar.WEDNESDAY):
-        if lang == "VN":
-            out.append("• Hôm nay là Thứ 4 cuối tháng.")
-        else:
-            out.append("• Today is the last Wednesday of the month.")
-
-    if weekday == 4 and day in [3, 4, 7]:
-        if lang == "VN":
-            out.append("• Hôm nay Thứ 6 ngày 3/4/7.")
-        else:
-            out.append("• Today is Friday, day 3/4/7.")
+            out.append("• Today is Wednesday, day 30/1: no trade.")
 
     if weekday == 4 and day == get_last_friday(year, month):
+        if day != 30:
+            if lang == "VN":
+                out.append("• Hôm nay là Thứ 6 cuối tháng: tính thêm mốc 18:00.")
+            else:
+                out.append("• Today is the last Friday of the month: include the 18:00 slot.")
+
+    if _is_first_friday_week_member(now):
+        weekday_label_vn = "Thứ 2" if weekday == 0 else "Thứ 3"
+        weekday_label_en = "Monday" if weekday == 0 else "Tuesday"
         if lang == "VN":
-            out.append("• Hôm nay là Thứ 6 cuối tháng.")
+            out.append(f"• Hôm nay là {weekday_label_vn} thuộc tuần đầu tháng (tính theo tuần chứa Thứ 6 đầu tiên của tháng).")
         else:
-            out.append("• Today is the last Friday of the month.")
-
-    if weekday == 3 and month == 7:
-        if day == get_last_thursday(year, 7):
-            if lang == "VN":
-                out.append("• Hôm nay là Thứ 5 cuối cùng của tháng 7: tính Trend Năm.")
-            else:
-                out.append("• Today is the last Thursday of July: calculate Yearly Trend.")
-
-    if weekday == 0:
-        prev_friday = now - timedelta(days=3)
-        prev_wednesday = now - timedelta(days=5)
-        if (prev_friday.weekday() == 4 and prev_friday.day in [3, 4, 7]) or (prev_wednesday.weekday() == 2 and prev_wednesday.day in [30, 1]):
-            if lang == "VN":
-                out.append("• Hôm nay Thứ 2: Thứ 6 trước đó rơi vào ngày 3/4/7 hoặc Thứ 4 trước đó rơi vào ngày 30/1.")
-            else:
-                out.append("• Today is Monday: the previous Friday fell on day 3/4/7 or the previous Wednesday fell on day 30/1.")
+            out.append(f"• Today is {weekday_label_en} in the first week of the month (based on the week containing the first Friday of the month).")
 
     return out
 

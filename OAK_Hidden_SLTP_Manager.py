@@ -488,12 +488,9 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
   - Với các mốc fallback theo `M15`, phải xét đúng `open/close`: `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` hay `xx:50`
 
 ### <c=#FF9800>4.</c> Ngày đặc biệt nhắc nhở
-- `Thứ 4` rơi vào ngày `30` hoặc `1`
-- `Thứ 4 cuối tháng`
-- `Thứ 6` rơi vào ngày `3`, `4`, `7`
-- `Thứ 6 cuối tháng`
-- `Thứ 5 cuối cùng của tháng 7` để tính `Trend Năm`
-- `Thứ 2` nếu `Thứ 6` trước đó rơi vào ngày `3/4/7` hoặc `Thứ 4` trước đó rơi vào ngày `30/1`
+- `Thứ 2` và `Thứ 3` thuộc `tuần đầu tháng`, tính theo `tuần chứa Thứ 6 đầu tiên của tháng`; nếu `Thứ 6` đầu tiên nằm trong `ngày 1-7` thì `Thứ 2/3` cùng tuần đó vẫn được tính, kể cả đang nằm ở tháng trước
+- `Thứ 4` rơi vào ngày `30` hoặc `1`: `không đánh`
+- `Thứ 6` cuối tháng: tính thêm mốc `18:00`, trừ khi rơi vào `ngày 30`
 
 ---
 
@@ -2808,13 +2805,9 @@ class CopyTradeManager:
             save_json(self.scheduled_file, self.scheduled_trades)
 
     def _is_gold_limit_schedule(self, trade):
-        symbol = str(trade.get("symbol", "")).upper()
-        return "XAU" in symbol or "GOLD" in symbol
+        return False
 
     def _normalize_gold_schedule_create_dt(self, symbol, target_dt):
-        symbol_upper = str(symbol).upper()
-        if ("XAU" in symbol_upper or "GOLD" in symbol_upper) and target_dt.minute == 0 and target_dt.second == 0:
-            return target_dt.replace(minute=5, second=0, microsecond=0)
         return target_dt
 
     def _get_gold_market_rules(self):
@@ -2920,27 +2913,7 @@ class CopyTradeManager:
         ]
 
     def _validate_gold_schedule_time(self, symbol, trade_dt, bias_order_type):
-        symbol_upper = str(symbol).upper()
-        if not ("XAU" in symbol_upper or "GOLD" in symbol_upper):
-            return True, ""
-
-        is_winter = oak_trading_reminders.is_winter_time()
-        for rule in self._get_gold_market_rules():
-            _, market_dt = self._match_market_trigger_rule(trade_dt, rule["trigger"][0], rule["trigger"][1], is_winter)
-            if not market_dt:
-                continue
-
-            market_weekday = market_dt.weekday()
-            if market_weekday in rule.get("blocked_weekdays", []):
-                return False, f"❌ Mốc vàng {market_dt.strftime('%H:%M')} không áp dụng cho thứ này. Kiểm tra lại múi giờ hoặc ngày giao dịch."
-            allowed = rule.get("allowed_weekdays")
-            if allowed is not None and market_weekday not in allowed:
-                return False, f"❌ Mốc vàng {market_dt.strftime('%H:%M')} không áp dụng cho thứ này. Kiểm tra lại múi giờ hoặc ngày giao dịch."
-            if rule.get("placement_mode") == "bias_only" and bias_order_type not in [mt5.ORDER_TYPE_BUY, mt5.ORDER_TYPE_SELL]:
-                return False, "❌ Thiếu BUY/SELL bias cho mốc vàng này."
-            return True, ""
-
-        return False, "❌ Dữ liệu không có cho mốc giờ vàng này hoặc bạn có thể đang nhập sai múi giờ."
+        return True, ""
 
     def _get_gold_trigger_dt(self, trade_full_dt):
         if trade_full_dt.minute == 0 and trade_full_dt.second == 0:

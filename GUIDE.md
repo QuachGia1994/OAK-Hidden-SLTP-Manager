@@ -45,12 +45,9 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
   - Với các mốc fallback theo `M15`, bot phải xét đúng `open/close`: `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` hay `xx:50`.
 
 ### 4. Ngày đặc biệt nhắc nhở
-- `Thứ 4` rơi vào ngày `30` hoặc `1`
-- `Thứ 4 cuối tháng`
-- `Thứ 6` rơi vào ngày `3`, `4`, `7`
-- `Thứ 6 cuối tháng`
-- `Thứ 5 cuối cùng của tháng 7` để tính `Trend Năm`
-- `Thứ 2` nếu `Thứ 6` trước đó rơi vào ngày `3/4/7` hoặc `Thứ 4` trước đó rơi vào ngày `30/1`
+- `Thứ 2` và `Thứ 3` thuộc `tuần đầu tháng`, tính theo `tuần chứa Thứ 6 đầu tiên của tháng`; nếu `Thứ 6` đầu tiên nằm trong `ngày 1-7` thì `Thứ 2/3` cùng tuần đó vẫn được tính, kể cả đang nằm ở tháng trước
+- `Thứ 4` rơi vào ngày `30` hoặc `1`: `không đánh`
+- `Thứ 6` cuối tháng: tính thêm mốc `18:00`, trừ khi rơi vào `ngày 30`
 
 ---
 
