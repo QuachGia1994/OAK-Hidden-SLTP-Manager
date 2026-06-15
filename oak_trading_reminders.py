@@ -569,11 +569,13 @@ def get_rule_reminders(now, lang="VN"):
         first_friday_of_week = date_obj + timedelta(days=(4 - date_obj.weekday()))
         return first_friday_of_week.weekday() == 4 and 1 <= first_friday_of_week.day <= 7
 
-    if weekday == 2 and day in [30, 1]:
+    prev_day = now - timedelta(days=1)
+
+    if weekday == 3 and prev_day.weekday() == 2 and prev_day.day in [30, 1]:
         if lang == "VN":
-            out.append("• Hôm nay Thứ 4 ngày 30/1: không đánh.")
+            out.append("• Hôm nay là Thứ 5, hôm qua Thứ 4 rơi vào ngày 30/1: đánh mốc 2/9.")
         else:
-            out.append("• Today is Wednesday, day 30/1: no trade.")
+            out.append("• Today is Thursday and yesterday's Wednesday fell on day 30/1: trade the 2/9 slots.")
 
     if weekday == 4 and day == get_last_friday(year, month):
         if month in (2, 7):
