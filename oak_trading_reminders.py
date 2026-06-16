@@ -564,7 +564,7 @@ def get_rule_reminders(now, lang="VN"):
     out = []
 
     def _is_first_friday_week_member(date_obj):
-        if date_obj.weekday() not in (0, 1):
+        if date_obj.weekday() != 0:
             return False
         first_friday_of_week = date_obj + timedelta(days=(4 - date_obj.weekday()))
         return first_friday_of_week.weekday() == 4 and 1 <= first_friday_of_week.day <= 7
@@ -590,12 +590,10 @@ def get_rule_reminders(now, lang="VN"):
                 out.append("• Today is the last Friday of the month: include the 18:00 slot.")
 
     if _is_first_friday_week_member(now):
-        weekday_label_vn = "Thứ 2" if weekday == 0 else "Thứ 3"
-        weekday_label_en = "Monday" if weekday == 0 else "Tuesday"
         if lang == "VN":
-            out.append(f"• Hôm nay là {weekday_label_vn} thuộc tuần đầu tháng (tính theo tuần chứa Thứ 6 đầu tiên của tháng).")
+            out.append("• Hôm nay là Thứ 2 thuộc tuần đầu tháng (tính theo tuần chứa Thứ 6 đầu tiên của tháng).")
         else:
-            out.append(f"• Today is {weekday_label_en} in the first week of the month (based on the week containing the first Friday of the month).")
+            out.append("• Today is Monday in the first week of the month (based on the week containing the first Friday of the month).")
 
     return out
 
