@@ -597,6 +597,221 @@ def get_rule_reminders(now, lang="VN"):
 
     return out
 
+
+def generate_daily_reminder(now, lang="VN"):
+    weekday = now.weekday()
+    day = now.day
+    month = now.month
+    year = now.year
+    prev_day = now - timedelta(days=1)
+
+    weekday_names_vn = {
+        0: "Thứ 2",
+        1: "Thứ 3",
+        2: "Thứ 4",
+        3: "Thứ 5",
+        4: "Thứ 6",
+        5: "Thứ 7",
+        6: "Chủ nhật",
+    }
+    weekday_names_en = {
+        0: "Monday",
+        1: "Tuesday",
+        2: "Wednesday",
+        3: "Thursday",
+        4: "Friday",
+        5: "Saturday",
+        6: "Sunday",
+    }
+
+    def _fmt_slots(slots):
+        return ", ".join(slots) if slots else "-"
+
+    def _is_first_friday_week_monday(date_obj):
+        if date_obj.weekday() != 0:
+            return False
+        first_friday_of_week = date_obj + timedelta(days=(4 - date_obj.weekday()))
+        return first_friday_of_week.weekday() == 4 and 1 <= first_friday_of_week.day <= 7
+
+    if weekday >= 5:
+        if lang == "VN":
+            return (
+                f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
+                f"• Phân loại ngày: Ngoài lịch giao dịch\n"
+                f"• Override chính: Không có\n\n"
+                f"• Cùng chiều (C): -\n"
+                f"• Ngược chiều (N): -\n\n"
+                f"• Mốc đặc biệt: Không có\n"
+                f"• Lưu ý: Hôm nay không có rule reminder giao dịch.\n"
+                f"• Ưu tiên hôm nay: -"
+            )
+        return (
+            f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
+            f"• Day Type: Outside trading schedule\n"
+            f"• Main Override: None\n\n"
+            f"• Same Direction (C): -\n"
+            f"• Reverse Direction (N): -\n\n"
+            f"• Special Slot: None\n"
+            f"• Note: No trading reminder rule applies today.\n"
+            f"• Priority Today: -"
+        )
+
+    rule = {
+        "day_type_vn": "Ngày thường",
+        "day_type_en": "Normal day",
+        "override_vn": "Không có",
+        "override_en": "None",
+        "c_slots": [],
+        "n_slots": [],
+        "special_vn": "Không có",
+        "special_en": "None",
+        "note_vn": "",
+        "note_en": "",
+        "priority_vn": "",
+        "priority_en": "",
+    }
+
+    if weekday == 0:
+        rule.update({
+            "c_slots": ["02:00", "12:00"],
+            "n_slots": ["02:00", "06:00"],
+            "special_vn": "02:00 là mốc ưu tiên, lấy cùng chiều theo Thứ 6",
+            "special_en": "02:00 is the priority slot, aligned with Friday direction",
+            "note_vn": "Thực chiến ưu tiên mốc 02:00.",
+            "note_en": "In practice, prioritize the 02:00 slot.",
+            "priority_vn": "02:00",
+            "priority_en": "02:00",
+        })
+    elif weekday == 1:
+        rule.update({
+            "c_slots": ["02:00", "12:00"],
+            "n_slots": ["02:00", "15:00"],
+            "special_vn": "Không có",
+            "special_en": "None",
+            "note_vn": "Không còn thông báo Thứ 3 tuần đầu tháng.",
+            "note_en": "There is no more first-week Tuesday reminder.",
+            "priority_vn": "02:00",
+            "priority_en": "02:00",
+        })
+    elif weekday == 2:
+        rule.update({
+            "c_slots": ["02:00", "06:00", "15:00", "18:00"],
+            "n_slots": ["02:00"],
+            "special_vn": "06:00 là sw nhưng close; 18:00 là mốc chuyển tiếp cho sáng Thứ 5",
+            "special_en": "06:00 is sideway/close; 18:00 carries into Thursday morning",
+            "note_vn": "Thứ 4 bình thường, không có rule chặn riêng.",
+            "note_en": "Wednesday is normal, with no special block rule.",
+            "priority_vn": "02:00, 15:00",
+            "priority_en": "02:00, 15:00",
+        })
+    elif weekday == 3:
+        rule.update({
+            "c_slots": ["02:00", "12:00"],
+            "n_slots": ["02:00", "09:00"],
+            "special_vn": "Không có",
+            "special_en": "None",
+            "note_vn": "Theo dõi ảnh hưởng carry từ 18:00 Thứ 4 nếu có.",
+            "note_en": "Watch any carry-over effect from Wednesday 18:00.",
+            "priority_vn": "02:00, 09:00",
+            "priority_en": "02:00, 09:00",
+        })
+    elif weekday == 4:
+        rule.update({
+            "c_slots": ["06:00", "12:00"],
+            "n_slots": ["06:00", "15:00"],
+            "special_vn": "06:00 là mốc làm mồi",
+            "special_en": "06:00 is a bait/probe slot",
+            "note_vn": "12:00 và 15:00 là các mốc chính của ngày.",
+            "note_en": "12:00 and 15:00 are the main slots of the day.",
+            "priority_vn": "12:00 hoặc 15:00",
+            "priority_en": "12:00 or 15:00",
+        })
+
+    if weekday == 3 and prev_day.weekday() == 2 and prev_day.day in (30, 1):
+        rule.update({
+            "day_type_vn": "Thứ 5 sau Thứ 4 ngày 30/1",
+            "day_type_en": "Thursday after Wednesday 30/1",
+            "override_vn": "Đánh mốc 02:00 và 09:00",
+            "override_en": "Trade the 02:00 and 09:00 slots",
+            "c_slots": [],
+            "n_slots": ["02:00", "09:00"],
+            "special_vn": "Override đặc biệt theo ngày hôm trước",
+            "special_en": "Special override based on the previous day",
+            "note_vn": "Rule này đè lên lịch nền Thứ 5.",
+            "note_en": "This rule overrides the normal Thursday schedule.",
+            "priority_vn": "02:00, 09:00",
+            "priority_en": "02:00, 09:00",
+        })
+    elif weekday == 4 and day == get_last_friday(year, month):
+        if month in (2, 7):
+            rule.update({
+                "day_type_vn": "Thứ 6 cuối tháng đặc biệt",
+                "day_type_en": "Special last Friday of the month",
+                "override_vn": "Vẫn có mốc 18:00 nhưng đi ngược chiều",
+                "override_en": "18:00 still applies but in reverse direction",
+                "c_slots": ["06:00", "12:00"],
+                "n_slots": ["06:00", "15:00", "18:00"],
+                "special_vn": "06:00 làm mồi; 18:00 đi ngược chiều",
+                "special_en": "06:00 is bait; 18:00 is reversed",
+                "note_vn": "Ngoại lệ áp cho Thứ 6 cuối cùng của tháng 2 và tháng 7.",
+                "note_en": "This exception applies to the last Friday of February and July.",
+                "priority_vn": "12:00, 15:00, 18:00 N",
+                "priority_en": "12:00, 15:00, 18:00 N",
+            })
+        else:
+            rule.update({
+                "day_type_vn": "Thứ 6 cuối tháng",
+                "day_type_en": "Last Friday of the month",
+                "override_vn": "Tính thêm mốc 18:00",
+                "override_en": "Add the 18:00 slot",
+                "c_slots": ["06:00", "12:00", "18:00"],
+                "n_slots": ["06:00", "15:00"],
+                "special_vn": "06:00 làm mồi; 18:00 là mốc bổ sung cuối tháng",
+                "special_en": "06:00 is bait; 18:00 is the added month-end slot",
+                "note_vn": "18:00 đi cùng chiều trong tháng thường.",
+                "note_en": "18:00 stays in the same direction in normal months.",
+                "priority_vn": "12:00, 15:00, 18:00",
+                "priority_en": "12:00, 15:00, 18:00",
+            })
+    elif _is_first_friday_week_monday(now):
+        rule.update({
+            "day_type_vn": "Thứ 2 tuần đầu tháng",
+            "day_type_en": "First-week Monday",
+            "override_vn": "Tính theo tuần chứa Thứ 6 đầu tiên của tháng",
+            "override_en": "Based on the week containing the first Friday of the month",
+            "c_slots": ["02:00", "12:00"],
+            "n_slots": ["02:00", "06:00"],
+            "special_vn": "02:00 là mốc ưu tiên, vẫn được tính kể cả khi tuần bắt đầu từ tháng trước",
+            "special_en": "02:00 stays priority even if the week starts in the previous month",
+            "note_vn": "Chỉ áp cho Thứ 2 tuần đầu tháng.",
+            "note_en": "Applies only to the first-week Monday.",
+            "priority_vn": "02:00",
+            "priority_en": "02:00",
+        })
+
+    if lang == "VN":
+        return (
+            f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
+            f"• Phân loại ngày: {rule['day_type_vn']}\n"
+            f"• Override chính: {rule['override_vn']}\n\n"
+            f"• Cùng chiều (C): {_fmt_slots(rule['c_slots'])}\n"
+            f"• Ngược chiều (N): {_fmt_slots(rule['n_slots'])}\n\n"
+            f"• Mốc đặc biệt: {rule['special_vn']}\n"
+            f"• Lưu ý: {rule['note_vn']}\n"
+            f"• Ưu tiên hôm nay: {rule['priority_vn']}"
+        )
+
+    return (
+        f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
+        f"• Day Type: {rule['day_type_en']}\n"
+        f"• Main Override: {rule['override_en']}\n\n"
+        f"• Same Direction (C): {_fmt_slots(rule['c_slots'])}\n"
+        f"• Reverse Direction (N): {_fmt_slots(rule['n_slots'])}\n\n"
+        f"• Special Slot: {rule['special_en']}\n"
+        f"• Note: {rule['note_en']}\n"
+        f"• Priority Today: {rule['priority_en']}"
+    )
+
 class OakTradingReminder:
     def __init__(self, token=None, chat_id=None):
         self.token = token
@@ -950,18 +1165,11 @@ class OakTradingReminder:
     def send_rule_reminders(self, now, lang="VN"):
         today_str = now.strftime("%Y-%m-%d")
         key = f"rule_reminders_{today_str}"
-        lines = get_rule_reminders(now, lang=lang)
-        if not lines:
+        msg = generate_daily_reminder(now, lang=lang)
+        if not msg:
             return False
         if self._is_event_locked(key):
             return False
-
-        if lang == "VN":
-            header = f"🔔 [OAK NHẮC NHỞ] ({now.strftime('%d/%m/%Y')})\n"
-        else:
-            header = f"🔔 [OAK REMINDER] ({now.strftime('%m/%d/%Y')})\n"
-
-        msg = header + "\n".join(lines)
         self.send_telegram(msg)
         return True
 
