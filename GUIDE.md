@@ -46,6 +46,7 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 
 ### 4. Ngày đặc biệt nhắc nhở
 - `Thứ 2` thuộc `tuần đầu tháng` hoặc `tuần 5`: bỏ `02:00`, ưu tiên `09:00` và `18:00` đi `ngược chiều`
+- `Thứ 2` nếu lùi lại thấy `Thứ 4` trước đó rơi vào ngày `30` hoặc `1`: chỉ đánh `06:00` `ngược chiều`, lấy `18:00` của `Thứ 6` làm mốc `cùng chiều` tham chiếu
 - `Thứ 3` thuộc `tuần đầu tháng` hoặc `tuần 5`: mốc `02:00` không đánh `ngược chiều`
 - `Thứ 4` rơi vào ngày `30` hoặc `1`: đi `cùng chiều`, riêng `18:00` cũng `cùng chiều`
 - `Thứ 5` rơi vào ngày `30` hoặc `1`: các mốc `02:00` và `12:00` chuyển sang `ngược chiều`

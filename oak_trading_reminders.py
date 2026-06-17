@@ -579,6 +579,13 @@ def _is_monday_recalc_rule(date_obj):
     return date_obj.weekday() == 0 and (_is_first_week_rule(date_obj) or _is_week5_rule(date_obj))
 
 
+def _has_prev_wednesday_301_rule(date_obj):
+    if date_obj.weekday() != 0:
+        return False
+    prev_wednesday = date_obj - timedelta(days=5)
+    return prev_wednesday.weekday() == 2 and prev_wednesday.day in (30, 1)
+
+
 def _is_tuesday_no_reverse_rule(date_obj):
     return date_obj.weekday() == 1 and (_is_first_week_rule(date_obj) or _is_week5_rule(date_obj))
 
@@ -590,6 +597,12 @@ def get_rule_reminders(now, lang="VN"):
     weekday = now.weekday()  # 0=Mon..6=Sun
 
     out = []
+
+    if _has_prev_wednesday_301_rule(now):
+        if lang == "VN":
+            out.append("• Hôm nay là Thứ 2 lùi theo Thứ 4 trước đó ngày 30/1: chỉ đánh 06:00 ngược chiều, tham chiếu 18:00 Thứ 6 cùng chiều.")
+        else:
+            out.append("• Today is Monday looking back to a previous Wednesday on day 30/1: only take 06:00 in reverse, with Friday 18:00 as the same-direction reference.")
 
     if _is_monday_recalc_rule(now):
         if lang == "VN":
@@ -623,9 +636,9 @@ def get_rule_reminders(now, lang="VN"):
     elif weekday == 4 and day == get_last_friday(year, month):
         if month in (2, 7):
             if lang == "VN":
-                out.append("• Hôm nay là Thứ 6 cuối tháng: chỉ tính mốc 18:00 và đi ngược chiều vì rơi vào tháng 2 hoặc tháng 7.")
+                out.append("• Hôm nay là Thứ 6 cuối tháng: chỉ tính mốc 18:00 và đi ngược chiều vì rơi vào tháng 2 hoặc tháng 7 theo trend năm.")
             else:
-                out.append("• Today is the last Friday of the month: only the 18:00 slot applies, and it is reversed because it falls in February or July.")
+                out.append("• Today is the last Friday of the month: only the 18:00 slot applies, and it is reversed in February or July due to the yearly trend.")
         else:
             if lang == "VN":
                 out.append("• Hôm nay là Thứ 6 cuối tháng: chỉ tính mốc 18:00.")
@@ -726,10 +739,10 @@ def generate_daily_reminder(now, lang="VN"):
         rule.update({
             "c_slots": ["02:00", "06:00", "15:00", "18:00"],
             "n_slots": ["02:00"],
-            "special_vn": "06:00 tính sw; 18:00 là mốc cùng chiều cho sáng Thứ 5, đồng thời có nhịp ngược để tham chiếu",
-            "special_en": "06:00 is sideway; 18:00 carries same-direction into Thursday morning while also providing a reverse reference leg",
-            "note_vn": "Lane ngược của Thứ 4 chỉ lấy mốc 02:00 trong ngày.",
-            "note_en": "Wednesday's reverse lane only keeps the 02:00 slot during the day.",
+            "special_vn": "Bộ nền Thứ 4 là 02:00, 06:00, 15:00, 18:00 cùng chiều; lane ngược chỉ giữ 02:00",
+            "special_en": "Wednesday's base set is 02:00, 06:00, 15:00, 18:00 in the same direction; the reverse lane only keeps 02:00",
+            "note_vn": "Nếu rơi vào ngày 30 hoặc 1 thì toàn bộ Thứ 4 đi cùng chiều, riêng 18:00 cũng cùng chiều.",
+            "note_en": "If the date is the 30th or 1st, the whole Wednesday stays same-direction, and 18:00 is also same-direction.",
             "priority_vn": "02:00, 15:00",
             "priority_en": "02:00, 15:00",
         })
@@ -737,10 +750,10 @@ def generate_daily_reminder(now, lang="VN"):
         rule.update({
             "c_slots": ["02:00", "12:00"],
             "n_slots": ["02:00", "09:00"],
-            "special_vn": "Nếu ngày rơi vào 30/1 thì bộ cùng chiều đổi sang ngược chiều",
-            "special_en": "If the date is 30/1, the same-direction set flips to reverse",
-            "note_vn": "Theo dõi ảnh hưởng carry từ 18:00 Thứ 4 cho sáng Thứ 5.",
-            "note_en": "Watch the carry-over effect from Wednesday 18:00 into Thursday morning.",
+            "special_vn": "Bộ mốc Thứ 5 chạy theo month; nếu ngày rơi vào 30/1 thì 02:00 và 12:00 đổi sang ngược chiều",
+            "special_en": "Thursday follows the month-based structure; if the date is 30/1 then 02:00 and 12:00 flip to reverse",
+            "note_vn": "Lane ngược của Thứ 5 giữ 02:00 và 09:00 theo month.",
+            "note_en": "Thursday's reverse lane keeps 02:00 and 09:00 under the month-based structure.",
             "priority_vn": "02:00, 09:00, 12:00",
             "priority_en": "02:00, 09:00, 12:00",
         })
@@ -748,15 +761,30 @@ def generate_daily_reminder(now, lang="VN"):
         rule.update({
             "c_slots": ["12:00"],
             "n_slots": ["15:00"],
-            "special_vn": "Cuối tháng chỉ tính từ 18:00; ngày 3/4/7 chỉ đánh 06:00",
-            "special_en": "At month end only 18:00 applies; on day 3/4/7 only trade 06:00",
-            "note_vn": "Thứ 6 thường tập trung vào 12:00 cùng chiều và 15:00 ngược chiều.",
-            "note_en": "A normal Friday focuses on 12:00 same-direction and 15:00 reverse.",
+            "special_vn": "Thứ 6 nền là 12:00 cùng chiều và 15:00 ngược chiều; cuối tháng chỉ tính 18:00",
+            "special_en": "Friday's base structure is 12:00 same-direction and 15:00 reverse; at month end only 18:00 applies",
+            "note_vn": "Ngày 3/4/7 chỉ đánh 06:00; riêng tháng 2 và 7 thì 18:00 cuối tháng đi ngược vì trend năm.",
+            "note_en": "On day 3/4/7 only trade 06:00; in February and July the month-end 18:00 slot reverses due to the yearly trend.",
             "priority_vn": "12:00 hoặc 15:00",
             "priority_en": "12:00 or 15:00",
         })
 
-    if _is_monday_recalc_rule(now):
+    if _has_prev_wednesday_301_rule(now):
+        rule.update({
+            "day_type_vn": "Thứ 2 lùi theo Thứ 4 ngày 30/1",
+            "day_type_en": "Monday looking back to Wednesday 30/1",
+            "override_vn": "Chỉ đánh 06:00 ngược chiều",
+            "override_en": "Only take the 06:00 reverse slot",
+            "c_slots": [],
+            "n_slots": ["06:00"],
+            "special_vn": "Override riêng khi Thứ 4 trước đó rơi vào ngày 30 hoặc 1",
+            "special_en": "Dedicated override when the previous Wednesday falls on day 30 or 1",
+            "note_vn": "Dùng 18:00 của Thứ 6 như mốc cùng chiều để tham chiếu.",
+            "note_en": "Use Friday 18:00 as the same-direction reference slot.",
+            "priority_vn": "06:00 N",
+            "priority_en": "06:00 N",
+        })
+    elif _is_monday_recalc_rule(now):
         rule.update({
             "day_type_vn": "Thứ 2 tuần đầu tháng / tuần 5",
             "day_type_en": "First-week / week-5 Monday",
@@ -841,7 +869,7 @@ def generate_daily_reminder(now, lang="VN"):
                 "c_slots": [],
                 "n_slots": ["18:00"],
                 "special_vn": "Ngoại lệ cuối tháng của tháng 2 và tháng 7 do trend năm",
-                "special_en": "Month-end exception for February and July due to yearly trend",
+                "special_en": "Month-end exception for February and July due to the yearly trend",
                 "note_vn": "Bỏ các mốc nền 12:00 cùng chiều và 15:00 ngược, chỉ giữ 18:00 ngược.",
                 "note_en": "Ignore the base 12:00 same-direction and 15:00 reverse slots, and keep only 18:00 reverse.",
                 "priority_vn": "18:00 N",
