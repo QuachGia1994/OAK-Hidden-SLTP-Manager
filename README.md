@@ -31,17 +31,27 @@ Tài liệu chi tiết:
   - Dự báo PnL theo giá mục tiêu (vd: “Dự đoán XAUUSD chạm 2050”).
 - Ghost Operator Mode (Stealth): giả lập thao tác UI MT5 khi bị chặn Algo Trading (cần pywinauto).
 - Daily Briefing 06:00: tổng hợp tin kinh tế (High Impact) + cache + chống gửi trùng.
-- Rule Reminders 06:00: gửi 1 tin nhắn checklist theo `6 khung H1` và ngoại lệ riêng của từng thứ.
+- Rule Reminders 06:00: gửi 1 tin nhắn checklist theo `2 nhóm SIDEWAY / CÙNG CHIỀU` và `note` ngày đặc biệt của từng thứ.
 - Multi-profile: 1 app quản lý nhiều terminal/account.
 - Session persistence: tự lưu trạng thái lệnh hẹn giờ để phục hồi sau restart.
 
-## Logic reminder H1
-- `Khung 1` `02:20-03:30`: `Thứ 2` tiếp chiều `Thứ 6` trước, `Thứ 5` xét giá mở cửa `Thứ 2`, các ngày còn lại bình thường.
-- `Khung 2` `06:20-09:05 Sell / 09:20 Buy`: áp dụng chung cho các ngày giao dịch.
-- `Khung 3` `09:05-12:05 Sell / 12:20 Buy`: áp dụng chung cho các ngày giao dịch.
-- `Khung 4` `12:05-14:05 Sell / 14:20 Buy`: `Thứ 4` là `bình thường / sw`, `Thứ 5` `theo W`, các ngày khác bình thường.
-- `Khung 5` `14:05-15:05 Buy / 17:05 Sell`: `Thứ 4` là `bình thường / sw`, `Thứ 5` `theo W`, các ngày khác bình thường.
-- `Khung 6` `17:05-18:55`: `Thứ 2` nếu `đầu tháng` hoặc rơi ngày `30/1/3/4/7` thì dùng `20:55 Sell / 22:05 Buy`; `Thứ 4` là `bình thường / sw` và thêm `20:55 Sell / 22:55 Buy`; `Thứ 5` `theo W`; `Thứ 6` nếu `cuối tháng` hoặc rơi ngày `30/1/3/4/7` thì `sw` và dùng `18:55 Sell / 22:55 Buy`.
+## Logic Reminder Theo Nhóm
+- `SIDEWAY`
+  `Thứ 2`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `15h00 LIM`, `17h00 S`, `18h55 S`, `23h00 B`
+  `Thứ 3`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
+  `Thứ 4`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
+  `Thứ 5`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
+  `Thứ 6`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `15h05 B`, `17h00 S`, `18h55 S`, `23h00 B`
+- `CÙNG CHIỀU`
+  `Thứ 2`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `18h55 S`, `23h00 B`
+  `Thứ 3`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `20h55 S`, `23h00 B`
+  `Thứ 4`: `3h05 B`, `3h25 S`
+  `Thứ 5`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `20h55 S`, `23h00 B`
+  `Thứ 6`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `18h55 S`, `23h00 B`
+- `Note đặc biệt`
+  `Thứ 4` ngày `30/1` và `Thứ 6` ngày `3/4/7` là mốc dùng để tính `đầu tháng / cuối tháng`.
+  `Tháng 2` và `tháng 7` có `trend năm` quan trọng.
+  Riêng `Thứ 2` và `Thứ 3` trong `tháng 2/7` thì `đổi luôn theo trend năm`.
 
 ## Yêu cầu
 - Windows (MT5 + pywinauto).

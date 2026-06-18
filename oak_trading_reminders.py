@@ -564,155 +564,112 @@ def _is_first_week_rule(date_obj):
     return friday.weekday() == 4 and 1 <= friday.day <= 7
 
 
-def _is_h1_monday_special(date_obj):
-    return date_obj.weekday() == 0 and (_is_first_week_rule(date_obj) or date_obj.day in (30, 1, 3, 4, 7))
+def _format_group_slots(slots):
+    if not slots:
+        return "-"
+    return ", ".join(f"{slot_time} {action}" for slot_time, action in slots)
 
 
-def _is_h1_friday_special(date_obj):
-    if date_obj.weekday() != 4:
-        return False
-    return date_obj.day == get_last_friday(date_obj.year, date_obj.month) or date_obj.day in (30, 1, 3, 4, 7)
-
-
-def _build_h1_day_schedule(now, lang="VN"):
+def _build_weekday_group_schedule(now, lang="VN"):
     weekday = now.weekday()
     day = now.day
     month = now.month
-    is_monday_special = _is_h1_monday_special(now)
-    is_friday_special = _is_h1_friday_special(now)
-    is_first_week = _is_first_week_rule(now)
-
-    def txt(vn, en):
-        return vn if lang == "VN" else en
-
-    base_windows = [
-        txt("Khung 2 - 06:20-09:05 Sell / 09:20 Buy", "Window 2 - 06:20-09:05 Sell / 09:20 Buy"),
-        txt("Khung 3 - 09:05-12:05 Sell / 12:20 Buy", "Window 3 - 09:05-12:05 Sell / 12:20 Buy"),
+    day_names_vn = {
+        0: "Thứ 2",
+        1: "Thứ 3",
+        2: "Thứ 4",
+        3: "Thứ 5",
+        4: "Thứ 6",
+    }
+    day_names_en = {
+        0: "Monday",
+        1: "Tuesday",
+        2: "Wednesday",
+        3: "Thursday",
+        4: "Friday",
+    }
+    rule_map = {
+        0: {
+            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("15h00", "LIM"), ("17h00", "S"), ("18h55", "S"), ("23h00", "B")],
+            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("18h55", "S"), ("23h00", "B")],
+        },
+        1: {
+            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("17h00", "S"), ("20h55", "S"), ("23h00", "B")],
+            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("20h55", "S"), ("23h00", "B")],
+        },
+        2: {
+            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("17h00", "S"), ("20h55", "S"), ("23h00", "B")],
+            "trend": [("3h05", "B"), ("3h25", "S")],
+        },
+        3: {
+            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("17h00", "S"), ("20h55", "S"), ("23h00", "B")],
+            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("20h55", "S"), ("23h00", "B")],
+        },
+        4: {
+            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("15h05", "B"), ("17h00", "S"), ("18h55", "S"), ("23h00", "B")],
+            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("18h55", "S"), ("23h00", "B")],
+        },
+    }
+    data = rule_map[weekday]
+    sideway = data["sideway"]
+    trend = data["trend"]
+    overlap = [slot for slot in sideway if slot in trend]
+    notes_vn = [
+        "Mốc đặc biệt cần theo dõi: Thứ 4 ngày 30/1 hoặc Thứ 6 ngày 3/4/7 để tính đầu tháng/cuối tháng.",
     ]
-
-    if weekday == 0:
-        reason_parts_vn = []
-        reason_parts_en = []
-        if is_first_week:
-            reason_parts_vn.append("đầu tháng")
-            reason_parts_en.append("the first week of the month")
-        if day in (30, 1, 3, 4, 7):
-            reason_parts_vn.append(f"ngày {day}")
-            reason_parts_en.append(f"day {day}")
-        reason_vn = " hoặc ".join(reason_parts_vn)
-        reason_en = " or ".join(reason_parts_en)
-        windows = [
-            txt("Khung 1 - 02:20-03:30: tiếp chiều Thứ 6 trước", "Window 1 - 02:20-03:30: continue the prior Friday direction"),
-            *base_windows,
-            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal"),
-            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal"),
-            txt(
-                f"Khung 6 - 17:05-18:55: {reason_vn} thì dùng 20:55 Sell / 22:05 Buy" if is_monday_special else "Khung 6 - 17:05-18:55: bình thường",
-                f"Window 6 - 17:05-18:55: use 20:55 Sell / 22:05 Buy when it is {reason_en}" if is_monday_special else "Window 6 - 17:05-18:55: normal",
-            ),
-        ]
-        return {
-            "day_type": txt("Thứ 2 theo bộ khung H1", "Monday under the H1 framework"),
-            "focus": txt("Khung 1 tiếp chiều Thứ 6 trước.", "Window 1 continues the previous Friday direction."),
-            "windows": windows,
-            "note": txt(
-                "Nhánh đầu tháng vẫn hiểu theo tuần chứa Thứ 6 đầu tiên của tháng." if is_first_week else "Khung 6 chỉ đổi nhánh khi rơi vào đầu tháng hoặc ngày 30/1/3/4/7.",
-                "The month-start branch still follows the week containing the first Friday of the month." if is_first_week else "Window 6 only switches branch when it hits the month start or day 30/1/3/4/7.",
-            ),
-            "priority": txt("Khung 1; thêm Khung 6 nếu rơi nhánh đặc biệt", "Window 1; add Window 6 when the special branch is active"),
-        }
-
-    if weekday == 1:
-        windows = [
-            txt("Khung 1 - 02:20-03:30: bình thường", "Window 1 - 02:20-03:30: normal"),
-            *base_windows,
-            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal"),
-            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal"),
-            txt("Khung 6 - 17:05-18:55: bình thường", "Window 6 - 17:05-18:55: normal"),
-        ]
-        return {
-            "day_type": txt("Thứ 3 theo bộ khung H1", "Tuesday under the H1 framework"),
-            "focus": txt("Thứ 3 đi bộ khung chuẩn, không có nhánh riêng.", "Tuesday follows the standard framework without a dedicated branch."),
-            "windows": windows,
-            "note": txt("Ưu tiên bám đúng bộ khung H1 chuẩn trong cả ngày.", "Stay with the standard H1 sequence throughout the day."),
-            "priority": txt("Khung 2 và Khung 3", "Window 2 and Window 3"),
-        }
-
-    if weekday == 2:
-        windows = [
-            txt("Khung 1 - 02:20-03:30: bình thường", "Window 1 - 02:20-03:30: normal"),
-            *base_windows,
-            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường / sw", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal / sideway"),
-            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường / sw", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal / sideway"),
-            txt("Khung 6 - 17:05-18:55: bình thường / sw, thêm 20:55 Sell / 22:55 Buy", "Window 6 - 17:05-18:55: normal / sideway, plus 20:55 Sell / 22:55 Buy"),
-        ]
-        return {
-            "day_type": txt("Thứ 4 theo bộ khung H1", "Wednesday under the H1 framework"),
-            "focus": txt("Các khung chiều của Thứ 4 có thêm note sideway.", "Wednesday afternoon windows carry a sideway note."),
-            "windows": windows,
-            "note": txt("Đặc biệt lưu ý sideway ở Khung 4, Khung 5 và Khung 6.", "Pay extra attention to sideway handling in Windows 4, 5, and 6."),
-            "priority": txt("Khung 4 đến Khung 6", "Window 4 through Window 6"),
-        }
-
-    if weekday == 3:
-        windows = [
-            txt("Khung 1 - 02:20-03:30: xét giá mở cửa Thứ 2", "Window 1 - 02:20-03:30: reference Monday's opening price"),
-            *base_windows,
-            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: theo W", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: follow W"),
-            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: theo W", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: follow W"),
-            txt("Khung 6 - 17:05-18:55: theo W", "Window 6 - 17:05-18:55: follow W"),
-        ]
-        return {
-            "day_type": txt("Thứ 5 theo bộ khung H1", "Thursday under the H1 framework"),
-            "focus": txt("Khung 1 xét open của Thứ 2; các khung chiều đi theo W.", "Window 1 references Monday's open; later windows follow W."),
-            "windows": windows,
-            "note": txt("Giữ nguyên chữ 'theo W' trong reminder để tránh suy diễn thêm chiều ngoài rule đã chốt.", "The reminder keeps the exact phrase 'follow W' to avoid inferring extra direction beyond the locked rule."),
-            "priority": txt("Khung 1, Khung 4, Khung 5, Khung 6", "Window 1, Window 4, Window 5, Window 6"),
-        }
-
-    friday_reason_vn = []
-    friday_reason_en = []
-    if day == get_last_friday(now.year, month):
-        friday_reason_vn.append("cuối tháng")
-        friday_reason_en.append("month end")
-    if day in (30, 1, 3, 4, 7):
-        friday_reason_vn.append(f"ngày {day}")
-        friday_reason_en.append(f"day {day}")
-    reason_vn = " hoặc ".join(friday_reason_vn)
-    reason_en = " or ".join(friday_reason_en)
-    windows = [
-        txt("Khung 1 - 02:20-03:30: bình thường", "Window 1 - 02:20-03:30: normal"),
-        *base_windows,
-        txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal"),
-        txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal"),
-        txt(
-            f"Khung 6 - 17:05-18:55: sw {reason_vn}, dùng 18:55 Sell / 22:55 Buy" if is_friday_special else "Khung 6 - 17:05-18:55: bình thường",
-            f"Window 6 - 17:05-18:55: sideway on {reason_en}, use 18:55 Sell / 22:55 Buy" if is_friday_special else "Window 6 - 17:05-18:55: normal",
-        ),
+    notes_en = [
+        "Special dates to track: Wednesday on day 30/1 or Friday on day 3/4/7 to evaluate the month-start/month-end branch.",
     ]
+    if weekday == 2 and day in (30, 1):
+        notes_vn.append("Hôm nay là Thứ 4 ngày 30/1: đây là mốc tính đầu tháng/cuối tháng.")
+        notes_en.append("Today is Wednesday day 30/1: use it as a month-start/month-end marker.")
+    if weekday == 4 and day in (3, 4, 7):
+        notes_vn.append(f"Hôm nay là Thứ 6 ngày {day}: đây là mốc tính đầu tháng/cuối tháng.")
+        notes_en.append(f"Today is Friday day {day}: use it as a month-start/month-end marker.")
+    if month in (2, 7):
+        notes_vn.append("Tháng 2 và tháng 7: trend năm quan trọng.")
+        notes_en.append("February and July: the yearly trend becomes important.")
+        if weekday in (0, 1):
+            notes_vn.append("Riêng Thứ 2 và Thứ 3: đổi luôn theo trend năm.")
+            notes_en.append("For Monday and Tuesday, switch directly according to the yearly trend.")
+
+    if lang == "VN":
+        return {
+            "day_type": f"{day_names_vn[weekday]} theo 2 nhóm SIDEWAY / CÙNG CHIỀU",
+            "sideway": _format_group_slots(sideway),
+            "trend": _format_group_slots(trend),
+            "overlap": _format_group_slots(overlap),
+            "notes": notes_vn,
+            "priority": _format_group_slots(overlap) if overlap else "Theo note đặc biệt của ngày",
+        }
+
     return {
-        "day_type": txt("Thứ 6 theo bộ khung H1", "Friday under the H1 framework"),
-        "focus": txt(
-            "Khung 6 chuyển sang nhánh sideway khi cuối tháng hoặc rơi ngày 30/1/3/4/7." if is_friday_special else "Thứ 6 đi bộ khung chuẩn, theo dõi riêng Khung 6 nếu tới nhánh đặc biệt.",
-            "Window 6 shifts to the sideway branch at month end or on day 30/1/3/4/7." if is_friday_special else "Friday uses the standard framework, with Window 6 watched separately for the special branch.",
-        ),
-        "windows": windows,
-        "note": txt(
-            "Nhánh đặc biệt của Thứ 6 dùng 18:55 Sell / 22:55 Buy." if is_friday_special else "Nếu không rơi nhánh đặc biệt thì Thứ 6 giữ bộ khung bình thường.",
-            "Friday's special branch uses 18:55 Sell / 22:55 Buy." if is_friday_special else "If no special branch is triggered, Friday stays on the normal framework.",
-        ),
-        "priority": txt("Khung 6", "Window 6"),
+        "day_type": f"{day_names_en[weekday]} with SIDEWAY / SAME-DIRECTION groups",
+        "sideway": _format_group_slots(sideway),
+        "trend": _format_group_slots(trend),
+        "overlap": _format_group_slots(overlap),
+        "notes": notes_en,
+        "priority": _format_group_slots(overlap) if overlap else "Follow the day's special notes",
     }
 
 
 def get_rule_reminders(now, lang="VN"):
     if now.weekday() >= 5:
-        return ["• Hôm nay ngoài lịch giao dịch H1."] if lang == "VN" else ["• Today is outside the H1 trading schedule."]
-    schedule = _build_h1_day_schedule(now, lang=lang)
-    out = [f"• {schedule['focus']}"]
-    out.extend(f"• {window}" for window in schedule["windows"])
-    if schedule["note"]:
-        out.append(f"• {schedule['note']}")
+        return ["• Hôm nay ngoài lịch giao dịch theo thứ."] if lang == "VN" else ["• Today is outside the weekday reminder schedule."]
+    schedule = _build_weekday_group_schedule(now, lang=lang)
+    if lang == "VN":
+        out = [
+            f"• SIDEWAY: {schedule['sideway']}",
+            f"• CÙNG CHIỀU: {schedule['trend']}",
+            f"• Mốc trùng 2 nhóm: {schedule['overlap']}",
+        ]
+    else:
+        out = [
+            f"• SIDEWAY: {schedule['sideway']}",
+            f"• SAME DIRECTION: {schedule['trend']}",
+            f"• Overlap Between Groups: {schedule['overlap']}",
+        ]
+    out.extend(f"• {note}" for note in schedule["notes"])
     return out
 
 
@@ -741,40 +698,44 @@ def generate_daily_reminder(now, lang="VN"):
         if lang == "VN":
             return (
                 f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
-                f"• Phân loại ngày: Ngoài lịch giao dịch H1\n"
-                f"• Trọng tâm: Không có\n\n"
-                f"• Khung H1: -\n\n"
+                f"• Phân loại ngày: Ngoài lịch giao dịch theo thứ\n"
+                f"• SIDEWAY: -\n"
+                f"• CÙNG CHIỀU: -\n"
+                f"• Mốc trùng 2 nhóm: -\n\n"
                 f"• Lưu ý: Hôm nay không có rule reminder giao dịch.\n"
                 f"• Ưu tiên hôm nay: -"
             )
         return (
             f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
-            f"• Day Type: Outside the H1 trading schedule\n"
-            f"• Main Focus: None\n\n"
-            f"• H1 Windows: -\n\n"
+            f"• Day Type: Outside the weekday reminder schedule\n"
+            f"• SIDEWAY: -\n"
+            f"• SAME DIRECTION: -\n"
+            f"• Overlap Between Groups: -\n\n"
             f"• Note: No trading reminder rule applies today.\n"
             f"• Priority Today: -"
         )
 
-    schedule = _build_h1_day_schedule(now, lang=lang)
-    windows_text = "\n".join(f"• {item}" for item in schedule["windows"])
+    schedule = _build_weekday_group_schedule(now, lang=lang)
+    notes_text = "\n".join(f"• {item}" for item in schedule["notes"])
 
     if lang == "VN":
         return (
             f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
             f"• Phân loại ngày: {schedule['day_type']}\n"
-            f"• Trọng tâm: {schedule['focus']}\n\n"
-            f"{windows_text}\n\n"
-            f"• Lưu ý: {schedule['note']}\n"
+            f"• SIDEWAY: {schedule['sideway']}\n"
+            f"• CÙNG CHIỀU: {schedule['trend']}\n"
+            f"• Mốc trùng 2 nhóm: {schedule['overlap']}\n\n"
+            f"{notes_text}\n"
             f"• Ưu tiên hôm nay: {schedule['priority']}"
         )
 
     return (
         f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
         f"• Day Type: {schedule['day_type']}\n"
-        f"• Main Focus: {schedule['focus']}\n\n"
-        f"{windows_text}\n\n"
-        f"• Note: {schedule['note']}\n"
+        f"• SIDEWAY: {schedule['sideway']}\n"
+        f"• SAME DIRECTION: {schedule['trend']}\n"
+        f"• Overlap Between Groups: {schedule['overlap']}\n\n"
+        f"{notes_text}\n"
         f"• Priority Today: {schedule['priority']}"
     )
 

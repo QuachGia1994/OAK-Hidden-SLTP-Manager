@@ -487,13 +487,23 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
   - `22:05`: `bias-only`, `BUY -> offset 25.0` rồi re-arm `23:05 offset 15.0`; tới `23:30` bot đọc `M15 -1/-2`, rồi vào `23:35` nếu cùng màu hoặc `23:50` nếu ngược màu; `SELL -> offset 25.0` rồi re-arm `23:05 offset 15.0`, nếu chưa khớp thì vẫn đọc `M15 -1/-2` tại `23:30` để chốt chiều và `:35/:50`, nhưng dời market sang `thứ 2 02:35/02:50`; chỉ áp dụng `thứ 6`
   - Với các mốc fallback theo `M15`, phải xét đúng `open/close`: `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` hay `xx:50`
 
-### <c=#FF9800>4.</c> Logic reminder H1
-- `Khung 1` `02:20-03:30`: `Thứ 2` tiếp chiều `Thứ 6` trước, `Thứ 5` xét giá mở cửa `Thứ 2`, các ngày còn lại bình thường
-- `Khung 2` `06:20-09:05 Sell / 09:20 Buy`: áp dụng chung cho các ngày giao dịch
-- `Khung 3` `09:05-12:05 Sell / 12:20 Buy`: áp dụng chung cho các ngày giao dịch
-- `Khung 4` `12:05-14:05 Sell / 14:20 Buy`: `Thứ 4` là `bình thường / sw`, `Thứ 5` `theo W`, các ngày khác bình thường
-- `Khung 5` `14:05-15:05 Buy / 17:05 Sell`: `Thứ 4` là `bình thường / sw`, `Thứ 5` `theo W`, các ngày khác bình thường
-- `Khung 6` `17:05-18:55`: `Thứ 2` nếu `đầu tháng` hoặc rơi ngày `30/1/3/4/7` thì dùng `20:55 Sell / 22:05 Buy`; `Thứ 4` là `bình thường / sw` và thêm `20:55 Sell / 22:55 Buy`; `Thứ 5` `theo W`; `Thứ 6` nếu `cuối tháng` hoặc rơi ngày `30/1/3/4/7` thì `sw` và dùng `18:55 Sell / 22:55 Buy`
+### <c=#FF9800>4.</c> Logic reminder theo nhóm
+- `SIDEWAY`
+  `Thứ 2`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `15h00 LIM`, `17h00 S`, `18h55 S`, `23h00 B`
+  `Thứ 3`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
+  `Thứ 4`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
+  `Thứ 5`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
+  `Thứ 6`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `15h05 B`, `17h00 S`, `18h55 S`, `23h00 B`
+- `CÙNG CHIỀU`
+  `Thứ 2`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `18h55 S`, `23h00 B`
+  `Thứ 3`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `20h55 S`, `23h00 B`
+  `Thứ 4`: `3h05 B`, `3h25 S`
+  `Thứ 5`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `20h55 S`, `23h00 B`
+  `Thứ 6`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `18h55 S`, `23h00 B`
+- `Note đặc biệt`
+  `Thứ 4` ngày `30/1` và `Thứ 6` ngày `3/4/7` là mốc dùng để tính `đầu tháng / cuối tháng`
+  `Tháng 2` và `tháng 7` có `trend năm` quan trọng
+  Riêng `Thứ 2` và `Thứ 3` trong `tháng 2/7` thì `đổi luôn theo trend năm`
 
 ---
 
