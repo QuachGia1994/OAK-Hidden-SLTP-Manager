@@ -44,14 +44,13 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
   - `22:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `23:05 offset 15.0`; tới `23:30` bot đọc `M15 -1/-2`, rồi vào `23:35` nếu cùng màu hoặc `23:50` nếu ngược màu; `SELL -> offset 25.0`, re-arm `23:05 offset 15.0`, nếu chưa khớp thì vẫn đọc `M15 -1/-2` tại `23:30` để chốt chiều và `:35/:50`, nhưng dời market sang `thứ 2 02:35/02:50`; chỉ áp dụng `thứ 6`
   - Với các mốc fallback theo `M15`, bot phải xét đúng `open/close`: `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` hay `xx:50`.
 
-### 4. Ngày đặc biệt nhắc nhở
-- `Thứ 2` thuộc `tuần đầu tháng` hoặc `tuần 5`: bỏ `02:00`, ưu tiên `09:00` và `18:00` đi `ngược chiều`
-- `Thứ 2` nếu lùi lại thấy `Thứ 4` trước đó rơi vào ngày `30` hoặc `1`: chỉ đánh `06:00` `ngược chiều`, lấy `18:00` của `Thứ 6` làm mốc `cùng chiều` tham chiếu
-- `Thứ 3` thuộc `tuần đầu tháng` hoặc `tuần 5`: mốc `02:00` không đánh `ngược chiều`
-- `Thứ 4` rơi vào ngày `30` hoặc `1`: đi `cùng chiều`, riêng `18:00` cũng `cùng chiều`
-- `Thứ 5` rơi vào ngày `30` hoặc `1`: các mốc `02:00` và `12:00` chuyển sang `ngược chiều`
-- `Thứ 6` rơi vào ngày `3`, `4`, `7`: chỉ đánh `06:00`
-- `Thứ 6` cuối tháng: chỉ tính `18:00`; riêng `tháng 2` và `tháng 7` thì `18:00` đi `ngược chiều`
+### 4. Logic reminder H1
+- `Khung 1` `02:20-03:30`: `Thứ 2` tiếp chiều `Thứ 6` trước, `Thứ 5` xét giá mở cửa `Thứ 2`, các ngày còn lại bình thường.
+- `Khung 2` `06:20-09:05 Sell / 09:20 Buy`: áp dụng chung cho các ngày giao dịch.
+- `Khung 3` `09:05-12:05 Sell / 12:20 Buy`: áp dụng chung cho các ngày giao dịch.
+- `Khung 4` `12:05-14:05 Sell / 14:20 Buy`: `Thứ 4` là `bình thường / sw`, `Thứ 5` `theo W`, các ngày khác bình thường.
+- `Khung 5` `14:05-15:05 Buy / 17:05 Sell`: `Thứ 4` là `bình thường / sw`, `Thứ 5` `theo W`, các ngày khác bình thường.
+- `Khung 6` `17:05-18:55`: `Thứ 2` nếu `đầu tháng` hoặc rơi ngày `30/1/3/4/7` thì dùng `20:55 Sell / 22:05 Buy`; `Thứ 4` là `bình thường / sw` và thêm `20:55 Sell / 22:55 Buy`; `Thứ 5` `theo W`; `Thứ 6` nếu `cuối tháng` hoặc rơi ngày `30/1/3/4/7` thì `sw` và dùng `18:55 Sell / 22:55 Buy`.
 
 ---
 

@@ -564,95 +564,160 @@ def _is_first_week_rule(date_obj):
     return friday.weekday() == 4 and 1 <= friday.day <= 7
 
 
-def _is_week5_rule(date_obj):
-    friday = _friday_of_same_week(date_obj)
-    if friday.weekday() != 4:
+def _is_h1_monday_special(date_obj):
+    return date_obj.weekday() == 0 and (_is_first_week_rule(date_obj) or date_obj.day in (30, 1, 3, 4, 7))
+
+
+def _is_h1_friday_special(date_obj):
+    if date_obj.weekday() != 4:
         return False
-    month_grid = calendar.monthcalendar(friday.year, friday.month)
-    for idx, week in enumerate(month_grid, start=1):
-        if friday.day in week:
-            return idx == 5
-    return False
+    return date_obj.day == get_last_friday(date_obj.year, date_obj.month) or date_obj.day in (30, 1, 3, 4, 7)
 
 
-def _is_monday_recalc_rule(date_obj):
-    return date_obj.weekday() == 0 and (_is_first_week_rule(date_obj) or _is_week5_rule(date_obj))
+def _build_h1_day_schedule(now, lang="VN"):
+    weekday = now.weekday()
+    day = now.day
+    month = now.month
+    is_monday_special = _is_h1_monday_special(now)
+    is_friday_special = _is_h1_friday_special(now)
+    is_first_week = _is_first_week_rule(now)
 
+    def txt(vn, en):
+        return vn if lang == "VN" else en
 
-def _has_prev_wednesday_301_rule(date_obj):
-    if date_obj.weekday() != 0:
-        return False
-    prev_wednesday = date_obj - timedelta(days=5)
-    return prev_wednesday.weekday() == 2 and prev_wednesday.day in (30, 1)
+    base_windows = [
+        txt("Khung 2 - 06:20-09:05 Sell / 09:20 Buy", "Window 2 - 06:20-09:05 Sell / 09:20 Buy"),
+        txt("Khung 3 - 09:05-12:05 Sell / 12:20 Buy", "Window 3 - 09:05-12:05 Sell / 12:20 Buy"),
+    ]
 
+    if weekday == 0:
+        reason_parts_vn = []
+        reason_parts_en = []
+        if is_first_week:
+            reason_parts_vn.append("đầu tháng")
+            reason_parts_en.append("the first week of the month")
+        if day in (30, 1, 3, 4, 7):
+            reason_parts_vn.append(f"ngày {day}")
+            reason_parts_en.append(f"day {day}")
+        reason_vn = " hoặc ".join(reason_parts_vn)
+        reason_en = " or ".join(reason_parts_en)
+        windows = [
+            txt("Khung 1 - 02:20-03:30: tiếp chiều Thứ 6 trước", "Window 1 - 02:20-03:30: continue the prior Friday direction"),
+            *base_windows,
+            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal"),
+            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal"),
+            txt(
+                f"Khung 6 - 17:05-18:55: {reason_vn} thì dùng 20:55 Sell / 22:05 Buy" if is_monday_special else "Khung 6 - 17:05-18:55: bình thường",
+                f"Window 6 - 17:05-18:55: use 20:55 Sell / 22:05 Buy when it is {reason_en}" if is_monday_special else "Window 6 - 17:05-18:55: normal",
+            ),
+        ]
+        return {
+            "day_type": txt("Thứ 2 theo bộ khung H1", "Monday under the H1 framework"),
+            "focus": txt("Khung 1 tiếp chiều Thứ 6 trước.", "Window 1 continues the previous Friday direction."),
+            "windows": windows,
+            "note": txt(
+                "Nhánh đầu tháng vẫn hiểu theo tuần chứa Thứ 6 đầu tiên của tháng." if is_first_week else "Khung 6 chỉ đổi nhánh khi rơi vào đầu tháng hoặc ngày 30/1/3/4/7.",
+                "The month-start branch still follows the week containing the first Friday of the month." if is_first_week else "Window 6 only switches branch when it hits the month start or day 30/1/3/4/7.",
+            ),
+            "priority": txt("Khung 1; thêm Khung 6 nếu rơi nhánh đặc biệt", "Window 1; add Window 6 when the special branch is active"),
+        }
 
-def _is_tuesday_no_reverse_rule(date_obj):
-    return date_obj.weekday() == 1 and (_is_first_week_rule(date_obj) or _is_week5_rule(date_obj))
+    if weekday == 1:
+        windows = [
+            txt("Khung 1 - 02:20-03:30: bình thường", "Window 1 - 02:20-03:30: normal"),
+            *base_windows,
+            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal"),
+            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal"),
+            txt("Khung 6 - 17:05-18:55: bình thường", "Window 6 - 17:05-18:55: normal"),
+        ]
+        return {
+            "day_type": txt("Thứ 3 theo bộ khung H1", "Tuesday under the H1 framework"),
+            "focus": txt("Thứ 3 đi bộ khung chuẩn, không có nhánh riêng.", "Tuesday follows the standard framework without a dedicated branch."),
+            "windows": windows,
+            "note": txt("Ưu tiên bám đúng bộ khung H1 chuẩn trong cả ngày.", "Stay with the standard H1 sequence throughout the day."),
+            "priority": txt("Khung 2 và Khung 3", "Window 2 and Window 3"),
+        }
+
+    if weekday == 2:
+        windows = [
+            txt("Khung 1 - 02:20-03:30: bình thường", "Window 1 - 02:20-03:30: normal"),
+            *base_windows,
+            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường / sw", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal / sideway"),
+            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường / sw", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal / sideway"),
+            txt("Khung 6 - 17:05-18:55: bình thường / sw, thêm 20:55 Sell / 22:55 Buy", "Window 6 - 17:05-18:55: normal / sideway, plus 20:55 Sell / 22:55 Buy"),
+        ]
+        return {
+            "day_type": txt("Thứ 4 theo bộ khung H1", "Wednesday under the H1 framework"),
+            "focus": txt("Các khung chiều của Thứ 4 có thêm note sideway.", "Wednesday afternoon windows carry a sideway note."),
+            "windows": windows,
+            "note": txt("Đặc biệt lưu ý sideway ở Khung 4, Khung 5 và Khung 6.", "Pay extra attention to sideway handling in Windows 4, 5, and 6."),
+            "priority": txt("Khung 4 đến Khung 6", "Window 4 through Window 6"),
+        }
+
+    if weekday == 3:
+        windows = [
+            txt("Khung 1 - 02:20-03:30: xét giá mở cửa Thứ 2", "Window 1 - 02:20-03:30: reference Monday's opening price"),
+            *base_windows,
+            txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: theo W", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: follow W"),
+            txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: theo W", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: follow W"),
+            txt("Khung 6 - 17:05-18:55: theo W", "Window 6 - 17:05-18:55: follow W"),
+        ]
+        return {
+            "day_type": txt("Thứ 5 theo bộ khung H1", "Thursday under the H1 framework"),
+            "focus": txt("Khung 1 xét open của Thứ 2; các khung chiều đi theo W.", "Window 1 references Monday's open; later windows follow W."),
+            "windows": windows,
+            "note": txt("Giữ nguyên chữ 'theo W' trong reminder để tránh suy diễn thêm chiều ngoài rule đã chốt.", "The reminder keeps the exact phrase 'follow W' to avoid inferring extra direction beyond the locked rule."),
+            "priority": txt("Khung 1, Khung 4, Khung 5, Khung 6", "Window 1, Window 4, Window 5, Window 6"),
+        }
+
+    friday_reason_vn = []
+    friday_reason_en = []
+    if day == get_last_friday(now.year, month):
+        friday_reason_vn.append("cuối tháng")
+        friday_reason_en.append("month end")
+    if day in (30, 1, 3, 4, 7):
+        friday_reason_vn.append(f"ngày {day}")
+        friday_reason_en.append(f"day {day}")
+    reason_vn = " hoặc ".join(friday_reason_vn)
+    reason_en = " or ".join(friday_reason_en)
+    windows = [
+        txt("Khung 1 - 02:20-03:30: bình thường", "Window 1 - 02:20-03:30: normal"),
+        *base_windows,
+        txt("Khung 4 - 12:05-14:05 Sell / 14:20 Buy: bình thường", "Window 4 - 12:05-14:05 Sell / 14:20 Buy: normal"),
+        txt("Khung 5 - 14:05-15:05 Buy / 17:05 Sell: bình thường", "Window 5 - 14:05-15:05 Buy / 17:05 Sell: normal"),
+        txt(
+            f"Khung 6 - 17:05-18:55: sw {reason_vn}, dùng 18:55 Sell / 22:55 Buy" if is_friday_special else "Khung 6 - 17:05-18:55: bình thường",
+            f"Window 6 - 17:05-18:55: sideway on {reason_en}, use 18:55 Sell / 22:55 Buy" if is_friday_special else "Window 6 - 17:05-18:55: normal",
+        ),
+    ]
+    return {
+        "day_type": txt("Thứ 6 theo bộ khung H1", "Friday under the H1 framework"),
+        "focus": txt(
+            "Khung 6 chuyển sang nhánh sideway khi cuối tháng hoặc rơi ngày 30/1/3/4/7." if is_friday_special else "Thứ 6 đi bộ khung chuẩn, theo dõi riêng Khung 6 nếu tới nhánh đặc biệt.",
+            "Window 6 shifts to the sideway branch at month end or on day 30/1/3/4/7." if is_friday_special else "Friday uses the standard framework, with Window 6 watched separately for the special branch.",
+        ),
+        "windows": windows,
+        "note": txt(
+            "Nhánh đặc biệt của Thứ 6 dùng 18:55 Sell / 22:55 Buy." if is_friday_special else "Nếu không rơi nhánh đặc biệt thì Thứ 6 giữ bộ khung bình thường.",
+            "Friday's special branch uses 18:55 Sell / 22:55 Buy." if is_friday_special else "If no special branch is triggered, Friday stays on the normal framework.",
+        ),
+        "priority": txt("Khung 6", "Window 6"),
+    }
 
 
 def get_rule_reminders(now, lang="VN"):
-    day = now.day
-    month = now.month
-    year = now.year
-    weekday = now.weekday()  # 0=Mon..6=Sun
-
-    out = []
-
-    if _has_prev_wednesday_301_rule(now):
-        if lang == "VN":
-            out.append("• Hôm nay là Thứ 2 lùi theo Thứ 4 trước đó ngày 30/1: chỉ đánh 06:00 ngược chiều, tham chiếu 18:00 Thứ 6 cùng chiều.")
-        else:
-            out.append("• Today is Monday looking back to a previous Wednesday on day 30/1: only take 06:00 in reverse, with Friday 18:00 as the same-direction reference.")
-
-    if _is_monday_recalc_rule(now):
-        if lang == "VN":
-            out.append("• Hôm nay là Thứ 2 thuộc tuần đầu tháng hoặc tuần 5: 02:00 không đánh, ưu tiên 09:00 và 18:00 ngược.")
-        else:
-            out.append("• Today is a first-week or week-5 Monday: skip 02:00 and prioritize 09:00 plus 18:00 in reverse.")
-
-    if _is_tuesday_no_reverse_rule(now):
-        if lang == "VN":
-            out.append("• Hôm nay là Thứ 3 thuộc tuần đầu tháng hoặc tuần 5: mốc 02:00 không đánh ngược.")
-        else:
-            out.append("• Today is a first-week or week-5 Tuesday: do not take the 02:00 reverse setup.")
-
-    if weekday == 2 and day in (30, 1):
-        if lang == "VN":
-            out.append("• Hôm nay là Thứ 4 ngày 30/1: đi cùng chiều, riêng 18:00 cũng cùng chiều.")
-        else:
-            out.append("• Today is Wednesday day 30/1: stay same-direction, and 18:00 is also same-direction.")
-
-    if weekday == 3 and day in (30, 1):
-        if lang == "VN":
-            out.append("• Hôm nay là Thứ 5 ngày 30/1: các mốc 02:00 và 12:00 chuyển sang ngược chiều.")
-        else:
-            out.append("• Today is Thursday day 30/1: the 02:00 and 12:00 slots switch to reverse direction.")
-
-    if weekday == 4 and day in (3, 4, 7):
-        if lang == "VN":
-            out.append("• Hôm nay là Thứ 6 ngày 3/4/7: chỉ đánh mốc 06:00.")
-        else:
-            out.append("• Today is Friday day 3/4/7: only trade the 06:00 slot.")
-    elif weekday == 4 and day == get_last_friday(year, month):
-        if month in (2, 7):
-            if lang == "VN":
-                out.append("• Hôm nay là Thứ 6 cuối tháng: chỉ tính mốc 18:00 và đi ngược chiều vì rơi vào tháng 2 hoặc tháng 7 theo trend năm.")
-            else:
-                out.append("• Today is the last Friday of the month: only the 18:00 slot applies, and it is reversed in February or July due to the yearly trend.")
-        else:
-            if lang == "VN":
-                out.append("• Hôm nay là Thứ 6 cuối tháng: chỉ tính mốc 18:00.")
-            else:
-                out.append("• Today is the last Friday of the month: only the 18:00 slot applies.")
-
+    if now.weekday() >= 5:
+        return ["• Hôm nay ngoài lịch giao dịch H1."] if lang == "VN" else ["• Today is outside the H1 trading schedule."]
+    schedule = _build_h1_day_schedule(now, lang=lang)
+    out = [f"• {schedule['focus']}"]
+    out.extend(f"• {window}" for window in schedule["windows"])
+    if schedule["note"]:
+        out.append(f"• {schedule['note']}")
     return out
 
 
 def generate_daily_reminder(now, lang="VN"):
     weekday = now.weekday()
-    day = now.day
-    month = now.month
-    year = now.year
     weekday_names_vn = {
         0: "Thứ 2",
         1: "Thứ 3",
@@ -672,245 +737,45 @@ def generate_daily_reminder(now, lang="VN"):
         6: "Sunday",
     }
 
-    def _fmt_slots(slots):
-        return ", ".join(slots) if slots else "-"
-
     if weekday >= 5:
         if lang == "VN":
             return (
                 f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
-                f"• Phân loại ngày: Ngoài lịch giao dịch\n"
-                f"• Override chính: Không có\n\n"
-                f"• Cùng chiều (C): -\n"
-                f"• Ngược chiều (N): -\n\n"
-                f"• Mốc đặc biệt: Không có\n"
+                f"• Phân loại ngày: Ngoài lịch giao dịch H1\n"
+                f"• Trọng tâm: Không có\n\n"
+                f"• Khung H1: -\n\n"
                 f"• Lưu ý: Hôm nay không có rule reminder giao dịch.\n"
                 f"• Ưu tiên hôm nay: -"
             )
         return (
             f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
-            f"• Day Type: Outside trading schedule\n"
-            f"• Main Override: None\n\n"
-            f"• Same Direction (C): -\n"
-            f"• Reverse Direction (N): -\n\n"
-            f"• Special Slot: None\n"
+            f"• Day Type: Outside the H1 trading schedule\n"
+            f"• Main Focus: None\n\n"
+            f"• H1 Windows: -\n\n"
             f"• Note: No trading reminder rule applies today.\n"
             f"• Priority Today: -"
         )
 
-    rule = {
-        "day_type_vn": "Ngày thường",
-        "day_type_en": "Normal day",
-        "override_vn": "Không có",
-        "override_en": "None",
-        "c_slots": [],
-        "n_slots": [],
-        "special_vn": "Không có",
-        "special_en": "None",
-        "note_vn": "",
-        "note_en": "",
-        "priority_vn": "",
-        "priority_en": "",
-    }
+    schedule = _build_h1_day_schedule(now, lang=lang)
+    windows_text = "\n".join(f"• {item}" for item in schedule["windows"])
 
-    if weekday == 0:
-        rule.update({
-            "c_slots": ["02:00", "12:00"],
-            "n_slots": ["02:00", "06:00"],
-            "special_vn": "02:00 là mốc ưu tiên, đi tiếp chiều Thứ 6; tham chiếu Lim 116 sell / Lim 58 buy",
-            "special_en": "02:00 is the priority slot and continues Friday direction; reference Lim 116 sell / Lim 58 buy",
-            "note_vn": "Thực chiến ưu tiên mốc 02:00, các mốc còn lại là nền tham chiếu.",
-            "note_en": "In practice, prioritize 02:00 while the other slots remain reference structure.",
-            "priority_vn": "02:00",
-            "priority_en": "02:00",
-        })
-    elif weekday == 1:
-        rule.update({
-            "c_slots": ["02:00", "12:00"],
-            "n_slots": ["02:00", "15:00"],
-            "special_vn": "Tuần đầu tháng và tuần 5 không đánh ngược ở mốc 02:00",
-            "special_en": "In first week and week 5, do not take the reverse setup at 02:00",
-            "note_vn": "Mốc 12:00 cùng chiều và 15:00 ngược là các mốc chính còn lại của Thứ 3.",
-            "note_en": "12:00 same-direction and 15:00 reverse remain Tuesday's other main slots.",
-            "priority_vn": "02:00, 12:00, 15:00",
-            "priority_en": "02:00, 12:00, 15:00",
-        })
-    elif weekday == 2:
-        rule.update({
-            "c_slots": ["02:00", "06:00", "15:00", "18:00"],
-            "n_slots": ["02:00"],
-            "special_vn": "Bộ nền Thứ 4 là 02:00, 06:00, 15:00, 18:00 cùng chiều; lane ngược chỉ giữ 02:00",
-            "special_en": "Wednesday's base set is 02:00, 06:00, 15:00, 18:00 in the same direction; the reverse lane only keeps 02:00",
-            "note_vn": "Nếu rơi vào ngày 30 hoặc 1 thì toàn bộ Thứ 4 đi cùng chiều, riêng 18:00 cũng cùng chiều.",
-            "note_en": "If the date is the 30th or 1st, the whole Wednesday stays same-direction, and 18:00 is also same-direction.",
-            "priority_vn": "02:00, 15:00",
-            "priority_en": "02:00, 15:00",
-        })
-    elif weekday == 3:
-        rule.update({
-            "c_slots": ["02:00", "12:00"],
-            "n_slots": ["02:00", "09:00"],
-            "special_vn": "Bộ mốc Thứ 5 chạy theo month; nếu ngày rơi vào 30/1 thì 02:00 và 12:00 đổi sang ngược chiều",
-            "special_en": "Thursday follows the month-based structure; if the date is 30/1 then 02:00 and 12:00 flip to reverse",
-            "note_vn": "Lane ngược của Thứ 5 giữ 02:00 và 09:00 theo month.",
-            "note_en": "Thursday's reverse lane keeps 02:00 and 09:00 under the month-based structure.",
-            "priority_vn": "02:00, 09:00, 12:00",
-            "priority_en": "02:00, 09:00, 12:00",
-        })
-    elif weekday == 4:
-        rule.update({
-            "c_slots": ["12:00"],
-            "n_slots": ["15:00"],
-            "special_vn": "Thứ 6 nền là 12:00 cùng chiều và 15:00 ngược chiều; cuối tháng chỉ tính 18:00",
-            "special_en": "Friday's base structure is 12:00 same-direction and 15:00 reverse; at month end only 18:00 applies",
-            "note_vn": "Ngày 3/4/7 chỉ đánh 06:00; riêng tháng 2 và 7 thì 18:00 cuối tháng đi ngược vì trend năm.",
-            "note_en": "On day 3/4/7 only trade 06:00; in February and July the month-end 18:00 slot reverses due to the yearly trend.",
-            "priority_vn": "12:00 hoặc 15:00",
-            "priority_en": "12:00 or 15:00",
-        })
-
-    if _has_prev_wednesday_301_rule(now):
-        rule.update({
-            "day_type_vn": "Thứ 2 lùi theo Thứ 4 ngày 30/1",
-            "day_type_en": "Monday looking back to Wednesday 30/1",
-            "override_vn": "Chỉ đánh 06:00 ngược chiều",
-            "override_en": "Only take the 06:00 reverse slot",
-            "c_slots": [],
-            "n_slots": ["06:00"],
-            "special_vn": "Override riêng khi Thứ 4 trước đó rơi vào ngày 30 hoặc 1",
-            "special_en": "Dedicated override when the previous Wednesday falls on day 30 or 1",
-            "note_vn": "Dùng 18:00 của Thứ 6 như mốc cùng chiều để tham chiếu.",
-            "note_en": "Use Friday 18:00 as the same-direction reference slot.",
-            "priority_vn": "06:00 N",
-            "priority_en": "06:00 N",
-        })
-    elif _is_monday_recalc_rule(now):
-        rule.update({
-            "day_type_vn": "Thứ 2 tuần đầu tháng / tuần 5",
-            "day_type_en": "First-week / week-5 Monday",
-            "override_vn": "02:00 không đánh; tính lại từ 09:00 và 18:00 ngược chiều",
-            "override_en": "Skip 02:00; recalculate from 09:00 and 18:00 in reverse direction",
-            "c_slots": [],
-            "n_slots": ["09:00", "18:00"],
-            "special_vn": "Override riêng cho Thứ 2 đầu tháng và tuần 5",
-            "special_en": "Dedicated override for first-week and week-5 Mondays",
-            "note_vn": "Lịch tính lại đè lên bộ nền 02/12 C và 02/06 N của Thứ 2.",
-            "note_en": "This recalculated schedule overrides Monday's normal 02/12 C and 02/06 N structure.",
-            "priority_vn": "09:00, 18:00 N",
-            "priority_en": "09:00, 18:00 N",
-        })
-    elif weekday == 1 and _is_tuesday_no_reverse_rule(now):
-        rule.update({
-            "day_type_vn": "Thứ 3 tuần đầu tháng / tuần 5",
-            "day_type_en": "First-week / week-5 Tuesday",
-            "override_vn": "Không đánh ngược ở mốc 02:00",
-            "override_en": "Do not take the reverse setup at 02:00",
-            "c_slots": ["02:00", "12:00"],
-            "n_slots": ["15:00"],
-            "special_vn": "Mốc 02:00 chỉ đánh cùng chiều trong tuần đầu tháng hoặc tuần 5",
-            "special_en": "02:00 stays same-direction only during first week or week 5",
-            "note_vn": "Mốc 15:00 ngược vẫn giữ nguyên.",
-            "note_en": "The 15:00 reverse slot remains unchanged.",
-            "priority_vn": "02:00 C, 12:00 C, 15:00 N",
-            "priority_en": "02:00 C, 12:00 C, 15:00 N",
-        })
-    elif weekday == 2 and day in (30, 1):
-        rule.update({
-            "day_type_vn": "Thứ 4 ngày 30/1",
-            "day_type_en": "Wednesday day 30/1",
-            "override_vn": "Thứ 4 đi cùng chiều, riêng 18:00 cũng cùng chiều",
-            "override_en": "Wednesday stays same-direction, and 18:00 is also same-direction",
-            "c_slots": ["02:00", "06:00", "15:00", "18:00"],
-            "n_slots": [],
-            "special_vn": "Override riêng cho ngày 30/1 rơi vào Thứ 4",
-            "special_en": "Dedicated override when day 30/1 falls on Wednesday",
-            "note_vn": "Bỏ lane ngược trong ngày đặc biệt này.",
-            "note_en": "The reverse lane is removed on this special day.",
-            "priority_vn": "02:00, 15:00, 18:00 C",
-            "priority_en": "02:00, 15:00, 18:00 C",
-        })
-    elif weekday == 3 and day in (30, 1):
-        rule.update({
-            "day_type_vn": "Thứ 5 ngày 30/1",
-            "day_type_en": "Thursday day 30/1",
-            "override_vn": "Các mốc 02:00 và 12:00 chuyển sang ngược chiều",
-            "override_en": "The 02:00 and 12:00 slots switch to reverse direction",
-            "c_slots": [],
-            "n_slots": ["02:00", "09:00", "12:00"],
-            "special_vn": "Ngày 30/1 làm lane cùng chiều của Thứ 5 chuyển sang ngược",
-            "special_en": "Day 30/1 flips Thursday's same-direction lane to reverse",
-            "note_vn": "Mốc 09:00 ngược giữ nguyên, 12:00 được kéo sang lane ngược.",
-            "note_en": "09:00 reverse stays unchanged, and 12:00 is moved into the reverse lane.",
-            "priority_vn": "02:00, 09:00, 12:00 N",
-            "priority_en": "02:00, 09:00, 12:00 N",
-        })
-    elif weekday == 4 and day in (3, 4, 7):
-        rule.update({
-            "day_type_vn": "Thứ 6 ngày 3/4/7",
-            "day_type_en": "Friday day 3/4/7",
-            "override_vn": "Chỉ đánh mốc 06:00",
-            "override_en": "Only trade the 06:00 slot",
-            "c_slots": ["06:00"],
-            "n_slots": [],
-            "special_vn": "Mốc 06:00 là mốc duy nhất của ngày",
-            "special_en": "06:00 is the only active slot of the day",
-            "note_vn": "Bỏ các mốc 12:00 cùng chiều và 15:00 ngược trong ngày đặc biệt này.",
-            "note_en": "Ignore the usual 12:00 same-direction and 15:00 reverse slots on this special day.",
-            "priority_vn": "06:00",
-            "priority_en": "06:00",
-        })
-    elif weekday == 4 and day == get_last_friday(year, month):
-        if month in (2, 7):
-            rule.update({
-                "day_type_vn": "Thứ 6 cuối tháng đặc biệt",
-                "day_type_en": "Special last Friday of the month",
-                "override_vn": "Chỉ tính mốc 18:00 và đi ngược chiều",
-                "override_en": "Only the 18:00 slot applies, in reverse direction",
-                "c_slots": [],
-                "n_slots": ["18:00"],
-                "special_vn": "Ngoại lệ cuối tháng của tháng 2 và tháng 7 do trend năm",
-                "special_en": "Month-end exception for February and July due to the yearly trend",
-                "note_vn": "Bỏ các mốc nền 12:00 cùng chiều và 15:00 ngược, chỉ giữ 18:00 ngược.",
-                "note_en": "Ignore the base 12:00 same-direction and 15:00 reverse slots, and keep only 18:00 reverse.",
-                "priority_vn": "18:00 N",
-                "priority_en": "18:00 N",
-            })
-        else:
-            rule.update({
-                "day_type_vn": "Thứ 6 cuối tháng",
-                "day_type_en": "Last Friday of the month",
-                "override_vn": "Chỉ tính mốc 18:00",
-                "override_en": "Only the 18:00 slot applies",
-                "c_slots": ["18:00"],
-                "n_slots": [],
-                "special_vn": "Cuối tháng chỉ tính từ 18:00",
-                "special_en": "At month end, only the 18:00 slot applies",
-                "note_vn": "Bỏ các mốc nền 12:00 cùng chiều và 15:00 ngược trong ngày cuối tháng.",
-                "note_en": "Ignore the base 12:00 same-direction and 15:00 reverse slots on the last Friday of the month.",
-                "priority_vn": "18:00 C",
-                "priority_en": "18:00 C",
-            })
     if lang == "VN":
         return (
             f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
-            f"• Phân loại ngày: {rule['day_type_vn']}\n"
-            f"• Override chính: {rule['override_vn']}\n\n"
-            f"• Cùng chiều (C): {_fmt_slots(rule['c_slots'])}\n"
-            f"• Ngược chiều (N): {_fmt_slots(rule['n_slots'])}\n\n"
-            f"• Mốc đặc biệt: {rule['special_vn']}\n"
-            f"• Lưu ý: {rule['note_vn']}\n"
-            f"• Ưu tiên hôm nay: {rule['priority_vn']}"
+            f"• Phân loại ngày: {schedule['day_type']}\n"
+            f"• Trọng tâm: {schedule['focus']}\n\n"
+            f"{windows_text}\n\n"
+            f"• Lưu ý: {schedule['note']}\n"
+            f"• Ưu tiên hôm nay: {schedule['priority']}"
         )
 
     return (
         f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
-        f"• Day Type: {rule['day_type_en']}\n"
-        f"• Main Override: {rule['override_en']}\n\n"
-        f"• Same Direction (C): {_fmt_slots(rule['c_slots'])}\n"
-        f"• Reverse Direction (N): {_fmt_slots(rule['n_slots'])}\n\n"
-        f"• Special Slot: {rule['special_en']}\n"
-        f"• Note: {rule['note_en']}\n"
-        f"• Priority Today: {rule['priority_en']}"
+        f"• Day Type: {schedule['day_type']}\n"
+        f"• Main Focus: {schedule['focus']}\n\n"
+        f"{windows_text}\n\n"
+        f"• Note: {schedule['note']}\n"
+        f"• Priority Today: {schedule['priority']}"
     )
 
 class OakTradingReminder:
