@@ -2812,6 +2812,147 @@ class CopyTradeManager:
             return "Done"
         return "-"
 
+    def _calc_scheduled_sl_tp(self, symbol, order_type, entry_price, sl_points, tp_points):
+        info = mt5.symbol_info(symbol)
+        if not info:
+            return 0.0, 0.0
+
+        point = info.point
+        sl = 0.0
+        tp = 0.0
+        if sl_points > 0:
+            sl = entry_price - (sl_points * point) if order_type == mt5.ORDER_TYPE_BUY else entry_price + (sl_points * point)
+        if tp_points > 0:
+            tp = entry_price + (tp_points * point) if order_type == mt5.ORDER_TYPE_BUY else entry_price - (tp_points * point)
+        return sl, tp
+
+    def _prepare_scheduled_trade(self, trade, order_type_override=None):
+        symbol = trade["symbol"]
+        order_type = trade["type"] if order_type_override is None else order_type_override
+        profile_name = self.config.get("profile_name", "Unknown")
+
+        if not mt5.terminal_info():
+            return "fail"
+
+        positions = mt5.positions_get(symbol=symbol)
+        if positions:
+            for pos in positions:
+                if pos.type == order_type:
+                    self.notify(f"⚠️ [{profile_name}] Skipped Scheduled {symbol}: Position already exists")
+                    return "skip"
+
+        opp_type = mt5.POSITION_TYPE_SELL if order_type == mt5.ORDER_TYPE_BUY else mt5.POSITION_TYPE_BUY
+        closed_cnt = 0
+        if positions:
+            for pos in positions:
+                if pos.type == opp_type:
+                    if self._direct_close(pos):
+                        self.notify(f"🔄 [{profile_name}] Auto Closed opposite {symbol} (Ticket: {pos.ticket}) for scheduled {trade.get('id')}")
+                        closed_cnt += 1
+                    else:
+                        self.notify(f"⚠️ [{profile_name}] Failed to close opposite {symbol} (Ticket: {pos.ticket})")
+
+        if order_type == mt5.ORDER_TYPE_BUY:
+            opp_pending_types = [mt5.ORDER_TYPE_SELL_LIMIT, mt5.ORDER_TYPE_SELL_STOP, mt5.ORDER_TYPE_SELL_STOP_LIMIT]
+        else:
+            opp_pending_types = [mt5.ORDER_TYPE_BUY_LIMIT, mt5.ORDER_TYPE_BUY_STOP, mt5.ORDER_TYPE_BUY_STOP_LIMIT]
+
+        pending_orders = mt5.orders_get(symbol=symbol)
+        if pending_orders:
+            for o in pending_orders:
+                if o.type in opp_pending_types:
+                    request_del = {"action": mt5.TRADE_ACTION_REMOVE, "order": o.ticket}
+                    res_del = mt5.order_send(request_del)
+                    if res_del.retcode == mt5.TRADE_RETCODE_DONE:
+                        self.notify(f"🗑️ [{profile_name}] Auto Removed opposite pending {symbol} (Ticket: {o.ticket}) for scheduled {trade.get('id')}")
+                    else:
+                        self.notify(f"⚠️ [{profile_name}] Failed to remove pending {o.ticket}: {res_del.comment}")
+
+        if closed_cnt > 0:
+            for _ in range(20):
+                time.sleep(0.1)
+                pos_check = mt5.positions_get(symbol=symbol)
+                still_exists = False
+                if pos_check:
+                    for p in pos_check:
+                        if p.type == opp_type:
+                            still_exists = True
+                            break
+                if not still_exists:
+                    break
+
+        return "ok"
+
+    def _remove_pending_order(self, ticket):
+        if not ticket:
+            return True
+        try:
+            res = mt5.order_send({"action": mt5.TRADE_ACTION_REMOVE, "order": int(ticket)})
+            return res.retcode == mt5.TRADE_RETCODE_DONE
+        except Exception:
+            return False
+
+    def _send_scheduled_market_order(self, trade, comment="Scheduled Order", order_type_override=None):
+        symbol = trade["symbol"]
+        order_type = trade["type"] if order_type_override is None else order_type_override
+        lot = float(trade["lot"])
+        sl_points = float(trade.get("sl", 0))
+        tp_points = float(trade.get("tp", 0))
+        profile_name = self.config.get("profile_name", "Unknown")
+
+        prep = self._prepare_scheduled_trade(trade, order_type_override=order_type)
+        if prep == "skip":
+            return "skip"
+        if prep != "ok":
+            return "fail"
+
+        tick = mt5.symbol_info_tick(symbol)
+        if not tick:
+            mt5.symbol_select(symbol, True)
+            tick = mt5.symbol_info_tick(symbol)
+        if not tick:
+            self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: Symbol not found or Market closed")
+            return "fail"
+
+        price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
+        sl, tp = self._calc_scheduled_sl_tp(symbol, order_type, price, sl_points, tp_points)
+
+        request = {
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": lot,
+            "type": order_type,
+            "price": price,
+            "sl": sl,
+            "tp": tp,
+            "magic": int(self.config.get("magic", 0)),
+            "comment": comment,
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": get_filling_type(symbol),
+        }
+
+        res = mt5.order_send(request)
+        if res.retcode == 10030:
+            modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
+            current_mode = request["type_filling"]
+            if current_mode in modes:
+                modes.remove(current_mode)
+            for mode in modes:
+                request["type_filling"] = mode
+                res = mt5.order_send(request)
+                if res.retcode == mt5.TRADE_RETCODE_DONE:
+                    break
+                if res.retcode != 10030:
+                    break
+
+        if res.retcode == mt5.TRADE_RETCODE_DONE:
+            direction_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
+            self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot")
+            return "done"
+
+        self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: {res.comment}")
+        return "fail"
+
     def _execute_scheduled(self, trade):
         self._send_scheduled_market_order(trade, comment="Scheduled Order")
 
