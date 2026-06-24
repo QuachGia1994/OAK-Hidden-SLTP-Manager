@@ -19,48 +19,14 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 ### 3. Hẹn giờ vào lệnh (Scheduled Entry)
 - `Mua Vàng 0.1 lúc 19:30`: Robot sẽ hẹn giờ cho lệnh BUY 0.1 lot Vàng.
 - `Sell GBPUSD 0.05 lúc 20:00`: Hẹn giờ lệnh bán.
-- Riêng `XAUUSD/GOLD`, nếu bạn nhập giờ tròn như `19:00` thì hệ thống tự lưu thành `19:05` để lấy đúng nến `M5`.
-- Giờ bạn nhập là giờ local của máy; bot tự quy đổi sang giờ market `GMT+3/GMT+2` để match các mốc nội bộ.
-- Có 2 kiểu mốc cho vàng:
-  - `2 đầu limit`: đặt đồng thời `Buy Limit = M5 Open - offset` và `Sell Limit = M5 Open + offset`
-  - `bias-only`: chỉ đặt 1 limit theo `BUY/SELL` bạn đã nhập
-- Khi một đầu limit khớp:
-  - bot xóa ngay pending còn lại
-  - bot đóng luôn position chiều ngược lại nếu có
-- Khi tới fallback:
-  - một số mốc dùng `M30 lùi dần` để chọn chiều `Market`
-  - một số mốc dùng chính `bias` bạn đã hẹn
-- Một số mốc sẽ chạy `2 stage limit`: stage đầu `offset 25.0`, chưa khớp thì re-arm stage sau với `offset 15.0`.
-- Với các mốc `M30 lùi dần`, hệ thống luôn neo từ nến `xx:30` gần nhất rồi mới lùi tiếp nếu gặp doji/không rõ.
-- Nếu giờ local quy đổi không rơi đúng mốc hỗ trợ, bot sẽ báo thiếu dữ liệu hoặc có thể bạn đã nhập sai múi giờ.
-- Bộ mốc cuối cùng cho vàng:
-  - `02:05` market: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `03:05 offset 15.0`; tới `03:30` bot đọc `M15 -1/-2`, rồi vào `03:35` nếu cùng màu hoặc `03:50` nếu ngược màu, riêng `thứ 3/4` có thêm note sideway để nhắc kiểm tra kỹ
-  - `06:05` market: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `07:05 offset 15.0`; tới `07:30` bot đọc `M15 -1/-2`, rồi vào `07:35` nếu cùng màu hoặc `07:50` nếu ngược màu, chỉ áp dụng `thứ 2/5/6`
-  - `09:05` market: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `10:05 offset 15.0`; tới `10:30` bot đọc `M15 -1/-2`, rồi vào `10:35` nếu cùng màu hoặc `10:50` nếu ngược màu
-  - `12:05` market: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `13:05 offset 15.0`; tới `13:30` bot đọc `M15 -1/-2`, rồi vào `13:35` nếu cùng màu hoặc `13:50` nếu ngược màu, chỉ áp dụng `thứ 3/4/5/6`
-  - `15:05` market: `2 đầu`, `offset 25.0`; chưa khớp thì re-arm `16:05 offset 15.0`; tới `17:30` bot đọc `M15 -1/-2`, rồi vào `17:35` nếu cùng màu hoặc `17:50` nếu ngược màu, chỉ áp dụng `thứ 3/4/5/6`
-  - `18:05` market: `bias-only`, `offset 15.0`, fallback `18:30`, market theo `bias`, chỉ áp dụng `thứ 2/5/6`
-  - `20:05` market: `bias-only`, `offset 15.0`, fallback `20:30`, market theo `bias`, chỉ áp dụng `thứ 3/4`
-  - `22:05` market: `bias-only`; `BUY -> offset 25.0`, re-arm `23:05 offset 15.0`; tới `23:30` bot đọc `M15 -1/-2`, rồi vào `23:35` nếu cùng màu hoặc `23:50` nếu ngược màu; `SELL -> offset 25.0`, re-arm `23:05 offset 15.0`, nếu chưa khớp thì vẫn đọc `M15 -1/-2` tại `23:30` để chốt chiều và `:35/:50`, nhưng dời market sang `thứ 2 02:35/02:50`; chỉ áp dụng `thứ 6`
-  - Với các mốc fallback theo `M15`, bot phải xét đúng `open/close`: `xanh = close > open => reverse SELL`, `đỏ = close < open => reverse BUY`; sau đó dùng `M15 -2` để quyết định vào `xx:35` hay `xx:50`.
+- Tự dời sang ngày mai nếu giờ đã qua, bỏ qua weekend.
 
-### 4. Logic reminder theo nhóm
-- `SIDEWAY`
-  `Thứ 2`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `15h00 LIM`, `17h00 S`, `18h55 S`, `23h00 B`
-  `Thứ 3`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
-  `Thứ 4`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
-  `Thứ 5`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `17h00 S`, `20h55 S`, `23h00 B`
-  `Thứ 6`: `3h05 B`, `3h25 S`, `9h00 B`, `9h05 S`, `15h05 B`, `17h00 S`, `18h55 S`, `23h00 B`
-- `CÙNG CHIỀU`
-  `Thứ 2`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `18h55 S`, `23h00 B`
-  `Thứ 3`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `20h55 S`, `23h00 B`
-  `Thứ 4`: `3h05 B`, `3h25 S`
-  `Thứ 5`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `20h55 S`, `23h00 B`
-  `Thứ 6`: `3h05 B`, `3h25 S`, `12h00 S`, `12h05 B`, `15h00 S`, `16h05 B`, `18h55 S`, `23h00 B`
-- `Note đặc biệt`
-  `Thứ 4` ngày `30/1` và `Thứ 6` ngày `3/4/7` là mốc dùng để tính `đầu tháng / cuối tháng`.
-  `Tháng 2` và `tháng 7` có `trend năm` quan trọng.
-  Riêng `Thứ 2` và `Thứ 3` trong `tháng 2/7` thì `đổi luôn theo trend năm`.
+### 4. Daily Reminder (Nhắc nhở hàng ngày)
+Gửi lúc 06:00 với các note ngày đặc biệt:
+- `Thứ 4, 5, 6` cuối tháng: cần tính lại.
+- `Thứ 4` ngày `30` hoặc `1`: tính lại (Thứ 4, 5, 6).
+- `Thứ 6` ngày `3/4/7`: tính lại (Thứ 4, 5, 6).
+- `Thứ 6` cuối tháng `2` và `7`: tính lại `trend năm`.
 
 ---
 
@@ -96,4 +62,4 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 - `/closeallpending`: Xóa toàn bộ lệnh chờ.
 
 ---
-*Mẹo: Bạn có thể gửi nhiều lệnh trong 1 tin nhắn (mỗi dòng 1 lệnh). Với vàng, Telegram sẽ báo rõ Giờ hẹn, Trigger M5, M5 Open, Buy Limit, Sell Limit, Fallback Market, Fallback Rule và Anti-Hedge.*
+*Mẹo: Bạn có thể gửi nhiều lệnh trong 1 tin nhắn (mỗi dòng 1 lệnh).*

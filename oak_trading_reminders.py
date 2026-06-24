@@ -570,173 +570,64 @@ def _format_group_slots(slots):
     return ", ".join(f"{slot_time} {action}" for slot_time, action in slots)
 
 
-def _build_weekday_group_schedule(now, lang="VN"):
+def get_day_notes(now, lang="VN"):
     weekday = now.weekday()
     day = now.day
     month = now.month
-    day_names_vn = {
-        0: "Thứ 2",
-        1: "Thứ 3",
-        2: "Thứ 4",
-        3: "Thứ 5",
-        4: "Thứ 6",
-    }
-    day_names_en = {
-        0: "Monday",
-        1: "Tuesday",
-        2: "Wednesday",
-        3: "Thursday",
-        4: "Friday",
-    }
-    rule_map = {
-        0: {
-            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("15h00", "LIM"), ("17h00", "S"), ("18h55", "S"), ("23h00", "B")],
-            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("18h55", "S"), ("23h00", "B")],
-        },
-        1: {
-            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("17h00", "S"), ("20h55", "S"), ("23h00", "B")],
-            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("20h55", "S"), ("23h00", "B")],
-        },
-        2: {
-            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("17h00", "S"), ("20h55", "S"), ("23h00", "B")],
-            "trend": [("3h05", "B"), ("3h25", "S")],
-        },
-        3: {
-            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("17h00", "S"), ("20h55", "S"), ("23h00", "B")],
-            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("20h55", "S"), ("23h00", "B")],
-        },
-        4: {
-            "sideway": [("3h05", "B"), ("3h25", "S"), ("9h00", "B"), ("9h05", "S"), ("15h05", "B"), ("17h00", "S"), ("18h55", "S"), ("23h00", "B")],
-            "trend": [("3h05", "B"), ("3h25", "S"), ("12h00", "S"), ("12h05", "B"), ("15h00", "S"), ("16h05", "B"), ("18h55", "S"), ("23h00", "B")],
-        },
-    }
-    data = rule_map[weekday]
-    sideway = data["sideway"]
-    trend = data["trend"]
-    overlap = [slot for slot in sideway if slot in trend]
-    notes_vn = [
-        "Mốc đặc biệt cần theo dõi: Thứ 4 ngày 30/1 hoặc Thứ 6 ngày 3/4/7 để tính đầu tháng/cuối tháng.",
-    ]
-    notes_en = [
-        "Special dates to track: Wednesday on day 30/1 or Friday on day 3/4/7 to evaluate the month-start/month-end branch.",
-    ]
-    if weekday == 2 and day in (30, 1):
-        notes_vn.append("Hôm nay là Thứ 4 ngày 30/1: đây là mốc tính đầu tháng/cuối tháng.")
-        notes_en.append("Today is Wednesday day 30/1: use it as a month-start/month-end marker.")
+    day_names_vn = {0: "Thứ 2", 1: "Thứ 3", 2: "Thứ 4", 3: "Thứ 5", 4: "Thứ 6"}
+    day_names_en = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Friday"}
+
+    def _is_last_weekday_of_month(dt, wd):
+        last_day = calendar.monthrange(dt.year, dt.month)[1]
+        last_date = dt.replace(day=last_day)
+        while last_date.weekday() != wd:
+            last_date -= timedelta(days=1)
+        return dt.day == last_date.day
+
+    notes_vn = []
+    notes_en = []
+
+    if weekday in (2, 3, 4) and _is_last_weekday_of_month(now, weekday):
+        notes_vn.append(f"Hôm nay là {day_names_vn[weekday]} cuối tháng: cần tính lại.")
+        notes_en.append(f"Today is the last {day_names_en[weekday]} of the month: need to recalculate.")
+
+    if weekday == 2 and day == 30:
+        notes_vn.append("Thứ 4 ngày 30: tính lại (Thứ 4, 5, 6).")
+        notes_en.append("Wednesday day 30: recalculate (Thu, Fri, Sat).")
+
+    if weekday == 2 and day == 1:
+        notes_vn.append("Thứ 4 ngày 1: tính lại (Thứ 4, 5, 6).")
+        notes_en.append("Wednesday day 1: recalculate (Thu, Fri, Sat).")
+
     if weekday == 4 and day in (3, 4, 7):
-        notes_vn.append(f"Hôm nay là Thứ 6 ngày {day}: đây là mốc tính đầu tháng/cuối tháng.")
-        notes_en.append(f"Today is Friday day {day}: use it as a month-start/month-end marker.")
-    if month in (2, 7):
-        notes_vn.append("Tháng 2 và tháng 7: trend năm quan trọng.")
-        notes_en.append("February and July: the yearly trend becomes important.")
-        if weekday in (0, 1):
-            notes_vn.append("Riêng Thứ 2 và Thứ 3: đổi luôn theo trend năm.")
-            notes_en.append("For Monday and Tuesday, switch directly according to the yearly trend.")
+        notes_vn.append(f"Thứ 6 ngày {day}: tính lại (Thứ 4, 5, 6).")
+        notes_en.append(f"Friday day {day}: recalculate (Thu, Fri, Sat).")
+
+    if month in (2, 7) and weekday == 4 and _is_last_weekday_of_month(now, 4):
+        notes_vn.append(f"Thứ 6 cuối tháng {month}: tính lại trend năm.")
+        notes_en.append(f"Last Friday of month {month}: recalculate yearly trend.")
 
     if lang == "VN":
-        return {
-            "day_type": f"{day_names_vn[weekday]} theo 2 nhóm SIDEWAY / CÙNG CHIỀU",
-            "sideway": _format_group_slots(sideway),
-            "trend": _format_group_slots(trend),
-            "overlap": _format_group_slots(overlap),
-            "notes": notes_vn,
-            "priority": _format_group_slots(overlap) if overlap else "Theo note đặc biệt của ngày",
-        }
-
-    return {
-        "day_type": f"{day_names_en[weekday]} with SIDEWAY / SAME-DIRECTION groups",
-        "sideway": _format_group_slots(sideway),
-        "trend": _format_group_slots(trend),
-        "overlap": _format_group_slots(overlap),
-        "notes": notes_en,
-        "priority": _format_group_slots(overlap) if overlap else "Follow the day's special notes",
-    }
-
-
-def get_rule_reminders(now, lang="VN"):
-    if now.weekday() >= 5:
-        return ["• Hôm nay ngoài lịch giao dịch theo thứ."] if lang == "VN" else ["• Today is outside the weekday reminder schedule."]
-    schedule = _build_weekday_group_schedule(now, lang=lang)
-    if lang == "VN":
-        out = [
-            f"• SIDEWAY: {schedule['sideway']}",
-            f"• CÙNG CHIỀU: {schedule['trend']}",
-            f"• Mốc trùng 2 nhóm: {schedule['overlap']}",
-        ]
-    else:
-        out = [
-            f"• SIDEWAY: {schedule['sideway']}",
-            f"• SAME DIRECTION: {schedule['trend']}",
-            f"• Overlap Between Groups: {schedule['overlap']}",
-        ]
-    out.extend(f"• {note}" for note in schedule["notes"])
-    return out
+        return notes_vn if notes_vn else [f"Thứ 2-6: trade bình thường theo schedule."]
+    return notes_en if notes_en else [f"Mon-Fri: trade normally per schedule."]
 
 
 def generate_daily_reminder(now, lang="VN"):
     weekday = now.weekday()
-    weekday_names_vn = {
-        0: "Thứ 2",
-        1: "Thứ 3",
-        2: "Thứ 4",
-        3: "Thứ 5",
-        4: "Thứ 6",
-        5: "Thứ 7",
-        6: "Chủ nhật",
-    }
-    weekday_names_en = {
-        0: "Monday",
-        1: "Tuesday",
-        2: "Wednesday",
-        3: "Thursday",
-        4: "Friday",
-        5: "Saturday",
-        6: "Sunday",
-    }
+    weekday_names_vn = {0: "Thứ 2", 1: "Thứ 3", 2: "Thứ 4", 3: "Thứ 5", 4: "Thứ 6", 5: "Thứ 7", 6: "Chủ nhật"}
+    weekday_names_en = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Friday", 5: "Saturday", 6: "Sunday"}
 
-    if weekday >= 5:
-        if lang == "VN":
-            return (
-                f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
-                f"• Phân loại ngày: Ngoài lịch giao dịch theo thứ\n"
-                f"• SIDEWAY: -\n"
-                f"• CÙNG CHIỀU: -\n"
-                f"• Mốc trùng 2 nhóm: -\n\n"
-                f"• Lưu ý: Hôm nay không có rule reminder giao dịch.\n"
-                f"• Ưu tiên hôm nay: -"
-            )
-        return (
-            f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
-            f"• Day Type: Outside the weekday reminder schedule\n"
-            f"• SIDEWAY: -\n"
-            f"• SAME DIRECTION: -\n"
-            f"• Overlap Between Groups: -\n\n"
-            f"• Note: No trading reminder rule applies today.\n"
-            f"• Priority Today: -"
-        )
-
-    schedule = _build_weekday_group_schedule(now, lang=lang)
-    notes_text = "\n".join(f"• {item}" for item in schedule["notes"])
+    notes = get_day_notes(now, lang=lang)
+    notes_text = "\n".join(f"• {item}" for item in notes)
 
     if lang == "VN":
         return (
             f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
-            f"• Phân loại ngày: {schedule['day_type']}\n"
-            f"• SIDEWAY: {schedule['sideway']}\n"
-            f"• CÙNG CHIỀU: {schedule['trend']}\n"
-            f"• Mốc trùng 2 nhóm: {schedule['overlap']}\n\n"
-            f"{notes_text}\n"
-            f"• Ưu tiên hôm nay: {schedule['priority']}"
+            f"{notes_text}"
         )
-
     return (
         f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
-        f"• Day Type: {schedule['day_type']}\n"
-        f"• SIDEWAY: {schedule['sideway']}\n"
-        f"• SAME DIRECTION: {schedule['trend']}\n"
-        f"• Overlap Between Groups: {schedule['overlap']}\n\n"
-        f"{notes_text}\n"
-        f"• Priority Today: {schedule['priority']}"
+        f"{notes_text}"
     )
 
 class OakTradingReminder:
