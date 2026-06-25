@@ -37,6 +37,15 @@ MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 TARGET_HOURS = [1, 7, 9, 14, 15, 16]
 BROKER_GMT = 0
 
+SCHEDULE_NOTES = {
+    1: "XAUUSD, GBPAUD",
+    7: "XAUUSD, GBPAUD",
+    9: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
+    14: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
+    15: "Thu 4: toan bo nhom GBP | Thu 2,6: Vang + nhom GBP",
+    16: "Thu 4: toan bo nhom GBP | Thu 2,6: Vang + nhom GBP",
+}
+
 app = Flask(__name__)
 
 # =====================================================================
@@ -246,11 +255,13 @@ def build_telegram(
 
     now_s = fmt_time(broker_dt)
     h1_label = fmt_hour(H - 1 if H > 0 else 23)
+    note = SCHEDULE_NOTES.get(H, "")
 
     return (
         f"=== BÁO CÁO ĐỐI CHIẾU ===\n"
         f"Thời gian: {now_s}\n"
         f"Kích hoạt: {fmt_hour(H)}:50\n"
+        f"Tập trung: {note}\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
         f"  M5@{fmt_hour(H)}:35 = {mt4_m35}\n"
