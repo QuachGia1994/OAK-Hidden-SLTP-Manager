@@ -460,13 +460,7 @@ def cmd_mimo(message):
 
 def _process_mimo(chat_id, prompt, req_id):
     """Xu ly lenh MiMo trong thread rieng"""
-    # Thu shell truoc
-    result = execute_mimo_via_shell(prompt)
-    
-    # Neu shell that bai, dung file proxy
-    if result.startswith("❌") or result.startswith("⏰"):
-        result = execute_mimo_via_file_proxy(prompt)
-    
+    result = execute_mimo_via_file_proxy(prompt)
     send_telegram_msg(chat_id, f"✅ *Kết quả MiMo:*\n```\n{result}\n```")
 
 @bot.message_handler(commands=["code"])
