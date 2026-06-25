@@ -303,7 +303,7 @@ def main():
             if next_h == now_h:
                 mins_left = 50 - now_m
             else:
-                mins_left = (next_h - now_h) * 60 - now_m
+                mins_left = (next_h - now_h) * 60 + (50 - now_m)
             if mins_left <= 0:
                 mins_left += 24 * 60
             hours_left = mins_left // 60
