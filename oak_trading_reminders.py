@@ -281,7 +281,7 @@ def fetch_investing_rss(lang="VN", context=None):
         title_lower = title.lower()
         if any(kw in title_lower for kw in ["high impact", "fed", "cpi", "nfp", "gdp", "rate", "powell", "ecb", "fomc"]):
             found_events = True
-            icon = "<c=#e74c3c>🔴</c>"
+            icon = "🔴"
             out.append(f"• {event_time_str} {icon} {title}")
             
     if not found_events:
@@ -388,7 +388,7 @@ def fetch_myfxbook_rss(lang="VN", context=None):
         clean_title = title.split(":", 1)[1].strip() if ":" in title else title
         
         found_events = True
-        icon = "<c=#e74c3c>🔴</c>"
+        icon = "🔴"
         out.append(f"• {event_time_str} {currency} {icon} {clean_title}")
 
     if not found_events:
@@ -461,7 +461,7 @@ def fetch_litefinance_rss(lang="VN", context=None):
         if not is_high: continue
         
         found_events = True
-        icon = "<c=#e74c3c>🔴</c>"
+        icon = "🔴"
         out.append(f"• {event_time_str} {icon} {title}")
         
     if not found_events:
@@ -492,9 +492,9 @@ def fetch_forexfactory_xml(lang="VN", context=None):
     # Structure: <weeklyevents><event><title>...</title><country>USD</country><date>02-17-2026</date><time>1:30pm</time><impact>High</impact>...</event>...
     
     impact_icon = {
-        "High": "<c=#e74c3c>🔴</c>",
-        "Medium": "<c=#e67e22>🟠</c>",
-        "Low": "<c=#f1c40f>🟡</c>"
+        "High": "🔴",
+        "Medium": "🟠",
+        "Low": "🟡"
     }
     
     out = []
@@ -540,7 +540,7 @@ def fetch_forexfactory_xml(lang="VN", context=None):
         if impact_str != "High":
             continue
             
-        icon = "<c=#e74c3c>🔴</c>"
+        icon = "🔴"
         
         found_events = True
         out.append(f"• {time_24} {country} {icon} {title}")
@@ -715,7 +715,7 @@ class OakTradingReminder:
 
         # Strip color tags for Telegram (they don't support custom HTML tags like <c=...>)
         clean_message = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", message)
-        clean_message = clean_message.replace("</c>", "")
+        clean_message = clean_message.replace("", "")
 
         log_file = "tele_sent_log.json"
         lock_file = "tele_sent_log.lock"
