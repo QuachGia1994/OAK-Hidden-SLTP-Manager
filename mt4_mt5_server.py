@@ -242,15 +242,15 @@ def build_telegram(
     conclusion, broker_dt
 ):
     def ico(s):
-        return {"BUY": "BUY", "SELL": "SELL"}.get(s, "WAIT")
+        return {"BUY": "MUA", "SELL": "BAN"}.get(s, "CHO")
 
     now_s = fmt_time(broker_dt)
     h1_label = fmt_hour(H - 1 if H > 0 else 23)
 
     return (
-        f"=== DUAL SIGNAL REPORT ===\n"
-        f"Time: {now_s} (Broker GMT+{BROKER_GMT})\n"
-        f"Activation: {fmt_hour(H)}:50\n"
+        f"=== BAO CAO DOI CHIEU ===\n"
+        f"Thoi gian: {now_s}\n"
+        f"Kich hoat: {fmt_hour(H)}:50\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
         f"  M5@{fmt_hour(H)}:35 = {mt4_m35}\n"
@@ -265,7 +265,7 @@ def build_telegram(
         f"  M15@{fmt_hour(H)}:30 = {mt5['m15']}\n"
         f"  => {ico(mt5_sig)}\n\n"
         f"===========================\n"
-        f"CONCLUSION: {conclusion}\n"
+        f"KET LUAN: {conclusion}\n"
         f"===========================\n"
         f"Ref only. Discipline is power!"
     )
