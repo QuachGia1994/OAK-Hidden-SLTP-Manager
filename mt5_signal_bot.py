@@ -35,8 +35,8 @@ SCHEDULE_NOTES = {
     7: "XAUUSD, GBPAUD",
     9: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
     14: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
-    15: "Thu 4: toan bo nhom GBP | Thu 2,6: Vang + nhom GBP",
-    16: "Thu 4: toan bo nhom GBP | Thu 2,6: Vang + nhom GBP",
+    15: "XAUUSD",
+    16: "Thứ 4: toàn bộ nhóm GBP | Thứ 2,6: Vàng + nhóm GBP",
 }
 
 # =====================================================================
