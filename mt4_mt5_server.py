@@ -242,15 +242,15 @@ def build_telegram(
     conclusion, broker_dt
 ):
     def ico(s):
-        return {"BUY": "MUA", "SELL": "BAN"}.get(s, "CHO")
+        return {"BUY": "Mua", "SELL": "Bán"}.get(s, "Chờ")
 
     now_s = fmt_time(broker_dt)
     h1_label = fmt_hour(H - 1 if H > 0 else 23)
 
     return (
-        f"=== BAO CAO DOI CHIEU ===\n"
-        f"Thoi gian: {now_s}\n"
-        f"Kich hoat: {fmt_hour(H)}:50\n"
+        f"=== BÁO CÁO ĐỐI CHIẾU ===\n"
+        f"Thời gian: {now_s}\n"
+        f"Kích hoạt: {fmt_hour(H)}:50\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
         f"  M5@{fmt_hour(H)}:35 = {mt4_m35}\n"

@@ -1,35 +1,63 @@
-# <c=#2196F3>📔</c> NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
+# 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
-## <c=#4CAF50>[v3.0.0]</c> - 2026-04-03
-*Bản cập nhật lớn tập trung vào Tàng hình (Stealth) và Trí tuệ nhân tạo (NLP).*
+## [v3.1.0] - 2026-06-25
+*Bản cập nhật lớn: Hệ thống tín hiệu MT4-MT5 Dual Signal + MiMo Bridge Bot.*
 
-### <c=#FF9800>🚀</c> Tính năng Mới (Vượt trội MT5)
-- **Ghost Operator Mode**: Hệ thống giả lập thao tác người dùng. Nếu MT5 bị chặn Algo Trading, Robot vẫn có thể dời SL/TP và đóng lệnh bằng cách "mượn" chuột và phím của bạn.
-- **NLP Engine v2**: Hiểu các câu lệnh phức tạp hơn như "Dự báo PnL", "Dời SL về giá tuyệt đối", và hỗ trợ cả Voice Note (Tin nhắn thoại).
-- **Session Persistence**: Tự động lưu mọi lệnh hẹn giờ xuống ổ cứng. Không còn lo mất dữ liệu khi máy tính đột ngột khởi động lại.
-- **Smart News Fetcher**: Tích hợp tin tức từ 4 nguồn dự phòng (ForexFactory, MyFxBook, LiteFinance, Investing) để đảm bảo bạn luôn nhận được Daily Briefing vào 06:00 sáng.
+### 🚀 Tính năng Mới
+- **MT4-MT5 Dual Signal System**:
+  - Phân tích nến đa khung giờ: M5@35, M5@40, H1@(H-1), M15@30.
+  - Logic: M5 cùng chiều → xét H1; M5 ngược chiều → xét M15.
+  - Đồng bộ giờ UTC từ `tick.time` MT5, miễn nhiễm DST.
+  - Telegram báo cáo real-time lúc x:50.
+  - Missed slot check khi khởi động + đếm ngược slot tiếp theo.
+  - Giao diện Việt hoá: dấu đầy đủ, mũi tên ↑↓, Mua/Bán/Chờ.
+- **MiMo Bridge Bot**:
+  - Telegram → MiMo Code CLI: điều khiển từ xa.
+  - Worker nền với lock file chống trùng instance.
+  - Commands: `/mimo`, `/status`, `/signal`, `/profiles`, `/mt5`, `/positions`.
+- **CHAY_ALL.bat**: Khởi động tất cả (Server + Bot + Worker) trong 1 file.
 
-### <c=#FF9800>🛠️</c> Cải tiến & Sửa lỗi
-- **Deduplication Logic**: Cơ chế khóa file nguyên tử (Atomic Lock) ngăn chặn việc gửi tin tức trùng lặp lên Telegram.
-- **Multi-Profile Sync**: Cải thiện tốc độ chuyển đổi giữa các tài khoản, độ trễ giảm xuống dưới 200ms.
-- **Buffer BE**: Tự động thêm 10 points khi dời SL về hòa để đảm bảo bạn không bị lỗ do spread giãn.
-- **UI Refresh**: Giao diện mới hiện đại hơn với 3 chủ đề: Light, Dark và Deep Sea.
+### 🛠️ Cải tiến
+- **Fix timezone bug**: Chuyển từ `datetime.now()` sang `tick.time` UTC + `calendar.timegm()`.
+- **Fix numpy array**: `rates is None` thay vì `not rates`.
+- **Fix duplicate notifications**: Chỉ bot signal check missed slot, server không gửi trùng.
+- **Auto-close launcher**: `CHAY_ALL.bat` tự đóng sau 3 giây.
 
-### <c=#FF9800>🛠️</c> Hotfix - 2026-06-24
-- Xóa bỏ hoàn toàn logic Scheduled Gold Mode (Vàng hẹn giờ) không còn sử dụng.
-- Xóa bỏ rule nhắc checklist theo 2 nhóm SIDEWAY / CÙNG CHIỀU.
-- Đơn giản hóa Daily Reminder: chỉ còn nhắc ngày đặc biệt cần tính lại.
-- Cập nhật logic note đặc biệt mới:
-  - Thứ 4, 5, 6 cuối tháng cần tính lại.
-  - Thứ 4 ngày 30 hoặc 1 (bất kỳ tháng nào): tính lại.
-  - Thứ 6 ngày 3/4/7: tính lại.
-  - Thứ 6 cuối tháng 2 và 7: tính lại trend năm.
-- Đồng bộ tài liệu (README/GUIDE) theo code mới.
+### 📦 File mới
+| File | Mô tả |
+|------|-------|
+| `mt5_signal_bot.py` | Bot tín hiệu MT5 standalone |
+| `mt4_mt5_server.py` | Flask API nhận data từ MT4 EA |
+| `mimo_bot.py` | Telegram Bot bridge |
+| `mimo_worker.py` | Worker xử lý lệnh MiMo |
+| `CHAY_ALL.bat` | Khởi động tất cả |
+| `CHAY_MIMO_BOT.bat` | Khởi động MiMo Bot + Worker |
+| `MT4_Data_Feeder.mq4` | EA gửi data từ MT4 |
 
 ---
-## <c=#4CAF50>[v2.5.0]</c> - 2026-03-15
-- Thêm tính năng chốt lời từng phần (Partial TP) theo tỷ lệ R.
-- Hỗ trợ Copy Trade ẩn danh giữa các tài khoản cùng máy.
+
+## [v3.0.0] - 2026-04-03
+*Bản cập nhật lớn: Ghost Mode + NLP Engine v2.*
+
+### 🚀 Tính năng Mới
+- **Ghost Operator Mode**: Giả lập thao tác UI MT5 khi bị chặn Algo Trading.
+- **NLP Engine v2**: Hiểu câu lệnh phức tạp, hỗ trợ Voice Note.
+- **Session Persistence**: Lưu trạng thái lệnh hẹn giờ xuống ổ cứng.
+- **Smart News Fetcher**: 4 nguồn dự phòng tin tức.
+
+### 🛠️ Cải tiến
+- Deduplication Logic: Khóa file nguyên tử chống gửi trùng.
+- Multi-Profile Sync: Tốc độ chuyển đổi < 200ms.
+- Buffer BE: +10 points khi dời SL về hòa.
+
+### 🛠️ Hotfix - 2026-06-24
+- Xóa Scheduled Gold Mode, Daily Reminder đơn giản hóa.
+
+---
+
+## [v2.5.0] - 2026-03-15
+- Partial TP theo tỷ lệ R.
+- Copy Trade ẩn danh giữa các tài khoản.
 
 ---
 *Cảm ơn bạn đã tin dùng OAK MANAGER. Hãy luôn tuân thủ kỷ luật giao dịch!*
