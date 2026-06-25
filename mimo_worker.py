@@ -81,35 +81,36 @@ def main():
 
     last_cmd = ""
 
-    while True:
-        try:
-            if os.path.exists(CMD_FILE):
-                with open(CMD_FILE, "r", encoding="utf-8") as f:
-                    cmd = f.read().strip()
+    try:
+        while True:
+            try:
+                if os.path.exists(CMD_FILE):
+                    with open(CMD_FILE, "r", encoding="utf-8") as f:
+                        cmd = f.read().strip()
 
-                if cmd and cmd != last_cmd:
-                    print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Nhan lenh: {cmd}")
-                    result = process_command(cmd)
+                    if cmd and cmd != last_cmd:
+                        print(f"\n[{datetime.now().strftime('%H:%M:%S')}] Nhan lenh: {cmd}")
+                        result = process_command(cmd)
 
-                    with open(RESULT_FILE, "w", encoding="utf-8") as f:
-                        f.write(result)
+                        with open(RESULT_FILE, "w", encoding="utf-8") as f:
+                            f.write(result)
 
-                    print(f"  Kết quả: {result[:80]}...")
-                    last_cmd = cmd
+                        print(f"  Ket qua: {result[:80]}...")
+                        last_cmd = cmd
 
-                    try:
-                        os.remove(CMD_FILE)
-                    except:
-                        pass
+                        try:
+                            os.remove(CMD_FILE)
+                        except:
+                            pass
 
-            time.sleep(1)
+                time.sleep(1)
 
-        except KeyboardInterrupt:
-            print("\n  Da dung worker.")
-            break
-        except Exception as e:
-            print(f"  Loi: {e}")
-            time.sleep(1)
+            except KeyboardInterrupt:
+                print("\n  Da dung worker.")
+                break
+            except Exception as e:
+                print(f"  Loi: {e}")
+                time.sleep(1)
     finally:
         remove_lock()
 
