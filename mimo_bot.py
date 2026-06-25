@@ -307,7 +307,7 @@ def cmd_profiles(message):
         return
     config = load_json(CONFIG_FILE)
     if not config:
-        bot.reply_to(message, "❌ Khong tim thay profiles.json")
+        bot.reply_to(message, "❌ Không tìm thấy profiles.json")
         return
     lines = ["📋 *DANH SÁCH PROFILE:*\n"]
     for name, p in config.items():
@@ -321,7 +321,7 @@ def cmd_mt5(message):
         return
     args = message.text.replace("/mt5", "").strip()
     if not args:
-        bot.reply_to(message, "Dung: `/mt5 <profile>`")
+        bot.reply_to(message, "Dùng: `/mt5 <profile>`")
         return
     config = load_json(CONFIG_FILE)
     pname = None
@@ -330,7 +330,7 @@ def cmd_mt5(message):
             pname = name
             break
     if not pname:
-        bot.reply_to(message, f"❌ Khong tim thay: `{args}`")
+        bot.reply_to(message, f"❌ Không tìm thấy: `{args}`")
         return
     p = config[pname]
     path = p.get("path", "")
@@ -355,7 +355,7 @@ def cmd_mt5(message):
             )
             bot.reply_to(message, text)
         else:
-            bot.reply_to(message, f"❌ Khong lay duoc thong tin {pname}")
+            bot.reply_to(message, f"❌ Không lấy được thông tin {pname}")
         mt5.shutdown()
     except ImportError:
         bot.reply_to(message, "❌ Chua cai MetaTrader5")
@@ -368,7 +368,7 @@ def cmd_positions(message):
         return
     args = message.text.replace("/positions", "").strip()
     if not args:
-        bot.reply_to(message, "Dung: `/positions <profile>`")
+        bot.reply_to(message, "Dùng: `/positions <profile>`")
         return
     config = load_json(CONFIG_FILE)
     pname = None
@@ -377,7 +377,7 @@ def cmd_positions(message):
             pname = name
             break
     if not pname:
-        bot.reply_to(message, f"❌ Khong tim thay: `{args}`")
+        bot.reply_to(message, f"❌ Không tìm thấy: `{args}`")
         return
     p = config[pname]
     try:
@@ -387,7 +387,7 @@ def cmd_positions(message):
             return
         positions = mt5.positions_get()
         if not positions:
-            bot.reply_to(message, f"📊 *{pname}*\nKhong co vi the nao.")
+            bot.reply_to(message, f"📊 *{pname}*\nKhông có vị thế nào.")
             mt5.shutdown()
             return
         lines = [f"📊 *{pname} - VI THE*\n"]
@@ -434,7 +434,7 @@ def cmd_news(message):
         lang = settings.get("lang", "VN")
         news = get_economic_news(lang=lang)
         if not news:
-            bot.reply_to(message, "📰 Khong co tin quan trong hom nay.")
+            bot.reply_to(message, "📰 Không có tin quan trọng hôm nay.")
             return
         header = "📰 *TIN TỨC*\n\n" if lang == "VN" else "📰 *NEWS*\n\n"
         bot.reply_to(message, header + "\n".join(news))
@@ -450,11 +450,11 @@ def cmd_mimo(message):
         return
     prompt = message.text.replace("/mimo", "").strip()
     if not prompt:
-        bot.reply_to(message, "Dung: `/mimo <yêu cầu>`")
+        bot.reply_to(message, "Dùng: `/mimo <yêu cầu>`")
         return
     
     req_id = enqueue_mimo_command(prompt, message.chat.id)
-    bot.reply_to(message, f"⏳ Dang gui lenh MiMo...\n📝 `{prompt}`\n🔑 ID: `{req_id}`")
+    bot.reply_to(message, f"⏳ Đang gửi lệnh MiMo...\n📝 `{prompt}`\n🔑 ID: `{req_id}`")
     
     threading.Thread(target=_process_mimo, args=(message.chat.id, prompt, req_id), daemon=True).start()
 
@@ -467,7 +467,7 @@ def _process_mimo(chat_id, prompt, req_id):
     if result.startswith("❌") or result.startswith("⏰"):
         result = execute_mimo_via_file_proxy(prompt)
     
-    send_telegram_msg(chat_id, f"✅ *Ket qua MiMo:*\n```\n{result}\n```")
+    send_telegram_msg(chat_id, f"✅ *Kết quả MiMo:*\n```\n{result}\n```")
 
 @bot.message_handler(commands=["code"])
 def cmd_code(message):
@@ -475,11 +475,11 @@ def cmd_code(message):
         return
     args = message.text.replace("/code", "").strip()
     if not args:
-        bot.reply_to(message, "Dung: `/code <file> <read|edit>`")
+        bot.reply_to(message, "Dùng: `/code <file> <read|edit>`")
         return
     parts = args.split(None, 1)
     if len(parts) < 2:
-        bot.reply_to(message, "Dung: `/code signal_logic.py read`")
+        bot.reply_to(message, "Dùng: `/code signal_logic.py read`")
         return
     filename, action = parts
     filepath = os.path.join(PROJECT_DIR, filename)
@@ -555,10 +555,10 @@ def cmd_reply(message):
         return
     text = message.text.replace("/reply", "").strip()
     if not text:
-        bot.reply_to(message, "Dung: `/reply Buy Gold 0.1 at 19:30`")
+        bot.reply_to(message, "Dùng: `/reply Buy Gold 0.1 at 19:30`")
         return
     _inject_to_oak_inbox(text, message.chat.id)
-    bot.reply_to(message, f"✅ Da gui vao OAK inbox:\n`{text}`")
+    bot.reply_to(message, f"✅ Đã gửi vào OAK inbox:\n`{text}`")
 
 @bot.message_handler(commands=["del"])
 def cmd_del(message):
@@ -566,10 +566,10 @@ def cmd_del(message):
         return
     args = message.text.replace("/del", "").strip()
     if not args:
-        bot.reply_to(message, "Dung: `/del all` hoac `/del <ID>`")
+        bot.reply_to(message, "Dùng: `/del all` hoặc `/del <ID>`")
         return
     _inject_to_oak_inbox(f"/del {args}", message.chat.id)
-    bot.reply_to(message, f"🗑️ Da gui: `/del {args}`")
+    bot.reply_to(message, f"🗑️ Đã gửi: `/del {args}`")
 
 @bot.message_handler(commands=["modify"])
 def cmd_modify(message):
@@ -577,10 +577,10 @@ def cmd_modify(message):
         return
     text = message.text.replace("/modify", "").strip()
     if not text:
-        bot.reply_to(message, "Dung: `/modify sl 100 XAUUSD`")
+        bot.reply_to(message, "Dùng: `/modify sl 100 XAUUSD`")
         return
     _inject_to_oak_inbox(f"/modify {text}", message.chat.id)
-    bot.reply_to(message, f"✏️ Da gui: `/modify {text}`")
+    bot.reply_to(message, f"✏️ Đã gửi: `/modify {text}`")
 
 # Catch-all: NLP auto-forward to OAK
 @bot.message_handler(func=lambda m: True)
