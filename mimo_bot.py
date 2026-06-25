@@ -465,20 +465,20 @@ def _process_mimo(chat_id, prompt, req_id):
 
         if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
             now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            result = f"Trang thai he thong luc {now}:\n- MT5 Signal Bot: dang chay\n- MT4-MT5 Server: dang chay\n- Tat ca hoat dong binh thuong."
+            result = f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- MT4-MT5 Server: đang chạy\n- Tất cả hoạt động bình thường."
         elif any(w in cmd_lower for w in ["signal", "tin hieu"]):
-            result = "Tin hieu hien tai: Dang cho slot kich hoat tiep theo."
+            result = "Tín hiệu hiện tại: Đang chờ slot kích hoạt tiếp theo."
         elif any(w in cmd_lower for w in ["time", "gio", "thoi gian"]):
             now = datetime.now()
-            result = f"Gio local: {now.strftime('%H:%M:%S')}\nNgay: {now.strftime('%d/%m/%Y')}"
+            result = f"Giờ local: {now.strftime('%H:%M:%S')}\nNgày: {now.strftime('%d/%m/%Y')}"
         elif any(w in cmd_lower for w in ["help", "giup", "huong dan"]):
-            result = "Cac lenh: status, signal, time, help"
+            result = "Các lệnh: status, signal, time, help"
         else:
-            result = f"Da nhan: '{prompt}'"
+            result = f"Đã nhận: '{prompt}'"
 
-        send_telegram_msg(chat_id, f"✅ *Ket qua MiMo:*\n```\n{result}\n```")
+        send_telegram_msg(chat_id, f"✅ *Kết quả MiMo:*\n```\n{result}\n```")
     except Exception as e:
-        send_telegram_msg(chat_id, f"❌ Loi: {str(e)}")
+        send_telegram_msg(chat_id, f"❌ Lỗi: {str(e)}")
 
 @bot.message_handler(commands=["code"])
 def cmd_code(message):
