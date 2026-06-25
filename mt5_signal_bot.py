@@ -287,7 +287,10 @@ def main():
         next_slots.sort()
         if next_slots:
             next_h = next_slots[0]
-            mins_left = (next_h - now_h) * 60 - now_m
+            if next_h == now_h:
+                mins_left = 50 - now_m
+            else:
+                mins_left = (next_h - now_h) * 60 - now_m
             if mins_left <= 0:
                 mins_left += 24 * 60
             hours_left = mins_left // 60
