@@ -259,19 +259,19 @@ def cmd_start(message):
         return
     text = (
         "🤖 *MiMo Bridge Bot v2.0*\n\n"
-        "📌 *Dieu khien MiMo Code:*\n"
-        "• `/mimo <yêu cầu>` - Gui lenh cho MiMo AI\n"
-        "• `/code <file> <action>` - Doc/Sua file code\n"
-        "• `/scan` - Quet toan bo du an\n\n"
-        "📌 *Quan ly OAK:*\n"
-        "• `/status` - Trang thai PC & files\n"
-        "• `/profiles` - Danh sach tai khoan\n"
-        "• `/mt5 <profile>` - Xem tai khoan MT5\n"
-        "• `/positions <profile>` - Vi the dang mo\n"
-        "• `/signal` - Tin hieu hien tai\n"
-        "• `/news` - Tin kinh te\n"
-        "• `/reply <text>` - Gui lenh vao OAK inbox\n\n"
-        "💡 `/myid` - Lay Chat ID"
+        "📌 *Điều khiển MiMo Code:*\n"
+        "• `/mimo <yêu cầu>` - Gửi lệnh cho MiMo AI\n"
+        "• `/code <file> <action>` - Đọc/Sửa file code\n"
+        "• `/scan` - Quét toàn bộ dự án\n\n"
+        "📌 *Quản lý OAK:*\n"
+        "• `/status` - Trạng thái PC & files\n"
+        "• `/profiles` - Danh sách tài khoản\n"
+        "• `/mt5 <profile>` - Xem tài khoản MT5\n"
+        "• `/positions <profile>` - Vị thế đang mở\n"
+        "• `/signal` - Tín hiệu hiện tại\n"
+        "• `/news` - Tin kinh tế\n"
+        "• `/reply <text>` - Gửi lệnh vào OAK inbox\n\n"
+        "💡 `/myid` - Lấy Chat ID"
     )
     bot.reply_to(message, text)
 
@@ -437,9 +437,12 @@ def cmd_news(message):
             bot.reply_to(message, "📰 Không có tin quan trọng hôm nay.")
             return
         header = "📰 *TIN TỨC*\n\n" if lang == "VN" else "📰 *NEWS*\n\n"
-        bot.reply_to(message, header + "\n".join(news))
+        text = header + "\n".join(news)
+        clean = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", text)
+        clean = clean.replace("</c>", "")
+        bot.reply_to(message, clean)
     except Exception as e:
-        bot.reply_to(message, f"❌ Loi: {str(e)}")
+        bot.reply_to(message, f"❌ Lỗi: {str(e)}")
 
 # =====================================================================
 # MIMO COMMANDS - File Queue IPC
