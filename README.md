@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.0.0)
+# OAK Hidden SLTP Manager (v3.1.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -9,32 +9,50 @@ Tài liệu chi tiết:
 - Nhật ký cập nhật: [RELEASE_NOTES.md](RELEASE_NOTES.md)
 
 ## Tính năng chính
+
+### OAK Manager
 - Hidden SL/TP theo Points (không cần set SL/TP thật trên MT5).
 - Visible SL/TP (tuỳ chọn): sync SL/TP ra MT5 và tự thêm buffer để tránh spread.
 - Auto Partial theo R: chốt theo các mốc R và % volume.
 - Auto BE theo R: tự dời SL về entry (khi Visible SL/TP đang bật).
-- Scheduled Entry: hẹn giờ vào lệnh BUY/SELL theo thời gian (tự dời sang ngày mai nếu giờ đã qua, bỏ weekend).
-- Telegram NLP:
-  - Hẹn giờ vào lệnh bằng câu tự nhiên (vd: “Mua Vàng 0.1 lúc 19:30”).
-  - Close all theo điều kiện (vd: “Đóng các lệnh lời lúc 20:00”, “Close all sym=XAUUSD”).
-  - Modify SL/TP bằng câu tự nhiên (vd: “Dời SL XAUUSD về hòa”).
-  - Dự báo PnL theo giá mục tiêu (vd: “Dự đoán XAUUSD chạm 2050”).
-- Ghost Operator Mode (Stealth): giả lập thao tác UI MT5 khi bị chặn Algo Trading (cần pywinauto).
-- Daily Briefing 06:00: tổng hợp tin kinh tế (High Impact) + cache + chống gửi trùng.
-- Daily Reminder 06:00: nhắc nhở ngày đặc biệt cần tính lại (Thứ 4, 5, 6 cuối tháng; Thứ 4 ngày 30 hoặc 1; Thứ 6 ngày 3/4/7; Thứ 6 cuối tháng 2 và 7 - trend năm).
+- Scheduled Entry: hẹn giờ vào lệnh BUY/SELL theo thời gian.
+- Telegram NLP: câu tự nhiên (vd: "Mua Vàng 0.1 lúc 19:30").
+- Ghost Operator Mode: giả lập thao tác UI MT5 khi bị chặn Algo Trading.
+- Daily Briefing 06:00: tổng hợp tin kinh tế.
 - Multi-profile: 1 app quản lý nhiều terminal/account.
-- Session persistence: tự lưu trạng thái lệnh hẹn giờ để phục hồi sau restart.
 
-## Note đặc biệt
-- `Thứ 4, 5, 6` cuối tháng: cần tính lại.
-- `Thứ 4` ngày `30` hoặc `1` (bất kỳ tháng nào): tính lại (Thứ 4, 5, 6).
-- `Thứ 6` ngày `3/4/7`: tính lại (Thứ 4, 5, 6).
-- `Thứ 6` cuối tháng `2` và `7`: tính lại `trend năm`.
+### MT4-MT5 Dual Signal System
+- **Phân tích nến đa khung giờ**: M5@35, M5@40, H1@(H-1), M15@30.
+- **Logic**: M5 cùng chiều → xét H1; M5 ngược chiều → xét M15.
+- **Đồng bộ giờ UTC**: Lấy thời gian từ `tick.time` MT5 (Unix timestamp UTC), không phụ thuộc giờ local/VPS. Miễn nhiễm DST (mùa hè/mùa đông).
+- **Tín hiệu kép**: So sánh tín hiệu MT4 EA và MT5 tự động → HỢP LƯU / XUNG ĐỘT.
+- **Telegram báo cáo**: Gửi tín hiệu real-time lúc x:50 mỗi giờ mục tiêu.
+- **Missed slot check**: Khi khởi động sau giờ mục tiêu, tự phân tích slot đã lỡ và thông báo.
+- **Đếm ngược**: Hiển thị thời gian còn lại đến slot tiếp theo.
+- **Giao diện Việt hoá**: Dấu đầy đủ, mũi tên ↑↓, Mua/Bán/Chờ.
+
+### MiMo Bridge Bot
+- **Telegram → MiMo Code CLI**: Điều khiển MiMo từ xa qua Telegram.
+- **Commands**: `/mimo`, `/status`, `/signal`, `/profiles`, `/mt5`, `/positions`, `/news`.
+- **File-based Worker**: Xử lý lệnh nền, chống trùng instance bằng lock file.
+
+## Cấu trúc file
+| File | Mô tả |
+|------|-------|
+| `OAK_Hidden_SLTP_Manager.py` | OAK Manager chính |
+| `mt5_signal_bot.py` | Bot tín hiệu MT5 standalone |
+| `mt4_mt5_server.py` | Flask API nhận data từ MT4 EA |
+| `mimo_bot.py` | Telegram Bot bridge |
+| `mimo_worker.py` | Worker xử lý lệnh MiMo |
+| `CHAY_ALL.bat` | Khởi động tất cả (Server + Bot + Worker) |
+| `CHAY_SERVER.bat` | Khởi động MT4-MT5 Server |
+| `CHAY_MIMO_BOT.bat` | Khởi động MiMo Bot + Worker |
+| `CHAY_ROBOT.bat` | Khởi động OAK Manager |
 
 ## Yêu cầu
 - Windows (MT5 + pywinauto).
 - Python 3.10+ hoặc dùng file `.exe` trong `dist/`.
-- MT5 đã cài và bạn đăng nhập tài khoản trực tiếp trên MT5.
+- MT5 đã cài và đăng nhập tài khoản trực tiếp.
 
 Cài thư viện:
 ```bash
@@ -42,42 +60,19 @@ pip install -r requirements.txt
 ```
 
 ## Chạy nhanh
-1. Chạy `CHAY_ROBOT.bat` (khuyến nghị) hoặc:
-   ```bash
-   python OAK_Hidden_SLTP_Manager.py
-   ```
-2. Trong app:
-   - Tạo Profile, chọn đường dẫn `terminal64.exe`.
-   - Nhập Telegram Token + Chat ID.
-   - Bấm START MONITORING.
+1. Khởi động tất cả: Double-click `CHAY_ALL.bat`
+2. Hoặc chạy riêng:
+   - `CHAY_SERVER.bat`: MT4-MT5 Server (Flask API, port 5000)
+   - `CHAY_MIMO_BOT.bat`: MiMo Bridge Bot
+   - `CHAY_ROBOT.bat`: OAK Manager
 
-## Telegram commands (cú pháp)
-Các lệnh được parse theo dạng dòng đơn hoặc nhiều dòng (mỗi dòng 1 lệnh).
-- `/status [profile]`
-- `/list [profile]`
-- `/pending <buy|sell> <SYMBOL> <LOT> <HH:MM> [SL_points] [TP_points] [profile]`
-- `/del <ID...|all|allticketclose> [profile]`
-- `/modify <sl|tp> <value> <SYMBOL> [profile]`
-- `/closeall [HH:MM] [profile] [filter=profit|loss|all] [sym=SYMBOL]`
-- `/closeallpending [profile]`
-- `/help`
-
-## Cấu hình & file dữ liệu
-- `profiles.json`: danh sách profile (đường dẫn MT5, magic, telegram token/chat, rule quản trị lệnh…).
-- `settings.json`: setting chung (ngôn ngữ VN/EN, theme, ghost_mode_active…).
-- `waiting_<Profile>.json`: danh sách lệnh hẹn giờ theo profile.
-- `trades.json`, `session_state.json`, `pending_partials.json`: trạng thái quản trị lệnh và phục hồi session.
- 
-File mẫu để tham khảo khi cần setup thủ công:
-- `profiles.example.json`
-- `settings.example.json`
-
-## Bảo mật
-- Không lưu mật khẩu MT5 (bạn đăng nhập trực tiếp trong MT5 chính thức).
-- Không commit Telegram Token/Chat ID lên GitHub public (repo đã có sẵn `.gitignore` để bỏ qua các file runtime).
+## Cấu hình
+- `profiles.json`: danh sách profile MT5.
+- `settings.json`: setting chung.
+- `mt5_signal_bot.py`: `BROKER_GMT`, `MT5_PATH`, `TARGET_HOURS`.
+- `mt4_mt5_server.py`: cùng config, chạy song song.
 
 ## Backup
-Chạy script tạo zip source + profile:
 ```bash
 python create_backup_final.py
 ```
