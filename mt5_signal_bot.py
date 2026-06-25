@@ -269,9 +269,9 @@ def main():
     sent_today = set()
 
     send_telegram(
-        f"BOT KHOI DONG\n"
+        f"Bot khởi động\n"
         f"Symbol: {SYMBOL}\n"
-        f"Gio kich hoat: {TARGET_HOURS}\n"
+        f"Giờ kích hoạt: {TARGET_HOURS}\n"
         f"MT5: {'OK' if mt5_ready else 'N/A'}"
     )
 

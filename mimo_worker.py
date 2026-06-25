@@ -20,7 +20,7 @@ def process_command(cmd):
 
     if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
         now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        return f"Trang thai he thong luc {now}:\n- MT5 Signal Bot: dang chay\n- MT4-MT5 Server: dang chay\n- Tat ca hoat dong binh thuong."
+        return f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- MT4-MT5 Server: đang chạy\n- Tất cả hoạt động bình thường."
 
     if any(w in cmd_lower for w in ["signal", "tin hieu"]):
         return "Tin hieu hien tai: Dang cho slot kich hoat tiep theo. Xem chi tiet tren Telegram bot."
@@ -32,13 +32,13 @@ def process_command(cmd):
     if any(w in cmd_lower for w in ["help", "giup", "huong dan"]):
         return (
             "Cac lenh ho tro:\n"
-            "- status: Trang thai he thong\n"
+            "- status: Trạng thái hệ thống\n"
             "- signal: Tin hieu hien tai\n"
             "- time: Gio hien tai\n"
             "- help: Huong dan"
         )
 
-    return f"Da nhan lenh: '{cmd}'\nKet qua: Lenh da duoc xu ly thanh cong."
+    return f"Đã nhận lệnh: '{cmd}'\nKết quả: Lệnh đã được xử lý thành công."
 
 def create_lock():
     if os.path.exists(LOCK_FILE):
@@ -72,7 +72,7 @@ def main():
         return
 
     print("=" * 50)
-    print("  MiMo Worker - Dang chay nen")
+    print("  MiMo Worker - Đang chạy nền")
     print(f"  PID: {os.getpid()}")
     print(f"  CMD: {CMD_FILE}")
     print(f"  RESULT: {RESULT_FILE}")
@@ -94,7 +94,7 @@ def main():
                     with open(RESULT_FILE, "w", encoding="utf-8") as f:
                         f.write(result)
 
-                    print(f"  Ket qua: {result[:80]}...")
+                    print(f"  Kết quả: {result[:80]}...")
                     last_cmd = cmd
 
                     try:
