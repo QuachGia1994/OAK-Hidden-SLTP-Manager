@@ -613,10 +613,15 @@ if __name__ == "__main__":
     print("  Queue file: mimo_queue.json")
     print("  Result file: mimo_result.json")
     print("=" * 55)
-    
-    try:
-        bot.polling(none_stop=True, timeout=30)
-    except KeyboardInterrupt:
-        print("\n  Da dung bot.")
-    except Exception as e:
-        print(f"\n  Loi: {e}")
+
+    import time as _time
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=30)
+        except KeyboardInterrupt:
+            print("\n  Đã dừng bot.")
+            break
+        except Exception as e:
+            print(f"\n  Lỗi: {e}")
+            print("  Đang kết nối lại sau 5 giây...")
+            _time.sleep(5)
