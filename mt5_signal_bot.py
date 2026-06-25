@@ -30,6 +30,15 @@ TARGET_HOURS = [1, 7, 9, 14, 15, 16]
 MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 BROKER_GMT = 0
 
+SCHEDULE_NOTES = {
+    1: "XAUUSD, GBPAUD",
+    7: "XAUUSD, GBPAUD",
+    9: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
+    14: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
+    15: "Thu 4: toan bo nhom GBP | Thu 2,6: Vang + nhom GBP",
+    16: "Thu 4: toan bo nhom GBP | Thu 2,6: Vang + nhom GBP",
+}
+
 # =====================================================================
 # TELEGRAM
 # =====================================================================
@@ -204,11 +213,13 @@ def send_report(signal_data, H, broker_dt):
         icon = "Chờ"
         emoji = "\u26aa"
 
+    note = SCHEDULE_NOTES.get(H, "")
     msg = (
         f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
         f"============================\n"
         f"  {fmt_time(broker_dt)} (Broker)\n"
         f"  Kích hoạt: {fmt_hour(H)}:50\n"
+        f"  Tập trung: {note}\n"
         f"============================\n\n"
         f"{report}\n\n"
         f"============================\n"
@@ -268,11 +279,13 @@ def main():
 
     sent_today = set()
 
+    schedule_lines = "\n".join([f"  {h}:00 - {SCHEDULE_NOTES[h]}" for h in TARGET_HOURS])
     send_telegram(
         f"Bot khởi động\n"
         f"Symbol: {SYMBOL}\n"
         f"Giờ kích hoạt: {TARGET_HOURS}\n"
-        f"MT5: {'OK' if mt5_ready else 'N/A'}"
+        f"MT5: {'OK' if mt5_ready else 'N/A'}\n\n"
+        f"Lịch tập trung:\n{schedule_lines}"
     )
 
     if mt5_ready:
@@ -313,10 +326,12 @@ def main():
             else:
                 icon, emoji = "Chờ", "\u26aa"
 
+            note = SCHEDULE_NOTES.get(latest, "")
             msg = (
                 f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:50 - {icon}\n"
                 f"============================\n"
                 f"  {fmt_time(broker_dt)} (Broker)\n"
+                f"  Tập trung: {note}\n"
                 f"============================\n\n"
                 f"{result['report']}\n\n"
                 f"============================\n"
