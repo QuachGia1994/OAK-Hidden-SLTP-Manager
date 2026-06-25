@@ -1,0 +1,5 @@
+customtkinter
+MetaTrader5
+pywinauto
+comtypes
+pywin32
