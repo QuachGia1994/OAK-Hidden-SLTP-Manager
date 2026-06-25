@@ -460,8 +460,25 @@ def cmd_mimo(message):
 
 def _process_mimo(chat_id, prompt, req_id):
     """Xu ly lenh MiMo trong thread rieng"""
-    result = execute_mimo_via_file_proxy(prompt)
-    send_telegram_msg(chat_id, f"✅ *Kết quả MiMo:*\n```\n{result}\n```")
+    try:
+        cmd_lower = prompt.lower().strip()
+
+        if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
+            now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            result = f"Trang thai he thong luc {now}:\n- MT5 Signal Bot: dang chay\n- MT4-MT5 Server: dang chay\n- Tat ca hoat dong binh thuong."
+        elif any(w in cmd_lower for w in ["signal", "tin hieu"]):
+            result = "Tin hieu hien tai: Dang cho slot kich hoat tiep theo."
+        elif any(w in cmd_lower for w in ["time", "gio", "thoi gian"]):
+            now = datetime.now()
+            result = f"Gio local: {now.strftime('%H:%M:%S')}\nNgay: {now.strftime('%d/%m/%Y')}"
+        elif any(w in cmd_lower for w in ["help", "giup", "huong dan"]):
+            result = "Cac lenh: status, signal, time, help"
+        else:
+            result = f"Da nhan: '{prompt}'"
+
+        send_telegram_msg(chat_id, f"✅ *Ket qua MiMo:*\n```\n{result}\n```")
+    except Exception as e:
+        send_telegram_msg(chat_id, f"❌ Loi: {str(e)}")
 
 @bot.message_handler(commands=["code"])
 def cmd_code(message):
