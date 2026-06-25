@@ -109,12 +109,14 @@ def candle_direction(candle):
 
 def candle_info_line(candle, label):
     if candle is None:
-        return f"  {label}: KHONG CO DU LIEU"
+        return f"  {label}: Khong co du lieu"
     d = candle_direction(candle)
+    arrow = {"TANG": "\u2191", "GIAM": "\u2193", "DOJI": "\u2194"}.get(d, "")
+    vn = {"TANG": "Tang", "GIAM": "Giam", "DOJI": "Doji"}.get(d, "?")
     return (
-        f"  {label}: {d}\n"
-        f"    Open={candle['open']:.2f} Close={candle['close']:.2f} "
-        f"High={candle['high']:.2f} Low={candle['low']:.2f}"
+        f"  {label}: {vn} {arrow}\n"
+        f"    O={candle['open']:.5f} C={candle['close']:.5f} "
+        f"H={candle['high']:.5f} L={candle['low']:.5f}"
     )
 
 # =====================================================================
@@ -152,11 +154,14 @@ def analyze(broker_dt, H):
             return {"signal": "WAIT", "report": "H1 la DOJI - Khong du dieu kien"}
 
         signal = "BUY" if d_h1 == "TANG" else "SELL"
+        vn_m35 = {"TANG": "Tang", "GIAM": "Giam"}.get(d_m35, d_m35)
+        vn_h1 = {"TANG": "Tang", "GIAM": "Giam"}.get(d_h1, d_h1)
+        arrow_h1 = "\u2191" if d_h1 == "TANG" else "\u2193"
         report = (
-            f"PATTERN: CUNG CHIEU ({d_m35})\n"
+            f"PATTERN: Cung chieu ({vn_m35})\n"
             f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
             f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lay H1@{fmt_hour(h1_hour)}:00 (Cung chieu H1)\n"
+            f"  -> Lay H1@{fmt_hour(h1_hour)}:00 (Cung chieu)\n"
             f"{candle_info_line(c_h1, f'H1@{fmt_hour(h1_hour)}:00')}"
         )
     else:
@@ -170,11 +175,13 @@ def analyze(broker_dt, H):
             return {"signal": "WAIT", "report": "M15 la DOJI - Khong du dieu kien"}
 
         signal = "SELL" if d_m15 == "TANG" else "BUY"
+        vn_m35 = {"TANG": "Tang", "GIAM": "Giam"}.get(d_m35, d_m35)
+        vn_m40 = {"TANG": "Tang", "GIAM": "Giam"}.get(d_m40, d_m40)
         report = (
-            f"PATTERN: NGUOC CHIEU ({d_m35} + {d_m40})\n"
+            f"PATTERN: Nguoc chieu ({vn_m35} + {vn_m40})\n"
             f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
             f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lay M15@{fmt_hour(H)}:30 (Nguoc chieu M15)\n"
+            f"  -> Lay M15@{fmt_hour(H)}:30 (Nguoc chieu)\n"
             f"{candle_info_line(c_m15, f'M15@{fmt_hour(H)}:30')}"
         )
 
@@ -188,26 +195,26 @@ def send_report(signal_data, H, broker_dt):
     report = signal_data["report"]
 
     if sig == "BUY":
-        icon = "BUY"
+        icon = "MUA"
         emoji = "\U0001f7e2"
     elif sig == "SELL":
-        icon = "SELL"
+        icon = "BAN"
         emoji = "\U0001f534"
     else:
-        icon = "WAIT"
+        icon = "CHO"
         emoji = "\u26aa"
 
     msg = (
         f"{emoji} TIN HIEU {SYMBOL} - {icon}\n"
         f"============================\n"
-        f"  Thoi gian: {fmt_time(broker_dt)} (Broker GMT+{BROKER_GMT})\n"
-        f"  Gio kich hoat: {fmt_hour(H)}:50\n"
+        f"  {fmt_time(broker_dt)} (Broker)\n"
+        f"  Kich hoat: {fmt_hour(H)}:50\n"
         f"============================\n\n"
         f"{report}\n\n"
         f"============================\n"
-        f"TIN HIEU CUOI CUNG: {icon}\n"
+        f"KET LUAN: {icon}\n"
         f"============================\n"
-        f"Chi mang tinh tham khao. Ky luat la suc manh!"
+        f"Chi tham khao. Ky luat la suc manh!"
     )
     send_telegram(msg)
 
@@ -297,11 +304,11 @@ def main():
             sig = result["signal"]
 
             if sig == "BUY":
-                icon, emoji = "BUY", "\U0001f7e2"
+                icon, emoji = "MUA", "\U0001f7e2"
             elif sig == "SELL":
-                icon, emoji = "SELL", "\U0001f534"
+                icon, emoji = "BAN", "\U0001f534"
             else:
-                icon, emoji = "WAIT", "\u26aa"
+                icon, emoji = "CHO", "\u26aa"
 
             msg = (
                 f"{emoji} [BO LO] {fmt_hour(latest)}:50 - {icon}\n"
@@ -310,7 +317,7 @@ def main():
                 f"============================\n\n"
                 f"{result['report']}\n\n"
                 f"============================\n"
-                f"SIGNAL: {icon}\n"
+                f"KET LUAN: {icon}\n"
                 f"============================\n"
                 f"Slot tiep theo: {fmt_hour(next_slots[0])}:50 (con {countdown})\n"
                 f"Bo lo vi bot khoi dong sau. Chi tham khao!"
