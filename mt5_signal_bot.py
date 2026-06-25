@@ -327,6 +327,7 @@ def main():
                 icon, emoji = "Chờ", "\u26aa"
 
             note = SCHEDULE_NOTES.get(latest, "")
+            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:50 (còn {countdown})\n" if next_slots else f"Đã hết slot hôm nay.\n"
             msg = (
                 f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:50 - {icon}\n"
                 f"============================\n"
@@ -337,7 +338,7 @@ def main():
                 f"============================\n"
                 f"KẾT LUẬN: {icon}\n"
                 f"============================\n"
-                f"Slot tiếp theo: {fmt_hour(next_slots[0])}:50 (còn {countdown})\n"
+                f"{slot_line}"
                 f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
             )
             send_telegram(msg)
