@@ -110,7 +110,7 @@ def candle_dir(c):
         return None
     body = abs(c["close"] - c["open"])
     rng = c["high"] - c["low"]
-    if rng == 0 or body / rng < 0.05:
+    if rng == 0 or body / rng < 0.02:
         return "DOJI"
     return "TANG" if c["close"] > c["open"] else "GIAM"
 

@@ -99,7 +99,7 @@ def candle_direction(candle):
     full_range = candle["high"] - candle["low"]
     if full_range == 0:
         return "DOJI"
-    if body / full_range < 0.05:
+    if body / full_range < 0.02:
         return "DOJI"
     if c > o:
         return "TANG"
