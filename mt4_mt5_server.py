@@ -42,16 +42,31 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
 MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
-TARGET_HOURS = [1, 7, 9, 14, 15, 16]
+TARGET_HOURS = list(range(2, 17))
 BROKER_GMT = 0
 
+# Mo ta chi tiet tung mốc giờ theo thứ trong tuần
+# Thứ 2: Vàng SW nhẹ
+# Thứ 3: Bình thường
+# Thứ 4: GBP SW rộng theo Vàng + tính lại W1
+# Thứ 5: Theo W1, phiên AU dời 9h broker time
+# Thứ 6: SW/W1, tính lại nếu cuối tháng
 SCHEDULE_NOTES = {
-    1: "Thứ 2: Vàng SW nhẹ",
-    7: "Thứ 2: Vàng SW nhẹ",
-    9: "Thứ 3: Bình thường | Thứ 4: GBP SW rộng theo Vàng + tính lại W1 | Thứ 5: Theo W1, phiên AU dời 9h broker | Thứ 6: SW/W1, tính lại nếu cuối tháng",
-    14: "Thứ 3: Bình thường | Thứ 4: GBP SW rộng theo Vàng + tính lại W1 | Thứ 5: Theo W1, phiên AU dời 9h broker | Thứ 6: SW/W1, tính lại nếu cuối tháng",
-    15: "XAUUSD - Thứ 4: tính lại W1 | Thứ 5: theo W1",
-    16: "Thứ 4: toàn bộ nhóm GBP + tính lại W1 | Thứ 5: Theo W1 | Thứ 6: Vàng + GBP",
+    2:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    3:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    4:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    5:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    6:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    7:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    8:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    9:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    10: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    11: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    12: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    13: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    14: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
+    15: "XAUUSD - Thứ 4: tinh lai W1 | Thứ 5: theo W1 | Thứ 6: Vang + GBP",
+    16: "Thứ 4: toan bo nhom GBP + tinh lai W1 | Thứ 5: Theo W1 | Thứ 6: Vang + GBP",
 }
 
 app = Flask(__name__)
