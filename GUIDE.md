@@ -13,14 +13,14 @@ Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK M
 Bot phân tích nến lúc **x:45** mỗi giờ mục tiêu [2-16]:
 
 ```
-M5@H:35 và M5@H:40 → cùng chiều? → M30@H:30 xác nhận
-                      → ngược chiều? → M30@H:30 xác nhận ngược
+M5@H:35 và M5@H:40 → cùng chiều? → M30@H:00 xác nhận
+                      → ngược chiều? → M30@H:00 xác nhận ngược
 ```
 
 ### Ví dụ
-- M5@09:35 = Tăng ↑, M5@09:40 = Tăng ↑ → Cùng chiều → M30@09:30
-- M30@09:30 = Tăng ↑ → Tín hiệu = **Mua** (M30 cùng chiều M5)
-- M30@09:30 = Giảm ↓ → Tín hiệu = **Bán** (M30 ngược chiều M5)
+- M5@09:35 = Tăng ↑, M5@09:40 = Tăng ↑ → Cùng chiều → M30@09:00
+- M30@09:00 = Tăng ↑ → Tín hiệu = **Mua** (M30 cùng chiều M5)
+- M30@09:00 = Giảm ↓ → Tín hiệu = **Bán** (M30 ngược chiều M5)
 
 ### Đồng bộ giờ
 - Bot lấy thời gian từ `tick.time` MT5 (Unix timestamp UTC).
