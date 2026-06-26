@@ -351,6 +351,7 @@ LANG = {
         "tab_readme": "README",
         "tab_release_notes": "Release Notes",
         "tab_about": "Giới Thiệu",
+        "tab_signals": "Tín Hiệu",
         "lbl_status": "Trạng Thái:",
         "lbl_running": "Đang chạy",
         "lbl_stopped": "Đã dừng",
@@ -628,6 +629,7 @@ OAK MANAGER không chỉ là một ứng dụng quản lý lệnh thông thườ
         "tab_readme": "README",
         "tab_release_notes": "Release Notes",
         "tab_about": "About",
+        "tab_signals": "Signals",
         "about_info": f"{APP_NAME} {VERSION}\nCopyright © 2026 Quach Kim Phong.\n\nSupport: Telegram @bupbupchot",
         "lbl_status": "Status:",
         "lbl_running": "Running",
@@ -4102,8 +4104,10 @@ class App(ctk.CTk):
         self.main_frame.grid_rowconfigure(0, weight=1)
 
         self.frames = {}
+        self.signal_procs = {}
         self.tab_names = {
             "dashboard": T("tab_dashboard"),
+            "signals": T("tab_signals"),
             "profiles": T("tab_profiles"),
             "copy_trade": T("tab_copy_trade"),
             "pos_size": T("tab_pos_size"),
@@ -4117,6 +4121,7 @@ class App(ctk.CTk):
         self.tabview.grid(row=0, column=0, sticky="nsew")
 
         self.tab_dashboard = self.tabview.add(self.tab_names["dashboard"])
+        self.tab_signals = self.tabview.add(self.tab_names["signals"])
         self.tab_profiles = self.tabview.add(self.tab_names["profiles"])
         self.tab_copy_trade = self.tabview.add(self.tab_names["copy_trade"])
         self.tab_pos_size = self.tabview.add(self.tab_names["pos_size"])
@@ -4126,6 +4131,7 @@ class App(ctk.CTk):
         self.tab_about = self.tabview.add(self.tab_names["about"])
 
         self.create_dashboard_frame(self.tab_dashboard)
+        self.create_signals_frame(self.tab_signals)
         self.create_profiles_frame(self.tab_profiles)
         self.create_copy_trade_frame(self.tab_copy_trade)
         self.create_pos_size_frame(self.tab_pos_size)
@@ -4555,8 +4561,10 @@ class App(ctk.CTk):
             pass
 
         self.frames = {}
+        self.signal_procs = {}
         self.tab_names = {
             "dashboard": T("tab_dashboard"),
+            "signals": T("tab_signals"),
             "profiles": T("tab_profiles"),
             "copy_trade": T("tab_copy_trade"),
             "pos_size": T("tab_pos_size"),
@@ -4570,6 +4578,7 @@ class App(ctk.CTk):
         self.tabview.grid(row=0, column=0, sticky="nsew")
 
         self.tab_dashboard = self.tabview.add(self.tab_names["dashboard"])
+        self.tab_signals = self.tabview.add(self.tab_names["signals"])
         self.tab_profiles = self.tabview.add(self.tab_names["profiles"])
         self.tab_copy_trade = self.tabview.add(self.tab_names["copy_trade"])
         self.tab_pos_size = self.tabview.add(self.tab_names["pos_size"])
@@ -4579,6 +4588,7 @@ class App(ctk.CTk):
         self.tab_about = self.tabview.add(self.tab_names["about"])
 
         self.create_dashboard_frame(self.tab_dashboard)
+        self.create_signals_frame(self.tab_signals)
         self.create_profiles_frame(self.tab_profiles)
         self.create_copy_trade_frame(self.tab_copy_trade)
         self.create_pos_size_frame(self.tab_pos_size)
@@ -4881,6 +4891,163 @@ class App(ctk.CTk):
         self.apply_theme_overrides()
         self.refresh_profile_list()
         self.update_news_summary(force=True)
+
+    def create_signals_frame(self, parent):
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(fill="x", pady=(0, 10))
+
+        ctk.CTkButton(btn_frame, text="▶ BẮT ĐẦU TẤT CẢ", fg_color="#2fa572",
+                       hover_color="#238a5c", command=self.start_all_signals).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="■ DỪNG TẤT CẢ", fg_color="#d9534f",
+                       hover_color="#c9302c", command=self.stop_all_signals).pack(side="left", padx=5)
+
+        canvas = ctk.CTkCanvas(frame, highlightthickness=0, bg=frame.cget("fg_color"))
+        scrollbar = ctk.CTkScrollbar(frame, orientation="vertical", command=canvas.yview)
+        scroll_frame = ctk.CTkFrame(canvas, fg_color="transparent")
+
+        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        signal_defs = [
+            ("signal_bot", "MT5 Signal Bot", "python mt5_signal_bot.py", "#2fa572"),
+            ("mt_server", "MT4-MT5 Server", "python mt4_mt5_server.py", "#1f538d"),
+            ("mimo_bot", "MiMo Telegram Bot", "python mimo_bot.py", "#b33dd4"),
+            ("mimo_worker", "MiMo Worker", "python mimo_worker.py", "#d4a03d"),
+        ]
+
+        for key, name, cmd, color in signal_defs:
+            panel = ctk.CTkFrame(scroll_frame, fg_color="#1a1a2e", corner_radius=8)
+            panel.pack(fill="x", padx=5, pady=5)
+
+            header = ctk.CTkFrame(panel, fg_color="transparent")
+            header.pack(fill="x", padx=10, pady=(8, 2))
+
+            dot = ctk.CTkLabel(header, text="●", text_color=color, font=("", 14))
+            dot.pack(side="left", padx=(0, 5))
+
+            ctk.CTkLabel(header, text=name, font=("", 13, "bold"), text_color="white").pack(side="left")
+
+            lbl_pid = ctk.CTkLabel(header, text="PID: ---", font=("", 11), text_color="gray")
+            lbl_pid.pack(side="right", padx=5)
+
+            btn_frame_p = ctk.CTkFrame(header, fg_color="transparent")
+            btn_frame_p.pack(side="right", padx=5)
+
+            btn_start = ctk.CTkButton(btn_frame_p, text="▶", width=32, height=28,
+                                       fg_color="#2fa572", hover_color="#238a5c",
+                                       command=lambda k=key: self.start_signal_process(k))
+            btn_start.pack(side="left", padx=2)
+
+            btn_stop = ctk.CTkButton(btn_frame_p, text="■", width=32, height=28,
+                                      fg_color="#d9534f", hover_color="#c9302c",
+                                      state="disabled",
+                                      command=lambda k=key: self.stop_signal_process(k))
+            btn_stop.pack(side="left", padx=2)
+
+            console = ctk.CTkTextbox(panel, height=120, font=("Consolas", 11),
+                                      fg_color="#0d0d1a", text_color="#cccccc",
+                                      state="disabled", wrap="word")
+            console.pack(fill="x", padx=10, pady=(2, 8))
+
+            self.signal_procs[key] = {
+                "name": name, "cmd": cmd, "color": color,
+                "proc": None, "logs": [],
+                "console": console, "btn_start": btn_start,
+                "btn_stop": btn_stop, "lbl_pid": lbl_pid,
+            }
+
+    def start_signal_process(self, key):
+        info = self.signal_procs.get(key)
+        if not info or info["proc"] and info["proc"].poll() is None:
+            return
+        try:
+            startupinfo = None
+            creationflags = 0
+            if os.name == 'nt':
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                creationflags = subprocess.CREATE_NO_WINDOW
+
+            cmd = info["cmd"].split()
+            proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, encoding='utf-8', errors='replace',
+                startupinfo=startupinfo, creationflags=creationflags,
+                cwd=os.path.dirname(os.path.abspath(__file__)),
+            )
+            info["proc"] = proc
+            info["logs"] = []
+            info["lbl_pid"].configure(text=f"PID: {proc.pid}")
+            info["btn_start"].configure(state="disabled")
+            info["btn_stop"].configure(state="normal")
+
+            t = threading.Thread(target=self._monitor_signal_output, args=(key, proc), daemon=True)
+            t.start()
+            self.log(f"Signal started: {info['name']} (PID: {proc.pid})")
+        except Exception as e:
+            self.log(f"Signal start error ({info['name']}): {e}")
+
+    def stop_signal_process(self, key):
+        info = self.signal_procs.get(key)
+        if not info or not info["proc"]:
+            return
+        proc = info["proc"]
+        if proc.poll() is None:
+            proc.terminate()
+            self.log(f"Signal stopped: {info['name']}")
+        info["proc"] = None
+        info["btn_start"].configure(state="normal")
+        info["btn_stop"].configure(state="disabled")
+        info["lbl_pid"].configure(text="PID: ---")
+
+    def _monitor_signal_output(self, key, proc):
+        info = self.signal_procs.get(key)
+        if not info:
+            return
+        try:
+            for line in iter(proc.stdout.readline, ''):
+                if not line:
+                    break
+                clean = line.strip()
+                if clean:
+                    info["logs"].append(clean)
+                    self.after(0, self._append_signal_log, key, clean)
+        except:
+            pass
+        finally:
+            self.after(0, lambda: self.stop_signal_process(key))
+
+    def _append_signal_log(self, key, line):
+        info = self.signal_procs.get(key)
+        if not info:
+            return
+        console = info["console"]
+        console.configure(state="normal")
+        console.insert("end", line + "\n")
+        console.see("end")
+        console.configure(state="disabled")
+        if len(info["logs"]) > 500:
+            info["logs"] = info["logs"][-300:]
+
+    def start_all_signals(self):
+        for key in self.signal_procs:
+            self.start_signal_process(key)
+            time.sleep(1)
+
+    def stop_all_signals(self):
+        for key in self.signal_procs:
+            self.stop_signal_process(key)
 
     def create_profiles_frame(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
