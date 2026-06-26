@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.2.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.3.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -6,6 +6,27 @@ Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK M
 - `Dự đoán Vàng lên 2050`: Tính tổng PnL nếu giá chạm 2050.
 - `Dời SL XAUUSD về hòa`: Tự dời SL về entry + 10 points buffer.
 - `Mua Vàng 0.1 lúc 19:30`: Hẹn giờ vào lệnh.
+
+## 📡 Tab Tín Hiệu (Mới)
+Tab gom tất cả 4 process vào 1 nơi duy nhất:
+
+### Cách dùng
+1. Mở OAK Manager → click tab **Tín Hiệu**
+2. Bấm **▶ BẮT ĐẦU TẤT CẢ** hoặc Start từng panel riêng
+3. Xem log real-time trong mỗi panel
+4. Bấm **■ DỪNG TẤT CẢ** hoặc Stop từng panel
+
+### 4 Process
+| Panel | Mô tả |
+|-------|-------|
+| MT5 Signal Bot | Bot tín hiệu M5+M30, chạy nền |
+| MT4-MT5 Server | Flask API nhận data từ MT4 EA |
+| MiMo Telegram Bot | Telegram Bot bridge |
+| MiMo Worker | Worker xử lý lệnh MiMo |
+
+### Lưu ý
+- Khi tắt app (bấm X), tất cả process tự động dừng
+- Không cần mở cmd window riêng nữa
 
 ## 📡 MT4-MT5 Dual Signal System
 
@@ -24,8 +45,7 @@ M5@H:35 và M5@H:40 → cùng chiều? → M30@H:00 xác nhận
 
 ### Đồng bộ giờ
 - Bot lấy thời gian từ `tick.time` MT5 (Unix timestamp UTC).
-- **Không phụ thuộc giờ local/VPS** → miễn nhiễm DST (mùa hè/mùa đông).
-- Có thể chạy ở bất kỳ quốc gia nào mà không cần cài lại timezone.
+- **Không phụ thuộc giờ local/VPS** → miễn nhiễm DST.
 
 ### Nhắc ngày đặc biệt
 Bot tự động nhắc khi khởi động vào các ngày quan trọng:
@@ -39,14 +59,6 @@ Bot tự động nhắc khi khởi động vào các ngày quan trọng:
 ### Missed Slot
 - Khi bot khởi động sau giờ mục tiêu, tự động phân tích slot đã lỡ.
 - Hiển thị countdown đến slot tiếp theo.
-
-### Cách chạy
-```
-Double-click CHAY_ALL.bat → 3 cửa sổ mở:
-1. MT4-MT5 Server (Flask API, port 5000)
-2. MT5 Signal Bot (vòng lặp chính)
-3. MiMo Worker (xử lý lệnh nền)
-```
 
 ### Cấu hình
 Trong `mt5_signal_bot.py` và `mt4_mt5_server.py`:

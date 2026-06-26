@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.2.0)
+# OAK Hidden SLTP Manager (v3.3.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -21,15 +21,18 @@ Tài liệu chi tiết:
 - Daily Briefing 06:00: tổng hợp tin kinh tế.
 - Multi-profile: 1 app quản lý nhiều terminal/account.
 
+### Tab Tín Hiệu (Mới)
+- **Gom 4 process vào 1 tab**: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker.
+- **2×2 grid layout**: Mỗi process 1 panel riêng với log real-time.
+- **Start/Stop riêng**: Bấm ▶/■ trên từng panel hoặc "BẮT ĐẦU/DỪNG TẤT CẢ".
+- **Auto-kill on close**: Tắt app tự động kill tất cả process con.
+
 ### MT4-MT5 Dual Signal System
-- **Phân tích nến**: M5@35, M5@40, M30@30.
+- **Phân tích nến**: M5@35, M5@40, M30@00.
 - **Logic**: M5 cùng chiều → M30 xác nhận; M5 ngược chiều → M30 xác nhận ngược.
-- **Đồng bộ giờ UTC**: Lấy thời gian từ `tick.time` MT5 (Unix timestamp UTC), miễn nhiễm DST.
-- **Tín hiệu kép**: So sánh tín hiệu MT4 EA và MT5 tự động → HỢP LƯU / XUNG ĐỘT.
-- **Telegram báo cáo**: Gửi tín hiệu real-time lúc x:45 mỗi giờ mục tiêu.
-- **Missed slot check**: Khi khởi động sau giờ mục tiêu, tự phân tích slot đã lỡ.
+- **Đồng bộ giờ UTC**: Miễn nhiễm DST từ `tick.time` MT5.
+- **Trigger x:45**: Gửi tín hiệu lúc x:45 mỗi giờ mục tiêu [2-16].
 - **Nhắc ngày đặc biệt**: Thứ 6 cuối tháng, Thứ 4 cuối tháng, Thứ 4 ngày 30/1, Thứ 4 đầu tháng.
-- **Giao diện Việt hoá**: Dấu đầy đủ, mũi tên ↑↓, Mua/Bán/Chờ.
 
 ### MiMo Bridge Bot
 - **Telegram → MiMo Code CLI**: Điều khiển MiMo từ xa qua Telegram.
@@ -61,17 +64,12 @@ pip install -r requirements.txt
 
 ## Chạy nhanh
 1. Khởi động tất cả: Double-click `CHAY_ALL.bat`
-2. Hoặc chạy riêng:
-   - `CHAY_SERVER.bat`: MT4-MT5 Server (Flask API, port 5000)
-   - `CHAY_MIMO_BOT.bat`: MiMo Bridge Bot
-   - `CHAY_ROBOT.bat`: OAK Manager
+2. Hoặc mở OAK Manager → tab **Tín Hiệu** → BẮT ĐẦU TẤT CẢ
 
 ## Cấu hình
 - `config.json`: Telegram bot token + chat ID (**gitignored**, không push lên GitHub).
 - `profiles.json`: danh sách profile MT5.
 - `settings.json`: setting chung.
-- `mt5_signal_bot.py`: `BROKER_GMT`, `MT5_PATH`, `TARGET_HOURS`.
-- `mt4_mt5_server.py`: cùng config, chạy song song.
 
 ### config.json (Bảo mật)
 ```json
@@ -80,7 +78,7 @@ pip install -r requirements.txt
     "telegram_chat_id": "YOUR_CHAT_ID_HERE"
 }
 ```
-> **Lưu ý**: `config.json` nằm trong `.gitignore`, KHÔNG được commit lên GitHub. Token chỉ lưu local.
+> **Lưu ý**: `config.json` nằm trong `.gitignore`, KHÔNG được commit lên GitHub.
 
 ## Backup
 ```bash

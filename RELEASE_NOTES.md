@@ -1,5 +1,24 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.3.0] - 2026-06-26
+*Bản cập nhật lớn: Tab Tín Hiệu tích hợp 4 process + Fix encoding + Auto-kill on close.*
+
+### 🚀 Tab Tín Hiệu (Mới)
+- **Gom 4 process vào 1 tab**: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker.
+- **2×2 grid layout**: Mỗi process 1 panel riêng với log console real-time.
+- **Start/Stop linh hoạt**: Bấm ▶/■ trên từng panel hoặc "BẮT ĐẦU/DỪNG TẤT CẢ".
+- **Process tree kill**: Dùng `taskkill /F /T` để kill cả child processes khi stop.
+- **Auto-kill on close**: Tắt app tự động dừng tất cả process con.
+- **Lock file cleanup**: Tự xóa `mimo_worker.lock` khi stop worker.
+
+### 🛠️ Cải tiến
+- **Python -u flag**: Unbuffered output → log hiện real-time trong console.
+- **UTF-8 encoding**: Set `PYTHONIOENCODING=utf-8` → fix lỗi Unicode Vietnamese.
+- **Partial close fix**: Verify position tồn tại trước khi gửi thông báo "ĐÃ ĐÓNG LỆNH".
+- **risk_points recalibrate**: Tự cập nhật khi physical SL thay đổi, giữ nguyên khi SL dời BE.
+
+---
+
 ## [v3.2.0] - 2026-06-26
 *Bản cập nhật: Đổi logic tín hiệu M30 + Trigger :45 + Bảo mật token + Ghost partial fix.*
 
