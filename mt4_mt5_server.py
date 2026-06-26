@@ -148,7 +148,7 @@ def fetch_mt5_data(broker_dt, H):
 
     ts_m35 = broker_time_to_ts(broker_dt, H, 35)
     ts_m40 = broker_time_to_ts(broker_dt, H, 40)
-    ts_m30 = broker_time_to_ts(broker_dt, H, 30)
+    ts_m30 = broker_time_to_ts(broker_dt, H, 0)
 
     c_m35 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m35)
     c_m40 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m40)
@@ -255,12 +255,12 @@ def build_telegram(
         f"--- {broker} (MT4) ---\n"
         f"  M5@{fmt_hour(H)}:35 = {mt4_m35}\n"
         f"  M5@{fmt_hour(H)}:40 = {mt4_m40}\n"
-        f"  M30@{fmt_hour(H)}:30 = {mt4_m30}\n"
+        f"  M30@{fmt_hour(H)}:00 = {mt4_m30}\n"
         f"  => {ico(mt4_sig)}\n\n"
         f"--- {SYMBOL} (MT5) ---\n"
         f"  M5@{fmt_hour(H)}:35 = {mt5['m35']}\n"
         f"  M5@{fmt_hour(H)}:40 = {mt5['m40']}\n"
-        f"  M30@{fmt_hour(H)}:30 = {mt5['m30']}\n"
+        f"  M30@{fmt_hour(H)}:00 = {mt5['m30']}\n"
         f"  => {ico(mt5_sig)}\n\n"
         f"===========================\n"
         f"KET LUAN: {conclusion}\n"
