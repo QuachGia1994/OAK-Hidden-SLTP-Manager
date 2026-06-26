@@ -164,47 +164,36 @@ def analyze(broker_dt, H):
         print(f"  [SKIP] M5@{fmt_hour(H)}:40 la DOJI")
         return {"signal": "WAIT", "report": "M5@40 la DOJI - Khong du dieu kien"}
 
+    ts_m30 = broker_time_to_ts(broker_dt, H, 30)
+    c_m30 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30)
+    d_m30 = candle_direction(c_m30)
+
+    if d_m30 is None:
+        return {"signal": "WAIT", "report": "Khong du du lieu M30"}
+    if d_m30 == "DOJI":
+        return {"signal": "WAIT", "report": "M30@30 la DOJI - Khong du dieu kien"}
+
+    vn_m35 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m35, d_m35)
+    vn_m40 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m40, d_m40)
+    vn_m30 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m30, d_m30)
+
     if d_m35 == d_m40:
-        h1_hour = H - 1 if H > 0 else 23
-        ts_h1 = broker_time_to_ts(broker_dt, h1_hour, 0)
-        c_h1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_H1, ts_h1)
-        d_h1 = candle_direction(c_h1)
-
-        if d_h1 is None:
-            return {"signal": "WAIT", "report": "Khong du du lieu H1"}
-        if d_h1 == "DOJI":
-            return {"signal": "WAIT", "report": "H1 la DOJI - Khong du dieu kien"}
-
-        signal = "BUY" if d_h1 == "TANG" else "SELL"
-        vn_m35 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m35, d_m35)
-        vn_h1 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_h1, d_h1)
-        arrow_h1 = "\u2191" if d_h1 == "TANG" else "\u2193"
+        signal = "BUY" if d_m30 == "TANG" else "SELL"
         report = (
-            f"PATTERN: Cùng chiều ({vn_m35})\n"
+            f"PATTERN: Cung chieu ({vn_m35})\n"
             f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
             f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lấy H1@{fmt_hour(h1_hour)}:00 (Cùng chiều)\n"
-            f"{candle_info_line(c_h1, f'H1@{fmt_hour(h1_hour)}:00')}"
+            f"  -> Lay M30@{fmt_hour(H)}:30 (Cung chieu)\n"
+            f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:30')}"
         )
     else:
-        ts_m15 = broker_time_to_ts(broker_dt, H, 30)
-        c_m15 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M15, ts_m15)
-        d_m15 = candle_direction(c_m15)
-
-        if d_m15 is None:
-            return {"signal": "WAIT", "report": "Khong du du lieu M15"}
-        if d_m15 == "DOJI":
-            return {"signal": "WAIT", "report": "M15 la DOJI - Khong du dieu kien"}
-
-        signal = "SELL" if d_m15 == "TANG" else "BUY"
-        vn_m35 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m35, d_m35)
-        vn_m40 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m40, d_m40)
+        signal = "SELL" if d_m30 == "TANG" else "BUY"
         report = (
-            f"PATTERN: Ngược chiều ({vn_m35} + {vn_m40})\n"
+            f"PATTERN: Nguoc chieu ({vn_m35} + {vn_m40})\n"
             f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
             f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lấy M15@{fmt_hour(H)}:30 (Ngược chiều)\n"
-            f"{candle_info_line(c_m15, f'M15@{fmt_hour(H)}:30')}"
+            f"  -> Lay M30@{fmt_hour(H)}:30 (Nguoc chieu)\n"
+            f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:30')}"
         )
 
     return {"signal": signal, "report": report}
