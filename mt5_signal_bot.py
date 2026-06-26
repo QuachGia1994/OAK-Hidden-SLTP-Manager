@@ -280,7 +280,7 @@ def send_m30_selector_report(sel_data, early_data, H, broker_dt, initial_sig):
 
     msg = (
         f"--- M30 Chon diem ---\n"
-        f"  Goc: {initial_sig} tai {fmt_hour(H)}:50\n"
+        f"  Goc: {initial_sig} tai {fmt_hour(H)}:45\n"
         f"  Flow: {'Nguoc chieu' if is_opp else 'Binh thuong'}\n"
         f"  Ket qua: Chon {ch_label}\n\n"
         f"{sel_lines}\n\n"
@@ -304,7 +304,7 @@ def send_m30_report(m30_data, H, broker_dt, initial_sig):
         f"{emoji} M30 Confirm - {icon}\n"
         f"============================\n"
         f"  {fmt_time(broker_dt)} (Broker)\n"
-        f"  Goc: {initial_sig} tai {fmt_hour(H)}:50\n"
+        f"  Goc: {initial_sig} tai {fmt_hour(H)}:45\n"
         f"============================\n\n"
         f"{report}\n\n"
         f"============================\n"
@@ -336,7 +336,7 @@ def send_report(signal_data, H, broker_dt):
         f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
         f"============================\n"
         f"  {fmt_time(broker_dt)} (Broker)\n"
-        f"  Kích hoạt: {fmt_hour(H)}:50\n"
+        f"  Kích hoạt: {fmt_hour(H)}:45\n"
         f"  Tập trung: {note}\n"
         f"============================\n\n"
         f"{report}\n\n"
@@ -378,7 +378,7 @@ def get_broker_time():
 def main():
     global mt5_ready
     print("=" * 55)
-    print("  MT5 Multi-Timeframe Signal Bot v3.0")
+    print("  MT5 Multi-Timeframe Signal Bot v3.1")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {TARGET_HOURS}")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
@@ -400,13 +400,11 @@ def main():
 
     from datetime import datetime as _dt
     today_note = get_schedule_note(_dt.now(timezone.utc))
-    schedule_lines = "\n".join([f"  {h}:00" for h in TARGET_HOURS]) + f"\n\nHôm nay: {today_note}"
     send_telegram(
-        f"Bot khởi động\n"
-        f"Symbol: {SYMBOL}\n"
-        f"Giờ kích hoạt: {TARGET_HOURS}\n"
-        f"MT5: {'OK' if mt5_ready else 'N/A'}\n\n"
-        f"Lịch tập trung:\n{schedule_lines}"
+        f"BOT KHOI DONG\n"
+        f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
+        f"Kich hoat: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45\n"
+        f"Hom nay: {today_note}"
     )
 
     if mt5_ready:
@@ -414,15 +412,15 @@ def main():
         now_h = broker_dt.hour
         now_m = broker_dt.minute
 
-        passed = [h for h in TARGET_HOURS if h < now_h or (h == now_h and now_m > 50)]
+        passed = [h for h in TARGET_HOURS if h < now_h or (h == now_h and now_m > 45)]
         passed.sort(reverse=True)
 
-        next_slots = [h for h in TARGET_HOURS if h > now_h or (h == now_h and now_m <= 50)]
+        next_slots = [h for h in TARGET_HOURS if h > now_h or (h == now_h and now_m <= 45)]
         next_slots.sort()
         if next_slots:
             next_h = next_slots[0]
             if next_h == now_h:
-                mins_left = 50 - now_m
+                mins_left = 45 - now_m
             else:
                 mins_left = (next_h - now_h) * 60 + (50 - now_m)
             if mins_left <= 0:
@@ -436,7 +434,7 @@ def main():
         if passed:
             latest = passed[0]
             key = (broker_dt.date(), latest)
-            print(f"\n[KIEM TRA BO LO] {fmt_hour(latest)}:50")
+            print(f"\n[KIEM TRA BO LO] {fmt_hour(latest)}:45")
             result = analyze(broker_dt, latest)
             sig = result["signal"]
 
@@ -448,9 +446,9 @@ def main():
                 icon, emoji = "Chờ", "\u26aa"
 
             note = get_schedule_note(broker_dt)
-            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:50 (còn {countdown})\n" if next_slots else f"Đã hết slot hôm nay.\n"
+            slot_line = f"Slot tiep theo: {fmt_hour(next_slots[0])}:45 (con {countdown})\n" if next_slots else f"Het slot hom nay.\n"
             msg = (
-                f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:50 - {icon}\n"
+                f"{emoji} [Bo lo] {fmt_hour(latest)}:45 - {icon}\n"
                 f"============================\n"
                 f"  {fmt_time(broker_dt)} (Broker)\n"
                 f"  Tập trung: {note}\n"
@@ -494,7 +492,7 @@ def main():
                     m_chosen = m_val.get("chosen")
 
                 if now_hour == h1 and now_min == 49 and m30_key_1 not in sent_today:
-                    print(f"\n[{fmt_time(broker_dt)}] M30 Selector + Early cho {fmt_hour(m_h)}:50")
+                    print(f"\n[{fmt_time(broker_dt)}] M30 Selector + Early cho {fmt_hour(m_h)}:45")
                     prev_sig = m_val.get("prev_signal") if isinstance(m_val, dict) else None
                     sel = analyze_m30_selector(broker_dt, m_h, m_sig, prev_sig)
                     chosen = sel["chosen"]
@@ -512,7 +510,7 @@ def main():
                     else:
                         m_chosen = "late"
                         is_opp = False
-                    print(f"\n[{fmt_time(broker_dt)}] M30 Final cho {fmt_hour(m_h)}:50")
+                    print(f"\n[{fmt_time(broker_dt)}] M30 Final cho {fmt_hour(m_h)}:45")
                     final = analyze_m30_final(broker_dt, m_h, m_sig, m_chosen, is_opp)
                     send_m30_report(final, m_h, broker_dt, m_sig)
                     sent_today.add(m30_key_2)
@@ -522,14 +520,14 @@ def main():
             for k in m30_keys_done:
                 m30_pending.pop(k, None)
 
-            # --- TIN HIEU CHINH: x:50 ---
-            if now_min == 50 and now_hour in TARGET_HOURS:
+            # --- TIN HIEU CHINH: x:45 ---
+            if now_min == 45 and now_hour in TARGET_HOURS:
                 key = (broker_dt.date(), now_hour)
                 if key in sent_today:
                     time.sleep(10)
                     continue
 
-                print(f"\n[{fmt_time(broker_dt)}] Kich hoat {fmt_hour(now_hour)}:50")
+                print(f"\n[{fmt_time(broker_dt)}] Kich hoat {fmt_hour(now_hour)}:45")
 
                 result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
@@ -551,10 +549,10 @@ def main():
 
                 time.sleep(60)
             else:
-                if now_min < 50:
-                    wait = (50 - now_min) * 60 - broker_dt.second
+                if now_min < 45:
+                    wait = (45 - now_min) * 60 - broker_dt.second
                 else:
-                    wait = (60 - now_min + 50) * 60 - broker_dt.second
+                    wait = (60 - now_min + 45) * 60 - broker_dt.second
                 wait = min(wait, 300)
                 if wait > 0:
                     time.sleep(wait)
