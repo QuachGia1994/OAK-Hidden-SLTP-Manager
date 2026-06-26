@@ -42,7 +42,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
 MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
-TARGET_HOURS = list(range(1, 17))
+TARGET_HOURS = list(range(2, 17))
 BROKER_GMT = 0
 
 app = Flask(__name__)
