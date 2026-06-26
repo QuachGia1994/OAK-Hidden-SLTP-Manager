@@ -3719,14 +3719,18 @@ class MonitorWorker(threading.Thread):
                                     # Determine Risk Points (1R)
                                     risk_points = t_data.get("risk_points", 0)
                                     if risk_points == 0:
-                                        # First time seeing this trade or no risk saved
-                                        # Priority: 1. Physical SL, 2. Hidden SL (Config)
+                                        # Lần đầu thấy lệnh, tính từ SL
                                         if pos.sl > 0:
                                             risk_points = abs(pos.price_open - pos.sl) / mt5.symbol_info(pos.symbol).point
                                         else:
-                                            risk_points = current_sl # Use the configured Hidden SL as 1R basis
-                                        
+                                            risk_points = current_sl
                                         if risk_points > 0:
+                                            self.ticket_manager.update_ticket(pos.ticket, risk_points=risk_points, symbol=pos.symbol)
+                                    elif pos.sl > 0 and risk_points != abs(pos.price_open - pos.sl) / mt5.symbol_info(pos.symbol).point:
+                                        # SL đã thay đổi (ví dụ user chỉnh SL thủ công) → cập nhật risk_points
+                                        new_risk = abs(pos.price_open - pos.sl) / mt5.symbol_info(pos.symbol).point
+                                        if new_risk > 0:
+                                            risk_points = new_risk
                                             self.ticket_manager.update_ticket(pos.ticket, risk_points=risk_points, symbol=pos.symbol)
                                     
                                     # Determine Original Volume (For Partial Close % of Original)
