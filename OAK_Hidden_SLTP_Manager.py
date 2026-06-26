@@ -4908,9 +4908,9 @@ class App(ctk.CTk):
         scrollbar = tkinter.Scrollbar(frame, orient="vertical", command=canvas.yview)
         scroll_frame = ctk.CTkFrame(canvas, fg_color="transparent")
 
-        scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
+        canvas_window = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
+        scroll_frame.bind("<Configure>", lambda e: (canvas.configure(scrollregion=canvas.bbox("all")), canvas.itemconfig(canvas_window, width=canvas.winfo_width())))
 
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
@@ -4955,10 +4955,10 @@ class App(ctk.CTk):
                                       command=lambda k=key: self.stop_signal_process(k))
             btn_stop.pack(side="left", padx=2)
 
-            console = ctk.CTkTextbox(panel, height=120, font=("Consolas", 11),
+            console = ctk.CTkTextbox(panel, height=150, font=("Consolas", 11),
                                       fg_color="#0d0d1a", text_color="#cccccc",
                                       state="disabled", wrap="word")
-            console.pack(fill="x", padx=10, pady=(2, 8))
+            console.pack(fill="both", expand=True, padx=10, pady=(2, 8))
 
             self.signal_procs[key] = {
                 "name": name, "cmd": cmd, "color": color,
@@ -4979,12 +4979,16 @@ class App(ctk.CTk):
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 creationflags = subprocess.CREATE_NO_WINDOW
 
-            cmd = info["cmd"].split()
+            cmd = ["python", "-u"] + info["cmd"].split()[1:]
+            env = os.environ.copy()
+            env["PYTHONIOENCODING"] = "utf-8"
+            env["PYTHONUNBUFFERED"] = "1"
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, encoding='utf-8', errors='replace',
                 startupinfo=startupinfo, creationflags=creationflags,
                 cwd=os.path.dirname(os.path.abspath(__file__)),
+                env=env,
             )
             info["proc"] = proc
             info["logs"] = []
