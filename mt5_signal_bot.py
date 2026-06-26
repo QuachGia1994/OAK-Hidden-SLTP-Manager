@@ -13,7 +13,6 @@ import calendar
 import urllib.request
 import urllib.parse
 from datetime import datetime, timedelta, timezone
-import calendar as cal
 
 try:
     import MetaTrader5 as mt5
@@ -48,7 +47,7 @@ def get_schedule_reminders(broker_dt):
     month = today.month
 
     # Thứ 6 cuối tháng
-    last_day = cal.monthrange(year, month)[1]
+    last_day = calendar.monthrange(year, month)[1]
     last_date = today.replace(day=last_day)
     while last_date.weekday() != 4:
         last_date -= timedelta(days=1)
@@ -227,13 +226,11 @@ def send_report(signal_data, H, broker_dt):
         icon = "Chờ"
         emoji = "\u26aa"
 
-    note = get_schedule_note(broker_dt)
     msg = (
         f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
         f"============================\n"
         f"  {fmt_time(broker_dt)} (Broker)\n"
         f"  Kích hoạt: {fmt_hour(H)}:45\n"
-        f"  Tập trung: {note}\n"
         f"============================\n\n"
         f"{report}\n\n"
         f"============================\n"
@@ -320,7 +317,7 @@ def main():
             if next_h == now_h:
                 mins_left = 45 - now_m
             else:
-                mins_left = (next_h - now_h) * 60 + (50 - now_m)
+                mins_left = (next_h - now_h) * 60 + (45 - now_m)
             if mins_left <= 0:
                 mins_left += 24 * 60
             hours_left = mins_left // 60
@@ -343,13 +340,11 @@ def main():
             else:
                 icon, emoji = "Chờ", "\u26aa"
 
-            note = get_schedule_note(broker_dt)
             slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
             msg = (
                 f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:45 - {icon}\n"
                 f"============================\n"
                 f"  {fmt_time(broker_dt)} (Broker)\n"
-                f"  Tập trung: {note}\n"
                 f"============================\n\n"
                 f"{result['report']}\n\n"
                 f"============================\n"
