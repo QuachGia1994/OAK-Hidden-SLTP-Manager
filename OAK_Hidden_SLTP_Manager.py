@@ -5996,6 +5996,9 @@ class App(ctk.CTk):
             self.after(2000, self.periodic_ui_refresh) # Check every 2s
 
     def on_closing(self):
+        # Stop all signal processes
+        for key in list(self.signal_procs.keys()):
+            self.stop_signal_process(key)
         # Stop all workers
         for name, data in self.workers.items():
             if data["proc"].poll() is None:
