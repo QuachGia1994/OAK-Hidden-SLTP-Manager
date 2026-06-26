@@ -4904,20 +4904,12 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text="■ DỪNG TẤT CẢ", fg_color="#d9534f",
                        hover_color="#c9302c", command=self.stop_all_signals).pack(side="left", padx=5)
 
-        canvas = tkinter.Canvas(frame, highlightthickness=0, bg="#1a1a2e")
-        scrollbar = tkinter.Scrollbar(frame, orient="vertical", command=canvas.yview)
-        scroll_frame = ctk.CTkFrame(canvas, fg_color="transparent")
-
-        canvas_window = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        scroll_frame.bind("<Configure>", lambda e: (canvas.configure(scrollregion=canvas.bbox("all")), canvas.itemconfig(canvas_window, width=canvas.winfo_width())))
-
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        def _on_mousewheel(event):
-            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
-        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        panels_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        panels_frame.pack(fill="both", expand=True)
+        panels_frame.grid_columnconfigure(0, weight=1)
+        panels_frame.grid_columnconfigure(1, weight=1)
+        panels_frame.grid_rowconfigure(0, weight=1)
+        panels_frame.grid_rowconfigure(1, weight=1)
 
         signal_defs = [
             ("signal_bot", "MT5 Signal Bot", "python mt5_signal_bot.py", "#2fa572"),
@@ -4926,9 +4918,12 @@ class App(ctk.CTk):
             ("mimo_worker", "MiMo Worker", "python mimo_worker.py", "#d4a03d"),
         ]
 
-        for key, name, cmd, color in signal_defs:
-            panel = ctk.CTkFrame(scroll_frame, fg_color="#1a1a2e", corner_radius=8)
-            panel.pack(fill="x", padx=5, pady=5)
+        positions = [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+        for idx, (key, name, cmd, color) in enumerate(signal_defs):
+            row, col = positions[idx]
+            panel = ctk.CTkFrame(panels_frame, fg_color="#1a1a2e", corner_radius=8)
+            panel.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
             header = ctk.CTkFrame(panel, fg_color="transparent")
             header.pack(fill="x", padx=10, pady=(8, 2))
@@ -4955,7 +4950,7 @@ class App(ctk.CTk):
                                       command=lambda k=key: self.stop_signal_process(k))
             btn_stop.pack(side="left", padx=2)
 
-            console = ctk.CTkTextbox(panel, height=150, font=("Consolas", 11),
+            console = ctk.CTkTextbox(panel, font=("Consolas", 11),
                                       fg_color="#0d0d1a", text_color="#cccccc",
                                       state="disabled", wrap="word")
             console.pack(fill="both", expand=True, padx=10, pady=(2, 8))
