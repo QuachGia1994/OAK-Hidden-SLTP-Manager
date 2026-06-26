@@ -504,20 +504,24 @@ def main():
                     prev_sig = m_val.get("prev_signal") if isinstance(m_val, dict) else None
                     sel = analyze_m30_selector(broker_dt, m_h, m_sig, prev_sig)
 
+                    is_opp = sel["is_opposite"]
+                    _, _, _, _, early_lbl, late_lbl = m30_times(m_h, is_opp)
+
                     if sel["skip"]:
+                        ch_label = early_lbl if sel["chosen"] == "early" else late_lbl
                         sel_lines = "\n".join(sel["lines"])
                         send_telegram(
                             f"--- M30 SKIP (H={m_h}) ---\n"
-                            f"  Goc: {m_sig} tai {fmt_hour(m_h)}:50\n\n"
+                            f"  Goc: {m_sig} tai {fmt_hour(m_h)}:50\n"
+                            f"  Chon: {ch_label}\n\n"
                             f"{sel_lines}\n\n"
                             f"  -> Bo qua, cho moc tiep theo"
                         )
                         sent_today.add(m30_key_1)
                         m30_keys_done.add((m_date, m_h))
-                        print(f"  SKIP: M30 nguoc chieu")
+                        print(f"  SKIP -> {ch_label}")
                     else:
                         chosen = sel["chosen"]
-                        is_opp = sel["is_opposite"]
                         early = analyze_m30_final(broker_dt, m_h, m_sig, "early", is_opp)
                         send_m30_selector_report(sel, early, m_h, broker_dt, m_sig)
                         sent_today.add(m30_key_1)
