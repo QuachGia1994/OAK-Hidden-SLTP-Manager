@@ -67,10 +67,20 @@ pip install -r requirements.txt
    - `CHAY_ROBOT.bat`: OAK Manager
 
 ## Cấu hình
+- `config.json`: Telegram bot token + chat ID (**gitignored**, không push lên GitHub).
 - `profiles.json`: danh sách profile MT5.
 - `settings.json`: setting chung.
 - `mt5_signal_bot.py`: `BROKER_GMT`, `MT5_PATH`, `TARGET_HOURS`.
 - `mt4_mt5_server.py`: cùng config, chạy song song.
+
+### config.json (Bảo mật)
+```json
+{
+    "telegram_token": "YOUR_BOT_TOKEN_HERE",
+    "telegram_chat_id": "YOUR_CHAT_ID_HERE"
+}
+```
+> **Lưu ý**: `config.json` nằm trong `.gitignore`, KHÔNG được commit lên GitHub. Token chỉ lưu local.
 
 ## Backup
 ```bash

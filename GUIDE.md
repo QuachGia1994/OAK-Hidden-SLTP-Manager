@@ -47,6 +47,16 @@ TARGET_HOURS = [1, 7, 9, 14, 15, 16]  # Giờ mục tiêu
 SYMBOL = "GBPUSD"       # Cặp tiền
 ```
 
+### Telegram Token (Bảo mật)
+Token bot Telegram được lưu trong `config.json` (gitignored):
+```json
+{
+    "telegram_token": "YOUR_BOT_TOKEN_HERE",
+    "telegram_chat_id": "YOUR_CHAT_ID_HERE"
+}
+```
+> **Lưu ý**: Tạo `config.json` theo mẫu trên, KHÔNG commit file này lên GitHub.
+
 ---
 
 ## ⚙️ OAK Manager - Cấu hình In-App

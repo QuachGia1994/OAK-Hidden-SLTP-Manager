@@ -1,5 +1,29 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.1.1] - 2026-06-26
+*Bản hotfix: Bảo mật token + Schedule notes + Version fix.*
+
+### 🔒 Bảo mật
+- **Xóa token hardcode**: Telegram bot token chuyển từ hardcode sang `config.json` (gitignored).
+- **Git history clean**: Token cũ đã xóa khỏi toàn bộ lịch sử commit bằng `git filter-branch`.
+- **3 file affected**: `mimo_bot.py`, `mt5_signal_bot.py`, `mt4_mt5_server.py` — giờ đọc token từ `config.json`.
+
+### 🛠️ Cải tiến
+- **Fix VERSION**: `OAK_Hidden_SLTP_Manager.py` VERSION từ `v3.0.0` → `v3.1.0` (build script giờ ra đúng tên file).
+- **Schedule notes Việt hoá**: Cập nhật lịch giao dịch theo Thứ 2-6 với dấu đầy đủ.
+- **`.gitignore`**: Thêm `config.json` và `.env`.
+
+### 📋 Lịch giao dịch mới
+| Thứ | Ghi chú |
+|-----|---------|
+| 2 | Vàng SW nhẹ |
+| 3 | Bình thường |
+| 4 | GBP SW rộng theo Vàng + tính lại W1 |
+| 5 | Theo W1, phiên AU dời 9h broker time |
+| 6 | SW/W1, tính lại nếu cuối tháng |
+
+---
+
 ## [v3.1.0] - 2026-06-25
 *Bản cập nhật lớn: Hệ thống tín hiệu MT4-MT5 Dual Signal + MiMo Bridge Bot.*
 
