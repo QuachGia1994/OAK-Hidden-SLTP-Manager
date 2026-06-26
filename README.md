@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.1.0)
+# OAK Hidden SLTP Manager (v3.2.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -22,13 +22,13 @@ Tài liệu chi tiết:
 - Multi-profile: 1 app quản lý nhiều terminal/account.
 
 ### MT4-MT5 Dual Signal System
-- **Phân tích nến đa khung giờ**: M5@35, M5@40, H1@(H-1), M15@30.
-- **Logic**: M5 cùng chiều → xét H1; M5 ngược chiều → xét M15.
-- **Đồng bộ giờ UTC**: Lấy thời gian từ `tick.time` MT5 (Unix timestamp UTC), không phụ thuộc giờ local/VPS. Miễn nhiễm DST (mùa hè/mùa đông).
+- **Phân tích nến**: M5@35, M5@40, M30@30.
+- **Logic**: M5 cùng chiều → M30 xác nhận; M5 ngược chiều → M30 xác nhận ngược.
+- **Đồng bộ giờ UTC**: Lấy thời gian từ `tick.time` MT5 (Unix timestamp UTC), miễn nhiễm DST.
 - **Tín hiệu kép**: So sánh tín hiệu MT4 EA và MT5 tự động → HỢP LƯU / XUNG ĐỘT.
-- **Telegram báo cáo**: Gửi tín hiệu real-time lúc x:50 mỗi giờ mục tiêu.
-- **Missed slot check**: Khi khởi động sau giờ mục tiêu, tự phân tích slot đã lỡ và thông báo.
-- **Đếm ngược**: Hiển thị thời gian còn lại đến slot tiếp theo.
+- **Telegram báo cáo**: Gửi tín hiệu real-time lúc x:45 mỗi giờ mục tiêu.
+- **Missed slot check**: Khi khởi động sau giờ mục tiêu, tự phân tích slot đã lỡ.
+- **Nhắc ngày đặc biệt**: Thứ 6 cuối tháng, Thứ 4 cuối tháng, Thứ 4 ngày 30/1, Thứ 4 đầu tháng.
 - **Giao diện Việt hoá**: Dấu đầy đủ, mũi tên ↑↓, Mua/Bán/Chờ.
 
 ### MiMo Bridge Bot
