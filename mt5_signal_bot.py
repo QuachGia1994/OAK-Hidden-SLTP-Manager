@@ -69,6 +69,10 @@ def get_schedule_reminders(broker_dt):
         if first_fri_day in (3, 4, 7) and today.day <= 7:
             reminders.append(f"THU 4 DAU THANG (Thu 6 ngay {first_fri_day})")
 
+    # Thứ 4 ngày 30 hoặc 1 tây
+    if today.weekday() == 2 and today.day in (1, 30):
+        reminders.append("THU 4 NGAY 30/1 TAY")
+
     return reminders
 
 # =====================================================================
@@ -304,9 +308,9 @@ def main():
     reminders = get_schedule_reminders(broker_dt)
     reminder_text = "\n".join([f"⚠️ {r}" for r in reminders]) if reminders else ""
     send_telegram(
-        f"BOT KHOI DONG\n"
+        f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
-        f"Kich hoat: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45"
+        f"Kích hoạt: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
 
