@@ -223,26 +223,24 @@ def m30_times(H, is_opposite):
 def analyze_m30_selector(broker_dt, H, initial_signal, prev_signal):
     is_opp = (prev_signal is not None) and (initial_signal != prev_signal)
     h1, _, _, _, early_lbl, late_lbl = m30_times(H, is_opp)
-    flow = "NGUOC CHIEU" if is_opp else "BINH THUONG"
 
     ts_sel = broker_time_to_ts(broker_dt, h1, 0)
     c_sel = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_sel)
     d_sel = candle_direction(c_sel)
 
     lines = [candle_info_line(c_sel, f"M30@{fmt_hour(h1)}:00 (Chon)")]
-    lines.append(f"  Flow: {flow}")
 
     if d_sel is None or d_sel == "DOJI":
         lines.append(f"  -> DOJI, mac dinh chon {late_lbl}")
-        return {"chosen": "late", "sel_dir": None, "lines": lines, "is_opposite": is_opp}
+        return {"chosen": "late", "lines": lines, "is_opposite": is_opp}
 
     sel_dir = "BUY" if d_sel == "TANG" else "SELL"
     if sel_dir == initial_signal:
         lines.append(f"  Dong y ({sel_dir}) -> Chon {late_lbl}")
-        return {"chosen": "late", "sel_dir": sel_dir, "lines": lines, "is_opposite": is_opp}
+        return {"chosen": "late", "lines": lines, "is_opposite": is_opp}
     else:
         lines.append(f"  Nguoc ({sel_dir}) -> Chon {early_lbl}")
-        return {"chosen": "early", "sel_dir": sel_dir, "lines": lines, "is_opposite": is_opp}
+        return {"chosen": "early", "lines": lines, "is_opposite": is_opp}
 
 def analyze_m30_final(broker_dt, H, initial_signal, chosen, is_opposite):
     h1, early_m, h2, late_m, early_lbl, late_lbl = m30_times(H, is_opposite)
@@ -545,7 +543,7 @@ def main():
                 if sig in ("BUY", "SELL"):
                     prev_sig = m30_pending.get((broker_dt.date(), now_hour - 1), {})
                     if isinstance(prev_sig, dict):
-                        prev_sig = prev_sig.get("signal", None)
+                        prev_sig = prev_sig.get("signal")
                     m30_pending[(broker_dt.date(), now_hour)] = {"signal": sig, "prev_signal": prev_sig}
                 old = [k for k in sent_today if k[0] == broker_dt.date() and k[1] != now_hour]
                 for k in old:
