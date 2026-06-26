@@ -46,13 +46,21 @@ def get_schedule_reminders(broker_dt):
     year = today.year
     month = today.month
 
-    # Thứ 6 cuối tháng
     last_day = calendar.monthrange(year, month)[1]
-    last_date = today.replace(day=last_day)
-    while last_date.weekday() != 4:
-        last_date -= timedelta(days=1)
-    if today == last_date:
+
+    # Thứ 6 cuối tháng
+    last_fri = today.replace(day=last_day)
+    while last_fri.weekday() != 4:
+        last_fri -= timedelta(days=1)
+    if today == last_fri:
         reminders.append("THU 6 CUOI THANG")
+
+    # Thứ 4 cuối tháng
+    last_wed = today.replace(day=last_day)
+    while last_wed.weekday() != 2:
+        last_wed -= timedelta(days=1)
+    if today == last_wed:
+        reminders.append("THU 4 CUOI THANG")
 
     # Thứ 4 đầu tháng khi thứ 6 đầu tháng落在 ngày 3, 4, hoặc 7
     first_date = today.replace(day=1)
