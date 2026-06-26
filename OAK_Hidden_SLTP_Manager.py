@@ -5003,12 +5003,28 @@ class App(ctk.CTk):
             return
         proc = info["proc"]
         if proc.poll() is None:
-            proc.terminate()
+            try:
+                if os.name == 'nt':
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                                   capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                else:
+                    proc.terminate()
+            except:
+                proc.terminate()
+            time.sleep(0.5)
             self.log(f"Signal stopped: {info['name']}")
         info["proc"] = None
         info["btn_start"].configure(state="normal")
         info["btn_stop"].configure(state="disabled")
         info["lbl_pid"].configure(text="PID: ---")
+        # Clean up lock files
+        if key == "mimo_worker":
+            lock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mimo_worker.lock")
+            try:
+                if os.path.exists(lock):
+                    os.remove(lock)
+            except:
+                pass
 
     def _monitor_signal_output(self, key, proc):
         info = self.signal_procs.get(key)
