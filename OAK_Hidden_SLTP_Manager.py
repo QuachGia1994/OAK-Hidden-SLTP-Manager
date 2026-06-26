@@ -4904,8 +4904,8 @@ class App(ctk.CTk):
         ctk.CTkButton(btn_frame, text="■ DỪNG TẤT CẢ", fg_color="#d9534f",
                        hover_color="#c9302c", command=self.stop_all_signals).pack(side="left", padx=5)
 
-        canvas = ctk.CTkCanvas(frame, highlightthickness=0, bg=frame.cget("fg_color"))
-        scrollbar = ctk.CTkScrollbar(frame, orientation="vertical", command=canvas.yview)
+        canvas = tkinter.Canvas(frame, highlightthickness=0, bg="#1a1a2e")
+        scrollbar = tkinter.Scrollbar(frame, orient="vertical", command=canvas.yview)
         scroll_frame = ctk.CTkFrame(canvas, fg_color="transparent")
 
         scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
