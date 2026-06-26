@@ -1181,12 +1181,15 @@ class CopyTradeManager:
                 
                 if ticket_id in pos_map:
                     pos = pos_map[ticket_id]
-                    # Check Profit (Swap + Commission included?) 
-                    # User asked "lợi nhuận đạt xxx$", usually means Net Profit.
                     net_profit = pos.profit + pos.swap + pos.commission
-                    
+
                     if net_profit >= target_profit:
-                        # Execute Close
+                        # Re-verify position exists (may have been closed by SL/TP)
+                        verify = mt5.positions_get(ticket=ticket_id)
+                        if not verify:
+                            self.log(f"⚠️ Position {ticket_id} already closed, cleaning task")
+                            completed_tickets.append(tid_str)
+                            continue
                         if self._partial_close(pos, close_vol):
                             # self.notify(f"✅ [{current_profile}] Auto Partial: Ticket #{ticket_id} lãi ${net_profit:.2f} (Target ${target_profit}) -> Đã chốt {close_vol} Lot.")
                             resp = get_natural_response("partial_success", ticket_id=ticket_id, vol=close_vol)
@@ -3300,9 +3303,15 @@ class MonitorWorker(threading.Thread):
             exec_mode = "[GHOST]"
             self.log(f"👻 GHOST OPERATOR: Executing Close {pos.ticket} ({reason})")
             if self.ghost_op.execute_close(pos.ticket, pos.symbol, volume):
-                msg = f"✅ {exec_mode} {T('log_closed')} {pos.ticket} | {pos.symbol} | {reason}"
-                self.notify(msg)
-                return
+                # Verify position actually closed
+                time.sleep(0.5)
+                verify = mt5.positions_get(ticket=pos.ticket)
+                if not verify:
+                    msg = f"✅ {exec_mode} {T('log_closed')} {pos.ticket} | {pos.symbol} | {reason}"
+                    self.notify(msg)
+                    return
+                else:
+                    self.log(f"❌ {exec_mode} Close {pos.ticket} failed - position still exists")
             else:
                 self.log(f"❌ {exec_mode} Failed to close {pos.ticket} visualy.")
                 # Fallback to API if ghost failed (maybe it's not blocked anymore)
@@ -3825,6 +3834,13 @@ class MonitorWorker(threading.Thread):
                                                                 self.ticket_manager.update_ticket(pos.ticket, be_moved=True)
                                                         continue
 
+                                                # Verify position still exists before closing
+                                                verify_pos = mt5.positions_get(ticket=pos.ticket)
+                                                if not verify_pos:
+                                                    self.log(f"⚠️ Position {pos.ticket} already closed, skipping partial")
+                                                    closed_levels.append(target_r)
+                                                    self.ticket_manager.update_ticket(pos.ticket, closed_levels=closed_levels)
+                                                    continue
                                                 self.close_position(pos, f"Partial {pct_to_close}% @ {target_r}R", volume=vol_to_close)
                                                 
                                                 # Update Persistence
