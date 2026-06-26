@@ -159,31 +159,23 @@ def calculate_signal(m35_dir, m40_dir, h1_dir, m15_dir):
 def fetch_mt5_data(broker_dt, H):
     """Lay nến MT5 tai H:45 su dung broker time tu tick.time."""
     if not mt5_ready:
-        return {"m35":"N/A","m40":"N/A","h1":"N/A","m15":"N/A","m30_49":"N/A","m30_10":"N/A","signal":"WAIT","h1_hour":H-1}
+        return {"m35":"N/A","m40":"N/A","h1":"N/A","m15":"N/A","signal":"WAIT","h1_hour":H-1}
 
     ts_m35 = broker_time_to_ts(broker_dt, H, 35)
     ts_m40 = broker_time_to_ts(broker_dt, H, 40)
     ts_m15 = broker_time_to_ts(broker_dt, H, 30)
     h1_h = H - 1 if H > 0 else 23
     ts_h1 = broker_time_to_ts(broker_dt, h1_h, 0)
-    h1_next = (H + 1) % 24
-    h2_next = (H + 2) % 24
-    ts_m30_1 = broker_time_to_ts(broker_dt, h1_next, 49)
-    ts_m30_2 = broker_time_to_ts(broker_dt, h2_next, 10)
 
     c_m35 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m35)
     c_m40 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m40)
     c_m15 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M15, ts_m15)
     c_h1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_H1, ts_h1)
-    c_m30_1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30_1)
-    c_m30_2 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30_2)
 
     d_m35 = candle_dir(c_m35)
     d_m40 = candle_dir(c_m40)
     d_m15 = candle_dir(c_m15)
     d_h1 = candle_dir(c_h1)
-    d_m30_1 = candle_dir(c_m30_1)
-    d_m30_2 = candle_dir(c_m30_2)
 
     sig = calculate_signal(d_m35, d_m40, d_h1, d_m15)
 
@@ -192,12 +184,8 @@ def fetch_mt5_data(broker_dt, H):
         "m40": d_m40 or "N/A",
         "h1": d_h1 or "N/A",
         "m15": d_m15 or "N/A",
-        "m30_49": d_m30_1 or "N/A",
-        "m30_10": d_m30_2 or "N/A",
         "signal": sig,
         "h1_hour": h1_h,
-        "m30_h1": h1_next,
-        "m30_h2": h2_next,
     }
 
 # =====================================================================
@@ -299,9 +287,6 @@ def build_telegram(
         f"  H1@{h1_label}:00   = {mt5['h1']}\n"
         f"  M15@{fmt_hour(H)}:30 = {mt5['m15']}\n"
         f"  => {ico(mt5_sig)}\n\n"
-        f"--- M30 Theo doi ---\n"
-        f"  M30@{fmt_hour(mt5.get('m30_h1', 0))}:49 = {mt5.get('m30_49', 'N/A')}\n"
-        f"  M30@{fmt_hour(mt5.get('m30_h2', 0))}:10 = {mt5.get('m30_10', 'N/A')}\n\n"
         f"===========================\n"
         f"KET LUAN: {conclusion}\n"
         f"===========================\n"
