@@ -210,6 +210,94 @@ def analyze(broker_dt, H):
     return {"signal": signal, "report": report}
 
 # =====================================================================
+# PHAN TICH M30 - THEO DOI SAU TIN HIEU BAN DAU
+# =====================================================================
+def analyze_m30(broker_dt, H, initial_signal):
+    """
+    Sau tin hieu ban dau tai H:50, kiem tra M30 tai:
+      - (H+1):49  -> M30 dau tien confirm/dao nguoc
+      - (H+2):10  -> M30 thu hai confirm/dao nguoc
+    Tra ve {"signal": ..., "report": ...}
+    """
+    h1 = (H + 1) % 24
+    h2 = (H + 2) % 24
+
+    ts_m30_1 = broker_time_to_ts(broker_dt, h1, 49)
+    ts_m30_2 = broker_time_to_ts(broker_dt, h2, 10)
+
+    c_m30_1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30_1)
+    c_m30_2 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30_2)
+
+    d1 = candle_direction(c_m30_1)
+    d2 = candle_direction(c_m30_2)
+
+    lines = []
+    lines.append(f"--- M30 THEO DOI (Sau {fmt_hour(H)}:50) ---")
+    lines.append(candle_info_line(c_m30_1, f"M30@{fmt_hour(h1)}:49"))
+    lines.append(candle_info_line(c_m30_2, f"M30@{fmt_hour(h2)}:10"))
+
+    if d1 is None and d2 is None:
+        lines.append("  -> Khong du du lieu M30")
+        return {"signal": initial_signal, "report": "\n".join(lines)}
+
+    # Tinh diem confirm/dao nguoc
+    score = 0
+    if d1 is not None and d1 != "DOJI":
+        m30_dir_1 = "BUY" if d1 == "TANG" else "SELL"
+        if m30_dir_1 == initial_signal:
+            score += 1
+            lines.append(f"  M30@{fmt_hour(h1)}:49 Dong y ({m30_dir_1})")
+        else:
+            score -= 1
+            lines.append(f"  M30@{fmt_hour(h1)}:49 Dao nguoc ({m30_dir_1})")
+
+    if d2 is not None and d2 != "DOJI":
+        m30_dir_2 = "BUY" if d2 == "TANG" else "SELL"
+        if m30_dir_2 == initial_signal:
+            score += 1
+            lines.append(f"  M30@{fmt_hour(h2)}:10 Dong y ({m30_dir_2})")
+        else:
+            score -= 1
+            lines.append(f"  M30@{fmt_hour(h2)}:10 Dao nguoc ({m30_dir_2})")
+
+    if score >= 2:
+        final = initial_signal
+        lines.append(f"  -> M30 XAC NHAN: {initial_signal}")
+    elif score <= -2:
+        final = "SELL" if initial_signal == "BUY" else "BUY"
+        lines.append(f"  -> M30 DAO NGUOC: {final}")
+    else:
+        final = initial_signal
+        lines.append(f"  -> M30 KHONG QUYET DINH, giu luc dau: {initial_signal}")
+
+    return {"signal": final, "report": "\n".join(lines)}
+
+def send_m30_report(m30_data, H, broker_dt, initial_sig):
+    sig = m30_data["signal"]
+    report = m30_data["report"]
+
+    if sig == "BUY":
+        icon, emoji = "Mua", "\U0001f7e2"
+    elif sig == "SELL":
+        icon, emoji = "Bán", "\U0001f534"
+    else:
+        icon, emoji = "Chờ", "\u26aa"
+
+    msg = (
+        f"{emoji} M30 Confirm - {icon}\n"
+        f"============================\n"
+        f"  {fmt_time(broker_dt)} (Broker)\n"
+        f"  Goc: {initial_sig} tai {fmt_hour(H)}:50\n"
+        f"============================\n\n"
+        f"{report}\n\n"
+        f"============================\n"
+        f"KẾT LUẬN: {icon}\n"
+        f"============================\n"
+        f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
+    )
+    send_telegram(msg)
+
+# =====================================================================
 # GUI TELEGRAM BAO CAO
 # =====================================================================
 def send_report(signal_data, H, broker_dt):
@@ -291,6 +379,7 @@ def main():
     print("=" * 55)
 
     sent_today = set()
+    m30_pending = {}  # {(date, H): initial_signal} - cho M30 confirm
 
     from datetime import datetime as _dt
     today_note = get_schedule_note(_dt.now(timezone.utc))
@@ -369,6 +458,36 @@ def main():
             now_min = broker_dt.minute
             now_hour = broker_dt.hour
 
+            # --- M30 CONFIRM: kiem tra tai xx:49 va yy:10 ---
+            m30_keys_done = set()
+            for (m_date, m_h), m_sig in list(m30_pending.items()):
+                if m_date != broker_dt.date():
+                    m30_keys_done.add((m_date, m_h))
+                    continue
+                h1 = (m_h + 1) % 24
+                h2 = (m_h + 2) % 24
+                m30_key_1 = (m_date, m_h, 1)
+                m30_key_2 = (m_date, m_h, 2)
+
+                if now_hour == h1 and now_min == 49 and m30_key_1 not in sent_today:
+                    print(f"\n[{fmt_time(broker_dt)}] M30 Confirm #1 cho {fmt_hour(m_h)}:50")
+                    m30_result = analyze_m30(broker_dt, m_h, m_sig)
+                    send_m30_report(m30_result, m_h, broker_dt, m_sig)
+                    sent_today.add(m30_key_1)
+                    print(f"  M30 #1: {m30_result['signal']}")
+
+                if now_hour == h2 and now_min == 10 and m30_key_2 not in sent_today:
+                    print(f"\n[{fmt_time(broker_dt)}] M30 Confirm #2 cho {fmt_hour(m_h)}:50")
+                    m30_result = analyze_m30(broker_dt, m_h, m_sig)
+                    send_m30_report(m30_result, m_h, broker_dt, m_sig)
+                    sent_today.add(m30_key_2)
+                    m30_keys_done.add((m_date, m_h))
+                    print(f"  M30 #2: {m30_result['signal']}")
+
+            for k in m30_keys_done:
+                m30_pending.pop(k, None)
+
+            # --- TIN HIEU CHINH: x:50 ---
             if now_min == 50 and now_hour in TARGET_HOURS:
                 key = (broker_dt.date(), now_hour)
                 if key in sent_today:
@@ -386,6 +505,8 @@ def main():
                 print(f"  Sent: OK")
 
                 sent_today.add(key)
+                if sig in ("BUY", "SELL"):
+                    m30_pending[(broker_dt.date(), now_hour)] = sig
                 old = [k for k in sent_today if k[0] == broker_dt.date() and k[1] != now_hour]
                 for k in old:
                     sent_today.discard(k)
