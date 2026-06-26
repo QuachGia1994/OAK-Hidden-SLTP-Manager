@@ -240,12 +240,13 @@ def analyze_m30_selector(broker_dt, H, initial_signal, prev_signal):
         sel_dir = "BUY" if d_sel == "TANG" else "SELL"
         if sel_dir == initial_signal:
             chosen = "late"
-            lines.append(f"  M30@{fmt_hour(h1)}:00 Dong y ({sel_dir}) -> Chon {late_lbl}")
+            lines.append(f"  Dong y ({sel_dir}) -> Chon {late_lbl}")
         else:
             chosen = "early"
-            lines.append(f"  M30@{fmt_hour(h1)}:00 Nguoc ({sel_dir}) -> Chon {early_lbl}")
+            lines.append(f"  Nguoc ({sel_dir}) -> Chon {early_lbl}")
 
-    return {"chosen": chosen, "sel_dir": sel_dir, "lines": lines, "is_opposite": is_opp}
+    skip = (sel_dir is not None) and (sel_dir != initial_signal)
+    return {"chosen": chosen, "sel_dir": sel_dir, "skip": skip, "lines": lines, "is_opposite": is_opp}
 
 def analyze_m30_final(broker_dt, H, initial_signal, chosen, is_opposite):
     h1, early_m, h2, late_m, early_lbl, late_lbl = m30_times(H, is_opposite)
@@ -499,16 +500,29 @@ def main():
                     m_chosen = m_val.get("chosen")
 
                 if now_hour == h1 and now_min == 49 and m30_key_1 not in sent_today:
-                    print(f"\n[{fmt_time(broker_dt)}] M30 Selector + Early cho {fmt_hour(m_h)}:50")
+                    print(f"\n[{fmt_time(broker_dt)}] M30 Selector cho {fmt_hour(m_h)}:50")
                     prev_sig = m_val.get("prev_signal") if isinstance(m_val, dict) else None
                     sel = analyze_m30_selector(broker_dt, m_h, m_sig, prev_sig)
-                    chosen = sel["chosen"]
-                    is_opp = sel["is_opposite"]
-                    early = analyze_m30_final(broker_dt, m_h, m_sig, "early", is_opp)
-                    send_m30_selector_report(sel, early, m_h, broker_dt, m_sig)
-                    sent_today.add(m30_key_1)
-                    m30_pending[(m_date, m_h)] = {"signal": m_sig, "chosen": chosen, "is_opposite": is_opp}
-                    print(f"  Chosen: {chosen}")
+
+                    if sel["skip"]:
+                        sel_lines = "\n".join(sel["lines"])
+                        send_telegram(
+                            f"--- M30 SKIP (H={m_h}) ---\n"
+                            f"  Goc: {m_sig} tai {fmt_hour(m_h)}:50\n\n"
+                            f"{sel_lines}\n\n"
+                            f"  -> Bo qua, cho moc tiep theo"
+                        )
+                        sent_today.add(m30_key_1)
+                        m30_keys_done.add((m_date, m_h))
+                        print(f"  SKIP: M30 nguoc chieu")
+                    else:
+                        chosen = sel["chosen"]
+                        is_opp = sel["is_opposite"]
+                        early = analyze_m30_final(broker_dt, m_h, m_sig, "early", is_opp)
+                        send_m30_selector_report(sel, early, m_h, broker_dt, m_sig)
+                        sent_today.add(m30_key_1)
+                        m30_pending[(m_date, m_h)] = {"signal": m_sig, "chosen": chosen, "is_opposite": is_opp}
+                        print(f"  Chosen: {chosen}")
 
                 if now_hour == h2 and now_min == 10 and m30_key_2 not in sent_today:
                     if isinstance(m_val, dict):
