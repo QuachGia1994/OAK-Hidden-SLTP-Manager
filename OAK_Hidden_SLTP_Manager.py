@@ -3726,11 +3726,10 @@ class MonitorWorker(threading.Thread):
                                             risk_points = current_sl
                                         if risk_points > 0:
                                             self.ticket_manager.update_ticket(pos.ticket, risk_points=risk_points, symbol=pos.symbol)
-                                    elif pos.sl > 0 and risk_points != abs(pos.price_open - pos.sl) / mt5.symbol_info(pos.symbol).point:
-                                        # SL đã thay đổi (ví dụ user chỉnh SL thủ công) → cập nhật risk_points
-                                        new_risk = abs(pos.price_open - pos.sl) / mt5.symbol_info(pos.symbol).point
-                                        if new_risk > 0:
-                                            risk_points = new_risk
+                                    elif pos.sl > 0:
+                                        calculated_risk = abs(pos.price_open - pos.sl) / mt5.symbol_info(pos.symbol).point
+                                        if calculated_risk > 0 and abs(calculated_risk - risk_points) > 1:
+                                            risk_points = calculated_risk
                                             self.ticket_manager.update_ticket(pos.ticket, risk_points=risk_points, symbol=pos.symbol)
                                     
                                     # Determine Original Volume (For Partial Close % of Original)
