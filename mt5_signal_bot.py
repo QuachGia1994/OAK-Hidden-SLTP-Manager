@@ -212,50 +212,59 @@ def analyze(broker_dt, H):
 # =====================================================================
 # PHAN TICH M30 - THEO DOI SAU TIN HIEU BAN DAU
 # =====================================================================
-def analyze_m30_selector(broker_dt, H, initial_signal):
+def m30_times(H, is_opposite):
     """
-    Buoc 1: Kiem tra M30@(H+1):00 (nến mở H+1:00, đóng H+1:30)
-    de chon 2:49 hay 3:10.
-    Tra ve {"chosen": "early"|"late", "sel_dir": ..., "report": ...}
+    Tra ve (selector_h, early_m, late_h, late_m, early_label, late_label)
+    is_opposite=False -> binh thuong: 2:49 / 3:10
+    is_opposite=True  -> nguoc chieu:  2:19 / 3:24
     """
     h1 = (H + 1) % 24
+    h2 = (H + 2) % 24
+    if is_opposite:
+        return h1, 19, h2, 24, f"{fmt_hour(h1)}:19", f"{fmt_hour(h2)}:24"
+    else:
+        return h1, 49, h2, 10, f"{fmt_hour(h1)}:49", f"{fmt_hour(h2)}:10"
+
+def analyze_m30_selector(broker_dt, H, initial_signal, prev_signal):
+    """
+    Xac dinh flow binh thuong hay nguoc chieu, roi chon early/late.
+    is_opposite = (prev_signal is not None) and (initial_signal != prev_signal)
+    """
+    is_opp = (prev_signal is not None) and (initial_signal != prev_signal)
+    h1, _, _, _, early_lbl, late_lbl = m30_times(H, is_opp)
+    flow = "NGUOC CHIEU" if is_opp else "BINH THUONG"
+
     ts_sel = broker_time_to_ts(broker_dt, h1, 0)
     c_sel = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_sel)
     d_sel = candle_direction(c_sel)
 
     lines = [candle_info_line(c_sel, f"M30@{fmt_hour(h1)}:00 (Chon)")]
+    lines.append(f"  Flow: {flow}")
     chosen = "late"
     sel_dir = None
 
     if d_sel is None or d_sel == "DOJI":
-        lines.append("  -> DOJI/Khong ro, mac dinh chon 3:10")
+        lines.append(f"  -> DOJI, mac dinh chon {late_lbl}")
     else:
         sel_dir = "BUY" if d_sel == "TANG" else "SELL"
         if sel_dir == initial_signal:
             chosen = "late"
-            lines.append(f"  M30@{fmt_hour(h1)}:00 Dong y ({sel_dir}) -> Chon 3:10")
+            lines.append(f"  M30@{fmt_hour(h1)}:00 Dong y ({sel_dir}) -> Chon {late_lbl}")
         else:
             chosen = "early"
-            lines.append(f"  M30@{fmt_hour(h1)}:00 Nguoc ({sel_dir}) -> Chon 2:49")
+            lines.append(f"  M30@{fmt_hour(h1)}:00 Nguoc ({sel_dir}) -> Chon {early_lbl}")
 
-    return {"chosen": chosen, "sel_dir": sel_dir, "lines": lines}
+    return {"chosen": chosen, "sel_dir": sel_dir, "lines": lines, "is_opposite": is_opp}
 
-def analyze_m30_final(broker_dt, H, initial_signal, chosen):
-    """
-    Buoc 2: Kiem tra M30 tai thoi diem da chon.
-    chosen="early" -> M30@(H+1):49
-    chosen="late"  -> M30@(H+2):10
-    Tra ve {"signal": ..., "report": ...}
-    """
-    h1 = (H + 1) % 24
-    h2 = (H + 2) % 24
+def analyze_m30_final(broker_dt, H, initial_signal, chosen, is_opposite):
+    h1, early_m, h2, late_m, early_lbl, late_lbl = m30_times(H, is_opposite)
 
     if chosen == "early":
-        ts = broker_time_to_ts(broker_dt, h1, 49)
-        label = f"M30@{fmt_hour(h1)}:49"
+        ts = broker_time_to_ts(broker_dt, h1, early_m)
+        label = f"M30@{early_lbl}"
     else:
-        ts = broker_time_to_ts(broker_dt, h2, 10)
-        label = f"M30@{fmt_hour(h2)}:10"
+        ts = broker_time_to_ts(broker_dt, h2, late_m)
+        label = f"M30@{late_lbl}"
 
     c = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts)
     d = candle_direction(c)
@@ -277,13 +286,16 @@ def analyze_m30_final(broker_dt, H, initial_signal, chosen):
 
 def send_m30_selector_report(sel_data, early_data, H, broker_dt, initial_sig):
     chosen = sel_data["chosen"]
+    is_opp = sel_data["is_opposite"]
     sel_lines = "\n".join(sel_data["lines"])
     early_report = early_data["report"]
+    _, _, _, _, early_lbl, late_lbl = m30_times(H, is_opp)
+    ch_label = early_lbl if chosen == "early" else late_lbl
 
-    ch_label = "2:49" if chosen == "early" else "3:10"
     msg = (
         f"--- M30 Chon diem ---\n"
         f"  Goc: {initial_sig} tai {fmt_hour(H)}:50\n"
+        f"  Flow: {'Nguoc chieu' if is_opp else 'Binh thuong'}\n"
         f"  Ket qua: Chon {ch_label}\n\n"
         f"{sel_lines}\n\n"
         f"--- M30 Tai {ch_label} ---\n"
@@ -497,19 +509,25 @@ def main():
 
                 if now_hour == h1 and now_min == 49 and m30_key_1 not in sent_today:
                     print(f"\n[{fmt_time(broker_dt)}] M30 Selector + Early cho {fmt_hour(m_h)}:50")
-                    sel = analyze_m30_selector(broker_dt, m_h, m_sig)
+                    prev_sig = m_val.get("prev_signal") if isinstance(m_val, dict) else None
+                    sel = analyze_m30_selector(broker_dt, m_h, m_sig, prev_sig)
                     chosen = sel["chosen"]
-                    early = analyze_m30_final(broker_dt, m_h, m_sig, "early")
+                    is_opp = sel["is_opposite"]
+                    early = analyze_m30_final(broker_dt, m_h, m_sig, "early", is_opp)
                     send_m30_selector_report(sel, early, m_h, broker_dt, m_sig)
                     sent_today.add(m30_key_1)
-                    m30_pending[(m_date, m_h)] = {"signal": m_sig, "chosen": chosen}
+                    m30_pending[(m_date, m_h)] = {"signal": m_sig, "chosen": chosen, "is_opposite": is_opp}
                     print(f"  Chosen: {chosen}")
 
                 if now_hour == h2 and now_min == 10 and m30_key_2 not in sent_today:
-                    if m_chosen is None:
+                    if isinstance(m_val, dict):
+                        m_chosen = m_val.get("chosen", "late")
+                        is_opp = m_val.get("is_opposite", False)
+                    else:
                         m_chosen = "late"
+                        is_opp = False
                     print(f"\n[{fmt_time(broker_dt)}] M30 Final cho {fmt_hour(m_h)}:50")
-                    final = analyze_m30_final(broker_dt, m_h, m_sig, m_chosen)
+                    final = analyze_m30_final(broker_dt, m_h, m_sig, m_chosen, is_opp)
                     send_m30_report(final, m_h, broker_dt, m_sig)
                     sent_today.add(m30_key_2)
                     m30_keys_done.add((m_date, m_h))
@@ -537,7 +555,10 @@ def main():
 
                 sent_today.add(key)
                 if sig in ("BUY", "SELL"):
-                    m30_pending[(broker_dt.date(), now_hour)] = sig
+                    prev_sig = m30_pending.get((broker_dt.date(), now_hour - 1), {})
+                    if isinstance(prev_sig, dict):
+                        prev_sig = prev_sig.get("signal", None)
+                    m30_pending[(broker_dt.date(), now_hour)] = {"signal": sig, "prev_signal": prev_sig}
                 old = [k for k in sent_today if k[0] == broker_dt.date() and k[1] != now_hour]
                 for k in old:
                     sent_today.discard(k)
