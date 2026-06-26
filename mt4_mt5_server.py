@@ -138,20 +138,18 @@ def candle_dir(c):
 # =====================================================================
 # SIGNAL LOGIC
 # =====================================================================
-def calculate_signal(m35_dir, m40_dir, h1_dir, m15_dir):
+def calculate_signal(m35_dir, m40_dir, m30_dir):
     if m35_dir is None or m40_dir is None:
         return "WAIT"
     if m35_dir == "DOJI" or m40_dir == "DOJI":
         return "WAIT"
+    if m30_dir is None or m30_dir == "DOJI":
+        return "WAIT"
 
     if m35_dir == m40_dir:
-        if h1_dir is None or h1_dir == "DOJI":
-            return "WAIT"
-        return "BUY" if h1_dir == "TANG" else "SELL"
+        return "BUY" if m30_dir == "TANG" else "SELL"
     else:
-        if m15_dir is None or m15_dir == "DOJI":
-            return "WAIT"
-        return "SELL" if m15_dir == "TANG" else "BUY"
+        return "SELL" if m30_dir == "TANG" else "BUY"
 
 # =====================================================================
 # MT5 DATA FETCHER
@@ -159,33 +157,27 @@ def calculate_signal(m35_dir, m40_dir, h1_dir, m15_dir):
 def fetch_mt5_data(broker_dt, H):
     """Lay nến MT5 tai H:45 su dung broker time tu tick.time."""
     if not mt5_ready:
-        return {"m35":"N/A","m40":"N/A","h1":"N/A","m15":"N/A","signal":"WAIT","h1_hour":H-1}
+        return {"m35":"N/A","m40":"N/A","m30":"N/A","signal":"WAIT"}
 
     ts_m35 = broker_time_to_ts(broker_dt, H, 35)
     ts_m40 = broker_time_to_ts(broker_dt, H, 40)
-    ts_m15 = broker_time_to_ts(broker_dt, H, 30)
-    h1_h = H - 1 if H > 0 else 23
-    ts_h1 = broker_time_to_ts(broker_dt, h1_h, 0)
+    ts_m30 = broker_time_to_ts(broker_dt, H, 30)
 
     c_m35 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m35)
     c_m40 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m40)
-    c_m15 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M15, ts_m15)
-    c_h1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_H1, ts_h1)
+    c_m30 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30)
 
     d_m35 = candle_dir(c_m35)
     d_m40 = candle_dir(c_m40)
-    d_m15 = candle_dir(c_m15)
-    d_h1 = candle_dir(c_h1)
+    d_m30 = candle_dir(c_m30)
 
-    sig = calculate_signal(d_m35, d_m40, d_h1, d_m15)
+    sig = calculate_signal(d_m35, d_m40, d_m30)
 
     return {
         "m35": d_m35 or "N/A",
         "m40": d_m40 or "N/A",
-        "h1": d_h1 or "N/A",
-        "m15": d_m15 or "N/A",
+        "m30": d_m30 or "N/A",
         "signal": sig,
-        "h1_hour": h1_h,
     }
 
 # =====================================================================
@@ -204,10 +196,9 @@ def receive_mt4_data():
         time_str = data.get("time", "")
         mt4_m35 = data.get("m35", "N/A")
         mt4_m40 = data.get("m40", "N/A")
-        mt4_h1 = data.get("h1", "N/A")
-        mt4_m15 = data.get("m15", "N/A")
+        mt4_m30 = data.get("m30", "N/A")
 
-        mt4_signal = calculate_signal(mt4_m35, mt4_m40, mt4_h1, mt4_m15)
+        mt4_signal = calculate_signal(mt4_m35, mt4_m40, mt4_m30)
 
         h_parts = time_str.replace(":45", "").strip()
         try:
@@ -232,7 +223,7 @@ def receive_mt4_data():
 
         msg = build_telegram(
             broker, time_str, H,
-            mt4_m35, mt4_m40, mt4_h1, mt4_m15, mt4_signal,
+            mt4_m35, mt4_m40, mt4_m30, mt4_signal,
             mt5_data, mt5_signal,
             conclusion, broker_dt
         )
@@ -258,7 +249,7 @@ def receive_mt4_data():
 # =====================================================================
 def build_telegram(
     broker, time_str, H,
-    mt4_m35, mt4_m40, mt4_h1, mt4_m15, mt4_sig,
+    mt4_m35, mt4_m40, mt4_m30, mt4_sig,
     mt5, mt5_sig,
     conclusion, broker_dt
 ):
@@ -266,26 +257,23 @@ def build_telegram(
         return {"BUY": "Mua", "SELL": "Bán"}.get(s, "Chờ")
 
     now_s = fmt_time(broker_dt)
-    h1_label = fmt_hour(H - 1 if H > 0 else 23)
     note = get_schedule_note(broker_dt)
 
     return (
-        f"=== BÁO CÁO ĐỐI CHIẾU ===\n"
-        f"Thời gian: {now_s}\n"
-        f"Kích hoạt: {fmt_hour(H)}:45\n"
-        f"Tập trung: {note}\n"
+        f"=== BAO CAO DOI CHIEU ===\n"
+        f"Thoi gian: {now_s}\n"
+        f"Kich hoat: {fmt_hour(H)}:45\n"
+        f"Tap trung: {note}\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
         f"  M5@{fmt_hour(H)}:35 = {mt4_m35}\n"
         f"  M5@{fmt_hour(H)}:40 = {mt4_m40}\n"
-        f"  H1@{h1_label}:00   = {mt4_h1}\n"
-        f"  M15@{fmt_hour(H)}:30 = {mt4_m15}\n"
+        f"  M30@{fmt_hour(H)}:30 = {mt4_m30}\n"
         f"  => {ico(mt4_sig)}\n\n"
         f"--- {SYMBOL} (MT5) ---\n"
         f"  M5@{fmt_hour(H)}:35 = {mt5['m35']}\n"
         f"  M5@{fmt_hour(H)}:40 = {mt5['m40']}\n"
-        f"  H1@{h1_label}:00   = {mt5['h1']}\n"
-        f"  M15@{fmt_hour(H)}:30 = {mt5['m15']}\n"
+        f"  M30@{fmt_hour(H)}:30 = {mt5['m30']}\n"
         f"  => {ico(mt5_sig)}\n\n"
         f"===========================\n"
         f"KET LUAN: {conclusion}\n"
