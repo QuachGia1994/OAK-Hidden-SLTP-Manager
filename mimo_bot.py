@@ -34,10 +34,18 @@ except ImportError:
     sys.exit(1)
 
 # =====================================================================
-# CONFIGURATION - SỬA 2 DÒNG NÀY
+# CONFIGURATION - doc tu config.json (gitignored)
 # =====================================================================
-BOT_TOKEN = "REMOVED_TOKEN"
-ADMIN_CHAT_ID = 7732907060                  # Chat ID từ profiles.json (tele_admin)
+_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+try:
+    with open(_config_path, "r", encoding="utf-8") as _f:
+        _cfg = json.load(_f)
+    BOT_TOKEN = _cfg.get("telegram_token", "")
+    ADMIN_CHAT_ID = int(_cfg.get("telegram_chat_id", 0))
+except Exception:
+    BOT_TOKEN = ""
+    ADMIN_CHAT_ID = 0
+    print("[WARN] config.json not found or invalid. Set telegram_token + telegram_chat_id.")
 # =====================================================================
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
