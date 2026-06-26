@@ -4628,79 +4628,83 @@ class App(ctk.CTk):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frames["dashboard"] = frame
         frame.pack(fill="both", expand=True)
-        frame.grid_columnconfigure(0, weight=1)
-        frame.grid_columnconfigure(1, weight=4)
-        frame.grid_columnconfigure(2, weight=3)
-        
-        left_panel = ctk.CTkFrame(frame, fg_color="transparent", width=180)
+        frame.grid_columnconfigure(0, weight=3)
+        frame.grid_columnconfigure(1, weight=7)
+        frame.grid_rowconfigure(0, weight=1)
+
+        left_panel = ctk.CTkFrame(frame, fg_color="transparent")
         left_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
-        left_panel.grid_propagate(False)
-        news_panel = ctk.CTkFrame(frame, fg_color="transparent")
-        news_panel.grid(row=0, column=1, columnspan=2, sticky="nsew", padx=(10, 0))
-        
+
+        right_panel = ctk.CTkFrame(frame, fg_color="transparent")
+        right_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        right_panel.grid_rowconfigure(0, weight=4)
+        right_panel.grid_rowconfigure(1, weight=6)
+        right_panel.grid_columnconfigure(0, weight=1)
+
         self.lbl_select = ctk.CTkLabel(left_panel, text=T("msg_select_profile"), font=ctk.CTkFont(size=14))
         self.lbl_select.pack(pady=(0, 5), anchor="w")
         self.add_ui_element("msg_select_profile", self.lbl_select)
-        
+
         self.combo_profiles = ctk.CTkOptionMenu(left_panel, values=list(self.profiles.keys()) if self.profiles else ["Empty"], command=self.on_profile_change)
         self.combo_profiles.pack(pady=(0, 20), anchor="w")
-        
+
         self.btn_start = ctk.CTkButton(left_panel, text=T("btn_start"), fg_color="green", height=40, command=self.start_monitor)
         self.btn_start.pack(pady=(0, 10), fill="x")
         self.add_ui_element("btn_start", self.btn_start)
-        
+
         self.btn_stop = ctk.CTkButton(left_panel, text=T("btn_stop"), fg_color="red", height=40, state="disabled", command=self.stop_monitor)
         self.btn_stop.pack(pady=(0, 20), fill="x")
         self.add_ui_element("btn_stop", self.btn_stop)
 
-        # Engine Badge
         self.engine_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
         self.engine_frame.pack(pady=(10, 0), fill="x")
-        
+
         self.lbl_engine_title_frame = ctk.CTkFrame(self.engine_frame, fg_color="transparent")
         self.lbl_engine_title_frame.pack()
-        
+
         self.lbl_engine_title = ctk.CTkLabel(self.lbl_engine_title_frame, text=T("lbl_engine"), font=ctk.CTkFont(size=10))
         self.lbl_engine_title.grid(row=0, column=0)
         self.add_ui_element("lbl_engine", self.lbl_engine_title)
         add_help_icon(self.lbl_engine_title_frame, 0, 1, "tip_engine")
-        
+
         self.lbl_engine_badge = ctk.CTkLabel(self.engine_frame, text="", font=ctk.CTkFont(size=12, weight="bold"), corner_radius=6)
         self.lbl_engine_badge.pack(pady=2, fill="x")
-        
-        # v3.0 Session Recovery Status
+
         self.recovery_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
         self.recovery_frame.pack(pady=(10, 0), fill="x")
-        
+
         self.lbl_recovery_status_frame = ctk.CTkFrame(self.recovery_frame, fg_color="transparent")
         self.lbl_recovery_status_frame.pack()
-        
+
         self.lbl_recovery_status = ctk.CTkLabel(self.lbl_recovery_status_frame, text="🛡️ Session Auto-Save: ON", font=ctk.CTkFont(size=12, weight="bold", slant="italic"), text_color="#2ecc71")
         self.lbl_recovery_status.grid(row=0, column=0)
         add_help_icon(self.lbl_recovery_status_frame, 0, 1, "tip_session")
-        
-        self.update_ghost_button_ui()
-        
-        self.news_section = ctk.CTkFrame(news_panel, fg_color="transparent")
-        self.news_section.pack(fill="both", expand=True)
 
-        news_header = ctk.CTkFrame(self.news_section, fg_color="transparent")
+        self.update_ghost_button_ui()
+
+        news_section = ctk.CTkFrame(right_panel, fg_color="transparent")
+        news_section.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
+
+        news_header = ctk.CTkFrame(news_section, fg_color="transparent")
         news_header.pack(fill="x", pady=(0, 6))
         self.lbl_news_title = ctk.CTkLabel(news_header, text=T("news_title"), font=ctk.CTkFont(size=13, weight="bold"))
         self.lbl_news_title.pack(side="left")
         self.add_ui_element("news_title", self.lbl_news_title)
 
-        self.news_box = ctk.CTkTextbox(self.news_section, height=200, wrap="word")
+        self.news_box = ctk.CTkTextbox(news_section, wrap="word")
         self.news_box.pack(fill="both", expand=True)
         self.news_box.configure(state="disabled")
-        
+
         self.update_news_summary(force=True)
-        
-        self.lbl_console = ctk.CTkLabel(left_panel, text=T("console_title"), font=ctk.CTkFont(weight="bold"))
+
+        console_section = ctk.CTkFrame(right_panel, fg_color="transparent")
+        console_section.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+
+        self.lbl_console = ctk.CTkLabel(console_section, text=T("console_title"), font=ctk.CTkFont(weight="bold"))
         self.lbl_console.pack(anchor="w")
         self.add_ui_element("console_title", self.lbl_console)
-        
-        self.console = ctk.CTkTextbox(left_panel, width=180, height=260, wrap="word")
+
+        self.console = ctk.CTkTextbox(console_section, wrap="word")
         self.console.pack(fill="both", expand=True)
         self.console.configure(state="disabled")
 
