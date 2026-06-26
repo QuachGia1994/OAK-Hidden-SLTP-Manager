@@ -35,7 +35,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = list(range(1, 17))
+TARGET_HOURS = list(range(2, 17))
 MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 BROKER_GMT = 0
 

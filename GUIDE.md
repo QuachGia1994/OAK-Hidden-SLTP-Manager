@@ -10,7 +10,7 @@ Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK M
 ## 📡 MT4-MT5 Dual Signal System
 
 ### Cách hoạt động
-Bot phân tích nến lúc **x:45** mỗi giờ mục tiêu [1-16]:
+Bot phân tích nến lúc **x:45** mỗi giờ mục tiêu [2-16]:
 
 ```
 M5@H:35 và M5@H:40 → cùng chiều? → M30@H:30 xác nhận
@@ -53,7 +53,7 @@ Trong `mt5_signal_bot.py` và `mt4_mt5_server.py`:
 ```python
 BROKER_GMT = 0          # Giờ broker (UTC = 0)
 MT5_PATH = r"C:\...\terminal64.exe"  # Đường dẫn MT5
-TARGET_HOURS = list(range(1, 17))    # Giờ mục tiêu: 1-16
+TARGET_HOURS = list(range(2, 17))    # Giờ mục tiêu: 2-16
 SYMBOL = "GBPUSD"       # Cặp tiền
 ```
 
