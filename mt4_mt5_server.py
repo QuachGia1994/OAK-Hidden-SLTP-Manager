@@ -42,7 +42,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
 MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
-TARGET_HOURS = list(range(2, 17))
+TARGET_HOURS = list(range(1, 17))
 BROKER_GMT = 0
 
 # Mo ta chi tiet tung mốc giờ theo thứ trong tuần
@@ -52,6 +52,7 @@ BROKER_GMT = 0
 # Thứ 5: Theo W1, phiên AU dời 9h broker time
 # Thứ 6: SW/W1, tính lại nếu cuối tháng
 SCHEDULE_NOTES = {
+    1:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
     2:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
     3:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
     4:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
