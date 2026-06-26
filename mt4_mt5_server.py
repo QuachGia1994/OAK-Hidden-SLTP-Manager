@@ -28,22 +28,30 @@ except ImportError:
     sys.exit(1)
 
 # =====================================================================
-# CAU HINH
+# CAU HINH - doc tu config.json (gitignored)
 # =====================================================================
-TELEGRAM_TOKEN = "REMOVED_TOKEN"
-TELEGRAM_CHAT_ID = "7732907060"
+_config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+try:
+    with open(_config_path, "r", encoding="utf-8") as _f:
+        _cfg = json.load(_f)
+    TELEGRAM_TOKEN = _cfg.get("telegram_token", "")
+    TELEGRAM_CHAT_ID = _cfg.get("telegram_chat_id", "")
+except Exception:
+    TELEGRAM_TOKEN = ""
+    TELEGRAM_CHAT_ID = ""
+    print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
 MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 TARGET_HOURS = [1, 7, 9, 14, 15, 16]
 BROKER_GMT = 0
 
 SCHEDULE_NOTES = {
-    1: "XAUUSD, GBPAUD",
-    7: "XAUUSD, GBPAUD",
-    9: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
-    14: "XAUUSD, GBPUSD, GBPCAD, GBPJPY",
-    15: "XAUUSD",
-    16: "Thứ 4: toàn bộ nhóm GBP | Thứ 2,6: Vàng + nhóm GBP",
+    1: "Thứ 2: Vàng SW nhẹ",
+    7: "Thứ 2: Vàng SW nhẹ",
+    9: "Thứ 3: Bình thường | Thứ 4: GBP SW rộng theo Vàng + tính lại W1 | Thứ 5: Theo W1, phiên AU dời 9h broker | Thứ 6: SW/W1, tính lại nếu cuối tháng",
+    14: "Thứ 3: Bình thường | Thứ 4: GBP SW rộng theo Vàng + tính lại W1 | Thứ 5: Theo W1, phiên AU dời 9h broker | Thứ 6: SW/W1, tính lại nếu cuối tháng",
+    15: "XAUUSD - Thứ 4: tính lại W1 | Thứ 5: theo W1",
+    16: "Thứ 4: toàn bộ nhóm GBP + tính lại W1 | Thứ 5: Theo W1 | Thứ 6: Vàng + GBP",
 }
 
 app = Flask(__name__)

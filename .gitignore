@@ -21,3 +21,5 @@ friday_snapshot.json
 waiting_*.json
 tele_*.json
 news_cache*.json
+config.json
+.env
