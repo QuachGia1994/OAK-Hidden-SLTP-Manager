@@ -157,7 +157,7 @@ def calculate_signal(m35_dir, m40_dir, h1_dir, m15_dir):
 # MT5 DATA FETCHER
 # =====================================================================
 def fetch_mt5_data(broker_dt, H):
-    """Lay nến MT5 tai H:50 su dung broker time tu tick.time."""
+    """Lay nến MT5 tai H:45 su dung broker time tu tick.time."""
     if not mt5_ready:
         return {"m35":"N/A","m40":"N/A","h1":"N/A","m15":"N/A","m30_49":"N/A","m30_10":"N/A","signal":"WAIT","h1_hour":H-1}
 
@@ -221,7 +221,7 @@ def receive_mt4_data():
 
         mt4_signal = calculate_signal(mt4_m35, mt4_m40, mt4_h1, mt4_m15)
 
-        h_parts = time_str.replace(":50", "").strip()
+        h_parts = time_str.replace(":45", "").strip()
         try:
             H = int(h_parts)
         except ValueError:
@@ -284,7 +284,7 @@ def build_telegram(
     return (
         f"=== BÁO CÁO ĐỐI CHIẾU ===\n"
         f"Thời gian: {now_s}\n"
-        f"Kích hoạt: {fmt_hour(H)}:50\n"
+        f"Kích hoạt: {fmt_hour(H)}:45\n"
         f"Tập trung: {note}\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
