@@ -45,19 +45,6 @@ MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 TARGET_HOURS = list(range(1, 17))
 BROKER_GMT = 0
 
-# Mo ta chi tiet theo thứ trong tuần (0=Thứ 2 ... 4=Thứ 6)
-SCHEDULE_NOTES = {
-    0: "Thứ 2: Vàng SW nhẹ",
-    1: "Thứ 3: Bình thường",
-    2: "Thứ 4: GBP SW rộng theo Vàng + tính lại W1",
-    3: "Thứ 5: Theo W1, phiên AU dời 9h broker time",
-    4: "Thứ 6: SW/W1, tính lại nếu cuối tháng",
-}
-
-def get_schedule_note(broker_dt):
-    wd = broker_dt.weekday()
-    return SCHEDULE_NOTES.get(wd, "Ngoài giờ giao dịch")
-
 app = Flask(__name__)
 
 # =====================================================================

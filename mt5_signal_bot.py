@@ -13,6 +13,7 @@ import calendar
 import urllib.request
 import urllib.parse
 from datetime import datetime, timedelta, timezone
+import calendar as cal
 
 try:
     import MetaTrader5 as mt5
@@ -39,18 +40,29 @@ TARGET_HOURS = list(range(1, 17))
 MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 BROKER_GMT = 0
 
-# Mo ta chi tiet theo thứ trong tuần (0=Thứ 2 ... 4=Thứ 6)
-SCHEDULE_NOTES = {
-    0: "Thứ 2: Vàng SW nhẹ",
-    1: "Thứ 3: Bình thường",
-    2: "Thứ 4: GBP SW rộng theo Vàng + tính lại W1",
-    3: "Thứ 5: Theo W1, phiên AU dời 9h broker time",
-    4: "Thứ 6: SW/W1, tính lại nếu cuối tháng",
-}
+def get_schedule_reminders(broker_dt):
+    """Kiểm tra các ngày đặc biệt trong tháng"""
+    reminders = []
+    today = broker_dt.date()
+    year = today.year
+    month = today.month
 
-def get_schedule_note(broker_dt):
-    wd = broker_dt.weekday()
-    return SCHEDULE_NOTES.get(wd, "Ngoài giờ giao dịch")
+    # Thứ 6 cuối tháng
+    last_day = cal.monthrange(year, month)[1]
+    last_date = today.replace(day=last_day)
+    while last_date.weekday() != 4:
+        last_date -= timedelta(days=1)
+    if today == last_date:
+        reminders.append("THU 6 CUOI THANG")
+
+    # Thứ 4 đầu tháng khi thứ 6 đầu tháng落在 ngày 3, 4, hoặc 7
+    first_date = today.replace(day=1)
+    if today.weekday() == 2:
+        first_fri_day = (4 - first_date.weekday()) % 7 + 1
+        if first_fri_day in (3, 4, 7) and today.day <= 7:
+            reminders.append(f"THU 4 DAU THANG (Thu 6 ngay {first_fri_day})")
+
+    return reminders
 
 # =====================================================================
 # TELEGRAM
@@ -156,22 +168,22 @@ def analyze(broker_dt, H):
 
     if d_m35 is None or d_m40 is None:
         print(f"  [SKIP] Khong du du lieu M5 tai {fmt_hour(H)}:35 / {fmt_hour(H)}:40")
-        return {"signal": "WAIT", "report": "Khong du du lieu M5"}
+        return {"signal": "WAIT", "report": "Không đủ dữ liệu M5"}
     if d_m35 == "DOJI":
-        print(f"  [SKIP] M5@{fmt_hour(H)}:35 la DOJI")
-        return {"signal": "WAIT", "report": "M5@35 la DOJI - Khong du dieu kien"}
+        print(f"  [SKIP] M5@{fmt_hour(H)}:35 là DOJI")
+        return {"signal": "WAIT", "report": "M5@35 là DOJI - Không đủ điều kiện"}
     if d_m40 == "DOJI":
-        print(f"  [SKIP] M5@{fmt_hour(H)}:40 la DOJI")
-        return {"signal": "WAIT", "report": "M5@40 la DOJI - Khong du dieu kien"}
+        print(f"  [SKIP] M5@{fmt_hour(H)}:40 là DOJI")
+        return {"signal": "WAIT", "report": "M5@40 là DOJI - Không đủ điều kiện"}
 
     ts_m30 = broker_time_to_ts(broker_dt, H, 30)
     c_m30 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30)
     d_m30 = candle_direction(c_m30)
 
     if d_m30 is None:
-        return {"signal": "WAIT", "report": "Khong du du lieu M30"}
+        return {"signal": "WAIT", "report": "Không đủ dữ liệu M30"}
     if d_m30 == "DOJI":
-        return {"signal": "WAIT", "report": "M30@30 la DOJI - Khong du dieu kien"}
+        return {"signal": "WAIT", "report": "M30@30 là DOJI - Không đủ điều kiện"}
 
     vn_m35 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m35, d_m35)
     vn_m40 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m40, d_m40)
@@ -180,19 +192,19 @@ def analyze(broker_dt, H):
     if d_m35 == d_m40:
         signal = "BUY" if d_m30 == "TANG" else "SELL"
         report = (
-            f"PATTERN: Cung chieu ({vn_m35})\n"
+            f"PATTERN: Cùng chiều ({vn_m35})\n"
             f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
             f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lay M30@{fmt_hour(H)}:30 (Cung chieu)\n"
+            f"  -> Lấy M30@{fmt_hour(H)}:30 (Cùng chiều)\n"
             f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:30')}"
         )
     else:
         signal = "SELL" if d_m30 == "TANG" else "BUY"
         report = (
-            f"PATTERN: Nguoc chieu ({vn_m35} + {vn_m40})\n"
+            f"PATTERN: Ngược chiều ({vn_m35} + {vn_m40})\n"
             f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
             f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lay M30@{fmt_hour(H)}:30 (Nguoc chieu)\n"
+            f"  -> Lấy M30@{fmt_hour(H)}:30 (Ngược chiều)\n"
             f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:30')}"
         )
 
@@ -282,12 +294,15 @@ def main():
     sent_today = set()
 
     from datetime import datetime as _dt
-    today_note = get_schedule_note(_dt.now(timezone.utc))
+    now_utc = _dt.now(timezone.utc).replace(tzinfo=None)
+    broker_dt = now_utc + timedelta(hours=BROKER_GMT)
+    reminders = get_schedule_reminders(broker_dt)
+    reminder_text = "\n".join([f"⚠️ {r}" for r in reminders]) if reminders else ""
     send_telegram(
         f"BOT KHOI DONG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
-        f"Kich hoat: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45\n"
-        f"Hom nay: {today_note}"
+        f"Kich hoat: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45"
+        + (f"\n{reminder_text}" if reminder_text else "")
     )
 
     if mt5_ready:
@@ -329,9 +344,9 @@ def main():
                 icon, emoji = "Chờ", "\u26aa"
 
             note = get_schedule_note(broker_dt)
-            slot_line = f"Slot tiep theo: {fmt_hour(next_slots[0])}:45 (con {countdown})\n" if next_slots else f"Het slot hom nay.\n"
+            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
             msg = (
-                f"{emoji} [Bo lo] {fmt_hour(latest)}:45 - {icon}\n"
+                f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:45 - {icon}\n"
                 f"============================\n"
                 f"  {fmt_time(broker_dt)} (Broker)\n"
                 f"  Tập trung: {note}\n"
@@ -363,7 +378,7 @@ def main():
                     time.sleep(10)
                     continue
 
-                print(f"\n[{fmt_time(broker_dt)}] Kich hoat {fmt_hour(now_hour)}:45")
+                print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
 
                 result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
@@ -389,7 +404,7 @@ def main():
                     time.sleep(wait)
 
     except KeyboardInterrupt:
-        print("\n  Dung bot.")
+        print("\n  Dừng bot.")
     except Exception as e:
         print(f"\n  Loi: {e}")
     finally:
