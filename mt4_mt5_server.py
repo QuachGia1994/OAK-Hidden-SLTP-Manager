@@ -45,30 +45,18 @@ MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 TARGET_HOURS = list(range(1, 17))
 BROKER_GMT = 0
 
-# Mo ta chi tiet tung mốc giờ theo thứ trong tuần
-# Thứ 2: Vàng SW nhẹ
-# Thứ 3: Bình thường
-# Thứ 4: GBP SW rộng theo Vàng + tính lại W1
-# Thứ 5: Theo W1, phiên AU dời 9h broker time
-# Thứ 6: SW/W1, tính lại nếu cuối tháng
+# Mo ta chi tiet theo thứ trong tuần (0=Thứ 2 ... 4=Thứ 6)
 SCHEDULE_NOTES = {
-    1:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    2:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    3:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    4:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    5:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    6:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    7:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    8:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    9:  "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    10: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    11: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    12: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    13: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    14: "Thứ 2: Vàng SW nhẹ | Thứ 3: Binh thuong | Thứ 4: GBP SW rong theo Vang + tinh lai W1 | Thứ 5: Theo W1, AU dời 9h broker | Thứ 6: SW/W1, tinh lai neu cuoi thang",
-    15: "XAUUSD - Thứ 4: tinh lai W1 | Thứ 5: theo W1 | Thứ 6: Vang + GBP",
-    16: "Thứ 4: toan bo nhom GBP + tinh lai W1 | Thứ 5: Theo W1 | Thứ 6: Vang + GBP",
+    0: "Thứ 2: Vàng SW nhẹ",
+    1: "Thứ 3: Bình thường",
+    2: "Thứ 4: GBP SW rộng theo Vàng + tính lại W1",
+    3: "Thứ 5: Theo W1, phiên AU dời 9h broker time",
+    4: "Thứ 6: SW/W1, tính lại nếu cuối tháng",
 }
+
+def get_schedule_note(broker_dt):
+    wd = broker_dt.weekday()
+    return SCHEDULE_NOTES.get(wd, "Ngoài giờ giao dịch")
 
 app = Flask(__name__)
 
@@ -279,7 +267,7 @@ def build_telegram(
 
     now_s = fmt_time(broker_dt)
     h1_label = fmt_hour(H - 1 if H > 0 else 23)
-    note = SCHEDULE_NOTES.get(H, "")
+    note = get_schedule_note(broker_dt)
 
     return (
         f"=== BÁO CÁO ĐỐI CHIẾU ===\n"
