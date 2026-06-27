@@ -553,7 +553,38 @@ def fetch_forexfactory_xml(lang="VN", context=None):
 
 def get_daily_schedule(now, lang="VN"):
     """Get the trading schedule for the given time"""
-    return []
+    events = []
+    gbp_group = "GBPAUD, GBPJPY, GBPUSD, GBPNZD, GBPCHF, GBPCAD"
+
+    events.append({"hour": 2, "minute": 45, "syms": gbp_group,
+        "note": "Mốc 2: Nhóm GBP" if lang == "VN" else "Milestone 2: GBP group"})
+
+    events.append({"hour": 3, "minute": 45, "syms": "GBPAUD, GBPJPY",
+        "note": "Mốc 3: GBPAUD ngược, GBPJPY cùng" if lang == "VN" else "Milestone 3: GBPAUD opposite, GBPJPY same"})
+
+    if now.weekday() in (3, 4):
+        events.append({"hour": 5, "minute": 45, "syms": "XAUUSD",
+            "note": "Mốc 5: Vàng theo W1 sớm" if lang == "VN" else "Milestone 5: Gold follow W1 early"})
+
+    events.append({"hour": 9, "minute": 45, "syms": gbp_group + ", XAUUSD",
+        "note": "Mốc 9: Nhóm GBP + Vàng" if lang == "VN" else "Milestone 9: GBP group + Gold"})
+
+    events.append({"hour": 11, "minute": 45, "syms": gbp_group,
+        "note": "Mốc 11: Nhóm GBP" if lang == "VN" else "Milestone 11: GBP group"})
+
+    events.append({"hour": 14, "minute": 45, "syms": gbp_group,
+        "note": "Mốc 14: Nhóm GBP" if lang == "VN" else "Milestone 14: GBP group"})
+
+    events.append({"hour": 15, "minute": 45, "syms": "XAUUSD",
+        "note": "Mốc 15: Vàng tính lại trừ nhóm GBP" if lang == "VN" else "Milestone 15: Gold recalculate except GBP"})
+
+    events.append({"hour": 16, "minute": 45, "syms": "XAUUSD",
+        "note": "Mốc 17: Vàng close nếu mốc 16 cùng tín hiệu mốc 15" if lang == "VN" else "Milestone 17: Gold close if m16 same as m15"})
+
+    events.append({"hour": 18, "minute": 45, "syms": gbp_group,
+        "note": "Mốc 18: Nhóm GBP" if lang == "VN" else "Milestone 18: GBP group"})
+
+    return events
 
 def _friday_of_same_week(date_obj):
     return date_obj + timedelta(days=(4 - date_obj.weekday()))
