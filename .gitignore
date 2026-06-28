@@ -25,6 +25,11 @@ news_cache*.json
 config.json
 .env
 
+# Copy trade runtime files
+copy_map_*.json
+ignored_*.json
+scheduled_close_*.json
+
 # MiMo runtime files
 .mimocode/
 _mimo_input.txt
