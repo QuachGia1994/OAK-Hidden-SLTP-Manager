@@ -3,3 +3,5 @@ MetaTrader5
 pywinauto
 comtypes
 pywin32
+Flask
+pyTelegramBotAPI

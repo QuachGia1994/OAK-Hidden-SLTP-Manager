@@ -1,64 +1,9 @@
 import datetime
-import math
 
 # Constants
 SYMBOLS = ["AUDUSD", "USDCAD", "GBPAUD", "GBPJPY", "GBPNZD", "GBPCHF", "GBPUSD", "GBPCAD", "XAUUSD", "USDJPY"]
 SHORT_NAMES = ["AU", "UC", "GA", "GJ", "GN", "GF", "GU", "GC", "Gold", "UJ"]
 # Note: GC refers to GBPCAD. Gold refers to XAUUSD.
-
-def is_first_friday(date_obj):
-    """Check if date is the first Friday of the month."""
-    if date_obj.weekday() != 4: # 0=Mon, 4=Fri
-        return False
-    if date_obj.day <= 7:
-        return True
-    return False
-
-def is_first_friday_week(date_obj):
-    """Check if current week contains the First Friday."""
-    # days until friday (4 - weekday). If weekday > 4 (Sat/Sun), logic differs but let's assume standard week.
-    days_to_fri = 4 - date_obj.weekday()
-    if days_to_fri < 0: # Sat(5) or Sun(6)
-         days_to_fri += 7
-    
-    fri_date = date_obj + datetime.timedelta(days=days_to_fri)
-    return is_first_friday(fri_date)
-
-def get_h1_2am_candle(candles, target_day_obj):
-    """
-    Find H1 candle at 02:00 for the specific target day.
-    candles: list of dicts {'time': datetime, 'open': float, 'close': float, ...}
-    """
-    target_date = target_day_obj.date()
-    for c in candles:
-        c_time = c['time']
-        if c_time.date() == target_date and c_time.hour == 2:
-            return c
-    return None
-
-def get_monday_d1_candle(candles, current_date_obj):
-    """
-    Find the most recent Monday D1 candle relative to current_date_obj.
-    """
-    # Simple search backwards
-    # Assuming candles are sorted desc or we search all
-    # We want the Monday of the current week (or previous if today is Mon/Sun?)
-    # Logic in MQL4: searches back 7 days.
-    
-    # Calculate expected Monday date
-    days_since_mon = current_date_obj.weekday() # Mon=0
-    monday_date = (current_date_obj - datetime.timedelta(days=days_since_mon)).date()
-    
-    for c in candles:
-        if c['time'].date() == monday_date:
-            return c
-            
-    # Fallback: search any Monday within last 7 days
-    for c in candles:
-        delta = (current_date_obj.date() - c['time'].date()).days
-        if 0 <= delta <= 7 and c['time'].weekday() == 0:
-            return c
-    return None
 
 def get_monday_h1_open_close(h1_candles, current_date_obj):
     """
@@ -240,11 +185,6 @@ def calculate_logic(data_feed, manual_trends=None, monday_snapshot=None, wednesd
         if isinstance(friday_snapshot, dict) and "GU" in friday_snapshot:
             s['GU'] = friday_snapshot["GU"]
     
-    # if s['UJ'] == "BUY" and s['GJ'] == "BUY":
-    #     if s['GU'] == "BUY":
-    #         s['UJ'] = "WAIT"
-    #     elif s['GU'] == "SELL":
-    #         s['GJ'] = "WAIT"
     json_output['signals'] = {}
     for k in SHORT_NAMES:
         json_output['signals'][k] = {"signal": s[k], "time": ""}

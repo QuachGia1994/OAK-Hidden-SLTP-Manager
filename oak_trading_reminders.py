@@ -14,7 +14,6 @@ import hashlib
 import glob
 import winsound # For PC Alarm
 import re
-import random
 from oak_response_dict import get_random_response # Import new response module
 
 # --- CONFIG ---
@@ -84,7 +83,10 @@ def load_json_file(path, default):
             return default
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception as e:
+    except json.JSONDecodeError as e:
+        print(f"[WARN] Corrupt JSON {path}: {e}")
+        return default
+    except Exception:
         return default
 
 def send_ntfy(message):
@@ -165,23 +167,21 @@ def get_economic_news(lang="VN"):
         
     return news_list
 
-def _fetch_news_fresh(lang="VN"):
-    # Cấu hình SSL linh hoạt để xử lý các lỗi handshake và EOF
+def _make_ssl_context():
+    """Try verified SSL first; fallback to unverified for legacy servers."""
+    try:
+        ctx = ssl.create_default_context()
+        ctx.options |= 0x4  # OP_LEGACY_SERVER_CONNECT
+        return ctx
+    except Exception:
+        pass
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
-    
-    # Hỗ trợ các giao thức cũ hơn và giải quyết lỗi UNEXPECTED_EOF
-    # Sử dụng try-except vì không phải mọi phiên bản Python đều hỗ trợ các options này
-    try:
-        # Cho phép các phiên bản TLS thấp hơn nếu server yêu cầu
-        ctx.minimum_version = ssl.TLSVersion.TLSv1
-    except: pass
-    
-    try:
-        # OP_LEGACY_SERVER_CONNECT (0x4) giúp kết nối với các server có cấu hình cũ
-        ctx.options |= 0x4 
-    except: pass
+    return ctx
+
+def _fetch_news_fresh(lang="VN"):
+    ctx = _make_ssl_context()
 
     # Attempt 1: MyFxBook RSS (with retry)
     errs = []
@@ -240,9 +240,7 @@ def fetch_investing_rss(lang="VN", context=None):
     today = datetime.now().date()
     
     if context is None:
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+        context = _make_ssl_context()
     
     req = urllib.request.Request(
         url, 
@@ -296,12 +294,7 @@ def fetch_myfxbook_rss(lang="VN", context=None):
     
     # SSL Context to avoid handshake errors
     if context is None:
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        try:
-            context.options |= 0x4 # OP_LEGACY_SERVER_CONNECT
-        except: pass
+        context = _make_ssl_context()
     
     req = urllib.request.Request(
         url, 
@@ -403,12 +396,7 @@ def fetch_litefinance_rss(lang="VN", context=None):
     today = datetime.now().date()
     
     if context is None:
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
-        try:
-            context.options |= 0x4 # OP_LEGACY_SERVER_CONNECT
-        except: pass
+        context = _make_ssl_context()
     
     req = urllib.request.Request(
         url, 
@@ -476,9 +464,7 @@ def fetch_forexfactory_xml(lang="VN", context=None):
     today = datetime.now().date()
     
     if context is None:
-        context = ssl.create_default_context()
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+        context = _make_ssl_context()
     
     req = urllib.request.Request(
         url, 
@@ -490,12 +476,6 @@ def fetch_forexfactory_xml(lang="VN", context=None):
         
     root = ET.fromstring(data)
     # Structure: <weeklyevents><event><title>...</title><country>USD</country><date>02-17-2026</date><time>1:30pm</time><impact>High</impact>...</event>...
-    
-    impact_icon = {
-        "High": "🔴",
-        "Medium": "🟠",
-        "Low": "🟡"
-    }
     
     out = []
     found_events = False

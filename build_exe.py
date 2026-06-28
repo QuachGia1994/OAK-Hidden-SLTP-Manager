@@ -1,8 +1,6 @@
 import PyInstaller.__main__
 import os
 import customtkinter
-import sys
-import time
 import re
 
 # Get version from main file
@@ -47,5 +45,3 @@ args = [
 print(f"Starting build process for {exe_name}...")
 PyInstaller.__main__.run(args)
 print(f"Build finished. Check 'dist' folder for {exe_name}.exe")
-# print("Closing in 3 seconds...")
-# time.sleep(3)

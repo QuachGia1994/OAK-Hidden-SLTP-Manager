@@ -50,7 +50,8 @@ class GhostOperator:
             self._app = Application(backend="win32").connect(title_re=title_re, timeout=2)
             self._win = self._app.window(title_re=title_re)
             return True
-        except:
+        except Exception as e:
+            print(f"[GhostOperator] Connect failed: {e}")
             return False
 
     def execute_close(self, ticket, symbol, volume=None):
@@ -98,7 +99,8 @@ class GhostOperator:
                     return True
                 
                 return False
-            except:
+            except Exception as e:
+                print(f"[GhostOperator] execute_close failed: {e}")
                 return False
 
     def modify_sl_tp(self, ticket, sl, tp):
@@ -122,7 +124,8 @@ class GhostOperator:
                     order_win.type_keys("{TAB 5}" + str(sl) + "{TAB}" + str(tp) + "{ENTER}")
                     return True
                 return False
-            except:
+            except Exception as e:
+                print(f"[GhostOperator] modify_sl_tp failed: {e}")
                 return False
 
 def show_ghost_consent(parent, on_accept):
@@ -279,6 +282,22 @@ def get_filling_type(symbol):
         if filling_mode & 1:
             return mt5.ORDER_FILLING_FOK
     return mt5.ORDER_FILLING_IOC
+
+def send_order_with_retry(request):
+    """Send order, retry with alternate filling modes on error 10030."""
+    res = mt5.order_send(request)
+    if res.retcode != 10030:
+        return res
+    modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
+    current_mode = request["type_filling"]
+    if current_mode in modes:
+        modes.remove(current_mode)
+    for mode in modes:
+        request["type_filling"] = mode
+        res = mt5.order_send(request)
+        if res.retcode == mt5.TRADE_RETCODE_DONE or res.retcode != 10030:
+            break
+    return res
 
 # --- TICKET MANAGER (PERSISTENCE) ---
 _GLOBAL_TRADES_CACHE = None
@@ -887,39 +906,14 @@ def load_json(file):
         try:
             with open(file, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except:
+        except json.JSONDecodeError as e:
+            print(f"[WARN] Corrupt JSON {file}: {e}")
             return {}
     return {}
 
 def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
-
-def read_text_file(file_path):
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except:
-            return ""
-    return ""
-
-def normalize_snapshot(raw):
-    if not isinstance(raw, dict):
-        return {}
-    if "signals" in raw and isinstance(raw["signals"], dict):
-        result = {}
-        for key, val in raw["signals"].items():
-            if isinstance(val, dict):
-                sig = val.get("signal")
-                if isinstance(sig, str):
-                    result[key] = sig
-        return result
-    cleaned = {}
-    for key, val in raw.items():
-        if isinstance(val, str):
-            cleaned[key] = val
-    return cleaned
 
 def T(key):
     return LANG.get(CURRENT_LANG, LANG["VN"]).get(key, key)
@@ -928,6 +922,7 @@ _balance_cache = {
     "day": None,
     "value": 0.0
 }
+_balance_lock = threading.Lock()
 
 def get_start_day_balance():
     """Calculates balance at the start of the current day (Server Time 00:00). Cached."""
@@ -940,8 +935,9 @@ def get_start_day_balance():
         today_str = now.strftime("%Y-%m-%d")
         
         # Return cached value if same day
-        if _balance_cache["day"] == today_str and _balance_cache["value"] > 0:
-            return _balance_cache["value"]
+        with _balance_lock:
+            if _balance_cache["day"] == today_str and _balance_cache["value"] > 0:
+                return _balance_cache["value"]
 
         acc = mt5.account_info()
         if not acc: return 0.0
@@ -996,8 +992,9 @@ def get_start_day_balance():
         start_day_bal = current_balance - today_profit
         
         # Update Cache
-        _balance_cache["day"] = today_str
-        _balance_cache["value"] = start_day_bal
+        with _balance_lock:
+            _balance_cache["day"] = today_str
+            _balance_cache["value"] = start_day_bal
         
         return start_day_bal
     except Exception as e:
@@ -1139,9 +1136,6 @@ class CopyTradeManager:
         
         save_json(task_file, tasks)
         
-        # info_str = f" ({symbol} {order_type})" if symbol != "???" else ""
-        # self.notify(f"✂️ [{profile_name}] Đã thêm nhiệm vụ chốt lời từng phần:\n• Lệnh: #{ticket_id}{info_str}\n• Khi lãi đạt: ${target_profit:,.2f}\n• Chốt bớt: {close_vol} lot")
-        
         resp = get_natural_response("partial_task_added", 
                                     ticket_id=ticket_id, 
                                     symbol=symbol, 
@@ -1240,16 +1234,7 @@ class CopyTradeManager:
             "type_filling": get_filling_type(pos.symbol),
         }
         
-        res = mt5.order_send(request)
-        if res.retcode == 10030:
-             # Retry modes
-             modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
-             if request["type_filling"] in modes: modes.remove(request["type_filling"])
-             for m in modes:
-                 request["type_filling"] = m
-                 res = mt5.order_send(request)
-                 if res.retcode == mt5.TRADE_RETCODE_DONE: break
-                 
+        res = send_order_with_retry(request)
         return res.retcode == mt5.TRADE_RETCODE_DONE
 
     def process(self):
@@ -1394,7 +1379,6 @@ class CopyTradeManager:
         profile_lower = profile_name.lower()
         
         # --- NEW: NLP PnL Logic ---
-        import re
         symbol_match = re.search(r"([A-Z]{2,12}(?:\+)?(?:\.[a-zA-Z0-9]+)?)", text.upper())
         price_match = re.search(r"(\d+(?:\.\d+)?)", text)
         
@@ -1500,7 +1484,6 @@ class CopyTradeManager:
                 
                 # Extract Lot (float)
                 lot = "0.01"
-                import re
                 lots = re.findall(r"\b\d+\.\d+\b", text_lower) or re.findall(r"\b0\.\d+\b", text_lower)
                 if lots: lot = lots[0]
                 
@@ -1775,7 +1758,6 @@ class CopyTradeManager:
                         self.notify(f"❌ [{profile_name}] Thất bại: Đã có lệnh chờ cùng chiều cho {symbol}")
                         return
 
-                import random
                 new_trade = {
                     "symbol": symbol,
                     "type": t_type,
@@ -1852,14 +1834,11 @@ class CopyTradeManager:
 
                     if not hasattr(self, "_scheduled_close"): self._scheduled_close = []
                     self._scheduled_close.append({"time": time_val, "date": target_date_str, "filter": filter_type, "sym": target_sym})
-                    # self.notify(f"🤖 [{profile_name}] Dạ sếp, em đã ghi lịch ĐÓNG ({filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
                     self.notify(f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG ({filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
                 except:
-                    # self.notify(f"❌ [{profile_name}] Sai định dạng giờ /closeall")
                     resp = get_natural_response("error", error="Sai định dạng giờ rồi anh ơi!")
                     self.notify(f"❌ [{profile_name}] {resp}")
             else:
-                # self.notify(f"🤖 [{profile_name}] Đã rõ! Em tiến hành ĐÓNG ({filter_type}) {target_sym or 'toàn bộ'} ngay lập tức đây ạ.")
                 self.notify(f"🤖 [{profile_name}] Đã rõ! Tôi tiến hành ĐÓNG ({filter_type}) {target_sym or 'toàn bộ'} ngay lập tức đây ạ.")
                 self._execute_close_all(filter_type, target_sym)
 
@@ -1870,7 +1849,6 @@ class CopyTradeManager:
                 return
             
             # 1. Scheduled Entry Trades
-            # msg = f"📋 [{profile_name}] DANH SÁCH LỆNH CHỜ:\n"
             header = get_natural_response("list_header")
             msg = f"📋 [{profile_name}] {header}\n"
             waiting_trades = [t for t in self.scheduled_trades if t.get("status") == "waiting"]
@@ -2050,8 +2028,6 @@ class CopyTradeManager:
             # Keywords: "lệnh", "ticket", "lãi", "profit", "chốt", "close"
             # Regex: (lệnh|ticket)\s+(\d+).*?(lãi|lời|profit)\s+(\$?[\d\.]+).*?(chốt|close)\s+([\d\.]+)
             
-            import re
-            
             # Pattern 1: "lệnh 12345 lãi 200 chốt 0.01"
             # Pattern 2: "ticket 12345 profit 200 close 0.01"
             # Pattern 3: "khi lệnh 12345 đạt lợi nhuận $200, hãy chốt 0.01 lot"
@@ -2080,8 +2056,6 @@ class CopyTradeManager:
                     pass
 
             # ... (Existing Buy/Sell Logic continues) ...
-            
-            is_buy = any(kw in text_lower for kw in ["buy", "mua", "long"])
 
 
     def _execute_close_all(self, filter_type="all", target_sym=""):
@@ -2137,14 +2111,6 @@ class CopyTradeManager:
         positions = mt5.positions_get()
         pos_count = len(positions) if positions else 0
         total_profit = sum(p.profit for p in positions) if positions else 0.0
-        
-        # msg = (
-        #     f"📊 [{profile_name}] TRẠNG THÁI:\n"
-        #     f"• Balance: {acc.balance:,.2f} {acc.currency}\n"
-        #     f"• Equity: {acc.equity:,.2f}\n"
-        #     f"• Lệnh đang mở: {pos_count}\n"
-        #     f"• Tổng Profit: {total_profit:+.2f}\n"
-        # )
         
         header = get_natural_response("status_header")
         msg = (
@@ -2359,10 +2325,6 @@ class CopyTradeManager:
                 updated_details.append(f"#{ord.ticket}: {val} (Hidden only)")
 
         if count > 0:
-            # msg = f"✅ [{profile_name}] Đã cập nhật {mod_type.upper()} (HIDDEN & REAL) cho {count} lệnh {target_sym}.\n"
-            # msg += f"💰 Mức giá mới: {val}\n"
-            # msg += f"📋 Chi tiết: {', '.join(updated_details)}"
-            
             resp = get_natural_response("modify_success", 
                                         type=mod_type.upper(), 
                                         count=count, 
@@ -2374,7 +2336,6 @@ class CopyTradeManager:
                 msg += f"\n⚠️ Cảnh báo: {len(errors)} lệnh lỗi MT5: {', '.join(errors)}"
             self.notify(msg)
         else:
-            # msg = f"❌ [{profile_name}] Không sửa được lệnh {target_sym} nào."
             resp = get_natural_response("error", error=f"Không tìm thấy lệnh {target_sym or 'nào'} để sửa ạ.")
             msg = f"❌ [{profile_name}] {resp}"
             if errors:
@@ -2400,21 +2361,7 @@ class CopyTradeManager:
             "type_filling": get_filling_type(pos.symbol),
         }
         
-        # RETRY LOGIC FOR FILLING MODE (Error 10030)
-        res = mt5.order_send(request)
-        if res.retcode == 10030: # Unsupported filling mode
-            # Try alternate filling modes
-            modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
-            current_mode = request["type_filling"]
-            if current_mode in modes: modes.remove(current_mode)
-            
-            for mode in modes:
-                request["type_filling"] = mode
-                res = mt5.order_send(request)
-                if res.retcode == mt5.TRADE_RETCODE_DONE:
-                    break
-                if res.retcode != 10030:
-                    break
+        res = send_order_with_retry(request)
         
         # Update ticket manager for closed position
         if res.retcode == mt5.TRADE_RETCODE_DONE:
@@ -2936,19 +2883,7 @@ class CopyTradeManager:
             "type_filling": get_filling_type(symbol),
         }
 
-        res = mt5.order_send(request)
-        if res.retcode == 10030:
-            modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
-            current_mode = request["type_filling"]
-            if current_mode in modes:
-                modes.remove(current_mode)
-            for mode in modes:
-                request["type_filling"] = mode
-                res = mt5.order_send(request)
-                if res.retcode == mt5.TRADE_RETCODE_DONE:
-                    break
-                if res.retcode != 10030:
-                    break
+        res = send_order_with_retry(request)
 
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             direction_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
@@ -3087,18 +3022,7 @@ class CopyTradeManager:
         except:
             pass
         
-        res = mt5.order_send(req)
-        
-        # RETRY LOGIC FOR FILLING MODE (Error 10030)
-        if res.retcode == 10030:
-            modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
-            current_mode = req["type_filling"]
-            if current_mode in modes: modes.remove(current_mode)
-            for mode in modes:
-                req["type_filling"] = mode
-                res = mt5.order_send(req)
-                if res.retcode == mt5.TRADE_RETCODE_DONE: break
-                if res.retcode != 10030: break
+        res = send_order_with_retry(req)
         
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             # Save Mapping
@@ -3144,18 +3068,7 @@ class CopyTradeManager:
             "type_filling": get_filling_type(pos.symbol),
         }
         
-        res = mt5.order_send(req)
-        
-        # RETRY LOGIC FOR FILLING MODE (Error 10030)
-        if res.retcode == 10030:
-            modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
-            current_mode = req["type_filling"]
-            if current_mode in modes: modes.remove(current_mode)
-            for mode in modes:
-                req["type_filling"] = mode
-                res = mt5.order_send(req)
-                if res.retcode == mt5.TRADE_RETCODE_DONE: break
-                if res.retcode != 10030: break
+        res = send_order_with_retry(req)
         
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             del self.mapping[str(m_ticket)]
@@ -3318,24 +3231,7 @@ class MonitorWorker(threading.Thread):
                 self.log(f"❌ {exec_mode} Failed to close {pos.ticket} visualy.")
                 # Fallback to API if ghost failed (maybe it's not blocked anymore)
 
-        res = mt5.order_send(req)
-        
-        # RETRY LOGIC FOR FILLING MODE (Error 10030)
-        if res.retcode == 10030: # Unsupported filling mode
-            # ...
-            # Try alternate filling modes
-            modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
-            # Remove the one we just tried
-            current_mode = req["type_filling"]
-            if current_mode in modes: modes.remove(current_mode)
-            
-            for mode in modes:
-                req["type_filling"] = mode
-                res = mt5.order_send(req)
-                if res.retcode == mt5.TRADE_RETCODE_DONE:
-                    break
-                if res.retcode != 10030: # If other error, stop retrying filling modes
-                    break
+        res = send_order_with_retry(req)
         
         msg = ""
         if res.retcode == mt5.TRADE_RETCODE_DONE:
@@ -3886,7 +3782,6 @@ class MonitorWorker(threading.Thread):
                                                 # We consider it a manual update.
                                                 # Note: We don't overwrite 'risk_points' (initial risk) to preserve R calc based on entry.
                                                 # But we should respect this SL for closing.
-                                                pass
 
                                             # Calculate buffer in price
                                             buffer_price = 10 * point
@@ -5599,87 +5494,6 @@ class App(ctk.CTk):
             return mt5.initialize(path)
         else:
             return mt5.initialize()
-
-    # def calculate_lot(self):
-    #     self.lbl_pos_msg.configure(text="", text_color="yellow")
-    #     
-    #     if not self.ensure_mt5_connection():
-    #          self.lbl_pos_msg.configure(text=T("pos_msg_err_sym"), text_color="red")
-    #          return
-    #
-    #     try:
-    #         symbol = self.ent_pos_sym.get().strip().upper()
-    #         if not symbol:
-    #             self.lbl_pos_msg.configure(text=T("pos_msg_err_sym"), text_color="red")
-    #             return
-    #         
-    #         risk_pct = float(self.ent_pos_risk.get())
-    #         sl_points = int(self.ent_pos_sl.get())
-    #         
-    #         if sl_points <= 0:
-    #             self.lbl_pos_msg.configure(text=T("err_sl_points"), text_color="red")
-    #             return
-    #
-    #         # Get Balance
-    #         start_balance = get_start_day_balance()
-    #         self.val_pos_bal.configure(text=f"${start_balance:,.2f}")
-    #         
-    #         if start_balance <= 0:
-    #             self.lbl_pos_msg.configure(text=T("pos_msg_err_bal"), text_color="red")
-    #             return
-    #
-    #         # Get Symbol Info
-    #         info = mt5.symbol_info(symbol)
-    #         if not info:
-    #             # Try to select
-    #             mt5.symbol_select(symbol, True)
-    #             info = mt5.symbol_info(symbol)
-    #         
-    #         if not info:
-    #             self.lbl_pos_msg.configure(text=T("pos_msg_err_sym"), text_color="red")
-    #             return
-    #
-    #         # Calculate Money Risk
-    #         risk_money = start_balance * (risk_pct / 100.0)
-    #         
-    #         # Calculate Value per Point for 1 Lot
-    #         if info.trade_tick_size == 0:
-    #             self.lbl_pos_msg.configure(text=T("err_tick_size"), text_color="red")
-    #             return
-    #
-    #         tick_value = info.trade_tick_value
-    #         # If tick_value is 0 (sometimes happens if not in Market Watch), try to add to market watch
-    #         if tick_value == 0:
-    #             mt5.symbol_select(symbol, True)
-    #             info = mt5.symbol_info(symbol)
-    #             tick_value = info.trade_tick_value
-    #         
-    #         if tick_value == 0:
-    #              self.lbl_pos_msg.configure(text=T("err_tick_value"), text_color="red")
-    #              return
-    #
-    #         point_value = tick_value * (info.point / info.trade_tick_size)
-    #         
-    #         # Loss = Lot * SL_Points * Point_Value
-    #         # Lot = Loss / (SL_Points * Point_Value)
-    #         
-    #         lot = risk_money / (sl_points * point_value)
-    #         
-    #         # Normalize Lot
-    #         step = info.volume_step
-    #         if step > 0:
-    #             lot = round(lot / step) * step
-    #             lot = round(lot, 2) # Limit decimals
-    #         
-    #         lot = max(lot, info.volume_min)
-    #         lot = min(lot, info.volume_max)
-    #         
-    #         self.val_pos_lot.delete(0, "end")
-    #         self.val_pos_lot.insert(0, str(lot))
-    #         self.lbl_pos_msg.configure(text=T("pos_msg_calc_ok"), text_color="green")
-    #         
-    #     except Exception as e:
-    #         self.lbl_pos_msg.configure(text=f"{T('msg_error')}: {e}", text_color="red")
 
     def send_order(self, order_type):
         self.lbl_pos_msg.configure(text="", text_color="yellow")

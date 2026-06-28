@@ -29,14 +29,15 @@ try:
         _cfg = json.load(_f)
     TELEGRAM_TOKEN = _cfg.get("telegram_token", "")
     TELEGRAM_CHAT_ID = _cfg.get("telegram_chat_id", "")
+    MT5_PATH = _cfg.get("mt5_path", "")
 except Exception:
     TELEGRAM_TOKEN = ""
     TELEGRAM_CHAT_ID = ""
+    MT5_PATH = ""
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
 TARGET_HOURS = list(range(2, 17))
-MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 BROKER_GMT = 0
 
 def get_schedule_reminders(broker_dt):

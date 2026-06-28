@@ -7,7 +7,6 @@ Chay nen doc mimo_proxy_cmd.txt -> xu ly -> ghi mimo_proxy_result.txt
 import os
 import sys
 import time
-import json
 from datetime import datetime
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
