@@ -50,9 +50,9 @@ def create_lock():
                 if handle:
                     ctypes.windll.kernel32.CloseHandle(handle)
                     return False
-            except:
+            except (OSError, ValueError):
                 pass
-        except:
+        except (IOError, ValueError):
             pass
     with open(LOCK_FILE, "w") as f:
         f.write(str(os.getpid()))
@@ -62,7 +62,7 @@ def remove_lock():
     try:
         if os.path.exists(LOCK_FILE):
             os.remove(LOCK_FILE)
-    except:
+    except OSError:
         pass
 
 def main():
@@ -99,7 +99,7 @@ def main():
 
                         try:
                             os.remove(CMD_FILE)
-                        except:
+                        except OSError:
                             pass
 
                 time.sleep(1)
