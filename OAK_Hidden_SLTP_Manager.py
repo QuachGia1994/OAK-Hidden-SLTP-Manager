@@ -1073,19 +1073,27 @@ class CopyTradeManager:
         self.scheduled_file = f"waiting_{safe_name}.json"
         
         self.mapping = load_json(self.local_map_file) # {master_ticket: slave_ticket}
+        self.mapping_lock = threading.Lock()
         self.scheduled_trades = load_json(self.scheduled_file)
         if not isinstance(self.scheduled_trades, list):
             self.scheduled_trades = []
         self.connected_logged = False
 
         # --- IGNORE EXISTING MASTER TRADES ON STARTUP ---
-        self.ignored_tickets = set()
+        self.ignored_file = f"ignored_{safe_name}.json"
+        self.ignored_tickets = set(load_json(self.ignored_file, []))
         if self.role == "slave" and os.path.exists(self.signal_file):
             try:
                 with open(self.signal_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                    new_ignored = set()
                     for p in data.get("positions", []):
-                        self.ignored_tickets.add(int(p["ticket"]))
+                        ticket = int(p["ticket"])
+                        if ticket not in self.ignored_tickets:
+                            new_ignored.add(ticket)
+                    if new_ignored:
+                        self.ignored_tickets.update(new_ignored)
+                        save_json(self.ignored_file, list(self.ignored_tickets))
                 if self.ignored_tickets:
                     self.notify(T("log_ignored_trades").format(count=len(self.ignored_tickets)))
             except:
@@ -2414,6 +2422,17 @@ class CopyTradeManager:
             self.connected_logged = False
             return
         
+        # Check freshness - warn if master file is stale
+        try:
+            file_age = time.time() - os.path.getmtime(self.signal_file)
+            if file_age > 60:
+                if not hasattr(self, "_stale_warned") or time.time() - self._stale_warned > 300:
+                    profile_name = self.config.get("profile_name", "Unknown")
+                    self.notify(f"⚠️ [{profile_name}] Master signal file is {int(file_age)}s old. Master may be disconnected.")
+                    self._stale_warned = time.time()
+        except:
+            pass
+        
         try:
             with open(self.signal_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -2486,19 +2505,22 @@ class CopyTradeManager:
         # Check if slave trade still exists.
         
         # Snapshot of slave keys to avoid modification during iteration
-        mapped_master_tickets = list(self.mapping.keys())
+        with self.mapping_lock:
+            mapped_master_tickets = list(self.mapping.keys())
         
         for m_ticket in mapped_master_tickets:
             try:
                 m_ticket_int = int(m_ticket)
             except:
-                del self.mapping[m_ticket]
-                save_json(self.local_map_file, self.mapping)
+                with self.mapping_lock:
+                    del self.mapping[m_ticket]
+                    save_json(self.local_map_file, self.mapping)
                 continue
             # If Master Trade is GONE
             if m_ticket_int not in master_positions:
                 # Close Slave Trade
-                slave_ticket = self.mapping[m_ticket]
+                with self.mapping_lock:
+                    slave_ticket = self.mapping[m_ticket]
                 self._close_copy_trade(m_ticket, slave_ticket)
 
     def _safe_float(self, val, default=0.01):
@@ -2943,9 +2965,9 @@ class CopyTradeManager:
             self.notify(f"[{profile_name}] {T('log_copy_err')} Symbol mismatch! Master: {raw_symbol} -> Slave: ???")
             return
             
-        # STEALTH: Delay
+        # STEALTH: Delay (reduced to minimize process blocking)
         if self.stealth:
-            delay = random.uniform(0.5, 3.0)
+            delay = random.uniform(0.3, 1.5)
             time.sleep(delay)
             
         # Calc Lot
@@ -3026,8 +3048,9 @@ class CopyTradeManager:
         
         if res.retcode == mt5.TRADE_RETCODE_DONE:
             # Save Mapping
-            self.mapping[str(m_ticket)] = res.order # res.order is the ticket
-            save_json(self.local_map_file, self.mapping)
+            with self.mapping_lock:
+                self.mapping[str(m_ticket)] = res.order # res.order is the ticket
+                save_json(self.local_map_file, self.mapping)
             
             msg = f"[{profile_name}] {T('log_copy_open')} {symbol} | Vol {lot} | Origin {m_ticket}"
             self.notify(msg)
@@ -3042,17 +3065,18 @@ class CopyTradeManager:
         
         if not positions:
             # Already closed manually?
-            del self.mapping[str(m_ticket)]
-            save_json(self.local_map_file, self.mapping)
+            with self.mapping_lock:
+                del self.mapping[str(m_ticket)]
+                save_json(self.local_map_file, self.mapping)
             return
             
         pos = positions[0]
         tick = mt5.symbol_info_tick(pos.symbol)
         if not tick: return
         
-        # STEALTH: Delay
+        # STEALTH: Delay (reduced to minimize process blocking)
         if self.stealth:
-            time.sleep(random.uniform(0.5, 2.0))
+            time.sleep(random.uniform(0.2, 1.0))
             
         req = {
             "action": mt5.TRADE_ACTION_DEAL,
@@ -3071,8 +3095,9 @@ class CopyTradeManager:
         res = send_order_with_retry(req)
         
         if res.retcode == mt5.TRADE_RETCODE_DONE:
-            del self.mapping[str(m_ticket)]
-            save_json(self.local_map_file, self.mapping)
+            with self.mapping_lock:
+                del self.mapping[str(m_ticket)]
+                save_json(self.local_map_file, self.mapping)
             msg = f"[{profile_name}] {T('log_copy_close')} {pos.symbol} | {pos.volume}"
             self.notify(msg)
         else:
