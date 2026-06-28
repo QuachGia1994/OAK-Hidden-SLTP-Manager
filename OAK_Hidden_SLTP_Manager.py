@@ -1071,6 +1071,7 @@ class CopyTradeManager:
         safe_name = "".join([c for c in profile_name if c.isalpha() or c.isdigit() or c in (' ', '-', '_')]).strip()
         self.local_map_file = f"copy_map_{safe_name}.json"
         self.scheduled_file = f"waiting_{safe_name}.json"
+        self.scheduled_close_file = f"scheduled_close_{safe_name}.json"
         
         self.mapping = load_json(self.local_map_file) # {master_ticket: slave_ticket}
         self.mapping_lock = threading.Lock()
@@ -1840,8 +1841,10 @@ class CopyTradeManager:
                         target_dt += timedelta(days=1)
                     target_date_str = target_dt.strftime("%Y-%m-%d")
 
-                    if not hasattr(self, "_scheduled_close"): self._scheduled_close = []
+                    if not hasattr(self, "_scheduled_close"):
+                        self._scheduled_close = load_json(self.scheduled_close_file, [])
                     self._scheduled_close.append({"time": time_val, "date": target_date_str, "filter": filter_type, "sym": target_sym})
+                    save_json(self.scheduled_close_file, self._scheduled_close)
                     self.notify(f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG ({filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
                 except:
                     resp = get_natural_response("error", error="Sai định dạng giờ rồi anh ơi!")
@@ -1970,6 +1973,7 @@ class CopyTradeManager:
                     if hasattr(self, "_scheduled_close"):
                         deleted_scheduled = len(self._scheduled_close)
                         self._scheduled_close = []
+                        save_json(self.scheduled_close_file, [])
                     
                     # self.notify(f"🗑️ [{profile_name}] Đã xóa {deleted_partials} lệnh Partial và {deleted_scheduled} lệnh hẹn giờ ĐÓNG.")
                     resp = get_natural_response("all_ticket_close_deleted", p_count=deleted_partials, s_count=deleted_scheduled)
@@ -2734,6 +2738,7 @@ class CopyTradeManager:
             
             if len(remaining_closes) != len(self._scheduled_close):
                 self._scheduled_close = remaining_closes
+                save_json(self.scheduled_close_file, self._scheduled_close)
                 
         if changed:
             save_json(self.scheduled_file, self.scheduled_trades)
