@@ -23,9 +23,7 @@ import subprocess
 import urllib.request
 import urllib.parse
 import re
-import tempfile
 from datetime import datetime
-from pathlib import Path
 
 try:
     import telebot
@@ -87,6 +85,9 @@ def load_json(path, default=None):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"[WARN] Corrupt JSON {path}: {e}")
+        return default
     except Exception:
         return default
 
@@ -155,70 +156,35 @@ def execute_mimo_via_shell(command):
     Thuc thi lenh MiMo qua shell script.
     Su dung subprocess voi stdin/stdout redirect.
     """
-    # Tim duong dan mimo CLI
-    mimo_cmd = "mimo"
-    
-    # Tạo file temp chứa input
-    input_file = os.path.join(PROJECT_DIR, "_mimo_input.txt")
-    output_file = os.path.join(PROJECT_DIR, "_mimo_output.txt")
+    input_data = command + "\ny\n"
     
     try:
-        # Ghi input vào file
-        with open(input_file, "w", encoding="utf-8") as f:
-            f.write(command + "\n")
-            f.write("y\n")  # Auto-confirm
+        result = subprocess.run(
+            ["mimo"],
+            input=input_data,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=PROJECT_DIR,
+        )
         
-        # Chạy mimo với input từ file
-        if sys.platform == "win32":
-            # Windows: dùng cmd.exe
-            shell_cmd = f'{mimo_cmd} < "{input_file}" > "{output_file}" 2>&1'
-            process = subprocess.Popen(
-                shell_cmd,
-                shell=True,
-                cwd=PROJECT_DIR,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-        else:
-            # Linux/Mac
-            process = subprocess.Popen(
-                [mimo_cmd],
-                stdin=open(input_file, "r"),
-                stdout=open(output_file, "w"),
-                stderr=subprocess.STDOUT,
-                cwd=PROJECT_DIR,
-            )
+        output = result.stdout.strip()
+        if not output and result.stderr:
+            output = result.stderr.strip()
         
-        # Đợi với timeout
-        try:
-            process.wait(timeout=120)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            return "⏰ MiMo Code hết thời gian phản hồi (120s)."
-        
-        # Đọc kết quả
-        if os.path.exists(output_file):
-            with open(output_file, "r", encoding="utf-8") as f:
-                output = f.read().strip()
-            if output:
-                if len(output) > 3500:
-                    output = output[:3500] + "\n\n...[Cắt bột]..."
-                return output
+        if output:
+            if len(output) > 3500:
+                output = output[:3500] + "\n\n...[Cắt bột]..."
+            return output
         
         return "MiMo đã thực thi xong nhưng không có output."
     
     except FileNotFoundError:
         return "❌ Không tìm thấy 'mimo' command. Hãy cài MiMo Code CLI."
+    except subprocess.TimeoutExpired:
+        return "⏰ MiMo Code hết thời gian phản hồi (120s)."
     except Exception as e:
         return f"❌ Lỗi shell: {str(e)}"
-    finally:
-        # Dọn dẹp
-        for f in [input_file, output_file]:
-            try:
-                if os.path.exists(f):
-                    os.remove(f)
-            except:
-                pass
 
 def execute_mimo_via_file_proxy(command):
     """
@@ -628,7 +594,7 @@ if __name__ == "__main__":
     print("=" * 55)
     print("  MiMo Bridge Bot v2.0 - Telegram <-> MiMo Code CLI")
     print(f"  Project: {PROJECT_DIR}")
-    print(f"  Token:   {BOT_TOKEN[:10]}...")
+    print(f"  Token:   {'SET' if BOT_TOKEN else 'MISSING'}")
     print(f"  Admin:   {ADMIN_CHAT_ID or '(Chua set - dung /myid)'}")
     print("=" * 55)
     print("  Dang chay... Ctrl+C de dung")

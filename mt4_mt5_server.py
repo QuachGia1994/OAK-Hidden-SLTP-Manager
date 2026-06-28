@@ -21,12 +21,6 @@ except ImportError:
     print("Loi: pip install MetaTrader5")
     sys.exit(1)
 
-try:
-    import flask
-except ImportError:
-    print("Loi: pip install Flask")
-    sys.exit(1)
-
 # =====================================================================
 # CAU HINH - doc tu config.json (gitignored)
 # =====================================================================
@@ -36,12 +30,13 @@ try:
         _cfg = json.load(_f)
     TELEGRAM_TOKEN = _cfg.get("telegram_token", "")
     TELEGRAM_CHAT_ID = _cfg.get("telegram_chat_id", "")
+    MT5_PATH = _cfg.get("mt5_path", "")
 except Exception:
     TELEGRAM_TOKEN = ""
     TELEGRAM_CHAT_ID = ""
+    MT5_PATH = ""
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
-MT5_PATH = r"C:\Program Files\MetaTrader 5 IC Markets Global\terminal64.exe"
 TARGET_HOURS = list(range(2, 17))
 BROKER_GMT = 0
 
@@ -88,6 +83,30 @@ def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
     target_broker = broker_dt.replace(hour=hour, minute=minute, second=second, microsecond=0)
     target_utc = target_broker - timedelta(hours=BROKER_GMT)
     return calendar.timegm(target_utc.timetuple())
+
+def get_schedule_note(broker_dt):
+    """Return a short note about today's schedule focus."""
+    today = broker_dt.date()
+    year = today.year
+    month = today.month
+    last_day = calendar.monthrange(year, month)[1]
+
+    last_fri = today.replace(day=last_day)
+    while last_fri.weekday() != 4:
+        last_fri -= timedelta(days=1)
+    if today == last_fri:
+        return "THU 6 CUOI THANG"
+
+    last_wed = today.replace(day=last_day)
+    while last_wed.weekday() != 2:
+        last_wed -= timedelta(days=1)
+    if today == last_wed:
+        return "THU 4 CUOI THANG"
+
+    if today.weekday() == 2 and today.day in (1, 30):
+        return "THU 4 NGAY 30/1 TAY"
+
+    return "Binh thuong"
 
 # =====================================================================
 # MT5 CANDLE
@@ -229,7 +248,7 @@ def receive_mt4_data():
 
     except Exception as e:
         print(f"[ERROR] {e}")
-        return jsonify({"status": "error", "msg": str(e)}), 500
+        return jsonify({"status": "error", "msg": "Internal server error"}), 500
 
 # =====================================================================
 # TELEGRAM REPORT
