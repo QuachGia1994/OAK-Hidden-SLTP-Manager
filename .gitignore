@@ -1,6 +1,7 @@
 venv/
 __pycache__/
 build/
+dist/
 *.spec
 
 *.zip
@@ -23,3 +24,10 @@ tele_*.json
 news_cache*.json
 config.json
 .env
+
+# MiMo runtime files
+.mimocode/
+_mimo_input.txt
+_mimo_output.txt
+mimo_proxy_result.txt
+mimo_proxy_cmd.txt
