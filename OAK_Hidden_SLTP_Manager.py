@@ -5972,17 +5972,22 @@ class App(ctk.CTk):
                 return
 
         try:
-            # Clear console before start
-            self.console.configure(state="normal")
-            self.console.delete("1.0", "end")
-            self.console.configure(state="disabled")
-            if hasattr(self, 'copy_console') and self.copy_console.winfo_exists():
-                self.copy_console.configure(state="normal")
-                self.copy_console.delete("1.0", "end")
-                self.copy_console.configure(state="disabled")
-
-            # Update button text to dynamic status
+            # Update button text immediately for responsive UI
             self.btn_start.configure(text=T("btn_start") + "...", state="disabled")
+            
+            # Clear console in background to avoid UI freeze
+            def _clear_console():
+                try:
+                    self.console.configure(state="normal")
+                    self.console.delete("1.0", "end")
+                    self.console.configure(state="disabled")
+                    if hasattr(self, 'copy_console') and self.copy_console.winfo_exists():
+                        self.copy_console.configure(state="normal")
+                        self.copy_console.delete("1.0", "end")
+                        self.copy_console.configure(state="disabled")
+                except: pass
+            threading.Thread(target=_clear_console, daemon=True).start()
+            
             if getattr(sys, 'frozen', False):
                 cmd = [sys.executable, "--worker", "--profile", profile_name]
             else:
