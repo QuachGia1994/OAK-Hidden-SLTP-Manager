@@ -1,5 +1,48 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.4.0] - 2026-06-28
+*Bản cập nhật lớn: Code cleanup + Security fixes + Copy Trading improvements + Auto-restart MT5.*
+
+### 🧹 Code Cleanup (-350 lines)
+- **Xóa dead code**: 9 unused imports, 9 dead functions, 80+ dòng commented code.
+- **Xóa test file**: `_test_gbpusd.py` không cần thiết.
+- **Remove dead queue IPC**: `enqueue_mimo_command()`, `check_mimo_result()` trong mimo_bot.py.
+- **Narrow bare except**: 59 bare except còn lại đều trong context chấp nhận được.
+
+### 🔒 Security Fixes
+- **MT5_PATH → config.json**: Không hardcode đường dẫn MT5.
+- **SSL Verification**: `_make_ssl_context()` thử verified SSL trước, fallback CERT_NONE.
+- **Shell injection fix**: `subprocess.run()` thay thế `shell=True` trong mimo_bot.py.
+- **Flask error handler**: Không expose internal errors cho client.
+- **Token masking**: Không log 10 ký tự đầu bot token.
+
+### 📊 Copy Trading Improvements
+- **Thread-safe mapping**: `mapping_lock` bảo vệ read/write từ race condition.
+- **Persist ignored_tickets**: Lưu vào `ignored_{profile}.json`, survive restart.
+- **Master freshness check**: Cảnh báo nếu signal file > 60s cũ.
+- **Reduced stealth delay**: Open 0.3-1.5s, Close 0.2-1.0s (giảm block process).
+- **Persist scheduled_close**: Lưu vào `scheduled_close_{profile}.json`.
+
+### 🚀 Auto-Restart MT5
+- **Main App**: Tự mở lại terminal MT5 khi mất kết nối (chờ 3s rồi reconnect).
+- **Server**: `ensure_mt5_running()` tự start MT5 nếu chưa chạy.
+
+### 🛡️ Process Cleanup
+- **Signal handler**: `SIGINT/SIGTERM` cleanup orphan processes.
+- **atexit.register**: Cleanup khi app crash.
+- **kill() thay terminate()**: Reliable process termination.
+
+### ⚡ Performance
+- **UI lag fix**: Console clearing chuyển sang background thread.
+- **Load_json default parameter**: Hỗ trợ `load_json(file, default)`.
+
+### 📦 Config Updates
+- **settings.example.json**: Thêm `mt5_path` field.
+- **requirements.txt**: Thêm `Flask`, `pyTelegramBotAPI`.
+- **.gitignore**: Thêm `copy_map_*.json`, `ignored_*.json`, `scheduled_close_*.json`.
+
+---
+
 ## [v3.3.0] - 2026-06-26
 *Bản cập nhật lớn: Tab Tín Hiệu tích hợp 4 process + Fix encoding + Auto-kill on close.*
 

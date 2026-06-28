@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.3.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.4.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -7,7 +7,7 @@ Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK M
 - `Dời SL XAUUSD về hòa`: Tự dời SL về entry + 10 points buffer.
 - `Mua Vàng 0.1 lúc 19:30`: Hẹn giờ vào lệnh.
 
-## 📡 Tab Tín Hiệu (Mới)
+## 📡 Tab Tín Hiệu
 Tab gom tất cả 4 process vào 1 nơi duy nhất:
 
 ### Cách dùng
@@ -27,6 +27,27 @@ Tab gom tất cả 4 process vào 1 nơi duy nhất:
 ### Lưu ý
 - Khi tắt app (bấm X), tất cả process tự động dừng
 - Không cần mở cmd window riêng nữa
+
+## 🔄 Auto-Restart MT5 (Mới)
+Bot tự động xử lý khi MT5 bị tắt:
+
+1. **Phát hiện mất kết nối**: Kiểm tra mỗi 10 giây.
+2. **Tự khởi động terminal**: Chạy `terminal64.exe` từ config.
+3. **Chờ 3 giây**: Cho MT5 khởi động xong.
+4. **Kết nối lại**: `mt5.initialize(path)` tự động.
+
+### Cấu hình
+Trong `config.json`:
+```json
+{
+    "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+}
+```
+
+## 📊 Copy Trading (Cải tiến)
+- **Thread-safe**: Không còn race condition khi nhiều instance chạy.
+- **Persist state**: `ignored_tickets` và `scheduled_close` lưu xuống ổ cứng.
+- **Freshness check**: Cảnh báo nếu master signal > 60s cũ.
 
 ## 📡 MT4-MT5 Dual Signal System
 
@@ -64,7 +85,6 @@ Bot tự động nhắc khi khởi động vào các ngày quan trọng:
 Trong `mt5_signal_bot.py` và `mt4_mt5_server.py`:
 ```python
 BROKER_GMT = 0          # Giờ broker (UTC = 0)
-MT5_PATH = r"C:\...\terminal64.exe"  # Đường dẫn MT5
 TARGET_HOURS = list(range(2, 17))    # Giờ mục tiêu: 2-16
 SYMBOL = "GBPUSD"       # Cặp tiền
 ```
@@ -74,7 +94,8 @@ Token bot Telegram được lưu trong `config.json` (gitignored):
 ```json
 {
     "telegram_token": "YOUR_BOT_TOKEN_HERE",
-    "telegram_chat_id": "YOUR_CHAT_ID_HERE"
+    "telegram_chat_id": "YOUR_CHAT_ID_HERE",
+    "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
 }
 ```
 > **Lưu ý**: Tạo `config.json` theo mẫu trên, KHÔNG commit file này lên GitHub.

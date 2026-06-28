@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.3.0)
+# OAK Hidden SLTP Manager (v3.4.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -21,11 +21,22 @@ Tài liệu chi tiết:
 - Daily Briefing 06:00: tổng hợp tin kinh tế.
 - Multi-profile: 1 app quản lý nhiều terminal/account.
 
-### Tab Tín Hiệu (Mới)
+### Tab Tín Hiệu
 - **Gom 4 process vào 1 tab**: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker.
 - **2×2 grid layout**: Mỗi process 1 panel riêng với log real-time.
 - **Start/Stop riêng**: Bấm ▶/■ trên từng panel hoặc "BẮT ĐẦU/DỪNG TẤT CẢ".
 - **Auto-kill on close**: Tắt app tự động kill tất cả process con.
+
+### Auto-Restart MT5 (Mới)
+- **Tự mở lại terminal**: Khi MT5 bị tắt, bot tự khởi động lại terminal.
+- **Server auto-start**: mt4_mt5_server.py tự start MT5 nếu chưa chạy.
+- **Graceful cleanup**: Signal handler + atexit cleanup orphan processes.
+
+### Copy Trading (Cải tiến)
+- **Thread-safe**: `mapping_lock` bảo vệ racing conditions.
+- **Persist state**: `ignored_tickets` và `scheduled_close` lưu xuống ổ cứng.
+- **Freshness check**: Cảnh báo nếu master signal > 60s cũ.
+- **Reduced latency**: Stealth delay giảm (open 0.3-1.5s, close 0.2-1.0s).
 
 ### MT4-MT5 Dual Signal System
 - **Phân tích nến**: M5@35, M5@40, M30@00.
@@ -67,7 +78,7 @@ pip install -r requirements.txt
 2. Hoặc mở OAK Manager → tab **Tín Hiệu** → BẮT ĐẦU TẤT CẢ
 
 ## Cấu hình
-- `config.json`: Telegram bot token + chat ID (**gitignored**, không push lên GitHub).
+- `config.json`: Telegram bot token + chat ID + MT5 path (**gitignored**, không push lên GitHub).
 - `profiles.json`: danh sách profile MT5.
 - `settings.json`: setting chung.
 
@@ -75,7 +86,8 @@ pip install -r requirements.txt
 ```json
 {
     "telegram_token": "YOUR_BOT_TOKEN_HERE",
-    "telegram_chat_id": "YOUR_CHAT_ID_HERE"
+    "telegram_chat_id": "YOUR_CHAT_ID_HERE",
+    "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
 }
 ```
 > **Lưu ý**: `config.json` nằm trong `.gitignore`, KHÔNG được commit lên GitHub.
