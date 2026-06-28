@@ -54,10 +54,6 @@ SETTINGS_FILE = os.path.join(PROJECT_DIR, "settings.json")
 TELE_INBOX_FILE = os.path.join(PROJECT_DIR, "tele_inbox.json")
 TELE_OFFSET_FILE = os.path.join(PROJECT_DIR, "tele_offset.json")
 
-# Files cho MiMo Queue IPC
-MIMO_QUEUE_FILE = os.path.join(PROJECT_DIR, "mimo_queue.json")
-MIMO_RESULT_FILE = os.path.join(PROJECT_DIR, "mimo_result.json")
-
 # =====================================================================
 # BOT INSTANCE
 # =====================================================================
@@ -116,40 +112,6 @@ def send_telegram_msg(chat_id, text):
 def get_all_profiles():
     config = load_json(CONFIG_FILE)
     return list(config.keys())
-
-# =====================================================================
-# MIMO QUEUE IPC - File-based communication
-# =====================================================================
-def enqueue_mimo_command(command, chat_id, request_id=None):
-    """Đặt lệnh vào hàng đợi cho MiMo Worker"""
-    if request_id is None:
-        request_id = f"req_{int(time.time())}_{chat_id}"
-    
-    queue = load_json(MIMO_QUEUE_FILE, [])
-    if not isinstance(queue, list):
-        queue = []
-    
-    queue.append({
-        "id": request_id,
-        "command": command,
-        "chat_id": chat_id,
-        "timestamp": time.time(),
-        "status": "pending"
-    })
-    
-    save_json(MIMO_QUEUE_FILE, queue)
-    return request_id
-
-def check_mimo_result(request_id, timeout=120):
-    """Kiểm tra kết quả từ MiMo Worker"""
-    start = time.time()
-    while time.time() - start < timeout:
-        result = load_json(MIMO_RESULT_FILE, {})
-        if isinstance(result, dict) and result.get("id") == request_id:
-            if result.get("status") == "done":
-                return result.get("output", "Không có kết quả.")
-        time.sleep(2)
-    return None
 
 def execute_mimo_via_shell(command):
     """
@@ -430,12 +392,11 @@ def cmd_mimo(message):
         bot.reply_to(message, "Dùng: `/mimo <yêu cầu>`")
         return
     
-    req_id = enqueue_mimo_command(prompt, message.chat.id)
-    bot.reply_to(message, f"⏳ Đang gửi lệnh MiMo...\n📝 `{prompt}`\n🔑 ID: `{req_id}`")
+    bot.reply_to(message, f"⏳ Đang gửi lệnh MiMo...\n📝 `{prompt}`")
     
-    threading.Thread(target=_process_mimo, args=(message.chat.id, prompt, req_id), daemon=True).start()
+    threading.Thread(target=_process_mimo, args=(message.chat.id, prompt), daemon=True).start()
 
-def _process_mimo(chat_id, prompt, req_id):
+def _process_mimo(chat_id, prompt):
     """Xu ly lenh MiMo trong thread rieng"""
     try:
         cmd_lower = prompt.lower().strip()
