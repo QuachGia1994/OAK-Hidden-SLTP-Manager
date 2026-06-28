@@ -22,8 +22,32 @@ import ctypes
 import random
 import re
 import subprocess # For multi-process support
+import signal
+import atexit
 import oak_trading_reminders
 from oak_response_dict import get_random_response
+
+# --- PROCESS CLEANUP ---
+_running_processes = []
+
+def _cleanup_processes():
+    """Kill all spawned child processes on exit."""
+    for proc in _running_processes:
+        try:
+            if proc.poll() is None:
+                proc.kill()
+        except:
+            pass
+
+atexit.register(_cleanup_processes)
+
+def _signal_handler(signum, frame):
+    """Handle SIGINT/SIGTERM to cleanup processes."""
+    _cleanup_processes()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, _signal_handler)
+signal.signal(signal.SIGTERM, _signal_handler)
 
 # --- VERSION CONTROL ---
 # Dùng để giả lập thao tác người dùng khi Algo bị chặn hoặc cần che giấu 100%
@@ -3497,11 +3521,22 @@ class MonitorWorker(threading.Thread):
                     if time.time() - last_reconnect_check > 10.0:
                         last_reconnect_check = time.time()
                         if not mt5.terminal_info():
-                            self.log("⚠️ Connection lost. Reconnecting...")
+                            self.log("⚠️ Connection lost. Attempting reconnect...")
+                            # Try to restart MT5 terminal if path exists
+                            if path and os.path.exists(path):
+                                try:
+                                    self.log(f"🚀 Starting MT5 terminal: {path}")
+                                    subprocess.Popen([path])
+                                    time.sleep(3)  # Wait for terminal to start
+                                except Exception as e:
+                                    self.log(f"❌ Failed to start MT5: {e}")
+                            # Try to connect
                             if path: mt5.initialize(path)
                             else: mt5.initialize()
                             if mt5.terminal_info():
                                 self.log("✅ Reconnected.")
+                            else:
+                                self.log("⚠️ Still disconnected. Will retry in 10s...")
 
                     # Check Language Change (Every 2s)
                     if time.time() - last_lang_check > 2.0:
@@ -5846,6 +5881,8 @@ class App(ctk.CTk):
             self.after(2000, self.periodic_ui_refresh) # Check every 2s
 
     def on_closing(self):
+        # Cleanup all spawned processes
+        _cleanup_processes()
         # Stop all signal processes
         for key in list(self.signal_procs.keys()):
             self.stop_signal_process(key)
@@ -5853,7 +5890,7 @@ class App(ctk.CTk):
         for name, data in self.workers.items():
             if data["proc"].poll() is None:
                 try:
-                    data["proc"].terminate()
+                    data["proc"].kill()
                 except: pass
         self.destroy()
         sys.exit(0)
@@ -5970,6 +6007,9 @@ class App(ctk.CTk):
                 startupinfo=startupinfo,
                 creationflags=creationflags
             )
+            
+            # Register for cleanup on exit/crash
+            _running_processes.append(proc)
             
             # Reset logs for this run
             self.workers[profile_name] = {

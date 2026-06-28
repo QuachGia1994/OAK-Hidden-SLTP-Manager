@@ -291,6 +291,31 @@ def build_telegram(
 # MAIN
 # =====================================================================
 mt5_ready = False
+import subprocess
+import time as _time
+
+def ensure_mt5_running():
+    """Try to start MT5 terminal if not running."""
+    global mt5_ready
+    if mt5.terminal_info():
+        return True
+    # Try to start MT5 terminal
+    if MT5_PATH and os.path.exists(MT5_PATH):
+        try:
+            print(f"[INFO] Starting MT5 terminal: {MT5_PATH}")
+            subprocess.Popen([MT5_PATH])
+            _time.sleep(3)  # Wait for terminal to start
+        except Exception as e:
+            print(f"[ERROR] Failed to start MT5: {e}")
+    # Try to connect
+    ok = mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()
+    if ok:
+        mt5_ready = True
+        info = mt5.account_info()
+        if info:
+            print(f"[OK] MT5 connected: {info.server} | {info.login}")
+        return True
+    return False
 
 def main():
     global mt5_ready
@@ -301,13 +326,7 @@ def main():
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
-    ok = mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()
-    if ok:
-        mt5_ready = True
-        info = mt5.account_info()
-        if info:
-            print(f"  MT5: {info.server} | {info.login}")
-    else:
+    if not ensure_mt5_running():
         print(f"[WARN] MT5 init failed: {mt5.last_error()}")
         print("  Server van chay, nhung MT5 data se KHONG co.")
 
@@ -316,8 +335,10 @@ def main():
     print("  Dang chay... Ctrl+C de dung")
     print("=" * 55)
 
+    last_reconnect = _time.time()
     try:
-        app.run(host="0.0.0.0", port=5000, debug=False)
+        while True:
+            app.run(host="0.0.0.0", port=5000, debug=False)
     except KeyboardInterrupt:
         print("\n  Dung server.")
     finally:
