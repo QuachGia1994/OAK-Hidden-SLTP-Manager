@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.4.0)
+# OAK Hidden SLTP Manager (v3.5.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -41,9 +41,12 @@ Tài liệu chi tiết:
 ### MT4-MT5 Dual Signal System
 - **Phân tích nến**: M5@35, M5@40, M30@00.
 - **Logic**: M5 cùng chiều → M30 xác nhận; M5 ngược chiều → M30 xác nhận ngược.
+- **Entry Time Logic**: H=2 (2:49/3:10), H=3 conflict (4:19/4:24), H=3 same (3:49/4:10), H≥4 offset theo hour.
 - **Đồng bộ giờ UTC**: Miễn nhiễm DST từ `tick.time` MT5.
 - **Trigger x:45**: Gửi tín hiệu lúc x:45 mỗi giờ mục tiêu [2-16].
-- **Nhắc ngày đặc biệt**: Thứ 6 cuối tháng, Thứ 4 cuối tháng, Thứ 4 ngày 30/1, Thứ 4 đầu tháng.
+- **Weekends Off**: Tự động skip T7/CN.
+- **Telegram Bold Format**: Tô đậm giờ, giá O/C, entry time.
+- **Hour Notes**: Ghi chú cho từng mốc giờ (GBP, Vàng, W1...).
 
 ### MiMo Bridge Bot
 - **Telegram → MiMo Code CLI**: Điều khiển MiMo từ xa qua Telegram.
