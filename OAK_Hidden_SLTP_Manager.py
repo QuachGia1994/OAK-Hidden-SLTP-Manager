@@ -901,15 +901,17 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
-def load_json(file):
+def load_json(file, default=None):
+    if default is None:
+        default = {}
     if os.path.exists(file):
         try:
             with open(file, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
             print(f"[WARN] Corrupt JSON {file}: {e}")
-            return {}
-    return {}
+            return default
+    return default
 
 def save_json(file, data):
     with open(file, "w", encoding="utf-8") as f:
