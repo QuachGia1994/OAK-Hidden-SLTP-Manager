@@ -794,8 +794,8 @@ class OakTradingReminder:
                 except: pass
 
         try:
-            msg = urllib.parse.quote(clean_message)
-            url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={msg}"
+            msg = urllib.parse.quote(clean_message, safe="*")
+            url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={msg}&parse_mode=Markdown"
             with urllib.request.urlopen(url, timeout=10) as response:
                 result = response.read()
             
@@ -1238,8 +1238,8 @@ class OakTradingReminder:
         token = self.token or CURRENT_TOKEN
         if not token: return
         try:
-            msg = urllib.parse.quote(message)
-            url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={msg}"
+            msg = urllib.parse.quote(message, safe="*")
+            url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={msg}&parse_mode=Markdown"
             with urllib.request.urlopen(url, timeout=10) as response:
                 print(f"✅ Sent response to {chat_id}")
                 return response.read()
@@ -1293,7 +1293,14 @@ class OakTradingReminder:
             # self.process_commands()
 
             now = datetime.now()
-            
+
+            # Skip weekends (Saturday=5, Sunday=6) - no trading
+            if now.weekday() in (5, 6):
+                for _ in range(CHECK_INTERVAL):
+                    if not self.running or self._stop_event.is_set(): break
+                    time.sleep(1)
+                continue
+
             # 1. Daily Briefing (once a day at 06:00)
             if now.hour == 6 and now.minute == 0:
                 if self.last_briefing_date != now.date():
@@ -1316,7 +1323,6 @@ class OakTradingReminder:
                 # Unique keys for locks
                 date_str = now.strftime("%Y-%m-%d")
                 action_key = f"alert_action_{date_str}_{event_h:02d}{event_m:02d}"
-                pre_key = f"alert_pre_{date_str}_{event_h:02d}{event_m:02d}"
                 
                 # A. Action Now Alert (Exact time)
                 if now.hour == event_h and now.minute == event_m:
@@ -1327,18 +1333,6 @@ class OakTradingReminder:
                         self.send_telegram(msg)
                         winsound.Beep(1000, 500) # PC Alert
 
-                # B. Pre-Alert (30 mins before)
-                # Calculate pre-alert time
-                target_dt = now.replace(hour=event_h, minute=event_m, second=0, microsecond=0)
-                pre_dt = target_dt - timedelta(minutes=30)
-                
-                if now.hour == pre_dt.hour and now.minute == pre_dt.minute:
-                    if not self._is_event_locked(pre_key):
-                        msg = f"⏰ [OAK REMINDER] In 30 mins:\n• Time: {event_h:02d}:{event_m:02d}\n• Pair: {syms}\n• Note: {note}"
-                        if lang == "VN":
-                            msg = f"⏰ [OAK NHẮC NHỞ] Còn 30 phút nữa:\n• Giờ: {event_h:02d}:{event_m:02d}\n• Cặp: {syms}\n• Ghi chú: {note}"
-                        self.send_telegram(msg)
-            
             # Sleep in chunks to allow faster stopping
             for _ in range(CHECK_INTERVAL):
                 if not self.running or self._stop_event.is_set(): break

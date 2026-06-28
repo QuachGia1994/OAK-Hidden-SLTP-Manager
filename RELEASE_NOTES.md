@@ -1,5 +1,43 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.5.0] - 2026-06-28
+*Bản cập nhật: Entry Time Logic + Weekends Off + Telegram Bold Format + Hour Notes.*
+
+### 🎯 Entry Time Logic (Mới)
+- **H=2**: Dựa vào M30 direction → `2:49` hoặc `3:10`
+- **H=3 vs H=2 cùng chiều**: `3h49` hoặc `4h10`
+- **H=3 vs H=2 conflict**: `4h19` hoặc `4h24`
+- **H≥4**: Offset theo current hour → `H:49`, `(H+1):10`, `(H+1):19`, `(H+1):24`
+- **Logic chi tiết**:
+  - SELL + M30 TANG → `H:49`
+  - SELL + M30 GIAM → `(H+1):10`
+  - BUY + M30 TANG → `(H+1):19`
+  - BUY + M30 GIAM → `(H+1):24`
+
+### 📅 Weekends Off
+- **Skip T7/CN**: Bot không gửi任何 thông báo cuối tuần (Saturday=5, Sunday=6).
+- **Bỏ nhắc 30 phút trước**: Xóa block pre-alert "Còn 30 phút nữa".
+
+### 📝 Hour Notes
+- Thêm ghi chú cho từng mốc giờ:
+  - H=2: Đánh nhóm GBP + Vàng, đầu ngày đi ngược
+  - H=3: GBPAUD ngược, GBPJPY cùng (phiên Á)
+  - H=5: Vàng thứ 5 6 theo W1 sớm
+  - H=9: Đánh nhóm GBP + Vàng thứ 5 6 sw/theo W1
+  - H=11, H=14: Đánh nhóm GBP
+  - H=16: Thứ 2 và Thứ 6 D1 đi cùng / Thứ 4 bắt đầu tính W1
+
+### 🎨 Telegram Bold Format
+- **Tô đậm** label giờ (M5@16:35, M30@16:00)
+- **Tô đậm** giá O và C trong mỗi nến
+- **Tô đậm** entry time (`*2:49*`, `*3:10*`)
+- **Fix parse_mode**: `send_telegram()` giờ dùng `parse_mode=Markdown`
+
+### ⏰ Trigger Time Fix
+- **Hiển thị H:45**: Thay vì giờ broker hiện tại, hiển thị đúng trigger time
+
+---
+
 ## [v3.4.0] - 2026-06-28
 *Bản cập nhật lớn: Code cleanup + Security fixes + Copy Trading improvements + Auto-restart MT5.*
 
