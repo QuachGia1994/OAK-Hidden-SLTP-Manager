@@ -548,7 +548,7 @@ if __name__ == "__main__":
     import time as _time
     while True:
         try:
-            bot.polling(none_stop=True, timeout=30)
+            bot.polling(none_stop=True, timeout=30, skip_pending=True)
         except KeyboardInterrupt:
             print("\n  Đã dừng bot.")
             break
