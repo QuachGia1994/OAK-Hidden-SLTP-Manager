@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.6.0)
+# OAK Hidden SLTP Manager (v3.7.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -19,6 +19,7 @@ Tài liệu chi tiết:
 - Telegram NLP: câu tự nhiên (vd: "Mua Vàng 0.1 lúc 19:30").
 - Ghost Operator Mode: giả lập thao tác UI MT5 khi bị chặn Algo Trading.
 - Daily Briefing 06:00: tổng hợp tin kinh tế.
+- Rule Reminders: nhắc ngày đặc biệt (T4 cuối tháng, T4 ngày 30/1, T4 có T6 ngày 3/4/7, T2 có T4/T6 đặc biệt).
 - Multi-profile: 1 app quản lý nhiều terminal/account.
 
 ### Tab Tín Hiệu
@@ -49,12 +50,13 @@ Tài liệu chi tiết:
   - H=9,11: T3-7 nhóm GBP + Vàng cùng chiều.
   - H=16: T2,T5,T6 cùng chiều. T3,T4 ngược chiều.
 - **Monday GBP**: Chỉ trade H=2, H=3, H=16.
-- **D Direction (Mới)**: User gõ BUY/SELL qua Telegram để set hướng Daily. XAUUSD dừng báo khi H cùng D, trừ H=16.
+- **D Direction**: User gõ BUY/SELL qua Telegram để set hướng Daily. XAUUSD dừng báo khi H cùng D, trừ H=16.
 - **Đồng bộ giờ UTC**: Miễn nhiễm DST từ `tick.time` MT5.
 - **Trigger x:45**: Gửi tín hiệu lúc x:45 mỗi giờ mục tiêu [2-16].
 - **Weekends Off**: Tự động skip T7/CN.
 - **Telegram Bold Format**: Tô đậm giờ, giá O/C, entry time.
 - **Hour Notes**: Ghi chú cho từng mốc giờ (GBP, Vàng, W1...).
+- **Rule Reminders**: Tự nhắc 5 loại ngày đặc biệt cần tính lại (T4 cuối tháng, T4 ngày 30/1, T4 có T6 ngày 3/4/7, T2 có T4/T6 đặc biệt).
 
 ### MiMo Bridge Bot
 - **Telegram → MiMo Code CLI**: Điều khiển MiMo từ xa qua Telegram.

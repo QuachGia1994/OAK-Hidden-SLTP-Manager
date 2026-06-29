@@ -1,5 +1,26 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.7.0] - 2026-06-30
+*Xoá OAK ALERT ACTION NOW + Cập nhật Rule Reminders.*
+
+### 🗑️ Xoá OAK ALERT ACTION NOW
+- **Xoá hoàn toàn**: Không còn gửi Telegram ACTION NOW alerts theo schedule giờ từ OAK.
+- **Lý do**: MT5 Signal Bot đã xử lý việc gửi tín hiệu theo mốc giờ, OAK không cần gửi trùng.
+- **Giữ lại**: Daily Briefing, Rule Reminders, Projected PnL.
+
+### 📝 Rule Reminders mới (5 rule)
+| Ngày | Trigger | Thông báo |
+|------|---------|-----------|
+| T4 | cuối tháng | cần tính lại W1 |
+| T4 | ngày 30 | cần tính lại W1 |
+| T4 | ngày 1 | cần tính lại W1 |
+| T4 | có T6 ngày 3/4/7 | cần tính lại W1 |
+| T2 | có T4 ngày 30/1 hoặc T6 ngày 3/4/7 | cần tính lại thứ 2 |
+
+- **Mặc định**: "Thứ 2-6: trade bình thường theo schedule."
+
+---
+
 ## [v3.6.0] - 2026-06-29
 *Bản cập nhật: 5 cặp tiền + H-value Rules + D Direction + Monday GBP restriction.*
 

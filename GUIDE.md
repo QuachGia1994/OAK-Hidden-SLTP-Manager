@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.6.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.7.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -97,10 +97,11 @@ User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
 Bot tự động nhắc khi khởi động vào các ngày quan trọng:
 | Ngày | Nhắc |
 |------|-------|
-| Thứ 6 cuối tháng | ⚠️ THU 6 CUOI THANG |
-| Thứ 4 cuối tháng | ⚠️ THU 4 CUOI THANG |
-| Thứ 4 ngày 30 hoặc 1 tây | ⚠️ THU 4 NGAY 30/1 TAY |
-| Thứ 4 đầu tháng (Thứ 6 đầu tháng ngày 3/4/7) | ⚠️ THU 4 DAU THANG |
+| Thứ 4 cuối tháng | cần tính lại W1 |
+| Thứ 4 ngày 30 | cần tính lại W1 |
+| Thứ 4 ngày 1 | cần tính lại W1 |
+| Thứ 4 có T6 ngày 3/4/7 | cần tính lại W1 |
+| Thứ 2 có T4 ngày 30/1 hoặc T6 ngày 3/4/7 | cần tính lại thứ 2 |
 
 ### Missed Slot
 - Khi bot khởi động sau giờ mục tiêu, tự động phân tích slot đã lỡ.

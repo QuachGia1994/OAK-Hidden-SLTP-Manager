@@ -522,9 +522,6 @@ def _format_group_slots(slots):
 def get_day_notes(now, lang="VN"):
     weekday = now.weekday()
     day = now.day
-    month = now.month
-    day_names_vn = {0: "Thứ 2", 1: "Thứ 3", 2: "Thứ 4", 3: "Thứ 5", 4: "Thứ 6"}
-    day_names_en = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Friday"}
 
     def _is_last_weekday_of_month(dt, wd):
         last_day = calendar.monthrange(dt.year, dt.month)[1]
@@ -536,29 +533,39 @@ def get_day_notes(now, lang="VN"):
     notes_vn = []
     notes_en = []
 
-    if weekday in (2, 3, 4) and _is_last_weekday_of_month(now, weekday):
-        notes_vn.append(f"Hôm nay là {day_names_vn[weekday]} cuối tháng: cần tính lại.")
-        notes_en.append(f"Today is the last {day_names_en[weekday]} of the month: need to recalculate.")
+    # 1. T4 cuối tháng → cần tính lại W1
+    if weekday == 3 and _is_last_weekday_of_month(now, 3):
+        notes_vn.append("Thứ 4 cuối tháng: cần tính lại W1.")
+        notes_en.append("Last Thursday of month: recalculate W1.")
 
-    if weekday == 2 and day == 30:
-        notes_vn.append("Thứ 4 ngày 30: tính lại (Thứ 4, 5, 6).")
-        notes_en.append("Wednesday day 30: recalculate (Thu, Fri, Sat).")
+    # 2. T4 ngày 30 → cần tính lại W1
+    if weekday == 3 and day == 30:
+        notes_vn.append("Thứ 4 ngày 30: cần tính lại W1.")
+        notes_en.append("Thursday day 30: recalculate W1.")
 
-    if weekday == 2 and day == 1:
-        notes_vn.append("Thứ 4 ngày 1: tính lại (Thứ 4, 5, 6).")
-        notes_en.append("Wednesday day 1: recalculate (Thu, Fri, Sat).")
+    # 3. T4 ngày 1 → cần tính lại W1
+    if weekday == 3 and day == 1:
+        notes_vn.append("Thứ 4 ngày 1: cần tính lại W1.")
+        notes_en.append("Thursday day 1: recalculate W1.")
 
-    if weekday == 4 and day in (3, 4, 7):
-        notes_vn.append(f"Thứ 6 ngày {day}: tính lại (Thứ 4, 5, 6).")
-        notes_en.append(f"Friday day {day}: recalculate (Thu, Fri, Sat).")
+    # 4. T4 có T6 ngày 3/4/7 → cần tính lại W1
+    if weekday == 3:
+        friday = now + timedelta(days=1)
+        if friday.day in (3, 4, 7):
+            notes_vn.append("Thứ 4: T6 sắp tới ngày 3/4/7 → cần tính lại W1.")
+            notes_en.append("Thursday: upcoming Friday is day 3/4/7 → recalculate W1.")
 
-    if month in (2, 7) and weekday == 4 and _is_last_weekday_of_month(now, 4):
-        notes_vn.append(f"Thứ 6 cuối tháng {month}: tính lại trend năm.")
-        notes_en.append(f"Last Friday of month {month}: recalculate yearly trend.")
+    # 5. T2 có T4 ngày 30/1 hoặc T6 ngày 3/4/7 → cần tính lại thứ 2
+    if weekday == 0:
+        thursday = now + timedelta(days=3)
+        friday = now + timedelta(days=4)
+        if thursday.day in (30, 1) or friday.day in (3, 4, 7):
+            notes_vn.append("Thứ 2: T4 ngày 30/1 hoặc T6 ngày 3/4/7 → cần tính lại thứ 2.")
+            notes_en.append("Monday: Thu is day 30/1 or Fri is day 3/4/7 → recalculate Monday.")
 
     if lang == "VN":
-        return notes_vn if notes_vn else [f"Thứ 2-6: trade bình thường theo schedule."]
-    return notes_en if notes_en else [f"Mon-Fri: trade normally per schedule."]
+        return notes_vn if notes_vn else ["Thứ 2-6: trade bình thường theo schedule."]
+    return notes_en if notes_en else ["Mon-Fri: trade normally per schedule."]
 
 
 def generate_daily_reminder(now, lang="VN"):
@@ -1217,27 +1224,7 @@ class OakTradingReminder:
                     self.alerted_events.clear() # Reset alerts for new day
                 self.send_rule_reminders(now, lang=lang)
 
-            # 2. Check Schedule for Alerts (schedule hours are UTC broker chart time)
-            schedule = get_daily_schedule(now, lang=lang)
-
-            for event in schedule:
-                event_h = event["hour"]
-                event_m = event["minute"]
-                syms = event["syms"]
-                note = event["note"]
-
-                # Unique keys for locks (use UTC date to match broker chart day)
-                date_str = now_utc.strftime("%Y-%m-%d")
-                action_key = f"alert_action_{date_str}_{event_h:02d}{event_m:02d}"
-
-                # A. Action Now Alert (Exact time - compare against UTC)
-                if now_utc.hour == event_h and now_utc.minute == event_m:
-                    if not self._is_event_locked(action_key):
-                        msg = f"🔔 [OAK ALERT] ACTION NOW!\n• Time: {now.hour:02d}:{event_m:02d}\n• Pair: {syms}\n• Note: {note}"
-                        if lang == "EN":
-                            msg = f"🔔 [OAK ALERT] ACTION NOW!\n• Time: {now.hour:02d}:{event_m:02d}\n• Pair: {syms}\n• Note: {note}"
-                        self.send_telegram(msg)
-                        winsound.Beep(1000, 500) # PC Alert
+            # 2. Action Now alerts removed — use MT5 signal bot for Telegram alerts
 
             # Sleep in chunks to allow faster stopping
             for _ in range(CHECK_INTERVAL):
