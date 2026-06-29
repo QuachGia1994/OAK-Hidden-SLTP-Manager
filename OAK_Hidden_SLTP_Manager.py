@@ -4915,10 +4915,40 @@ class App(ctk.CTk):
                 "btn_stop": btn_stop, "lbl_pid": lbl_pid,
             }
 
+    def _kill_orphan_processes(self, key):
+        """Kill orphan processes that weren't tracked (e.g. from crashed sessions)"""
+        if os.name != 'nt':
+            return
+        script_map = {
+            "mimo_bot": "mimo_bot.py",
+            "mimo_worker": "mimo_worker.py",
+        }
+        script = script_map.get(key)
+        if not script:
+            return
+        try:
+            result = subprocess.run(
+                ["wmic", "process", "where",
+                 f"CommandLine like '%{script}%' and Name='python.exe'",
+                 "get", "ProcessId"],
+                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            for line in result.stdout.strip().split('\n'):
+                line = line.strip()
+                if line.isdigit():
+                    pid = int(line)
+                    if pid != os.getpid():
+                        subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                                       capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                        self.log(f"Killed orphan process: {script} (PID: {pid})")
+        except:
+            pass
+
     def start_signal_process(self, key):
         info = self.signal_procs.get(key)
         if not info or info["proc"] and info["proc"].poll() is None:
             return
+        self._kill_orphan_processes(key)
         try:
             startupinfo = None
             creationflags = 0
@@ -4970,7 +5000,7 @@ class App(ctk.CTk):
         info["btn_start"].configure(state="normal")
         info["btn_stop"].configure(state="disabled")
         info["lbl_pid"].configure(text="PID: ---")
-        # Clean up lock files
+        self._kill_orphan_processes(key)
         if key == "mimo_worker":
             lock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mimo_worker.lock")
             try:
