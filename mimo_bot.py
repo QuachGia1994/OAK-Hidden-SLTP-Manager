@@ -342,24 +342,6 @@ def cmd_positions(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Loi: {str(e)}")
 
-@bot.message_handler(commands=["signal"])
-def cmd_signal(message):
-    if not is_admin(message):
-        return
-    try:
-        import signal_logic
-        data = signal_logic.calculate_logic(None)
-        signals = data.get("signals", {})
-        lines = ["📡 *TÍN HIỆU*\n"]
-        for pair, info in signals.items():
-            sig = info.get("signal", "WAIT")
-            icon = {"BUY": "🟢", "SELL": "🔴"}.get(sig, "⚪")
-            lines.append(f"• {icon} *{pair}*: {sig}")
-        lines.append(f"\n⏰ {data.get('last_update', '?')}")
-        bot.reply_to(message, "\n".join(lines))
-    except Exception as e:
-        bot.reply_to(message, f"❌ Loi: {str(e)}")
-
 @bot.message_handler(commands=["news"])
 def cmd_news(message):
     if not is_admin(message):
@@ -428,7 +410,7 @@ def cmd_code(message):
         return
     parts = args.split(None, 1)
     if len(parts) < 2:
-        bot.reply_to(message, "Dùng: `/code signal_logic.py read`")
+        bot.reply_to(message, "Dùng: `/code oak_response_dict.py read`")
         return
     filename, action = parts
     filepath = os.path.join(PROJECT_DIR, filename)

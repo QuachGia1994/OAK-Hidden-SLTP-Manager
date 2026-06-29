@@ -217,7 +217,7 @@
 - **MiMo Bridge Bot**:
   - Telegram → MiMo Code CLI: điều khiển từ xa.
   - Worker nền với lock file chống trùng instance.
-  - Commands: `/mimo`, `/status`, `/signal`, `/profiles`, `/mt5`, `/positions`.
+  - Commands: `/mimo`, `/status`, `/profiles`, `/mt5`, `/positions`.
 - **CHAY_ALL.bat**: Khởi động tất cả (Server + Bot + Worker) trong 1 file.
 
 ### 🛠️ Cải tiến

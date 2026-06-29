@@ -60,7 +60,7 @@ Tài liệu chi tiết:
 
 ### MiMo Bridge Bot
 - **Telegram → MiMo Code CLI**: Điều khiển MiMo từ xa qua Telegram.
-- **Commands**: `/mimo`, `/status`, `/signal`, `/profiles`, `/mt5`, `/positions`, `/news`.
+- **Commands**: `/mimo`, `/status`, `/profiles`, `/mt5`, `/positions`, `/news`.
 - **File-based Worker**: Xử lý lệnh nền, chống trùng instance bằng lock file.
 
 ## Cấu trúc file
