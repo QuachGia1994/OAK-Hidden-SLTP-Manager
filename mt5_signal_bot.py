@@ -1,18 +1,17 @@
 # -*- coding: utf-8 -*-
 """
-MT5 Multi-Timeframe Signal Bot v3.0
-====================================
-Tinh gio hoan toan tu tick.time cua MT5 (UTC timestamp).
-Khong phu thuoc vao gio local may tinh/VPS.
+MT5 Multi-Timeframe Signal Bot v3.6.0
 """
 import os
 import sys
 import json
 import time
 import calendar
+from datetime import datetime, timedelta, timezone
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta, timezone
+
+from utils import send_telegram_raw, load_json_file, get_signal_icon, vn_direction
 
 try:
     import MetaTrader5 as mt5
@@ -37,7 +36,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = list(range(2, 17))
+TARGET_HOURS = [2, 3, 5, 7, 9, 11, 14, 15, 16]
 BROKER_GMT = 0
 
 def get_schedule_reminders(broker_dt):
@@ -81,16 +80,67 @@ def get_schedule_reminders(broker_dt):
 # =====================================================================
 def send_telegram(text):
     try:
-        msg = urllib.parse.quote(text, safe="*")
-        url = (
-            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-            f"/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={msg}&parse_mode=Markdown"
-        )
-        with urllib.request.urlopen(url, timeout=15) as resp:
-            return resp.read()
+        return send_telegram_raw(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, text)
     except Exception as e:
         print(f"[ERROR] Telegram: {e}")
         return None
+
+d_reminder_sent_date = None
+
+def send_d_direction_reminder():
+    global d_reminder_sent_date
+    today = datetime.now().date()
+    if d_reminder_sent_date == today:
+        return
+    msg = (
+        "📝 NHẬP DIRECTION CHO NGÀY HÔM NAY\n"
+        "============================\n"
+        "Gõ BUY hoặc SELL qua Telegram\n"
+        "để set hướng Daily (D).\n\n"
+        "Ví dụ: gõ 'BUY' hoặc 'SELL'\n"
+        "============================\n"
+        "D direction dùng để dừng báo\n"
+        "XAUUSD khi H cùng chiều D."
+    )
+    send_telegram(msg)
+    d_reminder_sent_date = today
+    print("  [D-REMINDER] Sent daily reminder")
+
+def check_d_direction_input():
+    global d_direction, d_direction_date
+    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+        return
+    id_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "d_dir_last_id.txt")
+    last_id = 0
+    try:
+        if os.path.exists(id_file):
+            with open(id_file, "r") as f:
+                last_id = int(f.read().strip())
+    except:
+        pass
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_id + 1}&timeout=1"
+        with urllib.request.urlopen(url, timeout=5) as response:
+            data = json.load(response)
+            if not data.get("ok"):
+                return
+            for update in data.get("result", []):
+                new_last_id = update["update_id"]
+                msg_obj = update.get("message") or update.get("channel_post")
+                if not msg_obj:
+                    continue
+                text = (msg_obj.get("text") or "").strip().upper()
+                if text in ("BUY", "SELL", "MUA", "BAN"):
+                    direction = "BUY" if text in ("BUY", "MUA") else "SELL"
+                    set_d_direction(direction)
+                    send_telegram(f"✅ Daily direction đã set: {direction}")
+                    print(f"  [D-DIRECTION] Set to {direction}")
+                last_id = new_last_id
+            if last_id > 0:
+                with open(id_file, "w") as f:
+                    f.write(str(last_id))
+    except Exception as e:
+        pass
 
 # =====================================================================
 # TIME HELPERS
@@ -116,7 +166,7 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
 
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 1000)
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 200)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
         return None
@@ -157,44 +207,26 @@ def candle_info_line(candle, label):
         return f"  {label}: Khong co du lieu"
     d = candle_direction(candle)
     arrow = {"TANG": "\u2191", "GIAM": "\u2193", "DOJI": "\u2194"}.get(d, "")
-    vn = {"TANG": "Tăng", "GIAM": "Giảm", "DOJI": "Doji"}.get(d, "?")
+    vn = vn_direction(d)
     return (
         f"  *{label}: {vn} {arrow}*\n"
         f"    *O={candle['open']:.5f} C={candle['close']:.5f}* "
         f"H={candle['high']:.5f} L={candle['low']:.5f}"
     )
 
-def get_entry_time(signal, m30_dir, H):
-    """Entry time for H>=4: offset based on current hour H.
-    SELL+TANG -> H:49, SELL+GIAM -> (H+1):10
-    BUY+TANG -> (H+1):19, BUY+GIAM -> (H+1):24"""
+def calc_entry_time(signal, m30_dir, H=None, h2_signal=None):
+    """Calculate entry time based on signal + M30 direction + whether signal matches H=2.
+    h2_signal: the signal at H=2 ('BUY'/'SELL'/None). Used to determine same vs different group."""
     if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
         return None
-    if signal == "SELL" and m30_dir == "TANG":
-        return f"{H}:49"
-    if signal == "SELL" and m30_dir == "GIAM":
-        return f"{H+1}:10"
-    if signal == "BUY" and m30_dir == "TANG":
-        return f"{H+1}:19"
-    if signal == "BUY" and m30_dir == "GIAM":
-        return f"{H+1}:24"
+    same_m30 = (signal == "BUY" and m30_dir == "TANG") or (signal == "SELL" and m30_dir == "GIAM")
 
-def get_conflict_entry_time(signal, m30_dir):
-    """Conflict scenario: H=2 vs H=3 opposite signals.
-    Entry at 4h19 or 4h24 based on M30 direction.
-    SELL+TANG=4h24, SELL+GIAM=4h19, BUY+TANG=4h19, BUY+GIAM=4h24"""
-    if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
-        return None
-    same_dir = (signal == "BUY" and m30_dir == "TANG") or (signal == "SELL" and m30_dir == "GIAM")
-    return "4h19" if same_dir else "4h24"
+    matches_h2 = (h2_signal is not None and signal == h2_signal)
 
-def get_same_entry_time(signal, m30_dir):
-    """Same direction: H=2 vs H=3 same signals -> 3h49 or 4h10.
-    BUY+GIAM/SELL+TANG=3h49, BUY+TANG/SELL+GIAM=4h10"""
-    if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
-        return None
-    same_dir = (signal == "BUY" and m30_dir == "TANG") or (signal == "SELL" and m30_dir == "GIAM")
-    return "4h10" if same_dir else "3h49"
+    if matches_h2:
+        return f"{H+1}:10" if same_m30 else f"{H}:49"
+    else:
+        return f"{H+1}:19" if same_m30 else f"{H+1}:24"
 
 # =====================================================================
 # PHAN TICH TIN HIEU
@@ -228,9 +260,9 @@ def analyze(broker_dt, H):
     if d_m30 == "DOJI":
         return {"signal": "WAIT", "report": "M30@00 là DOJI - Không đủ điều kiện"}
 
-    vn_m35 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m35, d_m35)
-    vn_m40 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m40, d_m40)
-    vn_m30 = {"TANG": "Tăng", "GIAM": "Giảm"}.get(d_m30, d_m30)
+    vn_m35 = vn_direction(d_m35)
+    vn_m40 = vn_direction(d_m40)
+    vn_m30 = vn_direction(d_m30)
 
     if d_m35 == d_m40:
         signal = "BUY" if d_m30 == "TANG" else "SELL"
@@ -255,45 +287,128 @@ def analyze(broker_dt, H):
 
 def get_hour_note(H):
     notes = {
-        2: "Đánh nhóm GBP + Vàng, đầu ngày đi ngược",
-        3: "GBPAUD ngược, GBPJPY cùng (phiên Á)",
-        5: "Vàng thứ 5 6 theo W1 sớm",
-        9: "Đánh nhóm GBP + Vàng thứ 5 6 sw/theo W1",
-        11: "Đánh nhóm GBP",
-        14: "Đánh nhóm GBP",
-        16: "Thứ 2 và Thứ 6 D1 đi cùng / Thứ 4 bắt đầu tính W1",
+        2: "Nhóm GBP cùng chiều, Vàng ngược chiều",
+        3: "GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều",
+        5: "Chỉ Vàng cùng chiều gốc",
+        7: "Chỉ Vàng cùng chiều gốc",
+        9: "T3-7: Nhóm GBP + Vàng cùng chiều",
+        11: "T3-7: Nhóm GBP + Vàng cùng chiều",
+        14: "Chỉ Vàng cùng chiều gốc",
+        15: "Chỉ Vàng cùng chiều gốc",
+        16: "T2,T5,T6: cùng chiều. T3,T4: ngược chiều",
     }
     return notes.get(H)
+
+GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
+ALL_PAIRS = GBP_PAIRS + ["XAUUSD"]
+
+# Daily direction for XAUUSD (set via Telegram input)
+d_direction = None  # 'BUY' or 'SELL'
+d_direction_date = None  # date when set
+d_matched_hour = None  # H where signal matched D (stops reporting after)
+
+def set_d_direction(direction):
+    global d_direction, d_direction_date, d_matched_hour
+    d_direction = direction.upper() if direction else None
+    d_direction_date = datetime.now().date() if d_direction else None
+    d_matched_hour = None
+
+def get_pair_direction(H, signal, broker_dt):
+    global d_direction, d_direction_date
+    weekday = broker_dt.weekday()
+    today = broker_dt.date()
+    result = {}
+
+    if d_direction_date != today:
+        d_direction = None
+
+    if H == 2:
+        for p in GBP_PAIRS:
+            result[p] = signal
+        result["XAUUSD"] = "SELL" if signal == "BUY" else "BUY"
+
+    elif H == 3:
+        for p in GBP_PAIRS:
+            result[p] = signal
+        if weekday == 0:
+            result["GBPAUD"] = signal
+        else:
+            result["GBPAUD"] = "SELL" if signal == "BUY" else "BUY"
+        result["XAUUSD"] = signal
+
+    elif H in (5, 7):
+        result["XAUUSD"] = signal
+
+    elif H == 9:
+        if weekday != 0:
+            for p in GBP_PAIRS:
+                result[p] = signal
+        result["XAUUSD"] = signal
+
+    elif H == 11:
+        if weekday != 0:
+            for p in GBP_PAIRS:
+                result[p] = signal
+        result["XAUUSD"] = signal
+
+    elif H in (14, 15):
+        result["XAUUSD"] = signal
+
+    elif H == 16:
+        if weekday in (0, 3, 4):
+            for p in ALL_PAIRS:
+                result[p] = signal
+        elif weekday in (1, 2):
+            opposite = "SELL" if signal == "BUY" else "BUY"
+            for p in ALL_PAIRS:
+                result[p] = opposite
+
+    return result
+
+def should_skip_xauusd(H, signal, broker_dt):
+    global d_matched_hour
+    weekday = broker_dt.weekday()
+    if d_direction is None or weekday not in (0, 3, 4):
+        return False
+    if H == 16:
+        return False
+    if signal == d_direction and d_matched_hour is None:
+        d_matched_hour = H
+        return False
+    if d_matched_hour is not None:
+        return True
+    return False
 
 # =====================================================================
 # GUI TELEGRAM BAO CAO
 # =====================================================================
-def send_report(signal_data, H, broker_dt):
+def send_report(signal_data, H, broker_dt, h2_signal=None):
     sig = signal_data["signal"]
     report = signal_data["report"]
     m30_dir = signal_data.get("m30_dir")
+    icon, emoji = get_signal_icon(sig)
 
-    if sig == "BUY":
-        icon = "Mua"
-        emoji = "\U0001f7e2"
-    elif sig == "SELL":
-        icon = "Bán"
-        emoji = "\U0001f534"
-    else:
-        icon = "Chờ"
-        emoji = "\u26aa"
-
-    entry_time = get_entry_time(sig, m30_dir, H)
-    entry_line = f"  Vào lệnh: *{entry_time}*\n" if entry_time else ""
-
-    conflict_time = signal_data.get("conflict_entry")
-    conflict_line = f"  ⚡ Conflict → Vào lệnh: *{conflict_time}*\n" if conflict_time else ""
-
-    same_time = signal_data.get("same_entry")
-    same_line = f"  ✅ Cùng chiều → Vào lệnh: *{same_time}*\n" if same_time else ""
+    entry_time = calc_entry_time(sig, m30_dir, H, h2_signal=h2_signal)
 
     hour_note = get_hour_note(H)
-    note_line = f"  📝 {hour_note}\n" if hour_note else ""
+    note_line = f"📝 {hour_note}\n" if hour_note else ""
+
+    pair_dirs = get_pair_direction(H, sig, broker_dt)
+
+    if should_skip_xauusd(H, sig, broker_dt):
+        pair_dirs.pop("XAUUSD", None)
+
+    pair_lines = []
+    for p in ALL_PAIRS:
+        d = pair_dirs.get(p)
+        if d is None:
+            pair_lines.append(f"  {p}: -")
+        else:
+            p_icon, _ = get_signal_icon(d)
+            pair_lines.append(f"  {p}: {p_icon}")
+    pair_text = "\n".join(pair_lines)
+
+    entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
 
     msg = (
         f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
@@ -304,8 +419,9 @@ def send_report(signal_data, H, broker_dt):
         f"============================\n"
         f"KẾT LUẬN: {icon}\n"
         f"{entry_line}"
-        f"{conflict_line}"
-        f"{same_line}"
+        f"-------------------\n"
+        f"{pair_text}\n"
+        f"-------------------\n"
         f"{note_line}"
         f"============================\n"
         f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
@@ -343,7 +459,7 @@ def get_broker_time():
 def main():
     global mt5_ready
     print("=" * 55)
-    print("  MT5 Multi-Timeframe Signal Bot v3.1")
+    print("  MT5 Multi-Timeframe Signal Bot v3.6.0")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {TARGET_HOURS}")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
@@ -363,8 +479,7 @@ def main():
     sent_today = set()
     day_signals = {}  # {(date, hour): {"signal": ..., "m30_dir": ...}}
 
-    from datetime import datetime as _dt
-    now_utc = _dt.now(timezone.utc).replace(tzinfo=None)
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     broker_dt = now_utc + timedelta(hours=BROKER_GMT)
     reminders = get_schedule_reminders(broker_dt)
     reminder_text = "\n".join([f"⚠️ {r}" for r in reminders]) if reminders else ""
@@ -405,16 +520,13 @@ def main():
             print(f"\n[KIEM TRA BO LO] {fmt_hour(latest)}:45")
             result = analyze(broker_dt, latest)
             sig = result["signal"]
+            icon, emoji = get_signal_icon(sig)
 
-            if sig == "BUY":
-                icon, emoji = "Mua", "\U0001f7e2"
-            elif sig == "SELL":
-                icon, emoji = "Bán", "\U0001f534"
-            else:
-                icon, emoji = "Chờ", "\u26aa"
+            h2_data = day_signals.get((broker_dt.date(), 2))
+            h2_sig = h2_data["signal"] if h2_data else None
 
             slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
-            entry_time = get_entry_time(sig, result.get("m30_dir"), latest)
+            entry_time = calc_entry_time(sig, result.get("m30_dir"), latest, h2_signal=h2_sig)
             entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
             msg = (
                 f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:45 - {icon}\n"
@@ -442,7 +554,12 @@ def main():
             now_min = broker_dt.minute
             now_hour = broker_dt.hour
 
-            # --- TIN HIEU CHINH: x:45 ---
+            check_d_direction_input()
+
+            local_now = datetime.now()
+            if local_now.hour == 6 and local_now.minute == 0 and local_now.weekday() in (0, 3, 4):
+                send_d_direction_reminder()
+
             if now_min == 45 and now_hour in TARGET_HOURS:
                 key = (broker_dt.date(), now_hour)
                 if key in sent_today:
@@ -454,32 +571,19 @@ def main():
                 result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
 
-                # Track H=2 signal for conflict detection at H=3
+                # Track H=2 signal for entry time calculation
                 if now_hour == 2 and sig in ("BUY", "SELL"):
                     day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
 
-                # Conflict: H=2 vs H=3 opposite signals -> 4h19 or 4h24
-                if now_hour == 3 and sig in ("BUY", "SELL"):
-                    h2_data = day_signals.get((broker_dt.date(), 2))
-                    if h2_data and h2_data["signal"] in ("BUY", "SELL"):
-                        if h2_data["signal"] != sig:
-                            conflict_time = get_conflict_entry_time(sig, result.get("m30_dir"))
-                            if conflict_time:
-                                result["conflict_entry"] = conflict_time
-                        else:
-                            same_time = get_same_entry_time(sig, result.get("m30_dir"))
-                            if same_time:
-                                result["same_entry"] = same_time
+                h2_data = day_signals.get((broker_dt.date(), 2))
+                h2_sig = h2_data["signal"] if h2_data else None
 
-                send_report(result, now_hour, broker_dt)
+                send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
 
                 print(f"  Signal: {sig}")
                 print(f"  Sent: OK")
 
                 sent_today.add(key)
-                old = [k for k in sent_today if k[0] == broker_dt.date() and k[1] != now_hour]
-                for k in old:
-                    sent_today.discard(k)
 
                 time.sleep(60)
             else:

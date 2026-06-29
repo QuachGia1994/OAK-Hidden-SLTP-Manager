@@ -1,5 +1,35 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.6.0] - 2026-06-29
+*Bản cập nhật: 5 cặp tiền + H-value Rules + D Direction + Monday GBP restriction.*
+
+### 🎯 5 Cặp tiền (Mới)
+- **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**: Bot giao dịch 5 cặp thay vì chỉ GBPUSD.
+- **Telegram report hiển thị 5 cặp**: Mỗi tín hiệu hiển thị BUY/SELL cho từng cặp.
+
+### 📊 H-Value Rules (Mới)
+| H | Nhóm GBP | GBPAUD | XAUUSD |
+|---|----------|--------|--------|
+| 2 | cùng chiều | cùng chiều | ngược chiều |
+| 3 (T2) | cùng chiều | cùng chiều | cùng chiều |
+| 3 (T3-7) | cùng chiều | ngược chiều | cùng chiều |
+| 5,7 | - | - | cùng chiều |
+| 9,11 (T3-7) | cùng chiều | cùng chiều | cùng chiều |
+| 14,15 | - | - | cùng chiều |
+| 16 (T2,T5,T6) | cùng chiều | cùng chiều | cùng chiều |
+| 16 (T3,T4) | ngược chiều | ngược chiều | ngược chiều |
+
+### 📅 Monday GBP Restriction
+- **Thứ 2**: GBP group chỉ trade H=2, H=3, H=16.
+- **Thứ 3-7**: GBP group trade thêm H=9, H=11.
+
+### 📝 D Direction (Mới)
+- **User input**: Gõ `BUY` hoặc `SELL` qua Telegram để set hướng Daily (D).
+- **XAUUSD logic**: Khi H cùng D → báo lần cuối, sau đó dừng đến H=16.
+- **T2, T5, T6**: Áp dụng D direction.
+- **T3, T4**: Không áp dụng, báo XAUUSD bình thường.
+- **Nhắc D direction**: Bot nhắc lúc 6h VN T2, T5, T6.
+
 ## [v3.5.0] - 2026-06-28
 *Bản cập nhật: Entry Time Logic + Weekends Off + Telegram Bold Format + Hour Notes.*
 

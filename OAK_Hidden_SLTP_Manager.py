@@ -26,6 +26,7 @@ import signal
 import atexit
 import oak_trading_reminders
 from oak_response_dict import get_random_response
+from utils import load_json_file, get_signal_icon, vn_direction
 
 # --- PROCESS CLEANUP ---
 _running_processes = []
@@ -192,7 +193,7 @@ def show_ghost_consent(parent, on_accept):
 
 # --- CONSTANTS & CONFIG ---
 APP_NAME = "OAK MANAGER"
-VERSION = "v3.5.0"
+VERSION = "v3.6.0"
 
 # Fix for Taskbar Icon (Must be before any GUI creation)
 try:
@@ -271,19 +272,6 @@ TUESDAY_SNAPSHOT_FILE = "tuesday_snapshot.json"
 WEDNESDAY_SNAPSHOT_FILE = "wednesday_snapshot.json"
 THURSDAY_SNAPSHOT_FILE = "thursday_snapshot.json"
 FRIDAY_SNAPSHOT_FILE = "friday_snapshot.json"
-PAIR_ORDER = ["GA", "GN", "GJ", "GF", "GU", "GC", "UJ", "UC", "AU", "Gold"]
-PAIR_FULL_NAMES = {
-    "GA": "GBPAUD",
-    "GN": "GBPNZD",
-    "GJ": "GBPJPY",
-    "GF": "GBPCHF",
-    "GU": "GBPUSD",
-    "GC": "GBPCAD",
-    "UJ": "USDJPY",
-    "UC": "USDCAD",
-    "AU": "AUDUSD",
-    "Gold": "XAUUSD"
-}
 
 def get_filling_type(symbol):
     """
@@ -1770,8 +1758,8 @@ class CopyTradeManager:
                 target_dt = datetime.strptime(time_val, "%H:%M:%S").replace(year=now_dt.year, month=now_dt.month, day=now_dt.day)
                 if target_dt < now_dt:
                     target_dt += timedelta(days=1)
-                while target_dt.weekday() in (5, 6):
-                    target_dt += timedelta(days=1)
+                    while target_dt.weekday() in (5, 6):
+                        target_dt += timedelta(days=1)
                 time_val = target_dt.strftime("%H:%M:%S")
                 target_date_str = target_dt.strftime("%Y-%m-%d")
 
@@ -2661,7 +2649,7 @@ class CopyTradeManager:
 
     def _check_scheduled_trades(self):
         if not self.scheduled_trades and not getattr(self, "_scheduled_close", None): return
-        
+
         now_dt = datetime.now()
         now_time = now_dt.strftime("%H:%M:%S")
         now_date = now_dt.strftime("%Y-%m-%d")
@@ -4888,7 +4876,7 @@ class App(ctk.CTk):
 
         for idx, (key, name, cmd, color) in enumerate(signal_defs):
             row, col = positions[idx]
-            panel = ctk.CTkFrame(panels_frame, fg_color="#1a1a2e", corner_radius=8)
+            panel = ctk.CTkFrame(panels_frame, corner_radius=8)
             panel.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
 
             header = ctk.CTkFrame(panel, fg_color="transparent")
@@ -4897,9 +4885,9 @@ class App(ctk.CTk):
             dot = ctk.CTkLabel(header, text="●", text_color=color, font=("", 14))
             dot.pack(side="left", padx=(0, 5))
 
-            ctk.CTkLabel(header, text=name, font=("", 13, "bold"), text_color="white").pack(side="left")
+            ctk.CTkLabel(header, text=name, font=("", 13, "bold")).pack(side="left")
 
-            lbl_pid = ctk.CTkLabel(header, text="PID: ---", font=("", 11), text_color="gray")
+            lbl_pid = ctk.CTkLabel(header, text="PID: ---", font=("", 11))
             lbl_pid.pack(side="right", padx=5)
 
             btn_frame_p = ctk.CTkFrame(header, fg_color="transparent")
@@ -4917,7 +4905,6 @@ class App(ctk.CTk):
             btn_stop.pack(side="left", padx=2)
 
             console = ctk.CTkTextbox(panel, font=("Consolas", 11),
-                                      fg_color="#0d0d1a", text_color="#cccccc",
                                       state="disabled", wrap="word")
             console.pack(fill="both", expand=True, padx=10, pady=(2, 8))
 
@@ -5205,7 +5192,7 @@ class App(ctk.CTk):
         self.lbl_copy_log.pack(anchor="w", pady=5)
         self.add_ui_element("lbl_copy_console_title", self.lbl_copy_log)
         
-        self.copy_console = ctk.CTkTextbox(right_panel, fg_color="#000080", text_color="white", font=("Consolas", 12), wrap="word")
+        self.copy_console = ctk.CTkTextbox(right_panel, font=("Consolas", 12), wrap="word")
         self.copy_console.pack(fill="both", expand=True)
         self.copy_console.configure(state="disabled")
 
@@ -5713,7 +5700,7 @@ class App(ctk.CTk):
                 # Calculate Target Date (Tomorrow if time < now - tolerance)
                 now_dt = datetime.now()
                 target_dt = datetime.strptime(time_str, "%H:%M:%S").replace(year=now_dt.year, month=now_dt.month, day=now_dt.day)
-                
+
                 if target_dt < (now_dt - timedelta(seconds=60)):
                     target_dt += timedelta(days=1)
                 while target_dt.weekday() in (5, 6):

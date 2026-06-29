@@ -3,6 +3,7 @@ import os
 import json
 import time
 import urllib.request
+import urllib.parse
 import ssl
 from datetime import datetime, timedelta, timezone
 import calendar
@@ -10,31 +11,17 @@ import xml.etree.ElementTree as ET
 import MetaTrader5 as mt5
 import threading
 import sys
-import hashlib
 import glob
 import winsound # For PC Alarm
 import re
 from oak_response_dict import get_random_response # Import new response module
+from utils import load_json_file
 
 # --- CONFIG ---
 CONFIG_FILE = "profiles.json"
 SETTINGS_FILE = "settings.json"
 CHECK_INTERVAL = 60  # Check every 60 seconds
 LOCK_DIR = "sent_locks"
-
-PAIR_MAP = {
-    "AUDUSD": "AU",
-    "USDCAD": "UC",
-    "GBPAUD": "GA",
-    "GBPJPY": "GJ",
-    "USDJPY": "UJ",
-    "GBPNZD": "GN",
-    "GBPCHF": "GF",
-    "GBPUSD": "GU",
-    "GBPCAD": "GC",
-    "XAUUSD": "Gold",
-    "GOLD": "Gold"
-}
 
 # Global credentials (optional override)
 CURRENT_TOKEN = None
@@ -88,56 +75,6 @@ def load_json_file(path, default):
         return default
     except Exception:
         return default
-
-def send_ntfy(message):
-    """Send notification to ntfy.sh (Free, Unlimited, No Login)"""
-    try:
-        if not os.path.exists(SETTINGS_FILE): return
-        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
-            settings = json.load(f)
-        
-        topic = settings.get("ntfy_topic")
-        if not topic: return
-
-        # ntfy.sh URL
-        url = f"https://ntfy.sh/{topic}"
-        
-        # Encode message
-        data = message.encode("utf-8")
-        
-        req = urllib.request.Request(
-            url, 
-            data=data, 
-            headers={
-                "Title": "OAK Trading Alert",
-                "Priority": "5", # 5 = Urgent (High priority, can override silent switch on some devices)
-                "Tags": "warning,chart_with_upwards_trend"
-            }
-        )
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            pass # Success
-            
-    except Exception as e:
-        print(f"Error sending ntfy: {e}")
-
-def get_last_friday(year, month):
-    """Return the date (int) of the last Friday of the given month"""
-    c = calendar.monthcalendar(year, month)
-    last_week = c[-1]
-    if last_week[calendar.FRIDAY] != 0:
-        return last_week[calendar.FRIDAY]
-    else:
-        return c[-2][calendar.FRIDAY]
-
-def get_last_thursday(year, month):
-    """Return the date (int) of the last Thursday of the given month"""
-    c = calendar.monthcalendar(year, month)
-    last_week = c[-1]
-    if last_week[calendar.THURSDAY] != 0:
-        return last_week[calendar.THURSDAY]
-    else:
-        return c[-2][calendar.THURSDAY]
 
 def get_economic_news(lang="VN"):
     # 1. Check Cache
@@ -534,35 +471,36 @@ def fetch_forexfactory_xml(lang="VN", context=None):
 def get_daily_schedule(now, lang="VN"):
     """Get the trading schedule for the given time"""
     events = []
-    gbp_group = "GBPAUD, GBPJPY, GBPUSD, GBPNZD, GBPCHF, GBPCAD"
+    gbp_4 = "GBPAUD, GBPCAD, GBPUSD, GBPJPY"
+    weekday = now.weekday()
 
-    events.append({"hour": 2, "minute": 45, "syms": gbp_group,
-        "note": "Mốc 2: Nhóm GBP" if lang == "VN" else "Milestone 2: GBP group"})
+    events.append({"hour": 2, "minute": 45, "syms": gbp_4 + ", XAUUSD",
+        "note": "Mốc 2: Nhóm GBP cùng chiều, Vàng ngược chiều" if lang == "VN" else "Milestone 2: GBP same, Gold opposite"})
 
-    events.append({"hour": 3, "minute": 45, "syms": "GBPAUD, GBPJPY",
-        "note": "Mốc 3: GBPAUD ngược, GBPJPY cùng" if lang == "VN" else "Milestone 3: GBPAUD opposite, GBPJPY same"})
+    events.append({"hour": 3, "minute": 45, "syms": gbp_4 + ", XAUUSD",
+        "note": "Mốc 3: GBPAUD cùng T2/ngược T3-7, nhóm GBP + Vàng cùng chiều" if lang == "VN" else "Milestone 3: GBPAUD same Mon/opposite Tue+, GBP+Gold same"})
 
-    if now.weekday() in (3, 4):
-        events.append({"hour": 5, "minute": 45, "syms": "XAUUSD",
-            "note": "Mốc 5: Vàng theo W1 sớm" if lang == "VN" else "Milestone 5: Gold follow W1 early"})
+    events.append({"hour": 5, "minute": 45, "syms": "XAUUSD",
+        "note": "Mốc 5: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 5: Gold only, same as signal"})
 
-    events.append({"hour": 9, "minute": 45, "syms": gbp_group + ", XAUUSD",
-        "note": "Mốc 9: Nhóm GBP + Vàng" if lang == "VN" else "Milestone 9: GBP group + Gold"})
+    events.append({"hour": 7, "minute": 45, "syms": "XAUUSD",
+        "note": "Mốc 7: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 7: Gold only, same as signal"})
 
-    events.append({"hour": 11, "minute": 45, "syms": gbp_group,
-        "note": "Mốc 11: Nhóm GBP" if lang == "VN" else "Milestone 11: GBP group"})
+    if weekday != 0:
+        events.append({"hour": 9, "minute": 45, "syms": gbp_4 + ", XAUUSD",
+            "note": "Mốc 9: T3-7 nhóm GBP + Vàng cùng chiều gốc" if lang == "VN" else "Milestone 9: Tue-Sun GBP+Gold same as signal"})
 
-    events.append({"hour": 14, "minute": 45, "syms": gbp_group,
-        "note": "Mốc 14: Nhóm GBP" if lang == "VN" else "Milestone 14: GBP group"})
+        events.append({"hour": 11, "minute": 45, "syms": gbp_4 + ", XAUUSD",
+            "note": "Mốc 11: T3-7 nhóm GBP + Vàng cùng chiều gốc" if lang == "VN" else "Milestone 11: Tue-Sun GBP+Gold same as signal"})
+
+    events.append({"hour": 14, "minute": 45, "syms": "XAUUSD",
+        "note": "Mốc 14: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 14: Gold only, same as signal"})
 
     events.append({"hour": 15, "minute": 45, "syms": "XAUUSD",
-        "note": "Mốc 15: Vàng tính lại trừ nhóm GBP" if lang == "VN" else "Milestone 15: Gold recalculate except GBP"})
+        "note": "Mốc 15: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 15: Gold only, same as signal"})
 
-    events.append({"hour": 16, "minute": 45, "syms": "XAUUSD",
-        "note": "Mốc 17: Vàng close nếu mốc 16 cùng tín hiệu mốc 15" if lang == "VN" else "Milestone 17: Gold close if m16 same as m15"})
-
-    events.append({"hour": 18, "minute": 45, "syms": gbp_group,
-        "note": "Mốc 18: Nhóm GBP" if lang == "VN" else "Milestone 18: GBP group"})
+    events.append({"hour": 16, "minute": 45, "syms": gbp_4 + ", XAUUSD",
+        "note": "Mốc 16: T2,T5,T6 cùng chiều. T3,T4 ngược chiều" if lang == "VN" else "Milestone 16: Mon/Fri/Sat same, Tue/Wed opposite"})
 
     return events
 
@@ -670,41 +608,8 @@ class OakTradingReminder:
                 except: pass
         except: pass
 
-    def _is_event_locked(self, unique_key):
-        """
-        Check if event is locked (already sent).
-        If not, create lock file and return False (allow send).
-        If yes, return True (block send).
-        Uses atomic file creation for thread/process safety.
-        """
-        self._ensure_lock_dir()
-        
-        # Hash key to get safe filename
-        safe_name = hashlib.md5(unique_key.encode('utf-8')).hexdigest() + ".lock"
-        lock_path = os.path.join(LOCK_DIR, safe_name)
-        
-        if os.path.exists(lock_path):
-            return True
-            
-        try:
-            # Atomic creation (fails if file exists)
-            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-            return False # Successfully locked, proceed to send
-        except FileExistsError:
-            return True # Already locked by another process
-        except Exception as e:
-            print(f"Lock error: {e}")
-            return True # Fail safe (don't spam if error)
-
     def load_config(self):
-        if os.path.exists(CONFIG_FILE):
-            try:
-                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
-            except:
-                return {}
-        return {}
+        return load_json_file(CONFIG_FILE, {})
 
     def send_telegram(self, message):
         token = self.token or CURRENT_TOKEN
@@ -1293,6 +1198,7 @@ class OakTradingReminder:
             # self.process_commands()
 
             now = datetime.now()
+            now_utc = datetime.utcnow()
 
             # Skip weekends (Saturday=5, Sunday=6) - no trading
             if now.weekday() in (5, 6):
@@ -1301,7 +1207,7 @@ class OakTradingReminder:
                     time.sleep(1)
                 continue
 
-            # 1. Daily Briefing (once a day at 06:00)
+            # 1. Daily Briefing (once a day at 06:00 local)
             if now.hour == 6 and now.minute == 0:
                 if self.last_briefing_date != now.date():
                     # Check file lock
@@ -1310,8 +1216,8 @@ class OakTradingReminder:
                     self.last_briefing_date = now.date()
                     self.alerted_events.clear() # Reset alerts for new day
                 self.send_rule_reminders(now, lang=lang)
-            
-            # 2. Check Schedule for Alerts
+
+            # 2. Check Schedule for Alerts (schedule hours are UTC broker chart time)
             schedule = get_daily_schedule(now, lang=lang)
 
             for event in schedule:
@@ -1319,17 +1225,17 @@ class OakTradingReminder:
                 event_m = event["minute"]
                 syms = event["syms"]
                 note = event["note"]
-                
-                # Unique keys for locks
-                date_str = now.strftime("%Y-%m-%d")
+
+                # Unique keys for locks (use UTC date to match broker chart day)
+                date_str = now_utc.strftime("%Y-%m-%d")
                 action_key = f"alert_action_{date_str}_{event_h:02d}{event_m:02d}"
-                
-                # A. Action Now Alert (Exact time)
-                if now.hour == event_h and now.minute == event_m:
+
+                # A. Action Now Alert (Exact time - compare against UTC)
+                if now_utc.hour == event_h and now_utc.minute == event_m:
                     if not self._is_event_locked(action_key):
-                        msg = f"🔔 [OAK ALERT] ACTION NOW!\n• Time: {event_h:02d}:{event_m:02d}\n• Pair: {syms}\n• Note: {note}"
+                        msg = f"🔔 [OAK ALERT] ACTION NOW!\n• Time: {now.hour:02d}:{event_m:02d}\n• Pair: {syms}\n• Note: {note}"
                         if lang == "EN":
-                            msg = f"🔔 [OAK ALERT] ACTION NOW!\n• Time: {event_h:02d}:{event_m:02d}\n• Pair: {syms}\n• Note: {note}"
+                            msg = f"🔔 [OAK ALERT] ACTION NOW!\n• Time: {now.hour:02d}:{event_m:02d}\n• Pair: {syms}\n• Note: {note}"
                         self.send_telegram(msg)
                         winsound.Beep(1000, 500) # PC Alert
 
@@ -1346,22 +1252,6 @@ class OakTradingReminder:
     def stop(self):
         self.running = False
         self._stop_event.set()
-
-# Wrapper for backward compatibility
-def load_config():
-    return OakTradingReminder().load_config()
-
-def send_telegram(message):
-    OakTradingReminder().send_telegram(message)
-
-def get_performance_report(profile):
-    return OakTradingReminder().get_performance_report(profile)
-
-def send_daily_briefing():
-    OakTradingReminder().send_daily_briefing()
-
-def monitor_loop():
-    OakTradingReminder().monitor_loop()
 
 _active_reminders = {}  # {(token, chat_id): instance}
 

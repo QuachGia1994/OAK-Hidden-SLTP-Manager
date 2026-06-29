@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.5.0)
+# OAK Hidden SLTP Manager (v3.6.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -41,7 +41,15 @@ Tài liệu chi tiết:
 ### MT4-MT5 Dual Signal System
 - **Phân tích nến**: M5@35, M5@40, M30@00.
 - **Logic**: M5 cùng chiều → M30 xác nhận; M5 ngược chiều → M30 xác nhận ngược.
-- **Entry Time Logic**: H=2 (2:49/3:10), H=3 conflict (4:19/4:24), H=3 same (3:49/4:10), H≥4 offset theo hour.
+- **5 cặp**: GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD.
+- **H-value Rules**:
+  - H=2: Nhóm GBP cùng chiều, Vàng ngược chiều.
+  - H=3: GBPAUD cùng T2/ngược T3-7, nhóm GBP + Vàng cùng chiều.
+  - H=5,7,14,15: Chỉ Vàng cùng chiều gốc.
+  - H=9,11: T3-7 nhóm GBP + Vàng cùng chiều.
+  - H=16: T2,T5,T6 cùng chiều. T3,T4 ngược chiều.
+- **Monday GBP**: Chỉ trade H=2, H=3, H=16.
+- **D Direction (Mới)**: User gõ BUY/SELL qua Telegram để set hướng Daily. XAUUSD dừng báo khi H cùng D, trừ H=16.
 - **Đồng bộ giờ UTC**: Miễn nhiễm DST từ `tick.time` MT5.
 - **Trigger x:45**: Gửi tín hiệu lúc x:45 mỗi giờ mục tiêu [2-16].
 - **Weekends Off**: Tự động skip T7/CN.
