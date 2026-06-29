@@ -34,13 +34,36 @@ args = [
     f'--add-data={ctk_path};customtkinter/', # Ensure CTK assets are included
     '--clean',
     '--noconfirm',
-    '--collect-all=numpy',
-    '--collect-all=MetaTrader5',
+    # Numpy: only core (skip linalg/random/etc to save ~15MB)
     '--hidden-import=numpy',
-    '--hidden-import=numpy._core',
-    '--hidden-import=numpy._core.multiarray',
-    # Exclude standard modules that might bloat size if not needed (optional, but safer to keep defaults)
+    '--hidden-import=numpy.core',
+    '--hidden-import=numpy.core.multiarray',
+    '--hidden-import=numpy.core.numerictypes',
+    '--hidden-import=numpy.core.umath',
+    '--hidden-import=numpy.core.defchararray',
+    '--hidden-import=numpy.lib',
+    '--hidden-import=numpy.lib._version',
+    '--hidden-import=numpy.lib.arraysetops',
+    '--hidden-import=numpy.lib.function_base',
+    '--hidden-import=numpy.lib.index_tricks',
+    '--hidden-import=numpy.lib.shape_base',
+    '--hidden-import=numpy.lib.stride_tricks',
+    '--hidden-import=numpy.lib.type_check',
+    '--hidden-import=numpy.lib.ufunclike',
+    '--hidden-import=numpy.lib.utils',
+    '--hidden-import=numpy.ma',
+    '--hidden-import=numpy.ma.core',
+    '--hidden-import=numpy.ma.extras',
+    # MetaTrader5
+    '--collect-all=MetaTrader5',
 ]
+
+# UPX compression (giảm ~30-40% dung lượng)
+if os.path.exists("upx"):
+    args.append('--upx-dir=upx')
+    print("  UPX: ON (compression enabled)")
+else:
+    print("  UPX: OFF (folder 'upx' not found, install UPX for smaller exe)")
 
 print(f"Starting build process for {exe_name}...")
 PyInstaller.__main__.run(args)

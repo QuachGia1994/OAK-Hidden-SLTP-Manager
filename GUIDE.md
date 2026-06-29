@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.5.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.6.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -67,6 +67,31 @@ M5@H:35 và M5@H:40 → cùng chiều? → M30@H:00 xác nhận
 ### Đồng bộ giờ
 - Bot lấy thời gian từ `tick.time` MT5 (Unix timestamp UTC).
 - **Không phụ thuộc giờ local/VPS** → miễn nhiễm DST.
+
+### 5 Cặp tiền
+Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
+
+### H-Value Rules
+| H | Nhóm GBP | GBPAUD | XAUUSD |
+|---|----------|--------|--------|
+| 2 | cùng chiều | cùng chiều | ngược chiều |
+| 3 (T2) | cùng chiều | cùng chiều | cùng chiều |
+| 3 (T3-7) | cùng chiều | ngược chiều | cùng chiều |
+| 5,7 | - | - | cùng chiều |
+| 9,11 (T3-7) | cùng chiều | cùng chiều | cùng chiều |
+| 14,15 | - | - | cùng chiều |
+| 16 (T2,T5,T6) | cùng chiều | cùng chiều | cùng chiều |
+| 16 (T3,T4) | ngược chiều | ngược chiều | ngược chiều |
+
+**Lưu ý**: Thứ 2 GBP group chỉ trade H=2, H=3, H=16.
+
+### D Direction (Mới)
+User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
+
+1. **Nhập D direction**: Gõ `BUY` hoặc `SELL` qua Telegram (T2, T5, T6 lúc 6h VN).
+2. **Khi H cùng D**: XAUUSD báo lần cuối, sau đó dừng cho đến H=16.
+3. **Khi H khác D**: XAUUSD báo bình thường.
+4. **T3, T4**: Không áp dụng D direction, báo XAUUSD bình thường.
 
 ### Nhắc ngày đặc biệt
 Bot tự động nhắc khi khởi động vào các ngày quan trọng:
