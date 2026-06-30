@@ -29,10 +29,12 @@ try:
     TELEGRAM_TOKEN = _cfg.get("telegram_token", "")
     TELEGRAM_CHAT_ID = _cfg.get("telegram_chat_id", "")
     MT5_PATH = _cfg.get("mt5_path", "")
+    DASHBOARD_URL = _cfg.get("dashboard_url", "")
 except Exception:
     TELEGRAM_TOKEN = ""
     TELEGRAM_CHAT_ID = ""
     MT5_PATH = ""
+    DASHBOARD_URL = ""
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
@@ -125,7 +127,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
 
 def push_to_dashboard():
     """Push data to dashboard API (best effort, non-blocking)."""
-    dashboard_url = os.environ.get("DASHBOARD_API_URL", "")
+    dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
         return
     try:
