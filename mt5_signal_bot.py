@@ -464,7 +464,7 @@ def get_hour_note(H):
         12: "Chỉ Vàng",
         13: "Chỉ Vàng",
         14: "Chỉ Vàng",
-        15: "Chỉ Vàng",
+        15: "GBPUSD, GBPJPY + Vàng",
         16: "T2,T5,T6: cùng chiều. T3,T4: ngược chiều",
     }
     return notes.get(H)
@@ -506,7 +506,12 @@ def get_pair_direction(H, signal, broker_dt):
             result[p] = signal
         result["XAUUSD"] = signal
 
-    elif H in (10, 12, 13, 14, 15):
+    elif H in (10, 12, 13, 14):
+        result["XAUUSD"] = signal
+
+    elif H == 15:
+        result["GBPUSD"] = signal
+        result["GBPJPY"] = signal
         result["XAUUSD"] = signal
 
     elif H == 16:

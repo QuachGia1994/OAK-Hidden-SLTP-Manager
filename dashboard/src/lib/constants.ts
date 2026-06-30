@@ -14,7 +14,7 @@ export const SCHEDULE: { hour: number; note: string }[] = [
   { hour: 12, note: "Chỉ Vàng" },
   { hour: 13, note: "Chỉ Vàng" },
   { hour: 14, note: "Chỉ Vàng" },
-  { hour: 15, note: "Chỉ Vàng" },
+  { hour: 15, note: "GBPUSD, GBPJPY + Vàng" },
   { hour: 16, note: "T2,T5,T6: cùng chiều. T3,T4: ngược chiều" },
 ];
 
