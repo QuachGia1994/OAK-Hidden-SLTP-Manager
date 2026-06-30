@@ -112,7 +112,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
     }
     try:
         data = []
-        if os.path.exists(_SIGNALS_LOG):
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
                 data = json.load(f)
         # Deduplicate: replace existing entry for same (date, hour)
