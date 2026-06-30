@@ -696,6 +696,11 @@ def main():
                 print(f"  [SKIP] H={latest} T{broker_dt.weekday()+1} - khong co cap doi trade")
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
+            # T2: chi thong bao H=14, H=15, H=16
+            elif broker_dt.weekday() == 1 and latest not in (14, 15, 16):
+                print(f"  [SKIP] H={latest} T2 - chi thong bao H=14/15/16")
+                sent_today.add(key)
+                _save_state(day_signals, sent_today)
             else:
                 print(f"\n[KIEM TRA BO LO] {fmt_hour(latest)}:45")
                 result = analyze(broker_dt, latest)
@@ -778,6 +783,14 @@ def main():
                 # Skip H=5, H=7 on T3/T4 (no pairs to trade)
                 if now_hour in (5, 7) and broker_dt.weekday() in (1, 2):
                     print(f"  [SKIP] H={now_hour} T{broker_dt.weekday()+1} - khong co cap doi trade")
+                    sent_today.add(key)
+                    _save_state(day_signals, sent_today)
+                    time.sleep(60)
+                    continue
+
+                # T2 (weekday=1): chi thong bao H=14, H=15, H=16
+                if broker_dt.weekday() == 1 and now_hour not in (14, 15, 16):
+                    print(f"  [SKIP] H={now_hour} T2 - chi thong bao H=14/15/16")
                     sent_today.add(key)
                     _save_state(day_signals, sent_today)
                     time.sleep(60)
