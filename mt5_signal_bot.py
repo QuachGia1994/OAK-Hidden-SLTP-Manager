@@ -687,80 +687,84 @@ def main():
         else:
             countdown = "ngay mai"
 
-        if passed:
-            latest = passed[0]
-            key = (broker_dt.date(), latest)
+        missed_count = 0
+        for h in passed:
+            key = (broker_dt.date(), h)
+            if key in sent_today:
+                continue
 
-            # Same skip logic as main loop
             wd = broker_dt.weekday()
             skip = False
-            if latest in (2, 3) and wd == 1:
+            if h in (2, 3) and wd == 1:
                 skip = True
-            elif latest in (5, 7) and wd in (0, 1):
+            elif h in (5, 7) and wd in (0, 1):
                 skip = True
-            elif latest in (9, 11) and wd in (0, 1):
+            elif h in (9, 11) and wd in (0, 1):
                 skip = True
-            elif latest in (14, 15) and wd == 0:
+            elif h in (14, 15) and wd == 0:
                 skip = True
             if skip:
-                print(f"  [SKIP] H={latest} T{wd+1} - nhom khong hoat dong")
+                print(f"  [SKIP] H={h} T{wd+1} - nhom khong hoat dong")
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
-            else:
-                print(f"\n[KIEM TRA BO LO] {fmt_hour(latest)}:45")
-                result = analyze(broker_dt, latest)
-                sig = result["signal"]
-                icon, emoji = get_signal_icon(sig)
+                continue
 
-                h2_data = day_signals.get((broker_dt.date(), 2))
-                h2_sig = h2_data["signal"] if h2_data else None
+            print(f"\n[KIEM TRA BO LO] {fmt_hour(h)}:45")
+            result = analyze(broker_dt, h)
+            sig = result["signal"]
+            icon, emoji = get_signal_icon(sig)
 
-                slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
-                entry_time = calc_entry_time(sig, result.get("m30_dir"), latest, h2_signal=h2_sig)
-                entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
+            h2_data = day_signals.get((broker_dt.date(), 2))
+            h2_sig = h2_data["signal"] if h2_data else None
 
-                pair_dirs = get_pair_direction(latest, sig, broker_dt)
-                if should_skip_xauusd(latest, sig, broker_dt):
-                    pair_dirs.pop("XAUUSD", None)
-                pair_lines = []
-                for p in ALL_PAIRS:
-                    d = pair_dirs.get(p)
-                    if d is None:
-                        pair_lines.append(f"  {p}: -")
-                    else:
-                        p_icon, _ = get_signal_icon(d)
-                        pair_lines.append(f"  {p}: {p_icon}")
-                pair_text = "\n".join(pair_lines)
+            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
+            entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig)
+            entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
 
-                hour_note = get_hour_note(latest)
-                note_line = f"📝 {hour_note}\n" if hour_note else ""
+            pair_dirs = get_pair_direction(h, sig, broker_dt)
+            if should_skip_xauusd(h, sig, broker_dt):
+                pair_dirs.pop("XAUUSD", None)
+            pair_lines = []
+            for p in ALL_PAIRS:
+                d = pair_dirs.get(p)
+                if d is None:
+                    pair_lines.append(f"  {p}: -")
+                else:
+                    p_icon, _ = get_signal_icon(d)
+                    pair_lines.append(f"  {p}: {p_icon}")
+            pair_text = "\n".join(pair_lines)
 
-                msg = (
-                    f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:45 - {icon}\n"
-                    f"============================\n"
-                    f"  {fmt_hour(latest)}:45 (Broker)\n"
-                    f"============================\n\n"
-                    f"{result['report']}\n\n"
-                    f"============================\n"
-                    f"KẾT LUẬN: {icon}\n"
-                    f"{entry_line}"
-                    f"-------------------\n"
-                    f"{pair_text}\n"
-                    f"-------------------\n"
-                    f"{note_line}"
-                    f"============================\n"
-                    f"{slot_line}"
-                    f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
-                )
-                send_telegram(msg)
-                log_signal(latest, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
-                push_to_dashboard()
-                sent_today.add(key)
-                # Also store H=2 signal if this is the missed H=2 slot
-                if latest == 2 and sig in ("BUY", "SELL"):
-                    day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
+            hour_note = get_hour_note(h)
+            note_line = f"📝 {hour_note}\n" if hour_note else ""
+
+            msg = (
+                f"*KIỂM TRA BỎ LỠ {fmt_hour(h)}:45*\n"
+                f"============================\n\n"
+                f"{result['report']}\n\n"
+                f"============================\n"
+                f"KẾT LUẬN: {icon}\n"
+                f"{entry_line}"
+                f"-------------------\n"
+                f"{pair_text}\n"
+                f"-------------------\n"
+                f"{note_line}"
+                f"============================\n"
+                f"{slot_line}"
+                f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
+            )
+            send_telegram(msg)
+            log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
+            sent_today.add(key)
+            _save_state(day_signals, sent_today)
+            missed_count += 1
+            if h == 2 and sig in ("BUY", "SELL"):
+                day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
                 _save_state(day_signals, sent_today)
-                print(f"  Signal: {sig} - Sent: OK")
+            print(f"  Signal: {sig} - Sent: OK")
+
+        if missed_count > 0:
+            push_to_dashboard()
+            print(f"\n[DASHBOARD] Pushed {missed_count} missed slots")
 
     try:
         while True:
