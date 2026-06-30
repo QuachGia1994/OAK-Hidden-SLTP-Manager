@@ -6,7 +6,7 @@ export default function RulesPage() {
   const today = new Date();
   const dayOfWeek = today.getDay();
   const dayName = today.toLocaleDateString("vi-VN", { weekday: "long" });
-  const todayRules = DAY_RULES[dayOfWeek] || ["Tat ca nhom hoat dong binh thuong theo schedule."];
+  const todayRules = DAY_RULES[dayOfWeek] || ["Tất cả nhóm hoạt động bình thường theo lịch."];
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
