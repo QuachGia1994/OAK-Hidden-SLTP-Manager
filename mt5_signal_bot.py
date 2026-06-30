@@ -724,9 +724,11 @@ def main():
             _save_state(day_signals, sent_today)
             missed_count += 1
 
-            latest_missed = {"h": h, "sig": sig, "icon": icon, "result": result,
-                             "entry_time": entry_time, "pair_dirs": pair_dirs, "hour_note": hour_note,
-                             "h2_sig": h2_sig}
+            # Chi lay slot gan nhat (dau tien vi passed sort reverse)
+            if latest_missed is None:
+                latest_missed = {"h": h, "sig": sig, "icon": icon, "result": result,
+                                 "entry_time": entry_time, "pair_dirs": pair_dirs, "hour_note": hour_note,
+                                 "h2_sig": h2_sig}
 
         # Chi gui Telegram slot gan nhat
         if latest_missed:
