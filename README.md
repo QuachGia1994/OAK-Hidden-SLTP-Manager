@@ -44,7 +44,7 @@ Tài liệu chi tiết:
 - **Logic**: M5 cùng chiều → M30 xác nhận; M5 ngược chiều → M30 xác nhận ngược.
 - **5 cặp**: GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD.
 - **H-value Rules**:
-  - H=2: Nhóm GBP cùng chiều, Vàng ngược chiều.
+  - H=2: GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều.
   - H=3: GBPAUD cùng T2/ngược T3-7, nhóm GBP + Vàng cùng chiều.
   - H=5,7,14,15: Chỉ Vàng cùng chiều gốc.
   - H=9,11: T3-7 nhóm GBP + Vàng cùng chiều.

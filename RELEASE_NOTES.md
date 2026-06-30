@@ -1,7 +1,11 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
 ## [v3.7.0] - 2026-06-30
-*Xoá OAK ALERT ACTION NOW + Cập nhật Rule Reminders.*
+*Xoá OAK ALERT ACTION NOW + Cập nhật Rule Reminders + Fix H=2 pairs.*
+
+### 📊 Fix H=2 Pairs
+- **H=2**: Chỉ báo 3 cặp: GBPAUD, GBPJPY, XAUUSD (bỏ GBPUSD, GBPCAD).
+- **Lý do**: Đầu ngày chưa có đủ data cho GBPUSD, GBPCAD.
 
 ### 🗑️ Xoá OAK ALERT ACTION NOW
 - **Xoá hoàn toàn**: Không còn gửi Telegram ACTION NOW alerts theo schedule giờ từ OAK.

@@ -74,7 +74,7 @@ Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 ### H-Value Rules
 | H | Nhóm GBP | GBPAUD | XAUUSD |
 |---|----------|--------|--------|
-| 2 | cùng chiều | cùng chiều | ngược chiều |
+| 2 | GBPAUD, GBPJPY cùng chiều | cùng chiều | ngược chiều |
 | 3 (T2) | cùng chiều | cùng chiều | cùng chiều |
 | 3 (T3-7) | cùng chiều | ngược chiều | cùng chiều |
 | 5,7 | - | - | cùng chiều |
