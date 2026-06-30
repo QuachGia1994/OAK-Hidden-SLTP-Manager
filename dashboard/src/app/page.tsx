@@ -1,5 +1,6 @@
 import { getTodaySignals, getBotState, getEconomicNews } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
+import { SkeletonCard } from "@/components/SkeletonCard";
 import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export default async function DashboardPage() {
       <div>
         <h2 className="text-lg font-medium text-zinc-300 mb-3">Signal</h2>
         {signals.length === 0 ? (
-          <div className="text-center py-12 text-zinc-500 text-base">Chưa có signal nào hôm nay</div>
+          <EmptyState />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {signals.sort((a, b) => b.hour - a.hour).map((signal) => (
@@ -88,6 +89,55 @@ function StatusCard({ label, value, color }: { label: string; value: string; col
     <div className="border border-zinc-800 rounded-lg bg-zinc-900/50 px-4 py-3">
       <div className="text-xs uppercase tracking-wider text-zinc-400 mb-1">{label}</div>
       <div className={`font-mono text-xl font-bold ${color}`}>{value}</div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="border border-dashed border-zinc-800 rounded-lg py-16 px-4 text-center">
+      <div className="text-4xl mb-4 text-zinc-700">
+        <svg className="mx-auto w-12 h-12" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
+        </svg>
+      </div>
+      <p className="text-zinc-400 text-base mb-2">Chưa có signal nào hôm nay</p>
+      <p className="text-zinc-600 text-sm">Bot sẽ tự động cập nhật khi có slot kích hoạt</p>
+    </div>
+  );
+}
+
+export function LoadingDashboard() {
+  return (
+    <div className="max-w-6xl mx-auto px-4 py-8 animate-pulse">
+      <div className="mb-8">
+        <div className="h-8 w-48 bg-zinc-800 rounded mb-2" />
+        <div className="h-4 w-64 bg-zinc-800/50 rounded" />
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="border border-zinc-800 rounded-lg bg-zinc-900/50 px-4 py-3">
+            <div className="h-3 w-20 bg-zinc-800 rounded mb-2" />
+            <div className="h-6 w-16 bg-zinc-800 rounded" />
+          </div>
+        ))}
+      </div>
+      <div className="mb-8">
+        <div className="h-5 w-32 bg-zinc-800 rounded mb-3" />
+        <div className="flex gap-2">
+          {[...Array(9)].map((_, i) => (
+            <div key={i} className="h-9 w-20 bg-zinc-800/50 rounded-md" />
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="h-5 w-20 bg-zinc-800 rounded mb-3" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
+      </div>
     </div>
   );
 }
