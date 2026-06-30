@@ -1,19 +1,13 @@
 import type { Signal, BotState, NewsItem } from "./types";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
-
-async function fetchJson<T>(url: string, fallback: T): Promise<T> {
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return fallback;
-    return await res.json();
-  } catch {
-    return fallback;
-  }
-}
+import { redis, KEYS } from "./redis";
 
 export async function getSignals(): Promise<Signal[]> {
-  return fetchJson<Signal[]>(`${API_BASE}/api/signals`, []);
+  try {
+    const data = await redis.get(KEYS.signals);
+    return (data as Signal[]) || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getTodaySignals(): Promise<Signal[]> {
@@ -23,11 +17,21 @@ export async function getTodaySignals(): Promise<Signal[]> {
 }
 
 export async function getBotState(): Promise<BotState | null> {
-  return fetchJson<BotState | null>(`${API_BASE}/api/state`, null);
+  try {
+    const data = await redis.get(KEYS.state);
+    return (data as BotState) || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function getEconomicNews(): Promise<NewsItem[]> {
-  return fetchJson<NewsItem[]>(`${API_BASE}/api/news`, []);
+  try {
+    const data = await redis.get(KEYS.news);
+    return (data as NewsItem[]) || [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getSignalsByDate(date: string): Promise<Signal[]> {
