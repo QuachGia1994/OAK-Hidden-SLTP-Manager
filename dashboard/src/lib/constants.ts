@@ -4,8 +4,8 @@ export const TARGET_HOURS = [2, 3, 5, 7, 9, 11, 14, 15, 16];
 // JS weekday: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
 // Nhom 1 (H=2,3): T2 only. Nhom 2 (H=5,7): skip T2,T3. Nhom 3 (H=9,11): skip T2,T3. Nhom 4 (H=14,15): skip T2. Nhom 5 (H=16): all.
 export const SCHEDULE: { hour: number; note: string; skipDays?: number[] }[] = [
-  { hour: 2, note: "Nhóm 1: GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều", skipDays: [2, 3] },
-  { hour: 3, note: "Nhóm 1: GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều", skipDays: [2, 3] },
+  { hour: 2, note: "Nhóm 1: GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều", skipDays: [2] },
+  { hour: 3, note: "Nhóm 1: GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều", skipDays: [2] },
   { hour: 5, note: "Nhóm 2: Chỉ Vàng cùng chiều gốc", skipDays: [1, 2] },
   { hour: 7, note: "Nhóm 2: Chỉ Vàng cùng chiều gốc", skipDays: [1, 2] },
   { hour: 9, note: "Nhóm 3: Nhóm GBP + Vàng cùng chiều", skipDays: [1, 2] },

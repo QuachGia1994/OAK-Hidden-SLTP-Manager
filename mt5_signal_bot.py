@@ -698,7 +698,7 @@ def main():
 
             wd = broker_dt.weekday()
             skip = False
-            if h in (2, 3) and wd in (1, 2):
+            if h in (2, 3) and wd == 1:
                 skip = True
             elif h in (5, 7) and wd in (0, 1):
                 skip = True
@@ -805,7 +805,7 @@ def main():
                 # Nhom 1 (H=2,3): T2 only. Nhom 2 (H=5,7): skip T2,T3. Nhom 3 (H=9,11): skip T2,T3. Nhom 4 (H=14,15): skip T2. Nhom 5 (H=16): tat ca.
                 wd = broker_dt.weekday()
                 skip = False
-                if now_hour in (2, 3) and wd in (1, 2):
+                if now_hour in (2, 3) and wd == 1:
                     skip = True
                 elif now_hour in (5, 7) and wd in (0, 1):
                     skip = True
