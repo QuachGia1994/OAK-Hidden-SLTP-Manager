@@ -1,5 +1,28 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.8.0] - 2026-06-30
+*Trading Dashboard + Fix Telegram NLP scheduling + Symbol cleanup.*
+
+### 🌐 Trading Dashboard (Mới)
+- **Web dashboard**: https://oak-hidden-sltp-manager-dun.vercel.app
+- **Tech stack**: Next.js 16 + Upstash Redis + Vercel
+- **Real-time data**: Bot tự push signal, state, tin tức lên dashboard khi khởi động + mỗi khi có signal mới.
+- **Tin tức kinh tế**: Auto parse từ `news_cache_VN.json` (ForexFactory/MyFxBook/LiteFinance/Investing).
+- **Lịch sử 7 ngày**: Hiển thị signal trong 7 ngày gần nhất.
+- **Env vars**: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` trên Vercel.
+- **config.json**: Thêm field `dashboard_url`.
+
+### 🔧 Fix Telegram NLP Scheduling
+- **Profile filter**: Chỉ chặn khi token cuối cùng là profile khác (không chặn nhầm khi tên profile xuất hiện giữa câu).
+- **Symbol `+` cleanup**: Strip `XAUUSD+` → `XAUUSD` trước khi gọi MT5 (5 vị trí trong code).
+- **OAK inbox khi MiMo bot chạy**: OAK giờ đọc `tele_inbox.json` dù MiMo bot đang chạy (trước đó skip toàn bộ).
+
+### 🛠️ Cải tiến
+- **Debug logs**: `push_to_dashboard()` giờ log rõ kết quả (OK/Error).
+- **Startup push**: Bot push data lên dashboard ngay khi khởi động, không cần chờ signal.
+
+---
+
 ## [v3.7.0] - 2026-06-30
 *Xoá OAK ALERT ACTION NOW + Cập nhật Rule Reminders + Fix H=2 pairs.*
 

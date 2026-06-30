@@ -39,10 +39,18 @@ def create_backup():
         "mt4_mt5_server.py",
         "mimo_bot.py",
         "mimo_worker.py",
+        "utils.py",
         "CHAY_ALL.bat",
         "CHAY_SERVER.bat",
         "CHAY_MIMO_BOT.bat",
     ]
+
+    dashboard_files = []
+    for root, dirs, files in os.walk("dashboard"):
+        dirs[:] = [d for d in dirs if d not in ("node_modules", ".next", ".git")]
+        for f in files:
+            if f.endswith((".ts", ".tsx", ".json", ".md", ".css")):
+                dashboard_files.append(os.path.join(root, f))
 
     doc_patterns = [
         "*README*", "*readme*", "*GUIDE*", "*guide*",
@@ -52,7 +60,7 @@ def create_backup():
     doc_files = []
     for pattern in doc_patterns:
         doc_files.extend(glob.glob(pattern))
-    source_files = sorted(list(set(source_files + signal_files + doc_files + spec_files)))
+    source_files = sorted(list(set(source_files + signal_files + dashboard_files + doc_files + spec_files)))
     doc_files = set(doc_files)
 
     profile_zip = "OAK_Profile_Backup.zip"

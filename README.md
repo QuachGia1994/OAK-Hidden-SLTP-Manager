@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.7.0)
+# OAK Hidden SLTP Manager (v3.8.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -63,6 +63,14 @@ Tài liệu chi tiết:
 - **Commands**: `/mimo`, `/status`, `/profiles`, `/mt5`, `/positions`, `/news`.
 - **File-based Worker**: Xử lý lệnh nền, chống trùng instance bằng lock file.
 
+### Trading Dashboard (Mới - v3.8.0)
+- **Web dashboard**: https://oak-hidden-sltp-manager-dun.vercel.app
+- **Real-time**: Signal, bot state, lịch sử giao dịch cập nhật tự động.
+- **Economic News**: Tin tức kinh tế từ ForexFactory/Investing.
+- **Lịch sử 7 ngày**: Xem lại signal trong 7 ngày gần nhất.
+- **Upstash Redis**: Data lưu trên cloud, truy cập mọi lúc mọi nơi.
+- **Auto push**: Bot tự push data lên dashboard mỗi khi có signal mới + khi khởi động.
+
 ## Cấu trúc file
 | File | Mô tả |
 |------|-------|
@@ -71,6 +79,7 @@ Tài liệu chi tiết:
 | `mt4_mt5_server.py` | Flask API nhận data từ MT4 EA |
 | `mimo_bot.py` | Telegram Bot bridge |
 | `mimo_worker.py` | Worker xử lý lệnh MiMo |
+| `dashboard/` | Web dashboard (Next.js + Vercel) |
 | `CHAY_ALL.bat` | Khởi động tất cả (Server + Bot + Worker) |
 | `CHAY_SERVER.bat` | Khởi động MT4-MT5 Server |
 | `CHAY_MIMO_BOT.bat` | Khởi động MiMo Bot + Worker |
@@ -100,7 +109,8 @@ pip install -r requirements.txt
 {
     "telegram_token": "YOUR_BOT_TOKEN_HERE",
     "telegram_chat_id": "YOUR_CHAT_ID_HERE",
-    "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+    "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+    "dashboard_url": "https://oak-hidden-sltp-manager-dun.vercel.app"
 }
 ```
 > **Lưu ý**: `config.json` nằm trong `.gitignore`, KHÔNG được commit lên GitHub.

@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.7.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.8.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -121,7 +121,8 @@ Token bot Telegram được lưu trong `config.json` (gitignored):
 {
     "telegram_token": "YOUR_BOT_TOKEN_HERE",
     "telegram_chat_id": "YOUR_CHAT_ID_HERE",
-    "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+    "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
+    "dashboard_url": "https://oak-hidden-sltp-manager-dun.vercel.app"
 }
 ```
 > **Lưu ý**: Tạo `config.json` theo mẫu trên, KHÔNG commit file này lên GitHub.
@@ -141,6 +142,24 @@ Token bot Telegram được lưu trong `config.json` (gitignored):
 
 ### Ghost Mode
 - Khi MT5 bị chặn Algo Trading → giả lập F9, nhập thông số, Enter.
+
+---
+
+## 📊 Trading Dashboard (Mới - v3.8.0)
+
+### Truy cập
+https://oak-hidden-sltp-manager-dun.vercel.app
+
+### Các mục
+- **Dashboard**: Trạng thái bot, signal hôm nay, hướng ngày (D), tin tức kinh tế.
+- **Lịch sử**: 7 ngày gần nhất, xem chi tiết từng signal (entry time, pair directions).
+- **Rules**: Quy tắc H-value và ngày đặc biệt.
+
+### Cấu hình
+1. Tạo Upstash Redis: https://console.upstash.com
+2. Set env vars trên Vercel: `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`
+3. Thêm `dashboard_url` vào `config.json`
+4. Restart bot — data tự push lên dashboard
 
 ---
 
