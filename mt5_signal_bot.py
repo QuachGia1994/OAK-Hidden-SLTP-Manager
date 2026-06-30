@@ -528,6 +528,23 @@ def main():
             slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
             entry_time = calc_entry_time(sig, result.get("m30_dir"), latest, h2_signal=h2_sig)
             entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
+
+            pair_dirs = get_pair_direction(latest, sig, broker_dt)
+            if should_skip_xauusd(latest, sig, broker_dt):
+                pair_dirs.pop("XAUUSD", None)
+            pair_lines = []
+            for p in ALL_PAIRS:
+                d = pair_dirs.get(p)
+                if d is None:
+                    pair_lines.append(f"  {p}: -")
+                else:
+                    p_icon, _ = get_signal_icon(d)
+                    pair_lines.append(f"  {p}: {p_icon}")
+            pair_text = "\n".join(pair_lines)
+
+            hour_note = get_hour_note(latest)
+            note_line = f"📝 {hour_note}\n" if hour_note else ""
+
             msg = (
                 f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:45 - {icon}\n"
                 f"============================\n"
@@ -537,6 +554,10 @@ def main():
                 f"============================\n"
                 f"KẾT LUẬN: {icon}\n"
                 f"{entry_line}"
+                f"-------------------\n"
+                f"{pair_text}\n"
+                f"-------------------\n"
+                f"{note_line}"
                 f"============================\n"
                 f"{slot_line}"
                 f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
