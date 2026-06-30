@@ -691,8 +691,8 @@ def main():
             latest = passed[0]
             key = (broker_dt.date(), latest)
 
-            # Skip H=5, H=7 on T3/T4 (no pairs to trade)
-            if latest in (5, 7) and broker_dt.weekday() in (1, 2):
+            # Skip H=5, H=7 on T3 only (no pairs to trade)
+            if latest in (5, 7) and broker_dt.weekday() == 1:
                 print(f"  [SKIP] H={latest} T{broker_dt.weekday()+1} - khong co cap doi trade")
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
@@ -780,8 +780,8 @@ def main():
 
                 print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
 
-                # Skip H=5, H=7 on T3/T4 (no pairs to trade)
-                if now_hour in (5, 7) and broker_dt.weekday() in (1, 2):
+                # Skip H=5, H=7 on T3 only (no pairs to trade)
+                if now_hour in (5, 7) and broker_dt.weekday() == 1:
                     print(f"  [SKIP] H={now_hour} T{broker_dt.weekday()+1} - khong co cap doi trade")
                     sent_today.add(key)
                     _save_state(day_signals, sent_today)

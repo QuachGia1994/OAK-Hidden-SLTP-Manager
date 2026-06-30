@@ -83,7 +83,7 @@ Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 | 16 (T2,T5,T6) | cùng chiều | cùng chiều | cùng chiều |
 | 16 (T3,T4) | ngược chiều | ngược chiều | ngược chiều |
 
-**Lưu ý**: Thứ 3 chỉ trade H=14, H=15, H=16. Thứ 3, Thứ 4 bỏ H=5, H=7.
+**Lưu ý**: Thứ 3 chỉ trade H=14, H=15, H=16. Thứ 3 bỏ H=5, H=7.
 
 ### D Direction (Mới)
 User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
