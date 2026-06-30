@@ -43,6 +43,7 @@ scheduled_close_*.json
 
 # MiMo runtime files
 .mimocode/
+mimocode.jsonc
 _mimo_input.txt
 _mimo_output.txt
 mimo_proxy_result.txt
