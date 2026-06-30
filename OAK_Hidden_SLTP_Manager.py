@@ -1498,7 +1498,7 @@ class CopyTradeManager:
                             
                             if w_parsed in symbol_map: target_sym = symbol_map[w_parsed]
                             else:
-                                w_upper = w_parsed.upper().rstrip("+")
+                                w_upper = w_parsed.upper()
                                 if len(w_upper) >= 3 and any(c in w_upper for c in ["USD", "JPY", "EUR", "GBP", "AUD", "CAD", "CHF", "NZD", "XAU", "GOLD"]):
                                     target_sym = w_upper
                         
@@ -1524,7 +1524,7 @@ class CopyTradeManager:
                         symbol = symbol_map[w]
                         break
                     if len(raw_w) >= 6 and ("usd" in w or "jpy" in w or "eur" in w or "gbp" in w or "xau" in w):
-                        symbol = raw_w.upper().rstrip("+")
+                        symbol = raw_w.upper()
                         break
                 
                 # Extract Lot (float)
@@ -1695,7 +1695,7 @@ class CopyTradeManager:
                 # Check for symbol specific closing
                 target_sym = ""
                 for word in cmd:
-                    w = word.upper().strip(",.!+")
+                    w = word.upper().strip(",.!")
                     if any(s in w for s in ["XAU", "USD", "EUR", "GBP", "JPY", "GOLD"]):
                         target_sym = w
                         break
@@ -1731,7 +1731,7 @@ class CopyTradeManager:
                 # Detect Symbol
                 symbol = ""
                 for word in cmd:
-                    w = word.upper().strip(",.!+")
+                    w = word.upper().strip(",.!")
                     if any(s in w for s in ["XAU", "USD", "EUR", "GBP", "JPY", "GOLD"]):
                         symbol = w
                         break
@@ -1771,7 +1771,7 @@ class CopyTradeManager:
                 
                 t_type_str = pending_cmd[1].upper()
                 t_type = mt5.ORDER_TYPE_BUY if t_type_str == "BUY" else mt5.ORDER_TYPE_SELL
-                symbol = pending_cmd[2].upper().rstrip("+")
+                symbol = pending_cmd[2].upper()
                 lot = pending_cmd[3]
                 time_val = pending_cmd[4]
                 if len(time_val.split(":")) == 2: time_val += ":00"

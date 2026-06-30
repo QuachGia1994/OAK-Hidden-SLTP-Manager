@@ -802,27 +802,10 @@ def main():
 
                 print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
 
-                # Nhom 1 (H=2,3): T2 only. Nhom 2 (H=5,7): skip T2,T3. Nhom 3 (H=9,11): skip T2,T3. Nhom 4 (H=14,15): skip T2. Nhom 5 (H=16): tat ca.
+                # Tat ca 5 nhom hoat dong T2-6, chi skip T7/CN
                 wd = broker_dt.weekday()
-                skip = False
-                if now_hour in (2, 3) and wd == 1:
-                    skip = True
-                elif now_hour in (5, 7) and wd in (0, 1):
-                    skip = True
-                elif now_hour in (9, 11) and wd in (0, 1):
-                    skip = True
-                elif now_hour in (14, 15) and wd == 0:
-                    skip = True
-                if skip:
-                    if now_hour == 2:
-                        result = analyze(broker_dt, 2)
-                        sig = result["signal"]
-                        if sig in ("BUY", "SELL"):
-                            day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
-                            _save_state(day_signals, sent_today)
-                        print(f"  [SKIP NOTIFY] H=2 T{wd+1} - chi tinh de H=3 so sanh ({sig})")
-                    else:
-                        print(f"  [SKIP] H={now_hour} T{wd+1} - nhom khong hoat dong")
+                if wd >= 5:
+                    print(f"  [SKIP] T{wd+1} - weekend")
                     sent_today.add(key)
                     _save_state(day_signals, sent_today)
                     time.sleep(60)
