@@ -2,10 +2,10 @@ export const TARGET_HOURS = [2, 3, 5, 7, 9, 11, 14, 15, 16];
 
 // Schedule with skip info: which days each hour is active
 // JS weekday: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
-// Nhom 1 (H=2,3): T2,T4-6. Nhom 2 (H=5,7): T4-6. Nhom 3 (H=9,11): T4-6. Nhom 4 (H=14,15): T3-6. Nhom 5 (H=16): T2-6.
+// Nhom 1 (H=2,3): T2 only. Nhom 2 (H=5,7): skip T2,T3. Nhom 3 (H=9,11): skip T2,T3. Nhom 4 (H=14,15): skip T2. Nhom 5 (H=16): all.
 export const SCHEDULE: { hour: number; note: string; skipDays?: number[] }[] = [
-  { hour: 2, note: "Nhom 1: GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều", skipDays: [2] },
-  { hour: 3, note: "Nhom 1: GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều", skipDays: [2] },
+  { hour: 2, note: "Nhom 1: GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều", skipDays: [2, 3] },
+  { hour: 3, note: "Nhom 1: GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều", skipDays: [2, 3] },
   { hour: 5, note: "Nhom 2: Chỉ Vàng cùng chiều gốc", skipDays: [1, 2] },
   { hour: 7, note: "Nhom 2: Chỉ Vàng cùng chiều gốc", skipDays: [1, 2] },
   { hour: 9, note: "Nhom 3: Nhóm GBP + Vàng cùng chiều", skipDays: [1, 2] },
@@ -32,22 +32,13 @@ export const HOUR_NOTES: Record<number, string> = {
 
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // T2 (JS weekday=1)
-    "Nhom 1 (H=2,3): BAT",
-    "Nhom 2 (H=5,7): TAT",
-    "Nhom 3 (H=9,11): TAT",
-    "Nhom 4 (H=14,15): TAT",
-    "Nhom 5 (H=16): BAT",
+    "Neu T4 tuan truoc la ngay 30 hoac ngay 1 -> Tinh lai Thu 2",
+    "Neu T6 tuan truoc roi ngay 3/4/7 -> Tinh lai Thu 2",
   ],
-  2: [    // T3 (JS weekday=2)
-    "Nhom 1 (H=2,3): TAT",
-    "Nhom 2 (H=5,7): TAT",
-    "Nhom 3 (H=9,11): TAT",
-    "Nhom 4 (H=14,15): BAT",
-    "Nhom 5 (H=16): BAT",
-  ],
-  3: [    // T4
-    "Kiểm tra T4 cuối tháng hoặc ngày 30/1",
-    "Tất cả nhóm hoạt động bình thường",
+  3: [    // T4 (JS weekday=3)
+    "Neu T4 la ngay cuoi thang -> Tinh lai W1",
+    "Neu T4 la ngay 30 hoac ngay 1 -> Tinh lai W1",
+    "Neu T6 trong cung tuan roi ngay 3/4/7 -> Tinh lai W1",
   ],
 };
 

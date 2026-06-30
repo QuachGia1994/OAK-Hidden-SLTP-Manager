@@ -698,7 +698,7 @@ def main():
 
             wd = broker_dt.weekday()
             skip = False
-            if h in (2, 3) and wd == 1:
+            if h in (2, 3) and wd in (1, 2):
                 skip = True
             elif h in (5, 7) and wd in (0, 1):
                 skip = True
@@ -802,21 +802,17 @@ def main():
 
                 print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
 
-                # Nhom 1 (H=2,3): chi T2, T4-6. Skip T3.
-                # Nhom 2 (H=5,7): chi T4-6. Skip T2, T3.
-                # Nhom 3 (H=9,11): chi T4-6. Skip T2, T3.
-                # Nhom 4 (H=14,15): chi T3-6. Skip T2.
-                # Nhom 5 (H=16): tat ca T2-6.
+                # Nhom 1 (H=2,3): T2 only. Nhom 2 (H=5,7): skip T2,T3. Nhom 3 (H=9,11): skip T2,T3. Nhom 4 (H=14,15): skip T2. Nhom 5 (H=16): tat ca.
                 wd = broker_dt.weekday()
                 skip = False
-                if now_hour in (2, 3) and wd == 1:
-                    skip = True  # T3 skip nhom 1
+                if now_hour in (2, 3) and wd in (1, 2):
+                    skip = True
                 elif now_hour in (5, 7) and wd in (0, 1):
-                    skip = True  # T2, T3 skip nhom 2
+                    skip = True
                 elif now_hour in (9, 11) and wd in (0, 1):
-                    skip = True  # T2, T3 skip nhom 3
+                    skip = True
                 elif now_hour in (14, 15) and wd == 0:
-                    skip = True  # T2 skip nhom 4
+                    skip = True
                 if skip:
                     if now_hour == 2:
                         result = analyze(broker_dt, 2)
