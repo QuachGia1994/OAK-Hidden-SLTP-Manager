@@ -691,14 +691,19 @@ def main():
             latest = passed[0]
             key = (broker_dt.date(), latest)
 
-            # Skip H=5, H=7 on T3 only (no pairs to trade)
-            if latest in (5, 7) and broker_dt.weekday() == 1:
-                print(f"  [SKIP] H={latest} T{broker_dt.weekday()+1} - khong co cap doi trade")
-                sent_today.add(key)
-                _save_state(day_signals, sent_today)
-            # T3: chi thong bao H=14, H=15, H=16
-            elif broker_dt.weekday() == 1 and latest not in (14, 15, 16):
-                print(f"  [SKIP] H={latest} T3 - chi thong bao H=14/15/16")
+            # Same skip logic as main loop
+            wd = broker_dt.weekday()
+            skip = False
+            if latest in (2, 3) and wd == 1:
+                skip = True
+            elif latest in (5, 7) and wd in (0, 1):
+                skip = True
+            elif latest in (9, 11) and wd in (0, 1):
+                skip = True
+            elif latest in (14, 15) and wd == 0:
+                skip = True
+            if skip:
+                print(f"  [SKIP] H={latest} T{wd+1} - nhom khong hoat dong")
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
             else:
@@ -780,17 +785,23 @@ def main():
 
                 print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
 
-                # Skip H=5, H=7 on T3 only (no pairs to trade)
-                if now_hour in (5, 7) and broker_dt.weekday() == 1:
-                    print(f"  [SKIP] H={now_hour} T{broker_dt.weekday()+1} - khong co cap doi trade")
-                    sent_today.add(key)
-                    _save_state(day_signals, sent_today)
-                    time.sleep(60)
-                    continue
-
-                # T3 (weekday=1): chi thong bao H=14, H=15, H=16
-                if broker_dt.weekday() == 1 and now_hour not in (14, 15, 16):
-                    print(f"  [SKIP] H={now_hour} T3 - chi thong bao H=14/15/16")
+                # Nhom 1 (H=2,3): chi T2, T4-6. Skip T3.
+                # Nhom 2 (H=5,7): chi T4-6. Skip T2, T3.
+                # Nhom 3 (H=9,11): chi T4-6. Skip T2, T3.
+                # Nhom 4 (H=14,15): chi T3-6. Skip T2.
+                # Nhom 5 (H=16): tat ca T2-6.
+                wd = broker_dt.weekday()
+                skip = False
+                if now_hour in (2, 3) and wd == 1:
+                    skip = True  # T3 skip nhom 1
+                elif now_hour in (5, 7) and wd in (0, 1):
+                    skip = True  # T2, T3 skip nhom 2
+                elif now_hour in (9, 11) and wd in (0, 1):
+                    skip = True  # T2, T3 skip nhom 3
+                elif now_hour in (14, 15) and wd == 0:
+                    skip = True  # T2 skip nhom 4
+                if skip:
+                    print(f"  [SKIP] H={now_hour} T{wd+1} - nhom khong hoat dong")
                     sent_today.add(key)
                     _save_state(day_signals, sent_today)
                     time.sleep(60)

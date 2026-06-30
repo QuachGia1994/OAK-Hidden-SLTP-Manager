@@ -1,17 +1,18 @@
 export const TARGET_HOURS = [2, 3, 5, 7, 9, 11, 14, 15, 16];
 
 // Schedule with skip info: which days each hour is active
-// JavaScript weekday: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
+// JS weekday: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
+// Nhom 1 (H=2,3): T2,T4-6. Nhom 2 (H=5,7): T4-6. Nhom 3 (H=9,11): T4-6. Nhom 4 (H=14,15): T3-6. Nhom 5 (H=16): T2-6.
 export const SCHEDULE: { hour: number; note: string; skipDays?: number[] }[] = [
-  { hour: 2, note: "GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều", skipDays: [2] },  // T3: chi H=14/15/16
-  { hour: 3, note: "GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều", skipDays: [2] },
-  { hour: 5, note: "Chỉ Vàng cùng chiều gốc", skipDays: [2] },  // T3
-  { hour: 7, note: "Chỉ Vàng cùng chiều gốc", skipDays: [2] },
-  { hour: 9, note: "Nhóm GBP + Vàng cùng chiều", skipDays: [2] },
-  { hour: 11, note: "Nhóm GBP + Vàng cùng chiều", skipDays: [2] },
-  { hour: 14, note: "Chỉ Vàng cùng chiều gốc" },
-  { hour: 15, note: "Chỉ Vàng cùng chiều gốc" },
-  { hour: 16, note: "T2,T5,T6: cùng chiều. T3,T4: ngược chiều" },
+  { hour: 2, note: "Nhom 1: GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều", skipDays: [2] },
+  { hour: 3, note: "Nhom 1: GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều", skipDays: [2] },
+  { hour: 5, note: "Nhom 2: Chỉ Vàng cùng chiều gốc", skipDays: [1, 2] },
+  { hour: 7, note: "Nhom 2: Chỉ Vàng cùng chiều gốc", skipDays: [1, 2] },
+  { hour: 9, note: "Nhom 3: Nhóm GBP + Vàng cùng chiều", skipDays: [1, 2] },
+  { hour: 11, note: "Nhom 3: Nhóm GBP + Vàng cùng chiều", skipDays: [1, 2] },
+  { hour: 14, note: "Nhom 4: Chỉ Vàng cùng chiều gốc", skipDays: [1] },
+  { hour: 15, note: "Nhom 4: Chỉ Vàng cùng chiều gốc", skipDays: [1] },
+  { hour: 16, note: "Nhom 5: T2,T5,T6: cùng chiều. T3,T4: ngược chiều" },
 ];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
@@ -30,16 +31,23 @@ export const HOUR_NOTES: Record<number, string> = {
 };
 
 export const DAY_RULES: Record<number, string[]> = {
-  2: [    // Thứ 3 (JS weekday=2)
-    "Chỉ thông báo H=14, H=15, H=16",
-    "Bỏ qua H=2, H=3, H=5, H=7, H=9, H=11",
-    "GBP group chỉ trade H=14, H=15, H=16",
+  1: [    // T2 (JS weekday=1)
+    "Nhom 1 (H=2,3): BAT",
+    "Nhom 2 (H=5,7): TAT",
+    "Nhom 3 (H=9,11): TAT",
+    "Nhom 4 (H=14,15): TAT",
+    "Nhom 5 (H=16): BAT",
   ],
-  3: [    // Thứ 4
-    "Kiểm tra có phải T4 cuối tháng không",
-    "Nếu T4 là ngày 30 hoặc ngày 1 → Tính lại Thứ 4",
-    "Kiểm tra T6 có rơi ngày 3/4/7 không",
-    "Nếu T6 rơi ngày 3/4/7 → Tính lại Thứ 4",
+  2: [    // T3 (JS weekday=2)
+    "Nhom 1 (H=2,3): TAT",
+    "Nhom 2 (H=5,7): TAT",
+    "Nhom 3 (H=9,11): TAT",
+    "Nhom 4 (H=14,15): BAT",
+    "Nhom 5 (H=16): BAT",
+  ],
+  3: [    // T4
+    "Kiểm tra T4 cuối tháng hoặc ngày 30/1",
+    "Tất cả nhóm hoạt động bình thường",
   ],
 };
 

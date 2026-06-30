@@ -71,19 +71,14 @@ M5@H:35 và M5@H:40 → cùng chiều? → M30@H:00 xác nhận
 ### 5 Cặp tiền
 Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 
-### H-Value Rules
-| H | Nhóm GBP | GBPAUD | XAUUSD |
-|---|----------|--------|--------|
-| 2 | GBPAUD, GBPJPY cùng chiều | cùng chiều | ngược chiều |
-| 3 (T2) | cùng chiều | cùng chiều | cùng chiều |
-| 3 (T3-7) | cùng chiều | ngược chiều | cùng chiều |
-| 5,7 | - | - | cùng chiều |
-| 9,11 (T3-7) | cùng chiều | cùng chiều | cùng chiều |
-| 14,15 | - | - | cùng chiều |
-| 16 (T2,T5,T6) | cùng chiều | cùng chiều | cùng chiều |
-| 16 (T3,T4) | ngược chiều | ngược chiều | ngược chiều |
-
-**Lưu ý**: Thứ 3 chỉ trade H=14, H=15, H=16. Thứ 3 bỏ H=5, H=7.
+### 5 Nhom Gio
+| Nhom | Gio | Thu 2 | Thu 3 | Thu 4-6 |
+|------|-----|-------|-------|---------|
+| 1 | H=2,3 | BAT | TAT | BAT |
+| 2 | H=5,7 | TAT | TAT | BAT |
+| 3 | H=9,11 | TAT | TAT | BAT |
+| 4 | H=14,15 | TAT | BAT | BAT |
+| 5 | H=16 | BAT | BAT | BAT |
 
 ### D Direction (Mới)
 User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
