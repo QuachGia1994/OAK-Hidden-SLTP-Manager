@@ -1305,9 +1305,9 @@ class CopyTradeManager:
         chat_id = self.config.get("tele_chat", "")
         if not token or not chat_id: return
 
-        # Skip polling if mimo_bot.py is running (avoids 409 Conflict)
-        if self._is_mimo_bot_running():
-            return
+        # Skip Telegram API polling if mimo_bot.py is running (avoids 409 Conflict)
+        # But still read from shared inbox file (section 2)
+        skip_api_poll = self._is_mimo_bot_running()
 
         if not hasattr(self, "_last_tele_check"): self._last_tele_check = 0
         if time.time() - self._last_tele_check < 4.0: return # Check every 4s
@@ -1318,53 +1318,54 @@ class CopyTradeManager:
         inbox_file = "tele_inbox.json"
         offset_file = "tele_offset.json"
         
-        # 1. Fetch from Telegram (Broadcaster logic)
-        lock_path = "tele_sync.lock"
-        # Reduced timeout from 2s to 0.5s to prevent UI freeze
-        with FileLock(lock_path, timeout=0.5) as lock:
-            if lock:
-                try:
-                    # Read shared offset
-                    last_id = 0
-                    if os.path.exists(offset_file):
-                        try:
-                            with open(offset_file, "r") as f: last_id = int(f.read().strip())
-                        except: pass
-                    
-                    url = f"https://api.telegram.org/bot{token}/getUpdates?offset={last_id}&timeout=0"
-                    with urllib.request.urlopen(url, timeout=3) as response:
-                        data = json.loads(response.read().decode())
-                        if data.get("ok") and data.get("result"):
-                            new_updates = data["result"]
-                            
-                            if new_updates:
-                                # Update shared offset
-                                max_id = max(u["update_id"] for u in new_updates)
-                                with open(offset_file, "w") as f: f.write(str(max_id + 1))
+        # 1. Fetch from Telegram (Broadcaster logic) — skip if mimo_bot handles API
+        if not skip_api_poll:
+            lock_path = "tele_sync.lock"
+            # Reduced timeout from 2s to 0.5s to prevent UI freeze
+            with FileLock(lock_path, timeout=0.5) as lock:
+                if lock:
+                    try:
+                        # Read shared offset
+                        last_id = 0
+                        if os.path.exists(offset_file):
+                            try:
+                                with open(offset_file, "r") as f: last_id = int(f.read().strip())
+                            except: pass
+                        
+                        url = f"https://api.telegram.org/bot{token}/getUpdates?offset={last_id}&timeout=0"
+                        with urllib.request.urlopen(url, timeout=3) as response:
+                            data = json.loads(response.read().decode())
+                            if data.get("ok") and data.get("result"):
+                                new_updates = data["result"]
                                 
-                                # Load existing inbox
-                                inbox = []
-                                if os.path.exists(inbox_file):
-                                    try:
-                                        with open(inbox_file, "r", encoding="utf-8") as f: inbox = json.load(f)
-                                    except: pass
-                                
-                                # Append unique updates
-                                existing_ids = {u["update_id"] for u in inbox}
-                                added = False
-                                for u in new_updates:
-                                    if u["update_id"] not in existing_ids:
-                                        inbox.append(u)
-                                        added = True
-                                
-                                if added:
-                                    inbox = inbox[-50:] # Keep last 50
-                                    with open(inbox_file, "w", encoding="utf-8") as f: json.dump(inbox, f)
-                except Exception as e:
-                    if "409" in str(e):
-                        print(f"⚠️ [Error 409] Conflict with another polling script. Please close other bots using the same token!")
-                        # Optionally notify UI or log
-                    pass # Network error or another process is writing
+                                if new_updates:
+                                    # Update shared offset
+                                    max_id = max(u["update_id"] for u in new_updates)
+                                    with open(offset_file, "w") as f: f.write(str(max_id + 1))
+                                    
+                                    # Load existing inbox
+                                    inbox = []
+                                    if os.path.exists(inbox_file):
+                                        try:
+                                            with open(inbox_file, "r", encoding="utf-8") as f: inbox = json.load(f)
+                                        except: pass
+                                    
+                                    # Append unique updates
+                                    existing_ids = {u["update_id"] for u in inbox}
+                                    added = False
+                                    for u in new_updates:
+                                        if u["update_id"] not in existing_ids:
+                                            inbox.append(u)
+                                            added = True
+                                    
+                                    if added:
+                                        inbox = inbox[-50:] # Keep last 50
+                                        with open(inbox_file, "w", encoding="utf-8") as f: json.dump(inbox, f)
+                    except Exception as e:
+                        if "409" in str(e):
+                            print(f"⚠️ [Error 409] Conflict with another polling script. Please close other bots using the same token!")
+                            # Optionally notify UI or log
+                        pass # Network error or another process is writing
 
         # 2. Process from Shared Inbox
         if os.path.exists(inbox_file):
@@ -1459,9 +1460,10 @@ class CopyTradeManager:
         profile_names = self._get_profile_names()
         if not profile_names:
             profile_names = {"darwinex", "vantage", "th5ers"}
-        for token in cmd:
-            if token in profile_names and token != profile_lower:
-                return
+        # Only block if a DIFFERENT profile is explicitly targeted as the LAST token
+        # (not just mentioned anywhere in the command)
+        if cmd and cmd[-1] in profile_names and cmd[-1] != profile_lower:
+            return
         
         # --- NLP Parsing Logic ---
         # If not starting with "/", try to convert natural language to /pending or /closeall syntax
@@ -1496,7 +1498,7 @@ class CopyTradeManager:
                             
                             if w_parsed in symbol_map: target_sym = symbol_map[w_parsed]
                             else:
-                                w_upper = w_parsed.upper()
+                                w_upper = w_parsed.upper().rstrip("+")
                                 if len(w_upper) >= 3 and any(c in w_upper for c in ["USD", "JPY", "EUR", "GBP", "AUD", "CAD", "CHF", "NZD", "XAU", "GOLD"]):
                                     target_sym = w_upper
                         
@@ -1522,7 +1524,7 @@ class CopyTradeManager:
                         symbol = symbol_map[w]
                         break
                     if len(raw_w) >= 6 and ("usd" in w or "jpy" in w or "eur" in w or "gbp" in w or "xau" in w):
-                        symbol = raw_w.upper()
+                        symbol = raw_w.upper().rstrip("+")
                         break
                 
                 # Extract Lot (float)
@@ -1693,7 +1695,7 @@ class CopyTradeManager:
                 # Check for symbol specific closing
                 target_sym = ""
                 for word in cmd:
-                    w = word.upper().strip(",.!")
+                    w = word.upper().strip(",.!+")
                     if any(s in w for s in ["XAU", "USD", "EUR", "GBP", "JPY", "GOLD"]):
                         target_sym = w
                         break
@@ -1729,7 +1731,7 @@ class CopyTradeManager:
                 # Detect Symbol
                 symbol = ""
                 for word in cmd:
-                    w = word.upper().strip(",.!")
+                    w = word.upper().strip(",.!+")
                     if any(s in w for s in ["XAU", "USD", "EUR", "GBP", "JPY", "GOLD"]):
                         symbol = w
                         break
@@ -1769,7 +1771,7 @@ class CopyTradeManager:
                 
                 t_type_str = pending_cmd[1].upper()
                 t_type = mt5.ORDER_TYPE_BUY if t_type_str == "BUY" else mt5.ORDER_TYPE_SELL
-                symbol = pending_cmd[2].upper()
+                symbol = pending_cmd[2].upper().rstrip("+")
                 lot = pending_cmd[3]
                 time_val = pending_cmd[4]
                 if len(time_val.split(":")) == 2: time_val += ":00"
