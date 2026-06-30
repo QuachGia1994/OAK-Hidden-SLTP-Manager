@@ -158,7 +158,7 @@ def push_to_dashboard():
     print(f"[DASHBOARD] Pushing to {dashboard_url} ...")
     try:
         # Push signals
-        if os.path.exists(_SIGNALS_LOG):
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
                 signals = json.load(f)
             payload = json.dumps(signals).encode("utf-8")
@@ -167,10 +167,11 @@ def push_to_dashboard():
                 data=payload,
                 headers={"Content-Type": "application/json"}
             )
-            resp = urllib.request.urlopen(req, timeout=10)
-            print(f"[DASHBOARD] Signals pushed OK ({len(signals)} items)")
+            resp = urllib.request.urlopen(req, timeout=15)
+            body = resp.read().decode()
+            print(f"[DASHBOARD] Signals pushed OK ({len(signals)} items) - {resp.status}")
         # Push state
-        if os.path.exists(_STATE_FILE):
+        if os.path.exists(_STATE_FILE) and os.path.getsize(_STATE_FILE) > 2:
             with open(_STATE_FILE, "r", encoding="utf-8") as f:
                 state = json.load(f)
             payload = json.dumps(state).encode("utf-8")
@@ -179,11 +180,12 @@ def push_to_dashboard():
                 data=payload,
                 headers={"Content-Type": "application/json"}
             )
-            resp = urllib.request.urlopen(req, timeout=10)
-            print(f"[DASHBOARD] State pushed OK")
+            resp = urllib.request.urlopen(req, timeout=15)
+            body = resp.read().decode()
+            print(f"[DASHBOARD] State pushed OK - {resp.status}")
         # Push news
         news_cache = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news_cache_VN.json")
-        if os.path.exists(news_cache):
+        if os.path.exists(news_cache) and os.path.getsize(news_cache) > 2:
             with open(news_cache, "r", encoding="utf-8") as f:
                 cache = json.load(f)
             raw_news = cache.get("news", [])
@@ -195,8 +197,9 @@ def push_to_dashboard():
                     data=payload,
                     headers={"Content-Type": "application/json"}
                 )
-                resp = urllib.request.urlopen(req, timeout=10)
-                print(f"[DASHBOARD] News pushed OK ({len(parsed)} items)")
+                resp = urllib.request.urlopen(req, timeout=15)
+                body = resp.read().decode()
+                print(f"[DASHBOARD] News pushed OK ({len(parsed)} items) - {resp.status}")
     except Exception as e:
         print(f"[DASHBOARD] Push error: {e}")
 
