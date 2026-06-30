@@ -452,7 +452,7 @@ def analyze(broker_dt, H):
 def get_hour_note(H):
     notes = {
         2: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
-        3: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
+        3: "GBPAUD, GBPJPY cùng chiều gốc, Vàng tự tính",
         4: "Chỉ GBPAUD + Vàng",
         5: "Chỉ GBPAUD + Vàng",
         6: "Chỉ GBPAUD + Vàng",
@@ -492,10 +492,15 @@ def get_pair_direction(H, signal, broker_dt):
     if d_direction_date != today:
         d_direction = None
 
-    if H in (2, 3):
+    if H == 2:
         result["GBPAUD"] = signal
         result["GBPJPY"] = signal
         result["XAUUSD"] = "SELL" if signal == "BUY" else "BUY"
+
+    elif H == 3:
+        result["GBPAUD"] = signal
+        result["GBPJPY"] = signal
+        result["XAUUSD"] = signal
 
     elif H in (4, 5, 6, 7, 8):
         result["GBPAUD"] = signal
