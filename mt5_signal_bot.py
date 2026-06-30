@@ -696,9 +696,9 @@ def main():
                 print(f"  [SKIP] H={latest} T{broker_dt.weekday()+1} - khong co cap doi trade")
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
-            # T2: chi thong bao H=14, H=15, H=16
+            # T3: chi thong bao H=14, H=15, H=16
             elif broker_dt.weekday() == 1 and latest not in (14, 15, 16):
-                print(f"  [SKIP] H={latest} T2 - chi thong bao H=14/15/16")
+                print(f"  [SKIP] H={latest} T3 - chi thong bao H=14/15/16")
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
             else:
@@ -788,9 +788,9 @@ def main():
                     time.sleep(60)
                     continue
 
-                # T2 (weekday=1): chi thong bao H=14, H=15, H=16
+                # T3 (weekday=1): chi thong bao H=14, H=15, H=16
                 if broker_dt.weekday() == 1 and now_hour not in (14, 15, 16):
-                    print(f"  [SKIP] H={now_hour} T2 - chi thong bao H=14/15/16")
+                    print(f"  [SKIP] H={now_hour} T3 - chi thong bao H=14/15/16")
                     sent_today.add(key)
                     _save_state(day_signals, sent_today)
                     time.sleep(60)
