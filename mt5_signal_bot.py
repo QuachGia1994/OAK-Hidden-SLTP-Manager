@@ -452,20 +452,20 @@ def analyze(broker_dt, H):
 def get_hour_note(H):
     notes = {
         2: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
-        3: "GBPAUD, GBPJPY cùng chiều gốc, Vàng tự tính",
+        3: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
         4: "Chỉ GBPAUD + Vàng",
         5: "Chỉ GBPAUD + Vàng",
         6: "Chỉ GBPAUD + Vàng",
         7: "Chỉ GBPAUD + Vàng",
         8: "Chỉ GBPAUD + Vàng",
-        9: "Nhóm GBP cùng chiều gốc, Vàng tự tính",
+        9: "Nhóm GBP cùng chiều gốc, Vàng ngược chiều",
         10: "Chỉ Vàng",
-        11: "Nhóm GBP cùng chiều gốc, Vàng tự tính",
+        11: "Nhóm GBP cùng chiều gốc, Vàng ngược chiều",
         12: "Chỉ Vàng",
         13: "Chỉ Vàng",
         14: "Chỉ Vàng",
-        15: "GBPUSD, GBPJPY + Vàng",
-        16: "T2,T5,T6: cùng chiều. T3,T4: ngược chiều",
+        15: "GBPUSD, GBPJPY + Vàng cùng chiều",
+        16: "GBPUSD, GBPJPY + Vàng cùng chiều",
     }
     return notes.get(H)
 
@@ -492,15 +492,10 @@ def get_pair_direction(H, signal, broker_dt):
     if d_direction_date != today:
         d_direction = None
 
-    if H == 2:
+    if H in (2, 3):
         result["GBPAUD"] = signal
         result["GBPJPY"] = signal
         result["XAUUSD"] = "SELL" if signal == "BUY" else "BUY"
-
-    elif H == 3:
-        result["GBPAUD"] = signal
-        result["GBPJPY"] = signal
-        result["XAUUSD"] = signal
 
     elif H in (4, 5, 6, 7, 8):
         result["GBPAUD"] = signal
@@ -509,24 +504,15 @@ def get_pair_direction(H, signal, broker_dt):
     elif H in (9, 11):
         for p in GBP_PAIRS:
             result[p] = signal
-        result["XAUUSD"] = signal
+        result["XAUUSD"] = "SELL" if signal == "BUY" else "BUY"
 
     elif H in (10, 12, 13, 14):
         result["XAUUSD"] = signal
 
-    elif H == 15:
+    elif H in (15, 16):
         result["GBPUSD"] = signal
         result["GBPJPY"] = signal
         result["XAUUSD"] = signal
-
-    elif H == 16:
-        if weekday in (0, 3, 4):
-            for p in ALL_PAIRS:
-                result[p] = signal
-        elif weekday in (1, 2):
-            opposite = "SELL" if signal == "BUY" else "BUY"
-            for p in ALL_PAIRS:
-                result[p] = opposite
 
     return result
 
