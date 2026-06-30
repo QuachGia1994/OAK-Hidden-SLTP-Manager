@@ -1,16 +1,24 @@
-import { getSignals, getAvailableDates } from "@/lib/data";
+import { getSignals } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
 
 export const dynamic = "force-dynamic";
 
 export default async function SignalsPage() {
-  const [signals, dates] = await Promise.all([getSignals(), getAvailableDates()]);
+  const signals = await getSignals();
+
+  // Group by date and take last 7 days
+  const dateMap = new Map<string, typeof signals>();
+  for (const s of signals) {
+    if (!dateMap.has(s.date)) dateMap.set(s.date, []);
+    dateMap.get(s.date)!.push(s);
+  }
+  const dates = [...dateMap.keys()].sort().reverse().slice(0, 7);
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-zinc-100 tracking-tight">Lịch sử Signal</h1>
-        <p className="text-base text-zinc-400 mt-1">{signals.length} signal tổng cộng</p>
+        <p className="text-base text-zinc-400 mt-1">7 ngày gần nhất</p>
       </div>
 
       {dates.length === 0 ? (
@@ -18,7 +26,7 @@ export default async function SignalsPage() {
       ) : (
         <div className="space-y-8">
           {dates.map((date) => {
-            const daySignals = signals.filter((s) => s.date === date).sort((a, b) => b.hour - a.hour);
+            const daySignals = dateMap.get(date)!.sort((a, b) => b.hour - a.hour);
             return (
               <div key={date}>
                 <h2 className="text-sm font-medium text-zinc-400 mb-3 font-mono">{date}</h2>

@@ -125,6 +125,30 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
     except Exception as e:
         print(f"[WARN] Cannot log signal: {e}")
 
+def _parse_news_for_dashboard(news_lines):
+    """Parse news strings like '• 19:30 CAD 🔴 GDP m/m' into structured objects."""
+    import re
+    items = []
+    for line in news_lines:
+        line = line.lstrip("•- ").strip()
+        # Match: HH:MM CURRENCY [emoji] TITLE
+        m = re.match(r"(\d{1,2}:\d{2})\s+(\w+)\s+(.+)", line)
+        if m:
+            time_str, currency, rest = m.group(1), m.group(2), m.group(3)
+            impact = "medium"
+            title = rest
+            if "\U0001f534" in rest or "🔴" in rest:
+                impact = "high"
+                title = rest.replace("\U0001f534", "").replace("🔴", "").strip()
+            elif "\U0001f7e0" in rest or "🟠" in rest:
+                impact = "medium"
+                title = rest.replace("\U0001f7e0", "").replace("🟠", "").strip()
+            elif "\U0001f7e2" in rest or "🟢" in rest:
+                impact = "low"
+                title = rest.replace("\U0001f7e2", "").replace("🟢", "").strip()
+            items.append({"time": time_str, "currency": currency, "title": title.strip(), "impact": impact})
+    return items
+
 def push_to_dashboard():
     """Push data to dashboard API (best effort, non-blocking)."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
@@ -157,6 +181,22 @@ def push_to_dashboard():
             )
             resp = urllib.request.urlopen(req, timeout=10)
             print(f"[DASHBOARD] State pushed OK")
+        # Push news
+        news_cache = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news_cache_VN.json")
+        if os.path.exists(news_cache):
+            with open(news_cache, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+            raw_news = cache.get("news", [])
+            parsed = _parse_news_for_dashboard(raw_news)
+            if parsed:
+                payload = json.dumps(parsed).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{dashboard_url}/api/news",
+                    data=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                resp = urllib.request.urlopen(req, timeout=10)
+                print(f"[DASHBOARD] News pushed OK ({len(parsed)} items)")
     except Exception as e:
         print(f"[DASHBOARD] Push error: {e}")
 
