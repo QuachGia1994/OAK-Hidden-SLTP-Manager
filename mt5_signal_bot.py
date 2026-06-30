@@ -129,7 +129,9 @@ def push_to_dashboard():
     """Push data to dashboard API (best effort, non-blocking)."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
+        print("[DASHBOARD] No dashboard_url configured, skip push.")
         return
+    print(f"[DASHBOARD] Pushing to {dashboard_url} ...")
     try:
         # Push signals
         if os.path.exists(_SIGNALS_LOG):
@@ -141,7 +143,8 @@ def push_to_dashboard():
                 data=payload,
                 headers={"Content-Type": "application/json"}
             )
-            urllib.request.urlopen(req, timeout=5)
+            resp = urllib.request.urlopen(req, timeout=10)
+            print(f"[DASHBOARD] Signals pushed OK ({len(signals)} items)")
         # Push state
         if os.path.exists(_STATE_FILE):
             with open(_STATE_FILE, "r", encoding="utf-8") as f:
@@ -152,9 +155,10 @@ def push_to_dashboard():
                 data=payload,
                 headers={"Content-Type": "application/json"}
             )
-            urllib.request.urlopen(req, timeout=5)
-    except Exception:
-        pass  # Best effort, don't crash bot
+            resp = urllib.request.urlopen(req, timeout=10)
+            print(f"[DASHBOARD] State pushed OK")
+    except Exception as e:
+        print(f"[DASHBOARD] Push error: {e}")
 
 def get_schedule_reminders(broker_dt):
     """Kiểm tra các ngày đặc biệt trong tháng"""
@@ -617,6 +621,7 @@ def main():
         f"Kích hoạt: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
+    push_to_dashboard()
 
     if mt5_ready:
         broker_dt = get_broker_time()
