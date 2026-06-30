@@ -38,7 +38,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = [2, 3, 5, 7, 9, 11, 14, 15, 16]
+TARGET_HOURS = list(range(2, 17))  # 2-16
 BROKER_GMT = 0
 
 # =====================================================================
@@ -691,16 +691,14 @@ def main():
             countdown = "ngay mai"
 
         missed_count = 0
+        latest_missed = None
         for h in passed:
             key = (broker_dt.date(), h)
             if key in sent_today:
                 continue
 
             wd = broker_dt.weekday()
-
-            # Chi skip weekend (T7/CN)
             if wd >= 5:
-                print(f"  [SKIP] H={h} T{wd+1} - weekend")
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
                 continue
@@ -713,13 +711,37 @@ def main():
             h2_data = day_signals.get((broker_dt.date(), 2))
             h2_sig = h2_data["signal"] if h2_data else None
 
-            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
             entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig)
-            entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
-
             pair_dirs = get_pair_direction(h, sig, broker_dt)
             if should_skip_xauusd(h, sig, broker_dt):
                 pair_dirs.pop("XAUUSD", None)
+            hour_note = get_hour_note(h)
+
+            log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
+            sent_today.add(key)
+            if h == 2 and sig in ("BUY", "SELL"):
+                day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
+            _save_state(day_signals, sent_today)
+            missed_count += 1
+
+            latest_missed = {"h": h, "sig": sig, "icon": icon, "result": result,
+                             "entry_time": entry_time, "pair_dirs": pair_dirs, "hour_note": hour_note,
+                             "h2_sig": h2_sig}
+
+        # Chi gui Telegram slot gan nhat
+        if latest_missed:
+            h = latest_missed["h"]
+            sig = latest_missed["sig"]
+            icon = latest_missed["icon"]
+            result = latest_missed["result"]
+            entry_time = latest_missed["entry_time"]
+            pair_dirs = latest_missed["pair_dirs"]
+            hour_note = latest_missed["hour_note"]
+            h2_sig = latest_missed["h2_sig"]
+
+            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
+            entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
+
             pair_lines = []
             for p in ALL_PAIRS:
                 d = pair_dirs.get(p)
@@ -729,8 +751,6 @@ def main():
                     p_icon, _ = get_signal_icon(d)
                     pair_lines.append(f"  {p}: {p_icon}")
             pair_text = "\n".join(pair_lines)
-
-            hour_note = get_hour_note(h)
             note_line = f"📝 {hour_note}\n" if hour_note else ""
 
             msg = (
@@ -749,14 +769,6 @@ def main():
                 f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
             )
             send_telegram(msg)
-            log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
-            sent_today.add(key)
-            _save_state(day_signals, sent_today)
-            missed_count += 1
-            if h == 2 and sig in ("BUY", "SELL"):
-                day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
-                _save_state(day_signals, sent_today)
-            print(f"  Signal: {sig} - Sent: OK")
 
         if missed_count > 0:
             push_to_dashboard()
