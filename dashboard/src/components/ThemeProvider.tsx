@@ -19,25 +19,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem("theme") as Theme | null;
-    if (saved) {
-      setTheme(saved);
-    }
+    const initial = saved || "dark";
+    setTheme(initial);
+    document.documentElement.className = `${initial} ${document.documentElement.className.replace(/\b(dark|light)\b/g, "").trim()}`;
     setMounted(true);
   }, []);
 
   useEffect(() => {
     if (!mounted) return;
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    document.documentElement.classList.toggle("light", theme === "light");
+    document.documentElement.className = `${theme} ${document.documentElement.className.replace(/\b(dark|light)\b/g, "").trim()}`.trim();
     localStorage.setItem("theme", theme);
   }, [theme, mounted]);
 
   const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
-
-  // Prevent flash of wrong theme
-  if (!mounted) {
-    return <div className="dark">{children}</div>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, toggle }}>
