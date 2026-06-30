@@ -451,14 +451,20 @@ def analyze(broker_dt, H):
 
 def get_hour_note(H):
     notes = {
-        2: "GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều",
-        3: "GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều",
-        5: "Chỉ Vàng cùng chiều gốc (T2, T5, T6)",
-        7: "Chỉ Vàng cùng chiều gốc (T2, T5, T6)",
-        9: "T3-7: Nhóm GBP + Vàng cùng chiều",
-        11: "T3-7: Nhóm GBP + Vàng cùng chiều",
-        14: "Chỉ Vàng cùng chiều gốc",
-        15: "Chỉ Vàng cùng chiều gốc",
+        2: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
+        3: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
+        4: "Chỉ GBPAUD + Vàng",
+        5: "Chỉ GBPAUD + Vàng",
+        6: "Chỉ GBPAUD + Vàng",
+        7: "Chỉ GBPAUD + Vàng",
+        8: "Chỉ GBPAUD + Vàng",
+        9: "Nhóm GBP cùng chiều gốc, Vàng tự tính",
+        10: "Chỉ Vàng",
+        11: "Nhóm GBP cùng chiều gốc, Vàng tự tính",
+        12: "Chỉ Vàng",
+        13: "Chỉ Vàng",
+        14: "Chỉ Vàng",
+        15: "Chỉ Vàng",
         16: "T2,T5,T6: cùng chiều. T3,T4: ngược chiều",
     }
     return notes.get(H)
@@ -486,37 +492,21 @@ def get_pair_direction(H, signal, broker_dt):
     if d_direction_date != today:
         d_direction = None
 
-    if H == 2:
-        for p in ["GBPAUD", "GBPJPY"]:
-            result[p] = signal
+    if H in (2, 3):
+        result["GBPAUD"] = signal
+        result["GBPJPY"] = signal
         result["XAUUSD"] = "SELL" if signal == "BUY" else "BUY"
 
-    elif H == 3:
+    elif H in (4, 5, 6, 7, 8):
+        result["GBPAUD"] = signal
+        result["XAUUSD"] = signal
+
+    elif H in (9, 11):
         for p in GBP_PAIRS:
             result[p] = signal
-        if weekday == 0:
-            result["GBPAUD"] = signal
-        else:
-            result["GBPAUD"] = "SELL" if signal == "BUY" else "BUY"
         result["XAUUSD"] = signal
 
-    elif H in (5, 7):
-        if weekday in (0, 3, 4):  # T2, T5, T6
-            result["XAUUSD"] = signal
-
-    elif H == 9:
-        if weekday != 0:
-            for p in GBP_PAIRS:
-                result[p] = signal
-        result["XAUUSD"] = signal
-
-    elif H == 11:
-        if weekday != 0:
-            for p in GBP_PAIRS:
-                result[p] = signal
-        result["XAUUSD"] = signal
-
-    elif H in (14, 15):
+    elif H in (10, 12, 13, 14, 15):
         result["XAUUSD"] = signal
 
     elif H == 16:
