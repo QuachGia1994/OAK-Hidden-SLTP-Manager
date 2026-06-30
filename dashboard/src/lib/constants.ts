@@ -1,8 +1,5 @@
 export const TARGET_HOURS = Array.from({ length: 15 }, (_, i) => i + 2); // 2-16
 
-// Schedule with skip info: which days each hour is active
-// JS weekday: 0=CN, 1=T2, 2=T3, 3=T4, 4=T5, 5=T6, 6=T7
-// Nhom 1 (H=2,3): T2 only. Nhom 2 (H=5,7): skip T2,T3. Nhom 3 (H=9,11): skip T2,T3. Nhom 4 (H=14,15): skip T2. Nhom 5 (H=16): all.
 export const SCHEDULE: { hour: number; note: string }[] = [
   { hour: 2, note: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều" },
   { hour: 3, note: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều" },
