@@ -2,7 +2,6 @@ import { getSignalColor, getSignalBg, getSignalLabel, formatHour, brokerToLocalT
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
-// Convert entry time string (e.g. "7:49") from broker time to local time
 function entryTimeToLocal(entryTime: string): string {
   const match = entryTime.match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return entryTime;
@@ -17,43 +16,43 @@ export function SignalCard({ signal }: { signal: Signal }) {
   const localEntryTime = signal.entry_time ? entryTimeToLocal(signal.entry_time) : null;
 
   return (
-    <div className="border border-zinc-800 rounded-lg bg-zinc-900/50 overflow-hidden">
+    <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50 overflow-hidden">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="font-mono text-base text-zinc-200">
+          <span className="font-mono text-base text-zinc-900 dark:text-zinc-200">
             {localTime}
           </span>
-          <span className="text-xs text-zinc-500 font-mono">
+          <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
             ({formatHour(signal.hour)}:45 Broker)
           </span>
           {isMissed && (
-            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500">
+            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-500">
               BỎ LỠ
             </span>
           )}
         </div>
-        <span className="text-xs text-zinc-400 font-mono">{signal.date}</span>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{signal.date}</span>
       </div>
 
       {/* Conclusion */}
       <div className="px-4 py-4">
-        <div className="text-xs uppercase tracking-wider text-zinc-400 mb-1">KẾT LUẬN</div>
+        <div className="text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-1">KẾT LUẬN</div>
         <div className="flex items-center gap-3">
           <span className={`text-3xl font-bold font-mono ${getSignalColor(signal.signal)}`}>
             {getSignalLabel(signal.signal)}
           </span>
           {localEntryTime && (
             <div className="text-right">
-              <div className="text-xs text-zinc-400">VÀO LỆNH</div>
-              <div className="font-mono text-base text-zinc-200">{localEntryTime}</div>
+              <div className="text-xs text-zinc-500 dark:text-zinc-400">VÀO LỆNH</div>
+              <div className="font-mono text-base text-zinc-900 dark:text-zinc-200">{localEntryTime}</div>
             </div>
           )}
         </div>
       </div>
 
       {/* Pair Directions */}
-      <div className="px-4 py-3 border-t border-zinc-800/50">
+      <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800/50">
         {ALL_PAIRS.map((pair) => (
           <PairBadge
             key={pair}
@@ -65,8 +64,8 @@ export function SignalCard({ signal }: { signal: Signal }) {
 
       {/* Hour Note */}
       {signal.hour_note && (
-        <div className="px-4 py-2 border-t border-zinc-800/50 bg-zinc-900/30">
-          <p className="text-xs text-zinc-400">{signal.hour_note}</p>
+        <div className="px-4 py-2 border-t border-zinc-100 dark:border-zinc-800/50 bg-zinc-50 dark:bg-zinc-900/30">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{signal.hour_note}</p>
         </div>
       )}
     </div>
