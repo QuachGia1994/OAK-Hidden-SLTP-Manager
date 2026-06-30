@@ -25,6 +25,16 @@ tele_*.json
 news_cache*.json
 config.json
 .env
+.env*.local
+
+# Runtime data (pushed to Redis, not git)
+bot_state.json
+signals_log.json
+
+# Dashboard
+dashboard/node_modules/
+dashboard/.next/
+dashboard/.env*.local
 
 # Copy trade runtime files
 copy_map_*.json
@@ -37,3 +47,4 @@ _mimo_input.txt
 _mimo_output.txt
 mimo_proxy_result.txt
 mimo_proxy_cmd.txt
+d_dir_last_id.txt

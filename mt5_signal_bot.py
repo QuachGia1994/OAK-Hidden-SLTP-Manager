@@ -39,6 +39,121 @@ SYMBOL = "GBPUSD"
 TARGET_HOURS = [2, 3, 5, 7, 9, 11, 14, 15, 16]
 BROKER_GMT = 0
 
+# =====================================================================
+# STATE PERSISTENCE - survive bot restarts
+# =====================================================================
+_STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot_state.json")
+
+def _load_state():
+    """Load persisted state from disk. Returns dict with day_signals, sent_today, etc."""
+    try:
+        with open(_STATE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+    # Only accept state from today
+    today_str = datetime.now().date().isoformat()
+    if data.get("date") != today_str:
+        return {}
+
+    # Rebuild day_signals keys as (date, hour) tuples matching main loop format
+    day_signals = {}
+    for k, v in data.get("day_signals", {}).items():
+        day_signals[(datetime.strptime(data["date"], "%Y-%m-%d").date(), int(k))] = v
+
+    return {
+        "day_signals": day_signals,
+        "sent_today": set(tuple(x) for x in data.get("sent_today", [])),
+        "d_direction": data.get("d_direction"),
+        "d_direction_date": data.get("d_direction_date"),
+        "d_matched_hour": data.get("d_matched_hour"),
+    }
+
+def _save_state(day_signals, sent_today):
+    """Persist state to disk."""
+    today_str = datetime.now().date().isoformat()
+    # Convert day_signals keys to string for JSON
+    ds_json = {}
+    for (d, h), v in day_signals.items():
+        ds_str = d if isinstance(d, str) else d.isoformat()
+        if ds_str == today_str:
+            ds_json[str(h)] = v
+    st_json = [[d.isoformat() if hasattr(d, 'isoformat') else d, h] for d, h in sent_today]
+    data = {
+        "date": today_str,
+        "day_signals": ds_json,
+        "sent_today": st_json,
+        "d_direction": d_direction,
+        "d_direction_date": d_direction_date.isoformat() if d_direction_date else None,
+        "d_matched_hour": d_matched_hour,
+    }
+    try:
+        with open(_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"[WARN] Cannot save state: {e}")
+
+_SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
+
+def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=False):
+    """Append signal data to signals_log.json for website consumption."""
+    record = {
+        "date": broker_dt.date().isoformat(),
+        "hour": H,
+        "ts": datetime.now().timestamp(),
+        "signal": sig,
+        "entry_time": entry_time,
+        "pair_dirs": pair_dirs,
+        "hour_note": hour_note,
+        "missed": is_missed,
+    }
+    try:
+        data = []
+        if os.path.exists(_SIGNALS_LOG):
+            with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        # Deduplicate: replace existing entry for same (date, hour)
+        key = (record["date"], record["hour"])
+        data = [d for d in data if (d["date"], d["hour"]) != key]
+        data.append(record)
+        data = data[-500:]
+        with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"[WARN] Cannot log signal: {e}")
+
+def push_to_dashboard():
+    """Push data to dashboard API (best effort, non-blocking)."""
+    dashboard_url = os.environ.get("DASHBOARD_API_URL", "")
+    if not dashboard_url:
+        return
+    try:
+        # Push signals
+        if os.path.exists(_SIGNALS_LOG):
+            with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+                signals = json.load(f)
+            payload = json.dumps(signals).encode("utf-8")
+            req = urllib.request.Request(
+                f"{dashboard_url}/api/signals",
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(req, timeout=5)
+        # Push state
+        if os.path.exists(_STATE_FILE):
+            with open(_STATE_FILE, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            payload = json.dumps(state).encode("utf-8")
+            req = urllib.request.Request(
+                f"{dashboard_url}/api/state",
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(req, timeout=5)
+    except Exception:
+        pass  # Best effort, don't crash bot
+
 def get_schedule_reminders(broker_dt):
     """Kiểm tra các ngày đặc biệt trong tháng"""
     reminders = []
@@ -289,8 +404,8 @@ def get_hour_note(H):
     notes = {
         2: "GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều",
         3: "GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều",
-        5: "Chỉ Vàng cùng chiều gốc",
-        7: "Chỉ Vàng cùng chiều gốc",
+        5: "Chỉ Vàng cùng chiều gốc (T2, T5, T6)",
+        7: "Chỉ Vàng cùng chiều gốc (T2, T5, T6)",
         9: "T3-7: Nhóm GBP + Vàng cùng chiều",
         11: "T3-7: Nhóm GBP + Vàng cùng chiều",
         14: "Chỉ Vàng cùng chiều gốc",
@@ -337,7 +452,8 @@ def get_pair_direction(H, signal, broker_dt):
         result["XAUUSD"] = signal
 
     elif H in (5, 7):
-        result["XAUUSD"] = signal
+        if weekday in (0, 3, 4):  # T2, T5, T6
+            result["XAUUSD"] = signal
 
     elif H == 9:
         if weekday != 0:
@@ -457,7 +573,7 @@ def get_broker_time():
     return now_utc + timedelta(hours=BROKER_GMT)
 
 def main():
-    global mt5_ready
+    global mt5_ready, d_direction, d_direction_date, d_matched_hour
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.6.0")
     print(f"  Symbol: {SYMBOL}")
@@ -476,8 +592,18 @@ def main():
     print("  Dang chay... Ctrl+C de dung")
     print("=" * 55)
 
-    sent_today = set()
-    day_signals = {}  # {(date, hour): {"signal": ..., "m30_dir": ...}}
+    # Restore state from previous run (same day only)
+    saved = _load_state()
+    sent_today = saved.get("sent_today", set())
+    day_signals = saved.get("day_signals", {})
+    if saved.get("d_direction"):
+        d_direction = saved["d_direction"]
+        d_direction_date = datetime.fromisoformat(saved["d_direction_date"]).date() if saved.get("d_direction_date") else None
+        d_matched_hour = saved.get("d_matched_hour")
+    if day_signals:
+        print(f"  [RESTORE] day_signals: {list(day_signals.keys())}")
+    if sent_today:
+        print(f"  [RESTORE] sent_today: {sent_today}")
 
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     broker_dt = now_utc + timedelta(hours=BROKER_GMT)
@@ -517,54 +643,67 @@ def main():
         if passed:
             latest = passed[0]
             key = (broker_dt.date(), latest)
-            print(f"\n[KIEM TRA BO LO] {fmt_hour(latest)}:45")
-            result = analyze(broker_dt, latest)
-            sig = result["signal"]
-            icon, emoji = get_signal_icon(sig)
 
-            h2_data = day_signals.get((broker_dt.date(), 2))
-            h2_sig = h2_data["signal"] if h2_data else None
+            # Skip H=5, H=7 on T3/T4 (no pairs to trade)
+            if latest in (5, 7) and broker_dt.weekday() in (1, 2):
+                print(f"  [SKIP] H={latest} T{broker_dt.weekday()+1} - khong co cap doi trade")
+                sent_today.add(key)
+                _save_state(day_signals, sent_today)
+            else:
+                print(f"\n[KIEM TRA BO LO] {fmt_hour(latest)}:45")
+                result = analyze(broker_dt, latest)
+                sig = result["signal"]
+                icon, emoji = get_signal_icon(sig)
 
-            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
-            entry_time = calc_entry_time(sig, result.get("m30_dir"), latest, h2_signal=h2_sig)
-            entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
+                h2_data = day_signals.get((broker_dt.date(), 2))
+                h2_sig = h2_data["signal"] if h2_data else None
 
-            pair_dirs = get_pair_direction(latest, sig, broker_dt)
-            if should_skip_xauusd(latest, sig, broker_dt):
-                pair_dirs.pop("XAUUSD", None)
-            pair_lines = []
-            for p in ALL_PAIRS:
-                d = pair_dirs.get(p)
-                if d is None:
-                    pair_lines.append(f"  {p}: -")
-                else:
-                    p_icon, _ = get_signal_icon(d)
-                    pair_lines.append(f"  {p}: {p_icon}")
-            pair_text = "\n".join(pair_lines)
+                slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
+                entry_time = calc_entry_time(sig, result.get("m30_dir"), latest, h2_signal=h2_sig)
+                entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
 
-            hour_note = get_hour_note(latest)
-            note_line = f"📝 {hour_note}\n" if hour_note else ""
+                pair_dirs = get_pair_direction(latest, sig, broker_dt)
+                if should_skip_xauusd(latest, sig, broker_dt):
+                    pair_dirs.pop("XAUUSD", None)
+                pair_lines = []
+                for p in ALL_PAIRS:
+                    d = pair_dirs.get(p)
+                    if d is None:
+                        pair_lines.append(f"  {p}: -")
+                    else:
+                        p_icon, _ = get_signal_icon(d)
+                        pair_lines.append(f"  {p}: {p_icon}")
+                pair_text = "\n".join(pair_lines)
 
-            msg = (
-                f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:45 - {icon}\n"
-                f"============================\n"
-                f"  {fmt_hour(latest)}:45 (Broker)\n"
-                f"============================\n\n"
-                f"{result['report']}\n\n"
-                f"============================\n"
-                f"KẾT LUẬN: {icon}\n"
-                f"{entry_line}"
-                f"-------------------\n"
-                f"{pair_text}\n"
-                f"-------------------\n"
-                f"{note_line}"
-                f"============================\n"
-                f"{slot_line}"
-                f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
-            )
-            send_telegram(msg)
-            sent_today.add(key)
-            print(f"  Signal: {sig} - Sent: OK")
+                hour_note = get_hour_note(latest)
+                note_line = f"📝 {hour_note}\n" if hour_note else ""
+
+                msg = (
+                    f"{emoji} [Bỏ lỡ] {fmt_hour(latest)}:45 - {icon}\n"
+                    f"============================\n"
+                    f"  {fmt_hour(latest)}:45 (Broker)\n"
+                    f"============================\n\n"
+                    f"{result['report']}\n\n"
+                    f"============================\n"
+                    f"KẾT LUẬN: {icon}\n"
+                    f"{entry_line}"
+                    f"-------------------\n"
+                    f"{pair_text}\n"
+                    f"-------------------\n"
+                    f"{note_line}"
+                    f"============================\n"
+                    f"{slot_line}"
+                    f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
+                )
+                send_telegram(msg)
+                log_signal(latest, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
+                push_to_dashboard()
+                sent_today.add(key)
+                # Also store H=2 signal if this is the missed H=2 slot
+                if latest == 2 and sig in ("BUY", "SELL"):
+                    day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
+                _save_state(day_signals, sent_today)
+                print(f"  Signal: {sig} - Sent: OK")
 
     try:
         while True:
@@ -589,22 +728,40 @@ def main():
 
                 print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
 
+                # Skip H=5, H=7 on T3/T4 (no pairs to trade)
+                if now_hour in (5, 7) and broker_dt.weekday() in (1, 2):
+                    print(f"  [SKIP] H={now_hour} T{broker_dt.weekday()+1} - khong co cap doi trade")
+                    sent_today.add(key)
+                    _save_state(day_signals, sent_today)
+                    time.sleep(60)
+                    continue
+
                 result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
 
                 # Track H=2 signal for entry time calculation
                 if now_hour == 2 and sig in ("BUY", "SELL"):
                     day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
+                    _save_state(day_signals, sent_today)
 
                 h2_data = day_signals.get((broker_dt.date(), 2))
                 h2_sig = h2_data["signal"] if h2_data else None
 
                 send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
 
+                # Log for website
+                entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig)
+                pair_dirs = get_pair_direction(now_hour, sig, broker_dt)
+                if should_skip_xauusd(now_hour, sig, broker_dt):
+                    pair_dirs.pop("XAUUSD", None)
+                log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour))
+                push_to_dashboard()
+
                 print(f"  Signal: {sig}")
                 print(f"  Sent: OK")
 
                 sent_today.add(key)
+                _save_state(day_signals, sent_today)
 
                 time.sleep(60)
             else:
