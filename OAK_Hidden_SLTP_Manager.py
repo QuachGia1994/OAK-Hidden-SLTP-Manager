@@ -1283,11 +1283,31 @@ class CopyTradeManager:
             self._process_slave()
 
 
+    def _is_mimo_bot_running(self):
+        """Check if mimo_bot.py process is running to avoid Telegram polling conflict"""
+        try:
+            result = subprocess.run(
+                ["wmic", "process", "where",
+                 "CommandLine like '%mimo_bot.py%' and Name='python.exe'",
+                 "get", "ProcessId"],
+                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            for line in result.stdout.strip().split('\n'):
+                if line.strip().isdigit():
+                    return True
+        except:
+            pass
+        return False
+
     def _check_telegram_commands(self):
         """NEW: Check for remote commands via Telegram using Shared Inbox to support Multi-Process"""
         token = self.config.get("tele_token", "")
         chat_id = self.config.get("tele_chat", "")
         if not token or not chat_id: return
+
+        # Skip polling if mimo_bot.py is running (avoids 409 Conflict)
+        if self._is_mimo_bot_running():
+            return
 
         if not hasattr(self, "_last_tele_check"): self._last_tele_check = 0
         if time.time() - self._last_tele_check < 4.0: return # Check every 4s
