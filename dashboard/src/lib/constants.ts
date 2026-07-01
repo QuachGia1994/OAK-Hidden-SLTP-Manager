@@ -1,21 +1,21 @@
 export const TARGET_HOURS = Array.from({ length: 15 }, (_, i) => i + 2); // 2-16
 
 export const SCHEDULE: { hour: number; note: string }[] = [
-  { hour: 2, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPAUD, GBPJPY ngược" },
-  { hour: 3, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPAUD, GBPJPY ngược" },
-  { hour: 4, note: "T2: Nhóm GBP ngược Vàng | T3-4: Chỉ GBPAUD ngược" },
-  { hour: 5, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược" },
-  { hour: 6, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược" },
-  { hour: 7, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược" },
-  { hour: 8, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược (không Vàng)" },
-  { hour: 9, note: "Nhóm GBP ngược Vàng" },
+  { hour: 2, note: "T2: Nhóm GBP ngược | T3-4: GBPAUD, GBPJPY ngược | T5-6: GBPAUD, GBPJPY ngược" },
+  { hour: 3, note: "T2: Nhóm GBP ngược | T3-4: GBPAUD, GBPJPY ngược | T5-6: GBPAUD, GBPJPY ngược" },
+  { hour: 4, note: "T2: Nhóm GBP ngược | T3-6: Chỉ GBPAUD ngược" },
+  { hour: 5, note: "T2: Nhóm GBP ngược | T3-4: GBPUSD, GBPCAD, GBPJPY ngược | T5-6: GBPUSD, GBPCAD, GBPJPY ngược" },
+  { hour: 6, note: "T2: Nhóm GBP ngược | T3-4: GBPUSD, GBPCAD, GBPJPY ngược | T5-6: GBPUSD, GBPCAD, GBPJPY ngược" },
+  { hour: 7, note: "T2: Nhóm GBP ngược | T3-4: GBPUSD, GBPCAD, GBPJPY ngược | T5-6: GBPUSD, GBPCAD, GBPJPY ngược" },
+  { hour: 8, note: "T2: Nhóm GBP ngược | T3-4: GBPUSD, GBPCAD, GBPJPY ngược | T5-6: GBPUSD, GBPCAD, GBPJPY (Vàng --)" },
+  { hour: 9, note: "T2,5-6: Nhóm GBP cùng Vàng | T3-4: Nhóm GBP cùng Vàng" },
   { hour: 10, note: "Chỉ Vàng" },
-  { hour: 11, note: "Nhóm GBP ngược Vàng" },
+  { hour: 11, note: "T2,5-6: Nhóm GBP cùng Vàng | T3-4: Nhóm GBP cùng Vàng" },
   { hour: 12, note: "Chỉ Vàng" },
   { hour: 13, note: "Chỉ Vàng" },
-  { hour: 14, note: "T2: Nhóm GBP ngược Vàng | T3-4: Chỉ Vàng" },
-  { hour: 15, note: "T2: Nhóm GBP ngược Vàng | T3-4: Nhóm GBP cùng Vàng" },
-  { hour: 16, note: "T2: Nhóm GBP ngược Vàng | T3-4: Nhóm GBP cùng Vàng" },
+  { hour: 14, note: "T2: Nhóm GBP ngược | T3-4: Chỉ Vàng | T5-6: Chỉ Vàng" },
+  { hour: 15, note: "T2: Nhóm GBP ngược | T3-4: Nhóm GBP cùng | T5-6: GBPUSD, GBPJPY cùng" },
+  { hour: 16, note: "T2: Nhóm GBP ngược | T3-4: Nhóm GBP cùng | T5-6: Nhóm GBP cùng" },
 ];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];

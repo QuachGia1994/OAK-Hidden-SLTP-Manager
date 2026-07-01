@@ -688,7 +688,47 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
                 result[p] = gold
         return result
 
-    # === THỨ 5-7 (weekday=3,4,5) ===
+    # === THỨ 5, THỨ 6 (weekday=3,4) ===
+    if weekday in (3, 4):
+        if H in (2, 3):
+            result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
+            result["GBPJPY"] = opposite
+            result["GBPUSD"] = "--"
+            result["GBPCAD"] = "--"
+        elif H == 4:
+            result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
+            result["GBPUSD"] = "--"
+            result["GBPJPY"] = "--"
+            result["GBPCAD"] = "--"
+        elif H in (5, 6, 7, 8):
+            result["GBPUSD"] = opposite
+            result["GBPCAD"] = opposite
+            result["GBPJPY"] = opposite
+            result["GBPAUD"] = "--"
+            result["XAUUSD"] = "--"  # H=8 hiển thị --
+        elif H in (9, 11):
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H in (10, 12, 13, 14):
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = "--"
+        elif H == 15:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
+            result["GBPAUD"] = "--"
+            result["GBPCAD"] = "--"
+        elif H == 16:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        return result
+
+    # === THỨ 7 (weekday=5) ===
     if H in (2, 3):
         result["XAUUSD"] = gold
         result["GBPAUD"] = opposite
