@@ -759,6 +759,7 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
         f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
     )
     send_telegram(msg)
+    return pair_dirs
 
 # =====================================================================
 # MAIN LOOP
