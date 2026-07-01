@@ -44,3 +44,12 @@ export async function getAvailableDates(): Promise<string[]> {
   const dates = [...new Set(signals.map((s) => s.date))];
   return dates.sort().reverse();
 }
+
+export async function getCurrentPrices(): Promise<Record<string, number>> {
+  try {
+    const data = await redis.get(KEYS.prices);
+    return (data as Record<string, number>) || {};
+  } catch {
+    return {};
+  }
+}

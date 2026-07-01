@@ -10,4 +10,5 @@ export const KEYS = {
   signals: "sltp:signals",
   state: "sltp:state",
   news: "sltp:news",
+  prices: "sltp:prices",
 };

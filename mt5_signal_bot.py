@@ -251,6 +251,32 @@ def push_to_dashboard():
     except Exception as e:
         print(f"[DASHBOARD] Push error: {e}")
 
+def push_prices_to_dashboard():
+    """Push giá realtime cho các cặp đang có tín hiệuactive."""
+    dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
+    if not dashboard_url:
+        return
+    try:
+        prices = {}
+        for pair in ALL_PAIRS:
+            try:
+                tick = mt5.symbol_info_tick(pair)
+                if tick:
+                    prices[pair] = round(tick.bid, 5)
+            except Exception:
+                pass
+        if prices:
+            payload = json.dumps(prices).encode("utf-8")
+            req = urllib.request.Request(
+                f"{dashboard_url}/api/prices",
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(req, timeout=10)
+            print(f"[DASHBOARD] Prices pushed OK ({len(prices)} pairs)")
+    except Exception as e:
+        print(f"[DASHBOARD] Prices push error: {e}")
+
 def get_schedule_reminders(broker_dt):
     """Kiểm tra các ngày đặc biệt trong tháng - dùng chung get_day_notes."""
     notes = get_day_notes(broker_dt, lang="VN")
@@ -942,6 +968,8 @@ def main():
 
                 time.sleep(60)
             else:
+                # Push giá realtime mỗi lần loop
+                push_prices_to_dashboard()
                 if now_min < 45:
                     wait = (45 - now_min) * 60 - broker_dt.second
                 else:
