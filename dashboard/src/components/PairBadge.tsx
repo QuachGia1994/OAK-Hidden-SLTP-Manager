@@ -1,14 +1,14 @@
-import { getSignalColor, getSignalLabel } from "@/lib/constants";
+import { getSignalLabel } from "@/lib/constants";
 
 interface PairBadgeProps {
   pair: string;
   direction: string;
   entryPrice?: number | null;
-  currentPrice?: number | null;
   prevDirection?: string | null;
+  prevEntryPrice?: number | null;
 }
 
-export function PairBadge({ pair, direction, entryPrice, currentPrice, prevDirection }: PairBadgeProps) {
+export function PairBadge({ pair, direction, entryPrice, prevDirection, prevEntryPrice }: PairBadgeProps) {
   if (!direction || direction === "-" || direction === "--") {
     return (
       <div className="flex items-center justify-between py-1.5">
@@ -19,19 +19,17 @@ export function PairBadge({ pair, direction, entryPrice, currentPrice, prevDirec
   }
 
   const isBuy = direction === "BUY";
-  const hasEntry = entryPrice != null;
-  const hasCurrent = currentPrice != null;
-  // Chỉ hiển thị giá khi signal thay đổi so với slot trước
+  // Hiển thị giá khi signal thay đổi so với slot trước
   const signalChanged = prevDirection && prevDirection !== direction && prevDirection !== "-" && prevDirection !== "--";
 
   let priceDisplay = null;
-  if (signalChanged && hasEntry && hasCurrent) {
-    const change = ((currentPrice! - entryPrice!) / entryPrice!) * 100;
+  if (signalChanged && entryPrice != null && prevEntryPrice != null) {
+    const change = ((entryPrice - prevEntryPrice) / prevEntryPrice) * 100;
     const changeStr = change >= 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
     const changeColor = change >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
     priceDisplay = (
       <span className={`text-xs font-mono ${changeColor} ml-1`}>
-        {entryPrice!.toFixed(5)} ({changeStr})
+        {entryPrice.toFixed(5)} ({changeStr})
       </span>
     );
   }
