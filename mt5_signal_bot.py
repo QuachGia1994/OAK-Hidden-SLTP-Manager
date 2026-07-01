@@ -717,7 +717,13 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         elif H == 4:
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
-        elif H in (5, 6, 7, 8):
+        elif H in (5, 6, 7):
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = opposite
+            result["GBPCAD"] = opposite
+            result["GBPJPY"] = opposite
+        elif H == 8:
+            result["XAUUSD"] = "--"
             result["GBPUSD"] = opposite
             result["GBPCAD"] = opposite
             result["GBPJPY"] = opposite
@@ -740,7 +746,13 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         elif H == 4:
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
-        elif H in (5, 6, 7, 8):
+        elif H in (5, 6, 7):
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = opposite
+            result["GBPCAD"] = opposite
+            result["GBPJPY"] = opposite
+        elif H == 8:
+            result["XAUUSD"] = "--"
             result["GBPUSD"] = opposite
             result["GBPCAD"] = opposite
             result["GBPJPY"] = opposite
