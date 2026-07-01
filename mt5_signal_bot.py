@@ -805,8 +805,7 @@ def main():
                 f"{slot_line}"
                 f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
             )
-    send_telegram(msg)
-    return pair_dirs
+            send_telegram(msg)
 
         if missed_count > 0:
             push_to_dashboard()
