@@ -600,23 +600,58 @@ def analyze(broker_dt, H):
 
     return {"signal": signal, "orig_signal": orig_signal, "h1_signal": h1_result, "report": report, "m30_dir": d_m30, "h1_flipped": h1_flipped}
 
-def get_hour_note(H):
+def get_hour_note(H, weekday=None):
+    """Trả note theo H và thứ."""
+    if weekday is None:
+        weekday = datetime.now().weekday()
+
+    # T3-T4 (weekday 1,2)
+    if weekday in (1, 2):
+        notes = {
+            2: "GBPAUD, GBPJPY ngược Vàng",
+            3: "GBPAUD, GBPJPY ngược Vàng",
+            4: "GBPAUD ngược Vàng",
+            5: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
+            6: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
+            7: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
+            8: "GBPUSD, GBPCAD, GBPJPY ngược (Vàng --)",
+            15: "GBPUSD, GBPJPY cùng Vàng",
+            16: "Nhóm GBP cùng Vàng",
+        }
+        return notes.get(H)
+
+    # T5-T6 (weekday 3,4)
+    if weekday in (3, 4):
+        notes = {
+            2: "GBPAUD, GBPJPY ngược Vàng",
+            3: "GBPAUD, GBPJPY ngược Vàng",
+            4: "GBPAUD ngược Vàng",
+            5: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
+            6: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
+            7: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
+            8: "GBPUSD, GBPCAD, GBPJPY ngược (Vàng --)",
+            9: "Nhóm GBP cùng Vàng",
+            10: "Chỉ Vàng",
+            11: "Nhóm GBP cùng Vàng",
+            12: "Chỉ Vàng",
+            13: "Chỉ Vàng",
+            15: "GBPUSD, GBPJPY cùng Vàng",
+            16: "Nhóm GBP cùng Vàng",
+        }
+        return notes.get(H)
+
+    # T2 (weekday 0) - mặc định
     notes = {
-        2: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
-        3: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
-        4: "Chỉ GBPAUD + Vàng",
-        5: "Chỉ GBPAUD + Vàng",
-        6: "Chỉ GBPAUD + Vàng",
-        7: "Chỉ GBPAUD + Vàng",
-        8: "Chỉ GBPAUD + Vàng",
-        9: "Nhóm GBP ngược Vàng",
-        10: "Chỉ Vàng",
-        11: "Nhóm GBP ngược Vàng",
-        12: "Chỉ Vàng",
-        13: "Chỉ Vàng",
-        14: "Chỉ Vàng",
-        15: "GBPUSD, GBPJPY cùng Vàng",
-        16: "GBPUSD, GBPJPY cùng Vàng",
+        2: "Nhóm GBP ngược Vàng",
+        3: "Nhóm GBP ngược Vàng",
+        4: "Nhóm GBP ngược Vàng",
+        5: "Nhóm GBP ngược Vàng",
+        6: "Nhóm GBP ngược Vàng",
+        7: "Nhóm GBP ngược Vàng",
+        8: "Nhóm GBP ngược Vàng",
+        14: "Nhóm GBP ngược Vàng",
+        15: "Nhóm GBP ngược Vàng",
+        16: "Nhóm GBP ngược Vàng",
     }
     return notes.get(H)
 
@@ -869,7 +904,7 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
 
     entry_time = calc_entry_time(sig, m30_dir, H, h2_signal=h2_signal, orig_signal=signal_data.get("orig_signal"))
 
-    hour_note = get_hour_note(H)
+    hour_note = get_hour_note(H, broker_dt.weekday())
     note_line = f"📝 {hour_note}\n" if hour_note else ""
 
     pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
@@ -1056,7 +1091,7 @@ def main():
                 pair_dirs.pop("XAUUSD", None)
             elif sig == d_direction and d_direction is not None:
                 mark_xauusd_matched(h)
-            hour_note = get_hour_note(h)
+            hour_note = get_hour_note(h, broker_dt.weekday())
 
             log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
             schedule精准_price_update(broker_dt, entry_time, pair_dirs)
@@ -1179,7 +1214,7 @@ def main():
 
                 # Log for website
                 entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
-                log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour))
+                log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour, broker_dt.weekday()))
                 schedule精准_price_update(broker_dt, entry_time, pair_dirs)
                 push_to_dashboard()
 
