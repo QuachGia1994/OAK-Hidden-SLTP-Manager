@@ -101,25 +101,39 @@ def _save_state(day_signals, sent_today):
 
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
-def get_entry_prices(pair_dirs):
-    """Lấy giá hiện tại cho các cặp có tín hiệu BUY/SELL."""
+def get_entry_prices(pair_dirs, broker_dt, entry_time):
+    """Lấy giá tại entry time từ nến M1."""
     prices = {}
+    if not entry_time:
+        return prices
+    # Parse entry_time "H:MM" thành broker datetime
+    try:
+        parts = entry_time.split(":")
+        eh, em = int(parts[0]), int(parts[1])
+        entry_ts = broker_time_to_ts(broker_dt, eh, em)
+    except Exception:
+        return prices
     for pair, direction in pair_dirs.items():
         if direction not in ("BUY", "SELL"):
             continue
         try:
-            tick = mt5.symbol_info_tick(pair)
-            if tick:
-                # BUY = ask (mua), SELL = bid (bán)
-                price = tick.ask if direction == "BUY" else tick.bid
-                prices[pair] = round(price, 5)
+            # Lấy nến M1 tại entry time, dùng close price
+            candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, entry_ts)
+            if candle:
+                prices[pair] = round(candle["close"], 5)
+            else:
+                # Fallback: lấy tick hiện tại
+                tick = mt5.symbol_info_tick(pair)
+                if tick:
+                    price = tick.ask if direction == "BUY" else tick.bid
+                    prices[pair] = round(price, 5)
         except Exception:
             pass
     return prices
 
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=False):
     """Append signal data to signals_log.json for website consumption."""
-    entry_prices = get_entry_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
+    entry_prices = get_entry_prices(pair_dirs, broker_dt, entry_time) if sig in ("BUY", "SELL") else {}
     record = {
         "date": broker_dt.date().isoformat(),
         "hour": H,
