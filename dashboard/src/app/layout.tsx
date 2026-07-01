@@ -43,10 +43,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors"
         style={{
           backgroundImage: `
-            linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px)
+            url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23ffffff' stroke-width='0.5' opacity='0.03'%3E%3Cpath d='M30 10v20M28 15v10M32 12v16M26 18v6M34 14v12'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+            linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)
           `,
-          backgroundSize: "40px 40px"
+          backgroundSize: "60px 60px, 30px 30px, 30px 30px"
         }}
       >
         <ThemeProvider>
