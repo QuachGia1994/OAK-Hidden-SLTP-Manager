@@ -10,10 +10,44 @@ function entryTimeToLocal(entryTime: string): string {
   return brokerToLocalTime(h, m);
 }
 
+function EntryTimeDisplay({ entry_time }: { entry_time: Signal["entry_time"] }) {
+  if (!entry_time) return null;
+
+  // Dict: per-pair entry times (H=16)
+  if (typeof entry_time === "object") {
+    const xau = entry_time["XAUUSD"];
+    const gbp = entry_time["GBPUSD"]; // representative of GBP group
+    if (!xau && !gbp) return null;
+    return (
+      <div className="text-right pb-0.5">
+        <div className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-0.5">VÀO LỆNH</div>
+        {xau && (
+          <div className="font-mono text-sm text-zinc-800 dark:text-zinc-200">
+            XAUUSD: <span className="font-semibold">{entryTimeToLocal(xau)}</span>
+          </div>
+        )}
+        {gbp && (
+          <div className="font-mono text-sm text-zinc-800 dark:text-zinc-200">
+            Nhóm GBP: <span className="font-semibold">{entryTimeToLocal(gbp)}</span>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // String: single entry time
+  const localEntryTime = entryTimeToLocal(entry_time);
+  return (
+    <div className="text-right pb-0.5">
+      <div className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-0.5">VÀO LỆNH</div>
+      <div className="font-mono text-lg font-semibold text-zinc-800 dark:text-zinc-200">{localEntryTime}</div>
+    </div>
+  );
+}
+
 export function SignalCard({ signal, prevSignal }: { signal: Signal; prevSignal?: Signal | null }) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
-  const localEntryTime = signal.entry_time ? entryTimeToLocal(signal.entry_time) : null;
 
   return (
     <div className="group border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -42,12 +76,7 @@ export function SignalCard({ signal, prevSignal }: { signal: Signal; prevSignal?
           <span className={`text-4xl font-bold font-mono leading-none ${getSignalColor(signal.signal)}`}>
             {getSignalLabel(signal.signal)}
           </span>
-          {localEntryTime && (
-            <div className="text-right pb-0.5">
-              <div className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 mb-0.5">VÀO LỆNH</div>
-              <div className="font-mono text-lg font-semibold text-zinc-800 dark:text-zinc-200">{localEntryTime}</div>
-            </div>
-          )}
+          <EntryTimeDisplay entry_time={signal.entry_time} />
         </div>
       </div>
 
