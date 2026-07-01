@@ -724,9 +724,9 @@ def get_hour_note(H, weekday=None):
         6: "Nhóm GBP ngược Vàng",
         7: "Nhóm GBP ngược Vàng",
         8: "Nhóm GBP ngược (Vàng --)",
-        14: "Nhóm GBP ngược Vàng",
-        15: "Nhóm GBP ngược Vàng",
-        16: "Nhóm GBP ngược Vàng",
+        14: "Chỉ Vàng (GBP --)",
+        15: "GBPUSD, GBPJPY cùng Vàng",
+        16: "Nhóm GBP cùng Vàng",
     }
     return notes.get(H)
 
@@ -761,10 +761,24 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     # === THỨ 2 (weekday=0) ===
     if weekday == 0:
-        if H in (2, 3, 4, 5, 6, 7, 8, 14, 15, 16):
+        if H in (2, 3, 4, 5, 6, 7):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = opposite
+        elif H == 8:
+            result["XAUUSD"] = "--"
+            for p in GBP_PAIRS:
+                result[p] = opposite
+        elif H == 14:
+            result["XAUUSD"] = gold
+        elif H == 15:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
+        elif H == 16:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
         return result
 
     # === THỨ 3, THỨ 4 (weekday=1,2) ===
