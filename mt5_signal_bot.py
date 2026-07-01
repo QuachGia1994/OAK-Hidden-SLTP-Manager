@@ -726,6 +726,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["GBPUSD"] = opposite
             result["GBPCAD"] = opposite
             result["GBPJPY"] = opposite
+        elif H == 14:
+            result["XAUUSD"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
             result["GBPUSD"] = gold
@@ -1125,11 +1127,10 @@ def main():
             _save_state(day_signals, sent_today)
             missed_count += 1
 
-            # Chi lay slot gan nhat (dau tien vi passed sort reverse)
-            if latest_missed is None:
-                latest_missed = {"h": h, "sig": sig, "icon": icon, "result": result,
-                                 "entry_time": entry_time, "pair_dirs": pair_dirs, "hour_note": hour_note,
-                                 "h2_sig": h2_sig}
+            # Luon update slot gan nhat
+            latest_missed = {"h": h, "sig": sig, "icon": icon, "result": result,
+                             "entry_time": entry_time, "pair_dirs": pair_dirs, "hour_note": hour_note,
+                             "h2_sig": h2_sig}
 
         # Chi gui Telegram slot gan nhat
         if latest_missed:
