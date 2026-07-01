@@ -40,7 +40,15 @@ export default function RootLayout({
           })();
         `}} />
       </head>
-      <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors">
+      <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px)
+          `,
+          backgroundSize: "40px 40px"
+        }}
+      >
         <ThemeProvider>
           <NavBar />
           <main className="flex-1">{children}</main>
