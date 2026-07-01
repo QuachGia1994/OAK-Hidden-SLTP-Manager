@@ -43,11 +43,11 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors"
         style={{
           backgroundImage: `
-            url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%23ffffff' stroke-width='0.5' opacity='0.03'%3E%3Cpath d='M30 10v20M28 15v10M32 12v16M26 18v6M34 14v12'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
-            linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)
+            url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cpath d='M40 15v30M38 20v20M42 12v36M35 25v10M45 18v24M32 30v6M48 22v18' stroke='%2322c55e' stroke-width='1.5' opacity='0.08'/%3E%3Cpath d='M20 15v30M18 20v20M22 12v36M15 25v10M25 18v24M12 30v6M28 22v18' stroke='%23ef4444' stroke-width='1.5' opacity='0.06'/%3E%3Cpath d='M60 15v30M58 20v20M62 12v36M55 25v10M65 18v24M52 30v6M68 22v18' stroke='%2322c55e' stroke-width='1.5' opacity='0.08'/%3E%3C/g%3E%3C/svg%3E"),
+            linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)
           `,
-          backgroundSize: "60px 60px, 30px 30px, 30px 30px"
+          backgroundSize: "80px 80px, 24px 24px, 24px 24px"
         }}
       >
         <ThemeProvider>
