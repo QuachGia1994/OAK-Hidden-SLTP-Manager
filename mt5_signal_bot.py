@@ -331,6 +331,8 @@ def push_prices_to_dashboard():
             try:
                 with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
                     data = json.load(f)
+                if not isinstance(data, list):
+                    data = []
                 today = datetime.now().date().isoformat()
                 updated = False
                 for rec in data:
@@ -346,6 +348,8 @@ def push_prices_to_dashboard():
             try:
                 with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
                     signals = json.load(f)
+                if not isinstance(signals, list):
+                    signals = []
                 payload = json.dumps(signals).encode("utf-8")
                 req = urllib.request.Request(
                     f"{dashboard_url}/api/signals",
