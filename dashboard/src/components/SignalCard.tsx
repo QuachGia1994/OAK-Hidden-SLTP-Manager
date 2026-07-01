@@ -58,9 +58,6 @@ export function SignalCard({ signal, prevSignal }: { signal: Signal; prevSignal?
             key={pair}
             pair={pair}
             direction={signal.pair_dirs?.[pair] || "-"}
-            entryPrice={signal.entry_prices?.[pair] ?? null}
-            prevDirection={prevSignal?.pair_dirs?.[pair] ?? null}
-            prevEntryPrice={prevSignal?.entry_prices?.[pair] ?? null}
           />
         ))}
       </div>
