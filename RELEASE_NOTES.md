@@ -1,5 +1,48 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.9.0] - 2026-07-01
+*H1 Check + Doji Fallback + Updated Pair Rules + Bug Fixes.*
+
+### 🎯 H1 Check (Mới)
+- **H1@(H-1):00 check**: Sau khi có signal từ M5+M30, lấy H1 GBPUSD để xác nhận.
+- **H1 cùng chiều M5+M30** → ĐẢO NGƯỢC signal.
+- **H1 ngược chiều M5+M30** → GIỮ NGUYÊN signal.
+- **H1 = chiều XAUUSD**: KẾT LUẬN hiển thị XAUUSD direction.
+
+### 🔄 Doji Fallback
+- **Lùi 1 nến**: Khi nến DOJI (O ≈ C), tự lấy nến trước cùng khung.
+- **M5**: M5@H:35 DOJI → M5@H:30; M5@H:40 DOJI → M5@H:35.
+- **M30**: M30@H:00 DOJI → M30@(H-1):30.
+- **H1**: H1@(H-1):00 DOJI → H1@(H-2):00.
+- **Kết quả**: Luôn BUY/SELL, không còn WAIT do DOJI.
+
+### 📊 Updated Pair Rules
+| Slot | XAUUSD | GBPAUD | GBPJPY | GBPUSD | GBPCAD |
+|------|--------|--------|--------|--------|--------|
+| H=2,3 | H1 | ngược Vàng | ngược Vàng | -- | -- |
+| H=4-8 | H1 | ngược Vàng | -- | -- | -- |
+| H=9,11 | H1 | ngược Vàng | ngược Vàng | ngược Vàng | ngược Vàng |
+| H=10,12-14 | H1 | -- | -- | -- | -- |
+| H=15,16 | H1 | -- | cùng Vàng | -- | cùng Vàng |
+
+### 🔧 Bug Fixes
+- **should_skip_xauusd()**: Tách thành pure function + mark_xauusd_matched(). Không còn mutated state trong predicate.
+- **XAUUSD mismatch**: Telegram và signals_log.json giờ nhất quán.
+- **get_day_notes() weekday bug**: T4 = weekday 2 (Python), không phải 3.
+- **timedelta bug**: T4 check T6 dùng timedelta(days=2), không phải 3.
+- **Atomic state write**: Dùng os.replace() qua temp file, chống crash wipe state.
+- **D-direction reminder**: Dùng broker time thay vì local time.
+- **send_telegram_raw**: Chuyển từ GET URL body sang POST JSON.
+- **Missed-slot H=2**: Pre-process H=2 trước loop để có h2_sig cho các slot khác.
+- **Dashboard WAIT color**: Màu xám thay vì đỏ.
+- **PairBadge --**: Hiển thị màu xám cho cặp không giao dịch.
+
+### 🗑️ Cleanup
+- **Xóa dead code**: get_daily_schedule() trong oak_trading_reminders.py.
+- **DAY_RULES**: Thêm Monday rule cho dashboard.
+
+---
+
 ## [v3.8.0] - 2026-06-30
 *Trading Dashboard + Fix Telegram NLP scheduling + Symbol cleanup.*
 

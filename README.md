@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.8.0)
+# OAK Hidden SLTP Manager (v3.9.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -44,11 +44,11 @@ Tài liệu chi tiết:
 - **Logic**: M5 cùng chiều → M30 xác nhận; M5 ngược chiều → M30 xác nhận ngược.
 - **5 cặp**: GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD.
 - **H-value Rules**:
-  - H=2: GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều.
-  - H=3: GBPAUD cùng T2/ngược T3-7, nhóm GBP + Vàng cùng chiều.
-  - H=5,7,14,15: Chỉ Vàng cùng chiều gốc.
-  - H=9,11: T3-7 nhóm GBP + Vàng cùng chiều.
-  - H=16: T2,T5,T6 cùng chiều. T3,T4 ngược chiều.
+  - H=2,3: GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ.
+  - H=4-8: Chỉ GBPAUD + Vàng.
+  - H=9,11: Nhóm GBP ngược Vàng.
+  - H=10,12-14: Chỉ Vàng.
+  - H=15,16: GBPUSD, GBPJPY cùng Vàng.
 - **Monday GBP**: Chỉ trade H=2, H=3, H=16.
 - **D Direction**: User gõ BUY/SELL qua Telegram để set hướng Daily. XAUUSD dừng báo khi H cùng D, trừ H=16.
 - **Đồng bộ giờ UTC**: Miễn nhiễm DST từ `tick.time` MT5.
@@ -63,7 +63,7 @@ Tài liệu chi tiết:
 - **Commands**: `/mimo`, `/status`, `/profiles`, `/mt5`, `/positions`, `/news`.
 - **File-based Worker**: Xử lý lệnh nền, chống trùng instance bằng lock file.
 
-### Trading Dashboard (Mới - v3.8.0)
+### Trading Dashboard
 - **Web dashboard**: https://oak-hidden-sltp-manager-dun.vercel.app
 - **Real-time**: Signal, bot state, lịch sử giao dịch cập nhật tự động.
 - **Economic News**: Tin tức kinh tế từ ForexFactory/Investing.

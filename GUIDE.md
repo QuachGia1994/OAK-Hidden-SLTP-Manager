@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.8.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.9.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -57,7 +57,18 @@ Bot phân tích nến lúc **x:45** mỗi giờ mục tiêu [2-16]:
 ```
 M5@H:35 và M5@H:40 → cùng chiều? → M30@H:00 xác nhận
                       → ngược chiều? → M30@H:00 xác nhận ngược
+Sau đó: H1@(H-1):00 check → cùng chiều M5+M30? → ĐẢO NGƯỢC signal
+                           → ngược chiều M5+M30? → GIỮ NGUYÊN signal
 ```
+
+### Doji Fallback
+Khi nến DOJI (O ≈ C), bot tự lùi 1 nến trước cùng khung:
+- M5@H:35 DOJI → lấy M5@H:30
+- M5@H:40 DOJI → lấy M5@H:35
+- M30@H:00 DOJI → lấy M30@(H-1):30
+- H1@(H-1):00 DOJI → lấy H1@(H-2):00
+
+Kết quả luôn là BUY hoặc SELL, không còn WAIT do DOJI.
 
 ### Ví dụ
 - M5@09:35 = Tăng ↑, M5@09:40 = Tăng ↑ → Cùng chiều → M30@09:00
@@ -71,14 +82,14 @@ M5@H:35 và M5@H:40 → cùng chiều? → M30@H:00 xác nhận
 ### 5 Cặp tiền
 Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 
-### 5 Nhom Gio
-| Nhom | Gio | Thu 2 | Thu 3 | Thu 4-6 |
-|------|-----|-------|-------|---------|
-| 1 | H=2,3 | BAT | TAT | BAT |
-| 2 | H=5,7 | TAT | TAT | BAT |
-| 3 | H=9,11 | TAT | TAT | BAT |
-| 4 | H=14,15 | TAT | BAT | BAT |
-| 5 | H=16 | BAT | BAT | BAT |
+### H-Value Rules
+| Slot | XAUUSD | GBPAUD | GBPJPY | GBPUSD | GBPCAD |
+|------|--------|--------|--------|--------|--------|
+| H=2,3 | H1 | ngược Vàng | ngược Vàng | -- | -- |
+| H=4-8 | H1 | ngược Vàng | -- | -- | -- |
+| H=9,11 | H1 | ngược Vàng | ngược Vàng | ngược Vàng | ngược Vàng |
+| H=10,12-14 | H1 | -- | -- | -- | -- |
+| H=15,16 | H1 | -- | cùng Vàng | -- | cùng Vàng |
 
 ### D Direction (Mới)
 User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
@@ -140,7 +151,7 @@ Token bot Telegram được lưu trong `config.json` (gitignored):
 
 ---
 
-## 📊 Trading Dashboard (Mới - v3.8.0)
+## 📊 Trading Dashboard
 
 ### Truy cập
 https://oak-hidden-sltp-manager-dun.vercel.app
