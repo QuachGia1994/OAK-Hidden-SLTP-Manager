@@ -682,7 +682,13 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
                 result["XAUUSD"] = gold
         elif H == 14:
             result["XAUUSD"] = gold
-        elif H in (15, 16):
+        elif H == 15:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
+            result["GBPAUD"] = "--"
+            result["GBPCAD"] = "--"
+        elif H == 16:
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
