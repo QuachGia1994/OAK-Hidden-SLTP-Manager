@@ -338,6 +338,16 @@ def candle_direction(candle):
         return "GIAM"
     return "DOJI"
 
+def resolve_doji(symbol, timeframe, target_ts, broker_dt):
+    """Nến DOJI → lùi 1 nến trước cùng khung, lấy direction nến trước đó."""
+    prev_offset = 300 if timeframe == mt5.TIMEFRAME_M5 else 1800  # M5=5ph, M30=30ph
+    prev_ts = target_ts - prev_offset
+    prev_candle = get_candle_by_ts(symbol, timeframe, prev_ts)
+    d = candle_direction(prev_candle)
+    if d and d != "DOJI":
+        return d
+    return None
+
 def get_h1_candle_for_slot(broker_dt, H):
     """Lấy nến H1 của GBPUSD tại (H-1):00 — nến trước slot hiện tại."""
     if H < 2:
@@ -393,12 +403,17 @@ def analyze(broker_dt, H):
     if d_m35 is None or d_m40 is None:
         print(f"  [SKIP] Khong du du lieu M5 tai {fmt_hour(H)}:35 / {fmt_hour(H)}:40")
         return {"signal": "WAIT", "report": "Không đủ dữ liệu M5"}
+    # DOJI fallback: lùi 1 nến trước cùng khung
     if d_m35 == "DOJI":
-        print(f"  [SKIP] M5@{fmt_hour(H)}:35 là DOJI")
-        return {"signal": "WAIT", "report": "M5@35 là DOJI - Không đủ điều kiện"}
+        d_m35 = resolve_doji(SYMBOL, mt5.TIMEFRAME_M5, ts_m35, broker_dt)
+        if d_m35 is None:
+            d_m35 = "TANG"  # fallback cuối: TANG
+        print(f"  [DOJI] M5@{fmt_hour(H)}:35 DOJI -> fallback: {d_m35}")
     if d_m40 == "DOJI":
-        print(f"  [SKIP] M5@{fmt_hour(H)}:40 là DOJI")
-        return {"signal": "WAIT", "report": "M5@40 là DOJI - Không đủ điều kiện"}
+        d_m40 = resolve_doji(SYMBOL, mt5.TIMEFRAME_M5, ts_m40, broker_dt)
+        if d_m40 is None:
+            d_m40 = "GIAM"  # fallback cuối: GIAM
+        print(f"  [DOJI] M5@{fmt_hour(H)}:40 DOJI -> fallback: {d_m40}")
 
     ts_m30 = broker_time_to_ts(broker_dt, H, 0)
     c_m30 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30)
@@ -406,8 +421,12 @@ def analyze(broker_dt, H):
 
     if d_m30 is None:
         return {"signal": "WAIT", "report": "Không đủ dữ liệu M30"}
+    # DOJI fallback: lùi 1 nến trước cùng khung
     if d_m30 == "DOJI":
-        return {"signal": "WAIT", "report": "M30@00 là DOJI - Không đủ điều kiện"}
+        d_m30 = resolve_doji(SYMBOL, mt5.TIMEFRAME_M30, ts_m30, broker_dt)
+        if d_m30 is None:
+            d_m30 = "TANG"  # fallback cuối: TANG
+        print(f"  [DOJI] M30@{fmt_hour(H)}:00 DOJI -> fallback: {d_m30}")
 
     vn_m35 = vn_direction(d_m35)
     vn_m40 = vn_direction(d_m40)
@@ -439,6 +458,13 @@ def analyze(broker_dt, H):
     c_h1 = get_h1_candle_for_slot(broker_dt, H)
     if c_h1 is not None:
         d_h1 = candle_direction(c_h1)
+        # DOJI fallback: lùi 1 nến H1 trước
+        if d_h1 == "DOJI":
+            ts_h1 = broker_time_to_ts(broker_dt, H - 1, 0, 0)
+            d_h1 = resolve_doji(SYMBOL, mt5.TIMEFRAME_H1, ts_h1, broker_dt)
+            if d_h1 is None:
+                d_h1 = "TANG"  # fallback cuối
+            print(f"  [DOJI] H1@{H-1}:00 DOJI -> fallback: {d_h1}")
         if d_h1 and d_h1 != "DOJI":
             h1_signal = "BUY" if d_h1 == "TANG" else "SELL"
             h1_result = h1_signal

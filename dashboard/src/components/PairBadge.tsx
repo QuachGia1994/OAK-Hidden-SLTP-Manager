@@ -1,11 +1,11 @@
 import { getSignalColor, getSignalLabel } from "@/lib/constants";
 
 export function PairBadge({ pair, direction }: { pair: string; direction: string }) {
-  if (!direction || direction === "-") {
+  if (!direction || direction === "-" || direction === "--") {
     return (
       <div className="flex items-center justify-between py-1.5">
         <span className="font-mono text-sm text-zinc-400 dark:text-zinc-400">{pair}</span>
-        <span className="text-sm text-zinc-400 dark:text-zinc-500">-</span>
+        <span className="text-sm text-zinc-400 dark:text-zinc-500">{direction === "--" ? "--" : "-"}</span>
       </div>
     );
   }
