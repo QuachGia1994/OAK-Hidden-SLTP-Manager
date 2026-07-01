@@ -106,7 +106,6 @@ def get_entry_prices(pair_dirs, broker_dt, entry_time):
     prices = {}
     if not entry_time:
         return prices
-    # Parse entry_time "H:MM" thành broker datetime
     try:
         parts = entry_time.split(":")
         eh, em = int(parts[0]), int(parts[1])
@@ -117,12 +116,10 @@ def get_entry_prices(pair_dirs, broker_dt, entry_time):
         if direction not in ("BUY", "SELL"):
             continue
         try:
-            # Lấy nến M1 tại entry time, dùng close price
             candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, entry_ts)
             if candle:
                 prices[pair] = round(candle["open"], 5)
             else:
-                # Fallback: lấy tick hiện tại
                 tick = mt5.symbol_info_tick(pair)
                 if tick:
                     price = tick.ask if direction == "BUY" else tick.bid
@@ -131,9 +128,24 @@ def get_entry_prices(pair_dirs, broker_dt, entry_time):
             pass
     return prices
 
+def get_current_prices(pair_dirs):
+    """Lấy giá market hiện tại (tick)."""
+    prices = {}
+    for pair, direction in pair_dirs.items():
+        if direction not in ("BUY", "SELL"):
+            continue
+        try:
+            tick = mt5.symbol_info_tick(pair)
+            if tick:
+                prices[pair] = round(tick.bid, 5)
+        except Exception:
+            pass
+    return prices
+
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=False):
     """Append signal data to signals_log.json for website consumption."""
     entry_prices = get_entry_prices(pair_dirs, broker_dt, entry_time) if sig in ("BUY", "SELL") else {}
+    current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
     record = {
         "date": broker_dt.date().isoformat(),
         "hour": H,
@@ -142,6 +154,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
         "entry_time": entry_time,
         "pair_dirs": pair_dirs,
         "entry_prices": entry_prices,
+        "current_prices": current_prices,
         "hour_note": hour_note,
         "missed": is_missed,
     }

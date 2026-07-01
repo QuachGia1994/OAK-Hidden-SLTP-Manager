@@ -6,6 +6,7 @@ export interface Signal {
   entry_time: string | null;
   pair_dirs: Record<string, string>;
   entry_prices: Record<string, number>;
+  current_prices: Record<string, number>;
   hour_note: string | null;
   missed: boolean;
 }
