@@ -2705,6 +2705,9 @@ class CopyTradeManager:
 
                 try:
                     trade_full_dt = datetime.strptime(f"{trade_date} {t_time_norm}", "%Y-%m-%d %H:%M:%S")
+                    # Execute 2s early for better entry price
+                    trade_full_dt -= timedelta(seconds=2)
+                    t_time_norm = trade_full_dt.strftime("%H:%M:%S")
                 except:
                     trade_full_dt = None
 
@@ -2729,7 +2732,7 @@ class CopyTradeManager:
 
                 if trade_date == now_date and t_time_norm > now_time:
                     continue
-                
+
                 # Execute Trade
                 self._execute_scheduled(trade)
                 trade["status"] = "executed"

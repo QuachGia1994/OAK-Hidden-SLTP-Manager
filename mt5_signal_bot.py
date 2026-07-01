@@ -102,32 +102,52 @@ def _save_state(day_signals, sent_today):
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
 def get_entry_prices(pair_dirs, broker_dt, entry_time):
-    """Lấy giá tại thời điểm log signal — tick price (bid/ask) là gần nhất."""
+    """Lấy giá Open M1 tại entry time."""
     prices = {}
+    if not entry_time:
+        return prices
+    try:
+        parts = entry_time.split(":")
+        eh, em = int(parts[0]), int(parts[1])
+        entry_ts = broker_time_to_ts(broker_dt, eh, em)
+    except Exception:
+        return prices
     for pair, direction in pair_dirs.items():
         if direction not in ("BUY", "SELL"):
             continue
         try:
-            tick = mt5.symbol_info_tick(pair)
-            if tick:
-                price = tick.ask if direction == "BUY" else tick.bid
-                prices[pair] = round(price, 5)
+            candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, entry_ts)
+            if candle:
+                prices[pair] = round(candle["open"], 5)
+            else:
+                tick = mt5.symbol_info_tick(pair)
+                if tick:
+                    price = tick.ask if direction == "BUY" else tick.bid
+                    prices[pair] = round(price, 5)
         except Exception:
             pass
     return prices
 
-def update_entry_prices精准(date_str, hour, pair_dirs):
-    """Cập nhật entry_prices + current_prices trong signals_log.json."""
+def update_entry_prices精准(date_str, hour, pair_dirs, broker_dt, entry_time):
+    """Cập nhật entry_prices bằng Open M1 tại entry time."""
     try:
         entry_p = {}
-        current_p = {}
         for pair, direction in pair_dirs.items():
             if direction not in ("BUY", "SELL"):
                 continue
-            tick = mt5.symbol_info_tick(pair)
-            if tick:
-                entry_p[pair] = round(tick.ask if direction == "BUY" else tick.bid, 5)
-                current_p[pair] = round(tick.bid, 5)
+            try:
+                parts = entry_time.split(":")
+                eh, em = int(parts[0]), int(parts[1])
+                entry_ts = broker_time_to_ts(broker_dt, eh, em)
+                candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, entry_ts)
+                if candle:
+                    entry_p[pair] = round(candle["open"], 5)
+                else:
+                    tick = mt5.symbol_info_tick(pair)
+                    if tick:
+                        entry_p[pair] = round(tick.ask if direction == "BUY" else tick.bid, 5)
+            except Exception:
+                pass
         if not entry_p:
             return
         with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
@@ -135,7 +155,6 @@ def update_entry_prices精准(date_str, hour, pair_dirs):
         for rec in data:
             if rec.get("date") == date_str and rec.get("hour") == hour:
                 rec["entry_prices"] = entry_p
-                rec["current_prices"] = current_p
                 break
         with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
@@ -153,14 +172,14 @@ def schedule精准_price_update(broker_dt, entry_time, pair_dirs):
         eh, em = int(parts[0]), int(parts[1])
         entry_ts = broker_time_to_ts(broker_dt, eh, em)
         now_ts = datetime.now().timestamp()
-        delay = entry_ts - now_ts - 2  # 2s trước entry
+        delay = entry_ts - now_ts - 2
         if delay <= 0:
-            return  # Đã quá giờ
+            return
         date_str = broker_dt.date().isoformat()
         hour = broker_dt.hour
         def _update():
             time.sleep(delay)
-            update_entry_prices精准(date_str, hour, pair_dirs)
+            update_entry_prices精准(date_str, hour, pair_dirs, broker_dt, entry_time)
         threading.Thread(target=_update, daemon=True).start()
         print(f"[PRICE] Scheduled精准 price update in {delay:.0f}s (2s before H={entry_time})")
     except Exception as e:
