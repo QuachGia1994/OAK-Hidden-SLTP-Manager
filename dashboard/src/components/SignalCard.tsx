@@ -10,7 +10,7 @@ function entryTimeToLocal(entryTime: string): string {
   return brokerToLocalTime(h, m);
 }
 
-export function SignalCard({ signal, prevSignal, livePrices }: { signal: Signal; prevSignal?: Signal | null; livePrices?: Record<string, number> }) {
+export function SignalCard({ signal, prevSignal }: { signal: Signal; prevSignal?: Signal | null }) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
   const localEntryTime = signal.entry_time ? entryTimeToLocal(signal.entry_time) : null;
@@ -59,7 +59,7 @@ export function SignalCard({ signal, prevSignal, livePrices }: { signal: Signal;
             pair={pair}
             direction={signal.pair_dirs?.[pair] || "-"}
             entryPrice={signal.entry_prices?.[pair] ?? null}
-            currentPrice={livePrices?.[pair] ?? signal.current_prices?.[pair] ?? null}
+            currentPrice={signal.current_prices?.[pair] ?? null}
             prevDirection={prevSignal?.pair_dirs?.[pair] ?? null}
           />
         ))}

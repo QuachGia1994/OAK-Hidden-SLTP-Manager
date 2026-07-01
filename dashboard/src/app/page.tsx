@@ -1,6 +1,5 @@
-import { getTodaySignals, getBotState, getEconomicNews, getCurrentPrices } from "@/lib/data";
+import { getTodaySignals, getBotState, getEconomicNews } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
-import { LivePrices } from "@/components/LivePrices";
 import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -55,23 +54,18 @@ export default async function DashboardPage() {
         {signals.length === 0 ? (
           <EmptyState />
         ) : (
-          <LivePrices>
-            {(livePrices) => (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {signals.sort((a, b) => b.hour - a.hour).map((signal, idx, arr) => {
-                  const prevSignal = arr[idx + 1] || null;
-                  return (
-                    <SignalCard
-                      key={`${signal.date}-${signal.hour}`}
-                      signal={signal}
-                      prevSignal={prevSignal}
-                      livePrices={livePrices}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </LivePrices>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {signals.sort((a, b) => b.hour - a.hour).map((signal, idx, arr) => {
+              const prevSignal = arr[idx + 1] || null;
+              return (
+                <SignalCard
+                  key={`${signal.date}-${signal.hour}`}
+                  signal={signal}
+                  prevSignal={prevSignal}
+                />
+              );
+            })}
+          </div>
         )}
       </div>
 
