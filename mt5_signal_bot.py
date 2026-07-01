@@ -630,6 +630,7 @@ def get_hour_note(H, weekday=None):
             6: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
             7: "GBPUSD, GBPCAD, GBPJPY ngược Vàng",
             8: "GBPUSD, GBPCAD, GBPJPY ngược (Vàng --)",
+            14: "Chỉ Vàng",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP cùng Vàng",
         }
@@ -650,6 +651,7 @@ def get_hour_note(H, weekday=None):
             11: "Nhóm GBP cùng Vàng",
             12: "Chỉ Vàng",
             13: "Chỉ Vàng",
+            14: "Chỉ Vàng",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP cùng Vàng",
         }
