@@ -312,7 +312,7 @@ def push_to_dashboard():
         print(f"[DASHBOARD] Push error: {e}")
 
 def push_prices_to_dashboard():
-    """Push giá realtime cho các cặp đang có tín hiệu."""
+    """Push giá realtime + cập nhật current_prices trong signals_log."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
         return
@@ -326,6 +326,36 @@ def push_prices_to_dashboard():
             except Exception:
                 pass
         if prices:
+            # Cập nhật current_prices cho các signalactive trong ngày
+            try:
+                with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                today = datetime.now().date().isoformat()
+                updated = False
+                for rec in data:
+                    if rec.get("date") == today and rec.get("signal") in ("BUY", "SELL"):
+                        rec["current_prices"] = prices
+                        updated = True
+                if updated:
+                    with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False)
+            except Exception:
+                pass
+            # Push signals lên dashboard (đã update current_prices)
+            try:
+                with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+                    signals = json.load(f)
+                payload = json.dumps(signals).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{dashboard_url}/api/signals",
+                    data=payload,
+                    headers={"Content-Type": "application/json"}
+                )
+                resp = urllib.request.urlopen(req, timeout=15)
+                resp.read()
+            except Exception:
+                pass
+            # Push prices
             payload = json.dumps(prices).encode("utf-8")
             req = urllib.request.Request(
                 f"{dashboard_url}/api/prices",
@@ -333,7 +363,7 @@ def push_prices_to_dashboard():
                 headers={"Content-Type": "application/json"}
             )
             resp = urllib.request.urlopen(req, timeout=10)
-            resp.read()  # Đọc response để tránh leak
+            resp.read()
             print(f"[DASHBOARD] Prices pushed OK ({len(prices)} pairs)")
     except Exception as e:
         print(f"[DASHBOARD] Prices push error: {e}")
