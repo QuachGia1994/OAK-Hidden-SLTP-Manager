@@ -102,29 +102,17 @@ def _save_state(day_signals, sent_today):
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
 def get_entry_prices(pair_dirs, broker_dt, entry_time):
-    """Lấy giá gần nhất trước entry time — M1@(entry-1) Close, gần giá thực."""
+    """Lấy giá tại thời điểm log signal — tick price (bid/ask) là gần nhất."""
     prices = {}
-    if not entry_time:
-        return prices
-    try:
-        parts = entry_time.split(":")
-        eh, em = int(parts[0]), int(parts[1])
-        # Lùi 1 phút để lấy Close của nến trước
-        prev_ts = broker_time_to_ts(broker_dt, eh, em) - 60
-    except Exception:
-        return prices
     for pair, direction in pair_dirs.items():
         if direction not in ("BUY", "SELL"):
             continue
         try:
-            candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, prev_ts)
-            if candle:
-                prices[pair] = round(candle["close"], 5)
-            else:
-                tick = mt5.symbol_info_tick(pair)
-                if tick:
-                    price = tick.ask if direction == "BUY" else tick.bid
-                    prices[pair] = round(price, 5)
+            tick = mt5.symbol_info_tick(pair)
+            if tick:
+                # BUY = Ask (mua), SELL = Bid (bán)
+                price = tick.ask if direction == "BUY" else tick.bid
+                prices[pair] = round(price, 5)
         except Exception:
             pass
     return prices
