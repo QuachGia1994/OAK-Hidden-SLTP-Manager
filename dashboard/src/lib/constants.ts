@@ -22,15 +22,21 @@ export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
 export const HOUR_NOTES: Record<number, string> = {
-  2: "GBPAUD, GBPJPY cùng chiều, Vàng ngược chiều",
-  3: "GBPAUD cùng T2/ngược T3-7. Nhóm GBP + Vàng cùng chiều",
-  5: "Chỉ Vàng cùng chiều gốc (T2, T5, T6)",
-  7: "Chỉ Vàng cùng chiều gốc (T2, T5, T6)",
-  9: "T3-7: Nhóm GBP + Vàng cùng chiều",
-  11: "T3-7: Nhóm GBP + Vàng cùng chiều",
-  14: "Chỉ Vàng cùng chiều gốc",
-  15: "Chỉ Vàng cùng chiều gốc",
-  16: "T2,T5,T6: cùng chiều. T3,T4: ngược chiều",
+  2: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
+  3: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
+  4: "Chỉ GBPAUD + Vàng",
+  5: "Chỉ GBPAUD + Vàng",
+  6: "Chỉ GBPAUD + Vàng",
+  7: "Chỉ GBPAUD + Vàng",
+  8: "Chỉ GBPAUD + Vàng",
+  9: "Nhóm GBP ngược Vàng",
+  10: "Chỉ Vàng",
+  11: "Nhóm GBP ngược Vàng",
+  12: "Chỉ Vàng",
+  13: "Chỉ Vàng",
+  14: "Chỉ Vàng",
+  15: "GBPUSD, GBPJPY cùng Vàng",
+  16: "GBPUSD, GBPJPY cùng Vàng",
 };
 
 export const DAY_RULES: Record<number, string[]> = {

@@ -452,21 +452,21 @@ def analyze(broker_dt, H):
 
 def get_hour_note(H):
     notes = {
-        2: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
-        3: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều",
+        2: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
+        3: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
         4: "Chỉ GBPAUD + Vàng",
         5: "Chỉ GBPAUD + Vàng",
         6: "Chỉ GBPAUD + Vàng",
         7: "Chỉ GBPAUD + Vàng",
         8: "Chỉ GBPAUD + Vàng",
-        9: "Nhóm GBP cùng chiều gốc, Vàng ngược chiều",
+        9: "Nhóm GBP ngược Vàng",
         10: "Chỉ Vàng",
-        11: "Nhóm GBP cùng chiều gốc, Vàng ngược chiều",
+        11: "Nhóm GBP ngược Vàng",
         12: "Chỉ Vàng",
         13: "Chỉ Vàng",
         14: "Chỉ Vàng",
-        15: "GBPUSD, GBPJPY + Vàng cùng chiều",
-        16: "GBPUSD, GBPJPY + Vàng cùng chiều",
+        15: "GBPUSD, GBPJPY cùng Vàng",
+        16: "GBPUSD, GBPJPY cùng Vàng",
     }
     return notes.get(H)
 
