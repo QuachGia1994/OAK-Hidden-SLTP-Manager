@@ -679,18 +679,15 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["GBPAUD"] = "--"
             result["XAUUSD"] = "--"
         elif H in (9, 11) and weekday in (3, 4):
-            # T5, T6: GBP "--", chỉ Vàng
-            result["XAUUSD"] = gold
-        elif H in (9, 11) and weekday in (0, 1, 2):
-            # T2, T3, T4: Nhóm GBP cùng Vàng
+            # T5, T6: Nhóm GBP cùng Vàng
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
-        elif H in (10, 12, 13) and weekday in (0, 1, 2):
-            # T2, T3, T4: Chỉ Vàng
-            result["XAUUSD"] = gold
         elif H in (10, 12, 13) and weekday in (3, 4):
-            # T5, T6: GBP "--", chỉ Vàng
+            # T5, T6: Chỉ Vàng
+            result["XAUUSD"] = gold
+        elif H in (9, 10, 11, 12, 13):
+            # T2, T3, T4: GBP "--", chỉ Vàng
             result["XAUUSD"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
