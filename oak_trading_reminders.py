@@ -468,41 +468,6 @@ def fetch_forexfactory_xml(lang="VN", context=None):
     out.sort()
     return out
 
-def get_daily_schedule(now, lang="VN"):
-    """Get the trading schedule for the given time"""
-    events = []
-    gbp_4 = "GBPAUD, GBPCAD, GBPUSD, GBPJPY"
-    weekday = now.weekday()
-
-    events.append({"hour": 2, "minute": 45, "syms": gbp_4 + ", XAUUSD",
-        "note": "Mốc 2: Nhóm GBP cùng chiều, Vàng ngược chiều" if lang == "VN" else "Milestone 2: GBP same, Gold opposite"})
-
-    events.append({"hour": 3, "minute": 45, "syms": gbp_4 + ", XAUUSD",
-        "note": "Mốc 3: GBPAUD cùng T2/ngược T3-7, nhóm GBP + Vàng cùng chiều" if lang == "VN" else "Milestone 3: GBPAUD same Mon/opposite Tue+, GBP+Gold same"})
-
-    events.append({"hour": 5, "minute": 45, "syms": "XAUUSD",
-        "note": "Mốc 5: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 5: Gold only, same as signal"})
-
-    events.append({"hour": 7, "minute": 45, "syms": "XAUUSD",
-        "note": "Mốc 7: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 7: Gold only, same as signal"})
-
-    if weekday != 0:
-        events.append({"hour": 9, "minute": 45, "syms": gbp_4 + ", XAUUSD",
-            "note": "Mốc 9: T3-7 nhóm GBP + Vàng cùng chiều gốc" if lang == "VN" else "Milestone 9: Tue-Sun GBP+Gold same as signal"})
-
-        events.append({"hour": 11, "minute": 45, "syms": gbp_4 + ", XAUUSD",
-            "note": "Mốc 11: T3-7 nhóm GBP + Vàng cùng chiều gốc" if lang == "VN" else "Milestone 11: Tue-Sun GBP+Gold same as signal"})
-
-    events.append({"hour": 14, "minute": 45, "syms": "XAUUSD",
-        "note": "Mốc 14: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 14: Gold only, same as signal"})
-
-    events.append({"hour": 15, "minute": 45, "syms": "XAUUSD",
-        "note": "Mốc 15: Chỉ Vàng cùng chiều gốc" if lang == "VN" else "Milestone 15: Gold only, same as signal"})
-
-    events.append({"hour": 16, "minute": 45, "syms": gbp_4 + ", XAUUSD",
-        "note": "Mốc 16: T2,T5,T6 cùng chiều. T3,T4 ngược chiều" if lang == "VN" else "Milestone 16: Mon/Fri/Sat same, Tue/Wed opposite"})
-
-    return events
 
 def _friday_of_same_week(date_obj):
     return date_obj + timedelta(days=(4 - date_obj.weekday()))
@@ -550,7 +515,7 @@ def get_day_notes(now, lang="VN"):
 
     # 4. T4 có T6 ngày 3/4/7 → cần tính lại W1
     if weekday == 2:
-        friday = now + timedelta(days=3)
+        friday = now + timedelta(days=2)
         if friday.day in (3, 4, 7):
             notes_vn.append("Thứ 4: T6 sắp tới ngày 3/4/7 → cần tính lại W1.")
             notes_en.append("Wednesday: upcoming Friday is day 3/4/7 → recalculate W1.")

@@ -40,7 +40,11 @@ export const HOUR_NOTES: Record<number, string> = {
 };
 
 export const DAY_RULES: Record<number, string[]> = {
-  3: [    // Thứ 4
+  1: [    // Thứ 2 (JS: getDay() = 1)
+    "Nếu T4 trong tuần là ngày 30/1 → Cần tính lại T2",
+    "Nếu T6 trong tuần là ngày 3/4/7 → Cần tính lại T2",
+  ],
+  3: [    // Thứ 4 (JS: getDay() = 3)
     "Nếu T4 là ngày cuối tháng → Tính lại W1",
     "Nếu T4 là ngày 30 hoặc ngày 1 → Tính lại W1",
     "Nếu T6 trong cùng tuần rơi ngày 3/4/7 → Tính lại W1",

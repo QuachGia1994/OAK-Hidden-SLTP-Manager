@@ -7,14 +7,16 @@ import urllib.parse
 
 
 # --- Telegram ---
-def send_telegram_raw(token, chat_id, text, parse_mode="Markdown"):
+def send_telegram_raw(token, chat_id, text, parse_mode="HTML"):
     """Send message via Telegram Bot API (POST)."""
-    msg = urllib.parse.quote(text, safe="*")
-    url = (
-        f"https://api.telegram.org/bot{token}/sendMessage"
-        f"?chat_id={chat_id}&text={msg}&parse_mode={parse_mode}"
-    )
-    with urllib.request.urlopen(url, timeout=15) as resp:
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": parse_mode,
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
         return resp.read()
 
 

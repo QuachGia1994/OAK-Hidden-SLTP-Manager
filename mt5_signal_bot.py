@@ -92,8 +92,10 @@ def _save_state(day_signals, sent_today):
         "d_matched_hour": d_matched_hour,
     }
     try:
-        with open(_STATE_FILE, "w", encoding="utf-8") as f:
+        tmp_file = _STATE_FILE + ".tmp"
+        with open(tmp_file, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
+        os.replace(tmp_file, _STATE_FILE)
     except Exception as e:
         print(f"[WARN] Cannot save state: {e}")
 
@@ -495,6 +497,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     if d_direction_date != today:
         d_direction = None
 
+    # WAIT = không có tín hiệu, trả về rỗng
+    if signal not in ("BUY", "SELL"):
+        return result
+
     # XAUUSD = signal cuối cùng (sau H1 check)
     gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
@@ -533,18 +539,22 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     return result
 
 def should_skip_xauusd(H, signal, broker_dt):
-    global d_matched_hour
-    weekday = broker_dt.weekday()
-    if d_direction is None or weekday not in (0, 3, 4):
+    """Kiểm tra có nên ẩn XAUUSD không. Không mutated state."""
+    if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
     if H == 16:
         return False
-    if signal == d_direction and d_matched_hour is None:
-        d_matched_hour = H
-        return False
     if d_matched_hour is not None:
         return True
+    if signal == d_direction:
+        return False  # First match: hiển thị, caller chịu trách nhiệm set d_matched_hour
     return False
+
+def mark_xauusd_matched(H):
+    """Ghi nhận slot đầu tiên XAUUSD khớp D1 direction."""
+    global d_matched_hour
+    if d_matched_hour is None:
+        d_matched_hour = H
 
 # =====================================================================
 # GUI TELEGRAM BAO CAO
@@ -564,6 +574,8 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
 
     if should_skip_xauusd(H, sig, broker_dt):
         pair_dirs.pop("XAUUSD", None)
+    elif sig == d_direction and d_direction is not None:
+        mark_xauusd_matched(H)  # Ghi nhận lần đầu khớp D1
 
     pair_lines = []
     for p in ALL_PAIRS:
@@ -702,6 +714,10 @@ def main():
 
         missed_count = 0
         latest_missed = None
+        # Xử lý H=2 trước để có h2_sig cho các slot khác
+        if 2 in passed:
+            passed.remove(2)
+            passed.insert(0, 2)
         for h in passed:
             key = (broker_dt.date(), h)
             if key in sent_today:
@@ -725,6 +741,8 @@ def main():
             pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
             if should_skip_xauusd(h, sig, broker_dt):
                 pair_dirs.pop("XAUUSD", None)
+            elif sig == d_direction and d_direction is not None:
+                mark_xauusd_matched(h)
             hour_note = get_hour_note(h)
 
             log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
@@ -787,7 +805,8 @@ def main():
                 f"{slot_line}"
                 f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
             )
-            send_telegram(msg)
+    send_telegram(msg)
+    return pair_dirs
 
         if missed_count > 0:
             push_to_dashboard()
@@ -804,8 +823,7 @@ def main():
 
             check_d_direction_input()
 
-            local_now = datetime.now()
-            if local_now.hour == 6 and local_now.minute == 0 and local_now.weekday() in (0, 3, 4):
+            if broker_dt.hour == 6 and broker_dt.minute == 0 and broker_dt.weekday() in (0, 3, 4):
                 send_d_direction_reminder()
 
             if now_min == 45 and now_hour in TARGET_HOURS:
@@ -836,13 +854,10 @@ def main():
                 h2_data = day_signals.get((broker_dt.date(), 2))
                 h2_sig = h2_data["signal"] if h2_data else None
 
-                send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
+                pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
 
                 # Log for website
                 entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
-                pair_dirs = get_pair_direction(now_hour, sig, broker_dt, h1_signal=result.get("h1_signal"))
-                if should_skip_xauusd(now_hour, sig, broker_dt):
-                    pair_dirs.pop("XAUUSD", None)
                 log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour))
                 push_to_dashboard()
 
