@@ -486,7 +486,7 @@ def set_d_direction(direction):
 
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     """Tính chiều các cặp theo slot.
-    h1_signal: chiều H1 GBPUSD → dùng làm XAUUSD, rồi suy ra 4 cặp GBP còn lại."""
+    signal: signal cuối cùng (sau H1 check) = chiều XAUUSD."""
     global d_direction, d_direction_date
     weekday = broker_dt.weekday()
     today = broker_dt.date()
@@ -495,8 +495,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     if d_direction_date != today:
         d_direction = None
 
-    # XAUUSD = H1 direction (trực tiếp)
-    gold = h1_signal if h1_signal else signal
+    # XAUUSD = signal cuối cùng (sau H1 check)
+    gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
 
     if H in (2, 3):
