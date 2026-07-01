@@ -1,46 +1,48 @@
 export const TARGET_HOURS = Array.from({ length: 15 }, (_, i) => i + 2); // 2-16
 
 export const SCHEDULE: { hour: number; note: string }[] = [
-  { hour: 2, note: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ" },
-  { hour: 3, note: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ" },
-  { hour: 4, note: "Chỉ GBPAUD + Vàng" },
-  { hour: 5, note: "Chỉ GBPAUD + Vàng" },
-  { hour: 6, note: "Chỉ GBPAUD + Vàng" },
-  { hour: 7, note: "Chỉ GBPAUD + Vàng" },
-  { hour: 8, note: "Chỉ GBPAUD + Vàng" },
+  { hour: 2, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPAUD, GBPJPY ngược" },
+  { hour: 3, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPAUD, GBPJPY ngược" },
+  { hour: 4, note: "T2: Nhóm GBP ngược Vàng | T3-4: Chỉ GBPAUD ngược" },
+  { hour: 5, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược" },
+  { hour: 6, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược" },
+  { hour: 7, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược" },
+  { hour: 8, note: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược (không Vàng)" },
   { hour: 9, note: "Nhóm GBP ngược Vàng" },
   { hour: 10, note: "Chỉ Vàng" },
   { hour: 11, note: "Nhóm GBP ngược Vàng" },
   { hour: 12, note: "Chỉ Vàng" },
   { hour: 13, note: "Chỉ Vàng" },
-  { hour: 14, note: "Chỉ Vàng" },
-  { hour: 15, note: "GBPUSD, GBPJPY cùng Vàng" },
-  { hour: 16, note: "GBPUSD, GBPJPY cùng Vàng" },
+  { hour: 14, note: "T2: Nhóm GBP ngược Vàng | T3-4: Chỉ Vàng" },
+  { hour: 15, note: "T2: Nhóm GBP ngược Vàng | T3-4: Nhóm GBP cùng Vàng" },
+  { hour: 16, note: "T2: Nhóm GBP ngược Vàng | T3-4: Nhóm GBP cùng Vàng" },
 ];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
 export const HOUR_NOTES: Record<number, string> = {
-  2: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
-  3: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ",
-  4: "Chỉ GBPAUD + Vàng",
-  5: "Chỉ GBPAUD + Vàng",
-  6: "Chỉ GBPAUD + Vàng",
-  7: "Chỉ GBPAUD + Vàng",
-  8: "Chỉ GBPAUD + Vàng",
+  2: "T2: Nhóm GBP ngược Vàng | T3-4: GBPAUD, GBPJPY ngược",
+  3: "T2: Nhóm GBP ngược Vàng | T3-4: GBPAUD, GBPJPY ngược",
+  4: "T2: Nhóm GBP ngược Vàng | T3-4: Chỉ GBPAUD ngược",
+  5: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược",
+  6: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược",
+  7: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược",
+  8: "T2: Nhóm GBP ngược Vàng | T3-4: GBPUSD, GBPCAD, GBPJPY ngược (không Vàng)",
   9: "Nhóm GBP ngược Vàng",
   10: "Chỉ Vàng",
   11: "Nhóm GBP ngược Vàng",
   12: "Chỉ Vàng",
   13: "Chỉ Vàng",
-  14: "Chỉ Vàng",
-  15: "GBPUSD, GBPJPY cùng Vàng",
-  16: "GBPUSD, GBPJPY cùng Vàng",
+  14: "T2: Nhóm GBP ngược Vàng | T3-4: Chỉ Vàng",
+  15: "T2: Nhóm GBP ngược Vàng | T3-4: Nhóm GBP cùng Vàng",
+  16: "T2: Nhóm GBP ngược Vàng | T3-4: Nhóm GBP cùng Vàng",
 };
 
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2 (JS: getDay() = 1)
+    "Slots: H=2-8, 14-16. Nhóm GBP ngược Vàng",
+    "Khi H1 match D1 → ngưng slot kế cho tới H=16",
     "Nếu T4 trong tuần là ngày 30/1 → Cần tính lại T2",
     "Nếu T6 trong tuần là ngày 3/4/7 → Cần tính lại T2",
   ],
