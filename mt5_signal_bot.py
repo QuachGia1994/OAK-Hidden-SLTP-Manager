@@ -110,12 +110,61 @@ def get_entry_prices(pair_dirs, broker_dt, entry_time):
         try:
             tick = mt5.symbol_info_tick(pair)
             if tick:
-                # BUY = Ask (mua), SELL = Bid (bán)
                 price = tick.ask if direction == "BUY" else tick.bid
                 prices[pair] = round(price, 5)
         except Exception:
             pass
     return prices
+
+def update_entry_prices精准(date_str, hour, pair_dirs):
+    """Cập nhật entry_prices + current_prices trong signals_log.json."""
+    try:
+        entry_p = {}
+        current_p = {}
+        for pair, direction in pair_dirs.items():
+            if direction not in ("BUY", "SELL"):
+                continue
+            tick = mt5.symbol_info_tick(pair)
+            if tick:
+                entry_p[pair] = round(tick.ask if direction == "BUY" else tick.bid, 5)
+                current_p[pair] = round(tick.bid, 5)
+        if not entry_p:
+            return
+        with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        for rec in data:
+            if rec.get("date") == date_str and rec.get("hour") == hour:
+                rec["entry_prices"] = entry_p
+                rec["current_prices"] = current_p
+                break
+        with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+        print(f"[PRICE] Updated精准 for H={hour}: {entry_p}")
+        push_prices_to_dashboard()
+    except Exception as e:
+        print(f"[PRICE] Update error: {e}")
+
+def schedule精准_price_update(broker_dt, entry_time, pair_dirs):
+    """Schedule thread lấy giá 2s trước entry time."""
+    if not entry_time or not pair_dirs:
+        return
+    try:
+        parts = entry_time.split(":")
+        eh, em = int(parts[0]), int(parts[1])
+        entry_ts = broker_time_to_ts(broker_dt, eh, em)
+        now_ts = datetime.now().timestamp()
+        delay = entry_ts - now_ts - 2  # 2s trước entry
+        if delay <= 0:
+            return  # Đã quá giờ
+        date_str = broker_dt.date().isoformat()
+        hour = broker_dt.hour
+        def _update():
+            time.sleep(delay)
+            update_entry_prices精准(date_str, hour, pair_dirs)
+        threading.Thread(target=_update, daemon=True).start()
+        print(f"[PRICE] Scheduled精准 price update in {delay:.0f}s (2s before H={entry_time})")
+    except Exception as e:
+        print(f"[PRICE] Schedule error: {e}")
 
 def get_current_prices(pair_dirs):
     """Lấy giá market hiện tại (tick)."""
@@ -840,6 +889,7 @@ def main():
             hour_note = get_hour_note(h)
 
             log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
+            schedule精准_price_update(broker_dt, entry_time, pair_dirs)
             sent_today.add(key)
             _save_state(day_signals, sent_today)
             missed_count += 1
@@ -950,6 +1000,7 @@ def main():
                 # Log for website
                 entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
                 log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour))
+                schedule精准_price_update(broker_dt, entry_time, pair_dirs)
                 push_to_dashboard()
 
                 print(f"  Signal: {sig}")
