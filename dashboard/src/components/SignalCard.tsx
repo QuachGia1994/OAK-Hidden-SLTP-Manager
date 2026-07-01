@@ -1,4 +1,4 @@
-import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, ALL_PAIRS } from "@/lib/constants";
+import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, ALL_PAIRS, HOUR_NOTES } from "@/lib/constants";
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
@@ -92,9 +92,9 @@ export function SignalCard({ signal, prevSignal }: { signal: Signal; prevSignal?
       </div>
 
       {/* Hour Note */}
-      {signal.hour_note && (
+      {HOUR_NOTES[signal.hour] && (
         <div className="px-5 py-2.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-900/40">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{signal.hour_note}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{HOUR_NOTES[signal.hour]}</p>
         </div>
       )}
     </div>

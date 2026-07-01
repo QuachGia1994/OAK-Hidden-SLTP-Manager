@@ -723,7 +723,7 @@ def get_hour_note(H, weekday=None):
         5: "Nhóm GBP ngược Vàng",
         6: "Nhóm GBP ngược Vàng",
         7: "Nhóm GBP ngược Vàng",
-        8: "Nhóm GBP ngược Vàng",
+        8: "Nhóm GBP ngược (Vàng --)",
         14: "Nhóm GBP ngược Vàng",
         15: "Nhóm GBP ngược Vàng",
         16: "Nhóm GBP ngược Vàng",
