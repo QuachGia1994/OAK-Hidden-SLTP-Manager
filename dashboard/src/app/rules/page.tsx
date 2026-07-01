@@ -1,30 +1,14 @@
-import { DAY_RULES, SCHEDULE, formatHour } from "@/lib/constants";
-
-const DAY_LABELS = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+import { SCHEDULE, formatHour } from "@/lib/constants";
 
 export default function RulesPage() {
   const today = new Date();
-  const dayOfWeek = today.getDay();
   const dayName = today.toLocaleDateString("vi-VN", { weekday: "long" });
-  const todayRules = DAY_RULES[dayOfWeek] || ["Tất cả nhóm hoạt động bình thường theo lịch."];
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Rules & Schedule</h1>
         <p className="text-base text-zinc-500 dark:text-zinc-400 mt-1">{dayName} - {today.toLocaleDateString("vi-VN")}</p>
-      </div>
-
-      <div className="mb-8">
-        <h2 className="text-lg font-medium text-zinc-700 dark:text-zinc-300 mb-3">Rules hôm nay</h2>
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50 px-4 py-4">
-          {todayRules.map((rule, i) => (
-            <div key={i} className="flex items-start gap-3 py-2 border-b border-zinc-100 dark:border-zinc-800/50 last:border-0">
-              <span className="text-zinc-400 dark:text-zinc-500 mt-0.5">-</span>
-              <span className="text-sm text-zinc-700 dark:text-zinc-200">{rule}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       <div className="mb-8">
@@ -46,23 +30,6 @@ export default function RulesPage() {
               ))}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-lg font-medium text-zinc-700 dark:text-zinc-300 mb-3">Rules các ngày trong tuần</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Object.entries(DAY_RULES).filter(([_, rules]) => rules.length > 0).map(([day, rules]) => {
-            const dayNum = parseInt(day);
-            return (
-              <div key={day} className="border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50 px-4 py-3">
-                <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-2">{DAY_LABELS[dayNum]}</div>
-                {rules.map((rule, i) => (
-                  <div key={i} className="text-xs text-zinc-500 dark:text-zinc-400 py-1">- {rule}</div>
-                ))}
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>
