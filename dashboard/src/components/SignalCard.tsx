@@ -1,4 +1,4 @@
-import { getSignalColor, getSignalBg, getSignalLabel, formatHour, brokerToLocalTime, brokerToLocalHour, ALL_PAIRS } from "@/lib/constants";
+import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, brokerToLocalHour, ALL_PAIRS } from "@/lib/constants";
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
@@ -10,7 +10,12 @@ function entryTimeToLocal(entryTime: string): string {
   return brokerToLocalTime(h, m);
 }
 
-export function SignalCard({ signal }: { signal: Signal }) {
+interface SignalCardProps {
+  signal: Signal;
+  prevSignal?: Signal | null;
+}
+
+export function SignalCard({ signal, prevSignal }: SignalCardProps) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
   const localEntryTime = signal.entry_time ? entryTimeToLocal(signal.entry_time) : null;
@@ -58,6 +63,9 @@ export function SignalCard({ signal }: { signal: Signal }) {
             key={pair}
             pair={pair}
             direction={signal.pair_dirs?.[pair] || "-"}
+            entryPrice={signal.entry_prices?.[pair] ?? null}
+            prevDirection={prevSignal?.pair_dirs?.[pair] ?? null}
+            prevEntryPrice={prevSignal?.entry_prices?.[pair] ?? null}
           />
         ))}
       </div>

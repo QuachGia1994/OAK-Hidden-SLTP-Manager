@@ -101,8 +101,25 @@ def _save_state(day_signals, sent_today):
 
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
+def get_entry_prices(pair_dirs):
+    """Lấy giá hiện tại cho các cặp có tín hiệu BUY/SELL."""
+    prices = {}
+    for pair, direction in pair_dirs.items():
+        if direction not in ("BUY", "SELL"):
+            continue
+        try:
+            tick = mt5.symbol_info_tick(pair)
+            if tick:
+                # BUY = ask (mua), SELL = bid (bán)
+                price = tick.ask if direction == "BUY" else tick.bid
+                prices[pair] = round(price, 5)
+        except Exception:
+            pass
+    return prices
+
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=False):
     """Append signal data to signals_log.json for website consumption."""
+    entry_prices = get_entry_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
     record = {
         "date": broker_dt.date().isoformat(),
         "hour": H,
@@ -110,6 +127,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
         "signal": sig,
         "entry_time": entry_time,
         "pair_dirs": pair_dirs,
+        "entry_prices": entry_prices,
         "hour_note": hour_note,
         "missed": is_missed,
     }

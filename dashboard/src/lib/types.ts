@@ -5,6 +5,7 @@ export interface Signal {
   signal: "BUY" | "SELL" | "WAIT";
   entry_time: string | null;
   pair_dirs: Record<string, string>;
+  entry_prices: Record<string, number>;
   hour_note: string | null;
   missed: boolean;
 }
