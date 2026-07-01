@@ -382,6 +382,10 @@ def check_d_direction_input():
     try:
         if not os.path.exists(d_file):
             return
+        # Validate file size (max 10 bytes)
+        if os.path.getsize(d_file) > 10:
+            os.remove(d_file)
+            return
         with open(d_file, "r", encoding="utf-8") as f:
             text = f.read().strip().upper()
         os.remove(d_file)

@@ -11,15 +11,14 @@ interface PairBadgeProps {
 export function PairBadge({ pair, direction, entryPrice, prevDirection, prevEntryPrice }: PairBadgeProps) {
   if (!direction || direction === "-" || direction === "--") {
     return (
-      <div className="flex items-center justify-between py-1.5">
-        <span className="font-mono text-sm text-zinc-400 dark:text-zinc-400">{pair}</span>
-        <span className="text-sm text-zinc-400 dark:text-zinc-500">{direction === "--" ? "--" : "-"}</span>
+      <div className="flex items-center justify-between py-2">
+        <span className="font-mono text-sm text-zinc-400 dark:text-zinc-500">{pair}</span>
+        <span className="text-sm text-zinc-300 dark:text-zinc-600 font-mono">{direction === "--" ? "--" : "—"}</span>
       </div>
     );
   }
 
   const isBuy = direction === "BUY";
-  // Hiển thị giá khi signal thay đổi so với slot trước
   const signalChanged = prevDirection && prevDirection !== direction && prevDirection !== "-" && prevDirection !== "--";
 
   let priceDisplay = null;
@@ -28,18 +27,18 @@ export function PairBadge({ pair, direction, entryPrice, prevDirection, prevEntr
     const changeStr = change >= 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
     const changeColor = change >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
     priceDisplay = (
-      <span className={`text-xs font-mono ${changeColor} ml-1`}>
+      <span className={`text-xs font-mono tabular-nums ${changeColor} mr-2`}>
         {entryPrice.toFixed(5)} ({changeStr})
       </span>
     );
   }
 
   return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className="font-mono text-sm text-zinc-700 dark:text-zinc-300">{pair}</span>
-      <div className="flex items-center">
+    <div className="flex items-center justify-between py-2">
+      <span className="font-mono text-sm font-medium text-zinc-700 dark:text-zinc-300">{pair}</span>
+      <div className="flex items-center gap-2">
         {priceDisplay}
-        <span className={`text-sm font-medium px-2 py-0.5 rounded border ${isBuy ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20"}`}>
+        <span className={`text-xs font-semibold tracking-wide px-2.5 py-1 rounded-md ${isBuy ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
           {getSignalLabel(direction)}
         </span>
       </div>

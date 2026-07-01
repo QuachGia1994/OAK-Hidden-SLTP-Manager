@@ -521,13 +521,15 @@ def handle_all(message):
     text = message.text.strip()
     if not text:
         return
-    # Ghi D-direction vào file cho mt5_signal_bot.py đọc
+    # Ghi D-direction vào file cho mt5_signal_bot.py đọc (atomic)
     text_upper = text.upper()
     if text_upper in ("BUY", "SELL", "MUA", "BAN"):
         d_file = os.path.join(PROJECT_DIR, "d_direction_input.txt")
+        tmp_file = d_file + ".tmp"
         try:
-            with open(d_file, "w", encoding="utf-8") as f:
+            with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(text_upper)
+            os.replace(tmp_file, d_file)
         except Exception:
             pass
     nlp_triggers = [

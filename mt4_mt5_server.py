@@ -193,6 +193,21 @@ def fetch_mt5_data(broker_dt, H):
 def receive_mt4_data():
     try:
         data = request.get_json(force=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Invalid data format"}), 400
+
+        # Validate required fields
+        time_str = data.get("time", "")
+        if not isinstance(time_str, str) or len(time_str) > 20:
+            return jsonify({"error": "Invalid time field"}), 400
+
+        # Sanitize string fields
+        for key in ["broker", "m35", "m40", "m30"]:
+            val = data.get(key, "")
+            if not isinstance(val, str):
+                data[key] = str(val)
+            data[key] = data[key][:50]  # Limit length
+
         broker_dt = get_broker_time()
         print(f"\n{'='*55}")
         print(f"[{fmt_time(broker_dt)} GMT+{BROKER_GMT}] Nhan tu MT4:")
