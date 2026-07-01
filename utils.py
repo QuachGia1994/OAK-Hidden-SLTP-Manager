@@ -7,7 +7,7 @@ import urllib.parse
 
 
 # --- Telegram ---
-def send_telegram_raw(token, chat_id, text, parse_mode="HTML"):
+def send_telegram_raw(token, chat_id, text, parse_mode="Markdown"):
     """Send message via Telegram Bot API (POST)."""
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = json.dumps({

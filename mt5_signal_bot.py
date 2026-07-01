@@ -716,8 +716,13 @@ def main():
         latest_missed = None
         # Xử lý H=2 trước để có h2_sig cho các slot khác
         if 2 in passed:
-            passed.remove(2)
-            passed.insert(0, 2)
+            key_h2 = (broker_dt.date(), 2)
+            if key_h2 not in sent_today:
+                r2 = analyze(broker_dt, 2)
+                s2 = r2["signal"]
+                if s2 in ("BUY", "SELL"):
+                    day_signals[(broker_dt.date(), 2)] = {"signal": s2, "m30_dir": r2.get("m30_dir")}
+                    _save_state(day_signals, sent_today)
         for h in passed:
             key = (broker_dt.date(), h)
             if key in sent_today:
@@ -747,8 +752,6 @@ def main():
 
             log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
             sent_today.add(key)
-            if h == 2 and sig in ("BUY", "SELL"):
-                day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
             _save_state(day_signals, sent_today)
             missed_count += 1
 
