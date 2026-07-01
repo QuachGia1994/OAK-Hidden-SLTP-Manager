@@ -120,7 +120,7 @@ def get_entry_prices(pair_dirs, broker_dt, entry_time):
             # Lấy nến M1 tại entry time, dùng close price
             candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, entry_ts)
             if candle:
-                prices[pair] = round(candle["close"], 5)
+                prices[pair] = round(candle["open"], 5)
             else:
                 # Fallback: lấy tick hiện tại
                 tick = mt5.symbol_info_tick(pair)
