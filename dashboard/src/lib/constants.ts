@@ -13,7 +13,7 @@ export const SCHEDULE: { hour: number; note: string }[] = [
   { hour: 11, note: "T5-6: Nhóm GBP cùng Vàng" },
   { hour: 12, note: "T5-6: Chỉ Vàng (GBP --)" },
   { hour: 13, note: "T5-6: Chỉ Vàng (GBP --)" },
-  { hour: 14, note: "T2: Chỉ Vàng (GBP --) | T3-6: Chỉ Vàng (GBP --)" },
+  { hour: 14, note: "T2-T6: Chỉ Vàng (GBP --)" },
   { hour: 15, note: "T2: Nhóm GBP cùng Vàng | T3-6: GBPUSD, GBPJPY cùng Vàng" },
   { hour: 16, note: "T2-T6: Nhóm GBP cùng Vàng" },
 ];
@@ -34,7 +34,7 @@ export const HOUR_NOTES: Record<number, string> = {
   11: "T5-6: Nhóm GBP cùng Vàng",
   12: "T5-6: Chỉ Vàng (GBP --)",
   13: "T5-6: Chỉ Vàng (GBP --)",
-  14: "T2: Chỉ Vàng (GBP --) | T3-6: Chỉ Vàng (GBP --)",
+  14: "T2-T6: Chỉ Vàng (GBP --)",
   15: "T2: Nhóm GBP cùng Vàng | T3-6: GBPUSD, GBPJPY cùng Vàng",
   16: "T2-T6: Nhóm GBP cùng Vàng",
 };
