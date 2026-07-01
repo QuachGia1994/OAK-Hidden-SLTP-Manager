@@ -759,7 +759,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
-        elif H in (10, 12, 13):
+        elif H in (10, 12, 13, 14):
             result["XAUUSD"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
@@ -772,10 +772,6 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         return result
 
     return result
-
-    # XAUUSD = signal cuối cùng (sau H1 check)
-    gold = signal
-    opposite = "SELL" if gold == "BUY" else "BUY"
 
     # === THỨ 2 (weekday=0): H=2-8,14-16, GBP ngược Vàng ===
     if weekday == 0:
