@@ -5,9 +5,10 @@ interface PairBadgeProps {
   direction: string;
   entryPrice?: number | null;
   currentPrice?: number | null;
+  prevDirection?: string | null;
 }
 
-export function PairBadge({ pair, direction, entryPrice, currentPrice }: PairBadgeProps) {
+export function PairBadge({ pair, direction, entryPrice, currentPrice, prevDirection }: PairBadgeProps) {
   if (!direction || direction === "-" || direction === "--") {
     return (
       <div className="flex items-center justify-between py-1.5">
@@ -20,21 +21,17 @@ export function PairBadge({ pair, direction, entryPrice, currentPrice }: PairBad
   const isBuy = direction === "BUY";
   const hasEntry = entryPrice != null;
   const hasCurrent = currentPrice != null;
+  // Chỉ hiển thị giá khi signal thay đổi so với slot trước
+  const signalChanged = prevDirection && prevDirection !== direction && prevDirection !== "-" && prevDirection !== "--";
 
   let priceDisplay = null;
-  if (hasEntry && hasCurrent) {
+  if (signalChanged && hasEntry && hasCurrent) {
     const change = ((currentPrice! - entryPrice!) / entryPrice!) * 100;
     const changeStr = change >= 0 ? `+${change.toFixed(2)}%` : `${change.toFixed(2)}%`;
     const changeColor = change >= 0 ? "text-emerald-500 dark:text-emerald-400" : "text-red-500 dark:text-red-400";
     priceDisplay = (
       <span className={`text-xs font-mono ${changeColor} ml-1`}>
         {entryPrice!.toFixed(5)} ({changeStr})
-      </span>
-    );
-  } else if (hasEntry) {
-    priceDisplay = (
-      <span className="text-xs font-mono text-zinc-500 dark:text-zinc-400 ml-1">
-        {entryPrice!.toFixed(5)}
       </span>
     );
   }
