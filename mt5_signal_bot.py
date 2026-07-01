@@ -172,7 +172,8 @@ def schedule精准_price_update(broker_dt, entry_time, pair_dirs):
         parts = entry_time.split(":")
         eh, em = int(parts[0]), int(parts[1])
         entry_ts = broker_time_to_ts(broker_dt, eh, em)
-        now_ts = datetime.now().timestamp()
+        # Dùng UTC cho consistency với entry_ts
+        now_ts = calendar.timegm(datetime.now(tz=timezone.utc).timetuple())
         delay = entry_ts - now_ts - 2
         if delay <= 0:
             return
