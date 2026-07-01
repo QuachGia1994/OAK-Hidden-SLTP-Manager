@@ -264,10 +264,13 @@ def push_to_dashboard():
         return
     print(f"[DASHBOARD] Pushing to {dashboard_url} ...")
     try:
-        # Push signals
+        # Push signals (only today)
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
-                signals = json.load(f)
+                all_signals = json.load(f)
+            # Filter: chỉ push signal hôm nay
+            today_str = datetime.now().date().isoformat()
+            signals = [s for s in all_signals if s.get("date") == today_str]
             if signals:
                 payload = json.dumps(signals).encode("utf-8")
                 req = urllib.request.Request(
