@@ -375,39 +375,21 @@ def send_d_direction_reminder():
     print("  [D-REMINDER] Sent daily reminder")
 
 def check_d_direction_input():
+    """Đọc D-direction từ file (mimo_bot.py ghi vào), không poll Telegram trực tiếp."""
     global d_direction, d_direction_date
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
-        return
-    id_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "d_dir_last_id.txt")
-    last_id = 0
+    d_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "d_direction_input.txt")
     try:
-        if os.path.exists(id_file):
-            with open(id_file, "r") as f:
-                last_id = int(f.read().strip())
-    except:
-        pass
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates?offset={last_id + 1}&timeout=1"
-        with urllib.request.urlopen(url, timeout=5) as response:
-            data = json.load(response)
-            if not data.get("ok"):
-                return
-            for update in data.get("result", []):
-                new_last_id = update["update_id"]
-                msg_obj = update.get("message") or update.get("channel_post")
-                if not msg_obj:
-                    continue
-                text = (msg_obj.get("text") or "").strip().upper()
-                if text in ("BUY", "SELL", "MUA", "BAN"):
-                    direction = "BUY" if text in ("BUY", "MUA") else "SELL"
-                    set_d_direction(direction)
-                    send_telegram(f"✅ Daily direction đã set: {direction}")
-                    print(f"  [D-DIRECTION] Set to {direction}")
-                last_id = new_last_id
-            if last_id > 0:
-                with open(id_file, "w") as f:
-                    f.write(str(last_id))
-    except Exception as e:
+        if not os.path.exists(d_file):
+            return
+        with open(d_file, "r", encoding="utf-8") as f:
+            text = f.read().strip().upper()
+        os.remove(d_file)
+        if text in ("BUY", "SELL", "MUA", "BAN"):
+            direction = "BUY" if text in ("BUY", "MUA") else "SELL"
+            set_d_direction(direction)
+            send_telegram(f"✅ Daily direction đã set: {direction}")
+            print(f"  [D-DIRECTION] Set to {direction}")
+    except Exception:
         pass
 
 # =====================================================================
