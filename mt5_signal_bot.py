@@ -101,21 +101,34 @@ def _save_state(day_signals, sent_today):
 
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
+def _parse_entry_time(entry_str):
+    """Parse 'HH:MM' to (hour, minute). Returns None on failure."""
+    if not entry_str:
+        return None
+    try:
+        parts = entry_str.split(":")
+        return int(parts[0]), int(parts[1])
+    except Exception:
+        return None
+
 def get_entry_prices(pair_dirs, broker_dt, entry_time):
-    """Lấy giá Open M1 tại entry time."""
+    """Lấy giá Open M1 tại entry time. entry_time: string hoặc dict {pair: time}."""
     prices = {}
     if not entry_time:
         return prices
-    try:
-        parts = entry_time.split(":")
-        eh, em = int(parts[0]), int(parts[1])
-        entry_ts = broker_time_to_ts(broker_dt, eh, em)
-    except Exception:
-        return prices
+    is_dict = isinstance(entry_time, dict)
     for pair, direction in pair_dirs.items():
         if direction not in ("BUY", "SELL"):
             continue
+        et = entry_time.get(pair) if is_dict else entry_time
+        if not et:
+            continue
+        parsed = _parse_entry_time(et)
+        if not parsed:
+            continue
+        eh, em = parsed
         try:
+            entry_ts = broker_time_to_ts(broker_dt, eh, em)
             candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, entry_ts)
             if candle:
                 prices[pair] = round(candle["open"], 5)
@@ -131,13 +144,19 @@ def get_entry_prices(pair_dirs, broker_dt, entry_time):
 def update_entry_prices精准(date_str, hour, pair_dirs, broker_dt, entry_time):
     """Cập nhật entry_prices bằng Open M1 tại entry time."""
     try:
+        is_dict = isinstance(entry_time, dict)
         entry_p = {}
         for pair, direction in pair_dirs.items():
             if direction not in ("BUY", "SELL"):
                 continue
+            et = entry_time.get(pair) if is_dict else entry_time
+            if not et:
+                continue
+            parsed = _parse_entry_time(et)
+            if not parsed:
+                continue
+            eh, em = parsed
             try:
-                parts = entry_time.split(":")
-                eh, em = int(parts[0]), int(parts[1])
                 entry_ts = broker_time_to_ts(broker_dt, eh, em)
                 candle = get_candle_by_ts(pair, mt5.TIMEFRAME_M1, entry_ts)
                 if candle:
@@ -168,9 +187,34 @@ def schedule精准_price_update(broker_dt, entry_time, pair_dirs):
     if not entry_time or not pair_dirs:
         return
     try:
-        parts = entry_time.split(":")
-        eh, em = int(parts[0]), int(parts[1])
-        entry_ts = broker_time_to_ts(broker_dt, eh, em)
+        # Find earliest entry time across all pairs
+        is_dict = isinstance(entry_time, dict)
+        if is_dict:
+            earliest_ts = None
+            earliest_et = None
+            for pair in pair_dirs:
+                et = entry_time.get(pair)
+                if not et:
+                    continue
+                parsed = _parse_entry_time(et)
+                if not parsed:
+                    continue
+                eh, em = parsed
+                ets = broker_time_to_ts(broker_dt, eh, em)
+                if earliest_ts is None or ets < earliest_ts:
+                    earliest_ts = ets
+                    earliest_et = et
+            if earliest_ts is None:
+                return
+            entry_ts = earliest_ts
+            entry_et_str = earliest_et
+        else:
+            parsed = _parse_entry_time(entry_time)
+            if not parsed:
+                return
+            eh, em = parsed
+            entry_ts = broker_time_to_ts(broker_dt, eh, em)
+            entry_et_str = entry_time
         # Dùng UTC cho consistency với entry_ts
         now_ts = calendar.timegm(datetime.now(tz=timezone.utc).timetuple())
         delay = entry_ts - now_ts - 2
@@ -182,7 +226,7 @@ def schedule精准_price_update(broker_dt, entry_time, pair_dirs):
             time.sleep(delay)
             update_entry_prices精准(date_str, hour, pair_dirs, broker_dt, entry_time)
         threading.Thread(target=_update, daemon=True).start()
-        print(f"[PRICE] Scheduled精准 price update in {delay:.0f}s (2s before H={entry_time})")
+        print(f"[PRICE] Scheduled精准 price update in {delay:.0f}s (2s before H={entry_et_str})")
     except Exception as e:
         print(f"[PRICE] Schedule error: {e}")
 
@@ -508,17 +552,35 @@ def candle_info_line(candle, label):
         f"H={candle['high']:.5f} L={candle['low']:.5f}"
     )
 
-def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None):
-    """Calculate entry time based on whether signal matches H=2.
-    - Match H2  → H:49
-    - No match  → H+1:24
-    orig_signal kept for API compat, unused after same_m30 removal."""
+def _default_entry_time(H, matches_h2):
+    return f"{H}:49" if matches_h2 else f"{H+1}:24"
+
+def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, weekday=None):
+    """Calculate entry time. Returns string for normal slots, dict {pair: time|None} for H=16."""
     if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
         return None
 
     matches_h2 = (h2_signal is not None and signal == h2_signal)
 
-    return f"{H}:49" if matches_h2 else f"{H+1}:24"
+    # H=16: per-pair entry times
+    if H == 16:
+        times = {}
+        # GBP group: always 18:59
+        for p in GBP_PAIRS:
+            times[p] = "18:59"
+        # XAUUSD: varies by weekday
+        wd = weekday if weekday is not None else datetime.now().weekday()
+        if wd in (0, 4):        # Mon(T2), Fri(T6)
+            times["XAUUSD"] = "18:59"
+        elif wd == 1:           # Tue(T3) - normal
+            times["XAUUSD"] = _default_entry_time(H, matches_h2)
+        elif wd == 2:           # Wed(T4) - 20:59
+            times["XAUUSD"] = "20:59"
+        elif wd == 3:           # Thu(T5) - skip XAUUSD
+            times["XAUUSD"] = None
+        return times
+
+    return _default_entry_time(H, matches_h2)
 
 # =====================================================================
 # PHAN TICH TIN HIEU
@@ -766,9 +828,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["GBPUSD"] = gold
             result["GBPJPY"] = gold
         elif H == 16:
-            result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
+            if weekday == 4:  # Fri only
+                result["XAUUSD"] = gold
         return result
 
     return result
@@ -925,7 +988,9 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
     m30_dir = signal_data.get("m30_dir")
     icon, emoji = get_signal_icon(sig)
 
-    entry_time = calc_entry_time(sig, m30_dir, H, h2_signal=h2_signal, orig_signal=signal_data.get("orig_signal"))
+    entry_time = calc_entry_time(sig, m30_dir, H, h2_signal=h2_signal,
+                                 orig_signal=signal_data.get("orig_signal"),
+                                 weekday=broker_dt.weekday())
 
     hour_note = get_hour_note(H, broker_dt.weekday())
     note_line = f"📝 {hour_note}\n" if hour_note else ""
@@ -936,6 +1001,21 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
         pair_dirs.pop("XAUUSD", None)
     elif sig == d_direction and d_direction is not None:
         mark_xauusd_matched(H)  # Ghi nhận lần đầu khớp D1
+
+    # Build entry line — dict khi H=16, string khi khác
+    entry_line = ""
+    if entry_time:
+        if isinstance(entry_time, dict):
+            lines = []
+            xau_et = entry_time.get("XAUUSD")
+            gbp_et = entry_time.get("GBPUSD")
+            if xau_et:
+                lines.append(f"  XAUUSD: *{xau_et}*")
+            if gbp_et:
+                lines.append(f"  Nhóm GBP: *{gbp_et}*")
+            entry_line = "Vào lệnh:\n" + "\n".join(lines) + "\n"
+        else:
+            entry_line = f"Vào lệnh: *{entry_time}*\n"
 
     pair_lines = []
     for p in ALL_PAIRS:
@@ -951,8 +1031,6 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
             p_text = "BUY" if d == "BUY" else "SELL"
             pair_lines.append(f"  {p}: {p_icon} {p_text}")
     pair_text = "\n".join(pair_lines)
-
-    entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
 
     # KẾT LUẬN: hiển thị signal cuối cùng (sau H1 check) = chiều XAUUSD
     conclusion = f"KẾT LUẬN: XAUUSD:{icon} {sig}\n"
@@ -1106,7 +1184,8 @@ def main():
             h2_data = day_signals.get((broker_dt.date(), 2))
             h2_sig = h2_data["signal"] if h2_data else None
 
-            entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
+            entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig,
+                                         orig_signal=result.get("orig_signal"), weekday=broker_dt.weekday())
             pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
             if not pair_dirs:
                 sent_today.add(key)
@@ -1143,7 +1222,19 @@ def main():
             h2_sig = latest_missed["h2_sig"]
 
             slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
-            entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
+            entry_line = ""
+            if entry_time:
+                if isinstance(entry_time, dict):
+                    lines = []
+                    xau_et = entry_time.get("XAUUSD")
+                    gbp_et = entry_time.get("GBPUSD")
+                    if xau_et:
+                        lines.append(f"  XAUUSD: *{xau_et}*")
+                    if gbp_et:
+                        lines.append(f"  Nhóm GBP: *{gbp_et}*")
+                    entry_line = "Vào lệnh:\n" + "\n".join(lines) + "\n"
+                else:
+                    entry_line = f"Vào lệnh: *{entry_time}*\n"
 
             pair_lines = []
             for p in ALL_PAIRS:
@@ -1239,7 +1330,8 @@ def main():
                 pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
 
                 # Log for website
-                entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
+                entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig,
+                                             orig_signal=result.get("orig_signal"), weekday=broker_dt.weekday())
                 log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour, broker_dt.weekday()))
                 schedule精准_price_update(broker_dt, entry_time, pair_dirs)
                 push_to_dashboard()
