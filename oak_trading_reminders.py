@@ -533,35 +533,35 @@ def get_day_notes(now, lang="VN"):
     notes_vn = []
     notes_en = []
 
-    # 1. T4 cuối tháng → cần tính lại W1
-    if weekday == 3 and _is_last_weekday_of_month(now, 3):
+    # 1. T4 cuối tháng → cần tính lại W1 (weekday 2 = Wednesday/Thứ 4)
+    if weekday == 2 and _is_last_weekday_of_month(now, 2):
         notes_vn.append("Thứ 4 cuối tháng: cần tính lại W1.")
-        notes_en.append("Last Thursday of month: recalculate W1.")
+        notes_en.append("Last Wednesday of month: recalculate W1.")
 
     # 2. T4 ngày 30 → cần tính lại W1
-    if weekday == 3 and day == 30:
+    if weekday == 2 and day == 30:
         notes_vn.append("Thứ 4 ngày 30: cần tính lại W1.")
-        notes_en.append("Thursday day 30: recalculate W1.")
+        notes_en.append("Wednesday day 30: recalculate W1.")
 
     # 3. T4 ngày 1 → cần tính lại W1
-    if weekday == 3 and day == 1:
+    if weekday == 2 and day == 1:
         notes_vn.append("Thứ 4 ngày 1: cần tính lại W1.")
-        notes_en.append("Thursday day 1: recalculate W1.")
+        notes_en.append("Wednesday day 1: recalculate W1.")
 
     # 4. T4 có T6 ngày 3/4/7 → cần tính lại W1
-    if weekday == 3:
-        friday = now + timedelta(days=1)
+    if weekday == 2:
+        friday = now + timedelta(days=3)
         if friday.day in (3, 4, 7):
             notes_vn.append("Thứ 4: T6 sắp tới ngày 3/4/7 → cần tính lại W1.")
-            notes_en.append("Thursday: upcoming Friday is day 3/4/7 → recalculate W1.")
+            notes_en.append("Wednesday: upcoming Friday is day 3/4/7 → recalculate W1.")
 
     # 5. T2 có T4 ngày 30/1 hoặc T6 ngày 3/4/7 → cần tính lại thứ 2
     if weekday == 0:
-        thursday = now + timedelta(days=3)
+        wednesday = now + timedelta(days=2)
         friday = now + timedelta(days=4)
-        if thursday.day in (30, 1) or friday.day in (3, 4, 7):
+        if wednesday.day in (30, 1) or friday.day in (3, 4, 7):
             notes_vn.append("Thứ 2: T4 ngày 30/1 hoặc T6 ngày 3/4/7 → cần tính lại thứ 2.")
-            notes_en.append("Monday: Thu is day 30/1 or Fri is day 3/4/7 → recalculate Monday.")
+            notes_en.append("Monday: Wed is day 30/1 or Fri is day 3/4/7 → recalculate Monday.")
 
     if lang == "VN":
         return notes_vn if notes_vn else ["Thứ 2-6: trade bình thường theo schedule."]
