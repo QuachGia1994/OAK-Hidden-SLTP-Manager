@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.9.0)
+# OAK Hidden SLTP Manager (v3.10.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:

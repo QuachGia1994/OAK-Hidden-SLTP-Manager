@@ -1,5 +1,39 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.10.0] - 2026-07-01
+*Security Fixes + Dashboard UI Improvements + Background Pattern.*
+
+### 🔒 Security Fixes (Strix OWASP Patterns)
+- **Flask API validation**: Validate input format, sanitize string fields, limit length
+- **Atomic file write**: d_direction_input.txt dùng os.replace chống crash corrupt
+- **File size validation**: Max 10 bytes cho D-direction file
+- **Telegram conflict fix**: mt5_signal_bot đọc D-direction từ file thay vì poll Telegram (giải quyết 409 conflict)
+
+### 🎨 Dashboard UI Improvements (Taste-Skill Patterns)
+- **Typography**: text-4xl/5xl headers, uppercase tracking-widest labels
+- **Spacing**: 4px grid system, consistent gap-4/5
+- **Cards**: rounded-xl, shadow-sm hover:shadow-md transitions
+- **Candlestick background**: SVG pattern xanh đỏ giống trading chart
+- **PairBadge simplified**: Chỉ hiện pair + badge, bỏ entry price + % change
+- **Mobile responsive**: px-4 sm:px-6 lg:px-8
+
+### 🛠️ Bug Fixes
+- **send_report()**: Return pair_dirs (nguyên nhân NoneType items error)
+- **should_skip_xauusd()**: Tách thành pure function + mark_xauusd_matched()
+- **get_day_notes()**: Fix weekday bug (T4 = weekday 2, không phải 3)
+- **timedelta bug**: T4 check T6 dùng timedelta(days=2)
+- **Atomic state write**: os.replace() chống crash wipe state
+- **D-direction reminder**: Dùng broker time thay vì local time
+- **send_telegram_raw**: POST JSON thay vì GET URL body
+- **Missed-slot H=2**: Pre-process H=2 trước loop
+
+### 📦 Agent Configs
+- **ponytail.md**: Lazy senior dev rules
+- **taste-skill.md**: Website design rules
+- **strix.md**: Security scan OWASP checklist
+
+---
+
 ## [v3.9.0] - 2026-07-01
 *H1 Check + Doji Fallback + Updated Pair Rules + Bug Fixes.*
 
