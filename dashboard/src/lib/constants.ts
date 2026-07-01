@@ -1,21 +1,21 @@
 export const TARGET_HOURS = Array.from({ length: 15 }, (_, i) => i + 2); // 2-16
 
 export const SCHEDULE: { hour: number; note: string }[] = [
-  { hour: 2, note: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều" },
-  { hour: 3, note: "GBPAUD, GBPJPY cùng chiều gốc, Vàng ngược chiều" },
+  { hour: 2, note: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ" },
+  { hour: 3, note: "GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ" },
   { hour: 4, note: "Chỉ GBPAUD + Vàng" },
   { hour: 5, note: "Chỉ GBPAUD + Vàng" },
   { hour: 6, note: "Chỉ GBPAUD + Vàng" },
   { hour: 7, note: "Chỉ GBPAUD + Vàng" },
   { hour: 8, note: "Chỉ GBPAUD + Vàng" },
-  { hour: 9, note: "Nhóm GBP cùng chiều gốc, Vàng ngược chiều" },
+  { hour: 9, note: "Nhóm GBP ngược Vàng" },
   { hour: 10, note: "Chỉ Vàng" },
-  { hour: 11, note: "Nhóm GBP cùng chiều gốc, Vàng ngược chiều" },
+  { hour: 11, note: "Nhóm GBP ngược Vàng" },
   { hour: 12, note: "Chỉ Vàng" },
   { hour: 13, note: "Chỉ Vàng" },
   { hour: 14, note: "Chỉ Vàng" },
-  { hour: 15, note: "GBPUSD, GBPJPY + Vàng cùng chiều" },
-  { hour: 16, note: "GBPUSD, GBPJPY + Vàng cùng chiều" },
+  { hour: 15, note: "GBPUSD, GBPJPY cùng Vàng" },
+  { hour: 16, note: "GBPUSD, GBPJPY cùng Vàng" },
 ];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];

@@ -12,6 +12,7 @@ import urllib.request
 import urllib.parse
 
 from utils import send_telegram_raw, load_json_file, get_signal_icon, vn_direction
+from oak_trading_reminders import get_day_notes
 
 try:
     import MetaTrader5 as mt5
@@ -204,40 +205,9 @@ def push_to_dashboard():
         print(f"[DASHBOARD] Push error: {e}")
 
 def get_schedule_reminders(broker_dt):
-    """Kiểm tra các ngày đặc biệt trong tháng"""
-    reminders = []
-    today = broker_dt.date()
-    year = today.year
-    month = today.month
-
-    last_day = calendar.monthrange(year, month)[1]
-
-    # Thứ 6 cuối tháng
-    last_fri = today.replace(day=last_day)
-    while last_fri.weekday() != 4:
-        last_fri -= timedelta(days=1)
-    if today == last_fri:
-        reminders.append("THU 6 CUOI THANG")
-
-    # Thứ 4 cuối tháng
-    last_wed = today.replace(day=last_day)
-    while last_wed.weekday() != 2:
-        last_wed -= timedelta(days=1)
-    if today == last_wed:
-        reminders.append("THU 4 CUOI THANG")
-
-    # Thứ 4 đầu tháng khi thứ 6 đầu tháng落在 ngày 3, 4, hoặc 7
-    first_date = today.replace(day=1)
-    if today.weekday() == 2:
-        first_fri_day = (4 - first_date.weekday()) % 7 + 1
-        if first_fri_day in (3, 4, 7) and today.day <= 7:
-            reminders.append(f"THU 4 DAU THANG (Thu 6 ngay {first_fri_day})")
-
-    # Thứ 4 ngày 30 hoặc 1 tây
-    if today.weekday() == 2 and today.day in (1, 30):
-        reminders.append("THU 4 NGAY 30/1 TAY")
-
-    return reminders
+    """Kiểm tra các ngày đặc biệt trong tháng - dùng chung get_day_notes."""
+    notes = get_day_notes(broker_dt, lang="VN")
+    return [n.upper() for n in notes]
 
 # =====================================================================
 # TELEGRAM
@@ -366,6 +336,17 @@ def candle_direction(candle):
         return "GIAM"
     return "DOJI"
 
+def get_h1_candle_for_slot(broker_dt, H):
+    """Lấy nến H1 của GBPUSD tại (H-1):00 — nến trước slot hiện tại."""
+    if H < 2:
+        return None
+    ts_h1 = broker_time_to_ts(broker_dt, H - 1, 0, 0)
+    c_h1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_H1, ts_h1)
+    if c_h1 is None:
+        print(f"  [H1] Không có dữ liệu H1 GBPUSD tại {H-1}:00")
+        return None
+    return c_h1
+
 def candle_info_line(candle, label):
     if candle is None:
         return f"  {label}: Khong co du lieu"
@@ -378,12 +359,14 @@ def candle_info_line(candle, label):
         f"H={candle['high']:.5f} L={candle['low']:.5f}"
     )
 
-def calc_entry_time(signal, m30_dir, H=None, h2_signal=None):
+def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None):
     """Calculate entry time based on signal + M30 direction + whether signal matches H=2.
-    h2_signal: the signal at H=2 ('BUY'/'SELL'/None). Used to determine same vs different group."""
+    orig_signal: signal từ M5+M30 TRƯỚC khi H1 check đảo chiều."""
     if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
         return None
-    same_m30 = (signal == "BUY" and m30_dir == "TANG") or (signal == "SELL" and m30_dir == "GIAM")
+    # same_m30 dùng orig_signal (trước H1) để xác định entry time
+    base = orig_signal if orig_signal else signal
+    same_m30 = (base == "BUY" and m30_dir == "TANG") or (base == "SELL" and m30_dir == "GIAM")
 
     matches_h2 = (h2_signal is not None and signal == h2_signal)
 
@@ -447,7 +430,25 @@ def analyze(broker_dt, H):
             f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:00')}"
         )
 
-    return {"signal": signal, "report": report, "m30_dir": d_m30}
+    # === H1 CHECK — tất cả slot ===
+    orig_signal = signal  # giữ signal gốc trước H1
+    h1_flipped = False
+    h1_result = None  # chiều H1 GBPUSD = chiều XAUUSD
+    c_h1 = get_h1_candle_for_slot(broker_dt, H)
+    if c_h1 is not None:
+        d_h1 = candle_direction(c_h1)
+        if d_h1 and d_h1 != "DOJI":
+            h1_signal = "BUY" if d_h1 == "TANG" else "SELL"
+            h1_result = h1_signal
+            vn_h1 = vn_direction(d_h1)
+            if h1_signal == signal:
+                signal = "SELL" if signal == "BUY" else "BUY"
+                h1_flipped = True
+                report += f"\n\n  *H1@{H-1}:00: {vn_h1}* (Cùng chiều M5+M30)\n  -> ĐẢO NGƯỢC: {signal}"
+            else:
+                report += f"\n\n  *H1@{H-1}:00: {vn_h1}* (Ngược chiều M5+M30)\n  -> GIỮ NGUYÊN: {signal}"
+
+    return {"signal": signal, "orig_signal": orig_signal, "h1_signal": h1_result, "report": report, "m30_dir": d_m30, "h1_flipped": h1_flipped}
 
 def get_hour_note(H):
     notes = {
@@ -483,7 +484,9 @@ def set_d_direction(direction):
     d_direction_date = datetime.now().date() if d_direction else None
     d_matched_hour = None
 
-def get_pair_direction(H, signal, broker_dt):
+def get_pair_direction(H, signal, broker_dt, h1_signal=None):
+    """Tính chiều các cặp theo slot.
+    h1_signal: chiều H1 GBPUSD → dùng làm XAUUSD, rồi suy ra 4 cặp GBP còn lại."""
     global d_direction, d_direction_date
     weekday = broker_dt.weekday()
     today = broker_dt.date()
@@ -492,27 +495,40 @@ def get_pair_direction(H, signal, broker_dt):
     if d_direction_date != today:
         d_direction = None
 
+    # XAUUSD = H1 direction (trực tiếp)
+    gold = h1_signal if h1_signal else signal
+    opposite = "SELL" if gold == "BUY" else "BUY"
+
     if H in (2, 3):
-        result["GBPAUD"] = signal
-        result["GBPJPY"] = signal
-        result["XAUUSD"] = "SELL" if signal == "BUY" else "BUY"
+        result["XAUUSD"] = gold
+        result["GBPAUD"] = opposite
+        result["GBPJPY"] = opposite
+        result["GBPUSD"] = "--"
+        result["GBPCAD"] = "--"
 
     elif H in (4, 5, 6, 7, 8):
-        result["GBPAUD"] = signal
-        result["XAUUSD"] = signal
+        result["XAUUSD"] = gold
+        result["GBPAUD"] = opposite
+        result["GBPUSD"] = "--"
+        result["GBPJPY"] = "--"
+        result["GBPCAD"] = "--"
 
     elif H in (9, 11):
+        result["XAUUSD"] = gold
         for p in GBP_PAIRS:
-            result[p] = signal
-        result["XAUUSD"] = "SELL" if signal == "BUY" else "BUY"
+            result[p] = opposite
 
     elif H in (10, 12, 13, 14):
-        result["XAUUSD"] = signal
+        result["XAUUSD"] = gold
+        for p in GBP_PAIRS:
+            result[p] = "--"
 
     elif H in (15, 16):
-        result["GBPUSD"] = signal
-        result["GBPJPY"] = signal
-        result["XAUUSD"] = signal
+        result["XAUUSD"] = gold
+        result["GBPUSD"] = gold
+        result["GBPJPY"] = gold
+        result["GBPAUD"] = "--"
+        result["GBPCAD"] = "--"
 
     return result
 
@@ -539,27 +555,35 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
     m30_dir = signal_data.get("m30_dir")
     icon, emoji = get_signal_icon(sig)
 
-    entry_time = calc_entry_time(sig, m30_dir, H, h2_signal=h2_signal)
+    entry_time = calc_entry_time(sig, m30_dir, H, h2_signal=h2_signal, orig_signal=signal_data.get("orig_signal"))
 
     hour_note = get_hour_note(H)
     note_line = f"📝 {hour_note}\n" if hour_note else ""
 
-    pair_dirs = get_pair_direction(H, sig, broker_dt)
+    pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
 
     if should_skip_xauusd(H, sig, broker_dt):
         pair_dirs.pop("XAUUSD", None)
 
     pair_lines = []
     for p in ALL_PAIRS:
+        if p == "XAUUSD":
+            continue  # XAUUSD đã hiển thị ở KẾT LUẬN
         d = pair_dirs.get(p)
         if d is None:
             pair_lines.append(f"  {p}: -")
+        elif d == "--":
+            pair_lines.append(f"  {p}: --")
         else:
             p_icon, _ = get_signal_icon(d)
-            pair_lines.append(f"  {p}: {p_icon}")
+            p_text = "BUY" if d == "BUY" else "SELL"
+            pair_lines.append(f"  {p}: {p_icon} {p_text}")
     pair_text = "\n".join(pair_lines)
 
     entry_line = f"Vào lệnh: *{entry_time}*\n" if entry_time else ""
+
+    # KẾT LUẬN: hiển thị signal cuối cùng (sau H1 check) = chiều XAUUSD
+    conclusion = f"KẾT LUẬN: XAUUSD:{icon} {sig}\n"
 
     msg = (
         f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
@@ -568,7 +592,7 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
         f"============================\n\n"
         f"{report}\n\n"
         f"============================\n"
-        f"KẾT LUẬN: {icon}\n"
+        f"{conclusion}"
         f"{entry_line}"
         f"-------------------\n"
         f"{pair_text}\n"
@@ -697,8 +721,8 @@ def main():
             h2_data = day_signals.get((broker_dt.date(), 2))
             h2_sig = h2_data["signal"] if h2_data else None
 
-            entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig)
-            pair_dirs = get_pair_direction(h, sig, broker_dt)
+            entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
+            pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
             if should_skip_xauusd(h, sig, broker_dt):
                 pair_dirs.pop("XAUUSD", None)
             hour_note = get_hour_note(h)
@@ -732,21 +756,28 @@ def main():
 
             pair_lines = []
             for p in ALL_PAIRS:
+                if p == "XAUUSD":
+                    continue  # XAUUSD đã hiển thị ở KẾT LUẬN
                 d = pair_dirs.get(p)
                 if d is None:
                     pair_lines.append(f"  {p}: -")
+                elif d == "--":
+                    pair_lines.append(f"  {p}: --")
                 else:
                     p_icon, _ = get_signal_icon(d)
-                    pair_lines.append(f"  {p}: {p_icon}")
+                    p_text = "BUY" if d == "BUY" else "SELL"
+                    pair_lines.append(f"  {p}: {p_icon} {p_text}")
             pair_text = "\n".join(pair_lines)
             note_line = f"📝 {hour_note}\n" if hour_note else ""
+
+            conclusion = f"KẾT LUẬN: XAUUSD:{icon} {sig}\n"
 
             msg = (
                 f"*KIỂM TRA BỎ LỠ {fmt_hour(h)}:45*\n"
                 f"============================\n\n"
                 f"{result['report']}\n\n"
                 f"============================\n"
-                f"KẾT LUẬN: {icon}\n"
+                f"{conclusion}"
                 f"{entry_line}"
                 f"-------------------\n"
                 f"{pair_text}\n"
@@ -808,8 +839,8 @@ def main():
                 send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
 
                 # Log for website
-                entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig)
-                pair_dirs = get_pair_direction(now_hour, sig, broker_dt)
+                entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
+                pair_dirs = get_pair_direction(now_hour, sig, broker_dt, h1_signal=result.get("h1_signal"))
                 if should_skip_xauusd(now_hour, sig, broker_dt):
                     pair_dirs.pop("XAUUSD", None)
                 log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour))
