@@ -33,23 +33,3 @@ export async function getEconomicNews(): Promise<NewsItem[]> {
     return [];
   }
 }
-
-export async function getSignalsByDate(date: string): Promise<Signal[]> {
-  const signals = await getSignals();
-  return signals.filter((s) => s.date === date);
-}
-
-export async function getAvailableDates(): Promise<string[]> {
-  const signals = await getSignals();
-  const dates = [...new Set(signals.map((s) => s.date))];
-  return dates.sort().reverse();
-}
-
-export async function getCurrentPrices(): Promise<Record<string, number>> {
-  try {
-    const data = await redis.get(KEYS.prices);
-    return (data as Record<string, number>) || {};
-  } catch {
-    return {};
-  }
-}

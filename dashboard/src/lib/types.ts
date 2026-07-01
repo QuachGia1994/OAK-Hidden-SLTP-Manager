@@ -26,8 +26,3 @@ export interface NewsItem {
   title: string;
   impact: "high" | "medium" | "low";
 }
-
-export interface RuleReminder {
-  day: string;
-  notes: string[];
-}

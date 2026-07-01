@@ -4,7 +4,12 @@ import { SignalCard } from "@/components/SignalCard";
 export const dynamic = "force-dynamic";
 
 export default async function SignalsPage() {
-  const signals = await getSignals();
+  let signals: any[] = [];
+  try {
+    signals = await getSignals();
+  } catch (e) {
+    console.error("Signals fetch error:", e);
+  }
 
   const dateMap = new Map<string, typeof signals>();
   for (const s of signals) {

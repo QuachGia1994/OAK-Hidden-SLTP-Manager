@@ -25,6 +25,7 @@ export function NavBar() {
             <Link
               key={link.href}
               href={link.href}
+              aria-current={pathname === link.href ? "page" : undefined}
               className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
                 pathname === link.href
                   ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
@@ -40,6 +41,7 @@ export function NavBar() {
           <button
             onClick={toggle}
             className="p-2 rounded-md text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+            aria-label={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
             title={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
           >
             {theme === "dark" ? (

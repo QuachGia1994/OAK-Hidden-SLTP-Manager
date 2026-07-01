@@ -59,12 +59,6 @@ export function getSignalColor(signal: string): string {
   return "text-zinc-500";
 }
 
-export function getSignalBg(signal: string): string {
-  if (signal === "BUY" || signal === "Mua") return "bg-emerald-500/10 border-emerald-500/20";
-  if (signal === "SELL" || signal === "Bán") return "bg-red-500/10 border-red-500/20";
-  return "bg-zinc-500/10 border-zinc-500/20";
-}
-
 export function getSignalLabel(signal: string): string {
   if (signal === "BUY") return "Mua";
   if (signal === "SELL") return "Bán";

@@ -10,9 +10,8 @@ import calendar
 import threading
 from datetime import datetime, timedelta, timezone
 import urllib.request
-import urllib.parse
 
-from utils import send_telegram_raw, load_json_file, get_signal_icon, vn_direction
+from utils import send_telegram_raw, get_signal_icon, vn_direction
 from oak_trading_reminders import get_day_notes
 
 try:

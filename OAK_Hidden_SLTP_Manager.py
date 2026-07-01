@@ -17,7 +17,7 @@ import sys
 import json
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import ctypes
 import random
 import re
@@ -26,7 +26,6 @@ import signal
 import atexit
 import oak_trading_reminders
 from oak_response_dict import get_random_response
-from utils import load_json_file, get_signal_icon, vn_direction
 
 # --- PROCESS CLEANUP ---
 _running_processes = []

@@ -5,11 +5,19 @@ import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const [signals, botState, news] = await Promise.all([
-    getTodaySignals(),
-    getBotState(),
-    getEconomicNews(),
-  ]);
+  let signals: any[] = [];
+  let botState: any = null;
+  let news: any[] = [];
+
+  try {
+    [signals, botState, news] = await Promise.all([
+      getTodaySignals(),
+      getBotState(),
+      getEconomicNews(),
+    ]);
+  } catch (e) {
+    console.error("Dashboard fetch error:", e);
+  }
 
   const signalsByHour = new Map(signals.map((s) => [s.hour, s]));
 

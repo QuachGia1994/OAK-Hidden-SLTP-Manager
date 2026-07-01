@@ -52,6 +52,7 @@ SETTINGS_FILE = os.path.join(PROJECT_DIR, "settings.json")
 
 # Files cho OAK integration
 TELE_INBOX_FILE = os.path.join(PROJECT_DIR, "tele_inbox.json")
+MIMO_QUEUE_FILE = os.path.join(PROJECT_DIR, "mimo_queue.json")
 TELE_OFFSET_FILE = os.path.join(PROJECT_DIR, "tele_offset.json")
 
 # =====================================================================
@@ -64,7 +65,7 @@ bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
 # =====================================================================
 def is_admin(message):
     if ADMIN_CHAT_ID == 0:
-        return True
+        return False  # Chưa config → từ chối mọi request
     if message.chat.id == ADMIN_CHAT_ID:
         return True
     bot.reply_to(message, "⚠️ Bạn không có quyền truy cập!")
@@ -95,15 +96,16 @@ def save_json(path, data):
         print(f"Save error: {e}")
 
 def send_telegram_msg(chat_id, text):
-    """Gửi tin nhắn qua Telegram API trực tiếp"""
+    """Gửi tin nhắn qua Telegram API (POST)"""
     try:
         clean = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", text)
         clean = clean.replace("</c>", "")
         if len(clean) > 4000:
             clean = clean[:4000] + "\n\n...[Cắt bột]..."
-        msg = urllib.parse.quote(clean)
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage?chat_id={chat_id}&text={msg}"
-        with urllib.request.urlopen(url, timeout=15) as resp:
+        payload = json.dumps({"chat_id": chat_id, "text": clean}).encode("utf-8")
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as resp:
             return resp.read()
     except Exception as e:
         print(f"Send error: {e}")
@@ -413,7 +415,15 @@ def cmd_code(message):
         bot.reply_to(message, "Dùng: `/code oak_response_dict.py read`")
         return
     filename, action = parts
-    filepath = os.path.join(PROJECT_DIR, filename)
+    # Validate: không cho path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        bot.reply_to(message, "❌ Tên file không hợp lệ!")
+        return
+    filepath = os.path.join(PROJECT_DIR, os.path.basename(filename))
+    # Verify file nằm trong PROJECT_DIR
+    if not os.path.abspath(filepath).startswith(os.path.abspath(PROJECT_DIR)):
+        bot.reply_to(message, "❌ Đường dẫn không hợp lệ!")
+        return
     
     if action.lower() == "read":
         if not os.path.exists(filepath):
