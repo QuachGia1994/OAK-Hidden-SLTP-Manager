@@ -632,8 +632,7 @@ def set_d_direction(direction):
     d_matched_hour = None
 
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
-    """Tính chiều các cặp theo slot.
-    signal: signal cuối cùng (sau H1 check) = chiều XAUUSD."""
+    """Tính chiều các cặp theo slot và thứ."""
     global d_direction, d_direction_date
     weekday = broker_dt.weekday()
     today = broker_dt.date()
@@ -641,10 +640,73 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     if d_direction_date != today:
         d_direction = None
-
-    # WAIT = không có tín hiệu, trả về rỗng
     if signal not in ("BUY", "SELL"):
         return result
+
+    gold = signal
+    opposite = "SELL" if gold == "BUY" else "BUY"
+
+    # === THỨ 2 (weekday=0) ===
+    if weekday == 0:
+        if H in (2, 3, 4, 5, 6, 7, 8, 14, 15, 16):
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = opposite
+        return result
+
+    # === THỨ 3, THỨ 4 (weekday=1,2) ===
+    if weekday in (1, 2):
+        if H in (2, 3):
+            result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
+            result["GBPJPY"] = opposite
+        elif H == 4:
+            result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
+        elif H in (5, 6, 7, 8):
+            result["GBPUSD"] = opposite
+            result["GBPCAD"] = opposite
+            result["GBPJPY"] = opposite
+        elif H == 15:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
+        elif H == 16:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        return result
+
+    # === THỨ 5, THỨ 6 (weekday=3,4) ===
+    if weekday in (3, 4):
+        if H in (2, 3):
+            result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
+            result["GBPJPY"] = opposite
+        elif H == 4:
+            result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
+        elif H in (5, 6, 7, 8):
+            result["GBPUSD"] = opposite
+            result["GBPCAD"] = opposite
+            result["GBPJPY"] = opposite
+        elif H in (9, 11):
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H in (10, 12, 13):
+            result["XAUUSD"] = gold
+        elif H == 15:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
+        elif H == 16:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        return result
+
+    return result
 
     # XAUUSD = signal cuối cùng (sau H1 check)
     gold = signal
@@ -982,6 +1044,11 @@ def main():
 
             entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig, orig_signal=result.get("orig_signal"))
             pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
+            if not pair_dirs:
+                sent_today.add(key)
+                _save_state(day_signals, sent_today)
+                print(f"  [SKIP] H={h} - bỏ trống theo rule")
+                continue
             if should_skip_xauusd(h, sig, broker_dt):
                 pair_dirs.pop("XAUUSD", None)
             elif sig == d_direction and d_direction is not None:
@@ -1094,6 +1161,16 @@ def main():
 
                 h2_data = day_signals.get((broker_dt.date(), 2))
                 h2_sig = h2_data["signal"] if h2_data else None
+
+                # Tính pair_dirs trước khi gửi
+                pair_dirs = get_pair_direction(now_hour, sig, broker_dt, h1_signal=result.get("h1_signal"))
+                if not pair_dirs:
+                    # Slot bỏ trống theo rule ngày - đánh dấu đã xử lý
+                    sent_today.add(key)
+                    _save_state(day_signals, sent_today)
+                    print(f"  [SKIP] H={now_hour} - không có pair active theo rule ngày")
+                    time.sleep(10)
+                    continue
 
                 pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
 
