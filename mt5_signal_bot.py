@@ -509,20 +509,16 @@ def candle_info_line(candle, label):
     )
 
 def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None):
-    """Calculate entry time based on signal + M30 direction + whether signal matches H=2.
-    orig_signal: signal từ M5+M30 TRƯỚC khi H1 check đảo chiều."""
+    """Calculate entry time based on whether signal matches H=2.
+    - Match H2  → H:49
+    - No match  → H+1:24
+    orig_signal kept for API compat, unused after same_m30 removal."""
     if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
         return None
-    # same_m30 dùng orig_signal (trước H1) để xác định entry time
-    base = orig_signal if orig_signal else signal
-    same_m30 = (base == "BUY" and m30_dir == "TANG") or (base == "SELL" and m30_dir == "GIAM")
 
     matches_h2 = (h2_signal is not None and signal == h2_signal)
 
-    if matches_h2:
-        return f"{H+1}:10" if same_m30 else f"{H}:49"
-    else:
-        return f"{H+1}:19" if same_m30 else f"{H+1}:24"
+    return f"{H}:49" if matches_h2 else f"{H+1}:24"
 
 # =====================================================================
 # PHAN TICH TIN HIEU
