@@ -39,7 +39,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = [2, 3, 4, 6, 9, 10, 11, 12, 13, 14, 15, 16]
+TARGET_HOURS = [2, 3, 4, 6, 9, 11, 12, 14, 15, 16]
 BROKER_GMT = 0
 
 # =====================================================================
@@ -714,10 +714,8 @@ def get_hour_note(H, weekday=None):
             4: "GBPAUD ngược Vàng",
             6: "GBPAUD ngược Vàng",
             9: "Nhóm GBP cùng Vàng",
-            10: "Chỉ Vàng",
             11: "Nhóm GBP cùng Vàng",
             12: "Chỉ Vàng",
-            13: "Chỉ Vàng",
             14: "Chỉ Vàng",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP cùng Vàng",
@@ -817,7 +815,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
-        elif H in (10, 12, 13, 14):
+        elif H in (12, 14):
             result["XAUUSD"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
