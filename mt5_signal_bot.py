@@ -329,6 +329,7 @@ def push_to_dashboard():
             with open(_STATE_FILE, "r", encoding="utf-8") as f:
                 state = json.load(f)
             if state:
+                print(f"[DASHBOARD] Pushing state: d_direction={state.get('d_direction')}, date={state.get('date')}")
                 payload = json.dumps(state).encode("utf-8")
                 req = urllib.request.Request(
                     f"{dashboard_url}/api/state",
@@ -445,6 +446,9 @@ def check_d_direction_input():
             if os.path.exists(_STATE_FILE) and os.path.getsize(_STATE_FILE) > 2:
                 with open(_STATE_FILE, "r", encoding="utf-8") as f:
                     state = json.load(f)
+            # Ensure date field exists
+            if "date" not in state:
+                state["date"] = datetime.now().date().isoformat()
             state["d_direction"] = d_direction
             state["d_direction_date"] = d_direction_date.isoformat() if d_direction_date else None
             state["d_matched_hour"] = d_matched_hour
@@ -452,6 +456,7 @@ def check_d_direction_input():
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False)
             os.replace(tmp, _STATE_FILE)
+            print(f"  [D-DIRECTION] State saved: d_direction={state.get('d_direction')}")
             push_to_dashboard()
     except Exception:
         pass
