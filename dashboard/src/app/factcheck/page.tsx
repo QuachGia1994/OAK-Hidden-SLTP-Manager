@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import type { FactCheckRequest, FactCheckResult } from "@/lib/types";
+import type { FactCheckResult } from "@/lib/types";
 
 function ScoreBar({ score }: { score: number }) {
   const color =
@@ -78,30 +78,43 @@ export default function FactCheckPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: text.trim() }),
       });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
-      if (!data.ok) throw new Error(data.error);
+      if (!data.ok) throw new Error(data.error || "Request failed");
       const id = data.id;
+      if (!id) throw new Error("No ID returned");
+
       let attempts = 0;
+      let cancelled = false;
       const poll = async () => {
-        const check = await fetch(`/api/factcheck?id=${id}`);
-        const item = await check.json();
-        if (item?.status === "done" && item.result) {
-          setResult(item.result);
+        if (cancelled) return;
+        try {
+          const check = await fetch(`/api/factcheck?id=${id}`);
+          if (!check.ok) throw new Error("Poll failed");
+          const item = await check.json();
+          if (!item) throw new Error("No data returned");
+
+          if (item.status === "done" && item.result) {
+            setResult(item.result);
+            setLoading(false);
+            return;
+          }
+          if (item.status === "error") {
+            setError(item.result?.summary || "Processing error");
+            setLoading(false);
+            return;
+          }
+          attempts++;
+          if (attempts > 60) {
+            setError("Timeout - please try again");
+            setLoading(false);
+            return;
+          }
+          setTimeout(poll, 3000);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Poll error");
           setLoading(false);
-          return;
         }
-        if (item?.status === "error") {
-          setError(item.result?.summary || "Processing error");
-          setLoading(false);
-          return;
-        }
-        attempts++;
-        if (attempts > 60) {
-          setError("Timeout - please try again");
-          setLoading(false);
-          return;
-        }
-        setTimeout(poll, 3000);
       };
       poll();
     } catch (e: unknown) {
