@@ -13,14 +13,17 @@ import urllib.parse
 
 # Redis config (Upstash REST API)
 # Try loading from .env file first
-_env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-if os.path.exists(_env_file):
-    with open(_env_file, "r") as _f:
-        for _line in _f:
-            _line = _line.strip()
-            if _line and not _line.startswith("#") and "=" in _line:
-                _k, _v = _line.split("=", 1)
-                os.environ.setdefault(_k.strip(), _v.strip())
+try:
+    _env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(_env_file):
+        with open(_env_file, "r") as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith("#") and "=" in _line:
+                    _k, _v = _line.split("=", 1)
+                    os.environ.setdefault(_k.strip(), _v.strip())
+except Exception as e:
+    print(f"[WARN] Could not load .env: {e}")
 
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
@@ -306,4 +309,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nStopped.")
+    except Exception as e:
+        print(f"\nFATAL ERROR: {e}")
+        import traceback
+        traceback.print_exc()
+    finally:
+        input("\nPress Enter to exit...")
