@@ -1306,7 +1306,7 @@ def main():
 
             check_d_direction_input()
 
-            if broker_dt.hour == 6 and broker_dt.minute == 0 and broker_dt.weekday() in (0, 3, 4):
+            if broker_dt.hour == 2 and broker_dt.minute == 0 and broker_dt.weekday() in (0, 3, 4):
                 send_d_direction_reminder()
 
             if now_min == 45 and now_hour in TARGET_HOURS:
