@@ -58,6 +58,9 @@ export default function RootLayout({
           </Suspense>
           <NavBar />
           <main className="flex-1">{children}</main>
+          <footer className="border-t border-zinc-200 dark:border-zinc-800 py-4 text-center">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">&copy; 2026 QUACH KIM PHONG</p>
+          </footer>
         </ThemeProvider>
       </body>
     </html>
