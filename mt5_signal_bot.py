@@ -299,22 +299,6 @@ def _parse_news_for_dashboard(news_lines):
             items.append({"time": time_str, "currency": currency, "title": title.strip(), "impact": impact})
     return items
 
-def _clear_today_signals():
-    """Xóa signal cũ hôm nay để tránh hiển thị data sai rule."""
-    try:
-        today_str = datetime.now().date().isoformat()
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, list):
-                data = []
-            data = [s for s in data if s.get("date") != today_str]
-            with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False)
-            print(f"[CLEAN] Cleared old signals for {today_str}")
-    except Exception as e:
-        print(f"[CLEAN] Error: {e}")
-
 def push_to_dashboard():
     """Push data to dashboard API (best effort, non-blocking)."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
@@ -1131,8 +1115,8 @@ def main():
         d_direction_date = datetime.fromisoformat(saved["d_direction_date"]).date() if saved.get("d_direction_date") else None
         d_matched_hour = saved.get("d_matched_hour")
 
-    # Clear old signals for today (tránh hiển thị data cũ)
-    _clear_today_signals()
+    # Clear old signals for today (tránh hiển thị data sai rule)
+    # _clear_today_signals removed: dedup in log_signal handles (date, hour) collisions
     if day_signals:
         print(f"  [RESTORE] day_signals: {list(day_signals.keys())}")
     if sent_today:
