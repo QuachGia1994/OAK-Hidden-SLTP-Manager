@@ -960,16 +960,18 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     return result
 
-def should_skip_xauusd(H, signal, broker_dt):
-    """Kiểm tra có nên ẩn XAUUSD không. Không mutated state."""
+def should_skip_xauusd(H, signal, broker_dt, h1_signal=None):
+    """Kiểm tra có nên ẩn XAUUSD không. Không mutated state.
+    Skip khi H1 candle direction match D1 direction."""
     if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
     if H == 16:
         return False
     if d_matched_hour is not None:
         return True
-    if signal == d_direction:
-        return False  # First match: hiển thị, caller chịu trách nhiệm set d_matched_hour
+    # Check if H1 signal matches D1
+    if h1_signal and h1_signal == d_direction:
+        return False  # H1 match D1 → show first time, caller marks matched
     return False
 
 def mark_xauusd_matched(H):
@@ -1001,10 +1003,10 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
         if h15_signal and sig == h15_signal:
             pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
 
-    if should_skip_xauusd(H, sig, broker_dt):
+    if should_skip_xauusd(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal")):
         pair_dirs.pop("XAUUSD", None)
-    elif sig == d_direction and d_direction is not None:
-        mark_xauusd_matched(H)  # Ghi nhận lần đầu khớp D1
+    elif signal_data.get("h1_signal") == d_direction and d_direction is not None:
+        mark_xauusd_matched(H)  # Ghi nhận lần đầu H1 match D1
 
     # Build entry line — dict khi H=16, string khi khác
     entry_line = ""
@@ -1212,9 +1214,9 @@ def main():
             if h == 16 and wd == 2 and "XAUUSD" in pair_dirs:
                 if h15_sig and sig == h15_sig:
                     pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
-            if should_skip_xauusd(h, sig, broker_dt):
+            if should_skip_xauusd(h, sig, broker_dt, h1_signal=result.get("h1_signal")):
                 pair_dirs.pop("XAUUSD", None)
-            elif sig == d_direction and d_direction is not None:
+            elif result.get("h1_signal") == d_direction and d_direction is not None:
                 mark_xauusd_matched(h)
             hour_note = get_hour_note(h, broker_dt.weekday())
 
