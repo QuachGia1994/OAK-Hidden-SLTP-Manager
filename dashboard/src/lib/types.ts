@@ -26,3 +26,28 @@ export interface NewsItem {
   title: string;
   impact: "high" | "medium" | "low";
 }
+
+export interface FactCheckRequest {
+  id: string;
+  text: string;
+  image_url?: string;
+  status: "pending" | "processing" | "done" | "error";
+  created_at: number;
+  result?: FactCheckResult;
+}
+
+export interface FactCheckResult {
+  score: number;
+  verdict: "credible" | "mixed" | "unreliable" | "unverifiable";
+  sources: FactCheckSource[];
+  summary: string;
+  key_claims: string[];
+}
+
+export interface FactCheckSource {
+  title: string;
+  url: string;
+  snippet: string;
+  agrees: boolean | null;
+  reliability: "high" | "medium" | "low";
+}

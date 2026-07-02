@@ -11,4 +11,5 @@ export const KEYS = {
   state: "sltp:state",
   news: "sltp:news",
   prices: "sltp:prices",
+  factcheck: "sltp:factcheck",
 };
