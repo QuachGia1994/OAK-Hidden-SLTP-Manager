@@ -440,6 +440,8 @@ def check_d_direction_input():
             set_d_direction(direction)
             send_telegram(f"✅ Daily direction đã set: {direction}")
             print(f"  [D-DIRECTION] Set to {direction}")
+            _save_state(day_signals, sent_today)
+            push_to_dashboard()
     except Exception:
         pass
 
@@ -837,10 +839,11 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
 def should_skip_xauusd(H, signal, broker_dt):
     """Kiểm tra có nên ẩn XAUUSD không. Không mutated state.
-    So signal Kết luận (sau H1) với D1 direction."""
+    So signal Kết luận (sau H1) với D1 direction.
+    Chỉ áp dụng từ H>=5."""
     if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
-    if H == 16:
+    if H < 5 or H == 16:
         return False
     if d_matched_hour is not None:
         return True
