@@ -7,7 +7,7 @@ import { useTheme } from "./ThemeProvider";
 const links = [
   { href: "/", label: "Dashboard" },
   { href: "/signals", label: "Lịch sử" },
-  { href: "/factcheck", label: "Xác thực" },
+  { href: "/factcheck", label: "Xác thực tin tức" },
   { href: "/rules", label: "Rules" },
 ];
 

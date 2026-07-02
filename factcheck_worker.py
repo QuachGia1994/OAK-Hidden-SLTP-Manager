@@ -47,17 +47,31 @@ def redis_request(method, key, value=None):
     if not REDIS_URL or not REDIS_TOKEN:
         print("[ERROR] REDIS not configured")
         return None
-    url = f"{REDIS_URL}/{key}"
+    # Upstash REST API uses /get/{key} and /set/{key} paths
+    if method == "GET":
+        url = f"{REDIS_URL}/get/{key}"
+    elif method == "SET":
+        url = f"{REDIS_URL}/set/{key}"
+    else:
+        url = f"{REDIS_URL}/{method.lower()}/{key}"
     headers = {
         "Authorization": f"Bearer {REDIS_TOKEN}",
         "Content-Type": "application/json",
     }
     data = json.dumps(value).encode() if value is not None else None
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST" if method == "SET" else "GET")
     try:
         resp = urllib.request.urlopen(req, timeout=15)
-        result = json.loads(resp.read())
-        return result.get("result")
+        raw = resp.read()
+        result = json.loads(raw)
+        # Upstash returns {"result": <value>} - value might be a JSON string
+        val = result.get("result")
+        if isinstance(val, str):
+            try:
+                val = json.loads(val)
+            except (json.JSONDecodeError, TypeError):
+                pass
+        return val
     except Exception as e:
         print(f"[ERROR] Redis {method} failed: {e}")
         return None
