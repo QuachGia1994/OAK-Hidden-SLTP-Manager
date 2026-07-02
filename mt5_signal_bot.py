@@ -574,25 +574,28 @@ def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, w
 
     # H=16: per-pair entry times
     if H == 16:
-        times = {}
-        # GBP group: always 18:59
-        for p in GBP_PAIRS:
-            times[p] = "18:59"
-        # XAUUSD: varies by weekday
         wd = weekday if weekday is not None else datetime.now().weekday()
-        if wd in (0, 4):        # Mon(T2), Fri(T6)
+        times = {}
+
+        if wd in (0, 3, 4):  # Mon(T2), Thu(T5), Fri(T6): 18:59 all
             times["XAUUSD"] = "18:59"
-        elif wd == 1:           # Tue(T3) - normal
-            times["XAUUSD"] = _default_entry_time(H, matches_h2)
-        elif wd == 2:           # Wed(T4) - compare with H=15
+            for p in GBP_PAIRS:
+                times[p] = "18:59"
+        elif wd == 1:  # Tue(T3): normal entry all
+            et = _default_entry_time(H, matches_h2)
+            times["XAUUSD"] = et
+            for p in GBP_PAIRS:
+                times[p] = et
+        elif wd == 2:  # Wed(T4): compare with H=15
             if h15_signal and signal == h15_signal:
-                # Same as H=15 → flip, normal entry
-                times["XAUUSD"] = _default_entry_time(H, matches_h2)
+                et = _default_entry_time(H, matches_h2)
+                times["XAUUSD"] = et
+                for p in GBP_PAIRS:
+                    times[p] = et
             else:
-                # Opposite H=15 → keep orig, 20:59
                 times["XAUUSD"] = "20:59"
-        elif wd == 3:           # Thu(T5) - 18:59
-            times["XAUUSD"] = "18:59"
+                for p in GBP_PAIRS:
+                    times[p] = "18:59"
         return times
 
     return _default_entry_time(H, matches_h2)
@@ -935,10 +938,12 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
 
     pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
 
-    # Wednesday H=16 XAUUSD: compare with H=15
-    if H == 16 and broker_dt.weekday() == 2 and "XAUUSD" in pair_dirs:
+    # Wednesday H=16: compare with H=15 — flip signal if same
+    if H == 16 and broker_dt.weekday() == 2:
         if h15_signal and sig == h15_signal:
-            pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
+            sig = "SELL" if sig == "BUY" else "BUY"
+            icon, emoji = get_signal_icon(sig)
+            pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
 
     if should_skip_xauusd(H, sig, broker_dt):
         pair_dirs.pop("XAUUSD", None)

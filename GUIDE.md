@@ -96,8 +96,9 @@ Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 
 ### Entry Time Logic
 - Match H=2 → `H:49`. Không match → `H+1:36`.
-- H=16: per-pair — XAUUSD+GBP group = 18:59 (T2,T5,T6). T3 normal, T4 compare H=15.
-- Wednesday H=16: so với H=15 — cùng chiều đảo entry normal, ngược giữ orig 20:59.
+- H=16 T2,T5,T6: 18:59 (Vàng + GBP).
+- H=16 T3: bình thường (16:49/17:36) cho tất cả.
+- H=16 T4: cùng H=15 → đảo signal + 16:49/17:36. Ngược H=15 → giữ signal + 20:59.
 
 ### D Direction (Mới)
 User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
