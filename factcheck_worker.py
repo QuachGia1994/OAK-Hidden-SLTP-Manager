@@ -253,6 +253,7 @@ def process_factcheck(item):
 
 
 def main():
+    global REDIS_URL, REDIS_TOKEN
     print("=" * 50)
     print("  Fact-Check Worker")
     print(f"  Redis: {'configured' if REDIS_URL else 'NOT configured - waiting...'}")
