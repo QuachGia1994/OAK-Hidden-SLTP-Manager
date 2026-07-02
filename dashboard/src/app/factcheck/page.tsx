@@ -125,10 +125,17 @@ export default function FactCheckPage() {
 
   const handleImageUpload = useCallback(async (file: File) => {
     setOcrLoading(true);
+    setError("");
+    setResult(null);
     try {
       const Tesseract = await import("tesseract.js");
       const { data } = await Tesseract.recognize(file, "eng+vie");
-      setText((prev) => (prev ? prev + "\n\n" + data.text : data.text));
+      const cleaned = data.text.trim();
+      if (cleaned) {
+        setText(cleaned);
+      } else {
+        setError("No text detected in image");
+      }
     } catch {
       setError("OCR failed - please paste text manually");
     }
