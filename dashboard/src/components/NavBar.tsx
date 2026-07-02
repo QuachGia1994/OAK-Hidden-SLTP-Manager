@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "./ThemeProvider";
 
 const links = [
-  { href: "/", label: "Dashboard" },
-  { href: "/signals", label: "Lịch sử" },
-  { href: "/factcheck", label: "Xác thực tin tức" },
-  { href: "/rules", label: "Rules" },
+  { href: "/", label: "Dashboard", mobile: "Dashboard" },
+  { href: "/signals", label: "Lịch sử", mobile: "Lịch sử" },
+  { href: "/factcheck", label: "Xác thực tin tức", mobile: "Xác thực" },
+  { href: "/rules", label: "Rules", mobile: "Rules" },
 ];
 
 export function NavBar() {
@@ -17,27 +17,28 @@ export function NavBar() {
 
   return (
     <nav className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
-        <Link href="/" className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-2 sm:gap-6 overflow-x-auto">
+        <Link href="/" className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight shrink-0">
           SLTP<span className="text-emerald-500 dark:text-emerald-400">.</span>
         </Link>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 shrink-0">
           {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               aria-current={pathname === link.href ? "page" : undefined}
-              className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+              className={`px-2.5 sm:px-3 py-1.5 text-sm rounded-md transition-colors whitespace-nowrap ${
                 pathname === link.href
                   ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                   : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
               }`}
             >
-              {link.label}
+              <span className="hidden sm:inline">{link.label}</span>
+              <span className="sm:hidden">{link.mobile}</span>
             </Link>
           ))}
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
           <StatusDot />
           <button
             onClick={toggle}
@@ -63,9 +64,9 @@ export function NavBar() {
 
 function StatusDot() {
   return (
-    <div className="flex items-center gap-2 text-xs text-zinc-400 dark:text-zinc-500">
+    <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-      Đang chạy
+      <span className="hidden sm:inline">Đang chạy</span>
     </div>
   );
 }

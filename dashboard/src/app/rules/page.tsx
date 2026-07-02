@@ -29,7 +29,7 @@ export default function RulesPage() {
 
       <div className="mb-8">
         <h2 className="text-lg font-medium text-zinc-700 dark:text-zinc-300 mb-3">Lịch giao dịch</h2>
-        <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50 overflow-hidden">
+        <div className="border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-zinc-900/50 overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-200 dark:border-zinc-800">
