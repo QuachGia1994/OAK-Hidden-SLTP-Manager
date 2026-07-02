@@ -1,6 +1,7 @@
 import { getTodaySignals, getBotState, getEconomicNews } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
 import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -9,10 +10,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let botState: any = null;
   let news: any[] = [];
 
-  // VIP check via query param
+  // VIP check: cookie OR query param
   const VIP_TOKEN = process.env.VIP_TOKEN || "";
   const params = await searchParams;
-  const isVIP = !!(params.vip && VIP_TOKEN && params.vip === VIP_TOKEN);
+  const cookieStore = await cookies();
+  const vipCookie = cookieStore.get("vip_access")?.value;
+  const isVIP = vipCookie === "1" || !!(params.vip && VIP_TOKEN && params.vip === VIP_TOKEN);
 
   try {
     [signals, botState, news] = await Promise.all([
