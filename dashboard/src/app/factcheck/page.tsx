@@ -62,9 +62,16 @@ function SourceRow({ source }: { source: { title: string; url: string; snippet: 
 
 function isGarbage(text: string): boolean {
   if (text.length < 5) return true;
-  const garbageRatio = (text.match(/[^a-zA-Z0-9À-ỹ\s.,!?;:'"()\-]/g) || []).length / text.length;
-  if (garbageRatio > 0.4) return true;
-  if (/^[.\s\*\-\\/|]+$/.test(text)) return true;
+  // Check for high ratio of non-alphanumeric chars
+  const alphaNum = text.replace(/[^a-zA-Z0-9À-ỹ]/g, "").length;
+  if (alphaNum / text.length < 0.4) return true;
+  // Check for patterns like: * \ / | ~ ^ that indicate OCR noise
+  const noisePattern = /[*\\\/|~^]{2,}/;
+  if (noisePattern.test(text)) return true;
+  // Check for very short "words" that are just symbols
+  const words = text.split(/\s+/);
+  const shortSymbolWords = words.filter(w => w.length <= 2 && /[^a-zA-Z0-9À-ỹ]/.test(w)).length;
+  if (shortSymbolWords / words.length > 0.5) return true;
   return false;
 }
 
@@ -225,7 +232,7 @@ export default function FactCheckPage() {
         <div className="space-y-4">
           <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 p-5">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Kết quả</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Kết quả</h2>
               <VerdictBadge verdict={result.verdict} />
             </div>
             <ScoreBar score={result.score} />
@@ -233,7 +240,7 @@ export default function FactCheckPage() {
 
           {cleanClaims.length > 0 && (
             <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Các tuyên bố chính</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Các tuyên bố chính</h2>
               <ul className="space-y-2">
                 {cleanClaims.map((claim, i) => (
                   <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-2">
@@ -246,7 +253,7 @@ export default function FactCheckPage() {
           )}
 
           <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 p-5">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
               Nguồn ({result.sources.length})
             </h2>
             {result.sources.length === 0 ? (
@@ -257,7 +264,7 @@ export default function FactCheckPage() {
           </div>
 
           <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 p-5">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Phân tích</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Phân tích</h2>
             <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
           </div>
         </div>
