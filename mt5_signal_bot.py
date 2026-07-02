@@ -591,8 +591,8 @@ def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, w
             else:
                 # Opposite H=15 → keep orig, 20:59
                 times["XAUUSD"] = "20:59"
-        elif wd == 3:           # Thu(T5) - skip XAUUSD
-            times["XAUUSD"] = None
+        elif wd == 3:           # Thu(T5) - 18:59
+            times["XAUUSD"] = "18:59"
         return times
 
     return _default_entry_time(H, matches_h2)
@@ -706,8 +706,24 @@ def get_hour_note(H, weekday=None):
         }
         return notes.get(H)
 
-    # T5-T6 (weekday 3,4)
-    if weekday in (3, 4):
+    # T5 (weekday 3) - riêng biệt vì H=9 khác T6
+    if weekday == 3:
+        notes = {
+            2: "GBPAUD, GBPJPY ngược Vàng",
+            3: "GBPAUD, GBPJPY ngược Vàng",
+            4: "GBPAUD ngược Vàng",
+            6: "GBPAUD ngược Vàng",
+            9: "GBPAUD, GBPCAD, GBPUSD ngược, GBPJPY cùng Vàng",
+            11: "Nhóm GBP cùng Vàng",
+            12: "Chỉ Vàng",
+            14: "Chỉ Vàng",
+            15: "GBPUSD, GBPJPY cùng Vàng",
+            16: "Nhóm GBP + Vàng cùng",
+        }
+        return notes.get(H)
+
+    # T6 (weekday 4)
+    if weekday == 4:
         notes = {
             2: "GBPAUD, GBPJPY ngược Vàng",
             3: "GBPAUD, GBPJPY ngược Vàng",
@@ -718,7 +734,7 @@ def get_hour_note(H, weekday=None):
             12: "Chỉ Vàng",
             14: "Chỉ Vàng",
             15: "GBPUSD, GBPJPY cùng Vàng",
-            16: "Nhóm GBP cùng Vàng",
+            16: "Nhóm GBP + Vàng cùng",
         }
         return notes.get(H)
 
@@ -811,7 +827,17 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         elif H in (4, 6):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
-        elif H in (9, 11):
+        elif H == 9:
+            result["XAUUSD"] = gold
+            if weekday == 3:  # T5: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng
+                result["GBPAUD"] = opposite
+                result["GBPCAD"] = opposite
+                result["GBPUSD"] = opposite
+                result["GBPJPY"] = gold
+            else:  # T6: all same
+                for p in GBP_PAIRS:
+                    result[p] = gold
+        elif H == 11:
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
@@ -822,10 +848,9 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["GBPUSD"] = gold
             result["GBPJPY"] = gold
         elif H == 16:
+            result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
-            if weekday == 4:  # Fri only
-                result["XAUUSD"] = gold
         return result
 
     return result

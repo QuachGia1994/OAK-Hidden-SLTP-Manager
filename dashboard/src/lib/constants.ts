@@ -5,12 +5,12 @@ export const SCHEDULE: { hour: number; note: string }[] = [
   { hour: 3, note: "T2: Nhóm GBP ngược | T3-6: GBPAUD, GBPJPY ngược" },
   { hour: 4, note: "T2: Nhóm GBP ngược | T3-6: Chỉ GBPAUD ngược" },
   { hour: 6, note: "T2: Nhóm GBP ngược | T3-6: Chỉ GBPAUD ngược" },
-  { hour: 9, note: "T5-6: Nhóm GBP cùng Vàng" },
+  { hour: 9, note: "T5: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng | T6: Nhóm GBP cùng Vàng" },
   { hour: 11, note: "T5-6: Nhóm GBP cùng Vàng" },
   { hour: 12, note: "T5-6: Chỉ Vàng (GBP --)" },
   { hour: 14, note: "T2-T6: Chỉ Vàng (GBP --)" },
   { hour: 15, note: "T2: Nhóm GBP cùng Vàng | T3-6: GBPUSD, GBPJPY cùng Vàng" },
-  { hour: 16, note: "T2-T6: Nhóm GBP cùng Vàng" },
+  { hour: 16, note: "T5-6: Nhóm GBP + Vàng cùng (18:59)" },
 ];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
@@ -21,12 +21,12 @@ export const HOUR_NOTES: Record<number, string> = {
   3: "T2: Nhóm GBP ngược | T3-6: GBPAUD, GBPJPY ngược",
   4: "T2: Nhóm GBP ngược | T3-6: Chỉ GBPAUD ngược",
   6: "T2: Nhóm GBP ngược | T3-6: Chỉ GBPAUD ngược",
-  9: "T5-6: Nhóm GBP cùng Vàng",
+  9: "T5: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng | T6: Nhóm GBP cùng Vàng",
   11: "T5-6: Nhóm GBP cùng Vàng",
   12: "T5-6: Chỉ Vàng (GBP --)",
   14: "T2-T6: Chỉ Vàng (GBP --)",
   15: "T2: Nhóm GBP cùng Vàng | T3-6: GBPUSD, GBPJPY cùng Vàng",
-  16: "T2-T6: Nhóm GBP cùng Vàng",
+  16: "T5-6: Nhóm GBP + Vàng cùng (18:59)",
 };
 
 export const DAY_RULES: Record<number, string[]> = {
