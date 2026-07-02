@@ -555,7 +555,7 @@ def candle_info_line(candle, label):
 def _default_entry_time(H, matches_h2):
     return f"{H}:49" if matches_h2 else f"{H+1}:24"
 
-def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, weekday=None):
+def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, weekday=None, h15_signal=None):
     """Calculate entry time. Returns string for normal slots, dict {pair: time|None} for H=16."""
     if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
         return None
@@ -574,8 +574,13 @@ def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, w
             times["XAUUSD"] = "18:59"
         elif wd == 1:           # Tue(T3) - normal
             times["XAUUSD"] = _default_entry_time(H, matches_h2)
-        elif wd == 2:           # Wed(T4) - 20:59
-            times["XAUUSD"] = "20:59"
+        elif wd == 2:           # Wed(T4) - compare with H=15
+            if h15_signal and signal == h15_signal:
+                # Same as H=15 → flip, normal entry
+                times["XAUUSD"] = _default_entry_time(H, matches_h2)
+            else:
+                # Opposite H=15 → keep orig, 20:59
+                times["XAUUSD"] = "20:59"
         elif wd == 3:           # Thu(T5) - skip XAUUSD
             times["XAUUSD"] = None
         return times
@@ -992,7 +997,7 @@ def mark_xauusd_matched(H):
 # =====================================================================
 # GUI TELEGRAM BAO CAO
 # =====================================================================
-def send_report(signal_data, H, broker_dt, h2_signal=None):
+def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
     sig = signal_data["signal"]
     report = signal_data["report"]
     m30_dir = signal_data.get("m30_dir")
@@ -1000,12 +1005,17 @@ def send_report(signal_data, H, broker_dt, h2_signal=None):
 
     entry_time = calc_entry_time(sig, m30_dir, H, h2_signal=h2_signal,
                                  orig_signal=signal_data.get("orig_signal"),
-                                 weekday=broker_dt.weekday())
+                                 weekday=broker_dt.weekday(), h15_signal=h15_signal)
 
     hour_note = get_hour_note(H, broker_dt.weekday())
     note_line = f"📝 {hour_note}\n" if hour_note else ""
 
     pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
+
+    # Wednesday H=16 XAUUSD: compare with H=15
+    if H == 16 and broker_dt.weekday() == 2 and "XAUUSD" in pair_dirs:
+        if h15_signal and sig == h15_signal:
+            pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
 
     if should_skip_xauusd(H, sig, broker_dt):
         pair_dirs.pop("XAUUSD", None)
@@ -1175,6 +1185,15 @@ def main():
                 if s2 in ("BUY", "SELL"):
                     day_signals[(broker_dt.date(), 2)] = {"signal": s2, "m30_dir": r2.get("m30_dir")}
                     _save_state(day_signals, sent_today)
+        # Track H=15 signal for Wednesday H=16 XAUUSD logic
+        if 15 in passed:
+            key_h15 = (broker_dt.date(), 15)
+            if key_h15 not in sent_today:
+                r15 = analyze(broker_dt, 15)
+                s15 = r15["signal"]
+                if s15 in ("BUY", "SELL"):
+                    day_signals[(broker_dt.date(), 15)] = {"signal": s15}
+                    _save_state(day_signals, sent_today)
         for h in passed:
             key = (broker_dt.date(), h)
             if key in sent_today:
@@ -1193,15 +1212,22 @@ def main():
 
             h2_data = day_signals.get((broker_dt.date(), 2))
             h2_sig = h2_data["signal"] if h2_data else None
+            h15_data = day_signals.get((broker_dt.date(), 15))
+            h15_sig = h15_data["signal"] if h15_data else None
 
             entry_time = calc_entry_time(sig, result.get("m30_dir"), h, h2_signal=h2_sig,
-                                         orig_signal=result.get("orig_signal"), weekday=broker_dt.weekday())
+                                         orig_signal=result.get("orig_signal"), weekday=broker_dt.weekday(),
+                                         h15_signal=h15_sig)
             pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
             if not pair_dirs:
                 sent_today.add(key)
                 _save_state(day_signals, sent_today)
                 print(f"  [SKIP] H={h} - bỏ trống theo rule")
                 continue
+            # Wednesday H=16 XAUUSD: compare with H=15
+            if h == 16 and wd == 2 and "XAUUSD" in pair_dirs:
+                if h15_sig and sig == h15_sig:
+                    pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
             if should_skip_xauusd(h, sig, broker_dt):
                 pair_dirs.pop("XAUUSD", None)
             elif sig == d_direction and d_direction is not None:
@@ -1324,6 +1350,11 @@ def main():
                     day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
                     _save_state(day_signals, sent_today)
 
+                # Track H=15 signal for Wednesday H=16 XAUUSD logic
+                if now_hour == 15 and sig in ("BUY", "SELL"):
+                    day_signals[(broker_dt.date(), 15)] = {"signal": sig}
+                    _save_state(day_signals, sent_today)
+
                 h2_data = day_signals.get((broker_dt.date(), 2))
                 h2_sig = h2_data["signal"] if h2_data else None
 
@@ -1337,7 +1368,9 @@ def main():
                     time.sleep(10)
                     continue
 
-                pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig)
+                h15_data = day_signals.get((broker_dt.date(), 15))
+                h15_sig = h15_data["signal"] if h15_data else None
+                pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig, h15_signal=h15_sig)
 
                 # Log for website
                 entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig,
