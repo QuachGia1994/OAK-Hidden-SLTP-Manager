@@ -700,7 +700,10 @@ def get_hour_note(H, weekday=None):
             3: "GBPAUD, GBPJPY ngược Vàng",
             4: "GBPAUD ngược Vàng",
             6: "GBPAUD ngược Vàng",
-            14: "Chỉ Vàng",
+            9: "Nhóm GBP cùng Vàng (đảo)",
+            11: "Nhóm GBP cùng Vàng (đảo)",
+            12: "Chỉ Vàng (đảo)",
+            14: "Chỉ Vàng (đảo)",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP cùng Vàng",
         }
@@ -713,10 +716,10 @@ def get_hour_note(H, weekday=None):
             3: "GBPAUD, GBPJPY ngược Vàng",
             4: "GBPAUD ngược Vàng",
             6: "GBPAUD ngược Vàng",
-            9: "GBPAUD, GBPCAD, GBPUSD ngược, GBPJPY cùng Vàng",
-            11: "Nhóm GBP cùng Vàng",
-            12: "Chỉ Vàng",
-            14: "Chỉ Vàng",
+            9: "GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)",
+            11: "Nhóm GBP cùng Vàng (đảo)",
+            12: "Chỉ Vàng (đảo)",
+            14: "Chỉ Vàng (đảo)",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
@@ -729,10 +732,10 @@ def get_hour_note(H, weekday=None):
             3: "GBPAUD, GBPJPY ngược Vàng",
             4: "GBPAUD ngược Vàng",
             6: "GBPAUD ngược Vàng",
-            9: "Nhóm GBP cùng Vàng",
-            11: "Nhóm GBP cùng Vàng",
-            12: "Chỉ Vàng",
-            14: "Chỉ Vàng",
+            9: "Nhóm GBP cùng Vàng (đảo)",
+            11: "Nhóm GBP cùng Vàng (đảo)",
+            12: "Chỉ Vàng (đảo)",
+            14: "Chỉ Vàng (đảo)",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
@@ -744,7 +747,10 @@ def get_hour_note(H, weekday=None):
         3: "Nhóm GBP ngược Vàng",
         4: "Nhóm GBP ngược Vàng",
         6: "Nhóm GBP ngược Vàng",
-        14: "Chỉ Vàng (GBP --)",
+        9: "Nhóm GBP cùng Vàng (đảo)",
+        11: "Nhóm GBP cùng Vàng (đảo)",
+        12: "Chỉ Vàng (đảo)",
+        14: "Chỉ Vàng (đảo)",
         15: "Nhóm GBP cùng Vàng",
         16: "Nhóm GBP cùng Vàng",
     }
@@ -779,13 +785,26 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
 
+    # H=9,11,12,14: đảo ngược XAUUSD
+    if H in (9, 11, 12, 14):
+        gold = opposite
+        opposite = signal
+
     # === THỨ 2 (weekday=0) ===
     if weekday == 0:
         if H in (2, 3, 4, 6):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = opposite
-        elif H == 14:
+        elif H == 9:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H == 11:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H in (12, 14):
             result["XAUUSD"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
@@ -806,7 +825,15 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         elif H in (4, 6):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
-        elif H == 14:
+        elif H == 9:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H == 11:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H in (12, 14):
             result["XAUUSD"] = gold
         elif H == 15:
             result["XAUUSD"] = gold

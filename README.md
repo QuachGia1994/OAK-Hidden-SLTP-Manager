@@ -46,9 +46,9 @@ Tài liệu chi tiết:
 - **H-value Rules** (T2-T6):
   - H=2,3: GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ.
   - H=4,6: GBPAUD ngược Vàng.
-  - H=9 (T5): GBPAUD, GBPCAD, GBPUSD ngược. GBPJPY cùng Vàng.
-  - H=9 (T6), H=11: Nhóm GBP cùng Vàng.
-  - H=12,14: Chỉ Vàng.
+  - H=9: Nhóm GBP cùng Vàng (đảo). T5 riêng: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng.
+  - H=11: Nhóm GBP cùng Vàng (đảo).
+  - H=12,14: Chỉ Vàng (đảo).
   - H=15: GBPUSD, GBPJPY cùng Vàng.
   - H=16 (T5-6): Nhóm GBP + Vàng cùng lúc 18:59.
 - **Entry Time Logic**:

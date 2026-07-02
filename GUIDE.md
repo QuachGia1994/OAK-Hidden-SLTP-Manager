@@ -87,10 +87,10 @@ Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 |------|--------|--------|--------|--------|--------|
 | H=2,3 | H1 | ngược Vàng | ngược Vàng | -- | -- |
 | H=4,6 | H1 | ngược Vàng | -- | -- | -- |
-| H=9 (T5) | H1 | ngược Vàng | cùng Vàng | ngược Vàng | ngược Vàng |
-| H=9 (T6) | H1 | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
-| H=11 | H1 | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
-| H=12,14 | H1 | -- | -- | -- | -- |
+| H=9 (T2-4,6) | H1 (đảo) | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
+| H=9 (T5) | H1 (đảo) | ngược Vàng | cùng Vàng | ngược Vàng | ngược Vàng |
+| H=11 | H1 (đảo) | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
+| H=12,14 | H1 (đảo) | -- | -- | -- | -- |
 | H=15 | H1 | -- | -- | cùng Vàng | -- |
 | H=16 (T5-6) | 18:59 | 18:59 | 18:59 | 18:59 | 18:59 |
 
