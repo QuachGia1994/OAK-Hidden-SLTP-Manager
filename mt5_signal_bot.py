@@ -1053,6 +1053,9 @@ def main():
         else:
             countdown = "ngay mai"
 
+        # Check D direction input TRƯỚC missed slots để d_direction đúng khi push
+        check_d_direction_input()
+
         missed_count = 0
         latest_missed = None
         # Xử lý H=2 trước để có h2_sig cho các slot khác
