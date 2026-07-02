@@ -699,7 +699,7 @@ def get_hour_note(H, weekday=None):
             9: "Nhóm GBP cùng Vàng (đảo)",
             11: "Nhóm GBP cùng Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
+            14: "GBPUSD, GBPJPY cùng Vàng",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP cùng Vàng",
         }
@@ -715,7 +715,7 @@ def get_hour_note(H, weekday=None):
             9: "GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
             11: "GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
+            14: "GBPUSD, GBPJPY cùng Vàng",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
@@ -731,7 +731,7 @@ def get_hour_note(H, weekday=None):
             9: "Nhóm GBP cùng Vàng (đảo)",
             11: "Nhóm GBP cùng Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
+            14: "GBPUSD, GBPJPY cùng Vàng",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
@@ -781,8 +781,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
 
-    # H=9,11,12,14: đảo ngược XAUUSD
-    if H in (9, 11, 12, 14):
+    # H=9,11,12: đảo ngược XAUUSD
+    if H in (9, 11, 12):
         gold = opposite
         opposite = signal
 
