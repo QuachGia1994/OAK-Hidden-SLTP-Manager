@@ -81,14 +81,39 @@ def redis_request(method, key, value=None):
 
 
 def extract_claims(text):
-    """Extract key claims from text. Simple sentence-based approach."""
-    sentences = re.split(r'[.!?]+', text)
+    """Extract key claims from text. Handles Vietnamese and English."""
+    # Clean OCR noise
+    text = re.sub(r'Đánh giá bản dịch.*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'[a-zA-Z]{1,3}\s*\*\s*\\?\s*\n', '', text)
+    text = re.sub(r'^\s*[\*\•\–\-]\s*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    # Split by sentence endings (Vietnamese uses . ! ? and also newline)
+    sentences = re.split(r'[.!?]+|\n', text)
     claims = []
     for s in sentences:
         s = s.strip()
-        if len(s) > 20 and len(s) < 200:
+        # Remove leading bullet points or dashes
+        s = re.sub(r'^[\*\•\–\-]+\s*', '', s)
+        if len(s) > 15 and len(s) < 300:
+            # Truncate very long claims
+            if len(s) > 150:
+                s = s[:150]
             claims.append(s)
     return claims[:5]
+
+
+def simplify_query(claim):
+    """Simplify a claim into a shorter search query."""
+    # Remove common Vietnamese filler words
+    remove_words = ['là', 'của', 'và', 'có', 'được', 'này', 'đã', 'đang', 'sẽ',
+                    'không', 'những', 'các', 'một', 'với', 'cho', 'từ', 'trong',
+                    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'has', 'have']
+    words = claim.split()
+    filtered = [w for w in words if w.lower() not in remove_words]
+    # Take first 8 words max
+    query = ' '.join(filtered[:8])
+    return query if query else claim[:100]
 
 
 def search_web(query):
@@ -185,7 +210,9 @@ def process_factcheck(item):
     seen_urls = set()
 
     for claim in claims:
-        search_results = search_web(claim)
+        query = simplify_query(claim)
+        print(f"  [SEARCH] {query[:60]}...")
+        search_results = search_web(query)
         for sr in search_results:
             if sr["url"] in seen_urls:
                 continue
