@@ -575,27 +575,20 @@ def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, w
     # H=16: per-pair entry times
     if H == 16:
         wd = weekday if weekday is not None else datetime.now().weekday()
+        # GBP group: always 18:59
         times = {}
+        for p in GBP_PAIRS:
+            times[p] = "18:59"
 
-        if wd in (0, 3, 4):  # Mon(T2), Thu(T5), Fri(T6): 18:59 all
+        if wd in (0, 3, 4):  # Mon(T2), Thu(T5), Fri(T6): XAUUSD 18:59
             times["XAUUSD"] = "18:59"
-            for p in GBP_PAIRS:
-                times[p] = "18:59"
-        elif wd == 1:  # Tue(T3): normal entry all
-            et = _default_entry_time(H, matches_h2)
-            times["XAUUSD"] = et
-            for p in GBP_PAIRS:
-                times[p] = et
+        elif wd == 1:  # Tue(T3): normal entry
+            times["XAUUSD"] = _default_entry_time(H, matches_h2)
         elif wd == 2:  # Wed(T4): compare with H=15
             if h15_signal and signal == h15_signal:
-                et = _default_entry_time(H, matches_h2)
-                times["XAUUSD"] = et
-                for p in GBP_PAIRS:
-                    times[p] = et
+                times["XAUUSD"] = _default_entry_time(H, matches_h2)
             else:
                 times["XAUUSD"] = "20:59"
-                for p in GBP_PAIRS:
-                    times[p] = "18:59"
         return times
 
     return _default_entry_time(H, matches_h2)
