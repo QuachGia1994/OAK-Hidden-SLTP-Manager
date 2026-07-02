@@ -12,6 +12,16 @@ import urllib.request
 import urllib.parse
 
 # Redis config (Upstash REST API)
+# Try loading from .env file first
+_env_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if os.path.exists(_env_file):
+    with open(_env_file, "r") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
 REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "")
 REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
 FACTCHECK_KEY = "sltp:factcheck"
@@ -228,12 +238,24 @@ def process_factcheck(item):
 def main():
     print("=" * 50)
     print("  Fact-Check Worker")
-    print(f"  Redis: {'configured' if REDIS_URL else 'NOT configured'}")
+    print(f"  Redis: {'configured' if REDIS_URL else 'NOT configured - waiting...'}")
     print("=" * 50)
 
     if not REDIS_URL:
-        print("[ERROR] Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN")
-        sys.exit(1)
+        print("[WARN] UPSTASH_REDIS_REST_URL not found.")
+        print("[WARN] Create .env file in project root with:")
+        print("  UPSTASH_REDIS_REST_URL=https://xxx.upstash.io")
+        print("  UPSTASH_REDIS_REST_TOKEN=AXxx...")
+        print("[WARN] Retrying in 10s... (or set env vars and restart)")
+        while not REDIS_URL:
+            time.sleep(10)
+            # Re-check env vars (user might set them while script runs)
+            REDIS_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "")
+            REDIS_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
+            if REDIS_URL:
+                print("[OK] Redis configured! Starting...")
+                break
+            print(".", end="", flush=True)
 
     while True:
         try:
