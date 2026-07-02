@@ -1,14 +1,33 @@
 import { getSignals } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-export default async function SignalsPage() {
+export default async function SignalsPage({ searchParams }: { searchParams: Promise<{ vip?: string }> }) {
   let signals: any[] = [];
   try {
     signals = await getSignals();
   } catch (e) {
     console.error("Signals fetch error:", e);
+  }
+
+  // VIP check
+  const VIP_TOKEN = process.env.VIP_TOKEN || "";
+  const params = await searchParams;
+  const cookieStore = await cookies();
+  const vipCookie = cookieStore.get("vip_access")?.value;
+  let isVIP = vipCookie === "1";
+
+  if (!isVIP && params.vip && VIP_TOKEN && params.vip === VIP_TOKEN) {
+    isVIP = true;
+    cookieStore.set("vip_access", "1", {
+      maxAge: 60 * 60 * 24 * 7,
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+    });
   }
 
   const dateMap = new Map<string, typeof signals>();
@@ -36,7 +55,7 @@ export default async function SignalsPage() {
                 <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3 font-mono">{date}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {daySignals.map((signal) => (
-                    <SignalCard key={`${signal.date}-${signal.hour}`} signal={signal} />
+                    <SignalCard key={`${signal.date}-${signal.hour}`} signal={signal} isVIP={isVIP} />
                   ))}
                 </div>
               </div>

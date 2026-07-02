@@ -45,7 +45,7 @@ function EntryTimeDisplay({ entry_time }: { entry_time: Signal["entry_time"] }) 
   );
 }
 
-export function SignalCard({ signal }: { signal: Signal }) {
+export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean }) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
 
@@ -72,12 +72,19 @@ export function SignalCard({ signal }: { signal: Signal }) {
       {/* Conclusion */}
       <div className="px-5 py-5">
         <div className="text-[10px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2 font-medium">KẾT LUẬN</div>
-        <div className="flex items-end gap-4">
-          <span className={`text-4xl font-bold font-mono leading-none ${getSignalColor(signal.signal)}`}>
-            {getSignalLabel(signal.signal)}
-          </span>
-          <EntryTimeDisplay entry_time={signal.entry_time} />
-        </div>
+        {isVIP ? (
+          <div className="flex items-end gap-4">
+            <span className={`text-4xl font-bold font-mono leading-none ${getSignalColor(signal.signal)}`}>
+              {getSignalLabel(signal.signal)}
+            </span>
+            <EntryTimeDisplay entry_time={signal.entry_time} />
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <span className="text-2xl font-bold text-zinc-300 dark:text-zinc-600">🔒</span>
+            <span className="text-sm text-zinc-400 dark:text-zinc-500">VIP Only</span>
+          </div>
+        )}
       </div>
 
       {/* Pair Directions */}
@@ -86,7 +93,7 @@ export function SignalCard({ signal }: { signal: Signal }) {
           <PairBadge
             key={pair}
             pair={pair}
-            direction={signal.pair_dirs?.[pair] || "-"}
+            direction={isVIP ? (signal.pair_dirs?.[pair] || "-") : "locked"}
           />
         ))}
       </div>

@@ -16,6 +16,15 @@ export async function getTodaySignals(): Promise<Signal[]> {
   return signals.filter((s) => s.date === today);
 }
 
+export function maskSignal(signal: Signal): Signal {
+  return {
+    ...signal,
+    signal: "WAIT",
+    pair_dirs: {},
+    entry_time: null,
+  };
+}
+
 export async function getBotState(): Promise<BotState | null> {
   try {
     const data = await redis.get(KEYS.state);

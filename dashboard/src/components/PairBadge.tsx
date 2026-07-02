@@ -6,6 +6,15 @@ interface PairBadgeProps {
 }
 
 export function PairBadge({ pair, direction }: PairBadgeProps) {
+  if (direction === "locked") {
+    return (
+      <div className="flex items-center justify-between py-2">
+        <span className="font-mono text-sm text-zinc-400 dark:text-zinc-500">{pair}</span>
+        <span className="text-sm text-zinc-300 dark:text-zinc-600">🔒</span>
+      </div>
+    );
+  }
+
   if (!direction || direction === "-" || direction === "--") {
     return (
       <div className="flex items-center justify-between py-2">
