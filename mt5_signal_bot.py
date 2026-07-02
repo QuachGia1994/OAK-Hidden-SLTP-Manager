@@ -305,8 +305,12 @@ def push_to_dashboard():
     if not dashboard_url:
         print("[DASHBOARD] No dashboard_url configured, skip push.")
         return
+    api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
     print(f"[DASHBOARD] Pushing to {dashboard_url} ...")
     try:
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["X-API-Key"] = api_key
         # Push signals (only today)
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
@@ -319,7 +323,7 @@ def push_to_dashboard():
                 req = urllib.request.Request(
                     f"{dashboard_url}/api/signals",
                     data=payload,
-                    headers={"Content-Type": "application/json"}
+                    headers=headers
                 )
                 resp = urllib.request.urlopen(req, timeout=15)
                 resp.read()
@@ -334,7 +338,7 @@ def push_to_dashboard():
                 req = urllib.request.Request(
                     f"{dashboard_url}/api/state",
                     data=payload,
-                    headers={"Content-Type": "application/json"}
+                    headers=headers
                 )
                 resp = urllib.request.urlopen(req, timeout=15)
                 resp.read()
@@ -351,7 +355,7 @@ def push_to_dashboard():
                 req = urllib.request.Request(
                     f"{dashboard_url}/api/news",
                     data=payload,
-                    headers={"Content-Type": "application/json"}
+                    headers=headers
                 )
                 resp = urllib.request.urlopen(req, timeout=15)
                 resp.read()
@@ -364,6 +368,7 @@ def push_prices_to_dashboard():
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
         return
+    api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
     try:
         prices = {}
         for pair in ALL_PAIRS:
@@ -375,10 +380,13 @@ def push_prices_to_dashboard():
                 pass
         if prices:
             payload = json.dumps(prices).encode("utf-8")
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["X-API-Key"] = api_key
             req = urllib.request.Request(
                 f"{dashboard_url}/api/prices",
                 data=payload,
-                headers={"Content-Type": "application/json"}
+                headers=headers
             )
             resp = urllib.request.urlopen(req, timeout=10)
             resp.read()

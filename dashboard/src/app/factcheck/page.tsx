@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { FactCheckResult } from "@/lib/types";
 
 function ScoreBar({ score }: { score: number }) {
+  const clamped = Math.max(0, Math.min(100, score || 0));
   const color =
-    score >= 80 ? "bg-emerald-500" : score >= 50 ? "bg-amber-500" : "bg-red-500";
+    clamped >= 80 ? "bg-emerald-500" : clamped >= 50 ? "bg-amber-500" : "bg-red-500";
   return (
     <div className="flex items-center gap-4">
       <div className="flex-1 h-2.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${score}%` }} />
+        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
       </div>
-      <span className="font-mono text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100 w-12 text-right">{score}</span>
+      <span className="font-mono text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100 w-12 text-right">{clamped}</span>
     </div>
   );
 }
@@ -83,9 +84,15 @@ export default function FactCheckPage() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => { if (pollTimerRef.current) clearTimeout(pollTimerRef.current); };
+  }, []);
 
   const handleSubmit = useCallback(async () => {
     if (!text.trim()) return;
+    if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null; }
     setLoading(true);
     setError("");
     setResult(null);
@@ -125,7 +132,7 @@ export default function FactCheckPage() {
             setLoading(false);
             return;
           }
-          setTimeout(poll, 3000);
+          pollTimerRef.current = setTimeout(poll, 3000);
         } catch (err) {
           setError(err instanceof Error ? err.message : "Poll error");
           setLoading(false);
@@ -259,7 +266,7 @@ export default function FactCheckPage() {
             {result.sources.length === 0 ? (
               <p className="text-sm text-zinc-400 dark:text-zinc-500">Không tìm thấy nguồn liên quan</p>
             ) : (
-              result.sources.map((s, i) => <SourceRow key={i} source={s} />)
+              result.sources.map((s) => <SourceRow key={s.url} source={s} />)
             )}
           </div>
 

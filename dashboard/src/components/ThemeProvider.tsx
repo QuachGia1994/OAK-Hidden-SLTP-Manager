@@ -14,22 +14,19 @@ export function useTheme() {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("theme") as Theme) || "dark";
+    }
+    return "dark";
+  });
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("theme") as Theme | null;
-    const initial = saved || "dark";
-    setTheme(initial);
-    document.documentElement.className = `${initial} ${document.documentElement.className.replace(/\b(dark|light)\b/g, "").trim()}`;
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
     document.documentElement.className = `${theme} ${document.documentElement.className.replace(/\b(dark|light)\b/g, "").trim()}`.trim();
     localStorage.setItem("theme", theme);
-  }, [theme, mounted]);
+    setMounted(true);
+  }, [theme]);
 
   const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
 

@@ -38,7 +38,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
       ) : (
         <div className="space-y-8">
           {dates.map((date) => {
-            const daySignals = dateMap.get(date)!.sort((a, b) => b.hour - a.hour);
+            const daySignals = [...(dateMap.get(date) || [])].sort((a, b) => b.hour - a.hour);
             return (
               <div key={date}>
                 <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3 font-mono">{date}</h2>

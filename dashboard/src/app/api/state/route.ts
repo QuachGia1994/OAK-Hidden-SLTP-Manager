@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { redis, KEYS } from "@/lib/redis";
+import { redis, KEYS, requireAuth } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     await redis.set(KEYS.state, body);

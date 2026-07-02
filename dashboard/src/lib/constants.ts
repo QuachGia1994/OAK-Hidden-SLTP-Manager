@@ -54,8 +54,8 @@ export const DAY_RULES: Record<number, string[]> = {
 };
 
 export function getSignalColor(signal: string): string {
-  if (signal === "BUY" || signal === "Mua") return "text-emerald-400";
-  if (signal === "SELL" || signal === "Bán") return "text-red-400";
+  if (signal === "BUY" || signal === "Mua") return "text-emerald-500 dark:text-emerald-400";
+  if (signal === "SELL" || signal === "Bán") return "text-red-500 dark:text-red-400";
   return "text-zinc-500";
 }
 

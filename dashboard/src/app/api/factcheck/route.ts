@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { redis, KEYS } from "@/lib/redis";
+import { redis, KEYS, requireAuth } from "@/lib/redis";
 import type { FactCheckRequest } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -57,6 +57,8 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
