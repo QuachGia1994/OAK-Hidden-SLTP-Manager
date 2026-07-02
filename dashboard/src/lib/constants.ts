@@ -8,7 +8,7 @@ export const SCHEDULE: { hour: number; note: string }[] = [
   { hour: 9, note: "T2-4,6: Nhóm GBP cùng (đảo) | T5: GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)" },
   { hour: 11, note: "T2-4,6,T6: Nhóm GBP cùng (đảo) | T5: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)" },
   { hour: 12, note: "T2-T6: Chỉ Vàng (đảo)" },
-  { hour: 14, note: "T2-T6: Chỉ Vàng (đảo)" },
+  { hour: 14, note: "T2-T6: GBPUSD, GBPJPY cùng Vàng (đảo)" },
   { hour: 15, note: "T2: Nhóm GBP cùng Vàng | T3-6: GBPUSD, GBPJPY cùng Vàng" },
   { hour: 16, note: "T2-T6: Nhóm GBP + Vàng cùng (18:59)" },
 ];
@@ -24,7 +24,7 @@ export const HOUR_NOTES: Record<number, string> = {
   9: "T2-4,6: Nhóm GBP cùng (đảo) | T5: GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
   11: "T2-4,6,T6: Nhóm GBP cùng (đảo) | T5: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)",
   12: "T2-T6: Chỉ Vàng (đảo)",
-  14: "T2-T6: Chỉ Vàng (đảo)",
+  14: "T2-T6: GBPUSD, GBPJPY cùng Vàng (đảo)",
   15: "T2: Nhóm GBP cùng Vàng | T3-6: GBPUSD, GBPJPY cùng Vàng",
   16: "T2-T6: Nhóm GBP + Vàng cùng (18:59)",
 };

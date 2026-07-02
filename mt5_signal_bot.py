@@ -699,7 +699,7 @@ def get_hour_note(H, weekday=None):
             9: "Nhóm GBP cùng Vàng (đảo)",
             11: "Nhóm GBP cùng Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "Chỉ Vàng (đảo)",
+            14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP cùng Vàng",
         }
@@ -715,7 +715,7 @@ def get_hour_note(H, weekday=None):
             9: "GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
             11: "GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "Chỉ Vàng (đảo)",
+            14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
@@ -731,7 +731,7 @@ def get_hour_note(H, weekday=None):
             9: "Nhóm GBP cùng Vàng (đảo)",
             11: "Nhóm GBP cùng Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "Chỉ Vàng (đảo)",
+            14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
             15: "GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
@@ -746,7 +746,7 @@ def get_hour_note(H, weekday=None):
         9: "Nhóm GBP cùng Vàng (đảo)",
         11: "Nhóm GBP cùng Vàng (đảo)",
         12: "Chỉ Vàng (đảo)",
-        14: "Chỉ Vàng (đảo)",
+        14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
         15: "Nhóm GBP cùng Vàng",
         16: "Nhóm GBP cùng Vàng",
     }
@@ -800,8 +800,12 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
-        elif H in (12, 14):
+        elif H == 12:
             result["XAUUSD"] = gold
+        elif H == 14:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
             result["GBPUSD"] = gold
@@ -829,8 +833,12 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
-        elif H in (12, 14):
+        elif H == 12:
             result["XAUUSD"] = gold
+        elif H == 14:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
             result["GBPUSD"] = gold
@@ -870,8 +878,12 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             else:  # T6: all same
                 for p in GBP_PAIRS:
                     result[p] = gold
-        elif H in (12, 14):
+        elif H == 12:
             result["XAUUSD"] = gold
+        elif H == 14:
+            result["XAUUSD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
             result["GBPUSD"] = gold
