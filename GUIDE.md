@@ -86,16 +86,14 @@ Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 | Slot | XAUUSD | GBPAUD | GBPJPY | GBPUSD | GBPCAD |
 |------|--------|--------|--------|--------|--------|
 | H=2,3 | H1 | ngược Vàng | ngược Vàng | -- | -- |
-| H=4 | H1 | ngược Vàng | -- | -- | -- |
-| H=5-7 | H1 | ngược Vàng | ngược Vàng | ngược Vàng | ngược Vàng |
-| H=8 | -- | ngược Vàng | ngược Vàng | ngược Vàng | ngược Vàng |
+| H=4,6 | H1 | ngược Vàng | -- | -- | -- |
 | H=9,11 (T5-6) | H1 | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
 | H=10,12-14 | H1 | -- | -- | -- | -- |
 | H=15 | H1 | -- | -- | cùng Vàng | -- |
 | H=16 | tùy thứ | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
 
 ### Entry Time Logic
-- Match H=2 → `H:49`. Không match → `H+1:24`.
+- Match H=2 → `H:49`. Không match → `H+1:36`.
 - H=16: per-pair — XAUUSD tùy weekday, GBP group luôn 18:59.
 - Wednesday H=16: so với H=15 — cùng chiều đảo entry normal, ngược giữ orig 20:59.
 

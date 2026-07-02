@@ -45,14 +45,13 @@ Tài liệu chi tiết:
 - **5 cặp**: GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD.
 - **H-value Rules** (T2-T6):
   - H=2,3: GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ.
-  - H=4: GBPAUD ngược Vàng.
-  - H=5-8: Nhóm GBP ngược Vàng. H=8 XAUUSD --.
-  - H=9,11 (T5-T6): Nhóm GBP cùng Vàng.
-  - H=10,12-14: Chỉ Vàng. H=14 XAUUSD + GBP --.
+  - H=4,6: GBPAUD ngược Vàng.
+  - H=9,11 (T5-6): Nhóm GBP cùng Vàng.
+  - H=10,12-14: Chỉ Vàng.
   - H=15: GBPUSD, GBPJPY cùng Vàng.
   - H=16: Nhóm GBP cùng Vàng. XAUUSD tùy thứ (T2/T6=18:59, T3=normal, T4=20:59, T5=skip).
 - **Entry Time Logic**:
-  - Match H=2 → H:49. Không match → H+1:24.
+  - Match H=2 → H:49. Không match → H+1:36.
   - H=16: per-pair dict — XAUUSD tùy weekday, GBP group luôn 18:59.
   - Wednesday H=16: so signal với H=15 — cùng chiều đảo + normal entry, ngược giữ orig + 20:59.
 - **D Direction**: User gõ BUY/SELL qua Telegram để set hướng Daily. XAUUSD dừng báo khi signal Kết luận cùng D, trừ H=16. Nhắc lúc 6:00 VN.
