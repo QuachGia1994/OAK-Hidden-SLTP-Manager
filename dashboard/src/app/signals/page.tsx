@@ -35,12 +35,9 @@ export default async function SignalsPage() {
               <div key={date}>
                 <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3 font-mono">{date}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {daySignals.map((signal, idx, arr) => {
-                    const prevSignal = arr[idx + 1] || null;
-                    return (
-                      <SignalCard key={`${signal.date}-${signal.hour}`} signal={signal} prevSignal={prevSignal} />
-                    );
-                  })}
+                  {daySignals.map((signal) => (
+                    <SignalCard key={`${signal.date}-${signal.hour}`} signal={signal} />
+                  ))}
                 </div>
               </div>
             );

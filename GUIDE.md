@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.10.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.11.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -82,21 +82,29 @@ Kết quả luôn là BUY hoặc SELL, không còn WAIT do DOJI.
 ### 5 Cặp tiền
 Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 
-### H-Value Rules
+### H-Value Rules (T2-T6)
 | Slot | XAUUSD | GBPAUD | GBPJPY | GBPUSD | GBPCAD |
 |------|--------|--------|--------|--------|--------|
 | H=2,3 | H1 | ngược Vàng | ngược Vàng | -- | -- |
-| H=4-8 | H1 | ngược Vàng | -- | -- | -- |
-| H=9,11 | H1 | ngược Vàng | ngược Vàng | ngược Vàng | ngược Vàng |
+| H=4 | H1 | ngược Vàng | -- | -- | -- |
+| H=5-7 | H1 | ngược Vàng | ngược Vàng | ngược Vàng | ngược Vàng |
+| H=8 | -- | ngược Vàng | ngược Vàng | ngược Vàng | ngược Vàng |
+| H=9,11 (T5-6) | H1 | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
 | H=10,12-14 | H1 | -- | -- | -- | -- |
-| H=15,16 | H1 | -- | cùng Vàng | -- | cùng Vàng |
+| H=15 | H1 | -- | -- | cùng Vàng | -- |
+| H=16 | tùy thứ | cùng Vàng | cùng Vàng | cùng Vàng | cùng Vàng |
+
+### Entry Time Logic
+- Match H=2 → `H:49`. Không match → `H+1:24`.
+- H=16: per-pair — XAUUSD tùy weekday, GBP group luôn 18:59.
+- Wednesday H=16: so với H=15 — cùng chiều đảo entry normal, ngược giữ orig 20:59.
 
 ### D Direction (Mới)
 User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
 
 1. **Nhập D direction**: Gõ `BUY` hoặc `SELL` qua Telegram (T2, T5, T6 lúc 6h VN).
-2. **Khi H cùng D**: XAUUSD báo lần cuối, sau đó dừng cho đến H=16.
-3. **Khi H khác D**: XAUUSD báo bình thường.
+2. **Khi signal cùng D**: XAUUSD báo lần cuối, sau đó dừng cho đến H=16.
+3. **Khi signal khác D**: XAUUSD báo bình thường.
 4. **T3, T4**: Không áp dụng D direction, báo XAUUSD bình thường.
 
 ### Nhắc ngày đặc biệt

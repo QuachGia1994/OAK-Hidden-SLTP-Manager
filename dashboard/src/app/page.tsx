@@ -67,16 +67,12 @@ export default async function DashboardPage() {
           <EmptyState />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-            {signals.sort((a, b) => b.hour - a.hour).map((signal, idx, arr) => {
-              const prevSignal = arr[idx + 1] || null;
-              return (
-                <SignalCard
-                  key={`${signal.date}-${signal.hour}`}
-                  signal={signal}
-                  prevSignal={prevSignal}
-                />
-              );
-            })}
+            {signals.sort((a, b) => b.hour - a.hour).map((signal) => (
+              <SignalCard
+                key={`${signal.date}-${signal.hour}`}
+                signal={signal}
+              />
+            ))}
           </div>
         )}
       </div>

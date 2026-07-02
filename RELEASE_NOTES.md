@@ -1,5 +1,38 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.11.0] - 2026-07-01
+*Simplified Entry Time + H=16 Per-Pair + T2 Aligned + Deadcode Cleanup.*
+
+### 🎯 Entry Time Logic (Đơn giản hoá)
+- **Bỏ factor M30**: Chỉ còn dựa vào match H=2 — match → H:49, không match → H+1:24.
+- **H=16 per-pair dict**: `entry_time` trả về `{pair: time}` thay vì string.
+  - XAUUSD: T2/T6=18:59, T3=normal (16:49/17:24), T4=20:59, T5=skip.
+  - GBP group: luôn 18:59.
+- **Wednesday H=16 XAUUSD**: So signal Kết luận với H=15 — cùng chiều → đảo + normal entry, ngược → giữ orig + 20:59.
+- **Thursday H=16**: XAUUSD không vào lệnh (skip).
+
+### 📊 Updated Pair Rules (T2-T6)
+- **GBPAUD added to H=5-8**: T3-T6 giờ Include GBPAUD ngược Vàng.
+- **T2 aligned with T3-T6**: H=8 (XAUUSD --), H=14 (Chỉ Vàng), H=15 (GBPUSD, GBPJPY cùng Vàng), H=16 (Nhóm GBP cùng Vàng).
+- **Dashboard notes merged**: H=5-8, H=14-16 giờ là "T2-T6: ..." gọn hơn.
+
+### 🐛 Bug Fixes
+- **D direction reminder**: Fix giờ từ 10:00 VN → 6:00 VN (hour 6 → 2 broker time).
+- **History tab cleared on restart**: Xoá `_clear_today_signals()` — dedup trong log_signal đã xử lý.
+- **Dashboard hour notes stale**: Dùng `HOUR_NOTES` constant thay vì `signal.hour_note` cũ.
+
+### 🗑️ Dead Code Cleanup (-124 lines)
+- **`get_pair_direction`**: Xoá ~124 dòng unreachable code sau `return result`.
+- **`_clear_today_signals`**: Xoá function + call.
+- **SignalCard `prevSignal` prop**: Never used — removed from component + callers.
+- **`vercel.json` rewrite**: Identity rewrite no-op removed.
+
+### 🎨 Dashboard Updates
+- **`entry_time` dict support**: SignalCard hiển thị XAUUSD và Nhóm GBP entry riêng.
+- **`HOUR_NOTES` constant**: Luôn hiển thị note mới nhất, không phụ thuộc signal data cũ.
+
+---
+
 ## [v3.10.0] - 2026-07-01
 *Security Fixes + Dashboard UI Improvements + Background Pattern.*
 

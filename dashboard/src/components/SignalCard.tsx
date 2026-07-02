@@ -45,7 +45,7 @@ function EntryTimeDisplay({ entry_time }: { entry_time: Signal["entry_time"] }) 
   );
 }
 
-export function SignalCard({ signal, prevSignal }: { signal: Signal; prevSignal?: Signal | null }) {
+export function SignalCard({ signal }: { signal: Signal }) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
 

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MT5 Multi-Timeframe Signal Bot v3.6.0
+MT5 Multi-Timeframe Signal Bot v3.11.0
 """
 import os
 import sys
@@ -835,131 +835,6 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     return result
 
-    # === THỨ 2 (weekday=0): H=2-8,14-16, GBP ngược Vàng ===
-    if weekday == 0:
-        if H in (2, 3, 4, 5, 6, 7, 8, 14, 15, 16):
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = opposite
-        return result
-
-    # === THỨ 3-6 (weekday=1,2,3,4) ===
-    if weekday in (1, 2, 3, 4):
-        if H in (2, 3):
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-            result["GBPJPY"] = opposite
-            result["GBPUSD"] = "--"
-            result["GBPCAD"] = "--"
-        elif H == 4:
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-            result["GBPUSD"] = "--"
-            result["GBPJPY"] = "--"
-            result["GBPCAD"] = "--"
-        elif H in (5, 6, 7, 8):
-            result["GBPUSD"] = opposite
-            result["GBPCAD"] = opposite
-            result["GBPJPY"] = opposite
-            result["GBPAUD"] = "--"
-            result["XAUUSD"] = "--"
-        elif H in (9, 11) and weekday in (3, 4):
-            # T5, T6: Nhóm GBP cùng Vàng
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H in (10, 12, 13) and weekday in (3, 4):
-            # T5, T6: Chỉ Vàng
-            result["XAUUSD"] = gold
-        elif H in (9, 10, 11, 12, 13) and weekday in (0, 1, 2):
-            # T2, T3, T4: bỏ trống
-            pass
-        elif H == 15:
-            result["XAUUSD"] = gold
-            result["GBPUSD"] = gold
-            result["GBPJPY"] = gold
-            result["GBPAUD"] = "--"
-            result["GBPCAD"] = "--"
-        elif H == 16:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        return result
-
-    # === THỨ 5, THỨ 6 (weekday=3,4) ===
-    if weekday in (3, 4):
-        if H in (2, 3):
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-            result["GBPJPY"] = opposite
-            result["GBPUSD"] = "--"
-            result["GBPCAD"] = "--"
-        elif H == 4:
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-            result["GBPUSD"] = "--"
-            result["GBPJPY"] = "--"
-            result["GBPCAD"] = "--"
-        elif H in (5, 6, 7, 8):
-            result["GBPUSD"] = opposite
-            result["GBPCAD"] = opposite
-            result["GBPJPY"] = opposite
-            result["GBPAUD"] = "--"
-            result["XAUUSD"] = "--"  # H=8 hiển thị --
-        elif H in (9, 11):
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H in (10, 12, 13, 14):
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = "--"
-        elif H == 15:
-            result["XAUUSD"] = gold
-            result["GBPUSD"] = gold
-            result["GBPJPY"] = gold
-            result["GBPAUD"] = "--"
-            result["GBPCAD"] = "--"
-        elif H == 16:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        return result
-
-    # === THỨ 7 (weekday=5) ===
-    if H in (2, 3):
-        result["XAUUSD"] = gold
-        result["GBPAUD"] = opposite
-        result["GBPJPY"] = opposite
-        result["GBPUSD"] = "--"
-        result["GBPCAD"] = "--"
-
-    elif H in (4, 5, 6, 7, 8):
-        result["XAUUSD"] = gold
-        result["GBPAUD"] = opposite
-        result["GBPUSD"] = "--"
-        result["GBPJPY"] = "--"
-        result["GBPCAD"] = "--"
-
-    elif H in (9, 11):
-        result["XAUUSD"] = gold
-        for p in GBP_PAIRS:
-            result[p] = opposite
-
-    elif H in (10, 12, 13, 14):
-        result["XAUUSD"] = gold
-        for p in GBP_PAIRS:
-            result[p] = "--"
-
-    elif H in (15, 16):
-        result["XAUUSD"] = gold
-        result["GBPUSD"] = gold
-        result["GBPJPY"] = gold
-        result["GBPAUD"] = "--"
-        result["GBPCAD"] = "--"
-
-    return result
-
 def should_skip_xauusd(H, signal, broker_dt):
     """Kiểm tra có nên ẩn XAUUSD không. Không mutated state.
     So signal Kết luận (sau H1) với D1 direction."""
@@ -1090,7 +965,7 @@ def get_broker_time():
 def main():
     global mt5_ready, d_direction, d_direction_date, d_matched_hour
     print("=" * 55)
-    print("  MT5 Multi-Timeframe Signal Bot v3.6.0")
+    print("  MT5 Multi-Timeframe Signal Bot v3.11.0")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {TARGET_HOURS}")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
