@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.11.0)
+# OAK Hidden SLTP Manager (v3.12.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -75,6 +75,9 @@ Tài liệu chi tiết:
 - **Lịch sử 7 ngày**: Xem lại signal trong 7 ngày gần nhất.
 - **Upstash Redis**: Data lưu trên cloud, truy cập mọi lúc mọi nơi.
 - **Auto push**: Bot tự push data lên dashboard mỗi khi có signal mới + khi khởi động.
+- **Xác thực tin tức**: Paste text hoặc upload ảnh → AI phân tích credibility (OCR miễn phí).
+- **VIP Access Control**: Free user thấy 🔒 VIP Only, VIP thấy đầy đủ signal.
+- **Copyright**: © 2026 QUACH KIM PHONG.
 
 ## Cấu trúc file
 | File | Mô tả |
@@ -115,7 +118,8 @@ pip install -r requirements.txt
     "telegram_token": "YOUR_BOT_TOKEN_HERE",
     "telegram_chat_id": "YOUR_CHAT_ID_HERE",
     "mt5_path": "C:\\Program Files\\MetaTrader 5\\terminal64.exe",
-    "dashboard_url": "https://oak-hidden-sltp-manager-dun.vercel.app"
+    "dashboard_url": "https://oak-hidden-sltp-manager-dun.vercel.app",
+    "dashboard_api_key": "YOUR_API_KEY_HERE"
 }
 ```
 > **Lưu ý**: `config.json` nằm trong `.gitignore`, KHÔNG được commit lên GitHub.

@@ -1001,7 +1001,7 @@ def get_broker_time():
 def main():
     global mt5_ready, d_direction, d_direction_date, d_matched_hour
     print("=" * 55)
-    print("  MT5 Multi-Timeframe Signal Bot v3.11.0")
+    print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {TARGET_HOURS}")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")

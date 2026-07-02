@@ -1,5 +1,50 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.12.0] - 2026-07-01
+*Fact-check Tab + VIP Access Control + Security Hardening + UI Bug Sweep.*
+
+### 🆕 Fact-check Tab (Mới)
+- **Tab Xác thực tin tức**: Paste text hoặc upload ảnh để AI phân tích tính xác thực.
+- **OCR miễn phí**: Tesseract.js chạy client-side, nhận diện tiếng Anh + Việt.
+- **Drag & drop**: Kéo thả ảnh vào box để upload.
+- **Queue-based**: Dashboard POST → Redis queue → Worker xử lý → Kết quả hiển thị.
+- **Worker**: `factcheck_worker.py` poll Redis, search web (Brave → DuckDuckGo fallback), score credibility.
+
+### 🔒 VIP Access Control (Mới)
+- **Free user**: Signal hiện 🔒 VIP Only — không thấy BUY/SELL, entry time, pair directions.
+- **VIP access**: Visit `/?vip=TOKEN` → cookie lưu 7 ngày → mọi tab đều VIP.
+- **VipGuard**: Client component detect `?vip=TOKEN`, set cookie via `document.cookie`.
+- **Logout**: `/api/vip-logout` clear cookie, redirect về dashboard.
+
+### 🐛 D Direction Bug RESOLVED
+- **Root cause**: `check_d_direction_input()` chạy SAU missed slots → `d_direction` vẫn None khi push.
+- **Fix**: Chạy `check_d_direction_input()` TRƯỚC missed slots (line 1055).
+- **Telegram alert**: Khi XAUUSD match D1 lần đầu → gửi thông báo. Bot restart cũng gửi lại.
+
+### 🔒 Security Hardening (Strix OWASP)
+- **API auth**: `requireAuth()` check `X-API-Key` header trên POST/DELETE/PATCH.
+- **Bot sends key**: `push_to_dashboard()` + `push_prices_to_dashboard()` gửi header.
+- **PATCH whitelist**: Factcheck PATCH chỉ update `status` + `result`, không overwrite toàn bộ.
+- **Config**: `DASHBOARD_API_KEY` env var trên Vercel + `config.json`.
+
+### 🎨 UI Bug Sweep (Taste-skill)
+- **VIP cookie Secure**: Conditional — chỉ thêm `Secure` trên HTTPS, fix dev mode.
+- **ScoreBar NaN**: Clamp `score || 0` vào 0-100 range.
+- **Polling cleanup**: `useEffect` cleanup timeout khi navigate away, không memory leak.
+- **getSignalColor dark mode**: Thêm `dark:text-emerald-400` / `dark:text-red-400`.
+- **ThemeProvider flash**: Lazy initializer từ localStorage, xóa duplicate useEffect.
+- **SourceRow key**: `key={s.url}` thay vì `key={i}`.
+- **News key**: Composite key `${time}-${currency}-${title}`.
+- **Signals sort**: Copy array trước sort, không mutate Map.
+- **Mobile responsive**: NavBar short labels, hidden status text, table overflow scroll.
+
+### 📝 Docs & Build
+- **README.md**, **GUIDE.md**, **RELEASE_NOTES.md**: Cập nhật v3.12.0.
+- **create_backup_final.py**: Thêm `factcheck_worker.py`, `.js` extension.
+- **Copyright**: Footer "© 2026 QUACH KIM PHONG" trên mọi trang.
+
+---
+
 ## [v3.11.0] - 2026-07-01
 *Simplified Entry Time + H=16 Per-Pair + T2 Aligned + Deadcode Cleanup.*
 

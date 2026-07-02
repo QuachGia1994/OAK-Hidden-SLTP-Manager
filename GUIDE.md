@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.11.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.12.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -167,7 +167,18 @@ https://oak-hidden-sltp-manager-dun.vercel.app
 ### Các mục
 - **Dashboard**: Trạng thái bot, signal hôm nay, hướng ngày (D), tin tức kinh tế.
 - **Lịch sử**: 7 ngày gần nhất, xem chi tiết từng signal (entry time, pair directions).
+- **Xác thực tin tức**: Paste text hoặc upload ảnh để AI phân tích tính xác thực.
 - **Rules**: Quy tắc H-value và ngày đặc biệt.
+
+### VIP Access Control
+- **Free user**: Thấy signal bị khóa (🔒 VIP Only), không thấy BUY/SELL, entry time.
+- **VIP user**: Visit link `/?vip=TOKEN` → cookie lưu 7 ngày → xem đầy đủ signal.
+- **Logout**: Truy cập `/api/vip-logout` để thoát VIP, quay lại free user.
+
+### Xác thực tin tức
+- **Paste text**: Dán nội dung tin tức vào box → bấm "Xác thực".
+- **Upload ảnh**: Kéo thả ảnh hoặc bấm để chọn → OCR tự nhận diện text.
+- **Kết quả**: Điểm credibility (0-100), verdict (Đáng tin/Hỗn hợp/Không đáng tin), nguồn tham khảo.
 
 ### Cấu hình
 1. Tạo Upstash Redis: https://console.upstash.com

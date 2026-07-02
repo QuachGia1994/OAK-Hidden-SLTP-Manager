@@ -39,6 +39,7 @@ def create_backup():
         "mt4_mt5_server.py",
         "mimo_bot.py",
         "mimo_worker.py",
+        "factcheck_worker.py",
         "utils.py",
         "CHAY_ALL.bat",
         "CHAY_SERVER.bat",
@@ -49,7 +50,7 @@ def create_backup():
     for root, dirs, files in os.walk("dashboard"):
         dirs[:] = [d for d in dirs if d not in ("node_modules", ".next", ".git")]
         for f in files:
-            if f.endswith((".ts", ".tsx", ".json", ".md", ".css")):
+            if f.endswith((".ts", ".tsx", ".js", ".json", ".md", ".css")):
                 dashboard_files.append(os.path.join(root, f))
 
     doc_patterns = [
