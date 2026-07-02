@@ -1018,6 +1018,8 @@ def main():
         d_direction = saved["d_direction"]
         d_direction_date = datetime.fromisoformat(saved["d_direction_date"]).date() if saved.get("d_direction_date") else None
         d_matched_hour = saved.get("d_matched_hour")
+        if d_matched_hour is not None:
+            print(f"  [RESTORE] D1 matched at H={d_matched_hour}, XAUUSD hidden for remaining slots")
 
     # Clear old signals for today (tránh hiển thị data sai rule)
     # _clear_today_signals removed: dedup in log_signal handles (date, hour) collisions
@@ -1036,6 +1038,15 @@ def main():
         f"Kích hoạt: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
+    # Nếu D1 đã match trước đó (bot restart), thông báo lại
+    if d_matched_hour is not None:
+        send_telegram(
+            f"⚠️ XAUUSD ĐÃ MATCH D1 ({d_direction})\n"
+            f"============================\n"
+            f"Slot H={fmt_hour(d_matched_hour)}:45 đã khớp D direction.\n"
+            f"Các slot kế XAUUSD sẽ bị ẩn.\n"
+            f"Trừ H=16 (luôn hiển thị)."
+        )
     push_to_dashboard()
 
     if mt5_ready:
