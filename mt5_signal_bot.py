@@ -898,11 +898,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
 def should_skip_xauusd(H, signal, broker_dt):
     """Kiểm tra có nên ẩn XAUUSD không. Không mutated state.
-    So signal Kết luận (sau H1) với D1 direction.
-    Chỉ áp dụng từ H>=6."""
+    Skip từ slot match D1 cho tới H=12. H=14 hiển thị lại. H=16 luôn hiển thị."""
     if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
-    if H < 6 or H == 16:
+    if H < 6 or H in (14, 16):
         return False
     if d_matched_hour is not None:
         return True
@@ -919,8 +918,8 @@ def mark_xauusd_matched(H):
             f"⚠️ XAUUSD ĐÃ MATCH D1 ({d_direction})\n"
             f"============================\n"
             f"Slot H={fmt_hour(H)}:45 khớp D direction.\n"
-            f"Các slot kế XAUUSD sẽ bị ẩn.\n"
-            f"Trừ H=16 (luôn hiển thị)."
+            f"Các slot kế XAUUSD bị ẩn đến H=12.\n"
+            f"Hiển thị lại từ H=14."
         )
         send_telegram(msg)
         print(f"  [D-MATCH] XAUUSD matched D1 at H={H}, skipping subsequent slots")
@@ -1089,8 +1088,8 @@ def main():
             f"⚠️ XAUUSD ĐÃ MATCH D1 ({d_direction})\n"
             f"============================\n"
             f"Slot H={fmt_hour(d_matched_hour)}:45 đã khớp D direction.\n"
-            f"Các slot kế XAUUSD sẽ bị ẩn.\n"
-            f"Trừ H=16 (luôn hiển thị)."
+            f"Các slot kế XAUUSD bị ẩn đến H=12.\n"
+            f"Hiển thị lại từ H=14."
         )
     push_to_dashboard()
 
