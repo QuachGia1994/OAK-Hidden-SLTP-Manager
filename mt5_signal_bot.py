@@ -872,6 +872,15 @@ def mark_xauusd_matched(H):
     global d_matched_hour
     if d_matched_hour is None:
         d_matched_hour = H
+        msg = (
+            f"⚠️ XAUUSD ĐÃ MATCH D1 ({d_direction})\n"
+            f"============================\n"
+            f"Slot H={fmt_hour(H)}:45 khớp D direction.\n"
+            f"Các slot kế XAUUSD sẽ bị ẩn.\n"
+            f"Trừ H=16 (luôn hiển thị)."
+        )
+        send_telegram(msg)
+        print(f"  [D-MATCH] XAUUSD matched D1 at H={H}, skipping subsequent slots")
 
 # =====================================================================
 # GUI TELEGRAM BAO CAO
