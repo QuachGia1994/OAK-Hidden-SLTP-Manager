@@ -32,7 +32,9 @@ export const HOUR_NOTES: Record<number, string> = {
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2 (JS: getDay() = 1)
     "Slots: H=2,3,4,6,9,11,12,14,15,16",
-    "H=2-6: Nhóm GBP ngược Vàng. H=9,11: Nhóm GBP cùng Vàng (đảo). H=12,14: Chỉ Vàng (đảo)",
+    "H=2-6: Nhóm GBP ngược Vàng",
+    "H=9,11: Nhóm GBP cùng Vàng (đảo)",
+    "H=12: Chỉ Vàng (đảo). H=14: GBPUSD, GBPJPY cùng Vàng (đảo)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
     "Khi H1 match D1 → ngưng XAUUSD slot kế cho tới H=16",
     "Nếu T4 trong tuần là ngày 30/1 → Cần tính lại T2",
@@ -41,11 +43,13 @@ export const DAY_RULES: Record<number, string[]> = {
   2: [    // Thứ 3 (JS: getDay() = 2)
     "Slots: H=2,3,4,6,9,11,12,14,15,16",
     "H=2,3: GBPAUD, GBPJPY ngược. H=4,6: GBPAUD ngược",
-    "H=9,11: Nhóm GBP cùng Vàng (đảo). H=12,14: Chỉ Vàng (đảo)",
+    "H=9,11: Nhóm GBP cùng Vàng (đảo)",
+    "H=12: Chỉ Vàng (đảo). H=14: GBPUSD, GBPJPY cùng Vàng (đảo)",
     "H=15: GBPUSD, GBPJPY cùng. H=16: Bình thường (16:49/17:36)",
   ],
   3: [    // Thứ 4 (JS: getDay() = 3)
     "Slots: H=2,3,4,6,9,11,12,14,15,16",
+    "H=12: Chỉ Vàng (đảo). H=14: GBPUSD, GBPJPY cùng Vàng (đảo)",
     "H=16: So với H=15 — cùng chiều đảo + 16:49/17:36, ngược giữ + 20:59",
     "Nếu T4 là ngày cuối tháng → Tính lại W1",
     "Nếu T4 là ngày 30 hoặc ngày 1 → Tính lại W1",
@@ -55,11 +59,13 @@ export const DAY_RULES: Record<number, string[]> = {
     "Slots: H=2,3,4,6,9,11,12,14,15,16",
     "H=9: GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
     "H=11: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)",
+    "H=12: Chỉ Vàng (đảo). H=14: GBPUSD, GBPJPY cùng Vàng (đảo)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
   ],
   5: [    // Thứ 6 (JS: getDay() = 5)
     "Slots: H=2,3,4,6,9,11,12,14,15,16",
-    "H=9,11: Nhóm GBP cùng Vàng (đảo). H=12,14: Chỉ Vàng (đảo)",
+    "H=9,11: Nhóm GBP cùng Vàng (đảo)",
+    "H=12: Chỉ Vàng (đảo). H=14: GBPUSD, GBPJPY cùng Vàng (đảo)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
   ],
 };
