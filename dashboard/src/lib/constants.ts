@@ -36,7 +36,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=9,11: Nhóm GBP cùng Vàng (đảo)",
     "H=12: Chỉ Vàng (đảo). H=14: GBPUSD, GBPJPY cùng Vàng (đảo)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
-    "Khi H1 match D1 → ngưng XAUUSD slot kế cho tới H=16",
+    "Khi D1 match → ẩn XAUUSD từ slot match đến H=12. Hiển thị lại từ H=14",
     "Nếu T4 trong tuần là ngày 30/1 → Cần tính lại T2",
     "Nếu T6 trong tuần là ngày 3/4/7 → Cần tính lại T2",
   ],
