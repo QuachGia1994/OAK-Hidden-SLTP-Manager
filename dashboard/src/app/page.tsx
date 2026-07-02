@@ -1,7 +1,6 @@
 import { getTodaySignals, getBotState, getEconomicNews } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
 import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
-import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -10,23 +9,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let botState: any = null;
   let news: any[] = [];
 
-  // VIP check
+  // VIP check via query param
   const VIP_TOKEN = process.env.VIP_TOKEN || "";
   const params = await searchParams;
-  const cookieStore = await cookies();
-  const vipCookie = cookieStore.get("vip_access")?.value;
-  let isVIP = vipCookie === "1";
+  const isVIP = !!(params.vip && VIP_TOKEN && params.vip === VIP_TOKEN);
 
-  // If ?vip=TOKEN provided and valid, set cookie
-  if (!isVIP && params.vip && VIP_TOKEN && params.vip === VIP_TOKEN) {
-    isVIP = true;
-    cookieStore.set("vip_access", "1", {
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-    });
+  try {
+    [signals, botState, news] = await Promise.all([
+      getTodaySignals(),
+      getBotState(),
+      getEconomicNews(),
+    ]);
+  } catch (e) {
+    console.error("Dashboard fetch error:", e);
   }
 
   const signalsByHour = new Map(signals.map((s) => [s.hour, s]));

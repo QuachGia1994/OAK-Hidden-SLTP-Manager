@@ -1,6 +1,5 @@
 import { getSignals } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
-import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -12,23 +11,10 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
     console.error("Signals fetch error:", e);
   }
 
-  // VIP check
+  // VIP check via query param
   const VIP_TOKEN = process.env.VIP_TOKEN || "";
   const params = await searchParams;
-  const cookieStore = await cookies();
-  const vipCookie = cookieStore.get("vip_access")?.value;
-  let isVIP = vipCookie === "1";
-
-  if (!isVIP && params.vip && VIP_TOKEN && params.vip === VIP_TOKEN) {
-    isVIP = true;
-    cookieStore.set("vip_access", "1", {
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-    });
-  }
+  const isVIP = !!(params.vip && VIP_TOKEN && params.vip === VIP_TOKEN);
 
   const dateMap = new Map<string, typeof signals>();
   for (const s of signals) {
