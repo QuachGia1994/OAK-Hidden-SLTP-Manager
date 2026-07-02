@@ -440,7 +440,18 @@ def check_d_direction_input():
             set_d_direction(direction)
             send_telegram(f"✅ Daily direction đã set: {direction}")
             print(f"  [D-DIRECTION] Set to {direction}")
-            _save_state(day_signals, sent_today)
+            # Save state to disk (read existing, update d_direction fields)
+            state = {}
+            if os.path.exists(_STATE_FILE) and os.path.getsize(_STATE_FILE) > 2:
+                with open(_STATE_FILE, "r", encoding="utf-8") as f:
+                    state = json.load(f)
+            state["d_direction"] = d_direction
+            state["d_direction_date"] = d_direction_date.isoformat() if d_direction_date else None
+            state["d_matched_hour"] = d_matched_hour
+            tmp = _STATE_FILE + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False)
+            os.replace(tmp, _STATE_FILE)
             push_to_dashboard()
     except Exception:
         pass
