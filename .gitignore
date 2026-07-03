@@ -49,3 +49,6 @@ _mimo_output.txt
 mimo_proxy_result.txt
 mimo_proxy_cmd.txt
 d_dir_last_id.txt
+
+.vercel
+.env*

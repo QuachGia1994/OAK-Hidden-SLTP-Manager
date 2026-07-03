@@ -1,4 +1,4 @@
-import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, GBP_PAIRS, HOUR_NOTES } from "@/lib/constants";
+import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, GBP_PAIRS, getHourNote, weekdayFromDate } from "@/lib/constants";
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
@@ -48,6 +48,8 @@ function EntryTimeDisplay({ entry_time }: { entry_time: Signal["entry_time"] }) 
 export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean }) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
+  const weekday = weekdayFromDate(signal.date);
+  const hourNote = signal.hour_note || getHourNote(signal.hour, weekday);
 
   return (
     <div className="group border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
@@ -99,7 +101,7 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
       </div>
 
       {/* Hour Note */}
-      {(signal.hour_note || HOUR_NOTES[signal.hour]) && (
+      {hourNote && (
         <div className="px-5 py-2.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-900/40">
           {signal.hour_note?.includes("match D1") ? (
             <div className="flex items-center gap-1.5">
@@ -109,7 +111,7 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
               <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium leading-relaxed">{signal.hour_note}</p>
             </div>
           ) : (
-            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{signal.hour_note || HOUR_NOTES[signal.hour]}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{hourNote}</p>
           )}
         </div>
       )}
