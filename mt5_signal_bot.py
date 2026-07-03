@@ -898,10 +898,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
 def should_skip_xauusd(H, signal, broker_dt):
     """Kiểm tra có nên ẩn XAUUSD không. Không mutated state.
-    Skip từ slot match D1 cho tới H=12. H=14 hiển thị lại. H=16 luôn hiển thị."""
+    Skip từ H=3 sau match D1 tới H=11. H=12+ hiển thị lại."""
     if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
-    if H < 6 or H in (12, 14, 15, 16):
+    if H < 2 or H in (12, 14, 15, 16):
         return False
     if d_matched_hour is not None:
         return True

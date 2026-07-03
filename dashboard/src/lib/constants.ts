@@ -65,7 +65,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=2: Nhóm GBP ngược D Direction",
     "H=3-15: Chỉ Vàng (không GBP)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
-    "Khi D1 match → ẩn XAUUSD đến H=11. Hiển thị lại từ H=12",
+    "Khi D1 match → ẩn XAUUSD từ H=3 đến H=11. Hiển thị lại từ H=12",
     "Nếu T4 trong tuần là ngày 30/1 → Cần tính lại T2",
     "Nếu T6 trong tuần là ngày 3/4/7 → Cần tính lại T2",
   ],
@@ -97,6 +97,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=2: Nhóm GBP ngược D Direction",
     "H=3-15: Chỉ Vàng (không GBP)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
+    "Khi D1 match → ẩn XAUUSD từ H=3 đến H=11. Hiển thị lại từ H=12",
   ],
 };
 
