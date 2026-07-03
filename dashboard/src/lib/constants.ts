@@ -26,7 +26,7 @@ export const HOUR_NOTES: Record<number, string> = {
   12: "T2-T6: Chỉ Vàng (đảo)",
   14: "T2,T6: Nhóm GBP cùng Vàng | T3-5: GBPCAD, GBPUSD, GBPJPY cùng Vàng",
   15: "T2,T6: Nhóm GBP cùng Vàng | T3-5: GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-  16: "T2-T6: Nhóm GBP + Vàng cùng (18:59)",
+  16: "T2,3,4,6: Nhóm GBP + Vàng cùng | T5: Chỉ nhóm GBP",
 };
 
 export const DAY_RULES: Record<number, string[]> = {
