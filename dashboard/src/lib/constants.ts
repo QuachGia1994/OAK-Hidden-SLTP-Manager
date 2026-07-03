@@ -10,7 +10,7 @@ export const SCHEDULE: { hour: number; note: string }[] = [
   { hour: 12, note: "T2-T6: Chỉ Vàng (đảo)" },
   { hour: 14, note: "T2,T6: Nhóm GBP cùng Vàng | T3-5: GBPCAD, GBPUSD, GBPJPY cùng Vàng" },
   { hour: 15, note: "T2,T6: Nhóm GBP cùng Vàng | T3-5: GBPCAD, GBPUSD, GBPJPY cùng Vàng" },
-  { hour: 16, note: "T2-T6: Nhóm GBP + Vàng cùng (18:59)" },
+  { hour: 16, note: "T2,4,6: Nhóm GBP + Vàng cùng | T5: Chỉ nhóm GBP" },
 ];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
@@ -61,7 +61,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=9: GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
     "H=11: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo). H=12: Chỉ Vàng (đảo)",
     "H=14,15: GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-    "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
+    "H=16: Nhóm GBP cùng (không Vàng)",
   ],
   5: [    // Thứ 6 (JS: getDay() = 5) - giống T2
     "Slots: H=2,3,4,6,9,11,12,14,15,16",

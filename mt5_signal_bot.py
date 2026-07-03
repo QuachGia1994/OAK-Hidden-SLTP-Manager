@@ -717,7 +717,7 @@ def get_hour_note(H, weekday=None):
             12: "Chỉ Vàng (đảo)",
             14: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
             15: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-            16: "Nhóm GBP + Vàng cùng",
+            16: "Chỉ nhóm GBP (không Vàng)",
         }
         return notes.get(H)
 
@@ -885,7 +885,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["GBPUSD"] = gold
             result["GBPJPY"] = gold
         elif H == 16:
-            result["XAUUSD"] = gold
+            # T5 H=16: chỉ nhóm GBP, không có XAUUSD
             for p in GBP_PAIRS:
                 result[p] = gold
         return result
