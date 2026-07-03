@@ -145,22 +145,24 @@ def search_web(query):
         except Exception as e:
             print(f"[WARN] Brave search failed: {e}")
 
-    # DuckDuckGo HTML fallback
+    # DuckDuckGo HTML fallback (POST method)
     try:
-        encoded = urllib.parse.quote(query)
-        url = f"https://html.duckduckgo.com/html/?q={encoded}"
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        data = urllib.parse.urlencode({'q': query, 'b': ''}).encode()
+        req = urllib.request.Request('https://html.duckduckgo.com/html/', data=data, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        })
         resp = urllib.request.urlopen(req, timeout=10)
-        html = resp.read().decode("utf-8", errors="ignore")
-        # Simple regex extraction
-        titles = re.findall(r'class="result__a"[^>]*>(.*?)</a>', html)
-        urls = re.findall(r'class="result__url"[^>]*>(.*?)</a>', html)
+        html = resp.read().decode('utf-8', errors='ignore')
+        # Extract results using regex
+        # URLs are in href of result__a tags
+        result_links = re.findall(r'<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL)
         snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</td>', html, re.DOTALL)
-        for i in range(min(5, len(titles))):
-            clean_title = re.sub(r'<[^>]+>', '', titles[i]).strip() if i < len(titles) else ""
-            clean_url = urls[i].strip() if i < len(urls) else ""
+        for i in range(min(5, len(result_links))):
+            clean_url = result_links[i][0].strip()
+            clean_title = re.sub(r'<[^>]+>', '', result_links[i][1]).strip()
             clean_snippet = re.sub(r'<[^>]+>', '', snippets[i]).strip() if i < len(snippets) else ""
-            if clean_title and clean_url:
+            if clean_title and clean_url and 'duckduckgo' not in clean_url:
                 results.append({
                     "title": clean_title,
                     "url": clean_url,
@@ -281,10 +283,12 @@ def process_factcheck(item):
             })
 
         # Google Fact Check Tools API (IFCN certified sources)
+        # Use broader query for Google FC (it works better with general topics)
         google_fc_key = os.environ.get("GOOGLE_FACTCHECK_API_KEY", "")
         if google_fc_key:
-            print(f"  [GOOGLE-FC] Searching: {query[:40]}...")
-            google_results = search_google_factcheck(query, google_fc_key)
+            broad_query = ' '.join(query.split()[:5])  # Shorter, broader query
+            print(f"  [GOOGLE-FC] Searching: {broad_query[:40]}...")
+            google_results = search_google_factcheck(broad_query, google_fc_key)
             for gr in google_results:
                 if gr["url"] in seen_urls:
                     continue
