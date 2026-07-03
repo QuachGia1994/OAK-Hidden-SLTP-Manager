@@ -494,9 +494,7 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
 
-    # Dung copy_rates_from de fetch tu server neu buffer khong du
-    target_dt = datetime.utcfromtimestamp(target_ts)
-    rates = mt5.copy_rates_from(symbol, timeframe, target_dt, 200)
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 200)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
         return None
