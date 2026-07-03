@@ -33,7 +33,7 @@ if __name__ == "__main__":
         # Read signals_log.json and push
         filepath = os.path.join(os.path.dirname(__file__), "..", "signals_log.json")
         if os.path.exists(filepath):
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
             push("signals", data)
         else:

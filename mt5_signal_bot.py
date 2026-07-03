@@ -55,8 +55,8 @@ def _load_state():
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
-    # Only accept state from today
-    today_str = datetime.now().date().isoformat()
+    # Only accept state from today (use UTC to match broker_dt.date())
+    today_str = datetime.now(tz=timezone.utc).date().isoformat()
     if data.get("date") != today_str:
         return {}
 
@@ -75,7 +75,7 @@ def _load_state():
 
 def _save_state(day_signals, sent_today):
     """Persist state to disk."""
-    today_str = datetime.now().date().isoformat()
+    today_str = datetime.now(tz=timezone.utc).date().isoformat()
     # Convert day_signals keys to string for JSON
     ds_json = {}
     for (d, h), v in day_signals.items():
@@ -169,7 +169,7 @@ def update_entry_prices精准(date_str, hour, pair_dirs, broker_dt, entry_time):
                 pass
         if not entry_p:
             return
-        with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+        with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         for rec in data:
             if rec.get("date") == date_str and rec.get("hour") == hour:
@@ -263,7 +263,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
     try:
         data = []
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
         # Deduplicate: replace existing entry for same (date, hour)
         key = (record["date"], record["hour"])
@@ -311,13 +311,11 @@ def push_to_dashboard():
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["X-API-Key"] = api_key
-        # Push signals (only today)
+        # Push signals (all recent, API handles merge + cap at 500)
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8") as f:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
                 all_signals = json.load(f)
-            # Filter: chỉ push signal hôm nay
-            today_str = datetime.now().date().isoformat()
-            signals = [s for s in all_signals if s.get("date") == today_str]
+            signals = [s for s in all_signals if s.get("pair_dirs")]
             if signals:
                 payload = json.dumps(signals).encode("utf-8")
                 req = urllib.request.Request(
@@ -413,7 +411,7 @@ d_reminder_sent_date = None
 
 def send_d_direction_reminder():
     global d_reminder_sent_date
-    today = datetime.now().date()
+    today = datetime.now(tz=timezone.utc).date()
     if d_reminder_sent_date == today:
         return
     msg = (
@@ -456,7 +454,7 @@ def check_d_direction_input():
                     state = json.load(f)
             # Ensure date field exists
             if "date" not in state:
-                state["date"] = datetime.now().date().isoformat()
+                state["date"] = datetime.now(tz=timezone.utc).date().isoformat()
             state["d_direction"] = d_direction
             state["d_direction_date"] = d_direction_date.isoformat() if d_direction_date else None
             state["d_matched_hour"] = d_matched_hour
@@ -699,9 +697,8 @@ def get_hour_note(H, weekday=None):
             9: "Nhóm GBP cùng Vàng (đảo)",
             11: "Nhóm GBP cùng Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-            15: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-            16: "Nhóm GBP cùng Vàng",
+            14: "Nhóm GBP cùng Vàng",
+            15: "Nhóm GBP cùng Vàng",
         }
         return notes.get(H)
 
@@ -715,40 +712,39 @@ def get_hour_note(H, weekday=None):
             9: "GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
             11: "GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-            15: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-            16: "Chỉ nhóm GBP (không Vàng)",
+            14: "Nhóm GBP cùng Vàng",
+            15: "Nhóm GBP cùng Vàng",
         }
         return notes.get(H)
 
-    # T6 (weekday 4) - giống T2: H=2-6 ngược, H=14,15 cùng Vàng
+    # T6 (weekday 4) - giống T2
     if weekday == 4:
         notes = {
-            2: "Nhóm GBP ngược Vàng",
-            3: "Nhóm GBP ngược Vàng",
-            4: "Nhóm GBP ngược Vàng",
-            6: "Nhóm GBP ngược Vàng",
-            9: "Nhóm GBP cùng Vàng (đảo)",
-            11: "Nhóm GBP cùng Vàng (đảo)",
+            2: "Vàng + Nhóm GBP ngược D Direction",
+            3: "Chỉ Vàng",
+            4: "Chỉ Vàng",
+            6: "Chỉ Vàng",
+            9: "Chỉ Vàng",
+            11: "Chỉ Vàng",
             12: "Chỉ Vàng (đảo)",
-            14: "Nhóm GBP cùng Vàng",
-            15: "Nhóm GBP cùng Vàng",
+            14: "Chỉ Vàng",
+            15: "Chỉ Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
         return notes.get(H)
 
     # T2 (weekday 0) - mặc định
     notes = {
-        2: "Nhóm GBP ngược Vàng",
-        3: "Nhóm GBP ngược Vàng",
-        4: "Nhóm GBP ngược Vàng",
-        6: "Nhóm GBP ngược Vàng",
-        9: "Nhóm GBP cùng Vàng (đảo)",
-        11: "Nhóm GBP cùng Vàng (đảo)",
+        2: "Vàng + Nhóm GBP ngược D Direction",
+        3: "Chỉ Vàng",
+        4: "Chỉ Vàng",
+        6: "Chỉ Vàng",
+        9: "Chỉ Vàng",
+        11: "Chỉ Vàng",
         12: "Chỉ Vàng (đảo)",
-        14: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-        15: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-        16: "Nhóm GBP cùng Vàng",
+        14: "Chỉ Vàng",
+        15: "Chỉ Vàng",
+        16: "Nhóm GBP + Vàng cùng",
     }
     return notes.get(H)
 
@@ -763,7 +759,7 @@ d_matched_hour = None  # H where signal matched D (stops reporting after)
 def set_d_direction(direction):
     global d_direction, d_direction_date, d_matched_hour
     d_direction = direction.upper() if direction else None
-    d_direction_date = datetime.now().date() if d_direction else None
+    d_direction_date = datetime.now(tz=timezone.utc).date() if d_direction else None
     d_matched_hour = None
 
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
@@ -788,32 +784,23 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     # === THỨ 2 (weekday=0) ===
     if weekday == 0:
-        if H in (2, 3, 4, 6):
+        if H == 2:
+            # H=2: Vàng + GBP ngược D Direction
             result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = opposite
-        elif H == 9:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 11:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 12:
-            result["XAUUSD"] = gold
-        elif H == 14:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 15:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
+            if d_direction and d_direction_date == today:
+                d_opp = "SELL" if d_direction == "BUY" else "BUY"
+                for p in GBP_PAIRS:
+                    result[p] = d_opp
+            else:
+                for p in GBP_PAIRS:
+                    result[p] = opposite
         elif H == 16:
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
+        else:
+            # H=3,4,6,9,11,12,14,15: chỉ Vàng
+            result["XAUUSD"] = gold
         return result
 
     # === THỨ 3, THỨ 4 (weekday=1,2) ===
@@ -837,14 +824,12 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
         elif H == 14:
             result["XAUUSD"] = gold
-            result["GBPCAD"] = gold
-            result["GBPUSD"] = gold
-            result["GBPJPY"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
         elif H == 15:
             result["XAUUSD"] = gold
-            result["GBPCAD"] = gold
-            result["GBPUSD"] = gold
-            result["GBPJPY"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
         elif H == 16:
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
@@ -876,44 +861,34 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
         elif H == 14:
             result["XAUUSD"] = gold
-            result["GBPCAD"] = gold
-            result["GBPUSD"] = gold
-            result["GBPJPY"] = gold
-        elif H == 15:
-            result["XAUUSD"] = gold
-            result["GBPCAD"] = gold
-            result["GBPUSD"] = gold
-            result["GBPJPY"] = gold
-        elif H == 16:
-            # T5 H=16: chỉ nhóm GBP, không có XAUUSD
             for p in GBP_PAIRS:
                 result[p] = gold
+        elif H == 15:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        # H=16: skip T5 (empty result)
         return result
 
     # === THỨ 6 (weekday=4) - giống T2 ===
     if weekday == 4:
-        if H in (2, 3, 4, 6):
+        if H == 2:
+            # H=2: Vàng + GBP ngược D Direction
             result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = opposite
-        elif H == 9:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 11:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 12:
-            result["XAUUSD"] = gold
-        elif H in (14, 15):
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
+            if d_direction and d_direction_date == today:
+                d_opp = "SELL" if d_direction == "BUY" else "BUY"
+                for p in GBP_PAIRS:
+                    result[p] = d_opp
+            else:
+                for p in GBP_PAIRS:
+                    result[p] = opposite
         elif H == 16:
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
+        else:
+            # H=3,4,6,9,11,12,14,15: chỉ Vàng
+            result["XAUUSD"] = gold
         return result
 
     return result

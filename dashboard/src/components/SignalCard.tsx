@@ -1,4 +1,4 @@
-import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, ALL_PAIRS, HOUR_NOTES } from "@/lib/constants";
+import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, GBP_PAIRS, HOUR_NOTES } from "@/lib/constants";
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
@@ -85,11 +85,20 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
             <span className="text-sm text-zinc-400 dark:text-zinc-500">VIP Only</span>
           </div>
         )}
+        {/* XAUUSD direction - tách riêng vì logic khác */}
+        {isVIP && signal.pair_dirs?.XAUUSD && signal.pair_dirs.XAUUSD !== "-" && signal.pair_dirs.XAUUSD !== "--" && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">XAUUSD:</span>
+            <span className={`text-xs font-semibold tracking-wide px-2.5 py-1 rounded-md ${signal.pair_dirs.XAUUSD === "BUY" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+              {getSignalLabel(signal.pair_dirs.XAUUSD)}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Pair Directions */}
+      {/* GBP Pair Directions */}
       <div className="px-5 py-3 border-t border-zinc-100 dark:border-zinc-800/60 space-y-0.5">
-        {ALL_PAIRS.map((pair) => (
+        {GBP_PAIRS.map((pair) => (
           <PairBadge
             key={pair}
             pair={pair}
