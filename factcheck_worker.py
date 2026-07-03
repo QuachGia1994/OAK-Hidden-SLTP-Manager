@@ -10,6 +10,7 @@ import time
 import re
 import urllib.request
 import urllib.parse
+import html as html_mod
 
 # Redis config (Upstash REST API)
 # Try loading from .env file first
@@ -97,8 +98,10 @@ def extract_claims(text):
     claims = []
     for s in sentences:
         s = s.strip()
-        # Remove leading bullet points or dashes
-        s = re.sub(r'^[\*\•\–\-]+\s*', '', s)
+        # Remove leading bullet points, dashes, and OCR noise
+        s = re.sub(r'^[\*\•\–\-~#\d\.]+\s*', '', s)
+        s = re.sub(r'^\~[^~]*\~\s*', '', s)  # Remove ~something~ patterns
+        s = html_mod.unescape(s)
         if len(s) > 15 and len(s) < 300:
             # Truncate very long claims
             if len(s) > 150:
@@ -161,7 +164,9 @@ def search_web(query):
         for i in range(min(5, len(result_links))):
             clean_url = result_links[i][0].strip()
             clean_title = re.sub(r'<[^>]+>', '', result_links[i][1]).strip()
+            clean_title = html_mod.unescape(clean_title)
             clean_snippet = re.sub(r'<[^>]+>', '', snippets[i]).strip() if i < len(snippets) else ""
+            clean_snippet = html_mod.unescape(clean_snippet)
             if clean_title and clean_url and 'duckduckgo' not in clean_url:
                 results.append({
                     "title": clean_title,
