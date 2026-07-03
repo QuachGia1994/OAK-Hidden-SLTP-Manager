@@ -101,7 +101,16 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
       {/* Hour Note */}
       {(signal.hour_note || HOUR_NOTES[signal.hour]) && (
         <div className="px-5 py-2.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-900/40">
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{signal.hour_note || HOUR_NOTES[signal.hour]}</p>
+          {signal.hour_note?.includes("match D1") ? (
+            <div className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium leading-relaxed">{signal.hour_note}</p>
+            </div>
+          ) : (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{signal.hour_note || HOUR_NOTES[signal.hour]}</p>
+          )}
         </div>
       )}
     </div>
