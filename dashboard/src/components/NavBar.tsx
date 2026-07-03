@@ -6,7 +6,6 @@ import { useTheme } from "./ThemeProvider";
 
 const links = [
   { href: "/", label: "Dashboard", mobile: "Dashboard" },
-  { href: "/signals", label: "Signals", mobile: "Signals" },
   { href: "/factcheck", label: "Xác thực tin tức", mobile: "Xác thực" },
   { href: "/rules", label: "Rules", mobile: "Rules" },
 ];

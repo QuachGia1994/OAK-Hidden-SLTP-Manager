@@ -1174,8 +1174,7 @@ def main():
                     pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
             skip_xau = should_skip_xauusd(h, sig, broker_dt)
             if skip_xau:
-                xau_dir = pair_dirs.get("XAUUSD", sig)
-                pair_dirs = {"XAUUSD": xau_dir}
+                pair_dirs.pop("XAUUSD", None)
             elif sig == d_direction and d_direction is not None:
                 mark_xauusd_matched(h)
             base_note = get_hour_note(h, broker_dt.weekday())
