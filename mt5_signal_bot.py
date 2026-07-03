@@ -1172,17 +1172,18 @@ def main():
             if h == 16 and wd == 2 and "XAUUSD" in pair_dirs:
                 if h15_sig and sig == h15_sig:
                     pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
-            if should_skip_xauusd(h, sig, broker_dt):
-                pair_dirs.pop("XAUUSD", None)
+            skip_xau = should_skip_xauusd(h, sig, broker_dt)
+            if skip_xau:
+                xau_dir = pair_dirs.get("XAUUSD", sig)
+                pair_dirs = {"XAUUSD": xau_dir}
             elif sig == d_direction and d_direction is not None:
                 mark_xauusd_matched(h)
-            hour_note = get_hour_note(h, broker_dt.weekday())
-
-            if not pair_dirs:
-                sent_today.add(key)
-                _save_state(day_signals, sent_today)
-                print(f"  [SKIP] H={h} - XAUUSD ẩn, không có pair khác")
-                continue
+            base_note = get_hour_note(h, broker_dt.weekday())
+            if skip_xau:
+                xau_dir = pair_dirs.get("XAUUSD", sig)
+                hour_note = f"XAUUSD: {'Mua' if xau_dir == 'BUY' else 'Bán'} {xau_dir} (tick match D1)"
+            else:
+                hour_note = base_note
 
             log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
             schedule精准_price_update(broker_dt, entry_time, pair_dirs)
@@ -1320,17 +1321,16 @@ def main():
                 h15_sig = h15_data["signal"] if h15_data else None
                 pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig, h15_signal=h15_sig)
 
-                if not pair_dirs:
-                    sent_today.add(key)
-                    _save_state(day_signals, sent_today)
-                    print(f"  [SKIP] H={now_hour} - không có pair active")
-                    time.sleep(10)
-                    continue
-
                 # Log for website
                 entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig,
                                              orig_signal=result.get("orig_signal"), weekday=broker_dt.weekday())
-                log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, get_hour_note(now_hour, broker_dt.weekday()))
+                # Nếu pair_dirs rỗng → XAUUSD bị ẩn do match D1, vẫn log với note
+                if not pair_dirs:
+                    pair_dirs = {"XAUUSD": sig}
+                    hour_note = f"XAUUSD: {'Mua' if sig == 'BUY' else 'Bán'} {sig} (tick match D1)"
+                else:
+                    hour_note = get_hour_note(now_hour, broker_dt.weekday())
+                log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, hour_note)
                 schedule精准_price_update(broker_dt, entry_time, pair_dirs)
                 push_to_dashboard()
 
