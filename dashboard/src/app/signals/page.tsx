@@ -27,10 +27,10 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   const dates = [...dateMap.keys()].sort().reverse().slice(0, 7);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Lịch sử Signal</h1>
-        <p className="text-base text-zinc-500 dark:text-zinc-400 mt-1">7 ngày gần nhất</p>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="mb-10">
+        <h1 className="text-4xl sm:text-5xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">Lịch sử Signal</h1>
+        <p className="text-base text-zinc-500 dark:text-zinc-400 mt-2">7 ngày gần nhất</p>
       </div>
 
       {dates.length === 0 ? (

@@ -72,7 +72,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             const hasSignal = signalsByHour.has(h);
             const sig = hasSignal ? signalsByHour.get(h)!.signal : null;
             return (
-              <div key={h} className={`px-3 py-1.5 rounded-lg text-sm font-mono transition-colors ${hasSignal ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200" : "bg-zinc-50 dark:bg-zinc-900/30 text-zinc-400 dark:text-zinc-600"}`}>
+              <div key={h} className={`px-3 py-1.5 rounded-lg text-sm font-mono transition-colors cursor-default ${hasSignal ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-700" : "bg-zinc-50 dark:bg-zinc-900/30 text-zinc-400 dark:text-zinc-600"}`}>
                 {brokerToLocalTime(h)}
                 {hasSignal && (
                   <span className={`ml-1.5 font-semibold ${sig === "BUY" ? "text-emerald-500 dark:text-emerald-400" : sig === "WAIT" ? "text-zinc-500 dark:text-zinc-400" : "text-red-500 dark:text-red-400"}`}>
