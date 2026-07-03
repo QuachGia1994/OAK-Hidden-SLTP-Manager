@@ -27,7 +27,24 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     console.error("Dashboard fetch error:", e);
   }
 
-  const signalsByHour = new Map(signals.map((s) => [s.hour, s]));
+  const todayStr = new Date().toLocaleDateString("sv-SE");
+  const todaySignals = signals.filter((s) => s.date === todayStr);
+  const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
+
+  // Always show all target hours — fill missing with placeholder
+  const allSlots = TARGET_HOURS.map((h) => ({
+    date: todayStr,
+    hour: h,
+    ts: 0,
+    signal: "WAIT" as const,
+    entry_time: null,
+    pair_dirs: {},
+    entry_prices: {},
+    current_prices: {},
+    hour_note: null,
+    missed: false,
+    ...signalsByHour.get(h),
+  })).sort((a, b) => b.hour - a.hour);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -42,7 +59,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {/* Status Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
         <StatusCard label="Bot" value={botState ? "Đang chạy" : "N/A"} color={botState ? "text-emerald-500 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"} />
-        <StatusCard label="Signals" value={signals.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
+        <StatusCard label="Signals" value={todaySignals.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
         <StatusCard label="Hướng D" value={botState?.d_direction || "—"} color={botState?.d_direction === "BUY" ? "text-emerald-500 dark:text-emerald-400" : botState?.d_direction === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
         <StatusCard label="News" value={news.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
       </div>
@@ -68,22 +85,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </div>
 
-      {/* Signal Cards */}
+      {/* Signal Cards — always show all target hours */}
       <div className="mb-10">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-4">Signal</h2>
-        {signals.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
-            {signals.sort((a, b) => b.hour - a.hour).map((signal) => (
-              <SignalCard
-                key={`${signal.date}-${signal.hour}`}
-                signal={signal}
-                isVIP={isVIP}
-              />
-            ))}
-          </div>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          {allSlots.map((signal) => (
+            <SignalCard
+              key={`${signal.date}-${signal.hour}`}
+              signal={signal}
+              isVIP={isVIP}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Economic News */}
@@ -115,20 +128,6 @@ function StatusCard({ label, value, color }: { label: string; value: string; col
     <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 px-4 py-3 shadow-sm">
       <div className="text-[10px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1.5 font-medium">{label}</div>
       <div className={`font-mono text-2xl font-bold ${color}`}>{value}</div>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="border border-dashed border-zinc-300 dark:border-zinc-700 rounded-xl py-20 px-4 text-center">
-      <div className="mb-4 text-zinc-300 dark:text-zinc-600">
-        <svg className="mx-auto w-14 h-14" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5" />
-        </svg>
-      </div>
-      <p className="text-zinc-600 dark:text-zinc-400 text-base font-medium mb-1">Chưa có signal nào hôm nay</p>
-      <p className="text-zinc-400 dark:text-zinc-500 text-sm">Bot sẽ cập nhật khi có slot kích hoạt</p>
     </div>
   );
 }

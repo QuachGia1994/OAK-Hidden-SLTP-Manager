@@ -17,10 +17,16 @@ export async function POST(request: Request) {
   if (denied) return denied;
   try {
     const body = await request.json();
-    // Replace entirely instead of merge — bot sends full list each time
-    const result = (body as any[]).slice(-500);
-    await redis.set(KEYS.signals, result);
-    return NextResponse.json({ ok: true, count: result.length });
+    const incoming = (body as any[]).slice(-500);
+
+    // Merge: keep existing + incoming, dedup by (date, hour)
+    const existing = ((await redis.get(KEYS.signals)) as any[]) || [];
+    const map = new Map<string, any>();
+    for (const s of existing) map.set(`${s.date}:${s.hour}`, s);
+    for (const s of incoming) map.set(`${s.date}:${s.hour}`, s);
+    const merged = [...map.values()].sort((a, b) => b.ts - a.ts).slice(0, 500);
+    await redis.set(KEYS.signals, merged);
+    return NextResponse.json({ ok: true, count: merged.length });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }

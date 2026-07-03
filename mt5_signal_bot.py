@@ -315,7 +315,10 @@ def push_to_dashboard():
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
                 all_signals = json.load(f)
-            signals = [s for s in all_signals if s.get("pair_dirs")]
+            from datetime import datetime, timezone, timedelta
+            broker_now = datetime.now(tz=timezone.utc) + timedelta(hours=BROKER_GMT)
+            today_str = broker_now.date().isoformat()
+            signals = [s for s in all_signals if s.get("pair_dirs") and s.get("date") == today_str]
             if signals:
                 payload = json.dumps(signals).encode("utf-8")
                 req = urllib.request.Request(
@@ -968,8 +971,6 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
 
     pair_lines = []
     for p in ALL_PAIRS:
-        if p == "XAUUSD":
-            continue  # XAUUSD đã hiển thị ở KẾT LUẬN
         d = pair_dirs.get(p)
         if d is None:
             pair_lines.append(f"  {p}: -")
@@ -981,8 +982,8 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
             pair_lines.append(f"  {p}: {p_icon} {p_text}")
     pair_text = "\n".join(pair_lines)
 
-    # KẾT LUẬN: hiển thị signal cuối cùng (sau H1 check) = chiều XAUUSD
-    conclusion = f"KẾT LUẬN: XAUUSD:{icon} {sig}\n"
+    # KẾT LUẬN: hiển thị signal cuối cùng (sau H1 check)
+    conclusion = f"KẾT LUẬN: {icon} {sig}\n"
 
     msg = (
         f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
@@ -1177,6 +1178,12 @@ def main():
                 mark_xauusd_matched(h)
             hour_note = get_hour_note(h, broker_dt.weekday())
 
+            if not pair_dirs:
+                sent_today.add(key)
+                _save_state(day_signals, sent_today)
+                print(f"  [SKIP] H={h} - XAUUSD ẩn, không có pair khác")
+                continue
+
             log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
             schedule精准_price_update(broker_dt, entry_time, pair_dirs)
             sent_today.add(key)
@@ -1217,8 +1224,6 @@ def main():
 
             pair_lines = []
             for p in ALL_PAIRS:
-                if p == "XAUUSD":
-                    continue  # XAUUSD đã hiển thị ở KẾT LUẬN
                 d = pair_dirs.get(p)
                 if d is None:
                     pair_lines.append(f"  {p}: -")
@@ -1231,7 +1236,7 @@ def main():
             pair_text = "\n".join(pair_lines)
             note_line = f"📝 {hour_note}\n" if hour_note else ""
 
-            conclusion = f"KẾT LUẬN: XAUUSD:{icon} {sig}\n"
+            conclusion = f"KẾT LUẬN: {icon} {sig}\n"
 
             msg = (
                 f"*KIỂM TRA BỎ LỠ {fmt_hour(h)}:45*\n"
@@ -1314,6 +1319,13 @@ def main():
                 h15_data = day_signals.get((broker_dt.date(), 15))
                 h15_sig = h15_data["signal"] if h15_data else None
                 pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig, h15_signal=h15_sig)
+
+                if not pair_dirs:
+                    sent_today.add(key)
+                    _save_state(day_signals, sent_today)
+                    print(f"  [SKIP] H={now_hour} - không có pair active")
+                    time.sleep(10)
+                    continue
 
                 # Log for website
                 entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig,
