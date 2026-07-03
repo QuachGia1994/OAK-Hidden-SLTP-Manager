@@ -10,7 +10,7 @@ export const SCHEDULE: { hour: number; note: string }[] = [
   { hour: 12, note: "T2-T6: Chỉ Vàng (đảo)" },
   { hour: 14, note: "T2,T6: Nhóm GBP cùng Vàng | T3-5: GBPCAD, GBPUSD, GBPJPY cùng Vàng" },
   { hour: 15, note: "T2,T6: Nhóm GBP cùng Vàng | T3-5: GBPCAD, GBPUSD, GBPJPY cùng Vàng" },
-  { hour: 16, note: "T2,4,6: Nhóm GBP + Vàng cùng | T5: Chỉ nhóm GBP" },
+  { hour: 16, note: "T2,3,4,6: Nhóm GBP + Vàng cùng | T5: Chỉ nhóm GBP" },
 ];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
