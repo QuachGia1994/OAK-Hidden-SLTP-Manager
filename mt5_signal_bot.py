@@ -699,8 +699,8 @@ def get_hour_note(H, weekday=None):
             9: "Nhóm GBP cùng Vàng (đảo)",
             11: "Nhóm GBP cùng Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPUSD, GBPJPY cùng Vàng",
-            15: "GBPUSD, GBPJPY cùng Vàng",
+            14: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
+            15: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP cùng Vàng",
         }
         return notes.get(H)
@@ -715,24 +715,24 @@ def get_hour_note(H, weekday=None):
             9: "GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
             11: "GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPUSD, GBPJPY cùng Vàng",
-            15: "GBPUSD, GBPJPY cùng Vàng",
+            14: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
+            15: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
         return notes.get(H)
 
-    # T6 (weekday 4)
+    # T6 (weekday 4) - giống T2: H=2-6 ngược, H=14,15 cùng Vàng
     if weekday == 4:
         notes = {
-            2: "GBPAUD, GBPJPY ngược Vàng",
-            3: "GBPAUD, GBPJPY ngược Vàng",
-            4: "GBPAUD ngược Vàng",
-            6: "GBPAUD ngược Vàng",
+            2: "Nhóm GBP ngược Vàng",
+            3: "Nhóm GBP ngược Vàng",
+            4: "Nhóm GBP ngược Vàng",
+            6: "Nhóm GBP ngược Vàng",
             9: "Nhóm GBP cùng Vàng (đảo)",
             11: "Nhóm GBP cùng Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
-            14: "GBPUSD, GBPJPY cùng Vàng",
-            15: "GBPUSD, GBPJPY cùng Vàng",
+            14: "Nhóm GBP cùng Vàng",
+            15: "Nhóm GBP cùng Vàng",
             16: "Nhóm GBP + Vàng cùng",
         }
         return notes.get(H)
@@ -746,8 +746,8 @@ def get_hour_note(H, weekday=None):
         9: "Nhóm GBP cùng Vàng (đảo)",
         11: "Nhóm GBP cùng Vàng (đảo)",
         12: "Chỉ Vàng (đảo)",
-        14: "GBPUSD, GBPJPY cùng Vàng (đảo)",
-        15: "Nhóm GBP cùng Vàng",
+        14: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
+        15: "GBPCAD, GBPUSD, GBPJPY cùng Vàng",
         16: "Nhóm GBP cùng Vàng",
     }
     return notes.get(H)
@@ -837,10 +837,12 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
         elif H == 14:
             result["XAUUSD"] = gold
+            result["GBPCAD"] = gold
             result["GBPUSD"] = gold
             result["GBPJPY"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
+            result["GBPCAD"] = gold
             result["GBPUSD"] = gold
             result["GBPJPY"] = gold
         elif H == 16:
@@ -849,8 +851,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
                 result[p] = gold
         return result
 
-    # === THỨ 5, THỨ 6 (weekday=3,4) ===
-    if weekday in (3, 4):
+    # === THỨ 5 (weekday=3) ===
+    if weekday == 3:
         if H in (2, 3):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
@@ -860,34 +862,54 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["GBPAUD"] = opposite
         elif H == 9:
             result["XAUUSD"] = gold
-            if weekday == 3:  # T5: GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược
-                result["GBPAUD"] = gold
-                result["GBPCAD"] = gold
-                result["GBPUSD"] = gold
-                result["GBPJPY"] = opposite
-            else:  # T6: all same
-                for p in GBP_PAIRS:
-                    result[p] = gold
+            result["GBPAUD"] = gold
+            result["GBPCAD"] = gold
+            result["GBPUSD"] = gold
+            result["GBPJPY"] = opposite
         elif H == 11:
             result["XAUUSD"] = gold
-            if weekday == 3:  # T5: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng
-                result["GBPAUD"] = opposite
-                result["GBPCAD"] = opposite
-                result["GBPUSD"] = opposite
-                result["GBPJPY"] = gold
-            else:  # T6: all same
-                for p in GBP_PAIRS:
-                    result[p] = gold
+            result["GBPAUD"] = opposite
+            result["GBPCAD"] = opposite
+            result["GBPUSD"] = opposite
+            result["GBPJPY"] = gold
         elif H == 12:
             result["XAUUSD"] = gold
         elif H == 14:
             result["XAUUSD"] = gold
+            result["GBPCAD"] = gold
             result["GBPUSD"] = gold
             result["GBPJPY"] = gold
         elif H == 15:
             result["XAUUSD"] = gold
+            result["GBPCAD"] = gold
             result["GBPUSD"] = gold
             result["GBPJPY"] = gold
+        elif H == 16:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        return result
+
+    # === THỨ 6 (weekday=4) - giống T2 ===
+    if weekday == 4:
+        if H in (2, 3, 4, 6):
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = opposite
+        elif H == 9:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H == 11:
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
+        elif H == 12:
+            result["XAUUSD"] = gold
+        elif H in (14, 15):
+            result["XAUUSD"] = gold
+            for p in GBP_PAIRS:
+                result[p] = gold
         elif H == 16:
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:

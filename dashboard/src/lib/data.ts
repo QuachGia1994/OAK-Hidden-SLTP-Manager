@@ -11,9 +11,11 @@ export async function getSignals(): Promise<Signal[]> {
 }
 
 export async function getTodaySignals(): Promise<Signal[]> {
-  const signals = await getSignals();
-  const today = new Date().toISOString().split("T")[0];
-  return signals.filter((s) => s.date === today);
+  // Bot push_to_dashboard() đã filter theo ngày trước khi ghi Redis,
+  // nên Redis chỉ chứa signal hôm nay. Không cần filter lại ở đây —
+  // việc filter bằng UTC trên Next.js server gây lệch ngày so với
+  // datetime.now() (local) bên Python bot.
+  return getSignals();
 }
 
 export function maskSignal(signal: Signal): Signal {
