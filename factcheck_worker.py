@@ -44,6 +44,10 @@ MEDIUM_RELIABILITY = {
     "cafef.vn", "vietstock.vn", "cafebiz.vn",
 }
 
+GOOGLE_FC_RATINGS_TRUE = {"true", "mostly true", "correct", "accurate", "supported"}
+GOOGLE_FC_RATINGS_FALSE = {"false", "mostly false", "pants on fire", "incorrect", "misleading", "unproven", "refuted", "fake", "hoax", "scam"}
+GOOGLE_FC_RATINGS_NEUTRAL = {"half true", "mixed", "partly true", "partly false", "outdated", "missing context", "unverified"}
+
 
 def redis_request(method, key, value=None):
     """Make a request to Upstash Redis REST API."""
@@ -167,6 +171,55 @@ def search_web(query):
     return results
 
 
+def search_google_factcheck(query, api_key):
+    """Search Google Fact Check Tools API for verified claims from IFCN-certified orgs."""
+    results = []
+    if not api_key:
+        return results
+    try:
+        encoded = urllib.parse.quote(query)
+        url = f"https://factchecktools.googleapis.com/v1alpha1/claims:search?query={encoded}&languageCode=en&maxAgeDays=90&pageSize=5&key={api_key}"
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read())
+
+        for claim in data.get("claims", []):
+            claim_text = claim.get("text", "")
+            reviews = claim.get("claimReview", [])
+            if not reviews:
+                continue
+            review = reviews[0]
+            rating_text = review.get("textualRating", "").lower()
+
+            # Determine agreement from rating
+            if any(r in rating_text for r in GOOGLE_FC_RATINGS_TRUE):
+                agrees = True
+            elif any(r in rating_text for r in GOOGLE_FC_RATINGS_FALSE):
+                agrees = False
+            else:
+                agrees = None
+
+            publisher = review.get("publisher", {})
+            publisher_name = publisher.get("name", "Unknown")
+            publisher_site = publisher.get("site", "")
+            review_url = review.get("url", "")
+            review_title = review.get("title", "")
+
+            results.append({
+                "title": f"[IFCN] {publisher_name}: {review_title}",
+                "url": review_url or f"https://{publisher_site}",
+                "snippet": f"Claim: {claim_text[:120]}... Rating: {review.get('textualRating', 'N/A')}",
+                "agrees": agrees,
+                "reliability": "high",  # IFCN certified = always high
+                "publisher": publisher_name,
+                "date": review.get("reviewDate", ""),
+                "rating": review.get("textualRating", "N/A"),
+            })
+    except Exception as e:
+        print(f"[WARN] Google Fact Check search failed: {e}")
+    return results
+
+
 def classify_reliability(url):
     """Classify source reliability based on domain."""
     try:
@@ -226,6 +279,17 @@ def process_factcheck(item):
                 "agrees": agrees,
                 "reliability": reliability,
             })
+
+        # Google Fact Check Tools API (IFCN certified sources)
+        google_fc_key = os.environ.get("GOOGLE_FACTCHECK_API_KEY", "")
+        if google_fc_key:
+            print(f"  [GOOGLE-FC] Searching: {query[:40]}...")
+            google_results = search_google_factcheck(query, google_fc_key)
+            for gr in google_results:
+                if gr["url"] in seen_urls:
+                    continue
+                seen_urls.add(gr["url"])
+                all_sources.append(gr)
 
     # Sort: confirming high-reliability first
     def sort_key(s):

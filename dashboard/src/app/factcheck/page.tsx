@@ -37,9 +37,10 @@ function VerdictBadge({ verdict }: { verdict: string }) {
   );
 }
 
-function SourceRow({ source }: { source: { title: string; url: string; snippet: string; agrees: boolean | null; reliability: string } }) {
+function SourceRow({ source }: { source: { title: string; url: string; snippet: string; agrees: boolean | null; reliability: string; publisher?: string; rating?: string } }) {
   const icon = source.agrees === true ? "✓" : source.agrees === false ? "✗" : "–";
   const iconColor = source.agrees === true ? "text-emerald-500" : source.agrees === false ? "text-red-500" : "text-zinc-400";
+  const isIFCN = !!source.publisher;
   const relColor: Record<string, string> = {
     high: "text-emerald-500 dark:text-emerald-400",
     medium: "text-amber-500 dark:text-amber-400",
@@ -53,6 +54,18 @@ function SourceRow({ source }: { source: { title: string; url: string; snippet: 
           <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate block">
             {source.title}
           </a>
+          {isIFCN && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                IFCN Certified
+              </span>
+              {source.rating && (
+                <span className={`text-[10px] font-semibold ${source.agrees === true ? "text-emerald-500" : source.agrees === false ? "text-red-500" : "text-zinc-400"}`}>
+                  {source.rating}
+                </span>
+              )}
+            </div>
+          )}
           <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">{source.snippet}</p>
         </div>
         <span className={`text-[10px] font-semibold uppercase tracking-wider ${relColor[source.reliability] || ""}`}>{source.reliability}</span>
