@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [2, 3, 4, 6, 9, 11, 12, 14, 15, 16];
 
 export const SCHEDULE: { hour: number; note: string }[] = [
-  { hour: 2, note: "T2,T6: Vàng + Nhóm GBP ngược D Direction | T3-5: GBPAUD, GBPJPY ngược" },
+  { hour: 2, note: "T6: lưu D direction gốc | T2: đảo D direction đã lưu | T3-5: GBPAUD, GBPJPY ngược" },
   { hour: 3, note: "T2,T6: Chỉ Vàng | T3-5: GBPAUD, GBPJPY ngược" },
   { hour: 4, note: "T2,T6: Chỉ Vàng | T3-5: Chỉ GBPAUD ngược" },
   { hour: 6, note: "T2,T6: Chỉ Vàng | T3-5: Chỉ GBPAUD ngược" },
@@ -62,7 +62,7 @@ export function getHourNote(hour: number, weekday: number): string | null {
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2 (JS: getDay() = 1)
     "Slots: H=2,16",
-    "H=2: Nhóm GBP ngược D Direction",
+    "H=2: Nhóm GBP đảo theo D direction lưu từ thứ 6",
     "H=3-15: Chỉ Vàng (không GBP)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
     "Khi D1 match → ẩn XAUUSD từ H=3 đến H=11. Hiển thị lại từ H=12",
@@ -92,9 +92,9 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=14,15: GBPCAD, GBPUSD, GBPJPY cùng Vàng",
     "H=16: Skip",
   ],
-  5: [    // Thứ 6 (JS: getDay() = 5) - giống T2
+  5: [    // Thứ 6 (JS: getDay() = 5) - lưu D direction gốc
     "Slots: H=2,16",
-    "H=2: Nhóm GBP ngược D Direction",
+    "H=2: Lưu D direction gốc",
     "H=3-15: Chỉ Vàng (không GBP)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
     "Khi D1 match → ẩn XAUUSD từ H=3 đến H=11. Hiển thị lại từ H=12",
