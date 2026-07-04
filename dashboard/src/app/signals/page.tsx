@@ -2,6 +2,13 @@ import { getSignals } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
 import { cookies } from "next/headers";
 
+function getFirstD1MatchHour(daySignals: Array<{ hour: number; signal: string; d_direction?: string | null }>) {
+  const firstMatch = [...daySignals]
+    .sort((a, b) => a.hour - b.hour)
+    .find((signal) => signal.d_direction && signal.signal === signal.d_direction);
+  return firstMatch?.hour ?? null;
+}
+
 export const dynamic = "force-dynamic";
 
 export default async function SignalsPage({ searchParams }: { searchParams: Promise<{ vip?: string }> }) {
@@ -40,6 +47,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
           {dates.map((date) => {
             const daySignals = [...(dateMap.get(date) || [])].sort((a, b) => b.hour - a.hour);
             const dayD = daySignals[0]?.d_direction;
+            const firstD1MatchHour = getFirstD1MatchHour(daySignals);
             return (
               <div key={date}>
                 <div className="flex items-center gap-3 mb-3">
@@ -52,7 +60,12 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {daySignals.map((signal) => (
-                    <SignalCard key={`${signal.date}-${signal.hour}`} signal={signal} isVIP={isVIP} />
+                    <SignalCard
+                      key={`${signal.date}-${signal.hour}`}
+                      signal={signal}
+                      isVIP={isVIP}
+                      showD1Match={firstD1MatchHour !== null && signal.hour >= firstD1MatchHour && signal.hour < 12}
+                    />
                   ))}
                 </div>
               </div>
