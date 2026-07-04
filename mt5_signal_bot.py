@@ -11,7 +11,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 import urllib.request
 
-from utils import send_telegram_raw, get_signal_icon, vn_direction
+from utils import send_telegram_raw, get_signal_icon, vn_direction, select_signals_for_dashboard
 from oak_trading_reminders import get_day_notes
 
 try:
@@ -315,10 +315,7 @@ def push_to_dashboard():
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
                 all_signals = json.load(f)
-            from datetime import datetime, timezone, timedelta
-            broker_now = datetime.now(tz=timezone.utc) + timedelta(hours=BROKER_GMT)
-            today_str = broker_now.date().isoformat()
-            signals = [s for s in all_signals if s.get("pair_dirs") and s.get("date") == today_str]
+            signals = select_signals_for_dashboard(all_signals)
             if signals:
                 payload = json.dumps(signals).encode("utf-8")
                 req = urllib.request.Request(
