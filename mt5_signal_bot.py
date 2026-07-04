@@ -259,6 +259,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
         "current_prices": current_prices,
         "hour_note": hour_note,
         "missed": is_missed,
+        "d_direction": d_direction,
     }
     try:
         data = []
@@ -299,6 +300,10 @@ def _parse_news_for_dashboard(news_lines):
             items.append({"time": time_str, "currency": currency, "title": title.strip(), "impact": impact})
     return items
 
+def select_signals_for_dashboard(all_signals):
+    """Keep every signal that still has pair data so history can be republished across days."""
+    return [s for s in all_signals if s.get("pair_dirs")]
+
 def push_to_dashboard():
     """Push data to dashboard API (best effort, non-blocking)."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
@@ -311,7 +316,8 @@ def push_to_dashboard():
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["X-API-Key"] = api_key
-        # Push signals (all recent, API handles merge + cap at 500)
+        # Push signals log backlog for history pages; dashboard filters today's
+        # view on the frontend, so the bot must not drop prior-day records here.
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
                 all_signals = json.load(f)
@@ -491,7 +497,7 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
 
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 200)
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 2000)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
         return None

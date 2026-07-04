@@ -9,6 +9,7 @@ export interface Signal {
   current_prices: Record<string, number>;
   hour_note: string | null;
   missed: boolean;
+  d_direction: "BUY" | "SELL" | null;
 }
 
 export interface BotState {

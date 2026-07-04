@@ -11,10 +11,8 @@ export async function getSignals(): Promise<Signal[]> {
 }
 
 export async function getTodaySignals(): Promise<Signal[]> {
-  // Bot push_to_dashboard() đã filter theo ngày trước khi ghi Redis,
-  // nên Redis chỉ chứa signal hôm nay. Không cần filter lại ở đây —
-  // việc filter bằng UTC trên Next.js server gây lệch ngày so với
-  // datetime.now() (local) bên Python bot.
+  // Redis now stores recent signal history as well. The dashboard page
+  // is responsible for filtering today's rows from that backlog.
   return getSignals();
 }
 

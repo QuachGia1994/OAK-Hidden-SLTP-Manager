@@ -39,9 +39,17 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
         <div className="space-y-8">
           {dates.map((date) => {
             const daySignals = [...(dateMap.get(date) || [])].sort((a, b) => b.hour - a.hour);
+            const dayD = daySignals[0]?.d_direction;
             return (
               <div key={date}>
-                <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-3 font-mono">{date}</h2>
+                <div className="flex items-center gap-3 mb-3">
+                  <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 font-mono">{date}</h2>
+                  {dayD && (
+                    <span className={`text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md ${dayD === "BUY" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                      D: {dayD}
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {daySignals.map((signal) => (
                     <SignalCard key={`${signal.date}-${signal.hour}`} signal={signal} isVIP={isVIP} />
