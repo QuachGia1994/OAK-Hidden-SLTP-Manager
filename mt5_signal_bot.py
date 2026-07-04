@@ -1178,12 +1178,15 @@ def main():
             skip_xau = should_skip_xauusd(h, sig, broker_dt)
             if skip_xau:
                 pair_dirs.pop("XAUUSD", None)
-            elif sig == d_direction and d_direction is not None:
-                mark_xauusd_matched(h)
             base_note = get_hour_note(h, broker_dt.weekday())
+            matched_d1 = (sig == d_direction and d_direction is not None)
+            if matched_d1:
+                mark_xauusd_matched(h)
             if skip_xau:
                 xau_dir = pair_dirs.get("XAUUSD", sig)
                 hour_note = f"XAUUSD: {'Mua' if xau_dir == 'BUY' else 'Bán'} {xau_dir} (tick match D1)"
+            elif matched_d1:
+                hour_note = f"XAUUSD: {'Mua' if sig == 'BUY' else 'Bán'} {sig} (tick match D1)"
             else:
                 hour_note = base_note
 
