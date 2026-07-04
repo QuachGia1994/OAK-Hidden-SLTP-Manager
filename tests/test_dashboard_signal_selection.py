@@ -1,6 +1,6 @@
 import unittest
 
-from utils import select_signals_for_dashboard
+from mt5_signal_bot import select_signals_for_dashboard
 
 
 class DashboardSignalSelectionTests(unittest.TestCase):

@@ -11,7 +11,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 import urllib.request
 
-from utils import send_telegram_raw, get_signal_icon, vn_direction, select_signals_for_dashboard
+from utils import send_telegram_raw, get_signal_icon, vn_direction
 from oak_trading_reminders import get_day_notes
 
 try:
@@ -730,8 +730,8 @@ def get_hour_note(H, weekday=None):
             3: "Chỉ Vàng",
             4: "Chỉ Vàng",
             6: "Chỉ Vàng",
-            9: "Chỉ Vàng",
-            11: "Chỉ Vàng",
+            9: "Chỉ Vàng (đảo)",
+            11: "Chỉ Vàng (đảo)",
             12: "Chỉ Vàng (đảo)",
             14: "Chỉ Vàng",
             15: "Chỉ Vàng",
@@ -745,8 +745,8 @@ def get_hour_note(H, weekday=None):
         3: "Chỉ Vàng",
         4: "Chỉ Vàng",
         6: "Chỉ Vàng",
-        9: "Chỉ Vàng",
-        11: "Chỉ Vàng",
+        9: "Chỉ Vàng (đảo)",
+        11: "Chỉ Vàng (đảo)",
         12: "Chỉ Vàng (đảo)",
         14: "Chỉ Vàng",
         15: "Chỉ Vàng",
