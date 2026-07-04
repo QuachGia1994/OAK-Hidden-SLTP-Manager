@@ -845,6 +845,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             for p in GBP_PAIRS:
                 result[p] = gold
         elif H == 16:
+            # T4 H=16: GBP cùng chiều Signal, Vàng flip nếu cùng H=15
+            # Xử lý ở send_report/main sau khi biết H=15 signal
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
@@ -953,12 +955,17 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
 
     pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
 
-    # Wednesday H=16: compare with H=15 — flip signal if same
+    # Wednesday H=16: compare with H=15 — flip XAUUSD if same, GBP stays original signal
     if H == 16 and broker_dt.weekday() == 2:
         if h15_signal and sig == h15_signal:
+            orig_sig = sig
             sig = "SELL" if sig == "BUY" else "BUY"
             icon, emoji = get_signal_icon(sig)
-            pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
+            # XAUUSD flips, GBP keeps original signal direction
+            pair_dirs["XAUUSD"] = sig
+            for p in GBP_PAIRS:
+                if p in pair_dirs:
+                    pair_dirs[p] = orig_sig
 
     if should_skip_xauusd(H, sig, broker_dt):
         pair_dirs.pop("XAUUSD", None)
@@ -1101,10 +1108,14 @@ def backfill_missing_days():
                 if not pair_dirs:
                     continue
 
-                # Wednesday H=16: compare with H=15
+                # Wednesday H=16: flip XAUUSD if same as H=15, GBP stays original signal
                 if H == 16 and target_date.weekday() == 2 and h15_sig and sig == h15_sig:
+                    orig_sig = sig
                     sig = "SELL" if sig == "BUY" else "BUY"
-                    pair_dirs = get_pair_direction(H, sig, fake_broker_dt, h1_signal=result.get("h1_signal"))
+                    pair_dirs["XAUUSD"] = sig
+                    for p in GBP_PAIRS:
+                        if p in pair_dirs:
+                            pair_dirs[p] = orig_sig
 
                 hour_note = get_hour_note(H, target_date.weekday())
                 log_signal(H, fake_broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
@@ -1286,10 +1297,14 @@ def main():
                 _save_state(day_signals, sent_today)
                 print(f"  [SKIP] H={h} - bỏ trống theo rule")
                 continue
-            # Wednesday H=16 XAUUSD: compare with H=15
+            # Wednesday H=16: flip XAUUSD if same as H=15, GBP stays original signal
             if h == 16 and wd == 2 and "XAUUSD" in pair_dirs:
                 if h15_sig and sig == h15_sig:
                     pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
+                    # GBP keeps original signal direction (not flipped)
+                    for p in GBP_PAIRS:
+                        if p in pair_dirs:
+                            pair_dirs[p] = sig
             skip_xau = should_skip_xauusd(h, sig, broker_dt)
             if skip_xau:
                 pair_dirs.pop("XAUUSD", None)
