@@ -33,10 +33,10 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
   const weekday = weekdayLabel(date);
 
   return (
-    <div>
+    <div className="rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 shadow-sm overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-3 mb-3 w-full text-left group"
+        className="flex items-center gap-3 w-full text-left group px-4 py-3.5"
       >
         <svg
           className={`w-4 h-4 text-zinc-400 dark:text-zinc-500 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
@@ -47,7 +47,7 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
-        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 font-mono">
+        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 font-mono">
           {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
         </h2>
         {dayD && (
@@ -60,7 +60,7 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
         </span>
       </button>
       {open && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4 pb-4">
           {daySignals.map((signal) => (
             <SignalCard
               key={`${signal.date}-${signal.hour}`}

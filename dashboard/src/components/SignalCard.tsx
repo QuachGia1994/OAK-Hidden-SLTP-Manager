@@ -58,11 +58,11 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
   const hourNote = showD1Match ? getD1MatchNote(signal.d_direction) : (signal.hour_note || getHourNote(signal.hour, weekday));
 
   return (
-    <div className="group border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+    <div className="group border border-zinc-200/80 dark:border-zinc-800 rounded-xl bg-white/90 dark:bg-zinc-900/55 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
       {/* Header */}
-      <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between">
+      <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="font-mono text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          <span className="font-mono text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
             {localTime}
           </span>
           <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">
@@ -88,9 +88,17 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
             <EntryTimeDisplay entry_time={signal.entry_time} />
           </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold text-zinc-300 dark:text-zinc-600">🔒</span>
-            <span className="text-sm text-zinc-400 dark:text-zinc-500">VIP Only</span>
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold text-zinc-300 dark:text-zinc-600">🔒</span>
+              <div>
+                <div className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">VIP Only</div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Unlock details with access</div>
+              </div>
+            </div>
+            <span className="text-[10px] font-semibold uppercase tracking-wide px-2.5 py-1 rounded-md bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
+              Locked
+            </span>
           </div>
         )}
       </div>
@@ -108,7 +116,7 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
 
       {/* Hour Note */}
       {hourNote && (
-        <div className="px-5 py-2.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-900/40">
+        <div className="px-5 py-2.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/40">
           {showD1Match ? (
             <div className="flex items-center gap-1.5">
               <svg className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">

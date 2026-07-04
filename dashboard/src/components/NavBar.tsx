@@ -16,11 +16,17 @@ export function NavBar() {
   const { theme, toggle } = useTheme();
 
   return (
-    <nav className="border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="sticky top-0 z-50 border-b border-zinc-200/70 dark:border-zinc-800/70 bg-white/75 dark:bg-zinc-950/75 backdrop-blur-xl">
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-2 sm:gap-6 overflow-x-auto">
-        <Link href="/" className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight shrink-0">
-          SLTP<span className="text-emerald-500 dark:text-emerald-400">.</span>
+        <Link href="/" className="flex items-center gap-2 shrink-0">
+          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/60 font-mono text-[11px] font-bold text-zinc-900 dark:text-zinc-100">
+            O
+          </span>
+          <span className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+            SLTP<span className="text-emerald-500 dark:text-emerald-400">.</span>
+          </span>
         </Link>
+
         <div className="flex items-center gap-1 shrink-0">
           {links.map((link) => (
             <Link
@@ -38,11 +44,12 @@ export function NavBar() {
             </Link>
           ))}
         </div>
+
         <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
           <StatusDot />
           <button
             onClick={toggle}
-            className="p-2 rounded-md text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+            className="p-2 rounded-md border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
             aria-label={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
             title={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
           >
@@ -65,7 +72,7 @@ export function NavBar() {
 function StatusDot() {
   return (
     <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
-      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+      <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)] animate-pulse" />
       <span className="hidden sm:inline">Đang chạy</span>
     </div>
   );
