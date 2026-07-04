@@ -1026,20 +1026,9 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
 # BACKFILL: tự tính signal cho các ngày thiếu khi bot khởi động
 # =====================================================================
 def backfill_missing_days():
-    """Tự tính signal cho các ngày thiếu trong signals_log.json (tối đa 7 ngày trước)."""
+    """Tự tính lại signal cho 7 ngày trước khi bot khởi động (overwrite để fix data sai)."""
     if not mt5_ready:
         return
-
-    # Đọc signals_log hiện tại
-    existing_dates = set()
-    if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-        try:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-            for rec in data:
-                existing_dates.add(rec.get("date"))
-        except Exception:
-            pass
 
     # Tạo danh sách ngày cần check (7 ngày trước, bỏ T7/CN)
     now_utc = datetime.now(tz=timezone.utc).replace(tzinfo=None)
@@ -1053,31 +1042,27 @@ def backfill_missing_days():
             continue
         dates_to_check.append(d)
 
-    missing_dates = [d for d in dates_to_check if d.isoformat() not in existing_dates]
-    if not missing_dates:
-        print("  [BACKFILL] Không có ngày thiếu")
+    if not dates_to_check:
+        print("  [BACKFILL] Không có ngày cần check")
         return
 
-    print(f"  [BACKFILL] Tìm thấy {len(missing_dates)} ngày thiếu: {[d.isoformat() for d in missing_dates]}")
+    print(f"  [BACKFILL] Checking {len(dates_to_check)} ngày: {[d.isoformat() for d in dates_to_check]}")
+
+    # Đọc signals_log hiện tại để cập nhật
+    log_data = []
+    if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+        try:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                log_data = json.load(f)
+        except Exception:
+            pass
 
     backfilled = 0
-    for target_date in missing_dates:
+    for target_date in dates_to_check:
         # Tạo broker_dt giả lập cho ngày đó (dùng H=12 để lấy đúng weekday)
         fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
 
         for H in TARGET_HOURS:
-            # Skip slot nếu đã có
-            key = (target_date, H)
-            # Kiểm tra trong signals_log
-            if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-                try:
-                    with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                        log_data = json.load(f)
-                    if any(r.get("date") == target_date.isoformat() and r.get("hour") == H for r in log_data):
-                        continue
-                except Exception:
-                    pass
-
             try:
                 result = analyze(fake_broker_dt, H)
                 sig = result["signal"]
@@ -1085,18 +1070,12 @@ def backfill_missing_days():
                 h2_data = None
                 h15_data = None
                 # Đọc H=2 và H=15 từ signals_log nếu có
-                if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-                    try:
-                        with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                            log_data = json.load(f)
-                        for r in log_data:
-                            if r.get("date") == target_date.isoformat():
-                                if r.get("hour") == 2:
-                                    h2_data = r
-                                if r.get("hour") == 15:
-                                    h15_data = r
-                    except Exception:
-                        pass
+                for r in log_data:
+                    if r.get("date") == target_date.isoformat():
+                        if r.get("hour") == 2:
+                            h2_data = r
+                        if r.get("hour") == 15:
+                            h15_data = r
 
                 h2_sig = h2_data.get("signal") if h2_data else None
                 h15_sig = h15_data.get("signal") if h15_data else None
