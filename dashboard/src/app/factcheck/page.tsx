@@ -185,23 +185,23 @@ export default function FactCheckPage() {
   const cleanClaims = result?.key_claims.filter((c) => !isGarbage(c)) || [];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-      <div className="mb-8 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-5 py-5 sm:px-6 sm:py-6 shadow-sm">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-12">
+      <div className="mb-8 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 shadow-sm">
         <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-400 dark:text-zinc-500 mb-2">Fact check</div>
-        <h1 className="text-4xl sm:text-5xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Xác thực tin tức</h1>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-2xl">Paste text hoặc upload ảnh để phân tích tính xác thực.</p>
+        <h1 className="text-3xl sm:text-5xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Xác thực tin tức</h1>
+        <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-2xl">Paste text hoặc upload ảnh để phân tích tính xác thực.</p>
       </div>
 
-      <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-5 mb-8 shadow-sm">
+      <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 mb-8 shadow-sm">
         <textarea
-          className="w-full h-36 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none"
+          className="w-full h-32 sm:h-36 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 sm:px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none"
           placeholder="Paste nội dung tin tức cần xác thực..."
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
 
         <div
-          className={`mt-3 border-2 border-dashed rounded-lg px-4 py-3 text-center transition-colors ${
+          className={`mt-3 border-2 border-dashed rounded-lg px-3 sm:px-4 py-3 text-center transition-colors ${
             dragOver
               ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10"
               : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
@@ -231,7 +231,7 @@ export default function FactCheckPage() {
           <button
             onClick={handleSubmit}
             disabled={loading || !text.trim()}
-            className="px-5 py-2 bg-zinc-900 hover:bg-zinc-800 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white text-sm font-semibold rounded-lg transition-colors duration-150"
+            className="w-full sm:w-auto px-5 py-2 bg-zinc-900 hover:bg-zinc-800 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white text-sm font-semibold rounded-lg transition-colors duration-150"
           >
             {loading ? "Đang xác thực..." : "Xác thực"}
           </button>
@@ -246,7 +246,7 @@ export default function FactCheckPage() {
 
       {result && (
         <div className="space-y-4">
-          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-5 shadow-sm">
+          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Kết quả</h2>
               <VerdictBadge verdict={result.verdict} />
@@ -255,7 +255,7 @@ export default function FactCheckPage() {
           </div>
 
           {cleanClaims.length > 0 && (
-            <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-5 shadow-sm">
+            <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Các tuyên bố chính</h2>
               <ul className="space-y-2">
                 {cleanClaims.map((claim, i) => (
@@ -268,7 +268,7 @@ export default function FactCheckPage() {
             </div>
           )}
 
-          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-5 shadow-sm">
+          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
               Nguồn ({result.sources.length})
             </h2>
@@ -279,7 +279,7 @@ export default function FactCheckPage() {
             )}
           </div>
 
-          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-5 shadow-sm">
+          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Phân tích</h2>
             <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
           </div>

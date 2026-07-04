@@ -17,23 +17,23 @@ export function NavBar() {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-zinc-200/70 dark:border-zinc-800/70 bg-white/75 dark:bg-zinc-950/75 backdrop-blur-xl">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-2 sm:gap-6 overflow-x-auto">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 sm:py-0 min-h-14 flex flex-wrap items-center gap-2 sm:gap-6">
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/60 font-mono text-[11px] font-bold text-zinc-900 dark:text-zinc-100">
             O
           </span>
-          <span className="font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+          <span className="font-mono text-sm sm:text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
             SLTP<span className="text-emerald-500 dark:text-emerald-400">.</span>
           </span>
         </Link>
 
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap py-1 sm:py-0 shrink-0 -mx-1 px-1 sm:mx-0 sm:px-0">
           {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               aria-current={pathname === link.href ? "page" : undefined}
-              className={`px-2.5 sm:px-3 py-1.5 text-sm rounded-md transition-colors whitespace-nowrap ${
+              className={`px-2.5 sm:px-3 py-1.5 text-[13px] sm:text-sm rounded-md transition-colors whitespace-nowrap ${
                 pathname === link.href
                   ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                   : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
@@ -73,7 +73,7 @@ function StatusDot() {
   return (
     <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
       <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,0.12)] animate-pulse" />
-      <span className="hidden sm:inline">Đang chạy</span>
+      <span className="hidden md:inline">Đang chạy</span>
     </div>
   );
 }
