@@ -270,7 +270,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
         key = (record["date"], record["hour"])
         data = [d for d in data if (d["date"], d["hour"]) != key]
         data.append(record)
-        data = data[-500:]
+        data = data[-2000:]
         with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
     except Exception as e:
@@ -504,7 +504,8 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
 
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 2000)
+    # Tăng số nến để覆盖 sâu hơn (M5: 5000 ≈ 17 ngày, M30/H1 đủ lớn)
+    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 5000)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
         return None
@@ -1015,6 +1016,110 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
     return pair_dirs
 
 # =====================================================================
+# BACKFILL: tự tính signal cho các ngày thiếu khi bot khởi động
+# =====================================================================
+def backfill_missing_days():
+    """Tự tính signal cho các ngày thiếu trong signals_log.json (tối đa 7 ngày trước)."""
+    if not mt5_ready:
+        return
+
+    # Đọc signals_log hiện tại
+    existing_dates = set()
+    if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+        try:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            for rec in data:
+                existing_dates.add(rec.get("date"))
+        except Exception:
+            pass
+
+    # Tạo danh sách ngày cần check (7 ngày trước, bỏ T7/CN)
+    now_utc = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+    broker_now = now_utc + timedelta(hours=BROKER_GMT)
+    today = broker_now.date()
+
+    dates_to_check = []
+    for i in range(1, 8):  # 1..7 ngày trước
+        d = today - timedelta(days=i)
+        if d.weekday() >= 5:  # skip T7/CN
+            continue
+        dates_to_check.append(d)
+
+    missing_dates = [d for d in dates_to_check if d.isoformat() not in existing_dates]
+    if not missing_dates:
+        print("  [BACKFILL] Không có ngày thiếu")
+        return
+
+    print(f"  [BACKFILL] Tìm thấy {len(missing_dates)} ngày thiếu: {[d.isoformat() for d in missing_dates]}")
+
+    backfilled = 0
+    for target_date in missing_dates:
+        # Tạo broker_dt giả lập cho ngày đó (dùng H=12 để lấy đúng weekday)
+        fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
+
+        for H in TARGET_HOURS:
+            # Skip slot nếu đã có
+            key = (target_date, H)
+            # Kiểm tra trong signals_log
+            if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+                try:
+                    with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                        log_data = json.load(f)
+                    if any(r.get("date") == target_date.isoformat() and r.get("hour") == H for r in log_data):
+                        continue
+                except Exception:
+                    pass
+
+            try:
+                result = analyze(fake_broker_dt, H)
+                sig = result["signal"]
+
+                h2_data = None
+                h15_data = None
+                # Đọc H=2 và H=15 từ signals_log nếu có
+                if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+                    try:
+                        with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                            log_data = json.load(f)
+                        for r in log_data:
+                            if r.get("date") == target_date.isoformat():
+                                if r.get("hour") == 2:
+                                    h2_data = r
+                                if r.get("hour") == 15:
+                                    h15_data = r
+                    except Exception:
+                        pass
+
+                h2_sig = h2_data.get("signal") if h2_data else None
+                h15_sig = h15_data.get("signal") if h15_data else None
+
+                entry_time = calc_entry_time(sig, result.get("m30_dir"), H, h2_signal=h2_sig,
+                                             orig_signal=result.get("orig_signal"), weekday=target_date.weekday(),
+                                             h15_signal=h15_sig)
+                pair_dirs = get_pair_direction(H, sig, fake_broker_dt, h1_signal=result.get("h1_signal"))
+                if not pair_dirs:
+                    continue
+
+                # Wednesday H=16: compare with H=15
+                if H == 16 and target_date.weekday() == 2 and h15_sig and sig == h15_sig:
+                    sig = "SELL" if sig == "BUY" else "BUY"
+                    pair_dirs = get_pair_direction(H, sig, fake_broker_dt, h1_signal=result.get("h1_signal"))
+
+                hour_note = get_hour_note(H, target_date.weekday())
+                log_signal(H, fake_broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=True)
+                backfilled += 1
+                print(f"  [BACKFILL] {target_date.isoformat()} H={fmt_hour(H)}:45 -> {sig}")
+            except Exception as e:
+                print(f"  [BACKFILL] Error {target_date.isoformat()} H={H}: {e}")
+
+    if backfilled > 0:
+        print(f"  [BACKFILL] Đã backfill {backfilled} signal")
+        push_to_dashboard()
+    else:
+        print("  [BACKFILL] Không có signal mới")
+
+# =====================================================================
 # MAIN LOOP
 # =====================================================================
 mt5_ready = False
@@ -1100,6 +1205,9 @@ def main():
             f"Hiển thị lại từ H=12."
         )
     push_to_dashboard()
+
+    # Backfill các ngày thiếu khi bot khởi động
+    backfill_missing_days()
 
     if mt5_ready:
         broker_dt = get_broker_time()

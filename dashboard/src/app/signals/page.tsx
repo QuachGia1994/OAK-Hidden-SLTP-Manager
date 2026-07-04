@@ -1,13 +1,6 @@
 import { getSignals } from "@/lib/data";
-import { SignalCard } from "@/components/SignalCard";
+import { HistoryList } from "@/components/HistoryList";
 import { cookies } from "next/headers";
-
-function getFirstD1MatchHour(daySignals: Array<{ hour: number; signal: string; d_direction?: string | null }>) {
-  const firstMatch = [...daySignals]
-    .sort((a, b) => a.hour - b.hour)
-    .find((signal) => signal.d_direction && signal.signal === signal.d_direction);
-  return firstMatch?.hour ?? null;
-}
 
 export const dynamic = "force-dynamic";
 
@@ -19,19 +12,11 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
     console.error("Signals fetch error:", e);
   }
 
-  // VIP check: cookie OR query param
   const VIP_TOKEN = process.env.VIP_TOKEN || "";
   const params = await searchParams;
   const cookieStore = await cookies();
   const vipCookie = cookieStore.get("vip_access")?.value;
   const isVIP = vipCookie === "1" || !!(params.vip && VIP_TOKEN && params.vip === VIP_TOKEN);
-
-  const dateMap = new Map<string, typeof signals>();
-  for (const s of signals) {
-    if (!dateMap.has(s.date)) dateMap.set(s.date, []);
-    dateMap.get(s.date)!.push(s);
-  }
-  const dates = [...dateMap.keys()].sort().reverse().slice(0, 7);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -40,39 +25,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
         <p className="text-base text-zinc-500 dark:text-zinc-400 mt-2">7 ngày gần nhất</p>
       </div>
 
-      {dates.length === 0 ? (
-        <div className="text-center py-12 text-zinc-400 dark:text-zinc-500 text-base">Chưa có signal nào</div>
-      ) : (
-        <div className="space-y-8">
-          {dates.map((date) => {
-            const daySignals = [...(dateMap.get(date) || [])].sort((a, b) => b.hour - a.hour);
-            const dayD = daySignals[0]?.d_direction;
-            const firstD1MatchHour = getFirstD1MatchHour(daySignals);
-            return (
-              <div key={date}>
-                <div className="flex items-center gap-3 mb-3">
-                  <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 font-mono">{date}</h2>
-                  {dayD && (
-                    <span className={`text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md ${dayD === "BUY" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-                      D: {dayD}
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {daySignals.map((signal) => (
-                    <SignalCard
-                      key={`${signal.date}-${signal.hour}`}
-                      signal={signal}
-                      isVIP={isVIP}
-                      showD1Match={firstD1MatchHour !== null && signal.hour >= firstD1MatchHour && signal.hour < 12}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <HistoryList signals={signals} isVIP={isVIP} />
     </div>
   );
 }

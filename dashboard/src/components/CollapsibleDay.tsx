@@ -1,0 +1,76 @@
+"use client";
+
+import { useState } from "react";
+import { SignalCard } from "./SignalCard";
+import type { Signal } from "@/lib/types";
+
+function getFirstD1MatchHour(daySignals: Array<{ hour: number; signal: string; d_direction?: string | null }>) {
+  const firstMatch = [...daySignals]
+    .sort((a, b) => a.hour - b.hour)
+    .find((signal) => signal.d_direction && signal.signal === signal.d_direction);
+  return firstMatch?.hour ?? null;
+}
+
+function weekdayLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const day = new Date(y, m - 1, d).getDay();
+  const labels = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  return labels[day];
+}
+
+interface CollapsibleDayProps {
+  date: string;
+  signals: Signal[];
+  isVIP: boolean;
+  defaultOpen?: boolean;
+}
+
+export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: CollapsibleDayProps) {
+  const [open, setOpen] = useState(defaultOpen);
+  const daySignals = [...signals].sort((a, b) => b.hour - a.hour);
+  const dayD = daySignals[0]?.d_direction;
+  const firstD1MatchHour = getFirstD1MatchHour(daySignals);
+  const weekday = weekdayLabel(date);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-3 mb-3 w-full text-left group"
+      >
+        <svg
+          className={`w-4 h-4 text-zinc-400 dark:text-zinc-500 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2}
+          stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+        <h2 className="text-sm font-medium text-zinc-500 dark:text-zinc-400 font-mono">
+          {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
+        </h2>
+        {dayD && (
+          <span className={`text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md ${dayD === "BUY" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+            D: {dayD}
+          </span>
+        )}
+        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 ml-auto">
+          {daySignals.length} signal{daySignals.length !== 1 ? "s" : ""}
+        </span>
+      </button>
+      {open && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {daySignals.map((signal) => (
+            <SignalCard
+              key={`${signal.date}-${signal.hour}`}
+              signal={signal}
+              isVIP={isVIP}
+              showD1Match={firstD1MatchHour !== null && signal.hour >= firstD1MatchHour && signal.hour < 12}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -17,14 +17,14 @@ export async function POST(request: Request) {
   if (denied) return denied;
   try {
     const body = await request.json();
-    const incoming = (body as any[]).slice(-500);
+    const incoming = (body as any[]).slice(-2000);
 
     // Merge: keep existing + incoming, dedup by (date, hour)
     const existing = ((await redis.get(KEYS.signals)) as any[]) || [];
     const map = new Map<string, any>();
     for (const s of existing) map.set(`${s.date}:${s.hour}`, s);
     for (const s of incoming) map.set(`${s.date}:${s.hour}`, s);
-    const merged = [...map.values()].sort((a, b) => b.ts - a.ts).slice(0, 500);
+    const merged = [...map.values()].sort((a, b) => b.ts - a.ts).slice(0, 2000);
     await redis.set(KEYS.signals, merged);
     return NextResponse.json({ ok: true, count: merged.length });
   } catch (e) {
