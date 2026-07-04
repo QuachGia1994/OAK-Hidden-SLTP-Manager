@@ -304,6 +304,13 @@ def select_signals_for_dashboard(all_signals):
     """Keep every signal that still has pair data so history can be republished across days."""
     return [s for s in all_signals if s.get("pair_dirs")]
 
+def d1_match_note(direction):
+    if direction == "BUY":
+        return "XAUUSD: Mua BUY (tick match D1)"
+    if direction == "SELL":
+        return "XAUUSD: Bán SELL (tick match D1)"
+    return "XAUUSD: tick match D1"
+
 def push_to_dashboard():
     """Push data to dashboard API (best effort, non-blocking)."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
@@ -1182,11 +1189,8 @@ def main():
             matched_d1 = (sig == d_direction and d_direction is not None)
             if matched_d1:
                 mark_xauusd_matched(h)
-            if skip_xau:
-                xau_dir = pair_dirs.get("XAUUSD", sig)
-                hour_note = f"XAUUSD: {'Mua' if xau_dir == 'BUY' else 'Bán'} {xau_dir} (tick match D1)"
-            elif matched_d1:
-                hour_note = f"XAUUSD: {'Mua' if sig == 'BUY' else 'Bán'} {sig} (tick match D1)"
+            if skip_xau or matched_d1:
+                hour_note = d1_match_note(d_direction)
             else:
                 hour_note = base_note
 
@@ -1332,7 +1336,9 @@ def main():
                 # Nếu pair_dirs rỗng → XAUUSD bị ẩn do match D1, vẫn log với note
                 if not pair_dirs:
                     pair_dirs = {"XAUUSD": sig}
-                    hour_note = f"XAUUSD: {'Mua' if sig == 'BUY' else 'Bán'} {sig} (tick match D1)"
+                    hour_note = d1_match_note(d_direction)
+                elif should_skip_xauusd(now_hour, sig, broker_dt) or (sig == d_direction and d_direction is not None):
+                    hour_note = d1_match_note(d_direction)
                 else:
                     hour_note = get_hour_note(now_hour, broker_dt.weekday())
                 log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, hour_note)
