@@ -1,6 +1,6 @@
 import { getSignals } from "@/lib/data";
 import { HistoryList } from "@/components/HistoryList";
-import { cookies } from "next/headers";
+import { hasVipAccess } from "@/lib/vip";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +12,8 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
     console.error("Signals fetch error:", e);
   }
 
-  const VIP_TOKEN = process.env.VIP_TOKEN || "";
   const params = await searchParams;
-  const cookieStore = await cookies();
-  const vipCookie = cookieStore.get("vip_access")?.value;
-  const isVIP = vipCookie === "1" || !!(params.vip && VIP_TOKEN && params.vip === VIP_TOKEN);
+  const isVIP = await hasVipAccess(params);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">

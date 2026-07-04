@@ -29,6 +29,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const text = body.text?.trim();
