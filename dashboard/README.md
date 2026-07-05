@@ -1,32 +1,55 @@
 # OAK Trading Dashboard
 
-Trading signal dashboard cho OAK Hidden SLTP Manager.
+Dashboard cho OAK Hidden SLTP Manager, deploy trên Vercel.
 
 ## Live
-https://oak-hidden-sltp-manager-dun.vercel.app
 
-## Tech Stack
-- Next.js 16 (App Router)
+[https://oak-hidden-sltp-manager-dun.vercel.app](https://oak-hidden-sltp-manager-dun.vercel.app)
+
+## Chức năng
+
+- Realtime signals
+- Bot state và D direction
+- History 7 ngày
+- Rules page
+- Fact-check text/ảnh
+- VIP access bằng `/?vip=TOKEN`
+
+## Stack
+
+- Next.js App Router
 - Upstash Redis
-- Tailwind CSS 4
+- Tailwind CSS
 - Vercel
 
-## Setup
-1. Clone repo
-2. `cd dashboard && npm install`
-3. Copy `.env.example` → `.env.local`
-4. `npm run dev`
+## Setup local
 
-## Environment Variables
+```bash
+cd dashboard
+npm install
+npm run dev
 ```
+
+## Environment variables
+
+```env
 UPSTASH_REDIS_REST_URL=https://xxx.upstash.io
 UPSTASH_REDIS_REST_TOKEN=AXxx...
 ```
 
-## Data Flow
-Bot (`mt5_signal_bot.py`) pushes data via REST API:
-- `POST /api/signals` — Signal data (deduplicated by date+hour)
-- `POST /api/state` — Bot state (date, signals, D direction)
-- `POST /api/news` — Economic news (parsed from ForexFactory cache)
+Nếu dùng API write từ bot, cần thêm:
 
-Dashboard reads directly from Redis (server-side).
+```env
+DASHBOARD_API_KEY=your-secret-key
+```
+
+## Data flow
+
+Bot push dữ liệu qua REST API:
+
+- `POST /api/signals`
+- `POST /api/state`
+- `POST /api/news`
+- `POST /api/prices`
+
+Dashboard đọc dữ liệu trực tiếp từ Redis ở server side.
