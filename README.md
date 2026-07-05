@@ -57,6 +57,7 @@ Tài liệu chi tiết:
 - `H=6`:
   - T2,T6: chỉ Vàng (đảo)
   - T3-T5: Vàng (đảo), rồi GBPAUD ngược theo Vàng đã đảo
+- Fact-check: nguồn web dùng `Google + DDG`, Google Fact Check là lớp authority riêng.
 - `H=16`:
   - T2,T5,T6: XAUUSD + nhóm GBP vào `18:59`
   - T3,T4: XAUUSD so với H=15 để quyết định đảo signal hay dời sang `20:59`

@@ -119,7 +119,9 @@ function SourceRow({ source }: { source: { title: string; url: string; snippet: 
           <div className="mt-2 flex items-center gap-1.5 flex-wrap min-w-0">
             {source.engine && (
               <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
-                {source.engine.replaceAll("_", " ")}
+                {source.engine === "google_factcheck"
+                  ? "Google Fact Check"
+                  : source.engine.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase())}
               </span>
             )}
             {isIFCN && (
@@ -282,7 +284,7 @@ export default function FactCheckPage() {
               </div>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <MetricCard label="Search stack" value="Brave + DDG + Bing" detail="Ba lớp search tạo cross-check rộng hơn, giảm lệch nguồn." />
+              <MetricCard label="Search stack" value="Google + DDG" detail="Hai engine free tạo cross-check gọn hơn, giảm nguồn lệch." />
               <MetricCard label="Authority" value="Google Fact Check" detail="Khi có dữ liệu IFCN, score được đẩy theo tín hiệu uy tín." />
               <MetricCard label="Signal mix" value="Domains + Engines" detail="Tính thêm độ đa dạng domain và engine để score lên tự nhiên hơn." />
             </div>
@@ -297,7 +299,7 @@ export default function FactCheckPage() {
               </div>
               <div className="rounded-2xl border border-amber-500/15 bg-amber-500/8 px-4 py-3">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">2. Cross-check web</div>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Mỗi claim được bắn qua nhiều engine và authority domain để bắt điểm chéo.</p>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Mỗi claim được bắn qua Google + DDG và authority domain để bắt điểm chéo.</p>
               </div>
               <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 px-4 py-3">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">3. Score with mix</div>

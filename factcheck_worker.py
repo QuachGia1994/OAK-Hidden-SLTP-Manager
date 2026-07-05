@@ -8,7 +8,6 @@ import sys
 import json
 import time
 import re
-import base64
 import unicodedata
 import urllib.request
 import urllib.parse
@@ -50,7 +49,6 @@ MEDIUM_RELIABILITY = {
 GOOGLE_FC_RATINGS_TRUE = {"true", "mostly true", "correct", "accurate", "supported"}
 GOOGLE_FC_RATINGS_FALSE = {"false", "mostly false", "pants on fire", "incorrect", "misleading", "unproven", "refuted", "fake", "hoax", "scam"}
 GOOGLE_FC_RATINGS_NEUTRAL = {"half true", "mixed", "partly true", "partly false", "outdated", "missing context", "unverified"}
-BRAVE_DISABLED_UNTIL = 0.0
 
 def normalize_domain(url):
     """Normalize a URL into a compact domain key."""
@@ -122,8 +120,7 @@ def should_keep_source(source):
     hits = int(source.get("match_hits", 0) or 0)
 
     thresholds = {
-        "bing": 0.2,
-        "brave": 0.25,
+        "google": 0.18,
         "duckduckgo": 0.15,
         "web": 0.2,
         "google_factcheck": 0.0,
@@ -209,78 +206,40 @@ def simplify_query(claim):
     return " ".join(words[:8]) if words else claim[:100]
 
 
-def search_brave(query):
-    """Search web using Brave Search API (free tier)."""
-    global BRAVE_DISABLED_UNTIL
+def search_google_web(query):
+    """Search web using Google Custom Search JSON API."""
     results = []
-    now = time.time()
-    if now < BRAVE_DISABLED_UNTIL:
+    api_key = os.environ.get("GOOGLE_CSE_API_KEY", "") or os.environ.get("GOOGLE_SEARCH_API_KEY", "")
+    cse_id = os.environ.get("GOOGLE_CSE_ID", "") or os.environ.get("GOOGLE_SEARCH_ENGINE_ID", "")
+    if not api_key or not cse_id:
         return results
 
-    brave_key = os.environ.get("BRAVE_API_KEY", "")
-    if brave_key:
-        try:
-            encoded = urllib.parse.quote(query)
-            url = f"https://api.search.brave.com/res/v1/web/search?q={encoded}&count=5"
-            req = urllib.request.Request(url, headers={
-                "Accept": "application/json",
-                "Accept-Encoding": "gzip",
-                "X-Subscription-Token": brave_key,
-            })
-            resp = urllib.request.urlopen(req, timeout=10)
-            data = json.loads(resp.read())
-            for r in data.get("web", {}).get("results", []):
-                results.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("url", ""),
-                    "snippet": r.get("description", ""),
-                    "engine": "brave",
-                })
-        except Exception as e:
-            print(f"[WARN] Brave API search failed: {e}")
-            if "429" in str(e):
-                BRAVE_DISABLED_UNTIL = time.time() + 600
-    if results:
-        return results
-
-    # HTML fallback when API key is missing or the API returns nothing.
     try:
         encoded = urllib.parse.quote(query)
-        url = f"https://search.brave.com/search?q={encoded}&source=web"
+        url = (
+            "https://www.googleapis.com/customsearch/v1"
+            f"?key={urllib.parse.quote(api_key)}"
+            f"&cx={urllib.parse.quote(cse_id)}"
+            f"&q={encoded}&num=5&hl=en&safe=active"
+        )
         req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
         })
         resp = urllib.request.urlopen(req, timeout=10)
-        html = resp.read().decode("utf-8", errors="ignore")
-        anchors = re.findall(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL)
-        seen = set()
-        for href, inner in anchors:
-            href = html_mod.unescape(href.strip())
-            if not href.startswith("http"):
+        data = json.loads(resp.read())
+        for item in data.get("items", [])[:5]:
+            link = item.get("link", "")
+            if not link:
                 continue
-            if "brave.com" in href or "search.brave.com" in href:
-                continue
-            raw_text = html_mod.unescape(re.sub(r"<[^>]+>", "", inner).strip())
-            if "?" not in raw_text or len(raw_text) < 30:
-                continue
-            if href in seen:
-                continue
-            seen.add(href)
-            parts = [part.strip() for part in raw_text.split("?") if part.strip()]
-            title = parts[-1] if parts else raw_text
-            snippet = " ? ".join(parts[:-1]) if len(parts) > 1 else ""
             results.append({
-                "title": title,
-                "url": href,
-                "snippet": snippet,
-                "engine": "brave",
+                "title": item.get("title", ""),
+                "url": link,
+                "snippet": item.get("snippet", ""),
+                "engine": "google",
+                "reliability": classify_reliability(link),
             })
-            if len(results) >= 5:
-                break
     except Exception as e:
-        print(f"[WARN] Brave HTML search failed: {e}")
-        if "429" in str(e):
-            BRAVE_DISABLED_UNTIL = time.time() + 600
+        print(f"[WARN] Google web search failed: {e}")
     return results
 
 
@@ -318,54 +277,11 @@ def search_duckduckgo(query):
     return results
 
 
-def search_bing(query):
-    """Search Bing HTML results as a lightweight third source."""
-    results = []
-    try:
-        encoded = urllib.parse.quote(query)
-        url = f"https://www.bing.com/search?q={encoded}&count=5&setlang=en-US"
-        req = urllib.request.Request(url, headers={
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        })
-        resp = urllib.request.urlopen(req, timeout=10)
-        html = resp.read().decode("utf-8", errors="ignore")
-        blocks = re.findall(r'<li class="b_algo".*?</li>', html, re.DOTALL)
-        for block in blocks[:5]:
-            link_match = re.search(r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', block, re.DOTALL)
-            if not link_match:
-                continue
-            url = html_mod.unescape(link_match.group(1).strip())
-            if "bing.com/ck/a" in url:
-                parsed = urllib.parse.urlparse(url)
-                query_map = urllib.parse.parse_qs(parsed.query)
-                wrapped = query_map.get("u", [""])[0]
-                if wrapped.startswith("a1"):
-                    wrapped = wrapped[2:]
-                try:
-                    url = base64.urlsafe_b64decode(wrapped + "==").decode("utf-8", errors="ignore").strip()
-                except Exception:
-                    url = wrapped
-            title = html_mod.unescape(re.sub(r"<[^>]+>", "", link_match.group(2)).strip())
-            snippet_match = re.search(r'<div class="b_caption">.*?<p[^>]*>(.*?)</p>', block, re.DOTALL)
-            snippet = html_mod.unescape(re.sub(r"<[^>]+>", "", snippet_match.group(1)).strip()) if snippet_match else ""
-            if title and url:
-                results.append({
-                    "title": title,
-                    "url": url,
-                    "snippet": snippet,
-                    "engine": "bing",
-                })
-    except Exception as e:
-        print(f"[WARN] Bing search failed: {e}")
-    return results
-
-
 def search_web(query):
     """Search web using multiple engines and merge the hits."""
     results = []
-    results.extend(search_brave(query))
+    results.extend(search_google_web(query))
     results.extend(search_duckduckgo(query))
-    results.extend(search_bing(query))
     return results
 
 
@@ -573,8 +489,6 @@ def process_factcheck(item):
     score += min(max(len(unique_engines) - 1, 0), 3) * 4
     if google_confirm:
         score += 10
-    off_topic_sources = [s for s in scoring_sources if s.get("engine") in {"bing", "brave"} and s.get("relevance", 0.0) < 0.4]
-    score -= min(len(off_topic_sources) * 6, 18)
     score -= contradicting * 12
     if any(s["agrees"] is False and s["reliability"] == "high" for s in scoring_sources):
         score -= 8

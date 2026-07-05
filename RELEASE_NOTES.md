@@ -30,7 +30,7 @@
 - **OCR miễn phí**: Tesseract.js chạy client-side, nhận diện tiếng Anh + Việt.
 - **Drag & drop**: Kéo thả ảnh vào box để upload.
 - **Queue-based**: Dashboard POST → Redis queue → Worker xử lý → Kết quả hiển thị.
-- **Worker**: `factcheck_worker.py` poll Redis, search web (Brave → DuckDuckGo fallback), score credibility.
+- **Worker**: `factcheck_worker.py` poll Redis, search web (`Google + DDG`), score credibility. Google Fact Check giữ vai trò authority riêng.
 
 ### 🔒 VIP Access Control (Mới)
 - **Free user**: Signal hiện 🔒 VIP Only — không thấy BUY/SELL, entry time, pair directions.

@@ -1,6 +1,7 @@
 import unittest
+from datetime import datetime, timezone
 
-from mt5_signal_bot import select_signals_for_dashboard
+from mt5_signal_bot import get_pair_direction, select_signals_for_dashboard
 
 
 class DashboardSignalSelectionTests(unittest.TestCase):
@@ -22,6 +23,17 @@ class DashboardSignalSelectionTests(unittest.TestCase):
                 {"date": "2026-07-04", "hour": 2, "pair_dirs": {"XAUUSD": "BUY"}},
             ],
         )
+
+    def test_h6_tue_thu_keeps_gbpaud_when_gold_flips(self):
+        for broker_dt in (
+            datetime(2026, 7, 7, tzinfo=timezone.utc),
+            datetime(2026, 7, 9, tzinfo=timezone.utc),
+        ):
+            with self.subTest(weekday=broker_dt.weekday()):
+                self.assertEqual(
+                    get_pair_direction(6, "BUY", broker_dt),
+                    {"XAUUSD": "SELL", "GBPAUD": "BUY"},
+                )
 
 
 if __name__ == "__main__":

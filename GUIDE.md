@@ -57,6 +57,7 @@ Trigger lúc `x:45`.
 - `H=6`:
   - T2,T6: chỉ Vàng (đảo)
   - T3-T5: Vàng (đảo), rồi GBPAUD ngược theo Vàng đã đảo
+- Fact-check web: ưu tiên `Google + DDG`, Google Fact Check giữ vai trò authority riêng.
 - `H=9,11`: nhóm GBP đi theo rule theo ngày
 - `H=12`: chỉ Vàng (đảo)
 - `H=14,15`: nhóm GBP cùng Vàng theo rule ngày

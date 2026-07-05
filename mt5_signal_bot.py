@@ -839,7 +839,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             for p in GBP_PAIRS:
                 result[p] = gold
         else:
-            # H=3,4,6,9,11,12,14,15: chỉ Vàng
+            # H=3,4,9,11,12,14,15: chỉ Vàng
             result["XAUUSD"] = gold
         return result
 
@@ -853,7 +853,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
         elif H == 6:
+            # H=6: gold/opposite đã được đảo ở đầu hàm.
+            # XAUUSD = gold đã đảo, GBPAUD ngược theo XAUUSD đã đảo.
             result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
         elif H == 9:
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
@@ -890,7 +893,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
         elif H == 6:
+            # H=6: gold/opposite đã được đảo ở đầu hàm.
+            # XAUUSD = gold đã đảo, GBPAUD ngược theo XAUUSD đã đảo.
             result["XAUUSD"] = gold
+            result["GBPAUD"] = opposite
         elif H == 9:
             result["XAUUSD"] = gold
             result["GBPAUD"] = gold
