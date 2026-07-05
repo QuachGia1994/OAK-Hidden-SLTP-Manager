@@ -1,18 +1,5 @@
 export const TARGET_HOURS = [2, 3, 4, 6, 9, 11, 12, 14, 15, 16];
 
-export const SCHEDULE: { hour: number; note: string }[] = [
-  { hour: 2, note: "T5,T6: nhập D direction | T6: lưu D direction gốc | T2: đảo D direction đã lưu | T3-5: GBPAUD, GBPJPY ngược" },
-  { hour: 3, note: "T2,T6: Chỉ Vàng | T3-5: GBPAUD, GBPJPY ngược" },
-  { hour: 4, note: "T2,T6: Chỉ Vàng | T3-5: Chỉ GBPAUD ngược" },
-  { hour: 6, note: "T2,T6: Chỉ Vàng (đảo) | T3-5: Vàng (đảo), GBPAUD ngược Vàng (đảo)" },
-  { hour: 9, note: "T2,T6: Chỉ Vàng (đảo) | T3,T4: Nhóm GBP cùng Vàng (đảo) | T5: GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)" },
-  { hour: 11, note: "T2,T6: Chỉ Vàng (đảo) | T3,T4: Nhóm GBP cùng Vàng (đảo) | T5: GBPAUD/GBPCAD/GBPUSD ngược Vàng (đảo), GBPJPY cùng Vàng (đảo)" },
-  { hour: 12, note: "T2-T6: Chỉ Vàng (đảo)" },
-  { hour: 14, note: "T2,T6: Chỉ Vàng | T3-5: Nhóm GBP cùng Vàng" },
-  { hour: 15, note: "T2,T6: Chỉ Vàng | T3-5: Nhóm GBP cùng Vàng" },
-  { hour: 16, note: "T2,3,4,6: Nhóm GBP + Vàng cùng" },
-];
-
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
@@ -54,17 +41,19 @@ const HOUR_NOTES_T26: Record<number, string> = {
 };
 
 export function getHourNote(hour: number, weekday: number): string | null {
-  if (weekday === 3) return HOUR_NOTES_T5[hour] ?? null;
-  if (weekday === 1 || weekday === 2) return HOUR_NOTES_T34[hour] ?? null;
+  if (weekday === 4) return HOUR_NOTES_T5[hour] ?? null;
+  if (weekday === 2 || weekday === 3) return HOUR_NOTES_T34[hour] ?? null;
   return HOUR_NOTES_T26[hour] ?? null;
 }
 
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2 (JS: getDay() = 1)
-    "Slots: H=2,16",
-    "H=2: Nhóm GBP đảo theo D direction lưu từ thứ 6",
-    "H=3-15: Chỉ Vàng (không GBP)",
-    "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
+    "Slots: H=2,3,4,6,9,11,12,14,15,16",
+    "H=2: Vàng + Nhóm GBP ngược D Direction",
+    "H=3,4: Chỉ Vàng",
+    "H=6,9,11,12: Chỉ Vàng (đảo)",
+    "H=14,15: Chỉ Vàng",
+    "H=16: Nhóm GBP + Vàng cùng",
     "Khi D1 match → ẩn XAUUSD từ H=3 đến H=11. Hiển thị lại từ H=12",
     "Nếu T4 trong tuần là ngày 30/1 → Cần tính lại T2",
     "Nếu T6 trong tuần là ngày 3/4/7 → Cần tính lại T2",
@@ -90,17 +79,19 @@ export const DAY_RULES: Record<number, string[]> = {
     "Slots: H=2,3,4,6,9,11,12,14,15",
     "Có nhập D direction qua Telegram lúc 6:00 VN",
     "H=2,3: GBPAUD, GBPJPY ngược. H=4: GBPAUD ngược. H=6: Vàng (đảo), GBPAUD ngược Vàng (đảo)",
-    "H=9: GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
-    "H=11: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo). H=12: Chỉ Vàng (đảo)",
-    "H=14,15: GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-    "H=16: Skip",
+    "H=9: GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
+    "H=11: GBPAUD/GBPCAD/GBPUSD ngược Vàng (đảo), GBPJPY cùng Vàng (đảo). H=12: Chỉ Vàng (đảo)",
+    "H=14,15: Nhóm GBP cùng Vàng",
+    "H=16: Không tính toán",
   ],
   5: [    // Thứ 6 (JS: getDay() = 5) - lưu D direction gốc
-    "Slots: H=2,16",
+    "Slots: H=2,3,4,6,9,11,12,14,15,16",
     "Có nhập D direction qua Telegram lúc 6:00 VN",
-    "H=2: Lưu D direction gốc",
-    "H=3-15: Chỉ Vàng (không GBP)",
-    "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
+    "H=2: Vàng + Nhóm GBP ngược D Direction",
+    "H=3,4: Chỉ Vàng",
+    "H=6,9,11,12: Chỉ Vàng (đảo)",
+    "H=14,15: Chỉ Vàng",
+    "H=16: Nhóm GBP + Vàng cùng",
     "Khi D1 match → ẩn XAUUSD từ H=3 đến H=11. Hiển thị lại từ H=12",
   ],
 };
