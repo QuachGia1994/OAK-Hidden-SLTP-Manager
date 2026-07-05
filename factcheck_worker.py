@@ -9,6 +9,7 @@ import json
 import time
 import re
 import base64
+import unicodedata
 import urllib.request
 import urllib.parse
 import html as html_mod
@@ -49,6 +50,7 @@ MEDIUM_RELIABILITY = {
 GOOGLE_FC_RATINGS_TRUE = {"true", "mostly true", "correct", "accurate", "supported"}
 GOOGLE_FC_RATINGS_FALSE = {"false", "mostly false", "pants on fire", "incorrect", "misleading", "unproven", "refuted", "fake", "hoax", "scam"}
 GOOGLE_FC_RATINGS_NEUTRAL = {"half true", "mixed", "partly true", "partly false", "outdated", "missing context", "unverified"}
+BRAVE_DISABLED_UNTIL = 0.0
 
 def normalize_domain(url):
     """Normalize a URL into a compact domain key."""
@@ -57,6 +59,83 @@ def normalize_domain(url):
     except Exception:
         return ""
     return domain[4:] if domain.startswith("www.") else domain
+
+
+def normalize_text(text):
+    """Normalize text for loose keyword matching."""
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", text)
+    stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return stripped.lower()
+
+
+def token_set(text):
+    """Tokenize text into a compact keyword set."""
+    return {token for token in re.findall(r"[a-z0-9]+", normalize_text(text)) if len(token) > 2}
+
+
+def source_match_hits(query, source):
+    """Count keyword overlaps between a query and a source."""
+    query_tokens = token_set(query)
+    if not query_tokens:
+        return 0
+
+    source_text = " ".join([
+        source.get("title", ""),
+        source.get("snippet", ""),
+        normalize_domain(source.get("url", "")),
+    ])
+    source_norm = normalize_text(source_text)
+    return sum(1 for token in query_tokens if token in source_norm)
+
+
+def source_relevance(query, source):
+    """Score how closely a source matches the current query."""
+    query_tokens = token_set(query)
+    if not query_tokens:
+        return 0.0
+
+    hits = source_match_hits(query, source)
+    source_text = " ".join([
+        source.get("title", ""),
+        source.get("snippet", ""),
+        normalize_domain(source.get("url", "")),
+    ])
+    source_norm = normalize_text(source_text)
+
+    score = hits / max(3, min(len(query_tokens), 6))
+    if normalize_text(query[:120]) in source_norm:
+        score += 0.2
+    if normalize_domain(source.get("url", "")) in HIGH_RELIABILITY:
+        score += 0.1
+    if source.get("engine") == "google_factcheck":
+        score = max(score, 0.75)
+    return max(0.0, min(1.0, score))
+
+
+def should_keep_source(source):
+    """Reject clearly off-topic hits before they affect the result set."""
+    engine = source.get("engine", "web")
+    reliability = source.get("reliability", "low")
+    relevance = float(source.get("relevance", 0.0) or 0.0)
+    hits = int(source.get("match_hits", 0) or 0)
+
+    thresholds = {
+        "bing": 0.2,
+        "brave": 0.25,
+        "duckduckgo": 0.15,
+        "web": 0.2,
+        "google_factcheck": 0.0,
+    }
+    threshold = thresholds.get(engine, 0.2)
+    if engine == "google_factcheck":
+        return True
+    if hits >= 2:
+        return True
+    if reliability in {"high", "medium"} and hits >= 1 and relevance >= 0.12:
+        return True
+    return relevance >= threshold and hits >= 1
 
 
 def redis_request(method, key, value=None):
@@ -96,67 +175,112 @@ def redis_request(method, key, value=None):
 
 def extract_claims(text):
     """Extract key claims from text. Handles Vietnamese and English."""
-    # Clean OCR noise
-    text = re.sub(r'Đánh giá bản dịch.*$', '', text, flags=re.MULTILINE)
-    text = re.sub(r'[a-zA-Z]{1,3}\s*\*\s*\\?\s*\n', '', text)
-    text = re.sub(r'^\s*[\*\•\–\-]\s*$', '', text, flags=re.MULTILINE)
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = html_mod.unescape(text or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return []
 
-    # Split by sentence endings (Vietnamese uses . ! ? and also newline)
-    sentences = re.split(r'[.!?]+|\n', text)
     claims = []
-    for s in sentences:
-        s = s.strip()
-        # Remove leading bullet points, dashes, and OCR noise
-        s = re.sub(r'^[\*\•\–\-~#\d\.]+\s*', '', s)
-        s = re.sub(r'^\~[^~]*\~\s*', '', s)  # Remove ~something~ patterns
-        s = html_mod.unescape(s)
-        if len(s) > 15 and len(s) < 300:
-            # Truncate very long claims
-            if len(s) > 150:
-                s = s[:150]
-            claims.append(s)
-    return claims[:5]
+    for sentence in re.split(r"[.!?]+|\n", text):
+        sentence = re.sub(r"^[\-*??]+\s*", "", sentence.strip())
+        if len(sentence) < 15:
+            continue
+        claims.append(sentence[:150])
+        if len(claims) >= 5:
+            break
+
+    if not claims and len(text) >= 15:
+        return [text[:150]]
+    return claims
 
 
 def simplify_query(claim):
     """Simplify a claim into a shorter search query."""
-    # Remove common Vietnamese filler words
-    remove_words = ['là', 'của', 'và', 'có', 'được', 'này', 'đã', 'đang', 'sẽ',
-                    'không', 'những', 'các', 'một', 'với', 'cho', 'từ', 'trong',
-                    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'has', 'have']
-    words = claim.split()
-    filtered = [w for w in words if w.lower() not in remove_words]
-    # Take first 8 words max
-    query = ' '.join(filtered[:8])
-    return query if query else claim[:100]
+    stopwords = {
+        "la", "cua", "va", "co", "duoc", "nay", "da", "dang", "se",
+        "khong", "nhung", "cac", "mot", "voi", "cho", "tu", "trong",
+        "the", "a", "an", "is", "are", "was", "were", "has", "have",
+    }
+    words = re.findall(r"[a-z0-9]+", normalize_text(claim))
+    filtered = [w for w in words if w not in stopwords]
+    query = " ".join(filtered[:8])
+    if query:
+        return query
+    return " ".join(words[:8]) if words else claim[:100]
 
 
 def search_brave(query):
     """Search web using Brave Search API (free tier)."""
+    global BRAVE_DISABLED_UNTIL
     results = []
-    brave_key = os.environ.get("BRAVE_API_KEY", "")
-    if not brave_key:
+    now = time.time()
+    if now < BRAVE_DISABLED_UNTIL:
         return results
+
+    brave_key = os.environ.get("BRAVE_API_KEY", "")
+    if brave_key:
+        try:
+            encoded = urllib.parse.quote(query)
+            url = f"https://api.search.brave.com/res/v1/web/search?q={encoded}&count=5"
+            req = urllib.request.Request(url, headers={
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                "X-Subscription-Token": brave_key,
+            })
+            resp = urllib.request.urlopen(req, timeout=10)
+            data = json.loads(resp.read())
+            for r in data.get("web", {}).get("results", []):
+                results.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "snippet": r.get("description", ""),
+                    "engine": "brave",
+                })
+        except Exception as e:
+            print(f"[WARN] Brave API search failed: {e}")
+            if "429" in str(e):
+                BRAVE_DISABLED_UNTIL = time.time() + 600
+    if results:
+        return results
+
+    # HTML fallback when API key is missing or the API returns nothing.
     try:
         encoded = urllib.parse.quote(query)
-        url = f"https://api.search.brave.com/res/v1/web/search?q={encoded}&count=5"
+        url = f"https://search.brave.com/search?q={encoded}&source=web"
         req = urllib.request.Request(url, headers={
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip",
-            "X-Subscription-Token": brave_key,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         })
         resp = urllib.request.urlopen(req, timeout=10)
-        data = json.loads(resp.read())
-        for r in data.get("web", {}).get("results", []):
+        html = resp.read().decode("utf-8", errors="ignore")
+        anchors = re.findall(r'<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', html, re.DOTALL)
+        seen = set()
+        for href, inner in anchors:
+            href = html_mod.unescape(href.strip())
+            if not href.startswith("http"):
+                continue
+            if "brave.com" in href or "search.brave.com" in href:
+                continue
+            raw_text = html_mod.unescape(re.sub(r"<[^>]+>", "", inner).strip())
+            if "?" not in raw_text or len(raw_text) < 30:
+                continue
+            if href in seen:
+                continue
+            seen.add(href)
+            parts = [part.strip() for part in raw_text.split("?") if part.strip()]
+            title = parts[-1] if parts else raw_text
+            snippet = " ? ".join(parts[:-1]) if len(parts) > 1 else ""
             results.append({
-                "title": r.get("title", ""),
-                "url": r.get("url", ""),
-                "snippet": r.get("description", ""),
+                "title": title,
+                "url": href,
+                "snippet": snippet,
                 "engine": "brave",
             })
+            if len(results) >= 5:
+                break
     except Exception as e:
-        print(f"[WARN] Brave search failed: {e}")
+        print(f"[WARN] Brave HTML search failed: {e}")
+        if "429" in str(e):
+            BRAVE_DISABLED_UNTIL = time.time() + 600
     return results
 
 
@@ -312,13 +436,13 @@ def classify_reliability(url):
 
 def check_agreement(claim, snippet):
     """Check if a source agrees with, contradicts, or is neutral to a claim."""
-    claim_lower = claim.lower()
-    snippet_lower = snippet.lower()
+    claim_lower = normalize_text(claim)
+    snippet_lower = normalize_text(snippet)
 
-    contradict_words = ["không", "否认", "false", "fake", "misleading", "debunked",
+    contradict_words = ["khong", "false", "fake", "misleading", "debunked",
                         "hoax", "disputed", "refuted", "incorrect", "wrong"]
-    confirm_words = ["xác nhận", "confirm", "reported", "announced", "confirmed",
-                     "thực tế", "fact", "official", "according to"]
+    confirm_words = ["xac nhan", "confirm", "reported", "announced", "confirmed",
+                     "thuc te", "fact", "official", "according to"]
 
     has_contradict = any(w in snippet_lower for w in contradict_words)
     has_confirm = any(w in snippet_lower for w in confirm_words)
@@ -357,14 +481,19 @@ def process_factcheck(item):
                 seen_urls.add(sr["url"])
                 reliability = classify_reliability(sr["url"])
                 agrees = check_agreement(claim, sr["snippet"])
-                all_sources.append({
+                source = {
                     "title": sr["title"],
                     "url": sr["url"],
                     "snippet": sr["snippet"],
                     "agrees": agrees,
                     "reliability": reliability,
                     "engine": sr.get("engine", "web"),
-                })
+                }
+                source["match_hits"] = source_match_hits(query, source)
+                source["relevance"] = source_relevance(query, source)
+                if not should_keep_source(source):
+                    continue
+                all_sources.append(source)
                 claim_sources += 1
 
         # Google Fact Check Tools API (IFCN certified sources)
@@ -378,6 +507,8 @@ def process_factcheck(item):
                 if gr["url"] in seen_urls:
                     continue
                 seen_urls.add(gr["url"])
+                gr["match_hits"] = source_match_hits(query, gr)
+                gr["relevance"] = source_relevance(query, gr)
                 all_sources.append(gr)
                 claim_sources += 1
 
@@ -397,14 +528,19 @@ def process_factcheck(item):
                     seen_urls.add(sr["url"])
                     reliability = classify_reliability(sr["url"])
                     agrees = check_agreement(claim, sr["snippet"])
-                    all_sources.append({
+                    source = {
                         "title": sr["title"],
                         "url": sr["url"],
                         "snippet": sr["snippet"],
                         "agrees": agrees,
                         "reliability": reliability,
                         "engine": sr.get("engine", "web"),
-                    })
+                    }
+                    source["match_hits"] = source_match_hits(query, source)
+                    source["relevance"] = source_relevance(query, source)
+                    if not should_keep_source(source):
+                        continue
+                    all_sources.append(source)
                     claim_sources += 1
                 if claim_sources >= 6:
                     break
@@ -419,12 +555,17 @@ def process_factcheck(item):
 
     # Calculate score
     score = 35
-    confirming_high = sum(1 for s in all_sources if s["agrees"] is True and s["reliability"] == "high")
-    confirming_med = sum(1 for s in all_sources if s["agrees"] is True and s["reliability"] == "medium")
-    contradicting = sum(1 for s in all_sources if s["agrees"] is False)
-    unique_domains = {normalize_domain(s["url"]) for s in all_sources if s.get("url")}
-    unique_engines = {s.get("engine", "web") for s in all_sources}
-    google_confirm = any(s.get("engine") == "google_factcheck" and s["agrees"] is True for s in all_sources)
+    scoring_sources = [s for s in all_sources if s.get("match_hits", 0) >= 2 or s.get("engine") == "google_factcheck"]
+    if not scoring_sources:
+        scoring_sources = [s for s in all_sources if s.get("match_hits", 0) >= 1]
+    if not scoring_sources:
+        scoring_sources = all_sources
+    confirming_high = sum(1 for s in scoring_sources if s["agrees"] is True and s["reliability"] == "high")
+    confirming_med = sum(1 for s in scoring_sources if s["agrees"] is True and s["reliability"] == "medium")
+    contradicting = sum(1 for s in scoring_sources if s["agrees"] is False)
+    unique_domains = {normalize_domain(s["url"]) for s in scoring_sources if s.get("url")}
+    unique_engines = {s.get("engine", "web") for s in scoring_sources if s.get("engine")}
+    google_confirm = any(s.get("engine") == "google_factcheck" and s["agrees"] is True for s in scoring_sources)
 
     score += min(confirming_high * 9, 27)
     score += min(confirming_med * 4, 12)
@@ -432,10 +573,12 @@ def process_factcheck(item):
     score += min(max(len(unique_engines) - 1, 0), 3) * 4
     if google_confirm:
         score += 10
+    off_topic_sources = [s for s in scoring_sources if s.get("engine") in {"bing", "brave"} and s.get("relevance", 0.0) < 0.4]
+    score -= min(len(off_topic_sources) * 6, 18)
     score -= contradicting * 12
-    if any(s["agrees"] is False and s["reliability"] == "high" for s in all_sources):
+    if any(s["agrees"] is False and s["reliability"] == "high" for s in scoring_sources):
         score -= 8
-    if not all_sources:
+    if not scoring_sources:
         score = 10
     score = max(0, min(100, score))
 
@@ -450,25 +593,25 @@ def process_factcheck(item):
         verdict = "unverifiable"
 
     # Summary
-    confirming = sum(1 for s in all_sources if s["agrees"] is True)
-    neutral = sum(1 for s in all_sources if s["agrees"] is None)
+    confirming = sum(1 for s in scoring_sources if s["agrees"] is True)
+    neutral = sum(1 for s in scoring_sources if s["agrees"] is None)
     summary_parts = [
-        f"Tìm thấy {len(all_sources)} nguồn liên quan.",
+        f"Tìm thấy {len(scoring_sources)} nguồn liên quan.",
         f"{confirming} nguồn xác nhận, {contradicting} nguồn phản bác, {neutral} trung lập.",
     ]
-    if all_sources:
+    if scoring_sources:
         summary_parts.append(f"Cross-check: {len(unique_domains)} domain, {len(unique_engines)} engine.")
     if confirming_high > 0:
         summary_parts.append(f"{confirming_high} nguồn uy tín (Reuters, BBC, AP...) xác nhận.")
     if contradicting > 0:
         summary_parts.append(f"Có {contradicting} nguồn phản bác - cần thận trọng.")
-    if len(all_sources) == 0:
+    if len(scoring_sources) == 0:
         summary_parts.append("Không tìm thấy nguồn tin nào liên quan trên web.")
 
     return {
         "score": score,
         "verdict": verdict,
-        "sources": all_sources[:15],
+        "sources": scoring_sources[:15],
         "summary": " ".join(summary_parts),
         "key_claims": claims,
     }
