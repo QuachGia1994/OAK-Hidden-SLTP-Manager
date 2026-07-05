@@ -130,19 +130,9 @@ export default function RulesPage() {
                           >
                             <div className="min-h-20 px-3 py-3 sm:min-h-28 sm:px-4 sm:py-4">
                               {note ? (
-                                <>
-                                  <p
-                                    className="sm:hidden text-[11px] leading-5 text-zinc-700 dark:text-zinc-200 overflow-hidden"
-                                    style={{
-                                      display: "-webkit-box",
-                                      WebkitBoxOrient: "vertical",
-                                      WebkitLineClamp: 2,
-                                    }}
-                                  >
-                                    {note}
-                                  </p>
-                                  <p className="hidden sm:block text-sm leading-6 text-zinc-700 dark:text-zinc-200">{note}</p>
-                                </>
+                                <p className="text-[11px] sm:text-sm leading-5 sm:leading-6 text-zinc-700 dark:text-zinc-200 overflow-hidden [display:-webkit-box] [WebkitBoxOrient:vertical] [WebkitLineClamp:2] sm:[display:block] sm:[WebkitBoxOrient:initial] sm:[WebkitLineClamp:unset] sm:overflow-visible">
+                                  {note}
+                                </p>
                               ) : (
                                 <p className="text-[11px] sm:text-sm leading-5 sm:leading-6 text-zinc-400 dark:text-zinc-500">—</p>
                               )}
