@@ -51,4 +51,5 @@ export interface FactCheckSource {
   snippet: string;
   agrees: boolean | null;
   reliability: "high" | "medium" | "low";
+  engine?: string;
 }

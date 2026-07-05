@@ -34,9 +34,10 @@ Tài liệu chi tiết:
   - Các mốc Vàng đảo dùng signal sau đảo để tính entry time
   - H=16 dùng logic riêng theo ngày
 - D Direction:
-  - Thứ 6 nhập `BUY/SELL` để lưu D direction gốc
+  - Thứ 5 hoặc thứ 6 nhập `BUY/SELL` qua Telegram
+  - Nếu là thứ 6 thì đây là D direction gốc để thứ 2 đảo lại
   - Thứ 2 tự đảo lại D đã lưu
-  - T3-T5 không dùng D direction
+  - T3,T4 không dùng D direction
 - Missed-slot recovery khi bot khởi động muộn.
 
 ### Trading Dashboard

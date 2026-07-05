@@ -73,10 +73,10 @@ Trigger lúc `x:45`.
 
 ### D Direction
 
-- Thứ 6 lúc 6:00 VN nhập `BUY` hoặc `SELL` qua Telegram
-- Bot lưu đó là D direction gốc
-- Thứ 2 bot tự đảo lại D đã lưu
-- T3-T5 không áp dụng D direction
+- Thứ 5 hoặc thứ 6 lúc 6:00 VN nhập `BUY` hoặc `SELL` qua Telegram
+- Bot lưu D direction cho ngày hiện tại
+- Nếu giá trị được lưu vào thứ 6 thì thứ 2 bot tự đảo lại D đó
+- T3,T4 không áp dụng D direction
 - Nếu XAUUSD khớp D, bot sẽ báo lần cuối rồi ẩn XAU cho tới mốc cho phép tiếp theo
 
 ### Missed Slot

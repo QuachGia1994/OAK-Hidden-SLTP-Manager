@@ -49,6 +49,14 @@ GOOGLE_FC_RATINGS_TRUE = {"true", "mostly true", "correct", "accurate", "support
 GOOGLE_FC_RATINGS_FALSE = {"false", "mostly false", "pants on fire", "incorrect", "misleading", "unproven", "refuted", "fake", "hoax", "scam"}
 GOOGLE_FC_RATINGS_NEUTRAL = {"half true", "mixed", "partly true", "partly false", "outdated", "missing context", "unverified"}
 
+def normalize_domain(url):
+    """Normalize a URL into a compact domain key."""
+    try:
+        domain = urllib.parse.urlparse(url).netloc.lower()
+    except Exception:
+        return ""
+    return domain[4:] if domain.startswith("www.") else domain
+
 
 def redis_request(method, key, value=None):
     """Make a request to Upstash Redis REST API."""
@@ -123,32 +131,38 @@ def simplify_query(claim):
     return query if query else claim[:100]
 
 
-def search_web(query):
-    """Search web using Brave Search API (free tier) or DuckDuckGo fallback."""
+def search_brave(query):
+    """Search web using Brave Search API (free tier)."""
     results = []
     brave_key = os.environ.get("BRAVE_API_KEY", "")
-    if brave_key:
-        try:
-            encoded = urllib.parse.quote(query)
-            url = f"https://api.search.brave.com/res/v1/web/search?q={encoded}&count=5"
-            req = urllib.request.Request(url, headers={
-                "Accept": "application/json",
-                "Accept-Encoding": "gzip",
-                "X-Subscription-Token": brave_key,
+    if not brave_key:
+        return results
+    try:
+        encoded = urllib.parse.quote(query)
+        url = f"https://api.search.brave.com/res/v1/web/search?q={encoded}&count=5"
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/json",
+            "Accept-Encoding": "gzip",
+            "X-Subscription-Token": brave_key,
+        })
+        resp = urllib.request.urlopen(req, timeout=10)
+        data = json.loads(resp.read())
+        for r in data.get("web", {}).get("results", []):
+            results.append({
+                "title": r.get("title", ""),
+                "url": r.get("url", ""),
+                "snippet": r.get("description", ""),
+                "engine": "brave",
             })
-            resp = urllib.request.urlopen(req, timeout=10)
-            data = json.loads(resp.read())
-            for r in data.get("web", {}).get("results", []):
-                results.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("url", ""),
-                    "snippet": r.get("description", ""),
-                })
-            return results
-        except Exception as e:
-            print(f"[WARN] Brave search failed: {e}")
+    except Exception as e:
+        print(f"[WARN] Brave search failed: {e}")
+    return results
 
-    # DuckDuckGo HTML fallback (POST method)
+
+def search_duckduckgo(query):
+    """Search DuckDuckGo HTML fallback."""
+    results = []
+
     try:
         data = urllib.parse.urlencode({'q': query, 'b': ''}).encode()
         req = urllib.request.Request('https://html.duckduckgo.com/html/', data=data, headers={
@@ -172,9 +186,51 @@ def search_web(query):
                     "title": clean_title,
                     "url": clean_url,
                     "snippet": clean_snippet,
+                    "engine": "duckduckgo",
                 })
     except Exception as e:
         print(f"[WARN] DuckDuckGo search failed: {e}")
+    return results
+
+
+def search_bing(query):
+    """Search Bing HTML results as a lightweight third source."""
+    results = []
+    try:
+        encoded = urllib.parse.quote(query)
+        url = f"https://www.bing.com/search?q={encoded}&count=5&setlang=en-US"
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        })
+        resp = urllib.request.urlopen(req, timeout=10)
+        html = resp.read().decode("utf-8", errors="ignore")
+        blocks = re.findall(r'<li class="b_algo".*?</li>', html, re.DOTALL)
+        for block in blocks[:5]:
+            link_match = re.search(r'<h2><a href="([^"]+)"[^>]*>(.*?)</a>', block, re.DOTALL)
+            if not link_match:
+                continue
+            url = link_match.group(1).strip()
+            title = html_mod.unescape(re.sub(r"<[^>]+>", "", link_match.group(2)).strip())
+            snippet_match = re.search(r'<p>(.*?)</p>', block, re.DOTALL)
+            snippet = html_mod.unescape(re.sub(r"<[^>]+>", "", snippet_match.group(1)).strip()) if snippet_match else ""
+            if title and url:
+                results.append({
+                    "title": title,
+                    "url": url,
+                    "snippet": snippet,
+                    "engine": "bing",
+                })
+    except Exception as e:
+        print(f"[WARN] Bing search failed: {e}")
+    return results
+
+
+def search_web(query):
+    """Search web using multiple engines and merge the hits."""
+    results = []
+    results.extend(search_brave(query))
+    results.extend(search_duckduckgo(query))
+    results.extend(search_bing(query))
     return results
 
 
@@ -221,6 +277,7 @@ def search_google_factcheck(query, api_key):
                 "publisher": publisher_name,
                 "date": review.get("reviewDate", ""),
                 "rating": review.get("textualRating", "N/A"),
+                "engine": "google_factcheck",
             })
     except Exception as e:
         print(f"[WARN] Google Fact Check search failed: {e}")
@@ -271,21 +328,33 @@ def process_factcheck(item):
 
     for claim in claims:
         query = simplify_query(claim)
-        print(f"  [SEARCH] {query[:60]}...")
-        search_results = search_web(query)
-        for sr in search_results:
-            if sr["url"] in seen_urls:
-                continue
-            seen_urls.add(sr["url"])
-            reliability = classify_reliability(sr["url"])
-            agrees = check_agreement(claim, sr["snippet"])
-            all_sources.append({
-                "title": sr["title"],
-                "url": sr["url"],
-                "snippet": sr["snippet"],
-                "agrees": agrees,
-                "reliability": reliability,
-            })
+        query_variants = [query]
+        if claim != query:
+            query_variants.append(claim[:140])
+        if len(query.split()) >= 4:
+            query_variants.append(f"site:reuters.com {query}")
+            query_variants.append(f"site:apnews.com {query}")
+            query_variants.append(f"site:bbc.com {query}")
+
+        claim_sources = 0
+        for q in query_variants[:5]:
+            print(f"  [SEARCH] {q[:60]}...")
+            search_results = search_web(q)
+            for sr in search_results:
+                if sr["url"] in seen_urls:
+                    continue
+                seen_urls.add(sr["url"])
+                reliability = classify_reliability(sr["url"])
+                agrees = check_agreement(claim, sr["snippet"])
+                all_sources.append({
+                    "title": sr["title"],
+                    "url": sr["url"],
+                    "snippet": sr["snippet"],
+                    "agrees": agrees,
+                    "reliability": reliability,
+                    "engine": sr.get("engine", "web"),
+                })
+                claim_sources += 1
 
         # Google Fact Check Tools API (IFCN certified sources)
         # Use broader query for Google FC (it works better with general topics)
@@ -299,6 +368,35 @@ def process_factcheck(item):
                     continue
                 seen_urls.add(gr["url"])
                 all_sources.append(gr)
+                claim_sources += 1
+
+        # Second-pass authority search if the claim is still under-sourced.
+        if claim_sources < 4:
+            authority_queries = [
+                f"site:reuters.com {query}",
+                f"site:apnews.com {query}",
+                f"site:bbc.com {query}",
+                f"site:bloomberg.com {query}",
+            ]
+            for q in authority_queries:
+                print(f"  [AUTH] {q[:60]}...")
+                for sr in search_web(q):
+                    if sr["url"] in seen_urls:
+                        continue
+                    seen_urls.add(sr["url"])
+                    reliability = classify_reliability(sr["url"])
+                    agrees = check_agreement(claim, sr["snippet"])
+                    all_sources.append({
+                        "title": sr["title"],
+                        "url": sr["url"],
+                        "snippet": sr["snippet"],
+                        "agrees": agrees,
+                        "reliability": reliability,
+                        "engine": sr.get("engine", "web"),
+                    })
+                    claim_sources += 1
+                if claim_sources >= 6:
+                    break
 
     # Sort: confirming high-reliability first
     def sort_key(s):
@@ -309,14 +407,25 @@ def process_factcheck(item):
     all_sources.sort(key=sort_key)
 
     # Calculate score
-    score = 50
+    score = 35
     confirming_high = sum(1 for s in all_sources if s["agrees"] is True and s["reliability"] == "high")
     confirming_med = sum(1 for s in all_sources if s["agrees"] is True and s["reliability"] == "medium")
     contradicting = sum(1 for s in all_sources if s["agrees"] is False)
+    unique_domains = {normalize_domain(s["url"]) for s in all_sources if s.get("url")}
+    unique_engines = {s.get("engine", "web") for s in all_sources}
+    google_confirm = any(s.get("engine") == "google_factcheck" and s["agrees"] is True for s in all_sources)
 
-    score += min(confirming_high * 10, 30)
-    score += min(confirming_med * 5, 15)
-    score -= contradicting * 15
+    score += min(confirming_high * 9, 27)
+    score += min(confirming_med * 4, 12)
+    score += min(len(unique_domains), 8) * 2
+    score += min(max(len(unique_engines) - 1, 0), 3) * 4
+    if google_confirm:
+        score += 10
+    score -= contradicting * 12
+    if any(s["agrees"] is False and s["reliability"] == "high" for s in all_sources):
+        score -= 8
+    if not all_sources:
+        score = 10
     score = max(0, min(100, score))
 
     # Verdict
@@ -336,6 +445,8 @@ def process_factcheck(item):
         f"Tìm thấy {len(all_sources)} nguồn liên quan.",
         f"{confirming} nguồn xác nhận, {contradicting} nguồn phản bác, {neutral} trung lập.",
     ]
+    if all_sources:
+        summary_parts.append(f"Cross-check: {len(unique_domains)} domain, {len(unique_engines)} engine.")
     if confirming_high > 0:
         summary_parts.append(f"{confirming_high} nguồn uy tín (Reuters, BBC, AP...) xác nhận.")
     if contradicting > 0:

@@ -424,17 +424,19 @@ d_reminder_sent_date = None
 
 def send_d_direction_reminder():
     global d_reminder_sent_date
-    today = datetime.now(tz=timezone.utc).date()
+    broker_dt = get_broker_time()
+    today = broker_dt.date()
     if d_reminder_sent_date == today:
         return
+    weekday_label = "THỨ 5/THỨ 6" if broker_dt.weekday() in (3, 4) else "THỨ 6"
     msg = (
-        "📝 NHẬP DIRECTION CHO THỨ 6\n"
+        f"📝 NHẬP DIRECTION CHO {weekday_label}\n"
         "============================\n"
         "Gõ BUY hoặc SELL qua Telegram\n"
-        "để lưu D direction gốc.\n\n"
+        "để lưu D direction cho ngày hiện tại.\n\n"
         "Ví dụ: gõ 'BUY' hoặc 'SELL'\n"
         "============================\n"
-        "Thứ 2 bot sẽ tự đảo lại D\n"
+        "Nếu lưu vào thứ 6, thứ 2 bot sẽ tự đảo lại D\n"
         "để dùng cho nhóm GBP + XAUUSD."
     )
     send_telegram(msg)
@@ -458,8 +460,10 @@ def check_d_direction_input():
         if text in ("BUY", "SELL", "MUA", "BAN"):
             direction = "BUY" if text in ("BUY", "MUA") else "SELL"
             set_d_direction(direction)
-            send_telegram(f"✅ D direction thứ 6 đã lưu: {direction}")
-            print(f"  [D-DIRECTION] Saved Friday D to {direction}")
+            broker_weekday = get_broker_time().weekday()
+            day_label = "thứ 6" if broker_weekday == 4 else "thứ 5" if broker_weekday == 3 else "ngày hiện tại"
+            send_telegram(f"✅ D direction {day_label} đã lưu: {direction}")
+            print(f"  [D-DIRECTION] Saved {day_label} D to {direction}")
             # Save state to disk (read existing, update d_direction fields)
             state = {}
             if os.path.exists(_STATE_FILE) and os.path.getsize(_STATE_FILE) > 2:
@@ -788,7 +792,7 @@ def set_d_direction(direction):
     d_matched_hour = None
 
 def get_effective_d_direction(broker_dt):
-    """Thứ 6 lưu D direction gốc, thứ 2 dùng hướng đảo của giá trị đã lưu."""
+    """Thứ 5/6 có thể lưu D direction, nhưng chỉ giá trị thứ 6 mới được đảo để dùng cho thứ 2."""
     if d_direction is None:
         return None
     if d_direction_date is None:
@@ -805,7 +809,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     effective_d = get_effective_d_direction(broker_dt)
     result = {}
 
-    if d_direction_date != today and weekday not in (0, 4):
+    if d_direction_date != today and weekday not in (0, 3, 4):
         d_direction = None
     if signal not in ("BUY", "SELL"):
         return result
@@ -1411,7 +1415,7 @@ def main():
 
             check_d_direction_input()
 
-            if broker_dt.hour == 2 and broker_dt.minute == 0 and broker_dt.weekday() == 4:
+            if broker_dt.hour == 2 and broker_dt.minute == 0 and broker_dt.weekday() in (3, 4):
                 send_d_direction_reminder()
 
             if now_min == 45 and now_hour in TARGET_HOURS:

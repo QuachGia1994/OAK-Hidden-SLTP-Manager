@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [2, 3, 4, 6, 9, 11, 12, 14, 15, 16];
 
 export const SCHEDULE: { hour: number; note: string }[] = [
-  { hour: 2, note: "T6: lưu D direction gốc | T2: đảo D direction đã lưu | T3-5: GBPAUD, GBPJPY ngược" },
+  { hour: 2, note: "T5,T6: nhập D direction | T6: lưu D direction gốc | T2: đảo D direction đã lưu | T3-5: GBPAUD, GBPJPY ngược" },
   { hour: 3, note: "T2,T6: Chỉ Vàng | T3-5: GBPAUD, GBPJPY ngược" },
   { hour: 4, note: "T2,T6: Chỉ Vàng | T3-5: Chỉ GBPAUD ngược" },
   { hour: 6, note: "T2,T6: Chỉ Vàng (đảo) | T3-5: Vàng (đảo), GBPAUD ngược Vàng (đảo)" },
@@ -88,6 +88,7 @@ export const DAY_RULES: Record<number, string[]> = {
   ],
   4: [    // Thứ 5 (JS: getDay() = 4)
     "Slots: H=2,3,4,6,9,11,12,14,15",
+    "Có nhập D direction qua Telegram lúc 6:00 VN",
     "H=2,3: GBPAUD, GBPJPY ngược. H=4: GBPAUD ngược. H=6: Vàng (đảo), GBPAUD ngược Vàng (đảo)",
     "H=9: GBPAUD/GBPCAD/GBPUSD cùng, GBPJPY ngược (đảo)",
     "H=11: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng (đảo). H=12: Chỉ Vàng (đảo)",
@@ -96,6 +97,7 @@ export const DAY_RULES: Record<number, string[]> = {
   ],
   5: [    // Thứ 6 (JS: getDay() = 5) - lưu D direction gốc
     "Slots: H=2,16",
+    "Có nhập D direction qua Telegram lúc 6:00 VN",
     "H=2: Lưu D direction gốc",
     "H=3-15: Chỉ Vàng (không GBP)",
     "H=16: Nhóm GBP + Vàng cùng lúc 18:59",
