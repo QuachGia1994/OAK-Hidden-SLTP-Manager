@@ -16,6 +16,23 @@ function ScoreBar({ score }: { score: number }) {
   );
 }
 
+function ScoreRing({ score }: { score: number }) {
+  const clamped = Math.max(0, Math.min(100, score || 0));
+  const tone = clamped >= 80 ? "from-emerald-400 via-emerald-500 to-lime-400" : clamped >= 50 ? "from-amber-400 via-amber-500 to-orange-400" : "from-red-400 via-red-500 to-rose-400";
+  return (
+    <div className="relative h-32 w-32 sm:h-36 sm:w-36">
+      <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${tone} p-1 shadow-[0_20px_60px_-20px_rgba(16,185,129,0.45)]`}>
+        <div className="grid h-full w-full place-items-center rounded-full border border-white/10 bg-zinc-950/95 backdrop-blur-sm">
+          <div className="text-center">
+            <div className="font-mono text-4xl sm:text-5xl font-black tabular-nums text-white leading-none">{clamped}</div>
+            <div className="mt-1 text-[10px] sm:text-[11px] uppercase tracking-[0.35em] text-zinc-400">Score</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function VerdictBadge({ verdict }: { verdict: string }) {
   const styles: Record<string, string> = {
     credible: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20",
@@ -36,6 +53,51 @@ function VerdictBadge({ verdict }: { verdict: string }) {
   );
 }
 
+function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg shadow-black/10 backdrop-blur-sm">
+      <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">{label}</div>
+      <div className="mt-2 text-xl font-semibold text-white">{value}</div>
+      <div className="mt-1 text-xs leading-relaxed text-zinc-400">{detail}</div>
+    </div>
+  );
+}
+
+function SummaryPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 px-4 py-3 shadow-sm">
+      <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">{label}</div>
+      <div className="mt-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">{value}</div>
+    </div>
+  );
+}
+
+function StatStack({ sources }: { sources: Array<{ url: string; reliability: string; engine?: string; agrees: boolean | null }> }) {
+  const domains = new Set<string>();
+  const engines = new Set<string>();
+  let confirming = 0;
+  let opposing = 0;
+  let high = 0;
+
+  for (const source of sources) {
+    const domain = source.url.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, "");
+    domains.add(domain);
+    if (source.engine) engines.add(source.engine);
+    if (source.agrees === true) confirming += 1;
+    if (source.agrees === false) opposing += 1;
+    if (source.reliability === "high") high += 1;
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <SummaryPill label="Nguồn" value={`${sources.length} links`} />
+      <SummaryPill label="Domain" value={`${domains.size} sites`} />
+      <SummaryPill label="Engine" value={`${engines.size || 0} mix`} />
+      <SummaryPill label="Tín hiệu" value={`${confirming} / ${opposing} / ${high} high`} />
+    </div>
+  );
+}
+
 function SourceRow({ source }: { source: { title: string; url: string; snippet: string; agrees: boolean | null; reliability: string; publisher?: string; rating?: string; engine?: string } }) {
   const icon = source.agrees === true ? "✓" : source.agrees === false ? "✗" : "–";
   const iconColor = source.agrees === true ? "text-emerald-500" : source.agrees === false ? "text-red-500" : "text-zinc-400";
@@ -46,29 +108,32 @@ function SourceRow({ source }: { source: { title: string; url: string; snippet: 
     low: "text-zinc-400 dark:text-zinc-500",
   };
   return (
-    <div className="py-3 border-b border-zinc-100 dark:border-zinc-800/50 last:border-0">
-      <div className="flex items-start gap-3">
+    <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 shadow-sm overflow-hidden">
+      <div className="h-1.5 bg-gradient-to-r from-zinc-300 via-zinc-200 to-zinc-100 dark:from-zinc-700 dark:via-zinc-800 dark:to-zinc-900" />
+      <div className="flex items-start gap-3 p-4">
         <span className={`mt-0.5 font-mono text-sm font-bold ${iconColor}`}>{icon}</span>
         <div className="flex-1 min-w-0">
-          <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-zinc-900 dark:text-zinc-100 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate block">
+          <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm sm:text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate block">
             {source.title}
           </a>
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             {source.engine && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
                 {source.engine.replaceAll("_", " ")}
               </span>
             )}
             {isIFCN && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
                 IFCN Certified
               </span>
             )}
-            {source.rating && <span className={`text-[10px] font-semibold ${source.agrees === true ? "text-emerald-500" : source.agrees === false ? "text-red-500" : "text-zinc-400"}`}>{source.rating}</span>}
+            {source.rating && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${source.agrees === true ? "text-emerald-500 border-emerald-200/70 dark:border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10" : source.agrees === false ? "text-red-500 border-red-200/70 dark:border-red-500/20 bg-red-50/70 dark:bg-red-500/10" : "text-zinc-400 border-zinc-200/70 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-800/50"}`}>{source.rating}</span>}
+            <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${relColor[source.reliability] || ""} bg-white/60 dark:bg-zinc-900/80 border-current/20`}>
+              {source.reliability}
+            </span>
           </div>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 line-clamp-2 leading-relaxed">{source.snippet}</p>
+          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-2 line-clamp-2 leading-relaxed">{source.snippet}</p>
         </div>
-        <span className={`text-[10px] font-semibold uppercase tracking-wider ${relColor[source.reliability] || ""}`}>{source.reliability}</span>
       </div>
     </div>
   );
@@ -188,108 +253,233 @@ export default function FactCheckPage() {
   );
 
   const cleanClaims = result?.key_claims.filter((c) => !isGarbage(c)) || [];
+  const sourceStats = result ? {
+    domains: new Set(result.sources.map((s) => s.url.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, ""))).size,
+    engines: new Set(result.sources.map((s) => s.engine).filter(Boolean)).size,
+    confirming: result.sources.filter((s) => s.agrees === true).length,
+    opposing: result.sources.filter((s) => s.agrees === false).length,
+    high: result.sources.filter((s) => s.reliability === "high").length,
+  } : null;
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-12">
-      <div className="mb-8 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-6 shadow-sm">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-400 dark:text-zinc-500 mb-2">Fact check</div>
-        <h1 className="text-3xl sm:text-5xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight">Xác thực tin tức</h1>
-        <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-2 max-w-2xl">Paste text hoặc upload ảnh để phân tích tính xác thực.</p>
-      </div>
+    <div className="relative">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.10),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]" />
+      <div className="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10">
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="rounded-[30px] border border-white/10 bg-zinc-950/75 p-5 sm:p-7 shadow-[0_32px_100px_-30px_rgba(0,0,0,0.85)] backdrop-blur-md">
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500">Fact check studio</div>
+            <div className="mt-3 flex items-end justify-between gap-4">
+              <div>
+                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">Xác thực tin tức</h1>
+                <p className="mt-3 max-w-2xl text-sm sm:text-base text-zinc-400 leading-relaxed">Paste text hoặc upload ảnh để cross-check qua nhiều engine, ưu tiên nguồn uy tín và đẩy score lên theo độ đa dạng thực tế.</p>
+              </div>
+              <div className="hidden xl:block text-right">
+                <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">Realtime</div>
+                <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.7)]" />
+                  Multi-source analysis
+                </div>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <MetricCard label="Search stack" value="Brave + DDG + Bing" detail="Ba lớp search tạo cross-check rộng hơn, giảm lệch nguồn." />
+              <MetricCard label="Authority" value="Google Fact Check" detail="Khi có dữ liệu IFCN, score được đẩy theo tín hiệu uy tín." />
+              <MetricCard label="Signal mix" value="Domains + Engines" detail="Tính thêm độ đa dạng domain và engine để score lên tự nhiên hơn." />
+            </div>
+          </div>
 
-      <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 mb-8 shadow-sm">
-        <textarea
-          className="w-full h-32 sm:h-36 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 sm:px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 resize-none"
-          placeholder="Paste nội dung tin tức cần xác thực..."
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-
-        <div
-          className={`mt-3 border-2 border-dashed rounded-lg px-3 sm:px-4 py-3 text-center transition-colors ${
-            dragOver
-              ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10"
-              : "border-zinc-200 dark:border-zinc-700 hover:border-zinc-300 dark:hover:border-zinc-600"
-          }`}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-        >
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])} />
-          <button onClick={() => fileRef.current?.click()} className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
-            {ocrLoading ? (
-              <span className="flex items-center gap-2 justify-center">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                Đang nhận diện text...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2 justify-center">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                Upload ảnh
-              </span>
-            )}
-          </button>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">Kéo thả ảnh vào đây hoặc bấm để chọn</p>
+          <aside className="rounded-[30px] border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 p-5 sm:p-6 shadow-sm backdrop-blur-sm">
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">How it reads</div>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">1. Parse claims</div>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Tách câu, lọc claim bẩn, rồi rút ngắn query để search chính xác hơn.</p>
+              </div>
+              <div className="rounded-2xl border border-amber-500/15 bg-amber-500/8 px-4 py-3">
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">2. Cross-check web</div>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Mỗi claim được bắn qua nhiều engine và authority domain để bắt điểm chéo.</p>
+              </div>
+              <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 px-4 py-3">
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">3. Score with mix</div>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Nguồn uy tín, số domain, số engine và Google Fact Check cùng tạo verdict.</p>
+              </div>
+            </div>
+          </aside>
         </div>
 
-        <div className="flex justify-end mt-3">
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !text.trim()}
-            className="w-full sm:w-auto px-5 py-2 bg-zinc-900 hover:bg-zinc-800 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 text-white text-sm font-semibold rounded-lg transition-colors duration-150"
-          >
-            {loading ? "Đang xác thực..." : "Xác thực"}
-          </button>
+        <div className="grid gap-4 lg:grid-cols-[1.02fr_0.98fr]">
+          <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/78 dark:bg-zinc-950/55 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.32em] text-zinc-400 dark:text-zinc-500">Input</div>
+                <h2 className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Text hoặc ảnh</h2>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                OCR support
+              </div>
+            </div>
+
+            <textarea
+              className="mt-4 w-full h-36 sm:h-44 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/60 px-4 py-4 text-sm sm:text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none shadow-inner shadow-black/5"
+              placeholder="Paste nội dung tin tức cần xác thực..."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+
+            <div
+              className={`mt-4 rounded-2xl border-2 border-dashed px-4 py-4 text-center transition-colors ${
+                dragOver
+                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10"
+                  : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700"
+              }`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])} />
+              <button onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
+                {ocrLoading ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    Đang nhận diện text...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
+                    Upload ảnh
+                  </>
+                )}
+              </button>
+              <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">Kéo thả ảnh vào đây hoặc bấm để chọn</p>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.28em] text-zinc-400 dark:text-zinc-500">
+                <span className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2.5 py-1">multi source</span>
+                <span className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2.5 py-1">ifcn aware</span>
+                <span className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2.5 py-1">mix score</span>
+              </div>
+              <button
+                onClick={handleSubmit}
+                disabled={loading || !text.trim()}
+                className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20 transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700"
+              >
+                {loading ? "Đang xác thực..." : "Xác thực"}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-950/80 p-4 sm:p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)] backdrop-blur-sm">
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500">Live preview</div>
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-white">Score logic</div>
+                    <p className="mt-1 text-sm leading-relaxed text-zinc-400">Score không chỉ là số nguồn. Nó lấy thêm mix engine, mix domain và phản hồi Google Fact Check khi có.</p>
+                  </div>
+                  <div className="hidden sm:block rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
+                    `0 - 100`
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/10 via-zinc-900/40 to-red-500/10 p-4">
+                <div className="text-sm font-semibold text-white">When data arrives</div>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-400">Khung kết quả sẽ bật thành score ring, verdict badge và stack nguồn rõ cấp độ uy tín.</p>
+              </div>
+              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                <div className="text-sm font-semibold text-white">Best use case</div>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-400">Tin tức tài chính, headline nóng, claim có nhiều nguồn đối chiếu. Càng nhiều mix, score càng có ý nghĩa.</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
 
       {error && (
-        <div className="border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 rounded-xl px-5 py-4 mb-6">
+        <div className="mt-5 border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 rounded-2xl px-5 py-4 shadow-sm">
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         </div>
       )}
 
       {result && (
-        <div className="space-y-4">
-          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Kết quả</h2>
-              <VerdictBadge verdict={result.verdict} />
+        <div className="mt-6 space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
+            <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">Result</div>
+                  <h2 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">Kết quả xác thực</h2>
+                </div>
+                <VerdictBadge verdict={result.verdict} />
+              </div>
+              <div className="mt-5 flex flex-col sm:flex-row items-center gap-5">
+                <ScoreRing score={result.score} />
+                <div className="flex-1 space-y-3">
+                  <ScoreBar score={result.score} />
+                  <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 px-4 py-3">
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">Summary</div>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{result.summary}</p>
+                  </div>
+                </div>
+              </div>
             </div>
-            <ScoreBar score={result.score} />
+            <div className="space-y-4">
+              <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Cross-check stats</h2>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-1 text-xs text-zinc-500 dark:text-zinc-400">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    {sourceStats ? `${sourceStats.engines} engines / ${sourceStats.domains} domains` : "No sources"}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <StatStack sources={result.sources} />
+                </div>
+              </div>
+
+              {cleanClaims.length > 0 && (
+                <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Key claims</h2>
+                  <ul className="space-y-2">
+                    {cleanClaims.map((claim, i) => (
+                      <li key={i} className="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-3">
+                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-bold text-white dark:bg-zinc-100 dark:text-zinc-900">{i + 1}</span>
+                        <span className="leading-relaxed">{claim}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
 
-          {cleanClaims.length > 0 && (
-            <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Các tuyên bố chính</h2>
-              <ul className="space-y-2">
-                {cleanClaims.map((claim, i) => (
-                  <li key={i} className="text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-2">
-                    <span className="text-zinc-300 dark:text-zinc-600 mt-0.5 font-mono text-xs">{i + 1}.</span>
-                    {claim}
-                  </li>
-                ))}
-              </ul>
+          <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
+                Nguồn ({result.sources.length})
+              </h2>
+              {result.sources.length === 0 ? (
+                <p className="text-sm text-zinc-400 dark:text-zinc-500">Không tìm thấy nguồn liên quan</p>
+              ) : (
+                <div className="space-y-3">
+                  {result.sources.map((s) => <SourceRow key={s.url} source={s} />)}
+                </div>
+              )}
             </div>
-          )}
 
-          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
-              Nguồn ({result.sources.length})
-            </h2>
-            {result.sources.length === 0 ? (
-              <p className="text-sm text-zinc-400 dark:text-zinc-500">Không tìm thấy nguồn liên quan</p>
-            ) : (
-              result.sources.map((s) => <SourceRow key={s.url} source={s} />)
-            )}
-          </div>
-
-          <div className="border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/80 dark:bg-zinc-900/50 p-4 sm:p-5 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Phân tích</h2>
-            <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
+            <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-3">Phân tích</h2>
+              <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <SummaryPill label="Verdict" value={result.verdict} />
+                <SummaryPill label="Score" value={`${result.score}/100`} />
+              </div>
+            </div>
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
