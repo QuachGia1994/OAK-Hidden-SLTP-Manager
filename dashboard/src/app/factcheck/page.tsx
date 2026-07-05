@@ -3,6 +3,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { FactCheckResult } from "@/lib/types";
 
+const OCR_LANGS = "vie+eng";
+const OCR_MAX_WIDTH = 2200;
+const OCR_BOTTOM_CROP_RATIO = 0.58;
+
 function ScoreBar({ score }: { score: number }) {
   const clamped = Math.max(0, Math.min(100, score || 0));
   const color = clamped >= 80 ? "bg-emerald-500" : clamped >= 50 ? "bg-amber-500" : "bg-red-500";
@@ -153,6 +157,82 @@ function isGarbage(text: string): boolean {
   return false;
 }
 
+function cleanOcrText(text: string): string {
+  return text
+    .replace(/\u0000/g, "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+function scoreOcrText(text: string, confidence: number): number {
+  if (!text) return -1;
+  const normalized = cleanOcrText(text);
+  if (!normalized) return -1;
+  const alphaNum = normalized.replace(/[^a-zA-Z0-9À-ỹ]/g, "").length;
+  const printableRatio = alphaNum / Math.max(normalized.length, 1);
+  const wordCount = normalized.split(/\s+/).filter(Boolean).length;
+  let score = Number.isFinite(confidence) ? confidence : 0;
+  score += Math.min(normalized.length / 16, 18);
+  score += Math.min(wordCount, 18) * 1.2;
+  score += printableRatio * 14;
+  if (normalized.includes("\n")) score += 2;
+  if (printableRatio < 0.45) score -= 12;
+  return score;
+}
+
+async function blobFromCanvas(canvas: HTMLCanvasElement): Promise<Blob> {
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("Failed to prepare OCR image");
+  return blob;
+}
+
+async function loadImage(file: File): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Image load failed"));
+    });
+    return img;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropBottom?: boolean; threshold?: boolean }): Promise<Blob> {
+  const sourceY = options.cropBottom ? Math.floor(img.naturalHeight * (1 - OCR_BOTTOM_CROP_RATIO)) : 0;
+  const sourceH = options.cropBottom ? Math.max(1, Math.floor(img.naturalHeight * OCR_BOTTOM_CROP_RATIO)) : img.naturalHeight;
+  const scale = Math.min(2.6, Math.max(1.25, OCR_MAX_WIDTH / Math.max(img.naturalWidth, 1)));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.naturalWidth * scale);
+  canvas.height = Math.round(sourceH * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas unavailable");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.filter = options.threshold ? "grayscale(1) contrast(2.1) brightness(1.06)" : "grayscale(1) contrast(1.65) brightness(1.08)";
+  ctx.drawImage(img, 0, sourceY, img.naturalWidth, sourceH, 0, 0, canvas.width, canvas.height);
+  if (options.threshold) {
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    for (let i = 0; i < pixels.length; i += 4) {
+      const luminance = (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
+      const value = luminance > 165 ? 255 : 0;
+      pixels[i] = value;
+      pixels[i + 1] = value;
+      pixels[i + 2] = value;
+      pixels[i + 3] = 255;
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+  return blobFromCanvas(canvas);
+}
+
 export default function FactCheckPage() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -231,10 +311,30 @@ export default function FactCheckPage() {
     setResult(null);
     try {
       const Tesseract = await import("tesseract.js");
-      const { data } = await Tesseract.recognize(file, "eng+vie");
-      const cleaned = data.text.trim();
-      if (cleaned) {
-        setText(cleaned);
+      const img = await loadImage(file);
+      const variants = [
+        { label: "original", blob: file },
+        { label: "enhanced", blob: await renderOcrVariantFromImage(img, { threshold: false }) },
+        { label: "threshold", blob: await renderOcrVariantFromImage(img, { threshold: true }) },
+        { label: "bottom", blob: await renderOcrVariantFromImage(img, { cropBottom: true }) },
+        { label: "bottom-threshold", blob: await renderOcrVariantFromImage(img, { cropBottom: true, threshold: true }) },
+      ];
+
+      let bestText = "";
+      let bestScore = -1;
+      for (const variant of variants) {
+        const { data } = await Tesseract.recognize(variant.blob, OCR_LANGS);
+        const cleaned = cleanOcrText(data.text || "");
+        const confidence = typeof data.confidence === "number" ? data.confidence : 0;
+        const score = scoreOcrText(cleaned, confidence) + (variant.label.includes("bottom") ? 4 : 0);
+        if (cleaned && score > bestScore) {
+          bestScore = score;
+          bestText = cleaned;
+        }
+      }
+
+      if (bestText) {
+        setText(bestText);
       } else {
         setError("No text detected in image");
       }
@@ -318,7 +418,7 @@ export default function FactCheckPage() {
               </div>
               <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                OCR support
+                Multi-pass OCR
               </div>
             </div>
 
