@@ -55,10 +55,10 @@ function VerdictBadge({ verdict }: { verdict: string }) {
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-lg shadow-black/10 backdrop-blur-sm">
-      <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400">{label}</div>
-      <div className="mt-2 text-xl font-semibold text-white">{value}</div>
-      <div className="mt-1 text-xs leading-relaxed text-zinc-400">{detail}</div>
+    <div className="rounded-2xl border border-zinc-200/80 bg-white/80 px-4 py-3 shadow-lg shadow-black/5 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:shadow-black/10">
+      <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">{label}</div>
+      <div className="mt-2 text-xl font-semibold text-zinc-900 dark:text-white">{value}</div>
+      <div className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{detail}</div>
     </div>
   );
 }
@@ -266,15 +266,15 @@ export default function FactCheckPage() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.10),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]" />
       <div className="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10">
         <div className="mb-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[30px] border border-white/10 bg-zinc-950/75 p-5 sm:p-7 shadow-[0_32px_100px_-30px_rgba(0,0,0,0.85)] backdrop-blur-md">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500">Fact check studio</div>
+          <div className="rounded-[30px] border border-zinc-200/80 bg-white/85 p-5 sm:p-7 shadow-[0_32px_100px_-30px_rgba(0,0,0,0.22)] backdrop-blur-md dark:border-white/10 dark:bg-zinc-950/75 dark:shadow-[0_32px_100px_-30px_rgba(0,0,0,0.85)]">
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">Fact check studio</div>
             <div className="mt-3 flex items-end justify-between gap-4">
               <div>
-                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">Xác thực tin tức</h1>
-                <p className="mt-3 max-w-2xl text-sm sm:text-base text-zinc-400 leading-relaxed">Paste text hoặc upload ảnh để cross-check qua nhiều engine, ưu tiên nguồn uy tín và đẩy score lên theo độ đa dạng thực tế.</p>
+                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-zinc-900 dark:text-white">Xác thực tin tức</h1>
+                <p className="mt-3 max-w-2xl text-sm sm:text-base text-zinc-600 dark:text-zinc-400 leading-relaxed">Paste text hoặc upload ảnh để cross-check qua nhiều engine, ưu tiên nguồn uy tín và đẩy score lên theo độ đa dạng thực tế.</p>
               </div>
               <div className="hidden xl:block text-right">
-                <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500">Realtime</div>
+                <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-500">Realtime</div>
                 <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.7)]" />
                   Multi-source analysis
@@ -370,27 +370,27 @@ export default function FactCheckPage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-zinc-950/80 p-4 sm:p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)] backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500">Live preview</div>
+          <div className="rounded-[28px] border border-zinc-200/80 bg-white/85 p-4 sm:p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.18)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/80 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">Live preview</div>
             <div className="mt-4 grid gap-3">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
+              <div className="rounded-3xl border border-zinc-200/70 bg-zinc-50/90 p-4 dark:border-white/10 dark:bg-white/5">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-sm font-semibold text-white">Score logic</div>
-                    <p className="mt-1 text-sm leading-relaxed text-zinc-400">Score không chỉ là số nguồn. Nó lấy thêm mix engine, mix domain và phản hồi Google Fact Check khi có.</p>
+                    <div className="text-sm font-semibold text-zinc-900 dark:text-white">Score logic</div>
+                    <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Score không chỉ là số nguồn. Nó lấy thêm mix engine, mix domain và phản hồi Google Fact Check khi có.</p>
                   </div>
-                  <div className="hidden sm:block rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-zinc-300">
+                  <div className="hidden sm:block rounded-2xl border border-zinc-200/80 bg-white/70 px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
                     `0 - 100`
                   </div>
                 </div>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/10 via-zinc-900/40 to-red-500/10 p-4">
-                <div className="text-sm font-semibold text-white">When data arrives</div>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-400">Khung kết quả sẽ bật thành score ring, verdict badge và stack nguồn rõ cấp độ uy tín.</p>
+              <div className="rounded-3xl border border-zinc-200/70 bg-gradient-to-br from-emerald-50 via-white to-rose-50 p-4 dark:border-white/10 dark:from-emerald-500/10 dark:via-zinc-900/40 dark:to-red-500/10">
+                <div className="text-sm font-semibold text-zinc-900 dark:text-white">When data arrives</div>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Khung kết quả sẽ bật thành score ring, verdict badge và stack nguồn rõ cấp độ uy tín.</p>
               </div>
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-4">
-                <div className="text-sm font-semibold text-white">Best use case</div>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-400">Tin tức tài chính, headline nóng, claim có nhiều nguồn đối chiếu. Càng nhiều mix, score càng có ý nghĩa.</p>
+              <div className="rounded-3xl border border-zinc-200/70 bg-zinc-50/90 p-4 dark:border-white/10 dark:bg-white/5">
+                <div className="text-sm font-semibold text-zinc-900 dark:text-white">Best use case</div>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Tin tức tài chính, headline nóng, claim có nhiều nguồn đối chiếu. Càng nhiều mix, score càng có ý nghĩa.</p>
               </div>
             </div>
           </div>

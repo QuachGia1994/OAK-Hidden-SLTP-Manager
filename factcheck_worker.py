@@ -8,6 +8,7 @@ import sys
 import json
 import time
 import re
+import base64
 import urllib.request
 import urllib.parse
 import html as html_mod
@@ -206,12 +207,22 @@ def search_bing(query):
         html = resp.read().decode("utf-8", errors="ignore")
         blocks = re.findall(r'<li class="b_algo".*?</li>', html, re.DOTALL)
         for block in blocks[:5]:
-            link_match = re.search(r'<h2><a href="([^"]+)"[^>]*>(.*?)</a>', block, re.DOTALL)
+            link_match = re.search(r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', block, re.DOTALL)
             if not link_match:
                 continue
-            url = link_match.group(1).strip()
+            url = html_mod.unescape(link_match.group(1).strip())
+            if "bing.com/ck/a" in url:
+                parsed = urllib.parse.urlparse(url)
+                query_map = urllib.parse.parse_qs(parsed.query)
+                wrapped = query_map.get("u", [""])[0]
+                if wrapped.startswith("a1"):
+                    wrapped = wrapped[2:]
+                try:
+                    url = base64.urlsafe_b64decode(wrapped + "==").decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    url = wrapped
             title = html_mod.unescape(re.sub(r"<[^>]+>", "", link_match.group(2)).strip())
-            snippet_match = re.search(r'<p>(.*?)</p>', block, re.DOTALL)
+            snippet_match = re.search(r'<div class="b_caption">.*?<p[^>]*>(.*?)</p>', block, re.DOTALL)
             snippet = html_mod.unescape(re.sub(r"<[^>]+>", "", snippet_match.group(1)).strip()) if snippet_match else ""
             if title and url:
                 results.append({
