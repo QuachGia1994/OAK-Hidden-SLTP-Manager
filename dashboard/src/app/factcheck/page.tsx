@@ -465,7 +465,7 @@ export default function FactCheckPage() {
               <button
                 onClick={handleSubmit}
                 disabled={loading || !text.trim()}
-                className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-zinc-950 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20 transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-zinc-700"
+                className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 hover:shadow-emerald-500/30 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:bg-emerald-400 dark:text-zinc-950 dark:hover:bg-emerald-300 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
               >
                 {loading ? "Đang xác thực..." : "Xác thực"}
               </button>
@@ -570,9 +570,9 @@ export default function FactCheckPage() {
               )}
             </div>
 
-            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-3">Phân tích</h2>
-              <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
+            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-gradient-to-br dark:from-zinc-950 dark:to-zinc-900 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Phân tích</h2>
+              <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <SummaryPill label="Verdict" value={result.verdict} />
                 <SummaryPill label="Score" value={`${result.score}/100`} />
