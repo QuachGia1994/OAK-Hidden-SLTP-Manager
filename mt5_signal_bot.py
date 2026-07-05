@@ -577,12 +577,29 @@ def candle_info_line(candle, label):
 def _default_entry_time(H, matches_h2):
     return f"{H}:49" if matches_h2 else f"{H+1}:36"
 
+def get_effective_xauusd_signal(signal, H=None, weekday=None, h15_signal=None):
+    """Signal thực tế của XAUUSD sau các rule đảo ở từng slot."""
+    if signal not in ("BUY", "SELL"):
+        return signal
+
+    xau_signal = signal
+    wd = weekday if weekday is not None else datetime.now().weekday()
+
+    if H in (6, 9, 11, 12):
+        xau_signal = "SELL" if xau_signal == "BUY" else "BUY"
+
+    if H == 16 and wd in (1, 2) and h15_signal and signal == h15_signal:
+        xau_signal = "SELL" if xau_signal == "BUY" else "BUY"
+
+    return xau_signal
+
 def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, weekday=None, h15_signal=None):
     """Calculate entry time. Returns string for normal slots, dict {pair: time|None} for H=16."""
     if signal not in ("BUY", "SELL") or m30_dir not in ("TANG", "GIAM"):
         return None
 
-    matches_h2 = (h2_signal is not None and signal == h2_signal)
+    xau_signal = get_effective_xauusd_signal(signal, H=H, weekday=weekday, h15_signal=h15_signal)
+    matches_h2 = (h2_signal is not None and xau_signal == h2_signal)
 
     # H=16: per-pair entry times
     if H == 16:
@@ -971,9 +988,10 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
 
     # Tue/Wed H=16: compare with H=15 — flip XAUUSD if same, GBP stays original signal
     if H == 16 and broker_dt.weekday() in (1, 2):
+        effective_xau = get_effective_xauusd_signal(sig, H=H, weekday=broker_dt.weekday(), h15_signal=h15_signal)
         if h15_signal and sig == h15_signal:
             orig_sig = sig
-            sig = "SELL" if sig == "BUY" else "BUY"
+            sig = effective_xau
             icon, emoji = get_signal_icon(sig)
             # XAUUSD flips, GBP keeps original signal direction
             pair_dirs["XAUUSD"] = sig
@@ -1104,7 +1122,7 @@ def backfill_missing_days():
                 # Tue/Wed H=16: flip XAUUSD if same as H=15, GBP stays original signal
                 if H == 16 and target_date.weekday() in (1, 2) and h15_sig and sig == h15_sig:
                     orig_sig = sig
-                    sig = "SELL" if sig == "BUY" else "BUY"
+                    sig = get_effective_xauusd_signal(sig, H=H, weekday=target_date.weekday(), h15_signal=h15_sig)
                     pair_dirs["XAUUSD"] = sig
                     for p in GBP_PAIRS:
                         if p in pair_dirs:
@@ -1294,7 +1312,7 @@ def main():
             # Tue/Wed H=16: flip XAUUSD if same as H=15, GBP stays original signal
             if h == 16 and wd in (1, 2) and "XAUUSD" in pair_dirs:
                 if h15_sig and sig == h15_sig:
-                    pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
+                    pair_dirs["XAUUSD"] = get_effective_xauusd_signal(sig, H=h, weekday=wd, h15_signal=h15_sig)
                     # GBP keeps original signal direction (not flipped)
                     for p in GBP_PAIRS:
                         if p in pair_dirs:
@@ -1450,7 +1468,8 @@ def main():
 
                 # Log for website
                 entry_time = calc_entry_time(sig, result.get("m30_dir"), now_hour, h2_signal=h2_sig,
-                                             orig_signal=result.get("orig_signal"), weekday=broker_dt.weekday())
+                                             orig_signal=result.get("orig_signal"), weekday=broker_dt.weekday(),
+                                             h15_signal=h15_sig)
                 # Nếu pair_dirs rỗng → XAUUSD bị ẩn do match D1, vẫn log với note
                 effective_d = get_effective_d_direction(broker_dt)
                 if not pair_dirs:
