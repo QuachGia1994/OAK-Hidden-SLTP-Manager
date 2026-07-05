@@ -192,7 +192,7 @@ def show_ghost_consent(parent, on_accept):
 
 # --- CONSTANTS & CONFIG ---
 APP_NAME = "OAK MANAGER"
-VERSION = "v3.12.0"
+VERSION = "v3.13.0"
 
 # Fix for Taskbar Icon (Must be before any GUI creation)
 try:

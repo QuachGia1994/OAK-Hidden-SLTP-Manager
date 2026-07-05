@@ -1,5 +1,27 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.13.0] - 2026-07-05
+*VIP persistence + Friday D carryover + H=6/H=16 rule alignment + flipped-gold entry timing.*
+
+### 🔐 Dashboard Access
+- **VIP secret link persist**: `middleware.ts` bắt `?vip=TOKEN` phía server và set `vip_access` cookie, nên reload/chuyển tab không bị rớt về free user.
+- **Rules page notes**: Đồng bộ lại ghi chú schedule H=6 và rule theo ngày để khớp bot.
+
+### 🔄 D Direction Flow
+- **Friday source of truth**: Bot chỉ nhắc nhập D direction vào thứ 6, rồi lưu trạng thái gốc vào disk.
+- **Monday auto-invert**: Thứ 2 tự lấy D direction thứ 6 và đảo lại trước khi áp vào nhóm GBP.
+- **Docs clarified**: README/GUIDE cập nhật lại flow nhắc 6:00 VN và cách dùng D direction mới.
+
+### 🎯 Signal Logic
+- **H=6 clarified**: T2,T6 chỉ Vàng (đảo); T3-T5 là Vàng (đảo), rồi GBPAUD ngược theo chính Vàng đã đảo.
+- **Tuesday H=16 aligned**: Logic T3 H=16 giờ giống T4, đều so với H=15 để quyết định đảo signal hay dời entry sang 20:59.
+- **Flipped gold entry time**: Các mốc XAUUSD bị đảo giờ dùng signal sau đảo để tính `H:49` hay `H+1:36`.
+- **H=16 guard kept separate**: So sánh H=15 cho T3/T4 H=16 vẫn tách riêng, không bị helper effective XAUUSD can thiệp.
+
+### 📦 Backup & Release Prep
+- **Backup dashboard fully**: `create_backup_final.py` giờ gom toàn bộ source/config/assets của `dashboard/`, gồm `middleware.ts`, `.mjs`, `.d.ts`, `favicon.ico`, `public/*.svg`.
+- **Version bump**: Đồng bộ version lên `v3.13.0` để backup zip, docs và GitHub release khớp nhau.
+
 ## [v3.12.0] - 2026-07-01
 *Fact-check Tab + VIP Access Control + Security Hardening + UI Bug Sweep.*
 

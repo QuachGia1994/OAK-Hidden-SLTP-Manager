@@ -10,7 +10,7 @@ if sys.stdout.encoding != 'utf-8':
 def create_backup():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    version = "v3.1.0"
+    version = "v3.13.0"
     try:
         with open("OAK_Hidden_SLTP_Manager.py", "r", encoding="utf-8") as f:
             content = f.read()
@@ -48,10 +48,11 @@ def create_backup():
 
     dashboard_files = []
     for root, dirs, files in os.walk("dashboard"):
-        dirs[:] = [d for d in dirs if d not in ("node_modules", ".next", ".git")]
+        dirs[:] = [d for d in dirs if d not in ("node_modules", ".next", ".git", ".vercel")]
         for f in files:
-            if f.endswith((".ts", ".tsx", ".js", ".json", ".md", ".css")):
-                dashboard_files.append(os.path.join(root, f))
+            if f.startswith(".env"):
+                continue
+            dashboard_files.append(os.path.join(root, f))
 
     doc_patterns = [
         "*README*", "*readme*", "*GUIDE*", "*guide*",

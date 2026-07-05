@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.12.0)
+# OAK Hidden SLTP Manager (v3.13.0)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
 
 Hệ thống quản lý lệnh MT5 qua Telegram tập trung vào 3 mục tiêu:
@@ -54,9 +54,10 @@ Tài liệu chi tiết:
   - H=16 (T5-6): Nhóm GBP + Vàng cùng lúc 18:59.
 - **Entry Time Logic**:
   - Match H=2 → H:49. Không match → H+1:36.
+  - Các mốc Vàng (đảo) dùng signal sau khi đảo để tính entry time.
   - H=16: per-pair dict — XAUUSD+GBP group = 18:59 (T2,T5,T6).
   - Tuesday/Wednesday H=16: so signal với H=15 — cùng chiều đảo + normal entry, ngược giữ orig + 20:59.
-- **D Direction**: User gõ BUY/SELL qua Telegram để set hướng Daily. XAUUSD dừng báo khi signal Kết luận cùng D, trừ H=16. Nhắc lúc 6:00 VN.
+- **D Direction**: Thứ 6 user gõ BUY/SELL qua Telegram để lưu D direction gốc. Thứ 2 bot tự đảo D đã lưu để dùng lại. XAUUSD dừng báo khi signal Kết luận cùng D, trừ H=16. Nhắc lúc 6:00 VN.
 - **Đồng bộ giờ UTC**: Miễn nhiễm DST từ `tick.time` MT5.
 - **Trigger x:45**: Gửi tín hiệu lúc x:45 mỗi giờ mục tiêu [2-16].
 - **Weekends Off**: Tự động skip T7/CN.
@@ -78,6 +79,7 @@ Tài liệu chi tiết:
 - **Auto push**: Bot tự push data lên dashboard mỗi khi có signal mới + khi khởi động.
 - **Xác thực tin tức**: Paste text hoặc upload ảnh → AI phân tích credibility (OCR miễn phí).
 - **VIP Access Control**: Free user thấy 🔒 VIP Only, VIP thấy đầy đủ signal.
+- **VIP Persist**: Link `/?vip=TOKEN` được lưu cookie server-side nên reload/chuyển tab không rớt về free user.
 - **Copyright**: © 2026 QUACH KIM PHONG.
 
 ## Cấu trúc file

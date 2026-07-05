@@ -1,4 +1,4 @@
-# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.12.0)
+# 📖 CẨM NANG SỬ DỤNG OAK MANAGER (v3.13.0)
 
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER.
 
@@ -97,16 +97,18 @@ Bot giao dịch 5 cặp: **GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD**.
 
 ### Entry Time Logic
 - Match H=2 → `H:49`. Không match → `H+1:36`.
+- Các mốc Vàng (đảo) dùng signal sau đảo để chọn `H:49` hay `H+1:36`.
 - H=16 T2,T5,T6: 18:59 (Vàng + GBP).
 - H=16 T3,T4: so với H=15. Cùng H=15 → đảo signal + 16:49/17:36. Ngược H=15 → giữ signal + 20:59.
 
 ### D Direction (Mới)
 User set hướng Daily (D) qua Telegram để kiểm soát XAUUSD:
 
-1. **Nhập D direction**: Gõ `BUY` hoặc `SELL` qua Telegram (T2, T5, T6 lúc 6h VN).
-2. **Khi signal cùng D**: XAUUSD báo lần cuối, sau đó dừng cho đến H=16.
-3. **Khi signal khác D**: XAUUSD báo bình thường.
-4. **T3, T4**: Không áp dụng D direction, báo XAUUSD bình thường.
+1. **Thứ 6 nhập D direction**: Gõ `BUY` hoặc `SELL` qua Telegram lúc 6h VN để lưu D direction gốc.
+2. **Thứ 2 tự đảo D đã lưu**: Bot lấy D direction thứ 6 và đảo lại để dùng cho nhóm GBP + XAUUSD.
+3. **Khi signal cùng D**: XAUUSD báo lần cuối, sau đó dừng cho đến H=16.
+4. **Khi signal khác D**: XAUUSD báo bình thường.
+5. **T3, T4, T5**: Không áp dụng D direction, báo XAUUSD bình thường.
 
 ### Nhắc ngày đặc biệt
 Bot tự động nhắc khi khởi động vào các ngày quan trọng:
@@ -173,7 +175,7 @@ https://oak-hidden-sltp-manager-dun.vercel.app
 
 ### VIP Access Control
 - **Free user**: Thấy signal bị khóa (🔒 VIP Only), không thấy BUY/SELL, entry time.
-- **VIP user**: Visit link `/?vip=TOKEN` → cookie lưu 7 ngày → xem đầy đủ signal.
+- **VIP user**: Visit link `/?vip=TOKEN` → cookie lưu 7 ngày ở middleware server-side → reload/chuyển tab vẫn xem đầy đủ signal.
 - **Logout**: Truy cập `/api/vip-logout` để thoát VIP, quay lại free user.
 
 ### Xác thực tin tức
