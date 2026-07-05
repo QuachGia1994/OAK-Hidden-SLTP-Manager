@@ -108,7 +108,7 @@ function SourceRow({ source }: { source: { title: string; url: string; snippet: 
     low: "text-zinc-400 dark:text-zinc-500",
   };
   return (
-    <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 shadow-sm overflow-hidden">
+    <div className="w-full min-w-0 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 shadow-sm overflow-hidden">
       <div className="h-1.5 bg-gradient-to-r from-zinc-300 via-zinc-200 to-zinc-100 dark:from-zinc-700 dark:via-zinc-800 dark:to-zinc-900" />
       <div className="flex items-start gap-3 p-4">
         <span className={`mt-0.5 font-mono text-sm font-bold ${iconColor}`}>{icon}</span>
@@ -116,7 +116,7 @@ function SourceRow({ source }: { source: { title: string; url: string; snippet: 
           <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm sm:text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate block">
             {source.title}
           </a>
-          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap min-w-0">
             {source.engine && (
               <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
                 {source.engine.replaceAll("_", " ")}
@@ -132,7 +132,7 @@ function SourceRow({ source }: { source: { title: string; url: string; snippet: 
               {source.reliability}
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-2 line-clamp-2 leading-relaxed">{source.snippet}</p>
+          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">{source.snippet}</p>
         </div>
       </div>
     </div>
@@ -405,7 +405,7 @@ export default function FactCheckPage() {
       {result && (
         <div className="mt-6 space-y-4">
           <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
-            <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">Result</div>
@@ -424,8 +424,8 @@ export default function FactCheckPage() {
                 </div>
               </div>
             </div>
-            <div className="space-y-4">
-              <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+            <div className="min-w-0 space-y-4">
+              <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Cross-check stats</h2>
                   <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-1 text-xs text-zinc-500 dark:text-zinc-400">
@@ -455,20 +455,20 @@ export default function FactCheckPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
                 Nguồn ({result.sources.length})
               </h2>
               {result.sources.length === 0 ? (
                 <p className="text-sm text-zinc-400 dark:text-zinc-500">Không tìm thấy nguồn liên quan</p>
               ) : (
-                <div className="space-y-3">
+                <div className="min-w-0 space-y-3">
                   {result.sources.map((s) => <SourceRow key={s.url} source={s} />)}
                 </div>
               )}
             </div>
 
-            <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
+            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-gradient-to-br from-zinc-950 to-zinc-900 p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 mb-3">Phân tích</h2>
               <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
