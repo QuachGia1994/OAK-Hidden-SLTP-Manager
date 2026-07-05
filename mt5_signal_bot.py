@@ -594,9 +594,7 @@ def calc_entry_time(signal, m30_dir, H=None, h2_signal=None, orig_signal=None, w
 
         if wd in (0, 3, 4):  # Mon(T2), Thu(T5), Fri(T6): XAUUSD 18:59
             times["XAUUSD"] = "18:59"
-        elif wd == 1:  # Tue(T3): normal entry
-            times["XAUUSD"] = _default_entry_time(H, matches_h2)
-        elif wd == 2:  # Wed(T4): compare with H=15
+        elif wd in (1, 2):  # Tue(T3), Wed(T4): compare with H=15
             if h15_signal and signal == h15_signal:
                 times["XAUUSD"] = _default_entry_time(H, matches_h2)
             else:
@@ -971,8 +969,8 @@ def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
 
     pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
 
-    # Wednesday H=16: compare with H=15 — flip XAUUSD if same, GBP stays original signal
-    if H == 16 and broker_dt.weekday() == 2:
+    # Tue/Wed H=16: compare with H=15 — flip XAUUSD if same, GBP stays original signal
+    if H == 16 and broker_dt.weekday() in (1, 2):
         if h15_signal and sig == h15_signal:
             orig_sig = sig
             sig = "SELL" if sig == "BUY" else "BUY"
@@ -1103,8 +1101,8 @@ def backfill_missing_days():
                 if not pair_dirs:
                     continue
 
-                # Wednesday H=16: flip XAUUSD if same as H=15, GBP stays original signal
-                if H == 16 and target_date.weekday() == 2 and h15_sig and sig == h15_sig:
+                # Tue/Wed H=16: flip XAUUSD if same as H=15, GBP stays original signal
+                if H == 16 and target_date.weekday() in (1, 2) and h15_sig and sig == h15_sig:
                     orig_sig = sig
                     sig = "SELL" if sig == "BUY" else "BUY"
                     pair_dirs["XAUUSD"] = sig
@@ -1254,7 +1252,7 @@ def main():
                 if s2 in ("BUY", "SELL"):
                     day_signals[(broker_dt.date(), 2)] = {"signal": s2, "m30_dir": r2.get("m30_dir")}
                     _save_state(day_signals, sent_today)
-        # Track H=15 signal for Wednesday H=16 XAUUSD logic
+        # Track H=15 signal for Tuesday/Wednesday H=16 XAUUSD logic
         if 15 in passed:
             key_h15 = (broker_dt.date(), 15)
             if key_h15 not in sent_today:
@@ -1293,8 +1291,8 @@ def main():
                 _save_state(day_signals, sent_today)
                 print(f"  [SKIP] H={h} - bỏ trống theo rule")
                 continue
-            # Wednesday H=16: flip XAUUSD if same as H=15, GBP stays original signal
-            if h == 16 and wd == 2 and "XAUUSD" in pair_dirs:
+            # Tue/Wed H=16: flip XAUUSD if same as H=15, GBP stays original signal
+            if h == 16 and wd in (1, 2) and "XAUUSD" in pair_dirs:
                 if h15_sig and sig == h15_sig:
                     pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
                     # GBP keeps original signal direction (not flipped)
@@ -1428,7 +1426,7 @@ def main():
                     day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
                     _save_state(day_signals, sent_today)
 
-                # Track H=15 signal for Wednesday H=16 XAUUSD logic
+                # Track H=15 signal for Tuesday/Wednesday H=16 XAUUSD logic
                 if now_hour == 15 and sig in ("BUY", "SELL"):
                     day_signals[(broker_dt.date(), 15)] = {"signal": sig}
                     _save_state(day_signals, sent_today)

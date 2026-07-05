@@ -54,8 +54,8 @@ Tài liệu chi tiết:
   - H=16 (T5-6): Nhóm GBP + Vàng cùng lúc 18:59.
 - **Entry Time Logic**:
   - Match H=2 → H:49. Không match → H+1:36.
-  - H=16: per-pair dict — XAUUSD+GBP group = 18:59 (T2,T5,T6). T3 normal, T4 compare H=15.
-  - Wednesday H=16: so signal với H=15 — cùng chiều đảo + normal entry, ngược giữ orig + 20:59.
+  - H=16: per-pair dict — XAUUSD+GBP group = 18:59 (T2,T5,T6).
+  - Tuesday/Wednesday H=16: so signal với H=15 — cùng chiều đảo + normal entry, ngược giữ orig + 20:59.
 - **D Direction**: User gõ BUY/SELL qua Telegram để set hướng Daily. XAUUSD dừng báo khi signal Kết luận cùng D, trừ H=16. Nhắc lúc 6:00 VN.
 - **Đồng bộ giờ UTC**: Miễn nhiễm DST từ `tick.time` MT5.
 - **Trigger x:45**: Gửi tín hiệu lúc x:45 mỗi giờ mục tiêu [2-16].

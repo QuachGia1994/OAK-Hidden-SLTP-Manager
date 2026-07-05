@@ -74,7 +74,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=2,3: GBPAUD, GBPJPY ngược. H=4: GBPAUD ngược. H=6: Vàng (đảo), GBPAUD ngược Vàng (đảo)",
     "H=9,11: Nhóm GBP cùng Vàng (đảo). H=12: Chỉ Vàng (đảo)",
     "H=14,15: GBPCAD, GBPUSD, GBPJPY cùng Vàng",
-    "H=16: Vàng 16:49/17:36, Nhóm GBP 18:59 — cùng chiều",
+    "H=16: So H=15 chỉ Vàng (cùng→đảo+16:49/17:36, ngược+20:59). Nhóm GBP 18:59, lấy signal H=16",
   ],
   3: [    // Thứ 4 (JS: getDay() = 3)
     "Slots: H=2,3,4,6,9,11,12,14,15,16",
