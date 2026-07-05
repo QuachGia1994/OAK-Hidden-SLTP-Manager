@@ -45,7 +45,8 @@ Tài liệu chi tiết:
 - **5 cặp**: GBPAUD, GBPCAD, GBPUSD, GBPJPY, XAUUSD.
 - **H-value Rules** (T2-T6):
   - H=2,3: GBPAUD, GBPJPY ngược Vàng. GBPUSD, GBPCAD nghỉ.
-  - H=4,6: GBPAUD ngược Vàng.
+  - H=4: GBPAUD ngược Vàng.
+  - H=6: Vàng đảo, rồi GBPAUD ngược theo Vàng đó.
   - H=9: Nhóm GBP cùng Vàng (đảo). T5 riêng: GBPAUD/GBPCAD/GBPUSD ngược, GBPJPY cùng.
   - H=11: Nhóm GBP cùng Vàng (đảo).
   - H=12,14: Chỉ Vàng (đảo).
