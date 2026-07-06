@@ -2,6 +2,10 @@ import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, GBP_PAIR
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
+function isD1MatchNote(note: string | null | undefined) {
+  return !!note && note.includes("tick match D1");
+}
+
 function getD1MatchNote(direction: Signal["d_direction"]) {
   if (direction === "BUY") return "XAUUSD: Mua BUY (tick match D1)";
   if (direction === "SELL") return "XAUUSD: Bán SELL (tick match D1)";
@@ -12,7 +16,8 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
-  const hourNote = showD1Match ? getD1MatchNote(signal.d_direction) : (signal.hour_note || getHourNote(signal.hour, weekday));
+  const fallbackHourNote = isD1MatchNote(signal.hour_note) ? getHourNote(signal.hour, weekday) : signal.hour_note;
+  const hourNote = showD1Match ? getD1MatchNote(signal.d_direction) : (fallbackHourNote || getHourNote(signal.hour, weekday));
 
   return (
     <div className="group border border-zinc-200/80 dark:border-zinc-800 rounded-xl bg-white/90 dark:bg-zinc-900/55 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">

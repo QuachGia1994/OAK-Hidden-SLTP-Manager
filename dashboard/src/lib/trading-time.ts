@@ -50,3 +50,7 @@ export function getFirstD1MatchHour(
 
   return matched?.hour ?? null;
 }
+
+export function isD1ActiveWeekday(dayOfWeek: number) {
+  return dayOfWeek === 1 || dayOfWeek === 4 || dayOfWeek === 5;
+}

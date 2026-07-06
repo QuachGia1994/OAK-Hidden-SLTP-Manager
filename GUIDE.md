@@ -53,7 +53,7 @@ Trigger lệnh vào `x:45`.
 ### Rule quan trọng
 
 - `H=1`:
-  Vàng đảo; Thứ 2/6 thêm nhóm GBP ngược D direction, Thứ 3-5 chỉ còn GBPAUD ngược Vàng đảo
+  Vàng thường; Thứ 2/6 thêm nhóm GBP ngược D direction, Thứ 3-5 chỉ còn GBPAUD ngược Vàng
 - `H=4`: Vàng đảo, GBPAUD ngược Vàng đảo
 - `H=6`:
   - T2, T6: chỉ vàng đảo

@@ -623,7 +623,7 @@ def get_hour_note(H, weekday=None):
     # T3-T4 (weekday 1,2)
     if weekday in (1, 2):
         notes = {
-            1: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
+            1: "Vàng, GBPAUD ngược Vàng",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "Nhóm GBP cùng Vàng (đảo)",
@@ -637,7 +637,7 @@ def get_hour_note(H, weekday=None):
     # T5 (weekday 3) - riêng biệt vì H=9,11 khác T6
     if weekday == 3:
         notes = {
-            1: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
+            1: "Vàng, GBPAUD ngược Vàng",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
@@ -651,7 +651,7 @@ def get_hour_note(H, weekday=None):
     # T6 (weekday 4) - giống T2
     if weekday == 4:
         notes = {
-            1: "Vàng (đảo) + Nhóm GBP ngược D Direction",
+            1: "Vàng + Nhóm GBP ngược D Direction",
             4: "Chỉ Vàng (đảo)",
             6: "Chỉ Vàng (đảo)",
             9: "Chỉ Vàng (đảo)",
@@ -665,7 +665,7 @@ def get_hour_note(H, weekday=None):
 
     # T2 (weekday 0) - mặc định
     notes = {
-        1: "Vàng (đảo) + Nhóm GBP ngược D Direction",
+        1: "Vàng + Nhóm GBP ngược D Direction",
         4: "Chỉ Vàng (đảo)",
         6: "Chỉ Vàng (đảo)",
         9: "Chỉ Vàng (đảo)",
@@ -688,11 +688,28 @@ d_direction_lock = threading.Lock()
 day_signals = {}
 sent_today = set()
 
+def clear_d_direction_state():
+    global d_direction, d_direction_date, d_matched_hour
+    d_direction = None
+    d_direction_date = None
+    d_matched_hour = None
+
 def set_d_direction(direction):
     global d_direction, d_direction_date, d_matched_hour
     d_direction = direction.upper() if direction else None
     d_direction_date = _trading_date() if d_direction else None
     d_matched_hour = None
+
+def clear_expired_d_direction(broker_dt):
+    """D-direction only applies to Mon/Thu/Fri broker days."""
+    if broker_dt.weekday() not in (1, 2):
+        return False
+    if d_direction is None and d_direction_date is None and d_matched_hour is None:
+        return False
+    clear_d_direction_state()
+    _save_state(day_signals, sent_today)
+    print("  [D-DIRECTION] Cleared expired D-direction state for Tue/Wed")
+    return True
 
 def get_effective_d_direction(broker_dt):
     """Thứ 5/6 có thể lưu D direction, nhưng chỉ giá trị thứ 6 mới được đảo để dùng cho thứ 2."""
@@ -713,22 +730,22 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     result = {}
 
     if d_direction_date != today and weekday not in (0, 3, 4):
-        d_direction = None
+        clear_d_direction_state()
     if signal not in ("BUY", "SELL"):
         return result
 
     gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
 
-    # H=1,4,6,9,11,12: đảo ngược XAUUSD
-    if H in (1, 4, 6, 9, 11, 12):
+    # H=4,6,9,11,12: đảo ngược XAUUSD
+    if H in (4, 6, 9, 11, 12):
         gold = opposite
         opposite = signal
 
     # === THỨ 2 (weekday=0) ===
     if weekday == 0:
         if H == 1:
-            # H=1: Vàng (đảo) + GBP theo hướng ngược D Direction đã lưu từ thứ 6
+            # H=1: Vàng thường + GBP theo hướng ngược D Direction đã lưu từ thứ 6
             result["XAUUSD"] = gold
             if effective_d:
                 d_opp = "SELL" if effective_d == "BUY" else "BUY"
@@ -820,7 +837,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     # === THỨ 6 (weekday=4) - giống T2 ===
     if weekday == 4:
         if H == 1:
-            # H=1: Vàng (đảo) + GBP theo hướng ngược D Direction gốc, lưu để thứ 2 đảo lại
+            # H=1: Vàng thường + GBP theo hướng ngược D Direction gốc, lưu để thứ 2 đảo lại
             result["XAUUSD"] = gold
             if effective_d:
                 d_opp = "SELL" if effective_d == "BUY" else "BUY"
@@ -1116,6 +1133,7 @@ def main():
 
     if mt5_ready:
         broker_dt = get_broker_time()
+        clear_expired_d_direction(broker_dt)
         now_h = broker_dt.hour
         now_m = broker_dt.minute
 
@@ -1273,6 +1291,7 @@ def main():
                 try_init_mt5()
 
             broker_dt = get_broker_time()
+            clear_expired_d_direction(broker_dt)
             now_min = broker_dt.minute
             now_hour = broker_dt.hour
 

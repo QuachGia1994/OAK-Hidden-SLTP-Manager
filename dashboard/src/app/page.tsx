@@ -3,7 +3,7 @@ import { SignalCard } from "@/components/SignalCard";
 import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
-import { getBrokerDateParts, getFirstD1MatchHour } from "@/lib/trading-time";
+import { getBrokerDateParts, getFirstD1MatchHour, isD1ActiveWeekday } from "@/lib/trading-time";
 
 export const dynamic = "force-dynamic";
 
@@ -26,10 +26,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     console.error("Dashboard fetch error:", e);
   }
 
-  const { todayStr } = getBrokerDateParts(now);
+  const { todayStr, dayOfWeek } = getBrokerDateParts(now);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
-  const firstD1MatchHour = botState?.d_matched_hour ?? getFirstD1MatchHour(todaySignals, botState?.d_direction);
+  const d1Active = isD1ActiveWeekday(dayOfWeek);
+  const activeDDirection = d1Active ? botState?.d_direction : null;
+  const firstD1MatchHour = d1Active ? (botState?.d_matched_hour ?? getFirstD1MatchHour(todaySignals, activeDDirection)) : null;
   const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
   const d1MatchWindow = firstD1MatchHour !== null ? "Áp dụng tới H=11" : null;
 
@@ -81,7 +83,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
         <StatusCard label="Bot" value={botState ? "Đang chạy" : "N/A"} color={botState ? "text-emerald-500 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"} />
         <StatusCard label="Signals" value={todaySignals.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
-        <StatusCard label="Hướng D" value={botState?.d_direction || "—"} color={botState?.d_direction === "BUY" ? "text-emerald-500 dark:text-emerald-400" : botState?.d_direction === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
+        <StatusCard label="Hướng D" value={activeDDirection || "—"} color={activeDDirection === "BUY" ? "text-emerald-500 dark:text-emerald-400" : activeDDirection === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
         <StatusCard label="News" value={news.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
       </div>
 
