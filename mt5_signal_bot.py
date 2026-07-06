@@ -40,7 +40,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = [2, 4, 6, 9, 11, 12, 14, 15, 16]
+TARGET_HOURS = [1, 4, 6, 9, 11, 12, 14, 15, 16]
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -502,7 +502,7 @@ def resolve_doji(symbol, timeframe, target_ts, broker_dt):
 
 def get_h1_candle_for_slot(broker_dt, H):
     """Lấy nến H1 của GBPUSD tại (H-1):00 — nến trước slot hiện tại."""
-    if H < 2:
+    if H < 1:
         return None
     ts_h1 = broker_time_to_ts(broker_dt, H - 1, 0, 0)
     c_h1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_H1, ts_h1)
@@ -622,7 +622,7 @@ def get_hour_note(H, weekday=None):
     # T3-T4 (weekday 1,2)
     if weekday in (1, 2):
         notes = {
-            2: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
+            1: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "Nhóm GBP cùng Vàng (đảo)",
@@ -636,7 +636,7 @@ def get_hour_note(H, weekday=None):
     # T5 (weekday 3) - riêng biệt vì H=9,11 khác T6
     if weekday == 3:
         notes = {
-            2: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
+            1: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
@@ -650,7 +650,7 @@ def get_hour_note(H, weekday=None):
     # T6 (weekday 4) - giống T2
     if weekday == 4:
         notes = {
-            2: "Vàng (đảo) + Nhóm GBP ngược D Direction",
+            1: "Vàng (đảo) + Nhóm GBP ngược D Direction",
             4: "Chỉ Vàng (đảo)",
             6: "Chỉ Vàng (đảo)",
             9: "Chỉ Vàng (đảo)",
@@ -664,7 +664,7 @@ def get_hour_note(H, weekday=None):
 
     # T2 (weekday 0) - mặc định
     notes = {
-        2: "Vàng (đảo) + Nhóm GBP ngược D Direction",
+        1: "Vàng (đảo) + Nhóm GBP ngược D Direction",
         4: "Chỉ Vàng (đảo)",
         6: "Chỉ Vàng (đảo)",
         9: "Chỉ Vàng (đảo)",
@@ -719,15 +719,15 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
 
-    # H=2,4,6,9,11,12: đảo ngược XAUUSD
-    if H in (2, 4, 6, 9, 11, 12):
+    # H=1,4,6,9,11,12: đảo ngược XAUUSD
+    if H in (1, 4, 6, 9, 11, 12):
         gold = opposite
         opposite = signal
 
     # === THỨ 2 (weekday=0) ===
     if weekday == 0:
-        if H == 2:
-            # H=2: Vàng (đảo) + GBP theo hướng ngược D Direction đã lưu từ thứ 6
+        if H == 1:
+            # H=1: Vàng (đảo) + GBP theo hướng ngược D Direction đã lưu từ thứ 6
             result["XAUUSD"] = gold
             if effective_d:
                 d_opp = "SELL" if effective_d == "BUY" else "BUY"
@@ -747,7 +747,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     # === THỨ 3, THỨ 4 (weekday=1,2) ===
     if weekday in (1, 2):
-        if H in (2, 4):
+        if H in (1, 4):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
         elif H == 6:
@@ -783,7 +783,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     # === THỨ 5 (weekday=3) ===
     if weekday == 3:
-        if H in (2, 4):
+        if H in (1, 4):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
         elif H == 6:
@@ -818,8 +818,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     # === THỨ 6 (weekday=4) - giống T2 ===
     if weekday == 4:
-        if H == 2:
-            # H=2: Vàng (đảo) + GBP theo hướng ngược D Direction gốc, lưu để thứ 2 đảo lại
+        if H == 1:
+            # H=1: Vàng (đảo) + GBP theo hướng ngược D Direction gốc, lưu để thứ 2 đảo lại
             result["XAUUSD"] = gold
             if effective_d:
                 d_opp = "SELL" if effective_d == "BUY" else "BUY"
@@ -844,7 +844,7 @@ def should_skip_xauusd(H, signal, broker_dt):
     Skip từ H=4 sau match D1 tới H=11. H=12+ hiển thị lại."""
     if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
-    if H < 2 or H in (12, 14, 15, 16):
+    if H < 1 or H in (12, 14, 15, 16):
         return False
     if d_matched_hour is not None:
         return True
@@ -871,7 +871,7 @@ def mark_xauusd_matched(H):
 # =====================================================================
 # GUI TELEGRAM BAO CAO
 # =====================================================================
-def send_report(signal_data, H, broker_dt, h2_signal=None, h15_signal=None):
+def send_report(signal_data, H, broker_dt, h1_signal=None, h15_signal=None):
     sig = signal_data["signal"]
     report = signal_data["report"]
     m30_dir = signal_data.get("m30_dir")
@@ -978,17 +978,17 @@ def backfill_missing_days():
                 result = analyze(fake_broker_dt, H)
                 sig = result["signal"]
 
-                h2_data = None
+                h1_data = None
                 h15_data = None
-                # Đọc H=2 và H=15 từ signals_log nếu có
+                # Đọc H=1 và H=15 từ signals_log nếu có
                 for r in log_data:
                     if r.get("date") == target_date.isoformat():
-                        if r.get("hour") == 2:
-                            h2_data = r
+                        if r.get("hour") == 1:
+                            h1_data = r
                         if r.get("hour") == 15:
                             h15_data = r
 
-                h2_sig = h2_data.get("signal") if h2_data else None
+                h1_sig = h1_data.get("signal") if h1_data else None
                 h15_sig = h15_data.get("signal") if h15_data else None
 
                 pair_dirs = get_pair_direction(H, sig, fake_broker_dt, h1_signal=result.get("h1_signal"))
@@ -1142,14 +1142,14 @@ def main():
 
         missed_count = 0
         latest_missed = None
-        # Xử lý H=2 trước để có h2_sig cho các slot khác
-        if 2 in passed:
-            key_h2 = (broker_dt.date(), 2)
-            if key_h2 not in sent_today:
-                r2 = analyze(broker_dt, 2)
-                s2 = r2["signal"]
-                if s2 in ("BUY", "SELL"):
-                    day_signals[(broker_dt.date(), 2)] = {"signal": s2, "m30_dir": r2.get("m30_dir")}
+        # Xử lý H=1 trước để có h1_sig cho các slot khác
+        if 1 in passed:
+            key_h1 = (broker_dt.date(), 1)
+            if key_h1 not in sent_today:
+                r1 = analyze(broker_dt, 1)
+                s1 = r1["signal"]
+                if s1 in ("BUY", "SELL"):
+                    day_signals[(broker_dt.date(), 1)] = {"signal": s1, "m30_dir": r1.get("m30_dir")}
                     _save_state(day_signals, sent_today)
         # Track H=15 signal for Tuesday/Wednesday H=16 XAUUSD logic
         if 15 in passed:
@@ -1176,8 +1176,8 @@ def main():
             sig = result["signal"]
             icon, emoji = get_signal_icon(sig)
 
-            h2_data = day_signals.get((broker_dt.date(), 2))
-            h2_sig = h2_data["signal"] if h2_data else None
+            h1_data = day_signals.get((broker_dt.date(), 1))
+            h1_sig = h1_data["signal"] if h1_data else None
             h15_data = day_signals.get((broker_dt.date(), 15))
             h15_sig = h15_data["signal"] if h15_data else None
 
@@ -1217,7 +1217,7 @@ def main():
             if latest_missed is None:
                 latest_missed = {"h": h, "sig": sig, "icon": icon, "result": result,
                                  "pair_dirs": pair_dirs, "hour_note": hour_note,
-                                 "h2_sig": h2_sig}
+                                 "h1_sig": h1_sig}
 
         # Chi gui Telegram slot gan nhat
         if latest_missed:
@@ -1227,7 +1227,7 @@ def main():
             result = latest_missed["result"]
             pair_dirs = latest_missed["pair_dirs"]
             hour_note = latest_missed["hour_note"]
-            h2_sig = latest_missed["h2_sig"]
+            h1_sig = latest_missed["h1_sig"]
 
             slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
             pair_lines = []
@@ -1300,9 +1300,9 @@ def main():
                 result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
 
-                # Track H=2 signal for entry time calculation
-                if now_hour == 2 and sig in ("BUY", "SELL"):
-                    day_signals[(broker_dt.date(), 2)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
+                # Track H=1 signal for downstream day logic
+                if now_hour == 1 and sig in ("BUY", "SELL"):
+                    day_signals[(broker_dt.date(), 1)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
                     _save_state(day_signals, sent_today)
 
                 # Track H=15 signal for Tuesday/Wednesday H=16 XAUUSD logic
@@ -1310,8 +1310,8 @@ def main():
                     day_signals[(broker_dt.date(), 15)] = {"signal": sig}
                     _save_state(day_signals, sent_today)
 
-                h2_data = day_signals.get((broker_dt.date(), 2))
-                h2_sig = h2_data["signal"] if h2_data else None
+                h1_data = day_signals.get((broker_dt.date(), 1))
+                h1_sig = h1_data["signal"] if h1_data else None
 
                 # Tính pair_dirs trước khi gửi
                 pair_dirs = get_pair_direction(now_hour, sig, broker_dt, h1_signal=result.get("h1_signal"))
@@ -1325,7 +1325,7 @@ def main():
 
                 h15_data = day_signals.get((broker_dt.date(), 15))
                 h15_sig = h15_data["signal"] if h15_data else None
-                pair_dirs = send_report(result, now_hour, broker_dt, h2_signal=h2_sig, h15_signal=h15_sig)
+                pair_dirs = send_report(result, now_hour, broker_dt, h1_signal=h1_sig, h15_signal=h15_sig)
 
                 # Log for website
                 # Nếu pair_dirs rỗng → XAUUSD bị ẩn do match D1, vẫn log với note

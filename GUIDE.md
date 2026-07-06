@@ -31,7 +31,7 @@ Quy trình:
 
 Bot xử lý các mốc:
 
-`H=2, 4, 6, 9, 11, 12, 14, 15, 16`
+`H=1, 4, 6, 9, 11, 12, 14, 15, 16`
 
 Trigger lệnh vào `x:45`.
 
@@ -52,7 +52,8 @@ Trigger lệnh vào `x:45`.
 
 ### Rule quan trọng
 
-- `H=2`: GBPAUD và GBPJPY ngược vàng
+- `H=1`:
+  Vàng đảo; Thứ 2/6 thêm nhóm GBP ngược D direction, Thứ 3-5 chỉ còn GBPAUD ngược Vàng đảo
 - `H=4`: Vàng đảo, GBPAUD ngược Vàng đảo
 - `H=6`:
   - T2, T6: chỉ vàng đảo
