@@ -29,6 +29,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const todayStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Bangkok" }).format(now);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
+  const firstD1MatchHour =
+    botState?.d_matched_hour ??
+    [...todaySignals]
+      .sort((a, b) => a.hour - b.hour)
+      .find((s) => s.d_direction && s.signal === s.d_direction)?.hour ??
+    null;
 
   const allSlots = TARGET_HOURS.map((h) => ({
     date: todayStr,
@@ -111,6 +117,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               key={`${signal.date}-${signal.hour}`}
               signal={signal}
               isVIP={isVIP}
+              showD1Match={firstD1MatchHour !== null && signal.hour >= firstD1MatchHour && signal.hour < 12}
             />
           ))}
         </div>
