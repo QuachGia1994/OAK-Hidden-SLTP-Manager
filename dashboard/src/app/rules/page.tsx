@@ -1,4 +1,4 @@
-import { DAY_RULES, TARGET_HOURS, formatHour, getHourNote } from "@/lib/constants";
+import { DAY_RULES, TARGET_HOURS, brokerToLocalTime, formatHour, getHourNote } from "@/lib/constants";
 import { getBrokerDateParts } from "@/lib/trading-time";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,10 @@ export default function RulesPage() {
             <MetaPill label="Hàng ngang" value="Mốc giờ" />
             <MetaPill label="Cột dọc" value="Thứ 2 - Thứ 6" />
             <MetaPill label="Đậm hơn" value="Hôm nay" />
+            <MetaPill
+              label="Giờ hiện tại"
+              value={`${formatHour(currentHour)}:45 Broker • ${brokerToLocalTime(currentHour)}`}
+            />
           </div>
         </div>
       </header>
@@ -63,15 +67,6 @@ export default function RulesPage() {
 
         <section className="rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm p-5 sm:p-6 shadow-sm">
           <SectionTitle title="Ma trận lịch" subtitle="Cột là thứ, hàng là mốc giờ" />
-          <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-950/35 px-4 py-3 md:hidden">
-            <div>
-              <div className="text-[10px] uppercase tracking-[0.24em] text-zinc-400 dark:text-zinc-500">Giờ hiện tại</div>
-              <div className="mt-1 font-mono text-base font-semibold text-zinc-900 dark:text-zinc-100">{formatHour(currentHour)}:45</div>
-            </div>
-            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">
-              Theo giờ Bangkok
-            </span>
-          </div>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-[820px] w-full border-separate border-spacing-0">
               <thead>
