@@ -493,11 +493,27 @@ def check_d_direction_input():
                 json.dump(state, f, ensure_ascii=False)
             os.replace(tmp, _STATE_FILE)
             print(f"  [D-DIRECTION] State saved: d_direction={state.get('d_direction')}")
+            restore_d1_match_from_today_signals()
             push_to_dashboard()
     except Exception:
         pass
     finally:
         d_direction_lock.release()
+
+def restore_d1_match_from_today_signals():
+    """Khôi phục mốc match D1 từ tín hiệu hôm nay đã có sẵn trên disk."""
+    global d_matched_hour
+    if d_direction is None or d_matched_hour is not None:
+        return False
+    today = _trading_date()
+    for hour in TARGET_HOURS:
+        payload = day_signals.get((today, hour))
+        if payload and payload.get("signal") == d_direction:
+            d_matched_hour = hour
+            print(f"  [D-MATCH] Restored from existing H={hour} signal")
+            _save_state(day_signals, sent_today)
+            return True
+    return False
 
 
 def d_direction_watcher():
@@ -843,6 +859,8 @@ d_direction = None  # 'BUY' or 'SELL'
 d_direction_date = None  # date when set
 d_matched_hour = None  # H where signal matched D (stops reporting after)
 d_direction_lock = threading.Lock()
+day_signals = {}
+sent_today = set()
 
 def set_d_direction(direction):
     global d_direction, d_direction_date, d_matched_hour
@@ -1234,7 +1252,7 @@ def get_broker_time():
     return now_utc + timedelta(hours=BROKER_GMT)
 
 def main():
-    global mt5_ready, d_direction, d_direction_date, d_matched_hour
+    global mt5_ready, d_direction, d_direction_date, d_matched_hour, day_signals, sent_today
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")

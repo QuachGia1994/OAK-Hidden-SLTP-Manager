@@ -12,9 +12,10 @@ const WEEKDAY_COLUMNS = [
 
 export default function RulesPage() {
   const today = new Date();
-  const dayOfWeek = today.getDay();
+  const dayName = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Bangkok", weekday: "short" }).format(today);
+  const dayOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(dayName);
   const todayRules = DAY_RULES[dayOfWeek] || [];
-  const currentHour = today.getHours();
+  const currentHour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", hour12: false }).format(today));
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
@@ -24,7 +25,7 @@ export default function RulesPage() {
             <p className="text-[10px] uppercase tracking-[0.32em] text-zinc-400 dark:text-zinc-500 mb-2">Rules & Schedule</p>
             <h1 className="text-4xl sm:text-5xl font-bold tracking-tight leading-tight text-zinc-900 dark:text-zinc-50">Rules & Schedule</h1>
             <p className="mt-2 text-base sm:text-lg text-zinc-500 dark:text-zinc-400">
-              {today.toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "numeric", year: "numeric" })}
+              {today.toLocaleDateString("vi-VN", { timeZone: "Asia/Bangkok", weekday: "long", day: "numeric", month: "numeric", year: "numeric" })}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

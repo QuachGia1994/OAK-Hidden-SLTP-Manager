@@ -33,7 +33,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     botState?.d_matched_hour ??
     [...todaySignals]
       .sort((a, b) => a.hour - b.hour)
-      .find((s) => s.d_direction && s.signal === s.d_direction)?.hour ??
+      .find((s) => botState?.d_direction && s.pair_dirs?.XAUUSD === botState.d_direction)?.hour ??
     null;
   const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
   const d1MatchWindow = firstD1MatchHour !== null ? "Áp dụng tới H=11" : null;
