@@ -1,78 +1,52 @@
-# OAK Hidden SLTP Manager (v3.13.0)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-green.svg)](https://www.python.org/)
+# OAK Hidden SLTP Manager (v3.14.0)
 
-Hệ thống quản lý lệnh MT5 + bot tín hiệu + dashboard web cho OAK.
+Hệ thống quản lý lệnh MT5, bot tín hiệu, dashboard web và bridge Telegram cho OAK.
 
-Tài liệu chi tiết:
-- Hướng dẫn sử dụng: [GUIDE.md](GUIDE.md)
-- Nhật ký cập nhật: [RELEASE_NOTES.md](RELEASE_NOTES.md)
+Tài liệu liên quan:
+- [GUIDE.md](GUIDE.md)
+- [RELEASE_NOTES.md](RELEASE_NOTES.md)
+
+## Điểm mới hiện tại
+
+- D-direction nhận qua Telegram, lưu gần như tức thì qua file + ping localhost.
+- Signal bot chạy 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
+- Rule schedule đã đồng bộ theo các mốc `H=2,3,4,6,9,11,12,14,15,16`.
+- Entry time đã chuẩn hóa theo logic `H:49` hoặc `H+1:36`, với các slot đảo vàng dùng signal sau đảo.
+- Fact-check web dùng nguồn free gọn hơn, ưu tiên `Google + DuckDuckGo`, Google Fact Check là lớp authority.
+- Dashboard Vercel giữ VIP bằng cookie server-side, chuyển tab/reload không rơi về free user.
+- `create_backup_final.py` tạo backup source/profile theo version thực tế của app.
 
 ## Thành phần chính
 
 ### OAK Manager
+
 - Hidden SL/TP theo points.
 - Visible SL/TP tùy chọn, có buffer tránh spread.
-- Auto Partial theo mốc R và % volume.
-- Auto BE theo mốc R.
+- Auto Partial theo mức R và % volume.
+- Auto BE theo mức R.
 - Scheduled Entry qua Telegram.
 - Ghost Mode khi broker chặn Algo Trading.
 - Multi-profile cho nhiều terminal/account.
 
 ### Tab Tín Hiệu
-- Gom 4 process vào 1 tab: `mt5_signal_bot.py`, `mt4_mt5_server.py`, `mimo_bot.py`, `mimo_worker.py`.
-- Start/Stop từng process hoặc chạy tất cả cùng lúc.
-- Log realtime ngay trong app.
-- Tắt app sẽ cleanup toàn bộ process con.
 
-### MT4-MT5 Signal Bot
-- Phân tích M5@35, M5@40, M30@00, H1 check.
-- 5 cặp: `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`, `XAUUSD`.
-- Trigger lúc `x:45` cho các mốc `H=2,3,4,6,9,11,12,14,15,16`.
-- Entry time:
-  - Match H=2 -> `H:49`
-  - Không match -> `H+1:36`
-  - Các mốc Vàng đảo dùng signal sau đảo để tính entry time
-  - H=16 dùng logic riêng theo ngày
-- D Direction:
-  - Thứ 5 hoặc thứ 6 nhập `BUY/SELL` qua Telegram
-  - Nếu là thứ 6 thì đây là D direction gốc để thứ 2 đảo lại
-  - Thứ 2 tự đảo lại D đã lưu
-  - T3,T4 không dùng D direction
-- Missed-slot recovery khi bot khởi động muộn.
+- `mt5_signal_bot.py`: phân tích và đẩy tín hiệu.
+- `mt4_mt5_server.py`: nhận data từ MT4 EA.
+- `mimo_bot.py`: bridge Telegram.
+- `mimo_worker.py`: worker xử lý nền.
 
-### Trading Dashboard
-- URL: [oak-hidden-sltp-manager-dun.vercel.app](https://oak-hidden-sltp-manager-dun.vercel.app)
-- Realtime signals, bot state, lịch sử 7 ngày, Rules page.
+### Dashboard
+
+- Realtime signals, state, history 7 ngày, rules.
 - Fact-check tin tức bằng text hoặc ảnh OCR.
-- VIP link `/?vip=TOKEN` được giữ bằng cookie server-side.
-- Upstash Redis làm data store, Vercel để deploy.
+- VIP access qua `/?vip=TOKEN`.
 
-### MiMo Bridge Bot
-- Telegram bridge cho MiMo/OAK commands.
-- Các lệnh chính: `/mimo`, `/status`, `/profiles`, `/mt5`, `/positions`, `/signal`, `/news`, `/reply`.
+## Rule ngắn gọn
 
-## Rule nổi bật
-
-- `H=4`: GBPAUD ngược Vàng.
-- `H=6`:
-  - T2,T6: chỉ Vàng (đảo)
-  - T3-T5: Vàng (đảo), rồi GBPAUD ngược theo Vàng đã đảo
-- Fact-check: nguồn web dùng `Google + DDG`, Google Fact Check là lớp authority riêng.
-- `H=16`:
-  - T2,T5,T6: XAUUSD + nhóm GBP vào `18:59`
-  - T3,T4: XAUUSD so với H=15 để quyết định đảo signal hay dời sang `20:59`
-
-## File chính
-
-| File | Mô tả |
-|------|-------|
-| `OAK_Hidden_SLTP_Manager.py` | App desktop chính |
-| `mt5_signal_bot.py` | Bot tín hiệu MT5 |
-| `mt4_mt5_server.py` | Flask API nhận data từ MT4 |
-| `mimo_bot.py` | Telegram bridge bot |
-| `mimo_worker.py` | Worker xử lý hàng đợi MiMo |
-| `dashboard/` | Dashboard Next.js deploy trên Vercel |
-| `create_backup_final.py` | Tạo source/profile backup zip |
+- `H=2`: entry nhanh theo `H:49`.
+- Các slot khác: ưu tiên `H+1:36` nếu không match trực tiếp.
+- `H=6`: thứ 2 và thứ 6 chỉ vàng đảo; thứ 3-5 vàng đảo rồi GBPAUD đi theo vàng đã đảo.
+- `H=16`: thứ 2/5/6 giữ nhóm GBP + vàng; thứ 3/4 so với `H=15` để quyết định đảo hay dời entry.
 
 ## Cấu hình
 
@@ -80,12 +54,6 @@ Yêu cầu:
 - Windows
 - Python 3.10+
 - MT5 đã cài và đăng nhập
-
-Cài thư viện:
-
-```bash
-pip install -r requirements.txt
-```
 
 `config.json`:
 
@@ -99,19 +67,33 @@ pip install -r requirements.txt
 }
 ```
 
-Lưu ý:
-- `config.json` đang nằm trong `.gitignore`
-- Không commit file này lên GitHub
-
 ## Chạy nhanh
 
-1. Chạy `CHAY_ALL.bat` để mở server + signal bot + MiMo worker
-2. Hoặc mở app rồi vào tab `Tín Hiệu` để bấm chạy từng process
-3. Backup source/profile bằng:
+1. Cài dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+2. Chạy toàn bộ:
+
+```bash
+CHAY_ALL.bat
+```
+
+3. Hoặc mở app và vào tab `Tín Hiệu` để chạy từng process.
+
+4. Tạo backup source/profile:
 
 ```bash
 python create_backup_final.py
 ```
+
+## Ghi chú
+
+- `config.json` đang nằm trong `.gitignore`.
+- Tab Guide/README/Release Notes trong app sẽ đọc lại các file `.md` ở root repo.
+- Dashboard deploy qua Vercel, nên cập nhật `dashboard/README.md` và push lên GitHub là đủ cho docs.
 
 ---
 Phát triển bởi QKP. Hỗ trợ: Telegram `@bupbupchot`

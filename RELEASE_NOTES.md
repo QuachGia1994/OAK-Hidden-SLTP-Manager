@@ -1,26 +1,26 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
-## [v3.13.0] - 2026-07-05
-*VIP persistence + Friday D carryover + H=6/H=16 rule alignment + flipped-gold entry timing.*
+## [v3.14.0] - 2026-07-06
+*Docs refresh + faster D-direction dispatch + fact-check source cleanup + version/backup sync.*
 
-### 🔐 Dashboard Access
-- **VIP secret link persist**: `middleware.ts` bắt `?vip=TOKEN` phía server và set `vip_access` cookie, nên reload/chuyển tab không bị rớt về free user.
-- **Rules page notes**: Đồng bộ lại ghi chú schedule H=6 và rule theo ngày để khớp bot.
+### 📘 Docs & Release Prep
+- **README/GUIDE/Dashboard README**: Viết lại theo flow hiện tại, bỏ mô tả cũ không còn dùng.
+- **Release notes**: Đồng bộ version mới và mô tả ngắn gọn hơn cho nhịp phát hành hiện tại.
+- **Backup script**: `create_backup_final.py` lấy version thật từ source app và backup đúng bộ docs mới.
 
-### 🔄 D Direction Flow
-- **Friday source of truth**: Bot chỉ nhắc nhập D direction vào thứ 6, rồi lưu trạng thái gốc vào disk.
-- **Monday auto-invert**: Thứ 2 tự lấy D direction thứ 6 và đảo lại trước khi áp vào nhóm GBP.
-- **Docs clarified**: README/GUIDE cập nhật lại flow nhắc 6:00 VN và cách dùng D direction mới.
+### ⚡ D Direction Dispatch
+- **Instant ack**: Telegram chỉ còn một dòng xác nhận chính, không còn dòng báo trùng.
+- **Local ping**: `mimo_bot.py` ping localhost sang MT5 bot để nhặt D gần như tức thì.
+- **Faster polling**: Telegram polling/ retry được hạ xuống 1 giây để giảm độ trễ cảm nhận.
 
-### 🎯 Signal Logic
-- **H=6 clarified**: T2,T6 chỉ Vàng (đảo); T3-T5 là Vàng (đảo), rồi GBPAUD ngược theo chính Vàng đã đảo.
-- **Tuesday H=16 aligned**: Logic T3 H=16 giờ giống T4, đều so với H=15 để quyết định đảo signal hay dời entry sang 20:59.
-- **Flipped gold entry time**: Các mốc XAUUSD bị đảo giờ dùng signal sau đảo để tính `H:49` hay `H+1:36`.
-- **H=16 guard kept separate**: So sánh H=15 cho T3/T4 H=16 vẫn tách riêng, không bị helper effective XAUUSD can thiệp.
+### 🎯 Signal & Fact-check
+- **H=6 / H=16 notes**: Đồng bộ lại note schedule theo rule hiện tại, đặc biệt các slot đảo vàng.
+- **Entry timing**: Các slot đảo dùng signal sau đảo để tính `H:49` / `H+1:36`.
+- **Fact-check**: Tài liệu giờ chỉ còn nhắc nguồn free đang dùng là `Google + DuckDuckGo`, Google Fact Check là authority layer.
 
-### 📦 Backup & Release Prep
-- **Backup dashboard fully**: `create_backup_final.py` giờ gom toàn bộ source/config/assets của `dashboard/`, gồm `middleware.ts`, `.mjs`, `.d.ts`, `favicon.ico`, `public/*.svg`.
-- **Version bump**: Đồng bộ version lên `v3.13.0` để backup zip, docs và GitHub release khớp nhau.
+### 🧩 Version Sync
+- **App version**: Nâng version hiển thị trong app lên `v3.14.0`.
+- **Build helper**: `build_exe.py` và `create_backup_final.py` cùng đọc version từ source chính để không lệch tag.
 
 ## [v3.12.0] - 2026-07-01
 *Fact-check Tab + VIP Access Control + Security Hardening + UI Bug Sweep.*

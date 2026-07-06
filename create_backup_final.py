@@ -10,7 +10,7 @@ if sys.stdout.encoding != 'utf-8':
 def create_backup():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    version = "v3.13.0"
+    version = "v3.14.0"
     try:
         with open("OAK_Hidden_SLTP_Manager.py", "r", encoding="utf-8") as f:
             content = f.read()
@@ -54,16 +54,14 @@ def create_backup():
                 continue
             dashboard_files.append(os.path.join(root, f))
 
-    doc_patterns = [
-        "*README*", "*readme*", "*GUIDE*", "*guide*",
-        "*note*.*", "*notes*.*"
-    ]
     spec_files = glob.glob("*.spec")
-    doc_files = []
-    for pattern in doc_patterns:
-        doc_files.extend(glob.glob(pattern))
-    source_files = sorted(list(set(source_files + signal_files + dashboard_files + doc_files + spec_files)))
-    doc_files = set(doc_files)
+    doc_files = {
+        "README.md",
+        "GUIDE.md",
+        "RELEASE_NOTES.md",
+        os.path.join("dashboard", "README.md"),
+    }
+    source_files = sorted(list(set(source_files + signal_files + dashboard_files + list(doc_files) + spec_files)))
 
     profile_zip = "OAK_Profile_Backup.zip"
     profile_files = [

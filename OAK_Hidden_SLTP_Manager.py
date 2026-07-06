@@ -192,7 +192,7 @@ def show_ghost_consent(parent, on_accept):
 
 # --- CONSTANTS & CONFIG ---
 APP_NAME = "OAK MANAGER"
-VERSION = "v3.13.0"
+VERSION = "v3.14.0"
 
 # Fix for Taskbar Icon (Must be before any GUI creation)
 try:
@@ -818,7 +818,7 @@ OAK MANAGER is not just a regular order management app; it's a system designed t
 *Developed by OAK Group - Discipline is power.*
 *Support: Telegram @bupbupchot*
 """,
-        "release_notes_info": f"""# 📔 RELEASE NOTES (v3.0.0)
+        "release_notes_info": f"""# 📔 RELEASE NOTES (v3.14.0)
 
 ## [v3.0.0] - 2026-04-03
 *Major update focused on Stealth and Artificial Intelligence (NLP).*
