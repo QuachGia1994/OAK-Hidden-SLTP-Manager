@@ -41,6 +41,7 @@ except Exception:
 SYMBOL = "GBPUSD"
 TARGET_HOURS = [2, 3, 4, 6, 9, 11, 12, 14, 15, 16]
 BROKER_GMT = 0
+DIRECTION_POLL_INTERVAL = 1
 
 # =====================================================================
 # STATE PERSISTENCE - survive bot restarts
@@ -456,6 +457,8 @@ def check_d_direction_input():
     """Đọc D-direction từ file (mimo_bot.py ghi vào), không poll Telegram trực tiếp."""
     global d_direction, d_direction_date
     d_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "d_direction_input.txt")
+    if not d_direction_lock.acquire(blocking=False):
+        return
     try:
         if not os.path.exists(d_file):
             return
@@ -492,7 +495,18 @@ def check_d_direction_input():
             push_to_dashboard()
     except Exception:
         pass
+    finally:
+        d_direction_lock.release()
 
+
+def d_direction_watcher():
+    """ponytail: 1s file watcher để nhận D nhanh hơn; upgrade path là webhook/queue IPC nếu bỏ file trung gian."""
+    while True:
+        try:
+            check_d_direction_input()
+        except Exception:
+            pass
+        time.sleep(DIRECTION_POLL_INTERVAL)
 # =====================================================================
 # TIME HELPERS
 # =====================================================================
@@ -793,6 +807,7 @@ ALL_PAIRS = GBP_PAIRS + ["XAUUSD"]
 d_direction = None  # 'BUY' or 'SELL'
 d_direction_date = None  # date when set
 d_matched_hour = None  # H where signal matched D (stops reporting after)
+d_direction_lock = threading.Lock()
 
 def set_d_direction(direction):
     global d_direction, d_direction_date, d_matched_hour
@@ -1243,6 +1258,10 @@ def main():
         )
     push_to_dashboard()
 
+
+    watcher = threading.Thread(target=d_direction_watcher, daemon=True)
+    watcher.start()
+
     # Backfill các ngày thiếu khi bot khởi động
     backfill_missing_days()
 
@@ -1497,6 +1516,7 @@ def main():
                 log_signal(now_hour, broker_dt, sig, entry_time, pair_dirs, hour_note)
                 schedule精准_price_update(broker_dt, entry_time, pair_dirs)
                 push_to_dashboard()
+
 
                 print(f"  Signal: {sig}")
                 print(f"  Sent: OK")
