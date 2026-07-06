@@ -622,7 +622,7 @@ def get_hour_note(H, weekday=None):
     # T3-T4 (weekday 1,2)
     if weekday in (1, 2):
         notes = {
-            2: "GBPAUD, GBPJPY ngược Vàng",
+            2: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "Nhóm GBP cùng Vàng (đảo)",
@@ -636,7 +636,7 @@ def get_hour_note(H, weekday=None):
     # T5 (weekday 3) - riêng biệt vì H=9,11 khác T6
     if weekday == 3:
         notes = {
-            2: "GBPAUD, GBPJPY ngược Vàng",
+            2: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
@@ -650,7 +650,7 @@ def get_hour_note(H, weekday=None):
     # T6 (weekday 4) - giống T2
     if weekday == 4:
         notes = {
-            2: "Vàng + Nhóm GBP ngược D Direction",
+            2: "Vàng (đảo) + Nhóm GBP ngược D Direction",
             4: "Chỉ Vàng (đảo)",
             6: "Chỉ Vàng (đảo)",
             9: "Chỉ Vàng (đảo)",
@@ -664,7 +664,7 @@ def get_hour_note(H, weekday=None):
 
     # T2 (weekday 0) - mặc định
     notes = {
-        2: "Vàng + Nhóm GBP ngược D Direction",
+        2: "Vàng (đảo) + Nhóm GBP ngược D Direction",
         4: "Chỉ Vàng (đảo)",
         6: "Chỉ Vàng (đảo)",
         9: "Chỉ Vàng (đảo)",
@@ -719,15 +719,15 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
 
-    # H=6,9,11,12: đảo ngược XAUUSD
-    if H in (4, 6, 9, 11, 12):
+    # H=2,4,6,9,11,12: đảo ngược XAUUSD
+    if H in (2, 4, 6, 9, 11, 12):
         gold = opposite
         opposite = signal
 
     # === THỨ 2 (weekday=0) ===
     if weekday == 0:
         if H == 2:
-            # H=2: Vàng + GBP theo hướng đảo D Direction đã lưu từ thứ 6
+            # H=2: Vàng (đảo) + GBP theo hướng ngược D Direction đã lưu từ thứ 6
             result["XAUUSD"] = gold
             if effective_d:
                 d_opp = "SELL" if effective_d == "BUY" else "BUY"
@@ -747,11 +747,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     # === THỨ 3, THỨ 4 (weekday=1,2) ===
     if weekday in (1, 2):
-        if H in (2, 3):
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-            result["GBPJPY"] = opposite
-        elif H == 4:
+        if H in (2, 4):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
         elif H == 6:
@@ -787,11 +783,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
     # === THỨ 5 (weekday=3) ===
     if weekday == 3:
-        if H in (2, 3):
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-            result["GBPJPY"] = opposite
-        elif H == 4:
+        if H in (2, 4):
             result["XAUUSD"] = gold
             result["GBPAUD"] = opposite
         elif H == 6:
@@ -827,7 +819,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     # === THỨ 6 (weekday=4) - giống T2 ===
     if weekday == 4:
         if H == 2:
-            # H=2: Vàng + GBP theo D Direction gốc, lưu để thứ 2 đảo lại
+            # H=2: Vàng (đảo) + GBP theo hướng ngược D Direction gốc, lưu để thứ 2 đảo lại
             result["XAUUSD"] = gold
             if effective_d:
                 d_opp = "SELL" if effective_d == "BUY" else "BUY"
