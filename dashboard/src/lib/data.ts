@@ -21,7 +21,6 @@ export function maskSignal(signal: Signal): Signal {
     ...signal,
     signal: "WAIT",
     pair_dirs: {},
-    entry_time: null,
   };
 }
 

@@ -67,10 +67,8 @@ Trigger lệnh vào `x:45`.
 
 ### Entry time
 
-- Match với `H=2` -> `H:49`
-- Không match -> `H+1:36`
-- Các slot vàng đảo dùng signal sau khi đảo để tính entry time
-- `H=16` là logic riêng, không đi chung helper đảo XAU thường
+- Entry time đã được bỏ khỏi flow hiện tại.
+- App/dash chỉ còn hiển thị signal, pair directions và note theo slot.
 
 ### D Direction
 

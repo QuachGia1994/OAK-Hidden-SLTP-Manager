@@ -15,7 +15,7 @@
 
 ### 🎯 Signal & Fact-check
 - **H=6 / H=16 notes**: Đồng bộ lại note schedule theo rule hiện tại, đặc biệt các slot đảo vàng.
-- **Entry timing**: Các slot đảo dùng signal sau đảo để tính `H:49` / `H+1:36`.
+- **Entry timing**: Đã bỏ khỏi flow hiện tại; dashboard chỉ còn signal, pair directions và note.
 - **Fact-check**: Tài liệu giờ chỉ còn nhắc nguồn free đang dùng là `Google + DuckDuckGo`, Google Fact Check là authority layer.
 
 ### 🧩 Version Sync
@@ -72,8 +72,7 @@
 
 ### 🎯 Entry Time Logic (Đơn giản hoá)
 - **Bỏ factor M30**: Chỉ còn dựa vào match H=2 — match → H:49, không match → H+1:24.
-- **H=16 per-pair dict**: `entry_time` trả về `{pair: time}` thay vì string.
-  - XAUUSD: T2/T6=18:59, T3=normal (16:49/17:24), T4=20:59, T5=skip.
+- **H=16 per-pair dict**: Hiện không còn entry time riêng; logic chỉ giữ signal/pair direction.
   - GBP group: luôn 18:59.
 - **Wednesday H=16 XAUUSD**: So signal Kết luận với H=15 — cùng chiều → đảo + normal entry, ngược → giữ orig + 20:59.
 - **Thursday H=16**: XAUUSD không vào lệnh (skip).

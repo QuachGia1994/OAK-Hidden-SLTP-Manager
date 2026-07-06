@@ -38,7 +38,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     hour: h,
     ts: 0,
     signal: "WAIT" as const,
-    entry_time: null,
     pair_dirs: {},
     entry_prices: {},
     current_prices: {},

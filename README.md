@@ -11,7 +11,7 @@ Tài liệu liên quan:
 - D-direction nhận qua Telegram, lưu gần như tức thì qua file + ping localhost.
 - Signal bot chạy 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
 - Rule schedule đã đồng bộ theo các mốc `H=2,3,4,6,9,11,12,14,15,16`.
-- Entry time đã chuẩn hóa theo logic `H:49` hoặc `H+1:36`, với các slot đảo vàng dùng signal sau đảo.
+- Entry time đã bỏ khỏi flow hiện tại; dashboard chỉ còn signal, pair directions và notes.
 - Fact-check web dùng nguồn free gọn hơn, ưu tiên `Google + DuckDuckGo`, Google Fact Check là lớp authority.
 - Dashboard Vercel giữ VIP bằng cookie server-side, chuyển tab/reload không rơi về free user.
 - `create_backup_final.py` tạo backup source/profile theo version thực tế của app.
@@ -43,8 +43,8 @@ Tài liệu liên quan:
 
 ## Rule ngắn gọn
 
-- `H=2`: entry nhanh theo `H:49`.
-- Các slot khác: ưu tiên `H+1:36` nếu không match trực tiếp.
+- `H=2`: match theo signal hiện tại.
+- Các slot khác: dùng note và pair direction theo rule, không còn entry time riêng.
 - `H=6`: thứ 2 và thứ 6 chỉ vàng đảo; thứ 3-5 vàng đảo rồi GBPAUD đi theo vàng đã đảo.
 - `H=16`: thứ 2/5/6 giữ nhóm GBP + vàng; thứ 3/4 so với `H=15` để quyết định đảo hay dời entry.
 
