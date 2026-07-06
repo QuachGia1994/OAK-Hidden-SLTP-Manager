@@ -585,11 +585,11 @@ if __name__ == "__main__":
     import time as _time
     while True:
         try:
-            bot.polling(none_stop=True, timeout=30, skip_pending=True)
+            bot.polling(none_stop=True, timeout=1, long_polling_timeout=1, skip_pending=True)
         except KeyboardInterrupt:
             print("\n  Đã dừng bot.")
             break
         except Exception as e:
             print(f"\n  Lỗi: {e}")
             print("  Đang kết nối lại sau 5 giây...")
-            _time.sleep(5)
+            _time.sleep(1)

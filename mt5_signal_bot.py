@@ -476,7 +476,6 @@ def check_d_direction_input():
             set_d_direction(direction)
             broker_weekday = get_broker_time().weekday()
             day_label = "thứ 6" if broker_weekday == 4 else "thứ 5" if broker_weekday == 3 else "ngày hiện tại"
-            send_telegram(f"✅ D direction {day_label} đã lưu: {direction}")
             print(f"  [D-DIRECTION] Saved {day_label} D to {direction}")
             # Save state to disk (read existing, update d_direction fields)
             state = {}
