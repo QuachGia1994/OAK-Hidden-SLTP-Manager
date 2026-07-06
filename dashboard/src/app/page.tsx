@@ -3,6 +3,7 @@ import { SignalCard } from "@/components/SignalCard";
 import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
+import { getBrokerDateParts, getFirstD1MatchHour } from "@/lib/trading-time";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +26,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     console.error("Dashboard fetch error:", e);
   }
 
-  // Match broker/VN trading day instead of the Vercel server timezone.
-  const todayStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Bangkok" }).format(now);
+  const { todayStr } = getBrokerDateParts(now);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
-  const firstD1MatchHour =
-    botState?.d_matched_hour ??
-    [...todaySignals]
-      .sort((a, b) => a.hour - b.hour)
-      .find((s) => botState?.d_direction && s.pair_dirs?.XAUUSD === botState.d_direction)?.hour ??
-    null;
+  const firstD1MatchHour = botState?.d_matched_hour ?? getFirstD1MatchHour(todaySignals, botState?.d_direction);
   const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
   const d1MatchWindow = firstD1MatchHour !== null ? "Áp dụng tới H=11" : null;
 

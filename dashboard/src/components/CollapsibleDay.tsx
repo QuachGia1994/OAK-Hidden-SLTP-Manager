@@ -3,13 +3,7 @@
 import { useState } from "react";
 import { SignalCard } from "./SignalCard";
 import type { Signal } from "@/lib/types";
-
-function getFirstD1MatchHour(daySignals: Array<{ hour: number; signal: string; d_direction?: string | null }>) {
-  const firstMatch = [...daySignals]
-    .sort((a, b) => a.hour - b.hour)
-    .find((signal) => signal.d_direction && signal.signal === signal.d_direction);
-  return firstMatch?.hour ?? null;
-}
+import { getFirstD1MatchHour } from "@/lib/trading-time";
 
 function weekdayLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -29,7 +23,7 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
   const [open, setOpen] = useState(defaultOpen);
   const daySignals = [...signals].sort((a, b) => b.hour - a.hour);
   const dayD = daySignals[0]?.d_direction;
-  const firstD1MatchHour = getFirstD1MatchHour(daySignals);
+  const firstD1MatchHour = getFirstD1MatchHour(daySignals, dayD);
   const weekday = weekdayLabel(date);
 
   return (
