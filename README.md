@@ -10,7 +10,7 @@ Tài liệu liên quan:
 
 - D-direction nhận qua Telegram, lưu gần như tức thì qua file + ping localhost.
 - Signal bot chạy 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
-- Rule schedule đã đồng bộ theo các mốc `H=2,3,4,6,9,11,12,14,15,16`.
+- Rule schedule đã đồng bộ theo các mốc `H=2,4,6,9,11,12,14,15,16`.
 - Entry time đã bỏ khỏi flow hiện tại; dashboard chỉ còn signal, pair directions và notes.
 - Fact-check web dùng nguồn free gọn hơn, ưu tiên `Google + DuckDuckGo`, Google Fact Check là lớp authority.
 - Dashboard Vercel giữ VIP bằng cookie server-side, chuyển tab/reload không rơi về free user.

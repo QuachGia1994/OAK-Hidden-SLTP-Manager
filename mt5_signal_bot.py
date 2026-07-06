@@ -40,7 +40,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = [2, 3, 4, 6, 9, 11, 12, 14, 15, 16]
+TARGET_HOURS = [2, 4, 6, 9, 11, 12, 14, 15, 16]
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -623,7 +623,6 @@ def get_hour_note(H, weekday=None):
     if weekday in (1, 2):
         notes = {
             2: "GBPAUD, GBPJPY ngược Vàng",
-            3: "GBPAUD, GBPJPY ngược Vàng",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "Nhóm GBP cùng Vàng (đảo)",
@@ -638,7 +637,6 @@ def get_hour_note(H, weekday=None):
     if weekday == 3:
         notes = {
             2: "GBPAUD, GBPJPY ngược Vàng",
-            3: "GBPAUD, GBPJPY ngược Vàng",
             4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
             9: "GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
@@ -653,7 +651,6 @@ def get_hour_note(H, weekday=None):
     if weekday == 4:
         notes = {
             2: "Vàng + Nhóm GBP ngược D Direction",
-            3: "Chỉ Vàng",
             4: "Chỉ Vàng (đảo)",
             6: "Chỉ Vàng (đảo)",
             9: "Chỉ Vàng (đảo)",
@@ -668,7 +665,6 @@ def get_hour_note(H, weekday=None):
     # T2 (weekday 0) - mặc định
     notes = {
         2: "Vàng + Nhóm GBP ngược D Direction",
-        3: "Chỉ Vàng",
         4: "Chỉ Vàng (đảo)",
         6: "Chỉ Vàng (đảo)",
         9: "Chỉ Vàng (đảo)",
@@ -745,7 +741,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             for p in GBP_PAIRS:
                 result[p] = gold
         else:
-            # H=3,4,9,11,12,14,15: chỉ Vàng
+            # H=4,9,11,12,14,15: chỉ Vàng
             result["XAUUSD"] = gold
         return result
 
@@ -845,7 +841,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             for p in GBP_PAIRS:
                 result[p] = gold
         else:
-            # H=3,4,6,9,11,12,14,15: chỉ Vàng
+            # H=4,6,9,11,12,14,15: chỉ Vàng
             result["XAUUSD"] = gold
         return result
 
@@ -853,7 +849,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
 
 def should_skip_xauusd(H, signal, broker_dt):
     """Kiểm tra có nên ẩn XAUUSD không. Không mutated state.
-    Skip từ H=3 sau match D1 tới H=11. H=12+ hiển thị lại."""
+    Skip từ H=4 sau match D1 tới H=11. H=12+ hiển thị lại."""
     if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
     if H < 2 or H in (12, 14, 15, 16):
