@@ -166,10 +166,36 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) 
 }
 
 function MetaPill({ label, value }: { label: string; value: string }) {
+  const isCurrentTime = value.includes("Broker");
+
   return (
-    <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-950/35 px-4 py-3">
-      <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-400 dark:text-zinc-500">{label}</div>
-      <div className="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">{value}</div>
+    <div
+      className={`relative overflow-hidden rounded-2xl border px-4 py-3 ${
+        isCurrentTime
+          ? "border-emerald-400/35 bg-gradient-to-br from-emerald-500/20 via-cyan-500/10 to-sky-500/15 shadow-[0_18px_40px_-24px_rgba(16,185,129,0.75)] ring-1 ring-inset ring-emerald-400/15"
+          : "border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-950/35"
+      }`}
+    >
+      {isCurrentTime ? (
+        <>
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.22),transparent_54%)]" />
+          <div className="relative flex items-center gap-2 text-[10px] uppercase tracking-[0.28em] text-emerald-700 dark:text-emerald-300">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_5px_rgba(16,185,129,0.12)]" />
+            {label}
+          </div>
+          <div className="relative mt-1 text-[13px] font-semibold leading-5 text-zinc-900 dark:text-zinc-50 sm:text-[15px]">
+            {value}
+          </div>
+          <div className="relative mt-1 text-[10px] uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400">
+            Broker time synced
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-400 dark:text-zinc-500">{label}</div>
+          <div className="mt-1 text-sm font-semibold text-zinc-800 dark:text-zinc-100">{value}</div>
+        </>
+      )}
     </div>
   );
 }
