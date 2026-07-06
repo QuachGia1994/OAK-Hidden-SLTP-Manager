@@ -47,6 +47,15 @@ BROKER_GMT = 0
 # =====================================================================
 _STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bot_state.json")
 
+def _trading_date():
+    """Current trading date in broker time."""
+    try:
+        if "get_broker_time" in globals():
+            return get_broker_time().date()
+    except Exception:
+        pass
+    return (datetime.now(tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=BROKER_GMT)).date()
+
 def _load_state():
     """Load persisted state from disk. Returns dict with day_signals, sent_today, etc."""
     try:
@@ -55,8 +64,8 @@ def _load_state():
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
-    # Only accept state from today (use UTC to match broker_dt.date())
-    today_str = datetime.now(tz=timezone.utc).date().isoformat()
+    # Only accept state from the current trading day, not raw UTC date.
+    today_str = _trading_date().isoformat()
     if data.get("date") != today_str:
         return {}
 
@@ -75,7 +84,7 @@ def _load_state():
 
 def _save_state(day_signals, sent_today):
     """Persist state to disk."""
-    today_str = datetime.now(tz=timezone.utc).date().isoformat()
+    today_str = _trading_date().isoformat()
     # Convert day_signals keys to string for JSON
     ds_json = {}
     for (d, h), v in day_signals.items():
@@ -471,7 +480,7 @@ def check_d_direction_input():
                     state = json.load(f)
             # Ensure date field exists
             if "date" not in state:
-                state["date"] = datetime.now(tz=timezone.utc).date().isoformat()
+                state["date"] = _trading_date().isoformat()
             state["d_direction"] = d_direction
             state["d_direction_date"] = d_direction_date.isoformat() if d_direction_date else None
             state["d_matched_hour"] = d_matched_hour
@@ -788,7 +797,7 @@ d_matched_hour = None  # H where signal matched D (stops reporting after)
 def set_d_direction(direction):
     global d_direction, d_direction_date, d_matched_hour
     d_direction = direction.upper() if direction else None
-    d_direction_date = datetime.now(tz=timezone.utc).date() if d_direction else None
+    d_direction_date = _trading_date() if d_direction else None
     d_matched_hour = None
 
 def get_effective_d_direction(broker_dt):

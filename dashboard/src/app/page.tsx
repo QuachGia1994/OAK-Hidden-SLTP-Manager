@@ -2,6 +2,7 @@ import { getTodaySignals, getBotState, getEconomicNews } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
 import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
+import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <DashboardAutoRefresh />
       <div className="mb-8 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-5 py-5 sm:px-6 sm:py-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
