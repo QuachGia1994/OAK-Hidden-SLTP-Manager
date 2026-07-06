@@ -55,8 +55,6 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=14,15: Chỉ Vàng",
     "H=16: Nhóm GBP + Vàng cùng",
     "Khi D1 match → ẩn XAUUSD từ H=3 đến H=11. Hiển thị lại từ H=12",
-    "Nếu T4 trong tuần là ngày 30/1 → Cần tính lại T2",
-    "Nếu T6 trong tuần là ngày 3/4/7 → Cần tính lại T2",
   ],
   2: [    // Thứ 3 (JS: getDay() = 2)
     "Slots: H=2,3,4,6,9,11,12,14,15,16",
@@ -72,8 +70,6 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=14,15: GBPCAD, GBPUSD, GBPJPY cùng Vàng",
     "H=16: So H=15 chỉ Vàng (cùng→đảo+16:49/17:36, ngược+20:59). Nhóm GBP 18:59, lấy signal H=16",
     "Nếu T4 là ngày cuối tháng → Tính lại W1",
-    "Nếu T4 là ngày 30 hoặc ngày 1 → Tính lại W1",
-    "Nếu T6 trong cùng tuần rơi ngày 3/4/7 → Tính lại W1",
   ],
   4: [    // Thứ 5 (JS: getDay() = 4)
     "Slots: H=2,3,4,6,9,11,12,14,15",

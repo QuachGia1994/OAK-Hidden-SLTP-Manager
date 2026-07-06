@@ -501,7 +501,6 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 Gửi lúc 06:00 với các note ngày đặc biệt:
 - `Thứ 4, 5, 6` cuối tháng: cần tính lại.
 - `Thứ 4` ngày `30` hoặc `1`: tính lại (Thứ 4, 5, 6).
-- `Thứ 6` ngày `3/4/7`: tính lại (Thứ 4, 5, 6).
 - `Thứ 6` cuối tháng `2` và `7`: tính lại `trend năm`.
 
 ---

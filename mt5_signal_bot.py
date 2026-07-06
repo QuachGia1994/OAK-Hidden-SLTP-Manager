@@ -1291,6 +1291,7 @@ def main():
             f"Các slot kế XAUUSD bị ẩn đến H=11.\n"
             f"Hiển thị lại từ H=12."
         )
+    check_d_direction_input()
     push_to_dashboard()
     watcher = threading.Thread(target=d_direction_watcher, daemon=True)
     watcher.start()

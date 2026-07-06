@@ -513,21 +513,6 @@ def get_day_notes(now, lang="VN"):
         notes_vn.append("Thứ 4 ngày 1: cần tính lại W1.")
         notes_en.append("Wednesday day 1: recalculate W1.")
 
-    # 4. T4 có T6 ngày 3/4/7 → cần tính lại W1
-    if weekday == 2:
-        friday = now + timedelta(days=2)
-        if friday.day in (3, 4, 7):
-            notes_vn.append("Thứ 4: T6 sắp tới ngày 3/4/7 → cần tính lại W1.")
-            notes_en.append("Wednesday: upcoming Friday is day 3/4/7 → recalculate W1.")
-
-    # 5. T2 có T4 ngày 30/1 hoặc T6 ngày 3/4/7 → cần tính lại thứ 2
-    if weekday == 0:
-        wednesday = now + timedelta(days=2)
-        friday = now + timedelta(days=4)
-        if wednesday.day in (30, 1) or friday.day in (3, 4, 7):
-            notes_vn.append("Thứ 2: T4 ngày 30/1 hoặc T6 ngày 3/4/7 → cần tính lại thứ 2.")
-            notes_en.append("Monday: Wed is day 30/1 or Fri is day 3/4/7 → recalculate Monday.")
-
     if lang == "VN":
         return notes_vn if notes_vn else ["Thứ 2-6: trade bình thường theo schedule."]
     return notes_en if notes_en else ["Mon-Fri: trade normally per schedule."]
