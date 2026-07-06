@@ -70,7 +70,7 @@ export const DAY_RULES: Record<number, string[]> = {
   ],
   4: [    // Thứ 5 (JS: getDay() = 4)
     "Slots: H=1,4,6,9,11,12,14,15",
-    "Có nhập D direction qua Telegram lúc 6:00 VN",
+    "Có nhập D direction qua Telegram lúc 4:00 VN",
     "H=1,4,6: Vàng (đảo), GBPAUD ngược Vàng (đảo)",
     "H=9: GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
     "H=11: GBPAUD/GBPCAD/GBPUSD ngược Vàng (đảo), GBPJPY cùng Vàng (đảo). H=12: Chỉ Vàng (đảo)",
@@ -79,7 +79,7 @@ export const DAY_RULES: Record<number, string[]> = {
   ],
   5: [    // Thứ 6 (JS: getDay() = 5) - lưu D direction gốc
     "Slots: H=1,4,6,9,11,12,14,15,16",
-    "Có nhập D direction qua Telegram lúc 6:00 VN",
+    "Có nhập D direction qua Telegram lúc 4:00 VN",
     "H=1: Vàng (đảo) + Nhóm GBP ngược D Direction",
     "H=4: Chỉ Vàng (đảo)",
     "H=6,9,11,12: Chỉ Vàng (đảo)",

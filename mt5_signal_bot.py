@@ -316,7 +316,8 @@ def send_d_direction_reminder():
         f"📝 NHẬP DIRECTION CHO {weekday_label}\n"
         "============================\n"
         "Gõ BUY hoặc SELL qua Telegram\n"
-        "để lưu D direction cho ngày hiện tại.\n\n"
+        "để lưu D direction cho ngày hiện tại.\n"
+        "Khung nhắc hiện tại: 4:00 VN.\n\n"
         "Ví dụ: gõ 'BUY' hoặc 'SELL'\n"
         "============================\n"
         "Nếu lưu vào thứ 6, thứ 2 bot sẽ tự đảo lại D\n"
@@ -1277,7 +1278,7 @@ def main():
 
             check_d_direction_input()
 
-            if broker_dt.hour == 2 and broker_dt.minute == 0 and broker_dt.weekday() in (3, 4):
+            if broker_dt.hour == 0 and broker_dt.minute == 0 and broker_dt.weekday() in (3, 4):
                 send_d_direction_reminder()
 
             if now_min == 45 and now_hour in TARGET_HOURS:

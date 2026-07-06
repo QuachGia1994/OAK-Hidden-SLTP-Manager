@@ -73,7 +73,7 @@ Trigger lệnh vào `x:45`.
 
 ### D Direction
 
-- Nhập `BUY` hoặc `SELL` qua Telegram vào khung nhắc 6:00 VN của thứ 5/thứ 6
+- Nhập `BUY` hoặc `SELL` qua Telegram vào khung nhắc 4:00 VN của thứ 5/thứ 6
 - Bot lưu D direction ngay cho ngày hiện tại, đồng thời đẩy trạng thái sang dashboard
 - D direction lưu từ thứ 6 được đảo lại để dùng cho thứ 2
 - Thứ 3 và thứ 4 không áp dụng D direction
