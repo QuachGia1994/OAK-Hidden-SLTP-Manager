@@ -9,6 +9,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let signals: any[] = [];
   let botState: any = null;
   let news: any[] = [];
+  const now = new Date();
 
   const params = await searchParams;
   const isVIP = await hasVipAccess(params);
@@ -23,7 +24,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     console.error("Dashboard fetch error:", e);
   }
 
-  const todayStr = new Date().toLocaleDateString("sv-SE");
+  // Match broker/VN trading day instead of the Vercel server timezone.
+  const todayStr = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Bangkok" }).format(now);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
 
@@ -45,11 +47,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
       <div className="mb-8 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-5 py-5 sm:px-6 sm:py-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+            <div>
             <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-400 dark:text-zinc-500 mb-2">Trading console</div>
             <h1 className="text-4xl sm:text-5xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">Dashboard</h1>
             <p className="text-base text-zinc-500 dark:text-zinc-400 mt-2 max-w-2xl">
-              {new Date().toLocaleDateString("vi-VN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+              {new Intl.DateTimeFormat("vi-VN", {
+                timeZone: "Asia/Bangkok",
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              }).format(now)}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:gap-3">
