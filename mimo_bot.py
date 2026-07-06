@@ -23,6 +23,7 @@ import subprocess
 import urllib.request
 import urllib.parse
 import re
+import socket
 from datetime import datetime
 
 try:
@@ -49,6 +50,7 @@ except Exception:
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(PROJECT_DIR, "profiles.json")
 SETTINGS_FILE = os.path.join(PROJECT_DIR, "settings.json")
+MT5_D_DIRECTION_PORT = 8765
 
 # Files cho OAK integration
 TELE_INBOX_FILE = os.path.join(PROJECT_DIR, "tele_inbox.json")
@@ -110,6 +112,15 @@ def send_telegram_msg(chat_id, text):
     except Exception as e:
         print(f"Send error: {e}")
         return None
+
+def notify_mt5_d_direction(direction):
+    """Send a tiny localhost event so mt5_signal_bot can react immediately."""
+    try:
+        with socket.create_connection(("127.0.0.1", MT5_D_DIRECTION_PORT), timeout=0.25) as sock:
+            sock.sendall((direction + "\n").encode("utf-8"))
+        return True
+    except Exception:
+        return False
 
 def get_all_profiles():
     config = load_json(CONFIG_FILE)
@@ -536,12 +547,17 @@ def handle_all(message):
     if text_upper in ("BUY", "SELL", "MUA", "BAN"):
         d_file = os.path.join(PROJECT_DIR, "d_direction_input.txt")
         tmp_file = d_file + ".tmp"
+        direction = "BUY" if text_upper in ("BUY", "MUA") else "SELL"
         try:
             with open(tmp_file, "w", encoding="utf-8") as f:
                 f.write(text_upper)
             os.replace(tmp_file, d_file)
+            notify_mt5_d_direction(direction)
+            bot.reply_to(message, f"✅ Đã nhận {direction}, đang lưu vào MT5...")
+            return
         except Exception:
-            pass
+            bot.reply_to(message, "⚠️ Không ghi được D direction vào file.")
+            return
     nlp_triggers = [
         "buy", "sell", "mua", "ban", "long", "short",
         "close", "dong", "di", "sua", "tinh", "pnl",

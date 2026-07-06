@@ -8,6 +8,7 @@ import json
 import time
 import calendar
 import threading
+import socket
 from datetime import datetime, timedelta, timezone
 import urllib.request
 
@@ -42,6 +43,7 @@ SYMBOL = "GBPUSD"
 TARGET_HOURS = [2, 3, 4, 6, 9, 11, 12, 14, 15, 16]
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
+DIRECTION_EVENT_PORT = 8765
 
 # =====================================================================
 # STATE PERSISTENCE - survive bot restarts
@@ -507,6 +509,40 @@ def d_direction_watcher():
         except Exception:
             pass
         time.sleep(DIRECTION_POLL_INTERVAL)
+
+def d_direction_event_server():
+    """ponytail: localhost ping để MT5 nhặt D gần như tức thì; file watcher vẫn là fallback nếu ping fail."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(("127.0.0.1", DIRECTION_EVENT_PORT))
+        server.listen(5)
+        server.settimeout(1.0)
+    except OSError as exc:
+        print(f"  [D-DIRECTION] Event server unavailable: {exc}")
+        try:
+            server.close()
+        except Exception:
+            pass
+        return
+
+    print(f"  [D-DIRECTION] Listening on 127.0.0.1:{DIRECTION_EVENT_PORT}")
+    while True:
+        try:
+            conn, _addr = server.accept()
+        except socket.timeout:
+            continue
+        except Exception:
+            continue
+        try:
+            with conn:
+                try:
+                    conn.recv(64)
+                except Exception:
+                    pass
+            check_d_direction_input()
+        except Exception:
+            pass
 # =====================================================================
 # TIME HELPERS
 # =====================================================================
@@ -1257,10 +1293,10 @@ def main():
             f"Hiển thị lại từ H=12."
         )
     push_to_dashboard()
-
-
     watcher = threading.Thread(target=d_direction_watcher, daemon=True)
     watcher.start()
+    event_server = threading.Thread(target=d_direction_event_server, daemon=True)
+    event_server.start()
 
     # Backfill các ngày thiếu khi bot khởi động
     backfill_missing_days()
