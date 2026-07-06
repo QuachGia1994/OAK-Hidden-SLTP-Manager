@@ -35,6 +35,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       .sort((a, b) => a.hour - b.hour)
       .find((s) => s.d_direction && s.signal === s.d_direction)?.hour ??
     null;
+  const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
+  const d1MatchWindow = firstD1MatchHour !== null ? "Áp dụng tới H=11" : null;
 
   const allSlots = TARGET_HOURS.map((h) => ({
     date: todayStr,
@@ -73,6 +75,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <MiniStat label="VIP" value={isVIP ? "Unlocked" : "Locked"} />
           </div>
         </div>
+        {d1MatchBadge && (
+          <div className="inline-flex flex-wrap items-center gap-2 self-start rounded-full border border-emerald-200/80 dark:border-emerald-500/20 bg-emerald-50/80 dark:bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+            <span>{d1MatchBadge}</span>
+            {d1MatchWindow && <span className="text-emerald-500 dark:text-emerald-400">• {d1MatchWindow}</span>}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-10">
