@@ -31,15 +31,16 @@ Quy trình:
 
 Bot xử lý các mốc:
 
-`H=1, 4, 6, 9, 11, 12, 14, 15, 16`
+`H=2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16`
 
 Trigger lệnh vào `x:45`.
 
 ### Logic nến
 
-- M5@35 và M5@40 quyết định hướng ban đầu
-- M30@00 xác nhận cùng/ngược
-- H1 kiểm tra để quyết định đảo hay giữ signal
+- M5@35 và M5@40 + M30@00 quyết định signal
+- M5@35 + M5@40 cùng chiều → theo M30
+- M5@35 + M5@40 ngược chiều → đảo từ M30
+- XAUUSD direction: so signal với M30 XAUUSD@(H-1), cùng chiều → đảo, ngược → theo M30 XAUUSD
 - Khi gặp DOJI, bot lùi 1 nến cùng khung để lấy dữ liệu ổn định hơn
 
 ### Cặp giao dịch
@@ -52,20 +53,13 @@ Trigger lệnh vào `x:45`.
 
 ### Rule quan trọng
 
-- `H=1`:
-  Vàng thường; Thứ 2/6 thêm nhóm GBP ngược D direction, Thứ 3-5 chỉ còn GBPAUD ngược Vàng
-- `H=4`: Vàng đảo, GBPAUD ngược Vàng đảo
-- `H=6`:
-  - T2, T6: chỉ vàng đảo
-  - T3-T5: vàng đảo, sau đó GBPAUD đi theo vàng đã đảo
-- Fact-check web: ưu tiên `Google + DuckDuckGo`, Google Fact Check là lớp authority
-- `H=9,11`: nhóm GBP đi theo rule theo ngày
-- `H=12`: chỉ vàng đảo
-- `H=14`: vàng đảo, nhóm GBP cùng vàng đảo theo rule ngày
-- `H=15`: vàng thường, nhóm GBP cùng vàng theo rule ngày
-- `H=16`:
-  - T2, T5, T6: XAUUSD + nhóm GBP vào `18:59`
-  - T3, T4: so XAUUSD với `H=15` để quyết định đảo hay dời `20:59`
+Mọi slot đều tính Vàng (XAUUSD). GBP pairs theo rule:
+
+- `H=2, H=3`: GBPAUD, GBPJPY ngược Vàng; GBPUSD, GBPCAD = --
+- `H=4, H=6`: GBPAUD ngược Vàng; các GBP khác = --
+- `H=9, H=11`: Nhóm GBP ngược Vàng
+- `H=12, H=14, H=15`: Nhóm GBP cùng Vàng
+- Các slot khác: Chỉ Vàng
 
 ### Entry time
 

@@ -40,7 +40,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = [1, 4, 6, 9, 11, 12, 14, 15, 16]
+TARGET_HOURS = list(range(2, 17))
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -512,6 +512,41 @@ def get_h1_candle_for_slot(broker_dt, H):
         return None
     return c_h1
 
+def get_xauusd_m30_signal(broker_dt, H):
+    """Lấy signal từ nến M30 của XAUUSD tại (H-1):30."""
+    if H < 1:
+        return None
+    ts_m30 = broker_time_to_ts(broker_dt, H - 1, 30, 0)
+    c_m30 = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_M30, ts_m30)
+    if c_m30 is None:
+        print(f"  [M30 XAUUSD] Không có dữ liệu tại {H-1}:30")
+        return None
+    d_m30 = candle_direction(c_m30)
+    if d_m30 == "DOJI":
+        d_m30 = resolve_doji("XAUUSD", mt5.TIMEFRAME_M30, ts_m30, broker_dt)
+        if d_m30 is None:
+            d_m30 = "TANG"
+        print(f"  [DOJI] M30 XAUUSD@{H-1}:30 DOJI -> fallback: {d_m30}")
+    if d_m30 and d_m30 != "DOJI":
+        return "BUY" if d_m30 == "TANG" else "SELL"
+    return None
+
+def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
+    """Cùng chiều XAUUSD M30 -> đảo, ngược chiều -> theo XAUUSD M30."""
+    xau_m30 = get_xauusd_m30_signal(broker_dt, H)
+    if xau_m30 is None or "XAUUSD" not in pair_dirs:
+        return pair_dirs
+    if sig == xau_m30:
+        pair_dirs["XAUUSD"] = "SELL" if xau_m30 == "BUY" else "BUY"
+    else:
+        pair_dirs["XAUUSD"] = xau_m30
+    return pair_dirs
+    if sig == xau_h1:
+        pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
+    else:
+        pair_dirs["XAUUSD"] = sig
+    return pair_dirs
+
 def candle_info_line(candle, label):
     if candle is None:
         return f"  {label}: Khong co du lieu"
@@ -588,94 +623,22 @@ def analyze(broker_dt, H):
             f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:00')}"
         )
 
-    # === H1 CHECK — tất cả slot ===
-    orig_signal = signal  # giữ signal gốc trước H1
-    h1_flipped = False
-    h1_result = None  # chiều H1 GBPUSD = chiều XAUUSD
-    c_h1 = get_h1_candle_for_slot(broker_dt, H)
-    if c_h1 is not None:
-        d_h1 = candle_direction(c_h1)
-        # DOJI fallback: lùi 1 nến H1 trước
-        if d_h1 == "DOJI":
-            ts_h1 = broker_time_to_ts(broker_dt, H - 1, 0, 0)
-            d_h1 = resolve_doji(SYMBOL, mt5.TIMEFRAME_H1, ts_h1, broker_dt)
-            if d_h1 is None:
-                d_h1 = "TANG"  # fallback cuối
-            print(f"  [DOJI] H1@{H-1}:00 DOJI -> fallback: {d_h1}")
-        if d_h1 and d_h1 != "DOJI":
-            h1_signal = "BUY" if d_h1 == "TANG" else "SELL"
-            h1_result = h1_signal
-            vn_h1 = vn_direction(d_h1)
-            if h1_signal == signal:
-                signal = "SELL" if signal == "BUY" else "BUY"
-                h1_flipped = True
-                report += f"\n\n  *H1@{H-1}:00: {vn_h1}* (Cùng chiều M5+M30)\n  -> ĐẢO NGƯỢC: {signal}"
-            else:
-                report += f"\n\n  *H1@{H-1}:00: {vn_h1}* (Ngược chiều M5+M30)\n  -> GIỮ NGUYÊN: {signal}"
-
-    return {"signal": signal, "orig_signal": orig_signal, "h1_signal": h1_result, "report": report, "m30_dir": d_m30, "h1_flipped": h1_flipped}
+    return {"signal": signal, "orig_signal": signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def get_hour_note(H, weekday=None):
     """Trả note theo H và thứ."""
-    if weekday is None:
-        weekday = datetime.now().weekday()
-
-    # T3-T4 (weekday 1,2)
-    if weekday in (1, 2):
-        notes = {
-            1: "Vàng, GBPAUD ngược Vàng",
-            4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
-            6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
-            9: "Nhóm GBP cùng Vàng (đảo)",
-            11: "Nhóm GBP cùng Vàng (đảo)",
-            12: "Chỉ Vàng (đảo)",
-            14: "Nhóm GBP cùng Vàng",
-            15: "Nhóm GBP cùng Vàng",
-        }
-        return notes.get(H)
-
-    # T5 (weekday 3) - riêng biệt vì H=9,11 khác T6
-    if weekday == 3:
-        notes = {
-            1: "Vàng, GBPAUD ngược Vàng",
-            4: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
-            6: "Vàng (đảo), GBPAUD ngược Vàng (đảo)",
-            9: "GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
-            11: "GBPAUD/GBPCAD/GBPUSD ngược Vàng (đảo), GBPJPY cùng Vàng (đảo)",
-            12: "Chỉ Vàng (đảo)",
-            14: "Nhóm GBP cùng Vàng",
-            15: "Nhóm GBP cùng Vàng",
-        }
-        return notes.get(H)
-
-    # T6 (weekday 4) - giống T2
-    if weekday == 4:
-        notes = {
-            1: "Vàng + Nhóm GBP ngược D Direction",
-            4: "Chỉ Vàng (đảo)",
-            6: "Chỉ Vàng (đảo)",
-            9: "Chỉ Vàng (đảo)",
-            11: "Chỉ Vàng (đảo)",
-            12: "Chỉ Vàng (đảo)",
-            14: "Chỉ Vàng",
-            15: "Chỉ Vàng",
-            16: "Nhóm GBP + Vàng cùng",
-        }
-        return notes.get(H)
-
-    # T2 (weekday 0) - mặc định
     notes = {
-        1: "Vàng + Nhóm GBP ngược D Direction",
-        4: "Chỉ Vàng (đảo)",
-        6: "Chỉ Vàng (đảo)",
-        9: "Chỉ Vàng (đảo)",
-        11: "Chỉ Vàng (đảo)",
-        12: "Chỉ Vàng (đảo)",
-        14: "Chỉ Vàng",
-        15: "Chỉ Vàng",
-        16: "Nhóm GBP + Vàng cùng",
+        2: "Vàng, GBPAUD/GBPJPY ngược Vàng",
+        3: "Vàng, GBPAUD/GBPJPY ngược Vàng",
+        4: "Vàng, GBPAUD ngược Vàng",
+        6: "Vàng, GBPAUD ngược Vàng",
+        9: "Nhóm GBP ngược Vàng",
+        11: "Nhóm GBP ngược Vàng",
+        12: "Nhóm GBP cùng Vàng",
+        14: "Nhóm GBP cùng Vàng",
+        15: "Nhóm GBP cùng Vàng",
     }
-    return notes.get(H)
+    return notes.get(H, "Chỉ Vàng")
 
 GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
 ALL_PAIRS = GBP_PAIRS + ["XAUUSD"]
@@ -737,10 +700,40 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     gold = signal
     opposite = "SELL" if gold == "BUY" else "BUY"
 
-    # H=4,6,9,11,12: đảo ngược XAUUSD
-    if H in (4, 6, 9, 11, 12, 14):
-        gold = opposite
-        opposite = signal
+    # Mọi slot đều có XAUUSD
+    result["XAUUSD"] = gold
+
+    # H=2, H=3: GBPAUD, GBPJPY ngược Vàng; GBPUSD, GBPCAD --
+    if H in (2, 3):
+        result["GBPAUD"] = opposite
+        result["GBPJPY"] = opposite
+        result["GBPUSD"] = "--"
+        result["GBPCAD"] = "--"
+    # H=4, H=6: GBPAUD ngược Vàng, nhóm còn lại --
+    elif H in (4, 6):
+        result["GBPAUD"] = opposite
+        for p in GBP_PAIRS:
+            if p != "GBPAUD":
+                result[p] = "--"
+    # H=9, H=11: nhóm GBP ngược Vàng
+    elif H in (9, 11):
+        for p in GBP_PAIRS:
+            result[p] = opposite
+    # H=12, H=14, H=15: nhóm GBP cùng Vàng
+    elif H in (12, 14, 15):
+        for p in GBP_PAIRS:
+            result[p] = gold
+    # Các slot khác: chỉ Vàng
+
+    return result
+
+    gold = signal
+    opposite = "SELL" if gold == "BUY" else "BUY"
+
+    # ponytail: H=9,12,15 flip tạm tắt — vàng luôn theo signal
+    # if H in (9, 12, 15):
+    #     gold = opposite
+    #     opposite = signal
 
     # === THỨ 2 (weekday=0) ===
     if weekday == 0:
@@ -797,6 +790,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
+        else:
+            result["XAUUSD"] = gold
         return result
 
     # === THỨ 5 (weekday=3) ===
@@ -831,6 +826,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result["XAUUSD"] = gold
             for p in GBP_PAIRS:
                 result[p] = gold
+        else:
+            result["XAUUSD"] = gold
         # H=16: skip T5 (empty result)
         return result
 
@@ -851,10 +848,12 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             for p in GBP_PAIRS:
                 result[p] = gold
         else:
-            # H=4,6,9,11,12,14,15: chỉ Vàng
+            # H=4,5,6,7,8,9,10,11,12,13,14,15: chỉ Vàng
             result["XAUUSD"] = gold
         return result
 
+    # Default: chỉ XAUUSD theo signal
+    result["XAUUSD"] = gold
     return result
 
 def should_skip_xauusd(H, signal, broker_dt):
@@ -911,6 +910,9 @@ def send_report(signal_data, H, broker_dt, h1_signal=None, h15_signal=None):
             for p in GBP_PAIRS:
                 if p in pair_dirs:
                     pair_dirs[p] = orig_sig
+
+    # XAUUSD H1 check: cùng chiều H1 XAUUSD -> đảo, ngược -> giữ nguyên signal
+    apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H)
 
     if should_skip_xauusd(H, sig, broker_dt):
         pair_dirs.pop("XAUUSD", None)
@@ -1021,6 +1023,9 @@ def backfill_missing_days():
                     for p in GBP_PAIRS:
                         if p in pair_dirs:
                             pair_dirs[p] = orig_sig
+
+                # XAUUSD H1 check
+                apply_xauusd_m30_logic(pair_dirs, sig, fake_broker_dt, H)
 
                 hour_note = get_hour_note(H, target_date.weekday())
                 log_signal(H, fake_broker_dt, sig, pair_dirs, hour_note, is_missed=True)
@@ -1214,6 +1219,8 @@ def main():
                     for p in GBP_PAIRS:
                         if p in pair_dirs:
                             pair_dirs[p] = sig
+            # XAUUSD H1 check
+            apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
             skip_xau = should_skip_xauusd(h, sig, broker_dt)
             if skip_xau:
                 pair_dirs.pop("XAUUSD", None)
