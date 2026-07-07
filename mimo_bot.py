@@ -501,6 +501,79 @@ def _inject_to_oak_inbox(text, chat_id):
     inbox = inbox[-50:]
     save_json(TELE_INBOX_FILE, inbox)
 
+# =====================================================================
+# CALLBACK QUERY HANDLER (inline keyboard from signal bot)
+# =====================================================================
+@bot.callback_query_handler(func=lambda call: call.data.startswith("sig:"))
+def handle_signal_callback(call):
+    """Handle inline keyboard callbacks like sig:BUY:GBPAUD"""
+    if not is_admin(call.message):
+        bot.answer_callback_query(call.id, "⚠️ Không có quyền!")
+        return
+
+    parts = call.data.split(":")
+    if len(parts) != 4:
+        bot.answer_callback_query(call.id, "⚠️ Dữ liệu không hợp lệ!")
+        return
+
+    direction = parts[1]  # BUY or SELL
+    pair = parts[2]       # GBPAUD, XAUUSD, etc.
+    hour = parts[3]       # Signal hour (e.g. "14")
+
+    # Ask user for lot via reply
+    msg_text = (
+        f"📋 {direction} {pair} @ {hour}:xx\n"
+        f"============================\n"
+        f"Nhập: `<lot> <minute> <profile>`\n"
+        f"Ví dụ: `0.01 49 vantage`"
+    )
+    bot.edit_message_text(
+        chat_id=call.message.chat.id,
+        message_id=call.message.message_id,
+        text=f"✅ Đã chọn: {direction} {pair}\n\n⏳ Đang chờ nhập lot..."
+    )
+    bot.answer_callback_query(call.id, f"Đã chọn {direction} {pair}")
+
+    # Store pending order context
+    _pending_signal[call.message.chat.id] = {
+        "direction": direction,
+        "pair": pair,
+        "hour": hour,
+        "step": "lot",
+    }
+    send_telegram_msg(call.message.chat.id, msg_text)
+
+
+_pending_signal = {}
+
+@bot.message_handler(func=lambda m: m.chat.id in _pending_signal and _pending_signal[m.chat.id].get("step") == "lot")
+def handle_signal_lot(message):
+    """Handle lot input after signal button click"""
+    ctx = _pending_signal.get(message.chat.id)
+    if not ctx:
+        return
+
+    text = message.text.strip()
+    parts = text.split()
+    if len(parts) < 3:
+        bot.reply_to(message, "⚠️ Cần 3 tham số: `<lot> <minute> <profile>`\nVí dụ: `0.01 49 vantage`")
+        return
+
+    lot = parts[0]
+    minute = parts[1]
+    profile = parts[2]
+
+    # Build OAK pending command
+    direction = ctx["direction"]
+    pair = ctx["pair"]
+    hour = ctx["hour"]
+    # Format: /pending BUY GBPAUD 0.01 14:49 vantage
+    cmd = f"/pending {direction} {pair} {lot} {hour}:{minute} {profile}"
+    _inject_to_oak_inbox(cmd, message.chat.id)
+
+    bot.reply_to(message, f"📨 Đã gửi vào OAK:\n`{cmd}`")
+    del _pending_signal[message.chat.id]
+
 @bot.message_handler(commands=["reply"])
 def cmd_reply(message):
     if not is_admin(message):
@@ -561,7 +634,11 @@ def handle_all(message):
     nlp_triggers = [
         "buy", "sell", "mua", "ban", "long", "short",
         "close", "dong", "di", "sua", "tinh", "pnl",
-        "status", "trang thai", "lai", "lo", "du bao"
+        "status", "trang thai", "lai", "lo", "du bao",
+        # Vietnamese with diacritics (OAK NLP commands)
+        "đóng", "dời", "sửa", "hoà", "hòa", "tính", "dự",
+        "tất cả", "toàn bộ", "lệnh", "giá", "về",
+        "pending", "closeall", "modify", "status",
     ]
     if any(t in text.lower() for t in nlp_triggers):
         _inject_to_oak_inbox(text, message.chat.id)
@@ -571,25 +648,52 @@ def handle_all(message):
 # MAIN
 # =====================================================================
 if __name__ == "__main__":
-    print("=" * 55)
-    print("  MiMo Bridge Bot v2.0 - Telegram <-> MiMo Code CLI")
-    print(f"  Project: {PROJECT_DIR}")
-    print(f"  Token:   {'SET' if BOT_TOKEN else 'MISSING'}")
-    print(f"  Admin:   {ADMIN_CHAT_ID or '(Chua set - dung /myid)'}")
-    print("=" * 55)
-    print("  Dang chay... Ctrl+C de dung")
-    print("  Queue file: mimo_queue.json")
-    print("  Result file: mimo_result.json")
-    print("=" * 55)
-
-    import time as _time
-    while True:
+    # Check if OAK Manager is already handling Telegram (single bot mode)
+    def _is_oak_running():
         try:
-            bot.polling(none_stop=True, timeout=1, long_polling_timeout=1, skip_pending=True)
-        except KeyboardInterrupt:
-            print("\n  Đã dừng bot.")
-            break
-        except Exception as e:
-            print(f"\n  Lỗi: {e}")
-            print("  Đang kết nối lại sau 5 giây...")
-            _time.sleep(1)
+            result = subprocess.run(
+                ["wmic", "process", "where",
+                 "CommandLine like '%OAK_Hidden_SLTP_Manager%' and Name='python.exe'",
+                 "get", "ProcessId"],
+                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            for line in result.stdout.strip().split('\n'):
+                if line.strip().isdigit():
+                    return True
+        except:
+            pass
+        return False
+
+    if _is_oak_running():
+        print("=" * 55)
+        print("  MiMo Bridge Bot - SKIP (OAK Manager is running)")
+        print("  OAK Manager now handles all Telegram commands.")
+        print("  mimo_worker.py still runs independently.")
+        print("=" * 55)
+        # Keep alive so CHAY_ALL.bat doesn't restart it
+        import time as _time
+        while True:
+            _time.sleep(60)
+    else:
+        print("=" * 55)
+        print("  MiMo Bridge Bot v2.0 - Telegram <-> MiMo Code CLI")
+        print(f"  Project: {PROJECT_DIR}")
+        print(f"  Token:   {'SET' if BOT_TOKEN else 'MISSING'}")
+        print(f"  Admin:   {ADMIN_CHAT_ID or '(Chua set - dung /myid)'}")
+        print("=" * 55)
+        print("  Dang chay... Ctrl+C de dung")
+        print("  Queue file: mimo_queue.json")
+        print("  Result file: mimo_result.json")
+        print("=" * 55)
+
+        import time as _time
+        while True:
+            try:
+                bot.polling(none_stop=True, timeout=1, long_polling_timeout=1, skip_pending=True)
+            except KeyboardInterrupt:
+                print("\n  Đã dừng bot.")
+                break
+            except Exception as e:
+                print(f"\n  Lỗi: {e}")
+                print("  Đang kết nối lại sau 5 giây...")
+                _time.sleep(1)

@@ -16,7 +16,7 @@ input string   SymbolName    = "GBPUSD";
 input int      MagicNumber   = 99999;
 
 // Gio kich hoat (Server Time) - phut 50
-int targetHours[] = {1, 7, 9, 14, 15, 16};
+int targetHours[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                     |
@@ -28,7 +28,7 @@ int OnInit()
    Print("Server: ", ServerURL);
    Print("Broker: ", BrokerName);
    Print("Symbol: ", SymbolName);
-   Print("Target Hours: 01, 07, 09, 14, 15, 16");
+   Print("Target Hours: 02-15:50");
    Print("===========================================");
 
    // Kiem tra WebRequest permission

@@ -12,7 +12,7 @@ import socket
 from datetime import datetime, timedelta, timezone
 import urllib.request
 
-from utils import send_telegram_raw, get_signal_icon, vn_direction
+from utils import send_telegram_raw, send_telegram_with_keyboard, get_signal_icon, vn_direction
 from oak_trading_reminders import get_day_notes
 
 try:
@@ -40,7 +40,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = list(range(2, 17))
+TARGET_HOURS = list(range(2, 16))
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -649,7 +649,6 @@ def get_hour_note(H, weekday=None):
         9: "Nhóm GBP ngược Vàng",
         11: "Nhóm GBP ngược Vàng",
         12: "Nhóm GBP cùng Vàng",
-        14: "Nhóm GBP cùng Vàng",
         15: "Nhóm GBP cùng Vàng",
     }
     return notes.get(H, "Chỉ Vàng")
@@ -733,11 +732,11 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     elif H in (9, 11):
         for p in GBP_PAIRS:
             result[p] = opposite
-    # H=12, H=14, H=15: nhóm GBP cùng Vàng
-    elif H in (12, 14, 15):
+    # H=12, H=15: nhóm GBP cùng Vàng
+    elif H in (12, 15):
         for p in GBP_PAIRS:
             result[p] = gold
-    # Các slot khác: chỉ Vàng
+    # Các slot khác (bao gồm H=14): chỉ Vàng
 
     return result
 
@@ -875,7 +874,7 @@ def should_skip_xauusd(H, signal, broker_dt):
     Skip từ H=4 sau match D1 tới H=11. H=12+ hiển thị lại."""
     if d_direction is None or broker_dt.weekday() not in (0, 3, 4):
         return False
-    if H < 1 or H in (12, 14, 15, 16):
+    if H < 1 or H in (12, 14, 15):
         return False
     if d_matched_hour is not None:
         return True
@@ -902,7 +901,7 @@ def mark_xauusd_matched(H):
 # =====================================================================
 # GUI TELEGRAM BAO CAO
 # =====================================================================
-def send_report(signal_data, H, broker_dt, h1_signal=None, h15_signal=None):
+def send_report(signal_data, H, broker_dt, h1_signal=None):
     sig = signal_data["signal"]
     report = signal_data["report"]
     m30_dir = signal_data.get("m30_dir")
@@ -912,18 +911,6 @@ def send_report(signal_data, H, broker_dt, h1_signal=None, h15_signal=None):
     note_line = f"📝 {hour_note}\n" if hour_note else ""
 
     pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
-
-    # Tue/Wed H=16: compare with H=15 — flip XAUUSD if same, GBP stays original signal
-    if H == 16 and broker_dt.weekday() in (1, 2):
-        if h15_signal and sig == h15_signal:
-            orig_sig = sig
-            sig = "SELL" if sig == "BUY" else "BUY"
-            icon, emoji = get_signal_icon(sig)
-            # XAUUSD flips, GBP keeps original signal direction
-            pair_dirs["XAUUSD"] = sig
-            for p in GBP_PAIRS:
-                if p in pair_dirs:
-                    pair_dirs[p] = orig_sig
 
     # XAUUSD H1 check: cùng chiều H1 XAUUSD -> đảo, ngược -> giữ nguyên signal
     apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H)
@@ -965,6 +952,28 @@ def send_report(signal_data, H, broker_dt, h1_signal=None, h15_signal=None):
         f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
     )
     send_telegram(msg)
+
+    # Send inline keyboard for quick order placement
+    active_pairs = [(p, d) for p, d in pair_dirs.items() if d in ("BUY", "SELL")]
+    if active_pairs:
+        keyboard = []
+        row = []
+        for pair, direction in active_pairs:
+            label = f"{'🟢' if direction == 'BUY' else '🔴'} {direction} {pair}"
+            callback_data = f"sig:{direction}:{pair}:{H}"
+            row.append({"text": label, "callback_data": callback_data})
+            if len(row) == 2:
+                keyboard.append(row)
+                row = []
+        if row:
+            keyboard.append(row)
+        try:
+            send_telegram_with_keyboard(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
+                                        "⚡ Chọn lệnh nhanh (chỉ cần nhập Lot):",
+                                        keyboard, parse_mode=None)
+        except Exception as e:
+            print(f"[WARN] Inline keyboard error: {e}")
+
     return pair_dirs
 
 # =====================================================================
@@ -1013,30 +1022,17 @@ def backfill_missing_days():
                 sig = result["signal"]
 
                 h1_data = None
-                h15_data = None
-                # Đọc H=1 và H=15 từ signals_log nếu có
+                # Đọc H=1 từ signals_log nếu có
                 for r in log_data:
                     if r.get("date") == target_date.isoformat():
                         if r.get("hour") == 1:
                             h1_data = r
-                        if r.get("hour") == 15:
-                            h15_data = r
 
                 h1_sig = h1_data.get("signal") if h1_data else None
-                h15_sig = h15_data.get("signal") if h15_data else None
 
                 pair_dirs = get_pair_direction(H, sig, fake_broker_dt, h1_signal=result.get("h1_signal"))
                 if not pair_dirs:
                     continue
-
-                # Tue/Wed H=16: flip XAUUSD if same as H=15, GBP stays original signal
-                if H == 16 and target_date.weekday() in (1, 2) and h15_sig and sig == h15_sig:
-                    orig_sig = sig
-                    sig = "SELL" if sig == "BUY" else "BUY"
-                    pair_dirs["XAUUSD"] = sig
-                    for p in GBP_PAIRS:
-                        if p in pair_dirs:
-                            pair_dirs[p] = orig_sig
 
                 # XAUUSD H1 check
                 apply_xauusd_m30_logic(pair_dirs, sig, fake_broker_dt, H)
@@ -1189,15 +1185,6 @@ def main():
                 if s1 in ("BUY", "SELL"):
                     day_signals[(broker_dt.date(), 1)] = {"signal": s1, "m30_dir": r1.get("m30_dir")}
                     _save_state(day_signals, sent_today)
-        # Track H=15 signal for Tuesday/Wednesday H=16 XAUUSD logic
-        if 15 in passed:
-            key_h15 = (broker_dt.date(), 15)
-            if key_h15 not in sent_today:
-                r15 = analyze(broker_dt, 15)
-                s15 = r15["signal"]
-                if s15 in ("BUY", "SELL"):
-                    day_signals[(broker_dt.date(), 15)] = {"signal": s15}
-                    _save_state(day_signals, sent_today)
         for h in passed:
             key = (broker_dt.date(), h)
             if key in sent_today:
@@ -1216,8 +1203,6 @@ def main():
 
             h1_data = day_signals.get((broker_dt.date(), 1))
             h1_sig = h1_data["signal"] if h1_data else None
-            h15_data = day_signals.get((broker_dt.date(), 15))
-            h15_sig = h15_data["signal"] if h15_data else None
 
             pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
             if not pair_dirs:
@@ -1225,14 +1210,6 @@ def main():
                 _save_state(day_signals, sent_today)
                 print(f"  [SKIP] H={h} - bỏ trống theo rule")
                 continue
-            # Tue/Wed H=16: flip XAUUSD if same as H=15, GBP stays original signal
-            if h == 16 and wd in (1, 2) and "XAUUSD" in pair_dirs:
-                if h15_sig and sig == h15_sig:
-                    pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
-                    # GBP keeps original signal direction (not flipped)
-                    for p in GBP_PAIRS:
-                        if p in pair_dirs:
-                            pair_dirs[p] = sig
             # XAUUSD H1 check
             apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
             skip_xau = should_skip_xauusd(h, sig, broker_dt)
@@ -1346,11 +1323,6 @@ def main():
                     day_signals[(broker_dt.date(), 1)] = {"signal": sig, "m30_dir": result.get("m30_dir")}
                     _save_state(day_signals, sent_today)
 
-                # Track H=15 signal for Tuesday/Wednesday H=16 XAUUSD logic
-                if now_hour == 15 and sig in ("BUY", "SELL"):
-                    day_signals[(broker_dt.date(), 15)] = {"signal": sig}
-                    _save_state(day_signals, sent_today)
-
                 h1_data = day_signals.get((broker_dt.date(), 1))
                 h1_sig = h1_data["signal"] if h1_data else None
 
@@ -1364,9 +1336,7 @@ def main():
                     time.sleep(10)
                     continue
 
-                h15_data = day_signals.get((broker_dt.date(), 15))
-                h15_sig = h15_data["signal"] if h15_data else None
-                pair_dirs = send_report(result, now_hour, broker_dt, h1_signal=h1_sig, h15_signal=h15_sig)
+                pair_dirs = send_report(result, now_hour, broker_dt, h1_signal=h1_sig)
 
                 # Log for website
                 # Nếu pair_dirs rỗng → XAUUSD bị ẩn do match D1, vẫn log với note

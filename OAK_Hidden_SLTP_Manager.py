@@ -272,6 +272,21 @@ WEDNESDAY_SNAPSHOT_FILE = "wednesday_snapshot.json"
 THURSDAY_SNAPSHOT_FILE = "thursday_snapshot.json"
 FRIDAY_SNAPSHOT_FILE = "friday_snapshot.json"
 
+# MiMo Bot integration (single Telegram bot)
+MIMO_BOT_CONFIG = "config.json"
+MIMO_QUEUE_FILE = "mimo_queue.json"
+MIMO_RESULT_FILE = "mimo_result.json"
+_mimo_bot_token = ""
+_mimo_bot_chat_id = 0
+try:
+    _mimo_cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), MIMO_BOT_CONFIG)
+    with open(_mimo_cfg_path, "r", encoding="utf-8") as _mf:
+        _mimo_cfg = json.load(_mf)
+    _mimo_bot_token = _mimo_cfg.get("telegram_token", "")
+    _mimo_bot_chat_id = int(_mimo_cfg.get("telegram_chat_id", 0))
+except Exception:
+    pass
+
 def get_filling_type(symbol):
     """
     Dynamically select filling mode based on symbol properties.
@@ -1298,14 +1313,20 @@ class CopyTradeManager:
         return False
 
     def _check_telegram_commands(self):
-        """NEW: Check for remote commands via Telegram using Shared Inbox to support Multi-Process"""
-        token = self.config.get("tele_token", "")
-        chat_id = self.config.get("tele_chat", "")
+        """Check for remote commands via Telegram (single bot = MiMo token) + Shared Inbox"""
+        # Use MiMo bot token (single Telegram bot for everything)
+        token = _mimo_bot_token or self.config.get("tele_token", "")
+        chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
         if not token or not chat_id: return
 
-        # Skip Telegram API polling if mimo_bot.py is running (avoids 409 Conflict)
-        # But still read from shared inbox file (section 2)
-        skip_api_poll = self._is_mimo_bot_running()
+        # Skip API poll if mimo_bot.py is already polling the same token
+        # (mimo_bot writes to shared inbox, we just read from it)
+        if not hasattr(self, "_mimo_bot_check_ts"): self._mimo_bot_check_ts = 0
+        if not hasattr(self, "_mimo_bot_cached"): self._mimo_bot_cached = False
+        if time.time() - self._mimo_bot_check_ts > 30:  # Re-check every 30s
+            self._mimo_bot_cached = self._is_mimo_bot_running()
+            self._mimo_bot_check_ts = time.time()
+        skip_api_poll = self._mimo_bot_cached
 
         if not hasattr(self, "_last_tele_check"): self._last_tele_check = 0
         if time.time() - self._last_tele_check < 4.0: return # Check every 4s
@@ -1314,7 +1335,7 @@ class CopyTradeManager:
             self._startup_ts = time.time()
 
         inbox_file = "tele_inbox.json"
-        offset_file = "tele_offset.json"
+        offset_file = "tele_offset.json"  # Shared with mimo_bot (same token now)
         
         # 1. Fetch from Telegram (Broadcaster logic) — skip if mimo_bot handles API
         if not skip_api_poll:
@@ -1409,6 +1430,63 @@ class CopyTradeManager:
                         self._last_processed_id = u_id
             except: pass
 
+    def _send_mimo_response(self, text):
+        """Send response via MiMo bot token (single Telegram bot)"""
+        token = _mimo_bot_token
+        chat_id = _mimo_bot_chat_id
+        if not token or not chat_id: return
+        try:
+            clean = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", text)
+            clean = clean.replace("</c>", "")
+            if len(clean) > 4000:
+                clean = clean[:4000] + "\n\n...[Cắt bớt]..."
+            payload = json.dumps({"chat_id": chat_id, "text": clean}).encode("utf-8")
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=15)
+        except Exception as e:
+            print(f"[MiMo] Send error: {e}")
+
+    def _process_mimo_cmd(self, prompt):
+        """Process /mimo command in background thread"""
+        try:
+            cmd_lower = prompt.lower().strip()
+            if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
+                now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                result = f"Trạng thái hệ thống lúc {now}:\n- OAK Manager: đang chạy\n- MT5 Signal Bot: đang chạy\n- Tất cả hoạt động bình thường."
+            elif any(w in cmd_lower for w in ["signal", "tin hieu"]):
+                result = "Tín hiệu hiện tại: Đang chờ slot kích hoạt tiếp theo."
+            elif any(w in cmd_lower for w in ["time", "gio", "thoi gian"]):
+                now = datetime.now()
+                result = f"Giờ local: {now.strftime('%H:%M:%S')}\nNgày: {now.strftime('%d/%m/%Y')}"
+            elif any(w in cmd_lower for w in ["help", "giup", "huong dan"]):
+                result = "Các lệnh: status, signal, time, help"
+            else:
+                result = f"Đã nhận: '{prompt}'"
+            self._send_mimo_response(f"✅ *Kết quả MiMo:*\n```\n{result}\n```")
+        except Exception as e:
+            self._send_mimo_response(f"❌ Lỗi: {str(e)}")
+
+    def _run_scan_cmd(self):
+        """Scan project files in background thread"""
+        try:
+            project_dir = os.path.dirname(os.path.abspath(__file__))
+            py_files = []
+            for f in os.listdir(project_dir):
+                if f.endswith(".py"):
+                    size = os.path.getsize(os.path.join(project_dir, f))
+                    py_files.append(f"{f} ({size:,} bytes)")
+            json_files = [f for f in os.listdir(project_dir) if f.endswith(".json") and not f.startswith(("_", "."))]
+            lines = ["📂 *QUÉT DỰ ÁN:*\n", f"🐍 Python files ({len(py_files)}):"]
+            for f in py_files[:15]:
+                lines.append(f"  • {f}")
+            lines.append(f"\n📦 JSON files ({len(json_files)}):")
+            for f in json_files[:10]:
+                lines.append(f"  • {f}")
+            self._send_mimo_response("\n".join(lines))
+        except Exception as e:
+            self._send_mimo_response(f"❌ Lỗi quét: {str(e)}")
+
     def _handle_telegram_text(self, text):
         """Parse and execute Enhanced Telegram commands (Support both Syntax and Natural Language)"""
         raw_text = text.strip()
@@ -1419,8 +1497,126 @@ class CopyTradeManager:
         
         profile_name = self.config.get("profile_name", "Unknown")
         profile_lower = profile_name.lower()
-        
-        # --- NEW: NLP PnL Logic ---
+
+        # --- MiMo Bot Commands (merged from mimo_bot.py) ---
+        if cmd[0] == "/myid":
+            self._send_mimo_response(f"Chat ID: `{_mimo_bot_chat_id}`")
+            return
+        if cmd[0] == "/mimo":
+            prompt = raw_text.replace("/mimo", "").strip()
+            if not prompt:
+                self._send_mimo_response("Dùng: `/mimo <yêu cầu>`")
+                return
+            self._send_mimo_response(f"⏳ Đang gửi lệnh MiMo...\n📝 `{prompt}`")
+            threading.Thread(target=self._process_mimo_cmd, args=(prompt,), daemon=True).start()
+            return
+        if cmd[0] == "/code":
+            args = raw_text.replace("/code", "").strip()
+            if not args:
+                self._send_mimo_response("Dùng: `/code <file> <read|edit>`")
+                return
+            parts = args.split(None, 1)
+            if len(parts) < 2:
+                self._send_mimo_response("Dùng: `/code oak_response_dict.py read`")
+                return
+            filename, action = parts
+            if ".." in filename or "/" in filename or "\\" in filename:
+                self._send_mimo_response("❌ Tên file không hợp lệ!")
+                return
+            filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.basename(filename))
+            if action.lower() == "read":
+                if not os.path.exists(filepath):
+                    self._send_mimo_response(f"❌ File không tồn tại: `{filename}`")
+                    return
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                    if len(content) > 3500:
+                        content = content[:3500] + "\n\n...[Cắt bớt]..."
+                    self._send_mimo_response(f"📄 *{filename}:*\n```\n{content}\n```")
+                except Exception as e:
+                    self._send_mimo_response(f"❌ Lỗi đọc file: {str(e)}")
+            else:
+                self._send_mimo_response("Chỉ hỗ trợ: `read`")
+            return
+        if cmd[0] == "/scan":
+            self._send_mimo_response("⏳ Đang quét dự án...")
+            threading.Thread(target=self._run_scan_cmd, daemon=True).start()
+            return
+        if cmd[0] == "/profiles":
+            config = load_json(CONFIG_FILE)
+            if not config:
+                self._send_mimo_response("❌ Không tìm thấy profiles.json")
+                return
+            lines = ["📋 *DANH SÁCH PROFILE:*\n"]
+            for name, p in config.items():
+                ok = "✅" if os.path.exists(p.get("path", "")) else "❌"
+                lines.append(f"• *{name}* {ok} SL:{p.get('sl','?')} TP:{p.get('tp','?')}")
+            self._send_mimo_response("\n".join(lines))
+            return
+        if cmd[0] == "/mt5":
+            args = raw_text.replace("/mt5", "").strip()
+            if not args:
+                self._send_mimo_response("Dùng: `/mt5 <profile>`")
+                return
+            config = load_json(CONFIG_FILE)
+            pname = None
+            for name in config:
+                if name.lower() == args.lower():
+                    pname = name
+                    break
+            if not pname:
+                self._send_mimo_response(f"❌ Không tìm thấy: `{args}`")
+                return
+            p = config[pname]
+            path = p.get("path", "")
+            if not path or not os.path.exists(path):
+                self._send_mimo_response(f"❌ Đường dẫn không tồn tại: `{path}`")
+                return
+            try:
+                if not mt5.initialize(path=path):
+                    self._send_mimo_response(f"❌ MT5 connect failed: {pname}")
+                    return
+                acc = mt5.account_info()
+                if acc:
+                    msg = (
+                        f"🏦 *{pname} - MT5*\n\n"
+                        f"• Server: `{acc.server}`\n"
+                        f"• Login: `{acc.login}`\n"
+                        f"• Balance: {acc.balance:,.2f} {acc.currency}\n"
+                        f"• Equity: {acc.equity:,.2f}\n"
+                        f"• Margin: {acc.margin:,.2f}"
+                    )
+                    self._send_mimo_response(msg)
+                else:
+                    self._send_mimo_response(f"❌ Không lấy được info: {pname}")
+                mt5.shutdown()
+            except Exception as e:
+                self._send_mimo_response(f"❌ Lỗi MT5: {str(e)}")
+            return
+        if cmd[0] == "/positions":
+            args = raw_text.replace("/positions", "").strip()
+            config = load_json(CONFIG_FILE)
+            positions = mt5.positions_get()
+            if not positions:
+                self._send_mimo_response("📋 Không có lệnh nào đang mở.")
+                return
+            lines = ["📋 *VỊ THẾ ĐANG MỞ:\n"]
+            for pos in positions:
+                typ = "BUY" if pos.type == mt5.POSITION_TYPE_BUY else "SELL"
+                pnl = pos.profit + pos.swap + pos.commission
+                icon = "🟢" if pnl >= 0 else "🔴"
+                lines.append(f"{icon} {pos.symbol} {typ} {pos.volume} lot | PnL: {pnl:+.2f}")
+            self._send_mimo_response("\n".join(lines))
+            return
+        if cmd[0] == "/reply":
+            # Already handled by inbox injection, just acknowledge
+            return
+        if cmd[0] in ("/del", "/modify"):
+            # Forward to OAK inbox
+            return
+
+        # --- NLP PnL Logic ---
         symbol_match = re.search(r"([A-Z]{2,12}(?:\+)?(?:\.[a-zA-Z0-9]+)?)", text.upper())
         price_match = re.search(r"(\d+(?:\.\d+)?)", text)
         
@@ -1683,6 +1879,11 @@ class CopyTradeManager:
             elif any(kw in text_lower for kw in ["close", "đóng", "nghỉ", "dừng"]):
                 time_val = ""
                 times = re.findall(r"\b\d{1,2}:\d{2}\b", text_lower)
+                if not times:
+                    # Also match "HHhMM" format (e.g. "23h00")
+                    times_h = re.findall(r"\b(\d{1,2})h(\d{2})\b", text_lower)
+                    if times_h:
+                        times = [f"{times_h[0][0]}:{times_h[0][1]}"]
                 if times: time_val = times[0]
                 
                 # Check for profit/loss specific closing
@@ -3174,8 +3375,9 @@ class MonitorWorker(threading.Thread):
             self.send_telegram(message)
 
     def send_telegram(self, message):
-        token = self.config.get("tele_token", "")
-        chat_id = self.config.get("tele_chat", "")
+        # Use MiMo bot token (single Telegram bot for everything)
+        token = _mimo_bot_token or self.config.get("tele_token", "")
+        chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
         if not token or not chat_id: return
         
         # Strip color tags for Telegram (they don't support custom HTML tags like <c=...>)

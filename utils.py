@@ -20,6 +20,32 @@ def send_telegram_raw(token, chat_id, text, parse_mode="Markdown"):
         return resp.read()
 
 
+def send_telegram_with_keyboard(token, chat_id, text, inline_keyboard, parse_mode="Markdown"):
+    """Send message with inline keyboard via Telegram Bot API."""
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": parse_mode,
+        "reply_markup": json.dumps({"inline_keyboard": inline_keyboard}),
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        return json.loads(resp.read().decode())
+
+
+def answer_callback_query(token, callback_query_id, text=None):
+    """Answer a callback query to dismiss the loading spinner."""
+    url = f"https://api.telegram.org/bot{token}/answerCallbackQuery"
+    payload = json.dumps({
+        "callback_query_id": callback_query_id,
+        **({"text": text} if text else {}),
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        return resp.read()
+
+
 # --- JSON ---
 def load_json_file(path, default=None):
     """Read JSON file safely, return default on error."""
