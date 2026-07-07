@@ -10,7 +10,7 @@ const HOUR_NOTES_T34: Record<number, string> = {
   9: "Nhóm GBP cùng Vàng (đảo)",
   11: "Nhóm GBP cùng Vàng (đảo)",
   12: "Chỉ Vàng (đảo)",
-  14: "Nhóm GBP cùng Vàng",
+  14: "Nhóm GBP cùng Vàng (đảo)",
   15: "Nhóm GBP cùng Vàng",
 };
 
@@ -21,7 +21,7 @@ const HOUR_NOTES_T5: Record<number, string> = {
   9: "GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
   11: "GBPAUD/GBPCAD/GBPUSD ngược Vàng (đảo), GBPJPY cùng Vàng (đảo)",
   12: "Chỉ Vàng (đảo)",
-  14: "Nhóm GBP cùng Vàng",
+  14: "Nhóm GBP cùng Vàng (đảo)",
   15: "Nhóm GBP cùng Vàng",
 };
 
@@ -32,7 +32,7 @@ const HOUR_NOTES_T26: Record<number, string> = {
   9: "Chỉ Vàng (đảo)",
   11: "Chỉ Vàng (đảo)",
   12: "Chỉ Vàng (đảo)",
-  14: "Chỉ Vàng",
+  14: "Chỉ Vàng (đảo)",
   15: "Chỉ Vàng",
   16: "Nhóm GBP + Vàng cùng",
 };
@@ -49,7 +49,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=1: Vàng + Nhóm GBP ngược D Direction",
     "H=4: Chỉ Vàng (đảo)",
     "H=6,9,11,12: Chỉ Vàng (đảo)",
-    "H=14,15: Chỉ Vàng",
+    "H=14: Chỉ Vàng (đảo). H=15: Chỉ Vàng",
     "H=16: Nhóm GBP + Vàng cùng",
     "Khi D1 match → ẩn XAUUSD từ H=4 đến H=11. Hiển thị lại từ H=12",
   ],
@@ -57,14 +57,14 @@ export const DAY_RULES: Record<number, string[]> = {
     "Slots: H=1,4,6,9,11,12,14,15,16",
     "H=1: Vàng, GBPAUD ngược Vàng. H=4,6: Vàng (đảo), GBPAUD ngược Vàng (đảo)",
     "H=9,11: Nhóm GBP cùng Vàng (đảo). H=12: Chỉ Vàng (đảo)",
-    "H=14,15: Nhóm GBP cùng Vàng",
+    "H=14: Nhóm GBP cùng Vàng (đảo). H=15: Nhóm GBP cùng Vàng",
     "H=16: So H=15 chỉ Vàng. Nhóm GBP 18:59, lấy signal H=16",
   ],
   3: [    // Thứ 4 (JS: getDay() = 3)
     "Slots: H=1,4,6,9,11,12,14,15,16",
     "H=1: Vàng, GBPAUD ngược Vàng. H=4,6: Vàng (đảo), GBPAUD ngược Vàng (đảo)",
     "H=12: Chỉ Vàng (đảo)",
-    "H=14,15: Nhóm GBP cùng Vàng",
+    "H=14: Nhóm GBP cùng Vàng (đảo). H=15: Nhóm GBP cùng Vàng",
     "H=16: So H=15 chỉ Vàng. Nhóm GBP 18:59, lấy signal H=16",
     "Nếu T4 là ngày cuối tháng → Tính lại W1",
   ],
@@ -74,7 +74,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=1: Vàng, GBPAUD ngược Vàng. H=4,6: Vàng (đảo), GBPAUD ngược Vàng (đảo)",
     "H=9: GBPAUD/GBPCAD/GBPUSD cùng Vàng (đảo), GBPJPY ngược Vàng (đảo)",
     "H=11: GBPAUD/GBPCAD/GBPUSD ngược Vàng (đảo), GBPJPY cùng Vàng (đảo). H=12: Chỉ Vàng (đảo)",
-    "H=14,15: Nhóm GBP cùng Vàng",
+    "H=14: Nhóm GBP cùng Vàng (đảo). H=15: Nhóm GBP cùng Vàng",
     "H=16: Không tính toán",
   ],
   5: [    // Thứ 6 (JS: getDay() = 5) - lưu D direction gốc
@@ -83,7 +83,7 @@ export const DAY_RULES: Record<number, string[]> = {
     "H=1: Vàng + Nhóm GBP ngược D Direction",
     "H=4: Chỉ Vàng (đảo)",
     "H=6,9,11,12: Chỉ Vàng (đảo)",
-    "H=14,15: Chỉ Vàng",
+    "H=14: Chỉ Vàng (đảo). H=15: Chỉ Vàng",
     "H=16: Nhóm GBP + Vàng cùng",
     "Khi D1 match → ẩn XAUUSD từ H=4 đến H=11. Hiển thị lại từ H=12",
   ],

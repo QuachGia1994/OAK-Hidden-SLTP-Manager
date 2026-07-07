@@ -738,7 +738,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     opposite = "SELL" if gold == "BUY" else "BUY"
 
     # H=4,6,9,11,12: đảo ngược XAUUSD
-    if H in (4, 6, 9, 11, 12):
+    if H in (4, 6, 9, 11, 12, 14):
         gold = opposite
         opposite = signal
 

@@ -61,7 +61,8 @@ Trigger lệnh vào `x:45`.
 - Fact-check web: ưu tiên `Google + DuckDuckGo`, Google Fact Check là lớp authority
 - `H=9,11`: nhóm GBP đi theo rule theo ngày
 - `H=12`: chỉ vàng đảo
-- `H=14,15`: nhóm GBP cùng vàng theo rule ngày
+- `H=14`: vàng đảo, nhóm GBP cùng vàng đảo theo rule ngày
+- `H=15`: vàng thường, nhóm GBP cùng vàng theo rule ngày
 - `H=16`:
   - T2, T5, T6: XAUUSD + nhóm GBP vào `18:59`
   - T3, T4: so XAUUSD với `H=15` để quyết định đảo hay dời `20:59`
