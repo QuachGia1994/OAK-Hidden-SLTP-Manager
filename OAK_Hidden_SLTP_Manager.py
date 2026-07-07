@@ -1428,7 +1428,8 @@ class CopyTradeManager:
                                     self._handle_telegram_text(line.strip())
                         
                         self._last_processed_id = u_id
-            except: pass
+            except Exception as e:
+                print(f"[WARN] Telegram inbox processing error: {e}")
 
     def _send_mimo_response(self, text):
         """Send response via MiMo bot token (single Telegram bot)"""
@@ -2421,7 +2422,8 @@ class CopyTradeManager:
                                         break
                         
                         msg += f"• #{tid} ({sym or '???'} {t_type or '???'}): Lãi ${target_p:,.2f} chốt {vol}\n"
-            except: pass
+            except Exception as e:
+                print(f"[WARN] pending_partials read error: {e}")
         if not partials_found: msg += "• (Không có)\n"
 
         return msg
@@ -3398,7 +3400,8 @@ class MonitorWorker(threading.Thread):
                         if time.time() - start_ts > 2:
                             break
                         time.sleep(0.05)
-                    except:
+                    except Exception as e:
+                        print(f"[WARN] Telegram dedup lock error: {e}")
                         break
 
                 sent_log = []
@@ -3407,7 +3410,8 @@ class MonitorWorker(threading.Thread):
                         if os.path.exists(log_file):
                             with open(log_file, "r", encoding="utf-8") as f:
                                 sent_log = json.load(f)
-                    except:
+                    except Exception as e:
+                        print(f"[WARN] Telegram dedup log read error: {e}")
                         sent_log = []
 
                     now_ts = time.time()
@@ -3445,14 +3449,14 @@ class MonitorWorker(threading.Thread):
                 filtered.append({"msg": clean_message, "ts": now_ts})
                 try:
                     lock_fd = os.open(lock_file, os.O_CREAT | os.O_EXCL | os.O_RDWR)
-                except:
+                except Exception:
                     lock_fd = None
                 try:
                     if lock_fd:
                         with open(log_file, "w", encoding="utf-8") as f:
                             json.dump(filtered[-500:], f)
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[WARN] Telegram dedup log write error: {e}")
                 finally:
                     if lock_fd:
                         os.close(lock_fd)
@@ -3765,7 +3769,8 @@ class MonitorWorker(threading.Thread):
                                     
                                     # Update Ghost Mode status
                                     self.ghost_mode_active = st.get("ghost_mode_active", False)
-                        except: pass
+                        except Exception as e:
+                            print(f"[WARN] CopyTrade state parse error: {e}")
 
                     # Process Copy Trade
                     self.copy_manager.process()

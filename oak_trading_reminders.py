@@ -630,7 +630,7 @@ class OakTradingReminder:
                 if duplicate:
                     os.close(lock_fd)
                     try: os.remove(lock_file)
-                    except: pass
+                    except Exception: pass  # Lock file cleanup best-effort
                     return
             else:
                 # If we still don't have the lock after timeout, 
@@ -642,7 +642,8 @@ class OakTradingReminder:
                 
                 filtered = []
                 now_ts = time.time()
-        except:
+        except Exception as e:
+            print(f"[WARN] Reminder dedup log error: {e}")
             filtered = []
             now_ts = time.time()
         finally:
@@ -653,7 +654,7 @@ class OakTradingReminder:
             elif lock_fd:
                 os.close(lock_fd)
                 try: os.remove(lock_file)
-                except: pass
+                except Exception: pass  # Lock file cleanup best-effort
 
         try:
             msg = urllib.parse.quote(clean_message, safe="*")

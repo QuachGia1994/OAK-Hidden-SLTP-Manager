@@ -124,8 +124,8 @@ def get_current_prices(pair_dirs):
             tick = mt5.symbol_info_tick(pair)
             if tick:
                 prices[pair] = round(tick.bid, 5)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] MT5 tick fetch error for {pair}: {e}")
     return prices
 
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=False):
@@ -270,8 +270,8 @@ def push_prices_to_dashboard():
                 tick = mt5.symbol_info_tick(pair)
                 if tick:
                     prices[pair] = round(tick.bid, 5)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[WARN] Dashboard price fetch error for {pair}: {e}")
         if prices:
             payload = json.dumps(prices).encode("utf-8")
             headers = {"Content-Type": "application/json"}
@@ -367,8 +367,8 @@ def check_d_direction_input():
             print(f"  [D-DIRECTION] State saved: d_direction={state.get('d_direction')}")
             restore_d1_match_from_today_signals()
             push_to_dashboard()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[WARN] State save error: {e}")
     finally:
         d_direction_lock.release()
 
@@ -393,8 +393,8 @@ def d_direction_watcher():
     while True:
         try:
             check_d_direction_input()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] D-direction watcher error: {e}")
         time.sleep(DIRECTION_POLL_INTERVAL)
 
 def d_direction_event_server():
@@ -410,7 +410,7 @@ def d_direction_event_server():
         try:
             server.close()
         except Exception:
-            pass
+            pass  # Best effort cleanup
         return
 
     print(f"  [D-DIRECTION] Listening on 127.0.0.1:{DIRECTION_EVENT_PORT}")
@@ -426,10 +426,10 @@ def d_direction_event_server():
                 try:
                     conn.recv(64)
                 except Exception:
-                    pass
+                    pass  # Expected on client disconnect
             check_d_direction_input()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] D-direction event handler error: {e}")
 # =====================================================================
 # TIME HELPERS
 # =====================================================================
@@ -738,135 +738,6 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
             result[p] = gold
     # Các slot khác (bao gồm H=14): chỉ Vàng
 
-    return result
-
-    gold = signal
-    opposite = "SELL" if gold == "BUY" else "BUY"
-
-    # ponytail: H=9,12,15 flip tạm tắt — vàng luôn theo signal
-    # if H in (9, 12, 15):
-    #     gold = opposite
-    #     opposite = signal
-
-    # === THỨ 2 (weekday=0) ===
-    if weekday == 0:
-        if H == 1:
-            # H=1: Vàng thường + GBP theo hướng ngược D Direction đã lưu từ thứ 6
-            result["XAUUSD"] = gold
-            if effective_d:
-                d_opp = "SELL" if effective_d == "BUY" else "BUY"
-                for p in GBP_PAIRS:
-                    result[p] = d_opp
-            else:
-                for p in GBP_PAIRS:
-                    result[p] = opposite
-        elif H == 16:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        else:
-            # H=4,9,11,12,14,15: chỉ Vàng
-            result["XAUUSD"] = gold
-        return result
-
-    # === THỨ 3, THỨ 4 (weekday=1,2) ===
-    if weekday in (1, 2):
-        if H in (1, 4):
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-        elif H == 6:
-            # H=6: gold/opposite đã được đảo ở đầu hàm.
-            # XAUUSD = gold đã đảo, GBPAUD ngược theo XAUUSD đã đảo.
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-        elif H == 9:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 11:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 12:
-            result["XAUUSD"] = gold
-        elif H == 14:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 15:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 16:
-            # T4 H=16: GBP cùng chiều Signal, Vàng flip nếu cùng H=15
-            # Xử lý ở send_report/main sau khi biết H=15 signal
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        else:
-            result["XAUUSD"] = gold
-        return result
-
-    # === THỨ 5 (weekday=3) ===
-    if weekday == 3:
-        if H in (1, 4):
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-        elif H == 6:
-            # H=6: gold/opposite đã được đảo ở đầu hàm.
-            # XAUUSD = gold đã đảo, GBPAUD ngược theo XAUUSD đã đảo.
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-        elif H == 9:
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = gold
-            result["GBPCAD"] = gold
-            result["GBPUSD"] = gold
-            result["GBPJPY"] = opposite
-        elif H == 11:
-            result["XAUUSD"] = gold
-            result["GBPAUD"] = opposite
-            result["GBPCAD"] = opposite
-            result["GBPUSD"] = opposite
-            result["GBPJPY"] = gold
-        elif H == 12:
-            result["XAUUSD"] = gold
-        elif H == 14:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        elif H == 15:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        else:
-            result["XAUUSD"] = gold
-        # H=16: skip T5 (empty result)
-        return result
-
-    # === THỨ 6 (weekday=4) - giống T2 ===
-    if weekday == 4:
-        if H == 1:
-            # H=1: Vàng thường + GBP theo hướng ngược D Direction gốc, lưu để thứ 2 đảo lại
-            result["XAUUSD"] = gold
-            if effective_d:
-                d_opp = "SELL" if effective_d == "BUY" else "BUY"
-                for p in GBP_PAIRS:
-                    result[p] = d_opp
-            else:
-                for p in GBP_PAIRS:
-                    result[p] = opposite
-        elif H == 16:
-            result["XAUUSD"] = gold
-            for p in GBP_PAIRS:
-                result[p] = gold
-        else:
-            # H=4,5,6,7,8,9,10,11,12,13,14,15: chỉ Vàng
-            result["XAUUSD"] = gold
-        return result
-
-    # Default: chỉ XAUUSD theo signal
-    result["XAUUSD"] = gold
     return result
 
 def should_skip_xauusd(H, signal, broker_dt):
