@@ -4294,6 +4294,7 @@ class App(ctk.CTk):
             "profiles": T("tab_profiles"),
             "copy_trade": T("tab_copy_trade"),
             "pos_size": T("tab_pos_size"),
+            "diagnostics": "Diagnostics",
             "guide": T("tab_guide"),
             "readme": T("tab_readme"),
             "release_notes": T("tab_release_notes"),
@@ -4308,6 +4309,7 @@ class App(ctk.CTk):
         self.tab_profiles = self.tabview.add(self.tab_names["profiles"])
         self.tab_copy_trade = self.tabview.add(self.tab_names["copy_trade"])
         self.tab_pos_size = self.tabview.add(self.tab_names["pos_size"])
+        self.tab_diagnostics = self.tabview.add(self.tab_names["diagnostics"])
         self.tab_guide = self.tabview.add(self.tab_names["guide"])
         self.tab_readme = self.tabview.add(self.tab_names["readme"])
         self.tab_release = self.tabview.add(self.tab_names["release_notes"])
@@ -4318,6 +4320,7 @@ class App(ctk.CTk):
         self.create_profiles_frame(self.tab_profiles)
         self.create_copy_trade_frame(self.tab_copy_trade)
         self.create_pos_size_frame(self.tab_pos_size)
+        self.create_diagnostics_frame(self.tab_diagnostics)
         self.create_guide_frame(self.tab_guide)
         self.create_readme_frame(self.tab_readme)
         self.create_release_notes_frame(self.tab_release)
@@ -4751,6 +4754,7 @@ class App(ctk.CTk):
             "profiles": T("tab_profiles"),
             "copy_trade": T("tab_copy_trade"),
             "pos_size": T("tab_pos_size"),
+            "diagnostics": "Diagnostics",
             "guide": T("tab_guide"),
             "readme": T("tab_readme"),
             "release_notes": T("tab_release_notes"),
@@ -4765,6 +4769,7 @@ class App(ctk.CTk):
         self.tab_profiles = self.tabview.add(self.tab_names["profiles"])
         self.tab_copy_trade = self.tabview.add(self.tab_names["copy_trade"])
         self.tab_pos_size = self.tabview.add(self.tab_names["pos_size"])
+        self.tab_diagnostics = self.tabview.add(self.tab_names["diagnostics"])
         self.tab_guide = self.tabview.add(self.tab_names["guide"])
         self.tab_readme = self.tabview.add(self.tab_names["readme"])
         self.tab_release = self.tabview.add(self.tab_names["release_notes"])
@@ -4775,6 +4780,7 @@ class App(ctk.CTk):
         self.create_profiles_frame(self.tab_profiles)
         self.create_copy_trade_frame(self.tab_copy_trade)
         self.create_pos_size_frame(self.tab_pos_size)
+        self.create_diagnostics_frame(self.tab_diagnostics)
         self.create_guide_frame(self.tab_guide)
         self.create_readme_frame(self.tab_readme)
         self.create_release_notes_frame(self.tab_release)
@@ -5649,6 +5655,105 @@ class App(ctk.CTk):
                 self.context_menu.grab_release()
 
         self.tree_scheduled.bind("<Button-3>", do_popup)
+
+    def create_diagnostics_frame(self, parent):
+        """Create the Diagnostics/Logs tab."""
+        frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.frames["diagnostics"] = frame
+        frame.pack(fill="both", expand=True)
+
+        # Header
+        header = ctk.CTkLabel(frame, text="Diagnostics & Logs", font=ctk.CTkFont(size=16, weight="bold"))
+        header.pack(pady=(10, 5), anchor="w", padx=10)
+
+        # Log level filter
+        filter_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        filter_frame.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(filter_frame, text="Filter:").pack(side="left")
+        self._log_level_var = ctk.StringVar(value="ALL")
+        for level in ["ALL", "INFO", "WARNING", "ERROR"]:
+            ctk.CTkRadioButton(filter_frame, text=level, variable=self._log_level_var, value=level,
+                               command=self._filter_logs).pack(side="left", padx=5)
+
+        # Log display
+        self._log_text = ctk.CTkTextbox(frame, wrap="word", font=ctk.CTkFont(family="Consolas", size=11))
+        self._log_text.pack(fill="both", expand=True, padx=10, pady=5)
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=10, pady=5)
+        ctk.CTkButton(btn_frame, text="Refresh", width=100, command=self._refresh_logs).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Clear Display", width=100, command=self._clear_log_display).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Export Debug Bundle", width=150, command=self._export_debug_bundle).pack(side="left", padx=5)
+
+        # Status bar
+        self._diag_status = ctk.CTkLabel(frame, text="Ready", text_color="gray")
+        self._diag_status.pack(anchor="w", padx=10, pady=(0, 5))
+
+        # Load initial logs
+        self.after(500, self._refresh_logs)
+
+    def _refresh_logs(self):
+        """Load logs from app.log into the display."""
+        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "app.log")
+        self._log_text.delete("1.0", "end")
+        if not os.path.exists(log_file):
+            self._log_text.insert("1.0", "No log file found.\nLogs will appear here after the app runs.")
+            return
+        try:
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+            level_filter = self._log_level_var.get()
+            filtered = []
+            for line in lines:
+                if level_filter == "ALL":
+                    filtered.append(line)
+                elif f" - {level_filter} - " in line:
+                    filtered.append(line)
+            # Show last 500 lines
+            display = filtered[-500:] if len(filtered) > 500 else filtered
+            self._log_text.insert("1.0", "".join(display))
+            self._log_text.see("end")
+            self._diag_status.configure(text=f"Loaded {len(filtered)} lines ({len(lines)} total)")
+        except Exception as e:
+            self._log_text.insert("1.0", f"Error reading log: {e}")
+
+    def _filter_logs(self):
+        """Re-filter logs when level changes."""
+        self._refresh_logs()
+
+    def _clear_log_display(self):
+        """Clear the log display."""
+        self._log_text.delete("1.0", "end")
+
+    def _export_debug_bundle(self):
+        """Export logs + config + state as a zip bundle."""
+        import zipfile
+        from tkinter import filedialog
+        bundle_path = filedialog.asksaveasfilename(defaultextension=".zip",
+                                                    filetypes=[("Zip files", "*.zip")],
+                                                    title="Export Debug Bundle")
+        if not bundle_path:
+            return
+        try:
+            with zipfile.ZipFile(bundle_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                # Add log file
+                log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "app.log")
+                if os.path.exists(log_file):
+                    zf.write(log_file, "app.log")
+                # Add config files
+                for fname in ["config.json", "profiles.json", "settings.json"]:
+                    fpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), fname)
+                    if os.path.exists(fpath):
+                        zf.write(fpath, fname)
+                # Add state files
+                for fname in ["scheduled_trades.json", "scheduled_close.json", "pending_partials.json"]:
+                    fpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), fname)
+                    if os.path.exists(fpath):
+                        zf.write(fpath, fname)
+            self._diag_status.configure(text=f"Exported to {os.path.basename(bundle_path)}")
+        except Exception as e:
+            self._diag_status.configure(text=f"Export error: {e}")
 
     def create_guide_frame(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
