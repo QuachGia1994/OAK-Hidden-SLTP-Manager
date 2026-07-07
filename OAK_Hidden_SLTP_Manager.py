@@ -195,7 +195,8 @@ def show_ghost_consent(parent, on_accept):
 
 # --- CONSTANTS & CONFIG ---
 APP_NAME = "OAK MANAGER"
-VERSION = "v3.14.0"
+VERSION = "v3.15.0"
+BUILD = 3150
 
 # Fix for Taskbar Icon (Must be before any GUI creation)
 try:
@@ -4248,6 +4249,18 @@ class App(ctk.CTk):
         # Layout
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
+
+        # Status Bar
+        self.status_bar = ctk.CTkFrame(self, height=28, corner_radius=0)
+        self.status_bar.grid(row=1, column=0, columnspan=2, sticky="sew")
+        self.status_mt5 = ctk.CTkLabel(self.status_bar, text="MT5 ● —", font=ctk.CTkFont(size=11))
+        self.status_mt5.pack(side="left", padx=10)
+        self.status_telegram = ctk.CTkLabel(self.status_bar, text="Telegram ● —", font=ctk.CTkFont(size=11))
+        self.status_telegram.pack(side="left", padx=10)
+        self.status_ghost = ctk.CTkLabel(self.status_bar, text="Ghost ● —", font=ctk.CTkFont(size=11))
+        self.status_ghost.pack(side="left", padx=10)
+        self.status_system = ctk.CTkLabel(self.status_bar, text="", font=ctk.CTkFont(size=11))
+        self.status_system.pack(side="right", padx=10)
         
         # Sidebar
         self.sidebar = ctk.CTkFrame(self, width=56, corner_radius=0)
@@ -4289,16 +4302,16 @@ class App(ctk.CTk):
         self.frames = {}
         self.signal_procs = {}
         self.tab_names = {
-            "dashboard": T("tab_dashboard"),
-            "signals": T("tab_signals"),
-            "profiles": T("tab_profiles"),
-            "copy_trade": T("tab_copy_trade"),
-            "pos_size": T("tab_pos_size"),
-            "diagnostics": "Diagnostics",
-            "guide": T("tab_guide"),
-            "readme": T("tab_readme"),
-            "release_notes": T("tab_release_notes"),
-            "about": T("tab_about"),
+            "dashboard": f"📊 {T('tab_dashboard')}",
+            "signals": f"📈 {T('tab_signals')}",
+            "profiles": f"👤 {T('tab_profiles')}",
+            "copy_trade": f"🔄 {T('tab_copy_trade')}",
+            "pos_size": f"⏰ {T('tab_pos_size')}",
+            "diagnostics": "🩺 Diagnostics",
+            "guide": f"📘 {T('tab_guide')}",
+            "readme": f"🚀 {T('tab_readme')}",
+            "release_notes": f"📋 {T('tab_release_notes')}",
+            "about": f"ℹ️ {T('tab_about')}",
         }
 
         self.tabview = ctk.CTkTabview(self.main_frame, command=self._on_tab_change)
@@ -4749,16 +4762,16 @@ class App(ctk.CTk):
         self.frames = {}
         self.signal_procs = {}
         self.tab_names = {
-            "dashboard": T("tab_dashboard"),
-            "signals": T("tab_signals"),
-            "profiles": T("tab_profiles"),
-            "copy_trade": T("tab_copy_trade"),
-            "pos_size": T("tab_pos_size"),
-            "diagnostics": "Diagnostics",
-            "guide": T("tab_guide"),
-            "readme": T("tab_readme"),
-            "release_notes": T("tab_release_notes"),
-            "about": T("tab_about"),
+            "dashboard": f"📊 {T('tab_dashboard')}",
+            "signals": f"📈 {T('tab_signals')}",
+            "profiles": f"👤 {T('tab_profiles')}",
+            "copy_trade": f"🔄 {T('tab_copy_trade')}",
+            "pos_size": f"⏰ {T('tab_pos_size')}",
+            "diagnostics": "🩺 Diagnostics",
+            "guide": f"📘 {T('tab_guide')}",
+            "readme": f"🚀 {T('tab_readme')}",
+            "release_notes": f"📋 {T('tab_release_notes')}",
+            "about": f"ℹ️ {T('tab_about')}",
         }
 
         self.tabview = ctk.CTkTabview(self.main_frame, command=self._on_tab_change)
@@ -4826,9 +4839,50 @@ class App(ctk.CTk):
 
         right_panel = ctk.CTkFrame(frame, fg_color="transparent")
         right_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
-        right_panel.grid_rowconfigure(0, weight=4)
-        right_panel.grid_rowconfigure(1, weight=6)
+        right_panel.grid_rowconfigure(0, weight=0)  # cards - fixed height
+        right_panel.grid_rowconfigure(1, weight=0)  # news - fixed 240px
+        right_panel.grid_rowconfigure(2, weight=1)  # console - takes remaining
         right_panel.grid_columnconfigure(0, weight=1)
+
+        # === INFO CARDS ===
+        cards_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
+        cards_frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        cards_frame.grid_columnconfigure(0, weight=1)
+        cards_frame.grid_columnconfigure(1, weight=1)
+        cards_frame.grid_columnconfigure(2, weight=1)
+
+        # Account Card
+        self.card_account = ctk.CTkFrame(cards_frame, corner_radius=8)
+        self.card_account.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+        ctk.CTkLabel(self.card_account, text="📊 Account", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        self.card_account_server = ctk.CTkLabel(self.card_account, text="—", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
+        self.card_account_server.pack(fill="x", padx=8)
+        self.card_account_balance = ctk.CTkLabel(self.card_account, text="Balance: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_account_balance.pack(fill="x", padx=8)
+        self.card_account_equity = ctk.CTkLabel(self.card_account, text="Equity: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_account_equity.pack(fill="x", padx=8, pady=(0, 6))
+
+        # Signal Card
+        self.card_signal = ctk.CTkFrame(cards_frame, corner_radius=8)
+        self.card_signal.grid(row=0, column=1, sticky="nsew", padx=4)
+        ctk.CTkLabel(self.card_signal, text="📈 Signal", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        self.card_signal_current = ctk.CTkLabel(self.card_signal, text="Current: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_signal_current.pack(fill="x", padx=8)
+        self.card_signal_next = ctk.CTkLabel(self.card_signal, text="Next: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_signal_next.pack(fill="x", padx=8)
+        self.card_signal_countdown = ctk.CTkLabel(self.card_signal, text="Countdown: —", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
+        self.card_signal_countdown.pack(fill="x", padx=8, pady=(0, 6))
+
+        # Engine Card
+        self.card_engine = ctk.CTkFrame(cards_frame, corner_radius=8)
+        self.card_engine.grid(row=0, column=2, sticky="nsew", padx=(4, 0))
+        ctk.CTkLabel(self.card_engine, text="⚙️ Engine", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        self.card_engine_ghost = ctk.CTkLabel(self.card_engine, text="Ghost: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_engine_ghost.pack(fill="x", padx=8)
+        self.card_engine_session = ctk.CTkLabel(self.card_engine, text="Session: ON", font=ctk.CTkFont(size=11), anchor="w", text_color="#2ecc71")
+        self.card_engine_session.pack(fill="x", padx=8)
+        self.card_engine_version = ctk.CTkLabel(self.card_engine, text=f"v{VERSION[1:]} Stable", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
+        self.card_engine_version.pack(fill="x", padx=8, pady=(0, 6))
 
         self.lbl_select = ctk.CTkLabel(left_panel, text=T("msg_select_profile"), font=ctk.CTkFont(size=14))
         self.lbl_select.pack(pady=(0, 5), anchor="w")
@@ -4871,8 +4925,9 @@ class App(ctk.CTk):
 
         self.update_ghost_button_ui()
 
-        news_section = ctk.CTkFrame(right_panel, fg_color="transparent")
-        news_section.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
+        news_section = ctk.CTkFrame(right_panel, fg_color="transparent", height=240)
+        news_section.grid(row=1, column=0, sticky="ew", pady=(0, 5))
+        news_section.grid_propagate(False)
 
         news_header = ctk.CTkFrame(news_section, fg_color="transparent")
         news_header.pack(fill="x", pady=(0, 6))
@@ -4887,11 +4942,21 @@ class App(ctk.CTk):
         self.update_news_summary(force=True)
 
         console_section = ctk.CTkFrame(right_panel, fg_color="transparent")
-        console_section.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+        console_section.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
 
         self.lbl_console = ctk.CTkLabel(console_section, text=T("console_title"), font=ctk.CTkFont(weight="bold"))
         self.lbl_console.pack(anchor="w")
         self.add_ui_element("console_title", self.lbl_console)
+
+        # Console filter checkboxes
+        filter_frame = ctk.CTkFrame(console_section, fg_color="transparent")
+        filter_frame.pack(fill="x", pady=(0, 3))
+        self._console_filters = {}
+        for label, color in [("INFO", "#b0bec5"), ("WARN", "#ffb74d"), ("ERROR", "#ef5350"), ("MT5", "#29b6f6"), ("TG", "#ab47bc"), ("SIG", "#66bb6a")]:
+            var = ctk.BooleanVar(value=True)
+            cb = ctk.CTkCheckBox(filter_frame, text=label, variable=var, font=ctk.CTkFont(size=10), text_color=color)
+            cb.pack(side="left", padx=4)
+            self._console_filters[label] = var
 
         self.console = ctk.CTkTextbox(console_section, wrap="word")
         self.console.pack(fill="both", expand=True)
@@ -6217,7 +6282,7 @@ class App(ctk.CTk):
                 if os.path.exists(file_path):
                     mtime = os.path.getmtime(file_path)
                     if not hasattr(self, '_last_json_mtime'): self._last_json_mtime = 0
-                    
+
                     if mtime > self._last_json_mtime:
                         self._last_json_mtime = mtime
                         # Reload
@@ -6226,14 +6291,88 @@ class App(ctk.CTk):
                             self.copy_manager.scheduled_trades = trades
                             # Update UI
                             self.update_scheduled_list_ui()
-                            # Only log if there's actually something to show or if it's a significant update
-                            # self.log(f"Synced {len(trades)} trades from {os.path.basename(file_path)}")
             self.update_news_summary()
+            self._update_dashboard_cards()
         except Exception as e:
-            # Log to console for debugging
             print(f"Refresh Error: {e}")
         finally:
             self.after(2000, self.periodic_ui_refresh) # Check every 2s
+
+    def _update_dashboard_cards(self):
+        """Update Account/Signal/Engine cards on dashboard."""
+        try:
+            # Account Card
+            if hasattr(self, 'card_account_balance'):
+                acc = mt5.account_info()
+                if acc:
+                    self.card_account_server.configure(text=f"{acc.server} | #{acc.login}")
+                    self.card_account_balance.configure(text=f"Balance: ${acc.balance:,.2f}")
+                    self.card_account_equity.configure(text=f"Equity: ${acc.equity:,.2f}")
+                else:
+                    self.card_account_server.configure(text="Disconnected")
+                    self.card_account_balance.configure(text="Balance: —")
+                    self.card_account_equity.configure(text="Equity: —")
+
+            # Signal Card
+            if hasattr(self, 'card_signal_current'):
+                try:
+                    signals_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
+                    if os.path.exists(signals_file):
+                        with open(signals_file, "r", encoding="utf-8") as f:
+                            signals = json.load(f)
+                        if signals:
+                            latest = signals[-1]
+                            sig = latest.get("signal", "—")
+                            icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
+                            self.card_signal_current.configure(text=f"Current: {icon} {sig}")
+                except Exception:
+                    self.card_signal_current.configure(text="Current: —")
+                # Next slot countdown
+                now = datetime.now()
+                target_hours = [1, 2, 3, 4, 6, 9, 11, 12, 14, 15, 16]
+                next_h = None
+                for h in target_hours:
+                    if now.hour < h or (now.hour == h and now.minute < 45):
+                        next_h = h
+                        break
+                if next_h is None:
+                    next_h = target_hours[0]  # Tomorrow first slot
+                self.card_signal_next.configure(text=f"Next: {next_h:02d}:45")
+                target = now.replace(hour=next_h, minute=45, second=0, microsecond=0)
+                if target < now:
+                    from datetime import timedelta
+                    target += timedelta(days=1)
+                diff = target - now
+                hrs, rem = divmod(int(diff.total_seconds()), 3600)
+                mins, secs = divmod(rem, 60)
+                self.card_signal_countdown.configure(text=f"Countdown: {hrs:02d}:{mins:02d}:{secs:02d}")
+
+            # Engine Card
+            if hasattr(self, 'card_engine_ghost'):
+                is_running = any(
+                    data.get("proc") and data["proc"].poll() is None
+                    for data in self.workers.values()
+                ) if hasattr(self, 'workers') else False
+                ghost_active = self.settings.get("ghost_mode_active", False) if hasattr(self, 'settings') else False
+                dot = "🟢" if is_running else "⚫"
+                self.card_engine_ghost.configure(text=f"Ghost: {dot} {'Active' if ghost_active else 'Off'}")
+
+            # Status Bar
+            if hasattr(self, 'status_mt5'):
+                mt5_ok = mt5.terminal_info() is not None
+                self.status_mt5.configure(text=f"MT5 ● {'Connected' if mt5_ok else 'Disconnected'}",
+                                          text_color="#66bb6a" if mt5_ok else "#ef5350")
+                tg_ok = hasattr(self, '_telegram') and self._telegram.is_configured if hasattr(self, '_telegram') else False
+                self.status_telegram.configure(text=f"Telegram ● {'Online' if tg_ok else 'Offline'}",
+                                               text_color="#66bb6a" if tg_ok else "#ffb74d")
+                is_running = any(
+                    data.get("proc") and data["proc"].poll() is None
+                    for data in self.workers.values()
+                ) if hasattr(self, 'workers') else False
+                self.status_ghost.configure(text=f"Ghost ● {'Running' if is_running else 'Stopped'}",
+                                            text_color="#66bb6a" if is_running else "gray")
+        except Exception:
+            pass
 
     def on_closing(self):
         # Cleanup all spawned processes
@@ -6276,28 +6415,55 @@ class App(ctk.CTk):
         print(msg) # Debug print
         self.after(0, self._log_safe, msg)
 
+    def _detect_log_tag(self, msg):
+        """Detect log category for color coding."""
+        m = msg.lower()
+        if any(kw in m for kw in ["error", "fail", "❌", "loint"]): return "error"
+        if any(kw in m for kw in ["warn", "⚠️"]): return "warning"
+        if any(kw in m for kw in ["mt5", "position", "order", "trade", "ticket"]): return "mt5"
+        if any(kw in m for kw in ["telegram", "tg ", "notify", "tele"]): return "telegram"
+        if any(kw in m for kw in ["signal", "buy", "sell", "📊", "tín hiệu"]): return "signal"
+        return "info"
+
+    _LOG_COLORS = {
+        "info": "#b0bec5",
+        "warning": "#ffb74d",
+        "error": "#ef5350",
+        "mt5": "#29b6f6",
+        "telegram": "#ab47bc",
+        "signal": "#66bb6a",
+    }
+
     def _log_safe(self, msg):
         try:
             timestamp = datetime.now().strftime("%H:%M:%S")
             full_msg = f"[{timestamp}] {msg}\n"
-            
+
+            # Check console filters
+            if hasattr(self, '_console_filters'):
+                tag = self._detect_log_tag(msg)
+                tag_key = tag.upper().replace("TELEGRAM", "TG")
+                if tag_key in self._console_filters and not self._console_filters[tag_key].get():
+                    return  # Filtered out
+
             # Dashboard Console
             if hasattr(self, 'console') and self.console.winfo_exists():
+                tag = self._detect_log_tag(msg)
+                color = self._LOG_COLORS.get(tag, "#b0bec5")
                 self.console.configure(state="normal")
-                self.console.insert("end", full_msg)
-                self.apply_markdown(self.console)
+                self.console.insert("end", full_msg, tag)
+                self.console.tag_config(tag, foreground=color)
                 self.console.see("end")
                 self.console.configure(state="disabled")
-                
+
             # Copy Trade Console
             if hasattr(self, 'copy_console') and self.copy_console.winfo_exists():
-                # Filter? For now, show all but maybe highlight COPY events
                 self.copy_console.configure(state="normal")
                 self.copy_console.insert("end", full_msg)
                 self.apply_markdown(self.copy_console)
                 self.copy_console.see("end")
                 self.copy_console.configure(state="disabled")
-                
+
         except Exception as e:
             print(f"Log Error: {e}")
 
