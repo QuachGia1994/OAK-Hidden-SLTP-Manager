@@ -5408,7 +5408,17 @@ class App(ctk.CTk):
         # Buttons (Fixed at Bottom of Right Panel)
         btn_box = ctk.CTkFrame(self.right_panel, fg_color="transparent")
         btn_box.pack(side="bottom", fill="x", pady=10)
-        
+
+        # Active Profile badge
+        self.lbl_active_profile = ctk.CTkLabel(btn_box, text="", font=ctk.CTkFont(size=11, weight="bold"),
+                                                text_color="#66bb6a")
+        self.lbl_active_profile.pack(side="left", padx=10)
+
+        # Unsaved changes indicator
+        self.lbl_unsaved = ctk.CTkLabel(btn_box, text="", font=ctk.CTkFont(size=10),
+                                         text_color="#ffb74d")
+        self.lbl_unsaved.pack(side="left", padx=5)
+
         self.btn_save_p = ctk.CTkButton(btn_box, text=T("btn_save"), command=self.save_profile)
         self.btn_save_p.pack(side="left", padx=10, expand=True)
         self.add_ui_element("btn_save", self.btn_save_p)
@@ -5421,8 +5431,13 @@ class App(ctk.CTk):
         self.btn_add_p.pack(side="left", padx=10, expand=True)
         self.add_ui_element("btn_add", self.btn_add_p)
         
-        # Initial clear to set defaults
-        self.clear_form()
+        # Auto-select active profile if any
+        if self.profiles:
+            active = list(self.profiles.keys())[0]
+            self.load_profile_to_form(active)
+            self._update_active_profile_badge(active)
+        else:
+            self.clear_form()
 
     def create_copy_trade_frame(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -6796,19 +6811,21 @@ class App(ctk.CTk):
     def refresh_profile_list(self):
         for widget in self.list_frame.winfo_children():
             widget.destroy()
-        
+
+        active_name = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
         p = getattr(self, "theme_palette", None)
         for name in self.profiles:
+            is_active = (name == active_name)
             btn_kwargs = {
-                "text": name,
+                "text": f"● {name}" if is_active else name,
                 "fg_color": "transparent",
-                "border_width": 1,
+                "border_width": 2 if is_active else 1,
                 "command": lambda n=name: self.load_profile_to_form(n)
             }
             if p:
                 btn_kwargs.update({
-                    "text_color": p["text_primary"],
-                    "border_color": p["card_border"],
+                    "text_color": "#66bb6a" if is_active else p["text_primary"],
+                    "border_color": "#66bb6a" if is_active else p["card_border"],
                     "hover_color": p["panel_alt_bg"]
                 })
             btn = ctk.CTkButton(self.list_frame, **btn_kwargs)
@@ -6825,7 +6842,7 @@ class App(ctk.CTk):
     def load_profile_to_form(self, name):
         data = self.profiles[name]
         self.entries["name"].delete(0, "end"); self.entries["name"].insert(0, name)
-        
+
         # Load Checkbox
         if data.get("use_balance_sltp", False):
             self.chk_balance.select()
@@ -6837,11 +6854,14 @@ class App(ctk.CTk):
             self.chk_visible_sltp.select()
         else:
             self.chk_visible_sltp.deselect()
-            
+
         for key in data:
             if key in self.entries:
                 self.entries[key].delete(0, "end")
                 self.entries[key].insert(0, str(data[key]))
+
+        self._update_active_profile_badge(name)
+        self._profile_form_snapshot = self._get_form_data()
 
     def clear_form(self):
         # Defaults
@@ -6860,35 +6880,59 @@ class App(ctk.CTk):
             "tele_chat": "",
             "tele_admin": ""
         }
-        
+
         self.chk_balance.deselect()
         self.chk_visible_sltp.deselect()
-        
+
         for key, ent in self.entries.items():
             ent.delete(0, "end")
             ent.insert(0, defaults.get(key, ""))
 
+    def _get_form_data(self):
+        """Snapshot current form data for unsaved detection."""
+        data = {}
+        for key, ent in self.entries.items():
+            data[key] = ent.get().strip()
+        data["use_balance_sltp"] = bool(self.chk_balance.get())
+        data["visible_sltp"] = bool(self.chk_visible_sltp.get())
+        return data
+
+    def _update_active_profile_badge(self, name):
+        """Update the 'Active Profile' badge."""
+        if hasattr(self, 'lbl_active_profile'):
+            self.lbl_active_profile.configure(text=f"Active: {name}")
+
+    def _check_unsaved_changes(self):
+        """Check if form has unsaved changes vs last saved snapshot."""
+        if not hasattr(self, '_profile_form_snapshot') or self._profile_form_snapshot is None:
+            return False
+        current = self._get_form_data()
+        return current != self._profile_form_snapshot
+
     def save_profile(self):
         name = self.entries["name"].get().strip()
         if not name: return
-        
+
         # Start with existing data to preserve fields not in this form (e.g. Copy Trade settings)
         new_data = self.profiles.get(name, {}).copy()
-        
+
         # Save Checkbox
         new_data["use_balance_sltp"] = bool(self.chk_balance.get())
         new_data["visible_sltp"] = bool(self.chk_visible_sltp.get())
-        
+
         for key, ent in self.entries.items():
             if key == "name": continue
             val = ent.get().strip()
             if key == "path":
                 val = val.strip('"').strip("'")
             new_data[key] = val
-        
+
         self.profiles[name] = new_data
         save_json(CONFIG_FILE, self.profiles)
         self.refresh_profile_list()
+        self._profile_form_snapshot = self._get_form_data()
+        if hasattr(self, 'lbl_unsaved'):
+            self.lbl_unsaved.configure(text="")
         self.log(f"{T('msg_saved')} ({name})")
 
     def delete_profile(self):
