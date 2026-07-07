@@ -1,32 +1,114 @@
-# Ponytail, lazy senior dev mode
+# Agent Instructions: OAK Hidden SLTP Manager
 
-You are a lazy senior developer. Lazy means efficient, not careless. The best code is the code never written.
+## What This Is
 
-Before writing any code, stop at the first rung that holds:
+Multi-process trading system: MT4/MT5 signal analysis, Telegram bot bridge, hidden SL/TP manager, and a Next.js dashboard deployed on Vercel.
 
-1. Does this need to be built at all? (YAGNI)
-2. Does it already exist in this codebase? Reuse the helper, util, or pattern that's already here, don't re-write it.
-3. Does the standard library already do this? Use it.
-4. Does a native platform feature cover it? Use it.
-5. Does an already-installed dependency solve it? Use it.
-6. Can this be one line? Make it one line.
-7. Only then: write the minimum code that works.
+## Architecture
 
-The ladder runs after you understand the problem, not instead of it: read the task and the code it touches, trace the real flow end to end, then climb.
+```
+OAK_Hidden_SLTP_Manager.py  ← Main desktop app (customtkinter, 7000+ lines)
+mt5_signal_bot.py            ← Signal analysis, runs in slots (H=2..15)
+mt4_mt5_server.py            ← Flask API receiving MT4 EA data
+mimo_bot.py                  ← Telegram <-> system bridge
+mimo_worker.py               ← Background command processor
+factcheck_worker.py          ← News fact-checking via Upstash Redis
+dashboard/                   ← Next.js 16 + React 19 frontend
+```
 
-Bug fix = root cause, not symptom: a report names a symptom. Grep every caller of the function you touch and fix the shared function once — one guard there is a smaller diff than one per caller, and patching only the path the ticket names leaves a sibling caller still broken.
+**Critical**: These are separate processes, not modules. `CHAY_ALL.bat` starts server → signal bot → worker in sequence with `start` (detached). Do not import between them.
 
-Rules:
+## Configuration
 
-- No abstractions that weren't explicitly requested.
-- No new dependency if it can be avoided.
-- No boilerplate nobody asked for.
-- Deletion over addition. Boring over clever. Fewest files possible.
-- Shortest working diff wins, but only once you understand the problem. The smallest change in the wrong place isn't lazy, it's a second bug.
-- Question complex requests: "Do you actually need X, or does Y cover it?"
-- Pick the edge-case-correct option when two stdlib approaches are the same size, lazy means less code, not the flimsier algorithm.
-- Mark intentional simplifications with a `ponytail:` comment. If the shortcut has a known ceiling (global lock, O(n²) scan, naive heuristic), the comment names the ceiling and the upgrade path.
+All config files are **gitignored**. They exist locally only:
 
-Not lazy about: understanding the problem (read it fully and trace the real flow before picking a rung, a small diff you don't understand is just laziness dressed up as efficiency), input validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs (the platform is never the spec ideal, a clock drifts, a sensor reads off), anything explicitly requested. Lazy code without its check is unfinished: non-trivial logic leaves ONE runnable check behind, the smallest thing that fails if the logic breaks (an assert-based demo/self-check or one small test file; no frameworks, no fixtures). Trivial one-liners need no test.
+| File | Purpose |
+|------|---------|
+| `config.json` | Telegram token, chat ID, MT5 path, dashboard URL |
+| `profiles.json` | Multi-account trading profiles (magic, partials, BE) |
+| `settings.json` | UI lang, theme, ghost mode, ntfy topic |
+| `.env` | Upstash Redis URL/token for factcheck worker |
+| `dashboard/.env.local` | Dashboard Redis/Upstash credentials |
 
-(Yes, this file also applies to agents working on the ponytail repo itself. Especially to them.)
+Never hardcode secrets. Read from `config.json` at module level (see pattern in `mimo_bot.py:38-47`).
+
+## Running
+
+```bash
+# Install Python deps
+pip install -r requirements.txt
+
+# Start all services (Windows)
+CHAY_ALL.bat
+
+# Start individual processes
+python mt4_mt5_server.py    # Flask on localhost
+python mt5_signal_bot.py    # Signal analyzer
+python mimo_bot.py          # Telegram bot
+python mimo_worker.py       # Command worker
+
+# Dashboard
+cd dashboard && npm install && npm run dev
+```
+
+**Prerequisites**: Windows, Python 3.10+, MT5 installed and logged in. `pywinauto` needed for Ghost Mode.
+
+## Testing
+
+```bash
+# Run all tests
+python -m pytest tests/
+
+# Run single test file
+python -m pytest tests/test_get_pair_direction.py
+
+# Or with unittest
+python -m unittest tests.test_get_pair_direction
+```
+
+Tests use `unittest.mock.patch` to isolate from MT5. The signal bot tests patch `get_effective_d_direction` and `d_direction_date` globals.
+
+## Code Conventions
+
+- **Language**: Vietnamese comments and UI strings. Code comments, log messages, Telegram messages are all Vietnamese.
+- **Logging**: Use `setup_logger("name")` from `oak_logger.py`. Logs to `logs/app.log` (10MB rotating, 5 backups).
+- **JSON loading**: Use `load_json_file()` from `utils.py` or `oak_trading_reminders.py`.
+- **Telegram sending**: Use `send_telegram_raw()` or `send_telegram_with_keyboard()` from `utils.py`.
+- **Config loading pattern**: Read `config.json` at module level with try/except fallback to empty strings.
+- **No type hints**: Codebase doesn't use type annotations.
+
+## Key Files
+
+- `OAK_Hidden_SLTP_Manager.py` - Main app, handles MT5 orders, Ghost Mode, UI. Read the first 100 lines for import structure.
+- `mt5_signal_bot.py` - `get_pair_direction(H, signal, dt)` is the core logic for H-slot rules. Tests in `tests/test_get_pair_direction.py`.
+- `oak_trading_reminders.py` - Trading reminders, market hours, DST handling (US schedule).
+- `oak_response_dict.py` - Vietnamese response templates with `format()` placeholders.
+- `utils.py` - Shared utilities: Telegram API, JSON helpers, signal icons.
+
+## Dashboard
+
+Next.js 16 + React 19 + Tailwind 4. Deployed on Vercel. **This is NOT standard Next.js** - read `dashboard/AGENTS.md` and `node_modules/next/dist/docs/` before modifying.
+
+- Uses `@upstash/redis` for data
+- `tesseract.js` for OCR (fact-check from images)
+- VIP access via `/?vip=TOKEN` cookie
+- Deploy: push to GitHub → Vercel auto-deploys
+
+## Gotchas
+
+1. **Global state**: `mt5_signal_bot.py` uses module-level globals (`d_direction`, `d_direction_date`) that tests must patch.
+2. **Process cleanup**: `OAK_Hidden_SLTP_Manager.py` registers `atexit` and signal handlers to kill child processes.
+3. **MT5 connection**: `MetaTrader5` module requires MT5 terminal running. Import fails gracefully with error message.
+4. **JSON corruption**: Runtime writes JSON files that can corrupt on crash. `load_json_file()` handles this with default fallback.
+5. **Port conflicts**: `mt4_mt5_server.py` runs Flask on default port. `mt5_signal_bot.py` uses port 8765 for direction events.
+6. **Build**: `build_exe.py` uses PyInstaller with UPX compression. Version extracted from `OAK_Hidden_SLTP_Manager.py`.
+
+## Common Tasks
+
+**Add a new H-slot rule**: Edit `get_pair_direction()` in `mt5_signal_bot.py`. Add test cases in `tests/test_get_pair_direction.py`.
+
+**Add Telegram response template**: Add to `RESPONSE_TEMPLATES` dict in `oak_response_dict.py`. Use `{placeholder}` format.
+
+**Modify dashboard**: Work in `dashboard/src/`. Use `npm run build` to verify before push.
+
+**Add new trading profile field**: Update `profiles.example.json` and `OAK_Hidden_SLTP_Manager.py` profile loading logic.

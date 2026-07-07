@@ -43,7 +43,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = list(range(2, 16))
+TARGET_HOURS = list(range(3, 16))
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765

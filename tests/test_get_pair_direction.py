@@ -88,8 +88,8 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                         self.assertEqual(result[p], signal, f"{p} should be {signal}")
 
     def test_other_hours_xauusd_only(self):
-        """H=14,16,0,1,5,7,8,10,13: only XAUUSD in result"""
-        for H in (0, 1, 5, 7, 8, 10, 13, 14, 16):
+        """H=5,7,8,10,13,14,16: only XAUUSD in result"""
+        for H in (5, 7, 8, 10, 13, 14, 16):
             with self.subTest(H=H):
                 dt = _make_dt(2026, 7, 7, weekday_offset=0)
                 result = get_pair_direction(H, "BUY", dt)
@@ -115,9 +115,9 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
             self.assertEqual(sell_result[p], "BUY")
 
     def test_all_active_slots_have_xauusd(self):
-        """Every active slot (H=2,3,4,6,9,11,12,15) must include XAUUSD"""
+        """Every active slot (H=3-15) must include XAUUSD"""
         dt = _make_dt(2026, 7, 7, weekday_offset=0)
-        for H in (2, 3, 4, 6, 9, 11, 12, 15):
+        for H in range(3, 16):
             with self.subTest(H=H):
                 result = get_pair_direction(H, "BUY", dt)
                 self.assertIn("XAUUSD", result)

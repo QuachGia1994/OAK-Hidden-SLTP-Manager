@@ -1,4 +1,4 @@
-export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+export const TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
@@ -11,7 +11,6 @@ const HOUR_NOTES: Record<number, string> = {
   9: "Nhóm GBP ngược Vàng",
   11: "Nhóm GBP ngược Vàng",
   12: "Nhóm GBP cùng Vàng",
-  14: "Nhóm GBP cùng Vàng",
   15: "Nhóm GBP cùng Vàng",
 };
 
@@ -21,45 +20,45 @@ export function getHourNote(hour: number, weekday: number): string | null {
 
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2 (JS: getDay() = 1)
-    "Slots: H=2-16",
-    "H=2,3: Vàng, GBPAUD/GBPJPY ngược Vàng",
+    "Slots: H=3-15",
+    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
     "H=4,6: Vàng, GBPAUD ngược Vàng",
     "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,14,15: Nhóm GBP cùng Vàng",
+    "H=12,15: Nhóm GBP cùng Vàng",
     "Các slot khác: Chỉ Vàng",
   ],
   2: [    // Thứ 3 (JS: getDay() = 2)
-    "Slots: H=2-16",
-    "H=2,3: Vàng, GBPAUD/GBPJPY ngược Vàng",
+    "Slots: H=3-15",
+    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
     "H=4,6: Vàng, GBPAUD ngược Vàng",
     "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,14,15: Nhóm GBP cùng Vàng",
+    "H=12,15: Nhóm GBP cùng Vàng",
     "Các slot khác: Chỉ Vàng",
   ],
   3: [    // Thứ 4 (JS: getDay() = 3)
-    "Slots: H=2-16",
-    "H=2,3: Vàng, GBPAUD/GBPJPY ngược Vàng",
+    "Slots: H=3-15",
+    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
     "H=4,6: Vàng, GBPAUD ngược Vàng",
     "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,14,15: Nhóm GBP cùng Vàng",
+    "H=12,15: Nhóm GBP cùng Vàng",
     "Các slot khác: Chỉ Vàng",
   ],
   4: [    // Thứ 5 (JS: getDay() = 4)
-    "Slots: H=2-15",
+    "Slots: H=3-15",
     "Có nhập D direction qua Telegram lúc 4:00 VN",
-    "H=2,3: Vàng, GBPAUD/GBPJPY ngược Vàng",
+    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
     "H=4,6: Vàng, GBPAUD ngược Vàng",
     "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,14,15: Nhóm GBP cùng Vàng",
+    "H=12,15: Nhóm GBP cùng Vàng",
     "Các slot khác: Chỉ Vàng",
   ],
   5: [    // Thứ 6 (JS: getDay() = 5)
-    "Slots: H=2-16",
+    "Slots: H=3-15",
     "Có nhập D direction qua Telegram lúc 4:00 VN",
-    "H=2,3: Vàng, GBPAUD/GBPJPY ngược Vàng",
+    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
     "H=4,6: Vàng, GBPAUD ngược Vàng",
     "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,14,15: Nhóm GBP cùng Vàng",
+    "H=12,15: Nhóm GBP cùng Vàng",
     "Các slot khác: Chỉ Vàng",
   ],
 };
