@@ -532,7 +532,8 @@ def get_xauusd_m30_signal(broker_dt, H):
     return None
 
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
-    """Cùng chiều XAUUSD M30 -> đảo, ngược chiều -> theo XAUUSD M30."""
+    """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
+    Cập nhật GBP theo XAUUSD: 'cùng Vàng' = same, 'ngược Vàng' = opposite."""
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:
         return pair_dirs
@@ -540,6 +541,19 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
         pair_dirs["XAUUSD"] = "SELL" if xau_m30 == "BUY" else "BUY"
     else:
         pair_dirs["XAUUSD"] = xau_m30
+    # Cập nhật GBP theo XAUUSD sau flip
+    if H in (12, 14, 15):
+        # Cùng Vàng: GBP = XAUUSD
+        for p in GBP_PAIRS:
+            if p in pair_dirs:
+                pair_dirs[p] = pair_dirs["XAUUSD"]
+    elif H in (9, 11):
+        # Ngược Vàng: GBP = opposite XAUUSD
+        xau = pair_dirs["XAUUSD"]
+        opp = "SELL" if xau == "BUY" else "BUY"
+        for p in GBP_PAIRS:
+            if p in pair_dirs:
+                pair_dirs[p] = opp
     return pair_dirs
     if sig == xau_h1:
         pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
