@@ -394,7 +394,7 @@ LANG = {
         "news_empty": "Chưa có tin tức kinh tế hôm nay.",
         "news_loading": "Đang tải tin tức...",
         "tab_profiles": "Quản Lý Profile",
-        "tab_copy_trade": "Copy Trading (Ẩn)",
+        "tab_copy_trade": "Copy Trading",
         "tab_pos_size": "Hẹn Giờ / Pending",
         "tab_guide": "Hướng Dẫn",
         "tab_readme": "README",
@@ -671,7 +671,7 @@ OAK MANAGER không chỉ là một ứng dụng quản lý lệnh thông thườ
         "news_empty": "No economic news for today.",
         "news_loading": "Loading news...",
         "tab_profiles": "Profiles",
-        "tab_copy_trade": "Copy Trading (Hidden)",
+        "tab_copy_trade": "Copy Trading",
         "tab_pos_size": "Pending Orders",
         "tab_guide": "Guide",
         "tab_readme": "README",
@@ -5564,9 +5564,22 @@ class App(ctk.CTk):
         name = self.combo_profiles.get()
         if not name or name not in self.profiles:
             return
-            
+
         data = self.profiles[name]
-        data["copy_role"] = self.combo_copy_role.get()
+        new_role = self.combo_copy_role.get()
+        old_role = data.get("copy_role", "None")
+
+        # Confirm when changing to Master/Slave
+        if new_role != old_role and new_role in ("Master", "Slave"):
+            from tkinter import messagebox
+            role_desc = "send trades (Master)" if new_role == "Master" else "copy trades (Slave)"
+            if not messagebox.askyesno("Confirm Role Change",
+                                       f"Set '{name}' as {new_role}?\n\nThis will {role_desc}.\n\nContinue?"):
+                return
+            data["copy_role"] = new_role
+            self.log(f"⚠️ [{name}] Role changed to {new_role.upper()}")
+        else:
+            data["copy_role"] = new_role
         data["copy_channel"] = self.ent_copy_channel.get().strip()
         data["copy_lot_mode"] = self.combo_copy_lot.get()
         data["copy_lot_value"] = self.ent_copy_value.get().strip()
@@ -5755,6 +5768,14 @@ class App(ctk.CTk):
             ctk.CTkRadioButton(filter_frame, text=level, variable=self._log_level_var, value=level,
                                command=self._filter_logs).pack(side="left", padx=5)
 
+        # Auto Refresh + Follow toggle
+        self._auto_refresh_var = ctk.BooleanVar(value=False)
+        self._follow_var = ctk.BooleanVar(value=True)
+        ctk.CTkCheckBox(filter_frame, text="Auto Refresh", variable=self._auto_refresh_var,
+                        font=ctk.CTkFont(size=10), command=self._toggle_auto_refresh).pack(side="right", padx=5)
+        ctk.CTkCheckBox(filter_frame, text="Follow Latest", variable=self._follow_var,
+                        font=ctk.CTkFont(size=10)).pack(side="right", padx=5)
+
         # Log display
         self._log_text = ctk.CTkTextbox(frame, wrap="word", font=ctk.CTkFont(family="Consolas", size=11))
         self._log_text.pack(fill="both", expand=True, padx=10, pady=5)
@@ -5762,9 +5783,11 @@ class App(ctk.CTk):
         # Buttons
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(fill="x", padx=10, pady=5)
-        ctk.CTkButton(btn_frame, text="Refresh", width=100, command=self._refresh_logs).pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="Clear Display", width=100, command=self._clear_log_display).pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="Export Debug Bundle", width=150, command=self._export_debug_bundle).pack(side="left", padx=5)
+        ctk.CTkButton(btn_frame, text="Refresh", width=80, command=self._refresh_logs).pack(side="left", padx=3)
+        ctk.CTkButton(btn_frame, text="Clear Display", width=100, command=self._clear_log_display).pack(side="left", padx=3)
+        ctk.CTkButton(btn_frame, text="Copy Selected", width=100, command=self._copy_selected_logs).pack(side="left", padx=3)
+        ctk.CTkButton(btn_frame, text="Open Log Folder", width=110, command=self._open_log_folder).pack(side="left", padx=3)
+        ctk.CTkButton(btn_frame, text="Export Debug Bundle", width=150, command=self._export_debug_bundle).pack(side="left", padx=3)
 
         # Status bar
         self._diag_status = ctk.CTkLabel(frame, text="Ready", text_color="gray")
@@ -5773,12 +5796,38 @@ class App(ctk.CTk):
         # Load initial logs
         self.after(500, self._refresh_logs)
 
+    def _toggle_auto_refresh(self):
+        """Toggle auto refresh for diagnostics."""
+        if self._auto_refresh_var.get():
+            self._auto_refresh_diag()
+
+    def _auto_refresh_diag(self):
+        """Auto refresh diagnostics log."""
+        if self._auto_refresh_var.get():
+            self._refresh_logs()
+            self.after(3000, self._auto_refresh_diag)
+
+    def _copy_selected_logs(self):
+        """Copy selected text from log display."""
+        try:
+            selected = self._log_text.get("sel.first", "sel.last")
+            self.clipboard_clear()
+            self.clipboard_append(selected)
+            self._diag_status.configure(text="Copied to clipboard")
+        except Exception:
+            self._diag_status.configure(text="No text selected")
+
+    def _open_log_folder(self):
+        """Open log folder in file explorer."""
+        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+        os.startfile(log_dir) if os.name == "nt" else os.system(f"xdg-open {log_dir}")
+
     def _refresh_logs(self):
         """Load logs from app.log into the display."""
         log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "app.log")
         self._log_text.delete("1.0", "end")
         if not os.path.exists(log_file):
-            self._log_text.insert("1.0", "No log file found.\nLogs will appear here after the app runs.")
+            self._log_text.insert("1.0", "No diagnostics found.\nSystem is currently quiet. 🌙")
             return
         try:
             with open(log_file, "r", encoding="utf-8", errors="replace") as f:
@@ -5793,7 +5842,8 @@ class App(ctk.CTk):
             # Show last 500 lines
             display = filtered[-500:] if len(filtered) > 500 else filtered
             self._log_text.insert("1.0", "".join(display))
-            self._log_text.see("end")
+            if self._follow_var.get():
+                self._log_text.see("end")
             self._diag_status.configure(text=f"Loaded {len(filtered)} lines ({len(lines)} total)")
         except Exception as e:
             self._log_text.insert("1.0", f"Error reading log: {e}")
@@ -5972,12 +6022,24 @@ class App(ctk.CTk):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frames["about"] = frame
         frame.pack(fill="both", expand=True)
-        
-        ctk.CTkLabel(frame, text=f"OAK Manager {VERSION}", font=ctk.CTkFont(size=24, weight="bold")).pack(pady=40)
-        
-        self.lbl_about = ctk.CTkLabel(frame, text=T("about_info"), font=ctk.CTkFont(size=14))
-        self.lbl_about.pack(pady=20)
+
+        # App icon + title
+        ctk.CTkLabel(frame, text="🎛️", font=ctk.CTkFont(size=48)).pack(pady=(30, 5))
+        ctk.CTkLabel(frame, text=f"OAK Manager {VERSION} Stable", font=ctk.CTkFont(size=24, weight="bold")).pack()
+        ctk.CTkLabel(frame, text="Trading Operations Console for MT4 / MT5", font=ctk.CTkFont(size=13), text_color="gray").pack(pady=(0, 5))
+        ctk.CTkLabel(frame, text=f"Build {BUILD} · Windows x64", font=ctk.CTkFont(size=11), text_color="gray").pack(pady=(0, 20))
+
+        self.lbl_about = ctk.CTkLabel(frame, text=T("about_info"), font=ctk.CTkFont(size=13))
+        self.lbl_about.pack(pady=10)
         self.add_ui_element("about_info", self.lbl_about)
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        btn_frame.pack(pady=20)
+        ctk.CTkButton(btn_frame, text="📘 Open Documentation", width=180,
+                       command=lambda: os.startfile("README.md") if os.path.exists("README.md") else None).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="🔄 Check for Updates", width=180,
+                       command=lambda: self.log("Checking for updates... (auto-check coming soon)")).pack(side="left", padx=10)
 
     def ensure_mt5_connection(self):
         if mt5.terminal_info():
@@ -6807,12 +6869,22 @@ class App(ctk.CTk):
         self.log(f"{T('msg_saved')} ({name})")
 
     def delete_profile(self):
+        from tkinter import messagebox
         name = self.entries["name"].get().strip()
-        if name in self.profiles:
-            del self.profiles[name]
-            save_json(CONFIG_FILE, self.profiles)
-            self.refresh_profile_list()
-            self.clear_form()
+        if name not in self.profiles:
+            return
+        if not messagebox.askyesno("Confirm Delete", f"Delete profile '{name}'?\n\nThis action cannot be undone."):
+            return
+        # Check if profile is running
+        if hasattr(self, 'workers') and name in self.workers:
+            if self.workers[name].get("proc") and self.workers[name]["proc"].poll() is None:
+                messagebox.showwarning("Warning", f"Profile '{name}' is currently running.\nStop it before deleting.")
+                return
+        del self.profiles[name]
+        save_json(CONFIG_FILE, self.profiles)
+        self.refresh_profile_list()
+        self.clear_form()
+        self.log(f"Profile '{name}' deleted")
 
     def toggle_ghost_mode(self):
         current = self.settings.get("ghost_mode_active", False)
