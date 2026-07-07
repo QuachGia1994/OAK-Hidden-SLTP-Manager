@@ -912,7 +912,7 @@ def backfill_missing_days():
                 apply_xauusd_m30_logic(pair_dirs, sig, fake_broker_dt, H)
 
                 hour_note = get_hour_note(H, target_date.weekday())
-                log_signal(H, fake_broker_dt, sig, pair_dirs, hour_note, is_missed=True)
+                log_signal(H, fake_broker_dt, sig, None, pair_dirs, hour_note, is_missed=True)
                 backfilled += 1
                 print(f"  [BACKFILL] {target_date.isoformat()} H={fmt_hour(H)}:45 -> {sig}")
             except Exception as e:

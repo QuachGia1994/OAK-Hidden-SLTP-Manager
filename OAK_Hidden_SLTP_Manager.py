@@ -836,7 +836,7 @@ OAK MANAGER is not just a regular order management app; it's a system designed t
 *Developed by OAK Group - Discipline is power.*
 *Support: Telegram @bupbupchot*
 """,
-        "release_notes_info": f"""# 📔 RELEASE NOTES (v3.14.0)
+        "release_notes_info": f"""# 📔 RELEASE NOTES ({VERSION})
 
 ## [v3.0.0] - 2026-04-03
 *Major update focused on Stealth and Artificial Intelligence (NLP).*
@@ -5676,9 +5676,24 @@ class App(ctk.CTk):
         tree_container = ctk.CTkFrame(right_frame, fg_color="transparent")
         tree_container.grid(row=1, column=0, sticky="nsew")
         
-        # Treeview Style
+        # Treeview Style - dark theme
         style = ttk.Style()
-        style.configure("Scheduled.Treeview", rowheight=30) 
+        style.theme_use("default")
+        style.configure("Scheduled.Treeview",
+                        rowheight=30,
+                        background="#1a1a2e",
+                        foreground="#e0e0e0",
+                        fieldbackground="#1a1a2e",
+                        borderwidth=0,
+                        font=("Segoe UI", 10))
+        style.configure("Scheduled.Treeview.Heading",
+                        background="#16213e",
+                        foreground="#e0e0e0",
+                        font=("Segoe UI", 10, "bold"),
+                        borderwidth=0)
+        style.map("Scheduled.Treeview",
+                  background=[("selected", "#0f3460")],
+                  foreground=[("selected", "#ffffff")])
         
         self.tree_scheduled = ttk.Treeview(tree_container, columns=("Symbol", "Type", "Lot", "Time", "Status", "StatusDetail", "NextAction"), show="headings", height=20, style="Scheduled.Treeview")
         
