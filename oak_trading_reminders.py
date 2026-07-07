@@ -16,6 +16,9 @@ import winsound # For PC Alarm
 import re
 from oak_response_dict import get_random_response # Import new response module
 from utils import load_json_file
+from oak_logger import setup_logger
+
+log = setup_logger("reminder")
 
 # --- CONFIG ---
 CONFIG_FILE = "profiles.json"
@@ -643,7 +646,7 @@ class OakTradingReminder:
                 filtered = []
                 now_ts = time.time()
         except Exception as e:
-            print(f"[WARN] Reminder dedup log error: {e}")
+            log.warning("Reminder dedup log error: %s", e)
             filtered = []
             now_ts = time.time()
         finally:

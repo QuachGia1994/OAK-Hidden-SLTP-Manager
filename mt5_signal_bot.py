@@ -14,6 +14,9 @@ import urllib.request
 
 from utils import send_telegram_raw, send_telegram_with_keyboard, get_signal_icon, vn_direction
 from oak_trading_reminders import get_day_notes
+from oak_logger import setup_logger
+
+log = setup_logger("signal")
 
 try:
     import MetaTrader5 as mt5
@@ -125,7 +128,7 @@ def get_current_prices(pair_dirs):
             if tick:
                 prices[pair] = round(tick.bid, 5)
         except Exception as e:
-            print(f"[WARN] MT5 tick fetch error for {pair}: {e}")
+            log.warning("MT5 tick fetch error for %s: %s", pair, e)
     return prices
 
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=False):
@@ -271,7 +274,7 @@ def push_prices_to_dashboard():
                 if tick:
                     prices[pair] = round(tick.bid, 5)
             except Exception as e:
-                print(f"[WARN] Dashboard price fetch error for {pair}: {e}")
+                log.warning("Dashboard price fetch error for %s: %s", pair, e)
         if prices:
             payload = json.dumps(prices).encode("utf-8")
             headers = {"Content-Type": "application/json"}
@@ -368,7 +371,7 @@ def check_d_direction_input():
             restore_d1_match_from_today_signals()
             push_to_dashboard()
     except Exception as e:
-        print(f"[WARN] State save error: {e}")
+        log.warning("State save error: %s", e)
     finally:
         d_direction_lock.release()
 
@@ -394,7 +397,7 @@ def d_direction_watcher():
         try:
             check_d_direction_input()
         except Exception as e:
-            print(f"[WARN] D-direction watcher error: {e}")
+            log.warning("D-direction watcher error: %s", e)
         time.sleep(DIRECTION_POLL_INTERVAL)
 
 def d_direction_event_server():
@@ -406,7 +409,7 @@ def d_direction_event_server():
         server.listen(5)
         server.settimeout(1.0)
     except OSError as exc:
-        print(f"  [D-DIRECTION] Event server unavailable: {exc}")
+        log.warning("D-direction event server unavailable: %s", exc)
         try:
             server.close()
         except Exception:
@@ -429,7 +432,7 @@ def d_direction_event_server():
                     pass  # Expected on client disconnect
             check_d_direction_input()
         except Exception as e:
-            print(f"[WARN] D-direction event handler error: {e}")
+            log.warning("D-direction event handler error: %s", e)
 # =====================================================================
 # TIME HELPERS
 # =====================================================================

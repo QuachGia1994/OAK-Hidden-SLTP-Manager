@@ -26,6 +26,9 @@ import signal
 import atexit
 import oak_trading_reminders
 from oak_response_dict import get_random_response
+from oak_logger import setup_logger
+
+log = setup_logger("oak")
 
 # --- PROCESS CLEANUP ---
 _running_processes = []
@@ -1429,7 +1432,7 @@ class CopyTradeManager:
                         
                         self._last_processed_id = u_id
             except Exception as e:
-                print(f"[WARN] Telegram inbox processing error: {e}")
+                log.warning("Telegram inbox processing error: %s", e)
 
     def _send_mimo_response(self, text):
         """Send response via MiMo bot token (single Telegram bot)"""
@@ -2423,7 +2426,7 @@ class CopyTradeManager:
                         
                         msg += f"• #{tid} ({sym or '???'} {t_type or '???'}): Lãi ${target_p:,.2f} chốt {vol}\n"
             except Exception as e:
-                print(f"[WARN] pending_partials read error: {e}")
+                log.warning("pending_partials read error: %s", e)
         if not partials_found: msg += "• (Không có)\n"
 
         return msg
@@ -3401,7 +3404,7 @@ class MonitorWorker(threading.Thread):
                             break
                         time.sleep(0.05)
                     except Exception as e:
-                        print(f"[WARN] Telegram dedup lock error: {e}")
+                        log.warning("Telegram dedup lock error: %s", e)
                         break
 
                 sent_log = []
@@ -3411,7 +3414,7 @@ class MonitorWorker(threading.Thread):
                             with open(log_file, "r", encoding="utf-8") as f:
                                 sent_log = json.load(f)
                     except Exception as e:
-                        print(f"[WARN] Telegram dedup log read error: {e}")
+                        log.warning("Telegram dedup log read error: %s", e)
                         sent_log = []
 
                     now_ts = time.time()
@@ -3456,7 +3459,7 @@ class MonitorWorker(threading.Thread):
                         with open(log_file, "w", encoding="utf-8") as f:
                             json.dump(filtered[-500:], f)
                 except Exception as e:
-                    print(f"[WARN] Telegram dedup log write error: {e}")
+                    log.warning("Telegram dedup log write error: %s", e)
                 finally:
                     if lock_fd:
                         os.close(lock_fd)
@@ -3770,7 +3773,7 @@ class MonitorWorker(threading.Thread):
                                     # Update Ghost Mode status
                                     self.ghost_mode_active = st.get("ghost_mode_active", False)
                         except Exception as e:
-                            print(f"[WARN] CopyTrade state parse error: {e}")
+                            log.warning("CopyTrade state parse error: %s", e)
 
                     # Process Copy Trade
                     self.copy_manager.process()
