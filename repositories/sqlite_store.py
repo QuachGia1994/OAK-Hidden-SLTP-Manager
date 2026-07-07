@@ -67,6 +67,20 @@ class SQLiteStore:
                 key TEXT PRIMARY KEY,
                 value TEXT
             );
+            CREATE TABLE IF NOT EXISTS worker_heartbeat (
+                profile TEXT PRIMARY KEY,
+                state TEXT NOT NULL DEFAULT 'starting',
+                last_seen TEXT NOT NULL,
+                server TEXT DEFAULT '',
+                login INTEGER DEFAULT 0,
+                balance REAL DEFAULT 0,
+                equity REAL DEFAULT 0,
+                last_error TEXT DEFAULT '',
+                telegram_configured INTEGER DEFAULT 0,
+                telegram_api_ok INTEGER DEFAULT 0,
+                telegram_last_check TEXT DEFAULT '',
+                telegram_bot_name TEXT DEFAULT ''
+            );
         """)
         self._conn.commit()
         log.info("SQLite initialized: %s", self._db_path)
@@ -184,6 +198,63 @@ class SQLiteStore:
         """Set a setting value."""
         self._conn.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?,?)", (key, str(value)))
         self._conn.commit()
+
+    # --- Worker Heartbeat ---
+    def publish_heartbeat(self, profile, state, server="", login=0, balance=0, equity=0,
+                          last_error="", telegram_configured=False, telegram_api_ok=False,
+                          telegram_last_check="", telegram_bot_name=""):
+        """Publish worker heartbeat. Called by worker every ~2s."""
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        self._conn.execute(
+            """INSERT OR REPLACE INTO worker_heartbeat
+               (profile, state, last_seen, server, login, balance, equity, last_error,
+                telegram_configured, telegram_api_ok, telegram_last_check, telegram_bot_name)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (profile, state, now, server, login, balance, equity, last_error,
+             1 if telegram_configured else 0, 1 if telegram_api_ok else 0,
+             telegram_last_check, telegram_bot_name)
+        )
+        self._conn.commit()
+
+    def get_heartbeat(self, profile=None):
+        """Get worker heartbeat. Returns dict or None."""
+        if profile:
+            row = self._conn.execute("SELECT * FROM worker_heartbeat WHERE profile=?", (profile,)).fetchone()
+        else:
+            row = self._conn.execute("SELECT * FROM worker_heartbeat ORDER BY last_seen DESC LIMIT 1").fetchone()
+        if row is None:
+            return None
+        d = dict(row)
+        d["telegram_configured"] = bool(d.get("telegram_configured"))
+        d["telegram_api_ok"] = bool(d.get("telegram_api_ok"))
+        return d
+
+    def compute_mt5_state(self, profile=None):
+        """Compute MT5 state from heartbeat: Connected/Degraded/Disconnected/Starting."""
+        from datetime import datetime, timezone, timedelta
+        hb = self.get_heartbeat(profile)
+        if hb is None:
+            return {"state": "Disconnected", "last_seen": None, "last_error": "No heartbeat yet"}
+        last_seen = datetime.fromisoformat(hb["last_seen"])
+        age = (datetime.now(timezone.utc) - last_seen).total_seconds()
+        if hb["state"] == "starting" or age > 30:
+            return {"state": "Disconnected", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", "Heartbeat stale")}
+        if age > 5:
+            return {"state": "Degraded", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", "")}
+        return {"state": "Connected", "last_seen": hb["last_seen"], "last_error": ""}
+
+    def compute_telegram_state(self, profile=None):
+        """Compute Telegram state from heartbeat."""
+        hb = self.get_heartbeat(profile)
+        if hb is None:
+            return {"configured": False, "api_ok": False, "bot_name": "", "last_check": ""}
+        return {
+            "configured": hb.get("telegram_configured", False),
+            "api_ok": hb.get("telegram_api_ok", False),
+            "bot_name": hb.get("telegram_bot_name", ""),
+            "last_check": hb.get("telegram_last_check", ""),
+        }
 
     # --- Migration from JSON ---
     def migrate_from_json(self, json_dir):

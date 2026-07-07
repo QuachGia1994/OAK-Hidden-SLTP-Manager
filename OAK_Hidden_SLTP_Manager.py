@@ -27,6 +27,7 @@ import atexit
 import oak_trading_reminders
 from oak_response_dict import get_random_response
 from oak_logger import setup_logger
+from repositories.sqlite_store import SQLiteStore
 
 log = setup_logger("oak")
 
@@ -4215,6 +4216,9 @@ class App(ctk.CTk):
         self.settings = load_json(SETTINGS_FILE)
         global CURRENT_LANG
         CURRENT_LANG = self.settings.get("lang", "VN")
+
+        # SQLite store for heartbeat
+        self._store = SQLiteStore()
         
         # Ensure Ghost Mode is in settings
         if "ghost_mode_active" not in self.settings:
@@ -6376,17 +6380,21 @@ class App(ctk.CTk):
             self.after(2000, self.periodic_ui_refresh) # Check every 2s
 
     def _update_dashboard_cards(self):
-        """Update Account/Signal/Engine cards on dashboard."""
+        """Update Account/Signal/Engine cards from worker heartbeat (SQLite)."""
         try:
-            # Account Card
+            # Read heartbeat from worker
+            hb = self._store.get_heartbeat() if hasattr(self, '_store') else None
+            mt5_state = self._store.compute_mt5_state() if hasattr(self, '_store') else {"state": "Disconnected", "last_error": ""}
+            tg_state = self._store.compute_telegram_state() if hasattr(self, '_store') else {"configured": False, "api_ok": False}
+
+            # Account Card - read from heartbeat
             if hasattr(self, 'card_account_balance'):
-                acc = mt5.account_info()
-                if acc:
-                    self.card_account_server.configure(text=f"{acc.server} | #{acc.login}")
-                    self.card_account_balance.configure(text=f"Balance: ${acc.balance:,.2f}")
-                    self.card_account_equity.configure(text=f"Equity: ${acc.equity:,.2f}")
+                if hb and hb.get("server"):
+                    self.card_account_server.configure(text=f"{hb['server']} | #{hb.get('login', '')}")
+                    self.card_account_balance.configure(text=f"Balance: ${hb.get('balance', 0):,.2f}")
+                    self.card_account_equity.configure(text=f"Equity: ${hb.get('equity', 0):,.2f}")
                 else:
-                    self.card_account_server.configure(text="Disconnected")
+                    self.card_account_server.configure(text="Waiting for worker...")
                     self.card_account_balance.configure(text="Balance: —")
                     self.card_account_equity.configure(text="Equity: —")
 
@@ -6406,14 +6414,14 @@ class App(ctk.CTk):
                     self.card_signal_current.configure(text="Current: —")
                 # Next slot countdown
                 now = datetime.now()
-                target_hours = [1, 2, 3, 4, 6, 9, 11, 12, 14, 15, 16]
+                target_hours = list(range(3, 16))
                 next_h = None
                 for h in target_hours:
                     if now.hour < h or (now.hour == h and now.minute < 45):
                         next_h = h
                         break
                 if next_h is None:
-                    next_h = target_hours[0]  # Tomorrow first slot
+                    next_h = target_hours[0]
                 self.card_signal_next.configure(text=f"Next: {next_h:02d}:45")
                 target = now.replace(hour=next_h, minute=45, second=0, microsecond=0)
                 if target < now:
@@ -6434,14 +6442,29 @@ class App(ctk.CTk):
                 dot = "🟢" if is_running else "⚫"
                 self.card_engine_ghost.configure(text=f"Ghost: {dot} {'Active' if ghost_active else 'Off'}")
 
-            # Status Bar
+            # Status Bar - read from heartbeat, not direct MT5 call
             if hasattr(self, 'status_mt5'):
-                mt5_ok = mt5.terminal_info() is not None
-                self.status_mt5.configure(text=f"MT5 ● {'Connected' if mt5_ok else 'Disconnected'}",
-                                          text_color="#66bb6a" if mt5_ok else "#ef5350")
-                tg_ok = hasattr(self, '_telegram') and self._telegram.is_configured if hasattr(self, '_telegram') else False
-                self.status_telegram.configure(text=f"Telegram ● {'Online' if tg_ok else 'Offline'}",
-                                               text_color="#66bb6a" if tg_ok else "#ffb74d")
+                state = mt5_state["state"]
+                color = "#66bb6a" if state == "Connected" else "#ffb74d" if state == "Degraded" else "#ef5350"
+                label = state
+                if state == "Degraded" and mt5_state.get("last_error"):
+                    label = f"Degraded ({mt5_state['last_error'][:30]})"
+                self.status_mt5.configure(text=f"MT5 ● {label}", text_color=color)
+
+                # Telegram: 3 states
+                tg_configured = tg_state["configured"]
+                tg_api = tg_state["api_ok"]
+                if not tg_configured:
+                    tg_label = "Not configured"
+                    tg_color = "gray"
+                elif tg_api:
+                    tg_label = f"Online (@{tg_state['bot_name']})" if tg_state["bot_name"] else "Online"
+                    tg_color = "#66bb6a"
+                else:
+                    tg_label = "Degraded (API unreachable)"
+                    tg_color = "#ffb74d"
+                self.status_telegram.configure(text=f"Telegram ● {tg_label}", text_color=tg_color)
+
                 is_running = any(
                     data.get("proc") and data["proc"].poll() is None
                     for data in self.workers.values()

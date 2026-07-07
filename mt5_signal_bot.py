@@ -15,6 +15,7 @@ import urllib.request
 from utils import send_telegram_raw, send_telegram_with_keyboard, get_signal_icon, vn_direction
 from oak_trading_reminders import get_day_notes
 from oak_logger import setup_logger
+from repositories.sqlite_store import SQLiteStore
 
 log = setup_logger("signal")
 
@@ -47,6 +48,55 @@ TARGET_HOURS = list(range(3, 16))
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
+
+# =====================================================================
+# HEARTBEAT - publish to SQLite for GUI to read
+# =====================================================================
+_store = SQLiteStore()
+
+def _check_telegram_api(token):
+    """Check Telegram API reachability via getMe."""
+    if not token:
+        return False, ""
+    try:
+        url = f"https://api.telegram.org/bot{token}/getMe"
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            if data.get("ok"):
+                bot_name = data.get("result", {}).get("username", "")
+                return True, bot_name
+    except Exception:
+        pass
+    return False, ""
+
+def publish_heartbeat(profile, mt5_connected, mt5_error=""):
+    """Publish heartbeat to SQLite. Called every ~2s from main loop."""
+    from datetime import datetime, timezone
+    acc = None
+    if mt5_connected:
+        try:
+            acc = mt5.account_info()
+        except Exception:
+            pass
+
+    tg_configured = bool(TELEGRAM_TOKEN and TELEGRAM_CHAT_ID)
+    tg_api_ok, tg_bot = _check_telegram_api(TELEGRAM_TOKEN)
+    tg_last = datetime.now(timezone.utc).isoformat() if tg_api_ok else ""
+
+    state = "connected" if mt5_connected else "disconnected"
+    _store.publish_heartbeat(
+        profile=profile,
+        state=state,
+        server=acc.server if acc else "",
+        login=acc.login if acc else 0,
+        balance=acc.balance if acc else 0,
+        equity=acc.equity if acc else 0,
+        last_error=mt5_error,
+        telegram_configured=tg_configured,
+        telegram_api_ok=tg_api_ok,
+        telegram_last_check=tg_last,
+        telegram_bot_name=tg_bot,
+    )
 
 # =====================================================================
 # STATE PERSISTENCE - survive bot restarts
@@ -1158,9 +1208,29 @@ def main():
             print(f"\n[DASHBOARD] Pushed {missed_count} missed slots")
 
     try:
+        # Read profile name for heartbeat
+        _active_profile = ""
+        try:
+            _profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+            with open(_profiles_path, "r", encoding="utf-8") as _pf:
+                _profiles_data = json.load(_pf)
+                if _profiles_data:
+                    _active_profile = list(_profiles_data.keys())[0]
+        except Exception:
+            pass
+
+        _heartbeat_tick = 0
         while True:
             if not mt5_ready:
                 try_init_mt5()
+
+            # Publish heartbeat every ~2s
+            _heartbeat_tick += 1
+            if _heartbeat_tick % 2 == 0:
+                try:
+                    publish_heartbeat(_active_profile, mt5_ready)
+                except Exception:
+                    pass
 
             broker_dt = get_broker_time()
             clear_expired_d_direction(broker_dt)
