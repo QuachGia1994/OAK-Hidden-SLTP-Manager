@@ -80,13 +80,14 @@ def migrate_plaintext_tokens(profiles):
     try:
         kr = _get_keyring()
     except RuntimeError:
-        log.warning("keyring unavailable, skip token migration")
+        log.debug("keyring unavailable, skip token migration")
         return 0
 
     migrated = 0
     for name, data in profiles.items():
         token = data.get("tele_token", "")
-        if token and not token.startswith("__vault__:"):
+        # Only migrate if token is present and NOT already "__vault__"
+        if token and token != "__vault__":
             try:
                 kr.set_password(_SERVICE_NAME, f"{_SERVICE_NAME}:{name}:tele_token", token)
                 data["tele_token"] = "__vault__"
@@ -103,6 +104,8 @@ def migrate_plaintext_tokens(profiles):
             log.info("Saved profiles after migration (%d tokens)", migrated)
         except Exception as e:
             log.warning("Failed to save profiles after migration: %s", e)
+    else:
+        log.debug("No tokens to migrate, all already vaulted or empty")
 
     return migrated
 

@@ -2751,7 +2751,50 @@ class CopyTradeManager:
                 return len(step_str.split(".")[1])
         except:
             return 2
-        return 0
+
+    def test_safety_rules(self, symbol="EURUSD", lot=0.1, type="BUY"):
+        """
+        Test safety guardrails for a hypothetical trade
+        Returns dict: {"allowed": bool, "reason": str}
+        """
+        profile_name = self.config.get("profile_name", "Test")
+        reasons = []
+
+        # 1. Check kill switch
+        if self.kill_switch:
+            reasons.append("Kill switch is ON")
+            return {"allowed": False, "reason": "\n".join(reasons)}
+
+        # 2. Check daily trade limit
+        from datetime import date
+        today = date.today()
+        if self._daily_trade_date != today:
+            self._daily_trade_date = today
+            self._daily_trade_count = 0
+        if self._daily_trade_count >= self.max_daily_trades:
+            reasons.append(f"Daily limit reached: {self._daily_trade_count}/{self.max_daily_trades}")
+
+        # 3. Check max lot per trade
+        if lot > self.max_lot_per_trade:
+            reasons.append(f"Lot {lot} exceeds max per trade: {self.max_lot_per_trade}")
+
+        # 4. Check max exposure per symbol
+        if self.max_exposure_per_symbol > 0:
+            try:
+                if mt5.terminal_info():
+                    slave_positions_list = mt5.positions_get()
+                    current_exposure = 0.0
+                    if slave_positions_list:
+                        current_exposure = sum(p.volume for p in slave_positions_list if p.symbol == symbol)
+                    if current_exposure + lot > self.max_exposure_per_symbol:
+                        reasons.append(f"Exposure would exceed max {self.max_exposure_per_symbol}: current {current_exposure} + {lot} = {current_exposure + lot}")
+            except Exception as e:
+                reasons.append(f"Could not check exposure (MT5 not connected?): {str(e)}")
+
+        if reasons:
+            return {"allowed": False, "reason": "\n".join(reasons)}
+        else:
+            return {"allowed": True, "reason": f"Trade would be allowed (symbol: {symbol}, lot: {lot}, type: {type})"}
 
     def _get_profile_names(self):
         try:
@@ -4317,13 +4360,13 @@ class App(ctk.CTk):
         # Status Bar
         self.status_bar = ctk.CTkFrame(self, height=28, corner_radius=0)
         self.status_bar.grid(row=1, column=0, columnspan=2, sticky="sew")
-        self.status_mt5 = ctk.CTkLabel(self.status_bar, text="MT5 ● —", font=ctk.CTkFont(size=11))
+        self.status_mt5 = ctk.CTkLabel(self.status_bar, text="MT5 ● —", font=ctk.CTkFont(size=12, weight="bold"))
         self.status_mt5.pack(side="left", padx=10)
-        self.status_telegram = ctk.CTkLabel(self.status_bar, text="Telegram ● —", font=ctk.CTkFont(size=11))
+        self.status_telegram = ctk.CTkLabel(self.status_bar, text="Telegram ● —", font=ctk.CTkFont(size=12, weight="bold"))
         self.status_telegram.pack(side="left", padx=10)
-        self.status_ghost = ctk.CTkLabel(self.status_bar, text="Ghost ● —", font=ctk.CTkFont(size=11))
+        self.status_ghost = ctk.CTkLabel(self.status_bar, text="Ghost ● —", font=ctk.CTkFont(size=12, weight="bold"))
         self.status_ghost.pack(side="left", padx=10)
-        self.status_system = ctk.CTkLabel(self.status_bar, text="", font=ctk.CTkFont(size=11))
+        self.status_system = ctk.CTkLabel(self.status_bar, text="", font=ctk.CTkFont(size=12, weight="bold"))
         self.status_system.pack(side="right", padx=10)
         
         # Sidebar
@@ -5449,6 +5492,33 @@ class App(ctk.CTk):
         self.btn_save_copy.pack(fill="x", padx=10, pady=20)
         self.add_ui_element("btn_save_copy", self.btn_save_copy)
         
+        # --- Test Safety Rules Section ---
+        self.lbl_test_safety = ctk.CTkLabel(left_panel, text="Test Safety Rules", font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_test_safety.pack(anchor="w", padx=10, pady=(10, 5))
+        
+        # Test Symbol
+        self.lbl_test_symbol = ctk.CTkLabel(left_panel, text="Test Symbol")
+        self.lbl_test_symbol.pack(anchor="w", padx=10)
+        self.ent_test_symbol = ctk.CTkEntry(left_panel, placeholder_text="EURUSD")
+        self.ent_test_symbol.pack(fill="x", padx=10, pady=(0, 5))
+        
+        # Test Lot
+        self.lbl_test_lot = ctk.CTkLabel(left_panel, text="Test Lot")
+        self.lbl_test_lot.pack(anchor="w", padx=10)
+        self.ent_test_lot = ctk.CTkEntry(left_panel, placeholder_text="0.1")
+        self.ent_test_lot.pack(fill="x", padx=10, pady=(0, 5))
+        
+        # Test Type
+        self.lbl_test_type = ctk.CTkLabel(left_panel, text="Test Type")
+        self.lbl_test_type.pack(anchor="w", padx=10)
+        self.combo_test_type = ctk.CTkComboBox(left_panel, values=["BUY", "SELL"])
+        self.combo_test_type.set("BUY")
+        self.combo_test_type.pack(fill="x", padx=10, pady=(0, 10))
+        
+        # Test Button
+        self.btn_test_safety = ctk.CTkButton(left_panel, text="Test Safety Rules", fg_color="#3b8ed0", command=self._on_test_safety_rules)
+        self.btn_test_safety.pack(fill="x", padx=10, pady=5)
+        
         # Start/Stop Monitor (Convenience)
         self.lbl_copy_control = ctk.CTkLabel(left_panel, text=T("lbl_control_monitor"), font=ctk.CTkFont(weight="bold"))
         self.lbl_copy_control.pack(pady=(20, 5))
@@ -5554,6 +5624,76 @@ class App(ctk.CTk):
 
         save_json(CONFIG_FILE, self.profiles)
         self.log(f"Copy Trade Config Saved for {name}")
+
+    def _on_test_safety_rules(self):
+        """
+        Test safety rules using the selected profile's config and user input
+        Displays result in the Copy Console and as a log message
+        """
+        name = self.combo_profiles.get()
+        if not name or name not in self.profiles:
+            self.log("❌ Select a profile first to test safety rules!")
+            return
+
+        # First make sure the current config is saved
+        self.save_copy_config()
+
+        # Read user inputs
+        test_symbol = self.ent_test_symbol.get().strip()
+        if not test_symbol:
+            test_symbol = "EURUSD"
+
+        test_lot_str = self.ent_test_lot.get().strip()
+        try:
+            test_lot = float(test_lot_str.replace(",", "."))
+        except:
+            test_lot = 0.1
+
+        test_type = self.combo_test_type.get()
+
+        # Create a temporary CopyTradeManager with current config to test
+        profile_config = self.profiles[name].copy()
+        profile_config["profile_name"] = name
+
+        # Update with any changes from the UI (in case not saved yet)
+        profile_config["copy_role"] = self.combo_copy_role.get()
+        profile_config["copy_max_daily_trades"] = self.ent_max_daily.get().strip() or "20"
+        profile_config["copy_max_lot_per_trade"] = self.ent_max_lot.get().strip() or "5.0"
+        profile_config["copy_max_exposure"] = self.ent_max_exposure.get().strip() or "10.0"
+        profile_config["copy_kill_switch"] = bool(self.chk_kill_switch.get())
+
+        # Create test manager instance
+        test_manager = CopyTradeManager(profile_config, lambda msg: None)
+
+        # Run the test
+        result = test_manager.test_safety_rules(test_symbol, test_lot, test_type)
+
+        # Format and display result
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        if result["allowed"]:
+            status_icon = "✅"
+            status_color = "#66bb6a"
+        else:
+            status_icon = "❌"
+            status_color = "#ef5350"
+
+        result_text = f"[{timestamp}] {status_icon} Safety Test Result:\n"
+        result_text += f"  Symbol: {test_symbol}\n"
+        result_text += f"  Lot: {test_lot}\n"
+        result_text += f"  Type: {test_type}\n"
+        result_text += f"\n{result['reason']}\n"
+
+        # Update the copy console
+        self.copy_console.configure(state="normal")
+        self.copy_console.insert("end", "\n" + "="*60 + "\n")
+        self.copy_console.insert("end", result_text)
+        self.copy_console.insert("end", "="*60 + "\n")
+        self.copy_console.see("end")
+        self.copy_console.configure(state="disabled")
+
+        # Also log the result
+        log_msg = f"[{name}] Safety Test: {'ALLOWED' if result['allowed'] else 'BLOCKED'} for {test_symbol} x {test_lot}"
+        self.log(log_msg)
 
     def create_pos_size_frame(self, parent):
         # Create main container
@@ -5990,10 +6130,10 @@ class App(ctk.CTk):
 
         # Center frame to hold all content
         center = ctk.CTkFrame(frame, fg_color="transparent")
-        center.place(relx=0.5, rely=0.5, anchor="center")
+        center.place(relx=0.5, rely=0.30, anchor="center")
 
         # App icon + title
-        ctk.CTkLabel(center, text="🎛️", font=ctk.CTkFont(size=48)).grid(row=0, column=0, pady=(0, 5))
+        ctk.CTkLabel(center, text="🎛️", font=ctk.CTkFont(size=56)).grid(row=0, column=0, pady=(0, 8))
         ctk.CTkLabel(center, text=f"OAK Manager {VERSION} Stable", font=ctk.CTkFont(size=24, weight="bold")).grid(row=1, column=0)
         ctk.CTkLabel(center, text="Trading Operations Console for MT4 / MT5", font=ctk.CTkFont(size=13), text_color="gray").grid(row=2, column=0, pady=(0, 5))
         ctk.CTkLabel(center, text=f"Build {BUILD} · Windows x64", font=ctk.CTkFont(size=11), text_color="gray").grid(row=3, column=0, pady=(0, 20))
