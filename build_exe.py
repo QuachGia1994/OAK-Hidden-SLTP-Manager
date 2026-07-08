@@ -66,6 +66,10 @@ args = [
     '--hidden-import=utils',
     '--hidden-import=mt5_signal_bot',
     '--hidden-import=repositories.sqlite_store',
+    '--hidden-import=services.auto_update',
+    '--hidden-import=services.error_reporter',
+    '--hidden-import=packaging',
+    '--hidden-import=packaging.version',
 ]
 
 # UPX compression

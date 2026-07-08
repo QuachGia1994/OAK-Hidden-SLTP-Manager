@@ -6,3 +6,5 @@ pywin32
 Flask
 pyTelegramBotAPI
 keyring
+requests
+packaging
