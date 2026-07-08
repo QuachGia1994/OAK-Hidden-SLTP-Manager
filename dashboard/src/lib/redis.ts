@@ -20,7 +20,9 @@ export const KEYS = {
 const API_KEY = process.env.DASHBOARD_API_KEY || "";
 
 export function requireAuth(request: Request): NextResponse | null {
-  if (!API_KEY) return null; // no key configured = open (dev mode)
+  if (!API_KEY) {
+    return NextResponse.json({ error: "server auth not configured" }, { status: 503 });
+  }
   const key = request.headers.get("x-api-key");
   if (key !== API_KEY) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });

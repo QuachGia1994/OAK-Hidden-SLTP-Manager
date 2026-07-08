@@ -1353,4 +1353,10 @@ def main():
         print("  Bot stopped.")
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--profile", type=str, help="Profile name for heartbeat")
+    args, _ = parser.parse_known_args()
+    if args.profile:
+        _active_profile = args.profile
     main()

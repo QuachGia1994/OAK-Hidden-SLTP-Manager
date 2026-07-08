@@ -580,10 +580,19 @@ class OakTradingReminder:
             config = self.load_config()
             for p_name in config:
                 p = config[p_name]
-                if p.get("tele_token") and p.get("tele_chat"):
-                    token = p["tele_token"]
-                    chat_id = p["tele_chat"]
-                    break
+                if p.get("tele_chat"):
+                    raw_token = p.get("tele_token", "")
+                    # Resolve vaulted token from keyring
+                    if raw_token == "__vault__":
+                        try:
+                            from secret_store import get_token_for_profile
+                            raw_token = get_token_for_profile(p_name)
+                        except Exception:
+                            raw_token = ""
+                    if raw_token:
+                        token = raw_token
+                        chat_id = p["tele_chat"]
+                        break
         
         if not token or not chat_id:
             print(f"DEBUG (No Telegram Config): {message}")
@@ -994,10 +1003,18 @@ class OakTradingReminder:
             config = self.load_config()
             for p_name in config:
                 p = config[p_name]
-                if p.get("tele_token") and p.get("tele_chat"):
-                    token = p["tele_token"]
-                    chat_id_target = p["tele_chat"]
-                    break
+                if p.get("tele_chat"):
+                    raw_token = p.get("tele_token", "")
+                    if raw_token == "__vault__":
+                        try:
+                            from secret_store import get_token_for_profile
+                            raw_token = get_token_for_profile(p_name)
+                        except Exception:
+                            raw_token = ""
+                    if raw_token:
+                        token = raw_token
+                        chat_id_target = p["tele_chat"]
+                        break
 
         if not chat_id_target: return
 

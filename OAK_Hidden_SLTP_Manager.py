@@ -3320,6 +3320,15 @@ class MonitorWorker(threading.Thread):
     def send_telegram(self, message):
         # Use MiMo bot token (single Telegram bot for everything)
         token = _mimo_bot_token or self.config.get("tele_token", "")
+        # Resolve vaulted token from keyring
+        if token == "__vault__" or not token:
+            try:
+                from secret_store import get_token_for_profile
+                profile_name = self.config.get("profile_name", "")
+                if profile_name:
+                    token = get_token_for_profile(profile_name)
+            except Exception:
+                pass
         chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
         if not token or not chat_id: return
         
@@ -3618,7 +3627,14 @@ class MonitorWorker(threading.Thread):
             self.log(start_msg)
 
             # Log Configuration details as requested
-            tele_status = "ON" if (self.config.get("tele_token", "") and self.config.get("tele_chat", "")) else "OFF"
+            tele_token_raw = self.config.get("tele_token", "")
+            if tele_token_raw == "__vault__":
+                try:
+                    from secret_store import get_token_for_profile
+                    tele_token_raw = get_token_for_profile(self.config.get("profile_name", ""))
+                except Exception:
+                    tele_token_raw = ""
+            tele_status = "ON" if (tele_token_raw and self.config.get("tele_chat", "")) else "OFF"
             config_log = (
                 f"{T('log_config_title')}\n"
                 f"{T('log_config_symbol')}   {symbol_str if symbol_str else 'ALL'}\n"
@@ -5203,7 +5219,17 @@ class App(ctk.CTk):
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 creationflags = subprocess.CREATE_NO_WINDOW
 
-            cmd = ["python", "-u"] + info["cmd"].split()[1:]
+            # Handle frozen exe vs development
+            if getattr(sys, 'frozen', False):
+                cmd = [sys.executable] + info["cmd"].split()[1:]
+            else:
+                cmd = ["python", "-u"] + info["cmd"].split()[1:]
+
+            # Pass current profile to signal bot
+            if key == "signal_bot" and hasattr(self, 'combo_profiles'):
+                profile = self.combo_profiles.get()
+                if profile:
+                    cmd.extend(["--profile", profile])
             env = os.environ.copy()
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUNBUFFERED"] = "1"
