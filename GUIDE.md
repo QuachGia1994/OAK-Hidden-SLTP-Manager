@@ -6,7 +6,7 @@ Tài liệu này mô tả đúng các tính năng đang dùng trong app, dashboa
 
 1. Tạo `config.json` với `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`
 2. Cài dependency bằng `pip install -r requirements.txt`
-3. Chạy `CHAY_ALL.bat` hoặc mở app và vào tab `Tín Hiệu`
+3. Chạy `CHAY_ROBOT.bat`, sau đó vào tab `Tín Hiệu` để quản lý process nền
 
 ## 2. Tab Tín Hiệu
 

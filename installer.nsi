@@ -1,11 +1,20 @@
-
 ; NSIS Installer Script for OAK Manager
 ; Requires NSIS 3.0 or later
 ; Download: https://nsis.sourceforge.io/Download
 
 !define APPNAME "OAK MANAGER"
 !define COMPANY "QKP"
+!ifndef VERSION
 !define VERSION "3.15.0"
+!endif
+
+!ifndef PACKAGE_DIR_NAME
+!define PACKAGE_DIR_NAME "${APPNAME}_${VERSION}"
+!endif
+
+!ifndef APP_EXE_NAME
+!define APP_EXE_NAME "${PACKAGE_DIR_NAME}.exe"
+!endif
 
 !define /date BUILDDATE "%Y-%m-%d"
 !define DEFAULT_INSTALL_DIR "$PROGRAMFILES64\${APPNAME}"
@@ -41,17 +50,13 @@ Section "Main Section" SecMain
   ; Set output path
   SetOutPath $INSTDIR
 
-  ; Install the main executable
-  File "dist\OAK MANAGER_v${VERSION}.exe"
-  
-  ; Install configuration examples
-  File "profiles.example.json"
-  File "settings.example.json"
+  ; Install unpacked application bundle
+  File /r "dist\window-unpack\${PACKAGE_DIR_NAME}\*.*"
   
   ; Create shortcuts
   CreateDirectory "$SMPROGRAMS\${APPNAME}"
-  CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\OAK MANAGER_v${VERSION}.exe"
-  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\OAK MANAGER_v${VERSION}.exe"
+  CreateShortcut "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk" "$INSTDIR\${APP_EXE_NAME}"
+  CreateShortCut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\${APP_EXE_NAME}"
 
   ; Write registry keys
   WriteRegStr HKLM "Software\${COMPANY}\${APPNAME}" "InstallDir" $INSTDIR
@@ -59,6 +64,7 @@ Section "Main Section" SecMain
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "UninstallString" "$INSTDIR\uninstall.exe"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "Publisher" "${COMPANY}"
   WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "DisplayIcon" "$INSTDIR\${APP_EXE_NAME}"
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoModify" 1
   WriteRegDWORD HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}" "NoRepair" 1
   
@@ -68,12 +74,6 @@ SectionEnd
 
 ; Uninstaller
 Section "Uninstall"
-  ; Remove main files
-  Delete "$INSTDIR\OAK MANAGER_v${VERSION}.exe"
-  Delete "$INSTDIR\uninstall.exe"
-  Delete "$INSTDIR\profiles.example.json"
-  Delete "$INSTDIR\settings.example.json"
-
   ; Remove shortcuts
   Delete "$SMPROGRAMS\${APPNAME}\${APPNAME}.lnk"
   RMDir "$SMPROGRAMS\${APPNAME}"
@@ -83,6 +83,6 @@ Section "Uninstall"
   DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
   DeleteRegKey HKLM "Software\${COMPANY}\${APPNAME}"
 
-  ; Remove directory if empty
-  RMDir "$INSTDIR"
+  ; Remove installed files
+  RMDir /r "$INSTDIR"
 SectionEnd

@@ -21,47 +21,81 @@ def create_backup():
         print(f"Warning: Could not read version: {e}")
 
     source_zip = f"OAK Source {version}.zip"
-    source_files = [
+
+    source_files = {
         "OAK_Hidden_SLTP_Manager.py",
         "requirements.txt",
+        "requirements-dev.txt",
         "icon.ico",
         "CHAY_ROBOT.bat",
         "oak_trading_reminders.py",
         "create_backup_final.py",
         "build_exe.py",
-        "build_exe.bat",
+        "installer.nsi",
+        "LICENSE.txt",
         "oak_response_dict.py",
         "MT4_Data_Feeder.mq4",
-    ]
-
-    signal_files = [
-        "mt5_signal_bot.py",
-        "mt4_mt5_server.py",
-        "mimo_bot.py",
-        "mimo_worker.py",
-        "factcheck_worker.py",
-        "utils.py",
-        "CHAY_ALL.bat",
-        "CHAY_SERVER.bat",
-        "CHAY_MIMO_BOT.bat",
-    ]
-
-    dashboard_files = []
-    for root, dirs, files in os.walk("dashboard"):
-        dirs[:] = [d for d in dirs if d not in ("node_modules", ".next", ".git", ".vercel")]
-        for f in files:
-            if f.startswith(".env"):
-                continue
-            dashboard_files.append(os.path.join(root, f))
-
-    spec_files = glob.glob("*.spec")
-    doc_files = {
         "README.md",
         "GUIDE.md",
         "RELEASE_NOTES.md",
-        os.path.join("dashboard", "README.md"),
+        "profiles.example.json",
+        "settings.example.json",
+        ".gitignore",
+        "AGENTS.md",
+        "mimo_bot.py",
+        "mimo_worker.py",
+        "mt4_mt5_server.py",
+        "mt5_signal_bot.py",
+        "factcheck_worker.py",
+        "telegram_client.py",
+        "secret_store.py",
+        "oak_logger.py",
+        "utils.py",
     }
-    source_files = sorted(list(set(source_files + signal_files + dashboard_files + list(doc_files) + spec_files)))
+
+    exclude_dirs = {
+        ".git",
+        ".next",
+        ".venv",
+        ".vercel",
+        "__pycache__",
+        "build",
+        "dist",
+        "logs",
+        "node_modules",
+        "venv",
+    }
+    exclude_files = {
+        "Objective.txt",
+        "build_exe.bat",
+        "CHAY_ALL.bat",
+        "CHAY_DASHBOARD.bat",
+        "CHAY_MIMO_BOT.bat",
+        "CHAY_SERVER.bat",
+        "diff_details.txt",
+        "diff_summary.txt",
+        "recent_changes.diff",
+        "test_run_output.txt",
+        "fix_b87fe05.patch",
+        "fix_round2.patch",
+        "fix_round3.patch",
+        "test_command_construction.py",
+        "test_signal_bot_profile.py",
+    }
+
+    include_roots = ["dashboard", "docs", "models", "repositories", "services", "tests", "ui"]
+    for base in include_roots:
+        if not os.path.exists(base):
+            continue
+        for root, dirs, files in os.walk(base):
+            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            for f in files:
+                if f.startswith(".env") or f in exclude_files:
+                    continue
+                source_files.add(os.path.join(root, f))
+
+    spec_files = glob.glob("*.spec")
+    source_files = sorted(list(source_files.union(spec_files)))
 
     profile_zip = "OAK_Profile_Backup.zip"
     profile_files = [
@@ -90,7 +124,7 @@ def create_backup():
                     if os.path.exists(file):
                         zipf.write(file)
                         print(f"  + {file}")
-                    elif zip_name == source_zip and file not in doc_files:
+                    elif zip_name == source_zip:
                         print(f"  ! Khong tim thay: {file}")
             print(f"--- Hoan tat: {os.path.abspath(zip_name)} ---\n")
     except Exception as e:

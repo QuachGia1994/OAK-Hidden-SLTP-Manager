@@ -30,11 +30,11 @@ pip install -r requirements.txt
 4. Chạy app:
 
 ```bash
-python OAK_Hidden_SLTP_Manager.py
+CHAY_ROBOT.bat
 ```
 
-Hoặc chạy toàn bộ hệ thống:
+Hoặc nếu đang debug thủ công, chạy trực tiếp:
 
 ```bash
-CHAY_ALL.bat
+python OAK_Hidden_SLTP_Manager.py
 ```

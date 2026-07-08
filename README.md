@@ -75,13 +75,13 @@ Yêu cầu:
 pip install -r requirements.txt
 ```
 
-2. Chạy toàn bộ:
+2. Chạy app:
 
 ```bash
-CHAY_ALL.bat
+CHAY_ROBOT.bat
 ```
 
-3. Hoặc mở app và vào tab `Tín Hiệu` để chạy từng process.
+3. Vào tab `Tín Hiệu` trong app để chạy hoặc dừng từng process nền.
 
 4. Tạo backup source/profile:
 

@@ -1,3 +1,4 @@
+
 @echo off
 setlocal
 cd /d "%~dp0"
@@ -35,7 +36,7 @@ echo [3/3] Checking libraries (requirements.txt)...
 ".\venv\Scripts\python.exe" -m pip install -r requirements.txt --quiet
 if %errorlevel% neq 0 (
     echo [INFO] Installing libraries manually...
-    ".\venv\Scripts\python.exe" -m pip install customtkinter MetaTrader5 --quiet
+    ".\venv\Scripts\python.exe" -m pip install customtkinter MetaTrader5 pywinauto comtypes pywin32 Flask pyTelegramBotAPI keyring requests packaging --quiet
 )
 
 :: 4. Run app

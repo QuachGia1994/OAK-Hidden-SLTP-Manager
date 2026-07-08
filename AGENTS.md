@@ -16,7 +16,7 @@ factcheck_worker.py          ← News fact-checking via Upstash Redis
 dashboard/                   ← Next.js 16 + React 19 frontend
 ```
 
-**Critical**: These are separate processes, not modules. `CHAY_ALL.bat` starts server → signal bot → worker in sequence with `start` (detached). Do not import between them.
+**Critical**: These are separate processes, not modules. Public launcher is `CHAY_ROBOT.bat`, and the app's `Tín Hiệu` tab manages background processes. Do not import between them.
 
 ## Configuration
 
@@ -38,10 +38,10 @@ Never hardcode secrets. Read from `config.json` at module level (see pattern in 
 # Install Python deps
 pip install -r requirements.txt
 
-# Start all services (Windows)
-CHAY_ALL.bat
+# Start app (Windows)
+CHAY_ROBOT.bat
 
-# Start individual processes
+# Start individual processes manually
 python mt4_mt5_server.py    # Flask on localhost
 python mt5_signal_bot.py    # Signal analyzer
 python mimo_bot.py          # Telegram bot
@@ -114,8 +114,8 @@ Token resolution hierarchy (signal bot):
 
 ## Gotchas
 
-1. **Duplicate processes**: Multiple instances of the same process can accumulate (e.g., after repeated CHAY_ALL.bat runs). Each `mimo_bot.py` instance polls the same bot token — Telegram delivers each message to only one instance, causing random message loss. Fix: kill all pythonw.exe processes before restarting.
-2. **`pythonw.exe` suppresses stdout**: `CHAY_ALL.bat` and `CHAY_ROBOT.bat` use `pythonw.exe` (no console). All `print()` output is lost. Signal bot uses `print()` for most output, not the logger.
+1. **Duplicate processes**: Multiple instances of the same process can accumulate after repeated app restarts or manual launches. Each `mimo_bot.py` instance polls the same bot token — Telegram delivers each message to only one instance, causing random message loss. Fix: kill all `pythonw.exe` processes before restarting.
+2. **`pythonw.exe` suppresses stdout**: `CHAY_ROBOT.bat` uses `pythonw.exe` (no console). All `print()` output is lost. Signal bot uses `print()` for most output, not the logger.
 3. **Global state**: `mt5_signal_bot.py` uses module-level globals (`d_direction`, `d_direction_date`) that tests must patch.
 4. **Process cleanup**: `OAK_Hidden_SLTP_Manager.py` registers `atexit` and signal handlers to kill child processes.
 5. **MT5 connection**: `MetaTrader5` module requires MT5 terminal running. Import fails gracefully with error message.
@@ -136,5 +136,5 @@ Token resolution hierarchy (signal bot):
 **Debug Telegram not sending**:
 1. Check for duplicate processes: `Get-Process pythonw | Select-Object Id, CommandLine`
 2. Kill all: `Get-Process pythonw | Stop-Process -Force`
-3. Restart single instance via `CHAY_ALL.bat`
+3. Restart single instance via `CHAY_ROBOT.bat`
 4. Check bot token validity with getMe API call above
