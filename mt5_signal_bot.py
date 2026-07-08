@@ -1300,7 +1300,6 @@ def main(profile_name=None):
                     pass
                 time.sleep(2)
         
-        import threading
         threading.Thread(target=heartbeat_thread, daemon=True).start()
 
         while True:
