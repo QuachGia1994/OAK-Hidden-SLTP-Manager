@@ -54,6 +54,7 @@ DIRECTION_EVENT_PORT = 8765
 # HEARTBEAT - publish to SQLite for GUI to read
 # =====================================================================
 _store = SQLiteStore()
+_active_profile = ""  # Module-level, set by main() at startup
 
 def _check_telegram_api(token):
     """Check Telegram API reachability via getMe."""
@@ -80,8 +81,17 @@ def publish_heartbeat(profile, mt5_connected, mt5_error=""):
         except Exception:
             pass
 
-    tg_configured = bool(TELEGRAM_TOKEN and TELEGRAM_CHAT_ID)
-    tg_api_ok, tg_bot = _check_telegram_api(TELEGRAM_TOKEN)
+    # Check Telegram: try config.json first, then keyring for profile token
+    tg_token = TELEGRAM_TOKEN
+    tg_chat = TELEGRAM_CHAT_ID
+    if not tg_token and profile:
+        try:
+            from secret_store import get_token_for_profile
+            tg_token = get_token_for_profile(profile)
+        except Exception:
+            pass
+    tg_configured = bool(tg_token and tg_chat)
+    tg_api_ok, tg_bot = _check_telegram_api(tg_token) if tg_token else (False, "")
     tg_last = datetime.now(timezone.utc).isoformat() if tg_api_ok else ""
 
     state = "connected" if mt5_connected else "disconnected"
@@ -1225,7 +1235,7 @@ def main():
 
     try:
         # Read profile name for heartbeat + migrate tokens
-        _active_profile = ""
+        global _active_profile
         try:
             _profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
             with open(_profiles_path, "r", encoding="utf-8") as _pf:

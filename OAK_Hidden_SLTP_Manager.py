@@ -6678,6 +6678,8 @@ class App(ctk.CTk):
         except: pass
 
     def on_profile_change(self, choice):
+        # Update selected profile state
+        self.selected_profile_name = choice
         # Update config and Init Copy Manager for GUI sync
         if choice in self.profiles:
             self.config = self.profiles[choice]
@@ -6724,6 +6726,7 @@ class App(ctk.CTk):
                 self.copy_console.configure(state="disabled")
             
         self.update_ui_state(choice)
+        self.refresh_profile_list()
 
     def update_ui_state(self, profile_name):
         is_running = False
