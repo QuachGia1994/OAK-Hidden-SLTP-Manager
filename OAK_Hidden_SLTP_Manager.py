@@ -28,7 +28,13 @@ import oak_trading_reminders
 from oak_response_dict import get_random_response
 from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
+from repositories.profile_store import ProfileStore
 from utils import build_signal_process_cmd, SIGNAL_SCRIPT_MAP, UnsupportedFrozenProcessError, compute_telegram_backoff
+from models.app_state import AppState
+from services.signal_process_supervisor import SignalProcessSupervisor
+from ui.base_tab import BaseTab
+from ui.signals_tab import SignalsTab
+from ui.profiles_tab import ProfilesTab
 
 log = setup_logger("oak")
 
@@ -4248,10 +4254,17 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         
+        # Initialize AppState
+        self.state = AppState()
+        
         # Load Settings
         self.settings = load_json(SETTINGS_FILE)
+        self.state.set("settings", self.settings)
+        
         global CURRENT_LANG
         CURRENT_LANG = self.settings.get("lang", "VN")
+        self.state.set("lang", CURRENT_LANG)
+        self.state.set("theme", self.settings.get("theme", "light"))
 
         # SQLite store for heartbeat
         self._store = SQLiteStore()
@@ -4260,6 +4273,13 @@ class App(ctk.CTk):
         if "ghost_mode_active" not in self.settings:
             self.settings["ghost_mode_active"] = False
             save_json(SETTINGS_FILE, self.settings)
+        self.state.set("ghost_mode_active", self.settings["ghost_mode_active"])
+        
+        # Initialize ProfileStore
+        self.profile_store = ProfileStore(CONFIG_FILE)
+        
+        # Initialize SignalProcessSupervisor (we'll register the UI later)
+        self.signal_supervisor = SignalProcessSupervisor([], log_callback=self.log)
         
         # Theme Setup
         self.apply_theme(self.settings.get("theme", "light")) # Default to Light as per user request
@@ -4276,7 +4296,8 @@ class App(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Data
-        self.profiles = load_json(CONFIG_FILE)
+        self.profiles = self.profile_store.load()
+        self.state.set("profiles", self.profiles)
         self.workers = {} # {profile_name: {"proc": Popen, "console": CTkTextbox, "btn_stop": CTkButton}}
         self.ui_elements = {} # Store widgets for language update
         self._last_json_mtime = 0 # Initialize for periodic refresh sync
@@ -5193,73 +5214,19 @@ class App(ctk.CTk):
         self.update_news_summary(force=True)
 
     def create_signals_frame(self, parent):
-        frame = ctk.CTkFrame(parent, fg_color="transparent")
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(fill="x", pady=(0, 10))
-
-        ctk.CTkButton(btn_frame, text="▶ BẮT ĐẦU TẤT CẢ", fg_color="#2fa572",
-                       hover_color="#238a5c", command=self.start_all_signals).pack(side="left", padx=5)
-        ctk.CTkButton(btn_frame, text="■ DỪNG TẤT CẢ", fg_color="#d9534f",
-                       hover_color="#c9302c", command=self.stop_all_signals).pack(side="left", padx=5)
-
-        panels_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        panels_frame.pack(fill="both", expand=True)
-        panels_frame.grid_columnconfigure(0, weight=1)
-        panels_frame.grid_columnconfigure(1, weight=1)
-        panels_frame.grid_rowconfigure(0, weight=1)
-        panels_frame.grid_rowconfigure(1, weight=1)
-
-        signal_defs = [
-            ("signal_bot", "MT5 Signal Bot", "python mt5_signal_bot.py", "#2fa572"),
-            ("mt_server", "MT4-MT5 Server", "python mt4_mt5_server.py", "#1f538d"),
-            ("mimo_bot", "MiMo Telegram Bot", "python mimo_bot.py", "#b33dd4"),
-            ("mimo_worker", "MiMo Worker", "python mimo_worker.py", "#d4a03d"),
+        # Initialize and mount the SignalsTab
+        self.signals_tab = SignalsTab(self)
+        self.signals_tab.mount(parent)
+        # Copy over UI references for backwards compatibility
+        self.signal_procs = self.signals_tab.signal_procs
+        # Register the UI with the signal supervisor
+        self.signal_supervisor.register_signals(self.signal_procs)
+        self.signal_supervisor.signal_defs = [
+            ("signal_bot", "MT5 Signal Bot", "#2fa572"),
+            ("mt_server", "MT4-MT5 Server", "#1f538d"),
+            ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
+            ("mimo_worker", "MiMo Worker", "#d4a03d"),
         ]
-
-        positions = [(0, 0), (0, 1), (1, 0), (1, 1)]
-
-        for idx, (key, name, cmd, color) in enumerate(signal_defs):
-            row, col = positions[idx]
-            panel = ctk.CTkFrame(panels_frame, corner_radius=8)
-            panel.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
-
-            header = ctk.CTkFrame(panel, fg_color="transparent")
-            header.pack(fill="x", padx=10, pady=(8, 2))
-
-            dot = ctk.CTkLabel(header, text="●", text_color=color, font=("", 14))
-            dot.pack(side="left", padx=(0, 5))
-
-            ctk.CTkLabel(header, text=name, font=("", 13, "bold")).pack(side="left")
-
-            lbl_pid = ctk.CTkLabel(header, text="PID: ---", font=("", 11))
-            lbl_pid.pack(side="right", padx=5)
-
-            btn_frame_p = ctk.CTkFrame(header, fg_color="transparent")
-            btn_frame_p.pack(side="right", padx=5)
-
-            btn_start = ctk.CTkButton(btn_frame_p, text="▶", width=32, height=28,
-                                       fg_color="#2fa572", hover_color="#238a5c",
-                                       command=lambda k=key: self.start_signal_process(k))
-            btn_start.pack(side="left", padx=2)
-
-            btn_stop = ctk.CTkButton(btn_frame_p, text="■", width=32, height=28,
-                                      fg_color="#d9534f", hover_color="#c9302c",
-                                      state="disabled",
-                                      command=lambda k=key: self.stop_signal_process(k))
-            btn_stop.pack(side="left", padx=2)
-
-            console = ctk.CTkTextbox(panel, font=("Consolas", 11),
-                                      state="disabled", wrap="word")
-            console.pack(fill="both", expand=True, padx=10, pady=(2, 8))
-
-            self.signal_procs[key] = {
-                "name": name, "cmd": cmd, "color": color,
-                "proc": None, "logs": [],
-                "console": console, "btn_start": btn_start,
-                "btn_stop": btn_stop, "lbl_pid": lbl_pid,
-            }
 
     def _kill_orphan_processes(self, key):
         """Kill orphan processes that weren't tracked (e.g. from crashed sessions)"""
@@ -5291,78 +5258,13 @@ class App(ctk.CTk):
             pass
 
     def start_signal_process(self, key):
-        info = self.signal_procs.get(key)
-        if not info or info["proc"] and info["proc"].poll() is None:
-            return
-        self._kill_orphan_processes(key)
-        try:
-            startupinfo = None
-            creationflags = 0
-            if os.name == 'nt':
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                creationflags = subprocess.CREATE_NO_WINDOW
-
-            # Build command based on mode (shared helper so it's covered by real tests)
-            profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
-            frozen = getattr(sys, 'frozen', False)
-            try:
-                cmd = build_signal_process_cmd(
-                    key, profile, frozen, sys.executable, script_map=SIGNAL_SCRIPT_MAP
-                )
-            except UnsupportedFrozenProcessError:
-                self.log(f"Frozen mode: {info['name']} not supported yet")
-                return
-            env = os.environ.copy()
-            env["PYTHONIOENCODING"] = "utf-8"
-            env["PYTHONUNBUFFERED"] = "1"
-            proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, bufsize=1, encoding='utf-8', errors='replace',
-                startupinfo=startupinfo, creationflags=creationflags,
-                cwd=os.path.dirname(os.path.abspath(__file__)),
-                env=env,
-            )
-            info["proc"] = proc
-            info["logs"] = []
-            info["lbl_pid"].configure(text=f"PID: {proc.pid}")
-            info["btn_start"].configure(state="disabled")
-            info["btn_stop"].configure(state="normal")
-
-            t = threading.Thread(target=self._monitor_signal_output, args=(key, proc), daemon=True)
-            t.start()
-            self.log(f"Signal started: {info['name']} (PID: {proc.pid})")
-        except Exception as e:
-            self.log(f"Signal start error ({info['name']}): {e}")
+        """Delegate to signal supervisor."""
+        profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
+        self.signal_supervisor.start_signal_process(key, profile)
 
     def stop_signal_process(self, key):
-        info = self.signal_procs.get(key)
-        if not info or not info["proc"]:
-            return
-        proc = info["proc"]
-        if proc.poll() is None:
-            try:
-                if os.name == 'nt':
-                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                                   capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                else:
-                    proc.terminate()
-            except:
-                proc.terminate()
-            time.sleep(0.5)
-            self.log(f"Signal stopped: {info['name']}")
-        info["proc"] = None
-        info["btn_start"].configure(state="normal")
-        info["btn_stop"].configure(state="disabled")
-        info["lbl_pid"].configure(text="PID: ---")
-        self._kill_orphan_processes(key)
-        if key == "mimo_worker":
-            lock = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mimo_worker.lock")
-            try:
-                if os.path.exists(lock):
-                    os.remove(lock)
-            except:
-                pass
+        """Delegate to signal supervisor."""
+        self.signal_supervisor.stop_signal_process(key)
 
     def _monitor_signal_output(self, key, proc):
         info = self.signal_procs.get(key)
@@ -5394,13 +5296,13 @@ class App(ctk.CTk):
             info["logs"] = info["logs"][-300:]
 
     def start_all_signals(self):
-        for key in self.signal_procs:
-            self.start_signal_process(key)
-            time.sleep(1)
+        """Delegate to signal supervisor."""
+        profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
+        self.signal_supervisor.start_all_signals(profile)
 
     def stop_all_signals(self):
-        for key in self.signal_procs:
-            self.stop_signal_process(key)
+        """Delegate to signal supervisor."""
+        self.signal_supervisor.stop_all_signals()
 
     def create_profiles_frame(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -6629,9 +6531,8 @@ class App(ctk.CTk):
     def on_closing(self):
         # Cleanup all spawned processes
         _cleanup_processes()
-        # Stop all signal processes
-        for key in list(self.signal_procs.keys()):
-            self.stop_signal_process(key)
+        # Stop all signal processes via supervisor
+        self.signal_supervisor.cleanup()
         # Stop all workers
         for name, data in self.workers.items():
             if data["proc"].poll() is None:
