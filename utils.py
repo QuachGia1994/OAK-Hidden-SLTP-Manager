@@ -65,6 +65,77 @@ def save_json_file(path, data):
         pass
 
 
+# --- Process command construction ---
+SIGNAL_SCRIPT_MAP = {
+    "signal_bot": "mt5_signal_bot.py",
+    "mt_server": "mt4_mt5_server.py",
+    "mimo_bot": "mimo_bot.py",
+    "mimo_worker": "mimo_worker.py",
+}
+
+FROZEN_SUPPORTED_KEYS = ("signal_bot",)
+
+
+class UnsupportedFrozenProcessError(Exception):
+    """Raised when a frozen build is asked to start a process it can't run standalone."""
+
+
+def build_signal_process_cmd(key, profile, frozen, executable, script_map=None):
+    """Build the subprocess command list for a signal process.
+
+    Mirrors the exact command construction used by
+    OAK_Hidden_SLTP_Manager.start_signal_process, so it can be unit tested
+    without importing the GUI (customtkinter/MetaTrader5) module.
+
+    - frozen + signal_bot: [executable, "--signal-bot", ("--profile", profile)?]
+    - frozen + other key: raises UnsupportedFrozenProcessError
+    - dev + signal_bot: [executable, "-u", script, ("--profile", profile)?]
+    - dev + other key: [executable, "-u", script]
+    """
+    script_map = script_map or SIGNAL_SCRIPT_MAP
+    script = script_map.get(key, "")
+
+    if frozen:
+        if key not in FROZEN_SUPPORTED_KEYS:
+            raise UnsupportedFrozenProcessError(key)
+        cmd = [executable, "--signal-bot"]
+        if profile:
+            cmd.extend(["--profile", profile])
+        return cmd
+
+    cmd = [executable, "-u", script]
+    if key == "signal_bot" and profile:
+        cmd.extend(["--profile", profile])
+    return cmd
+
+
+# --- Telegram backoff/circuit breaker ---
+def compute_telegram_backoff(consecutive_fails):
+    """Return (sleep_seconds, should_log_degraded).
+
+    Backoff schedule:
+    1-2 fails: 5s
+    3-4 fails: 15s
+    5-9 fails: 30s
+    10-19 fails: 60s
+    20+ fails: 300s
+    """
+    try:
+        n = int(consecutive_fails)
+    except Exception:
+        n = 1
+
+    if n < 3:
+        return 5, False
+    if n < 5:
+        return 15, False
+    if n < 10:
+        return 30, False
+    if n < 20:
+        return 60, n == 10
+    return 300, n in (20, 50, 100)
+
+
 # --- Signal helpers ---
 SIGNAL_ICONS = {"BUY": ("Mua", "\U0001f7e2"), "SELL": ("Bán", "\U0001f534")}
 VN_DIR = {"TANG": "Tăng", "GIAM": "Giảm", "DOJI": "Doji"}
