@@ -2033,7 +2033,7 @@ class CopyTradeManager:
                     else:
                         now_dt = datetime.now()
                         target_dt = datetime.strptime(time_val, "%H:%M:%S").replace(year=now_dt.year, month=now_dt.month, day=now_dt.day)
-                        if target_dt < now_dt:
+                        if target_dt <= now_dt:
                             target_dt += timedelta(days=1)
                         while target_dt.weekday() in (5, 6):
                             target_dt += timedelta(days=1)
@@ -2148,7 +2148,12 @@ class CopyTradeManager:
                 target_profile, del_cmd = self._pop_profile_token(del_cmd)
                 if target_profile and target_profile != profile_lower:
                     return
-                
+                 
+                # Defensive check: ensure del_cmd has at least 2 elements
+                if len(del_cmd) < 2:
+                    self.notify(f"❌ [{profile_name}] Lệnh /del không đúng. Dùng: `/del all` hoặc `/del <ID>`")
+                    return
+                 
                 # Check for "allticketclose" keyword
                 if del_cmd[1].lower() == "allticketclose":
                     # 1. Clear Partial Close tasks
