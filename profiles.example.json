@@ -12,6 +12,13 @@
     "sl": 0,
     "tp": 0,
     "gold_sl": 0,
-    "gold_tp": 0
+    "gold_tp": 0,
+    "copy_role": "None",
+    "copy_channel": "default",
+    "copy_max_daily_trades": "20",
+    "copy_max_lot_per_trade": "5.0",
+    "copy_max_exposure": "10.0",
+    "copy_kill_switch": false,
+    "copy_stale_threshold": "300"
   }
 }

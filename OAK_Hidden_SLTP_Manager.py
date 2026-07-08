@@ -5529,6 +5529,38 @@ class App(ctk.CTk):
         self.chk_copy_max_one = ctk.CTkCheckBox(left_panel, text=T("lbl_max_one"))
         self.chk_copy_max_one.pack(anchor="w", padx=10, pady=(5, 10))
         self.add_ui_element("lbl_max_one", self.chk_copy_max_one)
+
+        # --- SAFETY GUARDRAILS ---
+        self.lbl_safety_title = ctk.CTkLabel(left_panel, text="Safety Guardrails", font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_safety_title.pack(anchor="w", padx=10, pady=(10, 5))
+
+        # Max Daily Trades
+        self.lbl_max_daily = ctk.CTkLabel(left_panel, text="Max Daily Trades")
+        self.lbl_max_daily.pack(anchor="w", padx=10)
+        self.ent_max_daily = ctk.CTkEntry(left_panel, placeholder_text="20")
+        self.ent_max_daily.pack(fill="x", padx=10, pady=(0, 5))
+
+        # Max Lot Per Trade
+        self.lbl_max_lot = ctk.CTkLabel(left_panel, text="Max Lot Per Trade")
+        self.lbl_max_lot.pack(anchor="w", padx=10)
+        self.ent_max_lot = ctk.CTkEntry(left_panel, placeholder_text="5.0")
+        self.ent_max_lot.pack(fill="x", padx=10, pady=(0, 5))
+
+        # Max Exposure Per Symbol
+        self.lbl_max_exposure = ctk.CTkLabel(left_panel, text="Max Exposure/Symbol (lots)")
+        self.lbl_max_exposure.pack(anchor="w", padx=10)
+        self.ent_max_exposure = ctk.CTkEntry(left_panel, placeholder_text="10.0")
+        self.ent_max_exposure.pack(fill="x", padx=10, pady=(0, 5))
+
+        # Kill Switch
+        self.chk_kill_switch = ctk.CTkCheckBox(left_panel, text="Kill Switch (Stop All New Trades)")
+        self.chk_kill_switch.pack(anchor="w", padx=10, pady=(5, 5))
+
+        # Stale Threshold
+        self.lbl_stale = ctk.CTkLabel(left_panel, text="Stale Signal Threshold (sec)")
+        self.lbl_stale.pack(anchor="w", padx=10)
+        self.ent_stale = ctk.CTkEntry(left_panel, placeholder_text="300")
+        self.ent_stale.pack(fill="x", padx=10, pady=(0, 10))
         
         # Ignored Symbols
         self.lbl_copy_ignore = ctk.CTkLabel(left_panel, text=T("lbl_ignore_sym"))
@@ -5597,6 +5629,20 @@ class App(ctk.CTk):
             
         self.ent_copy_ignore.delete(0, "end")
         self.ent_copy_ignore.insert(0, data.get("copy_ignore_list", ""))
+
+        # Safety guardrails
+        self.ent_max_daily.delete(0, "end")
+        self.ent_max_daily.insert(0, str(data.get("copy_max_daily_trades", "20")))
+        self.ent_max_lot.delete(0, "end")
+        self.ent_max_lot.insert(0, str(data.get("copy_max_lot_per_trade", "5.0")))
+        self.ent_max_exposure.delete(0, "end")
+        self.ent_max_exposure.insert(0, str(data.get("copy_max_exposure", "10.0")))
+        if data.get("copy_kill_switch", False):
+            self.chk_kill_switch.select()
+        else:
+            self.chk_kill_switch.deselect()
+        self.ent_stale.delete(0, "end")
+        self.ent_stale.insert(0, str(data.get("copy_stale_threshold", "300")))
             
     def save_copy_config(self):
         name = self.combo_profiles.get()
@@ -5624,7 +5670,14 @@ class App(ctk.CTk):
         data["copy_stealth"] = bool(self.chk_copy_stealth.get())
         data["copy_max_one"] = bool(self.chk_copy_max_one.get())
         data["copy_ignore_list"] = self.ent_copy_ignore.get().strip()
-        
+
+        # Safety guardrails
+        data["copy_max_daily_trades"] = self.ent_max_daily.get().strip() or "20"
+        data["copy_max_lot_per_trade"] = self.ent_max_lot.get().strip() or "5.0"
+        data["copy_max_exposure"] = self.ent_max_exposure.get().strip() or "10.0"
+        data["copy_kill_switch"] = bool(self.chk_kill_switch.get())
+        data["copy_stale_threshold"] = self.ent_stale.get().strip() or "300"
+
         save_json(CONFIG_FILE, self.profiles)
         self.log(f"Copy Trade Config Saved for {name}")
 
