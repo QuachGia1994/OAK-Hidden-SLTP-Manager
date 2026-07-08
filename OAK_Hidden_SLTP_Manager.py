@@ -3353,7 +3353,10 @@ class MonitorWorker(threading.Thread):
         self.ghost_mode_active = False
 
         # --- INTEGRATE REMINDER SERVICE ---
-        token = self.config.get("tele_token", "")
+        from secret_store import resolve_telegram_token
+        raw_token = self.config.get("tele_token", "")
+        profile_name = self.config.get("profile_name", "")
+        token = resolve_telegram_token(profile_name, raw_token)
         chat_id = self.config.get("tele_chat", "")
         if token and chat_id:
             try:
