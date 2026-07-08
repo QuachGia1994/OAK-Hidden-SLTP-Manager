@@ -3,7 +3,6 @@
 import customtkinter as ctk
 from typing import Any
 from .base_tab import BaseTab
-from oak_language import T
 
 
 class ProfilesTab(BaseTab):
@@ -17,6 +16,10 @@ class ProfilesTab(BaseTab):
 
     def mount(self, parent: Any) -> None:
         """Mount the Profiles tab UI."""
+        # Get the T function from app (it's in the global scope of app's module)
+        import sys
+        T = sys.modules['__main__'].T
+
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.app.frames["profiles"] = frame
         frame.pack(fill="both", expand=True)

@@ -4254,17 +4254,17 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        # Initialize AppState
-        self.state = AppState()
+        # Initialize AppState (rename from self.state to avoid shadowing CTk.state() method!)
+        self.app_state = AppState()
         
         # Load Settings
         self.settings = load_json(SETTINGS_FILE)
-        self.state.set("settings", self.settings)
+        self.app_state.set("settings", self.settings)
         
         global CURRENT_LANG
         CURRENT_LANG = self.settings.get("lang", "VN")
-        self.state.set("lang", CURRENT_LANG)
-        self.state.set("theme", self.settings.get("theme", "light"))
+        self.app_state.set("lang", CURRENT_LANG)
+        self.app_state.set("theme", self.settings.get("theme", "light"))
 
         # SQLite store for heartbeat
         self._store = SQLiteStore()
@@ -4273,7 +4273,7 @@ class App(ctk.CTk):
         if "ghost_mode_active" not in self.settings:
             self.settings["ghost_mode_active"] = False
             save_json(SETTINGS_FILE, self.settings)
-        self.state.set("ghost_mode_active", self.settings["ghost_mode_active"])
+        self.app_state.set("ghost_mode_active", self.settings["ghost_mode_active"])
         
         # Initialize ProfileStore
         self.profile_store = ProfileStore(CONFIG_FILE)
@@ -4297,7 +4297,7 @@ class App(ctk.CTk):
         
         # Data
         self.profiles = self.profile_store.load()
-        self.state.set("profiles", self.profiles)
+        self.app_state.set("profiles", self.profiles)
         self.workers = {} # {profile_name: {"proc": Popen, "console": CTkTextbox, "btn_stop": CTkButton}}
         self.ui_elements = {} # Store widgets for language update
         self._last_json_mtime = 0 # Initialize for periodic refresh sync
