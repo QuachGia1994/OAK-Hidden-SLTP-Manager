@@ -1566,9 +1566,6 @@ class CopyTradeManager:
         if cmd[0] == "/reply":
             # Already handled by inbox injection, just acknowledge
             return
-        if cmd[0] in ("/del", "/modify"):
-            # Forward to OAK inbox
-            return
 
         # --- NLP PnL Logic ---
         symbol_match = re.search(r"([A-Z]{2,12}(?:\+)?(?:\.[a-zA-Z0-9]+)?)", text.upper())
@@ -2180,12 +2177,18 @@ class CopyTradeManager:
 
                 # Check for "all" keyword
                 if del_cmd[1].lower() == "all":
-                    count = len(self.scheduled_trades)
+                    # Xóa scheduled entry trades
+                    count_entries = len(self.scheduled_trades)
                     self.scheduled_trades = []
                     save_json(self.scheduled_file, self.scheduled_trades)
-                    # self.notify(f"🤖 [{profile_name}] Đã xóa TẤT CẢ {count} lệnh chờ.")
-                    resp = get_natural_response("all_deleted", count=count)
-                    self.notify(f"🤖 [{profile_name}] {resp}")
+                    # Xóa scheduled close tasks
+                    count_closes = 0
+                    if hasattr(self, "_scheduled_close"):
+                        count_closes = len(self._scheduled_close)
+                        self._scheduled_close = []
+                        save_json(self.scheduled_close_file, [])
+                    # Thông báo
+                    self.notify(f"🤖 [{profile_name}] Đã xóa TẤT CẢ {count_entries} lệnh hẹn giờ vào và {count_closes} lệnh hẹn giờ đóng!")
                     return
 
                 # Collect all IDs to delete

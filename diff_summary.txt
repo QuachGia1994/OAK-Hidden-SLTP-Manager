@@ -1,0 +1,9 @@
+ GUIDE.md                     |  2 +-
+ OAK_Hidden_SLTP_Manager.py   | 34 ++++++++++++++++++++++++++++------
+ README.md                    |  2 +-
+ RELEASE_NOTES.md             |  4 ++--
+ build_exe.py                 |  2 +-
+ create_backup_final.py       |  2 +-
+ mt5_signal_bot.py            | 22 ++++++++++------------
+ repositories/sqlite_store.py |  8 ++++----
+ 8 files changed, 48 insertions(+), 28 deletions(-)

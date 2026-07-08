@@ -1,88 +1,200 @@
-Đã check GitHub. Commit mới nhất `41e3e84` **có vá đúng hướng**, nhưng đang dính **một lỗi runtime mới khá nặng**. 🧨
+Đã check lại GitHub + ảnh mới. Bản này **tiến bộ rõ**, nhất là Telegram không còn spam loạn như trước, Dashboard push OK, profile/copy UI đã gọn hơn. Nhưng vẫn chưa thể gọi “Stable” đúng nghĩa vì còn **MT5 footer sai trạng thái**, **Telegram vẫn degraded**, và **docs/version lệch**.
 
-# Vấn đề ngay trên GitHub
+# Điểm hiện tại: **8.2 / 10** 🧭
 
-Commit mới nhất:
+Tăng từ khoảng **7.8 → 8.2**. Đây là bản **RC tốt**, gần release nội bộ được, nhưng chưa đạt mức 9.x.
+
+| Mảng                    |    Điểm | Nhận xét                                                                                             |
+| ----------------------- | ------: | ---------------------------------------------------------------------------------------------------- |
+| **UI desktop**          | **8.5** | Gọn, đủ tab, About đẹp, Copy Trading rõ ràng hơn.                                                    |
+| **Runtime MT5**         | **7.6** | Worker connect được, nhưng footer vẫn báo MT5 Disconnected.                                          |
+| **Telegram**            | **7.5** | Đã có degraded/backoff, bớt spam, nhưng API vẫn unreachable.                                         |
+| **Dashboard/Vercel**    | **8.7** | Push signals/state/news/prices OK, Vercel check pass.                                                |
+| **Profile state**       | **7.8** | Running/Editing tốt hơn, nhưng vẫn hơi dễ nhầm khi list highlight VantageDemo mà form đang Darwinex. |
+| **Copy trading safety** | **8.5** | Guardrails khá tốt: max daily, max lot, exposure, kill switch, stale threshold.                      |
+| **Docs/release polish** | **6.8** | App v3.15.0 nhưng README/Guide/Release Notes vẫn ghi v3.14.0.                                        |
+| **Tổng thể**            | **8.2** | Dùng nội bộ được, chưa nên public “Stable” mạnh tay.                                                 |
+
+---
+
+# Những điểm đã tốt lên ✅
+
+## 1. GitHub mới nhất đã có commit fix đúng hướng
+
+Commit mới nhất là `896b126`, message: **Fix /closeall tomorrow scheduling and Telegram configured status in OAK_Hidden_SLTP_Manager.py**. Trước đó cũng có các commit về Telegram backoff, EXE detection, polling timeout 20s.
+
+Vercel status của commit mới nhất đang **success**, tức dashboard deploy/check không đỏ.
+
+## 2. Signal process command đã sửa đúng hơn
+
+`utils.py` đã có `build_signal_process_cmd()`. Quan trọng nhất: dev mode với `signal_bot` giờ sẽ append `--profile <profile>`, còn frozen mode dùng `--signal-bot --profile`. Đây là fix đúng cho lỗi profile heartbeat trước đó.
+
+Trong `OAK_Hidden_SLTP_Manager.py`, `start_signal_process()` đã dùng helper này thay vì tự ghép command rải rác. Đây là kiến trúc sạch hơn, test được hơn.
+
+## 3. Telegram không còn spam như thác lũ
+
+`mimo_bot.py` giờ polling với `timeout=20`, `long_polling_timeout=20`, có `compute_telegram_backoff()`, và log degraded thay vì bắn lỗi 502 liên tục.
+
+`utils.py` cũng đã có `compute_telegram_backoff()`, nên lỗi import thiếu function trước đó đã được vá.
+
+Ảnh mới cũng xác nhận MiMo Telegram Bot không còn spam 502, mà chỉ báo:
 
 ```text
-41e3e84 - fix: telegram_client helper, EXE process detection, polling timeout 20s
+MiMo Bridge Bot - OAK Manager is running
+Continuing to poll Telegram so commands are delivered via tele_inbox.json.
 ```
 
-nó sửa `mimo_bot.py` để import:
+Cái này là đúng hướng.
 
-```python
-from utils import compute_telegram_backoff
-```
+## 4. Dashboard push đã OK
 
-Nhưng trong `utils.py` hiện tại **không có hàm `compute_telegram_backoff`**. File `utils.py` chỉ có các hàm Telegram raw, JSON helper và signal helper, không thấy hàm backoff.
-
-=> Kết quả khi chạy `mimo_bot.py` có thể lỗi ngay:
+Ảnh Signal tab cho thấy:
 
 ```text
-ImportError: cannot import name 'compute_telegram_backoff' from 'utils'
+[DASHBOARD] Signals pushed OK
+[DASHBOARD] State pushed OK
+[DASHBOARD] News pushed OK
+[DASHBOARD] Prices pushed OK
 ```
 
-Nói gọn: commit mới vừa lắp thêm “van chống spam”, nhưng quên bỏ cái van đó vào hộp dụng cụ. 🔧
+Nên lỗi `DASHBOARD_API_KEY`/Vercel cơ bản đã qua cửa. Dashboard không còn là ổ gà chính nữa. 🛣️
 
 ---
 
-# Sửa nhanh nhất
+# Lỗi còn lại cần soi kỹ 🔴
 
-Thêm hàm này vào cuối `utils.py`:
+## 1. Footer vẫn báo **MT5 Disconnected** dù Account card có dữ liệu
 
-```python
-def compute_telegram_backoff(consecutive_fails):
-    """Return (sleep_seconds, should_log_degraded).
+Trong ảnh Dashboard:
 
-    Backoff schedule:
-    1-2 fails: 5s
-    3-4 fails: 15s
-    5-9 fails: 30s
-    10-19 fails: 60s
-    20+ fails: 300s
-    """
-    try:
-        n = int(consecutive_fails)
-    except Exception:
-        n = 1
+* Account card có server/account/balance/equity.
+* Worker log có dòng kết nối MT5.
+* Nhưng footer vẫn báo: **MT5 ● Disconnected**.
 
-    if n < 3:
-        return 5, False
-    if n < 5:
-        return 15, False
-    if n < 10:
-        return 30, False
-    if n < 20:
-        return 60, n == 10
-    return 300, n in (20, 50, 100)
+Đây là lỗi trạng thái. Có 2 khả năng:
+
+### Khả năng A: heartbeat profile vẫn chưa đồng bộ hoàn toàn
+
+Dù command đã truyền `--profile`, footer vẫn đọc từ SQLite heartbeat theo profile đang chọn. Nếu signal bot hoặc worker publish heartbeat dưới profile khác, footer sẽ đỏ.
+
+### Khả năng B: app đang lấy Account từ nguồn khác, footer lấy từ heartbeat
+
+Footer trong code đọc `mt5_state` từ heartbeat/state, rồi render Connected/Degraded/Disconnected.  Vì vậy nếu Account card có data nhưng heartbeat stale/missing thì footer vẫn đỏ.
+
+**Cần sửa tiếp:** thêm diagnostics nhỏ hiển thị:
+
+```text
+Selected profile: VantageDemo
+Heartbeat profile: VantageDemo
+Heartbeat age: 2.1s
+MT5 server from heartbeat: ...
+Worker server: ...
 ```
 
-Sau đó commit:
+Không có cái này thì lỗi trạng thái sẽ cứ như bóng ma trong nhà kho.
 
-```bash
-git add utils.py
-git commit -m "fix: add telegram backoff helper"
-git push origin main
+---
+
+## 2. Telegram vẫn **Degraded (API unreachable)**
+
+Footer hiện báo:
+
+```text
+Telegram ● Degraded (API unreachable)
+```
+
+Code status bar đang phân biệt rõ: configured, online, degraded. Nếu `tg_configured` có nhưng `tg_api_ok` false thì nó hiện degraded.
+
+Điểm tốt: app không còn spam log.
+Điểm chưa tốt: vẫn chưa biết lỗi là token/chat/network vì `telegram_client.py` có classify lỗi nhưng chưa thấy toàn bộ luồng cũ chuyển sang dùng helper này hết. `telegram_client.py` đã có phân loại `401 token_invalid`, `400 chat_not_found`, `502 bad_gateway`, `503 service_unavailable`, nhưng nếu UI không dùng error category để hiển thị thì người dùng vẫn chỉ thấy “API unreachable”.
+
+**Nên nâng UI thành:**
+
+```text
+Telegram ● Token invalid
+Telegram ● Chat ID invalid
+Telegram ● API bad gateway
+Telegram ● Network error
+Telegram ● Online
 ```
 
 ---
 
-# Về lỗi Telegram API
+## 3. Docs đang lệch version
 
-Sau khi thêm hàm trên, bản mới sẽ:
+App đang hiển thị **OAK Manager v3.15.0 Stable**, nhưng README vẫn ghi `v3.14.0`.  Release Notes cũng mới tới `v3.14.0`.
 
-* MiMo Bot polling dài hơn: `timeout=20`, `long_polling_timeout=20`.
-* Không spam lỗi 502 liên tục.
-* Detect OAK Manager EXE tốt hơn.
+Ảnh Guide cũng ghi `Cẩm Nang ... v3.14.0`. Đây là lỗi polish, nhưng với app desktop release thì nhìn hơi “áo vest đi dép lê”. 👞
 
-Nhưng nó **không làm Telegram 502 biến mất hoàn toàn** nếu lỗi đến từ Telegram/mạng. Nó chỉ làm app xử lý “đàng hoàng” hơn.
+**Cần sửa:** đồng bộ `README.md`, `GUIDE.md`, `RELEASE_NOTES.md` lên `v3.15.0`, ghi rõ Telegram degraded/backoff và Dashboard API key flow.
 
 ---
 
-# Việc cần làm ngay
+## 4. Telegram backoff schedule chưa khớp commit title
 
-1. **Thêm `compute_telegram_backoff()` vào `utils.py`.**
-2. Pull/rebuild lại app.
-3. Chạy lại.
-4. Nếu còn `Telegram Degraded (API unreachable)` nhưng không spam nữa thì app đã xử lý đúng, lỗi là phía Telegram/mạng.
-5. Token anh vừa gửi vẫn nên revoke trong BotFather vì đã lộ trong chat.
+Commit gần đây nói update schedule kiểu `5s/15s/30s/60s/300s`, nhưng code hiện tại trong `utils.py` là:
+
+```text
+1-2 fails: 10s
+3-9 fails: 60s
+10+ fails: 300s
+```
+
+Không sai nghiêm trọng, nhưng message/code lệch nhau. Nên chọn một chuẩn và ghi rõ trong docs.
+
+---
+
+# Nhận xét theo từng tab ảnh
+
+## Dashboard
+
+Đẹp, sạch, signal/account hiện được. Nhưng footer **MT5 Disconnected** là lỗi lớn nhất còn lại. Dashboard card và footer đang không cùng sự thật.
+
+## Tín Hiệu
+
+Rất khá. MT5 Signal Bot push dashboard OK, MiMo Bot hết spam, MT4-MT5 server chạy. Nhưng Telegram degraded vẫn còn.
+
+## Quản lý Profile
+
+Cải thiện tốt: có Running/Editing rõ hơn. Tuy nhiên ảnh vẫn có tình huống list trái highlight `VantageDemo` nhưng form đang `Darwinex`, dưới ghi `Editing: Darwinex`. Nếu ý đồ là đang edit Darwinex thì OK, nhưng highlight nên tách màu “running” và “editing” rõ hơn nữa.
+
+## Copy Trading
+
+Ổn. Có safety guardrails, role/channel/lot/max exposure/kill switch. Đây là tab nhìn trưởng thành nhất sau đợt fix.
+
+## Hẹn Giờ/Pending
+
+Chức năng dùng được, nhưng UI bảng còn thô. Các lệnh `executed` đã done nên nên có nút:
+
+```text
+Clear executed
+Archive history
+Show only waiting
+```
+
+Không thì bảng sau vài ngày sẽ thành “nghĩa trang lệnh”. 🪦
+
+## Docs/About
+
+About đẹp. Docs thì lệch version, cần đồng bộ.
+
+---
+
+# Chốt điểm
+
+**Bản hiện tại: 8.2/10.**
+
+Đây là bản **dùng nội bộ được**, nhưng mình chưa gọi là **Stable thật**. Nên gọi chuẩn hơn:
+
+```text
+v3.15.0 RC / Internal Stable
+```
+
+Muốn lên **8.8-9.0**, sửa 4 điểm:
+
+1. Footer MT5 status phải khớp Account card/worker heartbeat.
+2. Telegram degraded phải hiện đúng loại lỗi: token, chat, 502, network.
+3. Docs đồng bộ v3.15.0.
+4. Pending tab thêm filter/archive executed.
+
+Nếu fix được mục 1 và 2, điểm nhảy mạnh nhất.

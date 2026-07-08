@@ -1,0 +1,186 @@
+diff --git a/GUIDE.md b/GUIDE.md
+index 2891d0a..d6c2ef0 100644
+--- a/GUIDE.md
++++ b/GUIDE.md
+@@ -1,4 +1,4 @@
+-# Cẩm Nang Sử Dụng OAK MANAGER (v3.14.0)
++# Cẩm Nang Sử Dụng OAK MANAGER (v3.15.0)
+ 
+ Tài liệu này mô tả đúng các tính năng đang dùng trong app, dashboard và bot hiện tại.
+ 
+diff --git a/OAK_Hidden_SLTP_Manager.py b/OAK_Hidden_SLTP_Manager.py
+index cc57578..f9a4214 100644
+--- a/OAK_Hidden_SLTP_Manager.py
++++ b/OAK_Hidden_SLTP_Manager.py
+@@ -6504,7 +6504,10 @@ class App(ctk.CTk):
+             # Account Card - read from heartbeat
+             if hasattr(self, 'card_account_balance'):
+                 if hb and hb.get("server"):
+-                    self.card_account_server.configure(text=f"{hb['server']} | #{hb.get('login', '')}")
++                    server_text = f"{hb['server']} | #{hb.get('login', '')}"
++                    if mt5_state["state"] != "Connected" and mt5_state.get("age") is not None:
++                        server_text += f" ({int(mt5_state['age'])}s stale)"
++                    self.card_account_server.configure(text=server_text)
+                     self.card_account_balance.configure(text=f"Balance: ${hb.get('balance', 0):,.2f}")
+                     self.card_account_equity.configure(text=f"Equity: ${hb.get('equity', 0):,.2f}")
+                 else:
+@@ -6559,10 +6562,19 @@ class App(ctk.CTk):
+             # Status Bar - read from heartbeat, not direct MT5 call
+             if hasattr(self, 'status_mt5'):
+                 state = mt5_state["state"]
++                age = mt5_state.get("age")
+                 color = "#66bb6a" if state == "Connected" else "#ffb74d" if state == "Degraded" else "#ef5350"
+-                label = state
+-                if state == "Degraded" and mt5_state.get("last_error"):
+-                    label = f"Degraded ({mt5_state['last_error'][:30]})"
++                if state == "Connected":
++                    label = f"Connected ({int(age)}s)" if age is not None else "Connected"
++                elif state == "Degraded":
++                    if mt5_state.get("last_error"):
++                        label = f"Degraded ({mt5_state['last_error'][:30]})"
++                    elif age is not None:
++                        label = f"Degraded ({int(age)}s stale)"
++                    else:
++                        label = "Degraded"
++                else:
++                    label = f"Disconnected ({int(age)}s ago)" if age is not None else "Disconnected"
+                 self.status_mt5.configure(text=f"MT5 ● {label}", text_color=color)
+ 
+                 # Telegram: 3 states
+@@ -6580,10 +6592,20 @@ class App(ctk.CTk):
+                     tg_label = f"Online (@{tg_state['bot_name']})" if tg_state["bot_name"] else "Online"
+                     tg_color = "#66bb6a"
+                 else:
+-                    tg_label = "Degraded (API unreachable)"
++                    tg_error = tg_state.get("bot_name", "")
++                    friendly = {
++                        "token_invalid": "Token invalid",
++                        "chat_not_found": "Chat ID invalid",
++                        "rate_limited": "Rate limited",
++                        "bad_gateway": "API gateway error",
++                        "service_unavailable": "Service unavailable",
++                        "server_error": "Server error",
++                        "client_error": "Client error",
++                        "network_error": "Network error",
++                    }.get(tg_error, tg_error.replace("_", " ").capitalize() if tg_error else "API unreachable")
++                    tg_label = f"Degraded ({friendly})"
+                     tg_color = "#ffb74d"
+                 self.status_telegram.configure(text=f"Telegram ● {tg_label}", text_color=tg_color)
+-
+                 is_running = any(
+                     data.get("proc") and data["proc"].poll() is None
+                     for data in self.workers.values()
+diff --git a/README.md b/README.md
+index 1f859e5..1789157 100644
+--- a/README.md
++++ b/README.md
+@@ -1,4 +1,4 @@
+-# OAK Hidden SLTP Manager (v3.14.0)
++# OAK Hidden SLTP Manager (v3.15.0)
+ 
+ Hệ thống quản lý lệnh MT5, bot tín hiệu, dashboard web và bridge Telegram cho OAK.
+ 
+diff --git a/RELEASE_NOTES.md b/RELEASE_NOTES.md
+index 3bf13c7..1b4d9df 100644
+--- a/RELEASE_NOTES.md
++++ b/RELEASE_NOTES.md
+@@ -1,7 +1,7 @@
+ # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
+ 
+-## [v3.14.0] - 2026-07-06
+-*Docs refresh + faster D-direction dispatch + fact-check source cleanup + version/backup sync.*
++## [v3.15.0] - 2026-07-06
++*Docs refresh + better MT5 heartbeat diagnostics + Telegram degraded state details + version sync.*
+ 
+ ### 📘 Docs & Release Prep
+ - **README/GUIDE/Dashboard README**: Viết lại theo flow hiện tại, bỏ mô tả cũ không còn dùng.
+diff --git a/build_exe.py b/build_exe.py
+index eda8b63..2a76a16 100644
+--- a/build_exe.py
++++ b/build_exe.py
+@@ -4,7 +4,7 @@ import customtkinter
+ import re
+ 
+ # Get version from main file
+-version = "v3.14.0" # Default
++version = "v3.15.0" # Default
+ try:
+     with open("OAK_Hidden_SLTP_Manager.py", "r", encoding="utf-8") as f:
+         content = f.read()
+diff --git a/create_backup_final.py b/create_backup_final.py
+index 08da0e9..9c324be 100644
+--- a/create_backup_final.py
++++ b/create_backup_final.py
+@@ -10,7 +10,7 @@ if sys.stdout.encoding != 'utf-8':
+ def create_backup():
+     os.chdir(os.path.dirname(os.path.abspath(__file__)))
+ 
+-    version = "v3.14.0"
++    version = "v3.15.0"
+     try:
+         with open("OAK_Hidden_SLTP_Manager.py", "r", encoding="utf-8") as f:
+             content = f.read()
+diff --git a/mt5_signal_bot.py b/mt5_signal_bot.py
+index 382e317..ddb1e4e 100644
+--- a/mt5_signal_bot.py
++++ b/mt5_signal_bot.py
+@@ -17,6 +17,7 @@ from oak_trading_reminders import get_day_notes
+ from oak_logger import setup_logger
+ from repositories.sqlite_store import SQLiteStore
+ from secret_store import resolve_telegram_token, migrate_plaintext_tokens
++from telegram_client import telegram_get_me
+ 
+ log = setup_logger("signal")
+ 
+@@ -57,19 +58,16 @@ _store = SQLiteStore()
+ _active_profile = ""  # Module-level, set by main() at startup
+ 
+ def _check_telegram_api(token):
+-    """Check Telegram API reachability via getMe."""
++    """Check Telegram API reachability via getMe.
++
++    Returns (ok, bot_name_or_error_category).
++    """
+     if not token:
+-        return False, ""
+-    try:
+-        url = f"https://api.telegram.org/bot{token}/getMe"
+-        with urllib.request.urlopen(url, timeout=5) as resp:
+-            data = json.loads(resp.read().decode())
+-            if data.get("ok"):
+-                bot_name = data.get("result", {}).get("username", "")
+-                return True, bot_name
+-    except Exception:
+-        pass
+-    return False, ""
++        return False, "no_token"
++    ok, result = telegram_get_me(token)
++    if ok:
++        return True, result
++    return False, result
+ 
+ def load_profile_config(profile_name, profiles_path=None):
+     """Load a single profile's config dict from profiles.json.
+diff --git a/repositories/sqlite_store.py b/repositories/sqlite_store.py
+index 211e249..7a85bfb 100644
+--- a/repositories/sqlite_store.py
++++ b/repositories/sqlite_store.py
+@@ -234,14 +234,14 @@ class SQLiteStore:
+         from datetime import datetime, timezone, timedelta
+         hb = self.get_heartbeat(profile)
+         if hb is None:
+-            return {"state": "Disconnected", "last_seen": None, "last_error": "No heartbeat yet"}
++            return {"state": "Disconnected", "last_seen": None, "last_error": "No heartbeat yet", "age": None}
+         last_seen = datetime.fromisoformat(hb["last_seen"])
+         age = (datetime.now(timezone.utc) - last_seen).total_seconds()
+         if hb["state"] == "starting" or age > 30:
+-            return {"state": "Disconnected", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", "Heartbeat stale")}
++            return {"state": "Disconnected", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", "Heartbeat stale"), "age": age}
+         if age > 5:
+-            return {"state": "Degraded", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", "")}
+-        return {"state": "Connected", "last_seen": hb["last_seen"], "last_error": ""}
++            return {"state": "Degraded", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", ""), "age": age}
++        return {"state": "Connected", "last_seen": hb["last_seen"], "last_error": "", "age": age}
+ 
+     def compute_telegram_state(self, profile):
+         """Compute Telegram state from heartbeat."""
