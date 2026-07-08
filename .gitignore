@@ -52,3 +52,8 @@ d_dir_last_id.txt
 
 .vercel
 .env*
+
+# SQLite runtime
+oak_state.db
+oak_state.db-shm
+oak_state.db-wal

@@ -1,0 +1,779 @@
+{
+  "cache": {
+    "cache_key": "9e337b855f9c9e19ddb92c8ba3fdfb0d59f78c18d512ea530f6bdd473e76f852",
+    "cache_path": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\\.pxswift\\cache\\9e337b855f9c9e19ddb92c8ba3fdfb0d59f78c18d512ea530f6bdd473e76f852.json",
+    "cache_root": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\\.pxswift\\cache",
+    "compressed_context_hash": "68aab2d0b16142807be1bcd80b47834af8933a0927f71da664182b8c7f1ef0de",
+    "file_hash_count": 14,
+    "graph_hash": "71d5c1e23ebf1b76362661a979f82c0361932b07d6183a769eb5592c3feec428",
+    "hit": false,
+    "stored": true,
+    "symbol_hash_count": 14
+  },
+  "compression": {
+    "compressed_context": "repository_root: C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\nfile_count: 4115\npython_file_count: 14\nconfig_file_count: 145\nmode: FAST\nfile: OAK_Hidden_SLTP_Manager.py\nmodule: OAK_Hidden_SLTP_Manager\nimports: customtkinter, tkinter, tkinter:ttk, MetaTrader5, pywinauto, pywinauto:Application, mouse, threading, time, winsound, os, sys, json, urllib.request, urllib.parse, datetime:datetime, timedelta, ctypes, random, re, subprocess, signal, atexit, oak_trading_reminders, oak_response_dict:get_random_response, ctypes, oak_trading_reminders, tkinter:messagebox, argparse, signal, traceback\nsymbols:\n- class: class GhostOperator\n- method: def execute_close(self, ticket, symbol, volume = None)\n- method: def modify_sl_tp(self, ticket, sl, tp)\n- function: def show_ghost_consent(parent, on_accept)\n- function: def accept()\n- function: def decline()\n- class: class ToolTip\n- method: def show_tip(self, event = None)\n- method: def hide_tip(self, event = None)\n- function: def add_help_icon(parent, row, column, text_key, padx = 5, pady = 0, sticky = 'w')\n- function: def get_natural_response(category, **kwargs)\n- function: def get_filling_type(symbol)\n- function: def send_order_with_retry(request)\n- class: class TicketManager\n- method: def get_ticket(self, ticket_id)\n- method: def update_ticket(self, ticket_id, **kwargs)\n- function: def resource_path(relative_path)\n- function: def load_json(file, default = None)\n- function: def save_json(file, data)\n- function: def T(key)\n- function: def get_start_day_balance()\n- class: class FileLock\n- class: class CopyTradeManager\n- method: def process(self)\n- method: def sort_key(name)\n- class: class MonitorWorker(threading.Thread)\n- method: def notify(self, message, telegram = True)\n- method: def send_telegram(self, message)\n- method: def close_position(self, pos, reason, volume = None)\n- method: def move_sl_to_entry(self, pos)\n- method: def run(self)\n- method: def safe_int(val, default = 0)\n- method: def safe_float(val, default = 0.0)\n- class: class App(ctk.CTk)\n- method: def on_close()\n- method: def pick_theme(value)\n- method: def clamp01(v)\n- method: def ease_out_back(t)\n- method: def compute_targets(size)\n- method: def place_btn(btn, cx, cy, base, scale)\n- method: def layout_animated(size, t)\n- method: def animate(i)\n- method: def on_close()\n- method: def add_ui_element(self, key, widget)\n- method: def create_dashboard_frame(self, parent)\n- method: def update_news_summary(self, force = False)\n- method: def apply_theme_overrides(self)\n- method: def apply_theme(self, theme_key)\n- method: def refresh_theme_labels(self)\n- method: def change_theme(self, value)\n- method: def create_signals_frame(self, parent)\n- method: def start_signal_process(self, key)\n- method: def stop_signal_process(self, key)\n- method: def start_all_signals(self)\n- method: def stop_all_signals(self)\n- method: def create_profiles_frame(self, parent)\n- method: def create_copy_trade_frame(self, parent)\n- method: def load_copy_config(self)\n- method: def save_copy_config(self)\n- method: def create_pos_size_frame(self, parent)\n- method: def do_popup(event)\n- method: def create_guide_frame(self, parent)\n- method: def create_readme_frame(self, parent)\n- method: def create_release_notes_frame(self, parent)\n- method: def apply_markdown(self, textbox)\n- method: def create_about_frame(self, parent)\n- method: def ensure_mt5_connection(self)\n- method: def send_order(self, order_type)\n- method: def add_scheduled_trade(self)\n- method: def edit_scheduled_trade(self)\n- method: def delete_scheduled_trade(self)\n- method: def save_scheduled_trades_ui(self)\n- method: def update_scheduled_list_ui(self)\n- method: def periodic_ui_refresh(self)\n- method: def on_closing(self)\n- method: def notify(self, message)\n- method: def get_doc_content(self, key)\n- method: def log(self, msg)\n- method: def on_pos_profile_change(self, choice)\n- method: def on_copy_profile_change(self, choice)\n- method: def start_monitor(self)\n- method: def stop_monitor(self)\n- method: def monitor_worker_output(self, profile_name, proc)\n- method: def on_accept(accepted)\n- method: def log_to_console_direct(self, msg)\n- method: def on_profile_change(self, choice)\n- method: def update_ui_state(self, profile_name)\n- method: def refresh_profile_list(self)\n- method: def load_profile_to_form(self, name)\n- method: def clear_form(self)\n- method: def save_profile(self)\n- method: def delete_profile(self)\n- method: def toggle_ghost_mode(self)\n- method: def update_ghost_button_ui(self)\n- method: def change_lang(self, value)\n- function: def run_worker(profile_name)\n- function: def worker_log(msg)\n- function: def signal_handler(sig, frame)\nfile: build_exe.py\nmodule: build_exe\nimports: PyInstaller.__main__, os, customtkinter, re\nsymbols: none\nfile: create_backup_final.py\nmodule: create_backup_final\nimports: zipfile, os, sys, glob, re\nsymbols:\n- function: def create_backup()\nfile: factcheck_worker.py\nmodule: factcheck_worker\nimports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\nsymbols:\n- function: def normalize_domain(url)\n- function: def normalize_text(text)\n- function: def token_set(text)\n- function: def source_match_hits(query, source)\n- function: def source_relevance(query, source)\n- function: def should_keep_source(source)\n- function: def redis_request(method, key, value = None)\n- function: def extract_claims(text)\n- function: def simplify_query(claim)\n- function: def search_google_web(query)\n- function: def search_duckduckgo(query)\n- function: def search_web(query)\n- function: def search_google_factcheck(query, api_key)\n- function: def classify_reliability(url)\n- function: def check_agreement(claim, snippet)\n- function: def process_factcheck(item)\n- function: def sort_key(s)\n- function: def main()\nfile: mimo_bot.py\nmodule: mimo_bot\nimports: os, sys, json, time, threading, subprocess, urllib.request, urllib.parse, re, socket, datetime:datetime, telebot, MetaTrader5, MetaTrader5, oak_trading_reminders:get_economic_news, time\nsymbols:\n- function: def is_admin(message)\n- function: def load_json(path, default = None)\n- function: def save_json(path, data)\n- function: def send_telegram_msg(chat_id, text)\n- function: def notify_mt5_d_direction(direction)\n- function: def get_all_profiles()\n- function: def execute_mimo_via_shell(command)\n- function: def execute_mimo_via_file_proxy(command)\n- function: def cmd_start(message)\n- function: def cmd_myid(message)\n- function: def cmd_status(message)\n- function: def cmd_profiles(message)\n- function: def cmd_mt5(message)\n- function: def cmd_positions(message)\n- function: def cmd_news(message)\n- function: def cmd_mimo(message)\n- function: def cmd_code(message)\n- function: def cmd_scan(message)\n- function: def cmd_reply(message)\n- function: def cmd_del(message)\n- function: def cmd_modify(message)\n- function: def handle_all(message)\nfile: mimo_worker.py\nmodule: mimo_worker\nimports: os, sys, time, datetime:datetime, ctypes\nsymbols:\n- function: def process_command(cmd)\n- function: def create_lock()\n- function: def remove_lock()\n- function: def main()\nfile: mt4_mt5_server.py\nmodule: mt4_mt5_server\nimports: os, sys, json, calendar, urllib.request, urllib.parse, datetime:datetime, timedelta, timezone, flask:Flask, request, jsonify, MetaTrader5, subprocess, time\nsymbols:\n- function: def send_telegram(text)\n- function: def fmt_hour(h)\n- function: def fmt_time(dt)\n- function: def get_broker_time()\n- function: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n- function: def get_schedule_note(broker_dt)\n- function: def get_candle_by_ts(symbol, timeframe, target_ts)\n- function: def candle_dir(c)\n- function: def calculate_signal(m35_dir, m40_dir, m30_dir)\n- function: def fetch_mt5_data(broker_dt, H)\n- function: def receive_mt4_data()\n- function: def build_telegram(broker, time_str, H, mt4_m35, mt4_m40, mt4_m30, mt4_sig, mt5, mt5_sig, conclusion, broker_dt)\n- function: def ico(s)\n- function: def ensure_mt5_running()\n- function: def main()\nfile: mt5_signal_bot.py\nmodule: mt5_signal_bot\nimports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\nsymbols:\n- function: def get_entry_prices(pair_dirs, broker_dt, entry_time)\n- function: def update_entry_prices\u7cbe\u51c6(date_str, hour, pair_dirs, broker_dt, entry_time)\n- function: def schedule\u7cbe\u51c6_price_update(broker_dt, entry_time, pair_dirs)\n- function: def get_current_prices(pair_dirs)\n- function: def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed = False)\n- function: def select_signals_for_dashboard(all_signals)\n- function: def d1_match_note(direction)\n- function: def push_to_dashboard()\n- function: def push_prices_to_dashboard()\n- function: def get_schedule_reminders(broker_dt)\n- function: def send_telegram(text)\n- function: def send_d_direction_reminder()\n- function: def check_d_direction_input()\n- function: def d_direction_watcher()\n- function: def d_direction_event_server()\n- function: def fmt_time(dt)\n- function: def fmt_hour(h)\n- function: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n- function: def get_candle_by_ts(symbol, timeframe, target_ts)\n- function: def candle_direction(candle)\n- function: def resolve_doji(symbol, timeframe, target_ts, broker_dt)\n- function: def get_h1_candle_for_slot(broker_dt, H)\n- function: def candle_info_line(candle, label)\n- function: def get_effective_xauusd_signal(signal, H = None, weekday = None, h15_signal = None)\n- function: def calc_entry_time(signal, m30_dir, H = None, h2_signal = None, orig_signal = None, weekday = None, h15_signal = None)\n- function: def analyze(broker_dt, H)\n- function: def get_hour_note(H, weekday = None)\n- function: def set_d_direction(direction)\n- function: def get_effective_d_direction(broker_dt)\n- function: def get_pair_direction(H, signal, broker_dt, h1_signal = None)\n- function: def should_skip_xauusd(H, signal, broker_dt)\n- function: def mark_xauusd_matched(H)\n- function: def send_report(signal_data, H, broker_dt, h2_signal = None, h15_signal = None)\n- function: def backfill_missing_days()\n- function: def try_init_mt5()\n- function: def get_broker_time()\n- function: def main()\nfile: oak_response_dict.py\nmodule: oak_response_dict\nimports: random\nsymbols:\n- function: def get_random_response(key, **kwargs)\nfile: oak_trading_reminders.py\nmodule: oak_trading_reminders\nimports: os, json, time, urllib.request, urllib.parse, ssl, datetime:datetime, timedelta, timezone, calendar, xml.etree.ElementTree, MetaTrader5, threading, sys, glob, winsound, re, oak_response_dict:get_random_response, utils:load_json_file\nsymbols:\n- function: def set_credentials(token, chat_id)\n- function: def is_winter_time()\n- function: def load_json_file(path, default)\n- function: def get_economic_news(lang = 'VN')\n- function: def fetch_investing_rss(lang = 'VN', context = None)\n- function: def fetch_myfxbook_rss(lang = 'VN', context = None)\n- function: def fetch_litefinance_rss(lang = 'VN', context = None)\n- function: def fetch_forexfactory_xml(lang = 'VN', context = None)\n- function: def get_day_notes(now, lang = 'VN')\n- function: def generate_daily_reminder(now, lang = 'VN')\n- class: class OakTradingReminder\n- method: def load_config(self)\n- method: def send_telegram(self, message)\n- method: def get_performance_report(self, profile)\n- method: def send_daily_briefing(self)\n- method: def send_rule_reminders(self, now, lang = 'VN')\n- method: def get_projected_pnl(self, symbol, target_price, profile_name = None)\n- method: def process_commands(self)\n- method: def send_telegram_to_chat(self, message, chat_id)\n- method: def monitor_loop(self)\n- method: def safe_print(msg)\n- method: def start(self)\n- method: def stop(self)\n- function: def start_reminder_thread()\nfile: utils.py\nmodule: utils\nimports: json, os, urllib.request, urllib.parse\nsymbols:\n- function: def send_telegram_raw(token, chat_id, text, parse_mode = 'Markdown')\n- function: def load_json_file(path, default = None)\n- function: def save_json_file(path, data)\n- function: def get_signal_icon(sig)\n- function: def vn_direction(d)\nfile: dashboard/push_to_dashboard.py\nmodule: dashboard.push_to_dashboard\nimports: sys, json, os, urllib.request, re\nsymbols:\n- function: def push(endpoint: str, data)\nfile: tests/test_dashboard_signal_selection.py\nmodule: tests.test_dashboard_signal_selection\nimports: unittest, datetime:datetime, timezone, mt5_signal_bot:get_pair_direction, select_signals_for_dashboard\nsymbols:\n- class: class DashboardSignalSelectionTests(unittest.TestCase)\n- method: def test_keeps_all_signal_days_when_pair_dirs_exist(self)\n- method: def test_h6_tue_thu_keeps_gbpaud_when_gold_flips(self)\nfile: tests/test_factcheck_worker_search_stack.py\nmodule: tests.test_factcheck_worker_search_stack\nimports: unittest, unittest.mock:patch, factcheck_worker\nsymbols:\n- class: class FactcheckWorkerSearchStackTests(unittest.TestCase)\n- method: def test_search_web_uses_google_then_duckduckgo(self)\ndependency_graph:\nchanged_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\naffected_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\nfile_imports:\n- OAK_Hidden_SLTP_Manager.py -> oak_response_dict.py\n- OAK_Hidden_SLTP_Manager.py -> oak_trading_reminders.py\n- mimo_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> utils.py\n- oak_trading_reminders.py -> oak_response_dict.py\n- oak_trading_reminders.py -> utils.py\n- tests/test_dashboard_signal_selection.py -> mt5_signal_bot.py\n- tests/test_factcheck_worker_search_stack.py -> factcheck_worker.py\nsymbol_dependencies:\n- OAK_Hidden_SLTP_Manager.py::get_natural_response -> oak_response_dict.py::get_random_response\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> factcheck_worker.py::sort_key\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::save_json\nunresolved_imports: MetaTrader5, PyInstaller.__main__, argparse, atexit, calendar, ctypes, customtkinter, datetime, flask, glob, html, json\n",
+    "compressed_token_count": 1282,
+    "dependency_notes": [
+      "dependency_graph:",
+      "changed_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py",
+      "affected_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py",
+      "file_imports:",
+      "- OAK_Hidden_SLTP_Manager.py -> oak_response_dict.py",
+      "- OAK_Hidden_SLTP_Manager.py -> oak_trading_reminders.py",
+      "- mimo_bot.py -> oak_trading_reminders.py",
+      "- mt5_signal_bot.py -> oak_trading_reminders.py",
+      "- mt5_signal_bot.py -> utils.py",
+      "- oak_trading_reminders.py -> oak_response_dict.py",
+      "- oak_trading_reminders.py -> utils.py",
+      "- tests/test_dashboard_signal_selection.py -> mt5_signal_bot.py",
+      "- tests/test_factcheck_worker_search_stack.py -> factcheck_worker.py",
+      "symbol_dependencies:",
+      "- OAK_Hidden_SLTP_Manager.py::get_natural_response -> oak_response_dict.py::get_random_response",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> factcheck_worker.py::sort_key",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::save_json",
+      "unresolved_imports: MetaTrader5, PyInstaller.__main__, argparse, atexit, calendar, ctypes, customtkinter, datetime, flask, glob, html, json"
+    ],
+    "file_count": 14,
+    "mode": "fast",
+    "original_token_count": 168334383,
+    "reduction_ratio": 1.0,
+    "relevant_symbols": [
+      "OAK_Hidden_SLTP_Manager.GhostOperator: class GhostOperator",
+      "OAK_Hidden_SLTP_Manager.GhostOperator.execute_close: def execute_close(self, ticket, symbol, volume = None)",
+      "OAK_Hidden_SLTP_Manager.GhostOperator.modify_sl_tp: def modify_sl_tp(self, ticket, sl, tp)",
+      "OAK_Hidden_SLTP_Manager.show_ghost_consent: def show_ghost_consent(parent, on_accept)",
+      "OAK_Hidden_SLTP_Manager.accept: def accept()",
+      "OAK_Hidden_SLTP_Manager.decline: def decline()",
+      "OAK_Hidden_SLTP_Manager.ToolTip: class ToolTip",
+      "OAK_Hidden_SLTP_Manager.ToolTip.show_tip: def show_tip(self, event = None)",
+      "OAK_Hidden_SLTP_Manager.ToolTip.hide_tip: def hide_tip(self, event = None)",
+      "OAK_Hidden_SLTP_Manager.add_help_icon: def add_help_icon(parent, row, column, text_key, padx = 5, pady = 0, sticky = 'w')",
+      "OAK_Hidden_SLTP_Manager.get_natural_response: def get_natural_response(category, **kwargs)",
+      "OAK_Hidden_SLTP_Manager.get_filling_type: def get_filling_type(symbol)",
+      "OAK_Hidden_SLTP_Manager.send_order_with_retry: def send_order_with_retry(request)",
+      "OAK_Hidden_SLTP_Manager.TicketManager: class TicketManager",
+      "OAK_Hidden_SLTP_Manager.TicketManager.get_ticket: def get_ticket(self, ticket_id)",
+      "OAK_Hidden_SLTP_Manager.TicketManager.update_ticket: def update_ticket(self, ticket_id, **kwargs)",
+      "OAK_Hidden_SLTP_Manager.resource_path: def resource_path(relative_path)",
+      "OAK_Hidden_SLTP_Manager.load_json: def load_json(file, default = None)",
+      "OAK_Hidden_SLTP_Manager.save_json: def save_json(file, data)",
+      "OAK_Hidden_SLTP_Manager.T: def T(key)",
+      "OAK_Hidden_SLTP_Manager.get_start_day_balance: def get_start_day_balance()",
+      "OAK_Hidden_SLTP_Manager.FileLock: class FileLock",
+      "OAK_Hidden_SLTP_Manager.CopyTradeManager: class CopyTradeManager",
+      "OAK_Hidden_SLTP_Manager.CopyTradeManager.process: def process(self)",
+      "OAK_Hidden_SLTP_Manager.CopyTradeManager.sort_key: def sort_key(name)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker: class MonitorWorker(threading.Thread)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.notify: def notify(self, message, telegram = True)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.send_telegram: def send_telegram(self, message)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.close_position: def close_position(self, pos, reason, volume = None)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.move_sl_to_entry: def move_sl_to_entry(self, pos)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.run: def run(self)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.safe_int: def safe_int(val, default = 0)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.safe_float: def safe_float(val, default = 0.0)",
+      "OAK_Hidden_SLTP_Manager.App: class App(ctk.CTk)",
+      "OAK_Hidden_SLTP_Manager.App.on_close: def on_close()",
+      "OAK_Hidden_SLTP_Manager.App.pick_theme: def pick_theme(value)",
+      "OAK_Hidden_SLTP_Manager.App.clamp01: def clamp01(v)",
+      "OAK_Hidden_SLTP_Manager.App.ease_out_back: def ease_out_back(t)",
+      "OAK_Hidden_SLTP_Manager.App.compute_targets: def compute_targets(size)",
+      "OAK_Hidden_SLTP_Manager.App.place_btn: def place_btn(btn, cx, cy, base, scale)",
+      "OAK_Hidden_SLTP_Manager.App.layout_animated: def layout_animated(size, t)",
+      "OAK_Hidden_SLTP_Manager.App.animate: def animate(i)",
+      "OAK_Hidden_SLTP_Manager.App.on_close: def on_close()",
+      "OAK_Hidden_SLTP_Manager.App.add_ui_element: def add_ui_element(self, key, widget)",
+      "OAK_Hidden_SLTP_Manager.App.create_dashboard_frame: def create_dashboard_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.update_news_summary: def update_news_summary(self, force = False)",
+      "OAK_Hidden_SLTP_Manager.App.apply_theme_overrides: def apply_theme_overrides(self)",
+      "OAK_Hidden_SLTP_Manager.App.apply_theme: def apply_theme(self, theme_key)",
+      "OAK_Hidden_SLTP_Manager.App.refresh_theme_labels: def refresh_theme_labels(self)",
+      "OAK_Hidden_SLTP_Manager.App.change_theme: def change_theme(self, value)",
+      "OAK_Hidden_SLTP_Manager.App.create_signals_frame: def create_signals_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.start_signal_process: def start_signal_process(self, key)",
+      "OAK_Hidden_SLTP_Manager.App.stop_signal_process: def stop_signal_process(self, key)",
+      "OAK_Hidden_SLTP_Manager.App.start_all_signals: def start_all_signals(self)",
+      "OAK_Hidden_SLTP_Manager.App.stop_all_signals: def stop_all_signals(self)",
+      "OAK_Hidden_SLTP_Manager.App.create_profiles_frame: def create_profiles_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.create_copy_trade_frame: def create_copy_trade_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.load_copy_config: def load_copy_config(self)",
+      "OAK_Hidden_SLTP_Manager.App.save_copy_config: def save_copy_config(self)",
+      "OAK_Hidden_SLTP_Manager.App.create_pos_size_frame: def create_pos_size_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.do_popup: def do_popup(event)",
+      "OAK_Hidden_SLTP_Manager.App.create_guide_frame: def create_guide_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.create_readme_frame: def create_readme_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.create_release_notes_frame: def create_release_notes_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.apply_markdown: def apply_markdown(self, textbox)",
+      "OAK_Hidden_SLTP_Manager.App.create_about_frame: def create_about_frame(self, parent)",
+      "OAK_Hidden_SLTP_Manager.App.ensure_mt5_connection: def ensure_mt5_connection(self)",
+      "OAK_Hidden_SLTP_Manager.App.send_order: def send_order(self, order_type)",
+      "OAK_Hidden_SLTP_Manager.App.add_scheduled_trade: def add_scheduled_trade(self)",
+      "OAK_Hidden_SLTP_Manager.App.edit_scheduled_trade: def edit_scheduled_trade(self)",
+      "OAK_Hidden_SLTP_Manager.App.delete_scheduled_trade: def delete_scheduled_trade(self)",
+      "OAK_Hidden_SLTP_Manager.App.save_scheduled_trades_ui: def save_scheduled_trades_ui(self)",
+      "OAK_Hidden_SLTP_Manager.App.update_scheduled_list_ui: def update_scheduled_list_ui(self)",
+      "OAK_Hidden_SLTP_Manager.App.periodic_ui_refresh: def periodic_ui_refresh(self)",
+      "OAK_Hidden_SLTP_Manager.App.on_closing: def on_closing(self)",
+      "OAK_Hidden_SLTP_Manager.App.notify: def notify(self, message)",
+      "OAK_Hidden_SLTP_Manager.App.get_doc_content: def get_doc_content(self, key)",
+      "OAK_Hidden_SLTP_Manager.App.log: def log(self, msg)",
+      "OAK_Hidden_SLTP_Manager.App.on_pos_profile_change: def on_pos_profile_change(self, choice)",
+      "OAK_Hidden_SLTP_Manager.App.on_copy_profile_change: def on_copy_profile_change(self, choice)",
+      "OAK_Hidden_SLTP_Manager.App.start_monitor: def start_monitor(self)",
+      "OAK_Hidden_SLTP_Manager.App.stop_monitor: def stop_monitor(self)",
+      "OAK_Hidden_SLTP_Manager.App.monitor_worker_output: def monitor_worker_output(self, profile_name, proc)",
+      "OAK_Hidden_SLTP_Manager.App.on_accept: def on_accept(accepted)",
+      "OAK_Hidden_SLTP_Manager.App.log_to_console_direct: def log_to_console_direct(self, msg)",
+      "OAK_Hidden_SLTP_Manager.App.on_profile_change: def on_profile_change(self, choice)",
+      "OAK_Hidden_SLTP_Manager.App.update_ui_state: def update_ui_state(self, profile_name)",
+      "OAK_Hidden_SLTP_Manager.App.refresh_profile_list: def refresh_profile_list(self)",
+      "OAK_Hidden_SLTP_Manager.App.load_profile_to_form: def load_profile_to_form(self, name)",
+      "OAK_Hidden_SLTP_Manager.App.clear_form: def clear_form(self)",
+      "OAK_Hidden_SLTP_Manager.App.save_profile: def save_profile(self)",
+      "OAK_Hidden_SLTP_Manager.App.delete_profile: def delete_profile(self)",
+      "OAK_Hidden_SLTP_Manager.App.toggle_ghost_mode: def toggle_ghost_mode(self)",
+      "OAK_Hidden_SLTP_Manager.App.update_ghost_button_ui: def update_ghost_button_ui(self)",
+      "OAK_Hidden_SLTP_Manager.App.change_lang: def change_lang(self, value)",
+      "OAK_Hidden_SLTP_Manager.run_worker: def run_worker(profile_name)",
+      "OAK_Hidden_SLTP_Manager.worker_log: def worker_log(msg)",
+      "OAK_Hidden_SLTP_Manager.signal_handler: def signal_handler(sig, frame)",
+      "create_backup_final.create_backup: def create_backup()",
+      "factcheck_worker.normalize_domain: def normalize_domain(url)",
+      "factcheck_worker.normalize_text: def normalize_text(text)",
+      "factcheck_worker.token_set: def token_set(text)",
+      "factcheck_worker.source_match_hits: def source_match_hits(query, source)",
+      "factcheck_worker.source_relevance: def source_relevance(query, source)",
+      "factcheck_worker.should_keep_source: def should_keep_source(source)",
+      "factcheck_worker.redis_request: def redis_request(method, key, value = None)",
+      "factcheck_worker.extract_claims: def extract_claims(text)",
+      "factcheck_worker.simplify_query: def simplify_query(claim)",
+      "factcheck_worker.search_google_web: def search_google_web(query)",
+      "factcheck_worker.search_duckduckgo: def search_duckduckgo(query)",
+      "factcheck_worker.search_web: def search_web(query)",
+      "factcheck_worker.search_google_factcheck: def search_google_factcheck(query, api_key)",
+      "factcheck_worker.classify_reliability: def classify_reliability(url)",
+      "factcheck_worker.check_agreement: def check_agreement(claim, snippet)",
+      "factcheck_worker.process_factcheck: def process_factcheck(item)",
+      "factcheck_worker.sort_key: def sort_key(s)",
+      "factcheck_worker.main: def main()",
+      "mimo_bot.is_admin: def is_admin(message)",
+      "mimo_bot.load_json: def load_json(path, default = None)",
+      "mimo_bot.save_json: def save_json(path, data)",
+      "mimo_bot.send_telegram_msg: def send_telegram_msg(chat_id, text)",
+      "mimo_bot.notify_mt5_d_direction: def notify_mt5_d_direction(direction)",
+      "mimo_bot.get_all_profiles: def get_all_profiles()",
+      "mimo_bot.execute_mimo_via_shell: def execute_mimo_via_shell(command)",
+      "mimo_bot.execute_mimo_via_file_proxy: def execute_mimo_via_file_proxy(command)",
+      "mimo_bot.cmd_start: def cmd_start(message)",
+      "mimo_bot.cmd_myid: def cmd_myid(message)",
+      "mimo_bot.cmd_status: def cmd_status(message)",
+      "mimo_bot.cmd_profiles: def cmd_profiles(message)",
+      "mimo_bot.cmd_mt5: def cmd_mt5(message)",
+      "mimo_bot.cmd_positions: def cmd_positions(message)",
+      "mimo_bot.cmd_news: def cmd_news(message)",
+      "mimo_bot.cmd_mimo: def cmd_mimo(message)",
+      "mimo_bot.cmd_code: def cmd_code(message)",
+      "mimo_bot.cmd_scan: def cmd_scan(message)",
+      "mimo_bot.cmd_reply: def cmd_reply(message)",
+      "mimo_bot.cmd_del: def cmd_del(message)",
+      "mimo_bot.cmd_modify: def cmd_modify(message)",
+      "mimo_bot.handle_all: def handle_all(message)",
+      "mimo_worker.process_command: def process_command(cmd)",
+      "mimo_worker.create_lock: def create_lock()",
+      "mimo_worker.remove_lock: def remove_lock()",
+      "mimo_worker.main: def main()",
+      "mt4_mt5_server.send_telegram: def send_telegram(text)",
+      "mt4_mt5_server.fmt_hour: def fmt_hour(h)",
+      "mt4_mt5_server.fmt_time: def fmt_time(dt)",
+      "mt4_mt5_server.get_broker_time: def get_broker_time()",
+      "mt4_mt5_server.broker_time_to_ts: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)",
+      "mt4_mt5_server.get_schedule_note: def get_schedule_note(broker_dt)",
+      "mt4_mt5_server.get_candle_by_ts: def get_candle_by_ts(symbol, timeframe, target_ts)",
+      "mt4_mt5_server.candle_dir: def candle_dir(c)",
+      "mt4_mt5_server.calculate_signal: def calculate_signal(m35_dir, m40_dir, m30_dir)",
+      "mt4_mt5_server.fetch_mt5_data: def fetch_mt5_data(broker_dt, H)",
+      "mt4_mt5_server.receive_mt4_data: def receive_mt4_data()",
+      "mt4_mt5_server.build_telegram: def build_telegram(broker, time_str, H, mt4_m35, mt4_m40, mt4_m30, mt4_sig, mt5, mt5_sig, conclusion, broker_dt)",
+      "mt4_mt5_server.ico: def ico(s)",
+      "mt4_mt5_server.ensure_mt5_running: def ensure_mt5_running()",
+      "mt4_mt5_server.main: def main()",
+      "mt5_signal_bot.get_entry_prices: def get_entry_prices(pair_dirs, broker_dt, entry_time)",
+      "mt5_signal_bot.update_entry_prices\u7cbe\u51c6: def update_entry_prices\u7cbe\u51c6(date_str, hour, pair_dirs, broker_dt, entry_time)",
+      "mt5_signal_bot.schedule\u7cbe\u51c6_price_update: def schedule\u7cbe\u51c6_price_update(broker_dt, entry_time, pair_dirs)",
+      "mt5_signal_bot.get_current_prices: def get_current_prices(pair_dirs)",
+      "mt5_signal_bot.log_signal: def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed = False)",
+      "mt5_signal_bot.select_signals_for_dashboard: def select_signals_for_dashboard(all_signals)",
+      "mt5_signal_bot.d1_match_note: def d1_match_note(direction)",
+      "mt5_signal_bot.push_to_dashboard: def push_to_dashboard()",
+      "mt5_signal_bot.push_prices_to_dashboard: def push_prices_to_dashboard()",
+      "mt5_signal_bot.get_schedule_reminders: def get_schedule_reminders(broker_dt)",
+      "mt5_signal_bot.send_telegram: def send_telegram(text)",
+      "mt5_signal_bot.send_d_direction_reminder: def send_d_direction_reminder()",
+      "mt5_signal_bot.check_d_direction_input: def check_d_direction_input()",
+      "mt5_signal_bot.d_direction_watcher: def d_direction_watcher()",
+      "mt5_signal_bot.d_direction_event_server: def d_direction_event_server()",
+      "mt5_signal_bot.fmt_time: def fmt_time(dt)",
+      "mt5_signal_bot.fmt_hour: def fmt_hour(h)",
+      "mt5_signal_bot.broker_time_to_ts: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)",
+      "mt5_signal_bot.get_candle_by_ts: def get_candle_by_ts(symbol, timeframe, target_ts)",
+      "mt5_signal_bot.candle_direction: def candle_direction(candle)",
+      "mt5_signal_bot.resolve_doji: def resolve_doji(symbol, timeframe, target_ts, broker_dt)",
+      "mt5_signal_bot.get_h1_candle_for_slot: def get_h1_candle_for_slot(broker_dt, H)",
+      "mt5_signal_bot.candle_info_line: def candle_info_line(candle, label)",
+      "mt5_signal_bot.get_effective_xauusd_signal: def get_effective_xauusd_signal(signal, H = None, weekday = None, h15_signal = None)",
+      "mt5_signal_bot.calc_entry_time: def calc_entry_time(signal, m30_dir, H = None, h2_signal = None, orig_signal = None, weekday = None, h15_signal = None)",
+      "mt5_signal_bot.analyze: def analyze(broker_dt, H)",
+      "mt5_signal_bot.get_hour_note: def get_hour_note(H, weekday = None)",
+      "mt5_signal_bot.set_d_direction: def set_d_direction(direction)",
+      "mt5_signal_bot.get_effective_d_direction: def get_effective_d_direction(broker_dt)",
+      "mt5_signal_bot.get_pair_direction: def get_pair_direction(H, signal, broker_dt, h1_signal = None)",
+      "mt5_signal_bot.should_skip_xauusd: def should_skip_xauusd(H, signal, broker_dt)",
+      "mt5_signal_bot.mark_xauusd_matched: def mark_xauusd_matched(H)",
+      "mt5_signal_bot.send_report: def send_report(signal_data, H, broker_dt, h2_signal = None, h15_signal = None)",
+      "mt5_signal_bot.backfill_missing_days: def backfill_missing_days()",
+      "mt5_signal_bot.try_init_mt5: def try_init_mt5()",
+      "mt5_signal_bot.get_broker_time: def get_broker_time()",
+      "mt5_signal_bot.main: def main()",
+      "oak_response_dict.get_random_response: def get_random_response(key, **kwargs)",
+      "oak_trading_reminders.set_credentials: def set_credentials(token, chat_id)",
+      "oak_trading_reminders.is_winter_time: def is_winter_time()",
+      "oak_trading_reminders.load_json_file: def load_json_file(path, default)",
+      "oak_trading_reminders.get_economic_news: def get_economic_news(lang = 'VN')",
+      "oak_trading_reminders.fetch_investing_rss: def fetch_investing_rss(lang = 'VN', context = None)",
+      "oak_trading_reminders.fetch_myfxbook_rss: def fetch_myfxbook_rss(lang = 'VN', context = None)",
+      "oak_trading_reminders.fetch_litefinance_rss: def fetch_litefinance_rss(lang = 'VN', context = None)",
+      "oak_trading_reminders.fetch_forexfactory_xml: def fetch_forexfactory_xml(lang = 'VN', context = None)",
+      "oak_trading_reminders.get_day_notes: def get_day_notes(now, lang = 'VN')",
+      "oak_trading_reminders.generate_daily_reminder: def generate_daily_reminder(now, lang = 'VN')",
+      "oak_trading_reminders.OakTradingReminder: class OakTradingReminder",
+      "oak_trading_reminders.OakTradingReminder.load_config: def load_config(self)",
+      "oak_trading_reminders.OakTradingReminder.send_telegram: def send_telegram(self, message)",
+      "oak_trading_reminders.OakTradingReminder.get_performance_report: def get_performance_report(self, profile)",
+      "oak_trading_reminders.OakTradingReminder.send_daily_briefing: def send_daily_briefing(self)",
+      "oak_trading_reminders.OakTradingReminder.send_rule_reminders: def send_rule_reminders(self, now, lang = 'VN')",
+      "oak_trading_reminders.OakTradingReminder.get_projected_pnl: def get_projected_pnl(self, symbol, target_price, profile_name = None)",
+      "oak_trading_reminders.OakTradingReminder.process_commands: def process_commands(self)",
+      "oak_trading_reminders.OakTradingReminder.send_telegram_to_chat: def send_telegram_to_chat(self, message, chat_id)",
+      "oak_trading_reminders.OakTradingReminder.monitor_loop: def monitor_loop(self)",
+      "oak_trading_reminders.OakTradingReminder.safe_print: def safe_print(msg)",
+      "oak_trading_reminders.OakTradingReminder.start: def start(self)",
+      "oak_trading_reminders.OakTradingReminder.stop: def stop(self)",
+      "oak_trading_reminders.start_reminder_thread: def start_reminder_thread()",
+      "utils.send_telegram_raw: def send_telegram_raw(token, chat_id, text, parse_mode = 'Markdown')",
+      "utils.load_json_file: def load_json_file(path, default = None)",
+      "utils.save_json_file: def save_json_file(path, data)",
+      "utils.get_signal_icon: def get_signal_icon(sig)",
+      "utils.vn_direction: def vn_direction(d)",
+      "dashboard.push_to_dashboard.push: def push(endpoint: str, data)",
+      "tests.test_dashboard_signal_selection.DashboardSignalSelectionTests: class DashboardSignalSelectionTests(unittest.TestCase)",
+      "tests.test_dashboard_signal_selection.DashboardSignalSelectionTests.test_keeps_all_signal_days_when_pair_dirs_exist: def test_keeps_all_signal_days_when_pair_dirs_exist(self)",
+      "tests.test_dashboard_signal_selection.DashboardSignalSelectionTests.test_h6_tue_thu_keeps_gbpaud_when_gold_flips: def test_h6_tue_thu_keeps_gbpaud_when_gold_flips(self)",
+      "tests.test_factcheck_worker_search_stack.FactcheckWorkerSearchStackTests: class FactcheckWorkerSearchStackTests(unittest.TestCase)",
+      "tests.test_factcheck_worker_search_stack.FactcheckWorkerSearchStackTests.test_search_web_uses_google_then_duckduckgo: def test_search_web_uses_google_then_duckduckgo(self)"
+    ],
+    "symbol_count": 316
+  },
+  "dependency_graph": {
+    "affected_files": [
+      "OAK_Hidden_SLTP_Manager.py",
+      "build_exe.py",
+      "create_backup_final.py",
+      "dashboard/push_to_dashboard.py",
+      "factcheck_worker.py",
+      "mimo_bot.py",
+      "mimo_worker.py",
+      "mt4_mt5_server.py",
+      "mt5_signal_bot.py",
+      "oak_response_dict.py",
+      "oak_trading_reminders.py",
+      "tests/test_dashboard_signal_selection.py",
+      "tests/test_factcheck_worker_search_stack.py",
+      "utils.py"
+    ],
+    "changed_files": [
+      "OAK_Hidden_SLTP_Manager.py",
+      "build_exe.py",
+      "create_backup_final.py",
+      "dashboard/push_to_dashboard.py",
+      "factcheck_worker.py",
+      "mimo_bot.py",
+      "mimo_worker.py",
+      "mt4_mt5_server.py",
+      "mt5_signal_bot.py",
+      "oak_response_dict.py",
+      "oak_trading_reminders.py",
+      "tests/test_dashboard_signal_selection.py",
+      "tests/test_factcheck_worker_search_stack.py",
+      "utils.py"
+    ],
+    "file_dependents": {
+      "factcheck_worker.py": [
+        "tests/test_factcheck_worker_search_stack.py"
+      ],
+      "mt5_signal_bot.py": [
+        "tests/test_dashboard_signal_selection.py"
+      ],
+      "oak_response_dict.py": [
+        "OAK_Hidden_SLTP_Manager.py",
+        "oak_trading_reminders.py"
+      ],
+      "oak_trading_reminders.py": [
+        "OAK_Hidden_SLTP_Manager.py",
+        "mimo_bot.py",
+        "mt5_signal_bot.py"
+      ],
+      "utils.py": [
+        "mt5_signal_bot.py",
+        "oak_trading_reminders.py"
+      ]
+    },
+    "file_imports": {
+      "OAK_Hidden_SLTP_Manager.py": [
+        "oak_response_dict.py",
+        "oak_trading_reminders.py"
+      ],
+      "build_exe.py": [],
+      "create_backup_final.py": [],
+      "dashboard/push_to_dashboard.py": [],
+      "factcheck_worker.py": [],
+      "mimo_bot.py": [
+        "oak_trading_reminders.py"
+      ],
+      "mimo_worker.py": [],
+      "mt4_mt5_server.py": [],
+      "mt5_signal_bot.py": [
+        "oak_trading_reminders.py",
+        "utils.py"
+      ],
+      "oak_response_dict.py": [],
+      "oak_trading_reminders.py": [
+        "oak_response_dict.py",
+        "utils.py"
+      ],
+      "tests/test_dashboard_signal_selection.py": [
+        "mt5_signal_bot.py"
+      ],
+      "tests/test_factcheck_worker_search_stack.py": [
+        "factcheck_worker.py"
+      ],
+      "utils.py": []
+    },
+    "hash": "71d5c1e23ebf1b76362661a979f82c0361932b07d6183a769eb5592c3feec428",
+    "module_to_file": {
+      "OAK_Hidden_SLTP_Manager": "OAK_Hidden_SLTP_Manager.py",
+      "build_exe": "build_exe.py",
+      "create_backup_final": "create_backup_final.py",
+      "dashboard.push_to_dashboard": "dashboard/push_to_dashboard.py",
+      "factcheck_worker": "factcheck_worker.py",
+      "mimo_bot": "mimo_bot.py",
+      "mimo_worker": "mimo_worker.py",
+      "mt4_mt5_server": "mt4_mt5_server.py",
+      "mt5_signal_bot": "mt5_signal_bot.py",
+      "oak_response_dict": "oak_response_dict.py",
+      "oak_trading_reminders": "oak_trading_reminders.py",
+      "tests.test_dashboard_signal_selection": "tests/test_dashboard_signal_selection.py",
+      "tests.test_factcheck_worker_search_stack": "tests/test_factcheck_worker_search_stack.py",
+      "utils": "utils.py"
+    },
+    "root": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP",
+    "symbol_dependencies": {
+      "OAK_Hidden_SLTP_Manager.py::App": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json",
+        "oak_trading_reminders.py::OakTradingReminder.start"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.__init__": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App._handle_ghost_request": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.add_scheduled_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.apply_markdown": [
+        "oak_trading_reminders.py::OakTradingReminder.start"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.change_lang": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.change_theme": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.delete_profile": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.delete_scheduled_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.edit_scheduled_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.on_accept": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.periodic_ui_refresh": [
+        "mimo_bot.py::load_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.save_copy_config": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.save_profile": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.save_scheduled_trades_ui": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.toggle_ghost_mode": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager": [
+        "factcheck_worker.py::sort_key",
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._check_partial_close_tasks": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._check_scheduled_trades": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._close_copy_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._find_matching_symbol": [
+        "factcheck_worker.py::sort_key"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._get_account_status": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._handle_telegram_text": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._open_copy_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._process_slave": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager.process": [
+        "mimo_bot.py::load_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::TicketManager": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded": [
+        "mimo_bot.py::load_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::get_natural_response": [
+        "oak_response_dict.py::get_random_response"
+      ],
+      "factcheck_worker.py::process_factcheck": [
+        "OAK_Hidden_SLTP_Manager.py::CopyTradeManager.sort_key"
+      ],
+      "mimo_bot.py::_inject_to_oak_inbox": [
+        "OAK_Hidden_SLTP_Manager.py::load_json",
+        "OAK_Hidden_SLTP_Manager.py::save_json"
+      ],
+      "mimo_bot.py::cmd_mt5": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mimo_bot.py::cmd_news": [
+        "OAK_Hidden_SLTP_Manager.py::load_json",
+        "oak_trading_reminders.py::get_economic_news"
+      ],
+      "mimo_bot.py::cmd_positions": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mimo_bot.py::cmd_profiles": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mimo_bot.py::execute_mimo_via_file_proxy": [
+        "oak_trading_reminders.py::OakTradingReminder.start"
+      ],
+      "mimo_bot.py::get_all_profiles": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mt4_mt5_server.py::build_telegram": [
+        "mt5_signal_bot.py::fmt_hour",
+        "mt5_signal_bot.py::fmt_time"
+      ],
+      "mt4_mt5_server.py::fetch_mt5_data": [
+        "mt5_signal_bot.py::broker_time_to_ts",
+        "mt5_signal_bot.py::get_candle_by_ts"
+      ],
+      "mt4_mt5_server.py::receive_mt4_data": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt5_signal_bot.py::fmt_time",
+        "mt5_signal_bot.py::get_broker_time",
+        "mt5_signal_bot.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram"
+      ],
+      "mt5_signal_bot.py::_trading_date": [
+        "mt4_mt5_server.py::get_broker_time"
+      ],
+      "mt5_signal_bot.py::analyze": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::get_candle_by_ts",
+        "utils.py::vn_direction"
+      ],
+      "mt5_signal_bot.py::backfill_missing_days": [
+        "mt4_mt5_server.py::fmt_hour"
+      ],
+      "mt5_signal_bot.py::candle_info_line": [
+        "utils.py::vn_direction"
+      ],
+      "mt5_signal_bot.py::check_d_direction_input": [
+        "mt4_mt5_server.py::get_broker_time"
+      ],
+      "mt5_signal_bot.py::get_entry_prices": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "mt5_signal_bot.py::get_h1_candle_for_slot": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "mt5_signal_bot.py::get_schedule_reminders": [
+        "oak_trading_reminders.py::get_day_notes"
+      ],
+      "mt5_signal_bot.py::main": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::fmt_time",
+        "mt4_mt5_server.py::get_broker_time",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram",
+        "utils.py::get_signal_icon"
+      ],
+      "mt5_signal_bot.py::mark_xauusd_matched": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::get_broker_time",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram"
+      ],
+      "mt5_signal_bot.py::resolve_doji": [
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "mt5_signal_bot.py::schedule\u7cbe\u51c6_price_update": [
+        "mt4_mt5_server.py::broker_time_to_ts"
+      ],
+      "mt5_signal_bot.py::send_d_direction_reminder": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::get_broker_time",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram"
+      ],
+      "mt5_signal_bot.py::send_report": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram",
+        "utils.py::get_signal_icon"
+      ],
+      "mt5_signal_bot.py::send_telegram": [
+        "utils.py::send_telegram_raw"
+      ],
+      "mt5_signal_bot.py::update_entry_prices\u7cbe\u51c6": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder": [
+        "oak_response_dict.py::get_random_response",
+        "utils.py::load_json_file"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.get_projected_pnl": [
+        "oak_response_dict.py::get_random_response"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.load_config": [
+        "utils.py::load_json_file"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.monitor_loop": [
+        "utils.py::load_json_file"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.send_daily_briefing": [
+        "utils.py::load_json_file"
+      ],
+      "tests/test_dashboard_signal_selection.py::DashboardSignalSelectionTests": [
+        "mt5_signal_bot.py::get_pair_direction",
+        "mt5_signal_bot.py::select_signals_for_dashboard"
+      ],
+      "tests/test_dashboard_signal_selection.py::DashboardSignalSelectionTests.test_h6_tue_thu_keeps_gbpaud_when_gold_flips": [
+        "mt5_signal_bot.py::get_pair_direction"
+      ],
+      "tests/test_dashboard_signal_selection.py::DashboardSignalSelectionTests.test_keeps_all_signal_days_when_pair_dirs_exist": [
+        "mt5_signal_bot.py::select_signals_for_dashboard"
+      ]
+    },
+    "unresolved_imports": [
+      "MetaTrader5",
+      "PyInstaller.__main__",
+      "argparse",
+      "atexit",
+      "calendar",
+      "ctypes",
+      "customtkinter",
+      "datetime",
+      "flask",
+      "glob",
+      "html",
+      "json",
+      "os",
+      "pywinauto",
+      "random",
+      "re",
+      "signal",
+      "socket",
+      "ssl",
+      "subprocess",
+      "sys",
+      "telebot",
+      "threading",
+      "time",
+      "tkinter",
+      "traceback",
+      "unicodedata",
+      "unittest",
+      "unittest.mock",
+      "urllib.parse",
+      "urllib.request",
+      "winsound",
+      "xml.etree.ElementTree",
+      "zipfile"
+    ]
+  },
+  "fingerprint": {
+    "cache_key": "9e337b855f9c9e19ddb92c8ba3fdfb0d59f78c18d512ea530f6bdd473e76f852",
+    "file_hashes": {
+      "OAK_Hidden_SLTP_Manager.py": "6367e1662366131f7e935c2a1a63f3a85070d731cc616befe1d19dc74fb670cd",
+      "build_exe.py": "4382e2223e3bf4aa3f9ad6f1960b7dad404e1a0fd5286a952882679573ab49dc",
+      "create_backup_final.py": "d6da1076d57b76a661b7944d1c0e07ff90e2b06c8fd8f7a5955bc5c00ec7f604",
+      "dashboard/push_to_dashboard.py": "05bd06b9a1f42b508955aa523e2ae8eeeeb9e28fb7d82890d0786990c059a789",
+      "factcheck_worker.py": "19cfd218d439fd05d0401e5142d22fac7c1490b84b61f0c6880c77748d47c62e",
+      "mimo_bot.py": "27b0f5dd7f5e7193e905c51f3d077223392289a1baa245fd41ceac8a600ac91d",
+      "mimo_worker.py": "0a2664f2525bcfdf585d09ebd4b345b4003c06f79e44f745534927c0830b6cc9",
+      "mt4_mt5_server.py": "bc9046c6b68c0b22f01e908fcb415d2c136c7d43230855c4118edb127bcef3ee",
+      "mt5_signal_bot.py": "e65fe0ace0c06da5a08f1fd0eb10f7d7291f6c5a60a8fee16e504b55f41be9a4",
+      "oak_response_dict.py": "a4b35fa65e68d8bf005c189d802295832e1913c6c12853ab165364e66357612a",
+      "oak_trading_reminders.py": "450c25d4a4b6ba44e0d1eacfa1d79e5c9299fb64ea9196df4206e5cf1172b3b9",
+      "tests/test_dashboard_signal_selection.py": "824c732d86231899f3a6709a97d5d054856262b6e5e5a1fab94ff844a1d4c2cd",
+      "tests/test_factcheck_worker_search_stack.py": "cf77dcc33f1f8170444d8b51c47f700b921213fc492705abf5dc491eaf4027c0",
+      "utils.py": "682d303718361f606b8d18a8572ddc49bef903d9c073315d4de463510279b670"
+    },
+    "graph_hash": "71d5c1e23ebf1b76362661a979f82c0361932b07d6183a769eb5592c3feec428",
+    "inventory_file_count": 4115,
+    "mode": "fast",
+    "objective_hash": "6258875af5e04f4813cf0680666c6b27a81d2af712972303a69b143d2482b44b",
+    "profile": "balanced",
+    "python_file_count": 14,
+    "root": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP",
+    "symbol_hashes": {
+      "OAK_Hidden_SLTP_Manager.py": "9311825e701f0301993f640c14493094f97fef59140e6045454647d7278f9535",
+      "build_exe.py": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "create_backup_final.py": "5bb01bd38402fe390e733ea236c67352964aeeb05f779398073f3b8d8475fb30",
+      "dashboard/push_to_dashboard.py": "2e642464210447ede11f0c273ad3907f9a3f75ef6e719ddf7d7653156f3377d3",
+      "factcheck_worker.py": "5d8712f7be269ff1e0f08b773bc2a85d635521f66a947c86a2a80294b00aab04",
+      "mimo_bot.py": "512655ddda5e4d95984b0a2b29d9ad495618a2c7eb7f8bffa837d9627ae5dcf4",
+      "mimo_worker.py": "c94ae38bf615307e354ed31007d1902604f45ef2d6086c9203af1f1cd35eb796",
+      "mt4_mt5_server.py": "3ca0b6e13fd5f3445a56370665e854709929ac8889373b42a88afc349a3d43ab",
+      "mt5_signal_bot.py": "6cd45bcbb4fbe62ae6ccfbb16d30ae106ee53816e361e510f507b9fe3d80ef4f",
+      "oak_response_dict.py": "db4ba1f29cb0afed02bd82559693927506f2a8fefc88ecc890f4342f9c319144",
+      "oak_trading_reminders.py": "5fbaf00363b2dedca1cf987058e3fdbb08700bb02d6570c1f1ac7be19a9af44d",
+      "tests/test_dashboard_signal_selection.py": "14a9f97992c3a39c9704a7752ca58985b85e16688ef99372b4c520cdecc2fc76",
+      "tests/test_factcheck_worker_search_stack.py": "658584206329f82538f50af80b4870a8d986aec300fe53b73b711afa9f8edc6d",
+      "utils.py": "07f4a8a84f24009601ae7f05da6490b30c157c8b1ef5a0f264a65b2d6e64263a"
+    }
+  },
+  "prompt": {
+    "compressed_context": "repository_root: C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\nfile_count: 4115\npython_file_count: 14\nconfig_file_count: 145\nmode: FAST\nfile: OAK_Hidden_SLTP_Manager.py\nmodule: OAK_Hidden_SLTP_Manager\nimports: customtkinter, tkinter, tkinter:ttk, MetaTrader5, pywinauto, pywinauto:Application, mouse, threading, time, winsound, os, sys, json, urllib.request, urllib.parse, datetime:datetime, timedelta, ctypes, random, re, subprocess, signal, atexit, oak_trading_reminders, oak_response_dict:get_random_response, ctypes, oak_trading_reminders, tkinter:messagebox, argparse, signal, traceback\nsymbols:\n- class: class GhostOperator\n- method: def execute_close(self, ticket, symbol, volume = None)\n- method: def modify_sl_tp(self, ticket, sl, tp)\n- function: def show_ghost_consent(parent, on_accept)\n- function: def accept()\n- function: def decline()\n- class: class ToolTip\n- method: def show_tip(self, event = None)\n- method: def hide_tip(self, event = None)\n- function: def add_help_icon(parent, row, column, text_key, padx = 5, pady = 0, sticky = 'w')\n- function: def get_natural_response(category, **kwargs)\n- function: def get_filling_type(symbol)\n- function: def send_order_with_retry(request)\n- class: class TicketManager\n- method: def get_ticket(self, ticket_id)\n- method: def update_ticket(self, ticket_id, **kwargs)\n- function: def resource_path(relative_path)\n- function: def load_json(file, default = None)\n- function: def save_json(file, data)\n- function: def T(key)\n- function: def get_start_day_balance()\n- class: class FileLock\n- class: class CopyTradeManager\n- method: def process(self)\n- method: def sort_key(name)\n- class: class MonitorWorker(threading.Thread)\n- method: def notify(self, message, telegram = True)\n- method: def send_telegram(self, message)\n- method: def close_position(self, pos, reason, volume = None)\n- method: def move_sl_to_entry(self, pos)\n- method: def run(self)\n- method: def safe_int(val, default = 0)\n- method: def safe_float(val, default = 0.0)\n- class: class App(ctk.CTk)\n- method: def on_close()\n- method: def pick_theme(value)\n- method: def clamp01(v)\n- method: def ease_out_back(t)\n- method: def compute_targets(size)\n- method: def place_btn(btn, cx, cy, base, scale)\n- method: def layout_animated(size, t)\n- method: def animate(i)\n- method: def on_close()\n- method: def add_ui_element(self, key, widget)\n- method: def create_dashboard_frame(self, parent)\n- method: def update_news_summary(self, force = False)\n- method: def apply_theme_overrides(self)\n- method: def apply_theme(self, theme_key)\n- method: def refresh_theme_labels(self)\n- method: def change_theme(self, value)\n- method: def create_signals_frame(self, parent)\n- method: def start_signal_process(self, key)\n- method: def stop_signal_process(self, key)\n- method: def start_all_signals(self)\n- method: def stop_all_signals(self)\n- method: def create_profiles_frame(self, parent)\n- method: def create_copy_trade_frame(self, parent)\n- method: def load_copy_config(self)\n- method: def save_copy_config(self)\n- method: def create_pos_size_frame(self, parent)\n- method: def do_popup(event)\n- method: def create_guide_frame(self, parent)\n- method: def create_readme_frame(self, parent)\n- method: def create_release_notes_frame(self, parent)\n- method: def apply_markdown(self, textbox)\n- method: def create_about_frame(self, parent)\n- method: def ensure_mt5_connection(self)\n- method: def send_order(self, order_type)\n- method: def add_scheduled_trade(self)\n- method: def edit_scheduled_trade(self)\n- method: def delete_scheduled_trade(self)\n- method: def save_scheduled_trades_ui(self)\n- method: def update_scheduled_list_ui(self)\n- method: def periodic_ui_refresh(self)\n- method: def on_closing(self)\n- method: def notify(self, message)\n- method: def get_doc_content(self, key)\n- method: def log(self, msg)\n- method: def on_pos_profile_change(self, choice)\n- method: def on_copy_profile_change(self, choice)\n- method: def start_monitor(self)\n- method: def stop_monitor(self)\n- method: def monitor_worker_output(self, profile_name, proc)\n- method: def on_accept(accepted)\n- method: def log_to_console_direct(self, msg)\n- method: def on_profile_change(self, choice)\n- method: def update_ui_state(self, profile_name)\n- method: def refresh_profile_list(self)\n- method: def load_profile_to_form(self, name)\n- method: def clear_form(self)\n- method: def save_profile(self)\n- method: def delete_profile(self)\n- method: def toggle_ghost_mode(self)\n- method: def update_ghost_button_ui(self)\n- method: def change_lang(self, value)\n- function: def run_worker(profile_name)\n- function: def worker_log(msg)\n- function: def signal_handler(sig, frame)\nfile: build_exe.py\nmodule: build_exe\nimports: PyInstaller.__main__, os, customtkinter, re\nsymbols: none\nfile: create_backup_final.py\nmodule: create_backup_final\nimports: zipfile, os, sys, glob, re\nsymbols:\n- function: def create_backup()\nfile: factcheck_worker.py\nmodule: factcheck_worker\nimports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\nsymbols:\n- function: def normalize_domain(url)\n- function: def normalize_text(text)\n- function: def token_set(text)\n- function: def source_match_hits(query, source)\n- function: def source_relevance(query, source)\n- function: def should_keep_source(source)\n- function: def redis_request(method, key, value = None)\n- function: def extract_claims(text)\n- function: def simplify_query(claim)\n- function: def search_google_web(query)\n- function: def search_duckduckgo(query)\n- function: def search_web(query)\n- function: def search_google_factcheck(query, api_key)\n- function: def classify_reliability(url)\n- function: def check_agreement(claim, snippet)\n- function: def process_factcheck(item)\n- function: def sort_key(s)\n- function: def main()\nfile: mimo_bot.py\nmodule: mimo_bot\nimports: os, sys, json, time, threading, subprocess, urllib.request, urllib.parse, re, socket, datetime:datetime, telebot, MetaTrader5, MetaTrader5, oak_trading_reminders:get_economic_news, time\nsymbols:\n- function: def is_admin(message)\n- function: def load_json(path, default = None)\n- function: def save_json(path, data)\n- function: def send_telegram_msg(chat_id, text)\n- function: def notify_mt5_d_direction(direction)\n- function: def get_all_profiles()\n- function: def execute_mimo_via_shell(command)\n- function: def execute_mimo_via_file_proxy(command)\n- function: def cmd_start(message)\n- function: def cmd_myid(message)\n- function: def cmd_status(message)\n- function: def cmd_profiles(message)\n- function: def cmd_mt5(message)\n- function: def cmd_positions(message)\n- function: def cmd_news(message)\n- function: def cmd_mimo(message)\n- function: def cmd_code(message)\n- function: def cmd_scan(message)\n- function: def cmd_reply(message)\n- function: def cmd_del(message)\n- function: def cmd_modify(message)\n- function: def handle_all(message)\nfile: mimo_worker.py\nmodule: mimo_worker\nimports: os, sys, time, datetime:datetime, ctypes\nsymbols:\n- function: def process_command(cmd)\n- function: def create_lock()\n- function: def remove_lock()\n- function: def main()\nfile: mt4_mt5_server.py\nmodule: mt4_mt5_server\nimports: os, sys, json, calendar, urllib.request, urllib.parse, datetime:datetime, timedelta, timezone, flask:Flask, request, jsonify, MetaTrader5, subprocess, time\nsymbols:\n- function: def send_telegram(text)\n- function: def fmt_hour(h)\n- function: def fmt_time(dt)\n- function: def get_broker_time()\n- function: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n- function: def get_schedule_note(broker_dt)\n- function: def get_candle_by_ts(symbol, timeframe, target_ts)\n- function: def candle_dir(c)\n- function: def calculate_signal(m35_dir, m40_dir, m30_dir)\n- function: def fetch_mt5_data(broker_dt, H)\n- function: def receive_mt4_data()\n- function: def build_telegram(broker, time_str, H, mt4_m35, mt4_m40, mt4_m30, mt4_sig, mt5, mt5_sig, conclusion, broker_dt)\n- function: def ico(s)\n- function: def ensure_mt5_running()\n- function: def main()\nfile: mt5_signal_bot.py\nmodule: mt5_signal_bot\nimports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\nsymbols:\n- function: def get_entry_prices(pair_dirs, broker_dt, entry_time)\n- function: def update_entry_prices\u7cbe\u51c6(date_str, hour, pair_dirs, broker_dt, entry_time)\n- function: def schedule\u7cbe\u51c6_price_update(broker_dt, entry_time, pair_dirs)\n- function: def get_current_prices(pair_dirs)\n- function: def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed = False)\n- function: def select_signals_for_dashboard(all_signals)\n- function: def d1_match_note(direction)\n- function: def push_to_dashboard()\n- function: def push_prices_to_dashboard()\n- function: def get_schedule_reminders(broker_dt)\n- function: def send_telegram(text)\n- function: def send_d_direction_reminder()\n- function: def check_d_direction_input()\n- function: def d_direction_watcher()\n- function: def d_direction_event_server()\n- function: def fmt_time(dt)\n- function: def fmt_hour(h)\n- function: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n- function: def get_candle_by_ts(symbol, timeframe, target_ts)\n- function: def candle_direction(candle)\n- function: def resolve_doji(symbol, timeframe, target_ts, broker_dt)\n- function: def get_h1_candle_for_slot(broker_dt, H)\n- function: def candle_info_line(candle, label)\n- function: def get_effective_xauusd_signal(signal, H = None, weekday = None, h15_signal = None)\n- function: def calc_entry_time(signal, m30_dir, H = None, h2_signal = None, orig_signal = None, weekday = None, h15_signal = None)\n- function: def analyze(broker_dt, H)\n- function: def get_hour_note(H, weekday = None)\n- function: def set_d_direction(direction)\n- function: def get_effective_d_direction(broker_dt)\n- function: def get_pair_direction(H, signal, broker_dt, h1_signal = None)\n- function: def should_skip_xauusd(H, signal, broker_dt)\n- function: def mark_xauusd_matched(H)\n- function: def send_report(signal_data, H, broker_dt, h2_signal = None, h15_signal = None)\n- function: def backfill_missing_days()\n- function: def try_init_mt5()\n- function: def get_broker_time()\n- function: def main()\nfile: oak_response_dict.py\nmodule: oak_response_dict\nimports: random\nsymbols:\n- function: def get_random_response(key, **kwargs)\nfile: oak_trading_reminders.py\nmodule: oak_trading_reminders\nimports: os, json, time, urllib.request, urllib.parse, ssl, datetime:datetime, timedelta, timezone, calendar, xml.etree.ElementTree, MetaTrader5, threading, sys, glob, winsound, re, oak_response_dict:get_random_response, utils:load_json_file\nsymbols:\n- function: def set_credentials(token, chat_id)\n- function: def is_winter_time()\n- function: def load_json_file(path, default)\n- function: def get_economic_news(lang = 'VN')\n- function: def fetch_investing_rss(lang = 'VN', context = None)\n- function: def fetch_myfxbook_rss(lang = 'VN', context = None)\n- function: def fetch_litefinance_rss(lang = 'VN', context = None)\n- function: def fetch_forexfactory_xml(lang = 'VN', context = None)\n- function: def get_day_notes(now, lang = 'VN')\n- function: def generate_daily_reminder(now, lang = 'VN')\n- class: class OakTradingReminder\n- method: def load_config(self)\n- method: def send_telegram(self, message)\n- method: def get_performance_report(self, profile)\n- method: def send_daily_briefing(self)\n- method: def send_rule_reminders(self, now, lang = 'VN')\n- method: def get_projected_pnl(self, symbol, target_price, profile_name = None)\n- method: def process_commands(self)\n- method: def send_telegram_to_chat(self, message, chat_id)\n- method: def monitor_loop(self)\n- method: def safe_print(msg)\n- method: def start(self)\n- method: def stop(self)\n- function: def start_reminder_thread()\nfile: utils.py\nmodule: utils\nimports: json, os, urllib.request, urllib.parse\nsymbols:\n- function: def send_telegram_raw(token, chat_id, text, parse_mode = 'Markdown')\n- function: def load_json_file(path, default = None)\n- function: def save_json_file(path, data)\n- function: def get_signal_icon(sig)\n- function: def vn_direction(d)\nfile: dashboard/push_to_dashboard.py\nmodule: dashboard.push_to_dashboard\nimports: sys, json, os, urllib.request, re\nsymbols:\n- function: def push(endpoint: str, data)\n...[truncated]\n",
+    "constraints": [
+      "Compress context, not reasoning.",
+      "Prefer repository-aware changes over raw prompt shortening.",
+      "Never include entire files unless the task requires it.",
+      "Use the smallest possible context for the selected profile.",
+      "Keep output concise, explicit, and testable."
+    ],
+    "execution_steps": [
+      "Read the objective and constraints.",
+      "Use only the supplied compressed context and symbol list.",
+      "Make the smallest safe change that satisfies the request.",
+      "Validate the result before returning."
+    ],
+    "objective": "Compress repository context for a coding agent.",
+    "profile": "balanced",
+    "relevant_symbols": [
+      "OAK_Hidden_SLTP_Manager.GhostOperator: class GhostOperator",
+      "OAK_Hidden_SLTP_Manager.GhostOperator.execute_close: def execute_close(self, ticket, symbol, volume = None)",
+      "OAK_Hidden_SLTP_Manager.GhostOperator.modify_sl_tp: def modify_sl_tp(self, ticket, sl, tp)",
+      "OAK_Hidden_SLTP_Manager.show_ghost_consent: def show_ghost_consent(parent, on_accept)",
+      "OAK_Hidden_SLTP_Manager.accept: def accept()",
+      "OAK_Hidden_SLTP_Manager.decline: def decline()",
+      "OAK_Hidden_SLTP_Manager.ToolTip: class ToolTip",
+      "OAK_Hidden_SLTP_Manager.ToolTip.show_tip: def show_tip(self, event = None)",
+      "OAK_Hidden_SLTP_Manager.ToolTip.hide_tip: def hide_tip(self, event = None)",
+      "OAK_Hidden_SLTP_Manager.add_help_icon: def add_help_icon(parent, row, column, text_key, padx = 5, pady = 0, sticky = 'w')",
+      "OAK_Hidden_SLTP_Manager.get_natural_response: def get_natural_response(category, **kwargs)",
+      "OAK_Hidden_SLTP_Manager.get_filling_type: def get_filling_type(symbol)",
+      "OAK_Hidden_SLTP_Manager.send_order_with_retry: def send_order_with_retry(request)",
+      "OAK_Hidden_SLTP_Manager.TicketManager: class TicketManager",
+      "OAK_Hidden_SLTP_Manager.TicketManager.get_ticket: def get_ticket(self, ticket_id)",
+      "OAK_Hidden_SLTP_Manager.TicketManager.update_ticket: def update_ticket(self, ticket_id, **kwargs)",
+      "OAK_Hidden_SLTP_Manager.resource_path: def resource_path(relative_path)",
+      "OAK_Hidden_SLTP_Manager.load_json: def load_json(file, default = None)",
+      "OAK_Hidden_SLTP_Manager.save_json: def save_json(file, data)",
+      "OAK_Hidden_SLTP_Manager.T: def T(key)",
+      "OAK_Hidden_SLTP_Manager.get_start_day_balance: def get_start_day_balance()",
+      "OAK_Hidden_SLTP_Manager.FileLock: class FileLock",
+      "OAK_Hidden_SLTP_Manager.CopyTradeManager: class CopyTradeManager",
+      "OAK_Hidden_SLTP_Manager.CopyTradeManager.process: def process(self)",
+      "OAK_Hidden_SLTP_Manager.CopyTradeManager.sort_key: def sort_key(name)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker: class MonitorWorker(threading.Thread)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.notify: def notify(self, message, telegram = True)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.send_telegram: def send_telegram(self, message)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.close_position: def close_position(self, pos, reason, volume = None)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.move_sl_to_entry: def move_sl_to_entry(self, pos)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.run: def run(self)",
+      "OAK_Hidden_SLTP_Manager.MonitorWorker.safe_int: def safe_int(val, default = 0)"
+    ],
+    "rendered_text": "Objective: Compress repository context for a coding agent.\n\nConstraints:\n- Compress context, not reasoning.\n- Prefer repository-aware changes over raw prompt shortening.\n- Never include entire files unless the task requires it.\n- Use the smallest possible context for the selected profile.\n- Keep output concise, explicit, and testable.\n\nRelevant Symbols:\n- OAK_Hidden_SLTP_Manager.GhostOperator: class GhostOperator\n- OAK_Hidden_SLTP_Manager.GhostOperator.execute_close: def execute_close(self, ticket, symbol, volume = None)\n- OAK_Hidden_SLTP_Manager.GhostOperator.modify_sl_tp: def modify_sl_tp(self, ticket, sl, tp)\n- OAK_Hidden_SLTP_Manager.show_ghost_consent: def show_ghost_consent(parent, on_accept)\n- OAK_Hidden_SLTP_Manager.accept: def accept()\n- OAK_Hidden_SLTP_Manager.decline: def decline()\n- OAK_Hidden_SLTP_Manager.ToolTip: class ToolTip\n- OAK_Hidden_SLTP_Manager.ToolTip.show_tip: def show_tip(self, event = None)\n- OAK_Hidden_SLTP_Manager.ToolTip.hide_tip: def hide_tip(self, event = None)\n- OAK_Hidden_SLTP_Manager.add_help_icon: def add_help_icon(parent, row, column, text_key, padx = 5, pady = 0, sticky = 'w')\n- OAK_Hidden_SLTP_Manager.get_natural_response: def get_natural_response(category, **kwargs)\n- OAK_Hidden_SLTP_Manager.get_filling_type: def get_filling_type(symbol)\n- OAK_Hidden_SLTP_Manager.send_order_with_retry: def send_order_with_retry(request)\n- OAK_Hidden_SLTP_Manager.TicketManager: class TicketManager\n- OAK_Hidden_SLTP_Manager.TicketManager.get_ticket: def get_ticket(self, ticket_id)\n- OAK_Hidden_SLTP_Manager.TicketManager.update_ticket: def update_ticket(self, ticket_id, **kwargs)\n- OAK_Hidden_SLTP_Manager.resource_path: def resource_path(relative_path)\n- OAK_Hidden_SLTP_Manager.load_json: def load_json(file, default = None)\n- OAK_Hidden_SLTP_Manager.save_json: def save_json(file, data)\n- OAK_Hidden_SLTP_Manager.T: def T(key)\n- OAK_Hidden_SLTP_Manager.get_start_day_balance: def get_start_day_balance()\n- OAK_Hidden_SLTP_Manager.FileLock: class FileLock\n- OAK_Hidden_SLTP_Manager.CopyTradeManager: class CopyTradeManager\n- OAK_Hidden_SLTP_Manager.CopyTradeManager.process: def process(self)\n- OAK_Hidden_SLTP_Manager.CopyTradeManager.sort_key: def sort_key(name)\n- OAK_Hidden_SLTP_Manager.MonitorWorker: class MonitorWorker(threading.Thread)\n- OAK_Hidden_SLTP_Manager.MonitorWorker.notify: def notify(self, message, telegram = True)\n- OAK_Hidden_SLTP_Manager.MonitorWorker.send_telegram: def send_telegram(self, message)\n- OAK_Hidden_SLTP_Manager.MonitorWorker.close_position: def close_position(self, pos, reason, volume = None)\n- OAK_Hidden_SLTP_Manager.MonitorWorker.move_sl_to_entry: def move_sl_to_entry(self, pos)\n- OAK_Hidden_SLTP_Manager.MonitorWorker.run: def run(self)\n- OAK_Hidden_SLTP_Manager.MonitorWorker.safe_int: def safe_int(val, default = 0)\n\nCompressed Context:\nrepository_root: C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\nfile_count: 4115\npython_file_count: 14\nconfig_file_count: 145\nmode: FAST\nfile: OAK_Hidden_SLTP_Manager.py\nmodule: OAK_Hidden_SLTP_Manager\nimports: customtkinter, tkinter, tkinter:ttk, MetaTrader5, pywinauto, pywinauto:Application, mouse, threading, time, winsound, os, sys, json, urllib.request, urllib.parse, datetime:datetime, timedelta, ctypes, random, re, subprocess, signal, atexit, oak_trading_reminders, oak_response_dict:get_random_response, ctypes, oak_trading_reminders, tkinter:messagebox, argparse, signal, traceback\nsymbols:\n- class: class GhostOperator\n- method: def execute_close(self, ticket, symbol, volume = None)\n- method: def modify_sl_tp(self, ticket, sl, tp)\n- function: def show_ghost_consent(parent, on_accept)\n- function: def accept()\n- function: def decline()\n- class: class ToolTip\n- method: def show_tip(self, event = None)\n- method: def hide_tip(self, event = None)\n- function: def add_help_icon(parent, row, column, text_key, padx = 5, pady = 0, sticky = 'w')\n- function: def get_natural_response(category, **kwargs)\n- function: def get_filling_type(symbol)\n- function: def send_order_with_retry(request)\n- class: class TicketManager\n- method: def get_ticket(self, ticket_id)\n- method: def update_ticket(self, ticket_id, **kwargs)\n- function: def resource_path(relative_path)\n- function: def load_json(file, default = None)\n- function: def save_json(file, data)\n- function: def T(key)\n- function: def get_start_day_balance()\n- class: class FileLock\n- class: class CopyTradeManager\n- method: def process(self)\n- method: def sort_key(name)\n- class: class MonitorWorker(threading.Thread)\n- method: def notify(self, message, telegram = True)\n- method: def send_telegram(self, message)\n- method: def close_position(self, pos, reason, volume = None)\n- method: def move_sl_to_entry(self, pos)\n- method: def run(self)\n- method: def safe_int(val, default = 0)\n- method: def safe_float(val, default = 0.0)\n- class: class App(ctk.CTk)\n- method: def on_close()\n- method: def pick_theme(value)\n- method: def clamp01(v)\n- method: def ease_out_back(t)\n- method: def compute_targets(size)\n- method: def place_btn(btn, cx, cy, base, scale)\n- method: def layout_animated(size, t)\n- method: def animate(i)\n- method: def on_close()\n- method: def add_ui_element(self, key, widget)\n- method: def create_dashboard_frame(self, parent)\n- method: def update_news_summary(self, force = False)\n- method: def apply_theme_overrides(self)\n- method: def apply_theme(self, theme_key)\n- method: def refresh_theme_labels(self)\n- method: def change_theme(self, value)\n- method: def create_signals_frame(self, parent)\n- method: def start_signal_process(self, key)\n- method: def stop_signal_process(self, key)\n- method: def start_all_signals(self)\n- method: def stop_all_signals(self)\n- method: def create_profiles_frame(self, parent)\n- method: def create_copy_trade_frame(self, parent)\n- method: def load_copy_config(self)\n- method: def save_copy_config(self)\n- method: def create_pos_size_frame(self, parent)\n- method: def do_popup(event)\n- method: def create_guide_frame(self, parent)\n- method: def create_readme_frame(self, parent)\n- method: def create_release_notes_frame(self, parent)\n- method: def apply_markdown(self, textbox)\n- method: def create_about_frame(self, parent)\n- method: def ensure_mt5_connection(self)\n- method: def send_order(self, order_type)\n- method: def add_scheduled_trade(self)\n- method: def edit_scheduled_trade(self)\n- method: def delete_scheduled_trade(self)\n- method: def save_scheduled_trades_ui(self)\n- method: def update_scheduled_list_ui(self)\n- method: def periodic_ui_refresh(self)\n- method: def on_closing(self)\n- method: def notify(self, message)\n- method: def get_doc_content(self, key)\n- method: def log(self, msg)\n- method: def on_pos_profile_change(self, choice)\n- method: def on_copy_profile_change(self, choice)\n- method: def start_monitor(self)\n- method: def stop_monitor(self)\n- method: def monitor_worker_output(self, profile_name, proc)\n- method: def on_accept(accepted)\n- method: def log_to_console_direct(self, msg)\n- method: def on_profile_change(self, choice)\n- method: def update_ui_state(self, profile_name)\n- method: def refresh_profile_list(self)\n- method: def load_profile_to_form(self, name)\n- method: def clear_form(self)\n- method: def save_profile(self)\n- method: def delete_profile(self)\n- method: def toggle_ghost_mode(self)\n- method: def update_ghost_button_ui(self)\n- method: def change_lang(self, value)\n- function: def run_worker(profile_name)\n- function: def worker_log(msg)\n- function: def signal_handler(sig, frame)\nfile: build_exe.py\nmodule: build_exe\nimports: PyInstaller.__main__, os, customtkinter, re\nsymbols: none\nfile: create_backup_final.py\nmodule: create_backup_final\nimports: zipfile, os, sys, glob, re\nsymbols:\n- function: def create_backup()\nfile: factcheck_worker.py\nmodule: factcheck_worker\nimports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\nsymbols:\n- function: def normalize_domain(url)\n- function: def normalize_text(text)\n- function: def token_set(text)\n- function: def source_match_hits(query, source)\n- function: def source_relevance(query, source)\n- function: def should_keep_source(source)\n- function: def redis_request(method, key, value = None)\n- function: def extract_claims(text)\n- function: def simplify_query(claim)\n- function: def search_google_web(query)\n- function: def search_duckduckgo(query)\n- function: def search_web(query)\n- function: def search_google_factcheck(query, api_key)\n- function: def classify_reliability(url)\n- function: def check_agreement(claim, snippet)\n- function: def process_factcheck(item)\n- function: def sort_key(s)\n- function: def main()\nfile: mimo_bot.py\nmodule: mimo_bot\nimports: os, sys, json, time, threading, subprocess, urllib.request, urllib.parse, re, socket, datetime:datetime, telebot, MetaTrader5, MetaTrader5, oak_trading_reminders:get_economic_news, time\nsymbols:\n- function: def is_admin(message)\n- function: def load_json(path, default = None)\n- function: def save_json(path, data)\n- function: def send_telegram_msg(chat_id, text)\n- function: def notify_mt5_d_direction(direction)\n- function: def get_all_profiles()\n- function: def execute_mimo_via_shell(command)\n- function: def execute_mimo_via_file_proxy(command)\n- function: def cmd_start(message)\n- function: def cmd_myid(message)\n- function: def cmd_status(message)\n- function: def cmd_profiles(message)\n- function: def cmd_mt5(message)\n- function: def cmd_positions(message)\n- function: def cmd_news(message)\n- function: def cmd_mimo(message)\n- function: def cmd_code(message)\n- function: def cmd_scan(message)\n- function: def cmd_reply(message)\n- function: def cmd_del(message)\n- function: def cmd_modify(message)\n- function: def handle_all(message)\nfile: mimo_worker.py\nmodule: mimo_worker\nimports: os, sys, time, datetime:datetime, ctypes\nsymbols:\n- function: def process_command(cmd)\n- function: def create_lock()\n- function: def remove_lock()\n- function: def main()\nfile: mt4_mt5_server.py\nmodule: mt4_mt5_server\nimports: os, sys, json, calendar, urllib.request, urllib.parse, datetime:datetime, timedelta, timezone, flask:Flask, request, jsonify, MetaTrader5, subprocess, time\nsymbols:\n- function: def send_telegram(text)\n- function: def fmt_hour(h)\n- function: def fmt_time(dt)\n- function: def get_broker_time()\n- function: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n- function: def get_schedule_note(broker_dt)\n- function: def get_candle_by_ts(symbol, timeframe, target_ts)\n- function: def candle_dir(c)\n- function: def calculate_signal(m35_dir, m40_dir, m30_dir)\n- function: def fetch_mt5_data(broker_dt, H)\n- function: def receive_mt4_data()\n- function: def build_telegram(broker, time_str, H, mt4_m35, mt4_m40, mt4_m30, mt4_sig, mt5, mt5_sig, conclusion, broker_dt)\n- function: def ico(s)\n- function: def ensure_mt5_running()\n- function: def main()\nfile: mt5_signal_bot.py\nmodule: mt5_signal_bot\nimports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\nsymbols:\n- function: def get_entry_prices(pair_dirs, broker_dt, entry_time)\n- function: def update_entry_prices\u7cbe\u51c6(date_str, hour, pair_dirs, broker_dt, entry_time)\n- function: def schedule\u7cbe\u51c6_price_update(broker_dt, entry_time, pair_dirs)\n- function: def get_current_prices(pair_dirs)\n- function: def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed = False)\n- function: def select_signals_for_dashboard(all_signals)\n- function: def d1_match_note(direction)\n- function: def push_to_dashboard()\n- function: def push_prices_to_dashboard()\n- function: def get_schedule_reminders(broker_dt)\n- function: def send_telegram(text)\n- function: def send_d_direction_reminder()\n- function: def check_d_direction_input()\n- function: def d_direction_watcher()\n- function: def d_direction_event_server()\n- function: def fmt_time(dt)\n- function: def fmt_hour(h)\n- function: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n- function: def get_candle_by_ts(symbol, timeframe, target_ts)\n- function: def candle_direction(candle)\n- function: def resolve_doji(symbol, timeframe, target_ts, broker_dt)\n- function: def get_h1_candle_for_slot(broker_dt, H)\n- function: def candle_info_line(candle, label)\n- function: def get_effective_xauusd_signal(signal, H = None, weekday = None, h15_signal = None)\n- function: def calc_entry_time(signal, m30_dir, H = None, h2_signal = None, orig_signal = None, weekday = None, h15_signal = None)\n- function: def analyze(broker_dt, H)\n- function: def get_hour_note(H, weekday = None)\n- function: def set_d_direction(direction)\n- function: def get_effective_d_direction(broker_dt)\n- function: def get_pair_direction(H, signal, broker_dt, h1_signal = None)\n- function: def should_skip_xauusd(H, signal, broker_dt)\n- function: def mark_xauusd_matched(H)\n- function: def send_report(signal_data, H, broker_dt, h2_signal = None, h15_signal = None)\n- function: def backfill_missing_days()\n- function: def try_init_mt5()\n- function: def get_broker_time()\n- function: def main()\nfile: oak_response_dict.py\nmodule: oak_response_dict\nimports: random\nsymbols:\n- function: def get_random_response(key, **kwargs)\nfile: oak_trading_reminders.py\nmodule: oak_trading_reminders\nimports: os, json, time, urllib.request, urllib.parse, ssl, datetime:datetime, timedelta, timezone, calendar, xml.etree.ElementTree, MetaTrader5, threading, sys, glob, winsound, re, oak_response_dict:get_random_response, utils:load_json_file\nsymbols:\n- function: def set_credentials(token, chat_id)\n- function: def is_winter_time()\n- function: def load_json_file(path, default)\n- function: def get_economic_news(lang = 'VN')\n- function: def fetch_investing_rss(lang = 'VN', context = None)\n- function: def fetch_myfxbook_rss(lang = 'VN', context = None)\n- function: def fetch_litefinance_rss(lang = 'VN', context = None)\n- function: def fetch_forexfactory_xml(lang = 'VN', context = None)\n- function: def get_day_notes(now, lang = 'VN')\n- function: def generate_daily_reminder(now, lang = 'VN')\n- class: class OakTradingReminder\n- method: def load_config(self)\n- method: def send_telegram(self, message)\n- method: def get_performance_report(self, profile)\n- method: def send_daily_briefing(self)\n- method: def send_rule_reminders(self, now, lang = 'VN')\n- method: def get_projected_pnl(self, symbol, target_price, profile_name = None)\n- method: def process_commands(self)\n- method: def send_telegram_to_chat(self, message, chat_id)\n- method: def monitor_loop(self)\n- method: def safe_print(msg)\n- method: def start(self)\n- method: def stop(self)\n- function: def start_reminder_thread()\nfile: utils.py\nmodule: utils\nimports: json, os, urllib.request, urllib.parse\nsymbols:\n- function: def send_telegram_raw(token, chat_id, text, parse_mode = 'Markdown')\n- function: def load_json_file(path, default = None)\n- function: def save_json_file(path, data)\n- function: def get_signal_icon(sig)\n- function: def vn_direction(d)\nfile: dashboard/push_to_dashboard.py\nmodule: dashboard.push_to_dashboard\nimports: sys, json, os, urllib.request, re\nsymbols:\n- function: def push(endpoint: str, data)\n...[truncated]\n\n\nExecution Steps:\n1. Read the objective and constraints.\n2. Use only the supplied compressed context and symbol list.\n3. Make the smallest safe change that satisfies the request.\n4. Validate the result before returning.\n\nValidation Checklist:\n- Validate the implementation against the objective.\n- Check the smallest meaningful change first.\n- Surface any assumptions or missing data.\n- Report token reduction and context size impact.\n- Confirm the prompt did not expand beyond the selected profile.\n\nRequired Output Format:\n- short summary\n- files changed\n- tests run\n- risks or follow-ups\n",
+    "required_output_format": [
+      "short summary",
+      "files changed",
+      "tests run",
+      "risks or follow-ups"
+    ],
+    "validation_checklist": [
+      "Validate the implementation against the objective.",
+      "Check the smallest meaningful change first.",
+      "Surface any assumptions or missing data.",
+      "Report token reduction and context size impact.",
+      "Confirm the prompt did not expand beyond the selected profile."
+    ]
+  }
+}

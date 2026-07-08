@@ -1,0 +1,101 @@
+Check xong commit `b87fe05`. Bản này **có tiến bộ thật**, nhưng chưa “đủ pass release” vì có một lỗi khá chói: **dev mode signal bot lại chưa truyền `--profile` thật vào subprocess**. 🧯
+
+# Điểm bản `b87fe05`: **8.0 / 10**
+
+Từ bản trước **7.8 → 8.0**. Có lên, nhưng chưa lên mạnh như kỳ vọng vì test mới nhiều mà chưa bắt đúng lỗi thực tế.
+
+| Mảng                      |    Điểm | Nhận xét                                                                            |
+| ------------------------- | ------: | ----------------------------------------------------------------------------------- |
+| **Telegram vault**        | **8.7** | Đã có resolver trung tâm, tốt hơn hẳn.                                              |
+| **MT5 heartbeat/profile** | **7.2** | `mt5_signal_bot.main(profile_name)` có rồi, nhưng GUI dev mode chưa truyền profile. |
+| **Frozen exe**            | **7.8** | Có `--signal-bot`, đúng hướng.                                                      |
+| **Copy trade safety**     | **8.0** | Có kill switch, daily limit, stale block, max lot, max exposure.                    |
+| **Dashboard security**    | **8.2** | Fail-closed giữ tốt.                                                                |
+| **Tests**                 | **6.8** | Có test, nhưng một số test là “vẽ lại command trong test”, chưa test function thật. |
+| **Tổng thể**              | **8.0** | RC tốt hơn, còn một lỗi release-blocker.                                            |
+
+## Những điểm đã sửa tốt ✅
+
+### 1. Telegram token đã gom về một resolver
+
+`secret_store.py` đã có `resolve_telegram_token(profile_name, raw_token)`: token thật thì trả về token, còn `__vault__` hoặc rỗng thì lấy từ keyring, và không trả lại chuỗi `__vault__`. Đây là fix đúng kiểu “đóng một cái van trung tâm, nước không còn phun lung tung”.
+
+`MonitorWorker.__init__()` giờ resolve token trước khi start reminder service, nên lỗi reminder nhận `__vault__` đã được xử lý ở luồng chính.  `send_telegram()` trong worker cũng dùng resolver trung tâm thay vì tự vá try/except lặp lại.
+
+### 2. Signal bot đã có `main(profile_name=None)`
+
+`mt5_signal_bot.py` đã đổi sang `def main(profile_name=None)` và cuối file parse `--profile` rồi gọi `main(profile_name=args.profile)`, đúng hướng hơn bản trước.
+
+### 3. Frozen exe có mode riêng
+
+App chính đã có `--signal-bot`, `--worker`, `--profile`, và khi gọi `--signal-bot --profile X` thì import `mt5_signal_bot` rồi chạy `main(profile_name=args.profile)`. Đây là bước đúng để exe không tự mở GUI lặp vòng.
+
+`start_signal_process()` cũng đã phân biệt frozen/dev: frozen dùng `[sys.executable, "--signal-bot", "--profile", profile]`, còn dev dùng `sys.executable -u script`.
+
+### 4. Copy trade safety đã có guardrails thật
+
+Trong `_open_copy_trade()`, bản này đã thêm kill switch, daily trade limit, stale signal block, max lot per trade, và max exposure per symbol. Đây là nâng cấp đáng tiền, nhất là phần stale block không cho mở lệnh mới khi file master quá cũ.
+
+Sau khi copy thành công, daily counter cũng được tăng, nên daily limit có dữ liệu để chặn tiếp.
+
+### 5. Packaging và dashboard auth tốt hơn
+
+`build_exe.py` đã ghi rõ onefile dùng argparse mode, có hidden import cho `mt5_signal_bot`, `secret_store`, `oak_trading_reminders`, `utils`, `repositories.sqlite_store`.  `requirements-dev.txt` cũng đã thêm `pyinstaller`.
+
+Dashboard vẫn giữ fail-closed khi thiếu `DASHBOARD_API_KEY`, có comment nhắc local dev cũng cần key.
+
+## Lỗi chính còn lại 🔴
+
+### Dev mode không truyền `--profile` cho signal bot
+
+Trong `start_signal_process()`, nhánh dev hiện là:
+
+```python
+cmd = [sys.executable, "-u", script]
+```
+
+Không thấy append `--profile <profile>` cho `signal_bot`.  Sau đó code đem `cmd` vào `subprocess.Popen()` luôn, không có đoạn bổ sung profile phía dưới.
+
+Nghĩa là chạy từ source bằng GUI thì `mt5_signal_bot.py` vẫn không nhận profile đang chọn. Nó sẽ fallback vào profile đầu tiên trong `profiles.json`. Trong `mt5_signal_bot.main()`, nếu không có `profile_name`, nó đọc `profiles.json` và lấy key đầu tiên.
+
+**Fix cần thêm ngay:**
+
+```python
+if not getattr(sys, "frozen", False):
+    cmd = [sys.executable, "-u", script]
+    if key == "signal_bot":
+        profile = self.combo_profiles.get() if hasattr(self, "combo_profiles") else ""
+        if profile:
+            cmd.extend(["--profile", profile])
+```
+
+## Lỗi phụ cần dọn 🟡
+
+### 1. `mt5_signal_bot` chưa validate profile
+
+Prompt yêu cầu nếu profile không tồn tại thì warning và fallback an toàn. Nhưng code hiện chỉ set `_active_profile = profile_name` nếu có profile truyền vào, chưa thấy validate profile đó có trong `profiles.json`.
+
+### 2. Migration token chỉ chạy khi không truyền profile
+
+Trong cùng đoạn đó, `migrate_plaintext_tokens(_profiles_data)` nằm trong nhánh `else`, tức chỉ chạy khi không có `profile_name`. Nếu chạy signal bot bằng `--profile`, migration có thể không chạy.
+
+Nên đổi thành: luôn đọc `profiles.json`, luôn migrate nếu cần, sau đó chọn profile theo thứ tự `CLI profile > first profile`.
+
+### 3. Test command chưa test function thật
+
+`tests/test_command_construction.py` tự tạo command mẫu trong test, ví dụ `cmd = [sys.executable, "-u", "mt5_signal_bot.py", "--profile", profile]`, chứ không gọi `start_signal_process()` hoặc helper build command thật. Vì vậy test pass nhưng code thực tế vẫn thiếu `--profile` ở dev mode.
+
+`tests/test_signal_bot_profile.py` cũng mới test argparse cơ bản, chưa test `mt5_signal_bot.main()` có giữ profile hay không.
+
+# Kết luận
+
+**Bản này: 8.0/10.**
+Đã tốt hơn bản `d59d208`, nhất là ở **Telegram vault**, **copy safety**, **frozen exe mode**, và **packaging**. Nhưng chưa được 8.6-9.0 vì còn lỗi “một con ốc nhưng giữ cả bánh xe”: **source/dev mode signal bot chưa nhận selected profile**.
+
+Sửa 3 điểm này là lên rõ:
+
+1. Dev mode `signal_bot` phải append `--profile`.
+2. `mt5_signal_bot.main()` luôn đọc/migrate/validate profiles.
+3. Test phải gọi helper build command thật, không tự dựng command giả.
+
+Sau đó bản này có thể lên khoảng **8.6/10**.

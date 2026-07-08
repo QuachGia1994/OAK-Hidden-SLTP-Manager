@@ -1,0 +1,695 @@
+{
+  "cache": {
+    "cache_key": "51de81478e9a5775f973ddce547039d6db5d9d106a66d3dcf74658338826f0fc",
+    "cache_path": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\\.pxswift\\cache\\51de81478e9a5775f973ddce547039d6db5d9d106a66d3dcf74658338826f0fc.json",
+    "cache_root": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\\.pxswift\\cache",
+    "compressed_context_hash": "4ca0bc9654a7cdb2521b69f10840e80c82720dce3589ff9cb93a3778533f6884",
+    "file_hash_count": 14,
+    "graph_hash": "71d5c1e23ebf1b76362661a979f82c0361932b07d6183a769eb5592c3feec428",
+    "hit": false,
+    "stored": true,
+    "symbol_hash_count": 14
+  },
+  "compression": {
+    "compressed_context": "repository_root: C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\nfile_count: 5832\npython_file_count: 14\nconfig_file_count: 145\nmode: FAST\nretrieval:\nquery: Compress repository context for a coding agent.\ncandidate_count: 331\ntop_k: 80\nmatched_tokens: context, for\nfile: factcheck_worker.py\nmodule: factcheck_worker\nimports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\nretrieved_chunks: 19\n- symbol: normalize_text | score=10.00 | tokens=40\n  signature: def normalize_text(text)\n  kind: function\n  docstring: Normalize text for loose keyword matching.\n  dependencies: ch, normalized, stripped, text, unicodedata\n- symbol: search_google_factcheck | score=10.00 | tokens=74\n  signature: def search_google_factcheck(query, api_key)\n  kind: function\n  docstring: Search Google Fact Check Tools API for verified claims from IFCN-certified orgs.\n  dependencies: Exception, GOOGLE_FC_RATINGS_FALSE, GOOGLE_FC_RATINGS_TRUE, agrees, any, api_key, claim, claim_text, data, e, encoded, json\n- symbol: check_agreement | score=5.00 | tokens=71\n  signature: def check_agreement(claim, snippet)\n  kind: function\n  docstring: Check if a source agrees with, contradicts, or is neutral to a claim.\n  dependencies: any, claim, claim_lower, confirm_words, contradict_words, has_confirm, has_contradict, normalize_text, snippet, snippet_lower, w\n- symbol: classify_reliability | score=5.00 | tokens=46\n  signature: def classify_reliability(url)\n  kind: function\n  docstring: Classify source reliability based on domain.\n  dependencies: HIGH_RELIABILITY, MEDIUM_RELIABILITY, d, domain, url, urllib\n- symbol: extract_claims | score=5.00 | tokens=44\n  signature: def extract_claims(text)\n  kind: function\n  docstring: Extract key claims from text. Handles Vietnamese and English.\n  dependencies: claims, html_mod, len, re, sentence, text\n- file: factcheck_worker | score=5.00 | tokens=164\n  module: factcheck_worker\n  relative_path: factcheck_worker.py\n  imports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\n  public_api: normalize_domain, normalize_text, token_set, source_match_hits, source_relevance, should_keep_source, redis_request, extract_claims, simplify_query, search_google_web, search_duckduckgo, search_web, search_google_factcheck, classify_reliability, check_agreement, process_factcheck, sort_key, main\n  dependencies: Exception, FACTCHECK_KEY, GOOGLE_FC_RATINGS_FALSE, GOOGLE_FC_RATINGS_TRUE, HIGH_RELIABILITY, MEDIUM_RELIABILITY, REDIS_TOKEN, REDIS_URL, TypeError, agree_score, agrees, all_sources\n- symbol: main | score=5.00 | tokens=36\n  signature: def main()\n  kind: function\n  dependencies: Exception, FACTCHECK_KEY, REDIS_TOKEN, REDIS_URL, e, i, item, item_id, items, os, pending, print\n- symbol: normalize_domain | score=5.00 | tokens=37\n  signature: def normalize_domain(url)\n  kind: function\n  docstring: Normalize a URL into a compact domain key.\n  dependencies: Exception, domain, url, urllib\n- symbol: process_factcheck | score=5.00 | tokens=66\n  signature: def process_factcheck(item)\n  kind: function\n  docstring: Process a single fact-check request.\n  dependencies: agree_score, agrees, all_sources, any, authority_queries, broad_query, check_agreement, claim, claim_sources, claims, classify_reliability, confirming\n- symbol: redis_request | score=5.00 | tokens=59\n  signature: def redis_request(method, key, value = None)\n  kind: function\n  docstring: Make a request to Upstash Redis REST API.\n  dependencies: Exception, REDIS_TOKEN, REDIS_URL, TypeError, data, e, headers, isinstance, json, key, method, print\n- symbol: search_duckduckgo | score=5.00 | tokens=51\n  signature: def search_duckduckgo(query)\n  kind: function\n  docstring: Search DuckDuckGo HTML fallback.\n  dependencies: Exception, clean_snippet, clean_title, clean_url, data, e, html, html_mod, i, len, min, print\n- symbol: search_google_web | score=5.00 | tokens=55\n  signature: def search_google_web(query)\n  kind: function\n  docstring: Search web using Google Custom Search JSON API.\n  dependencies: Exception, api_key, classify_reliability, cse_id, data, e, encoded, item, json, link, os, print\n- symbol: search_web | score=5.00 | tokens=44\n  signature: def search_web(query)\n  kind: function\n  docstring: Search web using multiple engines and merge the hits.\n  dependencies: query, results, search_duckduckgo, search_google_web\n- symbol: should_keep_source | score=5.00 | tokens=56\n  signature: def should_keep_source(source)\n  kind: function\n  docstring: Reject clearly off-topic hits before they affect the result set.\n  dependencies: engine, float, hits, int, relevance, reliability, source, threshold, thresholds\n- symbol: simplify_query | score=5.00 | tokens=46\n  signature: def simplify_query(claim)\n  kind: function\n  docstring: Simplify a claim into a shorter search query.\n  dependencies: claim, filtered, normalize_text, query, re, stopwords, w, words\n- symbol: sort_key | score=5.00 | tokens=20\n  signature: def sort_key(s)\n  kind: function\n  dependencies: agree_score, rel_score, s\n- symbol: source_match_hits | score=5.00 | tokens=62\n  signature: def source_match_hits(query, source)\n  kind: function\n  docstring: Count keyword overlaps between a query and a source.\n  dependencies: normalize_domain, normalize_text, query, query_tokens, source, source_norm, source_text, sum, token, token_set\n- symbol: source_relevance | score=5.00 | tokens=66\n  signature: def source_relevance(query, source)\n  kind: function\n  docstring: Score how closely a source matches the current query.\n  dependencies: HIGH_RELIABILITY, hits, len, max, min, normalize_domain, normalize_text, query, query_tokens, score, source, source_match_hits\n- symbol: token_set | score=5.00 | tokens=37\n  signature: def token_set(text)\n  kind: function\n  docstring: Tokenize text into a compact keyword set.\n  dependencies: len, normalize_text, re, text, token\nfile: mt5_signal_bot.py\nmodule: mt5_signal_bot\nimports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\nretrieved_chunks: 46\n- symbol: calc_entry_time | score=10.00 | tokens=98\n  signature: def calc_entry_time(signal, m30_dir, H = None, h2_signal = None, orig_signal = None, weekday = None, h15_signal = None)\n  kind: function\n  docstring: Calculate entry time. Returns string for normal slots, dict {pair: time|None} for H=16.\n  dependencies: GBP_PAIRS, H, _default_entry_time, datetime, get_effective_xauusd_signal, h15_signal, h2_signal, m30_dir, matches_h2, p, signal, times\n- symbol: log_signal | score=10.00 | tokens=79\n  signature: def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed = False)\n  kind: function\n  docstring: Append signal data to signals_log.json for website consumption.\n  dependencies: Exception, H, _SIGNALS_LOG, broker_dt, current_prices, d, d_direction, data, datetime, e, entry_prices, entry_time\n- symbol: _default_entry_time | score=5.00 | tokens=23\n  signature: def _default_entry_time(H, matches_h2)\n  kind: function\n  dependencies: H, matches_h2\n- symbol: _load_state | score=5.00 | tokens=62\n  signature: def _load_state()\n  kind: function\n  docstring: Load persisted state from disk. Returns dict with day_signals, sent_today, etc.\n  dependencies: FileNotFoundError, _STATE_FILE, _trading_date, data, datetime, day_signals, f, int, json, k, open, set\n- symbol: _parse_entry_time | score=5.00 | tokens=43\n  signature: def _parse_entry_time(entry_str)\n  kind: function\n  docstring: Parse 'HH:MM' to (hour, minute). Returns None on failure.\n  dependencies: Exception, entry_str, int, parts\n- symbol: _parse_news_for_dashboard | score=5.00 | tokens=59\n  signature: def _parse_news_for_dashboard(news_lines)\n  kind: function\n  docstring: Parse news strings like '\u2022 19:30 CAD \ud83d\udd34 GDP m/m' into structured objects.\n  dependencies: currency, impact, items, line, m, news_lines, re, rest, time_str, title\n- symbol: _save_state | score=5.00 | tokens=60\n  signature: def _save_state(day_signals, sent_today)\n  kind: function\n  docstring: Persist state to disk.\n  dependencies: Exception, _STATE_FILE, _trading_date, d, d_direction, d_direction_date, d_matched_hour, data, day_signals, ds_json, ds_str, e\n- symbol: _trading_date | score=5.00 | tokens=46\n  signature: def _trading_date()\n  kind: function\n  docstring: Current trading date in broker time.\n  dependencies: BROKER_GMT, Exception, datetime, get_broker_time, globals, timedelta, timezone\n- symbol: _update | score=5.00 | tokens=34\n  signature: def _update()\n  kind: function\n  dependencies: broker_dt, date_str, delay, entry_time, hour, pair_dirs, time, update_entry_prices\u7cbe\u51c6\n- symbol: analyze | score=5.00 | tokens=45\n  signature: def analyze(broker_dt, H)\n  kind: function\n  dependencies: H, SYMBOL, broker_dt, broker_time_to_ts, c_h1, c_m30, c_m35, c_m40, candle_direction, candle_info_line, d_h1, d_m30\n- symbol: backfill_missing_days | score=5.00 | tokens=73\n  signature: def backfill_missing_days()\n  kind: function\n  docstring: T\u1ef1 t\u00ednh l\u1ea1i signal cho 7 ng\u00e0y tr\u01b0\u1edbc khi bot kh\u1edfi \u0111\u1ed9ng (overwrite \u0111\u1ec3 fix data sai).\n  dependencies: BROKER_GMT, Exception, GBP_PAIRS, H, TARGET_HOURS, _SIGNALS_LOG, analyze, backfilled, broker_now, calc_entry_time, d, dates_to_check\n- symbol: broker_time_to_ts | score=5.00 | tokens=70\n  signature: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n  kind: function\n  docstring: Chuyen broker datetime + hour/minute thanh UTC timestamp de so sanh voi rate.\n  dependencies: BROKER_GMT, broker_dt, calendar, hour, minute, second, target_broker, target_utc, timedelta\n- symbol: candle_direction | score=5.00 | tokens=26\n  signature: def candle_direction(candle)\n  kind: function\n  dependencies: abs, body, c, candle, full_range, o\n- symbol: candle_info_line | score=5.00 | tokens=33\n  signature: def candle_info_line(candle, label)\n  kind: function\n  dependencies: arrow, candle, candle_direction, d, label, vn, vn_direction\n- symbol: check_d_direction_input | score=5.00 | tokens=79\n  signature: def check_d_direction_input()\n  kind: function\n  docstring: \u0110\u1ecdc D-direction t\u1eeb file (mimo_bot.py ghi v\u00e0o), kh\u00f4ng poll Telegram tr\u1ef1c ti\u1ebfp.\n  dependencies: Exception, _STATE_FILE, __file__, _trading_date, broker_weekday, d_direction, d_direction_date, d_direction_lock, d_file, d_matched_hour, day_label, direction\n- symbol: d1_match_note | score=5.00 | tokens=19\n  signature: def d1_match_note(direction)\n  kind: function\n  dependencies: direction\n- symbol: d_direction_event_server | score=5.00 | tokens=72\n  signature: def d_direction_event_server()\n  kind: function\n  docstring: ponytail: localhost ping \u0111\u1ec3 MT5 nh\u1eb7t D g\u1ea7n nh\u01b0 t\u1ee9c th\u00ec; file watcher v\u1eabn l\u00e0 fallback n\u1ebfu ping fail.\n  dependencies: DIRECTION_EVENT_PORT, Exception, OSError, _addr, check_d_direction_input, conn, exc, print, server, socket\n- symbol: d_direction_watcher | score=5.00 | tokens=61\n  signature: def d_direction_watcher()\n  kind: function\n  docstring: ponytail: 1s file watcher \u0111\u1ec3 nh\u1eadn D nhanh h\u01a1n; upgrade path l\u00e0 webhook/queue IPC n\u1ebfu b\u1ecf file trung gian.\n  dependencies: DIRECTION_POLL_INTERVAL, Exception, check_d_direction_input, time\n- symbol: fmt_hour | score=5.00 | tokens=14\n  signature: def fmt_hour(h)\n  kind: function\n  dependencies: h\n- symbol: fmt_time | score=5.00 | tokens=14\n  signature: def fmt_time(dt)\n  kind: function\n  dependencies: dt\n- symbol: get_broker_time | score=5.00 | tokens=57\n  signature: def get_broker_time()\n  kind: function\n  docstring: Lay broker time hoan toan tu tick.time (UTC). Khong phu thuoc local.\n  dependencies: BROKER_GMT, SYMBOL, datetime, mt5, mt5_ready, now_utc, tick, timedelta, timezone, utc_dt\n- symbol: get_candle_by_ts | score=5.00 | tokens=59\n  signature: def get_candle_by_ts(symbol, timeframe, target_ts)\n  kind: function\n  docstring: Lay n\u1ebfn gan nhat voi UTC timestamp. Tra ve dict hoac None.\n  dependencies: abs, best, diff, float, len, max_diff, min_diff, mt5, print, r, rates, symbol\n- symbol: get_current_prices | score=5.00 | tokens=45\n  signature: def get_current_prices(pair_dirs)\n  kind: function\n  docstring: L\u1ea5y gi\u00e1 market hi\u1ec7n t\u1ea1i (tick).\n  dependencies: Exception, direction, mt5, pair, pair_dirs, prices, round, tick\n- symbol: get_effective_d_direction | score=5.00 | tokens=55\n  signature: def get_effective_d_direction(broker_dt)\n  kind: function\n  docstring: Th\u1ee9 5/6 c\u00f3 th\u1ec3 l\u01b0u D direction, nh\u01b0ng ch\u1ec9 gi\u00e1 tr\u1ecb th\u1ee9 6 m\u1edbi \u0111\u01b0\u1ee3c \u0111\u1ea3o \u0111\u1ec3 d\u00f9ng cho th\u1ee9 2.\n  dependencies: broker_dt, d_direction, d_direction_date\n- symbol: get_effective_xauusd_signal | score=5.00 | tokens=53\n  signature: def get_effective_xauusd_signal(signal, H = None, weekday = None, h15_signal = None)\n  kind: function\n  docstring: Signal th\u1ef1c t\u1ebf c\u1ee7a XAUUSD sau c\u00e1c rule \u0111\u1ea3o \u1edf t\u1eebng slot.\n  dependencies: H, signal, xau_signal\n- symbol: get_entry_prices | score=5.00 | tokens=74\n  signature: def get_entry_prices(pair_dirs, broker_dt, entry_time)\n  kind: function\n  docstring: L\u1ea5y gi\u00e1 Open M1 t\u1ea1i entry time. entry_time: string ho\u1eb7c dict {pair: time}.\n  dependencies: Exception, _parse_entry_time, broker_dt, broker_time_to_ts, candle, dict, direction, eh, em, entry_time, entry_ts, et\n- symbol: get_h1_candle_for_slot | score=5.00 | tokens=59\n  signature: def get_h1_candle_for_slot(broker_dt, H)\n  kind: function\n  docstring: L\u1ea5y n\u1ebfn H1 c\u1ee7a GBPUSD t\u1ea1i (H-1):00 \u2014 n\u1ebfn tr\u01b0\u1edbc slot hi\u1ec7n t\u1ea1i.\n  dependencies: H, SYMBOL, broker_dt, broker_time_to_ts, c_h1, get_candle_by_ts, mt5, print, ts_h1\n- symbol: get_hour_note | score=5.00 | tokens=34\n  signature: def get_hour_note(H, weekday = None)\n  kind: function\n  docstring: Tr\u1ea3 note theo H v\u00e0 th\u1ee9.\n  dependencies: H, datetime, notes, weekday\n- symbol: get_pair_direction | score=5.00 | tokens=69\n  signature: def get_pair_direction(H, signal, broker_dt, h1_signal = None)\n  kind: function\n  docstring: T\u00ednh chi\u1ec1u c\u00e1c c\u1eb7p theo slot v\u00e0 th\u1ee9.\n  dependencies: GBP_PAIRS, H, broker_dt, d_direction, d_direction_date, d_opp, effective_d, get_effective_d_direction, gold, opposite, p, result\n- symbol: get_schedule_reminders | score=5.00 | tokens=47\n  signature: def get_schedule_reminders(broker_dt)\n  kind: function\n  docstring: Ki\u1ec3m tra c\u00e1c ng\u00e0y \u0111\u1eb7c bi\u1ec7t trong th\u00e1ng - d\u00f9ng chung get_day_notes.\n  dependencies: broker_dt, get_day_notes, n, notes\n- symbol: main | score=5.00 | tokens=49\n  signature: def main()\n  kind: function\n  dependencies: ALL_PAIRS, BROKER_GMT, Exception, GBP_PAIRS, KeyboardInterrupt, SYMBOL, TARGET_HOURS, _, _load_state, _save_state, analyze, backfill_missing_days\n- symbol: mark_xauusd_matched | score=5.00 | tokens=62\n  signature: def mark_xauusd_matched(H)\n  kind: function\n  docstring: Ghi nh\u1eadn slot \u0111\u1ea7u ti\u00ean XAUUSD kh\u1edbp D1 direction.\n  dependencies: H, d_direction, d_matched_hour, effective_d, fmt_hour, get_broker_time, get_effective_d_direction, msg, print, send_telegram\n- file: mt5_signal_bot | score=5.00 | tokens=316\n  module: mt5_signal_bot\n  relative_path: mt5_signal_bot.py\n  imports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\n  public_api: get_entry_prices, update_entry_prices\u7cbe\u51c6, schedule\u7cbe\u51c6_price_update, get_current_prices, log_signal, select_signals_for_dashboard, d1_match_note, push_to_dashboard, push_prices_to_dashboard, get_schedule_reminders, send_telegram, send_d_direction_reminder, check_d_direction_input, restore_d1_match_from_today_signals, d_direction_watcher, d_direction_event_server, fmt_time, fmt_hour, broker_time_to_ts, get_candle_by_ts, candle_direction, resolve_doji, get_h1_candle_for_slot, candle_info_line, get_effective_xauusd_signal, calc_entry_time, analyze, get_hour_note, set_d_direction, get_effective_d_direction, get_pair_direction, should_skip_xauusd, mark_xauusd_matched, send_report, backfill_missing_days, try_init_mt5, get_broker_time, main\n  dependencies: ALL_PAIRS, BROKER_GMT, DASHBOARD_URL, DIRECTION_EVENT_PORT, DIRECTION_POLL_INTERVAL, Exception, FileNotFoundError, GBP_PAIRS, H, KeyboardInterrupt, MT5_PATH, MetaTrader5\n  file_imports: oak_trading_reminders.py, utils.py\n- symbol: push_prices_to_dashboard | score=5.00 | tokens=52\n  signature: def push_prices_to_dashboard()\n  kind: function\n  docstring: Push gi\u00e1 realtime l\u00ean Redis.\n  dependencies: ALL_PAIRS, DASHBOARD_URL, Exception, _cfg, api_key, dashboard_url, e, headers, json, len, mt5, os\n- symbol: push_to_dashboard | score=5.00 | tokens=68\n  signature: def push_to_dashboard()\n  kind: function\n  docstring: Push data to dashboard API (best effort, non-blocking).\n  dependencies: DASHBOARD_URL, Exception, _SIGNALS_LOG, _STATE_FILE, __file__, _cfg, _parse_news_for_dashboard, all_signals, api_key, cache, dashboard_url, e\n- symbol: resolve_doji | score=5.00 | tokens=70\n  signature: def resolve_doji(symbol, timeframe, target_ts, broker_dt)\n  kind: function\n  docstring: N\u1ebfn DOJI \u2192 l\u00f9i 1 n\u1ebfn tr\u01b0\u1edbc c\u00f9ng khung, l\u1ea5y direction n\u1ebfn tr\u01b0\u1edbc \u0111\u00f3.\n  dependencies: candle_direction, d, get_candle_by_ts, mt5, prev_candle, prev_offset, prev_ts, symbol, target_ts, timeframe\n- symbol: restore_d1_match_from_today_signals | score=5.00 | tokens=70\n  signature: def restore_d1_match_from_today_signals()\n  kind: function\n  docstring: Kh\u00f4i ph\u1ee5c m\u1ed1c match D1 t\u1eeb t\u00edn hi\u1ec7u h\u00f4m nay \u0111\u00e3 c\u00f3 s\u1eb5n tr\u00ean disk.\n  dependencies: TARGET_HOURS, _save_state, _trading_date, d_direction, d_matched_hour, day_signals, hour, payload, print, sent_today, today\n- symbol: schedule\u7cbe\u51c6_price_update | score=5.00 | tokens=71\n  signature: def schedule\u7cbe\u51c6_price_update(broker_dt, entry_time, pair_dirs)\n  kind: function\n  docstring: Schedule thread l\u1ea5y gi\u00e1 2s tr\u01b0\u1edbc entry time.\n  dependencies: Exception, _parse_entry_time, _update, broker_dt, broker_time_to_ts, calendar, date_str, datetime, delay, dict, e, earliest_et\n- symbol: select_signals_for_dashboard | score=5.00 | tokens=49\n  signature: def select_signals_for_dashboard(all_signals)\n  kind: function\n  docstring: Keep every signal that still has pair data so history can be republished across days.\n  dependencies: all_signals, s\n- symbol: send_d_direction_reminder | score=5.00 | tokens=42\n  signature: def send_d_direction_reminder()\n  kind: function\n  dependencies: broker_dt, d_reminder_sent_date, get_broker_time, msg, print, send_telegram, today, weekday_label\n- symbol: send_report | score=5.00 | tokens=55\n  signature: def send_report(signal_data, H, broker_dt, h2_signal = None, h15_signal = None)\n  kind: function\n  dependencies: ALL_PAIRS, GBP_PAIRS, H, SYMBOL, _, broker_dt, calc_entry_time, conclusion, d, dict, emoji, entry_line\n- symbol: send_telegram | score=5.00 | tokens=35\n  signature: def send_telegram(text)\n  kind: function\n  dependencies: Exception, TELEGRAM_CHAT_ID, TELEGRAM_TOKEN, e, print, send_telegram_raw, text\n- symbol: set_d_direction | score=5.00 | tokens=35\n  signature: def set_d_direction(direction)\n  kind: function\n  dependencies: _trading_date, d_direction, d_direction_date, d_matched_hour, direction\n- symbol: should_skip_xauusd | score=5.00 | tokens=63\n  signature: def should_skip_xauusd(H, signal, broker_dt)\n  kind: function\n  docstring: Ki\u1ec3m tra c\u00f3 n\u00ean \u1ea9n XAUUSD kh\u00f4ng. Kh\u00f4ng mutated state. Skip t\u1eeb H=3 sau match D1 t\u1edbi H=11. H=12+ hi\u1ec3n th\u1ecb l\u1ea1i.\n  dependencies: H, broker_dt, d_direction, d_matched_hour, signal\n- symbol: try_init_mt5 | score=5.00 | tokens=25\n  signature: def try_init_mt5()\n  kind: function\n  dependencies: MT5_PATH, info, mt5, mt5_ready, ok, print\n- symbol: update_entry_prices\u7cbe\u51c6 | score=5.00 | tokens=74\n  signature: def update_entry_prices\u7cbe\u51c6(date_str, hour, pair_dirs, broker_dt, entry_time)\n  kind: function\n  docstring: C\u1eadp nh\u1eadt entry_prices b\u1eb1ng Open M1 t\u1ea1i entry time.\n  dependencies: Exception, _SIGNALS_LOG, _parse_entry_time, broker_dt, broker_time_to_ts, candle, data, date_str, dict, direction, e, eh\nfile: oak_trading_reminders.py\nmodule: oak_trading_reminders\nimports: os, json, time, urllib.request, urllib.parse, ssl, datetime:datetime, timedelta, timezone, calendar, xml.etree.ElementTree, MetaTrader5, threading, sys, glob, winsound, re, oak_response_dict:get_random_response, utils:load_json_file\nretrieved_chunks: 10\n- symbol: OakTradingReminder._is_event_locked | score=10.00 | tokens=51\n  signature: def _is_event_locked(self, event_key)\n  kind: method\n  docstring: Check and set atomic lock for a specific event alert\n  dependencies: FileExistsError, LOCK_DIR, event_key, fd, lock_path, os, self, time\n- symbol: OakTradingReminder._should_send_daily_briefing | score=10.00 | tokens=66\n  signature: def _should_send_daily_briefing(self)\n  kind: method\n  docstring: Check file-based lock for daily briefing with atomic lock to prevent race condition\n  dependencies: Exception, FileExistsError, LOCK_DIR, datetime, f, fd, lock_path, log_file, now, open, os, self\n- symbol: OakTradingReminder.get_performance_report | score=10.00 | tokens=60\n  signature: def get_performance_report(self, profile)\n  kind: method\n  docstring: Connect to MT5 and calculate weekly performance for a profile\n  dependencies: acc, best_pair, datetime, deal, drawdown, from_date, history, len, losses, max, mt5, os\n- symbol: OakTradingReminder.get_projected_pnl | score=10.00 | tokens=92\n  signature: def get_projected_pnl(self, symbol, target_price, profile_name = None)\n  kind: method\n  docstring: Calculate projected PnL for all open positions of a symbol if price hits target_price. Returns a natural language message with random styles.\n  dependencies: CURRENT_TOKEN, abs, acc_info, all_pos, base_symbol, config, get_random_response, len, list, lots, msg, mt5\n- symbol: OakTradingReminder.process_commands | score=10.00 | tokens=65\n  signature: def process_commands(self)\n  kind: method\n  docstring: Check for commands via Telegram (Simple Polling + Natural Language)\n  dependencies: CURRENT_CHAT_ID, CURRENT_TOKEN, Exception, LOCK_DIR, any, chat_id, chat_id_target, chat_obj, config, data, datetime, e\n- symbol: _make_ssl_context | score=10.00 | tokens=40\n  signature: def _make_ssl_context()\n  kind: function\n  docstring: Try verified SSL first; fallback to unverified for legacy servers.\n  dependencies: Exception, ctx, ssl\n- symbol: fetch_forexfactory_xml | score=10.00 | tokens=53\n  signature: def fetch_forexfactory_xml(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, context, country, data, datetime, dt_full_src, dt_local, dt_obj, dt_src, event, event_date_str\n- symbol: fetch_investing_rss | score=10.00 | tokens=51\n  signature: def fetch_investing_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, any, channel, context, data, datetime, dt_local, dt_obj, event_time_str, found_events, icon\n- symbol: fetch_litefinance_rss | score=10.00 | tokens=53\n  signature: def fetch_litefinance_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, category, channel, context, data, datetime, dt_local, dt_obj, event_time_str, found_events, icon\n- symbol: fetch_myfxbook_rss | score=10.00 | tokens=53\n  signature: def fetch_myfxbook_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, Exception, _make_ssl_context, channel, clean_title, context, currency, data, datetime, dt_local, dt_obj, event_time_str\nfile: utils.py\nmodule: utils\nimports: json, os, urllib.request, urllib.parse\nretrieved_chunks: 1\n- symbol: get_signal_icon | score=10.00 | tokens=33\n  signature: def get_signal_icon(sig)\n  kind: function\n  docstring: Return (icon_text, emoji) for a signal.\n  dependencies: SIGNAL_ICONS, sig\nfile: OAK_Hidden_SLTP_Manager.py\nmodule: OAK_Hidden_SLTP_Manager\nimports: customtkinter, tkinter, tkinter:ttk, MetaTrader5, pywinauto, pywinauto:Application, mouse, threading, time, winsound, os, sys, json, urllib.request, urllib.parse, datetime:datetime, timedelta, ctypes, random, re, subprocess, signal, atexit, oak_trading_reminders, oak_response_dict:get_random_response, ctypes, oak_trading_reminders, tkinter:messagebox, argparse, signal, traceback\nretrieved_chunks: 4\n- symbol: App.add_ui_element | score=9.50 | tokens=41\n  signature: def add_ui_element(self, key, widget)\n  kind: method\n  docstring: Helper to store multiple widgets for the same translation key\n  dependencies: key, self, widget\n- symbol: App.notify | score=9.50 | tokens=37\n  signature: def notify(self, message)\n  kind: method\n  docstring: Standard notification for CopyTradeManager within GUI process\n  dependencies: message, self\n- symbol: CopyTradeManager._check_telegram_commands | score=9.50 | tokens=67\n  signature: def _check_telegram_commands(self)\n  kind: method\n  docstring: NEW: Check for remote commands via Telegram using Shared Inbox to support Multi-Process\n  dependencies: Exception, FileLock, added, admin_id, chat_id, data, e, existing_ids, f, hasattr, inbox, inbox_file\n- symbol: resource_path | score=9.50 | tokens=48\n  signature: def resource_path(relative_path)\n  kind: function\n  docstring: Get absolute path to resource, works for dev and for PyInstaller\n  dependencies: Exception, base_path, os, relative_path, sys\ndependency_graph:\nchanged_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\naffected_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\nfile_imports:\n- OAK_Hidden_SLTP_Manager.py -> oak_response_dict.py\n- OAK_Hidden_SLTP_Manager.py -> oak_trading_reminders.py\n- mimo_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> utils.py\n- oak_trading_reminders.py -> oak_response_dict.py\n- oak_trading_reminders.py -> utils.py\n- tests/test_dashboard_signal_selection.py -> mt5_signal_bot.py\n- tests/test_factcheck_worker_search_stack.py -> factcheck_worker.py\nsymbol_dependencies:\n- OAK_Hidden_SLTP_Manager.py::get_natural_response -> oak_response_dict.py::get_random_response\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> factcheck_worker.py::sort_key\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::save_json\nunresolved_imports: MetaTrader5, PyInstaller.__main__, argparse, atexit, calendar, ctypes, customtkinter, datetime, flask, glob, html, json\n",
+    "compressed_token_count": 2286,
+    "dependency_notes": [
+      "dependency_graph:",
+      "changed_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py",
+      "affected_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py",
+      "file_imports:",
+      "- OAK_Hidden_SLTP_Manager.py -> oak_response_dict.py",
+      "- OAK_Hidden_SLTP_Manager.py -> oak_trading_reminders.py",
+      "- mimo_bot.py -> oak_trading_reminders.py",
+      "- mt5_signal_bot.py -> oak_trading_reminders.py",
+      "- mt5_signal_bot.py -> utils.py",
+      "- oak_trading_reminders.py -> oak_response_dict.py",
+      "- oak_trading_reminders.py -> utils.py",
+      "- tests/test_dashboard_signal_selection.py -> mt5_signal_bot.py",
+      "- tests/test_factcheck_worker_search_stack.py -> factcheck_worker.py",
+      "symbol_dependencies:",
+      "- OAK_Hidden_SLTP_Manager.py::get_natural_response -> oak_response_dict.py::get_random_response",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> factcheck_worker.py::sort_key",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::save_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::load_json",
+      "- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::save_json",
+      "unresolved_imports: MetaTrader5, PyInstaller.__main__, argparse, atexit, calendar, ctypes, customtkinter, datetime, flask, glob, html, json"
+    ],
+    "file_count": 5,
+    "mode": "fast",
+    "original_token_count": 218339223,
+    "reduction_ratio": 1.0,
+    "relevant_symbols": [
+      "normalize_text",
+      "search_google_factcheck",
+      "calc_entry_time",
+      "log_signal",
+      "OakTradingReminder._is_event_locked",
+      "OakTradingReminder._should_send_daily_briefing",
+      "OakTradingReminder.get_performance_report",
+      "OakTradingReminder.get_projected_pnl",
+      "OakTradingReminder.process_commands",
+      "_make_ssl_context",
+      "fetch_forexfactory_xml",
+      "fetch_investing_rss",
+      "fetch_litefinance_rss",
+      "fetch_myfxbook_rss",
+      "get_signal_icon",
+      "App.add_ui_element",
+      "App.notify",
+      "CopyTradeManager._check_telegram_commands",
+      "resource_path",
+      "check_agreement",
+      "classify_reliability",
+      "extract_claims",
+      "main",
+      "normalize_domain",
+      "process_factcheck",
+      "redis_request",
+      "search_duckduckgo",
+      "search_google_web",
+      "search_web",
+      "should_keep_source",
+      "simplify_query",
+      "sort_key",
+      "source_match_hits",
+      "source_relevance",
+      "token_set",
+      "_default_entry_time",
+      "_load_state",
+      "_parse_entry_time",
+      "_parse_news_for_dashboard",
+      "_save_state",
+      "_trading_date",
+      "_update",
+      "analyze",
+      "backfill_missing_days",
+      "broker_time_to_ts",
+      "candle_direction",
+      "candle_info_line",
+      "check_d_direction_input",
+      "d1_match_note",
+      "d_direction_event_server",
+      "d_direction_watcher",
+      "fmt_hour",
+      "fmt_time",
+      "get_broker_time",
+      "get_candle_by_ts",
+      "get_current_prices",
+      "get_effective_d_direction",
+      "get_effective_xauusd_signal",
+      "get_entry_prices",
+      "get_h1_candle_for_slot",
+      "get_hour_note",
+      "get_pair_direction",
+      "get_schedule_reminders",
+      "mark_xauusd_matched",
+      "push_prices_to_dashboard",
+      "push_to_dashboard",
+      "resolve_doji",
+      "restore_d1_match_from_today_signals",
+      "schedule\u7cbe\u51c6_price_update",
+      "select_signals_for_dashboard",
+      "send_d_direction_reminder",
+      "send_report",
+      "send_telegram",
+      "set_d_direction",
+      "should_skip_xauusd",
+      "try_init_mt5",
+      "update_entry_prices\u7cbe\u51c6"
+    ],
+    "symbol_count": 77
+  },
+  "dependency_graph": {
+    "affected_files": [
+      "OAK_Hidden_SLTP_Manager.py",
+      "build_exe.py",
+      "create_backup_final.py",
+      "dashboard/push_to_dashboard.py",
+      "factcheck_worker.py",
+      "mimo_bot.py",
+      "mimo_worker.py",
+      "mt4_mt5_server.py",
+      "mt5_signal_bot.py",
+      "oak_response_dict.py",
+      "oak_trading_reminders.py",
+      "tests/test_dashboard_signal_selection.py",
+      "tests/test_factcheck_worker_search_stack.py",
+      "utils.py"
+    ],
+    "changed_files": [
+      "OAK_Hidden_SLTP_Manager.py",
+      "build_exe.py",
+      "create_backup_final.py",
+      "dashboard/push_to_dashboard.py",
+      "factcheck_worker.py",
+      "mimo_bot.py",
+      "mimo_worker.py",
+      "mt4_mt5_server.py",
+      "mt5_signal_bot.py",
+      "oak_response_dict.py",
+      "oak_trading_reminders.py",
+      "tests/test_dashboard_signal_selection.py",
+      "tests/test_factcheck_worker_search_stack.py",
+      "utils.py"
+    ],
+    "file_dependents": {
+      "factcheck_worker.py": [
+        "tests/test_factcheck_worker_search_stack.py"
+      ],
+      "mt5_signal_bot.py": [
+        "tests/test_dashboard_signal_selection.py"
+      ],
+      "oak_response_dict.py": [
+        "OAK_Hidden_SLTP_Manager.py",
+        "oak_trading_reminders.py"
+      ],
+      "oak_trading_reminders.py": [
+        "OAK_Hidden_SLTP_Manager.py",
+        "mimo_bot.py",
+        "mt5_signal_bot.py"
+      ],
+      "utils.py": [
+        "mt5_signal_bot.py",
+        "oak_trading_reminders.py"
+      ]
+    },
+    "file_imports": {
+      "OAK_Hidden_SLTP_Manager.py": [
+        "oak_response_dict.py",
+        "oak_trading_reminders.py"
+      ],
+      "build_exe.py": [],
+      "create_backup_final.py": [],
+      "dashboard/push_to_dashboard.py": [],
+      "factcheck_worker.py": [],
+      "mimo_bot.py": [
+        "oak_trading_reminders.py"
+      ],
+      "mimo_worker.py": [],
+      "mt4_mt5_server.py": [],
+      "mt5_signal_bot.py": [
+        "oak_trading_reminders.py",
+        "utils.py"
+      ],
+      "oak_response_dict.py": [],
+      "oak_trading_reminders.py": [
+        "oak_response_dict.py",
+        "utils.py"
+      ],
+      "tests/test_dashboard_signal_selection.py": [
+        "mt5_signal_bot.py"
+      ],
+      "tests/test_factcheck_worker_search_stack.py": [
+        "factcheck_worker.py"
+      ],
+      "utils.py": []
+    },
+    "hash": "71d5c1e23ebf1b76362661a979f82c0361932b07d6183a769eb5592c3feec428",
+    "module_to_file": {
+      "OAK_Hidden_SLTP_Manager": "OAK_Hidden_SLTP_Manager.py",
+      "build_exe": "build_exe.py",
+      "create_backup_final": "create_backup_final.py",
+      "dashboard.push_to_dashboard": "dashboard/push_to_dashboard.py",
+      "factcheck_worker": "factcheck_worker.py",
+      "mimo_bot": "mimo_bot.py",
+      "mimo_worker": "mimo_worker.py",
+      "mt4_mt5_server": "mt4_mt5_server.py",
+      "mt5_signal_bot": "mt5_signal_bot.py",
+      "oak_response_dict": "oak_response_dict.py",
+      "oak_trading_reminders": "oak_trading_reminders.py",
+      "tests.test_dashboard_signal_selection": "tests/test_dashboard_signal_selection.py",
+      "tests.test_factcheck_worker_search_stack": "tests/test_factcheck_worker_search_stack.py",
+      "utils": "utils.py"
+    },
+    "root": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP",
+    "symbol_dependencies": {
+      "OAK_Hidden_SLTP_Manager.py::App": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json",
+        "oak_trading_reminders.py::OakTradingReminder.start"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.__init__": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App._handle_ghost_request": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.add_scheduled_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.apply_markdown": [
+        "oak_trading_reminders.py::OakTradingReminder.start"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.change_lang": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.change_theme": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.delete_profile": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.delete_scheduled_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.edit_scheduled_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.on_accept": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.periodic_ui_refresh": [
+        "mimo_bot.py::load_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.save_copy_config": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.save_profile": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.save_scheduled_trades_ui": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::App.toggle_ghost_mode": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager": [
+        "factcheck_worker.py::sort_key",
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._check_partial_close_tasks": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._check_scheduled_trades": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._close_copy_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._find_matching_symbol": [
+        "factcheck_worker.py::sort_key"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._get_account_status": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._handle_telegram_text": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._open_copy_trade": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager._process_slave": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::CopyTradeManager.process": [
+        "mimo_bot.py::load_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::TicketManager": [
+        "mimo_bot.py::load_json",
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded": [
+        "mimo_bot.py::load_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket": [
+        "mimo_bot.py::save_json"
+      ],
+      "OAK_Hidden_SLTP_Manager.py::get_natural_response": [
+        "oak_response_dict.py::get_random_response"
+      ],
+      "factcheck_worker.py::process_factcheck": [
+        "OAK_Hidden_SLTP_Manager.py::CopyTradeManager.sort_key"
+      ],
+      "mimo_bot.py::_inject_to_oak_inbox": [
+        "OAK_Hidden_SLTP_Manager.py::load_json",
+        "OAK_Hidden_SLTP_Manager.py::save_json"
+      ],
+      "mimo_bot.py::cmd_mt5": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mimo_bot.py::cmd_news": [
+        "OAK_Hidden_SLTP_Manager.py::load_json",
+        "oak_trading_reminders.py::get_economic_news"
+      ],
+      "mimo_bot.py::cmd_positions": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mimo_bot.py::cmd_profiles": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mimo_bot.py::execute_mimo_via_file_proxy": [
+        "oak_trading_reminders.py::OakTradingReminder.start"
+      ],
+      "mimo_bot.py::get_all_profiles": [
+        "OAK_Hidden_SLTP_Manager.py::load_json"
+      ],
+      "mt4_mt5_server.py::build_telegram": [
+        "mt5_signal_bot.py::fmt_hour",
+        "mt5_signal_bot.py::fmt_time"
+      ],
+      "mt4_mt5_server.py::fetch_mt5_data": [
+        "mt5_signal_bot.py::broker_time_to_ts",
+        "mt5_signal_bot.py::get_candle_by_ts"
+      ],
+      "mt4_mt5_server.py::receive_mt4_data": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt5_signal_bot.py::fmt_time",
+        "mt5_signal_bot.py::get_broker_time",
+        "mt5_signal_bot.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram"
+      ],
+      "mt5_signal_bot.py::_trading_date": [
+        "mt4_mt5_server.py::get_broker_time"
+      ],
+      "mt5_signal_bot.py::analyze": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::get_candle_by_ts",
+        "utils.py::vn_direction"
+      ],
+      "mt5_signal_bot.py::backfill_missing_days": [
+        "mt4_mt5_server.py::fmt_hour"
+      ],
+      "mt5_signal_bot.py::candle_info_line": [
+        "utils.py::vn_direction"
+      ],
+      "mt5_signal_bot.py::check_d_direction_input": [
+        "mt4_mt5_server.py::get_broker_time"
+      ],
+      "mt5_signal_bot.py::get_entry_prices": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "mt5_signal_bot.py::get_h1_candle_for_slot": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "mt5_signal_bot.py::get_schedule_reminders": [
+        "oak_trading_reminders.py::get_day_notes"
+      ],
+      "mt5_signal_bot.py::main": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::fmt_time",
+        "mt4_mt5_server.py::get_broker_time",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram",
+        "utils.py::get_signal_icon"
+      ],
+      "mt5_signal_bot.py::mark_xauusd_matched": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::get_broker_time",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram"
+      ],
+      "mt5_signal_bot.py::resolve_doji": [
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "mt5_signal_bot.py::schedule\u7cbe\u51c6_price_update": [
+        "mt4_mt5_server.py::broker_time_to_ts"
+      ],
+      "mt5_signal_bot.py::send_d_direction_reminder": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::get_broker_time",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram"
+      ],
+      "mt5_signal_bot.py::send_report": [
+        "OAK_Hidden_SLTP_Manager.py::MonitorWorker.send_telegram",
+        "mt4_mt5_server.py::fmt_hour",
+        "mt4_mt5_server.py::send_telegram",
+        "oak_trading_reminders.py::OakTradingReminder.send_telegram",
+        "utils.py::get_signal_icon"
+      ],
+      "mt5_signal_bot.py::send_telegram": [
+        "utils.py::send_telegram_raw"
+      ],
+      "mt5_signal_bot.py::update_entry_prices\u7cbe\u51c6": [
+        "mt4_mt5_server.py::broker_time_to_ts",
+        "mt4_mt5_server.py::get_candle_by_ts"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder": [
+        "oak_response_dict.py::get_random_response",
+        "utils.py::load_json_file"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.get_projected_pnl": [
+        "oak_response_dict.py::get_random_response"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.load_config": [
+        "utils.py::load_json_file"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.monitor_loop": [
+        "utils.py::load_json_file"
+      ],
+      "oak_trading_reminders.py::OakTradingReminder.send_daily_briefing": [
+        "utils.py::load_json_file"
+      ],
+      "tests/test_dashboard_signal_selection.py::DashboardSignalSelectionTests": [
+        "mt5_signal_bot.py::get_pair_direction",
+        "mt5_signal_bot.py::select_signals_for_dashboard"
+      ],
+      "tests/test_dashboard_signal_selection.py::DashboardSignalSelectionTests.test_h6_tue_thu_keeps_gbpaud_when_gold_flips": [
+        "mt5_signal_bot.py::get_pair_direction"
+      ],
+      "tests/test_dashboard_signal_selection.py::DashboardSignalSelectionTests.test_keeps_all_signal_days_when_pair_dirs_exist": [
+        "mt5_signal_bot.py::select_signals_for_dashboard"
+      ]
+    },
+    "unresolved_imports": [
+      "MetaTrader5",
+      "PyInstaller.__main__",
+      "argparse",
+      "atexit",
+      "calendar",
+      "ctypes",
+      "customtkinter",
+      "datetime",
+      "flask",
+      "glob",
+      "html",
+      "json",
+      "os",
+      "pywinauto",
+      "random",
+      "re",
+      "signal",
+      "socket",
+      "ssl",
+      "subprocess",
+      "sys",
+      "telebot",
+      "threading",
+      "time",
+      "tkinter",
+      "traceback",
+      "unicodedata",
+      "unittest",
+      "unittest.mock",
+      "urllib.parse",
+      "urllib.request",
+      "winsound",
+      "xml.etree.ElementTree",
+      "zipfile"
+    ]
+  },
+  "fingerprint": {
+    "cache_key": "51de81478e9a5775f973ddce547039d6db5d9d106a66d3dcf74658338826f0fc",
+    "file_hashes": {
+      "OAK_Hidden_SLTP_Manager.py": "e051bb78ded00bc7f54172f10ccda6e03044fb46c5564be1bbf79ca616ee1476",
+      "build_exe.py": "4382e2223e3bf4aa3f9ad6f1960b7dad404e1a0fd5286a952882679573ab49dc",
+      "create_backup_final.py": "d6da1076d57b76a661b7944d1c0e07ff90e2b06c8fd8f7a5955bc5c00ec7f604",
+      "dashboard/push_to_dashboard.py": "05bd06b9a1f42b508955aa523e2ae8eeeeb9e28fb7d82890d0786990c059a789",
+      "factcheck_worker.py": "19cfd218d439fd05d0401e5142d22fac7c1490b84b61f0c6880c77748d47c62e",
+      "mimo_bot.py": "27b0f5dd7f5e7193e905c51f3d077223392289a1baa245fd41ceac8a600ac91d",
+      "mimo_worker.py": "0a2664f2525bcfdf585d09ebd4b345b4003c06f79e44f745534927c0830b6cc9",
+      "mt4_mt5_server.py": "bc9046c6b68c0b22f01e908fcb415d2c136c7d43230855c4118edb127bcef3ee",
+      "mt5_signal_bot.py": "fa29e91ea97feec68e5925eea8d01fcd35e3cbfc0fc1ae9bc80eb2ef09125ee9",
+      "oak_response_dict.py": "a4b35fa65e68d8bf005c189d802295832e1913c6c12853ab165364e66357612a",
+      "oak_trading_reminders.py": "49d340052cda5f05db92f91bb79da5db5d21f85fa4fcdb96ca3a58ad89f97192",
+      "tests/test_dashboard_signal_selection.py": "824c732d86231899f3a6709a97d5d054856262b6e5e5a1fab94ff844a1d4c2cd",
+      "tests/test_factcheck_worker_search_stack.py": "cf77dcc33f1f8170444d8b51c47f700b921213fc492705abf5dc491eaf4027c0",
+      "utils.py": "682d303718361f606b8d18a8572ddc49bef903d9c073315d4de463510279b670"
+    },
+    "graph_hash": "71d5c1e23ebf1b76362661a979f82c0361932b07d6183a769eb5592c3feec428",
+    "inventory_file_count": 5832,
+    "mode": "fast",
+    "objective_hash": "6258875af5e04f4813cf0680666c6b27a81d2af712972303a69b143d2482b44b",
+    "profile": "deep",
+    "prompt_builder_version": "v0.4.0",
+    "python_file_count": 14,
+    "retriever_version": "v0.3.0",
+    "root": "C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP",
+    "symbol_hashes": {
+      "OAK_Hidden_SLTP_Manager.py": "9311825e701f0301993f640c14493094f97fef59140e6045454647d7278f9535",
+      "build_exe.py": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "create_backup_final.py": "5bb01bd38402fe390e733ea236c67352964aeeb05f779398073f3b8d8475fb30",
+      "dashboard/push_to_dashboard.py": "2e642464210447ede11f0c273ad3907f9a3f75ef6e719ddf7d7653156f3377d3",
+      "factcheck_worker.py": "5d8712f7be269ff1e0f08b773bc2a85d635521f66a947c86a2a80294b00aab04",
+      "mimo_bot.py": "512655ddda5e4d95984b0a2b29d9ad495618a2c7eb7f8bffa837d9627ae5dcf4",
+      "mimo_worker.py": "c94ae38bf615307e354ed31007d1902604f45ef2d6086c9203af1f1cd35eb796",
+      "mt4_mt5_server.py": "3ca0b6e13fd5f3445a56370665e854709929ac8889373b42a88afc349a3d43ab",
+      "mt5_signal_bot.py": "faf2602cf809f2e191fbb204c3ad6d412d8413ff7492c3406eae9d72ddbf1a74",
+      "oak_response_dict.py": "db4ba1f29cb0afed02bd82559693927506f2a8fefc88ecc890f4342f9c319144",
+      "oak_trading_reminders.py": "f9fcf3efcb79d1542f6c33010d35cf39b2a860ccce7bf1ac866f4712c6659066",
+      "tests/test_dashboard_signal_selection.py": "14a9f97992c3a39c9704a7752ca58985b85e16688ef99372b4c520cdecc2fc76",
+      "tests/test_factcheck_worker_search_stack.py": "658584206329f82538f50af80b4870a8d986aec300fe53b73b711afa9f8edc6d",
+      "utils.py": "07f4a8a84f24009601ae7f05da6490b30c157c8b1ef5a0f264a65b2d6e64263a"
+    }
+  },
+  "prompt": {
+    "compressed_context": "repository_root: C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\nfile_count: 5832\npython_file_count: 14\nconfig_file_count: 145\nmode: FAST\nretrieval:\nquery: Compress repository context for a coding agent.\ncandidate_count: 331\ntop_k: 80\nmatched_tokens: context, for\nfile: factcheck_worker.py\nmodule: factcheck_worker\nimports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\nretrieved_chunks: 19\n- symbol: normalize_text | score=10.00 | tokens=40\n  signature: def normalize_text(text)\n  kind: function\n  docstring: Normalize text for loose keyword matching.\n  dependencies: ch, normalized, stripped, text, unicodedata\n- symbol: search_google_factcheck | score=10.00 | tokens=74\n  signature: def search_google_factcheck(query, api_key)\n  kind: function\n  docstring: Search Google Fact Check Tools API for verified claims from IFCN-certified orgs.\n  dependencies: Exception, GOOGLE_FC_RATINGS_FALSE, GOOGLE_FC_RATINGS_TRUE, agrees, any, api_key, claim, claim_text, data, e, encoded, json\n- symbol: check_agreement | score=5.00 | tokens=71\n  signature: def check_agreement(claim, snippet)\n  kind: function\n  docstring: Check if a source agrees with, contradicts, or is neutral to a claim.\n  dependencies: any, claim, claim_lower, confirm_words, contradict_words, has_confirm, has_contradict, normalize_text, snippet, snippet_lower, w\n- symbol: classify_reliability | score=5.00 | tokens=46\n  signature: def classify_reliability(url)\n  kind: function\n  docstring: Classify source reliability based on domain.\n  dependencies: HIGH_RELIABILITY, MEDIUM_RELIABILITY, d, domain, url, urllib\n- symbol: extract_claims | score=5.00 | tokens=44\n  signature: def extract_claims(text)\n  kind: function\n  docstring: Extract key claims from text. Handles Vietnamese and English.\n  dependencies: claims, html_mod, len, re, sentence, text\n- file: factcheck_worker | score=5.00 | tokens=164\n  module: factcheck_worker\n  relative_path: factcheck_worker.py\n  imports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\n  public_api: normalize_domain, normalize_text, token_set, source_match_hits, source_relevance, should_keep_source, redis_request, extract_claims, simplify_query, search_google_web, search_duckduckgo, search_web, search_google_factcheck, classify_reliability, check_agreement, process_factcheck, sort_key, main\n  dependencies: Exception, FACTCHECK_KEY, GOOGLE_FC_RATINGS_FALSE, GOOGLE_FC_RATINGS_TRUE, HIGH_RELIABILITY, MEDIUM_RELIABILITY, REDIS_TOKEN, REDIS_URL, TypeError, agree_score, agrees, all_sources\n- symbol: main | score=5.00 | tokens=36\n  signature: def main()\n  kind: function\n  dependencies: Exception, FACTCHECK_KEY, REDIS_TOKEN, REDIS_URL, e, i, item, item_id, items, os, pending, print\n- symbol: normalize_domain | score=5.00 | tokens=37\n  signature: def normalize_domain(url)\n  kind: function\n  docstring: Normalize a URL into a compact domain key.\n  dependencies: Exception, domain, url, urllib\n- symbol: process_factcheck | score=5.00 | tokens=66\n  signature: def process_factcheck(item)\n  kind: function\n  docstring: Process a single fact-check request.\n  dependencies: agree_score, agrees, all_sources, any, authority_queries, broad_query, check_agreement, claim, claim_sources, claims, classify_reliability, confirming\n- symbol: redis_request | score=5.00 | tokens=59\n  signature: def redis_request(method, key, value = None)\n  kind: function\n  docstring: Make a request to Upstash Redis REST API.\n  dependencies: Exception, REDIS_TOKEN, REDIS_URL, TypeError, data, e, headers, isinstance, json, key, method, print\n- symbol: search_duckduckgo | score=5.00 | tokens=51\n  signature: def search_duckduckgo(query)\n  kind: function\n  docstring: Search DuckDuckGo HTML fallback.\n  dependencies: Exception, clean_snippet, clean_title, clean_url, data, e, html, html_mod, i, len, min, print\n- symbol: search_google_web | score=5.00 | tokens=55\n  signature: def search_google_web(query)\n  kind: function\n  docstring: Search web using Google Custom Search JSON API.\n  dependencies: Exception, api_key, classify_reliability, cse_id, data, e, encoded, item, json, link, os, print\n- symbol: search_web | score=5.00 | tokens=44\n  signature: def search_web(query)\n  kind: function\n  docstring: Search web using multiple engines and merge the hits.\n  dependencies: query, results, search_duckduckgo, search_google_web\n- symbol: should_keep_source | score=5.00 | tokens=56\n  signature: def should_keep_source(source)\n  kind: function\n  docstring: Reject clearly off-topic hits before they affect the result set.\n  dependencies: engine, float, hits, int, relevance, reliability, source, threshold, thresholds\n- symbol: simplify_query | score=5.00 | tokens=46\n  signature: def simplify_query(claim)\n  kind: function\n  docstring: Simplify a claim into a shorter search query.\n  dependencies: claim, filtered, normalize_text, query, re, stopwords, w, words\n- symbol: sort_key | score=5.00 | tokens=20\n  signature: def sort_key(s)\n  kind: function\n  dependencies: agree_score, rel_score, s\n- symbol: source_match_hits | score=5.00 | tokens=62\n  signature: def source_match_hits(query, source)\n  kind: function\n  docstring: Count keyword overlaps between a query and a source.\n  dependencies: normalize_domain, normalize_text, query, query_tokens, source, source_norm, source_text, sum, token, token_set\n- symbol: source_relevance | score=5.00 | tokens=66\n  signature: def source_relevance(query, source)\n  kind: function\n  docstring: Score how closely a source matches the current query.\n  dependencies: HIGH_RELIABILITY, hits, len, max, min, normalize_domain, normalize_text, query, query_tokens, score, source, source_match_hits\n- symbol: token_set | score=5.00 | tokens=37\n  signature: def token_set(text)\n  kind: function\n  docstring: Tokenize text into a compact keyword set.\n  dependencies: len, normalize_text, re, text, token\nfile: mt5_signal_bot.py\nmodule: mt5_signal_bot\nimports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\nretrieved_chunks: 46\n- symbol: calc_entry_time | score=10.00 | tokens=98\n  signature: def calc_entry_time(signal, m30_dir, H = None, h2_signal = None, orig_signal = None, weekday = None, h15_signal = None)\n  kind: function\n  docstring: Calculate entry time. Returns string for normal slots, dict {pair: time|None} for H=16.\n  dependencies: GBP_PAIRS, H, _default_entry_time, datetime, get_effective_xauusd_signal, h15_signal, h2_signal, m30_dir, matches_h2, p, signal, times\n- symbol: log_signal | score=10.00 | tokens=79\n  signature: def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed = False)\n  kind: function\n  docstring: Append signal data to signals_log.json for website consumption.\n  dependencies: Exception, H, _SIGNALS_LOG, broker_dt, current_prices, d, d_direction, data, datetime, e, entry_prices, entry_time\n- symbol: _default_entry_time | score=5.00 | tokens=23\n  signature: def _default_entry_time(H, matches_h2)\n  kind: function\n  dependencies: H, matches_h2\n- symbol: _load_state | score=5.00 | tokens=62\n  signature: def _load_state()\n  kind: function\n  docstring: Load persisted state from disk. Returns dict with day_signals, sent_today, etc.\n  dependencies: FileNotFoundError, _STATE_FILE, _trading_date, data, datetime, day_signals, f, int, json, k, open, set\n- symbol: _parse_entry_time | score=5.00 | tokens=43\n  signature: def _parse_entry_time(entry_str)\n  kind: function\n  docstring: Parse 'HH:MM' to (hour, minute). Returns None on failure.\n  dependencies: Exception, entry_str, int, parts\n- symbol: _parse_news_for_dashboard | score=5.00 | tokens=59\n  signature: def _parse_news_for_dashboard(news_lines)\n  kind: function\n  docstring: Parse news strings like '\u2022 19:30 CAD \ud83d\udd34 GDP m/m' into structured objects.\n  dependencies: currency, impact, items, line, m, news_lines, re, rest, time_str, title\n- symbol: _save_state | score=5.00 | tokens=60\n  signature: def _save_state(day_signals, sent_today)\n  kind: function\n  docstring: Persist state to disk.\n  dependencies: Exception, _STATE_FILE, _trading_date, d, d_direction, d_direction_date, d_matched_hour, data, day_signals, ds_json, ds_str, e\n- symbol: _trading_date | score=5.00 | tokens=46\n  signature: def _trading_date()\n  kind: function\n  docstring: Current trading date in broker time.\n  dependencies: BROKER_GMT, Exception, datetime, get_broker_time, globals, timedelta, timezone\n- symbol: _update | score=5.00 | tokens=34\n  signature: def _update()\n  kind: function\n  dependencies: broker_dt, date_str, delay, entry_time, hour, pair_dirs, time, update_entry_prices\u7cbe\u51c6\n- symbol: analyze | score=5.00 | tokens=45\n  signature: def analyze(broker_dt, H)\n  kind: function\n  dependencies: H, SYMBOL, broker_dt, broker_time_to_ts, c_h1, c_m30, c_m35, c_m40, candle_direction, candle_info_line, d_h1, d_m30\n- symbol: backfill_missing_days | score=5.00 | tokens=73\n  signature: def backfill_missing_days()\n  kind: function\n  docstring: T\u1ef1 t\u00ednh l\u1ea1i signal cho 7 ng\u00e0y tr\u01b0\u1edbc khi bot kh\u1edfi \u0111\u1ed9ng (overwrite \u0111\u1ec3 fix data sai).\n  dependencies: BROKER_GMT, Exception, GBP_PAIRS, H, TARGET_HOURS, _SIGNALS_LOG, analyze, backfilled, broker_now, calc_entry_time, d, dates_to_check\n- symbol: broker_time_to_ts | score=5.00 | tokens=70\n  signature: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n  kind: function\n  docstring: Chuyen broker datetime + hour/minute thanh UTC timestamp de so sanh voi rate.\n  dependencies: BROKER_GMT, broker_dt, calendar, hour, minute, second, target_broker, target_utc, timedelta\n- symbol: candle_direction | score=5.00 | tokens=26\n  signature: def candle_direction(candle)\n  kind: function\n  dependencies: abs, body, c, candle, full_range, o\n- symbol: candle_info_line | score=5.00 | tokens=33\n  signature: def candle_info_line(candle, label)\n  kind: function\n  dependencies: arrow, candle, candle_direction, d, label, vn, vn_direction\n- symbol: check_d_direction_input | score=5.00 | tokens=79\n  signature: def check_d_direction_input()\n  kind: function\n  docstring: \u0110\u1ecdc D-direction t\u1eeb file (mimo_bot.py ghi v\u00e0o), kh\u00f4ng poll Telegram tr\u1ef1c ti\u1ebfp.\n  dependencies: Exception, _STATE_FILE, __file__, _trading_date, broker_weekday, d_direction, d_direction_date, d_direction_lock, d_file, d_matched_hour, day_label, direction\n- symbol: d1_match_note | score=5.00 | tokens=19\n  signature: def d1_match_note(direction)\n  kind: function\n  dependencies: direction\n- symbol: d_direction_event_server | score=5.00 | tokens=72\n  signature: def d_direction_event_server()\n  kind: function\n  docstring: ponytail: localhost ping \u0111\u1ec3 MT5 nh\u1eb7t D g\u1ea7n nh\u01b0 t\u1ee9c th\u00ec; file watcher v\u1eabn l\u00e0 fallback n\u1ebfu ping fail.\n  dependencies: DIRECTION_EVENT_PORT, Exception, OSError, _addr, check_d_direction_input, conn, exc, print, server, socket\n- symbol: d_direction_watcher | score=5.00 | tokens=61\n  signature: def d_direction_watcher()\n  kind: function\n  docstring: ponytail: 1s file watcher \u0111\u1ec3 nh\u1eadn D nhanh h\u01a1n; upgrade path l\u00e0 webhook/queue IPC n\u1ebfu b\u1ecf file trung gian.\n  dependencies: DIRECTION_POLL_INTERVAL, Exception, check_d_direction_input, time\n- symbol: fmt_hour | score=5.00 | tokens=14\n  signature: def fmt_hour(h)\n  kind: function\n  dependencies: h\n- symbol: fmt_time | score=5.00 | tokens=14\n  signature: def fmt_time(dt)\n  kind: function\n  dependencies: dt\n- symbol: get_broker_time | score=5.00 | tokens=57\n  signature: def get_broker_time()\n  kind: function\n  docstring: Lay broker time hoan toan tu tick.time (UTC). Khong phu thuoc local.\n  dependencies: BROKER_GMT, SYMBOL, datetime, mt5, mt5_ready, now_utc, tick, timedelta, timezone, utc_dt\n- symbol: get_candle_by_ts | score=5.00 | tokens=59\n  signature: def get_candle_by_ts(symbol, timeframe, target_ts)\n  kind: function\n  docstring: Lay n\u1ebfn gan nhat voi UTC timestamp. Tra ve dict hoac None.\n  dependencies: abs, best, diff, float, len, max_diff, min_diff, mt5, print, r, rates, symbol\n- symbol: get_current_prices | score=5.00 | tokens=45\n  signature: def get_current_prices(pair_dirs)\n  kind: function\n  docstring: L\u1ea5y gi\u00e1 market hi\u1ec7n t\u1ea1i (tick).\n  dependencies: Exception, direction, mt5, pair, pair_dirs, prices, round, tick\n- symbol: get_effective_d_direction | score=5.00 | tokens=55\n  signature: def get_effective_d_direction(broker_dt)\n  kind: function\n  docstring: Th\u1ee9 5/6 c\u00f3 th\u1ec3 l\u01b0u D direction, nh\u01b0ng ch\u1ec9 gi\u00e1 tr\u1ecb th\u1ee9 6 m\u1edbi \u0111\u01b0\u1ee3c \u0111\u1ea3o \u0111\u1ec3 d\u00f9ng cho th\u1ee9 2.\n  dependencies: broker_dt, d_direction, d_direction_date\n- symbol: get_effective_xauusd_signal | score=5.00 | tokens=53\n  signature: def get_effective_xauusd_signal(signal, H = None, weekday = None, h15_signal = None)\n  kind: function\n  docstring: Signal th\u1ef1c t\u1ebf c\u1ee7a XAUUSD sau c\u00e1c rule \u0111\u1ea3o \u1edf t\u1eebng slot.\n  dependencies: H, signal, xau_signal\n- symbol: get_entry_prices | score=5.00 | tokens=74\n  signature: def get_entry_prices(pair_dirs, broker_dt, entry_time)\n  kind: function\n  docstring: L\u1ea5y gi\u00e1 Open M1 t\u1ea1i entry time. entry_time: string ho\u1eb7c dict {pair: time}.\n  dependencies: Exception, _parse_entry_time, broker_dt, broker_time_to_ts, candle, dict, direction, eh, em, entry_time, entry_ts, et\n- symbol: get_h1_candle_for_slot | score=5.00 | tokens=59\n  signature: def get_h1_candle_for_slot(broker_dt, H)\n  kind: function\n  docstring: L\u1ea5y n\u1ebfn H1 c\u1ee7a GBPUSD t\u1ea1i (H-1):00 \u2014 n\u1ebfn tr\u01b0\u1edbc slot hi\u1ec7n t\u1ea1i.\n  dependencies: H, SYMBOL, broker_dt, broker_time_to_ts, c_h1, get_candle_by_ts, mt5, print, ts_h1\n- symbol: get_hour_note | score=5.00 | tokens=34\n  signature: def get_hour_note(H, weekday = None)\n  kind: function\n  docstring: Tr\u1ea3 note theo H v\u00e0 th\u1ee9.\n  dependencies: H, datetime, notes, weekday\n- symbol: get_pair_direction | score=5.00 | tokens=69\n  signature: def get_pair_direction(H, signal, broker_dt, h1_signal = None)\n  kind: function\n  docstring: T\u00ednh chi\u1ec1u c\u00e1c c\u1eb7p theo slot v\u00e0 th\u1ee9.\n  dependencies: GBP_PAIRS, H, broker_dt, d_direction, d_direction_date, d_opp, effective_d, get_effective_d_direction, gold, opposite, p, result\n- symbol: get_schedule_reminders | score=5.00 | tokens=47\n  signature: def get_schedule_reminders(broker_dt)\n  kind: function\n  docstring: Ki\u1ec3m tra c\u00e1c ng\u00e0y \u0111\u1eb7c bi\u1ec7t trong th\u00e1ng - d\u00f9ng chung get_day_notes.\n  dependencies: broker_dt, get_day_notes, n, notes\n- symbol: main | score=5.00 | tokens=49\n  signature: def main()\n  kind: function\n  dependencies: ALL_PAIRS, BROKER_GMT, Exception, GBP_PAIRS, KeyboardInterrupt, SYMBOL, TARGET_HOURS, _, _load_state, _save_state, analyze, backfill_missing_days\n- symbol: mark_xauusd_matched | score=5.00 | tokens=62\n  signature: def mark_xauusd_matched(H)\n  kind: function\n  docstring: Ghi nh\u1eadn slot \u0111\u1ea7u ti\u00ean XAUUSD kh\u1edbp D1 direction.\n  dependencies: H, d_direction, d_matched_hour, effective_d, fmt_hour, get_broker_time, get_effective_d_direction, msg, print, send_telegram\n- file: mt5_signal_bot | score=5.00 | tokens=316\n  module: mt5_signal_bot\n  relative_path: mt5_signal_bot.py\n  imports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\n  public_api: get_entry_prices, update_entry_prices\u7cbe\u51c6, schedule\u7cbe\u51c6_price_update, get_current_prices, log_signal, select_signals_for_dashboard, d1_match_note, push_to_dashboard, push_prices_to_dashboard, get_schedule_reminders, send_telegram, send_d_direction_reminder, check_d_direction_input, restore_d1_match_from_today_signals, d_direction_watcher, d_direction_event_server, fmt_time, fmt_hour, broker_time_to_ts, get_candle_by_ts, candle_direction, resolve_doji, get_h1_candle_for_slot, candle_info_line, get_effective_xauusd_signal, calc_entry_time, analyze, get_hour_note, set_d_direction, get_effective_d_direction, get_pair_direction, should_skip_xauusd, mark_xauusd_matched, send_report, backfill_missing_days, try_init_mt5, get_broker_time, main\n  dependencies: ALL_PAIRS, BROKER_GMT, DASHBOARD_URL, DIRECTION_EVENT_PORT, DIRECTION_POLL_INTERVAL, Exception, FileNotFoundError, GBP_PAIRS, H, KeyboardInterrupt, MT5_PATH, MetaTrader5\n  file_imports: oak_trading_reminders.py, utils.py\n- symbol: push_prices_to_dashboard | score=5.00 | tokens=52\n  signature: def push_prices_to_dashboard()\n  kind: function\n  docstring: Push gi\u00e1 realtime l\u00ean Redis.\n  dependencies: ALL_PAIRS, DASHBOARD_URL, Exception, _cfg, api_key, dashboard_url, e, headers, json, len, mt5, os\n- symbol: push_to_dashboard | score=5.00 | tokens=68\n  signature: def push_to_dashboard()\n  kind: function\n  docstring: Push data to dashboard API (best effort, non-blocking).\n  dependencies: DASHBOARD_URL, Exception, _SIGNALS_LOG, _STATE_FILE, __file__, _cfg, _parse_news_for_dashboard, all_signals, api_key, cache, dashboard_url, e\n- symbol: resolve_doji | score=5.00 | tokens=70\n  signature: def resolve_doji(symbol, timeframe, target_ts, broker_dt)\n  kind: function\n  docstring: N\u1ebfn DOJI \u2192 l\u00f9i 1 n\u1ebfn tr\u01b0\u1edbc c\u00f9ng khung, l\u1ea5y direction n\u1ebfn tr\u01b0\u1edbc \u0111\u00f3.\n  dependencies: candle_direction, d, get_candle_by_ts, mt5, prev_candle, prev_offset, prev_ts, symbol, target_ts, timeframe\n- symbol: restore_d1_match_from_today_signals | score=5.00 | tokens=70\n  signature: def restore_d1_match_from_today_signals()\n  kind: function\n  docstring: Kh\u00f4i ph\u1ee5c m\u1ed1c match D1 t\u1eeb t\u00edn hi\u1ec7u h\u00f4m nay \u0111\u00e3 c\u00f3 s\u1eb5n tr\u00ean disk.\n  dependencies: TARGET_HOURS, _save_state, _trading_date, d_direction, d_matched_hour, day_signals, hour, payload, print, sent_today, today\n- symbol: schedule\u7cbe\u51c6_price_update | score=5.00 | tokens=71\n  signature: def schedule\u7cbe\u51c6_price_update(broker_dt, entry_time, pair_dirs)\n  kind: function\n  docstring: Schedule thread l\u1ea5y gi\u00e1 2s tr\u01b0\u1edbc entry time.\n  dependencies: Exception, _parse_entry_time, _update, broker_dt, broker_time_to_ts, calendar, date_str, datetime, delay, dict, e, earliest_et\n- symbol: select_signals_for_dashboard | score=5.00 | tokens=49\n  signature: def select_signals_for_dashboard(all_signals)\n  kind: function\n  docstring: Keep every signal that still has pair data so history can be republished across days.\n  dependencies: all_signals, s\n- symbol: send_d_direction_reminder | score=5.00 | tokens=42\n  signature: def send_d_direction_reminder()\n  kind: function\n  dependencies: broker_dt, d_reminder_sent_date, get_broker_time, msg, print, send_telegram, today, weekday_label\n- symbol: send_report | score=5.00 | tokens=55\n  signature: def send_report(signal_data, H, broker_dt, h2_signal = None, h15_signal = None)\n  kind: function\n  dependencies: ALL_PAIRS, GBP_PAIRS, H, SYMBOL, _, broker_dt, calc_entry_time, conclusion, d, dict, emoji, entry_line\n- symbol: send_telegram | score=5.00 | tokens=35\n  signature: def send_telegram(text)\n  kind: function\n  dependencies: Exception, TELEGRAM_CHAT_ID, TELEGRAM_TOKEN, e, print, send_telegram_raw, text\n- symbol: set_d_direction | score=5.00 | tokens=35\n  signature: def set_d_direction(direction)\n  kind: function\n  dependencies: _trading_date, d_direction, d_direction_date, d_matched_hour, direction\n- symbol: should_skip_xauusd | score=5.00 | tokens=63\n  signature: def should_skip_xauusd(H, signal, broker_dt)\n  kind: function\n  docstring: Ki\u1ec3m tra c\u00f3 n\u00ean \u1ea9n XAUUSD kh\u00f4ng. Kh\u00f4ng mutated state. Skip t\u1eeb H=3 sau match D1 t\u1edbi H=11. H=12+ hi\u1ec3n th\u1ecb l\u1ea1i.\n  dependencies: H, broker_dt, d_direction, d_matched_hour, signal\n- symbol: try_init_mt5 | score=5.00 | tokens=25\n  signature: def try_init_mt5()\n  kind: function\n  dependencies: MT5_PATH, info, mt5, mt5_ready, ok, print\n- symbol: update_entry_prices\u7cbe\u51c6 | score=5.00 | tokens=74\n  signature: def update_entry_prices\u7cbe\u51c6(date_str, hour, pair_dirs, broker_dt, entry_time)\n  kind: function\n  docstring: C\u1eadp nh\u1eadt entry_prices b\u1eb1ng Open M1 t\u1ea1i entry time.\n  dependencies: Exception, _SIGNALS_LOG, _parse_entry_time, broker_dt, broker_time_to_ts, candle, data, date_str, dict, direction, e, eh\nfile: oak_trading_reminders.py\nmodule: oak_trading_reminders\nimports: os, json, time, urllib.request, urllib.parse, ssl, datetime:datetime, timedelta, timezone, calendar, xml.etree.ElementTree, MetaTrader5, threading, sys, glob, winsound, re, oak_response_dict:get_random_response, utils:load_json_file\nretrieved_chunks: 10\n- symbol: OakTradingReminder._is_event_locked | score=10.00 | tokens=51\n  signature: def _is_event_locked(self, event_key)\n  kind: method\n  docstring: Check and set atomic lock for a specific event alert\n  dependencies: FileExistsError, LOCK_DIR, event_key, fd, lock_path, os, self, time\n- symbol: OakTradingReminder._should_send_daily_briefing | score=10.00 | tokens=66\n  signature: def _should_send_daily_briefing(self)\n  kind: method\n  docstring: Check file-based lock for daily briefing with atomic lock to prevent race condition\n  dependencies: Exception, FileExistsError, LOCK_DIR, datetime, f, fd, lock_path, log_file, now, open, os, self\n- symbol: OakTradingReminder.get_performance_report | score=10.00 | tokens=60\n  signature: def get_performance_report(self, profile)\n  kind: method\n  docstring: Connect to MT5 and calculate weekly performance for a profile\n  dependencies: acc, best_pair, datetime, deal, drawdown, from_date, history, len, losses, max, mt5, os\n- symbol: OakTradingReminder.get_projected_pnl | score=10.00 | tokens=92\n  signature: def get_projected_pnl(self, symbol, target_price, profile_name = None)\n  kind: method\n  docstring: Calculate projected PnL for all open positions of a symbol if price hits target_price. Returns a natural language message with random styles.\n  dependencies: CURRENT_TOKEN, abs, acc_info, all_pos, base_symbol, config, get_random_response, len, list, lots, msg, mt5\n- symbol: OakTradingReminder.process_commands | score=10.00 | tokens=65\n  signature: def process_commands(self)\n  kind: method\n  docstring: Check for commands via Telegram (Simple Polling + Natural Language)\n  dependencies: CURRENT_CHAT_ID, CURRENT_TOKEN, Exception, LOCK_DIR, any, chat_id, chat_id_target, chat_obj, config, data, datetime, e\n- symbol: _make_ssl_context | score=10.00 | tokens=40\n  signature: def _make_ssl_context()\n  kind: function\n  docstring: Try verified SSL first; fallback to unverified for legacy servers.\n  dependencies: Exception, ctx, ssl\n- symbol: fetch_forexfactory_xml | score=10.00 | tokens=53\n  signature: def fetch_forexfactory_xml(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, context, country, data, datetime, dt_full_src, dt_local, dt_obj, dt_src, event, event_date_str\n- symbol: fetch_investing_rss | score=10.00 | tokens=51\n  signature: def fetch_investing_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, any, channel, context, data, datetime, dt_local, dt_obj, event_time_str, found_events, icon\n- symbol: fetch_litefinance_rss | score=10.00 | tokens=53\n  signature: def fetch_litefinance_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, category, channel, context, data, datetime, dt_local, dt_obj, event_time_str, found_events, icon\n- symbol: fetch_myfxbook_rss | score=10.00 | tokens=53\n  signature: def fetch_myfxbook_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, Exception, _make_ssl_context, channel, clean_title, context, currency, data, datetime, dt_local, dt_obj, event_time_str\nfile: utils.py\nmodule: utils\nimports: json, os, urllib.request, urllib.parse\nretrieved_chunks: 1\n- symbol: get_signal_icon | score=10.00 | tokens=33\n  signature: def get_signal_icon(sig)\n  kind: function\n  docstring: Return (icon_text, emoji) for a signal.\n  dependencies: SIGNAL_ICONS, sig\nfile: OAK_Hidden_SLTP_Manager.py\nmodule: OAK_Hidden_SLTP_Manager\nimports: customtkinter, tkinter, tkinter:ttk, MetaTrader5, pywinauto, pywinauto:Application, mouse, threading, time, winsound, os, sys, json, urllib.request, urllib.parse, datetime:datetime, timedelta, ctypes, random, re, subprocess, signal, atexit, oak_trading_reminders, oak_response_dict:get_random_response, ctypes, oak_trading_reminders, tkinter:messagebox, argparse, signal, traceback\nretrieved_chunks: 4\n- symbol: App.add_ui_element | score=9.50 | tokens=41\n  signature: def add_ui_element(self, key, widget)\n  kind: method\n  docstring: Helper to store multiple widgets for the same translation key\n  dependencies: key, self, widget\n- symbol: App.notify | score=9.50 | tokens=37\n  signature: def notify(self, message)\n  kind: method\n  docstring: Standard notification for CopyTradeManager within GUI process\n  dependencies: message, self\n- symbol: CopyTradeManager._check_telegram_commands | score=9.50 | tokens=67\n  signature: def _check_telegram_commands(self)\n  kind: method\n  docstring: NEW: Check for remote commands via Telegram using Shared Inbox to support Multi-Process\n  dependencies: Exception, FileLock, added, admin_id, chat_id, data, e, existing_ids, f, hasattr, inbox, inbox_file\n- symbol: resource_path | score=9.50 | tokens=48\n  signature: def resource_path(relative_path)\n  kind: function\n  docstring: Get absolute path to resource, works for dev and for PyInstaller\n  dependencies: Exception, base_path, os, relative_path, sys\ndependency_graph:\nchanged_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\naffected_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\nfile_imports:\n- OAK_Hidden_SLTP_Manager.py -> oak_response_dict.py\n- OAK_Hidden_SLTP_Manager.py -> oak_trading_reminders.py\n- mimo_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> utils.py\n- oak_trading_reminders.py -> oak_response_dict.py\n- oak_trading_reminders.py -> utils.py\n- tests/test_dashboard_signal_selection.py -> mt5_signal_bot.py\n- tests/test_factcheck_worker_search_stack.py -> factcheck_worker.py\nsymbol_dependencies:\n- OAK_Hidden_SLTP_Manager.py::get_natural_response -> oak_response_dict.py::get_random_response\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> factcheck_worker.py::sort_key\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::save_json\nunresolved_imports: MetaTrader5, PyInstaller.__main__, argparse, atexit, calendar, ctypes, customtkinter, datetime, flask, glob, html, json\n",
+    "constraints": [
+      "Compress context, not reasoning.",
+      "Prefer repository-aware changes over raw prompt shortening.",
+      "Never include entire files unless the task requires it.",
+      "Use the smallest possible context for the selected profile.",
+      "Keep output concise, explicit, and testable."
+    ],
+    "execution_steps": [
+      "Read the objective and constraints.",
+      "Use only the supplied compressed context and symbol list.",
+      "Check the dependency notes before choosing the change path.",
+      "Draft a validation plan before editing.",
+      "Make the smallest safe change that satisfies the request.",
+      "Validate the result before returning.",
+      "Run one repair pass if validation fails."
+    ],
+    "objective": "Compress repository context for a coding agent.",
+    "output_contract": [
+      "Return a short summary and a step-by-step implementation note.",
+      "List changed files and the dependency impact.",
+      "Describe the validation plan and any repair pass performed.",
+      "State cache behavior and retrieval coverage when available.",
+      "Highlight risks, trade-offs, and follow-up verification."
+    ],
+    "profile": "deep",
+    "profile_guidance": [
+      "Use dependency notes, validation, and repair planning.",
+      "Surface edge cases and cross-file impact explicitly.",
+      "Return enough context for a thorough implementation and review pass.",
+      "Use dependency notes to map the repair and validation path.",
+      "Expand only the context needed to verify the change safely.",
+      "Use the repair pass to close any validation gaps before returning."
+    ],
+    "relevant_symbols": [
+      "normalize_text",
+      "search_google_factcheck",
+      "calc_entry_time",
+      "log_signal",
+      "OakTradingReminder._is_event_locked",
+      "OakTradingReminder._should_send_daily_briefing",
+      "OakTradingReminder.get_performance_report",
+      "OakTradingReminder.get_projected_pnl",
+      "OakTradingReminder.process_commands",
+      "_make_ssl_context",
+      "fetch_forexfactory_xml",
+      "fetch_investing_rss",
+      "fetch_litefinance_rss",
+      "fetch_myfxbook_rss",
+      "get_signal_icon",
+      "App.add_ui_element",
+      "App.notify",
+      "CopyTradeManager._check_telegram_commands",
+      "resource_path",
+      "check_agreement",
+      "classify_reliability",
+      "extract_claims",
+      "main",
+      "normalize_domain",
+      "process_factcheck",
+      "redis_request",
+      "search_duckduckgo",
+      "search_google_web",
+      "search_web",
+      "should_keep_source",
+      "simplify_query",
+      "sort_key",
+      "source_match_hits",
+      "source_relevance",
+      "token_set",
+      "_default_entry_time",
+      "_load_state",
+      "_parse_entry_time",
+      "_parse_news_for_dashboard",
+      "_save_state",
+      "_trading_date",
+      "_update",
+      "analyze",
+      "backfill_missing_days",
+      "broker_time_to_ts",
+      "candle_direction",
+      "candle_info_line",
+      "check_d_direction_input",
+      "d1_match_note",
+      "d_direction_event_server",
+      "d_direction_watcher",
+      "fmt_hour",
+      "fmt_time",
+      "get_broker_time",
+      "get_candle_by_ts",
+      "get_current_prices",
+      "get_effective_d_direction",
+      "get_effective_xauusd_signal",
+      "get_entry_prices",
+      "get_h1_candle_for_slot",
+      "get_hour_note",
+      "get_pair_direction",
+      "get_schedule_reminders",
+      "mark_xauusd_matched",
+      "push_prices_to_dashboard",
+      "push_to_dashboard",
+      "resolve_doji",
+      "restore_d1_match_from_today_signals",
+      "schedule\u7cbe\u51c6_price_update",
+      "select_signals_for_dashboard",
+      "send_d_direction_reminder",
+      "send_report",
+      "send_telegram",
+      "set_d_direction",
+      "should_skip_xauusd",
+      "try_init_mt5",
+      "update_entry_prices\u7cbe\u51c6"
+    ],
+    "rendered_text": "Objective: Compress repository context for a coding agent.\n\nExecution Profile: deep\n\nConstraints:\n- Compress context, not reasoning.\n- Prefer repository-aware changes over raw prompt shortening.\n- Never include entire files unless the task requires it.\n- Use the smallest possible context for the selected profile.\n- Keep output concise, explicit, and testable.\n\nProfile Guidance:\n- Use dependency notes, validation, and repair planning.\n- Surface edge cases and cross-file impact explicitly.\n- Return enough context for a thorough implementation and review pass.\n- Use dependency notes to map the repair and validation path.\n- Expand only the context needed to verify the change safely.\n- Use the repair pass to close any validation gaps before returning.\n\nRelevant Symbols:\n- normalize_text\n- search_google_factcheck\n- calc_entry_time\n- log_signal\n- OakTradingReminder._is_event_locked\n- OakTradingReminder._should_send_daily_briefing\n- OakTradingReminder.get_performance_report\n- OakTradingReminder.get_projected_pnl\n- OakTradingReminder.process_commands\n- _make_ssl_context\n- fetch_forexfactory_xml\n- fetch_investing_rss\n- fetch_litefinance_rss\n- fetch_myfxbook_rss\n- get_signal_icon\n- App.add_ui_element\n- App.notify\n- CopyTradeManager._check_telegram_commands\n- resource_path\n- check_agreement\n- classify_reliability\n- extract_claims\n- main\n- normalize_domain\n- process_factcheck\n- redis_request\n- search_duckduckgo\n- search_google_web\n- search_web\n- should_keep_source\n- simplify_query\n- sort_key\n- source_match_hits\n- source_relevance\n- token_set\n- _default_entry_time\n- _load_state\n- _parse_entry_time\n- _parse_news_for_dashboard\n- _save_state\n- _trading_date\n- _update\n- analyze\n- backfill_missing_days\n- broker_time_to_ts\n- candle_direction\n- candle_info_line\n- check_d_direction_input\n- d1_match_note\n- d_direction_event_server\n- d_direction_watcher\n- fmt_hour\n- fmt_time\n- get_broker_time\n- get_candle_by_ts\n- get_current_prices\n- get_effective_d_direction\n- get_effective_xauusd_signal\n- get_entry_prices\n- get_h1_candle_for_slot\n- get_hour_note\n- get_pair_direction\n- get_schedule_reminders\n- mark_xauusd_matched\n- push_prices_to_dashboard\n- push_to_dashboard\n- resolve_doji\n- restore_d1_match_from_today_signals\n- schedule\u7cbe\u51c6_price_update\n- select_signals_for_dashboard\n- send_d_direction_reminder\n- send_report\n- send_telegram\n- set_d_direction\n- should_skip_xauusd\n- try_init_mt5\n- update_entry_prices\u7cbe\u51c6\n\nCompressed Context:\nrepository_root: C:\\Users\\PHONGQK\\Documents\\trae_projects\\ROBOT SLTP\nfile_count: 5832\npython_file_count: 14\nconfig_file_count: 145\nmode: FAST\nretrieval:\nquery: Compress repository context for a coding agent.\ncandidate_count: 331\ntop_k: 80\nmatched_tokens: context, for\nfile: factcheck_worker.py\nmodule: factcheck_worker\nimports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\nretrieved_chunks: 19\n- symbol: normalize_text | score=10.00 | tokens=40\n  signature: def normalize_text(text)\n  kind: function\n  docstring: Normalize text for loose keyword matching.\n  dependencies: ch, normalized, stripped, text, unicodedata\n- symbol: search_google_factcheck | score=10.00 | tokens=74\n  signature: def search_google_factcheck(query, api_key)\n  kind: function\n  docstring: Search Google Fact Check Tools API for verified claims from IFCN-certified orgs.\n  dependencies: Exception, GOOGLE_FC_RATINGS_FALSE, GOOGLE_FC_RATINGS_TRUE, agrees, any, api_key, claim, claim_text, data, e, encoded, json\n- symbol: check_agreement | score=5.00 | tokens=71\n  signature: def check_agreement(claim, snippet)\n  kind: function\n  docstring: Check if a source agrees with, contradicts, or is neutral to a claim.\n  dependencies: any, claim, claim_lower, confirm_words, contradict_words, has_confirm, has_contradict, normalize_text, snippet, snippet_lower, w\n- symbol: classify_reliability | score=5.00 | tokens=46\n  signature: def classify_reliability(url)\n  kind: function\n  docstring: Classify source reliability based on domain.\n  dependencies: HIGH_RELIABILITY, MEDIUM_RELIABILITY, d, domain, url, urllib\n- symbol: extract_claims | score=5.00 | tokens=44\n  signature: def extract_claims(text)\n  kind: function\n  docstring: Extract key claims from text. Handles Vietnamese and English.\n  dependencies: claims, html_mod, len, re, sentence, text\n- file: factcheck_worker | score=5.00 | tokens=164\n  module: factcheck_worker\n  relative_path: factcheck_worker.py\n  imports: os, sys, json, time, re, unicodedata, urllib.request, urllib.parse, html, traceback\n  public_api: normalize_domain, normalize_text, token_set, source_match_hits, source_relevance, should_keep_source, redis_request, extract_claims, simplify_query, search_google_web, search_duckduckgo, search_web, search_google_factcheck, classify_reliability, check_agreement, process_factcheck, sort_key, main\n  dependencies: Exception, FACTCHECK_KEY, GOOGLE_FC_RATINGS_FALSE, GOOGLE_FC_RATINGS_TRUE, HIGH_RELIABILITY, MEDIUM_RELIABILITY, REDIS_TOKEN, REDIS_URL, TypeError, agree_score, agrees, all_sources\n- symbol: main | score=5.00 | tokens=36\n  signature: def main()\n  kind: function\n  dependencies: Exception, FACTCHECK_KEY, REDIS_TOKEN, REDIS_URL, e, i, item, item_id, items, os, pending, print\n- symbol: normalize_domain | score=5.00 | tokens=37\n  signature: def normalize_domain(url)\n  kind: function\n  docstring: Normalize a URL into a compact domain key.\n  dependencies: Exception, domain, url, urllib\n- symbol: process_factcheck | score=5.00 | tokens=66\n  signature: def process_factcheck(item)\n  kind: function\n  docstring: Process a single fact-check request.\n  dependencies: agree_score, agrees, all_sources, any, authority_queries, broad_query, check_agreement, claim, claim_sources, claims, classify_reliability, confirming\n- symbol: redis_request | score=5.00 | tokens=59\n  signature: def redis_request(method, key, value = None)\n  kind: function\n  docstring: Make a request to Upstash Redis REST API.\n  dependencies: Exception, REDIS_TOKEN, REDIS_URL, TypeError, data, e, headers, isinstance, json, key, method, print\n- symbol: search_duckduckgo | score=5.00 | tokens=51\n  signature: def search_duckduckgo(query)\n  kind: function\n  docstring: Search DuckDuckGo HTML fallback.\n  dependencies: Exception, clean_snippet, clean_title, clean_url, data, e, html, html_mod, i, len, min, print\n- symbol: search_google_web | score=5.00 | tokens=55\n  signature: def search_google_web(query)\n  kind: function\n  docstring: Search web using Google Custom Search JSON API.\n  dependencies: Exception, api_key, classify_reliability, cse_id, data, e, encoded, item, json, link, os, print\n- symbol: search_web | score=5.00 | tokens=44\n  signature: def search_web(query)\n  kind: function\n  docstring: Search web using multiple engines and merge the hits.\n  dependencies: query, results, search_duckduckgo, search_google_web\n- symbol: should_keep_source | score=5.00 | tokens=56\n  signature: def should_keep_source(source)\n  kind: function\n  docstring: Reject clearly off-topic hits before they affect the result set.\n  dependencies: engine, float, hits, int, relevance, reliability, source, threshold, thresholds\n- symbol: simplify_query | score=5.00 | tokens=46\n  signature: def simplify_query(claim)\n  kind: function\n  docstring: Simplify a claim into a shorter search query.\n  dependencies: claim, filtered, normalize_text, query, re, stopwords, w, words\n- symbol: sort_key | score=5.00 | tokens=20\n  signature: def sort_key(s)\n  kind: function\n  dependencies: agree_score, rel_score, s\n- symbol: source_match_hits | score=5.00 | tokens=62\n  signature: def source_match_hits(query, source)\n  kind: function\n  docstring: Count keyword overlaps between a query and a source.\n  dependencies: normalize_domain, normalize_text, query, query_tokens, source, source_norm, source_text, sum, token, token_set\n- symbol: source_relevance | score=5.00 | tokens=66\n  signature: def source_relevance(query, source)\n  kind: function\n  docstring: Score how closely a source matches the current query.\n  dependencies: HIGH_RELIABILITY, hits, len, max, min, normalize_domain, normalize_text, query, query_tokens, score, source, source_match_hits\n- symbol: token_set | score=5.00 | tokens=37\n  signature: def token_set(text)\n  kind: function\n  docstring: Tokenize text into a compact keyword set.\n  dependencies: len, normalize_text, re, text, token\nfile: mt5_signal_bot.py\nmodule: mt5_signal_bot\nimports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\nretrieved_chunks: 46\n- symbol: calc_entry_time | score=10.00 | tokens=98\n  signature: def calc_entry_time(signal, m30_dir, H = None, h2_signal = None, orig_signal = None, weekday = None, h15_signal = None)\n  kind: function\n  docstring: Calculate entry time. Returns string for normal slots, dict {pair: time|None} for H=16.\n  dependencies: GBP_PAIRS, H, _default_entry_time, datetime, get_effective_xauusd_signal, h15_signal, h2_signal, m30_dir, matches_h2, p, signal, times\n- symbol: log_signal | score=10.00 | tokens=79\n  signature: def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed = False)\n  kind: function\n  docstring: Append signal data to signals_log.json for website consumption.\n  dependencies: Exception, H, _SIGNALS_LOG, broker_dt, current_prices, d, d_direction, data, datetime, e, entry_prices, entry_time\n- symbol: _default_entry_time | score=5.00 | tokens=23\n  signature: def _default_entry_time(H, matches_h2)\n  kind: function\n  dependencies: H, matches_h2\n- symbol: _load_state | score=5.00 | tokens=62\n  signature: def _load_state()\n  kind: function\n  docstring: Load persisted state from disk. Returns dict with day_signals, sent_today, etc.\n  dependencies: FileNotFoundError, _STATE_FILE, _trading_date, data, datetime, day_signals, f, int, json, k, open, set\n- symbol: _parse_entry_time | score=5.00 | tokens=43\n  signature: def _parse_entry_time(entry_str)\n  kind: function\n  docstring: Parse 'HH:MM' to (hour, minute). Returns None on failure.\n  dependencies: Exception, entry_str, int, parts\n- symbol: _parse_news_for_dashboard | score=5.00 | tokens=59\n  signature: def _parse_news_for_dashboard(news_lines)\n  kind: function\n  docstring: Parse news strings like '\u2022 19:30 CAD \ud83d\udd34 GDP m/m' into structured objects.\n  dependencies: currency, impact, items, line, m, news_lines, re, rest, time_str, title\n- symbol: _save_state | score=5.00 | tokens=60\n  signature: def _save_state(day_signals, sent_today)\n  kind: function\n  docstring: Persist state to disk.\n  dependencies: Exception, _STATE_FILE, _trading_date, d, d_direction, d_direction_date, d_matched_hour, data, day_signals, ds_json, ds_str, e\n- symbol: _trading_date | score=5.00 | tokens=46\n  signature: def _trading_date()\n  kind: function\n  docstring: Current trading date in broker time.\n  dependencies: BROKER_GMT, Exception, datetime, get_broker_time, globals, timedelta, timezone\n- symbol: _update | score=5.00 | tokens=34\n  signature: def _update()\n  kind: function\n  dependencies: broker_dt, date_str, delay, entry_time, hour, pair_dirs, time, update_entry_prices\u7cbe\u51c6\n- symbol: analyze | score=5.00 | tokens=45\n  signature: def analyze(broker_dt, H)\n  kind: function\n  dependencies: H, SYMBOL, broker_dt, broker_time_to_ts, c_h1, c_m30, c_m35, c_m40, candle_direction, candle_info_line, d_h1, d_m30\n- symbol: backfill_missing_days | score=5.00 | tokens=73\n  signature: def backfill_missing_days()\n  kind: function\n  docstring: T\u1ef1 t\u00ednh l\u1ea1i signal cho 7 ng\u00e0y tr\u01b0\u1edbc khi bot kh\u1edfi \u0111\u1ed9ng (overwrite \u0111\u1ec3 fix data sai).\n  dependencies: BROKER_GMT, Exception, GBP_PAIRS, H, TARGET_HOURS, _SIGNALS_LOG, analyze, backfilled, broker_now, calc_entry_time, d, dates_to_check\n- symbol: broker_time_to_ts | score=5.00 | tokens=70\n  signature: def broker_time_to_ts(broker_dt, hour, minute = 0, second = 0)\n  kind: function\n  docstring: Chuyen broker datetime + hour/minute thanh UTC timestamp de so sanh voi rate.\n  dependencies: BROKER_GMT, broker_dt, calendar, hour, minute, second, target_broker, target_utc, timedelta\n- symbol: candle_direction | score=5.00 | tokens=26\n  signature: def candle_direction(candle)\n  kind: function\n  dependencies: abs, body, c, candle, full_range, o\n- symbol: candle_info_line | score=5.00 | tokens=33\n  signature: def candle_info_line(candle, label)\n  kind: function\n  dependencies: arrow, candle, candle_direction, d, label, vn, vn_direction\n- symbol: check_d_direction_input | score=5.00 | tokens=79\n  signature: def check_d_direction_input()\n  kind: function\n  docstring: \u0110\u1ecdc D-direction t\u1eeb file (mimo_bot.py ghi v\u00e0o), kh\u00f4ng poll Telegram tr\u1ef1c ti\u1ebfp.\n  dependencies: Exception, _STATE_FILE, __file__, _trading_date, broker_weekday, d_direction, d_direction_date, d_direction_lock, d_file, d_matched_hour, day_label, direction\n- symbol: d1_match_note | score=5.00 | tokens=19\n  signature: def d1_match_note(direction)\n  kind: function\n  dependencies: direction\n- symbol: d_direction_event_server | score=5.00 | tokens=72\n  signature: def d_direction_event_server()\n  kind: function\n  docstring: ponytail: localhost ping \u0111\u1ec3 MT5 nh\u1eb7t D g\u1ea7n nh\u01b0 t\u1ee9c th\u00ec; file watcher v\u1eabn l\u00e0 fallback n\u1ebfu ping fail.\n  dependencies: DIRECTION_EVENT_PORT, Exception, OSError, _addr, check_d_direction_input, conn, exc, print, server, socket\n- symbol: d_direction_watcher | score=5.00 | tokens=61\n  signature: def d_direction_watcher()\n  kind: function\n  docstring: ponytail: 1s file watcher \u0111\u1ec3 nh\u1eadn D nhanh h\u01a1n; upgrade path l\u00e0 webhook/queue IPC n\u1ebfu b\u1ecf file trung gian.\n  dependencies: DIRECTION_POLL_INTERVAL, Exception, check_d_direction_input, time\n- symbol: fmt_hour | score=5.00 | tokens=14\n  signature: def fmt_hour(h)\n  kind: function\n  dependencies: h\n- symbol: fmt_time | score=5.00 | tokens=14\n  signature: def fmt_time(dt)\n  kind: function\n  dependencies: dt\n- symbol: get_broker_time | score=5.00 | tokens=57\n  signature: def get_broker_time()\n  kind: function\n  docstring: Lay broker time hoan toan tu tick.time (UTC). Khong phu thuoc local.\n  dependencies: BROKER_GMT, SYMBOL, datetime, mt5, mt5_ready, now_utc, tick, timedelta, timezone, utc_dt\n- symbol: get_candle_by_ts | score=5.00 | tokens=59\n  signature: def get_candle_by_ts(symbol, timeframe, target_ts)\n  kind: function\n  docstring: Lay n\u1ebfn gan nhat voi UTC timestamp. Tra ve dict hoac None.\n  dependencies: abs, best, diff, float, len, max_diff, min_diff, mt5, print, r, rates, symbol\n- symbol: get_current_prices | score=5.00 | tokens=45\n  signature: def get_current_prices(pair_dirs)\n  kind: function\n  docstring: L\u1ea5y gi\u00e1 market hi\u1ec7n t\u1ea1i (tick).\n  dependencies: Exception, direction, mt5, pair, pair_dirs, prices, round, tick\n- symbol: get_effective_d_direction | score=5.00 | tokens=55\n  signature: def get_effective_d_direction(broker_dt)\n  kind: function\n  docstring: Th\u1ee9 5/6 c\u00f3 th\u1ec3 l\u01b0u D direction, nh\u01b0ng ch\u1ec9 gi\u00e1 tr\u1ecb th\u1ee9 6 m\u1edbi \u0111\u01b0\u1ee3c \u0111\u1ea3o \u0111\u1ec3 d\u00f9ng cho th\u1ee9 2.\n  dependencies: broker_dt, d_direction, d_direction_date\n- symbol: get_effective_xauusd_signal | score=5.00 | tokens=53\n  signature: def get_effective_xauusd_signal(signal, H = None, weekday = None, h15_signal = None)\n  kind: function\n  docstring: Signal th\u1ef1c t\u1ebf c\u1ee7a XAUUSD sau c\u00e1c rule \u0111\u1ea3o \u1edf t\u1eebng slot.\n  dependencies: H, signal, xau_signal\n- symbol: get_entry_prices | score=5.00 | tokens=74\n  signature: def get_entry_prices(pair_dirs, broker_dt, entry_time)\n  kind: function\n  docstring: L\u1ea5y gi\u00e1 Open M1 t\u1ea1i entry time. entry_time: string ho\u1eb7c dict {pair: time}.\n  dependencies: Exception, _parse_entry_time, broker_dt, broker_time_to_ts, candle, dict, direction, eh, em, entry_time, entry_ts, et\n- symbol: get_h1_candle_for_slot | score=5.00 | tokens=59\n  signature: def get_h1_candle_for_slot(broker_dt, H)\n  kind: function\n  docstring: L\u1ea5y n\u1ebfn H1 c\u1ee7a GBPUSD t\u1ea1i (H-1):00 \u2014 n\u1ebfn tr\u01b0\u1edbc slot hi\u1ec7n t\u1ea1i.\n  dependencies: H, SYMBOL, broker_dt, broker_time_to_ts, c_h1, get_candle_by_ts, mt5, print, ts_h1\n- symbol: get_hour_note | score=5.00 | tokens=34\n  signature: def get_hour_note(H, weekday = None)\n  kind: function\n  docstring: Tr\u1ea3 note theo H v\u00e0 th\u1ee9.\n  dependencies: H, datetime, notes, weekday\n- symbol: get_pair_direction | score=5.00 | tokens=69\n  signature: def get_pair_direction(H, signal, broker_dt, h1_signal = None)\n  kind: function\n  docstring: T\u00ednh chi\u1ec1u c\u00e1c c\u1eb7p theo slot v\u00e0 th\u1ee9.\n  dependencies: GBP_PAIRS, H, broker_dt, d_direction, d_direction_date, d_opp, effective_d, get_effective_d_direction, gold, opposite, p, result\n- symbol: get_schedule_reminders | score=5.00 | tokens=47\n  signature: def get_schedule_reminders(broker_dt)\n  kind: function\n  docstring: Ki\u1ec3m tra c\u00e1c ng\u00e0y \u0111\u1eb7c bi\u1ec7t trong th\u00e1ng - d\u00f9ng chung get_day_notes.\n  dependencies: broker_dt, get_day_notes, n, notes\n- symbol: main | score=5.00 | tokens=49\n  signature: def main()\n  kind: function\n  dependencies: ALL_PAIRS, BROKER_GMT, Exception, GBP_PAIRS, KeyboardInterrupt, SYMBOL, TARGET_HOURS, _, _load_state, _save_state, analyze, backfill_missing_days\n- symbol: mark_xauusd_matched | score=5.00 | tokens=62\n  signature: def mark_xauusd_matched(H)\n  kind: function\n  docstring: Ghi nh\u1eadn slot \u0111\u1ea7u ti\u00ean XAUUSD kh\u1edbp D1 direction.\n  dependencies: H, d_direction, d_matched_hour, effective_d, fmt_hour, get_broker_time, get_effective_d_direction, msg, print, send_telegram\n- file: mt5_signal_bot | score=5.00 | tokens=316\n  module: mt5_signal_bot\n  relative_path: mt5_signal_bot.py\n  imports: os, sys, json, time, calendar, threading, socket, datetime:datetime, timedelta, timezone, urllib.request, utils:send_telegram_raw, get_signal_icon, vn_direction, oak_trading_reminders:get_day_notes, MetaTrader5, re\n  public_api: get_entry_prices, update_entry_prices\u7cbe\u51c6, schedule\u7cbe\u51c6_price_update, get_current_prices, log_signal, select_signals_for_dashboard, d1_match_note, push_to_dashboard, push_prices_to_dashboard, get_schedule_reminders, send_telegram, send_d_direction_reminder, check_d_direction_input, restore_d1_match_from_today_signals, d_direction_watcher, d_direction_event_server, fmt_time, fmt_hour, broker_time_to_ts, get_candle_by_ts, candle_direction, resolve_doji, get_h1_candle_for_slot, candle_info_line, get_effective_xauusd_signal, calc_entry_time, analyze, get_hour_note, set_d_direction, get_effective_d_direction, get_pair_direction, should_skip_xauusd, mark_xauusd_matched, send_report, backfill_missing_days, try_init_mt5, get_broker_time, main\n  dependencies: ALL_PAIRS, BROKER_GMT, DASHBOARD_URL, DIRECTION_EVENT_PORT, DIRECTION_POLL_INTERVAL, Exception, FileNotFoundError, GBP_PAIRS, H, KeyboardInterrupt, MT5_PATH, MetaTrader5\n  file_imports: oak_trading_reminders.py, utils.py\n- symbol: push_prices_to_dashboard | score=5.00 | tokens=52\n  signature: def push_prices_to_dashboard()\n  kind: function\n  docstring: Push gi\u00e1 realtime l\u00ean Redis.\n  dependencies: ALL_PAIRS, DASHBOARD_URL, Exception, _cfg, api_key, dashboard_url, e, headers, json, len, mt5, os\n- symbol: push_to_dashboard | score=5.00 | tokens=68\n  signature: def push_to_dashboard()\n  kind: function\n  docstring: Push data to dashboard API (best effort, non-blocking).\n  dependencies: DASHBOARD_URL, Exception, _SIGNALS_LOG, _STATE_FILE, __file__, _cfg, _parse_news_for_dashboard, all_signals, api_key, cache, dashboard_url, e\n- symbol: resolve_doji | score=5.00 | tokens=70\n  signature: def resolve_doji(symbol, timeframe, target_ts, broker_dt)\n  kind: function\n  docstring: N\u1ebfn DOJI \u2192 l\u00f9i 1 n\u1ebfn tr\u01b0\u1edbc c\u00f9ng khung, l\u1ea5y direction n\u1ebfn tr\u01b0\u1edbc \u0111\u00f3.\n  dependencies: candle_direction, d, get_candle_by_ts, mt5, prev_candle, prev_offset, prev_ts, symbol, target_ts, timeframe\n- symbol: restore_d1_match_from_today_signals | score=5.00 | tokens=70\n  signature: def restore_d1_match_from_today_signals()\n  kind: function\n  docstring: Kh\u00f4i ph\u1ee5c m\u1ed1c match D1 t\u1eeb t\u00edn hi\u1ec7u h\u00f4m nay \u0111\u00e3 c\u00f3 s\u1eb5n tr\u00ean disk.\n  dependencies: TARGET_HOURS, _save_state, _trading_date, d_direction, d_matched_hour, day_signals, hour, payload, print, sent_today, today\n- symbol: schedule\u7cbe\u51c6_price_update | score=5.00 | tokens=71\n  signature: def schedule\u7cbe\u51c6_price_update(broker_dt, entry_time, pair_dirs)\n  kind: function\n  docstring: Schedule thread l\u1ea5y gi\u00e1 2s tr\u01b0\u1edbc entry time.\n  dependencies: Exception, _parse_entry_time, _update, broker_dt, broker_time_to_ts, calendar, date_str, datetime, delay, dict, e, earliest_et\n- symbol: select_signals_for_dashboard | score=5.00 | tokens=49\n  signature: def select_signals_for_dashboard(all_signals)\n  kind: function\n  docstring: Keep every signal that still has pair data so history can be republished across days.\n  dependencies: all_signals, s\n- symbol: send_d_direction_reminder | score=5.00 | tokens=42\n  signature: def send_d_direction_reminder()\n  kind: function\n  dependencies: broker_dt, d_reminder_sent_date, get_broker_time, msg, print, send_telegram, today, weekday_label\n- symbol: send_report | score=5.00 | tokens=55\n  signature: def send_report(signal_data, H, broker_dt, h2_signal = None, h15_signal = None)\n  kind: function\n  dependencies: ALL_PAIRS, GBP_PAIRS, H, SYMBOL, _, broker_dt, calc_entry_time, conclusion, d, dict, emoji, entry_line\n- symbol: send_telegram | score=5.00 | tokens=35\n  signature: def send_telegram(text)\n  kind: function\n  dependencies: Exception, TELEGRAM_CHAT_ID, TELEGRAM_TOKEN, e, print, send_telegram_raw, text\n- symbol: set_d_direction | score=5.00 | tokens=35\n  signature: def set_d_direction(direction)\n  kind: function\n  dependencies: _trading_date, d_direction, d_direction_date, d_matched_hour, direction\n- symbol: should_skip_xauusd | score=5.00 | tokens=63\n  signature: def should_skip_xauusd(H, signal, broker_dt)\n  kind: function\n  docstring: Ki\u1ec3m tra c\u00f3 n\u00ean \u1ea9n XAUUSD kh\u00f4ng. Kh\u00f4ng mutated state. Skip t\u1eeb H=3 sau match D1 t\u1edbi H=11. H=12+ hi\u1ec3n th\u1ecb l\u1ea1i.\n  dependencies: H, broker_dt, d_direction, d_matched_hour, signal\n- symbol: try_init_mt5 | score=5.00 | tokens=25\n  signature: def try_init_mt5()\n  kind: function\n  dependencies: MT5_PATH, info, mt5, mt5_ready, ok, print\n- symbol: update_entry_prices\u7cbe\u51c6 | score=5.00 | tokens=74\n  signature: def update_entry_prices\u7cbe\u51c6(date_str, hour, pair_dirs, broker_dt, entry_time)\n  kind: function\n  docstring: C\u1eadp nh\u1eadt entry_prices b\u1eb1ng Open M1 t\u1ea1i entry time.\n  dependencies: Exception, _SIGNALS_LOG, _parse_entry_time, broker_dt, broker_time_to_ts, candle, data, date_str, dict, direction, e, eh\nfile: oak_trading_reminders.py\nmodule: oak_trading_reminders\nimports: os, json, time, urllib.request, urllib.parse, ssl, datetime:datetime, timedelta, timezone, calendar, xml.etree.ElementTree, MetaTrader5, threading, sys, glob, winsound, re, oak_response_dict:get_random_response, utils:load_json_file\nretrieved_chunks: 10\n- symbol: OakTradingReminder._is_event_locked | score=10.00 | tokens=51\n  signature: def _is_event_locked(self, event_key)\n  kind: method\n  docstring: Check and set atomic lock for a specific event alert\n  dependencies: FileExistsError, LOCK_DIR, event_key, fd, lock_path, os, self, time\n- symbol: OakTradingReminder._should_send_daily_briefing | score=10.00 | tokens=66\n  signature: def _should_send_daily_briefing(self)\n  kind: method\n  docstring: Check file-based lock for daily briefing with atomic lock to prevent race condition\n  dependencies: Exception, FileExistsError, LOCK_DIR, datetime, f, fd, lock_path, log_file, now, open, os, self\n- symbol: OakTradingReminder.get_performance_report | score=10.00 | tokens=60\n  signature: def get_performance_report(self, profile)\n  kind: method\n  docstring: Connect to MT5 and calculate weekly performance for a profile\n  dependencies: acc, best_pair, datetime, deal, drawdown, from_date, history, len, losses, max, mt5, os\n- symbol: OakTradingReminder.get_projected_pnl | score=10.00 | tokens=92\n  signature: def get_projected_pnl(self, symbol, target_price, profile_name = None)\n  kind: method\n  docstring: Calculate projected PnL for all open positions of a symbol if price hits target_price. Returns a natural language message with random styles.\n  dependencies: CURRENT_TOKEN, abs, acc_info, all_pos, base_symbol, config, get_random_response, len, list, lots, msg, mt5\n- symbol: OakTradingReminder.process_commands | score=10.00 | tokens=65\n  signature: def process_commands(self)\n  kind: method\n  docstring: Check for commands via Telegram (Simple Polling + Natural Language)\n  dependencies: CURRENT_CHAT_ID, CURRENT_TOKEN, Exception, LOCK_DIR, any, chat_id, chat_id_target, chat_obj, config, data, datetime, e\n- symbol: _make_ssl_context | score=10.00 | tokens=40\n  signature: def _make_ssl_context()\n  kind: function\n  docstring: Try verified SSL first; fallback to unverified for legacy servers.\n  dependencies: Exception, ctx, ssl\n- symbol: fetch_forexfactory_xml | score=10.00 | tokens=53\n  signature: def fetch_forexfactory_xml(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, context, country, data, datetime, dt_full_src, dt_local, dt_obj, dt_src, event, event_date_str\n- symbol: fetch_investing_rss | score=10.00 | tokens=51\n  signature: def fetch_investing_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, any, channel, context, data, datetime, dt_local, dt_obj, event_time_str, found_events, icon\n- symbol: fetch_litefinance_rss | score=10.00 | tokens=53\n  signature: def fetch_litefinance_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, _make_ssl_context, category, channel, context, data, datetime, dt_local, dt_obj, event_time_str, found_events, icon\n- symbol: fetch_myfxbook_rss | score=10.00 | tokens=53\n  signature: def fetch_myfxbook_rss(lang = 'VN', context = None)\n  kind: function\n  dependencies: ET, Exception, _make_ssl_context, channel, clean_title, context, currency, data, datetime, dt_local, dt_obj, event_time_str\nfile: utils.py\nmodule: utils\nimports: json, os, urllib.request, urllib.parse\nretrieved_chunks: 1\n- symbol: get_signal_icon | score=10.00 | tokens=33\n  signature: def get_signal_icon(sig)\n  kind: function\n  docstring: Return (icon_text, emoji) for a signal.\n  dependencies: SIGNAL_ICONS, sig\nfile: OAK_Hidden_SLTP_Manager.py\nmodule: OAK_Hidden_SLTP_Manager\nimports: customtkinter, tkinter, tkinter:ttk, MetaTrader5, pywinauto, pywinauto:Application, mouse, threading, time, winsound, os, sys, json, urllib.request, urllib.parse, datetime:datetime, timedelta, ctypes, random, re, subprocess, signal, atexit, oak_trading_reminders, oak_response_dict:get_random_response, ctypes, oak_trading_reminders, tkinter:messagebox, argparse, signal, traceback\nretrieved_chunks: 4\n- symbol: App.add_ui_element | score=9.50 | tokens=41\n  signature: def add_ui_element(self, key, widget)\n  kind: method\n  docstring: Helper to store multiple widgets for the same translation key\n  dependencies: key, self, widget\n- symbol: App.notify | score=9.50 | tokens=37\n  signature: def notify(self, message)\n  kind: method\n  docstring: Standard notification for CopyTradeManager within GUI process\n  dependencies: message, self\n- symbol: CopyTradeManager._check_telegram_commands | score=9.50 | tokens=67\n  signature: def _check_telegram_commands(self)\n  kind: method\n  docstring: NEW: Check for remote commands via Telegram using Shared Inbox to support Multi-Process\n  dependencies: Exception, FileLock, added, admin_id, chat_id, data, e, existing_ids, f, hasattr, inbox, inbox_file\n- symbol: resource_path | score=9.50 | tokens=48\n  signature: def resource_path(relative_path)\n  kind: function\n  docstring: Get absolute path to resource, works for dev and for PyInstaller\n  dependencies: Exception, base_path, os, relative_path, sys\ndependency_graph:\nchanged_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\naffected_files: OAK_Hidden_SLTP_Manager.py, build_exe.py, create_backup_final.py, dashboard/push_to_dashboard.py, factcheck_worker.py, mimo_bot.py, mimo_worker.py, mt4_mt5_server.py, mt5_signal_bot.py, oak_response_dict.py, oak_trading_reminders.py, tests/test_dashboard_signal_selection.py, tests/test_factcheck_worker_search_stack.py, utils.py\nfile_imports:\n- OAK_Hidden_SLTP_Manager.py -> oak_response_dict.py\n- OAK_Hidden_SLTP_Manager.py -> oak_trading_reminders.py\n- mimo_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> oak_trading_reminders.py\n- mt5_signal_bot.py -> utils.py\n- oak_trading_reminders.py -> oak_response_dict.py\n- oak_trading_reminders.py -> utils.py\n- tests/test_dashboard_signal_selection.py -> mt5_signal_bot.py\n- tests/test_factcheck_worker_search_stack.py -> factcheck_worker.py\nsymbol_dependencies:\n- OAK_Hidden_SLTP_Manager.py::get_natural_response -> oak_response_dict.py::get_random_response\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager._ensure_loaded -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::TicketManager.update_ticket -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> factcheck_worker.py::sort_key\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager.__init__ -> mimo_bot.py::save_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::load_json\n- OAK_Hidden_SLTP_Manager.py::CopyTradeManager._add_partial_close_task -> mimo_bot.py::save_json\nunresolved_imports: MetaTrader5, PyInstaller.__main__, argparse, atexit, calendar, ctypes, customtkinter, datetime, flask, glob, html, json\n\n\nExecution Steps:\n1. Read the objective and constraints.\n2. Use only the supplied compressed context and symbol list.\n3. Check the dependency notes before choosing the change path.\n4. Draft a validation plan before editing.\n5. Make the smallest safe change that satisfies the request.\n6. Validate the result before returning.\n7. Run one repair pass if validation fails.\n\nValidation Checklist:\n- Validate the implementation against the objective.\n- Check the smallest meaningful change first.\n- Surface any assumptions or missing data.\n- Report token reduction and context size impact.\n- Confirm the chosen files and symbols match the dependency scope.\n- Verify the repair pass or explain why no repair was needed.\n- Confirm the prompt did not expand beyond the selected profile.\n\nRequired Output Format:\n- short summary\n- files changed\n- tests run\n- risks or follow-ups\n- dependency notes used\n- validation plan\n- repair notes\n\nOutput Contract:\n- Return a short summary and a step-by-step implementation note.\n- List changed files and the dependency impact.\n- Describe the validation plan and any repair pass performed.\n- State cache behavior and retrieval coverage when available.\n- Highlight risks, trade-offs, and follow-up verification.\n",
+    "required_output_format": [
+      "short summary",
+      "files changed",
+      "tests run",
+      "risks or follow-ups",
+      "dependency notes used",
+      "validation plan",
+      "repair notes"
+    ],
+    "validation_checklist": [
+      "Validate the implementation against the objective.",
+      "Check the smallest meaningful change first.",
+      "Surface any assumptions or missing data.",
+      "Report token reduction and context size impact.",
+      "Confirm the chosen files and symbols match the dependency scope.",
+      "Verify the repair pass or explain why no repair was needed.",
+      "Confirm the prompt did not expand beyond the selected profile."
+    ]
+  }
+}
