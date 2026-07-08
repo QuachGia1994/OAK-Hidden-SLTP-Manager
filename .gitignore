@@ -57,3 +57,6 @@ d_dir_last_id.txt
 oak_state.db
 oak_state.db-shm
 oak_state.db-wal
+
+# PXSwift cache
+.pxswift/
