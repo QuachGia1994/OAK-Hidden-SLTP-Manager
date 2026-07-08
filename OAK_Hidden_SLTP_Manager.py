@@ -5395,13 +5395,14 @@ class App(ctk.CTk):
             ("tele_token", "lbl_tele_token"), ("tele_chat", "lbl_tele_chat"), ("tele_admin", "lbl_tele_admin")
         ]
         self.entries = {}
+        secret_fields = {"tele_token"}
         for i, (key, label_key) in enumerate(fields):
             row_idx = i + 1
             lbl = ctk.CTkLabel(self.form_scroll, text=T(label_key))
             lbl.grid(row=row_idx, column=0, padx=10, pady=5, sticky="w")
             self.add_ui_element(label_key, lbl)
-            
-            ent = ctk.CTkEntry(self.form_scroll)
+
+            ent = ctk.CTkEntry(self.form_scroll, show="•" if key in secret_fields else "")
             ent.grid(row=row_idx, column=1, padx=10, pady=5, sticky="ew")
             self.entries[key] = ent
             
@@ -6857,8 +6858,12 @@ class App(ctk.CTk):
 
         for key in data:
             if key in self.entries:
+                val = str(data[key])
+                # Mask token: if vaulted, show masked placeholder
+                if key == "tele_token" and val == "__vault__":
+                    val = "••••••••••••••••"
                 self.entries[key].delete(0, "end")
-                self.entries[key].insert(0, str(data[key]))
+                self.entries[key].insert(0, val)
 
         self._update_active_profile_badge(name)
         self._profile_form_snapshot = self._get_form_data()
@@ -6925,7 +6930,15 @@ class App(ctk.CTk):
             val = ent.get().strip()
             if key == "path":
                 val = val.strip('"').strip("'")
-            new_data[key] = val
+            # Store token in keyring if changed and not masked
+            if key == "tele_token" and val and val != "••••••••••••••••" and val != "__vault__":
+                from secret_store import store_secret
+                store_secret(name, "tele_token", val)
+                new_data[key] = "__vault__"
+            elif key == "tele_token" and (val == "••••••••••••••••" or val == "__vault__"):
+                new_data[key] = "__vault__"
+            else:
+                new_data[key] = val
 
         self.profiles[name] = new_data
         save_json(CONFIG_FILE, self.profiles)

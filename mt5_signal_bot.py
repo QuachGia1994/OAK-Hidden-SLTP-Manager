@@ -16,6 +16,7 @@ from utils import send_telegram_raw, send_telegram_with_keyboard, get_signal_ico
 from oak_trading_reminders import get_day_notes
 from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
+from secret_store import get_token_for_profile, migrate_plaintext_tokens
 
 log = setup_logger("signal")
 
@@ -307,6 +308,21 @@ def push_to_dashboard():
                 resp = urllib.request.urlopen(req, timeout=15)
                 resp.read()
                 print(f"[DASHBOARD] News pushed OK ({len(parsed)} items)")
+        # Push heartbeat
+        try:
+            hb = _store.get_heartbeat()
+            if hb:
+                payload = json.dumps(hb).encode("utf-8")
+                req = urllib.request.Request(
+                    f"{dashboard_url}/api/heartbeat",
+                    data=payload,
+                    headers=headers
+                )
+                resp = urllib.request.urlopen(req, timeout=10)
+                resp.read()
+                print(f"[DASHBOARD] Heartbeat pushed OK")
+        except Exception as e:
+            print(f"[DASHBOARD] Heartbeat push error: {e}")
     except Exception as e:
         print(f"[DASHBOARD] Push error: {e}")
 
@@ -1208,7 +1224,7 @@ def main():
             print(f"\n[DASHBOARD] Pushed {missed_count} missed slots")
 
     try:
-        # Read profile name for heartbeat
+        # Read profile name for heartbeat + migrate tokens
         _active_profile = ""
         try:
             _profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
@@ -1216,6 +1232,8 @@ def main():
                 _profiles_data = json.load(_pf)
                 if _profiles_data:
                     _active_profile = list(_profiles_data.keys())[0]
+                    # One-time migration of plaintext tokens to keyring
+                    migrate_plaintext_tokens(_profiles_data)
         except Exception:
             pass
 

@@ -13,6 +13,7 @@ export const KEYS = {
   news: "sltp:news",
   prices: "sltp:prices",
   factcheck: "sltp:factcheck",
+  heartbeat: "sltp:heartbeat",
 };
 
 // API auth helper — rejects write requests without valid key
