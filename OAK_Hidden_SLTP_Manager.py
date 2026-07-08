@@ -6504,7 +6504,10 @@ class App(ctk.CTk):
             # Account Card - read from heartbeat
             if hasattr(self, 'card_account_balance'):
                 if hb and hb.get("server"):
-                    self.card_account_server.configure(text=f"{hb['server']} | #{hb.get('login', '')}")
+                    server_text = f"{hb['server']} | #{hb.get('login', '')}"
+                    if mt5_state["state"] != "Connected" and mt5_state.get("age") is not None:
+                        server_text += f" ({int(mt5_state['age'])}s stale)"
+                    self.card_account_server.configure(text=server_text)
                     self.card_account_balance.configure(text=f"Balance: ${hb.get('balance', 0):,.2f}")
                     self.card_account_equity.configure(text=f"Equity: ${hb.get('equity', 0):,.2f}")
                 else:
@@ -6559,10 +6562,19 @@ class App(ctk.CTk):
             # Status Bar - read from heartbeat, not direct MT5 call
             if hasattr(self, 'status_mt5'):
                 state = mt5_state["state"]
+                age = mt5_state.get("age")
                 color = "#66bb6a" if state == "Connected" else "#ffb74d" if state == "Degraded" else "#ef5350"
-                label = state
-                if state == "Degraded" and mt5_state.get("last_error"):
-                    label = f"Degraded ({mt5_state['last_error'][:30]})"
+                if state == "Connected":
+                    label = f"Connected ({int(age)}s)" if age is not None else "Connected"
+                elif state == "Degraded":
+                    if mt5_state.get("last_error"):
+                        label = f"Degraded ({mt5_state['last_error'][:30]})"
+                    elif age is not None:
+                        label = f"Degraded ({int(age)}s stale)"
+                    else:
+                        label = "Degraded"
+                else:
+                    label = f"Disconnected ({int(age)}s ago)" if age is not None else "Disconnected"
                 self.status_mt5.configure(text=f"MT5 ● {label}", text_color=color)
 
                 # Telegram: 3 states
@@ -6580,10 +6592,20 @@ class App(ctk.CTk):
                     tg_label = f"Online (@{tg_state['bot_name']})" if tg_state["bot_name"] else "Online"
                     tg_color = "#66bb6a"
                 else:
-                    tg_label = "Degraded (API unreachable)"
+                    tg_error = tg_state.get("bot_name", "")
+                    friendly = {
+                        "token_invalid": "Token invalid",
+                        "chat_not_found": "Chat ID invalid",
+                        "rate_limited": "Rate limited",
+                        "bad_gateway": "API gateway error",
+                        "service_unavailable": "Service unavailable",
+                        "server_error": "Server error",
+                        "client_error": "Client error",
+                        "network_error": "Network error",
+                    }.get(tg_error, tg_error.replace("_", " ").capitalize() if tg_error else "API unreachable")
+                    tg_label = f"Degraded ({friendly})"
                     tg_color = "#ffb74d"
                 self.status_telegram.configure(text=f"Telegram ● {tg_label}", text_color=tg_color)
-
                 is_running = any(
                     data.get("proc") and data["proc"].poll() is None
                     for data in self.workers.values()

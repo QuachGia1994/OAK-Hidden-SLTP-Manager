@@ -4,7 +4,7 @@ import customtkinter
 import re
 
 # Get version from main file
-version = "v3.14.0" # Default
+version = "v3.15.0" # Default
 try:
     with open("OAK_Hidden_SLTP_Manager.py", "r", encoding="utf-8") as f:
         content = f.read()

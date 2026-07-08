@@ -1,7 +1,7 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
-## [v3.14.0] - 2026-07-06
-*Docs refresh + faster D-direction dispatch + fact-check source cleanup + version/backup sync.*
+## [v3.15.0] - 2026-07-06
+*Docs refresh + better MT5 heartbeat diagnostics + Telegram degraded state details + version sync.*
 
 ### 📘 Docs & Release Prep
 - **README/GUIDE/Dashboard README**: Viết lại theo flow hiện tại, bỏ mô tả cũ không còn dùng.

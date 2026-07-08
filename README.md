@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.14.0)
+# OAK Hidden SLTP Manager (v3.15.0)
 
 Hệ thống quản lý lệnh MT5, bot tín hiệu, dashboard web và bridge Telegram cho OAK.
 

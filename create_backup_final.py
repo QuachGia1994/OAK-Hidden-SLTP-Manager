@@ -10,7 +10,7 @@ if sys.stdout.encoding != 'utf-8':
 def create_backup():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    version = "v3.14.0"
+    version = "v3.15.0"
     try:
         with open("OAK_Hidden_SLTP_Manager.py", "r", encoding="utf-8") as f:
             content = f.read()

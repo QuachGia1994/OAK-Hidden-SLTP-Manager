@@ -1,4 +1,4 @@
-# Cẩm Nang Sử Dụng OAK MANAGER (v3.14.0)
+# Cẩm Nang Sử Dụng OAK MANAGER (v3.15.0)
 
 Tài liệu này mô tả đúng các tính năng đang dùng trong app, dashboard và bot hiện tại.
 

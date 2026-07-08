@@ -17,6 +17,7 @@ from oak_trading_reminders import get_day_notes
 from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
 from secret_store import resolve_telegram_token, migrate_plaintext_tokens
+from telegram_client import telegram_get_me
 
 log = setup_logger("signal")
 
@@ -57,19 +58,16 @@ _store = SQLiteStore()
 _active_profile = ""  # Module-level, set by main() at startup
 
 def _check_telegram_api(token):
-    """Check Telegram API reachability via getMe."""
+    """Check Telegram API reachability via getMe.
+
+    Returns (ok, bot_name_or_error_category).
+    """
     if not token:
-        return False, ""
-    try:
-        url = f"https://api.telegram.org/bot{token}/getMe"
-        with urllib.request.urlopen(url, timeout=5) as resp:
-            data = json.loads(resp.read().decode())
-            if data.get("ok"):
-                bot_name = data.get("result", {}).get("username", "")
-                return True, bot_name
-    except Exception:
-        pass
-    return False, ""
+        return False, "no_token"
+    ok, result = telegram_get_me(token)
+    if ok:
+        return True, result
+    return False, result
 
 def load_profile_config(profile_name, profiles_path=None):
     """Load a single profile's config dict from profiles.json.
