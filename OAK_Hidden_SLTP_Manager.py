@@ -5989,7 +5989,7 @@ class App(ctk.CTk):
 
         # Center frame to hold all content
         center = ctk.CTkFrame(frame, fg_color="transparent")
-        center.place(relx=0.5, rely=0.18, anchor="n")
+        center.place(relx=0.5, rely=0.5, anchor="center")
 
         # App icon + title
         ctk.CTkLabel(center, text="🎛️", font=ctk.CTkFont(size=48)).grid(row=0, column=0, pady=(0, 5))
