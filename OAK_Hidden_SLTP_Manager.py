@@ -1318,123 +1318,59 @@ class CopyTradeManager:
         return False
 
     def _check_telegram_commands(self):
-        """Check for remote commands via Telegram (single bot = MiMo token) + Shared Inbox"""
-        # Use MiMo bot token (single Telegram bot for everything)
-        token = _mimo_bot_token or self.config.get("tele_token", "")
+        """Check for remote commands via shared inbox (mimo_bot.py is the sole Telegram poller)."""
         chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
-        if not token or not chat_id: return
-
-        # Skip API poll if mimo_bot.py is already polling the same token
-        # (mimo_bot writes to shared inbox, we just read from it)
-        if not hasattr(self, "_mimo_bot_check_ts"): self._mimo_bot_check_ts = 0
-        if not hasattr(self, "_mimo_bot_cached"): self._mimo_bot_cached = False
-        if time.time() - self._mimo_bot_check_ts > 30:  # Re-check every 30s
-            self._mimo_bot_cached = self._is_mimo_bot_running()
-            self._mimo_bot_check_ts = time.time()
-        skip_api_poll = self._mimo_bot_cached
+        if not chat_id: return
 
         if not hasattr(self, "_last_tele_check"): self._last_tele_check = 0
-        if time.time() - self._last_tele_check < 4.0: return # Check every 4s
+        if time.time() - self._last_tele_check < 4.0: return
         self._last_tele_check = time.time()
         if not hasattr(self, "_startup_ts"):
             self._startup_ts = time.time()
 
         inbox_file = "tele_inbox.json"
-        offset_file = "tele_offset.json"  # Shared with mimo_bot (same token now)
-        
-        # 1. Fetch from Telegram (Broadcaster logic) — skip if mimo_bot handles API
-        if not skip_api_poll:
-            lock_path = "tele_sync.lock"
-            # Reduced timeout from 2s to 0.5s to prevent UI freeze
-            with FileLock(lock_path, timeout=0.5) as lock:
-                if lock:
-                    try:
-                        # Read shared offset
-                        last_id = 0
-                        if os.path.exists(offset_file):
-                            try:
-                                with open(offset_file, "r") as f: last_id = int(f.read().strip())
-                            except: pass
-                        
-                        url = f"https://api.telegram.org/bot{token}/getUpdates?offset={last_id}&timeout=0"
-                        with urllib.request.urlopen(url, timeout=3) as response:
-                            data = json.loads(response.read().decode())
-                            if data.get("ok") and data.get("result"):
-                                new_updates = data["result"]
-                                
-                                if new_updates:
-                                    # Update shared offset
-                                    max_id = max(u["update_id"] for u in new_updates)
-                                    with open(offset_file, "w") as f: f.write(str(max_id + 1))
-                                    
-                                    # Load existing inbox
-                                    inbox = []
-                                    if os.path.exists(inbox_file):
-                                        try:
-                                            with open(inbox_file, "r", encoding="utf-8") as f: inbox = json.load(f)
-                                        except: pass
-                                    
-                                    # Append unique updates
-                                    existing_ids = {u["update_id"] for u in inbox}
-                                    added = False
-                                    for u in new_updates:
-                                        if u["update_id"] not in existing_ids:
-                                            inbox.append(u)
-                                            added = True
-                                    
-                                    if added:
-                                        inbox = inbox[-50:] # Keep last 50
-                                        with open(inbox_file, "w", encoding="utf-8") as f: json.dump(inbox, f)
-                    except Exception as e:
-                        if "409" in str(e):
-                            print(f"⚠️ [Error 409] Conflict with another polling script. Please close other bots using the same token!")
-                            # Optionally notify UI or log
-                        pass # Network error or another process is writing
+        if not os.path.exists(inbox_file): return
 
-        # 2. Process from Shared Inbox
-        if os.path.exists(inbox_file):
-            try:
-                if not hasattr(self, "_last_processed_id"): 
-                    self._last_processed_id = 0
-            
-                with open(inbox_file, "r", encoding="utf-8") as f:
-                    inbox = json.load(f)
-                
-                now_ts = time.time()
-                max_age = 86400
-                min_ts = self._startup_ts - 60
-                
-                for update in inbox:
-                    u_id = update["update_id"]
-                    if u_id > self._last_processed_id:
-                        msg = update.get("message") or update.get("channel_post")
-                        if not msg:
-                            continue
-                        
-                        msg_date = msg.get("date", 0)
-                        if msg_date and msg_date < min_ts:
-                            self._last_processed_id = u_id
-                            continue
-                        if msg_date and now_ts - msg_date > max_age:
-                            self._last_processed_id = u_id
-                            continue
-                            
-                        text = msg.get("text", "").strip()
-                        sender_id = str(msg.get("chat", {}).get("id", ""))
-                        admin_id = str(self.config.get("tele_admin", "")).strip()
-                        
-                        is_valid_sender = (sender_id == str(chat_id)) or (admin_id and sender_id == admin_id)
-                        
-                        if is_valid_sender and text:
-                            # Support multiple commands in one message (separated by newline)
-                            lines = text.split('\n')
-                            for line in lines:
-                                if line.strip():
-                                    self._handle_telegram_text(line.strip())
-                        
+        try:
+            if not hasattr(self, "_last_processed_id"):
+                self._last_processed_id = 0
+
+            with open(inbox_file, "r", encoding="utf-8") as f:
+                inbox = json.load(f)
+
+            now_ts = time.time()
+            min_ts = self._startup_ts - 60
+
+            for update in inbox:
+                u_id = update["update_id"]
+                if u_id > self._last_processed_id:
+                    msg = update.get("message") or update.get("channel_post")
+                    if not msg:
+                        continue
+
+                    msg_date = msg.get("date", 0)
+                    if msg_date and msg_date < min_ts:
                         self._last_processed_id = u_id
-            except Exception as e:
-                log.warning("Telegram inbox processing error: %s", e)
+                        continue
+                    if msg_date and now_ts - msg_date > 86400:
+                        self._last_processed_id = u_id
+                        continue
+
+                    text = msg.get("text", "").strip()
+                    sender_id = str(msg.get("chat", {}).get("id", ""))
+                    admin_id = str(self.config.get("tele_admin", "")).strip()
+
+                    is_valid_sender = (sender_id == str(chat_id)) or (admin_id and sender_id == admin_id)
+
+                    if is_valid_sender and text:
+                        lines = text.split('\n')
+                        for line in lines:
+                            if line.strip():
+                                self._handle_telegram_text(line.strip())
+
+                    self._last_processed_id = u_id
+        except Exception as e:
+            log.warning("Telegram inbox processing error: %s", e)
 
     def _send_mimo_response(self, text):
         """Send response via MiMo bot token (single Telegram bot)"""
@@ -4244,6 +4180,8 @@ class App(ctk.CTk):
         self.workers = {} # {profile_name: {"proc": Popen, "console": CTkTextbox, "btn_stop": CTkButton}}
         self.ui_elements = {} # Store widgets for language update
         self._last_json_mtime = 0 # Initialize for periodic refresh sync
+        self.selected_profile_name = None  # Profile selected in list (editing)
+        self.running_profile_name = None   # Profile with active worker
         
         # Injects profile_name if missing from profiles to ensure sync works
         for name, profile in self.profiles.items():
@@ -6398,10 +6336,11 @@ class App(ctk.CTk):
     def _update_dashboard_cards(self):
         """Update Account/Signal/Engine cards from worker heartbeat (SQLite)."""
         try:
-            # Read heartbeat from worker
-            hb = self._store.get_heartbeat() if hasattr(self, '_store') else None
-            mt5_state = self._store.compute_mt5_state() if hasattr(self, '_store') else {"state": "Disconnected", "last_error": ""}
-            tg_state = self._store.compute_telegram_state() if hasattr(self, '_store') else {"configured": False, "api_ok": False}
+            # Read heartbeat for the ACTIVE profile only
+            profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
+            hb = self._store.get_heartbeat(profile) if hasattr(self, '_store') and profile else None
+            mt5_state = self._store.compute_mt5_state(profile) if hasattr(self, '_store') and profile else {"state": "Disconnected", "last_error": ""}
+            tg_state = self._store.compute_telegram_state(profile) if hasattr(self, '_store') and profile else {"configured": False, "api_ok": False}
 
             # Account Card - read from heartbeat
             if hasattr(self, 'card_account_balance'):
@@ -6658,6 +6597,8 @@ class App(ctk.CTk):
                 "proc": proc,
                 "logs": []
             }
+            self.running_profile_name = profile_name
+            self.refresh_profile_list()
             
             # Start Reader Thread
             t = threading.Thread(target=self.monitor_worker_output, args=(profile_name, proc))
@@ -6680,6 +6621,8 @@ class App(ctk.CTk):
                 proc.terminate()
                 self.log(f"Stopping '{profile_name}'...")
                 self.btn_stop.configure(state="disabled", text="Stopping...")
+                self.running_profile_name = None
+                self.refresh_profile_list()
                 # Immediate update for local UI feedback
                 self.update_ui_state(profile_name)
                 # Still keep the delayed check just in case
@@ -6813,20 +6756,34 @@ class App(ctk.CTk):
         for widget in self.list_frame.winfo_children():
             widget.destroy()
 
-        active_name = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
         p = getattr(self, "theme_palette", None)
         for name in self.profiles:
-            is_active = (name == active_name)
+            is_running = (name == self.running_profile_name)
+            is_selected = (name == self.selected_profile_name)
+            # Show running/editing status
+            if is_running and is_selected:
+                label = f"● ✎ {name}"
+                color = "#66bb6a"
+            elif is_running:
+                label = f"● {name}"
+                color = "#66bb6a"
+            elif is_selected:
+                label = f"✎ {name}"
+                color = "#ffb74d"
+            else:
+                label = name
+                color = p["text_primary"] if p else "white"
+
             btn_kwargs = {
-                "text": f"● {name}" if is_active else name,
+                "text": label,
                 "fg_color": "transparent",
-                "border_width": 2 if is_active else 1,
+                "border_width": 2 if (is_running or is_selected) else 1,
                 "command": lambda n=name: self.load_profile_to_form(n)
             }
             if p:
                 btn_kwargs.update({
-                    "text_color": "#66bb6a" if is_active else p["text_primary"],
-                    "border_color": "#66bb6a" if is_active else p["card_border"],
+                    "text_color": color,
+                    "border_color": "#66bb6a" if is_running else ("#ffb74d" if is_selected else p["card_border"]),
                     "hover_color": p["panel_alt_bg"]
                 })
             btn = ctk.CTkButton(self.list_frame, **btn_kwargs)
@@ -6841,6 +6798,7 @@ class App(ctk.CTk):
             self.combo_copy_profiles.configure(values=list(self.profiles.keys()))
 
     def load_profile_to_form(self, name):
+        self.selected_profile_name = name
         data = self.profiles[name]
         self.entries["name"].delete(0, "end"); self.entries["name"].insert(0, name)
 
@@ -6903,9 +6861,16 @@ class App(ctk.CTk):
         return data
 
     def _update_active_profile_badge(self, name):
-        """Update the 'Active Profile' badge."""
+        """Update the profile badge showing Running and Editing states."""
         if hasattr(self, 'lbl_active_profile'):
-            self.lbl_active_profile.configure(text=f"Active: {name}")
+            parts = []
+            if self.running_profile_name:
+                parts.append(f"Running: {self.running_profile_name}")
+            if name and name != self.running_profile_name:
+                parts.append(f"Editing: {name}")
+            elif name:
+                parts.append(f"Editing: {name}")
+            self.lbl_active_profile.configure(text=" | ".join(parts) if parts else "")
 
     def _check_unsaved_changes(self):
         """Check if form has unsaved changes vs last saved snapshot."""

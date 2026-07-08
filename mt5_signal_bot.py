@@ -308,19 +308,19 @@ def push_to_dashboard():
                 resp = urllib.request.urlopen(req, timeout=15)
                 resp.read()
                 print(f"[DASHBOARD] News pushed OK ({len(parsed)} items)")
-        # Push heartbeat
+        # Push heartbeat (profile-specific)
         try:
-            hb = _store.get_heartbeat()
+            hb = _store.get_heartbeat(_active_profile)
             if hb:
                 payload = json.dumps(hb).encode("utf-8")
                 req = urllib.request.Request(
-                    f"{dashboard_url}/api/heartbeat",
+                    f"{dashboard_url}/api/heartbeat?profile={_active_profile}",
                     data=payload,
                     headers=headers
                 )
                 resp = urllib.request.urlopen(req, timeout=10)
                 resp.read()
-                print(f"[DASHBOARD] Heartbeat pushed OK")
+                print(f"[DASHBOARD] Heartbeat pushed OK ({_active_profile})")
         except Exception as e:
             print(f"[DASHBOARD] Heartbeat push error: {e}")
     except Exception as e:

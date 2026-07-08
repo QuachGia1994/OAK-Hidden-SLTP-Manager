@@ -83,7 +83,7 @@ class SQLiteStore:
             );
         """)
         self._conn.commit()
-        log.info("SQLite initialized: %s", self._db_path)
+        log.debug("SQLite initialized: %s", self._db_path)
 
     def close(self):
         """Close database connection."""
@@ -217,12 +217,11 @@ class SQLiteStore:
         )
         self._conn.commit()
 
-    def get_heartbeat(self, profile=None):
-        """Get worker heartbeat. Returns dict or None."""
-        if profile:
-            row = self._conn.execute("SELECT * FROM worker_heartbeat WHERE profile=?", (profile,)).fetchone()
-        else:
-            row = self._conn.execute("SELECT * FROM worker_heartbeat ORDER BY last_seen DESC LIMIT 1").fetchone()
+    def get_heartbeat(self, profile):
+        """Get worker heartbeat for a specific profile. Returns dict or None."""
+        if not profile:
+            return None
+        row = self._conn.execute("SELECT * FROM worker_heartbeat WHERE profile=?", (profile,)).fetchone()
         if row is None:
             return None
         d = dict(row)
@@ -230,7 +229,7 @@ class SQLiteStore:
         d["telegram_api_ok"] = bool(d.get("telegram_api_ok"))
         return d
 
-    def compute_mt5_state(self, profile=None):
+    def compute_mt5_state(self, profile):
         """Compute MT5 state from heartbeat: Connected/Degraded/Disconnected/Starting."""
         from datetime import datetime, timezone, timedelta
         hb = self.get_heartbeat(profile)
@@ -244,7 +243,7 @@ class SQLiteStore:
             return {"state": "Degraded", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", "")}
         return {"state": "Connected", "last_seen": hb["last_seen"], "last_error": ""}
 
-    def compute_telegram_state(self, profile=None):
+    def compute_telegram_state(self, profile):
         """Compute Telegram state from heartbeat."""
         hb = self.get_heartbeat(profile)
         if hb is None:

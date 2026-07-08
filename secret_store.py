@@ -10,55 +10,65 @@ _SERVICE_NAME = "OAK Manager"
 
 
 def _get_keyring():
-    """Get keyring backend, fallback to file-based if unavailable."""
+    """Get keyring backend. Raises if unavailable."""
     try:
         import keyring
         return keyring
     except ImportError:
-        log.warning("keyring not installed, falling back to plaintext storage")
-        return None
+        raise RuntimeError("keyring not installed. Run: pip install keyring")
+
+
+def is_keyring_available():
+    """Check if keyring is available without raising."""
+    try:
+        import keyring
+        return True
+    except ImportError:
+        return False
 
 
 def store_secret(profile_name, key, value):
-    """Store a secret value for a profile."""
+    """Store a secret value for a profile. Raises RuntimeError if keyring unavailable."""
     kr = _get_keyring()
     identifier = f"{_SERVICE_NAME}:{profile_name}:{key}"
-    if kr:
-        try:
-            kr.set_password(_SERVICE_NAME, identifier, value)
-            log.info("Stored secret: %s", identifier)
-            return True
-        except Exception as e:
-            log.warning("keyring store failed: %s, falling back to config", e)
-    # Fallback: store in profiles.json with prefix
-    return False
+    try:
+        kr.set_password(_SERVICE_NAME, identifier, value)
+        log.info("Stored secret: %s", identifier)
+        return True
+    except Exception as e:
+        log.error("keyring store failed: %s", e)
+        raise RuntimeError(f"Failed to store secret: {e}")
 
 
 def get_secret(profile_name, key, default=""):
     """Retrieve a secret value for a profile."""
-    kr = _get_keyring()
+    try:
+        kr = _get_keyring()
+    except RuntimeError:
+        return default
     identifier = f"{_SERVICE_NAME}:{profile_name}:{key}"
-    if kr:
-        try:
-            val = kr.get_password(_SERVICE_NAME, identifier)
-            if val:
-                return val
-        except Exception as e:
-            log.warning("keyring get failed: %s", e)
+    try:
+        val = kr.get_password(_SERVICE_NAME, identifier)
+        if val:
+            return val
+    except Exception:
+        pass
     return default
 
 
 def delete_secret(profile_name, key):
     """Delete a secret value for a profile."""
-    kr = _get_keyring()
+    try:
+        kr = _get_keyring()
+    except RuntimeError:
+        return False
     identifier = f"{_SERVICE_NAME}:{profile_name}:{key}"
-    if kr:
-        try:
-            kr.delete_password(_SERVICE_NAME, identifier)
-            log.info("Deleted secret: %s", identifier)
-            return True
-        except Exception:
-            pass
+    try:
+        kr.delete_password(_SERVICE_NAME, identifier)
+        log.info("Deleted secret: %s", identifier)
+        return True
+    except Exception:
+        pass
     return False
 
 
@@ -67,9 +77,10 @@ def migrate_plaintext_tokens(profiles):
 
     Returns number of migrated tokens.
     """
-    kr = _get_keyring()
-    if not kr:
-        log.info("keyring unavailable, skip token migration")
+    try:
+        kr = _get_keyring()
+    except RuntimeError:
+        log.warning("keyring unavailable, skip token migration")
         return 0
 
     migrated = 0
@@ -97,21 +108,16 @@ def migrate_plaintext_tokens(profiles):
 
 
 def get_token_for_profile(profile_name):
-    """Get Telegram token for a profile (from keyring or plaintext fallback)."""
-    kr = _get_keyring()
-    identifier = f"{_SERVICE_NAME}:{profile_name}:tele_token"
-    if kr:
-        try:
-            val = kr.get_password(_SERVICE_NAME, identifier)
-            if val:
-                return val
-        except Exception:
-            pass
-    # Fallback: read from profiles.json
-    profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+    """Get Telegram token for a profile (from keyring only, no plaintext fallback)."""
     try:
-        with open(profiles_path, "r", encoding="utf-8") as f:
-            profiles = json.load(f)
-        return profiles.get(profile_name, {}).get("tele_token", "")
-    except Exception:
+        kr = _get_keyring()
+    except RuntimeError:
         return ""
+    identifier = f"{_SERVICE_NAME}:{profile_name}:tele_token"
+    try:
+        val = kr.get_password(_SERVICE_NAME, identifier)
+        if val:
+            return val
+    except Exception:
+        pass
+    return ""

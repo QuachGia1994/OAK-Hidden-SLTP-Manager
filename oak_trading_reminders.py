@@ -985,11 +985,11 @@ class OakTradingReminder:
         return msg
 
     def process_commands(self):
-        """Check for commands via Telegram (Simple Polling + Natural Language)"""
-        token = self.token or CURRENT_TOKEN
+        """Check for commands via shared inbox (written by mimo_bot.py)."""
         chat_id_target = self.chat_id or CURRENT_CHAT_ID
-        
+
         # Fallback to config if globals not set
+        token = self.token or CURRENT_TOKEN
         if not token or not chat_id_target:
             config = self.load_config()
             for p_name in config:
@@ -998,106 +998,84 @@ class OakTradingReminder:
                     token = p["tele_token"]
                     chat_id_target = p["tele_chat"]
                     break
-        
-        if not token: return
-        
-        id_file = os.path.join(LOCK_DIR, "last_update_id.txt")
-        last_id = 0
-        if os.path.exists(id_file):
-            try:
-                with open(id_file, "r") as f:
-                    last_id = int(f.read().strip())
-            except: pass
-            
+
+        if not chat_id_target: return
+
+        # Read from shared inbox (mimo_bot.py writes here)
+        inbox_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tele_inbox.json")
+        if not os.path.exists(inbox_file): return
+
         try:
-            # Short timeout to keep loop responsive
-            url = f"https://api.telegram.org/bot{token}/getUpdates?offset={last_id + 1}&timeout=1"
-            with urllib.request.urlopen(url, timeout=5) as response:
-                data = json.load(response)
-                if not data.get("ok"): return
-                
-                new_last_id = last_id
-                for update in data.get("result", []):
-                    new_last_id = update["update_id"]
-                    
-                    # Support both Message (Private/Group) and Channel Post
-                    msg_obj = update.get("message") or update.get("channel_post")
-                    if not msg_obj: continue
-                    
-                    text = (msg_obj.get("text") or "").strip()
-                    chat_obj = msg_obj.get("chat", {})
-                    chat_id = chat_obj.get("id")
-                    
-                    if not text: continue
-                    
-                    # LOG TO CONSOLE (Visible for user debug)
-                    print(f"📩 [{datetime.now().strftime('%H:%M:%S')}] Received: '{text}' (Chat: {chat_id})")
-                    
-                    # Identify PnL request (Command or Natural Language)
-                    is_pnl_command = False
-                    if text.startswith("/pnl"): is_pnl_command = True
-                    else:
-                        triggers = ["tính", "pnl", "lãi", "lỗ", "dự báo", "chạm", "mức"]
-                        if any(t in text.lower() for t in triggers):
-                            is_pnl_command = True
-                    
-                    if not is_pnl_command: continue
+            with open(inbox_file, "r", encoding="utf-8") as f:
+                inbox = json.load(f)
+            if not isinstance(inbox, list) or not inbox: return
 
-                    # 1. Standard Command: /pnl SYMBOL PRICE
-                    if text.startswith("/pnl"):
-                        parts = text.split()
-                        if len(parts) >= 3:
-                            symbol = parts[1].upper()
-                            try:
-                                target_price = float(parts[2])
-                                result_msg = self.get_projected_pnl(symbol, target_price)
-                                self.send_telegram_to_chat(result_msg, chat_id)
-                            except:
-                                self.send_telegram_to_chat("❌ Cú pháp: /pnl SYMBOL PRICE", chat_id)
-                        continue
+            # Process and clear inbox
+            processed_ids = set()
+            for update in inbox:
+                msg_obj = update.get("message") or update.get("channel_post")
+                if not msg_obj: continue
 
-                    # 2. Natural Language Parsing
-                    text_lower = text.lower()
-                    # Symbol: 2-12 Uppercase + optional suffixes
-                    symbol_match = re.search(r"([A-Z]{2,12}(?:\+)?(?:\.m)?)", text.upper())
-                    # Price: Any number (with or without decimal)
-                    price_match = re.search(r"(\d+(?:\.\d+)?)", text)
-                    
-                    # Profile: Optional match for words like "Vantage", "Th5ers", "Exness"
-                    # Assumption: Profile name usually starts with Uppercase or is specific keyword
-                    # We will try to capture potential profile name if it exists
-                    profile_name = None
-                    potential_profiles = ["vantage", "th5ers", "exness", "icmarkets", "fbs", "xm", "pepperstone"]
-                    for p in potential_profiles:
-                        if p in text_lower:
-                            profile_name = p
-                            break
-                    
-                    if symbol_match and price_match:
-                        symbol = symbol_match.group(1)
+                text = (msg_obj.get("text") or "").strip()
+                chat_obj = msg_obj.get("chat", {})
+                chat_id = chat_obj.get("id")
+                update_id = update.get("update_id", 0)
+
+                if not text or update_id in processed_ids: continue
+                processed_ids.add(update_id)
+
+                # LOG TO CONSOLE
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Inbox: '{text}' (Chat: {chat_id})")
+
+                # Identify PnL request
+                is_pnl_command = False
+                if text.startswith("/pnl"): is_pnl_command = True
+                else:
+                    triggers = ["tinh", "pnl", "lai", "lo", "du bao", "cham", "muc"]
+                    if any(t in text.lower() for t in triggers):
+                        is_pnl_command = True
+
+                if not is_pnl_command: continue
+
+                # 1. Standard Command: /pnl SYMBOL PRICE
+                if text.startswith("/pnl"):
+                    parts = text.split()
+                    if len(parts) >= 3:
+                        symbol = parts[1].upper()
                         try:
-                            target_price = float(price_match.group(1))
-                            if not symbol.isdigit():
-                                print(f"🤖 Processing NLP Match: {symbol} at {target_price} (Profile: {profile_name})")
-                                result_msg = self.get_projected_pnl(symbol, target_price, profile_name)
-                                self.send_telegram_to_chat(result_msg, chat_id)
-                        except Exception as e:
-                            print(f"⚠️ Error: {e}")
-                            
-                    # 3. Check for other commands (Placeholder for future implementation)
-                    # if "/list" in text_lower:
-                    #     msg = get_random_response("list_header") + get_random_response("list_empty")
-                    #     self.send_telegram_to_chat(msg, chat_id)
+                            target_price = float(parts[2])
+                            result_msg = self.get_projected_pnl(symbol, target_price)
+                            self.send_telegram_to_chat(result_msg, chat_id)
+                        except:
+                            self.send_telegram_to_chat("❌ Cú pháp: /pnl SYMBOL PRICE", chat_id)
+                    continue
 
-                if new_last_id != last_id:
-                    with open(id_file, "w") as f:
-                        f.write(str(new_last_id))
+                # 2. Natural Language Parsing
+                text_lower = text.lower()
+                symbol_match = re.search(r"([A-Z]{2,12}(?:\+)?(?:\.m)?)", text.upper())
+                price_match = re.search(r"(\d+(?:\.\d+)?)", text)
+
+                # Profile match
+                profile_name = None
+                potential_profiles = ["vantage", "th5ers", "exness", "icmarkets", "fbs", "xm", "pepperstone"]
+                for p in potential_profiles:
+                    if p in text_lower:
+                        profile_name = p
+                        break
+
+                if symbol_match and price_match:
+                    symbol = symbol_match.group(1)
+                    try:
+                        target_price = float(price_match.group(1))
+                        if not symbol.isdigit():
+                            print(f"Processing NLP Match: {symbol} at {target_price} (Profile: {profile_name})")
+                            result_msg = self.get_projected_pnl(symbol, target_price, profile_name)
+                            self.send_telegram_to_chat(result_msg, chat_id)
+                    except Exception as e:
+                        print(f"Error: {e}")
+
         except Exception as e:
-            # Silent for connection errors, but print major ones
-            if "HTTP Error 409" in str(e):
-                print("⚠️ [Error 409] Bot is competing with another polling/webhook script. Close other bots!")
-            elif "timeout" not in str(e).lower():
-                pass # print(f"⚠️ [Polling Error]: {e}")
+            pass  # Silent for connection errors
 
     def send_telegram_to_chat(self, message, chat_id):
         """Send telegram message to a specific chat ID"""
