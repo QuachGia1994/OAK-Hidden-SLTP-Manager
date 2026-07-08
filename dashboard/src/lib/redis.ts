@@ -16,7 +16,9 @@ export const KEYS = {
   heartbeat: "sltp:heartbeat",
 };
 
-// API auth helper — rejects write requests without valid key
+// API auth helper — rejects write requests without valid key.
+// IMPORTANT: Set DASHBOARD_API_KEY in .env.local for local dev too.
+// Without this key, all write APIs return 503 (fail-closed).
 const API_KEY = process.env.DASHBOARD_API_KEY || "";
 
 export function requireAuth(request: Request): NextResponse | null {

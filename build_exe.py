@@ -22,6 +22,8 @@ ICON_PATH = 'icon.ico'
 ctk_path = os.path.dirname(customtkinter.__file__)
 
 # Define the build options
+# NOTE: onefile bundles everything into single exe. Child processes (--signal-bot)
+# run inside the same exe via argparse. No loose .py scripts needed.
 exe_name = f"{APP_NAME}_{version}"
 args = [
     'OAK_Hidden_SLTP_Manager.py',
@@ -30,11 +32,11 @@ args = [
     '--windowed',
     f'--icon={ICON_PATH}',
     '--add-data=icon.ico;.',
-    '--add-data=oak_response_dict.py;.', # Include Response Dictionary
-    f'--add-data={ctk_path};customtkinter/', # Ensure CTK assets are included
+    '--add-data=oak_response_dict.py;.',
+    f'--add-data={ctk_path};customtkinter/',
     '--clean',
     '--noconfirm',
-    # Numpy: only core (skip linalg/random/etc to save ~15MB)
+    # Hidden imports for bundled modules
     '--hidden-import=numpy',
     '--hidden-import=numpy.core',
     '--hidden-import=numpy.core.multiarray',
@@ -56,9 +58,17 @@ args = [
     '--hidden-import=numpy.ma.extras',
     # MetaTrader5
     '--collect-all=MetaTrader5',
+    # OAK modules
+    '--hidden-import=secret_store',
+    '--hidden-import=oak_logger',
+    '--hidden-import=oak_response_dict',
+    '--hidden-import=oak_trading_reminders',
+    '--hidden-import=utils',
+    '--hidden-import=mt5_signal_bot',
+    '--hidden-import=repositories.sqlite_store',
 ]
 
-# UPX compression (giảm ~30-40% dung lượng)
+# UPX compression
 if os.path.exists("upx"):
     args.append('--upx-dir=upx')
     print("  UPX: ON (compression enabled)")

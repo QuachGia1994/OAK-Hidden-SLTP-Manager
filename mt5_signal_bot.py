@@ -16,7 +16,7 @@ from utils import send_telegram_raw, send_telegram_with_keyboard, get_signal_ico
 from oak_trading_reminders import get_day_notes
 from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
-from secret_store import get_token_for_profile, migrate_plaintext_tokens
+from secret_store import resolve_telegram_token, migrate_plaintext_tokens
 
 log = setup_logger("signal")
 
@@ -82,14 +82,8 @@ def publish_heartbeat(profile, mt5_connected, mt5_error=""):
             pass
 
     # Check Telegram: try config.json first, then keyring for profile token
-    tg_token = TELEGRAM_TOKEN
+    tg_token = resolve_telegram_token(profile, TELEGRAM_TOKEN)
     tg_chat = TELEGRAM_CHAT_ID
-    if not tg_token and profile:
-        try:
-            from secret_store import get_token_for_profile
-            tg_token = get_token_for_profile(profile)
-        except Exception:
-            pass
     tg_configured = bool(tg_token and tg_chat)
     tg_api_ok, tg_bot = _check_telegram_api(tg_token) if tg_token else (False, "")
     tg_last = datetime.now(timezone.utc).isoformat() if tg_api_ok else ""
@@ -1028,8 +1022,8 @@ def get_broker_time():
     now_utc = datetime.now(tz=timezone.utc).replace(tzinfo=None)
     return now_utc + timedelta(hours=BROKER_GMT)
 
-def main():
-    global mt5_ready, d_direction, d_direction_date, d_matched_hour, day_signals, sent_today
+def main(profile_name=None):
+    global mt5_ready, d_direction, d_direction_date, d_matched_hour, day_signals, sent_today, _active_profile
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
@@ -1234,18 +1228,20 @@ def main():
             print(f"\n[DASHBOARD] Pushed {missed_count} missed slots")
 
     try:
-        # Read profile name for heartbeat + migrate tokens
-        global _active_profile
-        try:
-            _profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
-            with open(_profiles_path, "r", encoding="utf-8") as _pf:
-                _profiles_data = json.load(_pf)
-                if _profiles_data:
-                    _active_profile = list(_profiles_data.keys())[0]
-                    # One-time migration of plaintext tokens to keyring
-                    migrate_plaintext_tokens(_profiles_data)
-        except Exception:
-            pass
+        # Resolve profile: CLI arg > first profile in profiles.json
+        if profile_name:
+            _active_profile = profile_name
+        else:
+            try:
+                _profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+                with open(_profiles_path, "r", encoding="utf-8") as _pf:
+                    _profiles_data = json.load(_pf)
+                    if _profiles_data:
+                        _active_profile = list(_profiles_data.keys())[0]
+                        # One-time migration of plaintext tokens to keyring
+                        migrate_plaintext_tokens(_profiles_data)
+            except Exception:
+                pass
 
         _heartbeat_tick = 0
         while True:
@@ -1357,6 +1353,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", type=str, help="Profile name for heartbeat")
     args, _ = parser.parse_known_args()
-    if args.profile:
-        _active_profile = args.profile
-    main()
+    main(profile_name=args.profile)

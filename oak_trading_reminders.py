@@ -577,20 +577,14 @@ class OakTradingReminder:
         
         # Fallback to loading from file if not set
         if not token or not chat_id:
+            from secret_store import resolve_telegram_token
             config = self.load_config()
             for p_name in config:
                 p = config[p_name]
                 if p.get("tele_chat"):
-                    raw_token = p.get("tele_token", "")
-                    # Resolve vaulted token from keyring
-                    if raw_token == "__vault__":
-                        try:
-                            from secret_store import get_token_for_profile
-                            raw_token = get_token_for_profile(p_name)
-                        except Exception:
-                            raw_token = ""
-                    if raw_token:
-                        token = raw_token
+                    resolved = resolve_telegram_token(p_name, p.get("tele_token", ""))
+                    if resolved:
+                        token = resolved
                         chat_id = p["tele_chat"]
                         break
         
@@ -1000,19 +994,14 @@ class OakTradingReminder:
         # Fallback to config if globals not set
         token = self.token or CURRENT_TOKEN
         if not token or not chat_id_target:
+            from secret_store import resolve_telegram_token
             config = self.load_config()
             for p_name in config:
                 p = config[p_name]
                 if p.get("tele_chat"):
-                    raw_token = p.get("tele_token", "")
-                    if raw_token == "__vault__":
-                        try:
-                            from secret_store import get_token_for_profile
-                            raw_token = get_token_for_profile(p_name)
-                        except Exception:
-                            raw_token = ""
-                    if raw_token:
-                        token = raw_token
+                    resolved = resolve_telegram_token(p_name, p.get("tele_token", ""))
+                    if resolved:
+                        token = resolved
                         chat_id_target = p["tele_chat"]
                         break
 

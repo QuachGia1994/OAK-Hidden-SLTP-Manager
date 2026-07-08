@@ -1073,20 +1073,31 @@ class CopyTradeManager:
         self.ticket_manager = TicketManager()
         self.scheduled_trades = [] # List of dicts: {symbol, type, lot, time, sl, tp, status}
         self.scheduled_file = ""
-        
+
         role_raw = self.config.get("copy_role", "None")
         self.role = role_raw.lower() # none, master, slave
-        
+
         self.channel = self.config.get("copy_channel", "default")
-        
+
         mode_raw = self.config.get("copy_lot_mode", "Fixed")
         if "Risk" in mode_raw: self.lot_mode = "risk"
         elif "Multiplier" in mode_raw: self.lot_mode = "multiplier"
         else: self.lot_mode = "fixed"
-        
+
         self.lot_value = self._safe_float(self.config.get("copy_lot_value", 0.01))
         self.stealth = bool(self.config.get("copy_stealth", False))
         self.max_one = bool(self.config.get("copy_max_one", False))
+
+        # Safety guardrails
+        self.max_daily_trades = int(self.config.get("copy_max_daily_trades", 20))
+        self.max_lot_per_trade = self._safe_float(self.config.get("copy_max_lot_per_trade", 5.0))
+        self.kill_switch = bool(self.config.get("copy_kill_switch", False))
+        self.max_exposure_per_symbol = self._safe_float(self.config.get("copy_max_exposure", 10.0))
+        self.stale_threshold_sec = int(self.config.get("copy_stale_threshold", 300))
+
+        # Daily trade counter (resets at midnight)
+        self._daily_trade_count = 0
+        self._daily_trade_date = None
         
         # Shared Directory
         self.shared_dir = os.path.join(os.path.expanduser("~"), ".oak_copy_trade")
@@ -3146,10 +3157,36 @@ class CopyTradeManager:
         raw_symbol = m_pos["symbol"]
         symbol = self._find_matching_symbol(raw_symbol)
         profile_name = self.config.get("profile_name", "Unknown")
-        
+
         if not symbol:
-            self.notify(f"[{profile_name}] {T('log_copy_err')} Symbol mismatch! Master: {raw_symbol} -> Slave: ???")
+            self.notify(f"[{profile_name}] Symbol mismatch! Master: {raw_symbol} -> Slave: ???")
             return
+
+        # SAFETY: Kill switch
+        if self.kill_switch:
+            self.notify(f"[{profile_name}] Kill switch ON - trade skipped: {symbol}")
+            return
+
+        # SAFETY: Daily trade limit
+        from datetime import date
+        today = date.today()
+        if self._daily_trade_date != today:
+            self._daily_trade_date = today
+            self._daily_trade_count = 0
+        if self._daily_trade_count >= self.max_daily_trades:
+            self.notify(f"[{profile_name}] Daily limit ({self.max_daily_trades}) reached - trade skipped: {symbol}")
+            return
+
+        # SAFETY: Stale signal check
+        if os.path.exists(self.signal_file):
+            try:
+                mtime = os.path.getmtime(self.signal_file)
+                age = time.time() - mtime
+                if age > self.stale_threshold_sec:
+                    self.notify(f"[{profile_name}] Signal stale ({int(age)}s) - trade skipped: {symbol}")
+                    return
+            except Exception:
+                pass
             
         # STEALTH: Delay (reduced to minimize process blocking)
         if self.stealth:
@@ -3158,7 +3195,21 @@ class CopyTradeManager:
             
         # Calc Lot
         lot = self._calculate_lot(m_pos)
-        
+
+        # SAFETY: Max lot per trade
+        if lot > self.max_lot_per_trade:
+            self.notify(f"[{profile_name}] Lot {lot} exceeds max {self.max_lot_per_trade} - capped: {symbol}")
+            lot = self.max_lot_per_trade
+
+        # SAFETY: Max exposure per symbol
+        if self.max_exposure_per_symbol > 0:
+            slave_positions_list = mt5.positions_get()
+            if slave_positions_list:
+                current_exposure = sum(p.volume for p in slave_positions_list if p.symbol == symbol)
+                if current_exposure + lot > self.max_exposure_per_symbol:
+                    self.notify(f"[{profile_name}] Exposure {current_exposure + lot} exceeds max {self.max_exposure_per_symbol} - skipped: {symbol}")
+                    return
+
         # Check Min/Max Lot
         sym_info = mt5.symbol_info(symbol)
         if not sym_info:
@@ -3237,12 +3288,13 @@ class CopyTradeManager:
             with self.mapping_lock:
                 self.mapping[str(m_ticket)] = res.order # res.order is the ticket
                 save_json(self.local_map_file, self.mapping)
-            
-            msg = f"[{profile_name}] {T('log_copy_open')} {symbol} | Vol {lot} | Origin {m_ticket}"
+
+            self._daily_trade_count += 1
+            msg = f"[{profile_name}] Copied {symbol} | Vol {lot} | Origin {m_ticket}"
             self.notify(msg)
             winsound.Beep(1000, 100)
         else:
-            self.notify(f"[{profile_name}] {T('log_copy_err')} Open {symbol} | {res.comment}")
+            self.notify(f"[{profile_name}] Copy failed {symbol} | {res.comment}")
 
     def _close_copy_trade(self, m_ticket, s_ticket):
         # Check if slave position exists
@@ -3318,17 +3370,9 @@ class MonitorWorker(threading.Thread):
             self.send_telegram(message)
 
     def send_telegram(self, message):
-        # Use MiMo bot token (single Telegram bot for everything)
-        token = _mimo_bot_token or self.config.get("tele_token", "")
-        # Resolve vaulted token from keyring
-        if token == "__vault__" or not token:
-            try:
-                from secret_store import get_token_for_profile
-                profile_name = self.config.get("profile_name", "")
-                if profile_name:
-                    token = get_token_for_profile(profile_name)
-            except Exception:
-                pass
+        from secret_store import resolve_telegram_token
+        profile_name = self.config.get("profile_name", "")
+        token = resolve_telegram_token(profile_name, _mimo_bot_token or self.config.get("tele_token", ""))
         chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
         if not token or not chat_id: return
         
@@ -3627,14 +3671,12 @@ class MonitorWorker(threading.Thread):
             self.log(start_msg)
 
             # Log Configuration details as requested
-            tele_token_raw = self.config.get("tele_token", "")
-            if tele_token_raw == "__vault__":
-                try:
-                    from secret_store import get_token_for_profile
-                    tele_token_raw = get_token_for_profile(self.config.get("profile_name", ""))
-                except Exception:
-                    tele_token_raw = ""
-            tele_status = "ON" if (tele_token_raw and self.config.get("tele_chat", "")) else "OFF"
+            from secret_store import resolve_telegram_token
+            tele_token_resolved = resolve_telegram_token(
+                self.config.get("profile_name", ""),
+                self.config.get("tele_token", "")
+            )
+            tele_status = "ON" if (tele_token_resolved and self.config.get("tele_chat", "")) else "OFF"
             config_log = (
                 f"{T('log_config_title')}\n"
                 f"{T('log_config_symbol')}   {symbol_str if symbol_str else 'ALL'}\n"
@@ -5219,17 +5261,26 @@ class App(ctk.CTk):
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 creationflags = subprocess.CREATE_NO_WINDOW
 
-            # Handle frozen exe vs development
-            if getattr(sys, 'frozen', False):
-                cmd = [sys.executable] + info["cmd"].split()[1:]
-            else:
-                cmd = ["python", "-u"] + info["cmd"].split()[1:]
+            # Build command based on mode
+            script_map = {
+                "signal_bot": "mt5_signal_bot.py",
+                "mt_server": "mt4_mt5_server.py",
+                "mimo_bot": "mimo_bot.py",
+                "mimo_worker": "mimo_worker.py",
+            }
+            script = script_map.get(key, "")
 
-            # Pass current profile to signal bot
-            if key == "signal_bot" and hasattr(self, 'combo_profiles'):
-                profile = self.combo_profiles.get()
-                if profile:
-                    cmd.extend(["--profile", profile])
+            if getattr(sys, 'frozen', False):
+                # Frozen exe: use --signal-bot mode for signal_bot, others unsupported
+                if key == "signal_bot":
+                    profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
+                    cmd = [sys.executable, "--signal-bot", "--profile", profile] if profile else [sys.executable, "--signal-bot"]
+                else:
+                    self.log(f"Frozen mode: {info['name']} not supported yet")
+                    return
+            else:
+                # Development: use python directly
+                cmd = [sys.executable, "-u", script]
             env = os.environ.copy()
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUNBUFFERED"] = "1"
@@ -7108,10 +7159,15 @@ if __name__ == "__main__":
     # Argument Parsing
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", action="store_true", help="Run in worker mode")
+    parser.add_argument("--signal-bot", action="store_true", help="Run signal bot mode")
     parser.add_argument("--profile", type=str, help="Profile name to run")
     args, unknown = parser.parse_known_args()
-    
-    if args.worker and args.profile:
+
+    if args.signal_bot and args.profile:
+        # Frozen exe: run signal bot directly
+        import mt5_signal_bot
+        mt5_signal_bot.main(profile_name=args.profile)
+    elif args.worker and args.profile:
         run_worker(args.profile)
     else:
         try:
