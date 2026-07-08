@@ -116,7 +116,7 @@ def get_token_for_profile(profile_name):
     identifier = f"{_SERVICE_NAME}:{profile_name}:tele_token"
     try:
         val = kr.get_password(_SERVICE_NAME, identifier)
-        if val:
+        if val and val != "__vault__":  # Never return "__vault__" from keyring
             return val
     except Exception:
         pass
