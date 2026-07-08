@@ -81,11 +81,13 @@ class SignalProcessSupervisor:
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 creationflags = subprocess.CREATE_NO_WINDOW
 
+            # Use root directory instead of services/ directory!
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, bufsize=1, encoding='utf-8', errors='replace',
                 startupinfo=startupinfo, creationflags=creationflags,
-                cwd=os.path.dirname(os.path.abspath(__file__)),
+                cwd=root_dir,
                 env=env,
             )
             info["proc"] = proc
@@ -132,7 +134,8 @@ class SignalProcessSupervisor:
         self._kill_orphan_processes(key)
 
         if key == "mimo_worker":
-            lock_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mimo_worker.lock")
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            lock_file = os.path.join(root_dir, "mimo_worker.lock")
             try:
                 if os.path.exists(lock_file):
                     os.remove(lock_file)
