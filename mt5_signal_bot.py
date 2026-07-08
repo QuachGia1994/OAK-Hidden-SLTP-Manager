@@ -101,7 +101,7 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     # under the running profile, not just the global config.json. Falling back
     # to the global values keeps config.json-only setups working.
     profile_cfg = load_profile_config(profile, profiles_path=profiles_path)
-    tg_token = resolve_telegram_token(profile, profile_cfg.get("tele_token", TELEGRAM_TOKEN))
+    tg_token = resolve_telegram_token(profile, profile_cfg.get("tele_token"), global_fallback=TELEGRAM_TOKEN)
     tg_chat = profile_cfg.get("tele_chat") or TELEGRAM_CHAT_ID
     tg_configured = bool(tg_token and tg_chat)
     tg_api_ok, tg_bot = _check_telegram_api(tg_token) if tg_token else (False, "")

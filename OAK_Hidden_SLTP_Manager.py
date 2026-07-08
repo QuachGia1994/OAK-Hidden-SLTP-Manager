@@ -3380,7 +3380,7 @@ class MonitorWorker(threading.Thread):
         from secret_store import resolve_telegram_token
         raw_token = self.config.get("tele_token", "")
         profile_name = self.config.get("profile_name", "")
-        token = resolve_telegram_token(profile_name, raw_token)
+        token = resolve_telegram_token(profile_name, raw_token, global_fallback=_mimo_bot_token)
         chat_id = self.config.get("tele_chat", "")
         if token and chat_id:
             try:
@@ -3399,7 +3399,7 @@ class MonitorWorker(threading.Thread):
     def send_telegram(self, message):
         from secret_store import resolve_telegram_token
         profile_name = self.config.get("profile_name", "")
-        token = resolve_telegram_token(profile_name, _mimo_bot_token or self.config.get("tele_token", ""))
+        token = resolve_telegram_token(profile_name, self.config.get("tele_token", ""), global_fallback=_mimo_bot_token)
         chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
         if not token or not chat_id: return
 
@@ -3722,7 +3722,8 @@ class MonitorWorker(threading.Thread):
             from secret_store import resolve_telegram_token
             tele_token_resolved = resolve_telegram_token(
                 self.config.get("profile_name", ""),
-                self.config.get("tele_token", "")
+                self.config.get("tele_token", ""),
+                global_fallback=_mimo_bot_token
             )
             tele_status = "ON" if (tele_token_resolved and self.config.get("tele_chat", "")) else "OFF"
             config_log = (

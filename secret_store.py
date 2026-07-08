@@ -123,13 +123,16 @@ def get_token_for_profile(profile_name):
     return ""
 
 
-def resolve_telegram_token(profile_name, raw_token=None):
-    """Resolve Telegram token: real token -> return as-is, __vault__/empty -> keyring lookup.
+def resolve_telegram_token(profile_name, raw_token=None, global_fallback=""):
+    """Resolve Telegram token: real token -> return as-is, __vault__/empty -> keyring lookup,
+    then global fallback if keyring fails.
 
     Returns real token string, or empty string on failure. Never returns __vault__.
     """
     if raw_token and raw_token != "__vault__":
         return raw_token
     if profile_name:
-        return get_token_for_profile(profile_name)
-    return ""
+        token = get_token_for_profile(profile_name)
+        if token:
+            return token
+    return global_fallback
