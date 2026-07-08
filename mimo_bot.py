@@ -26,6 +26,8 @@ import re
 import socket
 from datetime import datetime
 
+from utils import compute_telegram_backoff
+
 try:
     import telebot
 except ImportError:
@@ -650,10 +652,38 @@ def handle_all(message):
 if __name__ == "__main__":
     # Check if OAK Manager is already handling Telegram (single bot mode)
     def _is_oak_running():
+        """Detect OAK Manager running as python.exe OR frozen .exe."""
         try:
+            # Check python.exe running OAK_Hidden_SLTP_Manager.py
             result = subprocess.run(
                 ["wmic", "process", "where",
                  "CommandLine like '%OAK_Hidden_SLTP_Manager%' and Name='python.exe'",
+                 "get", "ProcessId"],
+                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            for line in result.stdout.strip().split('\n'):
+                if line.strip().isdigit():
+                    return True
+        except:
+            pass
+        try:
+            # Check frozen .exe (OAK MANAGER*.exe)
+            result = subprocess.run(
+                ["wmic", "process", "where",
+                 "Name like 'OAK MANAGER%'",
+                 "get", "ProcessId"],
+                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            for line in result.stdout.strip().split('\n'):
+                if line.strip().isdigit():
+                    return True
+        except:
+            pass
+        try:
+            # Check process with --worker or --signal-bot flag
+            result = subprocess.run(
+                ["wmic", "process", "where",
+                 "CommandLine like '%--worker%' or CommandLine like '%--signal-bot%'",
                  "get", "ProcessId"],
                 capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
             )
@@ -687,13 +717,24 @@ if __name__ == "__main__":
         print("=" * 55)
 
         import time as _time
+        consecutive_fails = 0
+        degraded_logged = False
         while True:
             try:
-                bot.polling(none_stop=True, timeout=1, long_polling_timeout=1, skip_pending=True)
+                bot.polling(none_stop=True, timeout=20, long_polling_timeout=20, skip_pending=True)
+                consecutive_fails = 0
+                degraded_logged = False
             except KeyboardInterrupt:
                 print("\n  Đã dừng bot.")
                 break
             except Exception as e:
-                print(f"\n  Lỗi: {e}")
-                print("  Đang kết nối lại sau 5 giây...")
-                _time.sleep(5)
+                consecutive_fails += 1
+                sleep_s, is_new_degraded = compute_telegram_backoff(consecutive_fails)
+                if is_new_degraded:
+                    print(f"\n  ⚠️ Telegram degraded: {consecutive_fails}+ lỗi liên tiếp ({e}). "
+                          f"Tạm nghỉ {sleep_s}s, ngừng spam log.")
+                    degraded_logged = True
+                elif consecutive_fails < 10:
+                    print(f"\n  Lỗi: {e}")
+                    print(f"  Đang kết nối lại sau {sleep_s} giây...")
+                _time.sleep(sleep_s)
