@@ -71,7 +71,25 @@ def _check_telegram_api(token):
         pass
     return False, ""
 
-def publish_heartbeat(profile, mt5_connected, mt5_error=""):
+def load_profile_config(profile_name, profiles_path=None):
+    """Load a single profile's config dict from profiles.json.
+
+    Returns {} if profile_name is empty, profiles.json is missing/invalid,
+    or the profile isn't found. Never raises.
+    """
+    if not profile_name:
+        return {}
+    if profiles_path is None:
+        profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+    try:
+        with open(profiles_path, "r", encoding="utf-8") as f:
+            profiles_data = json.load(f)
+        return profiles_data.get(profile_name, {})
+    except Exception:
+        return {}
+
+
+def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     """Publish heartbeat to SQLite. Called every ~2s from main loop."""
     from datetime import datetime, timezone
     acc = None
@@ -81,9 +99,12 @@ def publish_heartbeat(profile, mt5_connected, mt5_error=""):
         except Exception:
             pass
 
-    # Check Telegram: try config.json first, then keyring for profile token
-    tg_token = resolve_telegram_token(profile, TELEGRAM_TOKEN)
-    tg_chat = TELEGRAM_CHAT_ID
+    # Telegram config is per-profile: tele_token/tele_chat live in profiles.json
+    # under the running profile, not just the global config.json. Falling back
+    # to the global values keeps config.json-only setups working.
+    profile_cfg = load_profile_config(profile, profiles_path=profiles_path)
+    tg_token = resolve_telegram_token(profile, profile_cfg.get("tele_token", TELEGRAM_TOKEN))
+    tg_chat = profile_cfg.get("tele_chat") or TELEGRAM_CHAT_ID
     tg_configured = bool(tg_token and tg_chat)
     tg_api_ok, tg_bot = _check_telegram_api(tg_token) if tg_token else (False, "")
     tg_last = datetime.now(timezone.utc).isoformat() if tg_api_ok else ""
@@ -102,6 +123,7 @@ def publish_heartbeat(profile, mt5_connected, mt5_error=""):
         telegram_last_check=tg_last,
         telegram_bot_name=tg_bot,
     )
+
 
 # =====================================================================
 # STATE PERSISTENCE - survive bot restarts
@@ -1022,6 +1044,46 @@ def get_broker_time():
     now_utc = datetime.now(tz=timezone.utc).replace(tzinfo=None)
     return now_utc + timedelta(hours=BROKER_GMT)
 
+def resolve_active_profile(profile_name, profiles_path=None):
+    """Resolve which profile the signal bot should run as.
+
+    Always loads profiles.json and runs the one-time plaintext-token
+    migration, regardless of whether a CLI profile was supplied, so
+    migration is never skipped when --profile is passed.
+
+    Resolution order: CLI arg (if it exists in profiles.json) > first
+    profile in profiles.json > "" (no profiles configured).
+    If profile_name is given but not found in profiles.json, warns and
+    falls back to the first available profile.
+    """
+    if profiles_path is None:
+        profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+
+    profiles_data = {}
+    try:
+        with open(profiles_path, "r", encoding="utf-8") as pf:
+            profiles_data = json.load(pf)
+        if profiles_data:
+            # One-time migration of plaintext tokens to keyring
+            migrate_plaintext_tokens(profiles_data)
+    except Exception:
+        profiles_data = {}
+
+    if profile_name:
+        if profiles_data and profile_name not in profiles_data:
+            print(
+                f"[WARN] Profile '{profile_name}' not found in profiles.json. "
+                f"Falling back to first available profile."
+            )
+            return list(profiles_data.keys())[0] if profiles_data else ""
+        return profile_name
+
+    if profiles_data:
+        return list(profiles_data.keys())[0]
+
+    return ""
+
+
 def main(profile_name=None):
     global mt5_ready, d_direction, d_direction_date, d_matched_hour, day_signals, sent_today, _active_profile
     print("=" * 55)
@@ -1221,27 +1283,15 @@ def main(profile_name=None):
                 f"{slot_line}"
                 f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
             )
-            send_telegram(msg)
+            # Không gửi thông báo Telegram cho slot bỏ lỡ nữa
+            print(f"[SKIP TELEGRAM] Missed slot notification suppressed for H={h}")
 
         if missed_count > 0:
             push_to_dashboard()
             print(f"\n[DASHBOARD] Pushed {missed_count} missed slots")
 
     try:
-        # Resolve profile: CLI arg > first profile in profiles.json
-        if profile_name:
-            _active_profile = profile_name
-        else:
-            try:
-                _profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
-                with open(_profiles_path, "r", encoding="utf-8") as _pf:
-                    _profiles_data = json.load(_pf)
-                    if _profiles_data:
-                        _active_profile = list(_profiles_data.keys())[0]
-                        # One-time migration of plaintext tokens to keyring
-                        migrate_plaintext_tokens(_profiles_data)
-            except Exception:
-                pass
+        _active_profile = resolve_active_profile(profile_name)
 
         _heartbeat_tick = 0
         while True:

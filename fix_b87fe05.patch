@@ -1,0 +1,368 @@
+diff --git a/OAK_Hidden_SLTP_Manager.py b/OAK_Hidden_SLTP_Manager.py
+index e2997bb..51ab290 100644
+--- a/OAK_Hidden_SLTP_Manager.py
++++ b/OAK_Hidden_SLTP_Manager.py
+@@ -28,6 +28,7 @@ import oak_trading_reminders
+ from oak_response_dict import get_random_response
+ from oak_logger import setup_logger
+ from repositories.sqlite_store import SQLiteStore
++from utils import build_signal_process_cmd, SIGNAL_SCRIPT_MAP, UnsupportedFrozenProcessError
+ 
+ log = setup_logger("oak")
+ 
+@@ -5264,26 +5265,16 @@ class App(ctk.CTk):
+                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                 creationflags = subprocess.CREATE_NO_WINDOW
+ 
+-            # Build command based on mode
+-            script_map = {
+-                "signal_bot": "mt5_signal_bot.py",
+-                "mt_server": "mt4_mt5_server.py",
+-                "mimo_bot": "mimo_bot.py",
+-                "mimo_worker": "mimo_worker.py",
+-            }
+-            script = script_map.get(key, "")
+-
+-            if getattr(sys, 'frozen', False):
+-                # Frozen exe: use --signal-bot mode for signal_bot, others unsupported
+-                if key == "signal_bot":
+-                    profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
+-                    cmd = [sys.executable, "--signal-bot", "--profile", profile] if profile else [sys.executable, "--signal-bot"]
+-                else:
+-                    self.log(f"Frozen mode: {info['name']} not supported yet")
+-                    return
+-            else:
+-                # Development: use python directly
+-                cmd = [sys.executable, "-u", script]
++            # Build command based on mode (shared helper so it's covered by real tests)
++            profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
++            frozen = getattr(sys, 'frozen', False)
++            try:
++                cmd = build_signal_process_cmd(
++                    key, profile, frozen, sys.executable, script_map=SIGNAL_SCRIPT_MAP
++                )
++            except UnsupportedFrozenProcessError:
++                self.log(f"Frozen mode: {info['name']} not supported yet")
++                return
+             env = os.environ.copy()
+             env["PYTHONIOENCODING"] = "utf-8"
+             env["PYTHONUNBUFFERED"] = "1"
+diff --git a/mt5_signal_bot.py b/mt5_signal_bot.py
+index b20fbfe..7449110 100644
+--- a/mt5_signal_bot.py
++++ b/mt5_signal_bot.py
+@@ -1022,6 +1022,46 @@ def get_broker_time():
+     now_utc = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+     return now_utc + timedelta(hours=BROKER_GMT)
+ 
++def resolve_active_profile(profile_name, profiles_path=None):
++    """Resolve which profile the signal bot should run as.
++
++    Always loads profiles.json and runs the one-time plaintext-token
++    migration, regardless of whether a CLI profile was supplied, so
++    migration is never skipped when --profile is passed.
++
++    Resolution order: CLI arg (if it exists in profiles.json) > first
++    profile in profiles.json > "" (no profiles configured).
++    If profile_name is given but not found in profiles.json, warns and
++    falls back to the first available profile.
++    """
++    if profiles_path is None:
++        profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
++
++    profiles_data = {}
++    try:
++        with open(profiles_path, "r", encoding="utf-8") as pf:
++            profiles_data = json.load(pf)
++        if profiles_data:
++            # One-time migration of plaintext tokens to keyring
++            migrate_plaintext_tokens(profiles_data)
++    except Exception:
++        profiles_data = {}
++
++    if profile_name:
++        if profiles_data and profile_name not in profiles_data:
++            print(
++                f"[WARN] Profile '{profile_name}' not found in profiles.json. "
++                f"Falling back to first available profile."
++            )
++            return list(profiles_data.keys())[0] if profiles_data else ""
++        return profile_name
++
++    if profiles_data:
++        return list(profiles_data.keys())[0]
++
++    return ""
++
++
+ def main(profile_name=None):
+     global mt5_ready, d_direction, d_direction_date, d_matched_hour, day_signals, sent_today, _active_profile
+     print("=" * 55)
+@@ -1228,20 +1268,7 @@ def main(profile_name=None):
+             print(f"\n[DASHBOARD] Pushed {missed_count} missed slots")
+ 
+     try:
+-        # Resolve profile: CLI arg > first profile in profiles.json
+-        if profile_name:
+-            _active_profile = profile_name
+-        else:
+-            try:
+-                _profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+-                with open(_profiles_path, "r", encoding="utf-8") as _pf:
+-                    _profiles_data = json.load(_pf)
+-                    if _profiles_data:
+-                        _active_profile = list(_profiles_data.keys())[0]
+-                        # One-time migration of plaintext tokens to keyring
+-                        migrate_plaintext_tokens(_profiles_data)
+-            except Exception:
+-                pass
++        _active_profile = resolve_active_profile(profile_name)
+ 
+         _heartbeat_tick = 0
+         while True:
+diff --git a/tests/test_command_construction.py b/tests/test_command_construction.py
+index 2fa33d5..9413d4e 100644
+--- a/tests/test_command_construction.py
++++ b/tests/test_command_construction.py
+@@ -1,49 +1,70 @@
+ # -*- coding: utf-8 -*-
+-"""Tests for command construction in dev vs frozen mode."""
++"""Tests for command construction in dev vs frozen mode.
++
++These tests call the real build_signal_process_cmd() helper (shared by
++OAK_Hidden_SLTP_Manager.start_signal_process and this test file) instead of
++re-building a fake command inline, so a regression like "dev mode forgets
++--profile" is actually caught.
++"""
+ import unittest
+ import sys
++import os
++
++sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
++
++from utils import build_signal_process_cmd, UnsupportedFrozenProcessError
+ 
+ 
+ class TestCommandConstruction(unittest.TestCase):
+     """Test signal bot command construction for dev and frozen modes."""
+ 
+-    def test_dev_mode_uses_sys_executable(self):
+-        """Dev mode: uses sys.executable -u mt5_signal_bot.py --profile X."""
+-        profile = "VantageDemo"
+-        cmd = [sys.executable, "-u", "mt5_signal_bot.py", "--profile", profile]
+-        self.assertIn("-u", cmd)
+-        self.assertIn("mt5_signal_bot.py", cmd)
+-        self.assertIn("--profile", cmd)
+-        self.assertIn("VantageDemo", cmd)
++    def test_dev_mode_signal_bot_includes_profile(self):
++        """Dev mode: signal_bot must receive --profile <profile>."""
++        cmd = build_signal_process_cmd(
++            "signal_bot", "VantageDemo", frozen=False, executable=sys.executable
++        )
++        self.assertEqual(
++            cmd, [sys.executable, "-u", "mt5_signal_bot.py", "--profile", "VantageDemo"]
++        )
++
++    def test_dev_mode_signal_bot_no_profile_selected(self):
++        """Dev mode: no profile selected -> no --profile flag appended."""
++        cmd = build_signal_process_cmd(
++            "signal_bot", "", frozen=False, executable=sys.executable
++        )
++        self.assertEqual(cmd, [sys.executable, "-u", "mt5_signal_bot.py"])
++        self.assertNotIn("--profile", cmd)
+ 
+     def test_frozen_mode_uses_signal_bot_flag(self):
+         """Frozen mode: uses sys.executable --signal-bot --profile X."""
+-        profile = "VantageDemo"
+-        cmd = [sys.executable, "--signal-bot", "--profile", profile]
+-        self.assertIn("--signal-bot", cmd)
+-        self.assertIn("--profile", cmd)
+-        self.assertIn("VantageDemo", cmd)
++        cmd = build_signal_process_cmd(
++            "signal_bot", "VantageDemo", frozen=True, executable=sys.executable
++        )
++        self.assertEqual(cmd, [sys.executable, "--signal-bot", "--profile", "VantageDemo"])
+         self.assertFalse(any(".py" in arg for arg in cmd))
+ 
+     def test_frozen_mode_no_profile(self):
+         """Frozen mode without profile: uses sys.executable --signal-bot."""
+-        cmd = [sys.executable, "--signal-bot"]
+-        self.assertIn("--signal-bot", cmd)
+-        self.assertEqual(len(cmd), 2)
++        cmd = build_signal_process_cmd(
++            "signal_bot", "", frozen=True, executable=sys.executable
++        )
++        self.assertEqual(cmd, [sys.executable, "--signal-bot"])
+ 
+-    def test_dev_mode_other_processes(self):
+-        """Dev mode: other processes use sys.executable -u script.py."""
+-        script = "mt4_mt5_server.py"
+-        cmd = [sys.executable, "-u", script]
+-        self.assertIn("-u", cmd)
+-        self.assertIn("mt4_mt5_server.py", cmd)
++    def test_dev_mode_other_processes_no_profile_flag(self):
++        """Dev mode: non-signal_bot processes never get --profile."""
++        cmd = build_signal_process_cmd(
++            "mt_server", "VantageDemo", frozen=False, executable=sys.executable
++        )
++        self.assertEqual(cmd, [sys.executable, "-u", "mt4_mt5_server.py"])
++        self.assertNotIn("--profile", cmd)
+ 
+     def test_frozen_mode_only_signal_bot_supported(self):
+-        """Frozen mode: only signal_bot is supported."""
+-        supported = ["signal_bot"]
+-        unsupported = ["mt_server", "mimo_bot", "mimo_worker"]
+-        for key in unsupported:
+-            self.assertNotIn(key, supported)
++        """Frozen mode: only signal_bot is supported, others raise."""
++        for key in ("mt_server", "mimo_bot", "mimo_worker"):
++            with self.assertRaises(UnsupportedFrozenProcessError):
++                build_signal_process_cmd(
++                    key, "VantageDemo", frozen=True, executable=sys.executable
++                )
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/tests/test_signal_bot_profile.py b/tests/test_signal_bot_profile.py
+index 3f45873..af096f8 100644
+--- a/tests/test_signal_bot_profile.py
++++ b/tests/test_signal_bot_profile.py
+@@ -1,11 +1,23 @@
+ # -*- coding: utf-8 -*-
+-"""Tests for signal bot profile selection."""
++"""Tests for signal bot profile selection.
++
++Covers both CLI arg parsing and the real resolve_active_profile() logic
++used by mt5_signal_bot.main(), so a regression in migration-skipping or
++missing validation is actually caught (not just argparse behavior).
++"""
+ import unittest
+ import sys
++import os
++import json
++import tempfile
++from unittest.mock import patch
++
++import mt5_signal_bot
++from mt5_signal_bot import resolve_active_profile
+ 
+ 
+-class TestSignalBotProfile(unittest.TestCase):
+-    """Test signal bot profile ownership."""
++class TestSignalBotCLIParsing(unittest.TestCase):
++    """Test --profile CLI arg parsing."""
+ 
+     def test_profile_arg_parsing(self):
+         """CLI --profile arg is parsed correctly."""
+@@ -34,5 +46,56 @@ class TestSignalBotProfile(unittest.TestCase):
+             sys.argv = orig_argv
+ 
+ 
++class TestResolveActiveProfile(unittest.TestCase):
++    """Test resolve_active_profile(), the real function main() relies on."""
++
++    def _write_profiles(self, data):
++        fd, path = tempfile.mkstemp(suffix=".json")
++        with os.fdopen(fd, "w", encoding="utf-8") as f:
++            json.dump(data, f)
++        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
++        return path
++
++    @patch.object(mt5_signal_bot, "migrate_plaintext_tokens")
++    def test_cli_profile_used_when_valid(self, mock_migrate):
++        """CLI profile that exists in profiles.json is used as-is."""
++        path = self._write_profiles({"VantageDemo": {}, "Other": {}})
++        result = resolve_active_profile("VantageDemo", profiles_path=path)
++        self.assertEqual(result, "VantageDemo")
++        mock_migrate.assert_called_once()
++
++    @patch.object(mt5_signal_bot, "migrate_plaintext_tokens")
++    def test_cli_profile_invalid_falls_back_to_first(self, mock_migrate):
++        """CLI profile not present in profiles.json warns and falls back."""
++        path = self._write_profiles({"RealProfile": {}})
++        result = resolve_active_profile("DoesNotExist", profiles_path=path)
++        self.assertEqual(result, "RealProfile")
++
++    @patch.object(mt5_signal_bot, "migrate_plaintext_tokens")
++    def test_no_cli_profile_uses_first(self, mock_migrate):
++        """No CLI profile falls back to first profile in profiles.json."""
++        path = self._write_profiles({"FirstProfile": {}, "SecondProfile": {}})
++        result = resolve_active_profile(None, profiles_path=path)
++        self.assertEqual(result, "FirstProfile")
++        mock_migrate.assert_called_once()
++
++    @patch.object(mt5_signal_bot, "migrate_plaintext_tokens")
++    def test_migration_runs_even_when_cli_profile_given(self, mock_migrate):
++        """Migration must run even when --profile is passed (not just the else branch)."""
++        path = self._write_profiles({"VantageDemo": {}})
++        resolve_active_profile("VantageDemo", profiles_path=path)
++        mock_migrate.assert_called_once()
++
++    def test_missing_profiles_file_returns_empty_string(self):
++        """No profiles.json at all -> empty active profile, no crash."""
++        result = resolve_active_profile(None, profiles_path="/nonexistent/profiles.json")
++        self.assertEqual(result, "")
++
++    def test_missing_profiles_file_with_cli_profile_uses_cli_value(self):
++        """No profiles.json but CLI profile given -> trust the CLI value."""
++        result = resolve_active_profile("VantageDemo", profiles_path="/nonexistent/profiles.json")
++        self.assertEqual(result, "VantageDemo")
++
++
+ if __name__ == "__main__":
+     unittest.main()
+diff --git a/utils.py b/utils.py
+index 352d2d9..450ef73 100644
+--- a/utils.py
++++ b/utils.py
+@@ -65,6 +65,50 @@ def save_json_file(path, data):
+         pass
+ 
+ 
++# --- Process command construction ---
++SIGNAL_SCRIPT_MAP = {
++    "signal_bot": "mt5_signal_bot.py",
++    "mt_server": "mt4_mt5_server.py",
++    "mimo_bot": "mimo_bot.py",
++    "mimo_worker": "mimo_worker.py",
++}
++
++FROZEN_SUPPORTED_KEYS = ("signal_bot",)
++
++
++class UnsupportedFrozenProcessError(Exception):
++    """Raised when a frozen build is asked to start a process it can't run standalone."""
++
++
++def build_signal_process_cmd(key, profile, frozen, executable, script_map=None):
++    """Build the subprocess command list for a signal process.
++
++    Mirrors the exact command construction used by
++    OAK_Hidden_SLTP_Manager.start_signal_process, so it can be unit tested
++    without importing the GUI (customtkinter/MetaTrader5) module.
++
++    - frozen + signal_bot: [executable, "--signal-bot", ("--profile", profile)?]
++    - frozen + other key: raises UnsupportedFrozenProcessError
++    - dev + signal_bot: [executable, "-u", script, ("--profile", profile)?]
++    - dev + other key: [executable, "-u", script]
++    """
++    script_map = script_map or SIGNAL_SCRIPT_MAP
++    script = script_map.get(key, "")
++
++    if frozen:
++        if key not in FROZEN_SUPPORTED_KEYS:
++            raise UnsupportedFrozenProcessError(key)
++        cmd = [executable, "--signal-bot"]
++        if profile:
++            cmd.extend(["--profile", profile])
++        return cmd
++
++    cmd = [executable, "-u", script]
++    if key == "signal_bot" and profile:
++        cmd.extend(["--profile", profile])
++    return cmd
++
++
+ # --- Signal helpers ---
+ SIGNAL_ICONS = {"BUY": ("Mua", "\U0001f7e2"), "SELL": ("Bán", "\U0001f534")}
+ VN_DIR = {"TANG": "Tăng", "GIAM": "Giảm", "DOJI": "Doji"}

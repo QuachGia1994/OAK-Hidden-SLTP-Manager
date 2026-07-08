@@ -28,6 +28,7 @@ import oak_trading_reminders
 from oak_response_dict import get_random_response
 from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
+from utils import build_signal_process_cmd, SIGNAL_SCRIPT_MAP, UnsupportedFrozenProcessError, compute_telegram_backoff
 
 log = setup_logger("oak")
 
@@ -1853,6 +1854,9 @@ class CopyTradeManager:
                         break
 
                 new_cmd = f"/closeall {time_val} filter={filter_type} sym={target_sym}"
+                if any(kw in text_lower for kw in ["mai", "ngày mai", "sáng mai", "tối mai"]):
+                    tomorrow_dt = datetime.now() + timedelta(days=1)
+                    new_cmd += f" date={tomorrow_dt.strftime('%Y-%m-%d')}"
                 for p_name in cmd:
                     if p_name.lower() == profile_name.lower():
                         new_cmd += f" {profile_name}"
@@ -1996,6 +2000,7 @@ class CopyTradeManager:
         # 2. /closeall [TIME] [PROFILE] [filter=profit/loss] [sym=SYMBOL]
         elif cmd[0] == "/closeall":
             time_val = ""
+            target_date = ""
             target_profile = ""
             filter_type = "all"
             target_sym = ""
@@ -2003,7 +2008,9 @@ class CopyTradeManager:
             if not profile_names:
                 profile_names = {"darwinex", "vantage", "th5ers"}
             for arg in cmd[1:]:
-                if ":" in arg:
+                if arg.startswith("date="):
+                    target_date = arg.split("=", 1)[1]
+                elif ":" in arg:
                     time_val = arg
                 elif "filter=" in arg:
                     filter_type = arg.split("=")[1]
@@ -2021,12 +2028,15 @@ class CopyTradeManager:
                 try:
                     if len(time_val.split(":")) == 2: time_val += ":00"
                     
-                    now_dt = datetime.now()
-                    target_dt = datetime.strptime(time_val, "%H:%M:%S").replace(year=now_dt.year, month=now_dt.month, day=now_dt.day)
-                    if target_dt < now_dt:
-                        target_dt += timedelta(days=1)
-                    while target_dt.weekday() in (5, 6):
-                        target_dt += timedelta(days=1)
+                    if target_date:
+                        target_dt = datetime.strptime(f"{target_date} {time_val}", "%Y-%m-%d %H:%M:%S")
+                    else:
+                        now_dt = datetime.now()
+                        target_dt = datetime.strptime(time_val, "%H:%M:%S").replace(year=now_dt.year, month=now_dt.month, day=now_dt.day)
+                        if target_dt < now_dt:
+                            target_dt += timedelta(days=1)
+                        while target_dt.weekday() in (5, 6):
+                            target_dt += timedelta(days=1)
                     target_date_str = target_dt.strftime("%Y-%m-%d")
 
                     if not hasattr(self, "_scheduled_close"):
@@ -3352,6 +3362,11 @@ class MonitorWorker(threading.Thread):
         self.ghost_op = GhostOperator(self.config.get("login_id"))
         self.ghost_mode_active = False
 
+        # --- Telegram backoff/circuit breaker state (avoid log-spamming on 502s etc.) ---
+        self._telegram_fail_count = 0
+        self._telegram_backoff_until = 0.0
+        self._telegram_degraded_logged = False
+
         # --- INTEGRATE REMINDER SERVICE ---
         from secret_store import resolve_telegram_token
         raw_token = self.config.get("tele_token", "")
@@ -3378,7 +3393,12 @@ class MonitorWorker(threading.Thread):
         token = resolve_telegram_token(profile_name, _mimo_bot_token or self.config.get("tele_token", ""))
         chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
         if not token or not chat_id: return
-        
+
+        if time.time() < self._telegram_backoff_until:
+            # Still cooling down from recent repeated failures; skip silently
+            # so a Telegram outage doesn't spam the log every call.
+            return
+
         # Strip color tags for Telegram (they don't support custom HTML tags like <c=...>)
         clean_message = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", message)
         clean_message = clean_message.replace("</c>", "")
@@ -3442,6 +3462,10 @@ class MonitorWorker(threading.Thread):
             with urllib.request.urlopen(req, timeout=10) as response:
                 response.read()
 
+            self._telegram_fail_count = 0
+            self._telegram_backoff_until = 0.0
+            self._telegram_degraded_logged = False
+
             if filtered is not None:
                 filtered.append({"msg": clean_message, "ts": now_ts})
                 try:
@@ -3462,7 +3486,19 @@ class MonitorWorker(threading.Thread):
                         except:
                             pass
         except Exception as e:
-            self.log(f"Telegram Error: {e}")
+            self._telegram_fail_count += 1
+            count = self._telegram_fail_count
+            sleep_s, is_new_degraded = compute_telegram_backoff(count)
+            self._telegram_backoff_until = time.time() + sleep_s
+            if is_new_degraded:
+                self.log(f"⚠️ Telegram degraded: {count}+ lỗi liên tiếp, tạm nghỉ {sleep_s}s, ngừng spam log.")
+                self._telegram_degraded_logged = True
+            elif count >= 10:
+                pass  # already in degraded/backoff state, stay quiet
+            elif count >= 3:
+                self.log(f"Telegram Error: {e} (lỗi liên tiếp #{count}, nghỉ {sleep_s}s)")
+            else:
+                self.log(f"Telegram Error: {e} (retry sau {sleep_s}s)")
 
     def close_position(self, pos, reason, volume=None):
         tick = mt5.symbol_info_tick(pos.symbol)
@@ -5264,26 +5300,16 @@ class App(ctk.CTk):
                 startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                 creationflags = subprocess.CREATE_NO_WINDOW
 
-            # Build command based on mode
-            script_map = {
-                "signal_bot": "mt5_signal_bot.py",
-                "mt_server": "mt4_mt5_server.py",
-                "mimo_bot": "mimo_bot.py",
-                "mimo_worker": "mimo_worker.py",
-            }
-            script = script_map.get(key, "")
-
-            if getattr(sys, 'frozen', False):
-                # Frozen exe: use --signal-bot mode for signal_bot, others unsupported
-                if key == "signal_bot":
-                    profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
-                    cmd = [sys.executable, "--signal-bot", "--profile", profile] if profile else [sys.executable, "--signal-bot"]
-                else:
-                    self.log(f"Frozen mode: {info['name']} not supported yet")
-                    return
-            else:
-                # Development: use python directly
-                cmd = [sys.executable, "-u", script]
+            # Build command based on mode (shared helper so it's covered by real tests)
+            profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
+            frozen = getattr(sys, 'frozen', False)
+            try:
+                cmd = build_signal_process_cmd(
+                    key, profile, frozen, sys.executable, script_map=SIGNAL_SCRIPT_MAP
+                )
+            except UnsupportedFrozenProcessError:
+                self.log(f"Frozen mode: {info['name']} not supported yet")
+                return
             env = os.environ.copy()
             env["PYTHONIOENCODING"] = "utf-8"
             env["PYTHONUNBUFFERED"] = "1"
@@ -6543,8 +6569,13 @@ class App(ctk.CTk):
                 tg_configured = tg_state["configured"]
                 tg_api = tg_state["api_ok"]
                 if not tg_configured:
-                    tg_label = "Not configured"
-                    tg_color = "gray"
+                    # If OAK Manager has a configured chat or MiMo bot value, show configured
+                    if _mimo_bot_chat_id or self.config.get("tele_chat", ""):
+                        tg_label = "Configured"
+                        tg_color = "#ffb74d"
+                    else:
+                        tg_label = "Not configured"
+                        tg_color = "gray"
                 elif tg_api:
                     tg_label = f"Online (@{tg_state['bot_name']})" if tg_state["bot_name"] else "Online"
                     tg_color = "#66bb6a"
@@ -6961,6 +6992,10 @@ class App(ctk.CTk):
 
         self._update_active_profile_badge(name)
         self._profile_form_snapshot = self._get_form_data()
+        # Re-render the list so the ✎ Editing marker moves to this row
+        # immediately, instead of staying on whatever was selected at the
+        # last refresh (which made the list look out of sync with the form).
+        self.refresh_profile_list()
 
     def clear_form(self):
         # Defaults
@@ -6997,16 +7032,19 @@ class App(ctk.CTk):
         return data
 
     def _update_active_profile_badge(self, name):
-        """Update the profile badge showing Running and Editing states."""
+        """Update the profile badge showing Running and Editing states.
+
+        Only shows "Editing: X" when it differs from the running profile,
+        so a profile that is both running and being edited just shows
+        "Running: X" instead of a confusing "Running: X | Editing: X".
+        """
         if hasattr(self, 'lbl_active_profile'):
             parts = []
             if self.running_profile_name:
-                parts.append(f"Running: {self.running_profile_name}")
+                parts.append(f"● Running: {self.running_profile_name}")
             if name and name != self.running_profile_name:
-                parts.append(f"Editing: {name}")
-            elif name:
-                parts.append(f"Editing: {name}")
-            self.lbl_active_profile.configure(text=" | ".join(parts) if parts else "")
+                parts.append(f"✎ Editing: {name}")
+            self.lbl_active_profile.configure(text="   ".join(parts) if parts else "")
 
     def _check_unsaved_changes(self):
         """Check if form has unsaved changes vs last saved snapshot."""

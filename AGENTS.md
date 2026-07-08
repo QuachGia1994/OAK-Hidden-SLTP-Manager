@@ -94,14 +94,34 @@ Next.js 16 + React 19 + Tailwind 4. Deployed on Vercel. **This is NOT standard N
 - VIP access via `/?vip=TOKEN` cookie
 - Deploy: push to GitHub → Vercel auto-deploys
 
+## Telegram Notification Flow
+
+Two separate Telegram systems exist:
+
+1. **Signal Bot** (`mt5_signal_bot.py`): Sends trading signals at H:45 slots. Uses `send_telegram_raw()` from `utils.py` with `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` from `config.json`.
+2. **MiMo Bot** (`mimo_bot.py`): Telegram command bridge. Uses `pyTelegramBotAPI` with same `config.json` credentials.
+
+Token resolution hierarchy (signal bot):
+- Profile `tele_token` (keyring via `secret_store.py`) → fallback → `config.json` global token
+- All profiles currently have `tele_token: "__vault__"` but **keyring is not installed**, so profile tokens always fail → falls back to `config.json`
+- If `config.json` token is also empty/wrong, `send_telegram()` silently returns `None`
+
+**Debugging Telegram issues**:
+- Check `logs/app.log` for `[secrets]` warnings (keyring unavailable)
+- Check `tele_sent_log.json` for dedup log (OAK Manager sends only)
+- Signal bot uses `print()` not logger — output goes to cmd window, not log file
+- Verify bot token: `python -c "import urllib.request,json;print(json.loads(urllib.request.urlopen('https://api.telegram.org/bot<TOKEN>/getMe').read()))"`
+
 ## Gotchas
 
-1. **Global state**: `mt5_signal_bot.py` uses module-level globals (`d_direction`, `d_direction_date`) that tests must patch.
-2. **Process cleanup**: `OAK_Hidden_SLTP_Manager.py` registers `atexit` and signal handlers to kill child processes.
-3. **MT5 connection**: `MetaTrader5` module requires MT5 terminal running. Import fails gracefully with error message.
-4. **JSON corruption**: Runtime writes JSON files that can corrupt on crash. `load_json_file()` handles this with default fallback.
-5. **Port conflicts**: `mt4_mt5_server.py` runs Flask on default port. `mt5_signal_bot.py` uses port 8765 for direction events.
-6. **Build**: `build_exe.py` uses PyInstaller with UPX compression. Version extracted from `OAK_Hidden_SLTP_Manager.py`.
+1. **Duplicate processes**: Multiple instances of the same process can accumulate (e.g., after repeated CHAY_ALL.bat runs). Each `mimo_bot.py` instance polls the same bot token — Telegram delivers each message to only one instance, causing random message loss. Fix: kill all pythonw.exe processes before restarting.
+2. **`pythonw.exe` suppresses stdout**: `CHAY_ALL.bat` and `CHAY_ROBOT.bat` use `pythonw.exe` (no console). All `print()` output is lost. Signal bot uses `print()` for most output, not the logger.
+3. **Global state**: `mt5_signal_bot.py` uses module-level globals (`d_direction`, `d_direction_date`) that tests must patch.
+4. **Process cleanup**: `OAK_Hidden_SLTP_Manager.py` registers `atexit` and signal handlers to kill child processes.
+5. **MT5 connection**: `MetaTrader5` module requires MT5 terminal running. Import fails gracefully with error message.
+6. **JSON corruption**: Runtime writes JSON files that can corrupt on crash. `load_json_file()` handles this with default fallback.
+7. **Port conflicts**: `mt4_mt5_server.py` runs Flask on default port. `mt5_signal_bot.py` uses port 8765 for direction events.
+8. **Build**: `build_exe.py` uses PyInstaller with UPX compression. Version extracted from `OAK_Hidden_SLTP_Manager.py`.
 
 ## Common Tasks
 
@@ -112,3 +132,9 @@ Next.js 16 + React 19 + Tailwind 4. Deployed on Vercel. **This is NOT standard N
 **Modify dashboard**: Work in `dashboard/src/`. Use `npm run build` to verify before push.
 
 **Add new trading profile field**: Update `profiles.example.json` and `OAK_Hidden_SLTP_Manager.py` profile loading logic.
+
+**Debug Telegram not sending**:
+1. Check for duplicate processes: `Get-Process pythonw | Select-Object Id, CommandLine`
+2. Kill all: `Get-Process pythonw | Stop-Process -Force`
+3. Restart single instance via `CHAY_ALL.bat`
+4. Check bot token validity with getMe API call above

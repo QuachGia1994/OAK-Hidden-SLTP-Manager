@@ -609,6 +609,28 @@ def cmd_modify(message):
     _inject_to_oak_inbox(f"/modify {text}", message.chat.id)
     bot.reply_to(message, f"✏️ Đã gửi: `/modify {text}`")
 
+@bot.message_handler(commands=["pending"])
+def cmd_pending(message):
+    if not is_admin(message):
+        return
+    text = message.text.replace("/pending", "").strip()
+    if not text:
+        bot.reply_to(message, "Dùng: `/pending <buy|sell> <SYMBOL> <LOT> <HH:MM> [SL] [TP] [PROFILE]`")
+        return
+    _inject_to_oak_inbox(f"/pending {text}", message.chat.id)
+    bot.reply_to(message, f"📨 Đã gửi vào OAK inbox:\n`/pending {text}`")
+
+@bot.message_handler(commands=["closeall"])
+def cmd_closeall(message):
+    if not is_admin(message):
+        return
+    text = message.text.replace("/closeall", "").strip()
+    if not text:
+        bot.reply_to(message, "Dùng: `/closeall [HH:MM] [filter=profit|loss|all] [sym=SYMBOL] [PROFILE]`")
+        return
+    _inject_to_oak_inbox(f"/closeall {text}", message.chat.id)
+    bot.reply_to(message, f"📨 Đã gửi vào OAK inbox:\n`/closeall {text}`")
+
 # Catch-all: NLP auto-forward to OAK
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):
@@ -696,14 +718,10 @@ if __name__ == "__main__":
 
     if _is_oak_running():
         print("=" * 55)
-        print("  MiMo Bridge Bot - SKIP (OAK Manager is running)")
-        print("  OAK Manager now handles all Telegram commands.")
+        print("  MiMo Bridge Bot - OAK Manager is running")
+        print("  Continuing to poll Telegram so commands are delivered via tele_inbox.json.")
         print("  mimo_worker.py still runs independently.")
         print("=" * 55)
-        # Keep alive so CHAY_ALL.bat doesn't restart it
-        import time as _time
-        while True:
-            _time.sleep(60)
     else:
         print("=" * 55)
         print("  MiMo Bridge Bot v2.0 - Telegram <-> MiMo Code CLI")
@@ -713,28 +731,28 @@ if __name__ == "__main__":
         print("=" * 55)
         print("  Dang chay... Ctrl+C de dung")
         print("  Queue file: mimo_queue.json")
-        print("  Result file: mimo_result.json")
+        print("  Result file: mimo_proxy_result.txt")
         print("=" * 55)
 
-        import time as _time
-        consecutive_fails = 0
-        degraded_logged = False
-        while True:
-            try:
-                bot.polling(none_stop=True, timeout=20, long_polling_timeout=20, skip_pending=True)
-                consecutive_fails = 0
-                degraded_logged = False
-            except KeyboardInterrupt:
-                print("\n  Đã dừng bot.")
-                break
-            except Exception as e:
-                consecutive_fails += 1
-                sleep_s, is_new_degraded = compute_telegram_backoff(consecutive_fails)
-                if is_new_degraded:
-                    print(f"\n  ⚠️ Telegram degraded: {consecutive_fails}+ lỗi liên tiếp ({e}). "
-                          f"Tạm nghỉ {sleep_s}s, ngừng spam log.")
-                    degraded_logged = True
-                elif consecutive_fails < 10:
-                    print(f"\n  Lỗi: {e}")
-                    print(f"  Đang kết nối lại sau {sleep_s} giây...")
-                _time.sleep(sleep_s)
+    import time as _time
+    consecutive_fails = 0
+    degraded_logged = False
+    while True:
+        try:
+            bot.polling(none_stop=True, timeout=20, long_polling_timeout=20, skip_pending=True)
+            consecutive_fails = 0
+            degraded_logged = False
+        except KeyboardInterrupt:
+            print("\n  Đã dừng bot.")
+            break
+        except Exception as e:
+            consecutive_fails += 1
+            sleep_s, is_new_degraded = compute_telegram_backoff(consecutive_fails)
+            if is_new_degraded:
+                print(f"\n  ⚠️ Telegram degraded: {consecutive_fails}+ lỗi liên tiếp ({e}). "
+                      f"Tạm nghỉ {sleep_s}s, ngừng spam log.")
+                degraded_logged = True
+            elif consecutive_fails < 10:
+                print(f"\n  Lỗi: {e}")
+                print(f"  Đang kết nối lại sau {sleep_s} giây...")
+            _time.sleep(sleep_s)

@@ -114,11 +114,9 @@ def compute_telegram_backoff(consecutive_fails):
     """Return (sleep_seconds, should_log_degraded).
 
     Backoff schedule:
-    1-2 fails: 5s
-    3-4 fails: 15s
-    5-9 fails: 30s
-    10-19 fails: 60s
-    20+ fails: 300s
+    1-2 fails: 10s
+    3-9 fails: 60s
+    10+ fails: 300s
     """
     try:
         n = int(consecutive_fails)
@@ -126,14 +124,10 @@ def compute_telegram_backoff(consecutive_fails):
         n = 1
 
     if n < 3:
-        return 5, False
-    if n < 5:
-        return 15, False
+        return 10, False
     if n < 10:
-        return 30, False
-    if n < 20:
-        return 60, n == 10
-    return 300, n in (20, 50, 100)
+        return 60, False
+    return 300, n == 10
 
 
 # --- Signal helpers ---
