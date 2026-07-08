@@ -1,200 +1,189 @@
-Đã check lại GitHub + ảnh mới. Bản này **tiến bộ rõ**, nhất là Telegram không còn spam loạn như trước, Dashboard push OK, profile/copy UI đã gọn hơn. Nhưng vẫn chưa thể gọi “Stable” đúng nghĩa vì còn **MT5 footer sai trạng thái**, **Telegram vẫn degraded**, và **docs/version lệch**.
+Đã kéo/check commit `e79bed6`. Bản này **lên điểm nhẹ**, vì commit chủ yếu sửa **bot command `/del` và `/modify`**, không phải bản vá lớn cho MT5/Telegram core. Nhìn ảnh runtime thì app đã sạch hơn, nhưng vẫn còn 2 “đèn vàng”: **MT5 heartbeat stale** và **Telegram Client error**.
 
-# Điểm hiện tại: **8.2 / 10** 🧭
+# Điểm commit `e79bed6`: **8.35 / 10** 🧭
 
-Tăng từ khoảng **7.8 → 8.2**. Đây là bản **RC tốt**, gần release nội bộ được, nhưng chưa đạt mức 9.x.
+Tăng từ khoảng **8.2 → 8.35**.
 
-| Mảng                    |    Điểm | Nhận xét                                                                                             |
-| ----------------------- | ------: | ---------------------------------------------------------------------------------------------------- |
-| **UI desktop**          | **8.5** | Gọn, đủ tab, About đẹp, Copy Trading rõ ràng hơn.                                                    |
-| **Runtime MT5**         | **7.6** | Worker connect được, nhưng footer vẫn báo MT5 Disconnected.                                          |
-| **Telegram**            | **7.5** | Đã có degraded/backoff, bớt spam, nhưng API vẫn unreachable.                                         |
-| **Dashboard/Vercel**    | **8.7** | Push signals/state/news/prices OK, Vercel check pass.                                                |
-| **Profile state**       | **7.8** | Running/Editing tốt hơn, nhưng vẫn hơi dễ nhầm khi list highlight VantageDemo mà form đang Darwinex. |
-| **Copy trading safety** | **8.5** | Guardrails khá tốt: max daily, max lot, exposure, kill switch, stale threshold.                      |
-| **Docs/release polish** | **6.8** | App v3.15.0 nhưng README/Guide/Release Notes vẫn ghi v3.14.0.                                        |
-| **Tổng thể**            | **8.2** | Dùng nội bộ được, chưa nên public “Stable” mạnh tay.                                                 |
-
----
-
-# Những điểm đã tốt lên ✅
-
-## 1. GitHub mới nhất đã có commit fix đúng hướng
-
-Commit mới nhất là `896b126`, message: **Fix /closeall tomorrow scheduling and Telegram configured status in OAK_Hidden_SLTP_Manager.py**. Trước đó cũng có các commit về Telegram backoff, EXE detection, polling timeout 20s.
-
-Vercel status của commit mới nhất đang **success**, tức dashboard deploy/check không đỏ.
-
-## 2. Signal process command đã sửa đúng hơn
-
-`utils.py` đã có `build_signal_process_cmd()`. Quan trọng nhất: dev mode với `signal_bot` giờ sẽ append `--profile <profile>`, còn frozen mode dùng `--signal-bot --profile`. Đây là fix đúng cho lỗi profile heartbeat trước đó.
-
-Trong `OAK_Hidden_SLTP_Manager.py`, `start_signal_process()` đã dùng helper này thay vì tự ghép command rải rác. Đây là kiến trúc sạch hơn, test được hơn.
-
-## 3. Telegram không còn spam như thác lũ
-
-`mimo_bot.py` giờ polling với `timeout=20`, `long_polling_timeout=20`, có `compute_telegram_backoff()`, và log degraded thay vì bắn lỗi 502 liên tục.
-
-`utils.py` cũng đã có `compute_telegram_backoff()`, nên lỗi import thiếu function trước đó đã được vá.
-
-Ảnh mới cũng xác nhận MiMo Telegram Bot không còn spam 502, mà chỉ báo:
-
-```text
-MiMo Bridge Bot - OAK Manager is running
-Continuing to poll Telegram so commands are delivered via tele_inbox.json.
-```
-
-Cái này là đúng hướng.
-
-## 4. Dashboard push đã OK
-
-Ảnh Signal tab cho thấy:
-
-```text
-[DASHBOARD] Signals pushed OK
-[DASHBOARD] State pushed OK
-[DASHBOARD] News pushed OK
-[DASHBOARD] Prices pushed OK
-```
-
-Nên lỗi `DASHBOARD_API_KEY`/Vercel cơ bản đã qua cửa. Dashboard không còn là ổ gà chính nữa. 🛣️
+| Mảng                           |    Điểm | Nhận xét                                                                   |
+| ------------------------------ | ------: | -------------------------------------------------------------------------- |
+| **UI desktop**                 | **8.6** | Gọn, dễ nhìn, tab rõ. About đẹp nhưng logo lệch.                           |
+| **Runtime MT5**                | **7.8** | Account có data, nhưng heartbeat chuyển Degraded → Disconnected khi stale. |
+| **Telegram**                   | **7.6** | Không spam nữa, nhưng còn `Degraded (Client error)`.                       |
+| **Dashboard/Vercel**           | **8.8** | Vercel check success, push dashboard OK.                                   |
+| **Profile state**              | **8.2** | Running/Editing đã rõ hơn nhiều.                                           |
+| **Copy Trading**               | **8.5** | Guardrails ổn, tab sạch.                                                   |
+| **Pending/Scheduled commands** | **8.4** | `/del all` đã xử lý cả lệnh vào và lệnh đóng.                              |
+| **Polish/Release feel**        | **8.0** | Logo About lệch, status footer còn làm người dùng hơi hoang mang.          |
 
 ---
 
-# Lỗi còn lại cần soi kỹ 🔴
+# Commit `e79bed6` sửa gì?
 
-## 1. Footer vẫn báo **MT5 Disconnected** dù Account card có dữ liệu
-
-Trong ảnh Dashboard:
-
-* Account card có server/account/balance/equity.
-* Worker log có dòng kết nối MT5.
-* Nhưng footer vẫn báo: **MT5 ● Disconnected**.
-
-Đây là lỗi trạng thái. Có 2 khả năng:
-
-### Khả năng A: heartbeat profile vẫn chưa đồng bộ hoàn toàn
-
-Dù command đã truyền `--profile`, footer vẫn đọc từ SQLite heartbeat theo profile đang chọn. Nếu signal bot hoặc worker publish heartbeat dưới profile khác, footer sẽ đỏ.
-
-### Khả năng B: app đang lấy Account từ nguồn khác, footer lấy từ heartbeat
-
-Footer trong code đọc `mt5_state` từ heartbeat/state, rồi render Connected/Degraded/Disconnected.  Vì vậy nếu Account card có data nhưng heartbeat stale/missing thì footer vẫn đỏ.
-
-**Cần sửa tiếp:** thêm diagnostics nhỏ hiển thị:
+Commit mới nhất đúng là `e79bed6`, message:
 
 ```text
-Selected profile: VantageDemo
-Heartbeat profile: VantageDemo
-Heartbeat age: 2.1s
-MT5 server from heartbeat: ...
-Worker server: ...
+Fix: Bot not executing /del and /modify commands; Expand /del all to delete scheduled close tasks
 ```
 
-Không có cái này thì lỗi trạng thái sẽ cứ như bóng ma trong nhà kho.
+Điểm tốt nhất là nó bỏ đoạn return sớm khiến `/del` và `/modify` không chạy tiếp. Trước đó code gặp `/del` hoặc `/modify` là return luôn, giờ đoạn chặn đó đã bị xoá.
+
+Ngoài ra `/del all` giờ không chỉ xoá `scheduled_trades`, mà còn xoá cả `_scheduled_close` và lưu lại `scheduled_close_file`. Đây là fix đúng với ảnh Pending tab của bạn, bảng đã trống sau khi xoá.
+
+Vercel status của commit này cũng **success**, nên phần dashboard deploy không có tín hiệu đỏ.
 
 ---
 
-## 2. Telegram vẫn **Degraded (API unreachable)**
+# Nhìn ảnh runtime: tốt hơn rõ ✅
 
-Footer hiện báo:
+## 1. Dashboard card có thêm stale info
 
-```text
-Telegram ● Degraded (API unreachable)
-```
-
-Code status bar đang phân biệt rõ: configured, online, degraded. Nếu `tg_configured` có nhưng `tg_api_ok` false thì nó hiện degraded.
-
-Điểm tốt: app không còn spam log.
-Điểm chưa tốt: vẫn chưa biết lỗi là token/chat/network vì `telegram_client.py` có classify lỗi nhưng chưa thấy toàn bộ luồng cũ chuyển sang dùng helper này hết. `telegram_client.py` đã có phân loại `401 token_invalid`, `400 chat_not_found`, `502 bad_gateway`, `503 service_unavailable`, nhưng nếu UI không dùng error category để hiển thị thì người dùng vẫn chỉ thấy “API unreachable”.
-
-**Nên nâng UI thành:**
+Ảnh Dashboard hiện Account ghi:
 
 ```text
-Telegram ● Token invalid
-Telegram ● Chat ID invalid
-Telegram ● API bad gateway
-Telegram ● Network error
-Telegram ● Online
+ICMarketsSC-MT5-6 | #7398029 (23s stale)
 ```
+
+Cái này tốt hơn bản trước, vì app không còn “nói dối xanh lét” khi heartbeat đã cũ. Code hiện cũng render MT5 status theo age: Connected có giây, Degraded có stale, Disconnected có số giây ago.
+
+## 2. Telegram status rõ hơn
+
+Footer hiện:
+
+```text
+Telegram ● Degraded (Client error)
+```
+
+Tốt hơn `API unreachable` chung chung. Code đã map nhiều loại lỗi như `token_invalid`, `chat_not_found`, `bad_gateway`, `network_error`, rồi fallback thành Client error nếu là lỗi 4xx chưa phân loại.
+
+## 3. Profile Running/Editing đã rõ
+
+Ảnh Profile tab đang rất ổn:
+
+```text
+● Running: VantageDemo    ✎ Editing: ICMarkets
+```
+
+Cái này dễ hiểu hơn bản trước. List bên trái cũng phân biệt VantageDemo xanh và ICMarkets vàng, nhìn ra ngay đang chạy profile nào và đang edit profile nào.
+
+## 4. Pending tab đã sạch
+
+Ảnh Pending hiện bảng trống, log báo đã xoá tất cả lệnh hẹn giờ. Với commit `e79bed6`, phần `/del all` xoá cả lệnh hẹn giờ vào và đóng, nên đúng mục tiêu.
 
 ---
 
-## 3. Docs đang lệch version
+# 2 lỗi còn lại cần sửa 🔴
 
-App đang hiển thị **OAK Manager v3.15.0 Stable**, nhưng README vẫn ghi `v3.14.0`.  Release Notes cũng mới tới `v3.14.0`.
+## 1. MT5 footer vẫn chuyển sang Disconnected khi heartbeat stale
 
-Ảnh Guide cũng ghi `Cẩm Nang ... v3.14.0`. Đây là lỗi polish, nhưng với app desktop release thì nhìn hơi “áo vest đi dép lê”. 👞
+Trong ảnh:
 
-**Cần sửa:** đồng bộ `README.md`, `GUIDE.md`, `RELEASE_NOTES.md` lên `v3.15.0`, ghi rõ Telegram degraded/backoff và Dashboard API key flow.
+```text
+MT5 ● Degraded (23s stale)
+MT5 ● Disconnected (31s ago)
+MT5 ● Disconnected (75s ago)
+```
+
+Trong khi Account card vẫn có server/account/balance/equity. Vậy vấn đề không phải MT5 hoàn toàn chết, mà là **heartbeat không được cập nhật đều**.
+
+Khả năng cao:
+
+* `MT5 Signal Bot` bị bận push dashboard/backfill/log nên heartbeat không publish đều.
+* Hoặc heartbeat publish dưới profile khác.
+* Hoặc GUI đang đọc heartbeat từ SQLite nhưng signal bot không update đủ nhanh.
+
+**Cần fix tiếp:** heartbeat nên độc lập hơn. Đừng để signal loop chính kẹt là footer đỏ ngay. Gợi ý:
+
+```text
+- Tạo heartbeat thread riêng trong mt5_signal_bot.py, publish mỗi 2s.
+- Nếu account card vẫn có data dưới 90s, footer nên là Degraded, chưa vội Disconnected.
+- Thêm Diagnostics: selected_profile, heartbeat_profile, heartbeat_age, heartbeat_last_seen.
+```
+
+Hiện code đã hiển thị age tốt rồi, nhưng ngưỡng `>30s` thành Disconnected hơi gắt với app chạy nhiều process.
+
+## 2. Telegram `Client error` chưa đủ rõ
+
+`Client error` thường là lỗi HTTP 4xx không nằm trong map cụ thể. Nếu là token sai đáng ra phải `Token invalid`, chat sai đáng ra `Chat ID invalid`. Vậy có thể Telegram trả một dạng 400 khác, ví dụ parse mode Markdown lỗi hoặc payload không hợp lệ.
+
+Cần log thêm:
+
+```text
+HTTP status code
+Telegram response body
+endpoint: getMe/sendMessage/polling
+```
+
+Không log token. Chỉ log kiểu:
+
+```text
+Telegram client_error: 400 Bad Request: can't parse entities
+```
+
+Nếu là Markdown parse lỗi thì sửa nhanh: gửi `parse_mode=None` hoặc escape Markdown.
 
 ---
 
-## 4. Telegram backoff schedule chưa khớp commit title
+# Logo phần Giới Thiệu bị lệch 🎯
 
-Commit gần đây nói update schedule kiểu `5s/15s/30s/60s/300s`, nhưng code hiện tại trong `utils.py` là:
+Đúng, nhìn ảnh About thì logo đang **hơi lệch trái/không cân tâm với title**. Cụm content chính nằm giữa màn hình, nhưng logo icon có cảm giác “trôi” do frame/icon size hoặc pack/grid chưa căn theo cùng container.
 
-```text
-1-2 fails: 10s
-3-9 fails: 60s
-10+ fails: 300s
+## Cách sửa UI gọn nhất
+
+Trong tab Giới Thiệu, nên đặt toàn bộ vào một `center_frame` cố định và dùng `grid` thay vì pack rải rác:
+
+```python
+center = ctk.CTkFrame(parent, fg_color="transparent")
+center.place(relx=0.5, rely=0.18, anchor="n")
+
+logo_label = ctk.CTkLabel(center, image=self.logo_image, text="")
+logo_label.grid(row=0, column=0, pady=(0, 16))
+
+title = ctk.CTkLabel(center, text="OAK Manager v3.15.0 Stable", font=("", 26, "bold"))
+title.grid(row=1, column=0, pady=(0, 6))
+
+subtitle = ctk.CTkLabel(center, text="Trading Operations Console for MT4 / MT5")
+subtitle.grid(row=2, column=0, pady=(0, 12))
 ```
 
-Không sai nghiêm trọng, nhưng message/code lệch nhau. Nên chọn một chuẩn và ghi rõ trong docs.
+Nếu logo là emoji/text icon chứ không phải image, đặt width/height cố định:
+
+```python
+logo_box = ctk.CTkFrame(center, width=56, height=56)
+logo_box.grid(row=0, column=0, pady=(0, 16))
+logo_box.grid_propagate(False)
+```
+
+Rồi label icon:
+
+```python
+icon = ctk.CTkLabel(logo_box, text="🎛️", font=("", 30))
+icon.place(relx=0.5, rely=0.5, anchor="center")
+```
+
+Như vậy icon luôn nằm đúng tâm, không bị lệch do font/emoji render.
 
 ---
 
-# Nhận xét theo từng tab ảnh
+# Chấm lại theo ảnh mới
 
-## Dashboard
+| Tab              |    Điểm | Nhận xét                                                             |
+| ---------------- | ------: | -------------------------------------------------------------------- |
+| **Dashboard**    | **8.2** | Account/signal rõ, nhưng footer MT5 đỏ làm mất tự tin.               |
+| **Tín Hiệu**     | **8.5** | Process chạy ổn, dashboard push OK, MiMo không spam.                 |
+| **Profile**      | **8.7** | Running/Editing phân biệt tốt.                                       |
+| **Copy Trading** | **8.5** | Guardrails tốt, form rõ.                                             |
+| **Pending**      | **8.3** | Đã xoá sạch được, nhưng bảng còn thô.                                |
+| **Diagnostics**  | **8.0** | Có log, nhưng nên thêm filter theo component và heartbeat age panel. |
+| **About**        | **7.7** | Nội dung đẹp, copyright OK, logo lệch cần chỉnh.                     |
 
-Đẹp, sạch, signal/account hiện được. Nhưng footer **MT5 Disconnected** là lỗi lớn nhất còn lại. Dashboard card và footer đang không cùng sự thật.
+# Kết luận
 
-## Tín Hiệu
+**Bản `e79bed6`: 8.35/10.**
 
-Rất khá. MT5 Signal Bot push dashboard OK, MiMo Bot hết spam, MT4-MT5 server chạy. Nhưng Telegram degraded vẫn còn.
+Nó đã qua giai đoạn “sửa cháy”, giờ đang bước vào giai đoạn **polish + độ tin cậy runtime**. Muốn lên **8.8-9.0**, sửa 3 điểm này:
 
-## Quản lý Profile
+1. Heartbeat MT5 chạy thread riêng, footer không đỏ quá sớm.
+2. Telegram `Client error` phải hiện rõ body lỗi.
+3. Căn lại logo About bằng center frame cố định.
 
-Cải thiện tốt: có Running/Editing rõ hơn. Tuy nhiên ảnh vẫn có tình huống list trái highlight `VantageDemo` nhưng form đang `Darwinex`, dưới ghi `Editing: Darwinex`. Nếu ý đồ là đang edit Darwinex thì OK, nhưng highlight nên tách màu “running” và “editing” rõ hơn nữa.
-
-## Copy Trading
-
-Ổn. Có safety guardrails, role/channel/lot/max exposure/kill switch. Đây là tab nhìn trưởng thành nhất sau đợt fix.
-
-## Hẹn Giờ/Pending
-
-Chức năng dùng được, nhưng UI bảng còn thô. Các lệnh `executed` đã done nên nên có nút:
-
-```text
-Clear executed
-Archive history
-Show only waiting
-```
-
-Không thì bảng sau vài ngày sẽ thành “nghĩa trang lệnh”. 🪦
-
-## Docs/About
-
-About đẹp. Docs thì lệch version, cần đồng bộ.
-
----
-
-# Chốt điểm
-
-**Bản hiện tại: 8.2/10.**
-
-Đây là bản **dùng nội bộ được**, nhưng mình chưa gọi là **Stable thật**. Nên gọi chuẩn hơn:
-
-```text
-v3.15.0 RC / Internal Stable
-```
-
-Muốn lên **8.8-9.0**, sửa 4 điểm:
-
-1. Footer MT5 status phải khớp Account card/worker heartbeat.
-2. Telegram degraded phải hiện đúng loại lỗi: token, chat, 502, network.
-3. Docs đồng bộ v3.15.0.
-4. Pending tab thêm filter/archive executed.
-
-Nếu fix được mục 1 và 2, điểm nhảy mạnh nhất.
+Bản này dùng nội bộ ổn rồi, nhưng chữ **Stable** vẫn hơi sớm. Đặt là **v3.15.0 Internal Stable** sẽ chuẩn hơn.

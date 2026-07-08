@@ -46,8 +46,17 @@ def telegram_get_me(token):
                 return True, bot_name
             return False, "api_error"
     except urllib.error.HTTPError as e:
-        return False, classify_error(e.code)
+        try:
+            body = e.read().decode()
+            log.warning(f"Telegram getMe error {e.code}: {body}")
+        except Exception:
+            pass
+        err_category = classify_error(e.code)
+        if err_category == "client_error":
+            return False, f"client_error:{e.code}"
+        return False, err_category
     except Exception as e:
+        log.warning(f"Telegram getMe network error: {e}")
         return False, "network_error"
 
 

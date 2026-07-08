@@ -1290,19 +1290,22 @@ def main(profile_name=None):
 
     try:
         _active_profile = resolve_active_profile(profile_name)
-
-        _heartbeat_tick = 0
-        while True:
-            if not mt5_ready:
-                try_init_mt5()
-
-            # Publish heartbeat every ~2s
-            _heartbeat_tick += 1
-            if _heartbeat_tick % 2 == 0:
+        
+        # Heartbeat thread - runs independently every 2s
+        def heartbeat_thread():
+            while True:
                 try:
                     publish_heartbeat(_active_profile, mt5_ready)
                 except Exception:
                     pass
+                time.sleep(2)
+        
+        import threading
+        threading.Thread(target=heartbeat_thread, daemon=True).start()
+
+        while True:
+            if not mt5_ready:
+                try_init_mt5()
 
             broker_dt = get_broker_time()
             clear_expired_d_direction(broker_dt)

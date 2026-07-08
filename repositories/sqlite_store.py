@@ -237,9 +237,9 @@ class SQLiteStore:
             return {"state": "Disconnected", "last_seen": None, "last_error": "No heartbeat yet", "age": None}
         last_seen = datetime.fromisoformat(hb["last_seen"])
         age = (datetime.now(timezone.utc) - last_seen).total_seconds()
-        if hb["state"] == "starting" or age > 30:
+        if hb["state"] == "starting" or age > 90:
             return {"state": "Disconnected", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", "Heartbeat stale"), "age": age}
-        if age > 5:
+        if age > 15:
             return {"state": "Degraded", "last_seen": hb["last_seen"], "last_error": hb.get("last_error", ""), "age": age}
         return {"state": "Connected", "last_seen": hb["last_seen"], "last_error": "", "age": age}
 

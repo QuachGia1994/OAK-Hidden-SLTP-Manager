@@ -6143,19 +6143,23 @@ class App(ctk.CTk):
         self.frames["about"] = frame
         frame.pack(fill="both", expand=True)
 
-        # App icon + title
-        ctk.CTkLabel(frame, text="🎛️", font=ctk.CTkFont(size=48)).pack(pady=(30, 5))
-        ctk.CTkLabel(frame, text=f"OAK Manager {VERSION} Stable", font=ctk.CTkFont(size=24, weight="bold")).pack()
-        ctk.CTkLabel(frame, text="Trading Operations Console for MT4 / MT5", font=ctk.CTkFont(size=13), text_color="gray").pack(pady=(0, 5))
-        ctk.CTkLabel(frame, text=f"Build {BUILD} · Windows x64", font=ctk.CTkFont(size=11), text_color="gray").pack(pady=(0, 20))
+        # Center frame to hold all content
+        center = ctk.CTkFrame(frame, fg_color="transparent")
+        center.place(relx=0.5, rely=0.18, anchor="n")
 
-        self.lbl_about = ctk.CTkLabel(frame, text=T("about_info"), font=ctk.CTkFont(size=13))
-        self.lbl_about.pack(pady=10)
+        # App icon + title
+        ctk.CTkLabel(center, text="🎛️", font=ctk.CTkFont(size=48)).grid(row=0, column=0, pady=(0, 5))
+        ctk.CTkLabel(center, text=f"OAK Manager {VERSION} Stable", font=ctk.CTkFont(size=24, weight="bold")).grid(row=1, column=0)
+        ctk.CTkLabel(center, text="Trading Operations Console for MT4 / MT5", font=ctk.CTkFont(size=13), text_color="gray").grid(row=2, column=0, pady=(0, 5))
+        ctk.CTkLabel(center, text=f"Build {BUILD} · Windows x64", font=ctk.CTkFont(size=11), text_color="gray").grid(row=3, column=0, pady=(0, 20))
+
+        self.lbl_about = ctk.CTkLabel(center, text=T("about_info"), font=ctk.CTkFont(size=13))
+        self.lbl_about.grid(row=4, column=0, pady=10)
         self.add_ui_element("about_info", self.lbl_about)
 
         # Buttons
-        btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(pady=20)
+        btn_frame = ctk.CTkFrame(center, fg_color="transparent")
+        btn_frame.grid(row=5, column=0, pady=20)
         ctk.CTkButton(btn_frame, text="📘 Open Documentation", width=180,
                        command=lambda: os.startfile("README.md") if os.path.exists("README.md") else None).pack(side="left", padx=10)
         ctk.CTkButton(btn_frame, text="🔄 Check for Updates", width=180,
@@ -6596,16 +6600,20 @@ class App(ctk.CTk):
                     tg_color = "#66bb6a"
                 else:
                     tg_error = tg_state.get("bot_name", "")
-                    friendly = {
-                        "token_invalid": "Token invalid",
-                        "chat_not_found": "Chat ID invalid",
-                        "rate_limited": "Rate limited",
-                        "bad_gateway": "API gateway error",
-                        "service_unavailable": "Service unavailable",
-                        "server_error": "Server error",
-                        "client_error": "Client error",
-                        "network_error": "Network error",
-                    }.get(tg_error, tg_error.replace("_", " ").capitalize() if tg_error else "API unreachable")
+                    if tg_error.startswith("client_error:"):
+                        code = tg_error.split(":", 1)[1]
+                        friendly = f"Client error ({code})"
+                    else:
+                        friendly = {
+                            "token_invalid": "Token invalid",
+                            "chat_not_found": "Chat ID invalid",
+                            "rate_limited": "Rate limited",
+                            "bad_gateway": "API gateway error",
+                            "service_unavailable": "Service unavailable",
+                            "server_error": "Server error",
+                            "client_error": "Client error",
+                            "network_error": "Network error",
+                        }.get(tg_error, tg_error.replace("_", " ").capitalize() if tg_error else "API unreachable")
                     tg_label = f"Degraded ({friendly})"
                     tg_color = "#ffb74d"
                 self.status_telegram.configure(text=f"Telegram ● {tg_label}", text_color=tg_color)
