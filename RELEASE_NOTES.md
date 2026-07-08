@@ -1,26 +1,41 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
-## [v3.15.0] - 2026-07-06
-*Docs refresh + better MT5 heartbeat diagnostics + Telegram degraded state details + version sync.*
+## [v3.15.0] - 2026-07-08
+*Cleanup repo + chốt flow phát hành Windows + đồng bộ lại tài liệu theo app hiện tại.*
 
-### 📘 Docs & Release Prep
-- **README/GUIDE/Dashboard README**: Viết lại theo flow hiện tại, bỏ mô tả cũ không còn dùng.
-- **Release notes**: Đồng bộ version mới và mô tả ngắn gọn hơn cho nhịp phát hành hiện tại.
-- **Backup script**: `create_backup_final.py` lấy version thật từ source app và backup đúng bộ docs mới.
+### 🚀 Gói phát hành Windows
+- **Installer NSIS**: Bổ sung gói cài đặt Windows `Installer.exe` có shortcut Desktop và Start Menu.
+- **Window-unpack**: Bổ sung gói portable `window-unpack.zip` để giải nén và chạy trực tiếp.
+- **Build flow mới**: `build_exe.py` chuyển sang sinh bundle `onedir`, zip portable và gọi NSIS để build installer nếu máy có `makensis`.
+- **Version sync**: Tên gói build và installer được đọc trực tiếp từ version trong source app.
 
-### ⚡ D Direction Dispatch
-- **Instant ack**: Telegram chỉ còn một dòng xác nhận chính, không còn dòng báo trùng.
-- **Local ping**: `mimo_bot.py` ping localhost sang MT5 bot để nhặt D gần như tức thì.
-- **Faster polling**: Telegram polling/ retry được hạ xuống 1 giây để giảm độ trễ cảm nhận.
+### 🧹 Dọn dự án
+- **Public launcher**: Chốt `CHAY_ROBOT.bat` là launcher Windows duy nhất cho source app.
+- **Repo cleanup**: Xóa các launcher `.bat` cũ không còn dùng trong flow public.
+- **Artifact cleanup**: Xóa các file patch, diff, output test và test root bị trùng với thư mục `tests/`.
+- **Backup cleanup**: `create_backup_final.py` chỉ backup bộ source hiện hành, bỏ các file rác và launcher cũ.
 
-### 🎯 Signal & Fact-check
-- **H=6 / H=16 notes**: Đồng bộ lại note schedule theo rule hiện tại, đặc biệt các slot đảo vàng.
-- **Entry timing**: Đã bỏ khỏi flow hiện tại; dashboard chỉ còn signal, pair directions và note.
-- **Fact-check**: Tài liệu giờ chỉ còn nhắc nguồn free đang dùng là `Google + DuckDuckGo`, Google Fact Check là authority layer.
+### 📘 Tài liệu
+- **README**: Viết lại theo đúng các tab và workflow hiện có trong app.
+- **GUIDE**: Đồng bộ mô tả tab Dashboard, Tín Hiệu, Profile, Copy Trading, Pending, Diagnostics, Update.
+- **Release notes**: Chỉnh lại mô tả `v3.15.0` để khớp version thực tế và bộ tính năng đang phát hành.
+- **Install docs**: Tài liệu cài đặt giờ hướng trực tiếp tới 2 gói phát hành Windows trên GitHub Releases.
 
-### 🧩 Version Sync
-- **App version**: Nâng version hiển thị trong app lên `v3.14.0`.
-- **Build helper**: `build_exe.py` và `create_backup_final.py` cùng đọc version từ source chính để không lệch tag.
+### ⚙️ App polish
+- **About tab**: Căn giữa lại logo, tăng kích thước icon, giảm khoảng cách title và cải thiện bố cục.
+- **Status bar**: Tăng font và độ đậm để dễ đọc hơn.
+- **Diagnostics noise**: Giảm log migration token dư thừa.
+- **Copy Trading safety**: Thêm `Test Safety Rules` ngay trong UI để kiểm tra rule trước khi chạy.
+
+### 🔔 Telegram và signal
+- **D-direction dispatch**: D-direction nhận qua Telegram được ghi nhận nhanh hơn và đẩy qua localhost cho signal bot.
+- **Signal bot profile token**: Fix fallback token khi profile dùng `__vault__` nhưng keyring không khả dụng.
+- **Signal bot runtime**: Fix lỗi `threading` shadow gây crash trong `mt5_signal_bot.py`.
+
+### 🛠️ Nền tảng phát hành
+- **Auto-update**: Thêm module kiểm tra GitHub Releases latest và mở trang release từ app.
+- **Error reports**: Thêm module ghi nhận lỗi nội bộ để hỗ trợ chẩn đoán.
+- **Installer docs**: Chuẩn hóa tên file phát hành để upload trực tiếp lên GitHub Releases.
 
 ## [v3.12.0] - 2026-07-01
 *Fact-check Tab + VIP Access Control + Security Hardening + UI Bug Sweep.*

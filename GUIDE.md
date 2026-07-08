@@ -1,16 +1,27 @@
 # Cẩm Nang Sử Dụng OAK MANAGER (v3.15.0)
 
-Tài liệu này mô tả đúng các tính năng đang dùng trong app, dashboard và bot hiện tại.
+Tài liệu này chỉ mô tả các tính năng đang hiện diện thực tế trong app desktop, signal bot, Telegram bridge và dashboard web.
 
 ## 1. Bắt đầu nhanh
 
-1. Tạo `config.json` với `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`
+1. Tạo `config.json` với các field `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`
 2. Cài dependency bằng `pip install -r requirements.txt`
-3. Chạy `CHAY_ROBOT.bat`, sau đó vào tab `Tín Hiệu` để quản lý process nền
+3. Chạy `CHAY_ROBOT.bat`
+4. Mở app, chọn profile, sau đó vào tab `Tín Hiệu` để bật các process cần dùng
 
-## 2. Tab Tín Hiệu
+## 2. Các tab trong app desktop
 
-Tab này gom 4 process:
+### Dashboard
+
+- Chọn profile đang monitor
+- Start/Stop monitor cho app chính
+- Xem trạng thái MT5, Telegram, Ghost, System ở status bar
+- Xem account info, signal info, engine info, session state
+- Xem news box và console có filter log
+
+### Tín Hiệu
+
+Tab này quản lý 4 process nền:
 
 | Panel | Vai trò |
 | --- | --- |
@@ -19,29 +30,49 @@ Tab này gom 4 process:
 | MiMo Telegram Bot | Nhận lệnh Telegram |
 | MiMo Worker | Xử lý yêu cầu MiMo nền |
 
-Quy trình:
+Quy trình dùng tab này:
 1. Mở app và vào tab `Tín Hiệu`
-2. Bấm `BẮT ĐẦU TẤT CẢ` hoặc start từng panel
-3. Theo dõi log realtime ngay trong app
-4. Đóng app thì process con được cleanup
+2. Bấm `BẮT ĐẦU TẤT CẢ` hoặc start từng panel riêng
+3. Theo dõi PID và log realtime ngay trong app
+4. Khi đóng app, hệ thống sẽ cleanup process con
+
+### Quản Lý Profile
+
+- Tạo, lưu, xóa profile MT5
+- Chọn `mt5_path`, `magic`, `symbol`
+- Cấu hình Hidden SL/TP, Gold SL/TP, Balance SL/TP
+- Cấu hình Partial R, Partial %, Auto BE
+- Cấu hình Telegram token, chat ID, admin ID theo profile
+
+### Copy Trading
+
+- Chọn role `None`, `Master`, `Slave`
+- Cấu hình channel, lot mode, lot value
+- Bật/tắt stealth, max one trade, ignored symbols
+- Lưu config copy trade
+- Test safety rules ngay trên UI trước khi chạy monitor
+- Xem log copy trading realtime
+
+### Hẹn Giờ / Pending
+
+- Tạo pending order theo profile, symbol, type, lot, SL, TP, thời gian
+- Xem danh sách lệnh hẹn giờ
+- Sửa hoặc xóa lệnh đã lên lịch
+
+### Diagnostics
+
+- Xem log app theo bộ lọc `ALL`, `INFO`, `WARNING`, `ERROR`
+- Bật `Auto Refresh`, `Follow Latest`
+- `Refresh`, `Clear Display`, `Copy Selected`
+- `Open Log Folder`
+- `Export Debug Bundle`
+
+### Hướng Dẫn / README / Release Notes / Giới Thiệu
+
+- 3 tab tài liệu sẽ đọc trực tiếp file markdown trong repo
+- Tab `Giới Thiệu` hiển thị version hiện tại, link docs và nút `Check for Updates`
 
 ## 3. Signal Bot
-
-### Khung giờ chạy
-
-Bot xử lý các mốc:
-
-`H=2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16`
-
-Trigger lệnh vào `x:45`.
-
-### Logic nến
-
-- M5@35 và M5@40 + M30@00 quyết định signal
-- M5@35 + M5@40 cùng chiều → theo M30
-- M5@35 + M5@40 ngược chiều → đảo từ M30
-- XAUUSD direction: so signal với M30 XAUUSD@(H-1), cùng chiều → đảo, ngược → theo M30 XAUUSD
-- Khi gặp DOJI, bot lùi 1 nến cùng khung để lấy dữ liệu ổn định hơn
 
 ### Cặp giao dịch
 
@@ -51,33 +82,23 @@ Trigger lệnh vào `x:45`.
 - `GBPUSD`
 - `GBPJPY`
 
-### Rule quan trọng
+### Logic hiện tại
 
-Mọi slot đều tính Vàng (XAUUSD). GBP pairs theo rule:
-
-- `H=2, H=3`: GBPAUD, GBPJPY ngược Vàng; GBPUSD, GBPCAD = --
-- `H=4, H=6`: GBPAUD ngược Vàng; các GBP khác = --
-- `H=9, H=11`: Nhóm GBP ngược Vàng
-- `H=12, H=14, H=15`: Nhóm GBP cùng Vàng
-- Các slot khác: Chỉ Vàng
-
-### Entry time
-
-- Entry time đã được bỏ khỏi flow hiện tại.
-- App/dash chỉ còn hiển thị signal, pair directions và note theo slot.
+- Signal được suy ra từ M5@35, M5@40 và M30
+- Khi gặp DOJI, bot có fallback về nến trước để lấy hướng ổn định hơn
+- Trigger chính chạy ở `x:45`
+- Bot có missed-slot backfill nếu khởi động sau giờ
 
 ### D Direction
 
-- Nhập `BUY` hoặc `SELL` qua Telegram vào khung nhắc 4:00 VN của thứ 5/thứ 6
-- Bot lưu D direction ngay cho ngày hiện tại, đồng thời đẩy trạng thái sang dashboard
-- D direction lưu từ thứ 6 được đảo lại để dùng cho thứ 2
-- Thứ 3 và thứ 4 không áp dụng D direction
-- Khi XAUUSD khớp D, bot báo một lần rồi ẩn XAU cho đến mốc tiếp theo cho phép
+- D-direction nhận từ Telegram
+- Bot lưu trạng thái gần như tức thì và đẩy sang dashboard
+- Tùy ngày trong tuần mà D-direction sẽ được áp dụng hoặc bỏ qua theo rule hiện tại
 
-### Missed slot
+### Điều đã bỏ khỏi flow
 
-- Nếu bot khởi động sau giờ, nó sẽ backfill slot bị lỡ
-- Dashboard và log vẫn có dữ liệu cho slot đó
+- Entry time không còn là phần chính của signal flow hiện tại
+- Dashboard hiện chỉ tập trung vào signal, pair directions, note và state
 
 ## 4. Dashboard Web
 
@@ -85,18 +106,17 @@ URL:
 
 [https://oak-hidden-sltp-manager-dun.vercel.app](https://oak-hidden-sltp-manager-dun.vercel.app)
 
-Các mục:
-- `Dashboard`: bot state, D direction, signals hôm nay, news
+Các mục chính:
+- `Dashboard`: state, signals hôm nay, D-direction, news
 - `Lịch sử`: dữ liệu signal 7 ngày gần nhất
-- `Xác thực tin tức`: fact-check text/ảnh
+- `Xác thực tin tức`: fact-check bằng text hoặc ảnh OCR
 - `Rules`: rule schedule và note theo ngày
 
 ### VIP
 
-- Free user chỉ thấy `VIP Only`
-- VIP user dùng link `/?vip=TOKEN`
-- Middleware server-side set cookie `vip_access`
-- Reload hoặc chuyển tab vẫn giữ trạng thái VIP
+- Free user chỉ thấy khu vực bị khóa
+- VIP user truy cập qua `/?vip=TOKEN`
+- Cookie `vip_access` được giữ server-side nên reload không mất trạng thái
 - Logout qua `/api/vip-logout`
 
 ## 5. Telegram Commands
@@ -121,13 +141,11 @@ Các mục:
 - `/modify <sl|tp> <val> <SYMBOL>`
 - `/closeall`
 
-## 6. In-app cấu hình chính
+## 6. Các cấu hình đáng chú ý
 
-### Profile
+### Profile MT5
 
 - `Magic Number`
-  - `0`: lệnh tay
-  - `-1`: tất cả lệnh
 - `Hidden SL/TP`
 - `Visible SL/TP`
 - `Auto Partial`
@@ -136,13 +154,22 @@ Các mục:
 ### Ghost Mode
 
 - Dùng khi broker chặn Algo Trading
-- App giả lập thao tác tay để hỗ trợ đóng lệnh hoặc dời SL/TP
+- App mô phỏng thao tác tay để hỗ trợ xử lý lệnh
 
-## 7. Những gì đã bỏ khỏi guide này
+### Update và lỗi
 
-- Không giữ mô tả cũ kiểu marketing
-- Không giữ các ví dụ release cũ không còn đúng flow
-- Không giữ các engine fact-check cũ như Brave/Bing trong tài liệu chính
+- App có module kiểm tra bản mới từ GitHub Releases
+- App có module ghi nhận error report nội bộ để hỗ trợ chẩn đoán
+
+## 7. Gói phát hành Windows
+
+Trang phát hành:
+
+[https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
+
+Các gói chính:
+- `Installer.exe`: bản cài đặt Windows
+- `window-unpack.zip`: bản portable
 
 ---
 Nếu tab hướng dẫn trong app vẫn hiện nội dung cũ, chỉ cần mở lại app để nó đọc lại `GUIDE.md` mới.

@@ -1,59 +1,57 @@
 # OAK Hidden SLTP Manager (v3.15.0)
 
-Hệ thống quản lý lệnh MT5, bot tín hiệu, dashboard web và bridge Telegram cho OAK.
+OAK Manager là app desktop Windows để quản lý MT5 theo mô hình đa tiến trình: giám sát lệnh, Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge và dashboard web.
 
 Tài liệu liên quan:
 - [GUIDE.md](GUIDE.md)
 - [RELEASE_NOTES.md](RELEASE_NOTES.md)
 
-## Điểm mới hiện tại
+## Tính năng hiện có
 
-- D-direction nhận qua Telegram, lưu gần như tức thì qua file + ping localhost.
-- Signal bot chạy 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
-- Rule schedule đã đồng bộ theo các mốc `H=1,4,6,9,11,12,14,15,16`.
-- Entry time đã bỏ khỏi flow hiện tại; dashboard chỉ còn signal, pair directions và notes.
-- Fact-check web dùng nguồn free gọn hơn, ưu tiên `Google + DuckDuckGo`, Google Fact Check là lớp authority.
-- Dashboard Vercel giữ VIP bằng cookie server-side, chuyển tab/reload không rơi về free user.
-- `create_backup_final.py` tạo backup source/profile theo version thực tế của app.
+### Desktop app
 
-## Thành phần chính
+- Hidden SL/TP theo points, kèm Visible SL/TP tùy chọn.
+- Auto Partial theo mức R và phần trăm volume.
+- Auto BE với buffer an toàn.
+- Multi-profile cho nhiều terminal và nhiều tài khoản.
+- Ghost Mode để mô phỏng thao tác tay khi broker chặn algo.
+- Hẹn giờ / Pending order ngay trong app.
+- Diagnostics log viewer, export debug bundle, mở log folder.
+- Tài liệu tích hợp ngay trong app: Guide, README, Release Notes, About.
 
-### OAK Manager
+### Tab và workflow chính
 
-- Hidden SL/TP theo points.
-- Visible SL/TP tùy chọn, có buffer tránh spread.
-- Auto Partial theo mức R và % volume.
-- Auto BE theo mức R.
-- Scheduled Entry qua Telegram.
-- Ghost Mode khi broker chặn Algo Trading.
-- Multi-profile cho nhiều terminal/account.
+- `Dashboard`: chọn profile, start/stop monitor, xem trạng thái MT5/Telegram/Ghost/System, news box và console.
+- `Tín Hiệu`: quản lý 4 process nền là `mt5_signal_bot.py`, `mt4_mt5_server.py`, `mimo_bot.py`, `mimo_worker.py`.
+- `Quản Lý Profile`: cấu hình MT5 path, symbol, magic, SL/TP, partial, BE, Telegram token/chat/admin.
+- `Copy Trading`: cấu hình Master/Slave, safety guardrails, theo dõi log và test safety rules ngay trên UI.
+- `Hẹn Giờ / Pending`: tạo, sửa, xóa các lệnh chờ theo giờ.
+- `Diagnostics`: lọc log, follow latest, copy selected, export debug bundle.
 
-### Tab Tín Hiệu
+### Signal bot và dashboard
 
-- `mt5_signal_bot.py`: phân tích và đẩy tín hiệu.
-- `mt4_mt5_server.py`: nhận data từ MT4 EA.
-- `mimo_bot.py`: bridge Telegram.
-- `mimo_worker.py`: worker xử lý nền.
+- Signal bot xử lý 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
+- D-direction nhận qua Telegram và đẩy sang bot gần như tức thì.
+- Dashboard web hiển thị state, signals, history 7 ngày, rules và fact-check.
+- VIP dashboard giữ trạng thái bằng cookie server-side qua `/?vip=TOKEN`.
 
-### Dashboard
+## Gói phát hành Windows
 
-- Realtime signals, state, history 7 ngày, rules.
-- Fact-check tin tức bằng text hoặc ảnh OCR.
-- VIP access qua `/?vip=TOKEN`.
+Trang tải:
+- [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
 
-## Rule ngắn gọn
+Gói phát hành `v3.15.0` gồm:
+- `Installer.exe`: bản cài đặt Windows có shortcut Desktop/Start Menu.
+- `window-unpack.zip`: bản portable giải nén và chạy trực tiếp.
 
-- `H=1`: match theo signal hiện tại.
-- Các slot khác: dùng note và pair direction theo rule, không còn entry time riêng.
-- `H=6`: thứ 2 và thứ 6 chỉ vàng đảo; thứ 3-5 vàng đảo rồi GBPAUD đi theo vàng đã đảo.
-- `H=16`: thứ 2/5/6 giữ nhóm GBP + vàng; thứ 3/4 so với `H=15` để quyết định đảo hay dời entry.
+App desktop hiện có nút `Check for Updates` trong tab Giới Thiệu và đọc thông tin từ GitHub Releases.
 
 ## Cấu hình
 
 Yêu cầu:
-- Windows
+- Windows 10/11
 - Python 3.10+
-- MT5 đã cài và đăng nhập
+- MetaTrader 5 đã cài và đăng nhập
 
 `config.json`:
 
@@ -66,6 +64,8 @@ Yêu cầu:
   "dashboard_api_key": "YOUR_API_KEY_HERE"
 }
 ```
+
+Các file local như `config.json`, `profiles.json`, `settings.json`, `.env`, `dashboard/.env.local` đều đang nằm trong `.gitignore`.
 
 ## Chạy nhanh
 
@@ -81,7 +81,7 @@ pip install -r requirements.txt
 CHAY_ROBOT.bat
 ```
 
-3. Vào tab `Tín Hiệu` trong app để chạy hoặc dừng từng process nền.
+3. Vào tab `Tín Hiệu` để bật hoặc dừng các process nền khi cần.
 
 4. Tạo backup source/profile:
 
@@ -89,11 +89,18 @@ CHAY_ROBOT.bat
 python create_backup_final.py
 ```
 
-## Ghi chú
+## Build package
 
-- `config.json` đang nằm trong `.gitignore`.
-- Tab Guide/README/Release Notes trong app sẽ đọc lại các file `.md` ở root repo.
-- Dashboard deploy qua Vercel, nên cập nhật `dashboard/README.md` và push lên GitHub là đủ cho docs.
+Build gói Windows:
+
+```bash
+python build_exe.py
+```
+
+Kết quả:
+- `dist/window-unpack/...`
+- `dist/..._window-unpack.zip`
+- `dist/..._Installer.exe` nếu máy đã cài NSIS
 
 ---
 Phát triển bởi QKP. Hỗ trợ: Telegram `@bupbupchot`
