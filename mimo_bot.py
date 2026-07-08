@@ -696,4 +696,4 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"\n  Lỗi: {e}")
                 print("  Đang kết nối lại sau 5 giây...")
-                _time.sleep(1)
+                _time.sleep(5)
