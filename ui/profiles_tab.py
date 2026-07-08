@@ -3,6 +3,7 @@
 import customtkinter as ctk
 from typing import Any
 from .base_tab import BaseTab
+from oak_language import T
 
 
 class ProfilesTab(BaseTab):
@@ -17,10 +18,11 @@ class ProfilesTab(BaseTab):
     def mount(self, parent: Any) -> None:
         """Mount the Profiles tab UI."""
         frame = ctk.CTkFrame(parent, fg_color="transparent")
+        self.app.frames["profiles"] = frame
         frame.pack(fill="both", expand=True)
 
         # Left list
-        self.list_frame = ctk.CTkScrollableFrame(frame, width=220, label_text="Danh sách")
+        self.list_frame = ctk.CTkScrollableFrame(frame, width=220, label_text=T("profile_list"))
         self.list_frame.pack(side="left", fill="y", padx=(0, 20))
 
         # Right panel
@@ -28,36 +30,39 @@ class ProfilesTab(BaseTab):
         self.right_panel.pack(side="right", fill="both", expand=True)
 
         # Scrollable form
-        self.form_scroll = ctk.CTkScrollableFrame(self.right_panel, label_text="Cấu hình")
+        self.form_scroll = ctk.CTkScrollableFrame(self.right_panel, label_text=T("grp_config"))
         self.form_scroll.pack(side="top", fill="both", expand=True, pady=(0, 10))
         self.form_scroll.grid_columnconfigure(1, weight=1)
 
         # Checkboxes for Balance SL/TP
-        self.chk_balance = ctk.CTkCheckBox(self.form_scroll, text="Sử dụng Balance SL/TP")
+        self.chk_balance = ctk.CTkCheckBox(self.form_scroll, text=T("lbl_use_balance_sltp"))
         self.chk_balance.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        self.app.add_ui_element("lbl_use_balance_sltp", self.chk_balance)
 
-        self.chk_visible_sltp = ctk.CTkCheckBox(self.form_scroll, text="SL/TP Hiển thị")
+        self.chk_visible_sltp = ctk.CTkCheckBox(self.form_scroll, text=T("lbl_visible_sltp"))
         self.chk_visible_sltp.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+        self.app.add_ui_element("lbl_visible_sltp", self.chk_visible_sltp)
 
         # Input fields
         fields = [
-            ("name", "Tên"), ("path", "Đường dẫn MT5"), ("magic", "Magic Number"),
-            ("symbol", "Cặp tiền"), ("sl", "SL"), ("tp", "TP"),
-            ("gold_sl", "Gold SL"), ("gold_tp", "Gold TP"),
-            ("balance_sl_pct", "Balance SL %"), ("balance_tp_pct", "Balance TP %"),
-            ("partial_r", "Partial R"), ("partial_pct", "Partial %"),
-            ("auto_be", "Auto BE"),
-            ("tele_token", "Telegram Token"), ("tele_chat", "Telegram Chat ID"),
-            ("tele_admin", "Telegram Admin")
+            ("name", "lbl_name"), ("path", "lbl_path"), ("magic", "lbl_magic"),
+            ("symbol", "lbl_symbol"), ("sl", "lbl_sl"), ("tp", "lbl_tp"),
+            ("gold_sl", "lbl_gold_sl"), ("gold_tp", "lbl_gold_tp"),
+            ("balance_sl_pct", "lbl_balance_sl_pct"), ("balance_tp_pct", "lbl_balance_tp_pct"),
+            ("partial_r", "lbl_partial_r"), ("partial_pct", "lbl_partial_pct"),
+            ("auto_be", "lbl_auto_be"),
+            ("tele_token", "lbl_tele_token"), ("tele_chat", "lbl_tele_chat"), ("tele_admin", "lbl_tele_admin")
         ]
 
+        secret_fields = {"tele_token"}
         self.entries = {}
-        for i, (key, label) in enumerate(fields):
+        for i, (key, label_key) in enumerate(fields):
             row_idx = i + 1
-            lbl = ctk.CTkLabel(self.form_scroll, text=label)
+            lbl = ctk.CTkLabel(self.form_scroll, text=T(label_key))
             lbl.grid(row=row_idx, column=0, padx=10, pady=5, sticky="w")
+            self.app.add_ui_element(label_key, lbl)
 
-            ent = ctk.CTkEntry(self.form_scroll, show="•" if key == "tele_token" else "")
+            ent = ctk.CTkEntry(self.form_scroll, show="•" if key in secret_fields else "")
             ent.grid(row=row_idx, column=1, padx=10, pady=5, sticky="ew")
             self.entries[key] = ent
 
@@ -71,14 +76,17 @@ class ProfilesTab(BaseTab):
         self.lbl_unsaved = ctk.CTkLabel(btn_box, text="", font=ctk.CTkFont(size=10), text_color="#ffb74d")
         self.lbl_unsaved.pack(side="left", padx=5)
 
-        self.btn_save = ctk.CTkButton(btn_box, text="Lưu", command=self.save_profile)
+        self.btn_save = ctk.CTkButton(btn_box, text=T("btn_save"), command=self.save_profile)
         self.btn_save.pack(side="left", padx=10, expand=True)
+        self.app.add_ui_element("btn_save", self.btn_save)
 
-        self.btn_delete = ctk.CTkButton(btn_box, text="Xóa", fg_color="red", command=self.delete_profile)
+        self.btn_delete = ctk.CTkButton(btn_box, text=T("btn_delete"), fg_color="red", command=self.delete_profile)
         self.btn_delete.pack(side="left", padx=10, expand=True)
+        self.app.add_ui_element("btn_delete", self.btn_delete)
 
-        self.btn_add = ctk.CTkButton(btn_box, text="Thêm mới", fg_color="gray", command=self.clear_form)
+        self.btn_add = ctk.CTkButton(btn_box, text=T("btn_add"), fg_color="gray", command=self.clear_form)
         self.btn_add.pack(side="left", padx=10, expand=True)
+        self.app.add_ui_element("btn_add", self.btn_add)
 
     def bind_state(self, app_state: Any) -> None:
         """Bind to app state."""

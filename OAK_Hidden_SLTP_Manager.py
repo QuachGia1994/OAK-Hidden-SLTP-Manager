@@ -5305,81 +5305,23 @@ class App(ctk.CTk):
         self.signal_supervisor.stop_all_signals()
 
     def create_profiles_frame(self, parent):
-        frame = ctk.CTkFrame(parent, fg_color="transparent")
-        self.frames["profiles"] = frame
-        frame.pack(fill="both", expand=True)
+        self.profiles_tab = ProfilesTab(self)
+        self.profiles_tab.mount(parent)
         
-        # Left List
-        self.list_frame = ctk.CTkScrollableFrame(frame, width=220, label_text=T("profile_list"))
-        self.list_frame.pack(side="left", fill="y", padx=(0, 20))
+        # Map tab's attributes to app for backwards compatibility
+        self.list_frame = self.profiles_tab.list_frame
+        self.right_panel = self.profiles_tab.right_panel
+        self.form_scroll = self.profiles_tab.form_scroll
+        self.chk_balance = self.profiles_tab.chk_balance
+        self.chk_visible_sltp = self.profiles_tab.chk_visible_sltp
+        self.entries = self.profiles_tab.entries
+        self.lbl_active_profile = self.profiles_tab.lbl_active_profile
+        self.lbl_unsaved = self.profiles_tab.lbl_unsaved
+        self.btn_save_p = self.profiles_tab.btn_save
+        self.btn_del_p = self.profiles_tab.btn_delete
+        self.btn_add_p = self.profiles_tab.btn_add
         
         self.refresh_profile_list()
-        
-        # Right Panel (Container for Form + Buttons)
-        self.right_panel = ctk.CTkFrame(frame, fg_color="transparent")
-        self.right_panel.pack(side="right", fill="both", expand=True)
-        
-        # Scrollable Form Area (Top)
-        self.form_scroll = ctk.CTkScrollableFrame(self.right_panel, label_text=T("grp_config"))
-        self.form_scroll.pack(side="top", fill="both", expand=True, pady=(0, 10))
-        self.form_scroll.grid_columnconfigure(1, weight=1)
-        
-        # Inputs (inside form_scroll)
-        # Checkbox for Balance SL/TP
-        self.chk_balance = ctk.CTkCheckBox(self.form_scroll, text=T("lbl_use_balance_sltp"))
-        self.chk_balance.grid(row=0, column=0, padx=10, pady=10, sticky="w")
-        self.add_ui_element("lbl_use_balance_sltp", self.chk_balance)
-
-        self.chk_visible_sltp = ctk.CTkCheckBox(self.form_scroll, text=T("lbl_visible_sltp"))
-        self.chk_visible_sltp.grid(row=0, column=1, padx=10, pady=10, sticky="w")
-        self.add_ui_element("lbl_visible_sltp", self.chk_visible_sltp)
-
-        fields = [
-            ("name", "lbl_name"), ("path", "lbl_path"), ("magic", "lbl_magic"),
-            ("symbol", "lbl_symbol"), ("sl", "lbl_sl"), ("tp", "lbl_tp"),
-            ("gold_sl", "lbl_gold_sl"), ("gold_tp", "lbl_gold_tp"),
-            ("balance_sl_pct", "lbl_balance_sl_pct"), ("balance_tp_pct", "lbl_balance_tp_pct"),
-            ("partial_r", "lbl_partial_r"), ("partial_pct", "lbl_partial_pct"),
-            ("auto_be", "lbl_auto_be"),
-            ("tele_token", "lbl_tele_token"), ("tele_chat", "lbl_tele_chat"), ("tele_admin", "lbl_tele_admin")
-        ]
-        self.entries = {}
-        secret_fields = {"tele_token"}
-        for i, (key, label_key) in enumerate(fields):
-            row_idx = i + 1
-            lbl = ctk.CTkLabel(self.form_scroll, text=T(label_key))
-            lbl.grid(row=row_idx, column=0, padx=10, pady=5, sticky="w")
-            self.add_ui_element(label_key, lbl)
-
-            ent = ctk.CTkEntry(self.form_scroll, show="•" if key in secret_fields else "")
-            ent.grid(row=row_idx, column=1, padx=10, pady=5, sticky="ew")
-            self.entries[key] = ent
-            
-        # Buttons (Fixed at Bottom of Right Panel)
-        btn_box = ctk.CTkFrame(self.right_panel, fg_color="transparent")
-        btn_box.pack(side="bottom", fill="x", pady=10)
-
-        # Active Profile badge
-        self.lbl_active_profile = ctk.CTkLabel(btn_box, text="", font=ctk.CTkFont(size=11, weight="bold"),
-                                                text_color="#66bb6a")
-        self.lbl_active_profile.pack(side="left", padx=10)
-
-        # Unsaved changes indicator
-        self.lbl_unsaved = ctk.CTkLabel(btn_box, text="", font=ctk.CTkFont(size=10),
-                                         text_color="#ffb74d")
-        self.lbl_unsaved.pack(side="left", padx=5)
-
-        self.btn_save_p = ctk.CTkButton(btn_box, text=T("btn_save"), command=self.save_profile)
-        self.btn_save_p.pack(side="left", padx=10, expand=True)
-        self.add_ui_element("btn_save", self.btn_save_p)
-        
-        self.btn_del_p = ctk.CTkButton(btn_box, text=T("btn_delete"), fg_color="red", command=self.delete_profile)
-        self.btn_del_p.pack(side="left", padx=10, expand=True)
-        self.add_ui_element("btn_delete", self.btn_del_p)
-        
-        self.btn_add_p = ctk.CTkButton(btn_box, text=T("btn_add"), fg_color="gray", command=self.clear_form)
-        self.btn_add_p.pack(side="left", padx=10, expand=True)
-        self.add_ui_element("btn_add", self.btn_add_p)
         
         # Auto-select active profile if any
         if self.profiles:
