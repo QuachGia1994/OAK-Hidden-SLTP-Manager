@@ -100,29 +100,15 @@ class GhostOperator:
         with self._lock:
             if not self._connect(): return False
             try:
-                # 1. Focus Terminal
+                # 1. Focus Terminal only — do NOT send Alt+1/Alt+2.
+                # On MT5 chart window those hotkeys switch chart type:
+                #   Alt+1 = Bar chart, Alt+2 = Candlesticks (user complaint).
+                # Old comment assumed Alt+1 = Trade tab; that was wrong for chart focus.
                 self._win.set_focus()
-                self._win.type_keys("%1") # Alt+1 để hiện tab Trade
-                time.sleep(0.5)
-                
-                # 2. Mở hộp thoại Modify bằng phím tắt F9 (New Order)
-                # Hoặc chuột phải vào vùng Trade. 
-                # Cách "Ghost" nhất: Nhấn F9 -> Nhập Ticket -> Đóng
-                # Nhưng F9 trong MT5 mở bảng đặt lệnh mới.
-                
-                # Cách tối ưu: Chuột phải vào Ticket -> Close
-                # Để tìm Ticket, ta sẽ dùng phương pháp 'Search' trong MT5 nếu có, 
-                # hoặc quét danh sách. 
-                
-                # Vì MT5 UI là custom, ta sẽ dùng phím tắt 'Context Menu' (Shift+F10)
-                # Sau khi đã chọn đúng dòng (giả định dòng đầu tiên hoặc dùng phím mũi tên)
-                
-                # THỰC TẾ: Để không chiếm chuột và chính xác 100%:
-                # Ta sẽ dùng lệnh 'Hotkeys' của MT5 nếu người dùng có cài đặt, 
-                # hoặc dùng phương pháp 'Control-based' click.
-                
-                # Giả lập thao tác 'Modify or Delete' để đóng 1 phần hoặc dời SL/TP:
-                self._win.type_keys("{F9}") # Mở bảng đặt lệnh
+                time.sleep(0.2)
+
+                # 2. F9 opens Order dialog from main window (no chart-type side effect)
+                self._win.type_keys("{F9}")
                 time.sleep(0.8)
                 
                 # Tìm cửa sổ 'Order' mới hiện ra
