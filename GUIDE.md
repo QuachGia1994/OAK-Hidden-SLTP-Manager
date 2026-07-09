@@ -124,11 +124,13 @@ Các mục chính:
 ### MiMo / OAK bridge
 
 - `/mimo <yêu cầu>`
-- `/status`
-- `/profiles`
+- `/status` (trạng thái PC/files)
+- `/check` (alias `/kiemtra`) — kiểm tra tài khoản OAK
+- `/list` (alias `/danhsach`) — lệnh hẹn giờ / partial
+- `/profile` / `/profiles`
 - `/mt5 <profile>`
-- `/positions <profile>`
-- `/signal`
+- `/position` / `/positions [profile]`
+- `/signal` — tín hiệu hôm nay từ `bot_state.json`
 - `/news`
 - `/reply <text>`
 - `/myid`
@@ -136,6 +138,7 @@ Các mục chính:
 ### OAK commands
 
 - `/list`
+- `/check`
 - `/del <ID>`
 - `/pending <buy|sell> <SYMBOL> <LOT> <HH:MM>`
 - `/modify <sl|tp> <val> <SYMBOL>`

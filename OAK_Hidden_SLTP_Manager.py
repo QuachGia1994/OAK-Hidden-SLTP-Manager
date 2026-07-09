@@ -1503,7 +1503,7 @@ class CopyTradeManager:
             self._send_mimo_response("⏳ Đang quét dự án...")
             threading.Thread(target=self._run_scan_cmd, daemon=True).start()
             return
-        if cmd[0] == "/profiles":
+        if cmd[0] in ("/profiles", "/profile"):
             config = load_json(CONFIG_FILE)
             if not config:
                 self._send_mimo_response("❌ Không tìm thấy profiles.json")
@@ -1554,20 +1554,65 @@ class CopyTradeManager:
             except Exception as e:
                 self._send_mimo_response(f"❌ Lỗi MT5: {str(e)}")
             return
-        if cmd[0] == "/positions":
-            args = raw_text.replace("/positions", "").strip()
-            config = load_json(CONFIG_FILE)
+        if cmd[0] in ("/positions", "/position"):
             positions = mt5.positions_get()
             if not positions:
                 self._send_mimo_response("📋 Không có lệnh nào đang mở.")
                 return
-            lines = ["📋 *VỊ THẾ ĐANG MỞ:\n"]
+            lines = ["📋 *VỊ THẾ ĐANG MỞ:*\n"]
             for pos in positions:
                 typ = "BUY" if pos.type == mt5.POSITION_TYPE_BUY else "SELL"
                 pnl = pos.profit + pos.swap + pos.commission
                 icon = "🟢" if pnl >= 0 else "🔴"
                 lines.append(f"{icon} {pos.symbol} {typ} {pos.volume} lot | PnL: {pnl:+.2f}")
             self._send_mimo_response("\n".join(lines))
+            return
+        if cmd[0] in ("/signal", "/tinhieu", "/tin_hieu"):
+            try:
+                base = os.path.dirname(os.path.abspath(__file__))
+                state = load_json(os.path.join(base, "bot_state.json"), {})
+                log_rows = load_json(os.path.join(base, "signals_log.json"), [])
+                today = state.get("date")
+                if not today and isinstance(log_rows, list) and log_rows:
+                    today = max((r.get("date") for r in log_rows if r.get("date")), default=None)
+                if not today:
+                    self._send_mimo_response("📡 Chưa có tín hiệu hôm nay (`bot_state` / `signals_log`).")
+                    return
+                d_dir = state.get("d_direction") or "—"
+                d_matched = state.get("d_matched_hour")
+                today_rows = [r for r in (log_rows or []) if r.get("date") == today]
+                by_hour = {}
+                for row in today_rows:
+                    try:
+                        h = int(row.get("hour"))
+                    except (TypeError, ValueError):
+                        continue
+                    by_hour[h] = row
+                lines = [
+                    f"📡 *TÍN HIỆU HÔM NAY* ({today})",
+                    f"Hướng D: `{d_dir}`" + (f" | match H={d_matched}" if d_matched is not None else ""),
+                    "",
+                ]
+                if not by_hour:
+                    lines.append("(Chưa có slot nào được ghi nhận trong signals_log)")
+                else:
+                    for h in sorted(by_hour.keys()):
+                        payload = by_hour[h] or {}
+                        sig = payload.get("signal", "?")
+                        icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
+                        pair_dirs = payload.get("pair_dirs") or {}
+                        pair_bits = []
+                        for pair in ("XAUUSD", "GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
+                            direction = pair_dirs.get(pair)
+                            if direction in ("BUY", "SELL", "--"):
+                                pair_bits.append(f"{pair}:{direction}")
+                        extra = f"\n   {', '.join(pair_bits)}" if pair_bits else ""
+                        note = payload.get("hour_note")
+                        note_line = f"\n   📝 {note}" if note else ""
+                        lines.append(f"{icon} H={h:02d}:45 → *{sig}*{extra}{note_line}")
+                self._send_mimo_response("\n".join(lines))
+            except Exception as e:
+                self._send_mimo_response(f"❌ Lỗi /signal: {e}")
             return
         if cmd[0] == "/reply":
             # Already handled by inbox injection, just acknowledge

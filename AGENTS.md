@@ -1,140 +1,155 @@
-# Agent Instructions: OAK Hidden SLTP Manager
+# Real Engineer Skills — AGENTS.md
 
-## What This Is
+**Portable instruction set for AI coding agents**  
+Combines: Matt Pocock (engineering discipline) + Ponytail (extreme minimalism) + Taste-Skill (UI quality) + Andrej Karpathy (LLM self-correction) + Strix (security & bug auditing)
 
-Multi-process trading system: MT4/MT5 signal analysis, Telegram bot bridge, hidden SL/TP manager, and a Next.js dashboard deployed on Vercel.
+Use this file as project-level instructions for Claude Code, Cursor, Codex, Devin, or any agent that supports `.md` instructions / rules.
 
-## Architecture
+---
 
-```
-OAK_Hidden_SLTP_Manager.py  ← Main desktop app (customtkinter, 7000+ lines)
-mt5_signal_bot.py            ← Signal analysis, runs in slots (H=2..15)
-mt4_mt5_server.py            ← Flask API receiving MT4 EA data
-mimo_bot.py                  ← Telegram <-> system bridge
-mimo_worker.py               ← Background command processor
-factcheck_worker.py          ← News fact-checking via Upstash Redis
-dashboard/                   ← Next.js 16 + React 19 frontend
-```
+## Core Philosophy (Always Active)
 
-**Critical**: These are separate processes, not modules. Public launcher is `CHAY_ROBOT.bat`, and the app's `Tín Hiệu` tab manages background processes. Do not import between them.
+Real engineering with AI must satisfy **four layers** simultaneously:
 
-## Configuration
+1. **Disciplined Engineering** (Matt Pocock)  
+   Alignment first → Domain model → Specs & tickets → TDD → Architecture health.
 
-All config files are **gitignored**. They exist locally only:
+2. **Extreme Minimalism** (Ponytail)  
+   The best code is the code you never write. Always climb the **Laziness Ladder** before writing anything new.
 
-| File | Purpose |
-|------|---------|
-| `config.json` | Telegram token, chat ID, MT5 path, dashboard URL |
-| `profiles.json` | Multi-account trading profiles (magic, partials, BE) |
-| `settings.json` | UI lang, theme, ghost mode, ntfy topic |
-| `.env` | Upstash Redis URL/token for factcheck worker |
-| `dashboard/.env.local` | Dashboard Redis/Upstash credentials |
+3. **High-Quality Taste** (Taste-Skill)  
+   Interfaces must feel intentional and premium. Use Design Dials and reject generic slop.
 
-Never hardcode secrets. Read from `config.json` at module level (see pattern in `mimo_bot.py:38-47`).
+4. **LLM Self-Correction + Security** (Karpathy + Strix)  
+   Surface assumptions, stay surgical, be goal-driven, and actively hunt for bugs & vulnerabilities before shipping.
 
-## Running
+---
 
-```bash
-# Install Python deps
-pip install -r requirements.txt
+## The 11 Disciplines (Summary)
 
-# Start app (Windows)
-CHAY_ROBOT.bat
+### 1. Grilling (Alignment)
+Before any code or spec, conduct structured clarification across goals, constraints, data model, flows, edges, and success criteria. Only proceed with explicit shared understanding.
 
-# Start individual processes manually
-python mt4_mt5_server.py    # Flask on localhost
-python mt5_signal_bot.py    # Signal analyzer
-python mimo_bot.py          # Telegram bot
-python mimo_worker.py       # Command worker
+### 2. Domain Modeling
+Maintain a living, precise model of entities, value objects, invariants, and ubiquitous language. Update it continuously. Use it to drive naming and decisions.
 
-# Dashboard
-cd dashboard && npm install && npm run dev
-```
+### 3. Test-Driven Development (TDD)
+Red → Green (minimal) → Refactor. All production code must be justified by failing tests first.
 
-**Prerequisites**: Windows, Python 3.10+, MT5 installed and logged in. `pywinauto` needed for Ghost Mode.
+### 4. Codebase Design & Architecture
+Design small, cohesive modules with clear seams. Favor composition and protocols. Apply Clean Architecture layers when complexity justifies it. Periodically run architecture health checks.
 
-## Testing
+### 5. Specification & Decomposition
+Convert discussion into clear, testable specs, then break into small, independent, tracer-bullet tickets with acceptance criteria.
 
-```bash
-# Run all tests
-python -m pytest tests/
+### 6. Systematic Debugging
+Reproduce minimally → Minimize → Hypothesize → Instrument → Fix → Verify with tests. Never fix without understanding root cause.
 
-# Run single test file
-python -m pytest tests/test_get_pair_direction.py
+### 7. Code Review
+Review against spec, domain model, simplicity, test coverage, and style. Be ruthless.
 
-# Or with unittest
-python -m unittest tests.test_get_pair_direction
-```
+### 8. Ponytail Minimalism (Laziness Ladder)
+Before writing **any** new code, climb in strict order:
+1. Does this need to exist? (YAGNI)
+2. Already in codebase? → Reuse
+3. Stdlib / native platform feature?
+4. Installed dependency?
+5. Can it be one line?
+6. Only then → write the absolute minimum correct implementation.
 
-Tests use `unittest.mock.patch` to isolate from MT5. The signal bot tests patch `get_effective_d_direction` and `d_direction_date` globals.
+Safety, validation, and error handling are **never** sacrificed.
 
-## Code Conventions
+### 9. Website UI Taste (Design Dials)
+For any UI work, explicitly set or infer:
+- **DESIGN_VARIANCE** (1–10): layout experimentation
+- **MOTION_INTENSITY** (1–10): animation depth
+- **VISUAL_DENSITY** (1–10): information per screen
 
-- **Language**: Vietnamese comments and UI strings. Code comments, log messages, Telegram messages are all Vietnamese.
-- **Logging**: Use `setup_logger("name")` from `oak_logger.py`. Logs to `logs/app.log` (10MB rotating, 5 backups).
-- **JSON loading**: Use `load_json_file()` from `utils.py` or `oak_trading_reminders.py`.
-- **Telegram sending**: Use `send_telegram_raw()` or `send_telegram_with_keyboard()` from `utils.py`.
-- **Config loading pattern**: Read `config.json` at module level with try/except fallback to empty strings.
-- **No type hints**: Codebase doesn't use type annotations.
+Default for most professional apps: 6 / 5 / 3
 
-## Key Files
+Reject generic patterns, repetitive cards, placeholder text, and em-dashes in UI. Prioritize typography, generous consistent spacing, hierarchy, and purposeful motion. Choose aesthetic mode deliberately (Soft Premium / Minimalist Editorial / Brutalist / Trading Terminal).
 
-- `OAK_Hidden_SLTP_Manager.py` - Main app, handles MT5 orders, Ghost Mode, UI. Read the first 100 lines for import structure.
-- `mt5_signal_bot.py` - `get_pair_direction(H, signal, dt)` is the core logic for H-slot rules. Tests in `tests/test_get_pair_direction.py`.
-- `oak_trading_reminders.py` - Trading reminders, market hours, DST handling (US schedule).
-- `oak_response_dict.py` - Vietnamese response templates with `format()` placeholders.
-- `utils.py` - Shared utilities: Telegram API, JSON helpers, signal icons.
+### 10. Andrej Karpathy LLM Coding Principles
+1. **Think Before Coding** — State assumptions explicitly. Present alternatives when ambiguous. Stop and ask when confused.
+2. **Simplicity First** — Default to simplest solution. No unrequested abstractions or features.
+3. **Surgical Changes** — Only edit what is necessary. Match existing style. Never touch unrelated code.
+4. **Goal-Driven Execution** — Convert tasks into clear, verifiable success criteria. Iterate in tight loops until goals are met.
 
-## Dashboard
+### 11. Strix-Style Bug & Vulnerability Checking (Final Gate)
+Before code is considered complete, actively hunt for:
+- OWASP Top 10 issues
+- Business logic flaws & race conditions (especially critical in trading/finance)
+- Access control, injection, auth/session problems
+- Concurrency and state manipulation issues
 
-Next.js 16 + React 19 + Tailwind 4. Deployed on Vercel. **This is NOT standard Next.js** - read `dashboard/AGENTS.md` and `node_modules/next/dist/docs/` before modifying.
+Write adversarial tests. Validate with reproduction steps. Apply only surgical minimal fixes. Run this **after implementation, before final review**.
 
-- Uses `@upstash/redis` for data
-- `tesseract.js` for OCR (fact-check from images)
-- VIP access via `/?vip=TOKEN` cookie
-- Deploy: push to GitHub → Vercel auto-deploys
+---
 
-## Telegram Notification Flow
+## Quick Reference Checklists
 
-Two separate Telegram systems exist:
+### Laziness Ladder (Ponytail)
+Always climb before writing code. Safety is non-negotiable.
 
-1. **Signal Bot** (`mt5_signal_bot.py`): Sends trading signals at H:45 slots. Uses `send_telegram_raw()` from `utils.py` with `TELEGRAM_TOKEN`/`TELEGRAM_CHAT_ID` from `config.json`.
-2. **MiMo Bot** (`mimo_bot.py`): Telegram command bridge. Uses `pyTelegramBotAPI` with same `config.json` credentials.
+### Karpathy 4 Principles
+Think → Simplicity → Surgical → Goal-Driven.
 
-Token resolution hierarchy (signal bot):
-- Profile `tele_token` (keyring via `secret_store.py`) → fallback → `config.json` global token
-- All profiles currently have `tele_token: "__vault__"` but **keyring is not installed**, so profile tokens always fail → falls back to `config.json`
-- If `config.json` token is also empty/wrong, `send_telegram()` silently returns `None`
+### Design Dials (UI)
+Set Variance / Motion / Density before building any screen.
 
-**Debugging Telegram issues**:
-- Check `logs/app.log` for `[secrets]` warnings (keyring unavailable)
-- Check `tele_sent_log.json` for dedup log (OAK Manager sends only)
-- Signal bot uses `print()` not logger — output goes to cmd window, not log file
-- Verify bot token: `python -c "import urllib.request,json;print(json.loads(urllib.request.urlopen('https://api.telegram.org/bot<TOKEN>/getMe').read()))"`
+### Strix Final Gate (Critical Paths)
+Access control • Business logic • Race conditions • Injection • Auth • Concurrency • Data exposure
 
-## Gotchas
+---
 
-1. **Duplicate processes**: Multiple instances of the same process can accumulate after repeated app restarts or manual launches. Each `mimo_bot.py` instance polls the same bot token — Telegram delivers each message to only one instance, causing random message loss. Fix: kill all `pythonw.exe` processes before restarting.
-2. **`pythonw.exe` suppresses stdout**: `CHAY_ROBOT.bat` uses `pythonw.exe` (no console). All `print()` output is lost. Signal bot uses `print()` for most output, not the logger.
-3. **Global state**: `mt5_signal_bot.py` uses module-level globals (`d_direction`, `d_direction_date`) that tests must patch.
-4. **Process cleanup**: `OAK_Hidden_SLTP_Manager.py` registers `atexit` and signal handlers to kill child processes.
-5. **MT5 connection**: `MetaTrader5` module requires MT5 terminal running. Import fails gracefully with error message.
-6. **JSON corruption**: Runtime writes JSON files that can corrupt on crash. `load_json_file()` handles this with default fallback.
-7. **Port conflicts**: `mt4_mt5_server.py` runs Flask on default port. `mt5_signal_bot.py` uses port 8765 for direction events.
-8. **Build**: `build_exe.py` uses PyInstaller with UPX compression. Version extracted from `OAK_Hidden_SLTP_Manager.py`.
+## Swift / SwiftUI Specific Rules (APPLE-TRADER)
 
-## Common Tasks
+When working with Swift/SwiftUI (especially trading/financial apps):
 
-**Add a new H-slot rule**: Edit `get_pair_direction()` in `mt5_signal_bot.py`. Add test cases in `tests/test_get_pair_direction.py`.
+- **Tech Stack**: Swift 6.2+, SwiftUI + @Observable, Protocol-Oriented Programming, value types (struct/enum) for models and state. async/await only. No UIKit.
+- **Performance**: Use Span & inline arrays for hot paths.
+- **Clean Code**: Mandatory early returns with `guard`. Max ~30 lines per function. Descriptive naming. DocC for public APIs. No dead code.
+- **Error Handling**: Define explicit `Error` enums. Use `do-catch` or `Result`. **No `try!`**. No silent failures.
+- **Architecture**: Apply Clean Architecture (Robert C. Martin) + Thinking in SwiftUI patterns (Chris Eidhof). Keep UI layer thin.
+- **Minimalism + Taste**: Combine Ponytail + Design Dials. Prefer native SwiftUI modifiers and small `ViewModifier`s over new custom views.
+- **Security**: Pay special attention to state manipulation, concurrency (actors/MainActor), local storage, and auth flows.
 
-**Add Telegram response template**: Add to `RESPONSE_TEMPLATES` dict in `oak_response_dict.py`. Use `{placeholder}` format.
+---
 
-**Modify dashboard**: Work in `dashboard/src/`. Use `npm run build` to verify before push.
+## How to Use With Other Agents
 
-**Add new trading profile field**: Update `profiles.example.json` and `OAK_Hidden_SLTP_Manager.py` profile loading logic.
+### Claude Code / Claude Projects
+- Place this `AGENTS.md` in your project root (or rename to `CLAUDE.md`).
+- Or use as custom instructions.
 
-**Debug Telegram not sending**:
-1. Check for duplicate processes: `Get-Process pythonw | Select-Object Id, CommandLine`
-2. Kill all: `Get-Process pythonw | Stop-Process -Force`
-3. Restart single instance via `CHAY_ROBOT.bat`
-4. Check bot token validity with getMe API call above
+### Cursor
+- Copy content into `.cursor/rules/real-engineer-skills.mdc` (or similar).
+- Or add as project rules.
+
+### Other Agents (Codex, Devin, Gemini, etc.)
+- Load this file as system prompt / project context / custom instructions.
+- Many agents support loading `.md` files automatically when present in the working directory.
+
+### Recommended Workflow
+1. Start every significant task by referencing this file.
+2. Explicitly invoke disciplines when needed (e.g., "apply ponytail + karpathy + strix check").
+3. For UI work, always set Design Dials first.
+
+---
+
+## Version & Sources
+
+This consolidated instruction set is derived from:
+- Matt Pocock – Skills for Real Engineers
+- Dietrich Gebert – Ponytail
+- Leonxlnx – Taste-Skill
+- Andrej Karpathy LLM coding observations
+- usestrix – Strix (AI penetration testing)
+
+**Goal**: Produce minimal, correct, tasteful, secure, and maintainable code with AI assistance.
+
+Use responsibly. Always keep safety, validation, and error handling as non-negotiable.
+
+---
+
+*Generated from real-engineer-skills (Grok) – July 2026*

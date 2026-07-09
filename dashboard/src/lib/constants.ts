@@ -4,61 +4,63 @@ export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
 const HOUR_NOTES: Record<number, string> = {
-  2: "Vàng, GBPAUD/GBPJPY ngược Vàng",
-  3: "Vàng, GBPAUD/GBPJPY ngược Vàng",
-  4: "Vàng, GBPAUD ngược Vàng",
-  6: "Vàng, GBPAUD ngược Vàng",
-  9: "Nhóm GBP ngược Vàng",
-  11: "Nhóm GBP ngược Vàng",
-  12: "Nhóm GBP cùng Vàng",
-  15: "Nhóm GBP cùng Vàng",
+  2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  8: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  9: "GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
+  11: "GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
+  12: "GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
+  15: "GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
 };
 
 export function getHourNote(hour: number, weekday: number): string | null {
   return HOUR_NOTES[hour] ?? "Chỉ Vàng";
 }
 
+const SHARED_DAY_RULES = [
+  "Slots: H=3-15",
+  "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
+  "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
+  "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
+  "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
+  "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
+  "Các slot khác: Chỉ Vàng",
+];
+
+const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
+
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2 (JS: getDay() = 1)
-    "Slots: H=3-15",
-    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
-    "H=4,6: Vàng, GBPAUD ngược Vàng",
-    "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,15: Nhóm GBP cùng Vàng",
-    "Các slot khác: Chỉ Vàng",
+    ...SHARED_DAY_RULES,
   ],
   2: [    // Thứ 3 (JS: getDay() = 2)
-    "Slots: H=3-15",
-    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
-    "H=4,6: Vàng, GBPAUD ngược Vàng",
-    "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,15: Nhóm GBP cùng Vàng",
-    "Các slot khác: Chỉ Vàng",
+    ...SHARED_DAY_RULES,
   ],
   3: [    // Thứ 4 (JS: getDay() = 3)
-    "Slots: H=3-15",
-    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
-    "H=4,6: Vàng, GBPAUD ngược Vàng",
-    "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,15: Nhóm GBP cùng Vàng",
-    "Các slot khác: Chỉ Vàng",
+    ...SHARED_DAY_RULES,
   ],
   4: [    // Thứ 5 (JS: getDay() = 4)
     "Slots: H=3-15",
-    "Có nhập D direction qua Telegram lúc 4:00 VN",
-    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
-    "H=4,6: Vàng, GBPAUD ngược Vàng",
-    "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,15: Nhóm GBP cùng Vàng",
+    D_DIRECTION_RULE,
+    "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
+    "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
+    "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
+    "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
+    "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
     "Các slot khác: Chỉ Vàng",
   ],
   5: [    // Thứ 6 (JS: getDay() = 5)
     "Slots: H=3-15",
-    "Có nhập D direction qua Telegram lúc 4:00 VN",
-    "H=3: Vàng, GBPAUD/GBPJPY ngược Vàng",
-    "H=4,6: Vàng, GBPAUD ngược Vàng",
-    "H=9,11: Nhóm GBP ngược Vàng",
-    "H=12,15: Nhóm GBP cùng Vàng",
+    D_DIRECTION_RULE,
+    "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
+    "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
+    "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
+    "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
+    "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
     "Các slot khác: Chỉ Vàng",
   ],
 };

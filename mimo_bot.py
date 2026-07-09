@@ -216,9 +216,11 @@ def cmd_start(message):
         "• `/scan` - Quét toàn bộ dự án\n\n"
         "📌 *Quản lý OAK:*\n"
         "• `/status` - Trạng thái PC & files\n"
-        "• `/profiles` - Danh sách tài khoản\n"
+        "• `/check` - Kiểm tra tài khoản OAK\n"
+        "• `/list` - Lệnh hẹn giờ / partial\n"
+        "• `/profile` `/profiles` - Danh sách tài khoản\n"
         "• `/mt5 <profile>` - Xem tài khoản MT5\n"
-        "• `/positions <profile>` - Vị thế đang mở\n"
+        "• `/position` `/positions [profile]` - Vị thế đang mở\n"
         "• `/signal` - Tín hiệu hiện tại\n"
         "• `/news` - Tin kinh tế\n"
         "• `/reply <text>` - Gửi lệnh vào OAK inbox\n\n"
@@ -252,7 +254,7 @@ def cmd_status(message):
     lines.append(f"📂 `{PROJECT_DIR}`")
     bot.reply_to(message, "\n".join(lines))
 
-@bot.message_handler(commands=["profiles"])
+@bot.message_handler(commands=["profile", "profiles"])
 def cmd_profiles(message):
     if not is_admin(message):
         return
@@ -313,13 +315,17 @@ def cmd_mt5(message):
     except Exception as e:
         bot.reply_to(message, f"❌ Loi: {str(e)}")
 
-@bot.message_handler(commands=["positions"])
+@bot.message_handler(commands=["position", "positions"])
 def cmd_positions(message):
     if not is_admin(message):
         return
-    args = message.text.replace("/positions", "").strip()
+    raw = message.text.strip()
+    # Normalize singular /position -> /positions for OAK + local parsing
+    args = re.sub(r"^/positions?\b", "", raw, flags=re.IGNORECASE).strip()
     if not args:
-        bot.reply_to(message, "Dùng: `/positions <profile>`")
+        # No profile: forward to OAK (connected terminal)
+        _inject_to_oak_inbox("/positions", message.chat.id)
+        bot.reply_to(message, "📨 Đã gửi OAK: `/positions`")
         return
     config = load_json(CONFIG_FILE)
     pname = None
@@ -356,6 +362,77 @@ def cmd_positions(message):
         mt5.shutdown()
     except Exception as e:
         bot.reply_to(message, f"❌ Loi: {str(e)}")
+
+
+@bot.message_handler(commands=["list", "danhsach"])
+def cmd_list(message):
+    if not is_admin(message):
+        return
+    raw = message.text.strip()
+    _inject_to_oak_inbox(raw if raw.lower().startswith("/list") else "/list", message.chat.id)
+    bot.reply_to(message, f"📨 Đã gửi OAK: `{raw}`")
+
+
+@bot.message_handler(commands=["check", "kiemtra"])
+def cmd_check(message):
+    if not is_admin(message):
+        return
+    raw = message.text.strip()
+    # Normalize to /check for OAK account status handler
+    if raw.lower().startswith("/kiemtra"):
+        raw = "/check" + raw[len("/kiemtra"):]
+    _inject_to_oak_inbox(raw, message.chat.id)
+    bot.reply_to(message, f"📨 Đã gửi OAK: `{raw}`")
+
+
+@bot.message_handler(commands=["signal"])
+def cmd_signal(message):
+    if not is_admin(message):
+        return
+    state = load_json(os.path.join(PROJECT_DIR, "bot_state.json"), {})
+    log_rows = load_json(os.path.join(PROJECT_DIR, "signals_log.json"), [])
+    today = state.get("date")
+    if not today and isinstance(log_rows, list) and log_rows:
+        today = max((r.get("date") for r in log_rows if r.get("date")), default=None)
+    if not today:
+        bot.reply_to(message, "📡 Chưa có tín hiệu hôm nay (`bot_state` / `signals_log`).")
+        return
+
+    d_dir = state.get("d_direction") or "—"
+    d_matched = state.get("d_matched_hour")
+    today_rows = [r for r in (log_rows or []) if r.get("date") == today]
+    # Prefer latest log entry per hour
+    by_hour = {}
+    for row in today_rows:
+        try:
+            h = int(row.get("hour"))
+        except (TypeError, ValueError):
+            continue
+        by_hour[h] = row
+
+    lines = [
+        f"📡 *TÍN HIỆU HÔM NAY* ({today})",
+        f"Hướng D: `{d_dir}`" + (f" | match H={d_matched}" if d_matched is not None else ""),
+        "",
+    ]
+    if not by_hour:
+        lines.append("(Chưa có slot nào được ghi nhận trong signals_log)")
+    else:
+        for h in sorted(by_hour.keys()):
+            payload = by_hour[h] or {}
+            sig = payload.get("signal", "?")
+            icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
+            pair_dirs = payload.get("pair_dirs") or {}
+            pair_bits = []
+            for pair in ("XAUUSD", "GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
+                direction = pair_dirs.get(pair)
+                if direction in ("BUY", "SELL", "--"):
+                    pair_bits.append(f"{pair}:{direction}")
+            extra = f"\n   {', '.join(pair_bits)}" if pair_bits else ""
+            note = payload.get("hour_note")
+            note_line = f"\n   📝 {note}" if note else ""
+            lines.append(f"{icon} H={h:02d}:45 → *{sig}*{extra}{note_line}")
+    bot.reply_to(message, "\n".join(lines))
 
 @bot.message_handler(commands=["news"])
 def cmd_news(message):
@@ -655,6 +732,17 @@ def handle_all(message):
         except Exception:
             bot.reply_to(message, "⚠️ Không ghi được D direction vào file.")
             return
+    # Forward known OAK slash commands that were not handled above
+    first = text.split()[0].lower().split("@", 1)[0]
+    oak_slash = {
+        "/list", "/danhsach", "/check", "/kiemtra", "/del",
+        "/pending", "/modify", "/closeall", "/set",
+        "/position", "/positions", "/profile", "/profiles",
+    }
+    if first in oak_slash:
+        _inject_to_oak_inbox(text, message.chat.id)
+        bot.reply_to(message, f"📨 Da chuyen vao OAK inbox:\n`{text}`")
+        return
     nlp_triggers = [
         "buy", "sell", "mua", "ban", "long", "short",
         "close", "dong", "di", "sua", "tinh", "pnl",

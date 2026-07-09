@@ -626,32 +626,20 @@ def get_xauusd_m30_signal(broker_dt, H):
 
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
-    Cập nhật GBP theo XAUUSD: 'cùng Vàng' = same, 'ngược Vàng' = opposite."""
+    Sau khi chốt XAUUSD, rebuild GBP theo rule slot (get_pair_direction)."""
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:
         return pair_dirs
     if sig == xau_m30:
-        pair_dirs["XAUUSD"] = "SELL" if xau_m30 == "BUY" else "BUY"
+        final_xau = "SELL" if xau_m30 == "BUY" else "BUY"
     else:
-        pair_dirs["XAUUSD"] = xau_m30
-    # Cập nhật GBP theo XAUUSD sau flip
-    if H in (12, 14, 15):
-        # Cùng Vàng: GBP = XAUUSD
-        for p in GBP_PAIRS:
-            if p in pair_dirs:
-                pair_dirs[p] = pair_dirs["XAUUSD"]
-    elif H in (9, 11):
-        # Ngược Vàng: GBP = opposite XAUUSD
-        xau = pair_dirs["XAUUSD"]
-        opp = "SELL" if xau == "BUY" else "BUY"
-        for p in GBP_PAIRS:
-            if p in pair_dirs:
-                pair_dirs[p] = opp
-    return pair_dirs
-    if sig == xau_h1:
-        pair_dirs["XAUUSD"] = "SELL" if sig == "BUY" else "BUY"
-    else:
-        pair_dirs["XAUUSD"] = sig
+        final_xau = xau_m30
+    rebuilt = get_pair_direction(H, final_xau, broker_dt)
+    if not rebuilt:
+        pair_dirs["XAUUSD"] = final_xau
+        return pair_dirs
+    pair_dirs.clear()
+    pair_dirs.update(rebuilt)
     return pair_dirs
 
 def candle_info_line(candle, label):
@@ -733,16 +721,19 @@ def analyze(broker_dt, H):
     return {"signal": signal, "orig_signal": signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def get_hour_note(H, weekday=None):
-    """Trả note theo H và thứ."""
+    """Trả note theo H (weekday giữ để tương thích call-site)."""
     notes = {
-        2: "Vàng, GBPAUD/GBPJPY ngược Vàng",
-        3: "Vàng, GBPAUD/GBPJPY ngược Vàng",
-        4: "Vàng, GBPAUD ngược Vàng",
-        6: "Vàng, GBPAUD ngược Vàng",
-        9: "Nhóm GBP ngược Vàng",
-        11: "Nhóm GBP ngược Vàng",
-        12: "Nhóm GBP cùng Vàng",
-        15: "Nhóm GBP cùng Vàng",
+        2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        8: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        9: "GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
+        11: "GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
+        12: "GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
+        15: "GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
     }
     return notes.get(H, "Chỉ Vàng")
 
@@ -791,11 +782,10 @@ def get_effective_d_direction(broker_dt):
     return d_direction
 
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
-    """Tính chiều các cặp theo slot và thứ."""
+    """Tính chiều các cặp theo slot. Signal = hướng pattern (XAUUSD baseline)."""
     global d_direction, d_direction_date
     weekday = broker_dt.weekday()
     today = broker_dt.date()
-    effective_d = get_effective_d_direction(broker_dt)
     result = {}
 
     if d_direction_date != today and weekday not in (0, 3, 4):
@@ -809,27 +799,35 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     # Mọi slot đều có XAUUSD
     result["XAUUSD"] = gold
 
-    # H=2, H=3: GBPAUD, GBPJPY ngược Vàng; GBPUSD, GBPCAD --
-    if H in (2, 3):
+    # H=2..8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --
+    if H in (2, 3, 4, 5, 6, 7, 8):
+        result["GBPJPY"] = gold
         result["GBPAUD"] = opposite
-        result["GBPJPY"] = opposite
         result["GBPUSD"] = "--"
         result["GBPCAD"] = "--"
-    # H=4, H=6: GBPAUD ngược Vàng, nhóm còn lại --
-    elif H in (4, 6):
+    # H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal
+    elif H == 9:
         result["GBPAUD"] = opposite
-        for p in GBP_PAIRS:
-            if p != "GBPAUD":
-                result[p] = "--"
-    # H=9, H=11: nhóm GBP ngược Vàng
-    elif H in (9, 11):
-        for p in GBP_PAIRS:
-            result[p] = opposite
-    # H=12, H=15: nhóm GBP cùng Vàng
-    elif H in (12, 15):
+        result["GBPUSD"] = gold
+        result["GBPJPY"] = gold
+        result["GBPCAD"] = gold
+    # H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal
+    elif H == 11:
+        result["GBPAUD"] = opposite
+        result["GBPUSD"] = opposite
+        result["GBPJPY"] = opposite
+        result["GBPCAD"] = gold
+    # H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal
+    elif H == 12:
+        result["GBPAUD"] = opposite
+        result["GBPUSD"] = opposite
+        result["GBPJPY"] = gold
+        result["GBPCAD"] = gold
+    # H=15: tất cả GBP cùng Signal
+    elif H == 15:
         for p in GBP_PAIRS:
             result[p] = gold
-    # Các slot khác (bao gồm H=14): chỉ Vàng
+    # Các slot khác (H=10,13,14,...): chỉ Vàng
 
     return result
 
