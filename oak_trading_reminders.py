@@ -58,12 +58,15 @@ def is_critical_news_title(title: str) -> bool:
 
 
 def format_news_line(time_24, country, title, *, critical=None, impact_icon="🔴"):
-    """Build display line. Critical events get a loud prefix for UI scan."""
+    """Build display line. Critical events get a loud prefix for UI scan.
+
+    Use ASCII tags [HIGH]/[NỔI BẬT] so CTkTextbox (poor emoji fonts) still shows impact.
+    """
     if critical is None:
         critical = is_critical_news_title(title)
     if critical:
-        return f"• ⚠️ {time_24} {country} {impact_icon} {title}  [TIN NỔI BẬT]"
-    return f"• {time_24} {country} {impact_icon} {title}"
+        return f"• {time_24} {country} {impact_icon} [NỔI BẬT] {title}"
+    return f"• {time_24} {country} {impact_icon} [HIGH] {title}"
 
 # --- CONFIG ---
 CONFIG_FILE = "profiles.json"

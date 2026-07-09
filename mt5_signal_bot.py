@@ -240,7 +240,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
         print(f"[WARN] Cannot log signal: {e}")
 
 def _parse_news_for_dashboard(news_lines):
-    """Parse news strings like '• 19:30 CAD 🔴 GDP m/m' into structured objects."""
+    """Parse news strings like '• 19:30 CAD 🔴 [HIGH] GDP m/m' into structured objects."""
     import re
     from oak_trading_reminders import is_critical_news_title
     items = []
@@ -248,23 +248,28 @@ def _parse_news_for_dashboard(news_lines):
         raw = line
         line = line.lstrip("•- ").strip()
         line = re.sub(r"^⚠️\s*", "", line)
-        # Match: HH:MM CURRENCY [emoji] TITLE
+        # Match: HH:MM CURRENCY [emoji/tags] TITLE
         m = re.match(r"(\d{1,2}:\d{2})\s+(\w+)\s+(.+)", line)
         if m:
             time_str, currency, rest = m.group(1), m.group(2), m.group(3)
             impact = "medium"
             title = rest
-            if "\U0001f534" in rest or "🔴" in rest:
+            if "\U0001f534" in rest or "🔴" in rest or "[HIGH]" in rest.upper():
                 impact = "high"
-                title = rest.replace("\U0001f534", "").replace("🔴", "").strip()
-            elif "\U0001f7e0" in rest or "🟠" in rest:
+            if "\U0001f7e0" in rest or "🟠" in rest:
                 impact = "medium"
-                title = rest.replace("\U0001f7e0", "").replace("🟠", "").strip()
-            elif "\U0001f7e2" in rest or "🟢" in rest:
+            if "\U0001f7e2" in rest or "🟢" in rest:
                 impact = "low"
-                title = rest.replace("\U0001f7e2", "").replace("🟢", "").strip()
-            title = re.sub(r"\s*\[TIN NỔI BẬT\]\s*", "", title).strip()
-            critical = is_critical_news_title(title) or "TIN NỔI BẬT" in raw
+            title = rest
+            for tok in ("\U0001f534", "🔴", "\U0001f7e0", "🟠", "\U0001f7e2", "🟢",
+                        "[HIGH]", "[high]", "[NỔI BẬT]", "[NOI BAT]", "⚠️"):
+                title = title.replace(tok, "")
+            title = re.sub(r"\s+", " ", title).strip()
+            critical = (
+                is_critical_news_title(title)
+                or "NỔI BẬT" in raw
+                or "NOI BAT" in raw.upper()
+            )
             if critical:
                 impact = "high"
             items.append({
@@ -274,7 +279,6 @@ def _parse_news_for_dashboard(news_lines):
                 "impact": impact,
                 "critical": critical,
             })
-    # Critical first
     items.sort(key=lambda x: (0 if x.get("critical") else 1, x.get("time") or "99:99"))
     return items
 

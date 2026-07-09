@@ -5404,17 +5404,28 @@ class App(ctk.CTk):
                 return
         self._last_news_fetch = now
         
-        # Try to load from cache first to avoid "Loading..." state
+        # Cache only if same day AND format version matches (timezone fix)
         try:
+            from oak_trading_reminders import _NEWS_CACHE_VERSION
             cache_file = f"news_cache_{CURRENT_LANG}.json"
             today_str = str(datetime.now().date())
             if os.path.exists(cache_file):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cache = json.load(f)
-                if cache.get("date") == today_str and cache.get("news"):
+                if (
+                    cache.get("date") == today_str
+                    and cache.get("v") == _NEWS_CACHE_VERSION
+                    and cache.get("news")
+                ):
                     self._display_news_result(cache["news"])
+                    # Still re-push dashboard so web stays in sync with app
+                    threading.Thread(
+                        target=self._push_news_to_dashboard,
+                        args=(cache["news"],),
+                        daemon=True,
+                    ).start()
                     return
-        except:
+        except Exception:
             pass
         
         self.news_box.configure(state="normal")
@@ -5429,9 +5440,43 @@ class App(ctk.CTk):
         try:
             news = oak_trading_reminders.get_economic_news(lang=CURRENT_LANG)
         except Exception as e:
-            # print(f"News fetch error: {e}")
             news = []
         self.after(0, lambda: self._display_news_result(news))
+        # Keep dashboard Redis identical to desktop
+        try:
+            self._push_news_to_dashboard(news)
+        except Exception:
+            pass
+
+    def _push_news_to_dashboard(self, news_lines):
+        """Push the same news list the app shows so Dashboard never drifts."""
+        try:
+            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+            url = ""
+            api_key = ""
+            if os.path.exists(cfg_path):
+                with open(cfg_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                url = (cfg.get("dashboard_url") or "").rstrip("/")
+                api_key = cfg.get("dashboard_api_key") or ""
+            if not url or not news_lines:
+                return
+            from mt5_signal_bot import _parse_news_for_dashboard
+            parsed = _parse_news_for_dashboard(news_lines)
+            if not parsed:
+                return
+            headers = {"Content-Type": "application/json"}
+            if api_key:
+                headers["X-API-Key"] = api_key
+            payload = json.dumps(parsed).encode("utf-8")
+            req = urllib.request.Request(
+                f"{url}/api/news", data=payload, headers=headers, method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                resp.read()
+            log.info("Dashboard news synced (%d items)", len(parsed))
+        except Exception as e:
+            log.warning("Dashboard news push failed: %s", e)
 
     def _display_news_result(self, news):
         if not hasattr(self, "news_box"): return
@@ -5439,13 +5484,13 @@ class App(ctk.CTk):
         self.news_box.delete("1.0", "end")
         if news:
             # Critical (Federal Funds Rate etc.) first + banner
-            critical = [n for n in news if "TIN NỔI BẬT" in n or "Federal Funds Rate" in n]
+            critical = [n for n in news if "NỔI BẬT" in n or "Federal Funds Rate" in n]
             normal = [n for n in news if n not in critical]
             ordered = critical + normal
             if critical:
                 banner = (
                     "╔══════════════════════════════════════╗\n"
-                    "║  ⚠️  TIN NỔI BẬT HÔM NAY (HIGH IMPACT)  ║\n"
+                    "║  ⚠  TIN NỔI BẬT HÔM NAY (HIGH IMPACT) ║\n"
                     "╚══════════════════════════════════════╝\n"
                 )
                 self.news_box.insert("1.0", banner + "\n".join(ordered))
