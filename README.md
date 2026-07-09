@@ -1,10 +1,11 @@
-# OAK Hidden SLTP Manager (v3.15.0)
+# OAK Hidden SLTP Manager (v3.15.2)
 
 OAK Manager là app desktop Windows để quản lý MT5 theo mô hình đa tiến trình: giám sát lệnh, Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge và dashboard web.
 
 Tài liệu liên quan:
 - [GUIDE.md](GUIDE.md)
 - [RELEASE_NOTES.md](RELEASE_NOTES.md)
+- [docs/installation.md](docs/installation.md)
 
 ## Tính năng hiện có
 
@@ -31,20 +32,29 @@ Tài liệu liên quan:
 ### Signal bot và dashboard
 
 - Signal bot xử lý 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
+- Pair rules theo slot H (H=2–15); H=9/11/12/15 bám **pattern Signal**, H=2–8 bám **XAUUSD sau M30**.
 - D-direction nhận qua Telegram và đẩy sang bot gần như tức thì.
 - Dashboard web hiển thị state, signals, history 7 ngày, rules và fact-check.
 - VIP dashboard giữ trạng thái bằng cookie server-side qua `/?vip=TOKEN`.
+
+### An toàn lệnh (v3.15.2)
+
+- **Profile exact match**: gõ sai tên (vd. `VantageDemi`) → báo *Profile không đúng*, không broadcast sang profile khác.
+- **Schedule atomic claim**: 1 pending chỉ 1 worker execute (tránh 2–3 lệnh cùng lúc).
+- **1 worker / profile**: orphan `pythonw` được dọn khi Start/Stop.
+- **Telegram 409**: `mimo_bot` single-instance lock + `deleteWebhook`.
 
 ## Gói phát hành Windows
 
 Trang tải:
 - [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
 
-Gói phát hành `v3.15.0` gồm:
-- `Installer.exe`: bản cài đặt Windows có shortcut Desktop/Start Menu.
-- `window-unpack.zip`: bản portable giải nén và chạy trực tiếp.
+Gói phát hành `v3.15.2` gồm:
+- `OAK MANAGER_v3.15.2_Installer.exe` — cài đặt Windows (Desktop/Start Menu).
+- `OAK MANAGER_v3.15.2_window-unpack.zip` — portable giải nén và chạy.
+- `OAK Source v3.15.2.zip` — source snapshot (tùy release).
 
-App desktop hiện có nút `Check for Updates` trong tab Giới Thiệu và đọc thông tin từ GitHub Releases.
+App desktop có nút `Check for Updates` trong tab Giới Thiệu (đọc GitHub Releases).
 
 ## Cấu hình
 
@@ -65,7 +75,7 @@ Yêu cầu:
 }
 ```
 
-Các file local như `config.json`, `profiles.json`, `settings.json`, `.env`, `dashboard/.env.local` đều đang nằm trong `.gitignore`.
+Các file local như `config.json`, `profiles.json`, `settings.json`, `.env`, `dashboard/.env.local` đều nằm trong `.gitignore`.
 
 ## Chạy nhanh
 
@@ -91,16 +101,18 @@ python create_backup_final.py
 
 ## Build package
 
-Build gói Windows:
-
 ```bash
 python build_exe.py
 ```
 
-Kết quả:
-- `dist/window-unpack/...`
-- `dist/..._window-unpack.zip`
-- `dist/..._Installer.exe` nếu máy đã cài NSIS
+Kết quả trong `dist/`:
+- `window-unpack/OAK MANAGER_<version>/`
+- `OAK MANAGER_<version>_window-unpack.zip`
+- `OAK MANAGER_<version>_Installer.exe` (cần NSIS)
+
+## Dashboard
+
+Production: [https://oak-hidden-sltp-manager-dun.vercel.app](https://oak-hidden-sltp-manager-dun.vercel.app)
 
 ---
 Phát triển bởi QKP. Hỗ trợ: Telegram `@bupbupchot`

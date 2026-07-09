@@ -1,5 +1,37 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.15.2] - 2026-07-09
+*Pair-direction baseline fix + schedule/profile safety + Thursday-only calendar notes.*
+
+### 🎯 Signal pair logic (quan trọng)
+- **H=9 / 11 / 12 / 15**: GBP bám **pattern Signal**, không rebuild theo XAU sau M30 flip.
+  - H=11 Signal BUY → GBPAUD/GBPUSD/GBPJPY **SELL**, GBPCAD **BUY** (XAU có thể SELL riêng).
+- **H=2–8**: sau M30 flip, rebuild GBP theo **final XAUUSD** (GBPAUD ngược, GBPJPY cùng).
+- **KẾT LUẬN** trên Telegram/dashboard = pattern Signal (khớp history).
+- History H=9/11/12/15 đã được sửa lại pair_dirs và push dashboard.
+
+### 🛡️ Profile & schedule safety
+- **Exact profile gate**: typo (`VantageDemi`) → `Profile không đúng`, không broadcast Vantage/ICMarkets/…
+- **Atomic schedule claim**: status `executing` + file lock trước `order_send` → 1 pending không còn fire 2–3 lần.
+- **1 worker / profile**: kill orphan `pythonw`, lock `worker_<profile>.lock`.
+- **Pre-send same-direction check** ngay trước market order.
+
+### 📅 Rule ngày đặc biệt (chỉ Thứ 5)
+- Xoá rule T2/T4 cũ (cuối tháng, T4 30/1 standalone, T2 có T6…).
+- **Thứ 5** + Thứ 4 hôm qua = **30 hoặc 1** → nhắc tính lại W1.
+- **Thứ 5** + Thứ 6 tuần đó = **3 / 4 / 7** → nhắc tính lại W1.
+
+### 🤖 Telegram
+- `mimo_bot` single-instance lock + `deleteWebhook` → giảm 409 Conflict.
+- Orphan kill nhận diện `python.exe` **và** `pythonw.exe`.
+
+### 📦 Phát hành
+- Version app: **v3.15.2**
+- Gói: `Installer.exe`, `window-unpack.zip`, source backup zip.
+- Docs: README / GUIDE / RELEASE_NOTES / backup script đồng bộ v3.15.2.
+
+---
+
 ## [v3.15.0] - 2026-07-08
 *Cleanup repo + chốt flow phát hành Windows + đồng bộ lại tài liệu theo app hiện tại.*
 

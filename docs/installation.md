@@ -1,13 +1,15 @@
 
 # Cài đặt OAK Manager
 
-## Phiên bản đã biên dịch
+## Phiên bản đã biên dịch (v3.15.2)
 
 1. Tải bản mới nhất từ [Releases GitHub](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
-2. Chọn một trong hai gói:
-   - `window-unpack.zip`: bản portable giải nén và chạy trực tiếp
-   - `Installer.exe`: bản cài đặt có shortcut Desktop/Start Menu
+2. Chọn gói:
+   - `OAK MANAGER_v3.15.2_window-unpack.zip` — portable giải nén và chạy trực tiếp
+   - `OAK MANAGER_v3.15.2_Installer.exe` — cài đặt có shortcut Desktop/Start Menu
+   - (tuỳ chọn) `OAK Source v3.15.2.zip` — mã nguồn snapshot
 3. Sau khi cài hoặc giải nén, mở app và dùng tab `Tín Hiệu` để quản lý process nền
+4. Mỗi profile chỉ Start **1 worker** (app tự dọn orphan)
 
 ## Build từ mã nguồn
 
