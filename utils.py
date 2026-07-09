@@ -4,6 +4,7 @@ import json
 import os
 import urllib.request
 import urllib.parse
+from datetime import datetime
 
 
 # --- Telegram ---
@@ -143,3 +144,26 @@ def get_signal_icon(sig):
 def vn_direction(d):
     """Convert TANG/GIAM/DOJI to Vietnamese label."""
     return VN_DIR.get(d, d)
+
+
+def get_latest_display_signal(signals, today=None):
+    """Pick the newest signal row for dashboard display (today first, else latest date+hour)."""
+    if not signals:
+        return None
+    if today is None:
+        today = datetime.now().date().isoformat()
+
+    def _hour_key(row):
+        try:
+            return int(row.get("hour") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    today_rows = [s for s in signals if s.get("date") == today and s.get("pair_dirs")]
+    if today_rows:
+        return max(today_rows, key=_hour_key)
+
+    dated = [s for s in signals if s.get("pair_dirs")]
+    if not dated:
+        return None
+    return max(dated, key=lambda s: (s.get("date") or "", _hour_key(s)))

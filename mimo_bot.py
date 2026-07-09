@@ -760,24 +760,79 @@ def handle_all(message):
 # MAIN
 # =====================================================================
 if __name__ == "__main__":
+    import time as _time
+
+    LOCK_FILE = os.path.join(PROJECT_DIR, "mimo_bot.lock")
+
+    def _acquire_single_instance_lock():
+        """Ensure only one mimo_bot polls getUpdates (Telegram 409 otherwise)."""
+        try:
+            if os.path.exists(LOCK_FILE):
+                try:
+                    with open(LOCK_FILE, "r", encoding="utf-8") as f:
+                        old_pid = int((f.read() or "0").strip() or "0")
+                except Exception:
+                    old_pid = 0
+                if old_pid and old_pid != os.getpid():
+                    # Still alive?
+                    try:
+                        result = subprocess.run(
+                            ["tasklist", "/FI", f"PID eq {old_pid}", "/NH"],
+                            capture_output=True, text=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                        )
+                        out = (result.stdout or "").lower()
+                        if str(old_pid) in out and ("python" in out or "oak" in out):
+                            print(f"  [EXIT] mimo_bot already running (PID {old_pid}). "
+                                  f"Avoid Telegram 409 Conflict.")
+                            return False
+                    except Exception:
+                        pass
+            with open(LOCK_FILE, "w", encoding="utf-8") as f:
+                f.write(str(os.getpid()))
+            return True
+        except Exception as e:
+            print(f"  [WARN] Could not write lock file: {e}")
+            return True  # best-effort; still try to poll
+
+    def _release_single_instance_lock():
+        try:
+            if os.path.exists(LOCK_FILE):
+                with open(LOCK_FILE, "r", encoding="utf-8") as f:
+                    pid = (f.read() or "").strip()
+                if pid == str(os.getpid()):
+                    os.remove(LOCK_FILE)
+        except Exception:
+            pass
+
+    def _drop_webhook():
+        """Clear webhook so getUpdates polling can take over cleanly."""
+        if not BOT_TOKEN:
+            return
+        try:
+            url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=false"
+            urllib.request.urlopen(url, timeout=10).read()
+            print("  [TG] deleteWebhook OK (polling mode)")
+        except Exception as e:
+            print(f"  [WARN] deleteWebhook failed: {e}")
+
     # Check if OAK Manager is already handling Telegram (single bot mode)
     def _is_oak_running():
-        """Detect OAK Manager running as python.exe OR frozen .exe."""
+        """Detect OAK Manager running as python/pythonw OR frozen .exe."""
         try:
-            # Check python.exe running OAK_Hidden_SLTP_Manager.py
             result = subprocess.run(
                 ["wmic", "process", "where",
-                 "CommandLine like '%OAK_Hidden_SLTP_Manager%' and Name='python.exe'",
+                 "CommandLine like '%OAK_Hidden_SLTP_Manager%' and "
+                 "(Name='python.exe' or Name='pythonw.exe')",
                  "get", "ProcessId"],
                 capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
             )
             for line in result.stdout.strip().split('\n'):
                 if line.strip().isdigit():
                     return True
-        except:
+        except Exception:
             pass
         try:
-            # Check frozen .exe (OAK MANAGER*.exe)
             result = subprocess.run(
                 ["wmic", "process", "where",
                  "Name like 'OAK MANAGER%'",
@@ -787,10 +842,9 @@ if __name__ == "__main__":
             for line in result.stdout.strip().split('\n'):
                 if line.strip().isdigit():
                     return True
-        except:
+        except Exception:
             pass
         try:
-            # Check process with --worker or --signal-bot flag
             result = subprocess.run(
                 ["wmic", "process", "where",
                  "CommandLine like '%--worker%' or CommandLine like '%--signal-bot%'",
@@ -800,9 +854,14 @@ if __name__ == "__main__":
             for line in result.stdout.strip().split('\n'):
                 if line.strip().isdigit():
                     return True
-        except:
+        except Exception:
             pass
         return False
+
+    if not _acquire_single_instance_lock():
+        sys.exit(0)
+
+    _drop_webhook()
 
     if _is_oak_running():
         print("=" * 55)
@@ -822,25 +881,31 @@ if __name__ == "__main__":
         print("  Result file: mimo_proxy_result.txt")
         print("=" * 55)
 
-    import time as _time
     consecutive_fails = 0
     degraded_logged = False
-    while True:
-        try:
-            bot.polling(none_stop=True, timeout=20, long_polling_timeout=20, skip_pending=True)
-            consecutive_fails = 0
-            degraded_logged = False
-        except KeyboardInterrupt:
-            print("\n  Đã dừng bot.")
-            break
-        except Exception as e:
-            consecutive_fails += 1
-            sleep_s, is_new_degraded = compute_telegram_backoff(consecutive_fails)
-            if is_new_degraded:
-                print(f"\n  ⚠️ Telegram degraded: {consecutive_fails}+ lỗi liên tiếp ({e}). "
-                      f"Tạm nghỉ {sleep_s}s, ngừng spam log.")
-                degraded_logged = True
-            elif consecutive_fails < 10:
-                print(f"\n  Lỗi: {e}")
-                print(f"  Đang kết nối lại sau {sleep_s} giây...")
-            _time.sleep(sleep_s)
+    try:
+        while True:
+            try:
+                bot.polling(none_stop=True, timeout=20, long_polling_timeout=20, skip_pending=True)
+                consecutive_fails = 0
+                degraded_logged = False
+            except KeyboardInterrupt:
+                print("\n  Đã dừng bot.")
+                break
+            except Exception as e:
+                consecutive_fails += 1
+                sleep_s, is_new_degraded = compute_telegram_backoff(consecutive_fails)
+                err_s = str(e)
+                if "409" in err_s or "Conflict" in err_s:
+                    print(f"\n  ⚠️ Telegram 409 Conflict — instance khác đang getUpdates. "
+                          f"Backoff {sleep_s}s. Chỉ 1 mimo_bot được chạy.")
+                elif is_new_degraded:
+                    print(f"\n  ⚠️ Telegram degraded: {consecutive_fails}+ lỗi liên tiếp ({e}). "
+                          f"Tạm nghỉ {sleep_s}s, ngừng spam log.")
+                    degraded_logged = True
+                elif consecutive_fails < 10:
+                    print(f"\n  Lỗi: {e}")
+                    print(f"  Đang kết nối lại sau {sleep_s} giây...")
+                _time.sleep(sleep_s)
+    finally:
+        _release_single_instance_lock()

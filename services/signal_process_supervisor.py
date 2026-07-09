@@ -39,9 +39,10 @@ class SignalProcessSupervisor:
         if not script:
             return
         try:
+            # Match both python.exe and pythonw.exe (GUI launches pythonw)
             result = subprocess.run(
                 ["wmic", "process", "where",
-                 f"CommandLine like '%{script}%' and Name='python.exe'",
+                 f"CommandLine like '%{script}%' and (Name='python.exe' or Name='pythonw.exe')",
                  "get", "ProcessId"],
                 capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
             )
@@ -50,7 +51,7 @@ class SignalProcessSupervisor:
                 if line.isdigit():
                     pid = int(line)
                     if pid != os.getpid():
-                        subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
                                        capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
                         self._log(f"Killed orphan process: {script} (PID: {pid})")
         except Exception:

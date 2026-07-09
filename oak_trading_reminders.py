@@ -488,33 +488,39 @@ def _format_group_slots(slots):
 
 
 def get_day_notes(now, lang="VN"):
-    weekday = now.weekday()
-    day = now.day
+    """Special-day notes (only Thursday / Thứ 5):
 
-    def _is_last_weekday_of_month(dt, wd):
-        last_day = calendar.monthrange(dt.year, dt.month)[1]
-        last_date = dt.replace(day=last_day)
-        while last_date.weekday() != wd:
-            last_date -= timedelta(days=1)
-        return dt.day == last_date.day
+    1. Thứ 5 mà Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây → cần tính lại W1.
+    2. Thứ 5 mà Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7 → cần tính lại W1.
+    """
+    weekday = now.weekday()
+    # Normalize to date for week arithmetic (accept datetime or date)
+    today = now.date() if hasattr(now, "date") and callable(now.date) else now
 
     notes_vn = []
     notes_en = []
 
-    # 1. T4 cuối tháng → cần tính lại W1 (weekday 2 = Wednesday/Thứ 4)
-    if weekday == 2 and _is_last_weekday_of_month(now, 2):
-        notes_vn.append("Thứ 4 cuối tháng: cần tính lại W1.")
-        notes_en.append("Last Wednesday of month: recalculate W1.")
+    # Only Thursday (Python weekday 3 = Thứ 5)
+    if weekday == 3:
+        yesterday = today - timedelta(days=1)
+        # 1. Yesterday is Wednesday and day is 30 or 1
+        if yesterday.weekday() == 2 and yesterday.day in (30, 1):
+            notes_vn.append(
+                f"Thứ 5 có Thứ 4 hôm qua ngày {yesterday.day}: cần tính lại W1."
+            )
+            notes_en.append(
+                f"Thursday after Wednesday day {yesterday.day}: recalculate W1."
+            )
 
-    # 2. T4 ngày 30 → cần tính lại W1
-    if weekday == 2 and day == 30:
-        notes_vn.append("Thứ 4 ngày 30: cần tính lại W1.")
-        notes_en.append("Wednesday day 30: recalculate W1.")
-
-    # 3. T4 ngày 1 → cần tính lại W1
-    if weekday == 2 and day == 1:
-        notes_vn.append("Thứ 4 ngày 1: cần tính lại W1.")
-        notes_en.append("Wednesday day 1: recalculate W1.")
+        # 2. Friday of the same week is day 3, 4, or 7
+        friday = _friday_of_same_week(today)
+        if friday.day in (3, 4, 7):
+            notes_vn.append(
+                f"Thứ 5 có Thứ 6 ngày {friday.day}: cần tính lại W1."
+            )
+            notes_en.append(
+                f"Thursday with Friday day {friday.day}: recalculate W1."
+            )
 
     if lang == "VN":
         return notes_vn if notes_vn else ["Thứ 2-6: trade bình thường theo schedule."]

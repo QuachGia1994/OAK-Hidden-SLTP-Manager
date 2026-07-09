@@ -33,6 +33,12 @@ const SHARED_DAY_RULES = [
 
 const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
 
+/** Special calendar notes — only Thursday (JS getDay=4 / Python weekday=3). */
+export const SPECIAL_DAY_NOTES = [
+  "Thứ 5 có Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây: cần tính lại W1",
+  "Thứ 5 có Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7: cần tính lại W1",
+];
+
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2 (JS: getDay() = 1)
     ...SHARED_DAY_RULES,
@@ -46,6 +52,7 @@ export const DAY_RULES: Record<number, string[]> = {
   4: [    // Thứ 5 (JS: getDay() = 4)
     "Slots: H=3-15",
     D_DIRECTION_RULE,
+    ...SPECIAL_DAY_NOTES,
     "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
     "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
     "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",

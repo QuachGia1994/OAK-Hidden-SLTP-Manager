@@ -29,7 +29,13 @@ from oak_response_dict import get_random_response
 from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
 from repositories.profile_store import ProfileStore
-from utils import build_signal_process_cmd, SIGNAL_SCRIPT_MAP, UnsupportedFrozenProcessError, compute_telegram_backoff
+from utils import (
+    build_signal_process_cmd,
+    SIGNAL_SCRIPT_MAP,
+    UnsupportedFrozenProcessError,
+    compute_telegram_backoff,
+    get_latest_display_signal,
+)
 from models.app_state import AppState
 from services.signal_process_supervisor import SignalProcessSupervisor
 from ui.base_tab import BaseTab
@@ -203,8 +209,8 @@ def show_ghost_consent(parent, on_accept):
 
 # --- CONSTANTS & CONFIG ---
 APP_NAME = "OAK MANAGER"
-VERSION = "v3.15.0"
-BUILD = 3150
+VERSION = "v3.15.2"
+BUILD = 3152
 
 # Fix for Taskbar Icon (Must be before any GUI creation)
 try:
@@ -526,9 +532,8 @@ OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người
 
 ### <c=#FF9800>4.</c> Daily Reminder (Nhắc nhở hàng ngày)
 Gửi lúc 06:00 với các note ngày đặc biệt:
-- `Thứ 4, 5, 6` cuối tháng: cần tính lại.
-- `Thứ 4` ngày `30` hoặc `1`: tính lại (Thứ 4, 5, 6).
-- `Thứ 6` cuối tháng `2` và `7`: tính lại `trend năm`.
+- `Thứ 5` có `Thứ 4` hôm qua rơi ngày `30` hoặc `1` tây: cần tính lại W1.
+- `Thứ 5` có `Thứ 6` trong tuần rơi ngày `3`, `4` hoặc `7`: cần tính lại W1.
 
 ---
 
@@ -1653,12 +1658,12 @@ class CopyTradeManager:
         # Define symbol_map globally for NLP
         symbol_map = {"vàng": "XAUUSD", "gold": "XAUUSD", "gu": "GBPUSD", "eu": "EURUSD", "uj": "USDJPY"}
 
-        profile_names = self._get_profile_names()
-        if not profile_names:
-            profile_names = {"darwinex", "vantage", "th5ers"}
-        # Only block if a DIFFERENT profile is explicitly targeted as the LAST token
-        # (not just mentioned anywhere in the command)
-        if cmd and cmd[-1] in profile_names and cmd[-1] != profile_lower:
+        # Profile gate (exact match only — typos like VantageDemi must NOT broadcast)
+        target_profile, invalid_profile, _ = self._resolve_target_profile(cmd)
+        if invalid_profile:
+            self._notify_invalid_profile(invalid_profile)
+            return
+        if target_profile and target_profile != profile_lower:
             return
         
         # --- NLP Parsing Logic ---
@@ -2001,9 +2006,17 @@ class CopyTradeManager:
                             self.notify(f"❌ [{profile_name}] Thất bại: Đang có lệnh mở cùng chiều cho {symbol}")
                             return
 
-                # 2. Check pending list (Only fail if same symbol AND same direction)
+                # 2. Check pending/executing list (Only fail if same symbol AND same direction)
+                # Reload from disk so multi-worker sees latest claims
+                try:
+                    disk_trades = load_json(self.scheduled_file, [])
+                    if isinstance(disk_trades, list):
+                        self.scheduled_trades = disk_trades
+                except Exception:
+                    pass
+                active_pending = ("waiting", "executing", "limit_pending", "awaiting_fallback")
                 for t in self.scheduled_trades:
-                    if t.get("status") == "waiting" and t.get("symbol") == symbol and t.get("type") == t_type:
+                    if t.get("status") in active_pending and t.get("symbol") == symbol and t.get("type") == t_type:
                         self.notify(f"❌ [{profile_name}] Thất bại: Đã có lệnh chờ cùng chiều cho {symbol}")
                         return
 
@@ -2856,14 +2869,75 @@ class CopyTradeManager:
         except:
             return set()
 
-    def _pop_profile_token(self, tokens):
+    def _looks_like_profile_token(self, token):
+        """True if token is likely an intentional profile name (not symbol/lot/time/cmd)."""
+        if not token:
+            return False
+        t = str(token).strip().lower()
+        if len(t) < 2:
+            return False
+        if re.fullmatch(r"\d+(\.\d+)?", t):
+            return False
+        if re.fullmatch(r"\d{1,2}:\d{2}(:\d{2})?", t):
+            return False
+        if re.fullmatch(r"\d{1,2}h\d{0,2}", t):
+            return False
+        if "=" in t or t.startswith("/"):
+            return False
+        skip = {
+            "buy", "sell", "mua", "bán", "ban", "long", "short",
+            "pending", "close", "closeall", "modify", "status", "list",
+            "del", "help", "sl", "tp", "all", "profit", "loss", "lời", "lãi", "lỗ",
+            "mai", "today", "tomorrow", "risk", "lot", "filter",
+        }
+        if t in skip:
+            return False
+        u = t.upper()
+        if any(s in u for s in ("USD", "JPY", "EUR", "GBP", "AUD", "CAD", "CHF", "NZD", "XAU", "GOLD")):
+            return False
+        if not re.search(r"[a-zA-Z]", t):
+            return False
+        return True
+
+    def _resolve_target_profile(self, tokens):
+        """Parse trailing profile token.
+
+        Returns (matched_profile_lower, invalid_token, remaining_tokens).
+        - matched: exact name in profiles.json (lowercase)
+        - invalid: looks like a profile but NOT in the monitored list
+        - remaining: tokens without the profile token (if any)
+        """
         profile_names = self._get_profile_names()
         if not profile_names:
             profile_names = {"darwinex", "vantage", "th5ers"}
-        if tokens:
-            last = tokens[-1].lower()
-            if last in profile_names:
-                return last, tokens[:-1]
+        if not tokens:
+            return "", "", tokens
+        last = str(tokens[-1]).strip()
+        last_l = last.lower()
+        if last_l in profile_names:
+            return last_l, "", tokens[:-1]
+        if self._looks_like_profile_token(last):
+            return "", last, tokens[:-1]
+        return "", "", tokens
+
+    def _notify_invalid_profile(self, invalid_token):
+        names = sorted(self._get_profile_names() or [])
+        names_txt = ", ".join(names) if names else "(trống)"
+        self.notify(
+            f"❌ Profile không đúng: `{invalid_token}`.\n"
+            f"Không có trong danh sách đang giám sát.\n"
+            f"Profiles: {names_txt}"
+        )
+
+    def _pop_profile_token(self, tokens):
+        """Pop exact profile match only. Invalid-looking names are NOT popped here
+        (handled by gate so we can reject the whole command)."""
+        matched, invalid, rest = self._resolve_target_profile(tokens)
+        if invalid:
+            # Keep token so gate can detect; do not treat as "no profile"
+            return "", tokens
+        if matched:
+            return matched, rest
         return "", tokens
 
     def _calculate_lot(self, m_pos):
@@ -2929,6 +3003,76 @@ class CopyTradeManager:
             return 0.01
         return 0.01
 
+    def _with_scheduled_file_lock(self, fn, timeout=3.0):
+        """Run fn(trades_list) under exclusive lock; persist if fn returns a list."""
+        lock_path = f"{self.scheduled_file}.lock" if self.scheduled_file else "scheduled_trades.lock"
+        with FileLock(lock_path, timeout=timeout) as lock:
+            if lock is None:
+                return None
+            trades = load_json(self.scheduled_file, [])
+            if not isinstance(trades, list):
+                trades = []
+            result = fn(trades)
+            if isinstance(result, list):
+                save_json(self.scheduled_file, result)
+                self.scheduled_trades = result
+                try:
+                    self._last_scheduled_mtime = os.path.getmtime(self.scheduled_file)
+                except Exception:
+                    pass
+                return result
+            return result
+
+    def _claim_scheduled_trade(self, trade_id, stale_executing_sec=45):
+        """Atomically claim one scheduled trade so only one worker executes it.
+
+        Returns claimed trade dict, or None if another worker already claimed it.
+        Stale 'executing' claims older than stale_executing_sec are reclaimed
+        (crash recovery).
+        """
+        if trade_id is None:
+            return None
+        claimed_holder = {"trade": None}
+        now_ts = time.time()
+
+        def _claim(trades):
+            for t in trades:
+                if t.get("id") != trade_id:
+                    continue
+                st = t.get("status", "waiting")
+                if st == "executing":
+                    claimed_at = float(t.get("claimed_at") or 0)
+                    if claimed_at and (now_ts - claimed_at) < stale_executing_sec:
+                        return trades  # still in progress elsewhere
+                    # stale → reclaim
+                elif st not in ("waiting", "limit_pending", "awaiting_fallback"):
+                    return trades
+                t["status"] = "executing"
+                t["claimed_by"] = os.getpid()
+                t["claimed_at"] = now_ts
+                claimed_holder["trade"] = dict(t)
+                return trades
+            return trades
+
+        self._with_scheduled_file_lock(_claim)
+        return claimed_holder["trade"]
+
+    def _finalize_scheduled_trade(self, trade_id, status="executed"):
+        """Persist final status after claim/execute."""
+        if trade_id is None:
+            return
+
+        def _fin(trades):
+            for t in trades:
+                if t.get("id") == trade_id:
+                    t["status"] = status
+                    t.pop("claimed_by", None)
+                    t.pop("claimed_at", None)
+                    break
+            return trades
+
+        self._with_scheduled_file_lock(_fin)
+
     def _check_scheduled_trades(self):
         if not self.scheduled_trades and not getattr(self, "_scheduled_close", None): return
 
@@ -2936,12 +3080,18 @@ class CopyTradeManager:
         now_time = now_dt.strftime("%H:%M:%S")
         now_date = now_dt.strftime("%Y-%m-%d")
         
-        changed = False
+        # Snapshot list — claim/finalize mutate disk; avoid double-fire mid-loop
+        trades_snapshot = list(self.scheduled_trades)
         
         # Check normal scheduled trades
-        for trade in self.scheduled_trades:
+        for trade in trades_snapshot:
             status = trade.get("status", "waiting")
-            if status in ["waiting", "limit_pending", "awaiting_fallback"]:
+            if status in ["waiting", "limit_pending", "awaiting_fallback", "executing"]:
+                # executing only considered if stale (handled inside claim)
+                if status == "executing":
+                    claimed_at = float(trade.get("claimed_at") or 0)
+                    if claimed_at and (time.time() - claimed_at) < 45:
+                        continue
                 # Check Date
                 trade_date = trade.get("date", now_date) # Default to today if missing
                 
@@ -2959,7 +3109,6 @@ class CopyTradeManager:
                     # Update normalized time back to trade to fix legacy data
                     if t_time != t_time_norm:
                         trade["time"] = t_time_norm
-                        changed = True
                 except:
                     t_time_norm = t_time # Fallback
 
@@ -2984,19 +3133,24 @@ class CopyTradeManager:
                 except: pass
 
                 if is_expired:
-                    trade["status"] = "expired"
+                    self._finalize_scheduled_trade(trade.get("id"), "expired")
                     profile_name = self.config.get("profile_name", "Unknown")
                     self.notify(f"⚠️ [{profile_name}] Scheduled Order Expired: {trade.get('symbol')} at {t_time_norm} (skipped > 10m late)")
-                    changed = True
                     continue
 
                 if trade_date == now_date and t_time_norm > now_time:
                     continue
 
-                # Execute Trade
-                self._execute_scheduled(trade)
-                trade["status"] = "executed"
-                changed = True
+                # Atomic claim BEFORE execute — only one worker may win
+                claimed = self._claim_scheduled_trade(trade.get("id"))
+                if not claimed:
+                    continue
+
+                try:
+                    self._execute_scheduled(claimed)
+                finally:
+                    # Always finalize so other workers never re-fire
+                    self._finalize_scheduled_trade(claimed.get("id"), "executed")
 
         # Check scheduled close all
         if hasattr(self, "_scheduled_close"):
@@ -3038,9 +3192,6 @@ class CopyTradeManager:
             if len(remaining_closes) != len(self._scheduled_close):
                 self._scheduled_close = remaining_closes
                 save_json(self.scheduled_close_file, self._scheduled_close)
-                
-        if changed:
-            save_json(self.scheduled_file, self.scheduled_trades)
 
 
 
@@ -3191,6 +3342,14 @@ class CopyTradeManager:
         if not tick:
             self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: Symbol not found or Market closed")
             return "fail"
+
+        # Final same-direction guard right before send (close/fill race window)
+        positions = mt5.positions_get(symbol=symbol)
+        if positions:
+            for pos in positions:
+                if pos.type == order_type:
+                    self.notify(f"⚠️ [{profile_name}] Skipped Scheduled {symbol}: Position already exists (pre-send)")
+                    return "skip"
 
         price = tick.ask if order_type == mt5.ORDER_TYPE_BUY else tick.bid
         sl, tp = self._calc_scheduled_sl_tp(symbol, order_type, price, sl_points, tp_points)
@@ -5006,21 +5165,21 @@ class App(ctk.CTk):
         # Account Card (Balance/Equity hidden for privacy)
         self.card_account = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_account.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
-        ctk.CTkLabel(self.card_account, text="📊 Account", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
-        self.card_account_server = ctk.CTkLabel(self.card_account, text="—", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
+        ctk.CTkLabel(self.card_account, text="📊 Account", font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        self.card_account_server = ctk.CTkLabel(self.card_account, text="—", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
         self.card_account_server.pack(fill="x", padx=8)
-        self.card_account_status = ctk.CTkLabel(self.card_account, text="Status: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_account_status = ctk.CTkLabel(self.card_account, text="Status: —", font=ctk.CTkFont(size=13), anchor="w")
         self.card_account_status.pack(fill="x", padx=8, pady=(0, 6))
 
         # Signal Card — current slot + pair list (same pairs as dashboard cards)
         self.card_signal = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_signal.grid(row=0, column=1, sticky="nsew", padx=4)
-        ctk.CTkLabel(self.card_signal, text="📈 Signal", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
-        self.card_signal_current = ctk.CTkLabel(self.card_signal, text="Current: —", font=ctk.CTkFont(size=11), anchor="w")
+        ctk.CTkLabel(self.card_signal, text="📈 Signal", font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        self.card_signal_current = ctk.CTkLabel(self.card_signal, text="Current: —", font=ctk.CTkFont(size=13), anchor="w")
         self.card_signal_current.pack(fill="x", padx=8)
-        self.card_signal_next = ctk.CTkLabel(self.card_signal, text="Next: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_signal_next = ctk.CTkLabel(self.card_signal, text="Next: —", font=ctk.CTkFont(size=13), anchor="w")
         self.card_signal_next.pack(fill="x", padx=8)
-        self.card_signal_countdown = ctk.CTkLabel(self.card_signal, text="Countdown: —", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
+        self.card_signal_countdown = ctk.CTkLabel(self.card_signal, text="Countdown: —", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
         self.card_signal_countdown.pack(fill="x", padx=8, pady=(2, 4))
         self.card_signal_pairs_frame = ctk.CTkFrame(self.card_signal, fg_color="transparent")
         self.card_signal_pairs_frame.pack(fill="x", padx=6, pady=(0, 6))
@@ -5028,20 +5187,20 @@ class App(ctk.CTk):
         for pair in ("XAUUSD", "GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
             row = ctk.CTkFrame(self.card_signal_pairs_frame, fg_color="transparent")
             row.pack(fill="x", pady=1)
-            ctk.CTkLabel(row, text=pair, font=ctk.CTkFont(size=10, family="Consolas"), anchor="w").pack(side="left")
-            val = ctk.CTkLabel(row, text="—", font=ctk.CTkFont(size=10, weight="bold"), anchor="e")
+            ctk.CTkLabel(row, text=pair, font=ctk.CTkFont(size=12, family="Consolas"), anchor="w").pack(side="left")
+            val = ctk.CTkLabel(row, text="—", font=ctk.CTkFont(size=12, weight="bold"), anchor="e")
             val.pack(side="right")
             self.card_signal_pair_labels[pair] = val
 
         # Engine Card
         self.card_engine = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_engine.grid(row=0, column=2, sticky="nsew", padx=(4, 0))
-        ctk.CTkLabel(self.card_engine, text="⚙️ Engine", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
-        self.card_engine_ghost = ctk.CTkLabel(self.card_engine, text="Ghost: —", font=ctk.CTkFont(size=11), anchor="w")
+        ctk.CTkLabel(self.card_engine, text="⚙️ Engine", font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        self.card_engine_ghost = ctk.CTkLabel(self.card_engine, text="Ghost: —", font=ctk.CTkFont(size=13), anchor="w")
         self.card_engine_ghost.pack(fill="x", padx=8)
-        self.card_engine_session = ctk.CTkLabel(self.card_engine, text="Session: ON", font=ctk.CTkFont(size=11), anchor="w", text_color="#2ecc71")
+        self.card_engine_session = ctk.CTkLabel(self.card_engine, text="Session: ON", font=ctk.CTkFont(size=13), anchor="w", text_color="#2ecc71")
         self.card_engine_session.pack(fill="x", padx=8)
-        self.card_engine_version = ctk.CTkLabel(self.card_engine, text=f"v{VERSION[1:]} Stable", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
+        self.card_engine_version = ctk.CTkLabel(self.card_engine, text=f"v{VERSION[1:]} Stable", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
         self.card_engine_version.pack(fill="x", padx=8, pady=(0, 6))
 
         self.lbl_select = ctk.CTkLabel(left_panel, text=T("msg_select_profile"), font=ctk.CTkFont(size=14))
@@ -5339,7 +5498,7 @@ class App(ctk.CTk):
         try:
             result = subprocess.run(
                 ["wmic", "process", "where",
-                 f"CommandLine like '%{script}%' and Name='python.exe'",
+                 f"CommandLine like '%{script}%' and (Name='python.exe' or Name='pythonw.exe')",
                  "get", "ProcessId"],
                 capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
             )
@@ -5348,7 +5507,7 @@ class App(ctk.CTk):
                 if line.isdigit():
                     pid = int(line)
                     if pid != os.getpid():
-                        subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
                                        capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
                         self.log(f"Killed orphan process: {script} (PID: {pid})")
         except:
@@ -6573,7 +6732,9 @@ class App(ctk.CTk):
                         with open(signals_file, "r", encoding="utf-8") as f:
                             signals = json.load(f)
                         if signals:
-                            latest = signals[-1]
+                            latest = get_latest_display_signal(signals)
+                            if not latest:
+                                latest = signals[-1]
                             sig = latest.get("signal", "—")
                             icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
                             hour = latest.get("hour")
@@ -6795,6 +6956,41 @@ class App(ctk.CTk):
         self.load_copy_config() # Specific for copy trade tab
         self.log(f"Profile switched to {choice} (from Copy Trade tab)")
 
+    def _kill_orphan_workers(self, profile_name):
+        """Kill leftover --worker processes for this profile (python + pythonw)."""
+        if os.name != "nt" or not profile_name:
+            return
+        try:
+            # WMIC: match worker + profile in command line
+            where = (
+                f"CommandLine like '%--worker%' and CommandLine like '%{profile_name}%' "
+                f"and (Name='python.exe' or Name='pythonw.exe')"
+            )
+            result = subprocess.run(
+                ["wmic", "process", "where", where, "get", "ProcessId"],
+                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+            )
+            for line in (result.stdout or "").splitlines():
+                line = line.strip()
+                if line.isdigit():
+                    pid = int(line)
+                    if pid != os.getpid():
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(pid)],
+                            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW
+                        )
+                        self.log(f"Killed orphan worker for '{profile_name}' (PID: {pid})")
+        except Exception:
+            pass
+        # Clear stale lock so new worker can start
+        try:
+            safe = re.sub(r"[^\w\-]", "_", profile_name)
+            lock = f"worker_{safe}.lock"
+            if os.path.exists(lock):
+                os.remove(lock)
+        except Exception:
+            pass
+
     def start_monitor(self):
         profile_name = self.combo_profiles.get()
         if not profile_name or profile_name not in self.profiles:
@@ -6823,6 +7019,9 @@ class App(ctk.CTk):
                         self.copy_console.configure(state="disabled")
                 except: pass
             threading.Thread(target=_clear_console, daemon=True).start()
+
+            # Prevent multi-worker double fire of scheduled orders
+            self._kill_orphan_workers(profile_name)
             
             if getattr(sys, 'frozen', False):
                 cmd = [sys.executable, "--worker", "--profile", profile_name]
@@ -6878,7 +7077,16 @@ class App(ctk.CTk):
         if profile_name in self.workers:
             proc = self.workers[profile_name]["proc"]
             if proc.poll() is None:
-                proc.terminate()
+                try:
+                    if os.name == "nt":
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW
+                        )
+                    else:
+                        proc.terminate()
+                except Exception:
+                    proc.terminate()
                 self.log(f"Stopping '{profile_name}'...")
                 self.btn_stop.configure(state="disabled", text="Stopping...")
                 self.running_profile_name = None
@@ -6887,6 +7095,9 @@ class App(ctk.CTk):
                 self.update_ui_state(profile_name)
                 # Still keep the delayed check just in case
                 self.after(500, lambda: self.update_ui_state(profile_name))
+        # Always sweep orphans for this profile (pythonw leftovers)
+        if profile_name:
+            self._kill_orphan_workers(profile_name)
 
     def monitor_worker_output(self, profile_name, proc):
         try:
@@ -7273,7 +7484,75 @@ def run_worker(profile_name):
     Worker process entry point.
     Loads profile from CONFIG_FILE and runs MonitorWorker.
     """
+    lock_fd = None
+    safe = re.sub(r"[^\w\-]", "_", profile_name or "unknown")
+    lock_path = f"worker_{safe}.lock"
+
+    def _acquire_worker_lock():
+        """Only one worker process per profile may run (prevents double schedule fire)."""
+        nonlocal lock_fd
+        try:
+            if os.path.exists(lock_path):
+                try:
+                    with open(lock_path, "r", encoding="utf-8") as f:
+                        old_pid = int((f.read() or "0").strip() or "0")
+                except Exception:
+                    old_pid = 0
+                if old_pid and old_pid != os.getpid():
+                    try:
+                        r = subprocess.run(
+                            ["tasklist", "/FI", f"PID eq {old_pid}", "/NH"],
+                            capture_output=True, text=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                        )
+                        out = (r.stdout or "").lower()
+                        if str(old_pid) in out and "python" in out:
+                            print(
+                                f"[{datetime.now().strftime('%H:%M:%S')}] "
+                                f"EXIT: worker for '{profile_name}' already running (PID {old_pid}). "
+                                f"Avoid multi-worker schedule double-fire.",
+                                flush=True,
+                            )
+                            return False
+                    except Exception:
+                        pass
+            # Exclusive create when possible; always write our pid
+            try:
+                lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_RDWR)
+                os.write(lock_fd, str(os.getpid()).encode("utf-8"))
+            except FileExistsError:
+                # Stale or race — overwrite if process dead
+                with open(lock_path, "w", encoding="utf-8") as f:
+                    f.write(str(os.getpid()))
+            return True
+        except Exception as e:
+            print(f"Worker lock warning: {e}", flush=True)
+            return True
+
+    def _release_worker_lock():
+        nonlocal lock_fd
+        try:
+            if lock_fd is not None:
+                try:
+                    os.close(lock_fd)
+                except Exception:
+                    pass
+                lock_fd = None
+            if os.path.exists(lock_path):
+                try:
+                    with open(lock_path, "r", encoding="utf-8") as f:
+                        pid = (f.read() or "").strip()
+                    if pid == str(os.getpid()):
+                        os.remove(lock_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
     try:
+        if not _acquire_worker_lock():
+            return
+
         # Load Config
         if not os.path.exists(CONFIG_FILE):
             print(f"Error: {CONFIG_FILE} not found.")
@@ -7324,7 +7603,7 @@ def run_worker(profile_name):
         
         # Start Worker
         worker = MonitorWorker(config, worker_log, stop_event)
-        worker.log(f"Worker Process Started: {profile_name}")
+        worker.log(f"Worker Process Started: {profile_name} (PID {os.getpid()}, single-instance)")
         
         # Run logic inline (since we are in a dedicated process)
         # But MonitorWorker is a Thread. We can just start it and join.
@@ -7343,6 +7622,8 @@ def run_worker(profile_name):
         
     except Exception as e:
         print(f"Worker Error: {e}", flush=True)
+    finally:
+        _release_worker_lock()
 
 
 if __name__ == "__main__":

@@ -47,6 +47,8 @@ except Exception:
 
 SYMBOL = "GBPUSD"
 TARGET_HOURS = list(range(3, 16))
+# Bump when pair-direction / slot rules change to trace rebuilds in logs.
+SIGNAL_LOGIC_VERSION = 3
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -626,7 +628,11 @@ def get_xauusd_m30_signal(broker_dt, H):
 
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
-    Sau khi chốt XAUUSD, rebuild GBP theo rule slot (get_pair_direction)."""
+
+    Sau khi chốt XAUUSD, rebuild TOÀN BỘ GBP theo rule slot trên final XAU:
+    - H=2..8: GBPAUD ngược XAUUSD, GBPJPY cùng XAUUSD
+    - Không giữ pair theo pattern signal cũ sau khi XAU đã flip.
+    """
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:
         return pair_dirs
@@ -895,11 +901,13 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             pair_lines.append(f"  {p}: {p_icon} {p_text}")
     pair_text = "\n".join(pair_lines)
 
-    # KẾT LUẬN: hiển thị signal cuối cùng (sau H1 check)
-    conclusion = f"KẾT LUẬN: {icon} {sig}\n"
+    # KẾT LUẬN = XAUUSD cuối (sau M30 flip); pair rules bám theo baseline này
+    final_sig = pair_dirs.get("XAUUSD") if pair_dirs.get("XAUUSD") in ("BUY", "SELL") else sig
+    final_icon, final_emoji = get_signal_icon(final_sig)
+    conclusion = f"KẾT LUẬN: {final_icon} {final_sig}\n"
 
     msg = (
-        f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
+        f"{final_emoji} Tín hiệu {SYMBOL} - {final_icon}\n"
         f"============================\n"
         f"  {fmt_hour(H)}:45 (Broker)\n"
         f"============================\n\n"
@@ -939,78 +947,90 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     return pair_dirs
 
 # =====================================================================
-# BACKFILL: tự tính signal cho các ngày thiếu khi bot khởi động
+# REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def backfill_missing_days():
-    """Tự tính lại signal cho 7 ngày trước khi bot khởi động (overwrite để fix data sai)."""
-    if not mt5_ready:
-        return
+def rebuild_slot_signal(broker_dt, h, *, is_missed=True):
+    """Recalculate one slot with current logic and overwrite signals_log (date, hour)."""
+    if broker_dt.weekday() >= 5:
+        return False
 
-    # Tạo danh sách ngày cần check (7 ngày trước, bỏ T7/CN)
-    now_utc = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-    broker_now = now_utc + timedelta(hours=BROKER_GMT)
-    today = broker_now.date()
+    result = analyze(broker_dt, h)
+    sig = result.get("signal")
+    if sig not in ("BUY", "SELL"):
+        return False
 
-    dates_to_check = []
-    for i in range(1, 8):  # 1..7 ngày trước
-        d = today - timedelta(days=i)
-        if d.weekday() >= 5:  # skip T7/CN
-            continue
-        dates_to_check.append(d)
+    pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
+    if not pair_dirs:
+        return False
 
-    if not dates_to_check:
-        print("  [BACKFILL] Không có ngày cần check")
-        return
+    apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
 
-    print(f"  [BACKFILL] Checking {len(dates_to_check)} ngày: {[d.isoformat() for d in dates_to_check]}")
+    skip_xau = should_skip_xauusd(h, sig, broker_dt)
+    if skip_xau:
+        pair_dirs.pop("XAUUSD", None)
 
-    # Đọc signals_log hiện tại để cập nhật
-    log_data = []
-    if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-        try:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                log_data = json.load(f)
-        except Exception:
-            pass
-
-    backfilled = 0
-    for target_date in dates_to_check:
-        # Tạo broker_dt giả lập cho ngày đó (dùng H=12 để lấy đúng weekday)
-        fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
-
-        for H in TARGET_HOURS:
-            try:
-                result = analyze(fake_broker_dt, H)
-                sig = result["signal"]
-
-                h1_data = None
-                # Đọc H=1 từ signals_log nếu có
-                for r in log_data:
-                    if r.get("date") == target_date.isoformat():
-                        if r.get("hour") == 1:
-                            h1_data = r
-
-                h1_sig = h1_data.get("signal") if h1_data else None
-
-                pair_dirs = get_pair_direction(H, sig, fake_broker_dt, h1_signal=result.get("h1_signal"))
-                if not pair_dirs:
-                    continue
-
-                # XAUUSD H1 check
-                apply_xauusd_m30_logic(pair_dirs, sig, fake_broker_dt, H)
-
-                hour_note = get_hour_note(H, target_date.weekday())
-                log_signal(H, fake_broker_dt, sig, None, pair_dirs, hour_note, is_missed=True)
-                backfilled += 1
-                print(f"  [BACKFILL] {target_date.isoformat()} H={fmt_hour(H)}:45 -> {sig}")
-            except Exception as e:
-                print(f"  [BACKFILL] Error {target_date.isoformat()} H={H}: {e}")
-
-    if backfilled > 0:
-        print(f"  [BACKFILL] Đã backfill {backfilled} signal")
-        push_to_dashboard()
+    base_note = get_hour_note(h, broker_dt.weekday())
+    effective_d = get_effective_d_direction(broker_dt)
+    matched_d1 = (sig == effective_d and effective_d is not None)
+    if skip_xau or matched_d1:
+        hour_note = d1_match_note(effective_d)
     else:
-        print("  [BACKFILL] Không có signal mới")
+        hour_note = base_note
+
+    log_signal(h, broker_dt, sig, None, pair_dirs, hour_note, is_missed=is_missed)
+    return True
+
+
+def rebuild_signals_on_startup():
+    """Refresh signals_log from MT5 on every restart so APP/Dashboard get current rules."""
+    if not mt5_ready:
+        print("  [REBUILD] MT5 not ready, skip")
+        return 0
+
+    broker_dt = get_broker_time()
+    today = broker_dt.date()
+    now_h = broker_dt.hour
+    now_m = broker_dt.minute
+    rebuilt = 0
+
+    passed_today = [
+        h for h in TARGET_HOURS
+        if h < now_h or (h == now_h and now_m > 45)
+    ]
+    if passed_today:
+        print(f"  [REBUILD] Today {today.isoformat()} slots: {[fmt_hour(h) for h in passed_today]}")
+        for h in passed_today:
+            try:
+                if rebuild_slot_signal(broker_dt, h, is_missed=True):
+                    rebuilt += 1
+                    print(f"  [REBUILD] {today.isoformat()} H={fmt_hour(h)}:45 refreshed")
+            except Exception as e:
+                print(f"  [REBUILD] Error today H={h}: {e}")
+
+    past_dates = []
+    for i in range(1, 8):
+        d = today - timedelta(days=i)
+        if d.weekday() < 5:
+            past_dates.append(d)
+
+    if past_dates:
+        print(f"  [REBUILD] Past weekdays: {[d.isoformat() for d in past_dates]}")
+        for target_date in past_dates:
+            fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
+            for h in TARGET_HOURS:
+                try:
+                    if rebuild_slot_signal(fake_broker_dt, h, is_missed=True):
+                        rebuilt += 1
+                except Exception as e:
+                    print(f"  [REBUILD] Error {target_date.isoformat()} H={h}: {e}")
+
+    print(f"  [REBUILD] Done: {rebuilt} slots refreshed (logic v{SIGNAL_LOGIC_VERSION})")
+    return rebuilt
+
+
+def backfill_missing_days():
+    """Backward-compatible alias; rebuild now covers startup refresh."""
+    return rebuild_signals_on_startup()
 
 # =====================================================================
 # MAIN LOOP
@@ -1139,14 +1159,13 @@ def main(profile_name=None):
             f"Hiển thị lại từ H=12."
         )
     check_d_direction_input()
-    push_to_dashboard()
     watcher = threading.Thread(target=d_direction_watcher, daemon=True)
     watcher.start()
     event_server = threading.Thread(target=d_direction_event_server, daemon=True)
     event_server.start()
 
-    # Backfill các ngày thiếu khi bot khởi động
-    backfill_missing_days()
+    # Rebuild signals_log from MT5 before pushing (avoid stale pair_dirs after rule changes)
+    startup_rebuilt = rebuild_signals_on_startup()
 
     if mt5_ready:
         broker_dt = get_broker_time()
@@ -1283,8 +1302,11 @@ def main(profile_name=None):
             print(f"[SKIP TELEGRAM] Missed slot notification suppressed for H={h}")
 
         if missed_count > 0:
-            push_to_dashboard()
-            print(f"\n[DASHBOARD] Pushed {missed_count} missed slots")
+            print(f"\n[STARTUP] Logged {missed_count} missed slots")
+
+    push_to_dashboard()
+    if startup_rebuilt > 0:
+        print(f"\n[DASHBOARD] Pushed after rebuild ({startup_rebuilt} slots refreshed)")
 
     try:
         _active_profile = resolve_active_profile(profile_name)
