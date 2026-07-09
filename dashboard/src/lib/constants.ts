@@ -1,9 +1,24 @@
-export const TARGET_HOURS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+/** Full band Mon/Tue/Wed/Fri; Thursday uses getTargetHours(). */
+export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+export const TARGET_HOURS_THURSDAY = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+
+/**
+ * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
+ * Thứ 5 (Thu=4) → H=5-15; T2/T3/T4/T6 → H=2-15
+ */
+export function getTargetHours(jsDayOfWeek: number): number[] {
+  if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
+  if (jsDayOfWeek === 4) return [...TARGET_HOURS_THURSDAY];
+  return [...TARGET_HOURS];
+}
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
 const HOUR_NOTES: Record<number, string> = {
+  2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+  4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
   5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
   6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
   7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
@@ -18,43 +33,52 @@ export function getHourNote(hour: number, weekday: number): string | null {
   return HOUR_NOTES[hour] ?? "Chỉ Vàng";
 }
 
-const SHARED_DAY_RULES = [
-  "Slots: H=5-15 (bắt đầu từ H=5)",
-  "H=5-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
+const PAIR_RULES = [
+  "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
   "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
   "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
   "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
   "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
-  "Các slot khác trong H=5-15: Chỉ Vàng",
+  "Các slot khác trong band: Chỉ Vàng",
 ];
 
 const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
 
 /** Special calendar notes — only Thursday (JS getDay=4 / Python weekday=3). */
 export const SPECIAL_DAY_NOTES = [
-  "Thứ 5: chỉ trade H=5-15 (không còn H=3-4)",
+  "Thứ 5: chỉ trade H=5-15 (không H=2-4)",
   "Thứ 5 có Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây: cần tính lại W1",
   "Thứ 5 có Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7: cần tính lại W1",
 ];
 
 export const DAY_RULES: Record<number, string[]> = {
-  1: [    // Thứ 2 (JS: getDay() = 1)
-    ...SHARED_DAY_RULES,
+  1: [    // Thứ 2
+    "Slots: H=2-15",
+    ...PAIR_RULES,
   ],
-  2: [    // Thứ 3 (JS: getDay() = 2)
-    ...SHARED_DAY_RULES,
+  2: [    // Thứ 3
+    "Slots: H=2-15",
+    ...PAIR_RULES,
   ],
-  3: [    // Thứ 4 (JS: getDay() = 3)
-    ...SHARED_DAY_RULES,
+  3: [    // Thứ 4
+    "Slots: H=2-15",
+    ...PAIR_RULES,
   ],
-  4: [    // Thứ 5 (JS: getDay() = 4)
-    ...SHARED_DAY_RULES,
+  4: [    // Thứ 5
+    "Slots: H=5-15 (chỉ Thứ 5)",
     D_DIRECTION_RULE,
     ...SPECIAL_DAY_NOTES,
+    "H=5-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
+    "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
+    "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
+    "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
+    "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
+    "Các slot khác trong H=5-15: Chỉ Vàng",
   ],
-  5: [    // Thứ 6 (JS: getDay() = 5)
-    ...SHARED_DAY_RULES,
+  5: [    // Thứ 6
+    "Slots: H=2-15",
     D_DIRECTION_RULE,
+    ...PAIR_RULES,
   ],
 };
 

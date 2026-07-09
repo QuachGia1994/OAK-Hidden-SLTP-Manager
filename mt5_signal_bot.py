@@ -46,10 +46,29 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-# Active signal slots: H=5 .. H=15 broker (inclusive)
-TARGET_HOURS = list(range(5, 16))
+# Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
+# T2/T3/T4/T6 (Mon–Wed, Fri): H=2..15 | Thứ 5 (Thu): H=5..15 only
+TARGET_HOURS = list(range(2, 16))
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 4
+SIGNAL_LOGIC_VERSION = 5
+
+
+def get_target_hours(broker_dt=None, weekday=None):
+    """Return active H slots for the broker weekday.
+
+    Python weekday: Mon=0 .. Sun=6.
+    Thursday (3) → H=5..15; Mon/Tue/Wed/Fri → H=2..15; weekend → [].
+    """
+    if weekday is None:
+        if broker_dt is None:
+            weekday = datetime.now().weekday()
+        else:
+            weekday = broker_dt.weekday()
+    if weekday >= 5:
+        return []
+    if weekday == 3:  # Thứ 5
+        return list(range(5, 16))
+    return list(range(2, 16))  # T2 T3 T4 T6
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -493,7 +512,7 @@ def restore_d1_match_from_today_signals():
     if d_direction is None or d_matched_hour is not None:
         return False
     today = _trading_date()
-    for hour in TARGET_HOURS:
+    for hour in get_target_hours(weekday=today.weekday() if hasattr(today, "weekday") else datetime.now().weekday()):
         payload = day_signals.get((today, hour))
         if payload and payload.get("signal") == d_direction:
             d_matched_hour = hour
@@ -650,8 +669,9 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
     Baseline cho GBP:
-    - H=5..8: rule ghi 'XAUUSD' → rebuild GBP theo final XAU sau flip
-      (GBPAUD ngược XAU, GBPJPY cùng XAU).
+    - H=2..8: rule ghi 'XAUUSD' → rebuild GBP theo final XAU sau flip
+      (GBPAUD ngược XAU, GBPJPY cùng XAU). Active band depends on weekday
+      (Thu starts at H=5 only via get_target_hours).
     - H=9,11,12,15: rule ghi 'Signal' → GBP bám pattern Signal (sig),
       CHỈ cập nhật dòng XAUUSD (có thể lệch Signal sau M30).
     """
@@ -663,8 +683,8 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     else:
         final_xau = xau_m30
 
-    # H=5..8: pairs relative to XAUUSD → rebuild from final gold
-    if H in (5, 6, 7, 8):
+    # H=2..8: pairs relative to XAUUSD → rebuild from final gold
+    if H in (2, 3, 4, 5, 6, 7, 8):
         rebuilt = get_pair_direction(H, final_xau, broker_dt)
         if not rebuilt:
             pair_dirs["XAUUSD"] = final_xau
@@ -758,6 +778,9 @@ def analyze(broker_dt, H):
 def get_hour_note(H, weekday=None):
     """Trả note theo H (weekday giữ để tương thích call-site)."""
     notes = {
+        2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
+        4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
         5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
         6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
         7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
@@ -831,8 +854,9 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     # Mọi slot đều có XAUUSD
     result["XAUUSD"] = gold
 
-    # H=5..8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --
-    if H in (5, 6, 7, 8):
+    # H=2..8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --
+    # (Thu only fires H=5+ via get_target_hours; rules still defined for 2-4)
+    if H in (2, 3, 4, 5, 6, 7, 8):
         result["GBPJPY"] = gold
         result["GBPAUD"] = opposite
         result["GBPUSD"] = "--"
@@ -1016,9 +1040,10 @@ def rebuild_signals_on_startup():
     now_h = broker_dt.hour
     now_m = broker_dt.minute
     rebuilt = 0
+    hours_today = get_target_hours(broker_dt)
 
     passed_today = [
-        h for h in TARGET_HOURS
+        h for h in hours_today
         if h < now_h or (h == now_h and now_m > 45)
     ]
     if passed_today:
@@ -1041,7 +1066,7 @@ def rebuild_signals_on_startup():
         print(f"  [REBUILD] Past weekdays: {[d.isoformat() for d in past_dates]}")
         for target_date in past_dates:
             fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
-            for h in TARGET_HOURS:
+            for h in get_target_hours(fake_broker_dt):
                 try:
                     if rebuild_slot_signal(fake_broker_dt, h, is_missed=True):
                         rebuilt += 1
@@ -1129,7 +1154,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours: {TARGET_HOURS}")
+    print(f"  Target Hours T2-4/T6: H=2-15 | T5: H=5-15")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1164,12 +1189,15 @@ def main(profile_name=None):
 
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     broker_dt = now_utc + timedelta(hours=BROKER_GMT)
+    hours_boot = get_target_hours(broker_dt)
+    h0, h1 = (hours_boot[0], hours_boot[-1]) if hours_boot else (2, 15)
     reminders = get_schedule_reminders(broker_dt)
     reminder_text = "\n".join([f"⚠️ {r}" for r in reminders]) if reminders else ""
     send_telegram(
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
-        f"Kích hoạt: {fmt_hour(TARGET_HOURS[0])}-{fmt_hour(TARGET_HOURS[-1])}:45"
+        f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
+        f"(T2-4/T6=H2-15, T5=H5-15)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
     # Nếu D1 đã match trước đó (bot restart), thông báo lại
@@ -1196,11 +1224,12 @@ def main(profile_name=None):
         clear_expired_d_direction(broker_dt)
         now_h = broker_dt.hour
         now_m = broker_dt.minute
+        hours_today = get_target_hours(broker_dt)
 
-        passed = [h for h in TARGET_HOURS if h < now_h or (h == now_h and now_m > 45)]
+        passed = [h for h in hours_today if h < now_h or (h == now_h and now_m > 45)]
         passed.sort(reverse=True)
 
-        next_slots = [h for h in TARGET_HOURS if h > now_h or (h == now_h and now_m <= 45)]
+        next_slots = [h for h in hours_today if h > now_h or (h == now_h and now_m <= 45)]
         next_slots.sort()
         if next_slots:
             next_h = next_slots[0]
@@ -1360,7 +1389,8 @@ def main(profile_name=None):
             if broker_dt.hour == 0 and broker_dt.minute == 0 and broker_dt.weekday() in (3, 4):
                 send_d_direction_reminder()
 
-            if now_min == 45 and now_hour in TARGET_HOURS:
+            hours_now = get_target_hours(broker_dt)
+            if now_min == 45 and now_hour in hours_now:
                 key = (broker_dt.date(), now_hour)
                 if key in sent_today:
                     time.sleep(10)
@@ -1368,7 +1398,7 @@ def main(profile_name=None):
 
                 print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
 
-                # Tat ca 5 nhom hoat dong T2-6, chi skip T7/CN
+                # T2-6 active (weekday hours via get_target_hours); skip T7/CN
                 wd = broker_dt.weekday()
                 if wd >= 5:
                     print(f"  [SKIP] T{wd+1} - weekend")

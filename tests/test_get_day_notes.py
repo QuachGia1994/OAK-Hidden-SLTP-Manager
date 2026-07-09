@@ -44,9 +44,10 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
 
     def test_normal_thursday_default(self):
         # Mid-month Thursday with Friday not 3/4/7
-        # 2026-07-09 is Thursday; Fri=10 — still notes H=5-15 slot rule
+        # 2026-07-09 is Thursday; Fri=10 — notes H=5-15 vs H=2-15 other days
         notes = get_day_notes(date(2026, 7, 9), lang="VN")
         self.assertTrue(any("H=5-15" in n for n in notes), notes)
+        self.assertTrue(any("H=2-15" in n for n in notes), notes)
         self.assertFalse(any("ngày 30" in n or "ngày 3" in n for n in notes))
 
     def test_accepts_datetime(self):

@@ -91,7 +91,7 @@ Quy trình dùng tab này:
 
 | Slot | Rule |
 | --- | --- |
-| H=5–8 | GBPJPY **cùng XAUUSD**, GBPAUD **ngược XAUUSD**, GBPUSD/GBPCAD `--` |
+| H=2–8 | GBPJPY **cùng XAUUSD**, GBPAUD **ngược XAUUSD**, GBPUSD/GBPCAD `--` (T5 chỉ từ H=5) |
 | H=9 | GBPAUD **ngược Signal**; GBPUSD/GBPJPY/GBPCAD **cùng Signal** |
 | H=11 | GBPAUD/GBPUSD/GBPJPY **ngược Signal**; GBPCAD **cùng Signal** |
 | H=12 | GBPAUD/GBPUSD **ngược Signal**; GBPJPY/GBPCAD **cùng Signal** |
@@ -100,7 +100,7 @@ Quy trình dùng tab này:
 
 **XAU M30 flip**
 - Cùng chiều M30 XAU → đảo XAUUSD; ngược → theo M30
-- **H=5–8**: rebuild GBP theo **final XAU** sau flip
+- **H=2–8**: rebuild GBP theo **final XAU** sau flip (T5 chỉ fire H≥5)
 - **H=9/11/12/15**: GBP **giữ theo pattern Signal**; chỉ cập nhật dòng XAUUSD (có thể lệch Signal)
 
 **Ví dụ H=11, KẾT LUẬN BUY**

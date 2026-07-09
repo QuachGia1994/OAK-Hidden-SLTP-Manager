@@ -36,9 +36,9 @@ def tearDownModule():
 class TestGetPairDirectionHSlots(unittest.TestCase):
     """Test H-slot-based pair direction rules."""
 
-    def test_h5_to_h8_gbpjpy_same_gbpaud_opposite(self):
-        """H=5..8: GBPJPY same XAUUSD; GBPAUD opposite; GBPUSD/GBPCAD = '--'"""
-        for H in (5, 6, 7, 8):
+    def test_h2_to_h8_gbpjpy_same_gbpaud_opposite(self):
+        """H=2..8: GBPJPY same XAUUSD; GBPAUD opposite; GBPUSD/GBPCAD = '--'"""
+        for H in (2, 3, 4, 5, 6, 7, 8):
             for signal in ("BUY", "SELL"):
                 with self.subTest(H=H, signal=signal):
                     dt = _make_dt(2026, 7, 7, weekday_offset=0)
@@ -128,9 +128,9 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
         self.assertEqual(sell_result["GBPUSD"], "SELL")
 
     def test_all_active_slots_have_xauusd(self):
-        """Every active slot (H=5-15) must include XAUUSD"""
+        """Every slot H=2-15 must include XAUUSD when signal is BUY/SELL"""
         dt = _make_dt(2026, 7, 7, weekday_offset=0)
-        for H in range(5, 16):
+        for H in range(2, 16):
             with self.subTest(H=H):
                 result = get_pair_direction(H, "BUY", dt)
                 self.assertIn("XAUUSD", result)

@@ -1,12 +1,13 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
 ## [v3.15.2+] - 2026-07-09
-*Slots H=5-15 only (drop H=3-4).*
+*Weekday-aware slots: T5 = H=5-15, else H=2-15.*
 
 ### 📊 Schedule
-- **TARGET_HOURS**: `H=5..15` (bot + dashboard + MT server). Không còn kích hoạt H=3, H=4.
-- **Thứ 5 notes**: nhắc slots H=5-15 + W1 (T4 hôm qua 30/1; T6 tuần 3/4/7).
-- Pair active band: **H=5-8** (GBPJPY cùng / GBPAUD ngược XAU); H=9/11/12/15 theo Signal.
+- **T2 / T3 / T4 / T6**: slots **H=2..15**.
+- **Thứ 5 only**: slots **H=5..15** (không H=2-4).
+- `get_target_hours(broker_dt)` — bot, rebuild, dashboard, countdown.
+- **Thứ 5 notes**: H=5-15 + W1 (T4 hôm qua 30/1; T6 tuần 3/4/7).
 
 ---
 

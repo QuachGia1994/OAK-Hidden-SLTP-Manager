@@ -1,6 +1,6 @@
 import { getTodaySignals, getBotState, getEconomicNews } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
-import { TARGET_HOURS, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
+import { getTargetHours, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { getBrokerDateParts, getFirstD1MatchHour, isD1ActiveWeekday } from "@/lib/trading-time";
@@ -27,6 +27,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   }
 
   const { todayStr, dayOfWeek } = getBrokerDateParts(now);
+  const hoursToday = getTargetHours(dayOfWeek);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
   const d1Active = isD1ActiveWeekday(dayOfWeek);
@@ -35,7 +36,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
   const d1MatchWindow = firstD1MatchHour !== null ? "Áp dụng tới H=11" : null;
 
-  const allSlots = TARGET_HOURS.map((h) => ({
+  const allSlots = hoursToday.map((h) => ({
     date: todayStr,
     hour: h,
     ts: 0,
@@ -90,7 +91,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="mb-10">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-4">Lịch giao dịch</h2>
         <div className="flex flex-wrap gap-2">
-          {TARGET_HOURS.map((h) => {
+          {hoursToday.map((h) => {
             const hasSignal = signalsByHour.has(h);
             const sig = hasSignal ? signalsByHour.get(h)!.signal : null;
             return (

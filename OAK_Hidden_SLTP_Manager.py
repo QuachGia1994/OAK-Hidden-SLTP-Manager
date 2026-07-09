@@ -6965,9 +6965,15 @@ class App(ctk.CTk):
                         else:
                             lbl.configure(text="—", text_color="gray")
 
-                # Next slot countdown
+                # Next slot countdown (T5=H5-15, else H2-15; broker weekday)
                 now = datetime.now()
-                target_hours = list(range(5, 16))
+                try:
+                    from mt5_signal_bot import get_target_hours as _gth
+                    target_hours = _gth(weekday=now.weekday())
+                except Exception:
+                    target_hours = list(range(5, 16)) if now.weekday() == 3 else list(range(2, 16))
+                if not target_hours:
+                    target_hours = list(range(2, 16))
                 next_h = None
                 for h in target_hours:
                     if now.hour < h or (now.hour == h and now.minute < 45):
