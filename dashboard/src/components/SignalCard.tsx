@@ -1,4 +1,4 @@
-import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, GBP_PAIRS, getHourNote, weekdayFromDate } from "@/lib/constants";
+import { getSignalColor, getSignalLabel, formatHour, brokerToLocalTime, getHourNote, weekdayFromDate, getFocusGbpPairs } from "@/lib/constants";
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
@@ -18,9 +18,11 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
   const weekday = weekdayFromDate(signal.date);
   const fallbackHourNote = isD1MatchNote(signal.hour_note) ? getHourNote(signal.hour, weekday) : signal.hour_note;
   const hourNote = showD1Match ? getD1MatchNote(signal.d_direction) : (fallbackHourNote || getHourNote(signal.hour, weekday));
+  const focusGbp = getFocusGbpPairs(signal.hour);
+  const xauDir = signal.pair_dirs?.XAUUSD || (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
 
   return (
-    <div className="group border border-zinc-200/80 dark:border-zinc-800 rounded-xl bg-white/90 dark:bg-zinc-900/55 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
+    <div className="group border border-zinc-200/80 dark:border-zinc-800 rounded-2xl bg-white/90 dark:bg-zinc-900/55 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
       {/* Header */}
       <div className="px-5 py-3.5 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -39,7 +41,7 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
         <span className="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{signal.date}</span>
       </div>
 
-      {/* Conclusion */}
+      {/* Conclusion — pattern / XAU signal only */}
       <div className="px-5 py-5">
         <div className="text-[10px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-2 font-medium">KẾT LUẬN</div>
         {isVIP ? (
@@ -64,15 +66,30 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
         )}
       </div>
 
-      {/* All Pairs - flat list */}
+      {/* XAU signal + GBP focus list (no Mua/Bán on GBP) */}
       <div className="px-5 py-3 border-t border-zinc-100 dark:border-zinc-800/60 space-y-0.5">
-        {["XAUUSD", ...GBP_PAIRS].map((pair) => (
-          <PairBadge
-            key={pair}
-            pair={pair}
-            direction={isVIP ? (signal.pair_dirs?.[pair] || "-") : "locked"}
-          />
-        ))}
+        <PairBadge
+          pair="XAUUSD"
+          direction={isVIP ? (xauDir || "-") : "locked"}
+        />
+        {focusGbp.length > 0 && (
+          <div className="pt-2 pb-1">
+            <div className="text-[10px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-medium mb-1">
+              Cặp GBP tập trung
+            </div>
+            {focusGbp.map((pair) => (
+              <PairBadge
+                key={pair}
+                pair={pair}
+                direction={isVIP ? "focus" : "locked"}
+                focusOnly={isVIP}
+              />
+            ))}
+          </div>
+        )}
+        {focusGbp.length === 0 && isVIP && (
+          <div className="pt-2 text-xs text-zinc-400 dark:text-zinc-500">Không có mốc GBP — chỉ Vàng</div>
+        )}
       </div>
 
       {/* Hour Note */}

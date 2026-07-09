@@ -15,31 +15,39 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
+/** GBP focus pairs by hour — no BUY/SELL display; only which pairs to watch. */
+export function getFocusGbpPairs(hour: number): string[] {
+  if (hour >= 2 && hour <= 8) return ["GBPAUD", "GBPJPY"];
+  if (hour === 9 || hour === 11 || hour === 12 || hour === 14 || hour === 15) {
+    return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
+  }
+  return [];
+}
+
 const HOUR_NOTES: Record<number, string> = {
-  2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  8: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  9: "GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
-  11: "GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
-  12: "GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
-  15: "GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
+  2: "Tập trung GBPAUD · GBPJPY",
+  3: "Tập trung GBPAUD · GBPJPY",
+  4: "Tập trung GBPAUD · GBPJPY",
+  5: "Tập trung GBPAUD · GBPJPY",
+  6: "Tập trung GBPAUD · GBPJPY",
+  7: "Tập trung GBPAUD · GBPJPY",
+  8: "Tập trung GBPAUD · GBPJPY",
+  9: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+  11: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+  12: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+  14: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+  15: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
 };
 
 export function getHourNote(hour: number, weekday: number): string | null {
-  return HOUR_NOTES[hour] ?? "Chỉ Vàng";
+  return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
 const PAIR_RULES = [
-  "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
-  "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
-  "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
-  "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
-  "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
-  "Các slot khác trong band: Chỉ Vàng",
+  "H=2-8: list pair GBPAUD · GBPJPY (ẩn GBPUSD · GBPCAD)",
+  "H=9 / 11 / 12 / 14 / 15: list full nhóm GBP",
+  "H khác trong band: chỉ XAUUSD",
+  "GBP: không hiển thị Mua/Bán — chỉ mốc tập trung cặp",
 ];
 
 const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
@@ -68,12 +76,9 @@ export const DAY_RULES: Record<number, string[]> = {
     "Slots: H=5-15 (chỉ Thứ 5)",
     D_DIRECTION_RULE,
     ...SPECIAL_DAY_NOTES,
-    "H=5-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
-    "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
-    "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
-    "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
-    "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
-    "Các slot khác trong H=5-15: Chỉ Vàng",
+    "H=5-8: list GBPAUD · GBPJPY",
+    "H=9 / 11 / 12 / 14 / 15: list full nhóm GBP",
+    "H khác: chỉ XAUUSD · GBP không show Mua/Bán",
   ],
   5: [    // Thứ 6
     "Slots: H=2-15",

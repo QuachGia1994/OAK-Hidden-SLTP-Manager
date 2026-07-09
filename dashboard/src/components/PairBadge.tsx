@@ -3,9 +3,11 @@ import { getSignalLabel } from "@/lib/constants";
 interface PairBadgeProps {
   pair: string;
   direction: string;
+  /** GBP focus mode: show pair as active without Mua/Bán */
+  focusOnly?: boolean;
 }
 
-export function PairBadge({ pair, direction }: PairBadgeProps) {
+export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps) {
   if (direction === "locked") {
     return (
       <div className="flex items-center justify-between py-2">
@@ -13,6 +15,17 @@ export function PairBadge({ pair, direction }: PairBadgeProps) {
         <svg className="w-4 h-4 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
         </svg>
+      </div>
+    );
+  }
+
+  if (focusOnly) {
+    return (
+      <div className="flex items-center justify-between py-2">
+        <span className="font-mono text-sm font-medium text-zinc-800 dark:text-zinc-200">{pair}</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-200/70 dark:border-sky-500/20">
+          Focus
+        </span>
       </div>
     );
   }

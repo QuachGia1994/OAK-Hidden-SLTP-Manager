@@ -5580,69 +5580,82 @@ class App(ctk.CTk):
         if hasattr(self, "lbl_news_title"):
             self.lbl_news_title.configure(text_color=p["text_primary"])
     def apply_theme(self, theme_key):
+        """Premium Trading Terminal palettes — Soft Premium / Minimal Dark / Deep Sea."""
         self.theme_key = theme_key
         if theme_key == "light":
             ctk.set_appearance_mode("Light")
             ctk.set_default_color_theme("blue")
             self.theme_palette = {
-                "text_primary": "#1f2328",
-                "text_muted": "#5c6773",
-                "panel_bg": "#f5f7fb",
-                "panel_alt_bg": "#e6eef7",
+                "text_primary": "#0f172a",
+                "text_muted": "#64748b",
+                "panel_bg": "#f8fafc",
+                "panel_alt_bg": "#f1f5f9",
                 "card_bg": "#ffffff",
-                "card_border": "#c7d0dd",
+                "card_border": "#e2e8f0",
                 "input_bg": "#ffffff",
-                "input_border": "#c7d0dd",
-                "input_text": "#1f2328",
-                "signal_card_bg": "#f2f5f9",
-                "signal_title": "#4d5966",
-                "signal_value": "#1f2328",
-                "res_box_bg": "#eef3ff",
-                "accent": "#1e6bb8",
-                "schedule_bg": "#eef1f6",
-                "sidebar_bg": "#e9edf2"
+                "input_border": "#cbd5e1",
+                "input_text": "#0f172a",
+                "signal_card_bg": "#ffffff",
+                "signal_title": "#64748b",
+                "signal_value": "#0f172a",
+                "res_box_bg": "#f1f5f9",
+                "accent": "#0ea5e9",
+                "accent_hover": "#0284c7",
+                "schedule_bg": "#f8fafc",
+                "sidebar_bg": "#0f172a",
+                "sidebar_text": "#e2e8f0",
+                "success": "#059669",
+                "danger": "#dc2626",
             }
         elif theme_key == "deepsea":
             ctk.set_appearance_mode("Dark")
             ctk.set_default_color_theme("dark-blue")
             self.theme_palette = {
-                "text_primary": "#e6f0f7",
-                "text_muted": "#86a0b2",
-                "panel_bg": "#08131f",
-                "panel_alt_bg": "#0b1b2b",
-                "card_bg": "#0d2030",
-                "card_border": "#163148",
-                "input_bg": "#0b1b2b",
-                "input_border": "#163148",
-                "input_text": "#e6f0f7",
-                "signal_card_bg": "#0d2030",
-                "signal_title": "#a8bfcd",
-                "signal_value": "#e6f0f7",
-                "res_box_bg": "#0b1f31",
-                "accent": "#1aa6b2",
-                "schedule_bg": "#0b1b2b",
-                "sidebar_bg": "#06101a"
+                "text_primary": "#e0f2fe",
+                "text_muted": "#7dd3fc",
+                "panel_bg": "#020617",
+                "panel_alt_bg": "#0c1929",
+                "card_bg": "#0f2744",
+                "card_border": "#164e63",
+                "input_bg": "#0c1929",
+                "input_border": "#155e75",
+                "input_text": "#e0f2fe",
+                "signal_card_bg": "#0f2744",
+                "signal_title": "#67e8f9",
+                "signal_value": "#ecfeff",
+                "res_box_bg": "#082f49",
+                "accent": "#22d3ee",
+                "accent_hover": "#06b6d4",
+                "schedule_bg": "#0c1929",
+                "sidebar_bg": "#020617",
+                "sidebar_text": "#a5f3fc",
+                "success": "#34d399",
+                "danger": "#f87171",
             }
         else:
             ctk.set_appearance_mode("Dark")
             ctk.set_default_color_theme("blue")
             self.theme_palette = {
-                "text_primary": "#f2f2f2",
-                "text_muted": "#a0a0a0",
-                "panel_bg": "#1f1f1f",
-                "panel_alt_bg": "#2b2b2b",
-                "card_bg": "#222222",
-                "card_border": "#3b3b3b",
-                "input_bg": "#2b2b2b",
-                "input_border": "#404040",
-                "input_text": "#ffffff",
-                "signal_card_bg": "#222222",
-                "signal_title": "#d0d0d0",
-                "signal_value": "#86868b",
-                "res_box_bg": "#1a1a1a",
-                "accent": "#3b8ed0",
-                "schedule_bg": "#2b2b2b",
-                "sidebar_bg": "#202020"
+                "text_primary": "#fafafa",
+                "text_muted": "#a1a1aa",
+                "panel_bg": "#09090b",
+                "panel_alt_bg": "#18181b",
+                "card_bg": "#18181b",
+                "card_border": "#27272a",
+                "input_bg": "#18181b",
+                "input_border": "#3f3f46",
+                "input_text": "#fafafa",
+                "signal_card_bg": "#18181b",
+                "signal_title": "#a1a1aa",
+                "signal_value": "#fafafa",
+                "res_box_bg": "#09090b",
+                "accent": "#3b82f6",
+                "accent_hover": "#2563eb",
+                "schedule_bg": "#18181b",
+                "sidebar_bg": "#09090b",
+                "sidebar_text": "#e4e4e7",
+                "success": "#22c55e",
+                "danger": "#ef4444",
             }
 
     def refresh_theme_labels(self):
@@ -5672,6 +5685,14 @@ class App(ctk.CTk):
         self.apply_theme_overrides()
         self.refresh_profile_list()
         self.update_news_summary(force=True)
+        # Rebuild About theme cards so selection border matches
+        try:
+            if hasattr(self, "tab_about") and self.tab_about.winfo_exists():
+                for child in list(self.tab_about.winfo_children()):
+                    child.destroy()
+                self.create_about_frame(self.tab_about)
+        except Exception:
+            pass
 
     def create_signals_frame(self, parent):
         # Initialize and mount the SignalsTab
@@ -6540,31 +6561,110 @@ class App(ctk.CTk):
                 start = f"{pos}+1c"
 
     def create_about_frame(self, parent):
+        """Giới thiệu — layout Trading Terminal (typography + theme cards)."""
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frames["about"] = frame
         frame.pack(fill="both", expand=True)
 
-        # Center frame to hold all content
-        center = ctk.CTkFrame(frame, fg_color="transparent")
-        center.place(relx=0.5, rely=0.30, anchor="center")
+        p = getattr(self, "theme_palette", {}) or {}
+        accent = p.get("accent", "#3b82f6")
+        card_bg = p.get("card_bg", "#18181b")
+        border = p.get("card_border", "#27272a")
+        muted = p.get("text_muted", "#a1a1aa")
+        primary = p.get("text_primary", "#fafafa")
 
-        # App icon + title
-        ctk.CTkLabel(center, text="🎛️", font=ctk.CTkFont(size=56)).grid(row=0, column=0, pady=(0, 8))
-        ctk.CTkLabel(center, text=f"OAK Manager {VERSION} Stable", font=ctk.CTkFont(size=24, weight="bold")).grid(row=1, column=0)
-        ctk.CTkLabel(center, text="Trading Operations Console for MT4 / MT5", font=ctk.CTkFont(size=13), text_color="gray").grid(row=2, column=0, pady=(0, 5))
-        ctk.CTkLabel(center, text=f"Build {BUILD} · Windows x64", font=ctk.CTkFont(size=11), text_color="gray").grid(row=3, column=0, pady=(0, 20))
+        outer = ctk.CTkScrollableFrame(frame, fg_color="transparent")
+        outer.pack(fill="both", expand=True, padx=28, pady=24)
 
-        self.lbl_about = ctk.CTkLabel(center, text=T("about_info"), font=ctk.CTkFont(size=13))
-        self.lbl_about.grid(row=4, column=0, pady=10)
+        # Hero
+        hero = ctk.CTkFrame(outer, fg_color=card_bg, corner_radius=16, border_width=1, border_color=border)
+        hero.pack(fill="x", pady=(0, 20))
+        hero_in = ctk.CTkFrame(hero, fg_color="transparent")
+        hero_in.pack(fill="x", padx=28, pady=28)
+
+        badge = ctk.CTkFrame(hero_in, fg_color=accent, corner_radius=12, width=56, height=56)
+        badge.pack(pady=(0, 14))
+        badge.pack_propagate(False)
+        ctk.CTkLabel(badge, text="OAK", font=ctk.CTkFont(size=16, weight="bold"), text_color="#ffffff").place(relx=0.5, rely=0.5, anchor="center")
+
+        self.lbl_about_title = ctk.CTkLabel(
+            hero_in, text=f"OAK Manager {VERSION}",
+            font=ctk.CTkFont(size=26, weight="bold"), text_color=primary,
+        )
+        self.lbl_about_title.pack()
+        ctk.CTkLabel(
+            hero_in, text="Trading Operations Console · MT4 / MT5",
+            font=ctk.CTkFont(size=13), text_color=muted,
+        ).pack(pady=(6, 0))
+        ctk.CTkLabel(
+            hero_in, text=f"Stable · Build {BUILD} · Windows x64",
+            font=ctk.CTkFont(size=11), text_color=muted,
+        ).pack(pady=(4, 0))
+
+        self.lbl_about = ctk.CTkLabel(
+            hero_in, text=T("about_info"), font=ctk.CTkFont(size=13),
+            text_color=muted, wraplength=520, justify="center",
+        )
+        self.lbl_about.pack(pady=(16, 0))
         self.add_ui_element("about_info", self.lbl_about)
 
-        # Buttons
-        btn_frame = ctk.CTkFrame(center, fg_color="transparent")
-        btn_frame.grid(row=5, column=0, pady=20)
-        ctk.CTkButton(btn_frame, text="📘 Open Documentation", width=180,
-                       command=lambda: os.startfile("README.md") if os.path.exists("README.md") else None).pack(side="left", padx=10)
-        ctk.CTkButton(btn_frame, text="🔄 Check for Updates", width=180,
-                       command=lambda: self.log("Checking for updates... (auto-check coming soon)")).pack(side="left", padx=10)
+        btn_row = ctk.CTkFrame(hero_in, fg_color="transparent")
+        btn_row.pack(pady=(20, 0))
+        ctk.CTkButton(
+            btn_row, text="Documentation", width=160, height=36, corner_radius=10,
+            fg_color=accent, hover_color=p.get("accent_hover", accent),
+            command=lambda: os.startfile("README.md") if os.path.exists("README.md") else None,
+        ).pack(side="left", padx=6)
+        ctk.CTkButton(
+            btn_row, text="Check Updates", width=160, height=36, corner_radius=10,
+            fg_color="transparent", border_width=1, border_color=border, text_color=primary,
+            hover_color=p.get("panel_alt_bg", "#18181b"),
+            command=lambda: self.log("Checking for updates..."),
+        ).pack(side="left", padx=6)
+
+        # Theme section
+        ctk.CTkLabel(
+            outer, text="GIAO DIỆN", font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=muted, anchor="w",
+        ).pack(fill="x", pady=(8, 10))
+
+        themes_row = ctk.CTkFrame(outer, fg_color="transparent")
+        themes_row.pack(fill="x")
+        themes_row.grid_columnconfigure((0, 1, 2), weight=1, uniform="theme")
+
+        theme_defs = [
+            ("dark", T("theme_dark"), "Dark", "#09090b", "#3b82f6", "#27272a"),
+            ("light", T("theme_light"), "Light", "#f8fafc", "#0ea5e9", "#e2e8f0"),
+            ("deepsea", T("theme_deepsea"), "Deep Sea", "#020617", "#22d3ee", "#164e63"),
+        ]
+        current = self.settings.get("theme", "dark")
+        self._about_theme_cards = {}
+        for col, (key, label, short, bg, acc, brd) in enumerate(theme_defs):
+            selected = key == current
+            card = ctk.CTkFrame(
+                themes_row, fg_color=bg, corner_radius=14,
+                border_width=2, border_color=acc if selected else brd, height=120,
+            )
+            card.grid(row=0, column=col, sticky="nsew", padx=6)
+            card.grid_propagate(False)
+            # swatch
+            sw = ctk.CTkFrame(card, fg_color=acc, corner_radius=8, height=8)
+            sw.pack(fill="x", padx=14, pady=(16, 10))
+            ctk.CTkLabel(card, text=short, font=ctk.CTkFont(size=15, weight="bold"),
+                         text_color="#fafafa" if key != "light" else "#0f172a").pack()
+            ctk.CTkLabel(
+                card, text="Active" if selected else "Select",
+                font=ctk.CTkFont(size=11),
+                text_color=acc if selected else ("#a1a1aa" if key != "light" else "#64748b"),
+            ).pack(pady=(4, 0))
+
+            def _make_cmd(k=key, lbl=label):
+                return lambda: self.change_theme(lbl)
+
+            card.bind("<Button-1>", lambda e, c=_make_cmd(): c())
+            for child in card.winfo_children():
+                child.bind("<Button-1>", lambda e, c=_make_cmd(): c())
+            self._about_theme_cards[key] = card
 
     def ensure_mt5_connection(self):
         if mt5.terminal_info():
@@ -6927,18 +7027,17 @@ class App(ctk.CTk):
                     if hasattr(self, 'card_account_status'):
                         self.card_account_status.configure(text="Status: —", text_color="gray")
 
-            # Signal Card — current + pair dirs (dashboard-style list)
+            # Signal Card — XAU signal + GBP focus pairs (no Mua/Bán on GBP)
             if hasattr(self, 'card_signal_current'):
                 pair_dirs = {}
+                latest = None
                 try:
                     signals_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
                     if os.path.exists(signals_file):
                         with open(signals_file, "r", encoding="utf-8") as f:
                             signals = json.load(f)
                         if signals:
-                            latest = get_latest_display_signal(signals)
-                            if not latest:
-                                latest = signals[-1]
+                            latest = get_latest_display_signal(signals) or signals[-1]
                             sig = latest.get("signal", "—")
                             icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
                             hour = latest.get("hour")
@@ -6952,18 +7051,37 @@ class App(ctk.CTk):
                 except Exception:
                     self.card_signal_current.configure(text="Current: —")
                     pair_dirs = {}
+                    latest = None
 
                 if hasattr(self, 'card_signal_pair_labels'):
+                    hour = latest.get("hour") if latest else None
+                    focus_gbp = set()
+                    if hour is not None:
+                        try:
+                            h = int(hour)
+                            if 2 <= h <= 8:
+                                focus_gbp = {"GBPAUD", "GBPJPY"}
+                            elif h in (9, 11, 12, 14, 15):
+                                focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
+                        except (TypeError, ValueError):
+                            pass
+                    p = getattr(self, "theme_palette", {}) or {}
+                    accent = p.get("accent", "#3b82f6")
+                    muted = p.get("text_muted", "gray")
                     for pair, lbl in self.card_signal_pair_labels.items():
-                        d = pair_dirs.get(pair)
-                        if d == "BUY":
-                            lbl.configure(text="Mua", text_color="#2ecc71")
-                        elif d == "SELL":
-                            lbl.configure(text="Bán", text_color="#e74c3c")
-                        elif d == "--":
-                            lbl.configure(text="--", text_color="gray")
+                        if pair == "XAUUSD":
+                            d = pair_dirs.get(pair)
+                            if d == "BUY":
+                                lbl.configure(text="Mua", text_color=p.get("success", "#2ecc71"))
+                            elif d == "SELL":
+                                lbl.configure(text="Bán", text_color=p.get("danger", "#e74c3c"))
+                            else:
+                                lbl.configure(text="—", text_color=muted)
+                            continue
+                        if pair in focus_gbp:
+                            lbl.configure(text="Focus", text_color=accent)
                         else:
-                            lbl.configure(text="—", text_color="gray")
+                            lbl.configure(text="—", text_color=muted)
 
                 # Next slot countdown (T5=H5-15, else H2-15; broker weekday)
                 now = datetime.now()
