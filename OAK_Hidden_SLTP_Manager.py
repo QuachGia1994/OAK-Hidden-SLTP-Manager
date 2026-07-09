@@ -5003,18 +5003,16 @@ class App(ctk.CTk):
         cards_frame.grid_columnconfigure(1, weight=1)
         cards_frame.grid_columnconfigure(2, weight=1)
 
-        # Account Card
+        # Account Card (Balance/Equity hidden for privacy)
         self.card_account = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_account.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         ctk.CTkLabel(self.card_account, text="📊 Account", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
         self.card_account_server = ctk.CTkLabel(self.card_account, text="—", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
         self.card_account_server.pack(fill="x", padx=8)
-        self.card_account_balance = ctk.CTkLabel(self.card_account, text="Balance: —", font=ctk.CTkFont(size=11), anchor="w")
-        self.card_account_balance.pack(fill="x", padx=8)
-        self.card_account_equity = ctk.CTkLabel(self.card_account, text="Equity: —", font=ctk.CTkFont(size=11), anchor="w")
-        self.card_account_equity.pack(fill="x", padx=8, pady=(0, 6))
+        self.card_account_status = ctk.CTkLabel(self.card_account, text="Status: —", font=ctk.CTkFont(size=11), anchor="w")
+        self.card_account_status.pack(fill="x", padx=8, pady=(0, 6))
 
-        # Signal Card
+        # Signal Card — current slot + pair list (same pairs as dashboard cards)
         self.card_signal = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_signal.grid(row=0, column=1, sticky="nsew", padx=4)
         ctk.CTkLabel(self.card_signal, text="📈 Signal", font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
@@ -5023,7 +5021,17 @@ class App(ctk.CTk):
         self.card_signal_next = ctk.CTkLabel(self.card_signal, text="Next: —", font=ctk.CTkFont(size=11), anchor="w")
         self.card_signal_next.pack(fill="x", padx=8)
         self.card_signal_countdown = ctk.CTkLabel(self.card_signal, text="Countdown: —", font=ctk.CTkFont(size=10), anchor="w", text_color="gray")
-        self.card_signal_countdown.pack(fill="x", padx=8, pady=(0, 6))
+        self.card_signal_countdown.pack(fill="x", padx=8, pady=(2, 4))
+        self.card_signal_pairs_frame = ctk.CTkFrame(self.card_signal, fg_color="transparent")
+        self.card_signal_pairs_frame.pack(fill="x", padx=6, pady=(0, 6))
+        self.card_signal_pair_labels = {}
+        for pair in ("XAUUSD", "GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
+            row = ctk.CTkFrame(self.card_signal_pairs_frame, fg_color="transparent")
+            row.pack(fill="x", pady=1)
+            ctk.CTkLabel(row, text=pair, font=ctk.CTkFont(size=10, family="Consolas"), anchor="w").pack(side="left")
+            val = ctk.CTkLabel(row, text="—", font=ctk.CTkFont(size=10, weight="bold"), anchor="e")
+            val.pack(side="right")
+            self.card_signal_pair_labels[pair] = val
 
         # Engine Card
         self.card_engine = ctk.CTkFrame(cards_frame, corner_radius=8)
@@ -6538,22 +6546,27 @@ class App(ctk.CTk):
             mt5_state = self._store.compute_mt5_state(profile) if hasattr(self, '_store') and profile else {"state": "Disconnected", "last_error": ""}
             tg_state = self._store.compute_telegram_state(profile) if hasattr(self, '_store') and profile else {"configured": False, "api_ok": False}
 
-            # Account Card - read from heartbeat
-            if hasattr(self, 'card_account_balance'):
+            # Account Card - server/status only (Balance/Equity intentionally hidden)
+            if hasattr(self, 'card_account_server'):
                 if hb and hb.get("server"):
                     server_text = f"{hb['server']} | #{hb.get('login', '')}"
                     if mt5_state["state"] != "Connected" and mt5_state.get("age") is not None:
                         server_text += f" ({int(mt5_state['age'])}s stale)"
                     self.card_account_server.configure(text=server_text)
-                    self.card_account_balance.configure(text=f"Balance: ${hb.get('balance', 0):,.2f}")
-                    self.card_account_equity.configure(text=f"Equity: ${hb.get('equity', 0):,.2f}")
+                    if hasattr(self, 'card_account_status'):
+                        state = mt5_state.get("state") or "—"
+                        self.card_account_status.configure(
+                            text=f"Status: {state}",
+                            text_color="#66bb6a" if state == "Connected" else "#ffb74d" if state == "Degraded" else "#ef5350",
+                        )
                 else:
                     self.card_account_server.configure(text="Waiting for worker...")
-                    self.card_account_balance.configure(text="Balance: —")
-                    self.card_account_equity.configure(text="Equity: —")
+                    if hasattr(self, 'card_account_status'):
+                        self.card_account_status.configure(text="Status: —", text_color="gray")
 
-            # Signal Card
+            # Signal Card — current + pair dirs (dashboard-style list)
             if hasattr(self, 'card_signal_current'):
+                pair_dirs = {}
                 try:
                     signals_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
                     if os.path.exists(signals_file):
@@ -6563,9 +6576,30 @@ class App(ctk.CTk):
                             latest = signals[-1]
                             sig = latest.get("signal", "—")
                             icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
-                            self.card_signal_current.configure(text=f"Current: {icon} {sig}")
+                            hour = latest.get("hour")
+                            hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
+                            self.card_signal_current.configure(text=f"Current: {icon} {sig}{hour_txt}")
+                            pair_dirs = latest.get("pair_dirs") or {}
+                        else:
+                            self.card_signal_current.configure(text="Current: —")
+                    else:
+                        self.card_signal_current.configure(text="Current: —")
                 except Exception:
                     self.card_signal_current.configure(text="Current: —")
+                    pair_dirs = {}
+
+                if hasattr(self, 'card_signal_pair_labels'):
+                    for pair, lbl in self.card_signal_pair_labels.items():
+                        d = pair_dirs.get(pair)
+                        if d == "BUY":
+                            lbl.configure(text="Mua", text_color="#2ecc71")
+                        elif d == "SELL":
+                            lbl.configure(text="Bán", text_color="#e74c3c")
+                        elif d == "--":
+                            lbl.configure(text="--", text_color="gray")
+                        else:
+                            lbl.configure(text="—", text_color="gray")
+
                 # Next slot countdown
                 now = datetime.now()
                 target_hours = list(range(3, 16))
