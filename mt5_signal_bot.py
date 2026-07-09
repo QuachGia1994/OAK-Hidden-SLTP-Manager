@@ -242,9 +242,12 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
 def _parse_news_for_dashboard(news_lines):
     """Parse news strings like '• 19:30 CAD 🔴 GDP m/m' into structured objects."""
     import re
+    from oak_trading_reminders import is_critical_news_title
     items = []
     for line in news_lines:
+        raw = line
         line = line.lstrip("•- ").strip()
+        line = re.sub(r"^⚠️\s*", "", line)
         # Match: HH:MM CURRENCY [emoji] TITLE
         m = re.match(r"(\d{1,2}:\d{2})\s+(\w+)\s+(.+)", line)
         if m:
@@ -260,7 +263,19 @@ def _parse_news_for_dashboard(news_lines):
             elif "\U0001f7e2" in rest or "🟢" in rest:
                 impact = "low"
                 title = rest.replace("\U0001f7e2", "").replace("🟢", "").strip()
-            items.append({"time": time_str, "currency": currency, "title": title.strip(), "impact": impact})
+            title = re.sub(r"\s*\[TIN NỔI BẬT\]\s*", "", title).strip()
+            critical = is_critical_news_title(title) or "TIN NỔI BẬT" in raw
+            if critical:
+                impact = "high"
+            items.append({
+                "time": time_str,
+                "currency": currency,
+                "title": title,
+                "impact": impact,
+                "critical": critical,
+            })
+    # Critical first
+    items.sort(key=lambda x: (0 if x.get("critical") else 1, x.get("time") or "99:99"))
     return items
 
 def select_signals_for_dashboard(all_signals):

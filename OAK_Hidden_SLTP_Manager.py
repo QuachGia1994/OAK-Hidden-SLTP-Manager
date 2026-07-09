@@ -498,6 +498,11 @@ LANG = {
 Chào mừng bạn đến với hệ thống quản lý lệnh thông minh OAK MANAGER. Dưới đây là hướng dẫn chi tiết để bạn làm chủ mọi tính năng của Robot.
 
 ## <c=#4CAF50>🤖</c> Điều khiển bằng Ngôn ngữ tự nhiên (NLP)
+
+### Chốt lời từng phần (Partial)
+- `Chốt XAUUSD 0.02 lot khi giá đạt 5000.00` — canh giá, chốt volume khi giá chạm.
+- `Chốt vàng 0.01 khi giá 2650` — alias Vàng/Gold.
+- `Lệnh 12345 lãi 200 chốt 0.01` — canh **lãi $** theo ticket.
 OAK Manager hiểu các câu lệnh chat hoặc giọng nói như một người trợ lý thực thụ.
 
 ### <c=#FF9800>1.</c> Dự báo Lãi/Lỗ (PnL Forecast)
@@ -1141,7 +1146,7 @@ class CopyTradeManager:
             except:
                 pass
 
-    def _add_partial_close_task(self, ticket_id, target_profit, close_vol):
+    def _add_partial_close_task(self, ticket_id, target_profit, close_vol, target_price=None, symbol_hint=""):
         profile_name = self.config.get("profile_name", "Unknown")
         
         # Verify ticket exists in MT5 and get info
@@ -1151,13 +1156,20 @@ class CopyTradeManager:
             positions = mt5.positions_get()
             if positions:
                 for p in positions:
-                    if p.ticket == ticket_id:
+                    if ticket_id and p.ticket == ticket_id:
                         symbol = p.symbol
                         order_type = "BUY" if p.type == mt5.POSITION_TYPE_BUY else "SELL"
                         break
+                    # Symbol-only task: match first open position of symbol
+                    if (not ticket_id) and symbol_hint:
+                        if symbol_hint.upper().replace("+", "") in p.symbol.upper().replace("+", ""):
+                            symbol = p.symbol
+                            order_type = "BUY" if p.type == mt5.POSITION_TYPE_BUY else "SELL"
+                            ticket_id = p.ticket
+                            break
             
             # If not found in positions, maybe it's an order? (Though partial close is for positions)
-            if not symbol:
+            if not symbol and ticket_id:
                 orders = mt5.orders_get()
                 if orders:
                     for o in orders:
@@ -1167,16 +1179,23 @@ class CopyTradeManager:
                             break
         
         if not symbol:
-            symbol = "???"
-            order_type = "???"
+            symbol = symbol_hint or "???"
+            order_type = order_type or "???"
+
+        if not ticket_id:
+            self.notify(f"❌ [{profile_name}] Không tìm thấy lệnh mở cho {symbol_hint or 'symbol'}")
+            return False
 
         # Load existing tasks
         task_file = "pending_partials.json"
         tasks = load_json(task_file)
         if not isinstance(tasks, dict): tasks = {}
         
+        mode = "price" if target_price is not None else "profit"
         tasks[str(ticket_id)] = {
-            "target_profit": target_profit,
+            "target_profit": float(target_profit or 0),
+            "target_price": float(target_price) if target_price is not None else None,
+            "mode": mode,
             "close_volume": close_vol,
             "profile": profile_name,
             "symbol": symbol,
@@ -1186,12 +1205,19 @@ class CopyTradeManager:
         
         save_json(task_file, tasks)
         
-        resp = get_natural_response("partial_task_added", 
-                                    ticket_id=ticket_id, 
-                                    symbol=symbol, 
-                                    profit=f"{target_profit:,.2f}", 
-                                    vol=close_vol)
-        self.notify(f"✂️ [{profile_name}] {resp}")
+        if mode == "price":
+            self.notify(
+                f"✂️ [{profile_name}] Đã canh chốt {close_vol} lot {symbol} "
+                f"(#{ticket_id}) khi giá đạt {float(target_price):,.2f}"
+            )
+        else:
+            resp = get_natural_response("partial_task_added", 
+                                        ticket_id=ticket_id, 
+                                        symbol=symbol, 
+                                        profit=f"{float(target_profit):,.2f}", 
+                                        vol=close_vol)
+            self.notify(f"✂️ [{profile_name}] {resp}")
+        return True
 
     def _check_partial_close_tasks(self):
         """Check pending partial close tasks against current positions"""
@@ -1211,16 +1237,17 @@ class CopyTradeManager:
             completed_tickets = []
             
             for tid_str, task in tasks.items():
-                ticket_id = int(tid_str)
-                target_profit = task.get("target_profit", 0)
-                close_vol = task.get("close_volume", 0)
+                try:
+                    ticket_id = int(tid_str)
+                except (TypeError, ValueError):
+                    completed_tickets.append(tid_str)
+                    continue
+                target_profit = float(task.get("target_profit") or 0)
+                target_price = task.get("target_price")
+                mode = task.get("mode") or ("price" if target_price is not None else "profit")
+                close_vol = float(task.get("close_volume") or 0)
                 target_profile = task.get("profile", "")
                 
-                # Check profile match (if running multiple instances sharing file? 
-                # Ideally file should be per profile or handled by Master process. 
-                # Since this is "OAK Hidden Manager", usually one instance per MT5 or multiple threads?
-                # If multiple threads/processes share one file, we need locking or filtering.
-                # Here we filter by profile name stored in task.
                 current_profile = self.config.get("profile_name", "Unknown")
                 if target_profile and target_profile != current_profile:
                     continue
@@ -1228,8 +1255,22 @@ class CopyTradeManager:
                 if ticket_id in pos_map:
                     pos = pos_map[ticket_id]
                     net_profit = pos.profit + pos.swap + pos.commission
+                    hit = False
+                    if mode == "price" and target_price is not None:
+                        try:
+                            tp = float(target_price)
+                        except (TypeError, ValueError):
+                            tp = None
+                        if tp is not None:
+                            # BUY: price rises to target; SELL: price falls to target
+                            if pos.type == mt5.POSITION_TYPE_BUY and pos.price_current >= tp:
+                                hit = True
+                            elif pos.type == mt5.POSITION_TYPE_SELL and pos.price_current <= tp:
+                                hit = True
+                    else:
+                        hit = net_profit >= target_profit
 
-                    if net_profit >= target_profit:
+                    if hit:
                         # Re-verify position exists (may have been closed by SL/TP)
                         verify = mt5.positions_get(ticket=ticket_id)
                         if not verify:
@@ -1237,21 +1278,16 @@ class CopyTradeManager:
                             completed_tickets.append(tid_str)
                             continue
                         if self._partial_close(pos, close_vol):
-                            # self.notify(f"✅ [{current_profile}] Auto Partial: Ticket #{ticket_id} lãi ${net_profit:.2f} (Target ${target_profit}) -> Đã chốt {close_vol} Lot.")
                             resp = get_natural_response("partial_success", ticket_id=ticket_id, vol=close_vol)
                             self.notify(f"✅ [{current_profile}] {resp}")
                             completed_tickets.append(tid_str)
                         else:
-                            # Notify failure
                             self.notify(f"❌ [{current_profile}] Partial Close Failed: Ticket #{ticket_id}. Retrying...")
-                            pass
                 else:
                     # Position no longer exists (closed manually or SL/TP)
-                    # Remove task to clean up
                     completed_tickets.append(tid_str)
             
             if completed_tickets:
-                # Reload to be safe with concurrency (simple implementation)
                 current_tasks = load_json(task_file)
                 for t in completed_tickets:
                     if t in current_tasks:
@@ -2314,19 +2350,50 @@ class CopyTradeManager:
             # Pattern 2: "ticket 12345 profit 200 close 0.01"
             # Pattern 3: "khi lệnh 12345 đạt lợi nhuận $200, hãy chốt 0.01 lot"
             
-            # Flexible Regex
-            # Group 1: Ticket
-            # Group 2: Profit Amount
-            # Group 3: Close Volume
-            
-            # CẬP NHẬT: Hỗ trợ dấu $ đứng trước/sau số, hỗ trợ dấu phẩy trong số (1,257.84), và thêm từ khóa lụm, bỏ túi
-            partial_pattern = r"(?:lệnh|ticket|order)\s*#?(\d+).*?(?:lãi|lời|profit|đạt|lên)\s*[\$]?\s*([\d,]+(?:\.\d+)?)\s*[\$]?.*?(?:chốt|close|cắt|đóng|lụm|bỏ túi)\s*([\d\.]+)"
+            # --- Price-based partial (preferred for gold):
+            # "Chốt XAUUSD 0.02 lot khi giá đạt 5000.00 (5000)"
+            # "chốt vàng 0.01 khi giá 2650"
+            price_partial = re.search(
+                r"(?:chốt|close|cắt|lụm)\s+"
+                r"([a-zA-Z]{3,12}\+?|vàng|gold)\s+"
+                r"([\d.]+)\s*(?:lot)?"
+                r".*?(?:khi\s+)?(?:giá|price|đạt|chạm)\s*(?:đạt|chạm|tới|tại)?\s*"
+                r"([\d]+(?:[.,]\d+)?)",
+                text_lower,
+                re.I,
+            )
+            if price_partial:
+                try:
+                    raw_sym = price_partial.group(1)
+                    sym_map = {"vàng": "XAUUSD", "vang": "XAUUSD", "gold": "XAUUSD"}
+                    symbol_hint = sym_map.get(raw_sym.lower(), raw_sym.upper())
+                    close_vol = float(price_partial.group(2))
+                    price_str = price_partial.group(3).replace(",", ".")
+                    target_price = float(price_str)
+                    # Optional ($profit) in parens — ignored for trigger, price is source of truth
+                    if target_price > 0 and close_vol > 0:
+                        self._add_partial_close_task(
+                            ticket_id=None,
+                            target_profit=0,
+                            close_vol=close_vol,
+                            target_price=target_price,
+                            symbol_hint=symbol_hint,
+                        )
+                        return
+                except Exception as e:
+                    print(f"Price partial NLP error: {e}")
+
+            # Profit-based: "lệnh 12345 lãi 200 chốt 0.01"
+            partial_pattern = (
+                r"(?:lệnh|ticket|order)\s*#?(\d+).*?"
+                r"(?:lãi|lời|profit|đạt|lên)\s*[\$]?\s*([\d,]+(?:\.\d+)?)\s*[\$]?.*?"
+                r"(?:chốt|close|cắt|đóng|lụm|bỏ túi)\s*([\d\.]+)"
+            )
             partial_match = re.search(partial_pattern, text_lower)
             
             if partial_match:
                 try:
                     ticket_id = int(partial_match.group(1))
-                    # Xử lý dấu phẩy trong số tiền (1,257.84 -> 1257.84)
                     profit_str = partial_match.group(2).replace(",", "")
                     target_profit = float(profit_str)
                     close_vol = float(partial_match.group(3))
@@ -2334,7 +2401,7 @@ class CopyTradeManager:
                     if target_profit > 0 and close_vol > 0:
                         self._add_partial_close_task(ticket_id, target_profit, close_vol)
                         return
-                except:
+                except Exception:
                     pass
 
             # ... (Existing Buy/Sell Logic continues) ...
@@ -5352,11 +5419,61 @@ class App(ctk.CTk):
         self.news_box.configure(state="normal")
         self.news_box.delete("1.0", "end")
         if news:
-            self.news_box.insert("1.0", "\n".join(news))
+            # Critical (Federal Funds Rate etc.) first + banner
+            critical = [n for n in news if "TIN NỔI BẬT" in n or "Federal Funds Rate" in n]
+            normal = [n for n in news if n not in critical]
+            ordered = critical + normal
+            if critical:
+                banner = (
+                    "╔══════════════════════════════════════╗\n"
+                    "║  ⚠️  TIN NỔI BẬT HÔM NAY (HIGH IMPACT)  ║\n"
+                    "╚══════════════════════════════════════╝\n"
+                )
+                self.news_box.insert("1.0", banner + "\n".join(ordered))
+            else:
+                self.news_box.insert("1.0", "\n".join(ordered))
             self.apply_markdown(self.news_box)
+            # One-shot desktop + telegram alert for FFR-class events
+            self._maybe_alert_critical_news(critical)
         else:
             self.news_box.insert("1.0", T("news_empty"))
         self.news_box.configure(state="disabled")
+
+    def _maybe_alert_critical_news(self, critical_lines):
+        """Notify once/day when Federal Funds Rate (etc.) is on the calendar."""
+        if not critical_lines:
+            return
+        today = datetime.now().strftime("%Y-%m-%d")
+        lock_key = f"critical_news_alert_{today}"
+        if getattr(self, "_critical_news_alerted", None) == today:
+            return
+        # Persist across GUI restarts (simple lock file)
+        lock_path = os.path.join("sent_locks", f"{lock_key}.lock")
+        try:
+            os.makedirs("sent_locks", exist_ok=True)
+            if os.path.exists(lock_path):
+                self._critical_news_alerted = today
+                return
+            with open(lock_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(critical_lines))
+        except Exception:
+            pass
+        self._critical_news_alerted = today
+        body = "\n".join(critical_lines[:6])
+        msg = (
+            f"🚨 <c=#ef5350>TIN NỔI BẬT HÔM NAY</c>\n"
+            f"Phát hiện tin quan trọng (Federal Funds Rate / FOMC / NFP…):\n\n{body}"
+        )
+        try:
+            self.log(msg)
+        except Exception:
+            pass
+        try:
+            # Telegram via running worker monitor if available
+            if hasattr(self, "notify"):
+                self.notify(re.sub(r"<c=#[A-Fa-f0-9]{6}>|</c>", "", msg))
+        except Exception:
+            pass
 
     def apply_theme_overrides(self):
         if not hasattr(self, "theme_palette"):

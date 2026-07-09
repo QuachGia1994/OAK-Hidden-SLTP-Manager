@@ -25,6 +25,8 @@ export interface NewsItem {
   currency: string;
   title: string;
   impact: "high" | "medium" | "low";
+  /** Federal Funds Rate / FOMC / NFP-class events */
+  critical?: boolean;
 }
 
 export interface FactCheckRequest {

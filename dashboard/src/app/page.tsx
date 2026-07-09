@@ -132,16 +132,33 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-4">
             Tin tức kinh tế <span className="text-zinc-400 dark:text-zinc-500">({news.length})</span>
+            {news.some((n: any) => n.critical) && (
+              <span className="ml-2 text-red-500 dark:text-red-400 normal-case tracking-normal font-bold">
+                ⚠️ Có tin nổi bật (FFR/FOMC/NFP)
+              </span>
+            )}
           </h2>
           <div className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white/80 dark:bg-zinc-900/50 overflow-hidden shadow-sm">
-            {news.slice(0, 5).map((item) => (
-              <div key={`${item.time}-${item.currency}-${item.title}`} className="flex items-center gap-3 px-5 py-3 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-                <span className="font-mono text-sm text-zinc-500 dark:text-zinc-400 w-14 shrink-0">{item.time}</span>
+            {[...news]
+              .sort((a: any, b: any) => (b.critical ? 1 : 0) - (a.critical ? 1 : 0))
+              .slice(0, 8)
+              .map((item: any) => (
+              <div
+                key={`${item.time}-${item.currency}-${item.title}`}
+                className={`flex items-center gap-3 px-5 py-3 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 transition-colors ${
+                  item.critical
+                    ? "bg-red-50/90 dark:bg-red-500/10 hover:bg-red-100/80 dark:hover:bg-red-500/15 border-l-4 border-l-red-500"
+                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
+                }`}
+              >
+                <span className={`font-mono text-sm w-14 shrink-0 ${item.critical ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>{item.time}</span>
                 <span className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">{item.currency}</span>
-                <span className={`text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md shrink-0 ${item.impact === "high" ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" : item.impact === "medium" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"}`}>
-                  {item.impact === "high" ? "Quan trọng" : item.impact === "medium" ? "Trung bình" : "Thấp"}
+                <span className={`text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md shrink-0 ${item.critical ? "bg-red-600 text-white" : item.impact === "high" ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" : item.impact === "medium" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"}`}>
+                  {item.critical ? "NỔI BẬT" : item.impact === "high" ? "Quan trọng" : item.impact === "medium" ? "Trung bình" : "Thấp"}
                 </span>
-                <span className="text-sm text-zinc-700 dark:text-zinc-300 truncate">{item.title}</span>
+                <span className={`text-sm truncate ${item.critical ? "text-red-800 dark:text-red-200 font-semibold" : "text-zinc-700 dark:text-zinc-300"}`}>
+                  {item.critical ? "⚠️ " : ""}{item.title}
+                </span>
               </div>
             ))}
           </div>

@@ -18,7 +18,52 @@ from oak_response_dict import get_random_response # Import new response module
 from utils import load_json_file
 from oak_logger import setup_logger
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    ZoneInfo = None  # type: ignore
+
 log = setup_logger("reminder")
+
+
+def _get_ff_tz():
+    """ForexFactory calendar times are US Eastern (EST/EDT), not UTC."""
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo("America/New_York")
+        except Exception:
+            pass
+    # Fallback without tzdata package: approximate EST/EDT via US DST rules
+    return timezone(timedelta(hours=-4 if not is_winter_time() else -5))
+
+
+# Highlight these high-stakes events on desktop + dashboard
+CRITICAL_NEWS_KEYWORDS = (
+    "federal funds rate",
+    "fed interest rate decision",
+    "federal fund rate",
+    "interest rate decision",
+    "fomc statement",
+    "fomc press conference",
+    "fomc economic projections",
+    "non-farm payrolls",
+    "nonfarm payrolls",
+    "non farm payrolls",
+)
+
+
+def is_critical_news_title(title: str) -> bool:
+    t = (title or "").lower()
+    return any(kw in t for kw in CRITICAL_NEWS_KEYWORDS)
+
+
+def format_news_line(time_24, country, title, *, critical=None, impact_icon="🔴"):
+    """Build display line. Critical events get a loud prefix for UI scan."""
+    if critical is None:
+        critical = is_critical_news_title(title)
+    if critical:
+        return f"• ⚠️ {time_24} {country} {impact_icon} {title}  [TIN NỔI BẬT]"
+    return f"• {time_24} {country} {impact_icon} {title}"
 
 # --- CONFIG ---
 CONFIG_FILE = "profiles.json"
@@ -79,17 +124,26 @@ def load_json_file(path, default):
     except Exception:
         return default
 
+# Bump when parse/timezone rules change so stale wrong-time cache is discarded
+_NEWS_CACHE_VERSION = 3
+
+
 def get_economic_news(lang="VN"):
-    # 1. Check Cache
+    # 1. Check Cache (versioned — force re-fetch after timezone/highlight fix)
     cache_file = f"news_cache_{lang}.json"
     today = datetime.now().date()
     try:
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
                 cache = json.load(f)
-            if cache.get("date") == str(today) and cache.get("news"):
+            if (
+                cache.get("date") == str(today)
+                and cache.get("v") == _NEWS_CACHE_VERSION
+                and cache.get("news")
+            ):
                 return cache["news"]
-    except: pass
+    except Exception:
+        pass
 
     # 2. Fetch Fresh
     try:
@@ -102,8 +156,13 @@ def get_economic_news(lang="VN"):
     if news_list and not any(("Lỗi" in x or "Error" in x) for x in news_list):
         try:
             with open(cache_file, "w", encoding="utf-8") as f:
-                json.dump({"date": str(today), "news": news_list}, f)
-        except: pass
+                json.dump(
+                    {"date": str(today), "v": _NEWS_CACHE_VERSION, "news": news_list},
+                    f,
+                    ensure_ascii=False,
+                )
+        except Exception:
+            pass
         
     return news_list
 
@@ -220,12 +279,12 @@ def fetch_investing_rss(lang="VN", context=None):
         if any(kw in title_lower for kw in ["high impact", "fed", "cpi", "nfp", "gdp", "rate", "powell", "ecb", "fomc"]):
             found_events = True
             icon = "🔴"
-            out.append(f"• {event_time_str} {icon} {title}")
+            out.append(format_news_line(event_time_str, "USD", title, impact_icon=icon))
             
     if not found_events:
         return [] # Don't return empty msg here, let _fetch_news_fresh handle it
     
-    out.sort()
+    out.sort(key=lambda line: (0 if "TIN NỔI BẬT" in line else 1, line))
     return out
 
 def fetch_myfxbook_rss(lang="VN", context=None):
@@ -322,11 +381,11 @@ def fetch_myfxbook_rss(lang="VN", context=None):
         
         found_events = True
         icon = "🔴"
-        out.append(f"• {event_time_str} {currency} {icon} {clean_title}")
+        out.append(format_news_line(event_time_str, currency or "???", clean_title, impact_icon=icon))
 
     if not found_events:
          return []
-         
+
     out.sort()
     return out
 
@@ -421,54 +480,58 @@ def fetch_forexfactory_xml(lang="VN", context=None):
     found_events = False
     
     for event in root.findall("event"):
-        event_date_str = event.findtext("date") # MM-DD-YYYY
-        event_time_str = event.findtext("time") # 1:30pm
-        
-        # Format Time to 24h & Convert to Local Time
-        try:
-            # FF XML usually uses GMT/UTC for the public feed (or EST, need verification, but standard feed is often UTC)
-            # Actually FF XML date is usually just date. Time is time.
-            # Best effort: Assume GMT, convert to local, then check date.
-            
-            t_obj = datetime.strptime(event_time_str, "%I:%M%p")
-            dt_src = datetime.strptime(event_date_str, "%m-%d-%Y").date()
-            dt_full_src = datetime.combine(dt_src, t_obj.time())
-            dt_full_src = dt_full_src.replace(tzinfo=timezone.utc) # Assume Source is UTC
-            
-            # Convert to Local
-            dt_local = dt_full_src.astimezone()
-            
-            # FIX: Check LOCAL date match
-            if dt_local.date() != today:
-                continue
-                
-            time_24 = dt_local.strftime("%H:%M")
-        except:
-            # Fallback if parsing fails (use raw date check)
-            try:
-                dt_obj = datetime.strptime(event_date_str, "%m-%d-%Y").date()
-                if dt_obj != today: continue
-                time_24 = event_time_str
-            except:
-                continue
-            
-        title = event.findtext("title")
-        country = event.findtext("country")
-        impact_str = event.findtext("impact") # High, Medium, Low
-        
+        event_date_str = event.findtext("date")  # MM-DD-YYYY
+        event_time_str = (event.findtext("time") or "").strip()  # 1:30pm | All Day | Tentative
+
+        title = (event.findtext("title") or "").strip()
+        country = (event.findtext("country") or "").strip()
+        impact_str = event.findtext("impact")  # High, Medium, Low
+
         # FILTER: Only show High Impact
         if impact_str != "High":
             continue
-            
+
+        # Format Time to 24h local — FF calendar times are US Eastern (EST/EDT)
+        try:
+            ff_tz = _get_ff_tz()
+            if not event_time_str or event_time_str.lower() in ("all day", "tentative", "day"):
+                # All-day: keep on calendar date, show as 00:00 local of that Eastern day
+                dt_src = datetime.strptime(event_date_str, "%m-%d-%Y")
+                dt_full_src = dt_src.replace(hour=0, minute=0, tzinfo=ff_tz)
+            else:
+                t_obj = datetime.strptime(event_time_str.replace(" ", ""), "%I:%M%p")
+                dt_src = datetime.strptime(event_date_str, "%m-%d-%Y").date()
+                dt_full_src = datetime.combine(dt_src, t_obj.time()).replace(tzinfo=ff_tz)
+
+            dt_local = dt_full_src.astimezone()  # machine local (VN usually Asia/Bangkok)
+
+            if dt_local.date() != today:
+                continue
+
+            time_24 = dt_local.strftime("%H:%M")
+        except Exception:
+            try:
+                dt_obj = datetime.strptime(event_date_str, "%m-%d-%Y").date()
+                if dt_obj != today:
+                    continue
+                time_24 = event_time_str or "??:??"
+            except Exception:
+                continue
+
         icon = "🔴"
-        
         found_events = True
-        out.append(f"• {time_24} {country} {icon} {title}")
-        
+        out.append(format_news_line(time_24, country, title, impact_icon=icon))
+
     if not found_events:
         return []
-        
-    out.sort()
+
+    # Critical (FFR etc.) first, then by time
+    def _sort_key(line):
+        crit = 0 if "TIN NỔI BẬT" in line else 1
+        m = re.search(r"(\d{1,2}:\d{2})", line)
+        return (crit, m.group(1) if m else "99:99")
+
+    out.sort(key=_sort_key)
     return out
 
 
