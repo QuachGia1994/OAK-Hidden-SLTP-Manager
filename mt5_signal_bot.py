@@ -629,9 +629,11 @@ def get_xauusd_m30_signal(broker_dt, H):
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
-    Sau khi chốt XAUUSD, rebuild TOÀN BỘ GBP theo rule slot trên final XAU:
-    - H=2..8: GBPAUD ngược XAUUSD, GBPJPY cùng XAUUSD
-    - Không giữ pair theo pattern signal cũ sau khi XAU đã flip.
+    Baseline cho GBP:
+    - H=2..8: rule ghi 'XAUUSD' → rebuild GBP theo final XAU sau flip
+      (GBPAUD ngược XAU, GBPJPY cùng XAU).
+    - H=9,11,12,15: rule ghi 'Signal' → GBP bám pattern Signal (sig),
+      CHỈ cập nhật dòng XAUUSD (có thể lệch Signal sau M30).
     """
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:
@@ -640,12 +642,19 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
         final_xau = "SELL" if xau_m30 == "BUY" else "BUY"
     else:
         final_xau = xau_m30
-    rebuilt = get_pair_direction(H, final_xau, broker_dt)
-    if not rebuilt:
-        pair_dirs["XAUUSD"] = final_xau
+
+    # H=2..8: pairs relative to XAUUSD → rebuild from final gold
+    if H in (2, 3, 4, 5, 6, 7, 8):
+        rebuilt = get_pair_direction(H, final_xau, broker_dt)
+        if not rebuilt:
+            pair_dirs["XAUUSD"] = final_xau
+            return pair_dirs
+        pair_dirs.clear()
+        pair_dirs.update(rebuilt)
         return pair_dirs
-    pair_dirs.clear()
-    pair_dirs.update(rebuilt)
+
+    # H=9,11,12,15,...: pairs relative to pattern Signal — keep GBP, flip XAU only
+    pair_dirs["XAUUSD"] = final_xau
     return pair_dirs
 
 def candle_info_line(candle, label):
@@ -901,13 +910,11 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             pair_lines.append(f"  {p}: {p_icon} {p_text}")
     pair_text = "\n".join(pair_lines)
 
-    # KẾT LUẬN = XAUUSD cuối (sau M30 flip); pair rules bám theo baseline này
-    final_sig = pair_dirs.get("XAUUSD") if pair_dirs.get("XAUUSD") in ("BUY", "SELL") else sig
-    final_icon, final_emoji = get_signal_icon(final_sig)
-    conclusion = f"KẾT LUẬN: {final_icon} {final_sig}\n"
+    # KẾT LUẬN = pattern Signal (baseline GBP cho H=9+; XAU có thể lệch sau M30)
+    conclusion = f"KẾT LUẬN: {icon} {sig}\n"
 
     msg = (
-        f"{final_emoji} Tín hiệu {SYMBOL} - {final_icon}\n"
+        f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
         f"============================\n"
         f"  {fmt_hour(H)}:45 (Broker)\n"
         f"============================\n\n"
