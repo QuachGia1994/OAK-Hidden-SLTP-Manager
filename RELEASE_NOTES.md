@@ -1,5 +1,15 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.15.2+] - 2026-07-09
+*Slots H=5-15 only (drop H=3-4).*
+
+### 📊 Schedule
+- **TARGET_HOURS**: `H=5..15` (bot + dashboard + MT server). Không còn kích hoạt H=3, H=4.
+- **Thứ 5 notes**: nhắc slots H=5-15 + W1 (T4 hôm qua 30/1; T6 tuần 3/4/7).
+- Pair active band: **H=5-8** (GBPJPY cùng / GBPAUD ngược XAU); H=9/11/12/15 theo Signal.
+
+---
+
 ## [v3.15.2] - 2026-07-09
 *Pair-direction baseline fix + schedule/profile safety + Thursday-only calendar notes.*
 

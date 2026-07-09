@@ -46,9 +46,10 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = list(range(3, 16))
+# Active signal slots: H=5 .. H=15 broker (inclusive)
+TARGET_HOURS = list(range(5, 16))
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 3
+SIGNAL_LOGIC_VERSION = 4
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -649,7 +650,7 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
     Baseline cho GBP:
-    - H=2..8: rule ghi 'XAUUSD' → rebuild GBP theo final XAU sau flip
+    - H=5..8: rule ghi 'XAUUSD' → rebuild GBP theo final XAU sau flip
       (GBPAUD ngược XAU, GBPJPY cùng XAU).
     - H=9,11,12,15: rule ghi 'Signal' → GBP bám pattern Signal (sig),
       CHỈ cập nhật dòng XAUUSD (có thể lệch Signal sau M30).
@@ -662,8 +663,8 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     else:
         final_xau = xau_m30
 
-    # H=2..8: pairs relative to XAUUSD → rebuild from final gold
-    if H in (2, 3, 4, 5, 6, 7, 8):
+    # H=5..8: pairs relative to XAUUSD → rebuild from final gold
+    if H in (5, 6, 7, 8):
         rebuilt = get_pair_direction(H, final_xau, broker_dt)
         if not rebuilt:
             pair_dirs["XAUUSD"] = final_xau
@@ -757,9 +758,6 @@ def analyze(broker_dt, H):
 def get_hour_note(H, weekday=None):
     """Trả note theo H (weekday giữ để tương thích call-site)."""
     notes = {
-        2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
         5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
         6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
         7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
@@ -833,8 +831,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     # Mọi slot đều có XAUUSD
     result["XAUUSD"] = gold
 
-    # H=2..8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --
-    if H in (2, 3, 4, 5, 6, 7, 8):
+    # H=5..8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --
+    if H in (5, 6, 7, 8):
         result["GBPJPY"] = gold
         result["GBPAUD"] = opposite
         result["GBPUSD"] = "--"

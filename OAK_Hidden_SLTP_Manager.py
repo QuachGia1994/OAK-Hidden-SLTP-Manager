@@ -6967,7 +6967,7 @@ class App(ctk.CTk):
 
                 # Next slot countdown
                 now = datetime.now()
-                target_hours = list(range(3, 16))
+                target_hours = list(range(5, 16))
                 next_h = None
                 for h in target_hours:
                     if now.hour < h or (now.hour == h and now.minute < 45):

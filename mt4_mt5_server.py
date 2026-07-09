@@ -37,7 +37,7 @@ except Exception:
     MT5_PATH = ""
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
-TARGET_HOURS = list(range(3, 16))
+TARGET_HOURS = list(range(5, 16))
 BROKER_GMT = 0
 
 app = Flask(__name__)

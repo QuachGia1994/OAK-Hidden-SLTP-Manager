@@ -568,6 +568,8 @@ def get_day_notes(now, lang="VN"):
 
     # Only Thursday (Python weekday 3 = Thứ 5)
     if weekday == 3:
+        notes_vn.append("Thứ 5: slots H=5-15 (bắt đầu từ H=5).")
+        notes_en.append("Thursday: trade slots H=5-15 only (from H=5).")
         yesterday = today - timedelta(days=1)
         # 1. Yesterday is Wednesday and day is 30 or 1
         if yesterday.weekday() == 2 and yesterday.day in (30, 1):

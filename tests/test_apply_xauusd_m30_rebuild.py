@@ -13,10 +13,10 @@ def _dt_monday():
 
 
 class TestApplyXauusdM30Rebuild(unittest.TestCase):
-    def test_h3_after_flip_gbpaud_opposite_gbpjpy_same(self):
-        """H=2-8: pairs relative to final XAU after flip."""
+    def test_h5_after_flip_gbpaud_opposite_gbpjpy_same(self):
+        """H=5-8: pairs relative to final XAU after flip."""
         dt = _dt_monday()
-        H = 3
+        H = 5
         sig = "BUY"
         pair_dirs = get_pair_direction(H, sig, dt)
         self.assertEqual(pair_dirs["XAUUSD"], "BUY")
@@ -32,9 +32,9 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(pair_dirs["GBPUSD"], "--")
         self.assertEqual(pair_dirs["GBPCAD"], "--")
 
-    def test_h4_after_flip_gbpaud_opposite_gbpjpy_same(self):
+    def test_h6_after_flip_gbpaud_opposite_gbpjpy_same(self):
         dt = _dt_monday()
-        H = 4
+        H = 6
         sig = "SELL"
         pair_dirs = get_pair_direction(H, sig, dt)
 

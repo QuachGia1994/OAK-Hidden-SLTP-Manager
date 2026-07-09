@@ -1,12 +1,9 @@
-export const TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+export const TARGET_HOURS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
 const HOUR_NOTES: Record<number, string> = {
-  2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-  4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
   5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
   6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
   7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
@@ -22,19 +19,20 @@ export function getHourNote(hour: number, weekday: number): string | null {
 }
 
 const SHARED_DAY_RULES = [
-  "Slots: H=3-15",
-  "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
+  "Slots: H=5-15 (bắt đầu từ H=5)",
+  "H=5-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
   "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
   "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
   "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
   "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
-  "Các slot khác: Chỉ Vàng",
+  "Các slot khác trong H=5-15: Chỉ Vàng",
 ];
 
 const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
 
 /** Special calendar notes — only Thursday (JS getDay=4 / Python weekday=3). */
 export const SPECIAL_DAY_NOTES = [
+  "Thứ 5: chỉ trade H=5-15 (không còn H=3-4)",
   "Thứ 5 có Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây: cần tính lại W1",
   "Thứ 5 có Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7: cần tính lại W1",
 ];
@@ -50,25 +48,13 @@ export const DAY_RULES: Record<number, string[]> = {
     ...SHARED_DAY_RULES,
   ],
   4: [    // Thứ 5 (JS: getDay() = 4)
-    "Slots: H=3-15",
+    ...SHARED_DAY_RULES,
     D_DIRECTION_RULE,
     ...SPECIAL_DAY_NOTES,
-    "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
-    "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
-    "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
-    "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
-    "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
-    "Các slot khác: Chỉ Vàng",
   ],
   5: [    // Thứ 6 (JS: getDay() = 5)
-    "Slots: H=3-15",
+    ...SHARED_DAY_RULES,
     D_DIRECTION_RULE,
-    "H=2-8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --",
-    "H=9: GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
-    "H=11: GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
-    "H=12: GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
-    "H=15: GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
-    "Các slot khác: Chỉ Vàng",
   ],
 };
 
