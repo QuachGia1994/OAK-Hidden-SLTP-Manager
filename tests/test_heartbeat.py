@@ -40,29 +40,29 @@ class TestHeartbeat(unittest.TestCase):
         self.assertAlmostEqual(hb["equity"], 1018.24)
 
     def test_mt5_connected_state(self):
-        """Fresh heartbeat (< 5s) => Connected."""
+        """Fresh heartbeat (< 15s) => Connected (aligned with compute_mt5_state)."""
         self.store.publish_heartbeat("Vantage", "connected")
         state = self.store.compute_mt5_state("Vantage")
         self.assertEqual(state["state"], "Connected")
 
     def test_mt5_degraded_state(self):
-        """Stale heartbeat (5-30s) => Degraded."""
+        """Stale heartbeat (15-90s) => Degraded."""
         self.store.publish_heartbeat("Vantage", "connected")
-        # Backdate last_seen by 10 seconds
+        # Backdate last_seen by 20 seconds (code threshold: age > 15 → Degraded)
         self.store._conn.execute(
             "UPDATE worker_heartbeat SET last_seen=? WHERE profile=?",
-            ((datetime.now(timezone.utc) - timedelta(seconds=10)).isoformat(), "Vantage")
+            ((datetime.now(timezone.utc) - timedelta(seconds=20)).isoformat(), "Vantage")
         )
         self.store._conn.commit()
         state = self.store.compute_mt5_state("Vantage")
         self.assertEqual(state["state"], "Degraded")
 
     def test_mt5_disconnected_state(self):
-        """Very stale heartbeat (> 30s) => Disconnected."""
+        """Very stale heartbeat (> 90s) => Disconnected."""
         self.store.publish_heartbeat("Vantage", "connected")
         self.store._conn.execute(
             "UPDATE worker_heartbeat SET last_seen=? WHERE profile=?",
-            ((datetime.now(timezone.utc) - timedelta(seconds=60)).isoformat(), "Vantage")
+            ((datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat(), "Vantage")
         )
         self.store._conn.commit()
         state = self.store.compute_mt5_state("Vantage")

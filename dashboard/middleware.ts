@@ -20,7 +20,8 @@ export function middleware(request: NextRequest) {
     maxAge: 60 * 60 * 24 * 7,
     sameSite: "lax",
     secure: request.nextUrl.protocol === "https:",
-    httpOnly: false,
+    // httpOnly: true blocks document.cookie theft via XSS; SSR/API still receive cookie
+    httpOnly: true,
   });
   return response;
 }

@@ -2002,38 +2002,57 @@ class CopyTradeManager:
                 positions = mt5.positions_get(symbol=symbol)
                 if positions:
                     for pos in positions:
-                        if pos.type == t_type:
+                        if int(pos.type) == int(t_type):
                             self.notify(f"❌ [{profile_name}] Thất bại: Đang có lệnh mở cùng chiều cho {symbol}")
                             return
 
-                # 2. Check pending/executing list (Only fail if same symbol AND same direction)
-                # Reload from disk so multi-worker sees latest claims
-                try:
-                    disk_trades = load_json(self.scheduled_file, [])
-                    if isinstance(disk_trades, list):
-                        self.scheduled_trades = disk_trades
-                except Exception:
-                    pass
-                active_pending = ("waiting", "executing", "limit_pending", "awaiting_fallback")
-                for t in self.scheduled_trades:
-                    if t.get("status") in active_pending and t.get("symbol") == symbol and t.get("type") == t_type:
-                        self.notify(f"❌ [{profile_name}] Thất bại: Đã có lệnh chờ cùng chiều cho {symbol}")
-                        return
+                # 2. Atomic append under file lock (multi-worker safe)
+                created = {"trade": None, "dup": False}
 
-                new_trade = {
-                    "symbol": symbol,
-                    "type": t_type,
-                    "lot": lot,
-                    "sl": sl,
-                    "tp": tp,
-                    "time": time_val,
-                    "date": target_date_str,
-                    "status": "waiting",
-                    "id": random.randint(1000, 9999)
-                }
-                self.scheduled_trades.append(new_trade)
-                self.scheduled_trades.sort(key=lambda x: x["time"])
-                save_json(self.scheduled_file, self.scheduled_trades)
+                def _append_pending(trades):
+                    active_pending = ("waiting", "executing", "limit_pending", "awaiting_fallback")
+                    for t in trades:
+                        if (
+                            t.get("status") in active_pending
+                            and t.get("symbol") == symbol
+                            and int(t.get("type", -1)) == int(t_type)
+                        ):
+                            created["dup"] = True
+                            return trades
+                    # Unique id (avoid 4-digit collision across long-lived logs)
+                    existing_ids = {t.get("id") for t in trades}
+                    new_id = None
+                    for _ in range(20):
+                        cand = random.randint(10000, 99999)
+                        if cand not in existing_ids:
+                            new_id = cand
+                            break
+                    if new_id is None:
+                        new_id = int(time.time() * 1000) % 100000000
+                    new_trade = {
+                        "symbol": symbol,
+                        "type": int(t_type),
+                        "lot": lot,
+                        "sl": sl,
+                        "tp": tp,
+                        "time": time_val,
+                        "date": target_date_str,
+                        "status": "waiting",
+                        "id": new_id,
+                    }
+                    trades.append(new_trade)
+                    trades.sort(key=lambda x: x.get("time") or "")
+                    created["trade"] = new_trade
+                    return trades
+
+                result = self._with_scheduled_file_lock(_append_pending)
+                if result is None:
+                    self.notify(f"❌ [{profile_name}] Thất bại: không khoá được file lệnh chờ (thử lại)")
+                    return
+                if created["dup"] or not created["trade"]:
+                    self.notify(f"❌ [{profile_name}] Thất bại: Đã có lệnh chờ cùng chiều cho {symbol}")
+                    return
+                new_trade = created["trade"]
                 
                 # self.notify(f"🤖 [{profile_name}] Đã đặt lệnh ID:{new_trade['id']}: {t_type_str} {symbol} {lot} lúc {time_val}")
                 
@@ -3152,46 +3171,50 @@ class CopyTradeManager:
                     # Always finalize so other workers never re-fire
                     self._finalize_scheduled_trade(claimed.get("id"), "executed")
 
-        # Check scheduled close all
-        if hasattr(self, "_scheduled_close"):
-            remaining_closes = []
-            for close_info in self._scheduled_close:
-                # Support both old string format and new dict format
-                if isinstance(close_info, dict):
-                    c_time = close_info["time"]
-                    c_date = close_info.get("date", now_date) # Default to today
-                    c_filter = close_info.get("filter", "all")
-                    c_sym = close_info.get("sym", "")
-                else:
-                    c_time = close_info
-                    c_date = now_date
-                    c_filter = "all"
-                    c_sym = ""
-
-                # Check Date
-                if c_date > now_date:
-                    remaining_closes.append(close_info)
-                    continue
-                
-                # Check Time (if today)
-                c_time_norm = c_time
-                try:
-                    if len(c_time.split(":")) == 2: c_time += ":00"
-                    c_time_norm = datetime.strptime(c_time, "%H:%M:%S").strftime("%H:%M:%S")
-                except: pass
-
-                if c_date == now_date and c_time_norm > now_time:
-                    remaining_closes.append(close_info)
-                    continue
-
-                # Execute
-                profile_name = self.config.get("profile_name", "Unknown")
-                self.notify(f"⏰ [{profile_name}] Scheduled Time Reached: Closing Positions ({c_filter}) {c_sym}")
-                self._execute_close_all(c_filter, c_sym)
-            
-            if len(remaining_closes) != len(self._scheduled_close):
-                self._scheduled_close = remaining_closes
-                save_json(self.scheduled_close_file, self._scheduled_close)
+        # Check scheduled close all (atomic pop under lock to avoid multi-worker double close)
+        if hasattr(self, "_scheduled_close") and self._scheduled_close:
+            lock_path = f"{self.scheduled_close_file}.lock" if getattr(self, "scheduled_close_file", None) else "scheduled_close.lock"
+            due_batch = []
+            with FileLock(lock_path, timeout=3.0) as clock:
+                if clock is not None:
+                    disk_closes = load_json(self.scheduled_close_file, [])
+                    if not isinstance(disk_closes, list):
+                        disk_closes = []
+                    remaining_closes = []
+                    for close_info in disk_closes:
+                        if isinstance(close_info, dict):
+                            c_time = close_info.get("time", "00:00:00")
+                            c_date = close_info.get("date", now_date)
+                            c_filter = close_info.get("filter", "all")
+                            c_sym = close_info.get("sym", "")
+                        else:
+                            c_time = close_info
+                            c_date = now_date
+                            c_filter = "all"
+                            c_sym = ""
+                        if c_date > now_date:
+                            remaining_closes.append(close_info)
+                            continue
+                        c_time_norm = c_time
+                        try:
+                            if len(str(c_time).split(":")) == 2:
+                                c_time = f"{c_time}:00"
+                            c_time_norm = datetime.strptime(c_time, "%H:%M:%S").strftime("%H:%M:%S")
+                        except Exception:
+                            pass
+                        if c_date == now_date and c_time_norm > now_time:
+                            remaining_closes.append(close_info)
+                            continue
+                        due_batch.append({"filter": c_filter, "sym": c_sym})
+                    self._scheduled_close = remaining_closes
+                    save_json(self.scheduled_close_file, self._scheduled_close)
+            profile_name = self.config.get("profile_name", "Unknown")
+            for item in due_batch:
+                self.notify(
+                    f"⏰ [{profile_name}] Scheduled Time Reached: "
+                    f"Closing Positions ({item['filter']}) {item['sym']}"
+                )
+                self._execute_close_all(item["filter"], item["sym"])
 
 
 
@@ -3257,7 +3280,12 @@ class CopyTradeManager:
 
     def _prepare_scheduled_trade(self, trade, order_type_override=None):
         symbol = trade["symbol"]
-        order_type = trade["type"] if order_type_override is None else order_type_override
+        # Coerce type: JSON may load int; never compare str vs pos.type
+        raw_type = trade["type"] if order_type_override is None else order_type_override
+        try:
+            order_type = int(raw_type)
+        except (TypeError, ValueError):
+            return "fail"
         profile_name = self.config.get("profile_name", "Unknown")
 
         if not mt5.terminal_info():
@@ -3266,7 +3294,7 @@ class CopyTradeManager:
         positions = mt5.positions_get(symbol=symbol)
         if positions:
             for pos in positions:
-                if pos.type == order_type:
+                if int(pos.type) == order_type:
                     self.notify(f"⚠️ [{profile_name}] Skipped Scheduled {symbol}: Position already exists")
                     return "skip"
 
@@ -3274,7 +3302,7 @@ class CopyTradeManager:
         closed_cnt = 0
         if positions:
             for pos in positions:
-                if pos.type == opp_type:
+                if int(pos.type) == int(opp_type):
                     if self._direct_close(pos):
                         self.notify(f"🔄 [{profile_name}] Auto Closed opposite {symbol} (Ticket: {pos.ticket}) for scheduled {trade.get('id')}")
                         closed_cnt += 1
@@ -3323,10 +3351,19 @@ class CopyTradeManager:
 
     def _send_scheduled_market_order(self, trade, comment="Scheduled Order", order_type_override=None):
         symbol = trade["symbol"]
-        order_type = trade["type"] if order_type_override is None else order_type_override
-        lot = float(trade["lot"])
-        sl_points = float(trade.get("sl", 0))
-        tp_points = float(trade.get("tp", 0))
+        raw_type = trade["type"] if order_type_override is None else order_type_override
+        try:
+            order_type = int(raw_type)
+        except (TypeError, ValueError):
+            return "fail"
+        try:
+            lot = float(trade["lot"])
+            if lot <= 0:
+                return "fail"
+        except (TypeError, ValueError):
+            return "fail"
+        sl_points = float(trade.get("sl", 0) or 0)
+        tp_points = float(trade.get("tp", 0) or 0)
         profile_name = self.config.get("profile_name", "Unknown")
 
         prep = self._prepare_scheduled_trade(trade, order_type_override=order_type)
@@ -3347,7 +3384,7 @@ class CopyTradeManager:
         positions = mt5.positions_get(symbol=symbol)
         if positions:
             for pos in positions:
-                if pos.type == order_type:
+                if int(pos.type) == order_type:
                     self.notify(f"⚠️ [{profile_name}] Skipped Scheduled {symbol}: Position already exists (pre-send)")
                     return "skip"
 

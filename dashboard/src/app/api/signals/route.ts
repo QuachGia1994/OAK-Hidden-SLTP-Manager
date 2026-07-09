@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
-import { redis, KEYS, requireAuth } from "@/lib/redis";
+import { redis, KEYS, requireAuth, canSeeVipData, maskSignalForPublic } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const signals = await redis.get(KEYS.signals);
-    return NextResponse.json(signals || []);
+    const signals = ((await redis.get(KEYS.signals)) as Record<string, unknown>[]) || [];
+    if (canSeeVipData(request)) {
+      return NextResponse.json(signals);
+    }
+    // Public scrape path: hide BUY/SELL and pair dirs (VIP SSR still uses Redis server-side)
+    return NextResponse.json(signals.map((s) => maskSignalForPublic(s)));
   } catch {
     return NextResponse.json([]);
   }

@@ -20,14 +20,53 @@ export const KEYS = {
 // IMPORTANT: Set DASHBOARD_API_KEY in .env.local for local dev too.
 // Without this key, all write APIs return 503 (fail-closed).
 const API_KEY = process.env.DASHBOARD_API_KEY || "";
+const VIP_TOKEN = process.env.VIP_TOKEN || "";
+
+/** Constant-time string compare (length leak only if lengths differ). */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i++) {
+    out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return out === 0;
+}
 
 export function requireAuth(request: Request): NextResponse | null {
   if (!API_KEY) {
     return NextResponse.json({ error: "server auth not configured" }, { status: 503 });
   }
-  const key = request.headers.get("x-api-key");
-  if (key !== API_KEY) {
+  const key = request.headers.get("x-api-key") || "";
+  if (!safeEqual(key, API_KEY)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   return null;
+}
+
+/** True when request may see full signal/state payloads (API key or VIP cookie). */
+export function canSeeVipData(request: Request): boolean {
+  // Bot push auth may also read back — treat valid API key as privileged
+  if (API_KEY) {
+    const key = request.headers.get("x-api-key") || "";
+    if (safeEqual(key, API_KEY)) return true;
+  }
+  // No VIP lock configured → public (dev / free mode)
+  if (!VIP_TOKEN) return true;
+  const cookie = request.headers.get("cookie") || "";
+  const match = cookie.match(/(?:^|;\s*)vip_access=([^;]+)/);
+  const val = match ? decodeURIComponent(match[1]) : "";
+  return safeEqual(val, VIP_TOKEN);
+}
+
+/** Strip sensitive fields for non-VIP public GET. */
+export function maskSignalForPublic(signal: Record<string, unknown>) {
+  return {
+    ...signal,
+    signal: "WAIT",
+    pair_dirs: {},
+    entry_prices: {},
+    current_prices: {},
+    d_direction: null,
+    hour_note: null,
+  };
 }

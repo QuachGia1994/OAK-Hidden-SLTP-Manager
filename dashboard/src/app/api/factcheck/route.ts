@@ -76,7 +76,16 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
     }
 
-    items[idx] = { ...items[idx], ...body };
+    // Whitelist only worker-owned fields (prevent mass-assignment of id/text/created_at)
+    const allowedStatus = new Set(["pending", "processing", "done", "error"]);
+    const next = { ...items[idx] };
+    if (typeof body.status === "string" && allowedStatus.has(body.status)) {
+      next.status = body.status;
+    }
+    if (body.result !== undefined) {
+      next.result = body.result;
+    }
+    items[idx] = next;
     await redis.set(KEYS.factcheck, items.slice(-200));
 
     return NextResponse.json({ ok: true });
