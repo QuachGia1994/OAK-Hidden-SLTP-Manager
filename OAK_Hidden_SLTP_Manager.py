@@ -2292,8 +2292,27 @@ class CopyTradeManager:
                         count_closes = len(self._scheduled_close)
                         self._scheduled_close = []
                         save_json(self.scheduled_close_file, [])
-                    # Thông báo
-                    self.notify(f"🤖 [{profile_name}] Đã xóa TẤT CẢ {count_entries} lệnh hẹn giờ vào và {count_closes} lệnh hẹn giờ đóng!")
+                    # Xóa lệnh canh chốt từng phần (price/profit partials) của profile này
+                    count_partials = 0
+                    task_file = "pending_partials.json"
+                    if os.path.exists(task_file):
+                        try:
+                            tasks = load_json(task_file)
+                            if isinstance(tasks, dict):
+                                kept = {}
+                                for tid, task in tasks.items():
+                                    if task.get("profile") != profile_name:
+                                        kept[tid] = task
+                                    else:
+                                        count_partials += 1
+                                save_json(task_file, kept)
+                        except Exception:
+                            pass
+                    self.notify(
+                        f"🤖 [{profile_name}] Đã xóa TẤT CẢ: "
+                        f"{count_entries} hẹn giờ vào, {count_closes} hẹn giờ đóng, "
+                        f"{count_partials} canh chốt từng phần!"
+                    )
                     return
 
                 # Collect all IDs to delete
