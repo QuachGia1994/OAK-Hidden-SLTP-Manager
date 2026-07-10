@@ -7,6 +7,7 @@ This module remains the worker/frozen entrypoint and public import surface.
 """
 from __future__ import annotations
 
+import argparse
 import atexit
 import os
 import re

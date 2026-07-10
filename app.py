@@ -73,10 +73,13 @@ class App(
     def __init__(self):
         super().__init__()
 
+        # Never shadow Tk/CTk wm_state method with our AppState bag
+        self._tk_state_method = type(self).state if callable(getattr(type(self), "state", None)) else None
+
         # Explicit services bag (preferred over free-name globals)
         self.services = AppServices(oak)
 
-        # Initialize AppState (rename from self.state to avoid shadowing CTk.state() method!)
+        # Initialize AppState (MUST be app_state, not state — CTk uses self.state())
         self.app_state = AppState()
 
         # Load Settings
@@ -231,6 +234,18 @@ class App(
 
         # Defer non-critical work so window appears first
         self.after(150, self._deferred_startup)
+
+    def state(self, newstate=None):
+        """Preserve Tk window state API even if something assigns over instance attr."""
+        # Prefer real Tk method (never our AppState instance)
+        try:
+            import tkinter
+
+            return tkinter.Wm.wm_state(self, newstate)
+        except Exception:
+            if newstate is None:
+                return "normal"
+            return None
 
     def _schedule_ui(self, callback):
         """Enqueue a zero-arg callback for the Tk main thread (thread-safe)."""

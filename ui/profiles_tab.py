@@ -16,9 +16,7 @@ class ProfilesTab(BaseTab):
 
     def mount(self, parent: Any) -> None:
         """Mount the Profiles tab UI."""
-        # Get the T function from app (it's in the global scope of app's module)
-        import sys
-        T = sys.modules['__main__'].T
+        T = self._resolve_T()
 
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.app.frames["profiles"] = frame
@@ -94,6 +92,33 @@ class ProfilesTab(BaseTab):
         self.btn_add = ctk.CTkButton(btn_box, text=T("btn_add"), fg_color="gray", command=self.clear_form)
         self.btn_add.pack(side="left", padx=10, expand=True)
         self.app.add_ui_element("btn_add", self.btn_add)
+
+    @staticmethod
+    def _resolve_T():
+        """Resolve translation helper without relying only on __main__."""
+        import sys
+
+        try:
+            import domain.i18n as i18n
+
+            if callable(getattr(i18n, "T", None)):
+                return i18n.T
+        except Exception:
+            pass
+        try:
+            import OAK_Hidden_SLTP_Manager as oak
+
+            if callable(getattr(oak, "T", None)):
+                return oak.T
+        except Exception:
+            pass
+        try:
+            main = sys.modules.get("__main__")
+            if main is not None and callable(getattr(main, "T", None)):
+                return main.T
+        except Exception:
+            pass
+        return lambda key: str(key)
 
     def bind_state(self, app_state: Any) -> None:
         """Bind to app state."""
