@@ -46,23 +46,23 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 ### Hiển thị GBP
 | Giờ | Cách hiện | T2–T5 | T6 |
 | --- | --- | --- | --- |
-| H=3–4 | **Mua/Bán theo Vàng** (không Focus) | GA ngược Vàng, GJ cùng Vàng | giống |
-| H=5–8 | Chỉ Focus | GA + GJ | GA + GJ |
+| H=3–4 | **Mua/Bán theo Vàng** (không Focus) | GA + GJ **đều ngược Vàng** | giống |
+| H=5–8 | Chỉ Focus | **chỉ GA** (không GBPJPY) | **chỉ GA** |
 | H=9,11,12,15 | Chỉ Focus | đủ nhóm GBP | chỉ GA + GJ |
 | H=14 | **tắt** | — | — |
 
 ### pair_dirs
 | Giờ | Nội dung |
 | --- | --- |
-| H=3–4 | XAU + GJ cùng Vàng, GA ngược, GU/GC `--` |
+| H=3–4 | XAU; GA + GJ đều ngược Vàng; GU/GC `--` |
 | H=5+ | **chỉ XAUUSD** (GBP = list Focus); H=14 không tính |
 
 ### Ma trận nhanh
 
 | H | GBP UI T2–T5 | GBP UI T6 | pair_dirs GBP | XAU T2–T4 | XAU T5 | XAU T6 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 3–4 | Chiều vs Vàng | Chiều vs Vàng | Map vs XAU | Đánh | No-gold | No-gold |
-| 5–8 | Focus GA+GJ | Focus GA+GJ | **Không** (chỉ XAU) | Đánh | Đánh | No-gold |
+| 3–4 | Chiều vs Vàng (cả hai ngược) | Chiều vs Vàng (cả hai ngược) | Map vs XAU | Đánh | No-gold | No-gold |
+| 5–8 | Focus chỉ GA | Focus chỉ GA | **Không** (chỉ XAU) | Đánh | Đánh | No-gold |
 | 9,11 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | Đánh | No-gold |
 | 10,13 | — | — | Không | Đánh | 13 no-gold* | No-gold |
 | 12 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | No-gold | Đánh |

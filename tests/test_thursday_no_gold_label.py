@@ -58,8 +58,10 @@ class TestXauNoTradeLabel(unittest.TestCase):
         )
         self.assertIn("KHÔNG ĐÁNH", block)
         self.assertIn("H=3-4", block)
-        self.assertIn("Focus · ngược Vàng", block)
-        self.assertIn("Focus · cùng Vàng", block)
+        self.assertIn("ngược Vàng", block)
+        self.assertIn("GBPAUD", block)
+        self.assertIn("GBPJPY", block)
+        self.assertNotIn("cùng Vàng", block)
         self.assertNotIn("GBPAUD: SELL", block)
 
     def test_telegram_block_fri_h9(self):
@@ -78,12 +80,15 @@ class TestXauNoTradeLabel(unittest.TestCase):
     def test_hour_note_h3_h4_relation(self):
         for h in (3, 4):
             note = get_hour_note(h, weekday=4)
-            self.assertIn("GBPAUD ngược Vàng", note)
-            self.assertIn("GBPJPY cùng Vàng", note)
+            self.assertIn("ngược Vàng", note)
+            self.assertIn("GBPAUD", note)
+            self.assertIn("GBPJPY", note)
+            self.assertNotIn("cùng Vàng", note)
             self.assertNotIn("KHÔNG đánh Vàng", note)
         note5 = get_hour_note(5, weekday=4)
         self.assertNotIn("ngược Vàng", note5)
         self.assertIn("GBPAUD", note5)
+        self.assertIn("không GBPJPY", note5)
 
     def test_label_en(self):
         self.assertIn("NO Gold", thursday_no_gold_label("EN"))
@@ -100,12 +105,21 @@ class TestXauNoTradeLabel(unittest.TestCase):
 
 
 class TestFocusGbpPairs(unittest.TestCase):
-    def test_h3_h8_always_ga_gj(self):
+    def test_h3_h4_ga_gj(self):
         for wd in (0, 1, 2, 3, 4):
-            for h in range(3, 9):
+            for h in (3, 4):
                 self.assertEqual(
                     get_focus_gbp_pairs(h, weekday=wd),
                     ["GBPAUD", "GBPJPY"],
+                    (wd, h),
+                )
+
+    def test_h5_h8_focus_ga_only(self):
+        for wd in (0, 1, 2, 3, 4):
+            for h in range(5, 9):
+                self.assertEqual(
+                    get_focus_gbp_pairs(h, weekday=wd),
+                    ["GBPAUD"],
                     (wd, h),
                 )
 

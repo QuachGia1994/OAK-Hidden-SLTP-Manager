@@ -13,22 +13,22 @@ def _dt_monday():
 
 
 class TestApplyXauusdM30Rebuild(unittest.TestCase):
-    def test_h3_after_flip_gbpaud_opposite_gbpjpy_same(self):
-        """H=2-4: pairs relative to final XAU after flip."""
+    def test_h3_after_flip_both_opposite_final_xau(self):
+        """H=2-4: GA+GJ both opposite final XAU after flip."""
         dt = _dt_monday()
         H = 3
         sig = "BUY"
         pair_dirs = get_pair_direction(H, sig, dt)
         self.assertEqual(pair_dirs["XAUUSD"], "BUY")
         self.assertEqual(pair_dirs["GBPAUD"], "SELL")
-        self.assertEqual(pair_dirs["GBPJPY"], "BUY")
+        self.assertEqual(pair_dirs["GBPJPY"], "SELL")
 
         with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
             apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
 
         self.assertEqual(pair_dirs["XAUUSD"], "SELL")
         self.assertEqual(pair_dirs["GBPAUD"], "BUY")
-        self.assertEqual(pair_dirs["GBPJPY"], "SELL")
+        self.assertEqual(pair_dirs["GBPJPY"], "BUY")
         self.assertEqual(pair_dirs["GBPUSD"], "--")
         self.assertEqual(pair_dirs["GBPCAD"], "--")
 

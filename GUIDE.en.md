@@ -44,23 +44,23 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer + debug bundle.
 ### GBP display
 | Hours | Display | Mon–Thu | Friday |
 | --- | --- | --- | --- |
-| H=3–4 | **Buy/Sell vs gold** (not Focus) | GA opposite gold, GJ same gold | same |
-| H=5–8 | Focus only | GA + GJ | GA + GJ |
+| H=3–4 | **Buy/Sell vs gold** (not Focus) | GA + GJ both opposite gold | same |
+| H=5–8 | Focus only | **GA only** (no GBPJPY) | **GA only** |
 | H=9,11,12,15 | Focus only | Full GBP group | GA + GJ only |
 | H=14 | **disabled** | — | — |
 
 ### pair_dirs mapping
 | Hours | Content |
 | --- | --- |
-| H=3–4 | XAU + GJ same gold, GA opposite, GU/GC `--` |
+| H=3–4 | XAU; GA + GJ both opposite gold; GU/GC `--` |
 | H=5+ | **XAU only** (GBP = Focus list only); H=14 not computed |
 
 ### Quick matrix
 
 | H | GBP UI T2–T5 | GBP UI T6 | pair_dirs GBP | XAU T2–T4 | XAU T5 | XAU T6 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 3–4 | Dir vs gold | Dir vs gold | Map vs XAU | Trade | No-gold | No-gold |
-| 5–8 | Focus GA+GJ | Focus GA+GJ | **None** (XAU only) | Trade | Trade | No-gold |
+| 3–4 | Dir vs gold (both opp) | Dir vs gold (both opp) | Map vs XAU | Trade | No-gold | No-gold |
+| 5–8 | Focus GA only | Focus GA only | **None** (XAU only) | Trade | Trade | No-gold |
 | 9,11 | Full 4 | GA+GJ | None | Trade | Trade | No-gold |
 | 10,13 | — | — | None | Trade | 13 no-gold* | No-gold |
 | 12 | Full 4 | GA+GJ | None | Trade | No-gold | Trade |
