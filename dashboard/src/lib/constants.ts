@@ -40,14 +40,15 @@ const HOUR_NOTES: Record<number, string> = {
 
 /**
  * No Gold entry label (logic still computes XAU for GBP Focus):
- * - JS Thu=4 / Fri=5: H=3, H=4
- * - JS Thu=4 only: H≥12
+ * - JS Thu=4: H=3, H=4 and H≥12
+ * - JS Fri=5: H=3..8 (H=9-15 Gold normal)
  */
 export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean {
   const h = Number(hour);
   if (!Number.isFinite(h)) return false;
-  if ((jsWeekday === 4 || jsWeekday === 5) && (h === 3 || h === 4)) return true;
+  if (jsWeekday === 4 && (h === 3 || h === 4)) return true;
   if (jsWeekday === 4 && h >= 12) return true;
+  if (jsWeekday === 5 && h >= 3 && h <= 8) return true;
   return false;
 }
 
@@ -58,7 +59,8 @@ export function isThursdayNoGoldSlot(hour: number, jsWeekday: number): boolean {
 
 export function xauNoTradeTag(hour: number, jsWeekday: number): string {
   const h = Number(hour);
-  if ((jsWeekday === 4 || jsWeekday === 5) && (h === 3 || h === 4)) return "H=3-4";
+  if (jsWeekday === 4 && (h === 3 || h === 4)) return "H=3-4";
+  if (jsWeekday === 5 && h >= 3 && h <= 8) return "T6 H=3-8";
   if (jsWeekday === 4 && h >= 12) return "T5 H≥12";
   return "";
 }
@@ -133,8 +135,9 @@ const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
 /** Special calendar notes — Thursday (JS getDay=4). */
 export const SPECIAL_DAY_NOTES = [
   "T2–T6: slots H=3-15 (Thứ 5 = Thứ 6 cùng band)",
-  "T5 & T6 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
+  "T5 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
   "T5 · H≥12: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
+  "T6 · H=3-8: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP; H=9-15 Vàng bình thường",
   "Thứ 5 có Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây: cần tính lại W1",
   "Thứ 5 có Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7: cần tính lại W1",
 ];
@@ -164,7 +167,8 @@ export const DAY_RULES: Record<number, string[]> = {
   5: [    // Thứ 6
     "Slots: H=3-15 (cùng T5)",
     D_DIRECTION_RULE,
-    "H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
+    "H=3-8: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
+    "H=9-15: đánh Vàng bình thường",
     ...PAIR_RULES,
   ],
 };

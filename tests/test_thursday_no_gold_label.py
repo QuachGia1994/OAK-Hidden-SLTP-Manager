@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""No-gold LABEL slots: T5/T6 H=3-4; T5 H≥12 (logic still computes XAU)."""
+"""No-gold LABEL slots: T5 H=3-4 + H≥12; T6 H=3-8 (logic still computes XAU)."""
 import unittest
 from datetime import datetime
 
@@ -15,15 +15,23 @@ from oak_trading_reminders import get_day_notes
 
 
 class TestXauNoTradeLabel(unittest.TestCase):
-    def test_t5_t6_h3_h4(self):
+    def test_t5_h3_h4(self):
         thu = datetime(2026, 7, 9, 10, 0)  # Thursday
-        fri = datetime(2026, 7, 10, 10, 0)  # Friday
         mon = datetime(2026, 7, 6, 10, 0)  # Monday
         for h in (3, 4):
             self.assertTrue(is_xau_no_trade_label_slot(h, thu), h)
-            self.assertTrue(is_xau_no_trade_label_slot(h, fri), h)
             self.assertFalse(is_xau_no_trade_label_slot(h, mon), h)
             self.assertEqual(xau_no_trade_label_tag(h, thu), "H=3-4")
+
+    def test_t6_h3_to_h8(self):
+        fri = datetime(2026, 7, 10, 10, 0)  # Friday
+        for h in range(3, 9):
+            self.assertTrue(is_xau_no_trade_label_slot(h, fri), h)
+            self.assertEqual(xau_no_trade_label_tag(h, fri), "T6 H=3-8")
+        # H=9-15 Gold normal on Friday
+        for h in (9, 11, 12, 14, 15):
+            self.assertFalse(is_xau_no_trade_label_slot(h, fri), h)
+            self.assertEqual(xau_no_trade_label_tag(h, fri), "")
 
     def test_t5_h12_plus(self):
         thu = datetime(2026, 7, 9, 13, 0)
@@ -35,7 +43,8 @@ class TestXauNoTradeLabel(unittest.TestCase):
 
     def test_alias(self):
         self.assertTrue(is_thursday_no_gold_slot(12, weekday=3))
-        self.assertTrue(is_thursday_no_gold_slot(3, weekday=4))
+        self.assertTrue(is_thursday_no_gold_slot(5, weekday=4))  # Fri H=5
+        self.assertFalse(is_thursday_no_gold_slot(9, weekday=4))  # Fri H=9 normal
 
     def test_telegram_block_h3(self):
         block = format_telegram_pair_block(
@@ -49,13 +58,21 @@ class TestXauNoTradeLabel(unittest.TestCase):
         self.assertIn("Focus · cùng Vàng", block)
         self.assertNotIn("GBPAUD: SELL", block)
 
+    def test_telegram_block_fri_h5(self):
+        block = format_telegram_pair_block(
+            {"XAUUSD": "BUY", "GBPAUD": "SELL", "GBPJPY": "BUY"},
+            5,
+            weekday=4,
+        )
+        self.assertIn("KHÔNG ĐÁNH", block)
+        self.assertIn("T6 H=3-8", block)
+
     def test_hour_note_h3_h4_relation(self):
         for h in (3, 4):
             note = get_hour_note(h, weekday=4)
             self.assertIn("GBPAUD ngược Vàng", note)
             self.assertIn("GBPJPY cùng Vàng", note)
             self.assertNotIn("KHÔNG đánh Vàng", note)
-        # H=5..8: không dùng note quan hệ H=3-4
         note5 = get_hour_note(5, weekday=4)
         self.assertNotIn("ngược Vàng", note5)
         self.assertIn("GBPAUD", note5)
@@ -68,6 +85,9 @@ class TestXauNoTradeLabel(unittest.TestCase):
         blob = " ".join(notes)
         self.assertIn("H=3-15", blob)
         self.assertIn("H=3-4", blob)
+        notes_fri = get_day_notes(datetime(2026, 7, 10), lang="VN")
+        blob_f = " ".join(notes_fri)
+        self.assertIn("H=3-8", blob_f)
 
 
 if __name__ == "__main__":

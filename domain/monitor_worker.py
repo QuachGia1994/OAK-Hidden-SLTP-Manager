@@ -449,6 +449,8 @@ class MonitorWorker(threading.Thread):
             tg_api_ok = False
             tg_bot_name = ""
             tg_last_check = ""
+            tg_fail_streak = 0
+            tg_ok_since = 0.0  # last successful getMe monotonic time
             try:
                 _hb_store = SQLiteStore()
             except Exception:
@@ -487,23 +489,47 @@ class MonitorWorker(threading.Thread):
                                 last_tg_check = time.time()
                                 try:
                                     from telegram_client import telegram_get_me
-                                    ok, result = telegram_get_me(tg_token)
-                                    tg_api_ok = bool(ok)
+                                    ok, result = telegram_get_me(tg_token, retries=1, timeout=7.0)
                                     if ok:
+                                        tg_fail_streak = 0
+                                        tg_api_ok = True
                                         tg_bot_name = str(result or "")
+                                        tg_ok_since = time.time()
                                         from datetime import datetime, timezone
                                         tg_last_check = datetime.now(timezone.utc).isoformat()
                                     else:
-                                        tg_bot_name = str(result or "network_error")
+                                        tg_fail_streak += 1
+                                        # Keep last-known-good for 90s / need 2 consecutive fails
+                                        hold = (time.time() - tg_ok_since) < 90.0 if tg_ok_since else False
+                                        if tg_fail_streak < 2 or hold:
+                                            # stay Online with last bot name if we had one
+                                            if tg_bot_name and tg_api_ok:
+                                                pass
+                                            elif tg_bot_name:
+                                                tg_api_ok = True
+                                            else:
+                                                prev = _hb_store.get_heartbeat(profile_name) if _hb_store else None
+                                                if prev and prev.get("telegram_api_ok") and prev.get("telegram_bot_name"):
+                                                    tg_api_ok = True
+                                                    tg_bot_name = prev.get("telegram_bot_name") or ""
+                                                else:
+                                                    tg_api_ok = False
+                                                    tg_bot_name = str(result or "network_error")
+                                        else:
+                                            tg_api_ok = False
+                                            tg_bot_name = str(result or "network_error")
                                 except Exception as tg_e:
-                                    tg_api_ok = False
-                                    tg_bot_name = f"network_error:{tg_e}"[:80]
+                                    tg_fail_streak += 1
+                                    if tg_fail_streak < 2 and tg_bot_name:
+                                        tg_api_ok = True
+                                    else:
+                                        tg_api_ok = False
+                                        tg_bot_name = f"network_error:{tg_e}"[:80]
                             elif not tg_token:
                                 tg_api_ok = False
                                 tg_bot_name = ""
 
-                            # Before first successful probe path, keep prior TG fields
-                            # (e.g. from signal bot) if present
+                            # Between probes keep prior TG fields
                             preserve = (not need_tg_probe) and tg_configured
 
                             if term and acc:

@@ -2,6 +2,7 @@
 """Shared utilities for OAK SLTP system."""
 import json
 import os
+import urllib.error
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -22,17 +23,29 @@ def send_telegram_raw(token, chat_id, text, parse_mode="Markdown"):
 
 
 def send_telegram_with_keyboard(token, chat_id, text, inline_keyboard, parse_mode="Markdown"):
-    """Send message with inline keyboard via Telegram Bot API."""
+    """Send message with inline keyboard via Telegram Bot API.
+
+    reply_markup must be an object in the JSON body (not a double-encoded string).
+    """
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = json.dumps({
-        "chat_id": chat_id,
+        "chat_id": str(chat_id),
         "text": text,
         "parse_mode": parse_mode,
-        "reply_markup": json.dumps({"inline_keyboard": inline_keyboard}),
+        "reply_markup": {"inline_keyboard": inline_keyboard},
     }).encode("utf-8")
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.loads(resp.read().decode())
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = ""
+        raise urllib.error.HTTPError(
+            e.url, e.code, f"{e.reason} | {body[:300]}", e.hdrs, e.fp
+        ) from e
 
 
 def answer_callback_query(token, callback_query_id, text=None):

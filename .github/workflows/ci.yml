@@ -21,10 +21,17 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if (Test-Path requirements.txt) { pip install -r requirements.txt }
-          if (Test-Path requirements-dev.txt) { pip install -r requirements-dev.txt }
-          pip install customtkinter MetaTrader5 2>$null; exit 0
+          if (Test-Path requirements.txt) {
+            pip install -r requirements.txt
+          }
+          if (Test-Path requirements-dev.txt) {
+            pip install -r requirements-dev.txt
+          }
+          # Optional GUI/MT5 packages — log skip if unavailable, do not force exit 0 on hard fail of core deps
+          pip install customtkinter
+          pip install MetaTrader5
         shell: pwsh
+        continue-on-error: true
 
       - name: Compile all modules
         run: python -m compileall -q .

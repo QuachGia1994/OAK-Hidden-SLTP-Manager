@@ -558,9 +558,9 @@ def get_day_notes(now, lang="VN"):
 
     Core (Mon–Fri):
       - T2–T6: H=3-15
-      - T5 & T6 · H=3-4: no Gold entry label (XAU still for GBP Focus)
+      - T5 · H=3-4: no Gold entry label (XAU still for GBP Focus)
       - T5 · H≥12: no Gold entry label (XAU still for GBP Focus)
-      - T6 · H≥12: Gold normal
+      - T6 · H=3-8: no Gold entry label (XAU still for GBP Focus); H=9-15 Gold normal
     Thursday extras (W1 recalc):
       1. Yesterday Wed day 30 or 1
       2. Same-week Friday day 3, 4, or 7
@@ -581,17 +581,24 @@ def get_day_notes(now, lang="VN"):
     notes_en.append("Mon–Fri: slots H=3-15.")
 
     notes_vn.append(
-        "T5/T6 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP."
+        "T5 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP."
     )
     notes_en.append(
-        "Thu/Fri · H=3-4: NO Gold entry (label) — XAU still drives GBP Focus."
+        "Thu · H=3-4: NO Gold entry (label) — XAU still drives GBP Focus."
     )
 
     notes_vn.append(
-        "T5 · H≥12: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP. T6 H≥12: đánh Vàng bình thường."
+        "T5 · H≥12: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP."
     )
     notes_en.append(
-        "Thu · H≥12: NO Gold entry (label) — XAU still drives GBP Focus. Fri H≥12: Gold normal."
+        "Thu · H≥12: NO Gold entry (label) — XAU still drives GBP Focus."
+    )
+
+    notes_vn.append(
+        "T6 · H=3-8: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP. H=9-15: đánh Vàng bình thường."
+    )
+    notes_en.append(
+        "Fri · H=3-8: NO Gold entry (label) — XAU still drives GBP Focus. H=9-15: Gold normal."
     )
 
     # Thursday-only W1 calendar extras

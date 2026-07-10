@@ -54,7 +54,7 @@ class TelegramService:
                 "chat_id": self._chat_id,
                 "text": text,
                 "parse_mode": parse_mode,
-                "reply_markup": json.dumps({"inline_keyboard": inline_keyboard}),
+                "reply_markup": {"inline_keyboard": inline_keyboard},
             }).encode("utf-8")
             req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=15) as resp:

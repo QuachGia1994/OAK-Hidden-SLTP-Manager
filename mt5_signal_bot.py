@@ -110,9 +110,16 @@ def load_profile_config(profile_name, profiles_path=None):
         return {}
 
 
+# Hysteresis for getMe: single timeout must not flip Online → Degraded
+_tg_fail_streak = 0
+_tg_last_ok_name = ""
+_tg_last_ok_mono = 0.0
+
+
 def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     """Publish heartbeat to SQLite. Called every ~2s from main loop."""
     from datetime import datetime, timezone
+    global _tg_fail_streak, _tg_last_ok_name, _tg_last_ok_mono
     acc = None
     if mt5_connected:
         try:
@@ -127,7 +134,24 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     tg_token = resolve_telegram_token(profile, profile_cfg.get("tele_token"), global_fallback=TELEGRAM_TOKEN)
     tg_chat = profile_cfg.get("tele_chat") or TELEGRAM_CHAT_ID
     tg_configured = bool(tg_token and tg_chat)
-    tg_api_ok, tg_bot = _check_telegram_api(tg_token) if tg_token else (False, "")
+    if tg_token:
+        tg_api_ok, tg_bot = _check_telegram_api(tg_token)
+        if tg_api_ok:
+            _tg_fail_streak = 0
+            _tg_last_ok_name = str(tg_bot or _tg_last_ok_name or "")
+            _tg_last_ok_mono = time.time()
+            tg_bot = _tg_last_ok_name
+        else:
+            _tg_fail_streak += 1
+            # Hold last-known-good 90s or until 2 consecutive failures
+            hold = _tg_last_ok_mono and (time.time() - _tg_last_ok_mono) < 90.0
+            if _tg_fail_streak < 2 or hold:
+                if _tg_last_ok_name:
+                    tg_api_ok = True
+                    tg_bot = _tg_last_ok_name
+            # else keep tg_api_ok False / error category in tg_bot
+    else:
+        tg_api_ok, tg_bot = False, ""
     tg_last = datetime.now(timezone.utc).isoformat() if tg_api_ok else ""
 
     state = "connected" if mt5_connected else "disconnected"
@@ -787,8 +811,8 @@ def _resolve_weekday(broker_dt=None, weekday=None):
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
     """Slots where XAU is labeled KHÔNG ĐÁNH (logic still computed for GBP Focus).
 
-    - Thứ 5 & Thứ 6: H=3, H=4
-    - Thứ 5 only: H≥12
+    - Thứ 5 (Thu): H=3, H=4 and H≥12
+    - Thứ 6 (Fri): H=3..8 inclusive (H=9-15 Gold normal)
     """
     wd = _resolve_weekday(broker_dt, weekday)
     if wd is None:
@@ -797,9 +821,11 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
         h = int(H)
     except (TypeError, ValueError):
         return False
-    if wd in (3, 4) and h in (3, 4):  # T5, T6 early
+    if wd == 3 and h in (3, 4):  # T5 early
         return True
     if wd == 3 and h >= 12:  # T5 afternoon+
+        return True
+    if wd == 4 and 3 <= h <= 8:  # T6 H=3-8 no-gold label; H=9-15 normal
         return True
     return False
 
@@ -810,14 +836,16 @@ def is_thursday_no_gold_slot(H, broker_dt=None, weekday=None):
 
 
 def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
-    """Short badge tag: 'H=3-4' | 'T5 H≥12' | ''."""
+    """Short badge tag: 'H=3-4' | 'T6 H=3-8' | 'T5 H≥12' | ''."""
     wd = _resolve_weekday(broker_dt, weekday)
     try:
         h = int(H)
     except (TypeError, ValueError):
         return ""
-    if wd in (3, 4) and h in (3, 4):
+    if wd == 3 and h in (3, 4):
         return "H=3-4"
+    if wd == 4 and 3 <= h <= 8:
+        return "T6 H=3-8"
     if wd == 3 and h >= 12:
         return "T5 H≥12"
     return ""
@@ -1264,7 +1292,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-6: H=3-15 | no-gold label: T5/T6 H=3-4 + T5 H>=12 (XAU still for GBP Focus)")
+    print(f"  Target Hours T2-6: H=3-15 | no-gold label: T5 H=3-4+H>=12 | T6 H=3-8 (XAU still for GBP Focus)")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1307,7 +1335,7 @@ def main(profile_name=None):
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
         f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-T6=H3-15 | T5/T6 H=3-4 no Gold | T5 H≥12 no Gold)"
+        f"(T2-T6=H3-15 | T5 H=3-4+H≥12 no Gold | T6 H=3-8 no Gold; H=9-15 Gold OK)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
     # Nếu D1 đã match trước đó (bot restart), thông báo lại

@@ -109,14 +109,17 @@ class MonitorControllerMixin:
                 for w in getattr(self, "workers", {}).values()
             )
             if running:
+                run_name = getattr(self, "running_profile_name", None) or "worker"
                 if not messagebox.askyesno(
                     "Stop Monitor",
-                    "Stop monitoring now?\n\nScheduled orders will no longer auto-fire until you start again.",
+                    f"Stop monitor for '{run_name}'?\n\n"
+                    "Scheduled orders will no longer auto-fire until you start again.",
                 ):
                     return
         except Exception:
             pass
-        profile_name = self.combo_profiles.get()
+        # Always stop the RUNNING profile, not only the selected combo
+        profile_name = getattr(self, "running_profile_name", None) or self.combo_profiles.get()
         if profile_name in self.workers:
             proc = self.workers[profile_name]["proc"]
             if proc.poll() is None:
@@ -200,31 +203,76 @@ class MonitorControllerMixin:
 
 
     def update_ui_state(self, profile_name):
-        is_running = False
-        if profile_name in self.workers:
-             if self.workers[profile_name]["proc"].poll() is None:
-                 is_running = True
-        
-        current_sel = self.combo_profiles.get()
-        if current_sel == profile_name:
-            if is_running:
-                # Dashboard Buttons
-                self.btn_start.configure(state="disabled", text=T("btn_start"))
-                self.btn_stop.configure(state="normal", text=T("btn_stop"))
-                # Copy Trade Buttons
-                if hasattr(self, 'btn_copy_start'):
-                    self.btn_copy_start.configure(state="disabled", text=T("btn_start"))
-                if hasattr(self, 'btn_copy_stop'):
-                    self.btn_copy_stop.configure(state="normal", text=T("btn_stop"))
+        """Refresh Start/Stop labels with explicit Selected vs Running profile names."""
+        try:
+            current_sel = self.combo_profiles.get() if hasattr(self, "combo_profiles") else ""
+        except Exception:
+            current_sel = profile_name or ""
+
+        running = getattr(self, "running_profile_name", None)
+        # Prefer live worker poll
+        if running and running in getattr(self, "workers", {}):
+            try:
+                if self.workers[running]["proc"].poll() is not None:
+                    running = None
+            except Exception:
+                pass
+        else:
+            # Fallback: any live worker
+            running = None
+            for n, data in (getattr(self, "workers", {}) or {}).items():
+                try:
+                    if data.get("proc") and data["proc"].poll() is None:
+                        running = n
+                        break
+                except Exception:
+                    pass
+            self.running_profile_name = running
+
+        sel = current_sel or profile_name or "—"
+        run = running or "—"
+
+        # Labels (if dashboard created them)
+        try:
+            if hasattr(self, "lbl_profile_selected") and self.lbl_profile_selected.winfo_exists():
+                self.lbl_profile_selected.configure(text=f"Selected: {sel}")
+            if hasattr(self, "lbl_profile_running") and self.lbl_profile_running.winfo_exists():
+                self.lbl_profile_running.configure(text=f"Running Monitor: {run}")
+        except Exception:
+            pass
+
+        sel_is_running = bool(running and current_sel and running == current_sel)
+        any_running = bool(running)
+
+        try:
+            if any_running:
+                if sel_is_running:
+                    self.btn_start.configure(state="disabled", text=f"START {sel}")
+                    self.btn_stop.configure(state="normal", text=f"STOP {running}")
+                else:
+                    # Selected profile differs from running — Start selected, Stop the runner
+                    self.btn_start.configure(state="normal", text=f"START {sel}")
+                    self.btn_stop.configure(state="normal", text=f"STOP {running}")
             else:
-                # Dashboard Buttons
-                self.btn_start.configure(state="normal", text=T("btn_start"))
+                self.btn_start.configure(state="normal", text=f"START {sel}")
                 self.btn_stop.configure(state="disabled", text=T("btn_stop"))
-                # Copy Trade Buttons
-                if hasattr(self, 'btn_copy_start'):
-                    self.btn_copy_start.configure(state="normal", text=T("btn_start"))
-                if hasattr(self, 'btn_copy_stop'):
+        except Exception:
+            pass
+
+        # Copy Trade Buttons (mirror selected profile)
+        try:
+            if hasattr(self, "btn_copy_start"):
+                if sel_is_running:
+                    self.btn_copy_start.configure(state="disabled", text=f"START {sel}")
+                    self.btn_copy_stop.configure(state="normal", text=f"STOP {running}")
+                elif any_running:
+                    self.btn_copy_start.configure(state="normal", text=f"START {sel}")
+                    self.btn_copy_stop.configure(state="normal", text=f"STOP {running}")
+                else:
+                    self.btn_copy_start.configure(state="normal", text=f"START {sel}")
                     self.btn_copy_stop.configure(state="disabled", text=T("btn_stop"))
+        except Exception:
+            pass
 
 
     def _kill_orphan_workers(self, profile_name):

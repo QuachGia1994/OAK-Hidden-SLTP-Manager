@@ -85,7 +85,21 @@ class DashboardControllerMixin:
         self.add_ui_element("msg_select_profile", self.lbl_select)
 
         self.combo_profiles = ctk.CTkOptionMenu(left_panel, values=list(self.profiles.keys()) if self.profiles else ["Empty"], command=self.on_profile_change)
-        self.combo_profiles.pack(pady=(0, 20), anchor="w")
+        self.combo_profiles.pack(pady=(0, 8), anchor="w")
+
+        # Explicit Selected vs Running vs Account source (safety)
+        self.lbl_profile_selected = ctk.CTkLabel(
+            left_panel, text="Selected: —", font=ctk.CTkFont(size=12), anchor="w", text_color="#ffb74d"
+        )
+        self.lbl_profile_selected.pack(fill="x", pady=(0, 2))
+        self.lbl_profile_running = ctk.CTkLabel(
+            left_panel, text="Running Monitor: —", font=ctk.CTkFont(size=12), anchor="w", text_color="#66bb6a"
+        )
+        self.lbl_profile_running.pack(fill="x", pady=(0, 2))
+        self.lbl_account_source = ctk.CTkLabel(
+            left_panel, text="Account Source: —", font=ctk.CTkFont(size=11), anchor="w", text_color="gray"
+        )
+        self.lbl_account_source.pack(fill="x", pady=(0, 12))
 
         self.btn_start = ctk.CTkButton(left_panel, text=T("btn_start"), fg_color="green", height=40, command=self.start_monitor)
         self.btn_start.pack(pady=(0, 10), fill="x")
@@ -557,7 +571,7 @@ class DashboardControllerMixin:
         if getattr(self, "_ui_rebuilding", False):
             return
         try:
-            # Read heartbeat for the ACTIVE profile only
+            # Selected combo vs running monitor (may differ)
             profile = ""
             combo = getattr(self, "combo_profiles", None)
             if self._widget_alive(combo):
@@ -565,9 +579,41 @@ class DashboardControllerMixin:
                     profile = combo.get() or ""
                 except Exception:
                     profile = ""
-            hb = self._store.get_heartbeat(profile) if hasattr(self, '_store') and profile else None
-            mt5_state = self._store.compute_mt5_state(profile) if hasattr(self, '_store') and profile else {"state": "Disconnected", "last_error": ""}
-            tg_state = self._store.compute_telegram_state(profile) if hasattr(self, '_store') and profile else {"configured": False, "api_ok": False}
+            running = getattr(self, "running_profile_name", None) or ""
+            # Account/Telegram heartbeat prefer RUNNING monitor profile
+            hb_profile = running if running else profile
+            hb = self._store.get_heartbeat(hb_profile) if hasattr(self, "_store") and hb_profile else None
+            mt5_state = (
+                self._store.compute_mt5_state(hb_profile)
+                if hasattr(self, "_store") and hb_profile
+                else {"state": "Disconnected", "last_error": ""}
+            )
+            tg_state = (
+                self._store.compute_telegram_state(hb_profile)
+                if hasattr(self, "_store") and hb_profile
+                else {"configured": False, "api_ok": False}
+            )
+
+            # Left-rail Selected / Running / Account source
+            try:
+                if self._widget_alive(getattr(self, "lbl_profile_selected", None)):
+                    self.lbl_profile_selected.configure(text=f"Selected: {profile or '—'}")
+                if self._widget_alive(getattr(self, "lbl_profile_running", None)):
+                    self.lbl_profile_running.configure(text=f"Running Monitor: {running or '—'}")
+                if self._widget_alive(getattr(self, "lbl_account_source", None)):
+                    if hb and (hb.get("server") or hb.get("login")):
+                        src = f"{hb_profile or '—'} / {hb.get('login') or '—'}"
+                    else:
+                        src = f"{hb_profile or '—'} / —"
+                    self.lbl_account_source.configure(text=f"Account Source: {src}")
+            except Exception:
+                pass
+
+            # Keep Start/Stop caption in sync every tick
+            try:
+                self.update_ui_state(profile or running or "")
+            except Exception:
+                pass
 
             # Account Card - server/status only (Balance/Equity intentionally hidden)
             card_server = getattr(self, "card_account_server", None)
@@ -575,6 +621,8 @@ class DashboardControllerMixin:
             if self._widget_alive(card_server):
                 if hb and hb.get("server"):
                     server_text = f"{hb['server']} | #{hb.get('login', '')}"
+                    if running and profile and running != profile:
+                        server_text = f"[{running}] {server_text}"
                     if mt5_state["state"] != "Connected" and mt5_state.get("age") is not None:
                         server_text += f" ({int(mt5_state['age'])}s stale)"
                     card_server.configure(text=server_text)
@@ -650,16 +698,20 @@ class DashboardControllerMixin:
                                 focus_gbp = {"GBPAUD", "GBPJPY"}
                             elif h in (9, 11, 12, 14, 15):
                                 focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
-                            # T5/T6 H=3-4; T5 H≥12 → label KHÔNG đánh Vàng
+                            # T5 H=3-4 / H≥12; T6 H=3-8 → label KHÔNG đánh Vàng
+                            # (XAU logic still used for GBP Focus)
                             sig_date = (latest or {}).get("date")
                             if sig_date:
                                 from datetime import date as _date
                                 try:
                                     y, m, d0 = [int(x) for x in str(sig_date).split("-")[:3]]
                                     wd = _date(y, m, d0).weekday()
-                                    if wd in (3, 4) and h in (3, 4):
+                                    if wd == 3 and h in (3, 4):
                                         no_gold_entry = True
                                         no_gold_tag = "H=3-4"
+                                    elif wd == 4 and 3 <= h <= 8:
+                                        no_gold_entry = True
+                                        no_gold_tag = "T6 H=3-8"
                                     elif wd == 3 and h >= 12:
                                         no_gold_entry = True
                                         no_gold_tag = "T5 H≥12"
