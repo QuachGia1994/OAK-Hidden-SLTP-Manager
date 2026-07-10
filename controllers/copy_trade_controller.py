@@ -32,7 +32,7 @@ class CopyTradeControllerMixin:
             self.combo_copy_profiles.set(self.combo_profiles.get())
 
         # Profile Info
-        self.lbl_copy_profile = ctk.CTkLabel(left_panel, text="Profile: None", text_color="gray")
+        self.lbl_copy_profile = ctk.CTkLabel(left_panel, text=T("ui_profile_none"), text_color="gray")
         self.lbl_copy_profile.pack(pady=(0, 20))
         
         # Role
@@ -88,18 +88,21 @@ class CopyTradeControllerMixin:
         self._copy_role_widgets.append(self.chk_copy_max_one)
 
         # --- SAFETY GUARDRAILS ---
-        self.lbl_safety_title = ctk.CTkLabel(left_panel, text="Safety Guardrails", font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_safety_title = ctk.CTkLabel(left_panel, text=T("ui_copy_safety"), font=ctk.CTkFont(size=13, weight="bold"))
+        self.add_ui_element("ui_copy_safety", self.lbl_safety_title)
         self.lbl_safety_title.pack(anchor="w", padx=10, pady=(10, 5))
 
         # Max Daily Trades
-        self.lbl_max_daily = ctk.CTkLabel(left_panel, text="Max Daily Trades")
+        self.lbl_max_daily = ctk.CTkLabel(left_panel, text=T("ui_copy_max_daily"))
+        self.add_ui_element("ui_copy_max_daily", self.lbl_max_daily)
         self.lbl_max_daily.pack(anchor="w", padx=10)
         self.ent_max_daily = ctk.CTkEntry(left_panel, placeholder_text="20")
         self.ent_max_daily.pack(fill="x", padx=10, pady=(0, 5))
         self._copy_role_widgets.append(self.ent_max_daily)
 
         # Max Lot Per Trade (+ equity-relative guidance)
-        self.lbl_max_lot = ctk.CTkLabel(left_panel, text="Max Lot Per Trade")
+        self.lbl_max_lot = ctk.CTkLabel(left_panel, text=T("ui_copy_max_lot"))
+        self.add_ui_element("ui_copy_max_lot", self.lbl_max_lot)
         self.lbl_max_lot.pack(anchor="w", padx=10)
         self.ent_max_lot = ctk.CTkEntry(left_panel, placeholder_text="5.0")
         self.ent_max_lot.pack(fill="x", padx=10, pady=(0, 2))
@@ -115,7 +118,8 @@ class CopyTradeControllerMixin:
         self.lbl_max_lot_hint.pack(anchor="w", padx=10, pady=(0, 5))
 
         # Max Exposure Per Symbol
-        self.lbl_max_exposure = ctk.CTkLabel(left_panel, text="Max Exposure/Symbol (lots)")
+        self.lbl_max_exposure = ctk.CTkLabel(left_panel, text=T("ui_copy_max_exposure"))
+        self.add_ui_element("ui_copy_max_exposure", self.lbl_max_exposure)
         self.lbl_max_exposure.pack(anchor="w", padx=10)
         self.ent_max_exposure = ctk.CTkEntry(left_panel, placeholder_text="10.0")
         self.ent_max_exposure.pack(fill="x", padx=10, pady=(0, 5))
@@ -126,19 +130,19 @@ class CopyTradeControllerMixin:
         self.kill_card.pack(fill="x", padx=10, pady=(10, 8))
         ctk.CTkLabel(
             self.kill_card,
-            text="KILL SWITCH",
+            text=T("ui_copy_kill"),
             font=ctk.CTkFont(size=12, weight="bold"),
             text_color="#fecaca",
         ).pack(anchor="w", padx=12, pady=(10, 2))
         ctk.CTkLabel(
             self.kill_card,
-            text="Blocks all new copy entries when ON",
+            text=T("ui_copy_kill_hint"),
             font=ctk.CTkFont(size=10),
             text_color="#fca5a5",
         ).pack(anchor="w", padx=12, pady=(0, 4))
         self.chk_kill_switch = ctk.CTkCheckBox(
             self.kill_card,
-            text="Stop All New Trades",
+            text=T("ui_copy_stop_new"),
             text_color="#fecaca",
             fg_color="#dc2626",
             hover_color="#b91c1c",
@@ -147,7 +151,8 @@ class CopyTradeControllerMixin:
         self._copy_role_widgets.append(self.chk_kill_switch)
 
         # Stale Threshold
-        self.lbl_stale = ctk.CTkLabel(left_panel, text="Stale Signal Threshold (sec)")
+        self.lbl_stale = ctk.CTkLabel(left_panel, text=T("ui_copy_stale"))
+        self.add_ui_element("ui_copy_stale", self.lbl_stale)
         self.lbl_stale.pack(anchor="w", padx=10)
         self.ent_stale = ctk.CTkEntry(left_panel, placeholder_text="300")
         self.ent_stale.pack(fill="x", padx=10, pady=(0, 10))
@@ -171,30 +176,35 @@ class CopyTradeControllerMixin:
         self._on_copy_role_change(self.combo_copy_role.get())
         
         # --- Test Safety Rules Section ---
-        self.lbl_test_safety = ctk.CTkLabel(left_panel, text="Test Safety Rules", font=ctk.CTkFont(size=13, weight="bold"))
+        self.lbl_test_safety = ctk.CTkLabel(left_panel, text=T("ui_copy_test_title"), font=ctk.CTkFont(size=13, weight="bold"))
+        self.add_ui_element("ui_copy_test_title", self.lbl_test_safety)
         self.lbl_test_safety.pack(anchor="w", padx=10, pady=(10, 5))
         
         # Test Symbol
-        self.lbl_test_symbol = ctk.CTkLabel(left_panel, text="Test Symbol")
+        self.lbl_test_symbol = ctk.CTkLabel(left_panel, text=T("ui_copy_test_symbol"))
+        self.add_ui_element("ui_copy_test_symbol", self.lbl_test_symbol)
         self.lbl_test_symbol.pack(anchor="w", padx=10)
         self.ent_test_symbol = ctk.CTkEntry(left_panel, placeholder_text="EURUSD")
         self.ent_test_symbol.pack(fill="x", padx=10, pady=(0, 5))
         
         # Test Lot
-        self.lbl_test_lot = ctk.CTkLabel(left_panel, text="Test Lot")
+        self.lbl_test_lot = ctk.CTkLabel(left_panel, text=T("ui_copy_test_lot"))
+        self.add_ui_element("ui_copy_test_lot", self.lbl_test_lot)
         self.lbl_test_lot.pack(anchor="w", padx=10)
         self.ent_test_lot = ctk.CTkEntry(left_panel, placeholder_text="0.1")
         self.ent_test_lot.pack(fill="x", padx=10, pady=(0, 5))
         
         # Test Type
-        self.lbl_test_type = ctk.CTkLabel(left_panel, text="Test Type")
+        self.lbl_test_type = ctk.CTkLabel(left_panel, text=T("ui_copy_test_type"))
+        self.add_ui_element("ui_copy_test_type", self.lbl_test_type)
         self.lbl_test_type.pack(anchor="w", padx=10)
         self.combo_test_type = ctk.CTkComboBox(left_panel, values=["BUY", "SELL"])
         self.combo_test_type.set("BUY")
         self.combo_test_type.pack(fill="x", padx=10, pady=(0, 10))
         
         # Test Button
-        self.btn_test_safety = ctk.CTkButton(left_panel, text="Test Safety Rules", fg_color="#3b8ed0", command=self._on_test_safety_rules)
+        self.btn_test_safety = ctk.CTkButton(left_panel, text=T("ui_copy_test_btn"), fg_color="#3b8ed0", command=self._on_test_safety_rules)
+        self.add_ui_element("ui_copy_test_btn", self.btn_test_safety)
         self.btn_test_safety.pack(fill="x", padx=10, pady=5)
         
         # Start/Stop Monitor (Convenience)
@@ -251,10 +261,10 @@ class CopyTradeControllerMixin:
         
         name = self.combo_profiles.get()
         if not name or name not in self.profiles:
-            self.lbl_copy_profile.configure(text="Profile: None")
+            self.lbl_copy_profile.configure(text=T("ui_profile_none"))
             return
-            
-        self.lbl_copy_profile.configure(text=f"Profile: {name}")
+
+        self.lbl_copy_profile.configure(text=T("ui_profile_named").format(name=name))
         data = self.profiles[name]
         
         self.combo_copy_role.set(data.get("copy_role", "None"))

@@ -297,7 +297,7 @@ class MonitorControllerMixin:
 
         result = {"ok": False}
         popup = ctk.CTkToplevel(self)
-        popup.title("Stop running monitor")
+        popup.title(T("ui_stop_monitor_title"))
         popup.resizable(False, False)
         popup.attributes("-topmost", True)
         try:
@@ -311,7 +311,7 @@ class MonitorControllerMixin:
 
         ctk.CTkLabel(
             body,
-            text="Stop running monitor",
+            text=T("ui_stop_monitor_title"),
             font=ctk.CTkFont(size=16, weight="bold"),
             anchor="w",
         ).pack(fill="x", pady=(0, 10))
@@ -319,9 +319,9 @@ class MonitorControllerMixin:
         detail = ctk.CTkFrame(body, fg_color=("#3d2020", "#3d2020"), corner_radius=8)
         detail.pack(fill="x", pady=(0, 10))
         for label, val in (
-            ("Profile", profile_name),
-            ("PID", pid),
-            ("Account", account),
+            (T("ui_profile"), profile_name),
+            (T("ui_pid"), pid),
+            (T("ui_account"), account),
         ):
             row = ctk.CTkFrame(detail, fg_color="transparent")
             row.pack(fill="x", padx=12, pady=4)
@@ -332,13 +332,13 @@ class MonitorControllerMixin:
                 row,
                 text=str(val),
                 anchor="w",
-                font=ctk.CTkFont(weight="bold" if label == "Profile" else "normal"),
-                text_color="#ef5350" if label == "Profile" else None,
+                font=ctk.CTkFont(weight="bold" if label == T("ui_profile") else "normal"),
+                text_color="#ef5350" if label == T("ui_profile") else None,
             ).pack(side="left", fill="x", expand=True)
 
-        note = "Other monitors will remain active."
+        note = T("ui_other_monitors")
         if others:
-            note = f"Other monitors will remain active: {', '.join(others)}."
+            note = T("ui_other_monitors_list").format(names=", ".join(others))
         ctk.CTkLabel(
             body, text=note, anchor="w", justify="left", wraplength=320, text_color="gray"
         ).pack(fill="x", pady=(0, 14))
@@ -359,14 +359,14 @@ class MonitorControllerMixin:
 
         ctk.CTkButton(
             btns,
-            text="Cancel",
+            text=T("ui_cancel"),
             width=100,
             fg_color="gray40",
             command=lambda: _close(False),
         ).pack(side="left", padx=(0, 8))
         ctk.CTkButton(
             btns,
-            text=f"Stop {profile_name}",
+            text=T("ui_stop_named").format(name=profile_name),
             width=140,
             fg_color="#d9534f",
             hover_color="#c9302c",
@@ -467,11 +467,11 @@ class MonitorControllerMixin:
 
         try:
             if hasattr(self, "lbl_profile_selected") and self.lbl_profile_selected.winfo_exists():
-                self.lbl_profile_selected.configure(text=f"Selected: {sel}")
+                self.lbl_profile_selected.configure(text=f"{T('ui_selected')}: {sel}")
             if hasattr(self, "lbl_profile_running") and self.lbl_profile_running.winfo_exists():
                 n = len(live)
                 self.lbl_profile_running.configure(
-                    text=f"Running ({n}): {run_summary}" if n else "Running: —"
+                    text=f"{T('ui_running')} ({n}): {run_summary}" if n else f"{T('ui_running')}: —"
                 )
         except Exception:
             pass
@@ -480,25 +480,27 @@ class MonitorControllerMixin:
 
         try:
             if sel_live:
-                self.btn_start.configure(state="disabled", text=f"START {sel}")
-                self.btn_stop.configure(state="normal", text=f"STOP {sel}")
+                self.btn_start.configure(state="disabled", text=T("ui_start_named").format(name=sel))
+                self.btn_stop.configure(state="normal", text=T("ui_stop_named_btn").format(name=sel))
             else:
-                self.btn_start.configure(state="normal", text=f"START {sel}")
-                # Disabled stop for non-live selected: label still names the profile
-                self.btn_stop.configure(state="disabled", text=f"STOP {sel}" if sel and sel != "—" else T("btn_stop"))
+                self.btn_start.configure(state="normal", text=T("ui_start_named").format(name=sel))
+                self.btn_stop.configure(
+                    state="disabled",
+                    text=T("ui_stop_named_btn").format(name=sel) if sel and sel != "—" else T("btn_stop"),
+                )
         except Exception:
             pass
 
         try:
             if hasattr(self, "btn_copy_start"):
                 if sel_live:
-                    self.btn_copy_start.configure(state="disabled", text=f"START {sel}")
-                    self.btn_copy_stop.configure(state="normal", text=f"STOP {sel}")
+                    self.btn_copy_start.configure(state="disabled", text=T("ui_start_named").format(name=sel))
+                    self.btn_copy_stop.configure(state="normal", text=T("ui_stop_named_btn").format(name=sel))
                 else:
-                    self.btn_copy_start.configure(state="normal", text=f"START {sel}")
+                    self.btn_copy_start.configure(state="normal", text=T("ui_start_named").format(name=sel))
                     self.btn_copy_stop.configure(
                         state="disabled",
-                        text=f"STOP {sel}" if sel and sel != "—" else T("btn_stop"),
+                        text=T("ui_stop_named_btn").format(name=sel) if sel and sel != "—" else T("btn_stop"),
                     )
         except Exception:
             pass
@@ -577,7 +579,7 @@ class MonitorControllerMixin:
             rows.clear()
             self._running_hdr = ctk.CTkLabel(
                 frame,
-                text="Running Monitors",
+                text=T("ui_running_monitors"),
                 font=ctk.CTkFont(size=12, weight="bold"),
                 anchor="w",
             )
@@ -586,7 +588,7 @@ class MonitorControllerMixin:
             self._running_body.pack(fill="both", expand=True)
             self._running_empty_lbl = ctk.CTkLabel(
                 self._running_body,
-                text="No monitors running",
+                text=T("ui_no_monitors"),
                 font=ctk.CTkFont(size=11),
                 text_color="gray",
                 anchor="w",
@@ -599,7 +601,8 @@ class MonitorControllerMixin:
         # Header count always tracks live set
         try:
             n = len(live)
-            hdr.configure(text=f"Running Monitors ({n})" if n else "Running Monitors")
+            base = T("ui_running_monitors")
+            hdr.configure(text=f"{base} ({n})" if n else base)
         except Exception:
             pass
 
@@ -680,7 +683,7 @@ class MonitorControllerMixin:
         pid_lbl.bind("<Button-1>", lambda _e, n=name: self._on_running_monitor_click(n))
         stop_btn = ctk.CTkButton(
             row,
-            text="Stop",
+            text=T("ui_stop"),
             width=56,
             height=26,
             fg_color="#d9534f",

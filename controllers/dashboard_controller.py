@@ -42,21 +42,25 @@ class DashboardControllerMixin:
         # Account Card (Balance/Equity hidden for privacy)
         self.card_account = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_account.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
-        ctk.CTkLabel(self.card_account, text="📊 Account", font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
+        self.lbl_card_account_title = ctk.CTkLabel(self.card_account, text=T("ui_card_account"), font=ctk.CTkFont(size=14, weight="bold"), anchor="w")
+        self.lbl_card_account_title.pack(fill="x", padx=8, pady=(6, 2))
+        self.add_ui_element("ui_card_account", self.lbl_card_account_title)
         self.card_account_server = ctk.CTkLabel(self.card_account, text="—", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
         self.card_account_server.pack(fill="x", padx=8)
-        self.card_account_status = ctk.CTkLabel(self.card_account, text="Status: —", font=ctk.CTkFont(size=13), anchor="w")
+        self.card_account_status = ctk.CTkLabel(self.card_account, text=T("ui_status_dash"), font=ctk.CTkFont(size=13), anchor="w")
         self.card_account_status.pack(fill="x", padx=8, pady=(0, 6))
 
         # Signal Card — current slot + pair list (same pairs as dashboard cards)
         self.card_signal = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_signal.grid(row=0, column=1, sticky="nsew", padx=4)
-        ctk.CTkLabel(self.card_signal, text="📈 Signal", font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
-        self.card_signal_current = ctk.CTkLabel(self.card_signal, text="Current: —", font=ctk.CTkFont(size=13), anchor="w")
+        self.lbl_card_signal_title = ctk.CTkLabel(self.card_signal, text=T("ui_card_signal"), font=ctk.CTkFont(size=14, weight="bold"), anchor="w")
+        self.lbl_card_signal_title.pack(fill="x", padx=8, pady=(6, 2))
+        self.add_ui_element("ui_card_signal", self.lbl_card_signal_title)
+        self.card_signal_current = ctk.CTkLabel(self.card_signal, text=T("ui_current_dash"), font=ctk.CTkFont(size=13), anchor="w")
         self.card_signal_current.pack(fill="x", padx=8)
-        self.card_signal_next = ctk.CTkLabel(self.card_signal, text="Next: —", font=ctk.CTkFont(size=13), anchor="w")
+        self.card_signal_next = ctk.CTkLabel(self.card_signal, text=f"{T('ui_next')}: —", font=ctk.CTkFont(size=13), anchor="w")
         self.card_signal_next.pack(fill="x", padx=8)
-        self.card_signal_countdown = ctk.CTkLabel(self.card_signal, text="Countdown: —", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
+        self.card_signal_countdown = ctk.CTkLabel(self.card_signal, text=f"{T('ui_countdown')}: —", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
         self.card_signal_countdown.pack(fill="x", padx=8, pady=(2, 4))
         self.card_signal_pairs_frame = ctk.CTkFrame(self.card_signal, fg_color="transparent")
         self.card_signal_pairs_frame.pack(fill="x", padx=6, pady=(0, 6))
@@ -72,12 +76,14 @@ class DashboardControllerMixin:
         # Engine Card
         self.card_engine = ctk.CTkFrame(cards_frame, corner_radius=8)
         self.card_engine.grid(row=0, column=2, sticky="nsew", padx=(4, 0))
-        ctk.CTkLabel(self.card_engine, text="⚙️ Engine", font=ctk.CTkFont(size=14, weight="bold"), anchor="w").pack(fill="x", padx=8, pady=(6, 2))
-        self.card_engine_ghost = ctk.CTkLabel(self.card_engine, text="Ghost: —", font=ctk.CTkFont(size=13), anchor="w")
+        self.lbl_card_engine_title = ctk.CTkLabel(self.card_engine, text=T("ui_card_engine"), font=ctk.CTkFont(size=14, weight="bold"), anchor="w")
+        self.lbl_card_engine_title.pack(fill="x", padx=8, pady=(6, 2))
+        self.add_ui_element("ui_card_engine", self.lbl_card_engine_title)
+        self.card_engine_ghost = ctk.CTkLabel(self.card_engine, text=f"{T('ui_ghost')}: —", font=ctk.CTkFont(size=13), anchor="w")
         self.card_engine_ghost.pack(fill="x", padx=8)
-        self.card_engine_session = ctk.CTkLabel(self.card_engine, text="Session: ON", font=ctk.CTkFont(size=13), anchor="w", text_color="#2ecc71")
+        self.card_engine_session = ctk.CTkLabel(self.card_engine, text=T("ui_session_on"), font=ctk.CTkFont(size=13), anchor="w", text_color="#2ecc71")
         self.card_engine_session.pack(fill="x", padx=8)
-        self.card_engine_version = ctk.CTkLabel(self.card_engine, text=f"v{VERSION[1:]} Stable", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
+        self.card_engine_version = ctk.CTkLabel(self.card_engine, text=f"v{VERSION[1:]} {T('ui_stable')}", font=ctk.CTkFont(size=12), anchor="w", text_color="gray")
         self.card_engine_version.pack(fill="x", padx=8, pady=(0, 6))
 
         self.lbl_select = ctk.CTkLabel(left_panel, text=T("msg_select_profile"), font=ctk.CTkFont(size=14))
@@ -89,15 +95,15 @@ class DashboardControllerMixin:
 
         # Explicit Selected vs Running vs Account source (safety)
         self.lbl_profile_selected = ctk.CTkLabel(
-            left_panel, text="Selected: —", font=ctk.CTkFont(size=12), anchor="w", text_color="#ffb74d"
+            left_panel, text=f"{T('ui_selected')}: —", font=ctk.CTkFont(size=12), anchor="w", text_color="#ffb74d"
         )
         self.lbl_profile_selected.pack(fill="x", pady=(0, 2))
         self.lbl_profile_running = ctk.CTkLabel(
-            left_panel, text="Running Monitor: —", font=ctk.CTkFont(size=12), anchor="w", text_color="#66bb6a"
+            left_panel, text=f"{T('ui_running_monitor')}: —", font=ctk.CTkFont(size=12), anchor="w", text_color="#66bb6a"
         )
         self.lbl_profile_running.pack(fill="x", pady=(0, 2))
         self.lbl_account_source = ctk.CTkLabel(
-            left_panel, text="Account Source: —", font=ctk.CTkFont(size=11), anchor="w", text_color="gray"
+            left_panel, text=f"{T('ui_account_source')}: —", font=ctk.CTkFont(size=11), anchor="w", text_color="gray"
         )
         self.lbl_account_source.pack(fill="x", pady=(0, 12))
 
@@ -126,7 +132,7 @@ class DashboardControllerMixin:
 
         self.btn_ghost_toggle = ctk.CTkButton(
             left_panel,
-            text="👻 Ghost",
+            text=T("ui_btn_ghost_short"),
             height=40,
             corner_radius=10,
             font=ctk.CTkFont(size=14, weight="bold"),
@@ -622,15 +628,15 @@ class DashboardControllerMixin:
             # Left-rail Selected / Running / Account source
             try:
                 if self._widget_alive(getattr(self, "lbl_profile_selected", None)):
-                    self.lbl_profile_selected.configure(text=f"Selected: {profile or '—'}")
+                    self.lbl_profile_selected.configure(text=f"{T('ui_selected')}: {profile or '—'}")
                 if self._widget_alive(getattr(self, "lbl_profile_running", None)):
-                    self.lbl_profile_running.configure(text=f"Running Monitor: {running or '—'}")
+                    self.lbl_profile_running.configure(text=f"{T('ui_running_monitor')}: {running or '—'}")
                 if self._widget_alive(getattr(self, "lbl_account_source", None)):
                     if hb and (hb.get("server") or hb.get("login")):
                         src = f"{hb_profile or '—'} / {hb.get('login') or '—'}"
                     else:
                         src = f"{hb_profile or '—'} / —"
-                    self.lbl_account_source.configure(text=f"Account Source: {src}")
+                    self.lbl_account_source.configure(text=f"{T('ui_account_source')}: {src}")
             except Exception:
                 pass
 
@@ -654,14 +660,19 @@ class DashboardControllerMixin:
                     card_server.configure(text=server_text)
                     if self._widget_alive(card_status):
                         state = mt5_state.get("state") or "—"
+                        state_lbl = {
+                            "Connected": T("ui_connected"),
+                            "Degraded": T("ui_degraded"),
+                            "Disconnected": T("ui_disconnected"),
+                        }.get(state, state)
                         card_status.configure(
-                            text=f"Status: {state}",
+                            text=f"{T('ui_status')}: {state_lbl}",
                             text_color="#66bb6a" if state == "Connected" else "#ffb74d" if state == "Degraded" else "#ef5350",
                         )
                 else:
-                    card_server.configure(text="Waiting for worker...")
+                    card_server.configure(text=T("ui_waiting_worker"))
                     if self._widget_alive(card_status):
-                        card_status.configure(text="Status: —", text_color="gray")
+                        card_status.configure(text=T("ui_status_dash"), text_color="gray")
 
             # Signal Card — XAU signal + GBP focus pairs (no Mua/Bán on GBP)
             card_sig = getattr(self, "card_signal_current", None)
@@ -691,17 +702,17 @@ class DashboardControllerMixin:
                                 icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
                                 hour = latest.get("hour")
                                 hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
-                                card_sig.configure(text=f"Current: {icon} {sig}{hour_txt}")
+                                card_sig.configure(text=f"{T('ui_current')}: {icon} {sig}{hour_txt}")
                                 pair_dirs = latest.get("pair_dirs") or {}
                             else:
-                                card_sig.configure(text="Current: —")
+                                card_sig.configure(text=T("ui_current_dash"))
                         else:
-                            card_sig.configure(text="Current: —")
+                            card_sig.configure(text=T("ui_current_dash"))
                     else:
-                        card_sig.configure(text="Current: —")
+                        card_sig.configure(text=T("ui_current_dash"))
                 except Exception as _sig_err:
                     try:
-                        card_sig.configure(text="Current: —")
+                        card_sig.configure(text=T("ui_current_dash"))
                     except Exception:
                         pass
                     try:
@@ -802,7 +813,7 @@ class DashboardControllerMixin:
                         break
                 if next_h is None:
                     next_h = target_hours[0]
-                self.card_signal_next.configure(text=f"Next: {next_h:02d}:45")
+                self.card_signal_next.configure(text=f"{T('ui_next')}: {next_h:02d}:45")
                 target = now.replace(hour=next_h, minute=45, second=0, microsecond=0)
                 if target < now:
                     from datetime import timedelta
@@ -810,7 +821,7 @@ class DashboardControllerMixin:
                 diff = target - now
                 hrs, rem = divmod(int(diff.total_seconds()), 3600)
                 mins, secs = divmod(rem, 60)
-                self.card_signal_countdown.configure(text=f"Countdown: {hrs:02d}:{mins:02d}:{secs:02d}")
+                self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: {hrs:02d}:{mins:02d}:{secs:02d}")
 
             # Engine Card
             if hasattr(self, 'card_engine_ghost'):
@@ -820,7 +831,8 @@ class DashboardControllerMixin:
                 ) if hasattr(self, 'workers') else False
                 ghost_active = self.settings.get("ghost_mode_active", False) if hasattr(self, 'settings') else False
                 dot = "🟢" if is_running else "⚫"
-                self.card_engine_ghost.configure(text=f"Ghost: {dot} {'Active' if ghost_active else 'Off'}")
+                gh = T("ui_ghost_active") if ghost_active else T("ui_ghost_off")
+                self.card_engine_ghost.configure(text=f"{T('ui_ghost')}: {dot} {gh}")
 
             # Status Bar - multi: N/M Connected when several monitors are live
             if hasattr(self, 'status_mt5'):
@@ -835,7 +847,7 @@ class DashboardControllerMixin:
                             st = self._store.compute_mt5_state(pn) or {}
                             if st.get("state") == "Connected":
                                 n_ok += 1
-                        multi_label = f"{n_ok}/{len(live)} Connected"
+                        multi_label = T("ui_n_of_m_connected").format(n=n_ok, m=len(live))
                         color = (
                             "#66bb6a" if n_ok == len(live)
                             else "#ffb74d" if n_ok > 0
@@ -846,23 +858,26 @@ class DashboardControllerMixin:
                 if multi_label:
                     label = multi_label
                 elif state == "Connected":
-                    label = f"Connected ({int(age)}s)" if age is not None else "Connected"
+                    label = f"{T('ui_connected')} ({int(age)}s)" if age is not None else T("ui_connected")
                 elif state == "Degraded":
                     if mt5_state.get("last_error"):
-                        label = f"Degraded ({mt5_state['last_error'][:30]})"
+                        label = f"{T('ui_degraded')} ({mt5_state['last_error'][:30]})"
                     elif age is not None:
-                        label = f"Degraded ({int(age)}s stale)"
+                        label = f"{T('ui_degraded')} ({int(age)}s {T('ui_stale')})"
                     else:
-                        label = "Degraded"
+                        label = T("ui_degraded")
                 else:
-                    label = f"Disconnected ({int(age)}s ago)" if age is not None else "Disconnected"
+                    label = (
+                        f"{T('ui_disconnected')} ({int(age)}s {T('ui_ago')})"
+                        if age is not None
+                        else T("ui_disconnected")
+                    )
                 self.status_mt5.configure(text=f"MT5 ● {label}", text_color=color)
 
                 # Telegram: 3 states
                 tg_configured = tg_state["configured"]
                 tg_api = tg_state["api_ok"]
                 if not tg_configured:
-                    # If OAK Manager has a configured chat or MiMo bot value, show configured
                     try:
                         import OAK_Hidden_SLTP_Manager as _oak
                         mimo_chat = getattr(_oak, "_mimo_bot_chat_id", "") or ""
@@ -875,10 +890,10 @@ class DashboardControllerMixin:
                     except Exception:
                         profile_chat = ""
                     if mimo_chat or profile_chat:
-                        tg_label = "Configured"
+                        tg_label = T("ui_configured")
                         tg_color = "#ffb74d"
                     else:
-                        tg_label = "Not configured"
+                        tg_label = T("ui_not_configured")
                         tg_color = "gray"
                 elif tg_api:
                     tg_label = f"Online (@{tg_state['bot_name']})" if tg_state["bot_name"] else "Online"
@@ -899,15 +914,18 @@ class DashboardControllerMixin:
                             "client_error": "Client error",
                             "network_error": "Network error",
                         }.get(tg_error, tg_error.replace("_", " ").capitalize() if tg_error else "API unreachable")
-                    tg_label = f"Degraded ({friendly})"
+                    tg_label = f"{T('ui_degraded')} ({friendly})"
                     tg_color = "#ffb74d"
                 self.status_telegram.configure(text=f"Telegram ● {tg_label}", text_color=tg_color)
                 is_running = any(
                     data.get("proc") and data["proc"].poll() is None
                     for data in self.workers.values()
                 ) if hasattr(self, 'workers') else False
-                self.status_ghost.configure(text=f"Ghost ● {'Running' if is_running else 'Stopped'}",
-                                            text_color="#66bb6a" if is_running else "gray")
+                gh_state = T("lbl_running") if is_running else T("lbl_stopped")
+                self.status_ghost.configure(
+                    text=f"{T('ui_ghost')} ● {gh_state}",
+                    text_color="#66bb6a" if is_running else "gray",
+                )
         except Exception:
             pass
 
@@ -919,31 +937,40 @@ class DashboardControllerMixin:
         frame.pack(fill="both", expand=True)
 
         # Header
-        header = ctk.CTkLabel(frame, text="Diagnostics & Logs", font=ctk.CTkFont(size=16, weight="bold"))
-        header.pack(pady=(10, 5), anchor="w", padx=10)
+        self._diag_header = ctk.CTkLabel(frame, text=T("ui_diag_title"), font=ctk.CTkFont(size=16, weight="bold"))
+        self._diag_header.pack(pady=(10, 5), anchor="w", padx=10)
+        self.add_ui_element("ui_diag_title", self._diag_header)
 
         # Time scope: Current Session | Last 15 Minutes | All History
         scope_frame = ctk.CTkFrame(frame, fg_color="transparent")
         scope_frame.pack(fill="x", padx=10, pady=(0, 4))
-        ctk.CTkLabel(scope_frame, text="Scope:").pack(side="left")
+        self._diag_scope_lbl = ctk.CTkLabel(scope_frame, text=T("ui_diag_scope"))
+        self._diag_scope_lbl.pack(side="left")
+        self.add_ui_element("ui_diag_scope", self._diag_scope_lbl)
         self._log_scope_var = ctk.StringVar(value="session")
-        for value, label in (
-            ("session", "Current Session"),
-            ("15m", "Last 15 Minutes"),
-            ("all", "All History"),
+        self._diag_scope_radios = []
+        for value, key in (
+            ("session", "ui_diag_scope_session"),
+            ("15m", "ui_diag_scope_15m"),
+            ("all", "ui_diag_scope_all"),
         ):
-            ctk.CTkRadioButton(
+            rb = ctk.CTkRadioButton(
                 scope_frame,
-                text=label,
+                text=T(key),
                 variable=self._log_scope_var,
                 value=value,
                 command=self._filter_logs,
-            ).pack(side="left", padx=5)
+            )
+            rb.pack(side="left", padx=5)
+            self.add_ui_element(key, rb)
+            self._diag_scope_radios.append(rb)
 
         # Log level filter
         filter_frame = ctk.CTkFrame(frame, fg_color="transparent")
         filter_frame.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(filter_frame, text="Level:").pack(side="left")
+        self._diag_level_lbl = ctk.CTkLabel(filter_frame, text=T("ui_diag_level"))
+        self._diag_level_lbl.pack(side="left")
+        self.add_ui_element("ui_diag_level", self._diag_level_lbl)
         self._log_level_var = ctk.StringVar(value="ALL")
         for level in ["ALL", "INFO", "WARNING", "ERROR"]:
             ctk.CTkRadioButton(filter_frame, text=level, variable=self._log_level_var, value=level,
@@ -952,10 +979,18 @@ class DashboardControllerMixin:
         # Auto Refresh + Follow toggle
         self._auto_refresh_var = ctk.BooleanVar(value=False)
         self._follow_var = ctk.BooleanVar(value=True)
-        ctk.CTkCheckBox(filter_frame, text="Auto Refresh", variable=self._auto_refresh_var,
-                        font=ctk.CTkFont(size=10), command=self._toggle_auto_refresh).pack(side="right", padx=5)
-        ctk.CTkCheckBox(filter_frame, text="Follow Latest", variable=self._follow_var,
-                        font=ctk.CTkFont(size=10)).pack(side="right", padx=5)
+        self._diag_auto_cb = ctk.CTkCheckBox(
+            filter_frame, text=T("ui_diag_auto_refresh"), variable=self._auto_refresh_var,
+            font=ctk.CTkFont(size=10), command=self._toggle_auto_refresh,
+        )
+        self._diag_auto_cb.pack(side="right", padx=5)
+        self.add_ui_element("ui_diag_auto_refresh", self._diag_auto_cb)
+        self._diag_follow_cb = ctk.CTkCheckBox(
+            filter_frame, text=T("ui_diag_follow"), variable=self._follow_var,
+            font=ctk.CTkFont(size=10),
+        )
+        self._diag_follow_cb.pack(side="right", padx=5)
+        self.add_ui_element("ui_diag_follow", self._diag_follow_cb)
 
         # Log display
         self._log_text = ctk.CTkTextbox(frame, wrap="word", font=ctk.CTkFont(family="Consolas", size=11))
@@ -964,22 +999,34 @@ class DashboardControllerMixin:
         # Buttons
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(fill="x", padx=10, pady=5)
-        ctk.CTkButton(btn_frame, text="Refresh", width=80, command=self._refresh_logs).pack(side="left", padx=3)
-        ctk.CTkButton(btn_frame, text="Clear Display", width=100, command=self._clear_log_display).pack(side="left", padx=3)
-        ctk.CTkButton(
+        self._diag_btn_refresh = ctk.CTkButton(btn_frame, text=T("ui_diag_refresh"), width=80, command=self._refresh_logs)
+        self._diag_btn_refresh.pack(side="left", padx=3)
+        self.add_ui_element("ui_diag_refresh", self._diag_btn_refresh)
+        self._diag_btn_clear = ctk.CTkButton(btn_frame, text=T("ui_diag_clear"), width=100, command=self._clear_log_display)
+        self._diag_btn_clear.pack(side="left", padx=3)
+        self.add_ui_element("ui_diag_clear", self._diag_btn_clear)
+        self._diag_btn_archive = ctk.CTkButton(
             btn_frame,
-            text="Archive & Start New Log",
+            text=T("ui_diag_archive"),
             width=160,
             fg_color="#5c6bc0",
             hover_color="#3f51b5",
             command=self._archive_and_start_new_log,
-        ).pack(side="left", padx=3)
-        ctk.CTkButton(btn_frame, text="Copy Selected", width=100, command=self._copy_selected_logs).pack(side="left", padx=3)
-        ctk.CTkButton(btn_frame, text="Open Log Folder", width=110, command=self._open_log_folder).pack(side="left", padx=3)
-        ctk.CTkButton(btn_frame, text="Export Debug Bundle", width=150, command=self._export_debug_bundle).pack(side="left", padx=3)
+        )
+        self._diag_btn_archive.pack(side="left", padx=3)
+        self.add_ui_element("ui_diag_archive", self._diag_btn_archive)
+        self._diag_btn_copy = ctk.CTkButton(btn_frame, text=T("ui_diag_copy"), width=100, command=self._copy_selected_logs)
+        self._diag_btn_copy.pack(side="left", padx=3)
+        self.add_ui_element("ui_diag_copy", self._diag_btn_copy)
+        self._diag_btn_folder = ctk.CTkButton(btn_frame, text=T("ui_diag_open_folder"), width=110, command=self._open_log_folder)
+        self._diag_btn_folder.pack(side="left", padx=3)
+        self.add_ui_element("ui_diag_open_folder", self._diag_btn_folder)
+        self._diag_btn_export = ctk.CTkButton(btn_frame, text=T("ui_diag_export"), width=150, command=self._export_debug_bundle)
+        self._diag_btn_export.pack(side="left", padx=3)
+        self.add_ui_element("ui_diag_export", self._diag_btn_export)
 
         # Status bar
-        self._diag_status = ctk.CTkLabel(frame, text="Ready", text_color="gray")
+        self._diag_status = ctk.CTkLabel(frame, text=T("ui_diag_ready"), text_color="gray")
         self._diag_status.pack(anchor="w", padx=10, pady=(0, 5))
 
         # Load initial logs
@@ -1513,7 +1560,7 @@ class DashboardControllerMixin:
         )
         self.lbl_about_title.pack()
         ctk.CTkLabel(
-            hero_in, text="Trading Operations Console · MT4 / MT5",
+            hero_in, text=T("ui_about_subtitle"),
             font=ctk.CTkFont(size=13), text_color=muted,
         ).pack(pady=(6, 0))
         ctk.CTkLabel(
@@ -1531,12 +1578,12 @@ class DashboardControllerMixin:
         btn_row = ctk.CTkFrame(hero_in, fg_color="transparent")
         btn_row.pack(pady=(20, 0))
         ctk.CTkButton(
-            btn_row, text="Documentation", width=160, height=36, corner_radius=10,
+            btn_row, text=T("ui_about_docs"), width=160, height=36, corner_radius=10,
             fg_color=accent, hover_color=p.get("accent_hover", accent),
             command=lambda: os.startfile("README.md") if os.path.exists("README.md") else None,
         ).pack(side="left", padx=6)
         ctk.CTkButton(
-            btn_row, text="Check Updates", width=160, height=36, corner_radius=10,
+            btn_row, text=T("ui_about_updates"), width=160, height=36, corner_radius=10,
             fg_color="transparent", border_width=1, border_color=border, text_color=primary,
             hover_color=p.get("panel_alt_bg", "#18181b"),
             command=lambda: self.log("Checking for updates..."),
@@ -1737,6 +1784,37 @@ class DashboardControllerMixin:
                     w.configure(text=text)
                 except Exception:
                     pass
+
+        # 1b) Runtime labels rebuilt from T() (cards, monitors, start/stop captions)
+        try:
+            if self._widget_alive(getattr(self, "card_engine_session", None)):
+                self.card_engine_session.configure(text=T("ui_session_on"))
+            if self._widget_alive(getattr(self, "card_engine_version", None)):
+                self.card_engine_version.configure(text=f"v{VERSION[1:]} {T('ui_stable')}")
+            if self._widget_alive(getattr(self, "btn_ghost_toggle", None)):
+                # keep ghost state text via existing updater if available
+                if hasattr(self, "_refresh_ghost_button"):
+                    self._refresh_ghost_button()
+                else:
+                    self.btn_ghost_toggle.configure(text=T("ui_btn_ghost_short"))
+        except Exception:
+            pass
+        try:
+            self.refresh_running_monitors_panel(force=True)
+        except Exception:
+            pass
+        try:
+            self.update_ui_state(getattr(self, "selected_profile_name", None) or "")
+        except Exception:
+            pass
+        try:
+            self._update_dashboard_cards()
+        except Exception:
+            pass
+        try:
+            self.refresh_profile_list()
+        except Exception:
+            pass
 
         # 2) ScrollableFrame headers (label_text, not text=)
         label_map = dict(getattr(self, "_label_text_widgets", {}) or {})

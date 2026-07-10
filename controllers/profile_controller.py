@@ -107,7 +107,7 @@ class ProfileControllerMixin:
                     pass
             try:
                 if hasattr(self, "lbl_copy_profile") and self.lbl_copy_profile.winfo_exists():
-                    self.lbl_copy_profile.configure(text=f"Profile: {name}")
+                    self.lbl_copy_profile.configure(text=T("ui_profile_named").format(name=name))
             except Exception:
                 pass
 
@@ -248,13 +248,14 @@ class ProfileControllerMixin:
             if getattr(self, "running_profile_name", None):
                 live = [self.running_profile_name]
         n_live = len(live)
+        run_lbl = T("ui_profiles_running")
+        edit_lbl = T("ui_profiles_editing")
         if n_live == 0:
-            run_txt = "RUNNING: —"
+            run_txt = f"{run_lbl}: —"
         elif n_live <= 2:
-            run_txt = f"RUNNING ({n_live}): " + ", ".join(live)
+            run_txt = f"{run_lbl} ({n_live}): " + ", ".join(live)
         else:
-            # Avoid single-line clip; count + wrap names
-            run_txt = f"RUNNING ({n_live}):\n" + ", ".join(live)
+            run_txt = f"{run_lbl} ({n_live}):\n" + ", ".join(live)
         edit_txt = self.selected_profile_name or "—"
         ctk.CTkLabel(
             hdr,
@@ -267,7 +268,7 @@ class ProfileControllerMixin:
         ).pack(fill="x")
         ctk.CTkLabel(
             hdr,
-            text=f"EDITING: {edit_txt}",
+            text=f"{edit_lbl}: {edit_txt}",
             font=ctk.CTkFont(size=11, weight="bold"),
             text_color="#ffb74d",
             anchor="w",
