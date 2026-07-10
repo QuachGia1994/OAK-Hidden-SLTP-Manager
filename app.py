@@ -30,6 +30,7 @@ else:
     import OAK_Hidden_SLTP_Manager as oak
 
 from controllers.runtime import bind_oak_globals
+from services.app_services import AppServices
 
 # Inject free-name globals into this module + all controller mixins
 bind_oak_globals(oak, extra_modules=[sys.modules[__name__]])
@@ -71,6 +72,9 @@ class App(
 
     def __init__(self):
         super().__init__()
+
+        # Explicit services bag (preferred over free-name globals)
+        self.services = AppServices(oak)
 
         # Initialize AppState (rename from self.state to avoid shadowing CTk.state() method!)
         self.app_state = AppState()

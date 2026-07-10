@@ -7,6 +7,12 @@ class DashboardControllerMixin:
 
     def _project_root(self) -> str:
         """Repo/app root (parent of controllers/), never controllers/ itself."""
+        try:
+            svc = getattr(self, "services", None)
+            if svc is not None and getattr(svc, "project_root", None) is not None:
+                return str(svc.project_root)
+        except Exception:
+            pass
         return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def create_dashboard_frame(self, parent):
@@ -943,8 +949,8 @@ class DashboardControllerMixin:
 
 
     def _export_debug_bundle(self):
-        """Export redacted logs/config/state zip (secrets masked by default)."""
-        from tkinter import filedialog, messagebox
+        """Export redacted logs/config/state zip (safe by default; raw is gated)."""
+        from tkinter import filedialog, messagebox, simpledialog
         from services.debug_bundle_service import build_debug_bundle_bytes, list_export_candidates
 
         root = self._project_root()
@@ -954,19 +960,43 @@ class DashboardControllerMixin:
             return
 
         listing = "\n".join(f"  • {arc}" for arc, _ in candidates)
+        # Default path: always redacted (JSON + log PII). No accidental raw via "No".
         try:
-            from tkinter.messagebox import askyesnocancel
-            choice = askyesnocancel(
-                "Export Debug Bundle",
-                "Export diagnostic bundle?\n\n"
+            ok = messagebox.askokcancel(
+                "Export Debug Bundle (redacted)",
+                "Export SAFE diagnostic bundle?\n\n"
                 f"Files:\n{listing}\n\n"
-                "YES = redacted (safe, recommended)\n"
-                "NO = include RAW secrets (config/profiles/settings)\n"
-                "CANCEL = abort",
+                "• Tokens / API keys / chat IDs redacted\n"
+                "• Log PII (account, login, user path) redacted\n\n"
+                "OK = export redacted ZIP\n"
+                "Cancel = abort\n\n"
+                "Raw secrets require typing EXPORT RAW in the next step "
+                "(developer only).",
             )
-            if choice is None:
+            if not ok:
                 return
-            include_raw = choice is False  # NO = raw secrets
+        except Exception:
+            pass
+
+        include_raw = False
+        try:
+            if messagebox.askyesno(
+                "Developer raw export?",
+                "Do you need RAW unredacted secrets/logs?\n\n"
+                "Only for local debugging. Default is NO (recommended).",
+                default="no",
+            ):
+                typed = simpledialog.askstring(
+                    "Confirm RAW export",
+                    "Type exactly: EXPORT RAW\n\n"
+                    "Anything else cancels raw mode (exports redacted).",
+                )
+                include_raw = (typed or "").strip() == "EXPORT RAW"
+                if not include_raw:
+                    messagebox.showinfo(
+                        "Redacted export",
+                        "Phrase mismatch — exporting REDACTED bundle only.",
+                    )
         except Exception:
             include_raw = False
 
@@ -974,7 +1004,9 @@ class DashboardControllerMixin:
             defaultextension=".zip",
             filetypes=[("Zip files", "*.zip")],
             title="Save Debug Bundle",
-            initialfile="oak_debug_bundle.zip",
+            initialfile=(
+                "oak_debug_bundle_RAW.zip" if include_raw else "oak_debug_bundle.zip"
+            ),
         )
         if not bundle_path:
             return

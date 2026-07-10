@@ -218,7 +218,6 @@ class AppShellControllerMixin:
                     except Exception:
                         target = None
                 if target and target in getattr(self, "profiles", {}):
-                    # If form name field already matches, still refresh badges
                     form_name = ""
                     try:
                         if getattr(self, "entries", None) and "name" in self.entries:
@@ -226,7 +225,9 @@ class AppShellControllerMixin:
                     except Exception:
                         form_name = ""
                     if form_name != target:
-                        self.load_profile_to_form(target, sync_combo=True)
+                        self.select_profile(
+                            target, source="profiles_tab", clear_console=False
+                        )
                     else:
                         self._update_active_profile_badge(target)
                         self.refresh_profile_list()

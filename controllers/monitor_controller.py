@@ -264,95 +264,13 @@ class MonitorControllerMixin:
 
 
     def on_profile_change(self, choice):
-        # Keep EDITING + form fields aligned with dashboard combo
+        """Dashboard combo callback → atomic select_profile (single source of truth)."""
+        if getattr(self, "_selecting_profile", False):
+            return
         if choice and choice in getattr(self, "profiles", {}):
-            self.selected_profile_name = choice
-            # Always push into Profiles form when that tab is mounted
-            try:
-                if getattr(self, "entries", None):
-                    self.load_profile_to_form(choice, sync_combo=False)
-                else:
-                    self._update_active_profile_badge(choice)
-            except Exception:
-                self.selected_profile_name = choice
+            self.select_profile(choice, source="dashboard_combo", clear_console=True)
         else:
             self.selected_profile_name = choice or None
-
-        # Update config and Init Copy Manager for GUI sync
-        if choice in self.profiles:
-            self.config = self.profiles[choice]
-            self.config["profile_name"] = choice  # Ensure profile_name is set for filename sync
-            self.copy_manager = CopyTradeManager(self.config, self.notify)
-            self.log(f"Profile: {choice} - Sync File: {self.copy_manager.scheduled_file}")
-            self._last_json_mtime = 0  # Force refresh on next periodic call
-            try:
-                self.update_scheduled_list_ui()
-            except Exception:
-                pass
-
-        # Sync with Pos Size profile combo if it exists
-        if hasattr(self, "combo_pos_profiles"):
-            try:
-                self.combo_pos_profiles.set(choice)
-            except Exception:
-                pass
-        # Sync with Copy Trade profile combo if it exists
-        if hasattr(self, "combo_copy_profiles"):
-            try:
-                self.combo_copy_profiles.set(choice)
-            except Exception:
-                pass
-
-        if hasattr(self, "lbl_copy_profile"):
-            try:
-                self.lbl_copy_profile.configure(text=f"Profile: {choice}")
-            except Exception:
-                pass
-
-        # Clear Console
-        try:
-            self.console.configure(state="normal")
-            self.console.delete("1.0", "end")
-            self.console.configure(state="disabled")
-        except Exception:
-            pass
-
-        if hasattr(self, "copy_console"):
-            try:
-                if self.copy_console.winfo_exists():
-                    self.copy_console.configure(state="normal")
-                    self.copy_console.delete("1.0", "end")
-                    self.copy_console.configure(state="disabled")
-            except Exception:
-                pass
-
-        # Load Logs
-        if choice in getattr(self, "workers", {}):
-            logs = self.workers[choice].get("logs") or []
-            full_log = "\n".join(logs) + ("\n" if logs else "")
-            try:
-                self.console.configure(state="normal")
-                self.console.insert("end", full_log)
-                self.console.see("end")
-                self.console.configure(state="disabled")
-            except Exception:
-                pass
-            if hasattr(self, "copy_console"):
-                try:
-                    if self.copy_console.winfo_exists():
-                        self.copy_console.configure(state="normal")
-                        self.copy_console.insert("end", full_log)
-                        self.copy_console.see("end")
-                        self.copy_console.configure(state="disabled")
-                except Exception:
-                    pass
-
-        self.update_ui_state(choice)
-        # load_profile_to_form already refreshed list; still refresh if form missing
-        if not getattr(self, "entries", None):
-            self.refresh_profile_list()
-        else:
-            self._update_active_profile_badge(choice)
 
 
     def _open_ghost_popup(self):
