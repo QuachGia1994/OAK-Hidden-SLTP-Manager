@@ -12,18 +12,8 @@ import {
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
-function isD1MatchNote(note: string | null | undefined) {
-  return !!note && note.includes("tick match D1");
-}
-
-function getD1MatchNote(direction: Signal["d_direction"]) {
-  if (direction === "BUY") return "XAUUSD: Mua BUY (tick match D1)";
-  if (direction === "SELL") return "XAUUSD: Bán SELL (tick match D1)";
-  return "XAUUSD: tick match D1";
-}
-
-/** Strip long T5-no-gold prose; keep pair-rule note only (badge handles the label). */
-function stripThuNoGoldProse(note: string | null | undefined): string | null {
+/** Strip long no-gold prose; keep pair-rule note only (badge handles the label). */
+function stripNoGoldProse(note: string | null | undefined): string | null {
   if (!note) return null;
   let s = note
     .replace(/\s*[·•|]\s*⚠?\s*Thứ\s*5:[^·\n]*/gi, "")
@@ -38,18 +28,16 @@ function stripThuNoGoldProse(note: string | null | undefined): string | null {
   return s || null;
 }
 
-export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Signal; isVIP?: boolean; showD1Match?: boolean }) {
+export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean }) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
-  const fallbackHourNote = isD1MatchNote(signal.hour_note) ? getHourNote(signal.hour, weekday) : signal.hour_note;
-  const rawHourNote = showD1Match ? getD1MatchNote(signal.d_direction) : (fallbackHourNote || getHourNote(signal.hour, weekday));
+  const rawHourNote = signal.hour_note || getHourNote(signal.hour, weekday);
   const noGoldEntry = signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
   const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
-  // Only keep short pair/rule note; no-gold lives solely on XAU badge
-  const hourNote = showD1Match ? rawHourNote : stripThuNoGoldProse(rawHourNote);
+  const hourNote = stripNoGoldProse(rawHourNote);
 
-  const focusGbp = getFocusGbpPairs(signal.hour);
+  const focusGbp = getFocusGbpPairs(signal.hour, weekday);
   const xauDir =
     signal.pair_dirs?.XAUUSD ||
     (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
@@ -105,7 +93,7 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
         )}
       </div>
 
-      {/* XAU badge = sole T5 no-gold label; GBP focus below */}
+      {/* XAU badge = no-gold label; GBP focus below */}
       <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 space-y-0">
         <PairBadge pair="XAUUSD" direction={xauBadgeDir} />
         {focusGbp.length > 0 && (
@@ -123,24 +111,15 @@ export function SignalCard({ signal, isVIP, showD1Match = false }: { signal: Sig
             ))}
           </div>
         )}
-        {focusGbp.length === 0 && isVIP && !noGoldEntry && (
+        {focusGbp.length === 0 && isVIP && (
           <div className="pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">Không có mốc GBP — chỉ Vàng</div>
         )}
       </div>
 
-      {/* Hour Note — pair rules only (no long no-gold prose) */}
+      {/* Hour Note — pair rules only */}
       {hourNote && (
         <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/40">
-          {showD1Match ? (
-            <div className="flex items-center gap-1.5">
-              <svg className="w-3 h-3 text-emerald-500 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium leading-snug">{hourNote}</p>
-            </div>
-          ) : (
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
-          )}
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
         </div>
       )}
     </div>

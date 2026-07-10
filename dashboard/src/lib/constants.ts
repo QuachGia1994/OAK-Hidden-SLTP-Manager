@@ -1,4 +1,4 @@
-/** Mon–Fri H=3-15 (T5/T6 same band as T2–T4). */
+/** Mon–Fri H=3-15 (T5/T6 same band as T2–T4). Signal logic v9. */
 export const TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
@@ -15,10 +15,19 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
-/** GBP focus pairs by hour — no BUY/SELL display; only which pairs to watch. */
-export function getFocusGbpPairs(hour: number): string[] {
-  if (hour >= 3 && hour <= 8) return ["GBPAUD", "GBPJPY"];
-  if (hour === 9 || hour === 11 || hour === 12 || hour === 14 || hour === 15) {
+/**
+ * GBP focus pairs by hour (+ weekday for Fri narrow focus).
+ * No BUY/SELL dims — UI only marks Focus.
+ * - H=3-8: GA+GJ every day
+ * - H=9/11/12/14/15 Mon–Thu: full group
+ * - H=9/11/12/14/15 Fri (JS=5): GA+GJ only
+ */
+export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
+  const h = Number(hour);
+  if (!Number.isFinite(h)) return [];
+  if (h >= 3 && h <= 8) return ["GBPAUD", "GBPJPY"];
+  if (h === 9 || h === 11 || h === 12 || h === 14 || h === 15) {
+    if (jsWeekday === 5) return ["GBPAUD", "GBPJPY"]; // Friday
     return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
   }
   return [];
@@ -27,28 +36,29 @@ export function getFocusGbpPairs(hour: number): string[] {
 const HOUR_NOTES: Record<number, string> = {
   3: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
   4: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
-  5: "Tập trung GBPAUD · GBPJPY",
-  6: "Tập trung GBPAUD · GBPJPY",
-  7: "Tập trung GBPAUD · GBPJPY",
-  8: "Tập trung GBPAUD · GBPJPY",
-  9: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
-  11: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
-  12: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
-  14: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
-  15: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+  5: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
+  6: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
+  7: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
+  8: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
+  9: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
+  11: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
+  12: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
+  14: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
+  15: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
 };
 
 /**
- * No Gold entry label (logic still computes XAU for GBP Focus):
- * - JS Thu=4: H=3, H=4 and H≥12
- * - JS Fri=5: H=3..8 (H=9-15 Gold normal)
+ * No Gold entry label (logic still computes XAU):
+ * - JS Thu=4: H=3-4 and H≥12 → trade gold H=5-11
+ * - JS Fri=5: H=3-11 → trade gold H=12-15 only
+ * - Mon–Wed: never
  */
 export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean {
   const h = Number(hour);
   if (!Number.isFinite(h)) return false;
   if (jsWeekday === 4 && (h === 3 || h === 4)) return true;
   if (jsWeekday === 4 && h >= 12) return true;
-  if (jsWeekday === 5 && h >= 3 && h <= 8) return true;
+  if (jsWeekday === 5 && h >= 3 && h <= 11) return true;
   return false;
 }
 
@@ -60,7 +70,7 @@ export function isThursdayNoGoldSlot(hour: number, jsWeekday: number): boolean {
 export function xauNoTradeTag(hour: number, jsWeekday: number): string {
   const h = Number(hour);
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "H=3-4";
-  if (jsWeekday === 5 && h >= 3 && h <= 8) return "T6 H=3-8";
+  if (jsWeekday === 5 && h >= 3 && h <= 11) return "T6 H=3-11";
   if (jsWeekday === 4 && h >= 12) return "T5 H≥12";
   return "";
 }
@@ -117,58 +127,70 @@ export function signalXauNoTradeTag(
   }
 }
 
-export function getHourNote(hour: number, weekday: number): string | null {
-  // Pair/slot rule only — T5 no-gold is shown solely on XAU pair badge
+export function getHourNote(hour: number, jsWeekday?: number): string | null {
+  const h = Number(hour);
+  if (h === 9 || h === 11 || h === 12 || h === 14 || h === 15) {
+    if (jsWeekday === 5) {
+      return "Chỉ Focus GBPAUD · GBPJPY (T6, không GBPUSD/GBPCAD)";
+    }
+  }
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
 const PAIR_RULES = [
-  "H=3-4: GBPAUD ngược Vàng · GBPJPY cùng Vàng (ẩn GBPUSD · GBPCAD)",
-  "H=5-8: list pair GBPAUD · GBPJPY (ẩn GBPUSD · GBPCAD)",
-  "H=9 / 11 / 12 / 14 / 15: list full nhóm GBP",
+  "H=3-4: pair_dirs map GA ngược / GJ cùng Vàng; Focus GA+GJ",
+  "H=5-8: Chỉ Focus GA+GJ — không map pair_dirs GBP (chỉ XAUUSD)",
+  "H=9 / 11 / 12 / 14 / 15: Chỉ Focus nhóm GBP (T6: chỉ GA+GJ) — không gán chiều",
   "H khác trong band: chỉ XAUUSD",
   "GBP: không hiển thị Mua/Bán — chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",
 ];
 
-const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
-
-/** Special calendar notes — Thursday (JS getDay=4). */
+/** Special calendar notes — shared Mon–Fri. */
 export const SPECIAL_DAY_NOTES = [
-  "T2–T6: slots H=3-15 (Thứ 5 = Thứ 6 cùng band)",
-  "T5 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
-  "T5 · H≥12: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
-  "T6 · H=3-8: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP; H=9-15 Vàng bình thường",
-  "Thứ 5 có Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây: cần tính lại W1",
-  "Thứ 5 có Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7: cần tính lại W1",
+  "T2–T6: slots H=3-15",
+  "T5 · H=3-4 + H≥12: KHÔNG đánh Vàng (đánh H=5-11)",
+  "T6 · H=3-11: KHÔNG đánh Vàng (chỉ đánh H=12-15)",
+  "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
+  "Đã gỡ: ma trận chiều H=9/11/12 · D-direction",
 ];
 
 export const DAY_RULES: Record<number, string[]> = {
-  1: [    // Thứ 2
-    "Slots: H=3-15",
+  1: [
+    // Thứ 2
+    "Slots: H=3-15 · XAU đánh bình thường",
     ...PAIR_RULES,
-  ],
-  2: [    // Thứ 3
-    "Slots: H=3-15",
-    ...PAIR_RULES,
-  ],
-  3: [    // Thứ 4
-    "Slots: H=3-15",
-    ...PAIR_RULES,
-  ],
-  4: [    // Thứ 5
-    "Slots: H=3-15 (cùng T6)",
-    D_DIRECTION_RULE,
     ...SPECIAL_DAY_NOTES,
-    "H=3-4: list GBPAUD · GBPJPY · XAU badge KHÔNG ĐÁNH",
-    "H=5-8: list GBPAUD · GBPJPY",
-    "H=9 / 11 / 12 / 14 / 15: list full nhóm GBP",
-    "H≥12: XAU badge KHÔNG ĐÁNH — logic vẫn tính cho Focus GBP",
   ],
-  5: [    // Thứ 6
-    "Slots: H=3-15 (cùng T5)",
-    D_DIRECTION_RULE,
-    "H=3-8: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
-    "H=9-15: đánh Vàng bình thường",
+  2: [
+    // Thứ 3
+    "Slots: H=3-15 · XAU đánh bình thường",
+    ...PAIR_RULES,
+    ...SPECIAL_DAY_NOTES,
+  ],
+  3: [
+    // Thứ 4
+    "Slots: H=3-15 · XAU đánh bình thường",
+    ...PAIR_RULES,
+    ...SPECIAL_DAY_NOTES,
+  ],
+  4: [
+    // Thứ 5
+    "Slots: H=3-15",
+    "XAU: đánh H=5-11 · no-gold H=3-4 và H≥12",
+    "H=3-4: Focus GA+GJ + map pair_dirs · badge KHÔNG ĐÁNH",
+    "H=5-8: Focus GA+GJ · XAU đánh · không map GBP",
+    "H=9/11: Focus full nhóm · XAU đánh",
+    "H=12/14/15: Focus full · XAU no-gold",
+    "Thứ 5 + T4 hôm qua = 30/1 tây → nhắc W1; + T6 tuần = 3/4/7 → nhắc W1",
+    ...PAIR_RULES,
+  ],
+  5: [
+    // Thứ 6
+    "Slots: H=3-15",
+    "XAU: chỉ đánh H=12-15 · no-gold H=3-11 (tag T6 H=3-11)",
+    "H=3-8: Focus GA+GJ · XAU no-gold",
+    "H=9/11: Focus chỉ GA+GJ (không GU/GC) · XAU no-gold",
+    "H=12/14/15: Focus chỉ GA+GJ · XAU đánh",
     ...PAIR_RULES,
   ],
 };

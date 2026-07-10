@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { SignalCard } from "./SignalCard";
 import type { Signal } from "@/lib/types";
-import { getFirstD1MatchHour } from "@/lib/trading-time";
 
 function weekdayLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -22,8 +21,6 @@ interface CollapsibleDayProps {
 export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: CollapsibleDayProps) {
   const [open, setOpen] = useState(defaultOpen);
   const daySignals = [...signals].sort((a, b) => b.hour - a.hour);
-  const dayD = daySignals[0]?.d_direction;
-  const firstD1MatchHour = getFirstD1MatchHour(daySignals, dayD);
   const weekday = weekdayLabel(date);
 
   return (
@@ -44,11 +41,6 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
         <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 font-mono">
           {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
         </h2>
-        {dayD && (
-          <span className={`text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-md ${dayD === "BUY" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-            D: {dayD}
-          </span>
-        )}
         <span className="text-[10px] text-zinc-400 dark:text-zinc-500 ml-auto">
           {daySignals.length} signal{daySignals.length !== 1 ? "s" : ""}
         </span>
@@ -60,7 +52,6 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
               key={`${signal.date}-${signal.hour}`}
               signal={signal}
               isVIP={isVIP}
-              showD1Match={firstD1MatchHour !== null && signal.hour >= firstD1MatchHour && signal.hour < 12}
             />
           ))}
         </div>
