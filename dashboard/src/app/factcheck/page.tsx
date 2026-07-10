@@ -366,7 +366,7 @@ export default function FactCheckPage() {
   return (
     <div className="relative">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.10),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]" />
-      <div className="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-10">
+      <div className="relative page-shell">
         <div className="mb-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[30px] border border-zinc-200/80 bg-white/85 p-5 sm:p-7 shadow-[0_32px_100px_-30px_rgba(0,0,0,0.22)] backdrop-blur-md dark:border-white/10 dark:bg-zinc-950/75 dark:shadow-[0_32px_100px_-30px_rgba(0,0,0,0.85)]">
             <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">Fact check studio</div>

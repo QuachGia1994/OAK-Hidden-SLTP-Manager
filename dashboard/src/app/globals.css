@@ -32,3 +32,49 @@ body {
 ::selection {
   background: rgba(16, 185, 129, 0.22);
 }
+
+/* Trading terminal density for 1920×1080+ (Design Dials: density ~7) */
+.page-shell {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .page-shell {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+    padding-top: 1.25rem;
+    padding-bottom: 1.75rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .page-shell {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    padding-top: 1.25rem;
+    padding-bottom: 2rem;
+  }
+}
+
+.nav-shell {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .nav-shell {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+}

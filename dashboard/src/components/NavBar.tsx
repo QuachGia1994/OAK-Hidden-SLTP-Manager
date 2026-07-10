@@ -17,23 +17,23 @@ export function NavBar() {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-zinc-200/70 dark:border-zinc-800/70 bg-white/75 dark:bg-zinc-950/75 backdrop-blur-xl">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 sm:py-0 min-h-14 flex flex-wrap items-center gap-2 sm:gap-6">
+      <div className="nav-shell py-1.5 sm:py-0 min-h-12 flex flex-wrap items-center gap-2 sm:gap-5">
         <Link href="/" className="flex items-center gap-2 shrink-0">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/60 font-mono text-[11px] font-bold text-zinc-900 dark:text-zinc-100">
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/60 font-mono text-[10px] font-bold text-zinc-900 dark:text-zinc-100">
             O
           </span>
-          <span className="font-mono text-sm sm:text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
+          <span className="font-mono text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight">
             SLTP<span className="text-emerald-500 dark:text-emerald-400">.</span>
           </span>
         </Link>
 
-        <div className="flex items-center gap-1 overflow-x-auto whitespace-nowrap py-1 sm:py-0 shrink-0 -mx-1 px-1 sm:mx-0 sm:px-0">
+        <div className="flex items-center gap-0.5 overflow-x-auto whitespace-nowrap py-0.5 sm:py-0 shrink-0 -mx-1 px-1 sm:mx-0 sm:px-0">
           {links.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               aria-current={pathname === link.href ? "page" : undefined}
-              className={`px-2.5 sm:px-3 py-1.5 text-[13px] sm:text-sm rounded-md transition-colors whitespace-nowrap ${
+              className={`px-2 sm:px-2.5 py-1 text-[12px] sm:text-[13px] rounded-md transition-colors whitespace-nowrap ${
                 pathname === link.href
                   ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100"
                   : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
@@ -45,11 +45,11 @@ export function NavBar() {
           ))}
         </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="ml-auto flex items-center gap-2 sm:gap-2.5 shrink-0">
           <StatusDot />
           <button
             onClick={toggle}
-            className="p-2 rounded-md border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
+            className="p-1.5 rounded-md border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
             aria-label={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
             title={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
           >

@@ -9,7 +9,7 @@ export default function RulesPage() {
   const todayRules = DAY_RULES[dayOfWeek] || [];
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+    <div className="page-shell max-w-3xl">
       <header className="mb-6 sm:mb-8 rounded-2xl sm:rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm px-4 py-5 sm:px-6 sm:py-7 shadow-sm">
         <div className="flex flex-col gap-4 sm:gap-5">
           <div className="min-w-0">

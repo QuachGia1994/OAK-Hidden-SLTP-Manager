@@ -72,6 +72,11 @@ class SignalsTab(BaseTab):
 
             ctk.CTkLabel(header, text=name, font=("", 13, "bold")).pack(side="left")
 
+            lbl_status = ctk.CTkLabel(
+                header, text="Stopped", font=("", 10, "bold"), text_color="#9e9e9e"
+            )
+            lbl_status.pack(side="left", padx=(8, 0))
+
             lbl_pid = ctk.CTkLabel(header, text="PID: ---", font=("", 11))
             lbl_pid.pack(side="right", padx=5)
 
@@ -109,6 +114,7 @@ class SignalsTab(BaseTab):
                 "proc": None, "logs": [],
                 "console": console, "btn_start": btn_start,
                 "btn_stop": btn_stop, "lbl_pid": lbl_pid,
+                "lbl_status": lbl_status,
             }
 
     def bind_state(self, app_state: Any) -> None:

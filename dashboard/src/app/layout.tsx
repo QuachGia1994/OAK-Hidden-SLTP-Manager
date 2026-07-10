@@ -59,9 +59,9 @@ export default function RootLayout({
             <VipGuard />
           </Suspense>
           <NavBar />
-          <main className="flex-1">{children}</main>
-          <footer className="border-t border-zinc-200 dark:border-zinc-800 py-4 text-center">
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">&copy; 2026 QUACH KIM PHONG</p>
+          <main className="flex-1 min-h-0">{children}</main>
+          <footer className="border-t border-zinc-200 dark:border-zinc-800 py-2.5 text-center">
+            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">&copy; 2026 QUACH KIM PHONG</p>
           </footer>
         </ThemeProvider>
       </body>

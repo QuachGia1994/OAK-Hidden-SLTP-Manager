@@ -1,152 +1,120 @@
 # -*- coding: utf-8 -*-
-"""Tests for copy trading safety guardrails."""
-import unittest
-from unittest.mock import patch, MagicMock
-import time
+"""Real CopyTradeManager safety guardrail tests (production methods)."""
 import os
-import tempfile
+import sys
+import unittest
+from datetime import date
+from unittest.mock import MagicMock, patch
+
+# Ensure project root on path
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 
-class TestCopySafety(unittest.TestCase):
-    """Test CopyTradeManager safety guardrails."""
+def _make_manager(**overrides):
+    from OAK_Hidden_SLTP_Manager import CopyTradeManager
 
-    def _make_manager(self, **overrides):
-        """Create a CopyTradeManager with mocked dependencies."""
-        config = {
-            "profile_name": "TestProfile",
-            "copy_role": "slave",
-            "copy_channel": "default",
-            "copy_lot_mode": "fixed",
-            "copy_lot_value": 0.01,
-            "copy_max_one": False,
-            "copy_max_daily_trades": 5,
-            "copy_max_lot_per_trade": 2.0,
-            "copy_max_exposure": 10.0,
-            "copy_kill_switch": False,
-            "copy_stale_threshold": 60,
-        }
-        config.update(overrides)
-        notify = MagicMock()
-        return config, notify
+    config = {
+        "profile_name": "TestProfile",
+        "copy_role": "slave",
+        "copy_channel": "default",
+        "copy_lot_mode": "fixed",
+        "copy_lot_value": "0.01",
+        "copy_max_one": False,
+        "copy_max_daily_trades": 5,
+        "copy_max_lot_per_trade": 2.0,
+        "copy_max_exposure": 10.0,
+        "copy_kill_switch": False,
+        "copy_stale_threshold": 60,
+        "path": "",
+    }
+    config.update(overrides)
+    notify = MagicMock()
+    mgr = CopyTradeManager(config, notify)
+    return mgr, notify
 
-    def test_kill_switch_blocks_trades(self):
-        """Kill switch ON blocks all new trades."""
-        config, notify = self._make_manager(copy_kill_switch=True)
-        # Simulate the kill switch check
-        if config.get("copy_kill_switch"):
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "blocked")
 
-    def test_kill_switch_off_allows_trades(self):
-        """Kill switch OFF allows trades."""
-        config, notify = self._make_manager(copy_kill_switch=False)
-        if config.get("copy_kill_switch"):
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "allowed")
+class TestCopySafetyReal(unittest.TestCase):
+    def test_kill_switch_blocks_via_test_safety_rules(self):
+        mgr, _ = _make_manager(copy_kill_switch=True)
+        result = mgr.test_safety_rules(symbol="EURUSD", lot=0.1, type="BUY")
+        self.assertFalse(result["allowed"])
+        self.assertIn("Kill switch", result["reason"])
 
-    def test_max_daily_trades_limit(self):
-        """Exceeding daily trade limit blocks trades."""
-        max_daily = 5
-        current_count = 5
-        if current_count >= max_daily:
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "blocked")
+    def test_kill_switch_off_allows_when_limits_ok(self):
+        mgr, _ = _make_manager(copy_kill_switch=False)
+        with patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5:
+            mock_mt5.terminal_info.return_value = None
+            result = mgr.test_safety_rules(symbol="EURUSD", lot=0.1, type="BUY")
+        self.assertTrue(result["allowed"], result)
 
-    def test_max_daily_trades_within_limit(self):
-        """Within daily trade limit allows trades."""
-        max_daily = 5
-        current_count = 3
-        if current_count >= max_daily:
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "allowed")
+    def test_max_daily_trades_blocks(self):
+        mgr, _ = _make_manager(copy_max_daily_trades=3, copy_kill_switch=False)
+        mgr._daily_trade_date = date.today()
+        mgr._daily_trade_count = 3
+        with patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5:
+            mock_mt5.terminal_info.return_value = None
+            result = mgr.test_safety_rules(symbol="XAUUSD", lot=0.01, type="BUY")
+        self.assertFalse(result["allowed"])
+        self.assertIn("Daily limit", result["reason"])
 
-    def test_max_lot_per_trade_cap(self):
-        """Lot exceeding max is capped."""
-        max_lot = 2.0
-        requested_lot = 5.0
-        actual_lot = min(requested_lot, max_lot)
-        self.assertEqual(actual_lot, 2.0)
+    def test_max_lot_flagged_in_test_safety_rules(self):
+        mgr, _ = _make_manager(copy_max_lot_per_trade=1.0, copy_kill_switch=False)
+        with patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5:
+            mock_mt5.terminal_info.return_value = None
+            result = mgr.test_safety_rules(symbol="EURUSD", lot=5.0, type="BUY")
+        self.assertFalse(result["allowed"])
+        self.assertIn("exceeds max per trade", result["reason"])
 
-    def test_max_lot_per_trade_no_cap_needed(self):
-        """Lot within max is not capped."""
-        max_lot = 2.0
-        requested_lot = 1.0
-        actual_lot = min(requested_lot, max_lot)
-        self.assertEqual(actual_lot, 1.0)
+    def test_open_copy_trade_respects_kill_switch(self):
+        mgr, notify = _make_manager(copy_kill_switch=True)
+        m_pos = {"symbol": "EURUSD", "type": 0, "volume": 0.1, "price_open": 1.1}
+        with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"):
+            mgr._open_copy_trade(12345, m_pos)
+        notify.assert_called()
+        self.assertTrue(any("Kill switch" in str(c) for c in notify.call_args_list))
 
-    def test_max_exposure_blocks(self):
-        """Exposure exceeding max blocks trade."""
-        max_exposure = 10.0
-        current_exposure = 8.0
-        new_lot = 3.0
-        if current_exposure + new_lot > max_exposure:
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "blocked")
+    def test_open_copy_trade_caps_lot(self):
+        mgr, notify = _make_manager(
+            copy_kill_switch=False,
+            copy_max_lot_per_trade=0.5,
+            copy_max_daily_trades=20,
+            copy_max_exposure=100.0,
+        )
+        m_pos = {"symbol": "EURUSD", "type": 0, "volume": 2.0, "price_open": 1.1, "sl": 0, "tp": 0}
+        with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"), \
+             patch.object(mgr, "_calculate_lot", return_value=2.0), \
+             patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5, \
+             patch("OAK_Hidden_SLTP_Manager.os.path.exists", return_value=False):
+            mock_mt5.positions_get.return_value = []
+            mock_info = MagicMock()
+            mock_info.volume_min = 0.01
+            mock_info.volume_max = 100.0
+            mock_info.volume_step = 0.01
+            mock_mt5.symbol_info.return_value = mock_info
+            mock_mt5.symbol_info_tick.return_value = MagicMock(ask=1.1, bid=1.1)
+            # Force early exit after lot cap by failing order send
+            mock_mt5.order_send.return_value = MagicMock(retcode=10009, order=1, comment="ok")
+            mock_mt5.TRADE_ACTION_DEAL = 1
+            mock_mt5.ORDER_TYPE_BUY = 0
+            mock_mt5.ORDER_TYPE_SELL = 1
+            mock_mt5.ORDER_TIME_GTC = 0
+            mock_mt5.ORDER_FILLING_IOC = 1
+            try:
+                mgr._open_copy_trade(99, m_pos)
+            except Exception:
+                pass
+        # Cap notify should have fired
+        joined = " ".join(str(c) for c in notify.call_args_list)
+        self.assertIn("capped", joined.lower() + joined)
 
-    def test_max_exposure_allows(self):
-        """Exposure within max allows trade."""
-        max_exposure = 10.0
-        current_exposure = 5.0
-        new_lot = 3.0
-        if current_exposure + new_lot > max_exposure:
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "allowed")
-
-    def test_stale_signal_blocks(self):
-        """Stale signal file blocks trade."""
-        stale_threshold = 60
-        signal_age = 120  # seconds
-        if signal_age > stale_threshold:
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "blocked")
-
-    def test_stale_signal_allows(self):
-        """Fresh signal file allows trade."""
-        stale_threshold = 60
-        signal_age = 30  # seconds
-        if signal_age > stale_threshold:
-            result = "blocked"
-        else:
-            result = "allowed"
-        self.assertEqual(result, "allowed")
-
-    def test_daily_counter_resets(self):
-        """Daily counter resets on new day."""
-        from datetime import date, timedelta
-        today = date.today()
-        yesterday = today - timedelta(days=1)
-        # Simulate counter from yesterday
-        old_date = yesterday
-        old_count = 5
-        # Check if reset needed
-        if old_date != today:
-            new_count = 0
-        else:
-            new_count = old_count
-        self.assertEqual(new_count, 0)
-
-    def test_default_safety_values(self):
-        """Default safety values are reasonable."""
-        config, _ = self._make_manager()
-        self.assertEqual(int(config["copy_max_daily_trades"]), 5)
-        self.assertEqual(float(config["copy_max_lot_per_trade"]), 2.0)
-        self.assertEqual(float(config["copy_max_exposure"]), 10.0)
-        self.assertFalse(config["copy_kill_switch"])
-        self.assertEqual(int(config["copy_stale_threshold"]), 60)
+    def test_profile_name_isolated_in_notify(self):
+        mgr, notify = _make_manager(profile_name="VantageDemo", copy_kill_switch=True)
+        with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"):
+            mgr._open_copy_trade(1, {"symbol": "EURUSD", "type": 0, "volume": 0.1})
+        msg = str(notify.call_args)
+        self.assertIn("VantageDemo", msg)
 
 
 if __name__ == "__main__":
