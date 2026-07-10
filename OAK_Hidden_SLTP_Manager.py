@@ -4139,6 +4139,10 @@ class MonitorWorker(threading.Thread):
             last_lang_check = 0
             last_reconnect_check = 0
             last_heartbeat = 0.0
+            last_tg_check = 0.0
+            tg_api_ok = False
+            tg_bot_name = ""
+            tg_last_check = ""
             try:
                 _hb_store = SQLiteStore()
             except Exception:
@@ -4160,6 +4164,42 @@ class MonitorWorker(threading.Thread):
                             term = mt5.terminal_info()
                             acc = mt5.account_info() if term else None
                             profile_name = self.config.get("profile_name", "") or "default"
+                            tg_token = resolve_telegram_token(
+                                profile_name,
+                                self.config.get("tele_token", ""),
+                                global_fallback=_mimo_bot_token,
+                            )
+                            tg_chat = self.config.get("tele_chat", "") or ""
+                            tg_configured = bool(tg_token and tg_chat)
+
+                            # Probe Telegram getMe on first beat, then every 45s
+                            # (avoid hammering API every 2s)
+                            need_tg_probe = bool(tg_token) and (
+                                last_tg_check == 0.0 or (time.time() - last_tg_check) >= 45.0
+                            )
+                            if need_tg_probe:
+                                last_tg_check = time.time()
+                                try:
+                                    from telegram_client import telegram_get_me
+                                    ok, result = telegram_get_me(tg_token)
+                                    tg_api_ok = bool(ok)
+                                    if ok:
+                                        tg_bot_name = str(result or "")
+                                        from datetime import datetime, timezone
+                                        tg_last_check = datetime.now(timezone.utc).isoformat()
+                                    else:
+                                        tg_bot_name = str(result or "network_error")
+                                except Exception as tg_e:
+                                    tg_api_ok = False
+                                    tg_bot_name = f"network_error:{tg_e}"[:80]
+                            elif not tg_token:
+                                tg_api_ok = False
+                                tg_bot_name = ""
+
+                            # Before first successful probe path, keep prior TG fields
+                            # (e.g. from signal bot) if present
+                            preserve = (not need_tg_probe) and tg_configured
+
                             if term and acc:
                                 _hb_store.publish_heartbeat(
                                     profile=profile_name,
@@ -4169,17 +4209,11 @@ class MonitorWorker(threading.Thread):
                                     balance=float(getattr(acc, "balance", 0) or 0),
                                     equity=float(getattr(acc, "equity", 0) or 0),
                                     last_error="",
-                                    telegram_configured=bool(
-                                        resolve_telegram_token(
-                                            profile_name,
-                                            self.config.get("tele_token", ""),
-                                            global_fallback=_mimo_bot_token,
-                                        )
-                                        and self.config.get("tele_chat", "")
-                                    ),
-                                    telegram_api_ok=False,
-                                    telegram_last_check="",
-                                    telegram_bot_name="",
+                                    telegram_configured=tg_configured,
+                                    telegram_api_ok=tg_api_ok,
+                                    telegram_last_check=tg_last_check,
+                                    telegram_bot_name=tg_bot_name,
+                                    preserve_telegram=preserve,
                                 )
                             else:
                                 err = ""
@@ -4191,6 +4225,11 @@ class MonitorWorker(threading.Thread):
                                     profile=profile_name,
                                     state="disconnected",
                                     last_error=err[:200],
+                                    telegram_configured=tg_configured,
+                                    telegram_api_ok=tg_api_ok,
+                                    telegram_last_check=tg_last_check,
+                                    telegram_bot_name=tg_bot_name,
+                                    preserve_telegram=preserve,
                                 )
                         except Exception:
                             pass

@@ -202,10 +202,21 @@ class SQLiteStore:
     # --- Worker Heartbeat ---
     def publish_heartbeat(self, profile, state, server="", login=0, balance=0, equity=0,
                           last_error="", telegram_configured=False, telegram_api_ok=False,
-                          telegram_last_check="", telegram_bot_name=""):
-        """Publish worker heartbeat. Called by worker every ~2s."""
+                          telegram_last_check="", telegram_bot_name="",
+                          preserve_telegram=False):
+        """Publish worker heartbeat. Called by worker every ~2s.
+
+        preserve_telegram=True keeps prior telegram_* fields (MT5-only refresh).
+        Use this when the publisher does not re-check Telegram getMe.
+        """
         from datetime import datetime, timezone
         now = datetime.now(timezone.utc).isoformat()
+        if preserve_telegram:
+            prev = self.get_heartbeat(profile) or {}
+            telegram_configured = bool(prev.get("telegram_configured", telegram_configured))
+            telegram_api_ok = bool(prev.get("telegram_api_ok", telegram_api_ok))
+            telegram_last_check = prev.get("telegram_last_check", telegram_last_check) or ""
+            telegram_bot_name = prev.get("telegram_bot_name", telegram_bot_name) or ""
         self._conn.execute(
             """INSERT OR REPLACE INTO worker_heartbeat
                (profile, state, last_seen, server, login, balance, equity, last_error,
