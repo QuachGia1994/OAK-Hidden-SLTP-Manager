@@ -5,6 +5,10 @@ from __future__ import annotations
 class DashboardControllerMixin:
     """Dashboard frame, news, status cards, theme, language, docs."""
 
+    def _project_root(self) -> str:
+        """Repo/app root (parent of controllers/), never controllers/ itself."""
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
     def create_dashboard_frame(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frames["dashboard"] = frame
@@ -243,7 +247,7 @@ class DashboardControllerMixin:
     def _push_news_to_dashboard(self, news_lines):
         """Push the same news list the app shows so Dashboard never drifts."""
         try:
-            cfg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+            cfg_path = os.path.join(self._project_root(), "config.json")
             url = ""
             api_key = ""
             if os.path.exists(cfg_path):
@@ -586,8 +590,7 @@ class DashboardControllerMixin:
                 latest = None
                 try:
                     # Project root (not controllers/) — signals_log lives next to OAK_*.py
-                    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    signals_file = os.path.join(_root, "signals_log.json")
+                    signals_file = os.path.join(self._project_root(), "signals_log.json")
                     if not os.path.exists(signals_file):
                         # Fallback: cwd (Documents run path)
                         signals_file = os.path.join(os.getcwd(), "signals_log.json")
@@ -868,16 +871,44 @@ class DashboardControllerMixin:
 
     def _open_log_folder(self):
         """Open log folder in file explorer."""
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-        os.startfile(log_dir) if os.name == "nt" else os.system(f"xdg-open {log_dir}")
-
+        log_dir = os.path.join(self._project_root(), "logs")
+        if not os.path.isdir(log_dir):
+            try:
+                os.makedirs(log_dir, exist_ok=True)
+            except Exception:
+                log_dir = self._project_root()
+        try:
+            if os.name == "nt":
+                os.startfile(log_dir)
+            else:
+                os.system(f'xdg-open "{log_dir}"')
+        except Exception as e:
+            try:
+                self._diag_status.configure(text=f"Open folder error: {e}")
+            except Exception:
+                pass
 
     def _refresh_logs(self):
         """Load logs from app.log into the display."""
-        log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "app.log")
+        root = self._project_root()
+        candidates = [
+            os.path.join(root, "logs", "app.log"),
+            os.path.join(os.getcwd(), "logs", "app.log"),
+            os.path.join(root, "app.log"),
+        ]
+        log_file = next((p for p in candidates if os.path.exists(p)), candidates[0])
         self._log_text.delete("1.0", "end")
         if not os.path.exists(log_file):
-            self._log_text.insert("1.0", "No diagnostics found.\nSystem is currently quiet. 🌙")
+            self._log_text.insert(
+                "1.0",
+                "No diagnostics found.\n"
+                f"Looked for: {candidates[0]}\n"
+                "System is currently quiet. 🌙",
+            )
+            try:
+                self._diag_status.configure(text="No log file")
+            except Exception:
+                pass
             return
         try:
             with open(log_file, "r", encoding="utf-8", errors="replace") as f:
@@ -891,12 +922,14 @@ class DashboardControllerMixin:
                     filtered.append(line)
             # Show last 500 lines
             display = filtered[-500:] if len(filtered) > 500 else filtered
-            self._log_text.insert("1.0", "".join(display))
+            self._log_text.insert("1.0", "".join(display) if display else "(log empty after filter)\n")
             if self._follow_var.get():
                 self._log_text.see("end")
-            self._diag_status.configure(text=f"Loaded {len(filtered)} lines ({len(lines)} total)")
+            self._diag_status.configure(
+                text=f"Loaded {len(filtered)} lines ({len(lines)} total) · {os.path.basename(log_file)}"
+            )
         except Exception as e:
-            self._log_text.insert("1.0", f"Error reading log: {e}")
+            self._log_text.insert("1.0", f"Error reading log: {e}\nPath: {log_file}")
 
 
     def _filter_logs(self):
@@ -914,7 +947,7 @@ class DashboardControllerMixin:
         from tkinter import filedialog, messagebox
         from services.debug_bundle_service import build_debug_bundle_bytes, list_export_candidates
 
-        root = os.path.dirname(os.path.abspath(__file__))
+        root = self._project_root()
         candidates = list_export_candidates(root)
         if not candidates:
             self._diag_status.configure(text="No files found to export")
