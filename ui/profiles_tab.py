@@ -27,6 +27,8 @@ class ProfilesTab(BaseTab):
         # Left list
         self.list_frame = ctk.CTkScrollableFrame(frame, width=220, label_text=T("profile_list"))
         self.list_frame.pack(side="left", fill="y", padx=(0, 20))
+        self.app._label_text_widgets = getattr(self.app, "_label_text_widgets", {})
+        self.app._label_text_widgets["profile_list"] = self.list_frame
 
         # Right panel
         self.right_panel = ctk.CTkFrame(frame, fg_color="transparent")
@@ -36,6 +38,8 @@ class ProfilesTab(BaseTab):
         self.form_scroll = ctk.CTkScrollableFrame(self.right_panel, label_text=T("grp_config"))
         self.form_scroll.pack(side="top", fill="both", expand=True, pady=(0, 10))
         self.form_scroll.grid_columnconfigure(1, weight=1)
+        self.app._label_text_widgets["grp_config"] = self.form_scroll
+
 
         # Checkboxes for Balance SL/TP
         self.chk_balance = ctk.CTkCheckBox(self.form_scroll, text=T("lbl_use_balance_sltp"))

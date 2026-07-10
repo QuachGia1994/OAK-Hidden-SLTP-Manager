@@ -554,24 +554,49 @@ def _format_group_slots(slots):
 
 
 def get_day_notes(now, lang="VN"):
-    """Special-day notes (only Thursday / Thứ 5):
+    """Daily schedule notes — always synced with mt5_signal_bot.get_target_hours / no-gold labels.
 
-    1. Thứ 5 mà Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây → cần tính lại W1.
-    2. Thứ 5 mà Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7 → cần tính lại W1.
+    Core (Mon–Fri):
+      - T2–T6: H=3-15
+      - T5 & T6 · H=3-4: no Gold entry label (XAU still for GBP Focus)
+      - T5 · H≥12: no Gold entry label (XAU still for GBP Focus)
+      - T6 · H≥12: Gold normal
+    Thursday extras (W1 recalc):
+      1. Yesterday Wed day 30 or 1
+      2. Same-week Friday day 3, 4, or 7
     """
     weekday = now.weekday()
-    # Normalize to date for week arithmetic (accept datetime or date)
     today = now.date() if hasattr(now, "date") and callable(now.date) else now
 
     notes_vn = []
     notes_en = []
 
-    # Only Thursday (Python weekday 3 = Thứ 5)
+    if weekday >= 5:
+        if lang == "VN":
+            return ["Cuối tuần: không trade theo schedule bot."]
+        return ["Weekend: no bot trade schedule."]
+
+    # Always list full schedule on Mon–Fri (same as bot startup banner)
+    notes_vn.append("T2–T6: slots H=3-15.")
+    notes_en.append("Mon–Fri: slots H=3-15.")
+
+    notes_vn.append(
+        "T5/T6 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP."
+    )
+    notes_en.append(
+        "Thu/Fri · H=3-4: NO Gold entry (label) — XAU still drives GBP Focus."
+    )
+
+    notes_vn.append(
+        "T5 · H≥12: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP. T6 H≥12: đánh Vàng bình thường."
+    )
+    notes_en.append(
+        "Thu · H≥12: NO Gold entry (label) — XAU still drives GBP Focus. Fri H≥12: Gold normal."
+    )
+
+    # Thursday-only W1 calendar extras
     if weekday == 3:
-        notes_vn.append("Thứ 5: chỉ slots H=5-15 (T2/T3/T4/T6 vẫn H=2-15).")
-        notes_en.append("Thursday: H=5-15 only (Mon–Wed/Fri still H=2-15).")
         yesterday = today - timedelta(days=1)
-        # 1. Yesterday is Wednesday and day is 30 or 1
         if yesterday.weekday() == 2 and yesterday.day in (30, 1):
             notes_vn.append(
                 f"Thứ 5 có Thứ 4 hôm qua ngày {yesterday.day}: cần tính lại W1."
@@ -580,7 +605,6 @@ def get_day_notes(now, lang="VN"):
                 f"Thursday after Wednesday day {yesterday.day}: recalculate W1."
             )
 
-        # 2. Friday of the same week is day 3, 4, or 7
         friday = _friday_of_same_week(today)
         if friday.day in (3, 4, 7):
             notes_vn.append(
@@ -591,8 +615,8 @@ def get_day_notes(now, lang="VN"):
             )
 
     if lang == "VN":
-        return notes_vn if notes_vn else ["Thứ 2-6: trade bình thường theo schedule."]
-    return notes_en if notes_en else ["Mon-Fri: trade normally per schedule."]
+        return notes_vn
+    return notes_en
 
 
 def generate_daily_reminder(now, lang="VN"):

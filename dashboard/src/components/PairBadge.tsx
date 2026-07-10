@@ -1,4 +1,4 @@
-import { getSignalLabel } from "@/lib/constants";
+import { formatXauNoGoldLabel, getSignalLabel } from "@/lib/constants";
 
 interface PairBadgeProps {
   pair: string;
@@ -25,6 +25,28 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
         <span className="font-mono text-sm font-medium text-zinc-800 dark:text-zinc-200">{pair}</span>
         <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-200/70 dark:border-sky-500/20">
           Focus
+        </span>
+      </div>
+    );
+  }
+
+  // No-trade gold badge: "no_gold_thu:BUY:H=3-4" or "no_gold_thu:SELL:T5 H≥12" or "no_gold_thu"
+  if (direction === "no_gold_thu" || direction?.startsWith("no_gold_thu:")) {
+    const parts = direction.split(":");
+    // ["no_gold_thu"] | ["no_gold_thu", "BUY"] | ["no_gold_thu", "BUY", "H=3-4"]
+    const computed = parts.length >= 2 && (parts[1] === "BUY" || parts[1] === "SELL") ? parts[1] : "";
+    const tag =
+      parts.length >= 3
+        ? parts.slice(2).join(":")
+        : parts.length === 2 && parts[1] !== "BUY" && parts[1] !== "SELL"
+          ? parts[1]
+          : "no-trade";
+    const label = formatXauNoGoldLabel(computed || null, tag);
+    return (
+      <div className="flex items-center justify-between py-2 gap-2">
+        <span className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-100">{pair}</span>
+        <span className="text-xs font-bold tracking-wide px-2.5 py-1 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-400/50 dark:border-amber-500/40 shadow-sm">
+          {label}
         </span>
       </div>
     );

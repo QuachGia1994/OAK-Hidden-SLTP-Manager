@@ -1,14 +1,14 @@
-/** Full band Mon/Tue/Wed/Fri; Thursday uses getTargetHours(). */
-export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-export const TARGET_HOURS_THURSDAY = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+/** Mon–Fri H=3-15 (T5/T6 same band as T2–T4). */
+export const TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+/** @deprecated same as TARGET_HOURS — kept for imports */
+export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
- * Thứ 5 (Thu=4) → H=5-15; T2/T3/T4/T6 → H=2-15
+ * Mon–Fri → H=3-15; weekend → []
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
-  if (jsDayOfWeek === 4) return [...TARGET_HOURS_THURSDAY];
   return [...TARGET_HOURS];
 }
 
@@ -17,7 +17,7 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
 /** GBP focus pairs by hour — no BUY/SELL display; only which pairs to watch. */
 export function getFocusGbpPairs(hour: number): string[] {
-  if (hour >= 2 && hour <= 8) return ["GBPAUD", "GBPJPY"];
+  if (hour >= 3 && hour <= 8) return ["GBPAUD", "GBPJPY"];
   if (hour === 9 || hour === 11 || hour === 12 || hour === 14 || hour === 15) {
     return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
   }
@@ -25,9 +25,8 @@ export function getFocusGbpPairs(hour: number): string[] {
 }
 
 const HOUR_NOTES: Record<number, string> = {
-  2: "Tập trung GBPAUD · GBPJPY",
-  3: "Tập trung GBPAUD · GBPJPY",
-  4: "Tập trung GBPAUD · GBPJPY",
+  3: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
+  4: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
   5: "Tập trung GBPAUD · GBPJPY",
   6: "Tập trung GBPAUD · GBPJPY",
   7: "Tập trung GBPAUD · GBPJPY",
@@ -39,50 +38,133 @@ const HOUR_NOTES: Record<number, string> = {
   15: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
 };
 
+/**
+ * No Gold entry label (logic still computes XAU for GBP Focus):
+ * - JS Thu=4 / Fri=5: H=3, H=4
+ * - JS Thu=4 only: H≥12
+ */
+export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean {
+  const h = Number(hour);
+  if (!Number.isFinite(h)) return false;
+  if ((jsWeekday === 4 || jsWeekday === 5) && (h === 3 || h === 4)) return true;
+  if (jsWeekday === 4 && h >= 12) return true;
+  return false;
+}
+
+/** @deprecated use isXauNoTradeLabelSlot */
+export function isThursdayNoGoldSlot(hour: number, jsWeekday: number): boolean {
+  return isXauNoTradeLabelSlot(hour, jsWeekday);
+}
+
+export function xauNoTradeTag(hour: number, jsWeekday: number): string {
+  const h = Number(hour);
+  if ((jsWeekday === 4 || jsWeekday === 5) && (h === 3 || h === 4)) return "H=3-4";
+  if (jsWeekday === 4 && h >= 12) return "T5 H≥12";
+  return "";
+}
+
+/** App-style XAU label: "Không đánh Bán · H=3-4" / "… · T5 H≥12" */
+export function formatXauNoGoldLabel(
+  direction?: string | null,
+  tag: string = "H=3-4",
+): string {
+  const d =
+    direction === "BUY" || direction === "Mua"
+      ? " Mua"
+      : direction === "SELL" || direction === "Bán"
+        ? " Bán"
+        : "";
+  return `Không đánh${d} · ${tag || "no-trade"}`;
+}
+
+export function thursdayNoGoldLabel(lang: "VN" | "EN" = "VN"): string {
+  if (lang === "EN") {
+    return "⚠ NO Gold entry (logic still computed for GBP Focus)";
+  }
+  return "⚠ KHÔNG đánh Vàng (logic vẫn tính cho Focus GBP)";
+}
+
+/** Robust: weekday+hour rules OR note text from signal bot. */
+export function signalHasThuNoGoldLabel(
+  hour: number,
+  dateStr: string | null | undefined,
+  hourNote?: string | null,
+): boolean {
+  const h = Number(hour);
+  if (!Number.isFinite(h)) return false;
+  if (dateStr) {
+    try {
+      if (isXauNoTradeLabelSlot(h, weekdayFromDate(dateStr))) return true;
+    } catch {
+      /* fall through */
+    }
+  }
+  const n = hourNote || "";
+  return /KHÔNG\s*đánh\s*Vàng|NO\s*Gold|KHÔNG\s*ĐÁNH/i.test(n);
+}
+
+export function signalXauNoTradeTag(
+  hour: number,
+  dateStr: string | null | undefined,
+): string {
+  if (!dateStr) return "";
+  try {
+    return xauNoTradeTag(Number(hour), weekdayFromDate(dateStr));
+  } catch {
+    return "";
+  }
+}
+
 export function getHourNote(hour: number, weekday: number): string | null {
+  // Pair/slot rule only — T5 no-gold is shown solely on XAU pair badge
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
 const PAIR_RULES = [
-  "H=2-8: list pair GBPAUD · GBPJPY (ẩn GBPUSD · GBPCAD)",
+  "H=3-4: GBPAUD ngược Vàng · GBPJPY cùng Vàng (ẩn GBPUSD · GBPCAD)",
+  "H=5-8: list pair GBPAUD · GBPJPY (ẩn GBPUSD · GBPCAD)",
   "H=9 / 11 / 12 / 14 / 15: list full nhóm GBP",
   "H khác trong band: chỉ XAUUSD",
-  "GBP: không hiển thị Mua/Bán — chỉ mốc tập trung cặp",
+  "GBP: không hiển thị Mua/Bán — chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",
 ];
 
 const D_DIRECTION_RULE = "Có nhập D direction qua Telegram lúc 4:00 VN";
 
-/** Special calendar notes — only Thursday (JS getDay=4 / Python weekday=3). */
+/** Special calendar notes — Thursday (JS getDay=4). */
 export const SPECIAL_DAY_NOTES = [
-  "Thứ 5: chỉ trade H=5-15 (không H=2-4)",
+  "T2–T6: slots H=3-15 (Thứ 5 = Thứ 6 cùng band)",
+  "T5 & T6 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
+  "T5 · H≥12: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
   "Thứ 5 có Thứ 4 hôm qua rơi ngày 30 hoặc 1 tây: cần tính lại W1",
   "Thứ 5 có Thứ 6 trong tuần rơi ngày 3, 4 hoặc 7: cần tính lại W1",
 ];
 
 export const DAY_RULES: Record<number, string[]> = {
   1: [    // Thứ 2
-    "Slots: H=2-15",
+    "Slots: H=3-15",
     ...PAIR_RULES,
   ],
   2: [    // Thứ 3
-    "Slots: H=2-15",
+    "Slots: H=3-15",
     ...PAIR_RULES,
   ],
   3: [    // Thứ 4
-    "Slots: H=2-15",
+    "Slots: H=3-15",
     ...PAIR_RULES,
   ],
   4: [    // Thứ 5
-    "Slots: H=5-15 (chỉ Thứ 5)",
+    "Slots: H=3-15 (cùng T6)",
     D_DIRECTION_RULE,
     ...SPECIAL_DAY_NOTES,
+    "H=3-4: list GBPAUD · GBPJPY · XAU badge KHÔNG ĐÁNH",
     "H=5-8: list GBPAUD · GBPJPY",
     "H=9 / 11 / 12 / 14 / 15: list full nhóm GBP",
-    "H khác: chỉ XAUUSD · GBP không show Mua/Bán",
+    "H≥12: XAU badge KHÔNG ĐÁNH — logic vẫn tính cho Focus GBP",
   ],
   5: [    // Thứ 6
-    "Slots: H=2-15",
+    "Slots: H=3-15 (cùng T5)",
     D_DIRECTION_RULE,
+    "H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP",
     ...PAIR_RULES,
   ],
 };
@@ -115,5 +197,6 @@ export function brokerToLocalTime(brokerHour: number, brokerMinute: number = 45)
 
 export function weekdayFromDate(dateStr: string): number {
   const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d).getDay();
+  // Noon UTC avoids TZ edge cases shifting the calendar day
+  return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
 }

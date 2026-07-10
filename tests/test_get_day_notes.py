@@ -33,22 +33,32 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
         notes = get_day_notes(date(2025, 2, 6), lang="VN")
         self.assertTrue(any("Thứ 6 ngày 7" in n for n in notes), notes)
 
-    def test_wednesday_no_longer_special(self):
-        # Old rules fired on Wednesday day 30 — must be gone
+    def test_wednesday_has_core_schedule(self):
         notes = get_day_notes(date(2025, 4, 30), lang="VN")
-        self.assertEqual(notes, ["Thứ 2-6: trade bình thường theo schedule."])
+        blob = " ".join(notes)
+        self.assertIn("H=3-15", blob)
+        self.assertIn("H=3-4", blob)
+        self.assertFalse(any("tính lại W1" in n for n in notes))
 
-    def test_monday_no_longer_special(self):
-        notes = get_day_notes(date(2025, 4, 28), lang="VN")  # Mon before Wed 30
-        self.assertEqual(notes, ["Thứ 2-6: trade bình thường theo schedule."])
+    def test_monday_has_core_schedule(self):
+        notes = get_day_notes(date(2025, 4, 28), lang="VN")
+        blob = " ".join(notes)
+        self.assertIn("H=3-15", blob)
+
+    def test_friday_en_matches_bot(self):
+        notes = get_day_notes(date(2026, 7, 10), lang="EN")
+        blob = " ".join(notes)
+        self.assertIn("H=3-15", blob)
+        self.assertIn("H=3-4", blob)
+        self.assertIn("Gold normal", blob)  # Fri H≥12 normal
+        self.assertNotIn("trade normally per schedule", blob)
 
     def test_normal_thursday_default(self):
-        # Mid-month Thursday with Friday not 3/4/7
-        # 2026-07-09 is Thursday; Fri=10 — notes H=5-15 vs H=2-15 other days
         notes = get_day_notes(date(2026, 7, 9), lang="VN")
-        self.assertTrue(any("H=5-15" in n for n in notes), notes)
-        self.assertTrue(any("H=2-15" in n for n in notes), notes)
-        self.assertFalse(any("ngày 30" in n or "ngày 3" in n for n in notes))
+        blob = " ".join(notes)
+        self.assertIn("H=3-15", blob)
+        self.assertIn("H=3-4", blob)
+        self.assertIn("H≥12", blob)
 
     def test_accepts_datetime(self):
         notes = get_day_notes(datetime(2025, 5, 1, 10, 0, 0), lang="VN")

@@ -47,17 +47,20 @@ except Exception:
 
 SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
-# T2/T3/T4/T6 (Mon–Wed, Fri): H=2..15 | Thứ 5 (Thu): H=5..15 only
-TARGET_HOURS = list(range(2, 16))
+# Mon–Fri: H=3..15 (T5/T6 same band as T2–T4).
+# No-trade gold LABEL (logic still computes XAU for GBP Focus):
+#   - T5 & T6: H=3, H=4
+#   - T5 only: H≥12
+TARGET_HOURS = list(range(3, 16))
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 5
+SIGNAL_LOGIC_VERSION = 6
 
 
 def get_target_hours(broker_dt=None, weekday=None):
     """Return active H slots for the broker weekday.
 
     Python weekday: Mon=0 .. Sun=6.
-    Thursday (3) → H=5..15; Mon/Tue/Wed/Fri → H=2..15; weekend → [].
+    Mon–Fri → H=3..15; weekend → [].
     """
     if weekday is None:
         if broker_dt is None:
@@ -66,9 +69,7 @@ def get_target_hours(broker_dt=None, weekday=None):
             weekday = broker_dt.weekday()
     if weekday >= 5:
         return []
-    if weekday == 3:  # Thứ 5
-        return list(range(5, 16))
-    return list(range(2, 16))  # T2 T3 T4 T6
+    return list(range(3, 16))  # T2–T6: H=3..15
 BROKER_GMT = 0
 DIRECTION_POLL_INTERVAL = 1
 DIRECTION_EVENT_PORT = 8765
@@ -775,22 +776,135 @@ def analyze(broker_dt, H):
 
     return {"signal": signal, "orig_signal": signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
+def _resolve_weekday(broker_dt=None, weekday=None):
+    if weekday is not None:
+        return weekday
+    if broker_dt is not None:
+        return broker_dt.weekday()
+    return None
+
+
+def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
+    """Slots where XAU is labeled KHÔNG ĐÁNH (logic still computed for GBP Focus).
+
+    - Thứ 5 & Thứ 6: H=3, H=4
+    - Thứ 5 only: H≥12
+    """
+    wd = _resolve_weekday(broker_dt, weekday)
+    if wd is None:
+        return False
+    try:
+        h = int(H)
+    except (TypeError, ValueError):
+        return False
+    if wd in (3, 4) and h in (3, 4):  # T5, T6 early
+        return True
+    if wd == 3 and h >= 12:  # T5 afternoon+
+        return True
+    return False
+
+
+# Back-compat alias
+def is_thursday_no_gold_slot(H, broker_dt=None, weekday=None):
+    return is_xau_no_trade_label_slot(H, broker_dt=broker_dt, weekday=weekday)
+
+
+def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
+    """Short badge tag: 'H=3-4' | 'T5 H≥12' | ''."""
+    wd = _resolve_weekday(broker_dt, weekday)
+    try:
+        h = int(H)
+    except (TypeError, ValueError):
+        return ""
+    if wd in (3, 4) and h in (3, 4):
+        return "H=3-4"
+    if wd == 3 and h >= 12:
+        return "T5 H≥12"
+    return ""
+
+
+def thursday_no_gold_label(lang="VN"):
+    """Legacy long label (T5 H≥12). Prefer xau_no_trade_label_tag for badges."""
+    if lang == "EN":
+        return "⚠ NO Gold entry (logic still computed for GBP Focus)"
+    return "⚠ KHÔNG đánh Vàng (logic vẫn tính cho Focus GBP)"
+
+
 def get_hour_note(H, weekday=None):
-    """Trả note theo H (weekday giữ để tương thích call-site)."""
+    """Trả note theo H (weekday giữ để tương thích call-site).
+
+    Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
+    Chỉ H=3 và H=4: note GBPAUD ngược Vàng / GBPJPY cùng Vàng.
+    """
     notes = {
-        2: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        3: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        4: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        5: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        6: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        7: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        8: "GBPJPY cùng XAUUSD, GBPAUD ngược, GBPUSD/GBPCAD --",
-        9: "GBPAUD ngược Signal; GBPUSD/GBPJPY/GBPCAD cùng Signal",
-        11: "GBPAUD/GBPUSD/GBPJPY ngược Signal; GBPCAD cùng Signal",
-        12: "GBPAUD/GBPUSD ngược Signal; GBPJPY/GBPCAD cùng Signal",
-        15: "GBPAUD/GBPUSD/GBPCAD/GBPJPY cùng Signal",
+        3: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
+        4: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
+        5: "Tập trung GBPAUD · GBPJPY",
+        6: "Tập trung GBPAUD · GBPJPY",
+        7: "Tập trung GBPAUD · GBPJPY",
+        8: "Tập trung GBPAUD · GBPJPY",
+        9: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+        11: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+        12: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+        14: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
+        15: "Tập trung nhóm GBP (GBPAUD · GBPCAD · GBPUSD · GBPJPY)",
     }
-    return notes.get(H, "Chỉ Vàng")
+    return notes.get(H, "Chỉ Vàng (XAUUSD)")
+
+
+def get_focus_gbp_pairs(H):
+    """Cặp GBP tập trung theo slot — hiển thị Focus, không Mua/Bán trên Telegram/UI."""
+    try:
+        h = int(H)
+    except (TypeError, ValueError):
+        return []
+    if 3 <= h <= 8:
+        return ["GBPAUD", "GBPJPY"]
+    if h in (9, 11, 12, 14, 15):
+        return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
+    return []
+
+
+def _focus_gbp_relation_note(pair, H):
+    """Mô tả quan hệ Focus vs Vàng — chỉ H=3 và H=4."""
+    try:
+        h = int(H)
+    except (TypeError, ValueError):
+        return "Focus"
+    if h in (3, 4):
+        if pair == "GBPAUD":
+            return "Focus · ngược Vàng"
+        if pair == "GBPJPY":
+            return "Focus · cùng Vàng"
+    return "Focus"
+
+
+def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
+    """Block cặp cho Telegram: XAU Mua/Bán hoặc KHÔNG ĐÁNH; GBP Focus (+ quan hệ chỉ H=3–4)."""
+    lines = []
+    no_trade = is_xau_no_trade_label_slot(H, broker_dt=broker_dt, weekday=weekday)
+    tag = xau_no_trade_label_tag(H, broker_dt=broker_dt, weekday=weekday) or "no-trade"
+    xau = (pair_dirs or {}).get("XAUUSD")
+    if xau in ("BUY", "SELL"):
+        p_icon, _ = get_signal_icon(xau)
+        if no_trade:
+            lines.append(f"  XAUUSD: {p_icon} {xau}  ·  ⚠ KHÔNG ĐÁNH ({tag})")
+        else:
+            lines.append(f"  XAUUSD: {p_icon} {xau}")
+    elif xau is None and not no_trade:
+        pass  # ẩn khi skip D1
+    elif no_trade:
+        lines.append(f"  XAUUSD: ⚠ KHÔNG ĐÁNH ({tag})")
+
+    focus = get_focus_gbp_pairs(H)
+    if focus:
+        lines.append("  Cặp GBP tập trung:")
+        for p in focus:
+            lines.append(f"  {p}: {_focus_gbp_relation_note(p, H)}")
+    elif not lines:
+        lines.append("  (không có cặp)")
+    return "\n".join(lines)
+
 
 GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
 ALL_PAIRS = GBP_PAIRS + ["XAUUSD"]
@@ -854,8 +968,8 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     # Mọi slot đều có XAUUSD
     result["XAUUSD"] = gold
 
-    # H=2..8: GBPJPY cùng XAUUSD, GBPAUD ngược XAUUSD, GBPUSD/GBPCAD --
-    # (Thu only fires H=5+ via get_target_hours; rules still defined for 2-4)
+    # H=3..8 (và H=2 legacy): GBPJPY cùng XAUUSD/Vàng, GBPAUD ngược Vàng, GBPUSD/GBPCAD --
+    # Mọi ngày T2–T6; T5/T6 H=3-4: XAU label no-trade nhưng pair_dirs vẫn tính để Focus GBP
     if H in (2, 3, 4, 5, 6, 7, 8):
         result["GBPJPY"] = gold
         result["GBPAUD"] = opposite
@@ -938,24 +1052,17 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     elif sig == get_effective_d_direction(broker_dt) and get_effective_d_direction(broker_dt) is not None:
         mark_xauusd_matched(H)  # Ghi nhận lần đầu signal match D1
 
-    pair_lines = []
-    for p in ALL_PAIRS:
-        d = pair_dirs.get(p)
-        if d is None:
-            pair_lines.append(f"  {p}: -")
-        elif d == "--":
-            pair_lines.append(f"  {p}: --")
-        else:
-            p_icon, _ = get_signal_icon(d)
-            p_text = "BUY" if d == "BUY" else "SELL"
-            pair_lines.append(f"  {p}: {p_icon} {p_text}")
-    pair_text = "\n".join(pair_lines)
+    # No-trade gold label slots: keep XAU in pair_dirs; no quick-order Vàng
+    no_gold_entry = is_xau_no_trade_label_slot(H, broker_dt)
 
-    # KẾT LUẬN = pattern Signal (baseline GBP cho H=9+; XAU có thể lệch sau M30)
-    conclusion = f"KẾT LUẬN: {icon} {sig}\n"
+    # Hiển thị: XAU Mua/Bán (hoặc KHÔNG ĐÁNH); GBP chỉ Focus — không in BUY/SELL GBP
+    pair_text = format_telegram_pair_block(pair_dirs, H, broker_dt)
+
+    # KẾT LUẬN = pattern Signal (baseline; XAU có thể lệch sau M30)
+    conclusion = f"KẾT LUẬN (pattern): {icon} {sig}\n"
 
     msg = (
-        f"{emoji} Tín hiệu {SYMBOL} - {icon}\n"
+        f"{emoji} Tín hiệu pattern {SYMBOL} - {icon} {sig}\n"
         f"============================\n"
         f"  {fmt_hour(H)}:45 (Broker)\n"
         f"============================\n\n"
@@ -971,8 +1078,11 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     )
     send_telegram(msg)
 
-    # Send inline keyboard for quick order placement
-    active_pairs = [(p, d) for p, d in pair_dirs.items() if d in ("BUY", "SELL")]
+    # Quick-order: chỉ XAUUSD (GBP là Focus; skip no-trade gold slots)
+    active_pairs = []
+    xau_d = pair_dirs.get("XAUUSD")
+    if xau_d in ("BUY", "SELL") and not no_gold_entry:
+        active_pairs = [("XAUUSD", xau_d)]
     if active_pairs:
         keyboard = []
         row = []
@@ -987,7 +1097,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             keyboard.append(row)
         try:
             send_telegram_with_keyboard(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
-                                        "⚡ Chọn lệnh nhanh (chỉ cần nhập Lot):",
+                                        "⚡ Chọn lệnh nhanh Vàng (chỉ cần nhập Lot):",
                                         keyboard, parse_mode=None)
         except Exception as e:
             print(f"[WARN] Inline keyboard error: {e}")
@@ -1154,7 +1264,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-4/T6: H=2-15 | T5: H=5-15")
+    print(f"  Target Hours T2-6: H=3-15 | no-gold label: T5/T6 H=3-4 + T5 H>=12 (XAU still for GBP Focus)")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1190,14 +1300,14 @@ def main(profile_name=None):
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     broker_dt = now_utc + timedelta(hours=BROKER_GMT)
     hours_boot = get_target_hours(broker_dt)
-    h0, h1 = (hours_boot[0], hours_boot[-1]) if hours_boot else (2, 15)
+    h0, h1 = (hours_boot[0], hours_boot[-1]) if hours_boot else (3, 15)
     reminders = get_schedule_reminders(broker_dt)
     reminder_text = "\n".join([f"⚠️ {r}" for r in reminders]) if reminders else ""
     send_telegram(
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
         f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-4/T6=H2-15, T5=H5-15)"
+        f"(T2-T6=H3-15 | T5/T6 H=3-4 no Gold | T5 H≥12 no Gold)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
     # Nếu D1 đã match trước đó (bot restart), thông báo lại
@@ -1321,21 +1431,10 @@ def main(profile_name=None):
             h1_sig = latest_missed["h1_sig"]
 
             slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
-            pair_lines = []
-            for p in ALL_PAIRS:
-                d = pair_dirs.get(p)
-                if d is None:
-                    pair_lines.append(f"  {p}: -")
-                elif d == "--":
-                    pair_lines.append(f"  {p}: --")
-                else:
-                    p_icon, _ = get_signal_icon(d)
-                    p_text = "BUY" if d == "BUY" else "SELL"
-                    pair_lines.append(f"  {p}: {p_icon} {p_text}")
-            pair_text = "\n".join(pair_lines)
+            pair_text = format_telegram_pair_block(pair_dirs, h, broker_dt)
             note_line = f"📝 {hour_note}\n" if hour_note else ""
 
-            conclusion = f"KẾT LUẬN: {icon} {sig}\n"
+            conclusion = f"KẾT LUẬN (pattern): {icon} {sig}\n"
 
             msg = (
                 f"*KIỂM TRA BỎ LỠ {fmt_hour(h)}:45*\n"

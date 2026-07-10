@@ -91,7 +91,8 @@ Quy trình dùng tab này:
 
 | Slot | Rule |
 | --- | --- |
-| H=2–8 | GBPJPY **cùng XAUUSD**, GBPAUD **ngược XAUUSD**, GBPUSD/GBPCAD `--` (T5 chỉ từ H=5) |
+| H=3–4 | GBPJPY **cùng Vàng**, GBPAUD **ngược Vàng**, GBPUSD/GBPCAD `--` (note + Focus quan hệ) |
+| H=5–8 | list Focus GBPAUD · GBPJPY (cùng band pair_dirs với H=3–4) |
 | H=9 | GBPAUD **ngược Signal**; GBPUSD/GBPJPY/GBPCAD **cùng Signal** |
 | H=11 | GBPAUD/GBPUSD/GBPJPY **ngược Signal**; GBPCAD **cùng Signal** |
 | H=12 | GBPAUD/GBPUSD **ngược Signal**; GBPJPY/GBPCAD **cùng Signal** |
@@ -100,7 +101,7 @@ Quy trình dùng tab này:
 
 **XAU M30 flip**
 - Cùng chiều M30 XAU → đảo XAUUSD; ngược → theo M30
-- **H=2–8**: rebuild GBP theo **final XAU** sau flip (T5 chỉ fire H≥5)
+- **H=3–8**: rebuild GBP theo **final XAU** sau flip (T5 fire H=5–15)
 - **H=9/11/12/15**: GBP **giữ theo pattern Signal**; chỉ cập nhật dòng XAUUSD (có thể lệch Signal)
 
 **Ví dụ H=11, KẾT LUẬN BUY**
@@ -115,6 +116,9 @@ Quy trình dùng tab này:
 
 ### Rule ngày đặc biệt (Thứ 5 only)
 
+- **T2–T6**: slots **H=3–15** (Thứ 5 = Thứ 6 cùng band)
+- **T5 & T6 · H=3–4**: label **KHÔNG đánh Vàng** — vẫn tính XAU cho **Focus GBP**
+- **T5 · H≥12**: label **KHÔNG đánh Vàng** — vẫn tính XAU cho **Focus GBP**
 - Thứ 5 có Thứ 4 hôm qua rơi ngày **30** hoặc **1** tây → nhắc tính lại W1
 - Thứ 5 có Thứ 6 tuần đó rơi ngày **3 / 4 / 7** → nhắc tính lại W1
 - Ngày khác: trade bình thường theo schedule

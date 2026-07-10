@@ -38,7 +38,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
 # Default band; Thursday uses H=5-15 via get_target_hours if imported from signal bot
-TARGET_HOURS = list(range(2, 16))
+TARGET_HOURS = list(range(3, 16))
 BROKER_GMT = 0
 
 app = Flask(__name__)

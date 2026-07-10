@@ -374,9 +374,12 @@ LANG = {
         "tip_session": "Tự động lưu trạng thái các lệnh hẹn giờ và nhiệm vụ chốt lời. Nếu mất điện/restart, Robot sẽ khôi phục 100%.",
         "tip_lang": "Chuyển đổi ngôn ngữ giao diện và báo cáo Telegram giữa Tiếng Việt và Tiếng Anh.",
         "tip_theme": "Thay đổi màu sắc giao diện (Sáng/Tối) phù hợp với mắt người dùng.",
-        "settings_popup_title": "Cài đặt nhanh",
-        "settings_popup_lang": "🌐 Ngôn ngữ",
-        "settings_popup_theme": "🎨 Giao diện",
+        "about_section_theme": "GIAO DIỆN",
+        "about_section_lang": "NGÔN NGỮ",
+        "about_lang_vn": "Tiếng Việt",
+        "about_lang_en": "English",
+        "about_card_active": "Active",
+        "about_card_select": "Select",
         "ghost_popup_title": "Ghost Operator",
         "ghost_popup_header": "👻 Ghost Operator",
         "ghost_popup_desc": "Chế độ giả lập thao tác tay để vượt chặn Algo Trading.\nRobot có thể chiếm chuột/phím trong vài giây khi thực thi.",
@@ -410,7 +413,9 @@ LANG = {
         "msg_notice": "Thông báo",
         "msg_copy_signals": "Đã copy tín hiệu. © OAK Group",
         "console_title": "Console Log / Nhật Ký Hoạt Động",
-        "profile_list": "Danh sách Profile",
+        "profile_list": "DANH SÁCH PROFILE",
+        "btn_start_all_signals": "▶ BẮT ĐẦU TẤT CẢ",
+        "btn_stop_all_signals": "■ DỪNG TẤT CẢ",
         "btn_add": "Thêm Mới",
         "btn_delete": "Xóa",
         "btn_save": "Lưu Profile",
@@ -438,7 +443,7 @@ LANG = {
         "theme_dark": "Tối (Dark)",
         "theme_light": "Sáng (Light)",
         "theme_deepsea": "Biển Sâu (DeepSea)",
-        "grp_config": "Cấu Hình",
+        "grp_config": "CẤU HÌNH PROFILE",
         "pos_lbl_symbol": "Symbol:",
         "pos_lbl_sl": "Stop Loss (Points):",
         "pos_lbl_tp": "Take Profit (Points):",
@@ -655,9 +660,12 @@ OAK MANAGER không chỉ là một ứng dụng quản lý lệnh thông thườ
         "tip_session": "Automatically saves scheduled orders and partial tasks. Restores 100% after power loss/restart.",
         "tip_lang": "Switch UI and Telegram reports between Vietnamese and English.",
         "tip_theme": "Change UI color theme (Light/Dark) for better eye comfort.",
-        "settings_popup_title": "Quick Settings",
-        "settings_popup_lang": "🌐 Language",
-        "settings_popup_theme": "🎨 Theme",
+        "about_section_theme": "THEME",
+        "about_section_lang": "LANGUAGE",
+        "about_lang_vn": "Tiếng Việt",
+        "about_lang_en": "English",
+        "about_card_active": "Active",
+        "about_card_select": "Select",
         "ghost_popup_title": "Ghost Operator",
         "ghost_popup_header": "👻 Ghost Operator",
         "ghost_popup_desc": "Human simulation mode to bypass Algo Trading blocks.\nThe bot may take over your mouse/keyboard for a few seconds while executing.",
@@ -692,7 +700,9 @@ OAK MANAGER không chỉ là một ứng dụng quản lý lệnh thông thườ
         "msg_notice": "Notice",
         "msg_copy_signals": "Signals copied. © OAK Group",
         "console_title": "Console Log / Activity Log",
-        "profile_list": "Profile List",
+        "profile_list": "PROFILE LIST",
+        "btn_start_all_signals": "▶ START ALL",
+        "btn_stop_all_signals": "■ STOP ALL",
         "btn_add": "Add New",
         "btn_delete": "Delete",
         "btn_save": "Save Profile",
@@ -721,7 +731,7 @@ OAK MANAGER không chỉ là một ứng dụng quản lý lệnh thông thườ
         "theme_dark": "Dark",
         "theme_light": "Light",
         "theme_deepsea": "DeepSea",
-        "grp_config": "Configuration",
+        "grp_config": "PROFILE CONFIG",
         "pos_lbl_symbol": "Symbol:",
         "pos_lbl_sl": "Stop Loss (Points):",
         "pos_lbl_tp": "Take Profit (Points):",
@@ -4666,13 +4676,13 @@ class App(ctk.CTk):
             if "profile_name" not in profile:
                 profile["profile_name"] = name
         
-        # Layout
-        self.grid_columnconfigure(1, weight=1)
+        # Layout (no left sidebar — Ghost lives under Start/Stop on Dashboard)
+        self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
         # Status Bar
         self.status_bar = ctk.CTkFrame(self, height=28, corner_radius=0)
-        self.status_bar.grid(row=1, column=0, columnspan=2, sticky="sew")
+        self.status_bar.grid(row=1, column=0, sticky="sew")
         self.status_mt5 = ctk.CTkLabel(self.status_bar, text="MT5 ● —", font=ctk.CTkFont(size=12, weight="bold"))
         self.status_mt5.pack(side="left", padx=10)
         self.status_telegram = ctk.CTkLabel(self.status_bar, text="Telegram ● —", font=ctk.CTkFont(size=12, weight="bold"))
@@ -4681,40 +4691,10 @@ class App(ctk.CTk):
         self.status_ghost.pack(side="left", padx=10)
         self.status_system = ctk.CTkLabel(self.status_bar, text="", font=ctk.CTkFont(size=12, weight="bold"))
         self.status_system.pack(side="right", padx=10)
-        
-        # Sidebar
-        self.sidebar = ctk.CTkFrame(self, width=56, corner_radius=0)
-        self.sidebar.grid(row=0, column=0, sticky="nsew")
-        self.sidebar.grid_rowconfigure(2, weight=1)
-
-        self.btn_settings_rail = ctk.CTkButton(
-            self.sidebar,
-            text="🌐\n🎨",
-            width=44,
-            height=56,
-            corner_radius=10,
-            font=ctk.CTkFont(size=18, weight="bold"),
-            command=self._open_settings_popup,
-        )
-        self.btn_settings_rail.grid(row=0, column=0, padx=6, pady=(10, 6))
-        self.btn_settings_rail.bind("<Enter>", lambda _e: self._show_theme_radial())
-        self.btn_settings_rail.bind("<Leave>", lambda _e: self._schedule_hide_theme_radial())
-
-        self.btn_ghost_toggle = ctk.CTkButton(
-            self.sidebar,
-            text="👻",
-            width=44,
-            height=44,
-            corner_radius=10,
-            font=ctk.CTkFont(size=18, weight="bold"),
-            command=self._open_ghost_popup,
-        )
-        self.btn_ghost_toggle.grid(row=1, column=0, padx=6, pady=6)
-        self.update_ghost_button_ui()
 
         # Main Area
         self.main_frame = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
-        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=20, pady=20)
+        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
 
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(0, weight=1)
@@ -4748,301 +4728,37 @@ class App(ctk.CTk):
         self.tab_release = self.tabview.add(self.tab_names["release_notes"])
         self.tab_about = self.tabview.add(self.tab_names["about"])
 
+        # Eager: core trading tabs only (fast startup)
+        self._tab_loaded = set()
+        self._lazy_tab_builders = {
+            "diagnostics": (lambda: self.create_diagnostics_frame(self.tab_diagnostics)),
+            "guide": (lambda: self.create_guide_frame(self.tab_guide)),
+            "readme": (lambda: self.create_readme_frame(self.tab_readme)),
+            "release_notes": (lambda: self.create_release_notes_frame(self.tab_release)),
+        }
         self.create_dashboard_frame(self.tab_dashboard)
         self.create_signals_frame(self.tab_signals)
         self.create_profiles_frame(self.tab_profiles)
         self.create_copy_trade_frame(self.tab_copy_trade)
         self.create_pos_size_frame(self.tab_pos_size)
-        self.create_diagnostics_frame(self.tab_diagnostics)
-        self.create_guide_frame(self.tab_guide)
-        self.create_readme_frame(self.tab_readme)
-        self.create_release_notes_frame(self.tab_release)
         self.create_about_frame(self.tab_about)
+        for k in ("dashboard", "signals", "profiles", "copy_trade", "pos_size", "about"):
+            self._tab_loaded.add(k)
         self.apply_theme_overrides()
 
         self.tabview.set(self.tab_names["dashboard"])
-        self._enable_tab_hover_switch()
-        
+        # No hover-to-switch: it feels laggy and switches tabs accidentally
+
         # Initial Profile Selection
         if self.profiles:
             initial = list(self.profiles.keys())[0]
             self.combo_profiles.set(initial)
             self.on_profile_change(initial)
-        
-        # Start Periodic UI Refresh
-        self.periodic_ui_refresh()
 
-    def _open_settings_popup(self):
-        self._hide_theme_radial()
-        if hasattr(self, "ghost_popup") and self.ghost_popup and self.ghost_popup.winfo_exists():
-            try:
-                self.ghost_popup.destroy()
-            except Exception:
-                pass
-            self.ghost_popup = None
-
-        if hasattr(self, "settings_popup") and self.settings_popup and self.settings_popup.winfo_exists():
-            try:
-                self.settings_popup.lift()
-                self.settings_popup.focus_force()
-                return
-            except Exception:
-                pass
-
-        popup = ctk.CTkToplevel(self)
-        popup.title(T("settings_popup_title"))
-        popup.resizable(False, False)
-        popup.attributes("-topmost", True)
-        try:
-            popup.transient(self)
-        except Exception:
-            pass
-        try:
-            popup.wm_attributes("-toolwindow", True)
-        except Exception:
-            pass
-
-        try:
-            x = self.winfo_x() + 70
-            y = self.winfo_y() + 80
-            popup.geometry(f"280x170+{x}+{y}")
-        except Exception:
-            popup.geometry("280x170")
-
-        def on_close():
-            try:
-                popup.destroy()
-            finally:
-                self.settings_popup = None
-
-        popup.protocol("WM_DELETE_WINDOW", on_close)
-        self.settings_popup = popup
-
-        body = ctk.CTkFrame(popup, fg_color="transparent")
-        body.pack(fill="both", expand=True, padx=12, pady=12)
-        body.grid_columnconfigure(0, weight=1)
-
-        ctk.CTkLabel(body, text=T("settings_popup_lang"), font=ctk.CTkFont(size=13, weight="bold")).grid(row=0, column=0, sticky="w")
-        seg = ctk.CTkSegmentedButton(body, values=["VN", "EN"], command=self.change_lang, height=30)
-        seg.set(CURRENT_LANG)
-        seg.grid(row=1, column=0, sticky="ew", pady=(6, 12))
-
-        ctk.CTkLabel(body, text=T("settings_popup_theme"), font=ctk.CTkFont(size=13, weight="bold")).grid(row=2, column=0, sticky="w")
-        opt = ctk.CTkOptionMenu(body, values=[T("theme_dark"), T("theme_light"), T("theme_deepsea")], command=self.change_theme)
-        theme_key = self.settings.get("theme", "dark")
-        if theme_key == "light":
-            opt.set(T("theme_light"))
-        elif theme_key == "deepsea":
-            opt.set(T("theme_deepsea"))
-        else:
-            opt.set(T("theme_dark"))
-        opt.grid(row=3, column=0, sticky="ew", pady=(6, 0))
-
-    def _show_theme_radial(self):
-        if hasattr(self, "settings_popup") and self.settings_popup and self.settings_popup.winfo_exists():
-            return
-        self._cancel_hide_theme_radial()
-        if hasattr(self, "theme_radial") and self.theme_radial and self.theme_radial.winfo_exists():
-            try:
-                self.theme_radial.lift()
-                return
-            except Exception:
-                pass
-
-        p = getattr(self, "theme_palette", None)
-        circle_bg = (p["panel_alt_bg"] if p else "#e6eef7")
-        accent = (p["accent"] if p else "#1e6bb8")
-        card_border = (p["card_border"] if p else "#c7d0dd")
-        text_primary = (p["text_primary"] if p else "#1f2328")
-
-        popup = ctk.CTkToplevel(self)
-        popup.overrideredirect(True)
-        popup.attributes("-topmost", True)
-        popup.resizable(False, False)
-        try:
-            popup.transient(self)
-        except Exception:
-            pass
-        try:
-            popup.wm_attributes("-toolwindow", True)
-        except Exception:
-            pass
-
-        transparent_key = "#010203"
-        try:
-            popup.configure(bg=transparent_key)
-            popup.wm_attributes("-transparentcolor", transparent_key)
-        except Exception:
-            pass
-
-        final_size = 176
-        start_size = 22
-        try:
-            bx = self.btn_settings_rail.winfo_rootx()
-            by = self.btn_settings_rail.winfo_rooty()
-            anchor_cx = bx + 60 + (final_size // 2)
-            anchor_cy = by - 2 + (final_size // 2)
-        except Exception:
-            anchor_cx = self.winfo_rootx() + 90 + (final_size // 2)
-            anchor_cy = self.winfo_rooty() + 110 + (final_size // 2)
-
-        popup.geometry(f"{start_size}x{start_size}+{anchor_cx - (start_size // 2)}+{anchor_cy - (start_size // 2)}")
-        try:
-            popup.attributes("-alpha", 0.0)
-        except Exception:
-            pass
-
-        self.theme_radial = popup
-        canvas = tkinter.Canvas(popup, width=start_size, height=start_size, bg=transparent_key, highlightthickness=0, bd=0)
-        canvas.pack(fill="both", expand=True)
-        oval_id = canvas.create_oval(2, 2, start_size - 2, start_size - 2, fill=circle_bg, outline=circle_bg)
-
-        def pick_theme(value):
-            self.change_theme(value)
-            self._hide_theme_radial()
-
-        btn_theme = dict(width=44, height=44, corner_radius=22, fg_color=accent, hover_color=accent, text_color="#ffffff", font=ctk.CTkFont(size=16, weight="bold"))
-
-        b_dark = ctk.CTkButton(popup, text="🌙", command=lambda: pick_theme(T("theme_dark")), **btn_theme)
-        b_light = ctk.CTkButton(popup, text="☀", command=lambda: pick_theme(T("theme_light")), **btn_theme)
-        b_sea = ctk.CTkButton(popup, text="🌊", command=lambda: pick_theme(T("theme_deepsea")), **btn_theme)
-
-        def clamp01(v):
-            if v < 0.0:
-                return 0.0
-            if v > 1.0:
-                return 1.0
-            return v
-
-        def ease_out_back(t):
-            c1 = 1.70158
-            c3 = c1 + 1.0
-            x = t - 1.0
-            return 1.0 + (c3 * (x ** 3)) + (c1 * (x ** 2))
-
-        def compute_targets(size):
-            center = size / 2.0
-            radius = center - 4.0
-            max_scale = 1.05
-            max_btn = 44.0 * max_scale
-            half_diag = max_btn * 0.7071
-            outer_max = radius - half_diag - 4.0
-            outer = min(size * 0.29, outer_max)
-            if outer < 0.0:
-                outer = 0.0
-            cos60 = 0.5
-            sin60 = 0.866
-
-            top = (center, center - outer)
-            bl = (center - (outer * sin60), center + (outer * cos60))
-            br = (center + (outer * sin60), center + (outer * cos60))
-            return top, bl, br
-
-        def place_btn(btn, cx, cy, base, scale):
-            s = max(0.6, scale)
-            w = int(base * s)
-            h = int(base * s)
-            r = max(8, int((base * s) / 2))
-            try:
-                btn.configure(width=w, height=h, corner_radius=r)
-            except Exception:
-                pass
-            btn.place(x=int(cx - (w / 2)), y=int(cy - (h / 2)))
-
-        def layout_animated(size, t):
-            center = size / 2.0
-            top, bl, br = compute_targets(size)
-
-            items = [
-                (b_dark, top, 44, 0.00, 0.55),
-                (b_light, bl, 44, 0.06, 0.55),
-                (b_sea, br, 44, 0.12, 0.55),
-            ]
-
-            for btn, target, base, delay, dur in items:
-                u = clamp01((t - delay) / dur)
-                e = ease_out_back(u) if u > 0.0 else 0.0
-                e_pos = min(1.0, e)
-                cx = center + (target[0] - center) * e_pos
-                cy = center + (target[1] - center) * e_pos
-                scale = 0.65 + (0.45 * min(1.0, e))
-                if scale > 1.05:
-                    scale = 1.05
-                place_btn(btn, cx, cy, base, scale)
-
-        layout_animated(start_size, 0.0)
-
-        popup.bind("<Enter>", lambda _e: self._cancel_hide_theme_radial())
-        popup.bind("<Leave>", lambda _e: self._schedule_hide_theme_radial())
-        canvas.bind("<Enter>", lambda _e: self._cancel_hide_theme_radial())
-        canvas.bind("<Leave>", lambda _e: self._schedule_hide_theme_radial())
-
-        if hasattr(self, "_theme_radial_anim") and self._theme_radial_anim:
-            try:
-                self.after_cancel(self._theme_radial_anim)
-            except Exception:
-                pass
-            self._theme_radial_anim = None
-
-        steps = 18
-        def animate(i):
-            if not (hasattr(self, "theme_radial") and self.theme_radial and self.theme_radial.winfo_exists()):
-                return
-            t = i / float(steps)
-            ease = t * (2.0 - t)
-            size = int(start_size + (final_size - start_size) * ease)
-            x = int(anchor_cx - (size / 2))
-            y = int(anchor_cy - (size / 2))
-            popup.geometry(f"{size}x{size}+{x}+{y}")
-            canvas.configure(width=size, height=size)
-            canvas.coords(oval_id, 2, 2, size - 2, size - 2)
-            layout_animated(size, ease)
-            try:
-                popup.attributes("-alpha", min(0.98, ease))
-            except Exception:
-                pass
-            if i < steps:
-                self._theme_radial_anim = self.after(16, lambda: animate(i + 1))
-            else:
-                self._theme_radial_anim = None
-
-        animate(0)
-
-    def _cancel_hide_theme_radial(self):
-        if hasattr(self, "_theme_radial_after") and self._theme_radial_after:
-            try:
-                self.after_cancel(self._theme_radial_after)
-            except Exception:
-                pass
-            self._theme_radial_after = None
-
-    def _schedule_hide_theme_radial(self):
-        self._cancel_hide_theme_radial()
-        self._theme_radial_after = self.after(250, self._hide_theme_radial)
-
-    def _hide_theme_radial(self):
-        self._cancel_hide_theme_radial()
-        if hasattr(self, "_theme_radial_anim") and self._theme_radial_anim:
-            try:
-                self.after_cancel(self._theme_radial_anim)
-            except Exception:
-                pass
-            self._theme_radial_anim = None
-        if hasattr(self, "theme_radial") and self.theme_radial and self.theme_radial.winfo_exists():
-            try:
-                self.theme_radial.destroy()
-            except Exception:
-                pass
-        self.theme_radial = None
+        # Defer non-critical work so window appears first
+        self.after(150, self._deferred_startup)
 
     def _open_ghost_popup(self):
-        if hasattr(self, "settings_popup") and self.settings_popup and self.settings_popup.winfo_exists():
-            try:
-                self.settings_popup.destroy()
-            except Exception:
-                pass
-            self.settings_popup = None
-
         if hasattr(self, "ghost_popup") and self.ghost_popup and self.ghost_popup.winfo_exists():
             try:
                 self.ghost_popup.lift()
@@ -5066,7 +4782,7 @@ class App(ctk.CTk):
 
         try:
             x = self.winfo_x() + 70
-            y = self.winfo_y() + 260
+            y = self.winfo_y() + 80
             popup.geometry(f"320x190+{x}+{y}")
         except Exception:
             popup.geometry("320x190")
@@ -5103,64 +4819,37 @@ class App(ctk.CTk):
             self.ui_elements[key] = []
         self.ui_elements[key].append(widget)
 
-    def _enable_tab_hover_switch(self):
-        if not hasattr(self, "tabview"):
-            return
-        seg = getattr(self.tabview, "_segmented_button", None)
-        if not seg:
-            return
-
-        self._tab_hover_target = None
-        self._tab_hover_after = None
-
-        buttons = []
+    def _deferred_startup(self):
+        """Non-blocking post-show work: news + periodic refresh."""
+        self._startup_news_ready = True
         try:
-            if hasattr(seg, "_buttons_dict"):
-                buttons = list(seg._buttons_dict.values())
-            elif hasattr(seg, "_buttons"):
-                if isinstance(seg._buttons, dict):
-                    buttons = list(seg._buttons.values())
-                else:
-                    buttons = list(seg._buttons)
-        except Exception:
-            buttons = []
+            self.update_news_summary(force=True)
+        except Exception as e:
+            print(f"Deferred news load: {e}")
+        try:
+            self.periodic_ui_refresh()
+        except Exception as e:
+            print(f"Deferred refresh start: {e}")
 
-        if not buttons:
-            try:
-                buttons = [w for w in seg.winfo_children() if isinstance(w, ctk.CTkButton)]
-            except Exception:
-                buttons = []
+    def _tab_key_from_name(self, name: str) -> str:
+        for k, v in getattr(self, "tab_names", {}).items():
+            if v == name:
+                return k
+        return ""
 
-        for btn in buttons:
-            try:
-                name = btn.cget("text")
-            except Exception:
-                continue
-            btn.bind("<Enter>", lambda _e, n=name: self._schedule_tab_hover(n))
-            btn.bind("<Leave>", lambda _e: self._cancel_tab_hover())
-
-    def _schedule_tab_hover(self, name):
-        self._tab_hover_target = name
-        self._cancel_tab_hover(cancel_target=False)
-        self._tab_hover_after = self.after(140, lambda: self._apply_tab_hover(name))
-
-    def _apply_tab_hover(self, name):
-        if getattr(self, "_tab_hover_target", None) != name:
+    def _ensure_tab_loaded(self, key: str):
+        """Lazy-build heavy tabs on first visit (guide/readme/etc.)."""
+        if not key or key in getattr(self, "_tab_loaded", set()):
+            return
+        builder = getattr(self, "_lazy_tab_builders", {}).get(key)
+        if not builder:
+            self._tab_loaded.add(key)
             return
         try:
-            self.tabview.set(name)
-        except Exception:
-            pass
-
-    def _cancel_tab_hover(self, cancel_target=True):
-        if cancel_target:
-            self._tab_hover_target = None
-        if hasattr(self, "_tab_hover_after") and self._tab_hover_after:
-            try:
-                self.after_cancel(self._tab_hover_after)
-            except Exception:
-                pass
-            self._tab_hover_after = None
+            builder()
+        except Exception as e:
+            print(f"Lazy tab '{key}' failed: {e}")
+        self._tab_loaded.add(key)
 
     def _rebuild_tabview(self, preferred_key="dashboard"):
         current_key = preferred_key
@@ -5173,9 +4862,53 @@ class App(ctk.CTk):
         except Exception:
             current_key = preferred_key
 
+        # Remember running profile before widgets are destroyed
+        saved_profile = ""
         try:
-            for child in self.main_frame.winfo_children():
-                child.destroy()
+            combo = getattr(self, "combo_profiles", None)
+            if combo is not None:
+                saved_profile = (combo.get() or "").strip()
+        except Exception:
+            saved_profile = ""
+        if not saved_profile:
+            saved_profile = getattr(self, "selected_profile_name", None) or getattr(self, "running_profile_name", None) or ""
+
+        # Invalidate async UI targets BEFORE destroy (prevents bad window path errors)
+        self._news_gen = getattr(self, "_news_gen", 0) + 1
+        for attr in (
+            "news_box", "console", "copy_console", "combo_profiles",
+            "btn_ghost_toggle", "btn_start", "btn_stop", "lbl_engine_badge",
+            "card_account_server", "card_account_status", "card_signal_current",
+            "card_signal_next", "card_signal_countdown", "card_engine_ghost",
+        ):
+            try:
+                setattr(self, attr, None)
+            except Exception:
+                pass
+
+        try:
+            self.update_idletasks()
+        except Exception:
+            pass
+
+        try:
+            for child in list(self.main_frame.winfo_children()):
+                try:
+                    child.destroy()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            self.update_idletasks()
+        except Exception:
+            pass
+
+        # Ensure main area still expands after full rebuild
+        try:
+            self.main_frame.grid_columnconfigure(0, weight=1)
+            self.main_frame.grid_rowconfigure(0, weight=1)
         except Exception:
             pass
 
@@ -5208,43 +4941,71 @@ class App(ctk.CTk):
         self.tab_release = self.tabview.add(self.tab_names["release_notes"])
         self.tab_about = self.tabview.add(self.tab_names["about"])
 
-        self.create_dashboard_frame(self.tab_dashboard)
-        self.create_signals_frame(self.tab_signals)
-        self.create_profiles_frame(self.tab_profiles)
-        self.create_copy_trade_frame(self.tab_copy_trade)
-        self.create_pos_size_frame(self.tab_pos_size)
-        self.create_diagnostics_frame(self.tab_diagnostics)
-        self.create_guide_frame(self.tab_guide)
-        self.create_readme_frame(self.tab_readme)
-        self.create_release_notes_frame(self.tab_release)
-        self.create_about_frame(self.tab_about)
+        creators = [
+            ("dashboard", self.create_dashboard_frame, self.tab_dashboard),
+            ("signals", self.create_signals_frame, self.tab_signals),
+            ("profiles", self.create_profiles_frame, self.tab_profiles),
+            ("copy_trade", self.create_copy_trade_frame, self.tab_copy_trade),
+            ("pos_size", self.create_pos_size_frame, self.tab_pos_size),
+            ("diagnostics", self.create_diagnostics_frame, self.tab_diagnostics),
+            ("guide", self.create_guide_frame, self.tab_guide),
+            ("readme", self.create_readme_frame, self.tab_readme),
+            ("release_notes", self.create_release_notes_frame, self.tab_release),
+            ("about", self.create_about_frame, self.tab_about),
+        ]
+        for name, fn, tab in creators:
+            try:
+                fn(tab)
+            except Exception as e:
+                # Do not call self.log here — console may be mid-rebuild
+                print(f"⚠️ Rebuild tab '{name}' failed: {e}")
 
-        self.apply_theme_overrides()
+        try:
+            self.apply_theme_overrides()
+        except Exception as e:
+            print(f"Theme overrides after rebuild failed: {e}")
 
         if current_key not in self.tab_names:
             current_key = "dashboard"
-        self.tabview.set(self.tab_names[current_key])
-        self._enable_tab_hover_switch()
+        try:
+            self.tabview.set(self.tab_names[current_key])
+        except Exception:
+            try:
+                self.tabview.set(self.tab_names["dashboard"])
+            except Exception:
+                pass
+
+        try:
+            self.update_idletasks()
+        except Exception:
+            pass
 
         if getattr(self, "profiles", None):
             try:
-                initial = self.combo_profiles.get().strip() if hasattr(self, "combo_profiles") else ""
+                initial = saved_profile if saved_profile in self.profiles else ""
                 if not initial:
                     initial = list(self.profiles.keys())[0]
-                if hasattr(self, "combo_profiles"):
+                if getattr(self, "combo_profiles", None) is not None:
+                    self.combo_profiles.configure(values=list(self.profiles.keys()))
                     self.combo_profiles.set(initial)
                 self.on_profile_change(initial)
-            except Exception:
-                pass
-        
+            except Exception as e:
+                print(f"Profile restore after rebuild failed: {e}")
+
     def _on_tab_change(self):
         current = ""
         try:
             current = self.tabview.get()
         except Exception:
             current = ""
+        key = self._tab_key_from_name(current) if current else ""
+        if key:
+            self._ensure_tab_loaded(key)
         if current and current == self.tab_names.get("copy_trade", ""):
-            self.load_copy_config()
+            try:
+                self.load_copy_config()
+            except Exception:
+                pass
 
     def create_dashboard_frame(self, parent):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
@@ -5259,14 +5020,13 @@ class App(ctk.CTk):
 
         right_panel = ctk.CTkFrame(frame, fg_color="transparent")
         right_panel.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
-        right_panel.grid_rowconfigure(0, weight=0)  # cards - fixed height
-        right_panel.grid_rowconfigure(1, weight=0)  # news - fixed 240px
-        right_panel.grid_rowconfigure(2, weight=1)  # console - takes remaining
+        # pack stack: cards (fixed) + news (fixed) + console (expand) — more reliable than nested grid after lang rebuild
         right_panel.grid_columnconfigure(0, weight=1)
+        right_panel.grid_rowconfigure(0, weight=1)
 
         # === INFO CARDS ===
         cards_frame = ctk.CTkFrame(right_panel, fg_color="transparent")
-        cards_frame.grid(row=0, column=0, sticky="ew", pady=(0, 8))
+        cards_frame.pack(fill="x", pady=(0, 8))
         cards_frame.grid_columnconfigure(0, weight=1)
         cards_frame.grid_columnconfigure(1, weight=1)
         cards_frame.grid_columnconfigure(2, weight=1)
@@ -5324,8 +5084,19 @@ class App(ctk.CTk):
         self.add_ui_element("btn_start", self.btn_start)
 
         self.btn_stop = ctk.CTkButton(left_panel, text=T("btn_stop"), fg_color="red", height=40, state="disabled", command=self.stop_monitor)
-        self.btn_stop.pack(pady=(0, 20), fill="x")
+        self.btn_stop.pack(pady=(0, 10), fill="x")
         self.add_ui_element("btn_stop", self.btn_stop)
+
+        self.btn_ghost_toggle = ctk.CTkButton(
+            left_panel,
+            text="👻 Ghost",
+            height=40,
+            corner_radius=10,
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._open_ghost_popup,
+        )
+        self.btn_ghost_toggle.pack(pady=(0, 20), fill="x")
+        self.update_ghost_button_ui()
 
         self.engine_frame = ctk.CTkFrame(left_panel, fg_color="transparent")
         self.engine_frame.pack(pady=(10, 0), fill="x")
@@ -5353,49 +5124,62 @@ class App(ctk.CTk):
 
         self.update_ghost_button_ui()
 
-        news_section = ctk.CTkFrame(right_panel, fg_color="transparent", height=240)
-        news_section.grid(row=1, column=0, sticky="ew", pady=(0, 5))
-        news_section.grid_propagate(False)
+        # News (fixed height) + Console (fills remaining) — pack, never grid-collapse
+        try:
+            news_section = ctk.CTkFrame(right_panel, fg_color="transparent", height=200)
+            news_section.pack(fill="x", pady=(0, 6))
+            news_section.pack_propagate(False)
 
-        news_header = ctk.CTkFrame(news_section, fg_color="transparent")
-        news_header.pack(fill="x", pady=(0, 6))
-        self.lbl_news_title = ctk.CTkLabel(news_header, text=T("news_title"), font=ctk.CTkFont(size=13, weight="bold"))
-        self.lbl_news_title.pack(side="left")
-        self.add_ui_element("news_title", self.lbl_news_title)
+            news_header = ctk.CTkFrame(news_section, fg_color="transparent")
+            news_header.pack(fill="x", pady=(0, 4))
+            self.lbl_news_title = ctk.CTkLabel(news_header, text=T("news_title"), font=ctk.CTkFont(size=13, weight="bold"))
+            self.lbl_news_title.pack(side="left")
+            self.add_ui_element("news_title", self.lbl_news_title)
 
-        self.news_box = ctk.CTkTextbox(news_section, wrap="word")
-        self.news_box.pack(fill="both", expand=True)
-        self.news_box.configure(state="disabled")
+            self.news_box = ctk.CTkTextbox(news_section, wrap="word", height=160)
+            self.news_box.pack(fill="both", expand=True)
+            self.news_box.configure(state="disabled")
+        except Exception as e:
+            print(f"Dashboard news section failed: {e}")
 
-        self.update_news_summary(force=True)
+        try:
+            console_section = ctk.CTkFrame(right_panel, fg_color="transparent")
+            console_section.pack(fill="both", expand=True, pady=(4, 0))
 
-        console_section = ctk.CTkFrame(right_panel, fg_color="transparent")
-        console_section.grid(row=2, column=0, sticky="nsew", pady=(5, 0))
+            self.lbl_console = ctk.CTkLabel(console_section, text=T("console_title"), font=ctk.CTkFont(weight="bold"))
+            self.lbl_console.pack(anchor="w")
+            self.add_ui_element("console_title", self.lbl_console)
 
-        self.lbl_console = ctk.CTkLabel(console_section, text=T("console_title"), font=ctk.CTkFont(weight="bold"))
-        self.lbl_console.pack(anchor="w")
-        self.add_ui_element("console_title", self.lbl_console)
+            filter_frame = ctk.CTkFrame(console_section, fg_color="transparent")
+            filter_frame.pack(fill="x", pady=(0, 3))
+            self._console_filters = {}
+            for label, color in [("INFO", "#b0bec5"), ("WARN", "#ffb74d"), ("ERROR", "#ef5350"), ("MT5", "#29b6f6"), ("TG", "#ab47bc"), ("SIG", "#66bb6a")]:
+                var = ctk.BooleanVar(value=True)
+                cb = ctk.CTkCheckBox(filter_frame, text=label, variable=var, font=ctk.CTkFont(size=10), text_color=color)
+                cb.pack(side="left", padx=4)
+                self._console_filters[label] = var
 
-        # Console filter checkboxes
-        filter_frame = ctk.CTkFrame(console_section, fg_color="transparent")
-        filter_frame.pack(fill="x", pady=(0, 3))
-        self._console_filters = {}
-        for label, color in [("INFO", "#b0bec5"), ("WARN", "#ffb74d"), ("ERROR", "#ef5350"), ("MT5", "#29b6f6"), ("TG", "#ab47bc"), ("SIG", "#66bb6a")]:
-            var = ctk.BooleanVar(value=True)
-            cb = ctk.CTkCheckBox(filter_frame, text=label, variable=var, font=ctk.CTkFont(size=10), text_color=color)
-            cb.pack(side="left", padx=4)
-            self._console_filters[label] = var
+            self.console = ctk.CTkTextbox(console_section, wrap="word")
+            self.console.pack(fill="both", expand=True)
+            self.console.configure(state="disabled")
+        except Exception as e:
+            print(f"Dashboard console section failed: {e}")
 
-        self.console = ctk.CTkTextbox(console_section, wrap="word")
-        self.console.pack(fill="both", expand=True)
-        self.console.configure(state="disabled")
+        # News load is deferred on first paint (see _deferred_startup); force only if already shown
+        if getattr(self, "_startup_news_ready", False):
+            try:
+                self.update_news_summary(force=True)
+            except Exception as e:
+                print(f"Dashboard news load failed: {e}")
 
     def update_news_summary(self, force=False):
-        if not hasattr(self, "news_box"):
+        if getattr(self, "_ui_rebuilding", False):
             return
-            
+        if not self._widget_alive(getattr(self, "news_box", None)):
+            return
+
         # Check if already running
-        if hasattr(self, "_news_thread") and self._news_thread.is_alive():
+        if hasattr(self, "_news_thread") and self._news_thread is not None and self._news_thread.is_alive():
             return
 
         now = datetime.now()
@@ -5437,12 +5221,19 @@ class App(ctk.CTk):
         self._news_thread.start()
 
     def _fetch_news_worker(self):
+        token = getattr(self, "_news_gen", 0)
         try:
             news = oak_trading_reminders.get_economic_news(lang=CURRENT_LANG)
-        except Exception as e:
+        except Exception:
             news = []
-        self.after(0, lambda: self._display_news_result(news))
-        # Keep dashboard Redis identical to desktop
+        def _done(n=news, t=token):
+            if t != getattr(self, "_news_gen", 0):
+                return
+            self._display_news_result(n, token=t)
+        try:
+            self.after(0, _done)
+        except Exception:
+            pass
         try:
             self._push_news_to_dashboard(news)
         except Exception:
@@ -5478,30 +5269,41 @@ class App(ctk.CTk):
         except Exception as e:
             log.warning("Dashboard news push failed: %s", e)
 
-    def _display_news_result(self, news):
-        if not hasattr(self, "news_box"): return
-        self.news_box.configure(state="normal")
-        self.news_box.delete("1.0", "end")
-        if news:
-            # Critical (Federal Funds Rate etc.) first + banner
-            critical = [n for n in news if "NỔI BẬT" in n or "Federal Funds Rate" in n]
-            normal = [n for n in news if n not in critical]
-            ordered = critical + normal
-            if critical:
-                banner = (
-                    "╔══════════════════════════════════════╗\n"
-                    "║  ⚠  TIN NỔI BẬT HÔM NAY (HIGH IMPACT) ║\n"
-                    "╚══════════════════════════════════════╝\n"
-                )
-                self.news_box.insert("1.0", banner + "\n".join(ordered))
+    def _display_news_result(self, news, token=None):
+        if getattr(self, "_ui_rebuilding", False):
+            return
+        box = getattr(self, "news_box", None)
+        if box is None:
+            return
+        try:
+            if not box.winfo_exists():
+                return
+        except Exception:
+            return
+        try:
+            box.configure(state="normal")
+            box.delete("1.0", "end")
+            if news:
+                # Critical (Federal Funds Rate etc.) first + banner
+                critical = [n for n in news if "NỔI BẬT" in n or "Federal Funds Rate" in n]
+                normal = [n for n in news if n not in critical]
+                ordered = critical + normal
+                if critical:
+                    banner = (
+                        "╔══════════════════════════════════════╗\n"
+                        "║  ⚠  TIN NỔI BẬT HÔM NAY (HIGH IMPACT) ║\n"
+                        "╚══════════════════════════════════════╝\n"
+                    )
+                    box.insert("1.0", banner + "\n".join(ordered))
+                else:
+                    box.insert("1.0", "\n".join(ordered))
+                self.apply_markdown(box)
+                self._maybe_alert_critical_news(critical)
             else:
-                self.news_box.insert("1.0", "\n".join(ordered))
-            self.apply_markdown(self.news_box)
-            # One-shot desktop + telegram alert for FFR-class events
-            self._maybe_alert_critical_news(critical)
-        else:
-            self.news_box.insert("1.0", T("news_empty"))
-        self.news_box.configure(state="disabled")
+                box.insert("1.0", T("news_empty"))
+            box.configure(state="disabled")
+        except Exception:
+            pass
 
     def _maybe_alert_critical_news(self, critical_lines):
         """Notify once/day when Federal Funds Rate (etc.) is on the calendar."""
@@ -5543,8 +5345,6 @@ class App(ctk.CTk):
         if not hasattr(self, "theme_palette"):
             return
         p = self.theme_palette
-        if hasattr(self, "sidebar"):
-            self.sidebar.configure(fg_color=p["sidebar_bg"])
         if hasattr(self, "list_frame"):
             try:
                 self.list_frame.configure(fg_color=p["panel_bg"], label_text_color=p["text_primary"])
@@ -6250,23 +6050,27 @@ class App(ctk.CTk):
                   background=[("selected", "#0f3460")],
                   foreground=[("selected", "#ffffff")])
         
-        self.tree_scheduled = ttk.Treeview(tree_container, columns=("Symbol", "Type", "Lot", "Time", "Status", "StatusDetail", "NextAction"), show="headings", height=20, style="Scheduled.Treeview")
-        
+        self.tree_scheduled = ttk.Treeview(
+            tree_container,
+            columns=("Symbol", "Type", "Lot", "Time", "Status", "NextAction"),
+            show="headings",
+            height=20,
+            style="Scheduled.Treeview",
+        )
+
         self.tree_scheduled.heading("Symbol", text="Symbol")
         self.tree_scheduled.heading("Type", text="Type")
         self.tree_scheduled.heading("Lot", text="Lot")
         self.tree_scheduled.heading("Time", text="Time")
         self.tree_scheduled.heading("Status", text="Status")
-        self.tree_scheduled.heading("StatusDetail", text="Status Chi Tiết")
         self.tree_scheduled.heading("NextAction", text="Next Action")
-        
-        self.tree_scheduled.column("Symbol", width=70, anchor="center")
-        self.tree_scheduled.column("Type", width=50, anchor="center")
-        self.tree_scheduled.column("Lot", width=50, anchor="center")
-        self.tree_scheduled.column("Time", width=120, anchor="center")
-        self.tree_scheduled.column("Status", width=70, anchor="center")
-        self.tree_scheduled.column("StatusDetail", width=130, anchor="center")
-        self.tree_scheduled.column("NextAction", width=150, anchor="center")
+
+        self.tree_scheduled.column("Symbol", width=90, anchor="center")
+        self.tree_scheduled.column("Type", width=60, anchor="center")
+        self.tree_scheduled.column("Lot", width=60, anchor="center")
+        self.tree_scheduled.column("Time", width=140, anchor="center")
+        self.tree_scheduled.column("Status", width=90, anchor="center")
+        self.tree_scheduled.column("NextAction", width=160, anchor="center")
         
         self.tree_scheduled.pack(side="left", fill="both", expand=True)
         
@@ -6428,37 +6232,63 @@ class App(ctk.CTk):
             self._diag_status.configure(text=f"Export error: {e}")
 
     def create_guide_frame(self, parent):
+        # Clear previous content if re-building
+        try:
+            for child in list(parent.winfo_children()):
+                child.destroy()
+        except Exception:
+            pass
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frames["guide"] = frame
         frame.pack(fill="both", expand=True)
-        
+
         self.guide_box = ctk.CTkTextbox(frame, width=600, height=500, font=ctk.CTkFont(size=16), wrap="word")
         self.guide_box.pack(fill="both", expand=True)
         self.guide_box.insert("0.0", self.get_doc_content("guide_info"))
-        self.apply_markdown(self.guide_box)
-        self.guide_box.configure(state="disabled")
+        # Markdown is relatively heavy — run after first paint of this tab
+        self.after(10, lambda: self._safe_apply_markdown(self.guide_box))
 
     def create_readme_frame(self, parent):
+        try:
+            for child in list(parent.winfo_children()):
+                child.destroy()
+        except Exception:
+            pass
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frames["readme"] = frame
         frame.pack(fill="both", expand=True)
-        
+
         self.readme_box = ctk.CTkTextbox(frame, width=600, height=500, font=ctk.CTkFont(size=14), wrap="word")
         self.readme_box.pack(fill="both", expand=True)
         self.readme_box.insert("0.0", self.get_doc_content("readme_info"))
-        self.apply_markdown(self.readme_box)
-        self.readme_box.configure(state="disabled")
+        self.after(10, lambda: self._safe_apply_markdown(self.readme_box))
 
     def create_release_notes_frame(self, parent):
+        try:
+            for child in list(parent.winfo_children()):
+                child.destroy()
+        except Exception:
+            pass
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frames["release_notes"] = frame
         frame.pack(fill="both", expand=True)
-        
+
         self.release_box = ctk.CTkTextbox(frame, width=600, height=500, font=ctk.CTkFont(size=14), wrap="word")
         self.release_box.pack(fill="both", expand=True)
         self.release_box.insert("0.0", self.get_doc_content("release_notes_info"))
-        self.apply_markdown(self.release_box)
-        self.release_box.configure(state="disabled")
+        self.after(10, lambda: self._safe_apply_markdown(self.release_box))
+
+    def _safe_apply_markdown(self, box):
+        if not self._widget_alive(box):
+            return
+        try:
+            self.apply_markdown(box)
+            box.configure(state="disabled")
+        except Exception:
+            try:
+                box.configure(state="disabled")
+            except Exception:
+                pass
 
     def apply_markdown(self, textbox):
         # Access internal tkinter widget to bypass CTkTextbox font restriction
@@ -6624,7 +6454,7 @@ class App(ctk.CTk):
 
         # Theme section
         ctk.CTkLabel(
-            outer, text="GIAO DIỆN", font=ctk.CTkFont(size=11, weight="bold"),
+            outer, text=T("about_section_theme"), font=ctk.CTkFont(size=11, weight="bold"),
             text_color=muted, anchor="w",
         ).pack(fill="x", pady=(8, 10))
 
@@ -6647,24 +6477,66 @@ class App(ctk.CTk):
             )
             card.grid(row=0, column=col, sticky="nsew", padx=6)
             card.grid_propagate(False)
-            # swatch
             sw = ctk.CTkFrame(card, fg_color=acc, corner_radius=8, height=8)
             sw.pack(fill="x", padx=14, pady=(16, 10))
             ctk.CTkLabel(card, text=short, font=ctk.CTkFont(size=15, weight="bold"),
                          text_color="#fafafa" if key != "light" else "#0f172a").pack()
             ctk.CTkLabel(
-                card, text="Active" if selected else "Select",
+                card, text=T("about_card_active") if selected else T("about_card_select"),
                 font=ctk.CTkFont(size=11),
                 text_color=acc if selected else ("#a1a1aa" if key != "light" else "#64748b"),
             ).pack(pady=(4, 0))
 
-            def _make_cmd(k=key, lbl=label):
+            def _make_theme_cmd(lbl=label):
                 return lambda: self.change_theme(lbl)
 
-            card.bind("<Button-1>", lambda e, c=_make_cmd(): c())
+            card.bind("<Button-1>", lambda e, c=_make_theme_cmd(): c())
             for child in card.winfo_children():
-                child.bind("<Button-1>", lambda e, c=_make_cmd(): c())
+                child.bind("<Button-1>", lambda e, c=_make_theme_cmd(): c())
             self._about_theme_cards[key] = card
+
+        # Language section (same card language as themes)
+        ctk.CTkLabel(
+            outer, text=T("about_section_lang"), font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=muted, anchor="w",
+        ).pack(fill="x", pady=(22, 10))
+
+        lang_row = ctk.CTkFrame(outer, fg_color="transparent")
+        lang_row.pack(fill="x")
+        lang_row.grid_columnconfigure((0, 1), weight=1, uniform="lang")
+
+        lang_defs = [
+            ("VN", "VN", T("about_lang_vn"), "#0f172a", "#3b82f6", "#1e293b"),
+            ("EN", "EN", T("about_lang_en"), "#0c4a6e", "#0ea5e9", "#075985"),
+        ]
+        self._about_lang_cards = {}
+        for col, (key, code, label, bg, acc, brd) in enumerate(lang_defs):
+            selected = key == CURRENT_LANG
+            card = ctk.CTkFrame(
+                lang_row, fg_color=bg, corner_radius=14,
+                border_width=2, border_color=acc if selected else brd, height=120,
+            )
+            card.grid(row=0, column=col, sticky="nsew", padx=6)
+            card.grid_propagate(False)
+            sw = ctk.CTkFrame(card, fg_color=acc, corner_radius=8, height=8)
+            sw.pack(fill="x", padx=14, pady=(16, 10))
+            ctk.CTkLabel(
+                card, text=code, font=ctk.CTkFont(size=18, weight="bold"), text_color="#fafafa",
+            ).pack()
+            ctk.CTkLabel(card, text=label, font=ctk.CTkFont(size=12), text_color="#cbd5e1").pack(pady=(2, 0))
+            ctk.CTkLabel(
+                card, text=T("about_card_active") if selected else T("about_card_select"),
+                font=ctk.CTkFont(size=11),
+                text_color=acc if selected else "#94a3b8",
+            ).pack(pady=(4, 0))
+
+            def _make_lang_cmd(k=key):
+                return lambda: self.change_lang(k)
+
+            card.bind("<Button-1>", lambda e, c=_make_lang_cmd(): c())
+            for child in card.winfo_children():
+                child.bind("<Button-1>", lambda e, c=_make_lang_cmd(): c())
+            self._about_lang_cards[key] = card
 
     def ensure_mt5_connection(self):
         if mt5.terminal_info():
@@ -6953,32 +6825,27 @@ class App(ctk.CTk):
             t_date = trade.get("date", "")
             display_time = f"{t_time}\n{t_date}" if t_date else t_time
             status_raw = trade.get("status", "Waiting")
-            status_detail = status_raw
             next_action = "-"
-            if hasattr(self.copy_manager, "_get_trade_status_detail"):
-                try:
-                    status_detail = self.copy_manager._get_trade_status_detail(trade)
-                except Exception:
-                    status_detail = status_raw
             if hasattr(self.copy_manager, "_get_trade_next_action"):
                 try:
                     next_action = self.copy_manager._get_trade_next_action(trade)
                 except Exception:
                     next_action = "-"
-            
+
             self.tree_scheduled.insert("", "end", values=(
                 trade.get("symbol", "N/A"),
                 t_type,
                 trade.get("lot", 0.01),
                 display_time,
                 status_raw,
-                status_detail,
-                next_action
+                next_action,
             ))
 
     def periodic_ui_refresh(self):
         """Reload scheduled trades from JSON file if it has changed (Multi-process sync)"""
         try:
+            if getattr(self, "_ui_rebuilding", False):
+                return
             if hasattr(self, 'copy_manager') and hasattr(self.copy_manager, 'scheduled_file') and self.copy_manager.scheduled_file:
                 file_path = self.copy_manager.scheduled_file
                 if os.path.exists(file_path):
@@ -7000,35 +6867,54 @@ class App(ctk.CTk):
         finally:
             self.after(2000, self.periodic_ui_refresh) # Check every 2s
 
+    def _widget_alive(self, w):
+        if w is None:
+            return False
+        try:
+            return bool(w.winfo_exists())
+        except Exception:
+            return False
+
     def _update_dashboard_cards(self):
         """Update Account/Signal/Engine cards from worker heartbeat (SQLite)."""
+        if getattr(self, "_ui_rebuilding", False):
+            return
         try:
             # Read heartbeat for the ACTIVE profile only
-            profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
+            profile = ""
+            combo = getattr(self, "combo_profiles", None)
+            if self._widget_alive(combo):
+                try:
+                    profile = combo.get() or ""
+                except Exception:
+                    profile = ""
             hb = self._store.get_heartbeat(profile) if hasattr(self, '_store') and profile else None
             mt5_state = self._store.compute_mt5_state(profile) if hasattr(self, '_store') and profile else {"state": "Disconnected", "last_error": ""}
             tg_state = self._store.compute_telegram_state(profile) if hasattr(self, '_store') and profile else {"configured": False, "api_ok": False}
 
             # Account Card - server/status only (Balance/Equity intentionally hidden)
-            if hasattr(self, 'card_account_server'):
+            card_server = getattr(self, "card_account_server", None)
+            card_status = getattr(self, "card_account_status", None)
+            if self._widget_alive(card_server):
                 if hb and hb.get("server"):
                     server_text = f"{hb['server']} | #{hb.get('login', '')}"
                     if mt5_state["state"] != "Connected" and mt5_state.get("age") is not None:
                         server_text += f" ({int(mt5_state['age'])}s stale)"
-                    self.card_account_server.configure(text=server_text)
-                    if hasattr(self, 'card_account_status'):
+                    card_server.configure(text=server_text)
+                    if self._widget_alive(card_status):
                         state = mt5_state.get("state") or "—"
-                        self.card_account_status.configure(
+                        card_status.configure(
                             text=f"Status: {state}",
                             text_color="#66bb6a" if state == "Connected" else "#ffb74d" if state == "Degraded" else "#ef5350",
                         )
                 else:
-                    self.card_account_server.configure(text="Waiting for worker...")
-                    if hasattr(self, 'card_account_status'):
-                        self.card_account_status.configure(text="Status: —", text_color="gray")
+                    card_server.configure(text="Waiting for worker...")
+                    if self._widget_alive(card_status):
+                        card_status.configure(text="Status: —", text_color="gray")
 
             # Signal Card — XAU signal + GBP focus pairs (no Mua/Bán on GBP)
-            if hasattr(self, 'card_signal_current'):
+            card_sig = getattr(self, "card_signal_current", None)
+            if self._widget_alive(card_sig):
                 pair_dirs = {}
                 latest = None
                 try:
@@ -7042,36 +6928,67 @@ class App(ctk.CTk):
                             icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
                             hour = latest.get("hour")
                             hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
-                            self.card_signal_current.configure(text=f"Current: {icon} {sig}{hour_txt}")
+                            card_sig.configure(text=f"Current: {icon} {sig}{hour_txt}")
                             pair_dirs = latest.get("pair_dirs") or {}
                         else:
-                            self.card_signal_current.configure(text="Current: —")
+                            card_sig.configure(text="Current: —")
                     else:
-                        self.card_signal_current.configure(text="Current: —")
+                        card_sig.configure(text="Current: —")
                 except Exception:
-                    self.card_signal_current.configure(text="Current: —")
+                    try:
+                        card_sig.configure(text="Current: —")
+                    except Exception:
+                        pass
                     pair_dirs = {}
                     latest = None
 
-                if hasattr(self, 'card_signal_pair_labels'):
+                pair_labels = getattr(self, "card_signal_pair_labels", None) or {}
+                if pair_labels:
                     hour = latest.get("hour") if latest else None
                     focus_gbp = set()
+                    no_gold_entry = False
+                    no_gold_tag = ""
                     if hour is not None:
                         try:
                             h = int(hour)
-                            if 2 <= h <= 8:
+                            if 3 <= h <= 8:
                                 focus_gbp = {"GBPAUD", "GBPJPY"}
                             elif h in (9, 11, 12, 14, 15):
                                 focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
+                            # T5/T6 H=3-4; T5 H≥12 → label KHÔNG đánh Vàng
+                            sig_date = (latest or {}).get("date")
+                            if sig_date:
+                                from datetime import date as _date
+                                try:
+                                    y, m, d0 = [int(x) for x in str(sig_date).split("-")[:3]]
+                                    wd = _date(y, m, d0).weekday()
+                                    if wd in (3, 4) and h in (3, 4):
+                                        no_gold_entry = True
+                                        no_gold_tag = "H=3-4"
+                                    elif wd == 3 and h >= 12:
+                                        no_gold_entry = True
+                                        no_gold_tag = "T5 H≥12"
+                                except Exception:
+                                    pass
                         except (TypeError, ValueError):
                             pass
                     p = getattr(self, "theme_palette", {}) or {}
                     accent = p.get("accent", "#3b82f6")
                     muted = p.get("text_muted", "gray")
-                    for pair, lbl in self.card_signal_pair_labels.items():
+                    amber = "#d97706"
+                    for pair, lbl in pair_labels.items():
+                        if not self._widget_alive(lbl):
+                            continue
                         if pair == "XAUUSD":
                             d = pair_dirs.get(pair)
-                            if d == "BUY":
+                            if no_gold_entry:
+                                # Logic vẫn có BUY/SELL trong log; label nổi
+                                tail = " Mua" if d == "BUY" else " Bán" if d == "SELL" else ""
+                                lbl.configure(
+                                    text=f"Không đánh{tail} · {no_gold_tag}",
+                                    text_color=amber,
+                                )
+                            elif d == "BUY":
                                 lbl.configure(text="Mua", text_color=p.get("success", "#2ecc71"))
                             elif d == "SELL":
                                 lbl.configure(text="Bán", text_color=p.get("danger", "#e74c3c"))
@@ -7083,15 +7000,15 @@ class App(ctk.CTk):
                         else:
                             lbl.configure(text="—", text_color=muted)
 
-                # Next slot countdown (T5=H5-15, else H2-15; broker weekday)
+                # Next slot countdown (T2-T6=H3-15; broker weekday)
                 now = datetime.now()
                 try:
                     from mt5_signal_bot import get_target_hours as _gth
                     target_hours = _gth(weekday=now.weekday())
                 except Exception:
-                    target_hours = list(range(5, 16)) if now.weekday() == 3 else list(range(2, 16))
+                    target_hours = list(range(3, 16))
                 if not target_hours:
-                    target_hours = list(range(2, 16))
+                    target_hours = list(range(3, 16))
                 next_h = None
                 for h in target_hours:
                     if now.hour < h or (now.hour == h and now.minute < 45):
@@ -7239,34 +7156,47 @@ class App(ctk.CTk):
     }
 
     def _log_safe(self, msg):
+        if getattr(self, "_ui_rebuilding", False):
+            print(msg)
+            return
         try:
             timestamp = datetime.now().strftime("%H:%M:%S")
             full_msg = f"[{timestamp}] {msg}\n"
 
             # Check console filters
-            if hasattr(self, '_console_filters'):
+            if hasattr(self, '_console_filters') and self._console_filters:
                 tag = self._detect_log_tag(msg)
                 tag_key = tag.upper().replace("TELEGRAM", "TG")
                 if tag_key in self._console_filters and not self._console_filters[tag_key].get():
                     return  # Filtered out
 
             # Dashboard Console
-            if hasattr(self, 'console') and self.console.winfo_exists():
-                tag = self._detect_log_tag(msg)
-                color = self._LOG_COLORS.get(tag, "#b0bec5")
-                self.console.configure(state="normal")
-                self.console.insert("end", full_msg, tag)
-                self.console.tag_config(tag, foreground=color)
-                self.console.see("end")
-                self.console.configure(state="disabled")
+            console = getattr(self, "console", None)
+            if console is not None:
+                try:
+                    if console.winfo_exists():
+                        tag = self._detect_log_tag(msg)
+                        color = self._LOG_COLORS.get(tag, "#b0bec5")
+                        console.configure(state="normal")
+                        console.insert("end", full_msg, tag)
+                        console.tag_config(tag, foreground=color)
+                        console.see("end")
+                        console.configure(state="disabled")
+                except Exception:
+                    pass
 
             # Copy Trade Console
-            if hasattr(self, 'copy_console') and self.copy_console.winfo_exists():
-                self.copy_console.configure(state="normal")
-                self.copy_console.insert("end", full_msg)
-                self.apply_markdown(self.copy_console)
-                self.copy_console.see("end")
-                self.copy_console.configure(state="disabled")
+            copy_console = getattr(self, "copy_console", None)
+            if copy_console is not None:
+                try:
+                    if copy_console.winfo_exists():
+                        copy_console.configure(state="normal")
+                        copy_console.insert("end", full_msg)
+                        self.apply_markdown(copy_console)
+                        copy_console.see("end")
+                        copy_console.configure(state="disabled")
+                except Exception:
+                    pass
 
         except Exception as e:
             print(f"Log Error: {e}")
@@ -7760,7 +7690,8 @@ class App(ctk.CTk):
         engine_color = "#e67e22" if is_active else "#3498db" # Orange vs Blue
         
         if hasattr(self, "btn_ghost_toggle"):
-            self.btn_ghost_toggle.configure(text="👻", fg_color=btn_color, hover_color=btn_hover)
+            label = "👻 Ghost ON" if is_active else "👻 Ghost"
+            self.btn_ghost_toggle.configure(text=label, fg_color=btn_color, hover_color=btn_hover)
 
         if hasattr(self, "btn_ghost_popup_toggle") and self.btn_ghost_popup_toggle:
             try:
@@ -7773,23 +7704,16 @@ class App(ctk.CTk):
             self.lbl_engine_badge.configure(text=engine_text, text_color=engine_color)
 
     def change_lang(self, value):
+        """Switch UI language in-place (no full tabview destroy — that blanks news/console)."""
         global CURRENT_LANG
+        if value not in ("VN", "EN"):
+            return
+        if value == CURRENT_LANG:
+            return
+
         CURRENT_LANG = value
         self.settings["lang"] = CURRENT_LANG
         save_json(SETTINGS_FILE, self.settings)
-        self.title(T("title"))
-
-        try:
-            self._hide_theme_radial()
-        except Exception:
-            pass
-
-        if hasattr(self, "settings_popup") and self.settings_popup and self.settings_popup.winfo_exists():
-            try:
-                self.settings_popup.destroy()
-            except Exception:
-                pass
-            self.settings_popup = None
 
         if hasattr(self, "ghost_popup") and self.ghost_popup and self.ghost_popup.winfo_exists():
             try:
@@ -7798,12 +7722,207 @@ class App(ctk.CTk):
                 pass
             self.ghost_popup = None
 
-        self.ui_elements = {}
-        self._rebuild_tabview()
-        self.update_ghost_button_ui()
-        self.update_news_summary(force=True)
-        self.log(f"Language changed to {CURRENT_LANG}")
+        # Defer past About-card click so the click target is not destroyed mid-handler
+        if getattr(self, "_lang_after_id", None):
+            try:
+                self.after_cancel(self._lang_after_id)
+            except Exception:
+                pass
+        self._lang_after_id = self.after(30, self._apply_language_in_place)
 
+    def _apply_language_in_place(self):
+        """Update labels/docs/About + tab headers without destroying Dashboard."""
+        self._lang_after_id = None
+        try:
+            self.title(T("title"))
+        except Exception:
+            pass
+
+        # 1) Registered text widgets
+        for key, widgets in list(getattr(self, "ui_elements", {}).items()):
+            text = T(key)
+            items = widgets if isinstance(widgets, list) else [widgets]
+            for w in items:
+                if not self._widget_alive(w):
+                    continue
+                try:
+                    w.configure(text=text)
+                except Exception:
+                    pass
+
+        # 2) ScrollableFrame headers (label_text, not text=)
+        label_map = dict(getattr(self, "_label_text_widgets", {}) or {})
+        # Fallback attrs used by profiles tab
+        if "profile_list" not in label_map and getattr(self, "list_frame", None) is not None:
+            label_map["profile_list"] = self.list_frame
+        if "grp_config" not in label_map and getattr(self, "form_scroll", None) is not None:
+            label_map["grp_config"] = self.form_scroll
+        for key, w in label_map.items():
+            if not self._widget_alive(w):
+                continue
+            try:
+                w.configure(label_text=T(key))
+            except Exception:
+                try:
+                    if getattr(w, "_label", None) is not None:
+                        w._label.configure(text=T(key))
+                except Exception:
+                    pass
+
+        # 3) Theme combo labels if present
+        try:
+            self.refresh_theme_labels()
+        except Exception:
+            pass
+
+        # 4) Static doc tabs (only if already loaded)
+        for box_attr, doc_key in (
+            ("guide_box", "guide_info"),
+            ("readme_box", "readme_info"),
+            ("release_box", "release_notes_info"),
+        ):
+            box = getattr(self, box_attr, None)
+            if not self._widget_alive(box):
+                continue
+            try:
+                box.configure(state="normal")
+                box.delete("1.0", "end")
+                box.insert("0.0", self.get_doc_content(doc_key))
+                self.apply_markdown(box)
+                box.configure(state="disabled")
+            except Exception:
+                pass
+
+        # 5) Tab header rename (CTkTabview internals — keeps same frames)
+        try:
+            self._rename_tabs_for_language()
+        except Exception as e:
+            print(f"Tab rename failed: {e}")
+
+        # 6) Rebuild About only (theme + language cards Active state)
+        try:
+            about_tab = getattr(self, "tab_about", None)
+            if self._widget_alive(about_tab):
+                for child in list(about_tab.winfo_children()):
+                    try:
+                        child.destroy()
+                    except Exception:
+                        pass
+                self.create_about_frame(about_tab)
+        except Exception as e:
+            print(f"About rebuild failed: {e}")
+
+        try:
+            self.update_ghost_button_ui()
+        except Exception:
+            pass
+        try:
+            self.update_news_summary(force=True)
+        except Exception:
+            pass
+        try:
+            self.log(f"Language changed to {CURRENT_LANG}")
+        except Exception:
+            pass
+
+    def _build_tab_names(self) -> dict:
+        return {
+            "dashboard": f"📊 {T('tab_dashboard')}",
+            "signals": f"📈 {T('tab_signals')}",
+            "profiles": f"👤 {T('tab_profiles')}",
+            "copy_trade": f"🔄 {T('tab_copy_trade')}",
+            "pos_size": f"⏰ {T('tab_pos_size')}",
+            "diagnostics": "🩺 Diagnostics",
+            "guide": f"📘 {T('tab_guide')}",
+            "readme": f"🚀 {T('tab_readme')}",
+            "release_notes": f"📋 {T('tab_release_notes')}",
+            "about": f"ℹ️ {T('tab_about')}",
+        }
+
+    def _rename_tabs_for_language(self):
+        """Rename CTkTabview tabs without destroying tab frames (language switch)."""
+        old_names = dict(getattr(self, "tab_names", {}) or {})
+        new_names = self._build_tab_names()
+        if old_names == new_names:
+            return
+
+        # Which logical tab is selected?
+        current_key = "dashboard"
+        try:
+            cur = self.tabview.get()
+            for k, v in old_names.items():
+                if v == cur:
+                    current_key = k
+                    break
+        except Exception:
+            pass
+
+        tv = self.tabview
+        new_tab_dict = {}
+        new_name_list = []
+        order = [
+            "dashboard", "signals", "profiles", "copy_trade", "pos_size",
+            "diagnostics", "guide", "readme", "release_notes", "about",
+        ]
+        for key in order:
+            old_label = old_names.get(key, new_names[key])
+            new_label = new_names[key]
+            frame = None
+            try:
+                frame = tv._tab_dict.get(old_label) or tv._tab_dict.get(new_label)
+            except Exception:
+                frame = None
+            if frame is None:
+                continue
+            new_tab_dict[new_label] = frame
+            new_name_list.append(new_label)
+
+        if not new_tab_dict:
+            return
+
+        tv._tab_dict = new_tab_dict
+        tv._name_list = new_name_list
+        tv._current_name = new_names.get(current_key, new_name_list[0])
+
+        # Rebuild segmented button labels to match new names
+        seg = getattr(tv, "_segmented_button", None)
+        if seg is not None:
+            try:
+                seg.configure(values=new_name_list)
+                seg.set(tv._current_name)
+            except Exception as e:
+                print(f"Segmented button rename failed: {e}")
+
+        # Keep selected tab frame gridded
+        try:
+            tv._grid_forget_all_tabs(exclude_name=tv._current_name)
+            tv._set_grid_current_tab()
+        except Exception:
+            pass
+
+        self.tab_names = new_names
+        # Refresh app tab frame refs
+        try:
+            self.tab_dashboard = new_tab_dict[new_names["dashboard"]]
+            self.tab_signals = new_tab_dict[new_names["signals"]]
+            self.tab_profiles = new_tab_dict[new_names["profiles"]]
+            self.tab_copy_trade = new_tab_dict[new_names["copy_trade"]]
+            self.tab_pos_size = new_tab_dict[new_names["pos_size"]]
+            self.tab_diagnostics = new_tab_dict[new_names["diagnostics"]]
+            self.tab_guide = new_tab_dict[new_names["guide"]]
+            self.tab_readme = new_tab_dict[new_names["readme"]]
+            self.tab_release = new_tab_dict[new_names["release_notes"]]
+            self.tab_about = new_tab_dict[new_names["about"]]
+        except Exception:
+            pass
+
+        # Lazy builders must target updated frames
+        self._lazy_tab_builders = {
+            "diagnostics": (lambda: self.create_diagnostics_frame(self.tab_diagnostics)),
+            "guide": (lambda: self.create_guide_frame(self.tab_guide)),
+            "readme": (lambda: self.create_readme_frame(self.tab_readme)),
+            "release_notes": (lambda: self.create_release_notes_frame(self.tab_release)),
+        }
 import argparse
 
 # --- WORKER PROCESS ---

@@ -14,27 +14,34 @@ class SignalsTab(BaseTab):
 
     def mount(self, parent: Any) -> None:
         """Mount the Signals tab UI."""
+        import sys
+        T = sys.modules["__main__"].T
+
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
         btn_frame.pack(fill="x", pady=(0, 10))
 
-        ctk.CTkButton(
+        self.btn_start_all = ctk.CTkButton(
             btn_frame,
-            text="▶ BẮT ĐẦU TẤT CẢ",
+            text=T("btn_start_all_signals"),
             fg_color="#2fa572",
             hover_color="#238a5c",
-            command=self.start_all_signals
-        ).pack(side="left", padx=5)
+            command=self.start_all_signals,
+        )
+        self.btn_start_all.pack(side="left", padx=5)
+        self.app.add_ui_element("btn_start_all_signals", self.btn_start_all)
 
-        ctk.CTkButton(
+        self.btn_stop_all = ctk.CTkButton(
             btn_frame,
-            text="■ DỪNG TẤT CẢ",
+            text=T("btn_stop_all_signals"),
             fg_color="#d9534f",
             hover_color="#c9302c",
-            command=self.stop_all_signals
-        ).pack(side="left", padx=5)
+            command=self.stop_all_signals,
+        )
+        self.btn_stop_all.pack(side="left", padx=5)
+        self.app.add_ui_element("btn_stop_all_signals", self.btn_stop_all)
 
         panels_frame = ctk.CTkFrame(frame, fg_color="transparent")
         panels_frame.pack(fill="both", expand=True)
