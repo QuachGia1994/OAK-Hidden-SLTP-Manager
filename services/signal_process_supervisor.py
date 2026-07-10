@@ -229,7 +229,7 @@ class SignalProcessSupervisor:
         except Exception as e:
             self._log(f"Signal start error ({info['name']}): {e}")
 
-    def stop_signal_process(self, key: str) -> None:
+    def stop_signal_process(self, key: str, *, wait: bool = True) -> None:
         self._intentional_stop[key] = True
         info = self._signal_procs.get(key)
         if not info or not info.get("proc"):
@@ -245,6 +245,7 @@ class SignalProcessSupervisor:
                         ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
                         capture_output=True,
                         creationflags=subprocess.CREATE_NO_WINDOW,
+                        timeout=5,
                     )
                 else:
                     proc.terminate()
@@ -253,7 +254,8 @@ class SignalProcessSupervisor:
                     proc.terminate()
                 except Exception:
                     pass
-            time.sleep(0.5)
+            if wait:
+                time.sleep(0.5)
             self._log(f"Signal stopped: {info['name']}")
         info["proc"] = None
         self._set_running_ui(key, False, status="Stopped")
@@ -316,18 +318,20 @@ class SignalProcessSupervisor:
             self.start_signal_process(key, profile)
             time.sleep(1)
 
-    def stop_all_signals(self) -> None:
-        for key in self._signal_procs:
-            self.stop_signal_process(key)
+    def stop_all_signals(self, *, wait: bool = True) -> None:
+        for key in list(self._signal_procs.keys()):
+            self.stop_signal_process(key, wait=wait)
 
     def register_signals(self, signal_procs: Dict[str, Dict[str, Any]]) -> None:
         self._signal_procs = signal_procs
 
     def cleanup(self) -> None:
-        self.stop_all_signals()
-        for proc in self._running_processes:
+        # Fast close path: no per-process sleeps (app X / shutdown)
+        self.stop_all_signals(wait=False)
+        for proc in list(self._running_processes):
             try:
-                proc.kill()
+                if proc.poll() is None:
+                    proc.kill()
             except Exception:
                 pass
         self._running_processes.clear()

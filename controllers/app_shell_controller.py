@@ -206,18 +206,86 @@ class AppShellControllerMixin:
 
 
     def on_closing(self):
-        # Cleanup all spawned processes
-        _cleanup_processes()
-        # Stop all signal processes via supervisor
-        self.signal_supervisor.cleanup()
-        # Stop all workers
-        for name, data in self.workers.items():
-            if data["proc"].poll() is None:
+        """Close app reliably — never leave the window stuck if cleanup fails."""
+        import os
+        import sys as _sys
+        import subprocess
+
+        # 1) Kill domain-registered children (worker monitors)
+        try:
+            import OAK_Hidden_SLTP_Manager as oak
+            cleanup = getattr(oak, "_cleanup_processes", None)
+            if callable(cleanup):
+                cleanup()
+        except Exception:
+            try:
+                _cleanup_processes()
+            except Exception:
+                pass
+
+        # 2) Stop signal subprocesses (non-fatal if supervisor missing/broken)
+        try:
+            sup = getattr(self, "signal_supervisor", None)
+            if sup is not None:
+                # Prefer fast path: no long sleeps on UI close
+                if hasattr(sup, "cleanup"):
+                    try:
+                        # Mark intentional stops first so reader threads don't hang UI
+                        for key in list(getattr(sup, "_signal_procs", {}) or {}):
+                            try:
+                                getattr(sup, "_intentional_stop", {})[key] = True
+                            except Exception:
+                                pass
+                        sup.cleanup()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # 3) Kill any profile workers still alive
+        try:
+            for _name, data in list((getattr(self, "workers", None) or {}).items()):
+                proc = (data or {}).get("proc")
+                if proc is None:
+                    continue
                 try:
-                    data["proc"].kill()
-                except: pass
-        self.destroy()
-        sys.exit(0)
+                    if proc.poll() is None:
+                        if os.name == "nt":
+                            try:
+                                subprocess.run(
+                                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                                    capture_output=True,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                                    timeout=3,
+                                )
+                            except Exception:
+                                proc.kill()
+                        else:
+                            proc.kill()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # 4) Always destroy the window so X never appears "dead"
+        try:
+            self.destroy()
+        except Exception:
+            try:
+                self.quit()
+            except Exception:
+                pass
+
+        # 5) Hard exit so background threads cannot keep the process alive
+        try:
+            _sys.exit(0)
+        except SystemExit:
+            raise
+        except Exception:
+            try:
+                os._exit(0)
+            except Exception:
+                pass
 
 
     def notify(self, message):
