@@ -33,28 +33,29 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 ### Lịch slot
 | Ngày | Giờ |
 | --- | --- |
-| T2–T6 (Mon–Fri) | H=3..15 lúc :45 broker |
+| T2–T6 (Mon–Fri) | H=3..13,15 lúc :45 broker (**không H=14**) |
 | Cuối tuần | không bắn |
 
 ### No-gold label (XAU)
 | Ngày | No-gold | Đánh vàng |
 | --- | --- | --- |
-| T2–T4 | không | H=3–15 |
+| T2–T4 | không | H=3–13,15 |
 | T5 | H=3–4 và H≥12 | H=5–11 |
-| T6 | H=3–11 | chỉ H=12–15 |
+| T6 | H=3–11 | chỉ H=12,15 |
 
 ### Hiển thị GBP
 | Giờ | Cách hiện | T2–T5 | T6 |
 | --- | --- | --- | --- |
 | H=3–4 | **Mua/Bán theo Vàng** (không Focus) | GA ngược Vàng, GJ cùng Vàng | giống |
 | H=5–8 | Chỉ Focus | GA + GJ | GA + GJ |
-| H=9,11,12,14,15 | Chỉ Focus | đủ nhóm GBP | chỉ GA + GJ |
+| H=9,11,12,15 | Chỉ Focus | đủ nhóm GBP | chỉ GA + GJ |
+| H=14 | **tắt** | — | — |
 
 ### pair_dirs
 | Giờ | Nội dung |
 | --- | --- |
 | H=3–4 | XAU + GJ cùng Vàng, GA ngược, GU/GC `--` |
-| H=5+ | **chỉ XAUUSD** (GBP = list Focus) |
+| H=5+ | **chỉ XAUUSD** (GBP = list Focus); H=14 không tính |
 
 ### Ma trận nhanh
 
@@ -65,11 +66,12 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 | 9,11 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | Đánh | No-gold |
 | 10,13 | — | — | Không | Đánh | 13 no-gold* | No-gold |
 | 12 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | No-gold | Đánh |
-| 14–15 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | No-gold | Đánh |
+| 15 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | No-gold | Đánh |
+| 14 | **tắt** | **tắt** | — | — | — | — |
 
-\*T5: mọi **H≥12** no-gold.
+\*T5: mọi **H≥12** no-gold (trong các slot còn bật).
 
-**Đã gỡ:** ma trận chiều H=9/11/12 · D-direction.
+**Đã gỡ:** ma trận chiều H=9/11/12 · D-direction · **mốc H=14**.
 
 ### XAU M30 flip
 - Cùng chiều M30 → đảo XAU; ngược → theo M30

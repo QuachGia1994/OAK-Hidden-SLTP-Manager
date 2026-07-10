@@ -1,15 +1,20 @@
 # RELEASE NOTES
 
+## [v3.16.0+] - 2026-07-10
+*Logic v10: H=14 slot removed from all signal calculations.*
+
+### Signal rules (logic v10)
+- Mon–Fri slots **H=3–13,15** (**no H=14**)
+- No-gold: Thu H=3–4 + H≥12; Fri H=3–11 (trade gold Fri H=12,15 only)
+- H=3–4: GA/GJ Buy/Sell vs gold; H=5+ Focus (Fri H=9+ GA+GJ only)
+- pair_dirs: GBP map **only H=3–4**; **H=5+ XAU only**
+- Removed: H=9/11/12 matrix · D-direction · **H=14**
+
 ## [v3.16.0] - 2026-07-10
 *Signal rules v9 + multi-monitor isolation + EN docs + installer package.*
 
-### Signal rules (logic v9)
-- Mon–Fri slots H=3–15
-- No-gold: Thu H=3–4 + H≥12; Fri H=3–11 (trade gold Fri H=12–15 only)
-- Focus: H=3–8 GA+GJ; H=9/11/12/14/15 full group (Fri: GA+GJ only)
-- pair_dirs: GBP map **only H=3–4**; **H=5+ XAU only** (Focus has no Buy/Sell dims)
-- Removed: H=9/11/12 direction matrix and all D-direction plumbing
-- Full matrix table in `GUIDE.en.md` / `GUIDE.md`
+### Signal rules (logic v9, superseded)
+- Earlier band included H=14; see v3.16.0+ / logic v10.
 
 ### Multi-monitor
 - Concurrent workers; Running Monitors panel

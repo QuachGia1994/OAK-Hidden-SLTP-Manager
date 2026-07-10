@@ -1,11 +1,11 @@
-/** Mon–Fri H=3-15 (T5/T6 same band as T2–T4). Signal logic v9. */
-export const TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+/** Mon–Fri H=3-13,15 (no H=14). Signal logic v10. */
+export const TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
- * Mon–Fri → H=3-15; weekend → []
+ * Mon–Fri → H=3-13,15 (no H=14); weekend → []
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
@@ -26,7 +26,8 @@ export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   const h = Number(hour);
   if (!Number.isFinite(h)) return [];
   if (h >= 3 && h <= 8) return ["GBPAUD", "GBPJPY"];
-  if (h === 9 || h === 11 || h === 12 || h === 14 || h === 15) {
+  if (h === 14) return []; // slot disabled
+  if (h === 9 || h === 11 || h === 12 || h === 15) {
     if (jsWeekday === 5) return ["GBPAUD", "GBPJPY"]; // Friday
     return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
   }
@@ -81,7 +82,6 @@ const HOUR_NOTES: Record<number, string> = {
   9: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
   11: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
   12: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
-  14: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
   15: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
 };
 
@@ -167,7 +167,7 @@ export function signalXauNoTradeTag(
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
-  if (h === 9 || h === 11 || h === 12 || h === 14 || h === 15) {
+  if (h === 9 || h === 11 || h === 12 || h === 15) {
     if (jsWeekday === 5) {
       return "Chỉ Focus GBPAUD · GBPJPY (T6, không GBPUSD/GBPCAD)";
     }
@@ -178,57 +178,58 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
 const PAIR_RULES = [
   "H=3-4: pair_dirs map GA ngược / GJ cùng Vàng; Focus GA+GJ",
   "H=5-8: Chỉ Focus GA+GJ — không map pair_dirs GBP (chỉ XAUUSD)",
-  "H=9 / 11 / 12 / 14 / 15: Chỉ Focus nhóm GBP (T6: chỉ GA+GJ) — không gán chiều",
+  "H=9 / 11 / 12 / 15: Chỉ Focus nhóm GBP (T6: chỉ GA+GJ) — không gán chiều",
+  "H=14: đã tắt (không tính slot)",
   "H khác trong band: chỉ XAUUSD",
   "GBP: không hiển thị Mua/Bán — chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",
 ];
 
 /** Special calendar notes — shared Mon–Fri. */
 export const SPECIAL_DAY_NOTES = [
-  "T2–T6: slots H=3-15",
+  "T2–T6: slots H=3-13,15 (không H=14)",
   "T5 · H=3-4 + H≥12: KHÔNG đánh Vàng (đánh H=5-11)",
-  "T6 · H=3-11: KHÔNG đánh Vàng (chỉ đánh H=12-15)",
+  "T6 · H=3-11: KHÔNG đánh Vàng (chỉ đánh H=12,15)",
   "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
-  "Đã gỡ: ma trận chiều H=9/11/12 · D-direction",
+  "Đã gỡ: ma trận chiều H=9/11/12 · D-direction · mốc H=14",
 ];
 
 export const DAY_RULES: Record<number, string[]> = {
   1: [
     // Thứ 2
-    "Slots: H=3-15 · XAU đánh bình thường",
+    "Slots: H=3-13,15 (không H=14) · XAU đánh bình thường",
     ...PAIR_RULES,
     ...SPECIAL_DAY_NOTES,
   ],
   2: [
     // Thứ 3
-    "Slots: H=3-15 · XAU đánh bình thường",
+    "Slots: H=3-13,15 (không H=14) · XAU đánh bình thường",
     ...PAIR_RULES,
     ...SPECIAL_DAY_NOTES,
   ],
   3: [
     // Thứ 4
-    "Slots: H=3-15 · XAU đánh bình thường",
+    "Slots: H=3-13,15 (không H=14) · XAU đánh bình thường",
     ...PAIR_RULES,
     ...SPECIAL_DAY_NOTES,
   ],
   4: [
     // Thứ 5
-    "Slots: H=3-15",
+    "Slots: H=3-13,15 (không H=14)",
     "XAU: đánh H=5-11 · no-gold H=3-4 và H≥12",
-    "H=3-4: Focus GA+GJ + map pair_dirs · badge KHÔNG ĐÁNH",
+    "H=3-4: GA/GJ Mua/Bán vs Vàng · badge KHÔNG ĐÁNH XAU",
     "H=5-8: Focus GA+GJ · XAU đánh · không map GBP",
     "H=9/11: Focus full nhóm · XAU đánh",
-    "H=12/14/15: Focus full · XAU no-gold",
+    "H=12/15: Focus full · XAU no-gold (không H=14)",
     "Thứ 5 + T4 hôm qua = 30/1 tây → nhắc W1; + T6 tuần = 3/4/7 → nhắc W1",
     ...PAIR_RULES,
   ],
   5: [
     // Thứ 6
-    "Slots: H=3-15",
-    "XAU: chỉ đánh H=12-15 · no-gold H=3-11 (tag T6 H=3-11)",
+    "Slots: H=3-13,15 (không H=14)",
+    "XAU: chỉ đánh H=12,15 · no-gold H=3-11 (tag T6 H=3-11)",
     "H=3-8: Focus GA+GJ · XAU no-gold",
     "H=9/11: Focus chỉ GA+GJ (không GU/GC) · XAU no-gold",
-    "H=12/14/15: Focus chỉ GA+GJ · XAU đánh",
+    "H=12/15: Focus chỉ GA+GJ · XAU đánh (không H=14)",
     ...PAIR_RULES,
   ],
 };

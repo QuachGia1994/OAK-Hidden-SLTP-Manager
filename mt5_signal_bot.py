@@ -47,22 +47,22 @@ except Exception:
 
 SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
-# Mon–Fri: H=3..15 (T5/T6 same band as T2–T4).
+# Mon–Fri: H=3..13,15 (no H=14); T5/T6 same band as T2–T4.
 # No-trade gold LABEL (logic still computes XAU for GBP Focus):
 #   - T5: H=3-4 and H≥12 (trade gold H=5-11)
-#   - T6: H=3-11 (trade gold H=12-15 only)
-# Focus GBP: H=3-8 GA+GJ; H=9/11/12/14/15 full group (T6: GA+GJ only).
+#   - T6: H=3-11 (trade gold H=12-15 only; H=14 removed)
+# Focus GBP: H=3-8 GA+GJ; H=9/11/12/15 full group (T6: GA+GJ only).
 # pair_dirs GBP map only H=2-4 (GA ngược / GJ cùng); H=5+ XAU only + Focus list.
-TARGET_HOURS = list(range(3, 16))
+TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # no H=14
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 9
+SIGNAL_LOGIC_VERSION = 10
 
 
 def get_target_hours(broker_dt=None, weekday=None):
     """Return active H slots for the broker weekday.
 
     Python weekday: Mon=0 .. Sun=6.
-    Mon–Fri → H=3..15; weekend → [].
+    Mon–Fri → H=3..13,15 (H=14 removed); weekend → [].
     """
     if weekday is None:
         if broker_dt is None:
@@ -71,7 +71,7 @@ def get_target_hours(broker_dt=None, weekday=None):
             weekday = broker_dt.weekday()
     if weekday >= 5:
         return []
-    return list(range(3, 16))  # T2–T6: H=3..15
+    return list(TARGET_HOURS)
 BROKER_GMT = 0
 
 # =====================================================================
@@ -669,7 +669,7 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
 
     - Thứ 5 (Thu): H=3-4 and H≥12 → trade gold H=5-11
     - Thứ 6 (Fri): H=3-11 → trade gold H=12-15 only
-    - T2–T4: never (gold normal H=3-15)
+    - T2–T4: never (gold normal H=3-13,15)
     """
     wd = _resolve_weekday(broker_dt, weekday)
     if wd is None:
@@ -720,17 +720,19 @@ def get_hour_note(H, weekday=None):
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
     Chỉ H=3 và H=4: note GBPAUD ngược Vàng / GBPJPY cùng Vàng.
-    H=14/15: chỉ Focus nhóm GBP (không gán chiều pair_dirs).
+    H=15: chỉ Focus nhóm GBP (không gán chiều pair_dirs). H=14 removed.
     """
     try:
         h = int(H)
     except (TypeError, ValueError):
         return "Chỉ Vàng (XAUUSD)"
+    if h == 14:
+        return "Slot H=14 đã tắt (không tính)"
     if h in (3, 4):
         return "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)"
     if 5 <= h <= 8:
         return "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)"
-    if h in (9, 11, 12, 14, 15):
+    if h in (9, 11, 12, 15):
         # T6: no focus GBPUSD/GBPCAD; all these slots are Focus-only (no pair dims)
         if weekday == 4:
             return "Chỉ Focus GBPAUD · GBPJPY (T6, không gán chiều)"
@@ -742,16 +744,19 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
     """Cặp GBP tập trung theo slot — hiển thị Focus, không Mua/Bán trên Telegram/UI.
 
     - H=3-8: GBPAUD + GBPJPY (mọi ngày T2–T6)
-    - H=9,11,12,14,15 T2–T5: đủ nhóm GBP
-    - H=9,11,12,14,15 T6: chỉ GBPAUD + GBPJPY (không GBPUSD/GBPCAD)
+    - H=9,11,12,15 T2–T5: đủ nhóm GBP
+    - H=9,11,12,15 T6: chỉ GBPAUD + GBPJPY (không GBPUSD/GBPCAD)
+    - H=14: disabled (no focus)
     """
     try:
         h = int(H)
     except (TypeError, ValueError):
         return []
+    if h == 14:
+        return []
     if 3 <= h <= 8:
         return ["GBPAUD", "GBPJPY"]
-    if h in (9, 11, 12, 14, 15):
+    if h in (9, 11, 12, 15):
         wd = _resolve_weekday(broker_dt, weekday)
         if wd == 4:  # Friday
             return ["GBPAUD", "GBPJPY"]
@@ -1047,7 +1052,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-6: H=3-15 | no-gold: T5 H=3-4+H>=12 | T6 H=3-11 (gold T6 H=12-15)")
+    print(f"  Target Hours T2-6: H=3-13,15 (no H=14) | no-gold: T5 H=3-4+H>=12 | T6 H=3-11 (gold T6 H=12,15)")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1082,7 +1087,7 @@ def main(profile_name=None):
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
         f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-T6=H3-15 | T5 H=3-4+H≥12 no Gold | T6 H=3-11 no Gold; gold T6 H=12-15)"
+        f"(T2-T6=H3-13,15 no H=14 | T5 H=3-4+H≥12 no Gold | T6 H=3-11 no Gold; gold T6 H=12,15)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
 

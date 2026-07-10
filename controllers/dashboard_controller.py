@@ -753,7 +753,7 @@ class DashboardControllerMixin:
                                 # Fallback if signal bot unavailable
                                 if 3 <= h <= 8:
                                     focus_gbp = {"GBPAUD", "GBPJPY"}
-                                elif h in (9, 11, 12, 14, 15):
+                                elif h in (9, 11, 12, 15):
                                     if wd == 4:
                                         focus_gbp = {"GBPAUD", "GBPJPY"}
                                     else:

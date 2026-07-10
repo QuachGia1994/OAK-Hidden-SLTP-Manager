@@ -18,10 +18,10 @@ Related docs:
 
 ### Signal bot
 - Pairs: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
-- Slots Mon–Fri H=3–15
-- No-gold: Thu H=3–4+H≥12; Fri H=3–11 (gold Fri only H=12–15)
-- Focus H=3–8 GA+GJ; H=9+ focus list (Fri narrow); pair_dirs GBP map only H=3–4
-- D-direction removed
+- Slots Mon–Fri H=3–13,15 (**no H=14**)
+- No-gold: Thu H=3–4+H≥12; Fri H=3–11 (gold Fri only H=12,15)
+- H=3–4 GA/GJ Buy/Sell vs gold; H=5+ Focus (Fri H=9+ GA+GJ only); pair_dirs GBP only H=3–4
+- D-direction and H=14 removed
 
 ### Safety
 - Exact profile match on Telegram commands

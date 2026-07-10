@@ -31,28 +31,29 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer + debug bundle.
 ### Slot schedule
 | Day | Hours |
 | --- | --- |
-| Mon–Fri (T2–T6) | H=3..15 at :45 broker |
+| Mon–Fri (T2–T6) | H=3..13,15 at :45 broker (**no H=14**) |
 | Weekend | none |
 
 ### No-gold label (XAU)
 | Day | No-gold | Trade gold |
 | --- | --- | --- |
-| Mon–Wed | none | H=3–15 |
+| Mon–Wed | none | H=3–13,15 |
 | Thu (T5) | H=3–4 and H≥12 | H=5–11 |
-| Fri (T6) | H=3–11 | H=12–15 only |
+| Fri (T6) | H=3–11 | H=12,15 only |
 
 ### GBP display
 | Hours | Display | Mon–Thu | Friday |
 | --- | --- | --- | --- |
 | H=3–4 | **Buy/Sell vs gold** (not Focus) | GA opposite gold, GJ same gold | same |
 | H=5–8 | Focus only | GA + GJ | GA + GJ |
-| H=9,11,12,14,15 | Focus only | Full GBP group | GA + GJ only |
+| H=9,11,12,15 | Focus only | Full GBP group | GA + GJ only |
+| H=14 | **disabled** | — | — |
 
 ### pair_dirs mapping
 | Hours | Content |
 | --- | --- |
 | H=3–4 | XAU + GJ same gold, GA opposite, GU/GC `--` |
-| H=5+ | **XAU only** (GBP = Focus list only) |
+| H=5+ | **XAU only** (GBP = Focus list only); H=14 not computed |
 
 ### Quick matrix
 
@@ -63,11 +64,12 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer + debug bundle.
 | 9,11 | Full 4 | GA+GJ | None | Trade | Trade | No-gold |
 | 10,13 | — | — | None | Trade | 13 no-gold* | No-gold |
 | 12 | Full 4 | GA+GJ | None | Trade | No-gold | Trade |
-| 14–15 | Full 4 | GA+GJ | None | Trade | No-gold | Trade |
+| 15 | Full 4 | GA+GJ | None | Trade | No-gold | Trade |
+| 14 | **off** | **off** | — | — | — | — |
 
-\*Thu: all H≥12 are no-gold.
+\*Thu: all H≥12 are no-gold (among active slots).
 
-**Removed:** H=9/11/12 direction matrix · D-direction.
+**Removed:** H=9/11/12 direction matrix · D-direction · **H=14 slot**.
 
 ### XAU M30 flip
 - Same direction as M30 → flip XAU; else follow M30

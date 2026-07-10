@@ -31,7 +31,7 @@ class TestXauNoTradeLabel(unittest.TestCase):
             self.assertTrue(is_xau_no_trade_label_slot(h, fri), h)
             self.assertEqual(xau_no_trade_label_tag(h, fri), "T6 H=3-11")
         # H=12-15 Gold normal on Friday
-        for h in (12, 14, 15):
+        for h in (12, 15):
             self.assertFalse(is_xau_no_trade_label_slot(h, fri), h)
             self.assertEqual(xau_no_trade_label_tag(h, fri), "")
 
@@ -91,12 +91,12 @@ class TestXauNoTradeLabel(unittest.TestCase):
     def test_day_notes_include_slots(self):
         notes = get_day_notes(datetime(2026, 7, 9), lang="VN")
         blob = " ".join(notes)
-        self.assertIn("H=3-15", blob)
+        self.assertIn("H=3-13,15", blob)
         self.assertIn("H=3-4", blob)
         notes_fri = get_day_notes(datetime(2026, 7, 10), lang="VN")
         blob_f = " ".join(notes_fri)
         self.assertIn("H=3-11", blob_f)
-        self.assertIn("H=12-15", blob_f)
+        self.assertIn("H=12,15", blob_f)
 
 
 class TestFocusGbpPairs(unittest.TestCase):
@@ -112,25 +112,29 @@ class TestFocusGbpPairs(unittest.TestCase):
     def test_h9_full_group_mon_thu(self):
         full = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
         for wd in (0, 1, 2, 3):
-            for h in (9, 11, 12, 14, 15):
+            for h in (9, 11, 12, 15):
                 self.assertEqual(get_focus_gbp_pairs(h, weekday=wd), full, (wd, h))
 
     def test_h9_fri_only_ga_gj(self):
-        for h in (9, 11, 12, 14, 15):
+        for h in (9, 11, 12, 15):
             self.assertEqual(
                 get_focus_gbp_pairs(h, weekday=4),
                 ["GBPAUD", "GBPJPY"],
                 h,
             )
 
-    def test_h14_h15_pair_dirs_xau_only(self):
-        """H=14/15: only Focus (no GBP BUY/SELL in pair_dirs)."""
-        mon = datetime(2026, 7, 6, 14, 0)
-        for h in (14, 15):
-            dirs = get_pair_direction(h, "BUY", mon)
-            self.assertEqual(dirs.get("XAUUSD"), "BUY")
-            for p in ("GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
-                self.assertNotIn(p, dirs, (h, p))
+    def test_h14_disabled_no_focus(self):
+        """H=14 slot removed — no focus pairs."""
+        for wd in (0, 1, 2, 3, 4):
+            self.assertEqual(get_focus_gbp_pairs(14, weekday=wd), [])
+
+    def test_h15_pair_dirs_xau_only(self):
+        """H=15: only XAUUSD in pair_dirs (Focus list separate)."""
+        mon = datetime(2026, 7, 6, 15, 0)
+        dirs = get_pair_direction(15, "BUY", mon)
+        self.assertEqual(dirs.get("XAUUSD"), "BUY")
+        for p in ("GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
+            self.assertNotIn(p, dirs, p)
 
 
 if __name__ == "__main__":
