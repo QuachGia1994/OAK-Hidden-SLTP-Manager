@@ -241,7 +241,13 @@ class ProfileControllerMixin:
         p = getattr(self, "theme_palette", None)
         hdr = ctk.CTkFrame(self.list_frame, fg_color="transparent")
         hdr.pack(fill="x", pady=(0, 6))
-        run_txt = self.running_profile_name or "—"
+        try:
+            live = self._get_live_running_profiles()
+        except Exception:
+            live = []
+            if getattr(self, "running_profile_name", None):
+                live = [self.running_profile_name]
+        run_txt = ", ".join(live) if live else "—"
         edit_txt = self.selected_profile_name or "—"
         ctk.CTkLabel(
             hdr,
@@ -258,8 +264,9 @@ class ProfileControllerMixin:
             anchor="w",
         ).pack(fill="x")
 
+        live_set = set(live)
         for name in self.profiles:
-            is_running = name == self.running_profile_name
+            is_running = name in live_set
             is_selected = name == self.selected_profile_name
             color = p["text_primary"] if p else "white"
             if is_running:
@@ -355,7 +362,13 @@ class ProfileControllerMixin:
 
     def _update_active_profile_badge(self, name):
         if hasattr(self, "lbl_active_profile"):
-            run = self.running_profile_name or "—"
+            try:
+                live = self._get_live_running_profiles()
+            except Exception:
+                live = []
+                if getattr(self, "running_profile_name", None):
+                    live = [self.running_profile_name]
+            run = ", ".join(live) if live else "—"
             edit = name or self.selected_profile_name or "—"
             try:
                 self.lbl_active_profile.configure(

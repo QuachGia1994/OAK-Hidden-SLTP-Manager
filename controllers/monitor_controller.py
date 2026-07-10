@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Start/stop monitor workers, ghost requests, worker log piping."""
+"""Start/stop monitor workers (multi-monitor), ghost requests, worker log piping."""
 from __future__ import annotations
 
-class MonitorControllerMixin:
-    """Start/stop monitor workers, ghost requests, worker log piping."""
+import os
+import subprocess
+import sys
+import threading
 
-    def _get_live_running_profile(self):
-        """Return the single live worker profile name, or None."""
+
+class MonitorControllerMixin:
+    """Start/stop monitor workers (multi-monitor), ghost requests, worker log piping."""
+
+    def _get_live_running_profiles(self):
+        """Return sorted list of all profiles with a live worker process."""
         live = []
         for name, data in list((getattr(self, "workers", None) or {}).items()):
             try:
@@ -15,48 +21,51 @@ class MonitorControllerMixin:
                     live.append(name)
             except Exception:
                 continue
+        return sorted(live)
+
+    def _get_live_running_profile(self):
+        """Primary running profile for display (selected if live, else first live)."""
+        live = self._get_live_running_profiles()
         if not live:
-            # Prefer attribute if process table is empty but still set
-            run = getattr(self, "running_profile_name", None)
-            return run or None
-        # Prefer declared running_profile if it is among live workers
+            return None
+        try:
+            sel = self.combo_profiles.get() if hasattr(self, "combo_profiles") else None
+        except Exception:
+            sel = None
+        if sel in live:
+            return sel
         declared = getattr(self, "running_profile_name", None)
         if declared in live:
             return declared
         return live[0]
 
+    def _is_profile_live(self, profile_name):
+        if not profile_name:
+            return False
+        data = (getattr(self, "workers", None) or {}).get(profile_name)
+        if not data:
+            return False
+        try:
+            proc = data.get("proc")
+            return proc is not None and proc.poll() is None
+        except Exception:
+            return False
+
     def start_monitor(self):
+        """Start monitor for the *selected* profile (multi: others may keep running)."""
         profile_name = self.combo_profiles.get()
         if not profile_name or profile_name not in self.profiles:
             self.log(T("msg_select_profile"))
             return
 
-        # Single-monitor policy: only one worker may run at a time
-        live = self._get_live_running_profile()
-        if live and live != profile_name:
-            from tkinter import messagebox
-            messagebox.showwarning(
-                "Single Monitor",
-                f"Monitor '{live}' is still running.\n\n"
-                f"Stop '{live}' first before starting '{profile_name}'.\n\n"
-                "Only one monitor is allowed (scheduled orders / MT5 ownership).",
-            )
-            self.log(f"Start blocked: '{live}' still running (wanted '{profile_name}')")
+        # Check if this profile already running
+        if self._is_profile_live(profile_name):
+            self.log(f"Profile '{profile_name}' is already running.")
             try:
                 self.update_ui_state(profile_name)
             except Exception:
                 pass
             return
-
-        # Check if already running
-        if profile_name in self.workers:
-            if self.workers[profile_name]["proc"].poll() is None:
-                self.log(f"Profile '{profile_name}' is already running.")
-                try:
-                    self.update_ui_state(profile_name)
-                except Exception:
-                    pass
-                return
 
         try:
             # Update button text immediately for responsive UI
@@ -76,33 +85,7 @@ class MonitorControllerMixin:
                     pass
             self.after(0, _clear_console)
 
-            # Defensive: stop any other workers still marked live (should not happen)
-            for other, data in list((getattr(self, "workers", None) or {}).items()):
-                if other == profile_name:
-                    continue
-                try:
-                    proc = (data or {}).get("proc")
-                    if proc is not None and proc.poll() is None:
-                        self.log(f"Stopping leftover monitor '{other}' before start")
-                        try:
-                            if os.name == "nt":
-                                subprocess.run(
-                                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                                    capture_output=True,
-                                    creationflags=subprocess.CREATE_NO_WINDOW,
-                                )
-                            else:
-                                proc.terminate()
-                        except Exception:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        self._kill_orphan_workers(other)
-                except Exception:
-                    pass
-
-            # Prevent multi-worker double fire of scheduled orders
+            # Kill orphans only for THIS profile (never other live monitors)
             self._kill_orphan_workers(profile_name)
             
             if getattr(sys, 'frozen', False):
@@ -145,6 +128,7 @@ class MonitorControllerMixin:
                 "proc": proc,
                 "logs": []
             }
+            # Primary display name = last started (still multi-live via list)
             self.running_profile_name = profile_name
             self.selected_profile_name = profile_name
             self.refresh_profile_list()
@@ -159,8 +143,9 @@ class MonitorControllerMixin:
             t.start()
 
             self.update_ui_state(profile_name)
+            self.refresh_running_monitors_panel()
             self.log(f"Started process for '{profile_name}' (PID: {proc.pid})")
-            
+
         except Exception as e:
             self.log(f"Start Error: {e}")
             from tkinter import messagebox
@@ -170,76 +155,87 @@ class MonitorControllerMixin:
             except Exception:
                 pass
 
-
     def stop_monitor(self):
-        # Confirm stop when a worker is actively running
+        """Stop the *selected* profile's monitor (if live)."""
         try:
-            from tkinter import messagebox
-            run_name = self._get_live_running_profile()
-            if run_name:
-                if not messagebox.askyesno(
-                    "Stop Monitor",
-                    f"Stop monitor for '{run_name}'?\n\n"
-                    "Scheduled orders will no longer auto-fire until you start again.",
-                ):
-                    return
+            profile_name = self.combo_profiles.get()
         except Exception:
-            pass
-        # Always stop the RUNNING profile, not only the selected combo
-        profile_name = self._get_live_running_profile() or self.combo_profiles.get()
-        if profile_name in getattr(self, "workers", {}):
-            proc = self.workers[profile_name]["proc"]
-            if proc.poll() is None:
+            profile_name = getattr(self, "selected_profile_name", None)
+        if not profile_name:
+            profile_name = self._get_live_running_profile()
+        if not profile_name or not self._is_profile_live(profile_name):
+            # Fall back: if selected not live, stop primary live if only one
+            live = self._get_live_running_profiles()
+            if len(live) == 1:
+                profile_name = live[0]
+            else:
+                self.log("No live monitor for selected profile. Use Running Monitors list to Stop.")
                 try:
-                    if os.name == "nt":
-                        subprocess.run(
-                            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW
-                        )
-                    else:
-                        proc.terminate()
-                except Exception:
-                    proc.terminate()
-                self.log(f"Stopping '{profile_name}'...")
-                try:
-                    self.btn_stop.configure(state="disabled", text="Stopping...")
+                    self.update_ui_state(profile_name or "")
                 except Exception:
                     pass
-                self.running_profile_name = None
-                self.refresh_profile_list()
-                try:
-                    self._update_active_profile_badge(self.selected_profile_name)
-                except Exception:
-                    pass
-                # Immediate update for local UI feedback
-                self.update_ui_state(profile_name)
-                # Still keep the delayed check just in case
-                self.after(500, lambda: self.update_ui_state(profile_name))
-        # Always sweep orphans for this profile (pythonw leftovers)
-        if profile_name:
-            self._kill_orphan_workers(profile_name)
-        # Sweep any other accidental live workers (single-monitor hard guarantee)
-        for other, data in list((getattr(self, "workers", None) or {}).items()):
-            if other == profile_name:
-                continue
+                return
+        self.stop_monitor_profile(profile_name, confirm=True)
+
+    def stop_monitor_profile(self, profile_name, *, confirm=False):
+        """Stop one monitor by profile name (multi-safe; does not touch others)."""
+        if not profile_name:
+            return
+        if not self._is_profile_live(profile_name):
+            self.log(f"Monitor '{profile_name}' is not running.")
+            self.refresh_running_monitors_panel()
             try:
-                proc = (data or {}).get("proc")
-                if proc is not None and proc.poll() is None:
-                    self.log(f"Also stopping leftover monitor '{other}'")
-                    try:
-                        if os.name == "nt":
-                            subprocess.run(
-                                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                                capture_output=True,
-                                creationflags=subprocess.CREATE_NO_WINDOW,
-                            )
-                        else:
-                            proc.terminate()
-                    except Exception:
-                        pass
-                    self._kill_orphan_workers(other)
+                self.update_ui_state(profile_name)
             except Exception:
                 pass
+            return
+
+        if confirm:
+            try:
+                from tkinter import messagebox
+                if not messagebox.askyesno(
+                    "Stop Monitor",
+                    f"Stop monitor for '{profile_name}'?\n\n"
+                    "Other running monitors are not affected.",
+                ):
+                    return
+            except Exception:
+                pass
+
+        proc = self.workers[profile_name]["proc"]
+        try:
+            if os.name == "nt":
+                subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    capture_output=True,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            else:
+                proc.terminate()
+        except Exception:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+        self.log(f"Stopping '{profile_name}'...")
+        live_left = [n for n in self._get_live_running_profiles() if n != profile_name]
+        # Fix primary name if we just stopped it
+        if getattr(self, "running_profile_name", None) == profile_name:
+            self.running_profile_name = live_left[0] if live_left else None
+        try:
+            self.refresh_profile_list()
+        except Exception:
+            pass
+        try:
+            self._update_active_profile_badge(self.selected_profile_name)
+        except Exception:
+            pass
+        self._kill_orphan_workers(profile_name)
+        self.update_ui_state(profile_name)
+        self.refresh_running_monitors_panel()
+        self.after(400, lambda: self.update_ui_state(profile_name))
+        self.after(400, self.refresh_running_monitors_panel)
 
 
     def monitor_worker_output(self, profile_name, proc):
@@ -295,86 +291,127 @@ class MonitorControllerMixin:
 
 
     def update_ui_state(self, profile_name):
-        """Refresh Start/Stop labels with explicit Selected vs Running profile names."""
+        """Refresh Start/Stop for *selected* profile; multi-live list is separate panel."""
         try:
             current_sel = self.combo_profiles.get() if hasattr(self, "combo_profiles") else ""
         except Exception:
             current_sel = profile_name or ""
 
-        running = getattr(self, "running_profile_name", None)
-        # Prefer live worker poll
-        if running and running in getattr(self, "workers", {}):
-            try:
-                if self.workers[running]["proc"].poll() is not None:
-                    running = None
-            except Exception:
-                pass
-        else:
-            # Fallback: any live worker
-            running = None
-            for n, data in (getattr(self, "workers", {}) or {}).items():
-                try:
-                    if data.get("proc") and data["proc"].poll() is None:
-                        running = n
-                        break
-                except Exception:
-                    pass
-            self.running_profile_name = running
+        live = self._get_live_running_profiles()
+        primary = self._get_live_running_profile()
+        self.running_profile_name = primary
 
         sel = current_sel or profile_name or "—"
-        run = running or "—"
+        run_summary = ", ".join(live) if live else "—"
 
-        # Labels (if dashboard created them)
         try:
             if hasattr(self, "lbl_profile_selected") and self.lbl_profile_selected.winfo_exists():
                 self.lbl_profile_selected.configure(text=f"Selected: {sel}")
             if hasattr(self, "lbl_profile_running") and self.lbl_profile_running.winfo_exists():
-                self.lbl_profile_running.configure(text=f"Running Monitor: {run}")
+                n = len(live)
+                self.lbl_profile_running.configure(
+                    text=f"Running ({n}): {run_summary}" if n else "Running: —"
+                )
         except Exception:
             pass
 
-        # Re-read live process (authoritative)
-        running = self._get_live_running_profile() or running
-        if running:
-            self.running_profile_name = running
-        sel_is_running = bool(running and current_sel and running == current_sel)
-        any_running = bool(running)
+        sel_live = self._is_profile_live(current_sel)
 
         try:
-            if any_running:
-                # Single-monitor: Stop always targets the live worker
-                self.btn_stop.configure(state="normal", text=f"STOP {running}")
-                if sel_is_running:
-                    self.btn_start.configure(state="disabled", text=f"START {sel}")
-                else:
-                    # Cannot start another until current is stopped
-                    self.btn_start.configure(
-                        state="disabled",
-                        text=f"STOP {running} first",
-                    )
+            if sel_live:
+                self.btn_start.configure(state="disabled", text=f"START {sel}")
+                self.btn_stop.configure(state="normal", text=f"STOP {sel}")
             else:
                 self.btn_start.configure(state="normal", text=f"START {sel}")
+                # Stop selected only if that profile is live; else disabled
                 self.btn_stop.configure(state="disabled", text=T("btn_stop"))
         except Exception:
             pass
 
-        # Copy Trade Buttons (same single-monitor policy)
         try:
             if hasattr(self, "btn_copy_start"):
-                if any_running:
-                    self.btn_copy_stop.configure(state="normal", text=f"STOP {running}")
-                    if sel_is_running:
-                        self.btn_copy_start.configure(state="disabled", text=f"START {sel}")
-                    else:
-                        self.btn_copy_start.configure(
-                            state="disabled",
-                            text=f"STOP {running} first",
-                        )
+                if sel_live:
+                    self.btn_copy_start.configure(state="disabled", text=f"START {sel}")
+                    self.btn_copy_stop.configure(state="normal", text=f"STOP {sel}")
                 else:
                     self.btn_copy_start.configure(state="normal", text=f"START {sel}")
                     self.btn_copy_stop.configure(state="disabled", text=T("btn_stop"))
         except Exception:
             pass
+
+        try:
+            self.refresh_running_monitors_panel()
+        except Exception:
+            pass
+
+    def refresh_running_monitors_panel(self):
+        """Rebuild multi-monitor list: ● Name   PID   [Stop]."""
+        frame = getattr(self, "running_monitors_frame", None)
+        if frame is None:
+            return
+        try:
+            if not frame.winfo_exists():
+                return
+        except Exception:
+            return
+
+        for child in list(frame.winfo_children()):
+            try:
+                child.destroy()
+            except Exception:
+                pass
+
+        live = self._get_live_running_profiles()
+        hdr = ctk.CTkLabel(
+            frame,
+            text="Running Monitors" + (f" ({len(live)})" if live else ""),
+            font=ctk.CTkFont(size=12, weight="bold"),
+            anchor="w",
+        )
+        hdr.pack(fill="x", padx=2, pady=(0, 4))
+
+        if not live:
+            ctk.CTkLabel(
+                frame,
+                text="No monitors running",
+                font=ctk.CTkFont(size=11),
+                text_color="gray",
+                anchor="w",
+            ).pack(fill="x", padx=4, pady=2)
+            return
+
+        for name in live:
+            pid = "—"
+            try:
+                proc = self.workers[name]["proc"]
+                pid = str(getattr(proc, "pid", "—") or "—")
+            except Exception:
+                pass
+            row = ctk.CTkFrame(frame, fg_color="transparent")
+            row.pack(fill="x", pady=2)
+            ctk.CTkLabel(
+                row,
+                text=f"● {name}",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#66bb6a",
+                anchor="w",
+            ).pack(side="left", padx=(2, 6))
+            ctk.CTkLabel(
+                row,
+                text=f"PID {pid}",
+                font=ctk.CTkFont(size=11),
+                text_color="gray",
+                anchor="w",
+            ).pack(side="left", padx=(0, 8))
+            ctk.CTkButton(
+                row,
+                text="Stop",
+                width=56,
+                height=26,
+                fg_color="#d9534f",
+                hover_color="#c9302c",
+                command=lambda n=name: self.stop_monitor_profile(n, confirm=True),
+            ).pack(side="right", padx=2)
 
 
     def _kill_orphan_workers(self, profile_name):

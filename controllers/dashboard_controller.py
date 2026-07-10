@@ -106,8 +106,18 @@ class DashboardControllerMixin:
         self.add_ui_element("btn_start", self.btn_start)
 
         self.btn_stop = ctk.CTkButton(left_panel, text=T("btn_stop"), fg_color="red", height=40, state="disabled", command=self.stop_monitor)
-        self.btn_stop.pack(pady=(0, 10), fill="x")
+        self.btn_stop.pack(pady=(0, 8), fill="x")
         self.add_ui_element("btn_stop", self.btn_stop)
+
+        # Multi-monitor list (each row: name + PID + Stop)
+        self.running_monitors_frame = ctk.CTkScrollableFrame(
+            left_panel, height=120, label_text=""
+        )
+        self.running_monitors_frame.pack(fill="x", pady=(0, 12))
+        try:
+            self.refresh_running_monitors_panel()
+        except Exception:
+            pass
 
         self.btn_ghost_toggle = ctk.CTkButton(
             left_panel,
@@ -579,9 +589,18 @@ class DashboardControllerMixin:
                     profile = combo.get() or ""
                 except Exception:
                     profile = ""
+            # Multi: prefer selected if live, else primary live, else selected
+            try:
+                live = self._get_live_running_profiles()
+            except Exception:
+                live = []
             running = getattr(self, "running_profile_name", None) or ""
-            # Account/Telegram heartbeat prefer RUNNING monitor profile
-            hb_profile = running if running else profile
+            if profile and profile in live:
+                hb_profile = profile
+            elif live:
+                hb_profile = live[0]
+            else:
+                hb_profile = running if running else profile
             hb = self._store.get_heartbeat(hb_profile) if hasattr(self, "_store") and hb_profile else None
             mt5_state = (
                 self._store.compute_mt5_state(hb_profile)
