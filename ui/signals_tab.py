@@ -1,8 +1,44 @@
 # -*- coding: utf-8 -*-
 """SignalsTab - manages the Signals tab UI."""
+from __future__ import annotations
+
 import customtkinter as ctk
-from typing import Any
+from typing import Any, Callable
+
 from .base_tab import BaseTab
+
+
+def _resolve_T() -> Callable[[str], str]:
+    """Resolve translation helper without relying only on __main__."""
+    import sys
+
+    # 1) Domain module (preferred after architecture split)
+    try:
+        import OAK_Hidden_SLTP_Manager as oak
+
+        if callable(getattr(oak, "T", None)):
+            return oak.T
+    except Exception:
+        pass
+
+    # 2) __main__ when launched as OAK_Hidden_SLTP_Manager.py
+    try:
+        main = sys.modules.get("__main__")
+        if main is not None and callable(getattr(main, "T", None)):
+            return main.T
+    except Exception:
+        pass
+
+    # 3) app module after bind
+    try:
+        import app as app_mod
+
+        if callable(getattr(app_mod, "T", None)):
+            return app_mod.T
+    except Exception:
+        pass
+
+    return lambda key: str(key)
 
 
 class SignalsTab(BaseTab):
@@ -14,8 +50,14 @@ class SignalsTab(BaseTab):
 
     def mount(self, parent: Any) -> None:
         """Mount the Signals tab UI."""
-        import sys
-        T = sys.modules["__main__"].T
+        T = _resolve_T()
+
+        # Clear previous content if tab is remounted (language rebuild)
+        try:
+            for child in list(parent.winfo_children()):
+                child.destroy()
+        except Exception:
+            pass
 
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="both", expand=True, padx=10, pady=10)
@@ -58,6 +100,7 @@ class SignalsTab(BaseTab):
         ]
 
         positions = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        self.signal_procs = {}
 
         for idx, (key, name, color) in enumerate(signal_defs):
             row, col = positions[idx]
@@ -90,7 +133,7 @@ class SignalsTab(BaseTab):
                 height=28,
                 fg_color="#2fa572",
                 hover_color="#238a5c",
-                command=lambda k=key: self.start_signal_process(k)
+                command=lambda k=key: self.start_signal_process(k),
             )
             btn_start.pack(side="left", padx=2)
 
@@ -102,7 +145,7 @@ class SignalsTab(BaseTab):
                 fg_color="#d9534f",
                 hover_color="#c9302c",
                 state="disabled",
-                command=lambda k=key: self.stop_signal_process(k)
+                command=lambda k=key: self.stop_signal_process(k),
             )
             btn_stop.pack(side="left", padx=2)
 
@@ -110,10 +153,14 @@ class SignalsTab(BaseTab):
             console.pack(fill="both", expand=True, padx=10, pady=(2, 8))
 
             self.signal_procs[key] = {
-                "name": name, "color": color,
-                "proc": None, "logs": [],
-                "console": console, "btn_start": btn_start,
-                "btn_stop": btn_stop, "lbl_pid": lbl_pid,
+                "name": name,
+                "color": color,
+                "proc": None,
+                "logs": [],
+                "console": console,
+                "btn_start": btn_start,
+                "btn_stop": btn_stop,
+                "lbl_pid": lbl_pid,
                 "lbl_status": lbl_status,
             }
 
@@ -127,28 +174,68 @@ class SignalsTab(BaseTab):
 
     def start_signal_process(self, key: str) -> None:
         """Start a signal process by key, delegating to supervisor."""
-        if hasattr(self.app, 'start_signal_process'):
-            self.app.start_signal_process(key)
-        elif hasattr(self.app, 'signal_supervisor'):
-            self.app.signal_supervisor.start_signal_process(key)
+        try:
+            if hasattr(self.app, "start_signal_process"):
+                self.app.start_signal_process(key)
+            elif hasattr(self.app, "signal_supervisor"):
+                profile = ""
+                try:
+                    profile = self.app.combo_profiles.get()
+                except Exception:
+                    profile = ""
+                self.app.signal_supervisor.start_signal_process(key, profile)
+        except Exception as e:
+            try:
+                self.app.log(f"Signal start error ({key}): {e}")
+            except Exception:
+                print(f"Signal start error ({key}): {e}")
 
     def stop_signal_process(self, key: str) -> None:
         """Stop a signal process by key, delegating to supervisor."""
-        if hasattr(self.app, 'stop_signal_process'):
-            self.app.stop_signal_process(key)
-        elif hasattr(self.app, 'signal_supervisor'):
-            self.app.signal_supervisor.stop_signal_process(key)
+        try:
+            if hasattr(self.app, "stop_signal_process"):
+                self.app.stop_signal_process(key)
+            elif hasattr(self.app, "signal_supervisor"):
+                self.app.signal_supervisor.stop_signal_process(key)
+        except Exception as e:
+            try:
+                self.app.log(f"Signal stop error ({key}): {e}")
+            except Exception:
+                print(f"Signal stop error ({key}): {e}")
 
     def start_all_signals(self) -> None:
-        """Start all signals."""
-        if hasattr(self.app, 'start_all_signals'):
-            self.app.start_all_signals()
-        elif hasattr(self.app, 'signal_supervisor'):
-            self.app.signal_supervisor.start_all_signals()
+        """Start all signals (non-blocking — supervisor sleeps between starts)."""
+        try:
+            if hasattr(self.app, "start_all_signals"):
+                self.app.start_all_signals()
+            elif hasattr(self.app, "signal_supervisor"):
+                import threading
+
+                profile = ""
+                try:
+                    profile = self.app.combo_profiles.get()
+                except Exception:
+                    profile = ""
+                threading.Thread(
+                    target=self.app.signal_supervisor.start_all_signals,
+                    args=(profile,),
+                    daemon=True,
+                ).start()
+        except Exception as e:
+            try:
+                self.app.log(f"Start all signals error: {e}")
+            except Exception:
+                print(f"Start all signals error: {e}")
 
     def stop_all_signals(self) -> None:
         """Stop all signals."""
-        if hasattr(self.app, 'stop_all_signals'):
-            self.app.stop_all_signals()
-        elif hasattr(self.app, 'signal_supervisor'):
-            self.app.signal_supervisor.stop_all_signals()
+        try:
+            if hasattr(self.app, "stop_all_signals"):
+                self.app.stop_all_signals()
+            elif hasattr(self.app, "signal_supervisor"):
+                self.app.signal_supervisor.stop_all_signals()
+        except Exception as e:
+            try:
+                self.app.log(f"Stop all signals error: {e}")
+            except Exception:
+                print(f"Stop all signals error: {e}")

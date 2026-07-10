@@ -7,11 +7,16 @@ class SignalControllerMixin:
 
     def create_signals_frame(self, parent):
         # Initialize and mount the SignalsTab
-        self.signals_tab = SignalsTab(self)
+        try:
+            from ui.signals_tab import SignalsTab as _SignalsTab
+        except Exception:
+            _SignalsTab = SignalsTab  # bound via controllers.runtime
+
+        self.signals_tab = _SignalsTab(self)
         self.signals_tab.mount(parent)
         # Copy over UI references for backwards compatibility
         self.signal_procs = self.signals_tab.signal_procs
-        # Register the UI with the signal supervisor
+        # Register the UI with the signal supervisor (same dict object)
         self.signal_supervisor.register_signals(self.signal_procs)
         self.signal_supervisor.signal_defs = [
             ("signal_bot", "MT5 Signal Bot", "#2fa572"),
@@ -19,6 +24,14 @@ class SignalControllerMixin:
             ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
             ("mimo_worker", "MiMo Worker", "#d4a03d"),
         ]
+        # Ensure UI marshal is bound (re-apply after rebuild)
+        try:
+            if hasattr(self, "_schedule_ui"):
+                self.signal_supervisor.set_ui_after(self._schedule_ui)
+            elif hasattr(self, "after"):
+                self.signal_supervisor.set_ui_after(lambda cb: self.after(0, cb))
+        except Exception:
+            pass
 
 
     def _kill_orphan_processes(self, key):
@@ -109,10 +122,27 @@ class SignalControllerMixin:
 
 
     def start_all_signals(self):
-        """Delegate to signal supervisor."""
-        profile = self.combo_profiles.get() if hasattr(self, 'combo_profiles') else ""
-        self.signal_supervisor.start_all_signals(profile)
+        """Delegate to signal supervisor (background so UI stays responsive)."""
+        import threading
 
+        profile = self.combo_profiles.get() if hasattr(self, "combo_profiles") else ""
+        # Re-bind registry in case UI was remounted
+        try:
+            if getattr(self, "signal_procs", None):
+                self.signal_supervisor.register_signals(self.signal_procs)
+        except Exception:
+            pass
+
+        def _run():
+            try:
+                self.signal_supervisor.start_all_signals(profile)
+            except Exception as e:
+                try:
+                    self.log(f"Start all signals error: {e}")
+                except Exception:
+                    pass
+
+        threading.Thread(target=_run, daemon=True).start()
 
     def stop_all_signals(self):
         """Delegate to signal supervisor."""

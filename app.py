@@ -8,12 +8,27 @@ lives in controllers/*.
 from __future__ import annotations
 
 import os
+import queue
 import sys
 
 import customtkinter as ctk
 
 # Domain module first (must not import app at module level).
-import OAK_Hidden_SLTP_Manager as oak
+# Prefer the already-running __main__ copy when launched via OAK_*.py
+# so we never bind controllers to a duplicate domain module.
+_main = sys.modules.get("__main__")
+if (
+    _main is not None
+    and getattr(_main, "__file__", None)
+    and str(getattr(_main, "__file__", "")).replace("\\", "/").endswith(
+        "OAK_Hidden_SLTP_Manager.py"
+    )
+):
+    oak = _main
+    sys.modules.setdefault("OAK_Hidden_SLTP_Manager", oak)
+else:
+    import OAK_Hidden_SLTP_Manager as oak
+
 from controllers.runtime import bind_oak_globals
 
 # Inject free-name globals into this module + all controller mixins
@@ -96,8 +111,10 @@ class App(
         if os.path.exists(icon_path):
             self.iconbitmap(icon_path)
 
-        # Marshal all signal-supervisor widget updates onto the Tk main loop
-        self.signal_supervisor.set_ui_after(lambda cb: self.after(0, cb))
+        # Thread-safe UI marshal: background threads only enqueue; main loop pumps.
+        self._ui_queue = queue.Queue()
+        self.signal_supervisor.set_ui_after(self._schedule_ui)
+        self.after(40, self._pump_ui_queue)
 
         self.protocol("WM_DELETE_WINDOW", self.on_closing)
 
@@ -204,6 +221,33 @@ class App(
 
         # Defer non-critical work so window appears first
         self.after(150, self._deferred_startup)
+
+    def _schedule_ui(self, callback):
+        """Enqueue a zero-arg callback for the Tk main thread (thread-safe)."""
+        try:
+            self._ui_queue.put(callback)
+        except Exception:
+            pass
+
+    def _pump_ui_queue(self):
+        """Drain UI callbacks scheduled from worker/reader threads."""
+        try:
+            while True:
+                try:
+                    cb = self._ui_queue.get_nowait()
+                except queue.Empty:
+                    break
+                try:
+                    if callable(cb):
+                        cb()
+                except Exception:
+                    pass
+        finally:
+            try:
+                if self.winfo_exists():
+                    self.after(40, self._pump_ui_queue)
+            except Exception:
+                pass
 
 
 def main() -> None:

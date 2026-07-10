@@ -4793,6 +4793,10 @@ if __name__ == "__main__":
         run_worker(args.profile)
     else:
         try:
+            # Critical: when this file is run as __main__, a later
+            # `import OAK_Hidden_SLTP_Manager` would load a *second* copy of
+            # the module (split state, broken Signals tab, etc.). Alias first.
+            sys.modules["OAK_Hidden_SLTP_Manager"] = sys.modules[__name__]
             from app import App, main as app_main
             app_main()
         except Exception as startup_e:
