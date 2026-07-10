@@ -234,6 +234,38 @@ class AppShellControllerMixin:
             except Exception as e:
                 print(f"Profiles tab sync: {e}")
 
+        # Pending Orders: force combo + list to selected profile (avoid stale VantageDemo)
+        if key == "pos_size" or (
+            current and current == self.tab_names.get("pos_size", "")
+        ):
+            try:
+                target = getattr(self, "selected_profile_name", None)
+                if not target:
+                    try:
+                        target = self.combo_profiles.get()
+                    except Exception:
+                        target = None
+                if target and target in getattr(self, "profiles", {}):
+                    pos = getattr(self, "combo_pos_profiles", None)
+                    if pos is not None:
+                        try:
+                            if pos.winfo_exists() and (pos.get() or "") != target:
+                                pos.set(target)
+                        except Exception:
+                            pass
+                    # Rebuild copy_manager for this profile and refresh rows
+                    try:
+                        self.select_profile(
+                            target, source="pending_tab_open", clear_console=False
+                        )
+                    except Exception:
+                        try:
+                            self.update_scheduled_list_ui()
+                        except Exception:
+                            pass
+            except Exception as e:
+                print(f"Pending tab sync: {e}")
+
 
     def on_closing(self):
         """Close app reliably — never leave the window stuck if cleanup fails."""

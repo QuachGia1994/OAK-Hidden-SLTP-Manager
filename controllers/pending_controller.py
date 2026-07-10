@@ -396,10 +396,19 @@ class PendingControllerMixin:
 
 
     def on_pos_profile_change(self, choice):
-        # Sync with main profile combo
-        self.combo_profiles.set(choice)
-        self.on_profile_change(choice)
-        self.log(f"Profile switched to {choice} (from Pos Size tab)")
+        # Atomic switch (dashboard/copy/pending/form) — do not only set combo
+        if getattr(self, "_selecting_profile", False):
+            return
+        if choice and choice in getattr(self, "profiles", {}):
+            try:
+                self.select_profile(choice, source="pending_tab", clear_console=False)
+            except Exception:
+                try:
+                    self.combo_profiles.set(choice)
+                    self.on_profile_change(choice)
+                except Exception:
+                    pass
+            self.log(f"Profile switched to {choice} (from Pending Orders tab)")
 
 
     def ensure_mt5_connection(self):

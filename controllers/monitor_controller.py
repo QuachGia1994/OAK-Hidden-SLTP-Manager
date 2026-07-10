@@ -5,22 +5,63 @@ from __future__ import annotations
 class MonitorControllerMixin:
     """Start/stop monitor workers, ghost requests, worker log piping."""
 
+    def _get_live_running_profile(self):
+        """Return the single live worker profile name, or None."""
+        live = []
+        for name, data in list((getattr(self, "workers", None) or {}).items()):
+            try:
+                proc = (data or {}).get("proc")
+                if proc is not None and proc.poll() is None:
+                    live.append(name)
+            except Exception:
+                continue
+        if not live:
+            # Prefer attribute if process table is empty but still set
+            run = getattr(self, "running_profile_name", None)
+            return run or None
+        # Prefer declared running_profile if it is among live workers
+        declared = getattr(self, "running_profile_name", None)
+        if declared in live:
+            return declared
+        return live[0]
+
     def start_monitor(self):
         profile_name = self.combo_profiles.get()
         if not profile_name or profile_name not in self.profiles:
             self.log(T("msg_select_profile"))
             return
-            
+
+        # Single-monitor policy: only one worker may run at a time
+        live = self._get_live_running_profile()
+        if live and live != profile_name:
+            from tkinter import messagebox
+            messagebox.showwarning(
+                "Single Monitor",
+                f"Monitor '{live}' is still running.\n\n"
+                f"Stop '{live}' first before starting '{profile_name}'.\n\n"
+                "Only one monitor is allowed (scheduled orders / MT5 ownership).",
+            )
+            self.log(f"Start blocked: '{live}' still running (wanted '{profile_name}')")
+            try:
+                self.update_ui_state(profile_name)
+            except Exception:
+                pass
+            return
+
         # Check if already running
         if profile_name in self.workers:
             if self.workers[profile_name]["proc"].poll() is None:
                 self.log(f"Profile '{profile_name}' is already running.")
+                try:
+                    self.update_ui_state(profile_name)
+                except Exception:
+                    pass
                 return
 
         try:
             # Update button text immediately for responsive UI
             self.btn_start.configure(text=T("btn_start") + "...", state="disabled")
-            
+
             # Clear consoles on UI thread only (Tkinter is not thread-safe)
             def _clear_console():
                 try:
@@ -34,6 +75,32 @@ class MonitorControllerMixin:
                 except Exception:
                     pass
             self.after(0, _clear_console)
+
+            # Defensive: stop any other workers still marked live (should not happen)
+            for other, data in list((getattr(self, "workers", None) or {}).items()):
+                if other == profile_name:
+                    continue
+                try:
+                    proc = (data or {}).get("proc")
+                    if proc is not None and proc.poll() is None:
+                        self.log(f"Stopping leftover monitor '{other}' before start")
+                        try:
+                            if os.name == "nt":
+                                subprocess.run(
+                                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                                    capture_output=True,
+                                    creationflags=subprocess.CREATE_NO_WINDOW,
+                                )
+                            else:
+                                proc.terminate()
+                        except Exception:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        self._kill_orphan_workers(other)
+                except Exception:
+                    pass
 
             # Prevent multi-worker double fire of scheduled orders
             self._kill_orphan_workers(profile_name)
@@ -98,18 +165,18 @@ class MonitorControllerMixin:
             self.log(f"Start Error: {e}")
             from tkinter import messagebox
             messagebox.showerror("Error", f"Could not start monitor:\n{e}")
+            try:
+                self.update_ui_state(profile_name)
+            except Exception:
+                pass
 
 
     def stop_monitor(self):
         # Confirm stop when a worker is actively running
         try:
             from tkinter import messagebox
-            running = any(
-                w.get("proc") and w["proc"].poll() is None
-                for w in getattr(self, "workers", {}).values()
-            )
-            if running:
-                run_name = getattr(self, "running_profile_name", None) or "worker"
+            run_name = self._get_live_running_profile()
+            if run_name:
                 if not messagebox.askyesno(
                     "Stop Monitor",
                     f"Stop monitor for '{run_name}'?\n\n"
@@ -119,8 +186,8 @@ class MonitorControllerMixin:
         except Exception:
             pass
         # Always stop the RUNNING profile, not only the selected combo
-        profile_name = getattr(self, "running_profile_name", None) or self.combo_profiles.get()
-        if profile_name in self.workers:
+        profile_name = self._get_live_running_profile() or self.combo_profiles.get()
+        if profile_name in getattr(self, "workers", {}):
             proc = self.workers[profile_name]["proc"]
             if proc.poll() is None:
                 try:
@@ -134,7 +201,10 @@ class MonitorControllerMixin:
                 except Exception:
                     proc.terminate()
                 self.log(f"Stopping '{profile_name}'...")
-                self.btn_stop.configure(state="disabled", text="Stopping...")
+                try:
+                    self.btn_stop.configure(state="disabled", text="Stopping...")
+                except Exception:
+                    pass
                 self.running_profile_name = None
                 self.refresh_profile_list()
                 try:
@@ -148,6 +218,28 @@ class MonitorControllerMixin:
         # Always sweep orphans for this profile (pythonw leftovers)
         if profile_name:
             self._kill_orphan_workers(profile_name)
+        # Sweep any other accidental live workers (single-monitor hard guarantee)
+        for other, data in list((getattr(self, "workers", None) or {}).items()):
+            if other == profile_name:
+                continue
+            try:
+                proc = (data or {}).get("proc")
+                if proc is not None and proc.poll() is None:
+                    self.log(f"Also stopping leftover monitor '{other}'")
+                    try:
+                        if os.name == "nt":
+                            subprocess.run(
+                                ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                                capture_output=True,
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                            )
+                        else:
+                            proc.terminate()
+                    except Exception:
+                        pass
+                    self._kill_orphan_workers(other)
+            except Exception:
+                pass
 
 
     def monitor_worker_output(self, profile_name, proc):
@@ -241,33 +333,43 @@ class MonitorControllerMixin:
         except Exception:
             pass
 
+        # Re-read live process (authoritative)
+        running = self._get_live_running_profile() or running
+        if running:
+            self.running_profile_name = running
         sel_is_running = bool(running and current_sel and running == current_sel)
         any_running = bool(running)
 
         try:
             if any_running:
+                # Single-monitor: Stop always targets the live worker
+                self.btn_stop.configure(state="normal", text=f"STOP {running}")
                 if sel_is_running:
                     self.btn_start.configure(state="disabled", text=f"START {sel}")
-                    self.btn_stop.configure(state="normal", text=f"STOP {running}")
                 else:
-                    # Selected profile differs from running — Start selected, Stop the runner
-                    self.btn_start.configure(state="normal", text=f"START {sel}")
-                    self.btn_stop.configure(state="normal", text=f"STOP {running}")
+                    # Cannot start another until current is stopped
+                    self.btn_start.configure(
+                        state="disabled",
+                        text=f"STOP {running} first",
+                    )
             else:
                 self.btn_start.configure(state="normal", text=f"START {sel}")
                 self.btn_stop.configure(state="disabled", text=T("btn_stop"))
         except Exception:
             pass
 
-        # Copy Trade Buttons (mirror selected profile)
+        # Copy Trade Buttons (same single-monitor policy)
         try:
             if hasattr(self, "btn_copy_start"):
-                if sel_is_running:
-                    self.btn_copy_start.configure(state="disabled", text=f"START {sel}")
+                if any_running:
                     self.btn_copy_stop.configure(state="normal", text=f"STOP {running}")
-                elif any_running:
-                    self.btn_copy_start.configure(state="normal", text=f"START {sel}")
-                    self.btn_copy_stop.configure(state="normal", text=f"STOP {running}")
+                    if sel_is_running:
+                        self.btn_copy_start.configure(state="disabled", text=f"START {sel}")
+                    else:
+                        self.btn_copy_start.configure(
+                            state="disabled",
+                            text=f"STOP {running} first",
+                        )
                 else:
                     self.btn_copy_start.configure(state="normal", text=f"START {sel}")
                     self.btn_copy_stop.configure(state="disabled", text=T("btn_stop"))

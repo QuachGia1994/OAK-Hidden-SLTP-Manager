@@ -117,6 +117,14 @@ class ProfileControllerMixin:
 
             # Pending list from this profile's scheduled file
             try:
+                # Ensure pending combo text matches before refresh (widget may lag)
+                if hasattr(self, "combo_pos_profiles") and self.combo_pos_profiles is not None:
+                    try:
+                        if self.combo_pos_profiles.winfo_exists():
+                            if (self.combo_pos_profiles.get() or "") != name:
+                                self.combo_pos_profiles.set(name)
+                    except Exception:
+                        pass
                 self.update_scheduled_list_ui()
             except Exception:
                 pass
