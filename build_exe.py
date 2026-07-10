@@ -28,16 +28,20 @@ EXTRA_PACKAGE_FILES = [
 
 
 def read_version():
-    version = "v3.15.0"
-    main_file = os.path.join(PROJECT_ROOT, "OAK_Hidden_SLTP_Manager.py")
-    try:
-        with open(main_file, "r", encoding="utf-8") as f:
-            content = f.read()
-        match = re.search(r'VERSION\s*=\s*"(.*?)"', content)
-        if match:
-            version = match.group(1)
-    except Exception as e:
-        print(f"Warning: Could not read version from file: {e}")
+    version = "v3.16.0"
+    candidates = [
+        os.path.join(PROJECT_ROOT, "domain", "constants.py"),
+        os.path.join(PROJECT_ROOT, "OAK_Hidden_SLTP_Manager.py"),
+    ]
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            match = re.search(r'VERSION\s*=\s*"(.*?)"', content)
+            if match:
+                return match.group(1)
+        except Exception as e:
+            print(f"Warning: Could not read version from {path}: {e}")
     return version
 
 
