@@ -2,12 +2,15 @@
 """MonitorWorker — per-profile MT5 monitor thread."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import time
 import threading
 import subprocess
 import winsound
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta
 
 import MetaTrader5 as mt5

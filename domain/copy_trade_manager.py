@@ -2,11 +2,17 @@
 """CopyTradeManager — master/slave copy + scheduled trades engine."""
 from __future__ import annotations
 
+import json
 import os
+import random
 import re
+import subprocess
 import time
 import threading
 import winsound
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta, date
 
 import MetaTrader5 as mt5
