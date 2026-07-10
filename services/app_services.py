@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Explicit app dependencies (reduces free-name / bind_oak_globals coupling)."""
+"""Explicit app dependencies (controllers prefer this over free-name globals)."""
 from __future__ import annotations
 
 import os
@@ -9,10 +9,7 @@ from typing import Any, Callable, Optional
 
 
 class AppServices:
-    """Composition-root services shared by controllers.
-
-    Controllers should prefer ``self.services.*`` over free-name globals when available.
-    """
+    """Composition-root services shared by controllers."""
 
     def __init__(self, oak: ModuleType, project_root: Optional[str] = None):
         self.oak = oak
@@ -23,29 +20,71 @@ class AppServices:
         self.log_dir = self.project_root / "logs"
         self.log_file = self.log_dir / "app.log"
 
-    # --- domain helpers ---
+    # --- i18n ---
     def T(self, key: str) -> str:
-        fn = getattr(self.oak, "T", None)
-        return fn(key) if callable(fn) else str(key)
+        try:
+            import domain.i18n as i18n
+
+            return i18n.T(key)
+        except Exception:
+            fn = getattr(self.oak, "T", None)
+            return fn(key) if callable(fn) else str(key)
+
+    def set_lang(self, lang: str) -> None:
+        import domain.i18n as i18n
+
+        i18n.CURRENT_LANG = lang
+        try:
+            self.oak.CURRENT_LANG = lang
+        except Exception:
+            pass
 
     @property
+    def CURRENT_LANG(self) -> str:
+        try:
+            import domain.i18n as i18n
+
+            return i18n.CURRENT_LANG
+        except Exception:
+            return getattr(self.oak, "CURRENT_LANG", "VN")
+
+    # --- persistence ---
+    @property
     def load_json(self) -> Callable:
-        return self.oak.load_json
+        from domain.json_io import load_json
+
+        return load_json
 
     @property
     def save_json(self) -> Callable:
-        return self.oak.save_json
+        from domain.json_io import save_json
+
+        return save_json
 
     @property
     def CONFIG_FILE(self) -> str:
-        return getattr(self.oak, "CONFIG_FILE", "profiles.json")
+        from domain.constants import CONFIG_FILE
+
+        return CONFIG_FILE
 
     @property
     def SETTINGS_FILE(self) -> str:
-        return getattr(self.oak, "SETTINGS_FILE", "settings.json")
+        from domain.constants import SETTINGS_FILE
 
+        return SETTINGS_FILE
+
+    # --- domain classes ---
     def CopyTradeManager(self, *args, **kwargs) -> Any:
-        return self.oak.CopyTradeManager(*args, **kwargs)
+        from domain.copy_trade_manager import CopyTradeManager
+
+        return CopyTradeManager(*args, **kwargs)
+
+    def MonitorWorker(self, *args, **kwargs) -> Any:
+        from domain.monitor_worker import MonitorWorker
+
+        return MonitorWorker(*args, **kwargs)
 
     def SQLiteStore(self, *args, **kwargs) -> Any:
-        return self.oak.SQLiteStore(*args, **kwargs)
+        from repositories.sqlite_store import SQLiteStore
+
+        return SQLiteStore(*args, **kwargs)

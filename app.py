@@ -84,8 +84,14 @@ class App(
         self.app_state.set("settings", self.settings)
 
         # Mutate domain CURRENT_LANG (shared with worker/i18n)
-        oak.CURRENT_LANG = self.settings.get("lang", "VN")
-        self.app_state.set("lang", oak.CURRENT_LANG)
+        try:
+            import domain.i18n as _i18n
+
+            _i18n.CURRENT_LANG = self.settings.get("lang", "VN")
+            oak.CURRENT_LANG = _i18n.CURRENT_LANG
+        except Exception:
+            oak.CURRENT_LANG = self.settings.get("lang", "VN")
+        self.app_state.set("lang", getattr(oak, "CURRENT_LANG", "VN"))
         self.app_state.set("theme", self.settings.get("theme", "light"))
 
         # SQLite store for heartbeat

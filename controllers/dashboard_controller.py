@@ -1367,12 +1367,20 @@ class DashboardControllerMixin:
         if value == getattr(oak, "CURRENT_LANG", None):
             return
 
+        # Single source of truth for lang
+        try:
+            import domain.i18n as _i18n
+
+            _i18n.CURRENT_LANG = value
+        except Exception:
+            pass
         oak.CURRENT_LANG = value
         # Keep free-name CURRENT_LANG in sync across controller modules + app
         try:
             from controllers.runtime import _CONTROLLER_MODULES
             import importlib
             import sys as _sys
+
             for _mn in _CONTROLLER_MODULES:
                 try:
                     setattr(importlib.import_module(_mn), "CURRENT_LANG", value)
@@ -1381,7 +1389,10 @@ class DashboardControllerMixin:
             if "app" in _sys.modules:
                 setattr(_sys.modules["app"], "CURRENT_LANG", value)
         except Exception:
-            _selfmod.CURRENT_LANG = value
+            try:
+                _selfmod.CURRENT_LANG = value
+            except Exception:
+                pass
         self.settings["lang"] = value
         save_json(SETTINGS_FILE, self.settings)
 
