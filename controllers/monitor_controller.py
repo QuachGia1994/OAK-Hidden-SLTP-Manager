@@ -28,10 +28,13 @@ class MonitorControllerMixin:
         live = self._get_live_running_profiles()
         if not live:
             return None
-        try:
-            sel = self.combo_profiles.get() if hasattr(self, "combo_profiles") else None
-        except Exception:
-            sel = None
+        # Prefer pure Python state (safe from any thread); widget only as fallback on main thread
+        sel = getattr(self, "selected_profile_name", None)
+        if not sel:
+            try:
+                sel = self.combo_profiles.get() if hasattr(self, "combo_profiles") else None
+            except Exception:
+                sel = None
         if sel in live:
             return sel
         declared = getattr(self, "running_profile_name", None)
@@ -239,6 +242,7 @@ class MonitorControllerMixin:
 
 
     def monitor_worker_output(self, profile_name, proc):
+        """Reader thread: never touch Tk widgets; only pure Python state + after()."""
         try:
             for line in iter(proc.stdout.readline, ''):
                 if not line: break
@@ -251,10 +255,13 @@ class MonitorControllerMixin:
 
                     if profile_name in self.workers:
                         self.workers[profile_name]["logs"].append(clean_line)
-                    
-                    if self.combo_profiles.get() == profile_name:
+
+                    # Tk is not thread-safe — do not call combo_profiles.get() here
+                    selected = getattr(self, "selected_profile_name", None)
+                    if selected == profile_name:
                         self.after(0, self.log_to_console_direct, clean_line)
-        except: pass
+        except Exception:
+            pass
         finally:
             self.after(0, lambda: self.update_ui_state(profile_name))
 
@@ -292,10 +299,12 @@ class MonitorControllerMixin:
 
     def update_ui_state(self, profile_name):
         """Refresh Start/Stop for *selected* profile; multi-live list is separate panel."""
-        try:
-            current_sel = self.combo_profiles.get() if hasattr(self, "combo_profiles") else ""
-        except Exception:
-            current_sel = profile_name or ""
+        current_sel = getattr(self, "selected_profile_name", None) or ""
+        if not current_sel:
+            try:
+                current_sel = self.combo_profiles.get() if hasattr(self, "combo_profiles") else ""
+            except Exception:
+                current_sel = profile_name or ""
 
         live = self._get_live_running_profiles()
         primary = self._get_live_running_profile()
@@ -323,8 +332,8 @@ class MonitorControllerMixin:
                 self.btn_stop.configure(state="normal", text=f"STOP {sel}")
             else:
                 self.btn_start.configure(state="normal", text=f"START {sel}")
-                # Stop selected only if that profile is live; else disabled
-                self.btn_stop.configure(state="disabled", text=T("btn_stop"))
+                # Disabled stop for non-live selected: label still names the profile
+                self.btn_stop.configure(state="disabled", text=f"STOP {sel}" if sel and sel != "—" else T("btn_stop"))
         except Exception:
             pass
 
@@ -335,7 +344,10 @@ class MonitorControllerMixin:
                     self.btn_copy_stop.configure(state="normal", text=f"STOP {sel}")
                 else:
                     self.btn_copy_start.configure(state="normal", text=f"START {sel}")
-                    self.btn_copy_stop.configure(state="disabled", text=T("btn_stop"))
+                    self.btn_copy_stop.configure(
+                        state="disabled",
+                        text=f"STOP {sel}" if sel and sel != "—" else T("btn_stop"),
+                    )
         except Exception:
             pass
 
@@ -389,20 +401,27 @@ class MonitorControllerMixin:
                 pass
             row = ctk.CTkFrame(frame, fg_color="transparent")
             row.pack(fill="x", pady=2)
-            ctk.CTkLabel(
+            # Click row label → select that profile (Account Source / dashboard)
+            name_lbl = ctk.CTkLabel(
                 row,
                 text=f"● {name}",
                 font=ctk.CTkFont(size=12, weight="bold"),
                 text_color="#66bb6a",
                 anchor="w",
-            ).pack(side="left", padx=(2, 6))
-            ctk.CTkLabel(
+                cursor="hand2",
+            )
+            name_lbl.pack(side="left", padx=(2, 6))
+            name_lbl.bind("<Button-1>", lambda _e, n=name: self._on_running_monitor_click(n))
+            pid_lbl = ctk.CTkLabel(
                 row,
                 text=f"PID {pid}",
                 font=ctk.CTkFont(size=11),
                 text_color="gray",
                 anchor="w",
-            ).pack(side="left", padx=(0, 8))
+                cursor="hand2",
+            )
+            pid_lbl.pack(side="left", padx=(0, 8))
+            pid_lbl.bind("<Button-1>", lambda _e, n=name: self._on_running_monitor_click(n))
             ctk.CTkButton(
                 row,
                 text="Stop",
@@ -413,31 +432,118 @@ class MonitorControllerMixin:
                 command=lambda n=name: self.stop_monitor_profile(n, confirm=True),
             ).pack(side="right", padx=2)
 
-
-    def _kill_orphan_workers(self, profile_name):
-        """Kill leftover --worker processes for this profile (python + pythonw)."""
-        if os.name != "nt" or not profile_name:
+    def _on_running_monitor_click(self, profile_name):
+        """Switch Account Source / selected profile when clicking a live monitor row."""
+        if not profile_name or profile_name not in getattr(self, "profiles", {}):
             return
         try:
-            # WMIC: match worker + profile in command line
+            self.select_profile(profile_name, source="running_panel", clear_console=False)
+        except Exception:
+            self.selected_profile_name = profile_name
+            try:
+                if hasattr(self, "combo_profiles"):
+                    self.combo_profiles.set(profile_name)
+            except Exception:
+                pass
+        try:
+            self.update_ui_state(profile_name)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _cmdline_profile_exact(cmdline, profile_name):
+        """True only when argv has --profile <name> with exact equality (not substring)."""
+        if not cmdline or not profile_name:
+            return False
+        # Tokenize: support quoted args and --profile=Name form
+        try:
+            import shlex
+            parts = shlex.split(cmdline, posix=False)
+        except Exception:
+            parts = cmdline.replace('"', "").split()
+        target = str(profile_name)
+        for i, part in enumerate(parts):
+            p = part.strip().strip('"').strip("'")
+            if p == "--profile":
+                if i + 1 < len(parts):
+                    val = parts[i + 1].strip().strip('"').strip("'")
+                    return val == target
+                return False
+            if p.startswith("--profile="):
+                return p.split("=", 1)[1].strip().strip('"').strip("'") == target
+        return False
+
+    def _kill_orphan_workers(self, profile_name):
+        """Kill leftover --worker processes for THIS profile only (exact --profile match).
+
+        Never use CommandLine like '%Vantage%' — that also kills VantageDemo.
+        """
+        if os.name != "nt" or not profile_name:
+            return
+        my_pid = os.getpid()
+        # Prefer known worker PID from registry (if still listed but dead/orphan)
+        try:
+            data = (getattr(self, "workers", None) or {}).get(profile_name) or {}
+            proc = data.get("proc")
+            known_pid = getattr(proc, "pid", None) if proc is not None else None
+            if known_pid and known_pid != my_pid:
+                try:
+                    # Only if process no longer tracked as live (orphan cleanup after stop)
+                    if proc is None or proc.poll() is not None:
+                        subprocess.run(
+                            ["taskkill", "/F", "/T", "/PID", str(known_pid)],
+                            capture_output=True,
+                            creationflags=subprocess.CREATE_NO_WINDOW,
+                        )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        try:
+            # List all --worker python processes; filter by exact --profile arg
             where = (
-                f"CommandLine like '%--worker%' and CommandLine like '%{profile_name}%' "
-                f"and (Name='python.exe' or Name='pythonw.exe')"
+                "CommandLine like '%--worker%' "
+                "and (Name='python.exe' or Name='pythonw.exe')"
             )
             result = subprocess.run(
-                ["wmic", "process", "where", where, "get", "ProcessId"],
-                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
+                ["wmic", "process", "where", where, "get", "ProcessId,CommandLine", "/FORMAT:LIST"],
+                capture_output=True,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
             )
-            for line in (result.stdout or "").splitlines():
-                line = line.strip()
-                if line.isdigit():
-                    pid = int(line)
-                    if pid != os.getpid():
-                        subprocess.run(
-                            ["taskkill", "/F", "/T", "/PID", str(pid)],
-                            capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW
-                        )
-                        self.log(f"Killed orphan worker for '{profile_name}' (PID: {pid})")
+            cmdline = None
+            pid = None
+            for raw in (result.stdout or "").splitlines():
+                line = raw.strip()
+                if not line:
+                    if pid is not None and cmdline is not None:
+                        if pid != my_pid and self._cmdline_profile_exact(cmdline, profile_name):
+                            subprocess.run(
+                                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                                capture_output=True,
+                                creationflags=subprocess.CREATE_NO_WINDOW,
+                            )
+                            self.log(f"Killed orphan worker for '{profile_name}' (PID: {pid})")
+                    cmdline = None
+                    pid = None
+                    continue
+                if line.lower().startswith("commandline="):
+                    cmdline = line.split("=", 1)[1].strip()
+                elif line.lower().startswith("processid="):
+                    try:
+                        pid = int(line.split("=", 1)[1].strip())
+                    except ValueError:
+                        pid = None
+            # Flush last block
+            if pid is not None and cmdline is not None:
+                if pid != my_pid and self._cmdline_profile_exact(cmdline, profile_name):
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(pid)],
+                        capture_output=True,
+                        creationflags=subprocess.CREATE_NO_WINDOW,
+                    )
+                    self.log(f"Killed orphan worker for '{profile_name}' (PID: {pid})")
         except Exception:
             pass
         # Clear stale lock so new worker can start

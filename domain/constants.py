@@ -12,6 +12,7 @@ BUILD = 3152
 CONFIG_FILE = "profiles.json"
 SETTINGS_FILE = "settings.json"
 TRADES_FILE = "trades.json"
+PENDING_PARTIALS_FILE = "pending_partials.json"
 SESSION_RECOVERY_FILE = "session_state.json"
 DEFAULT_TELEGRAM_TOKEN = ""
 MANUAL_TRENDS_FILE = "manual_trends.json"

@@ -581,14 +581,15 @@ class DashboardControllerMixin:
         if getattr(self, "_ui_rebuilding", False):
             return
         try:
-            # Selected combo vs running monitor (may differ)
-            profile = ""
-            combo = getattr(self, "combo_profiles", None)
-            if self._widget_alive(combo):
-                try:
-                    profile = combo.get() or ""
-                except Exception:
-                    profile = ""
+            # Selected profile (pure state preferred) vs running monitors
+            profile = getattr(self, "selected_profile_name", None) or ""
+            if not profile:
+                combo = getattr(self, "combo_profiles", None)
+                if self._widget_alive(combo):
+                    try:
+                        profile = combo.get() or ""
+                    except Exception:
+                        profile = ""
             # Multi: prefer selected if live, else primary live, else selected
             try:
                 live = self._get_live_running_profiles()
@@ -635,13 +636,14 @@ class DashboardControllerMixin:
                 pass
 
             # Account Card - server/status only (Balance/Equity intentionally hidden)
+            # Prefix MUST use hb_profile (source of heartbeat), never a different "running" label
             card_server = getattr(self, "card_account_server", None)
             card_status = getattr(self, "card_account_status", None)
             if self._widget_alive(card_server):
                 if hb and hb.get("server"):
                     server_text = f"{hb['server']} | #{hb.get('login', '')}"
-                    if running and profile and running != profile:
-                        server_text = f"[{running}] {server_text}"
+                    if hb_profile:
+                        server_text = f"[{hb_profile}] {server_text}"
                     if mt5_state["state"] != "Connected" and mt5_state.get("age") is not None:
                         server_text += f" ({int(mt5_state['age'])}s stale)"
                     card_server.configure(text=server_text)
@@ -802,12 +804,30 @@ class DashboardControllerMixin:
                 dot = "🟢" if is_running else "⚫"
                 self.card_engine_ghost.configure(text=f"Ghost: {dot} {'Active' if ghost_active else 'Off'}")
 
-            # Status Bar - read from heartbeat, not direct MT5 call
+            # Status Bar - multi: N/M Connected when several monitors are live
             if hasattr(self, 'status_mt5'):
                 state = mt5_state["state"]
                 age = mt5_state.get("age")
                 color = "#66bb6a" if state == "Connected" else "#ffb74d" if state == "Degraded" else "#ef5350"
-                if state == "Connected":
+                multi_label = None
+                try:
+                    if live and len(live) > 1 and hasattr(self, "_store") and self._store:
+                        n_ok = 0
+                        for pn in live:
+                            st = self._store.compute_mt5_state(pn) or {}
+                            if st.get("state") == "Connected":
+                                n_ok += 1
+                        multi_label = f"{n_ok}/{len(live)} Connected"
+                        color = (
+                            "#66bb6a" if n_ok == len(live)
+                            else "#ffb74d" if n_ok > 0
+                            else "#ef5350"
+                        )
+                except Exception:
+                    multi_label = None
+                if multi_label:
+                    label = multi_label
+                elif state == "Connected":
                     label = f"Connected ({int(age)}s)" if age is not None else "Connected"
                 elif state == "Degraded":
                     if mt5_state.get("last_error"):

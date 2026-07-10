@@ -24,13 +24,14 @@ from oak_logger import setup_logger
 from domain.constants import (
     CONFIG_FILE,
     SESSION_RECOVERY_FILE,
+    PENDING_PARTIALS_FILE,
     _mimo_bot_token,
     _mimo_bot_chat_id,
 )
 from domain.json_io import load_json, save_json
 from domain.i18n import T, CURRENT_LANG, LANG
 from domain.mt5_orders import get_filling_type, send_order_with_retry
-from domain.ticket_manager import TicketManager
+from domain.ticket_manager import TicketManager, trades_file_for_profile
 from domain.file_lock import FileLock
 from domain.balance import get_start_day_balance
 
@@ -42,11 +43,21 @@ def get_natural_response(category, **kwargs):
     except Exception:
         return ""
 
+
+def _safe_profile_filename(profile_name: str) -> str:
+    raw = (profile_name or "default").strip() or "default"
+    return "".join(c for c in raw if c.isalpha() or c.isdigit() or c in (" ", "-", "_")).strip() or "default"
+
+
+def pending_partials_file_for_profile(profile_name: str) -> str:
+    """Per-profile partial-close tasks (avoids ticket_id collisions across brokers)."""
+    return f"pending_partials_{_safe_profile_filename(profile_name)}.json"
+
+
 class CopyTradeManager:
     def __init__(self, config, notify_callback):
         self.config = config
         self.notify = notify_callback
-        self.ticket_manager = TicketManager()
         self.scheduled_trades = [] # List of dicts: {symbol, type, lot, time, sl, tp, status}
         self.scheduled_file = ""
 
@@ -87,10 +98,14 @@ class CopyTradeManager:
         # Unique Map File for this Profile
         profile_name = self.config.get("profile_name", "default")
         # Sanitize filename
-        safe_name = "".join([c for c in profile_name if c.isalpha() or c.isdigit() or c in (' ', '-', '_')]).strip()
+        safe_name = _safe_profile_filename(profile_name)
         self.local_map_file = f"copy_map_{safe_name}.json"
         self.scheduled_file = f"waiting_{safe_name}.json"
         self.scheduled_close_file = f"scheduled_close_{safe_name}.json"
+        self.pending_partials_file = pending_partials_file_for_profile(profile_name)
+        # Ticket state isolated per profile (multi-process safe)
+        self.ticket_manager = TicketManager(profile_name=profile_name)
+        self._migrate_legacy_pending_partials(profile_name)
         
         self.mapping = load_json(self.local_map_file) # {master_ticket: slave_ticket}
         self.mapping_lock = threading.Lock()
@@ -118,6 +133,36 @@ class CopyTradeManager:
                     self.notify(T("log_ignored_trades").format(count=len(self.ignored_tickets)))
             except:
                 pass
+
+    def _migrate_legacy_pending_partials(self, profile_name: str) -> None:
+        """One-shot: move this profile's tasks out of shared pending_partials.json."""
+        try:
+            dest = self.pending_partials_file
+            if os.path.exists(dest):
+                return
+            if not os.path.exists(PENDING_PARTIALS_FILE):
+                return
+            legacy = load_json(PENDING_PARTIALS_FILE)
+            if not isinstance(legacy, dict) or not legacy:
+                return
+            mine, rest = {}, {}
+            for tid, task in legacy.items():
+                if isinstance(task, dict) and task.get("profile") == profile_name:
+                    mine[tid] = task
+                else:
+                    rest[tid] = task
+            if not mine:
+                return
+            save_json(dest, mine)
+            save_json(PENDING_PARTIALS_FILE, rest)
+            log.info(
+                "Migrated %d pending_partials for profile '%s' → %s",
+                len(mine),
+                profile_name,
+                dest,
+            )
+        except Exception as e:
+            log.warning("pending_partials migrate skipped: %s", e)
 
     def _add_partial_close_task(self, ticket_id, target_profit, close_vol, target_price=None, symbol_hint=""):
         profile_name = self.config.get("profile_name", "Unknown")
@@ -160,7 +205,7 @@ class CopyTradeManager:
             return False
 
         # Load existing tasks
-        task_file = "pending_partials.json"
+        task_file = self.pending_partials_file
         tasks = load_json(task_file)
         if not isinstance(tasks, dict): tasks = {}
         
@@ -194,7 +239,7 @@ class CopyTradeManager:
 
     def _check_partial_close_tasks(self):
         """Check pending partial close tasks against current positions"""
-        task_file = "pending_partials.json"
+        task_file = self.pending_partials_file
         if not os.path.exists(task_file): return
         
         try:
@@ -1146,7 +1191,7 @@ class CopyTradeManager:
             
             # 2. Partial Close Tasks
             msg += "\n✂️ LỆNH CHỐT LỜI TỪNG PHẦN (PARTIAL):\n"
-            task_file = "pending_partials.json"
+            task_file = self.pending_partials_file
             partials_found = False
             if os.path.exists(task_file):
                 try:
@@ -1227,7 +1272,7 @@ class CopyTradeManager:
                 # Check for "allticketclose" keyword
                 if del_cmd[1].lower() == "allticketclose":
                     # 1. Clear Partial Close tasks
-                    task_file = "pending_partials.json"
+                    task_file = self.pending_partials_file
                     deleted_partials = 0
                     if os.path.exists(task_file):
                         try:
@@ -1267,7 +1312,7 @@ class CopyTradeManager:
                         save_json(self.scheduled_close_file, [])
                     # Xóa lệnh canh chốt từng phần (price/profit partials) của profile này
                     count_partials = 0
-                    task_file = "pending_partials.json"
+                    task_file = self.pending_partials_file
                     if os.path.exists(task_file):
                         try:
                             tasks = load_json(task_file)
@@ -1487,7 +1532,7 @@ class CopyTradeManager:
 
         # 3. Partial Close Tasks
         msg += "\n✂️ CHỐT LỜI TỪNG PHẦN (PARTIAL):\n"
-        task_file = "pending_partials.json"
+        task_file = self.pending_partials_file
         partials_found = False
         if os.path.exists(task_file):
             try:

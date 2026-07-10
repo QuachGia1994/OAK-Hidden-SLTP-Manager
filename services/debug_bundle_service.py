@@ -114,12 +114,27 @@ def list_export_candidates(root: str) -> List[Tuple[str, str]]:
         "pending_partials.json",
         "session_state.json",
         "signals_log.json",
+        "trades.json",
     ]
     out = []
     for name in names:
         p = os.path.join(root, name.replace("/", os.sep))
         if os.path.exists(p):
             out.append((name, p))
+    # Per-profile multi-monitor state files
+    try:
+        for fn in os.listdir(root):
+            if (
+                fn.startswith("pending_partials_")
+                or fn.startswith("trades_")
+                or fn.startswith("waiting_")
+                or fn.startswith("scheduled_close_")
+            ) and fn.endswith(".json"):
+                p = os.path.join(root, fn)
+                if os.path.isfile(p):
+                    out.append((fn, p))
+    except Exception:
+        pass
     return out
 
 

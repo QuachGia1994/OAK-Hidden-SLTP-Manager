@@ -302,8 +302,10 @@ class MonitorWorker(threading.Thread):
                 except:
                     return default
 
-            # Init Ticket Manager
-            self.ticket_manager = TicketManager()
+            # Init Ticket Manager (per-profile file — multi-process safe)
+            self.ticket_manager = TicketManager(
+                profile_name=self.config.get("profile_name")
+            )
             
             # Init Copy Manager
             self.copy_manager = CopyTradeManager(self.config, self.notify)
