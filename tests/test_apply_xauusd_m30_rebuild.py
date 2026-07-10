@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""XAU M30 flip: H=2-8 rebuild GBP from final XAU; H=9+ keep GBP on pattern Signal."""
+"""XAU M30 flip: H=2-8 rebuild GBP from final XAU; H=9+ XAU only."""
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -45,50 +45,19 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(pair_dirs["GBPAUD"], "SELL")
         self.assertEqual(pair_dirs["GBPJPY"], "BUY")
 
-    def test_h11_gbp_stays_on_pattern_signal_after_xau_flip(self):
-        """H=11: Signal BUY → GBPAUD/GBPUSD/GBPJPY SELL, GBPCAD BUY.
-        Even if XAU flips to SELL, GBP must NOT invert with XAU."""
+    def test_h9_plus_xau_only_after_flip(self):
+        """H=9+: pair_dirs has only XAU; M30 flip updates XAU only."""
         dt = _dt_monday()
-        H = 11
-        sig = "BUY"
-        pair_dirs = get_pair_direction(H, sig, dt)
-        self.assertEqual(pair_dirs["XAUUSD"], "BUY")
-        self.assertEqual(pair_dirs["GBPAUD"], "SELL")
-        self.assertEqual(pair_dirs["GBPUSD"], "SELL")
-        self.assertEqual(pair_dirs["GBPJPY"], "SELL")
-        self.assertEqual(pair_dirs["GBPCAD"], "BUY")
-
-        with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
-            # same as sig → flip XAU only
-            apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
-
-        self.assertEqual(pair_dirs["XAUUSD"], "SELL")  # flipped
-        # Still relative to pattern Signal BUY — not to final XAU
-        self.assertEqual(pair_dirs["GBPAUD"], "SELL")
-        self.assertEqual(pair_dirs["GBPUSD"], "SELL")
-        self.assertEqual(pair_dirs["GBPJPY"], "SELL")
-        self.assertEqual(pair_dirs["GBPCAD"], "BUY")
-
-    def test_h11_sell_signal_mapping(self):
-        dt = _dt_monday()
-        pair_dirs = get_pair_direction(11, "SELL", dt)
-        self.assertEqual(pair_dirs["XAUUSD"], "SELL")
-        self.assertEqual(pair_dirs["GBPAUD"], "BUY")
-        self.assertEqual(pair_dirs["GBPUSD"], "BUY")
-        self.assertEqual(pair_dirs["GBPJPY"], "BUY")
-        self.assertEqual(pair_dirs["GBPCAD"], "SELL")
-
-    def test_h9_gbp_stays_on_signal(self):
-        dt = _dt_monday()
-        sig = "BUY"
-        pair_dirs = get_pair_direction(9, sig, dt)
-        with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
-            apply_xauusd_m30_logic(pair_dirs, sig, dt, 9)
-        self.assertEqual(pair_dirs["XAUUSD"], "SELL")
-        self.assertEqual(pair_dirs["GBPAUD"], "SELL")  # opposite Signal BUY
-        self.assertEqual(pair_dirs["GBPUSD"], "BUY")
-        self.assertEqual(pair_dirs["GBPJPY"], "BUY")
-        self.assertEqual(pair_dirs["GBPCAD"], "BUY")
+        for H in (9, 11, 12, 14, 15):
+            with self.subTest(H=H):
+                sig = "BUY"
+                pair_dirs = get_pair_direction(H, sig, dt)
+                self.assertEqual(pair_dirs, {"XAUUSD": "BUY"})
+                with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
+                    apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
+                self.assertEqual(pair_dirs["XAUUSD"], "SELL")
+                for p in ("GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
+                    self.assertNotIn(p, pair_dirs)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
 ## [v3.15.2+] - 2026-07-09
-*Weekday-aware slots: Mon–Fri H=3-15; T5 H=3-4+H≥12 / T6 H=3-11 no-gold; H=14/15 Focus only.*
+*Weekday-aware slots: Mon–Fri H=3-15; T5/T6 no-gold; H=9+ Focus only; D-direction removed.*
 
 ### 📊 Schedule
 - **T2–T6**: slots **H=3..15** (Thứ 5 = Thứ 6).

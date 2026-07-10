@@ -32,8 +32,7 @@ Tài liệu liên quan:
 ### Signal bot và dashboard
 
 - Signal bot xử lý 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
-- Pair rules: **T2–T6 = H=3–15**; **T5 H=3–4+H≥12** / **T6 H=3–11** no-gold label; H=9/11/12 bám Signal, H=3–8 bám XAU sau M30; **H=14/15 Focus only**; T6 focus H=9+ = GA+GJ only.
-- D-direction nhận qua Telegram và đẩy sang bot gần như tức thì.
+- Pair rules: **T2–T6 = H=3–15**; **T5 H=3–4+H≥12** / **T6 H=3–11** no-gold; **H=3–8** map GBP vs XAU; **H=9+ Focus only** (no GBP pair dims); T6 focus H=9+ = GA+GJ only.
 - Dashboard web hiển thị state, signals, history 7 ngày, rules và fact-check.
 - VIP dashboard giữ trạng thái bằng cookie server-side qua `/?vip=TOKEN`.
 

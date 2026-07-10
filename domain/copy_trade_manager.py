@@ -623,8 +623,6 @@ class CopyTradeManager:
                 if not today:
                     self._send_mimo_response("📡 Chưa có tín hiệu hôm nay (`bot_state` / `signals_log`).")
                     return
-                d_dir = state.get("d_direction") or "—"
-                d_matched = state.get("d_matched_hour")
                 today_rows = [r for r in (log_rows or []) if r.get("date") == today]
                 by_hour = {}
                 for row in today_rows:
@@ -635,7 +633,6 @@ class CopyTradeManager:
                     by_hour[h] = row
                 lines = [
                     f"📡 *TÍN HIỆU HÔM NAY* ({today})",
-                    f"Hướng D: `{d_dir}`" + (f" | match H={d_matched}" if d_matched is not None else ""),
                     "",
                 ]
                 if not by_hour:

@@ -93,32 +93,18 @@ Quy trình dùng tab này:
 | --- | --- |
 | H=3–4 | GBPJPY **cùng Vàng**, GBPAUD **ngược Vàng**, GBPUSD/GBPCAD `--` (note + Focus quan hệ) |
 | H=5–8 | list Focus GBPAUD · GBPJPY (cùng band pair_dirs với H=3–4) |
-| H=9 | GBPAUD **ngược Signal**; GBPUSD/GBPJPY/GBPCAD **cùng Signal** |
-| H=11 | GBPAUD/GBPUSD/GBPJPY **ngược Signal**; GBPCAD **cùng Signal** |
-| H=12 | GBPAUD/GBPUSD **ngược Signal**; GBPJPY/GBPCAD **cùng Signal** |
-| H=14–15 | **Chỉ Focus** nhóm GBP (không gán chiều BUY/SELL pair_dirs) |
+| H=9+ | **Chỉ XAUUSD** trong pair_dirs; GBP = Focus list (không gán chiều) |
 | H khác | Chỉ Vàng |
 
 **Focus GBP (UI/Telegram)**
 - **H=3–8**: GBPAUD · GBPJPY (mọi ngày)
-- **H=9/11/12/14/15 T2–T5**: đủ nhóm GBP
+- **H=9/11/12/14/15 T2–T5**: đủ nhóm GBP (Focus only)
 - **H=9/11/12/14/15 T6**: chỉ GBPAUD · GBPJPY (không GBPUSD/GBPCAD)
 
 **XAU M30 flip**
 - Cùng chiều M30 XAU → đảo XAUUSD; ngược → theo M30
 - **H=3–8**: rebuild GBP theo **final XAU** sau flip
-- **H=9/11/12**: GBP **giữ theo pattern Signal**; chỉ cập nhật dòng XAUUSD
-- **H=14/15**: chỉ cập nhật XAUUSD (Focus GBP không có chiều)
-
-**Ví dụ H=11, KẾT LUẬN BUY**
-- GBPAUD / GBPUSD / GBPJPY → **SELL**
-- GBPCAD → **BUY**
-- XAUUSD có thể **SELL** nếu M30 flip
-
-### D Direction
-
-- Nhận từ Telegram; lưu và push dashboard
-- Áp dụng theo rule ngày (Mon/Thu/Fri broker)
+- **H=9+**: chỉ cập nhật XAUUSD
 
 ### Rule no-gold label
 
@@ -133,7 +119,7 @@ Quy trình dùng tab này:
 
 URL: [https://oak-hidden-sltp-manager-dun.vercel.app](https://oak-hidden-sltp-manager-dun.vercel.app)
 
-- `Dashboard`: state, signals hôm nay, D-direction, news
+- `Dashboard`: state, signals hôm nay, news
 - `Lịch sử`: signal ~7 ngày (pair_dirs + note)
 - `Xác thực tin tức`: fact-check text/ảnh OCR
 - `Rules`: rule schedule + note đặc biệt theo ngày
