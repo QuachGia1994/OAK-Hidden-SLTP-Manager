@@ -63,8 +63,15 @@ class MonitorControllerMixin:
                 creationflags=creationflags
             )
             
-            # Register for cleanup on exit/crash
-            _running_processes.append(proc)
+            # Register for cleanup on exit/crash (shared list from domain module)
+            try:
+                _running_processes.append(proc)
+            except NameError:
+                import OAK_Hidden_SLTP_Manager as _oak
+                _oak._running_processes.append(proc)
+                # keep controller free-name in sync for subsequent starts
+                import controllers.monitor_controller as _selfmod
+                _selfmod._running_processes = _oak._running_processes
             
             # Reset logs for this run
             self.workers[profile_name] = {

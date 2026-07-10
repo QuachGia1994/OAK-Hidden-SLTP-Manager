@@ -54,6 +54,9 @@ _OAK_NAMES = (
     "get_natural_response",
     "get_filling_type",
     "send_order_with_retry",
+    # Process registry (must be same list object as domain atexit cleanup)
+    "_running_processes",
+    "_cleanup_processes",
     "mt5",
     "ctk",
     "tkinter",
@@ -69,6 +72,9 @@ _OAK_NAMES = (
     "re",
     "winsound",
     "oak_trading_reminders",
+    "urllib",
+    "random",
+    "ctypes",
 )
 
 
@@ -81,6 +87,12 @@ def bind_oak_globals(
     for name in _OAK_NAMES:
         if hasattr(oak_module, name):
             payload[name] = getattr(oak_module, name)
+
+    # Always share process registry list (even if name was missing from explicit set)
+    if hasattr(oak_module, "_running_processes"):
+        payload["_running_processes"] = oak_module._running_processes
+    if hasattr(oak_module, "_cleanup_processes"):
+        payload["_cleanup_processes"] = oak_module._cleanup_processes
 
     # Standard libraries often referenced bare in methods
     import customtkinter as ctk
@@ -95,10 +107,18 @@ def bind_oak_globals(
     import json
     import time
     import re
+    import random
+    import urllib.request
+    import urllib.parse
+    import urllib
     try:
         import winsound
     except Exception:
         winsound = None  # type: ignore
+    try:
+        import ctypes
+    except Exception:
+        ctypes = None  # type: ignore
 
     payload.setdefault("ctk", ctk)
     payload.setdefault("mt5", mt5)
@@ -113,8 +133,12 @@ def bind_oak_globals(
     payload.setdefault("json", json)
     payload.setdefault("time", time)
     payload.setdefault("re", re)
+    payload.setdefault("random", random)
+    payload.setdefault("urllib", urllib)
     if winsound is not None:
         payload.setdefault("winsound", winsound)
+    if ctypes is not None:
+        payload.setdefault("ctypes", ctypes)
 
     targets = []
     for mod_name in _CONTROLLER_MODULES:
@@ -128,3 +152,9 @@ def bind_oak_globals(
     for mod in targets:
         for k, v in payload.items():
             setattr(mod, k, v)
+
+    # Defensive: also patch monitor_controller with a local fallback list
+    # if domain somehow lacked the symbol (should not happen).
+    mon = importlib.import_module("controllers.monitor_controller")
+    if not hasattr(mon, "_running_processes") or mon._running_processes is None:
+        mon._running_processes = []
