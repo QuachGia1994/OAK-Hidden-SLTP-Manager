@@ -6,6 +6,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 
 
 class MonitorControllerMixin:
@@ -186,7 +187,7 @@ class MonitorControllerMixin:
             return
         if not self._is_profile_live(profile_name):
             self.log(f"Monitor '{profile_name}' is not running.")
-            self.refresh_running_monitors_panel()
+            self.refresh_running_monitors_panel(force=True)
             try:
                 self.update_ui_state(profile_name)
             except Exception:
@@ -194,16 +195,8 @@ class MonitorControllerMixin:
             return
 
         if confirm:
-            try:
-                from tkinter import messagebox
-                if not messagebox.askyesno(
-                    "Stop Monitor",
-                    f"Stop monitor for '{profile_name}'?\n\n"
-                    "Other running monitors are not affected.",
-                ):
-                    return
-            except Exception:
-                pass
+            if not self._confirm_stop_monitor(profile_name):
+                return
 
         proc = self.workers[profile_name]["proc"]
         try:
@@ -236,10 +229,169 @@ class MonitorControllerMixin:
             pass
         self._kill_orphan_workers(profile_name)
         self.update_ui_state(profile_name)
-        self.refresh_running_monitors_panel()
+        self.refresh_running_monitors_panel(force=True)
         self.after(400, lambda: self.update_ui_state(profile_name))
-        self.after(400, self.refresh_running_monitors_panel)
+        self.after(400, lambda: self.refresh_running_monitors_panel(force=True))
 
+    def _stop_dialog_account_line(self, profile_name):
+        """Best-effort account line for stop confirm dialog."""
+        try:
+            if hasattr(self, "_store") and self._store and profile_name:
+                hb = self._store.get_heartbeat(profile_name) or {}
+                server = hb.get("server") or ""
+                login = hb.get("login") or ""
+                if server or login:
+                    return f"{server or '—'} | #{login or '—'}"
+        except Exception:
+            pass
+        try:
+            cfg = (getattr(self, "profiles", {}) or {}).get(profile_name) or {}
+            login = cfg.get("login_id") or cfg.get("login") or ""
+            path = cfg.get("path") or ""
+            if login or path:
+                return f"{path or '—'} | #{login or '—'}"
+        except Exception:
+            pass
+        return "—"
+
+    def _confirm_stop_monitor(self, profile_name):
+        """Clear stop target dialog (profile / PID / account). Returns True if confirmed."""
+        pid = "—"
+        try:
+            proc = (self.workers.get(profile_name) or {}).get("proc")
+            if proc is not None:
+                pid = str(getattr(proc, "pid", "—") or "—")
+        except Exception:
+            pass
+        account = self._stop_dialog_account_line(profile_name)
+        others = [n for n in self._get_live_running_profiles() if n != profile_name]
+
+        # Prefer custom modal so target is unambiguous vs selected combo
+        try:
+            return self._confirm_stop_monitor_modal(profile_name, pid, account, others)
+        except Exception:
+            try:
+                from tkinter import messagebox
+                return bool(
+                    messagebox.askyesno(
+                        "Stop running monitor",
+                        f"Stop running monitor\n\n"
+                        f"Profile: {profile_name}\n"
+                        f"PID: {pid}\n"
+                        f"Account: {account}\n\n"
+                        f"Other monitors will remain active"
+                        + (f" ({', '.join(others)})." if others else "."),
+                    )
+                )
+            except Exception:
+                return True
+
+    def _confirm_stop_monitor_modal(self, profile_name, pid, account, others):
+        """CTk modal: highlight stop target; pause panel thrash while open."""
+        self._stop_dialog_open = True
+        self._stop_highlight_profile = profile_name
+        try:
+            self.refresh_running_monitors_panel(force=True)
+        except Exception:
+            pass
+
+        result = {"ok": False}
+        popup = ctk.CTkToplevel(self)
+        popup.title("Stop running monitor")
+        popup.resizable(False, False)
+        popup.attributes("-topmost", True)
+        try:
+            popup.transient(self)
+        except Exception:
+            pass
+        popup.grab_set()
+
+        body = ctk.CTkFrame(popup, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=18, pady=16)
+
+        ctk.CTkLabel(
+            body,
+            text="Stop running monitor",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            anchor="w",
+        ).pack(fill="x", pady=(0, 10))
+
+        detail = ctk.CTkFrame(body, fg_color=("#3d2020", "#3d2020"), corner_radius=8)
+        detail.pack(fill="x", pady=(0, 10))
+        for label, val in (
+            ("Profile", profile_name),
+            ("PID", pid),
+            ("Account", account),
+        ):
+            row = ctk.CTkFrame(detail, fg_color="transparent")
+            row.pack(fill="x", padx=12, pady=4)
+            ctk.CTkLabel(
+                row, text=f"{label}:", width=70, anchor="w", text_color="gray"
+            ).pack(side="left")
+            ctk.CTkLabel(
+                row,
+                text=str(val),
+                anchor="w",
+                font=ctk.CTkFont(weight="bold" if label == "Profile" else "normal"),
+                text_color="#ef5350" if label == "Profile" else None,
+            ).pack(side="left", fill="x", expand=True)
+
+        note = "Other monitors will remain active."
+        if others:
+            note = f"Other monitors will remain active: {', '.join(others)}."
+        ctk.CTkLabel(
+            body, text=note, anchor="w", justify="left", wraplength=320, text_color="gray"
+        ).pack(fill="x", pady=(0, 14))
+
+        btns = ctk.CTkFrame(body, fg_color="transparent")
+        btns.pack(fill="x")
+
+        def _close(ok):
+            result["ok"] = bool(ok)
+            try:
+                popup.grab_release()
+            except Exception:
+                pass
+            try:
+                popup.destroy()
+            except Exception:
+                pass
+
+        ctk.CTkButton(
+            btns,
+            text="Cancel",
+            width=100,
+            fg_color="gray40",
+            command=lambda: _close(False),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btns,
+            text=f"Stop {profile_name}",
+            width=140,
+            fg_color="#d9534f",
+            hover_color="#c9302c",
+            command=lambda: _close(True),
+        ).pack(side="right")
+
+        popup.protocol("WM_DELETE_WINDOW", lambda: _close(False))
+        try:
+            popup.update_idletasks()
+            popup.geometry(f"360x280+{self.winfo_rootx() + 80}+{self.winfo_rooty() + 80}")
+        except Exception:
+            popup.geometry("360x280")
+
+        try:
+            self.wait_window(popup)
+        except Exception:
+            pass
+        finally:
+            self._stop_dialog_open = False
+            self._stop_highlight_profile = None
+            try:
+                self.refresh_running_monitors_panel(force=True)
+            except Exception:
+                pass
+        return result["ok"]
 
     def monitor_worker_output(self, profile_name, proc):
         """Reader thread: never touch Tk widgets; only pure Python state + after()."""
@@ -356,8 +508,31 @@ class MonitorControllerMixin:
         except Exception:
             pass
 
-    def refresh_running_monitors_panel(self):
-        """Rebuild multi-monitor list: ● Name   PID   [Stop]."""
+    def _running_monitors_signature(self, live=None):
+        """Stable signature for live monitors (name, pid) — skip no-op rebuilds."""
+        if live is None:
+            live = self._get_live_running_profiles()
+        parts = []
+        for name in live:
+            pid = "—"
+            try:
+                proc = (self.workers.get(name) or {}).get("proc")
+                pid = str(getattr(proc, "pid", "—") or "—")
+            except Exception:
+                pass
+            parts.append((name, pid))
+        return tuple(parts)
+
+    def refresh_running_monitors_panel(self, force=False):
+        """Diff-update multi-monitor list (avoid empty flash from destroy-all thrash)."""
+        # While stop modal is open, only recolor rows — never tear down the list
+        if getattr(self, "_stop_dialog_open", False) and not force:
+            try:
+                self._apply_running_row_highlights()
+            except Exception:
+                pass
+            return
+
         frame = getattr(self, "running_monitors_frame", None)
         if frame is None:
             return
@@ -367,70 +542,196 @@ class MonitorControllerMixin:
         except Exception:
             return
 
-        for child in list(frame.winfo_children()):
-            try:
-                child.destroy()
-            except Exception:
-                pass
-
         live = self._get_live_running_profiles()
-        hdr = ctk.CTkLabel(
-            frame,
-            text="Running Monitors" + (f" ({len(live)})" if live else ""),
-            font=ctk.CTkFont(size=12, weight="bold"),
-            anchor="w",
-        )
-        hdr.pack(fill="x", padx=2, pady=(0, 4))
+        sig = self._running_monitors_signature(live)
+        hl = getattr(self, "_stop_highlight_profile", None)
+        last_sig = getattr(self, "_running_panel_sig", None)
+        last_hl = getattr(self, "_running_panel_hl", None)
 
-        if not live:
-            ctk.CTkLabel(
+        # Ensure stable structure once (header + body), not full destroy every tick
+        body = getattr(self, "_running_body", None)
+        hdr = getattr(self, "_running_hdr", None)
+        empty_lbl = getattr(self, "_running_empty_lbl", None)
+        rows = getattr(self, "_running_row_widgets", None)
+        if rows is None:
+            rows = {}
+            self._running_row_widgets = rows
+
+        structure_ok = False
+        try:
+            structure_ok = (
+                hdr is not None
+                and hdr.winfo_exists()
+                and body is not None
+                and body.winfo_exists()
+            )
+        except Exception:
+            structure_ok = False
+
+        if not structure_ok or force:
+            for child in list(frame.winfo_children()):
+                try:
+                    child.destroy()
+                except Exception:
+                    pass
+            rows.clear()
+            self._running_hdr = ctk.CTkLabel(
                 frame,
+                text="Running Monitors",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                anchor="w",
+            )
+            self._running_hdr.pack(fill="x", padx=2, pady=(0, 4))
+            self._running_body = ctk.CTkFrame(frame, fg_color="transparent")
+            self._running_body.pack(fill="both", expand=True)
+            self._running_empty_lbl = ctk.CTkLabel(
+                self._running_body,
                 text="No monitors running",
                 font=ctk.CTkFont(size=11),
                 text_color="gray",
                 anchor="w",
-            ).pack(fill="x", padx=4, pady=2)
+            )
+            hdr = self._running_hdr
+            body = self._running_body
+            empty_lbl = self._running_empty_lbl
+            last_sig = None  # force row rebuild
+
+        # Header count always tracks live set
+        try:
+            n = len(live)
+            hdr.configure(text=f"Running Monitors ({n})" if n else "Running Monitors")
+        except Exception:
+            pass
+
+        if not force and sig == last_sig and hl == last_hl:
             return
+
+        self._running_panel_sig = sig
+        self._running_panel_hl = hl
+
+        # Empty state
+        if not live:
+            for name in list(rows.keys()):
+                self._destroy_running_row(name)
+            try:
+                if empty_lbl is not None and empty_lbl.winfo_exists():
+                    if not empty_lbl.winfo_ismapped():
+                        empty_lbl.pack(fill="x", padx=4, pady=2)
+            except Exception:
+                try:
+                    empty_lbl.pack(fill="x", padx=4, pady=2)
+                except Exception:
+                    pass
+            return
+
+        try:
+            if empty_lbl is not None and empty_lbl.winfo_exists() and empty_lbl.winfo_ismapped():
+                empty_lbl.pack_forget()
+        except Exception:
+            pass
+
+        live_set = set(live)
+        for name in list(rows.keys()):
+            if name not in live_set:
+                self._destroy_running_row(name)
 
         for name in live:
             pid = "—"
             try:
-                proc = self.workers[name]["proc"]
+                proc = (self.workers.get(name) or {}).get("proc")
                 pid = str(getattr(proc, "pid", "—") or "—")
             except Exception:
                 pass
-            row = ctk.CTkFrame(frame, fg_color="transparent")
-            row.pack(fill="x", pady=2)
-            # Click row label → select that profile (Account Source / dashboard)
-            name_lbl = ctk.CTkLabel(
-                row,
-                text=f"● {name}",
-                font=ctk.CTkFont(size=12, weight="bold"),
-                text_color="#66bb6a",
-                anchor="w",
-                cursor="hand2",
-            )
-            name_lbl.pack(side="left", padx=(2, 6))
-            name_lbl.bind("<Button-1>", lambda _e, n=name: self._on_running_monitor_click(n))
-            pid_lbl = ctk.CTkLabel(
-                row,
-                text=f"PID {pid}",
-                font=ctk.CTkFont(size=11),
-                text_color="gray",
-                anchor="w",
-                cursor="hand2",
-            )
-            pid_lbl.pack(side="left", padx=(0, 8))
-            pid_lbl.bind("<Button-1>", lambda _e, n=name: self._on_running_monitor_click(n))
-            ctk.CTkButton(
-                row,
-                text="Stop",
-                width=56,
-                height=26,
-                fg_color="#d9534f",
-                hover_color="#c9302c",
-                command=lambda n=name: self.stop_monitor_profile(n, confirm=True),
-            ).pack(side="right", padx=2)
+            if name not in rows:
+                self._create_running_row(name, pid)
+            else:
+                self._update_running_row(name, pid)
+
+        self._apply_running_row_highlights()
+
+    def _create_running_row(self, name, pid):
+        body = getattr(self, "_running_body", None)
+        if body is None:
+            return
+        rows = self._running_row_widgets
+        highlight = getattr(self, "_stop_highlight_profile", None) == name
+        bg = ("#4a2020", "#4a2020") if highlight else "transparent"
+        row = ctk.CTkFrame(body, fg_color=bg, corner_radius=6)
+        row.pack(fill="x", pady=2)
+        name_lbl = ctk.CTkLabel(
+            row,
+            text=f"● {name}",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#ef5350" if highlight else "#66bb6a",
+            anchor="w",
+            cursor="hand2",
+        )
+        name_lbl.pack(side="left", padx=(6, 6))
+        name_lbl.bind("<Button-1>", lambda _e, n=name: self._on_running_monitor_click(n))
+        pid_lbl = ctk.CTkLabel(
+            row,
+            text=f"PID {pid}",
+            font=ctk.CTkFont(size=11),
+            text_color="gray",
+            anchor="w",
+            cursor="hand2",
+        )
+        pid_lbl.pack(side="left", padx=(0, 8))
+        pid_lbl.bind("<Button-1>", lambda _e, n=name: self._on_running_monitor_click(n))
+        stop_btn = ctk.CTkButton(
+            row,
+            text="Stop",
+            width=56,
+            height=26,
+            fg_color="#d9534f",
+            hover_color="#c9302c",
+            command=lambda n=name: self.stop_monitor_profile(n, confirm=True),
+        )
+        stop_btn.pack(side="right", padx=4, pady=2)
+        rows[name] = {
+            "frame": row,
+            "name_lbl": name_lbl,
+            "pid_lbl": pid_lbl,
+            "stop_btn": stop_btn,
+            "pid": pid,
+        }
+
+    def _update_running_row(self, name, pid):
+        rows = getattr(self, "_running_row_widgets", {}) or {}
+        info = rows.get(name)
+        if not info:
+            return
+        if info.get("pid") != pid:
+            info["pid"] = pid
+            try:
+                info["pid_lbl"].configure(text=f"PID {pid}")
+            except Exception:
+                pass
+
+    def _destroy_running_row(self, name):
+        rows = getattr(self, "_running_row_widgets", {}) or {}
+        info = rows.pop(name, None)
+        if not info:
+            return
+        try:
+            info["frame"].destroy()
+        except Exception:
+            pass
+
+    def _apply_running_row_highlights(self):
+        rows = getattr(self, "_running_row_widgets", {}) or {}
+        hl = getattr(self, "_stop_highlight_profile", None)
+        for name, info in rows.items():
+            highlight = hl == name
+            try:
+                info["frame"].configure(
+                    fg_color=("#4a2020", "#4a2020") if highlight else "transparent"
+                )
+                info["name_lbl"].configure(
+                    text_color="#ef5350" if highlight else "#66bb6a"
+                )
+            except Exception:
+                pass
 
     def _on_running_monitor_click(self, profile_name):
         """Switch Account Source / selected profile when clicking a live monitor row."""

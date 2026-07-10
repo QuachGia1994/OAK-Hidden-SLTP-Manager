@@ -139,6 +139,13 @@ class App(
         self._last_json_mtime = 0  # Initialize for periodic refresh sync
         self.selected_profile_name = None  # Profile selected in list (editing)
         self.running_profile_name = None  # Profile with active worker
+        # Diagnostics "Current Session" cutoff (epoch seconds)
+        import time as _time
+        self._session_started_at = _time.time()
+        self._stop_dialog_open = False
+        self._stop_highlight_profile = None
+        self._running_row_widgets = {}
+        self._running_panel_sig = None
 
         # Injects profile_name if missing from profiles to ensure sync works
         for name, profile in self.profiles.items():

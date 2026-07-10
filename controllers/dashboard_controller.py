@@ -110,12 +110,17 @@ class DashboardControllerMixin:
         self.add_ui_element("btn_stop", self.btn_stop)
 
         # Multi-monitor list (each row: name + PID + Stop)
+        # Taller so 3+ rows stay visible without empty scroll trap
         self.running_monitors_frame = ctk.CTkScrollableFrame(
-            left_panel, height=120, label_text=""
+            left_panel, height=150, label_text=""
         )
         self.running_monitors_frame.pack(fill="x", pady=(0, 12))
+        self._running_row_widgets = {}
+        self._running_panel_sig = None
+        self._stop_dialog_open = False
+        self._stop_highlight_profile = None
         try:
-            self.refresh_running_monitors_panel()
+            self.refresh_running_monitors_panel(force=True)
         except Exception:
             pass
 
@@ -904,10 +909,28 @@ class DashboardControllerMixin:
         header = ctk.CTkLabel(frame, text="Diagnostics & Logs", font=ctk.CTkFont(size=16, weight="bold"))
         header.pack(pady=(10, 5), anchor="w", padx=10)
 
+        # Time scope: Current Session | Last 15 Minutes | All History
+        scope_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        scope_frame.pack(fill="x", padx=10, pady=(0, 4))
+        ctk.CTkLabel(scope_frame, text="Scope:").pack(side="left")
+        self._log_scope_var = ctk.StringVar(value="session")
+        for value, label in (
+            ("session", "Current Session"),
+            ("15m", "Last 15 Minutes"),
+            ("all", "All History"),
+        ):
+            ctk.CTkRadioButton(
+                scope_frame,
+                text=label,
+                variable=self._log_scope_var,
+                value=value,
+                command=self._filter_logs,
+            ).pack(side="left", padx=5)
+
         # Log level filter
         filter_frame = ctk.CTkFrame(frame, fg_color="transparent")
         filter_frame.pack(fill="x", padx=10, pady=5)
-        ctk.CTkLabel(filter_frame, text="Filter:").pack(side="left")
+        ctk.CTkLabel(filter_frame, text="Level:").pack(side="left")
         self._log_level_var = ctk.StringVar(value="ALL")
         for level in ["ALL", "INFO", "WARNING", "ERROR"]:
             ctk.CTkRadioButton(filter_frame, text=level, variable=self._log_level_var, value=level,
@@ -930,6 +953,14 @@ class DashboardControllerMixin:
         btn_frame.pack(fill="x", padx=10, pady=5)
         ctk.CTkButton(btn_frame, text="Refresh", width=80, command=self._refresh_logs).pack(side="left", padx=3)
         ctk.CTkButton(btn_frame, text="Clear Display", width=100, command=self._clear_log_display).pack(side="left", padx=3)
+        ctk.CTkButton(
+            btn_frame,
+            text="Archive & Start New Log",
+            width=160,
+            fg_color="#5c6bc0",
+            hover_color="#3f51b5",
+            command=self._archive_and_start_new_log,
+        ).pack(side="left", padx=3)
         ctk.CTkButton(btn_frame, text="Copy Selected", width=100, command=self._copy_selected_logs).pack(side="left", padx=3)
         ctk.CTkButton(btn_frame, text="Open Log Folder", width=110, command=self._open_log_folder).pack(side="left", padx=3)
         ctk.CTkButton(btn_frame, text="Export Debug Bundle", width=150, command=self._export_debug_bundle).pack(side="left", padx=3)
@@ -985,15 +1016,47 @@ class DashboardControllerMixin:
             except Exception:
                 pass
 
-    def _refresh_logs(self):
-        """Load logs from app.log into the display."""
+    def _resolve_app_log_path(self):
+        """Prefer cwd/logs (runtime) then project root."""
         root = self._project_root()
         candidates = [
-            os.path.join(root, "logs", "app.log"),
             os.path.join(os.getcwd(), "logs", "app.log"),
+            os.path.join(root, "logs", "app.log"),
             os.path.join(root, "app.log"),
         ]
-        log_file = next((p for p in candidates if os.path.exists(p)), candidates[0])
+        return next((p for p in candidates if os.path.exists(p)), candidates[0]), candidates
+
+    @staticmethod
+    def _parse_log_line_ts(line):
+        """Parse leading 'YYYY-MM-DD HH:MM:SS' from oak_logger lines → epoch or None."""
+        if not line or len(line) < 19:
+            return None
+        try:
+            from datetime import datetime
+            return datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S").timestamp()
+        except Exception:
+            return None
+
+    def _log_scope_cutoff(self):
+        """Return epoch cutoff for scope filter, or None for All History."""
+        scope = "session"
+        try:
+            scope = (self._log_scope_var.get() or "session").strip()
+        except Exception:
+            pass
+        if scope == "all":
+            return None
+        if scope == "15m":
+            return time.time() - 15 * 60
+        started = getattr(self, "_session_started_at", None)
+        if started is None:
+            started = time.time()
+            self._session_started_at = started
+        return float(started)
+
+    def _refresh_logs(self):
+        """Load logs from app.log into the display (scoped + level filtered)."""
+        log_file, candidates = self._resolve_app_log_path()
         self._log_text.delete("1.0", "end")
         if not os.path.exists(log_file):
             self._log_text.insert(
@@ -1011,33 +1074,155 @@ class DashboardControllerMixin:
             with open(log_file, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
             level_filter = self._log_level_var.get()
+            cutoff = self._log_scope_cutoff()
+            scope = "session"
+            try:
+                scope = self._log_scope_var.get() or "session"
+            except Exception:
+                pass
             filtered = []
+            accepting = False
             for line in lines:
-                if level_filter == "ALL":
+                ts = self._parse_log_line_ts(line)
+                if ts is not None:
+                    if cutoff is not None and ts < cutoff:
+                        accepting = False
+                        continue
+                    if level_filter != "ALL" and f" - {level_filter} - " not in line:
+                        accepting = False
+                        continue
+                    accepting = True
                     filtered.append(line)
-                elif f" - {level_filter} - " in line:
-                    filtered.append(line)
-            # Show last 500 lines
+                else:
+                    if accepting:
+                        filtered.append(line)
             display = filtered[-500:] if len(filtered) > 500 else filtered
-            self._log_text.insert("1.0", "".join(display) if display else "(log empty after filter)\n")
+            if display:
+                self._log_text.insert("1.0", "".join(display))
+            else:
+                scope_label = {
+                    "session": "Current Session",
+                    "15m": "Last 15 Minutes",
+                    "all": "All History",
+                }.get(scope, scope)
+                self._log_text.insert(
+                    "1.0",
+                    f"(no lines for scope: {scope_label}"
+                    + (f", level: {level_filter}" if level_filter != "ALL" else "")
+                    + ")\n"
+                    "Tip: switch to All History, or use Archive & Start New Log.\n",
+                )
             if self._follow_var.get():
                 self._log_text.see("end")
             self._diag_status.configure(
-                text=f"Loaded {len(filtered)} lines ({len(lines)} total) · {os.path.basename(log_file)}"
+                text=(
+                    f"Scope={scope} · shown {len(display)} / matched {len(filtered)} "
+                    f"({len(lines)} file) · {os.path.basename(log_file)}"
+                )
             )
         except Exception as e:
             self._log_text.insert("1.0", f"Error reading log: {e}\nPath: {log_file}")
 
-
     def _filter_logs(self):
-        """Re-filter logs when level changes."""
+        """Re-filter logs when level or scope changes."""
         self._refresh_logs()
 
-
     def _clear_log_display(self):
-        """Clear the log display."""
+        """Clear the log display only (file unchanged)."""
         self._log_text.delete("1.0", "end")
+        try:
+            self._diag_status.configure(text="Display cleared (file unchanged)")
+        except Exception:
+            pass
 
+    def _archive_and_start_new_log(self):
+        """Rotate app.log to archive and open a fresh log for this session."""
+        from tkinter import messagebox
+        from datetime import datetime
+
+        log_file, _ = self._resolve_app_log_path()
+        log_dir = os.path.dirname(log_file) if log_file else os.path.join(self._project_root(), "logs")
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except Exception:
+            pass
+        target = os.path.join(log_dir, "app.log")
+        if not os.path.exists(target) and os.path.exists(log_file):
+            target = log_file
+
+        if not os.path.exists(target):
+            self._session_started_at = time.time()
+            try:
+                with open(target, "a", encoding="utf-8") as f:
+                    f.write(
+                        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} [oak] INFO - "
+                        f"New log session started (empty archive)\n"
+                    )
+            except Exception:
+                pass
+            self._refresh_logs()
+            try:
+                self._diag_status.configure(text="New session log started")
+            except Exception:
+                pass
+            return
+
+        try:
+            if not messagebox.askyesno(
+                "Archive & Start New Log",
+                "Archive the current app.log and start a fresh log file?\n\n"
+                "Historical errors stay in the archive; Current Session will only show new lines.",
+            ):
+                return
+        except Exception:
+            pass
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        archive = os.path.join(log_dir, f"app_{stamp}.log")
+        try:
+            try:
+                import logging
+                for name in list(logging.Logger.manager.loggerDict.keys()):
+                    lg = logging.getLogger(name)
+                    for h in list(lg.handlers):
+                        try:
+                            base = getattr(h, "baseFilename", "") or ""
+                            if base.replace("\\", "/").endswith("/app.log"):
+                                h.close()
+                                lg.removeHandler(h)
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+            os.replace(target, archive)
+            with open(target, "w", encoding="utf-8") as f:
+                f.write(
+                    f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} [oak] INFO - "
+                    f"Log archived to {os.path.basename(archive)}; new session started\n"
+                )
+            self._session_started_at = time.time()
+            try:
+                self._log_scope_var.set("session")
+            except Exception:
+                pass
+            self._refresh_logs()
+            try:
+                self._diag_status.configure(
+                    text=f"Archived → {os.path.basename(archive)} · new session"
+                )
+                self.log(f"Diagnostics: archived log to {os.path.basename(archive)}")
+            except Exception:
+                pass
+        except Exception as e:
+            try:
+                messagebox.showerror("Archive failed", str(e))
+            except Exception:
+                pass
+            try:
+                self._diag_status.configure(text=f"Archive error: {e}")
+            except Exception:
+                pass
 
     def _export_debug_bundle(self):
         """Export redacted logs/config/state zip (safe by default; raw is gated)."""

@@ -56,14 +56,19 @@ class FakeApp(MonitorControllerMixin):
     def refresh_profile_list(self):
         pass
 
-    def refresh_running_monitors_panel(self):
+    def refresh_running_monitors_panel(self, force=False):
         self._panel_refreshed = True
+        self._panel_force = force
 
     def _update_active_profile_badge(self, name):
         pass
 
     def _kill_orphan_workers(self, name):
         self.logs.append(f"orphan:{name}")
+
+    def _confirm_stop_monitor(self, profile_name):
+        # Unit tests never open modal
+        return True
 
 
 class TestMultiMonitor(unittest.TestCase):
@@ -239,6 +244,74 @@ class TestAccountCardPrefix(unittest.TestCase):
             buggy = f"[{running}] {buggy}"
         self.assertIn("[VantageDemo]", buggy)  # documents the old bug
         self.assertNotEqual(server_text, buggy)
+
+
+class TestRunningPanelSignature(unittest.TestCase):
+    def test_signature_tracks_pid_changes(self):
+        app = FakeApp()
+        app.workers = {
+            "A": {"proc": FakeProc(True, 11)},
+            "B": {"proc": FakeProc(True, 22)},
+        }
+        sig1 = app._running_monitors_signature()
+        self.assertEqual(sig1, (("A", "11"), ("B", "22")))
+        app.workers["A"]["proc"].pid = 99
+        sig2 = app._running_monitors_signature()
+        self.assertNotEqual(sig1, sig2)
+        self.assertEqual(sig2[0], ("A", "99"))
+
+    def test_skip_refresh_while_stop_dialog_open(self):
+        app = FakeApp()
+        app._stop_dialog_open = True
+        app._running_row_widgets = {}
+        app.running_monitors_frame = MagicMock()
+        app.running_monitors_frame.winfo_exists.return_value = True
+        # Real mixin method (not FakeApp override) for this check
+        calls = []
+        app._apply_running_row_highlights = lambda: calls.append("hl")
+        MonitorControllerMixin.refresh_running_monitors_panel(app, force=False)
+        self.assertEqual(calls, ["hl"])
+
+
+class TestDiagnosticsScope(unittest.TestCase):
+    def test_parse_log_line_ts(self):
+        from controllers.dashboard_controller import DashboardControllerMixin
+
+        ts = DashboardControllerMixin._parse_log_line_ts(
+            "2026-07-10 12:34:56 [copy] ERROR - boom\n"
+        )
+        self.assertIsNotNone(ts)
+        self.assertIsNone(DashboardControllerMixin._parse_log_line_ts("not a log line"))
+        self.assertIsNone(DashboardControllerMixin._parse_log_line_ts(""))
+
+    def test_session_cutoff_filters_old_errors(self):
+        """Old history must not appear under Current Session cutoff."""
+        from controllers.dashboard_controller import DashboardControllerMixin
+        from datetime import datetime, timedelta
+
+        now = datetime.now()
+        old = (now - timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+        new = now.strftime("%Y-%m-%d %H:%M:%S")
+        lines = [
+            f"{old} [x] ERROR - fixed yesterday\n",
+            f"{new} [x] INFO - session ok\n",
+        ]
+        cutoff = (now - timedelta(minutes=5)).timestamp()
+        filtered = []
+        accepting = False
+        for line in lines:
+            ts = DashboardControllerMixin._parse_log_line_ts(line)
+            if ts is not None:
+                if ts < cutoff:
+                    accepting = False
+                    continue
+                accepting = True
+                filtered.append(line)
+            elif accepting:
+                filtered.append(line)
+        self.assertEqual(len(filtered), 1)
+        self.assertIn("session ok", filtered[0])
+        self.assertNotIn("fixed yesterday", "".join(filtered))
 
 
 if __name__ == "__main__":
