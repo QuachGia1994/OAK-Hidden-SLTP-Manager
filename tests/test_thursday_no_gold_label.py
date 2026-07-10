@@ -52,7 +52,7 @@ class TestXauNoTradeLabel(unittest.TestCase):
 
     def test_telegram_block_h3(self):
         block = format_telegram_pair_block(
-            {"XAUUSD": "BUY", "GBPAUD": "SELL", "GBPJPY": "BUY"},
+            {"XAUUSD": "BUY", "GBPAUD": "SELL", "GBPJPY": "SELL"},
             3,
             weekday=3,
         )

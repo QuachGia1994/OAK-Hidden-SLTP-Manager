@@ -68,13 +68,14 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                 self.assertIn("XAUUSD", result)
 
     def test_works_on_all_weekdays(self):
+        """H=3 on any weekday: GA + GJ both opposite gold (XAU BUY → both SELL)."""
         for weekday in range(5):
             with self.subTest(weekday=weekday):
                 dt = _make_dt(2026, 7, 7, weekday_offset=weekday)
                 result = get_pair_direction(3, "BUY", dt)
                 self.assertEqual(result["XAUUSD"], "BUY")
                 self.assertEqual(result["GBPAUD"], "SELL")
-                self.assertEqual(result["GBPJPY"], "BUY")
+                self.assertEqual(result["GBPJPY"], "SELL")
 
 
 if __name__ == "__main__":
