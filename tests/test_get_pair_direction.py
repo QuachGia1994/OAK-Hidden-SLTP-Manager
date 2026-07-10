@@ -89,19 +89,20 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                 self.assertEqual(result["GBPJPY"], signal)
                 self.assertEqual(result["GBPCAD"], signal)
 
-    def test_h15_all_gbp_same(self):
-        """H=15: all GBP pairs same direction as Signal"""
-        for signal in ("BUY", "SELL"):
-            with self.subTest(signal=signal):
-                dt = _make_dt(2026, 7, 7, weekday_offset=0)
-                result = get_pair_direction(15, signal, dt)
-                self.assertEqual(result["XAUUSD"], signal)
-                for p in GBP_PAIRS:
-                    self.assertEqual(result[p], signal, f"{p} should be {signal}")
+    def test_h14_h15_focus_only_xauusd(self):
+        """H=14/15: only XAUUSD in pair_dirs (GBP is Focus-only on UI)."""
+        for H in (14, 15):
+            for signal in ("BUY", "SELL"):
+                with self.subTest(H=H, signal=signal):
+                    dt = _make_dt(2026, 7, 7, weekday_offset=0)
+                    result = get_pair_direction(H, signal, dt)
+                    self.assertEqual(result, {"XAUUSD": signal})
+                    for p in GBP_PAIRS:
+                        self.assertNotIn(p, result)
 
     def test_other_hours_xauusd_only(self):
-        """H=10,13,14,16: only XAUUSD in result"""
-        for H in (10, 13, 14, 16):
+        """H=10,13,16: only XAUUSD in result"""
+        for H in (10, 13, 16):
             with self.subTest(H=H):
                 dt = _make_dt(2026, 7, 7, weekday_offset=0)
                 result = get_pair_direction(H, "BUY", dt)

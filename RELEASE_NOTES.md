@@ -1,11 +1,11 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
 ## [v3.15.2+] - 2026-07-09
-*Weekday-aware slots: Mon–Fri H=3-15; T5/T6 H=3-4 + T5 H≥12 no-gold label.*
+*Weekday-aware slots: Mon–Fri H=3-15; T5 H=3-4+H≥12 / T6 H=3-11 no-gold; H=14/15 Focus only.*
 
 ### 📊 Schedule
 - **T2–T6**: slots **H=3..15** (Thứ 5 = Thứ 6).
-- **T5/T6 H=3–4** + **T5 H≥12**: no Gold entry label; XAU still drives GBP Focus.
+- **T5 H=3–4 + H≥12** / **T6 H=3–11**: no Gold entry label; T6 gold only H=12–15; H=14/15 GBP Focus only.
 - `get_target_hours(broker_dt)` — bot, rebuild, dashboard, countdown.
 
 ---

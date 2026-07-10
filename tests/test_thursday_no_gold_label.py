@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""No-gold LABEL slots: T5 H=3-4 + H≥12; T6 H=3-8 (logic still computes XAU)."""
+"""No-gold LABEL + Focus rules: T5 H=3-4+H≥12; T6 H=3-11; Fri focus narrow."""
 import unittest
 from datetime import datetime
 
@@ -9,6 +9,8 @@ from mt5_signal_bot import (
     xau_no_trade_label_tag,
     thursday_no_gold_label,
     get_hour_note,
+    get_focus_gbp_pairs,
+    get_pair_direction,
     format_telegram_pair_block,
 )
 from oak_trading_reminders import get_day_notes
@@ -23,13 +25,13 @@ class TestXauNoTradeLabel(unittest.TestCase):
             self.assertFalse(is_xau_no_trade_label_slot(h, mon), h)
             self.assertEqual(xau_no_trade_label_tag(h, thu), "H=3-4")
 
-    def test_t6_h3_to_h8(self):
+    def test_t6_h3_to_h11(self):
         fri = datetime(2026, 7, 10, 10, 0)  # Friday
-        for h in range(3, 9):
+        for h in range(3, 12):
             self.assertTrue(is_xau_no_trade_label_slot(h, fri), h)
-            self.assertEqual(xau_no_trade_label_tag(h, fri), "T6 H=3-8")
-        # H=9-15 Gold normal on Friday
-        for h in (9, 11, 12, 14, 15):
+            self.assertEqual(xau_no_trade_label_tag(h, fri), "T6 H=3-11")
+        # H=12-15 Gold normal on Friday
+        for h in (12, 14, 15):
             self.assertFalse(is_xau_no_trade_label_slot(h, fri), h)
             self.assertEqual(xau_no_trade_label_tag(h, fri), "")
 
@@ -44,7 +46,9 @@ class TestXauNoTradeLabel(unittest.TestCase):
     def test_alias(self):
         self.assertTrue(is_thursday_no_gold_slot(12, weekday=3))
         self.assertTrue(is_thursday_no_gold_slot(5, weekday=4))  # Fri H=5
-        self.assertFalse(is_thursday_no_gold_slot(9, weekday=4))  # Fri H=9 normal
+        self.assertTrue(is_thursday_no_gold_slot(9, weekday=4))  # Fri H=9 no-gold
+        self.assertTrue(is_thursday_no_gold_slot(11, weekday=4))  # Fri H=11 no-gold
+        self.assertFalse(is_thursday_no_gold_slot(12, weekday=4))  # Fri H=12 gold OK
 
     def test_telegram_block_h3(self):
         block = format_telegram_pair_block(
@@ -58,14 +62,18 @@ class TestXauNoTradeLabel(unittest.TestCase):
         self.assertIn("Focus · cùng Vàng", block)
         self.assertNotIn("GBPAUD: SELL", block)
 
-    def test_telegram_block_fri_h5(self):
+    def test_telegram_block_fri_h9(self):
         block = format_telegram_pair_block(
-            {"XAUUSD": "BUY", "GBPAUD": "SELL", "GBPJPY": "BUY"},
-            5,
+            {"XAUUSD": "BUY"},
+            9,
             weekday=4,
         )
         self.assertIn("KHÔNG ĐÁNH", block)
-        self.assertIn("T6 H=3-8", block)
+        self.assertIn("T6 H=3-11", block)
+        self.assertIn("GBPAUD", block)
+        self.assertIn("GBPJPY", block)
+        self.assertNotIn("GBPUSD", block)
+        self.assertNotIn("GBPCAD", block)
 
     def test_hour_note_h3_h4_relation(self):
         for h in (3, 4):
@@ -87,7 +95,42 @@ class TestXauNoTradeLabel(unittest.TestCase):
         self.assertIn("H=3-4", blob)
         notes_fri = get_day_notes(datetime(2026, 7, 10), lang="VN")
         blob_f = " ".join(notes_fri)
-        self.assertIn("H=3-8", blob_f)
+        self.assertIn("H=3-11", blob_f)
+        self.assertIn("H=12-15", blob_f)
+
+
+class TestFocusGbpPairs(unittest.TestCase):
+    def test_h3_h8_always_ga_gj(self):
+        for wd in (0, 1, 2, 3, 4):
+            for h in range(3, 9):
+                self.assertEqual(
+                    get_focus_gbp_pairs(h, weekday=wd),
+                    ["GBPAUD", "GBPJPY"],
+                    (wd, h),
+                )
+
+    def test_h9_full_group_mon_thu(self):
+        full = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
+        for wd in (0, 1, 2, 3):
+            for h in (9, 11, 12, 14, 15):
+                self.assertEqual(get_focus_gbp_pairs(h, weekday=wd), full, (wd, h))
+
+    def test_h9_fri_only_ga_gj(self):
+        for h in (9, 11, 12, 14, 15):
+            self.assertEqual(
+                get_focus_gbp_pairs(h, weekday=4),
+                ["GBPAUD", "GBPJPY"],
+                h,
+            )
+
+    def test_h14_h15_pair_dirs_xau_only(self):
+        """H=14/15: only Focus (no GBP BUY/SELL in pair_dirs)."""
+        mon = datetime(2026, 7, 6, 14, 0)
+        for h in (14, 15):
+            dirs = get_pair_direction(h, "BUY", mon)
+            self.assertEqual(dirs.get("XAUUSD"), "BUY")
+            for p in ("GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
+                self.assertNotIn(p, dirs, (h, p))
 
 
 if __name__ == "__main__":

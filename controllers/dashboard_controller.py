@@ -720,29 +720,39 @@ class DashboardControllerMixin:
                     if hour is not None:
                         try:
                             h = int(hour)
-                            if 3 <= h <= 8:
-                                focus_gbp = {"GBPAUD", "GBPJPY"}
-                            elif h in (9, 11, 12, 14, 15):
-                                focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
-                            # T5 H=3-4 / H≥12; T6 H=3-8 → label KHÔNG đánh Vàng
-                            # (XAU logic still used for GBP Focus)
                             sig_date = (latest or {}).get("date")
+                            wd = None
                             if sig_date:
                                 from datetime import date as _date
                                 try:
                                     y, m, d0 = [int(x) for x in str(sig_date).split("-")[:3]]
                                     wd = _date(y, m, d0).weekday()
-                                    if wd == 3 and h in (3, 4):
-                                        no_gold_entry = True
-                                        no_gold_tag = "H=3-4"
-                                    elif wd == 4 and 3 <= h <= 8:
-                                        no_gold_entry = True
-                                        no_gold_tag = "T6 H=3-8"
-                                    elif wd == 3 and h >= 12:
-                                        no_gold_entry = True
-                                        no_gold_tag = "T5 H≥12"
                                 except Exception:
-                                    pass
+                                    wd = None
+                            try:
+                                from mt5_signal_bot import (
+                                    get_focus_gbp_pairs as _gfp,
+                                    is_xau_no_trade_label_slot as _nogold,
+                                    xau_no_trade_label_tag as _ngtag,
+                                )
+                                focus_gbp = set(_gfp(h, weekday=wd) or [])
+                                no_gold_entry = bool(_nogold(h, weekday=wd))
+                                no_gold_tag = _ngtag(h, weekday=wd) or ""
+                            except Exception:
+                                # Fallback if signal bot unavailable
+                                if 3 <= h <= 8:
+                                    focus_gbp = {"GBPAUD", "GBPJPY"}
+                                elif h in (9, 11, 12, 14, 15):
+                                    if wd == 4:
+                                        focus_gbp = {"GBPAUD", "GBPJPY"}
+                                    else:
+                                        focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
+                                if wd == 3 and h in (3, 4):
+                                    no_gold_entry, no_gold_tag = True, "H=3-4"
+                                elif wd == 3 and h >= 12:
+                                    no_gold_entry, no_gold_tag = True, "T5 H≥12"
+                                elif wd == 4 and 3 <= h <= 11:
+                                    no_gold_entry, no_gold_tag = True, "T6 H=3-11"
                         except (TypeError, ValueError):
                             pass
                     p = getattr(self, "theme_palette", {}) or {}

@@ -96,13 +96,19 @@ Quy trình dùng tab này:
 | H=9 | GBPAUD **ngược Signal**; GBPUSD/GBPJPY/GBPCAD **cùng Signal** |
 | H=11 | GBPAUD/GBPUSD/GBPJPY **ngược Signal**; GBPCAD **cùng Signal** |
 | H=12 | GBPAUD/GBPUSD **ngược Signal**; GBPJPY/GBPCAD **cùng Signal** |
-| H=15 | Tất cả GBP **cùng Signal** |
+| H=14–15 | **Chỉ Focus** nhóm GBP (không gán chiều BUY/SELL pair_dirs) |
 | H khác | Chỉ Vàng |
+
+**Focus GBP (UI/Telegram)**
+- **H=3–8**: GBPAUD · GBPJPY (mọi ngày)
+- **H=9/11/12/14/15 T2–T5**: đủ nhóm GBP
+- **H=9/11/12/14/15 T6**: chỉ GBPAUD · GBPJPY (không GBPUSD/GBPCAD)
 
 **XAU M30 flip**
 - Cùng chiều M30 XAU → đảo XAUUSD; ngược → theo M30
-- **H=3–8**: rebuild GBP theo **final XAU** sau flip (T5 fire H=5–15)
-- **H=9/11/12/15**: GBP **giữ theo pattern Signal**; chỉ cập nhật dòng XAUUSD (có thể lệch Signal)
+- **H=3–8**: rebuild GBP theo **final XAU** sau flip
+- **H=9/11/12**: GBP **giữ theo pattern Signal**; chỉ cập nhật dòng XAUUSD
+- **H=14/15**: chỉ cập nhật XAUUSD (Focus GBP không có chiều)
 
 **Ví dụ H=11, KẾT LUẬN BUY**
 - GBPAUD / GBPUSD / GBPJPY → **SELL**
@@ -114,11 +120,11 @@ Quy trình dùng tab này:
 - Nhận từ Telegram; lưu và push dashboard
 - Áp dụng theo rule ngày (Mon/Thu/Fri broker)
 
-### Rule ngày đặc biệt (Thứ 5 only)
+### Rule no-gold label
 
-- **T2–T6**: slots **H=3–15** (Thứ 5 = Thứ 6 cùng band)
-- **T5 & T6 · H=3–4**: label **KHÔNG đánh Vàng** — vẫn tính XAU cho **Focus GBP**
-- **T5 · H≥12**: label **KHÔNG đánh Vàng** — vẫn tính XAU cho **Focus GBP**
+- **T2–T6**: slots **H=3–15**
+- **T5 · H=3–4** + **T5 · H≥12**: KHÔNG đánh Vàng (đánh H=5–11)
+- **T6 · H=3–11**: KHÔNG đánh Vàng (chỉ đánh H=12–15)
 - Thứ 5 có Thứ 4 hôm qua rơi ngày **30** hoặc **1** tây → nhắc tính lại W1
 - Thứ 5 có Thứ 6 tuần đó rơi ngày **3 / 4 / 7** → nhắc tính lại W1
 - Ngày khác: trade bình thường theo schedule
