@@ -75,6 +75,9 @@ _OAK_NAMES = (
     "urllib",
     "random",
     "ctypes",
+    "get_latest_display_signal",
+    "_mimo_bot_chat_id",
+    "_mimo_bot_token",
 )
 
 
@@ -139,6 +142,14 @@ def bind_oak_globals(
         payload.setdefault("winsound", winsound)
     if ctypes is not None:
         payload.setdefault("ctypes", ctypes)
+
+    # utils helpers used by dashboard cards
+    try:
+        from utils import get_latest_display_signal
+
+        payload.setdefault("get_latest_display_signal", get_latest_display_signal)
+    except Exception:
+        pass
 
     targets = []
     for mod_name in _CONTROLLER_MODULES:

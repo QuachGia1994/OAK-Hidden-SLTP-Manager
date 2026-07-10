@@ -4138,7 +4138,12 @@ class MonitorWorker(threading.Thread):
 
             last_lang_check = 0
             last_reconnect_check = 0
-            
+            last_heartbeat = 0.0
+            try:
+                _hb_store = SQLiteStore()
+            except Exception:
+                _hb_store = None
+
             # TRACKING: Initialize known tickets for closure detection
             self.known_tickets = set()
             first_run = True
@@ -4147,6 +4152,48 @@ class MonitorWorker(threading.Thread):
                 try:
                     # Loop throttling to save CPU
                     time.sleep(0.2)
+
+                    # Heartbeat for Dashboard Account/status bar (every ~2s)
+                    if _hb_store is not None and (time.time() - last_heartbeat) >= 2.0:
+                        last_heartbeat = time.time()
+                        try:
+                            term = mt5.terminal_info()
+                            acc = mt5.account_info() if term else None
+                            profile_name = self.config.get("profile_name", "") or "default"
+                            if term and acc:
+                                _hb_store.publish_heartbeat(
+                                    profile=profile_name,
+                                    state="connected",
+                                    server=getattr(acc, "server", "") or "",
+                                    login=int(getattr(acc, "login", 0) or 0),
+                                    balance=float(getattr(acc, "balance", 0) or 0),
+                                    equity=float(getattr(acc, "equity", 0) or 0),
+                                    last_error="",
+                                    telegram_configured=bool(
+                                        resolve_telegram_token(
+                                            profile_name,
+                                            self.config.get("tele_token", ""),
+                                            global_fallback=_mimo_bot_token,
+                                        )
+                                        and self.config.get("tele_chat", "")
+                                    ),
+                                    telegram_api_ok=False,
+                                    telegram_last_check="",
+                                    telegram_bot_name="",
+                                )
+                            else:
+                                err = ""
+                                try:
+                                    err = str(mt5.last_error())
+                                except Exception:
+                                    err = "MT5 disconnected"
+                                _hb_store.publish_heartbeat(
+                                    profile=profile_name,
+                                    state="disconnected",
+                                    last_error=err[:200],
+                                )
+                        except Exception:
+                            pass
 
                     # Auto Reconnect MT5 (Every 10s if needed)
                     if time.time() - last_reconnect_check > 10.0:

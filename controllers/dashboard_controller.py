@@ -585,25 +585,44 @@ class DashboardControllerMixin:
                 pair_dirs = {}
                 latest = None
                 try:
-                    signals_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
+                    # Project root (not controllers/) — signals_log lives next to OAK_*.py
+                    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    signals_file = os.path.join(_root, "signals_log.json")
+                    if not os.path.exists(signals_file):
+                        # Fallback: cwd (Documents run path)
+                        signals_file = os.path.join(os.getcwd(), "signals_log.json")
                     if os.path.exists(signals_file):
                         with open(signals_file, "r", encoding="utf-8") as f:
                             signals = json.load(f)
                         if signals:
-                            latest = get_latest_display_signal(signals) or signals[-1]
-                            sig = latest.get("signal", "—")
-                            icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
-                            hour = latest.get("hour")
-                            hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
-                            card_sig.configure(text=f"Current: {icon} {sig}{hour_txt}")
-                            pair_dirs = latest.get("pair_dirs") or {}
+                            try:
+                                from utils import get_latest_display_signal as _glds
+                                latest = _glds(signals) or signals[-1]
+                            except Exception:
+                                try:
+                                    latest = get_latest_display_signal(signals) or signals[-1]
+                                except Exception:
+                                    latest = signals[-1] if isinstance(signals, list) else None
+                            if latest:
+                                sig = latest.get("signal", "—")
+                                icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
+                                hour = latest.get("hour")
+                                hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
+                                card_sig.configure(text=f"Current: {icon} {sig}{hour_txt}")
+                                pair_dirs = latest.get("pair_dirs") or {}
+                            else:
+                                card_sig.configure(text="Current: —")
                         else:
                             card_sig.configure(text="Current: —")
                     else:
                         card_sig.configure(text="Current: —")
-                except Exception:
+                except Exception as _sig_err:
                     try:
                         card_sig.configure(text="Current: —")
+                    except Exception:
+                        pass
+                    try:
+                        print(f"Signal card update error: {_sig_err}")
                     except Exception:
                         pass
                     pair_dirs = {}
@@ -726,7 +745,18 @@ class DashboardControllerMixin:
                 tg_api = tg_state["api_ok"]
                 if not tg_configured:
                     # If OAK Manager has a configured chat or MiMo bot value, show configured
-                    if _mimo_bot_chat_id or self.config.get("tele_chat", ""):
+                    try:
+                        import OAK_Hidden_SLTP_Manager as _oak
+                        mimo_chat = getattr(_oak, "_mimo_bot_chat_id", "") or ""
+                    except Exception:
+                        mimo_chat = ""
+                    profile_chat = ""
+                    try:
+                        pdata = (getattr(self, "profiles", {}) or {}).get(profile, {}) or {}
+                        profile_chat = pdata.get("tele_chat", "") or ""
+                    except Exception:
+                        profile_chat = ""
+                    if mimo_chat or profile_chat:
                         tg_label = "Configured"
                         tg_color = "#ffb74d"
                     else:
