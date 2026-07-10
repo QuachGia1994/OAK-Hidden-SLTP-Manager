@@ -6,6 +6,8 @@ import {
   getHourNote,
   weekdayFromDate,
   getFocusGbpPairs,
+  isGbpFocusOnlySlot,
+  resolveGbpDirection,
   signalHasThuNoGoldLabel,
   signalXauNoTradeTag,
 } from "@/lib/constants";
@@ -37,7 +39,8 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
   const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
   const hourNote = stripNoGoldProse(rawHourNote);
 
-  const focusGbp = getFocusGbpPairs(signal.hour, weekday);
+  const gbpPairs = getFocusGbpPairs(signal.hour, weekday);
+  const focusOnly = isGbpFocusOnlySlot(signal.hour);
   const xauDir =
     signal.pair_dirs?.XAUUSD ||
     (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
@@ -93,25 +96,34 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
         )}
       </div>
 
-      {/* XAU badge = no-gold label; GBP focus below */}
+      {/* XAU + GBP: H=3-4 = Mua/Bán vs Vàng; H=5+ = Focus only */}
       <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 space-y-0">
         <PairBadge pair="XAUUSD" direction={xauBadgeDir} />
-        {focusGbp.length > 0 && (
+        {gbpPairs.length > 0 && (
           <div className="pt-1 pb-0.5">
             <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-medium mb-0.5">
-              Cặp GBP tập trung
+              {focusOnly ? "Cặp GBP tập trung" : "GBP vs Vàng"}
             </div>
-            {focusGbp.map((pair) => (
-              <PairBadge
-                key={pair}
-                pair={pair}
-                direction={isVIP ? "focus" : "locked"}
-                focusOnly={isVIP}
-              />
-            ))}
+            {gbpPairs.map((pair) => {
+              if (!isVIP) {
+                return <PairBadge key={pair} pair={pair} direction="locked" />;
+              }
+              if (focusOnly) {
+                return (
+                  <PairBadge key={pair} pair={pair} direction="focus" focusOnly />
+                );
+              }
+              const dir = resolveGbpDirection(
+                pair,
+                signal.hour,
+                signal.pair_dirs,
+                xauDir,
+              );
+              return <PairBadge key={pair} pair={pair} direction={dir} />;
+            })}
           </div>
         )}
-        {focusGbp.length === 0 && isVIP && (
+        {gbpPairs.length === 0 && isVIP && (
           <div className="pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">Không có mốc GBP — chỉ Vàng</div>
         )}
       </div>

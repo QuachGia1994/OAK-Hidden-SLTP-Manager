@@ -33,6 +33,44 @@ export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   return [];
 }
 
+/** True when slot shows Focus badge (no Mua/Bán). H=3-4 is direction mode. */
+export function isGbpFocusOnlySlot(hour: number): boolean {
+  const h = Number(hour);
+  return Number.isFinite(h) && h >= 5;
+}
+
+/**
+ * H=3-4: GBPAUD opposite gold, GBPJPY same as gold.
+ * Prefer pair_dirs; else derive from XAUUSD.
+ */
+export function resolveGbpDirection(
+  pair: string,
+  hour: number,
+  pairDirs?: Record<string, string> | null,
+  xauDir?: string | null,
+): string {
+  const h = Number(hour);
+  const fromFile = pairDirs?.[pair];
+  if (fromFile === "BUY" || fromFile === "SELL" || fromFile === "--") {
+    return fromFile;
+  }
+  if (!(h === 2 || h === 3 || h === 4)) {
+    return "-";
+  }
+  const gold =
+    xauDir === "BUY" || xauDir === "SELL"
+      ? xauDir
+      : pairDirs?.XAUUSD === "BUY" || pairDirs?.XAUUSD === "SELL"
+        ? pairDirs.XAUUSD
+        : null;
+  if (!gold) return "-";
+  const opposite = gold === "BUY" ? "SELL" : "BUY";
+  if (pair === "GBPJPY") return gold;
+  if (pair === "GBPAUD") return opposite;
+  if (pair === "GBPUSD" || pair === "GBPCAD") return "--";
+  return "-";
+}
+
 const HOUR_NOTES: Record<number, string> = {
   3: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
   4: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",

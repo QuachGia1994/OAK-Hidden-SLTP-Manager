@@ -1,208 +1,88 @@
-# Cẩm Nang Sử Dụng OAK MANAGER (v3.15.2)
+# Cẩm Nang OAK MANAGER (v3.16.0)
 
-Tài liệu này mô tả các tính năng đang có trong app desktop, signal bot, Telegram bridge và dashboard web.
+> Bản dịch từ `GUIDE.en.md` (nguồn chính). Cập nhật: sửa EN trước, rồi chạy `python scripts/sync_docs_from_en.py` hoặc đồng bộ tay.
+
+Tài liệu mô tả app desktop, signal bot, Telegram bridge và dashboard web.
 
 ## 1. Bắt đầu nhanh
 
-1. Tạo `config.json` với các field `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`
-2. Cài dependency bằng `pip install -r requirements.txt`
+1. Tạo `config.json` với `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`
+2. Cài dependency: `pip install -r requirements.txt`
 3. Chạy `CHAY_ROBOT.bat`
-4. Mở app, chọn profile, sau đó vào tab `Tín Hiệu` để bật các process cần dùng
+4. Mở app, chọn profile, vào tab **Tín Hiệu** bật các process cần dùng
 
-## 2. Các tab trong app desktop
+## 2. Các tab desktop
 
 ### Dashboard
-
-- Chọn profile đang monitor
-- Start/Stop monitor cho app chính
-- Xem trạng thái MT5, Telegram, Ghost, System ở status bar
-- Xem account info, signal info, engine info, session state
-- Xem news box và console có filter log
+- Chọn profile, Start/Stop monitor
+- Panel multi-monitor: worker sống kèm PID + Stop
+- Status bar MT5 / Telegram / Ghost / System
+- Card Account + Signal, tin tức, bộ lọc console
 
 ### Tín Hiệu
+Bốn process nền: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker.
 
-Tab này quản lý 4 process nền:
+### Profiles / Copy Trading / Pending / Diagnostics
+CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 
-| Panel | Vai trò |
+## 3. Rule tín hiệu (logic v9)
+
+### Cặp
+`XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`
+
+### Lịch slot
+| Ngày | Giờ |
 | --- | --- |
-| MT5 Signal Bot | Phân tích tín hiệu và push dashboard |
-| MT4-MT5 Server | Nhận data từ MT4 EA |
-| MiMo Telegram Bot | Nhận lệnh Telegram (sole poller) |
-| MiMo Worker | Xử lý yêu cầu MiMo nền |
+| T2–T6 (Mon–Fri) | H=3..15 lúc :45 broker |
+| Cuối tuần | không bắn |
 
-Quy trình dùng tab này:
-1. Mở app và vào tab `Tín Hiệu`
-2. Bấm `BẮT ĐẦU TẤT CẢ` hoặc start từng panel riêng
-3. Theo dõi PID và log realtime ngay trong app
-4. Khi đóng app, hệ thống sẽ cleanup process con
+### No-gold label (XAU)
+| Ngày | No-gold | Đánh vàng |
+| --- | --- | --- |
+| T2–T4 | không | H=3–15 |
+| T5 | H=3–4 và H≥12 | H=5–11 |
+| T6 | H=3–11 | chỉ H=12–15 |
 
-**Lưu ý v3.15.2:** mỗi profile chỉ nên có **1 worker**. Start sẽ kill orphan `pythonw` cũ để tránh schedule double-fire.
+### Hiển thị GBP
+| Giờ | Cách hiện | T2–T5 | T6 |
+| --- | --- | --- | --- |
+| H=3–4 | **Mua/Bán theo Vàng** (không Focus) | GA ngược Vàng, GJ cùng Vàng | giống |
+| H=5–8 | Chỉ Focus | GA + GJ | GA + GJ |
+| H=9,11,12,14,15 | Chỉ Focus | đủ nhóm GBP | chỉ GA + GJ |
 
-### Quản Lý Profile
-
-- Tạo, lưu, xóa profile MT5
-- Chọn `mt5_path`, `magic`, `symbol`
-- Cấu hình Hidden SL/TP, Gold SL/TP, Balance SL/TP
-- Cấu hình Partial R, Partial %, Auto BE
-- Cấu hình Telegram token, chat ID, admin ID theo profile
-
-### Copy Trading
-
-- Chọn role `None`, `Master`, `Slave`
-- Cấu hình channel, lot mode, lot value
-- Bật/tắt stealth, max one trade, ignored symbols
-- Lưu config copy trade
-- Test safety rules ngay trên UI trước khi chạy monitor
-- Xem log copy trading realtime
-
-### Hẹn Giờ / Pending
-
-- Tạo pending order theo profile, symbol, type, lot, SL, TP, thời gian
-- Xem danh sách lệnh hẹn giờ
-- Sửa hoặc xóa lệnh đã lên lịch
-- **Atomic claim**: khi tới giờ, chỉ 1 worker execute; status `executing` → `executed`
-
-### Diagnostics
-
-- Xem log app theo bộ lọc `ALL`, `INFO`, `WARNING`, `ERROR`
-- Bật `Auto Refresh`, `Follow Latest`
-- `Refresh`, `Clear Display`, `Copy Selected`
-- `Open Log Folder`
-- `Export Debug Bundle`
-
-### Hướng Dẫn / README / Release Notes / Giới Thiệu
-
-- 3 tab tài liệu đọc trực tiếp file markdown trong repo
-- Tab `Giới Thiệu` hiển thị version, link docs và nút `Check for Updates`
-
-## 3. Signal Bot
-
-### Cặp giao dịch
-
-- `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`
-
-### Logic nến
-
-- Signal (pattern) suy ra từ M5@35, M5@40 và M30
-- DOJI → fallback nến trước
-- Trigger chính: `H:45` broker; có missed-slot backfill khi start muộn
-
-### Pair rules theo slot
-
-| Slot | Rule |
+### pair_dirs
+| Giờ | Nội dung |
 | --- | --- |
-| H=3–4 | pair_dirs: GBPJPY **cùng Vàng**, GBPAUD **ngược Vàng**, GU/GC `--` + Focus quan hệ |
-| H=5–8 | **Chỉ Focus** GA+GJ — **không** map pair_dirs GBP (chỉ XAUUSD) |
-| H=9+ | **Chỉ XAUUSD** trong pair_dirs; GBP = Focus list (không gán chiều) |
-| H khác | Chỉ Vàng |
+| H=3–4 | XAU + GJ cùng Vàng, GA ngược, GU/GC `--` |
+| H=5+ | **chỉ XAUUSD** (GBP = list Focus) |
 
-**Focus GBP (UI/Telegram)**
-- **H=3–8**: GBPAUD · GBPJPY (mọi ngày)
-- **H=9/11/12/14/15 T2–T5**: đủ nhóm GBP (Focus only)
-- **H=9/11/12/14/15 T6**: chỉ GBPAUD · GBPJPY (không GBPUSD/GBPCAD)
+### Ma trận nhanh
 
-**XAU M30 flip**
-- Cùng chiều M30 XAU → đảo XAUUSD; ngược → theo M30
-- **H=3–4**: rebuild GBP theo **final XAU** sau flip
-- **H=5+**: chỉ cập nhật XAUUSD
-
-### Rule no-gold label
-
-- **T2–T6**: slots **H=3–15**
-- **T5 · H=3–4** + **T5 · H≥12**: KHÔNG đánh Vàng (đánh H=5–11)
-- **T6 · H=3–11**: KHÔNG đánh Vàng (chỉ đánh H=12–15)
-- Thứ 5 có Thứ 4 hôm qua rơi ngày **30** hoặc **1** tây → nhắc tính lại W1
-- Thứ 5 có Thứ 6 tuần đó rơi ngày **3 / 4 / 7** → nhắc tính lại W1
-- Ngày khác: trade bình thường theo schedule
-
-### Ma trận nhanh theo slot
-
-| H | Focus T2–T5 | Focus T6 | pair_dirs GBP | XAU T2–T4 | XAU T5 | XAU T6 |
+| H | GBP UI T2–T5 | GBP UI T6 | pair_dirs GBP | XAU T2–T4 | XAU T5 | XAU T6 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 3–4 | GA+GJ | GA+GJ | Map vs XAU | Đánh | No-gold | No-gold |
-| 5–8 | GA+GJ | GA+GJ | **Không** (XAU only) | Đánh | Đánh | No-gold |
-| 9,11 | Đủ 4 GBP | GA+GJ | Không | Đánh | Đánh | No-gold |
+| 3–4 | Chiều vs Vàng | Chiều vs Vàng | Map vs XAU | Đánh | No-gold | No-gold |
+| 5–8 | Focus GA+GJ | Focus GA+GJ | **Không** (chỉ XAU) | Đánh | Đánh | No-gold |
+| 9,11 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | Đánh | No-gold |
 | 10,13 | — | — | Không | Đánh | 13 no-gold* | No-gold |
-| 12 | Đủ 4 | GA+GJ | Không | Đánh | No-gold | Đánh |
-| 14–15 | Đủ 4 | GA+GJ | Không | Đánh | No-gold | Đánh |
+| 12 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | No-gold | Đánh |
+| 14–15 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | No-gold | Đánh |
 
-\*T5: mọi **H≥12** no-gold → H=12,13,14,15 đều no-gold.
+\*T5: mọi **H≥12** no-gold.
 
 **Đã gỡ:** ma trận chiều H=9/11/12 · D-direction.
 
-## 4. Dashboard Web
+### XAU M30 flip
+- Cùng chiều M30 → đảo XAU; ngược → theo M30
+- H=3–4: rebuild GBP theo XAU final
+- H=5+: chỉ cập nhật XAU
 
-URL: [https://oak-hidden-sltp-manager-dun.vercel.app](https://oak-hidden-sltp-manager-dun.vercel.app)
+## 4. Multi-monitor
+- Nhiều worker song song; orphan kill exact `--profile`
+- `trades_*.json` / `pending_partials_*.json` theo profile
+- Popup Stop: Profile / PID / Account
 
-- `Dashboard`: state, signals hôm nay, news
-- `Lịch sử`: signal ~7 ngày (pair_dirs + note)
-- `Xác thực tin tức`: fact-check text/ảnh OCR
-- `Rules`: rule schedule + note đặc biệt theo ngày
+## 5. Dashboard web
+URL: https://oak-hidden-sltp-manager-dun.vercel.app
 
-### VIP
-
-- Free: khu vực signal bị khóa
-- VIP: `/?vip=TOKEN` → cookie `vip_access`
-- Logout: `/api/vip-logout`
-
-## 5. Telegram Commands
-
-### Profile targeting (exact)
-
-```text
-sell GBPAUD+ 0.01 20h00 VantageDemo   → chỉ VantageDemo
-sell GBPAUD+ 0.01 20h00 VantageDemi   → ❌ Profile không đúng
-sell GBPAUD+ 0.01 20h00               → broadcast mọi profile đang chạy
-```
-
-Tên profile phải **khớp exact** (không phân biệt hoa/thường) với key trong `profiles.json`.
-
-### MiMo / OAK bridge
-
-- `/mimo <yêu cầu>`
-- `/status` — trạng thái PC/files
-- `/check` (alias `/kiemtra`) — kiểm tra tài khoản OAK
-- `/list` (alias `/danhsach`) — lệnh hẹn giờ / partial
-- `/profile` / `/profiles`
-- `/mt5 <profile>`
-- `/position` / `/positions [profile]`
-- `/signal` — tín hiệu hôm nay
-- `/news`
-- `/reply <text>`
-- `/myid`
-
-### OAK commands
-
-- `/list`, `/check`, `/del <ID>`
-- `/pending <buy|sell> <SYMBOL> <LOT> <HH:MM> [PROFILE]`
-- `/modify <sl|tp> <val> <SYMBOL>`
-- `/closeall`
-
-NLP tiếng Việt (mua/bán/đóng/…) được chuyển vào OAK inbox qua MiMo bot.
-
-## 6. Cấu hình đáng chú ý
-
-### Profile MT5
-
-- `path`, `magic`, `symbol`
-- Hidden / Gold / Balance SL-TP
-- Partial R, Partial %, Auto BE
-- Telegram token (có thể vault keyring `__vault__`)
-
-### config.json (global)
-
-- `telegram_token`, `telegram_chat_id`
-- `mt5_path`
-- `dashboard_url`, `dashboard_api_key`
-
-## 7. Build & backup
-
-```bash
-python build_exe.py            # Installer + window-unpack
-python create_backup_final.py  # Source zip + profile zip
-```
-
-Tải bản phát hành: [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
-
----
-Phát triển bởi QKP · Telegram `@bupbupchot`
+## 6. Telegram
+Target profile exact; NLP + slash commands (status, pending, closeall, …).

@@ -770,13 +770,19 @@ class DashboardControllerMixin:
                     accent = p.get("accent", "#3b82f6")
                     muted = p.get("text_muted", "gray")
                     amber = "#d97706"
+                    # H=3-4: show Mua/Bán vs gold; H=5+: Focus only
+                    h_num = None
+                    try:
+                        h_num = int(hour) if hour is not None else None
+                    except (TypeError, ValueError):
+                        h_num = None
+                    xau_dir = pair_dirs.get("XAUUSD")
                     for pair, lbl in pair_labels.items():
                         if not self._widget_alive(lbl):
                             continue
                         if pair == "XAUUSD":
                             d = pair_dirs.get(pair)
                             if no_gold_entry:
-                                # Logic vẫn có BUY/SELL trong log; label nổi
                                 buy_w = T("sig_buy")
                                 sell_w = T("sig_sell")
                                 no_w = T("sig_no_trade")
@@ -789,6 +795,26 @@ class DashboardControllerMixin:
                                 lbl.configure(text=T("sig_buy"), text_color=p.get("success", "#2ecc71"))
                             elif d == "SELL":
                                 lbl.configure(text=T("sig_sell"), text_color=p.get("danger", "#e74c3c"))
+                            else:
+                                lbl.configure(text="—", text_color=muted)
+                            continue
+                        # H=3-4: direction vs gold (not Focus)
+                        if h_num in (2, 3, 4) and pair in ("GBPAUD", "GBPJPY", "GBPUSD", "GBPCAD"):
+                            d = pair_dirs.get(pair)
+                            if d not in ("BUY", "SELL", "--") and xau_dir in ("BUY", "SELL"):
+                                opp = "SELL" if xau_dir == "BUY" else "BUY"
+                                if pair == "GBPJPY":
+                                    d = xau_dir
+                                elif pair == "GBPAUD":
+                                    d = opp
+                                else:
+                                    d = "--"
+                            if d == "BUY":
+                                lbl.configure(text=T("sig_buy"), text_color=p.get("success", "#2ecc71"))
+                            elif d == "SELL":
+                                lbl.configure(text=T("sig_sell"), text_color=p.get("danger", "#e74c3c"))
+                            elif d == "--":
+                                lbl.configure(text="--", text_color=muted)
                             else:
                                 lbl.configure(text="—", text_color=muted)
                             continue
@@ -1677,36 +1703,43 @@ class DashboardControllerMixin:
 
 
     def get_doc_content(self, key):
-        """Load docs from .md by language; fallback to LANG dictionary strings."""
-        # Prefer lang-specific files so EN is not stuck on empty/outdated i18n stubs
-        file_map_vn = {
-            "guide_info": "GUIDE.md",
-            "readme_info": "README.md",
-            "release_notes_info": "RELEASE_NOTES.md",
-        }
-        file_map_en = {
-            "guide_info": "GUIDE.en.md",
-            "readme_info": "README.en.md",
-            "release_notes_info": "RELEASE_NOTES.en.md",
+        """Load docs by language only — never mix EN with VN file content.
+
+        Source of truth: ``*.en.md``. VN files ``GUIDE.md`` / ``README.md`` /
+        ``RELEASE_NOTES.md`` are translations (regenerate via
+        ``python scripts/sync_docs_from_en.py``).
+        """
+        file_map = {
+            "VN": {
+                "guide_info": "GUIDE.md",
+                "readme_info": "README.md",
+                "release_notes_info": "RELEASE_NOTES.md",
+            },
+            "EN": {
+                "guide_info": "GUIDE.en.md",
+                "readme_info": "README.en.md",
+                "release_notes_info": "RELEASE_NOTES.en.md",
+            },
         }
         lang = CURRENT_LANG if CURRENT_LANG in ("VN", "EN") else "VN"
-        candidates = []
-        if lang == "EN":
-            candidates.append(file_map_en.get(key))
-            candidates.append(file_map_vn.get(key))  # fallback full VN file if EN missing
-        else:
-            candidates.append(file_map_vn.get(key))
+        name = (file_map.get(lang) or {}).get(key)
+        if not name:
+            return T(key)
         root = self._project_root()
-        for name in candidates:
-            if not name:
-                continue
-            for path in (name, os.path.join(root, name), os.path.join(os.getcwd(), name)):
-                if path and os.path.exists(path):
-                    try:
-                        with open(path, "r", encoding="utf-8") as f:
-                            return f.read()
-                    except Exception:
-                        pass
+        # Prefer project root (repo / installed package), then cwd
+        for path in (
+            os.path.join(root, name),
+            os.path.join(os.getcwd(), name),
+            name,
+        ):
+            if path and os.path.isfile(path):
+                try:
+                    with open(path, "r", encoding="utf-8") as f:
+                        text = f.read()
+                    if text.strip():
+                        return text
+                except Exception:
+                    pass
         return T(key)
 
 
