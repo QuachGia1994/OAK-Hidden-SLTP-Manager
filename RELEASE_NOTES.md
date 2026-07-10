@@ -1,24 +1,46 @@
 # 📔 NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
 
+## [v3.16.0] - 2026-07-10
+*Signal rules v9 + multi-monitor isolation + EN docs + release package.*
+
+### 🎯 Signal rules (logic v9)
+- **T2–T6** slots **H=3–15**.
+- **No-gold**: T5 = H=3–4 + H≥12 (đánh H=5–11); T6 = H=3–11 (đánh H=12–15).
+- **Focus**: H=3–8 GA+GJ; H=9/11/12/14/15 đủ nhóm (T6: chỉ GA+GJ).
+- **pair_dirs**: chỉ **H=3–4** map GBP vs XAU; **H=5+** chỉ XAUUSD (Focus không gán chiều).
+- **Đã gỡ**: ma trận chiều H=9/11/12 · toàn bộ **D-direction**.
+- Xem bảng ma trận trong `GUIDE.md`.
+
+### 🖥️ Multi-monitor
+- Nhiều worker song song; Running Monitors panel + stop theo profile.
+- Orphan kill **exact** `--profile` (không substring Vantage/VantageDemo).
+- `trades_<profile>.json`, `pending_partials_<profile>.json`.
+- Reader thread không chạm Tk; Account card prefix = `hb_profile`.
+
+### 🌐 i18n
+- Guide / README / Release Notes: file **`.md` (VN)** + **`.en.md` (EN)**.
+- Signal card: Mua/Bán/Không đánh → Buy/Sell/No trade khi EN.
+
+### 📦 Phát hành
+- Version app: **v3.16.0**
+- Gói: Installer.exe, window-unpack.zip, OAK Source zip.
+
+---
+
 ## [v3.15.2+] - 2026-07-09
-*Weekday-aware slots: Mon–Fri H=3-15; T5/T6 no-gold; H=9+ Focus only; D-direction removed.*
+*Weekday-aware slots + early Focus/no-gold iterations.*
 
 ### 📊 Schedule
-- **T2–T6**: slots **H=3..15** (Thứ 5 = Thứ 6).
-- **T5 H=3–4 + H≥12** / **T6 H=3–11**: no Gold entry label; T6 gold only H=12–15; H=14/15 GBP Focus only.
-- `get_target_hours(broker_dt)` — bot, rebuild, dashboard, countdown.
+- **T2–T6**: slots **H=3..15**.
+- Early T5/T6 no-gold labels (superseded by v3.16 rules).
 
 ---
 
 ## [v3.15.2] - 2026-07-09
-*Pair-direction baseline fix + schedule/profile safety + Thursday-only calendar notes.*
+*Pair-direction baseline (historical) + schedule/profile safety + Thursday-only calendar notes.*
 
-### 🎯 Signal pair logic (quan trọng)
-- **H=9 / 11 / 12 / 15**: GBP bám **pattern Signal**, không rebuild theo XAU sau M30 flip.
-  - H=11 Signal BUY → GBPAUD/GBPUSD/GBPJPY **SELL**, GBPCAD **BUY** (XAU có thể SELL riêng).
-- **H=2–8**: sau M30 flip, rebuild GBP theo **final XAUUSD** (GBPAUD ngược, GBPJPY cùng).
-- **KẾT LUẬN** trên Telegram/dashboard = pattern Signal (khớp history).
-- History H=9/11/12/15 đã được sửa lại pair_dirs và push dashboard.
+### 🎯 Signal pair logic (historical — superseded in v3.16)
+- Older H=9/11/12 matrix and H=2–8 GBP map — see v3.16 for current rules.
 
 ### 🛡️ Profile & schedule safety
 - **Exact profile gate**: typo (`VantageDemi`) → `Profile không đúng`, không broadcast Vantage/ICMarkets/…

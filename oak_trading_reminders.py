@@ -560,7 +560,8 @@ def get_day_notes(now, lang="VN"):
       - T2–T6: H=3-15
       - T5 · H=3-4 + H≥12: no Gold entry label (trade gold H=5-11)
       - T6 · H=3-11: no Gold entry label (trade gold H=12-15 only)
-      - Focus: H=3-8 GA+GJ; H=9/11/12/14/15 full GBP (T6: GA+GJ only); H=14/15 Focus only
+      - Focus: H=3-8 GA+GJ; H=9/11/12/14/15 full GBP (T6: GA+GJ only)
+      - pair_dirs GBP map only H=3-4; H=5+ XAU only
     Thursday extras (W1 recalc):
       1. Yesterday Wed day 30 or 1
       2. Same-week Friday day 3, 4, or 7

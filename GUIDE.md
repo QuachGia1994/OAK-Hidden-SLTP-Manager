@@ -91,8 +91,8 @@ Quy trình dùng tab này:
 
 | Slot | Rule |
 | --- | --- |
-| H=3–4 | GBPJPY **cùng Vàng**, GBPAUD **ngược Vàng**, GBPUSD/GBPCAD `--` (note + Focus quan hệ) |
-| H=5–8 | list Focus GBPAUD · GBPJPY (cùng band pair_dirs với H=3–4) |
+| H=3–4 | pair_dirs: GBPJPY **cùng Vàng**, GBPAUD **ngược Vàng**, GU/GC `--` + Focus quan hệ |
+| H=5–8 | **Chỉ Focus** GA+GJ — **không** map pair_dirs GBP (chỉ XAUUSD) |
 | H=9+ | **Chỉ XAUUSD** trong pair_dirs; GBP = Focus list (không gán chiều) |
 | H khác | Chỉ Vàng |
 
@@ -103,8 +103,8 @@ Quy trình dùng tab này:
 
 **XAU M30 flip**
 - Cùng chiều M30 XAU → đảo XAUUSD; ngược → theo M30
-- **H=3–8**: rebuild GBP theo **final XAU** sau flip
-- **H=9+**: chỉ cập nhật XAUUSD
+- **H=3–4**: rebuild GBP theo **final XAU** sau flip
+- **H=5+**: chỉ cập nhật XAUUSD
 
 ### Rule no-gold label
 
@@ -114,6 +114,21 @@ Quy trình dùng tab này:
 - Thứ 5 có Thứ 4 hôm qua rơi ngày **30** hoặc **1** tây → nhắc tính lại W1
 - Thứ 5 có Thứ 6 tuần đó rơi ngày **3 / 4 / 7** → nhắc tính lại W1
 - Ngày khác: trade bình thường theo schedule
+
+### Ma trận nhanh theo slot
+
+| H | Focus T2–T5 | Focus T6 | pair_dirs GBP | XAU T2–T4 | XAU T5 | XAU T6 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 3–4 | GA+GJ | GA+GJ | Map vs XAU | Đánh | No-gold | No-gold |
+| 5–8 | GA+GJ | GA+GJ | **Không** (XAU only) | Đánh | Đánh | No-gold |
+| 9,11 | Đủ 4 GBP | GA+GJ | Không | Đánh | Đánh | No-gold |
+| 10,13 | — | — | Không | Đánh | 13 no-gold* | No-gold |
+| 12 | Đủ 4 | GA+GJ | Không | Đánh | No-gold | Đánh |
+| 14–15 | Đủ 4 | GA+GJ | Không | Đánh | No-gold | Đánh |
+
+\*T5: mọi **H≥12** no-gold → H=12,13,14,15 đều no-gold.
+
+**Đã gỡ:** ma trận chiều H=9/11/12 · D-direction.
 
 ## 4. Dashboard Web
 

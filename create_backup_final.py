@@ -18,15 +18,16 @@ if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() !=
 
 
 def read_version():
-    version = "v3.15.2"
-    try:
-        with open("OAK_Hidden_SLTP_Manager.py", "r", encoding="utf-8") as f:
-            content = f.read()
-        match = re.search(r'VERSION\s*=\s*"(.*?)"', content)
-        if match:
-            version = match.group(1)
-    except Exception as e:
-        print(f"Warning: Could not read version: {e}")
+    version = "v3.16.0"
+    for path in ("domain/constants.py", "OAK_Hidden_SLTP_Manager.py"):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            match = re.search(r'VERSION\s*=\s*"(.*?)"', content)
+            if match:
+                return match.group(1)
+        except Exception as e:
+            print(f"Warning: Could not read version from {path}: {e}")
     return version
 
 
@@ -46,12 +47,16 @@ ROOT_ALWAYS = {
     "MT4_Data_Feeder.mq4",
     "README.md",
     "GUIDE.md",
+    "GUIDE.en.md",
     "RELEASE_NOTES.md",
+    "RELEASE_NOTES.en.md",
+    "README.en.md",
     "QUICKSTART.md",
     "profiles.example.json",
     "settings.example.json",
     ".gitignore",
     "AGENTS.md",
+    "app.py",
     "mimo_bot.py",
     "mimo_worker.py",
     "mt4_mt5_server.py",
@@ -120,6 +125,9 @@ EXCLUDE_SUFFIXES = (
 
 # Code trees to walk
 INCLUDE_ROOTS = (
+    "app.py",  # also via ROOT / glob; listed for clarity
+    "controllers",
+    "domain",
     "dashboard",
     "docs",
     "models",
@@ -149,6 +157,9 @@ PROFILE_GLOBS = [
     "waiting_*.json",
     "scheduled_close_*.json",
     "scheduled_trades*.json",
+    "pending_partials_*.json",
+    "trades_*.json",
+    "ignored_*.json",
     "news_cache*.json",
     "*_snapshot.json",
     "monday_snapshot.json",
@@ -195,6 +206,10 @@ def collect_source_files():
             files.add(_norm(path))
 
     for base in INCLUDE_ROOTS:
+        if os.path.isfile(base):
+            if not _should_skip_file(base):
+                files.add(_norm(base))
+            continue
         if not os.path.isdir(base):
             continue
         for root, dirs, names in os.walk(base):

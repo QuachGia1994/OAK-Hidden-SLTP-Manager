@@ -19,6 +19,11 @@ EXTRA_PACKAGE_FILES = [
     "profiles.example.json",
     "settings.example.json",
     "README.md",
+    "README.en.md",
+    "GUIDE.md",
+    "GUIDE.en.md",
+    "RELEASE_NOTES.md",
+    "RELEASE_NOTES.en.md",
 ]
 
 
@@ -88,6 +93,15 @@ def build_args():
         "--hidden-import=oak_trading_reminders",
         "--hidden-import=utils",
         "--hidden-import=mt5_signal_bot",
+        "--hidden-import=app",
+        "--hidden-import=domain",
+        "--hidden-import=domain.constants",
+        "--hidden-import=domain.i18n",
+        "--hidden-import=domain.copy_trade_manager",
+        "--hidden-import=domain.monitor_worker",
+        "--hidden-import=domain.ticket_manager",
+        "--hidden-import=controllers",
+        "--hidden-import=controllers.runtime",
         "--hidden-import=repositories.sqlite_store",
         "--hidden-import=services.auto_update",
         "--hidden-import=services.error_reporter",

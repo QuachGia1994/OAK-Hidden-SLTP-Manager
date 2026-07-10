@@ -1,10 +1,10 @@
-# OAK Hidden SLTP Manager (v3.15.2)
+# OAK Hidden SLTP Manager (v3.16.0)
 
 OAK Manager là app desktop Windows để quản lý MT5 theo mô hình đa tiến trình: giám sát lệnh, Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge và dashboard web.
 
 Tài liệu liên quan:
-- [GUIDE.md](GUIDE.md)
-- [RELEASE_NOTES.md](RELEASE_NOTES.md)
+- [GUIDE.md](GUIDE.md) · [GUIDE.en.md](GUIDE.en.md)
+- [RELEASE_NOTES.md](RELEASE_NOTES.md) · [RELEASE_NOTES.en.md](RELEASE_NOTES.en.md)
 - [docs/installation.md](docs/installation.md)
 
 ## Tính năng hiện có
@@ -32,15 +32,17 @@ Tài liệu liên quan:
 ### Signal bot và dashboard
 
 - Signal bot xử lý 5 cặp: `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`.
-- Pair rules: **T2–T6 = H=3–15**; **T5 H=3–4+H≥12** / **T6 H=3–11** no-gold; **H=3–8** map GBP vs XAU; **H=9+ Focus only** (no GBP pair dims); T6 focus H=9+ = GA+GJ only.
+- Pair rules (v3.16): **T2–T6 = H=3–15**; no-gold **T5 H=3–4+H≥12** / **T6 H=3–11**; **H=3–4** map GBP vs XAU; **H=5+ Focus only** (no GBP pair_dirs); T6 focus H=9+ = GA+GJ only; **D-direction đã gỡ**.
+- Multi-monitor: nhiều worker song song, `trades_<profile>.json` / `pending_partials_<profile>.json`, orphan kill exact `--profile`.
 - Dashboard web hiển thị state, signals, history 7 ngày, rules và fact-check.
 - VIP dashboard giữ trạng thái bằng cookie server-side qua `/?vip=TOKEN`.
+- App docs: Guide/README/Release Notes có bản **VN + EN** theo language switcher.
 
-### An toàn lệnh (v3.15.2)
+### An toàn lệnh (v3.16)
 
 - **Profile exact match**: gõ sai tên (vd. `VantageDemi`) → báo *Profile không đúng*, không broadcast sang profile khác.
 - **Schedule atomic claim**: 1 pending chỉ 1 worker execute (tránh 2–3 lệnh cùng lúc).
-- **1 worker / profile**: orphan `pythonw` được dọn khi Start/Stop.
+- **1 worker / profile**: orphan kill exact `--profile` (Vantage ≠ VantageDemo).
 - **Telegram 409**: `mimo_bot` single-instance lock + `deleteWebhook`.
 
 ## Gói phát hành Windows

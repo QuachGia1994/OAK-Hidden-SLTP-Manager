@@ -766,20 +766,23 @@ class DashboardControllerMixin:
                             d = pair_dirs.get(pair)
                             if no_gold_entry:
                                 # Logic vẫn có BUY/SELL trong log; label nổi
-                                tail = " Mua" if d == "BUY" else " Bán" if d == "SELL" else ""
+                                buy_w = T("sig_buy")
+                                sell_w = T("sig_sell")
+                                no_w = T("sig_no_trade")
+                                tail = f" {buy_w}" if d == "BUY" else f" {sell_w}" if d == "SELL" else ""
                                 lbl.configure(
-                                    text=f"Không đánh{tail} · {no_gold_tag}",
+                                    text=f"{no_w}{tail} · {no_gold_tag}",
                                     text_color=amber,
                                 )
                             elif d == "BUY":
-                                lbl.configure(text="Mua", text_color=p.get("success", "#2ecc71"))
+                                lbl.configure(text=T("sig_buy"), text_color=p.get("success", "#2ecc71"))
                             elif d == "SELL":
-                                lbl.configure(text="Bán", text_color=p.get("danger", "#e74c3c"))
+                                lbl.configure(text=T("sig_sell"), text_color=p.get("danger", "#e74c3c"))
                             else:
                                 lbl.configure(text="—", text_color=muted)
                             continue
                         if pair in focus_gbp:
-                            lbl.configure(text="Focus", text_color=accent)
+                            lbl.configure(text=T("sig_focus"), text_color=accent)
                         else:
                             lbl.configure(text="—", text_color=muted)
 
@@ -1627,19 +1630,36 @@ class DashboardControllerMixin:
 
 
     def get_doc_content(self, key):
-        """Ưu tiên đọc từ file .md ngoài nếu là Tiếng Việt, fallback về LANG dictionary"""
-        file_map = {
+        """Load docs from .md by language; fallback to LANG dictionary strings."""
+        # Prefer lang-specific files so EN is not stuck on empty/outdated i18n stubs
+        file_map_vn = {
             "guide_info": "GUIDE.md",
             "readme_info": "README.md",
-            "release_notes_info": "RELEASE_NOTES.md"
+            "release_notes_info": "RELEASE_NOTES.md",
         }
-        filename = file_map.get(key)
-        # Chỉ ưu tiên đọc file .md cho tiếng Việt (mặc định các file này là VN)
-        if filename and CURRENT_LANG == "VN" and os.path.exists(filename):
-            try:
-                with open(filename, "r", encoding="utf-8") as f:
-                    return f.read()
-            except: pass
+        file_map_en = {
+            "guide_info": "GUIDE.en.md",
+            "readme_info": "README.en.md",
+            "release_notes_info": "RELEASE_NOTES.en.md",
+        }
+        lang = CURRENT_LANG if CURRENT_LANG in ("VN", "EN") else "VN"
+        candidates = []
+        if lang == "EN":
+            candidates.append(file_map_en.get(key))
+            candidates.append(file_map_vn.get(key))  # fallback full VN file if EN missing
+        else:
+            candidates.append(file_map_vn.get(key))
+        root = self._project_root()
+        for name in candidates:
+            if not name:
+                continue
+            for path in (name, os.path.join(root, name), os.path.join(os.getcwd(), name)):
+                if path and os.path.exists(path):
+                    try:
+                        with open(path, "r", encoding="utf-8") as f:
+                            return f.read()
+                    except Exception:
+                        pass
         return T(key)
 
 
