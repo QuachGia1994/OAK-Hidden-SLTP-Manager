@@ -23,14 +23,29 @@ class ProfileControllerMixin:
         self.btn_add_p = self.profiles_tab.btn_add
         
         self.refresh_profile_list()
-        
-        # Auto-select active profile if any
+
+        # Prefer RUNNING / combo selection / previously selected — never leave form
+        # on first dict key while EDITING badge points at another profile.
         if self.profiles:
-            active = list(self.profiles.keys())[0]
+            active = (
+                getattr(self, "selected_profile_name", None)
+                or getattr(self, "running_profile_name", None)
+                or ""
+            )
+            try:
+                if hasattr(self, "combo_profiles") and self.combo_profiles.winfo_exists():
+                    cur = (self.combo_profiles.get() or "").strip()
+                    if cur in self.profiles:
+                        active = cur
+            except Exception:
+                pass
+            if not active or active not in self.profiles:
+                active = list(self.profiles.keys())[0]
             self.load_profile_to_form(active)
-            self._update_active_profile_badge(active)
         else:
+            self.selected_profile_name = None
             self.clear_form()
+            self._update_active_profile_badge(None)
 
 
     def refresh_profile_list(self):
@@ -94,42 +109,80 @@ class ProfileControllerMixin:
             self.combo_copy_profiles.configure(values=list(self.profiles.keys()))
 
 
-    def load_profile_to_form(self, name):
+    def load_profile_to_form(self, name, *, sync_combo=True):
+        """Load profile into form and keep EDITING badge/list in lockstep with fields."""
+        if not name or name not in getattr(self, "profiles", {}):
+            return
+        if not getattr(self, "entries", None):
+            # Profiles tab not mounted yet — remember selection only
+            self.selected_profile_name = name
+            return
+
         self.selected_profile_name = name
         data = self.profiles[name]
-        self.entries["name"].delete(0, "end"); self.entries["name"].insert(0, name)
+
+        # Clear all fields first so leftover values never stick from another profile
+        for key, ent in self.entries.items():
+            try:
+                ent.delete(0, "end")
+            except Exception:
+                pass
+
+        try:
+            self.entries["name"].insert(0, name)
+        except Exception:
+            pass
 
         # Load Checkbox
-        if data.get("use_balance_sltp", False):
-            self.chk_balance.select()
-        else:
-            self.chk_balance.deselect()
-        self.chk_visible_sltp.deselect()
+        try:
+            if data.get("use_balance_sltp", False):
+                self.chk_balance.select()
+            else:
+                self.chk_balance.deselect()
+        except Exception:
+            pass
+        try:
+            if data.get("visible_sltp", False):
+                self.chk_visible_sltp.select()
+            else:
+                self.chk_visible_sltp.deselect()
+        except Exception:
+            pass
 
-        if data.get("visible_sltp", False):
-            self.chk_visible_sltp.select()
-        else:
-            self.chk_visible_sltp.deselect()
+        for key, ent in self.entries.items():
+            if key == "name":
+                continue
+            if key not in data:
+                continue
+            val = str(data[key])
+            # Mask token: if vaulted, show masked placeholder
+            if key == "tele_token" and val == "__vault__":
+                val = "••••••••••••••••"
+            try:
+                ent.insert(0, val)
+            except Exception:
+                pass
 
-        for key in data:
-            if key in self.entries:
-                val = str(data[key])
-                # Mask token: if vaulted, show masked placeholder
-                if key == "tele_token" and val == "__vault__":
-                    val = "••••••••••••••••"
-                self.entries[key].delete(0, "end")
-                self.entries[key].insert(0, val)
+        # Keep dashboard/copy/pending combos aligned with EDITING (avoid silent drift)
+        if sync_combo:
+            try:
+                if hasattr(self, "combo_profiles") and self.combo_profiles.winfo_exists():
+                    # Set without firing on_profile_change recursion if possible
+                    self.combo_profiles.set(name)
+            except Exception:
+                pass
 
         self._update_active_profile_badge(name)
-        self._profile_form_snapshot = self._get_form_data()
-        # Re-render the list so the ✎ Editing marker moves to this row
-        # immediately, instead of staying on whatever was selected at the
-        # last refresh (which made the list look out of sync with the form).
+        try:
+            self._profile_form_snapshot = self._get_form_data()
+        except Exception:
+            self._profile_form_snapshot = None
+        # Re-render list so RUNNING/EDITING highlights match the form
         self.refresh_profile_list()
 
 
     def clear_form(self):
-        # Defaults
+        # Defaults for a brand-new profile (not editing an existing one)
         defaults = {
             "name": "",
             "path": "",
@@ -141,17 +194,29 @@ class ProfileControllerMixin:
             "gold_tp": "20000",
             "balance_sl_pct": "1.0",
             "balance_tp_pct": "2.0",
+            "partial_r": "2",
+            "partial_pct": "50",
+            "auto_be": "2",
             "tele_token": "",
             "tele_chat": "",
-            "tele_admin": ""
+            "tele_admin": "",
         }
 
-        self.chk_balance.deselect()
-        self.chk_visible_sltp.deselect()
+        self.selected_profile_name = None
+        try:
+            self.chk_balance.deselect()
+            self.chk_visible_sltp.deselect()
+        except Exception:
+            pass
 
         for key, ent in self.entries.items():
-            ent.delete(0, "end")
-            ent.insert(0, defaults.get(key, ""))
+            try:
+                ent.delete(0, "end")
+                ent.insert(0, defaults.get(key, ""))
+            except Exception:
+                pass
+        self._update_active_profile_badge(None)
+        self.refresh_profile_list()
 
 
     def _get_form_data(self):
@@ -210,9 +275,11 @@ class ProfileControllerMixin:
 
         self.profiles[name] = new_data
         save_json(CONFIG_FILE, self.profiles)
+        self.selected_profile_name = name
         self.refresh_profile_list()
+        self._update_active_profile_badge(name)
         self._profile_form_snapshot = self._get_form_data()
-        if hasattr(self, 'lbl_unsaved'):
+        if hasattr(self, "lbl_unsaved"):
             self.lbl_unsaved.configure(text="")
         self.log(f"{T('msg_saved')} ({name})")
 

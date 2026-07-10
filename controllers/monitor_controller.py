@@ -79,13 +79,18 @@ class MonitorControllerMixin:
                 "logs": []
             }
             self.running_profile_name = profile_name
+            self.selected_profile_name = profile_name
             self.refresh_profile_list()
-            
+            try:
+                self._update_active_profile_badge(profile_name)
+            except Exception:
+                pass
+
             # Start Reader Thread
             t = threading.Thread(target=self.monitor_worker_output, args=(profile_name, proc))
             t.daemon = True
             t.start()
-            
+
             self.update_ui_state(profile_name)
             self.log(f"Started process for '{profile_name}' (PID: {proc.pid})")
             
@@ -129,6 +134,10 @@ class MonitorControllerMixin:
                 self.btn_stop.configure(state="disabled", text="Stopping...")
                 self.running_profile_name = None
                 self.refresh_profile_list()
+                try:
+                    self._update_active_profile_badge(self.selected_profile_name)
+                except Exception:
+                    pass
                 # Immediate update for local UI feedback
                 self.update_ui_state(profile_name)
                 # Still keep the delayed check just in case
@@ -255,55 +264,95 @@ class MonitorControllerMixin:
 
 
     def on_profile_change(self, choice):
-        # Update selected profile state
-        self.selected_profile_name = choice
+        # Keep EDITING + form fields aligned with dashboard combo
+        if choice and choice in getattr(self, "profiles", {}):
+            self.selected_profile_name = choice
+            # Always push into Profiles form when that tab is mounted
+            try:
+                if getattr(self, "entries", None):
+                    self.load_profile_to_form(choice, sync_combo=False)
+                else:
+                    self._update_active_profile_badge(choice)
+            except Exception:
+                self.selected_profile_name = choice
+        else:
+            self.selected_profile_name = choice or None
+
         # Update config and Init Copy Manager for GUI sync
         if choice in self.profiles:
             self.config = self.profiles[choice]
-            self.config["profile_name"] = choice # Ensure profile_name is set for filename sync
+            self.config["profile_name"] = choice  # Ensure profile_name is set for filename sync
             self.copy_manager = CopyTradeManager(self.config, self.notify)
             self.log(f"Profile: {choice} - Sync File: {self.copy_manager.scheduled_file}")
-            self._last_json_mtime = 0 # Force refresh on next periodic call
-            self.update_scheduled_list_ui()
+            self._last_json_mtime = 0  # Force refresh on next periodic call
+            try:
+                self.update_scheduled_list_ui()
+            except Exception:
+                pass
 
         # Sync with Pos Size profile combo if it exists
-        if hasattr(self, 'combo_pos_profiles'):
-            self.combo_pos_profiles.set(choice)
+        if hasattr(self, "combo_pos_profiles"):
+            try:
+                self.combo_pos_profiles.set(choice)
+            except Exception:
+                pass
         # Sync with Copy Trade profile combo if it exists
-        if hasattr(self, 'combo_copy_profiles'):
-            self.combo_copy_profiles.set(choice)
-            
-        if hasattr(self, 'lbl_copy_profile'):
-            self.lbl_copy_profile.configure(text=f"Profile: {choice}")
-            
+        if hasattr(self, "combo_copy_profiles"):
+            try:
+                self.combo_copy_profiles.set(choice)
+            except Exception:
+                pass
+
+        if hasattr(self, "lbl_copy_profile"):
+            try:
+                self.lbl_copy_profile.configure(text=f"Profile: {choice}")
+            except Exception:
+                pass
+
         # Clear Console
-        self.console.configure(state="normal")
-        self.console.delete("1.0", "end")
-        self.console.configure(state="disabled")
-        
-        if hasattr(self, 'copy_console') and self.copy_console.winfo_exists():
-            self.copy_console.configure(state="normal")
-            self.copy_console.delete("1.0", "end")
-            self.copy_console.configure(state="disabled")
-        
-        # Load Logs
-        if choice in self.workers:
-            logs = self.workers[choice]["logs"]
-            full_log = "\n".join(logs) + "\n"
-            
+        try:
             self.console.configure(state="normal")
-            self.console.insert("end", full_log)
-            self.console.see("end")
+            self.console.delete("1.0", "end")
             self.console.configure(state="disabled")
-            
-            if hasattr(self, 'copy_console') and self.copy_console.winfo_exists():
-                self.copy_console.configure(state="normal")
-                self.copy_console.insert("end", full_log)
-                self.copy_console.see("end")
-                self.copy_console.configure(state="disabled")
-            
+        except Exception:
+            pass
+
+        if hasattr(self, "copy_console"):
+            try:
+                if self.copy_console.winfo_exists():
+                    self.copy_console.configure(state="normal")
+                    self.copy_console.delete("1.0", "end")
+                    self.copy_console.configure(state="disabled")
+            except Exception:
+                pass
+
+        # Load Logs
+        if choice in getattr(self, "workers", {}):
+            logs = self.workers[choice].get("logs") or []
+            full_log = "\n".join(logs) + ("\n" if logs else "")
+            try:
+                self.console.configure(state="normal")
+                self.console.insert("end", full_log)
+                self.console.see("end")
+                self.console.configure(state="disabled")
+            except Exception:
+                pass
+            if hasattr(self, "copy_console"):
+                try:
+                    if self.copy_console.winfo_exists():
+                        self.copy_console.configure(state="normal")
+                        self.copy_console.insert("end", full_log)
+                        self.copy_console.see("end")
+                        self.copy_console.configure(state="disabled")
+                except Exception:
+                    pass
+
         self.update_ui_state(choice)
-        self.refresh_profile_list()
+        # load_profile_to_form already refreshed list; still refresh if form missing
+        if not getattr(self, "entries", None):
+            self.refresh_profile_list()
+        else:
+            self._update_active_profile_badge(choice)
 
 
     def _open_ghost_popup(self):

@@ -203,6 +203,35 @@ class AppShellControllerMixin:
                 self.load_copy_config()
             except Exception:
                 pass
+        # Profiles: re-sync form ↔ EDITING whenever user opens the tab
+        if key == "profiles" or (
+            current and current == self.tab_names.get("profiles", "")
+        ):
+            try:
+                target = (
+                    getattr(self, "selected_profile_name", None)
+                    or getattr(self, "running_profile_name", None)
+                )
+                if not target:
+                    try:
+                        target = self.combo_profiles.get()
+                    except Exception:
+                        target = None
+                if target and target in getattr(self, "profiles", {}):
+                    # If form name field already matches, still refresh badges
+                    form_name = ""
+                    try:
+                        if getattr(self, "entries", None) and "name" in self.entries:
+                            form_name = (self.entries["name"].get() or "").strip()
+                    except Exception:
+                        form_name = ""
+                    if form_name != target:
+                        self.load_profile_to_form(target, sync_combo=True)
+                    else:
+                        self._update_active_profile_badge(target)
+                        self.refresh_profile_list()
+            except Exception as e:
+                print(f"Profiles tab sync: {e}")
 
 
     def on_closing(self):
