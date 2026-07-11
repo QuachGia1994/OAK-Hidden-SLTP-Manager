@@ -23,10 +23,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const incoming = (body as any[]).slice(-2000);
 
-    // Merge: keep existing + incoming, dedup by (date, hour)
+    // A bot push contains the rebuilt history for its dates. Replace those
+    // dates atomically so removed slots (for example obsolete H=2/H=14) do
+    // not survive indefinitely in Redis.
     const existing = ((await redis.get(KEYS.signals)) as any[]) || [];
+    const incomingDates = new Set(incoming.map((signal) => signal?.date).filter(Boolean));
     const map = new Map<string, any>();
-    for (const s of existing) map.set(`${s.date}:${s.hour}`, s);
+    for (const s of existing) {
+      if (!incomingDates.has(s?.date)) map.set(`${s.date}:${s.hour}`, s);
+    }
     for (const s of incoming) map.set(`${s.date}:${s.hour}`, s);
     const merged = [...map.values()].sort((a, b) => b.ts - a.ts).slice(0, 2000);
     await redis.set(KEYS.signals, merged);

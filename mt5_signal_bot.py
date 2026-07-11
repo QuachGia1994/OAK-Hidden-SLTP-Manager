@@ -52,10 +52,10 @@ SYMBOL = "GBPUSD"
 #   - T5: H=3-4 (trade gold H=5-15)
 #   - T6: H=3-11 (trade gold H=12-15 only; H=14 removed)
 # Focus GBP: Monday H=9 GBPUSD+GBPCAD; other days use their own slot rules.
-# pair_dirs GBP map only H=2-4 (GA ngược / GJ cùng); H=5+ XAU only + Focus list.
+# pair_dirs GBP map only H=3-4 (GA ngược / GJ cùng); H=5+ XAU only + Focus list.
 TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # no H=14
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 10
+SIGNAL_LOGIC_VERSION = 11
 
 
 def get_target_hours(broker_dt=None, weekday=None):
@@ -553,7 +553,7 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
     Baseline cho GBP:
-    - H=2..4: rebuild GBP theo final XAU sau flip (GA ngược, GJ cùng).
+    - H=3-4: rebuild GBP theo final XAU sau flip (GA ngược, GJ cùng).
     - H=5+: chỉ XAUUSD (Focus GBP không gán chiều pair_dirs).
     """
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
@@ -564,8 +564,8 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     else:
         final_xau = xau_m30
 
-    # H=2..4: pairs relative to XAUUSD → rebuild from final gold
-    if H in (2, 3, 4):
+    # H=3-4: pairs relative to XAUUSD → rebuild from final gold
+    if H in (3, 4):
         rebuilt = get_pair_direction(H, final_xau, broker_dt)
         if not rebuilt:
             pair_dirs["XAUUSD"] = final_xau
@@ -819,7 +819,7 @@ sent_today = set()
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     """Tính chiều các cặp theo slot. Signal = hướng pattern (XAUUSD baseline).
 
-    - H=2..4: GBPJPY cùng Vàng, GBPAUD ngược Vàng, GBPUSD/GBPCAD --
+    - H=3-4: GBPJPY cùng Vàng, GBPAUD ngược Vàng, GBPUSD/GBPCAD --
     - H=5+: chỉ XAUUSD (GBP = Focus list, không gán Mua/Bán)
     """
     result = {}
@@ -830,7 +830,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     opposite = "SELL" if gold == "BUY" else "BUY"
     result["XAUUSD"] = gold
 
-    if H in (2, 3, 4):
+    if H in (3, 4):
         result["GBPJPY"] = gold
         result["GBPAUD"] = opposite
         result["GBPUSD"] = "--"
@@ -945,22 +945,15 @@ def rebuild_recent_history(days=7):
         hour for hour in get_target_hours(broker_dt)
         if hour < broker_dt.hour or (hour == broker_dt.hour and broker_dt.minute > 45)
     }
-    slots = {
-        (target_date.isoformat(), hour)
-        for target_date in dates
-        if target_date.weekday() < 5
-        for hour in (
-            passed_today
-            if target_date == today
-            else get_target_hours(datetime.combine(target_date, datetime.min.time()).replace(hour=12))
-        )
-    }
     try:
         data = []
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as file:
                 data = json.load(file)
-        filtered = [record for record in data if (record.get("date"), record.get("hour")) not in slots]
+        # Replace each recent weekday completely. Filtering only active slots left
+        # obsolete H=2/H=14 records in the log and therefore in Redis history.
+        rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
+        filtered = [record for record in data if record.get("date") not in rebuild_dates]
         with open(_SIGNALS_LOG, "w", encoding="utf-8") as file:
             json.dump(filtered, file, ensure_ascii=False)
     except Exception as error:

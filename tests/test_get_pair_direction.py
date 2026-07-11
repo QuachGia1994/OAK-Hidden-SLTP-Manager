@@ -17,9 +17,9 @@ def _make_dt(year, month, day, weekday_offset=0):
 class TestGetPairDirectionHSlots(unittest.TestCase):
     """Test H-slot-based pair direction rules."""
 
-    def test_h2_to_h4_gbpjpy_same_gbpaud_opposite(self):
-        """H=2..4: GBPJPY same XAUUSD; GBPAUD opposite; GBPUSD/GBPCAD = '--'"""
-        for H in (2, 3, 4):
+    def test_h3_to_h4_gbpjpy_same_gbpaud_opposite(self):
+        """H=3-4: GBPJPY same XAUUSD; GBPAUD opposite; GBPUSD/GBPCAD = '--'"""
+        for H in (3, 4):
             for signal in ("BUY", "SELL"):
                 with self.subTest(H=H, signal=signal):
                     dt = _make_dt(2026, 7, 7, weekday_offset=0)
@@ -42,6 +42,10 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                     for p in GBP_PAIRS:
                         self.assertNotIn(p, result)
 
+    def test_h2_is_not_a_gbp_direction_slot(self):
+        dt = _make_dt(2026, 7, 7, weekday_offset=0)
+        self.assertEqual(get_pair_direction(2, "BUY", dt), {"XAUUSD": "BUY"})
+
     def test_non_buy_sell_signal_returns_empty(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=0)
         for signal in ("WAIT", "NONE", "", "HOLD"):
@@ -60,7 +64,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
 
     def test_all_active_slots_have_xauusd(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=0)
-        for H in range(2, 16):
+        for H in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15):
             with self.subTest(H=H):
                 result = get_pair_direction(H, "BUY", dt)
                 self.assertIn("XAUUSD", result)

@@ -53,7 +53,9 @@ export function SignalCard({
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
-  const fallbackHourNote = isD1MatchNote(signal.hour_note)
+  // Date/hour rules are authoritative for history. Redis hour_note can belong
+  // to an older rule version, especially after a seven-day rebuild.
+  const fallbackHourNote = signal.date || isD1MatchNote(signal.hour_note)
     ? getHourNote(signal.hour, weekday)
     : signal.hour_note;
   const rawHourNote = showD1Match
