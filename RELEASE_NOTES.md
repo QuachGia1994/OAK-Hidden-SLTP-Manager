@@ -6,8 +6,8 @@
 *Rule tín hiệu v9 + multi-monitor + docs EN/VN + gói cài đặt.*
 
 ### Rule tín hiệu (logic v9)
-- Slot T2 H=2–13 và H=15; T3–T6 H=3–13 và H=15
-- T2 H=2 dùng M5/M30; GBPAUD + GBPJPY ngược Vàng, không xét H1 Vàng
+- Slot T2–T6 H=2–13 và H=15
+- H=2 dùng M5/M30; GBPAUD + GBPJPY ngược Vàng, không xét H1 Vàng
 - No-gold: T2 H=5–11; T5 H=3–4; T6 H=3–11 (vàng T6 chỉ H=12–13 và H=15)
 - T3–T4 H=3–4: GA + GJ ngược Vàng (**Mua/Bán**, không Focus)
 - T3–T4/T5 H=5–8: Focus GBPAUD; T3–T5 H=9/11/12/15 Focus đủ nhóm GBP (T6 không Focus GBP)

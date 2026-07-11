@@ -33,8 +33,7 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 ### Lịch slot
 | Ngày | Giờ |
 | --- | --- |
-| T2 | H=2–13 và H=15 lúc :45 broker |
-| T3–T6 | H=3–13 và H=15 lúc :45 broker |
+| T2–T6 | H=2–13 và H=15 lúc :45 broker |
 | Cuối tuần | không bắn |
 
 ### No-gold label (XAU)
@@ -63,7 +62,7 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 
 | H | GBP T2 | GBP T3–T4 | GBP T5 | GBP T6 | Quy tắc XAU |
 | --- | --- | --- | --- | --- | --- |
-| 2 | GA+GJ ngược Vàng | — | — | — | Chỉ T2: signal M5/M30, không xét H1 Vàng |
+| 2 | GA+GJ ngược Vàng | GA+GJ ngược Vàng | GA+GJ ngược Vàng | GA+GJ ngược Vàng | Mọi ngày: signal M5/M30, không xét H1 Vàng |
 | 3–4 | Không Focus | GA+GJ ngược Vàng | Không Focus | Không Focus | T5/T6 no-gold |
 | 5–8 | Không Focus | GBPAUD | GBPAUD | Không Focus | T2/T6 no-gold |
 | 9 | GBPUSD+GBPCAD | Đủ nhóm | Đủ nhóm | Không Focus | T2/T6 no-gold |

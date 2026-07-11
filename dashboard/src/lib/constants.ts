@@ -1,16 +1,14 @@
-/** Tue–Fri H=3-13,15; Monday also has its special H=2 slot. */
-export const TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
-export const MONDAY_TARGET_HOURS = [2, ...TARGET_HOURS];
+/** Mon–Fri H=2-13,15 (H=14 disabled). */
+export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
- * Mon → H=2-13,15; Tue–Fri → H=3-13,15; weekend → []
+ * Mon–Fri → H=2-13,15; weekend → []
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
-  if (jsDayOfWeek === 1) return [...MONDAY_TARGET_HOURS];
   return [...TARGET_HOURS];
 }
 
@@ -30,7 +28,7 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 /**
  * GBP focus pairs by hour. Friday has no GBP Focus.
  * No BUY/SELL dims — UI only marks Focus.
- * - Mon H=2 and Tue–Wed H=3-4: GA+GJ opposite gold; Tue–Thu H=5-8: GA only
+ * - H=2 every weekday and Tue–Wed H=3-4: GA+GJ opposite gold; Tue–Thu H=5-8: GA only
  * - Thu H=3-4 and Fri: no GBP Focus
  * - H=9/11/12/15 Mon–Thu: full group
  * - Fri (JS=5): no GBP Focus
@@ -38,8 +36,8 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   const h = Number(hour);
   if (!Number.isFinite(h)) return [];
+  if (h === 2) return ["GBPAUD", "GBPJPY"];
   if (jsWeekday === 1) {
-    if (h === 2) return ["GBPAUD", "GBPJPY"];
     return h === 9 ? ["GBPUSD", "GBPCAD"] : [];
   }
   if (jsWeekday === 5) return [];
@@ -62,7 +60,7 @@ export function isGbpFocusOnlySlot(hour: number): boolean {
 }
 
 /**
- * Mon H=2 and H=3-4: GBPAUD and GBPJPY are both opposite gold.
+ * H=2 every weekday and H=3-4: GBPAUD and GBPJPY are both opposite gold.
  * Prefer pair_dirs; else derive from XAUUSD.
  */
 export function resolveGbpDirection(
@@ -190,6 +188,7 @@ export function signalXauNoTradeTag(
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
+  if (h === 2) return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)";
   if (jsWeekday === 5) return "Chỉ Vàng (XAUUSD)";
   if (jsWeekday === 1) {
     if (h === 2) return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)";
@@ -201,7 +200,7 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
 }
 
 const PAIR_RULES = [
-  "T2 H=2: GA/GJ ngược Vàng, Signal chỉ dùng M5/M30 (không xét H1 Vàng)",
+  "H=2 mọi ngày: GA/GJ ngược Vàng, Signal chỉ dùng M5/M30 (không xét H1 Vàng)",
   "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
   "H=5-8: Chỉ Focus GA — không map pair_dirs GBP (chỉ XAUUSD)",
   "H=9 / 11 / 12 / 15: Chỉ Focus nhóm GBP T2–T5 — không gán chiều",
@@ -211,9 +210,9 @@ const PAIR_RULES = [
 
 /** Special calendar notes — shared Mon–Fri. */
 export const SPECIAL_DAY_NOTES = [
-  "T2 · H=2: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
+  "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
   "T2 · H=5-11: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
-  "T2: slots H=2-13,15; T3–T6: H=3-13,15",
+  "T2–T6: slots H=2-13,15",
   "T5 · H=3-4: KHÔNG đánh Vàng (đánh H=5-15)",
   "T6 · H=3-11: KHÔNG đánh Vàng (chỉ đánh H=12-15)",
   "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
@@ -223,7 +222,7 @@ export const SPECIAL_DAY_NOTES = [
 export const DAY_RULES: Record<number, string[]> = {
   1: [
     "Slots: H=2-13,15",
-    "H=2: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
+    "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
     "XAU: no-gold H=5-11",
     "H=9: chỉ Focus GBPUSD · GBPCAD",
     "Các H khác: không Focus GBP.",

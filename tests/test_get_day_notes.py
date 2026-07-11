@@ -36,19 +36,19 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
     def test_wednesday_has_core_schedule(self):
         notes = get_day_notes(date(2025, 4, 30), lang="VN")
         blob = " ".join(notes)
-        self.assertIn("H=3-13,15", blob)
+        self.assertIn("H=2-13,15", blob)
         self.assertIn("H=3-4", blob)
         self.assertFalse(any("tính lại W1" in n for n in notes))
 
     def test_monday_has_core_schedule(self):
         notes = get_day_notes(date(2025, 4, 28), lang="VN")
         blob = " ".join(notes)
-        self.assertIn("H=3-13,15", blob)
+        self.assertIn("H=2-13,15", blob)
 
     def test_friday_en_matches_bot(self):
         notes = get_day_notes(date(2026, 7, 10), lang="EN")
         blob = " ".join(notes)
-        self.assertIn("H=3-13,15", blob)
+        self.assertIn("H=2-13,15", blob)
         self.assertIn("H=3-4", blob)
         self.assertIn("H=3-11", blob)  # Fri no-gold band
         self.assertIn("H=12,13,15", blob)  # Fri gold only
@@ -57,7 +57,7 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
     def test_normal_thursday_default(self):
         notes = get_day_notes(date(2026, 7, 9), lang="VN")
         blob = " ".join(notes)
-        self.assertIn("H=3-13,15", blob)
+        self.assertIn("H=2-13,15", blob)
         self.assertIn("H=3-4", blob)
 
     def test_accepts_datetime(self):

@@ -47,14 +47,13 @@ except Exception:
 
 SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
-# Mon: H=2..13,15; Tue–Fri: H=3..13,15 (no H=14).
+# Mon–Fri: H=2..13,15 (no H=14).
 # No-trade gold LABEL (logic still computes XAU for GBP Focus):
 #   - T5: H=3-4 (trade gold H=5-15)
 #   - T6: H=3-11 (trade gold H=12-15 only; H=14 removed)
 # Focus GBP: Monday H=9 GBPUSD+GBPCAD; other days use their own slot rules.
 # pair_dirs GBP map only T3-T4 H=3-4 (GA/GJ đều ngược Vàng); H=5+ XAU only + Focus list.
-TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # Tue–Fri, no H=14
-MONDAY_TARGET_HOURS = [2, *TARGET_HOURS]
+TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # no H=14
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 12
 
@@ -82,7 +81,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     """Return active H slots for the broker weekday.
 
     Python weekday: Mon=0 .. Sun=6.
-    Mon → H=2..13,15; Tue–Fri → H=3..13,15; weekend → [].
+    Mon–Fri → H=2..13,15; weekend → [].
     """
     if weekday is None:
         if broker_dt is None:
@@ -91,8 +90,6 @@ def get_target_hours(broker_dt=None, weekday=None):
             weekday = broker_dt.weekday()
     if weekday >= 5:
         return []
-    if weekday == 0:
-        return list(MONDAY_TARGET_HOURS)
     return list(TARGET_HOURS)
 BROKER_GMT = 0
 
@@ -574,7 +571,7 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
     Baseline cho GBP:
-    - T2 H=2 và T3-T4 H=3-4: rebuild GBP theo final XAU sau flip (GA/GJ đều ngược).
+    - H=2 mọi ngày và T3-T4 H=3-4: rebuild GBP theo final XAU sau flip (GA/GJ đều ngược).
     - H=5+: chỉ XAUUSD (Focus GBP không gán chiều pair_dirs).
     """
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
@@ -586,9 +583,7 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
         final_xau = xau_m30
 
     # T3-T4 H=3-4: both GBP pairs are opposite final XAUUSD.
-    if (H == 2 and broker_dt.weekday() == 0) or (
-        H in (3, 4) and broker_dt.weekday() in (1, 2)
-    ):
+    if H == 2 or (H in (3, 4) and broker_dt.weekday() in (1, 2)):
         rebuilt = get_pair_direction(H, final_xau, broker_dt)
         if not rebuilt:
             pair_dirs["XAUUSD"] = final_xau
@@ -743,13 +738,15 @@ def get_hour_note(H, weekday=None):
     """Trả note theo H; T5 H=3-4 và T6 chỉ hiển thị XAUUSD.
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
-    T2 H=2 và T3-T4 H=3-4: GBPAUD và GBPJPY đều ngược Vàng.
+    H=2 mọi ngày và T3-T4 H=3-4: GBPAUD và GBPJPY đều ngược Vàng.
     H=15: chỉ Focus nhóm GBP (không gán chiều pair_dirs). H=14 removed.
     """
     try:
         h = int(H)
     except (TypeError, ValueError):
         return "Chỉ Vàng (XAUUSD)"
+    if h == 2:
+        return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)"
     if weekday == 4:
         return "Chỉ Vàng (XAUUSD)"
     if weekday == 3:
@@ -757,8 +754,6 @@ def get_hour_note(H, weekday=None):
             return "Chỉ Vàng (XAUUSD)"
         if 5 <= h <= 8:
             return "Chỉ Focus GBPAUD"
-    if weekday == 0 and h == 2:
-        return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)"
     if weekday == 0 and h == 9:
         return "Chỉ Focus GBPUSD · GBPCAD"
     if h == 14:
@@ -775,7 +770,7 @@ def get_hour_note(H, weekday=None):
 def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
     """Cặp GBP tập trung theo slot — hiển thị Focus, không Mua/Bán trên Telegram/UI.
 
-    - T2 H=2: GBPAUD + GBPJPY ngược Vàng; T2 H=9: GBPUSD + GBPCAD
+    - H=2 mọi ngày: GBPAUD + GBPJPY ngược Vàng; T2 H=9: GBPUSD + GBPCAD
     - T2 các H khác: không Focus GBP
     - T3-T4 H=3-4: GBPAUD + GBPJPY
     - T3-T5 H=5-8: chỉ GBPAUD
@@ -791,11 +786,11 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
     if h == 14:
         return []
     resolved_weekday = _resolve_weekday(broker_dt, weekday)
+    if h == 2:
+        return ["GBPAUD", "GBPJPY"]
     if resolved_weekday == 4:
         return []
     if resolved_weekday == 0:
-        if h == 2:
-            return ["GBPAUD", "GBPJPY"]
         return ["GBPUSD", "GBPCAD"] if h == 9 else []
     if resolved_weekday == 3:
         if h in (3, 4):
@@ -861,7 +856,7 @@ sent_today = set()
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     """Tính chiều các cặp theo slot. Signal = hướng pattern (XAUUSD baseline).
 
-    - T2 H=2 và T3-T4 H=3-4: GBPJPY/GBPAUD đều ngược Vàng; GBPUSD/GBPCAD --
+    - H=2 mọi ngày và T3-T4 H=3-4: GBPJPY/GBPAUD đều ngược Vàng; GBPUSD/GBPCAD --
     - H=5+: chỉ XAUUSD (GBP = Focus list, không gán Mua/Bán)
     """
     result = {}
@@ -872,9 +867,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     opposite = "SELL" if gold == "BUY" else "BUY"
     result["XAUUSD"] = gold
 
-    if (H == 2 and broker_dt.weekday() == 0) or (
-        H in (3, 4) and broker_dt.weekday() in (1, 2)
-    ):
+    if H == 2 or (H in (3, 4) and broker_dt.weekday() in (1, 2)):
         result["GBPJPY"] = opposite
         result["GBPAUD"] = opposite
         result["GBPUSD"] = "--"

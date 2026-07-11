@@ -18,8 +18,8 @@ Related docs:
 
 ### Signal bot
 - Pairs: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
-- Slots: Mon H=2–13 and H=15; Tue–Fri H=3–13 and H=15
-- Mon H=2 uses the normal M5/M30 signal only; GBPAUD and GBPJPY are opposite gold, with no H1 gold check
+- Slots: Mon–Fri H=2–13 and H=15
+- H=2 uses the normal M5/M30 signal only; GBPAUD and GBPJPY are opposite gold, with no H1 gold check
 - No-gold: Mon H=5–11; Thu H=3–4; Fri H=3–11 (gold Fri only H=12–13 and H=15)
 - Tue–Wed: H=3–4 focus GBPAUD + GBPJPY opposite gold; H=5–8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
 - Thu: H=5–8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
