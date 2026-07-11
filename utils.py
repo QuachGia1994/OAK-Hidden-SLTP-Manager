@@ -159,7 +159,7 @@ def vn_direction(d):
     return VN_DIR.get(d, d)
 
 
-def get_latest_display_signal(signals, today=None):
+def get_latest_display_signal(signals, today=None, allow_fallback=True):
     """Pick the newest signal row for dashboard display (today first, else latest date+hour)."""
     if not signals:
         return None
@@ -175,6 +175,9 @@ def get_latest_display_signal(signals, today=None):
     today_rows = [s for s in signals if s.get("date") == today and s.get("pair_dirs")]
     if today_rows:
         return max(today_rows, key=_hour_key)
+
+    if not allow_fallback:
+        return None
 
     dated = [s for s in signals if s.get("pair_dirs")]
     if not dated:

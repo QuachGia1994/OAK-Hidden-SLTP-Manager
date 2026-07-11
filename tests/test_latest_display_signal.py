@@ -28,6 +28,19 @@ class LatestDisplaySignalTests(unittest.TestCase):
         self.assertEqual(latest["date"], "2026-07-07")
         self.assertEqual(latest["hour"], 14)
 
+    def test_can_disable_old_signal_fallback(self):
+        signals = [
+            {"date": "2026-07-10", "hour": 15, "pair_dirs": {"XAUUSD": "BUY"}},
+        ]
+
+        latest = get_latest_display_signal(
+            signals,
+            today="2026-07-11",
+            allow_fallback=False,
+        )
+
+        self.assertIsNone(latest)
+
 
 if __name__ == "__main__":
     unittest.main()

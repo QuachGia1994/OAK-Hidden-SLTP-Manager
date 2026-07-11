@@ -679,13 +679,17 @@ class DashboardControllerMixin:
             if self._widget_alive(card_sig):
                 pair_dirs = {}
                 latest = None
+                now = datetime.now()
+                is_weekend = now.weekday() >= 5
                 try:
                     # Project root (not controllers/) — signals_log lives next to OAK_*.py
+                    if is_weekend:
+                        card_sig.configure(text=f"{T('ui_current')}: {T('sig_no_trade')}")
                     signals_file = os.path.join(self._project_root(), "signals_log.json")
-                    if not os.path.exists(signals_file):
+                    if not is_weekend and not os.path.exists(signals_file):
                         # Fallback: cwd (Documents run path)
                         signals_file = os.path.join(os.getcwd(), "signals_log.json")
-                    if os.path.exists(signals_file):
+                    if not is_weekend and os.path.exists(signals_file):
                         with open(signals_file, "r", encoding="utf-8") as f:
                             signals = json.load(f)
                         if signals:
@@ -708,7 +712,7 @@ class DashboardControllerMixin:
                                 card_sig.configure(text=T("ui_current_dash"))
                         else:
                             card_sig.configure(text=T("ui_current_dash"))
-                    else:
+                    elif not is_weekend:
                         card_sig.configure(text=T("ui_current_dash"))
                 except Exception as _sig_err:
                     try:
@@ -780,6 +784,9 @@ class DashboardControllerMixin:
                     for pair, lbl in pair_labels.items():
                         if not self._widget_alive(lbl):
                             continue
+                        if is_weekend:
+                            lbl.configure(text="—", text_color=muted)
+                            continue
                         if pair == "XAUUSD":
                             d = pair_dirs.get(pair)
                             if no_gold_entry:
@@ -824,30 +831,31 @@ class DashboardControllerMixin:
                             lbl.configure(text="—", text_color=muted)
 
                 # Next slot countdown (T2-T6=H3-13,15; broker weekday)
-                now = datetime.now()
                 try:
                     from mt5_signal_bot import get_target_hours as _gth
                     target_hours = _gth(weekday=now.weekday())
                 except Exception:
-                    target_hours = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]
+                    target_hours = [] if is_weekend else [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]
                 if not target_hours:
-                    target_hours = list(range(3, 16))
-                next_h = None
-                for h in target_hours:
-                    if now.hour < h or (now.hour == h and now.minute < 45):
-                        next_h = h
-                        break
-                if next_h is None:
-                    next_h = target_hours[0]
-                self.card_signal_next.configure(text=f"{T('ui_next')}: {next_h:02d}:45")
-                target = now.replace(hour=next_h, minute=45, second=0, microsecond=0)
-                if target < now:
-                    from datetime import timedelta
-                    target += timedelta(days=1)
-                diff = target - now
-                hrs, rem = divmod(int(diff.total_seconds()), 3600)
-                mins, secs = divmod(rem, 60)
-                self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: {hrs:02d}:{mins:02d}:{secs:02d}")
+                    self.card_signal_next.configure(text=f"{T('ui_next')}: —")
+                    self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: —")
+                else:
+                    next_h = None
+                    for h in target_hours:
+                        if now.hour < h or (now.hour == h and now.minute < 45):
+                            next_h = h
+                            break
+                    if next_h is None:
+                        next_h = target_hours[0]
+                    self.card_signal_next.configure(text=f"{T('ui_next')}: {next_h:02d}:45")
+                    target = now.replace(hour=next_h, minute=45, second=0, microsecond=0)
+                    if target < now:
+                        from datetime import timedelta
+                        target += timedelta(days=1)
+                    diff = target - now
+                    hrs, rem = divmod(int(diff.total_seconds()), 3600)
+                    mins, secs = divmod(rem, 60)
+                    self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: {hrs:02d}:{mins:02d}:{secs:02d}")
 
             # Engine Card
             if hasattr(self, 'card_engine_ghost'):
