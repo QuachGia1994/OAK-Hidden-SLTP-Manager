@@ -145,9 +145,11 @@ export function signalHasThuNoGoldLabel(
   if (!Number.isFinite(h)) return false;
   if (dateStr) {
     try {
-      if (isXauNoTradeLabelSlot(h, weekdayFromDate(dateStr))) return true;
+      // Date/hour rules are authoritative. Do not let stale Redis hour_note
+      // prose resurrect a no-gold badge after a rule change.
+      return isXauNoTradeLabelSlot(h, weekdayFromDate(dateStr));
     } catch {
-      /* fall through */
+      return false;
     }
   }
   const n = hourNote || "";
