@@ -72,7 +72,7 @@ class TestPublishHeartbeatUsesProfileTelegramConfig(unittest.TestCase):
              patch.object(mt5_signal_bot, "TELEGRAM_TOKEN", ""):
             publish_heartbeat("VantageDemo", mt5_connected=False, profiles_path=path)
 
-        mock_resolve.assert_called_once_with("VantageDemo", "__vault__")
+        mock_resolve.assert_called_once_with("VantageDemo", "__vault__", global_fallback="")
         _, kwargs = mock_store.publish_heartbeat.call_args
         self.assertTrue(kwargs["telegram_configured"])
 
@@ -87,7 +87,7 @@ class TestPublishHeartbeatUsesProfileTelegramConfig(unittest.TestCase):
              patch.object(mt5_signal_bot, "TELEGRAM_TOKEN", "global-token"):
             publish_heartbeat("VantageDemo", mt5_connected=False, profiles_path=path)
 
-        mock_resolve.assert_called_once_with("VantageDemo", "global-token")
+        mock_resolve.assert_called_once_with("VantageDemo", None, global_fallback="global-token")
         _, kwargs = mock_store.publish_heartbeat.call_args
         # token resolves to "" (mocked) so configured should be False here
         self.assertFalse(kwargs["telegram_configured"])

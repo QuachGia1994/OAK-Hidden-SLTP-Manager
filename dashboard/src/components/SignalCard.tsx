@@ -1,6 +1,7 @@
 import {
   getSignalColor,
   getSignalLabel,
+  getRhythmLabel,
   formatHour,
   brokerToLocalTime,
   getHourNote,
@@ -50,7 +51,6 @@ export function SignalCard({
   isVIP?: boolean;
   showD1Match?: boolean;
 }) {
-  const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
   // Date/hour rules are authoritative for history. Redis hour_note can belong
@@ -67,6 +67,7 @@ export function SignalCard({
     : signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
   const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
   const hourNote = showD1Match ? rawHourNote : stripNoGoldProse(rawHourNote);
+  const rhythmLabel = getRhythmLabel(signal.hour);
 
   const gbpPairs = getFocusGbpPairs(signal.hour, weekday);
   const focusOnly = isGbpFocusOnlySlot(signal.hour);
@@ -93,9 +94,9 @@ export function SignalCard({
           <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono">
             ({formatHour(signal.hour)}:45 Brk)
           </span>
-          {isMissed && (
+          {rhythmLabel && (
             <span className="text-[9px] font-medium tracking-wide uppercase px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
-              BỎ LỠ
+              {rhythmLabel}
             </span>
           )}
         </div>

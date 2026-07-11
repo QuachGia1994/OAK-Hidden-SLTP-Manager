@@ -58,6 +58,25 @@ TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # no H=14
 SIGNAL_LOGIC_VERSION = 11
 
 
+def get_rhythm_label(hour):
+    """Return the five-rhythm label for an active H slot."""
+    try:
+        h = int(hour)
+    except (TypeError, ValueError):
+        return None
+    if h in (3, 4):
+        return "Nhịp 1"
+    if 5 <= h <= 8:
+        return "Nhịp 2"
+    if 9 <= h <= 11:
+        return "Nhịp 3"
+    if h in (12, 13):
+        return "Nhịp 4"
+    if h == 15:
+        return "Nhịp 5"
+    return None
+
+
 def get_target_hours(broker_dt=None, weekday=None):
     """Return active H slots for the broker weekday.
 
@@ -247,7 +266,7 @@ def get_current_prices(pair_dirs):
             log.warning("MT5 tick fetch error for %s: %s", pair, e)
     return prices
 
-def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=False):
+def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
     """Append signal data to signals_log.json for website consumption."""
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
     record = {
@@ -260,7 +279,6 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note, is_missed=Fa
         "entry_prices": {},
         "current_prices": current_prices,
         "hour_note": hour_note,
-        "missed": is_missed,
     }
     try:
         data = []
@@ -926,7 +944,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def rebuild_slot_signal(broker_dt, h, *, is_missed=True):
+def rebuild_slot_signal(broker_dt, h):
     """Recalculate one slot with current logic and overwrite signals_log (date, hour)."""
     if broker_dt.weekday() >= 5:
         return False
@@ -943,7 +961,7 @@ def rebuild_slot_signal(broker_dt, h, *, is_missed=True):
     apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
 
     hour_note = get_hour_note(h, broker_dt.weekday())
-    log_signal(h, broker_dt, sig, None, pair_dirs, hour_note, is_missed=is_missed)
+    log_signal(h, broker_dt, sig, None, pair_dirs, hour_note)
     return True
 
 
@@ -982,7 +1000,7 @@ def rebuild_recent_history(days=7):
         hours = passed_today if target_date == today else get_target_hours(fake_broker_dt)
         for hour in hours:
             try:
-                if rebuild_slot_signal(fake_broker_dt, hour, is_missed=True):
+                if rebuild_slot_signal(fake_broker_dt, hour):
                     rebuilt += 1
             except Exception as error:
                 print(f"  [REBUILD] Error {target_date.isoformat()} H={hour}: {error}")
@@ -1114,117 +1132,6 @@ def main(profile_name=None):
 
     # Rebuild signals_log from MT5 before pushing (avoid stale pair_dirs after rule changes)
     startup_rebuilt = rebuild_signals_on_startup()
-
-    if mt5_ready:
-        broker_dt = get_broker_time()
-        now_h = broker_dt.hour
-        now_m = broker_dt.minute
-        hours_today = get_target_hours(broker_dt)
-
-        passed = [h for h in hours_today if h < now_h or (h == now_h and now_m > 45)]
-        passed.sort(reverse=True)
-
-        next_slots = [h for h in hours_today if h > now_h or (h == now_h and now_m <= 45)]
-        next_slots.sort()
-        if next_slots:
-            next_h = next_slots[0]
-            if next_h == now_h:
-                mins_left = 45 - now_m
-            else:
-                mins_left = (next_h - now_h) * 60 + (45 - now_m)
-            if mins_left <= 0:
-                mins_left += 24 * 60
-            hours_left = mins_left // 60
-            mins_remain = mins_left % 60
-            countdown = f"{hours_left}h{mins_remain:02d}m" if hours_left > 0 else f"{mins_remain}m"
-        else:
-            countdown = "ngay mai"
-
-        missed_count = 0
-        latest_missed = None
-        # Xử lý H=1 trước để có h1_sig cho các slot khác
-        if 1 in passed:
-            key_h1 = (broker_dt.date(), 1)
-            if key_h1 not in sent_today:
-                r1 = analyze(broker_dt, 1)
-                s1 = r1["signal"]
-                if s1 in ("BUY", "SELL"):
-                    day_signals[(broker_dt.date(), 1)] = {"signal": s1, "m30_dir": r1.get("m30_dir")}
-                    _save_state(day_signals, sent_today)
-        for h in passed:
-            key = (broker_dt.date(), h)
-            if key in sent_today:
-                continue
-
-            wd = broker_dt.weekday()
-            if wd >= 5:
-                sent_today.add(key)
-                _save_state(day_signals, sent_today)
-                continue
-
-            print(f"\n[KIEM TRA BO LO] {fmt_hour(h)}:45")
-            result = analyze(broker_dt, h)
-            sig = result["signal"]
-            icon, emoji = get_signal_icon(sig)
-
-            h1_data = day_signals.get((broker_dt.date(), 1))
-            h1_sig = h1_data["signal"] if h1_data else None
-
-            pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
-            if not pair_dirs:
-                sent_today.add(key)
-                _save_state(day_signals, sent_today)
-                print(f"  [SKIP] H={h} - bỏ trống theo rule")
-                continue
-            apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
-            hour_note = get_hour_note(h, broker_dt.weekday())
-
-            log_signal(h, broker_dt, sig, None, pair_dirs, hour_note, is_missed=True)
-            sent_today.add(key)
-            _save_state(day_signals, sent_today)
-            missed_count += 1
-
-            # Chi lay slot gan nhat (dau tien vi passed sort reverse)
-            if latest_missed is None:
-                latest_missed = {"h": h, "sig": sig, "icon": icon, "result": result,
-                                 "pair_dirs": pair_dirs, "hour_note": hour_note,
-                                 "h1_sig": h1_sig}
-
-        # Chi gui Telegram slot gan nhat
-        if latest_missed:
-            h = latest_missed["h"]
-            sig = latest_missed["sig"]
-            icon = latest_missed["icon"]
-            result = latest_missed["result"]
-            pair_dirs = latest_missed["pair_dirs"]
-            hour_note = latest_missed["hour_note"]
-            h1_sig = latest_missed["h1_sig"]
-
-            slot_line = f"Slot tiếp theo: {fmt_hour(next_slots[0])}:45 (còn {countdown})\n" if next_slots else f"Hết slot hôm nay.\n"
-            pair_text = format_telegram_pair_block(pair_dirs, h, broker_dt)
-            note_line = f"📝 {hour_note}\n" if hour_note else ""
-
-            conclusion = f"KẾT LUẬN (pattern): {icon} {sig}\n"
-
-            msg = (
-                f"*KIỂM TRA BỎ LỠ {fmt_hour(h)}:45*\n"
-                f"============================\n\n"
-                f"{result['report']}\n\n"
-                f"============================\n"
-                f"{conclusion}"
-                        f"-------------------\n"
-                f"{pair_text}\n"
-                f"-------------------\n"
-                f"{note_line}"
-                f"============================\n"
-                f"{slot_line}"
-                f"Bỏ lỡ do bot khởi động sau. Chỉ tham khảo!"
-            )
-            # Không gửi thông báo Telegram cho slot bỏ lỡ nữa
-            print(f"[SKIP TELEGRAM] Missed slot notification suppressed for H={h}")
-
-        if missed_count > 0:
-            print(f"\n[STARTUP] Logged {missed_count} missed slots")
 
     push_to_dashboard()
     if startup_rebuilt > 0:

@@ -7,7 +7,6 @@ export interface Signal {
   entry_prices: Record<string, number>;
   current_prices: Record<string, number>;
   hour_note: string | null;
-  missed: boolean;
   d_direction: "BUY" | "SELL" | null;
 }
 

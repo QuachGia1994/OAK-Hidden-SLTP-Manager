@@ -12,6 +12,16 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
   return [...TARGET_HOURS];
 }
 
+export function getRhythmLabel(hour: number): string | null {
+  const h = Number(hour);
+  if (h === 3 || h === 4) return "Nhịp 1";
+  if (h >= 5 && h <= 8) return "Nhịp 2";
+  if (h >= 9 && h <= 11) return "Nhịp 3";
+  if (h === 12 || h === 13) return "Nhịp 4";
+  if (h === 15) return "Nhịp 5";
+  return null;
+}
+
 export const GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
 export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 
