@@ -7,6 +7,7 @@ from mt5_signal_bot import (
     format_telegram_pair_block,
     get_focus_gbp_pairs,
     get_hour_note,
+    get_pair_direction,
     is_xau_no_trade_label_slot,
     xau_no_trade_label_tag,
 )
@@ -31,6 +32,19 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         block = format_telegram_pair_block({"XAUUSD": "BUY"}, 9, weekday=4)
         self.assertIn("KHÔNG ĐÁNH", block)
         self.assertNotIn("GBP", block)
+
+    def test_thursday_focus_schedule(self):
+        thursday = datetime(2026, 7, 9, 12, 0)
+        for hour in (3, 4):
+            self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), [])
+            self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Vàng (XAUUSD)")
+            self.assertEqual(get_pair_direction(hour, "BUY", thursday), {"XAUUSD": "BUY"})
+        for hour in (5, 6, 7, 8):
+            self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), ["GBPAUD"])
+            self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Focus GBPAUD")
+        expected = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
+        for hour in (9, 11, 12, 15):
+            self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), expected)
 
     def test_monday_to_thursday_focus_is_unchanged(self):
         expected = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]

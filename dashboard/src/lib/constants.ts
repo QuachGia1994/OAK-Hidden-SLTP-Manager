@@ -18,7 +18,8 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 /**
  * GBP focus pairs by hour. Friday has no GBP Focus.
  * No BUY/SELL dims — UI only marks Focus.
- * - H=3-8: GA+GJ Mon–Thu
+ * - Tue–Wed H=3-8: GA+GJ; Thu H=5-8: GA only
+ * - Thu H=3-4 and Fri: no GBP Focus
  * - H=9/11/12/15 Mon–Thu: full group
  * - Fri (JS=5): no GBP Focus
  */
@@ -27,6 +28,10 @@ export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   if (!Number.isFinite(h)) return [];
   if (jsWeekday === 1) return h === 9 ? ["GBPUSD", "GBPCAD"] : [];
   if (jsWeekday === 5) return [];
+  if (jsWeekday === 4) {
+    if (h === 3 || h === 4) return [];
+    if (h >= 5 && h <= 8) return ["GBPAUD"];
+  }
   if (h >= 3 && h <= 8) return ["GBPAUD", "GBPJPY"];
   if (h === 9 || h === 11 || h === 12 || h === 15) {
     return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
@@ -171,6 +176,8 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (jsWeekday === 5) return "Chỉ Vàng (XAUUSD)";
   if (jsWeekday === 1) return h === 9 ? "Chỉ Focus GBPUSD · GBPCAD" : "Chỉ Vàng (XAUUSD)";
+  if (jsWeekday === 4 && (h === 3 || h === 4)) return "Chỉ Vàng (XAUUSD)";
+  if (jsWeekday === 4 && h >= 5 && h <= 8) return "Chỉ Focus GBPAUD";
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
@@ -215,12 +222,11 @@ export const DAY_RULES: Record<number, string[]> = {
     // Thứ 5
     "Slots: H=3-15",
     "XAU: đánh H=5-15 · no-gold H=3-4",
-    "H=3-4: Focus GA+GJ + map pair_dirs · badge KHÔNG ĐÁNH",
-    "H=5-8: Focus GA+GJ · XAU đánh · không map GBP",
+    "H=3-4: không Focus GBP · badge KHÔNG ĐÁNH",
+    "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
     "H=9/11: Focus full nhóm · XAU đánh",
     "H=12/15: Focus full · XAU đánh",
     "Thứ 5 + T4 hôm qua = 30/1 tây → nhắc W1; + T6 tuần = 3/4/7 → nhắc W1",
-    ...PAIR_RULES,
   ],
   5: [
     // Thứ 6

@@ -717,7 +717,7 @@ def thursday_no_gold_label(lang="VN"):
 
 
 def get_hour_note(H, weekday=None):
-    """Trả note theo H; T6 chỉ hiển thị XAUUSD.
+    """Trả note theo H; T5 H=3-4 và T6 chỉ hiển thị XAUUSD.
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
     Chỉ H=3 và H=4: note GBPAUD ngược Vàng / GBPJPY cùng Vàng.
@@ -729,6 +729,11 @@ def get_hour_note(H, weekday=None):
         return "Chỉ Vàng (XAUUSD)"
     if weekday == 4:
         return "Chỉ Vàng (XAUUSD)"
+    if weekday == 3:
+        if h in (3, 4):
+            return "Chỉ Vàng (XAUUSD)"
+        if 5 <= h <= 8:
+            return "Chỉ Focus GBPAUD"
     if weekday == 0 and h == 9:
         return "Chỉ Focus GBPUSD · GBPCAD"
     if h == 14:
@@ -747,7 +752,8 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
 
     - T2 H=9: GBPUSD + GBPCAD
     - T2 các H khác: không Focus GBP
-    - H=3-8: GBPAUD + GBPJPY (T3–T5)
+    - T5 H=3-4: không Focus; H=5-8: chỉ GBPAUD
+    - H=3-8: GBPAUD + GBPJPY (T3–T4)
     - H=9,11,12,15 T2–T5: đủ nhóm GBP
     - T6: không Focus GBP
     - H=14: disabled (no focus)
@@ -758,10 +764,16 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
         return []
     if h == 14:
         return []
-    if _resolve_weekday(broker_dt, weekday) == 4:
+    resolved_weekday = _resolve_weekday(broker_dt, weekday)
+    if resolved_weekday == 4:
         return []
-    if _resolve_weekday(broker_dt, weekday) == 0:
+    if resolved_weekday == 0:
         return ["GBPUSD", "GBPCAD"] if h == 9 else []
+    if resolved_weekday == 3:
+        if h in (3, 4):
+            return []
+        if 5 <= h <= 8:
+            return ["GBPAUD"]
     if 3 <= h <= 8:
         return ["GBPAUD", "GBPJPY"]
     if h in (9, 11, 12, 15):
@@ -819,7 +831,7 @@ sent_today = set()
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     """Tính chiều các cặp theo slot. Signal = hướng pattern (XAUUSD baseline).
 
-    - H=3-4: GBPJPY cùng Vàng, GBPAUD ngược Vàng, GBPUSD/GBPCAD --
+    - H=3-4: GBPJPY cùng Vàng, GBPAUD ngược Vàng, GBPUSD/GBPCAD -- (trừ T5)
     - H=5+: chỉ XAUUSD (GBP = Focus list, không gán Mua/Bán)
     """
     result = {}
@@ -830,7 +842,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     opposite = "SELL" if gold == "BUY" else "BUY"
     result["XAUUSD"] = gold
 
-    if H in (3, 4):
+    if H in (3, 4) and broker_dt.weekday() not in (3, 4):
         result["GBPJPY"] = gold
         result["GBPAUD"] = opposite
         result["GBPUSD"] = "--"

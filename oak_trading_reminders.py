@@ -583,10 +583,10 @@ def get_day_notes(now, lang="VN"):
     notes_en.append("Mon–Fri: slots H=3-13,15 (no H=14).")
 
     notes_vn.append(
-        "T5 · H=3-4: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP."
+        "T5 · H=3-4: KHÔNG đánh Vàng (label) — không Focus GBP."
     )
     notes_en.append(
-        "Thu · H=3-4: NO Gold entry (label) — XAU still drives GBP Focus."
+        "Thu · H=3-4: NO Gold entry (label) — no GBP Focus."
     )
 
     notes_vn.append("T2 · H=5-11: KHÔNG đánh Vàng (label); H=9 chỉ Focus GBPUSD · GBPCAD, H khác không Focus GBP.")
