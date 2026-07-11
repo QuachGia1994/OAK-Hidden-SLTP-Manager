@@ -37,7 +37,7 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer + debug bundle.
 ### No-gold label (XAU)
 | Day | No-gold | Trade gold |
 | --- | --- | --- |
-| Mon (T2) | H=5–11 | H=3–4, H=12–13, H=15 |
+| Mon (T2) | H=3–4, H=5–11 | H=12–13, H=15 |
 | Tue–Wed | none | H=3–13, H=15 |
 | Thu (T5) | H=3–4 | H=5–13, H=15 |
 | Fri (T6) | H=3–11 | H=12–13, H=15 only |
@@ -60,7 +60,7 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer + debug bundle.
 
 | H | Mon GBP | Tue–Wed GBP | Thu GBP | Fri GBP | XAU rules |
 | --- | --- | --- | --- | --- | --- |
-| 2 | GA+GJ opposite gold | GA+GJ opposite gold | GA+GJ opposite gold | GA+GJ opposite gold | Every weekday: M5/M30 signal, no H1 gold check |
+| 2 | GA+GJ opposite gold | GA+GJ opposite gold, reversed XAU signal | GA+GJ opposite gold, reversed XAU signal | GA+GJ opposite gold | M5/M30 signal, no H1 gold check |
 | 3–4 | No Focus | GA+GJ opposite gold | No Focus | No Focus | Thu/Fri no-gold |
 | 5–8 | No Focus | GBPAUD | GBPAUD | No Focus | Mon/Fri no-gold |
 | 9 | GBPUSD+GBPCAD | Full group | Full group | No Focus | Mon/Fri no-gold |

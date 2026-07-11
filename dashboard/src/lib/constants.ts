@@ -113,7 +113,7 @@ const HOUR_NOTES: Record<number, string> = {
 export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean {
   const h = Number(hour);
   if (!Number.isFinite(h)) return false;
-  if (jsWeekday === 1 && h >= 5 && h <= 11) return true;
+  if (jsWeekday === 1 && ((h >= 3 && h <= 4) || (h >= 5 && h <= 11))) return true;
   if (jsWeekday === 4 && (h === 3 || h === 4)) return true;
   if (jsWeekday === 5 && h >= 3 && h <= 11) return true;
   return false;
@@ -126,6 +126,7 @@ export function isThursdayNoGoldSlot(hour: number, jsWeekday: number): boolean {
 
 export function xauNoTradeTag(hour: number, jsWeekday: number): string {
   const h = Number(hour);
+  if (jsWeekday === 1 && h >= 3 && h <= 4) return "T2 H=3-4";
   if (jsWeekday === 1 && h >= 5 && h <= 11) return "T2 H=5-11";
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "H=3-4";
   if (jsWeekday === 5 && h >= 3 && h <= 11) return "T6 H=3-11";
@@ -192,6 +193,7 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   if (jsWeekday === 5) return "Chỉ Vàng (XAUUSD)";
   if (jsWeekday === 1) {
     if (h === 2) return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)";
+    if (h === 3 || h === 4) return "Chỉ Vàng (XAUUSD)";
     return h === 9 ? "Chỉ Focus GBPUSD · GBPCAD" : "Chỉ Vàng (XAUUSD)";
   }
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "Chỉ Vàng (XAUUSD)";

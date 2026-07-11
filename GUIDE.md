@@ -39,7 +39,7 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 ### No-gold label (XAU)
 | Ngày | No-gold | Đánh vàng |
 | --- | --- | --- |
-| T2 | H=5–11 | H=3–4, H=12–13, H=15 |
+| T2 | H=3–4, H=5–11 | H=12–13, H=15 |
 | T3–T4 | không | H=3–13, H=15 |
 | T5 | H=3–4 | H=5–13, H=15 |
 | T6 | H=3–11 | chỉ H=12–13, H=15 |
@@ -62,7 +62,7 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 
 | H | GBP T2 | GBP T3–T4 | GBP T5 | GBP T6 | Quy tắc XAU |
 | --- | --- | --- | --- | --- | --- |
-| 2 | GA+GJ ngược Vàng | GA+GJ ngược Vàng | GA+GJ ngược Vàng | GA+GJ ngược Vàng | Mọi ngày: signal M5/M30, không xét H1 Vàng |
+| 2 | GA+GJ ngược Vàng | GA+GJ ngược Vàng, đảo signal XAU | GA+GJ ngược Vàng, đảo signal XAU | GA+GJ ngược Vàng | Signal M5/M30, không xét H1 Vàng |
 | 3–4 | Không Focus | GA+GJ ngược Vàng | Không Focus | Không Focus | T5/T6 no-gold |
 | 5–8 | Không Focus | GBPAUD | GBPAUD | Không Focus | T2/T6 no-gold |
 | 9 | GBPUSD+GBPCAD | Đủ nhóm | Đủ nhóm | Không Focus | T2/T6 no-gold |

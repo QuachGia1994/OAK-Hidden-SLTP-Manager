@@ -558,7 +558,7 @@ def get_day_notes(now, lang="VN"):
 
     Core (Mon–Fri):
       - T2–T6: H=2-13,15 (no H=14)
-      - T2 · H=5-11: no Gold entry label (H=9 Focus GBPUSD+GBPCAD)
+      - T2 · H=3-4,5-11: no Gold entry label (H=9 Focus GBPUSD+GBPCAD)
       - T5 · H=3-4: no Gold entry label (trade gold H=5-15)
       - T6 · H=3-11: no Gold entry label (trade gold H=12,13,15 only)
       - T2: only H=9 Focus GBPUSD+GBPCAD; other hours no GBP Focus
@@ -591,8 +591,8 @@ def get_day_notes(now, lang="VN"):
         "Thu · H=3-4: NO Gold entry (label) — no GBP Focus."
     )
 
-    notes_vn.append("T2 · H=5-11: KHÔNG đánh Vàng (label); H=9 chỉ Focus GBPUSD · GBPCAD, H khác không Focus GBP.")
-    notes_en.append("Mon · H=5-11: NO Gold entry (label); H=9 focuses GBPUSD · GBPCAD only, other hours no GBP Focus.")
+    notes_vn.append("T2 · H=3-4,5-11: KHÔNG đánh Vàng (label); H=9 chỉ Focus GBPUSD · GBPCAD, H khác không Focus GBP.")
+    notes_en.append("Mon · H=3-4,5-11: NO Gold entry (label); H=9 focuses GBPUSD · GBPCAD only, other hours no GBP Focus.")
 
     notes_vn.append(
         "T6 · H=3-11: KHÔNG đánh Vàng (label) — chỉ đánh Vàng H=12,13,15. Không Focus GBP."

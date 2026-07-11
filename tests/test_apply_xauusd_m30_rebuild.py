@@ -23,8 +23,15 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
             mt5_signal_bot, "get_h1_candle_for_slot"
         ) as h1_candle:
             result = analyze(_dt_thursday(), 2)
-        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(result["signal"], "SELL")
         h1_candle.assert_not_called()
+
+    def test_h2_tuesday_also_reverses_signal(self):
+        candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
+        tuesday = _dt_thursday().replace(day=7)
+        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
+            result = analyze(tuesday, 2)
+        self.assertEqual(result["signal"], "SELL")
 
     def test_h2_rebuilds_both_gbp_pairs_after_m30_flip(self):
         dt = _dt_thursday()

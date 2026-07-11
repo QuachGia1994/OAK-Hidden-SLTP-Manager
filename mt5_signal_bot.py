@@ -672,7 +672,11 @@ def analyze(broker_dt, H):
             f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:00')}"
         )
 
-    return {"signal": signal, "orig_signal": signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
+    original_signal = signal
+    if H == 2 and broker_dt.weekday() in (1, 3):
+        signal = "SELL" if signal == "BUY" else "BUY"
+        report += "\nH=2 T3/T5: đảo signal XAU theo rule mới (chỉ M5/M30, bỏ H1 Vàng)."
+    return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
     if weekday is not None:
@@ -687,7 +691,7 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
 
     - Thứ 5 (Thu): H=3-4 → trade gold H=5-15
     - Thứ 6 (Fri): H=3-11 → trade gold H=12-15 only
-    - Thứ 2 (Mon): H=5-11
+    - Thứ 2 (Mon): H=3-4 và H=5-11
     - T3–T4: never (gold normal H=3-13,15)
     """
     wd = _resolve_weekday(broker_dt, weekday)
@@ -700,6 +704,8 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
     if wd == 3 and h in (3, 4):  # T5 early
         return True
     if wd == 0 and 5 <= h <= 11:  # T2 no-gold band
+        return True
+    if wd == 0 and h in (3, 4):
         return True
     if wd == 4 and 3 <= h <= 11:  # T6 H=3-11 no-gold; H=12-15 gold OK
         return True
@@ -722,6 +728,8 @@ def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
         return "H=3-4"
     if wd == 0 and 5 <= h <= 11:
         return "T2 H=5-11"
+    if wd == 0 and h in (3, 4):
+        return "T2 H=3-4"
     if wd == 4 and 3 <= h <= 11:
         return "T6 H=3-11"
     return ""

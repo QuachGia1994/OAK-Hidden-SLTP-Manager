@@ -20,7 +20,8 @@ Related docs:
 - Pairs: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
 - Slots: Mon–Fri H=2–13 and H=15
 - H=2 uses the normal M5/M30 signal only; GBPAUD and GBPJPY are opposite gold, with no H1 gold check
-- No-gold: Mon H=5–11; Thu H=3–4; Fri H=3–11 (gold Fri only H=12–13 and H=15)
+- No-gold: Mon H=3–4 and H=5–11; Thu H=3–4; Fri H=3–11 (gold Fri only H=12–13 and H=15)
+- Tue/Thu H=2 reverses the XAU signal after the M5/M30 calculation; no H1 gold check
 - Tue–Wed: H=3–4 focus GBPAUD + GBPJPY opposite gold; H=5–8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
 - Thu: H=5–8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
 - Fri: no GBP Focus
