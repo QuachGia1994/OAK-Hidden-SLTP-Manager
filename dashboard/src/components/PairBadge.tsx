@@ -30,7 +30,7 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
     );
   }
 
-  // No-trade gold badge: "no_gold_thu:BUY:H=3-4" or "no_gold_thu:SELL:T5 H≥12" or "no_gold_thu"
+  // No-trade gold badge: "no_gold_thu:BUY:H=3-4" or "no_gold_thu:SELL:T6 H=3-11" or "no_gold_thu"
   if (direction === "no_gold_thu" || direction?.startsWith("no_gold_thu:")) {
     const parts = direction.split(":");
     // ["no_gold_thu"] | ["no_gold_thu", "BUY"] | ["no_gold_thu", "BUY", "H=3-4"]

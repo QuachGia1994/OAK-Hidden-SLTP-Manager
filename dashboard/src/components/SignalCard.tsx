@@ -15,6 +15,16 @@ import {
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 
+function isD1MatchNote(note: string | null | undefined) {
+  return !!note && note.includes("tick match D1");
+}
+
+function getD1MatchNote(direction: Signal["d_direction"]) {
+  if (direction === "BUY") return "XAUUSD: Mua BUY (tick match D1)";
+  if (direction === "SELL") return "XAUUSD: Bán SELL (tick match D1)";
+  return "XAUUSD: tick match D1";
+}
+
 /** Strip long no-gold prose; keep pair-rule note only (badge handles the label). */
 function stripNoGoldProse(note: string | null | undefined): string | null {
   if (!note) return null;
@@ -31,17 +41,30 @@ function stripNoGoldProse(note: string | null | undefined): string | null {
   return s || null;
 }
 
-export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean }) {
+export function SignalCard({
+  signal,
+  isVIP,
+  showD1Match = false,
+}: {
+  signal: Signal;
+  isVIP?: boolean;
+  showD1Match?: boolean;
+}) {
   const isMissed = signal.missed;
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
-  const rawHourNote = signal.hour_note || getHourNote(signal.hour, weekday);
+  const fallbackHourNote = isD1MatchNote(signal.hour_note)
+    ? getHourNote(signal.hour, weekday)
+    : signal.hour_note;
+  const rawHourNote = showD1Match
+    ? getD1MatchNote(signal.d_direction)
+    : (fallbackHourNote || getHourNote(signal.hour, weekday));
   // Historical badge state must come from date/hour rules, never stale Redis prose.
   const noGoldEntry = signal.date
     ? isXauNoTradeLabelSlot(signal.hour, weekday)
     : signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
   const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
-  const hourNote = stripNoGoldProse(rawHourNote);
+  const hourNote = showD1Match ? rawHourNote : stripNoGoldProse(rawHourNote);
 
   const gbpPairs = getFocusGbpPairs(signal.hour, weekday);
   const focusOnly = isGbpFocusOnlySlot(signal.hour);
@@ -135,7 +158,16 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
       {/* Hour Note — pair rules only */}
       {hourNote && (
         <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/40">
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
+          {showD1Match ? (
+            <div className="flex items-center gap-1.5">
+              <svg className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium leading-snug">{hourNote}</p>
+            </div>
+          ) : (
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
+          )}
         </div>
       )}
     </div>
