@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() !=
 
 
 def read_version():
-    version = "v3.16.0"
+    version = "v3.16.1"
     for path in ("domain/constants.py", "OAK_Hidden_SLTP_Manager.py"):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -83,6 +83,8 @@ EXCLUDE_DIRS = {
     "sent_locks",
     ".agents",
     ".grok",
+    ".pytest_cache",
+    ".ruff_cache",
 }
 
 # Never put secrets / live state into SOURCE zip
@@ -132,6 +134,7 @@ INCLUDE_ROOTS = (
     "docs",
     "models",
     "repositories",
+    "scripts",
     "services",
     "tests",
     "ui",

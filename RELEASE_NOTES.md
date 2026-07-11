@@ -1,33 +1,46 @@
-# NHẬT KÝ CẬP NHẬT (RELEASE NOTES)
+# RELEASE NOTES
 
-> Bản dịch từ `RELEASE_NOTES.en.md` (nguồn chính).
+> Ban dich tu `RELEASE_NOTES.en.md` (nguon chinh).
+
+## [v3.16.1] - 2026-07-11
+*Fix the Signal cuoi tuan, refresh docs, refresh script backup, va dong bo lai release packaging.*
+
+### Desktop signal card
+- Thu 7/Chu nhat hien `Hien tai: Khong danh`
+- Label cac cap duoc clear vao cuoi tuan
+- `Tiep theo` va `Dem nguoc` cuoi tuan khong tro lai slot ngay thuong cu
+
+### Docs
+- README / Guide / Release Notes da cap nhat theo hanh vi thuc te cua app
+- Tai lieu cai dat da doi theo ten goi phat hanh va output build hien tai
+- Ma tran signal duoc viet lai theo logic H=2-15 dang active va xu ly cuoi tuan
+
+### Backup + packaging
+- App bump len **v3.16.1**
+- `create_backup_final.py` da dua them folder `scripts/` vao source zip
+- Backup exclusions bo qua them cac local cache folder thuong gap
 
 ## [v3.16.0] - 2026-07-10
-*Rule tín hiệu v9 + multi-monitor + docs EN/VN + gói cài đặt.*
+*Signal rules v9 + multi-monitor isolation + EN docs + installer package.*
 
-### Rule tín hiệu (logic v9)
-- Slot T2–T6 H=2–13 và H=15
-- H=2 dùng M5/M30; GBPAUD + GBPJPY ngược Vàng, không xét H1 Vàng
-- No-gold: T2 H=5–11; T5 H=3–4; T6 H=3–11 (vàng T6 chỉ H=12–13 và H=15)
-- T3–T4 H=3–4: GA + GJ ngược Vàng (**Mua/Bán**, không Focus)
-- T3–T4/T5 H=5–8: Focus GBPAUD; T3–T5 H=9/11/12/15 Focus đủ nhóm GBP (T6 không Focus GBP)
-- pair_dirs GBP **chỉ H=3–4**; **H=5+ chỉ XAU**
-- Đã gỡ: ma trận H=9/11/12 · D-direction
-- Bảng ma trận đầy đủ: `GUIDE.en.md` / `GUIDE.md`
+### Signal rules (logic v9)
+- Slot T2-T6 H=2-13 va H=15
+- H=2 dung M5/M30; GBPAUD + GBPJPY nguoc Vang, khong xet H1 Vang
+- No-gold: T2 H=3-11; T5 H=3-4; T6 H=3-11
+- Focus: T3-T4 H=3-4 GA+GJ nguoc Vang, H=5-8 GA, H=9/11/12/15 full group; T5 H=5-8 GA va H=9/11/12/15 full group; T6 khong focus GBP
+- `pair_dirs`: chi co map GBP o H=2-4; H=5+ chi XAU
+- Da bo ma tran direction H=9/11/12 va toan bo D-direction
 
 ### Multi-monitor
-- Nhiều worker; panel Running Monitors
-- Orphan kill exact `--profile` (Vantage ≠ VantageDemo)
-- `trades_*.json` / `pending_partials_*.json` theo profile
+- Concurrent workers; Running Monitors panel
+- Exact `--profile` orphan kill (Vantage != VantageDemo)
+- Theo profile: `trades_*.json` va `pending_partials_*.json`
+- Reader threads khong cham Tk; Account card dung prefix `hb_profile`
 
 ### i18n
-- Guide / README / Release Notes: **EN = nguồn** (`.en.md`); VN = bản dịch (`.md`)
-- EN không còn fallback sang file VN
-- Signal card: Mua/Bán/Không đánh ↔ Buy/Sell/No trade
+- Guide / README / Release Notes load `.en.md` khi language = EN
+- Signal card Mua / Ban / Khong danh da localize
 
-### Đóng gói
+### Packaging
 - App **v3.16.0**
 - Installer.exe, window-unpack.zip, OAK Source zip
-
-## [v3.15.2] - 2026-07-09
-An toàn schedule/profile, nhắc W1 Thứ 5, giảm Telegram 409. Chi tiết signal cũ đã thay bằng v3.16.0.

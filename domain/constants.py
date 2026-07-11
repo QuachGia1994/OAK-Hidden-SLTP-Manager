@@ -6,8 +6,8 @@ import json
 import os
 
 APP_NAME = "OAK MANAGER"
-VERSION = "v3.16.0"
-BUILD = 3160
+VERSION = "v3.16.1"
+BUILD = 3161
 
 CONFIG_FILE = "profiles.json"
 SETTINGS_FILE = "settings.json"

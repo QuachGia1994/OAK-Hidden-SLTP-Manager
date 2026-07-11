@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.16.0)
+# OAK Hidden SLTP Manager (v3.16.1)
 
 Windows desktop app for multi-process MT5 management: monitoring, Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge, and web dashboard.
 
@@ -9,24 +9,30 @@ Related docs:
 ## Features
 
 ### Desktop
-- Hidden SL/TP (optional Visible SL/TP)
+- Hidden SL/TP with optional Visible SL/TP
 - Auto Partial by R + volume %, Auto BE with buffer
 - Multi-profile + multi-monitor workers
-- Ghost Mode (human simulation when algo is blocked)
+- Ghost Mode
 - Pending/scheduled orders, Diagnostics, debug bundle export
 - In-app docs: Guide / README / Release Notes (VN + EN)
 
 ### Signal bot
 - Pairs: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
-- Slots: Mon–Fri H=2–13 and H=15
-- H=2 uses the normal M5/M30 signal only; GBPAUD and GBPJPY are opposite gold, with no H1 gold check
-- No-gold: Mon H=3–4 and H=5–11; Thu H=3–4; Fri H=3–11 (gold Fri only H=12–13 and H=15)
-- Tue/Thu H=2 reverses the XAU signal after the M5/M30 calculation; no H1 gold check
-- Tue–Wed: H=3–4 focus GBPAUD + GBPJPY opposite gold; H=5–8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
-- Thu: H=5–8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
-- Fri: no GBP Focus
-- Monday focuses GBPUSD+GBPCAD only at H=9; other Monday hours have no GBP Focus
+- Slots: Mon-Fri H=2-13 and H=15
+- Weekend: no trading slots
+- H=2 uses M5/M30 only; GBPAUD and GBPJPY are opposite gold, with no H1 gold check
+- Tue/Thu H=2 reverses the XAU signal after the M5/M30 calculation
+- No-gold: Mon H=3-11, Thu H=3-4, Fri H=3-11
+- Tue-Wed: H=3-4 show GBPAUD + GBPJPY opposite gold; H=5-8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
+- Thu: H=3-4 no GBP focus; H=5-8 focus GBPAUD; H=9/11/12/15 focus the full GBP group
+- Fri: no GBP focus
+- Mon: H=9 focuses GBPUSD + GBPCAD only; other Monday hours have no GBP focus
 - D-direction removed
+
+### Desktop signal card
+- Sat/Sun now shows `Current: No trade`
+- Pair labels are cleared on weekends
+- `Next` and `Countdown` stay blank on weekends instead of carrying an old weekday slot
 
 ### Safety
 - Exact profile match on Telegram commands

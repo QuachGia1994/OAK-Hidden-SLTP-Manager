@@ -28,7 +28,7 @@ EXTRA_PACKAGE_FILES = [
 
 
 def read_version():
-    version = "v3.16.0"
+    version = "v3.16.1"
     candidates = [
         os.path.join(PROJECT_ROOT, "domain", "constants.py"),
         os.path.join(PROJECT_ROOT, "OAK_Hidden_SLTP_Manager.py"),
