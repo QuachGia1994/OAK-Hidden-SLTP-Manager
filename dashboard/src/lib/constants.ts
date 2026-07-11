@@ -18,7 +18,7 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 /**
  * GBP focus pairs by hour. Friday has no GBP Focus.
  * No BUY/SELL dims — UI only marks Focus.
- * - Tue–Wed H=3-8: GA+GJ; Thu H=5-8: GA only
+ * - Tue–Wed H=3-4: GA+GJ; Tue–Thu H=5-8: GA only
  * - Thu H=3-4 and Fri: no GBP Focus
  * - H=9/11/12/15 Mon–Thu: full group
  * - Fri (JS=5): no GBP Focus
@@ -32,7 +32,8 @@ export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
     if (h === 3 || h === 4) return [];
     if (h >= 5 && h <= 8) return ["GBPAUD"];
   }
-  if (h >= 3 && h <= 8) return ["GBPAUD", "GBPJPY"];
+  if (h === 3 || h === 4) return ["GBPAUD", "GBPJPY"];
+  if (h >= 5 && h <= 8) return ["GBPAUD"];
   if (h === 9 || h === 11 || h === 12 || h === 15) {
     return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
   }
@@ -46,7 +47,7 @@ export function isGbpFocusOnlySlot(hour: number): boolean {
 }
 
 /**
- * H=3-4: GBPAUD opposite gold, GBPJPY same as gold.
+ * H=3-4: GBPAUD and GBPJPY are both opposite gold.
  * Prefer pair_dirs; else derive from XAUUSD.
  */
 export function resolveGbpDirection(
@@ -71,19 +72,19 @@ export function resolveGbpDirection(
         : null;
   if (!gold) return "-";
   const opposite = gold === "BUY" ? "SELL" : "BUY";
-  if (pair === "GBPJPY") return gold;
+  if (pair === "GBPJPY") return opposite;
   if (pair === "GBPAUD") return opposite;
   if (pair === "GBPUSD" || pair === "GBPCAD") return "--";
   return "-";
 }
 
 const HOUR_NOTES: Record<number, string> = {
-  3: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
-  4: "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)",
-  5: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
-  6: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
-  7: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
-  8: "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)",
+  3: "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)",
+  4: "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)",
+  5: "Chỉ Focus GBPAUD",
+  6: "Chỉ Focus GBPAUD",
+  7: "Chỉ Focus GBPAUD",
+  8: "Chỉ Focus GBPAUD",
   9: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
   11: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
   12: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
@@ -182,8 +183,8 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
 }
 
 const PAIR_RULES = [
-  "H=3-4: pair_dirs map GA ngược / GJ cùng Vàng; Focus GA+GJ",
-  "H=5-8: Chỉ Focus GA+GJ — không map pair_dirs GBP (chỉ XAUUSD)",
+  "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
+  "H=5-8: Chỉ Focus GA — không map pair_dirs GBP (chỉ XAUUSD)",
   "H=9 / 11 / 12 / 15: Chỉ Focus nhóm GBP T2–T5 — không gán chiều",
   "H khác trong band: chỉ XAUUSD",
   "GBP: không hiển thị Mua/Bán — chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",

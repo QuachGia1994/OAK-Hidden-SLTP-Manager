@@ -46,6 +46,12 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         for hour in (9, 11, 12, 15):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), expected)
 
+    def test_tuesday_and_wednesday_focus_only_gbpaud_in_nhip_2(self):
+        for weekday in (1, 2):
+            for hour in (5, 6, 7, 8):
+                with self.subTest(weekday=weekday, hour=hour):
+                    self.assertEqual(get_focus_gbp_pairs(hour, weekday=weekday), ["GBPAUD"])
+
     def test_monday_to_thursday_focus_is_unchanged(self):
         expected = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
         for weekday in range(1, 4):
