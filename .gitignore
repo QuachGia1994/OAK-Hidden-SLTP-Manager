@@ -35,6 +35,7 @@ signals_log.json
 dashboard/node_modules/
 dashboard/.next/
 dashboard/.env*.local
+dashboard/tsconfig.tsbuildinfo
 
 # Copy trade runtime files
 copy_map_*.json
@@ -60,3 +61,7 @@ oak_state.db-wal
 
 # PXSwift cache
 .pxswift/
+
+# Local backup artifacts
+*.bak_*
+*.bak_sched_*
