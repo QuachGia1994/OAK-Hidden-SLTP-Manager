@@ -1,4 +1,4 @@
-import { getSignals } from "@/lib/data";
+import { getSignals, maskSignal } from "@/lib/data";
 import { HistoryList } from "@/components/HistoryList";
 import { hasVipAccess } from "@/lib/vip";
 
@@ -14,6 +14,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
 
   const params = await searchParams;
   const isVIP = await hasVipAccess(params);
+  const visibleSignals = isVIP ? signals : signals.map(maskSignal);
 
   return (
     <div className="page-shell">
@@ -31,7 +32,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
         </div>
       </div>
 
-      <HistoryList signals={signals} isVIP={isVIP} />
+      <HistoryList signals={visibleSignals} isVIP={isVIP} />
     </div>
   );
 }

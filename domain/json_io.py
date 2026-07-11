@@ -30,5 +30,7 @@ def load_json(file, default=None):
 
 
 def save_json(file, data):
-    with open(file, "w", encoding="utf-8") as f:
+    temp_file = f"{file}.tmp"
+    with open(temp_file, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+    os.replace(temp_file, file)

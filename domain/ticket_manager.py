@@ -8,6 +8,7 @@ import time
 
 from domain.constants import TRADES_FILE
 from domain.json_io import load_json, save_json
+from domain.file_lock import FileLock
 
 # Per-file caches (never share one cache across profiles / processes).
 _TRADES_CACHES: dict[str, dict] = {}
@@ -44,13 +45,15 @@ class TicketManager:
 
     def update_ticket(self, ticket_id, **kwargs):
         with _TRADES_LOCK:
-            if self.file_path not in _TRADES_CACHES:
+            with FileLock(f"{self.file_path}.lock") as lock:
+                if lock is None:
+                    return
                 data = load_json(self.file_path)
-                _TRADES_CACHES[self.file_path] = data if isinstance(data, dict) else {}
-            cache = _TRADES_CACHES[self.file_path]
-            tid = str(ticket_id)
-            if tid not in cache:
-                cache[tid] = {"created_at": time.time()}
-            for k, v in kwargs.items():
-                cache[tid][k] = v
-            save_json(self.file_path, cache)
+                cache = data if isinstance(data, dict) else {}
+                tid = str(ticket_id)
+                if tid not in cache:
+                    cache[tid] = {"created_at": time.time()}
+                for k, v in kwargs.items():
+                    cache[tid][k] = v
+                save_json(self.file_path, cache)
+                _TRADES_CACHES[self.file_path] = cache

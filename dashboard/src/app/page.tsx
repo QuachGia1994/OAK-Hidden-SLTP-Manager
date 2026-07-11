@@ -1,4 +1,4 @@
-import { getTodaySignals, getBotState, getEconomicNews } from "@/lib/data";
+import { getTodaySignals, getBotState, getEconomicNews, maskSignal } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
 import { getTargetHours, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
@@ -24,6 +24,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     ]);
   } catch (e) {
     console.error("Dashboard fetch error:", e);
+  }
+
+  if (!isVIP) {
+    signals = signals.map(maskSignal);
+    botState = null;
   }
 
   const { todayStr, dayOfWeek } = getBrokerDateParts(now);

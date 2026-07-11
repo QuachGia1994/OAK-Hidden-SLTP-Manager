@@ -606,6 +606,7 @@ def handle_signal_callback(call):
         "pair": pair,
         "hour": hour,
         "step": "lot",
+        "admin_user_id": call.from_user.id,
     }
     send_telegram_msg(call.message.chat.id, msg_text)
 
@@ -615,8 +616,10 @@ _pending_signal = {}
 @bot.message_handler(func=lambda m: m.chat.id in _pending_signal and _pending_signal[m.chat.id].get("step") == "lot")
 def handle_signal_lot(message):
     """Handle lot input after signal button click"""
+    if not is_admin(message):
+        return
     ctx = _pending_signal.get(message.chat.id)
-    if not ctx:
+    if not ctx or ctx.get("admin_user_id") != message.from_user.id:
         return
 
     text = message.text.strip()
