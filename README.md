@@ -1,45 +1,45 @@
 # OAK Hidden SLTP Manager (v3.16.1)
 
-> Ban dich tu `README.en.md` (nguon chinh). Sua EN truoc, roi dong bo VN.
+> Bản dịch từ `README.en.md` (nguồn chính). Sửa EN trước, rồi đồng bộ VN.
 
-Ung dung Windows desktop de quan ly MT5 da tien trinh: monitoring, Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge va web dashboard.
+Ứng dụng Windows desktop để quản lý MT5 đa tiến trình: giám sát, Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge và web dashboard.
 
-Tai lieu lien quan:
-- [GUIDE.en.md](GUIDE.en.md) (EN, nguon) · [GUIDE.md](GUIDE.md) (VN)
+Tài liệu liên quan:
+- [GUIDE.en.md](GUIDE.en.md) (EN, nguồn) · [GUIDE.md](GUIDE.md) (VN)
 - [RELEASE_NOTES.en.md](RELEASE_NOTES.en.md) · [RELEASE_NOTES.md](RELEASE_NOTES.md)
 
-## Tinh nang
+## Tính năng
 
 ### Desktop
-- Hidden SL/TP kem tuy chon Visible SL/TP
-- Auto Partial theo R + volume %, Auto BE co buffer
+- Hidden SL/TP kèm tuỳ chọn Visible SL/TP
+- Auto Partial theo R + volume %, Auto BE có buffer
 - Multi-profile + multi-monitor workers
 - Ghost Mode
-- Pending/scheduled orders, Diagnostics, export debug bundle
+- Pending/lệnh hẹn giờ, Diagnostics, xuất debug bundle
 - Docs trong app: Guide / README / Release Notes (VN + EN)
 
 ### Signal bot
-- Cap: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
-- Slot: T2-T6 H=2-13 va H=15
-- Cuoi tuan: khong co slot giao dich
-- H=2 chi dung M5/M30; GBPAUD va GBPJPY nguoc Vang, khong xet H1 Vang
-- T3/T5 H=2 dao signal XAU sau khi tinh M5/M30
+- Cặp: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
+- Slot: T2-T6 H=2-13 và H=15
+- Cuối tuần: không có slot giao dịch
+- H=2 chỉ dùng M5/M30; GBPAUD và GBPJPY ngược Vàng, không xét H1 Vàng
+- T3/T5 H=2 đảo signal XAU sau khi tính M5/M30
 - No-gold: T2 H=3-11, T5 H=3-4, T6 H=3-11
-- T3-T4: H=3-4 hien GBPAUD + GBPJPY nguoc Vang; H=5-8 focus GBPAUD; H=9/11/12/15 focus toan nhom GBP
-- T5: H=3-4 khong focus GBP; H=5-8 focus GBPAUD; H=9/11/12/15 focus toan nhom GBP
-- T6: khong focus GBP
-- T2: H=9 focus GBPUSD + GBPCAD; cac moc T2 khac khong focus GBP
-- Da bo D-direction
+- T3-T4: H=3-4 hiện GBPAUD + GBPJPY ngược Vàng; H=5-8 focus GBPAUD; H=9/11/12/15 focus toàn nhóm GBP
+- T5: H=3-4 không focus GBP; H=5-8 focus GBPAUD; H=9/11/12/15 focus toàn nhóm GBP
+- T6: không focus GBP
+- T2: H=9 focus GBPUSD + GBPCAD; các mốc T2 khác không focus GBP
+- Đã bỏ D-direction
 
-### The signal desktop
-- Thu 7/Chu nhat hien `Hien tai: Khong danh`
-- Label cap duoc clear vao cuoi tuan
-- `Tiep theo` va `Dem nguoc` de trong vao cuoi tuan, khong keo slot cu
+### Thẻ signal trên desktop
+- Thứ 7/Chủ nhật hiển thị `Hiện tại: Không đánh`
+- Label các cặp được xoá vào cuối tuần
+- `Tiếp theo` và `Đếm ngược` để trống vào cuối tuần, không kéo slot cũ
 
-### An toan
-- Match profile chinh xac tren lenh Telegram
+### An toàn
+- Khớp profile chính xác trên lệnh Telegram
 - Atomic schedule claim; 1 worker / profile
-- Dung orphan dung `--profile` argument
+- Dọn orphan đúng `--profile` argument
 
-## Goi Windows
+## Gói Windows
 - [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
