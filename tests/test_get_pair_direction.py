@@ -42,7 +42,16 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                     for p in GBP_PAIRS:
                         self.assertNotIn(p, result)
 
-    def test_h2_is_not_a_gbp_direction_slot(self):
+    def test_monday_h2_gbpaud_and_gbpjpy_are_opposite_gold(self):
+        dt = _make_dt(2026, 7, 6, weekday_offset=0)
+        result = get_pair_direction(2, "BUY", dt)
+        self.assertEqual(result["XAUUSD"], "BUY")
+        self.assertEqual(result["GBPAUD"], "SELL")
+        self.assertEqual(result["GBPJPY"], "SELL")
+        self.assertEqual(result["GBPUSD"], "--")
+        self.assertEqual(result["GBPCAD"], "--")
+
+    def test_h2_is_xau_only_outside_monday(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=1)
         self.assertEqual(get_pair_direction(2, "BUY", dt), {"XAUUSD": "BUY"})
 

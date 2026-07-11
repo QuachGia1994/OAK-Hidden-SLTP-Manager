@@ -557,7 +557,7 @@ def get_day_notes(now, lang="VN"):
     """Daily schedule notes — always synced with mt5_signal_bot.get_target_hours / no-gold labels.
 
     Core (Mon–Fri):
-      - T2–T6: H=3-13,15 (no H=14)
+      - T2: H=2-13,15; T3–T6: H=3-13,15 (no H=14)
       - T2 · H=5-11: no Gold entry label (H=9 Focus GBPUSD+GBPCAD)
       - T5 · H=3-4: no Gold entry label (trade gold H=5-15)
       - T6 · H=3-11: no Gold entry label (trade gold H=12,13,15 only)
@@ -579,8 +579,10 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     # Always list full schedule on Mon–Fri (same as bot startup banner)
-    notes_vn.append("T2–T6: slots H=3-13,15 (không H=14).")
-    notes_en.append("Mon–Fri: slots H=3-13,15 (no H=14).")
+    notes_vn.append("T2: slots H=2-13,15; T3–T6: H=3-13,15 (không H=14).")
+    notes_en.append("Mon: slots H=2-13,15; Tue–Fri: H=3-13,15 (no H=14).")
+    notes_vn.append("T2 · H=2: signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng.")
+    notes_en.append("Mon · H=2: M5/M30 signal; GBPAUD · GBPJPY opposite gold, no H1 gold check.")
 
     notes_vn.append(
         "T5 · H=3-4: KHÔNG đánh Vàng (label) — không Focus GBP."

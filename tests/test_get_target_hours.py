@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Weekday-aware target hours: Mon–Fri H=3-13,15."""
+"""Weekday-aware target hours, including Monday's special H=2 slot."""
 import unittest
 from datetime import datetime, timezone
 
@@ -7,8 +7,12 @@ from mt5_signal_bot import get_target_hours
 
 
 class TestGetTargetHours(unittest.TestCase):
-    def test_all_weekdays_exclude_h2_and_h14(self):
-        for wd in (0, 1, 2, 3, 4):  # Mon–Fri including Thu/Fri
+    def test_monday_includes_special_h2_but_other_weekdays_exclude_it(self):
+        self.assertEqual(
+            get_target_hours(weekday=0),
+            [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15],
+        )
+        for wd in (1, 2, 3, 4):
             with self.subTest(wd=wd):
                 hours = get_target_hours(weekday=wd)
                 self.assertEqual(hours, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15])
