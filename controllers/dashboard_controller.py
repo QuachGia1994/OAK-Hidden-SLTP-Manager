@@ -751,10 +751,8 @@ class DashboardControllerMixin:
                                 no_gold_tag = _ngtag(h, weekday=wd) or ""
                             except Exception:
                                 # Fallback if signal bot unavailable
-                                if h in (3, 4):
+                                if 3 <= h <= 8:
                                     focus_gbp = {"GBPAUD", "GBPJPY"}
-                                elif 5 <= h <= 8:
-                                    focus_gbp = {"GBPAUD"}
                                 elif h in (9, 11, 12, 15):
                                     if wd == 4:
                                         focus_gbp = {"GBPAUD", "GBPJPY"}
@@ -800,12 +798,14 @@ class DashboardControllerMixin:
                             else:
                                 lbl.configure(text="—", text_color=muted)
                             continue
-                        # H=3-4: both GA + GJ opposite gold (not Focus)
+                        # H=3-4: direction vs gold (not Focus)
                         if h_num in (2, 3, 4) and pair in ("GBPAUD", "GBPJPY", "GBPUSD", "GBPCAD"):
                             d = pair_dirs.get(pair)
                             if d not in ("BUY", "SELL", "--") and xau_dir in ("BUY", "SELL"):
                                 opp = "SELL" if xau_dir == "BUY" else "BUY"
-                                if pair in ("GBPJPY", "GBPAUD"):
+                                if pair == "GBPJPY":
+                                    d = xau_dir
+                                elif pair == "GBPAUD":
                                     d = opp
                                 else:
                                     d = "--"

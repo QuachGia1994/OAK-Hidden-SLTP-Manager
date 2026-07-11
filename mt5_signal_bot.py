@@ -49,13 +49,13 @@ SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
 # Mon–Fri: H=3..13,15 (no H=14); T5/T6 same band as T2–T4.
 # No-trade gold LABEL (logic still computes XAU for GBP Focus):
-#   - T5: H=3-4 and H≥12 (trade gold H=5-11)
+#   - T5: H=3-4 (trade gold H=5-15)
 #   - T6: H=3-11 (trade gold H=12-15 only; H=14 removed)
-# Focus GBP: H=5-8 GA only; H=9/11/12/15 full group (T6: GA+GJ only).
-# pair_dirs H=2-4: GA + GJ both opposite gold; H=5+ XAU only + Focus list.
+# Focus GBP: Monday H=9 GBPUSD+GBPCAD; other days use their own slot rules.
+# pair_dirs GBP map only H=2-4 (GA ngược / GJ cùng); H=5+ XAU only + Focus list.
 TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # no H=14
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 11
+SIGNAL_LOGIC_VERSION = 10
 
 
 def get_target_hours(broker_dt=None, weekday=None):
@@ -553,7 +553,7 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
     Baseline cho GBP:
-    - H=2..4: rebuild GBP theo final XAU sau flip (GA + GJ đều ngược Vàng).
+    - H=2..4: rebuild GBP theo final XAU sau flip (GA ngược, GJ cùng).
     - H=5+: chỉ XAUUSD (Focus GBP không gán chiều pair_dirs).
     """
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
@@ -667,9 +667,10 @@ def _resolve_weekday(broker_dt=None, weekday=None):
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
     """Slots where XAU is labeled KHÔNG ĐÁNH (logic still computed for GBP Focus).
 
-    - Thứ 5 (Thu): H=3-4 and H≥12 → trade gold H=5-11
+    - Thứ 5 (Thu): H=3-4 → trade gold H=5-15
     - Thứ 6 (Fri): H=3-11 → trade gold H=12-15 only
-    - T2–T4: never (gold normal H=3-13,15)
+    - Thứ 2 (Mon): H=5-11
+    - T3–T4: never (gold normal H=3-13,15)
     """
     wd = _resolve_weekday(broker_dt, weekday)
     if wd is None:
@@ -680,7 +681,7 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
         return False
     if wd == 3 and h in (3, 4):  # T5 early
         return True
-    if wd == 3 and h >= 12:  # T5 afternoon+
+    if wd == 0 and 5 <= h <= 11:  # T2 no-gold band
         return True
     if wd == 4 and 3 <= h <= 11:  # T6 H=3-11 no-gold; H=12-15 gold OK
         return True
@@ -693,7 +694,7 @@ def is_thursday_no_gold_slot(H, broker_dt=None, weekday=None):
 
 
 def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
-    """Short badge tag: 'H=3-4' | 'T6 H=3-11' | 'T5 H≥12' | ''."""
+    """Short badge tag: 'H=3-4' | 'T6 H=3-11' | ''."""
     wd = _resolve_weekday(broker_dt, weekday)
     try:
         h = int(H)
@@ -701,53 +702,55 @@ def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
         return ""
     if wd == 3 and h in (3, 4):
         return "H=3-4"
+    if wd == 0 and 5 <= h <= 11:
+        return "T2 H=5-11"
     if wd == 4 and 3 <= h <= 11:
         return "T6 H=3-11"
-    if wd == 3 and h >= 12:
-        return "T5 H≥12"
     return ""
 
 
 def thursday_no_gold_label(lang="VN"):
-    """Legacy long label (T5 H≥12). Prefer xau_no_trade_label_tag for badges."""
+    """Legacy long label. Prefer xau_no_trade_label_tag for badges."""
     if lang == "EN":
         return "⚠ NO Gold entry (logic still computed for GBP Focus)"
     return "⚠ KHÔNG đánh Vàng (logic vẫn tính cho Focus GBP)"
 
 
 def get_hour_note(H, weekday=None):
-    """Trả note theo H (+ weekday cho T6 focus hẹp).
+    """Trả note theo H; T6 chỉ hiển thị XAUUSD.
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
-    Chỉ H=3 và H=4: note GA + GJ đều ngược Vàng.
-    H=5-8: Focus chỉ GBPAUD. H=15: Focus nhóm GBP. H=14 removed.
+    Chỉ H=3 và H=4: note GBPAUD ngược Vàng / GBPJPY cùng Vàng.
+    H=15: chỉ Focus nhóm GBP (không gán chiều pair_dirs). H=14 removed.
     """
     try:
         h = int(H)
     except (TypeError, ValueError):
         return "Chỉ Vàng (XAUUSD)"
+    if weekday == 4:
+        return "Chỉ Vàng (XAUUSD)"
+    if weekday == 0 and h == 9:
+        return "Chỉ Focus GBPUSD · GBPCAD"
     if h == 14:
         return "Slot H=14 đã tắt (không tính)"
     if h in (3, 4):
-        return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
+        return "GBPAUD ngược Vàng · GBPJPY cùng Vàng (GBPUSD/GBPCAD --)"
     if 5 <= h <= 8:
-        return "Chỉ Focus GBPAUD (không GBPJPY, không gán chiều pair_dirs)"
+        return "Chỉ Focus GBPAUD · GBPJPY (không gán chiều pair_dirs)"
     if h in (9, 11, 12, 15):
-        # T6: no focus GBPUSD/GBPCAD; all these slots are Focus-only (no pair dims)
-        if weekday == 4:
-            return "Chỉ Focus GBPAUD · GBPJPY (T6, không gán chiều)"
         return "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)"
     return "Chỉ Vàng (XAUUSD)"
 
 
 def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
-    """Cặp GBP hiển thị theo slot.
+    """Cặp GBP tập trung theo slot — hiển thị Focus, không Mua/Bán trên Telegram/UI.
 
-    - H=3-4: GA+GJ (Mua/Bán vs Vàng, cả hai ngược)
-    - H=5-8: Focus chỉ GBPAUD (không GBPJPY)
+    - T2 H=9: GBPUSD + GBPCAD
+    - T2 các H khác: không Focus GBP
+    - H=3-8: GBPAUD + GBPJPY (T3–T5)
     - H=9,11,12,15 T2–T5: đủ nhóm GBP
-    - H=9,11,12,15 T6: chỉ GBPAUD + GBPJPY
-    - H=14: disabled
+    - T6: không Focus GBP
+    - H=14: disabled (no focus)
     """
     try:
         h = int(H)
@@ -755,27 +758,28 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
         return []
     if h == 14:
         return []
-    if h in (3, 4):
+    if _resolve_weekday(broker_dt, weekday) == 4:
+        return []
+    if _resolve_weekday(broker_dt, weekday) == 0:
+        return ["GBPUSD", "GBPCAD"] if h == 9 else []
+    if 3 <= h <= 8:
         return ["GBPAUD", "GBPJPY"]
-    if 5 <= h <= 8:
-        return ["GBPAUD"]
     if h in (9, 11, 12, 15):
-        wd = _resolve_weekday(broker_dt, weekday)
-        if wd == 4:  # Friday
-            return ["GBPAUD", "GBPJPY"]
         return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
     return []
 
 
 def _focus_gbp_relation_note(pair, H):
-    """Mô tả quan hệ vs Vàng — chỉ H=3 và H=4 (cả GA và GJ ngược Vàng)."""
+    """Mô tả quan hệ Focus vs Vàng — chỉ H=3 và H=4."""
     try:
         h = int(H)
     except (TypeError, ValueError):
         return "Focus"
     if h in (3, 4):
-        if pair in ("GBPAUD", "GBPJPY"):
-            return "ngược Vàng"
+        if pair == "GBPAUD":
+            return "Focus · ngược Vàng"
+        if pair == "GBPJPY":
+            return "Focus · cùng Vàng"
     return "Focus"
 
 
@@ -815,7 +819,7 @@ sent_today = set()
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     """Tính chiều các cặp theo slot. Signal = hướng pattern (XAUUSD baseline).
 
-    - H=2..4: GBPAUD + GBPJPY đều ngược Vàng; GBPUSD/GBPCAD --
+    - H=2..4: GBPJPY cùng Vàng, GBPAUD ngược Vàng, GBPUSD/GBPCAD --
     - H=5+: chỉ XAUUSD (GBP = Focus list, không gán Mua/Bán)
     """
     result = {}
@@ -827,7 +831,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     result["XAUUSD"] = gold
 
     if H in (2, 3, 4):
-        result["GBPJPY"] = opposite
+        result["GBPJPY"] = gold
         result["GBPAUD"] = opposite
         result["GBPUSD"] = "--"
         result["GBPCAD"] = "--"
@@ -1053,7 +1057,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-6: H=3-13,15 (no H=14) | no-gold: T5 H=3-4+H>=12 | T6 H=3-11 (gold T6 H=12,15)")
+    print(f"  Target Hours T2-6: H=3-13,15 (no H=14) | no-gold: T5 H=3-4 | T6 H=3-11 (gold T6 H=12,15; no GBP Focus)")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1088,7 +1092,7 @@ def main(profile_name=None):
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
         f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-T6=H3-13,15 no H=14 | T5 H=3-4+H≥12 no Gold | T6 H=3-11 no Gold; gold T6 H=12,15)"
+        f"(T2-T6=H3-13,15 no H=14 | T5 H=3-4 no Gold | T6 H=3-11 no Gold; gold T6 H=12,15; no GBP Focus)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
 

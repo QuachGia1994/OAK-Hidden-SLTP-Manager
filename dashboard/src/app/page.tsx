@@ -3,7 +3,7 @@ import { SignalCard } from "@/components/SignalCard";
 import { getTargetHours, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
-import { getBrokerDateParts } from "@/lib/trading-time";
+import { getBrokerDateParts, getFirstD1MatchHour, isD1ActiveWeekday } from "@/lib/trading-time";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +30,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hoursToday = getTargetHours(dayOfWeek);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
+  const d1Active = isD1ActiveWeekday(dayOfWeek);
+  const activeDDirection = d1Active ? botState?.d_direction : null;
+  const firstD1MatchHour = d1Active ? (botState?.d_matched_hour ?? getFirstD1MatchHour(todaySignals, activeDDirection)) : null;
+  const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
+  const d1MatchWindow = firstD1MatchHour !== null ? "Áp dụng tới H=11" : null;
 
   const allSlots = hoursToday.map((h) => ({
     date: todayStr,
@@ -67,12 +72,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <MiniStat label="VIP" value={isVIP ? "Unlocked" : "Locked"} />
           </div>
         </div>
+        {d1MatchBadge && (
+          <div className="mt-2 inline-flex flex-wrap items-center gap-2 self-start rounded-full border border-emerald-200/80 dark:border-emerald-500/20 bg-emerald-50/80 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
+            <span>{d1MatchBadge}</span>
+            {d1MatchWindow && <span className="text-emerald-500 dark:text-emerald-400">• {d1MatchWindow}</span>}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-5">
         <StatusCard label="Bot" value={botState ? "Đang chạy" : "N/A"} color={botState ? "text-emerald-500 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"} />
         <StatusCard label="Signals" value={todaySignals.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
-        <StatusCard label="Slots" value={hoursToday.length ? `H=${hoursToday[0]}-${hoursToday[hoursToday.length - 1]}` : "—"} color="text-zinc-900 dark:text-zinc-100" />
+        <StatusCard label="Hướng D" value={activeDDirection || "—"} color={activeDDirection === "BUY" ? "text-emerald-500 dark:text-emerald-400" : activeDDirection === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
         <StatusCard label="News" value={news.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
       </div>
 
@@ -111,6 +123,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               key={`${signal.date}-${signal.hour}`}
               signal={signal}
               isVIP={isVIP}
+              showD1Match={firstD1MatchHour !== null && signal.hour >= firstD1MatchHour && signal.hour < 12}
             />
           ))}
         </div>

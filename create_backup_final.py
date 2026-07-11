@@ -132,7 +132,6 @@ INCLUDE_ROOTS = (
     "docs",
     "models",
     "repositories",
-    "scripts",
     "services",
     "tests",
     "ui",

@@ -558,9 +558,10 @@ def get_day_notes(now, lang="VN"):
 
     Core (Mon–Fri):
       - T2–T6: H=3-13,15 (no H=14)
-      - T5 · H=3-4 + H≥12: no Gold entry label (trade gold H=5-11)
+      - T2 · H=5-11: no Gold entry label (H=9 Focus GBPUSD+GBPCAD)
+      - T5 · H=3-4: no Gold entry label (trade gold H=5-15)
       - T6 · H=3-11: no Gold entry label (trade gold H=12,15 only)
-      - Focus: H=3-8 GA+GJ; H=9/11/12/15 full GBP (T6: GA+GJ only)
+      - T2: only H=9 Focus GBPUSD+GBPCAD; other hours no GBP Focus
       - pair_dirs GBP map only H=3-4; H=5+ XAU only
     Thursday extras (W1 recalc):
       1. Yesterday Wed day 30 or 1
@@ -588,25 +589,17 @@ def get_day_notes(now, lang="VN"):
         "Thu · H=3-4: NO Gold entry (label) — XAU still drives GBP Focus."
     )
 
-    notes_vn.append(
-        "T5 · H≥12: KHÔNG đánh Vàng (label) — vẫn tính XAU để Focus GBP."
-    )
-    notes_en.append(
-        "Thu · H≥12: NO Gold entry (label) — XAU still drives GBP Focus."
-    )
+    notes_vn.append("T2 · H=5-11: KHÔNG đánh Vàng (label); H=9 chỉ Focus GBPUSD · GBPCAD, H khác không Focus GBP.")
+    notes_en.append("Mon · H=5-11: NO Gold entry (label); H=9 focuses GBPUSD · GBPCAD only, other hours no GBP Focus.")
 
     notes_vn.append(
-        "T6 · H=3-11: KHÔNG đánh Vàng (label) — chỉ đánh Vàng H=12,15. Focus T6 H=9+: chỉ GA+GJ."
+        "T6 · H=3-11: KHÔNG đánh Vàng (label) — chỉ đánh Vàng H=12,15. Không Focus GBP."
     )
     notes_en.append(
-        "Fri · H=3-11: NO Gold entry (label) — gold only H=12,15. Fri focus H=9+: GA+GJ only."
+        "Fri · H=3-11: NO Gold entry (label) — gold only H=12,15. No GBP Focus."
     )
-    notes_vn.append(
-        "H=15: chỉ Focus nhóm GBP (không gán chiều). H=14 đã tắt."
-    )
-    notes_en.append(
-        "H=15: GBP Focus only (no BUY/SELL). H=14 disabled."
-    )
+    notes_vn.append("H=15: Focus nhóm GBP T2–T5. H=14 đã tắt.")
+    notes_en.append("H=15: GBP Focus Mon–Thu. H=14 disabled.")
 
     # Thursday-only W1 calendar extras
     if weekday == 3:

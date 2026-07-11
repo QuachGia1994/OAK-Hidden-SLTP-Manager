@@ -20,10 +20,10 @@ Tài liệu:
 
 ### Signal bot
 - Cặp: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
-- Slot T2–T6 H=3–13,15 (**không H=14**)
-- No-gold: T5 H=3–4+H≥12; T6 H=3–11 (vàng T6 chỉ H=12,15)
-- H=3–4: GA/GJ **Mua/Bán theo Vàng**; H=5+ Focus (T6 H=9+ chỉ GA+GJ); pair_dirs GBP chỉ H=3–4
-- Đã gỡ D-direction và mốc H=14
+- Slot T2–T6 H=3–15
+- No-gold: T2 H=5–11; T5 H=3–4; T6 H=3–11 (vàng T6 chỉ H=12–15)
+- T2 chỉ Focus GBPUSD+GBPCAD ở H=9; các H khác không Focus GBP
+- Đã gỡ D-direction
 
 ### An toàn
 - Exact profile match trên lệnh Telegram
