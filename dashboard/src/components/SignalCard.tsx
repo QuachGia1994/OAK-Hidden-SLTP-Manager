@@ -7,6 +7,7 @@ import {
   weekdayFromDate,
   getFocusGbpPairs,
   isGbpFocusOnlySlot,
+  isXauNoTradeLabelSlot,
   resolveGbpDirection,
   signalHasThuNoGoldLabel,
   signalXauNoTradeTag,
@@ -35,7 +36,10 @@ export function SignalCard({ signal, isVIP }: { signal: Signal; isVIP?: boolean 
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
   const rawHourNote = signal.hour_note || getHourNote(signal.hour, weekday);
-  const noGoldEntry = signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
+  // Historical badge state must come from date/hour rules, never stale Redis prose.
+  const noGoldEntry = signal.date
+    ? isXauNoTradeLabelSlot(signal.hour, weekday)
+    : signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
   const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
   const hourNote = stripNoGoldProse(rawHourNote);
 
