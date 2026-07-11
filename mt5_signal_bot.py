@@ -932,52 +932,60 @@ def rebuild_slot_signal(broker_dt, h, *, is_missed=True):
     return True
 
 
-def rebuild_signals_on_startup():
-    """Refresh signals_log from MT5 on every restart so APP/Dashboard get current rules."""
+def rebuild_recent_history(days=7):
+    """Recalculate and replace the latest weekday history using current rules."""
     if not mt5_ready:
         print("  [REBUILD] MT5 not ready, skip")
         return 0
 
     broker_dt = get_broker_time()
     today = broker_dt.date()
-    now_h = broker_dt.hour
-    now_m = broker_dt.minute
+    dates = [today - timedelta(days=i) for i in range(days)]
+    passed_today = {
+        hour for hour in get_target_hours(broker_dt)
+        if hour < broker_dt.hour or (hour == broker_dt.hour and broker_dt.minute > 45)
+    }
+    slots = {
+        (target_date.isoformat(), hour)
+        for target_date in dates
+        if target_date.weekday() < 5
+        for hour in (
+            passed_today
+            if target_date == today
+            else get_target_hours(datetime.combine(target_date, datetime.min.time()).replace(hour=12))
+        )
+    }
+    try:
+        data = []
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as file:
+                data = json.load(file)
+        filtered = [record for record in data if (record.get("date"), record.get("hour")) not in slots]
+        with open(_SIGNALS_LOG, "w", encoding="utf-8") as file:
+            json.dump(filtered, file, ensure_ascii=False)
+    except Exception as error:
+        print(f"  [REBUILD] Cannot clear stale history: {error}")
+
     rebuilt = 0
-    hours_today = get_target_hours(broker_dt)
-
-    passed_today = [
-        h for h in hours_today
-        if h < now_h or (h == now_h and now_m > 45)
-    ]
-    if passed_today:
-        print(f"  [REBUILD] Today {today.isoformat()} slots: {[fmt_hour(h) for h in passed_today]}")
-        for h in passed_today:
+    for target_date in dates:
+        if target_date.weekday() >= 5:
+            continue
+        fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
+        hours = passed_today if target_date == today else get_target_hours(fake_broker_dt)
+        for hour in hours:
             try:
-                if rebuild_slot_signal(broker_dt, h, is_missed=True):
+                if rebuild_slot_signal(fake_broker_dt, hour, is_missed=True):
                     rebuilt += 1
-                    print(f"  [REBUILD] {today.isoformat()} H={fmt_hour(h)}:45 refreshed")
-            except Exception as e:
-                print(f"  [REBUILD] Error today H={h}: {e}")
+            except Exception as error:
+                print(f"  [REBUILD] Error {target_date.isoformat()} H={hour}: {error}")
 
-    past_dates = []
-    for i in range(1, 8):
-        d = today - timedelta(days=i)
-        if d.weekday() < 5:
-            past_dates.append(d)
-
-    if past_dates:
-        print(f"  [REBUILD] Past weekdays: {[d.isoformat() for d in past_dates]}")
-        for target_date in past_dates:
-            fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
-            for h in get_target_hours(fake_broker_dt):
-                try:
-                    if rebuild_slot_signal(fake_broker_dt, h, is_missed=True):
-                        rebuilt += 1
-                except Exception as e:
-                    print(f"  [REBUILD] Error {target_date.isoformat()} H={h}: {e}")
-
-    print(f"  [REBUILD] Done: {rebuilt} slots refreshed (logic v{SIGNAL_LOGIC_VERSION})")
+    print(f"  [REBUILD] Done: {rebuilt} slots refreshed across {days} days (logic v{SIGNAL_LOGIC_VERSION})")
     return rebuilt
+
+
+def rebuild_signals_on_startup():
+    """Backward-compatible startup hook; refreshes the full recent history."""
+    return rebuild_recent_history(days=7)
 
 
 def backfill_missing_days():
@@ -1254,6 +1262,9 @@ def main(profile_name=None):
                     time.sleep(60)
                     continue
 
+                # Rebuild seven-day history before every live calculation so backtests
+                # always use the current pair and note rules.
+                rebuild_recent_history(days=7)
                 result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
 
