@@ -31,41 +31,42 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer + debug bundle.
 ### Slot schedule
 | Day | Hours |
 | --- | --- |
-| Mon–Fri (T2–T6) | H=3..15 at :45 broker |
+| Mon–Fri (T2–T6) | H=3–13 and H=15 at :45 broker |
 | Weekend | none |
 
 ### No-gold label (XAU)
 | Day | No-gold | Trade gold |
 | --- | --- | --- |
-| Mon (T2) | H=5–11 | H=3–4,12–15 |
-| Tue–Wed | none | H=3–15 |
-| Thu (T5) | H=3–4 | H=5–15 |
-| Fri (T6) | H=3–11 | H=12–15 only |
+| Mon (T2) | H=5–11 | H=3–4, H=12–13, H=15 |
+| Tue–Wed | none | H=3–13, H=15 |
+| Thu (T5) | H=3–4 | H=5–13, H=15 |
+| Fri (T6) | H=3–11 | H=12–13, H=15 only |
 
 ### GBP display
 | Hours | Display | Mon–Thu | Friday |
 | --- | --- | --- | --- |
-| H=3–4 | **Buy/Sell vs gold** (not Focus) | GA opposite gold, GJ same gold | No GBP |
-| H=5–8 | Focus only | GA + GJ | No GBP Focus |
-| H=9,11,12,14,15 | Focus only | Full GBP group | No GBP Focus |
+| H=3–4 | **Buy/Sell vs gold** (not Focus) | Tue–Wed: GA + GJ opposite gold | No GBP Focus |
+| H=5–8 | Focus only | Tue–Wed and Thu: GBPAUD | No GBP Focus |
+| H=9 | Focus only | Mon: GBPUSD + GBPCAD; Tue–Thu: full GBP group | No GBP Focus |
+| H=11,12,15 | Focus only | Tue–Thu: full GBP group | No GBP Focus |
 
 ### pair_dirs mapping
 | Hours | Content |
 | --- | --- |
-| H=3–4 | XAU + GJ same gold, GA opposite, GU/GC `--` |
+| H=3–4 | Tue–Wed: XAU + GA/GJ opposite; other days XAU only |
 | H=5+ | **XAU only** (GBP = Focus list only) |
 
 ### Quick matrix
 
-| H | GBP UI T2–T5 | GBP UI T6 | pair_dirs GBP | XAU T2–T4 | XAU T5 | XAU T6 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 3–4 | Dir vs gold | No GBP | Map vs XAU | Trade | No-gold | No-gold |
-| 5–8 | No GBP Focus | No GBP Focus | **None** (XAU only) | No-gold | Trade | No-gold |
-| 9 | Focus GBPUSD+GBPCAD | No GBP Focus | None | No-gold | Trade | No-gold |
-| 11 | No GBP Focus | No GBP Focus | None | No-gold | Trade | No-gold |
-| 10,13 | — | — | None | Trade | Trade | No-gold |
-| 12 | Full 4 | GA+GJ | None | Trade | Trade | Trade |
-| 14–15 | Full 4 | GA+GJ | None | Trade | Trade | Trade |
+| H | Mon GBP | Tue–Wed GBP | Thu GBP | Fri GBP | XAU rules |
+| --- | --- | --- | --- | --- | --- |
+| 3–4 | No Focus | GA+GJ opposite gold | No Focus | No Focus | Thu/Fri no-gold |
+| 5–8 | No Focus | GBPAUD | GBPAUD | No Focus | Mon/Fri no-gold |
+| 9 | GBPUSD+GBPCAD | Full group | Full group | No Focus | Mon/Fri no-gold |
+| 10 | No Focus | No Focus | No Focus | No Focus | Mon/Fri no-gold |
+| 11 | No Focus | Full group | Full group | No Focus | Mon/Fri no-gold |
+| 12–13 | No Focus | Full group at H=12 | Full group at H=12 | No Focus | Trade gold |
+| 15 | No Focus | Full group | Full group | No Focus | Trade gold |
 
 
 **Removed:** H=9/11/12 direction matrix · D-direction.
@@ -73,7 +74,7 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer + debug bundle.
 ### XAU M30 flip
 - Same direction as M30 → flip XAU; else follow M30
 - H=3–4: rebuild GBP from final XAU
-- H=5+: update XAU only
+- H=5+: update XAU only; GBP Focus has no direction
 
 ## 4. Multi-monitor
 - Concurrent workers; exact `--profile` orphan kill

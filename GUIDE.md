@@ -33,41 +33,42 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 ### Lịch slot
 | Ngày | Giờ |
 | --- | --- |
-| T2–T6 (Mon–Fri) | H=3..15 lúc :45 broker |
+| T2–T6 (Mon–Fri) | H=3–13 và H=15 lúc :45 broker |
 | Cuối tuần | không bắn |
 
 ### No-gold label (XAU)
 | Ngày | No-gold | Đánh vàng |
 | --- | --- | --- |
-| T2 | H=5–11 | H=3–4,12–15 |
-| T3–T4 | không | H=3–15 |
-| T5 | H=3–4 | H=5–15 |
-| T6 | H=3–11 | chỉ H=12–15 |
+| T2 | H=5–11 | H=3–4, H=12–13, H=15 |
+| T3–T4 | không | H=3–13, H=15 |
+| T5 | H=3–4 | H=5–13, H=15 |
+| T6 | H=3–11 | chỉ H=12–13, H=15 |
 
 ### Hiển thị GBP
 | Giờ | Cách hiện | T2–T5 | T6 |
 | --- | --- | --- | --- |
-| H=3–4 | **Mua/Bán theo Vàng** (không Focus) | GA ngược Vàng, GJ cùng Vàng | Không GBP |
-| H=5–8 | Chỉ Focus | GA + GJ | Không Focus GBP |
-| H=9,11,12,14,15 | Chỉ Focus | đủ nhóm GBP | Không Focus GBP |
+| H=3–4 | **Mua/Bán ngược Vàng** (không Focus) | T3–T4: GA + GJ ngược Vàng | Không Focus GBP |
+| H=5–8 | Chỉ Focus | T3–T4 và T5: GBPAUD | Không Focus GBP |
+| H=9 | Chỉ Focus | T2: GBPUSD + GBPCAD; T3–T5: đủ nhóm GBP | Không Focus GBP |
+| H=11,12,15 | Chỉ Focus | T3–T5: đủ nhóm GBP | Không Focus GBP |
 
 ### pair_dirs
 | Giờ | Nội dung |
 | --- | --- |
-| H=3–4 | XAU + GJ cùng Vàng, GA ngược, GU/GC `--` |
+| H=3–4 | T3–T4: XAU + GA/GJ ngược; ngày khác chỉ XAU |
 | H=5+ | **chỉ XAUUSD** (GBP = list Focus) |
 
 ### Ma trận nhanh
 
-| H | GBP UI T2–T5 | GBP UI T6 | pair_dirs GBP | XAU T2–T4 | XAU T5 | XAU T6 |
-| --- | --- | --- | --- | --- | --- | --- |
-| 3–4 | Chiều vs Vàng | Không GBP | Map vs XAU | Đánh | No-gold | No-gold |
-| 5–8 | Không Focus GBP | Không Focus GBP | **Không** (chỉ XAU) | No-gold | Đánh | No-gold |
-| 9 | Focus GBPUSD+GBPCAD | Không Focus GBP | Không | No-gold | Đánh | No-gold |
-| 11 | Không Focus GBP | Không Focus GBP | Không | No-gold | Đánh | No-gold |
-| 10,13 | — | — | Không | Đánh | Đánh | No-gold |
-| 12 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | Đánh | Đánh |
-| 14–15 | Focus đủ 4 | Focus GA+GJ | Không | Đánh | Đánh | Đánh |
+| H | GBP T2 | GBP T3–T4 | GBP T5 | GBP T6 | Quy tắc XAU |
+| --- | --- | --- | --- | --- | --- |
+| 3–4 | Không Focus | GA+GJ ngược Vàng | Không Focus | Không Focus | T5/T6 no-gold |
+| 5–8 | Không Focus | GBPAUD | GBPAUD | Không Focus | T2/T6 no-gold |
+| 9 | GBPUSD+GBPCAD | Đủ nhóm | Đủ nhóm | Không Focus | T2/T6 no-gold |
+| 10 | Không Focus | Không Focus | Không Focus | Không Focus | T2/T6 no-gold |
+| 11 | Không Focus | Đủ nhóm | Đủ nhóm | Không Focus | T2/T6 no-gold |
+| 12–13 | Không Focus | Đủ nhóm tại H=12 | Đủ nhóm tại H=12 | Không Focus | Đánh Vàng |
+| 15 | Không Focus | Đủ nhóm | Đủ nhóm | Không Focus | Đánh Vàng |
 
 
 **Đã gỡ:** ma trận chiều H=9/11/12 · D-direction.
@@ -75,7 +76,7 @@ CRUD profile, copy master/slave, lệnh hẹn giờ, xem log + debug bundle.
 ### XAU M30 flip
 - Cùng chiều M30 → đảo XAU; ngược → theo M30
 - H=3–4: rebuild GBP theo XAU final
-- H=5+: chỉ cập nhật XAU
+- H=5+: chỉ cập nhật XAU; GBP Focus không có chiều
 
 ## 4. Multi-monitor
 - Nhiều worker song song; orphan kill exact `--profile`

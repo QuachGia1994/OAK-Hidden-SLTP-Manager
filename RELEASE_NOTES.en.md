@@ -4,9 +4,9 @@
 *Signal rules v9 + multi-monitor isolation + EN docs + installer package.*
 
 ### Signal rules (logic v9)
-- Mon–Fri slots H=3–15
-- No-gold: Thu H=3–4; Fri H=3–11 (trade gold Fri H=12–15 only)
-- Focus: H=3–8 GA+GJ; H=9/11/12/14/15 full group (Fri: GA+GJ only)
+- Mon–Fri slots H=3–13 and H=15
+- No-gold: Mon H=5–11; Thu H=3–4; Fri H=3–11 (trade gold Fri H=12–13 and H=15 only)
+- Focus: Tue–Wed H=3–4 GA+GJ opposite gold, H=5–8 GA, H=9/11/12/15 full group; Thu H=5–8 GA and H=9/11/12/15 full group; Fri no GBP Focus
 - pair_dirs: GBP map **only H=3–4**; **H=5+ XAU only** (Focus has no Buy/Sell dims)
 - Removed: H=9/11/12 direction matrix and all D-direction plumbing
 - Full matrix table in `GUIDE.en.md` / `GUIDE.md`

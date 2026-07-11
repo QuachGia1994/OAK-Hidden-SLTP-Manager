@@ -1452,9 +1452,31 @@ class DashboardControllerMixin:
                 pass
 
 
+    def _format_markdown_tables(self, text_widget):
+        """Render simple Markdown tables as readable text in the desktop docs."""
+        original = text_widget.get("1.0", "end-1c")
+        formatted = []
+        for line in original.splitlines():
+            stripped = line.strip()
+            if not (stripped.startswith("|") and stripped.endswith("|")):
+                formatted.append(line)
+                continue
+            cells = [cell.strip() for cell in stripped[1:-1].split("|")]
+            is_separator = cells and all(
+                cell and set(cell) <= {"-", ":"} for cell in cells
+            )
+            if not is_separator:
+                formatted.append("   ".join(cells))
+        rendered = "\n".join(formatted)
+        if rendered != original:
+            text_widget.delete("1.0", "end")
+            text_widget.insert("1.0", rendered)
+
+
     def apply_markdown(self, textbox):
         # Access internal tkinter widget to bypass CTkTextbox font restriction
         tf = textbox._textbox
+        self._format_markdown_tables(tf)
         
         # Clear existing tags
         for tag in tf.tag_names():
@@ -1721,7 +1743,16 @@ class DashboardControllerMixin:
                 "release_notes_info": "RELEASE_NOTES.en.md",
             },
         }
-        lang = CURRENT_LANG if CURRENT_LANG in ("VN", "EN") else "VN"
+        # Controllers receive CURRENT_LANG as an import-time alias. Read the
+        # domain value here so an EN preference restored during app startup
+        # cannot accidentally load the VN document.
+        try:
+            from domain import i18n
+            lang = i18n.CURRENT_LANG
+        except Exception:
+            lang = CURRENT_LANG
+        if lang not in ("VN", "EN"):
+            lang = "VN"
         name = (file_map.get(lang) or {}).get(key)
         if not name:
             return T(key)

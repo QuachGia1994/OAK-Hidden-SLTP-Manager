@@ -6,10 +6,10 @@
 *Rule tín hiệu v9 + multi-monitor + docs EN/VN + gói cài đặt.*
 
 ### Rule tín hiệu (logic v9)
-- Slot T2–T6 H=3–15
-- No-gold: T5 H=3–4; T6 H=3–11 (vàng T6 chỉ H=12–15)
-- H=3–4: GA ngược Vàng / GJ cùng Vàng (**Mua/Bán**, không Focus)
-- H=5–8: Focus GA+GJ; H=9/11/12/14/15 Focus đủ nhóm T2–T5 (T6 không Focus GBP)
+- Slot T2–T6 H=3–13 và H=15
+- No-gold: T2 H=5–11; T5 H=3–4; T6 H=3–11 (vàng T6 chỉ H=12–13 và H=15)
+- T3–T4 H=3–4: GA + GJ ngược Vàng (**Mua/Bán**, không Focus)
+- T3–T4/T5 H=5–8: Focus GBPAUD; T3–T5 H=9/11/12/15 Focus đủ nhóm GBP (T6 không Focus GBP)
 - pair_dirs GBP **chỉ H=3–4**; **H=5+ chỉ XAU**
 - Đã gỡ: ma trận H=9/11/12 · D-direction
 - Bảng ma trận đầy đủ: `GUIDE.en.md` / `GUIDE.md`
