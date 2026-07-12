@@ -34,16 +34,16 @@ CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
 ### Lich slot
 | Ngay | Gio |
 | --- | --- |
-| T2-T6 | H=2-13 va H=15 luc :45 broker |
+| T2-T6 | H=2-15 luc :45 broker |
 | Cuoi tuan | khong co |
 
 ### No-gold label (XAU)
 | Ngay | No-gold | Duoc danh vang |
 | --- | --- | --- |
-| T2 | H=3-11 | H=2, H=12-13, H=15 |
-| T3-T4 | khong co | H=2-13, H=15 |
+| T2 | H=3-11 | H=2, H=12-14, H=15 |
+| T3-T4 | H=9-11 | H=2-8, H=12-15 |
 | T5 | H=3-4 | H=2, H=5-13, H=15 |
-| T6 | H=3-11 | H=2, H=12-13, H=15 |
+| T6 | H=3-11 | H=2, H=12-15 |
 
 ### Hien thi GBP
 | Gio | Kieu hien thi | T2 | T3-T4 | T5 | T6 |
@@ -51,11 +51,12 @@ CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
 | H=2 | Mua/Ban theo vang | GA + GJ nguoc Vang | GA + GJ nguoc Vang, dao signal XAU | GA + GJ nguoc Vang, dao signal XAU | GA + GJ nguoc Vang |
 | H=3-4 | Mua/Ban theo vang | Khong focus | GA + GJ nguoc Vang | Khong focus | Khong focus |
 | H=5-8 | Focus only | Khong focus | GBPAUD | GBPAUD | Khong focus |
-| H=9 | Focus only | GBPUSD + GBPCAD | Toan nhom | Toan nhom | Khong focus |
-| H=10 | Focus only | Khong focus | Khong focus | Khong focus | Khong focus |
-| H=11 | Focus only | Khong focus | Toan nhom | Toan nhom | Khong focus |
+| H=9 | Focus only | GBPUSD + GBPCAD | Khong focus | Toan nhom | Khong focus |
+| H=10 | Focus only | Khong focus | Khong focus | Toan nhom | Khong focus |
+| H=11 | Focus only | Khong focus | Khong focus | Toan nhom | Khong focus |
 | H=12 | Focus only | Khong focus | Toan nhom | Toan nhom | Khong focus |
-| H=13 | Focus only | Khong focus | Khong focus | Khong focus | Khong focus |
+| H=13 | Focus only | Khong focus | Toan nhom | Khong focus | Khong focus |
+| H=14 | Focus only | Khong focus | Khong focus | Khong focus | Khong focus |
 | H=15 | Focus only | Khong focus | Toan nhom | Toan nhom | Khong focus |
 
 ### pair_dirs mapping

@@ -557,7 +557,8 @@ def get_day_notes(now, lang="VN"):
     """Daily schedule notes — always synced with mt5_signal_bot.get_target_hours / no-gold labels.
 
     Core (Mon–Fri):
-      - T2–T6: H=2-13,15 (no H=14)
+      - T2–T6: H=2-15
+      - T3/T4: H=9-11 no gold
       - T2 · H=3-4,5-11: no Gold entry label (H=9 Focus GBPUSD+GBPCAD)
       - T5 · H=3-4: no Gold entry label (trade gold H=5-15)
       - T6 · H=3-11: no Gold entry label (trade gold H=12,13,15 only)
@@ -579,8 +580,8 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     # Always list full schedule on Mon–Fri (same as bot startup banner)
-    notes_vn.append("T2–T6: slots H=2-13,15 (không H=14).")
-    notes_en.append("Mon–Fri: slots H=2-13,15 (no H=14).")
+    notes_vn.append("T2–T6: slots H=2-15.")
+    notes_en.append("Mon–Fri: slots H=2-15.")
     notes_vn.append("H=2 mọi ngày: signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng.")
     notes_en.append("H=2 every weekday: M5/M30 signal; GBPAUD · GBPJPY opposite gold, no H1 gold check.")
 
@@ -600,8 +601,8 @@ def get_day_notes(now, lang="VN"):
     notes_en.append(
         "Fri · H=3-11: NO Gold entry (label) — gold only H=12,13,15. No GBP Focus."
     )
-    notes_vn.append("H=15: Focus nhóm GBP T2–T5. H=14 đã tắt.")
-    notes_en.append("H=15: GBP Focus Mon–Thu. H=14 disabled.")
+    notes_vn.append("H=14: active slot, mặc định XAU-only. H=15: Focus nhóm GBP T2–T5.")
+    notes_en.append("H=14: active slot, default XAU-only. H=15: GBP Focus Mon–Thu.")
 
     # Thursday-only W1 calendar extras
     if weekday == 3:

@@ -47,13 +47,14 @@ except Exception:
 
 SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
-# Mon–Fri: H=2..13,15 (no H=14).
+# Mon–Fri: H=2..15 except the explicit slot/rhythm rules.
 # No-trade gold LABEL (logic still computes XAU for GBP Focus):
 #   - T5: H=3-4 (trade gold H=5-15)
-#   - T6: H=3-11 (trade gold H=12-15 only; H=14 removed)
+#   - T3-T4: H=9-11 no-gold
+#   - T6: H=3-11 (trade gold H=12-15 only)
 # Focus GBP: Monday H=9 GBPUSD+GBPCAD; other days use their own slot rules.
 # pair_dirs GBP map only T3-T4 H=3-4 (GA/GJ đều ngược Vàng); H=5+ XAU only + Focus list.
-TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # no H=14
+TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 12
 
@@ -70,7 +71,7 @@ def get_rhythm_label(hour):
         return "Nhịp 2"
     if 9 <= h <= 11:
         return "Nhịp 3"
-    if h in (12, 13):
+    if h in (12, 13, 14):
         return "Nhịp 4"
     if h == 15:
         return "Nhịp 5"
@@ -81,7 +82,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     """Return active H slots for the broker weekday.
 
     Python weekday: Mon=0 .. Sun=6.
-    Mon–Fri → H=2..13,15; weekend → [].
+    Mon–Fri → H=2..15; weekend → [].
     """
     if weekday is None:
         if broker_dt is None:
@@ -692,7 +693,7 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
     - Thứ 5 (Thu): H=3-4 → trade gold H=5-15
     - Thứ 6 (Fri): H=3-11 → trade gold H=12-15 only
     - Thứ 2 (Mon): H=3-4 và H=5-11
-    - T3–T4: never (gold normal H=3-13,15)
+    - T3–T4: H=9-11 no-gold; the rest trade gold normally
     """
     wd = _resolve_weekday(broker_dt, weekday)
     if wd is None:
@@ -702,6 +703,8 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
     except (TypeError, ValueError):
         return False
     if wd == 3 and h in (3, 4):  # T5 early
+        return True
+    if wd in (1, 2) and 9 <= h <= 11:  # T3-T4 no-gold band
         return True
     if wd == 0 and 5 <= h <= 11:  # T2 no-gold band
         return True
@@ -718,12 +721,14 @@ def is_thursday_no_gold_slot(H, broker_dt=None, weekday=None):
 
 
 def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
-    """Short badge tag: 'H=3-4' | 'T6 H=3-11' | ''."""
+    """Short badge tag: 'H=3-4' | 'T3/T4 H=9-11' | 'T6 H=3-11' | ''."""
     wd = _resolve_weekday(broker_dt, weekday)
     try:
         h = int(H)
     except (TypeError, ValueError):
         return ""
+    if wd in (1, 2) and 9 <= h <= 11:
+        return "T3/T4 H=9-11"
     if wd == 3 and h in (3, 4):
         return "H=3-4"
     if wd == 0 and 5 <= h <= 11:
@@ -747,7 +752,7 @@ def get_hour_note(H, weekday=None):
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
     H=2 mọi ngày và T3-T4 H=3-4: GBPAUD và GBPJPY đều ngược Vàng.
-    H=15: chỉ Focus nhóm GBP (không gán chiều pair_dirs). H=14 removed.
+    H=14: active slot, default XAU-only. H=15: chỉ Focus nhóm GBP (không gán chiều pair_dirs).
     """
     try:
         h = int(H)
@@ -764,8 +769,6 @@ def get_hour_note(H, weekday=None):
             return "Chỉ Focus GBPAUD"
     if weekday == 0 and h == 9:
         return "Chỉ Focus GBPUSD · GBPCAD"
-    if h == 14:
-        return "Slot H=14 đã tắt (không tính)"
     if weekday in (1, 2) and h in (3, 4):
         return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
     if 5 <= h <= 8:
@@ -785,13 +788,10 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
     - T5 H=3-4: không Focus
     - H=9,11,12,15 T2–T5: đủ nhóm GBP
     - T6: không Focus GBP
-    - H=14: disabled (no focus)
     """
     try:
         h = int(H)
     except (TypeError, ValueError):
-        return []
-    if h == 14:
         return []
     resolved_weekday = _resolve_weekday(broker_dt, weekday)
     if h == 2:
@@ -996,7 +996,7 @@ def rebuild_recent_history(days=7):
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as file:
                 data = json.load(file)
         # Replace each recent weekday completely. Filtering only active slots left
-        # obsolete H=14 records in the log and therefore in Redis history.
+        # Replace the recent window entirely so stale/old slot rows do not survive.
         rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
         filtered = [record for record in data if record.get("date") not in rebuild_dates]
         with open(_SIGNALS_LOG, "w", encoding="utf-8") as file:
@@ -1103,7 +1103,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-6: H=3-13,15 (no H=14) | no-gold: T5 H=3-4 | T6 H=3-11 (gold T6 H=12,15; no GBP Focus)")
+    print(f"  Target Hours T2-6: H=2-15 | no-gold: T3-T4 H=9-11; T5 H=3-4 | T6 H=3-11 (gold T6 H=12,15; no GBP Focus)")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1138,7 +1138,7 @@ def main(profile_name=None):
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
         f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-T6=H3-13,15 no H=14 | T5 H=3-4 no Gold | T6 H=3-11 no Gold; gold T6 H=12,15; no GBP Focus)"
+        f"(T2-T6=H2-15 | T3-T4 H=9-11 no Gold | T5 H=3-4 no Gold | T6 H=3-11 no Gold; gold T6 H=12,15; no GBP Focus)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
 

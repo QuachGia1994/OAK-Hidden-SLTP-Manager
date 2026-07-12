@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Schedule rules for Thursday no-gold labels and Friday GBP Focus."""
+"""Schedule rules for no-gold labels and Friday GBP Focus."""
 import unittest
 from datetime import datetime
 
@@ -19,9 +19,16 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         for hour in (3, 4):
             self.assertTrue(is_xau_no_trade_label_slot(hour, thursday))
             self.assertEqual(xau_no_trade_label_tag(hour, thursday), "H=3-4")
-        for hour in (12, 13, 14, 15):
+        for hour in (9, 10, 11, 12, 13, 14, 15):
             self.assertFalse(is_xau_no_trade_label_slot(hour, thursday))
             self.assertEqual(xau_no_trade_label_tag(hour, thursday), "")
+
+    def test_tuesday_and_wednesday_have_h9_to_h11_no_gold(self):
+        for weekday in (1, 2):
+            for hour in (9, 10, 11):
+                with self.subTest(weekday=weekday, hour=hour):
+                    self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=weekday))
+                    self.assertEqual(xau_no_trade_label_tag(hour, weekday=weekday), "T3/T4 H=9-11")
 
     def test_friday_has_no_gbp_focus(self):
         for hour in range(3, 16):
@@ -56,6 +63,7 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         expected = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
         for weekday in range(1, 4):
             self.assertEqual(get_focus_gbp_pairs(12, weekday=weekday), expected)
+            self.assertEqual(get_focus_gbp_pairs(14, weekday=weekday), [])
 
     def test_monday_rule(self):
         for hour in (3, 4):
@@ -64,7 +72,7 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         for hour in range(5, 12):
             self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=0))
         self.assertEqual(get_focus_gbp_pairs(9, weekday=0), ["GBPUSD", "GBPCAD"])
-        for hour in (3, 4, 5, 8, 10, 11, 12, 15):
+        for hour in (3, 4, 5, 8, 10, 11, 12, 14, 15):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=0), [])
 
 
