@@ -70,9 +70,9 @@ if __name__ == "__main__":
                     elif "🟢" in rest:
                         impact = "low"
                     title = rest.replace("🔴", "").replace("🟡", "").replace("🟢", "").strip()
-                    items.append({"date": news_date, "time": match.group(1), "local_time": match.group(1), "currency": match.group(2), "title": title, "impact": impact})
+                    items.append({"date": news_date, "time": match.group(1), "local_time": match.group(1), "time_zone": "Asia/Bangkok", "currency": match.group(2), "title": title, "impact": impact})
                 else:
-                    items.append({"date": news_date, "time": "", "local_time": "", "currency": "", "title": clean, "impact": "high"})
+                    items.append({"date": news_date, "time": "", "local_time": "", "time_zone": "Asia/Bangkok", "currency": "", "title": clean, "impact": "high"})
             push("news", items)
         else:
             print("news_cache_VN.json not found")

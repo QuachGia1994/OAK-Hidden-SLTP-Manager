@@ -337,6 +337,7 @@ def _parse_news_for_dashboard(news_lines):
                 "date": today_vn,
                 "time": time_str,
                 "local_time": time_str,
+                "time_zone": "Asia/Bangkok",
                 "currency": currency,
                 "title": title,
                 "impact": impact,
@@ -753,7 +754,7 @@ def get_hour_note(H, weekday=None):
     """Trả note theo H; T5 H=3-4 và T6 chủ yếu hiển thị XAUUSD.
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
-    H=2 mọi ngày và T3-T4 H=3-4: GBPAUD và GBPJPY đều ngược Vàng.
+    H=2 hiển thị XAU-only; T3-T4 H=3-4: GBPAUD và GBPJPY đều ngược Vàng.
     H=14: active slot, default XAU-only. H=15: chỉ Focus nhóm GBP (không gán chiều pair_dirs).
     """
     try:
@@ -761,7 +762,7 @@ def get_hour_note(H, weekday=None):
     except (TypeError, ValueError):
         return "Chỉ Vàng (XAUUSD)"
     if h == 2:
-        return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)"
+        return "Chỉ Vàng (XAUUSD)"
     if weekday == 4:
         if 3 <= h <= 7 or h in (9, 10):
             return "Đảo signal ra Vàng (XAUUSD)"

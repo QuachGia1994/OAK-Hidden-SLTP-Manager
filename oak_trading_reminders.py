@@ -576,7 +576,7 @@ def get_day_notes(now, lang="VN"):
     day_rules_vn = {
         0: [
             "Slots: H=2-15",
-            "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
+            "H=2: XAU only · không Focus GBP",
             "XAU: no-gold H=3-15",
             "H=9: chỉ Focus GBPUSD · GBPCAD",
             "Các H khác (bao gồm H=2): không Focus GBP.",
@@ -611,7 +611,7 @@ def get_day_notes(now, lang="VN"):
     day_rules_en = {
         0: [
             "Slots: H=2-15",
-            "H=2 every weekday: M5/M30 signal; GBPAUD · GBPJPY opposite gold; no H1 gold check",
+            "H=2: XAU only · no GBP focus",
             "XAU: no-gold H=3-15",
             "H=9: focus GBPUSD · GBPCAD only",
             "Other hours (including H=2): no GBP focus.",

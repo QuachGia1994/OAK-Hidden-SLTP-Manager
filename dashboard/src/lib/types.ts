@@ -23,6 +23,7 @@ export interface NewsItem {
   date?: string;
   time: string;
   local_time?: string;
+  time_zone?: string;
   currency: string;
   title: string;
   impact: "high" | "medium" | "low";
