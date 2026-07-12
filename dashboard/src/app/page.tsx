@@ -5,7 +5,7 @@ import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { getBrokerDateParts, getFirstD1MatchHour, isD1ActiveWeekday } from "@/lib/trading-time";
 import { headers } from "next/headers";
-import { detectServerLocale, getLocaleTexts } from "@/lib/i18n";
+import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const params = await searchParams;
   const isVIP = await hasVipAccess(params);
-  const locale = detectServerLocale((await headers()).get("accept-language"));
+  const headerList = await headers();
+  const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
 
   try {
@@ -43,7 +44,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const activeDDirection = d1Active ? botState?.d_direction : null;
   const firstD1MatchHour = d1Active ? (botState?.d_matched_hour ?? getFirstD1MatchHour(todaySignals, activeDDirection)) : null;
   const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
-  const d1MatchWindow = firstD1MatchHour !== null ? "Áp dụng tới H=11" : null;
+  const d1MatchWindow = firstD1MatchHour !== null ? (locale === "EN" ? "Applies until H=11" : "Áp dụng tới H=11") : null;
 
   const allSlots = hoursToday.map((h) => ({
     date: todayStr,

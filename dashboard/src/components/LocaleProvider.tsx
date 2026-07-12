@@ -43,15 +43,32 @@ export function LocaleProvider({
     return "system";
   });
 
-  useEffect(() => {
-    const resolved = mode === "system" ? getSystemLocale() : mode;
-    setCurrentLocale(resolved);
+  const resolveLocale = (nextMode: LocaleMode): Locale => {
+    if (nextMode === "system") return detectClientLocale();
+    return nextMode;
+  };
+
+  const persistLocale = (nextMode: LocaleMode, resolved: Locale) => {
+    if (typeof window === "undefined") return;
     document.documentElement.lang = resolved === "EN" ? "en" : "vi";
-    localStorage.setItem("localeMode", mode);
-    localStorage.setItem("locale", resolved);
+    window.localStorage.setItem("localeMode", nextMode);
+    window.localStorage.setItem("locale", resolved);
+    document.cookie = `sltp_locale_mode=${nextMode}; path=/; max-age=31536000; SameSite=Lax`;
+    document.cookie = `sltp_locale=${resolved}; path=/; max-age=31536000; SameSite=Lax`;
+  };
+
+  useEffect(() => {
+    const resolved = mode === "system" ? detectClientLocale() : mode;
+    setCurrentLocale(resolved);
+    persistLocale(mode, resolved);
   }, [mode]);
 
-  const setLocaleMode = (nextMode: LocaleMode) => setMode(nextMode);
+  const setLocaleMode = (nextMode: LocaleMode) => {
+    const resolved = resolveLocale(nextMode);
+    setCurrentLocale(resolved);
+    setMode(nextMode);
+    persistLocale(nextMode, resolved);
+  };
   const value = useMemo(() => ({ locale: currentLocale, mode, setLocaleMode }), [currentLocale, mode]);
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;

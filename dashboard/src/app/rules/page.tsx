@@ -1,14 +1,15 @@
 import { DAY_RULES, brokerToLocalTime, formatHour } from "@/lib/constants";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { headers } from "next/headers";
-import { detectServerLocale, getLocaleTexts } from "@/lib/i18n";
+import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
 export default async function RulesPage() {
   const today = new Date();
   const { dayOfWeek, currentHour } = getBrokerDateParts(today);
-  const locale = detectServerLocale((await headers()).get("accept-language"));
+  const headerList = await headers();
+  const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
   const todayRules = DAY_RULES[dayOfWeek] || [];
 
@@ -17,8 +18,8 @@ export default async function RulesPage() {
       <header className="mb-6 sm:mb-8 rounded-2xl sm:rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm px-4 py-5 sm:px-6 sm:py-7 shadow-sm">
         <div className="flex flex-col gap-4 sm:gap-5">
           <div className="min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.28em] sm:tracking-[0.32em] text-zinc-400 dark:text-zinc-500 mb-2">
-              {locale === "EN" ? "Rules & Schedule" : "Quy t?c & L?ch"}
+            <p className="mb-2 text-[10px] uppercase tracking-[0.28em] sm:tracking-[0.32em] text-zinc-400 dark:text-zinc-500">
+              {locale === "EN" ? "Rules & Schedule" : "Quy tắc & Lịch"}
             </p>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight text-zinc-900 dark:text-zinc-50 break-words">
               {t.ruleList}
@@ -35,11 +36,12 @@ export default async function RulesPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-            <MetaPill label={locale === "EN" ? "Scope" : "Ph?m vi"} value={locale === "EN" ? "Broker-day rule" : "Rule theo ng?y broker"} />
+            <MetaPill label={t.scope} value={locale === "EN" ? "Broker-day rule" : "Rule theo ngày broker"} />
             <MetaPill
-              label={locale === "EN" ? "Current time" : "Giờ hiện tại"}
+              label={t.currentHour}
               value={`${formatHour(currentHour)}:45 Broker • ${brokerToLocalTime(currentHour)}`}
               highlight
+              subLabel={t.brokerSynced}
             />
           </div>
         </div>
@@ -51,7 +53,9 @@ export default async function RulesPage() {
             {t.ruleList}
           </h2>
           <p className="mt-1.5 sm:mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            {locale === "EN" ? "Auto-loaded for the current day. Applied to every slot in the session." : "T? ??ng l?y theo ng?y hi?n t?i. ?p d?ng cho to?n b? slot trong ng?y."}
+            {locale === "EN"
+              ? "Auto-loaded for the current day. Applied to every slot in the session."
+              : "Tự động lấy theo ngày hiện tại. Áp dụng cho toàn bộ slot trong ngày."}
           </p>
         </div>
 
@@ -75,9 +79,9 @@ export default async function RulesPage() {
           </ol>
         ) : (
           <div className="rounded-xl sm:rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-950/30 px-4 py-6 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-          {t.noRule}
-        </div>
-      )}
+            {t.noRule}
+          </div>
+        )}
       </section>
     </div>
   );
@@ -87,10 +91,12 @@ function MetaPill({
   label,
   value,
   highlight = false,
+  subLabel,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
+  subLabel?: string;
 }) {
   if (highlight) {
     return (
@@ -103,9 +109,11 @@ function MetaPill({
         <div className="relative mt-1 text-[13px] sm:text-[15px] font-semibold leading-5 text-zinc-900 dark:text-zinc-50 break-words">
           {value}
         </div>
-        <div className="relative mt-1 text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.24em] text-zinc-500 dark:text-zinc-400">
-          Broker time synced
-        </div>
+        {subLabel && (
+          <div className="relative mt-1 text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.24em] text-zinc-500 dark:text-zinc-400">
+            {subLabel}
+          </div>
+        )}
       </div>
     );
   }

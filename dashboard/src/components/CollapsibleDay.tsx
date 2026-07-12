@@ -6,8 +6,8 @@ import type { Signal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 
 function weekdayLabel(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const day = new Date(y, m - 1, d).getDay();
+  const [year, month, dayOfMonth] = dateStr.split("-").map(Number);
+  const day = new Date(year, month - 1, dayOfMonth).getDay();
   const labels = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
   return labels[day];
 }
@@ -44,7 +44,7 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
           {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
         </h2>
         <span className="text-[10px] text-zinc-400 dark:text-zinc-500 ml-auto">
-          {daySignals.length} {locale === "EN" ? "signal" : "t?n hi?u"}{daySignals.length !== 1 ? "s" : ""}
+          {daySignals.length} {locale === "EN" ? `signal${daySignals.length !== 1 ? "s" : ""}` : "tín hiệu"}
         </span>
       </button>
       {open && (

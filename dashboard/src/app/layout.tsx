@@ -7,7 +7,7 @@ import { VipGuard } from "@/components/VipGuard";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import { Suspense } from "react";
 import { headers } from "next/headers";
-import { detectServerLocale } from "@/lib/i18n";
+import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,8 +29,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const acceptLanguage = (await headers()).get("accept-language");
-  const locale = detectServerLocale(acceptLanguage);
+  const headerList = await headers();
+  const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   return (
     <html
       lang={locale === "EN" ? "en" : "vi"}

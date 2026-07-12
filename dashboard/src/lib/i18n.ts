@@ -11,6 +11,15 @@ export function detectServerLocale(acceptLanguage?: string | null): Locale {
   return normalizeLocale(acceptLanguage);
 }
 
+export function detectServerLocaleFromCookie(cookieHeader?: string | null, acceptLanguage?: string | null): Locale {
+  const cookie = cookieHeader || "";
+  const mode = cookie.match(/(?:^|;\s*)sltp_locale_mode=([^;]+)/)?.[1];
+  if (mode === "EN" || mode === "VN") return mode;
+  const stored = cookie.match(/(?:^|;\s*)sltp_locale=([^;]+)/)?.[1];
+  if (stored === "EN" || stored === "VN") return stored;
+  return normalizeLocale(acceptLanguage);
+}
+
 export function detectClientLocale(): Locale {
   if (typeof navigator === "undefined") return "VN";
   return normalizeLocale(navigator.language);
@@ -18,31 +27,31 @@ export function detectClientLocale(): Locale {
 
 export const localeLabels = {
   VN: {
-    dashboard: "Dashboard",
-    tradingConsole: "Trading console",
+    dashboard: "Bảng điều khiển",
+    tradingConsole: "Bảng điều khiển giao dịch",
     today: "Hôm nay",
     vip: "VIP",
-    unlocked: "Mở",
-    locked: "Khóa",
+    unlocked: "Đã mở",
+    locked: "Đã khóa",
     schedule: "Lịch giao dịch",
-    signalToday: "Signal hôm nay",
+    signalToday: "Tín hiệu hôm nay",
     news: "Tin tức kinh tế",
-    importantNews: "Có tin nổi bật (FFR/FOMC/NFP)",
+    importantNews: "Có tin quan trọng (FFR/FOMC/NFP)",
     high: "Cao",
     medium: "Trung bình",
     low: "Thấp",
-    critical: "Nổi bật",
-    rules: "Rules hôm nay",
+    critical: "Quan trọng",
+    rules: "Quy tắc hôm nay",
     scope: "Phạm vi",
     currentHour: "Giờ hiện tại",
     brokerSynced: "Đồng bộ giờ broker",
-    ruleList: "Danh sách rule",
-    noRule: "Chưa có rule cho ngày này.",
+    ruleList: "Danh sách quy tắc",
+    noRule: "Chưa có quy tắc cho hôm nay.",
     running: "Đang chạy",
     statusBot: "Bot",
-    statusSignals: "Signals",
+    statusSignals: "Tín hiệu",
     statusDirection: "Hướng D",
-    statusNews: "News",
+    statusNews: "Tin tức",
     focusOnly: "Focus",
     xauOnly: "Chỉ Vàng",
     lockedBadge: "Khóa",

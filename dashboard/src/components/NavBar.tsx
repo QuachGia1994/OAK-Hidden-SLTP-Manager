@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "./ThemeProvider";
 import { useLocale } from "./LocaleProvider";
 import { getLocaleTexts } from "@/lib/i18n";
 
 export function NavBar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, toggle } = useTheme();
   const { locale, mode, setLocaleMode } = useLocale();
   const t = getLocaleTexts(locale);
@@ -18,6 +19,11 @@ export function NavBar() {
     { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực tin tức", mobile: locale === "EN" ? "Check" : "Xác thực" },
     { href: "/rules", label: t.rules, mobile: t.rules },
   ];
+
+  const changeLocale = (item: "system" | "EN" | "VN") => {
+    setLocaleMode(item);
+    window.setTimeout(() => router.refresh(), 0);
+  };
 
   return (
     <nav className="sticky top-0 z-50 border-b border-zinc-200/70 dark:border-zinc-800/70 bg-white/75 dark:bg-zinc-950/75 backdrop-blur-xl">
@@ -54,13 +60,13 @@ export function NavBar() {
             {(["system", "EN", "VN"] as const).map((item) => (
               <button
                 key={item}
-                onClick={() => setLocaleMode(item)}
+                onClick={() => changeLocale(item)}
                 className={`relative px-3 py-1.5 rounded-full text-[10px] font-semibold tracking-[0.2em] uppercase transition-all ${
                   mode === item
                     ? "bg-emerald-500 text-white shadow-md"
                     : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
                 }`}
-                aria-label={item === "system" ? "Use system language" : `Switch to ${item}`}
+                aria-label={item === "system" ? "Dùng ngôn ngữ hệ thống" : `Switch to ${item}`}
                 title={item === "system" ? "Use system language" : `Switch to ${item}`}
               >
                 {item === "system" ? "System" : item}
@@ -71,7 +77,7 @@ export function NavBar() {
           <button
             onClick={toggle}
             className="p-1.5 rounded-md border border-zinc-200/80 dark:border-zinc-800/80 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800/50 transition-colors"
-          aria-label={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
+            aria-label={theme === "dark" ? "Chuyển sang Light" : "Chuyển sang Dark"}
             title={theme === "dark" ? "Switch to Light" : "Switch to Dark"}
           >
             {theme === "dark" ? (

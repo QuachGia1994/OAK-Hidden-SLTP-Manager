@@ -6,60 +6,60 @@ import { useLocale } from "@/components/LocaleProvider";
 
 const TEXT = {
   VN: {
-    studio: "Fact check studio",
-    title: "X?c th?c tin t?c",
-    subtitle: "Paste text ho?c upload ?nh ?? cross-check qua nhi?u engine, ?u ti?n ngu?n uy t?n v? ??y score l?n theo ?? ?a d?ng th?c t?.",
-    realtime: "Realtime",
-    liveLabel: "Multi-source analysis",
-    parse: "1. Parse claims",
-    parseDesc: "T?ch c?u, l?c claim b?n, r?i r?t ng?n query ?? search ch?nh x?c h?n.",
-    crossCheck: "2. Cross-check web",
-    crossCheckDesc: "M?i claim ???c b?n qua Google + DDG v? authority domain ?? b?t ?i?m ch?o.",
-    scoreMix: "3. Score with mix",
-    scoreMixDesc: "Ngu?n uy t?n, s? domain, s? engine v? Google Fact Check c?ng t?o verdict.",
-    input: "Input",
-    textOrImage: "Text ho?c ?nh",
-    placeholder: "Paste n?i dung tin t?c c?n x?c th?c...",
-    uploadImage: "Upload ?nh",
-    detectText: "?ang nh?n di?n text...",
-    dragDrop: "K?o th? ?nh v?o ??y ho?c b?m ?? ch?n",
-    submit: "X?c th?c",
-    submitting: "?ang x?c th?c...",
-    summary: "Score kh?ng ch? l? s? ngu?n. N? l?y th?m mix engine, mix domain v? ph?n h?i Google Fact Check khi c?.",
-    previewTitle: "When data arrives",
-    previewDesc: "Khung k?t qu? s? b?t th?nh score ring, verdict badge v? stack ngu?n r? c?p ?? uy t?n.",
-    useCase: "Best use case",
-    useCaseDesc: "Tin t?c t?i ch?nh, headline n?ng, claim c? nhi?u ngu?n ??i chi?u. C?ng nhi?u mix, score c?ng c? ? ngh?a.",
-    result: "Result",
-    resultTitle: "K?t qu? x?c th?c",
-    summaryTitle: "Summary",
-    crossStats: "Cross-check stats",
-    noSources: "No sources",
-    sources: "Ngu?n",
-    notFound: "Kh?ng t?m th?y ngu?n li?n quan",
+    studio: "Xưởng xác thực",
+    title: "Xác thực tin tức",
+    subtitle: "Paste text hoặc upload ảnh để cross-check qua nhiều engine, ưu tiên nguồn uy tín và đẩy score lên theo độ đa dạng thực tế.",
+    realtime: "Thời gian thực",
+    liveLabel: "Phân tích đa nguồn",
+    parse: "1. Tách claim",
+    parseDesc: "Tách câu, lọc claim bẩn, rồi rút ngắn query để search chính xác hơn.",
+    crossCheck: "2. Đối chiếu web",
+    crossCheckDesc: "Mỗi claim được bắn qua Google + DDG và authority domain để bắt điểm chéo.",
+    scoreMix: "3. Chấm điểm tổng hợp",
+    scoreMixDesc: "Nguồn uy tín, số domain, số engine và Google Fact Check cùng tạo verdict.",
+    input: "Đầu vào",
+    textOrImage: "Text hoặc ảnh",
+    placeholder: "Paste nội dung tin tức cần xác thực...",
+    uploadImage: "Upload ảnh",
+    detectText: "Đang nhận diện text...",
+    dragDrop: "Kéo thả ảnh vào đây hoặc bấm để chọn",
+    submit: "Xác thực",
+    submitting: "Đang xác thực...",
+    summary: "Score không chỉ là số nguồn. Nó lấy thêm mix engine, mix domain và phản hồi Google Fact Check khi có.",
+    previewTitle: "Khi có dữ liệu",
+    previewDesc: "Khung kết quả sẽ bật thành score ring, verdict badge và stack nguồn rõ cấp độ uy tín.",
+    useCase: "Nên dùng khi",
+    useCaseDesc: "Tin tức tài chính, headline nóng, claim có nhiều nguồn đối chiếu. Càng nhiều mix, score càng có ý nghĩa.",
+    result: "Kết quả",
+    resultTitle: "Kết quả xác thực",
+    summaryTitle: "Tóm tắt",
+    crossStats: "Thống kê đối chiếu",
+    noSources: "Chưa có nguồn",
+    sources: "Nguồn",
+    notFound: "Không tìm thấy nguồn liên quan",
     verdictLabels: {
-      credible: "??ng tin c?y",
-      mixed: "H?n h?p",
-      unreliable: "Kh?ng ??ng tin",
-      unverifiable: "Kh?ng th? x?c minh",
+      credible: "Đáng tin cậy",
+      mixed: "Hỗn hợp",
+      unreliable: "Không đáng tin",
+      unverifiable: "Không thể xác minh",
     },
-    verdictDesc: "score ring, verdict badge v? stack ngu?n",
-    engineMix: "Hai engine free t?o cross-check g?n h?n, gi?m ngu?n l?ch.",
-    authority: "Khi c? d? li?u IFCN, score ???c ??y theo t?n hi?u uy t?n.",
-    signalMix: "T?nh th?m ?? ?a d?ng domain v? engine ?? score l?n t? nhi?n h?n.",
-    sourceLabel: "Ngu?n",
-    signalLabel: "T?n hi?u",
-    score: "?i?m",
-    verdict: "K?t lu?n",
-    sourcesCount: "Ngu?n",
-    noSourcesFound: "Kh?ng t?m th?y ngu?n li?n quan",
+    verdictDesc: "score ring, verdict badge và stack nguồn",
+    engineMix: "Hai engine free tạo cross-check gọn hơn, giảm nguồn lệch.",
+    authority: "Khi có dữ liệu IFCN, score được đẩy theo tín hiệu uy tín.",
+    signalMix: "Tính thêm độ đa dạng domain và engine để score lên tự nhiên hơn.",
+    sourceLabel: "Nguồn",
+    signalLabel: "Tín hiệu",
+    score: "Điểm",
+    verdict: "Kết luận",
+    sourcesCount: "Nguồn",
+    noSourcesFound: "Không tìm thấy nguồn liên quan",
     ifcnCertified: "IFCN Certified",
     googleFactCheck: "Google Fact Check",
-    scoreLogic: "Logic ?i?m",
-    resultCard: "K?t qu? x?c th?c",
-    crossCheckStats: "Th?ng k? cross-check",
-    keyClaims: "Claim ch?nh",
-    analysis: "Ph?n t?ch",
+    scoreLogic: "Logic điểm",
+    resultCard: "Kết quả xác thực",
+    crossCheckStats: "Thống kê cross-check",
+    keyClaims: "Claim chính",
+    analysis: "Phân tích",
   },
   EN: {
     studio: "Fact check studio",
@@ -505,7 +505,9 @@ export default function FactCheckPage() {
           </div>
 
           <aside className="rounded-[30px] border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 p-5 sm:p-6 shadow-sm backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">{locale === "EN" ? "How it reads" : "How it reads"}</div>
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">
+              {locale === "EN" ? "How it reads" : "Cách hệ thống đọc tin"}
+            </div>
             <div className="mt-4 space-y-3">
               <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.parse}</div>
@@ -587,7 +589,9 @@ export default function FactCheckPage() {
           </div>
 
           <div className="rounded-[28px] border border-zinc-200/80 bg-white/85 p-4 sm:p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.18)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/80 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">{locale === "EN" ? "Live preview" : "Xem trước trực tiếp"}</div>
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">
+              {locale === "EN" ? "Live preview" : "Xem trước trực tiếp"}
+            </div>
             <div className="mt-4 grid gap-3">
               <div className="rounded-3xl border border-zinc-200/70 bg-zinc-50/90 p-4 dark:border-white/10 dark:bg-white/5">
                 <div className="flex items-start justify-between gap-4">
