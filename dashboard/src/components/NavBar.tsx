@@ -9,7 +9,7 @@ import { getLocaleTexts } from "@/lib/i18n";
 export function NavBar() {
   const pathname = usePathname();
   const { theme, toggle } = useTheme();
-  const { locale } = useLocale();
+  const { locale, mode, setLocaleMode } = useLocale();
   const t = getLocaleTexts(locale);
 
   const links = [
@@ -50,6 +50,23 @@ export function NavBar() {
         </div>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="inline-flex items-center rounded-full border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/80 dark:bg-zinc-900/60 p-1 shadow-sm">
+            {(["system", "EN", "VN"] as const).map((item) => (
+              <button
+                key={item}
+                onClick={() => setLocaleMode(item)}
+                className={`relative px-3 py-1.5 rounded-full text-[10px] font-semibold tracking-[0.2em] uppercase transition-all ${
+                  mode === item
+                    ? "bg-emerald-500 text-white shadow-md"
+                    : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+                }`}
+                aria-label={item === "system" ? "Use system language" : `Switch to ${item}`}
+                title={item === "system" ? "Use system language" : `Switch to ${item}`}
+              >
+                {item === "system" ? "System" : item}
+              </button>
+            ))}
+          </div>
           <StatusDot locale={locale} />
           <button
             onClick={toggle}

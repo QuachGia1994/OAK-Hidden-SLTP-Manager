@@ -2,6 +2,7 @@
 
 import { CollapsibleDay } from "./CollapsibleDay";
 import type { Signal } from "@/lib/types";
+import { useLocale } from "./LocaleProvider";
 
 interface HistoryListProps {
   signals: Signal[];
@@ -9,6 +10,7 @@ interface HistoryListProps {
 }
 
 export function HistoryList({ signals, isVIP }: HistoryListProps) {
+  const { locale } = useLocale();
   const dateMap = new Map<string, Signal[]>();
   for (const s of signals) {
     if (!dateMap.has(s.date)) dateMap.set(s.date, []);
@@ -19,7 +21,7 @@ export function HistoryList({ signals, isVIP }: HistoryListProps) {
   if (dates.length === 0) {
     return (
       <div className="text-center py-12 text-zinc-400 dark:text-zinc-500 text-base">
-        Chưa có signal nào
+        {locale === "EN" ? "No signals yet" : "Chưa có signal nào"}
       </div>
     );
   }

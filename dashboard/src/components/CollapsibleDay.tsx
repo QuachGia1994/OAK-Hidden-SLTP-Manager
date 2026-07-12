@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SignalCard } from "./SignalCard";
 import type { Signal } from "@/lib/types";
+import { useLocale } from "./LocaleProvider";
 
 function weekdayLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
@@ -20,6 +21,7 @@ interface CollapsibleDayProps {
 
 export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: CollapsibleDayProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const { locale } = useLocale();
   const daySignals = [...signals].sort((a, b) => b.hour - a.hour);
   const weekday = weekdayLabel(date);
 
@@ -42,7 +44,7 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
           {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
         </h2>
         <span className="text-[10px] text-zinc-400 dark:text-zinc-500 ml-auto">
-          {daySignals.length} signal{daySignals.length !== 1 ? "s" : ""}
+          {daySignals.length} {locale === "EN" ? "signal" : "signal"}{daySignals.length !== 1 ? "s" : ""}
         </span>
       </button>
       {open && (
