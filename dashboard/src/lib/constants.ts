@@ -211,62 +211,116 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
-const PAIR_RULES = [
-  "H=2 mọi ngày: GA/GJ ngược Vàng, Signal chỉ dùng M5/M30 (không xét H1 Vàng)",
-  "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
-  "H=5-8: Chỉ Focus GA — không map pair_dirs GBP (chỉ XAUUSD)",
-  "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2–T5",
-  "H khác trong band: chỉ XAUUSD",
-  "GBP: không hiển thị Mua/Bán — chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",
-];
+type RuleLocale = "VN" | "EN";
 
-/** Special calendar notes — shared Mon–Fri. */
-export const SPECIAL_DAY_NOTES = [
-  "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
-  "T3-T4 · H=9-11: KHÔNG đánh Vàng",
-  "T2 · H=3-15: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
-  "T2–T6: slots H=2-15",
-  "T5 · H=3-4 và H>=12: KHÔNG đánh Vàng (đánh H=5-11)",
-  "T6: không no-gold label; H=3-7 và H=9-10 đảo signal ra Vàng",
-  "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
-  "Đã gỡ: ma trận chiều H=9/11/12 · D-direction",
-];
+const PAIR_RULES: Record<RuleLocale, string[]> = {
+  VN: [
+    "H=2 mọi ngày: GA/GJ ngược Vàng, Signal chỉ dùng M5/M30 (không xét H1 Vàng)",
+    "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
+    "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
+    "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
+    "H khác trong band: chỉ XAUUSD",
+    "GBP: không hiển thị Mua/Bán; chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",
+  ],
+  EN: [
+    "H=2 every weekday: GA/GJ opposite gold; signal uses M5/M30 only (no H1 gold check)",
+    "Tue-Wed H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
+    "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
+    "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
+    "Other in-band hours: XAUUSD only",
+    "GBP: hide Buy/Sell direction; focus only (+ gold relationship only at H=3-4)",
+  ],
+};
 
-export const DAY_RULES: Record<number, string[]> = {
-  1: [
-    "Slots: H=2-15",
+/** Special calendar notes — shared Mon-Fri. */
+const SPECIAL_DAY_NOTES: Record<RuleLocale, string[]> = {
+  VN: [
     "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
-    "XAU: no-gold H=3-15",
-    "H=9: chỉ Focus GBPUSD · GBPCAD",
-    "Các H khác: không Focus GBP.",
+    "T3-T4 · H=9-11: KHÔNG đánh Vàng",
+    "T2 · H=3-15: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
+    "T2-T6: slots H=2-15",
+    "T5 · H=3-4 và H>=12: KHÔNG đánh Vàng (đánh H=5-11)",
+    "T6: không no-gold label; H=3-7 và H=9-10 đảo signal ra Vàng",
+    "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
+    "Đã gỡ: ma trận chiều H=9/11/12 · D-direction",
   ],
-  2: [
-    // Thứ 3
-    "Slots: H=3-15 · XAU đánh bình thường",
-    ...PAIR_RULES,
-    ...SPECIAL_DAY_NOTES,
+  EN: [
+    "H=2 every weekday: M5/M30 signal; GBPAUD · GBPJPY opposite gold; no H1 gold check",
+    "Tue-Wed · H=9-11: no gold trade",
+    "Monday · H=3-15: no gold trade; H=9 focuses GBPUSD · GBPCAD only",
+    "Mon-Fri: slots H=2-15",
+    "Thursday · H=3-4 and H>=12: no gold trade (trade H=5-11)",
+    "Friday: no no-gold labels; H=3-7 and H=9-10 reverse signal to gold",
+    "GBP pair_dirs maps only H=3-4; H=5+ is XAU only + focus list",
+    "Removed: H=9/11/12 direction matrix · D-direction",
   ],
-  3: [
-    // Thứ 4
-    "Slots: H=3-15 · XAU đánh bình thường",
-    ...PAIR_RULES,
-    ...SPECIAL_DAY_NOTES,
-  ],
-  4: [
-    // Thứ 5
-    "Slots: H=3-15",
-    "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
-    "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
-    "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
-    "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
-    "Thứ 5 + T4 hôm qua = 30/1 tây → nhắc W1; + T6 tuần = 3/4/7 → nhắc W1",
-  ],
-  5: [
-    // Thứ 6
-    "Slots: H=3-15",
-    "XAU: H=3-7 và H=9-10 đảo signal ra Vàng; các H khác đánh bình thường",
-    "Không Focus GBP.",
-  ],
+};
+
+export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
+  VN: {
+    1: [
+      "Slots: H=2-15",
+      "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
+      "XAU: no-gold H=3-15",
+      "H=9: chỉ Focus GBPUSD · GBPCAD",
+      "Các H khác (bao gồm H=2): không Focus GBP.",
+    ],
+    2: [
+      "Slots: H=3-15 · XAU đánh bình thường",
+      ...PAIR_RULES.VN,
+      ...SPECIAL_DAY_NOTES.VN,
+    ],
+    3: [
+      "Slots: H=3-15 · XAU đánh bình thường",
+      ...PAIR_RULES.VN,
+      ...SPECIAL_DAY_NOTES.VN,
+    ],
+    4: [
+      "Slots: H=3-15",
+      "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
+      "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
+      "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
+      "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
+      "Thứ 5 + T4 hôm qua = 30/1 tây → nhắc W1; + T6 tuần = 3/4/7 → nhắc W1",
+    ],
+    5: [
+      "Slots: H=3-15",
+      "XAU: H=3-7 và H=9-10 đảo signal ra Vàng; các H khác đánh bình thường",
+      "Không Focus GBP.",
+    ],
+  },
+  EN: {
+    1: [
+      "Slots: H=2-15",
+      "H=2 every weekday: M5/M30 signal; GBPAUD · GBPJPY opposite gold; no H1 gold check",
+      "XAU: no-gold H=3-15",
+      "H=9: focus GBPUSD · GBPCAD only",
+      "Other hours (including H=2): no GBP focus.",
+    ],
+    2: [
+      "Slots: H=3-15 · XAU trades normally",
+      ...PAIR_RULES.EN,
+      ...SPECIAL_DAY_NOTES.EN,
+    ],
+    3: [
+      "Slots: H=3-15 · XAU trades normally",
+      ...PAIR_RULES.EN,
+      ...SPECIAL_DAY_NOTES.EN,
+    ],
+    4: [
+      "Slots: H=3-15",
+      "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
+      "H=3-4, H=12-15: show NO TRADE badge",
+      "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
+      "H=9/10/11/12/15: focus full group · XAU no-gold from H=12",
+      "Thursday + previous Wednesday = western 30/1 → W1 reminder; + Friday week = 3/4/7 → W1 reminder",
+    ],
+    5: [
+      "Slots: H=3-15",
+      "XAU: H=3-7 and H=9-10 reverse signal to gold; other hours trade normally",
+      "No GBP focus.",
+    ],
+  },
 };
 
 export function getSignalColor(signal: string): string {

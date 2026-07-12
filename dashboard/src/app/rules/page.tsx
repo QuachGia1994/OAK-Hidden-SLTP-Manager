@@ -11,7 +11,7 @@ export default async function RulesPage() {
   const headerList = await headers();
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
-  const todayRules = DAY_RULES[dayOfWeek] || [];
+  const todayRules = DAY_RULES[locale][dayOfWeek] || [];
 
   return (
     <div className="page-shell max-w-3xl">
