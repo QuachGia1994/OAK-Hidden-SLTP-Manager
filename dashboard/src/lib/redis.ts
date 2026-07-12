@@ -43,6 +43,21 @@ export function requireAuth(request: Request): NextResponse | null {
   return null;
 }
 
+/** Allow a browser call only when it originates from this exact deployment. */
+export function isSameOriginBrowserRequest(request: Request): boolean {
+  const fetchSite = request.headers.get("sec-fetch-site") || "";
+  if (fetchSite !== "same-origin") return false;
+  if (request.method === "GET") return true;
+  const origin = request.headers.get("origin") || "";
+  return origin === new URL(request.url).origin;
+}
+
+/** Browser clients use same-origin checks; internal clients keep x-api-key auth. */
+export function requireBrowserOrApiAuth(request: Request): NextResponse | null {
+  if (isSameOriginBrowserRequest(request)) return null;
+  return requireAuth(request);
+}
+
 /** True when request may see full signal/state payloads (API key or VIP cookie). */
 export function canSeeVipData(request: Request): boolean {
   // Bot push auth may also read back — treat valid API key as privileged

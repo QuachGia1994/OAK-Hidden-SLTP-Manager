@@ -1,5 +1,10 @@
 # RELEASE NOTES
 
+## Chua phat hanh
+- Sua Fact Check tren browser bi HTTP 401 ma khong lo dashboard API key noi bo
+- Dua Fact Check Worker vao START ALL / STOP ALL va mode app dong goi
+- Them Google News fallback, AI phan bien tuy chon, OCR threshold thich nghi va dan anh clipboard
+
 > Ban dich tu `RELEASE_NOTES.en.md` (nguon chinh).
 
 ## [v3.16.1] - 2026-07-11
@@ -26,7 +31,7 @@
 ### Signal rules (logic v9)
 - Slot T2-T6 H=2-15
 - H=2 dung M5/M30; GBPAUD/GBPJPY nguoc Vang, bo H1 Vang
-- No-gold: T2 H=3-15, T3-T4 H=9-11, T5 H=3-4
+- No-gold: T2 H=3-15, T3-T4 H=9-11, T5 H=3-4 va H=12-15
 - T6 dao signal ra Vang o H=3-7 va H=9-10; khong co no-gold label
 - Focus la hien thi GBP-only sau H=5; bo D-direction
 

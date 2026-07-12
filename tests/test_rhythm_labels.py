@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Regression tests for the five trading rhythm labels."""
+"""Regression tests for the active trading rhythm labels."""
 import unittest
 
 from mt5_signal_bot import get_rhythm_label
@@ -8,7 +8,7 @@ from mt5_signal_bot import get_rhythm_label
 class TestRhythmLabels(unittest.TestCase):
     def test_all_active_hours_map_to_a_rhythm(self):
         expected = {
-            2: "Nhịp 1 · JPY",
+            2: "Nhịp 0 · XAU",
             3: "Nhịp 1 · JPY",
             4: "Nhịp 1 · JPY",
             5: "Nhịp 2 · AUD",

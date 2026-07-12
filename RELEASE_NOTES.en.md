@@ -1,5 +1,10 @@
 # RELEASE NOTES
 
+## Unreleased
+- Fixed browser Fact Check requests returning HTTP 401 without exposing the internal dashboard API key
+- Added Fact Check Worker to desktop START ALL / STOP ALL and frozen-app process mode
+- Added Google News fallback, optional AI evidence review, adaptive multi-pass OCR, and clipboard image paste
+
 ## [v3.16.1] - 2026-07-11
 *Weekend signal card fix, doc refresh, backup script refresh, and release packaging sync.*
 

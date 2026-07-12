@@ -17,13 +17,15 @@ Tài liệu liên quan:
 - Ghost Mode
 - Pending/lệnh hẹn giờ, Diagnostics, xuất debug bundle
 - Docs trong app: Guide / README / Release Notes (VN + EN)
+- Tab Signals Start/Stop đồng thời 5 dịch vụ, gồm cả Fact Check Worker
+- Fact Check: Google + DuckDuckGo, AI phản biện tùy chọn, OCR nhiều lượt và dán ảnh clipboard
 
 ### Signal bot
 - Cặp: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
 - Slot: T2-T6 H=2-15
 - Cuối tuần: không có slot giao dịch
 - H=2 chỉ dùng M5/M30; GBPAUD/GBPJPY ngược Vàng, bỏ H1 Vàng
-- No-gold: T2 H=3-15, T3-T4 H=9-11, T5 H=3-4
+- No-gold: T2 H=3-15, T3-T4 H=9-11, T5 H=3-4 và H=12-15
 - T6: H=3-7 và H=9-10 đảo signal ra Vàng; H=11-15 đánh Vàng bình thường; không no-gold label
 - T2: H=9 focus GBPUSD + GBPCAD; các mốc khác không focus GBP
 - T3-T4: H=3-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP; H=14 XAU only

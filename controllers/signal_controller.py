@@ -23,6 +23,7 @@ class SignalControllerMixin:
             ("mt_server", "MT4-MT5 Server", "#1f538d"),
             ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
             ("mimo_worker", "MiMo Worker", "#d4a03d"),
+            ("factcheck_worker", "Fact Check Worker", "#00bfa5"),
         ]
         # Ensure UI marshal is bound (re-apply after rebuild)
         try:
@@ -41,6 +42,7 @@ class SignalControllerMixin:
         script_map = {
             "mimo_bot": "mimo_bot.py",
             "mimo_worker": "mimo_worker.py",
+            "factcheck_worker": "factcheck_worker.py",
         }
         script = script_map.get(key)
         if not script:

@@ -21,7 +21,7 @@ Tai lieu mo ta app desktop, signal bot, Telegram bridge va dashboard web.
 - Thu 7/Chu nhat, the Signal hien `Hien tai: Khong danh`, pair labels rong, `Tiep theo` va `Dem nguoc` de trong
 
 ### Signals
-Bon process nen: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker.
+Nam process nen: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker va Fact Check Worker. **START ALL / STOP ALL** dieu khien toan bo.
 
 ### Profiles / Copy Trading / Pending / Diagnostics
 CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
@@ -42,7 +42,7 @@ CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
 | --- | --- | --- |
 | T2 | H=3-15 | H=2 |
 | T3-T4 | H=9-11 | H=2-8, H=12-15 |
-| T5 | H=3-4 | H=2, H=5-15 |
+| T5 | H=3-4, H=12-15 | H=2, H=5-11 |
 | T6 | none | H=2-15 |
 
 ### Hien thi GBP
@@ -80,6 +80,8 @@ CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
 
 ## 5. Web dashboard
 URL: https://oak-hidden-sltp-manager-dun.vercel.app
+
+Fact Check dung Google + DuckDuckGo mac dinh. Dat `FACTCHECK_AI_API_KEY` de bat engine AI phan bien chung cu. Co the upload, keo tha hoac dan anh vao khung text bang `Ctrl+V`; OCR chay cuc bo trong browser.
 
 ## 6. Telegram
 Target profile chinh xac tren lenh schedule; co NLP + slash commands cho status, pending, closeall va cac workflow ho tro khac.

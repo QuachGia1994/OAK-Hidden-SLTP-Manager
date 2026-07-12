@@ -43,6 +43,12 @@ export interface FactCheckResult {
   sources: FactCheckSource[];
   summary: string;
   key_claims: string[];
+  ai_analysis?: {
+    verdict: "supported" | "contradicted" | "mixed" | "insufficient";
+    confidence: number;
+    summary: string;
+    engine: "ai";
+  } | null;
 }
 
 export interface FactCheckSource {

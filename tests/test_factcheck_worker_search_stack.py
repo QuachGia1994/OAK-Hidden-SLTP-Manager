@@ -17,6 +17,33 @@ class FactcheckWorkerSearchStackTests(unittest.TestCase):
         google_mock.assert_called_once_with("gold price today")
         ddg_mock.assert_called_once_with("gold price today")
 
+    def test_ai_engine_is_optional_without_key(self):
+        with patch.dict(factcheck_worker.os.environ, {}, clear=True):
+            result = factcheck_worker.assess_with_ai(["claim"], [{"url": "https://reuters.com/a"}])
+        self.assertIsNone(result)
+
+    def test_ai_request_uses_strict_evidence_schema(self):
+        payload = factcheck_worker._build_ai_request("gpt-5-mini", {"claims": ["claim"], "evidence": []})
+        self.assertEqual(payload["model"], "gpt-5-mini")
+        self.assertTrue(payload["text"]["format"]["strict"])
+        self.assertIn("Do not add facts or URLs", payload["input"][0]["content"])
+
+    def test_google_search_falls_back_to_news_without_cse_credentials(self):
+        news_hit = {"title": "News", "url": "https://news.google.com/a", "engine": "google"}
+        with patch.dict(factcheck_worker.os.environ, {}, clear=True), \
+             patch.object(factcheck_worker, "search_google_news", return_value=[news_hit]) as news_mock:
+            self.assertEqual(factcheck_worker.search_google_web("claim"), [news_hit])
+        news_mock.assert_called_once_with("claim")
+
+    def test_high_overlap_evidence_counts_as_support(self):
+        claim = "World Health Organization was founded in 1948"
+        evidence = "World Health Organization founded in 1948 - official history"
+        self.assertTrue(factcheck_worker.check_agreement(claim, evidence))
+
+    def test_unsafe_source_url_is_rejected(self):
+        source = {"url": "javascript:alert(1)", "engine": "duckduckgo", "match_hits": 5, "relevance": 1}
+        self.assertFalse(factcheck_worker.should_keep_source(source))
+
 
 if __name__ == "__main__":
     unittest.main()

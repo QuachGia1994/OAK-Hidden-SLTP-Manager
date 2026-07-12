@@ -85,9 +85,10 @@ SIGNAL_SCRIPT_MAP = {
     "mt_server": "mt4_mt5_server.py",
     "mimo_bot": "mimo_bot.py",
     "mimo_worker": "mimo_worker.py",
+    "factcheck_worker": "factcheck_worker.py",
 }
 
-FROZEN_SUPPORTED_KEYS = ("signal_bot",)
+FROZEN_SUPPORTED_KEYS = ("signal_bot", "factcheck_worker")
 
 
 class UnsupportedFrozenProcessError(Exception):
@@ -112,8 +113,9 @@ def build_signal_process_cmd(key, profile, frozen, executable, script_map=None):
     if frozen:
         if key not in FROZEN_SUPPORTED_KEYS:
             raise UnsupportedFrozenProcessError(key)
-        cmd = [executable, "--signal-bot"]
-        if profile:
+        mode = "--signal-bot" if key == "signal_bot" else "--factcheck-worker"
+        cmd = [executable, mode]
+        if key == "signal_bot" and profile:
             cmd.extend(["--profile", profile])
         return cmd
 

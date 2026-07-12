@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
-import { redis, KEYS, requireAuth } from "@/lib/redis";
+import { redis, KEYS, requireAuth, requireBrowserOrApiAuth } from "@/lib/redis";
 import type { FactCheckRequest } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const denied = requireAuth(request);
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  const denied = id ? requireBrowserOrApiAuth(request) : requireAuth(request);
   if (denied) return denied;
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
     const status = searchParams.get("status");
 
     const data = (await redis.get(KEYS.factcheck)) as FactCheckRequest[] | null;
@@ -31,13 +31,26 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const denied = requireAuth(request);
+  const denied = requireBrowserOrApiAuth(request);
   if (denied) return denied;
   try {
     const body = await request.json();
     const text = body.text?.trim();
     if (!text) {
       return NextResponse.json({ ok: false, error: "text is required" }, { status: 400 });
+    }
+    if (text.length > 12000) {
+      return NextResponse.json({ ok: false, error: "text is too long" }, { status: 413 });
+    }
+
+    const forwarded = request.headers.get("x-forwarded-for") || "unknown";
+    const clientKey = forwarded.split(",")[0].trim().replace(/[^a-zA-Z0-9:._-]/g, "_");
+    const bucket = Math.floor(Date.now() / 60000);
+    const rateKey = `sltp:factcheck:rate:${clientKey}:${bucket}`;
+    const requestCount = await redis.incr(rateKey);
+    if (requestCount === 1) await redis.expire(rateKey, 90);
+    if (requestCount > 10) {
+      return NextResponse.json({ ok: false, error: "rate limit exceeded" }, { status: 429 });
     }
 
     const id = crypto.randomUUID();

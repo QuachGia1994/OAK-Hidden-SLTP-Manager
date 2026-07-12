@@ -15,13 +15,15 @@ Related docs:
 - Ghost Mode
 - Pending/scheduled orders, Diagnostics, debug bundle export
 - In-app docs: Guide / README / Release Notes (VN + EN)
+- Signals tab starts/stops five services together, including Fact Check Worker
+- Fact Check: Google + DuckDuckGo, optional AI evidence review, multi-pass OCR, clipboard image paste
 
 ### Signal bot
 - Pairs: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
 - Slots: Mon-Fri H=2-15
 - Weekend: no trading slots
 - H=2 uses M5/M30 only; GBPJPY/GBPAUD are opposite gold, no H1 gold check
-- No-gold: Mon H=3-15, Tue-Wed H=9-11, Thu H=3-4
+- No-gold: Mon H=3-15, Tue-Wed H=9-11, Thu H=3-4 and H=12-15
 - Fri: H=3-7 and H=9-10 reverse signal to gold; no no-gold label
 - Mon: H=9 focuses GBPUSD + GBPCAD; other Monday hours no GBP focus
 - Tue-Wed: H=3-4 GBPJPY + GBPAUD opposite gold; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP group; H=14 XAU only

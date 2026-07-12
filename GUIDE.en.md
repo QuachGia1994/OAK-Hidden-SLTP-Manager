@@ -19,7 +19,7 @@ This guide covers the desktop app, signal bot, Telegram bridge, and web dashboar
 - Sat/Sun signal card shows `Current: No trade`, with empty pair labels, `Next`, and `Countdown`
 
 ### Signals
-Four background processes: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker.
+Five background processes: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker, and Fact Check Worker. **START ALL / STOP ALL** controls the full set.
 
 ### Profiles / Copy Trading / Pending / Diagnostics
 Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle export.
@@ -40,7 +40,7 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle
 | --- | --- | --- |
 | Mon | H=3-15 | H=2 |
 | Tue-Wed | H=9-11 | H=2-8, H=12-15 |
-| Thu | H=3-4 | H=2, H=5-15 |
+| Thu | H=3-4, H=12-15 | H=2, H=5-11 |
 | Fri | none | H=2-15 |
 
 ### GBP display
@@ -78,6 +78,8 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle
 
 ## 5. Web dashboard
 URL: https://oak-hidden-sltp-manager-dun.vercel.app
+
+Fact Check uses Google + DuckDuckGo by default. Set `FACTCHECK_AI_API_KEY` to enable the third AI evidence-review engine. Images can be uploaded, dropped, or pasted into the text box with `Ctrl+V`; OCR runs locally in the browser.
 
 ## 6. Telegram
 Exact profile targeting on schedule commands; NLP + slash commands for status, pending, closeall, and other workflow helpers.

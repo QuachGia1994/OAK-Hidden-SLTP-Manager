@@ -2,6 +2,7 @@
 """Tests for command construction in dev vs frozen mode."""
 import unittest
 import sys
+from utils import build_signal_process_cmd
 
 
 class TestCommandConstruction(unittest.TestCase):
@@ -39,11 +40,21 @@ class TestCommandConstruction(unittest.TestCase):
         self.assertIn("mt4_mt5_server.py", cmd)
 
     def test_frozen_mode_only_signal_bot_supported(self):
-        """Frozen mode: only signal_bot is supported."""
-        supported = ["signal_bot"]
+        """Frozen mode supports embedded workers only."""
+        supported = ["signal_bot", "factcheck_worker"]
         unsupported = ["mt_server", "mimo_bot", "mimo_worker"]
         for key in unsupported:
             self.assertNotIn(key, supported)
+
+    def test_factcheck_worker_commands(self):
+        self.assertEqual(
+            build_signal_process_cmd("factcheck_worker", "ignored", False, sys.executable),
+            [sys.executable, "-u", "factcheck_worker.py"],
+        )
+        self.assertEqual(
+            build_signal_process_cmd("factcheck_worker", "ignored", True, sys.executable),
+            [sys.executable, "--factcheck-worker"],
+        )
 
 
 if __name__ == "__main__":

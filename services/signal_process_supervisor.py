@@ -144,6 +144,7 @@ class SignalProcessSupervisor:
         script_map = {
             "mimo_bot": "mimo_bot.py",
             "mimo_worker": "mimo_worker.py",
+            "factcheck_worker": "factcheck_worker.py",
         }
         script = script_map.get(key)
         if not script:

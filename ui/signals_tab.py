@@ -91,21 +91,23 @@ class SignalsTab(BaseTab):
         panels_frame.grid_columnconfigure(1, weight=1)
         panels_frame.grid_rowconfigure(0, weight=1)
         panels_frame.grid_rowconfigure(1, weight=1)
+        panels_frame.grid_rowconfigure(2, weight=1)
 
         signal_defs = [
             ("signal_bot", "MT5 Signal Bot", "#2fa572"),
             ("mt_server", "MT4-MT5 Server", "#1f538d"),
             ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
             ("mimo_worker", "MiMo Worker", "#d4a03d"),
+            ("factcheck_worker", "Fact Check Worker", "#00bfa5"),
         ]
 
-        positions = [(0, 0), (0, 1), (1, 0), (1, 1)]
+        positions = [(0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1), (2, 0, 2)]
         self.signal_procs = {}
 
         for idx, (key, name, color) in enumerate(signal_defs):
-            row, col = positions[idx]
+            row, col, columnspan = positions[idx]
             panel = ctk.CTkFrame(panels_frame, corner_radius=8)
-            panel.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
+            panel.grid(row=row, column=col, columnspan=columnspan, padx=5, pady=5, sticky="nsew")
 
             header = ctk.CTkFrame(panel, fg_color="transparent")
             header.pack(fill="x", padx=10, pady=(8, 2))

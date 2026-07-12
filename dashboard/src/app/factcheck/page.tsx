@@ -44,7 +44,7 @@ const TEXT = {
       unverifiable: "Không thể xác minh",
     },
     verdictDesc: "score ring, verdict badge và stack nguồn",
-    engineMix: "Hai engine free tạo cross-check gọn hơn, giảm nguồn lệch.",
+    engineMix: "Google và DDG đối chiếu web; AI tùy chọn phản biện trên các nguồn đã thu thập.",
     authority: "Khi có dữ liệu IFCN, score được đẩy theo tín hiệu uy tín.",
     signalMix: "Tính thêm độ đa dạng domain và engine để score lên tự nhiên hơn.",
     sourceLabel: "Nguồn",
@@ -100,7 +100,7 @@ const TEXT = {
       unverifiable: "Unverifiable",
     },
     verdictDesc: "score ring, verdict badge, and source stack",
-    engineMix: "Two free engines keep the cross-check tight and reduce source bias.",
+    engineMix: "Google and DDG cross-check the web; optional AI challenges the collected evidence.",
     authority: "When IFCN data exists, the score leans into authority signals.",
     signalMix: "Domain diversity plus engine diversity lifts the score more naturally.",
     sourceLabel: "Sources",
@@ -188,7 +188,7 @@ function SummaryPill({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatStack({ sources, t }: { sources: Array<{ url: string; reliability: string; engine?: string; agrees: boolean | null }>; t: LocaleText }) {
+function StatStack({ sources, t, hasAi }: { sources: Array<{ url: string; reliability: string; engine?: string; agrees: boolean | null }>; t: LocaleText; hasAi: boolean }) {
   const domains = new Set<string>();
   const engines = new Set<string>();
   let confirming = 0;
@@ -208,10 +208,19 @@ function StatStack({ sources, t }: { sources: Array<{ url: string; reliability: 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <SummaryPill label={t.sourcesCount} value={`${sources.length} links`} />
       <SummaryPill label="Domain" value={`${domains.size} sites`} />
-      <SummaryPill label="Engine" value={`${engines.size || 0} mix`} />
+      <SummaryPill label="Engine" value={`${engines.size + (hasAi ? 1 : 0)} mix`} />
       <SummaryPill label={t.signalLabel} value={`${confirming} / ${opposing} / ${high} high`} />
     </div>
   );
+}
+
+function safeSourceUrl(value: string): string {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? value : "#";
+  } catch {
+    return "#";
+  }
 }
 
 function SourceRow({ source, t }: { source: { title: string; url: string; snippet: string; agrees: boolean | null; reliability: string; publisher?: string; rating?: string; engine?: string }; t: LocaleText }) {
@@ -229,7 +238,7 @@ function SourceRow({ source, t }: { source: { title: string; url: string; snippe
       <div className="flex items-start gap-3 p-4">
         <span className={`mt-0.5 font-mono text-sm font-bold ${iconColor}`}>{icon}</span>
         <div className="flex-1 min-w-0">
-          <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-sm sm:text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate block">
+          <a href={safeSourceUrl(source.url)} target="_blank" rel="noopener noreferrer" className="text-sm sm:text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate block">
             {source.title}
           </a>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap min-w-0">
@@ -310,6 +319,9 @@ async function loadImage(file: File): Promise<HTMLImageElement> {
       img.onload = () => resolve();
       img.onerror = () => reject(new Error("Image load failed"));
     });
+    if (img.naturalWidth * img.naturalHeight > 40_000_000) {
+      throw new Error("Image dimensions are too large");
+    }
     return img;
   } finally {
     URL.revokeObjectURL(url);
@@ -319,7 +331,9 @@ async function loadImage(file: File): Promise<HTMLImageElement> {
 async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropBottom?: boolean; threshold?: boolean }): Promise<Blob> {
   const sourceY = options.cropBottom ? Math.floor(img.naturalHeight * (1 - OCR_BOTTOM_CROP_RATIO)) : 0;
   const sourceH = options.cropBottom ? Math.max(1, Math.floor(img.naturalHeight * OCR_BOTTOM_CROP_RATIO)) : img.naturalHeight;
-  const scale = Math.min(2.6, Math.max(1.25, OCR_MAX_WIDTH / Math.max(img.naturalWidth, 1)));
+  const desiredScale = Math.min(2.6, Math.max(1.25, OCR_MAX_WIDTH / Math.max(img.naturalWidth, 1)));
+  const safeScale = Math.sqrt(20_000_000 / Math.max(img.naturalWidth * sourceH, 1));
+  const scale = Math.min(desiredScale, Math.max(0.5, safeScale));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(img.naturalWidth * scale);
   canvas.height = Math.round(sourceH * scale);
@@ -332,9 +346,10 @@ async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropB
   if (options.threshold) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
+    const threshold = otsuThreshold(imageData);
     for (let i = 0; i < pixels.length; i += 4) {
       const luminance = (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
-      const value = luminance > 165 ? 255 : 0;
+      const value = luminance > threshold ? 255 : 0;
       pixels[i] = value;
       pixels[i + 1] = value;
       pixels[i + 2] = value;
@@ -343,6 +358,63 @@ async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropB
     ctx.putImageData(imageData, 0, 0);
   }
   return blobFromCanvas(canvas);
+}
+
+function otsuThreshold(imageData: ImageData): number {
+  const histogram = new Array<number>(256).fill(0);
+  const pixels = imageData.data;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const luminance = Math.round(pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
+    histogram[luminance] += 1;
+  }
+  const total = pixels.length / 4;
+  const sum = histogram.reduce((value, count, index) => value + index * count, 0);
+  let backgroundWeight = 0;
+  let backgroundSum = 0;
+  let bestVariance = -1;
+  let threshold = 165;
+  for (let index = 0; index < histogram.length; index += 1) {
+    backgroundWeight += histogram[index];
+    if (!backgroundWeight) continue;
+    const foregroundWeight = total - backgroundWeight;
+    if (!foregroundWeight) break;
+    backgroundSum += index * histogram[index];
+    const difference = backgroundSum / backgroundWeight - (sum - backgroundSum) / foregroundWeight;
+    const variance = backgroundWeight * foregroundWeight * difference * difference;
+    if (variance > bestVariance) [bestVariance, threshold] = [variance, index];
+  }
+  return threshold;
+}
+
+async function buildOcrVariants(file: File, image: HTMLImageElement) {
+  return [
+    { label: "original", blob: file },
+    { label: "enhanced", blob: await renderOcrVariantFromImage(image, { threshold: false }) },
+    { label: "threshold", blob: await renderOcrVariantFromImage(image, { threshold: true }) },
+    { label: "bottom", blob: await renderOcrVariantFromImage(image, { cropBottom: true }) },
+    { label: "bottom-threshold", blob: await renderOcrVariantFromImage(image, { cropBottom: true, threshold: true }) },
+  ];
+}
+
+async function recognizeBestOcrText(file: File): Promise<string> {
+  if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) throw new Error("Unsupported image");
+  const Tesseract = await import("tesseract.js");
+  const variants = await buildOcrVariants(file, await loadImage(file));
+  const worker = await Tesseract.createWorker(OCR_LANGS);
+  let bestText = "";
+  let bestScore = -1;
+  try {
+    for (const variant of variants) {
+      const { data } = await worker.recognize(variant.blob);
+      const cleaned = cleanOcrText(data.text || "");
+      const confidence = typeof data.confidence === "number" ? data.confidence : 0;
+      const score = scoreOcrText(cleaned, confidence);
+      if (cleaned && score > bestScore) [bestScore, bestText] = [score, cleaned];
+    }
+  } finally {
+    await worker.terminate();
+  }
+  return bestText;
 }
 
 export default function FactCheckPage() {
@@ -424,29 +496,7 @@ export default function FactCheckPage() {
     setError("");
     setResult(null);
     try {
-      const Tesseract = await import("tesseract.js");
-      const img = await loadImage(file);
-      const variants = [
-        { label: "original", blob: file },
-        { label: "enhanced", blob: await renderOcrVariantFromImage(img, { threshold: false }) },
-        { label: "threshold", blob: await renderOcrVariantFromImage(img, { threshold: true }) },
-        { label: "bottom", blob: await renderOcrVariantFromImage(img, { cropBottom: true }) },
-        { label: "bottom-threshold", blob: await renderOcrVariantFromImage(img, { cropBottom: true, threshold: true }) },
-      ];
-
-      let bestText = "";
-      let bestScore = -1;
-      for (const variant of variants) {
-        const { data } = await Tesseract.recognize(variant.blob, OCR_LANGS);
-        const cleaned = cleanOcrText(data.text || "");
-        const confidence = typeof data.confidence === "number" ? data.confidence : 0;
-        const score = scoreOcrText(cleaned, confidence) + (variant.label.includes("bottom") ? 4 : 0);
-        if (cleaned && score > bestScore) {
-          bestScore = score;
-          bestText = cleaned;
-        }
-      }
-
+      const bestText = await recognizeBestOcrText(file);
       if (bestText) {
         setText(bestText);
       } else {
@@ -454,9 +504,18 @@ export default function FactCheckPage() {
       }
     } catch {
       setError("OCR failed - please paste text manually");
+    } finally {
+      setOcrLoading(false);
     }
-    setOcrLoading(false);
   }, []);
+
+  const handlePaste = useCallback((event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const imageItem = Array.from(event.clipboardData.items).find((item) => item.type.startsWith("image/"));
+    const image = imageItem?.getAsFile();
+    if (!image) return;
+    event.preventDefault();
+    void handleImageUpload(image);
+  }, [handleImageUpload]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -471,7 +530,7 @@ export default function FactCheckPage() {
   const cleanClaims = result?.key_claims.filter((c) => !isGarbage(c)) || [];
   const sourceStats = result ? {
     domains: new Set(result.sources.map((s) => s.url.replace(/^https?:\/\//, "").split("/")[0].replace(/^www\./, ""))).size,
-    engines: new Set(result.sources.map((s) => s.engine).filter(Boolean)).size,
+    engines: new Set(result.sources.map((s) => s.engine).filter(Boolean)).size + (result.ai_analysis ? 1 : 0),
     confirming: result.sources.filter((s) => s.agrees === true).length,
     opposing: result.sources.filter((s) => s.agrees === false).length,
     high: result.sources.filter((s) => s.reliability === "high").length,
@@ -498,7 +557,7 @@ export default function FactCheckPage() {
               </div>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <MetricCard label="Search stack" value="Google + DDG" detail={t.engineMix} />
+              <MetricCard label="Search stack" value="Google + DDG + AI" detail={t.engineMix} />
               <MetricCard label={locale === "EN" ? "Authority" : "Uy tín"} value={t.googleFactCheck} detail={t.authority} />
               <MetricCard label="Signal mix" value="Domains + Engines" detail={t.signalMix} />
             </div>
@@ -543,7 +602,11 @@ export default function FactCheckPage() {
               placeholder={t.placeholder}
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onPaste={handlePaste}
             />
+            <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+              {locale === "EN" ? "Paste an image directly with Ctrl+V" : "Dán ảnh trực tiếp bằng Ctrl+V"}
+            </p>
 
             <div
               className={`mt-4 rounded-2xl border-2 border-dashed px-4 py-4 text-center transition-colors ${
@@ -555,8 +618,8 @@ export default function FactCheckPage() {
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
             >
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])} />
-              <button onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleImageUpload(file); e.target.value = ""; }} />
+              <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
                 {ocrLoading ? (
                   <>
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -654,7 +717,7 @@ export default function FactCheckPage() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <StatStack sources={result.sources} t={t} />
+                  <StatStack sources={result.sources} t={t} hasAi={Boolean(result.ai_analysis)} />
                 </div>
               </div>
 
@@ -691,6 +754,22 @@ export default function FactCheckPage() {
             <div className="min-w-0 rounded-[28px] border border-zinc-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-gradient-to-br dark:from-zinc-950 dark:to-zinc-900 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.analysis}</h2>
               <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
+              {result.ai_analysis && (
+                <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-cyan-500">
+                      {locale === "EN" ? "AI assessment" : "Phân tích AI"}
+                    </span>
+                    <span className="font-mono text-xs text-zinc-400">{result.ai_analysis.confidence}%</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{result.ai_analysis.summary}</p>
+                  <p className="mt-2 text-[11px] text-zinc-400">
+                    {locale === "EN"
+                      ? "AI challenges Google/DDG evidence only and never invents sources."
+                      : "AI chỉ phản biện trên nguồn Google/DDG và không tự bịa nguồn."}
+                  </p>
+                </div>
+              )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <SummaryPill label={t.verdict} value={result.verdict} />
                 <SummaryPill label={t.score} value={`${result.score}/100`} />
