@@ -8,11 +8,20 @@ from mt5_signal_bot import get_rhythm_label
 class TestRhythmLabels(unittest.TestCase):
     def test_all_active_hours_map_to_a_rhythm(self):
         expected = {
-            2: "Nhịp 1", 3: "Nhịp 1", 4: "Nhịp 1",
-            5: "Nhịp 2", 6: "Nhịp 2", 7: "Nhịp 2", 8: "Nhịp 2",
-            9: "Nhịp 3", 10: "Nhịp 3", 11: "Nhịp 3",
-            12: "Nhịp 4", 13: "Nhịp 4", 14: "Nhịp 4",
-            15: "Nhịp 5",
+            2: "Nhịp 1 · JPY",
+            3: "Nhịp 1 · JPY",
+            4: "Nhịp 1 · JPY",
+            5: "Nhịp 2 · AUD",
+            6: "Nhịp 2 · AUD",
+            7: "Nhịp 2 · AUD",
+            8: "Nhịp 2 · AUD",
+            9: "Nhịp 3 · GBP",
+            10: "Nhịp 3 · GBP",
+            11: "Nhịp 3 · GBP",
+            12: "Nhịp 4 · EUR",
+            13: "Nhịp 4 · EUR",
+            14: "Nhịp 4 · EUR",
+            15: "Nhịp 5 · USD",
         }
         for hour, label in expected.items():
             with self.subTest(hour=hour):

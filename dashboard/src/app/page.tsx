@@ -4,6 +4,8 @@ import { getTargetHours, getSignalLabel, brokerToLocalTime } from "@/lib/constan
 import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { getBrokerDateParts, getFirstD1MatchHour, isD1ActiveWeekday } from "@/lib/trading-time";
+import { headers } from "next/headers";
+import { detectServerLocale, getLocaleTexts } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const params = await searchParams;
   const isVIP = await hasVipAccess(params);
+  const locale = detectServerLocale((await headers()).get("accept-language"));
+  const t = getLocaleTexts(locale);
 
   try {
     [signals, botState, news] = await Promise.all([
@@ -59,10 +63,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="mb-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500 mb-1">Trading console</div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">Dashboard</h1>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500 mb-1">{t.tradingConsole}</div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">{t.dashboard}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-2xl">
-              {new Intl.DateTimeFormat("vi-VN", {
+              {new Intl.DateTimeFormat(t.dateTimeFormat, {
                 timeZone: "Asia/Bangkok",
                 weekday: "long",
                 year: "numeric",
@@ -72,8 +76,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <MiniStat label="Today" value={todaySignals.length.toString()} />
-            <MiniStat label="VIP" value={isVIP ? "Unlocked" : "Locked"} />
+            <MiniStat label={t.today} value={todaySignals.length.toString()} />
+            <MiniStat label={t.vip} value={isVIP ? t.unlocked : t.locked} />
           </div>
         </div>
         {d1MatchBadge && (
@@ -86,14 +90,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-5">
-        <StatusCard label="Bot" value={botState ? "Đang chạy" : "N/A"} color={botState ? "text-emerald-500 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"} />
-        <StatusCard label="Signals" value={todaySignals.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
-        <StatusCard label="Hướng D" value={activeDDirection || "—"} color={activeDDirection === "BUY" ? "text-emerald-500 dark:text-emerald-400" : activeDDirection === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
-        <StatusCard label="News" value={news.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
+        <StatusCard label={t.statusBot} value={botState ? t.running : "N/A"} color={botState ? "text-emerald-500 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"} />
+        <StatusCard label={t.statusSignals} value={todaySignals.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
+        <StatusCard label={t.statusDirection} value={activeDDirection || "—"} color={activeDDirection === "BUY" ? "text-emerald-500 dark:text-emerald-400" : activeDDirection === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
+        <StatusCard label={t.statusNews} value={news.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
       </div>
 
       <div className="mb-5">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Lịch giao dịch</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">{t.schedule}</h2>
         <div className="flex flex-wrap gap-1.5">
           {hoursToday.map((h) => {
             const hasSignal = signalsByHour.has(h);
@@ -120,7 +124,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
 
       <div className="mb-5">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">Signal hôm nay</h2>
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">{t.signalToday}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-3">
           {allSlots.map((signal) => (
             <SignalCard
@@ -136,10 +140,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {news.length > 0 && (
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-2">
-            Tin tức kinh tế <span className="text-zinc-400 dark:text-zinc-500">({news.length})</span>
+            {t.news} <span className="text-zinc-400 dark:text-zinc-500">({news.length})</span>
             {news.some((n: any) => n.critical) && (
               <span className="ml-2 text-red-500 dark:text-red-400 normal-case tracking-normal font-bold text-[11px]">
-                ⚠️ Có tin nổi bật (FFR/FOMC/NFP)
+                ⚠️ {t.importantNews}
               </span>
             )}
           </h2>

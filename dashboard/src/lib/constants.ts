@@ -14,11 +14,11 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
 
 export function getRhythmLabel(hour: number): string | null {
   const h = Number(hour);
-  if (h === 2 || h === 3 || h === 4) return "Nhịp 1";
-  if (h >= 5 && h <= 8) return "Nhịp 2";
-  if (h >= 9 && h <= 11) return "Nhịp 3";
-  if (h === 12 || h === 13 || h === 14) return "Nhịp 4";
-  if (h === 15) return "Nhịp 5";
+  if (h === 2 || h === 3 || h === 4) return "Nhịp 1 · JPY";
+  if (h >= 5 && h <= 8) return "Nhịp 2 · AUD";
+  if (h >= 9 && h <= 11) return "Nhịp 3 · GBP";
+  if (h === 12 || h === 13 || h === 14) return "Nhịp 4 · EUR";
+  if (h === 15) return "Nhịp 5 · USD";
   return null;
 }
 
@@ -98,12 +98,12 @@ const HOUR_NOTES: Record<number, string> = {
   6: "Chỉ Focus GBPAUD",
   7: "Chỉ Focus GBPAUD",
   8: "Chỉ Focus GBPAUD",
-  9: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
+  9: "Focus toàn nhóm GBP",
   10: "Chỉ Vàng (XAUUSD)",
-  11: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
-  12: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
+  11: "Focus toàn nhóm GBP",
+  12: "Focus toàn nhóm GBP",
   14: "Chỉ Vàng (XAUUSD)",
-  15: "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)",
+  15: "Focus toàn nhóm GBP",
 };
 
 /**
@@ -212,7 +212,7 @@ const PAIR_RULES = [
   "H=2 mọi ngày: GA/GJ ngược Vàng, Signal chỉ dùng M5/M30 (không xét H1 Vàng)",
   "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
   "H=5-8: Chỉ Focus GA — không map pair_dirs GBP (chỉ XAUUSD)",
-  "H=9 / 10 / 11 / 12 / 15: Chỉ Focus nhóm GBP T2–T5 — không gán chiều",
+  "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2–T5",
   "H khác trong band: chỉ XAUUSD",
   "GBP: không hiển thị Mua/Bán — chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",
 ];

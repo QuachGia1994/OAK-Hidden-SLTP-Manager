@@ -1,11 +1,15 @@
 import { DAY_RULES, brokerToLocalTime, formatHour } from "@/lib/constants";
 import { getBrokerDateParts } from "@/lib/trading-time";
+import { headers } from "next/headers";
+import { detectServerLocale, getLocaleTexts } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-export default function RulesPage() {
+export default async function RulesPage() {
   const today = new Date();
   const { dayOfWeek, currentHour } = getBrokerDateParts(today);
+  const locale = detectServerLocale((await headers()).get("accept-language"));
+  const t = getLocaleTexts(locale);
   const todayRules = DAY_RULES[dayOfWeek] || [];
 
   return (
@@ -14,13 +18,13 @@ export default function RulesPage() {
         <div className="flex flex-col gap-4 sm:gap-5">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.28em] sm:tracking-[0.32em] text-zinc-400 dark:text-zinc-500 mb-2">
-              Rules & Schedule
+              {locale === "EN" ? "Rules & Schedule" : "Rules & Schedule"}
             </p>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight text-zinc-900 dark:text-zinc-50 break-words">
-              Rules hôm nay
+              {t.ruleList}
             </h1>
             <p className="mt-2 text-sm sm:text-base text-zinc-500 dark:text-zinc-400">
-              {today.toLocaleDateString("vi-VN", {
+              {today.toLocaleDateString(t.dateTimeFormat, {
                 timeZone: "Asia/Bangkok",
                 weekday: "long",
                 day: "numeric",
@@ -44,10 +48,10 @@ export default function RulesPage() {
       <section className="rounded-2xl sm:rounded-3xl border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/40 backdrop-blur-sm p-4 sm:p-6 shadow-sm">
         <div className="mb-4 sm:mb-5">
           <h2 className="text-xs sm:text-sm font-semibold uppercase tracking-[0.24em] sm:tracking-[0.28em] text-zinc-500 dark:text-zinc-400">
-            Danh sách rule
+            {t.ruleList}
           </h2>
           <p className="mt-1.5 sm:mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            Tự động lấy theo ngày hiện tại. Áp dụng cho toàn bộ slot trong ngày.
+            {locale === "EN" ? "Auto-loaded for the current day. Applied to every slot in the session." : "Tự động lấy theo ngày hiện tại. Áp dụng cho toàn bộ slot trong ngày."}
           </p>
         </div>
 
@@ -71,9 +75,9 @@ export default function RulesPage() {
           </ol>
         ) : (
           <div className="rounded-xl sm:rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-950/30 px-4 py-6 text-sm text-zinc-500 dark:text-zinc-400 text-center">
-            Chưa có rule cho ngày này.
-          </div>
-        )}
+          {t.noRule}
+        </div>
+      )}
       </section>
     </div>
   );

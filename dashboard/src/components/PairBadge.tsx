@@ -1,4 +1,5 @@
-import { formatXauNoGoldLabel, getSignalLabel } from "@/lib/constants";
+import { getSignalLabel } from "@/lib/constants";
+import { useLocale } from "./LocaleProvider";
 
 interface PairBadgeProps {
   pair: string;
@@ -8,6 +9,7 @@ interface PairBadgeProps {
 }
 
 export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps) {
+  const { locale } = useLocale();
   if (direction === "locked") {
     return (
       <div className="flex items-center justify-between py-1">
@@ -24,7 +26,7 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
       <div className="flex items-center justify-between py-1">
         <span className="font-mono text-xs font-medium text-zinc-800 dark:text-zinc-200">{pair}</span>
         <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-200/70 dark:border-sky-500/20">
-          Focus
+          {locale === "EN" ? "Focus" : "Focus"}
         </span>
       </div>
     );
@@ -41,7 +43,10 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
         : parts.length === 2 && parts[1] !== "BUY" && parts[1] !== "SELL"
           ? parts[1]
           : "no-trade";
-    const label = formatXauNoGoldLabel(computed || null, tag);
+    const label =
+      locale === "EN"
+        ? `No trade${computed ? ` ${computed === "BUY" ? "Buy" : "Sell"}` : ""} · ${tag || "no-trade"}`
+        : `Không đánh${computed ? ` ${computed === "BUY" ? "Mua" : "Bán"}` : ""} · ${tag || "no-trade"}`;
     return (
       <div className="flex items-center justify-between py-1 gap-2">
         <span className="font-mono text-xs font-semibold text-zinc-800 dark:text-zinc-100">{pair}</span>

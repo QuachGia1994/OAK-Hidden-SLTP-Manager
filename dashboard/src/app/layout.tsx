@@ -4,7 +4,10 @@ import "./globals.css";
 import { NavBar } from "@/components/NavBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { VipGuard } from "@/components/VipGuard";
+import { LocaleProvider } from "@/components/LocaleProvider";
 import { Suspense } from "react";
+import { headers } from "next/headers";
+import { detectServerLocale } from "@/lib/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -21,14 +24,16 @@ export const metadata: Metadata = {
   description: "Trading signals dashboard",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const acceptLanguage = (await headers()).get("accept-language");
+  const locale = detectServerLocale(acceptLanguage);
   return (
     <html
-      lang="vi"
+      lang={locale === "EN" ? "en" : "vi"}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased dark`}
     >
@@ -54,6 +59,7 @@ export default function RootLayout({
           backgroundSize: "auto, auto, 88px 88px, 24px 24px, 24px 24px"
         }}
       >
+        <LocaleProvider initialLocale={locale}>
         <ThemeProvider>
           <Suspense fallback={null}>
             <VipGuard />
@@ -64,6 +70,7 @@ export default function RootLayout({
             <p className="text-[11px] text-zinc-400 dark:text-zinc-500">&copy; 2026 QUACH KIM PHONG</p>
           </footer>
         </ThemeProvider>
+        </LocaleProvider>
       </body>
     </html>
   );

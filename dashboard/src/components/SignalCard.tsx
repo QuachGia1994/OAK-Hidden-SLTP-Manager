@@ -15,6 +15,8 @@ import {
 } from "@/lib/constants";
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
+import { useLocale } from "./LocaleProvider";
+import { getLocaleTexts } from "@/lib/i18n";
 
 function isD1MatchNote(note: string | null | undefined) {
   return !!note && note.includes("tick match D1");
@@ -42,6 +44,23 @@ function stripNoGoldProse(note: string | null | undefined): string | null {
   return s || null;
 }
 
+function translateHourNote(note: string | null | undefined, locale: "VN" | "EN"): string | null {
+  if (!note) return null;
+  if (locale === "VN") return note;
+  const map: Array<[RegExp, string]> = [
+    [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
+    [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
+    [/Chỉ Focus GBPAUD/g, "GBP focus: GBPAUD"],
+    [/Chỉ Focus GBPUSD · GBPCAD/g, "GBP focus: GBPUSD · GBPCAD"],
+    [/Focus toàn nhóm GBP/g, "Full GBP group focus"],
+    [/GBPAUD · GBPJPY ngược Vàng \(không xét H1 Vàng\)/g, "GBPAUD · GBPJPY opposite gold (no H1 gold check)"],
+    [/GBPAUD · GBPJPY ngược Vàng \(GBPUSD\/GBPCAD --\)/g, "GBPAUD · GBPJPY opposite gold (GBPUSD/GBPCAD --)"],
+    [/GBPAUD · GBPJPY ngược Vàng/g, "GBPAUD · GBPJPY opposite gold"],
+    [/Không có mốc GBP — chỉ Vàng/g, "No GBP slot — XAU only"],
+  ];
+  return map.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), note);
+}
+
 export function SignalCard({
   signal,
   isVIP,
@@ -51,6 +70,8 @@ export function SignalCard({
   isVIP?: boolean;
   showD1Match?: boolean;
 }) {
+  const { locale } = useLocale();
+  const t = getLocaleTexts(locale);
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
   // Date/hour rules are authoritative for history. Redis hour_note can belong
@@ -66,7 +87,8 @@ export function SignalCard({
     ? isXauNoTradeLabelSlot(signal.hour, weekday)
     : signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
   const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
-  const hourNote = showD1Match ? rawHourNote : stripNoGoldProse(rawHourNote);
+  const localizedHourNote = translateHourNote(showD1Match ? rawHourNote : stripNoGoldProse(rawHourNote), locale);
+  const hourNote = localizedHourNote;
   const rhythmLabel = getRhythmLabel(signal.hour);
 
   const gbpPairs = getFocusGbpPairs(signal.hour, weekday);
@@ -132,7 +154,7 @@ export function SignalCard({
         {gbpPairs.length > 0 && (
           <div className="pt-1 pb-0.5">
             <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-medium mb-0.5">
-              {focusOnly ? "Cặp GBP tập trung" : "GBP vs Vàng"}
+              {focusOnly ? (locale === "EN" ? "GBP focus pairs" : "Cặp GBP tập trung") : (locale === "EN" ? "GBP vs gold" : "GBP vs Vàng")}
             </div>
             {gbpPairs.map((pair) => {
               if (!isVIP) {
@@ -154,7 +176,9 @@ export function SignalCard({
           </div>
         )}
         {gbpPairs.length === 0 && isVIP && (
-          <div className="pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">Không có mốc GBP — chỉ Vàng</div>
+          <div className="pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+            {locale === "EN" ? "No GBP slot — XAU only" : "Không có mốc GBP — chỉ Vàng"}
+          </div>
         )}
       </div>
 

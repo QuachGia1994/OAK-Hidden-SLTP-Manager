@@ -66,15 +66,15 @@ def get_rhythm_label(hour):
     except (TypeError, ValueError):
         return None
     if h in (2, 3, 4):
-        return "Nhịp 1"
+        return "Nhịp 1 · JPY"
     if 5 <= h <= 8:
-        return "Nhịp 2"
+        return "Nhịp 2 · AUD"
     if 9 <= h <= 11:
-        return "Nhịp 3"
+        return "Nhịp 3 · GBP"
     if h in (12, 13, 14):
-        return "Nhịp 4"
+        return "Nhịp 4 · EUR"
     if h == 15:
-        return "Nhịp 5"
+        return "Nhịp 5 · USD"
     return None
 
 
@@ -770,7 +770,7 @@ def get_hour_note(H, weekday=None):
     if 5 <= h <= 8:
         return "Chỉ Focus GBPAUD"
     if h in (9, 11, 12, 15):
-        return "Chỉ Focus nhóm GBP (không gán chiều Mua/Bán)"
+        return "Focus toàn nhóm GBP"
     return "Chỉ Vàng (XAUUSD)"
 
 
