@@ -1,3 +1,5 @@
+"use client";
+
 import { getSignalLabel } from "@/lib/constants";
 import { useLocale } from "./LocaleProvider";
 
