@@ -127,7 +127,9 @@ export function SignalCard({
 
       {/* Conclusion — pattern signal only */}
       <div className="px-3 py-2.5">
-        <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1 font-medium">KẾT LUẬN</div>
+        <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1 font-medium">
+          {locale === "EN" ? "Verdict" : "KẾT LUẬN"}
+        </div>
         {isVIP ? (
           <span className={`text-2xl sm:text-3xl font-bold font-mono leading-none ${getSignalColor(signal.signal)}`}>
             {getSignalLabel(signal.signal)}
@@ -137,8 +139,8 @@ export function SignalCard({
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold text-zinc-300 dark:text-zinc-600">🔒</span>
               <div>
-                <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">VIP Only</div>
-                <div className="text-[9px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Unlock to view</div>
+                <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">{locale === "EN" ? "VIP Only" : "VIP Only"}</div>
+                <div className="text-[9px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">{locale === "EN" ? "Unlock to view" : "Mở khóa để xem"}</div>
               </div>
             </div>
             <span className="text-[9px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
@@ -154,7 +156,7 @@ export function SignalCard({
         {gbpPairs.length > 0 && (
           <div className="pt-1 pb-0.5">
             <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-medium mb-0.5">
-              {focusOnly ? (locale === "EN" ? "GBP focus pairs" : "Cặp GBP tập trung") : (locale === "EN" ? "GBP vs gold" : "GBP vs Vàng")}
+            {focusOnly ? (locale === "EN" ? "GBP focus pairs" : "Cặp GBP tập trung") : (locale === "EN" ? "GBP vs gold" : "GBP vs Vàng")}
             </div>
             {gbpPairs.map((pair) => {
               if (!isVIP) {

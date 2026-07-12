@@ -18,7 +18,7 @@ export default async function RulesPage() {
         <div className="flex flex-col gap-4 sm:gap-5">
           <div className="min-w-0">
             <p className="text-[10px] uppercase tracking-[0.28em] sm:tracking-[0.32em] text-zinc-400 dark:text-zinc-500 mb-2">
-              {locale === "EN" ? "Rules & Schedule" : "Rules & Schedule"}
+              {locale === "EN" ? "Rules & Schedule" : "Quy t?c & L?ch"}
             </p>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-tight text-zinc-900 dark:text-zinc-50 break-words">
               {t.ruleList}
@@ -35,9 +35,9 @@ export default async function RulesPage() {
           </div>
 
           <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-            <MetaPill label="Phạm vi" value="Rule theo ngày broker" />
+            <MetaPill label={locale === "EN" ? "Scope" : "Ph?m vi"} value={locale === "EN" ? "Broker-day rule" : "Rule theo ng?y broker"} />
             <MetaPill
-              label="Giờ hiện tại"
+              label={locale === "EN" ? "Current time" : "Giờ hiện tại"}
               value={`${formatHour(currentHour)}:45 Broker • ${brokerToLocalTime(currentHour)}`}
               highlight
             />
@@ -51,7 +51,7 @@ export default async function RulesPage() {
             {t.ruleList}
           </h2>
           <p className="mt-1.5 sm:mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-            {locale === "EN" ? "Auto-loaded for the current day. Applied to every slot in the session." : "Tự động lấy theo ngày hiện tại. Áp dụng cho toàn bộ slot trong ngày."}
+            {locale === "EN" ? "Auto-loaded for the current day. Applied to every slot in the session." : "T? ??ng l?y theo ng?y hi?n t?i. ?p d?ng cho to?n b? slot trong ng?y."}
           </p>
         </div>
 

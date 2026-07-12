@@ -163,7 +163,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 <span className={`font-mono text-xs w-12 shrink-0 ${item.critical ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>{item.time}</span>
                 <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">{item.currency}</span>
                 <span className={`text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded shrink-0 ${item.critical ? "bg-red-600 text-white" : item.impact === "high" ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" : item.impact === "medium" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"}`}>
-                  {item.critical ? "NỔI BẬT" : item.impact === "high" ? "Quan trọng" : item.impact === "medium" ? "Trung bình" : "Thấp"}
+                  {item.critical ? t.critical : item.impact === "high" ? t.high : item.impact === "medium" ? t.medium : t.low}
                 </span>
                 <span className={`text-xs truncate ${item.critical ? "text-red-800 dark:text-red-200 font-semibold" : "text-zinc-700 dark:text-zinc-300"}`}>
                   {item.critical ? "⚠️ " : ""}{item.title}
