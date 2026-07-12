@@ -68,9 +68,9 @@ export function NavBar() {
                     : "bg-transparent text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-zinc-800/70 hover:text-zinc-800 dark:hover:text-zinc-200"
                 }`}
                 aria-label={item === "system" ? "Dùng ngôn ngữ hệ thống" : `Switch to ${item}`}
-                title={item === "system" ? `Use system language (${locale})` : `Switch to ${item}`}
+                title={item === "system" ? "Use system language" : `Switch to ${item}`}
               >
-                {item === "system" ? `System ${locale}` : item}
+                {item === "system" ? "System" : item}
               </button>
             ))}
           </div>

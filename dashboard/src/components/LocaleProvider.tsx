@@ -22,31 +22,20 @@ export function LocaleProvider({
   initialLocale: Locale;
   children: React.ReactNode;
 }) {
-  const getSystemLocale = () => {
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("locale");
-      if (stored === "EN" || stored === "VN") return stored;
-      const storedMode = window.localStorage.getItem("localeMode");
-      if (storedMode === "EN" || storedMode === "VN") return storedMode;
-    }
-    return initialLocale || detectClientLocale();
-  };
-
-  const [currentLocale, setCurrentLocale] = useState<Locale>(() => {
-    return getSystemLocale();
-  });
-  const [mode, setMode] = useState<LocaleMode>(() => {
-    if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("localeMode");
-      if (stored === "system" || stored === "EN" || stored === "VN") return stored;
-    }
+  const readStoredMode = (): LocaleMode => {
+    if (typeof window === "undefined") return "system";
+    const storedMode = window.localStorage.getItem("localeMode");
+    if (storedMode === "system" || storedMode === "EN" || storedMode === "VN") return storedMode;
     return "system";
-  });
+  };
 
   const resolveLocale = (nextMode: LocaleMode): Locale => {
-    if (nextMode === "system") return detectClientLocale();
+    if (nextMode === "system") return typeof window === "undefined" ? initialLocale : detectClientLocale();
     return nextMode;
   };
+
+  const [mode, setMode] = useState<LocaleMode>(() => readStoredMode());
+  const [currentLocale, setCurrentLocale] = useState<Locale>(() => resolveLocale(readStoredMode()));
 
   const persistLocale = (nextMode: LocaleMode, resolved: Locale) => {
     if (typeof window === "undefined") return;

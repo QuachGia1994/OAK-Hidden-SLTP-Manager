@@ -45,11 +45,20 @@ class FactcheckWorkerSearchStackTests(unittest.TestCase):
             "openai/gpt-4.1-mini",
         )
 
+    def test_vietnamese_claim_requests_vietnamese_ai_summary(self):
+        payload = factcheck_worker._ai_evidence_payload(["Đây là tin cần xác thực về Iran"], [])
+        self.assertEqual(payload["output_language"], "Vietnamese")
+
+    def test_unaccented_vietnamese_claim_requests_vietnamese_ai_summary(self):
+        payload = factcheck_worker._ai_evidence_payload(["Day la tin can xac thuc ve Iran"], [])
+        self.assertEqual(payload["output_language"], "Vietnamese")
+
     def test_openai_ai_request_uses_strict_evidence_schema(self):
         payload = factcheck_worker._build_ai_request("openai", "gpt-5-mini", {"claims": ["claim"], "evidence": []})
         self.assertEqual(payload["model"], "gpt-5-mini")
         self.assertTrue(payload["text"]["format"]["strict"])
         self.assertIn("Do not add facts or URLs", payload["input"][0]["content"])
+        self.assertIn("output_language", payload["input"][0]["content"])
 
     def test_github_ai_request_uses_chat_completions_schema(self):
         payload = factcheck_worker._build_ai_request("github", "openai/gpt-4.1-mini", {"claims": ["claim"], "evidence": []})

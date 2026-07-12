@@ -60,6 +60,15 @@ const TEXT = {
     crossCheckStats: "Thống kê cross-check",
     keyClaims: "Claim chính",
     analysis: "Phân tích",
+    linksLabel: "link",
+    sitesLabel: "site",
+    mixLabel: "mix",
+    highLabel: "uy tín",
+    reliabilityLabels: {
+      high: "Cao",
+      medium: "Trung bình",
+      low: "Thấp",
+    },
   },
   EN: {
     studio: "Fact check studio",
@@ -116,6 +125,15 @@ const TEXT = {
     crossCheckStats: "Cross-check stats",
     keyClaims: "Key claims",
     analysis: "Analysis",
+    linksLabel: "links",
+    sitesLabel: "sites",
+    mixLabel: "mix",
+    highLabel: "high",
+    reliabilityLabels: {
+      high: "High",
+      medium: "Medium",
+      low: "Low",
+    },
   },
 } as const;
 
@@ -188,11 +206,26 @@ function SummaryPill({ label, value }: { label: string; value: string }) {
   );
 }
 
+function sourceSummaryOnly(summary: string): string {
+  return summary.replace(/\sAI\s\(\d+%\):[\s\S]*$/u, "").trim();
+}
+
+function looksLikeEnglishAiSummary(summary: string): boolean {
+  return /\b(provided|evidence|claims|therefore|insufficient|truthfulness|related|assess)\b/iu.test(summary);
+}
+
+function verdictText(result: FactCheckResult, t: LocaleText): string {
+  return t.verdictLabels[result.verdict] || result.verdict;
+}
+
 function getAiStatusCopy(locale: "EN" | "VN", result: FactCheckResult) {
   if (result.ai_analysis) {
+    const hideStaleEnglish = locale === "VN" && looksLikeEnglishAiSummary(result.ai_analysis.summary);
     return {
       title: locale === "EN" ? "AI assessment" : "Phân tích AI",
-      body: result.ai_analysis.summary,
+      body: hideStaleEnglish
+        ? "AI đã phản biện trên bằng chứng đã thu thập. Hãy chạy lại xác thực để nhận bản phân tích tiếng Việt theo logic mới."
+        : result.ai_analysis.summary,
       hint:
         locale === "EN"
           ? "AI challenges only the collected Google/DDG evidence and never invents sources."
@@ -244,10 +277,10 @@ function StatStack({ sources, t, hasAi }: { sources: Array<{ url: string; reliab
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <SummaryPill label={t.sourcesCount} value={`${sources.length} links`} />
-      <SummaryPill label="Domain" value={`${domains.size} sites`} />
-      <SummaryPill label="Engine" value={`${engines.size + (hasAi ? 1 : 0)} mix`} />
-      <SummaryPill label={t.signalLabel} value={`${confirming} / ${opposing} / ${high} high`} />
+      <SummaryPill label={t.sourcesCount} value={`${sources.length} ${t.linksLabel}`} />
+      <SummaryPill label="Domain" value={`${domains.size} ${t.sitesLabel}`} />
+      <SummaryPill label="Engine" value={`${engines.size + (hasAi ? 1 : 0)} ${t.mixLabel}`} />
+      <SummaryPill label={t.signalLabel} value={`${confirming} / ${opposing} / ${high} ${t.highLabel}`} />
     </div>
   );
 }
@@ -294,7 +327,7 @@ function SourceRow({ source, t }: { source: { title: string; url: string; snippe
             )}
             {source.rating && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${source.agrees === true ? "text-emerald-500 border-emerald-200/70 dark:border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10" : source.agrees === false ? "text-red-500 border-red-200/70 dark:border-red-500/20 bg-red-50/70 dark:bg-red-500/10" : "text-zinc-400 border-zinc-200/70 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-800/50"}`}>{source.rating}</span>}
             <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${relColor[source.reliability] || ""} bg-white/60 dark:bg-zinc-900/80 border-current/20`}>
-              {source.reliability}
+              {t.reliabilityLabels[source.reliability as keyof typeof t.reliabilityLabels] || source.reliability}
             </span>
           </div>
           <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">{source.snippet}</p>
@@ -574,6 +607,7 @@ export default function FactCheckPage() {
     high: result.sources.filter((s) => s.reliability === "high").length,
   } : null;
   const aiStatusCard = result ? getAiStatusCopy(locale, result) : null;
+  const displaySummary = result ? sourceSummaryOnly(result.summary) : "";
 
   return (
     <div className="relative">
@@ -741,7 +775,7 @@ export default function FactCheckPage() {
                   <ScoreBar score={result.score} />
                   <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 px-4 py-3">
                     <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">{t.summaryTitle}</div>
-                    <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{result.summary}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{displaySummary}</p>
                   </div>
                 </div>
               </div>
@@ -792,7 +826,7 @@ export default function FactCheckPage() {
 
             <div className="min-w-0 rounded-[28px] border border-zinc-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-gradient-to-br dark:from-zinc-950 dark:to-zinc-900 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.analysis}</h2>
-              <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
+              <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{displaySummary}</p>
               {aiStatusCard && (
                 <div className={`mt-4 rounded-2xl border px-4 py-3 ${aiStatusCard.tone}`}>
                   <div className="flex items-center justify-between gap-3">
@@ -806,7 +840,7 @@ export default function FactCheckPage() {
                 </div>
               )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <SummaryPill label={t.verdict} value={result.verdict} />
+                <SummaryPill label={t.verdict} value={verdictText(result, t)} />
                 <SummaryPill label={t.score} value={`${result.score}/100`} />
               </div>
             </div>
