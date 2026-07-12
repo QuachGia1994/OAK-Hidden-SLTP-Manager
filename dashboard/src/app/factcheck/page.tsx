@@ -215,14 +215,14 @@ function getAiStatusCopy(locale: "EN" | "VN", result: FactCheckResult) {
         : "AI reviewer chưa chạy cho lượt kiểm tra này."),
     hint: isDisabled
       ? locale === "EN"
-        ? "Add FACTCHECK_AI_API_KEY or OPENAI_API_KEY in .env, then restart the Fact-Check Worker."
-        : "Thêm FACTCHECK_AI_API_KEY hoặc OPENAI_API_KEY vào .env rồi restart Fact-Check Worker."
+        ? "Add FACTCHECK_GITHUB_TOKEN, GITHUB_TOKEN, or GH_TOKEN in .env, or sign in with gh auth login, then restart the Fact-Check Worker."
+        : "Thêm FACTCHECK_GITHUB_TOKEN, GITHUB_TOKEN hoặc GH_TOKEN vào .env, hoặc đăng nhập gh auth login, rồi restart Fact-Check Worker."
       : locale === "EN"
         ? "AI only judges the collected evidence. It stays off when no usable evidence exists."
         : "AI chỉ chấm trên bằng chứng đã thu thập. Nếu không có evidence đủ dùng thì AI sẽ bỏ qua.",
     tone: isError ? "border-red-500/20 bg-red-500/8" : isDisabled ? "border-amber-500/20 bg-amber-500/8" : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50",
     labelClass: isError ? "text-red-500" : isDisabled ? "text-amber-500" : "text-zinc-500",
-    confidence: status?.model || "AI",
+    confidence: status?.provider && status?.model ? `${status.provider}:${status.model}` : status?.model || "AI",
   };
 }
 

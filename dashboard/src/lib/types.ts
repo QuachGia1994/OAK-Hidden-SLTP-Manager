@@ -53,6 +53,7 @@ export interface FactCheckResult {
     enabled: boolean;
     state: "missing_api_key" | "skipped_no_claims" | "skipped_no_sources" | "ready" | "request_failed";
     model: string;
+    provider?: "github" | "openai";
     message: string;
   } | null;
 }

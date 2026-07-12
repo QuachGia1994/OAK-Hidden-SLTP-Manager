@@ -23,17 +23,39 @@ class FactcheckWorkerSearchStackTests(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_ai_status_reports_missing_key(self):
-        with patch.dict(factcheck_worker.os.environ, {}, clear=True):
+        with patch.dict(factcheck_worker.os.environ, {}, clear=True), \
+             patch.object(factcheck_worker, "_github_cli_token", return_value=""):
             result, status = factcheck_worker.assess_with_ai_detailed(["claim"], [{"url": "https://reuters.com/a"}])
         self.assertIsNone(result)
         self.assertEqual(status["state"], "missing_api_key")
         self.assertFalse(status["enabled"])
+        self.assertEqual(status["provider"], "github")
 
-    def test_ai_request_uses_strict_evidence_schema(self):
-        payload = factcheck_worker._build_ai_request("gpt-5-mini", {"claims": ["claim"], "evidence": []})
+    def test_ai_config_prefers_github_cli_token(self):
+        with patch.dict(factcheck_worker.os.environ, {}, clear=True), \
+             patch.object(factcheck_worker, "_github_cli_token", return_value="gho_test"):
+            config = factcheck_worker._ai_config()
+        self.assertEqual(config["provider"], "github")
+        self.assertEqual(config["api_key"], "gho_test")
+        self.assertEqual(config["model"], "openai/gpt-4.1-mini")
+
+    def test_github_model_name_is_normalized_from_legacy_value(self):
+        self.assertEqual(
+            factcheck_worker._normalize_ai_model("github", "gpt-5-mini"),
+            "openai/gpt-4.1-mini",
+        )
+
+    def test_openai_ai_request_uses_strict_evidence_schema(self):
+        payload = factcheck_worker._build_ai_request("openai", "gpt-5-mini", {"claims": ["claim"], "evidence": []})
         self.assertEqual(payload["model"], "gpt-5-mini")
         self.assertTrue(payload["text"]["format"]["strict"])
         self.assertIn("Do not add facts or URLs", payload["input"][0]["content"])
+
+    def test_github_ai_request_uses_chat_completions_schema(self):
+        payload = factcheck_worker._build_ai_request("github", "openai/gpt-4.1-mini", {"claims": ["claim"], "evidence": []})
+        self.assertEqual(payload["model"], "openai/gpt-4.1-mini")
+        self.assertEqual(payload["response_format"]["type"], "json_schema")
+        self.assertIn("Do not add facts or URLs", payload["messages"][0]["content"])
 
     def test_google_search_falls_back_to_news_without_cse_credentials(self):
         news_hit = {"title": "News", "url": "https://news.google.com/a", "engine": "google"}
