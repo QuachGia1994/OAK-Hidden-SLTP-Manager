@@ -2,6 +2,104 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { FactCheckResult } from "@/lib/types";
+import { useLocale } from "@/components/LocaleProvider";
+
+const TEXT = {
+  VN: {
+    studio: "Fact check studio",
+    title: "Xác thực tin tức",
+    subtitle: "Paste text hoặc upload ảnh để cross-check qua nhiều engine, ưu tiên nguồn uy tín và đẩy score lên theo độ đa dạng thực tế.",
+    realtime: "Realtime",
+    liveLabel: "Multi-source analysis",
+    parse: "1. Parse claims",
+    parseDesc: "Tách câu, lọc claim bẩn, rồi rút ngắn query để search chính xác hơn.",
+    crossCheck: "2. Cross-check web",
+    crossCheckDesc: "Mỗi claim được bắn qua Google + DDG và authority domain để bắt điểm chéo.",
+    scoreMix: "3. Score with mix",
+    scoreMixDesc: "Nguồn uy tín, số domain, số engine và Google Fact Check cùng tạo verdict.",
+    input: "Input",
+    textOrImage: "Text hoặc ảnh",
+    placeholder: "Paste nội dung tin tức cần xác thực...",
+    uploadImage: "Upload ảnh",
+    detectText: "Đang nhận diện text...",
+    dragDrop: "Kéo thả ảnh vào đây hoặc bấm để chọn",
+    submit: "Xác thực",
+    submitting: "Đang xác thực...",
+    summary: "Score không chỉ là số nguồn. Nó lấy thêm mix engine, mix domain và phản hồi Google Fact Check khi có.",
+    previewTitle: "When data arrives",
+    previewDesc: "Khung kết quả sẽ bật thành score ring, verdict badge và stack nguồn rõ cấp độ uy tín.",
+    useCase: "Best use case",
+    useCaseDesc: "Tin tức tài chính, headline nóng, claim có nhiều nguồn đối chiếu. Càng nhiều mix, score càng có ý nghĩa.",
+    result: "Result",
+    resultTitle: "Kết quả xác thực",
+    summaryTitle: "Summary",
+    crossStats: "Cross-check stats",
+    noSources: "No sources",
+    keyClaims: "Key claims",
+    sources: "Nguồn",
+    notFound: "Không tìm thấy nguồn liên quan",
+    analysis: "Phân tích",
+    verdictLabels: {
+      credible: "Đáng tin cậy",
+      mixed: "Hỗn hợp",
+      unreliable: "Không đáng tin",
+      unverifiable: "Không thể xác minh",
+    },
+    verdictDesc: "score ring, verdict badge và stack nguồn",
+    engineMix: "Hai engine free tạo cross-check gọn hơn, giảm nguồn lệch.",
+    authority: "Khi có dữ liệu IFCN, score được đẩy theo tín hiệu uy tín.",
+    signalMix: "Tính thêm độ đa dạng domain và engine để score lên tự nhiên hơn.",
+    sourceLabel: "Nguồn",
+    signalLabel: "Tín hiệu",
+  },
+  EN: {
+    studio: "Fact check studio",
+    title: "News verification",
+    subtitle: "Paste text or upload an image to cross-check across multiple engines, prioritize trusted sources, and lift the score with real diversity.",
+    realtime: "Realtime",
+    liveLabel: "Multi-source analysis",
+    parse: "1. Parse claims",
+    parseDesc: "Split sentences, filter noisy claims, then trim the query for better search precision.",
+    crossCheck: "2. Cross-check web",
+    crossCheckDesc: "Each claim runs through Google + DDG plus authority domains to catch cross-signal support.",
+    scoreMix: "3. Score with mix",
+    scoreMixDesc: "Trusted sources, domain count, engine count, and Google Fact Check all shape the verdict.",
+    input: "Input",
+    textOrImage: "Text or image",
+    placeholder: "Paste the news text you want to verify...",
+    uploadImage: "Upload image",
+    detectText: "Detecting text...",
+    dragDrop: "Drop an image here or click to choose",
+    submit: "Verify",
+    submitting: "Verifying...",
+    summary: "Score is more than source count. It also weights engine mix, domain mix, and Google Fact Check response when available.",
+    previewTitle: "When data arrives",
+    previewDesc: "The result panel lights up as a score ring, verdict badge, and source stack with clear trust levels.",
+    useCase: "Best use case",
+    useCaseDesc: "Financial news, hot headlines, and claims with multiple sources. More mix means more meaningful scores.",
+    result: "Result",
+    resultTitle: "Verification result",
+    summaryTitle: "Summary",
+    crossStats: "Cross-check stats",
+    noSources: "No sources",
+    keyClaims: "Key claims",
+    sources: "Sources",
+    notFound: "No related sources found",
+    analysis: "Analysis",
+    verdictLabels: {
+      credible: "Credible",
+      mixed: "Mixed",
+      unreliable: "Unreliable",
+      unverifiable: "Unverifiable",
+    },
+    verdictDesc: "score ring, verdict badge, and source stack",
+    engineMix: "Two free engines keep the cross-check tight and reduce source bias.",
+    authority: "When IFCN data exists, the score leans into authority signals.",
+    signalMix: "Domain diversity plus engine diversity lifts the score more naturally.",
+    sourceLabel: "Sources",
+    signalLabel: "Signal",
+  },
+} as const;
 
 const OCR_LANGS = "vie+eng";
 const OCR_MAX_WIDTH = 2200;
@@ -234,6 +332,8 @@ async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropB
 }
 
 export default function FactCheckPage() {
+  const { locale } = useLocale();
+  const t = TEXT[locale];
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<FactCheckResult | null>(null);
@@ -369,41 +469,41 @@ export default function FactCheckPage() {
       <div className="relative page-shell">
         <div className="mb-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[30px] border border-zinc-200/80 bg-white/85 p-5 sm:p-7 shadow-[0_32px_100px_-30px_rgba(0,0,0,0.22)] backdrop-blur-md dark:border-white/10 dark:bg-zinc-950/75 dark:shadow-[0_32px_100px_-30px_rgba(0,0,0,0.85)]">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">Fact check studio</div>
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">{t.studio}</div>
             <div className="mt-3 flex items-end justify-between gap-4">
               <div>
-                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-zinc-900 dark:text-white">Xác thực tin tức</h1>
-                <p className="mt-3 max-w-2xl text-sm sm:text-base text-zinc-600 dark:text-zinc-400 leading-relaxed">Paste text hoặc upload ảnh để cross-check qua nhiều engine, ưu tiên nguồn uy tín và đẩy score lên theo độ đa dạng thực tế.</p>
+                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-zinc-900 dark:text-white">{t.title}</h1>
+                <p className="mt-3 max-w-2xl text-sm sm:text-base text-zinc-600 dark:text-zinc-400 leading-relaxed">{t.subtitle}</p>
               </div>
               <div className="hidden xl:block text-right">
-                <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-500">Realtime</div>
+                <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-500">{t.realtime}</div>
                 <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.7)]" />
-                  Multi-source analysis
+                  {t.liveLabel}
                 </div>
               </div>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <MetricCard label="Search stack" value="Google + DDG" detail="Hai engine free tạo cross-check gọn hơn, giảm nguồn lệch." />
-              <MetricCard label="Authority" value="Google Fact Check" detail="Khi có dữ liệu IFCN, score được đẩy theo tín hiệu uy tín." />
-              <MetricCard label="Signal mix" value="Domains + Engines" detail="Tính thêm độ đa dạng domain và engine để score lên tự nhiên hơn." />
+              <MetricCard label="Search stack" value="Google + DDG" detail={t.engineMix} />
+              <MetricCard label="Authority" value="Google Fact Check" detail={t.authority} />
+              <MetricCard label="Signal mix" value="Domains + Engines" detail={t.signalMix} />
             </div>
           </div>
 
           <aside className="rounded-[30px] border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 p-5 sm:p-6 shadow-sm backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">How it reads</div>
+            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">{locale === "EN" ? "How it reads" : "How it reads"}</div>
             <div className="mt-4 space-y-3">
               <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">1. Parse claims</div>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Tách câu, lọc claim bẩn, rồi rút ngắn query để search chính xác hơn.</p>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.parse}</div>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.parseDesc}</p>
               </div>
               <div className="rounded-2xl border border-amber-500/15 bg-amber-500/8 px-4 py-3">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">2. Cross-check web</div>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Mỗi claim được bắn qua Google + DDG và authority domain để bắt điểm chéo.</p>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.crossCheck}</div>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.crossCheckDesc}</p>
               </div>
               <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 px-4 py-3">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">3. Score with mix</div>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Nguồn uy tín, số domain, số engine và Google Fact Check cùng tạo verdict.</p>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.scoreMix}</div>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.scoreMixDesc}</p>
               </div>
             </div>
           </aside>
@@ -413,8 +513,8 @@ export default function FactCheckPage() {
           <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/78 dark:bg-zinc-950/55 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.32em] text-zinc-400 dark:text-zinc-500">Input</div>
-                <h2 className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Text hoặc ảnh</h2>
+                <div className="text-[10px] uppercase tracking-[0.32em] text-zinc-400 dark:text-zinc-500">{t.input}</div>
+                <h2 className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t.textOrImage}</h2>
               </div>
               <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -424,7 +524,7 @@ export default function FactCheckPage() {
 
             <textarea
               className="mt-4 w-full h-36 sm:h-44 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/60 px-4 py-4 text-sm sm:text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none shadow-inner shadow-black/5"
-              placeholder="Paste nội dung tin tức cần xác thực..."
+              placeholder={t.placeholder}
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
@@ -444,16 +544,16 @@ export default function FactCheckPage() {
                 {ocrLoading ? (
                   <>
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                    Đang nhận diện text...
+                    {t.detectText}
                   </>
                 ) : (
                   <>
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" /></svg>
-                    Upload ảnh
+                    {t.uploadImage}
                   </>
                 )}
               </button>
-              <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">Kéo thả ảnh vào đây hoặc bấm để chọn</p>
+              <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">{t.dragDrop}</p>
             </div>
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -467,7 +567,7 @@ export default function FactCheckPage() {
                 disabled={loading || !text.trim()}
                 className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 hover:shadow-emerald-500/30 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:bg-emerald-400 dark:text-zinc-950 dark:hover:bg-emerald-300 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
               >
-                {loading ? "Đang xác thực..." : "Xác thực"}
+                {loading ? t.submitting : t.submit}
               </button>
             </div>
           </div>
@@ -479,7 +579,7 @@ export default function FactCheckPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-sm font-semibold text-zinc-900 dark:text-white">Score logic</div>
-                    <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Score không chỉ là số nguồn. Nó lấy thêm mix engine, mix domain và phản hồi Google Fact Check khi có.</p>
+                    <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.summary}</p>
                   </div>
                   <div className="hidden sm:block rounded-2xl border border-zinc-200/80 bg-white/70 px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
                     `0 - 100`
@@ -487,12 +587,12 @@ export default function FactCheckPage() {
                 </div>
               </div>
               <div className="rounded-3xl border border-zinc-200/70 bg-gradient-to-br from-emerald-50 via-white to-rose-50 p-4 dark:border-white/10 dark:from-emerald-500/10 dark:via-zinc-900/40 dark:to-red-500/10">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-white">When data arrives</div>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Khung kết quả sẽ bật thành score ring, verdict badge và stack nguồn rõ cấp độ uy tín.</p>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.previewTitle}</div>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.previewDesc}</p>
               </div>
               <div className="rounded-3xl border border-zinc-200/70 bg-zinc-50/90 p-4 dark:border-white/10 dark:bg-white/5">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-white">Best use case</div>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Tin tức tài chính, headline nóng, claim có nhiều nguồn đối chiếu. Càng nhiều mix, score càng có ý nghĩa.</p>
+                <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.useCase}</div>
+                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.useCaseDesc}</p>
               </div>
             </div>
           </div>
@@ -510,8 +610,8 @@ export default function FactCheckPage() {
             <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">Result</div>
-                  <h2 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">Kết quả xác thực</h2>
+                  <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">{t.result}</div>
+                  <h2 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{t.resultTitle}</h2>
                 </div>
                 <VerdictBadge verdict={result.verdict} />
               </div>
@@ -520,7 +620,7 @@ export default function FactCheckPage() {
                 <div className="flex-1 space-y-3">
                   <ScoreBar score={result.score} />
                   <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">Summary</div>
+                    <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">{t.summaryTitle}</div>
                     <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{result.summary}</p>
                   </div>
                 </div>
@@ -529,10 +629,10 @@ export default function FactCheckPage() {
             <div className="min-w-0 space-y-4">
               <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">Cross-check stats</h2>
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t.crossStats}</h2>
                   <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-1 text-xs text-zinc-500 dark:text-zinc-400">
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                    {sourceStats ? `${sourceStats.engines} engines / ${sourceStats.domains} domains` : "No sources"}
+                    {sourceStats ? `${sourceStats.engines} engines / ${sourceStats.domains} domains` : t.noSources}
                   </div>
                 </div>
                 <div className="mt-4">
@@ -542,7 +642,7 @@ export default function FactCheckPage() {
 
               {cleanClaims.length > 0 && (
                 <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Key claims</h2>
+                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.keyClaims}</h2>
                   <ul className="space-y-2">
                     {cleanClaims.map((claim, i) => (
                       <li key={i} className="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-3">
@@ -559,10 +659,10 @@ export default function FactCheckPage() {
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
             <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
-                Nguồn ({result.sources.length})
+                {t.sources} ({result.sources.length})
               </h2>
               {result.sources.length === 0 ? (
-                <p className="text-sm text-zinc-400 dark:text-zinc-500">Không tìm thấy nguồn liên quan</p>
+                <p className="text-sm text-zinc-400 dark:text-zinc-500">{t.notFound}</p>
               ) : (
                 <div className="min-w-0 space-y-3">
                   {result.sources.map((s) => <SourceRow key={s.url} source={s} />)}
@@ -571,7 +671,7 @@ export default function FactCheckPage() {
             </div>
 
             <div className="min-w-0 rounded-[28px] border border-zinc-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-gradient-to-br dark:from-zinc-950 dark:to-zinc-900 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">Phân tích</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.analysis}</h2>
               <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <SummaryPill label="Verdict" value={result.verdict} />
