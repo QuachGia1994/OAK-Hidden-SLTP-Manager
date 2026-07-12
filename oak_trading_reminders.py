@@ -37,6 +37,16 @@ def _get_ff_tz():
     return timezone(timedelta(hours=-4 if not is_winter_time() else -5))
 
 
+def _get_vn_tz():
+    """Dashboard/news display timezone: Vietnam local time."""
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo("Asia/Bangkok")
+        except Exception:
+            pass
+    return timezone(timedelta(hours=7))
+
+
 # Highlight these high-stakes events on desktop + dashboard
 CRITICAL_NEWS_KEYWORDS = (
     "federal funds rate",
@@ -506,7 +516,7 @@ def fetch_forexfactory_xml(lang="VN", context=None):
                 dt_src = datetime.strptime(event_date_str, "%m-%d-%Y").date()
                 dt_full_src = datetime.combine(dt_src, t_obj.time()).replace(tzinfo=ff_tz)
 
-            dt_local = dt_full_src.astimezone()  # machine local (VN usually Asia/Bangkok)
+            dt_local = dt_full_src.astimezone(_get_vn_tz())
 
             if dt_local.date() != today:
                 continue
@@ -554,55 +564,88 @@ def _format_group_slots(slots):
 
 
 def get_day_notes(now, lang="VN"):
-    """Daily schedule notes — always synced with mt5_signal_bot.get_target_hours / no-gold labels.
-
-    Core (Mon–Fri):
-      - T2–T6: H=2-15
-      - T3/T4: H=9-11 no gold
-      - T2 · H=3-15: no Gold entry label (H=9 Focus GBPUSD+GBPCAD)
-      - T5 · H=3-4: no Gold entry label (trade gold H=5-15)
-      - T6 · H=3-7,9-10: reverse signal to gold; no no-gold label
-      - T2: only H=9 Focus GBPUSD+GBPCAD; other hours no GBP Focus
-      - pair_dirs GBP map only H=3-4; H=5+ XAU only
-    Thursday extras (W1 recalc):
-      1. Yesterday Wed day 30 or 1
-      2. Same-week Friday day 3, 4, or 7
-    """
+    """Daily notes synced with the Dashboard "Rules today" matrix."""
     weekday = now.weekday()
     today = now.date() if hasattr(now, "date") and callable(now.date) else now
-
-    notes_vn = []
-    notes_en = []
 
     if weekday >= 5:
         if lang == "VN":
             return ["Cuối tuần: không trade theo schedule bot."]
         return ["Weekend: no bot trade schedule."]
 
-    # Always list full schedule on Mon–Fri (same as bot startup banner)
-    notes_vn.append("T2–T6: slots H=2-15.")
-    notes_en.append("Mon–Fri: slots H=2-15.")
-    notes_vn.append("H=2 mọi ngày: signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng.")
-    notes_en.append("H=2 every weekday: M5/M30 signal; GBPAUD · GBPJPY opposite gold, no H1 gold check.")
+    day_rules_vn = {
+        0: [
+            "Slots: H=2-15",
+            "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
+            "XAU: no-gold H=3-15",
+            "H=9: chỉ Focus GBPUSD · GBPCAD",
+            "Các H khác (bao gồm H=2): không Focus GBP.",
+        ],
+        1: [
+            "Slots: H=3-15 · XAU đánh bình thường",
+            "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
+            "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
+            "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
+            "T3-T4 · H=9-11: KHÔNG đánh Vàng",
+        ],
+        2: [
+            "Slots: H=3-15 · XAU đánh bình thường",
+            "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
+            "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
+            "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
+            "T3-T4 · H=9-11: KHÔNG đánh Vàng",
+        ],
+        3: [
+            "Slots: H=3-15",
+            "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
+            "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
+            "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
+            "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
+        ],
+        4: [
+            "Slots: H=3-15",
+            "XAU: H=3-7 và H=9-10 đảo signal ra Vàng; các H khác đánh bình thường",
+            "Không Focus GBP.",
+        ],
+    }
+    day_rules_en = {
+        0: [
+            "Slots: H=2-15",
+            "H=2 every weekday: M5/M30 signal; GBPAUD · GBPJPY opposite gold; no H1 gold check",
+            "XAU: no-gold H=3-15",
+            "H=9: focus GBPUSD · GBPCAD only",
+            "Other hours (including H=2): no GBP focus.",
+        ],
+        1: [
+            "Slots: H=3-15 · XAU trades normally",
+            "Tue-Wed H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
+            "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
+            "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
+            "Tue-Wed · H=9-11: no gold trade",
+        ],
+        2: [
+            "Slots: H=3-15 · XAU trades normally",
+            "Tue-Wed H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
+            "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
+            "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
+            "Tue-Wed · H=9-11: no gold trade",
+        ],
+        3: [
+            "Slots: H=3-15",
+            "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
+            "H=3-4, H=12-15: show NO TRADE badge",
+            "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
+            "H=9/10/11/12/15: focus full group · XAU no-gold from H=12",
+        ],
+        4: [
+            "Slots: H=3-15",
+            "XAU: H=3-7 and H=9-10 reverse signal to gold; other hours trade normally",
+            "No GBP focus.",
+        ],
+    }
 
-    notes_vn.append(
-        "T5 · H=3-4: KHÔNG đánh Vàng (label) — không Focus GBP."
-    )
-    notes_en.append(
-        "Thu · H=3-4: NO Gold entry (label) — no GBP Focus."
-    )
-
-    notes_vn.append("T2 · H=3-15: KHÔNG đánh Vàng (label); H=9 chỉ Focus GBPUSD · GBPCAD, H khác không Focus GBP.")
-    notes_en.append("Mon · H=3-15: NO Gold entry (label); H=9 focuses GBPUSD · GBPCAD only, other hours no GBP Focus.")
-
-    notes_vn.append(
-        "T6 · H=3-7,9-10: đảo signal ra Vàng; không gắn no-gold label. H=11-15 đánh Vàng bình thường. Không Focus GBP."
-    )
-    notes_en.append(
-        "Fri · H=3-7,9-10: reverse signal to gold; no no-gold label. H=11-15 trade gold normally. No GBP Focus."
-    )
-    notes_vn.append("H=14: active slot, mặc định XAU-only. H=15: Focus nhóm GBP T2–T5.")
-    notes_en.append("H=14: active slot, default XAU-only. H=15: GBP Focus Mon–Thu.")
+    notes_vn = list(day_rules_vn.get(weekday, []))
+    notes_en = list(day_rules_en.get(weekday, []))
 
     # Thursday-only W1 calendar extras
     if weekday == 3:

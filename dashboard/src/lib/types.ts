@@ -20,7 +20,9 @@ export interface BotState {
 }
 
 export interface NewsItem {
+  date?: string;
   time: string;
+  local_time?: string;
   currency: string;
   title: string;
   impact: "high" | "medium" | "low";

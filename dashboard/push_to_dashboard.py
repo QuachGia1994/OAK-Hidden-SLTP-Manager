@@ -55,6 +55,7 @@ if __name__ == "__main__":
         if os.path.exists(filepath):
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
+            news_date = data.get("date", "")
             # Parse news items
             items = []
             for line in data.get("news", []):
@@ -69,9 +70,9 @@ if __name__ == "__main__":
                     elif "🟢" in rest:
                         impact = "low"
                     title = rest.replace("🔴", "").replace("🟡", "").replace("🟢", "").strip()
-                    items.append({"time": match.group(1), "currency": match.group(2), "title": title, "impact": impact})
+                    items.append({"date": news_date, "time": match.group(1), "local_time": match.group(1), "currency": match.group(2), "title": title, "impact": impact})
                 else:
-                    items.append({"time": "", "currency": "", "title": clean, "impact": "high"})
+                    items.append({"date": news_date, "time": "", "local_time": "", "currency": "", "title": clean, "impact": "high"})
             push("news", items)
         else:
             print("news_cache_VN.json not found")

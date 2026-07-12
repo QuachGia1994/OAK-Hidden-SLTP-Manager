@@ -301,7 +301,9 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
 def _parse_news_for_dashboard(news_lines):
     """Parse news strings like '• 19:30 CAD 🔴 [HIGH] GDP m/m' into structured objects."""
     import re
-    from oak_trading_reminders import is_critical_news_title
+    from datetime import datetime
+    from oak_trading_reminders import _get_vn_tz, is_critical_news_title
+    today_vn = datetime.now(_get_vn_tz()).date().isoformat()
     items = []
     for line in news_lines:
         raw = line
@@ -332,7 +334,9 @@ def _parse_news_for_dashboard(news_lines):
             if critical:
                 impact = "high"
             items.append({
+                "date": today_vn,
                 "time": time_str,
+                "local_time": time_str,
                 "currency": currency,
                 "title": title,
                 "impact": impact,
@@ -781,7 +785,7 @@ def get_hour_note(H, weekday=None):
 def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
     """Cặp GBP tập trung theo slot — hiển thị Focus, không Mua/Bán trên Telegram/UI.
 
-    - H=2 mọi ngày: GBPAUD + GBPJPY ngược Vàng; T2 H=9: GBPUSD + GBPCAD
+    - H=2 mọi ngày: tính GA/GJ ngược Vàng, nhưng không hiển thị Focus GBP
     - T2 các H khác: không Focus GBP
     - T3-T4 H=3-4: GBPAUD + GBPJPY
     - T3-T5 H=5-8: chỉ GBPAUD
@@ -795,7 +799,7 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
         return []
     resolved_weekday = _resolve_weekday(broker_dt, weekday)
     if h == 2:
-        return ["GBPAUD", "GBPJPY"]
+        return []
     if resolved_weekday == 4:
         return []
     if resolved_weekday == 0:

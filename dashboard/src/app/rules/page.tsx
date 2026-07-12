@@ -1,4 +1,4 @@
-import { DAY_RULES, brokerToLocalTime, formatHour } from "@/lib/constants";
+import { brokerToLocalTime, formatHour, getDayRules } from "@/lib/constants";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
@@ -11,7 +11,7 @@ export default async function RulesPage() {
   const headerList = await headers();
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
-  const todayRules = DAY_RULES[locale][dayOfWeek] || [];
+  const todayRules = getDayRules(locale, dayOfWeek, today);
 
   return (
     <div className="page-shell max-w-3xl">

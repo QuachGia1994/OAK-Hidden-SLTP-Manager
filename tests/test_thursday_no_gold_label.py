@@ -92,6 +92,7 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         for hour in range(3, 16):
             self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=0))
             self.assertEqual(xau_no_trade_label_tag(hour, weekday=0), "T2 H=3-15")
+        self.assertEqual(get_focus_gbp_pairs(2, weekday=0), [])
         self.assertEqual(get_focus_gbp_pairs(9, weekday=0), ["GBPUSD", "GBPCAD"])
         for hour in (3, 4, 5, 8, 10, 11, 12, 14, 15):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=0), [])

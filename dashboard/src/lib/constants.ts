@@ -30,7 +30,8 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 /**
  * GBP focus pairs by hour. Friday has no GBP Focus.
  * No BUY/SELL dims — UI only marks Focus.
- * - H=2 every weekday and Tue–Wed H=3-4: GA+GJ opposite gold; Tue–Thu H=5-8: GA only
+ * - H=2 computes GA/GJ opposite gold, but it is not a GBP Focus slot in UI notes.
+ * - Tue–Wed H=3-4: GA+GJ opposite gold; Tue–Thu H=5-8: GA only
  * - Thu H=3-4 and Fri: no GBP Focus
  * - H=9/11/12/15 Mon–Thu: full group
  * - Fri (JS=5): no GBP Focus
@@ -38,7 +39,7 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   const h = Number(hour);
   if (!Number.isFinite(h)) return [];
-  if (h === 2) return ["GBPAUD", "GBPJPY"];
+  if (h === 2) return [];
   if (jsWeekday === 1) {
     return h === 9 ? ["GBPUSD", "GBPCAD"] : [];
   }
@@ -281,7 +282,6 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
       "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
       "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
-      "Thứ 5 + T4 hôm qua = 30/1 tây → nhắc W1; + T6 tuần = 3/4/7 → nhắc W1",
     ],
     5: [
       "Slots: H=3-15",
@@ -313,7 +313,6 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=3-4, H=12-15: show NO TRADE badge",
       "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
       "H=9/10/11/12/15: focus full group · XAU no-gold from H=12",
-      "Thursday + previous Wednesday = western 30/1 → W1 reminder; + Friday week = 3/4/7 → W1 reminder",
     ],
     5: [
       "Slots: H=3-15",
@@ -322,6 +321,52 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
   },
 };
+
+function getBangkokDate(date: Date): Date {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === "year")?.value);
+  const month = Number(parts.find((part) => part.type === "month")?.value);
+  const day = Number(parts.find((part) => part.type === "day")?.value);
+  return new Date(Date.UTC(year, month - 1, day, 12));
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+export function getDayRules(locale: RuleLocale, jsWeekday: number, date: Date = new Date()): string[] {
+  const rules = [...(DAY_RULES[locale][jsWeekday] || [])];
+  if (jsWeekday !== 4) return rules;
+
+  const today = getBangkokDate(date);
+  const yesterday = addUtcDays(today, -1);
+  const friday = addUtcDays(today, 1);
+  const yesterdayDay = yesterday.getUTCDate();
+  const fridayDay = friday.getUTCDate();
+
+  if (yesterday.getUTCDay() === 3 && (yesterdayDay === 30 || yesterdayDay === 1)) {
+    rules.push(
+      locale === "EN"
+        ? `Thursday after Wednesday day ${yesterdayDay}: recalculate W1.`
+        : `Thứ 5 có Thứ 4 hôm qua ngày ${yesterdayDay}: cần tính lại W1.`,
+    );
+  }
+  if (friday.getUTCDay() === 5 && (fridayDay === 3 || fridayDay === 4 || fridayDay === 7)) {
+    rules.push(
+      locale === "EN"
+        ? `Thursday with Friday day ${fridayDay}: recalculate W1.`
+        : `Thứ 5 có Thứ 6 ngày ${fridayDay}: cần tính lại W1.`,
+    );
+  }
+  return rules;
+}
 
 export function getSignalColor(signal: string): string {
   if (signal === "BUY" || signal === "Mua") return "text-emerald-500 dark:text-emerald-400";
