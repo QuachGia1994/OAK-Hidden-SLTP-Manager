@@ -72,7 +72,7 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
     <div className="flex items-center justify-between py-1">
       <span className="font-mono text-xs font-medium text-zinc-700 dark:text-zinc-300">{pair}</span>
       <span className={`text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded ${isBuy ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400"}`}>
-        {getSignalLabel(direction)}
+        {getSignalLabel(direction, locale)}
       </span>
     </div>
   );

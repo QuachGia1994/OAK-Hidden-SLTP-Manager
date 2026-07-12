@@ -12,13 +12,14 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
   return [...TARGET_HOURS];
 }
 
-export function getRhythmLabel(hour: number): string | null {
+export function getRhythmLabel(hour: number, locale: "VN" | "EN" = "VN"): string | null {
   const h = Number(hour);
-  if (h === 2 || h === 3 || h === 4) return "Nhịp 1 · JPY";
-  if (h >= 5 && h <= 8) return "Nhịp 2 · AUD";
-  if (h >= 9 && h <= 11) return "Nhịp 3 · GBP";
-  if (h === 12 || h === 13 || h === 14) return "Nhịp 4 · EUR";
-  if (h === 15) return "Nhịp 5 · USD";
+  const label = locale === "EN" ? "Rhythm" : "Nhịp";
+  if (h === 2 || h === 3 || h === 4) return `${label} 1 · JPY`;
+  if (h >= 5 && h <= 8) return `${label} 2 · AUD`;
+  if (h >= 9 && h <= 11) return `${label} 3 · GBP`;
+  if (h === 12 || h === 13 || h === 14) return `${label} 4 · EUR`;
+  if (h === 15) return `${label} 5 · USD`;
   return null;
 }
 
@@ -272,9 +273,9 @@ export function getSignalColor(signal: string): string {
   return "text-zinc-500";
 }
 
-export function getSignalLabel(signal: string): string {
-  if (signal === "BUY") return "Mua";
-  if (signal === "SELL") return "Bán";
+export function getSignalLabel(signal: string, locale: "VN" | "EN" = "VN"): string {
+  if (signal === "BUY") return locale === "EN" ? "Buy" : "Mua";
+  if (signal === "SELL") return locale === "EN" ? "Sell" : "Bán";
   return signal;
 }
 

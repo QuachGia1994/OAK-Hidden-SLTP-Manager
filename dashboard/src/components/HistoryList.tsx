@@ -21,7 +21,7 @@ export function HistoryList({ signals, isVIP }: HistoryListProps) {
   if (dates.length === 0) {
     return (
       <div className="text-center py-12 text-zinc-400 dark:text-zinc-500 text-base">
-        {locale === "EN" ? "No signals yet" : "Chưa có signal nào"}
+        {locale === "EN" ? "No signals yet" : "Ch?a c? t?n hi?u n?o"}
       </div>
     );
   }

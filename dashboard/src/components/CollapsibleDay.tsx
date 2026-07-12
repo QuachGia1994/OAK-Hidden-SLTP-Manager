@@ -44,7 +44,7 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
           {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
         </h2>
         <span className="text-[10px] text-zinc-400 dark:text-zinc-500 ml-auto">
-          {daySignals.length} {locale === "EN" ? "signal" : "signal"}{daySignals.length !== 1 ? "s" : ""}
+          {daySignals.length} {locale === "EN" ? "signal" : "t?n hi?u"}{daySignals.length !== 1 ? "s" : ""}
         </span>
       </button>
       {open && (
