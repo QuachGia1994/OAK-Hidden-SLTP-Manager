@@ -24,7 +24,7 @@
 *Signal rules v9 + multi-monitor isolation + EN docs + installer package.*
 
 ### Signal rules (logic v9)
-- Slot T2-T6 H=2-13 va H=15
+- Slot T2-T6 H=2-15
 - H=2 dung M5/M30; GBPAUD + GBPJPY nguoc Vang, khong xet H1 Vang
 - No-gold: T2 H=3-11; T5 H=3-4; T6 H=3-11
 - Focus: T3-T4 H=3-4 GA+GJ nguoc Vang, H=5-8 GA, H=9/11/12/15 full group; T5 H=5-8 GA va H=9/11/12/15 full group; T6 khong focus GBP

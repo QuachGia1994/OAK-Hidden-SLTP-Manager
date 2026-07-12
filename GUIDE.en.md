@@ -32,16 +32,16 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle
 ### Slot schedule
 | Day | Hours |
 | --- | --- |
-| Mon-Fri | H=2-13 and H=15 at :45 broker |
+| Mon-Fri | H=2-15 at :45 broker |
 | Weekend | none |
 
 ### No-gold label (XAU)
 | Day | No-gold | Trade gold |
 | --- | --- | --- |
 | Mon | H=3-11 | H=2, H=12-13, H=15 |
-| Tue-Wed | none | H=2-13, H=15 |
-| Thu | H=3-4 | H=2, H=5-13, H=15 |
-| Fri | H=3-11 | H=2, H=12-13, H=15 |
+| Tue-Wed | H=9-11 | H=2-8, H=12-15 |
+| Thu | H=3-4 | H=2, H=5-15 |
+| Fri | H=3-11 | H=2, H=12-15 |
 
 ### GBP display
 | Hours | Display | Mon | Tue-Wed | Thu | Fri |
@@ -50,10 +50,11 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle
 | H=3-4 | Buy/Sell vs gold | No focus | GA + GJ opposite gold | No focus | No focus |
 | H=5-8 | Focus only | No focus | GBPAUD | GBPAUD | No focus |
 | H=9 | Focus only | GBPUSD + GBPCAD | Full group | Full group | No focus |
-| H=10 | Focus only | No focus | No focus | No focus | No focus |
+| H=10 | Focus only | No focus | Full group | Full group | No focus |
 | H=11 | Focus only | No focus | Full group | Full group | No focus |
 | H=12 | Focus only | No focus | Full group | Full group | No focus |
-| H=13 | Focus only | No focus | No focus | No focus | No focus |
+| H=13 | Focus only | No focus | Full group | Full group | No focus |
+| H=14 | Focus only | No focus | No focus | No focus | No focus |
 | H=15 | Focus only | No focus | Full group | Full group | No focus |
 
 ### pair_dirs mapping

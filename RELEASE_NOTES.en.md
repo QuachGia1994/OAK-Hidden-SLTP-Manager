@@ -22,7 +22,7 @@
 *Signal rules v9 + multi-monitor isolation + EN docs + installer package.*
 
 ### Signal rules (logic v9)
-- Mon-Fri slots H=2-13 and H=15
+- Mon-Fri slots H=2-15
 - H=2 uses M5/M30 only; GBPAUD + GBPJPY are opposite gold without an H1 gold check
 - No-gold: Mon H=3-11; Thu H=3-4; Fri H=3-11
 - Focus: Tue-Wed H=3-4 GA+GJ opposite gold, H=5-8 GA, H=9/11/12/15 full group; Thu H=5-8 GA and H=9/11/12/15 full group; Fri no GBP focus

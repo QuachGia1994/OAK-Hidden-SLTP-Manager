@@ -25,8 +25,8 @@ Tài liệu liên quan:
 - H=2 chỉ dùng M5/M30; GBPAUD và GBPJPY ngược Vàng, không xét H1 Vàng
 - T3/T5 H=2 đảo signal XAU sau khi tính M5/M30
 - No-gold: T2 H=3-11, T3-T4 H=9-11, T5 H=3-4, T6 H=3-11
-- T3-T4: H=3-4 hiện GBPAUD + GBPJPY ngược Vàng; H=5-8 focus GBPAUD; H=9/10/11/12/15 focus toàn nhóm GBP
-- T5: H=3-4 không focus GBP; H=5-8 focus GBPAUD; H=9/11/12/15 focus toàn nhóm GBP
+- T3-T4: H=3-4 hiện GBPAUD + GBPJPY ngược Vàng; H=5-8 focus GBPAUD; H=9/10/11/12/13/15 focus toàn nhóm GBP; H=14 chỉ XAU, không focus GBP
+- T5: H=3-4 không focus GBP; H=5-8 focus GBPAUD; H=9/10/11/12/13/15 focus toàn nhóm GBP; H=14 chỉ XAU, không focus GBP
 - T6: không focus GBP
 - T2: H=9 focus GBPUSD + GBPCAD; các mốc T2 khác không focus GBP
 - Đã bỏ D-direction
