@@ -15,12 +15,15 @@ from mt5_signal_bot import (
 
 
 class TestThursdayAndFridayRules(unittest.TestCase):
-    def test_thursday_only_h3_h4_are_no_gold(self):
+    def test_thursday_h3_h4_and_h12_plus_are_no_gold(self):
         thursday = datetime(2026, 7, 9, 13, 0)
         for hour in (3, 4):
             self.assertTrue(is_xau_no_trade_label_slot(hour, thursday))
-            self.assertEqual(xau_no_trade_label_tag(hour, thursday), "H=3-4")
-        for hour in (9, 10, 11, 12, 13, 14, 15):
+            self.assertEqual(xau_no_trade_label_tag(hour, thursday), "T5 H=3-4")
+        for hour in (12, 13, 14, 15):
+            self.assertTrue(is_xau_no_trade_label_slot(hour, thursday))
+            self.assertEqual(xau_no_trade_label_tag(hour, thursday), "T5 H>=12")
+        for hour in (5, 6, 7, 8, 9, 10, 11):
             self.assertFalse(is_xau_no_trade_label_slot(hour, thursday))
             self.assertEqual(xau_no_trade_label_tag(hour, thursday), "")
 
