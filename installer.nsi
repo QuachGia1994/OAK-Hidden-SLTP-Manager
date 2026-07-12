@@ -5,7 +5,7 @@
 !define APPNAME "OAK MANAGER"
 !define COMPANY "QKP"
 !ifndef VERSION
-!define VERSION "3.15.0"
+!define VERSION "v3.16.2"
 !endif
 
 !ifndef PACKAGE_DIR_NAME

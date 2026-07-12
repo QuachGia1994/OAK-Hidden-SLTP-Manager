@@ -1,48 +1,33 @@
 # RELEASE NOTES
 
-## Unreleased
-- Fixed browser Fact Check requests returning HTTP 401 without exposing the internal dashboard API key
-- Added Fact Check Worker to desktop START ALL / STOP ALL and frozen-app process mode
-- Added Google News fallback, optional AI evidence review, adaptive multi-pass OCR, and clipboard image paste
+## [v3.16.2] - 2026-07-12
 
-## [v3.16.1] - 2026-07-11
-*Weekend signal card fix, doc refresh, backup script refresh, and release packaging sync.*
+### Dashboard + i18n
 
-### Desktop signal card
-- Sat/Sun now shows `Current: No trade`
-- Weekend pair labels are cleared
-- Weekend `Next` and `Countdown` no longer point to an old weekday slot
+- Fixed the System / EN / VN switcher so only one mode is active.
+- Cleaned Fact Check English/Vietnamese rendering across result cards, stats, sources, verdicts, and AI panels.
+- Prevented old cached English AI summaries from leaking into the Vietnamese UI.
 
-### Docs
-- README / Guide / Release Notes updated to match the live app behavior
-- Installation doc refreshed for the current package names and build outputs
-- Signal matrix rewritten around the active H=2-15 logic and weekend handling
+### Fact Check
 
-### Backup + packaging
-- App version bumped to **v3.16.1**
-- `create_backup_final.py` now includes the `scripts/` folder in the source zip
-- Backup exclusions now ignore common local cache folders
-
-## [v3.16.0] - 2026-07-10
-*Signal rules v9 + multi-monitor isolation + EN docs + installer package.*
-
-### Signal rules (logic v9)
-- Mon-Fri slots H=2-15
-- H=2 uses M5/M30 only; GBPJPY/GBPAUD are opposite gold without an H1 gold check
-- No-gold: Mon H=3-15, Tue-Wed H=9-11, Thu H=3-4
-- Fri reverses signal to gold at H=3-7 and H=9-10, with no no-gold label
-- Focus is GBP-only display after H=5; D-direction removed
-
-### Multi-monitor
-- Concurrent workers; Running Monitors panel
-- Exact `--profile` orphan kill (Vantage != VantageDemo)
-- Per-profile `trades_*.json` and `pending_partials_*.json`
-- Reader threads never touch Tk; Account card uses `hb_profile` prefix
-
-### i18n
-- Guide / README / Release Notes load `.en.md` when language = EN
-- Signal card Buy / Sell / No trade labels localized
+- Added GitHub Models as the default AI review path using an existing GitHub token.
+- Kept OpenAI Responses API support as a fallback.
+- AI now receives an explicit output language and must review only collected Google/DDG evidence.
+- Added tests for Vietnamese and unaccented Vietnamese AI output-language detection.
 
 ### Packaging
-- App version **v3.16.0**
-- Installer.exe, window-unpack.zip, OAK Source zip
+
+- Bumped app version to **v3.16.2**.
+- Refreshed README / Guide / Release Notes for the current app behavior.
+- Updated `create_backup_final.py` source packaging exclusions and essentials.
+
+## [v3.16.1] - 2026-07-11
+
+- Fixed weekend desktop signal card: no stale current signal, next slot, countdown, or pair labels.
+- Refreshed docs and backup packaging script.
+- Synced release package naming.
+
+## [v3.16.0] - 2026-07-10
+
+- Added signal rules v9, multi-monitor isolation, bilingual docs, and installer packaging.
+- Added profile-safe worker shutdown and per-profile runtime files.

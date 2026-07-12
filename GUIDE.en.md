@@ -1,85 +1,104 @@
-# OAK MANAGER User Guide (v3.16.1)
+# OAK MANAGER User Guide (v3.16.2)
 
-This guide covers the desktop app, signal bot, Telegram bridge, and web dashboard.
+This guide covers the desktop app, signal bot, Telegram bridge, Fact Check worker, and web dashboard.
 
 ## 1. Quick start
 
-1. Create `config.json` with `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`
-2. Install deps: `pip install -r requirements.txt`
-3. Run `CHAY_ROBOT.bat`
-4. Open the app, pick a profile, then use the **Signals** tab to start the required processes
+1. Create `config.json` with `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, and `dashboard_api_key`.
+2. Install dependencies: `pip install -r requirements.txt`.
+3. Run `CHAY_ROBOT.bat`.
+4. Open the desktop app, select a profile, then use **Signals** to start or stop the background services.
 
 ## 2. Desktop tabs
 
 ### Dashboard
-- Select profile, Start/Stop monitor(s)
-- Multi-monitor panel: live workers with PID + Stop
-- MT5 / Telegram / Ghost / System status bar
-- Account + Signal cards, news, console filters
-- Sat/Sun signal card shows `Current: No trade`, with empty pair labels, `Next`, and `Countdown`
+
+- Select profile and start/stop MT5 monitors.
+- See running monitor PID, account, signal, news, and activity logs.
+- Weekend signal card stays empty: no current signal, next slot, countdown, or stale pair labels.
 
 ### Signals
-Five background processes: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker, and Fact Check Worker. **START ALL / STOP ALL** controls the full set.
+
+`START ALL` / `STOP ALL` controls:
+
+- MT5 Signal Bot
+- MT4-MT5 Server
+- MiMo Telegram Bot
+- MiMo Worker
+- Fact Check Worker
 
 ### Profiles / Copy Trading / Pending / Diagnostics
-Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle export.
 
-## 3. Signal rules (logic v9)
+Manage profiles, copy-trading settings, scheduled entries, log filters, and debug bundle export.
+
+## 3. Signal rules
 
 ### Pairs
+
 `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`
 
-### Slot schedule
-| Day | Hours |
-| --- | --- |
-| Mon-Fri | H=2-15 at :45 broker |
-| Weekend | none |
+### Rhythms
 
-### No-gold label (XAU)
-| Day | No-gold | Trade gold |
+| Rhythm | Hours | Label |
 | --- | --- | --- |
-| Mon | H=3-15 | H=2 |
-| Tue-Wed | H=9-11 | H=2-8, H=12-15 |
-| Thu | H=3-4, H=12-15 | H=2, H=5-11 |
-| Fri | none | H=2-15 |
+| 0 | H=2 | XAU |
+| 1 | H=3-4 | JPY |
+| 2 | H=5-8 | AUD |
+| 3 | H=9-11 | GBP |
+| 4 | H=12-14 | EUR |
+| 5 | H=15 | USD |
 
-### GBP display
-| Hours | Display | Mon | Tue-Wed | Thu | Fri |
-| --- | --- | --- | --- | --- | --- |
-| H=2 | Buy/Sell vs gold | GA + GJ opposite gold | GA + GJ opposite gold, reversed XAU signal | GA + GJ opposite gold, reversed XAU signal | GA + GJ opposite gold |
-| H=3-4 | Buy/Sell vs gold | No focus | GA + GJ opposite gold | No focus | Reverse to gold |
-| H=5-8 | Focus only | No focus | GBPAUD | GBPAUD | Reverse to gold (H=5-7) |
-| H=9-10 | Focus only | GBPUSD + GBPCAD / no focus | Full group / reverse to gold | Full group / reverse to gold | Reverse to gold |
-| H=11-13 | Focus only | No focus | Full group | Full group | XAU only |
-| H=14 | Focus only | No focus | No focus | No focus | XAU only |
-| H=15 | Focus only | No focus | Full group | Full group | XAU only |
+### Schedule
 
-### pair_dirs mapping
-| Hours | Content |
+| Day | Active hours |
 | --- | --- |
-| H=2 | XAU + GBPAUD/GBPJPY opposite gold; GBPUSD/GBPCAD stay `--` |
-| H=3-4 | Tue-Wed: XAU + GBPAUD/GBPJPY opposite gold; other days XAU only |
-| H=5+ | XAU only (GBP is displayed through Focus only) |
+| Monday-Friday | H=2-15 at broker `:45` |
+| Saturday-Sunday | none |
 
-### XAU M30 flip
-- Same direction as M30 -> flip XAU
-- Different from M30 -> keep XAU
-- H=2 and Tue-Wed H=3-4 rebuild GBP from final XAU
-- H=5+ updates XAU only; GBP Focus has no direction
+### No-gold label
 
-### Removed
-- H=9/11/12 direction matrix
-- D-direction
+| Day | No-gold hours |
+| --- | --- |
+| Monday | H=3-15 |
+| Tuesday-Wednesday | H=9-11 |
+| Thursday | H=3-4, H=12-15 |
+| Friday | none |
 
-## 4. Multi-monitor
-- Concurrent workers; exact `--profile` orphan kill
-- Per-profile `trades_*.json` / `pending_partials_*.json`
-- Stop dialog shows Profile / PID / Account
+### GBP focus
 
-## 5. Web dashboard
-URL: https://oak-hidden-sltp-manager-dun.vercel.app
+| Day | Rule |
+| --- | --- |
+| Monday | H=9 focuses GBPUSD + GBPCAD only |
+| Tuesday-Wednesday | H=3-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP group; H=14 no GBP focus |
+| Thursday | H=3-4 no GBP focus; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP group; H=14 no GBP focus |
+| Friday | No GBP focus |
 
-Fact Check uses Google + DuckDuckGo by default. Set `FACTCHECK_AI_API_KEY` to enable the third AI evidence-review engine. Images can be uploaded, dropped, or pasted into the text box with `Ctrl+V`; OCR runs locally in the browser.
+### Gold calculation notes
+
+- H=2 uses M5/M30 only and skips H1 gold.
+- GBPAUD and GBPJPY are opposite gold when direction is assigned.
+- Friday reverses the calculated signal back to gold at H=3-7 and H=9-10.
+- D-direction and the old H=9/11/12 direction matrix are removed.
+
+## 4. Web dashboard
+
+Production URL: https://oak-hidden-sltp-manager-dun.vercel.app
+
+- Language switch: System / EN / VN.
+- Signal cards, history, news, and rules are localized.
+- Fact Check supports pasted text, uploaded images, dropped images, and clipboard images.
+
+## 5. Fact Check
+
+Fact Check uses DuckDuckGo + Google evidence search. AI review is optional and must only evaluate collected evidence.
+
+AI configuration priority:
+
+1. GitHub Models through `FACTCHECK_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token`.
+2. OpenAI Responses API through `FACTCHECK_AI_API_KEY`.
+
+The default GitHub Models preview model is `openai/gpt-4.1-mini`.
 
 ## 6. Telegram
-Exact profile targeting on schedule commands; NLP + slash commands for status, pending, closeall, and other workflow helpers.
+
+Telegram commands target the exact profile. Schedule claims are atomic so only one worker handles a pending order.

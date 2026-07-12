@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Create OAK source + profile backup zips.
 
-- OAK Source {VERSION}.zip  — code, docs, dashboard (no secrets / runtime state)
-- OAK_Profile_Backup.zip    — local profiles, settings, caches, session state
+- OAK Source {VERSION}.zip  - code, docs, dashboard (no secrets / runtime state)
+- OAK_Profile_Backup.zip    - local profiles, settings, caches, session state
 """
 import glob
 import os
@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() !=
 
 
 def read_version():
-    version = "v3.16.1"
+    version = "v3.16.2"
     for path in ("domain/constants.py", "OAK_Hidden_SLTP_Manager.py"):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -66,6 +66,7 @@ ROOT_ALWAYS = {
     "secret_store.py",
     "oak_logger.py",
     "utils.py",
+    ".env.example",
 }
 
 EXCLUDE_DIRS = {
@@ -85,6 +86,8 @@ EXCLUDE_DIRS = {
     ".grok",
     ".pytest_cache",
     ".ruff_cache",
+    ".mimocode",
+    ".pxswift",
 }
 
 # Never put secrets / live state into SOURCE zip
@@ -122,6 +125,7 @@ EXCLUDE_SUFFIXES = (
     ".log",
     ".lock",
     ".db",
+    ".tsbuildinfo",
     ".zip",
 )
 

@@ -1,87 +1,104 @@
-# Cam Nang OAK MANAGER (v3.16.1)
+# Cẩm nang OAK MANAGER (v3.16.2)
 
-> Ban dich tu `GUIDE.en.md` (nguon chinh). Cap nhat: sua EN truoc, roi chay `python scripts/sync_docs_from_en.py` hoac dong bo tay.
+Tài liệu này mô tả app desktop, signal bot, Telegram bridge, Fact Check worker và dashboard web.
 
-Tai lieu mo ta app desktop, signal bot, Telegram bridge va dashboard web.
+## 1. Bắt đầu nhanh
 
-## 1. Bat dau nhanh
+1. Tạo `config.json` với `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`.
+2. Cài dependency: `pip install -r requirements.txt`.
+3. Chạy `CHAY_ROBOT.bat`.
+4. Mở app desktop, chọn profile, rồi dùng tab **Signals** để bật/tắt các service nền.
 
-1. Tao `config.json` voi `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`
-2. Cai dependency: `pip install -r requirements.txt`
-3. Chay `CHAY_ROBOT.bat`
-4. Mo app, chon profile, vao tab **Signals** de bat cac process can dung
-
-## 2. Cac tab desktop
+## 2. Các tab desktop
 
 ### Dashboard
-- Chon profile, Start/Stop monitor(s)
-- Panel multi-monitor: worker song kem PID + Stop
-- Status bar MT5 / Telegram / Ghost / System
-- Card Account + Signal, tin tuc, bo loc console
-- Thu 7/Chu nhat, the Signal hien `Hien tai: Khong danh`, pair labels rong, `Tiep theo` va `Dem nguoc` de trong
+
+- Chọn profile và start/stop monitor MT5.
+- Xem PID monitor đang chạy, account, signal, tin tức và activity log.
+- Cuối tuần thẻ signal để trống: không current signal, next slot, countdown hoặc label cặp cũ.
 
 ### Signals
-Nam process nen: MT5 Signal Bot, MT4-MT5 Server, MiMo Telegram Bot, MiMo Worker va Fact Check Worker. **START ALL / STOP ALL** dieu khien toan bo.
+
+`START ALL` / `STOP ALL` điều khiển:
+
+- MT5 Signal Bot
+- MT4-MT5 Server
+- MiMo Telegram Bot
+- MiMo Worker
+- Fact Check Worker
 
 ### Profiles / Copy Trading / Pending / Diagnostics
-CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
 
-## 3. Rule signal (logic v9)
+Quản lý profile, copy-trading, lệnh hẹn giờ, lọc log và export debug bundle.
 
-### Cap
+## 3. Rule signal
+
+### Cặp
+
 `XAUUSD`, `GBPAUD`, `GBPCAD`, `GBPUSD`, `GBPJPY`
 
-### Lich slot
-| Ngay | Gio |
-| --- | --- |
-| T2-T6 | H=2-15 luc :45 broker |
-| Cuoi tuan | khong co |
+### Nhịp
 
-### No-gold label (XAU)
-| Ngay | No-gold | Duoc danh vang |
+| Nhịp | Mốc H | Label |
 | --- | --- | --- |
-| T2 | H=3-15 | H=2 |
-| T3-T4 | H=9-11 | H=2-8, H=12-15 |
-| T5 | H=3-4, H=12-15 | H=2, H=5-11 |
-| T6 | none | H=2-15 |
+| 0 | H=2 | XAU |
+| 1 | H=3-4 | JPY |
+| 2 | H=5-8 | AUD |
+| 3 | H=9-11 | GBP |
+| 4 | H=12-14 | EUR |
+| 5 | H=15 | USD |
 
-### Hien thi GBP
-| Gio | Kieu hien thi | T2 | T3-T4 | T5 | T6 |
-| --- | --- | --- | --- | --- | --- |
-| H=2 | Mua/Ban theo vang | GA + GJ nguoc Vang | GA + GJ nguoc Vang, dao signal XAU | GA + GJ nguoc Vang, dao signal XAU | GA + GJ nguoc Vang |
-| H=3-4 | Mua/Ban theo vang | Khong focus | GA + GJ nguoc Vang | Khong focus | Dao signal ra Vang |
-| H=5-8 | Focus only | Khong focus | GBPAUD | GBPAUD | Dao signal ra Vang (H=5-7) |
-| H=9-10 | Focus only | GBPUSD + GBPCAD / Khong focus | Toan nhom / Dao signal ra Vang | Toan nhom / Dao signal ra Vang | Dao signal ra Vang |
-| H=11-13 | Focus only | Khong focus | Toan nhom | Toan nhom | Chi Vang (XAUUSD) |
-| H=14 | Focus only | Khong focus | Khong focus | Khong focus | Chi Vang (XAUUSD) |
-| H=15 | Focus only | Khong focus | Toan nhom | Toan nhom | Chi Vang (XAUUSD) |
+### Lịch slot
 
-### pair_dirs mapping
-| Gio | Noi dung |
+| Ngày | Mốc active |
 | --- | --- |
-| H=2 | XAU + GBPAUD/GBPJPY nguoc Vang; GBPUSD/GBPCAD giu `--` |
-| H=3-4 | T3-T4: XAU + GBPAUD/GBPJPY nguoc Vang; ngay khac chi XAU |
-| H=5+ | Chi XAU; GBP chi hien theo Focus |
+| Thứ 2-Thứ 6 | H=2-15 tại phút `:45` broker |
+| Thứ 7-Chủ nhật | không có |
 
-### XAU M30 flip
-- Cung huong voi M30 -> flip XAU
-- Khac huong M30 -> giu XAU
-- H=2 va T3-T4 H=3-4 rebuild GBP theo XAU cuoi cung
-- H=5+ chi cap nhat XAU; GBP Focus khong gan chieu
+### No-gold label
 
-### Da bo
-- Ma tran direction H=9/11/12
-- D-direction
+| Ngày | Mốc no-gold |
+| --- | --- |
+| Thứ 2 | H=3-15 |
+| Thứ 3-Thứ 4 | H=9-11 |
+| Thứ 5 | H=3-4, H=12-15 |
+| Thứ 6 | không có |
 
-## 4. Multi-monitor
-- Nhieu worker song song; exact `--profile` orphan kill
-- Theo profile: `trades_*.json` / `pending_partials_*.json`
-- Hop thoai Stop hien Profile / PID / Account
+### Focus GBP
 
-## 5. Web dashboard
-URL: https://oak-hidden-sltp-manager-dun.vercel.app
+| Ngày | Rule |
+| --- | --- |
+| Thứ 2 | H=9 focus GBPUSD + GBPCAD |
+| Thứ 3-Thứ 4 | H=3-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/10/11/12/13/15 toàn nhóm GBP; H=14 không focus GBP |
+| Thứ 5 | H=3-4 không focus GBP; H=5-8 GBPAUD; H=9/10/11/12/13/15 toàn nhóm GBP; H=14 không focus GBP |
+| Thứ 6 | không focus GBP |
 
-Fact Check dung Google + DuckDuckGo mac dinh. Dat `FACTCHECK_AI_API_KEY` de bat engine AI phan bien chung cu. Co the upload, keo tha hoac dan anh vao khung text bang `Ctrl+V`; OCR chay cuc bo trong browser.
+### Ghi chú tính Vàng
+
+- H=2 chỉ xét M5/M30 và bỏ H1 Vàng.
+- GBPAUD và GBPJPY ngược Vàng khi có gán chiều.
+- Thứ 6 đảo kết quả tính toán về Vàng tại H=3-7 và H=9-10.
+- Đã bỏ D-direction và ma trận direction cũ H=9/11/12.
+
+## 4. Dashboard web
+
+Production URL: https://oak-hidden-sltp-manager-dun.vercel.app
+
+- Chuyển ngôn ngữ: System / EN / VN.
+- Signal cards, lịch sử, tin tức và rules được localize.
+- Fact Check hỗ trợ paste text, upload ảnh, kéo-thả ảnh và dán ảnh từ clipboard.
+
+## 5. Fact Check
+
+Fact Check dùng DuckDuckGo + Google để lấy bằng chứng. AI review là lớp tùy chọn và chỉ được đánh giá bằng chứng đã thu thập.
+
+Thứ tự cấu hình AI:
+
+1. GitHub Models qua `FACTCHECK_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, hoặc `gh auth token`.
+2. OpenAI Responses API qua `FACTCHECK_AI_API_KEY`.
+
+Model GitHub Models preview mặc định là `openai/gpt-4.1-mini`.
 
 ## 6. Telegram
-Target profile chinh xac tren lenh schedule; co NLP + slash commands cho status, pending, closeall va cac workflow ho tro khac.
+
+Lệnh Telegram target đúng profile. Schedule claim chạy atomic để chỉ một worker xử lý một lệnh hẹn giờ.

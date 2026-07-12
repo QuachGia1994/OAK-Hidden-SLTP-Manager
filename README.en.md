@@ -1,45 +1,52 @@
-# OAK Hidden SLTP Manager (v3.16.1)
+# OAK Hidden SLTP Manager (v3.16.2)
 
-Windows desktop app for multi-process MT5 management: monitoring, Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge, and web dashboard.
+Windows desktop console for MT5 trading operations: hidden SL/TP, Ghost Mode, signal bots, Telegram bridge, copy-trading helpers, scheduled orders, diagnostics, and the web dashboard.
 
 Related docs:
+
 - [GUIDE.en.md](GUIDE.en.md) · [GUIDE.md](GUIDE.md) (Vietnamese)
-- [RELEASE_NOTES.en.md](RELEASE_NOTES.en.md)
+- [RELEASE_NOTES.en.md](RELEASE_NOTES.en.md) · [RELEASE_NOTES.md](RELEASE_NOTES.md)
 
-## Features
+## What is included
 
-### Desktop
-- Hidden SL/TP with optional Visible SL/TP
-- Auto Partial by R + volume %, Auto BE with buffer
-- Multi-profile + multi-monitor workers
-- Ghost Mode
-- Pending/scheduled orders, Diagnostics, debug bundle export
-- In-app docs: Guide / README / Release Notes (VN + EN)
-- Signals tab starts/stops five services together, including Fact Check Worker
-- Fact Check: Google + DuckDuckGo, optional AI evidence review, multi-pass OCR, clipboard image paste
+- Multi-profile MT5 monitor workers with exact profile isolation.
+- Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
+- Signal engine for XAUUSD, GBPAUD, GBPCAD, GBPUSD, and GBPJPY.
+- Telegram bridge with profile-safe commands and MiMo worker support.
+- Web dashboard with System / EN / VN language switching.
+- Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
+- In-app Guide / README / Release Notes in English and Vietnamese.
 
-### Signal bot
-- Pairs: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
-- Slots: Mon-Fri H=2-15
-- Weekend: no trading slots
-- H=2 uses M5/M30 only; GBPJPY/GBPAUD are opposite gold, no H1 gold check
-- No-gold: Mon H=3-15, Tue-Wed H=9-11, Thu H=3-4 and H=12-15
-- Fri: H=3-7 and H=9-10 reverse signal to gold; no no-gold label
-- Mon: H=9 focuses GBPUSD + GBPCAD; other Monday hours no GBP focus
-- Tue-Wed: H=3-4 GBPJPY + GBPAUD opposite gold; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP group; H=14 XAU only
-- Thu: H=3-4 no GBP focus; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP group; H=14 XAU only
-- Fri: no GBP focus
-- D-direction removed
+## Current signal matrix
 
-### Desktop signal card
-- Sat/Sun now shows `Current: No trade`
-- Pair labels are cleared on weekends
-- `Next` and `Countdown` stay blank on weekends instead of carrying an old weekday slot
+- Trading days: Monday to Friday.
+- Weekend: no desktop signal, no next slot, no countdown.
+- Active slots: H=2 through H=15 at broker `:45`.
+- H=2 is Rhythm 0 / XAU and uses M5/M30 only.
+- H=14 is active but has no GBP focus.
+- No-gold labels:
+  - Monday: H=3-15.
+  - Tuesday-Wednesday: H=9-11.
+  - Thursday: H=3-4 and H=12-15.
+  - Friday: none.
+- Friday reverses the computed signal back to gold at H=3-7 and H=9-10.
+- Focus rules:
+  - Monday H=9: GBPUSD + GBPCAD.
+  - Tuesday-Wednesday H=3-4: GBPAUD + GBPJPY opposite gold.
+  - Tuesday-Thursday H=5-8: GBPAUD.
+  - Tuesday-Thursday H=9, H=10, H=11, H=12, H=13, H=15: full GBP group.
+  - Friday: no GBP focus.
 
-### Safety
-- Exact profile match on Telegram commands
-- Atomic schedule claim; one worker per profile
-- Exact orphan kill by `--profile` argument
+## Fact Check AI
+
+The worker uses collected web evidence only. AI is a reviewer, not a source generator.
+
+Default AI provider:
+
+- GitHub Models via `FACTCHECK_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, or `gh auth token`.
+- The default preview model is `openai/gpt-4.1-mini`.
+- OpenAI Responses API remains supported through `FACTCHECK_AI_API_KEY`.
 
 ## Windows packages
-- [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
+
+Download installer, unpacked build, and source bundle from [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases).
