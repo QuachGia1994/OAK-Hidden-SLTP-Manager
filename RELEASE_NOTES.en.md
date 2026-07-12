@@ -23,12 +23,10 @@
 
 ### Signal rules (logic v9)
 - Mon-Fri slots H=2-15
-- H=2 uses M5/M30 only; GBPAUD + GBPJPY are opposite gold without an H1 gold check
-- No-gold: Mon H=3-15; Thu H=3-4
-- Friday no longer uses no-gold labels; H=3-7 and H=9-10 reverse signal to gold
-- Focus: Tue-Wed H=3-4 GA+GJ opposite gold, H=5-8 GA, H=9/11/12/15 full group; Thu H=5-8 GA and H=9/11/12/15 full group; Fri no GBP focus
-- `pair_dirs`: GBP map only at H=2-4; H=5+ is XAU only
-- Removed: H=9/11/12 direction matrix and all D-direction plumbing
+- H=2 uses M5/M30 only; GBPJPY/GBPAUD are opposite gold without an H1 gold check
+- No-gold: Mon H=3-15, Tue-Wed H=9-11, Thu H=3-4
+- Fri reverses signal to gold at H=3-7 and H=9-10, with no no-gold label
+- Focus is GBP-only display after H=5; D-direction removed
 
 ### Multi-monitor
 - Concurrent workers; Running Monitors panel

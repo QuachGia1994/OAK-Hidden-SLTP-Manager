@@ -51,11 +51,8 @@ CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
 | H=2 | Mua/Ban theo vang | GA + GJ nguoc Vang | GA + GJ nguoc Vang, dao signal XAU | GA + GJ nguoc Vang, dao signal XAU | GA + GJ nguoc Vang |
 | H=3-4 | Mua/Ban theo vang | Khong focus | GA + GJ nguoc Vang | Khong focus | Dao signal ra Vang |
 | H=5-8 | Focus only | Khong focus | GBPAUD | GBPAUD | Dao signal ra Vang (H=5-7) |
-| H=9 | Focus only | GBPUSD + GBPCAD | Khong focus | Toan nhom | Dao signal ra Vang |
-| H=10 | Focus only | Khong focus | Toan nhom | Toan nhom | Dao signal ra Vang |
-| H=11 | Focus only | Khong focus | Toan nhom | Toan nhom | Chi Vang (XAUUSD) |
-| H=12 | Focus only | Khong focus | Toan nhom | Toan nhom | Chi Vang (XAUUSD) |
-| H=13 | Focus only | Khong focus | Toan nhom | Toan nhom | Chi Vang (XAUUSD) |
+| H=9-10 | Focus only | GBPUSD + GBPCAD / Khong focus | Toan nhom / Dao signal ra Vang | Toan nhom / Dao signal ra Vang | Dao signal ra Vang |
+| H=11-13 | Focus only | Khong focus | Toan nhom | Toan nhom | Chi Vang (XAUUSD) |
 | H=14 | Focus only | Khong focus | Khong focus | Khong focus | Chi Vang (XAUUSD) |
 | H=15 | Focus only | Khong focus | Toan nhom | Toan nhom | Chi Vang (XAUUSD) |
 

@@ -22,14 +22,13 @@ Tài liệu liên quan:
 - Cặp: XAUUSD, GBPAUD, GBPCAD, GBPUSD, GBPJPY
 - Slot: T2-T6 H=2-15
 - Cuối tuần: không có slot giao dịch
-- H=2 chỉ dùng M5/M30; GBPAUD và GBPJPY ngược Vàng, không xét H1 Vàng
-- T3/T5 H=2 đảo signal XAU sau khi tính M5/M30
+- H=2 chỉ dùng M5/M30; GBPAUD/GBPJPY ngược Vàng, bỏ H1 Vàng
 - No-gold: T2 H=3-15, T3-T4 H=9-11, T5 H=3-4
-- T6: H=3-7 và H=9-10 đảo signal ra Vàng; không gắn no-gold label
-- T3-T4: H=3-4 hiện GBPAUD + GBPJPY ngược Vàng; H=5-8 focus GBPAUD; H=9/10/11/12/13/15 focus toàn nhóm GBP; H=14 chỉ XAU, không focus GBP
-- T5: H=3-4 không focus GBP; H=5-8 focus GBPAUD; H=9/10/11/12/13/15 focus toàn nhóm GBP; H=14 chỉ XAU, không focus GBP
+- T6: H=3-7 và H=9-10 đảo signal ra Vàng; H=11-15 đánh Vàng bình thường; không no-gold label
+- T2: H=9 focus GBPUSD + GBPCAD; các mốc khác không focus GBP
+- T3-T4: H=3-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP; H=14 XAU only
+- T5: H=3-4 không focus GBP; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP; H=14 XAU only
 - T6: không focus GBP
-- T2: H=9 focus GBPUSD + GBPCAD; các mốc T2 khác không focus GBP
 - Đã bỏ D-direction
 
 ### Thẻ signal trên desktop

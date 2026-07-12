@@ -25,12 +25,10 @@
 
 ### Signal rules (logic v9)
 - Slot T2-T6 H=2-15
-- H=2 dung M5/M30; GBPAUD + GBPJPY nguoc Vang, khong xet H1 Vang
-- No-gold: T2 H=3-15; T5 H=3-4
-- T6 khong con no-gold label; H=3-7 va H=9-10 dao signal ra Vang
-- Focus: T3-T4 H=3-4 GA+GJ nguoc Vang, H=5-8 GA, H=9/11/12/15 full group; T5 H=5-8 GA va H=9/11/12/15 full group; T6 khong focus GBP
-- `pair_dirs`: chi co map GBP o H=2-4; H=5+ chi XAU
-- Da bo ma tran direction H=9/11/12 va toan bo D-direction
+- H=2 dung M5/M30; GBPAUD/GBPJPY nguoc Vang, bo H1 Vang
+- No-gold: T2 H=3-15, T3-T4 H=9-11, T5 H=3-4
+- T6 dao signal ra Vang o H=3-7 va H=9-10; khong co no-gold label
+- Focus la hien thi GBP-only sau H=5; bo D-direction
 
 ### Multi-monitor
 - Concurrent workers; Running Monitors panel

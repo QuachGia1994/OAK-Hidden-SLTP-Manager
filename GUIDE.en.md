@@ -49,11 +49,8 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle
 | H=2 | Buy/Sell vs gold | GA + GJ opposite gold | GA + GJ opposite gold, reversed XAU signal | GA + GJ opposite gold, reversed XAU signal | GA + GJ opposite gold |
 | H=3-4 | Buy/Sell vs gold | No focus | GA + GJ opposite gold | No focus | Reverse to gold |
 | H=5-8 | Focus only | No focus | GBPAUD | GBPAUD | Reverse to gold (H=5-7) |
-| H=9 | Focus only | GBPUSD + GBPCAD | Full group | Full group | Reverse to gold |
-| H=10 | Focus only | No focus | Full group | Full group | Reverse to gold |
-| H=11 | Focus only | No focus | Full group | Full group | XAU only |
-| H=12 | Focus only | No focus | Full group | Full group | XAU only |
-| H=13 | Focus only | No focus | Full group | Full group | XAU only |
+| H=9-10 | Focus only | GBPUSD + GBPCAD / no focus | Full group / reverse to gold | Full group / reverse to gold | Reverse to gold |
+| H=11-13 | Focus only | No focus | Full group | Full group | XAU only |
 | H=14 | Focus only | No focus | No focus | No focus | XAU only |
 | H=15 | Focus only | No focus | Full group | Full group | XAU only |
 
