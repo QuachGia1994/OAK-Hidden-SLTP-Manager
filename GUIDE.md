@@ -40,7 +40,7 @@ CRUD profile, copy master/slave, lenh hen gio, xem log va export debug bundle.
 ### No-gold label (XAU)
 | Ngay | No-gold | Duoc danh vang |
 | --- | --- | --- |
-| T2 | H=3-11 | H=2, H=12-15 |
+| T2 | H=3-15 | H=2 |
 | T3-T4 | H=9-11 | H=2-8, H=12-15 |
 | T5 | H=3-4 | H=2, H=5-15 |
 | T6 | none | H=2-15 |

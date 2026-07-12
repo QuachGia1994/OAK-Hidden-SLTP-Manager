@@ -677,6 +677,9 @@ def analyze(broker_dt, H):
     if H == 2 and broker_dt.weekday() in (1, 3):
         signal = "SELL" if signal == "BUY" else "BUY"
         report += "\nH=2 T3/T5: đảo signal XAU theo rule mới (chỉ M5/M30, bỏ H1 Vàng)."
+    if broker_dt.weekday() == 4 and (3 <= H <= 7 or H in (9, 10)):
+        signal = "SELL" if signal == "BUY" else "BUY"
+        report += "\nT6 H=3-7,9-10: đảo signal XAU ra Vàng theo rule mới."
     return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
@@ -691,7 +694,7 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
     """Slots where XAU is labeled KHÔNG ĐÁNH (logic still computed for GBP Focus).
 
     - Thứ 5 (Thu): H=3-4 → trade gold H=5-15
-    - Thứ 2 (Mon): H=3-4 và H=5-11
+    - Thứ 2 (Mon): H=3-15
     - T3–T4: H=9-11 no-gold; the rest trade gold normally
     """
     wd = _resolve_weekday(broker_dt, weekday)
@@ -705,9 +708,7 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
         return True
     if wd in (1, 2) and 9 <= h <= 11:  # T3-T4 no-gold band
         return True
-    if wd == 0 and 5 <= h <= 11:  # T2 no-gold band
-        return True
-    if wd == 0 and h in (3, 4):
+    if wd == 0 and 3 <= h <= 15:  # T2 no-gold band
         return True
     return False
 
@@ -728,10 +729,8 @@ def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
         return "T3/T4 H=9-11"
     if wd == 3 and h in (3, 4):
         return "H=3-4"
-    if wd == 0 and 5 <= h <= 11:
-        return "T2 H=5-11"
-    if wd == 0 and h in (3, 4):
-        return "T2 H=3-4"
+    if wd == 0 and 3 <= h <= 15:
+        return "T2 H=3-15"
     return ""
 
 

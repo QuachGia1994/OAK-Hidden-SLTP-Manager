@@ -110,14 +110,15 @@ const HOUR_NOTES: Record<number, string> = {
  * No Gold entry label (logic still computes XAU):
  * - JS Tue/Wed=2/3: H=9-11 → no-gold
  * - JS Thu=4: H=3-4 → trade gold H=5-15
- * - JS Fri=5: no no-gold label; H=3-7 and H=9-10 reverse signal to gold
+ * - JS Mon=1: H=3-15 → no-gold label
+ * - JS Fri=5: H=3-7 and H=9-10 reverse signal to gold; no no-gold label
  * - Mon/Thu/Fri and all other hours: see day-specific rules
  */
 export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean {
   const h = Number(hour);
   if (!Number.isFinite(h)) return false;
   if ((jsWeekday === 2 || jsWeekday === 3) && h >= 9 && h <= 11) return true;
-  if (jsWeekday === 1 && ((h >= 3 && h <= 4) || (h >= 5 && h <= 11))) return true;
+  if (jsWeekday === 1 && h >= 3 && h <= 15) return true;
   if (jsWeekday === 4 && (h === 3 || h === 4)) return true;
   return false;
 }
@@ -130,8 +131,7 @@ export function isThursdayNoGoldSlot(hour: number, jsWeekday: number): boolean {
 export function xauNoTradeTag(hour: number, jsWeekday: number): string {
   const h = Number(hour);
   if ((jsWeekday === 2 || jsWeekday === 3) && h >= 9 && h <= 11) return "T3/T4 H=9-11";
-  if (jsWeekday === 1 && h >= 3 && h <= 4) return "T2 H=3-4";
-  if (jsWeekday === 1 && h >= 5 && h <= 11) return "T2 H=5-11";
+  if (jsWeekday === 1 && h >= 3 && h <= 15) return "T2 H=3-15";
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "H=3-4";
   return "";
 }
@@ -221,7 +221,7 @@ const PAIR_RULES = [
 export const SPECIAL_DAY_NOTES = [
   "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
   "T3-T4 · H=9-11: KHÔNG đánh Vàng",
-  "T2 · H=5-11: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
+  "T2 · H=3-15: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
   "T2–T6: slots H=2-15",
   "T5 · H=3-4: KHÔNG đánh Vàng (đánh H=5-15)",
   "T6: không no-gold label; H=3-7 và H=9-10 đảo signal ra Vàng",
@@ -233,7 +233,7 @@ export const DAY_RULES: Record<number, string[]> = {
   1: [
     "Slots: H=2-15",
     "H=2 mọi ngày: Signal M5/M30; GBPAUD · GBPJPY ngược Vàng, không xét H1 Vàng",
-    "XAU: no-gold H=5-11",
+    "XAU: no-gold H=3-15",
     "H=9: chỉ Focus GBPUSD · GBPCAD",
     "Các H khác: không Focus GBP.",
   ],

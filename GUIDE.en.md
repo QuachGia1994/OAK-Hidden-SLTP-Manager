@@ -38,7 +38,7 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle
 ### No-gold label (XAU)
 | Day | No-gold | Trade gold |
 | --- | --- | --- |
-| Mon | H=3-11 | H=2, H=12-13, H=15 |
+| Mon | H=3-15 | H=2 |
 | Tue-Wed | H=9-11 | H=2-8, H=12-15 |
 | Thu | H=3-4 | H=2, H=5-15 |
 | Fri | none | H=2-15 |

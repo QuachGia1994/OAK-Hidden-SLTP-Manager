@@ -44,6 +44,7 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
         notes = get_day_notes(date(2025, 4, 28), lang="VN")
         blob = " ".join(notes)
         self.assertIn("H=2-15", blob)
+        self.assertIn("H=3-15", blob)
 
     def test_friday_en_matches_bot(self):
         notes = get_day_notes(date(2026, 7, 10), lang="EN")

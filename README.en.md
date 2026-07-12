@@ -22,7 +22,7 @@ Related docs:
 - Weekend: no trading slots
 - H=2 uses M5/M30 only; GBPAUD and GBPJPY are opposite gold, with no H1 gold check
 - Tue/Thu H=2 reverses the XAU signal after the M5/M30 calculation
-- No-gold: Mon H=3-11, Tue-Wed H=9-11, Thu H=3-4
+- No-gold: Mon H=3-15, Tue-Wed H=9-11, Thu H=3-4
 - Fri: H=3-7 and H=9-10 reverse signal to gold; no no-gold label
 - Tue-Wed: H=3-4 show GBPAUD + GBPJPY opposite gold; H=5-8 focus GBPAUD; H=9/10/11/12/13/15 focus the full GBP group; H=14 stays XAU-only
 - Thu: H=3-4 no GBP focus; H=5-8 focus GBPAUD; H=9/10/11/12/13/15 focus the full GBP group; H=14 stays XAU-only

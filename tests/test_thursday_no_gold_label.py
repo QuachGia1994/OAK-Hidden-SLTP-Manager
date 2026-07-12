@@ -4,6 +4,7 @@ import unittest
 from datetime import datetime
 
 from mt5_signal_bot import (
+    analyze,
     format_telegram_pair_block,
     get_focus_gbp_pairs,
     get_hour_note,
@@ -43,6 +44,16 @@ class TestThursdayAndFridayRules(unittest.TestCase):
             self.assertFalse(is_xau_no_trade_label_slot(hour, weekday=4))
             self.assertEqual(xau_no_trade_label_tag(hour, weekday=4), "")
 
+    def test_friday_signal_is_reversed_in_analysis(self):
+        from unittest.mock import patch
+        import mt5_signal_bot
+
+        candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
+        friday = datetime(2026, 7, 10, 9, 0)
+        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
+            result = analyze(friday, 3)
+        self.assertEqual(result["signal"], "SELL")
+
     def test_friday_telegram_block_omits_gbp(self):
         block = format_telegram_pair_block({"XAUUSD": "BUY"}, 9, weekday=4)
         self.assertNotIn("KHÔNG ĐÁNH", block)
@@ -75,11 +86,9 @@ class TestThursdayAndFridayRules(unittest.TestCase):
             self.assertEqual(get_focus_gbp_pairs(14, weekday=weekday), [])
 
     def test_monday_rule(self):
-        for hour in (3, 4):
+        for hour in range(3, 16):
             self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=0))
-            self.assertEqual(xau_no_trade_label_tag(hour, weekday=0), "T2 H=3-4")
-        for hour in range(5, 12):
-            self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=0))
+            self.assertEqual(xau_no_trade_label_tag(hour, weekday=0), "T2 H=3-15")
         self.assertEqual(get_focus_gbp_pairs(9, weekday=0), ["GBPUSD", "GBPCAD"])
         for hour in (3, 4, 5, 8, 10, 11, 12, 14, 15):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=0), [])
