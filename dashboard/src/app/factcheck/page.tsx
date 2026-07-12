@@ -188,6 +188,44 @@ function SummaryPill({ label, value }: { label: string; value: string }) {
   );
 }
 
+function getAiStatusCopy(locale: "EN" | "VN", result: FactCheckResult) {
+  if (result.ai_analysis) {
+    return {
+      title: locale === "EN" ? "AI assessment" : "Phân tích AI",
+      body: result.ai_analysis.summary,
+      hint:
+        locale === "EN"
+          ? "AI challenges only the collected Google/DDG evidence and never invents sources."
+          : "AI chỉ phản biện trên bằng chứng Google/DDG đã thu thập và không tự tạo nguồn.",
+      tone: "border-cyan-500/20 bg-cyan-500/8",
+      labelClass: "text-cyan-500",
+      confidence: `${result.ai_analysis.confidence}%`,
+    };
+  }
+
+  const status = result.ai_status;
+  const isError = status?.state === "request_failed";
+  const isDisabled = status?.state === "missing_api_key";
+  return {
+    title: locale === "EN" ? "AI reviewer status" : "Trạng thái AI reviewer",
+    body:
+      status?.message ||
+      (locale === "EN"
+        ? "AI reviewer did not run for this request."
+        : "AI reviewer chưa chạy cho lượt kiểm tra này."),
+    hint: isDisabled
+      ? locale === "EN"
+        ? "Add FACTCHECK_AI_API_KEY or OPENAI_API_KEY in .env, then restart the Fact-Check Worker."
+        : "Thêm FACTCHECK_AI_API_KEY hoặc OPENAI_API_KEY vào .env rồi restart Fact-Check Worker."
+      : locale === "EN"
+        ? "AI only judges the collected evidence. It stays off when no usable evidence exists."
+        : "AI chỉ chấm trên bằng chứng đã thu thập. Nếu không có evidence đủ dùng thì AI sẽ bỏ qua.",
+    tone: isError ? "border-red-500/20 bg-red-500/8" : isDisabled ? "border-amber-500/20 bg-amber-500/8" : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50",
+    labelClass: isError ? "text-red-500" : isDisabled ? "text-amber-500" : "text-zinc-500",
+    confidence: status?.model || "AI",
+  };
+}
+
 function StatStack({ sources, t, hasAi }: { sources: Array<{ url: string; reliability: string; engine?: string; agrees: boolean | null }>; t: LocaleText; hasAi: boolean }) {
   const domains = new Set<string>();
   const engines = new Set<string>();
@@ -535,6 +573,7 @@ export default function FactCheckPage() {
     opposing: result.sources.filter((s) => s.agrees === false).length,
     high: result.sources.filter((s) => s.reliability === "high").length,
   } : null;
+  const aiStatusCard = result ? getAiStatusCopy(locale, result) : null;
 
   return (
     <div className="relative">
@@ -754,20 +793,16 @@ export default function FactCheckPage() {
             <div className="min-w-0 rounded-[28px] border border-zinc-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-gradient-to-br dark:from-zinc-950 dark:to-zinc-900 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.analysis}</h2>
               <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{result.summary}</p>
-              {result.ai_analysis && (
-                <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/8 px-4 py-3">
+              {aiStatusCard && (
+                <div className={`mt-4 rounded-2xl border px-4 py-3 ${aiStatusCard.tone}`}>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-cyan-500">
-                      {locale === "EN" ? "AI assessment" : "Phân tích AI"}
+                    <span className={`text-xs font-semibold uppercase tracking-wider ${aiStatusCard.labelClass}`}>
+                      {aiStatusCard.title}
                     </span>
-                    <span className="font-mono text-xs text-zinc-400">{result.ai_analysis.confidence}%</span>
+                    <span className="font-mono text-xs text-zinc-400">{aiStatusCard.confidence}</span>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{result.ai_analysis.summary}</p>
-                  <p className="mt-2 text-[11px] text-zinc-400">
-                    {locale === "EN"
-                      ? "AI challenges Google/DDG evidence only and never invents sources."
-                      : "AI chỉ phản biện trên nguồn Google/DDG và không tự bịa nguồn."}
-                  </p>
+                  <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{aiStatusCard.body}</p>
+                  <p className="mt-2 text-[11px] text-zinc-400">{aiStatusCard.hint}</p>
                 </div>
               )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">

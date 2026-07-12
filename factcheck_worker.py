@@ -56,6 +56,7 @@ MEDIUM_RELIABILITY = {
 GOOGLE_FC_RATINGS_TRUE = {"true", "mostly true", "correct", "accurate", "supported"}
 GOOGLE_FC_RATINGS_FALSE = {"false", "mostly false", "pants on fire", "incorrect", "misleading", "unproven", "refuted", "fake", "hoax", "scam"}
 GOOGLE_FC_RATINGS_NEUTRAL = {"half true", "mixed", "partly true", "partly false", "outdated", "missing context", "unverified"}
+AI_DEFAULT_MODEL = "gpt-5-mini"
 
 def normalize_domain(url):
     """Normalize a URL into a compact domain key."""
@@ -397,13 +398,19 @@ def check_agreement(claim, snippet):
     claim_lower = normalize_text(claim)
     snippet_lower = normalize_text(snippet)
 
-    contradict_words = ["khong", "false", "fake", "misleading", "debunked",
-                        "hoax", "disputed", "refuted", "incorrect", "wrong"]
-    confirm_words = ["xac nhan", "confirm", "reported", "announced", "confirmed",
-                     "thuc te", "fact", "official", "according to"]
+    contradict_phrases = [
+        "khong dung", "khong chinh xac", "khong co bang chung", "khong xay ra",
+        "bac bo", "bi bac bo", "da bi bac bo", "that thiet", "gia mao",
+        "false", "fake", "misleading", "debunked", "hoax", "disputed",
+        "refuted", "incorrect", "wrong", "not true", "no evidence",
+    ]
+    confirm_phrases = [
+        "xac nhan", "duoc xac nhan", "confirmed", "confirm", "reported",
+        "announced", "official", "according to", "statement said",
+    ]
 
-    has_contradict = any(w in snippet_lower for w in contradict_words)
-    has_confirm = any(w in snippet_lower for w in confirm_words)
+    has_contradict = any(phrase in snippet_lower for phrase in contradict_phrases)
+    has_confirm = any(phrase in snippet_lower for phrase in confirm_phrases)
 
     if has_contradict and not has_confirm:
         return False
@@ -439,13 +446,39 @@ def _ai_evidence_payload(claims, sources):
     return {"claims": claims[:5], "evidence": evidence}
 
 
-def assess_with_ai(claims, sources):
-    """Use AI as an evidence arbiter; never as an uncited factual source."""
+def _ai_config():
+    """Resolve AI config once so UI can explain whether the reviewer is active."""
     api_key = os.environ.get("FACTCHECK_AI_API_KEY", "") or os.environ.get("OPENAI_API_KEY", "")
-    if not api_key or not claims or not sources:
-        return None
+    model = os.environ.get("FACTCHECK_AI_MODEL", AI_DEFAULT_MODEL)
     url = os.environ.get("FACTCHECK_AI_API_URL", "https://api.openai.com/v1/responses")
-    model = os.environ.get("FACTCHECK_AI_MODEL", "gpt-5-mini")
+    return api_key, model, url
+
+
+def assess_with_ai_detailed(claims, sources):
+    """Return AI analysis plus a machine-readable status for the dashboard."""
+    api_key, model, url = _ai_config()
+    if not api_key:
+        return None, {
+            "enabled": False,
+            "state": "missing_api_key",
+            "model": model,
+            "message": "AI reviewer is off. Add FACTCHECK_AI_API_KEY or OPENAI_API_KEY to enable evidence rebuttal.",
+        }
+    if not claims:
+        return None, {
+            "enabled": True,
+            "state": "skipped_no_claims",
+            "model": model,
+            "message": "AI reviewer is ready but skipped because no claims were extracted.",
+        }
+    if not sources:
+        return None, {
+            "enabled": True,
+            "state": "skipped_no_sources",
+            "model": model,
+            "message": "AI reviewer is ready but skipped because no usable Google/DDG evidence was found.",
+        }
+
     payload = _build_ai_request(model, _ai_evidence_payload(claims, sources))
     request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers={
         "Authorization": f"Bearer {api_key}",
@@ -458,10 +491,26 @@ def assess_with_ai(claims, sources):
             raise ValueError("invalid AI verdict")
         result["confidence"] = max(0, min(100, int(result.get("confidence", 0))))
         result["engine"] = "ai"
-        return result
+        return result, {
+            "enabled": True,
+            "state": "ready",
+            "model": model,
+            "message": "AI reviewer challenged only the collected Google/DDG evidence.",
+        }
     except Exception as exc:
         print(f"[WARN] AI evidence assessment failed: {exc}")
-        return None
+        return None, {
+            "enabled": True,
+            "state": "request_failed",
+            "model": model,
+            "message": f"AI reviewer failed to respond: {exc}",
+        }
+
+
+def assess_with_ai(claims, sources):
+    """Use AI as an evidence arbiter; never as an uncited factual source."""
+    result, _ = assess_with_ai_detailed(claims, sources)
+    return result
 
 
 def _build_ai_request(model, evidence):
@@ -584,10 +633,10 @@ def process_factcheck(item):
 
     all_sources.sort(key=sort_key)
 
-    ai_analysis = assess_with_ai(claims, all_sources)
+    ai_analysis, ai_status = assess_with_ai_detailed(claims, all_sources)
 
     # Calculate score
-    score = 35
+    score = 20
     scoring_sources = [s for s in all_sources if s.get("match_hits", 0) >= 2 or s.get("engine") == "google_factcheck"]
     if not scoring_sources:
         scoring_sources = [s for s in all_sources if s.get("match_hits", 0) >= 1]
@@ -595,7 +644,14 @@ def process_factcheck(item):
         scoring_sources = all_sources
     confirming_high = sum(1 for s in scoring_sources if s["agrees"] is True and s["reliability"] == "high")
     confirming_med = sum(1 for s in scoring_sources if s["agrees"] is True and s["reliability"] == "medium")
-    contradicting = sum(1 for s in scoring_sources if s["agrees"] is False)
+    contradicting_high = sum(1 for s in scoring_sources if s["agrees"] is False and s["reliability"] == "high")
+    contradicting_med = sum(1 for s in scoring_sources if s["agrees"] is False and s["reliability"] == "medium")
+    contradicting_low = sum(
+        1 for s in scoring_sources
+        if s["agrees"] is False and s["reliability"] == "low"
+        and (s.get("match_hits", 0) >= 2 or float(s.get("relevance", 0.0) or 0.0) >= 0.35)
+    )
+    contradicting = contradicting_high + contradicting_med + contradicting_low
     unique_domains = {normalize_domain(s["url"]) for s in scoring_sources if s.get("url")}
     unique_engines = {s.get("engine", "web") for s in scoring_sources if s.get("engine")}
     google_confirm = any(s.get("engine") == "google_factcheck" and s["agrees"] is True for s in scoring_sources)
@@ -609,11 +665,15 @@ def process_factcheck(item):
     if ai_analysis and ai_analysis["confidence"] >= 70:
         score += 5 if ai_analysis["verdict"] == "supported" else 0
         score -= 8 if ai_analysis["verdict"] == "contradicted" else 0
-    score -= contradicting * 12
-    if any(s["agrees"] is False and s["reliability"] == "high" for s in scoring_sources):
-        score -= 8
+    score -= contradicting_high * 12
+    score -= contradicting_med * 7
+    score -= contradicting_low * 3
+    if contradicting_high > 0:
+        score -= 6
     if not scoring_sources:
         score = 10
+    elif score < 12:
+        score = 12
     score = max(0, min(100, score))
 
     # Verdict
@@ -638,9 +698,9 @@ def process_factcheck(item):
     if confirming_high > 0:
         summary_parts.append(f"{confirming_high} nguồn uy tín (Reuters, BBC, AP...) xác nhận.")
     if contradicting > 0:
-        summary_parts.append(f"Có {contradicting} nguồn phản bác - cần thận trọng.")
+        summary_parts.append(f"Có {contradicting} nguồn phản bác đáng kể, cần thận trọng.")
     if len(scoring_sources) == 0:
-        summary_parts.append("Không tìm thấy nguồn tin nào liên quan trên web.")
+        summary_parts.append("Không tìm thấy nguồn tin liên quan trên web.")
     if ai_analysis:
         summary_parts.append(f"AI ({ai_analysis['confidence']}%): {ai_analysis['summary']}")
 
@@ -651,6 +711,7 @@ def process_factcheck(item):
         "summary": " ".join(summary_parts),
         "key_claims": claims,
         "ai_analysis": ai_analysis,
+        "ai_status": ai_status,
     }
 
 

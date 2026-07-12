@@ -22,6 +22,13 @@ class FactcheckWorkerSearchStackTests(unittest.TestCase):
             result = factcheck_worker.assess_with_ai(["claim"], [{"url": "https://reuters.com/a"}])
         self.assertIsNone(result)
 
+    def test_ai_status_reports_missing_key(self):
+        with patch.dict(factcheck_worker.os.environ, {}, clear=True):
+            result, status = factcheck_worker.assess_with_ai_detailed(["claim"], [{"url": "https://reuters.com/a"}])
+        self.assertIsNone(result)
+        self.assertEqual(status["state"], "missing_api_key")
+        self.assertFalse(status["enabled"])
+
     def test_ai_request_uses_strict_evidence_schema(self):
         payload = factcheck_worker._build_ai_request("gpt-5-mini", {"claims": ["claim"], "evidence": []})
         self.assertEqual(payload["model"], "gpt-5-mini")
@@ -39,6 +46,11 @@ class FactcheckWorkerSearchStackTests(unittest.TestCase):
         claim = "World Health Organization was founded in 1948"
         evidence = "World Health Organization founded in 1948 - official history"
         self.assertTrue(factcheck_worker.check_agreement(claim, evidence))
+
+    def test_generic_khong_does_not_count_as_refutation(self):
+        claim = "Iran nuclear site was damaged"
+        evidence = "Nha may dien hat nhan khong bi hu hong nghiem trong trong dot tan cong"
+        self.assertIsNone(factcheck_worker.check_agreement(claim, evidence))
 
     def test_unsafe_source_url_is_rejected(self):
         source = {"url": "javascript:alert(1)", "engine": "duckduckgo", "match_hits": 5, "relevance": 1}

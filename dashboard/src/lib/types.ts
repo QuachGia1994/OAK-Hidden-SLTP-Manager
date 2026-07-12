@@ -49,6 +49,12 @@ export interface FactCheckResult {
     summary: string;
     engine: "ai";
   } | null;
+  ai_status?: {
+    enabled: boolean;
+    state: "missing_api_key" | "skipped_no_claims" | "skipped_no_sources" | "ready" | "request_failed";
+    model: string;
+    message: string;
+  } | null;
 }
 
 export interface FactCheckSource {
