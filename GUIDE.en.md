@@ -84,7 +84,7 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 
 Production URL: https://oak-hidden-sltp-manager-dun.vercel.app
 
-- Language switch: System / EN / VN.
+- Language switch: EN / VN.
 - Signal cards, history, news, and rules are localized.
 - Fact Check supports pasted text, uploaded images, dropped images, and clipboard images.
 

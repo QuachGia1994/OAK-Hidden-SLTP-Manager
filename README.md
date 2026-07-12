@@ -13,7 +13,7 @@ Tài liệu liên quan:
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
 - Signal engine cho XAUUSD, GBPAUD, GBPCAD, GBPUSD và GBPJPY.
 - Telegram bridge với lệnh an toàn theo profile và MiMo worker.
-- Dashboard web có chuyển ngôn ngữ System / EN / VN.
+- Dashboard web có nút chuyển ngôn ngữ EN / VN gọn hơn.
 - Fact Check dùng DuckDuckGo + Google để lấy bằng chứng, AI GitHub Models tùy chọn để phản biện, OCR trong browser và dán ảnh trực tiếp từ clipboard.
 - Guide / README / Release Notes trong app bằng English và Tiếng Việt.
 

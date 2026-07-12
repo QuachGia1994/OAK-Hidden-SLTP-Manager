@@ -4,7 +4,7 @@
 
 ### Dashboard + i18n
 
-- Fixed the System / EN / VN switcher so only one mode is active.
+- Removed System mode from the language switcher; EN / VN now keeps a single active state.
 - Cleaned Fact Check English/Vietnamese rendering across result cards, stats, sources, verdicts, and AI panels.
 - Prevented old cached English AI summaries from leaking into the Vietnamese UI.
 

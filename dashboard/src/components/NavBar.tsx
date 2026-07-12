@@ -20,7 +20,7 @@ export function NavBar() {
     { href: "/rules", label: t.rules, mobile: t.rules },
   ];
 
-  const changeLocale = (item: "system" | "EN" | "VN") => {
+  const changeLocale = (item: "EN" | "VN") => {
     setLocaleMode(item);
     window.setTimeout(() => router.refresh(), 0);
   };
@@ -57,7 +57,7 @@ export function NavBar() {
 
         <div className="ml-auto flex items-center gap-2 sm:gap-2.5 shrink-0">
           <div className="inline-flex items-center rounded-full border border-zinc-200/80 dark:border-zinc-800/80 bg-zinc-100/80 dark:bg-zinc-900/60 p-1 shadow-sm">
-            {(["system", "EN", "VN"] as const).map((item) => (
+            {(["EN", "VN"] as const).map((item) => (
               <button
                 key={item}
                 onClick={() => changeLocale(item)}
@@ -67,10 +67,10 @@ export function NavBar() {
                     ? "bg-emerald-500 text-white shadow-md"
                     : "bg-transparent text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200/70 dark:hover:bg-zinc-800/70 hover:text-zinc-800 dark:hover:text-zinc-200"
                 }`}
-                aria-label={item === "system" ? "Dùng ngôn ngữ hệ thống" : `Switch to ${item}`}
-                title={item === "system" ? "Use system language" : `Switch to ${item}`}
+                aria-label={`Switch to ${item}`}
+                title={`Switch to ${item}`}
               >
-                {item === "system" ? "System" : item}
+                {item}
               </button>
             ))}
           </div>

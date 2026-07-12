@@ -4,7 +4,7 @@
 
 ### Dashboard + ngôn ngữ
 
-- Sửa nút System / EN / VN để chỉ một chế độ được active.
+- Gỡ chế độ System khỏi nút ngôn ngữ; EN / VN giờ chỉ active một lựa chọn.
 - Dọn hiển thị English/Vietnamese trong Fact Check: thẻ kết quả, thống kê, nguồn, kết luận và khối AI.
 - Chặn dữ liệu cache cũ có AI tiếng Anh lọt vào giao diện tiếng Việt.
 

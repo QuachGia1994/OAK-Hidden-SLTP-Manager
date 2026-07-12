@@ -84,7 +84,7 @@ Quản lý profile, copy-trading, lệnh hẹn giờ, lọc log và export debug
 
 Production URL: https://oak-hidden-sltp-manager-dun.vercel.app
 
-- Chuyển ngôn ngữ: System / EN / VN.
+- Chuyển ngôn ngữ: EN / VN.
 - Signal cards, lịch sử, tin tức và rules được localize.
 - Fact Check hỗ trợ paste text, upload ảnh, kéo-thả ảnh và dán ảnh từ clipboard.
 

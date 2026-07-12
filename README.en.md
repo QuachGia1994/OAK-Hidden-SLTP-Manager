@@ -13,7 +13,7 @@ Related docs:
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
 - Signal engine for XAUUSD, GBPAUD, GBPCAD, GBPUSD, and GBPJPY.
 - Telegram bridge with profile-safe commands and MiMo worker support.
-- Web dashboard with System / EN / VN language switching.
+- Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
 - In-app Guide / README / Release Notes in English and Vietnamese.
 
