@@ -110,7 +110,7 @@ const HOUR_NOTES: Record<number, string> = {
  * No Gold entry label (logic still computes XAU):
  * - JS Tue/Wed=2/3: H=9-11 → no-gold
  * - JS Thu=4: H=3-4 → trade gold H=5-15
- * - JS Fri=5: H=3-11 → trade gold H=12-15 only
+ * - JS Fri=5: no no-gold label; H=3-7 and H=9-10 reverse signal to gold
  * - Mon/Thu/Fri and all other hours: see day-specific rules
  */
 export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean {
@@ -119,7 +119,6 @@ export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean 
   if ((jsWeekday === 2 || jsWeekday === 3) && h >= 9 && h <= 11) return true;
   if (jsWeekday === 1 && ((h >= 3 && h <= 4) || (h >= 5 && h <= 11))) return true;
   if (jsWeekday === 4 && (h === 3 || h === 4)) return true;
-  if (jsWeekday === 5 && h >= 3 && h <= 11) return true;
   return false;
 }
 
@@ -134,7 +133,6 @@ export function xauNoTradeTag(hour: number, jsWeekday: number): string {
   if (jsWeekday === 1 && h >= 3 && h <= 4) return "T2 H=3-4";
   if (jsWeekday === 1 && h >= 5 && h <= 11) return "T2 H=5-11";
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "H=3-4";
-  if (jsWeekday === 5 && h >= 3 && h <= 11) return "T6 H=3-11";
   return "";
 }
 
@@ -195,7 +193,10 @@ export function signalXauNoTradeTag(
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (h === 2) return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)";
-  if (jsWeekday === 5) return "Chỉ Vàng (XAUUSD)";
+  if (jsWeekday === 5) {
+    if ((h >= 3 && h <= 7) || h === 9 || h === 10) return "Đảo signal ra Vàng (XAUUSD)";
+    return "Chỉ Vàng (XAUUSD)";
+  }
   if (jsWeekday === 1) {
     if (h === 2) return "GBPAUD · GBPJPY ngược Vàng (không xét H1 Vàng)";
     if (h === 3 || h === 4) return "Chỉ Vàng (XAUUSD)";
@@ -223,7 +224,7 @@ export const SPECIAL_DAY_NOTES = [
   "T2 · H=5-11: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
   "T2–T6: slots H=2-15",
   "T5 · H=3-4: KHÔNG đánh Vàng (đánh H=5-15)",
-  "T6 · H=3-11: KHÔNG đánh Vàng (chỉ đánh H=12-15)",
+  "T6: không no-gold label; H=3-7 và H=9-10 đảo signal ra Vàng",
   "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
   "Đã gỡ: ma trận chiều H=9/11/12 · D-direction",
 ];
@@ -260,7 +261,7 @@ export const DAY_RULES: Record<number, string[]> = {
   5: [
     // Thứ 6
     "Slots: H=3-15",
-    "XAU: chỉ đánh H=12-15 · no-gold H=3-11 (tag T6 H=3-11)",
+    "XAU: H=3-7 và H=9-10 đảo signal ra Vàng; các H khác đánh bình thường",
     "Không Focus GBP.",
   ],
 };

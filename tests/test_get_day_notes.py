@@ -49,9 +49,9 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
         notes = get_day_notes(date(2026, 7, 10), lang="EN")
         blob = " ".join(notes)
         self.assertIn("H=2-15", blob)
-        self.assertIn("H=3-4", blob)
-        self.assertIn("H=3-11", blob)  # Fri no-gold band
-        self.assertIn("H=12,13,15", blob)  # Fri gold only
+        self.assertIn("H=3-7,9-10", blob)
+        self.assertIn("reverse signal to gold", blob)
+        self.assertIn("H=11-15", blob)
         self.assertNotIn("trade normally per schedule", blob)
 
     def test_normal_thursday_default(self):

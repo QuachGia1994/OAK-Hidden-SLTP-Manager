@@ -41,21 +41,21 @@ Profile CRUD, master/slave copy, scheduled entries, log viewer, and debug bundle
 | Mon | H=3-11 | H=2, H=12-13, H=15 |
 | Tue-Wed | H=9-11 | H=2-8, H=12-15 |
 | Thu | H=3-4 | H=2, H=5-15 |
-| Fri | H=3-11 | H=2, H=12-15 |
+| Fri | none | H=2-15 |
 
 ### GBP display
 | Hours | Display | Mon | Tue-Wed | Thu | Fri |
 | --- | --- | --- | --- | --- | --- |
 | H=2 | Buy/Sell vs gold | GA + GJ opposite gold | GA + GJ opposite gold, reversed XAU signal | GA + GJ opposite gold, reversed XAU signal | GA + GJ opposite gold |
-| H=3-4 | Buy/Sell vs gold | No focus | GA + GJ opposite gold | No focus | No focus |
-| H=5-8 | Focus only | No focus | GBPAUD | GBPAUD | No focus |
-| H=9 | Focus only | GBPUSD + GBPCAD | Full group | Full group | No focus |
-| H=10 | Focus only | No focus | Full group | Full group | No focus |
-| H=11 | Focus only | No focus | Full group | Full group | No focus |
-| H=12 | Focus only | No focus | Full group | Full group | No focus |
-| H=13 | Focus only | No focus | Full group | Full group | No focus |
-| H=14 | Focus only | No focus | No focus | No focus | No focus |
-| H=15 | Focus only | No focus | Full group | Full group | No focus |
+| H=3-4 | Buy/Sell vs gold | No focus | GA + GJ opposite gold | No focus | Reverse to gold |
+| H=5-8 | Focus only | No focus | GBPAUD | GBPAUD | Reverse to gold (H=5-7) |
+| H=9 | Focus only | GBPUSD + GBPCAD | Full group | Full group | Reverse to gold |
+| H=10 | Focus only | No focus | Full group | Full group | Reverse to gold |
+| H=11 | Focus only | No focus | Full group | Full group | XAU only |
+| H=12 | Focus only | No focus | Full group | Full group | XAU only |
+| H=13 | Focus only | No focus | Full group | Full group | XAU only |
+| H=14 | Focus only | No focus | No focus | No focus | XAU only |
+| H=15 | Focus only | No focus | Full group | Full group | XAU only |
 
 ### pair_dirs mapping
 | Hours | Content |

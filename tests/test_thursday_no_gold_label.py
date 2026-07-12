@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Schedule rules for no-gold labels and Friday GBP Focus."""
+"""Schedule rules for no-gold labels and Friday gold reversal notes."""
 import unittest
 from datetime import datetime
 
@@ -33,11 +33,20 @@ class TestThursdayAndFridayRules(unittest.TestCase):
     def test_friday_has_no_gbp_focus(self):
         for hour in range(3, 16):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=4), [])
-            self.assertEqual(get_hour_note(hour, weekday=4), "Chỉ Vàng (XAUUSD)")
+        self.assertEqual(get_hour_note(3, weekday=4), "Đảo signal ra Vàng (XAUUSD)")
+        self.assertEqual(get_hour_note(7, weekday=4), "Đảo signal ra Vàng (XAUUSD)")
+        self.assertEqual(get_hour_note(9, weekday=4), "Đảo signal ra Vàng (XAUUSD)")
+        self.assertEqual(get_hour_note(10, weekday=4), "Đảo signal ra Vàng (XAUUSD)")
+        self.assertEqual(get_hour_note(11, weekday=4), "Chỉ Vàng (XAUUSD)")
+        self.assertEqual(get_hour_note(14, weekday=4), "Chỉ Vàng (XAUUSD)")
+        for hour in range(3, 16):
+            self.assertFalse(is_xau_no_trade_label_slot(hour, weekday=4))
+            self.assertEqual(xau_no_trade_label_tag(hour, weekday=4), "")
 
     def test_friday_telegram_block_omits_gbp(self):
         block = format_telegram_pair_block({"XAUUSD": "BUY"}, 9, weekday=4)
-        self.assertIn("KHÔNG ĐÁNH", block)
+        self.assertNotIn("KHÔNG ĐÁNH", block)
+        self.assertIn("XAUUSD: Mua BUY", block)
         self.assertNotIn("GBP", block)
 
     def test_thursday_focus_schedule(self):
