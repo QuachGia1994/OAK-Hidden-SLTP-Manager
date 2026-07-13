@@ -68,6 +68,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     current_prices: {},
     hour_note: null,
     ...signalsByHour.get(h),
+    ...(h === 2 ? { hour_note: null } : {}),
   })).sort((a, b) => b.hour - a.hour);
 
   return (
@@ -164,16 +165,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             {[...news]
               .sort((a: any, b: any) => (b.critical ? 1 : 0) - (a.critical ? 1 : 0))
               .slice(0, 8)
-              .map((item: any) => (
+              .map((item: any) => {
+                const newsTime = formatNewsVietnamTime(item);
+                return (
               <div
-                key={`${item.time}-${item.currency}-${item.title}`}
+                key={`${newsTime}-${item.currency}-${item.title}`}
                 className={`flex items-center gap-2.5 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 transition-colors ${
                   item.critical
                     ? "bg-red-50/90 dark:bg-red-500/10 hover:bg-red-100/80 dark:hover:bg-red-500/15 border-l-4 border-l-red-500"
                     : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
                 }`}
               >
-                <span className={`font-mono text-xs w-12 shrink-0 ${item.critical ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>{formatNewsVietnamTime(item)}</span>
+                <span className={`font-mono text-xs w-12 shrink-0 ${item.critical ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>{newsTime}</span>
                 <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">{item.currency}</span>
                 <span className={`text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded shrink-0 ${item.critical ? "bg-red-600 text-white" : item.impact === "high" ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" : item.impact === "medium" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"}`}>
                   {item.critical ? t.critical : item.impact === "high" ? t.high : item.impact === "medium" ? t.medium : t.low}
@@ -182,7 +185,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   {item.critical ? "⚠️ " : ""}{item.title}
                 </span>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       )}
