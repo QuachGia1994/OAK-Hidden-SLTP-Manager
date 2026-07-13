@@ -45,14 +45,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
   const d1Active = isD1ActiveWeekday(dayOfWeek);
-  const activeDDirection = d1Active ? botState?.d_direction : null;
+  const h4DDirection = todaySignals.find((s) => s.hour === 4)?.pair_dirs?.["D-DIRECTION"];
+  const activeDDirection = d1Active ? (botState?.d_direction || h4DDirection || null) : null;
   const firstD1MatchHour = d1Active ? (botState?.d_matched_hour ?? getFirstD1MatchHour(todaySignals, activeDDirection)) : null;
   const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
   const d1MatchWindow = firstD1MatchHour !== null ? (locale === "EN" ? "Applies until H=11" : "Áp dụng tới H=11") : null;
 
   const allSlots = hoursToday.map((h) => {
     const signal = signalsByHour.get(h);
-    const h17Preview = h === 17 && activeDDirection && !signal
+    const hasH17Xau = signal?.pair_dirs?.XAUUSD === "BUY" || signal?.pair_dirs?.XAUUSD === "SELL";
+    const h17Preview = h === 17 && activeDDirection && !hasH17Xau
       ? { pair_dirs: { XAUUSD: activeDDirection }, hour_note: "XAUUSD theo D-direction H=4" }
       : {};
     return {
