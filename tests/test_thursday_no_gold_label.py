@@ -68,7 +68,12 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         for hour in (3, 4):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), [])
             self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Vàng (XAUUSD)")
-            self.assertEqual(get_pair_direction(hour, "BUY", thursday), {"XAUUSD": "BUY"})
+            result = get_pair_direction(hour, "BUY", thursday)
+            self.assertEqual(result["XAUUSD"], "BUY")
+            if hour == 4:
+                self.assertEqual(result["D-DIRECTION"], "BUY")
+            else:
+                self.assertEqual(result, {"XAUUSD": "BUY"})
         for hour in (5, 6, 7, 8):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), ["GBPAUD"])
             self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Focus GBPAUD")

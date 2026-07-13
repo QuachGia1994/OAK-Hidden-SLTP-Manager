@@ -54,9 +54,10 @@ SYMBOL = "GBPUSD"
 #   - T6: H=3-7 and H=9-10 reverse signal to gold; H=11-15 trade gold normally
 # Focus GBP: Monday H=9 GBPUSD+GBPCAD; other days use their own slot rules.
 # pair_dirs GBP map only T3-T4 H=3-4 (GA/GJ đều ngược Vàng); H=5+ XAU only + Focus list.
-TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 12
+SIGNAL_LOGIC_VERSION = 13
+D_DIRECTION_PAIR = "D-DIRECTION"
 
 
 def get_rhythm_label(hour):
@@ -75,7 +76,7 @@ def get_rhythm_label(hour):
         return "Nhịp 3 · GBP"
     if h in (12, 13, 14):
         return "Nhịp 4 · EUR"
-    if h == 15:
+    if h in (15, 17):
         return "Nhịp 5 · USD"
     return None
 
@@ -227,6 +228,9 @@ def _load_state():
     return {
         "day_signals": day_signals,
         "sent_today": set(tuple(x) for x in data.get("sent_today", [])),
+        "d_direction": data.get("d_direction"),
+        "d_direction_date": data.get("d_direction_date"),
+        "d_matched_hour": data.get("d_matched_hour"),
     }
 
 def _save_state(day_signals, sent_today):
@@ -243,6 +247,9 @@ def _save_state(day_signals, sent_today):
         "date": today_str,
         "day_signals": ds_json,
         "sent_today": st_json,
+        "d_direction": ds_json.get("4", {}).get("d_direction"),
+        "d_direction_date": today_str if ds_json.get("4", {}).get("d_direction") else None,
+        "d_matched_hour": 17 if ds_json.get("4", {}).get("d_direction") else None,
     }
     try:
         tmp_file = _STATE_FILE + ".tmp"
@@ -255,10 +262,35 @@ def _save_state(day_signals, sent_today):
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
 
+def _get_d_direction_from_day(date_value):
+    """Find the stored H=4 D-direction for a trading date."""
+    h4_data = day_signals.get((date_value, 4), {})
+    d_direction = h4_data.get("d_direction") if isinstance(h4_data, dict) else None
+    if d_direction in ("BUY", "SELL"):
+        return d_direction
+
+    date_str = date_value.isoformat() if hasattr(date_value, "isoformat") else str(date_value)
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as file:
+                data = json.load(file)
+            for record in reversed(data):
+                if record.get("date") != date_str or int(record.get("hour", -1)) != 4:
+                    continue
+                d_direction = (record.get("pair_dirs") or {}).get(D_DIRECTION_PAIR)
+                if d_direction in ("BUY", "SELL"):
+                    return d_direction
+    except Exception as error:
+        print(f"[WARN] Cannot restore D-direction: {error}")
+    return None
+
+
 def get_current_prices(pair_dirs):
     """Lấy giá market hiện tại (tick)."""
     prices = {}
     for pair, direction in pair_dirs.items():
+        if pair == D_DIRECTION_PAIR:
+            continue
         if direction not in ("BUY", "SELL"):
             continue
         try:
@@ -282,6 +314,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
         "entry_prices": {},
         "current_prices": current_prices,
         "hour_note": hour_note,
+        "d_direction": (pair_dirs or {}).get(D_DIRECTION_PAIR),
     }
     try:
         data = []
@@ -584,6 +617,8 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     - H=2 mọi ngày và T3-T4 H=3-4: rebuild GBP theo final XAU sau flip (GA/GJ đều ngược).
     - H=5+: chỉ XAUUSD (Focus GBP không gán chiều pair_dirs).
     """
+    if int(H) == 17:
+        return pair_dirs
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:
         return pair_dirs
@@ -604,6 +639,7 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
 
     # H=5+: Focus-only GBP — flip/update XAU only
     pair_dirs["XAUUSD"] = final_xau
+    apply_d_direction_marker(pair_dirs, H, broker_dt)
     return pair_dirs
 
 def candle_info_line(candle, label):
@@ -763,6 +799,8 @@ def get_hour_note(H, weekday=None):
         h = int(H)
     except (TypeError, ValueError):
         return "Chỉ Vàng (XAUUSD)"
+    if h == 17:
+        return "XAUUSD theo D-direction H=4"
     if h == 2:
         return "Chỉ Vàng (XAUUSD)"
     if weekday == 4:
@@ -854,6 +892,11 @@ def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
     elif no_trade:
         lines.append(f"  XAUUSD: ⚠ KHÔNG ĐÁNH ({tag})")
 
+    d_direction = (pair_dirs or {}).get(D_DIRECTION_PAIR)
+    if d_direction in ("BUY", "SELL"):
+        d_icon, _ = get_signal_icon(d_direction)
+        lines.append(f"  {D_DIRECTION_PAIR}: {d_icon} {d_direction}")
+
     focus = get_focus_gbp_pairs(H, broker_dt=broker_dt, weekday=weekday)
     if focus:
         lines.append("  Cặp GBP tập trung:")
@@ -870,18 +913,53 @@ ALL_PAIRS = GBP_PAIRS + ["XAUUSD"]
 day_signals = {}
 sent_today = set()
 
-def get_pair_direction(H, signal, broker_dt, h1_signal=None):
+def reverse_signal(signal):
+    """Return the opposite trading direction."""
+    if signal == "BUY":
+        return "SELL"
+    if signal == "SELL":
+        return "BUY"
+    return None
+
+
+def get_d_direction_from_xau(xau_signal, broker_dt=None, weekday=None):
+    """Calculate D-direction from the H=4 XAUUSD direction."""
+    if xau_signal not in ("BUY", "SELL"):
+        return None
+    wd = _resolve_weekday(broker_dt, weekday)
+    if wd in (0, 4):
+        return reverse_signal(xau_signal)
+    if wd in (1, 2, 3):
+        return xau_signal
+    return None
+
+
+def apply_d_direction_marker(pair_dirs, H, broker_dt):
+    """Attach the H=4 D-direction pseudo pair for UI/Telegram display."""
+    if int(H) != 4:
+        return None
+    d_direction = get_d_direction_from_xau(pair_dirs.get("XAUUSD"), broker_dt)
+    if d_direction:
+        pair_dirs[D_DIRECTION_PAIR] = d_direction
+    return d_direction
+
+
+def get_pair_direction(H, signal, broker_dt, h1_signal=None, d_direction=None):
     """Tính chiều các cặp theo slot. Signal = hướng pattern (XAUUSD baseline).
 
     - H=2 mọi ngày và T3-T4 H=3-4: GBPJPY/GBPAUD đều ngược Vàng; GBPUSD/GBPCAD --
     - H=5+: chỉ XAUUSD (GBP = Focus list, không gán Mua/Bán)
     """
     result = {}
+    if int(H) == 17:
+        if d_direction in ("BUY", "SELL"):
+            return {"XAUUSD": d_direction}
+        return result
     if signal not in ("BUY", "SELL"):
         return result
 
     gold = signal
-    opposite = "SELL" if gold == "BUY" else "BUY"
+    opposite = reverse_signal(gold)
     result["XAUUSD"] = gold
 
     if H == 2 or (H in (3, 4) and broker_dt.weekday() in (1, 2)):
@@ -890,6 +968,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         result["GBPUSD"] = "--"
         result["GBPCAD"] = "--"
     # else: XAU only — Focus GBP via get_focus_gbp_pairs
+    apply_d_direction_marker(result, H, broker_dt)
 
     return result
 
@@ -905,7 +984,14 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     hour_note = get_hour_note(H, broker_dt.weekday())
     note_line = f"📝 {hour_note}\n" if hour_note else ""
 
-    pair_dirs = get_pair_direction(H, sig, broker_dt, h1_signal=signal_data.get("h1_signal"))
+    d_direction = _get_d_direction_from_day(broker_dt.date()) if int(H) == 17 else None
+    pair_dirs = get_pair_direction(
+        H,
+        sig,
+        broker_dt,
+        h1_signal=signal_data.get("h1_signal"),
+        d_direction=d_direction,
+    )
 
     # XAUUSD M30: cùng chiều M30 -> đảo, ngược -> giữ M30
     apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H)
@@ -965,10 +1051,18 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def rebuild_slot_signal(broker_dt, h):
+def rebuild_slot_signal(broker_dt, h, d_direction=None):
     """Recalculate one slot with current logic and overwrite signals_log (date, hour)."""
     if broker_dt.weekday() >= 5:
         return False
+
+    if int(h) == 17:
+        pair_dirs = get_pair_direction(h, d_direction, broker_dt, d_direction=d_direction)
+        if not pair_dirs:
+            return False
+        hour_note = get_hour_note(h, broker_dt.weekday())
+        log_signal(h, broker_dt, d_direction, None, pair_dirs, hour_note)
+        return True
 
     result = analyze(broker_dt, h)
     sig = result.get("signal")
@@ -1018,11 +1112,14 @@ def rebuild_recent_history(days=7):
         if target_date.weekday() >= 5:
             continue
         fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
-        hours = passed_today if target_date == today else get_target_hours(fake_broker_dt)
+        hours = sorted(passed_today) if target_date == today else get_target_hours(fake_broker_dt)
+        d_direction = None
         for hour in hours:
             try:
-                if rebuild_slot_signal(fake_broker_dt, hour):
+                if rebuild_slot_signal(fake_broker_dt, hour, d_direction=d_direction):
                     rebuilt += 1
+                    if hour == 4:
+                        d_direction = _get_d_direction_from_day(target_date)
             except Exception as error:
                 print(f"  [REBUILD] Error {target_date.isoformat()} H={hour}: {error}")
 
@@ -1112,7 +1209,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-6: H=2-15 | no-gold: T3-T4 H=9-11; T5 H=3-4,H>=12 | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus")
+    print(f"  Target Hours T2-6: H=2-15,17 | no-gold: T3-T4 H=9-11; T5 H=3-4,H>=12 | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1147,7 +1244,7 @@ def main(profile_name=None):
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
         f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-T6=H2-15 | T3-T4 H=9-11 no Gold | T5 H=3-4,H>=12 no Gold | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus)"
+        f"(T2-T6=H2-15,17 | T3-T4 H=9-11 no Gold | T5 H=3-4,H>=12 no Gold | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
 
@@ -1201,7 +1298,22 @@ def main(profile_name=None):
                 # Rebuild seven-day history before every live calculation so backtests
                 # always use the current pair and note rules.
                 rebuild_recent_history(days=7)
-                result = analyze(broker_dt, now_hour)
+                d_direction = _get_d_direction_from_day(broker_dt.date())
+                if now_hour == 17:
+                    if d_direction not in ("BUY", "SELL"):
+                        sent_today.add(key)
+                        _save_state(day_signals, sent_today)
+                        print("  [SKIP] H=17 - missing H=4 D-direction")
+                        time.sleep(10)
+                        continue
+                    result = {
+                        "signal": d_direction,
+                        "report": "H=17 dùng lại D-direction đã chốt từ H=4.",
+                        "m30_dir": None,
+                        "h1_signal": None,
+                    }
+                else:
+                    result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
 
                 # Track H=1 signal for downstream day logic
@@ -1213,7 +1325,13 @@ def main(profile_name=None):
                 h1_sig = h1_data["signal"] if h1_data else None
 
                 # Tính pair_dirs trước khi gửi
-                pair_dirs = get_pair_direction(now_hour, sig, broker_dt, h1_signal=result.get("h1_signal"))
+                pair_dirs = get_pair_direction(
+                    now_hour,
+                    sig,
+                    broker_dt,
+                    h1_signal=result.get("h1_signal"),
+                    d_direction=d_direction,
+                )
                 if not pair_dirs:
                     # Slot bỏ trống theo rule ngày - đánh dấu đã xử lý
                     sent_today.add(key)
@@ -1223,6 +1341,15 @@ def main(profile_name=None):
                     continue
 
                 pair_dirs = send_report(result, now_hour, broker_dt, h1_signal=h1_sig)
+                if now_hour == 4:
+                    h4_d_direction = (pair_dirs or {}).get(D_DIRECTION_PAIR)
+                    if h4_d_direction in ("BUY", "SELL"):
+                        day_signals[(broker_dt.date(), 4)] = {
+                            "signal": sig,
+                            "m30_dir": result.get("m30_dir"),
+                            "d_direction": h4_d_direction,
+                        }
+                        _save_state(day_signals, sent_today)
 
                 # Log for website
                 if not pair_dirs:

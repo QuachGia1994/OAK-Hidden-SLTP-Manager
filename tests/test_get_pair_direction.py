@@ -3,7 +3,12 @@
 import unittest
 from datetime import datetime, timezone
 
-from mt5_signal_bot import get_pair_direction, GBP_PAIRS
+from mt5_signal_bot import (
+    D_DIRECTION_PAIR,
+    GBP_PAIRS,
+    get_d_direction_from_xau,
+    get_pair_direction,
+)
 
 
 def _make_dt(year, month, day, weekday_offset=0):
@@ -92,6 +97,34 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
             with self.subTest(weekday=weekday):
                 dt = _make_dt(2026, 7, 7, weekday_offset=weekday)
                 self.assertEqual(get_pair_direction(3, "BUY", dt), {"XAUUSD": "BUY"})
+
+    def test_h4_adds_d_direction_by_weekday(self):
+        cases = {
+            0: "SELL",  # Monday: opposite XAU
+            1: "BUY",   # Tuesday: same XAU
+            2: "BUY",   # Wednesday: same XAU
+            3: "BUY",   # Thursday: same XAU
+            4: "SELL",  # Friday: opposite XAU
+        }
+        for weekday, expected in cases.items():
+            with self.subTest(weekday=weekday):
+                dt = _make_dt(2026, 7, 6, weekday_offset=weekday)
+                result = get_pair_direction(4, "BUY", dt)
+                self.assertEqual(result["XAUUSD"], "BUY")
+                self.assertEqual(result[D_DIRECTION_PAIR], expected)
+
+    def test_h17_uses_stored_d_direction_for_xauusd(self):
+        dt = _make_dt(2026, 7, 6, weekday_offset=0)
+        self.assertEqual(get_pair_direction(17, "BUY", dt), {})
+        self.assertEqual(
+            get_pair_direction(17, "BUY", dt, d_direction="SELL"),
+            {"XAUUSD": "SELL"},
+        )
+
+    def test_d_direction_helper_opposite_on_monday_and_friday(self):
+        self.assertEqual(get_d_direction_from_xau("BUY", weekday=0), "SELL")
+        self.assertEqual(get_d_direction_from_xau("BUY", weekday=4), "SELL")
+        self.assertEqual(get_d_direction_from_xau("BUY", weekday=1), "BUY")
 
 
 if __name__ == "__main__":

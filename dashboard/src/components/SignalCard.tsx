@@ -53,6 +53,7 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
     [/Chỉ Focus GBPAUD/g, "GBP focus: GBPAUD"],
     [/Chỉ Focus GBPUSD · GBPCAD/g, "GBP focus: GBPUSD · GBPCAD"],
     [/Focus toàn nhóm GBP/g, "Full GBP group focus"],
+    [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 D-direction"],
     [/GBPAUD · GBPJPY ngược Vàng \(không xét H1 Vàng\)/g, "GBPAUD · GBPJPY opposite gold (no H1 gold check)"],
     [/GBPAUD · GBPJPY ngược Vàng \(GBPUSD\/GBPCAD --\)/g, "GBPAUD · GBPJPY opposite gold (GBPUSD/GBPCAD --)"],
     [/GBPAUD · GBPJPY ngược Vàng/g, "GBPAUD · GBPJPY opposite gold"],
@@ -148,6 +149,12 @@ export function SignalCard({
 
       <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 space-y-0">
         <PairBadge pair="XAUUSD" direction={xauBadgeDir} />
+        {signal.pair_dirs?.["D-DIRECTION"] && (
+          <PairBadge
+            pair="D-DIRECTION"
+            direction={isVIP ? signal.pair_dirs["D-DIRECTION"] : "locked"}
+          />
+        )}
         {gbpPairs.length > 0 && (
           <div className="pt-1 pb-0.5">
             <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-medium mb-0.5">

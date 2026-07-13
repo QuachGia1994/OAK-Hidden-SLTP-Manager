@@ -1,11 +1,11 @@
-/** Mon–Fri H=2-15 (weekend excluded). */
-export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+/** Mon–Fri H=2-15,17 (weekend excluded). */
+export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
- * Mon–Fri → H=2-15; weekend → []
+ * Mon–Fri → H=2-15,17; weekend → []
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
@@ -20,7 +20,7 @@ export function getRhythmLabel(hour: number, locale: "VN" | "EN" = "VN"): string
   if (h >= 5 && h <= 8) return `${label} 2 · AUD`;
   if (h >= 9 && h <= 11) return `${label} 3 · GBP`;
   if (h === 12 || h === 13 || h === 14) return `${label} 4 · EUR`;
-  if (h === 15) return `${label} 5 · USD`;
+  if (h === 15 || h === 17) return `${label} 5 · USD`;
   return null;
 }
 
@@ -107,6 +107,7 @@ const HOUR_NOTES: Record<number, string> = {
   12: "Focus toàn nhóm GBP",
   14: "Chỉ Vàng (XAUUSD)",
   15: "Focus toàn nhóm GBP",
+  17: "XAUUSD theo D-direction H=4",
 };
 
 /**
@@ -196,6 +197,7 @@ export function signalXauNoTradeTag(
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
+  if (h === 17) return "XAUUSD theo D-direction H=4";
   if (h === 2) return "Chỉ Vàng (XAUUSD)";
   if (jsWeekday === 5) {
     if ((h >= 3 && h <= 7) || h === 9 || h === 10) return "Đảo signal ra Vàng (XAUUSD)";
@@ -229,6 +231,8 @@ const PAIR_RULES: Record<RuleLocale, string[]> = {
     "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
     "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
     "Other in-band hours: XAUUSD only",
+    "H=4: D-direction = opposite XAUUSD on Mon/Fri, same XAUUSD on Tue/Wed/Thu",
+    "H=17: XAUUSD uses the H=4 D-direction",
     "GBP: hide Buy/Sell direction; focus only (+ gold relationship only at H=3-4)",
   ],
 };
@@ -239,28 +243,30 @@ const SPECIAL_DAY_NOTES: Record<RuleLocale, string[]> = {
     "H=2: XAU only · không Focus GBP",
     "T3-T4 · H=9-11: KHÔNG đánh Vàng",
     "T2 · H=3-15: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
-    "T2-T6: slots H=2-15",
+    "T2-T6: slots H=2-15,17",
     "T5 · H=3-4 và H>=12: KHÔNG đánh Vàng (đánh H=5-11)",
     "T6: không no-gold label; H=3-7 và H=9-10 đảo signal ra Vàng",
     "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
-    "Đã gỡ: ma trận chiều H=9/11/12 · D-direction",
+    "H=4/H=17: cầu D-direction đang bật",
   ],
   EN: [
     "H=2: XAU only · no GBP focus",
     "Tue-Wed · H=9-11: no gold trade",
     "Monday · H=3-15: no gold trade; H=9 focuses GBPUSD · GBPCAD only",
-    "Mon-Fri: slots H=2-15",
+    "Mon-Fri: slots H=2-15,17",
     "Thursday · H=3-4 and H>=12: no gold trade (trade H=5-11)",
     "Friday: no no-gold labels; H=3-7 and H=9-10 reverse signal to gold",
     "GBP pair_dirs maps only H=3-4; H=5+ is XAU only + focus list",
-    "Removed: H=9/11/12 direction matrix · D-direction",
+    "H=4: D-direction = opposite XAUUSD on Mon/Fri, same XAUUSD on Tue/Wed/Thu",
+    "H=17: XAUUSD uses the H=4 D-direction",
+    "H=4/H=17 D-direction bridge is active",
   ],
 };
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
     1: [
-      "Slots: H=2-15",
+      "Slots: H=2-15,17",
       "H=2: XAU only · no GBP focus",
       "XAU: no-gold H=3-15",
       "H=9: chỉ Focus GBPUSD · GBPCAD",
@@ -291,7 +297,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   },
   EN: {
     1: [
-      "Slots: H=2-15",
+      "Slots: H=2-15,17",
       "H=2: XAU only · no GBP focus",
       "XAU: no-gold H=3-15",
       "H=9: focus GBPUSD · GBPCAD only",
