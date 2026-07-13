@@ -21,16 +21,22 @@ class TestGetDayNotes(unittest.TestCase):
                 blob = " ".join(get_day_notes(day, lang="VN"))
                 self.assertFalse(any(term in blob for term in blocked), blob)
 
-    def test_thursday_and_friday_have_compact_h2_calendar_rule_note(self):
-        for day in (date(2025, 5, 1), date(2025, 1, 3)):
+    def test_h2_notes_match_weekday_matrix(self):
+        cases = (
+            (date(2025, 4, 29), "H=2: đảo signal ra Vàng theo mặc định"),
+            (date(2025, 4, 30), "H=2: XAU only"),
+            (date(2025, 5, 1), "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường"),
+            (date(2025, 1, 3), "H=2: mặc định XAU bình thường; ngày đặc biệt thì đảo signal ra Vàng"),
+        )
+        for day, expected in cases:
             with self.subTest(day=day):
                 blob = " ".join(get_day_notes(day, lang="VN"))
-                self.assertIn("H=2: đảo signal theo calendar rule khi kích hoạt", blob)
+                self.assertIn(expected, blob)
 
     def test_wednesday_has_core_schedule(self):
         notes = get_day_notes(date(2025, 4, 30), lang="VN")
         blob = " ".join(notes)
-        self.assertIn("H=3-15", blob)
+        self.assertIn("H=2-15,17", blob)
         self.assertIn("H=3-4", blob)
         self.assertFalse(any("tính lại W1" in n for n in notes))
 
@@ -44,7 +50,7 @@ class TestGetDayNotes(unittest.TestCase):
         notes = get_day_notes(date(2026, 7, 10), lang="EN")
         blob = " ".join(notes)
         self.assertIn("H=2-15,17", blob)
-        self.assertIn("H=2: reverse signal when the calendar rule is active", blob)
+        self.assertIn("H=2: normal by default; special calendar reverses signal to gold", blob)
         self.assertIn("H=3-7 and H=9-10", blob)
         self.assertIn("reverse signal to gold", blob)
         self.assertNotIn("trade normally per schedule", blob)
@@ -58,7 +64,7 @@ class TestGetDayNotes(unittest.TestCase):
     def test_accepts_datetime_without_special_detail(self):
         notes = get_day_notes(datetime(2025, 5, 1, 10, 0, 0), lang="VN")
         blob = " ".join(notes)
-        self.assertIn("H=2: đảo signal theo calendar rule khi kích hoạt", blob)
+        self.assertIn("H=2: đảo mặc định; gặp calendar exception thì XAU bình thường", blob)
         self.assertNotIn("ngày 30", blob)
 
     def test_friday_helper(self):

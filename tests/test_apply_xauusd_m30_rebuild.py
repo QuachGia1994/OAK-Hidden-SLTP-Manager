@@ -9,7 +9,7 @@ from mt5_signal_bot import (
     analyze,
     apply_xauusd_m30_logic,
     get_pair_direction,
-    is_h2_calendar_reverse_day,
+    is_h2_special_calendar_weekday,
 )
 
 
@@ -22,13 +22,13 @@ def _dt_thursday():
 
 
 class TestApplyXauusdM30Rebuild(unittest.TestCase):
-    def test_regular_thursday_h2_analysis_does_not_reverse_or_use_h1_gold(self):
+    def test_regular_thursday_h2_analysis_reverses_and_skips_h1_gold(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
             mt5_signal_bot, "get_h1_candle_for_slot"
         ) as h1_candle:
             result = analyze(_dt_thursday(), 2)
-        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(result["signal"], "SELL")
         h1_candle.assert_not_called()
 
     def test_h2_tuesday_also_reverses_signal(self):
@@ -38,24 +38,39 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
             result = analyze(tuesday, 2)
         self.assertEqual(result["signal"], "SELL")
 
-    def test_h2_calendar_reverse_on_special_thursday_and_friday(self):
+    def test_h2_special_thursday_keeps_xau_normal(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         cases = (
             datetime(2025, 5, 1, 2, 45, tzinfo=timezone.utc),  # Wed Apr 30
             datetime(2025, 1, 2, 2, 45, tzinfo=timezone.utc),  # Fri Jan 3 same week
-            datetime(2025, 1, 3, 2, 45, tzinfo=timezone.utc),  # Friday day 3
         )
         for dt in cases:
             with self.subTest(dt=dt):
-                self.assertTrue(is_h2_calendar_reverse_day(dt))
+                self.assertTrue(is_h2_special_calendar_weekday(dt))
                 with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
                     result = analyze(dt, 2)
-                self.assertEqual(result["signal"], "SELL")
+                self.assertEqual(result["signal"], "BUY")
+
+    def test_h2_special_friday_reverses(self):
+        candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
+        friday = datetime(2025, 1, 3, 2, 45, tzinfo=timezone.utc)
+        self.assertTrue(is_h2_special_calendar_weekday(friday))
+        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
+            result = analyze(friday, 2)
+        self.assertEqual(result["signal"], "SELL")
+
+    def test_regular_thursday_h2_reverses_by_default(self):
+        candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
+        thursday = datetime(2026, 7, 9, 2, 45, tzinfo=timezone.utc)
+        self.assertFalse(is_h2_special_calendar_weekday(thursday))
+        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
+            result = analyze(thursday, 2)
+        self.assertEqual(result["signal"], "SELL")
 
     def test_regular_friday_h2_does_not_reverse(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         friday = datetime(2026, 7, 10, 2, 45, tzinfo=timezone.utc)
-        self.assertFalse(is_h2_calendar_reverse_day(friday))
+        self.assertFalse(is_h2_special_calendar_weekday(friday))
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
             result = analyze(friday, 2)
         self.assertEqual(result["signal"], "BUY")

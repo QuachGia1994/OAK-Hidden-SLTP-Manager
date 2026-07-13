@@ -609,11 +609,11 @@ def get_xauusd_m30_signal(broker_dt, H):
     return None
 
 
-def is_h2_calendar_reverse_day(broker_dt):
-    """H=2 Thu/Fri calendar reversal.
+def is_h2_special_calendar_weekday(broker_dt):
+    """H=2 Thursday/Friday special calendar switch.
 
-    Active when the Wednesday in the same week falls on day 30/1, or the
-    Friday in the same week falls on day 3/4/7.
+    Thursday normally reverses H=2; special calendar keeps it normal.
+    Friday normally stays normal; special calendar reverses it.
     """
     if broker_dt.weekday() not in (3, 4):
         return False
@@ -731,9 +731,13 @@ def analyze(broker_dt, H):
         )
 
     original_signal = signal
-    if H == 2 and (broker_dt.weekday() == 1 or is_h2_calendar_reverse_day(broker_dt)):
+    if H == 2 and (
+        broker_dt.weekday() == 1
+        or (broker_dt.weekday() == 3 and not is_h2_special_calendar_weekday(broker_dt))
+        or (broker_dt.weekday() == 4 and is_h2_special_calendar_weekday(broker_dt))
+    ):
         signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2: đảo signal XAU theo rule calendar (chỉ M5/M30, bỏ H1 Vàng)."
+        report += "\nH=2 T3/T5: đảo signal XAU theo rule mặc định (chỉ M5/M30, bỏ H1 Vàng)."
     if broker_dt.weekday() == 4 and (3 <= H <= 7 or H in (9, 10)):
         signal = "SELL" if signal == "BUY" else "BUY"
         report += "\nT6 H=3-7,9-10: đảo signal XAU ra Vàng theo rule mới."
@@ -813,7 +817,15 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h == 17:
         return "XAUUSD theo D-direction H=4"
-    if h == 2 and broker_dt is not None and is_h2_calendar_reverse_day(broker_dt):
+    if h == 2 and broker_dt is not None and broker_dt.weekday() == 1:
+        return "Đảo signal ra Vàng (XAUUSD)"
+    if h == 2 and broker_dt is not None and broker_dt.weekday() == 4:
+        if is_h2_special_calendar_weekday(broker_dt):
+            return "Đảo signal ra Vàng (XAUUSD)"
+        return "Chỉ Vàng (XAUUSD)"
+    if h == 2 and broker_dt is not None and broker_dt.weekday() == 3:
+        if is_h2_special_calendar_weekday(broker_dt):
+            return "Chỉ Vàng (XAUUSD)"
         return "Đảo signal ra Vàng (XAUUSD)"
     if h == 2:
         return "Chỉ Vàng (XAUUSD)"

@@ -575,21 +575,23 @@ def get_day_notes(now, lang="VN"):
 
     day_rules_vn = {
         0: [
-            "Slots: H=2-15",
+            "Slots: H=2-15,17",
             "H=2: XAU only · không Focus GBP",
             "XAU: no-gold H=3-15",
             "H=9: chỉ Focus GBPUSD · GBPCAD",
             "Các H khác (bao gồm H=2): không Focus GBP.",
         ],
         1: [
-            "Slots: H=3-15 · XAU đánh bình thường",
+            "Slots: H=2-15,17 · XAU đánh bình thường",
+            "H=2: đảo signal ra Vàng theo mặc định",
             "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
             "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
             "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
             "T3-T4 · H=9-11: KHÔNG đánh Vàng",
         ],
         2: [
-            "Slots: H=3-15 · XAU đánh bình thường",
+            "Slots: H=2-15,17 · XAU đánh bình thường",
+            "H=2: XAU only · không Focus GBP",
             "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
             "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
             "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
@@ -597,7 +599,7 @@ def get_day_notes(now, lang="VN"):
         ],
         3: [
             "Slots: H=2-15,17",
-            "H=2: đảo signal theo calendar rule khi kích hoạt",
+            "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường",
             "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
             "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
             "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
@@ -605,28 +607,30 @@ def get_day_notes(now, lang="VN"):
         ],
         4: [
             "Slots: H=2-15,17",
-            "H=2: đảo signal theo calendar rule khi kích hoạt",
+            "H=2: mặc định XAU bình thường; ngày đặc biệt thì đảo signal ra Vàng",
             "XAU: H=3-7 và H=9-10 đảo signal ra Vàng; các H khác đánh bình thường",
             "Không Focus GBP.",
         ],
     }
     day_rules_en = {
         0: [
-            "Slots: H=2-15",
+            "Slots: H=2-15,17",
             "H=2: XAU only · no GBP focus",
             "XAU: no-gold H=3-15",
             "H=9: focus GBPUSD · GBPCAD only",
             "Other hours (including H=2): no GBP focus.",
         ],
         1: [
-            "Slots: H=3-15 · XAU trades normally",
+            "Slots: H=2-15,17 · XAU trades normally",
+            "H=2: reverse signal by default",
             "Tue-Wed H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
             "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
             "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
             "Tue-Wed · H=9-11: no gold trade",
         ],
         2: [
-            "Slots: H=3-15 · XAU trades normally",
+            "Slots: H=2-15,17 · XAU trades normally",
+            "H=2: XAU only · no GBP focus",
             "Tue-Wed H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
             "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
             "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
@@ -634,7 +638,7 @@ def get_day_notes(now, lang="VN"):
         ],
         3: [
             "Slots: H=2-15,17",
-            "H=2: reverse signal when the calendar rule is active",
+            "H=2: reverse by default; calendar exception keeps XAU normal",
             "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
             "H=3-4, H=12-15: show NO TRADE badge",
             "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
@@ -642,7 +646,7 @@ def get_day_notes(now, lang="VN"):
         ],
         4: [
             "Slots: H=2-15,17",
-            "H=2: reverse signal when the calendar rule is active",
+            "H=2: normal by default; special calendar reverses signal to gold",
             "XAU: H=3-7 and H=9-10 reverse signal to gold; other hours trade normally",
             "No GBP focus.",
         ],
