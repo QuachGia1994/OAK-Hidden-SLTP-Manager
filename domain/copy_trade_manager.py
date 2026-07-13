@@ -9,6 +9,7 @@ import re
 import subprocess
 import time
 import threading
+import unicodedata
 import winsound
 import urllib.error
 import urllib.parse
@@ -52,6 +53,30 @@ def _safe_profile_filename(profile_name: str) -> str:
 def pending_partials_file_for_profile(profile_name: str) -> str:
     """Per-profile partial-close tasks (avoids ticket_id collisions across brokers)."""
     return f"pending_partials_{_safe_profile_filename(profile_name)}.json"
+
+
+def _plain_command_text(value: str) -> str:
+    """Lowercase Vietnamese command text without accents for safer intent parsing."""
+    normalized = unicodedata.normalize("NFD", value or "")
+    stripped = "".join(ch for ch in normalized if unicodedata.category(ch) != "Mn")
+    return stripped.replace("đ", "d").replace("Đ", "d").lower()
+
+
+def _extract_close_symbol(raw_text: str) -> str:
+    """Extract a close target symbol without treating generic words as symbols."""
+    plain = _plain_command_text(raw_text)
+    if re.search(r"\b(xauusd|xau|gold|vang)\b", plain):
+        return "XAUUSD"
+    upper = raw_text.upper()
+    match = re.search(r"\b(XAUUSD|[A-Z]{3}(?:USD|JPY|EUR|GBP|AUD|CAD|CHF|NZD)[A-Z+.]*)\b", upper)
+    return match.group(1).rstrip(",.!;:") if match else ""
+
+
+def _extract_close_ticket(raw_text: str) -> str:
+    """Extract an explicit ticket id; ignore HHMM clock fragments."""
+    plain = _plain_command_text(raw_text)
+    match = re.search(r"\b(?:ticket|id|order|lenh)\s*#?\s*(\d{5,})\b", plain)
+    return match.group(1) if match else ""
 
 
 class CopyTradeManager:
@@ -496,6 +521,7 @@ class CopyTradeManager:
         """Parse and execute Enhanced Telegram commands (Support both Syntax and Natural Language)"""
         raw_text = text.strip()
         text_lower = raw_text.lower()
+        plain_text = _plain_command_text(raw_text)
         cmd = text_lower.split()
         if not cmd: return
         cmd_set = set(cmd)
@@ -920,7 +946,7 @@ class CopyTradeManager:
                     cmd = new_cmd.split()
                 
             # 2. Check for Close intent
-            elif any(kw in text_lower for kw in ["close", "đóng", "nghỉ", "dừng"]):
+            elif any(kw in plain_text for kw in ["close", "dong", "nghi", "dung"]):
                 time_val = ""
                 times = re.findall(r"\b\d{1,2}:\d{2}\b", text_lower)
                 if not times:
@@ -935,15 +961,12 @@ class CopyTradeManager:
                 if any(kw in text_lower for kw in ["lời", "lãi", "profit"]): filter_type = "profit"
                 elif any(kw in text_lower for kw in ["lỗ", "âm", "loss"]): filter_type = "loss"
                 
-                # Check for symbol specific closing
-                target_sym = ""
-                for word in cmd:
-                    w = word.upper().strip(",.!")
-                    if any(s in w for s in ["XAU", "USD", "EUR", "GBP", "JPY", "GOLD"]):
-                        target_sym = w
-                        break
+                target_ticket = _extract_close_ticket(raw_text)
+                target_sym = "" if target_ticket else _extract_close_symbol(raw_text)
 
                 new_cmd = f"/closeall {time_val} filter={filter_type} sym={target_sym}"
+                if target_ticket:
+                    new_cmd += f" ticket={target_ticket}"
                 if any(kw in text_lower for kw in ["mai", "ngày mai", "sáng mai", "tối mai"]):
                     tomorrow_dt = datetime.now() + timedelta(days=1)
                     new_cmd += f" date={tomorrow_dt.strftime('%Y-%m-%d')}"
@@ -1121,6 +1144,7 @@ class CopyTradeManager:
             target_profile = ""
             filter_type = "all"
             target_sym = ""
+            target_ticket = ""
             profile_names = self._get_profile_names()
             if not profile_names:
                 profile_names = {"darwinex", "vantage", "th5ers"}
@@ -1133,6 +1157,8 @@ class CopyTradeManager:
                     filter_type = arg.split("=")[1]
                 elif "sym=" in arg:
                     target_sym = arg.split("=")[1]
+                elif "ticket=" in arg:
+                    target_ticket = arg.split("=")[1]
                 elif arg in profile_names:
                     target_profile = arg.lower()
                 else:
@@ -1158,7 +1184,13 @@ class CopyTradeManager:
 
                     if not hasattr(self, "_scheduled_close"):
                         self._scheduled_close = load_json(self.scheduled_close_file, [])
-                    self._scheduled_close.append({"time": time_val, "date": target_date_str, "filter": filter_type, "sym": target_sym})
+                    self._scheduled_close.append({
+                        "time": time_val,
+                        "date": target_date_str,
+                        "filter": filter_type,
+                        "sym": target_sym,
+                        "ticket": target_ticket,
+                    })
                     save_json(self.scheduled_close_file, self._scheduled_close)
                     self.notify(f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG ({filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
                 except:
@@ -1166,7 +1198,7 @@ class CopyTradeManager:
                     self.notify(f"❌ [{profile_name}] {resp}")
             else:
                 self.notify(f"🤖 [{profile_name}] Đã rõ! Tôi tiến hành ĐÓNG ({filter_type}) {target_sym or 'toàn bộ'} ngay lập tức đây ạ.")
-                self._execute_close_all(filter_type, target_sym)
+                self._execute_close_all(filter_type, target_sym, target_ticket)
 
         # 6. /list [PROFILE]
         elif cmd[0] in ["/list", "/danhsach"]:
@@ -1441,7 +1473,7 @@ class CopyTradeManager:
             # ... (Existing Buy/Sell Logic continues) ...
 
 
-    def _execute_close_all(self, filter_type="all", target_sym=""):
+    def _execute_close_all(self, filter_type="all", target_sym="", target_ticket=""):
         positions = mt5.positions_get()
         if not positions: return
         
@@ -1449,9 +1481,13 @@ class CopyTradeManager:
         monitored_symbols = [s.strip().upper() for s in self.config.get("symbol", "").split(",") if s.strip()]
         
         count = 0
+        target_ticket = str(target_ticket or "").strip()
         for pos in positions:
             # 1. Check magic
             if magic != -1 and pos.magic != magic: continue
+
+            if target_ticket and str(pos.ticket) != target_ticket:
+                continue
             
             # 2. Check symbol (monitored)
             is_monitored = False
@@ -2274,11 +2310,13 @@ class CopyTradeManager:
                             c_date = close_info.get("date", now_date)
                             c_filter = close_info.get("filter", "all")
                             c_sym = close_info.get("sym", "")
+                            c_ticket = close_info.get("ticket", "")
                         else:
                             c_time = close_info
                             c_date = now_date
                             c_filter = "all"
                             c_sym = ""
+                            c_ticket = ""
                         if c_date > now_date:
                             remaining_closes.append(close_info)
                             continue
@@ -2292,16 +2330,16 @@ class CopyTradeManager:
                         if c_date == now_date and c_time_norm > now_time:
                             remaining_closes.append(close_info)
                             continue
-                        due_batch.append({"filter": c_filter, "sym": c_sym})
+                        due_batch.append({"filter": c_filter, "sym": c_sym, "ticket": c_ticket})
                     self._scheduled_close = remaining_closes
                     save_json(self.scheduled_close_file, self._scheduled_close)
             profile_name = self.config.get("profile_name", "Unknown")
             for item in due_batch:
                 self.notify(
                     f"⏰ [{profile_name}] Scheduled Time Reached: "
-                    f"Closing Positions ({item['filter']}) {item['sym']}"
+                    f"Closing Positions ({item['filter']}) {item['sym'] or item.get('ticket', '')}"
                 )
-                self._execute_close_all(item["filter"], item["sym"])
+                self._execute_close_all(item["filter"], item["sym"], item.get("ticket", ""))
 
 
 
@@ -2730,4 +2768,3 @@ class CopyTradeManager:
             self.notify(msg)
         else:
             self.notify(f"[{profile_name}] {T('log_copy_err')} Close {s_ticket} | {res.comment}")
-
