@@ -298,12 +298,15 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
     except Exception as e:
         print(f"[WARN] Cannot log signal: {e}")
 
-def _parse_news_for_dashboard(news_lines):
+def _parse_news_for_dashboard(news_lines, source_date=None):
     """Parse news strings like '• 19:30 CAD 🔴 [HIGH] GDP m/m' into structured objects."""
     import re
     from datetime import datetime
     from oak_trading_reminders import _get_vn_tz, is_critical_news_title
     today_vn = datetime.now(_get_vn_tz()).date().isoformat()
+    if source_date and source_date != today_vn:
+        return []
+    news_date = source_date or today_vn
     items = []
     for line in news_lines:
         raw = line
@@ -334,7 +337,7 @@ def _parse_news_for_dashboard(news_lines):
             if critical:
                 impact = "high"
             items.append({
-                "date": today_vn,
+                "date": news_date,
                 "time": time_str,
                 "local_time": time_str,
                 "time_zone": "Asia/Bangkok",
@@ -399,17 +402,16 @@ def push_to_dashboard():
             with open(news_cache, "r", encoding="utf-8") as f:
                 cache = json.load(f)
             raw_news = cache.get("news", []) if cache else []
-            parsed = _parse_news_for_dashboard(raw_news)
-            if parsed:
-                payload = json.dumps(parsed).encode("utf-8")
-                req = urllib.request.Request(
-                    f"{dashboard_url}/api/news",
-                    data=payload,
-                    headers=headers
-                )
-                resp = urllib.request.urlopen(req, timeout=15)
-                resp.read()
-                print(f"[DASHBOARD] News pushed OK ({len(parsed)} items)")
+            parsed = _parse_news_for_dashboard(raw_news, source_date=cache.get("date"))
+            payload = json.dumps(parsed).encode("utf-8")
+            req = urllib.request.Request(
+                f"{dashboard_url}/api/news",
+                data=payload,
+                headers=headers
+            )
+            resp = urllib.request.urlopen(req, timeout=15)
+            resp.read()
+            print(f"[DASHBOARD] News pushed OK ({len(parsed)} items)")
         # Push heartbeat (profile-specific)
         try:
             hb = _store.get_heartbeat(_active_profile)

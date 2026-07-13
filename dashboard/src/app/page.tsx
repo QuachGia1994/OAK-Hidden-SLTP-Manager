@@ -10,15 +10,7 @@ import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 function formatNewsVietnamTime(item: { time?: string; local_time?: string; time_zone?: string }) {
-  const localTime = item.local_time || item.time || "";
-  if (!localTime) return "";
-  if (item.time_zone === "Asia/Bangkok") return localTime;
-
-  const match = /^(\d{1,2}):(\d{2})$/.exec(localTime);
-  if (!match) return localTime;
-
-  const hours = (Number(match[1]) + 4) % 24;
-  return `${hours.toString().padStart(2, "0")}:${match[2]}`;
+  return item.local_time || item.time || "";
 }
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ vip?: string }> }) {

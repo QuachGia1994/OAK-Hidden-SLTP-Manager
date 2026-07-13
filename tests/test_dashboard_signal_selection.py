@@ -41,6 +41,13 @@ class DashboardSignalSelectionTests(unittest.TestCase):
         self.assertEqual(item["local_time"], "19:30")
         self.assertEqual(item["time_zone"], "Asia/Bangkok")
 
+    def test_old_news_cache_does_not_become_today_news(self):
+        result = _parse_news_for_dashboard(
+            ["19:30 CAD [HIGH] Employment Change"],
+            source_date="2026-07-10",
+        )
+        self.assertEqual(result, [])
+
 
 if __name__ == "__main__":
     unittest.main()

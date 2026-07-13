@@ -6,13 +6,18 @@ import sys
 import json
 import os
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 API_BASE = os.environ.get("DASHBOARD_API_URL", "http://localhost:3000")
+API_KEY = os.environ.get("DASHBOARD_API_KEY", "")
 
 def push(endpoint: str, data):
     url = f"{API_BASE}/api/{endpoint}"
     payload = json.dumps(data).encode("utf-8")
-    req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+    headers = {"Content-Type": "application/json"}
+    if API_KEY:
+        headers["X-API-Key"] = API_KEY
+    req = urllib.request.Request(url, data=payload, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             result = json.loads(resp.read())
@@ -56,9 +61,11 @@ if __name__ == "__main__":
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
             news_date = data.get("date", "")
+            today_vn = datetime.now(timezone(timedelta(hours=7))).date().isoformat()
             # Parse news items
             items = []
-            for line in data.get("news", []):
+            source_lines = data.get("news", []) if news_date == today_vn else []
+            for line in source_lines:
                 clean = line.lstrip("• ").strip()
                 import re
                 match = re.match(r"^(\d{2}:\d{2})\s+(\w+)\s+(.+)$", clean)

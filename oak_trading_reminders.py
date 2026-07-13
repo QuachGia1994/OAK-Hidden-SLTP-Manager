@@ -144,7 +144,7 @@ _NEWS_CACHE_VERSION = 3
 def get_economic_news(lang="VN"):
     # 1. Check Cache (versioned — force re-fetch after timezone/highlight fix)
     cache_file = f"news_cache_{lang}.json"
-    today = datetime.now().date()
+    today = datetime.now(_get_vn_tz()).date()
     try:
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
