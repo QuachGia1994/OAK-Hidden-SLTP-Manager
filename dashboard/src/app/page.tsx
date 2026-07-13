@@ -1,15 +1,17 @@
 import { getTodaySignals, getBotState, getEconomicNews, maskSignal } from "@/lib/data";
 import { SignalCard } from "@/components/SignalCard";
-import { getTargetHours, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
+import { getTargetHours, getSignalLabel } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
+import { BrokerLocalTime } from "@/components/BrokerLocalTime";
+import { BrowserDateText } from "@/components/BrowserDateText";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
-function formatNewsVietnamTime(item: { time?: string; local_time?: string; time_zone?: string }) {
+function formatNewsDisplayTime(item: { time?: string; local_time?: string; time_zone?: string }) {
   return item.local_time || item.time || "";
 }
 
@@ -77,13 +79,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500 mb-1">{t.tradingConsole}</div>
             <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">{t.dashboard}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-2xl">
-              {new Intl.DateTimeFormat(t.dateTimeFormat, {
-                timeZone: "Asia/Bangkok",
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              }).format(now)}
+              <BrowserDateText
+                date={now.toISOString()}
+                locale={t.dateTimeFormat}
+                options={{ weekday: "long", year: "numeric", month: "long", day: "numeric" }}
+              />
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -115,7 +115,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     : "border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/30 text-zinc-400 dark:text-zinc-600"
                 }`}
               >
-                {brokerToLocalTime(h)}
+                <BrokerLocalTime date={todayStr} hour={h} />
                 {hasSignal && (
                   <span className={`ml-1 font-semibold ${sig === "BUY" ? "text-emerald-500 dark:text-emerald-400" : sig === "WAIT" ? "text-zinc-500 dark:text-zinc-400" : "text-red-500 dark:text-red-400"}`}>
                     {getSignalLabel(sig!, locale)}
@@ -155,7 +155,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               .sort((a: any, b: any) => (b.critical ? 1 : 0) - (a.critical ? 1 : 0))
               .slice(0, 8)
               .map((item: any) => {
-                const newsTime = formatNewsVietnamTime(item);
+                const newsTime = formatNewsDisplayTime(item);
                 return (
               <div
                 key={`${newsTime}-${item.currency}-${item.title}`}

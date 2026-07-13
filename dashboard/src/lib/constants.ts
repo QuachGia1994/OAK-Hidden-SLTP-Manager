@@ -342,16 +342,6 @@ export function formatHour(h: number): string {
   return h.toString().padStart(2, "0");
 }
 
-// Broker + 4 = Vietnam local time
-export function brokerToLocalHour(brokerHour: number): number {
-  return (brokerHour + 4) % 24;
-}
-
-export function brokerToLocalTime(brokerHour: number, brokerMinute: number = 45): string {
-  const h = brokerToLocalHour(brokerHour);
-  return `${h.toString().padStart(2, "0")}:${brokerMinute.toString().padStart(2, "0")}`;
-}
-
 export function weekdayFromDate(dateStr: string): number {
   const [y, m, d] = dateStr.split("-").map(Number);
   // Noon UTC avoids TZ edge cases shifting the calendar day

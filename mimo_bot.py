@@ -314,8 +314,7 @@ def cmd_positions(message):
     args = re.sub(r"^/positions?\b", "", raw, flags=re.IGNORECASE).strip()
     if not args:
         # No profile: forward to OAK (connected terminal)
-        _inject_to_oak_inbox("/positions", message.chat.id)
-        bot.reply_to(message, "📨 Đã gửi OAK: `/positions`")
+        _ack_then_inject(message, "/positions", "📨 Đã gửi OAK: `/positions`")
         return
     config = load_json(CONFIG_FILE)
     pname = None
@@ -359,8 +358,8 @@ def cmd_list(message):
     if not is_admin(message):
         return
     raw = message.text.strip()
-    _inject_to_oak_inbox(raw if raw.lower().startswith("/list") else "/list", message.chat.id)
-    bot.reply_to(message, f"📨 Đã gửi OAK: `{raw}`")
+    cmd = raw if raw.lower().startswith("/list") else "/list"
+    _ack_then_inject(message, cmd, f"📨 Đã gửi OAK: `{raw}`")
 
 
 @bot.message_handler(commands=["check", "kiemtra"])
@@ -371,8 +370,7 @@ def cmd_check(message):
     # Normalize to /check for OAK account status handler
     if raw.lower().startswith("/kiemtra"):
         raw = "/check" + raw[len("/kiemtra"):]
-    _inject_to_oak_inbox(raw, message.chat.id)
-    bot.reply_to(message, f"📨 Đã gửi OAK: `{raw}`")
+    _ack_then_inject(message, raw, f"📨 Đã gửi OAK: `{raw}`")
 
 
 @bot.message_handler(commands=["signal"])
@@ -567,6 +565,16 @@ def _inject_to_oak_inbox(text, chat_id):
     inbox = inbox[-50:]
     save_json(TELE_INBOX_FILE, inbox)
 
+
+def _ack_then_inject(message, text, ack_text=None):
+    """Show OAK BOX acknowledgement before the worker can process the command."""
+    if ack_text is None:
+        ack_text = f"📨 Đã chuyển vào OAK inbox:\n`{text}`"
+    try:
+        bot.reply_to(message, ack_text)
+    finally:
+        _inject_to_oak_inbox(text, message.chat.id)
+
 # =====================================================================
 # CALLBACK QUERY HANDLER (inline keyboard from signal bot)
 # =====================================================================
@@ -638,9 +646,7 @@ def handle_signal_lot(message):
     hour = ctx["hour"]
     # Format: /pending BUY GBPAUD 0.01 14:49 vantage
     cmd = f"/pending {direction} {pair} {lot} {hour}:{minute} {profile}"
-    _inject_to_oak_inbox(cmd, message.chat.id)
-
-    bot.reply_to(message, f"📨 Đã gửi vào OAK:\n`{cmd}`")
+    _ack_then_inject(message, cmd, f"📨 Đã gửi vào OAK:\n`{cmd}`")
     del _pending_signal[message.chat.id]
 
 @bot.message_handler(commands=["reply"])
@@ -651,8 +657,7 @@ def cmd_reply(message):
     if not text:
         bot.reply_to(message, "Dùng: `/reply Buy Gold 0.1 at 19:30`")
         return
-    _inject_to_oak_inbox(text, message.chat.id)
-    bot.reply_to(message, f"✅ Đã gửi vào OAK inbox:\n`{text}`")
+    _ack_then_inject(message, text, f"✅ Đã gửi vào OAK inbox:\n`{text}`")
 
 @bot.message_handler(commands=["del"])
 def cmd_del(message):
@@ -662,8 +667,7 @@ def cmd_del(message):
     if not args:
         bot.reply_to(message, "Dùng: `/del all` hoặc `/del <ID>`")
         return
-    _inject_to_oak_inbox(f"/del {args}", message.chat.id)
-    bot.reply_to(message, f"🗑️ Đã gửi: `/del {args}`")
+    _ack_then_inject(message, f"/del {args}", f"🗑️ Đã gửi: `/del {args}`")
 
 @bot.message_handler(commands=["modify"])
 def cmd_modify(message):
@@ -673,8 +677,7 @@ def cmd_modify(message):
     if not text:
         bot.reply_to(message, "Dùng: `/modify sl 100 XAUUSD`")
         return
-    _inject_to_oak_inbox(f"/modify {text}", message.chat.id)
-    bot.reply_to(message, f"✏️ Đã gửi: `/modify {text}`")
+    _ack_then_inject(message, f"/modify {text}", f"✏️ Đã gửi: `/modify {text}`")
 
 @bot.message_handler(commands=["pending"])
 def cmd_pending(message):
@@ -684,8 +687,7 @@ def cmd_pending(message):
     if not text:
         bot.reply_to(message, "Dùng: `/pending <buy|sell> <SYMBOL> <LOT> <HH:MM> [SL] [TP] [PROFILE]`")
         return
-    _inject_to_oak_inbox(f"/pending {text}", message.chat.id)
-    bot.reply_to(message, f"📨 Đã gửi vào OAK inbox:\n`/pending {text}`")
+    _ack_then_inject(message, f"/pending {text}", f"📨 Đã gửi vào OAK inbox:\n`/pending {text}`")
 
 @bot.message_handler(commands=["closeall"])
 def cmd_closeall(message):
@@ -695,8 +697,7 @@ def cmd_closeall(message):
     if not text:
         bot.reply_to(message, "Dùng: `/closeall [HH:MM] [filter=profit|loss|all] [sym=SYMBOL] [PROFILE]`")
         return
-    _inject_to_oak_inbox(f"/closeall {text}", message.chat.id)
-    bot.reply_to(message, f"📨 Đã gửi vào OAK inbox:\n`/closeall {text}`")
+    _ack_then_inject(message, f"/closeall {text}", f"📨 Đã gửi vào OAK inbox:\n`/closeall {text}`")
 
 # Catch-all: NLP auto-forward to OAK
 @bot.message_handler(func=lambda m: True)
@@ -714,8 +715,7 @@ def handle_all(message):
         "/position", "/positions", "/profile", "/profiles",
     }
     if first in oak_slash:
-        _inject_to_oak_inbox(text, message.chat.id)
-        bot.reply_to(message, f"📨 Da chuyen vao OAK inbox:\n`{text}`")
+        _ack_then_inject(message, text)
         return
     nlp_triggers = [
         "buy", "sell", "mua", "ban", "long", "short",
@@ -727,8 +727,7 @@ def handle_all(message):
         "pending", "closeall", "modify", "status",
     ]
     if any(t in text.lower() for t in nlp_triggers):
-        _inject_to_oak_inbox(text, message.chat.id)
-        bot.reply_to(message, f"📨 Da chuyen vao OAK inbox:\n`{text}`")
+        _ack_then_inject(message, text)
 
 # =====================================================================
 # MAIN

@@ -1,9 +1,9 @@
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
 from unittest.mock import patch
 
 from mt5_signal_bot import _parse_news_for_dashboard, get_pair_direction, select_signals_for_dashboard
-from oak_trading_reminders import _get_vn_tz, fetch_forexfactory_xml
+from oak_trading_reminders import _get_display_tz, _get_display_tz_name, fetch_forexfactory_xml
 
 
 class _FakeResponse:
@@ -52,10 +52,10 @@ class DashboardSignalSelectionTests(unittest.TestCase):
                         {"XAUUSD": "BUY"},
                     )
 
-    def test_news_parse_marks_vietnam_timezone(self):
+    def test_news_parse_marks_system_display_timezone(self):
         item = _parse_news_for_dashboard(["19:30 CAD [HIGH] Employment Change"])[0]
         self.assertEqual(item["local_time"], "19:30")
-        self.assertEqual(item["time_zone"], "Asia/Bangkok")
+        self.assertEqual(item["time_zone"], _get_display_tz_name())
 
     def test_old_news_cache_does_not_become_today_news(self):
         result = _parse_news_for_dashboard(
@@ -64,22 +64,24 @@ class DashboardSignalSelectionTests(unittest.TestCase):
         )
         self.assertEqual(result, [])
 
-    def test_forexfactory_xml_uses_utc_to_vietnam_time(self):
-        today = datetime.now(_get_vn_tz()).strftime("%m-%d-%Y")
+    def test_forexfactory_xml_uses_utc_to_system_display_time(self):
+        display_tz = _get_display_tz()
+        today = datetime.now(display_tz).date()
         xml = f"""<weeklyevents>
             <event>
                 <title>Core CPI m/m</title>
                 <country>USD</country>
-                <date>{today}</date>
+                <date>{today.strftime("%m-%d-%Y")}</date>
                 <time>12:30pm</time>
                 <impact>High</impact>
             </event>
         </weeklyevents>""".encode("utf-8")
+        expected_time = datetime.combine(today, time(12, 30), tzinfo=timezone.utc).astimezone(display_tz).strftime("%H:%M")
 
         with patch("urllib.request.urlopen", return_value=_FakeResponse(xml)):
             result = fetch_forexfactory_xml(lang="EN")
 
-        self.assertEqual(result, ["• 19:30 USD 🔴 [HIGH] Core CPI m/m"])
+        self.assertEqual(result, [f"• {expected_time} USD 🔴 [HIGH] Core CPI m/m"])
 
 
 if __name__ == "__main__":

@@ -333,11 +333,12 @@ def _parse_news_for_dashboard(news_lines, source_date=None):
     """Parse news strings like '• 19:30 CAD 🔴 [HIGH] GDP m/m' into structured objects."""
     import re
     from datetime import datetime
-    from oak_trading_reminders import _get_vn_tz, is_critical_news_title
-    today_vn = datetime.now(_get_vn_tz()).date().isoformat()
-    if source_date and source_date != today_vn:
+    from oak_trading_reminders import _get_display_tz, _get_display_tz_name, is_critical_news_title
+    display_date = datetime.now(_get_display_tz()).date().isoformat()
+    if source_date and source_date != display_date:
         return []
-    news_date = source_date or today_vn
+    news_date = source_date or display_date
+    timezone_label = _get_display_tz_name()
     items = []
     for line in news_lines:
         raw = line
@@ -371,7 +372,7 @@ def _parse_news_for_dashboard(news_lines, source_date=None):
                 "date": news_date,
                 "time": time_str,
                 "local_time": time_str,
-                "time_zone": "Asia/Bangkok",
+                "time_zone": timezone_label,
                 "currency": currency,
                 "title": title,
                 "impact": impact,
@@ -382,10 +383,10 @@ def _parse_news_for_dashboard(news_lines, source_date=None):
 
 
 def _latest_today_news_cache():
-    """Return the newest VN/EN news cache for today's Vietnam date."""
-    from oak_trading_reminders import _get_vn_tz
+    """Return the newest VN/EN news cache for today's display date."""
+    from oak_trading_reminders import _get_display_tz
 
-    today_vn = datetime.now(_get_vn_tz()).date().isoformat()
+    display_date = datetime.now(_get_display_tz()).date().isoformat()
     base_dir = os.path.dirname(os.path.abspath(__file__))
     candidates = []
     for filename in ("news_cache_VN.json", "news_cache_EN.json"):
@@ -395,7 +396,7 @@ def _latest_today_news_cache():
         try:
             with open(path, "r", encoding="utf-8") as f:
                 cache = json.load(f)
-            if cache.get("date") != today_vn or not cache.get("news"):
+            if cache.get("date") != display_date or not cache.get("news"):
                 continue
             candidates.append((os.path.getmtime(path), cache))
         except Exception:

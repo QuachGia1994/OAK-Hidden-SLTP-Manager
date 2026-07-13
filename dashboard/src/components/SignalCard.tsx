@@ -5,7 +5,6 @@ import {
   getSignalLabel,
   getRhythmLabel,
   formatHour,
-  brokerToLocalTime,
   getHourNote,
   weekdayFromDate,
   getFocusGbpPairs,
@@ -18,6 +17,7 @@ import {
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
+import { BrokerLocalTime } from "./BrokerLocalTime";
 
 function stripNoGoldProse(note: string | null | undefined): string | null {
   if (!note) return null;
@@ -59,7 +59,6 @@ export function SignalCard({
   isVIP?: boolean;
 }) {
   const { locale } = useLocale();
-  const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
   const fallbackHourNote = signal.date
     ? getHourNote(signal.hour, weekday)
@@ -91,7 +90,7 @@ export function SignalCard({
       <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap min-w-0">
           <span className="font-mono text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {localTime}
+            <BrokerLocalTime date={signal.date} hour={signal.hour} />
           </span>
           <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono">
             ({formatHour(signal.hour)}:45 Brk)

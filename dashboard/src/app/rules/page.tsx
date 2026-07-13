@@ -1,13 +1,16 @@
-import { brokerToLocalTime, formatHour, getDayRules } from "@/lib/constants";
+import { formatHour, getDayRules } from "@/lib/constants";
 import { getBrokerDateParts } from "@/lib/trading-time";
+import { BrokerLocalTime } from "@/components/BrokerLocalTime";
+import { BrowserDateText } from "@/components/BrowserDateText";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
+import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
 export default async function RulesPage() {
   const today = new Date();
-  const { dayOfWeek, currentHour } = getBrokerDateParts(today);
+  const { dayOfWeek, currentHour, todayStr } = getBrokerDateParts(today);
   const headerList = await headers();
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
@@ -25,13 +28,11 @@ export default async function RulesPage() {
               {t.ruleList}
             </h1>
             <p className="mt-2 text-sm sm:text-base text-zinc-500 dark:text-zinc-400">
-              {today.toLocaleDateString(t.dateTimeFormat, {
-                timeZone: "Asia/Bangkok",
-                weekday: "long",
-                day: "numeric",
-                month: "numeric",
-                year: "numeric",
-              })}
+              <BrowserDateText
+                date={today.toISOString()}
+                locale={t.dateTimeFormat}
+                options={{ weekday: "long", day: "numeric", month: "numeric", year: "numeric" }}
+              />
             </p>
           </div>
 
@@ -39,7 +40,7 @@ export default async function RulesPage() {
             <MetaPill label={t.scope} value={locale === "EN" ? "Broker-day rule" : "Rule theo ngày broker"} />
             <MetaPill
               label={t.currentHour}
-              value={`${formatHour(currentHour)}:45 Broker • ${brokerToLocalTime(currentHour)}`}
+              value={<>{formatHour(currentHour)}:45 Broker • <BrokerLocalTime date={todayStr} hour={currentHour} /></>}
               highlight
               subLabel={t.brokerSynced}
             />
@@ -94,7 +95,7 @@ function MetaPill({
   subLabel,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
   highlight?: boolean;
   subLabel?: string;
 }) {

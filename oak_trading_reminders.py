@@ -25,14 +25,20 @@ except ImportError:
 log = setup_logger("reminder")
 
 
+def _get_display_tz():
+    """Display timezone from the local system, including current DST offset."""
+    return datetime.now().astimezone().tzinfo or timezone.utc
+
+
+def _get_display_tz_name():
+    """Human-readable local display timezone label."""
+    tz = _get_display_tz()
+    return tz.tzname(datetime.now(tz)) or str(tz)
+
+
 def _get_vn_tz():
-    """Dashboard/news display timezone: Vietnam local time."""
-    if ZoneInfo is not None:
-        try:
-            return ZoneInfo("Asia/Bangkok")
-        except Exception:
-            pass
-    return timezone(timedelta(hours=7))
+    """Backward-compatible alias for the auto display timezone."""
+    return _get_display_tz()
 
 
 # Highlight these high-stakes events on desktop + dashboard
@@ -100,7 +106,7 @@ _NEWS_CACHE_VERSION = 5
 def get_economic_news(lang="VN"):
     # 1. Check Cache (versioned — force re-fetch after timezone/highlight fix)
     cache_file = f"news_cache_{lang}.json"
-    today = datetime.now(_get_vn_tz()).date()
+    today = datetime.now(_get_display_tz()).date()
     try:
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
@@ -205,8 +211,8 @@ def _fetch_news_fresh(lang="VN"):
 
 def fetch_investing_rss(lang="VN", context=None):
     url = "https://www.investing.com/rss/news_285.rss" # Economic News RSS
-    vn_tz = _get_vn_tz()
-    today = datetime.now(vn_tz).date()
+    display_tz = _get_display_tz()
+    today = datetime.now(display_tz).date()
     
     if context is None:
         context = _make_ssl_context()
@@ -237,7 +243,7 @@ def fetch_investing_rss(lang="VN", context=None):
         if pub_date_str:
             try:
                 dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %z")
-                dt_local = dt_obj.astimezone(vn_tz)
+                dt_local = dt_obj.astimezone(display_tz)
                 if dt_local.date() != today: continue
                 event_time_str = dt_local.strftime("%H:%M")
             except:
@@ -259,8 +265,8 @@ def fetch_investing_rss(lang="VN", context=None):
 
 def fetch_myfxbook_rss(lang="VN", context=None):
     url = "https://www.myfxbook.com/rss/forex-economic-calendar-events"
-    vn_tz = _get_vn_tz()
-    today = datetime.now(vn_tz).date()
+    display_tz = _get_display_tz()
+    today = datetime.now(display_tz).date()
     
     # SSL Context to avoid handshake errors
     if context is None:
@@ -313,7 +319,7 @@ def fetch_myfxbook_rss(lang="VN", context=None):
                     dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %Z")
                 
                 # Convert to Local Time
-                dt_local = dt_obj.astimezone(vn_tz)
+                dt_local = dt_obj.astimezone(display_tz)
                 
                 # FIX: Filter by LOCAL date, not GMT date
                 if dt_local.date() != today: continue
@@ -363,8 +369,8 @@ def fetch_myfxbook_rss(lang="VN", context=None):
 def fetch_litefinance_rss(lang="VN", context=None):
     # https://www.litefinance.org/rss/economic-calendar-feed/
     url = "https://www.litefinance.org/rss/economic-calendar-feed/"
-    vn_tz = _get_vn_tz()
-    today = datetime.now(vn_tz).date()
+    display_tz = _get_display_tz()
+    today = datetime.now(display_tz).date()
     
     if context is None:
         context = _make_ssl_context()
@@ -399,14 +405,14 @@ def fetch_litefinance_rss(lang="VN", context=None):
         if pub_date_str:
             try:
                 dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %z")
-                dt_local = dt_obj.astimezone(vn_tz)
+                dt_local = dt_obj.astimezone(display_tz)
                 if dt_local.date() != today: continue
                 event_time_str = dt_local.strftime("%H:%M")
             except:
                 try:
                     dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S GMT")
                     dt_obj = dt_obj.replace(tzinfo=timezone.utc)
-                    dt_local = dt_obj.astimezone(vn_tz)
+                    dt_local = dt_obj.astimezone(display_tz)
                     if dt_local.date() != today: continue
                     event_time_str = dt_local.strftime("%H:%M")
                 except:
@@ -432,8 +438,8 @@ def fetch_litefinance_rss(lang="VN", context=None):
 
 def fetch_forexfactory_xml(lang="VN", context=None):
     url = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
-    vn_tz = _get_vn_tz()
-    today = datetime.now(vn_tz).date()
+    display_tz = _get_display_tz()
+    today = datetime.now(display_tz).date()
     
     if context is None:
         context = _make_ssl_context()
@@ -464,8 +470,8 @@ def fetch_forexfactory_xml(lang="VN", context=None):
         if impact_str != "High":
             continue
 
-        # Format Time to Vietnam local. The weekly XML feed exposes event
-        # times in UTC (e.g. US CPI 12:30pm UTC -> 19:30 Vietnam).
+        # Format time to the local system display timezone. The weekly XML
+        # feed exposes event times in UTC; the OS timezone handles DST.
         try:
             if not event_time_str or event_time_str.lower() in ("all day", "tentative", "day"):
                 # All-day: keep on calendar date, show as 00:00 local of that UTC day
@@ -476,7 +482,7 @@ def fetch_forexfactory_xml(lang="VN", context=None):
                 dt_src = datetime.strptime(event_date_str, "%m-%d-%Y").date()
                 dt_full_src = datetime.combine(dt_src, t_obj.time()).replace(tzinfo=timezone.utc)
 
-            dt_local = dt_full_src.astimezone(vn_tz)
+            dt_local = dt_full_src.astimezone(display_tz)
 
             if dt_local.date() != today:
                 continue
@@ -850,7 +856,7 @@ class OakTradingReminder:
     def _should_send_daily_briefing(self):
         """Check file-based lock for daily briefing with atomic lock to prevent race condition"""
         log_file = "daily_briefing.log"
-        now = datetime.now(_get_vn_tz())
+        now = datetime.now(_get_display_tz())
         today_str = now.strftime("%Y-%m-%d")
         
         # 1. Quick check main log
@@ -881,7 +887,7 @@ class OakTradingReminder:
     def _mark_daily_briefing_sent(self):
         """Update file-based lock after successful send"""
         log_file = "daily_briefing.log"
-        now = datetime.now(_get_vn_tz())
+        now = datetime.now(_get_display_tz())
         today_str = now.strftime("%Y-%m-%d")
         try:
             with open(log_file, "w", encoding="utf-8") as f:
@@ -915,9 +921,9 @@ class OakTradingReminder:
 
     def send_daily_briefing(self):
         """Send the daily report (News + Season Info)"""
-        now_vn = datetime.now(_get_vn_tz())
-        print(f"--- Sending Daily Briefing at {now_vn} ---")
-        today_str = now_vn.strftime("%Y-%m-%d")
+        now_display = datetime.now(_get_display_tz())
+        print(f"--- Sending Daily Briefing at {now_display} ---")
+        today_str = now_display.strftime("%Y-%m-%d")
         lock_path = os.path.join(LOCK_DIR, f"briefing_{today_str}.lock")
         
         try:
@@ -929,16 +935,16 @@ class OakTradingReminder:
             news = get_economic_news(lang=lang)
             
             # Construct Message
-            header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_vn.strftime('%d/%m/%Y')})\n"
+            header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_display.strftime('%d/%m/%Y')})\n"
             if lang == "EN":
-                header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_vn.strftime('%m/%d/%Y')})\n"
+                header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_display.strftime('%m/%d/%Y')})\n"
             
             full_msg = header
             
             if lang == "VN":
-                full_msg += "🗓️ Giờ hiển thị: Việt Nam (GMT+7)\n\n"
+                full_msg += f"🗓️ Giờ hiển thị: tự động theo hệ thống ({_get_display_tz_name()})\n\n"
             else:
-                full_msg += "🗓️ Display Time: Vietnam local time (GMT+7)\n\n"
+                full_msg += f"🗓️ Display Time: system timezone ({_get_display_tz_name()})\n\n"
             
             if news:
                 news_header = "🌍 TIN TỨC KINH TẾ:\n" if lang == "VN" else "🌍 ECONOMIC NEWS:\n"
@@ -1220,13 +1226,13 @@ class OakTradingReminder:
         # Startup check: Send briefing if not yet sent today
         if self._should_send_daily_briefing():
             if self.send_daily_briefing():
-                self.last_briefing_date = datetime.now(_get_vn_tz()).date()
+                self.last_briefing_date = datetime.now(_get_display_tz()).date()
 
         while self.running and not self._stop_event.is_set():
             # 0. Check for Telegram commands removed to avoid polling conflicts with Manager
             # self.process_commands()
 
-            now = datetime.now(_get_vn_tz())
+            now = datetime.now(_get_display_tz())
 
             # Skip weekends (Saturday=5, Sunday=6) - no trading
             if now.weekday() in (5, 6):

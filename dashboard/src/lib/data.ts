@@ -36,14 +36,7 @@ export async function getBotState(): Promise<BotState | null> {
 export async function getEconomicNews(): Promise<NewsItem[]> {
   try {
     const data = await redis.get(KEYS.news);
-    const news = (data as NewsItem[]) || [];
-    const today = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Bangkok",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(new Date());
-    return news.filter((item) => item.date === today);
+    return (data as NewsItem[]) || [];
   } catch {
     return [];
   }
