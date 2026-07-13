@@ -120,7 +120,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 {brokerToLocalTime(h)}
                 {hasSignal && (
                   <span className={`ml-1 font-semibold ${sig === "BUY" ? "text-emerald-500 dark:text-emerald-400" : sig === "WAIT" ? "text-zinc-500 dark:text-zinc-400" : "text-red-500 dark:text-red-400"}`}>
-                    {getSignalLabel(sig!)}
+                    {getSignalLabel(sig!, locale)}
                   </span>
                 )}
               </div>
