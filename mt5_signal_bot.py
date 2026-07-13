@@ -380,6 +380,31 @@ def _parse_news_for_dashboard(news_lines, source_date=None):
     items.sort(key=lambda x: (0 if x.get("critical") else 1, x.get("time") or "99:99"))
     return items
 
+
+def _latest_today_news_cache():
+    """Return the newest VN/EN news cache for today's Vietnam date."""
+    from oak_trading_reminders import _get_vn_tz
+
+    today_vn = datetime.now(_get_vn_tz()).date().isoformat()
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = []
+    for filename in ("news_cache_VN.json", "news_cache_EN.json"):
+        path = os.path.join(base_dir, filename)
+        if not os.path.exists(path) or os.path.getsize(path) <= 2:
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                cache = json.load(f)
+            if cache.get("date") != today_vn or not cache.get("news"):
+                continue
+            candidates.append((os.path.getmtime(path), cache))
+        except Exception:
+            continue
+    if not candidates:
+        return None
+    return max(candidates, key=lambda item: item[0])[1]
+
+
 def select_signals_for_dashboard(all_signals):
     """Keep every signal that still has pair data so history can be republished across days."""
     return [s for s in all_signals if s.get("pair_dirs")]
@@ -427,11 +452,9 @@ def push_to_dashboard():
                 resp = urllib.request.urlopen(req, timeout=15)
                 resp.read()
                 print(f"[DASHBOARD] State pushed OK")
-        # Push news
-        news_cache = os.path.join(os.path.dirname(os.path.abspath(__file__)), "news_cache_VN.json")
-        if os.path.exists(news_cache) and os.path.getsize(news_cache) > 2:
-            with open(news_cache, "r", encoding="utf-8") as f:
-                cache = json.load(f)
+        # Push today's newest VN/EN news cache.
+        cache = _latest_today_news_cache()
+        if cache:
             raw_news = cache.get("news", []) if cache else []
             parsed = _parse_news_for_dashboard(raw_news, source_date=cache.get("date"))
             payload = json.dumps(parsed).encode("utf-8")
@@ -817,33 +840,32 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h == 17:
         return "XAUUSD theo D-direction H=4"
-    if h == 2 and broker_dt is not None and broker_dt.weekday() == 1:
-        return "Đảo signal ra Vàng (XAUUSD)"
-    if h == 2 and broker_dt is not None and broker_dt.weekday() == 4:
-        if is_h2_special_calendar_weekday(broker_dt):
+    resolved_weekday = _resolve_weekday(broker_dt, weekday)
+    if h == 2:
+        if resolved_weekday in (1, 2, 3):
+            return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
+        if broker_dt is not None and resolved_weekday == 4 and is_h2_special_calendar_weekday(broker_dt):
             return "Đảo signal ra Vàng (XAUUSD)"
         return "Chỉ Vàng (XAUUSD)"
-    if h == 2 and broker_dt is not None and broker_dt.weekday() == 3:
-        if is_h2_special_calendar_weekday(broker_dt):
-            return "Chỉ Vàng (XAUUSD)"
-        return "Đảo signal ra Vàng (XAUUSD)"
-    if h == 2:
-        return "Chỉ Vàng (XAUUSD)"
-    if weekday == 4:
+    if resolved_weekday == 4:
         if 3 <= h <= 7 or h in (9, 10):
             return "Đảo signal ra Vàng (XAUUSD)"
         return "Chỉ Vàng (XAUUSD)"
-    if weekday == 0:
+    if resolved_weekday == 0:
         return "Chỉ Focus GBPUSD · GBPCAD" if h == 9 else "Chỉ Vàng (XAUUSD)"
-    if weekday == 3:
+    if resolved_weekday == 3:
         if h in (3, 4):
             return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
         if 5 <= h <= 8:
             return "Chỉ Focus GBPAUD"
-    if weekday == 0 and h == 9:
-        return "Chỉ Focus GBPUSD · GBPCAD"
-    if weekday in (1, 2) and h in (3, 4):
+        if h in (9, 11, 12, 15):
+            return "Focus toàn nhóm GBP"
+    if resolved_weekday in (1, 2) and h in (3, 4):
         return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
+    if resolved_weekday in (1, 2) and h in (9, 11):
+        return "Focus toàn nhóm GBP"
+    if resolved_weekday in (1, 2) and h == 10:
+        return "Chỉ Vàng (XAUUSD)"
     if 5 <= h <= 8:
         return "Chỉ Focus GBPAUD"
     if h in (9, 11, 12, 15):

@@ -48,22 +48,23 @@ class TestThursdayAndFridayRules(unittest.TestCase):
             self.assertFalse(is_xau_no_trade_label_slot(hour, weekday=4))
             self.assertEqual(xau_no_trade_label_tag(hour, weekday=4), "")
 
-    def test_h2_note_reverses_tuesday_and_regular_thursday_only(self):
+    def test_h2_note_describes_focus_matrix(self):
+        focus_note = "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
         self.assertEqual(
             get_hour_note(2, broker_dt=datetime(2026, 7, 7, 2, 45)),
-            "Đảo signal ra Vàng (XAUUSD)",
+            focus_note,
+        )
+        self.assertEqual(
+            get_hour_note(2, broker_dt=datetime(2026, 7, 8, 2, 45)),
+            focus_note,
         )
         self.assertEqual(
             get_hour_note(2, broker_dt=datetime(2026, 7, 9, 2, 45)),
-            "Đảo signal ra Vàng (XAUUSD)",
+            focus_note,
         )
         self.assertEqual(
             get_hour_note(2, broker_dt=datetime(2025, 5, 1, 2, 45)),
-            "Chỉ Vàng (XAUUSD)",
-        )
-        self.assertEqual(
-            get_hour_note(2, broker_dt=datetime(2025, 1, 3, 2, 45)),
-            "Đảo signal ra Vàng (XAUUSD)",
+            focus_note,
         )
         self.assertEqual(
             get_hour_note(2, broker_dt=datetime(2026, 7, 10, 2, 45)),

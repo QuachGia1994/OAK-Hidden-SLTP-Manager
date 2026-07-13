@@ -6,7 +6,6 @@ import urllib.request
 import urllib.parse
 import ssl
 from datetime import datetime, timedelta, timezone
-import calendar
 import xml.etree.ElementTree as ET
 import MetaTrader5 as mt5
 import threading
@@ -24,17 +23,6 @@ except ImportError:
     ZoneInfo = None  # type: ignore
 
 log = setup_logger("reminder")
-
-
-def _get_ff_tz():
-    """ForexFactory calendar times are US Eastern (EST/EDT), not UTC."""
-    if ZoneInfo is not None:
-        try:
-            return ZoneInfo("America/New_York")
-        except Exception:
-            pass
-    # Fallback without tzdata package: approximate EST/EDT via US DST rules
-    return timezone(timedelta(hours=-4 if not is_winter_time() else -5))
 
 
 def _get_vn_tz():
@@ -93,38 +81,6 @@ def set_credentials(token, chat_id):
     CURRENT_TOKEN = token
     CURRENT_CHAT_ID = chat_id
 
-def is_winter_time():
-    """Check if we are in Winter time (Standard Time) - Using US DST Schedule (NYC)"""
-    # US DST: 2nd Sunday of March to 1st Sunday of November
-    now = datetime.now()
-    month = now.month
-    year = now.year
-    
-    # April to October -> Summer (DST)
-    if 4 <= month <= 10:
-        return False
-    # Dec to Feb -> Winter (Standard)
-    if month == 12 or 1 <= month <= 2:
-        return True
-        
-    # March check (Starts on 2nd Sunday)
-    if month == 3:
-        # Get all Sundays in March
-        c = calendar.monthcalendar(year, 3)
-        sundays = [week[6] for week in c if week[6] != 0]
-        second_sunday = sundays[1]
-        return now.day < second_sunday
-        
-    # November check (Ends on 1st Sunday)
-    if month == 11:
-        # Get all Sundays in November
-        c = calendar.monthcalendar(year, 11)
-        sundays = [week[6] for week in c if week[6] != 0]
-        first_sunday = sundays[0]
-        return now.day >= first_sunday
-        
-    return False
-
 def load_json_file(path, default):
     try:
         if not os.path.exists(path):
@@ -137,8 +93,8 @@ def load_json_file(path, default):
     except Exception:
         return default
 
-# Bump when parse/timezone rules change so stale wrong-time cache is discarded
-_NEWS_CACHE_VERSION = 3
+# Bump when parse/timezone rules change so stale wrong-time cache is discarded.
+_NEWS_CACHE_VERSION = 5
 
 
 def get_economic_news(lang="VN"):
@@ -249,7 +205,8 @@ def _fetch_news_fresh(lang="VN"):
 
 def fetch_investing_rss(lang="VN", context=None):
     url = "https://www.investing.com/rss/news_285.rss" # Economic News RSS
-    today = datetime.now().date()
+    vn_tz = _get_vn_tz()
+    today = datetime.now(vn_tz).date()
     
     if context is None:
         context = _make_ssl_context()
@@ -280,7 +237,7 @@ def fetch_investing_rss(lang="VN", context=None):
         if pub_date_str:
             try:
                 dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %z")
-                dt_local = dt_obj.astimezone()
+                dt_local = dt_obj.astimezone(vn_tz)
                 if dt_local.date() != today: continue
                 event_time_str = dt_local.strftime("%H:%M")
             except:
@@ -302,7 +259,8 @@ def fetch_investing_rss(lang="VN", context=None):
 
 def fetch_myfxbook_rss(lang="VN", context=None):
     url = "https://www.myfxbook.com/rss/forex-economic-calendar-events"
-    today = datetime.now().date()
+    vn_tz = _get_vn_tz()
+    today = datetime.now(vn_tz).date()
     
     # SSL Context to avoid handshake errors
     if context is None:
@@ -355,7 +313,7 @@ def fetch_myfxbook_rss(lang="VN", context=None):
                     dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %Z")
                 
                 # Convert to Local Time
-                dt_local = dt_obj.astimezone() # Local system time
+                dt_local = dt_obj.astimezone(vn_tz)
                 
                 # FIX: Filter by LOCAL date, not GMT date
                 if dt_local.date() != today: continue
@@ -405,7 +363,8 @@ def fetch_myfxbook_rss(lang="VN", context=None):
 def fetch_litefinance_rss(lang="VN", context=None):
     # https://www.litefinance.org/rss/economic-calendar-feed/
     url = "https://www.litefinance.org/rss/economic-calendar-feed/"
-    today = datetime.now().date()
+    vn_tz = _get_vn_tz()
+    today = datetime.now(vn_tz).date()
     
     if context is None:
         context = _make_ssl_context()
@@ -440,14 +399,14 @@ def fetch_litefinance_rss(lang="VN", context=None):
         if pub_date_str:
             try:
                 dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S %z")
-                dt_local = dt_obj.astimezone()
+                dt_local = dt_obj.astimezone(vn_tz)
                 if dt_local.date() != today: continue
                 event_time_str = dt_local.strftime("%H:%M")
             except:
                 try:
                     dt_obj = datetime.strptime(pub_date_str, "%a, %d %b %Y %H:%M:%S GMT")
                     dt_obj = dt_obj.replace(tzinfo=timezone.utc)
-                    dt_local = dt_obj.astimezone()
+                    dt_local = dt_obj.astimezone(vn_tz)
                     if dt_local.date() != today: continue
                     event_time_str = dt_local.strftime("%H:%M")
                 except:
@@ -473,7 +432,8 @@ def fetch_litefinance_rss(lang="VN", context=None):
 
 def fetch_forexfactory_xml(lang="VN", context=None):
     url = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
-    today = datetime.now().date()
+    vn_tz = _get_vn_tz()
+    today = datetime.now(vn_tz).date()
     
     if context is None:
         context = _make_ssl_context()
@@ -504,19 +464,19 @@ def fetch_forexfactory_xml(lang="VN", context=None):
         if impact_str != "High":
             continue
 
-        # Format Time to 24h local — FF calendar times are US Eastern (EST/EDT)
+        # Format Time to Vietnam local. The weekly XML feed exposes event
+        # times in UTC (e.g. US CPI 12:30pm UTC -> 19:30 Vietnam).
         try:
-            ff_tz = _get_ff_tz()
             if not event_time_str or event_time_str.lower() in ("all day", "tentative", "day"):
-                # All-day: keep on calendar date, show as 00:00 local of that Eastern day
+                # All-day: keep on calendar date, show as 00:00 local of that UTC day
                 dt_src = datetime.strptime(event_date_str, "%m-%d-%Y")
-                dt_full_src = dt_src.replace(hour=0, minute=0, tzinfo=ff_tz)
+                dt_full_src = dt_src.replace(hour=0, minute=0, tzinfo=timezone.utc)
             else:
                 t_obj = datetime.strptime(event_time_str.replace(" ", ""), "%I:%M%p")
                 dt_src = datetime.strptime(event_date_str, "%m-%d-%Y").date()
-                dt_full_src = datetime.combine(dt_src, t_obj.time()).replace(tzinfo=ff_tz)
+                dt_full_src = datetime.combine(dt_src, t_obj.time()).replace(tzinfo=timezone.utc)
 
-            dt_local = dt_full_src.astimezone(_get_vn_tz())
+            dt_local = dt_full_src.astimezone(vn_tz)
 
             if dt_local.date() != today:
                 continue
@@ -582,29 +542,37 @@ def get_day_notes(now, lang="VN"):
             "Các H khác (bao gồm H=2): không Focus GBP.",
         ],
         1: [
-            "Slots: H=2-15,17 · XAU đánh bình thường",
-            "H=2: đảo signal mặc định · Focus GBPAUD/GBPJPY ngược XAU",
-            "T3-T5 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
-            "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
-            "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
-            "T3-T4 · H=9-11: KHÔNG đánh Vàng",
+            "Slots: H=2-15,17",
+            "H=2: đảo signal mặc định · Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
+            "H=3-4: Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
+            "H=5-8: chỉ Focus GBPAUD",
+            "H=9 và H=11: Focus toàn nhóm GBP · badge KHÔNG ĐÁNH Vàng",
+            "H=10: chỉ XAUUSD · badge KHÔNG ĐÁNH Vàng",
+            "H=12 và H=15: Focus toàn nhóm GBP",
+            "H=13-14: chỉ XAUUSD",
+            "H=17: XAUUSD theo D-direction H=4",
         ],
         2: [
-            "Slots: H=2-15,17 · XAU đánh bình thường",
-            "H=2: bình thường · Focus GBPAUD/GBPJPY ngược XAU",
-            "T3-T5 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
-            "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
-            "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
-            "T3-T4 · H=9-11: KHÔNG đánh Vàng",
+            "Slots: H=2-15,17",
+            "H=2: bình thường · Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
+            "H=3-4: Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
+            "H=5-8: chỉ Focus GBPAUD",
+            "H=9 và H=11: Focus toàn nhóm GBP · badge KHÔNG ĐÁNH Vàng",
+            "H=10: chỉ XAUUSD · badge KHÔNG ĐÁNH Vàng",
+            "H=12 và H=15: Focus toàn nhóm GBP",
+            "H=13-14: chỉ XAUUSD",
+            "H=17: XAUUSD theo D-direction H=4",
         ],
         3: [
             "Slots: H=2-15,17",
-            "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường · Focus GBPAUD/GBPJPY ngược XAU",
+            "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường · Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
             "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
-            "H=3-4: Focus GBPAUD/GBPJPY ngược XAU · badge KHÔNG ĐÁNH",
-            "H=12-15: badge KHÔNG ĐÁNH",
-            "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
-            "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
+            "H=3-4: Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --) · badge KHÔNG ĐÁNH",
+            "H=5-8: chỉ Focus GBPAUD",
+            "H=9 và H=11: Focus toàn nhóm GBP",
+            "H=12 và H=15: Focus toàn nhóm GBP · badge KHÔNG ĐÁNH",
+            "H=10, H=13-14: chỉ XAUUSD",
+            "H=17: XAUUSD theo D-direction H=4",
         ],
         4: [
             "Slots: H=2-15,17",
@@ -622,29 +590,37 @@ def get_day_notes(now, lang="VN"):
             "Other hours (including H=2): no GBP focus.",
         ],
         1: [
-            "Slots: H=2-15,17 · XAU trades normally",
-            "H=2: reverse by default · focus GBPAUD/GBPJPY opposite XAU",
-            "Tue-Thu H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
-            "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
-            "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
-            "Tue-Wed · H=9-11: no gold trade",
+            "Slots: H=2-15,17",
+            "H=2: reverses by default · focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
+            "H=3-4: focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
+            "H=5-8: focus GBPAUD only",
+            "H=9 and H=11: full GBP group focus · NO TRADE gold badge",
+            "H=10: XAUUSD only · NO TRADE gold badge",
+            "H=12 and H=15: full GBP group focus",
+            "H=13-14: XAUUSD only",
+            "H=17: XAUUSD uses H=4 D-direction",
         ],
         2: [
-            "Slots: H=2-15,17 · XAU trades normally",
-            "H=2: normal · focus GBPAUD/GBPJPY opposite XAU",
-            "Tue-Thu H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
-            "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
-            "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
-            "Tue-Wed · H=9-11: no gold trade",
+            "Slots: H=2-15,17",
+            "H=2: normal · focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
+            "H=3-4: focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
+            "H=5-8: focus GBPAUD only",
+            "H=9 and H=11: full GBP group focus · NO TRADE gold badge",
+            "H=10: XAUUSD only · NO TRADE gold badge",
+            "H=12 and H=15: full GBP group focus",
+            "H=13-14: XAUUSD only",
+            "H=17: XAUUSD uses H=4 D-direction",
         ],
         3: [
             "Slots: H=2-15,17",
-            "H=2: reverse by default; calendar exception keeps XAU normal · focus GBPAUD/GBPJPY opposite XAU",
+            "H=2: reverses by default; calendar exception keeps XAU normal · focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
             "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
-            "H=3-4: focus GBPAUD/GBPJPY opposite XAU · show NO TRADE badge",
-            "H=12-15: show NO TRADE badge",
-            "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
-            "H=9/10/11/12/15: focus full group · XAU no-gold from H=12",
+            "H=3-4: focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --) · NO TRADE badge",
+            "H=5-8: focus GBPAUD only",
+            "H=9 and H=11: full GBP group focus",
+            "H=12 and H=15: full GBP group focus · NO TRADE badge",
+            "H=10, H=13-14: XAUUSD only",
+            "H=17: XAUUSD uses H=4 D-direction",
         ],
         4: [
             "Slots: H=2-15,17",
@@ -660,25 +636,6 @@ def get_day_notes(now, lang="VN"):
     if lang == "VN":
         return notes_vn
     return notes_en
-
-
-def generate_daily_reminder(now, lang="VN"):
-    weekday = now.weekday()
-    weekday_names_vn = {0: "Thứ 2", 1: "Thứ 3", 2: "Thứ 4", 3: "Thứ 5", 4: "Thứ 6", 5: "Thứ 7", 6: "Chủ nhật"}
-    weekday_names_en = {0: "Monday", 1: "Tuesday", 2: "Wednesday", 3: "Thursday", 4: "Friday", 5: "Saturday", 6: "Sunday"}
-
-    notes = get_day_notes(now, lang=lang)
-    notes_text = "\n".join(f"• {item}" for item in notes)
-
-    if lang == "VN":
-        return (
-            f"📌 REMINDER ĐẦU NGÀY - {weekday_names_vn[weekday]} {now.strftime('%d/%m/%Y')}\n\n"
-            f"{notes_text}"
-        )
-    return (
-        f"📌 DAILY REMINDER - {weekday_names_en[weekday]} {now.strftime('%m/%d/%Y')}\n\n"
-        f"{notes_text}"
-    )
 
 class OakTradingReminder:
     def __init__(self, token=None, chat_id=None):
@@ -893,7 +850,7 @@ class OakTradingReminder:
     def _should_send_daily_briefing(self):
         """Check file-based lock for daily briefing with atomic lock to prevent race condition"""
         log_file = "daily_briefing.log"
-        now = datetime.now()
+        now = datetime.now(_get_vn_tz())
         today_str = now.strftime("%Y-%m-%d")
         
         # 1. Quick check main log
@@ -924,7 +881,7 @@ class OakTradingReminder:
     def _mark_daily_briefing_sent(self):
         """Update file-based lock after successful send"""
         log_file = "daily_briefing.log"
-        now = datetime.now()
+        now = datetime.now(_get_vn_tz())
         today_str = now.strftime("%Y-%m-%d")
         try:
             with open(log_file, "w", encoding="utf-8") as f:
@@ -958,8 +915,9 @@ class OakTradingReminder:
 
     def send_daily_briefing(self):
         """Send the daily report (News + Season Info)"""
-        print(f"--- Sending Daily Briefing at {datetime.now()} ---")
-        today_str = datetime.now().strftime("%Y-%m-%d")
+        now_vn = datetime.now(_get_vn_tz())
+        print(f"--- Sending Daily Briefing at {now_vn} ---")
+        today_str = now_vn.strftime("%Y-%m-%d")
         lock_path = os.path.join(LOCK_DIR, f"briefing_{today_str}.lock")
         
         try:
@@ -971,20 +929,16 @@ class OakTradingReminder:
             news = get_economic_news(lang=lang)
             
             # Construct Message
-            header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({datetime.now().strftime('%d/%m/%Y')})\n"
+            header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_vn.strftime('%d/%m/%Y')})\n"
             if lang == "EN":
-                header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({datetime.now().strftime('%m/%d/%Y')})\n"
+                header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_vn.strftime('%m/%d/%Y')})\n"
             
             full_msg = header
             
-            # Season info
-            is_winter = is_winter_time()
             if lang == "VN":
-                season_str = "MÙA ĐÔNG (GMT+2)" if is_winter else "MÙA HÈ (GMT+3)"
-                full_msg += f"🗓️ Chế độ giờ: {season_str}\n\n"
+                full_msg += "🗓️ Giờ hiển thị: Việt Nam (GMT+7)\n\n"
             else:
-                season_str = "WINTER TIME (GMT+2)" if is_winter else "SUMMER TIME (GMT+3)"
-                full_msg += f"🗓️ Time Mode: {season_str}\n\n"
+                full_msg += "🗓️ Display Time: Vietnam local time (GMT+7)\n\n"
             
             if news:
                 news_header = "🌍 TIN TỨC KINH TẾ:\n" if lang == "VN" else "🌍 ECONOMIC NEWS:\n"
@@ -1000,17 +954,6 @@ class OakTradingReminder:
                 if os.path.exists(lock_path):
                     os.remove(lock_path)
             except: pass
-
-    def send_rule_reminders(self, now, lang="VN"):
-        today_str = now.strftime("%Y-%m-%d")
-        key = f"rule_reminders_{today_str}"
-        msg = generate_daily_reminder(now, lang=lang)
-        if not msg:
-            return False
-        if self._is_event_locked(key):
-            return False
-        self.send_telegram(msg)
-        return True
 
     def get_projected_pnl(self, symbol, target_price, profile_name=None):
         """
@@ -1277,14 +1220,13 @@ class OakTradingReminder:
         # Startup check: Send briefing if not yet sent today
         if self._should_send_daily_briefing():
             if self.send_daily_briefing():
-                self.last_briefing_date = datetime.now().date()
+                self.last_briefing_date = datetime.now(_get_vn_tz()).date()
 
         while self.running and not self._stop_event.is_set():
             # 0. Check for Telegram commands removed to avoid polling conflicts with Manager
             # self.process_commands()
 
-            now = datetime.now()
-            now_utc = datetime.utcnow()
+            now = datetime.now(_get_vn_tz())
 
             # Skip weekends (Saturday=5, Sunday=6) - no trading
             if now.weekday() in (5, 6):
@@ -1301,7 +1243,6 @@ class OakTradingReminder:
                         self.send_daily_briefing()
                     self.last_briefing_date = now.date()
                     self.alerted_events.clear() # Reset alerts for new day
-                self.send_rule_reminders(now, lang=lang)
 
             # 2. Action Now alerts removed — use MT5 signal bot for Telegram alerts
 
