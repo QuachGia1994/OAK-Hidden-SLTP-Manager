@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.16.2)
+# OAK Hidden SLTP Manager (v3.16.3)
 
 Windows desktop console for MT5 trading operations: hidden SL/TP, Ghost Mode, signal bots, Telegram bridge, copy-trading helpers, scheduled orders, diagnostics, and the web dashboard.
 
@@ -21,8 +21,8 @@ Related docs:
 
 - Trading days: Monday to Friday.
 - Weekend: no desktop signal, no next slot, no countdown.
-- Active slots: H=2 through H=15 at broker `:45`.
-- H=2 is Rhythm 0 / XAU and uses M5/M30 only.
+- Active slots: H=2 through H=15 plus H=17 at broker `:45`.
+- H=2 is Rhythm 0 / XAU, uses M5/M30 plus XAUUSD M30 post-processing, and skips H1 gold.
 - H=14 is active but has no GBP focus.
 - No-gold labels:
   - Monday: H=3-15.
@@ -30,12 +30,14 @@ Related docs:
   - Thursday: H=3-4 and H=12-15.
   - Friday: none.
 - Friday reverses the computed signal back to gold at H=3-7 and H=9-10.
+- H=2 reverses by default on Tuesday and Thursday; Thursday special-calendar weeks keep it normal, while Friday special-calendar weeks reverse it.
 - Focus rules:
   - Monday H=9: GBPUSD + GBPCAD.
-  - Tuesday-Wednesday H=3-4: GBPAUD + GBPJPY opposite gold.
+  - Tuesday-Thursday H=2-4: GBPAUD + GBPJPY opposite gold; GBPUSD + GBPCAD stay `--`.
   - Tuesday-Thursday H=5-8: GBPAUD.
-  - Tuesday-Thursday H=9, H=10, H=11, H=12, H=13, H=15: full GBP group.
+  - Tuesday-Thursday H=9, H=11, H=12, H=15: full GBP group.
   - Friday: no GBP focus.
+- H=4 stores D-direction; H=17 displays XAUUSD from that H=4 D-direction.
 
 ## Fact Check AI
 

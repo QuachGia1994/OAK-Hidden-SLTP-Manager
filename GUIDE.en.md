@@ -1,4 +1,4 @@
-# OAK MANAGER User Guide (v3.16.2)
+# OAK MANAGER User Guide (v3.16.3)
 
 This guide covers the desktop app, signal bot, Telegram bridge, Fact Check worker, and web dashboard.
 
@@ -46,13 +46,13 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 | 2 | H=5-8 | AUD |
 | 3 | H=9-11 | GBP |
 | 4 | H=12-14 | EUR |
-| 5 | H=15 | USD |
+| 5 | H=15, H=17 | USD |
 
 ### Schedule
 
 | Day | Active hours |
 | --- | --- |
-| Monday-Friday | H=2-15 at broker `:45` |
+| Monday-Friday | H=2-15, H=17 at broker `:45` |
 | Saturday-Sunday | none |
 
 ### No-gold label
@@ -69,16 +69,20 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 | Day | Rule |
 | --- | --- |
 | Monday | H=9 focuses GBPUSD + GBPCAD only |
-| Tuesday-Wednesday | H=3-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP group; H=14 no GBP focus |
-| Thursday | H=3-4 no GBP focus; H=5-8 GBPAUD; H=9/10/11/12/13/15 full GBP group; H=14 no GBP focus |
+| Tuesday | H=2 reverses by default; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
+| Wednesday | H=2 normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
+| Thursday | H=2 reverses by default, except special-calendar weeks keep XAU normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
 | Friday | No GBP focus |
 
 ### Gold calculation notes
 
-- H=2 uses M5/M30 only and skips H1 gold.
-- GBPAUD and GBPJPY are opposite gold when direction is assigned.
+- H=2 uses GBPUSD M5/M30, keeps XAUUSD M30 post-processing, and skips H1 gold.
+- H=2 Friday is normally XAU-only, but special-calendar weeks reverse XAU.
+- GBPAUD and GBPJPY are opposite gold when direction is assigned; GBPUSD and GBPCAD are `--` at H=2-4.
 - Friday reverses the calculated signal back to gold at H=3-7 and H=9-10.
-- D-direction and the old H=9/11/12 direction matrix are removed.
+- H=4 stores D-direction: Monday/Friday opposite XAU, Tuesday/Wednesday/Thursday same XAU.
+- H=17 displays XAUUSD from the stored H=4 D-direction.
+- The old H=9/11/12 direction matrix is removed.
 
 ## 4. Web dashboard
 

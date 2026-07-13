@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.16.2)
+# OAK Hidden SLTP Manager (v3.16.3)
 
 Ứng dụng Windows desktop cho vận hành MT5: Hidden SL/TP, Ghost Mode, signal bot, Telegram bridge, copy-trading, lệnh hẹn giờ, diagnostics và dashboard web.
 
@@ -21,8 +21,8 @@ Tài liệu liên quan:
 
 - Ngày giao dịch: Thứ 2 đến Thứ 6.
 - Cuối tuần: không hiện tín hiệu, không có next slot, không countdown.
-- Slot active: H=2 đến H=15 tại phút `:45` broker.
-- H=2 là Nhịp 0 / XAU, chỉ xét M5/M30.
+- Slot active: H=2 đến H=15 và H=17 tại phút `:45` broker.
+- H=2 là Nhịp 0 / XAU, xét M5/M30 + XAUUSD M30 post-processing, không dùng H1 Vàng.
 - H=14 active nhưng không focus GBP.
 - No-gold label:
   - Thứ 2: H=3-15.
@@ -30,12 +30,14 @@ Tài liệu liên quan:
   - Thứ 5: H=3-4 và H=12-15.
   - Thứ 6: không có no-gold label.
 - Thứ 6 đảo kết quả tính toán về Vàng tại H=3-7 và H=9-10.
+- H=2 mặc định đảo vào Thứ 3 và Thứ 5; tuần đặc biệt làm Thứ 5 không đảo, còn Thứ 6 đảo.
 - Focus GBP:
   - Thứ 2 H=9: GBPUSD + GBPCAD.
-  - Thứ 3-Thứ 4 H=3-4: GBPAUD + GBPJPY ngược Vàng.
+  - Thứ 3-Thứ 5 H=2-4: GBPAUD + GBPJPY ngược Vàng; GBPUSD + GBPCAD là `--`.
   - Thứ 3-Thứ 5 H=5-8: GBPAUD.
-  - Thứ 3-Thứ 5 H=9, H=10, H=11, H=12, H=13, H=15: toàn nhóm GBP.
+  - Thứ 3-Thứ 5 H=9, H=11, H=12, H=15: toàn nhóm GBP.
   - Thứ 6: không focus GBP.
+- H=4 lưu D-direction; H=17 hiển thị XAUUSD theo D-direction của H=4.
 
 ## Fact Check AI
 

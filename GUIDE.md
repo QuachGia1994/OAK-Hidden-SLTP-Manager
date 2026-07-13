@@ -1,4 +1,4 @@
-# Cẩm nang OAK MANAGER (v3.16.2)
+# Cẩm nang OAK MANAGER (v3.16.3)
 
 Tài liệu này mô tả app desktop, signal bot, Telegram bridge, Fact Check worker và dashboard web.
 
@@ -46,13 +46,13 @@ Quản lý profile, copy-trading, lệnh hẹn giờ, lọc log và export debug
 | 2 | H=5-8 | AUD |
 | 3 | H=9-11 | GBP |
 | 4 | H=12-14 | EUR |
-| 5 | H=15 | USD |
+| 5 | H=15, H=17 | USD |
 
 ### Lịch slot
 
 | Ngày | Mốc active |
 | --- | --- |
-| Thứ 2-Thứ 6 | H=2-15 tại phút `:45` broker |
+| Thứ 2-Thứ 6 | H=2-15, H=17 tại phút `:45` broker |
 | Thứ 7-Chủ nhật | không có |
 
 ### No-gold label
@@ -69,16 +69,20 @@ Quản lý profile, copy-trading, lệnh hẹn giờ, lọc log và export debug
 | Ngày | Rule |
 | --- | --- |
 | Thứ 2 | H=9 focus GBPUSD + GBPCAD |
-| Thứ 3-Thứ 4 | H=3-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/10/11/12/13/15 toàn nhóm GBP; H=14 không focus GBP |
-| Thứ 5 | H=3-4 không focus GBP; H=5-8 GBPAUD; H=9/10/11/12/13/15 toàn nhóm GBP; H=14 không focus GBP |
+| Thứ 3 | H=2 đảo mặc định; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
+| Thứ 4 | H=2 bình thường; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
+| Thứ 5 | H=2 đảo mặc định, tuần đặc biệt thì XAU bình thường; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
 | Thứ 6 | không focus GBP |
 
 ### Ghi chú tính Vàng
 
-- H=2 chỉ xét M5/M30 và bỏ H1 Vàng.
-- GBPAUD và GBPJPY ngược Vàng khi có gán chiều.
+- H=2 xét GBPUSD M5/M30, vẫn chạy XAUUSD M30 post-processing, và bỏ H1 Vàng.
+- H=2 Thứ 6 bình thường XAU-only, nhưng tuần đặc biệt thì đảo XAU.
+- GBPAUD và GBPJPY ngược Vàng khi có gán chiều; GBPUSD và GBPCAD là `--` tại H=2-4.
 - Thứ 6 đảo kết quả tính toán về Vàng tại H=3-7 và H=9-10.
-- Đã bỏ D-direction và ma trận direction cũ H=9/11/12.
+- H=4 lưu D-direction: Thứ 2/Thứ 6 ngược XAU, Thứ 3/Thứ 4/Thứ 5 cùng XAU.
+- H=17 hiển thị XAUUSD theo D-direction đã lưu từ H=4.
+- Đã bỏ ma trận direction cũ H=9/11/12.
 
 ## 4. Dashboard web
 

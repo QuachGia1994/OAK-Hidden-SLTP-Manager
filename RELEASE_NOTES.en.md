@@ -1,5 +1,21 @@
 # RELEASE NOTES
 
+## [v3.16.3] - 2026-07-13
+
+### Signal matrix
+
+- Synced the release checklist across core H rules, no-gold labels, GBP focus, Telegram notes, and Dashboard rules.
+- Active slots are Monday-Friday H=2-15 plus H=17.
+- H=2 now follows the finalized weekday matrix: Tuesday and Thursday reverse by default, Wednesday is normal, Friday is normal unless the special calendar rule reverses it.
+- Tuesday-Thursday H=2-4 maps GBPAUD and GBPJPY opposite XAUUSD; GBPUSD and GBPCAD stay `--`.
+- Thursday H=3-4 now keeps GBPAUD/GBPJPY focus while still showing the no-gold badge.
+- H=4 D-direction and H=17 D-direction preview are documented as active.
+
+### Packaging
+
+- Bumped app version to **v3.16.3**.
+- Refreshed README / Guide / Release Notes and source backup defaults for the current signal engine.
+
 ## [v3.16.2] - 2026-07-12
 
 ### Dashboard + i18n

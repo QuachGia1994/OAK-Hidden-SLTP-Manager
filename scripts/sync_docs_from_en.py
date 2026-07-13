@@ -14,6 +14,12 @@ from __future__ import annotations
 import os
 import sys
 
+if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PAIRS = [
     ("GUIDE.en.md", "GUIDE.md"),

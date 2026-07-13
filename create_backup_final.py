@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() !=
 
 
 def read_version():
-    version = "v3.16.2"
+    version = "v3.16.3"
     for path in ("domain/constants.py", "OAK_Hidden_SLTP_Manager.py"):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -132,6 +132,7 @@ EXCLUDE_SUFFIXES = (
 # Code trees to walk
 INCLUDE_ROOTS = (
     "app.py",  # also via ROOT / glob; listed for clarity
+    ".github",
     "controllers",
     "domain",
     "dashboard",
