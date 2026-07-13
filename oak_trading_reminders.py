@@ -596,14 +596,16 @@ def get_day_notes(now, lang="VN"):
             "T3-T4 · H=9-11: KHÔNG đánh Vàng",
         ],
         3: [
-            "Slots: H=3-15",
+            "Slots: H=2-15,17",
+            "H=2: đảo signal theo calendar rule khi kích hoạt",
             "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
             "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
             "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
             "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
         ],
         4: [
-            "Slots: H=3-15",
+            "Slots: H=2-15,17",
+            "H=2: đảo signal theo calendar rule khi kích hoạt",
             "XAU: H=3-7 và H=9-10 đảo signal ra Vàng; các H khác đánh bình thường",
             "Không Focus GBP.",
         ],
@@ -631,14 +633,16 @@ def get_day_notes(now, lang="VN"):
             "Tue-Wed · H=9-11: no gold trade",
         ],
         3: [
-            "Slots: H=3-15",
+            "Slots: H=2-15,17",
+            "H=2: reverse signal when the calendar rule is active",
             "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
             "H=3-4, H=12-15: show NO TRADE badge",
             "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
             "H=9/10/11/12/15: focus full group · XAU no-gold from H=12",
         ],
         4: [
-            "Slots: H=3-15",
+            "Slots: H=2-15,17",
+            "H=2: reverse signal when the calendar rule is active",
             "XAU: H=3-7 and H=9-10 reverse signal to gold; other hours trade normally",
             "No GBP focus.",
         ],
@@ -646,26 +650,6 @@ def get_day_notes(now, lang="VN"):
 
     notes_vn = list(day_rules_vn.get(weekday, []))
     notes_en = list(day_rules_en.get(weekday, []))
-
-    # Thursday-only W1 calendar extras
-    if weekday == 3:
-        yesterday = today - timedelta(days=1)
-        if yesterday.weekday() == 2 and yesterday.day in (30, 1):
-            notes_vn.append(
-                f"Thứ 5 có Thứ 4 hôm qua ngày {yesterday.day}: cần tính lại W1."
-            )
-            notes_en.append(
-                f"Thursday after Wednesday day {yesterday.day}: recalculate W1."
-            )
-
-        friday = _friday_of_same_week(today)
-        if friday.day in (3, 4, 7):
-            notes_vn.append(
-                f"Thứ 5 có Thứ 6 ngày {friday.day}: cần tính lại W1."
-            )
-            notes_en.append(
-                f"Thursday with Friday day {friday.day}: recalculate W1."
-            )
 
     if lang == "VN":
         return notes_vn

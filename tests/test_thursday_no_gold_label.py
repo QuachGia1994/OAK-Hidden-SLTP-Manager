@@ -47,6 +47,20 @@ class TestThursdayAndFridayRules(unittest.TestCase):
             self.assertFalse(is_xau_no_trade_label_slot(hour, weekday=4))
             self.assertEqual(xau_no_trade_label_tag(hour, weekday=4), "")
 
+    def test_h2_calendar_reverse_note_for_thursday_and_friday(self):
+        self.assertEqual(
+            get_hour_note(2, broker_dt=datetime(2025, 5, 1, 2, 45)),
+            "Đảo signal ra Vàng (XAUUSD)",
+        )
+        self.assertEqual(
+            get_hour_note(2, broker_dt=datetime(2025, 1, 3, 2, 45)),
+            "Đảo signal ra Vàng (XAUUSD)",
+        )
+        self.assertEqual(
+            get_hour_note(2, broker_dt=datetime(2026, 7, 10, 2, 45)),
+            "Chỉ Vàng (XAUUSD)",
+        )
+
     def test_friday_signal_is_reversed_in_analysis(self):
         from unittest.mock import patch
         import mt5_signal_bot

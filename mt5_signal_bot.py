@@ -608,6 +608,20 @@ def get_xauusd_m30_signal(broker_dt, H):
         return "BUY" if d_m30 == "TANG" else "SELL"
     return None
 
+
+def is_h2_calendar_reverse_day(broker_dt):
+    """H=2 Thu/Fri calendar reversal.
+
+    Active when the Wednesday in the same week falls on day 30/1, or the
+    Friday in the same week falls on day 3/4/7.
+    """
+    if broker_dt.weekday() not in (3, 4):
+        return False
+    week_wednesday = broker_dt.date() + timedelta(days=(2 - broker_dt.weekday()))
+    week_friday = broker_dt.date() + timedelta(days=(4 - broker_dt.weekday()))
+    return week_wednesday.day in (30, 1) or week_friday.day in (3, 4, 7)
+
+
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
@@ -717,9 +731,9 @@ def analyze(broker_dt, H):
         )
 
     original_signal = signal
-    if H == 2 and broker_dt.weekday() in (1, 3):
+    if H == 2 and (broker_dt.weekday() == 1 or is_h2_calendar_reverse_day(broker_dt)):
         signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2 T3/T5: đảo signal XAU theo rule mới (chỉ M5/M30, bỏ H1 Vàng)."
+        report += "\nH=2: đảo signal XAU theo rule calendar (chỉ M5/M30, bỏ H1 Vàng)."
     if broker_dt.weekday() == 4 and (3 <= H <= 7 or H in (9, 10)):
         signal = "SELL" if signal == "BUY" else "BUY"
         report += "\nT6 H=3-7,9-10: đảo signal XAU ra Vàng theo rule mới."
@@ -786,7 +800,7 @@ def thursday_no_gold_label(lang="VN"):
     return "⚠ KHÔNG đánh Vàng (logic vẫn tính cho Focus GBP)"
 
 
-def get_hour_note(H, weekday=None):
+def get_hour_note(H, weekday=None, broker_dt=None):
     """Trả note theo H; T5 H=3-4 và T6 chủ yếu hiển thị XAUUSD.
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
@@ -799,6 +813,8 @@ def get_hour_note(H, weekday=None):
         return "Chỉ Vàng (XAUUSD)"
     if h == 17:
         return "XAUUSD theo D-direction H=4"
+    if h == 2 and broker_dt is not None and is_h2_calendar_reverse_day(broker_dt):
+        return "Đảo signal ra Vàng (XAUUSD)"
     if h == 2:
         return "Chỉ Vàng (XAUUSD)"
     if weekday == 4:
@@ -979,7 +995,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     m30_dir = signal_data.get("m30_dir")
     icon, emoji = get_signal_icon(sig)
 
-    hour_note = get_hour_note(H, broker_dt.weekday())
+    hour_note = get_hour_note(H, broker_dt=broker_dt)
     note_line = f"📝 {hour_note}\n" if hour_note else ""
 
     d_direction = _get_d_direction_from_day(broker_dt.date()) if int(H) == 17 else None
@@ -1058,7 +1074,7 @@ def rebuild_slot_signal(broker_dt, h, d_direction=None):
         pair_dirs = get_pair_direction(h, d_direction, broker_dt, d_direction=d_direction)
         if not pair_dirs:
             return False
-        hour_note = get_hour_note(h, broker_dt.weekday())
+        hour_note = get_hour_note(h, broker_dt=broker_dt)
         log_signal(h, broker_dt, d_direction, None, pair_dirs, hour_note)
         return True
 
@@ -1073,7 +1089,7 @@ def rebuild_slot_signal(broker_dt, h, d_direction=None):
 
     apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
 
-    hour_note = get_hour_note(h, broker_dt.weekday())
+    hour_note = get_hour_note(h, broker_dt=broker_dt)
     log_signal(h, broker_dt, sig, None, pair_dirs, hour_note)
     return True
 
@@ -1352,7 +1368,7 @@ def main(profile_name=None):
                 # Log for website
                 if not pair_dirs:
                     pair_dirs = {"XAUUSD": sig}
-                hour_note = get_hour_note(now_hour, broker_dt.weekday())
+                hour_note = get_hour_note(now_hour, broker_dt=broker_dt)
                 log_signal(now_hour, broker_dt, sig, None, pair_dirs, hour_note)
                 push_to_dashboard()
 

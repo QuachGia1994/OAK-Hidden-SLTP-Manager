@@ -283,14 +283,16 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       ...SPECIAL_DAY_NOTES.VN,
     ],
     4: [
-      "Slots: H=3-15",
+      "Slots: H=2-15,17",
+      "H=2: đảo signal theo calendar rule khi kích hoạt",
       "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
       "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
       "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
       "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
     ],
     5: [
-      "Slots: H=3-15",
+      "Slots: H=2-15,17",
+      "H=2: đảo signal theo calendar rule khi kích hoạt",
       "XAU: H=3-7 và H=9-10 đảo signal ra Vàng; các H khác đánh bình thường",
       "Không Focus GBP.",
     ],
@@ -314,63 +316,24 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       ...SPECIAL_DAY_NOTES.EN,
     ],
     4: [
-      "Slots: H=3-15",
+      "Slots: H=2-15,17",
+      "H=2: reverse signal when the calendar rule is active",
       "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
       "H=3-4, H=12-15: show NO TRADE badge",
       "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
       "H=9/10/11/12/15: focus full group · XAU no-gold from H=12",
     ],
     5: [
-      "Slots: H=3-15",
+      "Slots: H=2-15,17",
+      "H=2: reverse signal when the calendar rule is active",
       "XAU: H=3-7 and H=9-10 reverse signal to gold; other hours trade normally",
       "No GBP focus.",
     ],
   },
 };
 
-function getBangkokDate(date: Date): Date {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const year = Number(parts.find((part) => part.type === "year")?.value);
-  const month = Number(parts.find((part) => part.type === "month")?.value);
-  const day = Number(parts.find((part) => part.type === "day")?.value);
-  return new Date(Date.UTC(year, month - 1, day, 12));
-}
-
-function addUtcDays(date: Date, days: number): Date {
-  const next = new Date(date);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next;
-}
-
 export function getDayRules(locale: RuleLocale, jsWeekday: number, date: Date = new Date()): string[] {
   const rules = [...(DAY_RULES[locale][jsWeekday] || [])];
-  if (jsWeekday !== 4) return rules;
-
-  const today = getBangkokDate(date);
-  const yesterday = addUtcDays(today, -1);
-  const friday = addUtcDays(today, 1);
-  const yesterdayDay = yesterday.getUTCDate();
-  const fridayDay = friday.getUTCDate();
-
-  if (yesterday.getUTCDay() === 3 && (yesterdayDay === 30 || yesterdayDay === 1)) {
-    rules.push(
-      locale === "EN"
-        ? `Thursday after Wednesday day ${yesterdayDay}: recalculate W1.`
-        : `Thứ 5 có Thứ 4 hôm qua ngày ${yesterdayDay}: cần tính lại W1.`,
-    );
-  }
-  if (friday.getUTCDay() === 5 && (fridayDay === 3 || fridayDay === 4 || fridayDay === 7)) {
-    rules.push(
-      locale === "EN"
-        ? `Thursday with Friday day ${fridayDay}: recalculate W1.`
-        : `Thứ 5 có Thứ 6 ngày ${fridayDay}: cần tính lại W1.`,
-    );
-  }
   return rules;
 }
 

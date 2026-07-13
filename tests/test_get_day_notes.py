@@ -1,37 +1,31 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for Thursday-only special day notes in get_day_notes()."""
+"""Unit tests for daily rule notes synced with the dashboard matrix."""
 import unittest
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from oak_trading_reminders import get_day_notes, _friday_of_same_week
 
 
-class TestGetDayNotesThursdayOnly(unittest.TestCase):
-    def test_thursday_after_wednesday_day_30(self):
-        # 2025-05-01 is Thursday; yesterday Wed 2025-04-30
-        notes = get_day_notes(date(2025, 5, 1), lang="VN")
-        self.assertTrue(any("Thứ 4 hôm qua ngày 30" in n for n in notes), notes)
+class TestGetDayNotes(unittest.TestCase):
+    def test_special_calendar_details_are_not_announced(self):
+        cases = (
+            date(2025, 5, 1),   # Thu after Wed day 30
+            date(2025, 10, 2),  # Thu after Wed day 1
+            date(2025, 1, 2),   # Thu before Fri day 3
+            date(2025, 7, 3),   # Thu before Fri day 4
+            date(2025, 2, 6),   # Thu before Fri day 7
+        )
+        blocked = ("ngày 30", "ngày 1", "ngày 3", "ngày 4", "ngày 7", "tính lại W1", "recalculate W1")
+        for day in cases:
+            with self.subTest(day=day):
+                blob = " ".join(get_day_notes(day, lang="VN"))
+                self.assertFalse(any(term in blob for term in blocked), blob)
 
-    def test_thursday_after_wednesday_day_1(self):
-        # Find a Thursday whose yesterday Wed is day 1
-        # 2025-10-02 is Thursday; Wed=2025-10-01
-        notes = get_day_notes(date(2025, 10, 2), lang="VN")
-        self.assertTrue(any("Thứ 4 hôm qua ngày 1" in n for n in notes), notes)
-
-    def test_thursday_with_friday_day_3(self):
-        # Thursday before Friday day 3: 2025-01-02 is Thursday, Fri=3
-        notes = get_day_notes(date(2025, 1, 2), lang="VN")
-        self.assertTrue(any("Thứ 6 ngày 3" in n for n in notes), notes)
-
-    def test_thursday_with_friday_day_4(self):
-        # 2025-07-03 is Thursday, Fri=4
-        notes = get_day_notes(date(2025, 7, 3), lang="VN")
-        self.assertTrue(any("Thứ 6 ngày 4" in n for n in notes), notes)
-
-    def test_thursday_with_friday_day_7(self):
-        # 2025-02-06 is Thursday, Fri=7
-        notes = get_day_notes(date(2025, 2, 6), lang="VN")
-        self.assertTrue(any("Thứ 6 ngày 7" in n for n in notes), notes)
+    def test_thursday_and_friday_have_compact_h2_calendar_rule_note(self):
+        for day in (date(2025, 5, 1), date(2025, 1, 3)):
+            with self.subTest(day=day):
+                blob = " ".join(get_day_notes(day, lang="VN"))
+                self.assertIn("H=2: đảo signal theo calendar rule khi kích hoạt", blob)
 
     def test_wednesday_has_core_schedule(self):
         notes = get_day_notes(date(2025, 4, 30), lang="VN")
@@ -49,7 +43,8 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
     def test_friday_en_matches_bot(self):
         notes = get_day_notes(date(2026, 7, 10), lang="EN")
         blob = " ".join(notes)
-        self.assertIn("H=3-15", blob)
+        self.assertIn("H=2-15,17", blob)
+        self.assertIn("H=2: reverse signal when the calendar rule is active", blob)
         self.assertIn("H=3-7 and H=9-10", blob)
         self.assertIn("reverse signal to gold", blob)
         self.assertNotIn("trade normally per schedule", blob)
@@ -57,12 +52,14 @@ class TestGetDayNotesThursdayOnly(unittest.TestCase):
     def test_normal_thursday_default(self):
         notes = get_day_notes(date(2026, 7, 9), lang="VN")
         blob = " ".join(notes)
-        self.assertIn("H=3-15", blob)
+        self.assertIn("H=2-15,17", blob)
         self.assertIn("H=3-4", blob)
 
-    def test_accepts_datetime(self):
+    def test_accepts_datetime_without_special_detail(self):
         notes = get_day_notes(datetime(2025, 5, 1, 10, 0, 0), lang="VN")
-        self.assertTrue(any("ngày 30" in n for n in notes))
+        blob = " ".join(notes)
+        self.assertIn("H=2: đảo signal theo calendar rule khi kích hoạt", blob)
+        self.assertNotIn("ngày 30", blob)
 
     def test_friday_helper(self):
         thu = date(2025, 7, 3)
