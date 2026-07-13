@@ -230,7 +230,6 @@ def _load_state():
         "sent_today": set(tuple(x) for x in data.get("sent_today", [])),
         "d_direction": data.get("d_direction"),
         "d_direction_date": data.get("d_direction_date"),
-        "d_matched_hour": data.get("d_matched_hour"),
     }
 
 def _save_state(day_signals, sent_today):
@@ -249,7 +248,6 @@ def _save_state(day_signals, sent_today):
         "sent_today": st_json,
         "d_direction": ds_json.get("4", {}).get("d_direction"),
         "d_direction_date": today_str if ds_json.get("4", {}).get("d_direction") else None,
-        "d_matched_hour": 17 if ds_json.get("4", {}).get("d_direction") else None,
     }
     try:
         tmp_file = _STATE_FILE + ".tmp"

@@ -39,18 +39,3 @@ export function getBrokerDateParts(now = new Date()) {
   return { currentHour, dayOfWeek, todayStr };
 }
 
-export function getFirstD1MatchHour(
-  signals: Array<{ hour: number; signal?: string; d_direction?: string | null; pair_dirs?: Record<string, string> }>,
-  dDirection?: string | null,
-) {
-  if (!dDirection) return null;
-  const matched = [...signals]
-    .sort((a, b) => a.hour - b.hour)
-    .find((signal) => signal.d_direction === dDirection || signal.pair_dirs?.XAUUSD === dDirection);
-
-  return matched?.hour ?? null;
-}
-
-export function isD1ActiveWeekday(dayOfWeek: number) {
-  return dayOfWeek === 1 || dayOfWeek === 4 || dayOfWeek === 5;
-}

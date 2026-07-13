@@ -3,7 +3,7 @@ import { SignalCard } from "@/components/SignalCard";
 import { getTargetHours, getSignalLabel, brokerToLocalTime } from "@/lib/constants";
 import { hasVipAccess } from "@/lib/vip";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
-import { getBrokerDateParts, getFirstD1MatchHour, isD1ActiveWeekday } from "@/lib/trading-time";
+import { getBrokerDateParts } from "@/lib/trading-time";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 
@@ -44,12 +44,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hoursToday = getTargetHours(dayOfWeek);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
-  const d1Active = isD1ActiveWeekday(dayOfWeek);
   const h4DDirection = todaySignals.find((s) => s.hour === 4)?.pair_dirs?.["D-DIRECTION"];
-  const activeDDirection = d1Active ? (botState?.d_direction || h4DDirection || null) : null;
-  const firstD1MatchHour = d1Active ? (botState?.d_matched_hour ?? getFirstD1MatchHour(todaySignals, activeDDirection)) : null;
-  const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
-  const d1MatchWindow = firstD1MatchHour !== null ? (locale === "EN" ? "Applies until H=11" : "Áp dụng tới H=11") : null;
+  const activeDDirection = botState?.d_direction || h4DDirection || null;
 
   const allSlots = hoursToday.map((h) => {
     const signal = signalsByHour.get(h);
@@ -95,13 +91,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <MiniStat label={t.vip} value={isVIP ? t.unlocked : t.locked} />
           </div>
         </div>
-        {d1MatchBadge && (
-          <div className="mt-2 inline-flex flex-wrap items-center gap-2 self-start rounded-full border border-emerald-200/80 dark:border-emerald-500/20 bg-emerald-50/80 dark:bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-            <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-            <span>{d1MatchBadge}</span>
-            {d1MatchWindow && <span className="text-emerald-500 dark:text-emerald-400">• {d1MatchWindow}</span>}
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-5">
@@ -146,7 +135,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               key={`${signal.date}-${signal.hour}`}
               signal={signal}
               isVIP={isVIP}
-              showD1Match={firstD1MatchHour !== null && signal.hour >= firstD1MatchHour && signal.hour < 12}
             />
           ))}
         </div>

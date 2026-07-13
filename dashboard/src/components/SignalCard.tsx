@@ -19,16 +19,6 @@ import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 
-function isD1MatchNote(note: string | null | undefined) {
-  return !!note && note.includes("tick match D1");
-}
-
-function getD1MatchNote(direction: Signal["d_direction"]) {
-  if (direction === "BUY") return "XAUUSD: Mua BUY (tick match D1)";
-  if (direction === "SELL") return "XAUUSD: Bán SELL (tick match D1)";
-  return "XAUUSD: tick match D1";
-}
-
 function stripNoGoldProse(note: string | null | undefined): string | null {
   if (!note) return null;
   const clean = note
@@ -64,26 +54,22 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
 export function SignalCard({
   signal,
   isVIP,
-  showD1Match = false,
 }: {
   signal: Signal;
   isVIP?: boolean;
-  showD1Match?: boolean;
 }) {
   const { locale } = useLocale();
   const localTime = brokerToLocalTime(signal.hour, 45);
   const weekday = weekdayFromDate(signal.date);
-  const fallbackHourNote = signal.date || isD1MatchNote(signal.hour_note)
+  const fallbackHourNote = signal.date
     ? getHourNote(signal.hour, weekday)
     : signal.hour_note;
-  const rawHourNote = showD1Match
-    ? getD1MatchNote(signal.d_direction)
-    : (fallbackHourNote || getHourNote(signal.hour, weekday));
+  const rawHourNote = fallbackHourNote || getHourNote(signal.hour, weekday);
   const noGoldEntry = signal.date
     ? isXauNoTradeLabelSlot(signal.hour, weekday)
     : signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
   const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
-  const hourNote = translateHourNote(showD1Match ? rawHourNote : stripNoGoldProse(rawHourNote), locale);
+  const hourNote = translateHourNote(stripNoGoldProse(rawHourNote), locale);
   const rhythmLabel = getRhythmLabel(signal.hour, locale);
 
   const gbpPairs = getFocusGbpPairs(signal.hour, weekday);
@@ -183,16 +169,7 @@ export function SignalCard({
 
       {hourNote && (
         <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/40">
-          {showD1Match ? (
-            <div className="flex items-center gap-1.5">
-              <svg className="w-3.5 h-3.5 text-emerald-500 dark:text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium leading-snug">{hourNote}</p>
-            </div>
-          ) : (
-            <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
-          )}
+          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
         </div>
       )}
     </div>

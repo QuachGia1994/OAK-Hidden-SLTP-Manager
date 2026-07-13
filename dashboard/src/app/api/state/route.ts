@@ -13,7 +13,6 @@ export async function GET(request: Request) {
       date: state.date ?? null,
       d_direction: null,
       d_direction_date: null,
-      d_matched_hour: null,
       day_signals: {},
       sent_today: [],
     });

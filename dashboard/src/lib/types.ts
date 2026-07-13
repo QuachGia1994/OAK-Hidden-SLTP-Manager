@@ -16,7 +16,6 @@ export interface BotState {
   sent_today: [string, number][];
   d_direction: string | null;
   d_direction_date: string | null;
-  d_matched_hour: number | null;
 }
 
 export interface NewsItem {
