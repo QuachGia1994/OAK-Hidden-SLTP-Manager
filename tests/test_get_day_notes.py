@@ -23,8 +23,8 @@ class TestGetDayNotes(unittest.TestCase):
 
     def test_h2_notes_match_weekday_matrix(self):
         cases = (
-            (date(2025, 4, 29), "H=2: đảo signal ra Vàng theo mặc định"),
-            (date(2025, 4, 30), "H=2: XAU only"),
+            (date(2025, 4, 29), "H=2: đảo signal mặc định · Focus GBPAUD/GBPJPY ngược XAU"),
+            (date(2025, 4, 30), "H=2: bình thường · Focus GBPAUD/GBPJPY ngược XAU"),
             (date(2025, 5, 1), "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường"),
             (date(2025, 1, 3), "H=2: mặc định XAU bình thường; ngày đặc biệt thì đảo signal ra Vàng"),
         )

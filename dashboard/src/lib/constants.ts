@@ -30,22 +30,22 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
 /**
  * GBP focus pairs by hour. Friday has no GBP Focus.
  * No BUY/SELL dims — UI only marks Focus.
- * - H=2 computes GA/GJ opposite gold, but it is not a GBP Focus slot in UI notes.
- * - Tue–Wed H=3-4: GA+GJ opposite gold; Tue–Thu H=5-8: GA only
- * - Thu H=3-4 and Fri: no GBP Focus
+ * - Tue–Thu H=2-4: GA+GJ opposite gold.
+ * - Tue–Thu H=5-8: GA only.
+ * - Fri: no GBP Focus.
  * - H=9/11/12/15 Mon–Thu: full group
  * - Fri (JS=5): no GBP Focus
  */
 export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   const h = Number(hour);
   if (!Number.isFinite(h)) return [];
-  if (h === 2) return [];
+  if (h === 2) return jsWeekday === 2 || jsWeekday === 3 || jsWeekday === 4 ? ["GBPAUD", "GBPJPY"] : [];
   if (jsWeekday === 1) {
     return h === 9 ? ["GBPUSD", "GBPCAD"] : [];
   }
   if (jsWeekday === 5) return [];
   if (jsWeekday === 4) {
-    if (h === 3 || h === 4) return [];
+    if (h === 3 || h === 4) return ["GBPAUD", "GBPJPY"];
     if (h >= 5 && h <= 8) return ["GBPAUD"];
   }
   if (h === 3 || h === 4) return ["GBPAUD", "GBPJPY"];
@@ -63,7 +63,7 @@ export function isGbpFocusOnlySlot(hour: number): boolean {
 }
 
 /**
- * H=2 every weekday and H=3-4: GBPAUD and GBPJPY are both opposite gold.
+ * H=2-4 on Tue-Thu: GBPAUD and GBPJPY are both opposite gold.
  * Prefer pair_dirs; else derive from XAUUSD.
  */
 export function resolveGbpDirection(
@@ -209,7 +209,7 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
     return h === 9 ? "Chỉ Focus GBPUSD · GBPCAD" : "Chỉ Vàng (XAUUSD)";
   }
   if ((jsWeekday === 2 || jsWeekday === 3) && h >= 9 && h <= 11) return "Chỉ Vàng (XAUUSD)";
-  if (jsWeekday === 4 && (h === 3 || h === 4)) return "Chỉ Vàng (XAUUSD)";
+  if (jsWeekday === 4 && (h === 3 || h === 4)) return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)";
   if (jsWeekday === 4 && h >= 5 && h <= 8) return "Chỉ Focus GBPAUD";
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
@@ -218,16 +218,16 @@ type RuleLocale = "VN" | "EN";
 
 const PAIR_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "H=2: XAU only · không Focus GBP",
-    "T3-T4 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
+    "H=2 T3-T5: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
+    "T3-T5 H=3-4: pair_dirs map GA/GJ đều ngược Vàng; Focus GA+GJ",
     "H=5-8: Chỉ Focus GA; không map pair_dirs GBP (chỉ XAUUSD)",
     "H=9 / 10 / 11 / 12 / 15: Focus toàn nhóm GBP T2-T5",
     "H khác trong band: chỉ XAUUSD",
     "GBP: không hiển thị Mua/Bán; chỉ Focus (+ quan hệ vs Vàng chỉ ở H=3-4)",
   ],
   EN: [
-    "H=2: XAU only · no GBP focus",
-    "Tue-Wed H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
+    "H=2 Tue-Thu: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
+    "Tue-Thu H=3-4: pair_dirs maps GA/GJ opposite gold; focus GA+GJ",
     "H=5-8: Focus GA only; do not map GBP pair_dirs (XAUUSD only)",
     "H=9 / 10 / 11 / 12 / 15: focus the full GBP group from Mon-Thu",
     "Other in-band hours: XAUUSD only",
@@ -240,23 +240,23 @@ const PAIR_RULES: Record<RuleLocale, string[]> = {
 /** Special calendar notes — shared Mon-Fri. */
 const SPECIAL_DAY_NOTES: Record<RuleLocale, string[]> = {
   VN: [
-    "H=2: XAU only · không Focus GBP",
+    "H=2 T3-T5: Focus GA+GJ ngược Vàng; T2/T6 XAU only",
     "T3-T4 · H=9-11: KHÔNG đánh Vàng",
     "T2 · H=3-15: KHÔNG đánh Vàng; H=9 chỉ Focus GBPUSD · GBPCAD",
     "T2-T6: slots H=2-15,17",
     "T5 · H=3-4 và H>=12: KHÔNG đánh Vàng (đánh H=5-11)",
     "T6: không no-gold label; H=3-7 và H=9-10 đảo signal ra Vàng",
-    "pair_dirs GBP map chỉ H=3-4; H=5+ XAU only + Focus list",
+    "pair_dirs GBP map T3-T5 H=2-4; H=5+ XAU only + Focus list",
     "H=4/H=17: cầu D-direction đang bật",
   ],
   EN: [
-    "H=2: XAU only · no GBP focus",
+    "H=2 Tue-Thu: focus GA+GJ opposite gold; Mon/Fri XAU only",
     "Tue-Wed · H=9-11: no gold trade",
     "Monday · H=3-15: no gold trade; H=9 focuses GBPUSD · GBPCAD only",
     "Mon-Fri: slots H=2-15,17",
     "Thursday · H=3-4 and H>=12: no gold trade (trade H=5-11)",
     "Friday: no no-gold labels; H=3-7 and H=9-10 reverse signal to gold",
-    "GBP pair_dirs maps only H=3-4; H=5+ is XAU only + focus list",
+    "GBP pair_dirs maps Tue-Thu H=2-4; H=5+ is XAU only + focus list",
     "H=4: D-direction = opposite XAUUSD on Mon/Fri, same XAUUSD on Tue/Wed/Thu",
     "H=17: XAUUSD uses the H=4 D-direction",
     "H=4/H=17 D-direction bridge is active",
@@ -274,21 +274,22 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
     2: [
       "Slots: H=2-15,17 · XAU đánh bình thường",
-      "H=2: đảo signal ra Vàng theo mặc định",
+      "H=2: đảo signal mặc định · Focus GBPAUD/GBPJPY ngược XAU",
       ...PAIR_RULES.VN,
       ...SPECIAL_DAY_NOTES.VN,
     ],
     3: [
       "Slots: H=2-15,17 · XAU đánh bình thường",
-      "H=2: XAU only · không Focus GBP",
+      "H=2: bình thường · Focus GBPAUD/GBPJPY ngược XAU",
       ...PAIR_RULES.VN,
       ...SPECIAL_DAY_NOTES.VN,
     ],
     4: [
       "Slots: H=2-15,17",
-      "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường",
+      "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường · Focus GBPAUD/GBPJPY ngược XAU",
       "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
-      "H=3-4, H=12-15: badge KHÔNG ĐÁNH",
+      "H=3-4: Focus GBPAUD/GBPJPY ngược XAU · badge KHÔNG ĐÁNH",
+      "H=12-15: badge KHÔNG ĐÁNH",
       "H=5-8: chỉ Focus GBPAUD · XAU đánh · không map GBP",
       "H=9/10/11/12/15: Focus full nhóm · XAU no-gold từ H=12",
     ],
@@ -309,21 +310,22 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
     2: [
       "Slots: H=2-15,17 · XAU trades normally",
-      "H=2: reverse signal by default",
+      "H=2: reverse by default · focus GBPAUD/GBPJPY opposite XAU",
       ...PAIR_RULES.EN,
       ...SPECIAL_DAY_NOTES.EN,
     ],
     3: [
       "Slots: H=2-15,17 · XAU trades normally",
-      "H=2: XAU only · no GBP focus",
+      "H=2: normal · focus GBPAUD/GBPJPY opposite XAU",
       ...PAIR_RULES.EN,
       ...SPECIAL_DAY_NOTES.EN,
     ],
     4: [
       "Slots: H=2-15,17",
-      "H=2: reverse by default; calendar exception keeps XAU normal",
+      "H=2: reverse by default; calendar exception keeps XAU normal · focus GBPAUD/GBPJPY opposite XAU",
       "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
-      "H=3-4, H=12-15: show NO TRADE badge",
+      "H=3-4: focus GBPAUD/GBPJPY opposite XAU · show NO TRADE badge",
+      "H=12-15: show NO TRADE badge",
       "H=5-8: focus GBPAUD only · XAU trades · do not map GBP",
       "H=9/10/11/12/15: focus full group · XAU no-gold from H=12",
     ],

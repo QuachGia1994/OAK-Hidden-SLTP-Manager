@@ -35,6 +35,7 @@ class TestThursdayAndFridayRules(unittest.TestCase):
                     self.assertEqual(xau_no_trade_label_tag(hour, weekday=weekday), "T3/T4 H=9-11")
 
     def test_friday_has_no_gbp_focus(self):
+        self.assertEqual(get_focus_gbp_pairs(2, weekday=4), [])
         for hour in range(3, 16):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=4), [])
         self.assertEqual(get_hour_note(3, weekday=4), "Đảo signal ra Vàng (XAUUSD)")
@@ -88,14 +89,18 @@ class TestThursdayAndFridayRules(unittest.TestCase):
     def test_thursday_focus_schedule(self):
         thursday = datetime(2026, 7, 9, 12, 0)
         for hour in (3, 4):
-            self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), [])
-            self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Vàng (XAUUSD)")
+            self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), ["GBPAUD", "GBPJPY"])
+            self.assertEqual(get_hour_note(hour, weekday=3), "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)")
             result = get_pair_direction(hour, "BUY", thursday)
             self.assertEqual(result["XAUUSD"], "BUY")
+            self.assertEqual(result["GBPAUD"], "SELL")
+            self.assertEqual(result["GBPJPY"], "SELL")
+            self.assertEqual(result["GBPUSD"], "--")
+            self.assertEqual(result["GBPCAD"], "--")
             if hour == 4:
                 self.assertEqual(result["D-DIRECTION"], "BUY")
             else:
-                self.assertEqual(result, {"XAUUSD": "BUY"})
+                self.assertNotIn("D-DIRECTION", result)
         for hour in (5, 6, 7, 8):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), ["GBPAUD"])
             self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Focus GBPAUD")
@@ -126,6 +131,14 @@ class TestThursdayAndFridayRules(unittest.TestCase):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=0), [])
             self.assertEqual(get_hour_note(hour, weekday=0), "Chỉ Vàng (XAUUSD)")
         self.assertEqual(get_hour_note(9, weekday=0), "Chỉ Focus GBPUSD · GBPCAD")
+
+    def test_h2_focus_pairs_tuesday_to_thursday_only(self):
+        for weekday in (1, 2, 3):
+            with self.subTest(weekday=weekday):
+                self.assertEqual(get_focus_gbp_pairs(2, weekday=weekday), ["GBPAUD", "GBPJPY"])
+        for weekday in (0, 4):
+            with self.subTest(weekday=weekday):
+                self.assertEqual(get_focus_gbp_pairs(2, weekday=weekday), [])
 
     def test_monday_telegram_no_gold_block_does_not_show_gbpaud_focus(self):
         block = format_telegram_pair_block({"XAUUSD": "BUY"}, 5, weekday=0)
