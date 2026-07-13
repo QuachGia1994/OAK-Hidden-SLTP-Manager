@@ -2016,6 +2016,7 @@ class CopyTradeManager:
         if not token:
             return False
         t = str(token).strip().lower()
+        plain_t = _plain_command_text(t)
         if len(t) < 2:
             return False
         if re.fullmatch(r"\d+(\.\d+)?", t):
@@ -2031,8 +2032,10 @@ class CopyTradeManager:
             "pending", "close", "closeall", "modify", "status", "list",
             "del", "help", "sl", "tp", "all", "profit", "loss", "lời", "lãi", "lỗ",
             "mai", "today", "tomorrow", "risk", "lot", "filter",
+            "ngay", "b?y", "bay", "gi?", "gio", "t?t", "tat", "c?", "ca",
+            "now",
         }
-        if t in skip:
+        if t in skip or plain_t in skip:
             return False
         u = t.upper()
         if any(s in u for s in ("USD", "JPY", "EUR", "GBP", "AUD", "CAD", "CHF", "NZD", "XAU", "GOLD")):
