@@ -97,6 +97,14 @@ class TestThursdayAndFridayRules(unittest.TestCase):
         self.assertEqual(get_focus_gbp_pairs(9, weekday=0), ["GBPUSD", "GBPCAD"])
         for hour in (3, 4, 5, 8, 10, 11, 12, 14, 15):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=0), [])
+            self.assertEqual(get_hour_note(hour, weekday=0), "Chỉ Vàng (XAUUSD)")
+        self.assertEqual(get_hour_note(9, weekday=0), "Chỉ Focus GBPUSD · GBPCAD")
+
+    def test_monday_telegram_no_gold_block_does_not_show_gbpaud_focus(self):
+        block = format_telegram_pair_block({"XAUUSD": "BUY"}, 5, weekday=0)
+        self.assertIn("KHÔNG ĐÁNH", block)
+        self.assertNotIn("GBPAUD", block)
+        self.assertNotIn("Cặp GBP tập trung", block)
 
 
 if __name__ == "__main__":

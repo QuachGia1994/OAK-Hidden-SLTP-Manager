@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { FactCheckResult } from "@/lib/types";
 import { useLocale } from "@/components/LocaleProvider";
+import type { PSM } from "tesseract.js";
 
 const TEXT = {
   VN: {
@@ -140,8 +141,10 @@ const TEXT = {
 type LocaleText = (typeof TEXT)[keyof typeof TEXT];
 
 const OCR_LANGS = "vie+eng";
-const OCR_MAX_WIDTH = 2200;
+const OCR_MAX_WIDTH = 3200;
 const OCR_BOTTOM_CROP_RATIO = 0.58;
+const OCR_CENTER_CROP_RATIO = 0.7;
+const OCR_CHAR_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝĂĐĨŨƠƯàáâãèéêìíòóôõùúýăđĩũơưẠ-ỹ0123456789.,:%/()?!+-–—₫đĐ \\n";
 
 function ScoreBar({ score }: { score: number }) {
   const clamped = Math.max(0, Math.min(100, score || 0));
@@ -426,10 +429,17 @@ async function loadImage(file: File): Promise<HTMLImageElement> {
   }
 }
 
-async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropBottom?: boolean; threshold?: boolean }): Promise<Blob> {
-  const sourceY = options.cropBottom ? Math.floor(img.naturalHeight * (1 - OCR_BOTTOM_CROP_RATIO)) : 0;
-  const sourceH = options.cropBottom ? Math.max(1, Math.floor(img.naturalHeight * OCR_BOTTOM_CROP_RATIO)) : img.naturalHeight;
-  const desiredScale = Math.min(2.6, Math.max(1.25, OCR_MAX_WIDTH / Math.max(img.naturalWidth, 1)));
+async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropBottom?: boolean; cropCenter?: boolean; threshold?: boolean; invert?: boolean }): Promise<Blob> {
+  let sourceY = 0;
+  let sourceH = img.naturalHeight;
+  if (options.cropBottom) {
+    sourceY = Math.floor(img.naturalHeight * (1 - OCR_BOTTOM_CROP_RATIO));
+    sourceH = Math.max(1, Math.floor(img.naturalHeight * OCR_BOTTOM_CROP_RATIO));
+  } else if (options.cropCenter) {
+    sourceH = Math.max(1, Math.floor(img.naturalHeight * OCR_CENTER_CROP_RATIO));
+    sourceY = Math.floor((img.naturalHeight - sourceH) / 2);
+  }
+  const desiredScale = Math.min(3.2, Math.max(1.35, OCR_MAX_WIDTH / Math.max(img.naturalWidth, 1)));
   const safeScale = Math.sqrt(20_000_000 / Math.max(img.naturalWidth * sourceH, 1));
   const scale = Math.min(desiredScale, Math.max(0.5, safeScale));
   const canvas = document.createElement("canvas");
@@ -439,15 +449,16 @@ async function renderOcrVariantFromImage(img: HTMLImageElement, options: { cropB
   if (!ctx) throw new Error("Canvas unavailable");
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  ctx.filter = options.threshold ? "grayscale(1) contrast(2.1) brightness(1.06)" : "grayscale(1) contrast(1.65) brightness(1.08)";
+  ctx.filter = options.threshold ? "grayscale(1) contrast(2.35) brightness(1.1)" : "grayscale(1) contrast(1.9) brightness(1.12)";
   ctx.drawImage(img, 0, sourceY, img.naturalWidth, sourceH, 0, 0, canvas.width, canvas.height);
-  if (options.threshold) {
+  if (options.threshold || options.invert) {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     const threshold = otsuThreshold(imageData);
     for (let i = 0; i < pixels.length; i += 4) {
       const luminance = (pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
-      const value = luminance > threshold ? 255 : 0;
+      let value = options.threshold ? (luminance > threshold ? 255 : 0) : luminance;
+      if (options.invert) value = 255 - value;
       pixels[i] = value;
       pixels[i + 1] = value;
       pixels[i + 2] = value;
@@ -489,6 +500,9 @@ async function buildOcrVariants(file: File, image: HTMLImageElement) {
     { label: "original", blob: file },
     { label: "enhanced", blob: await renderOcrVariantFromImage(image, { threshold: false }) },
     { label: "threshold", blob: await renderOcrVariantFromImage(image, { threshold: true }) },
+    { label: "inverted", blob: await renderOcrVariantFromImage(image, { invert: true }) },
+    { label: "center", blob: await renderOcrVariantFromImage(image, { cropCenter: true }) },
+    { label: "center-threshold", blob: await renderOcrVariantFromImage(image, { cropCenter: true, threshold: true }) },
     { label: "bottom", blob: await renderOcrVariantFromImage(image, { cropBottom: true }) },
     { label: "bottom-threshold", blob: await renderOcrVariantFromImage(image, { cropBottom: true, threshold: true }) },
   ];
@@ -498,16 +512,26 @@ async function recognizeBestOcrText(file: File): Promise<string> {
   if (!file.type.startsWith("image/") || file.size > 12 * 1024 * 1024) throw new Error("Unsupported image");
   const Tesseract = await import("tesseract.js");
   const variants = await buildOcrVariants(file, await loadImage(file));
-  const worker = await Tesseract.createWorker(OCR_LANGS);
+  const worker = await Tesseract.createWorker(OCR_LANGS, 1, {
+    legacyCore: false,
+    legacyLang: false,
+  });
   let bestText = "";
   let bestScore = -1;
   try {
     for (const variant of variants) {
-      const { data } = await worker.recognize(variant.blob);
-      const cleaned = cleanOcrText(data.text || "");
-      const confidence = typeof data.confidence === "number" ? data.confidence : 0;
-      const score = scoreOcrText(cleaned, confidence);
-      if (cleaned && score > bestScore) [bestScore, bestText] = [score, cleaned];
+      for (const psm of ["6", "11", "12"] as PSM[]) {
+        await worker.setParameters({
+          tessedit_pageseg_mode: psm,
+          tessedit_char_whitelist: OCR_CHAR_WHITELIST,
+          preserve_interword_spaces: "1",
+        });
+        const { data } = await worker.recognize(variant.blob);
+        const cleaned = cleanOcrText(data.text || "");
+        const confidence = typeof data.confidence === "number" ? data.confidence : 0;
+        const score = scoreOcrText(cleaned, confidence);
+        if (cleaned && score > bestScore) [bestScore, bestText] = [score, cleaned];
+      }
     }
   } finally {
     await worker.terminate();

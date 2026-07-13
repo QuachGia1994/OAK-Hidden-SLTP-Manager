@@ -769,6 +769,8 @@ def get_hour_note(H, weekday=None):
         if 3 <= h <= 7 or h in (9, 10):
             return "Đảo signal ra Vàng (XAUUSD)"
         return "Chỉ Vàng (XAUUSD)"
+    if weekday == 0:
+        return "Chỉ Focus GBPUSD · GBPCAD" if h == 9 else "Chỉ Vàng (XAUUSD)"
     if weekday == 3:
         if h in (3, 4):
             return "Chỉ Vàng (XAUUSD)"
