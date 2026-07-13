@@ -210,6 +210,30 @@ function sourceSummaryOnly(summary: string): string {
   return summary.replace(/\sAI\s\(\d+%\):[\s\S]*$/u, "").trim();
 }
 
+function looksLikeVietnamese(text: string): boolean {
+  return /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/iu.test(text)
+    || /\b(Tìm thấy|nguồn|xác nhận|phản bác|trung lập|bằng chứng|cho thấy|tuy nhiên|không cung cấp|lãi suất)\b/iu.test(text);
+}
+
+function summaryForLocale(summary: string, locale: "VN" | "EN"): string {
+  const clean = sourceSummaryOnly(summary);
+  if (locale === "VN" || !looksLikeVietnamese(clean)) return clean;
+
+  const found = clean.match(/Tìm thấy\s+(\d+)\s+nguồn liên quan/i);
+  const counts = clean.match(/(\d+)\s+nguồn xác nhận,\s+(\d+)\s+nguồn phản bác,\s+(\d+)\s+trung lập/i);
+  const cross = clean.match(/Cross-check:\s+(\d+)\s+domain,\s+(\d+)\s+engine/i);
+  const parts: string[] = [];
+
+  if (found) parts.push(`Found ${found[1]} related sources.`);
+  if (counts) parts.push(`${counts[1]} confirming sources, ${counts[2]} refuting sources, ${counts[3]} neutral sources.`);
+  if (cross) parts.push(`Cross-check: ${cross[1]} domains, ${cross[2]} engines.`);
+  if (/Không tìm thấy nguồn tin liên quan/i.test(clean)) parts.push("No related web sources found.");
+  if (/nguồn uy tín/i.test(clean)) parts.push("High-reliability sources are included in the evidence stack.");
+  if (/nguồn phản bác đáng kể|cần thận trọng/i.test(clean)) parts.push("Significant refuting sources were found; use caution.");
+
+  return parts.length > 0 ? parts.join(" ") : "Evidence summary is available. Rerun verification to regenerate the full summary in English.";
+}
+
 function looksLikeEnglishAiSummary(summary: string): boolean {
   return /\b(provided|evidence|claims|therefore|insufficient|truthfulness|related|assess)\b/iu.test(summary);
 }
@@ -221,11 +245,14 @@ function verdictText(result: FactCheckResult, t: LocaleText): string {
 function getAiStatusCopy(locale: "EN" | "VN", result: FactCheckResult) {
   if (result.ai_analysis) {
     const hideStaleEnglish = locale === "VN" && looksLikeEnglishAiSummary(result.ai_analysis.summary);
+    const hideVietnamese = locale === "EN" && looksLikeVietnamese(result.ai_analysis.summary);
     return {
       title: locale === "EN" ? "AI assessment" : "Phân tích AI",
-      body: hideStaleEnglish
-        ? "AI đã phản biện trên bằng chứng đã thu thập. Hãy chạy lại xác thực để nhận bản phân tích tiếng Việt theo logic mới."
-        : result.ai_analysis.summary,
+      body: hideVietnamese
+        ? "AI analysis was generated in Vietnamese for this cached result. Rerun verification to regenerate the assessment in English."
+        : hideStaleEnglish
+          ? "AI đã phản biện trên bằng chứng đã thu thập. Hãy chạy lại xác thực để nhận bản phân tích tiếng Việt theo logic mới."
+          : result.ai_analysis.summary,
       hint:
         locale === "EN"
           ? "AI challenges only the collected Google/DDG evidence and never invents sources."
@@ -607,7 +634,7 @@ export default function FactCheckPage() {
     high: result.sources.filter((s) => s.reliability === "high").length,
   } : null;
   const aiStatusCard = result ? getAiStatusCopy(locale, result) : null;
-  const displaySummary = result ? sourceSummaryOnly(result.summary) : "";
+  const displaySummary = result ? summaryForLocale(result.summary, locale) : "";
 
   return (
     <div className="relative">
