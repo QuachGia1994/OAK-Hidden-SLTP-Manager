@@ -249,7 +249,7 @@ function getAiStatusCopy(locale: "EN" | "VN", result: FactCheckResult) {
     return {
       title: locale === "EN" ? "AI assessment" : "Phân tích AI",
       body: hideVietnamese
-        ? "AI analysis was generated in Vietnamese for this cached result. Rerun verification to regenerate the assessment in English."
+        ? "This older result contains a Vietnamese AI assessment. Run a fresh verification after the worker update to regenerate it in English."
         : hideStaleEnglish
           ? "AI đã phản biện trên bằng chứng đã thu thập. Hãy chạy lại xác thực để nhận bản phân tích tiếng Việt theo logic mới."
           : result.ai_analysis.summary,
@@ -544,7 +544,11 @@ export default function FactCheckPage() {
       const res = await fetch("/api/factcheck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim() }),
+        body: JSON.stringify({
+          text: text.trim(),
+          locale,
+          output_language: locale === "EN" ? "English" : "Vietnamese",
+        }),
       });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
@@ -587,7 +591,7 @@ export default function FactCheckPage() {
       setError(e instanceof Error ? e.message : "Request failed");
       setLoading(false);
     }
-  }, [text]);
+  }, [locale, text]);
 
   const handleImageUpload = useCallback(async (file: File) => {
     setOcrLoading(true);

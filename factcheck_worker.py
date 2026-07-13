@@ -452,7 +452,12 @@ def _github_output_text(payload):
     return ""
 
 
-def _ai_evidence_payload(claims, sources):
+def normalize_output_language(value):
+    """Accept only the languages the dashboard can request."""
+    return value if value in {"English", "Vietnamese"} else None
+
+
+def _ai_evidence_payload(claims, sources, output_language=None):
     """Build compact evidence without asking AI to invent new sources."""
     evidence = []
     for index, source in enumerate(sources[:12], start=1):
@@ -462,7 +467,8 @@ def _ai_evidence_payload(claims, sources):
             "title": source.get("title", "")[:180],
             "snippet": source.get("snippet", "")[:500],
         })
-    return {"claims": claims[:5], "evidence": evidence, "output_language": detect_claim_language(claims)}
+    language = normalize_output_language(output_language) or detect_claim_language(claims)
+    return {"claims": claims[:5], "evidence": evidence, "output_language": language}
 
 
 def detect_claim_language(claims):
@@ -550,7 +556,7 @@ def _normalize_ai_model(provider, model):
     return legacy_map.get(clean, "openai/gpt-4.1-mini")
 
 
-def assess_with_ai_detailed(claims, sources):
+def assess_with_ai_detailed(claims, sources, output_language=None):
     """Return AI analysis plus a machine-readable status for the dashboard."""
     config = _ai_config()
     api_key = config["api_key"]
@@ -582,7 +588,7 @@ def assess_with_ai_detailed(claims, sources):
             "message": "AI reviewer is ready but skipped because no usable Google/DDG evidence was found.",
         }
 
-    payload = _build_ai_request(provider, model, _ai_evidence_payload(claims, sources))
+    payload = _build_ai_request(provider, model, _ai_evidence_payload(claims, sources, output_language))
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -619,9 +625,9 @@ def assess_with_ai_detailed(claims, sources):
         }
 
 
-def assess_with_ai(claims, sources):
+def assess_with_ai(claims, sources, output_language=None):
     """Use AI as an evidence arbiter; never as an uncited factual source."""
-    result, _ = assess_with_ai_detailed(claims, sources)
+    result, _ = assess_with_ai_detailed(claims, sources, output_language)
     return result
 
 
@@ -672,6 +678,9 @@ def _build_ai_request(provider, model, evidence):
 def process_factcheck(item):
     """Process a single fact-check request."""
     text = item.get("text", "")
+    output_language = normalize_output_language(item.get("output_language"))
+    if not output_language:
+        output_language = {"EN": "English", "VN": "Vietnamese"}.get(item.get("locale"))
     claims = extract_claims(text)
     all_sources = []
     seen_urls = set()
@@ -768,7 +777,7 @@ def process_factcheck(item):
 
     all_sources.sort(key=sort_key)
 
-    ai_analysis, ai_status = assess_with_ai_detailed(claims, all_sources)
+    ai_analysis, ai_status = assess_with_ai_detailed(claims, all_sources, output_language)
 
     # Calculate score
     score = 20
@@ -838,6 +847,21 @@ def process_factcheck(item):
         summary_parts.append("Không tìm thấy nguồn tin liên quan trên web.")
     if ai_analysis:
         summary_parts.append(f"AI ({ai_analysis['confidence']}%): {ai_analysis['summary']}")
+    if output_language == "English":
+        summary_parts = [
+            f"Found {len(scoring_sources)} related sources.",
+            f"{confirming} confirming sources, {contradicting} refuting sources, {neutral} neutral sources.",
+        ]
+        if scoring_sources:
+            summary_parts.append(f"Cross-check: {len(unique_domains)} domains, {len(unique_engines)} engines.")
+        if confirming_high > 0:
+            summary_parts.append(f"{confirming_high} high-reliability sources (Reuters, BBC, AP...) confirm it.")
+        if contradicting > 0:
+            summary_parts.append(f"{contradicting} notable refuting sources were found; use caution.")
+        if len(scoring_sources) == 0:
+            summary_parts.append("No related web sources were found.")
+        if ai_analysis:
+            summary_parts.append(f"AI ({ai_analysis['confidence']}%): {ai_analysis['summary']}")
 
     return {
         "score": score,

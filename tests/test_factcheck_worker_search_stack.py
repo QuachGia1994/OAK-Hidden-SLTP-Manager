@@ -53,6 +53,14 @@ class FactcheckWorkerSearchStackTests(unittest.TestCase):
         payload = factcheck_worker._ai_evidence_payload(["Day la tin can xac thuc ve Iran"], [])
         self.assertEqual(payload["output_language"], "Vietnamese")
 
+    def test_ai_payload_respects_dashboard_language_override(self):
+        payload = factcheck_worker._ai_evidence_payload(
+            ["Day la tin can xac thuc ve Iran"],
+            [],
+            output_language="English",
+        )
+        self.assertEqual(payload["output_language"], "English")
+
     def test_openai_ai_request_uses_strict_evidence_schema(self):
         payload = factcheck_worker._build_ai_request("openai", "gpt-5-mini", {"claims": ["claim"], "evidence": []})
         self.assertEqual(payload["model"], "gpt-5-mini")

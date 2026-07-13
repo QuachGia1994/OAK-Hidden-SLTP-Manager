@@ -42,6 +42,15 @@ export async function POST(request: Request) {
     if (text.length > 12000) {
       return NextResponse.json({ ok: false, error: "text is too long" }, { status: 413 });
     }
+    const locale = body.locale === "EN" ? "EN" : body.locale === "VN" ? "VN" : undefined;
+    const outputLanguage =
+      body.output_language === "English" || body.output_language === "Vietnamese"
+        ? body.output_language
+        : locale === "EN"
+          ? "English"
+          : locale === "VN"
+            ? "Vietnamese"
+            : undefined;
 
     const forwarded = request.headers.get("x-forwarded-for") || "unknown";
     const clientKey = forwarded.split(",")[0].trim().replace(/[^a-zA-Z0-9:._-]/g, "_");
@@ -58,6 +67,8 @@ export async function POST(request: Request) {
       id,
       text,
       image_url: body.image_url || undefined,
+      locale,
+      output_language: outputLanguage,
       status: "pending",
       created_at: Date.now(),
     };

@@ -35,6 +35,8 @@ export interface FactCheckRequest {
   id: string;
   text: string;
   image_url?: string;
+  locale?: "EN" | "VN";
+  output_language?: "English" | "Vietnamese";
   status: "pending" | "processing" | "done" | "error";
   created_at: number;
   result?: FactCheckResult;
