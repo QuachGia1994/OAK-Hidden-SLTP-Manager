@@ -34,6 +34,25 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
     );
   }
 
+  if (pair === "D-DIRECTION") {
+    const isBuy = direction === "BUY";
+    return (
+      <div className="my-1 flex items-center justify-between gap-2 rounded-lg border border-cyan-300/60 dark:border-cyan-400/30 bg-cyan-50/80 dark:bg-cyan-400/10 px-2 py-1.5 shadow-[0_0_22px_rgba(34,211,238,0.16)]">
+        <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-wide text-cyan-700 dark:text-cyan-200">
+          <span className="h-1.5 w-1.5 rounded-full bg-cyan-500 dark:bg-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.9)]" />
+          D-DIRECTION
+        </span>
+        <span className={`text-[10px] font-black tracking-wide px-2 py-0.5 rounded border ${
+          isBuy
+            ? "border-emerald-300/70 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+            : "border-red-300/70 bg-red-500/15 text-red-600 dark:text-red-300"
+        }`}>
+          {getSignalLabel(direction, locale)}
+        </span>
+      </div>
+    );
+  }
+
   // No-trade gold badge: "no_gold_thu:BUY:H=3-4" or "no_gold_thu:SELL:T6 H=3-11" or "no_gold_thu"
   if (direction === "no_gold_thu" || direction?.startsWith("no_gold_thu:")) {
     const parts = direction.split(":");

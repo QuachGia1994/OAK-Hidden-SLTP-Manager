@@ -50,18 +50,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const d1MatchBadge = firstD1MatchHour !== null ? `D1 MATCHED @ H=${firstD1MatchHour}` : null;
   const d1MatchWindow = firstD1MatchHour !== null ? (locale === "EN" ? "Applies until H=11" : "Áp dụng tới H=11") : null;
 
-  const allSlots = hoursToday.map((h) => ({
-    date: todayStr,
-    hour: h,
-    ts: 0,
-    signal: "WAIT" as const,
-    pair_dirs: {},
-    entry_prices: {},
-    current_prices: {},
-    hour_note: null,
-    ...signalsByHour.get(h),
-    ...(h === 2 ? { hour_note: null } : {}),
-  })).sort((a, b) => b.hour - a.hour);
+  const allSlots = hoursToday.map((h) => {
+    const signal = signalsByHour.get(h);
+    const h17Preview = h === 17 && activeDDirection && !signal
+      ? { pair_dirs: { XAUUSD: activeDDirection }, hour_note: "XAUUSD theo D-direction H=4" }
+      : {};
+    return {
+      date: todayStr,
+      hour: h,
+      ts: 0,
+      signal: "WAIT" as const,
+      pair_dirs: {},
+      entry_prices: {},
+      current_prices: {},
+      hour_note: null,
+      ...h17Preview,
+      ...signal,
+      ...(h === 2 ? { hour_note: null } : {}),
+    };
+  }).sort((a, b) => b.hour - a.hour);
 
   return (
     <div className="page-shell">
