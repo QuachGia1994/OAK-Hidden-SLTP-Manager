@@ -103,17 +103,17 @@ class TestThursdayAndFridayRules(unittest.TestCase):
             else:
                 self.assertNotIn("D-DIRECTION", result)
         for hour in (5, 6, 7, 8):
-            self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), ["GBPAUD"])
-            self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Focus GBPAUD")
+            self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), ["GBPAUD", "GBPJPY"])
+            self.assertEqual(get_hour_note(hour, weekday=3), "Chỉ Focus GBPAUD · GBPJPY")
         expected = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
         for hour in (9, 11, 12, 15):
             self.assertEqual(get_focus_gbp_pairs(hour, weekday=3), expected)
 
-    def test_tuesday_and_wednesday_focus_only_gbpaud_in_nhip_2(self):
+    def test_tuesday_and_wednesday_focus_gbpaud_gbpjpy_in_nhip_2(self):
         for weekday in (1, 2):
             for hour in (5, 6, 7, 8):
                 with self.subTest(weekday=weekday, hour=hour):
-                    self.assertEqual(get_focus_gbp_pairs(hour, weekday=weekday), ["GBPAUD"])
+                    self.assertEqual(get_focus_gbp_pairs(hour, weekday=weekday), ["GBPAUD", "GBPJPY"])
 
     def test_monday_to_thursday_focus_is_unchanged(self):
         expected = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]

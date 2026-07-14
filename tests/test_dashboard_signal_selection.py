@@ -44,7 +44,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
         )
 
     def test_h6_xauusd_only_no_gbp_pair_dirs(self):
-        """H=5-8: Focus GA only — pair_dirs has XAU only (no GBP map)."""
+        """H=5-8: Focus GA+GJ only — pair_dirs has XAU only (no GBP map)."""
         for broker_dt in (
             datetime(2026, 7, 7, tzinfo=timezone.utc),
             datetime(2026, 7, 9, tzinfo=timezone.utc),

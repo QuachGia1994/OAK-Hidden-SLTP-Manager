@@ -31,7 +31,7 @@ export const ALL_PAIRS = [...GBP_PAIRS, "XAUUSD"];
  * GBP focus pairs by hour. Friday has no GBP Focus.
  * No BUY/SELL dims — UI only marks Focus.
  * - Tue–Thu H=2-4: GA+GJ opposite gold.
- * - Tue–Thu H=5-8: GA only.
+ * - Tue–Thu H=5-8: GA+GJ focus.
  * - Fri: no GBP Focus.
  * - H=9/11/12/15 Mon–Thu: full group
  * - Fri (JS=5): no GBP Focus
@@ -46,10 +46,10 @@ export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   if (jsWeekday === 5) return [];
   if (jsWeekday === 4) {
     if (h === 3 || h === 4) return ["GBPAUD", "GBPJPY"];
-    if (h >= 5 && h <= 8) return ["GBPAUD"];
+    if (h >= 5 && h <= 8) return ["GBPAUD", "GBPJPY"];
   }
   if (h === 3 || h === 4) return ["GBPAUD", "GBPJPY"];
-  if (h >= 5 && h <= 8) return ["GBPAUD"];
+  if (h >= 5 && h <= 8) return ["GBPAUD", "GBPJPY"];
   if (h === 9 || h === 11 || h === 12 || h === 15) {
     return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
   }
@@ -97,10 +97,10 @@ export function resolveGbpDirection(
 const HOUR_NOTES: Record<number, string> = {
   3: "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)",
   4: "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)",
-  5: "Chỉ Focus GBPAUD",
-  6: "Chỉ Focus GBPAUD",
-  7: "Chỉ Focus GBPAUD",
-  8: "Chỉ Focus GBPAUD",
+  5: "Chỉ Focus GBPAUD · GBPJPY",
+  6: "Chỉ Focus GBPAUD · GBPJPY",
+  7: "Chỉ Focus GBPAUD · GBPJPY",
+  8: "Chỉ Focus GBPAUD · GBPJPY",
   9: "Focus toàn nhóm GBP",
   10: "Chỉ Vàng (XAUUSD)",
   11: "Focus toàn nhóm GBP",
@@ -215,7 +215,7 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   if ((jsWeekday === 2 || jsWeekday === 3) && (h === 9 || h === 11)) return "Focus toàn nhóm GBP";
   if ((jsWeekday === 2 || jsWeekday === 3) && h === 10) return "Chỉ Vàng (XAUUSD)";
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)";
-  if (jsWeekday === 4 && h >= 5 && h <= 8) return "Chỉ Focus GBPAUD";
+  if (jsWeekday === 4 && h >= 5 && h <= 8) return "Chỉ Focus GBPAUD · GBPJPY";
   if (jsWeekday === 4 && (h === 9 || h === 11 || h === 12 || h === 15)) return "Focus toàn nhóm GBP";
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
@@ -235,7 +235,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "Slots: H=2-15,17",
       "H=2: đảo signal mặc định · Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
       "H=3-4: Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
-      "H=5-8: chỉ Focus GBPAUD",
+      "H=5-8: Focus GBPAUD · GBPJPY",
       "H=9 và H=11: Focus toàn nhóm GBP · badge KHÔNG ĐÁNH Vàng",
       "H=10: chỉ XAUUSD · badge KHÔNG ĐÁNH Vàng",
       "H=12 và H=15: Focus toàn nhóm GBP",
@@ -246,7 +246,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "Slots: H=2-15,17",
       "H=2: bình thường · Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
       "H=3-4: Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
-      "H=5-8: chỉ Focus GBPAUD",
+      "H=5-8: Focus GBPAUD · GBPJPY",
       "H=9 và H=11: Focus toàn nhóm GBP · badge KHÔNG ĐÁNH Vàng",
       "H=10: chỉ XAUUSD · badge KHÔNG ĐÁNH Vàng",
       "H=12 và H=15: Focus toàn nhóm GBP",
@@ -258,7 +258,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=2: đảo mặc định; gặp calendar exception thì XAU bình thường · Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
       "XAU: đánh H=5-11 · no-gold H=3-4 và H>=12",
       "H=3-4: Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --) · badge KHÔNG ĐÁNH",
-      "H=5-8: chỉ Focus GBPAUD",
+      "H=5-8: Focus GBPAUD · GBPJPY",
       "H=9 và H=11: Focus toàn nhóm GBP",
       "H=12 và H=15: Focus toàn nhóm GBP · badge KHÔNG ĐÁNH",
       "H=10, H=13-14: chỉ XAUUSD",
@@ -283,7 +283,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "Slots: H=2-15,17",
       "H=2: reverses by default · focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
       "H=3-4: focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
-      "H=5-8: focus GBPAUD only",
+      "H=5-8: focus GBPAUD · GBPJPY",
       "H=9 and H=11: full GBP group focus · NO TRADE gold badge",
       "H=10: XAUUSD only · NO TRADE gold badge",
       "H=12 and H=15: full GBP group focus",
@@ -294,7 +294,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "Slots: H=2-15,17",
       "H=2: normal · focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
       "H=3-4: focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
-      "H=5-8: focus GBPAUD only",
+      "H=5-8: focus GBPAUD · GBPJPY",
       "H=9 and H=11: full GBP group focus · NO TRADE gold badge",
       "H=10: XAUUSD only · NO TRADE gold badge",
       "H=12 and H=15: full GBP group focus",
@@ -306,7 +306,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=2: reverses by default; calendar exception keeps XAU normal · focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
       "XAU: trade H=5-11 · no-gold H=3-4 and H>=12",
       "H=3-4: focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --) · NO TRADE badge",
-      "H=5-8: focus GBPAUD only",
+      "H=5-8: focus GBPAUD · GBPJPY",
       "H=9 and H=11: full GBP group focus",
       "H=12 and H=15: full GBP group focus · NO TRADE badge",
       "H=10, H=13-14: XAUUSD only",

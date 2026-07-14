@@ -69,9 +69,9 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 | Day | Rule |
 | --- | --- |
 | Monday | H=9 focuses GBPUSD + GBPCAD only |
-| Tuesday | H=2 reverses by default; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
-| Wednesday | H=2 normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
-| Thursday | H=2 reverses by default, except special-calendar weeks keep XAU normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
+| Tuesday | H=2 reverses by default; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
+| Wednesday | H=2 normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
+| Thursday | H=2 reverses by default, except special-calendar weeks keep XAU normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
 | Friday | No GBP focus |
 
 ### Gold calculation notes

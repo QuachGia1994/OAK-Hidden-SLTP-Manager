@@ -69,9 +69,9 @@ Quản lý profile, copy-trading, lệnh hẹn giờ, lọc log và export debug
 | Ngày | Rule |
 | --- | --- |
 | Thứ 2 | H=9 focus GBPUSD + GBPCAD |
-| Thứ 3 | H=2 đảo mặc định; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
-| Thứ 4 | H=2 bình thường; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
-| Thứ 5 | H=2 đảo mặc định, tuần đặc biệt thì XAU bình thường; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
+| Thứ 3 | H=2 đảo mặc định; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
+| Thứ 4 | H=2 bình thường; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
+| Thứ 5 | H=2 đảo mặc định, tuần đặc biệt thì XAU bình thường; H=2-4 GBPAUD + GBPJPY ngược Vàng; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 toàn nhóm GBP; H=10/13/14 không focus GBP |
 | Thứ 6 | không focus GBP |
 
 ### Ghi chú tính Vàng

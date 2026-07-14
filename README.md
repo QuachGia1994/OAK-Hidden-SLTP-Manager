@@ -34,7 +34,7 @@ Tài liệu liên quan:
 - Focus GBP:
   - Thứ 2 H=9: GBPUSD + GBPCAD.
   - Thứ 3-Thứ 5 H=2-4: GBPAUD + GBPJPY ngược Vàng; GBPUSD + GBPCAD là `--`.
-  - Thứ 3-Thứ 5 H=5-8: GBPAUD.
+  - Thứ 3-Thứ 5 H=5-8: GBPAUD + GBPJPY.
   - Thứ 3-Thứ 5 H=9, H=11, H=12, H=15: toàn nhóm GBP.
   - Thứ 6: không focus GBP.
 - H=4 lưu D-direction; H=17 hiển thị XAUUSD theo D-direction của H=4.

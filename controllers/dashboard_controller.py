@@ -810,9 +810,7 @@ class DashboardControllerMixin:
                             d = pair_dirs.get(pair)
                             if d not in ("BUY", "SELL", "--") and xau_dir in ("BUY", "SELL"):
                                 opp = "SELL" if xau_dir == "BUY" else "BUY"
-                                if pair == "GBPJPY":
-                                    d = xau_dir
-                                elif pair == "GBPAUD":
+                                if pair in ("GBPJPY", "GBPAUD"):
                                     d = opp
                                 else:
                                     d = "--"

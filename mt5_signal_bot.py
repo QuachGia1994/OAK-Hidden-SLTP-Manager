@@ -54,9 +54,10 @@ SYMBOL = "GBPUSD"
 #   - T6: H=3-7 and H=9-10 reverse signal to gold; H=11-15 trade gold normally
 # Focus GBP: Monday H=9 GBPUSD+GBPCAD; other days use their own slot rules.
 # pair_dirs GBP map T3-T5 H=2-4 (GA/GJ đều ngược Vàng); H=5+ XAU only + Focus list.
+# T3-T5 H=5-8 Focus list: GBPAUD + GBPJPY.
 TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 13
+SIGNAL_LOGIC_VERSION = 14
 D_DIRECTION_PAIR = "D-DIRECTION"
 
 
@@ -835,6 +836,7 @@ def get_hour_note(H, weekday=None, broker_dt=None):
 
     Không gắn prose no-gold vào đây — nhãn Vàng tách riêng (Telegram/App badge).
     H=2 T3-T5 và H=3-4 T3-T5: GBPAUD và GBPJPY đều ngược Vàng.
+    H=5-8 T3-T5: Focus GBPAUD và GBPJPY, không gán chiều pair_dirs.
     H=14: active slot, default XAU-only. H=15: chỉ Focus nhóm GBP (không gán chiều pair_dirs).
     """
     try:
@@ -860,7 +862,7 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         if h in (3, 4):
             return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
         if 5 <= h <= 8:
-            return "Chỉ Focus GBPAUD"
+            return "Chỉ Focus GBPAUD · GBPJPY"
         if h in (9, 11, 12, 15):
             return "Focus toàn nhóm GBP"
     if resolved_weekday in (1, 2) and h in (3, 4):
@@ -870,7 +872,7 @@ def get_hour_note(H, weekday=None, broker_dt=None):
     if resolved_weekday in (1, 2) and h == 10:
         return "Chỉ Vàng (XAUUSD)"
     if 5 <= h <= 8:
-        return "Chỉ Focus GBPAUD"
+        return "Chỉ Focus GBPAUD · GBPJPY"
     if h in (9, 11, 12, 15):
         return "Focus toàn nhóm GBP"
     return "Chỉ Vàng (XAUUSD)"
@@ -882,7 +884,7 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
     - H=2 T3-T5: tính GA/GJ ngược Vàng và hiển thị Focus; T2/T6 XAU-only
     - T2 các H khác: không Focus GBP
     - T3-T5 H=3-4: GBPAUD + GBPJPY
-    - T3-T5 H=5-8: chỉ GBPAUD
+    - T3-T5 H=5-8: GBPAUD + GBPJPY
     - H=9,11,12,15 T2–T5: đủ nhóm GBP
     - T6: không Focus GBP
     """
@@ -901,11 +903,11 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
         if h in (3, 4):
             return ["GBPAUD", "GBPJPY"]
         if 5 <= h <= 8:
-            return ["GBPAUD"]
+            return ["GBPAUD", "GBPJPY"]
     if h in (2, 3, 4):
         return ["GBPAUD", "GBPJPY"] if resolved_weekday in (1, 2, 3) else []
     if 5 <= h <= 8:
-        return ["GBPAUD"]
+        return ["GBPAUD", "GBPJPY"]
     if h in (9, 11, 12, 15):
         return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
     return []

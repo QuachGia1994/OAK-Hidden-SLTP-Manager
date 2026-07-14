@@ -34,7 +34,7 @@ Related docs:
 - Focus rules:
   - Monday H=9: GBPUSD + GBPCAD.
   - Tuesday-Thursday H=2-4: GBPAUD + GBPJPY opposite gold; GBPUSD + GBPCAD stay `--`.
-  - Tuesday-Thursday H=5-8: GBPAUD.
+  - Tuesday-Thursday H=5-8: GBPAUD + GBPJPY.
   - Tuesday-Thursday H=9, H=11, H=12, H=15: full GBP group.
   - Friday: no GBP focus.
 - H=4 stores D-direction; H=17 displays XAUUSD from that H=4 D-direction.

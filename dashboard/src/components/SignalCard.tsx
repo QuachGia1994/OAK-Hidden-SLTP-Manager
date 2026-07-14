@@ -40,6 +40,7 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
   const map: Array<[RegExp, string]> = [
     [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
     [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
+    [/Chỉ Focus GBPAUD · GBPJPY/g, "GBP focus: GBPAUD · GBPJPY"],
     [/Chỉ Focus GBPAUD/g, "GBP focus: GBPAUD"],
     [/Chỉ Focus GBPUSD · GBPCAD/g, "GBP focus: GBPUSD · GBPCAD"],
     [/Focus toàn nhóm GBP/g, "Full GBP group focus"],
