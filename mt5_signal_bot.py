@@ -384,7 +384,7 @@ def _parse_news_for_dashboard(news_lines, source_date=None):
 
 def _latest_today_news_cache():
     """Return the newest VN/EN news cache for today's display date."""
-    from oak_trading_reminders import _get_display_tz
+    from oak_trading_reminders import _NEWS_CACHE_VERSION, _get_display_tz
 
     display_date = datetime.now(_get_display_tz()).date().isoformat()
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -396,6 +396,8 @@ def _latest_today_news_cache():
         try:
             with open(path, "r", encoding="utf-8") as f:
                 cache = json.load(f)
+            if cache.get("v") != _NEWS_CACHE_VERSION:
+                continue
             if cache.get("date") != display_date or not cache.get("news"):
                 continue
             candidates.append((os.path.getmtime(path), cache))

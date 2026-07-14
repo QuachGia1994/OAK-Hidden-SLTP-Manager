@@ -1,9 +1,12 @@
 import unittest
+import json
+import os
+import tempfile
 from datetime import datetime, time, timezone
 from unittest.mock import patch
 
-from mt5_signal_bot import _parse_news_for_dashboard, get_pair_direction, select_signals_for_dashboard
-from oak_trading_reminders import _get_display_tz, _get_display_tz_name, fetch_forexfactory_xml
+from mt5_signal_bot import _latest_today_news_cache, _parse_news_for_dashboard, get_pair_direction, select_signals_for_dashboard
+from oak_trading_reminders import _NEWS_CACHE_VERSION, _get_display_tz, _get_display_tz_name, fetch_forexfactory_xml
 
 
 class _FakeResponse:
@@ -82,6 +85,15 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             result = fetch_forexfactory_xml(lang="EN")
 
         self.assertEqual(result, [f"• {expected_time} USD 🔴 [HIGH] Core CPI m/m"])
+
+    def test_latest_news_cache_ignores_stale_versions(self):
+        today = datetime.now(_get_display_tz()).date().isoformat()
+        with tempfile.TemporaryDirectory() as temp_dir, patch("mt5_signal_bot.os.path.abspath", return_value=os.path.join(temp_dir, "mt5_signal_bot.py")):
+            stale_path = os.path.join(temp_dir, "news_cache_EN.json")
+            with open(stale_path, "w", encoding="utf-8") as f:
+                json.dump({"date": today, "v": _NEWS_CACHE_VERSION - 1, "news": ["• 23:30 USD 🔴 [HIGH] CPI m/m"]}, f)
+
+            self.assertIsNone(_latest_today_news_cache())
 
 
 if __name__ == "__main__":
