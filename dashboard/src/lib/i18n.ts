@@ -55,10 +55,7 @@ export const localeLabels = {
     focusOnly: "Focus",
     xauOnly: "Chỉ Vàng",
     lockedBadge: "Khóa",
-    xauNoTrade: "Không đánh",
     xauReverse: "Đảo signal ra Vàng",
-    gbpFull: "Focus toàn nhóm GBP",
-    noGbp: "Không focus GBP",
     dateTimeFormat: "vi-VN",
   },
   EN: {
@@ -90,10 +87,7 @@ export const localeLabels = {
     focusOnly: "Focus",
     xauOnly: "XAU only",
     lockedBadge: "Locked",
-    xauNoTrade: "No trade",
     xauReverse: "Reverse to gold",
-    gbpFull: "Full GBP group focus",
-    noGbp: "No GBP focus",
     dateTimeFormat: "en-US",
   },
 } as const;

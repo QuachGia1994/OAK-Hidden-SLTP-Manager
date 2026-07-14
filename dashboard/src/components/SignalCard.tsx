@@ -7,32 +7,11 @@ import {
   formatHour,
   getHourNote,
   weekdayFromDate,
-  getFocusGbpPairs,
-  isGbpFocusOnlySlot,
-  isXauNoTradeLabelSlot,
-  resolveGbpDirection,
-  signalHasThuNoGoldLabel,
-  signalXauNoTradeTag,
 } from "@/lib/constants";
 import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { BrokerLocalTime } from "./BrokerLocalTime";
-
-function stripNoGoldProse(note: string | null | undefined): string | null {
-  if (!note) return null;
-  const clean = note
-    .replace(/\s*[·•|]\s*⚠?\s*Thứ\s*5:[^·\n]*/gi, "")
-    .replace(/\s*⚠\s*Thứ\s*5:[^\n]*/gi, "")
-    .replace(/\s*[·•|]\s*⚠?\s*Thursday:[^·\n]*/gi, "")
-    .replace(/\s*⚠\s*Thursday:[^\n]*/gi, "")
-    .replace(/\s*KHÔNG\s*đánh\s*Vàng[^\n·|]*/gi, "")
-    .replace(/\s*NO\s*Gold[^\n·|]*/gi, "")
-    .replace(/\s*[·•|]\s*$/g, "")
-    .replace(/^\s*[·•|]\s*/g, "")
-    .trim();
-  return clean || null;
-}
 
 function translateHourNote(note: string | null | undefined, locale: "VN" | "EN"): string | null {
   if (!note) return null;
@@ -40,14 +19,7 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
   const map: Array<[RegExp, string]> = [
     [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
     [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
-    [/Chỉ Focus GBPAUD · GBPJPY/g, "GBP focus: GBPAUD · GBPJPY"],
-    [/Chỉ Focus GBPAUD/g, "GBP focus: GBPAUD"],
-    [/Chỉ Focus GBPUSD · GBPCAD/g, "GBP focus: GBPUSD · GBPCAD"],
-    [/Focus toàn nhóm GBP/g, "Full GBP group focus"],
     [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 D-direction"],
-    [/GBPAUD · GBPJPY ngược Vàng \(không xét H1 Vàng\)/g, "GBPAUD · GBPJPY opposite gold (no H1 gold check)"],
-    [/GBPAUD · GBPJPY ngược Vàng \(GBPUSD\/GBPCAD --\)/g, "GBPAUD · GBPJPY opposite gold (GBPUSD/GBPCAD --)"],
-    [/GBPAUD · GBPJPY ngược Vàng/g, "GBPAUD · GBPJPY opposite gold"],
   ];
   return map.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), note);
 }
@@ -65,26 +37,16 @@ export function SignalCard({
     ? getHourNote(signal.hour, weekday)
     : signal.hour_note;
   const rawHourNote = fallbackHourNote || getHourNote(signal.hour, weekday);
-  const noGoldEntry = signal.date
-    ? isXauNoTradeLabelSlot(signal.hour, weekday)
-    : signalHasThuNoGoldLabel(signal.hour, signal.date, signal.hour_note);
-  const noGoldTag = signalXauNoTradeTag(signal.hour, signal.date) || "no-trade";
-  const hourNote = translateHourNote(stripNoGoldProse(rawHourNote), locale);
+  const hourNote = translateHourNote(rawHourNote, locale);
   const rhythmLabel = getRhythmLabel(signal.hour, locale);
 
-  const gbpPairs = getFocusGbpPairs(signal.hour, weekday);
-  const focusOnly = isGbpFocusOnlySlot(signal.hour);
   const xauDir =
     signal.pair_dirs?.XAUUSD ||
     (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
 
   const xauBadgeDir = !isVIP
     ? "locked"
-    : noGoldEntry
-      ? xauDir === "BUY" || xauDir === "SELL"
-        ? `no_gold_thu:${xauDir}:${noGoldTag}`
-        : `no_gold_thu:${noGoldTag}`
-      : xauDir || "-";
+    : xauDir || "-";
 
   return (
     <div className="group border border-zinc-200/80 dark:border-zinc-800 rounded-xl bg-white/90 dark:bg-zinc-900/55 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
@@ -141,28 +103,9 @@ export function SignalCard({
             direction={isVIP ? signal.pair_dirs["D-DIRECTION"] : "locked"}
           />
         )}
-        {gbpPairs.length > 0 && (
-          <div className="pt-1 pb-0.5">
-            <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 font-medium mb-0.5">
-              {focusOnly
-                ? locale === "EN"
-                  ? "GBP focus pairs"
-                  : "Cặp GBP tập trung"
-                : locale === "EN"
-                  ? "GBP vs gold"
-                  : "GBP vs Vàng"}
-            </div>
-            {gbpPairs.map((pair) => {
-              if (!isVIP) return <PairBadge key={pair} pair={pair} direction="locked" />;
-              if (focusOnly) return <PairBadge key={pair} pair={pair} direction="focus" focusOnly />;
-              const dir = resolveGbpDirection(pair, signal.hour, signal.pair_dirs, xauDir);
-              return <PairBadge key={pair} pair={pair} direction={dir} />;
-            })}
-          </div>
-        )}
-        {gbpPairs.length === 0 && isVIP && (
+        {isVIP && (
           <div className="pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
-            {locale === "EN" ? "No GBP slot — XAU only" : "Không có mốc GBP — chỉ Vàng"}
+            {locale === "EN" ? "XAU only" : "Chỉ Vàng (XAUUSD)"}
           </div>
         )}
       </div>

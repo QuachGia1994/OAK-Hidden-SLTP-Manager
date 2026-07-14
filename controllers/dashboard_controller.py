@@ -65,7 +65,7 @@ class DashboardControllerMixin:
         self.card_signal_pairs_frame = ctk.CTkFrame(self.card_signal, fg_color="transparent")
         self.card_signal_pairs_frame.pack(fill="x", padx=6, pady=(0, 6))
         self.card_signal_pair_labels = {}
-        for pair in ("XAUUSD", "GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
+        for pair in ("XAUUSD",):
             row = ctk.CTkFrame(self.card_signal_pairs_frame, fg_color="transparent")
             row.pack(fill="x", pady=1)
             ctk.CTkLabel(row, text=pair, font=ctk.CTkFont(size=12, family="Consolas"), anchor="w").pack(side="left")
@@ -674,7 +674,7 @@ class DashboardControllerMixin:
                     if self._widget_alive(card_status):
                         card_status.configure(text=T("ui_status_dash"), text_color="gray")
 
-            # Signal Card — XAU signal + GBP focus pairs (no Mua/Bán on GBP)
+            # Signal Card — XAUUSD only.
             card_sig = getattr(self, "card_signal_current", None)
             if self._widget_alive(card_sig):
                 pair_dirs = {}
@@ -728,65 +728,8 @@ class DashboardControllerMixin:
 
                 pair_labels = getattr(self, "card_signal_pair_labels", None) or {}
                 if pair_labels:
-                    hour = latest.get("hour") if latest else None
-                    focus_gbp = set()
-                    no_gold_entry = False
-                    no_gold_tag = ""
-                    if hour is not None:
-                        try:
-                            h = int(hour)
-                            sig_date = (latest or {}).get("date")
-                            wd = None
-                            if sig_date:
-                                from datetime import date as _date
-                                try:
-                                    y, m, d0 = [int(x) for x in str(sig_date).split("-")[:3]]
-                                    wd = _date(y, m, d0).weekday()
-                                except Exception:
-                                    wd = None
-                            try:
-                                from mt5_signal_bot import (
-                                    get_focus_gbp_pairs as _gfp,
-                                    is_xau_no_trade_label_slot as _nogold,
-                                    xau_no_trade_label_tag as _ngtag,
-                                )
-                                focus_gbp = set(_gfp(h, weekday=wd) or [])
-                                no_gold_entry = bool(_nogold(h, weekday=wd))
-                                no_gold_tag = _ngtag(h, weekday=wd) or ""
-                            except Exception:
-                                # Fallback if signal bot unavailable
-                                if 3 <= h <= 8:
-                                    focus_gbp = {"GBPAUD", "GBPJPY"}
-                                elif h in (9, 12, 15):
-                                    if wd == 1 and h in (12, 15):
-                                        focus_gbp = set()
-                                    elif wd == 4:
-                                        focus_gbp = {"GBPAUD", "GBPJPY"}
-                                    else:
-                                        focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
-                                if wd == 1 and ((5 <= h <= 10) or h in (12, 13, 15)):
-                                    no_gold_entry, no_gold_tag = True, "T3 H=5-10,12-13,15"
-                                elif wd == 2 and h in (9, 10):
-                                    no_gold_entry, no_gold_tag = True, "T4 H=9-10"
-                                elif wd == 3 and h in (3, 4):
-                                    no_gold_entry, no_gold_tag = True, "H=3-4"
-                                elif wd == 3 and h in (12, 13, 15):
-                                    no_gold_entry, no_gold_tag = True, "T5 H≥12"
-                                elif wd == 4 and (3 <= h <= 7 or h in (9, 10)):
-                                    no_gold_entry, no_gold_tag = True, "T6 H=3-7,9-10"
-                        except (TypeError, ValueError):
-                            pass
                     p = getattr(self, "theme_palette", {}) or {}
-                    accent = p.get("accent", "#3b82f6")
                     muted = p.get("text_muted", "gray")
-                    amber = "#d97706"
-                    # H=3-4: show Mua/Bán vs gold; H=5+: Focus only
-                    h_num = None
-                    try:
-                        h_num = int(hour) if hour is not None else None
-                    except (TypeError, ValueError):
-                        h_num = None
-                    xau_dir = pair_dirs.get("XAUUSD")
                     for pair, lbl in pair_labels.items():
                         if not self._widget_alive(lbl):
                             continue
@@ -795,44 +738,14 @@ class DashboardControllerMixin:
                             continue
                         if pair == "XAUUSD":
                             d = pair_dirs.get(pair)
-                            if no_gold_entry:
-                                buy_w = T("sig_buy")
-                                sell_w = T("sig_sell")
-                                no_w = T("sig_no_trade")
-                                tail = f" {buy_w}" if d == "BUY" else f" {sell_w}" if d == "SELL" else ""
-                                lbl.configure(
-                                    text=f"{no_w}{tail} · {no_gold_tag}",
-                                    text_color=amber,
-                                )
-                            elif d == "BUY":
-                                lbl.configure(text=T("sig_buy"), text_color=p.get("success", "#2ecc71"))
-                            elif d == "SELL":
-                                lbl.configure(text=T("sig_sell"), text_color=p.get("danger", "#e74c3c"))
-                            else:
-                                lbl.configure(text="—", text_color=muted)
-                            continue
-                        # H=3-4: direction vs gold (not Focus)
-                        if h_num in (2, 3, 4) and pair in ("GBPAUD", "GBPJPY", "GBPUSD", "GBPCAD"):
-                            d = pair_dirs.get(pair)
-                            if d not in ("BUY", "SELL", "--") and xau_dir in ("BUY", "SELL"):
-                                opp = "SELL" if xau_dir == "BUY" else "BUY"
-                                if pair in ("GBPJPY", "GBPAUD"):
-                                    d = opp
-                                else:
-                                    d = "--"
                             if d == "BUY":
                                 lbl.configure(text=T("sig_buy"), text_color=p.get("success", "#2ecc71"))
                             elif d == "SELL":
                                 lbl.configure(text=T("sig_sell"), text_color=p.get("danger", "#e74c3c"))
-                            elif d == "--":
-                                lbl.configure(text="--", text_color=muted)
                             else:
                                 lbl.configure(text="—", text_color=muted)
                             continue
-                        if pair in focus_gbp:
-                            lbl.configure(text=T("sig_focus"), text_color=accent)
-                        else:
-                            lbl.configure(text="—", text_color=muted)
+                        lbl.configure(text="—", text_color=muted)
 
                 # Next slot countdown (T2-T6=H2-10,12-13,15,17; broker weekday)
                 try:

@@ -4,11 +4,12 @@
 
 ### Ma trận signal
 
-- Đồng bộ checklist release cho core H, no-gold label, GBP focus, note Telegram và Rules Dashboard.
+- Đơn giản hoá signal matrix sang XAU-only: output/list pair chỉ còn `XAUUSD`.
 - Slot active là Thứ 2-Thứ 6 H=2-10, H=12-13, H=15 và H=17; H=11/H=14 đã tắt.
-- H=2 theo matrix cuối: Thứ 3 và Thứ 5 đảo mặc định, Thứ 4 bình thường, Thứ 6 bình thường nhưng tuần đặc biệt thì đảo.
-- Thứ 3-Thứ 5 H=2-4 map GBPAUD và GBPJPY ngược XAUUSD; GBPUSD và GBPCAD là `--`.
-- Thứ 5 H=3-4 giữ Focus GBPAUD/GBPJPY và vẫn hiện no-gold badge.
+- H=2 theo matrix cuối: Thứ 3 và Thứ 5 đảo mặc định, Thứ 4 và Thứ 6 bình thường; tuần đặc biệt làm Thứ 5 không đảo và H=2 Thứ 6 đảo.
+- Gỡ toàn bộ no-gold label.
+- Gỡ toàn bộ list/focus GBP khỏi core, Dashboard và Telegram notes.
+- Gỡ đảo XAU đại trà của Thứ 6; giữ riêng nhánh đặc biệt H=2 Thứ 6.
 - D-direction H=4 và preview H=17 được ghi rõ là đang active.
 
 ### Đóng gói

@@ -11,7 +11,7 @@ Tài liệu liên quan:
 
 - Monitor MT5 đa profile, cách ly đúng từng profile.
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
-- Signal engine cho XAUUSD, GBPAUD, GBPCAD, GBPUSD và GBPJPY.
+- Signal engine dùng pattern `GBPUSD`, nhưng danh sách pair output/trade chỉ còn `XAUUSD`.
 - Telegram bridge với lệnh an toàn theo profile và MiMo worker.
 - Dashboard web có nút chuyển ngôn ngữ EN / VN gọn hơn.
 - Fact Check dùng DuckDuckGo + Google để lấy bằng chứng, AI GitHub Models tùy chọn để phản biện, OCR trong browser và dán ảnh trực tiếp từ clipboard.
@@ -21,24 +21,13 @@ Tài liệu liên quan:
 
 - Ngày giao dịch: Thứ 2 đến Thứ 6.
 - Cuối tuần: không hiện tín hiệu, không có next slot, không countdown.
-- Slot active: H=2 đến H=15 và H=17 tại phút `:45` broker.
+- Slot active: H=2-10, H=12-13, H=15 và H=17 tại phút `:45` broker.
 - H=2 là Nhịp 0 / XAU, xét M5/M30 + XAUUSD M30 post-processing, không dùng H1 Vàng.
 - H=11 và H=14 đã tắt core rule, không còn sinh signal/note.
-- No-gold label:
-  - Thứ 2: H=3-15.
-  - Thứ 3: H=5-10, H=12-13, H=15.
-  - Thứ 4: H=9-10.
-  - Thứ 5: H=3-4 và H=12-13, H=15.
-  - Thứ 6: không có no-gold label.
-- Thứ 6 đảo kết quả tính toán về Vàng tại H=3-7 và H=9-10.
-- H=2 mặc định đảo vào Thứ 3 và Thứ 5; tuần đặc biệt làm Thứ 5 không đảo, còn Thứ 6 đảo.
-- Focus GBP:
-  - Thứ 2 H=9: GBPUSD + GBPCAD.
-  - Thứ 3-Thứ 5 H=2-4: GBPAUD + GBPJPY ngược Vàng; GBPUSD + GBPCAD là `--`.
-  - Thứ 3-Thứ 5 H=5-8: GBPAUD + GBPJPY.
-  - Thứ 3 H=9: toàn nhóm GBP; H=12, H=15 không Focus GBP.
-  - Thứ 4-Thứ 5 H=9, H=12, H=15: toàn nhóm GBP.
-  - Thứ 6: không focus GBP.
+- No-gold label đã gỡ toàn bộ.
+- Output pair chỉ còn `XAUUSD`; không còn list/focus GBP.
+- Thứ 6 không đảo XAU đại trà.
+- H=2 mặc định đảo vào Thứ 3 và Thứ 5; tuần đặc biệt làm Thứ 5 không đảo, còn H=2 Thứ 6 đảo.
 - H=4 lưu D-direction; H=17 hiển thị XAUUSD theo D-direction của H=4.
 
 ## Fact Check AI

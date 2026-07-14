@@ -11,7 +11,7 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- Signal engine for XAUUSD, GBPAUD, GBPCAD, GBPUSD, and GBPJPY.
+- The signal engine still uses `GBPUSD` as the pattern source, but the output/trade pair list is XAUUSD only.
 - Telegram bridge with profile-safe commands and MiMo worker support.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
@@ -21,24 +21,13 @@ Related docs:
 
 - Trading days: Monday to Friday.
 - Weekend: no desktop signal, no next slot, no countdown.
-- Active slots: H=2 through H=15 plus H=17 at broker `:45`.
+- Active slots: H=2-10, H=12-13, H=15, and H=17 at broker `:45`.
 - H=2 is Rhythm 0 / XAU, uses M5/M30 plus XAUUSD M30 post-processing, and skips H1 gold.
 - H=11 and H=14 are disabled in core rules; they no longer generate signals or notes.
-- No-gold labels:
-  - Monday: H=3-15.
-  - Tuesday: H=5-10, H=12-13, H=15.
-  - Wednesday: H=9-10.
-  - Thursday: H=3-4 and H=12-13, H=15.
-  - Friday: none.
-- Friday reverses the computed signal back to gold at H=3-7 and H=9-10.
-- H=2 reverses by default on Tuesday and Thursday; Thursday special-calendar weeks keep it normal, while Friday special-calendar weeks reverse it.
-- Focus rules:
-  - Monday H=9: GBPUSD + GBPCAD.
-  - Tuesday-Thursday H=2-4: GBPAUD + GBPJPY opposite gold; GBPUSD + GBPCAD stay `--`.
-  - Tuesday-Thursday H=5-8: GBPAUD + GBPJPY.
-  - Tuesday H=9: full GBP group; H=12, H=15 have no GBP focus.
-  - Wednesday-Thursday H=9, H=12, H=15: full GBP group.
-  - Friday: no GBP focus.
+- No-gold labels have been fully removed.
+- Output pairs are XAUUSD only; GBP pair lists/focus badges are removed.
+- Friday has no broad XAU reversal.
+- H=2 reverses by default on Tuesday and Thursday; Thursday special-calendar weeks keep it normal, while Friday special-calendar weeks reverse H=2.
 - H=4 stores D-direction; H=17 displays XAUUSD from that H=4 D-direction.
 
 ## Fact Check AI

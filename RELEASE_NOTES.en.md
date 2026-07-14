@@ -4,11 +4,12 @@
 
 ### Signal matrix
 
-- Synced the release checklist across core H rules, no-gold labels, GBP focus, Telegram notes, and Dashboard rules.
+- Simplified the signal matrix to XAU-only: output/list pairs now contain only `XAUUSD`.
 - Active slots are Monday-Friday H=2-10, H=12-13, H=15 plus H=17; H=11/H=14 are disabled.
-- H=2 now follows the finalized weekday matrix: Tuesday and Thursday reverse by default, Wednesday is normal, Friday is normal unless the special calendar rule reverses it.
-- Tuesday-Thursday H=2-4 maps GBPAUD and GBPJPY opposite XAUUSD; GBPUSD and GBPCAD stay `--`.
-- Thursday H=3-4 now keeps GBPAUD/GBPJPY focus while still showing the no-gold badge.
+- H=2 now follows the finalized weekday matrix: Tuesday and Thursday reverse by default, Wednesday and Friday are normal; special-calendar weeks keep Thursday normal and reverse Friday H=2.
+- Removed all no-gold labels.
+- Removed all GBP pair lists/focus badges from core logic, Dashboard, and Telegram notes.
+- Removed broad Friday XAU reversal logic while keeping the special-calendar Friday H=2 reversal.
 - H=4 D-direction and H=17 D-direction preview are documented as active.
 
 ### Packaging

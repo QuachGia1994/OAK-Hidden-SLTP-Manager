@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""XAU M30 flip: H=2-4 rebuild GBP from final XAU; H=5+ XAU only."""
+"""XAU M30 flip: all active slots remain XAU-only."""
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
@@ -75,33 +75,24 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
             result = analyze(friday, 2)
         self.assertEqual(result["signal"], "BUY")
 
-    def test_h2_rebuilds_both_gbp_pairs_after_m30_flip(self):
+    def test_h2_updates_xau_only_after_m30_flip(self):
         dt = _dt_thursday()
         pair_dirs = get_pair_direction(2, "BUY", dt)
         with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
             apply_xauusd_m30_logic(pair_dirs, "BUY", dt, 2)
-        self.assertEqual(pair_dirs["XAUUSD"], "SELL")
-        self.assertEqual(pair_dirs["GBPAUD"], "BUY")
-        self.assertEqual(pair_dirs["GBPJPY"], "BUY")
+        self.assertEqual(pair_dirs, {"XAUUSD": "SELL"})
 
-    def test_h3_after_flip_gbp_pairs_are_both_opposite(self):
-        """H=3-4: both GBP pairs are opposite the final XAU direction."""
+    def test_h3_after_flip_stays_xau_only(self):
         dt = _dt_tuesday()
         H = 3
         sig = "BUY"
         pair_dirs = get_pair_direction(H, sig, dt)
-        self.assertEqual(pair_dirs["XAUUSD"], "BUY")
-        self.assertEqual(pair_dirs["GBPAUD"], "SELL")
-        self.assertEqual(pair_dirs["GBPJPY"], "SELL")
+        self.assertEqual(pair_dirs, {"XAUUSD": "BUY"})
 
         with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
             apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
 
-        self.assertEqual(pair_dirs["XAUUSD"], "SELL")
-        self.assertEqual(pair_dirs["GBPAUD"], "BUY")
-        self.assertEqual(pair_dirs["GBPJPY"], "BUY")
-        self.assertEqual(pair_dirs["GBPUSD"], "--")
-        self.assertEqual(pair_dirs["GBPCAD"], "--")
+        self.assertEqual(pair_dirs, {"XAUUSD": "SELL"})
 
     def test_h5_xau_only_after_flip(self):
         """H=5-8: Focus only — no GBP in pair_dirs even after M30 flip."""

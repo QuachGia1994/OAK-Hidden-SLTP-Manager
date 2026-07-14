@@ -6,11 +6,9 @@ import { useLocale } from "./LocaleProvider";
 interface PairBadgeProps {
   pair: string;
   direction: string;
-  /** GBP focus mode: show pair as active without Mua/Bán */
-  focusOnly?: boolean;
 }
 
-export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps) {
+export function PairBadge({ pair, direction }: PairBadgeProps) {
   const { locale } = useLocale();
   if (direction === "locked") {
     return (
@@ -19,17 +17,6 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
         <svg className="w-3.5 h-3.5 text-zinc-300 dark:text-zinc-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
         </svg>
-      </div>
-    );
-  }
-
-  if (focusOnly) {
-    return (
-      <div className="flex items-center justify-between py-1">
-        <span className="font-mono text-xs font-medium text-zinc-800 dark:text-zinc-200">{pair}</span>
-        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-200/70 dark:border-sky-500/20">
-          {locale === "EN" ? "Focus" : "Focus"}
-        </span>
       </div>
     );
   }
@@ -48,31 +35,6 @@ export function PairBadge({ pair, direction, focusOnly = false }: PairBadgeProps
             : "border-red-300/70 bg-red-500/15 text-red-600 dark:text-red-300"
         }`}>
           {getSignalLabel(direction, locale)}
-        </span>
-      </div>
-    );
-  }
-
-  // No-trade gold badge: "no_gold_thu:BUY:H=3-4" or "no_gold_thu:SELL:T6 H=3-11" or "no_gold_thu"
-  if (direction === "no_gold_thu" || direction?.startsWith("no_gold_thu:")) {
-    const parts = direction.split(":");
-    // ["no_gold_thu"] | ["no_gold_thu", "BUY"] | ["no_gold_thu", "BUY", "H=3-4"]
-    const computed = parts.length >= 2 && (parts[1] === "BUY" || parts[1] === "SELL") ? parts[1] : "";
-    const tag =
-      parts.length >= 3
-        ? parts.slice(2).join(":")
-        : parts.length === 2 && parts[1] !== "BUY" && parts[1] !== "SELL"
-          ? parts[1]
-          : "no-trade";
-    const label =
-      locale === "EN"
-        ? `No trade${computed ? ` ${computed === "BUY" ? "Buy" : "Sell"}` : ""} · ${tag || "no-trade"}`
-        : `Không đánh${computed ? ` ${computed === "BUY" ? "Mua" : "Bán"}` : ""} · ${tag || "no-trade"}`;
-    return (
-      <div className="flex items-center justify-between py-1 gap-2">
-        <span className="font-mono text-xs font-semibold text-zinc-800 dark:text-zinc-100">{pair}</span>
-        <span className="text-[10px] font-bold tracking-wide px-2 py-0.5 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-400/50 dark:border-amber-500/40 shadow-sm">
-          {label}
         </span>
       </div>
     );
