@@ -329,9 +329,8 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
 def _parse_news_for_dashboard(news_lines, source_date=None):
     """Parse news strings like '• 19:30 CAD 🔴 [HIGH] GDP m/m' into structured objects."""
     import re
-    from datetime import datetime
-    from oak_trading_reminders import _get_display_tz, _get_display_tz_name, is_critical_news_title
-    display_date = datetime.now(_get_display_tz()).date().isoformat()
+    from oak_trading_reminders import _get_news_day_str, _get_display_tz_name, is_critical_news_title
+    display_date = _get_news_day_str()
     if source_date and source_date != display_date:
         return []
     news_date = source_date or display_date
@@ -381,9 +380,9 @@ def _parse_news_for_dashboard(news_lines, source_date=None):
 
 def _latest_today_news_cache():
     """Return the newest VN/EN news cache for today's display date."""
-    from oak_trading_reminders import _NEWS_CACHE_VERSION, _get_display_tz
+    from oak_trading_reminders import _NEWS_CACHE_VERSION, _get_news_day_str
 
-    display_date = datetime.now(_get_display_tz()).date().isoformat()
+    display_date = _get_news_day_str()
     base_dir = os.path.dirname(os.path.abspath(__file__))
     candidates = []
     for filename in ("news_cache_VN.json", "news_cache_EN.json"):

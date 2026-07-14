@@ -36,6 +36,26 @@ def _get_display_tz_name():
     return tz.tzname(datetime.now(tz)) or str(tz)
 
 
+NEWS_DAY_ROLLOVER_HOUR = 6
+
+
+def _get_news_day(now=None):
+    """Economic-news day rolls over at 06:00 in the local system timezone."""
+    display_tz = _get_display_tz()
+    current = now or datetime.now(display_tz)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=display_tz)
+    else:
+        current = current.astimezone(display_tz)
+    if current.hour < NEWS_DAY_ROLLOVER_HOUR:
+        current -= timedelta(days=1)
+    return current.date()
+
+
+def _get_news_day_str(now=None):
+    return _get_news_day(now).isoformat()
+
+
 def _get_vn_tz():
     """Backward-compatible alias for the auto display timezone."""
     return _get_display_tz()
@@ -100,13 +120,13 @@ def load_json_file(path, default):
         return default
 
 # Bump when parse/timezone rules change so stale wrong-time cache is discarded.
-_NEWS_CACHE_VERSION = 5
+_NEWS_CACHE_VERSION = 6
 
 
 def get_economic_news(lang="VN"):
     # 1. Check Cache (versioned — force re-fetch after timezone/highlight fix)
     cache_file = f"news_cache_{lang}.json"
-    today = datetime.now(_get_display_tz()).date()
+    today = _get_news_day()
     try:
         if os.path.exists(cache_file):
             with open(cache_file, "r", encoding="utf-8") as f:
@@ -140,6 +160,60 @@ def get_economic_news(lang="VN"):
             pass
         
     return news_list
+
+
+def _news_lines_to_dashboard_items(news_lines, source_date):
+    """Convert Telegram news lines into Dashboard API news objects."""
+    items = []
+    timezone_label = _get_display_tz_name()
+    for raw in news_lines or []:
+        line = str(raw).lstrip("•- ").strip()
+        line = re.sub(r"^⚠️\s*", "", line)
+        match = re.match(r"(\d{1,2}:\d{2})\s+(\w+)\s+(.+)", line)
+        if not match:
+            continue
+        time_str, currency, rest = match.group(1), match.group(2), match.group(3)
+        title = rest
+        for token in ("🔴", "🟠", "🟢", "[HIGH]", "[high]", "[NỔI BẬT]", "[NOI BAT]", "⚠️"):
+            title = title.replace(token, "")
+        title = re.sub(r"\s+", " ", title).strip()
+        critical = is_critical_news_title(title) or "NỔI BẬT" in raw or "NOI BAT" in raw.upper()
+        items.append({
+            "date": source_date,
+            "time": time_str,
+            "local_time": time_str,
+            "time_zone": timezone_label,
+            "currency": currency,
+            "title": title,
+            "impact": "high",
+            "critical": critical,
+        })
+    items.sort(key=lambda item: (0 if item.get("critical") else 1, item.get("time") or "99:99"))
+    return items
+
+
+def _push_news_to_dashboard(news_lines, source_date):
+    """Push Daily Briefing news to the web dashboard, including [] to clear stale news."""
+    dashboard_url = (os.environ.get("DASHBOARD_API_URL") or "").rstrip("/")
+    api_key = os.environ.get("DASHBOARD_API_KEY") or ""
+    if not dashboard_url:
+        config = load_json_file("config.json", {})
+        dashboard_url = (config.get("dashboard_url") or "").rstrip("/")
+        api_key = api_key or config.get("dashboard_api_key", "")
+    if not dashboard_url:
+        return
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["X-API-Key"] = api_key
+    payload = json.dumps(_news_lines_to_dashboard_items(news_lines, source_date)).encode("utf-8")
+    request = urllib.request.Request(
+        f"{dashboard_url}/api/news",
+        data=payload,
+        headers=headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        response.read()
 
 def _make_ssl_context():
     """Try verified SSL first; fallback to unverified for legacy servers."""
@@ -212,7 +286,7 @@ def _fetch_news_fresh(lang="VN"):
 def fetch_investing_rss(lang="VN", context=None):
     url = "https://www.investing.com/rss/news_285.rss" # Economic News RSS
     display_tz = _get_display_tz()
-    today = datetime.now(display_tz).date()
+    today = _get_news_day()
     
     if context is None:
         context = _make_ssl_context()
@@ -266,7 +340,7 @@ def fetch_investing_rss(lang="VN", context=None):
 def fetch_myfxbook_rss(lang="VN", context=None):
     url = "https://www.myfxbook.com/rss/forex-economic-calendar-events"
     display_tz = _get_display_tz()
-    today = datetime.now(display_tz).date()
+    today = _get_news_day()
     
     # SSL Context to avoid handshake errors
     if context is None:
@@ -370,7 +444,7 @@ def fetch_litefinance_rss(lang="VN", context=None):
     # https://www.litefinance.org/rss/economic-calendar-feed/
     url = "https://www.litefinance.org/rss/economic-calendar-feed/"
     display_tz = _get_display_tz()
-    today = datetime.now(display_tz).date()
+    today = _get_news_day()
     
     if context is None:
         context = _make_ssl_context()
@@ -439,7 +513,7 @@ def fetch_litefinance_rss(lang="VN", context=None):
 def fetch_forexfactory_xml(lang="VN", context=None):
     url = "https://nfs.faireconomy.media/ff_calendar_thisweek.xml"
     display_tz = _get_display_tz()
-    today = datetime.now(display_tz).date()
+    today = _get_news_day()
     
     if context is None:
         context = _make_ssl_context()
@@ -785,7 +859,9 @@ class OakTradingReminder:
         """Check file-based lock for daily briefing with atomic lock to prevent race condition"""
         log_file = "daily_briefing.log"
         now = datetime.now(_get_display_tz())
-        today_str = now.strftime("%Y-%m-%d")
+        if now.hour < NEWS_DAY_ROLLOVER_HOUR:
+            return False
+        today_str = _get_news_day_str(now)
         
         # 1. Quick check main log
         try:
@@ -816,7 +892,7 @@ class OakTradingReminder:
         """Update file-based lock after successful send"""
         log_file = "daily_briefing.log"
         now = datetime.now(_get_display_tz())
-        today_str = now.strftime("%Y-%m-%d")
+        today_str = _get_news_day_str(now)
         try:
             with open(log_file, "w", encoding="utf-8") as f:
                 f.write(today_str)
@@ -851,7 +927,7 @@ class OakTradingReminder:
         """Send the daily report (News + Season Info)"""
         now_display = datetime.now(_get_display_tz())
         print(f"--- Sending Daily Briefing at {now_display} ---")
-        today_str = now_display.strftime("%Y-%m-%d")
+        today_str = _get_news_day_str(now_display)
         lock_path = os.path.join(LOCK_DIR, f"briefing_{today_str}.lock")
         
         try:
@@ -861,11 +937,16 @@ class OakTradingReminder:
             
             # 1. Economic News
             news = get_economic_news(lang=lang)
+            try:
+                _push_news_to_dashboard(news, today_str)
+            except Exception as exc:
+                print(f"[DASHBOARD] Daily briefing news push skipped: {exc}")
             
             # Construct Message
-            header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_display.strftime('%d/%m/%Y')})\n"
+            briefing_day = _get_news_day(now_display)
+            header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({briefing_day.strftime('%d/%m/%Y')})\n"
             if lang == "EN":
-                header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({now_display.strftime('%m/%d/%Y')})\n"
+                header = f"🤖 OPENCLAW AI - DAILY BRIEFING ({briefing_day.strftime('%m/%d/%Y')})\n"
             
             full_msg = header
             
@@ -1154,7 +1235,7 @@ class OakTradingReminder:
         # Startup check: Send briefing if not yet sent today
         if self._should_send_daily_briefing():
             if self.send_daily_briefing():
-                self.last_briefing_date = datetime.now(_get_display_tz()).date()
+                self.last_briefing_date = _get_news_day()
 
         while self.running and not self._stop_event.is_set():
             # 0. Check for Telegram commands removed to avoid polling conflicts with Manager
@@ -1171,11 +1252,12 @@ class OakTradingReminder:
 
             # 1. Daily Briefing (once a day at 06:00 local)
             if now.hour == 6 and now.minute == 0:
-                if self.last_briefing_date != now.date():
+                news_day = _get_news_day(now)
+                if self.last_briefing_date != news_day:
                     # Check file lock
                     if self._should_send_daily_briefing():
                         self.send_daily_briefing()
-                    self.last_briefing_date = now.date()
+                    self.last_briefing_date = news_day
                     self.alerted_events.clear() # Reset alerts for new day
 
             # 2. Action Now alerts removed — use MT5 signal bot for Telegram alerts

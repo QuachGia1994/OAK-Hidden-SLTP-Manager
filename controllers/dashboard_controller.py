@@ -234,9 +234,9 @@ class DashboardControllerMixin:
         
         # Cache only if same day AND format version matches (timezone fix)
         try:
-            from oak_trading_reminders import _NEWS_CACHE_VERSION
+            from oak_trading_reminders import _NEWS_CACHE_VERSION, _get_news_day_str
             cache_file = f"news_cache_{CURRENT_LANG}.json"
-            today_str = str(datetime.now().date())
+            today_str = _get_news_day_str()
             if os.path.exists(cache_file):
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cache = json.load(f)
@@ -300,8 +300,6 @@ class DashboardControllerMixin:
                 return
             from mt5_signal_bot import _parse_news_for_dashboard
             parsed = _parse_news_for_dashboard(news_lines)
-            if not parsed:
-                return
             headers = {"Content-Type": "application/json"}
             if api_key:
                 headers["X-API-Key"] = api_key
