@@ -26,7 +26,8 @@ Related docs:
 - H=14 is active but has no GBP focus.
 - No-gold labels:
   - Monday: H=3-15.
-  - Tuesday-Wednesday: H=9-11.
+  - Tuesday: H=5-15.
+  - Wednesday: H=9-11.
   - Thursday: H=3-4 and H=12-15.
   - Friday: none.
 - Friday reverses the computed signal back to gold at H=3-7 and H=9-10.
@@ -35,7 +36,8 @@ Related docs:
   - Monday H=9: GBPUSD + GBPCAD.
   - Tuesday-Thursday H=2-4: GBPAUD + GBPJPY opposite gold; GBPUSD + GBPCAD stay `--`.
   - Tuesday-Thursday H=5-8: GBPAUD + GBPJPY.
-  - Tuesday-Thursday H=9, H=11, H=12, H=15: full GBP group.
+  - Tuesday H=9, H=11: full GBP group; H=12, H=15 have no GBP focus.
+  - Wednesday-Thursday H=9, H=11, H=12, H=15: full GBP group.
   - Friday: no GBP focus.
 - H=4 stores D-direction; H=17 displays XAUUSD from that H=4 D-direction.
 

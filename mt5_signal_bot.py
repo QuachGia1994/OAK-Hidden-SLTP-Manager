@@ -50,14 +50,15 @@ SYMBOL = "GBPUSD"
 # Mon–Fri: H=2..15 except the explicit slot/rhythm rules.
 # No-trade gold LABEL (logic still computes XAU for GBP Focus):
 #   - T5: H=3-4 and H>=12 (trade gold H=5-11)
-#   - T3-T4: H=9-11 no-gold
+#   - T3: H=5-15 no-gold
+#   - T4: H=9-11 no-gold
 #   - T6: H=3-7 and H=9-10 reverse signal to gold; H=11-15 trade gold normally
 # Focus GBP: Monday H=9 GBPUSD+GBPCAD; other days use their own slot rules.
 # pair_dirs GBP map T3-T5 H=2-4 (GA/GJ đều ngược Vàng); H=5+ XAU only + Focus list.
 # T3-T5 H=5-8 Focus list: GBPAUD + GBPJPY.
 TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 14
+SIGNAL_LOGIC_VERSION = 15
 D_DIRECTION_PAIR = "D-DIRECTION"
 
 
@@ -783,7 +784,8 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
 
     - Thứ 5 (Thu): H=3-4 and H>=12 → no-gold; trade gold H=5-11
     - Thứ 2 (Mon): H=3-15
-    - T3–T4: H=9-11 no-gold; the rest trade gold normally
+    - T3: H=5-15 no-gold
+    - T4: H=9-11 no-gold; the rest trade gold normally
     """
     wd = _resolve_weekday(broker_dt, weekday)
     if wd is None:
@@ -794,7 +796,9 @@ def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
         return False
     if wd == 3 and (h in (3, 4) or h >= 12):  # T5 early + late
         return True
-    if wd in (1, 2) and 9 <= h <= 11:  # T3-T4 no-gold band
+    if wd == 1 and 5 <= h <= 15:  # T3 no-gold band
+        return True
+    if wd == 2 and 9 <= h <= 11:  # T4 no-gold band
         return True
     if wd == 0 and 3 <= h <= 15:  # T2 no-gold band
         return True
@@ -807,14 +811,16 @@ def is_thursday_no_gold_slot(H, broker_dt=None, weekday=None):
 
 
 def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
-    """Short badge tag: 'H=3-4' | 'T3/T4 H=9-11' | ''."""
+    """Short badge tag: 'H=3-4' | 'T3 H=5-15' | 'T4 H=9-11' | ''."""
     wd = _resolve_weekday(broker_dt, weekday)
     try:
         h = int(H)
     except (TypeError, ValueError):
         return ""
-    if wd in (1, 2) and 9 <= h <= 11:
-        return "T3/T4 H=9-11"
+    if wd == 1 and 5 <= h <= 15:
+        return "T3 H=5-15"
+    if wd == 2 and 9 <= h <= 11:
+        return "T4 H=9-11"
     if wd == 3 and h in (3, 4):
         return "T5 H=3-4"
     if wd == 3 and h >= 12:
@@ -867,6 +873,8 @@ def get_hour_note(H, weekday=None, broker_dt=None):
             return "Focus toàn nhóm GBP"
     if resolved_weekday in (1, 2) and h in (3, 4):
         return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)"
+    if resolved_weekday == 1 and h in (12, 15):
+        return "Chỉ Vàng (XAUUSD)"
     if resolved_weekday in (1, 2) and h in (9, 11):
         return "Focus toàn nhóm GBP"
     if resolved_weekday in (1, 2) and h == 10:
@@ -885,7 +893,7 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
     - T2 các H khác: không Focus GBP
     - T3-T5 H=3-4: GBPAUD + GBPJPY
     - T3-T5 H=5-8: GBPAUD + GBPJPY
-    - H=9,11,12,15 T2–T5: đủ nhóm GBP
+    - H=9,11,12,15 T2–T5: đủ nhóm GBP, riêng T3 H=12/15 không Focus GBP
     - T6: không Focus GBP
     """
     try:
@@ -908,6 +916,8 @@ def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
         return ["GBPAUD", "GBPJPY"] if resolved_weekday in (1, 2, 3) else []
     if 5 <= h <= 8:
         return ["GBPAUD", "GBPJPY"]
+    if resolved_weekday == 1 and h in (12, 15):
+        return []
     if h in (9, 11, 12, 15):
         return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
     return []
@@ -1261,7 +1271,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-6: H=2-15,17 | no-gold: T3-T4 H=9-11; T5 H=3-4,H>=12 | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus")
+    print(f"  Target Hours T2-6: H=2-15,17 | no-gold: T3 H=5-15; T4 H=9-11; T5 H=3-4,H>=12 | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
@@ -1296,7 +1306,7 @@ def main(profile_name=None):
         f"BOT KHỞI ĐỘNG\n"
         f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
         f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-T6=H2-15,17 | T3-T4 H=9-11 no Gold | T5 H=3-4,H>=12 no Gold | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus)"
+        f"(T2-T6=H2-15,17 | T3 H=5-15 no Gold | T4 H=9-11 no Gold | T5 H=3-4,H>=12 no Gold | T6 H=3-7,9-10 reverse to gold; H=11-15 normal; no GBP Focus)"
         + (f"\n{reminder_text}" if reminder_text else "")
     )
 

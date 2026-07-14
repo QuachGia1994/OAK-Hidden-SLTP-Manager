@@ -758,11 +758,17 @@ class DashboardControllerMixin:
                                 if 3 <= h <= 8:
                                     focus_gbp = {"GBPAUD", "GBPJPY"}
                                 elif h in (9, 11, 12, 15):
-                                    if wd == 4:
+                                    if wd == 1 and h in (12, 15):
+                                        focus_gbp = set()
+                                    elif wd == 4:
                                         focus_gbp = {"GBPAUD", "GBPJPY"}
                                     else:
                                         focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
-                                if wd == 3 and h in (3, 4):
+                                if wd == 1 and 5 <= h <= 15:
+                                    no_gold_entry, no_gold_tag = True, "T3 H=5-15"
+                                elif wd == 2 and 9 <= h <= 11:
+                                    no_gold_entry, no_gold_tag = True, "T4 H=9-11"
+                                elif wd == 3 and h in (3, 4):
                                     no_gold_entry, no_gold_tag = True, "H=3-4"
                                 elif wd == 3 and h >= 12:
                                     no_gold_entry, no_gold_tag = True, "T5 H≥12"

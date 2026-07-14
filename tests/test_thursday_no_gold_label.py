@@ -27,12 +27,20 @@ class TestThursdayAndFridayRules(unittest.TestCase):
             self.assertFalse(is_xau_no_trade_label_slot(hour, thursday))
             self.assertEqual(xau_no_trade_label_tag(hour, thursday), "")
 
-    def test_tuesday_and_wednesday_have_h9_to_h11_no_gold(self):
-        for weekday in (1, 2):
-            for hour in (9, 10, 11):
-                with self.subTest(weekday=weekday, hour=hour):
-                    self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=weekday))
-                    self.assertEqual(xau_no_trade_label_tag(hour, weekday=weekday), "T3/T4 H=9-11")
+    def test_tuesday_has_h5_to_h15_no_gold(self):
+        for hour in range(5, 16):
+            with self.subTest(hour=hour):
+                self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=1))
+                self.assertEqual(xau_no_trade_label_tag(hour, weekday=1), "T3 H=5-15")
+
+    def test_wednesday_has_h9_to_h11_no_gold(self):
+        for hour in (9, 10, 11):
+            with self.subTest(hour=hour):
+                self.assertTrue(is_xau_no_trade_label_slot(hour, weekday=2))
+                self.assertEqual(xau_no_trade_label_tag(hour, weekday=2), "T4 H=9-11")
+        for hour in (5, 6, 7, 8, 12, 13, 14, 15):
+            with self.subTest(hour=hour):
+                self.assertFalse(is_xau_no_trade_label_slot(hour, weekday=2))
 
     def test_friday_has_no_gbp_focus(self):
         self.assertEqual(get_focus_gbp_pairs(2, weekday=4), [])
@@ -115,10 +123,16 @@ class TestThursdayAndFridayRules(unittest.TestCase):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_focus_gbp_pairs(hour, weekday=weekday), ["GBPAUD", "GBPJPY"])
 
-    def test_monday_to_thursday_focus_is_unchanged(self):
+    def test_monday_to_thursday_focus_matrix(self):
         expected = ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"]
-        for weekday in range(1, 4):
+        self.assertEqual(get_focus_gbp_pairs(12, weekday=1), [])
+        self.assertEqual(get_focus_gbp_pairs(15, weekday=1), [])
+        self.assertIn("XAUUSD", get_hour_note(12, weekday=1))
+        self.assertIn("XAUUSD", get_hour_note(15, weekday=1))
+        for weekday in (2, 3):
             self.assertEqual(get_focus_gbp_pairs(12, weekday=weekday), expected)
+            self.assertEqual(get_focus_gbp_pairs(15, weekday=weekday), expected)
+        for weekday in range(1, 4):
             self.assertEqual(get_focus_gbp_pairs(14, weekday=weekday), [])
 
     def test_monday_rule(self):

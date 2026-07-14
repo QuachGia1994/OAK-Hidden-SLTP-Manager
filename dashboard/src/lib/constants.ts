@@ -50,6 +50,7 @@ export function getFocusGbpPairs(hour: number, jsWeekday?: number): string[] {
   }
   if (h === 3 || h === 4) return ["GBPAUD", "GBPJPY"];
   if (h >= 5 && h <= 8) return ["GBPAUD", "GBPJPY"];
+  if (jsWeekday === 2 && (h === 12 || h === 15)) return [];
   if (h === 9 || h === 11 || h === 12 || h === 15) {
     return ["GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"];
   }
@@ -112,7 +113,8 @@ const HOUR_NOTES: Record<number, string> = {
 
 /**
  * No Gold entry label (logic still computes XAU):
- * - JS Tue/Wed=2/3: H=9-11 → no-gold
+ * - JS Tue=2: H=5-15 → no-gold
+ * - JS Wed=3: H=9-11 → no-gold
  * - JS Thu=4: H=3-4 and H>=12 → no-gold; trade gold H=5-11
  * - JS Mon=1: H=3-15 → no-gold label
  * - JS Fri=5: H=3-7 and H=9-10 reverse signal to gold; no no-gold label
@@ -121,7 +123,8 @@ const HOUR_NOTES: Record<number, string> = {
 export function isXauNoTradeLabelSlot(hour: number, jsWeekday: number): boolean {
   const h = Number(hour);
   if (!Number.isFinite(h)) return false;
-  if ((jsWeekday === 2 || jsWeekday === 3) && h >= 9 && h <= 11) return true;
+  if (jsWeekday === 2 && h >= 5 && h <= 15) return true;
+  if (jsWeekday === 3 && h >= 9 && h <= 11) return true;
   if (jsWeekday === 1 && h >= 3 && h <= 15) return true;
   if (jsWeekday === 4 && ((h === 3 || h === 4) || h >= 12)) return true;
   return false;
@@ -134,7 +137,8 @@ export function isThursdayNoGoldSlot(hour: number, jsWeekday: number): boolean {
 
 export function xauNoTradeTag(hour: number, jsWeekday: number): string {
   const h = Number(hour);
-  if ((jsWeekday === 2 || jsWeekday === 3) && h >= 9 && h <= 11) return "T3/T4 H=9-11";
+  if (jsWeekday === 2 && h >= 5 && h <= 15) return "T3 H=5-15";
+  if (jsWeekday === 3 && h >= 9 && h <= 11) return "T4 H=9-11";
   if (jsWeekday === 1 && h >= 3 && h <= 15) return "T2 H=3-15";
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "T5 H=3-4";
   if (jsWeekday === 4 && h >= 12) return "T5 H>=12";
@@ -212,6 +216,7 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
     if (h === 3 || h === 4) return "Chỉ Vàng (XAUUSD)";
     return h === 9 ? "Chỉ Focus GBPUSD · GBPCAD" : "Chỉ Vàng (XAUUSD)";
   }
+  if (jsWeekday === 2 && (h === 12 || h === 15)) return "Chỉ Vàng (XAUUSD)";
   if ((jsWeekday === 2 || jsWeekday === 3) && (h === 9 || h === 11)) return "Focus toàn nhóm GBP";
   if ((jsWeekday === 2 || jsWeekday === 3) && h === 10) return "Chỉ Vàng (XAUUSD)";
   if (jsWeekday === 4 && (h === 3 || h === 4)) return "GBPAUD · GBPJPY ngược Vàng (GBPUSD/GBPCAD --)";
@@ -235,11 +240,11 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "Slots: H=2-15,17",
       "H=2: đảo signal mặc định · Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
       "H=3-4: Focus GBPAUD/GBPJPY ngược XAU (GBPUSD/GBPCAD --)",
-      "H=5-8: Focus GBPAUD · GBPJPY",
+      "H=5-8: Focus GBPAUD · GBPJPY · badge KHÔNG ĐÁNH Vàng",
       "H=9 và H=11: Focus toàn nhóm GBP · badge KHÔNG ĐÁNH Vàng",
       "H=10: chỉ XAUUSD · badge KHÔNG ĐÁNH Vàng",
-      "H=12 và H=15: Focus toàn nhóm GBP",
-      "H=13-14: chỉ XAUUSD",
+      "H=12 và H=15: chỉ XAUUSD · badge KHÔNG ĐÁNH Vàng · không Focus GBP",
+      "H=13-14: chỉ XAUUSD · badge KHÔNG ĐÁNH Vàng",
       "H=17: XAUUSD theo D-direction H=4",
     ],
     3: [
@@ -283,11 +288,11 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "Slots: H=2-15,17",
       "H=2: reverses by default · focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
       "H=3-4: focus GBPAUD/GBPJPY opposite XAU (GBPUSD/GBPCAD --)",
-      "H=5-8: focus GBPAUD · GBPJPY",
+      "H=5-8: focus GBPAUD · GBPJPY · NO TRADE gold badge",
       "H=9 and H=11: full GBP group focus · NO TRADE gold badge",
       "H=10: XAUUSD only · NO TRADE gold badge",
-      "H=12 and H=15: full GBP group focus",
-      "H=13-14: XAUUSD only",
+      "H=12 and H=15: XAUUSD only · NO TRADE gold badge · no GBP focus",
+      "H=13-14: XAUUSD only · NO TRADE gold badge",
       "H=17: XAUUSD uses H=4 D-direction",
     ],
     3: [
