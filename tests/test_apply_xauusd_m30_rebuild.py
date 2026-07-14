@@ -119,7 +119,7 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
 
     def test_h9_plus_xau_only_after_flip(self):
         dt = _dt_tuesday()
-        for H in (9, 11, 12, 15):
+        for H in (9, 12, 15):
             with self.subTest(H=H):
                 sig = "BUY"
                 pair_dirs = get_pair_direction(H, sig, dt)

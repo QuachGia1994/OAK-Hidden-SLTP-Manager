@@ -38,7 +38,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
 
     def test_h5_plus_xauusd_only(self):
         """H=5+ (incl 5-8 Focus and 9+): only XAUUSD — no GBP pair_dirs map."""
-        for H in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16):
+        for H in (5, 6, 7, 8, 9, 10, 12, 13, 15, 16):
             for signal in ("BUY", "SELL"):
                 with self.subTest(H=H, signal=signal):
                     dt = _make_dt(2026, 7, 7, weekday_offset=0)
@@ -84,10 +84,16 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
 
     def test_all_active_slots_have_xauusd(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=0)
-        for H in (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15):
+        for H in (3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15):
             with self.subTest(H=H):
                 result = get_pair_direction(H, "BUY", dt)
                 self.assertIn("XAUUSD", result)
+
+    def test_h11_h14_are_disabled(self):
+        dt = _make_dt(2026, 7, 7, weekday_offset=1)
+        for H in (11, 14):
+            with self.subTest(H=H):
+                self.assertEqual(get_pair_direction(H, "BUY", dt), {})
 
     def test_h3_works_on_tuesday_to_thursday(self):
         for weekday in (1, 2, 3):

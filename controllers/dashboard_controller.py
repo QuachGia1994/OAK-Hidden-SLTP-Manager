@@ -757,23 +757,23 @@ class DashboardControllerMixin:
                                 # Fallback if signal bot unavailable
                                 if 3 <= h <= 8:
                                     focus_gbp = {"GBPAUD", "GBPJPY"}
-                                elif h in (9, 11, 12, 15):
+                                elif h in (9, 12, 15):
                                     if wd == 1 and h in (12, 15):
                                         focus_gbp = set()
                                     elif wd == 4:
                                         focus_gbp = {"GBPAUD", "GBPJPY"}
                                     else:
                                         focus_gbp = {"GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"}
-                                if wd == 1 and 5 <= h <= 15:
-                                    no_gold_entry, no_gold_tag = True, "T3 H=5-15"
-                                elif wd == 2 and 9 <= h <= 11:
-                                    no_gold_entry, no_gold_tag = True, "T4 H=9-11"
+                                if wd == 1 and ((5 <= h <= 10) or h in (12, 13, 15)):
+                                    no_gold_entry, no_gold_tag = True, "T3 H=5-10,12-13,15"
+                                elif wd == 2 and h in (9, 10):
+                                    no_gold_entry, no_gold_tag = True, "T4 H=9-10"
                                 elif wd == 3 and h in (3, 4):
                                     no_gold_entry, no_gold_tag = True, "H=3-4"
-                                elif wd == 3 and h >= 12:
+                                elif wd == 3 and h in (12, 13, 15):
                                     no_gold_entry, no_gold_tag = True, "T5 H≥12"
-                                elif wd == 4 and 3 <= h <= 11:
-                                    no_gold_entry, no_gold_tag = True, "T6 H=3-11"
+                                elif wd == 4 and (3 <= h <= 7 or h in (9, 10)):
+                                    no_gold_entry, no_gold_tag = True, "T6 H=3-7,9-10"
                         except (TypeError, ValueError):
                             pass
                     p = getattr(self, "theme_palette", {}) or {}
@@ -834,12 +834,12 @@ class DashboardControllerMixin:
                         else:
                             lbl.configure(text="—", text_color=muted)
 
-                # Next slot countdown (T2-T6=H3-13,15; broker weekday)
+                # Next slot countdown (T2-T6=H2-10,12-13,15,17; broker weekday)
                 try:
                     from mt5_signal_bot import get_target_hours as _gth
                     target_hours = _gth(weekday=now.weekday())
                 except Exception:
-                    target_hours = [] if is_weekend else [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]
+                    target_hours = [] if is_weekend else [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17]
                 if not target_hours:
                     self.card_signal_next.configure(text=f"{T('ui_next')}: —")
                     self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: —")

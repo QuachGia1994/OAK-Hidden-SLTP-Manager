@@ -44,15 +44,15 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 | 0 | H=2 | XAU |
 | 1 | H=3-4 | JPY |
 | 2 | H=5-8 | AUD |
-| 3 | H=9-11 | GBP |
-| 4 | H=12-14 | EUR |
+| 3 | H=9-10 | GBP |
+| 4 | H=12-13 | EUR |
 | 5 | H=15, H=17 | USD |
 
 ### Schedule
 
 | Day | Active hours |
 | --- | --- |
-| Monday-Friday | H=2-15, H=17 at broker `:45` |
+| Monday-Friday | H=2-10, H=12-13, H=15, H=17 at broker `:45` |
 | Saturday-Sunday | none |
 
 ### No-gold label
@@ -60,9 +60,9 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 | Day | No-gold hours |
 | --- | --- |
 | Monday | H=3-15 |
-| Tuesday | H=5-15 |
-| Wednesday | H=9-11 |
-| Thursday | H=3-4, H=12-15 |
+| Tuesday | H=5-10, H=12-13, H=15 |
+| Wednesday | H=9-10 |
+| Thursday | H=3-4, H=12-13, H=15 |
 | Friday | none |
 
 ### GBP focus
@@ -70,9 +70,9 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 | Day | Rule |
 | --- | --- |
 | Monday | H=9 focuses GBPUSD + GBPCAD only |
-| Tuesday | H=2 reverses by default; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/11 full GBP group; H=10/12/13/14/15 no GBP focus; no-gold H=5-15 |
-| Wednesday | H=2 normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
-| Thursday | H=2 reverses by default, except special-calendar weeks keep XAU normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/11/12/15 full GBP group; H=10/13/14 no GBP focus |
+| Tuesday | H=2 reverses by default; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9 full GBP group; H=10/12/13/15 no GBP focus; no-gold H=5-10, H=12-13, H=15 |
+| Wednesday | H=2 normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/12/15 full GBP group; H=10/13 no GBP focus |
+| Thursday | H=2 reverses by default, except special-calendar weeks keep XAU normal; H=2-4 GBPAUD + GBPJPY opposite gold; H=5-8 GBPAUD + GBPJPY; H=9/12/15 full GBP group; H=10/13 no GBP focus |
 | Friday | No GBP focus |
 
 ### Gold calculation notes
@@ -83,7 +83,7 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 - Friday reverses the calculated signal back to gold at H=3-7 and H=9-10.
 - H=4 stores D-direction: Monday/Friday opposite XAU, Tuesday/Wednesday/Thursday same XAU.
 - H=17 displays XAUUSD from the stored H=4 D-direction.
-- The old H=9/11/12 direction matrix is removed.
+- The old H=9/12 direction matrix is removed, and H=11/H=14 are disabled in core rules.
 
 ## 4. Web dashboard
 

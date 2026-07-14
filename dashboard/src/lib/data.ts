@@ -1,10 +1,11 @@
 import type { Signal, BotState, NewsItem } from "./types";
 import { redis, KEYS } from "./redis";
+import { DISABLED_HOURS } from "./constants";
 
 export async function getSignals(): Promise<Signal[]> {
   try {
     const data = await redis.get(KEYS.signals);
-    return (data as Signal[]) || [];
+    return ((data as Signal[]) || []).filter((signal) => !DISABLED_HOURS.has(Number(signal.hour)));
   } catch {
     return [];
   }

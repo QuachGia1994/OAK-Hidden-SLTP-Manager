@@ -23,12 +23,12 @@ Related docs:
 - Weekend: no desktop signal, no next slot, no countdown.
 - Active slots: H=2 through H=15 plus H=17 at broker `:45`.
 - H=2 is Rhythm 0 / XAU, uses M5/M30 plus XAUUSD M30 post-processing, and skips H1 gold.
-- H=14 is active but has no GBP focus.
+- H=11 and H=14 are disabled in core rules; they no longer generate signals or notes.
 - No-gold labels:
   - Monday: H=3-15.
-  - Tuesday: H=5-15.
-  - Wednesday: H=9-11.
-  - Thursday: H=3-4 and H=12-15.
+  - Tuesday: H=5-10, H=12-13, H=15.
+  - Wednesday: H=9-10.
+  - Thursday: H=3-4 and H=12-13, H=15.
   - Friday: none.
 - Friday reverses the computed signal back to gold at H=3-7 and H=9-10.
 - H=2 reverses by default on Tuesday and Thursday; Thursday special-calendar weeks keep it normal, while Friday special-calendar weeks reverse it.
@@ -36,8 +36,8 @@ Related docs:
   - Monday H=9: GBPUSD + GBPCAD.
   - Tuesday-Thursday H=2-4: GBPAUD + GBPJPY opposite gold; GBPUSD + GBPCAD stay `--`.
   - Tuesday-Thursday H=5-8: GBPAUD + GBPJPY.
-  - Tuesday H=9, H=11: full GBP group; H=12, H=15 have no GBP focus.
-  - Wednesday-Thursday H=9, H=11, H=12, H=15: full GBP group.
+  - Tuesday H=9: full GBP group; H=12, H=15 have no GBP focus.
+  - Wednesday-Thursday H=9, H=12, H=15: full GBP group.
   - Friday: no GBP focus.
 - H=4 stores D-direction; H=17 displays XAUUSD from that H=4 D-direction.
 

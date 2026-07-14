@@ -5,7 +5,7 @@
 ### Ma trận signal
 
 - Đồng bộ checklist release cho core H, no-gold label, GBP focus, note Telegram và Rules Dashboard.
-- Slot active là Thứ 2-Thứ 6 H=2-15 và H=17.
+- Slot active là Thứ 2-Thứ 6 H=2-10, H=12-13, H=15 và H=17; H=11/H=14 đã tắt.
 - H=2 theo matrix cuối: Thứ 3 và Thứ 5 đảo mặc định, Thứ 4 bình thường, Thứ 6 bình thường nhưng tuần đặc biệt thì đảo.
 - Thứ 3-Thứ 5 H=2-4 map GBPAUD và GBPJPY ngược XAUUSD; GBPUSD và GBPCAD là `--`.
 - Thứ 5 H=3-4 giữ Focus GBPAUD/GBPJPY và vẫn hiện no-gold badge.
