@@ -59,10 +59,11 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
             {"XAUUSD": "SELL"},
         )
 
-    def test_d_direction_helper_opposite_on_monday_and_friday(self):
-        self.assertEqual(get_d_direction_from_xau("BUY", weekday=0), "SELL")
-        self.assertEqual(get_d_direction_from_xau("BUY", weekday=4), "SELL")
-        self.assertEqual(get_d_direction_from_xau("BUY", weekday=1), "BUY")
+    def test_d_direction_helper_follows_xau_on_all_weekdays(self):
+        for weekday in range(5):
+            with self.subTest(weekday=weekday):
+                self.assertEqual(get_d_direction_from_xau("BUY", weekday=weekday), "BUY")
+                self.assertEqual(get_d_direction_from_xau("SELL", weekday=weekday), "SELL")
 
 
 if __name__ == "__main__":

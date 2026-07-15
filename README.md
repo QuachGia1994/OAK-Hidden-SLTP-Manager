@@ -28,7 +28,7 @@ Tài liệu liên quan:
 - Output pair chỉ còn `XAUUSD`; không còn list/focus GBP.
 - Thứ 6 không đảo XAU đại trà.
 - H=2 mặc định đảo vào Thứ 3 và Thứ 5; tuần đặc biệt làm Thứ 5 không đảo, còn H=2 Thứ 6 đảo.
-- H=4 lưu D-direction; H=17 hiển thị XAUUSD theo D-direction của H=4.
+- H=4 lưu D-direction cùng chiều XAUUSD; H=17 hiển thị XAUUSD theo D-direction của H=4.
 
 ## Fact Check AI
 

@@ -838,9 +838,7 @@ def get_d_direction_from_xau(xau_signal, broker_dt=None, weekday=None):
     if xau_signal not in ("BUY", "SELL"):
         return None
     wd = _resolve_weekday(broker_dt, weekday)
-    if wd in (0, 4):
-        return reverse_signal(xau_signal)
-    if wd in (1, 2, 3):
+    if wd in (0, 1, 2, 3, 4):
         return xau_signal
     return None
 
