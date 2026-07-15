@@ -26,13 +26,13 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
   const weekday = weekdayLabel(date);
 
   return (
-    <div className="rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 shadow-sm overflow-hidden">
+    <div className="glass-card overflow-hidden rounded-[1.35rem]">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-3 w-full text-left group px-4 py-3.5"
+        className="group flex w-full items-center gap-3 px-4 py-4 text-left sm:px-5"
       >
         <svg
-          className={`w-4 h-4 text-zinc-400 dark:text-zinc-500 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+          className={`h-4 w-4 text-emerald-500 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={2}
@@ -40,15 +40,15 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
         >
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
-        <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300 font-mono">
+        <h2 className="font-mono text-base font-black text-zinc-800 dark:text-zinc-100">
           {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
         </h2>
-        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 ml-auto">
+        <span className="ml-auto rounded-full border border-zinc-200/70 bg-zinc-900/[0.035] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-zinc-500 dark:border-white/10 dark:bg-white/[0.05] dark:text-zinc-400">
           {daySignals.length} {locale === "EN" ? `signal${daySignals.length !== 1 ? "s" : ""}` : "tín hiệu"}
         </span>
       </button>
       {open && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 px-4 pb-4">
+        <div className="grid grid-cols-1 gap-3 border-t border-zinc-200/55 px-4 pb-4 pt-4 dark:border-white/10 md:grid-cols-2 xl:grid-cols-3">
           {daySignals.map((signal) => (
             <SignalCard
               key={`${signal.date}-${signal.hour}`}

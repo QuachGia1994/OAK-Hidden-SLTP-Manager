@@ -2,7 +2,7 @@ import { getSignals, maskSignal } from "@/lib/data";
 import { HistoryList } from "@/components/HistoryList";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
-import { detectServerLocaleFromCookie } from "@/lib/i18n";
+import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -18,39 +18,45 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   const isVIP = await hasVipAccess(params);
   const headerList = await headers();
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
+  const t = getLocaleTexts(locale);
   const visibleSignals = isVIP ? signals : signals.map(maskSignal);
+  const accessText = isVIP
+    ? locale === "EN" ? "Unlocked" : "Đã mở"
+    : locale === "EN" ? "Locked" : "Đã khóa";
 
   return (
-    <div className="page-shell">
-      <div className="mb-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <div className="page-shell space-y-5">
+      <section className="glass-panel market-grid rounded-[1.65rem] px-5 py-6 sm:px-7 sm:py-7">
+        <div className="market-wave" aria-hidden="true" />
+        <div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500">
-              {locale === "EN" ? "Archive" : "Kho lưu trữ"}
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">
+            <h1 className="text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl">
               {locale === "EN" ? "Signal history" : "Lịch sử tín hiệu"}
             </h1>
-            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="mt-2 text-base text-zinc-500 dark:text-zinc-400">
               {locale === "EN" ? "Last 7 days" : "7 ngày gần nhất"}
             </p>
           </div>
-          <div className="rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-950/40 px-3 py-2">
-            <div className="mb-0.5 text-[10px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-              {locale === "EN" ? "Access" : "Quyền truy cập"}
+          <div className="grid grid-cols-2 gap-3 sm:min-w-[320px]">
+            <div className="rounded-2xl border border-white/10 bg-black/[0.03] px-4 py-3 shadow-inner dark:bg-white/[0.04]">
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-400">
+                {locale === "EN" ? "Archive" : "Kho lưu"}
+              </div>
+              <div className="font-mono text-xl font-black text-zinc-950 dark:text-white">
+                {visibleSignals.length}
+              </div>
             </div>
-            <div className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-              {isVIP
-                ? locale === "EN"
-                  ? "VIP unlocked"
-                  : "Đã mở VIP"
-                : locale === "EN"
-                  ? "Locked view"
-                  : "Chế độ khóa"}
+            <div className="rounded-2xl border border-white/10 bg-black/[0.03] px-4 py-3 shadow-inner dark:bg-white/[0.04]">
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-400">
+                {t.vip}
+              </div>
+              <div className="font-mono text-lg font-black text-zinc-950 dark:text-white">
+                {accessText}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       <HistoryList signals={visibleSignals} isVIP={isVIP} />
     </div>

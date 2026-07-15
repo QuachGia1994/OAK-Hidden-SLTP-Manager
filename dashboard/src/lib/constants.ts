@@ -1,4 +1,4 @@
-/** Mon–Fri H=2-10,12-13,15,17 (weekend excluded). */
+﻿/** Mon–Fri H=2-10,12-13,15,17 (weekend excluded). */
 export const DISABLED_HOURS = new Set([11, 14]);
 export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17];
 /** @deprecated same as TARGET_HOURS — kept for imports */
@@ -82,18 +82,18 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10).", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+    1: ["Slots: H=2-10, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10).", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
     2: [
-      "Slots: H=2-10,12-13,15,17",
+      "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
       "H=2: đảo XAU mặc định.",
       "Nhịp 3: GBP (H=9-10).",
       "H=4: D-direction cùng XAUUSD.",
       "H=17: XAUUSD theo D-direction H=4",
     ],
-    3: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10).", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+    3: ["Slots: H=2-10, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10).", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
     4: [
-      "Slots: H=2-10,12-13,15,17",
+      "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
       "H=2: đảo XAU mặc định; tuần đặc biệt thì không đảo.",
       "Nhịp 3: GBP (H=9-10).",
@@ -101,7 +101,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=17: XAUUSD theo D-direction H=4",
     ],
     5: [
-      "Slots: H=2-10,12-13,15,17",
+      "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
       "H=2: bình thường; tuần đặc biệt thì đảo XAU.",
       "Nhịp 3: GBP (H=9-10).",
@@ -110,18 +110,18 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
   },
   EN: {
-    1: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10).", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
+    1: ["Slots: H=2-10, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10).", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
     2: [
-      "Slots: H=2-10,12-13,15,17",
+      "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
       "H=2: reverses XAU by default.",
       "Rhythm 3: GBP (H=9-10).",
       "H=4: D-direction follows XAUUSD.",
       "H=17: XAUUSD uses H=4 D-direction",
     ],
-    3: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10).", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
+    3: ["Slots: H=2-10, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10).", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
     4: [
-      "Slots: H=2-10,12-13,15,17",
+      "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
       "H=2: reverses XAU by default; special-calendar weeks keep it normal.",
       "Rhythm 3: GBP (H=9-10).",
@@ -129,7 +129,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=17: XAUUSD uses H=4 D-direction",
     ],
     5: [
-      "Slots: H=2-10,12-13,15,17",
+      "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
       "H=2: normal; special-calendar weeks reverse XAU.",
       "Rhythm 3: GBP (H=9-10).",
@@ -166,3 +166,4 @@ export function weekdayFromDate(dateStr: string): number {
   // Noon UTC avoids TZ edge cases shifting the calendar day
   return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
 }
+
