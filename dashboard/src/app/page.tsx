@@ -75,7 +75,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <DashboardAutoRefresh />
       <div className="mb-4 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/35 backdrop-blur-sm px-4 py-3 sm:px-5 sm:py-4 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+          <div>
             <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-400 dark:text-zinc-500 mb-1">{t.tradingConsole}</div>
             <h1 className="text-2xl sm:text-3xl font-bold text-zinc-900 dark:text-zinc-50 tracking-tight leading-tight">{t.dashboard}</h1>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-2xl">
@@ -157,24 +157,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               .map((item: any) => {
                 const newsTime = formatNewsDisplayTime(item);
                 return (
-              <div
-                key={`${newsTime}-${item.currency}-${item.title}`}
-                className={`flex items-center gap-2.5 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 transition-colors ${
-                  item.critical
-                    ? "bg-red-50/90 dark:bg-red-500/10 hover:bg-red-100/80 dark:hover:bg-red-500/15 border-l-4 border-l-red-500"
-                    : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
-                }`}
-              >
-                <span className={`font-mono text-xs w-12 shrink-0 ${item.critical ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>{newsTime}</span>
-                <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">{item.currency}</span>
-                <span className={`text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded shrink-0 ${item.critical ? "bg-red-600 text-white" : item.impact === "high" ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" : item.impact === "medium" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"}`}>
-                  {item.critical ? t.critical : item.impact === "high" ? t.high : item.impact === "medium" ? t.medium : t.low}
-                </span>
-                <span className={`text-xs truncate ${item.critical ? "text-red-800 dark:text-red-200 font-semibold" : "text-zinc-700 dark:text-zinc-300"}`}>
-                  {item.critical ? "⚠️ " : ""}{item.title}
-                </span>
-              </div>
-            )})}
+                  <div
+                    key={`${newsTime}-${item.currency}-${item.title}`}
+                    className={`flex items-center gap-2.5 px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/60 last:border-0 transition-colors ${
+                      item.critical
+                        ? "bg-red-50/90 dark:bg-red-500/10 hover:bg-red-100/80 dark:hover:bg-red-500/15 border-l-4 border-l-red-500"
+                        : "hover:bg-zinc-50 dark:hover:bg-zinc-800/30"
+                    }`}
+                  >
+                    <span className={`font-mono text-xs w-12 shrink-0 ${item.critical ? "text-red-600 dark:text-red-400 font-semibold" : "text-zinc-500 dark:text-zinc-400"}`}>{newsTime}</span>
+                    <span className="text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">{item.currency}</span>
+                    <span className={`text-[10px] font-semibold tracking-wide uppercase px-1.5 py-0.5 rounded shrink-0 ${item.critical ? "bg-red-600 text-white" : item.impact === "high" ? "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400" : item.impact === "medium" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400"}`}>
+                      {item.critical ? t.critical : item.impact === "high" ? t.high : item.impact === "medium" ? t.medium : t.low}
+                    </span>
+                    <span className={`text-xs truncate ${item.critical ? "text-red-800 dark:text-red-200 font-semibold" : "text-zinc-700 dark:text-zinc-300"}`}>
+                      {item.critical ? "⚠️ " : ""}{item.title}
+                    </span>
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

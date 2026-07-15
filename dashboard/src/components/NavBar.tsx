@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useTheme } from "./ThemeProvider";
 import { useLocale } from "./LocaleProvider";
 import { getLocaleTexts } from "@/lib/i18n";
 
 export function NavBar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { theme, toggle } = useTheme();
   const { locale, mode, setLocaleMode } = useLocale();
   const t = getLocaleTexts(locale);
@@ -22,13 +21,13 @@ export function NavBar() {
 
   const changeLocale = (item: "EN" | "VN") => {
     setLocaleMode(item);
-    window.setTimeout(() => router.refresh(), 0);
+    window.setTimeout(() => window.location.reload(), 0);
   };
 
   return (
     <nav className="sticky top-0 z-50 border-b border-zinc-200/70 dark:border-zinc-800/70 bg-white/75 dark:bg-zinc-950/75 backdrop-blur-xl">
       <div className="nav-shell py-1.5 sm:py-0 min-h-12 flex flex-wrap items-center gap-2 sm:gap-5">
-        <Link href="/" className="flex items-center gap-2 shrink-0">
+        <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="SLTP dashboard home">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-100/80 dark:bg-zinc-900/60 font-mono text-[10px] font-bold text-zinc-900 dark:text-zinc-100">
             O
           </span>
@@ -42,6 +41,7 @@ export function NavBar() {
             <Link
               key={link.href}
               href={link.href}
+              aria-label={link.label}
               aria-current={pathname === link.href ? "page" : undefined}
               className={`px-2 sm:px-2.5 py-1 text-[12px] sm:text-[13px] rounded-md transition-colors whitespace-nowrap ${
                 pathname === link.href
@@ -49,8 +49,8 @@ export function NavBar() {
                   : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800/50"
               }`}
             >
-              <span className="hidden sm:inline">{link.label}</span>
-              <span className="sm:hidden">{link.mobile}</span>
+              <span className="hidden sm:inline" aria-hidden="true">{link.label}</span>
+              <span className="sm:hidden" aria-hidden="true">{link.mobile}</span>
             </Link>
           ))}
         </div>

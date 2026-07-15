@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+function formatDate(date: string, locale: string, options: Intl.DateTimeFormatOptions) {
+  try {
+    return new Intl.DateTimeFormat(locale, options).format(new Date(date));
+  } catch {
+    return date;
+  }
+}
 
 export function BrowserDateText({
   date,
@@ -11,11 +17,5 @@ export function BrowserDateText({
   locale: string;
   options: Intl.DateTimeFormatOptions;
 }) {
-  const [text, setText] = useState(date);
-
-  useEffect(() => {
-    setText(new Intl.DateTimeFormat(locale, options).format(new Date(date)));
-  }, [date, locale, options]);
-
-  return <>{text}</>;
+  return <span suppressHydrationWarning>{formatDate(date, locale, options)}</span>;
 }

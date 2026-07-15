@@ -39,6 +39,11 @@ export function SignalCard({
   const rawHourNote = fallbackHourNote || getHourNote(signal.hour, weekday);
   const hourNote = translateHourNote(rawHourNote, locale);
   const rhythmLabel = getRhythmLabel(signal.hour, locale);
+  const showHourNote = Boolean(
+    hourNote &&
+      rawHourNote !== "Chỉ Vàng (XAUUSD)" &&
+      hourNote !== "XAU only",
+  );
 
   const xauDir =
     signal.pair_dirs?.XAUUSD ||
@@ -110,7 +115,7 @@ export function SignalCard({
         )}
       </div>
 
-      {hourNote && (
+      {showHourNote && (
         <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/40">
           <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
         </div>
