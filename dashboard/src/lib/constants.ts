@@ -19,7 +19,7 @@ export function getRhythmLabel(hour: number, locale: "VN" | "EN" = "VN"): string
   if (h === 2) return `${label} 0 · XAU`;
   if (h === 3 || h === 4) return `${label} 1 · JPY`;
   if (h >= 5 && h <= 8) return `${label} 2 · AUD`;
-  if (h === 9 || h === 10) return `${label} 3 · XAU`;
+  if (h === 9 || h === 10) return `${label} 3 · GBP`;
   if (h === 12 || h === 13) return `${label} 4 · EUR`;
   if (h === 15 || h === 17) return `${label} 5 · USD`;
   return null;
@@ -83,9 +83,19 @@ type RuleLocale = "VN" | "EN";
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
     1: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
-    2: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+    2: [
+      "Slots: H=2-10,12-13,15,17",
+      "Chỉ XAUUSD.",
+      "H=2: đảo XAU mặc định.",
+      "H=17: XAUUSD theo D-direction H=4",
+    ],
     3: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
-    4: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+    4: [
+      "Slots: H=2-10,12-13,15,17",
+      "Chỉ XAUUSD.",
+      "H=2: đảo XAU mặc định; tuần đặc biệt thì không đảo.",
+      "H=17: XAUUSD theo D-direction H=4",
+    ],
     5: [
       "Slots: H=2-10,12-13,15,17",
       "Chỉ XAUUSD.",
@@ -95,9 +105,19 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   },
   EN: {
     1: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
-    2: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
+    2: [
+      "Slots: H=2-10,12-13,15,17",
+      "XAUUSD only.",
+      "H=2: reverses XAU by default.",
+      "H=17: XAUUSD uses H=4 D-direction",
+    ],
     3: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
-    4: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
+    4: [
+      "Slots: H=2-10,12-13,15,17",
+      "XAUUSD only.",
+      "H=2: reverses XAU by default; special-calendar weeks keep it normal.",
+      "H=17: XAUUSD uses H=4 D-direction",
+    ],
     5: [
       "Slots: H=2-10,12-13,15,17",
       "XAUUSD only.",

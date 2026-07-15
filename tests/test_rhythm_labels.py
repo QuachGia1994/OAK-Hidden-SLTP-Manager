@@ -15,11 +15,12 @@ class TestRhythmLabels(unittest.TestCase):
             6: "Nhịp 2 · AUD",
             7: "Nhịp 2 · AUD",
             8: "Nhịp 2 · AUD",
-            9: "Nhịp 3 · XAU",
-            10: "Nhịp 3 · XAU",
+            9: "Nhịp 3 · GBP",
+            10: "Nhịp 3 · GBP",
             12: "Nhịp 4 · EUR",
             13: "Nhịp 4 · EUR",
             15: "Nhịp 5 · USD",
+            17: "Nhịp 5 · USD",
         }
         for hour, label in expected.items():
             with self.subTest(hour=hour):

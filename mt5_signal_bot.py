@@ -70,7 +70,7 @@ def get_rhythm_label(hour):
     if 5 <= h <= 8:
         return "Nhịp 2 · AUD"
     if h in (9, 10):
-        return "Nhịp 3 · XAU"
+        return "Nhịp 3 · GBP"
     if h in (12, 13):
         return "Nhịp 4 · EUR"
     if h in (15, 17):

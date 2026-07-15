@@ -615,9 +615,19 @@ def get_day_notes(now, lang="VN"):
 
     day_rules_vn = {
         0: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
-        1: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+        1: [
+            "Slots: H=2-10,12-13,15,17",
+            "Chỉ XAUUSD.",
+            "H=2: đảo XAU mặc định.",
+            "H=17: XAUUSD theo D-direction H=4",
+        ],
         2: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
-        3: ["Slots: H=2-10,12-13,15,17", "Chỉ XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+        3: [
+            "Slots: H=2-10,12-13,15,17",
+            "Chỉ XAUUSD.",
+            "H=2: đảo XAU mặc định; tuần đặc biệt thì không đảo.",
+            "H=17: XAUUSD theo D-direction H=4",
+        ],
         4: [
             "Slots: H=2-10,12-13,15,17",
             "Chỉ XAUUSD.",
@@ -627,9 +637,19 @@ def get_day_notes(now, lang="VN"):
     }
     day_rules_en = {
         0: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
-        1: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
+        1: [
+            "Slots: H=2-10,12-13,15,17",
+            "XAUUSD only.",
+            "H=2: reverses XAU by default.",
+            "H=17: XAUUSD uses H=4 D-direction",
+        ],
         2: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
-        3: ["Slots: H=2-10,12-13,15,17", "XAUUSD only.", "H=17: XAUUSD uses H=4 D-direction"],
+        3: [
+            "Slots: H=2-10,12-13,15,17",
+            "XAUUSD only.",
+            "H=2: reverses XAU by default; special-calendar weeks keep it normal.",
+            "H=17: XAUUSD uses H=4 D-direction",
+        ],
         4: [
             "Slots: H=2-10,12-13,15,17",
             "XAUUSD only.",
