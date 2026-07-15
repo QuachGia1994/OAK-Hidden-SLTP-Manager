@@ -2,17 +2,29 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f7f7f5;
+  --background: #f6f7f4;
   --foreground: #09090b;
   --panel: rgba(255, 255, 255, 0.78);
   --panel-border: rgba(24, 24, 27, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --glass-border: rgba(24, 24, 27, 0.1);
+  --glass-shadow: 0 18px 60px rgba(15, 23, 42, 0.08);
+  --glow-green: rgba(16, 185, 129, 0.24);
+  --glow-red: rgba(248, 113, 113, 0.18);
 }
 
 .dark {
-  --background: #09090b;
+  --background: #020406;
   --foreground: #fafafa;
   --panel: rgba(24, 24, 27, 0.78);
   --panel-border: rgba(244, 244, 245, 0.08);
+  --glass-bg: rgba(7, 12, 16, 0.68);
+  --glass-strong: rgba(11, 18, 24, 0.86);
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --glass-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+  --glow-green: rgba(16, 185, 129, 0.34);
+  --glow-red: rgba(248, 113, 113, 0.22);
 }
 
 @theme inline {
@@ -27,6 +39,7 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
   transition: background-color 0.2s, color 0.2s;
+  overflow-x: hidden;
 }
 
 ::selection {
@@ -43,6 +56,83 @@ body {
   padding-right: 1rem;
   padding-top: 1rem;
   padding-bottom: 1.5rem;
+}
+
+.glass-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--glass-strong) 82%, transparent), color-mix(in srgb, var(--glass-bg) 74%, transparent)),
+    radial-gradient(circle at 12% 0%, var(--glow-green), transparent 30%),
+    radial-gradient(circle at 100% 0%, var(--glow-red), transparent 34%);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.glass-card {
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.dark .glass-card {
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.34);
+}
+
+.market-grid {
+  background-image:
+    linear-gradient(rgba(16, 185, 129, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.04) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+.market-wave {
+  position: absolute;
+  inset: auto -12% -28% -12%;
+  height: 150px;
+  opacity: 0.55;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 12px,
+      rgba(16, 185, 129, 0.28) 12px 14px,
+      transparent 14px 26px,
+      rgba(248, 113, 113, 0.18) 26px 28px
+    );
+  mask-image: radial-gradient(ellipse at center, black 0 45%, transparent 72%);
+  transform: skewY(-2deg);
+}
+
+.signal-rail {
+  position: relative;
+}
+
+.signal-rail::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(to bottom, transparent, rgba(16, 185, 129, 0.6), transparent);
+  opacity: 0.6;
+}
+
+.lux-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(16, 185, 129, 0.35) transparent;
+}
+
+.lux-scroll::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.lux-scroll::-webkit-scrollbar-thumb {
+  background: rgba(16, 185, 129, 0.36);
+  border-radius: 999px;
 }
 
 @media (min-width: 640px) {

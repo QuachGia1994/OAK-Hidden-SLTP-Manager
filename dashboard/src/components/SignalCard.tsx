@@ -1,17 +1,17 @@
 "use client";
 
 import {
-  getSignalColor,
-  getSignalLabel,
-  getRhythmLabel,
   formatHour,
   getHourNote,
+  getRhythmLabel,
+  getSignalColor,
+  getSignalLabel,
   weekdayFromDate,
 } from "@/lib/constants";
-import { PairBadge } from "./PairBadge";
 import type { Signal } from "@/lib/types";
-import { useLocale } from "./LocaleProvider";
 import { BrokerLocalTime } from "./BrokerLocalTime";
+import { useLocale } from "./LocaleProvider";
+import { PairBadge } from "./PairBadge";
 
 function translateHourNote(note: string | null | undefined, locale: "VN" | "EN"): string | null {
   if (!note) return null;
@@ -33,9 +33,7 @@ export function SignalCard({
 }) {
   const { locale } = useLocale();
   const weekday = weekdayFromDate(signal.date);
-  const fallbackHourNote = signal.date
-    ? getHourNote(signal.hour, weekday)
-    : signal.hour_note;
+  const fallbackHourNote = signal.date ? getHourNote(signal.hour, weekday) : signal.hour_note;
   const rawHourNote = fallbackHourNote || getHourNote(signal.hour, weekday);
   const hourNote = translateHourNote(rawHourNote, locale);
   const rhythmLabel = getRhythmLabel(signal.hour, locale);
@@ -48,59 +46,47 @@ export function SignalCard({
   const xauDir =
     signal.pair_dirs?.XAUUSD ||
     (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
-
-  const xauBadgeDir = !isVIP
-    ? "locked"
-    : xauDir || "-";
+  const xauBadgeDir = !isVIP ? "locked" : xauDir || "-";
+  const isSell = signal.signal === "SELL";
+  const isBuy = signal.signal === "BUY";
 
   return (
-    <div className="group border border-zinc-200/80 dark:border-zinc-800 rounded-xl bg-white/90 dark:bg-zinc-900/55 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
-      <div className="px-3 py-2 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span className="font-mono text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            <BrokerLocalTime date={signal.date} hour={signal.hour} />
-          </span>
-          <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono">
-            ({formatHour(signal.hour)}:45 Brk)
-          </span>
-          {rhythmLabel && (
-            <span className="text-[9px] font-medium tracking-wide uppercase px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20">
-              {rhythmLabel}
-            </span>
-          )}
+    <article className="glass-card group signal-rail overflow-hidden rounded-[1.35rem] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_70px_rgba(0,0,0,0.18)] dark:hover:shadow-[0_26px_80px_rgba(0,0,0,0.45)]">
+      <div className="relative px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <span className="font-mono text-2xl font-black tabular-nums text-zinc-950 dark:text-white">
+                <BrokerLocalTime date={signal.date} hour={signal.hour} />
+              </span>
+              <span className="font-mono text-xs text-zinc-400">
+                ({formatHour(signal.hour)}:45 Brk)
+              </span>
+            </div>
+            {rhythmLabel && (
+              <span className="mt-2 inline-flex rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-600 shadow-[0_0_22px_rgba(245,158,11,0.12)] dark:text-amber-300">
+                {rhythmLabel}
+              </span>
+            )}
+          </div>
+          <span className="font-mono text-xs text-zinc-400">{signal.date}</span>
         </div>
-        <span className="text-[11px] text-zinc-400 dark:text-zinc-500 font-mono shrink-0">{signal.date}</span>
       </div>
 
-      <div className="px-3 py-2.5">
-        <div className="text-[9px] uppercase tracking-widest text-zinc-400 dark:text-zinc-500 mb-1 font-medium">
+      <div className="border-y border-zinc-200/55 px-4 py-4 dark:border-white/10">
+        <div className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">
           {locale === "EN" ? "Verdict" : "Kết luận"}
         </div>
         {isVIP ? (
-          <span className={`text-2xl sm:text-3xl font-bold font-mono leading-none ${getSignalColor(signal.signal)}`}>
+          <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(signal.signal)}`}>
             {getSignalLabel(signal.signal, locale)}
           </span>
         ) : (
-          <div className="flex items-center justify-between gap-2 rounded-md border border-dashed border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 px-2.5 py-2">
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-bold text-zinc-300 dark:text-zinc-600">🔒</span>
-              <div>
-                <div className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                  {locale === "EN" ? "VIP only" : "Chỉ VIP"}
-                </div>
-                <div className="text-[9px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                  {locale === "EN" ? "Unlock to view" : "Mở khóa để xem"}
-                </div>
-              </div>
-            </div>
-            <span className="text-[9px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded bg-zinc-200/70 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-              {locale === "EN" ? "Locked" : "Khóa"}
-            </span>
-          </div>
+          <LockedVerdict locale={locale} />
         )}
       </div>
 
-      <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 space-y-0">
+      <div className={`px-4 py-3 ${isBuy ? "bg-emerald-500/[0.035]" : isSell ? "bg-red-500/[0.035]" : ""}`}>
         <PairBadge pair="XAUUSD" direction={xauBadgeDir} />
         {signal.pair_dirs?.["D-DIRECTION"] && (
           <PairBadge
@@ -109,17 +95,38 @@ export function SignalCard({
           />
         )}
         {isVIP && (
-          <div className="pt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
+          <div className="mt-2 rounded-xl border border-zinc-200/55 bg-zinc-950/[0.025] px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/[0.035] dark:text-zinc-400">
             {locale === "EN" ? "XAU only" : "Chỉ Vàng (XAUUSD)"}
           </div>
         )}
       </div>
 
       {showHourNote && (
-        <div className="px-3 py-1.5 border-t border-zinc-100 dark:border-zinc-800/60 bg-zinc-50/90 dark:bg-zinc-900/40">
-          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 leading-snug">{hourNote}</p>
+        <div className="border-t border-zinc-200/55 bg-amber-500/[0.045] px-4 py-2.5 dark:border-white/10">
+          <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{hourNote}</p>
         </div>
       )}
+    </article>
+  );
+}
+
+function LockedVerdict({ locale }: { locale: "VN" | "EN" }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-zinc-300/70 bg-zinc-500/[0.06] px-3 py-3 dark:border-white/10">
+      <div className="flex items-center gap-3">
+        <span className="text-xl" aria-hidden="true">🔒</span>
+        <div>
+          <div className="text-sm font-black text-zinc-800 dark:text-zinc-100">
+            {locale === "EN" ? "VIP only" : "Chỉ VIP"}
+          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            {locale === "EN" ? "Unlock to view" : "Mở khóa để xem"}
+          </div>
+        </div>
+      </div>
+      <span className="rounded-lg bg-zinc-900/8 px-2 py-1 text-[10px] font-black uppercase text-zinc-500 dark:bg-white/10">
+        {locale === "EN" ? "Locked" : "Khóa"}
+      </span>
     </div>
   );
 }
