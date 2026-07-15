@@ -96,7 +96,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-5">
         <StatusCard label={t.statusBot} value={botState ? t.running : "N/A"} color={botState ? "text-emerald-500 dark:text-emerald-400" : "text-zinc-400 dark:text-zinc-500"} />
         <StatusCard label={t.statusSignals} value={todaySignals.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
-        <StatusCard label={t.statusDirection} value={activeDDirection || "—"} color={activeDDirection === "BUY" ? "text-emerald-500 dark:text-emerald-400" : activeDDirection === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
+        <StatusCard label={t.statusDirection} value={activeDDirection ? getSignalLabel(activeDDirection, locale) : "—"} color={activeDDirection === "BUY" ? "text-emerald-500 dark:text-emerald-400" : activeDDirection === "SELL" ? "text-red-500 dark:text-red-400" : "text-zinc-400 dark:text-zinc-500"} />
         <StatusCard label={t.statusNews} value={news.length.toString()} color="text-zinc-900 dark:text-zinc-100" />
       </div>
 

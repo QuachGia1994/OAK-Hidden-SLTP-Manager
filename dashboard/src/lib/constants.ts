@@ -147,6 +147,7 @@ export function getSignalColor(signal: string): string {
 export function getSignalLabel(signal: string, locale: "VN" | "EN" = "VN"): string {
   if (signal === "BUY") return locale === "EN" ? "Buy" : "Mua";
   if (signal === "SELL") return locale === "EN" ? "Sell" : "Bán";
+  if (signal === "WAIT") return locale === "EN" ? "WAIT" : "Chờ";
   return signal;
 }
 
