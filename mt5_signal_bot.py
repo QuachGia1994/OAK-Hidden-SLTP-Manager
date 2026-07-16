@@ -777,12 +777,12 @@ def analyze(broker_dt, H):
 
     if H == 2 and broker_dt.weekday() == 3:  # T5 — use T2 H=2 from history
         t2_sig = _lookup_h2_t2_signal(broker_dt)
-        if t2_sig is None:
-            print("  [SKIP] T5 H=2 - chưa có T2 H=2 trong history")
-            return {"signal": "WAIT", "report": "T5 H=2: chờ T2 H=2 từ history", "orig_signal": "WAIT", "h1_signal": None, "m30_dir": d_m30, "h1_flipped": False}
-        signal = t2_sig
-        report = f"T5 H=2: dùng signal T2 H=2 từ history -> {t2_sig}"
-        return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
+        if t2_sig in ("BUY", "SELL"):
+            signal = t2_sig
+            report = f"T5 H=2: dùng signal T2 H=2 từ history -> {t2_sig}"
+            return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
+        # Fallback: T2 history unavailable, use fresh analysis (no reversal)
+        print("  [FALLBACK] T5 H=2 - T2 history chưa có, dùng fresh analysis")
 
     if H == 2 and should_reverse_h2_xau(broker_dt):
         signal = "SELL" if signal == "BUY" else "BUY"

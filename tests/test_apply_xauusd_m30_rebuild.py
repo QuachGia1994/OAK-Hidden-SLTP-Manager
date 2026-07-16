@@ -40,14 +40,16 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
             result = analyze(tuesday, 2)
         self.assertEqual(result["signal"], "SELL")  # reversed from BUY
 
-    def test_h2_thursday_no_t2_history_returns_wait(self):
-        """T5 H=2 without T2 history should return WAIT."""
+    def test_h2_thursday_no_t2_history_falls_back(self):
+        """T5 H=2 without T2 history should fall back to fresh analysis."""
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
             mt5_signal_bot, "_lookup_h2_t2_signal", return_value=None
         ):
             result = analyze(_dt_thursday(), 2)
-        self.assertEqual(result["signal"], "WAIT")
+        # Fresh analysis: same candle gives BUY (cùng chiều -> M30 TANG -> BUY)
+        self.assertEqual(result["signal"], "BUY")
+        self.assertIn("PATTERN", result["report"])
 
     def test_h2_special_thursday_uses_t2_history(self):
         """T5 H=2 always uses T2 history, even in special-calendar weeks."""
