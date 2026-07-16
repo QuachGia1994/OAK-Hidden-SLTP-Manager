@@ -52,8 +52,8 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(result["signal"], "BUY")
         self.assertIn("PATTERN", result["report"])
 
-    def test_h2_special_thursday_reverses(self):
-        """T5 H=2 reverses on special-calendar weeks."""
+    def test_h2_special_thursday_uses_t2_history_reversed(self):
+        """T5 H=2 on special week: uses T2 history but reverses it."""
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         cases = (
             datetime(2025, 5, 1, 2, 45, tzinfo=timezone.utc),  # Thu special week
@@ -62,9 +62,11 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         for dt in cases:
             with self.subTest(dt=dt):
                 self.assertTrue(is_h2_special_calendar_weekday(dt))
-                with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
+                with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
+                    mt5_signal_bot, "_lookup_h2_t2_signal", return_value="BUY"
+                ):
                     result = analyze(dt, 2)
-                self.assertEqual(result["signal"], "SELL")  # reversed from BUY
+                self.assertEqual(result["signal"], "SELL")  # T2 history BUY -> reversed to SELL
 
     def test_h2_special_friday_reverses(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}

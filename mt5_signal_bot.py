@@ -793,17 +793,21 @@ def analyze(broker_dt, H):
 
     original_signal = signal
 
-    if H == 2 and should_reverse_h2_xau(broker_dt):
-        signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2: đảo signal XAU (T5/T6 đảo khi tuần đặc biệt)."
-    elif H == 2 and broker_dt.weekday() == 3:  # T5 — không phải tuần đặc biệt, dùng T2 history
+    if H == 2 and broker_dt.weekday() == 3:  # T5 — luôn dùng T2 history
         t2_sig = _lookup_h2_t2_signal(broker_dt)
         if t2_sig in ("BUY", "SELL"):
-            signal = t2_sig
-            report = f"T5 H=2: dùng signal T2 H=2 từ history -> {t2_sig}"
+            if should_reverse_h2_xau(broker_dt):
+                signal = "SELL" if t2_sig == "BUY" else "BUY"
+                report = f"T5 H=2: dùng T2 history {t2_sig} -> đảo thành {signal} (tuần đặc biệt)."
+            else:
+                signal = t2_sig
+                report = f"T5 H=2: dùng signal T2 H=2 từ history -> {t2_sig}"
             return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
-        # Fallback: T2 history unavailable, use fresh analysis (no reversal)
+        # Fallback: T2 history unavailable, use fresh analysis
         print("  [FALLBACK] T5 H=2 - T2 history chưa có, dùng fresh analysis")
+    elif H == 2 and should_reverse_h2_xau(broker_dt):  # T6 đảo khi tuần đặc biệt
+        signal = "SELL" if signal == "BUY" else "BUY"
+        report += "\nH=2: đảo signal XAU (T6 đảo khi tuần đặc biệt)."
     return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
