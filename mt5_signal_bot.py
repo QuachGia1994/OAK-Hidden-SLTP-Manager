@@ -855,6 +855,8 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "H=2: Chỉ Vàng (XAUUSD)"
     if h == 7:
         return "H=7: đảo ngược từ H=2"
+    if h == 3:
+        return "H=3: đảo ngược từ H=2"
     if h == 17:
         return "Chỉ Vàng (XAUUSD)"
     return "Chỉ Vàng (XAUUSD)"
@@ -1297,12 +1299,21 @@ def main(profile_name=None):
                         "m30_dir": None,
                         "h1_signal": None,
                     }
-                elif now_hour == 3 and broker_dt.weekday() in (3, 4):
-                    sent_today.add(key)
-                    _save_state(day_signals, sent_today)
-                    print(f"  [SKIP] H=3 T{broker_dt.weekday()+1} - skipped")
-                    time.sleep(10)
-                    continue
+                elif now_hour == 3:
+                    h2_sig = _lookup_h2_signal_today(broker_dt)
+                    if h2_sig not in ("BUY", "SELL"):
+                        sent_today.add(key)
+                        _save_state(day_signals, sent_today)
+                        print("  [SKIP] H=3 - missing H=2 signal from today")
+                        time.sleep(10)
+                        continue
+                    reversed_sig = "SELL" if h2_sig == "BUY" else "BUY"
+                    result = {
+                        "signal": reversed_sig,
+                        "report": f"H=3 đảo ngược từ H=2 ({h2_sig} -> {reversed_sig}).",
+                        "m30_dir": None,
+                        "h1_signal": None,
+                    }
                 else:
                     result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
