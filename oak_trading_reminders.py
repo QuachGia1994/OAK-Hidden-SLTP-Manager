@@ -614,45 +614,41 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     day_rules_vn = {
-        0: ["Slots: H=2-5,7-9,12-13,15,17", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
-        1: ["Slots: H=2-5,7-9,12-13,15,17", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
-        2: ["Slots: H=2-5,7-9,12-13,15,17", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+        0: ["Slots: H=2-5,7-9,12-13,15", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD."],
+        1: ["Slots: H=2-5,7-9,12-13,15", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD."],
+        2: ["Slots: H=2-5,7-9,12-13,15", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD."],
         3: [
-            "Slots: H=2-5,7-9,12-13,15,17",
+            "Slots: H=2-5,7-9,12-13,15",
             "Chỉ XAUUSD.",
             "H=2: dùng signal T2 từ history.",
             "H=3: đảo ngược từ H=2.",
             "H=4: D-direction cùng XAUUSD.",
-            "H=17: XAUUSD theo D-direction H=4",
         ],
         4: [
-            "Slots: H=2-5,7-9,12-13,15,17",
+            "Slots: H=2-5,7-9,12-13,15",
             "Chỉ XAUUSD.",
             "H=2: bình thường; tuần đặc biệt thì đảo XAU.",
             "H=3: đảo ngược từ H=2.",
             "H=4: D-direction cùng XAUUSD.",
-            "H=17: XAUUSD theo D-direction H=4",
         ],
     }
     day_rules_en = {
-        0: ["Slots: H=2-5,7-9,12-13,15,17", "XAUUSD only.", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
-        1: ["Slots: H=2-5,7-9,12-13,15,17", "XAUUSD only.", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
-        2: ["Slots: H=2-5,7-9,12-13,15,17", "XAUUSD only.", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
+        0: ["Slots: H=2-5,7-9,12-13,15", "XAUUSD only.", "H=4: D-direction follows XAUUSD."],
+        1: ["Slots: H=2-5,7-9,12-13,15", "XAUUSD only.", "H=4: D-direction follows XAUUSD."],
+        2: ["Slots: H=2-5,7-9,12-13,15", "XAUUSD only.", "H=4: D-direction follows XAUUSD."],
         3: [
-            "Slots: H=2-5,7-9,12-13,15,17",
+            "Slots: H=2-5,7-9,12-13,15",
             "XAUUSD only.",
             "H=2: uses T2 H=2 signal from history.",
             "H=3: reverse from H=2.",
             "H=4: D-direction follows XAUUSD.",
-            "H=17: XAUUSD uses H=4 D-direction",
         ],
         4: [
-            "Slots: H=2-5,7-9,12-13,15,17",
+            "Slots: H=2-5,7-9,12-13,15",
             "XAUUSD only.",
             "H=2: normal; special-calendar weeks reverse XAU.",
             "H=3: reverse from H=2.",
             "H=4: D-direction follows XAUUSD.",
-            "H=17: XAUUSD uses H=4 D-direction",
         ],
     }
 

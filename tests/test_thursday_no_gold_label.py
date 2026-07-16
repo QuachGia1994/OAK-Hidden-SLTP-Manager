@@ -19,14 +19,14 @@ from mt5_signal_bot import (
 class TestXauOnlyRules(unittest.TestCase):
     def test_no_gold_label_removed_for_all_weekdays(self):
         for weekday in range(5):
-            for hour in (2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17):
+            for hour in (2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertFalse(is_xau_no_trade_label_slot(hour, weekday=weekday))
                     self.assertEqual(xau_no_trade_label_tag(hour, weekday=weekday), "")
 
     def test_no_gbp_focus_for_all_weekdays(self):
         for weekday in range(5):
-            for hour in (2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17):
+            for hour in (2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_focus_gbp_pairs(hour, weekday=weekday), [])
 

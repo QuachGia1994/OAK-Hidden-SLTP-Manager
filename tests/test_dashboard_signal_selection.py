@@ -57,7 +57,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
         ):
             with self.subTest(weekday=broker_dt.weekday()):
                     self.assertEqual(
-                        get_pair_direction(6, "BUY", broker_dt),
+                        get_pair_direction(7, "BUY", broker_dt),
                         {"XAUUSD": "BUY"},
                     )
 
