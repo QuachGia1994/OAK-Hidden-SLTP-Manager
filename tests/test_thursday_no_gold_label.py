@@ -30,28 +30,13 @@ class TestXauOnlyRules(unittest.TestCase):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_focus_gbp_pairs(hour, weekday=weekday), [])
 
-    def test_hour_notes_are_xau_only_except_h2_h3_h7_h17(self):
+    def test_hour_notes_are_xau_only_except_h2_h7(self):
         for weekday in range(5):
-            for hour in (4, 5, 8, 9, 12, 13, 15):
+            for hour in (3, 4, 5, 8, 9, 12, 13, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_hour_note(hour, weekday=weekday), "Chỉ Vàng (XAUUSD)")
-            self.assertEqual(get_hour_note(3, weekday=weekday), "H=3: đảo ngược từ H=2")
-            self.assertEqual(get_hour_note(7, weekday=weekday), "H=7: đảo ngược từ H=2")
-
-    def test_h2_notes_vary_by_weekday(self):
-        # T3 (weekday=1): normal pattern, no special note
-        note_t3 = get_hour_note(2, weekday=1)
-        self.assertIn("Chỉ Vàng", note_t3)
-        # T5 (weekday=3): use T2 history
-        note_t5 = get_hour_note(2, weekday=3)
-        self.assertIn("dùng signal T2 từ history", note_t5)
-        # T6 (weekday=4): normal, special calendar reverses
-        note_fri = get_hour_note(2, weekday=4)
-        self.assertIn("bình thường", note_fri)
-        # T2 (weekday=0) / T4 (weekday=2): generic
-        for wd in (0, 2):
-            note = get_hour_note(2, weekday=wd)
-            self.assertIn("Chỉ Vàng", note)
+            self.assertIsNone(get_hour_note(2, weekday=weekday))
+            self.assertIsNone(get_hour_note(7, weekday=weekday))
 
     def test_friday_has_no_broad_xau_reversal(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}

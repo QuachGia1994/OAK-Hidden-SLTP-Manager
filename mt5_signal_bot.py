@@ -847,16 +847,9 @@ def get_hour_note(H, weekday=None, broker_dt=None):
     if h in DISABLED_HOURS:
         return "Chỉ Vàng (XAUUSD)"
     if h == 2:
-        wd = _resolve_weekday(broker_dt, weekday)
-        if wd == 3:  # T5 — use T2 H=2 from history
-            return "H=2: dùng signal T2 từ history"
-        if wd == 4:  # T6 — reverse only special calendar
-            return "H=2: bình thường; tuần đặc biệt thì đảo XAU"
-        return "H=2: Chỉ Vàng (XAUUSD)"
+        return None
     if h == 7:
-        return "H=7: đảo ngược từ H=2"
-    if h == 3:
-        return "H=3: đảo ngược từ H=2"
+        return None
     if h == 17:
         return "Chỉ Vàng (XAUUSD)"
     return "Chỉ Vàng (XAUUSD)"
