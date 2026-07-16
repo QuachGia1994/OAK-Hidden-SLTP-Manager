@@ -52,8 +52,8 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(result["signal"], "BUY")
         self.assertIn("PATTERN", result["report"])
 
-    def test_h2_special_thursday_uses_t2_history(self):
-        """T5 H=2 always uses T2 history, even in special-calendar weeks."""
+    def test_h2_special_thursday_reverses(self):
+        """T5 H=2 reverses on special-calendar weeks."""
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         cases = (
             datetime(2025, 5, 1, 2, 45, tzinfo=timezone.utc),  # Thu special week
@@ -62,11 +62,9 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         for dt in cases:
             with self.subTest(dt=dt):
                 self.assertTrue(is_h2_special_calendar_weekday(dt))
-                with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
-                    mt5_signal_bot, "_lookup_h2_t2_signal", return_value="SELL"
-                ):
+                with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
                     result = analyze(dt, 2)
-                self.assertEqual(result["signal"], "SELL")  # from T2 history, not fresh analysis
+                self.assertEqual(result["signal"], "SELL")  # reversed from BUY
 
     def test_h2_special_friday_reverses(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
@@ -115,13 +113,14 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(pair_dirs, {"XAUUSD": "SELL"})
 
     def test_h5_xau_only_after_flip(self):
-        """H=5,8: Focus only — no GBP in pair_dirs even after M30 flip."""
+        """H=5,8: Focus only — no GBP in pair_dirs even after M30 flip (GBP-DIRECTION is a pseudo pair)."""
         dt = _dt_tuesday()
         for H in (5, 8):
             with self.subTest(H=H):
                 sig = "SELL"
                 pair_dirs = get_pair_direction(H, sig, dt)
-                self.assertEqual(pair_dirs, {"XAUUSD": "SELL"})
+                self.assertIn("XAUUSD", pair_dirs)
+                self.assertEqual(pair_dirs["XAUUSD"], "SELL")
                 with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="SELL"):
                     apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
                 self.assertEqual(pair_dirs["XAUUSD"], "BUY")

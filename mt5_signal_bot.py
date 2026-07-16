@@ -651,14 +651,15 @@ def should_reverse_h2_xau(broker_dt):
     """Whether H=2 should reverse the pattern XAU signal.
 
     - Tue (T3): normal pattern, no reverse (v3.16.5)
-    - Thu (T5): use T2 H=2 from history (no fresh analysis)
+    - Thu (T5): reverse only on special-calendar weeks; otherwise use T2 history
     - Fri (T6): reverse only on special-calendar weeks
     - Other weekdays: never reverse
     """
     if broker_dt is None:
         return False
-    # T3 no longer reverses (v3.16.5)
-    return broker_dt.weekday() == 4 and is_h2_special_calendar_weekday(broker_dt)
+    if broker_dt.weekday() not in (3, 4):
+        return False
+    return is_h2_special_calendar_weekday(broker_dt)
 
 def _lookup_h2_t2_signal(broker_dt):
     """Look up T2 (previous Mon) H=2 signal from signals_log history."""
@@ -792,7 +793,10 @@ def analyze(broker_dt, H):
 
     original_signal = signal
 
-    if H == 2 and broker_dt.weekday() == 3:  # T5 — use T2 H=2 from history
+    if H == 2 and should_reverse_h2_xau(broker_dt):
+        signal = "SELL" if signal == "BUY" else "BUY"
+        report += "\nH=2: đảo signal XAU (T5/T6 đảo khi tuần đặc biệt)."
+    elif H == 2 and broker_dt.weekday() == 3:  # T5 — không phải tuần đặc biệt, dùng T2 history
         t2_sig = _lookup_h2_t2_signal(broker_dt)
         if t2_sig in ("BUY", "SELL"):
             signal = t2_sig
@@ -800,10 +804,6 @@ def analyze(broker_dt, H):
             return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
         # Fallback: T2 history unavailable, use fresh analysis (no reversal)
         print("  [FALLBACK] T5 H=2 - T2 history chưa có, dùng fresh analysis")
-
-    if H == 2 and should_reverse_h2_xau(broker_dt):
-        signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2: đảo signal XAU (T6 đảo khi tuần đặc biệt)."
     return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
