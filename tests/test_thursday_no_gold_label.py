@@ -67,14 +67,18 @@ class TestXauOnlyRules(unittest.TestCase):
 
     def test_pair_direction_is_xau_only(self):
         dt = datetime(2026, 7, 9, 12, 0)
-        for hour in (2, 3, 5, 9, 12, 15):
+        for hour in (2, 3, 9, 12, 15):
             with self.subTest(hour=hour):
                 result = get_pair_direction(hour, "BUY", dt)
                 self.assertEqual(result, {"XAUUSD": "BUY"})
 
+    def test_h5_has_gbp_direction_marker(self):
+        result = get_pair_direction(5, "BUY", datetime(2026, 7, 9, 12, 0))
+        self.assertEqual(result, {"XAUUSD": "BUY", "GBP-DIRECTION": "BUY"})
+
     def test_h4_keeps_d_direction_marker_only(self):
         result = get_pair_direction(4, "BUY", datetime(2026, 7, 9, 12, 0))
-        self.assertEqual(result, {"XAUUSD": "BUY", "D-DIRECTION": "BUY"})
+        self.assertEqual(result, {"XAUUSD": "BUY", "Stock-DIRECTION": "BUY"})
 
 
 if __name__ == "__main__":

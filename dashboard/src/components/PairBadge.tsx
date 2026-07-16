@@ -21,17 +21,23 @@ export function PairBadge({ pair, direction }: PairBadgeProps) {
     );
   }
 
-  if (pair === "D-DIRECTION") {
+  if (pair === "Stock-DIRECTION" || pair === "GBP-DIRECTION") {
     const isBuy = direction === "BUY";
+    const isGBP = pair === "GBP-DIRECTION";
+    const borderColor = isGBP ? "border-purple-300/60 dark:border-purple-400/30" : "border-cyan-300/60 dark:border-cyan-400/30";
+    const bgColor = isGBP ? "bg-purple-50/80 dark:bg-purple-400/10" : "bg-cyan-50/80 dark:bg-cyan-400/10";
+    const shadowColor = isGBP ? "shadow-[0_0_26px_rgba(168,85,247,0.18)]" : "shadow-[0_0_26px_rgba(34,211,238,0.18)]";
+    const textColor = isGBP ? "text-purple-700 dark:text-purple-200" : "text-cyan-700 dark:text-cyan-200";
+    const iconBg = isGBP ? "bg-purple-500/15 text-purple-500 shadow-[0_0_14px_rgba(168,85,247,0.45)]" : "bg-cyan-500/15 text-cyan-500 shadow-[0_0_14px_rgba(34,211,238,0.45)]";
     return (
-      <div className="my-2 flex items-center justify-between gap-2 rounded-2xl border border-cyan-300/60 bg-cyan-50/80 px-3 py-2 shadow-[0_0_26px_rgba(34,211,238,0.18)] dark:border-cyan-400/30 dark:bg-cyan-400/10">
-        <span className="inline-flex items-center gap-2 font-mono text-[11px] font-black tracking-wide text-cyan-700 dark:text-cyan-200">
-          <span className="grid h-5 w-5 place-items-center rounded-lg bg-cyan-500/15 text-cyan-500 shadow-[0_0_14px_rgba(34,211,238,0.45)]">
+      <div className={`my-2 flex items-center justify-between gap-2 rounded-2xl border ${borderColor} ${bgColor} px-3 py-2 ${shadowColor}`}>
+        <span className={`inline-flex items-center gap-2 font-mono text-[11px] font-black tracking-wide ${textColor}`}>
+          <span className={`grid h-5 w-5 place-items-center rounded-lg ${iconBg}`}>
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M7 7h10v10M17 7 7 17" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
-          D-DIRECTION
+          {pair}
         </span>
         <span className={`text-[10px] font-black tracking-wide px-2.5 py-1 rounded-xl border ${
           isBuy

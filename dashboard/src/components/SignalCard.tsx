@@ -18,7 +18,7 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
   const map: Array<[RegExp, string]> = [
     [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
     [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
-    [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 D-direction"],
+    [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 Stock-direction"],
   ];
   return map.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), note);
 }
@@ -81,10 +81,16 @@ export function SignalCard({
 
       <div className={`px-4 py-3 ${isBuy ? "bg-emerald-500/[0.035]" : isSell ? "bg-red-500/[0.035]" : ""}`}>
         <PairBadge pair="XAUUSD" direction={xauBadgeDir} />
-        {signal.pair_dirs?.["D-DIRECTION"] && (
+        {signal.pair_dirs?.["Stock-DIRECTION"] && (
           <PairBadge
-            pair="D-DIRECTION"
-            direction={isVIP ? signal.pair_dirs["D-DIRECTION"] : "locked"}
+            pair="Stock-DIRECTION"
+            direction={isVIP ? signal.pair_dirs["Stock-DIRECTION"] : "locked"}
+          />
+        )}
+        {signal.pair_dirs?.["GBP-DIRECTION"] && (
+          <PairBadge
+            pair="GBP-DIRECTION"
+            direction={isVIP ? signal.pair_dirs["GBP-DIRECTION"] : "locked"}
           />
         )}
       </div>

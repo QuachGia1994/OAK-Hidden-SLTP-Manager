@@ -46,8 +46,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hoursToday = getTargetHours(dayOfWeek);
   const todaySignals = signals.filter((s) => s.date === todayStr);
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
-  const h4DDirection = todaySignals.find((s) => s.hour === 4)?.pair_dirs?.["D-DIRECTION"];
-  const activeDDirection = botState?.d_direction || h4DDirection || null;
+  const h4StockDirection = todaySignals.find((s) => s.hour === 4)?.pair_dirs?.["Stock-DIRECTION"];
+  const h5GBPDirection = todaySignals.find((s) => s.hour === 5)?.pair_dirs?.["GBP-DIRECTION"];
+  const activeDDirection = botState?.d_direction || h4StockDirection || null;
 
   const allSlots = hoursToday.map((h) => {
     const signal = signalsByHour.get(h);

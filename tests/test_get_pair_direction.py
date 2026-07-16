@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from mt5_signal_bot import (
     ALL_PAIRS,
     D_DIRECTION_PAIR,
+    GBP_DIRECTION_PAIR,
     GBP_PAIRS,
     get_d_direction_from_xau,
     get_pair_direction,
@@ -37,6 +38,8 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                         expected = {"XAUUSD": signal}
                         if hour == 4:
                             expected[D_DIRECTION_PAIR] = get_d_direction_from_xau(signal, weekday=weekday)
+                        if hour == 5:
+                            expected[GBP_DIRECTION_PAIR] = get_d_direction_from_xau(signal, weekday=weekday)
                         self.assertEqual(result, expected)
 
     def test_non_buy_sell_signal_returns_empty(self):

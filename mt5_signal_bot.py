@@ -54,7 +54,8 @@ DISABLED_HOURS = {6, 10, 11, 14}
 TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 18
-D_DIRECTION_PAIR = "D-DIRECTION"
+D_DIRECTION_PAIR = "Stock-DIRECTION"
+GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
 
 def get_rhythm_label(hour):
@@ -284,7 +285,7 @@ def get_current_prices(pair_dirs):
     """Lấy giá market hiện tại (tick)."""
     prices = {}
     for pair, direction in pair_dirs.items():
-        if pair == D_DIRECTION_PAIR:
+        if pair == D_DIRECTION_PAIR or pair == GBP_DIRECTION_PAIR:
             continue
         if direction not in ("BUY", "SELL"):
             continue
@@ -904,12 +905,21 @@ def get_d_direction_from_xau(xau_signal, broker_dt=None, weekday=None):
 
 
 def apply_d_direction_marker(pair_dirs, H, broker_dt):
-    """Attach the H=4 D-direction pseudo pair for UI/Telegram display."""
-    if int(H) != 4:
+    """Attach direction pseudo pairs for UI/Telegram display.
+
+    H=4 → Stock-DIRECTION (direction of day derived from XAUUSD)
+    H=5 → GBP-DIRECTION (direction of day derived from XAUUSD)
+    """
+    h = int(H)
+    if h not in (4, 5):
         return None
     d_direction = get_d_direction_from_xau(pair_dirs.get("XAUUSD"), broker_dt)
-    if d_direction:
+    if not d_direction:
+        return None
+    if h == 4:
         pair_dirs[D_DIRECTION_PAIR] = d_direction
+    elif h == 5:
+        pair_dirs[GBP_DIRECTION_PAIR] = d_direction
     return d_direction
 
 
@@ -1325,6 +1335,15 @@ def main(profile_name=None):
                             "signal": sig,
                             "m30_dir": result.get("m30_dir"),
                             "d_direction": h4_d_direction,
+                        }
+                        _save_state(day_signals, sent_today)
+                if now_hour == 5:
+                    h5_gbp_direction = (pair_dirs or {}).get(GBP_DIRECTION_PAIR)
+                    if h5_gbp_direction in ("BUY", "SELL"):
+                        day_signals[(broker_dt.date(), 5)] = {
+                            "signal": sig,
+                            "m30_dir": result.get("m30_dir"),
+                            "d_direction": h5_gbp_direction,
                         }
                         _save_state(day_signals, sent_today)
 
