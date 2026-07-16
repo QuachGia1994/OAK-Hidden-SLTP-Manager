@@ -1,4 +1,4 @@
-﻿/** Mon–Fri H=2-10,12-13,15,17 (weekend excluded). */
+/** Mon–Fri H=2-10,12-13,15,17 (weekend excluded). */
 export const DISABLED_HOURS = new Set([11, 14]);
 export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17];
 /** @deprecated same as TARGET_HOURS — kept for imports */
@@ -68,7 +68,7 @@ const HOUR_NOTES: Record<number, string> = {
   10: "Chỉ Vàng (XAUUSD)",
   12: "Chỉ Vàng (XAUUSD)",
   15: "Chỉ Vàng (XAUUSD)",
-  17: "XAUUSD theo D-direction H=4",
+  17: "Chỉ Vàng (XAUUSD)",
 };
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
@@ -76,15 +76,14 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
   // JS weekday: Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5
   if (h === 2) {
-    if (jsWeekday === 2 || jsWeekday === 4) {
-      return "H=2: không đảo XAU (pattern thường)";
+    if (jsWeekday === 4) {
+      return "H=2: dùng signal T2 từ history";
     }
     if (jsWeekday === 5) {
       return "H=2: bình thường; tuần đặc biệt thì đảo XAU";
     }
-    return "H=2: Chỉ Vàng (XAUUSD)";
+    return "Chỉ Vàng (XAUUSD)";
   }
-  if (h === 17) return "XAUUSD theo D-direction H=4";
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
@@ -92,59 +91,41 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-10, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10).", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+    1: ["Slots: H=2-10, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
     2: [
       "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
-      "H=2: không đảo XAU (pattern thường).",
       "Nhịp 3: GBP (H=9-10).",
-      "H=4: D-direction cùng XAUUSD.",
-      "H=17: XAUUSD theo D-direction H=4",
     ],
-    3: ["Slots: H=2-10, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10).", "H=4: D-direction cùng XAUUSD.", "H=17: XAUUSD theo D-direction H=4"],
+    3: ["Slots: H=2-10, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
     4: [
       "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
-      "H=2: không đảo XAU (pattern thường).",
       "Nhịp 3: GBP (H=9-10).",
-      "H=4: D-direction cùng XAUUSD.",
-      "H=17: XAUUSD theo D-direction H=4",
     ],
     5: [
       "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
-      "H=2: bình thường; tuần đặc biệt thì đảo XAU.",
       "Nhịp 3: GBP (H=9-10).",
-      "H=4: D-direction cùng XAUUSD.",
-      "H=17: XAUUSD theo D-direction H=4",
     ],
   },
   EN: {
-    1: ["Slots: H=2-10, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10).", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
+    1: ["Slots: H=2-10, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
     2: [
       "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
-      "H=2: no XAU reverse (normal pattern).",
       "Rhythm 3: GBP (H=9-10).",
-      "H=4: D-direction follows XAUUSD.",
-      "H=17: XAUUSD uses H=4 D-direction",
     ],
-    3: ["Slots: H=2-10, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10).", "H=4: D-direction follows XAUUSD.", "H=17: XAUUSD uses H=4 D-direction"],
+    3: ["Slots: H=2-10, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
     4: [
       "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
-      "H=2: no XAU reverse (normal pattern).",
       "Rhythm 3: GBP (H=9-10).",
-      "H=4: D-direction follows XAUUSD.",
-      "H=17: XAUUSD uses H=4 D-direction",
     ],
     5: [
       "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
-      "H=2: normal; special-calendar weeks reverse XAU.",
       "Rhythm 3: GBP (H=9-10).",
-      "H=4: D-direction follows XAUUSD.",
-      "H=17: XAUUSD uses H=4 D-direction",
     ],
   },
 };

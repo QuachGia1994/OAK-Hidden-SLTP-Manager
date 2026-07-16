@@ -6,7 +6,13 @@ from datetime import datetime, time, timezone
 from unittest.mock import patch
 
 from mt5_signal_bot import _latest_today_news_cache, _parse_news_for_dashboard, get_pair_direction, select_signals_for_dashboard
-from oak_trading_reminders import _NEWS_CACHE_VERSION, _get_display_tz, _get_display_tz_name, fetch_forexfactory_xml
+from oak_trading_reminders import (
+    _NEWS_CACHE_VERSION,
+    _get_display_tz,
+    _get_display_tz_name,
+    _get_news_day,
+    fetch_forexfactory_xml,
+)
 
 
 class _FakeResponse:
@@ -69,7 +75,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
 
     def test_forexfactory_xml_uses_utc_to_system_display_time(self):
         display_tz = _get_display_tz()
-        today = datetime.now(display_tz).date()
+        today = _get_news_day()
         xml = f"""<weeklyevents>
             <event>
                 <title>Core CPI m/m</title>

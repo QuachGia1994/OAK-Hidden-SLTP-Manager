@@ -340,6 +340,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", action="store_true", help="Run in worker mode")
     parser.add_argument("--signal-bot", action="store_true", help="Run signal bot mode")
+    parser.add_argument("--mt-server", action="store_true", help="Run MT4-MT5 server mode")
+    parser.add_argument("--mimo-bot", action="store_true", help="Run MiMo Telegram bot mode")
+    parser.add_argument("--mimo-worker", action="store_true", help="Run MiMo worker mode")
     parser.add_argument("--factcheck-worker", action="store_true", help="Run fact-check worker mode")
     parser.add_argument("--profile", type=str, help="Profile name to run")
     args, unknown = parser.parse_known_args()
@@ -347,6 +350,15 @@ if __name__ == "__main__":
     if args.factcheck_worker:
         import factcheck_worker
         factcheck_worker.main()
+    elif args.mt_server:
+        import mt4_mt5_server
+        mt4_mt5_server.main()
+    elif args.mimo_bot:
+        import runpy
+        runpy.run_module("mimo_bot", run_name="__main__")
+    elif args.mimo_worker:
+        import mimo_worker
+        mimo_worker.main()
     elif args.signal_bot and args.profile:
         # Frozen exe: run signal bot directly
         import mt5_signal_bot

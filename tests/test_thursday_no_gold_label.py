@@ -38,9 +38,9 @@ class TestXauOnlyRules(unittest.TestCase):
             self.assertEqual(get_hour_note(17, weekday=weekday), "XAUUSD theo D-direction H=4")
 
     def test_h2_notes_vary_by_weekday(self):
-        # T3 (weekday=1): always reverse
+        # T3 (weekday=1): normal pattern, no special note
         note_t3 = get_hour_note(2, weekday=1)
-        self.assertIn("đảo XAU mặc định", note_t3)
+        self.assertIn("Chỉ Vàng", note_t3)
         # T5 (weekday=3): use T2 history
         note_t5 = get_hour_note(2, weekday=3)
         self.assertIn("dùng signal T2 từ history", note_t5)

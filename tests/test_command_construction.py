@@ -39,12 +39,18 @@ class TestCommandConstruction(unittest.TestCase):
         self.assertIn("-u", cmd)
         self.assertIn("mt4_mt5_server.py", cmd)
 
-    def test_frozen_mode_only_signal_bot_supported(self):
-        """Frozen mode supports embedded workers only."""
-        supported = ["signal_bot", "factcheck_worker"]
-        unsupported = ["mt_server", "mimo_bot", "mimo_worker"]
-        for key in unsupported:
-            self.assertNotIn(key, supported)
+    def test_frozen_mode_supports_all_native_workers(self):
+        """Frozen mode can launch every NativeQt worker through exe flags."""
+        expected = {
+            "mt_server": "--mt-server",
+            "mimo_bot": "--mimo-bot",
+            "mimo_worker": "--mimo-worker",
+        }
+        for key, flag in expected.items():
+            self.assertEqual(
+                build_signal_process_cmd(key, "ignored", True, sys.executable),
+                [sys.executable, flag],
+            )
 
     def test_factcheck_worker_commands(self):
         self.assertEqual(

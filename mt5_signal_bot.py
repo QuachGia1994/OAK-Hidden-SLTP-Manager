@@ -635,7 +635,7 @@ def get_xauusd_m30_signal(broker_dt, H):
 
 
 def is_h2_special_calendar_weekday(broker_dt):
-    """H=2 special-calendar week detector (Wed day 30/1 or Fri day 3/4/7).
+    """Check special-calendar weeks (month-end / month-start / NFP).
 
     Used only for Friday H=2 reverse. Tue/Thu no longer reverse H=2.
     """
@@ -649,15 +649,14 @@ def is_h2_special_calendar_weekday(broker_dt):
 def should_reverse_h2_xau(broker_dt):
     """Whether H=2 should reverse the pattern XAU signal.
 
-    - Tue (T3): always reverse
-    - Thu (T5): use T3 H=2 from history (no fresh analysis)
+    - Tue (T3): normal pattern, no reverse (v3.16.5)
+    - Thu (T5): use T2 H=2 from history (no fresh analysis)
     - Fri (T6): reverse only on special-calendar weeks
     - Other weekdays: never reverse
     """
     if broker_dt is None:
         return False
-    if broker_dt.weekday() == 1:  # T3 — always reverse
-        return True
+    # T3 no longer reverses (v3.16.5)
     return broker_dt.weekday() == 4 and is_h2_special_calendar_weekday(broker_dt)
 
 def _lookup_h2_t2_signal(broker_dt):
@@ -786,7 +785,7 @@ def analyze(broker_dt, H):
 
     if H == 2 and should_reverse_h2_xau(broker_dt):
         signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2: đảo signal XAU (T3 đảo mặc định; T6 đảo khi tuần đặc biệt)."
+        report += "\nH=2: đảo signal XAU (T6 đảo khi tuần đặc biệt)."
     return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
@@ -827,15 +826,13 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h == 2:
         wd = _resolve_weekday(broker_dt, weekday)
-        if wd == 1:  # T3 — always reverse
-            return "H=2: đảo XAU mặc định"
         if wd == 3:  # T5 — use T2 H=2 from history
             return "H=2: dùng signal T2 từ history"
         if wd == 4:  # T6 — reverse only special calendar
             return "H=2: bình thường; tuần đặc biệt thì đảo XAU"
         return "H=2: Chỉ Vàng (XAUUSD)"
     if h == 17:
-        return "XAUUSD theo D-direction H=4"
+        return "Chỉ Vàng (XAUUSD)"
     return "Chỉ Vàng (XAUUSD)"
 
 
@@ -855,9 +852,7 @@ def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
         pass
 
     d_direction = (pair_dirs or {}).get(D_DIRECTION_PAIR)
-    if d_direction in ("BUY", "SELL"):
-        d_icon, _ = get_signal_icon(d_direction)
-        lines.append(f"  {D_DIRECTION_PAIR}: {d_icon} {d_direction}")
+    # D-direction calculated but hidden from display (v3.16.5)
 
     if not lines:
         lines.append("  (không có cặp)")

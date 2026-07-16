@@ -27,8 +27,8 @@ Tài liệu liên quan:
 - No-gold label đã gỡ toàn bộ.
 - Output pair chỉ còn `XAUUSD`; không còn list/focus GBP.
 - Thứ 6 không đảo XAU đại trà.
-- H=2 **không đảo** vào Thứ 3 và Thứ 5; chỉ H=2 Thứ 6 tuần đặc biệt mới đảo.
-- H=4 lưu D-direction cùng chiều XAUUSD; H=17 hiển thị XAUUSD theo D-direction của H=4.
+- H=2 **Thứ 3 không đảo**; Thứ 5 dùng history T2; chỉ H=2 Thứ 6 tuần đặc biệt mới đảo.
+- H=4 D-direction vẫn tính nhưng ẩn hiển thị; H=17 hiển thị XAUUSD theo D-direction của H=4.
 
 ## Fact Check AI
 

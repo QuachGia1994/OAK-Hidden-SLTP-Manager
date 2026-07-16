@@ -53,7 +53,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     const signal = signalsByHour.get(h);
     const hasH17Xau = signal?.pair_dirs?.XAUUSD === "BUY" || signal?.pair_dirs?.XAUUSD === "SELL";
     const h17Preview = h === 17 && activeDDirection && !hasH17Xau
-      ? { pair_dirs: { XAUUSD: activeDDirection }, hour_note: "XAUUSD theo D-direction H=4" }
+      ? { pair_dirs: { XAUUSD: activeDDirection }, hour_note: "Chỉ Vàng (XAUUSD)" }
       : {};
     return {
       date: todayStr,
@@ -102,12 +102,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricTile label={t.statusBot} value={botStatus} tone={botState ? "buy" : "idle"} icon="bot" />
         <MetricTile label={t.statusSignals} value={todaySignals.length.toString()} tone="info" icon="signal" />
-        <MetricTile
-          label={t.statusDirection}
-          value={directionText}
-          tone={activeDDirection === "BUY" ? "buy" : activeDDirection === "SELL" ? "sell" : "idle"}
-          icon="direction"
-        />
+        {/* D-direction hidden from display (v3.16.5) — calculation still runs for H=17 */}
         <MetricTile label={t.statusNews} value={news.length.toString()} tone="info" icon="news" />
       </section>
 

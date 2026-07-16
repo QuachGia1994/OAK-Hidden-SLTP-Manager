@@ -1,12 +1,12 @@
 # RELEASE NOTES
 
-## [v3.16.4] - 2026-07-16
+## [v3.16.5] - 2026-07-16
 
 ### Signal matrix
 
-- **H=2 on Tuesday and Thursday no longer reverses XAU** (keeps normal pattern).
-- H=2 reverse remains only on Friday special-calendar weeks.
-- Notes updated in bot, reminders, dashboard day rules, README, and Guide (logic v18).
+- **H=2 on Tuesday no longer reverses XAU** (keeps normal pattern). Thursday and Friday unchanged.
+- **Hidden H=4 D-direction display** — still calculates/stores for H=17 but hidden from Telegram/Dashboard.
+- Updated bot, dashboard, tests, and docs.
 
 ## [v3.16.3] - 2026-07-13
 

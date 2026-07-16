@@ -88,7 +88,14 @@ SIGNAL_SCRIPT_MAP = {
     "factcheck_worker": "factcheck_worker.py",
 }
 
-FROZEN_SUPPORTED_KEYS = ("signal_bot", "factcheck_worker")
+FROZEN_MODE_FLAGS = {
+    "signal_bot": "--signal-bot",
+    "mt_server": "--mt-server",
+    "mimo_bot": "--mimo-bot",
+    "mimo_worker": "--mimo-worker",
+    "factcheck_worker": "--factcheck-worker",
+}
+FROZEN_SUPPORTED_KEYS = tuple(FROZEN_MODE_FLAGS)
 
 
 class UnsupportedFrozenProcessError(Exception):
@@ -102,8 +109,7 @@ def build_signal_process_cmd(key, profile, frozen, executable, script_map=None):
     OAK_Hidden_SLTP_Manager.start_signal_process, so it can be unit tested
     without importing the GUI (customtkinter/MetaTrader5) module.
 
-    - frozen + signal_bot: [executable, "--signal-bot", ("--profile", profile)?]
-    - frozen + other key: raises UnsupportedFrozenProcessError
+    - frozen + supported key: [executable, "--worker-flag", ("--profile", profile)?]
     - dev + signal_bot: [executable, "-u", script, ("--profile", profile)?]
     - dev + other key: [executable, "-u", script]
     """
@@ -113,8 +119,7 @@ def build_signal_process_cmd(key, profile, frozen, executable, script_map=None):
     if frozen:
         if key not in FROZEN_SUPPORTED_KEYS:
             raise UnsupportedFrozenProcessError(key)
-        mode = "--signal-bot" if key == "signal_bot" else "--factcheck-worker"
-        cmd = [executable, mode]
+        cmd = [executable, FROZEN_MODE_FLAGS[key]]
         if key == "signal_bot" and profile:
             cmd.extend(["--profile", profile])
         return cmd

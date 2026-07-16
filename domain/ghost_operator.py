@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import threading
 import time
+import importlib
+import importlib.util
 
-import customtkinter as ctk
 import MetaTrader5 as mt5
 
-try:
-    from pywinauto import Application, mouse
-    GHOST_LIB_AVAILABLE = True
-except ImportError:
-    GHOST_LIB_AVAILABLE = False
-    Application = None  # type: ignore
-    mouse = None  # type: ignore
+GHOST_LIB_AVAILABLE = importlib.util.find_spec("pywinauto") is not None
+Application = None  # type: ignore
+mouse = None  # type: ignore
 
 from domain.i18n import T
 
@@ -26,6 +23,15 @@ class GhostOperator:
         self._lock = threading.Lock()
 
     def _connect(self):
+        global Application, mouse
+        if Application is None or mouse is None:
+            try:
+                module = importlib.import_module("pywinauto")
+                Application = module.Application
+                mouse = module.mouse
+            except ImportError:
+                print("Error: pywinauto not installed. Ghost Mode unavailable.")
+                return False
         if not GHOST_LIB_AVAILABLE:
             print("Error: pywinauto not installed. Ghost Mode unavailable.")
             return False
@@ -106,6 +112,7 @@ class GhostOperator:
                 return False
 
 def show_ghost_consent(parent, on_accept):
+    ctk = importlib.import_module("customtkinter")
     popup = ctk.CTkToplevel(parent)
     popup.title("⚠️ Algo Trading Blocked")
     popup.geometry("480x320")
@@ -144,4 +151,3 @@ def show_ghost_consent(parent, on_accept):
     ctk.CTkButton(btn_frame, text="BỎ QUA", fg_color="#95a5a6", hover_color="#7f8c8d", command=decline).pack(side="left", padx=10)
 
 # --- CONSTANTS & CONFIG ---
-

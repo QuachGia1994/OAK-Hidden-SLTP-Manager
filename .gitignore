@@ -12,6 +12,7 @@ upx/
 profiles.json
 settings.json
 trades.json
+trades_*.json
 session_state.json
 pending_partials.json
 manual_trends.json

@@ -33,12 +33,13 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(result["signal"], "SELL")
         self.assertIn("T2 H=2", result["report"])
 
-    def test_h2_tuesday_always_reverses(self):
+    def test_h2_tuesday_no_reverse(self):
+        """H=2 Tue: normal pattern, no reverse (v3.16.5)."""
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         tuesday = _dt_thursday().replace(day=7)
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
             result = analyze(tuesday, 2)
-        self.assertEqual(result["signal"], "SELL")  # reversed from BUY
+        self.assertEqual(result["signal"], "BUY")  # no reverse
 
     def test_h2_thursday_no_t2_history_falls_back(self):
         """T5 H=2 without T2 history should fall back to fresh analysis."""

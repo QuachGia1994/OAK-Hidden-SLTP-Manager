@@ -1,12 +1,12 @@
 # NHẬT KÝ CẬP NHẬT
 
-## [v3.16.4] - 2026-07-16
+## [v3.16.5] - 2026-07-16
 
 ### Ma trận signal
 
-- **H=2 Thứ 3 và Thứ 5 không đảo XAU nữa** (giữ pattern thường).
-- H=2 chỉ còn đảo vào Thứ 6 tuần đặc biệt.
-- Cập nhật note bot / reminders / dashboard / README / Guide (logic v18).
+- **H=2 Thứ 3 không đảo XAU nữa** (giữ pattern thường). Thứ 5 và Thứ 6 giữ nguyên.
+- **Ẩn hiển thị H=4 D-direction** — vẫn tính toán/lưu cho H=17 nhưng không hiện trên Telegram/Dashboard.
+- Cập nhật bot, dashboard, tests, docs.
 
 ## [v3.16.3] - 2026-07-13
 
