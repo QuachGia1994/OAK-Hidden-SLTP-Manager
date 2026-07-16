@@ -84,6 +84,9 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
     }
     return "Chỉ Vàng (XAUUSD)";
   }
+  if (h === 7) {
+    return "H=7: đảo ngược từ H=2";
+  }
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 

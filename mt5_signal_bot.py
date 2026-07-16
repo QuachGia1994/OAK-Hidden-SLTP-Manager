@@ -677,6 +677,23 @@ def _lookup_h2_t2_signal(broker_dt):
     return None
 
 
+def _lookup_h2_signal_today(broker_dt):
+    """Look up today's H=2 signal from signals_log history."""
+    date_str = broker_dt.date().isoformat()
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            for record in reversed(data):
+                if record.get("date") == date_str and int(record.get("hour", -1)) == 2:
+                    sig = record.get("signal")
+                    if sig in ("BUY", "SELL"):
+                        return sig
+    except Exception as e:
+        print(f"[WARN] Cannot lookup today H=2 signal: {e}")
+    return None
+
+
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
@@ -831,6 +848,8 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         if wd == 4:  # T6 — reverse only special calendar
             return "H=2: bình thường; tuần đặc biệt thì đảo XAU"
         return "H=2: Chỉ Vàng (XAUUSD)"
+    if h == 7:
+        return "H=7: đảo ngược từ H=2"
     if h == 17:
         return "Chỉ Vàng (XAUUSD)"
     return "Chỉ Vàng (XAUUSD)"
@@ -1246,6 +1265,21 @@ def main(profile_name=None):
                     result = {
                         "signal": d_direction,
                         "report": "H=17 dùng lại D-direction đã chốt từ H=4.",
+                        "m30_dir": None,
+                        "h1_signal": None,
+                    }
+                elif now_hour == 7:
+                    h2_sig = _lookup_h2_signal_today(broker_dt)
+                    if h2_sig not in ("BUY", "SELL"):
+                        sent_today.add(key)
+                        _save_state(day_signals, sent_today)
+                        print("  [SKIP] H=7 - missing H=2 signal from today")
+                        time.sleep(10)
+                        continue
+                    reversed_sig = "SELL" if h2_sig == "BUY" else "BUY"
+                    result = {
+                        "signal": reversed_sig,
+                        "report": f"H=7 đảo ngược từ H=2 ({h2_sig} -> {reversed_sig}).",
                         "m30_dir": None,
                         "h1_signal": None,
                     }
