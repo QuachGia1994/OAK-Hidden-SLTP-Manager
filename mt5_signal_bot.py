@@ -649,13 +649,33 @@ def is_h2_special_calendar_weekday(broker_dt):
 def should_reverse_h2_xau(broker_dt):
     """Whether H=2 should reverse the pattern XAU signal.
 
-    - Tue (T3) / Thu (T5): never reverse
+    - Tue (T3): always reverse
+    - Thu (T5): use T3 H=2 from history (no fresh analysis)
     - Fri (T6): reverse only on special-calendar weeks
     - Other weekdays: never reverse
     """
     if broker_dt is None:
         return False
+    if broker_dt.weekday() == 1:  # T3 — always reverse
+        return True
     return broker_dt.weekday() == 4 and is_h2_special_calendar_weekday(broker_dt)
+
+def _lookup_h2_t3_signal(broker_dt):
+    """Look up T3 (previous Tue) H=2 signal from signals_log history."""
+    t3_date = broker_dt.date() - timedelta(days=(broker_dt.weekday() - 1))
+    date_str = t3_date.isoformat()
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            for record in reversed(data):
+                if record.get("date") == date_str and int(record.get("hour", -1)) == 2:
+                    sig = record.get("signal")
+                    if sig in ("BUY", "SELL"):
+                        return sig
+    except Exception as e:
+        print(f"[WARN] Cannot lookup T3 H=2 signal: {e}")
+    return None
 
 
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
@@ -754,9 +774,19 @@ def analyze(broker_dt, H):
         )
 
     original_signal = signal
+
+    if H == 2 and broker_dt.weekday() == 3:  # T5 — use T3 H=2 from history
+        t3_sig = _lookup_h2_t3_signal(broker_dt)
+        if t3_sig is None:
+            print("  [SKIP] T5 H=2 - chưa có T3 H=2 trong history")
+            return {"signal": "WAIT", "report": "T5 H=2: chờ T3 H=2 từ history", "orig_signal": "WAIT", "h1_signal": None, "m30_dir": d_m30, "h1_flipped": False}
+        signal = t3_sig
+        report = f"T5 H=2: dùng signal T3 H=2 từ history -> {t3_sig}"
+        return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
+
     if H == 2 and should_reverse_h2_xau(broker_dt):
         signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2: đảo signal XAU (chỉ T6 tuần đặc biệt; T3/T5 không đảo)."
+        report += "\nH=2: đảo signal XAU (T3 đảo mặc định; T6 đảo khi tuần đặc biệt)."
     return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
@@ -797,9 +827,11 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h == 2:
         wd = _resolve_weekday(broker_dt, weekday)
-        if wd in (1, 3):  # Tue / Thu — no reverse
-            return "H=2: không đảo XAU (pattern thường)"
-        if wd == 4:  # Fri — reverse only special calendar
+        if wd == 1:  # T3 — always reverse
+            return "H=2: đảo XAU mặc định"
+        if wd == 3:  # T5 — use T3 H=2 from history
+            return "H=2: dùng signal T3 từ history"
+        if wd == 4:  # T6 — reverse only special calendar
             return "H=2: bình thường; tuần đặc biệt thì đảo XAU"
         return "H=2: Chỉ Vàng (XAUUSD)"
     if h == 17:

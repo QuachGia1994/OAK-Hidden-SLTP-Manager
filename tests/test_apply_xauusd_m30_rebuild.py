@@ -10,6 +10,7 @@ from mt5_signal_bot import (
     apply_xauusd_m30_logic,
     get_pair_direction,
     is_h2_special_calendar_weekday,
+    should_reverse_h2_xau,
 )
 
 
@@ -22,24 +23,34 @@ def _dt_thursday():
 
 
 class TestApplyXauusdM30Rebuild(unittest.TestCase):
-    def test_regular_thursday_h2_no_reverse_and_skips_h1_gold(self):
-        """H=2 Thu: keep pattern XAU (no reverse); never touch H1 gold."""
+    def test_regular_thursday_h2_uses_t3_history(self):
+        """H=2 Thu: use T3 H=2 from history, not fresh analysis."""
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
-            mt5_signal_bot, "get_h1_candle_for_slot"
-        ) as h1_candle:
+            mt5_signal_bot, "_lookup_h2_t3_signal", return_value="BUY"
+        ):
             result = analyze(_dt_thursday(), 2)
         self.assertEqual(result["signal"], "BUY")
-        h1_candle.assert_not_called()
+        self.assertIn("T3 H=2", result["report"])
 
-    def test_h2_tuesday_no_longer_reverses(self):
+    def test_h2_tuesday_always_reverses(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         tuesday = _dt_thursday().replace(day=7)
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
             result = analyze(tuesday, 2)
-        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(result["signal"], "SELL")  # reversed from BUY
 
-    def test_h2_special_thursday_still_normal(self):
+    def test_h2_thursday_no_t3_history_returns_wait(self):
+        """T5 H=2 without T3 history should return WAIT."""
+        candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
+        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
+            mt5_signal_bot, "_lookup_h2_t3_signal", return_value=None
+        ):
+            result = analyze(_dt_thursday(), 2)
+        self.assertEqual(result["signal"], "WAIT")
+
+    def test_h2_special_thursday_uses_t3_history(self):
+        """T5 H=2 always uses T3 history, even in special-calendar weeks."""
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         cases = (
             datetime(2025, 5, 1, 2, 45, tzinfo=timezone.utc),  # Thu special week
@@ -48,9 +59,11 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         for dt in cases:
             with self.subTest(dt=dt):
                 self.assertTrue(is_h2_special_calendar_weekday(dt))
-                with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
+                with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
+                    mt5_signal_bot, "_lookup_h2_t3_signal", return_value="SELL"
+                ):
                     result = analyze(dt, 2)
-                self.assertEqual(result["signal"], "BUY")
+                self.assertEqual(result["signal"], "SELL")  # from T3 history, not fresh analysis
 
     def test_h2_special_friday_reverses(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
@@ -60,13 +73,16 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
             result = analyze(friday, 2)
         self.assertEqual(result["signal"], "SELL")
 
-    def test_regular_thursday_h2_does_not_reverse(self):
+    def test_regular_thursday_h2_uses_t3_history_not_reverse(self):
+        """T5 H=2 on regular week: uses T3 history, not fresh analysis."""
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         thursday = datetime(2026, 7, 9, 2, 45, tzinfo=timezone.utc)
         self.assertFalse(is_h2_special_calendar_weekday(thursday))
-        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
+        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
+            mt5_signal_bot, "_lookup_h2_t3_signal", return_value="SELL"
+        ):
             result = analyze(thursday, 2)
-        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(result["signal"], "SELL")  # from T3 history
 
     def test_regular_friday_h2_does_not_reverse(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
