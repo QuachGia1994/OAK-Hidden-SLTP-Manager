@@ -41,9 +41,9 @@ class TestXauOnlyRules(unittest.TestCase):
         # T3 (weekday=1): always reverse
         note_t3 = get_hour_note(2, weekday=1)
         self.assertIn("đảo XAU mặc định", note_t3)
-        # T5 (weekday=3): use T3 history
+        # T5 (weekday=3): use T2 history
         note_t5 = get_hour_note(2, weekday=3)
-        self.assertIn("dùng signal T3 từ history", note_t5)
+        self.assertIn("dùng signal T2 từ history", note_t5)
         # T6 (weekday=4): normal, special calendar reverses
         note_fri = get_hour_note(2, weekday=4)
         self.assertIn("bình thường", note_fri)

@@ -626,7 +626,7 @@ def get_day_notes(now, lang="VN"):
         3: [
             "Slots: H=2-10,12-13,15,17",
             "Chỉ XAUUSD.",
-            "H=2: dùng signal T3 từ history.",
+            "H=2: dùng signal T2 từ history.",
             "H=4: D-direction cùng XAUUSD.",
             "H=17: XAUUSD theo D-direction H=4",
         ],
@@ -651,7 +651,7 @@ def get_day_notes(now, lang="VN"):
         3: [
             "Slots: H=2-10,12-13,15,17",
             "XAUUSD only.",
-            "H=2: uses T3 H=2 signal from history.",
+            "H=2: uses T2 H=2 signal from history.",
             "H=4: D-direction follows XAUUSD.",
             "H=17: XAUUSD uses H=4 D-direction",
         ],

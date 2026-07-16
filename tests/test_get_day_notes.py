@@ -35,7 +35,7 @@ class TestGetDayNotes(unittest.TestCase):
         thu_blob = " ".join(get_day_notes(date(2026, 7, 16), lang="EN"))
 
         self.assertIn("H=2: reverses XAU by default.", tue_blob)
-        self.assertIn("H=2: uses T3 H=2 signal from history.", thu_blob)
+        self.assertIn("H=2: uses T2 H=2 signal from history.", thu_blob)
 
     def test_accepts_datetime_without_special_detail(self):
         notes = get_day_notes(datetime(2025, 5, 1, 10, 0, 0), lang="VN")
