@@ -1,12 +1,12 @@
-/** Mon–Fri H=2-9,12-13,15,17 (weekend excluded). */
-export const DISABLED_HOURS = new Set([10, 11, 14]);
-export const TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 15, 17];
+/** Mon–Fri H=2-5,7-9,12-13,15,17 (weekend excluded). */
+export const DISABLED_HOURS = new Set([6, 10, 11, 14]);
+export const TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15, 17];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
- * Mon–Fri → H=2-9,12-13,15,17; weekend → []
+ * Mon–Fri → H=2-5,7-9,12-13,15,17; weekend → []
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
@@ -91,39 +91,39 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-9, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
+    1: ["Slots: H=2-5,7-9, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
     2: [
-      "Slots: H=2-9, 12-13, 15, 17",
+      "Slots: H=2-5,7-9, 12-13, 15, 17",
       "Chỉ XAUUSD.",
       "Nhịp 3: GBP (H=9-10).",
     ],
-    3: ["Slots: H=2-9, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
+    3: ["Slots: H=2-5,7-9, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
     4: [
-      "Slots: H=2-9, 12-13, 15, 17",
+      "Slots: H=2-5,7-9, 12-13, 15, 17",
       "Chỉ XAUUSD.",
       "Nhịp 3: GBP (H=9-10).",
     ],
     5: [
-      "Slots: H=2-9, 12-13, 15, 17",
+      "Slots: H=2-5,7-9, 12-13, 15, 17",
       "Chỉ XAUUSD.",
       "Nhịp 3: GBP (H=9-10).",
     ],
   },
   EN: {
-    1: ["Slots: H=2-9, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
+    1: ["Slots: H=2-5,7-9, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
     2: [
-      "Slots: H=2-9, 12-13, 15, 17",
+      "Slots: H=2-5,7-9, 12-13, 15, 17",
       "XAUUSD only.",
       "Rhythm 3: GBP (H=9-10).",
     ],
-    3: ["Slots: H=2-9, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
+    3: ["Slots: H=2-5,7-9, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
     4: [
-      "Slots: H=2-9, 12-13, 15, 17",
+      "Slots: H=2-5,7-9, 12-13, 15, 17",
       "XAUUSD only.",
       "Rhythm 3: GBP (H=9-10).",
     ],
     5: [
-      "Slots: H=2-9, 12-13, 15, 17",
+      "Slots: H=2-5,7-9, 12-13, 15, 17",
       "XAUUSD only.",
       "Rhythm 3: GBP (H=9-10).",
     ],

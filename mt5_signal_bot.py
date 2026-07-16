@@ -50,7 +50,7 @@ SYMBOL = "GBPUSD"
 # Mon–Fri: H=2..15 except disabled H=11/H=14 and the explicit slot/rhythm rules.
 # XAU-only mode: no GBP focus pairs and no no-gold labels.
 # H=17 follows H=4 D-direction.
-DISABLED_HOURS = {10, 11, 14}
+DISABLED_HOURS = {6, 10, 11, 14}
 TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 18
@@ -1146,7 +1146,7 @@ def main(profile_name=None):
     print("=" * 55)
     print("  MT5 Multi-Timeframe Signal Bot v3.12.0")
     print(f"  Symbol: {SYMBOL}")
-    print(f"  Target Hours T2-6: H=2-9,12-13,15,17 | XAUUSD only")
+    print(f"  Target Hours T2-6: H=2-5,7-9,12-13,15,17 | XAUUSD only")
     print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
     print("=" * 55)
 
