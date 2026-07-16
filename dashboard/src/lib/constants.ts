@@ -17,18 +17,6 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
   return [...TARGET_HOURS];
 }
 
-export function getRhythmLabel(hour: number, locale: "VN" | "EN" = "VN"): string | null {
-  const h = Number(hour);
-  const label = locale === "EN" ? "Rhythm" : "Nhịp";
-  if (h === 2) return `${label} 0 · XAU`;
-  if (h === 3 || h === 4) return `${label} 1 · JPY`;
-  if (h >= 5 && h <= 8) return `${label} 2 · AUD`;
-  if (h === 9 || h === 10) return `${label} 3 · GBP`;
-  if (h === 12 || h === 13) return `${label} 4 · EUR`;
-  if (h === 15 || h === 17) return `${label} 5 · USD`;
-  return null;
-}
-
 export const GBP_PAIRS: string[] = [];
 export const ALL_PAIRS = ["XAUUSD"];
 
@@ -98,46 +86,18 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-5,7-9, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
-    2: [
-      "Slots: H=2-5,7-9, 12-13, 15, 17",
-      "Chỉ XAUUSD.",
-      "Nhịp 3: GBP (H=9-10).",
-    ],
-    3: ["Slots: H=2-5,7-9, 12-13, 15, 17", "Chỉ XAUUSD.", "Nhịp 3: GBP (H=9-10)."],
-    4: [
-      "Slots: H=2,4-5,7-9, 12-13, 15, 17",
-      "Chỉ XAUUSD.",
-      "H=3: skip.",
-      "Nhịp 3: GBP (H=9-10).",
-    ],
-    5: [
-      "Slots: H=2,4-5,7-9, 12-13, 15, 17",
-      "Chỉ XAUUSD.",
-      "H=3: skip.",
-      "Nhịp 3: GBP (H=9-10).",
-    ],
+    1: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    2: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    3: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    4: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
+    5: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
   },
   EN: {
-    1: ["Slots: H=2-5,7-9, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
-    2: [
-      "Slots: H=2-5,7-9, 12-13, 15, 17",
-      "XAUUSD only.",
-      "Rhythm 3: GBP (H=9-10).",
-    ],
-    3: ["Slots: H=2-5,7-9, 12-13, 15, 17", "XAUUSD only.", "Rhythm 3: GBP (H=9-10)."],
-    4: [
-      "Slots: H=2,4-5,7-9, 12-13, 15, 17",
-      "XAUUSD only.",
-      "H=3: skip.",
-      "Rhythm 3: GBP (H=9-10).",
-    ],
-    5: [
-      "Slots: H=2,4-5,7-9, 12-13, 15, 17",
-      "XAUUSD only.",
-      "H=3: skip.",
-      "Rhythm 3: GBP (H=9-10).",
-    ],
+    1: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    2: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    3: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    4: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
+    5: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
   },
 };
 

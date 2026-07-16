@@ -3,7 +3,6 @@
 import {
   formatHour,
   getHourNote,
-  getRhythmLabel,
   getSignalColor,
   getSignalLabel,
   weekdayFromDate,
@@ -36,7 +35,6 @@ export function SignalCard({
   const fallbackHourNote = signal.date ? getHourNote(signal.hour, weekday) : signal.hour_note;
   const rawHourNote = fallbackHourNote || getHourNote(signal.hour, weekday);
   const hourNote = translateHourNote(rawHourNote, locale);
-  const rhythmLabel = getRhythmLabel(signal.hour, locale);
   const showHourNote = Boolean(
     hourNote &&
       rawHourNote !== "Chỉ Vàng (XAUUSD)" &&
@@ -63,11 +61,6 @@ export function SignalCard({
                 ({formatHour(signal.hour)}:45 Brk)
               </span>
             </div>
-            {rhythmLabel && (
-              <span className="mt-2 inline-flex rounded-lg border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-amber-600 shadow-[0_0_22px_rgba(245,158,11,0.12)] dark:text-amber-300">
-                {rhythmLabel}
-              </span>
-            )}
           </div>
           <span className="font-mono text-xs text-zinc-400">{signal.date}</span>
         </div>
@@ -93,11 +86,6 @@ export function SignalCard({
             pair="D-DIRECTION"
             direction={isVIP ? signal.pair_dirs["D-DIRECTION"] : "locked"}
           />
-        )}
-        {isVIP && (
-          <div className="mt-2 rounded-xl border border-zinc-200/55 bg-zinc-950/[0.025] px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/[0.035] dark:text-zinc-400">
-            {locale === "EN" ? "XAU only" : "Chỉ Vàng (XAUUSD)"}
-          </div>
         )}
       </div>
 
