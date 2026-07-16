@@ -1283,6 +1283,12 @@ def main(profile_name=None):
                         "m30_dir": None,
                         "h1_signal": None,
                     }
+                elif now_hour == 3 and broker_dt.weekday() in (3, 4):
+                    sent_today.add(key)
+                    _save_state(day_signals, sent_today)
+                    print(f"  [SKIP] H=3 T{broker_dt.weekday()+1} - skipped")
+                    time.sleep(10)
+                    continue
                 else:
                     result = analyze(broker_dt, now_hour)
                 sig = result["signal"]
