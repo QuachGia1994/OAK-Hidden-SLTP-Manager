@@ -1,12 +1,20 @@
 # RELEASE NOTES
 
+## [v3.16.4] - 2026-07-16
+
+### Signal matrix
+
+- **H=2 on Tuesday and Thursday no longer reverses XAU** (keeps normal pattern).
+- H=2 reverse remains only on Friday special-calendar weeks.
+- Notes updated in bot, reminders, dashboard day rules, README, and Guide (logic v18).
+
 ## [v3.16.3] - 2026-07-13
 
 ### Signal matrix
 
 - Simplified the signal matrix to XAU-only: output/list pairs now contain only `XAUUSD`.
 - Active slots are Monday-Friday H=2-10, H=12-13, H=15 plus H=17; H=11/H=14 are disabled.
-- H=2 now follows the finalized weekday matrix: Tuesday and Thursday reverse by default, Wednesday and Friday are normal; special-calendar weeks keep Thursday normal and reverse Friday H=2.
+- H=2 weekday reverse matrix (later revised in v3.16.4).
 - Removed all no-gold labels.
 - Removed all GBP pair lists/focus badges from core logic, Dashboard, and Telegram notes.
 - Removed broad Friday XAU reversal logic while keeping the special-calendar Friday H=2 reversal.

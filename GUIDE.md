@@ -64,7 +64,8 @@ Quản lý profile, copy-trading, lệnh hẹn giờ, lọc log và export debug
 ### Ghi chú tính Vàng
 
 - H=2 xét pattern `GBPUSD` M5/M30, vẫn chạy XAUUSD M30 post-processing, và bỏ H1 Vàng.
-- H=2 Thứ 6 bình thường XAU-only, nhưng tuần đặc biệt thì đảo XAU.
+- H=2 **Thứ 3 và Thứ 5 không đảo XAU** (giữ pattern thường).
+- H=2 Thứ 6 bình thường XAU-only; tuần đặc biệt thì đảo XAU.
 - Thứ 6 không đảo XAU đại trà ở các mốc khác.
 - H=4 lưu D-direction cùng chiều XAUUSD cho mọi ngày giao dịch.
 - H=17 hiển thị XAUUSD theo D-direction đã lưu từ H=4.

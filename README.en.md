@@ -27,7 +27,7 @@ Related docs:
 - No-gold labels have been fully removed.
 - Output pairs are XAUUSD only; GBP pair lists/focus badges are removed.
 - Friday has no broad XAU reversal.
-- H=2 reverses by default on Tuesday and Thursday; Thursday special-calendar weeks keep it normal, while Friday special-calendar weeks reverse H=2.
+- H=2 does **not** reverse on Tuesday or Thursday; Friday special-calendar weeks reverse H=2.
 - H=4 stores D-direction in the same direction as XAUUSD; H=17 displays XAUUSD from that H=4 D-direction.
 
 ## Fact Check AI

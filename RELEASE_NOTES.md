@@ -1,12 +1,20 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [v3.16.4] - 2026-07-16
+
+### Ma trận signal
+
+- **H=2 Thứ 3 và Thứ 5 không đảo XAU nữa** (giữ pattern thường).
+- H=2 chỉ còn đảo vào Thứ 6 tuần đặc biệt.
+- Cập nhật note bot / reminders / dashboard / README / Guide (logic v18).
+
 ## [v3.16.3] - 2026-07-13
 
 ### Ma trận signal
 
 - Đơn giản hoá signal matrix sang XAU-only: output/list pair chỉ còn `XAUUSD`.
 - Slot active là Thứ 2-Thứ 6 H=2-10, H=12-13, H=15 và H=17; H=11/H=14 đã tắt.
-- H=2 theo matrix cuối: Thứ 3 và Thứ 5 đảo mặc định, Thứ 4 và Thứ 6 bình thường; tuần đặc biệt làm Thứ 5 không đảo và H=2 Thứ 6 đảo.
+- H=2 matrix weekday reverse (đã chỉnh lại ở v3.16.4).
 - Gỡ toàn bộ no-gold label.
 - Gỡ toàn bộ list/focus GBP khỏi core, Dashboard và Telegram notes.
 - Gỡ đảo XAU đại trà của Thứ 6; giữ riêng nhánh đặc biệt H=2 Thứ 6.

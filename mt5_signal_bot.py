@@ -53,7 +53,7 @@ SYMBOL = "GBPUSD"
 DISABLED_HOURS = {11, 14}
 TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 17
+SIGNAL_LOGIC_VERSION = 18
 D_DIRECTION_PAIR = "D-DIRECTION"
 
 
@@ -635,16 +635,27 @@ def get_xauusd_m30_signal(broker_dt, H):
 
 
 def is_h2_special_calendar_weekday(broker_dt):
-    """H=2 Thursday/Friday special calendar switch.
+    """H=2 special-calendar week detector (Wed day 30/1 or Fri day 3/4/7).
 
-    Thursday normally reverses H=2; special calendar keeps it normal.
-    Friday normally stays normal; special calendar reverses H=2.
+    Used only for Friday H=2 reverse. Tue/Thu no longer reverse H=2.
     """
     if broker_dt.weekday() not in (3, 4):
         return False
     week_wednesday = broker_dt.date() + timedelta(days=(2 - broker_dt.weekday()))
     week_friday = broker_dt.date() + timedelta(days=(4 - broker_dt.weekday()))
     return week_wednesday.day in (30, 1) or week_friday.day in (3, 4, 7)
+
+
+def should_reverse_h2_xau(broker_dt):
+    """Whether H=2 should reverse the pattern XAU signal.
+
+    - Tue (T3) / Thu (T5): never reverse
+    - Fri (T6): reverse only on special-calendar weeks
+    - Other weekdays: never reverse
+    """
+    if broker_dt is None:
+        return False
+    return broker_dt.weekday() == 4 and is_h2_special_calendar_weekday(broker_dt)
 
 
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
@@ -743,13 +754,9 @@ def analyze(broker_dt, H):
         )
 
     original_signal = signal
-    if H == 2 and (
-        broker_dt.weekday() == 1
-        or (broker_dt.weekday() == 3 and not is_h2_special_calendar_weekday(broker_dt))
-        or (broker_dt.weekday() == 4 and is_h2_special_calendar_weekday(broker_dt))
-    ):
+    if H == 2 and should_reverse_h2_xau(broker_dt):
         signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2: đảo signal XAU theo rule weekday/special (chỉ M5/M30, bỏ H1 Vàng)."
+        report += "\nH=2: đảo signal XAU (chỉ T6 tuần đặc biệt; T3/T5 không đảo)."
     return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
@@ -788,6 +795,13 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h in DISABLED_HOURS:
         return "Chỉ Vàng (XAUUSD)"
+    if h == 2:
+        wd = _resolve_weekday(broker_dt, weekday)
+        if wd in (1, 3):  # Tue / Thu — no reverse
+            return "H=2: không đảo XAU (pattern thường)"
+        if wd == 4:  # Fri — reverse only special calendar
+            return "H=2: bình thường; tuần đặc biệt thì đảo XAU"
+        return "H=2: Chỉ Vàng (XAUUSD)"
     if h == 17:
         return "XAUUSD theo D-direction H=4"
     return "Chỉ Vàng (XAUUSD)"

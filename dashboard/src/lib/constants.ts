@@ -74,6 +74,16 @@ const HOUR_NOTES: Record<number, string> = {
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
+  // JS weekday: Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5
+  if (h === 2) {
+    if (jsWeekday === 2 || jsWeekday === 4) {
+      return "H=2: không đảo XAU (pattern thường)";
+    }
+    if (jsWeekday === 5) {
+      return "H=2: bình thường; tuần đặc biệt thì đảo XAU";
+    }
+    return "H=2: Chỉ Vàng (XAUUSD)";
+  }
   if (h === 17) return "XAUUSD theo D-direction H=4";
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
@@ -86,7 +96,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     2: [
       "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
-      "H=2: đảo XAU mặc định.",
+      "H=2: không đảo XAU (pattern thường).",
       "Nhịp 3: GBP (H=9-10).",
       "H=4: D-direction cùng XAUUSD.",
       "H=17: XAUUSD theo D-direction H=4",
@@ -95,7 +105,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     4: [
       "Slots: H=2-10, 12-13, 15, 17",
       "Chỉ XAUUSD.",
-      "H=2: đảo XAU mặc định; tuần đặc biệt thì không đảo.",
+      "H=2: không đảo XAU (pattern thường).",
       "Nhịp 3: GBP (H=9-10).",
       "H=4: D-direction cùng XAUUSD.",
       "H=17: XAUUSD theo D-direction H=4",
@@ -114,7 +124,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     2: [
       "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
-      "H=2: reverses XAU by default.",
+      "H=2: no XAU reverse (normal pattern).",
       "Rhythm 3: GBP (H=9-10).",
       "H=4: D-direction follows XAUUSD.",
       "H=17: XAUUSD uses H=4 D-direction",
@@ -123,7 +133,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     4: [
       "Slots: H=2-10, 12-13, 15, 17",
       "XAUUSD only.",
-      "H=2: reverses XAU by default; special-calendar weeks keep it normal.",
+      "H=2: no XAU reverse (normal pattern).",
       "Rhythm 3: GBP (H=9-10).",
       "H=4: D-direction follows XAUUSD.",
       "H=17: XAUUSD uses H=4 D-direction",

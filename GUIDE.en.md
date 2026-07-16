@@ -64,7 +64,8 @@ Manage profiles, copy-trading settings, scheduled entries, log filters, and debu
 ### Gold calculation notes
 
 - H=2 uses the `GBPUSD` M5/M30 pattern source, keeps XAUUSD M30 post-processing, and skips H1 gold.
-- H=2 Friday is normally XAU-only, but special-calendar weeks reverse XAU.
+- H=2 on **Tuesday and Thursday does not reverse XAU** (normal pattern).
+- H=2 Friday is normally XAU-only; special-calendar weeks reverse XAU.
 - Friday has no broad XAU reversal on other hours.
 - H=4 stores D-direction in the same direction as XAUUSD for every trading day.
 - H=17 displays XAUUSD from the stored H=4 D-direction.

@@ -30,13 +30,14 @@ class TestGetDayNotes(unittest.TestCase):
         self.assertNotIn("reverse signal to gold", blob)
         self.assertNotIn("GBP", blob)
 
-    def test_tuesday_and_thursday_notes_include_h2_reverse(self):
+    def test_tuesday_and_thursday_notes_no_h2_reverse(self):
         tue_blob = " ".join(get_day_notes(date(2026, 7, 14), lang="EN"))
         thu_blob = " ".join(get_day_notes(date(2026, 7, 16), lang="EN"))
 
-        self.assertIn("H=2: reverses XAU by default.", tue_blob)
-        self.assertIn("H=2: reverses XAU by default", thu_blob)
-        self.assertIn("special-calendar weeks keep it normal", thu_blob)
+        self.assertIn("H=2: no XAU reverse (normal pattern).", tue_blob)
+        self.assertIn("H=2: no XAU reverse (normal pattern).", thu_blob)
+        self.assertNotIn("reverses XAU by default", tue_blob)
+        self.assertNotIn("reverses XAU by default", thu_blob)
 
     def test_accepts_datetime_without_special_detail(self):
         notes = get_day_notes(datetime(2025, 5, 1, 10, 0, 0), lang="VN")
