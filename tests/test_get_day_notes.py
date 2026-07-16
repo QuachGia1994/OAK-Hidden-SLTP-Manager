@@ -17,7 +17,7 @@ class TestGetDayNotes(unittest.TestCase):
         ):
             with self.subTest(day=day):
                 blob = " ".join(get_day_notes(day, lang="VN"))
-                self.assertIn("H=2-10,12-13,15,17", blob)
+                self.assertIn("H=2-9,12-13,15,17", blob)
                 self.assertIn("Chỉ XAUUSD", blob)
                 self.assertNotIn("GBP", blob)
                 self.assertNotIn("no-gold", blob)
