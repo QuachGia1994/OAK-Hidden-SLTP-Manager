@@ -7,13 +7,9 @@ export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
  * Mon–Fri → H=2-5,7-9,12-13,15,17; weekend → []
- * Thu/Fri skip H=3
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
-  if (jsDayOfWeek === 4 || jsDayOfWeek === 5) {
-    return TARGET_HOURS.filter((h) => h !== 3);
-  }
   return [...TARGET_HOURS];
 }
 
@@ -89,15 +85,15 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     1: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
     2: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
     3: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    4: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
-    5: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
+    4: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    5: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
   },
   EN: {
     1: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
     2: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
     3: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    4: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
-    5: ["Slots: H=2,4-5,7-9, 12-13, 15, 17", "H=3: skip."],
+    4: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    5: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
   },
 };
 
