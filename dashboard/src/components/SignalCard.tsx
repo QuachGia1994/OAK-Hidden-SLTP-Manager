@@ -38,7 +38,9 @@ export function SignalCard({
   const showHourNote = Boolean(
     hourNote &&
       rawHourNote !== "Chỉ Vàng (XAUUSD)" &&
-      hourNote !== "XAU only",
+      hourNote !== "XAU only" &&
+      signal.hour !== 2 &&
+      signal.hour !== 7,
   );
 
   const xauDir =

@@ -62,19 +62,8 @@ const HOUR_NOTES: Record<number, string> = {
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
-  // JS weekday: Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5
-  if (h === 2) {
-    if (jsWeekday === 4) {
-      return "H=2: dùng signal T2 từ history";
-    }
-    if (jsWeekday === 5) {
-      return "H=2: bình thường; tuần đặc biệt thì đảo XAU";
-    }
-    return "Chỉ Vàng (XAUUSD)";
-  }
-  if (h === 7) {
-    return "H=7: đảo ngược từ H=2";
-  }
+  if (h === 2) return null;
+  if (h === 7) return null;
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
