@@ -1,12 +1,12 @@
-/** Mon–Fri H=2-5,7-9,12-13,15,17 (weekend excluded). */
+/** Mon–Fri H=2-5,7-9,12-13,15 (weekend excluded). */
 export const DISABLED_HOURS = new Set([6, 10, 11, 14]);
-export const TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15, 17];
+export const TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
- * Mon–Fri → H=2-5,7-9,12-13,15,17; weekend → []
+ * Mon–Fri → H=2-5,7-9,12-13,15; weekend → []
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
@@ -56,7 +56,6 @@ const HOUR_NOTES: Record<number, string> = {
   10: "Chỉ Vàng (XAUUSD)",
   12: "Chỉ Vàng (XAUUSD)",
   15: "Chỉ Vàng (XAUUSD)",
-  17: "Chỉ Vàng (XAUUSD)",
 };
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
@@ -71,18 +70,18 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    2: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    3: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    4: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    5: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    1: ["Slots: H=2-5,7-9, 12-13, 15"],
+    2: ["Slots: H=2-5,7-9, 12-13, 15"],
+    3: ["Slots: H=2-5,7-9, 12-13, 15"],
+    4: ["Slots: H=2-5,7-9, 12-13, 15"],
+    5: ["Slots: H=2-5,7-9, 12-13, 15"],
   },
   EN: {
-    1: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    2: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    3: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    4: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
-    5: ["Slots: H=2-5,7-9, 12-13, 15, 17"],
+    1: ["Slots: H=2-5,7-9, 12-13, 15"],
+    2: ["Slots: H=2-5,7-9, 12-13, 15"],
+    3: ["Slots: H=2-5,7-9, 12-13, 15"],
+    4: ["Slots: H=2-5,7-9, 12-13, 15"],
+    5: ["Slots: H=2-5,7-9, 12-13, 15"],
   },
 };
 
@@ -113,4 +112,3 @@ export function weekdayFromDate(dateStr: string): number {
   // Noon UTC avoids TZ edge cases shifting the calendar day
   return new Date(Date.UTC(y, m - 1, d, 12, 0, 0)).getUTCDay();
 }
-
