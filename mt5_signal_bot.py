@@ -699,7 +699,7 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
 
     XAU-only mode: update the XAUUSD direction after M30 post-processing.
     """
-    if int(H) == 17:
+    if int(H) in (7, 17):
         return pair_dirs
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:

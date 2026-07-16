@@ -115,9 +115,9 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(pair_dirs, {"XAUUSD": "SELL"})
 
     def test_h5_xau_only_after_flip(self):
-        """H=5,7,8: Focus only — no GBP in pair_dirs even after M30 flip."""
+        """H=5,8: Focus only — no GBP in pair_dirs even after M30 flip."""
         dt = _dt_tuesday()
-        for H in (5, 7, 8):
+        for H in (5, 8):
             with self.subTest(H=H):
                 sig = "SELL"
                 pair_dirs = get_pair_direction(H, sig, dt)
