@@ -17,67 +17,65 @@ export default async function RulesPage() {
   const todayRules = getDayRules(locale, dayOfWeek, today);
 
   return (
-    <div className="page-shell max-w-4xl space-y-5">
-      <header className="glass-panel market-grid rounded-[1.65rem] px-5 py-6 sm:px-7 sm:py-7">
-        <div className="market-wave" aria-hidden="true" />
-        <div className="relative flex flex-col gap-5">
-          <div className="min-w-0">
-            <h1 className="break-words text-4xl font-black leading-tight tracking-tight text-zinc-950 dark:text-white sm:text-5xl">
+    <div className="page-shell terminal-page space-y-5">
+      <header className="terminal-hero rules-hero overflow-hidden rounded-xl">
+        <div className="relative grid lg:grid-cols-[minmax(15rem,0.85fr)_minmax(0,2.15fr)]">
+          <div className="flex min-h-32 flex-col justify-center border-b border-[color:var(--panel-border)] px-5 py-5 lg:border-b-0 lg:border-r lg:px-6">
+            <div className="terminal-kicker mb-3">{locale === "EN" ? "Rules & schedule" : "Quy tắc & lịch"}</div>
+            <h1 className="break-words text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl">
               {t.ruleList}
             </h1>
-            <p className="mt-2 text-base text-zinc-500 dark:text-zinc-400">
-              <BrowserDateText
-                date={today.toISOString()}
-                locale={t.dateTimeFormat}
-                options={{ weekday: "long", day: "numeric", month: "numeric", year: "numeric" }}
-              />
-            </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <MetaPill label={t.scope} value={locale === "EN" ? "Broker-day rule" : "Rule theo ngày broker"} />
-            <MetaPill
+          <div className="rules-meta-grid grid sm:grid-cols-3">
+            <RuleMeta
+              label={locale === "EN" ? "Broker date" : "Ngày broker"}
+              value={
+                <BrowserDateText
+                  date={today.toISOString()}
+                  locale={t.dateTimeFormat}
+                  options={{ weekday: "long", day: "numeric", month: "numeric", year: "numeric" }}
+                />
+              }
+            />
+            <RuleMeta label={t.scope} value={locale === "EN" ? "Broker-day rules" : "Quy tắc theo ngày broker"} />
+            <RuleMeta
               label={t.currentHour}
-              value={<>{formatHour(currentHour)}:45 Broker • <BrokerLocalTime date={todayStr} hour={currentHour} /></>}
-              highlight
+              value={<>{formatHour(currentHour)}:45 Broker · <BrokerLocalTime date={todayStr} hour={currentHour} /></>}
+              live
               subLabel={t.brokerSynced}
             />
           </div>
         </div>
       </header>
 
-      <section className="glass-card rounded-[1.35rem] p-4 sm:p-5">
-        <div className="mb-5">
-          <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-600 dark:text-zinc-300">
-            {t.ruleList}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-            {locale === "EN"
-              ? "Auto-loaded for the current day. Applied to every slot in the session."
-              : "Tự động lấy theo ngày hiện tại. Áp dụng cho toàn bộ slot trong ngày."}
-          </p>
+      <section className="terminal-panel overflow-hidden rounded-xl">
+        <div className="rule-table-intro flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+          <div>
+            <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
+              {t.ruleList}
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+              {locale === "EN"
+                ? "Only the rule set for the current broker weekday is shown."
+                : "Chỉ hiển thị bộ quy tắc của đúng ngày broker hiện tại."}
+            </p>
+          </div>
+          <span className="terminal-kicker font-mono">{todayRules.length} {locale === "EN" ? "active rules" : "quy tắc đang áp dụng"}</span>
         </div>
 
         {todayRules.length > 0 ? (
-          <ol className="space-y-3">
+          <ol className="rule-list">
             {todayRules.map((rule, index) => (
-              <li
-                key={`${index}-${rule}`}
-                className="group rounded-2xl border border-zinc-200/70 bg-white/55 px-4 py-3.5 transition hover:-translate-y-0.5 hover:border-emerald-400/35 hover:shadow-[0_18px_50px_rgba(16,185,129,0.08)] dark:border-white/10 dark:bg-white/[0.035]"
-              >
-                <div className="flex min-w-0 gap-3">
-                  <span className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-xs font-black text-emerald-600 shadow-[0_0_18px_rgba(16,185,129,0.12)] dark:text-emerald-300">
-                    {index + 1}
-                  </span>
-                  <p className="min-w-0 flex-1 break-words text-sm font-medium leading-6 text-zinc-700 dark:text-zinc-200">
-                    {rule}
-                  </p>
-                </div>
+              <li key={`${index}-${rule}`} className="rule-row">
+                <span className="rule-index font-mono" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                <p className="min-w-0 text-sm font-medium leading-6 text-zinc-700 dark:text-zinc-200">{rule}</p>
+                <span className="rule-row-marker" aria-hidden="true" />
               </li>
             ))}
           </ol>
         ) : (
-          <div className="rounded-2xl border border-dashed border-zinc-300 bg-zinc-500/[0.04] px-4 py-8 text-center text-sm font-medium text-zinc-500 dark:border-white/10 dark:text-zinc-400">
+          <div className="rule-empty-state px-5 py-12 text-center text-sm font-medium text-zinc-500 dark:text-zinc-400">
             {t.noRule}
           </div>
         )}
@@ -86,41 +84,22 @@ export default async function RulesPage() {
   );
 }
 
-function MetaPill({
+function RuleMeta({
   label,
   value,
-  highlight = false,
+  live = false,
   subLabel,
 }: {
   label: string;
   value: ReactNode;
-  highlight?: boolean;
+  live?: boolean;
   subLabel?: string;
 }) {
-  if (highlight) {
-    return (
-      <div className="relative min-w-0 overflow-hidden rounded-2xl border border-emerald-400/35 bg-gradient-to-br from-emerald-500/20 via-cyan-500/10 to-sky-500/15 px-4 py-3 shadow-[0_18px_44px_-24px_rgba(16,185,129,0.75)] ring-1 ring-inset ring-emerald-400/15">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.22),transparent_54%)]" />
-        <div className="relative flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400 shadow-[0_0_0_5px_rgba(16,185,129,0.12)]" />
-          {label}
-        </div>
-        <div className="relative mt-1 break-words text-[15px] font-black leading-5 text-zinc-900 dark:text-zinc-50">
-          {value}
-        </div>
-        {subLabel && (
-          <div className="relative mt-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
-            {subLabel}
-          </div>
-        )}
-      </div>
-    );
-  }
-
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-black/[0.03] px-4 py-3 shadow-inner dark:bg-white/[0.04]">
-      <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">{label}</div>
-      <div className="mt-1 break-words text-sm font-black text-zinc-800 dark:text-zinc-100">{value}</div>
+    <div className={`rule-meta px-5 py-4 ${live ? "rule-meta-live" : ""}`}>
+      <div className="terminal-kicker mb-2">{label}</div>
+      <div className="break-words text-sm font-black leading-6 text-zinc-900 dark:text-zinc-50">{value}</div>
+      {subLabel && <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500 dark:text-zinc-400">{subLabel}</div>}
     </div>
   );
 }

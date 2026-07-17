@@ -18,6 +18,7 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
   const map: Array<[RegExp, string]> = [
     [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
     [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
+    [/H=(3|7): Đảo chiều từ H=2\./g, "H=$1: reverse the final H=2 direction."],
     [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 Stock-direction"],
   ];
   return map.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), note);
@@ -39,8 +40,7 @@ export function SignalCard({
     hourNote &&
       rawHourNote !== "Chỉ Vàng (XAUUSD)" &&
       hourNote !== "XAU only" &&
-      signal.hour !== 2 &&
-      signal.hour !== 7,
+      signal.hour !== 2,
   );
 
   const xauDir =
@@ -51,7 +51,7 @@ export function SignalCard({
   const isBuy = signal.signal === "BUY";
 
   return (
-    <article className="glass-card group signal-rail overflow-hidden rounded-[1.35rem] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_22px_70px_rgba(0,0,0,0.18)] dark:hover:shadow-[0_26px_80px_rgba(0,0,0,0.45)]">
+    <article className="terminal-panel group signal-rail overflow-hidden rounded-xl transition-colors duration-200">
       <div className="relative px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -69,7 +69,7 @@ export function SignalCard({
       </div>
 
       <div className="border-y border-zinc-200/55 px-4 py-4 dark:border-white/10">
-        <div className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-400">
+        <div className="terminal-kicker mb-1">
           {locale === "EN" ? "Verdict" : "Kết luận"}
         </div>
         {isVIP ? (

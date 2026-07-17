@@ -1,5 +1,5 @@
 /** Mon–Fri H=2-5,7-9,12-13,15 (weekend excluded). */
-export const DISABLED_HOURS = new Set([6, 10, 11, 14]);
+export const DISABLED_HOURS = new Set([6, 10, 11, 14, 17]);
 export const TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
@@ -46,11 +46,11 @@ export function resolveGbpDirection(
 }
 
 const HOUR_NOTES: Record<number, string> = {
-  3: "Chỉ Vàng (XAUUSD)",
+  3: "H=3: Đảo chiều từ H=2.",
   4: "Chỉ Vàng (XAUUSD)",
   5: "Chỉ Vàng (XAUUSD)",
   6: "Chỉ Vàng (XAUUSD)",
-  7: "Chỉ Vàng (XAUUSD)",
+  7: "H=7: Đảo chiều từ H=2.",
   8: "Chỉ Vàng (XAUUSD)",
   9: "Chỉ Vàng (XAUUSD)",
   10: "Chỉ Vàng (XAUUSD)",
@@ -62,7 +62,6 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
   if (h === 2) return null;
-  if (h === 7) return null;
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
@@ -70,24 +69,27 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-5,7-9, 12-13, 15"],
-    2: ["Slots: H=2-5,7-9, 12-13, 15"],
-    3: ["Slots: H=2-5,7-9, 12-13, 15"],
-    4: ["Slots: H=2-5,7-9, 12-13, 15"],
-    5: ["Slots: H=2-5,7-9, 12-13, 15"],
+    1: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
+    2: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
+    3: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
+    4: ["Slots: H=2-5,7-9,12-13,15", "H=2: dùng kết quả H=2 của Thứ 2; tuần đặc biệt thì đảo.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
+    5: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + XAUUSD M30; tuần đặc biệt thì đảo.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
   },
   EN: {
-    1: ["Slots: H=2-5,7-9, 12-13, 15"],
-    2: ["Slots: H=2-5,7-9, 12-13, 15"],
-    3: ["Slots: H=2-5,7-9, 12-13, 15"],
-    4: ["Slots: H=2-5,7-9, 12-13, 15"],
-    5: ["Slots: H=2-5,7-9, 12-13, 15"],
+    1: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3 and H=7: reverse the final H=2 direction."],
+    2: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3 and H=7: reverse the final H=2 direction."],
+    3: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3 and H=7: reverse the final H=2 direction."],
+    4: ["Slots: H=2-5,7-9,12-13,15", "H=2: reuses Monday H=2; special weeks reverse it.", "H=3 and H=7: reverse the final H=2 direction."],
+    5: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + XAUUSD M30; special weeks reverse it.", "H=3 and H=7: reverse the final H=2 direction."],
   },
 };
 
 export function getDayRules(locale: RuleLocale, jsWeekday: number, date: Date = new Date()): string[] {
   const rules = [...(DAY_RULES[locale][jsWeekday] || [])];
-  return rules;
+  const dDirectionRule = locale === "EN"
+    ? "H=4: D-direction follows the final XAUUSD direction."
+    : "H=4: D-direction theo kết quả XAUUSD cuối cùng.";
+  return [...rules, dDirectionRule];
 }
 
 export function getSignalColor(signal: string): string {

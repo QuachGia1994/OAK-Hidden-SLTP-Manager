@@ -161,16 +161,27 @@ function ScoreBar({ score }: { score: number }) {
 
 function ScoreRing({ score, label }: { score: number; label: string }) {
   const clamped = Math.max(0, Math.min(100, score || 0));
-  const tone = clamped >= 80 ? "from-emerald-400 via-emerald-500 to-lime-400" : clamped >= 50 ? "from-amber-400 via-amber-500 to-orange-400" : "from-red-400 via-red-500 to-rose-400";
+  const radius = 47;
+  const circumference = 2 * Math.PI * radius;
+  const stroke = clamped >= 80 ? "var(--terminal-accent)" : clamped >= 50 ? "var(--terminal-warning)" : "var(--terminal-danger)";
   return (
-    <div className="relative h-32 w-32 sm:h-36 sm:w-36">
-      <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${tone} p-1 shadow-[0_20px_60px_-20px_rgba(16,185,129,0.45)]`}>
-        <div className="grid h-full w-full place-items-center rounded-full border border-white/10 bg-zinc-950/95 backdrop-blur-sm">
-          <div className="text-center">
-            <div className="font-mono text-4xl sm:text-5xl font-black tabular-nums text-white leading-none">{clamped}</div>
-            <div className="mt-1 text-[10px] sm:text-[11px] uppercase tracking-[0.35em] text-zinc-400">{label}</div>
-          </div>
-        </div>
+    <div className="relative grid h-32 w-32 place-items-center sm:h-36 sm:w-36">
+      <svg className="absolute inset-0 -rotate-90" viewBox="0 0 112 112" aria-hidden="true">
+        <circle className="score-ring-track" cx="56" cy="56" r={radius} fill="none" strokeWidth="5" />
+        <circle
+          cx="56"
+          cy="56"
+          r={radius}
+          fill="none"
+          stroke={stroke}
+          strokeWidth="5"
+          strokeLinecap="round"
+          style={{ strokeDasharray: circumference, strokeDashoffset: circumference * (1 - clamped / 100) }}
+        />
+      </svg>
+      <div className="relative text-center">
+        <div className="font-mono text-4xl font-black leading-none tabular-nums text-zinc-900 dark:text-white sm:text-5xl">{clamped}</div>
+        <div className="mt-1 text-[10px] uppercase tracking-[0.28em] text-zinc-400 sm:text-[11px]">{label}</div>
       </div>
     </div>
   );
@@ -192,7 +203,7 @@ function VerdictBadge({ verdict, labels }: { verdict: string; labels: Record<str
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="rounded-2xl border border-zinc-200/80 bg-white/80 px-4 py-3 shadow-lg shadow-black/5 backdrop-blur-sm dark:border-white/10 dark:bg-white/5 dark:shadow-black/10">
+    <div className="terminal-stat rounded-lg px-4 py-3">
       <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">{label}</div>
       <div className="mt-2 text-xl font-semibold text-zinc-900 dark:text-white">{value}</div>
       <div className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{detail}</div>
@@ -202,7 +213,7 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
 
 function SummaryPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/70 dark:bg-zinc-900/50 px-4 py-3 shadow-sm">
+    <div className="fact-result-surface px-4 py-3">
       <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">{label}</div>
       <div className="mt-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">{value}</div>
     </div>
@@ -334,8 +345,8 @@ function SourceRow({ source, t }: { source: { title: string; url: string; snippe
     low: "text-zinc-400 dark:text-zinc-500",
   };
   return (
-    <div className="w-full min-w-0 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 shadow-sm overflow-hidden">
-      <div className="h-1.5 bg-gradient-to-r from-zinc-300 via-zinc-200 to-zinc-100 dark:from-zinc-700 dark:via-zinc-800 dark:to-zinc-900" />
+    <div className="fact-source-row w-full min-w-0 overflow-hidden border border-zinc-200/80 dark:border-zinc-800">
+      <div className="h-1" />
       <div className="flex items-start gap-3 p-4">
         <span className={`mt-0.5 font-mono text-sm font-bold ${iconColor}`}>{icon}</span>
         <div className="flex-1 min-w-0">
@@ -665,12 +676,11 @@ export default function FactCheckPage() {
   const displaySummary = result ? summaryForLocale(result.summary, locale) : "";
 
   return (
-    <div className="relative">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[460px] bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.10),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] dark:bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.12),_transparent_40%),radial-gradient(circle_at_80%_10%,_rgba(239,68,68,0.12),_transparent_28%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]" />
+    <div className="factcheck-screen">
       <div className="relative page-shell">
         <div className="mb-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[30px] border border-zinc-200/80 bg-white/85 p-5 sm:p-7 shadow-[0_32px_100px_-30px_rgba(0,0,0,0.22)] backdrop-blur-md dark:border-white/10 dark:bg-zinc-950/75 dark:shadow-[0_32px_100px_-30px_rgba(0,0,0,0.85)]">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">{t.studio}</div>
+          <div className="fact-hero rounded-xl p-5 sm:p-7">
+            <div className="fact-kicker">{t.studio}</div>
             <div className="mt-3 flex items-end justify-between gap-4">
               <div>
                 <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-zinc-900 dark:text-white">{t.title}</h1>
@@ -691,20 +701,20 @@ export default function FactCheckPage() {
             </div>
           </div>
 
-          <aside className="rounded-[30px] border border-zinc-200/80 dark:border-zinc-800 bg-white/75 dark:bg-zinc-950/55 p-5 sm:p-6 shadow-sm backdrop-blur-sm">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">
+          <aside className="fact-panel fact-steps rounded-xl p-5 sm:p-6">
+            <div className="fact-kicker">
               {locale === "EN" ? "How it reads" : "Cách hệ thống đọc tin"}
             </div>
             <div className="mt-4 space-y-3">
-              <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/8 px-4 py-3">
+              <div className="px-4 py-3">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.parse}</div>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.parseDesc}</p>
               </div>
-              <div className="rounded-2xl border border-amber-500/15 bg-amber-500/8 px-4 py-3">
+              <div className="px-4 py-3">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.crossCheck}</div>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.crossCheckDesc}</p>
               </div>
-              <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50 px-4 py-3">
+              <div className="px-4 py-3">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.scoreMix}</div>
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.scoreMixDesc}</p>
               </div>
@@ -713,7 +723,7 @@ export default function FactCheckPage() {
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.02fr_0.98fr]">
-          <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/78 dark:bg-zinc-950/55 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
+          <div className="fact-panel fact-input rounded-xl p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.32em] text-zinc-400 dark:text-zinc-500">{t.input}</div>
@@ -737,7 +747,7 @@ export default function FactCheckPage() {
             </p>
 
             <div
-              className={`mt-4 rounded-2xl border-2 border-dashed px-4 py-4 text-center transition-colors ${
+              className={`fact-upload mt-4 border-2 border-dashed px-4 py-4 text-center transition-colors ${
                 dragOver
                   ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10"
                   : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700"
@@ -772,34 +782,34 @@ export default function FactCheckPage() {
               <button
                 onClick={handleSubmit}
                 disabled={loading || !text.trim()}
-                className="inline-flex w-full sm:w-auto items-center justify-center rounded-full bg-emerald-500 px-6 py-3 text-sm font-semibold text-zinc-950 shadow-lg shadow-emerald-500/20 transition-all hover:bg-emerald-400 hover:shadow-emerald-500/30 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:bg-emerald-400 dark:text-zinc-950 dark:hover:bg-emerald-300 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+                className="fact-action inline-flex w-full items-center justify-center px-6 py-3 text-sm font-semibold text-zinc-950 transition-colors disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400 sm:w-auto"
               >
                 {loading ? t.submitting : t.submit}
               </button>
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-zinc-200/80 bg-white/85 p-4 sm:p-5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.18)] backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/80 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
-            <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-500 dark:text-zinc-500">
+          <div className="fact-panel fact-preview rounded-xl p-4 sm:p-5">
+            <div className="fact-kicker">
               {locale === "EN" ? "Live preview" : "Xem trước trực tiếp"}
             </div>
             <div className="mt-4 grid gap-3">
-              <div className="rounded-3xl border border-zinc-200/70 bg-zinc-50/90 p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="fact-result-surface p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.scoreLogic}</div>
                     <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.summary}</p>
                   </div>
-                  <div className="hidden sm:block rounded-2xl border border-zinc-200/80 bg-white/70 px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
-                    `0 - 100`
+                  <div className="hidden sm:block rounded-md border border-zinc-200/80 bg-white/70 px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
+                    0–100
                   </div>
                 </div>
               </div>
-              <div className="rounded-3xl border border-zinc-200/70 bg-gradient-to-br from-emerald-50 via-white to-rose-50 p-4 dark:border-white/10 dark:from-emerald-500/10 dark:via-zinc-900/40 dark:to-red-500/10">
+              <div className="fact-result-surface p-4">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.previewTitle}</div>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.previewDesc}</p>
               </div>
-              <div className="rounded-3xl border border-zinc-200/70 bg-zinc-50/90 p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="fact-result-surface p-4">
                 <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.useCase}</div>
                 <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.useCaseDesc}</p>
               </div>
@@ -808,7 +818,7 @@ export default function FactCheckPage() {
         </div>
 
       {error && (
-        <div className="mt-5 border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 rounded-2xl px-5 py-4 shadow-sm">
+        <div className="fact-panel mt-5 rounded-lg border-red-200 bg-red-50 px-5 py-4 dark:border-red-500/20 dark:bg-red-500/10">
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         </div>
       )}
@@ -816,7 +826,7 @@ export default function FactCheckPage() {
       {result && (
         <div className="mt-6 space-y-4">
           <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
-            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+            <div className="fact-panel min-w-0 rounded-xl p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">{t.result}</div>
@@ -828,7 +838,7 @@ export default function FactCheckPage() {
                 <ScoreRing score={result.score} label={t.score} />
                 <div className="flex-1 space-y-3">
                   <ScoreBar score={result.score} />
-                  <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 px-4 py-3">
+                  <div className="fact-result-surface px-4 py-3">
                     <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">{t.summaryTitle}</div>
                     <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{displaySummary}</p>
                   </div>
@@ -836,10 +846,10 @@ export default function FactCheckPage() {
               </div>
             </div>
             <div className="min-w-0 space-y-4">
-              <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+              <div className="fact-panel min-w-0 rounded-xl p-5">
                 <div className="flex items-center justify-between gap-4">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t.crossCheckStats}</h2>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/60 px-3 py-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  <div className="inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
                     {sourceStats ? `${sourceStats.engines} engines / ${sourceStats.domains} domains` : t.noSources}
                   </div>
@@ -850,11 +860,11 @@ export default function FactCheckPage() {
               </div>
 
               {cleanClaims.length > 0 && (
-                <div className="rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+                <div className="fact-panel rounded-xl p-5">
                   <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.keyClaims}</h2>
                   <ul className="space-y-2">
                     {cleanClaims.map((claim, i) => (
-                      <li key={i} className="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300 flex items-start gap-3">
+                      <li key={i} className="fact-result-surface flex items-start gap-3 px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
                         <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-bold text-white dark:bg-zinc-100 dark:text-zinc-900">{i + 1}</span>
                         <span className="leading-relaxed">{claim}</span>
                       </li>
@@ -866,7 +876,7 @@ export default function FactCheckPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/60 p-5 shadow-sm">
+            <div className="fact-panel min-w-0 rounded-xl p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
                 {t.sources} ({result.sources.length})
               </h2>
@@ -879,11 +889,11 @@ export default function FactCheckPage() {
               )}
             </div>
 
-            <div className="min-w-0 rounded-[28px] border border-zinc-200/80 bg-white/85 p-5 shadow-sm backdrop-blur-sm dark:border-zinc-800 dark:bg-gradient-to-br dark:from-zinc-950 dark:to-zinc-900 dark:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.8)]">
+            <div className="fact-panel min-w-0 rounded-xl p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.analysis}</h2>
               <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{displaySummary}</p>
               {aiStatusCard && (
-                <div className={`mt-4 rounded-2xl border px-4 py-3 ${aiStatusCard.tone}`}>
+                <div className={`fact-result-surface mt-4 border px-4 py-3 ${aiStatusCard.tone}`}>
                   <div className="flex items-center justify-between gap-3">
                     <span className={`text-xs font-semibold uppercase tracking-wider ${aiStatusCard.labelClass}`}>
                       {aiStatusCard.title}

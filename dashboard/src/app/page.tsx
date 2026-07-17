@@ -68,15 +68,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const botStatus = botState ? t.running : "N/A";
   const directionText = activeDDirection ? getSignalLabel(activeDDirection, locale) : "—";
+  const gbpDirectionText = h5GBPDirection ? getSignalLabel(h5GBPDirection, locale) : "—";
 
   return (
-    <div className="page-shell space-y-5">
+    <div className="page-shell terminal-page space-y-5">
       <DashboardAutoRefresh />
 
-      <section className="glass-panel market-grid rounded-[1.65rem] px-5 py-6 sm:px-7 sm:py-7">
-        <div className="market-wave" aria-hidden="true" />
+      <section className="terminal-hero rounded-2xl px-5 py-6 sm:px-7 sm:py-7">
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
+            <div className="terminal-kicker mb-3">{locale === "EN" ? "Trading command center" : "Trung tâm điều hành giao dịch"}</div>
             <h1 className="text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl">
               {t.dashboard}
             </h1>
@@ -95,22 +96,34 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
         <MetricTile label={t.statusBot} value={botStatus} tone={botState ? "buy" : "idle"} icon="bot" />
         <MetricTile label={t.statusSignals} value={todaySignals.length.toString()} tone="info" icon="signal" />
+        <MetricTile
+          label={locale === "EN" ? "Stock direction · H4" : "Hướng Stock · H4"}
+          value={directionText}
+          tone={activeDDirection === "BUY" ? "buy" : activeDDirection === "SELL" ? "sell" : "idle"}
+          icon="direction"
+        />
+        <MetricTile
+          label={locale === "EN" ? "GBP direction · H5" : "Hướng GBP · H5"}
+          value={gbpDirectionText}
+          tone={h5GBPDirection === "BUY" ? "buy" : h5GBPDirection === "SELL" ? "sell" : "idle"}
+          icon="direction"
+        />
         <MetricTile label={t.statusNews} value={news.length.toString()} tone="info" icon="news" />
       </section>
 
-      <section className="glass-card rounded-[1.35rem] p-4 sm:p-5">
+      <section className="terminal-panel rounded-xl p-4 sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-600 dark:text-zinc-300">
+          <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
             {t.schedule}
           </h2>
-          <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-300 sm:inline">
+          <span className="terminal-live hidden rounded-md border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] sm:inline">
             {locale === "EN" ? "Broker synced" : "Đồng bộ broker"}
           </span>
         </div>
-        <div className="lux-scroll -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div className="terminal-schedule lux-scroll -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
           {hoursToday.map((h) => {
             const sig = signalsByHour.get(h)?.signal || null;
             return (
@@ -121,7 +134,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section>
-        <h2 className="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-zinc-600 dark:text-zinc-300">
+        <h2 className="terminal-section-heading mb-3 text-sm font-bold uppercase tracking-[0.18em]">
           {t.signalToday}
         </h2>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -136,9 +149,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       {news.length > 0 && (
-        <section className="glass-card rounded-[1.35rem] p-4 sm:p-5">
+        <section className="terminal-panel rounded-xl p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-[0.18em] text-zinc-600 dark:text-zinc-300">
+            <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
               {t.news} <span className="text-zinc-400">({news.length})</span>
             </h2>
             {news.some((n: any) => n.critical) && (
@@ -168,9 +181,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/[0.03] px-4 py-3 shadow-inner dark:bg-white/[0.04]">
-      <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.22em] text-zinc-400">{label}</div>
-      <div className="font-mono text-xl font-black text-zinc-950 dark:text-white">{value}</div>
+    <div className="terminal-stat rounded-xl px-4 py-3">
+      <div className="terminal-kicker mb-1">{label}</div>
+      <div className="terminal-stat-value text-xl font-black">{value}</div>
     </div>
   );
 }
@@ -194,17 +207,17 @@ function MetricTile({
   }[tone];
 
   return (
-    <div className="glass-card rounded-2xl px-4 py-4 sm:px-5">
+    <div className="terminal-panel rounded-xl px-4 py-4 sm:px-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="mb-2 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-400 sm:tracking-[0.22em]">
+          <div className="terminal-kicker mb-2 whitespace-nowrap sm:tracking-[0.22em]">
             {label}
           </div>
           <div className={`font-mono text-2xl font-black ${toneClass.split(" ")[0]}`}>
             {value}
           </div>
         </div>
-        <div className={`grid h-10 w-10 place-items-center rounded-2xl border ${toneClass}`}>
+        <div className={`grid h-10 w-10 place-items-center rounded-lg border ${toneClass}`}>
           <MetricIcon name={icon} />
         </div>
       </div>
@@ -247,7 +260,7 @@ function SchedulePill({
   }[tone];
 
   return (
-    <div className={`min-w-[7.35rem] rounded-2xl border px-3 py-2 text-center ${toneClass}`}>
+    <div className={`min-w-[7.35rem] rounded-lg border px-3 py-2 text-center ${toneClass}`}>
       <div className="font-mono text-base font-black tabular-nums">
         <BrokerLocalTime date={date} hour={hour} />
       </div>
@@ -288,7 +301,7 @@ function NewsRow({
   }[impact];
 
   return (
-    <div className="grid grid-cols-[3.5rem_auto_1fr] items-center gap-2 rounded-2xl border border-zinc-200/60 bg-white/55 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.035]">
+    <div className="grid grid-cols-[3.5rem_auto_1fr] items-center gap-2 rounded-lg border border-zinc-200/60 bg-white/55 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.035]">
       <span className="font-mono text-sm font-semibold tabular-nums text-zinc-600 dark:text-zinc-300">{time}</span>
       <div className="flex items-center gap-1.5">
         <span className="rounded-lg bg-zinc-900/5 px-2 py-1 text-[10px] font-black uppercase text-zinc-700 dark:bg-white/10 dark:text-zinc-200">

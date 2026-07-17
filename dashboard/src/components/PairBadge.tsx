@@ -30,7 +30,10 @@ export function PairBadge({ pair, direction }: PairBadgeProps) {
     const textColor = isGBP ? "text-purple-700 dark:text-purple-200" : "text-cyan-700 dark:text-cyan-200";
     const iconBg = isGBP ? "bg-purple-500/15 text-purple-500 shadow-[0_0_14px_rgba(168,85,247,0.45)]" : "bg-cyan-500/15 text-cyan-500 shadow-[0_0_14px_rgba(34,211,238,0.45)]";
     return (
-      <div className={`my-2 flex items-center justify-between gap-2 rounded-2xl border ${borderColor} ${bgColor} px-3 py-2 ${shadowColor}`}>
+      <div
+        data-tone={isGBP ? "gbp" : "stock"}
+        className={`direction-badge my-2 flex items-center justify-between gap-2 rounded-lg border ${borderColor} ${bgColor} px-3 py-2 ${shadowColor}`}
+      >
         <span className={`inline-flex items-center gap-2 font-mono text-[11px] font-black tracking-wide ${textColor}`}>
           <span className={`grid h-5 w-5 place-items-center rounded-lg ${iconBg}`}>
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
