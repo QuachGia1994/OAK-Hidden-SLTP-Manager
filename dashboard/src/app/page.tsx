@@ -101,12 +101,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <MetricTile label={t.statusSignals} value={todaySignals.length.toString()} tone="info" icon="signal" />
         <MetricTile
           label={locale === "EN" ? "Stock direction · H4" : "Hướng Stock · H4"}
+          mobileLabel="Stock · H4"
           value={directionText}
           tone={activeDDirection === "BUY" ? "buy" : activeDDirection === "SELL" ? "sell" : "idle"}
           icon="direction"
         />
         <MetricTile
           label={locale === "EN" ? "GBP direction · H5" : "Hướng GBP · H5"}
+          mobileLabel="GBP · H5"
           value={gbpDirectionText}
           tone={h5GBPDirection === "BUY" ? "buy" : h5GBPDirection === "SELL" ? "sell" : "idle"}
           icon="direction"
@@ -190,11 +192,13 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function MetricTile({
   label,
+  mobileLabel,
   value,
   tone,
   icon,
 }: {
   label: string;
+  mobileLabel?: string;
   value: string;
   tone: "buy" | "sell" | "info" | "idle";
   icon: "bot" | "signal" | "direction" | "news";
@@ -207,17 +211,18 @@ function MetricTile({
   }[tone];
 
   return (
-    <div className="terminal-panel rounded-xl px-4 py-4 sm:px-5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="terminal-kicker mb-2 whitespace-nowrap sm:tracking-[0.22em]">
-            {label}
+    <div className="terminal-panel overflow-hidden rounded-xl px-4 py-4 sm:px-5">
+      <div className="flex items-start gap-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="terminal-kicker mb-2 leading-4 sm:tracking-[0.22em]">
+            {mobileLabel && <span className="sm:hidden">{mobileLabel}</span>}
+            <span className={mobileLabel ? "hidden sm:inline" : ""}>{label}</span>
           </div>
           <div className={`font-mono text-2xl font-black ${toneClass.split(" ")[0]}`}>
             {value}
           </div>
         </div>
-        <div className={`grid h-10 w-10 place-items-center rounded-lg border ${toneClass}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${toneClass}`}>
           <MetricIcon name={icon} />
         </div>
       </div>
