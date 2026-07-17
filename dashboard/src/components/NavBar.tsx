@@ -16,7 +16,7 @@ export function NavBar() {
     { href: "/", label: t.dashboard, mobile: t.dashboard },
     { href: "/signals", label: locale === "EN" ? "History" : "Lịch sử", mobile: locale === "EN" ? "History" : "Lịch sử" },
     { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực tin tức", mobile: locale === "EN" ? "Check" : "Xác thực" },
-    { href: "/rules", label: t.rules, mobile: t.rules },
+    { href: "/rules", label: t.rules, mobile: locale === "EN" ? "Rules" : "Quy tắc" },
   ];
 
   const changeLocale = (item: "EN" | "VN") => {
@@ -26,7 +26,7 @@ export function NavBar() {
 
   return (
     <nav className="terminal-nav sticky top-0 z-50 border-b backdrop-blur-xl">
-      <div className="nav-shell min-h-14 py-2 flex flex-wrap items-center gap-2 sm:gap-5">
+      <div className="nav-shell terminal-nav-layout">
         <Link href="/" className="group flex items-center gap-2.5 shrink-0" aria-label="SLTP dashboard home">
           <span className="terminal-brand-mark relative inline-flex h-8 w-8 items-center justify-center rounded-lg border">
             <svg className="h-5 w-5 transition-transform duration-200 group-hover:rotate-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -38,7 +38,7 @@ export function NavBar() {
           </span>
         </Link>
 
-        <div className="lux-scroll flex items-center gap-1 overflow-x-auto whitespace-nowrap py-0.5 shrink-0 -mx-1 px-1 sm:mx-0 sm:px-0">
+        <div className="terminal-nav-tabs lux-scroll">
           {links.map((link) => (
             <Link
               key={link.href}
@@ -57,7 +57,7 @@ export function NavBar() {
           ))}
         </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-2.5 shrink-0">
+        <div className="terminal-nav-controls flex items-center gap-2 sm:gap-2.5 shrink-0">
           <div className="terminal-locale-switch inline-flex items-center border p-1">
             {(["EN", "VN"] as const).map((item) => (
               <button
