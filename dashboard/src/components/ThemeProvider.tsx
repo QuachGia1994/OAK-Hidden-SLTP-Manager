@@ -2,12 +2,14 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "light" | "dark";
+type Theme = "light" | "dark" | "contrast";
+
+const themeOrder: Theme[] = ["dark", "contrast", "light"];
 
 const ThemeContext = createContext<{
   theme: Theme;
-  toggle: () => void;
-}>({ theme: "dark", toggle: () => {} });
+  cycleTheme: () => void;
+}>({ theme: "dark", cycleTheme: () => {} });
 
 export function useTheme() {
   return useContext(ThemeContext);
@@ -19,7 +21,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const storedTheme = localStorage.getItem("theme");
-    if (storedTheme === "light" || storedTheme === "dark") {
+    if (storedTheme === "light" || storedTheme === "dark" || storedTheme === "contrast") {
       setTheme(storedTheme);
     }
     setHydrated(true);
@@ -27,14 +29,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!hydrated) return;
-    document.documentElement.className = `${theme} ${document.documentElement.className.replace(/\b(dark|light)\b/g, "").trim()}`.trim();
+    const root = document.documentElement;
+    root.classList.remove("dark", "light", "contrast");
+    root.classList.add(theme);
+    if (theme === "contrast") root.classList.add("dark");
     localStorage.setItem("theme", theme);
   }, [theme, hydrated]);
 
-  const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const cycleTheme = () => setTheme((currentTheme) => {
+    const currentIndex = themeOrder.indexOf(currentTheme);
+    return themeOrder[(currentIndex + 1) % themeOrder.length];
+  });
 
   return (
-    <ThemeContext.Provider value={{ theme, toggle }}>
+    <ThemeContext.Provider value={{ theme, cycleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -31,7 +31,9 @@ export default async function RootLayout({
           (function() {
             try {
               var t = localStorage.getItem('theme');
-              if (t) document.documentElement.className = t + ' ' + document.documentElement.className.replace(/\\b(dark|light)\\b/g, '').trim();
+              if (t === 'dark' || t === 'light' || t === 'contrast') {
+                document.documentElement.className = t + (t === 'contrast' ? ' dark ' : ' ') + document.documentElement.className.replace(/\\b(dark|light|contrast)\\b/g, '').trim();
+              }
             } catch(e) {}
           })();
         `}} />

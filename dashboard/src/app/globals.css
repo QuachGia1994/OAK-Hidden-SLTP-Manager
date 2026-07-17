@@ -29,6 +29,20 @@
   --terminal-shadow: 0 18px 54px rgba(0, 0, 0, 0.32);
 }
 
+.contrast {
+  --background: #020202;
+  --foreground: #fffaf0;
+  --surface: #090907;
+  --surface-raised: #10100d;
+  --panel-border: #564c36;
+  --muted: #ceb98b;
+  --terminal-accent: #d69f27;
+  --terminal-accent-strong: #efc861;
+  --terminal-warning: #f1c45a;
+  --terminal-danger: #ff7a6d;
+  --terminal-shadow: none;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -140,6 +154,12 @@ body {
   color: var(--foreground);
   border-color: color-mix(in srgb, var(--terminal-accent) 38%, var(--panel-border));
   background: var(--surface-raised);
+}
+
+.contrast .terminal-theme-toggle {
+  color: var(--terminal-accent);
+  border-color: color-mix(in srgb, var(--terminal-accent) 58%, var(--panel-border));
+  background: color-mix(in srgb, var(--terminal-accent) 8%, var(--surface));
 }
 
 .terminal-status-dot {
