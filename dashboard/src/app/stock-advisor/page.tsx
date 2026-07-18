@@ -28,6 +28,9 @@ export default async function StockAdvisorPage({ searchParams }: { searchParams:
 function AdvisorHero({ advisory, locale, isVIP }: { advisory: StockAdvisory | null; locale: "VN" | "EN"; isVIP: boolean }) {
   const direction = advisory?.signal.direction || "—";
   const directionTone = direction === "BUY" ? "text-emerald-500" : direction === "SELL" ? "text-red-500" : "text-zinc-500";
+  const directionText = locale === "EN" ? direction : direction === "BUY" ? "MUA" : direction === "SELL" ? "BÁN" : direction;
+  const status = advisory?.status || "EMPTY";
+  const accessText = locale === "EN" ? (isVIP ? "OPEN" : "LOCKED") : (isVIP ? "ĐÃ MỞ" : "ĐÃ KHÓA");
   return (
     <section className="terminal-hero rounded-2xl px-5 py-6 sm:px-7 sm:py-7">
       <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)] lg:items-end">
@@ -40,9 +43,9 @@ function AdvisorHero({ advisory, locale, isVIP }: { advisory: StockAdvisory | nu
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <HeroStat label="STATUS" value={advisory?.status || "EMPTY"} />
-          <HeroStat label="H4" value={direction} valueClass={directionTone} />
-          <HeroStat label="ACCESS" value={isVIP ? "OPEN" : "LOCKED"} />
+          <HeroStat label={locale === "EN" ? "STATUS" : "TRẠNG THÁI"} value={localizeAdvisorStatus(status, locale)} />
+          <HeroStat label={locale === "EN" ? "H4" : "MỐC H4"} value={directionText} valueClass={directionTone} />
+          <HeroStat label={locale === "EN" ? "ACCESS" : "QUYỀN XEM"} value={accessText} />
         </div>
       </div>
     </section>
@@ -148,6 +151,17 @@ function LockedRows({ locale, empty = false }: { locale: "VN" | "EN"; empty?: bo
 
 function AdvisorEmpty({ locale }: { locale: "VN" | "EN" }) {
   return <section className="terminal-panel rounded-xl p-8 text-center text-zinc-500">{locale === "EN" ? "Run VN30 Advisor from the desktop app to publish the first result." : "Chạy Bộ lọc VN30 trên app desktop để xuất kết quả đầu tiên."}</section>;
+}
+
+function localizeAdvisorStatus(status: string, locale: "VN" | "EN"): string {
+  if (locale === "EN") return status;
+  const labels: Record<string, string> = {
+    EMPTY: "CHƯA CÓ",
+    READY: "SẴN SÀNG",
+    PARTIAL: "CHƯA ĐỦ 3 MÃ",
+    NO_TRADE: "KHÔNG GIAO DỊCH",
+  };
+  return labels[status] || status;
 }
 
 function formatPercent(value: number): string { return `${(Number(value || 0) * 100).toFixed(1)}%`; }
