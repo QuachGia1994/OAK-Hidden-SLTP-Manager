@@ -37,8 +37,8 @@ except Exception:
     MT5_PATH = ""
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
-# Default band; Thursday uses H=5-15 via get_target_hours if imported from signal bot
-TARGET_HOURS = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15]  # no H=14
+# Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
+TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15]
 BROKER_GMT = 0
 
 app = Flask(__name__)

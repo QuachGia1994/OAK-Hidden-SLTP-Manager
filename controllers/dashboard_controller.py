@@ -745,7 +745,7 @@ class DashboardControllerMixin:
                             continue
                         lbl.configure(text="—", text_color=muted)
 
-                # Next slot countdown (T2-T6=H2-10,12-13,15; broker weekday)
+                # Next slot countdown (T2-T6=H2-5,7-9,12-13,15; broker weekday)
                 try:
                     from mt5_signal_bot import get_target_hours as _gth
                     target_hours = _gth(weekday=now.weekday())

@@ -1,0 +1,32 @@
+name: Feature request
+description: Propose a focused, testable improvement.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the user problem, not only the proposed UI or implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: "Given ..., when ..., then ..."
+    validations:
+      required: true
+  - type: checkboxes
+    id: trading_safety
+    attributes:
+      label: Trading safety
+      options:
+        - label: This proposal keeps real trading behind direct user confirmation.
+          required: true

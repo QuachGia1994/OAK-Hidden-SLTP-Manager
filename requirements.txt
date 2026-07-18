@@ -3,6 +3,7 @@ MetaTrader5
 pywinauto
 comtypes
 pywin32
+PySide6==6.11.1
 Flask
 pyTelegramBotAPI
 keyring

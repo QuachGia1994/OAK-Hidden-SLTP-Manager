@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() !=
 
 
 def read_version():
-    version = "v3.16.3"
+    version = "v3.17.0"
     for path in ("domain/constants.py", "OAK_Hidden_SLTP_Manager.py"):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -51,6 +51,8 @@ ROOT_ALWAYS = {
     "RELEASE_NOTES.md",
     "RELEASE_NOTES.en.md",
     "README.en.md",
+    "THIRD_PARTY_NOTICES.md",
+    "DESIGN.md",
     "QUICKSTART.md",
     "profiles.example.json",
     "settings.example.json",
@@ -61,6 +63,7 @@ ROOT_ALWAYS = {
     "mimo_worker.py",
     "mt4_mt5_server.py",
     "mt5_signal_bot.py",
+    "vn_stock_advisor.py",
     "factcheck_worker.py",
     "telegram_client.py",
     "secret_store.py",
@@ -92,7 +95,6 @@ EXCLUDE_DIRS = {
 
 # Never put secrets / live state into SOURCE zip
 EXCLUDE_FILES = {
-    "Objective.txt",
     "build_exe.bat",
     "CHAY_ALL.bat",
     "CHAY_DASHBOARD.bat",

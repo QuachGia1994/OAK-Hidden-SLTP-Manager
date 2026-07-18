@@ -1,24 +1,38 @@
 # NHẬT KÝ CẬP NHẬT
 
-## [v3.16.5] - 2026-07-16
+## [v3.17.0] - 2026-07-18
 
 ### Ma trận signal
 
-- **H=2 Thứ 3 không đảo XAU nữa** (giữ pattern thường). Thứ 5 và Thứ 6 giữ nguyên.
-- **Ẩn hiển thị H=4 D-direction** — vẫn tính toán/lưu cho H=17 nhưng không hiện trên Telegram/Dashboard.
-- Cập nhật bot, dashboard, tests, docs.
+- Đồng bộ một entry point cho bot chạy live và rebuild lịch sử 7 ngày.
+- Slot active: H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=12, H=13, H=15. Tắt H=6/H=10/H=11/H=14/H=17.
+- H=2: M5/M30 rồi hậu xử lý XAUUSD M30; Thứ 5 dùng lại H=2 Thứ 2 và chỉ đảo trong tuần lịch đặc biệt. Đã xoá hoàn toàn rule đảo H=2 Thứ 6; Thứ 6 luôn dùng luồng chuẩn.
+- H=3/H=7 đảo kết quả H=2 cuối cùng. H=8/H=9/H=12/H=13/H=15 giữ luồng M5/M30 + XAUUSD M30 chuẩn.
+
+### Trung tâm điều hành NativeQt
+
+- Tinh chỉnh token Dark, Deep Sea và Contrast để giao diện desktop đồng bộ hơn.
+- Deep Sea dùng cyan cho profile đang chọn, thẻ đang chạy, action dương và combobox, không còn kế thừa mint của Dark.
+- Bổ sung icon cửa sổ NativeQt và hoàn thiện thêm EN/VN trong shell.
+
+### Độ ổn định và đóng gói
+
+- Sửa lỗi `d_direction` NameError làm MT5 Signal Bot dừng sau khi rebuild lịch sử.
+- Domain được lazy-load để NativeQt không tải MetaTrader5 hoặc numpy khi mở; installer đã qua smoke test khởi động thực tế.
+- Đóng gói kèm hướng dẫn thiết kế và thông báo bên thứ ba trong NativeQt nhẹ.
+- Đã dọn các build artifact cũ và launcher legacy không còn được app dùng.
+- Nâng bản phát hành lên **v3.17.0**.
+
+## [v3.16.5] - 2026-07-16
+
+- Các điều chỉnh ma trận cũ, đã được thay thế bởi ma trận v3.17.0 ở trên.
 
 ## [v3.16.3] - 2026-07-13
 
 ### Ma trận signal
 
-- Đơn giản hoá signal matrix sang XAU-only: output/list pair chỉ còn `XAUUSD`.
-- Slot active là Thứ 2-Thứ 6 H=2-10, H=12-13, H=15 và H=17; H=11/H=14 đã tắt.
-- H=2 matrix weekday reverse (đã chỉnh lại ở v3.16.4).
-- Gỡ toàn bộ no-gold label.
-- Gỡ toàn bộ list/focus GBP khỏi core, Dashboard và Telegram notes.
-- Gỡ đảo XAU đại trà của Thứ 6; giữ riêng nhánh đặc biệt H=2 Thứ 6.
-- D-direction H=4 và preview H=17 được ghi rõ là đang active.
+- Đơn giản hoá output/list pair còn `XAUUSD` và gỡ focus GBP cũ.
+- Các phiên bản ma trận trước đã được thay thế bởi v3.17.0.
 
 ### Đóng gói
 

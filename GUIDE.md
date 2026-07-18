@@ -1,93 +1,54 @@
-# Cẩm nang OAK MANAGER (v3.16.3)
+# Hướng dẫn OAK Manager (v3.17.0)
 
-Tài liệu này mô tả app desktop, signal bot, Telegram bridge, Fact Check worker và dashboard web.
+OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor worker, Hidden SL/TP, copy trade, lệnh hẹn giờ, Telegram, chẩn đoán và dashboard web.
 
-## 1. Bắt đầu nhanh
+## Khởi động
 
-1. Tạo `config.json` với `telegram_token`, `telegram_chat_id`, `mt5_path`, `dashboard_url`, `dashboard_api_key`.
-2. Cài dependency: `pip install -r requirements.txt`.
-3. Chạy `CHAY_ROBOT.bat`.
-4. Mở app desktop, chọn profile, rồi dùng tab **Signals** để bật/tắt các service nền.
+1. Cấu hình `config.json` và `profiles.json` tại máy. Không commit token hoặc thông tin broker.
+2. Mở NativeQt, chọn hồ sơ cần vận hành.
+3. Chỉ khởi động worker cần thiết trong tab **Tín hiệu**.
+4. Kiểm tra **Chẩn đoán** của đúng hồ sơ trước khi đặt lệnh.
 
-## 2. Các tab desktop
+## Signal engine
 
-### Dashboard
+- Nguồn pattern: `GBPUSD` M5/M30.
+- Output/cặp giao dịch: chỉ `XAUUSD`. Không còn list focus GBP và không còn nhãn no-gold.
+- Chạy Thứ 2 đến Thứ 6; cuối tuần tắt toàn bộ slot.
+- Slot active tại phút `:45` broker: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=12, H=13, H=15**.
+- Slot tắt: **H=6, H=10, H=11, H=14, H=17**.
+- Không dùng H1 Vàng.
 
-- Chọn profile và start/stop monitor MT5.
-- Xem PID monitor đang chạy, account, signal, tin tức và activity log.
-- Cuối tuần thẻ signal để trống: không current signal, next slot, countdown hoặc label cặp cũ.
+### Ma trận core
 
-### Signals
-
-`START ALL` / `STOP ALL` điều khiển:
-
-- MT5 Signal Bot
-- MT4-MT5 Server
-- MiMo Telegram Bot
-- MiMo Worker
-- Fact Check Worker
-
-### Profiles / Copy Trading / Pending / Diagnostics
-
-Quản lý profile, copy-trading, lệnh hẹn giờ, lọc log và export debug bundle.
-
-## 3. Rule signal
-
-### Cặp
-
-`XAUUSD`
-
-### Nhịp
-
-| Nhịp | Mốc H | Label |
-| --- | --- | --- |
-| 0 | H=2 | XAU |
-| 1 | H=3-4 | JPY |
-| 2 | H=5-8 | AUD |
-| 3 | H=9-10 | XAU |
-| 4 | H=12-13 | EUR |
-| 5 | H=15, H=17 | USD |
-
-### Lịch slot
-
-| Ngày | Mốc active |
+| Mốc | Rule |
 | --- | --- |
-| Thứ 2-Thứ 6 | H=2-10, H=12-13, H=15, H=17 tại phút `:45` broker |
-| Thứ 7-Chủ nhật | không có |
+| H=2 | Tính pattern M5/M30, sau đó hậu xử lý XAUUSD M30. Thứ 5 dùng lại H=2 của Thứ 2 và chỉ đảo trong tuần lịch đặc biệt. Thứ 6 luôn dùng luồng chuẩn, không có rule đảo riêng. |
+| H=3, H=7 | Đảo chiều kết quả XAUUSD H=2 cuối cùng. |
+| H=4 | M5/M30 + XAUUSD M30 bình thường. D-direction được lưu nội bộ. |
+| H=5, H=8, H=9, H=12, H=13, H=15 | M5/M30 + XAUUSD M30 bình thường. |
 
-### Pair output
+Nhánh đảo theo lịch đặc biệt chỉ được xét cho H=2 Thứ 5. Tuần đặc biệt được xác định khi Thứ 4 cùng tuần rơi ngày 30 hoặc 1, hoặc Thứ 6 cùng tuần rơi ngày 3, 4 hoặc 7; điều kiện này không làm đảo H=2 Thứ 6.
 
-- Chỉ còn `XAUUSD`.
-- Đã gỡ toàn bộ no-gold label.
-- Đã gỡ toàn bộ list/focus GBP.
+## Dashboard
 
-### Ghi chú tính Vàng
+- Production: https://oak-hidden-sltp-manager-dun.vercel.app
+- Chuyển ngôn ngữ rõ ràng **EN / VN**. Thời gian tin tức hiển thị theo múi giờ hệ thống người xem, gồm cả DST.
+- Fact Check hỗ trợ dán text, upload, kéo thả và dán ảnh từ clipboard.
 
-- H=2 xét pattern `GBPUSD` M5/M30, vẫn chạy XAUUSD M30 post-processing, và bỏ H1 Vàng.
-- H=2 **Thứ 3 không đảo XAU** (giữ pattern thường). Thứ 5 dùng history T2. Thứ 6 tuần đặc biệt thì đảo.
-- H=4 D-direction vẫn tính toán nhưng ẩn hiển thị.
-- H=17 hiển thị XAUUSD theo D-direction đã lưu từ H=4.
-- Đã bỏ ma trận direction cũ H=9/12 và tắt core H=11/H=14.
+## Fact Check
 
-## 4. Dashboard web
+Google và DuckDuckGo thu thập bằng chứng. AI là lớp phản biện tùy chọn, chỉ dùng bằng chứng đã thu thập và không tự tạo nguồn.
 
-Production URL: https://oak-hidden-sltp-manager-dun.vercel.app
+1. GitHub Models: `FACTCHECK_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN` hoặc `gh auth token`.
+2. OpenAI Responses API dự phòng: `FACTCHECK_AI_API_KEY`.
 
-- Chuyển ngôn ngữ: EN / VN.
-- Signal cards, lịch sử, tin tức và rules được localize.
-- Fact Check hỗ trợ paste text, upload ảnh, kéo-thả ảnh và dán ảnh từ clipboard.
+## An toàn
 
-## 5. Fact Check
+- Lệnh Telegram hẹn giờ được giới hạn đúng hồ sơ.
+- Lệnh đóng có giờ được đưa vào hàng đợi, không đóng ngay.
+- Worker thực thi guardrail Copy Trading, giới hạn ngày và kill switch.
+- Signal chỉ là hỗ trợ quyết định, không phải bảo đảm giao dịch.
 
-Fact Check dùng DuckDuckGo + Google để lấy bằng chứng. AI review là lớp tùy chọn và chỉ được đánh giá bằng chứng đã thu thập.
+## Gói cài đặt
 
-Thứ tự cấu hình AI:
-
-1. GitHub Models qua `FACTCHECK_GITHUB_TOKEN`, `GITHUB_TOKEN`, `GH_TOKEN`, hoặc `gh auth token`.
-2. OpenAI Responses API qua `FACTCHECK_AI_API_KEY`.
-
-Model GitHub Models preview mặc định là `openai/gpt-4.1-mini`.
-
-## 6. Telegram
-
-Lệnh Telegram target đúng profile. Schedule claim chạy atomic để chỉ một worker xử lý một lệnh hẹn giờ.
+Tải installer, bản unpack và source bundle tại [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases).
