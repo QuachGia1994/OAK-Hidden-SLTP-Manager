@@ -560,6 +560,7 @@ def app_qss(theme: str = "dark") -> str:
     base = """
     QMainWindow{background:#060908}
     QWidget{font-family:"Segoe UI";font-size:14px;color:#f4f7f5}
+    QWidget#StockAdvisorControls{background:#090d0c}
     #Root{background:qradialgradient(cx:.08,cy:.02,radius:1,fx:.08,fy:.02,stop:0 rgba(0,201,145,32),stop:.42 #060908,stop:1 #060908)}
     QFrame[role="panel"]{background:rgba(13,18,16,224);border:1px solid #25312c;border-radius:22px}
     QFrame[role="row"]{background:#111816;border:1px solid #26322d;border-radius:14px}
@@ -569,6 +570,7 @@ def app_qss(theme: str = "dark") -> str:
     QFrame[role="signal"][state="running"]{border:1px solid #1bb58b;background:#0b211a}
     QLabel[role="tiny"]{color:#87958f;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
     QLabel[role="muted"]{color:#9aa9a3;font-size:12px}
+    QLabel[role="stockStatus"]{color:#dbe7e1;font-size:12px;font-weight:700;padding:4px 2px}
     QLabel[role="section"]{font-size:22px;font-weight:900}
     QLabel[role="title"]{font-size:52px;font-weight:900;letter-spacing:-2px}
     QLabel[role="value"]{font-family:Consolas;font-size:28px;font-weight:900}
@@ -578,6 +580,8 @@ def app_qss(theme: str = "dark") -> str:
     QPushButton:hover{background:#1b2823;border:1px solid #3b5147}
     QPushButton:disabled{background:#0d1210;border:1px solid #1b2722;color:#52615d}
     QPushButton[primary="true"]:enabled{background:#00c991;color:#04130f;border:0}
+    QPushButton[stockAction="save"]:enabled{background:#2f2610;color:#f8c95d;border:1px solid #c8952f}
+    QPushButton[stockAction="save"]:hover{background:#473814;border:1px solid #f1c45a}
     QPushButton[active="true"]{background:#00c991;color:#04130f;border:0}
     QPushButton[intent="positive"]{color:#20d4a4;border:1px solid rgba(32,212,164,110);background:rgba(32,212,164,18)}
     QPushButton[intent="danger"]{color:#ff6670;border:1px solid rgba(255,102,112,110);background:rgba(255,102,112,18)}
@@ -593,6 +597,7 @@ def app_qss(theme: str = "dark") -> str:
     QCheckBox::indicator{width:20px;height:20px;border-radius:6px;border:1px solid #4a5a53;background:#101714}
     QCheckBox::indicator:checked{background:#00c991;border:1px solid #00c991}
     QScrollArea,QTextEdit{background:#090d0c;border:1px solid #23302a;border-radius:16px;padding:8px}
+    QScrollArea > QWidget#qt_scrollarea_viewport{background:#090d0c}
     QTextEdit[role="mini"]{font-family:Consolas;font-size:12px}
     QScrollBar:vertical{background:#101714;width:10px;border-radius:5px;margin:4px}
     QScrollBar::handle:vertical{background:#1b8064;border-radius:5px;min-height:42px}
@@ -620,6 +625,7 @@ def app_qss(theme: str = "dark") -> str:
         QMainWindow{background:#020202}
         #Root{background:#020202}
         QWidget{color:#fffaf0}
+        QWidget#StockAdvisorControls{background:#050504}
         QFrame[role="panel"]{background:#090907;border:1px solid #564c36;border-radius:12px}
         QFrame[role="row"]{background:#10100d;border:1px solid #463f30;border-radius:10px}
         QFrame[role="signal"]{background:#070706;border:1px solid #5d5137;border-radius:12px}
@@ -628,6 +634,7 @@ def app_qss(theme: str = "dark") -> str:
         QFrame[role="hint"]{background:#1b1408;border:1px solid #8c6720;border-radius:10px}
         QLabel[role="tiny"]{color:#ceb98b}
         QLabel[role="muted"]{color:#e5dcc8}
+        QLabel[role="stockStatus"]{color:#fff0c7}
         QLabel[accent="green"]{color:#eff5e7}QLabel[accent="amber"]{color:#f1c45a}QLabel[accent="red"]{color:#ff7a6d}QLabel[accent="theme"]{color:#f1c45a}
         QPushButton{background:#11110e;border:1px solid #66583a;border-radius:8px;color:#fffaf0}
         QPushButton:hover{background:#211b0f;border:1px solid #efc861}
@@ -641,8 +648,11 @@ def app_qss(theme: str = "dark") -> str:
         QLineEdit:focus{border:1px solid #e4b64e;background:#141109}
         QCheckBox{color:#f0eadc}QCheckBox::indicator{background:#090907;border-color:#8c7b57}QCheckBox::indicator:checked{background:#d69f27;border-color:#d69f27}
         QScrollArea,QTextEdit{background:#050504;border:1px solid #514734;border-radius:10px}
+        QScrollArea > QWidget#qt_scrollarea_viewport{background:#050504}
         QScrollBar:vertical{background:#11110e}QScrollBar::handle:vertical{background:#9a772f}
         QPushButton[primary="true"]:enabled{background:#c64339;color:#fffaf6;border:1px solid #ff796e}
+        QPushButton[stockAction="save"]:enabled{background:#d69f27;color:#120e05;border:1px solid #f0c65b}
+        QPushButton[stockAction="save"]:hover{background:#f1c45a;border:1px solid #fff0b0}
         QPushButton[active="true"]{background:#d69f27;color:#120e05;border:1px solid #f0c65b}
         """
     return base
@@ -930,6 +940,7 @@ class NativeShell:
         layout = QT.QHBoxLayout(page)
         layout.setSpacing(18)
         controls = self._stock_advisor_controls()
+        controls.setObjectName("StockAdvisorControls")
         controls_scroll = QT.QScrollArea()
         controls_scroll.setFrameShape(QT.QFrame.Shape.NoFrame)
         controls_scroll.setHorizontalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -950,7 +961,8 @@ class NativeShell:
         layout.setSpacing(10)
         self._build_stock_fields(layout)
         layout.addLayout(self._stock_advisor_actions())
-        self.stock_status = label("Credentials are stored in Windows Credential Manager.", role="muted")
+        self.stock_status = label("Credentials are stored in Windows Credential Manager.", role="stockStatus")
+        self.stock_status.setWordWrap(True)
         layout.addWidget(self.stock_status)
         layout.addWidget(self._guardrail_row("Recommendation only", "CONFIRM", "User confirmation is required before every real trade.", "amber"))
         layout.addWidget(self._guardrail_row("Execution", "DISABLED", "This module has no order submission capability.", "green"))
@@ -982,6 +994,7 @@ class NativeShell:
     def _stock_advisor_actions(self) -> Any:
         actions = QT.QVBoxLayout()
         save = button("Save SSI credentials")
+        save.setProperty("stockAction", "save")
         self.stock_run_btn = button("Run advisor", primary=True)
         save.clicked.connect(self.save_stock_advisor_settings)
         self.stock_run_btn.clicked.connect(self.run_stock_advisor)

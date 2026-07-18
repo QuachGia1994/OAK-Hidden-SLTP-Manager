@@ -831,7 +831,7 @@ def analyze(broker_dt, H):
                 report = f"T5 H=2: dùng signal T2 H=2 từ history -> {t2_sig}"
             return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
         # Fallback: T2 history unavailable, use fresh analysis
-        print("  [FALLBACK] T5 H=2 - T2 history chưa có, dùng fresh analysis")
+        print("  [FALLBACK] Thursday H=2 - Tuesday history missing; using fresh analysis")
     elif H == 2 and should_reverse_h2_xau(broker_dt):  # T6 đảo khi tuần đặc biệt
         signal = "SELL" if signal == "BUY" else "BUY"
         report += "\nH=2: đảo signal XAU (T6 đảo khi tuần đặc biệt)."
