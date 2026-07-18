@@ -1,0 +1,57 @@
+name: Bug report
+description: Report a reproducible defect without including secrets or account data.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "For security vulnerabilities, stop and use private vulnerability reporting instead."
+  - type: input
+    id: version
+    attributes:
+      label: OAK version
+      placeholder: v3.17.0
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - NativeQt desktop
+        - MT5 monitor or Hidden SL/TP
+        - Signal bot or Telegram
+        - VN30 advisory scanner
+        - Web dashboard
+        - Installer or backup
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Remove account IDs, tokens, personal paths, and private trading data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, account identifiers, and private trading data.
+          required: true
+        - label: This report does not disclose a security vulnerability.
+          required: true

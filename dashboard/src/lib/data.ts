@@ -1,4 +1,4 @@
-import type { Signal, BotState, NewsItem } from "./types";
+import type { Signal, BotState, NewsItem, StockAdvisory } from "./types";
 import { redis, KEYS } from "./redis";
 import { DISABLED_HOURS } from "./constants";
 
@@ -41,4 +41,21 @@ export async function getEconomicNews(): Promise<NewsItem[]> {
   } catch {
     return [];
   }
+}
+
+export async function getStockAdvisory(): Promise<StockAdvisory | null> {
+  try {
+    return (await redis.get(KEYS.stockAdvisor)) as StockAdvisory | null;
+  } catch {
+    return null;
+  }
+}
+
+export function maskStockAdvisory(advisory: StockAdvisory): StockAdvisory {
+  return {
+    ...advisory,
+    signal: { ...advisory.signal, direction: "WAIT" },
+    candidates: [],
+    backtest: { ...advisory.backtest, hit_rate: 0, mean_aligned_return: 0 },
+  };
 }

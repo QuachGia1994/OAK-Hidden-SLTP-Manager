@@ -47,12 +47,12 @@ except Exception:
 
 SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
-# Mon–Fri: H=2..15 except disabled H=11/H=14 and the explicit slot/rhythm rules.
+# Mon–Fri active rhythm slots. H=6/H=10/H=11/H=14/H=17 are intentionally inactive.
 # XAU-only mode: no GBP focus pairs and no no-gold labels.
-DISABLED_HOURS = {6, 10, 11, 14}
-TARGET_HOURS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15]
+DISABLED_HOURS = {6, 10, 11, 14, 17}
+TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 18
+SIGNAL_LOGIC_VERSION = 19
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -62,6 +62,8 @@ def get_rhythm_label(hour):
     try:
         h = int(hour)
     except (TypeError, ValueError):
+        return None
+    if h in DISABLED_HOURS:
         return None
     if h == 2:
         return "Nhịp 0 · XAU"
@@ -82,7 +84,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     """Return active H slots for the broker weekday.
 
     Python weekday: Mon=0 .. Sun=6.
-    Mon–Fri → H=2..15, excluding disabled H=11/H=14; weekend → [].
+    Mon–Fri → active H=2,3,4,5,7,8,9,12,13,15; weekend → [].
     """
     if weekday is None:
         if broker_dt is None:
@@ -107,7 +109,7 @@ def _check_telegram_api(token):
     """
     if not token:
         return False, "no_token"
-    ok, result = telegram_get_me(token)
+    ok, result = telegram_get_me(token, retries=0, timeout=5.0)
     if ok:
         return True, result
     return False, result
@@ -134,12 +136,64 @@ def load_profile_config(profile_name, profiles_path=None):
 _tg_fail_streak = 0
 _tg_last_ok_name = ""
 _tg_last_ok_mono = 0.0
+_tg_last_probe_mono = 0.0
+_tg_next_probe_mono = 0.0
+_tg_cached_api_ok = False
+_tg_cached_bot = ""
+_tg_probe_key = None
+_tg_last_check_iso = ""
+_TG_PROBE_BASE_SECONDS = 45.0
+_TG_PROBE_MAX_SECONDS = 300.0
+
+
+def _reset_telegram_probe_state(probe_key=None):
+    """Reset cached Telegram health when the active profile or token changes."""
+    global _tg_fail_streak, _tg_last_ok_name, _tg_last_ok_mono
+    global _tg_last_probe_mono, _tg_next_probe_mono
+    global _tg_cached_api_ok, _tg_cached_bot, _tg_probe_key, _tg_last_check_iso
+    _tg_fail_streak = 0
+    _tg_last_ok_name = ""
+    _tg_last_ok_mono = 0.0
+    _tg_last_probe_mono = 0.0
+    _tg_next_probe_mono = 0.0
+    _tg_cached_api_ok = False
+    _tg_cached_bot = ""
+    _tg_probe_key = probe_key
+    _tg_last_check_iso = ""
+
+
+def _probe_telegram_health(profile, token):
+    """Return cached health, probing only when the backoff window expires."""
+    global _tg_fail_streak, _tg_last_ok_name, _tg_last_ok_mono
+    global _tg_last_probe_mono, _tg_next_probe_mono
+    global _tg_cached_api_ok, _tg_cached_bot, _tg_last_check_iso
+    probe_key = (profile, token)
+    if probe_key != _tg_probe_key:
+        _reset_telegram_probe_state(probe_key)
+    now = time.monotonic()
+    if now >= _tg_next_probe_mono:
+        _tg_last_probe_mono = now
+        _tg_cached_api_ok, _tg_cached_bot = _check_telegram_api(token)
+        if _tg_cached_api_ok:
+            _tg_fail_streak = 0
+            _tg_last_ok_name = str(_tg_cached_bot or _tg_last_ok_name or "")
+            _tg_last_ok_mono = now
+            _tg_last_check_iso = datetime.now(timezone.utc).isoformat()
+        else:
+            _tg_fail_streak += 1
+        exponent = min(3, max(0, _tg_fail_streak - 1))
+        delay = min(_TG_PROBE_BASE_SECONDS * (2 ** exponent), _TG_PROBE_MAX_SECONDS)
+        _tg_next_probe_mono = now + delay
+    if _tg_cached_api_ok:
+        return True, _tg_last_ok_name or _tg_cached_bot
+    hold = _tg_last_ok_mono and (now - _tg_last_ok_mono) < 90.0
+    if _tg_last_ok_name and (_tg_fail_streak < 2 or hold):
+        return True, _tg_last_ok_name
+    return False, _tg_cached_bot or "network_error"
 
 
 def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     """Publish heartbeat to SQLite. Called every ~2s from main loop."""
-    from datetime import datetime, timezone
-    global _tg_fail_streak, _tg_last_ok_name, _tg_last_ok_mono
     acc = None
     if mt5_connected:
         try:
@@ -155,24 +209,11 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     tg_chat = profile_cfg.get("tele_chat") or TELEGRAM_CHAT_ID
     tg_configured = bool(tg_token and tg_chat)
     if tg_token:
-        tg_api_ok, tg_bot = _check_telegram_api(tg_token)
-        if tg_api_ok:
-            _tg_fail_streak = 0
-            _tg_last_ok_name = str(tg_bot or _tg_last_ok_name or "")
-            _tg_last_ok_mono = time.time()
-            tg_bot = _tg_last_ok_name
-        else:
-            _tg_fail_streak += 1
-            # Hold last-known-good 90s or until 2 consecutive failures
-            hold = _tg_last_ok_mono and (time.time() - _tg_last_ok_mono) < 90.0
-            if _tg_fail_streak < 2 or hold:
-                if _tg_last_ok_name:
-                    tg_api_ok = True
-                    tg_bot = _tg_last_ok_name
-            # else keep tg_api_ok False / error category in tg_bot
+        tg_api_ok, tg_bot = _probe_telegram_health(profile, tg_token)
     else:
+        if _tg_probe_key is not None:
+            _reset_telegram_probe_state()
         tg_api_ok, tg_bot = False, ""
-    tg_last = datetime.now(timezone.utc).isoformat() if tg_api_ok else ""
 
     state = "connected" if mt5_connected else "disconnected"
     _store.publish_heartbeat(
@@ -185,7 +226,7 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
         last_error=mt5_error,
         telegram_configured=tg_configured,
         telegram_api_ok=tg_api_ok,
-        telegram_last_check=tg_last,
+        telegram_last_check=_tg_last_check_iso,
         telegram_bot_name=tg_bot,
     )
 
@@ -257,6 +298,21 @@ def _save_state(day_signals, sent_today):
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
 
+def _write_signals_log_atomic(data):
+    """Replace the signal log atomically so readers never see partial JSON."""
+    temporary = f"{_SIGNALS_LOG}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(temporary, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
+        os.replace(temporary, _SIGNALS_LOG)
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.remove(temporary)
+        except OSError:
+            pass
+
+
 def _get_d_direction_from_day(date_value):
     """Find the stored H=4 D-direction for a trading date."""
     h4_data = day_signals.get((date_value, 4), {})
@@ -321,8 +377,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
         data = [d for d in data if (d["date"], d["hour"]) != key]
         data.append(record)
         data = data[-2000:]
-        with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+        _write_signals_log_atomic(data)
     except Exception as e:
         print(f"[WARN] Cannot log signal: {e}")
 
@@ -517,10 +572,19 @@ def push_prices_to_dashboard():
     except Exception as e:
         print(f"[DASHBOARD] Prices push error: {e}")
 
-def get_schedule_reminders(broker_dt):
-    """Kiểm tra các ngày đặc biệt trong tháng - dùng chung get_day_notes."""
-    notes = get_day_notes(broker_dt, lang="VN")
-    return [n.upper() for n in notes]
+def build_startup_telegram_message(broker_dt, mt5_connected):
+    """Build the startup Telegram note from the same daily matrix as the dashboard."""
+    day_notes = get_day_notes(broker_dt, lang="VN")
+    disabled_slots = ", ".join(f"H={hour}" for hour in sorted(DISABLED_HOURS))
+    rules = "\n".join(f"⚠️ {note}" for note in day_notes)
+    mt5_status = "OK" if mt5_connected else "N/A"
+    return (
+        "🤖 BOT KHỞI ĐỘNG\n"
+        f"Nguồn pattern: {SYMBOL} | MT5: {mt5_status}\n"
+        "Đầu ra: chỉ XAUUSD.\n"
+        f"Tắt core: {disabled_slots}.\n"
+        f"Quy tắc hôm nay:\n{rules}"
+    )
 
 # =====================================================================
 # TELEGRAM
@@ -557,7 +621,7 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
         return None
 
     # Tăng số nến để覆盖 sâu hơn (M5: 5000 ≈ 17 ngày, M30/H1 đủ lớn)
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 5000)
+    rates = _copy_rates_near_timestamp(symbol, timeframe, target_ts)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
         return None
@@ -575,6 +639,21 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
     if best and min_diff <= max_diff:
         return best
     return None
+
+
+def _copy_rates_near_timestamp(symbol, timeframe, target_ts):
+    """Load an exact historical window, with the recent-bar fallback."""
+    target = datetime.fromtimestamp(target_ts, tz=timezone.utc)
+    start = target - timedelta(minutes=3)
+    end = target + timedelta(minutes=3)
+    try:
+        rates = mt5.copy_rates_range(symbol, timeframe, start, end)
+    except Exception as error:
+        print(f"[WARN] MT5 range lookup failed for {symbol}: {error}")
+        rates = None
+    if rates is not None and len(rates) > 0:
+        return rates
+    return mt5.copy_rates_from_pos(symbol, timeframe, 0, 5000)
 
 def candle_direction(candle):
     if candle is None:
@@ -635,11 +714,11 @@ def get_xauusd_m30_signal(broker_dt, H):
 
 
 def is_h2_special_calendar_weekday(broker_dt):
-    """Check special-calendar weeks (month-end / month-start / NFP).
+    """Check whether Thursday H=2 is in a special-calendar week.
 
-    Used only for Friday H=2 reverse. Tue/Thu no longer reverse H=2.
+    Friday never uses a special H=2 reversal.
     """
-    if broker_dt.weekday() not in (3, 4):
+    if broker_dt.weekday() != 3:
         return False
     week_wednesday = broker_dt.date() + timedelta(days=(2 - broker_dt.weekday()))
     week_friday = broker_dt.date() + timedelta(days=(4 - broker_dt.weekday()))
@@ -649,21 +728,20 @@ def is_h2_special_calendar_weekday(broker_dt):
 def should_reverse_h2_xau(broker_dt):
     """Whether H=2 should reverse the pattern XAU signal.
 
-    - Tue (T3): normal pattern, no reverse (v3.16.5)
-    - Thu (T5): reverse only on special-calendar weeks; otherwise use T2 history
-    - Fri (T6): reverse only on special-calendar weeks
+    - Thursday (T5): reverse only on special-calendar weeks after T2 history.
+    - Friday (T6): always use the normal H=2 flow; never reverse by calendar.
     - Other weekdays: never reverse
     """
     if broker_dt is None:
         return False
-    if broker_dt.weekday() not in (3, 4):
+    if broker_dt.weekday() != 3:
         return False
     return is_h2_special_calendar_weekday(broker_dt)
 
 def _lookup_h2_t2_signal(broker_dt):
-    """Look up T2 (previous Mon) H=2 signal from signals_log history."""
-    t2_date = broker_dt.date() - timedelta(days=3)  # T5 -> previous Monday
-    date_str = t2_date.isoformat()
+    """Look up the previous Monday H=2 signal for Thursday history reuse."""
+    monday_date = broker_dt.date() - timedelta(days=3)
+    date_str = monday_date.isoformat()
     try:
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
@@ -674,7 +752,7 @@ def _lookup_h2_t2_signal(broker_dt):
                     if sig in ("BUY", "SELL"):
                         return sig
     except Exception as e:
-        print(f"[WARN] Cannot lookup T2 H=2 signal: {e}")
+        print(f"[WARN] Cannot look up Monday H=2 signal: {e}")
     return None
 
 
@@ -700,8 +778,6 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
 
     XAU-only mode: update the XAUUSD direction after M30 post-processing.
     """
-    if int(H) == 7:
-        return pair_dirs
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:
         return pair_dirs
@@ -713,6 +789,77 @@ def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     pair_dirs["XAUUSD"] = final_xau
     apply_d_direction_marker(pair_dirs, H, broker_dt)
     return pair_dirs
+
+
+def _reversed_h2_result(broker_dt, hour):
+    """Build H=3/H=7 from the already-final XAUUSD H=2 direction."""
+    h2_signal = _lookup_h2_signal_today(broker_dt)
+    final_signal = reverse_signal(h2_signal)
+    if final_signal is None:
+        return {"signal": "WAIT", "report": f"H={hour}: thiếu H=2 để đảo chiều."}
+    return {
+        "signal": final_signal,
+        "pattern_signal": h2_signal,
+        "report": f"H={hour}: đảo ngược H=2 ({h2_signal} -> {final_signal}).",
+        "m30_dir": None,
+        "h1_signal": None,
+        "skip_xau_m30": True,
+    }
+
+
+def _finalize_pattern_result(result, broker_dt, hour, reverse=False):
+    """Apply the XAU M30 post-process exactly once to an analysed slot."""
+    pattern_signal = result.get("signal")
+    pair_dirs = get_pair_direction(hour, pattern_signal, broker_dt)
+    if not pair_dirs:
+        return result
+    apply_xauusd_m30_logic(pair_dirs, pattern_signal, broker_dt, hour)
+    final_signal = pair_dirs.get("XAUUSD", pattern_signal)
+    if reverse:
+        final_signal = reverse_signal(final_signal) or final_signal
+    result["pattern_signal"] = pattern_signal
+    result["signal"] = final_signal
+    result["skip_xau_m30"] = True
+    return result
+
+
+def _thursday_h2_history_result(broker_dt):
+    """Reuse Monday's final H=2 XAUUSD direction for Thursday."""
+    historical_signal = _lookup_h2_t2_signal(broker_dt)
+    if historical_signal not in ("BUY", "SELL"):
+        return None
+    final_signal = reverse_signal(historical_signal) if should_reverse_h2_xau(broker_dt) else historical_signal
+    suffix = " đảo tuần đặc biệt" if final_signal != historical_signal else ""
+    return {
+        "signal": final_signal,
+        "pattern_signal": historical_signal,
+        "report": f"T5 H=2: dùng lịch sử Thứ 2 {historical_signal}{suffix} -> {final_signal}.",
+        "m30_dir": None,
+        "h1_signal": None,
+        "skip_xau_m30": True,
+    }
+
+
+def calculate_slot_signal(broker_dt, hour):
+    """Apply the canonical H-slot matrix for live and rebuilt signals."""
+    hour = int(hour)
+    if hour in DISABLED_HOURS:
+        return {
+            "signal": "WAIT",
+            "report": f"H={hour}: disabled by core rules.",
+            "m30_dir": None,
+            "h1_signal": None,
+            "skip_xau_m30": True,
+        }
+    if hour in (3, 7):
+        return _reversed_h2_result(broker_dt, hour)
+    if hour == 2 and broker_dt.weekday() == 3:
+        history_result = _thursday_h2_history_result(broker_dt)
+        if history_result is not None:
+            return history_result
+    result = analyze(broker_dt, hour)
+    reverse_h2 = hour == 2 and should_reverse_h2_xau(broker_dt)
+    return _finalize_pattern_result(result, broker_dt, hour, reverse=reverse_h2)
 
 def candle_info_line(candle, label):
     if candle is None:
@@ -790,24 +937,7 @@ def analyze(broker_dt, H):
             f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:00')}"
         )
 
-    original_signal = signal
-
-    if H == 2 and broker_dt.weekday() == 3:  # T5 — luôn dùng T2 history
-        t2_sig = _lookup_h2_t2_signal(broker_dt)
-        if t2_sig in ("BUY", "SELL"):
-            if should_reverse_h2_xau(broker_dt):
-                signal = "SELL" if t2_sig == "BUY" else "BUY"
-                report = f"T5 H=2: dùng T2 history {t2_sig} -> đảo thành {signal} (tuần đặc biệt)."
-            else:
-                signal = t2_sig
-                report = f"T5 H=2: dùng signal T2 H=2 từ history -> {t2_sig}"
-            return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
-        # Fallback: T2 history unavailable, use fresh analysis
-        print("  [FALLBACK] T5 H=2 - T2 history chưa có, dùng fresh analysis")
-    elif H == 2 and should_reverse_h2_xau(broker_dt):  # T6 đảo khi tuần đặc biệt
-        signal = "SELL" if signal == "BUY" else "BUY"
-        report += "\nH=2: đảo signal XAU (T6 đảo khi tuần đặc biệt)."
-    return {"signal": signal, "orig_signal": original_signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
+    return {"signal": signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
 
 def _resolve_weekday(broker_dt=None, weekday=None):
     if weekday is not None:
@@ -847,8 +977,8 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h == 2:
         return None
-    if h == 7:
-        return None
+    if h in (3, 7):
+        return f"H={h}: đảo chiều từ H=2."
     return "Chỉ Vàng (XAUUSD)"
 
 
@@ -919,7 +1049,7 @@ def apply_d_direction_marker(pair_dirs, H, broker_dt):
     return d_direction
 
 
-def get_pair_direction(H, signal, broker_dt, h1_signal=None, d_direction=None):
+def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     """Return pair directions for XAU-only mode."""
     result = {}
     if int(H) in DISABLED_HOURS:
@@ -952,14 +1082,14 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
         h1_signal=signal_data.get("h1_signal"),
     )
 
-    # XAUUSD M30: cùng chiều M30 -> đảo, ngược -> giữ M30
-    apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H)
+    # Canonical slot calculation already applies XAU M30 once.
+    if not signal_data.get("skip_xau_m30"):
+        apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H)
 
     # Hiển thị XAUUSD only.
     pair_text = format_telegram_pair_block(pair_dirs, H, broker_dt)
 
-    # KẾT LUẬN = pattern Signal (baseline; XAU có thể lệch sau M30)
-    conclusion = f"KẾT LUẬN (pattern): {icon} {sig}\n"
+    conclusion = f"KẾT LUẬN (XAUUSD): {icon} {sig}\n"
 
     msg = (
         f"{emoji} Tín hiệu pattern {SYMBOL} - {icon} {sig}\n"
@@ -1007,12 +1137,12 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def rebuild_slot_signal(broker_dt, h, d_direction=None):
+def rebuild_slot_signal(broker_dt, h):
     """Recalculate one slot with current logic and overwrite signals_log (date, hour)."""
     if broker_dt.weekday() >= 5:
         return False
 
-    result = analyze(broker_dt, h)
+    result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
     if sig not in ("BUY", "SELL"):
         return False
@@ -1021,7 +1151,8 @@ def rebuild_slot_signal(broker_dt, h, d_direction=None):
     if not pair_dirs:
         return False
 
-    apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
+    if not result.get("skip_xau_m30"):
+        apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
 
     hour_note = get_hour_note(h, broker_dt=broker_dt)
     log_signal(h, broker_dt, sig, None, pair_dirs, hour_note)
@@ -1050,8 +1181,7 @@ def rebuild_recent_history(days=7):
         # Replace the recent window entirely so stale/old slot rows do not survive.
         rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
         filtered = [record for record in data if record.get("date") not in rebuild_dates]
-        with open(_SIGNALS_LOG, "w", encoding="utf-8") as file:
-            json.dump(filtered, file, ensure_ascii=False)
+        _write_signals_log_atomic(filtered)
     except Exception as error:
         print(f"  [REBUILD] Cannot clear stale history: {error}")
 
@@ -1061,18 +1191,49 @@ def rebuild_recent_history(days=7):
             continue
         fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
         hours = sorted(passed_today) if target_date == today else get_target_hours(fake_broker_dt)
-        d_direction = None
         for hour in hours:
             try:
-                if rebuild_slot_signal(fake_broker_dt, hour, d_direction=d_direction):
+                if rebuild_slot_signal(fake_broker_dt, hour):
                     rebuilt += 1
-                    if hour == 4:
-                        d_direction = _get_d_direction_from_day(target_date)
             except Exception as error:
                 print(f"  [REBUILD] Error {target_date.isoformat()} H={hour}: {error}")
 
     print(f"  [REBUILD] Done: {rebuilt} slots refreshed across {days} days (logic v{SIGNAL_LOGIC_VERSION})")
     return rebuilt
+
+
+def rebuild_h4_history(session_count=35):
+    """Backfill only H=4 weekday signals without clearing unrelated history."""
+    if not mt5_ready:
+        print("  [H4 BACKFILL] MT5 not ready, skip")
+        return 0
+    target_dates = _recent_h4_dates(get_broker_time(), session_count)
+    rebuilt = 0
+    for target_date in target_dates:
+        target_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
+        try:
+            rebuilt += int(rebuild_slot_signal(target_dt, 4))
+        except Exception as error:
+            print(f"  [H4 BACKFILL] Error {target_date.isoformat()}: {error}")
+    print(f"  [H4 BACKFILL] Done: {rebuilt}/{len(target_dates)} sessions")
+    return rebuilt
+
+
+def _recent_h4_dates(broker_dt, session_count):
+    """Return chronological weekdays whose H=4 cutoff has passed."""
+    try:
+        remaining = max(0, int(session_count))
+    except (TypeError, ValueError):
+        return []
+    cursor = broker_dt.date()
+    if (broker_dt.hour, broker_dt.minute) < (4, 45):
+        cursor -= timedelta(days=1)
+    dates = []
+    while len(dates) < remaining:
+        if cursor.weekday() < 5:
+            dates.append(cursor)
+        cursor -= timedelta(days=1)
+    return list(reversed(dates))
 
 
 def rebuild_signals_on_startup():
@@ -1184,17 +1345,7 @@ def main(profile_name=None):
 
     now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
     broker_dt = now_utc + timedelta(hours=BROKER_GMT)
-    hours_boot = get_target_hours(broker_dt)
-    h0, h1 = (hours_boot[0], hours_boot[-1]) if hours_boot else (3, 15)
-    reminders = get_schedule_reminders(broker_dt)
-    reminder_text = "\n".join([f"⚠️ {r}" for r in reminders]) if reminders else ""
-    send_telegram(
-        f"BOT KHỞI ĐỘNG\n"
-        f"Symbol: {SYMBOL} | MT5: {'OK' if mt5_ready else 'N/A'}\n"
-        f"Kích hoạt hôm nay: {fmt_hour(h0)}-{fmt_hour(h1)}:45 "
-        f"(T2-T6=H2-10,12-13,15 | XAUUSD only)"
-        + (f"\n{reminder_text}" if reminder_text else "")
-    )
+    send_telegram(build_startup_telegram_message(broker_dt, mt5_ready))
 
     # Rebuild signals_log from MT5 before pushing (avoid stale pair_dirs after rule changes)
     startup_rebuilt = rebuild_signals_on_startup()
@@ -1246,39 +1397,14 @@ def main(profile_name=None):
                 # Rebuild seven-day history before every live calculation so backtests
                 # always use the current pair and note rules.
                 rebuild_recent_history(days=7)
-                if now_hour == 7:
-                    h2_sig = _lookup_h2_signal_today(broker_dt)
-                    if h2_sig not in ("BUY", "SELL"):
-                        sent_today.add(key)
-                        _save_state(day_signals, sent_today)
-                        print("  [SKIP] H=7 - missing H=2 signal from today")
-                        time.sleep(10)
-                        continue
-                    reversed_sig = "SELL" if h2_sig == "BUY" else "BUY"
-                    result = {
-                        "signal": reversed_sig,
-                        "report": f"H=7 đảo ngược từ H=2 ({h2_sig} -> {reversed_sig}).",
-                        "m30_dir": None,
-                        "h1_signal": None,
-                    }
-                elif now_hour == 3:
-                    h2_sig = _lookup_h2_signal_today(broker_dt)
-                    if h2_sig not in ("BUY", "SELL"):
-                        sent_today.add(key)
-                        _save_state(day_signals, sent_today)
-                        print("  [SKIP] H=3 - missing H=2 signal from today")
-                        time.sleep(10)
-                        continue
-                    reversed_sig = "SELL" if h2_sig == "BUY" else "BUY"
-                    result = {
-                        "signal": reversed_sig,
-                        "report": f"H=3 đảo ngược từ H=2 ({h2_sig} -> {reversed_sig}).",
-                        "m30_dir": None,
-                        "h1_signal": None,
-                    }
-                else:
-                    result = analyze(broker_dt, now_hour)
+                result = calculate_slot_signal(broker_dt, now_hour)
                 sig = result["signal"]
+                if sig not in ("BUY", "SELL"):
+                    sent_today.add(key)
+                    _save_state(day_signals, sent_today)
+                    print(f"  [SKIP] H={now_hour} - {result.get('report', 'không có signal')}")
+                    time.sleep(10)
+                    continue
 
                 # Track H=1 signal for downstream day logic
                 if now_hour == 1 and sig in ("BUY", "SELL"):
@@ -1294,7 +1420,6 @@ def main(profile_name=None):
                     sig,
                     broker_dt,
                     h1_signal=result.get("h1_signal"),
-                    d_direction=d_direction,
                 )
                 if not pair_dirs:
                     # Slot bỏ trống theo rule ngày - đánh dấu đã xử lý

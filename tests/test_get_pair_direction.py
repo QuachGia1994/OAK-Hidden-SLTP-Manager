@@ -48,9 +48,9 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
             with self.subTest(signal=signal):
                 self.assertEqual(get_pair_direction(6, signal, dt), {})
 
-    def test_h11_h14_are_disabled(self):
+    def test_disabled_hours_return_no_pair_direction(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=1)
-        for hour in (11, 14):
+        for hour in (6, 10, 11, 14, 17):
             with self.subTest(hour=hour):
                 self.assertEqual(get_pair_direction(hour, "BUY", dt), {})
 

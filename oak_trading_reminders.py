@@ -613,44 +613,24 @@ def get_day_notes(now, lang="VN"):
             return ["Cuối tuần: không trade theo schedule bot."]
         return ["Weekend: no bot trade schedule."]
 
-    day_rules_vn = {
-        0: ["Slots: H=2-5,7-9,12-13,15", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD."],
-        1: ["Slots: H=2-5,7-9,12-13,15", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD."],
-        2: ["Slots: H=2-5,7-9,12-13,15", "Chỉ XAUUSD.", "H=4: D-direction cùng XAUUSD."],
-        3: [
-            "Slots: H=2-5,7-9,12-13,15",
-            "Chỉ XAUUSD.",
-            "H=2: dùng signal T2 từ history.",
-            "H=3: đảo ngược từ H=2.",
-            "H=4: D-direction cùng XAUUSD.",
-        ],
-        4: [
-            "Slots: H=2-5,7-9,12-13,15",
-            "Chỉ XAUUSD.",
-            "H=2: bình thường; tuần đặc biệt thì đảo XAU.",
-            "H=3: đảo ngược từ H=2.",
-            "H=4: D-direction cùng XAUUSD.",
-        ],
-    }
-    day_rules_en = {
-        0: ["Slots: H=2-5,7-9,12-13,15", "XAUUSD only.", "H=4: D-direction follows XAUUSD."],
-        1: ["Slots: H=2-5,7-9,12-13,15", "XAUUSD only.", "H=4: D-direction follows XAUUSD."],
-        2: ["Slots: H=2-5,7-9,12-13,15", "XAUUSD only.", "H=4: D-direction follows XAUUSD."],
-        3: [
-            "Slots: H=2-5,7-9,12-13,15",
-            "XAUUSD only.",
-            "H=2: uses T2 H=2 signal from history.",
-            "H=3: reverse from H=2.",
-            "H=4: D-direction follows XAUUSD.",
-        ],
-        4: [
-            "Slots: H=2-5,7-9,12-13,15",
-            "XAUUSD only.",
-            "H=2: normal; special-calendar weeks reverse XAU.",
-            "H=3: reverse from H=2.",
-            "H=4: D-direction follows XAUUSD.",
-        ],
-    }
+    common_vn = [
+        "Slots: H=2-5,7-9,12-13,15",
+        "Chỉ XAUUSD.",
+        "H=2: M5/M30, rồi hậu xử lý XAUUSD M30.",
+        "H=3 và H=7: đảo chiều từ kết quả H=2.",
+        "H=4: D-direction cùng XAUUSD.",
+    ]
+    common_en = [
+        "Slots: H=2-5,7-9,12-13,15",
+        "XAUUSD only.",
+        "H=2: M5/M30 with XAUUSD M30 post-processing.",
+        "H=3 and H=7: reverse the final H=2 direction.",
+        "H=4: D-direction follows XAUUSD.",
+    ]
+    day_rules_vn = {day: list(common_vn) for day in range(5)}
+    day_rules_en = {day: list(common_en) for day in range(5)}
+    day_rules_vn[3][2] = "H=2: dùng kết quả H=2 của Thứ 2; tuần đặc biệt thì đảo."
+    day_rules_en[3][2] = "H=2: reuses Monday H=2; special weeks reverse it."
 
     notes_vn = list(day_rules_vn.get(weekday, []))
     notes_en = list(day_rules_en.get(weekday, []))

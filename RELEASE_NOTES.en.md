@@ -1,24 +1,38 @@
 # RELEASE NOTES
 
-## [v3.16.5] - 2026-07-16
+## [v3.17.0] - 2026-07-18
 
 ### Signal matrix
 
-- **H=2 on Tuesday no longer reverses XAU** (keeps normal pattern). Thursday and Friday unchanged.
-- **Hidden H=4 D-direction display** — still calculates/stores for H=17 but hidden from Telegram/Dashboard.
-- Updated bot, dashboard, tests, and docs.
+- Unified live calculation and seven-day rebuild through one slot-matrix entry point.
+- Active slots are H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=12, H=13, and H=15. H=6/H=10/H=11/H=14/H=17 are off.
+- H=2 applies M5/M30 then the XAUUSD M30 post-process; Thursday reuses Monday H=2 and reverses only in special-calendar weeks. The Friday H=2 reversal rule has been removed completely, so Friday always uses the standard flow.
+- H=3/H=7 reverse final H=2. H=8/H=9/H=12/H=13/H=15 keep the standard M5/M30 + XAUUSD M30 flow.
+
+### NativeQt command center
+
+- Refined the Dark, Deep Sea, and Contrast skin tokens for a coherent desktop surface.
+- Deep Sea now uses cyan for selected profiles, running cards, positive actions, and combo-box selection instead of inheriting Dark mint.
+- Added the NativeQt window icon and expanded EN/VN coverage across the shell.
+
+### Reliability and packaging
+
+- Fixed the `d_direction` NameError that stopped the MT5 Signal Bot after history rebuild.
+- Made the domain layer lazy so NativeQt starts without loading MetaTrader5 or numpy; the frozen installer now passes a real startup smoke test.
+- Bundled the design guidance and third-party notice with the lightweight NativeQt package.
+- Removed obsolete build artifacts and dead legacy launcher files from the project tree.
+- Raised the release version to **v3.17.0**.
+
+## [v3.16.5] - 2026-07-16
+
+- Historical signal-matrix adjustments, superseded by the v3.17.0 matrix above.
 
 ## [v3.16.3] - 2026-07-13
 
 ### Signal matrix
 
-- Simplified the signal matrix to XAU-only: output/list pairs now contain only `XAUUSD`.
-- Active slots are Monday-Friday H=2-10, H=12-13, H=15 plus H=17; H=11/H=14 are disabled.
-- H=2 weekday reverse matrix (later revised in v3.16.4).
-- Removed all no-gold labels.
-- Removed all GBP pair lists/focus badges from core logic, Dashboard, and Telegram notes.
-- Removed broad Friday XAU reversal logic while keeping the special-calendar Friday H=2 reversal.
-- H=4 D-direction and H=17 D-direction preview are documented as active.
+- Simplified output/list pairs to `XAUUSD` and removed obsolete GBP focus badges.
+- Earlier slot-matrix iterations are superseded by v3.17.0.
 
 ### Packaging
 

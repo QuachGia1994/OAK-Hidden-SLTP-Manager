@@ -4,7 +4,7 @@
 !define APPNAME "OAK MANAGER NativeQt"
 !define COMPANY "QKP"
 !ifndef VERSION
-!define VERSION "v3.16.3"
+!define VERSION "v3.17.0"
 !endif
 
 !ifndef PACKAGE_DIR_NAME

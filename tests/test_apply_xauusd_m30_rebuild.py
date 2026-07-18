@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""XAU M30 flip: all active slots remain XAU-only."""
-import unittest
+"""Regression coverage for XAU M30 post-processing and the H-slot matrix."""
 from datetime import datetime, timezone
 from unittest.mock import patch
+import unittest
 
 import mt5_signal_bot
 from mt5_signal_bot import (
-    analyze,
     apply_xauusd_m30_logic,
+    calculate_slot_signal,
     get_pair_direction,
     is_h2_special_calendar_weekday,
     should_reverse_h2_xau,
@@ -15,7 +15,7 @@ from mt5_signal_bot import (
 
 
 def _dt_tuesday():
-    return datetime(2026, 7, 7, 4, 45, tzinfo=timezone.utc)  # Tuesday
+    return datetime(2026, 7, 7, 4, 45, tzinfo=timezone.utc)
 
 
 def _dt_thursday():
@@ -23,77 +23,59 @@ def _dt_thursday():
 
 
 class TestApplyXauusdM30Rebuild(unittest.TestCase):
-    def test_regular_thursday_h2_uses_t2_history(self):
-        """H=2 Thu: use T2 H=2 from history, not fresh analysis."""
+    def test_regular_thursday_h2_reuses_monday_final_h2(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
             mt5_signal_bot, "_lookup_h2_t2_signal", return_value="SELL"
         ):
-            result = analyze(_dt_thursday(), 2)
+            result = calculate_slot_signal(_dt_thursday(), 2)
         self.assertEqual(result["signal"], "SELL")
-        self.assertIn("T2 H=2", result["report"])
+        self.assertIn("lịch sử Thứ 2", result["report"])
 
-    def test_h2_tuesday_no_reverse(self):
-        """H=2 Tue: normal pattern, no reverse (v3.16.5)."""
+    def test_regular_h2_applies_xau_m30_post_process(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
-        tuesday = _dt_thursday().replace(day=7)
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
-            result = analyze(tuesday, 2)
-        self.assertEqual(result["signal"], "BUY")  # no reverse
+            result = calculate_slot_signal(_dt_tuesday(), 2)
+        # M5/M30 produces BUY, matching XAU M30 produces final SELL.
+        self.assertEqual(result["pattern_signal"], "BUY")
+        self.assertEqual(result["signal"], "SELL")
 
-    def test_h2_thursday_no_t2_history_falls_back(self):
-        """T5 H=2 without T2 history should fall back to fresh analysis."""
+    def test_thursday_without_monday_h2_falls_back_to_pattern(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
             mt5_signal_bot, "_lookup_h2_t2_signal", return_value=None
         ):
-            result = analyze(_dt_thursday(), 2)
-        # Fresh analysis: same candle gives BUY (cùng chiều -> M30 TANG -> BUY)
-        self.assertEqual(result["signal"], "BUY")
+            result = calculate_slot_signal(_dt_thursday(), 2)
+        self.assertEqual(result["signal"], "SELL")
         self.assertIn("PATTERN", result["report"])
 
-    def test_h2_special_thursday_uses_t2_history_reversed(self):
-        """T5 H=2 on special week: uses T2 history but reverses it."""
-        candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
-        cases = (
-            datetime(2025, 5, 1, 2, 45, tzinfo=timezone.utc),  # Thu special week
-            datetime(2025, 1, 2, 2, 45, tzinfo=timezone.utc),  # Thu special week
-        )
-        for dt in cases:
-            with self.subTest(dt=dt):
+    def test_special_thursday_reverses_monday_h2_final(self):
+        for dt in (
+            datetime(2025, 5, 1, 2, 45, tzinfo=timezone.utc),
+            datetime(2025, 1, 2, 2, 45, tzinfo=timezone.utc),
+        ):
+            with self.subTest(dt=dt), patch.object(
+                mt5_signal_bot, "_lookup_h2_t2_signal", return_value="BUY"
+            ):
                 self.assertTrue(is_h2_special_calendar_weekday(dt))
-                with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
-                    mt5_signal_bot, "_lookup_h2_t2_signal", return_value="BUY"
-                ):
-                    result = analyze(dt, 2)
-                self.assertEqual(result["signal"], "SELL")  # T2 history BUY -> reversed to SELL
+                self.assertEqual(calculate_slot_signal(dt, 2)["signal"], "SELL")
 
-    def test_h2_special_friday_reverses(self):
+    def test_special_calendar_friday_keeps_normal_h2_logic(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         friday = datetime(2025, 1, 3, 2, 45, tzinfo=timezone.utc)
-        self.assertTrue(is_h2_special_calendar_weekday(friday))
+        self.assertFalse(is_h2_special_calendar_weekday(friday))
+        self.assertFalse(should_reverse_h2_xau(friday))
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
-            result = analyze(friday, 2)
+            result = calculate_slot_signal(friday, 2)
         self.assertEqual(result["signal"], "SELL")
 
-    def test_regular_thursday_h2_uses_t2_history_not_reverse(self):
-        """T5 H=2 on regular week: uses T2 history, not fresh analysis."""
-        candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
-        thursday = datetime(2026, 7, 9, 2, 45, tzinfo=timezone.utc)
-        self.assertFalse(is_h2_special_calendar_weekday(thursday))
-        with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle), patch.object(
-            mt5_signal_bot, "_lookup_h2_t2_signal", return_value="SELL"
-        ):
-            result = analyze(thursday, 2)
-        self.assertEqual(result["signal"], "SELL")  # from T2 history
-
-    def test_regular_friday_h2_does_not_reverse(self):
+    def test_regular_friday_h2_uses_normal_xau_m30_post_process(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
         friday = datetime(2026, 7, 10, 2, 45, tzinfo=timezone.utc)
         self.assertFalse(is_h2_special_calendar_weekday(friday))
         with patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=candle):
-            result = analyze(friday, 2)
-        self.assertEqual(result["signal"], "BUY")
+            result = calculate_slot_signal(friday, 2)
+        self.assertEqual(result["signal"], "SELL")
 
     def test_h2_updates_xau_only_after_m30_flip(self):
         dt = _dt_thursday()
@@ -102,45 +84,15 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
             apply_xauusd_m30_logic(pair_dirs, "BUY", dt, 2)
         self.assertEqual(pair_dirs, {"XAUUSD": "SELL"})
 
-    def test_h3_after_flip_stays_xau_only(self):
+    def test_normal_slots_apply_xau_m30_flip_and_keep_xau_only(self):
         dt = _dt_tuesday()
-        H = 3
-        sig = "BUY"
-        pair_dirs = get_pair_direction(H, sig, dt)
-        self.assertEqual(pair_dirs, {"XAUUSD": "BUY"})
-
-        with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
-            apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
-
-        self.assertEqual(pair_dirs, {"XAUUSD": "SELL"})
-
-    def test_h5_xau_only_after_flip(self):
-        """H=5,8: Focus only — no GBP in pair_dirs even after M30 flip (GBP-DIRECTION is a pseudo pair)."""
-        dt = _dt_tuesday()
-        for H in (5, 8):
-            with self.subTest(H=H):
-                sig = "SELL"
-                pair_dirs = get_pair_direction(H, sig, dt)
-                self.assertIn("XAUUSD", pair_dirs)
-                self.assertEqual(pair_dirs["XAUUSD"], "SELL")
-                with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="SELL"):
-                    apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
-                self.assertEqual(pair_dirs["XAUUSD"], "BUY")
-                for p in ("GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
-                    self.assertNotIn(p, pair_dirs)
-
-    def test_h9_plus_xau_only_after_flip(self):
-        dt = _dt_tuesday()
-        for H in (9, 12, 15):
-            with self.subTest(H=H):
-                sig = "BUY"
-                pair_dirs = get_pair_direction(H, sig, dt)
-                self.assertEqual(pair_dirs, {"XAUUSD": "BUY"})
+        for hour in (8, 9, 12, 13, 15):
+            with self.subTest(hour=hour):
+                pair_dirs = get_pair_direction(hour, "BUY", dt)
                 with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
-                    apply_xauusd_m30_logic(pair_dirs, sig, dt, H)
+                    apply_xauusd_m30_logic(pair_dirs, "BUY", dt, hour)
                 self.assertEqual(pair_dirs["XAUUSD"], "SELL")
-                for p in ("GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
-                    self.assertNotIn(p, pair_dirs)
+                self.assertEqual(set(pair_dirs).difference({"XAUUSD"}), set())
 
 
 if __name__ == "__main__":

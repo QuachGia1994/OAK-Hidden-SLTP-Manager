@@ -16,6 +16,8 @@ DIST_ROOT = os.path.join(PROJECT_ROOT, "dist")
 WINDOW_UNPACK_ROOT = os.path.join(DIST_ROOT, "window-unpack")
 EXTRA_PACKAGE_FILES = [
     "LICENSE.txt",
+    "THIRD_PARTY_NOTICES.md",
+    "DESIGN.md",
     "profiles.example.json",
     "settings.example.json",
     "README.md",
@@ -28,7 +30,7 @@ EXTRA_PACKAGE_FILES = [
 
 
 def read_version():
-    version = "v3.16.3"
+    version = "v3.17.0"
     candidates = [
         os.path.join(PROJECT_ROOT, "domain", "constants.py"),
         os.path.join(PROJECT_ROOT, "OAK_Hidden_SLTP_Manager.py"),

@@ -15,15 +15,28 @@ from domain.constants import (  # noqa: F401
 )
 from domain.json_io import load_json, save_json, resource_path  # noqa: F401
 from domain.i18n import LANG, CURRENT_LANG, T  # noqa: F401
-from domain.mt5_orders import get_filling_type, send_order_with_retry  # noqa: F401
-from domain.ticket_manager import TicketManager  # noqa: F401
-from domain.file_lock import FileLock  # noqa: F401
-from domain.balance import get_start_day_balance  # noqa: F401
-from domain.ghost_operator import GhostOperator, show_ghost_consent, GHOST_LIB_AVAILABLE  # noqa: F401
-
-
 def __getattr__(name: str):
-    # Heavy modules: load on first access
+    """Load optional trading helpers only when a caller explicitly uses them."""
+    if name in {"get_filling_type", "send_order_with_retry"}:
+        from domain import mt5_orders
+
+        return getattr(mt5_orders, name)
+    if name == "TicketManager":
+        from domain.ticket_manager import TicketManager
+
+        return TicketManager
+    if name == "FileLock":
+        from domain.file_lock import FileLock
+
+        return FileLock
+    if name == "get_start_day_balance":
+        from domain.balance import get_start_day_balance
+
+        return get_start_day_balance
+    if name in {"GhostOperator", "show_ghost_consent", "GHOST_LIB_AVAILABLE"}:
+        from domain import ghost_operator
+
+        return getattr(ghost_operator, name)
     if name == "CopyTradeManager":
         from domain.copy_trade_manager import CopyTradeManager
 
