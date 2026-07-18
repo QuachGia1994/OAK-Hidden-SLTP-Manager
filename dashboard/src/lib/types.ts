@@ -41,6 +41,41 @@ export interface FactCheckRequest {
   result?: FactCheckResult;
 }
 
+export interface StockAdvisorCandidate {
+  rank: number;
+  symbol: string;
+  weight: number;
+  capital: number;
+  hit_rate: number;
+  conditional_hit_rate: number;
+  conditional_edge: number;
+  r_squared: number;
+}
+
+export interface StockAdvisory {
+  schema_version: number;
+  generated_at: string;
+  advisory_only: true;
+  requires_user_confirmation: true;
+  orders_submitted: false;
+  status: "READY" | "PARTIAL" | "NO_TRADE";
+  action: "BUY_OR_HOLD" | "SELL_OR_AVOID";
+  signal: { date: string; direction: "BUY" | "SELL" | "WAIT"; holding_window: string };
+  candidates: StockAdvisorCandidate[];
+  cash_weight: number;
+  rejected_symbols: number;
+  data_errors: string[];
+  backtest: {
+    requested_decisions: number;
+    evaluated_decisions: number;
+    hit_rate: number;
+    mean_aligned_return: number;
+    met_requested_decisions: boolean;
+  };
+  policy: Record<string, number>;
+  warnings: string[];
+}
+
 export interface FactCheckResult {
   score: number;
   verdict: "credible" | "mixed" | "unreliable" | "unverifiable";

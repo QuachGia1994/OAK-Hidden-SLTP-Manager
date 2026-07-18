@@ -257,6 +257,21 @@ def _save_state(day_signals, sent_today):
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
 
+def _write_signals_log_atomic(data):
+    """Replace the signal log atomically so readers never see partial JSON."""
+    temporary = f"{_SIGNALS_LOG}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        with open(temporary, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
+        os.replace(temporary, _SIGNALS_LOG)
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.remove(temporary)
+        except OSError:
+            pass
+
+
 def _get_d_direction_from_day(date_value):
     """Find the stored H=4 D-direction for a trading date."""
     h4_data = day_signals.get((date_value, 4), {})
@@ -321,8 +336,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
         data = [d for d in data if (d["date"], d["hour"]) != key]
         data.append(record)
         data = data[-2000:]
-        with open(_SIGNALS_LOG, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+        _write_signals_log_atomic(data)
     except Exception as e:
         print(f"[WARN] Cannot log signal: {e}")
 
@@ -556,8 +570,7 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
 
-    # Tăng số nến để覆盖 sâu hơn (M5: 5000 ≈ 17 ngày, M30/H1 đủ lớn)
-    rates = mt5.copy_rates_from_pos(symbol, timeframe, 0, 5000)
+    rates = _copy_rates_near_timestamp(symbol, timeframe, target_ts)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
         return None
@@ -575,6 +588,21 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
     if best and min_diff <= max_diff:
         return best
     return None
+
+
+def _copy_rates_near_timestamp(symbol, timeframe, target_ts):
+    """Load an exact historical window, with the recent-bar fallback."""
+    target = datetime.fromtimestamp(target_ts, tz=timezone.utc)
+    start = target - timedelta(minutes=3)
+    end = target + timedelta(minutes=3)
+    try:
+        rates = mt5.copy_rates_range(symbol, timeframe, start, end)
+    except Exception as error:
+        print(f"[WARN] MT5 range lookup failed for {symbol}: {error}")
+        rates = None
+    if rates is not None and len(rates) > 0:
+        return rates
+    return mt5.copy_rates_from_pos(symbol, timeframe, 0, 5000)
 
 def candle_direction(candle):
     if candle is None:
@@ -1050,8 +1078,7 @@ def rebuild_recent_history(days=7):
         # Replace the recent window entirely so stale/old slot rows do not survive.
         rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
         filtered = [record for record in data if record.get("date") not in rebuild_dates]
-        with open(_SIGNALS_LOG, "w", encoding="utf-8") as file:
-            json.dump(filtered, file, ensure_ascii=False)
+        _write_signals_log_atomic(filtered)
     except Exception as error:
         print(f"  [REBUILD] Cannot clear stale history: {error}")
 
@@ -1073,6 +1100,40 @@ def rebuild_recent_history(days=7):
 
     print(f"  [REBUILD] Done: {rebuilt} slots refreshed across {days} days (logic v{SIGNAL_LOGIC_VERSION})")
     return rebuilt
+
+
+def rebuild_h4_history(session_count=35):
+    """Backfill only H=4 weekday signals without clearing unrelated history."""
+    if not mt5_ready:
+        print("  [H4 BACKFILL] MT5 not ready, skip")
+        return 0
+    target_dates = _recent_h4_dates(get_broker_time(), session_count)
+    rebuilt = 0
+    for target_date in target_dates:
+        target_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
+        try:
+            rebuilt += int(rebuild_slot_signal(target_dt, 4))
+        except Exception as error:
+            print(f"  [H4 BACKFILL] Error {target_date.isoformat()}: {error}")
+    print(f"  [H4 BACKFILL] Done: {rebuilt}/{len(target_dates)} sessions")
+    return rebuilt
+
+
+def _recent_h4_dates(broker_dt, session_count):
+    """Return chronological weekdays whose H=4 cutoff has passed."""
+    try:
+        remaining = max(0, int(session_count))
+    except (TypeError, ValueError):
+        return []
+    cursor = broker_dt.date()
+    if (broker_dt.hour, broker_dt.minute) < (4, 45):
+        cursor -= timedelta(days=1)
+    dates = []
+    while len(dates) < remaining:
+        if cursor.weekday() < 5:
+            dates.append(cursor)
+        cursor -= timedelta(days=1)
+    return list(reversed(dates))
 
 
 def rebuild_signals_on_startup():

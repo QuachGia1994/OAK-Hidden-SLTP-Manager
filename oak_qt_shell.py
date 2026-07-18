@@ -14,12 +14,24 @@ import signal
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 from services.debug_bundle_service import build_debug_bundle_bytes
+from services.stock_advisor_desktop import (
+    StockAdvisorDesktopError,
+    StockAdvisorDesktopErrorCode,
+    StockAdvisorDesktopSettings,
+    StockAdvisorLaunchPlan,
+    build_stock_advisor_launch_plan,
+    load_ssi_desktop_credentials,
+    render_stock_advisory,
+    requires_h4_backfill_file,
+    save_ssi_desktop_credentials,
+)
+from domain.constants import VERSION as APP_VERSION
 from utils import UnsupportedFrozenProcessError, build_signal_process_cmd
 
 
@@ -37,6 +49,24 @@ ROOT = runtime_root()
 PROFILE_FILE = ROOT / "profiles.json"
 SETTINGS_FILE = ROOT / "settings.json"
 APP_SCRIPT = SOURCE_ROOT / "OAK_Hidden_SLTP_Manager.py"
+
+
+def app_icon_path() -> Path | None:
+    """Resolve the bundled icon in source and frozen PyInstaller modes."""
+    for folder in (SOURCE_ROOT, ROOT):
+        candidate = folder / "icon.ico"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def apply_window_icon(target: Any) -> None:
+    """Apply the bundled app icon when it is available."""
+    icon_path = app_icon_path()
+    if icon_path is not None:
+        target.setWindowIcon(QT.QIcon(str(icon_path)))
+
+
 SIGNAL_DEFS = (
     ("signal_bot", "MT5 Signal Bot", "#2fa572"),
     ("mt_server", "MT4-MT5 Server", "#1f538d"),
@@ -94,6 +124,243 @@ LOG_LEVEL_MARKERS = {
     "WARN": ("WARN", "WARNING", "CAUTION"),
     "INFO": ("INFO", "[OK]", "START", "CONNECTED", "RUNNING"),
 }
+NATIVE_LANGUAGE = "EN"
+NATIVE_TEXT = {
+    "EN": {},
+    "VN": {
+        "Dashboard": "Bảng điều khiển",
+        "Signals": "Tín hiệu",
+        "VN30 Advisor": "Bộ lọc VN30",
+        "Profiles": "Hồ sơ",
+        "Copy": "Sao chép",
+        "Pending": "Chờ xử lý",
+        "Diagnostics": "Chẩn đoán",
+        "Settings": "Cài đặt",
+        "ONE-CLICK STOCK FILTER": "BỘ LỌC CỔ PHIẾU MỘT NÚT",
+        "SSI Client ID": "SSI Client ID",
+        "SSI API key": "SSI API key",
+        "SSI API secret": "SSI API secret",
+        "Deployable capital": "Vốn khả dụng",
+        "Hurdle (bps)": "Chi phí + biên an toàn (bps)",
+        "Save SSI credentials": "Lưu thông tin SSI",
+        "Run advisor": "Chạy bộ lọc",
+        "ADVISORY RESULT": "KẾT QUẢ KHUYẾN NGHỊ",
+        "Credentials are stored in Windows Credential Manager.": "Thông tin SSI được lưu trong Windows Credential Manager.",
+        "Recommendation only": "Chỉ khuyến nghị",
+        "CONFIRM": "XÁC NHẬN",
+        "User confirmation is required before every real trade.": "User phải xác nhận trước mọi giao dịch thật.",
+        "Execution": "Thực thi",
+        "DISABLED": "ĐÃ TẮT",
+        "This module has no order submission capability.": "Module này không có khả năng gửi lệnh.",
+        "Enter SSI credentials once, then press Run advisor.": "Nhập thông tin SSI một lần, sau đó nhấn Chạy bộ lọc.",
+        "SSI credentials saved securely.": "Đã lưu thông tin SSI an toàn.",
+        "Advisor settings saved.": "Đã lưu cài đặt bộ lọc.",
+        "Running VN30 advisor...": "Đang chạy bộ lọc VN30...",
+        "Auto backfill: pausing Signal Bot...": "Tự backfill: đang tạm dừng Signal Bot...",
+        "Advisor completed and dashboard updated.": "Đã lọc xong và cập nhật dashboard.",
+        "PROFILE": "HỒ SƠ",
+        "Start selected": "Chạy profile đã chọn",
+        "Stop selected": "Dừng profile đã chọn",
+        "Refresh": "Làm mới",
+        "Open classic UI": "Mở giao diện cổ điển",
+        "Heartbeat ready": "Heartbeat sẵn sàng",
+        "TRADING COMMAND CENTER": "TRUNG TÂM ĐIỀU HÀNH GIAO DỊCH",
+        "Native Qt/QSS shell · no WebEngine": "Native Qt/QSS · không WebEngine",
+        "Running": "Đang chạy",
+        "Stopped": "Đã dừng",
+        "RUNNING": "ĐANG CHẠY",
+        "IDLE": "NHÀN RỖI",
+        "ON": "BẬT",
+        "OFF": "TẮT",
+        "None": "Không",
+        "Ready": "Sẵn sàng",
+        "Start": "Chạy",
+        "Stop": "Dừng",
+        "LANGUAGE": "NGÔN NGỮ",
+        "THEME": "GIAO DIỆN",
+        "Language": "Ngôn ngữ",
+        "Theme": "Giao diện",
+        "PROFILES": "HỒ SƠ",
+        "LIVE CONSOLE": "NHẬT KÝ TRỰC TIẾP",
+        "Clear logs": "Xóa nhật ký",
+        "Copy log": "Sao chép nhật ký",
+        "Start all": "Chạy tất cả",
+        "Stop all": "Dừng tất cả",
+        "PROFILE MAP": "DANH SÁCH HỒ SƠ",
+        "PROFILE EDITOR": "CHỈNH SỬA HỒ SƠ",
+        "No profile selected": "Chưa chọn hồ sơ",
+        "Changes are saved to profiles.json": "Thay đổi được lưu vào profiles.json",
+        "Save": "Lưu",
+        "Duplicate": "Nhân bản",
+        "Add new": "Thêm mới",
+        "Delete": "Xóa",
+        "Profile name": "Tên hồ sơ",
+        "Terminal path": "Đường dẫn terminal",
+        "Magic number": "Magic number",
+        "Symbol filter": "Bộ lọc symbol",
+        "Stop loss": "Dừng lỗ",
+        "Take profit": "Chốt lời",
+        "Gold stop loss": "Dừng lỗ Vàng",
+        "Gold take profit": "Chốt lời Vàng",
+        "Balance SL %": "SL theo số dư %",
+        "Balance TP %": "TP theo số dư %",
+        "Partial close R": "Chốt một phần R",
+        "Partial close %": "Chốt một phần %",
+        "Auto BE R": "Tự động BE R",
+        "Telegram token": "Token Telegram",
+        "Telegram chat": "Chat Telegram",
+        "Admin chat": "Chat quản trị",
+        "Copy role": "Vai trò copy",
+        "Copy channel": "Kênh copy",
+        "Copy lot mode": "Chế độ lot copy",
+        "Copy lot value": "Giá trị lot copy",
+        "Copy ignore list": "Danh sách bỏ qua copy",
+        "Copy max daily": "Giới hạn copy mỗi ngày",
+        "Copy max lot": "Giới hạn lot copy",
+        "Copy max exposure": "Giới hạn exposure copy",
+        "Use balance SL/TP": "Dùng SL/TP theo số dư",
+        "Visible SL/TP": "Hiện SL/TP",
+        "Visible SL/TP {state}": "Hiện SL/TP: {state}",
+        "Copy {role}": "Sao chép: {role}",
+        "Kill {state}": "Ngắt khẩn: {state}",
+        "Copy stealth": "Copy ẩn",
+        "Copy max one": "Tối đa một lệnh copy",
+        "Copy kill switch": "Ngắt copy khẩn cấp",
+        "COPY SETTINGS": "CÀI ĐẶT COPY",
+        "Exact profile match": "Khớp hồ sơ chính xác",
+        "Telegram commands stay scoped to the selected profile.": "Lệnh Telegram luôn được giới hạn trong hồ sơ đang chọn.",
+        "Blocks all new copy entries when ON.": "Chặn mọi lệnh copy mới khi đang BẬT.",
+        "Max one trade/symbol": "Tối đa một lệnh/mã",
+        "Blocks duplicate symbol stacking when enabled.": "Ngăn chồng lệnh trùng mã khi được bật.",
+        "Daily / lot / exposure caps": "Giới hạn ngày / lot / exposure",
+        "{daily} trades/day · {lot} lot/order · {exposure} lot/symbol": "{daily} lệnh/ngày · {lot} lot/lệnh · {exposure} lot/mã",
+        "Stealth copy": "Copy ẩn",
+        "Keeps copy execution quiet unless a response is required.": "Giữ thao tác copy yên lặng, trừ khi cần phản hồi.",
+        "Ignore list": "Danh sách bỏ qua",
+        "Symbols listed here are skipped by copy trading.": "Các mã trong danh sách này sẽ không được copy.",
+        "ARMED": "SẴN SÀNG",
+        "KILL SWITCH ON": "NGẮT KHẨN ĐANG BẬT",
+        "Lot mode": "Chế độ lot",
+        "Lot value": "Giá trị lot",
+        "Max daily trades": "Tối đa lệnh mỗi ngày",
+        "Max lot/trade": "Tối đa lot/lệnh",
+        "Max exposure/symbol": "Tối đa exposure/mã",
+        "Stealth": "Ẩn",
+        "SAFETY GUARDRAILS": "RÀO CHẮN AN TOÀN",
+        "SESSION FILES": "FILE PHIÊN LÀM VIỆC",
+        "SCHEDULED TASKS": "TÁC VỤ ĐÃ HẸN",
+        "PENDING CONTROL": "ĐIỀU KHIỂN LỆNH CHỜ",
+        "Total tasks: {count}": "Tổng tác vụ: {count}",
+        "Waiting: {count}": "Đang chờ: {count}",
+        "Done/closed: {count}": "Đã xong/đóng: {count}",
+        "{name}: {count} item(s)": "{name}: {count} tác vụ",
+        "No scheduled tasks": "Không có tác vụ đã hẹn",
+        "No waiting orders, scheduled closes, or partial tasks.": "Không có lệnh chờ, tác vụ đóng hẹn giờ hoặc chốt từng phần.",
+        "CLEAN": "SẠCH",
+        "Clear done": "Xóa tác vụ xong",
+        "Pending controls are profile-scoped.": "Điều khiển tác vụ chờ theo từng hồ sơ.",
+        "Copy report": "Sao chép báo cáo",
+        "Copy visible": "Sao chép phần hiển thị",
+        "Export bundle": "Xuất gói chẩn đoán",
+        "App folder": "Thư mục ứng dụng",
+        "Log folder": "Thư mục log",
+        "Clear display": "Xóa hiển thị",
+        "Search logs: profile, ERROR, ticket, symbol...": "Tìm log: hồ sơ, ERROR, ticket, symbol...",
+        "Diagnostics export is redacted by default.": "Gói chẩn đoán mặc định đã che dữ liệu nhạy cảm.",
+        "RUNTIME CHECK": "KIỂM TRA RUNTIME",
+        "LATEST LOG": "LOG MỚI NHẤT",
+        "Dashboard language preference.": "Ngôn ngữ ưu tiên của dashboard.",
+        "NativeQt visual skin. Applies instantly after save.": "Giao diện NativeQt. Áp dụng ngay sau khi lưu.",
+        "Save settings": "Lưu cài đặt",
+        "Reset theme": "Đặt lại giao diện",
+        "Open artifacts": "Mở gói phát hành",
+        "Settings are stored in settings.json.": "Cài đặt được lưu trong settings.json.",
+        "Settings saved and theme applied.": "Đã lưu cài đặt và áp dụng giao diện.",
+        "OAK Manager NativeQt": "OAK Manager NativeQt",
+        "Mode: Qt Widgets + QSS, no WebEngine/Chromium": "Chế độ: Qt Widgets + QSS, không WebEngine/Chromium",
+        "Root: {root}": "Thư mục gốc: {root}",
+        "Profiles: {count}": "Hồ sơ: {count}",
+        "Selected profile: {profile}": "Hồ sơ đang chọn: {profile}",
+        "Language: {language}": "Ngôn ngữ: {language}",
+        "Theme: {theme}": "Giao diện: {theme}",
+        "License: MIT © 2026 QKP": "Bản quyền: MIT © 2026 QKP",
+        "Third-party notices: THIRD_PARTY_NOTICES.md": "Ghi chú bên thứ ba: THIRD_PARTY_NOTICES.md",
+        "Shortcuts:": "Phím tắt:",
+        "- Ctrl+1..8: switch tabs.": "- Ctrl+1..8: chuyển tab.",
+        "- Ctrl+R / F5: refresh runtime state.": "- Ctrl+R / F5: làm mới trạng thái runtime.",
+        "- Ctrl+S: save Profiles or Settings.": "- Ctrl+S: lưu Hồ sơ hoặc Cài đặt.",
+        "- Esc: clear delete confirmation guards.": "- Esc: hủy xác nhận xóa.",
+        "Cleanup policy:": "Chính sách dọn dẹp:",
+        "- Keep source, docs, profiles examples, installers, and scripts.": "- Giữ source, docs, profile mẫu, installer và script.",
+        "- Ignore runtime state: trades_*.json, waiting_*.json, locks, logs, caches.": "- Bỏ qua state runtime: trades_*.json, waiting_*.json, lock, log, cache.",
+        "- Do not delete real trade/runtime state unless explicitly confirmed.": "- Không xóa state giao dịch/runtime thật nếu chưa được xác nhận.",
+        "Artifacts:": "Gói phát hành:",
+        "missing": "thiếu",
+        "Installer": "Installer",
+        "Current NativeQt installer stays around 40 MB.": "Installer NativeQt hiện giữ ở khoảng 40 MB.",
+        "ABOUT / BUILD": "THÔNG TIN / BẢN BUILD",
+        "No profiles found": "Không tìm thấy hồ sơ",
+        "SETUP": "THIẾT LẬP",
+        "No terminal path": "Chưa có đường dẫn terminal",
+        "Selected": "Đang chọn",
+        "Use": "Chọn",
+        "Profile": "Hồ sơ",
+        "Profile: {profile}": "Hồ sơ: {profile}",
+        "Status": "Trạng thái",
+        "Terminal": "Terminal",
+        "Role": "Vai trò",
+        "Channel": "Kênh",
+        "Daily cap": "Giới hạn ngày",
+        "Lot cap": "Giới hạn lot",
+        "Exposure cap": "Giới hạn exposure",
+        "Kill switch": "Ngắt khẩn cấp",
+        "COPY STATUS": "TRẠNG THÁI COPY",
+        "EXECUTION": "THỰC THI",
+        "SAFETY LIMITS": "GIỚI HẠN AN TOÀN",
+        "PROFILE HEALTH": "TRẠNG THÁI HỒ SƠ",
+        "COPY RISK LIMITS": "GIỚI HẠN RỦI RO COPY",
+        "MASKED SECRETS": "THÔNG TIN ĐÃ CHE",
+        "Manual refresh": "Đã làm mới",
+        "Live": "Đang theo dõi",
+        "No save target": "Không có nội dung để lưu",
+        "Delete guard cleared.": "Đã hủy xác nhận xóa.",
+        "Unsaved changes": "Thay đổi chưa lưu",
+        "No log file found.": "Không tìm thấy file log.",
+        "Display cleared. Press Refresh to reload logs.": "Đã xóa hiển thị. Nhấn Làm mới để tải lại log.",
+        "Selected profile: {profile} · Native Qt/QSS, no Chromium": "Hồ sơ đang chọn: {profile} · Native Qt/QSS, không Chromium",
+        "{running}/{total} running": "{running}/{total} đang chạy",
+    },
+}
+
+
+def set_native_language(value: str) -> None:
+    """Select the supported NativeQt display language."""
+    global NATIVE_LANGUAGE
+    candidate = str(value or "").upper()
+    NATIVE_LANGUAGE = candidate if candidate in NATIVE_TEXT else "EN"
+
+
+def native_text(value: Any) -> str:
+    """Translate one fixed NativeQt string while preserving unknown runtime data."""
+    text = str(value)
+    catalog = NATIVE_TEXT.get(NATIVE_LANGUAGE, {})
+    translated = catalog.get(text)
+    if translated is not None:
+        return translated
+    if text.isupper():
+        for source, localized in catalog.items():
+            if source.upper() == text:
+                return localized.upper()
+    return text
+
+
+def native_format(template: str, **values: Any) -> str:
+    """Translate and interpolate a NativeQt message safely."""
+    localized_values = {
+        key: native_text(value) if isinstance(value, str) else value
+        for key, value in values.items()
+    }
+    return native_text(template).format(**localized_values)
 
 
 def read_json(path: Path, default: Any) -> Any:
@@ -262,7 +529,7 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
     """Import only QtCore/QtGui/QtWidgets, never QtWebEngine."""
     try:
         from PySide6.QtCore import QProcess, QProcessEnvironment, QSize, Qt, QTimer
-        from PySide6.QtGui import QFont, QKeySequence, QShortcut
+        from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
         from PySide6.QtWidgets import (
             QApplication,
             QCheckBox,
@@ -291,39 +558,44 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
 def app_qss(theme: str = "dark") -> str:
     """Return the native Qt stylesheet."""
     base = """
-    QMainWindow{background:#050806}
-    QWidget{font-family:"Segoe UI";font-size:14px;color:#f6fff9}
-    #Root{background:qradialgradient(cx:.08,cy:.02,radius:1,fx:.08,fy:.02,stop:0 rgba(0,209,154,42),stop:.42 #050806,stop:1 #050806)}
-    QFrame[role="panel"]{background:rgba(13,20,18,210);border:1px solid rgba(255,255,255,24);border-radius:24px}
-    QFrame[role="row"]{background:rgba(255,255,255,9);border:1px solid rgba(255,255,255,22);border-radius:16px}
-    QFrame[role="row"][active="true"]{background:rgba(0,209,154,18);border:1px solid rgba(0,209,154,115)}
-    QFrame[role="hint"]{background:rgba(0,209,154,20);border:1px solid rgba(0,209,154,55);border-radius:18px}
-    QFrame[role="signal"]{background:rgba(9,14,13,218);border:1px solid rgba(255,255,255,24);border-radius:20px}
-    QFrame[role="signal"][state="running"]{border:1px solid rgba(0,209,154,135);background:rgba(0,209,154,16)}
-    QLabel[role="tiny"]{color:#8e9a96;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-    QLabel[role="muted"]{color:#8e9a96;font-size:12px}
+    QMainWindow{background:#060908}
+    QWidget{font-family:"Segoe UI";font-size:14px;color:#f4f7f5}
+    #Root{background:qradialgradient(cx:.08,cy:.02,radius:1,fx:.08,fy:.02,stop:0 rgba(0,201,145,32),stop:.42 #060908,stop:1 #060908)}
+    QFrame[role="panel"]{background:rgba(13,18,16,224);border:1px solid #25312c;border-radius:22px}
+    QFrame[role="row"]{background:#111816;border:1px solid #26322d;border-radius:14px}
+    QFrame[role="row"][active="true"]{background:#0d241e;border:1px solid #22b98f}
+    QFrame[role="hint"]{background:#0c211b;border:1px solid #1b735d;border-radius:16px}
+    QFrame[role="signal"]{background:#0c1110;border:1px solid #25312c;border-radius:18px}
+    QFrame[role="signal"][state="running"]{border:1px solid #1bb58b;background:#0b211a}
+    QLabel[role="tiny"]{color:#87958f;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+    QLabel[role="muted"]{color:#9aa9a3;font-size:12px}
     QLabel[role="section"]{font-size:22px;font-weight:900}
     QLabel[role="title"]{font-size:52px;font-weight:900;letter-spacing:-2px}
     QLabel[role="value"]{font-family:Consolas;font-size:28px;font-weight:900}
-    QLabel[accent="green"]{color:#00d19a}QLabel[accent="amber"]{color:#f4b740}QLabel[accent="red"]{color:#ff5364}
-    QPushButton{background:rgba(255,255,255,16);border:1px solid rgba(255,255,255,24);border-radius:15px;padding:12px 14px;font-weight:800;text-align:left}
-    QPushButton:hover{background:rgba(255,255,255,28)}
-    QPushButton:disabled{background:rgba(255,255,255,5);border:1px solid rgba(255,255,255,10);color:#52615d}
+    QLabel[accent="green"]{color:#20d4a4}QLabel[accent="amber"]{color:#f3b743}QLabel[accent="red"]{color:#ff6670}QLabel[accent="theme"]{color:#20d4a4}
+    QPushButton{background:#151e1a;border:1px solid #2a3932;border-radius:12px;padding:10px 12px;min-width:0;font-weight:800;text-align:left}
+    QPushButton[compact="true"]{padding:9px 10px;text-align:center}
+    QPushButton:hover{background:#1b2823;border:1px solid #3b5147}
+    QPushButton:disabled{background:#0d1210;border:1px solid #1b2722;color:#52615d}
     QPushButton[primary="true"]:enabled{background:#00c991;color:#04130f;border:0}
     QPushButton[active="true"]{background:#00c991;color:#04130f;border:0}
-    QComboBox{background:#101615;color:#f6fff9;border:1px solid rgba(255,255,255,24);border-radius:14px;padding:10px 12px;font-weight:800;min-height:22px}
-    QComboBox::drop-down{background:rgba(255,255,255,10);border:0;border-top-right-radius:14px;border-bottom-right-radius:14px;width:34px}
+    QPushButton[intent="positive"]{color:#20d4a4;border:1px solid rgba(32,212,164,110);background:rgba(32,212,164,18)}
+    QPushButton[intent="danger"]{color:#ff6670;border:1px solid rgba(255,102,112,110);background:rgba(255,102,112,18)}
+    QComboBox{background:#101714;color:#f4f7f5;border:1px solid #2a3932;border-radius:12px;padding:10px 12px;font-weight:800;min-height:22px}
+    QComboBox::drop-down{background:#18221e;border:0;border-top-right-radius:12px;border-bottom-right-radius:12px;width:34px}
     QComboBox::down-arrow{width:0;height:0}
     QComboBox QAbstractItemView{background:#09100e;color:#f6fff9;border:1px solid rgba(0,209,154,80);border-radius:12px;padding:6px;selection-background-color:#00c991;selection-color:#04130f;outline:0}
-    QLineEdit{background:rgba(255,255,255,10);border:1px solid rgba(255,255,255,22);border-radius:13px;padding:10px 12px;color:#f6fff9;font-weight:700}
-    QLineEdit:focus{border:1px solid rgba(0,209,154,130);background:rgba(0,209,154,13)}
+    QComboBox QAbstractItemView::item{min-height:30px;padding:6px 10px;border-radius:8px;background:#09100e;color:#f6fff9}
+    QComboBox QAbstractItemView::item:selected{background:#00c991;color:#04130f}
+    QLineEdit{background:#101714;border:1px solid #2a3932;border-radius:12px;padding:10px 12px;color:#f4f7f5;font-weight:700}
+    QLineEdit:focus{border:1px solid #20c69b;background:#0d211a}
     QCheckBox{spacing:10px;font-weight:800;color:#d9e7e1}
-    QCheckBox::indicator{width:20px;height:20px;border-radius:6px;border:1px solid rgba(255,255,255,45);background:rgba(255,255,255,12)}
+    QCheckBox::indicator{width:20px;height:20px;border-radius:6px;border:1px solid #4a5a53;background:#101714}
     QCheckBox::indicator:checked{background:#00c991;border:1px solid #00c991}
-    QScrollArea,QTextEdit{background:rgba(0,0,0,72);border:1px solid rgba(255,255,255,18);border-radius:18px;padding:8px}
+    QScrollArea,QTextEdit{background:#090d0c;border:1px solid #23302a;border-radius:16px;padding:8px}
     QTextEdit[role="mini"]{font-family:Consolas;font-size:12px}
-    QScrollBar:vertical{background:rgba(255,255,255,10);width:10px;border-radius:5px;margin:4px}
-    QScrollBar::handle:vertical{background:rgba(0,209,154,95);border-radius:5px;min-height:42px}
+    QScrollBar:vertical{background:#101714;width:10px;border-radius:5px;margin:4px}
+    QScrollBar::handle:vertical{background:#1b8064;border-radius:5px;min-height:42px}
     QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;background:transparent}
     QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical{background:transparent}
     """
@@ -333,18 +605,45 @@ def app_qss(theme: str = "dark") -> str:
         QMainWindow{background:#031016}
         #Root{background:qradialgradient(cx:.12,cy:.08,radius:1,fx:.12,fy:.08,stop:0 rgba(0,194,255,46),stop:.46 #031016,stop:1 #05070b)}
         QFrame[role="panel"]{background:rgba(6,18,25,220);border:1px solid rgba(104,232,255,38)}
+        QFrame[role="row"][active="true"]{background:#061a22;border:1px solid #18d6ff}
+        QFrame[role="signal"][state="running"]{background:#061a22;border:1px solid #18d6ff}
+        QFrame[role="hint"]{background:#061c25;border:1px solid #177f99}
         QPushButton[primary="true"]:enabled,QPushButton[active="true"]{background:#18d6ff;color:#021014}
-        QLabel[accent="green"]{color:#18d6ff}
+        QPushButton[intent="positive"]{color:#18d6ff;border:1px solid rgba(24,214,255,110);background:rgba(24,214,255,18)}
+        QLabel[accent="green"],QLabel[accent="theme"]{color:#18d6ff}
+        QComboBox QAbstractItemView{border-color:rgba(24,214,255,100);selection-background-color:#18d6ff;selection-color:#021014}
+        QComboBox QAbstractItemView::item:selected{background:#18d6ff;color:#021014}
         QScrollBar::handle:vertical{background:rgba(24,214,255,105)}
         """
     if normalized in {"contrast", "high-contrast", "high contrast"}:
         return base + """
         QMainWindow{background:#020202}
         #Root{background:#020202}
-        QFrame[role="panel"],QFrame[role="row"],QFrame[role="signal"]{background:#090909;border:1px solid rgba(255,255,255,48)}
-        QPushButton{background:#151515;border:1px solid rgba(255,255,255,64);color:#ffffff}
-        QPushButton[primary="true"]:enabled,QPushButton[active="true"]{background:#ffd23f;color:#050505}
-        QLabel[accent="green"]{color:#ffd23f}
+        QWidget{color:#fffaf0}
+        QFrame[role="panel"]{background:#090907;border:1px solid #564c36;border-radius:12px}
+        QFrame[role="row"]{background:#10100d;border:1px solid #463f30;border-radius:10px}
+        QFrame[role="signal"]{background:#070706;border:1px solid #5d5137;border-radius:12px}
+        QFrame[role="row"][active="true"]{background:#1c1507;border:1px solid #d69f27}
+        QFrame[role="signal"][state="running"]{background:#13130e;border:1px solid #e9e4ce}
+        QFrame[role="hint"]{background:#1b1408;border:1px solid #8c6720;border-radius:10px}
+        QLabel[role="tiny"]{color:#ceb98b}
+        QLabel[role="muted"]{color:#e5dcc8}
+        QLabel[accent="green"]{color:#eff5e7}QLabel[accent="amber"]{color:#f1c45a}QLabel[accent="red"]{color:#ff7a6d}QLabel[accent="theme"]{color:#f1c45a}
+        QPushButton{background:#11110e;border:1px solid #66583a;border-radius:8px;color:#fffaf0}
+        QPushButton:hover{background:#211b0f;border:1px solid #efc861}
+        QPushButton:disabled{background:#090907;border:1px solid #2d2a20;color:#777163}
+        QPushButton[intent="positive"]{color:#fffaf0;border:1px solid #a79e80;background:#171711}
+        QPushButton[intent="danger"]{color:#fffaf0;border:1px solid #ff7467;background:#3a1714}
+        QComboBox,QLineEdit{background:#090907;border:1px solid #66583a;border-radius:8px;color:#fffaf0}
+        QComboBox::drop-down{background:#17140d}
+        QComboBox QAbstractItemView,QComboBox QAbstractItemView::item{background:#090907;color:#fffaf0;border-color:#8f7439}
+        QComboBox QAbstractItemView::item:selected{background:#d69f27;color:#120e05}
+        QLineEdit:focus{border:1px solid #e4b64e;background:#141109}
+        QCheckBox{color:#f0eadc}QCheckBox::indicator{background:#090907;border-color:#8c7b57}QCheckBox::indicator:checked{background:#d69f27;border-color:#d69f27}
+        QScrollArea,QTextEdit{background:#050504;border:1px solid #514734;border-radius:10px}
+        QScrollBar:vertical{background:#11110e}QScrollBar::handle:vertical{background:#9a772f}
+        QPushButton[primary="true"]:enabled{background:#c64339;color:#fffaf6;border:1px solid #ff796e}
+        QPushButton[active="true"]{background:#d69f27;color:#120e05;border:1px solid #f0c65b}
         """
     return base
 
@@ -358,7 +657,7 @@ def panel() -> Any:
 
 def label(text: str, *, role: str = "", accent: str = "") -> Any:
     """Create a label with optional style role."""
-    item = QT.QLabel(text)
+    item = QT.QLabel(native_text(text))
     if role:
         item.setProperty("role", role)
     if accent:
@@ -400,7 +699,7 @@ def order_type_name(value: Any) -> str:
 
 def button(text: str, *, primary: bool = False) -> Any:
     """Create a shell button."""
-    item = QT.QPushButton(text)
+    item = QT.QPushButton(native_text(text))
     item.setCursor(QT.Qt.CursorShape.PointingHandCursor)
     item.setProperty("primary", "true" if primary else "false")
     return item
@@ -415,6 +714,7 @@ class NativeShell:
     def __init__(self, ready_callback=None):
         self.profiles = read_json(PROFILE_FILE, {})
         self.settings = read_json(SETTINGS_FILE, {})
+        set_native_language(str(self.settings.get("lang", "EN")))
         self.selected = next(iter(self.profiles), "")
         self.current_tab = "Dashboard"
         self.nav_buttons: dict[str, Any] = {}
@@ -422,6 +722,14 @@ class NativeShell:
         self.signal_processes: dict[str, Any] = {}
         self.signal_cards: dict[str, dict[str, Any]] = {}
         self.signal_summary = None
+        self.stock_process = None
+        self.stock_pending_launch = None
+        self.stock_restart_signal_bot = False
+        self.stock_process_log: list[str] = []
+        self.stock_fields: dict[str, Any] = {}
+        self.stock_run_btn = None
+        self.stock_status = None
+        self.stock_result = None
         self.profile_cards_layout = None
         self.profile_detail = None
         self.profile_editor_title = None
@@ -454,6 +762,7 @@ class NativeShell:
         self.last_diagnostics_report = ""
         self.ready_callback = ready_callback
         self.window = QT.QMainWindow()
+        apply_window_icon(self.window)
         self.window.setWindowTitle("OAK Manager · Native Qt")
         self.window.setMinimumSize(1040, 680)
         self.window.resize(1240, 780)
@@ -483,7 +792,7 @@ class NativeShell:
         logo = label("⚡  SLTP.", role="value", accent="green")
         logo.setContentsMargins(0, 0, 0, 6)
         layout.addWidget(logo)
-        for name in ("Dashboard", "Signals", "Profiles", "Copy", "Pending", "Diagnostics", "Settings"):
+        for name in ("Dashboard", "Signals", "VN30 Advisor", "Profiles", "Copy", "Pending", "Diagnostics", "Settings"):
             nav = button(name)
             nav.clicked.connect(lambda _checked=False, tab=name: self.switch_tab(tab))
             self.nav_buttons[name] = nav
@@ -519,6 +828,7 @@ class NativeShell:
         self.tab_pages = {
             "Dashboard": self._dashboard_page(),
             "Signals": self._signals_page(),
+            "VN30 Advisor": self._stock_advisor_page(),
             "Profiles": self._profiles_page(),
             "Copy": self._copy_page(),
             "Pending": self._pending_page(),
@@ -550,7 +860,7 @@ class NativeShell:
         self.stat_profiles = self._stat("Profiles", "0")
         self.stat_running = self._stat("Running", "0", "green")
         self.stat_lang = self._stat("Language", "VN")
-        self.stat_theme = self._stat("Theme", "dark", "amber")
+        self.stat_theme = self._stat("Theme", "dark", "theme")
         for index, stat in enumerate((self.stat_profiles, self.stat_running, self.stat_lang, self.stat_theme)):
             layout.addWidget(stat["frame"], index // 2, 1 + index % 2)
         return frame
@@ -615,6 +925,77 @@ class NativeShell:
         layout.addLayout(grid, 1)
         return frame
 
+    def _stock_advisor_page(self) -> Any:
+        page = QT.QWidget()
+        layout = QT.QHBoxLayout(page)
+        layout.setSpacing(18)
+        controls = self._stock_advisor_controls()
+        controls_scroll = QT.QScrollArea()
+        controls_scroll.setFrameShape(QT.QFrame.Shape.NoFrame)
+        controls_scroll.setHorizontalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        controls_scroll.setWidgetResizable(True)
+        controls_scroll.setWidget(controls)
+        self.stock_result = QT.QTextEdit()
+        self.stock_result.setReadOnly(True)
+        self.stock_result.setProperty("role", "mini")
+        self.stock_result.setPlainText(native_text("Enter SSI credentials once, then press Run advisor."))
+        layout.addWidget(self._section("ONE-CLICK STOCK FILTER", controls_scroll), 1)
+        layout.addWidget(self._section("ADVISORY RESULT", self.stock_result), 2)
+        return page
+
+    def _stock_advisor_controls(self) -> Any:
+        frame = QT.QWidget()
+        layout = QT.QVBoxLayout(frame)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        self._build_stock_fields(layout)
+        layout.addLayout(self._stock_advisor_actions())
+        self.stock_status = label("Credentials are stored in Windows Credential Manager.", role="muted")
+        layout.addWidget(self.stock_status)
+        layout.addWidget(self._guardrail_row("Recommendation only", "CONFIRM", "User confirmation is required before every real trade.", "amber"))
+        layout.addWidget(self._guardrail_row("Execution", "DISABLED", "This module has no order submission capability.", "green"))
+        layout.addStretch(1)
+        return frame
+
+    def _build_stock_fields(self, layout: Any) -> None:
+        for title, key, secret in (
+            ("SSI Client ID", "client_id", False),
+            ("SSI API key", "api_key", True),
+            ("SSI API secret", "api_secret", True),
+            ("Deployable capital", "capital", False),
+            ("Hurdle (bps)", "hurdle_bps", False),
+        ):
+            field = self._stock_advisor_field(secret)
+            self.stock_fields[key] = field
+            layout.addWidget(self._stock_advisor_field_row(title, field))
+
+    def _stock_advisor_field_row(self, title: str, field: Any) -> Any:
+        row = QT.QFrame()
+        row.setProperty("role", "row")
+        row_layout = QT.QVBoxLayout(row)
+        row_layout.setContentsMargins(12, 8, 12, 8)
+        row_layout.setSpacing(4)
+        row_layout.addWidget(label(title, role="tiny"))
+        row_layout.addWidget(field)
+        return row
+
+    def _stock_advisor_actions(self) -> Any:
+        actions = QT.QVBoxLayout()
+        save = button("Save SSI credentials")
+        self.stock_run_btn = button("Run advisor", primary=True)
+        save.clicked.connect(self.save_stock_advisor_settings)
+        self.stock_run_btn.clicked.connect(self.run_stock_advisor)
+        actions.addWidget(save)
+        actions.addWidget(self.stock_run_btn)
+        return actions
+
+    def _stock_advisor_field(self, secret: bool) -> Any:
+        field = QT.QLineEdit()
+        field.setMinimumHeight(40)
+        if secret:
+            field.setEchoMode(QT.QLineEdit.EchoMode.PasswordEchoOnEdit)
+        return field
+
     def _profiles_page(self) -> Any:
         page = QT.QWidget()
         layout = QT.QHBoxLayout(page)
@@ -674,7 +1055,7 @@ class NativeShell:
             grid.addWidget(field, row, 1)
         offset = len(PROFILE_TEXT_FIELDS)
         for index, (title, key) in enumerate(PROFILE_BOOL_FIELDS):
-            check = QT.QCheckBox(title)
+            check = QT.QCheckBox(native_text(title))
             check.stateChanged.connect(self._mark_profile_dirty)
             self.profile_editor_checks[key] = check
             grid.addWidget(check, offset + index, 1)
@@ -760,27 +1141,27 @@ class NativeShell:
         left_layout = QT.QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
-        for row_actions in (
+        actions = QT.QGridLayout()
+        actions.setHorizontalSpacing(8)
+        actions.setVerticalSpacing(8)
+        for index, (text, handler) in enumerate(
             (
                 ("Refresh", self.refresh),
                 ("Copy report", self.copy_diagnostics_report),
                 ("Copy visible", self.copy_visible_log),
-            ),
-            (
                 ("Export bundle", self.export_debug_bundle),
                 ("App folder", self.open_app_folder),
                 ("Log folder", self.open_log_folder),
-            ),
+            )
         ):
-            actions = QT.QHBoxLayout()
-            for text, handler in row_actions:
-                item = button(text)
-                item.clicked.connect(handler)
-                actions.addWidget(item)
-            left_layout.addLayout(actions)
+            item = button(text)
+            item.setProperty("compact", "true")
+            item.clicked.connect(handler)
+            actions.addWidget(item, index // 2, index % 2)
+        left_layout.addLayout(actions)
         filters = QT.QHBoxLayout()
         self.diag_filter = QT.QLineEdit()
-        self.diag_filter.setPlaceholderText("Search logs: profile, ERROR, ticket, symbol...")
+        self.diag_filter.setPlaceholderText(native_text("Search logs: profile, ERROR, ticket, symbol..."))
         self.diag_filter.textChanged.connect(lambda _text: self._refresh_diagnostics_page())
         self.diag_level = QT.QComboBox()
         self.diag_level.addItems(["ALL", "INFO", "WARN", "ERROR"])
@@ -870,10 +1251,11 @@ class NativeShell:
         title = label(name)
         status = label("Stopped", role="muted")
         pid = label("PID: ---", role="muted")
-        copy_log = button("Copy")
+        copy_log = button("⧉")
+        copy_log.setToolTip(native_text("Copy log"))
         start = button("▶")
         stop = button("■")
-        copy_log.setFixedWidth(62)
+        copy_log.setFixedWidth(44)
         start.setFixedWidth(44)
         stop.setFixedWidth(44)
         stop.setEnabled(False)
@@ -956,6 +1338,9 @@ class NativeShell:
         if self.current_tab == "Settings":
             self.save_native_settings()
             return
+        if self.current_tab == "VN30 Advisor":
+            self.save_stock_advisor_settings()
+            return
         self._set_live_status("No save target")
 
     def _clear_transient_guards(self) -> None:
@@ -976,8 +1361,36 @@ class NativeShell:
         self.pending_delete_key = ""
         self.refresh()
 
+    def _rebuild_translated_ui(self) -> None:
+        """Recreate visible widgets without losing selected profile or console text."""
+        current_tab = self.current_tab
+        selected = self.selected
+        console_text = self.console.toPlainText() if hasattr(self, "console") else ""
+        stock_text = self.stock_result.toPlainText() if self.stock_result is not None else ""
+        signal_logs = {key: card["console"].toPlainText() for key, card in self.signal_cards.items()}
+        old_root = self.window.takeCentralWidget()
+        if old_root is not None:
+            old_root.deleteLater()
+        self.nav_buttons = {}
+        self.signal_cards = {}
+        self._build()
+        self.selected = selected
+        self.console.setPlainText(console_text)
+        for key, text in signal_logs.items():
+            if key in self.signal_cards:
+                self.signal_cards[key]["console"].setPlainText(text)
+        if stock_text and self.stock_result is not None:
+            self.stock_result.setPlainText(stock_text)
+        self.refresh()
+        self.switch_tab(current_tab)
+
     def refresh(self) -> None:
         self._reload_state_files()
+        target_language = str(self.settings.get("lang", "EN")).upper()
+        if target_language != NATIVE_LANGUAGE:
+            set_native_language(target_language)
+            self._rebuild_translated_ui()
+            return
         self._refresh_combo()
         self._refresh_profiles()
         self._refresh_profile_page()
@@ -985,6 +1398,7 @@ class NativeShell:
         self._refresh_pending_page()
         self._refresh_diagnostics_page()
         self._refresh_settings_page()
+        self._refresh_stock_advisor_page()
         self._refresh_signal_states()
         self._refresh_nav()
         running = self._running_profiles()
@@ -994,7 +1408,12 @@ class NativeShell:
         self.stat_theme["value"].setText(str(self.settings.get("theme", "dark")))
         self._refresh_profile_controls()
         self._set_live_status("Manual refresh")
-        self.subtitle.setText(f"Selected profile: {self.selected or '—'} · Native Qt/QSS, no Chromium")
+        self.subtitle.setText(
+            native_format(
+                "Selected profile: {profile} · Native Qt/QSS, no Chromium",
+                profile=self.selected or "—",
+            )
+        )
 
     def _reload_state_files(self) -> None:
         self.profiles = read_json(PROFILE_FILE, {})
@@ -1020,15 +1439,15 @@ class NativeShell:
         if self.live_status is None:
             return
         stamp = datetime.now().strftime("%H:%M:%S")
-        self.live_status.setText(f"{prefix} | {stamp}")
+        self.live_status.setText(f"{native_text(prefix)} | {stamp}")
 
     def _refresh_profile_controls(self) -> None:
         running = self._profile_is_running(self.selected)
         has_profile = bool(self.selected and self.selected in self.profiles)
         self.start_btn.setEnabled(has_profile and not running)
         self.stop_btn.setEnabled(has_profile and running)
-        self.start_btn.setText("Start selected" if not running else "Running")
-        self.stop_btn.setText("Stop selected" if running else "Stop selected")
+        self.start_btn.setText(native_text("Start selected" if not running else "Running"))
+        self.stop_btn.setText(native_text("Stop selected"))
 
     def switch_tab(self, tab: str) -> None:
         if tab not in self.tab_pages:
@@ -1089,10 +1508,10 @@ class NativeShell:
         action = button("Stop" if status == "RUNNING" else "Start")
         action.setFixedWidth(88)
         if status == "RUNNING":
-            action.setStyleSheet("color:#ff5364;border:1px solid rgba(255,83,100,95);background:rgba(255,83,100,14);border-radius:15px")
+            action.setProperty("intent", "danger")
             action.clicked.connect(lambda _checked=False, n=name: self.stop_profile(n))
         else:
-            action.setStyleSheet("color:#00d19a;border:1px solid rgba(0,209,154,95);background:rgba(0,209,154,14);border-radius:15px")
+            action.setProperty("intent", "positive")
             action.clicked.connect(lambda _checked=False, n=name: self.start_profile(n))
         layout.addLayout(left, 1)
         layout.addWidget(status_label)
@@ -1138,8 +1557,6 @@ class NativeShell:
         header.addStretch(1)
         select = button("Selected" if name == self.selected else "Use", primary=name == self.selected)
         select.setFixedWidth(96)
-        if name == self.selected:
-            select.setStyleSheet("background:#00c991;color:#04130f;border:0;border-radius:15px;padding:12px 14px;font-weight:900")
         select.clicked.connect(lambda _checked=False, n=name: self.select_profile(n))
         header.addWidget(label(status, accent="green" if status == "RUNNING" else ""))
         header.addWidget(select)
@@ -1150,9 +1567,9 @@ class NativeShell:
         badges = QT.QHBoxLayout()
         badges.setSpacing(8)
         for text in (
-            f"Visible SL/TP {yes_no(cfg.get('visible_sltp'))}",
-            f"Copy {cfg.get('copy_role') or 'None'}",
-            f"Kill {yes_no(cfg.get('copy_kill_switch'))}",
+            native_format("Visible SL/TP {state}", state=yes_no(cfg.get("visible_sltp"))),
+            native_format("Copy {role}", role=str(cfg.get("copy_role") or "None")),
+            native_format("Kill {state}", state=yes_no(cfg.get("copy_kill_switch"))),
         ):
             badges.addWidget(label(text, role="muted"))
         badges.addStretch(1)
@@ -1161,7 +1578,7 @@ class NativeShell:
 
     def _profile_detail_text(self, name: str, cfg: dict[str, Any], status: str = "IDLE") -> str:
         if not name or not cfg:
-            return "No profile selected."
+            return native_text("No profile selected")
         profile_fields = [
             ("Profile", name),
             ("Status", status),
@@ -1193,8 +1610,8 @@ class NativeShell:
         )
 
     def _format_detail_block(self, title: str, fields: list[tuple[str, Any]]) -> str:
-        lines = [title]
-        lines.extend(f"  {key}: {value}" for key, value in fields)
+        lines = [native_text(title)]
+        lines.extend(f"  {native_text(key)}: {native_text(value)}" for key, value in fields)
         return "\n".join(lines)
 
     def _load_profile_editor(self, name: str, cfg: dict[str, Any], status: str) -> None:
@@ -1203,9 +1620,9 @@ class NativeShell:
         title = self.profile_editor_title
         state = self.profile_editor_status
         if title is not None:
-            title.setText(name or "No profile selected")
+            title.setText(name or native_text("No profile selected"))
         if state is not None:
-            state.setText(f"{status} | profiles.json")
+            state.setText(f"{native_text(status)} | profiles.json")
             state.setProperty("accent", "")
             state.style().unpolish(state)
             state.style().polish(state)
@@ -1227,12 +1644,12 @@ class NativeShell:
         self.profile_editor_dirty = True
         self.pending_delete_profile = ""
         if self.profile_editor_status is not None:
-            self.profile_editor_status.setText("Unsaved changes")
+            self.profile_editor_status.setText(native_text("Unsaved changes"))
 
     def _set_profile_editor_status(self, message: str, accent: str = "") -> None:
         if self.profile_editor_status is None:
             return
-        self.profile_editor_status.setText(message)
+        self.profile_editor_status.setText(native_text(message))
         self.profile_editor_status.setProperty("accent", accent)
         self.profile_editor_status.style().unpolish(self.profile_editor_status)
         self.profile_editor_status.style().polish(self.profile_editor_status)
@@ -1371,7 +1788,12 @@ class NativeShell:
             self._guardrail_row(
                 "Daily / lot / exposure caps",
                 "ARMED",
-                f"{cfg.get('copy_max_daily_trades', 20)} trades/day · {cfg.get('copy_max_lot_per_trade', 5.0)} lot/order · {cfg.get('copy_max_exposure', 10.0)} lot/symbol",
+                native_format(
+                    "{daily} trades/day · {lot} lot/order · {exposure} lot/symbol",
+                    daily=cfg.get("copy_max_daily_trades", 20),
+                    lot=cfg.get("copy_max_lot_per_trade", 5.0),
+                    exposure=cfg.get("copy_max_exposure", 10.0),
+                ),
                 "green",
             )
         )
@@ -1386,7 +1808,7 @@ class NativeShell:
 
     def _copy_detail_text(self, name: str, cfg: dict[str, Any]) -> str:
         if not name or not cfg:
-            return "No profile selected."
+            return native_text("No profile selected")
         status_fields = [
             ("Profile", name),
             ("Status", "KILL SWITCH ON" if cfg.get("copy_kill_switch") else "Ready"),
@@ -1436,14 +1858,14 @@ class NativeShell:
         waiting = sum(1 for item in items if self._is_waiting_status(item))
         done = sum(1 for item in items if str(item.get("status") or "").lower() in PENDING_DONE_STATUSES)
         summary = [
-            "PENDING CONTROL",
-            f"Profile: {self.selected or '—'}",
-            f"Total tasks: {len(items)}",
-            f"Waiting: {waiting}",
-            f"Done/closed: {done}",
+            native_text("PENDING CONTROL"),
+            native_format("Profile: {profile}", profile=self.selected or "—"),
+            native_format("Total tasks: {count}", count=len(items)),
+            native_format("Waiting: {count}", count=waiting),
+            native_format("Done/closed: {count}", count=done),
             "",
-            "SESSION FILES",
-            *[f"{name}: {count} item(s)" for name, count in files],
+            native_text("SESSION FILES"),
+            *[native_format("{name}: {count} item(s)", name=name, count=count) for name, count in files],
         ]
         self.pending_summary.setPlainText("\n".join(summary))
         while self.pending_items_layout.count():
@@ -1566,7 +1988,7 @@ class NativeShell:
     def _set_pending_status(self, message: str, accent: str = "muted") -> None:
         if self.pending_action_status is None:
             return
-        self.pending_action_status.setText(message)
+        self.pending_action_status.setText(native_text(message))
         self.pending_action_status.setProperty("accent", accent)
         self.pending_action_status.style().unpolish(self.pending_action_status)
         self.pending_action_status.style().polish(self.pending_action_status)
@@ -1611,7 +2033,7 @@ class NativeShell:
         ]
         self.last_diagnostics_report = "\n".join(summary)
         self.diag_summary.setPlainText(self.last_diagnostics_report)
-        self.diag_log.setPlainText(visible_log if latest_log else "No log file found.")
+        self.diag_log.setPlainText(visible_log if latest_log else native_text("No log file found."))
         self._set_diag_status("Diagnostics export is redacted by default.", "muted")
 
     def copy_diagnostics_report(self) -> None:
@@ -1636,7 +2058,7 @@ class NativeShell:
         """Clear the log pane without deleting files."""
         self.last_visible_log_text = ""
         if self.diag_log is not None:
-            self.diag_log.setPlainText("Display cleared. Press Refresh to reload logs.")
+            self.diag_log.setPlainText(native_text("Display cleared. Press Refresh to reload logs."))
         self._set_diag_status("Display cleared; log files were not modified.", "amber")
 
     def export_debug_bundle(self) -> None:
@@ -1657,10 +2079,173 @@ class NativeShell:
     def _set_diag_status(self, message: str, accent: str = "muted") -> None:
         if self.diag_status is None:
             return
-        self.diag_status.setText(message)
+        self.diag_status.setText(native_text(message))
         self.diag_status.setProperty("accent", accent)
         self.diag_status.style().unpolish(self.diag_status)
         self.diag_status.style().polish(self.diag_status)
+
+    def _refresh_stock_advisor_page(self) -> None:
+        if not self.stock_fields:
+            return
+        values = {
+            "client_id": self.settings.get("stock_client_id", "oak-stock-scanner"),
+            "capital": self.settings.get("stock_capital", 90_000_000),
+            "hurdle_bps": self.settings.get("stock_hurdle_bps", 0),
+        }
+        for key, value in values.items():
+            self.stock_fields[key].setText(str(value))
+        api_key, api_secret = load_ssi_desktop_credentials()
+        stored = bool(api_key and api_secret)
+        placeholder = native_text("Credentials are stored in Windows Credential Manager.") if stored else "Required once"
+        self.stock_fields["api_key"].setPlaceholderText(placeholder)
+        self.stock_fields["api_secret"].setPlaceholderText(placeholder)
+        output = ROOT / "stock_recommendation.json"
+        if self.stock_process is None and output.exists() and self.stock_result is not None:
+            payload = read_json(output, {})
+            if isinstance(payload, dict) and payload:
+                self.stock_result.setPlainText(render_stock_advisory(payload))
+
+    def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
+        return StockAdvisorDesktopSettings(
+            client_id=self.stock_fields["client_id"].text().strip(),
+            capital=float(self.stock_fields["capital"].text().strip()),
+            hurdle_bps=float(self.stock_fields["hurdle_bps"].text().strip()),
+        )
+
+    def save_stock_advisor_settings(self) -> None:
+        """Persist non-secrets and optionally vault newly entered SSI credentials."""
+        try:
+            settings = self._stock_settings_from_form()
+            saved_secret = self._save_stock_credentials_if_entered()
+            self._persist_stock_settings(settings)
+        except (StockAdvisorDesktopError, OSError, ValueError, RuntimeError) as error:
+            self._set_stock_status(f"Save failed: {error}", "red")
+            return
+        message = "SSI credentials saved securely." if saved_secret else "Advisor settings saved."
+        self._set_stock_status(message, "green")
+        self.stock_fields["api_key"].clear()
+        self.stock_fields["api_secret"].clear()
+
+    def _save_stock_credentials_if_entered(self) -> bool:
+        api_key = self.stock_fields["api_key"].text().strip()
+        api_secret = self.stock_fields["api_secret"].text().strip()
+        if not api_key and not api_secret:
+            return False
+        save_ssi_desktop_credentials(api_key, api_secret)
+        return True
+
+    def _persist_stock_settings(self, settings: StockAdvisorDesktopSettings) -> None:
+        next_settings = dict(self.settings)
+        next_settings["stock_client_id"] = settings.client_id
+        next_settings["stock_capital"] = settings.capital
+        next_settings["stock_hurdle_bps"] = settings.hurdle_bps
+        write_json_atomic(SETTINGS_FILE, next_settings)
+        self.settings = next_settings
+
+    def run_stock_advisor(self) -> None:
+        """Validate, auto-backfill when needed, then run the read-only advisor."""
+        if self.stock_process is not None or self.stock_pending_launch is not None:
+            return
+        try:
+            settings = self._stock_settings_from_form()
+            credentials = self._stock_credentials_for_run()
+            self._persist_stock_settings(settings)
+        except (StockAdvisorDesktopError, OSError, ValueError, RuntimeError) as error:
+            self._set_stock_status(f"Cannot run advisor: {error}", "red")
+            return
+        today = datetime.now(timezone(timedelta(hours=7))).date()
+        needs_backfill = requires_h4_backfill_file(ROOT / "signals_log.json", today)
+        plan = build_stock_advisor_launch_plan(ROOT, sys.executable, getattr(sys, "frozen", False), settings, needs_backfill)
+        self.stock_pending_launch = (plan, settings.client_id, *credentials)
+        self.stock_restart_signal_bot = needs_backfill and self._signal_is_running("signal_bot")
+        self.stock_run_btn.setEnabled(False)
+        if self.stock_restart_signal_bot:
+            self._set_stock_status("Auto backfill: pausing Signal Bot...", "amber")
+            self.stop_signal("signal_bot")
+            return
+        self._launch_pending_stock_advisor()
+
+    def _stock_credentials_for_run(self) -> tuple[str, str]:
+        if self._save_stock_credentials_if_entered():
+            return (
+                self.stock_fields["api_key"].text().strip(),
+                self.stock_fields["api_secret"].text().strip(),
+            )
+        api_key, api_secret = load_ssi_desktop_credentials()
+        if not api_key or not api_secret:
+            raise StockAdvisorDesktopError(StockAdvisorDesktopErrorCode.INVALID_SETTINGS, "SSI credentials are required once")
+        return api_key, api_secret
+
+    def _signal_is_running(self, key: str) -> bool:
+        process = self.signal_processes.get(key)
+        return bool(process and process.state() != QT.NotRunning)
+
+    def _launch_pending_stock_advisor(self) -> None:
+        if self.stock_pending_launch is None:
+            return
+        plan, client_id, api_key, api_secret = self.stock_pending_launch
+        self.stock_pending_launch = None
+        process = QT.QProcess(self.window)
+        process.setProgram(plan.program)
+        process.setArguments(list(plan.arguments))
+        process.setWorkingDirectory(str(ROOT))
+        process.setProcessEnvironment(self._stock_process_environment(client_id, api_key, api_secret))
+        process.setProcessChannelMode(QT.QProcess.ProcessChannelMode.MergedChannels)
+        process.readyReadStandardOutput.connect(lambda p=process: self._read_stock_advisor_output(p))
+        process.finished.connect(lambda code, _status, p=process: self._stock_advisor_done(code, p))
+        process.errorOccurred.connect(lambda error, p=process: self._stock_advisor_error(error, p))
+        self.stock_process = process
+        self.stock_process_log = []
+        self.stock_result.clear()
+        self._set_stock_status("Running VN30 advisor...", "amber")
+        process.start()
+
+    def _stock_process_environment(self, client_id: str, api_key: str, api_secret: str) -> Any:
+        environment = self._process_environment()
+        environment.insert("SSI_CLIENT_ID", client_id)
+        environment.insert("SSI_API_KEY", api_key)
+        environment.insert("SSI_API_SECRET", api_secret)
+        return environment
+
+    def _read_stock_advisor_output(self, process: Any) -> None:
+        data = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        for line in data.splitlines():
+            clean = line.strip()
+            if clean:
+                self.stock_process_log.append(clean)
+                self.stock_result.append(clean)
+
+    def _stock_advisor_done(self, code: int, process: Any) -> None:
+        if self.stock_process is process:
+            self.stock_process = None
+        self.stock_run_btn.setEnabled(True)
+        if code == 0:
+            payload = read_json(ROOT / "stock_recommendation.json", {})
+            self.stock_result.setPlainText(render_stock_advisory(payload) if isinstance(payload, dict) else "Invalid result")
+            pushed = any(line.endswith("Stock advisor: pushed") for line in self.stock_process_log)
+            message = "Advisor completed and dashboard updated." if pushed else "Advisor completed locally; dashboard push needs configuration."
+            self._set_stock_status(message, "green" if pushed else "amber")
+        else:
+            self._set_stock_status(f"Advisor failed with code {code}", "red")
+        self._restart_signal_bot_after_stock()
+
+    def _stock_advisor_error(self, error: Any, process: Any) -> None:
+        if self.stock_process is process:
+            self._set_stock_status(f"Advisor process error: {error}", "red")
+
+    def _restart_signal_bot_after_stock(self) -> None:
+        if not self.stock_restart_signal_bot:
+            return
+        self.stock_restart_signal_bot = False
+        self.start_signal("signal_bot")
+
+    def _set_stock_status(self, message: str, accent: str = "muted") -> None:
+        if self.stock_status is None:
+            return
+        self.stock_status.setText(native_text(message))
+        self.stock_status.setProperty("accent", accent)
+        self.stock_status.style().unpolish(self.stock_status)
+        self.stock_status.style().polish(self.stock_status)
 
     def _refresh_settings_page(self) -> None:
         if self.settings_about is None:
@@ -1683,6 +2268,7 @@ class NativeShell:
         """Persist NativeQt settings and apply the selected theme."""
         lang = self.settings_lang_combo.currentText() if self.settings_lang_combo is not None else "EN"
         theme = self.settings_theme_combo.currentText() if self.settings_theme_combo is not None else "dark"
+        language_changed = lang.upper() != NATIVE_LANGUAGE
         next_settings = dict(self.settings)
         next_settings["lang"] = lang
         next_settings["theme"] = theme
@@ -1692,8 +2278,12 @@ class NativeShell:
             self._set_settings_status(f"Save failed: {exc}", "red")
             return
         self.settings = next_settings
+        set_native_language(lang)
         self.apply_theme()
-        self.refresh()
+        if language_changed:
+            self._rebuild_translated_ui()
+        else:
+            self.refresh()
         self.switch_tab("Settings")
         self._set_settings_status("Settings saved and theme applied.", "green")
 
@@ -1713,7 +2303,7 @@ class NativeShell:
     def _set_settings_status(self, message: str, accent: str = "muted") -> None:
         if self.settings_status is None:
             return
-        self.settings_status.setText(message)
+        self.settings_status.setText(native_text(message))
         self.settings_status.setProperty("accent", accent)
         self.settings_status.style().unpolish(self.settings_status)
         self.settings_status.style().polish(self.settings_status)
@@ -1722,26 +2312,28 @@ class NativeShell:
         artifacts = "\n".join(self._artifact_summary())
         return "\n".join(
             [
-                "OAK Manager NativeQt",
-                "Mode: Qt Widgets + QSS, no WebEngine/Chromium",
-                f"Root: {ROOT}",
-                f"Profiles: {len(self.profiles)}",
-                f"Selected profile: {self.selected or '-'}",
-                f"Language: {self.settings.get('lang', 'EN')}",
-                f"Theme: {self.settings.get('theme', 'dark')}",
+                native_text("OAK Manager NativeQt"),
+                native_text("Mode: Qt Widgets + QSS, no WebEngine/Chromium"),
+                native_format("Root: {root}", root=ROOT),
+                native_format("Profiles: {count}", count=len(self.profiles)),
+                native_format("Selected profile: {profile}", profile=self.selected or "-"),
+                native_format("Language: {language}", language=self.settings.get("lang", "EN")),
+                native_format("Theme: {theme}", theme=self.settings.get("theme", "dark")),
+                native_text("License: MIT © 2026 QKP"),
+                native_text("Third-party notices: THIRD_PARTY_NOTICES.md"),
                 "",
                 artifacts,
                 "",
-                "Shortcuts:",
-                "- Ctrl+1..7: switch tabs.",
-                "- Ctrl+R / F5: refresh runtime state.",
-                "- Ctrl+S: save Profiles or Settings.",
-                "- Esc: clear delete confirmation guards.",
+                native_text("Shortcuts:"),
+                native_text("- Ctrl+1..8: switch tabs."),
+                native_text("- Ctrl+R / F5: refresh runtime state."),
+                native_text("- Ctrl+S: save Profiles or Settings."),
+                native_text("- Esc: clear delete confirmation guards."),
                 "",
-                "Cleanup policy:",
-                "- Keep source, docs, profiles examples, installers, and scripts.",
-                "- Ignore runtime state: trades_*.json, waiting_*.json, locks, logs, caches.",
-                "- Do not delete real trade/runtime state unless explicitly confirmed.",
+                native_text("Cleanup policy:"),
+                native_text("- Keep source, docs, profiles examples, installers, and scripts."),
+                native_text("- Ignore runtime state: trades_*.json, waiting_*.json, locks, logs, caches."),
+                native_text("- Do not delete real trade/runtime state unless explicitly confirmed."),
             ]
         )
 
@@ -1762,11 +2354,11 @@ class NativeShell:
 
     def _artifact_summary(self) -> list[str]:
         dist = ROOT / "dist"
-        installer = dist / "OAK MANAGER NativeQt_v3.16.3_Installer.exe"
-        archive = dist / "native-qt" / "OAK MANAGER NativeQt_v3.16.3_window-unpack.zip"
-        items = ["Artifacts:"]
+        installer = dist / f"OAK MANAGER NativeQt_{APP_VERSION}_Installer.exe"
+        archive = dist / "native-qt" / f"OAK MANAGER NativeQt_{APP_VERSION}_window-unpack.zip"
+        items = [native_text("Artifacts:")]
         for path in (installer, archive):
-            status = self._format_size(path) if path.exists() else "missing"
+            status = self._format_size(path) if path.exists() else native_text("missing")
             items.append(f"- {path.name}: {status}")
         return items
 
@@ -1908,7 +2500,7 @@ class NativeShell:
             for proc in self.signal_processes.values()
             if proc and proc.state() != QT.NotRunning
         )
-        self.signal_summary.setText(f"{running}/{len(SIGNAL_DEFS)} running")
+        self.signal_summary.setText(native_format("{running}/{total} running", running=running, total=len(SIGNAL_DEFS)))
 
     def start_signal(self, key: str) -> None:
         card = self.signal_cards.get(key)
@@ -1971,18 +2563,25 @@ class NativeShell:
             self.signal_processes.pop(key, None)
         self._append_signal_log(key, f"Exited with code {code}.")
         self._set_signal_running(key, False)
+        self._resume_stock_after_signal_stop(key)
 
     def _signal_error(self, key: str, error: Any, proc: Any) -> None:
         if self.signal_processes.get(key) is proc:
             self.signal_processes.pop(key, None)
         self._append_signal_log(key, f"Process error: {error}")
         self._set_signal_running(key, False)
+        self._resume_stock_after_signal_stop(key)
+
+    def _resume_stock_after_signal_stop(self, key: str) -> None:
+        if key != "signal_bot" or self.stock_pending_launch is None:
+            return
+        QT.QTimer.singleShot(0, self._launch_pending_stock_advisor)
 
     def _set_signal_running(self, key: str, running: bool, pid: int | None = None) -> None:
         card = self.signal_cards.get(key)
         if not card:
             return
-        card["status"].setText("Running" if running else "Stopped")
+        card["status"].setText(native_text("Running" if running else "Stopped"))
         card["status"].setProperty("accent", "green" if running else "")
         card["dot"].setProperty("accent", "green" if running else "red")
         card["frame"].setProperty("state", "running" if running else "stopped")
@@ -2105,41 +2704,47 @@ def run_monitor_worker(profile_name: str | None) -> None:
         _release_worker_lock(lock_path)
 
 
-def run_embedded_worker(argv: list[str]) -> bool:
+def run_embedded_worker(argv: list[str]) -> int | None:
     """Run an embedded worker mode when a frozen exe launches itself."""
     if "--worker" in argv:
         run_monitor_worker(profile_arg(argv))
-        return True
+        return 0
     if "--signal-bot" in argv:
         import mt5_signal_bot
 
         mt5_signal_bot.main(profile_name=profile_arg(argv))
-        return True
+        return 0
     if "--mt-server" in argv:
         import mt4_mt5_server
 
         mt4_mt5_server.main()
-        return True
+        return 0
     if "--mimo-bot" in argv:
         runpy.run_module("mimo_bot", run_name="__main__")
-        return True
+        return 0
     if "--mimo-worker" in argv:
         import mimo_worker
 
         mimo_worker.main()
-        return True
+        return 0
     if "--factcheck-worker" in argv:
         import factcheck_worker
 
         factcheck_worker.main()
-        return True
-    return False
+        return 0
+    if "--stock-advisor" in argv:
+        from vn_stock_advisor import main as advisor_main
+
+        index = argv.index("--stock-advisor")
+        return advisor_main(argv[index + 1 :])
+    return None
 
 
 def main() -> int:
     """Run the native Qt shell."""
-    if run_embedded_worker(sys.argv):
-        return 0
+    embedded_result = run_embedded_worker(sys.argv)
+    if embedded_result is not None:
+        return embedded_result
     started_at = time.perf_counter()
     global QT
     qt, error = load_qt()
@@ -2150,6 +2755,7 @@ def main() -> int:
     QT = qt
     qt_loaded_at = time.perf_counter()
     app = QT.QApplication(sys.argv)
+    apply_window_icon(app)
     app.setStyleSheet(app_qss())
     app_ready_at = time.perf_counter()
 

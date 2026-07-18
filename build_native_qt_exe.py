@@ -16,6 +16,8 @@ BUILD_ROOT = os.path.join(PROJECT_ROOT, "build", "native-qt")
 DIST_ROOT = os.path.join(PROJECT_ROOT, "dist", "native-qt")
 EXTRA_PACKAGE_FILES = (
     "LICENSE.txt",
+    "THIRD_PARTY_NOTICES.md",
+    "DESIGN.md",
     "profiles.example.json",
     "settings.example.json",
     "README.en.md",
@@ -42,6 +44,12 @@ HIDDEN_IMPORTS = (
     "mimo_worker",
     "factcheck_worker",
     "repositories.sqlite_store",
+    "domain.stock_scanner",
+    "services.ssi_market_data",
+    "services.stock_advisor_desktop",
+    "services.stock_dashboard_publisher",
+    "vn_stock_advisor",
+    "ssi_sdk",
 )
 EXCLUDED_MODULES = (
     "customtkinter",
@@ -71,7 +79,7 @@ def read_version() -> str:
         match = re.search(r'VERSION\s*=\s*"(.*?)"', content)
         if match:
             return match.group(1)
-    return "v3.16.3"
+    return "v3.17.0"
 
 
 VERSION = read_version()
@@ -97,6 +105,7 @@ def build_args() -> list[str]:
         f"--workpath={BUILD_ROOT}",
         f"--specpath={BUILD_ROOT}",
         "--collect-all=MetaTrader5",
+        "--collect-all=ssi_sdk",
     ]
     for module in HIDDEN_IMPORTS:
         args.append(f"--hidden-import={module}")

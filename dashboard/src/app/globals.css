@@ -351,6 +351,29 @@ body {
 .direction-badge[data-tone="gbp"] { --direction-accent: #b38be0; }
 .direction-badge { border-left: 2px solid var(--direction-accent, var(--terminal-accent)); }
 
+.advisor-safety {
+  border-color: color-mix(in srgb, var(--terminal-warning) 42%, var(--panel-border));
+  background: color-mix(in srgb, var(--terminal-warning) 7%, var(--surface));
+}
+
+.advisor-table { overflow-x: auto; }
+
+.advisor-row {
+  display: grid;
+  min-width: 47rem;
+  grid-template-columns: 2.5rem minmax(7rem, 1fr) repeat(3, minmax(6.5rem, 0.8fr)) minmax(8rem, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--panel-border);
+  padding: 0.9rem 1.25rem;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.advisor-row:last-child { border-bottom: 0; }
+.advisor-row:not(.advisor-row-head):hover { background: var(--surface-raised); }
+.advisor-row-head { color: var(--muted); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+
 .factcheck-screen { padding-block: 1rem 2.25rem; }
 .factcheck-screen .fact-panel { border-radius: 0.9rem; }
 
