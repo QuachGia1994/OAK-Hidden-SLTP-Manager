@@ -107,7 +107,7 @@ def _check_telegram_api(token):
     """
     if not token:
         return False, "no_token"
-    ok, result = telegram_get_me(token)
+    ok, result = telegram_get_me(token, retries=0, timeout=5.0)
     if ok:
         return True, result
     return False, result
@@ -134,12 +134,64 @@ def load_profile_config(profile_name, profiles_path=None):
 _tg_fail_streak = 0
 _tg_last_ok_name = ""
 _tg_last_ok_mono = 0.0
+_tg_last_probe_mono = 0.0
+_tg_next_probe_mono = 0.0
+_tg_cached_api_ok = False
+_tg_cached_bot = ""
+_tg_probe_key = None
+_tg_last_check_iso = ""
+_TG_PROBE_BASE_SECONDS = 45.0
+_TG_PROBE_MAX_SECONDS = 300.0
+
+
+def _reset_telegram_probe_state(probe_key=None):
+    """Reset cached Telegram health when the active profile or token changes."""
+    global _tg_fail_streak, _tg_last_ok_name, _tg_last_ok_mono
+    global _tg_last_probe_mono, _tg_next_probe_mono
+    global _tg_cached_api_ok, _tg_cached_bot, _tg_probe_key, _tg_last_check_iso
+    _tg_fail_streak = 0
+    _tg_last_ok_name = ""
+    _tg_last_ok_mono = 0.0
+    _tg_last_probe_mono = 0.0
+    _tg_next_probe_mono = 0.0
+    _tg_cached_api_ok = False
+    _tg_cached_bot = ""
+    _tg_probe_key = probe_key
+    _tg_last_check_iso = ""
+
+
+def _probe_telegram_health(profile, token):
+    """Return cached health, probing only when the backoff window expires."""
+    global _tg_fail_streak, _tg_last_ok_name, _tg_last_ok_mono
+    global _tg_last_probe_mono, _tg_next_probe_mono
+    global _tg_cached_api_ok, _tg_cached_bot, _tg_last_check_iso
+    probe_key = (profile, token)
+    if probe_key != _tg_probe_key:
+        _reset_telegram_probe_state(probe_key)
+    now = time.monotonic()
+    if now >= _tg_next_probe_mono:
+        _tg_last_probe_mono = now
+        _tg_cached_api_ok, _tg_cached_bot = _check_telegram_api(token)
+        if _tg_cached_api_ok:
+            _tg_fail_streak = 0
+            _tg_last_ok_name = str(_tg_cached_bot or _tg_last_ok_name or "")
+            _tg_last_ok_mono = now
+            _tg_last_check_iso = datetime.now(timezone.utc).isoformat()
+        else:
+            _tg_fail_streak += 1
+        exponent = min(3, max(0, _tg_fail_streak - 1))
+        delay = min(_TG_PROBE_BASE_SECONDS * (2 ** exponent), _TG_PROBE_MAX_SECONDS)
+        _tg_next_probe_mono = now + delay
+    if _tg_cached_api_ok:
+        return True, _tg_last_ok_name or _tg_cached_bot
+    hold = _tg_last_ok_mono and (now - _tg_last_ok_mono) < 90.0
+    if _tg_last_ok_name and (_tg_fail_streak < 2 or hold):
+        return True, _tg_last_ok_name
+    return False, _tg_cached_bot or "network_error"
 
 
 def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     """Publish heartbeat to SQLite. Called every ~2s from main loop."""
-    from datetime import datetime, timezone
-    global _tg_fail_streak, _tg_last_ok_name, _tg_last_ok_mono
     acc = None
     if mt5_connected:
         try:
@@ -155,24 +207,11 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
     tg_chat = profile_cfg.get("tele_chat") or TELEGRAM_CHAT_ID
     tg_configured = bool(tg_token and tg_chat)
     if tg_token:
-        tg_api_ok, tg_bot = _check_telegram_api(tg_token)
-        if tg_api_ok:
-            _tg_fail_streak = 0
-            _tg_last_ok_name = str(tg_bot or _tg_last_ok_name or "")
-            _tg_last_ok_mono = time.time()
-            tg_bot = _tg_last_ok_name
-        else:
-            _tg_fail_streak += 1
-            # Hold last-known-good 90s or until 2 consecutive failures
-            hold = _tg_last_ok_mono and (time.time() - _tg_last_ok_mono) < 90.0
-            if _tg_fail_streak < 2 or hold:
-                if _tg_last_ok_name:
-                    tg_api_ok = True
-                    tg_bot = _tg_last_ok_name
-            # else keep tg_api_ok False / error category in tg_bot
+        tg_api_ok, tg_bot = _probe_telegram_health(profile, tg_token)
     else:
+        if _tg_probe_key is not None:
+            _reset_telegram_probe_state()
         tg_api_ok, tg_bot = False, ""
-    tg_last = datetime.now(timezone.utc).isoformat() if tg_api_ok else ""
 
     state = "connected" if mt5_connected else "disconnected"
     _store.publish_heartbeat(
@@ -185,7 +224,7 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None):
         last_error=mt5_error,
         telegram_configured=tg_configured,
         telegram_api_ok=tg_api_ok,
-        telegram_last_check=tg_last,
+        telegram_last_check=_tg_last_check_iso,
         telegram_bot_name=tg_bot,
     )
 

@@ -2,6 +2,7 @@
 """Centralized Telegram API client with error classification and retry."""
 import json
 import random
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -9,6 +10,11 @@ import urllib.parse
 from oak_logger import setup_logger
 
 log = setup_logger("telegram_client")
+
+_NETWORK_WARNING_INTERVAL_SECONDS = 300.0
+_network_warning_lock = threading.Lock()
+_last_network_warning_at = 0.0
+_suppressed_network_warnings = 0
 
 # Error classification — 400 is NOT always chat_not_found
 ERROR_CLASSES = {
@@ -41,6 +47,26 @@ def classify_error(status_code, body: str = ""):
     return "unknown"
 
 
+def _log_network_warning(error: Exception) -> None:
+    """Log one actionable network warning and suppress repeated noise."""
+    global _last_network_warning_at, _suppressed_network_warnings
+    now = time.monotonic()
+    with _network_warning_lock:
+        elapsed = now - _last_network_warning_at
+        if _last_network_warning_at and elapsed < _NETWORK_WARNING_INTERVAL_SECONDS:
+            _suppressed_network_warnings += 1
+            return
+        repeated = _suppressed_network_warnings
+        _last_network_warning_at = now
+        _suppressed_network_warnings = 0
+    suffix = f"; suppressed {repeated} repeats" if repeated else ""
+    log.warning(
+        "Telegram getMe network unavailable (%s)%s",
+        type(error).__name__,
+        suffix,
+    )
+
+
 def telegram_get_me(token, *, retries: int = 2, timeout: float = 8.0):
     """Test Telegram Bot API connection via getMe.
 
@@ -50,6 +76,7 @@ def telegram_get_me(token, *, retries: int = 2, timeout: float = 8.0):
     if not token:
         return False, "no_token"
     last_err = "network_error"
+    last_network_error = None
     attempts = max(1, int(retries) + 1)
     for i in range(attempts):
         try:
@@ -73,10 +100,12 @@ def telegram_get_me(token, *, retries: int = 2, timeout: float = 8.0):
             if e.code in (400, 401, 403, 404):
                 return False, last_err
         except Exception as e:
-            log.warning(f"Telegram getMe network error: {e}")
+            last_network_error = e
             last_err = "network_error"
         if i + 1 < attempts:
             time.sleep(0.35 + random.random() * 0.4)
+    if last_err == "network_error" and last_network_error is not None:
+        _log_network_warning(last_network_error)
     return False, last_err
 
 
