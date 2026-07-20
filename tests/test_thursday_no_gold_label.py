@@ -19,25 +19,24 @@ from mt5_signal_bot import (
 class TestXauOnlyRules(unittest.TestCase):
     def test_no_gold_label_removed_for_all_weekdays(self):
         for weekday in range(5):
-            for hour in (2, 3, 4, 5, 7, 8, 9, 12, 13, 15):
+            for hour in (2, 3, 4, 5, 12, 13, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertFalse(is_xau_no_trade_label_slot(hour, weekday=weekday))
                     self.assertEqual(xau_no_trade_label_tag(hour, weekday=weekday), "")
 
     def test_no_gbp_focus_for_all_weekdays(self):
         for weekday in range(5):
-            for hour in (2, 3, 4, 5, 7, 8, 9, 12, 13, 15):
+            for hour in (2, 3, 4, 5, 12, 13, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_focus_gbp_pairs(hour, weekday=weekday), [])
 
-    def test_hour_notes_explain_h3_h7_and_keep_other_slots_xau_only(self):
+    def test_hour_notes_explain_h3_and_keep_other_slots_xau_only(self):
         for weekday in range(5):
-            for hour in (4, 5, 8, 9, 12, 13, 15):
+            for hour in (4, 5, 12, 13, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_hour_note(hour, weekday=weekday), "Chỉ Vàng (XAUUSD)")
             self.assertIsNone(get_hour_note(2, weekday=weekday))
             self.assertEqual(get_hour_note(3, weekday=weekday), "H=3: đảo chiều từ H=2.")
-            self.assertEqual(get_hour_note(7, weekday=weekday), "H=7: đảo chiều từ H=2.")
 
     def test_raw_analysis_has_no_weekday_reversal(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}
@@ -52,7 +51,7 @@ class TestXauOnlyRules(unittest.TestCase):
 
     def test_pair_direction_is_xau_only(self):
         dt = datetime(2026, 7, 9, 12, 0)
-        for hour in (2, 3, 9, 12, 15):
+        for hour in (2, 3, 12, 15):
             with self.subTest(hour=hour):
                 self.assertEqual(get_pair_direction(hour, "BUY", dt), {"XAUUSD": "BUY"})
 

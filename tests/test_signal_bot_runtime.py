@@ -21,7 +21,7 @@ class SignalBotRuntimeTests(unittest.TestCase):
         )
 
         self.assertIn("Slots: H=2-5,7-9,12-13,15", message)
-        self.assertIn("H=6, H=10, H=11, H=14, H=17", message)
+        self.assertIn("H=6, H=7, H=8, H=9, H=10, H=11, H=14, H=17", message)
         self.assertIn("dùng kết quả H=2 của Thứ 2", message)
         self.assertNotIn("02-15:45", message)
 

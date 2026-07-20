@@ -49,8 +49,8 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             ],
         )
 
-    def test_h6_xauusd_only_no_gbp_pair_dirs(self):
-        """H=5-8: Focus GA+GJ only — pair_dirs has XAU only (no GBP map)."""
+    def test_h7_disabled_returns_empty_pair_dirs(self):
+        """H=7 is now disabled — pair_dirs should be empty."""
         for broker_dt in (
             datetime(2026, 7, 7, tzinfo=timezone.utc),
             datetime(2026, 7, 9, tzinfo=timezone.utc),
@@ -58,7 +58,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             with self.subTest(weekday=broker_dt.weekday()):
                     self.assertEqual(
                         get_pair_direction(7, "BUY", broker_dt),
-                        {"XAUUSD": "BUY"},
+                        {},
                     )
 
     def test_news_parse_marks_system_display_timezone(self):

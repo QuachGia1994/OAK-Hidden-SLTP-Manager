@@ -86,7 +86,7 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
 
     def test_normal_slots_apply_xau_m30_flip_and_keep_xau_only(self):
         dt = _dt_tuesday()
-        for hour in (8, 9, 12, 13, 15):
+        for hour in (12, 13, 15):
             with self.subTest(hour=hour):
                 pair_dirs = get_pair_direction(hour, "BUY", dt)
                 with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
