@@ -80,11 +80,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
 };
 
 export function getDayRules(locale: RuleLocale, jsWeekday: number, date: Date = new Date()): string[] {
-  const rules = [...(DAY_RULES[locale][jsWeekday] || [])];
-  const dDirectionRule = locale === "EN"
-    ? "H=4: D-direction follows the final XAUUSD direction."
-    : "H=4: D-direction theo kết quả XAUUSD cuối cùng.";
-  return [...rules, dDirectionRule];
+  return [...(DAY_RULES[locale][jsWeekday] || [])];
 }
 
 export function getSignalColor(signal: string): string {

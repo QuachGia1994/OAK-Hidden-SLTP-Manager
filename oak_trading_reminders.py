@@ -614,23 +614,19 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     common_vn = [
-        "Slots: H=2-5,7-9,12-13,15",
-        "Chỉ XAUUSD.",
-        "H=2: M5/M30, rồi hậu xử lý XAUUSD M30.",
-        "H=3 và H=7: đảo chiều từ kết quả H=2.",
-        "H=4: D-direction cùng XAUUSD.",
+        "Slots: H=2-5,12-13,15",
+        "H=2: M5/M30 + hậu xử lý XAUUSD M30.",
+        "H=3: đảo chiều từ kết quả H=2.",
     ]
     common_en = [
-        "Slots: H=2-5,7-9,12-13,15",
-        "XAUUSD only.",
+        "Slots: H=2-5,12-13,15",
         "H=2: M5/M30 with XAUUSD M30 post-processing.",
-        "H=3 and H=7: reverse the final H=2 direction.",
-        "H=4: D-direction follows XAUUSD.",
+        "H=3: reverse the final H=2 direction.",
     ]
     day_rules_vn = {day: list(common_vn) for day in range(5)}
     day_rules_en = {day: list(common_en) for day in range(5)}
-    day_rules_vn[3][2] = "H=2: dùng kết quả H=2 của Thứ 2; tuần đặc biệt thì đảo."
-    day_rules_en[3][2] = "H=2: reuses Monday H=2; special weeks reverse it."
+    day_rules_vn[3][1] = "H=2: dùng kết quả H=2 của Thứ 2; tuần đặc biệt thì đảo."
+    day_rules_en[3][1] = "H=2: reuses Monday H=2; special weeks reverse it."
 
     notes_vn = list(day_rules_vn.get(weekday, []))
     notes_en = list(day_rules_en.get(weekday, []))
