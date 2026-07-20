@@ -38,7 +38,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
-TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15]
+TARGET_HOURS = [2, 3, 4, 5, 12, 13, 15]
 BROKER_GMT = 0
 
 app = Flask(__name__)
