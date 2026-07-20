@@ -99,20 +99,14 @@ def save_json(path, data):
         print(f"Save error: {e}")
 
 def send_telegram_msg(chat_id, text):
-    """Gửi tin nhắn qua Telegram API (POST)"""
-    try:
-        clean = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", text)
-        clean = clean.replace("</c>", "")
-        if len(clean) > 4000:
-            clean = clean[:4000] + "\n\n...[Cắt bột]..."
-        payload = json.dumps({"chat_id": chat_id, "text": clean}).encode("utf-8")
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return resp.read()
-    except Exception as e:
-        print(f"Send error: {e}")
-        return None
+    """Gửi tin nhắn qua Telegram API (POST) — delegates to centralized client with retry."""
+    from telegram_client import telegram_send_message
+    clean = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", text)
+    clean = clean.replace("</c>", "")
+    ok, err = telegram_send_message(BOT_TOKEN, chat_id, clean, parse_mode="Markdown")
+    if not ok:
+        print(f"Send error: {err}")
+    return ok
 
 def get_all_profiles():
     config = load_json(CONFIG_FILE)

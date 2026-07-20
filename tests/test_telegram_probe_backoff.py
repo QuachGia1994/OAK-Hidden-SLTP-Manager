@@ -79,12 +79,12 @@ class TelegramProbeBackoffTests(unittest.TestCase):
         self.assertFalse(beta_heartbeat["telegram_api_ok"])
         self.assertEqual("network_error", beta_heartbeat["telegram_bot_name"])
 
-    def test_health_probe_uses_one_bounded_network_attempt(self) -> None:
+    def test_health_probe_uses_bounded_network_attempts(self) -> None:
         with patch.object(mt5_signal_bot, "telegram_get_me", return_value=(False, "network_error")) as get_me:
             result = mt5_signal_bot._check_telegram_api("token")
 
         self.assertEqual((False, "network_error"), result)
-        get_me.assert_called_once_with("token", retries=0, timeout=5.0)
+        get_me.assert_called_once_with("token", retries=1, timeout=8.0)
 
 
 if __name__ == "__main__":

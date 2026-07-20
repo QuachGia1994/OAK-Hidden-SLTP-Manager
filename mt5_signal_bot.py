@@ -109,7 +109,7 @@ def _check_telegram_api(token):
     """
     if not token:
         return False, "no_token"
-    ok, result = telegram_get_me(token, retries=0, timeout=5.0)
+    ok, result = telegram_get_me(token, retries=1, timeout=8.0)
     if ok:
         return True, result
     return False, result
@@ -352,7 +352,8 @@ def get_current_prices(pair_dirs):
             log.warning("MT5 tick fetch error for %s: %s", pair, e)
     return prices
 
-def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
+def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
+               pattern_signal=None):
     """Append signal data to signals_log.json for website consumption."""
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
     record = {
@@ -367,6 +368,8 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note):
         "hour_note": hour_note,
         "d_direction": (pair_dirs or {}).get(D_DIRECTION_PAIR),
     }
+    if pattern_signal:
+        record["pattern_signal"] = pattern_signal
     try:
         data = []
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
@@ -1155,7 +1158,8 @@ def rebuild_slot_signal(broker_dt, h):
         apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
 
     hour_note = get_hour_note(h, broker_dt=broker_dt)
-    log_signal(h, broker_dt, sig, None, pair_dirs, hour_note)
+    log_signal(h, broker_dt, sig, None, pair_dirs, hour_note,
+               pattern_signal=result.get("pattern_signal"))
     return True
 
 
@@ -1453,7 +1457,8 @@ def main(profile_name=None):
                 if not pair_dirs:
                     pair_dirs = {"XAUUSD": sig}
                 hour_note = get_hour_note(now_hour, broker_dt=broker_dt)
-                log_signal(now_hour, broker_dt, sig, None, pair_dirs, hour_note)
+                log_signal(now_hour, broker_dt, sig, None, pair_dirs, hour_note,
+                           pattern_signal=result.get("pattern_signal"))
                 push_to_dashboard()
 
 
