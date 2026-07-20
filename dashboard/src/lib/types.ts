@@ -3,6 +3,7 @@ export interface Signal {
   hour: number;
   ts: number;
   signal: "BUY" | "SELL" | "WAIT";
+  pattern_signal?: "BUY" | "SELL";
   pair_dirs: Record<string, string>;
   entry_prices: Record<string, number>;
   current_prices: Record<string, number>;

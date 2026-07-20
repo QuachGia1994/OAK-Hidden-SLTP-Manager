@@ -21,6 +21,7 @@ export function maskSignal(signal: Signal): Signal {
   return {
     ...signal,
     signal: "WAIT",
+    pattern_signal: undefined,
     pair_dirs: {},
   };
 }
