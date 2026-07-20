@@ -1197,8 +1197,45 @@ class CopyTradeManager:
                     resp = get_natural_response("error", error="Sai định dạng giờ rồi anh ơi!")
                     self.notify(f"❌ [{profile_name}] {resp}")
             else:
-                self.notify(f"🤖 [{profile_name}] Đã rõ! Tôi tiến hành ĐÓNG ({filter_type}) {target_sym or 'toàn bộ'} ngay lập tức đây ạ.")
-                self._execute_close_all(filter_type, target_sym, target_ticket)
+                # Safety: if original text has a time pattern, never close immediately
+                _time_in_text = re.findall(r"\b\d{1,2}:\d{2}\b", raw_text)
+                if not _time_in_text:
+                    _hm = re.findall(r"\b(\d{1,2})h(\d{2})\b", raw_text.lower())
+                    if _hm:
+                        _time_in_text = [f"{_hm[0][0]}:{_hm[0][1]}"]
+                if _time_in_text:
+                    recovered_time = _time_in_text[0]
+                    try:
+                        if len(recovered_time.split(":")) == 2:
+                            recovered_time += ":00"
+                        now_dt = datetime.now()
+                        target_dt = datetime.strptime(recovered_time, "%H:%M:%S").replace(
+                            year=now_dt.year, month=now_dt.month, day=now_dt.day
+                        )
+                        if target_dt < now_dt:
+                            target_dt += timedelta(days=1)
+                        while target_dt.weekday() in (5, 6):
+                            target_dt += timedelta(days=1)
+                        target_date_str = target_dt.strftime("%Y-%m-%d")
+                        if not hasattr(self, "_scheduled_close"):
+                            self._scheduled_close = load_json(self.scheduled_close_file, [])
+                        self._scheduled_close.append({
+                            "time": recovered_time,
+                            "date": target_date_str,
+                            "filter": filter_type,
+                            "sym": target_sym,
+                            "ticket": target_ticket,
+                        })
+                        save_json(self.scheduled_close_file, self._scheduled_close)
+                        self.notify(
+                            f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG ({filter_type}) "
+                            f"cho {target_sym or 'tất cả'} lúc {recovered_time} rồi nhé!"
+                        )
+                    except Exception:
+                        self.notify(f"❌ [{profile_name}] Không parse được giờ từ tin nhắn, anh thử lại với định dạng HH:MM nhé!")
+                else:
+                    self.notify(f"🤖 [{profile_name}] Đã rõ! Tôi tiến hành ĐÓNG ({filter_type}) {target_sym or 'toàn bộ'} ngay lập tức đây ạ.")
+                    self._execute_close_all(filter_type, target_sym, target_ticket)
 
         # 6. /list [PROFILE]
         elif cmd[0] in ["/list", "/danhsach"]:
