@@ -1,6 +1,6 @@
-/** Mon–Fri H=2-5,7-9,12-13,15 (weekend excluded). */
-export const DISABLED_HOURS = new Set([6, 10, 11, 14, 17]);
-export const TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 15];
+/** Mon–Fri H=2-5,12-13,15 (weekend excluded). */
+export const DISABLED_HOURS = new Set([6, 7, 8, 9, 10, 11, 14, 17]);
+export const TARGET_HOURS = [2, 3, 4, 5, 12, 13, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
@@ -49,11 +49,6 @@ const HOUR_NOTES: Record<number, string> = {
   3: "H=3: Đảo chiều từ H=2.",
   4: "Chỉ Vàng (XAUUSD)",
   5: "Chỉ Vàng (XAUUSD)",
-  6: "Chỉ Vàng (XAUUSD)",
-  7: "H=7: Đảo chiều từ H=2.",
-  8: "Chỉ Vàng (XAUUSD)",
-  9: "Chỉ Vàng (XAUUSD)",
-  10: "Chỉ Vàng (XAUUSD)",
   12: "Chỉ Vàng (XAUUSD)",
   15: "Chỉ Vàng (XAUUSD)",
 };
@@ -69,18 +64,18 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
-    2: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
-    3: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
-    4: ["Slots: H=2-5,7-9,12-13,15", "H=2: dùng kết quả H=2 của Thứ 2; tuần đặc biệt thì đảo.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
-    5: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30; không có rule đảo riêng.", "H=3 và H=7: đảo chiều từ kết quả H=2."],
+    1: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3: đảo chiều từ kết quả H=2."],
+    2: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3: đảo chiều từ kết quả H=2."],
+    3: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3: đảo chiều từ kết quả H=2."],
+    4: ["Slots: H=2-5,12-13,15", "H=2: dùng kết quả H=2 của Thứ 2; tuần đặc biệt thì đảo.", "H=3: đảo chiều từ kết quả H=2."],
+    5: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30; không có rule đảo riêng.", "H=3: đảo chiều từ kết quả H=2."],
   },
   EN: {
-    1: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3 and H=7: reverse the final H=2 direction."],
-    2: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3 and H=7: reverse the final H=2 direction."],
-    3: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3 and H=7: reverse the final H=2 direction."],
-    4: ["Slots: H=2-5,7-9,12-13,15", "H=2: reuses Monday H=2; special weeks reverse it.", "H=3 and H=7: reverse the final H=2 direction."],
-    5: ["Slots: H=2-5,7-9,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing; no separate reversal rule.", "H=3 and H=7: reverse the final H=2 direction."],
+    1: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3: reverse the final H=2 direction."],
+    2: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3: reverse the final H=2 direction."],
+    3: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3: reverse the final H=2 direction."],
+    4: ["Slots: H=2-5,12-13,15", "H=2: reuses Monday H=2; special weeks reverse it.", "H=3: reverse the final H=2 direction."],
+    5: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing; no separate reversal rule.", "H=3: reverse the final H=2 direction."],
   },
 };
 
