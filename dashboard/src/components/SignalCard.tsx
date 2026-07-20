@@ -43,17 +43,12 @@ export function SignalCard({
       signal.hour !== 2,
   );
 
-  // H=2 verdict is the GBPUSD pattern, not the XAU M30 post-processed value
-  const displaySignal =
-    signal.hour === 2 && signal.pattern_signal ? signal.pattern_signal : signal.signal;
   const xauDir =
-    signal.hour === 2 && signal.pattern_signal
-      ? signal.pattern_signal
-      : signal.pair_dirs?.XAUUSD ||
-        (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
+    signal.pair_dirs?.XAUUSD ||
+    (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
   const xauBadgeDir = !isVIP ? "locked" : xauDir || "-";
-  const isSell = displaySignal === "SELL";
-  const isBuy = displaySignal === "BUY";
+  const isSell = signal.signal === "SELL";
+  const isBuy = signal.signal === "BUY";
 
   return (
     <article className="terminal-panel group signal-rail overflow-hidden rounded-xl transition-colors duration-200">
@@ -78,8 +73,8 @@ export function SignalCard({
           {locale === "EN" ? "Verdict" : "Kết luận"}
         </div>
         {isVIP ? (
-          <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(displaySignal)}`}>
-            {getSignalLabel(displaySignal, locale)}
+          <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(signal.signal)}`}>
+            {getSignalLabel(signal.signal, locale)}
           </span>
         ) : (
           <LockedVerdict locale={locale} />
