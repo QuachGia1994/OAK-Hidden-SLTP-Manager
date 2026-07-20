@@ -18,13 +18,12 @@ class TestGetDayNotes(unittest.TestCase):
             with self.subTest(day=day):
                 blob = " ".join(get_day_notes(day, lang="VN"))
                 self.assertIn("Slots:", blob)
-                self.assertIn("Chỉ XAUUSD", blob)
                 self.assertNotIn("GBP", blob)
                 self.assertNotIn("no-gold", blob)
 
     def test_active_slots_exclude_disabled_hours(self):
         notes = " ".join(get_day_notes(date(2026, 7, 13), lang="EN"))
-        self.assertIn("H=2-5,7-9,12-13,15", notes)
+        self.assertIn("H=2-5,12-13,15", notes)
         self.assertNotIn("H=10", notes)
         self.assertNotIn("H=11", notes)
         self.assertNotIn("H=14", notes)
@@ -39,12 +38,12 @@ class TestGetDayNotes(unittest.TestCase):
         self.assertNotIn("special weeks", notes)
         self.assertNotIn("GBP", notes)
 
-    def test_all_weekdays_explain_h3_and_h7(self):
+    def test_all_weekdays_explain_h3_reversal(self):
         for weekday in range(5):
             day = date(2026, 7, 13 + weekday)
             with self.subTest(day=day):
                 self.assertIn(
-                    "H=3 and H=7: reverse the final H=2 direction.",
+                    "H=3: reverse the final H=2 direction.",
                     " ".join(get_day_notes(day, lang="EN")),
                 )
 

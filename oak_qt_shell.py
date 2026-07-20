@@ -1914,7 +1914,7 @@ class NativeShell:
         layout = QT.QVBoxLayout(row)
         layout.setContentsMargins(14, 12, 14, 12)
         header = QT.QHBoxLayout()
-        symbol = item.get("symbol") or item.get("ticket") or item.get("id") or "TASK"
+        symbol = item.get("symbol") or item.get("sym") or item.get("ticket") or item.get("id") or "TASK"
         status = str(item.get("status") or "waiting").upper()
         kind = str(item.get("kind") or "task").upper()
         header.addWidget(label(f"{kind} | {symbol}"))
@@ -1932,7 +1932,12 @@ class NativeShell:
         layout.addLayout(header)
         file_name = Path(str(item.get("_pending_file") or "")).name
         when = " ".join(str(item.get(k) or "") for k in ("date", "time")).strip() or str(item.get("execute_at") or "-")
-        desc = f"{order_type_name(item.get('type'))} | lot {item.get('lot', '-')} | {when} | {file_name}"
+        if "filter" in item:
+            close_filter = item.get("filter") or "all"
+            close_ticket = item.get("ticket") or ""
+            desc = f"filter={close_filter} | sym {symbol} | {close_ticket or '-'} | {when} | {file_name}"
+        else:
+            desc = f"{order_type_name(item.get('type'))} | lot {item.get('lot', '-')} | {when} | {file_name}"
         layout.addWidget(label(desc, role="muted"))
         return row
 
