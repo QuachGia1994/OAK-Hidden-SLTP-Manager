@@ -79,6 +79,7 @@ export function maskSignalForPublic(signal: Record<string, unknown>) {
   return {
     ...signal,
     signal: "WAIT",
+    pattern_signal: undefined,
     pair_dirs: {},
     entry_prices: {},
     current_prices: {},

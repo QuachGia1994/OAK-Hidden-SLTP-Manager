@@ -701,11 +701,18 @@ class DashboardControllerMixin:
                                     latest = signals[-1] if isinstance(signals, list) else None
                             if latest:
                                 sig = latest.get("signal", "—")
-                                icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
                                 hour = latest.get("hour")
+                                # H=2 verdict is the pattern, not XAU M30 post-process
+                                display_sig = sig
+                                if hour is not None and int(hour) == 2:
+                                    display_sig = latest.get("pattern_signal") or sig
+                                icon = "🟢" if display_sig == "BUY" else "🔴" if display_sig == "SELL" else "⚪"
                                 hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
-                                card_sig.configure(text=f"{T('ui_current')}: {icon} {sig}{hour_txt}")
+                                card_sig.configure(text=f"{T('ui_current')}: {icon} {display_sig}{hour_txt}")
                                 pair_dirs = latest.get("pair_dirs") or {}
+                                if hour is not None and int(hour) == 2 and latest.get("pattern_signal"):
+                                    pair_dirs = dict(pair_dirs)
+                                    pair_dirs["XAUUSD"] = latest["pattern_signal"]
                             else:
                                 card_sig.configure(text=T("ui_current_dash"))
                         else:
