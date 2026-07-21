@@ -1251,7 +1251,7 @@ def rebuild_recent_history(days=7):
         print(f"  [REBUILD] Cannot clear stale history: {error}")
 
     rebuilt = 0
-    for target_date in dates:
+    for target_date in reversed(dates):
         if target_date.weekday() >= 5:
             continue
         fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
@@ -1507,12 +1507,6 @@ def main(profile_name=None):
                 rebuild_recent_history(days=7)
                 result = calculate_slot_signal(broker_dt, now_hour)
                 sig = result["signal"]
-                if sig not in ("BUY", "SELL"):
-                    sent_today.add(key)
-                    _save_state(day_signals, sent_today)
-                    print(f"  [SKIP] H={now_hour} - {result.get('report', 'không có signal')}")
-                    time.sleep(10)
-                    continue
 
                 # Track H=1 signal for downstream day logic
                 if now_hour == 1 and sig in ("BUY", "SELL"):
@@ -1529,11 +1523,23 @@ def main(profile_name=None):
                     broker_dt,
                     h1_signal=result.get("h1_signal"),
                 )
-                if not pair_dirs:
-                    # Slot bỏ trống theo rule ngày - đánh dấu đã xử lý
+
+                # Log for website (even WAIT signals)
+                hour_note = get_hour_note(now_hour, broker_dt=broker_dt)
+                log_pair_dirs = pair_dirs
+                if not log_pair_dirs:
+                    if now_hour in (9, 14):
+                        log_pair_dirs = {p: sig for p in GBP_PAIRS}
+                    else:
+                        log_pair_dirs = {"XAUUSD": sig}
+                log_signal(now_hour, broker_dt, sig, None, log_pair_dirs, hour_note,
+                           pattern_signal=result.get("pattern_signal"))
+                push_to_dashboard()
+
+                if sig not in ("BUY", "SELL"):
                     sent_today.add(key)
                     _save_state(day_signals, sent_today)
-                    print(f"  [SKIP] H={now_hour} - không có pair active theo rule ngày")
+                    print(f"  [SKIP] H={now_hour} - {result.get('report', 'không có signal')}")
                     time.sleep(10)
                     continue
 
@@ -1556,18 +1562,6 @@ def main(profile_name=None):
                             "d_direction": h5_gbp_direction,
                         }
                         _save_state(day_signals, sent_today)
-
-                # Log for website
-                if not pair_dirs:
-                    if now_hour in (9, 14):
-                        pair_dirs = {p: sig for p in GBP_PAIRS}
-                    else:
-                        pair_dirs = {"XAUUSD": sig}
-                hour_note = get_hour_note(now_hour, broker_dt=broker_dt)
-                log_signal(now_hour, broker_dt, sig, None, pair_dirs, hour_note,
-                           pattern_signal=result.get("pattern_signal"))
-                push_to_dashboard()
-
 
                 print(f"  Signal: {sig}")
                 print(f"  Sent: OK")
