@@ -62,7 +62,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       current_prices: {},
       hour_note: null,
       ...signal,
-      ...(h === 2 ? { hour_note: null } : {}),
     };
   }).sort((a, b) => b.hour - a.hour);
 

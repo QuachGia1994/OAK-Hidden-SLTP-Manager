@@ -1559,7 +1559,10 @@ def main(profile_name=None):
 
                 # Log for website
                 if not pair_dirs:
-                    pair_dirs = {"XAUUSD": sig}
+                    if now_hour in (9, 14):
+                        pair_dirs = {p: sig for p in GBP_PAIRS}
+                    else:
+                        pair_dirs = {"XAUUSD": sig}
                 hour_note = get_hour_note(now_hour, broker_dt=broker_dt)
                 log_signal(now_hour, broker_dt, sig, None, pair_dirs, hour_note,
                            pattern_signal=result.get("pattern_signal"))
