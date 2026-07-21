@@ -140,6 +140,7 @@ class CopyTradeManager:
         self._scheduled_close = load_json(self.scheduled_close_file, [])
         if not isinstance(self._scheduled_close, list):
             self._scheduled_close = []
+        self._last_auto_close_date = None
         self.connected_logged = False
 
         # --- IGNORE EXISTING MASTER TRADES ON STARTUP ---
@@ -2311,7 +2312,129 @@ class CopyTradeManager:
 
         self._with_scheduled_file_lock(_fin)
 
+    def _auto_schedule_daily_closes(self):
+        """Auto-schedule daily closes for XAUUSD and GBP if they are not already scheduled for today."""
+        now_dt = datetime.now()
+        now_date = now_dt.strftime("%Y-%m-%d")
+        
+        # Guard to only attempt scheduling once per calendar day
+        if getattr(self, "_last_auto_close_date", None) == now_date:
+            return
+        
+        # We need to get the broker's current date to know if it's a weekday for the broker
+        try:
+            rates = mt5.copy_rates_from_pos("XAUUSD", mt5.TIMEFRAME_M1, 0, 1)
+            tick = mt5.symbol_info_tick("XAUUSD")
+            if rates is not None and len(rates) > 0 and tick is not None:
+                bar_time = int(rates[0]['time'])
+                tick_time = int(tick.time)
+                broker_gmt = round((bar_time - tick_time) / 3600.0)
+            else:
+                broker_gmt = 3
+        except Exception:
+            broker_gmt = 3
+
+        broker_now = datetime.utcnow() + timedelta(hours=broker_gmt)
+        broker_date = broker_now.date()
+        
+        # Set the flag to prevent repeated checks today
+        self._last_auto_close_date = now_date
+
+        if broker_now.weekday() >= 5:
+            return
+
+        xau_broker_time_str = "14:44:00" if broker_now.weekday() == 0 else "17:44:00"
+        gbp_broker_time_str = "19:44:00"
+        
+        try:
+            local_dt = datetime.now()
+            utc_dt = datetime.utcnow()
+            local_gmt = round((local_dt - utc_dt).total_seconds() / 3600.0)
+        except Exception:
+            local_gmt = 7
+            
+        offset_hours = broker_gmt - local_gmt
+        
+        xau_broker_dt = datetime.combine(broker_date, datetime.strptime(xau_broker_time_str, "%H:%M:%S").time())
+        xau_local_dt = xau_broker_dt - timedelta(hours=offset_hours)
+        
+        gbp_broker_dt = datetime.combine(broker_date, datetime.strptime(gbp_broker_time_str, "%H:%M:%S").time())
+        gbp_local_dt = gbp_broker_dt - timedelta(hours=offset_hours)
+        
+        xau_local_date_str = xau_local_dt.strftime("%Y-%m-%d")
+        xau_local_time_str = xau_local_dt.strftime("%H:%M:%S")
+        
+        gbp_local_date_str = gbp_local_dt.strftime("%Y-%m-%d")
+        gbp_local_time_str = gbp_local_dt.strftime("%H:%M:%S")
+
+        if not hasattr(self, "_scheduled_close"):
+            self._scheduled_close = load_json(self.scheduled_close_file, [])
+            
+        xau_scheduled = False
+        gbp_scheduled = False
+        for t in self._scheduled_close:
+            if isinstance(t, dict):
+                if t.get("sym") == "XAUUSD" and t.get("date") == xau_local_date_str and t.get("time") == xau_local_time_str:
+                    xau_scheduled = True
+                if t.get("sym") == "GBP" and t.get("date") == gbp_local_date_str and t.get("time") == gbp_local_time_str:
+                    gbp_scheduled = True
+
+        if xau_local_dt < now_dt:
+            xau_scheduled = True
+        if gbp_local_dt < now_dt:
+            gbp_scheduled = True
+
+        modified = False
+        existing_ids = {t.get("id") for t in getattr(self, "scheduled_trades", [])}
+        if self._scheduled_close:
+            existing_ids.update({t.get("id") for t in self._scheduled_close if isinstance(t, dict) and t.get("id")})
+            
+        def get_new_id():
+            for _ in range(20):
+                cand = random.randint(10000, 99999)
+                if cand not in existing_ids:
+                    existing_ids.add(cand)
+                    return cand
+            return int(time.time() * 1000) % 100000000
+
+        profile_name = self.config.get("profile_name", "Unknown")
+        if not xau_scheduled:
+            new_id = get_new_id()
+            self._scheduled_close.append({
+                "id": new_id,
+                "time": xau_local_time_str,
+                "date": xau_local_date_str,
+                "filter": "all",
+                "sym": "XAUUSD",
+                "ticket": "",
+            })
+            modified = True
+            self.notify(
+                f"🤖 [{profile_name}] Tự động hẹn giờ ĐÓNG XAUUSD (ID: {new_id}) "
+                f"lúc {xau_local_time_str} ({xau_local_date_str}) [Broker: {xau_broker_time_str}]."
+            )
+            
+        if not gbp_scheduled:
+            new_id = get_new_id()
+            self._scheduled_close.append({
+                "id": new_id,
+                "time": gbp_local_time_str,
+                "date": gbp_local_date_str,
+                "filter": "all",
+                "sym": "GBP",
+                "ticket": "",
+            })
+            modified = True
+            self.notify(
+                f"🤖 [{profile_name}] Tự động hẹn giờ ĐÓNG GBP (ID: {new_id}) "
+                f"lúc {gbp_local_time_str} ({gbp_local_date_str}) [Broker: {gbp_broker_time_str}]."
+            )
+            
+        if modified:
+            save_json(self.scheduled_close_file, self._scheduled_close)
+
     def _check_scheduled_trades(self):
+        self._auto_schedule_daily_closes()
         if not self.scheduled_trades and not getattr(self, "_scheduled_close", None): return
 
         now_dt = datetime.now()
