@@ -297,7 +297,7 @@ class CopyTradeManager:
                 
                 if ticket_id in pos_map:
                     pos = pos_map[ticket_id]
-                    net_profit = pos.profit + pos.swap + pos.commission
+                    net_profit = pos.profit + pos.swap + getattr(pos, "commission", 0)
                     hit = False
                     if mode == "price" and target_price is not None:
                         try:
@@ -633,7 +633,7 @@ class CopyTradeManager:
             lines = ["📋 *VỊ THẾ ĐANG MỞ:*\n"]
             for pos in positions:
                 typ = "BUY" if pos.type == mt5.POSITION_TYPE_BUY else "SELL"
-                pnl = pos.profit + pos.swap + pos.commission
+                pnl = pos.profit + pos.swap + getattr(pos, "commission", 0)
                 icon = "🟢" if pnl >= 0 else "🔴"
                 lines.append(f"{icon} {pos.symbol} {typ} {pos.volume} lot | PnL: {pnl:+.2f}")
             self._send_mimo_response("\n".join(lines))

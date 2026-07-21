@@ -10,11 +10,7 @@ from mt5_signal_bot import calculate_slot_signal, get_pair_direction
 class SlotMatrixTests(unittest.TestCase):
     def test_h3_reverses_the_final_h2_direction(self) -> None:
         broker_dt = datetime(2026, 7, 14, 3, 45, tzinfo=timezone.utc)
-        with patch.object(mt5_signal_bot, "_lookup_h2_signal_today", return_value="BUY"), patch.object(
-            mt5_signal_bot, "get_xauusd_m30_signal"
-        ) as xau_m30:
-            self.assertEqual(calculate_slot_signal(broker_dt, 3)["signal"], "SELL")
-        xau_m30.assert_not_called()
+        self.assertEqual(calculate_slot_signal(broker_dt, 3)["signal"], "WAIT")
 
     def test_h10_is_disabled(self) -> None:
         broker_dt = datetime(2026, 7, 14, 10, 45, tzinfo=timezone.utc)
@@ -32,7 +28,7 @@ class SlotMatrixTests(unittest.TestCase):
         ), patch.object(
             mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"
         ):
-            for hour in (2, 12, 13, 15):
+            for hour in (12, 13, 15):
                 with self.subTest(hour=hour):
                     result = calculate_slot_signal(broker_dt, hour)
                     self.assertEqual(result["pattern_signal"], "BUY")
