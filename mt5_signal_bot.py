@@ -1122,9 +1122,14 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         for pair in GBP_PAIRS:
             result[pair] = signal
         return result
-    # All other active hours: XAUUSD
+    # All active hours: XAUUSD
     result["XAUUSD"] = signal
     apply_d_direction_marker(result, H, broker_dt)
+    # H=3: add GBPAUD same direction as H=5 yesterday (not reversed)
+    if h == 3 and broker_dt is not None:
+        h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
+        if h5_yesterday in ("BUY", "SELL"):
+            result["GBPAUD"] = h5_yesterday
     return result
 
 # =====================================================================
