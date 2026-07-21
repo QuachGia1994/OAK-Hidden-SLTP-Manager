@@ -334,7 +334,7 @@ def cmd_positions(message):
         total = 0
         for pos in positions:
             d = "🟢 BUY" if pos.type == mt5.POSITION_TYPE_BUY else "🔴 SELL"
-            pnl = pos.profit + pos.swap + pos.commission
+            pnl = pos.profit + pos.swap + getattr(pos, "commission", 0)
             total += pnl
             e = "💰" if pnl >= 0 else "💸"
             lines.append(f"• {d} *{pos.symbol}* #{pos.ticket}")

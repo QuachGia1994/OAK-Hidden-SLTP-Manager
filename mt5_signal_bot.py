@@ -49,10 +49,10 @@ SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
 # Mon–Fri active rhythm slots. H=6/H=10/H=11/H=14/H=17 are intentionally inactive.
 # XAU-only mode: no GBP focus pairs and no no-gold labels.
-DISABLED_HOURS = {6, 7, 8, 9, 10, 11, 14, 17}
-TARGET_HOURS = [2, 3, 4, 5, 12, 13, 15]
+DISABLED_HOURS = {2, 3, 6, 7, 8, 9, 10, 11, 14, 17}
+TARGET_HOURS = [4, 5, 12, 13, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 20
+SIGNAL_LOGIC_VERSION = 21
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 

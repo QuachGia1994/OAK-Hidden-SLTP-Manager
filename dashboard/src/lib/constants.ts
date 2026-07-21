@@ -1,6 +1,6 @@
 /** Mon–Fri H=2-5,12-13,15 (weekend excluded). */
-export const DISABLED_HOURS = new Set([6, 7, 8, 9, 10, 11, 14, 17]);
-export const TARGET_HOURS = [2, 3, 4, 5, 12, 13, 15];
+export const DISABLED_HOURS = new Set([2, 3, 6, 7, 8, 9, 10, 11, 14, 17]);
+export const TARGET_HOURS = [4, 5, 12, 13, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
@@ -64,18 +64,18 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3: đảo chiều từ kết quả H=2."],
-    2: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3: đảo chiều từ kết quả H=2."],
-    3: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30.", "H=3: đảo chiều từ kết quả H=2."],
-    4: ["Slots: H=2-5,12-13,15", "H=2: dùng kết quả H=2 của Thứ 2; tuần đặc biệt thì đảo.", "H=3: đảo chiều từ kết quả H=2."],
-    5: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 + hậu xử lý XAUUSD M30; không có rule đảo riêng.", "H=3: đảo chiều từ kết quả H=2."],
+    1: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
+    2: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
+    3: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
+    4: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
+    5: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
   },
   EN: {
-    1: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3: reverse the final H=2 direction."],
-    2: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3: reverse the final H=2 direction."],
-    3: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing.", "H=3: reverse the final H=2 direction."],
-    4: ["Slots: H=2-5,12-13,15", "H=2: reuses Monday H=2; special weeks reverse it.", "H=3: reverse the final H=2 direction."],
-    5: ["Slots: H=2-5,12-13,15", "H=2: M5/M30 with XAUUSD M30 post-processing; no separate reversal rule.", "H=3: reverse the final H=2 direction."],
+    1: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
+    2: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
+    3: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
+    4: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
+    5: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
   },
 };
 
