@@ -745,12 +745,12 @@ class DashboardControllerMixin:
                             continue
                         lbl.configure(text="—", text_color=muted)
 
-                # Next slot countdown (T2-T6=H2-5,7-9,12-13,15; broker weekday)
+                # Next slot countdown (T2-T6=H2-5,7-9,12-15; broker weekday)
                 try:
                     from mt5_signal_bot import get_target_hours as _gth
                     target_hours = _gth(weekday=now.weekday())
                 except Exception:
-                    target_hours = [] if is_weekend else [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15]
+                    target_hours = [] if is_weekend else [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15]
                 if not target_hours:
                     self.card_signal_next.configure(text=f"{T('ui_next')}: —")
                     self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: —")

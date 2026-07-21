@@ -1,20 +1,20 @@
-/** Mon–Fri H=2-5,12-13,15 (weekend excluded). */
-export const DISABLED_HOURS = new Set([2, 3, 6, 7, 8, 9, 10, 11, 14, 17]);
-export const TARGET_HOURS = [4, 5, 12, 13, 15];
+/** Mon–Fri H=2-5,7-9,12-15 (weekend excluded). */
+export const DISABLED_HOURS = new Set([6, 10, 11]);
+export const TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 /**
  * JS getDay(): Sun=0 Mon=1 Tue=2 Wed=3 Thu=4 Fri=5 Sat=6
- * Mon–Fri → H=2-5,7-9,12-13,15; weekend → []
+ * Mon–Fri → H=2-5,7-9,12-15; weekend → []
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
   return [...TARGET_HOURS];
 }
 
-export const GBP_PAIRS: string[] = [];
-export const ALL_PAIRS = ["XAUUSD"];
+export const GBP_PAIRS: string[] = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"];
+export const ALL_PAIRS = ["XAUUSD", ...GBP_PAIRS];
 
 /**
  * XAU-only mode: no GBP focus pairs.
@@ -46,17 +46,20 @@ export function resolveGbpDirection(
 }
 
 const HOUR_NOTES: Record<number, string> = {
-  3: "H=3: Đảo chiều từ H=2.",
-  4: "Chỉ Vàng (XAUUSD)",
+  2: "XAUUSD đảo từ H=5 hôm qua",
+  3: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
   5: "Chỉ Vàng (XAUUSD)",
+  7: "XAUUSD đảo từ H=5 hôm nay",
+  8: "XAUUSD đảo từ H=5 hôm nay",
+  9: "GBP group đảo từ H=5 hôm qua (Thứ 6 cùng chiều)",
   12: "Chỉ Vàng (XAUUSD)",
+  14: "GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo)",
   15: "Chỉ Vàng (XAUUSD)",
 };
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
-  if (h === 2) return null;
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
@@ -64,23 +67,24 @@ type RuleLocale = "VN" | "EN";
 
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
-    1: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
-    2: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
-    3: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
-    4: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
-    5: ["Slots: H=4-5,12-13,15", "Chỉ XAUUSD."],
+    1: ["Slots: H=2-5,7-9,12-15"],
+    2: ["Slots: H=2-5,7-9,12-15"],
+    3: ["Slots: H=2-5,7-9,12-15"],
+    4: ["Slots: H=2-5,7-9,12-15"],
+    5: ["Slots: H=2-5,7-9,12-15"],
   },
   EN: {
-    1: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
-    2: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
-    3: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
-    4: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
-    5: ["Slots: H=4-5,12-13,15", "XAUUSD only."],
+    1: ["Slots: H=2-5,7-9,12-15"],
+    2: ["Slots: H=2-5,7-9,12-15"],
+    3: ["Slots: H=2-5,7-9,12-15"],
+    4: ["Slots: H=2-5,7-9,12-15"],
+    5: ["Slots: H=2-5,7-9,12-15"],
   },
 };
 
 export function getDayRules(locale: RuleLocale, jsWeekday: number, date: Date = new Date()): string[] {
-  return [...(DAY_RULES[locale][jsWeekday] || [])];
+  const rules = [...(DAY_RULES[locale][jsWeekday] || [])];
+  return rules;
 }
 
 export function getSignalColor(signal: string): string {
