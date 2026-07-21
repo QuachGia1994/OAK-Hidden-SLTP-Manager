@@ -78,7 +78,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="terminal-kicker mb-3">{locale === "EN" ? "Trading command center" : "Trung tâm điều hành giao dịch"}</div>
-            <h1 className="text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl">
+            <h1 className="text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl break-words hyphens-auto" lang="vi">
               {t.dashboard}
             </h1>
             <p className="mt-2 text-base text-zinc-500 dark:text-zinc-400">

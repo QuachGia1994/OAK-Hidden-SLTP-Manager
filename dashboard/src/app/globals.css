@@ -470,6 +470,8 @@ body {
     padding: 0.55rem 0.35rem;
     font-size: 0.68rem;
     text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .terminal-nav-controls { grid-column: 2; }
