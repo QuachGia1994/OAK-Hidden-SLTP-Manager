@@ -39,14 +39,22 @@ export function SignalCard({
   const showHourNote = Boolean(
     hourNote &&
       rawHourNote !== "Chỉ Vàng (XAUUSD)" &&
-      hourNote !== "XAU only" &&
-      signal.hour !== 2,
+      hourNote !== "XAU only"
   );
 
-  const xauDir =
-    signal.pair_dirs?.XAUUSD ||
-    (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
-  const xauBadgeDir = !isVIP ? "locked" : xauDir || "-";
+  const defaultPairs = (signal.hour === 9 || signal.hour === 14)
+    ? ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
+    : ["XAUUSD"];
+
+  const activePairs = signal.pair_dirs && Object.keys(signal.pair_dirs).length > 0
+    ? Object.keys(signal.pair_dirs).filter((p) => p !== "Stock-DIRECTION" && p !== "GBP-DIRECTION")
+    : defaultPairs;
+
+  const getPairDir = (pair: string) => {
+    if (!isVIP) return "locked";
+    return signal.pair_dirs?.[pair] || (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
+  };
+
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
 
@@ -82,7 +90,9 @@ export function SignalCard({
       </div>
 
       <div className={`px-4 py-3 ${isBuy ? "bg-emerald-500/[0.035]" : isSell ? "bg-red-500/[0.035]" : ""}`}>
-        <PairBadge pair="XAUUSD" direction={xauBadgeDir} />
+        {activePairs.map((pair) => (
+          <PairBadge key={pair} pair={pair} direction={getPairDir(pair)} />
+        ))}
         {signal.pair_dirs?.["Stock-DIRECTION"] && (
           <PairBadge
             pair="Stock-DIRECTION"
