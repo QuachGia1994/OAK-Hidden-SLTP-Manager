@@ -49,7 +49,9 @@ export function SignalCard({
 
   const defaultPairs = (signal.hour === 9 || signal.hour === 14)
     ? ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
-    : ["XAUUSD"];
+    : (signal.hour === 2 || signal.hour === 3)
+      ? ["XAUUSD", "GBPAUD"]
+      : ["XAUUSD"];
 
   const activePairs = signal.pair_dirs && Object.keys(signal.pair_dirs).length > 0
     ? Object.keys(signal.pair_dirs).filter((p) => p !== "Stock-DIRECTION" && p !== "GBP-DIRECTION")

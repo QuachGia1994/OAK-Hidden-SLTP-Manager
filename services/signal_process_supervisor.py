@@ -239,6 +239,24 @@ class SignalProcessSupervisor:
             return
 
         proc = info["proc"]
+        if key in ("signal_bot", "mimo_bot"):
+            try:
+                root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                cfg_path = os.path.join(root_dir, "config.json")
+                if os.path.exists(cfg_path):
+                    import json
+                    with open(cfg_path, "r", encoding="utf-8") as f:
+                        cfg = json.load(f)
+                    token = cfg.get("telegram_token", "")
+                    chat_id = cfg.get("telegram_chat_id", "")
+                    if token and chat_id:
+                        sys.path.append(root_dir)
+                        from telegram_client import telegram_send_message
+                        bot_name = "MT5 Signal Bot" if key == "signal_bot" else "MiMo Telegram Bot"
+                        telegram_send_message(token, chat_id, f"🔴 {bot_name} đã DỪNG (Stopped)")
+            except Exception as e:
+                self._log(f"Failed to send stop telegram alert: {e}")
+
         if proc.poll() is None:
             try:
                 if os.name == "nt":

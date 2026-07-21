@@ -95,9 +95,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricTile label={t.statusBot} value={botStatus} tone={botState ? "buy" : "idle"} icon="bot" />
-        <MetricTile label={t.statusSignals} value={todaySignals.length.toString()} tone="info" icon="signal" />
         <MetricTile
           label={locale === "EN" ? "Stock direction · H4" : "Hướng Stock · H4"}
           mobileLabel="Stock · H4"
