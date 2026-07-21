@@ -137,6 +137,9 @@ class CopyTradeManager:
         self.scheduled_trades = load_json(self.scheduled_file)
         if not isinstance(self.scheduled_trades, list):
             self.scheduled_trades = []
+        self._scheduled_close = load_json(self.scheduled_close_file, [])
+        if not isinstance(self._scheduled_close, list):
+            self._scheduled_close = []
         self.connected_logged = False
 
         # --- IGNORE EXISTING MASTER TRADES ON STARTUP ---
@@ -1184,7 +1187,20 @@ class CopyTradeManager:
 
                     if not hasattr(self, "_scheduled_close"):
                         self._scheduled_close = load_json(self.scheduled_close_file, [])
+                    existing_ids = {t.get("id") for t in getattr(self, "scheduled_trades", [])}
+                    if hasattr(self, "_scheduled_close") and self._scheduled_close:
+                        existing_ids.update({t.get("id") for t in self._scheduled_close if isinstance(t, dict) and t.get("id")})
+                    new_id = None
+                    for _ in range(20):
+                        cand = random.randint(10000, 99999)
+                        if cand not in existing_ids:
+                            new_id = cand
+                            break
+                    if new_id is None:
+                        new_id = int(time.time() * 1000) % 100000000
+
                     self._scheduled_close.append({
+                        "id": new_id,
                         "time": time_val,
                         "date": target_date_str,
                         "filter": filter_type,
@@ -1192,7 +1208,7 @@ class CopyTradeManager:
                         "ticket": target_ticket,
                     })
                     save_json(self.scheduled_close_file, self._scheduled_close)
-                    self.notify(f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG ({filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
+                    self.notify(f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
                 except:
                     resp = get_natural_response("error", error="Sai định dạng giờ rồi anh ơi!")
                     self.notify(f"❌ [{profile_name}] {resp}")
@@ -1219,7 +1235,20 @@ class CopyTradeManager:
                         target_date_str = target_dt.strftime("%Y-%m-%d")
                         if not hasattr(self, "_scheduled_close"):
                             self._scheduled_close = load_json(self.scheduled_close_file, [])
+                        existing_ids = {t.get("id") for t in getattr(self, "scheduled_trades", [])}
+                        if hasattr(self, "_scheduled_close") and self._scheduled_close:
+                            existing_ids.update({t.get("id") for t in self._scheduled_close if isinstance(t, dict) and t.get("id")})
+                        new_id = None
+                        for _ in range(20):
+                            cand = random.randint(10000, 99999)
+                            if cand not in existing_ids:
+                                new_id = cand
+                                break
+                        if new_id is None:
+                            new_id = int(time.time() * 1000) % 100000000
+
                         self._scheduled_close.append({
+                            "id": new_id,
                             "time": recovered_time,
                             "date": target_date_str,
                             "filter": filter_type,
@@ -1228,7 +1257,7 @@ class CopyTradeManager:
                         })
                         save_json(self.scheduled_close_file, self._scheduled_close)
                         self.notify(
-                            f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG ({filter_type}) "
+                            f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) "
                             f"cho {target_sym or 'tất cả'} lúc {recovered_time} rồi nhé!"
                         )
                     except Exception:
@@ -1287,7 +1316,23 @@ class CopyTradeManager:
             
             if not partials_found:
                 msg += "• (Trống)\n"
-                
+            
+            # 3. Scheduled Close Tasks (from /closeall)
+            msg += "\n⏰ LỆNH HẸN GIỜ ĐÓNG (CLOSEALL):\n"
+            closes_found = False
+            if hasattr(self, "_scheduled_close") and self._scheduled_close:
+                for t in self._scheduled_close:
+                    if isinstance(t, dict):
+                        closes_found = True
+                        t_id = t.get("id", "?")
+                        t_time = t.get("time", "")
+                        t_date = t.get("date", "")
+                        t_filter = t.get("filter", "all")
+                        t_sym = t.get("sym", "tất cả")
+                        msg += f"• ID:{t_id} | Đóng ({t_filter}) {t_sym} | {t_time} ({t_date})\n"
+            if not closes_found:
+                msg += "• (Trống)\n"
+
             self.notify(msg)
 
         # 3. /status [PROFILE]
@@ -1411,11 +1456,22 @@ class CopyTradeManager:
 
                 initial_count = len(self.scheduled_trades)
                 self.scheduled_trades = [t for t in self.scheduled_trades if t.get("id") not in target_ids]
-                
                 deleted_count = initial_count - len(self.scheduled_trades)
                 
-                if deleted_count > 0:
-                    save_json(self.scheduled_file, self.scheduled_trades)
+                deleted_close_count = 0
+                if hasattr(self, "_scheduled_close") and self._scheduled_close:
+                    initial_close_count = len(self._scheduled_close)
+                    self._scheduled_close = [
+                        t for t in self._scheduled_close
+                        if not isinstance(t, dict) or t.get("id") not in target_ids
+                    ]
+                    deleted_close_count = initial_close_count - len(self._scheduled_close)
+                
+                if deleted_count > 0 or deleted_close_count > 0:
+                    if deleted_count > 0:
+                        save_json(self.scheduled_file, self.scheduled_trades)
+                    if deleted_close_count > 0:
+                        save_json(self.scheduled_close_file, self._scheduled_close)
                     id_str = ", ".join(str(i) for i in target_ids)
                     # self.notify(f"🤖 [{profile_name}] Đã xóa lệnh ID: {id_str}")
                     resp = get_natural_response("order_deleted", ticket_id=id_str)
