@@ -586,7 +586,7 @@ def build_startup_telegram_message(broker_dt, mt5_connected):
         f"Nguồn pattern: {SYMBOL} | MT5: {mt5_status}\n"
         f"Slots: {', '.join(f'H={h}' for h in TARGET_HOURS)}\n"
         f"Tắt: {disabled_slots}.\n"
-        "🔒 Auto-close: XAUUSD 17:44, GBP 19:44 (Broker)\n"
+        "🔒 Auto-close: XAUUSD 14:44 (T2) / 17:44, GBP 19:44 (Broker)\n"
         f"Quy tắc hôm nay:\n{rules}"
     )
 
@@ -1577,14 +1577,15 @@ def main(profile_name=None):
                 # Push giá realtime mỗi lần loop
                 push_prices_to_dashboard()
 
-                # Auto-close XAUUSD at 17:44
-                if now_hour == 17 and now_min == 44:
+                # Auto-close XAUUSD: 14:44 Thứ 2, 17:44 các ngày còn lại
+                xau_close_hour = 14 if broker_dt.weekday() == 0 else 17
+                if now_hour == xau_close_hour and now_min == 44:
                     today_key = broker_dt.date()
                     if today_key not in _xauusd_closed_today:
-                        closed = _close_positions_by_prefix(["XAUUSD"], "XAUUSD-17:44")
+                        closed = _close_positions_by_prefix(["XAUUSD"], f"XAUUSD-{xau_close_hour}:44")
                         if closed > 0:
-                            send_telegram(f"🔒 Đã đóng {closed} lệnh XAUUSD lúc 17:44 (Broker)")
-                            print(f"  [AUTO-CLOSE] Closed {closed} XAUUSD positions at 17:44")
+                            send_telegram(f"🔒 Đã đóng {closed} lệnh XAUUSD lúc {xau_close_hour}:44 (Broker)")
+                            print(f"  [AUTO-CLOSE] Closed {closed} XAUUSD positions at {xau_close_hour}:44")
                         _xauusd_closed_today.add(today_key)
 
                 # Auto-close GBP at 19:44
