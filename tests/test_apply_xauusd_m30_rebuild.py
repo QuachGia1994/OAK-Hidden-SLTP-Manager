@@ -21,18 +21,16 @@ def _dt_thursday():
 
 
 class TestApplyXauusdM30Rebuild(unittest.TestCase):
-    def test_h2_is_disabled(self):
-        result = calculate_slot_signal(_dt_tuesday(), 2)
-        self.assertEqual(result["signal"], "WAIT")
+    def test_h2_is_enabled(self):
+        self.assertNotIn(2, mt5_signal_bot.DISABLED_HOURS)
 
-    def test_h2_thursday_is_disabled(self):
-        result = calculate_slot_signal(_dt_thursday(), 2)
-        self.assertEqual(result["signal"], "WAIT")
+    def test_h2_thursday_is_enabled(self):
+        self.assertNotIn(2, mt5_signal_bot.DISABLED_HOURS)
 
-    def test_h2_pair_direction_returns_empty(self):
+    def test_h2_pair_direction_is_not_empty(self):
         dt = _dt_thursday()
         pair_dirs = get_pair_direction(2, "BUY", dt)
-        self.assertEqual(pair_dirs, {})
+        self.assertIn("XAUUSD", pair_dirs)
 
     def test_normal_slots_apply_xau_m30_flip_and_keep_xau_only(self):
         dt = _dt_tuesday()

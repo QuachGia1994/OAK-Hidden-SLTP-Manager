@@ -20,6 +20,11 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
     [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
     [/H=(3|7): Đảo chiều từ H=2\./g, "H=$1: reverse the final H=2 direction."],
     [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 Stock-direction"],
+    [/XAUUSD đảo từ H=5 hôm qua/g, "XAUUSD reverses from H=5 yesterday"],
+    [/XAUUSD đảo từ H=5 hôm nay/g, "XAUUSD reverses from H=5 today"],
+    [/GBPAUD cùng chiều H=5 hôm qua/g, "GBPAUD follows H=5 yesterday"],
+    [/GBP group đảo từ H=5 hôm qua \(Thứ 6 cùng chiều\)/g, "GBP reverses from H=5 yesterday (Fri follows)"],
+    [/GBP group cùng chiều H=5 hôm nay \(Thứ 6 đảo\)/g, "GBP follows H=5 today (Fri reverses)"],
   ];
   return map.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), note);
 }
