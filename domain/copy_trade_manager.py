@@ -631,9 +631,9 @@ class CopyTradeManager:
         if cmd[0] in ("/positions", "/position"):
             positions = mt5.positions_get()
             if not positions:
-                self._send_mimo_response("📋 Không có lệnh nào đang mở.")
+                self._send_mimo_response(f"📋 [{profile_name}] Không có lệnh nào đang mở.")
                 return
-            lines = ["📋 *VỊ THẾ ĐANG MỞ:*\n"]
+            lines = [f"📋 [{profile_name}] *VỊ THẾ ĐANG MỞ:*\n"]
             for pos in positions:
                 typ = "BUY" if pos.type == mt5.POSITION_TYPE_BUY else "SELL"
                 pnl = pos.profit + pos.swap + getattr(pos, "commission", 0)
