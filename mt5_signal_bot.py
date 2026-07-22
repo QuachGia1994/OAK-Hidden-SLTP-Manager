@@ -1066,87 +1066,102 @@ def _resolve_weekday(broker_dt=None, weekday=None):
 
 
 def get_h11_priority_and_nogold_rules(broker_dt):
-    """Determine today's priority slot (H=2, H=3, or H=4) and whether H=12,13,15 have no-gold labels,
-    based on yesterday's H=11 classification (SW vs BT).
+    """Determine today's priority slot and no-gold labels.
+
+    - Priority slot (H=2, H=3): based on YESTERDAY's H=11 classification (SW vs BT).
+    - No-gold label (H=12,13,15): based on TODAY's H=11 classification (SW vs BT).
     """
     if broker_dt is None:
         return {
             "prev_h11_group": "BT",
+            "today_h11_group": "BT",
             "priority_slot": 2,
             "priority_label": "Ưu tiên H=2",
             "has_nogold_label": False,
         }
 
-    # Find previous trading weekday
+    # --- Yesterday's H=11 → priority slot ---
     d = broker_dt.date() - timedelta(days=1)
     while d.weekday() >= 5:
         d -= timedelta(days=1)
     prev_dt = datetime.combine(d, datetime.min.time(), tzinfo=broker_dt.tzinfo or timezone.utc)
-
     prev_group, _ = evaluate_h11_classification(prev_dt)
-    weekday = broker_dt.weekday() # 0: Mon, 1: Tue, 2: Wed, 3: Thu, 4: Fri
+
+    # --- Today's H=11 → no-gold label ---
+    today_group, _ = evaluate_h11_classification(broker_dt)
+
+    weekday = broker_dt.weekday()  # 0: Mon, 1: Tue, 2: Wed, 3: Thu, 4: Fri
     is_special = is_h2_special_calendar_weekday(broker_dt)
 
+    # ── Priority slot (from yesterday's H=11) ──
     priority_slot = 2
     priority_label = "Ưu tiên H=2"
-    has_nogold = False
 
     if weekday == 0:  # Monday (Yesterday was Friday)
         if prev_group == "SW":
             priority_slot = 3
             priority_label = "Ưu tiên đi trễ H=3"
-            has_nogold = False
         else:  # BT
             priority_slot = 2
             priority_label = "Ưu tiên đi trễ H=2"
-            has_nogold = True
 
     elif weekday == 1:  # Tuesday (Yesterday was Monday)
         if prev_group == "SW":
             priority_slot = 2
             priority_label = "Ưu tiên đi sớm H=2"
-            has_nogold = False
         else:  # BT
             priority_slot = 3
             priority_label = "Ưu tiên đi trễ H=3"
-            has_nogold = True
 
     elif weekday == 2:  # Wednesday (Yesterday was Tuesday)
         if prev_group == "SW":
             priority_slot = 2
             priority_label = "Ưu tiên đi sớm H=2"
-            has_nogold = True
         else:  # BT
             priority_slot = 3
             priority_label = "Ưu tiên đi trễ H=3"
-            has_nogold = False
 
     elif weekday == 3:  # Thursday (Yesterday was Wednesday)
         if prev_group == "SW":
             priority_slot = 3
             priority_label = "Ưu tiên đi trễ H=3"
-            has_nogold = True
         else:  # BT
             priority_slot = 2
             priority_label = "Ưu tiên đi trễ H=2"
-            has_nogold = False
 
     elif weekday == 4:  # Friday (Yesterday was Thursday)
         if prev_group == "SW":
             priority_slot = 3
             priority_label = "Ưu tiên đi trễ H=3"
-            has_nogold = not is_special
         else:  # BT
             priority_slot = 2
             priority_label = "Ưu tiên đi trễ H=2"
+
+    # ── No-gold label (from TODAY's H=11) ──
+    has_nogold = False
+
+    if weekday == 0:    # Monday: BT → no-gold
+        has_nogold = (today_group == "BT")
+    elif weekday == 1:  # Tuesday: BT → no-gold
+        has_nogold = (today_group == "BT")
+    elif weekday == 2:  # Wednesday: SW → no-gold
+        has_nogold = (today_group == "SW")
+    elif weekday == 3:  # Thursday: SW → no-gold
+        has_nogold = (today_group == "SW")
+    elif weekday == 4:  # Friday: SW (normal) or BT (special)
+        if today_group == "SW":
+            has_nogold = not is_special
+        else:
             has_nogold = is_special
 
     return {
         "prev_h11_group": prev_group,
+        "today_h11_group": today_group,
         "priority_slot": priority_slot,
         "priority_label": priority_label,
         "has_nogold_label": has_nogold,
     }
+
 
 
 def get_h7_h8_priority_rule(broker_dt):
