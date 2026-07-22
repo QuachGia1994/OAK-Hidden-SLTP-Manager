@@ -750,7 +750,7 @@ class DashboardControllerMixin:
                     from mt5_signal_bot import get_target_hours as _gth
                     target_hours = _gth(weekday=now.weekday())
                 except Exception:
-                    target_hours = [] if is_weekend else [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15]
+                    target_hours = [] if is_weekend else [2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15]
                 if not target_hours:
                     self.card_signal_next.configure(text=f"{T('ui_next')}: —")
                     self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: —")

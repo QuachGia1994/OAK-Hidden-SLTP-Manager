@@ -15,6 +15,7 @@ class TestRhythmLabels(unittest.TestCase):
             7: "Nhịp 2 · AUD",
             8: "Nhịp 2 · AUD",
             9: "Nhịp 3 · GBP",
+            11: "Nhịp 4 · EUR",
             12: "Nhịp 4 · EUR",
             13: "Nhịp 4 · EUR",
             14: "Nhịp 5 · USD",
@@ -25,7 +26,7 @@ class TestRhythmLabels(unittest.TestCase):
                 self.assertEqual(get_rhythm_label(hour), label)
 
     def test_disabled_hours_have_no_label(self):
-        for hour in (1, 6, 10, 11, 16, 17):
+        for hour in (1, 6, 10, 16, 17):
             with self.subTest(hour=hour):
                 self.assertIsNone(get_rhythm_label(hour))
 

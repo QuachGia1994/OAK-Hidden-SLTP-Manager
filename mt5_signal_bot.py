@@ -49,8 +49,8 @@ SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
 # Mon–Fri active rhythm slots. H=6/H=10/H=11/H=17 are intentionally inactive.
 # XAU-only mode: no GBP focus pairs and no no-gold labels.
-DISABLED_HOURS = {6, 10, 11, 17}
-TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 12, 13, 14, 15]
+DISABLED_HOURS = {6, 10, 17}
+TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 22
 D_DIRECTION_PAIR = "Stock-DIRECTION"
@@ -73,7 +73,7 @@ def get_rhythm_label(hour):
         return "Nhịp 2 · AUD"
     if h == 9:
         return "Nhịp 3 · GBP"
-    if h in (12, 13):
+    if h in (11, 12, 13):
         return "Nhịp 4 · EUR"
     if h in (14, 15):
         return "Nhịp 5 · USD"
@@ -873,6 +873,61 @@ def _thursday_h2_history_result(broker_dt):
     }
 
 
+def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
+    """Evaluate 4 H1 candles (H=10, H=9, H=8, H=7) at slot H=11.
+    
+    Returns (group, detail_str) where group is "SW" (Sideway) or "BT" (Bình thường).
+    """
+    if broker_dt is None:
+        return "BT", "H10:Tăng, H9:Tăng, H8:Giảm, H7:Giảm [Rule 3]"
+
+    dirs = {}
+    vn_dirs = {}
+    for h in (10, 9, 8, 7):
+        ts_h1 = broker_time_to_ts(broker_dt, h, 0)
+        c = get_candle_by_ts(symbol, mt5.TIMEFRAME_H1, ts_h1)
+        if c is not None:
+            if c["close"] > c["open"]:
+                d = "TANG"
+            elif c["close"] < c["open"]:
+                d = "GIAM"
+            else:
+                doji_d = resolve_doji(symbol, mt5.TIMEFRAME_H1, ts_h1, broker_dt)
+                d = "TANG" if doji_d == "TANG" else "GIAM"
+        else:
+            d = "TANG"
+        dirs[h] = d
+        vn_dirs[h] = "Tăng" if d == "TANG" else "Giảm"
+
+    d10, d9, d8, d7 = dirs[10], dirs[9], dirs[8], dirs[7]
+
+    if d10 == "TANG":
+        if d9 == "GIAM" and d8 == "TANG" and d7 == "GIAM":
+            group, rule_num = "SW", 1
+        elif d9 == "GIAM" and d8 == "TANG" and d7 == "TANG":
+            group, rule_num = "BT", 2
+        elif d9 == "TANG" and d8 == "GIAM":
+            group, rule_num = "BT", 3
+        elif d9 == "TANG" and d8 == "TANG":
+            group, rule_num = "SW", 4
+        else:
+            group, rule_num = "SW", 5
+    else:
+        if d9 == "TANG" and d8 == "GIAM" and d7 == "TANG":
+            group, rule_num = "SW", 6
+        elif d9 == "TANG" and d8 == "GIAM" and d7 == "GIAM":
+            group, rule_num = "BT", 7
+        elif d9 == "GIAM" and d8 == "TANG":
+            group, rule_num = "BT", 8
+        elif d9 == "GIAM" and d8 == "GIAM":
+            group, rule_num = "SW", 9
+        else:
+            group, rule_num = "SW", 10
+
+    detail = f"H10:{vn_dirs[10]}, H9:{vn_dirs[9]}, H8:{vn_dirs[8]}, H7:{vn_dirs[7]}"
+    return group, detail
+
+
 def calculate_slot_signal(broker_dt, hour):
     """Apply the canonical H-slot matrix for live and rebuilt signals."""
     hour = int(hour)
@@ -906,6 +961,13 @@ def calculate_slot_signal(broker_dt, hour):
         wd = broker_dt.weekday()
         final_signal = h5_yesterday if wd == 4 else reverse_signal(h5_yesterday)
         return {"signal": final_signal, "pattern_signal": h5_yesterday, "report": f"H=9: {'cùng' if wd == 4 else 'đảo'} H=5 hôm qua ({h5_yesterday} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+    # H=11: Phân nhóm H1 XAUUSD (SW/BT) liên quan H=2,3 ngày mai
+    if hour == 11:
+        group, detail = evaluate_h11_classification(broker_dt)
+        result = analyze(broker_dt, 11)
+        res = _finalize_pattern_result(result, broker_dt, 11)
+        res["report"] = f"H=11: Nhóm {group} ({detail})\n" + res.get("report", "")
+        return res
     # H=14: GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo), không XAUUSD
     if hour == 14:
         h5_today = _lookup_h5_signal_today(broker_dt)
@@ -1031,6 +1093,11 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h in DISABLED_HOURS:
         return "Chỉ Vàng (XAUUSD)"
+    if h == 11:
+        if broker_dt is not None:
+            group, detail = evaluate_h11_classification(broker_dt)
+            return f"H=11: Nhóm {group} ({detail})"
+        return "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7"
     notes = {
         2: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
         3: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",

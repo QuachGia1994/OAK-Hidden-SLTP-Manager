@@ -64,7 +64,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
 
     def test_disabled_hours_return_no_pair_direction(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=1)
-        for hour in (6, 10, 11, 17):
+        for hour in (6, 10, 17):
             with self.subTest(hour=hour):
                 self.assertEqual(get_pair_direction(hour, "BUY", dt), {})
 
