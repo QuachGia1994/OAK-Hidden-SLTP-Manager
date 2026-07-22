@@ -878,24 +878,37 @@ def _thursday_h2_history_result(broker_dt):
 def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
     """Evaluate 4 H1 candles (H=10, H=9, H=8, H=7) at slot H=11.
     
-    Returns (group, detail_str) where group is "SW" (Sideway) or "BT" (Bình thường).
+    Returns (group, detail_str, candles_list) where group is "SW" (Sideway) or "BT" (Bình thường).
     """
     if broker_dt is None:
-        return "BT", "H10:Tăng, H9:Tăng, H8:Giảm, H7:Giảm [Rule 3]"
+        return "BT", "H10:Tăng, H9:Tăng, H8:Giảm, H7:Giảm [Rule 3]", []
 
     dirs = {}
     vn_dirs = {}
-    for h in (10, 9, 8, 7):
+    candles = []
+    for h in (7, 8, 9, 10):
         ts_h1 = broker_time_to_ts(broker_dt, h, 0)
         c = get_candle_by_ts(symbol, mt5.TIMEFRAME_H1, ts_h1)
         if c is not None:
-            if c["close"] > c["open"]:
+            open_p = round(float(c.get("open", 0)), 2)
+            close_p = round(float(c.get("close", 0)), 2)
+            high_p = round(float(c.get("high", max(open_p, close_p))), 2)
+            low_p = round(float(c.get("low", min(open_p, close_p))), 2)
+            if close_p > open_p:
                 d = "TANG"
-            elif c["close"] < c["open"]:
+            elif close_p < open_p:
                 d = "GIAM"
             else:
                 doji_d = resolve_doji(symbol, mt5.TIMEFRAME_H1, ts_h1, broker_dt)
                 d = "TANG" if doji_d == "TANG" else "GIAM"
+            candles.append({
+                "hour": h,
+                "open": open_p,
+                "high": high_p,
+                "low": low_p,
+                "close": close_p,
+                "dir": d,
+            })
         else:
             d = "TANG"
         dirs[h] = d
@@ -927,7 +940,7 @@ def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
             group, rule_num = "SW", 10
 
     detail = f"H10:{vn_dirs[10]}, H9:{vn_dirs[9]}, H8:{vn_dirs[8]}, H7:{vn_dirs[7]}"
-    return group, detail
+    return group, detail, candles
 
 
 def calculate_slot_signal(broker_dt, hour):
@@ -965,7 +978,10 @@ def calculate_slot_signal(broker_dt, hour):
         return {"signal": final_signal, "pattern_signal": h5_yesterday, "report": f"H=9: {'cùng' if wd == 4 else 'đảo'} H=5 hôm qua ({h5_yesterday} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=11: Phân nhóm H1 XAUUSD (SW/BT) liên quan H=2,3 ngày mai
     if hour == 11:
-        group, detail, candles = evaluate_h11_classification(broker_dt)
+        res_h11 = evaluate_h11_classification(broker_dt)
+        group = res_h11[0] if isinstance(res_h11, (tuple, list)) else "BT"
+        detail = res_h11[1] if isinstance(res_h11, (tuple, list)) and len(res_h11) > 1 else ""
+        candles = res_h11[2] if isinstance(res_h11, (tuple, list)) and len(res_h11) > 2 else []
         return {
             "signal": group,
             "pattern_signal": group,
@@ -1093,10 +1109,12 @@ def get_h11_priority_and_nogold_rules(broker_dt):
     while d.weekday() >= 5:
         d -= timedelta(days=1)
     prev_dt = datetime.combine(d, datetime.min.time(), tzinfo=broker_dt.tzinfo or timezone.utc)
-    prev_group, _ = evaluate_h11_classification(prev_dt)
+    res_prev = evaluate_h11_classification(prev_dt)
+    prev_group = res_prev[0] if isinstance(res_prev, (tuple, list)) else "BT"
 
     # --- Today's H=11 → no-gold label ---
-    today_group, _ = evaluate_h11_classification(broker_dt)
+    res_today = evaluate_h11_classification(broker_dt)
+    today_group = res_today[0] if isinstance(res_today, (tuple, list)) else "BT"
 
     weekday = broker_dt.weekday()  # 0: Mon, 1: Tue, 2: Wed, 3: Thu, 4: Fri
     is_special = is_h2_special_calendar_weekday(broker_dt)
@@ -1242,7 +1260,9 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "Chỉ Vàng (XAUUSD)"
     if h == 11:
         if broker_dt is not None:
-            group, detail = evaluate_h11_classification(broker_dt)
+            res_h11 = evaluate_h11_classification(broker_dt)
+            group = res_h11[0] if isinstance(res_h11, (tuple, list)) else "BT"
+            detail = res_h11[1] if isinstance(res_h11, (tuple, list)) and len(res_h11) > 1 else ""
             return f"H=11: Nhóm {group} ({detail})"
         return "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7"
 

@@ -20,7 +20,7 @@ class TestH11Classification(unittest.TestCase):
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
         dt = datetime(2026, 7, 22, 17, 45, tzinfo=timezone.utc)
-        group, detail = evaluate_h11_classification(dt)
+        group, detail, *rest = evaluate_h11_classification(dt)
         self.assertEqual(group, "SW")
         self.assertIn("H10:Tăng", detail)
         self.assertIn("H9:Giảm", detail)
@@ -39,7 +39,7 @@ class TestH11Classification(unittest.TestCase):
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
         dt = datetime(2026, 7, 22, 17, 45, tzinfo=timezone.utc)
-        group, detail = evaluate_h11_classification(dt)
+        group, detail, *rest = evaluate_h11_classification(dt)
         self.assertEqual(group, "BT")
 
     @patch("mt5_signal_bot.get_candle_by_ts")
@@ -54,7 +54,7 @@ class TestH11Classification(unittest.TestCase):
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
         dt = datetime(2026, 7, 22, 17, 45, tzinfo=timezone.utc)
-        group, detail = evaluate_h11_classification(dt)
+        group, detail, *rest = evaluate_h11_classification(dt)
         self.assertEqual(group, "BT")
 
     @patch("mt5_signal_bot.get_candle_by_ts")
@@ -69,7 +69,7 @@ class TestH11Classification(unittest.TestCase):
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
         dt = datetime(2026, 7, 22, 17, 45, tzinfo=timezone.utc)
-        group, detail = evaluate_h11_classification(dt)
+        group, detail, *rest = evaluate_h11_classification(dt)
         self.assertEqual(group, "SW")
 
     @patch("mt5_signal_bot.get_candle_by_ts")
@@ -84,7 +84,7 @@ class TestH11Classification(unittest.TestCase):
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
         dt = datetime(2026, 7, 22, 17, 45, tzinfo=timezone.utc)
-        group, detail = evaluate_h11_classification(dt)
+        group, detail, *rest = evaluate_h11_classification(dt)
         self.assertEqual(group, "SW")
 
     @patch("mt5_signal_bot.get_candle_by_ts")
@@ -99,7 +99,7 @@ class TestH11Classification(unittest.TestCase):
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
         dt = datetime(2026, 7, 22, 17, 45, tzinfo=timezone.utc)
-        group, detail = evaluate_h11_classification(dt)
+        group, detail, *rest = evaluate_h11_classification(dt)
         self.assertEqual(group, "SW")
 
 
