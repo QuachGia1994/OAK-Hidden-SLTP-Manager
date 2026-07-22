@@ -1398,14 +1398,17 @@ class CopyTradeManager:
                             save_json(task_file, new_tasks)
                         except: pass
                     
-                    # 2. Clear Scheduled Closes (from /closeall)
+                    # 2. Clear Scheduled Closes (keep fixed daily closes)
                     deleted_scheduled = 0
                     if hasattr(self, "_scheduled_close"):
-                        deleted_scheduled = len(self._scheduled_close)
-                        self._scheduled_close = []
-                        save_json(self.scheduled_close_file, [])
+                        kept = [
+                            t for t in self._scheduled_close
+                            if isinstance(t, dict) and (t.get("is_auto_daily") or t.get("sym") in ("XAUUSD", "GBP"))
+                        ]
+                        deleted_scheduled = len(self._scheduled_close) - len(kept)
+                        self._scheduled_close = kept
+                        save_json(self.scheduled_close_file, self._scheduled_close)
                     
-                    # self.notify(f"🗑️ [{profile_name}] Đã xóa {deleted_partials} lệnh Partial và {deleted_scheduled} lệnh hẹn giờ ĐÓNG.")
                     resp = get_natural_response("all_ticket_close_deleted", p_count=deleted_partials, s_count=deleted_scheduled)
                     self.notify(f"🗑️ [{profile_name}] {resp}")
                     return
@@ -1416,12 +1419,16 @@ class CopyTradeManager:
                     count_entries = len(self.scheduled_trades)
                     self.scheduled_trades = []
                     save_json(self.scheduled_file, self.scheduled_trades)
-                    # Xóa scheduled close tasks
+                    # Xóa scheduled close tasks (trừ daily fixed schedule close)
                     count_closes = 0
                     if hasattr(self, "_scheduled_close"):
-                        count_closes = len(self._scheduled_close)
-                        self._scheduled_close = []
-                        save_json(self.scheduled_close_file, [])
+                        kept = [
+                            t for t in self._scheduled_close
+                            if isinstance(t, dict) and (t.get("is_auto_daily") or t.get("sym") in ("XAUUSD", "GBP"))
+                        ]
+                        count_closes = len(self._scheduled_close) - len(kept)
+                        self._scheduled_close = kept
+                        save_json(self.scheduled_close_file, self._scheduled_close)
                     # Xóa lệnh canh chốt từng phần (price/profit partials) của profile này
                     count_partials = 0
                     task_file = self.pending_partials_file
@@ -1429,13 +1436,13 @@ class CopyTradeManager:
                         try:
                             tasks = load_json(task_file)
                             if isinstance(tasks, dict):
-                                kept = {}
+                                kept_partials = {}
                                 for tid, task in tasks.items():
                                     if task.get("profile") != profile_name:
-                                        kept[tid] = task
+                                        kept_partials[tid] = task
                                     else:
                                         count_partials += 1
-                                save_json(task_file, kept)
+                                save_json(task_file, kept_partials)
                         except Exception:
                             pass
                     self.notify(
@@ -2408,6 +2415,7 @@ class CopyTradeManager:
                 "filter": "all",
                 "sym": "XAUUSD",
                 "ticket": "",
+                "is_auto_daily": True,
             })
             modified = True
             self.notify(
@@ -2424,6 +2432,7 @@ class CopyTradeManager:
                 "filter": "all",
                 "sym": "GBP",
                 "ticket": "",
+                "is_auto_daily": True,
             })
             modified = True
             self.notify(

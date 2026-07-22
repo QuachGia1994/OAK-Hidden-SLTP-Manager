@@ -964,10 +964,15 @@ def calculate_slot_signal(broker_dt, hour):
     # H=11: Phân nhóm H1 XAUUSD (SW/BT) liên quan H=2,3 ngày mai
     if hour == 11:
         group, detail = evaluate_h11_classification(broker_dt)
-        result = analyze(broker_dt, 11)
-        res = _finalize_pattern_result(result, broker_dt, 11)
-        res["report"] = f"H=11: Nhóm {group} ({detail})\n" + res.get("report", "")
-        return res
+        return {
+            "signal": group,
+            "pattern_signal": group,
+            "report": f"H=11: Nhóm {group} ({detail})",
+            "m30_dir": None,
+            "h1_signal": None,
+            "skip_xau_m30": True,
+            "pair_dirs": {"XAUUSD": group},
+        }
     # H=14: GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo), không XAUUSD
     if hour == 14:
         h5_today = _lookup_h5_signal_today(broker_dt)
@@ -1276,6 +1281,10 @@ def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
     if xau in ("BUY", "SELL"):
         p_icon, _ = get_signal_icon(xau)
         lines.append(f"  XAUUSD: {p_icon} {xau}")
+    elif xau in ("SW", "BT"):
+        icon = "🟡" if xau == "SW" else "⚪"
+        lbl = "Sideway" if xau == "SW" else "Bình Thường"
+        lines.append(f"  XAUUSD: {icon} {lbl}")
     elif xau is None:
         pass
 
@@ -1337,6 +1346,9 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     h = int(H)
     if h in DISABLED_HOURS:
         return result
+    if signal in ("SW", "BT"):
+        result["XAUUSD"] = signal
+        return result
     if signal not in ("BUY", "SELL"):
         return result
     # H=9,14: GBP group only, no XAUUSD
@@ -1380,23 +1392,42 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     # Hiển thị XAUUSD only.
     pair_text = format_telegram_pair_block(pair_dirs, H, broker_dt)
 
-    conclusion = f"KẾT LUẬN (XAUUSD): {icon} {sig}\n"
+    if sig in ("SW", "BT"):
+        label = "Sideway" if sig == "SW" else "Bình Thường"
+        conclusion = f"PHÂN NHÓM H1: {icon} {label} ({sig})\n"
+        msg = (
+            f"📊 Phân nhóm H1 XAUUSD - {icon} {label}\n"
+            f"============================\n"
+            f"  {fmt_hour(H)}:45 (Broker)\n"
+            f"============================\n\n"
+            f"{report}\n\n"
+            f"============================\n"
+            f"{conclusion}"
+            f"-------------------\n"
+            f"{pair_text}\n"
+            f"-------------------\n"
+            f"{note_line}"
+            f"============================\n"
+            f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
+        )
+    else:
+        conclusion = f"KẾT LUẬN (XAUUSD): {icon} {sig}\n"
+        msg = (
+            f"{emoji} Tín hiệu pattern {SYMBOL} - {icon} {sig}\n"
+            f"============================\n"
+            f"  {fmt_hour(H)}:45 (Broker)\n"
+            f"============================\n\n"
+            f"{report}\n\n"
+            f"============================\n"
+            f"{conclusion}"
+            f"-------------------\n"
+            f"{pair_text}\n"
+            f"-------------------\n"
+            f"{note_line}"
+            f"============================\n"
+            f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
+        )
 
-    msg = (
-        f"{emoji} Tín hiệu pattern {SYMBOL} - {icon} {sig}\n"
-        f"============================\n"
-        f"  {fmt_hour(H)}:45 (Broker)\n"
-        f"============================\n\n"
-        f"{report}\n\n"
-        f"============================\n"
-        f"{conclusion}"
-        f"-------------------\n"
-        f"{pair_text}\n"
-        f"-------------------\n"
-        f"{note_line}"
-        f"============================\n"
-        f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
-    )
     send_telegram(msg)
 
     # Quick-order: chỉ XAUUSD.

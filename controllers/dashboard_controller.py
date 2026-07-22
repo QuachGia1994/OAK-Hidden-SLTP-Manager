@@ -701,7 +701,7 @@ class DashboardControllerMixin:
                                     latest = signals[-1] if isinstance(signals, list) else None
                             if latest:
                                 sig = latest.get("signal", "—")
-                                icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
+                                icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "🟡" if sig == "SW" else "⚪"
                                 hour = latest.get("hour")
                                 hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
                                 card_sig.configure(text=f"{T('ui_current')}: {icon} {sig}{hour_txt}")
@@ -740,6 +740,10 @@ class DashboardControllerMixin:
                                 lbl.configure(text=T("sig_buy"), text_color=p.get("success", "#2ecc71"))
                             elif d == "SELL":
                                 lbl.configure(text=T("sig_sell"), text_color=p.get("danger", "#e74c3c"))
+                            elif d == "SW":
+                                lbl.configure(text="SW", text_color=p.get("warning", "#f39c12"))
+                            elif d == "BT":
+                                lbl.configure(text="BT", text_color=p.get("text_muted", "gray"))
                             else:
                                 lbl.configure(text="—", text_color=muted)
                             continue

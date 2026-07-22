@@ -152,7 +152,12 @@ def compute_telegram_backoff(consecutive_fails):
 
 
 # --- Signal helpers ---
-SIGNAL_ICONS = {"BUY": ("Mua", "\U0001f7e2"), "SELL": ("Bán", "\U0001f534")}
+SIGNAL_ICONS = {
+    "BUY": ("Mua", "\U0001f7e2"),
+    "SELL": ("Bán", "\U0001f534"),
+    "SW": ("Sideway", "\U0001f7e1"),
+    "BT": ("Bình Thường", "\u26aa"),
+}
 VN_DIR = {"TANG": "Tăng", "GIAM": "Giảm", "DOJI": "Doji"}
 
 

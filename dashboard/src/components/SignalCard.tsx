@@ -15,7 +15,7 @@ import { PairBadge } from "./PairBadge";
 function translateHourNote(note: string | null | undefined, locale: "VN" | "EN"): string | null {
   if (!note) return null;
   if (locale === "VN") return note;
-  const map: Array<[RegExp, string]> = [
+  const map: Array<[RegExp, string | ((match: string, ...args: any[]) => string)]> = [
     [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
     [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
     [/H=(3|7): Đảo chiều từ H=2\./g, "H=$1: reverse the final H=2 direction."],
@@ -25,8 +25,14 @@ function translateHourNote(note: string | null | undefined, locale: "VN" | "EN")
     [/GBPAUD cùng chiều H=5 hôm qua/g, "GBPAUD follows H=5 yesterday"],
     [/GBP group đảo từ H=5 hôm qua \(Thứ 6 cùng chiều\)/g, "GBP reverses from H=5 yesterday (Fri follows)"],
     [/GBP group cùng chiều H=5 hôm nay \(Thứ 6 đảo\)/g, "GBP follows H=5 today (Fri reverses)"],
+    [/H=11: Nhóm (SW|BT) \((.*?)\)/g, (_: string, grp: string, dt: string) => `H=11: ${grp} Group (${dt.replace(/Tăng/g, "Up").replace(/Giảm/g, "Down")})`],
   ];
-  return map.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), note);
+  return map.reduce((acc, [pattern, replacement]) => {
+    if (typeof replacement === "string") {
+      return acc.replace(pattern, replacement);
+    }
+    return acc.replace(pattern, replacement);
+  }, note);
 }
 
 export function SignalCard({

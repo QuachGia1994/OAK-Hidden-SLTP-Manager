@@ -161,13 +161,17 @@ export function getDayRules(locale: RuleLocale, jsWeekday: number, date: Date = 
 export function getSignalColor(signal: string): string {
   if (signal === "BUY" || signal === "Mua") return "text-[var(--terminal-accent)]";
   if (signal === "SELL" || signal === "Bán") return "text-[var(--terminal-danger)]";
+  if (signal === "SW") return "text-[var(--terminal-warning)]";
+  if (signal === "BT") return "text-[var(--foreground)]";
   return "text-[var(--muted)]";
 }
 
 export function getSignalLabel(signal: string, locale: "VN" | "EN" = "VN"): string {
-  if (signal === "BUY") return locale === "EN" ? "Buy" : "Mua";
-  if (signal === "SELL") return locale === "EN" ? "Sell" : "Bán";
+  if (signal === "BUY" || signal === "Mua") return locale === "EN" ? "Buy" : "Mua";
+  if (signal === "SELL" || signal === "Bán") return locale === "EN" ? "Sell" : "Bán";
   if (signal === "WAIT") return locale === "EN" ? "WAIT" : "Chờ";
+  if (signal === "SW") return "Sideway";
+  if (signal === "BT") return locale === "EN" ? "Normal" : "Bình Thường";
   return signal;
 }
 

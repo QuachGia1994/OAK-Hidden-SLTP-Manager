@@ -61,6 +61,28 @@ export function PairBadge({ pair, direction }: PairBadgeProps) {
     );
   }
 
+  if (direction === "SW") {
+    return (
+      <div className="flex items-center justify-between py-1.5">
+        <span className="font-mono text-sm font-black text-[var(--foreground)]">{pair}</span>
+        <span className="text-[10px] font-mono font-black tracking-wide px-2.5 py-1 rounded-md border border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)]">
+          {getSignalLabel(direction, locale)}
+        </span>
+      </div>
+    );
+  }
+
+  if (direction === "BT") {
+    return (
+      <div className="flex items-center justify-between py-1.5">
+        <span className="font-mono text-sm font-black text-[var(--foreground)]">{pair}</span>
+        <span className="text-[10px] font-mono font-black tracking-wide px-2.5 py-1 rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--foreground)]">
+          {getSignalLabel(direction, locale)}
+        </span>
+      </div>
+    );
+  }
+
   const isBuy = direction === "BUY";
 
   return (
