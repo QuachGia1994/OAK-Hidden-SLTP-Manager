@@ -17,8 +17,10 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Callable
 
+from domain.file_lock import FileLock
+from domain.json_io import save_json
 from services.debug_bundle_service import build_debug_bundle_bytes
 from services.stock_advisor_desktop import (
     StockAdvisorDesktopError,
@@ -374,13 +376,8 @@ def read_json(path: Path, default: Any) -> Any:
 
 
 def write_json_atomic(path: Path, payload: Any) -> None:
-    """Write JSON through a same-folder temporary file."""
-    temp_path = path.with_suffix(f"{path.suffix}.tmp")
-    temp_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=4),
-        encoding="utf-8",
-    )
-    temp_path.replace(path)
+    """Write JSON through the shared unique-temp atomic writer."""
+    save_json(path, payload)
 
 
 def normalize_profile_name(value: str) -> str:
@@ -487,6 +484,32 @@ def clear_done_pending_data(data: Any) -> tuple[Any, int]:
         else:
             kept.append(row)
     return kept, removed
+
+
+def mutate_pending_file(
+    path: Path,
+    default: Any,
+    mutator: Callable[[Any], tuple[Any, Any]],
+) -> tuple[Any, Any]:
+    """Reload, mutate, and persist one pending file without losing updates."""
+    if path.name.startswith("scheduled_close_") and path.suffix == ".json":
+        with FileLock(f"{path}.lock", timeout=3.0) as lock:
+            if lock is None:
+                raise TimeoutError(f"Timed out locking {path.name}")
+            return _mutate_pending_file_unlocked(path, default, mutator)
+    return _mutate_pending_file_unlocked(path, default, mutator)
+
+
+def _mutate_pending_file_unlocked(
+    path: Path,
+    default: Any,
+    mutator: Callable[[Any], tuple[Any, Any]],
+) -> tuple[Any, Any]:
+    data = read_json(path, default)
+    updated, result = mutator(data)
+    if result:
+        write_json_atomic(path, updated)
+    return updated, result
 
 
 def log_line_matches_level(line: str, level: str) -> bool:
@@ -1960,17 +1983,19 @@ class NativeShell:
             self._set_pending_status("Cannot resolve pending file.", "red")
             return
         default = {} if item.get("_pending_shape") == "dict" else []
-        data = read_json(path, default)
-        updated, removed = remove_pending_item_from_data(data, item)
+        try:
+            _updated, removed = mutate_pending_file(
+                path,
+                default,
+                lambda data: remove_pending_item_from_data(data, item),
+            )
+        except OSError as exc:
+            self._set_pending_status(f"Delete failed: {exc}", "red")
+            return
         if not removed:
             self.pending_delete_key = ""
             self.refresh()
             self._set_pending_status("Pending item was not found on disk.", "amber")
-            return
-        try:
-            write_json_atomic(path, updated)
-        except OSError as exc:
-            self._set_pending_status(f"Delete failed: {exc}", "red")
             return
         self.pending_delete_key = ""
         self.log(f"Deleted pending item from {path.name}.")
@@ -1988,11 +2013,8 @@ class NativeShell:
             for _kind, path, shape in pending_file_specs(ROOT, self.selected):
                 if shape != "list":
                     continue
-                data = read_json(path, [])
-                updated, removed = clear_done_pending_data(data)
-                if removed:
-                    write_json_atomic(path, updated)
-                    removed_total += removed
+                _updated, removed = mutate_pending_file(path, [], clear_done_pending_data)
+                removed_total += removed
         except OSError as exc:
             self._set_pending_status(f"Clear failed: {exc}", "red")
             return

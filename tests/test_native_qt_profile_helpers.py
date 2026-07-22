@@ -3,7 +3,9 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
+import oak_qt_shell
 from oak_qt_shell import normalize_profile_name, unique_profile_name, write_json_atomic
 
 
@@ -24,6 +26,14 @@ class TestNativeQtProfileHelpers(unittest.TestCase):
             write_json_atomic(path, {"A": {"profile_name": "A"}})
             self.assertIn('"A"', path.read_text(encoding="utf-8"))
             self.assertFalse(path.with_suffix(".json.tmp").exists())
+
+    def test_write_json_atomic_uses_shared_json_writer(self):
+        path = Path("profiles.json")
+        payload = {"A": {"profile_name": "A"}}
+        with patch.object(oak_qt_shell, "save_json") as save_mock:
+            write_json_atomic(path, payload)
+
+        save_mock.assert_called_once_with(path, payload)
 
 
 if __name__ == "__main__":

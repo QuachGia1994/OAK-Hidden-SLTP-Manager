@@ -2,6 +2,7 @@
 
 ## [Chưa phát hành] - 2026-07-22
 
+- Ghi JSON lịch đóng lệnh bằng file tạm riêng, retry khóa Windows và transaction chung giữa worker/NativeQt, tránh `Loop Error [WinError 5]` lẫn mất lịch do ghi đè đồng thời.
 - Giữ record H=11 SW/BT hợp lệ có đủ bốn nến trong lịch sử 7 ngày để Dashboard hiển thị SVG OHLC.
 - Rule ưu tiên H=7/H=8 nay đối xứng cho cả hai hướng H=5 và không tự tạo badge khi thiếu nến H=6.
 - Lệnh nhanh Telegram nhận giờ broker `HH:MM` đầy đủ, tự đổi sang giờ Windows và vẫn tương thích cách nhập chỉ phút; chỉ phản hồi hợp lệ của user mới tạo `/pending`.

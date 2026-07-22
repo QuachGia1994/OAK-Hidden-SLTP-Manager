@@ -61,7 +61,16 @@ TELE_OFFSET_FILE = os.path.join(PROJECT_DIR, "tele_offset.json")
 # =====================================================================
 # BOT INSTANCE
 # =====================================================================
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
+def _create_telegram_bot(token):
+    """Create handlers while keeping token validation strict when configured."""
+    return telebot.TeleBot(
+        token,
+        parse_mode="Markdown",
+        validate_token=bool(token),
+    )
+
+
+bot = _create_telegram_bot(BOT_TOKEN)
 
 # =====================================================================
 # SECURITY
@@ -740,6 +749,10 @@ def handle_all(message):
 # =====================================================================
 if __name__ == "__main__":
     import time as _time
+
+    if not BOT_TOKEN:
+        print("[ERROR] Missing telegram_token in config.json; MiMo bot was not started.")
+        sys.exit(2)
 
     LOCK_FILE = os.path.join(PROJECT_DIR, "mimo_bot.lock")
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import sys
+import tempfile
+import time
 
 
 def resource_path(relative_path):
@@ -29,8 +31,33 @@ def load_json(file, default=None):
     return default
 
 
+def _replace_with_retry(temporary_file, target_file, attempts=5):
+    """Replace a JSON file after brief Windows sharing violations."""
+    for attempt in range(attempts):
+        try:
+            os.replace(temporary_file, target_file)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
 def save_json(file, data):
-    temp_file = f"{file}.tmp"
-    with open(temp_file, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-    os.replace(temp_file, file)
+    target_file = os.path.abspath(file)
+    target_directory = os.path.dirname(target_file)
+    prefix = f".{os.path.basename(target_file)}."
+    descriptor, temporary_file = tempfile.mkstemp(
+        dir=target_directory,
+        prefix=prefix,
+        suffix=".tmp",
+    )
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as output_file:
+            json.dump(data, output_file, indent=4, ensure_ascii=False)
+        _replace_with_retry(temporary_file, target_file)
+    finally:
+        try:
+            os.remove(temporary_file)
+        except FileNotFoundError:
+            pass

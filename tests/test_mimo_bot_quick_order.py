@@ -11,6 +11,16 @@ class QuickOrderTimeTests(unittest.TestCase):
     def tearDown(self):
         mimo_bot._pending_signal.clear()
 
+    @patch("mimo_bot.telebot.TeleBot")
+    def test_empty_token_only_disables_constructor_validation(self, telebot_class):
+        mimo_bot._create_telegram_bot("")
+
+        telebot_class.assert_called_once_with(
+            "",
+            parse_mode="Markdown",
+            validate_token=False,
+        )
+
     def test_accepts_free_hour_and_minute(self):
         self.assertEqual(
             mimo_bot._parse_quick_order_input("0.01 09:15 vantage", signal_hour="8"),

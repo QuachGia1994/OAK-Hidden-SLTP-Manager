@@ -1226,29 +1226,16 @@ class CopyTradeManager:
                             target_dt += timedelta(days=1)
                     target_date_str = target_dt.strftime("%Y-%m-%d")
 
-                    if not hasattr(self, "_scheduled_close"):
-                        self._scheduled_close = load_json(self.scheduled_close_file, [])
-                    existing_ids = {t.get("id") for t in getattr(self, "scheduled_trades", [])}
-                    if hasattr(self, "_scheduled_close") and self._scheduled_close:
-                        existing_ids.update({t.get("id") for t in self._scheduled_close if isinstance(t, dict) and t.get("id")})
-                    new_id = None
-                    for _ in range(20):
-                        cand = random.randint(10000, 99999)
-                        if cand not in existing_ids:
-                            new_id = cand
-                            break
-                    if new_id is None:
-                        new_id = int(time.time() * 1000) % 100000000
-
-                    self._scheduled_close.append({
-                        "id": new_id,
+                    created = self._append_scheduled_close({
                         "time": time_val,
                         "date": target_date_str,
                         "filter": filter_type,
                         "sym": target_sym,
                         "ticket": target_ticket,
                     })
-                    save_json(self.scheduled_close_file, self._scheduled_close)
+                    if created is None:
+                        raise TimeoutError("scheduled close file is busy")
+                    new_id = created["id"]
                     self.notify(f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
                 except:
                     resp = get_natural_response("error", error="Sai định dạng giờ rồi anh ơi!")
@@ -1274,29 +1261,16 @@ class CopyTradeManager:
                         while target_dt.weekday() in (5, 6):
                             target_dt += timedelta(days=1)
                         target_date_str = target_dt.strftime("%Y-%m-%d")
-                        if not hasattr(self, "_scheduled_close"):
-                            self._scheduled_close = load_json(self.scheduled_close_file, [])
-                        existing_ids = {t.get("id") for t in getattr(self, "scheduled_trades", [])}
-                        if hasattr(self, "_scheduled_close") and self._scheduled_close:
-                            existing_ids.update({t.get("id") for t in self._scheduled_close if isinstance(t, dict) and t.get("id")})
-                        new_id = None
-                        for _ in range(20):
-                            cand = random.randint(10000, 99999)
-                            if cand not in existing_ids:
-                                new_id = cand
-                                break
-                        if new_id is None:
-                            new_id = int(time.time() * 1000) % 100000000
-
-                        self._scheduled_close.append({
-                            "id": new_id,
+                        created = self._append_scheduled_close({
                             "time": recovered_time,
                             "date": target_date_str,
                             "filter": filter_type,
                             "sym": target_sym,
                             "ticket": target_ticket,
                         })
-                        save_json(self.scheduled_close_file, self._scheduled_close)
+                        if created is None:
+                            raise TimeoutError("scheduled close file is busy")
+                        new_id = created["id"]
                         self.notify(
                             f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) "
                             f"cho {target_sym or 'tất cả'} lúc {recovered_time} rồi nhé!"
@@ -1439,15 +1413,12 @@ class CopyTradeManager:
                         except: pass
                     
                     # 2. Clear Scheduled Closes (keep fixed daily closes)
-                    deleted_scheduled = 0
-                    if hasattr(self, "_scheduled_close"):
-                        kept = [
-                            t for t in self._scheduled_close
-                            if isinstance(t, dict) and (t.get("is_auto_daily") or t.get("sym") in ("XAUUSD", "GBP"))
-                        ]
-                        deleted_scheduled = len(self._scheduled_close) - len(kept)
-                        self._scheduled_close = kept
-                        save_json(self.scheduled_close_file, self._scheduled_close)
+                    deleted_scheduled = self._remove_scheduled_closes(
+                        lambda task: not (
+                            isinstance(task, dict)
+                            and (task.get("is_auto_daily") or task.get("sym") in ("XAUUSD", "GBP"))
+                        )
+                    ) or 0
                     
                     resp = get_natural_response("all_ticket_close_deleted", p_count=deleted_partials, s_count=deleted_scheduled)
                     self.notify(f"🗑️ [{profile_name}] {resp}")
@@ -1460,15 +1431,12 @@ class CopyTradeManager:
                     self.scheduled_trades = []
                     save_json(self.scheduled_file, self.scheduled_trades)
                     # Xóa scheduled close tasks (trừ daily fixed schedule close)
-                    count_closes = 0
-                    if hasattr(self, "_scheduled_close"):
-                        kept = [
-                            t for t in self._scheduled_close
-                            if isinstance(t, dict) and (t.get("is_auto_daily") or t.get("sym") in ("XAUUSD", "GBP"))
-                        ]
-                        count_closes = len(self._scheduled_close) - len(kept)
-                        self._scheduled_close = kept
-                        save_json(self.scheduled_close_file, self._scheduled_close)
+                    count_closes = self._remove_scheduled_closes(
+                        lambda task: not (
+                            isinstance(task, dict)
+                            and (task.get("is_auto_daily") or task.get("sym") in ("XAUUSD", "GBP"))
+                        )
+                    ) or 0
                     # Xóa lệnh canh chốt từng phần (price/profit partials) của profile này
                     count_partials = 0
                     task_file = self.pending_partials_file
@@ -1506,20 +1474,13 @@ class CopyTradeManager:
                 self.scheduled_trades = [t for t in self.scheduled_trades if t.get("id") not in target_ids]
                 deleted_count = initial_count - len(self.scheduled_trades)
                 
-                deleted_close_count = 0
-                if hasattr(self, "_scheduled_close") and self._scheduled_close:
-                    initial_close_count = len(self._scheduled_close)
-                    self._scheduled_close = [
-                        t for t in self._scheduled_close
-                        if not isinstance(t, dict) or t.get("id") not in target_ids
-                    ]
-                    deleted_close_count = initial_close_count - len(self._scheduled_close)
+                deleted_close_count = self._remove_scheduled_closes(
+                    lambda task: isinstance(task, dict) and task.get("id") in target_ids
+                ) or 0
                 
                 if deleted_count > 0 or deleted_close_count > 0:
                     if deleted_count > 0:
                         save_json(self.scheduled_file, self.scheduled_trades)
-                    if deleted_close_count > 0:
-                        save_json(self.scheduled_close_file, self._scheduled_close)
                     id_str = ", ".join(str(i) for i in target_ids)
                     # self.notify(f"🤖 [{profile_name}] Đã xóa lệnh ID: {id_str}")
                     resp = get_natural_response("order_deleted", ticket_id=id_str)
@@ -2309,6 +2270,82 @@ class CopyTradeManager:
                 return result
             return result
 
+    def _with_scheduled_close_file_lock(self, fn, timeout=3.0):
+        """Reload, mutate, and persist scheduled closes under one profile lock."""
+        close_file = getattr(self, "scheduled_close_file", "")
+        lock_path = f"{close_file}.lock" if close_file else "scheduled_close.lock"
+        with FileLock(lock_path, timeout=timeout) as lock:
+            if lock is None:
+                raise TimeoutError(f"scheduled close lock timed out: {lock_path}")
+            closes = load_json(close_file, [])
+            if not isinstance(closes, list):
+                closes = []
+            result = fn(closes)
+            if isinstance(result, list):
+                save_json(close_file, result)
+                self._scheduled_close = result
+            return result
+
+    def _next_scheduled_close_id(self, closes):
+        """Return an ID absent from entry and close schedules."""
+        existing_ids = {task.get("id") for task in getattr(self, "scheduled_trades", [])}
+        existing_ids.update(
+            task.get("id") for task in closes if isinstance(task, dict) and task.get("id")
+        )
+        for _ in range(20):
+            candidate = random.randint(10000, 99999)
+            if candidate not in existing_ids:
+                return candidate
+        return int(time.time() * 1000) % 100000000
+
+    def _append_scheduled_close(self, payload):
+        """Append one close task transactionally and return its persisted record."""
+        created = {"task": None}
+
+        def append(closes):
+            task = {"id": self._next_scheduled_close_id(closes), **payload}
+            closes.append(task)
+            created["task"] = task
+            return closes
+
+        result = self._with_scheduled_close_file_lock(append)
+        return created["task"] if result is not None else None
+
+    def _remove_scheduled_closes(self, should_remove):
+        """Remove matching close tasks transactionally and return their count."""
+        removed = {"count": 0}
+
+        def remove(closes):
+            kept = [task for task in closes if not should_remove(task)]
+            removed["count"] = len(closes) - len(kept)
+            return kept
+
+        result = self._with_scheduled_close_file_lock(remove)
+        return removed["count"] if result is not None else None
+
+    def _ensure_scheduled_closes(self, planned_tasks):
+        """Persist missing planned close tasks in one transaction."""
+        added = []
+
+        def ensure(closes):
+            keys = {
+                (task.get("sym"), task.get("date"), task.get("time"))
+                for task in closes if isinstance(task, dict)
+            }
+            for planned in planned_tasks:
+                key = (planned.get("sym"), planned.get("date"), planned.get("time"))
+                if planned.get("_skip") or key in keys:
+                    continue
+                task = {key: value for key, value in planned.items() if key != "_skip"}
+                task["id"] = self._next_scheduled_close_id(closes)
+                closes.append(task)
+                added.append(task)
+                keys.add(key)
+            return closes
+
+        result = self._with_scheduled_close_file_lock(ensure)
+        return added if result is not None else None
+
     def _claim_scheduled_trade(self, trade_id, stale_executing_sec=45):
         """Atomically claim one scheduled trade so only one worker executes it.
 
@@ -2385,10 +2422,8 @@ class CopyTradeManager:
         broker_now = datetime.utcnow() + timedelta(hours=broker_gmt)
         broker_date = broker_now.date()
         
-        # Set the flag to prevent repeated checks today
-        self._last_auto_close_date = now_date
-
         if broker_now.weekday() >= 5:
+            self._last_auto_close_date = now_date
             return
 
         xau_broker_time_str = "14:44:00" if broker_now.weekday() == 0 else "17:44:00"
@@ -2415,74 +2450,49 @@ class CopyTradeManager:
         gbp_local_date_str = gbp_local_dt.strftime("%Y-%m-%d")
         gbp_local_time_str = gbp_local_dt.strftime("%H:%M:%S")
 
-        if not hasattr(self, "_scheduled_close"):
-            self._scheduled_close = load_json(self.scheduled_close_file, [])
-            
-        xau_scheduled = False
-        gbp_scheduled = False
-        for t in self._scheduled_close:
-            if isinstance(t, dict):
-                if t.get("sym") == "XAUUSD" and t.get("date") == xau_local_date_str and t.get("time") == xau_local_time_str:
-                    xau_scheduled = True
-                if t.get("sym") == "GBP" and t.get("date") == gbp_local_date_str and t.get("time") == gbp_local_time_str:
-                    gbp_scheduled = True
-
-        if xau_local_dt < now_dt:
-            xau_scheduled = True
-        if gbp_local_dt < now_dt:
-            gbp_scheduled = True
-
-        modified = False
-        existing_ids = {t.get("id") for t in getattr(self, "scheduled_trades", [])}
-        if self._scheduled_close:
-            existing_ids.update({t.get("id") for t in self._scheduled_close if isinstance(t, dict) and t.get("id")})
-            
-        def get_new_id():
-            for _ in range(20):
-                cand = random.randint(10000, 99999)
-                if cand not in existing_ids:
-                    existing_ids.add(cand)
-                    return cand
-            return int(time.time() * 1000) % 100000000
-
-        profile_name = self.config.get("profile_name", "Unknown")
-        if not xau_scheduled:
-            new_id = get_new_id()
-            self._scheduled_close.append({
-                "id": new_id,
+        planned = [
+            {
                 "time": xau_local_time_str,
                 "date": xau_local_date_str,
                 "filter": "all",
                 "sym": "XAUUSD",
                 "ticket": "",
                 "is_auto_daily": True,
-            })
-            modified = True
-            self.notify(
-                f"🤖 [{profile_name}] Tự động hẹn giờ ĐÓNG XAUUSD (ID: {new_id}) "
-                f"lúc {xau_local_time_str} ({xau_local_date_str}) [Broker: {xau_broker_time_str}]."
-            )
-            
-        if not gbp_scheduled:
-            new_id = get_new_id()
-            self._scheduled_close.append({
-                "id": new_id,
+                "_skip": xau_local_dt < now_dt,
+            },
+            {
                 "time": gbp_local_time_str,
                 "date": gbp_local_date_str,
                 "filter": "all",
                 "sym": "GBP",
                 "ticket": "",
                 "is_auto_daily": True,
-            })
-            modified = True
+                "_skip": gbp_local_dt < now_dt,
+            },
+        ]
+        added = self._ensure_scheduled_closes(planned)
+        if added is None:
+            return
+
+        self._last_auto_close_date = now_date
+        added_by_symbol = {task["sym"]: task for task in added}
+        xau_scheduled = "XAUUSD" not in added_by_symbol
+        gbp_scheduled = "GBP" not in added_by_symbol
+        profile_name = self.config.get("profile_name", "Unknown")
+        if not xau_scheduled:
+            new_id = added_by_symbol["XAUUSD"]["id"]
+            self.notify(
+                f"🤖 [{profile_name}] Tự động hẹn giờ ĐÓNG XAUUSD (ID: {new_id}) "
+                f"lúc {xau_local_time_str} ({xau_local_date_str}) [Broker: {xau_broker_time_str}]."
+            )
+
+        if not gbp_scheduled:
+            new_id = added_by_symbol["GBP"]["id"]
             self.notify(
                 f"🤖 [{profile_name}] Tự động hẹn giờ ĐÓNG GBP (ID: {new_id}) "
                 f"lúc {gbp_local_time_str} ({gbp_local_date_str}) [Broker: {gbp_broker_time_str}]."
             )
             
-        if modified:
-            save_json(self.scheduled_close_file, self._scheduled_close)
-
     def _check_scheduled_trades(self):
         self._auto_schedule_daily_closes()
         if not self.scheduled_trades and not getattr(self, "_scheduled_close", None): return
@@ -2565,43 +2575,37 @@ class CopyTradeManager:
 
         # Check scheduled close all (atomic pop under lock to avoid multi-worker double close)
         if hasattr(self, "_scheduled_close") and self._scheduled_close:
-            lock_path = f"{self.scheduled_close_file}.lock" if getattr(self, "scheduled_close_file", None) else "scheduled_close.lock"
             due_batch = []
-            with FileLock(lock_path, timeout=3.0) as clock:
-                if clock is not None:
-                    disk_closes = load_json(self.scheduled_close_file, [])
-                    if not isinstance(disk_closes, list):
-                        disk_closes = []
-                    remaining_closes = []
-                    for close_info in disk_closes:
-                        if isinstance(close_info, dict):
-                            c_time = close_info.get("time", "00:00:00")
-                            c_date = close_info.get("date", now_date)
-                            c_filter = close_info.get("filter", "all")
-                            c_sym = close_info.get("sym", "")
-                            c_ticket = close_info.get("ticket", "")
-                        else:
-                            c_time = close_info
-                            c_date = now_date
-                            c_filter = "all"
-                            c_sym = ""
-                            c_ticket = ""
-                        if c_date > now_date:
-                            remaining_closes.append(close_info)
-                            continue
-                        c_time_norm = c_time
-                        try:
-                            if len(str(c_time).split(":")) == 2:
-                                c_time = f"{c_time}:00"
-                            c_time_norm = datetime.strptime(c_time, "%H:%M:%S").strftime("%H:%M:%S")
-                        except Exception:
-                            pass
-                        if c_date == now_date and c_time_norm > now_time:
-                            remaining_closes.append(close_info)
-                            continue
-                        due_batch.append({"filter": c_filter, "sym": c_sym, "ticket": c_ticket})
-                    self._scheduled_close = remaining_closes
-                    save_json(self.scheduled_close_file, self._scheduled_close)
+
+            def pop_due(closes):
+                remaining_closes = []
+                for close_info in closes:
+                    if isinstance(close_info, dict):
+                        c_time = close_info.get("time", "00:00:00")
+                        c_date = close_info.get("date", now_date)
+                        c_filter = close_info.get("filter", "all")
+                        c_sym = close_info.get("sym", "")
+                        c_ticket = close_info.get("ticket", "")
+                    else:
+                        c_time, c_date = close_info, now_date
+                        c_filter, c_sym, c_ticket = "all", "", ""
+                    if c_date > now_date:
+                        remaining_closes.append(close_info)
+                        continue
+                    c_time_norm = c_time
+                    try:
+                        if len(str(c_time).split(":")) == 2:
+                            c_time = f"{c_time}:00"
+                        c_time_norm = datetime.strptime(c_time, "%H:%M:%S").strftime("%H:%M:%S")
+                    except Exception:
+                        pass
+                    if c_date == now_date and c_time_norm > now_time:
+                        remaining_closes.append(close_info)
+                        continue
+                    due_batch.append({"filter": c_filter, "sym": c_sym, "ticket": c_ticket})
+                return remaining_closes
+
+            self._with_scheduled_close_file_lock(pop_due)
             profile_name = self.config.get("profile_name", "Unknown")
             for item in due_batch:
                 self.notify(
