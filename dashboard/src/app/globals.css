@@ -374,56 +374,171 @@ body {
 .advisor-row:not(.advisor-row-head):hover { background: var(--surface-raised); }
 .advisor-row-head { color: var(--muted); font-size: 0.65rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 
-.factcheck-screen { padding-block: 1rem 2.25rem; }
-.factcheck-screen .fact-panel { border-radius: 0.9rem; }
-
-.fact-steps > div {
-  border-left: 2px solid var(--panel-border);
-  border-radius: 0;
-  background: transparent;
+.factcheck-screen { position: relative; padding-block: 1rem 2.25rem; }
+.factcheck-screen .fact-panel {
+  border-radius: 0.9rem;
+  border: 1px solid var(--panel-border);
+  background: var(--surface);
+  box-shadow: var(--terminal-shadow);
 }
 
-.fact-steps > div:first-child { border-left-color: var(--terminal-accent); }
-.fact-steps > div:nth-child(2) { border-left-color: var(--terminal-warning); }
-.fact-steps > div:last-child { border-left-color: var(--muted); }
+.fact-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  background: var(--surface);
+  box-shadow: var(--terminal-shadow);
+}
+
+.fact-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--terminal-accent);
+  opacity: 0.85;
+}
+
+.fact-kicker {
+  color: var(--muted);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.19em;
+  text-transform: uppercase;
+}
+
+.fact-steps-item {
+  position: relative;
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--panel-border);
+  border-radius: 0.7rem;
+  background: var(--surface-raised);
+  transition: border-color 160ms ease, transform 160ms ease;
+}
+
+.fact-steps-item:hover {
+  transform: translateX(2px);
+}
+
+.fact-steps-item[data-step="1"] { border-left-color: var(--terminal-accent); }
+.fact-steps-item[data-step="2"] { border-left-color: var(--terminal-warning); }
+.fact-steps-item[data-step="3"] { border-left-color: var(--muted); }
 
 .fact-input textarea {
-  border-radius: 0.7rem;
-  border-color: var(--panel-border);
+  border-radius: 0.75rem;
+  border: 1px solid var(--panel-border);
   background: var(--surface-raised);
-  box-shadow: none;
+  color: var(--foreground);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.fact-input textarea:focus {
+  border-color: color-mix(in srgb, var(--terminal-accent) 60%, var(--panel-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--terminal-accent) 15%, transparent);
 }
 
 .fact-upload {
-  border-color: color-mix(in srgb, var(--panel-border) 82%, transparent) !important;
-  border-radius: 0.7rem !important;
+  border: 1px dashed var(--panel-border) !important;
+  border-radius: 0.75rem !important;
   background: var(--surface-raised) !important;
+  transition: border-color 160ms ease, background-color 160ms ease !important;
+}
+
+.fact-upload:hover,
+.fact-upload.drag-active {
+  border-color: color-mix(in srgb, var(--terminal-accent) 70%, var(--panel-border)) !important;
+  background: color-mix(in srgb, var(--terminal-accent) 6%, var(--surface-raised)) !important;
 }
 
 .fact-action {
   border-radius: 0.65rem;
   background: var(--terminal-accent);
+  color: #04130f;
+  font-weight: 800;
   box-shadow: none;
+  transition: background-color 160ms ease, transform 120ms ease, opacity 160ms ease;
 }
 
-.fact-action:hover { background: var(--terminal-accent-strong); }
+.fact-action:hover:not(:disabled) {
+  background: var(--terminal-accent-strong);
+  transform: translateY(-1px);
+}
+
+.fact-action:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+
+.fact-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .fact-result-surface {
   background: var(--surface-raised) !important;
-  border-color: var(--panel-border) !important;
+  border: 1px solid var(--panel-border) !important;
   border-radius: 0.75rem !important;
 }
 
 .fact-source-row {
-  border-radius: 0.7rem !important;
+  position: relative;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: 0.75rem !important;
   background: var(--surface-raised) !important;
   box-shadow: none !important;
+  transition: border-color 160ms ease, transform 160ms ease !important;
 }
 
-.fact-source-row > div:first-child { background: var(--terminal-accent) !important; opacity: 0.7; }
+.fact-source-row:hover {
+  border-color: color-mix(in srgb, var(--terminal-accent) 45%, var(--panel-border)) !important;
+  transform: translateY(-1px);
+}
+
+.fact-source-row > div:first-child {
+  background: var(--terminal-accent) !important;
+  opacity: 0.8;
+}
 
 .score-ring-track { stroke: color-mix(in srgb, var(--panel-border) 86%, transparent); }
 .score-ring-value { stroke: var(--terminal-accent); }
+
+.verdict-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.5rem;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.verdict-tag[data-verdict="credible"] {
+  color: var(--terminal-accent);
+  background: color-mix(in srgb, var(--terminal-accent) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--terminal-accent) 35%, transparent);
+}
+
+.verdict-tag[data-verdict="mixed"] {
+  color: var(--terminal-warning);
+  background: color-mix(in srgb, var(--terminal-warning) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--terminal-warning) 35%, transparent);
+}
+
+.verdict-tag[data-verdict="unreliable"] {
+  color: var(--terminal-danger);
+  background: color-mix(in srgb, var(--terminal-danger) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--terminal-danger) 35%, transparent);
+}
+
+.verdict-tag[data-verdict="unverifiable"] {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--muted) 35%, transparent);
+}
 
 .lux-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--terminal-accent) 48%, transparent) transparent; }
 .lux-scroll::-webkit-scrollbar { height: 6px; width: 6px; }

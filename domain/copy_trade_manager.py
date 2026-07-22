@@ -2323,12 +2323,13 @@ class CopyTradeManager:
         
         # We need to get the broker's current date to know if it's a weekday for the broker
         try:
-            rates = mt5.copy_rates_from_pos("XAUUSD", mt5.TIMEFRAME_M1, 0, 1)
             tick = mt5.symbol_info_tick("XAUUSD")
-            if rates is not None and len(rates) > 0 and tick is not None:
-                bar_time = int(rates[0]['time'])
-                tick_time = int(tick.time)
-                broker_gmt = round((bar_time - tick_time) / 3600.0)
+            if tick is not None:
+                # tick.time is broker time timestamp; time.time() is UTC timestamp
+                broker_gmt = round((tick.time - time.time()) / 3600.0)
+                # If calculated offset is unrealistic (e.g. stale tick on weekends), fallback to GMT+3
+                if not (-12 <= broker_gmt <= 14):
+                    broker_gmt = 3
             else:
                 broker_gmt = 3
         except Exception:

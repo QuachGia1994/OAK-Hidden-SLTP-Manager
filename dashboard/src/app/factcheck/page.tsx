@@ -148,13 +148,13 @@ const OCR_CHAR_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
 
 function ScoreBar({ score }: { score: number }) {
   const clamped = Math.max(0, Math.min(100, score || 0));
-  const color = clamped >= 80 ? "bg-emerald-500" : clamped >= 50 ? "bg-amber-500" : "bg-red-500";
+  const fillStyle = clamped >= 80 ? "bg-[var(--terminal-accent)]" : clamped >= 50 ? "bg-[var(--terminal-warning)]" : "bg-[var(--terminal-danger)]";
   return (
     <div className="flex items-center gap-4">
-      <div className="flex-1 h-2.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
+      <div className="flex-1 h-2.5 bg-[var(--surface-raised)] border border-[var(--panel-border)] rounded-full overflow-hidden">
+        <div className={`h-full ${fillStyle} rounded-full transition-all duration-500`} style={{ width: `${clamped}%` }} />
       </div>
-      <span className="font-mono text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-100 w-12 text-right">{clamped}</span>
+      <span className="font-mono text-xl font-black tabular-nums text-[var(--foreground)] w-12 text-right">{clamped}</span>
     </div>
   );
 }
@@ -180,22 +180,17 @@ function ScoreRing({ score, label }: { score: number; label: string }) {
         />
       </svg>
       <div className="relative text-center">
-        <div className="font-mono text-4xl font-black leading-none tabular-nums text-zinc-900 dark:text-white sm:text-5xl">{clamped}</div>
-        <div className="mt-1 text-[10px] uppercase tracking-[0.28em] text-zinc-400 sm:text-[11px]">{label}</div>
+        <div className="font-mono text-4xl font-black leading-none tabular-nums text-[var(--foreground)] sm:text-5xl">{clamped}</div>
+        <div className="mt-1.5 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted)] sm:text-[11px]">{label}</div>
       </div>
     </div>
   );
 }
 
 function VerdictBadge({ verdict, labels }: { verdict: string; labels: Record<string, string> }) {
-  const styles: Record<string, string> = {
-    credible: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-500/20",
-    mixed: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-500/20",
-    unreliable: "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border-red-200 dark:border-red-500/20",
-    unverifiable: "bg-zinc-50 dark:bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-500/20",
-  };
   return (
-    <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide uppercase border ${styles[verdict] || styles.unverifiable}`}>
+    <span className="verdict-tag" data-verdict={verdict}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
       {labels[verdict] || verdict}
     </span>
   );
@@ -203,19 +198,19 @@ function VerdictBadge({ verdict, labels }: { verdict: string; labels: Record<str
 
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
-    <div className="terminal-stat rounded-lg px-4 py-3">
-      <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-400">{label}</div>
-      <div className="mt-2 text-xl font-semibold text-zinc-900 dark:text-white">{value}</div>
-      <div className="mt-1 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">{detail}</div>
+    <div className="terminal-stat rounded-xl p-4 border border-[var(--panel-border)] bg-[var(--surface-raised)]">
+      <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--muted)]">{label}</div>
+      <div className="mt-2 text-lg sm:text-xl font-black font-mono text-[var(--foreground)]">{value}</div>
+      <div className="mt-1 text-xs text-[var(--muted)] leading-relaxed">{detail}</div>
     </div>
   );
 }
 
 function SummaryPill({ label, value }: { label: string; value: string }) {
   return (
-    <div className="fact-result-surface px-4 py-3">
-      <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">{label}</div>
-      <div className="mt-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">{value}</div>
+    <div className="fact-result-surface px-4 py-3 border border-[var(--panel-border)] bg-[var(--surface-raised)] rounded-xl">
+      <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-[var(--muted)]">{label}</div>
+      <div className="mt-1.5 text-base font-bold font-mono text-[var(--foreground)]">{value}</div>
     </div>
   );
 }
@@ -271,8 +266,8 @@ function getAiStatusCopy(locale: "EN" | "VN", result: FactCheckResult) {
         locale === "EN"
           ? "AI challenges only the collected Google/DDG evidence and never invents sources."
           : "AI chỉ phản biện trên bằng chứng Google/DDG đã thu thập và không tự tạo nguồn.",
-      tone: "border-cyan-500/20 bg-cyan-500/8",
-      labelClass: "text-cyan-500",
+      tone: "border-[var(--terminal-accent)]/30 bg-[var(--surface-raised)]",
+      labelClass: "text-[var(--terminal-accent)]",
       confidence: `${result.ai_analysis.confidence}%`,
     };
   }
@@ -294,8 +289,8 @@ function getAiStatusCopy(locale: "EN" | "VN", result: FactCheckResult) {
       : locale === "EN"
         ? "AI only judges the collected evidence. It stays off when no usable evidence exists."
         : "AI chỉ chấm trên bằng chứng đã thu thập. Nếu không có evidence đủ dùng thì AI sẽ bỏ qua.",
-    tone: isError ? "border-red-500/20 bg-red-500/8" : isDisabled ? "border-amber-500/20 bg-amber-500/8" : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/50",
-    labelClass: isError ? "text-red-500" : isDisabled ? "text-amber-500" : "text-zinc-500",
+    tone: isError ? "border-[var(--terminal-danger)]/30 bg-[var(--surface-raised)]" : isDisabled ? "border-[var(--terminal-warning)]/30 bg-[var(--surface-raised)]" : "border-[var(--panel-border)] bg-[var(--surface-raised)]",
+    labelClass: isError ? "text-[var(--terminal-danger)]" : isDisabled ? "text-[var(--terminal-warning)]" : "text-[var(--muted)]",
     confidence: status?.provider && status?.model ? `${status.provider}:${status.model}` : status?.model || "AI",
   };
 }
@@ -337,41 +332,45 @@ function safeSourceUrl(value: string): string {
 
 function SourceRow({ source, t }: { source: { title: string; url: string; snippet: string; agrees: boolean | null; reliability: string; publisher?: string; rating?: string; engine?: string }; t: LocaleText }) {
   const icon = source.agrees === true ? "✓" : source.agrees === false ? "✗" : "–";
-  const iconColor = source.agrees === true ? "text-emerald-500" : source.agrees === false ? "text-red-500" : "text-zinc-400";
+  const iconColor = source.agrees === true ? "text-[var(--terminal-accent)]" : source.agrees === false ? "text-[var(--terminal-danger)]" : "text-[var(--muted)]";
   const isIFCN = !!source.publisher;
-  const relColor: Record<string, string> = {
-    high: "text-emerald-500 dark:text-emerald-400",
-    medium: "text-amber-500 dark:text-amber-400",
-    low: "text-zinc-400 dark:text-zinc-500",
+  const relStyle: Record<string, string> = {
+    high: "text-[var(--terminal-accent)] border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10",
+    medium: "text-[var(--terminal-warning)] border-[var(--terminal-warning)]/30 bg-[var(--terminal-warning)]/10",
+    low: "text-[var(--muted)] border-[var(--panel-border)] bg-[var(--surface)]",
   };
   return (
-    <div className="fact-source-row w-full min-w-0 overflow-hidden border border-zinc-200/80 dark:border-zinc-800">
-      <div className="h-1" />
-      <div className="flex items-start gap-3 p-4">
-        <span className={`mt-0.5 font-mono text-sm font-bold ${iconColor}`}>{icon}</span>
+    <div className="fact-source-row w-full min-w-0 overflow-hidden border border-[var(--panel-border)] bg-[var(--surface-raised)] rounded-xl">
+      <div className="h-0.5 bg-[var(--panel-border)]" />
+      <div className="flex items-start gap-3.5 p-4 sm:p-5">
+        <span className={`mt-0.5 font-mono text-base font-black ${iconColor}`}>{icon}</span>
         <div className="flex-1 min-w-0">
-          <a href={safeSourceUrl(source.url)} target="_blank" rel="noopener noreferrer" className="text-sm sm:text-[15px] font-semibold text-zinc-900 dark:text-zinc-100 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors truncate block">
+          <a href={safeSourceUrl(source.url)} target="_blank" rel="noopener noreferrer" className="text-sm sm:text-[15px] font-bold text-[var(--foreground)] hover:text-[var(--terminal-accent)] transition-colors truncate block">
             {source.title}
           </a>
-          <div className="mt-2 flex items-center gap-1.5 flex-wrap min-w-0">
+          <div className="mt-2 flex items-center gap-2 flex-wrap min-w-0">
             {source.engine && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400 border border-zinc-200 dark:border-zinc-700">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[var(--surface)] text-[var(--muted)] border border-[var(--panel-border)]">
                 {source.engine === "google_factcheck"
                   ? t.googleFactCheck
                   : source.engine.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase())}
               </span>
             )}
             {isIFCN && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)] border border-[var(--terminal-accent)]/30">
                 {t.ifcnCertified}
               </span>
             )}
-            {source.rating && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full border ${source.agrees === true ? "text-emerald-500 border-emerald-200/70 dark:border-emerald-500/20 bg-emerald-50/70 dark:bg-emerald-500/10" : source.agrees === false ? "text-red-500 border-red-200/70 dark:border-red-500/20 bg-red-50/70 dark:bg-red-500/10" : "text-zinc-400 border-zinc-200/70 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-800/50"}`}>{source.rating}</span>}
-            <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${relColor[source.reliability] || ""} bg-white/60 dark:bg-zinc-900/80 border-current/20`}>
+            {source.rating && (
+              <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${source.agrees === true ? "text-[var(--terminal-accent)] border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10" : source.agrees === false ? "text-[var(--terminal-danger)] border-[var(--terminal-danger)]/30 bg-[var(--terminal-danger)]/10" : "text-[var(--muted)] border-[var(--panel-border)] bg-[var(--surface)]"}`}>
+                {source.rating}
+              </span>
+            )}
+            <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${relStyle[source.reliability] || "text-[var(--muted)] border-[var(--panel-border)]"}`}>
               {t.reliabilityLabels[source.reliability as keyof typeof t.reliabilityLabels] || source.reliability}
             </span>
           </div>
-          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400 sm:text-sm">{source.snippet}</p>
+          <p className="mt-2.5 line-clamp-2 text-xs sm:text-sm leading-relaxed text-[var(--muted)]">{source.snippet}</p>
         </div>
       </div>
     </div>
@@ -679,17 +678,17 @@ export default function FactCheckPage() {
     <div className="factcheck-screen">
       <div className="relative page-shell">
         <div className="mb-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="fact-hero rounded-xl p-5 sm:p-7">
+          <div className="fact-hero rounded-2xl p-6 sm:p-8">
             <div className="fact-kicker">{t.studio}</div>
             <div className="mt-3 flex items-end justify-between gap-4">
               <div>
-                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-zinc-900 dark:text-white">{t.title}</h1>
-                <p className="mt-3 max-w-2xl text-sm sm:text-base text-zinc-600 dark:text-zinc-400 leading-relaxed">{t.subtitle}</p>
+                <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-[var(--foreground)]">{t.title}</h1>
+                <p className="mt-3 max-w-2xl text-sm sm:text-base text-[var(--muted)] leading-relaxed">{t.subtitle}</p>
               </div>
               <div className="hidden xl:block text-right">
-                <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 dark:text-zinc-500">{t.realtime}</div>
-                <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.7)]" />
+                <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--muted)]">{t.realtime}</div>
+                <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 px-3.5 py-1.5 text-xs font-mono font-bold text-[var(--terminal-accent)]">
+                  <span className="h-2 w-2 rounded-full bg-[var(--terminal-accent)] shadow-[0_0_12px_var(--terminal-accent)]" />
                   {t.liveLabel}
                 </div>
               </div>
@@ -701,63 +700,68 @@ export default function FactCheckPage() {
             </div>
           </div>
 
-          <aside className="fact-panel fact-steps rounded-xl p-5 sm:p-6">
+          <aside className="fact-panel rounded-2xl p-6 sm:p-7 flex flex-col justify-between">
             <div className="fact-kicker">
               {locale === "EN" ? "How it reads" : "Cách hệ thống đọc tin"}
             </div>
             <div className="mt-4 space-y-3">
-              <div className="px-4 py-3">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.parse}</div>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.parseDesc}</p>
+              <div className="fact-steps-item p-4" data-step="1">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-bold text-[var(--foreground)]">{t.parse}</div>
+                  <span className="font-mono text-xs font-bold text-[var(--terminal-accent)]">01</span>
+                </div>
+                <p className="mt-1 text-xs sm:text-sm text-[var(--muted)] leading-relaxed">{t.parseDesc}</p>
               </div>
-              <div className="px-4 py-3">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.crossCheck}</div>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.crossCheckDesc}</p>
+              <div className="fact-steps-item p-4" data-step="2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-bold text-[var(--foreground)]">{t.crossCheck}</div>
+                  <span className="font-mono text-xs font-bold text-[var(--terminal-warning)]">02</span>
+                </div>
+                <p className="mt-1 text-xs sm:text-sm text-[var(--muted)] leading-relaxed">{t.crossCheckDesc}</p>
               </div>
-              <div className="px-4 py-3">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{t.scoreMix}</div>
-                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{t.scoreMixDesc}</p>
+              <div className="fact-steps-item p-4" data-step="3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-bold text-[var(--foreground)]">{t.scoreMix}</div>
+                  <span className="font-mono text-xs font-bold text-[var(--muted)]">03</span>
+                </div>
+                <p className="mt-1 text-xs sm:text-sm text-[var(--muted)] leading-relaxed">{t.scoreMixDesc}</p>
               </div>
             </div>
           </aside>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.02fr_0.98fr]">
-          <div className="fact-panel fact-input rounded-xl p-4 sm:p-5">
+          <div className="fact-panel fact-input rounded-2xl p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.32em] text-zinc-400 dark:text-zinc-500">{t.input}</div>
-                <h2 className="mt-1 text-lg font-semibold text-zinc-900 dark:text-zinc-100">{t.textOrImage}</h2>
+                <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--muted)]">{t.input}</div>
+                <h2 className="mt-1 text-lg font-bold text-[var(--foreground)]">{t.textOrImage}</h2>
               </div>
-              <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-[var(--muted)]">
+                <span className="h-2 w-2 rounded-full bg-[var(--terminal-accent)]" />
                 Multi-pass OCR
               </div>
             </div>
 
             <textarea
-              className="mt-4 w-full h-36 sm:h-44 rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/90 dark:bg-zinc-900/60 px-4 py-4 text-sm sm:text-[15px] leading-relaxed text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 resize-none shadow-inner shadow-black/5"
+              className="mt-4 w-full h-36 sm:h-44 rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4 text-sm sm:text-[15px] leading-relaxed text-[var(--foreground)] placeholder:text-[var(--muted)]/60 focus:outline-none focus:ring-2 focus:ring-[var(--terminal-accent)]/40 resize-none"
               placeholder={t.placeholder}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onPaste={handlePaste}
             />
-            <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
+            <p className="mt-2 text-xs text-[var(--muted)]">
               {locale === "EN" ? "Paste an image directly with Ctrl+V" : "Dán ảnh trực tiếp bằng Ctrl+V"}
             </p>
 
             <div
-              className={`fact-upload mt-4 border-2 border-dashed px-4 py-4 text-center transition-colors ${
-                dragOver
-                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10"
-                  : "border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/40 hover:border-zinc-300 dark:hover:border-zinc-700"
-              }`}
+              className={`fact-upload mt-4 border border-dashed px-4 py-4 text-center ${dragOver ? "drag-active" : ""}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
             >
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleImageUpload(file); e.target.value = ""; }} />
-              <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-emerald-500 dark:hover:text-emerald-400 transition-colors">
+              <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--foreground)] hover:text-[var(--terminal-accent)] transition-colors">
                 {ocrLoading ? (
                   <>
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -770,87 +774,87 @@ export default function FactCheckPage() {
                   </>
                 )}
               </button>
-              <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">{t.dragDrop}</p>
+              <p className="mt-1.5 text-xs text-[var(--muted)]">{t.dragDrop}</p>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.28em] text-zinc-400 dark:text-zinc-500">
-                <span className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2.5 py-1">multi source</span>
-                <span className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2.5 py-1">ifcn aware</span>
-                <span className="rounded-full border border-zinc-200 dark:border-zinc-800 px-2.5 py-1">mix score</span>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap gap-2 text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--muted)]">
+                <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface)] px-2.5 py-1">multi source</span>
+                <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface)] px-2.5 py-1">ifcn aware</span>
+                <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface)] px-2.5 py-1">mix score</span>
               </div>
               <button
                 onClick={handleSubmit}
                 disabled={loading || !text.trim()}
-                className="fact-action inline-flex w-full items-center justify-center px-6 py-3 text-sm font-semibold text-zinc-950 transition-colors disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400 sm:w-auto"
+                className="fact-action inline-flex w-full items-center justify-center px-7 py-3 text-sm font-black transition-all sm:w-auto"
               >
                 {loading ? t.submitting : t.submit}
               </button>
             </div>
           </div>
 
-          <div className="fact-panel fact-preview rounded-xl p-4 sm:p-5">
+          <div className="fact-panel fact-preview rounded-2xl p-5 sm:p-6">
             <div className="fact-kicker">
               {locale === "EN" ? "Live preview" : "Xem trước trực tiếp"}
             </div>
             <div className="mt-4 grid gap-3">
-              <div className="fact-result-surface p-4">
+              <div className="fact-result-surface p-4 border border-[var(--panel-border)] bg-[var(--surface-raised)] rounded-xl">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.scoreLogic}</div>
-                    <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.summary}</p>
+                    <div className="text-sm font-bold text-[var(--foreground)]">{t.scoreLogic}</div>
+                    <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{t.summary}</p>
                   </div>
-                  <div className="hidden sm:block rounded-md border border-zinc-200/80 bg-white/70 px-3 py-2 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300">
+                  <div className="hidden sm:block rounded-md border border-[var(--panel-border)] bg-[var(--surface)] px-3 py-1.5 text-xs font-mono font-bold text-[var(--muted)]">
                     0–100
                   </div>
                 </div>
               </div>
-              <div className="fact-result-surface p-4">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.previewTitle}</div>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.previewDesc}</p>
+              <div className="fact-result-surface p-4 border border-[var(--panel-border)] bg-[var(--surface-raised)] rounded-xl">
+                <div className="text-sm font-bold text-[var(--foreground)]">{t.previewTitle}</div>
+                <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{t.previewDesc}</p>
               </div>
-              <div className="fact-result-surface p-4">
-                <div className="text-sm font-semibold text-zinc-900 dark:text-white">{t.useCase}</div>
-                <p className="mt-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">{t.useCaseDesc}</p>
+              <div className="fact-result-surface p-4 border border-[var(--panel-border)] bg-[var(--surface-raised)] rounded-xl">
+                <div className="text-sm font-bold text-[var(--foreground)]">{t.useCase}</div>
+                <p className="mt-1 text-sm leading-relaxed text-[var(--muted)]">{t.useCaseDesc}</p>
               </div>
             </div>
           </div>
         </div>
 
       {error && (
-        <div className="fact-panel mt-5 rounded-lg border-red-200 bg-red-50 px-5 py-4 dark:border-red-500/20 dark:bg-red-500/10">
-          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <div className="fact-panel mt-5 rounded-xl border border-[var(--terminal-danger)]/30 bg-[var(--surface-raised)] px-5 py-4">
+          <p className="text-sm font-semibold text-[var(--terminal-danger)]">{error}</p>
         </div>
       )}
 
       {result && (
         <div className="mt-6 space-y-4">
           <div className="grid gap-4 lg:grid-cols-[0.82fr_1.18fr]">
-            <div className="fact-panel min-w-0 rounded-xl p-5">
+            <div className="fact-panel min-w-0 rounded-2xl p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[10px] uppercase tracking-[0.35em] text-zinc-400 dark:text-zinc-500">{t.result}</div>
-                  <h2 className="mt-1 text-xl font-semibold text-zinc-900 dark:text-zinc-100">{t.resultTitle}</h2>
+                  <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--muted)]">{t.result}</div>
+                  <h2 className="mt-1 text-xl font-bold text-[var(--foreground)]">{t.resultTitle}</h2>
                 </div>
                 <VerdictBadge verdict={result.verdict} labels={t.verdictLabels} />
               </div>
-              <div className="mt-5 flex flex-col sm:flex-row items-center gap-5">
+              <div className="mt-6 flex flex-col sm:flex-row items-center gap-6">
                 <ScoreRing score={result.score} label={t.score} />
-                <div className="flex-1 space-y-3">
+                <div className="flex-1 space-y-3 w-full">
                   <ScoreBar score={result.score} />
-                  <div className="fact-result-surface px-4 py-3">
-                    <div className="text-[10px] uppercase tracking-[0.3em] text-zinc-400 dark:text-zinc-500">{t.summaryTitle}</div>
-                    <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">{displaySummary}</p>
+                  <div className="fact-result-surface px-4 py-3.5 border border-[var(--panel-border)] bg-[var(--surface-raised)] rounded-xl">
+                    <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--muted)]">{t.summaryTitle}</div>
+                    <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)]">{displaySummary}</p>
                   </div>
                 </div>
               </div>
             </div>
             <div className="min-w-0 space-y-4">
-              <div className="fact-panel min-w-0 rounded-xl p-5">
+              <div className="fact-panel min-w-0 rounded-2xl p-6">
                 <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">{t.crossCheckStats}</h2>
-                  <div className="inline-flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60 dark:text-zinc-400">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                  <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--muted)]">{t.crossCheckStats}</h2>
+                  <div className="inline-flex items-center gap-2 rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1 text-xs font-mono text-[var(--muted)]">
+                    <span className="h-2 w-2 rounded-full bg-[var(--terminal-accent)]" />
                     {sourceStats ? `${sourceStats.engines} engines / ${sourceStats.domains} domains` : t.noSources}
                   </div>
                 </div>
@@ -860,12 +864,12 @@ export default function FactCheckPage() {
               </div>
 
               {cleanClaims.length > 0 && (
-                <div className="fact-panel rounded-xl p-5">
-                  <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.keyClaims}</h2>
+                <div className="fact-panel rounded-2xl p-6">
+                  <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--muted)] mb-3">{t.keyClaims}</h2>
                   <ul className="space-y-2">
                     {cleanClaims.map((claim, i) => (
-                      <li key={i} className="fact-result-surface flex items-start gap-3 px-4 py-3 text-sm text-zinc-700 dark:text-zinc-300">
-                        <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-[10px] font-bold text-white dark:bg-zinc-100 dark:text-zinc-900">{i + 1}</span>
+                      <li key={i} className="fact-result-surface flex items-start gap-3 px-4 py-3 text-sm text-[var(--foreground)] border border-[var(--panel-border)] bg-[var(--surface-raised)] rounded-xl">
+                        <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[var(--surface)] border border-[var(--panel-border)] font-mono text-[10px] font-bold text-[var(--terminal-accent)]">{i + 1}</span>
                         <span className="leading-relaxed">{claim}</span>
                       </li>
                     ))}
@@ -876,12 +880,12 @@ export default function FactCheckPage() {
           </div>
 
           <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-            <div className="fact-panel min-w-0 rounded-xl p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">
+            <div className="fact-panel min-w-0 rounded-2xl p-6">
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--muted)] mb-4">
                 {t.sources} ({result.sources.length})
               </h2>
               {result.sources.length === 0 ? (
-                <p className="text-sm text-zinc-400 dark:text-zinc-500">{t.notFound}</p>
+                <p className="text-sm text-[var(--muted)]">{t.notFound}</p>
               ) : (
                 <div className="min-w-0 space-y-3">
                   {result.sources.map((s) => <SourceRow key={s.url} source={s} t={t} />)}
@@ -889,19 +893,19 @@ export default function FactCheckPage() {
               )}
             </div>
 
-            <div className="fact-panel min-w-0 rounded-xl p-5">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mb-3">{t.analysis}</h2>
-              <p className="text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed whitespace-pre-wrap">{displaySummary}</p>
+            <div className="fact-panel min-w-0 rounded-2xl p-6">
+              <h2 className="text-xs font-mono font-bold uppercase tracking-wider text-[var(--muted)] mb-4">{t.analysis}</h2>
+              <p className="text-sm text-[var(--foreground)] leading-relaxed whitespace-pre-wrap">{displaySummary}</p>
               {aiStatusCard && (
-                <div className={`fact-result-surface mt-4 border px-4 py-3 ${aiStatusCard.tone}`}>
+                <div className={`fact-result-surface mt-4 border px-4 py-3.5 rounded-xl ${aiStatusCard.tone}`}>
                   <div className="flex items-center justify-between gap-3">
-                    <span className={`text-xs font-semibold uppercase tracking-wider ${aiStatusCard.labelClass}`}>
+                    <span className={`text-xs font-mono font-bold uppercase tracking-wider ${aiStatusCard.labelClass}`}>
                       {aiStatusCard.title}
                     </span>
-                    <span className="font-mono text-xs text-zinc-400">{aiStatusCard.confidence}</span>
+                    <span className="font-mono text-xs text-[var(--muted)]">{aiStatusCard.confidence}</span>
                   </div>
-                  <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">{aiStatusCard.body}</p>
-                  <p className="mt-2 text-[11px] text-zinc-400">{aiStatusCard.hint}</p>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)]">{aiStatusCard.body}</p>
+                  <p className="mt-2 text-[11px] text-[var(--muted)]">{aiStatusCard.hint}</p>
                 </div>
               )}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
