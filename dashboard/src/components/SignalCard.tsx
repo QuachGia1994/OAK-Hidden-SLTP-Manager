@@ -115,7 +115,7 @@ export function SignalCard({
             </div>
           )}
           {hasNoGoldBadge && (
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[var(--terminal-danger)] shadow-sm">
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[var(--terminal-warning)] shadow-sm">
               <span>🚫 no-gold label</span>
             </div>
           )}

@@ -744,7 +744,7 @@ def get_xauusd_m30_signal(broker_dt, H):
     ts_m30 = broker_time_to_ts(broker_dt, H - 1, 30, 0)
     c_m30 = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_M30, ts_m30)
     if c_m30 is None:
-        print(f"  [M30 XAUUSD] Không có dữ liệu tại {H-1}:30")
+        print(f"  [M30 XAUUSD] Khong co du lieu tai {H-1}:30")
         return None
     d_m30 = candle_direction(c_m30)
     if d_m30 == "DOJI":
@@ -886,7 +886,10 @@ def _finalize_pattern_result(result, broker_dt, hour, reverse=False):
     pair_dirs = get_pair_direction(hour, pattern_signal, broker_dt)
     if not pair_dirs:
         return result
-    apply_xauusd_m30_logic(pair_dirs, pattern_signal, broker_dt, hour)
+    
+    if pattern_signal != "WAIT" and not result.get("skip_xau_m30"):
+        apply_xauusd_m30_logic(pair_dirs, pattern_signal, broker_dt, hour)
+        
     final_signal = pair_dirs.get("XAUUSD", pattern_signal)
     if reverse:
         final_signal = reverse_signal(final_signal) or final_signal
@@ -913,18 +916,18 @@ def _thursday_h2_history_result(broker_dt):
     }
 
 
-def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
-    """Evaluate 4 H1 candles (H=10, H=9, H=8, H=7) at slot H=11.
-    
-    Returns (group, detail_str, candles_list) where group is "SW" (Sideway) or "BT" (Bình thường).
+def evaluate_classification_for_slot(broker_dt, slot_hour, symbol="XAUUSD"):
+    """Evaluate 4 H1 candles ending at slot_hour - 1.
+    For slot_hour=11, evaluates H=10, 9, 8, 7.
     """
+    h1, h2, h3, h4 = slot_hour - 1, slot_hour - 2, slot_hour - 3, slot_hour - 4
     if broker_dt is None:
-        return "BT", "H10:Tăng, H9:Tăng, H8:Giảm, H7:Giảm [Rule 3]", []
+        return "BT", f"H{h1}:Tăng, H{h2}:Tăng, H{h3}:Giảm, H{h4}:Giảm [Rule 3]", []
 
     dirs = {}
     vn_dirs = {}
     candles = []
-    for h in (7, 8, 9, 10):
+    for h in (h4, h3, h2, h1):
         ts_h1 = broker_time_to_ts(broker_dt, h, 0)
         c = get_candle_by_ts(symbol, mt5.TIMEFRAME_H1, ts_h1)
         if c is not None:
@@ -952,33 +955,37 @@ def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
         dirs[h] = d
         vn_dirs[h] = "Tăng" if d == "TANG" else "Giảm"
 
-    d10, d9, d8, d7 = dirs[10], dirs[9], dirs[8], dirs[7]
+    d1, d2, d3, d4 = dirs[h1], dirs[h2], dirs[h3], dirs[h4]
 
-    if d10 == "TANG":
-        if d9 == "GIAM" and d8 == "TANG" and d7 == "GIAM":
+    if d1 == "TANG":
+        if d2 == "GIAM" and d3 == "TANG" and d4 == "GIAM":
             group, rule_num = "SW", 1
-        elif d9 == "GIAM" and d8 == "TANG" and d7 == "TANG":
+        elif d2 == "GIAM" and d3 == "TANG" and d4 == "TANG":
             group, rule_num = "BT", 2
-        elif d9 == "TANG" and d8 == "GIAM":
+        elif d2 == "TANG" and d3 == "GIAM":
             group, rule_num = "BT", 3
-        elif d9 == "TANG" and d8 == "TANG":
+        elif d2 == "TANG" and d3 == "TANG":
             group, rule_num = "SW", 4
         else:
             group, rule_num = "SW", 5
     else:
-        if d9 == "TANG" and d8 == "GIAM" and d7 == "TANG":
+        if d2 == "TANG" and d3 == "GIAM" and d4 == "TANG":
             group, rule_num = "SW", 6
-        elif d9 == "TANG" and d8 == "GIAM" and d7 == "GIAM":
+        elif d2 == "TANG" and d3 == "GIAM" and d4 == "GIAM":
             group, rule_num = "BT", 7
-        elif d9 == "GIAM" and d8 == "TANG":
+        elif d2 == "GIAM" and d3 == "TANG":
             group, rule_num = "BT", 8
-        elif d9 == "GIAM" and d8 == "GIAM":
+        elif d2 == "GIAM" and d3 == "GIAM":
             group, rule_num = "SW", 9
         else:
             group, rule_num = "SW", 10
 
-    detail = f"H10:{vn_dirs[10]}, H9:{vn_dirs[9]}, H8:{vn_dirs[8]}, H7:{vn_dirs[7]}"
+    detail = f"H{h1}:{vn_dirs[h1]}, H{h2}:{vn_dirs[h2]}, H{h3}:{vn_dirs[h3]}, H{h4}:{vn_dirs[h4]}"
     return group, detail, candles
+
+def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
+    """Backward compatible wrapper for H=11 logic."""
+    return evaluate_classification_for_slot(broker_dt, 11, symbol)
 
 
 def calculate_slot_signal(broker_dt, hour):
@@ -1057,6 +1064,12 @@ def candle_info_line(candle, label):
 # PHAN TICH TIN HIEU
 # =====================================================================
 def analyze(broker_dt, H):
+    """Tính signal cho các slot cơ bản (không phải nhóm giờ đặc biệt như 2,3,9...)."""
+    actual_broker_time = get_broker_time()
+    if broker_dt.date() == actual_broker_time.date():
+        if actual_broker_time.hour < H or (actual_broker_time.hour == H and actual_broker_time.minute < 45):
+            return {"signal": "WAIT", "report": f"Chua toi {fmt_hour(H)}:45", "skip_xau_m30": True}
+
     ts_m35 = broker_time_to_ts(broker_dt, H, 35)
     ts_m40 = broker_time_to_ts(broker_dt, H, 40)
 
@@ -1068,7 +1081,7 @@ def analyze(broker_dt, H):
 
     if d_m35 is None or d_m40 is None:
         print(f"  [SKIP] Khong du du lieu M5 tai {fmt_hour(H)}:35 / {fmt_hour(H)}:40")
-        return {"signal": "WAIT", "report": "Không đủ dữ liệu M5"}
+        return {"signal": "WAIT", "report": "Khong du du lieu M5", "skip_xau_m30": True}
     # DOJI fallback: lùi 1 nến trước cùng khung
     if d_m35 == "DOJI":
         d_m35 = resolve_doji(SYMBOL, mt5.TIMEFRAME_M5, ts_m35, broker_dt)
@@ -1255,16 +1268,32 @@ def get_h7_h8_priority_rule(broker_dt):
 
 
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
-    """Return True if slot H has a no-gold label attached based on yesterday's H=11 SW/BT."""
+    """Return True if slot H has a no-gold label attached based on today's H=11 SW/BT logic,
+    OR if H=12,13 has its own 4-candle lookback evaluating to SW."""
     try:
         h = int(H)
     except (TypeError, ValueError):
         return False
-    if h in (12, 13, 15):
-        if broker_dt is not None:
-            rules = get_h11_priority_and_nogold_rules(broker_dt)
-            return rules["has_nogold_label"]
-    return False
+
+    if h not in (12, 13, 15):
+        return False
+
+    if broker_dt is None:
+        return False
+
+    # 1. Inherit from H=11
+    rules = get_h11_priority_and_nogold_rules(broker_dt)
+    has_label = rules["has_nogold_label"]
+
+    # 2. Evaluate independent 4-candle logic for H=12 and H=13 if the time has come
+    if h in (12, 13):
+        actual_broker_time = get_broker_time()
+        if broker_dt.date() < actual_broker_time.date() or actual_broker_time.hour >= h:
+            group, _, _ = evaluate_classification_for_slot(broker_dt, h)
+            if group == "SW":
+                has_label = True
+
+    return has_label
 
 
 # Back-compat alias
@@ -1289,9 +1318,9 @@ def get_hour_note(H, weekday=None, broker_dt=None):
     try:
         h = int(H)
     except (TypeError, ValueError):
-        return "Chỉ Vàng (XAUUSD)"
+        return ""
     if h in DISABLED_HOURS:
-        return "Chỉ Vàng (XAUUSD)"
+        return ""
     if h == 11:
         if broker_dt is not None:
             res_h11 = evaluate_h11_classification(broker_dt)
@@ -1311,17 +1340,20 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         9: "GBP group đảo từ H=5 hôm qua (Thứ 6 cùng chiều)",
         14: "GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo)",
     }
-    base_note = notes.get(h, "Chỉ Vàng (XAUUSD)")
+    base_note = notes.get(h, "")
 
     if rules is not None:
         if h == rules["priority_slot"]:
-            base_note = f"★ {rules['priority_label']} · " + base_note
-        if h in (12, 13, 15) and rules["has_nogold_label"]:
-            base_note = base_note + "; 🚫 no-gold label"
+            prefix = f"★ {rules['priority_label']}"
+            base_note = f"{prefix} · {base_note}" if base_note else prefix
+            
+    if is_xau_no_trade_label_slot(H, broker_dt=broker_dt):
+        base_note = base_note + "; 🚫 no-gold label" if base_note else "🚫 no-gold label"
 
     if h78_rules is not None:
         if h == h78_rules["priority_slot"]:
-            base_note = f"★ {h78_rules['priority_label']} · " + base_note
+            prefix = f"★ {h78_rules['priority_label']}"
+            base_note = f"{prefix} · {base_note}" if base_note else prefix
 
     return base_note
 
@@ -1405,6 +1437,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         return result
     if signal in ("SW", "BT"):
         return {}
+    if signal == "WAIT":
+        if h in (12, 13, 15):
+            result["XAUUSD"] = "WAIT"
+        return result
     if signal not in ("BUY", "SELL"):
         return result
     # H=9,14: GBP group only, no XAUUSD
@@ -1535,7 +1571,7 @@ def is_slot_ready(broker_dt, hour):
         return _lookup_h5_signal_yesterday(broker_dt) in ("BUY", "SELL")
     if h in (7, 8, 14):
         return _lookup_h5_signal_today(broker_dt) in ("BUY", "SELL")
-    if h == 11:
+    if h in (11, 12, 13, 15):
         return broker_dt.hour >= 11
     return broker_dt.hour > h or (broker_dt.hour == h and broker_dt.minute >= 45)
 
@@ -1550,7 +1586,7 @@ def rebuild_slot_signal(broker_dt, h):
 
     result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
-    if sig not in ("BUY", "SELL", "SW", "BT"):
+    if sig not in ("BUY", "SELL", "SW", "BT", "WAIT"):
         return False
 
     pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
