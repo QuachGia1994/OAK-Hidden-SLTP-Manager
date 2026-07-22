@@ -13,7 +13,7 @@ export function getH11ChartTitle(locale: SignalLocale): string {
     : "Biểu đồ 4 nến H1 (H7 ➔ H10)";
 }
 
-const NO_GOLD_SUFFIX = "; 🚫 no-gold label";
+const NO_GOLD_SUFFIX = /(?:;\s*)?🚫 no-gold label/g;
 
 const ENGLISH_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/Ưu tiên đi sớm H=(\d+)/g, "Early priority H=$1"],
