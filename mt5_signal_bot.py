@@ -963,7 +963,7 @@ def calculate_slot_signal(broker_dt, hour):
         return {"signal": final_signal, "pattern_signal": h5_yesterday, "report": f"H=9: {'cùng' if wd == 4 else 'đảo'} H=5 hôm qua ({h5_yesterday} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=11: Phân nhóm H1 XAUUSD (SW/BT) liên quan H=2,3 ngày mai
     if hour == 11:
-        group, detail = evaluate_h11_classification(broker_dt)
+        group, detail, candles = evaluate_h11_classification(broker_dt)
         return {
             "signal": group,
             "pattern_signal": group,
@@ -971,7 +971,8 @@ def calculate_slot_signal(broker_dt, hour):
             "m30_dir": None,
             "h1_signal": None,
             "skip_xau_m30": True,
-            "pair_dirs": {"XAUUSD": group},
+            "pair_dirs": {},
+            "h11_candles": candles,
         }
     # H=14: GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo), không XAUUSD
     if hour == 14:
@@ -1175,10 +1176,6 @@ def get_h7_h8_priority_rule(broker_dt):
     if broker_dt is None:
         return None
 
-    h5_today = _lookup_h5_signal_today(broker_dt)
-    if h5_today != "SELL":  # H=7,8 calculated direction = reverse_signal(H=5). Must be BUY (Tăng).
-        return None
-
     ts_h6 = broker_time_to_ts(broker_dt, 6, 0)
     c_h6 = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_H1, ts_h6)
 
@@ -1347,8 +1344,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     if h in DISABLED_HOURS:
         return result
     if signal in ("SW", "BT"):
-        result["XAUUSD"] = signal
-        return result
+        return {}
     if signal not in ("BUY", "SELL"):
         return result
     # H=9,14: GBP group only, no XAUUSD
@@ -1432,9 +1428,10 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
 
     # Quick-order: chỉ XAUUSD.
     active_pairs = []
-    xau_d = pair_dirs.get("XAUUSD")
-    if xau_d in ("BUY", "SELL"):
-        active_pairs = [("XAUUSD", xau_d)]
+    for pair, direction in (pair_dirs or {}).items():
+        if pair not in (D_DIRECTION_PAIR, GBP_DIRECTION_PAIR) and direction in ("BUY", "SELL"):
+            active_pairs.append((pair, direction))
+
     if active_pairs:
         keyboard = []
         row = []
@@ -1447,10 +1444,18 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
                 row = []
         if row:
             keyboard.append(row)
+
+        has_xau = any(p == "XAUUSD" for p, _ in active_pairs)
+        has_gbp = any(p.startswith("GBP") for p, _ in active_pairs)
+        if has_xau and has_gbp:
+            title = "⚡ Chọn lệnh nhanh (Vàng & GBP):"
+        elif has_gbp:
+            title = "⚡ Chọn lệnh nhanh nhóm GBP:"
+        else:
+            title = "⚡ Chọn lệnh nhanh Vàng (chỉ cần nhập Lot):"
+
         try:
-            send_telegram_with_keyboard(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID,
-                                        "⚡ Chọn lệnh nhanh Vàng (chỉ cần nhập Lot):",
-                                        keyboard, parse_mode=None)
+            send_telegram_with_keyboard(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, title, keyboard)
         except Exception as e:
             print(f"[WARN] Inline keyboard error: {e}")
 
@@ -1769,17 +1774,18 @@ def main(profile_name=None):
             now_hour = broker_dt.hour
 
             hours_now = get_target_hours(broker_dt)
-            ready_hour = None
-            for h in hours_now:
-                key = (broker_dt.date(), h)
-                if key not in sent_today and is_slot_ready(broker_dt, h):
-                    ready_hour = h
-                    break
 
-            if ready_hour is not None:
-                now_hour = ready_hour
+            # 1) Quietly pre-calculate & refresh Dashboard for all ready slots (no Telegram push)
+            for h in hours_now:
+                if is_slot_ready(broker_dt, h):
+                    rebuild_slot_signal(broker_dt, h)
+            push_to_dashboard()
+
+            # 2) Live Telegram push ONLY at minute :45 of slot H
+            if now_min == 45 and now_hour in hours_now:
                 key = (broker_dt.date(), now_hour)
-                print(f"\n[{fmt_time(broker_dt)}] Kích hoạt H={fmt_hour(now_hour)} (Sẵn sàng từ dependency/thời gian)")
+                if key not in sent_today:
+                    print(f"\n[{fmt_time(broker_dt)}] Kích hoạt H={fmt_hour(now_hour)}:45 (Gửi Telegram Live)")
 
                 # T2-6 active (weekday hours via get_target_hours); skip T7/CN
                 wd = broker_dt.weekday()

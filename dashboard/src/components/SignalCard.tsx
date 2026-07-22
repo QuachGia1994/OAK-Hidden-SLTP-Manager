@@ -53,15 +53,19 @@ export function SignalCard({
       hourNote !== "XAU only"
   );
 
-  const defaultPairs = (signal.hour === 9 || signal.hour === 14)
-    ? ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
-    : (signal.hour === 2 || signal.hour === 3)
-      ? ["XAUUSD", "GBPAUD"]
-      : ["XAUUSD"];
+  const defaultPairs = signal.hour === 11
+    ? []
+    : (signal.hour === 9 || signal.hour === 14)
+      ? ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
+      : (signal.hour === 2 || signal.hour === 3)
+        ? ["XAUUSD", "GBPAUD"]
+        : ["XAUUSD"];
 
-  const activePairs = signal.pair_dirs && Object.keys(signal.pair_dirs).length > 0
-    ? Object.keys(signal.pair_dirs).filter((p) => p !== "Stock-DIRECTION" && p !== "GBP-DIRECTION")
-    : defaultPairs;
+  const activePairs = signal.hour === 11
+    ? []
+    : signal.pair_dirs && Object.keys(signal.pair_dirs).length > 0
+      ? Object.keys(signal.pair_dirs).filter((p) => p !== "Stock-DIRECTION" && p !== "GBP-DIRECTION")
+      : defaultPairs;
 
   const getPairDir = (pair: string) => {
     if (!isVIP) return "locked";
