@@ -73,14 +73,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     <div className="page-shell terminal-page space-y-5">
       <DashboardAutoRefresh />
 
-      <section className="terminal-hero rounded-2xl px-5 py-6 sm:px-7 sm:py-7">
+      <section className="terminal-hero rounded-2xl px-6 py-6 sm:px-8 sm:py-7">
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="terminal-kicker mb-3">{locale === "EN" ? "Trading command center" : "Trung tâm điều hành giao dịch"}</div>
-            <h1 className="text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl break-words hyphens-auto" lang="vi">
+            <div className="terminal-kicker mb-2.5">{locale === "EN" ? "Trading command center" : "Trung tâm điều hành giao dịch"}</div>
+            <h1 className="text-4xl font-black tracking-tight text-[var(--foreground)] sm:text-5xl break-words hyphens-auto" lang="vi">
               {t.dashboard}
             </h1>
-            <p className="mt-2 text-base text-zinc-500 dark:text-zinc-400">
+            <p className="mt-2 text-sm sm:text-base text-[var(--muted)]">
               <BrowserDateText
                 date={now.toISOString()}
                 locale={t.dateTimeFormat}
@@ -114,16 +114,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <MetricTile label={t.statusNews} value={news.length.toString()} tone="info" icon="news" />
       </section>
 
-      <section className="terminal-panel rounded-xl p-4 sm:p-5">
+      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
+          <h2 className="terminal-section-heading text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
             {t.schedule}
           </h2>
-          <span className="terminal-live hidden rounded-md border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] sm:inline">
+          <span className="terminal-live hidden rounded-lg border border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 px-3 py-1 font-mono text-[11px] font-bold text-[var(--terminal-accent)] uppercase tracking-[0.16em] sm:inline">
             {locale === "EN" ? "Broker synced" : "Đồng bộ broker"}
           </span>
         </div>
-        <div className="terminal-schedule lux-scroll -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div className="terminal-schedule lux-scroll -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1.5">
           {hoursToday.map((h) => {
             const sig = signalsByHour.get(h)?.signal || null;
             return (
@@ -134,10 +134,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section>
-        <h2 className="terminal-section-heading mb-3 text-sm font-bold uppercase tracking-[0.18em]">
+        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
           {t.signalToday}
         </h2>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {allSlots.map((signal) => (
             <SignalCard
               key={`${signal.date}-${signal.hour}`}
@@ -149,18 +149,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       {news.length > 0 && (
-        <section className="terminal-panel rounded-xl p-4 sm:p-5">
+        <section className="terminal-panel rounded-2xl p-5 sm:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
-              {t.news} <span className="text-zinc-400">({news.length})</span>
+            <h2 className="terminal-section-heading text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
+              {t.news} <span className="text-[var(--muted)]">({news.length})</span>
             </h2>
             {news.some((n: any) => n.critical) && (
-              <span className="rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1 text-[11px] font-bold text-red-500">
+              <span className="rounded-md border border-[var(--terminal-danger)]/30 bg-[var(--terminal-danger)]/15 px-3 py-1 font-mono text-[11px] font-bold text-[var(--terminal-danger)]">
                 {t.importantNews}
               </span>
             )}
           </div>
-          <div className="grid gap-2">
+          <div className="grid gap-2.5">
             {[...news]
               .sort((a: any, b: any) => (b.critical ? 1 : 0) - (a.critical ? 1 : 0))
               .slice(0, 8)
@@ -181,9 +181,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="terminal-stat rounded-xl px-4 py-3">
-      <div className="terminal-kicker mb-1">{label}</div>
-      <div className="terminal-stat-value text-xl font-black">{value}</div>
+    <div className="terminal-stat rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-3">
+      <div className="terminal-kicker mb-1 text-[var(--muted)]">{label}</div>
+      <div className="terminal-stat-value text-xl font-black font-mono text-[var(--foreground)]">{value}</div>
     </div>
   );
 }
@@ -202,17 +202,17 @@ function MetricTile({
   icon: "bot" | "signal" | "direction" | "news";
 }) {
   const toneClass = {
-    buy: "text-emerald-500 border-emerald-400/25 bg-emerald-500/10",
-    sell: "text-red-500 border-red-400/25 bg-red-500/10",
-    info: "text-cyan-500 border-cyan-400/25 bg-cyan-500/10",
-    idle: "text-zinc-500 border-zinc-300/25 bg-zinc-500/10",
+    buy: "text-[var(--terminal-accent)] border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10",
+    sell: "text-[var(--terminal-danger)] border-[var(--terminal-danger)]/30 bg-[var(--terminal-danger)]/10",
+    info: "text-[var(--terminal-warning)] border-[var(--terminal-warning)]/30 bg-[var(--terminal-warning)]/10",
+    idle: "text-[var(--muted)] border-[var(--panel-border)] bg-[var(--surface-raised)]",
   }[tone];
 
   return (
-    <div className="terminal-panel overflow-hidden rounded-xl px-4 py-4 sm:px-5">
-      <div className="flex items-start gap-2.5">
+    <div className="terminal-panel overflow-hidden rounded-2xl px-5 py-4.5 border border-[var(--panel-border)] bg-[var(--surface)]">
+      <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="terminal-kicker mb-2 leading-4 sm:tracking-[0.22em]">
+          <div className="terminal-kicker mb-2 leading-4 sm:tracking-[0.22em] text-[var(--muted)]">
             {mobileLabel && <span className="sm:hidden">{mobileLabel}</span>}
             <span className={mobileLabel ? "hidden sm:inline" : ""}>{label}</span>
           </div>
@@ -220,7 +220,7 @@ function MetricTile({
             {value}
           </div>
         </div>
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg border ${toneClass}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl border ${toneClass}`}>
           <MetricIcon name={icon} />
         </div>
       </div>
@@ -256,19 +256,19 @@ function SchedulePill({
 }) {
   const tone = signal === "BUY" ? "buy" : signal === "SELL" ? "sell" : signal === "WAIT" ? "wait" : "idle";
   const toneClass = {
-    buy: "border-emerald-400/45 bg-emerald-500/10 text-emerald-500 shadow-[0_0_22px_rgba(16,185,129,0.16)]",
-    sell: "border-red-400/45 bg-red-500/10 text-red-500 shadow-[0_0_22px_rgba(248,113,113,0.12)]",
-    wait: "border-zinc-300/35 bg-zinc-500/10 text-zinc-500",
-    idle: "border-dashed border-zinc-300/30 bg-transparent text-zinc-400 dark:text-zinc-600",
+    buy: "border-[var(--terminal-accent)]/40 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-accent)_15%,transparent)]",
+    sell: "border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 text-[var(--terminal-danger)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-danger)_15%,transparent)]",
+    wait: "border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]",
+    idle: "border-dashed border-[var(--panel-border)] bg-transparent text-[var(--muted)]/50",
   }[tone];
 
   return (
-    <div className={`min-w-[7.35rem] rounded-lg border px-3 py-2 text-center ${toneClass}`}>
+    <div className={`min-w-[7.35rem] rounded-xl border px-3 py-2 text-center transition-all ${toneClass}`}>
       <div className="font-mono text-base font-black tabular-nums">
         <BrokerLocalTime date={date} hour={hour} />
       </div>
       {signal && (
-        <div className="mt-0.5 text-xs font-bold">
+        <div className="mt-0.5 font-mono text-xs font-bold">
           {getSignalLabel(signal, locale)}
         </div>
       )}
@@ -297,24 +297,24 @@ function NewsRow({
     low: locale === "EN" ? "Low" : "Thấp",
   }[impact];
   const impactClass = {
-    critical: "bg-red-500 text-white",
-    high: "bg-red-500/12 text-red-500",
-    medium: "bg-amber-500/12 text-amber-500",
-    low: "bg-zinc-500/12 text-zinc-500",
+    critical: "bg-[var(--terminal-danger)] text-[#04130f] font-black",
+    high: "bg-[var(--terminal-danger)]/15 text-[var(--terminal-danger)] border border-[var(--terminal-danger)]/30",
+    medium: "bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)] border border-[var(--terminal-warning)]/30",
+    low: "bg-[var(--surface-raised)] text-[var(--muted)] border border-[var(--panel-border)]",
   }[impact];
 
   return (
-    <div className="grid grid-cols-[3.5rem_auto_1fr] items-center gap-2 rounded-lg border border-zinc-200/60 bg-white/55 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.035]">
-      <span className="font-mono text-sm font-semibold tabular-nums text-zinc-600 dark:text-zinc-300">{time}</span>
+    <div className="grid grid-cols-[3.5rem_auto_1fr] items-center gap-3 rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-3">
+      <span className="font-mono text-xs font-bold tabular-nums text-[var(--muted)]">{time}</span>
       <div className="flex items-center gap-1.5">
-        <span className="rounded-lg bg-zinc-900/5 px-2 py-1 text-[10px] font-black uppercase text-zinc-700 dark:bg-white/10 dark:text-zinc-200">
+        <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface)] px-2 py-0.5 font-mono text-[10px] font-black uppercase text-[var(--foreground)]">
           {item.currency}
         </span>
-        <span className={`rounded-lg px-2 py-1 text-[10px] font-black uppercase ${impactClass}`}>
+        <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-black uppercase ${impactClass}`}>
           {impactLabel}
         </span>
       </div>
-      <span className="min-w-0 truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">
+      <span className="min-w-0 truncate text-sm font-medium text-[var(--foreground)]">
         {item.title}
       </span>
     </div>

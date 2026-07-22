@@ -66,25 +66,25 @@ export function SignalCard({
   const isBuy = signal.signal === "BUY";
 
   return (
-    <article className="terminal-panel group signal-rail overflow-hidden rounded-xl transition-colors duration-200">
-      <div className="relative px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
+    <article className="terminal-panel group signal-rail overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
+      <div className="relative px-4 py-3.5 border-b border-[var(--panel-border)] bg-[var(--surface)]">
+        <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-2">
-              <span className="font-mono text-2xl font-black tabular-nums text-zinc-950 dark:text-white">
+              <span className="font-mono text-2xl font-black tabular-nums text-[var(--foreground)]">
                 <BrokerLocalTime date={signal.date} hour={signal.hour} />
               </span>
-              <span className="font-mono text-xs text-zinc-400">
+              <span className="font-mono text-xs text-[var(--muted)]">
                 ({formatHour(signal.hour)}:45 Brk)
               </span>
             </div>
           </div>
-          <span className="font-mono text-xs text-zinc-400">{signal.date}</span>
+          <span className="font-mono text-xs text-[var(--muted)]">{signal.date}</span>
         </div>
       </div>
 
-      <div className="border-y border-zinc-200/55 px-4 py-4 dark:border-white/10">
-        <div className="terminal-kicker mb-1">
+      <div className="border-b border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
+        <div className="terminal-kicker mb-1.5 text-[var(--muted)]">
           {locale === "EN" ? "Verdict" : "Kết luận"}
         </div>
         {isVIP ? (
@@ -96,7 +96,7 @@ export function SignalCard({
         )}
       </div>
 
-      <div className={`px-4 py-3 ${isBuy ? "bg-emerald-500/[0.035]" : isSell ? "bg-red-500/[0.035]" : ""}`}>
+      <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
         {activePairs.map((pair) => (
           <PairBadge key={pair} pair={pair} direction={getPairDir(pair)} />
         ))}
@@ -115,8 +115,8 @@ export function SignalCard({
       </div>
 
       {showHourNote && (
-        <div className="border-t border-zinc-200/55 bg-amber-500/[0.045] px-4 py-2.5 dark:border-white/10">
-          <p className="text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{hourNote}</p>
+        <div className="border-t border-[var(--panel-border)] bg-[var(--terminal-warning)]/[0.06] px-4 py-3">
+          <p className="text-xs leading-relaxed text-[var(--foreground)]">{hourNote}</p>
         </div>
       )}
     </article>
@@ -125,19 +125,19 @@ export function SignalCard({
 
 function LockedVerdict({ locale }: { locale: "VN" | "EN" }) {
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-zinc-300/70 bg-zinc-500/[0.06] px-3 py-3 dark:border-white/10">
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-dashed border-[var(--panel-border)] bg-[var(--surface)] px-3.5 py-3">
       <div className="flex items-center gap-3">
-        <span className="text-xl" aria-hidden="true">🔒</span>
+        <span className="text-lg" aria-hidden="true">🔒</span>
         <div>
-          <div className="text-sm font-black text-zinc-800 dark:text-zinc-100">
+          <div className="text-sm font-black text-[var(--foreground)]">
             {locale === "EN" ? "VIP only" : "Chỉ VIP"}
           </div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+          <div className="text-[10px] font-mono font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
             {locale === "EN" ? "Unlock to view" : "Mở khóa để xem"}
           </div>
         </div>
       </div>
-      <span className="rounded-lg bg-zinc-900/8 px-2 py-1 text-[10px] font-black uppercase text-zinc-500 dark:bg-white/10">
+      <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] px-2.5 py-1 font-mono text-[10px] font-black uppercase text-[var(--muted)]">
         {locale === "EN" ? "Locked" : "Khóa"}
       </span>
     </div>
