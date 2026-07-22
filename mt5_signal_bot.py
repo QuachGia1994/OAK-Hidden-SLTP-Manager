@@ -1142,17 +1142,14 @@ def get_h11_priority_and_nogold_rules(broker_dt):
 
     if weekday == 0:    # Monday: BT → no-gold
         has_nogold = (today_group == "BT")
-    elif weekday == 1:  # Tuesday: BT → no-gold
-        has_nogold = (today_group == "BT")
+    elif weekday == 1:  # Tuesday: SW → no-gold
+        has_nogold = (today_group == "SW")
     elif weekday == 2:  # Wednesday: SW → no-gold
         has_nogold = (today_group == "SW")
-    elif weekday == 3:  # Thursday: SW → no-gold
-        has_nogold = (today_group == "SW")
-    elif weekday == 4:  # Friday: SW (normal) or BT (special)
-        if today_group == "SW":
-            has_nogold = not is_special
-        else:
-            has_nogold = is_special
+    elif weekday == 3:  # Thursday: SW → no-gold; special day BT → also no-gold
+        has_nogold = (today_group == "SW") or (is_special and today_group == "BT")
+    elif weekday == 4:  # Friday: BT → no-gold
+        has_nogold = (today_group == "BT")
 
     return {
         "prev_h11_group": prev_group,
