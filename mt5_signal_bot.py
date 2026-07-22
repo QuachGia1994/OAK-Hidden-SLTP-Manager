@@ -1457,6 +1457,25 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     return pair_dirs
 
 # =====================================================================
+def is_slot_ready(broker_dt, hour):
+    """Check if slot hour can be calculated based on time or dependency availability.
+
+    - H=2, 3, 9: ready as soon as H=5 yesterday exists.
+    - H=7, 8, 14: ready as soon as H=5 today exists.
+    - H=11: ready as soon as H=10 candle closes (broker hour >= 11).
+    - H=4, 5, 12, 13, 15: ready once hour < broker_dt.hour or (hour == broker_dt.hour and broker_dt.minute >= 45).
+    """
+    h = int(hour)
+    if h in (2, 3, 9):
+        return _lookup_h5_signal_yesterday(broker_dt) in ("BUY", "SELL")
+    if h in (7, 8, 14):
+        return _lookup_h5_signal_today(broker_dt) in ("BUY", "SELL")
+    if h == 11:
+        return broker_dt.hour >= 11
+    return broker_dt.hour > h or (broker_dt.hour == h and broker_dt.minute >= 45)
+
+
+# =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
 def rebuild_slot_signal(broker_dt, h):
@@ -1466,7 +1485,7 @@ def rebuild_slot_signal(broker_dt, h):
 
     result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
-    if sig not in ("BUY", "SELL"):
+    if sig not in ("BUY", "SELL", "SW", "BT"):
         return False
 
     pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
@@ -1493,7 +1512,7 @@ def rebuild_recent_history(days=7):
     dates = [today - timedelta(days=i) for i in range(days)]
     passed_today = {
         hour for hour in get_target_hours(broker_dt)
-        if hour < broker_dt.hour or (hour == broker_dt.hour and broker_dt.minute > 45)
+        if is_slot_ready(broker_dt, hour)
     }
     try:
         data = []
@@ -1743,13 +1762,17 @@ def main(profile_name=None):
             now_hour = broker_dt.hour
 
             hours_now = get_target_hours(broker_dt)
-            if now_min == 45 and now_hour in hours_now:
-                key = (broker_dt.date(), now_hour)
-                if key in sent_today:
-                    time.sleep(10)
-                    continue
+            ready_hour = None
+            for h in hours_now:
+                key = (broker_dt.date(), h)
+                if key not in sent_today and is_slot_ready(broker_dt, h):
+                    ready_hour = h
+                    break
 
-                print(f"\n[{fmt_time(broker_dt)}] Kích hoạt {fmt_hour(now_hour)}:45")
+            if ready_hour is not None:
+                now_hour = ready_hour
+                key = (broker_dt.date(), now_hour)
+                print(f"\n[{fmt_time(broker_dt)}] Kích hoạt H={fmt_hour(now_hour)} (Sẵn sàng từ dependency/thời gian)")
 
                 # T2-6 active (weekday hours via get_target_hours); skip T7/CN
                 wd = broker_dt.weekday()
