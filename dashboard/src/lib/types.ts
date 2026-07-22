@@ -1,14 +1,24 @@
+export interface H11Candle {
+  hour: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  dir: string;
+}
+
 export interface Signal {
   date: string;
   hour: number;
   ts: number;
-  signal: "BUY" | "SELL" | "WAIT";
-  pattern_signal?: "BUY" | "SELL";
+  signal: "BUY" | "SELL" | "WAIT" | "SW" | "BT";
+  pattern_signal?: string;
   pair_dirs: Record<string, string>;
   entry_prices: Record<string, number>;
   current_prices: Record<string, number>;
   hour_note: string | null;
   d_direction: "BUY" | "SELL" | null;
+  h11_candles?: H11Candle[];
 }
 
 export interface BotState {

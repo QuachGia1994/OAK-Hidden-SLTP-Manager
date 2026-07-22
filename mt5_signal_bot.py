@@ -1735,6 +1735,13 @@ def main(profile_name=None):
     # Rebuild signals_log from MT5 before pushing (avoid stale pair_dirs after rule changes)
     startup_rebuilt = rebuild_signals_on_startup()
 
+    # Mark all passed hours of today as already sent to Telegram to prevent restart spamming
+    hours_today = get_target_hours(broker_dt)
+    for h in hours_today:
+        if h < broker_dt.hour:
+            sent_today.add((broker_dt.date(), h))
+    _save_state(day_signals, sent_today)
+
     push_to_dashboard()
     if startup_rebuilt > 0:
         print(f"\n[DASHBOARD] Pushed after rebuild ({startup_rebuilt} slots refreshed)")

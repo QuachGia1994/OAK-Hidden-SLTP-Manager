@@ -9,6 +9,7 @@ import {
 } from "@/lib/constants";
 import type { Signal } from "@/lib/types";
 import { BrokerLocalTime } from "./BrokerLocalTime";
+import { H11CandleChart } from "./H11CandleChart";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
 
@@ -64,7 +65,7 @@ export function SignalCard({
 
   const getPairDir = (pair: string) => {
     if (!isVIP) return "locked";
-    return signal.pair_dirs?.[pair] || (signal.signal === "BUY" || signal.signal === "SELL" ? signal.signal : "-");
+    return signal.pair_dirs?.[pair] || (["BUY", "SELL", "SW", "BT"].includes(signal.signal) ? signal.signal : "-");
   };
 
   const isSell = signal.signal === "SELL";
@@ -141,6 +142,9 @@ export function SignalCard({
           )}
           {descriptionText && (
             <p className="text-xs leading-relaxed text-[var(--foreground)]">{descriptionText}</p>
+          )}
+          {signal.hour === 11 && (
+            <H11CandleChart candles={signal.h11_candles} detailNote={descriptionText} />
           )}
         </div>
       )}

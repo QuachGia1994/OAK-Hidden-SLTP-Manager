@@ -22,18 +22,20 @@ def send_telegram_raw(token, chat_id, text, parse_mode="Markdown"):
         return resp.read()
 
 
-def send_telegram_with_keyboard(token, chat_id, text, inline_keyboard, parse_mode="Markdown"):
+def send_telegram_with_keyboard(token, chat_id, text, inline_keyboard, parse_mode=None):
     """Send message with inline keyboard via Telegram Bot API.
 
     reply_markup must be an object in the JSON body (not a double-encoded string).
     """
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({
+    body = {
         "chat_id": str(chat_id),
         "text": text,
-        "parse_mode": parse_mode,
         "reply_markup": {"inline_keyboard": inline_keyboard},
-    }).encode("utf-8")
+    }
+    if parse_mode:
+        body["parse_mode"] = parse_mode
+    payload = json.dumps(body).encode("utf-8")
     req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
