@@ -15,8 +15,8 @@
 
 - MT5 monitor đa hồ sơ, cô lập theo từng profile.
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
-- Signal engine dùng pattern `GBPUSD` nhưng output/cặp giao dịch chỉ có `XAUUSD`.
-- Telegram bridge, MiMo worker, Copy Trading guardrail và lệnh hẹn giờ an toàn.
+- Signal engine dùng pattern `GBPUSD`; output giao dịch gồm `XAUUSD`, `GBPAUD` ở H=2/H=3 và nhóm GBP ở H=9/H=14.
+- Telegram bridge, MiMo worker, Copy Trading guardrail và lệnh hẹn giờ an toàn. Lệnh nhanh nhận `<lot> <HH:MM broker> <profile>` và tự đổi sang giờ Windows.
 - Fact Check dùng bằng chứng Google + DuckDuckGo, hỗ trợ OCR và dán ảnh clipboard.
 - NativeQt nhẹ, không WebEngine/Chromium, có theme Dark, Deep Sea và Contrast.
 
@@ -28,11 +28,11 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 
 ## Signal engine hiện hành
 
-- Chạy Thứ 2 đến Thứ 6; slot active tại phút `:45` broker: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=12, H=13, H=15**.
-- Tắt core: **H=6, H=10, H=11, H=14, H=17**.
-- H=2: M5/M30 → hậu xử lý XAUUSD M30. Thứ 5 dùng lại H=2 Thứ 2 và chỉ đảo trong tuần lịch đặc biệt; Thứ 6 luôn dùng luồng chuẩn, không có rule đảo riêng.
-- H=3/H=7 đảo kết quả H=2 cuối cùng. H=8/H=9/H=12/H=13/H=15 dùng luồng M5/M30 + XAUUSD M30 chuẩn.
-- Không còn list/focus GBP, không no-gold label, không dùng H1 Vàng.
+- Chạy Thứ 2 đến Thứ 6; slot active: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=11, H=12, H=13, H=14, H=15**. Telegram live gửi đúng phút `:45` broker; dashboard có thể tính sớm khi dependency đã đủ.
+- Tắt core: **H=6, H=10, H=17**.
+- H=2/H=3: XAUUSD đảo H=5 hôm qua, `GBPAUD` cùng chiều H=5 hôm qua. H=7/H=8: XAUUSD đảo H=5 hôm nay. H=9 đảo nhóm GBP từ H=5 hôm qua (Thứ 6 cùng chiều); H=14 cùng chiều H=5 hôm nay (Thứ 6 đảo).
+- Badge H=7/H=8: ưu tiên H=8 khi hướng nến XAUUSD H=6 trùng hướng đã suy ra cho H=7/H=8; ngược hướng thì ưu tiên H=7. Thiếu hoặc không xác định được nến H=6 thì không gắn badge.
+- H=11 phân loại SW/BT từ bốn nến H1 XAUUSD H=7–H=10, không phát BUY/SELL; tab **Lịch sử** hiển thị biểu đồ SVG OHLC bốn nến.
 
 ## Fact Check AI
 

@@ -4,10 +4,37 @@ import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
 
-from mt5_signal_bot import evaluate_h11_classification, get_h11_priority_and_nogold_rules
+from mt5_signal_bot import (
+    evaluate_h11_classification,
+    get_h11_priority_and_nogold_rules,
+    get_h7_h8_priority_rule,
+)
 
 
 class TestH11Classification(unittest.TestCase):
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    def test_accepts_mt5_structured_rate_records(self, mock_candle):
+        class StructuredRate:
+            def __init__(self, **values):
+                self.values = values
+
+            def __getitem__(self, key):
+                return self.values[key]
+
+        mock_candle.side_effect = [
+            StructuredRate(open=100, high=102, low=99, close=101),
+            StructuredRate(open=101, high=103, low=100, close=102),
+            StructuredRate(open=102, high=103, low=100, close=101),
+            StructuredRate(open=101, high=102, low=99, close=100),
+        ]
+
+        group, _detail, candles = evaluate_h11_classification(
+            datetime(2026, 7, 22, 11, 0, tzinfo=timezone.utc)
+        )
+
+        self.assertIn(group, ("SW", "BT"))
+        self.assertEqual(len(candles), 4)
+
     @patch("mt5_signal_bot.get_candle_by_ts")
     def test_evaluate_h11_rule_1_sw(self, mock_candle):
         # Rule 1: H10 Tăng, H9 Giảm, H8 Tăng, H7 Giảm => SW
@@ -268,6 +295,59 @@ class TestH7H8PriorityRules(unittest.TestCase):
         self.assertIsNotNone(rule)
         self.assertEqual(rule["priority_slot"], 7)
         self.assertEqual(rule["priority_label"], "Ưu tiên đi H=7")
+
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    @patch("mt5_signal_bot._lookup_h5_signal_today")
+    def test_h6_tang_and_h78_giam_prioritizes_h7(self, mock_h5, mock_candle):
+        mock_h5.return_value = "BUY"
+        mock_candle.return_value = {"open": 2000.0, "close": 2010.0}
+
+        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
+
+        self.assertEqual(rule["priority_slot"], 7)
+        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=7")
+
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    @patch("mt5_signal_bot._lookup_h5_signal_today")
+    def test_h6_giam_and_h78_giam_prioritizes_h8(self, mock_h5, mock_candle):
+        mock_h5.return_value = "BUY"
+        mock_candle.return_value = {"open": 2010.0, "close": 2000.0}
+
+        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
+
+        self.assertEqual(rule["priority_slot"], 8)
+        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=8")
+
+    @patch("mt5_signal_bot.get_candle_by_ts", return_value=None)
+    @patch("mt5_signal_bot._lookup_h5_signal_today", return_value="SELL")
+    def test_missing_h6_candle_does_not_invent_priority(self, _mock_h5, _mock_candle):
+        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
+
+        self.assertIsNone(rule)
+
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    @patch("mt5_signal_bot._lookup_h5_signal_today", return_value="SELL")
+    def test_open_h6_candle_does_not_publish_priority(self, _mock_h5, mock_candle):
+        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 6, 30, tzinfo=timezone.utc))
+
+        self.assertIsNone(rule)
+        mock_candle.assert_not_called()
+
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    @patch("mt5_signal_bot._lookup_h5_signal_today", return_value="SELL")
+    def test_h6_doji_falls_back_one_full_h1_candle(self, _mock_h5, mock_candle):
+        mock_candle.side_effect = [
+            {"open": 2000.0, "high": 2001.0, "low": 1999.0, "close": 2000.0},
+            {"open": 1990.0, "high": 2001.0, "low": 1989.0, "close": 2000.0},
+        ]
+        broker_dt = datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc)
+
+        rule = get_h7_h8_priority_rule(broker_dt)
+
+        current_h6_ts = mock_candle.call_args_list[0].args[2]
+        previous_h1_ts = mock_candle.call_args_list[1].args[2]
+        self.assertEqual(previous_h1_ts, current_h6_ts - 3600)
+        self.assertEqual(rule["priority_slot"], 8)
 
 
 if __name__ == "__main__":

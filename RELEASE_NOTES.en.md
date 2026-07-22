@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## [Unreleased] - 2026-07-22
+
+- Retain valid H=11 SW/BT records with all four candles in seven-day history so the Dashboard can render the OHLC SVG.
+- Make H=7/H=8 priority symmetric for either H=5 direction and avoid fabricating a badge when the H=6 candle is unavailable.
+- Accept full broker `HH:MM` values in Telegram quick orders, convert them to the Windows clock, and retain legacy minute-only input; `/pending` is created only after a valid user reply.
+
 ## [v3.17.0] - 2026-07-18
 
 ### Signal matrix

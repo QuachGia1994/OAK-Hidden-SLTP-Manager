@@ -12,27 +12,28 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 ## Signal engine
 
 - Nguồn pattern: `GBPUSD` M5/M30.
-- Output/cặp giao dịch: chỉ `XAUUSD`. Không còn list focus GBP và không còn nhãn no-gold.
+- Output/cặp giao dịch: `XAUUSD`, `GBPAUD` ở H=2/H=3 và nhóm GBP ở H=9/H=14. H=12/H=13/H=15 có thể nhận nhãn no-gold từ phân loại H=11.
 - Chạy Thứ 2 đến Thứ 6; cuối tuần tắt toàn bộ slot.
-- Slot active tại phút `:45` broker: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=12, H=13, H=15**.
-- Slot tắt: **H=6, H=10, H=11, H=14, H=17**.
-- Không dùng H1 Vàng.
+- Slot active: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=11, H=12, H=13, H=14, H=15**. Telegram live gửi tại phút `:45` broker.
+- Slot tắt: **H=6, H=10, H=17**.
+- H=11 dùng bốn nến H1 Vàng H=7–H=10 để phân loại SW/BT.
 
 ### Ma trận core
 
 | Mốc | Rule |
 | --- | --- |
-| H=2 | Tính pattern M5/M30, sau đó hậu xử lý XAUUSD M30. Thứ 5 dùng lại H=2 của Thứ 2 và chỉ đảo trong tuần lịch đặc biệt. Thứ 6 luôn dùng luồng chuẩn, không có rule đảo riêng. |
-| H=3, H=7 | Đảo chiều kết quả XAUUSD H=2 cuối cùng. |
-| H=4 | M5/M30 + XAUUSD M30 bình thường. D-direction được lưu nội bộ. |
-| H=5, H=8, H=9, H=12, H=13, H=15 | M5/M30 + XAUUSD M30 bình thường. |
-
-Nhánh đảo theo lịch đặc biệt chỉ được xét cho H=2 Thứ 5. Tuần đặc biệt được xác định khi Thứ 4 cùng tuần rơi ngày 30 hoặc 1, hoặc Thứ 6 cùng tuần rơi ngày 3, 4 hoặc 7; điều kiện này không làm đảo H=2 Thứ 6.
+| H=2/H=3 | XAUUSD đảo H=5 của phiên trước; `GBPAUD` cùng chiều H=5 của phiên trước. |
+| H=4/H=5/H=12/H=13/H=15 | Pattern M5/M30 + XAUUSD M30; H=4/H=5 có marker hướng nội bộ. |
+| H=7/H=8 | XAUUSD đảo H=5 hôm nay. H=8 ưu tiên khi H=6 cùng hướng đã suy ra, ngược lại ưu tiên H=7; không có badge nếu H=6 thiếu/không xác định. |
+| H=9 | Nhóm GBP đảo H=5 phiên trước; Thứ 6 cùng chiều. |
+| H=11 | Phân loại SW/BT từ bốn nến XAUUSD H1 H=7–H=10; không phát BUY/SELL. |
+| H=14 | Nhóm GBP cùng chiều H=5 hôm nay; Thứ 6 đảo. |
 
 ## Dashboard
 
 - Production: https://oak-hidden-sltp-manager-dun.vercel.app
 - Chuyển ngôn ngữ rõ ràng **EN / VN**. Thời gian tin tức hiển thị theo múi giờ hệ thống người xem, gồm cả DST.
+- Tab **Lịch sử** giữ H=11 và hiển thị SVG OHLC của bốn nến H1.
 - Fact Check hỗ trợ dán text, upload, kéo thả và dán ảnh từ clipboard.
 
 ## Fact Check
@@ -44,7 +45,7 @@ Google và DuckDuckGo thu thập bằng chứng. AI là lớp phản biện tùy
 
 ## An toàn
 
-- Lệnh Telegram hẹn giờ được giới hạn đúng hồ sơ.
+- Lệnh nhanh Telegram dùng `<lot> <HH:MM broker> <profile>` (ví dụ `0.01 09:15 vantage`); giờ thực thi độc lập với giờ H của signal và được đổi sang giờ Windows trước khi xếp lịch. Chỉ phản hồi hợp lệ của user mới tạo `/pending`.
 - Lệnh đóng có giờ được đưa vào hàng đợi, không đóng ngay.
 - Worker thực thi guardrail Copy Trading, giới hạn ngày và kill switch.
 - Signal chỉ là hỗ trợ quyết định, không phải bảo đảm giao dịch.

@@ -47,12 +47,12 @@ except Exception:
 
 SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
-# Mon–Fri active rhythm slots. H=6/H=10/H=11/H=17 are intentionally inactive.
-# XAU-only mode: no GBP focus pairs and no no-gold labels.
+# Mon–Fri active rhythm slots. H=6/H=10/H=17 are intentionally inactive.
+# Slot outputs may contain XAUUSD, GBPAUD, or the configured GBP group.
 DISABLED_HOURS = {6, 10, 17}
 TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 22
+SIGNAL_LOGIC_VERSION = 23
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -84,7 +84,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     """Return active H slots for the broker weekday.
 
     Python weekday: Mon=0 .. Sun=6.
-    Mon–Fri → active H=2,3,4,5,7,8,9,12,13,15; weekend → [].
+    Mon–Fri → active H=2,3,4,5,7,8,9,11,12,13,14,15; weekend → [].
     """
     if weekday is None:
         if broker_dt is None:
@@ -464,12 +464,35 @@ def _latest_today_news_cache():
     return max(candidates, key=lambda item: item[0])[1]
 
 
+def _has_dashboard_payload(signal):
+    """Return whether a record has renderable dashboard history data."""
+    try:
+        hour = int(signal.get("hour", -1))
+    except (TypeError, ValueError):
+        return False
+    if hour in DISABLED_HOURS:
+        return False
+    if signal.get("pair_dirs"):
+        return True
+    candles = signal.get("h11_candles") or []
+    return hour == 11 and signal.get("signal") in ("SW", "BT") and len(candles) == 4
+
+
 def select_signals_for_dashboard(all_signals):
-    """Keep every signal that still has pair data so history can be republished across days."""
-    return [
-        s for s in all_signals
-        if s.get("pair_dirs") and int(s.get("hour", -1)) not in DISABLED_HOURS
-    ]
+    """Keep renderable signal and H=11 classification history across days."""
+    return [signal for signal in all_signals if _has_dashboard_payload(signal)]
+
+
+def _dashboard_log_pair_dirs(hour, signal, pair_dirs):
+    """Return live-log directions without inventing a tradable H=11 pair."""
+    if pair_dirs:
+        return pair_dirs
+    if int(hour) == 11:
+        return {}
+    if int(hour) in (9, 14):
+        return {pair: signal for pair in GBP_PAIRS}
+    return {"XAUUSD": signal}
+
 
 def push_to_dashboard():
     """Push data to dashboard API (best effort, non-blocking)."""
@@ -661,6 +684,14 @@ def _copy_rates_near_timestamp(symbol, timeframe, target_ts):
         return rates
     return mt5.copy_rates_from_pos(symbol, timeframe, 0, 5000)
 
+
+def _rate_value(rate, field, default=0):
+    """Read a field from either an MT5 structured row or a test dictionary."""
+    try:
+        return rate[field]
+    except (KeyError, IndexError, TypeError, ValueError):
+        return default
+
 def candle_direction(candle):
     if candle is None:
         return None
@@ -680,7 +711,14 @@ def candle_direction(candle):
 
 def resolve_doji(symbol, timeframe, target_ts, broker_dt):
     """Nến DOJI → lùi 1 nến trước cùng khung, lấy direction nến trước đó."""
-    prev_offset = 300 if timeframe == mt5.TIMEFRAME_M5 else 1800  # M5=5ph, M30=30ph
+    timeframe_seconds = {
+        mt5.TIMEFRAME_M5: 300,
+        mt5.TIMEFRAME_M30: 1800,
+        mt5.TIMEFRAME_H1: 3600,
+    }
+    prev_offset = timeframe_seconds.get(timeframe)
+    if prev_offset is None:
+        return None
     prev_ts = target_ts - prev_offset
     prev_candle = get_candle_by_ts(symbol, timeframe, prev_ts)
     d = candle_direction(prev_candle)
@@ -811,7 +849,7 @@ def _lookup_h5_signal_yesterday(broker_dt):
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
     """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
 
-    XAU-only mode: update the XAUUSD direction after M30 post-processing.
+    Update the XAUUSD direction after M30 post-processing.
     """
     xau_m30 = get_xauusd_m30_signal(broker_dt, H)
     if xau_m30 is None or "XAUUSD" not in pair_dirs:
@@ -890,10 +928,10 @@ def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
         ts_h1 = broker_time_to_ts(broker_dt, h, 0)
         c = get_candle_by_ts(symbol, mt5.TIMEFRAME_H1, ts_h1)
         if c is not None:
-            open_p = round(float(c.get("open", 0)), 2)
-            close_p = round(float(c.get("close", 0)), 2)
-            high_p = round(float(c.get("high", max(open_p, close_p))), 2)
-            low_p = round(float(c.get("low", min(open_p, close_p))), 2)
+            open_p = round(float(_rate_value(c, "open")), 2)
+            close_p = round(float(_rate_value(c, "close")), 2)
+            high_p = round(float(_rate_value(c, "high", max(open_p, close_p))), 2)
+            low_p = round(float(_rate_value(c, "low", min(open_p, close_p))), 2)
             if close_p > open_p:
                 d = "TANG"
             elif close_p < open_p:
@@ -1188,36 +1226,32 @@ def get_h11_priority_and_nogold_rules(broker_dt):
 
 
 def get_h7_h8_priority_rule(broker_dt):
-    """Priority between H=7 and H=8 based on H=6 candle direction and calculated H=7/8 direction (from H=5).
-    
-    1. Nếu H=6 TĂNG + H=7 theo H=5 GIẢM->TĂNG -> ★ Ưu tiên đi H=8
-    2. Nếu H=6 GIẢM + H=7 theo H=5 GIẢM->TĂNG -> ★ Ưu tiên đi H=7
-    """
+    """Prioritize H=8 when H=6 and calculated H=7/8 agree, else H=7."""
     if broker_dt is None:
+        return None
+    if (broker_dt.hour, broker_dt.minute) < (7, 0):
         return None
 
     h5_today = _lookup_h5_signal_today(broker_dt)
-    if h5_today != "SELL":  # H=5 must be SELL (Giảm) so H=7/8 calculated direction is BUY (Tăng)
+    if h5_today not in ("BUY", "SELL"):
         return None
+    h78_dir = "GIAM" if h5_today == "BUY" else "TANG"
 
     ts_h6 = broker_time_to_ts(broker_dt, 6, 0)
     c_h6 = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_H1, ts_h6)
-
-    if c_h6 is not None:
-        if c_h6["close"] > c_h6["open"]:
-            h6_dir = "TANG"
-        elif c_h6["close"] < c_h6["open"]:
-            h6_dir = "GIAM"
-        else:
-            doji_d = resolve_doji("XAUUSD", mt5.TIMEFRAME_H1, ts_h6, broker_dt)
-            h6_dir = "TANG" if doji_d == "TANG" else "GIAM"
-    else:
+    if c_h6 is None:
+        return None
+    if c_h6["close"] > c_h6["open"]:
         h6_dir = "TANG"
-
-    if h6_dir == "TANG":
-        return {"priority_slot": 8, "priority_label": "Ưu tiên đi H=8"}
+    elif c_h6["close"] < c_h6["open"]:
+        h6_dir = "GIAM"
     else:
-        return {"priority_slot": 7, "priority_label": "Ưu tiên đi H=7"}
+        h6_dir = resolve_doji("XAUUSD", mt5.TIMEFRAME_H1, ts_h6, broker_dt)
+        if h6_dir not in ("TANG", "GIAM"):
+            return None
+
+    priority_slot = 8 if h6_dir == h78_dir else 7
+    return {"priority_slot": priority_slot, "priority_label": f"Ưu tiên đi H={priority_slot}"}
 
 
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
@@ -1364,7 +1398,7 @@ def apply_d_direction_marker(pair_dirs, H, broker_dt):
 
 
 def get_pair_direction(H, signal, broker_dt, h1_signal=None):
-    """Return pair directions for XAU-only mode."""
+    """Return the configured XAU or GBP output directions for one slot."""
     result = {}
     h = int(H)
     if h in DISABLED_HOURS:
@@ -1411,7 +1445,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     if not signal_data.get("skip_xau_m30"):
         apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H)
 
-    # Hiển thị XAUUSD only.
+    # Hiển thị các output pair của slot.
     pair_text = format_telegram_pair_block(pair_dirs, H, broker_dt)
 
     if sig in ("SW", "BT"):
@@ -1452,7 +1486,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
 
     send_telegram(msg)
 
-    # Quick-order: chỉ XAUUSD.
+    # Quick-order cho mọi output pair có hướng BUY/SELL.
     active_pairs = []
     for pair, direction in (pair_dirs or {}).items():
         if pair not in (D_DIRECTION_PAIR, GBP_DIRECTION_PAIR) and direction in ("BUY", "SELL"):
@@ -1542,10 +1576,6 @@ def rebuild_recent_history(days=7):
     broker_dt = get_broker_time()
     today = broker_dt.date()
     dates = [today - timedelta(days=i) for i in range(days)]
-    passed_today = {
-        hour for hour in get_target_hours(broker_dt)
-        if is_slot_ready(broker_dt, hour)
-    }
     try:
         data = []
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
@@ -1564,8 +1594,10 @@ def rebuild_recent_history(days=7):
         if target_date.weekday() >= 5:
             continue
         fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
-        hours = sorted(passed_today) if target_date == today else get_target_hours(fake_broker_dt)
+        hours = get_target_hours(fake_broker_dt)
         for hour in hours:
+            if target_date == today and not is_slot_ready(broker_dt, hour):
+                continue
             try:
                 if rebuild_slot_signal(fake_broker_dt, hour):
                     rebuilt += 1
@@ -1847,14 +1879,10 @@ def main(profile_name=None):
 
                 # Log for website (even WAIT signals)
                 hour_note = get_hour_note(now_hour, broker_dt=broker_dt)
-                log_pair_dirs = pair_dirs
-                if not log_pair_dirs:
-                    if now_hour in (9, 14):
-                        log_pair_dirs = {p: sig for p in GBP_PAIRS}
-                    else:
-                        log_pair_dirs = {"XAUUSD": sig}
+                log_pair_dirs = _dashboard_log_pair_dirs(now_hour, sig, pair_dirs)
                 log_signal(now_hour, broker_dt, sig, None, log_pair_dirs, hour_note,
-                           pattern_signal=result.get("pattern_signal"))
+                           pattern_signal=result.get("pattern_signal"),
+                           h11_candles=result.get("h11_candles"))
                 push_to_dashboard()
 
                 if sig not in ("BUY", "SELL"):

@@ -10,7 +10,7 @@ Dashboard cho OAK Hidden SLTP Manager, deploy trên Vercel.
 
 - Realtime signals
 - Bot state và D direction
-- History 7 ngày
+- History 7 ngày, gồm H=11 SW/BT và biểu đồ SVG OHLC bốn nến H1
 - Rules page
 - Fact-check text/ảnh
 - VIP access bằng `/?vip=TOKEN`

@@ -1,5 +1,11 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [Chưa phát hành] - 2026-07-22
+
+- Giữ record H=11 SW/BT hợp lệ có đủ bốn nến trong lịch sử 7 ngày để Dashboard hiển thị SVG OHLC.
+- Rule ưu tiên H=7/H=8 nay đối xứng cho cả hai hướng H=5 và không tự tạo badge khi thiếu nến H=6.
+- Lệnh nhanh Telegram nhận giờ broker `HH:MM` đầy đủ, tự đổi sang giờ Windows và vẫn tương thích cách nhập chỉ phút; chỉ phản hồi hợp lệ của user mới tạo `/pending`.
+
 ## [v3.17.0] - 2026-07-18
 
 ### Ma trận signal

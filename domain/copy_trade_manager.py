@@ -79,6 +79,40 @@ def _extract_close_ticket(raw_text: str) -> str:
     return match.group(1) if match else ""
 
 
+def _broker_clock_to_local_clock(broker_clock: str, broker_utc_offset: float, local_utc_offset: float) -> str:
+    """Convert a broker HH:MM clock into the worker's local HH:MM clock."""
+    match = re.fullmatch(r"(\d{1,2}):([0-5]\d)", broker_clock or "")
+    if not match or not -12 <= broker_utc_offset <= 14 or not -12 <= local_utc_offset <= 14:
+        raise ValueError("giờ broker không hợp lệ")
+    hour, minute = map(int, match.groups())
+    if hour > 23:
+        raise ValueError("giờ broker không hợp lệ")
+    shifted = hour * 60 + minute + round((local_utc_offset - broker_utc_offset) * 60)
+    shifted %= 24 * 60
+    return f"{shifted // 60:02d}:{shifted % 60:02d}"
+
+
+def _live_broker_utc_offset() -> int:
+    """Read the active MT5 server offset without guessing when ticks are unavailable."""
+    now_epoch = time.time()
+    for symbol in ("XAUUSD", "GBPUSD"):
+        tick = mt5.symbol_info_tick(symbol)
+        if tick is None:
+            continue
+        offset = round((float(tick.time) - now_epoch) / 3600)
+        if -12 <= offset <= 14:
+            return offset
+    raise ValueError("không xác định được múi giờ broker")
+
+
+def _local_utc_offset() -> float:
+    """Return the Windows local UTC offset in hours."""
+    offset = datetime.now().astimezone().utcoffset()
+    if offset is None:
+        raise ValueError("không xác định được múi giờ Windows")
+    return offset.total_seconds() / 3600
+
+
 class CopyTradeManager:
     def __init__(self, config, notify_callback):
         self.config = config
@@ -1047,6 +1081,12 @@ class CopyTradeManager:
                 symbol = pending_cmd[2].upper()
                 lot = pending_cmd[3]
                 time_val = pending_cmd[4]
+                if time_val.startswith("@"):
+                    time_val = _broker_clock_to_local_clock(
+                        time_val[1:],
+                        _live_broker_utc_offset(),
+                        _local_utc_offset(),
+                    )
                 if len(time_val.split(":")) == 2: time_val += ":00"
                 
                 now_dt = datetime.now()

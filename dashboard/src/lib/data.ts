@@ -23,6 +23,11 @@ export function maskSignal(signal: Signal): Signal {
     signal: "WAIT",
     pattern_signal: undefined,
     pair_dirs: {},
+    entry_prices: {},
+    current_prices: {},
+    hour_note: null,
+    d_direction: null,
+    h11_candles: undefined,
   };
 }
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Weekday-aware target hours with disabled H=6/H=10/H=11 slots."""
+"""Weekday-aware target hours with disabled H=6/H=10/H=17 slots."""
 import unittest
 from datetime import datetime, timezone
 

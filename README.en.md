@@ -15,8 +15,8 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- The signal engine still uses `GBPUSD` as the pattern source, but the output/trade pair list is XAUUSD only.
-- Telegram bridge with profile-safe commands and MiMo worker support.
+- The signal engine uses `GBPUSD` as its pattern source; trade output includes `XAUUSD`, `GBPAUD` at H=2/H=3, and the GBP group at H=9/H=14.
+- Telegram bridge with profile-safe commands and MiMo worker support. Quick orders accept `<lot> <broker HH:MM> <profile>` and convert it to the Windows clock.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
 - In-app Guide / README / Release Notes in English and Vietnamese.
@@ -32,14 +32,12 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 
 - Trading days: Monday to Friday.
 - Weekend: no desktop signal, no next slot, no countdown.
-- Scheduled slots: H=2-5, H=7-9, H=12-13, and H=15 at broker `:45`.
-- H=2 is Rhythm 0 / XAU, uses M5/M30 plus XAUUSD M30 post-processing, and skips H1 gold.
-- H=6, H=10, H=11, H=14, and H=17 are disabled in core rules; they no longer generate signals or notes.
-- No-gold labels have been fully removed.
-- Output pairs are XAUUSD only; GBP pair lists/focus badges are removed.
-- H=2 uses the M5/M30 pattern plus the XAUUSD M30 post-process. Thursday reuses Monday H=2 and reverses only in special-calendar weeks; Friday always uses the standard flow with no separate reversal rule.
-- H=3 and H=7 reverse the final H=2 XAUUSD result. H=8, H=9, H=12, H=13, and H=15 use the standard M5/M30 + XAUUSD M30 flow.
-- H=4 D-direction remains internal and is hidden from normal display.
+- Active slots: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=11, H=12, H=13, H=14, and H=15**. Live Telegram signals are sent at broker `:45`; the dashboard may calculate earlier once dependencies are complete.
+- Core-disabled slots: **H=6, H=10, and H=17**.
+- H=2/H=3 reverse the previous trading day's H=5 for XAUUSD while `GBPAUD` follows that H=5. H=7/H=8 reverse today's H=5 for XAUUSD. H=9 reverses the GBP group from the prior H=5 (Friday follows); H=14 follows today's H=5 (Friday reverses).
+- H=7/H=8 badge: H=8 is preferred when the XAUUSD H=6 candle agrees with the direction derived for H=7/H=8; otherwise H=7 is preferred. No badge is produced when H=6 is missing or unresolved.
+- H=11 classifies SW/BT from the four XAUUSD H1 candles H=7–H=10 and emits no BUY/SELL. **History** renders their four-candle OHLC SVG chart.
+- H=4 D-direction and H=5 GBP-direction remain internal markers.
 
 ## Fact Check AI
 

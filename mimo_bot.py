@@ -572,6 +572,24 @@ def _ack_then_inject(message, text, ack_text=None):
 # =====================================================================
 # CALLBACK QUERY HANDLER (inline keyboard from signal bot)
 # =====================================================================
+def _parse_quick_order_input(text, signal_hour):
+    """Parse lot, execution HH:MM, and profile from a quick-order reply."""
+    parts = text.strip().split()
+    if len(parts) != 3:
+        raise ValueError("expected lot, time, and profile")
+    lot, time_token, profile = parts
+    clock_match = re.fullmatch(r"(\d{1,2}):([0-5]\d)", time_token)
+    if clock_match:
+        hour, minute = map(int, clock_match.groups())
+    elif re.fullmatch(r"\d{1,2}", time_token):
+        hour, minute = int(signal_hour), int(time_token)
+    else:
+        raise ValueError("invalid execution time")
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        raise ValueError("execution time out of range")
+    return lot, f"{hour:02d}:{minute:02d}", profile
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith("sig:"))
 def handle_signal_callback(call):
     """Handle inline keyboard callbacks like sig:BUY:GBPAUD"""
@@ -588,17 +606,17 @@ def handle_signal_callback(call):
     pair = parts[2]       # GBPAUD, XAUUSD, etc.
     hour = parts[3]       # Signal hour (e.g. "14")
 
-    # Ask user for lot via reply
+    # Ask user for lot and an independent execution clock time.
     msg_text = (
-        f"📋 {direction} {pair} @ {hour}:xx\n"
+        f"📋 {direction} {pair} · Tín hiệu H={hour}\n"
         f"============================\n"
-        f"Nhập: `<lot> <minute> <profile>`\n"
-        f"Ví dụ: `0.01 49 vantage`"
+        f"Nhập: `<lot> <HH:MM broker> <profile>`\n"
+        f"Ví dụ: `0.01 09:15 vantage`"
     )
     bot.edit_message_text(
         chat_id=call.message.chat.id,
         message_id=call.message.message_id,
-        text=f"✅ Đã chọn: {direction} {pair}\n\n⏳ Đang chờ nhập lot..."
+        text=f"✅ Đã chọn: {direction} {pair}\n\n⏳ Đang chờ nhập lot và giờ..."
     )
     bot.answer_callback_query(call.id, f"Đã chọn {direction} {pair}")
 
@@ -624,22 +642,16 @@ def handle_signal_lot(message):
     if not ctx or ctx.get("admin_user_id") != message.from_user.id:
         return
 
-    text = message.text.strip()
-    parts = text.split()
-    if len(parts) < 3:
-        bot.reply_to(message, "⚠️ Cần 3 tham số: `<lot> <minute> <profile>`\nVí dụ: `0.01 49 vantage`")
+    try:
+        lot, execution_time, profile = _parse_quick_order_input(message.text, ctx["hour"])
+    except (TypeError, ValueError):
+        bot.reply_to(message, "⚠️ Nhập: `<lot> <HH:MM broker> <profile>`\nVí dụ: `0.01 09:15 vantage`")
         return
-
-    lot = parts[0]
-    minute = parts[1]
-    profile = parts[2]
 
     # Build OAK pending command
     direction = ctx["direction"]
     pair = ctx["pair"]
-    hour = ctx["hour"]
-    # Format: /pending BUY GBPAUD 0.01 14:49 vantage
-    cmd = f"/pending {direction} {pair} {lot} {hour}:{minute} {profile}"
+    cmd = f"/pending {direction} {pair} {lot} @{execution_time} {profile}"
     _ack_then_inject(message, cmd, f"📨 Đã gửi vào OAK:\n`{cmd}`")
     del _pending_signal[message.chat.id]
 

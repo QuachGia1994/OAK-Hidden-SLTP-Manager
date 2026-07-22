@@ -5,7 +5,13 @@ import tempfile
 from datetime import datetime, time, timezone
 from unittest.mock import patch
 
-from mt5_signal_bot import _latest_today_news_cache, _parse_news_for_dashboard, get_pair_direction, select_signals_for_dashboard
+from mt5_signal_bot import (
+    _dashboard_log_pair_dirs,
+    _latest_today_news_cache,
+    _parse_news_for_dashboard,
+    get_pair_direction,
+    select_signals_for_dashboard,
+)
 from oak_trading_reminders import (
     _NEWS_CACHE_VERSION,
     _get_display_tz,
@@ -30,6 +36,35 @@ class _FakeResponse:
 
 
 class DashboardSignalSelectionTests(unittest.TestCase):
+    def test_h11_live_log_never_fabricates_pair_directions(self):
+        self.assertEqual(_dashboard_log_pair_dirs(11, "SW", {}), {})
+
+    def test_keeps_h11_classification_without_pair_dirs(self):
+        candles = [
+            {"hour": hour, "open": 1, "high": 2, "low": 0, "close": 2, "dir": "TANG"}
+            for hour in (7, 8, 9, 10)
+        ]
+        h11 = {
+            "date": "2026-07-21",
+            "hour": 11,
+            "signal": "SW",
+            "pair_dirs": {},
+            "h11_candles": candles,
+        }
+
+        self.assertEqual(select_signals_for_dashboard([h11]), [h11])
+
+    def test_drops_h11_without_complete_four_candle_payload(self):
+        incomplete = {
+            "date": "2026-07-21",
+            "hour": 11,
+            "signal": "SW",
+            "pair_dirs": {},
+            "h11_candles": [{"hour": 7}],
+        }
+
+        self.assertEqual(select_signals_for_dashboard([incomplete]), [])
+
     def test_keeps_all_signal_days_when_pair_dirs_exist(self):
         signals = [
             {"date": "2026-07-03", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
