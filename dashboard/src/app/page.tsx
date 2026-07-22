@@ -111,7 +111,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           tone={h5GBPDirection === "BUY" ? "buy" : h5GBPDirection === "SELL" ? "sell" : "idle"}
           icon="direction"
         />
-        <MetricTile label={t.statusNews} value={news.length.toString()} tone="info" icon="news" />
+        <MetricTile label={t.statusNews} value={news.length.toString()} tone={news.length > 0 ? "buy" : "idle"} icon="news" />
       </section>
 
       <section className="terminal-panel rounded-2xl p-5 sm:p-6">
@@ -254,12 +254,13 @@ function SchedulePill({
   signal: string | null;
   locale: "VN" | "EN";
 }) {
-  const tone = signal === "BUY" ? "buy" : signal === "SELL" ? "sell" : signal === "WAIT" ? "wait" : "idle";
+  const tone = signal === "BUY" ? "buy" : signal === "SELL" ? "sell" : signal === "WAIT" ? "wait" : (signal === "BT" || signal === "SW") ? "gold" : "idle";
   const toneClass = {
     buy: "border-[var(--terminal-accent)]/40 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-accent)_15%,transparent)]",
     sell: "border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 text-[var(--terminal-danger)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-danger)_15%,transparent)]",
     wait: "border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]",
     idle: "border-dashed border-[var(--panel-border)] bg-transparent text-[var(--muted)]/50",
+    gold: "border-dashed border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/10 text-[var(--terminal-warning)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-warning)_15%,transparent)]",
   }[tone];
 
   return (

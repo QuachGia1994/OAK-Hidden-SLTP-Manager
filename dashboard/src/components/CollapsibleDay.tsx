@@ -84,8 +84,8 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
 
 function VerdictCount({ label, value, tone }: { label: string; value: number; tone: "buy" | "sell" | "wait" }) {
   const toneClass = {
-    buy: "text-emerald-500",
-    sell: "text-red-500",
+    buy: "text-[color:var(--terminal-accent)]",
+    sell: "text-[color:var(--terminal-danger)]",
     wait: "text-zinc-500 dark:text-zinc-400",
   }[tone];
 
