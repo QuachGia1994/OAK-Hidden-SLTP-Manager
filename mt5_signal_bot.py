@@ -353,7 +353,7 @@ def get_current_prices(pair_dirs):
     return prices
 
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
-               pattern_signal=None):
+               pattern_signal=None, h11_candles=None):
     """Append signal data to signals_log.json for website consumption."""
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
     record = {
@@ -370,6 +370,8 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     }
     if pattern_signal:
         record["pattern_signal"] = pattern_signal
+    if h11_candles:
+        record["h11_candles"] = h11_candles
     try:
         data = []
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
@@ -1170,10 +1172,14 @@ def get_h11_priority_and_nogold_rules(broker_dt):
 def get_h7_h8_priority_rule(broker_dt):
     """Priority between H=7 and H=8 based on H=6 candle direction and calculated H=7/8 direction (from H=5).
     
-    1. Nếu H=6 tăng, và H=7 H=8 cũng tăng sau tính toán theo H=5, thì Ưu tiên đi H=8
-    2. Nếu H=6 giảm, và H=7 8 tăng, sau tính toán theo H=5, thì Ưu tiên đi H=7
+    1. Nếu H=6 TĂNG + H=7 theo H=5 GIẢM->TĂNG -> ★ Ưu tiên đi H=8
+    2. Nếu H=6 GIẢM + H=7 theo H=5 GIẢM->TĂNG -> ★ Ưu tiên đi H=7
     """
     if broker_dt is None:
+        return None
+
+    h5_today = _lookup_h5_signal_today(broker_dt)
+    if h5_today != "SELL":  # H=5 must be SELL (Giảm) so H=7/8 calculated direction is BUY (Tăng)
         return None
 
     ts_h6 = broker_time_to_ts(broker_dt, 6, 0)
@@ -1494,7 +1500,7 @@ def rebuild_slot_signal(broker_dt, h):
         return False
 
     pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
-    if not pair_dirs:
+    if h != 11 and not pair_dirs:
         return False
 
     if not result.get("skip_xau_m30"):
@@ -1502,7 +1508,8 @@ def rebuild_slot_signal(broker_dt, h):
 
     hour_note = get_hour_note(h, broker_dt=broker_dt)
     log_signal(h, broker_dt, sig, None, pair_dirs, hour_note,
-               pattern_signal=result.get("pattern_signal"))
+               pattern_signal=result.get("pattern_signal"),
+               h11_candles=result.get("h11_candles"))
     return True
 
 
