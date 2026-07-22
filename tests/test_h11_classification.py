@@ -135,11 +135,11 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
         self.assertIn("đi sớm H=2", rules_sw["priority_label"])
         self.assertTrue(rules_sw["has_nogold_label"])
 
-        # Tue BT => Wed Ưu tiên đi trễ H=4, no-gold=False
+        # Tue BT => Wed Ưu tiên đi trễ H=3, no-gold=False
         mock_eval.return_value = ("BT", "")
         rules_bt = get_h11_priority_and_nogold_rules(wed)
-        self.assertEqual(rules_bt["priority_slot"], 4)
-        self.assertIn("đi trễ H=4", rules_bt["priority_label"])
+        self.assertEqual(rules_bt["priority_slot"], 3)
+        self.assertIn("đi trễ H=3", rules_bt["priority_label"])
         self.assertFalse(rules_bt["has_nogold_label"])
 
     @patch("mt5_signal_bot.evaluate_h11_classification")
@@ -197,6 +197,38 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
         rules_bt = get_h11_priority_and_nogold_rules(mon)
         self.assertEqual(rules_bt["priority_slot"], 2)
         self.assertTrue(rules_bt["has_nogold_label"])
+
+
+class TestH7H8PriorityRules(unittest.TestCase):
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    @patch("mt5_signal_bot._lookup_h5_signal_today")
+    def test_h6_tang_and_h78_tang_prioritizes_h8(self, mock_h5, mock_candle):
+        # H=5 today is SELL -> H=7,8 calculated as reverse_signal(SELL) = BUY (Tăng)
+        mock_h5.return_value = "SELL"
+        # H=6 candle is Tăng (Close > Open)
+        mock_candle.return_value = {"open": 2000.0, "close": 2010.0}
+
+        dt = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
+        from mt5_signal_bot import get_h7_h8_priority_rule
+        rule = get_h7_h8_priority_rule(dt)
+        self.assertIsNotNone(rule)
+        self.assertEqual(rule["priority_slot"], 8)
+        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=8")
+
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    @patch("mt5_signal_bot._lookup_h5_signal_today")
+    def test_h6_giam_and_h78_tang_prioritizes_h7(self, mock_h5, mock_candle):
+        # H=5 today is SELL -> H=7,8 calculated as reverse_signal(SELL) = BUY (Tăng)
+        mock_h5.return_value = "SELL"
+        # H=6 candle is Giảm (Close < Open)
+        mock_candle.return_value = {"open": 2010.0, "close": 2000.0}
+
+        dt = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
+        from mt5_signal_bot import get_h7_h8_priority_rule
+        rule = get_h7_h8_priority_rule(dt)
+        self.assertIsNotNone(rule)
+        self.assertEqual(rule["priority_slot"], 7)
+        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=7")
 
 
 if __name__ == "__main__":

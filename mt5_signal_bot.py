@@ -1117,8 +1117,8 @@ def get_h11_priority_and_nogold_rules(broker_dt):
             priority_label = "Ưu tiên đi sớm H=2"
             has_nogold = True
         else:  # BT
-            priority_slot = 4
-            priority_label = "Ưu tiên đi trễ H=4"
+            priority_slot = 3
+            priority_label = "Ưu tiên đi trễ H=3"
             has_nogold = False
 
     elif weekday == 3:  # Thursday (Yesterday was Wednesday)
@@ -1147,6 +1147,39 @@ def get_h11_priority_and_nogold_rules(broker_dt):
         "priority_label": priority_label,
         "has_nogold_label": has_nogold,
     }
+
+
+def get_h7_h8_priority_rule(broker_dt):
+    """Priority between H=7 and H=8 based on H=6 candle direction and calculated H=7/8 direction (from H=5).
+    
+    1. Nếu H=6 tăng, và H=7 H=8 cũng tăng sau tính toán theo H=5, thì Ưu tiên đi H=8
+    2. Nếu H=6 giảm, và H=7 8 tăng, sau tính toán theo H=5, thì Ưu tiên đi H=7
+    """
+    if broker_dt is None:
+        return None
+
+    h5_today = _lookup_h5_signal_today(broker_dt)
+    if h5_today != "SELL":  # H=7,8 calculated direction = reverse_signal(H=5). Must be BUY (Tăng).
+        return None
+
+    ts_h6 = broker_time_to_ts(broker_dt, 6, 0)
+    c_h6 = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_H1, ts_h6)
+
+    if c_h6 is not None:
+        if c_h6["close"] > c_h6["open"]:
+            h6_dir = "TANG"
+        elif c_h6["close"] < c_h6["open"]:
+            h6_dir = "GIAM"
+        else:
+            doji_d = resolve_doji("XAUUSD", mt5.TIMEFRAME_H1, ts_h6, broker_dt)
+            h6_dir = "TANG" if doji_d == "TANG" else "GIAM"
+    else:
+        h6_dir = "TANG"
+
+    if h6_dir == "TANG":
+        return {"priority_slot": 8, "priority_label": "Ưu tiên đi H=8"}
+    else:
+        return {"priority_slot": 7, "priority_label": "Ưu tiên đi H=7"}
 
 
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
@@ -1194,6 +1227,7 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7"
 
     rules = get_h11_priority_and_nogold_rules(broker_dt) if broker_dt is not None else None
+    h78_rules = get_h7_h8_priority_rule(broker_dt) if broker_dt is not None and h in (7, 8) else None
 
     notes = {
         2: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
@@ -1210,6 +1244,10 @@ def get_hour_note(H, weekday=None, broker_dt=None):
             base_note = f"★ {rules['priority_label']} · " + base_note
         if h in (12, 13, 15) and rules["has_nogold_label"]:
             base_note = base_note + "; 🚫 no-gold label"
+
+    if h78_rules is not None:
+        if h == h78_rules["priority_slot"]:
+            base_note = f"★ {h78_rules['priority_label']} · " + base_note
 
     return base_note
 
