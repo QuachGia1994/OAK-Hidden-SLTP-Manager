@@ -1065,8 +1065,100 @@ def _resolve_weekday(broker_dt=None, weekday=None):
     return None
 
 
+def get_h11_priority_and_nogold_rules(broker_dt):
+    """Determine today's priority slot (H=2, H=3, or H=4) and whether H=12,13,15 have no-gold labels,
+    based on yesterday's H=11 classification (SW vs BT).
+    """
+    if broker_dt is None:
+        return {
+            "prev_h11_group": "BT",
+            "priority_slot": 2,
+            "priority_label": "Ưu tiên H=2",
+            "has_nogold_label": False,
+        }
+
+    # Find previous trading weekday
+    d = broker_dt.date() - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    prev_dt = datetime.combine(d, datetime.min.time(), tzinfo=broker_dt.tzinfo or timezone.utc)
+
+    prev_group, _ = evaluate_h11_classification(prev_dt)
+    weekday = broker_dt.weekday() # 0: Mon, 1: Tue, 2: Wed, 3: Thu, 4: Fri
+    is_special = is_h2_special_calendar_weekday(broker_dt)
+
+    priority_slot = 2
+    priority_label = "Ưu tiên H=2"
+    has_nogold = False
+
+    if weekday == 0:  # Monday (Yesterday was Friday)
+        if prev_group == "SW":
+            priority_slot = 3
+            priority_label = "Ưu tiên đi trễ H=3"
+            has_nogold = False
+        else:  # BT
+            priority_slot = 2
+            priority_label = "Ưu tiên đi trễ H=2"
+            has_nogold = True
+
+    elif weekday == 1:  # Tuesday (Yesterday was Monday)
+        if prev_group == "SW":
+            priority_slot = 2
+            priority_label = "Ưu tiên đi sớm H=2"
+            has_nogold = False
+        else:  # BT
+            priority_slot = 3
+            priority_label = "Ưu tiên đi trễ H=3"
+            has_nogold = True
+
+    elif weekday == 2:  # Wednesday (Yesterday was Tuesday)
+        if prev_group == "SW":
+            priority_slot = 2
+            priority_label = "Ưu tiên đi sớm H=2"
+            has_nogold = True
+        else:  # BT
+            priority_slot = 4
+            priority_label = "Ưu tiên đi trễ H=4"
+            has_nogold = False
+
+    elif weekday == 3:  # Thursday (Yesterday was Wednesday)
+        if prev_group == "SW":
+            priority_slot = 3
+            priority_label = "Ưu tiên đi trễ H=3"
+            has_nogold = True
+        else:  # BT
+            priority_slot = 2
+            priority_label = "Ưu tiên đi trễ H=2"
+            has_nogold = False
+
+    elif weekday == 4:  # Friday (Yesterday was Thursday)
+        if prev_group == "SW":
+            priority_slot = 3
+            priority_label = "Ưu tiên đi trễ H=3"
+            has_nogold = not is_special
+        else:  # BT
+            priority_slot = 2
+            priority_label = "Ưu tiên đi trễ H=2"
+            has_nogold = is_special
+
+    return {
+        "prev_h11_group": prev_group,
+        "priority_slot": priority_slot,
+        "priority_label": priority_label,
+        "has_nogold_label": has_nogold,
+    }
+
+
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
-    """XAU-only mode has no no-gold labels."""
+    """Return True if slot H has a no-gold label attached based on yesterday's H=11 SW/BT."""
+    try:
+        h = int(H)
+    except (TypeError, ValueError):
+        return False
+    if h in (12, 13, 15):
+        if broker_dt is not None:
+            rules = get_h11_priority_and_nogold_rules(broker_dt)
+            return rules["has_nogold_label"]
     return False
 
 
@@ -1076,7 +1168,9 @@ def is_thursday_no_gold_slot(H, broker_dt=None, weekday=None):
 
 
 def xau_no_trade_label_tag(H, broker_dt=None, weekday=None):
-    """XAU-only mode has no no-gold badge tag."""
+    """Return no-gold badge tag if slot has no-gold label."""
+    if is_xau_no_trade_label_slot(H, broker_dt=broker_dt, weekday=weekday):
+        return "[Không Vàng]"
     return ""
 
 
@@ -1098,6 +1192,9 @@ def get_hour_note(H, weekday=None, broker_dt=None):
             group, detail = evaluate_h11_classification(broker_dt)
             return f"H=11: Nhóm {group} ({detail})"
         return "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7"
+
+    rules = get_h11_priority_and_nogold_rules(broker_dt) if broker_dt is not None else None
+
     notes = {
         2: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
         3: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
@@ -1106,7 +1203,15 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         9: "GBP group đảo từ H=5 hôm qua (Thứ 6 cùng chiều)",
         14: "GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo)",
     }
-    return notes.get(h, "Chỉ Vàng (XAUUSD)")
+    base_note = notes.get(h, "Chỉ Vàng (XAUUSD)")
+
+    if rules is not None:
+        if h == rules["priority_slot"]:
+            base_note = f"★ {rules['priority_label']} · " + base_note
+        if h in (12, 13, 15) and rules["has_nogold_label"]:
+            base_note = base_note + "; 🚫 no-gold label"
+
+    return base_note
 
 
 def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):

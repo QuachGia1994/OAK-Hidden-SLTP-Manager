@@ -21,7 +21,6 @@ class TestGetDayNotes(unittest.TestCase):
                 self.assertIn("H=2-5,7-9,11-15", blob)
                 self.assertIn("GBPAUD cùng chiều H=5 hôm qua.", blob)
                 self.assertIn("GBP", blob)
-                self.assertNotIn("no-gold", blob)
 
     def test_active_slots_exclude_disabled_hours(self):
         notes = " ".join(get_day_notes(date(2026, 7, 13), lang="EN"))

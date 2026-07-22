@@ -631,6 +631,20 @@ def get_day_notes(now, lang="VN"):
     notes_vn = list(day_rules_vn.get(weekday, []))
     notes_en = list(day_rules_en.get(weekday, []))
 
+    try:
+        from mt5_signal_bot import get_h11_priority_and_nogold_rules
+        dt = now if isinstance(now, datetime) else datetime.combine(now, datetime.min.time())
+        rules = get_h11_priority_and_nogold_rules(dt)
+        p_label = rules["priority_label"]
+        has_ng = rules["has_nogold_label"]
+        ng_note = "; H=12,13,15: gắn nhãn no-gold label" if has_ng else ""
+        h11_group = rules["prev_h11_group"]
+        h11_summary = f"H=11 hôm qua ({h11_group}) ➔ {p_label}{ng_note}"
+        notes_vn.insert(1, f"★ {h11_summary}")
+        notes_en.insert(1, f"★ {h11_summary}")
+    except Exception:
+        pass
+
     if lang == "VN":
         return notes_vn
     return notes_en
