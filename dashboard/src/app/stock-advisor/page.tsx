@@ -1,6 +1,7 @@
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { getStockAdvisory, maskStockAdvisory } from "@/lib/data";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
+import { localizeAdvisorWarning } from "@/lib/stock-advisor-i18n";
 import type { StockAdvisory, StockAdvisorCandidate } from "@/lib/types";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
@@ -128,7 +129,11 @@ function EvidencePanel({ advisory, locale }: { advisory: StockAdvisory; locale: 
         <EvidenceRow label={locale === "EN" ? "Rejected" : "Loại"} value={advisory.rejected_symbols.toString()} />
       </dl>
       <div className="mt-5 border-t pt-4">
-        {advisory.warnings.map((warning) => <p key={warning} className="mb-2 text-xs leading-5 text-amber-600 dark:text-amber-400">{warning}</p>)}
+        {advisory.warnings.map((warning) => (
+          <p key={warning} className="mb-2 text-xs leading-5 text-amber-600 dark:text-amber-400">
+            {localizeAdvisorWarning(warning, locale)}
+          </p>
+        ))}
       </div>
     </section>
   );

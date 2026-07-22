@@ -1,13 +1,14 @@
 "use client";
 
+import { getH11ChartTitle } from "@/lib/signal-note-i18n";
 import type { H11Candle } from "@/lib/types";
 
 interface H11CandleChartProps {
   candles?: H11Candle[];
-  detailNote?: string;
+  locale: "VN" | "EN";
 }
 
-export function H11CandleChart({ candles }: H11CandleChartProps) {
+export function H11CandleChart({ candles, locale }: H11CandleChartProps) {
   if (!candles || candles.length === 0) {
     return null;
   }
@@ -36,7 +37,7 @@ export function H11CandleChart({ candles }: H11CandleChartProps) {
     <div className="mt-3 overflow-hidden rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[11px] font-black uppercase tracking-wider text-[var(--foreground)]">
-          Biểu đồ 4 nến H1 (H7 ➔ H10)
+          {getH11ChartTitle(locale)}
         </span>
         <span className="font-mono text-[10px] text-[var(--muted)]">
           {minLow.toFixed(2)} - {maxHigh.toFixed(2)}

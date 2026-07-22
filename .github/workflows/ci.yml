@@ -42,3 +42,25 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s tests -v
         shell: pwsh
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dashboard dependencies
+        run: npm ci
+        working-directory: dashboard
+        shell: pwsh
+
+      - name: Dashboard i18n tests
+        run: npm run test:i18n
+        working-directory: dashboard
+        shell: pwsh
+
+      - name: Build dashboard
+        run: npm run build
+        working-directory: dashboard
+        shell: pwsh

@@ -2,10 +2,12 @@
   "name": "dashboard",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:i18n": "node --test \"tests/*.test.mjs\""
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",

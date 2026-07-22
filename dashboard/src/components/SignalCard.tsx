@@ -7,34 +7,12 @@ import {
   getSignalLabel,
   weekdayFromDate,
 } from "@/lib/constants";
+import { localizeHourNote } from "@/lib/signal-note-i18n";
 import type { Signal } from "@/lib/types";
 import { BrokerLocalTime } from "./BrokerLocalTime";
 import { H11CandleChart } from "./H11CandleChart";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
-
-function translateHourNote(note: string | null | undefined, locale: "VN" | "EN"): string | null {
-  if (!note) return null;
-  if (locale === "VN") return note;
-  const map: Array<[RegExp, string | ((match: string, ...args: any[]) => string)]> = [
-    [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
-    [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
-    [/H=(3|7): Đảo chiều từ H=2\./g, "H=$1: reverse the final H=2 direction."],
-    [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 Stock-direction"],
-    [/XAUUSD đảo từ H=5 hôm qua/g, "XAUUSD reverses from H=5 yesterday"],
-    [/XAUUSD đảo từ H=5 hôm nay/g, "XAUUSD reverses from H=5 today"],
-    [/GBPAUD cùng chiều H=5 hôm qua/g, "GBPAUD follows H=5 yesterday"],
-    [/GBP group đảo từ H=5 hôm qua \(Thứ 6 cùng chiều\)/g, "GBP reverses from H=5 yesterday (Fri follows)"],
-    [/GBP group cùng chiều H=5 hôm nay \(Thứ 6 đảo\)/g, "GBP follows H=5 today (Fri reverses)"],
-    [/H=11: Nhóm (SW|BT) \((.*?)\)/g, (_: string, grp: string, dt: string) => `H=11: ${grp} Group (${dt.replace(/Tăng/g, "Up").replace(/Giảm/g, "Down")})`],
-  ];
-  return map.reduce((acc, [pattern, replacement]) => {
-    if (typeof replacement === "string") {
-      return acc.replace(pattern, replacement);
-    }
-    return acc.replace(pattern, replacement);
-  }, note);
-}
 
 export function SignalCard({
   signal,
@@ -46,7 +24,12 @@ export function SignalCard({
   const { locale } = useLocale();
   const weekday = weekdayFromDate(signal.date);
   const rawHourNote = signal.hour_note || getHourNote(signal.hour, weekday) || "";
-  const hourNote = translateHourNote(rawHourNote, locale);
+  const {
+    translatedNote: hourNote,
+    badgeText,
+    descriptionText,
+    hasNoGoldBadge,
+  } = localizeHourNote(rawHourNote, locale);
   const showHourNote = Boolean(
     hourNote &&
       rawHourNote !== "Chỉ Vàng (XAUUSD)" &&
@@ -74,14 +57,6 @@ export function SignalCard({
 
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
-
-  const hasPriorityBadge = rawHourNote.includes("★");
-  const hasNoGoldBadge = rawHourNote.includes("no-gold");
-
-  const badgeText = hasPriorityBadge ? rawHourNote.split("·")[0].trim() : null;
-  const descriptionText = hasPriorityBadge
-    ? rawHourNote.split("·").slice(1).join("·").replace("; 🚫 no-gold label", "").trim()
-    : hourNote ? hourNote.replace("; 🚫 no-gold label", "").trim() : "";
 
   return (
     <article className="terminal-panel group signal-rail overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
@@ -148,7 +123,7 @@ export function SignalCard({
             <p className="text-xs leading-relaxed text-[var(--foreground)]">{descriptionText}</p>
           )}
           {signal.hour === 11 && (
-            <H11CandleChart candles={signal.h11_candles} detailNote={descriptionText} />
+            <H11CandleChart candles={signal.h11_candles} locale={locale} />
           )}
         </div>
       )}
