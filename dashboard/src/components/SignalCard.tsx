@@ -38,8 +38,7 @@ export function SignalCard({
 }) {
   const { locale } = useLocale();
   const weekday = weekdayFromDate(signal.date);
-  const fallbackHourNote = signal.date ? getHourNote(signal.hour, weekday) : signal.hour_note;
-  const rawHourNote = fallbackHourNote || getHourNote(signal.hour, weekday);
+  const rawHourNote = signal.hour_note || getHourNote(signal.hour, weekday) || "";
   const hourNote = translateHourNote(rawHourNote, locale);
   const showHourNote = Boolean(
     hourNote &&
@@ -64,6 +63,14 @@ export function SignalCard({
 
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
+
+  const hasPriorityBadge = rawHourNote.includes("★");
+  const hasNoGoldBadge = rawHourNote.includes("no-gold");
+
+  const badgeText = hasPriorityBadge ? rawHourNote.split("·")[0].trim() : null;
+  const descriptionText = hasPriorityBadge
+    ? rawHourNote.split("·").slice(1).join("·").replace("; 🚫 no-gold label", "").trim()
+    : hourNote ? hourNote.replace("; 🚫 no-gold label", "").trim() : "";
 
   return (
     <article className="terminal-panel group signal-rail overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
@@ -115,8 +122,20 @@ export function SignalCard({
       </div>
 
       {showHourNote && (
-        <div className="border-t border-[var(--panel-border)] bg-[var(--terminal-warning)]/[0.06] px-4 py-3">
-          <p className="text-xs leading-relaxed text-[var(--foreground)]">{hourNote}</p>
+        <div className="border-t border-[var(--panel-border)] bg-[var(--terminal-warning)]/[0.06] px-4 py-3 space-y-1.5">
+          {badgeText && (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[var(--terminal-warning)] shadow-sm">
+              <span>{badgeText}</span>
+            </div>
+          )}
+          {hasNoGoldBadge && (
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/15 px-2.5 py-0.5 font-mono text-[11px] font-bold text-[var(--terminal-danger)] shadow-sm">
+              <span>🚫 no-gold label</span>
+            </div>
+          )}
+          {descriptionText && (
+            <p className="text-xs leading-relaxed text-[var(--foreground)]">{descriptionText}</p>
+          )}
         </div>
       )}
     </article>
