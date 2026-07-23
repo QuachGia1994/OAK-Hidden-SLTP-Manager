@@ -1,155 +1,100 @@
-# Real Engineer Skills — AGENTS.md
+# UNIFIED AGENT PROTOCOL — AGENTS.md / .agent/rules.md
 
-**Portable instruction set for AI coding agents**  
-Combines: Matt Pocock (engineering discipline) + Ponytail (extreme minimalism) + Taste-Skill (UI quality) + Andrej Karpathy (LLM self-correction) + Strix (security & bug auditing)
-
-Use this file as project-level instructions for Claude Code, Cursor, Codex, Devin, or any agent that supports `.md` instructions / rules.
+Portable instruction set for AI coding agents (Antigravity IDE, Gemini 3.1 Pro, Claude Code, Cursor, Codex, Devin).
 
 ---
 
-## Core Philosophy (Always Active)
+## 1. Core Philosophy & Engineering Disciplines
 
-Real engineering with AI must satisfy **four layers** simultaneously:
+Real engineering with AI satisfies four core layers simultaneously:
+1. **Disciplined Engineering**: Alignment first → Domain model → Specs & tickets → TDD → Architecture health.
+2. **Extreme Minimalism (Ponytail)**: The best code is the code you never write. Always climb the Laziness Ladder.
+3. **High-Quality Taste & Design Standards (Google Labs design.md)**: Interfaces must feel intentional, structured, and premium. Reject generic templates and AI slop.
+4. **LLM Self-Correction & Security**: Surface assumptions, stay surgical, be goal-driven, and actively hunt for bugs/vulnerabilities before shipping.
 
-1. **Disciplined Engineering** (Matt Pocock)  
-   Alignment first → Domain model → Specs & tickets → TDD → Architecture health.
-
-2. **Extreme Minimalism** (Ponytail)  
-   The best code is the code you never write. Always climb the **Laziness Ladder** before writing anything new.
-
-3. **High-Quality Taste** (Taste-Skill)  
-   Interfaces must feel intentional and premium. Use Design Dials and reject generic slop.
-
-4. **LLM Self-Correction + Security** (Karpathy + Strix)  
-   Surface assumptions, stay surgical, be goal-driven, and actively hunt for bugs & vulnerabilities before shipping.
-
----
-
-## The 11 Disciplines (Summary)
-
-### 1. Grilling (Alignment)
-Before any code or spec, conduct structured clarification across goals, constraints, data model, flows, edges, and success criteria. Only proceed with explicit shared understanding.
-
-### 2. Domain Modeling
-Maintain a living, precise model of entities, value objects, invariants, and ubiquitous language. Update it continuously. Use it to drive naming and decisions.
-
-### 3. Test-Driven Development (TDD)
-Red → Green (minimal) → Refactor. All production code must be justified by failing tests first.
-
-### 4. Codebase Design & Architecture
-Design small, cohesive modules with clear seams. Favor composition and protocols. Apply Clean Architecture layers when complexity justifies it. Periodically run architecture health checks.
-
-### 5. Specification & Decomposition
-Convert discussion into clear, testable specs, then break into small, independent, tracer-bullet tickets with acceptance criteria.
-
-### 6. Systematic Debugging
-Reproduce minimally → Minimize → Hypothesize → Instrument → Fix → Verify with tests. Never fix without understanding root cause.
-
-### 7. Code Review
-Review against spec, domain model, simplicity, test coverage, and style. Be ruthless.
-
-### 8. Ponytail Minimalism (Laziness Ladder)
-Before writing **any** new code, climb in strict order:
-1. Does this need to exist? (YAGNI)
-2. Already in codebase? → Reuse
-3. Stdlib / native platform feature?
-4. Installed dependency?
-5. Can it be one line?
-6. Only then → write the absolute minimum correct implementation.
-
-Safety, validation, and error handling are **never** sacrificed.
-
-### 9. Website UI Taste (Design Dials)
-For any UI work, explicitly set or infer:
-- **DESIGN_VARIANCE** (1–10): layout experimentation
-- **MOTION_INTENSITY** (1–10): animation depth
-- **VISUAL_DENSITY** (1–10): information per screen
-
-Default for most professional apps: 6 / 5 / 3
-
-Reject generic patterns, repetitive cards, placeholder text, and em-dashes in UI. Prioritize typography, generous consistent spacing, hierarchy, and purposeful motion. Choose aesthetic mode deliberately (Soft Premium / Minimalist Editorial / Brutalist / Trading Terminal).
-
-### 10. Andrej Karpathy LLM Coding Principles
-1. **Think Before Coding** — State assumptions explicitly. Present alternatives when ambiguous. Stop and ask when confused.
-2. **Simplicity First** — Default to simplest solution. No unrequested abstractions or features.
-3. **Surgical Changes** — Only edit what is necessary. Match existing style. Never touch unrelated code.
-4. **Goal-Driven Execution** — Convert tasks into clear, verifiable success criteria. Iterate in tight loops until goals are met.
-
-### 11. Strix-Style Bug & Vulnerability Checking (Final Gate)
-Before code is considered complete, actively hunt for:
-- OWASP Top 10 issues
-- Business logic flaws & race conditions (especially critical in trading/finance)
-- Access control, injection, auth/session problems
-- Concurrency and state manipulation issues
-
-Write adversarial tests. Validate with reproduction steps. Apply only surgical minimal fixes. Run this **after implementation, before final review**.
+### The 11 Core Disciplines
+1. **Grilling (Alignment)**: Conduct structured clarification across goals, constraints, data model, and edge cases before writing code.
+2. **Domain Modeling**: Maintain a precise, living model of entities, value objects, and ubiquitous language.
+3. **Test-Driven Development (TDD)**: Red → Green (minimal) → Refactor.
+4. **Codebase Design & Architecture**: Small, cohesive modules with clear seams. Favor composition and protocols.
+5. **Specification & Decomposition**: Break tasks into small, independent, tracer-bullet tickets with clear acceptance criteria.
+6. **Systematic Debugging**: Reproduce minimally → Hypothesize → Instrument → Fix → Verify with tests. Never fix without understanding the root cause.
+7. **Code Review**: Review against spec, domain model, simplicity, test coverage, and style.
+8. **Ponytail Minimalism (Laziness Ladder)**:
+   - Does this need to exist? (YAGNI)
+   - Already in codebase? → Reuse
+   - Stdlib / native platform feature?
+   - Installed dependency?
+   - Can it be one line?
+   - Only then → write the absolute minimum correct implementation.
+9. **Karpathy 4 Principles**: Think Before Coding → Simplicity First → Surgical Changes → Goal-Driven Execution.
+10. **Strix Bug & Security Gate**: Before finishing, audit for OWASP Top 10, access control, business logic flaws, race conditions, concurrency issues, and auth flaws.
+11. **Cascading Impact Scan**: Always find and update every file affected by your changes.
 
 ---
 
-## Quick Reference Checklists
+## 2. Antigravity IDE & Gemini 3.1 Pro Execution Rules
 
-### Laziness Ladder (Ponytail)
-Always climb before writing code. Safety is non-negotiable.
+### Rule 2.1: Mandatory Impact Scan & Related File Updates
+Khi sửa lỗi, refactor hoặc thêm tính năng:
+1. **Grep/Search Dependents**: BẮT BUỘC dùng codebase search/grep để tìm TẤT CẢ các file đang import hoặc sử dụng function, component, API handler, type hoặc prop vừa thay đổi.
+2. **Cascade Fixes**: Tự động sửa tất cả các file liên quan ngay trong cùng lượt xử lý. Không dừng lại cho đến khi toàn bộ hệ thống đồng bộ.
+3. **Build & Type Verification**:
+   - Chạy `npx tsc --noEmit` hoặc `npm run build` (với Web/Vercel projects).
+   - Chạy `swift build` hoặc `xcodebuild` (với Swift projects).
+   - Nếu có lỗi, tiếp tục tự động sửa cho đến khi build pass 100%.
 
-### Karpathy 4 Principles
-Think → Simplicity → Surgical → Goal-Driven.
-
-### Design Dials (UI)
-Set Variance / Motion / Density before building any screen.
-
-### Strix Final Gate (Critical Paths)
-Access control • Business logic • Race conditions • Injection • Auth • Concurrency • Data exposure
-
----
-
-## Swift / SwiftUI Specific Rules (APPLE-TRADER)
-
-When working with Swift/SwiftUI (especially trading/financial apps):
-
-- **Tech Stack**: Swift 6.2+, SwiftUI + @Observable, Protocol-Oriented Programming, value types (struct/enum) for models and state. async/await only. No UIKit.
-- **Performance**: Use Span & inline arrays for hot paths.
-- **Clean Code**: Mandatory early returns with `guard`. Max ~30 lines per function. Descriptive naming. DocC for public APIs. No dead code.
-- **Error Handling**: Define explicit `Error` enums. Use `do-catch` or `Result`. **No `try!`**. No silent failures.
-- **Architecture**: Apply Clean Architecture (Robert C. Martin) + Thinking in SwiftUI patterns (Chris Eidhof). Keep UI layer thin.
-- **Minimalism + Taste**: Combine Ponytail + Design Dials. Prefer native SwiftUI modifiers and small `ViewModifier`s over new custom views.
-- **Security**: Pay special attention to state manipulation, concurrency (actors/MainActor), local storage, and auth flows.
+### Rule 2.2: Automatic Git & Vercel Deployment
+Ngay khi code đã sửa xong, các file liên quan đã cập nhật và build verification PASS:
+1. **Git Staging**: Execute `git add .`
+2. **Git Commit**: Tạo commit message ngắn gọn theo chuẩn Conventional Commits (ví dụ: `fix(auth): update token handler and update dependent components`).
+3. **Push / Vercel Deploy**: Execute `git push origin HEAD` để tự động kích hoạt Vercel build/deploy pipeline.
+4. **Final Summary**: Báo cáo ngắn gọn cho người dùng: "Đã sửa X, cập nhật Y file liên quan, build pass và đã push Vercel thành công."
 
 ---
 
-## How to Use With Other Agents
+## 3. Web UI & Google Labs Design System Standards (`design.md`)
 
-### Claude Code / Claude Projects
-- Place this `AGENTS.md` in your project root (or rename to `CLAUDE.md`).
-- Or use as custom instructions.
+Khi phát triển hoặc chỉnh sửa giao diện Web (React, Next.js, HTML/CSS, Tailwind):
 
-### Cursor
-- Copy content into `.cursor/rules/real-engineer-skills.mdc` (or similar).
-- Or add as project rules.
+### 3.1. Design Principles & Aesthetic
+- **Intentional Layout**: Sử dụng Grid & Flexbox chuẩn chỉnh, có không gian thở (padding/margin hợp lý).
+- **Design Dials Default**:
+  - `DESIGN_VARIANCE`: 6 (Sáng tạo vừa đủ, tránh phá vỡ khung trải nghiệm)
+  - `MOTION_INTENSITY`: 5 (Animation mượt mà, chuyển cảnh có mục đích)
+  - `VISUAL_DENSITY`: 3-5 (Thông tin thoáng đãng, dễ đọc)
+- **Color System**:
+  - Khai báo CSS Variables cho theme (`--background`, `--foreground`, `--primary`, `--muted`, `--accent`).
+  - Đảm bảo độ tương phản (WCAG AA/AAA) cho Dark/Light mode.
+  - Dùng màu nhấn (accent) có tiết chế, tránh lạm dụng gradient màu mè.
+- **Typography & Hierarchy**:
+  - Phân cấp rõ ràng: Title (Bold/Large) → Section Header → Body → Muted Metadata.
+  - Sử dụng font Sans-serif hiện đại cho UI và Monospace cho code/data numeric.
 
-### Other Agents (Codex, Devin, Gemini, etc.)
-- Load this file as system prompt / project context / custom instructions.
-- Many agents support loading `.md` files automatically when present in the working directory.
-
-### Recommended Workflow
-1. Start every significant task by referencing this file.
-2. Explicitly invoke disciplines when needed (e.g., "apply ponytail + karpathy + strix check").
-3. For UI work, always set Design Dials first.
-
----
-
-## Version & Sources
-
-This consolidated instruction set is derived from:
-- Matt Pocock – Skills for Real Engineers
-- Dietrich Gebert – Ponytail
-- Leonxlnx – Taste-Skill
-- Andrej Karpathy LLM coding observations
-- usestrix – Strix (AI penetration testing)
-
-**Goal**: Produce minimal, correct, tasteful, secure, and maintainable code with AI assistance.
-
-Use responsibly. Always keep safety, validation, and error handling as non-negotiable.
+### 3.2. Anti-Patterns (TẬP TRUNG TRÁNH AI SLOP)
+- **KHÔNG** dùng layout thẻ (cards) lặp đi lặp lại một cách nhàm chán.
+- **KHÔNG** sử dụng text giả (Lorem Ipsum) hay thông số placeholder vô nghĩa.
+- **KHÔNG** dùng viền quá đậm, bóng đổ (drop shadow) lem nhem hoặc màu sắc không có nghĩa trong bảng thiết kế.
+- **KHÔNG** bỏ qua trạng thái UI (mọi nút/input phải có đầy đủ state: `hover`, `focus-visible`, `active`, `disabled`, `loading`, `empty`).
 
 ---
 
-*Generated from real-engineer-skills (Grok) – July 2026*
+## 4. Swift / SwiftUI Specific Rules (APPLE-TRADER)
+
+Dành cho các dự án Swift / macOS / iOS:
+
+- **Tech Stack**: Swift 6.2+, SwiftUI + `@Observable`, Protocol-Oriented Programming, Value types (`struct`/`enum`). `async/await` chỉ định. Không xài UIKit trừ khi cực kỳ cần thiết.
+- **Performance**: Dùng `Span` & inline arrays cho hot paths/real-time trading data.
+- **Clean Code**: Bắt buộc dùng `guard` early return. Hàm tối đa ~30 dòng. Rõ nghĩa. Không dùng `try!`. Không giấu lỗi.
+- **Architecture**: Clean Architecture + Thinking in SwiftUI. Tách biệt UI layer và Business Logic (Domain).
+- **Security**: Kiểm tra kỹ concurrency (`@MainActor`, `actor`), quản lý state giao dịch và mã hóa dữ liệu nhạy cảm.
+
+---
+
+## 5. Antigravity Quick Commands & Workflows
+
+Khi làm việc trong Antigravity Chat:
+- Để kích hoạt suy luận đa bước trước khi sửa code lớn:  
+  `[Think Deep] <Yêu cầu công việc>`
+- Để chạy workflow sửa code + push Vercel tự động:  
+  `Sửa lỗi X, quét toàn bộ side-effects, typecheck và push Vercel khi hoàn tất.`

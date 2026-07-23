@@ -1,11 +1,13 @@
 # NHẬT KÝ CẬP NHẬT
 
-## [Chưa phát hành] - 2026-07-22
+## [v3.17.1] - 2026-07-23
 
 - Ghi JSON lịch đóng lệnh bằng file tạm riêng, retry khóa Windows và transaction chung giữa worker/NativeQt, tránh `Loop Error [WinError 5]` lẫn mất lịch do ghi đè đồng thời.
 - Giữ record H=11 SW/BT hợp lệ có đủ bốn nến trong lịch sử 7 ngày để Dashboard hiển thị SVG OHLC.
 - Rule ưu tiên H=7/H=8 nay đối xứng cho cả hai hướng H=5 và không tự tạo badge khi thiếu nến H=6.
-- Lệnh nhanh Telegram nhận giờ broker `HH:MM` đầy đủ, tự đổi sang giờ Windows và vẫn tương thích cách nhập chỉ phút; chỉ phản hồi hợp lệ của user mới tạo `/pending`.
+- Đảo ngược tín hiệu lệnh XAUUSD vào H=15 của ngày Thứ 4.
+- Tạm thời gỡ bỏ inline keyboard "Chọn lệnh nhanh" trên Telegram để tránh vướng cú pháp lệnh pending.
+- Đồng bộ toàn diện rule ngày Thứ 5 cho H=2, H=3: Tái sử dụng chính xác data kết quả lệnh (cả XAUUSD lẫn GBPAUD) và kế thừa trực tiếp nhãn "Ưu tiên" từ ngày Thứ 2 trước đó. Cập nhật Dashboard text tương ứng.
 
 ## [v3.17.0] - 2026-07-18
 

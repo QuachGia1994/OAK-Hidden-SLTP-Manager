@@ -1,11 +1,13 @@
 # RELEASE NOTES
 
-## [Unreleased] - 2026-07-22
+## [v3.17.1] - 2026-07-23
 
 - Write scheduled-close JSON through per-writer temporary files, Windows-lock retries, and shared worker/NativeQt transactions, preventing both `Loop Error [WinError 5]` and concurrent lost updates.
 - Retain valid H=11 SW/BT records with all four candles in seven-day history so the Dashboard can render the OHLC SVG.
 - Make H=7/H=8 priority symmetric for either H=5 direction and avoid fabricating a badge when the H=6 candle is unavailable.
-- Accept full broker `HH:MM` values in Telegram quick orders, convert them to the Windows clock, and retain legacy minute-only input; `/pending` is created only after a valid user reply.
+- Reverse XAUUSD direction at H=15 on Wednesday.
+- Temporarily remove the Telegram fast order inline keyboard to prevent conflicts with `/pending` syntax.
+- Fully synchronize Thursday H=2 and H=3 rules: Strictly reuse Monday's exact signal data (both XAUUSD and GBPAUD) and its Priority label. Updated Dashboard rule text accordingly.
 
 ## [v3.17.0] - 2026-07-18
 
