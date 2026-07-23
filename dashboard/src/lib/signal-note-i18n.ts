@@ -26,6 +26,7 @@ const ENGLISH_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 Stock-direction"],
   [/XAUUSD đảo từ H=5 hôm qua/g, "XAUUSD reverses from H=5 yesterday"],
   [/XAUUSD đảo từ H=5 hôm nay/g, "XAUUSD reverses from H=5 today"],
+  [/XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2/g, "XAUUSD & GBPAUD reuse Monday's history"],
   [/GBPAUD cùng chiều H=5 hôm qua/g, "GBPAUD follows H=5 yesterday"],
   [/GBP group đảo từ H=5 hôm qua \(Thứ 6 cùng chiều\)/g, "GBP reverses from H=5 yesterday (Fri follows)"],
   [/GBP group cùng chiều H=5 hôm nay \(Thứ 6 đảo\)/g, "GBP follows H=5 today (Fri reverses)"],

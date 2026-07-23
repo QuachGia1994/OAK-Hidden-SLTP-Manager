@@ -61,6 +61,9 @@ const HOUR_NOTES: Record<number, string> = {
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
+  if ((h === 2 || h === 3) && jsWeekday === 4) {
+    return "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2";
+  }
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 
@@ -94,7 +97,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
     4: [
       "Slots: H=2-5,7-9,11-15",
-      "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
+      "H=2,3: XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2.",
       "H=7,8: XAUUSD đảo từ H=5 hôm nay.",
       "H=9: GBP đảo từ H=5 hôm qua.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
@@ -136,7 +139,7 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
     4: [
       "Slots: H=2-5,7-9,11-15",
-      "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
+      "H=2,3: XAUUSD and GBPAUD reuse Monday's history.",
       "H=7,8: XAUUSD reverses from H=5 today.",
       "H=9: GBP reverses from H=5 yesterday.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",

@@ -2399,11 +2399,6 @@ class CopyTradeManager:
     def _auto_schedule_daily_closes(self):
         """Auto-schedule daily closes for XAUUSD and GBP if they are not already scheduled for today."""
         now_dt = datetime.now()
-        now_date = now_dt.strftime("%Y-%m-%d")
-        
-        # Guard to only attempt scheduling once per calendar day
-        if getattr(self, "_last_auto_close_date", None) == now_date:
-            return
         
         # We need to get the broker's current date to know if it's a weekday for the broker
         try:
@@ -2421,9 +2416,14 @@ class CopyTradeManager:
 
         broker_now = datetime.utcnow() + timedelta(hours=broker_gmt)
         broker_date = broker_now.date()
+        broker_date_str = broker_date.strftime("%Y-%m-%d")
+        
+        # Guard to only attempt scheduling once per broker calendar day
+        if getattr(self, "_last_auto_close_date", None) == broker_date_str:
+            return
         
         if broker_now.weekday() >= 5:
-            self._last_auto_close_date = now_date
+            self._last_auto_close_date = broker_date_str
             return
 
         xau_broker_time_str = "14:44:00" if broker_now.weekday() == 0 else "17:44:00"
@@ -2474,7 +2474,7 @@ class CopyTradeManager:
         if added is None:
             return
 
-        self._last_auto_close_date = now_date
+        self._last_auto_close_date = broker_date_str
         added_by_symbol = {task["sym"]: task for task in added}
         xau_scheduled = "XAUUSD" not in added_by_symbol
         gbp_scheduled = "GBP" not in added_by_symbol

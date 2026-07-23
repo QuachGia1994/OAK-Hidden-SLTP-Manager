@@ -782,8 +782,8 @@ def should_reverse_h2_xau(broker_dt):
         return False
     return is_h2_special_calendar_weekday(broker_dt)
 
-def _lookup_h2_t2_signal(broker_dt):
-    """Look up the previous Monday H=2 signal for Thursday history reuse."""
+def _lookup_historical_t2_signal(broker_dt, target_hour):
+    """Look up the previous Monday signal for Thursday history reuse."""
     monday_date = broker_dt.date() - timedelta(days=3)
     date_str = monday_date.isoformat()
     try:
@@ -791,14 +791,31 @@ def _lookup_h2_t2_signal(broker_dt):
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
                 data = json.load(f)
             for record in reversed(data):
-                if record.get("date") == date_str and int(record.get("hour", -1)) == 2:
+                if record.get("date") == date_str and int(record.get("hour", -1)) == target_hour:
                     sig = record.get("signal")
                     if sig in ("BUY", "SELL"):
                         return sig
     except Exception as e:
-        print(f"[WARN] Cannot look up Monday H=2 signal: {e}")
+        print(f"[WARN] Cannot look up Monday H={target_hour} signal: {e}")
     return None
 
+def _lookup_historical_t2_gbp_signal(broker_dt, target_hour):
+    """Look up the previous Monday GBPAUD signal for Thursday history reuse."""
+    monday_date = broker_dt.date() - timedelta(days=3)
+    date_str = monday_date.isoformat()
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            for record in reversed(data):
+                if record.get("date") == date_str and int(record.get("hour", -1)) == target_hour:
+                    pair_dirs = record.get("pair_dirs", {})
+                    sig = pair_dirs.get("GBPAUD")
+                    if sig in ("BUY", "SELL"):
+                        return sig
+    except Exception:
+        pass
+    return None
 
 def _lookup_h2_signal_today(broker_dt):
     """Look up today's H=2 signal from signals_log history."""
@@ -899,21 +916,7 @@ def _finalize_pattern_result(result, broker_dt, hour, reverse=False):
     return result
 
 
-def _thursday_h2_history_result(broker_dt):
-    """Reuse Monday's final H=2 XAUUSD direction for Thursday."""
-    historical_signal = _lookup_h2_t2_signal(broker_dt)
-    if historical_signal not in ("BUY", "SELL"):
-        return None
-    final_signal = reverse_signal(historical_signal) if should_reverse_h2_xau(broker_dt) else historical_signal
-    suffix = " đảo tuần đặc biệt" if final_signal != historical_signal else ""
-    return {
-        "signal": final_signal,
-        "pattern_signal": historical_signal,
-        "report": f"T5 H=2: dùng lịch sử Thứ 2 {historical_signal}{suffix} -> {final_signal}.",
-        "m30_dir": None,
-        "h1_signal": None,
-        "skip_xau_m30": True,
-    }
+
 
 
 def evaluate_classification_for_slot(broker_dt, slot_hour, symbol="XAUUSD"):
@@ -999,13 +1002,19 @@ def calculate_slot_signal(broker_dt, hour):
             "h1_signal": None,
             "skip_xau_m30": True,
         }
-    # H=2,3: XAUUSD đảo từ H=5 hôm qua
+    # H=2,3: XAUUSD đảo từ H=5 hôm qua (Nếu Thứ 5 thì dùng lại y chang Thứ 2)
     if hour in (2, 3):
-        h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
-        if h5_yesterday not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hôm qua.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        final_signal = reverse_signal(h5_yesterday)
-        return {"signal": final_signal, "pattern_signal": h5_yesterday, "report": f"H={hour}: đảo H=5 hôm qua ({h5_yesterday} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        if broker_dt.weekday() == 3:  # Thứ 5
+            historical_signal = _lookup_historical_t2_signal(broker_dt, hour)
+            if historical_signal not in ("BUY", "SELL"):
+                return {"signal": "WAIT", "report": f"H={hour}: thiếu lịch sử Thứ 2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+            return {"signal": historical_signal, "pattern_signal": historical_signal, "report": f"H={hour}: dùng lịch sử Thứ 2 ({historical_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        else:
+            h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
+            if h5_yesterday not in ("BUY", "SELL"):
+                return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hôm qua.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+            final_signal = reverse_signal(h5_yesterday)
+            return {"signal": final_signal, "pattern_signal": h5_yesterday, "report": f"H={hour}: đảo H=5 hôm qua ({h5_yesterday} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=7,8: XAUUSD đảo từ H=5 hôm nay
     if hour in (7, 8):
         h5_today = _lookup_h5_signal_today(broker_dt)
@@ -1045,6 +1054,14 @@ def calculate_slot_signal(broker_dt, hour):
         wd = broker_dt.weekday()
         final_signal = reverse_signal(h5_today) if wd == 4 else h5_today
         return {"signal": final_signal, "pattern_signal": h5_today, "report": f"H=14: {'đảo' if wd == 4 else 'cùng'} H=5 hôm nay ({h5_today} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+    # H=15: XAUUSD đảo ngược vào Thứ 4 (weekday == 2)
+    if hour == 15 and broker_dt.weekday() == 2:
+        result = analyze(broker_dt, hour)
+        final_result = _finalize_pattern_result(result, broker_dt, hour, reverse=True)
+        if final_result.get("signal") in ("BUY", "SELL"):
+            final_result["report"] += f"\n  -> [Thứ 4] Đảo ngược XAUUSD: {final_result['signal']}"
+        return final_result
+
     result = analyze(broker_dt, hour)
     return _finalize_pattern_result(result, broker_dt, hour)
 
@@ -1172,47 +1189,19 @@ def get_h11_priority_and_nogold_rules(broker_dt):
 
     # ── Priority slot (from yesterday's H=11) ──
     priority_slot = 2
-    priority_label = "Ưu tiên H=2"
 
     if weekday == 0:  # Monday (Yesterday was Friday)
-        if prev_group == "SW":
-            priority_slot = 3
-            priority_label = "Ưu tiên đi trễ H=3"
-        else:  # BT
-            priority_slot = 2
-            priority_label = "Ưu tiên đi trễ H=2"
-
+        priority_slot = 3 if prev_group == "SW" else 2
     elif weekday == 1:  # Tuesday (Yesterday was Monday)
-        if prev_group == "SW":
-            priority_slot = 2
-            priority_label = "Ưu tiên đi sớm H=2"
-        else:  # BT
-            priority_slot = 3
-            priority_label = "Ưu tiên đi trễ H=3"
-
+        priority_slot = 2 if prev_group == "SW" else 3
     elif weekday == 2:  # Wednesday (Yesterday was Tuesday)
-        if prev_group == "SW":
-            priority_slot = 2
-            priority_label = "Ưu tiên đi sớm H=2"
-        else:  # BT
-            priority_slot = 3
-            priority_label = "Ưu tiên đi trễ H=3"
-
+        priority_slot = 2 if prev_group == "SW" else 3
     elif weekday == 3:  # Thursday (Yesterday was Wednesday)
-        if prev_group == "SW":
-            priority_slot = 3
-            priority_label = "Ưu tiên đi trễ H=3"
-        else:  # BT
-            priority_slot = 2
-            priority_label = "Ưu tiên đi trễ H=2"
-
+        priority_slot = 3 if prev_group == "SW" else 2
     elif weekday == 4:  # Friday (Yesterday was Thursday)
-        if prev_group == "SW":
-            priority_slot = 3
-            priority_label = "Ưu tiên đi trễ H=3"
-        else:  # BT
-            priority_slot = 2
-            priority_label = "Ưu tiên đi trễ H=2"
+        priority_slot = 3 if prev_group == "SW" else 2
+
+    priority_label = f"Ưu tiên đi H={priority_slot}"
 
     # ── No-gold label (from TODAY's H=11) ──
     has_nogold = False
@@ -1451,11 +1440,16 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
     # All active hours: XAUUSD
     result["XAUUSD"] = signal
     apply_d_direction_marker(result, H, broker_dt)
-    # H=2,3: add GBPAUD same direction as H=5 yesterday (not reversed)
+    # H=2,3: add GBPAUD same direction as H=5 yesterday (or Monday's history for Thursday)
     if h in (2, 3) and broker_dt is not None:
-        h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
-        if h5_yesterday in ("BUY", "SELL"):
-            result["GBPAUD"] = h5_yesterday
+        if broker_dt.weekday() == 3:  # Thursday
+            gbp_historical = _lookup_historical_t2_gbp_signal(broker_dt, h)
+            if gbp_historical in ("BUY", "SELL"):
+                result["GBPAUD"] = gbp_historical
+        else:
+            h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
+            if h5_yesterday in ("BUY", "SELL"):
+                result["GBPAUD"] = h5_yesterday
     return result
 
 # =====================================================================
@@ -1522,38 +1516,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
 
     send_telegram(msg)
 
-    # Quick-order cho mọi output pair có hướng BUY/SELL.
-    active_pairs = []
-    for pair, direction in (pair_dirs or {}).items():
-        if pair not in (D_DIRECTION_PAIR, GBP_DIRECTION_PAIR) and direction in ("BUY", "SELL"):
-            active_pairs.append((pair, direction))
 
-    if active_pairs:
-        keyboard = []
-        row = []
-        for pair, direction in active_pairs:
-            label = f"{'🟢' if direction == 'BUY' else '🔴'} {direction} {pair}"
-            callback_data = f"sig:{direction}:{pair}:{H}"
-            row.append({"text": label, "callback_data": callback_data})
-            if len(row) == 2:
-                keyboard.append(row)
-                row = []
-        if row:
-            keyboard.append(row)
-
-        has_xau = any(p == "XAUUSD" for p, _ in active_pairs)
-        has_gbp = any(p.startswith("GBP") for p, _ in active_pairs)
-        if has_xau and has_gbp:
-            title = "⚡ Chọn lệnh nhanh (Vàng & GBP):"
-        elif has_gbp:
-            title = "⚡ Chọn lệnh nhanh nhóm GBP:"
-        else:
-            title = "⚡ Chọn lệnh nhanh Vàng (chỉ cần nhập Lot):"
-
-        try:
-            send_telegram_with_keyboard(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, title, keyboard)
-        except Exception as e:
-            print(f"[WARN] Inline keyboard error: {e}")
 
     return pair_dirs
 
