@@ -1035,18 +1035,16 @@ def calculate_slot_signal(broker_dt, hour):
     if hour == 9:
         h5_today = _lookup_h5_signal_today(broker_dt)
         h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
-        if h5_today not in ("BUY", "SELL") or h5_yesterday not in ("BUY", "SELL"):
-            missing = []
-            if h5_today not in ("BUY", "SELL"): missing.append("H=5 hôm nay")
-            if h5_yesterday not in ("BUY", "SELL"): missing.append("H=5 hôm qua")
-            return {"signal": "WAIT", "report": f"H=9: thiếu {', '.join(missing)}.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
         
-        final_xau = reverse_signal(h5_today)
+        if h5_today not in ("BUY", "SELL") and h5_yesterday not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": "H=9: thiếu cả H=5 hôm nay và hôm qua.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        
+        final_xau = reverse_signal(h5_today) if h5_today in ("BUY", "SELL") else "WAIT"
         wd = broker_dt.weekday()
-        final_gbp = h5_yesterday if wd == 4 else reverse_signal(h5_yesterday)
+        final_gbp = (h5_yesterday if wd == 4 else reverse_signal(h5_yesterday)) if h5_yesterday in ("BUY", "SELL") else "WAIT"
         
-        report = (f"H=9 [XAUUSD]: đảo H=5 hôm nay ({h5_today} -> {final_xau})\n"
-                  f"H=9 [GBP]: {'cùng' if wd == 4 else 'đảo'} H=5 hôm qua ({h5_yesterday} -> {final_gbp})")
+        report = (f"H=9 [XAUUSD]: {'đảo H=5 hôm nay (' + h5_today + ' -> ' + final_xau + ')' if final_xau != 'WAIT' else 'chờ H=5 hôm nay'}\n"
+                  f"H=9 [GBP]: {('cùng' if wd == 4 else 'đảo') + ' H=5 hôm qua (' + h5_yesterday + ' -> ' + final_gbp + ')' if final_gbp != 'WAIT' else 'chờ H=5 hôm qua'}")
         
         return {
             "signal": "MIXED",
@@ -1057,6 +1055,8 @@ def calculate_slot_signal(broker_dt, hour):
             "h1_signal": None,
             "skip_xau_m30": True
         }
+        
+
     # H=11: Phân nhóm H1 XAUUSD (SW/BT) liên quan H=2,3 ngày mai
     if hour == 11:
         res_h11 = evaluate_h11_classification(broker_dt)
@@ -1465,9 +1465,13 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
     if signal in ("SW", "BT"):
         return {}
     if signal == "MIXED" and h == 9 and full_result:
-        result["XAUUSD"] = full_result.get("xau_signal")
-        for pair in GBP_PAIRS:
-            result[pair] = full_result.get("gbp_signal")
+        xau = full_result.get("xau_signal")
+        gbp = full_result.get("gbp_signal")
+        if xau in ("BUY", "SELL"):
+            result["XAUUSD"] = xau
+        if gbp in ("BUY", "SELL"):
+            for pair in GBP_PAIRS:
+                result[pair] = gbp
         return result
     if signal == "WAIT":
         if h in (12, 13, 15):

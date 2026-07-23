@@ -60,7 +60,7 @@ const HOUR_NOTES: Record<number, string> = {
   9: "XAUUSD đảo từ H=5 hôm nay; GBP group đảo từ H=5 hôm qua",
   11: "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7",
   12: "Chỉ Vàng (XAUUSD)",
-  14: "GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo)",
+  14: "GBP group cùng chiều H=5 hôm nay",
   15: "Chỉ Vàng (XAUUSD)",
 };
 
@@ -69,6 +69,12 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
   if ((h === 2 || h === 3) && jsWeekday === 4) {
     return "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2";
+  }
+  if (h === 9 && jsWeekday === 5) {
+    return "XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6)";
+  }
+  if (h === 14 && jsWeekday === 5) {
+    return "GBP group đảo từ H=5 hôm nay (Thứ 6)";
   }
   if (h === 15 && (jsWeekday === 3 || jsWeekday === 4)) {
     return "XAUUSD đảo ngược (Thứ 4 / Thứ 5)";
