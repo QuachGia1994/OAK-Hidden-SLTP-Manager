@@ -2426,8 +2426,8 @@ class CopyTradeManager:
             self._last_auto_close_date = broker_date_str
             return
 
-        xau_broker_time_str = "14:44:00" if broker_now.weekday() == 0 else "17:44:00"
-        gbp_broker_time_str = "19:44:00"
+        xau_broker_time_str = "14:49:00" if broker_now.weekday() == 0 else "17:49:00"
+        gbp_broker_time_str = "19:49:00"
         
         try:
             local_dt = datetime.now()
