@@ -73,6 +73,9 @@ export function getHourNote(hour: number, jsWeekday?: number): string | null {
   if ((h === 2 || h === 3) && jsWeekday === 4) {
     return "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2";
   }
+  if (h === 15 && (jsWeekday === 3 || jsWeekday === 4)) {
+    return "XAUUSD đảo ngược (Thứ 4 / Thứ 5)";
+  }
   return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
 }
 

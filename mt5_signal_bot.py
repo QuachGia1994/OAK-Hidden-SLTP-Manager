@@ -1067,12 +1067,13 @@ def calculate_slot_signal(broker_dt, hour):
         wd = broker_dt.weekday()
         final_signal = reverse_signal(h5_today) if wd == 4 else h5_today
         return {"signal": final_signal, "pattern_signal": h5_today, "report": f"H=14: {'đảo' if wd == 4 else 'cùng'} H=5 hôm nay ({h5_today} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=15: XAUUSD đảo ngược vào Thứ 4 (weekday == 2)
-    if hour == 15 and broker_dt.weekday() == 2:
+    # H=15: XAUUSD đảo ngược vào Thứ 4 (weekday == 2) và Thứ 5 (weekday == 3)
+    if hour == 15 and broker_dt.weekday() in (2, 3):
         result = analyze(broker_dt, hour)
         final_result = _finalize_pattern_result(result, broker_dt, hour, reverse=True)
         if final_result.get("signal") in ("BUY", "SELL"):
-            final_result["report"] += f"\n  -> [Thứ 4] Đảo ngược XAUUSD: {final_result['signal']}"
+            wd_name = "Thứ 4" if broker_dt.weekday() == 2 else "Thứ 5"
+            final_result["report"] += f"\n  -> [{wd_name}] Đảo ngược XAUUSD: {final_result['signal']}"
         return final_result
 
     result = analyze(broker_dt, hour)
