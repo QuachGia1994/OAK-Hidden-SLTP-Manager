@@ -31,6 +31,9 @@ const ENGLISH_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/GBP group đảo từ H=5 hôm qua/g, "GBP group reverses from H=5 yesterday"],
   [/GBP cùng chiều H=5 hôm qua \(Thứ 6\)/g, "GBP follows H=5 yesterday (Fri)"],
   [/GBP group cùng chiều H=5 hôm nay \(Thứ 6 đảo\)/g, "GBP group follows H=5 today (Fri reverses)"],
+  [/GBP group cùng chiều H=5 hôm nay/g, "GBP group follows H=5 today"],
+  [/\(Thứ 6 cùng chiều\)/g, "(Fri follows)"],
+  [/\(Thứ 6 đảo\)/g, "(Fri reverses)"],
   [/H=11: Phân nhóm H1 \(SW\/BT\) từ H=10,9,8,7/g, "H=11: Classify H1 (SW/BT) from H=10,9,8,7"],
   [/XAUUSD đảo ngược \(Thứ 4 \/ Thứ 5\)/g, "XAUUSD reverses (Wed / Thu)"],
 ];

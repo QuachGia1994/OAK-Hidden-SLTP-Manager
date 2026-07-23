@@ -1357,13 +1357,16 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         2: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
         3: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
         7: "XAUUSD đảo từ H=5 hôm nay",
-        8: "XAUUSD đảo từ H=5 hôm nay",
-        9: "GBP group đảo từ H=5 hôm qua (Thứ 6 cùng chiều)",
-        14: "GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo)",
+        9: "XAUUSD đảo từ H=5 hôm nay; GBP group đảo từ H=5 hôm qua",
+        14: "GBP group cùng chiều H=5 hôm nay",
     }
-    if h in (2, 3) and broker_dt is not None and broker_dt.weekday() == 3:
-        notes[2] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
-        notes[3] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
+    if broker_dt is not None:
+        if h in (2, 3) and broker_dt.weekday() == 3:
+            notes[2] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
+            notes[3] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
+        elif broker_dt.weekday() == 4:
+            notes[9] = "XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6)"
+            notes[14] = "GBP group đảo từ H=5 hôm nay (Thứ 6)"
     base_note = notes.get(h, "")
 
     if rules is not None:
