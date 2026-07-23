@@ -1,6 +1,6 @@
 /** Mon–Fri H=2-5,7-9,11-15 (weekend excluded). */
 export const DISABLED_HOURS = new Set([6, 10, 17]);
-export const TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15];
+export const TARGET_HOURS = [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
@@ -15,10 +15,8 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
 
 export function getTargetMinute(hour: number): number {
   const h = Number(hour);
-  if (h === 7 || h === 8) return 25;
-  if (h === 9) return 15;
+  if (h === 7 || h === 9 || h === 14) return 15;
   if (h === 11) return 0;
-  if (h === 14) return 15;
   return 45;
 }
 
@@ -59,8 +57,7 @@ const HOUR_NOTES: Record<number, string> = {
   3: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
   5: "Chỉ Vàng (XAUUSD)",
   7: "XAUUSD đảo từ H=5 hôm nay",
-  8: "XAUUSD đảo từ H=5 hôm nay",
-  9: "GBP group đảo từ H=5 hôm qua (Thứ 6 cùng chiều)",
+  9: "XAUUSD đảo từ H=5 hôm nay; GBP group đảo từ H=5 hôm qua",
   11: "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7",
   12: "Chỉ Vàng (XAUUSD)",
   14: "GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo)",
@@ -84,84 +81,84 @@ type RuleLocale = "VN" | "EN";
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
     1: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
-      "H=7,8: XAUUSD đảo từ H=5 hôm nay.",
-      "H=9: GBP đảo từ H=5 hôm qua.",
+      "H=7: XAUUSD đảo từ H=5 hôm nay.",
+      "H=9: XAUUSD đảo từ H=5 hôm nay; GBP đảo từ H=5 hôm qua.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
       "H=14: GBP cùng chiều H=5 hôm nay."
     ],
     2: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
-      "H=7,8: XAUUSD đảo từ H=5 hôm nay.",
-      "H=9: GBP đảo từ H=5 hôm qua.",
+      "H=7: XAUUSD đảo từ H=5 hôm nay.",
+      "H=9: XAUUSD đảo từ H=5 hôm nay; GBP đảo từ H=5 hôm qua.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
       "H=14: GBP cùng chiều H=5 hôm nay."
     ],
     3: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
-      "H=7,8: XAUUSD đảo từ H=5 hôm nay.",
-      "H=9: GBP đảo từ H=5 hôm qua.",
+      "H=7: XAUUSD đảo từ H=5 hôm nay.",
+      "H=9: XAUUSD đảo từ H=5 hôm nay; GBP đảo từ H=5 hôm qua.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
       "H=14: GBP cùng chiều H=5 hôm nay."
     ],
     4: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2.",
-      "H=7,8: XAUUSD đảo từ H=5 hôm nay.",
-      "H=9: GBP đảo từ H=5 hôm qua.",
+      "H=7: XAUUSD đảo từ H=5 hôm nay.",
+      "H=9: XAUUSD đảo từ H=5 hôm nay; GBP đảo từ H=5 hôm qua.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
       "H=14: GBP cùng chiều H=5 hôm nay."
     ],
     5: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
-      "H=7,8: XAUUSD đảo từ H=5 hôm nay.",
-      "H=9: GBP cùng chiều H=5 hôm qua (Thứ 6).",
+      "H=7: XAUUSD đảo từ H=5 hôm nay.",
+      "H=9: XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6).",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
       "H=14: GBP đảo từ H=5 hôm nay (Thứ 6)."
     ],
   },
   EN: {
     1: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
-      "H=7,8: XAUUSD reverses from H=5 today.",
-      "H=9: GBP reverses from H=5 yesterday.",
+      "H=7: XAUUSD reverses from H=5 today.",
+      "H=9: XAUUSD reverses from H=5 today; GBP reverses from H=5 yesterday.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
       "H=14: GBP follows H=5 today."
     ],
     2: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
-      "H=7,8: XAUUSD reverses from H=5 today.",
-      "H=9: GBP reverses from H=5 yesterday.",
+      "H=7: XAUUSD reverses from H=5 today.",
+      "H=9: XAUUSD reverses from H=5 today; GBP reverses from H=5 yesterday.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
       "H=14: GBP follows H=5 today."
     ],
     3: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
-      "H=7,8: XAUUSD reverses from H=5 today.",
-      "H=9: GBP reverses from H=5 yesterday.",
+      "H=7: XAUUSD reverses from H=5 today.",
+      "H=9: XAUUSD reverses from H=5 today; GBP reverses from H=5 yesterday.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
       "H=14: GBP follows H=5 today."
     ],
     4: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD and GBPAUD reuse Monday's history.",
-      "H=7,8: XAUUSD reverses from H=5 today.",
-      "H=9: GBP reverses from H=5 yesterday.",
+      "H=7: XAUUSD reverses from H=5 today.",
+      "H=9: XAUUSD reverses from H=5 today; GBP reverses from H=5 yesterday.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
       "H=14: GBP follows H=5 today."
     ],
     5: [
-      "Slots: H=2-5,7-9,11-15",
+      "Slots: H=2-5,7,9,11-15",
       "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
-      "H=7,8: XAUUSD reverses from H=5 today.",
-      "H=9: GBP follows H=5 yesterday (Fri).",
+      "H=7: XAUUSD reverses from H=5 today.",
+      "H=9: XAUUSD reverses from H=5 today; GBP follows H=5 yesterday (Fri).",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
       "H=14: GBP reverses from H=5 today (Fri)."
     ],
