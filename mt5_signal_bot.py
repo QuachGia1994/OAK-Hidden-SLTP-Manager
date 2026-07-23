@@ -1196,8 +1196,11 @@ def get_h11_priority_and_nogold_rules(broker_dt):
         priority_slot = 2 if prev_group == "SW" else 3
     elif weekday == 2:  # Wednesday (Yesterday was Tuesday)
         priority_slot = 2 if prev_group == "SW" else 3
-    elif weekday == 3:  # Thursday (Yesterday was Wednesday)
-        priority_slot = 3 if prev_group == "SW" else 2
+    elif weekday == 3:  # Thursday (Reuse Monday's priority based on last Friday's H11)
+        friday_dt = broker_dt - timedelta(days=6)
+        res_friday = evaluate_h11_classification(friday_dt)
+        friday_group = res_friday[0] if isinstance(res_friday, (tuple, list)) else "BT"
+        priority_slot = 3 if friday_group == "SW" else 2
     elif weekday == 4:  # Friday (Yesterday was Thursday)
         priority_slot = 3 if prev_group == "SW" else 2
 
@@ -1329,6 +1332,9 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         9: "GBP group đảo từ H=5 hôm qua (Thứ 6 cùng chiều)",
         14: "GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo)",
     }
+    if h in (2, 3) and broker_dt is not None and broker_dt.weekday() == 3:
+        notes[2] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
+        notes[3] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
     base_note = notes.get(h, "")
 
     if rules is not None:
