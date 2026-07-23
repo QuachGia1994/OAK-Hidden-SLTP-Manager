@@ -1504,7 +1504,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
         msg = (
             f"📊 Phân nhóm H1 XAUUSD - {icon} {label}\n"
             f"============================\n"
-            f"  {fmt_hour(H)}:45 (Broker)\n"
+            f"  {fmt_hour(H)}:{get_target_minute(H):02d} (Broker)\n"
             f"============================\n\n"
             f"{report}\n\n"
             f"============================\n"
@@ -1521,7 +1521,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
         msg = (
             f"{emoji} Tín hiệu pattern {SYMBOL} - {icon} {sig}\n"
             f"============================\n"
-            f"  {fmt_hour(H)}:45 (Broker)\n"
+            f"  {fmt_hour(H)}:{get_target_minute(H):02d} (Broker)\n"
             f"============================\n\n"
             f"{report}\n\n"
             f"============================\n"
