@@ -770,30 +770,27 @@ def get_xauusd_m30_signal(broker_dt, H):
     return None
 
 
-def is_h2_special_calendar_weekday(broker_dt):
-    """Check whether Thursday H=2 is in a special-calendar week.
-
-    Friday never uses a special H=2 reversal.
+def is_special_day(broker_dt):
     """
-    if broker_dt.weekday() != 3:
-        return False
-    week_wednesday = broker_dt.date() + timedelta(days=(2 - broker_dt.weekday()))
-    week_friday = broker_dt.date() + timedelta(days=(4 - broker_dt.weekday()))
-    return week_wednesday.day in (30, 1) or week_friday.day in (3, 4, 7)
-
-
-def should_reverse_h2_xau(broker_dt):
-    """Whether H=2 should reverse the pattern XAU signal.
-
-    - Thursday (T5): reverse only on special-calendar weeks after T2 history.
-    - Friday (T6): always use the normal H=2 flow; never reverse by calendar.
-    - Other weekdays: never reverse
+    - Thứ 5, Thứ 6 mà có Thứ 6 là ngày đầu tháng (ngày <= 7)
+    - Thứ 2 mà Thứ 6 tuần trước là ngày đầu tháng (ngày <= 7)
     """
     if broker_dt is None:
         return False
-    if broker_dt.weekday() != 3:
-        return False
-    return is_h2_special_calendar_weekday(broker_dt)
+        
+    wd = broker_dt.weekday()
+    dt = broker_dt.date()
+    
+    if wd == 4: # Thứ 6
+        return dt.day <= 7
+    elif wd == 3: # Thứ 5
+        friday_dt = dt + timedelta(days=1)
+        return friday_dt.day <= 7
+    elif wd == 0: # Thứ 2
+        last_friday_dt = dt - timedelta(days=3)
+        return last_friday_dt.day <= 7
+        
+    return False
 
 def _lookup_historical_t2_signal(broker_dt, target_hour):
     """Look up the previous Monday signal for Thursday history reuse."""
@@ -1200,7 +1197,7 @@ def get_h11_priority_and_nogold_rules(broker_dt):
     today_group = res_today[0] if isinstance(res_today, (tuple, list)) else "BT"
 
     weekday = broker_dt.weekday()  # 0: Mon, 1: Tue, 2: Wed, 3: Thu, 4: Fri
-    is_special = is_h2_special_calendar_weekday(broker_dt)
+    is_special = is_special_day(broker_dt)
 
     # ── Priority slot (from yesterday's H=11) ──
     priority_slot = 2

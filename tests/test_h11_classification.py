@@ -144,7 +144,7 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
         mock_eval.side_effect = [("SW", ""), ("SW", "")]
         rules = get_h11_priority_and_nogold_rules(tue)
         self.assertEqual(rules["priority_slot"], 2)
-        self.assertIn("đi sớm H=2", rules["priority_label"])
+        self.assertIn("Ưu tiên đi H=2", rules["priority_label"])
         self.assertTrue(rules["has_nogold_label"])
 
     @patch("mt5_signal_bot.evaluate_h11_classification")
@@ -154,7 +154,7 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
         mock_eval.side_effect = [("BT", ""), ("BT", "")]
         rules = get_h11_priority_and_nogold_rules(tue)
         self.assertEqual(rules["priority_slot"], 3)
-        self.assertIn("đi trễ H=3", rules["priority_label"])
+        self.assertIn("Ưu tiên đi H=3", rules["priority_label"])
         self.assertFalse(rules["has_nogold_label"])
 
     @patch("mt5_signal_bot.evaluate_h11_classification")
@@ -173,7 +173,7 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
         mock_eval.side_effect = [("SW", ""), ("SW", "")]
         rules = get_h11_priority_and_nogold_rules(wed)
         self.assertEqual(rules["priority_slot"], 2)
-        self.assertIn("đi sớm H=2", rules["priority_label"])
+        self.assertIn("Ưu tiên đi H=2", rules["priority_label"])
         self.assertTrue(rules["has_nogold_label"])
 
     @patch("mt5_signal_bot.evaluate_h11_classification")
@@ -183,37 +183,37 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
         mock_eval.side_effect = [("BT", ""), ("BT", "")]
         rules = get_h11_priority_and_nogold_rules(wed)
         self.assertEqual(rules["priority_slot"], 3)
-        self.assertIn("đi trễ H=3", rules["priority_label"])
+        self.assertIn("Ưu tiên đi H=3", rules["priority_label"])
         self.assertFalse(rules["has_nogold_label"])
 
     @patch("mt5_signal_bot.evaluate_h11_classification")
     def test_thu_priority_from_wed_sw_today_sw_nogold(self, mock_eval):
         thu = datetime(2026, 7, 23, 10, 0, tzinfo=timezone.utc)
         # yesterday Wed=SW → priority H=3, today Thu=SW → no-gold=True
-        mock_eval.side_effect = [("SW", ""), ("SW", "")]
+        mock_eval.side_effect = [("SW", ""), ("SW", ""), ("SW", "")]
         rules = get_h11_priority_and_nogold_rules(thu)
         self.assertEqual(rules["priority_slot"], 3)
-        self.assertIn("đi trễ H=3", rules["priority_label"])
+        self.assertIn("Ưu tiên đi H=3", rules["priority_label"])
         self.assertTrue(rules["has_nogold_label"])
 
-    @patch("mt5_signal_bot.is_h2_special_calendar_weekday")
+    @patch("mt5_signal_bot.is_special_day")
     @patch("mt5_signal_bot.evaluate_h11_classification")
     def test_thu_bt_normal_no_nogold(self, mock_eval, mock_special):
         thu = datetime(2026, 7, 23, 10, 0, tzinfo=timezone.utc)
-        # yesterday Wed=BT → priority H=2, normal Thu, today Thu=BT → no-gold=False
-        mock_eval.side_effect = [("BT", ""), ("BT", "")]
+        # yesterday Wed=BT, today Thu=BT, last Fri=BT
+        mock_eval.side_effect = [("BT", ""), ("BT", ""), ("BT", "")]
         mock_special.return_value = False
         rules = get_h11_priority_and_nogold_rules(thu)
         self.assertEqual(rules["priority_slot"], 2)
-        self.assertIn("đi trễ H=2", rules["priority_label"])
+        self.assertIn("Ưu tiên đi H=2", rules["priority_label"])
         self.assertFalse(rules["has_nogold_label"])
 
-    @patch("mt5_signal_bot.is_h2_special_calendar_weekday")
+    @patch("mt5_signal_bot.is_special_day")
     @patch("mt5_signal_bot.evaluate_h11_classification")
     def test_thu_bt_special_nogold(self, mock_eval, mock_special):
         thu = datetime(2026, 7, 23, 10, 0, tzinfo=timezone.utc)
-        # yesterday Wed=BT → priority H=2, special Thu, today Thu=BT → no-gold=True
-        mock_eval.side_effect = [("BT", ""), ("BT", "")]
+        # yesterday Wed=BT, today Thu=BT, last Fri=BT
+        mock_eval.side_effect = [("BT", ""), ("BT", ""), ("BT", "")]
         mock_special.return_value = True
         rules = get_h11_priority_and_nogold_rules(thu)
         self.assertEqual(rules["priority_slot"], 2)
