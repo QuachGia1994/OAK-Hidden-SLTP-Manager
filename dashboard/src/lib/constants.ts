@@ -13,6 +13,15 @@ export function getTargetHours(jsDayOfWeek: number): number[] {
   return [...TARGET_HOURS];
 }
 
+export function getTargetMinute(hour: number): number {
+  const h = Number(hour);
+  if (h === 7 || h === 8) return 25;
+  if (h === 9) return 15;
+  if (h === 11) return 0;
+  if (h === 14) return 15;
+  return 45;
+}
+
 export const GBP_PAIRS: string[] = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"];
 export const ALL_PAIRS = ["XAUUSD", ...GBP_PAIRS];
 

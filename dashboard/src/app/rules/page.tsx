@@ -1,4 +1,4 @@
-import { formatHour, getDayRules } from "@/lib/constants";
+import { formatHour, getDayRules, getTargetMinute } from "@/lib/constants";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { BrokerLocalTime } from "@/components/BrokerLocalTime";
 import { BrowserDateText } from "@/components/BrowserDateText";
@@ -41,7 +41,7 @@ export default async function RulesPage() {
             <RuleMeta label={t.scope} value={locale === "EN" ? "Broker-day rules" : "Quy tắc theo ngày broker"} />
             <RuleMeta
               label={t.currentHour}
-              value={<>{formatHour(currentHour)}:45 Broker · <BrokerLocalTime date={todayStr} hour={currentHour} /></>}
+              value={<>{formatHour(currentHour)}:{String(getTargetMinute(currentHour)).padStart(2, '0')} Broker · <BrokerLocalTime date={todayStr} hour={currentHour} /></>}
               live
               subLabel={t.brokerSynced}
             />

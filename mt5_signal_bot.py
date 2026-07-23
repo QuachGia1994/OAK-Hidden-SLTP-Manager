@@ -50,6 +50,19 @@ SYMBOL = "GBPUSD"
 # Mon–Fri active rhythm slots. H=6/H=10/H=17 are intentionally inactive.
 # Slot outputs may contain XAUUSD, GBPAUD, or the configured GBP group.
 DISABLED_HOURS = {6, 10, 17}
+
+def get_target_minute(hour: int) -> int:
+    """Returns the trigger minute for a given hour slot."""
+    h = int(hour)
+    if h in (7, 8):
+        return 25
+    if h == 9:
+        return 15
+    if h == 11:
+        return 0
+    if h == 14:
+        return 15
+    return 45
 TARGET_HOURS = [2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 23
@@ -1084,8 +1097,9 @@ def analyze(broker_dt, H):
     """Tính signal cho các slot cơ bản (không phải nhóm giờ đặc biệt như 2,3,9...)."""
     actual_broker_time = get_broker_time()
     if broker_dt.date() == actual_broker_time.date():
-        if actual_broker_time.hour < H or (actual_broker_time.hour == H and actual_broker_time.minute < 45):
-            return {"signal": "WAIT", "report": f"Chua toi {fmt_hour(H)}:45", "skip_xau_m30": True}
+        target_min = get_target_minute(H)
+        if actual_broker_time.hour < H or (actual_broker_time.hour == H and actual_broker_time.minute < target_min):
+            return {"signal": "WAIT", "report": f"Chua toi {fmt_hour(H)}:{target_min:02d}", "skip_xau_m30": True}
 
     ts_m35 = broker_time_to_ts(broker_dt, H, 35)
     ts_m40 = broker_time_to_ts(broker_dt, H, 40)
@@ -1542,7 +1556,8 @@ def is_slot_ready(broker_dt, hour):
         return _lookup_h5_signal_today(broker_dt) in ("BUY", "SELL")
     if h in (11, 12, 13, 15):
         return broker_dt.hour >= 11
-    return broker_dt.hour > h or (broker_dt.hour == h and broker_dt.minute >= 45)
+    target_min = get_target_minute(h)
+    return broker_dt.hour > h or (broker_dt.hour == h and broker_dt.minute >= target_min)
 
 
 # =====================================================================
@@ -1845,11 +1860,12 @@ def main(profile_name=None):
                     rebuild_slot_signal(broker_dt, h)
             push_to_dashboard()
 
-            # 2) Live Telegram push ONLY at minute :45 of slot H
-            if now_min == 45 and now_hour in hours_now:
+            # 2) Live Telegram push ONLY at target minute of slot H
+            target_min = get_target_minute(now_hour)
+            if now_min == target_min and now_hour in hours_now:
                 key = (broker_dt.date(), now_hour)
                 if key not in sent_today:
-                    print(f"\n[{fmt_time(broker_dt)}] Kích hoạt H={fmt_hour(now_hour)}:45 (Gửi Telegram Live)")
+                    print(f"\n[{fmt_time(broker_dt)}] Kích hoạt H={fmt_hour(now_hour)}:{target_min:02d} (Gửi Telegram Live)")
 
                 # T2-6 active (weekday hours via get_target_hours); skip T7/CN
                 wd = broker_dt.weekday()
@@ -1949,11 +1965,9 @@ def main(profile_name=None):
                             print(f"  [AUTO-CLOSE] Closed {closed} GBP positions at 19:44")
                         _gbp_closed_today.add(today_key)
 
-                if now_min < 45:
-                    wait = (45 - now_min) * 60 - broker_dt.second
-                else:
-                    wait = (60 - now_min + 45) * 60 - broker_dt.second
-                wait = min(wait, 300)
+                # Tối ưu sleep: thức tỉnh vào mỗi đầu phút (giây = 0)
+                wait = 60.0 - broker_dt.second
+                wait = min(max(wait, 1.0), 60.0)
                 if wait > 0:
                     time.sleep(wait)
 

@@ -5,6 +5,7 @@ import {
   getHourNote,
   getSignalColor,
   getSignalLabel,
+  getTargetMinute,
   weekdayFromDate,
 } from "@/lib/constants";
 import { localizeHourNote } from "@/lib/signal-note-i18n";
@@ -68,7 +69,7 @@ export function SignalCard({
                 <BrokerLocalTime date={signal.date} hour={signal.hour} />
               </span>
               <span className="font-mono text-xs text-[var(--muted)]">
-                ({formatHour(signal.hour)}:45 Brk)
+                ({formatHour(signal.hour)}:{String(getTargetMinute(signal.hour)).padStart(2, '0')} Brk)
               </span>
             </div>
           </div>
