@@ -1455,7 +1455,10 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None):
         return result
     # H=9,14: GBP group only, no XAUUSD
     if h in (9, 14):
-        for pair in GBP_PAIRS:
+        pairs_to_use = GBP_PAIRS
+        if h == 14 and broker_dt is not None and broker_dt.weekday() == 3:
+            pairs_to_use = ["GBPAUD", "GBPJPY"]
+        for pair in pairs_to_use:
             result[pair] = signal
         return result
     # All active hours: XAUUSD
