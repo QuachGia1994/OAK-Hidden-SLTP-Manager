@@ -1611,10 +1611,10 @@ def rebuild_slot_signal(broker_dt, h):
 
     result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
-    if sig not in ("BUY", "SELL", "SW", "BT", "WAIT"):
+    if sig not in ("BUY", "SELL", "SW", "BT", "WAIT", "MIXED"):
         return False
 
-    pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"))
+    pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"), full_result=result)
     if h != 11 and not pair_dirs:
         return False
 
