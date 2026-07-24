@@ -11,6 +11,11 @@ from mt5_signal_bot import (
 )
 
 
+def _c(o, c):
+    """Build a full OHLC candle dict from open and close. high/low have 5pt spread."""
+    return {"open": o, "high": max(o, c) + 5.0, "low": min(o, c) - 5.0, "close": c}
+
+
 class TestH11Classification(unittest.TestCase):
     @patch("mt5_signal_bot.get_candle_by_ts")
     def test_accepts_mt5_structured_rate_records(self, mock_candle):
@@ -39,10 +44,10 @@ class TestH11Classification(unittest.TestCase):
     def test_evaluate_h11_rule_1_sw(self, mock_candle):
         # Rule 1: H10 Tăng, H9 Giảm, H8 Tăng, H7 Giảm => SW
         candles = {
-            10: {"open": 2000.0, "close": 2010.0}, # T
-            9:  {"open": 2010.0, "close": 2005.0}, # G
-            8:  {"open": 2005.0, "close": 2012.0}, # T
-            7:  {"open": 2012.0, "close": 2008.0}, # G
+            10: _c(2000.0, 2010.0), # T
+            9:  _c(2010.0, 2005.0), # G
+            8:  _c(2005.0, 2012.0), # T
+            7:  _c(2012.0, 2008.0), # G
         }
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
@@ -58,10 +63,10 @@ class TestH11Classification(unittest.TestCase):
     def test_evaluate_h11_rule_2_bt(self, mock_candle):
         # Rule 2: H10 Tăng, H9 Giảm, H8 Tăng, H7 Tăng => BT
         candles = {
-            10: {"open": 2000.0, "close": 2010.0}, # T
-            9:  {"open": 2010.0, "close": 2005.0}, # G
-            8:  {"open": 2005.0, "close": 2012.0}, # T
-            7:  {"open": 2008.0, "close": 2012.0}, # T
+            10: _c(2000.0, 2010.0), # T
+            9:  _c(2010.0, 2005.0), # G
+            8:  _c(2005.0, 2012.0), # T
+            7:  _c(2008.0, 2012.0), # T
         }
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
@@ -73,10 +78,10 @@ class TestH11Classification(unittest.TestCase):
     def test_evaluate_h11_rule_3_bt(self, mock_candle):
         # Rule 3: H10 Tăng, H9 Tăng, H8 Giảm => BT
         candles = {
-            10: {"open": 2000.0, "close": 2010.0}, # T
-            9:  {"open": 2005.0, "close": 2010.0}, # T
-            8:  {"open": 2012.0, "close": 2005.0}, # G
-            7:  {"open": 2008.0, "close": 2012.0}, # T
+            10: _c(2000.0, 2010.0), # T
+            9:  _c(2005.0, 2010.0), # T
+            8:  _c(2012.0, 2005.0), # G
+            7:  _c(2008.0, 2012.0), # T
         }
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
@@ -88,10 +93,10 @@ class TestH11Classification(unittest.TestCase):
     def test_evaluate_h11_rule_4_sw(self, mock_candle):
         # Rule 4: H10 Tăng, H9 Tăng, H8 Tăng => SW
         candles = {
-            10: {"open": 2000.0, "close": 2010.0}, # T
-            9:  {"open": 2005.0, "close": 2010.0}, # T
-            8:  {"open": 2000.0, "close": 2005.0}, # T
-            7:  {"open": 2008.0, "close": 2012.0}, # T
+            10: _c(2000.0, 2010.0), # T
+            9:  _c(2005.0, 2010.0), # T
+            8:  _c(2000.0, 2005.0), # T
+            7:  _c(2008.0, 2012.0), # T
         }
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
@@ -103,10 +108,10 @@ class TestH11Classification(unittest.TestCase):
     def test_evaluate_h11_rule_5_sw(self, mock_candle):
         # Rule 5: H10 Tăng, H9 Giảm, H8 Giảm => SW
         candles = {
-            10: {"open": 2000.0, "close": 2010.0}, # T
-            9:  {"open": 2010.0, "close": 2005.0}, # G
-            8:  {"open": 2008.0, "close": 2002.0}, # G
-            7:  {"open": 2008.0, "close": 2012.0}, # T
+            10: _c(2000.0, 2010.0), # T
+            9:  _c(2010.0, 2005.0), # G
+            8:  _c(2008.0, 2002.0), # G
+            7:  _c(2008.0, 2012.0), # T
         }
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
@@ -118,16 +123,17 @@ class TestH11Classification(unittest.TestCase):
     def test_evaluate_h11_inverted_rule_6_sw(self, mock_candle):
         # Inverted Rule 6 (of 1): H10 Giảm, H9 Tăng, H8 Giảm, H7 Tăng => SW
         candles = {
-            10: {"open": 2010.0, "close": 2000.0}, # G
-            9:  {"open": 2005.0, "close": 2010.0}, # T
-            8:  {"open": 2012.0, "close": 2005.0}, # G
-            7:  {"open": 2008.0, "close": 2012.0}, # T
+            10: _c(2010.0, 2000.0), # G
+            9:  _c(2005.0, 2010.0), # T
+            8:  _c(2012.0, 2005.0), # G
+            7:  _c(2008.0, 2012.0), # T
         }
         mock_candle.side_effect = lambda sym, tf, ts: candles.get(int(datetime.fromtimestamp(ts, tz=timezone.utc).hour))
 
         dt = datetime(2026, 7, 22, 17, 45, tzinfo=timezone.utc)
         group, detail, *rest = evaluate_h11_classification(dt)
         self.assertEqual(group, "SW")
+
 
 
 class TestH11PriorityAndNoGoldRules(unittest.TestCase):
