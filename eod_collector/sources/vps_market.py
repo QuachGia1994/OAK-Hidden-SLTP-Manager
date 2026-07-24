@@ -209,7 +209,24 @@ UPCOM_SYMBOLS = [
     "XMC", "XMP", "XPH", "YBC", "YEG", "YTC"
 ]
 
+# Deduplicate: HOSE takes precedence over HNX & UPCoM lists
+_hose_set = set(HOSE_SYMBOLS)
+HNX_SYMBOLS = [s for s in HNX_SYMBOLS if s not in _hose_set]
+_hnx_set = set(HNX_SYMBOLS)
+UPCOM_SYMBOLS = [s for s in UPCOM_SYMBOLS if s not in _hose_set and s not in _hnx_set]
+
 ALL_VN_SYMBOLS = list(dict.fromkeys(HOSE_SYMBOLS + HNX_SYMBOLS + UPCOM_SYMBOLS))
+
+
+def _guess_exchange(symbol: str) -> str:
+    sym = symbol.upper()
+    if sym in HOSE_SYMBOLS:
+        return "HOSE"
+    if sym in HNX_SYMBOLS:
+        return "HNX"
+    if sym in UPCOM_SYMBOLS:
+        return "UPCOM"
+    return "HOSE"
 
 
 def fetch_live_vn_symbols() -> list[str]:
@@ -426,6 +443,8 @@ class VPSMarketDataSource(EODDataSource):
 def get_exchange(symbol: str) -> str:
     """Return exchange name for stock symbol: HOSE, HNX, or UPCoM."""
     sym = (symbol or "").strip().upper()
+    if sym in HOSE_SYMBOLS:
+        return "HOSE"
     if sym in HNX_SYMBOLS:
         return "HNX"
     if sym in UPCOM_SYMBOLS:

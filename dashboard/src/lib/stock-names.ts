@@ -76,6 +76,7 @@ export const COMPANY_NAMES: Record<string, { name: string; exchange: string; cap
   IDI: { name: "Công ty CP Đầu tư & Phát triển Đa Quốc Gia", exchange: "HOSE", cap: "2.900 tỷ" },
   FMC: { name: "Công ty CP Thực phẩm Sao Ta", exchange: "HOSE", cap: "3.400 tỷ" },
   PAN: { name: "Tập đoàn PAN", exchange: "HOSE", cap: "4.800 tỷ" },
+  TMS: { name: "CTCP Transimex", exchange: "HOSE", cap: "6.360 tỷ" },
 
   // HNX
   BSI: { name: "Công ty CP Chứng khoán BIDC (BSC)", exchange: "HNX", cap: "7.400 tỷ" },
