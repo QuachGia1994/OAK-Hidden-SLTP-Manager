@@ -15,12 +15,7 @@ class SlotMatrixTests(unittest.TestCase):
         with patch.object(mt5_signal_bot, "_lookup_h5_signal_yesterday", return_value=None):
             self.assertEqual(calculate_slot_signal(broker_dt, 3)["signal"], "WAIT")
 
-    def test_h10_is_disabled(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 10, 45, tzinfo=timezone.utc)
-        self.assertEqual(get_pair_direction(10, "BUY", broker_dt), {})
-        with patch.object(mt5_signal_bot, "analyze") as analyze:
-            self.assertEqual(calculate_slot_signal(broker_dt, 10)["signal"], "WAIT")
-        analyze.assert_not_called()
+
 
     def test_h2_and_normal_slots_apply_m5_m30_then_xau_m30(self) -> None:
         broker_dt = datetime(2026, 7, 14, 8, 45, tzinfo=timezone.utc)

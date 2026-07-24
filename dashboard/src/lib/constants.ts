@@ -1,5 +1,5 @@
 /** Mon–Fri H=2-5,7-9,11-15 (weekend excluded). */
-export const DISABLED_HOURS = new Set([6, 10, 17]);
+export const DISABLED_HOURS = new Set<number>();
 export const TARGET_HOURS = [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15];
 /** @deprecated same as TARGET_HOURS — kept for imports */
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];

@@ -12,7 +12,7 @@ import socket
 from datetime import datetime, timedelta, timezone
 import urllib.request
 
-from utils import send_telegram_raw, send_telegram_with_keyboard, get_signal_icon, vn_direction
+from utils import send_telegram_raw, send_telegram_photo_raw, send_telegram_with_keyboard, get_signal_icon, vn_direction
 from oak_trading_reminders import get_day_notes
 from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
@@ -49,7 +49,7 @@ SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
 # Mon–Fri active rhythm slots. H=6/H=10/H=17 are intentionally inactive.
 # Slot outputs may contain XAUUSD, GBPAUD, or the configured GBP group.
-DISABLED_HOURS = {6, 10, 17}
+DISABLED_HOURS = set()
 
 def get_target_minute(hour):
     """Return the configured target minute for a specific hour."""
@@ -615,15 +615,13 @@ def push_prices_to_dashboard():
 def build_startup_telegram_message(broker_dt, mt5_connected):
     """Build the startup Telegram note from the same daily matrix as the dashboard."""
     day_notes = get_day_notes(broker_dt, lang="VN")
-    disabled_slots = ", ".join(f"H={hour}" for hour in sorted(DISABLED_HOURS))
     rules = "\n".join(f"⚠️ {note}" for note in day_notes)
     mt5_status = "OK" if mt5_connected else "N/A"
     return (
         "🤖 BOT KHỞI ĐỘNG\n"
         f"Nguồn pattern: {SYMBOL} | MT5: {mt5_status}\n"
         f"Slots: {', '.join(f'H={h}' for h in TARGET_HOURS)}\n"
-        f"Tắt: {disabled_slots}.\n"
-        "🔒 Auto-close: XAUUSD 14:49 (T2) / 17:49, GBP 19:49 (Broker)\n"
+        "🔒 Auto-close: XAUUSD 17:49, GBP 19:49 (Broker)\n"
         f"Quy tắc hôm nay:\n{rules}"
     )
 
@@ -635,6 +633,101 @@ def send_telegram(text):
         return send_telegram_raw(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, text)
     except Exception as e:
         print(f"[ERROR] Telegram: {e}")
+        return None
+
+
+def send_telegram_photo(photo_bytes, caption=None):
+    try:
+        return send_telegram_photo_raw(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, photo_bytes, caption)
+    except Exception as e:
+        print(f"[ERROR] Telegram photo: {e}")
+        return None
+
+
+def render_h11_chart_png(candles, group, detail):
+    """Draw a dark-themed candlestick chart image for H11 (4 H1 candles: H7, H8, H9, H10)."""
+    try:
+        from PIL import Image, ImageDraw
+        import io
+
+        width, height = 640, 360
+        bg_color = (13, 17, 23)  # #0d1117
+        img = Image.new("RGB", (width, height), color=bg_color)
+        draw = ImageDraw.Draw(img)
+
+        # Title
+        label = "Sideway" if group == "SW" else "Bình Thường"
+        title_text = f"PHÂN NHÓM H1 XAUUSD: {label} ({group})"
+        draw.text((20, 15), title_text, fill=(255, 255, 255))
+        if detail:
+            draw.text((20, 35), str(detail), fill=(156, 163, 175))
+
+        if not candles:
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            return buffer.getvalue()
+
+        highs = [float(c.get("high", max(c.get("open", 0), c.get("close", 0)))) for c in candles]
+        lows = [float(c.get("low", min(c.get("open", 0), c.get("close", 0)))) for c in candles]
+        max_p = max(highs) if highs else 100.0
+        min_p = min(lows) if lows else 0.0
+        if max_p == min_p:
+            max_p += 1.0
+            min_p -= 1.0
+        margin = (max_p - min_p) * 0.15
+        max_p += margin
+        min_p -= margin
+
+        chart_top = 70
+        chart_bottom = 290
+        chart_height = chart_bottom - chart_top
+
+        def price_to_y(p):
+            return chart_bottom - int(((p - min_p) / (max_p - min_p)) * chart_height)
+
+        n = len(candles)
+        col_width = (width - 60) // max(n, 1)
+
+        for i, c in enumerate(candles):
+            x_center = 30 + i * col_width + col_width // 2
+            candle_h = c.get("hour", i)
+            open_p = float(c.get("open", 0))
+            close_p = float(c.get("close", 0))
+            high_p = float(c.get("high", max(open_p, close_p)))
+            low_p = float(c.get("low", min(open_p, close_p)))
+
+            is_up = close_p >= open_p
+            color = (16, 185, 129) if is_up else (239, 68, 68)  # green / red
+
+            # Wick
+            y_high = price_to_y(high_p)
+            y_low = price_to_y(low_p)
+            draw.line([(x_center, y_high), (x_center, y_low)], fill=color, width=2)
+
+            # Body
+            y_open = price_to_y(open_p)
+            y_close = price_to_y(close_p)
+            top_y = min(y_open, y_close)
+            bot_y = max(y_open, y_close)
+            if bot_y - top_y < 2:
+                bot_y = top_y + 2
+
+            body_width = int(col_width * 0.45)
+            left_x = x_center - body_width // 2
+            right_x = x_center + body_width // 2
+            draw.rectangle([(left_x, top_y), (right_x, bot_y)], fill=color, outline=color)
+
+            # Labels
+            lbl = f"H={candle_h}"
+            draw.text((x_center - 12, chart_bottom + 10), lbl, fill=(156, 163, 175))
+            price_lbl = f"C: {close_p}"
+            draw.text((x_center - 22, chart_bottom + 26), price_lbl, fill=color)
+
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        return buffer.getvalue()
+    except Exception as e:
+        print(f"[ERROR] Failed to render H11 chart image: {e}")
         return None
 
 # =====================================================================
@@ -1590,7 +1683,15 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
         )
 
-    send_telegram(msg)
+    if H == 11 or sig in ("SW", "BT"):
+        candles = signal_data.get("h11_candles") or []
+        photo_bytes = render_h11_chart_png(candles, sig, report)
+        if photo_bytes:
+            send_telegram_photo(photo_bytes, caption=msg)
+        else:
+            send_telegram(msg)
+    else:
+        send_telegram(msg)
 
 
 
@@ -2001,15 +2102,15 @@ def main(profile_name=None):
                 # Push giá realtime mỗi lần loop
                 push_prices_to_dashboard()
 
-                # Auto-close XAUUSD: 14:49 Thứ 2, 17:49 các ngày còn lại
-                xau_close_hour = 14 if broker_dt.weekday() == 0 else 17
+                # Auto-close XAUUSD: 17:49 các ngày trong tuần
+                xau_close_hour = 17
                 if now_hour == xau_close_hour and now_min == 49:
                     today_key = broker_dt.date()
                     if today_key not in _xauusd_closed_today:
-                        closed = _close_positions_by_prefix(["XAUUSD"], f"XAUUSD-{xau_close_hour}:49")
+                        closed = _close_positions_by_prefix(["XAUUSD"], f"XAUUSD-17:49")
                         if closed > 0:
-                            send_telegram(f"🔒 Đã đóng {closed} lệnh XAUUSD lúc {xau_close_hour}:49 (Broker)")
-                            print(f"  [AUTO-CLOSE] Closed {closed} XAUUSD positions at {xau_close_hour}:49")
+                            send_telegram(f"🔒 Đã đóng {closed} lệnh XAUUSD lúc 17:49 (Broker)")
+                            print(f"  [AUTO-CLOSE] Closed {closed} XAUUSD positions at 17:49")
                         _xauusd_closed_today.add(today_key)
 
                 # Auto-close GBP at 19:49

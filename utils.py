@@ -22,6 +22,34 @@ def send_telegram_raw(token, chat_id, text, parse_mode="Markdown"):
         return resp.read()
 
 
+def send_telegram_photo_raw(token, chat_id, photo_bytes, caption=None, parse_mode="Markdown"):
+    """Send photo via Telegram Bot API (POST multipart/form-data)."""
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+    boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
+    body = bytearray()
+
+    def add_field(name, val):
+        body.extend(f"--{boundary}\r\n".encode("utf-8"))
+        body.extend(f'Content-Disposition: form-data; name="{name}"\r\n\r\n{val}\r\n'.encode("utf-8"))
+
+    add_field("chat_id", str(chat_id))
+    if caption:
+        add_field("caption", caption)
+        if parse_mode:
+            add_field("parse_mode", parse_mode)
+
+    body.extend(f"--{boundary}\r\n".encode("utf-8"))
+    body.extend(f'Content-Disposition: form-data; name="photo"; filename="h11_chart.png"\r\n'.encode("utf-8"))
+    body.extend(f"Content-Type: image/png\r\n\r\n".encode("utf-8"))
+    body.extend(photo_bytes)
+    body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
+
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+    req = urllib.request.Request(url, data=bytes(body), headers=headers)
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return json.loads(resp.read().decode())
+
+
 def send_telegram_with_keyboard(token, chat_id, text, inline_keyboard, parse_mode=None):
     """Send message with inline keyboard via Telegram Bot API.
 
