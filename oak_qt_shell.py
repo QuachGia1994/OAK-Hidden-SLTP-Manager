@@ -997,8 +997,6 @@ class NativeShell:
         self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
         self.stock_status.setWordWrap(True)
         layout.addWidget(self.stock_status)
-        layout.addWidget(self._guardrail_row("Recommendation only", "CONFIRM", "User confirmation is required before every real trade.", "amber"))
-        layout.addWidget(self._guardrail_row("Local EOD Mode", "NO API KEY", "100% free local SQLite database (market.db).", "green"))
         layout.addStretch(1)
         return frame
 

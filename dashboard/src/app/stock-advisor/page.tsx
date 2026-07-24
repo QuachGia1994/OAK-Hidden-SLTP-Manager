@@ -58,28 +58,10 @@ function AdvisorHero({ advisory, locale, isVIP }: { advisory: StockAdvisory | nu
 
 function AdvisorResult({ advisory, locale, isVIP }: { advisory: StockAdvisory; locale: "VN" | "EN"; isVIP: boolean }) {
   return (
-    <>
-      <SafetyStrip advisory={advisory} locale={locale} />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,0.7fr)]">
-        <CandidateTable advisory={advisory} locale={locale} isVIP={isVIP} />
-        <EvidencePanel advisory={advisory} locale={locale} />
-      </div>
-    </>
-  );
-}
-
-function SafetyStrip({ advisory, locale }: { advisory: StockAdvisory; locale: "VN" | "EN" }) {
-  const action = advisory.action === "BUY_OR_HOLD" ? "BUY / HOLD" : "SELL / AVOID";
-  return (
-    <section className="advisor-safety grid gap-3 rounded-xl border px-4 py-4 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:px-5">
-      <div className="font-mono text-xl font-black">{action}</div>
-      <p className="text-sm text-zinc-600 dark:text-zinc-300">
-        {locale === "EN" ? "User confirmation is required before every real trade." : "User phải xác nhận trước mọi giao dịch thật."}
-      </p>
-      <span className="rounded-md border border-amber-400/30 bg-amber-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase text-amber-500">
-        {locale === "EN" ? "No order submitted" : "Không gửi lệnh"}
-      </span>
-    </section>
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,0.7fr)]">
+      <CandidateTable advisory={advisory} locale={locale} isVIP={isVIP} />
+      <EvidencePanel advisory={advisory} locale={locale} />
+    </div>
   );
 }
 
