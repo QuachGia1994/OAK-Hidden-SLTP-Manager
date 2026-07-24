@@ -41,18 +41,23 @@ export function CandidateTableClient({
       {!isVIP ? (
         <LockedRows locale={locale} />
       ) : displayCandidates.length ? (
-        <div className="advisor-table overflow-x-auto">
-          <div className="advisor-row advisor-row-head">
-            <span>#</span>
-            <span>{locale === "EN" ? "Symbol" : "Mã"}</span>
-            <span>{locale === "EN" ? "Company Name" : "Tên công ty"}</span>
-            <span>{locale === "EN" ? "Market Cap" : "Vốn hoá"}</span>
-            <span>{locale === "EN" ? "Close Price" : "Giá đóng cửa"}</span>
-            <span>{locale === "EN" ? "Exchange" : "Sàn giao dịch"}</span>
+        <div className="w-full max-w-full">
+          <div className="sm:hidden px-4 py-1.5 bg-[var(--surface-raised)] border-b text-[10px] font-mono text-[var(--muted)] flex items-center justify-between">
+            <span>← {locale === "EN" ? "Swipe to view Close Price & Exchange" : "Vuốt ngang để xem Giá đóng cửa & Sàn"} →</span>
           </div>
-          {displayCandidates.map((candidate, idx) => (
-            <CandidateRow key={candidate.symbol} candidate={{ ...candidate, rank: idx + 1 }} locale={locale} />
-          ))}
+          <div className="advisor-table overflow-x-auto max-w-full touch-pan-x">
+            <div className="advisor-row advisor-row-head">
+              <span>#</span>
+              <span>{locale === "EN" ? "Symbol" : "Mã"}</span>
+              <span>{locale === "EN" ? "Company Name" : "Tên công ty"}</span>
+              <span>{locale === "EN" ? "Market Cap" : "Vốn hoá"}</span>
+              <span>{locale === "EN" ? "Close Price" : "Giá đóng cửa"}</span>
+              <span>{locale === "EN" ? "Exchange" : "Sàn giao dịch"}</span>
+            </div>
+            {displayCandidates.map((candidate, idx) => (
+              <CandidateRow key={candidate.symbol} candidate={{ ...candidate, rank: idx + 1 }} locale={locale} />
+            ))}
+          </div>
         </div>
       ) : (
         <LockedRows locale={locale} empty />

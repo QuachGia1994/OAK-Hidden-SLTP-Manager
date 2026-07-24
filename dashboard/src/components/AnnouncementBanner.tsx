@@ -39,19 +39,19 @@ export function AnnouncementBanner() {
   const isVN = locale === "VN";
 
   return (
-    <div className="relative z-40 border-b border-emerald-500/30 bg-gradient-to-r from-emerald-950/90 via-teal-900/90 to-emerald-950/90 text-emerald-100 dark:from-emerald-950/90 dark:via-teal-950/90 dark:to-emerald-950/90 dark:text-emerald-100 shadow-sm">
-      <div className="page-shell flex flex-col sm:flex-row items-center justify-between gap-3 py-2.5 px-4 text-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
+    <div className="relative z-40 max-w-full overflow-hidden border-b border-emerald-500/30 bg-gradient-to-r from-emerald-950/90 via-teal-900/90 to-emerald-950/90 text-emerald-100 dark:from-emerald-950/90 dark:via-teal-950/90 dark:to-emerald-950/90 dark:text-emerald-100 shadow-sm">
+      <div className="page-shell flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 py-2 px-3 sm:py-2.5 sm:px-4 text-xs">
+        <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
           <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">
             NEW
           </span>
-          <p className="font-medium truncate leading-relaxed">
+          <p className="font-medium text-center sm:text-left text-[11px] sm:text-xs leading-normal sm:truncate w-full min-w-0">
             {isVN
               ? "Mời bạn xem tính năng mới Bộ lọc cổ phiếu để thêm thông tin về thị trường Chứng khoán Việt Nam nhé 📈"
               : "Explore our new Stock Advisor feature for Vietnam Stock Market insights 📈"}
           </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center justify-center gap-3 shrink-0 w-full sm:w-auto">
           <Link
             href="/stock-advisor"
             className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1 text-[11px] font-bold text-zinc-950 transition-hover hover:bg-emerald-400 focus:outline-none"
