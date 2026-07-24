@@ -66,9 +66,11 @@ test("localizes static and calculated H=11 notes in EN", () => {
     calculated.descriptionText,
     "H=11: SW Group (H10:Up, H9:Down, H8:Up, H7:Down)",
   );
+  const h14Friday = localizeHourNote("GBP group đảo từ H=5 hôm nay (Thứ 6)", "EN");
+  assert.equal(h14Friday.descriptionText, "GBP group reverses from H=5 today (Fri)");
   assert.doesNotMatch(
-    `${fallback.descriptionText} ${calculated.descriptionText}`,
-    /Phân nhóm|Nhóm|Tăng|Giảm/iu,
+    `${fallback.descriptionText} ${calculated.descriptionText} ${h14Friday.descriptionText}`,
+    /Phân nhóm|Nhóm|Tăng|Giảm|đảo từ|hôm nay|Thứ 6/iu,
   );
   assert.equal(getH11ChartTitle("EN"), "4 H1 candles (H7 → H10)");
   assert.equal(getH11ChartTitle("VN"), "Biểu đồ 4 nến H1 (H7 ➔ H10)");

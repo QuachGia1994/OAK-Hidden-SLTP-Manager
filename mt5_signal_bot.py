@@ -1367,7 +1367,7 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         elif broker_dt.weekday() == 4:
             notes[9] = "XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6)"
             notes[14] = "GBP group đảo từ H=5 hôm nay (Thứ 6)"
-    base_note = notes.get(h, "")
+    base_note = notes.get(h, "Chỉ Vàng (XAUUSD)")
 
     if rules is not None:
         if h == rules["priority_slot"]:
@@ -1482,7 +1482,7 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
     # H=9,14: GBP group only, no XAUUSD
     if h in (9, 14):
         pairs_to_use = GBP_PAIRS
-        if h == 14 and broker_dt is not None and broker_dt.weekday() == 3:
+        if h == 14 and broker_dt is not None and broker_dt.weekday() in (2, 3):
             pairs_to_use = ["GBPAUD", "GBPJPY"]
         for pair in pairs_to_use:
             result[pair] = signal
