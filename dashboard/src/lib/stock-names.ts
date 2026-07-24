@@ -58,6 +58,24 @@ export const COMPANY_NAMES: Record<string, { name: string; exchange: string }> =
   VGC: { name: "Tổng Công ty Viglacera", exchange: "HOSE" },
   VHC: { name: "Công ty CP Vĩnh Hoàn", exchange: "HOSE" },
   VND: { name: "Công ty CP Chứng khoán VNDIRECT", exchange: "HOSE" },
+  VIX: { name: "Công ty CP Chứng khoán VIX", exchange: "HOSE" },
+  EIB: { name: "Ngân hàng Eximbank", exchange: "HOSE" },
+  EVF: { name: "Công ty CP Tài chính Điện lực", exchange: "HOSE" },
+  ORS: { name: "Công ty CP Chứng khoán Tiên Phong", exchange: "HOSE" },
+  CTS: { name: "Công ty CP Chứng khoán VietinBank", exchange: "HOSE" },
+  FTS: { name: "Công ty CP Chứng khoán FPT", exchange: "HOSE" },
+  AGR: { name: "Công ty CP Chứng khoán Agribank", exchange: "HOSE" },
+  VCG: { name: "Tổng Công ty Vinaconex", exchange: "HOSE" },
+  TCH: { name: "Công ty CP Đầu tư Dịch vụ Tài chính Hoàng Huy", exchange: "HOSE" },
+  GMD: { name: "Công ty CP Gemadept", exchange: "HOSE" },
+  HAH: { name: "Công ty CP Vận tải & Cảng biển Hải An", exchange: "HOSE" },
+  HAG: { name: "Công ty CP Hoàng Anh Gia Lai", exchange: "HOSE" },
+  HNG: { name: "Công ty CP Nông nghiệp Quốc tế HAGL", exchange: "HOSE" },
+  VSC: { name: "Công ty CP Container Việt Nam (Viconship)", exchange: "HOSE" },
+  ANV: { name: "Công ty CP Nam Việt (Navico)", exchange: "HOSE" },
+  IDI: { name: "Công ty CP Đầu tư & Phát triển Đa Quốc Gia", exchange: "HOSE" },
+  FMC: { name: "Công ty CP Thực phẩm Sao Ta", exchange: "HOSE" },
+  PAN: { name: "Tập đoàn PAN", exchange: "HOSE" },
 
   // HNX
   BSI: { name: "Công ty CP Chứng khoán BIDC (BSC)", exchange: "HNX" },
@@ -70,6 +88,7 @@ export const COMPANY_NAMES: Record<string, { name: string; exchange: string }> =
   SHS: { name: "Công ty CP Chứng khoán Sài Gòn - Hà Nội", exchange: "HNX" },
   TNG: { name: "Công ty CP Đầu tư & Thương mại TNG", exchange: "HNX" },
   VGS: { name: "Công ty CP Thép Việt Đức", exchange: "HNX" },
+  HUT: { name: "Công ty CP Tasco", exchange: "HNX" },
 
   // UPCoM
   ACV: { name: "Tổng Công ty Cảng Hàng không Việt Nam", exchange: "UPCOM" },
@@ -84,7 +103,8 @@ export const COMPANY_NAMES: Record<string, { name: string; exchange: string }> =
   VGT: { name: "Tập đoàn Dệt May Việt Nam (Vinatex)", exchange: "UPCOM" },
 };
 
-export function getCompanyName(symbol: str): string {
+export function getCompanyName(symbol: string): string {
   const sym = (symbol || "").toUpperCase().trim();
-  return COMPANY_NAMES[sym]?.name || symbol;
+  if (!sym) return "";
+  return COMPANY_NAMES[sym]?.name || `Công ty CP ${sym}`;
 }

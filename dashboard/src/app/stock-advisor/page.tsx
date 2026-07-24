@@ -43,12 +43,12 @@ function AdvisorHero({ advisory, locale, isVIP }: { advisory: StockAdvisory | nu
             {locale === "EN" ? "VN Stock Filter" : "Bộ lọc Cổ phiếu"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-            {locale === "EN" ? "H4 similarity · 25 completed sessions · HOSE, HNX, UPCoM (Cap ≥ 100B VND)" : "Tuyến tính H4 · 25 phiên hoàn tất · HOSE, HNX, UPCoM (Vốn hoá ≥ 100 tỷ)"}
+            {locale === "EN" ? "D1 similarity · 25 completed sessions · HOSE, HNX, UPCoM (Cap ≥ 100B VND)" : "Tuyến tính D1 · 25 phiên hoàn tất · HOSE, HNX, UPCoM (Vốn hoá ≥ 100 tỷ)"}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <HeroStat label={locale === "EN" ? "STATUS" : "TRẠNG THÁI"} value={localizeAdvisorStatus(status, locale)} />
-          <HeroStat label={locale === "EN" ? "H4" : "MỐC H4"} value={directionText} valueClass={directionTone} />
+          <HeroStat label={locale === "EN" ? "D1" : "MỐC D1"} value={directionText} valueClass={directionTone} />
           <HeroStat label={locale === "EN" ? "ACCESS" : "QUYỀN XEM"} value={accessText} />
         </div>
       </div>
@@ -98,7 +98,7 @@ function CandidateTable({ advisory, locale, isVIP }: { advisory: StockAdvisory; 
             <span>{locale === "EN" ? "Symbol" : "Mã"}</span>
             <span>{locale === "EN" ? "Company Name" : "Tên công ty"}</span>
             <span>{locale === "EN" ? "Weight" : "Tỷ trọng"}</span>
-            <span>{locale === "EN" ? "Hit H4" : "Khớp H4"}</span>
+            <span>{locale === "EN" ? "Hit D1" : "Khớp D1"}</span>
             <span>EDGE</span>
           </div>
           {advisory.candidates.map((candidate) => <CandidateRow key={candidate.symbol} candidate={candidate} locale={locale} />)}
