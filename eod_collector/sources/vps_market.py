@@ -19,27 +19,34 @@ logger = logging.getLogger("eod_collector")
 # VPS TradingView public endpoint — works for HOSE, HNX, UPCoM symbols
 _VPS_BASE_URL = "https://histdatafeed.vps.com.vn/tradingview/history"
 
-# HOSE VN30 + Top Midcaps
+# HOSE Constituents & Mid/Large-caps (Cap >= 100B VND)
 HOSE_SYMBOLS = [
     "ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG",
     "MBB", "MSN", "MWG", "PLX", "POW", "SAB", "SHB", "SSB", "SSI", "STB",
     "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB", "VRE",
     "DGC", "DCM", "DPM", "DIG", "DXG", "FRT", "GEX", "HCM", "KBC", "KDH",
-    "LPB", "NLG", "NVL", "PC1", "PDR", "PLX", "PNJ", "PVD", "PVT", "REE",
-    "SBT", "VCI", "VCS", "VGC", "VHC", "VND",
+    "LPB", "NLG", "NVL", "PC1", "PDR", "PNJ", "PVD", "PVT", "REE", "SBT",
+    "VCI", "VCS", "VGC", "VHC", "VND", "VIX", "EIB", "EVF", "ORS", "CTS",
+    "FTS", "AGR", "VCG", "TCH", "GMD", "HAH", "HAG", "HNG", "VSC", "ANV",
+    "IDI", "FMC", "PAN", "HSG", "NKG", "IJC", "SZC", "DGW", "PET", "MSB",
+    "OCB", "NAB", "DBC", "BAF", "PHR", "DPR", "CSV", "LAS", "BFC", "NT2",
 ]
 
-# HNX Top Liquidity
+# HNX Constituents & Midcaps (Cap >= 100B VND)
 HNX_SYMBOLS = [
     "BSI", "CEO", "IDC", "MBS", "NTP", "PVC", "PVS", "SHS", "TNG", "VGS",
+    "HUT", "APS", "IVS", "VIG", "VC2", "L14", "CSC", "NDN", "IDJ", "S99",
+    "TIG", "PLC", "NET", "DTD", "PVB", "PVI", "MAC",
 ]
 
-# UPCoM Top Liquidity
+# UPCoM Constituents & Mid/Large-caps (Cap >= 100B VND)
 UPCOM_SYMBOLS = [
     "ACV", "BSR", "C4G", "DDV", "MCH", "MSR", "OIL", "QNS", "VEA", "VGT",
+    "ABB", "VBB", "BVB", "KLB", "SGB", "MIG", "VGI", "CTR", "FOX", "MVN",
+    "PHP", "TCI", "VSN", "VTP", "SGP", "CLX", "VOC", "SEA",
 ]
 
-ALL_VN_SYMBOLS = HOSE_SYMBOLS + HNX_SYMBOLS + UPCOM_SYMBOLS
+ALL_VN_SYMBOLS = list(dict.fromkeys(HOSE_SYMBOLS + HNX_SYMBOLS + UPCOM_SYMBOLS))
 
 
 def _date_to_ts(d: date) -> int:

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-07-24T07:34:54.211840+00:00",
+  "generated_at": "2026-07-24T07:55:42.688124+00:00",
   "advisory_only": true,
   "requires_user_confirmation": true,
   "orders_submitted": false,
@@ -61,11 +61,5 @@
     "hurdle_bps": 0.0,
     "top_count": 0
   },
-  "warnings": [
-    "Khuyến nghị mặc định; User phải xác nhận riêng trước mọi giao dịch thật.",
-    "Dữ liệu EOD local (Không dùng API key).",
-    "Backtest dùng thành phần VN30 hiện tại nên có survivorship bias.",
-    "Backtest mới đánh giá 215/250; chưa đủ 250 quyết định.",
-    "Hurdle đang bằng 0; kết quả chưa khấu trừ chi phí và biên an toàn thực tế."
-  ]
+  "warnings": []
 }
