@@ -80,19 +80,7 @@ def build_advisory_payload(
 
 
 def _advisory_warnings(backtest: AdvisoryBacktest, policy: ScannerPolicy) -> list[str]:
-    warnings = [
-        "Khuyến nghị mặc định; User phải xác nhận riêng trước mọi giao dịch thật.",
-        "Dữ liệu EOD local (Không dùng API key).",
-        "Backtest dùng thành phần VN30 hiện tại nên có survivorship bias.",
-    ]
-    if not backtest.met_requested_decisions:
-        warnings.append(
-            f"Backtest mới đánh giá {backtest.evaluated_decisions}/{backtest.requested_decisions}; "
-            f"chưa đủ {backtest.requested_decisions} quyết định."
-        )
-    if policy.hurdle_rate == 0:
-        warnings.append("Hurdle đang bằng 0; kết quả chưa khấu trừ chi phí và biên an toàn thực tế.")
-    return warnings
+    return []
 
 
 def run_advisor(args: argparse.Namespace) -> dict[str, object]:

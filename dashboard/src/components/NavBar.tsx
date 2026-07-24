@@ -15,7 +15,7 @@ export function NavBar() {
   const links = [
     { href: "/", label: t.dashboard, mobile: t.dashboard },
     { href: "/signals", label: locale === "EN" ? "History" : "Lịch sử", mobile: locale === "EN" ? "History" : "Lịch sử" },
-    { href: "/stock-advisor", label: locale === "EN" ? "VN30 Advisor" : "Bộ lọc VN30", mobile: "VN30" },
+    { href: "/stock-advisor", label: locale === "EN" ? "Stock Filter" : "Bộ lọc Cổ phiếu", mobile: locale === "EN" ? "Stocks" : "Cổ phiếu" },
     { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực tin tức", mobile: locale === "EN" ? "Check" : "Xác thực" },
     { href: "/rules", label: t.rules, mobile: locale === "EN" ? "Rules" : "Quy tắc" },
   ];

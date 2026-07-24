@@ -18,7 +18,7 @@ class NativeQtI18nTests(unittest.TestCase):
         self.assertEqual(native_format("Visible SL/TP {state}", state="ON"), "Hiện SL/TP: BẬT")
         self.assertEqual(native_text("Exact profile match"), "Khớp hồ sơ chính xác")
         self.assertEqual(native_format("Total tasks: {count}", count=3), "Tổng tác vụ: 3")
-        self.assertEqual(native_text("VN30 Advisor"), "Bộ lọc VN30")
+        self.assertEqual(native_text("VN30 Advisor"), "Bộ lọc Cổ phiếu")
 
     def test_english_and_unknown_values_are_preserved(self) -> None:
         set_native_language("EN")

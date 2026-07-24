@@ -1,10 +1,13 @@
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { getStockAdvisory, maskStockAdvisory } from "@/lib/data";
+import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
+import { getStockAdvisory, maskStockAdvisory } from "@/lib/data";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 import { localizeAdvisorWarning } from "@/lib/stock-advisor-i18n";
 import type { StockAdvisory, StockAdvisorCandidate } from "@/lib/types";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
+import { getCompanyName } from "@/lib/stock-names";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +31,7 @@ export default async function StockAdvisorPage({ searchParams }: { searchParams:
 
 function AdvisorHero({ advisory, locale, isVIP }: { advisory: StockAdvisory | null; locale: "VN" | "EN"; isVIP: boolean }) {
   const direction = advisory?.signal.direction || "—";
-  const directionTone = direction === "BUY" ? "text-emerald-500" : direction === "SELL" ? "text-red-500" : "text-zinc-500";
+  const directionTone = direction === "BUY" ? "text-[var(--terminal-accent-strong)]" : direction === "SELL" ? "text-red-500" : "text-zinc-500";
   const directionText = locale === "EN" ? direction : direction === "BUY" ? "MUA" : direction === "SELL" ? "BÁN" : direction;
   const status = advisory?.status || "EMPTY";
   const accessText = locale === "EN" ? (isVIP ? "OPEN" : "LOCKED") : (isVIP ? "ĐÃ MỞ" : "ĐÃ KHÓA");
@@ -37,10 +40,10 @@ function AdvisorHero({ advisory, locale, isVIP }: { advisory: StockAdvisory | nu
       <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,0.8fr)] lg:items-end">
         <div>
           <h1 className="text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl">
-            {locale === "EN" ? "VN30 Advisor" : "Bộ lọc VN30"}
+            {locale === "EN" ? "VN Stock Filter" : "Bộ lọc Cổ phiếu"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-            {locale === "EN" ? "H4 similarity · 25 completed sessions · recommendation only" : "Tuyến tính H4 · 25 phiên hoàn tất · chỉ khuyến nghị"}
+            {locale === "EN" ? "H4 similarity · 25 completed sessions · HOSE, HNX, UPCoM (Cap ≥ 100B VND)" : "Tuyến tính H4 · 25 phiên hoàn tất · HOSE, HNX, UPCoM (Vốn hoá ≥ 100 tỷ)"}
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -91,8 +94,12 @@ function CandidateTable({ advisory, locale, isVIP }: { advisory: StockAdvisory; 
       {!isVIP ? <LockedRows locale={locale} /> : advisory.candidates.length ? (
         <div className="advisor-table">
           <div className="advisor-row advisor-row-head">
-            <span>#</span><span>{locale === "EN" ? "Symbol" : "Mã"}</span><span>{locale === "EN" ? "Weight" : "Tỷ trọng"}</span>
-            <span>{locale === "EN" ? "Hit H4" : "Khớp H4"}</span><span>EDGE</span><span>{locale === "EN" ? "Capital" : "Vốn"}</span>
+            <span>#</span>
+            <span>{locale === "EN" ? "Symbol" : "Mã"}</span>
+            <span>{locale === "EN" ? "Company Name" : "Tên công ty"}</span>
+            <span>{locale === "EN" ? "Weight" : "Tỷ trọng"}</span>
+            <span>{locale === "EN" ? "Hit H4" : "Khớp H4"}</span>
+            <span>EDGE</span>
           </div>
           {advisory.candidates.map((candidate) => <CandidateRow key={candidate.symbol} candidate={candidate} locale={locale} />)}
         </div>
@@ -102,14 +109,15 @@ function CandidateTable({ advisory, locale, isVIP }: { advisory: StockAdvisory; 
 }
 
 function CandidateRow({ candidate, locale }: { candidate: StockAdvisorCandidate; locale: "VN" | "EN" }) {
+  const companyName = getCompanyName(candidate.symbol);
   return (
     <div className="advisor-row">
       <span className="text-zinc-400">{candidate.rank}</span>
       <span className="font-mono text-lg font-black">{candidate.symbol}</span>
+      <span className="font-sans text-xs text-zinc-300 font-medium truncate" title={companyName}>{companyName}</span>
       <span>{formatPercent(candidate.weight)}</span>
       <span>{formatPercent(candidate.conditional_hit_rate)}</span>
       <span>{formatPercent(candidate.conditional_edge)}</span>
-      <span>{formatCapital(candidate.capital, locale)}</span>
     </div>
   );
 }
@@ -128,13 +136,6 @@ function EvidencePanel({ advisory, locale }: { advisory: StockAdvisory; locale: 
         <EvidenceRow label={locale === "EN" ? "Cash reserve" : "Tiền mặt"} value={formatPercent(advisory.cash_weight)} />
         <EvidenceRow label={locale === "EN" ? "Rejected" : "Loại"} value={advisory.rejected_symbols.toString()} />
       </dl>
-      <div className="mt-5 border-t pt-4">
-        {advisory.warnings.map((warning) => (
-          <p key={warning} className="mb-2 text-xs leading-5 text-amber-600 dark:text-amber-400">
-            {localizeAdvisorWarning(warning, locale)}
-          </p>
-        ))}
-      </div>
     </section>
   );
 }

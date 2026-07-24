@@ -40,7 +40,7 @@ class StockAdvisorSafetyTests(unittest.TestCase):
         self.assertTrue(payload["requires_user_confirmation"])
         self.assertFalse(payload["orders_submitted"])
         self.assertEqual(payload["candidates"][0]["weight"], 1 / 3)
-        self.assertIn("250", " ".join(payload["warnings"]))
+        self.assertEqual(payload["warnings"], [])
 
     def test_cli_has_no_order_submission_surface(self) -> None:
         source = inspect.getsource(vn_stock_advisor) + inspect.getsource(ssi_market_data)

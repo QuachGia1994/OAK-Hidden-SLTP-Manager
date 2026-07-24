@@ -132,7 +132,7 @@ NATIVE_TEXT = {
     "VN": {
         "Dashboard": "Bảng điều khiển",
         "Signals": "Tín hiệu",
-        "VN30 Advisor": "Bộ lọc VN30",
+        "VN30 Advisor": "Bộ lọc Cổ phiếu",
         "Profiles": "Hồ sơ",
         "Copy": "Sao chép",
         "Pending": "Chờ xử lý",
@@ -147,15 +147,15 @@ NATIVE_TEXT = {
         "Hurdle (bps)": "Chi phí + biên an toàn (bps)",
         "Save SSI credentials": "Lưu thông tin SSI",
         "Update EOD Data (15:00+)": "Cập nhật dữ liệu EOD (15h00+)",
-        "Run advisor": "Chạy bộ lọc VN30",
-        "Run VN30 Advisor": "Chạy bộ lọc VN30",
+        "Run advisor": "Chạy bộ lọc Cổ phiếu",
+        "Run VN30 Advisor": "Chạy bộ lọc Cổ phiếu",
         "ADVISORY RESULT": "KẾT QUẢ KHUYẾN NGHỊ",
         "Credentials are stored in Windows Credential Manager.": "Thông tin SSI được lưu trong Windows Credential Manager.",
         "Local EOD Database (data/market.db) · Auto-updated after 15:00": "Cơ sở dữ liệu Local EOD (data/market.db) · Tự động cập nhật sau 15h00",
         "Local EOD Mode: No API key or account required.": "Chế độ Local EOD: Không cần API key hay tài khoản.",
         "Updating local EOD data...": "Đang cập nhật dữ liệu EOD...",
         "EOD data updated successfully.": "Đã cập nhật dữ liệu EOD thành công.",
-        "Press Run VN30 Advisor to scan 30 constituents using local EOD data.": "Nhấn Chạy bộ lọc VN30 để quét 30 cổ phiếu bằng dữ liệu Local EOD.",
+        "Press Run VN30 Advisor to scan 30 constituents using local EOD data.": "Nhấn Chạy bộ lọc Cổ phiếu để quét toàn sàn bằng dữ liệu Local EOD.",
         "Recommendation only": "Chỉ khuyến nghị",
         "Local EOD Mode": "Chế độ Local EOD",
         "NO API KEY": "KHÔNG CẦN API KEY",
@@ -168,7 +168,7 @@ NATIVE_TEXT = {
         "Enter SSI credentials once, then press Run advisor.": "Nhập thông tin SSI một lần, sau đó nhấn Chạy bộ lọc.",
         "SSI credentials saved securely.": "Đã lưu thông tin SSI an toàn.",
         "Advisor settings saved.": "Đã lưu cài đặt bộ lọc.",
-        "Running VN30 advisor...": "Đang chạy bộ lọc VN30...",
+        "Running VN30 advisor...": "Đang chạy bộ lọc Cổ phiếu...",
         "Auto backfill: pausing Signal Bot...": "Tự backfill: đang tạm dừng Signal Bot...",
         "Advisor completed and dashboard updated.": "Đã lọc xong và cập nhật dashboard.",
         "PROFILE": "HỒ SƠ",
@@ -993,7 +993,6 @@ class NativeShell:
         layout = QT.QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
-        self._build_stock_fields(layout)
         layout.addLayout(self._stock_advisor_actions())
         self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
         self.stock_status.setWordWrap(True)
