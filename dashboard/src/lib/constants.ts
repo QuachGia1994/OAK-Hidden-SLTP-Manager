@@ -67,11 +67,20 @@ const HOUR_NOTES: Record<number, string> = {
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
+  if ((h === 2 || h === 3) && jsWeekday === 3) {
+    return "XAUUSD đảo từ H=5 hôm qua";
+  }
   if ((h === 2 || h === 3) && jsWeekday === 4) {
     return "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2";
   }
+  if (h === 9 && jsWeekday === 3) {
+    return "XAUUSD đảo từ H=5 hôm nay";
+  }
   if (h === 9 && jsWeekday === 5) {
     return "XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6)";
+  }
+  if (h === 14 && jsWeekday === 3) {
+    return "Tắt nhóm GBP (Thứ 4)";
   }
   if (h === 14 && jsWeekday === 5) {
     return "GBP group đảo từ H=5 hôm nay (Thứ 6)";
@@ -104,11 +113,11 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
     3: [
       "Slots: H=2-5,7,9,11-15",
-      "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
+      "H=2,3: XAUUSD đảo từ H=5 hôm qua.",
       "H=7: XAUUSD đảo từ H=5 hôm nay.",
-      "H=9: XAUUSD đảo từ H=5 hôm nay; GBP đảo từ H=5 hôm qua.",
+      "H=9: XAUUSD đảo từ H=5 hôm nay.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
-      "H=14: GBP cùng chiều H=5 hôm nay."
+      "H=14: Tắt nhóm GBP (Thứ 4)."
     ],
     4: [
       "Slots: H=2-5,7,9,11-15",
@@ -146,11 +155,11 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
     ],
     3: [
       "Slots: H=2-5,7,9,11-15",
-      "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
+      "H=2,3: XAUUSD reverses from H=5 yesterday.",
       "H=7: XAUUSD reverses from H=5 today.",
-      "H=9: XAUUSD reverses from H=5 today; GBP reverses from H=5 yesterday.",
+      "H=9: XAUUSD reverses from H=5 today.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
-      "H=14: GBP follows H=5 today."
+      "H=14: GBP group disabled (Wed)."
     ],
     4: [
       "Slots: H=2-5,7,9,11-15",

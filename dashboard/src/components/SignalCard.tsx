@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  GBP_PAIRS,
   formatHour,
   getHourNote,
   getSignalColor,
@@ -24,6 +25,7 @@ export function SignalCard({
 }) {
   const { locale } = useLocale();
   const weekday = weekdayFromDate(signal.date);
+  const isWednesday = weekday === 3;
   const rawHourNote = signal.hour_note || getHourNote(signal.hour, weekday) || "";
   const {
     translatedNote: hourNote,
@@ -40,19 +42,21 @@ export function SignalCard({
   const defaultPairs = signal.hour === 11
     ? []
     : (signal.hour === 9)
-      ? ["XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
+      ? (isWednesday ? ["XAUUSD"] : ["XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"])
       : (signal.hour === 14)
-        ? (weekday === 3 || weekday === 4)
-          ? ["GBPAUD", "GBPJPY"]
-          : ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
+        ? (isWednesday ? [] : (weekday === 4 ? ["GBPAUD", "GBPJPY"] : ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]))
         : (signal.hour === 2 || signal.hour === 3)
-          ? ["XAUUSD", "GBPAUD"]
+          ? (isWednesday ? ["XAUUSD"] : ["XAUUSD", "GBPAUD"])
           : ["XAUUSD"];
 
   const activePairs = signal.hour === 11
     ? []
     : signal.pair_dirs && Object.keys(signal.pair_dirs).length > 0
-      ? Object.keys(signal.pair_dirs).filter((p) => p !== "Stock-DIRECTION" && p !== "GBP-DIRECTION")
+      ? Object.keys(signal.pair_dirs).filter((p) => {
+          if (p === "Stock-DIRECTION" || p === "GBP-DIRECTION") return false;
+          if (isWednesday && GBP_PAIRS.includes(p)) return false;
+          return true;
+        })
       : defaultPairs;
 
   const getPairDir = (pair: string) => {
