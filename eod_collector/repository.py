@@ -17,7 +17,8 @@ INSERT INTO eod_prices (
     foreign_buy_value, foreign_sell_value, adjusted_close
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-) ON CONFLICT(date, symbol, exchange) DO UPDATE SET
+) ON CONFLICT(date, symbol) DO UPDATE SET
+    exchange = excluded.exchange,
     open = excluded.open,
     high = excluded.high,
     low = excluded.low,

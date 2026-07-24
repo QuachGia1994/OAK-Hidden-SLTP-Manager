@@ -61,6 +61,7 @@ export interface StockAdvisorCandidate {
   capital: number;
   close_price?: number;
   price_change_pct?: number;
+  exchange?: string;
   hit_rate: number;
   conditional_hit_rate: number;
   conditional_edge: number;

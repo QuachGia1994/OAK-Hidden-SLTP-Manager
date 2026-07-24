@@ -118,3 +118,10 @@ export function getMarketCap(symbol: string, locale: "VN" | "EN" = "VN"): string
   }
   return rawCap;
 }
+
+export function getExchange(symbol: string): string {
+  const sym = (symbol || "").toUpperCase().trim();
+  if (!sym) return "HOSE";
+  const rawEx = COMPANY_NAMES[sym]?.exchange || "HOSE";
+  return rawEx === "UPCOM" ? "UPCoM" : rawEx;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getCompanyName, getMarketCap } from "@/lib/stock-names";
+import { getCompanyName, getMarketCap, getExchange } from "@/lib/stock-names";
 import type { StockAdvisorCandidate } from "@/lib/types";
 
 export function CandidateTableClient({
@@ -48,14 +48,11 @@ export function CandidateTableClient({
             <span>{locale === "EN" ? "Company Name" : "Tên công ty"}</span>
             <span>{locale === "EN" ? "Market Cap" : "Vốn hoá"}</span>
             <span>{locale === "EN" ? "Close Price" : "Giá đóng cửa"}</span>
-            <span>EDGE *</span>
+            <span>{locale === "EN" ? "Exchange" : "Sàn giao dịch"}</span>
           </div>
           {displayCandidates.map((candidate, idx) => (
             <CandidateRow key={candidate.symbol} candidate={{ ...candidate, rank: idx + 1 }} locale={locale} />
           ))}
-          <div className="border-t px-4 py-2.5 text-[11px] text-zinc-400 dark:text-zinc-500">
-            * EDGE: {locale === "EN" ? "Expected excess return (Alpha) over benchmark on D1 signal." : "Tỷ suất sinh lời kỳ vọng vượt trội (Alpha) của cổ phiếu khi xuất hiện tín hiệu D1."}
-          </div>
         </div>
       ) : (
         <LockedRows locale={locale} empty />
@@ -67,6 +64,7 @@ export function CandidateTableClient({
 function CandidateRow({ candidate, locale }: { candidate: StockAdvisorCandidate; locale: "VN" | "EN" }) {
   const companyName = getCompanyName(candidate.symbol);
   const marketCap = getMarketCap(candidate.symbol, locale);
+  const exchange = candidate.exchange || getExchange(candidate.symbol);
   return (
     <div className="advisor-row">
       <span className="font-mono text-xs font-bold text-[var(--muted)]">{candidate.rank}</span>
@@ -74,7 +72,11 @@ function CandidateRow({ candidate, locale }: { candidate: StockAdvisorCandidate;
       <span className="font-sans text-xs text-[var(--muted)] dark:text-zinc-300 font-medium truncate" title={companyName}>{companyName}</span>
       <span className="font-mono text-xs text-amber-700 dark:text-amber-400 font-semibold">{marketCap}</span>
       <PriceCell price={candidate.close_price} changePct={candidate.price_change_pct} />
-      <span className="font-mono font-bold">{formatPercent(candidate.conditional_edge)}</span>
+      <span>
+        <span className="font-mono text-[11px] font-extrabold px-2 py-0.5 rounded border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]">
+          {exchange}
+        </span>
+      </span>
     </div>
   );
 }

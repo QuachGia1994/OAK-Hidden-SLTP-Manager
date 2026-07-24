@@ -421,3 +421,13 @@ class VPSMarketDataSource(EODDataSource):
             return parsed if isinstance(parsed, list) else []
         except (json.JSONDecodeError, ValueError):
             return []
+
+
+def get_exchange(symbol: str) -> str:
+    """Return exchange name for stock symbol: HOSE, HNX, or UPCoM."""
+    sym = (symbol or "").strip().upper()
+    if sym in HNX_SYMBOLS:
+        return "HNX"
+    if sym in UPCOM_SYMBOLS:
+        return "UPCoM"
+    return "HOSE"

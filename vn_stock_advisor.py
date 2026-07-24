@@ -241,6 +241,7 @@ def _signal_payload(signal: H4Signal) -> dict[str, object]:
 
 
 def _candidate_payload(candidate: object) -> dict[str, object]:
+    from eod_collector.sources.vps_market import get_exchange
     score = candidate.score
     return {
         "rank": candidate.rank,
@@ -249,6 +250,7 @@ def _candidate_payload(candidate: object) -> dict[str, object]:
         "capital": candidate.capital,
         "close_price": getattr(score, "close_price", 0.0),
         "price_change_pct": getattr(score, "price_change_pct", 0.0),
+        "exchange": get_exchange(candidate.symbol),
         "hit_rate": score.hit_rate,
         "conditional_hit_rate": score.conditional_hit_rate,
         "conditional_edge": score.conditional_edge,
