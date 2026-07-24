@@ -32,6 +32,8 @@ from services.stock_dashboard_publisher import (
     publish_stock_advisory,
 )
 
+ROOT = Path(__file__).resolve().parent
+
 
 class AdvisorErrorCode(str, Enum):
     """Stable CLI failure categories."""
@@ -92,16 +94,40 @@ def run_advisor(args: argparse.Namespace) -> dict[str, object]:
         raise AdvisorError(AdvisorErrorCode.INVALID_HISTORY, "No valid H=4 signal history")
     current_signal = signals[-1]
     _validate_signal_freshness(current_signal, args.allow_stale)
+
+    # Fast daily cache check: if recommendation for today's signal date already exists and --force is not set
+    out_file = Path(args.output).resolve() if args.output else (ROOT / "stock_recommendation.json")
+    if not getattr(args, "force", False) and out_file.exists():
+        try:
+            cached = json.loads(out_file.read_text(encoding="utf-8"))
+            if (
+                isinstance(cached, dict)
+                and cached.get("signal", {}).get("date") == current_signal.trading_date.isoformat()
+                and isinstance(cached.get("candidates"), list)
+                and len(cached.get("candidates", [])) > 0
+            ):
+                print(f"[CACHE HIT] Returning cached advisory result for date {current_signal.trading_date} (< 0.1s)", file=sys.stderr)
+                return cached
+        except Exception:
+            pass
+
     policy = ScannerPolicy(hurdle_rate=args.hurdle_bps / 10_000, top_count=args.top_count)
     points, data_errors = _load_vn30_points(current_signal.trading_date, args.history_days)
     scores = _score_current_universe(signals, points, current_signal, policy)
     selection = select_top_stocks(scores, current_signal.direction, args.capital, policy)
     backtest = walk_forward_backtest(signals, points, policy, args.backtest_decisions)
     rejected = sum(not score.eligible for score in scores)
-    return build_advisory_payload(selection, current_signal, backtest, rejected, data_errors, policy)
+    payload = build_advisory_payload(selection, current_signal, backtest, rejected, data_errors, policy)
+    try:
+        out_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+    return payload
 
 
 def _load_vn30_points(as_of_date: date, history_days: int) -> tuple[dict, tuple[str, ...]]:
+    from concurrent.futures import ThreadPoolExecutor
+
     credentials = credentials_from_environment()
     start_date = as_of_date - timedelta(days=min(365, max(60, history_days)))
     points_by_symbol: dict[str, list] = {}
@@ -110,14 +136,28 @@ def _load_vn30_points(as_of_date: date, history_days: int) -> tuple[dict, tuple[
         if not provider.has_trading_session(as_of_date):
             raise AdvisorError(AdvisorErrorCode.NO_MARKET_DATA, "No market data session for this date")
         symbols = provider.get_vn30_symbols()
-        for index, symbol in enumerate(symbols, start=1):
-            print(f"[Local EOD] {index}/{len(symbols)} {symbol}", file=sys.stderr)
+        total_syms = len(symbols)
+
+        def _fetch_points_one(index_sym: tuple[int, str]) -> tuple[str, list, str | None]:
+            idx, sym = index_sym
+            if idx % 50 == 0 or idx == total_syms:
+                print(f"[Local EOD] {idx}/{total_syms} {sym}", file=sys.stderr)
             try:
-                points_by_symbol[symbol] = provider.get_afternoon_points(symbol, start_date, as_of_date)
+                pts = provider.get_afternoon_points(sym, start_date, as_of_date)
+                return sym, pts, None
             except SSIMarketDataError as error:
-                errors.append(f"{symbol}:{error.code.value}")
+                return sym, [], f"{sym}:{error.code.value}"
             except Exception as error:
-                errors.append(f"{symbol}:{error}")
+                return sym, [], f"{sym}:{error}"
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            results = executor.map(_fetch_points_one, enumerate(symbols, start=1))
+            for sym, pts, err in results:
+                if pts:
+                    points_by_symbol[sym] = pts
+                if err:
+                    errors.append(err)
+
     if not points_by_symbol:
         raise AdvisorError(AdvisorErrorCode.NO_MARKET_DATA, "No VN30 afternoon data was available")
     return points_by_symbol, tuple(errors)
@@ -136,11 +176,9 @@ def _score_current_universe(
     def _score_one(item: tuple[str, Sequence]) -> StockScore:
         symbol, points = item
         completed_points = [point for point in points if point.trading_date < current_signal.trading_date]
-        close_price = float(getattr(points[-1], "close", 0.0)) if points else 0.0
-        ref_price = float(getattr(points[-1], "reference_price", 0.0)) if points else 0.0
-        if ref_price <= 0:
-            ref_price = float(getattr(points[-1], "open", close_price)) if points else close_price
-        pct_change = ((close_price - ref_price) / ref_price * 100.0) if ref_price > 0 else 0.0
+        close_price = float(getattr(points[-1], "price", getattr(points[-1], "close", 0.0))) if points else 0.0
+        prev_price = float(getattr(points[-2], "price", getattr(points[-2], "close", close_price))) if len(points) >= 2 else close_price
+        pct_change = ((close_price - prev_price) / prev_price) if prev_price > 0 else 0.0
         return score_stock(
             symbol,
             signals,
@@ -240,21 +278,22 @@ def _policy_payload(policy: ScannerPolicy) -> dict[str, object]:
 
 
 def _write_payload(payload: Mapping[str, object], output: str | None) -> None:
+    path = Path(output).resolve() if output else (ROOT / "stock_recommendation.json")
     rendered = json.dumps(payload, ensure_ascii=False, indent=2)
-    if not output:
-        if hasattr(sys.stdout, "buffer"):
-            try:
-                sys.stdout.buffer.write(rendered.encode("utf-8") + b"\n")
-                return
-            except Exception:
-                pass
-        print(rendered)
-        return
-    path = Path(output).resolve()
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(rendered, encoding="utf-8")
-    temporary.replace(path)
-    print(f"Recommendation written to {path}")
+    try:
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(rendered, encoding="utf-8")
+        temporary.replace(path)
+    except Exception as err:
+        print(f"[WARN] Could not write recommendation file: {err}", file=sys.stderr)
+
+    if hasattr(sys.stdout, "buffer"):
+        try:
+            sys.stdout.buffer.write(rendered.encode("utf-8") + b"\n")
+            return
+        except Exception:
+            pass
+    print(rendered)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -267,6 +306,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backtest-decisions", type=int, default=250)
     parser.add_argument("--backfill-h4", nargs="?", const=260, type=int, default=0)
     parser.add_argument("--allow-stale", action="store_true", help="Research only: allow a non-current H=4 signal")
+    parser.add_argument("--force", action="store_true", help="Bypass daily result cache and force recalculation")
     parser.add_argument("--output", help="Optional advisory JSON output path")
     return parser
 

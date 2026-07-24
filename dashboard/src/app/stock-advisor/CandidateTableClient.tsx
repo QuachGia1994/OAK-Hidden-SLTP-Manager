@@ -83,7 +83,9 @@ function PriceCell({ price, changePct }: { price?: number; changePct?: number })
   if (!price || price <= 0) return <span className="text-zinc-500">—</span>;
   const isPos = (changePct || 0) >= 0;
   const colorClass = isPos ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold";
-  const pctStr = changePct !== undefined ? `${isPos ? "+" : ""}${(changePct * 100).toFixed(1)}%` : "0.0%";
+  const rawPct = changePct || 0;
+  const displayPct = Math.abs(rawPct) <= 1.0 ? rawPct * 100 : rawPct;
+  const pctStr = `${isPos ? "+" : ""}${displayPct.toFixed(1)}%`;
   return (
     <span className="font-mono text-xs">
       {price.toFixed(1)}{" "}
