@@ -574,6 +574,7 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
             QLabel,
             QLineEdit,
             QMainWindow,
+            QProgressBar,
             QPushButton,
             QScrollArea,
             QStackedWidget,
