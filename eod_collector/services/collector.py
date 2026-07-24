@@ -17,6 +17,7 @@ from eod_collector.sources.base import EODDataSource, RawFetchResult
 from eod_collector.sources.hose import HOSEDataSource
 from eod_collector.sources.hnx import HNXDataSource
 from eod_collector.sources.upcom import UPCOMDataSource
+from eod_collector.sources.vps_market import VPSMarketDataSource
 from eod_collector.validator import EODValidator, ValidationError
 
 logger = logging.getLogger("eod_collector")
@@ -32,6 +33,9 @@ class CollectorService:
         self.validator = EODValidator(holidays=self.config.collector.holidays)
 
         self.sources: dict[str, EODDataSource] = {}
+        # VPS unified source covers all exchanges with real data
+        self.sources["VN_ALL"] = VPSMarketDataSource()
+        # Legacy per-exchange sources (kept for backward compatibility but VPS takes priority)
         if self.config.sources.hose_enabled:
             self.sources["HOSE"] = HOSEDataSource()
         if self.config.sources.hnx_enabled:

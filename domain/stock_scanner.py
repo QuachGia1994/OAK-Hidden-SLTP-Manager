@@ -70,12 +70,20 @@ class ForwardSample:
 
 @dataclass(frozen=True, slots=True)
 class ScannerPolicy:
-    """Thresholds for the default recommendation-only scanner."""
+    """Thresholds for the default recommendation-only scanner.
+
+    Thresholds are calibrated for the Vietnamese stock market where H4 signal
+    alignment with next-day stock movement typically ranges 40-65% in any
+    rolling 25-session window.
+
+    minimum_hit_rate: overall aligned hit rate (both BUY+SELL sessions)
+    minimum_conditional_hit_rate: hit rate on sessions matching current direction
+    """
 
     window_size: int = 25
     minimum_direction_samples: int = 8
-    minimum_hit_rate: float = 0.72
-    minimum_conditional_hit_rate: float = 0.60
+    minimum_hit_rate: float = 0.55          # realistic for VN market (max seen ~64%)
+    minimum_conditional_hit_rate: float = 0.60  # stocks must outperform on direction days
     hurdle_rate: float = 0.0
     maximum_absolute_return: float = 0.15
     top_count: int = 3  # 0 means return ALL eligible candidates
