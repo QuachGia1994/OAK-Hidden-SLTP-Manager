@@ -14,7 +14,7 @@ from eod_collector.models import EODRecord, RawFetchMetadata
 from eod_collector.normalizer import EODNormalizer
 from eod_collector.repository import EODRepository
 from eod_collector.sources.base import EODDataSource, RawFetchResult
-from eod_collector.sources.vps_market import VPSMarketDataSource, fetch_vps_history, ALL_VN_SYMBOLS
+from eod_collector.sources.vps_market import VPSMarketDataSource, fetch_vps_history, get_active_symbols
 from eod_collector.validator import EODValidator, ValidationError
 
 logger = logging.getLogger("eod_collector")
@@ -84,10 +84,11 @@ class CollectorService:
                 logger.warning("[VPS UPDATE] Failed to fetch %s: %s", symbol, err)
             return res
 
-        total_syms = len(ALL_VN_SYMBOLS)
+        symbols = get_active_symbols(Path(self.database.db_path).parent)
+        total_syms = len(symbols)
         print(f"[VPS EOD] Fetching {total_syms} symbols for {date_str}...", flush=True)
         with ThreadPoolExecutor(max_workers=16) as executor:
-            futures = [executor.submit(_fetch_one, s) for s in ALL_VN_SYMBOLS]
+            futures = [executor.submit(_fetch_one, s) for s in symbols]
             _done = 0
             for future in as_completed(futures):
                 records.extend(future.result())

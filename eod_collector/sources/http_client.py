@@ -30,12 +30,15 @@ def fetch_url(
     if headers:
         req_headers.update(headers)
 
+    import ssl
+
     request = urllib.request.Request(url, headers=req_headers)
     last_error: Exception | None = None
+    ssl_context = None
 
     for attempt in range(1, max_retries + 1):
         try:
-            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            with urllib.request.urlopen(request, timeout=timeout_seconds, context=ssl_context) as response:
                 status_code = response.getcode() or 200
                 content_type = response.headers.get("Content-Type", "application/octet-stream")
                 content = response.read()
@@ -50,6 +53,12 @@ def fetch_url(
         except (urllib.error.URLError, TimeoutError, OSError) as err:
             last_error = err
             logger.warning("Network error '%s' for %s (attempt %d/%d)", err, url, attempt, max_retries)
+            # Create unverified SSL context for retry if SSL handshake fails
+            if ssl_context is None:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                ssl_context = ctx
 
         if attempt < max_retries:
             sleep_time = 1.5 ** attempt

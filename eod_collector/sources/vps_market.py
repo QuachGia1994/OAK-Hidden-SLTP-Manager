@@ -212,6 +212,76 @@ UPCOM_SYMBOLS = [
 ALL_VN_SYMBOLS = list(dict.fromkeys(HOSE_SYMBOLS + HNX_SYMBOLS + UPCOM_SYMBOLS))
 
 
+def fetch_live_vn_symbols() -> list[str]:
+    """Fetch current live symbol list from VPS public API endpoints.
+
+    Returns a clean list of uppercase stock symbols.
+    """
+    discovered: list[str] = []
+    # 1. VPS bgapidatafeed endpoint
+    url = "https://bgapidatafeed.vps.com.vn/getallstockonep/ALL"
+    try:
+        content, status, _ = fetch_url(url, timeout_seconds=6, max_retries=1)
+        if status == 200 and content:
+            raw_data = json.loads(content)
+            if isinstance(raw_data, list):
+                for item in raw_data:
+                    if isinstance(item, dict):
+                        sym = str(item.get("sym", "")).strip().upper()
+                        # Keep standard 3-letter stock symbols, ignore derivatives (VN30F...), CWs, and index tickers
+                        if sym and len(sym) == 3 and sym.isalpha() and sym not in ("CW", "INDEX"):
+                            discovered.append(sym)
+    except Exception as err:
+        logger.debug("[VPS DISCOVERY] Live symbol fetch notice: %s", err)
+
+    return list(dict.fromkeys(discovered))
+
+
+def get_active_symbols(data_dir: Path | str | None = None) -> list[str]:
+    """Load active symbols merging static base, dynamic cache (data/symbols.json), and live API discovery."""
+    from pathlib import Path
+
+    base_dir = Path(data_dir) if data_dir else Path("data")
+    cache_file = base_dir / "symbols.json"
+
+    cached_symbols: list[str] = []
+    if cache_file.exists():
+        try:
+            raw = json.loads(cache_file.read_text(encoding="utf-8"))
+            if isinstance(raw, list):
+                cached_symbols = [str(s).strip().upper() for s in raw if str(s).strip()]
+        except Exception as err:
+            logger.warning("[VPS DISCOVERY] Failed to read %s: %s", cache_file, err)
+
+    # Combine static base list with cached symbols
+    combined = list(dict.fromkeys(ALL_VN_SYMBOLS + cached_symbols))
+    initial_count = len(combined)
+
+    # Attempt dynamic live discovery for newly listed IPO tickers
+    live_discovered = fetch_live_vn_symbols()
+    new_tickers: list[str] = []
+    if live_discovered:
+        existing_set = set(combined)
+        for sym in live_discovered:
+            if sym not in existing_set:
+                combined.append(sym)
+                new_tickers.append(sym)
+                existing_set.add(sym)
+
+    if new_tickers:
+        logger.info("[VPS DISCOVERY] Found %d new ticker(s) listed: %s", len(new_tickers), ", ".join(new_tickers))
+
+    # Persist updated universe into data/symbols.json
+    try:
+        base_dir.mkdir(parents=True, exist_ok=True)
+        cache_file.write_text(json.dumps(combined, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as err:
+        logger.warning("[VPS DISCOVERY] Could not save %s: %s", cache_file, err)
+
+    return combined
+
+
+
 def _date_to_ts(d: date) -> int:
     """Convert a date to a UTC unix timestamp (start of day)."""
     return int(datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp())
