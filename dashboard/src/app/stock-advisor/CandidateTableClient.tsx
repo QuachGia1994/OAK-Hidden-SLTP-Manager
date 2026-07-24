@@ -69,12 +69,12 @@ function CandidateRow({ candidate, locale }: { candidate: StockAdvisorCandidate;
   const marketCap = getMarketCap(candidate.symbol, locale);
   return (
     <div className="advisor-row">
-      <span className="text-zinc-400">{candidate.rank}</span>
-      <span className="font-mono text-lg font-black">{candidate.symbol}</span>
-      <span className="font-sans text-xs text-zinc-300 font-medium truncate" title={companyName}>{companyName}</span>
-      <span className="font-mono text-xs text-amber-400/90 font-semibold">{marketCap}</span>
+      <span className="font-mono text-xs font-bold text-[var(--muted)]">{candidate.rank}</span>
+      <span className="font-mono text-lg font-black text-[var(--foreground)]">{candidate.symbol}</span>
+      <span className="font-sans text-xs text-[var(--muted)] dark:text-zinc-300 font-medium truncate" title={companyName}>{companyName}</span>
+      <span className="font-mono text-xs text-amber-700 dark:text-amber-400 font-semibold">{marketCap}</span>
       <PriceCell price={candidate.close_price} changePct={candidate.price_change_pct} />
-      <span>{formatPercent(candidate.conditional_edge)}</span>
+      <span className="font-mono font-bold">{formatPercent(candidate.conditional_edge)}</span>
     </div>
   );
 }

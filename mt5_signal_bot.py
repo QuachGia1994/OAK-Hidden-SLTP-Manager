@@ -1887,8 +1887,8 @@ def rebuild_slot_signal(broker_dt, h):
     return True
 
 
-def rebuild_recent_history(days=7):
-    """Recalculate and replace the latest weekday history using current rules."""
+def rebuild_recent_history(days=45):
+    """Recalculate and replace the latest 30 trading sessions (45 calendar days) using current logic v23."""
     if not mt5_ready:
         print("  [REBUILD] MT5 not ready, skip")
         return 0
@@ -1964,8 +1964,8 @@ def _recent_h4_dates(broker_dt, session_count):
 
 
 def rebuild_signals_on_startup():
-    """Backward-compatible startup hook; refreshes the full recent history."""
-    return rebuild_recent_history(days=7)
+    """Backward-compatible startup hook; refreshes 30 trading sessions of recent history using logic v23."""
+    return rebuild_recent_history(days=45)
 
 
 def backfill_missing_days():

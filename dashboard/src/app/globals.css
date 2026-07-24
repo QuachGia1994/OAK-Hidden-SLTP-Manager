@@ -3,15 +3,15 @@
 
 :root {
   --background: #f2f5f2;
-  --foreground: #102018;
+  --foreground: #0e1a14;
   --surface: #ffffff;
-  --surface-raised: #f8fbf8;
-  --panel-border: rgba(16, 32, 24, 0.14);
-  --muted: #607068;
-  --terminal-accent: #008c67;
-  --terminal-accent-strong: #007a5b;
-  --terminal-warning: #a96f08;
-  --terminal-danger: #c43749;
+  --surface-raised: #f4f8f5;
+  --panel-border: rgba(14, 26, 20, 0.22);
+  --muted: #33443c;
+  --terminal-accent: #007a5b;
+  --terminal-accent-strong: #00664c;
+  --terminal-warning: #946000;
+  --terminal-danger: #b82d3e;
   --terminal-shadow: 0 18px 48px rgba(15, 35, 24, 0.09);
 }
 
