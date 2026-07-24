@@ -4,6 +4,7 @@ import { NavBar } from "@/components/NavBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { VipGuard } from "@/components/VipGuard";
 import { LocaleProvider } from "@/components/LocaleProvider";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { Suspense } from "react";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
@@ -45,6 +46,7 @@ export default async function RootLayout({
             <VipGuard />
           </Suspense>
           <NavBar />
+          <AnnouncementBanner />
           <main className="flex-1 min-h-0">{children}</main>
           <footer className="border-t border-zinc-200 dark:border-zinc-800 py-2.5 text-center">
             <p className="text-[11px] text-zinc-400 dark:text-zinc-500">&copy; 2026 QUACH KIM PHONG</p>
