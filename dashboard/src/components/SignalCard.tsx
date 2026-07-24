@@ -131,8 +131,8 @@ export function SignalCard({
           {descriptionText && (
             <p className="text-xs leading-relaxed text-[var(--foreground)]">{descriptionText}</p>
           )}
-          {signal.hour === 11 && (
-            <H11CandleChart candles={signal.h11_candles} locale={locale} />
+          {(signal.hour === 11 || signal.hour === 1500) && (
+            <H11CandleChart candles={signal.h11_candles} locale={locale} hour={signal.hour} />
           )}
         </div>
       )}

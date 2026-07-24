@@ -1,5 +1,6 @@
 export interface H11Candle {
   hour: number;
+  label?: string;
   open: number;
   high: number;
   low: number;

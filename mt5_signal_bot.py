@@ -650,8 +650,8 @@ def send_telegram_photo(photo_bytes, caption=None):
         return None
 
 
-def render_h11_chart_png(candles, group, detail):
-    """Draw a dark-themed candlestick chart image for H11 (4 H1 candles: H7, H8, H9, H10)."""
+def render_h11_chart_png(candles, group, detail, slot_hour=11):
+    """Draw a dark-themed candlestick chart image for H11 (4 H1 candles) or H15:00 (4 M30 candles)."""
     try:
         from PIL import Image, ImageDraw
         import io
@@ -663,7 +663,8 @@ def render_h11_chart_png(candles, group, detail):
 
         # Title
         label = "Sideway" if group == "SW" else "Bình Thường"
-        title_text = f"PHÂN NHÓM H1 XAUUSD: {label} ({group})"
+        tf_label = "M30" if slot_hour == 1500 else "H1"
+        title_text = f"PHÂN NHÓM {tf_label} XAUUSD: {label} ({group})"
         draw.text((20, 15), title_text, fill=(255, 255, 255))
         if detail:
             draw.text((20, 35), str(detail), fill=(156, 163, 175))
@@ -696,7 +697,7 @@ def render_h11_chart_png(candles, group, detail):
 
         for i, c in enumerate(candles):
             x_center = 30 + i * col_width + col_width // 2
-            candle_h = c.get("hour", i)
+            candle_lbl = c.get("label") or f"H={c.get('hour', i)}"
             open_p = float(c.get("open", 0))
             close_p = float(c.get("close", 0))
             high_p = float(c.get("high", max(open_p, close_p)))
@@ -724,8 +725,7 @@ def render_h11_chart_png(candles, group, detail):
             draw.rectangle([(left_x, top_y), (right_x, bot_y)], fill=color, outline=color)
 
             # Labels
-            lbl = f"H={candle_h}"
-            draw.text((x_center - 12, chart_bottom + 10), lbl, fill=(156, 163, 175))
+            draw.text((x_center - 18, chart_bottom + 10), candle_lbl, fill=(156, 163, 175))
             price_lbl = f"C: {close_p}"
             draw.text((x_center - 22, chart_bottom + 26), price_lbl, fill=color)
 
@@ -1099,22 +1099,41 @@ def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
     return evaluate_classification_for_slot(broker_dt, 11, symbol)
 
 
+def resolve_h1500_signal(group, m1_signal, weekday, is_special):
+    """
+    Normal days (is_special=False):
+      Mon (wd=0): SW -> Follow (cùng chiều m1), BT -> Reverse (đảo ngược m1)
+      Thu/Fri (wd in (3, 4)): SW -> Reverse (đảo ngược m1), BT -> Follow (cùng chiều m1)
+    Special days (is_special=True):
+      Thu/Fri (wd in (3, 4)): SW -> Follow (cùng chiều m1), BT -> Reverse (đảo ngược m1)
+      Mon (wd=0): SW -> Reverse (đảo ngược m1), BT -> Follow (cùng chiều m1)
+    """
+    sw_means_follow = (weekday == 0 and not is_special) or (weekday in (3, 4) and is_special)
+    if group == "SW":
+        return m1_signal if sw_means_follow else reverse_signal(m1_signal)
+    else:  # BT
+        return reverse_signal(m1_signal) if sw_means_follow else m1_signal
+
+
 def evaluate_h15_m30_classification(broker_dt, symbol="XAUUSD"):
     """Evaluate 4 M30 candles before 15:00 Broker time.
     M30 candles: 14:30 (m1), 14:00 (m2), 13:30 (m3), 13:00 (m4).
     """
     if broker_dt is None:
-        return "BT", "14:30:Tăng, 14:00:Tăng, 13:30:Giảm, 13:00:Giảm [Rule 3]", "BUY", "BUY"
+        return "BT", "14:30:Tăng, 14:00:Tăng, 13:30:Giảm, 13:00:Giảm [Rule 3]", "BUY", "BUY", []
 
     m_times = [(13, 0), (13, 30), (14, 0), (14, 30)]
     dirs = {}
     vn_dirs = {}
+    candles = []
     for h, m in m_times:
         ts = broker_time_to_ts(broker_dt, h, m)
         c = get_candle_by_ts(symbol, mt5.TIMEFRAME_M30, ts)
         if c is not None:
             open_p = round(float(_rate_value(c, "open")), 2)
             close_p = round(float(_rate_value(c, "close")), 2)
+            high_p = round(float(_rate_value(c, "high", max(open_p, close_p))), 2)
+            low_p = round(float(_rate_value(c, "low", min(open_p, close_p))), 2)
             if close_p > open_p:
                 d = "TANG"
             elif close_p < open_p:
@@ -1122,6 +1141,15 @@ def evaluate_h15_m30_classification(broker_dt, symbol="XAUUSD"):
             else:
                 doji_d = resolve_doji(symbol, mt5.TIMEFRAME_M30, ts, broker_dt)
                 d = "TANG" if doji_d == "TANG" else "GIAM"
+            candles.append({
+                "hour": h,
+                "label": f"{h:02d}:{m:02d}",
+                "open": open_p,
+                "high": high_p,
+                "low": low_p,
+                "close": close_p,
+                "dir": d,
+            })
         else:
             d = "TANG"
         time_key = f"{h:02d}:{m:02d}"
@@ -1157,13 +1185,12 @@ def evaluate_h15_m30_classification(broker_dt, symbol="XAUUSD"):
             group, rule_num = "SW", 10
 
     m1_signal = "BUY" if d1 == "TANG" else "SELL"
-    if group == "SW":
-        final_signal = reverse_signal(m1_signal)
-    else:
-        final_signal = m1_signal
+    weekday = broker_dt.weekday()
+    is_sp = is_special_day(broker_dt)
+    final_signal = resolve_h1500_signal(group, m1_signal, weekday, is_sp)
 
     detail = f"14:30:{vn_dirs['14:30']}, 14:00:{vn_dirs['14:00']}, 13:30:{vn_dirs['13:30']}, 13:00:{vn_dirs['13:00']} [Rule {rule_num}]"
-    return group, detail, final_signal, m1_signal
+    return group, detail, final_signal, m1_signal, candles
 
 
 def calculate_slot_signal(broker_dt, hour):
@@ -1188,15 +1215,17 @@ def calculate_slot_signal(broker_dt, hour):
                 "skip_xau_m30": True,
                 "pair_dirs": {},
             }
-        group, detail, final_signal, m1_sig = evaluate_h15_m30_classification(broker_dt)
+        group, detail, final_signal, m1_sig, candles = evaluate_h15_m30_classification(broker_dt)
+        sp_tag = " [Special Day]" if is_special_day(broker_dt) else ""
         return {
             "signal": final_signal,
             "pattern_signal": m1_sig,
-            "report": f"H=15:00: M30 Phân nhóm {group} ({detail}) ➔ XAUUSD {final_signal}",
+            "report": f"H=15:00{sp_tag}: M30 Phân nhóm {group} ({detail}) ➔ XAUUSD {final_signal}",
             "m30_dir": None,
             "h1_signal": None,
             "skip_xau_m30": True,
             "pair_dirs": {"XAUUSD": final_signal},
+            "h11_candles": candles,
         }
     # H=2,3: XAUUSD đảo từ H=5 hôm qua (Nếu Thứ 5 thì dùng lại y chang Thứ 2)
     if hour in (2, 3):
@@ -1779,9 +1808,9 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             f"Chỉ tham khảo. Kỷ luật là sức mạnh!"
         )
 
-    if H == 11 or sig in ("SW", "BT"):
+    if H in (11, 1500) or sig in ("SW", "BT"):
         candles = signal_data.get("h11_candles") or []
-        photo_bytes = render_h11_chart_png(candles, sig, report)
+        photo_bytes = render_h11_chart_png(candles, sig, report, slot_hour=H)
         if photo_bytes:
             send_telegram_photo(photo_bytes, caption=msg)
         else:

@@ -6,14 +6,15 @@ import type { H11Candle } from "@/lib/types";
 interface H11CandleChartProps {
   candles?: H11Candle[];
   locale: "VN" | "EN";
+  hour?: number;
 }
 
-export function H11CandleChart({ candles, locale }: H11CandleChartProps) {
+export function H11CandleChart({ candles, locale, hour }: H11CandleChartProps) {
   if (!candles || candles.length === 0) {
     return null;
   }
 
-  const sortedCandles = [...candles].sort((a, b) => a.hour - b.hour);
+  const sortedCandles = [...candles].sort((a, b) => (a.label || "").localeCompare(b.label || "") || a.hour - b.hour);
 
   const allHighs = sortedCandles.map((c) => c.high);
   const allLows = sortedCandles.map((c) => c.low);
@@ -33,11 +34,18 @@ export function H11CandleChart({ candles, locale }: H11CandleChartProps) {
     return height - ((price - chartMin) / chartRange) * (height - 24) - 12;
   };
 
+  const titleText =
+    hour === 1500
+      ? locale === "EN"
+        ? "M30 Candles Chart (13:00-14:30)"
+        : "Biểu đồ nến M30 (13:00-14:30)"
+      : getH11ChartTitle(locale);
+
   return (
     <div className="mt-3 overflow-hidden rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="font-mono text-[11px] font-black uppercase tracking-wider text-[var(--foreground)]">
-          {getH11ChartTitle(locale)}
+          {titleText}
         </span>
         <span className="font-mono text-[10px] text-[var(--muted)]">
           {minLow.toFixed(2)} - {maxHigh.toFixed(2)}
@@ -64,9 +72,10 @@ export function H11CandleChart({ candles, locale }: H11CandleChartProps) {
             const bodyHeight = Math.max(Math.abs(closeY - openY), 2.5);
             const bodyWidth = 26;
             const bodyX = xCenter - bodyWidth / 2;
+            const candleLabel = c.label || `H=${c.hour}`;
 
             return (
-              <g key={c.hour} className="transition-opacity duration-150 hover:opacity-80">
+              <g key={c.label || c.hour} className="transition-opacity duration-150 hover:opacity-80">
                 <line
                   x1={xCenter}
                   y1={highY}
@@ -95,7 +104,7 @@ export function H11CandleChart({ candles, locale }: H11CandleChartProps) {
                   fontFamily="Consolas, monospace"
                   fontWeight="bold"
                 >
-                  H={c.hour}
+                  {candleLabel}
                 </text>
               </g>
             );
@@ -106,13 +115,14 @@ export function H11CandleChart({ candles, locale }: H11CandleChartProps) {
       <div className="mt-3 grid grid-cols-4 gap-1.5 pt-2 border-t border-[var(--panel-border)]">
         {sortedCandles.map((c) => {
           const isBullish = c.close >= c.open;
+          const candleLabel = c.label || `H=${c.hour}`;
           return (
             <div
-              key={c.hour}
+              key={c.label || c.hour}
               className="flex flex-col items-center rounded-lg border border-[var(--panel-border)] bg-[var(--surface)] p-1.5 text-center font-mono text-[10px]"
             >
               <div className="flex items-center gap-1 font-bold text-[var(--foreground)]">
-                <span>H={c.hour}</span>
+                <span>{candleLabel}</span>
                 <span className={isBullish ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]"}>
                   {isBullish ? "↑" : "↓"}
                 </span>

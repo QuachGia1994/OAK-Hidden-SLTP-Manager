@@ -33,6 +33,21 @@ class SlotMatrixTests(unittest.TestCase):
                     self.assertEqual(result["signal"], "SELL")
                     self.assertTrue(result["skip_xau_m30"])
 
+    def test_h1500_signal_resolution(self) -> None:
+        from mt5_signal_bot import resolve_h1500_signal
+        # Normal Mon (wd=0, special=False)
+        self.assertEqual(resolve_h1500_signal("SW", "BUY", 0, False), "BUY")
+        self.assertEqual(resolve_h1500_signal("BT", "BUY", 0, False), "SELL")
+        # Normal Thu/Fri (wd=3, special=False)
+        self.assertEqual(resolve_h1500_signal("SW", "BUY", 3, False), "SELL")
+        self.assertEqual(resolve_h1500_signal("BT", "BUY", 3, False), "BUY")
+        # Special Thu/Fri (wd=3/4, special=True)
+        self.assertEqual(resolve_h1500_signal("SW", "BUY", 4, True), "BUY")
+        self.assertEqual(resolve_h1500_signal("BT", "BUY", 4, True), "SELL")
+        # Special Mon (wd=0, special=True)
+        self.assertEqual(resolve_h1500_signal("SW", "BUY", 0, True), "SELL")
+        self.assertEqual(resolve_h1500_signal("BT", "BUY", 0, True), "BUY")
+
 
 if __name__ == "__main__":
     unittest.main()
