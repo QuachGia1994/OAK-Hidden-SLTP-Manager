@@ -2256,6 +2256,11 @@ class NativeShell:
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                 self.stock_progress_bar.setValue(100)
                 self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất ✓ 100%")
+            if is_auto:
+                auto_msg = "Cập nhật EOD tự động hoàn tất. Đang tự động chạy bộ lọc cổ phiếu..." if NATIVE_LANGUAGE == "VN" else "Auto EOD completed. Running stock scanner..."
+                self._set_stock_status(auto_msg, "amber")
+                self.append_log(f"[AUTO 15:00+] {auto_msg}")
+                QT.QTimer.singleShot(500, self.run_stock_advisor)
         else:
             err_msg = f"Cập nhật EOD thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"EOD update failed (code {code})"
             self._set_stock_status(err_msg, "red")
