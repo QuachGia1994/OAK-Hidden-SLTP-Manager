@@ -30,7 +30,7 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 
 - Chạy Thứ 2 đến Thứ 6; slot active: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=11, H=12, H=13, H=14, H=15**. Telegram live gửi đúng phút `:45` broker; dashboard có thể tính sớm khi dependency đã đủ.
 - Tắt core: **H=6, H=10, H=17**.
-- H=2/H=3: XAUUSD đảo H=5 hôm qua, `GBPAUD` cùng chiều H=5 hôm qua. H=7/H=8: XAUUSD đảo H=5 hôm nay. H=9 đảo nhóm GBP từ H=5 hôm qua (Thứ 6 cùng chiều); H=14 cùng chiều H=5 hôm nay (Thứ 6 đảo).
+- H=2/H=3: XAUUSD đảo H=5 hôm qua, `GBPAUD` cùng chiều H=5 hôm qua (Thứ 6 GBPAUD ngược chiều). H=7/H=8: XAUUSD đảo H=5 hôm nay. H=9 đảo nhóm GBP từ H=5 hôm qua (Thứ 6 cùng chiều); H=14 cùng chiều H=5 hôm nay (Thứ 6 đảo).
 - Badge H=7/H=8: ưu tiên H=8 khi hướng nến XAUUSD H=6 trùng hướng đã suy ra cho H=7/H=8; ngược hướng thì ưu tiên H=7. Thiếu hoặc không xác định được nến H=6 thì không gắn badge.
 - H=11 phân loại SW/BT từ bốn nến H1 XAUUSD H=7–H=10, không phát BUY/SELL; tab **Lịch sử** hiển thị biểu đồ SVG OHLC bốn nến.
 

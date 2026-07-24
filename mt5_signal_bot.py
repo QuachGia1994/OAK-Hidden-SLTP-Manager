@@ -1598,6 +1598,8 @@ def get_hour_note(H, weekday=None, broker_dt=None):
             notes[2] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
             notes[3] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
         elif broker_dt.weekday() == 4:
+            notes[2] = "XAUUSD đảo từ H=5 hôm qua; GBPAUD ngược chiều H=5 hôm qua"
+            notes[3] = "XAUUSD đảo từ H=5 hôm qua; GBPAUD ngược chiều H=5 hôm qua"
             notes[9] = "XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6)"
             notes[14] = "GBP group đảo từ H=5 hôm nay (Thứ 6)"
     base_note = notes.get(h, "Chỉ Vàng (XAUUSD)")
@@ -1723,12 +1725,16 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
     # All active hours: XAUUSD
     result["XAUUSD"] = signal
     apply_d_direction_marker(result, H, broker_dt)
-    # H=2,3: add GBPAUD same direction as H=5 yesterday (or Monday's history for Thursday)
+    # H=2,3: add GBPAUD
     if h in (2, 3) and broker_dt is not None:
         if broker_dt.weekday() == 3:  # Thursday
             gbp_historical = _lookup_historical_t2_gbp_signal(broker_dt, h)
             if gbp_historical in ("BUY", "SELL"):
                 result["GBPAUD"] = gbp_historical
+        elif broker_dt.weekday() == 4:  # Friday: GBPAUD reverse from H=5 yesterday
+            h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
+            if h5_yesterday in ("BUY", "SELL"):
+                result["GBPAUD"] = "SELL" if h5_yesterday == "BUY" else "BUY"
         else:
             h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
             if h5_yesterday in ("BUY", "SELL"):
