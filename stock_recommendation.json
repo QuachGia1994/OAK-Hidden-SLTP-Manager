@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-24T06:50:31.990637+00:00",
+  "advisory_only": true,
+  "requires_user_confirmation": true,
+  "orders_submitted": false,
+  "status": "NO_TRADE",
+  "action": "BUY_OR_HOLD",
+  "signal": {
+    "date": "2026-07-24",
+    "direction": "BUY",
+    "holding_window": "13:05 to next trading session 13:05"
+  },
+  "candidates": [],
+  "cash_weight": 1.0,
+  "rejected_symbols": 30,
+  "data_errors": [],
+  "backtest": {
+    "requested_decisions": 250,
+    "evaluated_decisions": 0,
+    "hit_rate": 0.0,
+    "mean_aligned_return": 0.0,
+    "met_requested_decisions": false
+  },
+  "policy": {
+    "window_size": 25,
+    "minimum_direction_samples": 8,
+    "minimum_hit_rate": 0.72,
+    "minimum_conditional_hit_rate": 0.6,
+    "hurdle_bps": 0.0,
+    "top_count": 3
+  },
+  "warnings": [
+    "Khuyến nghị mặc định; User phải xác nhận riêng trước mọi giao dịch thật.",
+    "Dữ liệu EOD local (Không dùng API key).",
+    "Backtest dùng thành phần VN30 hiện tại nên có survivorship bias.",
+    "Backtest mới đánh giá 0/250; chưa đủ 250 quyết định.",
+    "Hurdle đang bằng 0; kết quả chưa khấu trừ chi phí và biên an toàn thực tế."
+  ]
+}

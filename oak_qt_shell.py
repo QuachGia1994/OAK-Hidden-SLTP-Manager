@@ -138,17 +138,28 @@ NATIVE_TEXT = {
         "Pending": "Chờ xử lý",
         "Diagnostics": "Chẩn đoán",
         "Settings": "Cài đặt",
-        "ONE-CLICK STOCK FILTER": "BỘ LỌC CỔ PHIẾU MỘT NÚT",
+        "ONE-CLICK STOCK FILTER": "BỘ LỌC CỔ PHIẾU BẰNG LOCAL EOD",
+        "LOCAL EOD MARKET DATA": "DỮ LIỆU THỊ TRƯỜNG LOCAL EOD",
         "SSI Client ID": "SSI Client ID",
         "SSI API key": "SSI API key",
         "SSI API secret": "SSI API secret",
-        "Deployable capital": "Vốn khả dụng",
+        "Deployable capital": "Vốn khả dụng (VND)",
         "Hurdle (bps)": "Chi phí + biên an toàn (bps)",
         "Save SSI credentials": "Lưu thông tin SSI",
-        "Run advisor": "Chạy bộ lọc",
+        "Update EOD Data (15:00+)": "Cập nhật dữ liệu EOD (15h00+)",
+        "Run advisor": "Chạy bộ lọc VN30",
+        "Run VN30 Advisor": "Chạy bộ lọc VN30",
         "ADVISORY RESULT": "KẾT QUẢ KHUYẾN NGHỊ",
         "Credentials are stored in Windows Credential Manager.": "Thông tin SSI được lưu trong Windows Credential Manager.",
+        "Local EOD Database (data/market.db) · Auto-updated after 15:00": "Cơ sở dữ liệu Local EOD (data/market.db) · Tự động cập nhật sau 15h00",
+        "Local EOD Mode: No API key or account required.": "Chế độ Local EOD: Không cần API key hay tài khoản.",
+        "Updating local EOD data...": "Đang cập nhật dữ liệu EOD...",
+        "EOD data updated successfully.": "Đã cập nhật dữ liệu EOD thành công.",
+        "Press Run VN30 Advisor to scan 30 constituents using local EOD data.": "Nhấn Chạy bộ lọc VN30 để quét 30 cổ phiếu bằng dữ liệu Local EOD.",
         "Recommendation only": "Chỉ khuyến nghị",
+        "Local EOD Mode": "Chế độ Local EOD",
+        "NO API KEY": "KHÔNG CẦN API KEY",
+        "100% free local SQLite database (market.db).": "Cơ sở dữ liệu SQLite cục bộ 100% miễn phí (market.db).",
         "CONFIRM": "XÁC NHẬN",
         "User confirmation is required before every real trade.": "User phải xác nhận trước mọi giao dịch thật.",
         "Execution": "Thực thi",
@@ -972,8 +983,8 @@ class NativeShell:
         self.stock_result = QT.QTextEdit()
         self.stock_result.setReadOnly(True)
         self.stock_result.setProperty("role", "mini")
-        self.stock_result.setPlainText(native_text("Enter SSI credentials once, then press Run advisor."))
-        layout.addWidget(self._section("ONE-CLICK STOCK FILTER", controls_scroll), 1)
+        self.stock_result.setPlainText(native_text("Press Run VN30 Advisor to scan 30 constituents using local EOD data."))
+        layout.addWidget(self._section("LOCAL EOD MARKET DATA", controls_scroll), 1)
         layout.addWidget(self._section("ADVISORY RESULT", self.stock_result), 2)
         return page
 
@@ -984,23 +995,20 @@ class NativeShell:
         layout.setSpacing(10)
         self._build_stock_fields(layout)
         layout.addLayout(self._stock_advisor_actions())
-        self.stock_status = label("Credentials are stored in Windows Credential Manager.", role="stockStatus")
+        self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
         self.stock_status.setWordWrap(True)
         layout.addWidget(self.stock_status)
         layout.addWidget(self._guardrail_row("Recommendation only", "CONFIRM", "User confirmation is required before every real trade.", "amber"))
-        layout.addWidget(self._guardrail_row("Execution", "DISABLED", "This module has no order submission capability.", "green"))
+        layout.addWidget(self._guardrail_row("Local EOD Mode", "NO API KEY", "100% free local SQLite database (market.db).", "green"))
         layout.addStretch(1)
         return frame
 
     def _build_stock_fields(self, layout: Any) -> None:
-        for title, key, secret in (
-            ("SSI Client ID", "client_id", False),
-            ("SSI API key", "api_key", True),
-            ("SSI API secret", "api_secret", True),
-            ("Deployable capital", "capital", False),
-            ("Hurdle (bps)", "hurdle_bps", False),
+        for title, key in (
+            ("Deployable capital", "capital"),
+            ("Hurdle (bps)", "hurdle_bps"),
         ):
-            field = self._stock_advisor_field(secret)
+            field = self._stock_advisor_field(secret=False)
             self.stock_fields[key] = field
             layout.addWidget(self._stock_advisor_field_row(title, field))
 
@@ -1016,12 +1024,12 @@ class NativeShell:
 
     def _stock_advisor_actions(self) -> Any:
         actions = QT.QVBoxLayout()
-        save = button("Save SSI credentials")
-        save.setProperty("stockAction", "save")
-        self.stock_run_btn = button("Run advisor", primary=True)
-        save.clicked.connect(self.save_stock_advisor_settings)
+        self.stock_update_eod_btn = button("Update EOD Data (15:00+)")
+        self.stock_update_eod_btn.setProperty("stockAction", "update_eod")
+        self.stock_run_btn = button("Run VN30 Advisor", primary=True)
+        self.stock_update_eod_btn.clicked.connect(self.update_eod_data)
         self.stock_run_btn.clicked.connect(self.run_stock_advisor)
-        actions.addWidget(save)
+        actions.addWidget(self.stock_update_eod_btn)
         actions.addWidget(self.stock_run_btn)
         return actions
 
@@ -2128,51 +2136,85 @@ class NativeShell:
         if not self.stock_fields:
             return
         values = {
-            "client_id": self.settings.get("stock_client_id", "oak-stock-scanner"),
             "capital": self.settings.get("stock_capital", 90_000_000),
             "hurdle_bps": self.settings.get("stock_hurdle_bps", 0),
         }
         for key, value in values.items():
-            self.stock_fields[key].setText(str(value))
-        api_key, api_secret = load_ssi_desktop_credentials()
-        stored = bool(api_key and api_secret)
-        placeholder = native_text("Credentials are stored in Windows Credential Manager.") if stored else "Required once"
-        self.stock_fields["api_key"].setPlaceholderText(placeholder)
-        self.stock_fields["api_secret"].setPlaceholderText(placeholder)
+            if key in self.stock_fields:
+                self.stock_fields[key].setText(str(value))
         output = ROOT / "stock_recommendation.json"
         if self.stock_process is None and output.exists() and self.stock_result is not None:
             payload = read_json(output, {})
             if isinstance(payload, dict) and payload:
                 self.stock_result.setPlainText(render_stock_advisory(payload))
+        self._check_auto_eod_update()
+
+    def _check_auto_eod_update(self) -> None:
+        """Auto-trigger EOD update after 15:00 local market close on weekdays."""
+        now = datetime.now()
+        if now.weekday() in (5, 6):  # Weekend
+            return
+        if now.time() < time(15, 0):  # Before market close
+            return
+        today_str = now.strftime("%Y-%m-%d")
+        if getattr(self, "_last_auto_eod_date", None) == today_str:
+            return
+        self._last_auto_eod_date = today_str
+        self.update_eod_data(is_auto=True)
+
+    def update_eod_data(self, is_auto: bool = False) -> None:
+        """Run python -m eod_collector update in background to fetch latest EOD prices."""
+        if getattr(self, "eod_update_process", None) is not None:
+            return
+        process = QT.QProcess(self.window)
+        process.setProgram(sys.executable)
+        process.setArguments(["-m", "eod_collector", "update"])
+        process.setWorkingDirectory(str(ROOT))
+        process.setProcessChannelMode(QT.QProcess.ProcessChannelMode.MergedChannels)
+
+        status_msg = native_text("Updating local EOD data...")
+        if is_auto:
+            status_msg = f"[Auto 15:00+] {status_msg}"
+        self._set_stock_status(status_msg, "amber")
+        if hasattr(self, "stock_update_eod_btn"):
+            self.stock_update_eod_btn.setEnabled(False)
+
+        process.finished.connect(lambda code, _status, p=process: self._eod_update_done(code, p, is_auto))
+        self.eod_update_process = process
+        process.start()
+
+    def _eod_update_done(self, code: int, process: Any, is_auto: bool) -> None:
+        if getattr(self, "eod_update_process", None) is process:
+            self.eod_update_process = None
+        if hasattr(self, "stock_update_eod_btn"):
+            self.stock_update_eod_btn.setEnabled(True)
+        if code == 0:
+            msg = native_text("EOD data updated successfully.")
+            self._set_stock_status(msg, "green")
+        else:
+            self._set_stock_status(f"EOD update failed (code {code})", "red")
 
     def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
+        capital_str = self.stock_fields.get("capital", QT.QLineEdit()).text().strip() or "90000000"
+        hurdle_str = self.stock_fields.get("hurdle_bps", QT.QLineEdit()).text().strip() or "0"
         return StockAdvisorDesktopSettings(
-            client_id=self.stock_fields["client_id"].text().strip(),
-            capital=float(self.stock_fields["capital"].text().strip()),
-            hurdle_bps=float(self.stock_fields["hurdle_bps"].text().strip()),
+            client_id="oak-stock-scanner",
+            capital=float(capital_str),
+            hurdle_bps=float(hurdle_str),
         )
 
     def save_stock_advisor_settings(self) -> None:
-        """Persist non-secrets and optionally vault newly entered SSI credentials."""
+        """Persist settings to settings.json."""
         try:
             settings = self._stock_settings_from_form()
-            saved_secret = self._save_stock_credentials_if_entered()
             self._persist_stock_settings(settings)
         except (StockAdvisorDesktopError, OSError, ValueError, RuntimeError) as error:
             self._set_stock_status(f"Save failed: {error}", "red")
             return
-        message = "SSI credentials saved securely." if saved_secret else "Advisor settings saved."
-        self._set_stock_status(message, "green")
-        self.stock_fields["api_key"].clear()
-        self.stock_fields["api_secret"].clear()
+        self._set_stock_status("Advisor settings saved.", "green")
 
     def _save_stock_credentials_if_entered(self) -> bool:
-        api_key = self.stock_fields["api_key"].text().strip()
-        api_secret = self.stock_fields["api_secret"].text().strip()
-        if not api_key and not api_secret:
-            return False
-        save_ssi_desktop_credentials(api_key, api_secret)
-        return True
+        return False
 
     def _persist_stock_settings(self, settings: StockAdvisorDesktopSettings) -> None:
         next_settings = dict(self.settings)
@@ -2183,7 +2225,7 @@ class NativeShell:
         self.settings = next_settings
 
     def run_stock_advisor(self) -> None:
-        """Validate, auto-backfill when needed, then run the read-only advisor."""
+        """Validate and run the local EOD read-only advisor."""
         if self.stock_process is not None or self.stock_pending_launch is not None:
             return
         try:
@@ -2206,13 +2248,7 @@ class NativeShell:
         self._launch_pending_stock_advisor()
 
     def _stock_credentials_for_run(self) -> tuple[str, str]:
-        if self._save_stock_credentials_if_entered():
-            return (
-                self.stock_fields["api_key"].text().strip(),
-                self.stock_fields["api_secret"].text().strip(),
-            )
-        api_key, api_secret = load_ssi_desktop_credentials()
-        return api_key or "local-eod-key", api_secret or "local-eod-secret"
+        return ("local-eod-key", "local-eod-secret")
 
     def _signal_is_running(self, key: str) -> bool:
         process = self.signal_processes.get(key)
