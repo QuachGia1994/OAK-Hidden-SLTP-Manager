@@ -29,10 +29,10 @@ class SSICredentialTests(unittest.TestCase):
         self.assertEqual(credentials.client_id, "oak-stock-scanner")
         self.assertNotIn("secret", repr(credentials))
 
-    def test_missing_credentials_raise_an_explicit_error(self) -> None:
+    def test_missing_credentials_default_to_local_eod_mode(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(SSIConfigurationError):
-                credentials_from_environment()
+            credentials = credentials_from_environment()
+            self.assertEqual(credentials.api_key, "local-eod-key")
 
     def test_secret_is_redacted_from_dataclass_repr(self) -> None:
         credentials = SSICredentials("client", "key", "top-secret")

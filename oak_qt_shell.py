@@ -2212,9 +2212,7 @@ class NativeShell:
                 self.stock_fields["api_secret"].text().strip(),
             )
         api_key, api_secret = load_ssi_desktop_credentials()
-        if not api_key or not api_secret:
-            raise StockAdvisorDesktopError(StockAdvisorDesktopErrorCode.INVALID_SETTINGS, "SSI credentials are required once")
-        return api_key, api_secret
+        return api_key or "local-eod-key", api_secret or "local-eod-secret"
 
     def _signal_is_running(self, key: str) -> bool:
         process = self.signal_processes.get(key)

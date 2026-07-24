@@ -1,0 +1,9 @@
+{
+  "source_url": "https://apipubks.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=BSR&type=stock&resolution=D",
+  "downloaded_at": "2026-07-24T06:38:00.493790+00:00",
+  "status_code": 200,
+  "content_type": "application/json",
+  "sha256": "a643c9adf03c63d0ca46c8b228d750cbdd85af549cc51b0b7e5364dd3a1bc71c",
+  "exchange": "UPCOM",
+  "trading_date": "2025-07-29"
+}

@@ -82,6 +82,7 @@ def build_advisory_payload(
 def _advisory_warnings(backtest: AdvisoryBacktest, policy: ScannerPolicy) -> list[str]:
     warnings = [
         "Khuyến nghị mặc định; User phải xác nhận riêng trước mọi giao dịch thật.",
+        "Dữ liệu EOD local (Không dùng API key).",
         "Backtest dùng thành phần VN30 hiện tại nên có survivorship bias.",
     ]
     if not backtest.met_requested_decisions:
@@ -119,14 +120,16 @@ def _load_vn30_points(as_of_date: date, history_days: int) -> tuple[dict, tuple[
     errors: list[str] = []
     with SSIMarketDataProvider(credentials) as provider:
         if not provider.has_trading_session(as_of_date):
-            raise AdvisorError(AdvisorErrorCode.NO_MARKET_DATA, "SSI reports no VNINDEX session for this date")
+            raise AdvisorError(AdvisorErrorCode.NO_MARKET_DATA, "No market data session for this date")
         symbols = provider.get_vn30_symbols()
         for index, symbol in enumerate(symbols, start=1):
-            print(f"[SSI] {index}/{len(symbols)} {symbol}", file=sys.stderr)
+            print(f"[Local EOD] {index}/{len(symbols)} {symbol}", file=sys.stderr)
             try:
                 points_by_symbol[symbol] = provider.get_afternoon_points(symbol, start_date, as_of_date)
             except SSIMarketDataError as error:
                 errors.append(f"{symbol}:{error.code.value}")
+            except Exception as error:
+                errors.append(f"{symbol}:{error}")
     if not points_by_symbol:
         raise AdvisorError(AdvisorErrorCode.NO_MARKET_DATA, "No VN30 afternoon data was available")
     return points_by_symbol, tuple(errors)
@@ -231,6 +234,12 @@ def _policy_payload(policy: ScannerPolicy) -> dict[str, object]:
 def _write_payload(payload: Mapping[str, object], output: str | None) -> None:
     rendered = json.dumps(payload, ensure_ascii=False, indent=2)
     if not output:
+        if hasattr(sys.stdout, "buffer"):
+            try:
+                sys.stdout.buffer.write(rendered.encode("utf-8") + b"\n")
+                return
+            except Exception:
+                pass
         print(rendered)
         return
     path = Path(output).resolve()

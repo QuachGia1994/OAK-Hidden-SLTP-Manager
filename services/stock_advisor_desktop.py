@@ -41,7 +41,7 @@ class StockAdvisorDesktopSettings:
 
     def __post_init__(self) -> None:
         if not self.client_id.strip():
-            raise StockAdvisorDesktopError(StockAdvisorDesktopErrorCode.INVALID_SETTINGS, "SSI Client ID is required")
+            object.__setattr__(self, "client_id", "oak-stock-scanner")
         if not isfinite(self.capital) or self.capital < 0:
             raise StockAdvisorDesktopError(StockAdvisorDesktopErrorCode.INVALID_SETTINGS, "Capital is invalid")
         if not isfinite(self.hurdle_bps) or self.hurdle_bps < 0:
@@ -52,7 +52,7 @@ class StockAdvisorDesktopSettings:
 
 @dataclass(frozen=True, slots=True)
 class StockAdvisorLaunchPlan:
-    """Safe subprocess plan that contains no SSI credential values."""
+    """Safe subprocess plan that contains no secret values."""
 
     program: str
     arguments: tuple[str, ...]
@@ -99,22 +99,26 @@ def build_stock_advisor_launch_plan(
 
 
 def load_ssi_desktop_credentials() -> tuple[str, str]:
-    """Load SSI secrets from Windows Credential Manager."""
-    from secret_store import get_secret
-
-    api_key = get_secret(STOCK_SECRET_PROFILE, "ssi_api_key")
-    api_secret = get_secret(STOCK_SECRET_PROFILE, "ssi_api_secret")
-    return api_key, api_secret
+    """Load credentials or default to Local EOD mode."""
+    try:
+        from secret_store import get_secret
+        api_key = get_secret(STOCK_SECRET_PROFILE, "ssi_api_key") or "local-eod-key"
+        api_secret = get_secret(STOCK_SECRET_PROFILE, "ssi_api_secret") or "local-eod-secret"
+        return api_key, api_secret
+    except Exception:
+        return "local-eod-key", "local-eod-secret"
 
 
 def save_ssi_desktop_credentials(api_key: str, api_secret: str) -> None:
-    """Store SSI secrets outside JSON settings files."""
-    if not api_key.strip() or not api_secret.strip():
-        raise StockAdvisorDesktopError(StockAdvisorDesktopErrorCode.INVALID_SETTINGS, "Both SSI secrets are required")
-    from secret_store import store_secret
-
-    store_secret(STOCK_SECRET_PROFILE, "ssi_api_key", api_key.strip())
-    store_secret(STOCK_SECRET_PROFILE, "ssi_api_secret", api_secret.strip())
+    """Store secrets outside JSON settings files if provided."""
+    if not api_key.strip() and not api_secret.strip():
+        return
+    try:
+        from secret_store import store_secret
+        store_secret(STOCK_SECRET_PROFILE, "ssi_api_key", api_key.strip())
+        store_secret(STOCK_SECRET_PROFILE, "ssi_api_secret", api_secret.strip())
+    except Exception:
+        pass
 
 
 def render_stock_advisory(payload: Mapping[str, object]) -> str:
