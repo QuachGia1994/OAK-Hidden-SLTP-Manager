@@ -120,6 +120,8 @@ class StockScore:
     beta: float
     r_squared: float
     eligible: bool
+    close_price: float = 0.0
+    price_change_pct: float = 0.0
     rejection_reasons: tuple[str, ...] = ()
 
 
@@ -203,11 +205,13 @@ def score_stock(
     current_direction: Direction,
     policy: ScannerPolicy | None = None,
     trading_calendar: Sequence[date] | None = None,
+    close_price: float = 0.0,
+    price_change_pct: float = 0.0,
 ) -> StockScore:
     """Score one stock using only completed outcomes in the trailing window."""
     active_policy = policy or ScannerPolicy()
     samples = build_forward_samples(signals, points, trading_calendar)
-    return _score_completed_samples(symbol, samples, current_direction, active_policy)
+    return _score_completed_samples(symbol, samples, current_direction, active_policy, close_price, price_change_pct)
 
 
 def walk_forward_backtest(
@@ -241,6 +245,8 @@ def _score_completed_samples(
     samples: Sequence[ForwardSample],
     current_direction: Direction,
     policy: ScannerPolicy,
+    close_price: float = 0.0,
+    price_change_pct: float = 0.0,
 ) -> StockScore:
     usable = [sample for sample in samples if abs(sample.forward_return) <= policy.maximum_absolute_return]
     active_samples = usable[-policy.window_size :]
@@ -252,11 +258,16 @@ def _score_completed_samples(
         symbol=symbol.upper(),
         sample_count=len(active_samples),
         direction_sample_count=len(conditional),
+        hit_rate=metrics["hit_rate"],
+        conditional_hit_rate=metrics["conditional_hit_rate"],
+        mean_aligned_return=metrics["mean_aligned_return"],
+        conditional_edge=metrics["conditional_edge"],
         beta=beta,
         r_squared=r_squared,
         eligible=not reasons,
+        close_price=close_price,
+        price_change_pct=price_change_pct,
         rejection_reasons=tuple(reasons),
-        **metrics,
     )
 
 

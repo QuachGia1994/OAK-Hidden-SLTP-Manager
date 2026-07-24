@@ -59,6 +59,8 @@ export interface StockAdvisorCandidate {
   symbol: string;
   weight: number;
   capital: number;
+  close_price?: number;
+  price_change_pct?: number;
   hit_rate: number;
   conditional_hit_rate: number;
   conditional_edge: number;

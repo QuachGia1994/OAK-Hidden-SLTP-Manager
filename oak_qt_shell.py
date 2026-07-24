@@ -997,6 +997,31 @@ class NativeShell:
         self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
         self.stock_status.setWordWrap(True)
         layout.addWidget(self.stock_status)
+
+        self.stock_progress_bar = QT.QProgressBar()
+        self.stock_progress_bar.setRange(0, 100)
+        self.stock_progress_bar.setValue(0)
+        self.stock_progress_bar.setTextVisible(True)
+        self.stock_progress_bar.setFormat("Sẵn sàng (0%)")
+        self.stock_progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #3f3f46;
+                border-radius: 6px;
+                background-color: #18181b;
+                text-align: center;
+                color: #f4f4f5;
+                font-weight: bold;
+                font-size: 11px;
+                min-height: 24px;
+            }
+            QProgressBar::chunk {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #d97706, stop:1 #10b981);
+                border-radius: 5px;
+            }
+        """)
+        self.stock_progress_bar.setVisible(False)
+        layout.addWidget(self.stock_progress_bar)
+
         layout.addStretch(1)
         return frame
 
@@ -2177,9 +2202,34 @@ class NativeShell:
         if hasattr(self, "stock_update_eod_btn"):
             self.stock_update_eod_btn.setEnabled(False)
 
+        if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+            self.stock_progress_bar.setRange(0, 100)
+            self.stock_progress_bar.setValue(0)
+            self.stock_progress_bar.setFormat("Đang cập nhật dữ liệu EOD (0%)...")
+            self.stock_progress_bar.setVisible(True)
+
+        process.readyReadStandardOutput.connect(lambda p=process: self._read_eod_update_output(p))
         process.finished.connect(lambda code, _status, p=process: self._eod_update_done(code, p, is_auto))
         self.eod_update_process = process
         process.start()
+
+    def _read_eod_update_output(self, process: Any) -> None:
+        data = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace")
+        for line in data.splitlines():
+            clean = line.strip()
+            if not clean or not hasattr(self, "stock_progress_bar") or self.stock_progress_bar is None:
+                continue
+            if "Fetching" in clean and "symbols" in clean:
+                match = re.search(r"Fetching (\d+) symbols", clean)
+                if match:
+                    tot = match.group(1)
+                    self.stock_progress_bar.setFormat(f"Đang kết nối VPS API (0/{tot} mã)...")
+            elif "Saved" in clean and "records" in clean:
+                match = re.search(r"Saved (\d+) records", clean)
+                if match:
+                    cnt = match.group(1)
+                    self.stock_progress_bar.setValue(100)
+                    self.stock_progress_bar.setFormat(f"Đã cập nhật xong {cnt} mã EOD 100%")
 
     def _eod_update_done(self, code: int, process: Any, is_auto: bool) -> None:
         if getattr(self, "eod_update_process", None) is process:
@@ -2189,8 +2239,13 @@ class NativeShell:
         if code == 0:
             msg = native_text("EOD data updated successfully.")
             self._set_stock_status(msg, "green")
+            if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                self.stock_progress_bar.setValue(100)
+                self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất 100%")
         else:
             self._set_stock_status(f"EOD update failed (code {code})", "red")
+            if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                self.stock_progress_bar.setFormat("Lỗi cập nhật EOD")
 
     def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
         capital_str = self.stock_fields.get("capital", QT.QLineEdit()).text().strip() or "90000000"
@@ -2263,6 +2318,11 @@ class NativeShell:
         process.setWorkingDirectory(str(ROOT))
         process.setProcessEnvironment(self._stock_process_environment(client_id, api_key, api_secret))
         process.setProcessChannelMode(QT.QProcess.ProcessChannelMode.MergedChannels)
+        if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+            self.stock_progress_bar.setRange(0, 100)
+            self.stock_progress_bar.setValue(0)
+            self.stock_progress_bar.setFormat("Đang khởi tạo bộ lọc D1 (0%)...")
+            self.stock_progress_bar.setVisible(True)
         process.readyReadStandardOutput.connect(lambda p=process: self._read_stock_advisor_output(p))
         process.finished.connect(lambda code, _status, p=process: self._stock_advisor_done(code, p))
         process.errorOccurred.connect(lambda error, p=process: self._stock_advisor_error(error, p))
@@ -2286,12 +2346,24 @@ class NativeShell:
             if clean:
                 self.stock_process_log.append(clean)
                 self.stock_result.append(clean)
+                match = re.search(r"\[Local EOD\] (\d+)/(\d+)\s+(\w+)", clean)
+                if match and hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                    cur = int(match.group(1))
+                    tot = int(match.group(2))
+                    sym = match.group(3)
+                    pct = int((cur / tot) * 100)
+                    self.stock_progress_bar.setValue(pct)
+                    self.stock_progress_bar.setFormat(f"Đang quét [{cur}/{tot} mã] {sym}... {pct}%")
+                    self.stock_progress_bar.setVisible(True)
 
     def _stock_advisor_done(self, code: int, process: Any) -> None:
         if self.stock_process is process:
             self.stock_process = None
         self.stock_run_btn.setEnabled(True)
         if code == 0:
+            if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                self.stock_progress_bar.setValue(100)
+                self.stock_progress_bar.setFormat("Hoàn tất quét toàn bộ 3 sàn 100%")
             payload = read_json(ROOT / "stock_recommendation.json", {})
             locale = "VN" if NATIVE_LANGUAGE == "VN" else "EN"
             self.stock_result.setPlainText(render_stock_advisory(payload, locale=locale) if isinstance(payload, dict) else "Invalid result")
@@ -2299,6 +2371,8 @@ class NativeShell:
             message = "Advisor completed and dashboard updated." if pushed else "Advisor completed locally; dashboard push needs configuration."
             self._set_stock_status(message, "green" if pushed else "amber")
         else:
+            if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                self.stock_progress_bar.setFormat("Lỗi chạy bộ lọc (Error)")
             self._set_stock_status(f"Advisor failed with code {code}", "red")
         self._restart_signal_bot_after_stock()
 

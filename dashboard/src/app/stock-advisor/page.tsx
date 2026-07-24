@@ -1,10 +1,10 @@
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { getStockAdvisory, maskStockAdvisory } from "@/lib/data";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
-import type { StockAdvisory, StockAdvisorCandidate } from "@/lib/types";
+import type { StockAdvisory } from "@/lib/types";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
-import { getCompanyName, getMarketCap } from "@/lib/stock-names";
+import { CandidateTableClient } from "./CandidateTableClient";
 
 export const dynamic = "force-dynamic";
 
@@ -76,57 +76,15 @@ function AdvisorHeader({ advisory, locale, isVIP }: { advisory: StockAdvisory; l
 function AdvisorResult({ advisory, locale, isVIP }: { advisory: StockAdvisory; locale: "VN" | "EN"; isVIP: boolean }) {
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(19rem,0.7fr)]">
-      <CandidateTable advisory={advisory} locale={locale} isVIP={isVIP} />
+      <CandidateTableClient candidates={advisory.candidates} locale={locale} isVIP={isVIP} />
       <EvidencePanel advisory={advisory} locale={locale} />
-    </div>
-  );
-}
-
-function CandidateTable({ advisory, locale, isVIP }: { advisory: StockAdvisory; locale: "VN" | "EN"; isVIP: boolean }) {
-  return (
-    <section className="terminal-panel overflow-hidden rounded-xl">
-      <div className="border-b px-4 py-4 sm:px-5">
-        <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
-          {locale === "EN" ? "Ranked candidates" : "Xếp hạng mã"}
-        </h2>
-      </div>
-      {!isVIP ? <LockedRows locale={locale} /> : advisory.candidates.length ? (
-        <div className="advisor-table">
-          <div className="advisor-row advisor-row-head">
-            <span>#</span>
-            <span>{locale === "EN" ? "Symbol" : "Mã"}</span>
-            <span>{locale === "EN" ? "Company Name" : "Tên công ty"}</span>
-            <span>{locale === "EN" ? "Market Cap" : "Vốn hoá"}</span>
-            <span>{locale === "EN" ? "Hit D1" : "Khớp D1"}</span>
-            <span>EDGE *</span>
-          </div>
-          {advisory.candidates.map((candidate) => <CandidateRow key={candidate.symbol} candidate={candidate} />)}
-          <div className="border-t px-4 py-2.5 text-[11px] text-zinc-400 dark:text-zinc-500">
-            * EDGE: {locale === "EN" ? "Expected excess return (Alpha) over benchmark on D1 signal." : "Tỷ suất sinh lời kỳ vọng vượt trội (Alpha) của cổ phiếu khi xuất hiện tín hiệu D1."}
-          </div>
-        </div>
-      ) : <LockedRows locale={locale} empty />}
-    </section>
-  );
-}
-
-function CandidateRow({ candidate }: { candidate: StockAdvisorCandidate }) {
-  const companyName = getCompanyName(candidate.symbol);
-  const marketCap = getMarketCap(candidate.symbol);
-  return (
-    <div className="advisor-row">
-      <span className="text-zinc-400">{candidate.rank}</span>
-      <span className="font-mono text-lg font-black">{candidate.symbol}</span>
-      <span className="font-sans text-xs text-zinc-300 font-medium truncate" title={companyName}>{companyName}</span>
-      <span className="font-mono text-xs text-amber-400/90 font-semibold">{marketCap}</span>
-      <span>{formatPercent(candidate.conditional_hit_rate)}</span>
-      <span>{formatPercent(candidate.conditional_edge)}</span>
     </div>
   );
 }
 
 function EvidencePanel({ advisory, locale }: { advisory: StockAdvisory; locale: "VN" | "EN" }) {
   const backtest = advisory.backtest;
+  const sessionsVal = locale === "EN" ? `${backtest.evaluated_decisions}/${backtest.requested_decisions} sessions` : `${backtest.evaluated_decisions}/${backtest.requested_decisions} phiên`;
   return (
     <section className="terminal-panel rounded-xl p-4 sm:p-5">
       <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
@@ -134,7 +92,7 @@ function EvidencePanel({ advisory, locale }: { advisory: StockAdvisory; locale: 
       </h2>
       <dl className="mt-4 grid gap-3">
         <EvidenceRow label={locale === "EN" ? "Signal date" : "Ngày signal"} value={advisory.signal.date} />
-        <EvidenceRow label={locale === "EN" ? "Backtest sessions" : "Phiên kiểm định (Backtest)"} value={`${backtest.evaluated_decisions}/${backtest.requested_decisions} phiên`} />
+        <EvidenceRow label={locale === "EN" ? "Backtest sessions" : "Phiên kiểm định (Backtest)"} value={sessionsVal} />
         <EvidenceRow label="Hit rate" value={formatPercent(backtest.hit_rate)} />
         <EvidenceRow label={locale === "EN" ? "Rejected" : "Loại"} value={advisory.rejected_symbols.toString()} />
       </dl>

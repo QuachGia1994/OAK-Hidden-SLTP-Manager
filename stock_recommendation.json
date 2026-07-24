@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-07-24T07:55:42.688124+00:00",
+  "generated_at": "2026-07-24T08:08:05.851623+00:00",
   "advisory_only": true,
   "requires_user_confirmation": true,
   "orders_submitted": false,
@@ -44,13 +44,13 @@
     }
   ],
   "cash_weight": 0.0,
-  "rejected_symbols": 74,
+  "rejected_symbols": 143,
   "data_errors": [],
   "backtest": {
     "requested_decisions": 250,
     "evaluated_decisions": 215,
     "hit_rate": 0.5255813953488372,
-    "mean_aligned_return": 0.0011043252861442493,
+    "mean_aligned_return": 0.0011026279298609314,
     "met_requested_decisions": false
   },
   "policy": {

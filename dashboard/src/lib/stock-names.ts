@@ -109,8 +109,12 @@ export function getCompanyName(symbol: string): string {
   return COMPANY_NAMES[sym]?.name || `Công ty CP ${sym}`;
 }
 
-export function getMarketCap(symbol: string): string {
+export function getMarketCap(symbol: string, locale: "VN" | "EN" = "VN"): string {
   const sym = (symbol || "").toUpperCase().trim();
-  if (!sym) return "≥ 100 tỷ";
-  return COMPANY_NAMES[sym]?.cap || "≥ 500 tỷ";
+  if (!sym) return locale === "EN" ? "≥ 100B VND" : "≥ 100 tỷ";
+  const rawCap = COMPANY_NAMES[sym]?.cap || "≥ 500 tỷ";
+  if (locale === "EN") {
+    return rawCap.replace("tỷ", "B VND");
+  }
+  return rawCap;
 }

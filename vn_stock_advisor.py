@@ -129,13 +129,31 @@ def _score_current_universe(
     current_signal: H4Signal,
     policy: ScannerPolicy,
 ) -> list[StockScore]:
-    scores = []
+    from concurrent.futures import ThreadPoolExecutor
+
     trading_calendar = sorted({point.trading_date for points in points_by_symbol.values() for point in points})
-    for symbol, points in points_by_symbol.items():
+
+    def _score_one(item: tuple[str, Sequence]) -> StockScore:
+        symbol, points = item
         completed_points = [point for point in points if point.trading_date < current_signal.trading_date]
-        scores.append(
-            score_stock(symbol, signals, completed_points, current_signal.direction, policy, trading_calendar)
+        close_price = float(getattr(points[-1], "close", 0.0)) if points else 0.0
+        ref_price = float(getattr(points[-1], "reference_price", 0.0)) if points else 0.0
+        if ref_price <= 0:
+            ref_price = float(getattr(points[-1], "open", close_price)) if points else close_price
+        pct_change = ((close_price - ref_price) / ref_price * 100.0) if ref_price > 0 else 0.0
+        return score_stock(
+            symbol,
+            signals,
+            completed_points,
+            current_signal.direction,
+            policy,
+            trading_calendar,
+            close_price=close_price,
+            price_change_pct=pct_change,
         )
+
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        scores = list(executor.map(_score_one, points_by_symbol.items()))
     return scores
 
 
@@ -191,6 +209,8 @@ def _candidate_payload(candidate: object) -> dict[str, object]:
         "symbol": candidate.symbol,
         "weight": candidate.weight,
         "capital": candidate.capital,
+        "close_price": getattr(score, "close_price", 0.0),
+        "price_change_pct": getattr(score, "price_change_pct", 0.0),
         "hit_rate": score.hit_rate,
         "conditional_hit_rate": score.conditional_hit_rate,
         "conditional_edge": score.conditional_edge,

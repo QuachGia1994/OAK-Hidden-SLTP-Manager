@@ -54,8 +54,10 @@ class CollectorService:
         counts: dict[str, int] = {"HOSE": 0, "HNX": 0, "UPCOM": 0}
         records: list[EODRecord] = []
 
-        logger.info("[VPS UPDATE] Fetching %d symbols for %s ...", len(ALL_VN_SYMBOLS), date_str)
-        for i, symbol in enumerate(ALL_VN_SYMBOLS):
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def _fetch_one(symbol: str) -> list[EODRecord]:
+            res: list[EODRecord] = []
             try:
                 rows = fetch_vps_history(symbol, trading_date, trading_date)
                 for row in rows:
@@ -75,12 +77,17 @@ class CollectorService:
                             value=float(row.get("value", 0)),
                             source="VPS_PUBLIC",
                         )
-                        records.append(rec)
+                        res.append(rec)
                     except (KeyError, TypeError, ValueError) as err:
                         logger.debug("Row parse error for %s: %s", symbol, err)
             except Exception as err:
                 logger.warning("[VPS UPDATE] Failed to fetch %s: %s", symbol, err)
-            time.sleep(0.1)
+            return res
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(_fetch_one, s) for s in ALL_VN_SYMBOLS]
+            for future in as_completed(futures):
+                records.extend(future.result())
 
         if not records:
             raise ValidationError(f"VPS returned no data for {date_str}")
