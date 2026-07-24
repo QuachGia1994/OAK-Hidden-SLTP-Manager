@@ -64,12 +64,17 @@ class StockAdvisorDesktopTests(unittest.TestCase):
             "orders_submitted": False,
         }
 
-        rendered = render_stock_advisory(payload)
+        rendered = render_stock_advisory(payload, locale="EN")
+        rendered_vn = render_stock_advisory(payload, locale="VN")
 
         self.assertIn("AAA", rendered)
         self.assertIn("SELL / AVOID", rendered)
         self.assertIn("USER CONFIRMATION REQUIRED", rendered)
         self.assertIn("NO ORDER SUBMITTED", rendered)
+
+        self.assertIn("AAA", rendered_vn)
+        self.assertIn("BÁN / ĐỨNG NGOÀI (SELL / AVOID)", rendered_vn)
+        self.assertIn("⚠️ YÊU CẦU USER XÁC NHẬN TRƯỚC KHI GIAO DỊCH THỰC TẾ", rendered_vn)
 
     def test_frozen_worker_forwards_advisor_arguments_and_exit_code(self) -> None:
         with patch("vn_stock_advisor.main", return_value=2) as advisor_main:

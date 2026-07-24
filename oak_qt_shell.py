@@ -2146,7 +2146,8 @@ class NativeShell:
         if self.stock_process is None and output.exists() and self.stock_result is not None:
             payload = read_json(output, {})
             if isinstance(payload, dict) and payload:
-                self.stock_result.setPlainText(render_stock_advisory(payload))
+                locale = "VN" if NATIVE_LANGUAGE == "VN" else "EN"
+                self.stock_result.setPlainText(render_stock_advisory(payload, locale=locale))
         self._check_auto_eod_update()
 
     def _check_auto_eod_update(self) -> None:
@@ -2295,7 +2296,8 @@ class NativeShell:
         self.stock_run_btn.setEnabled(True)
         if code == 0:
             payload = read_json(ROOT / "stock_recommendation.json", {})
-            self.stock_result.setPlainText(render_stock_advisory(payload) if isinstance(payload, dict) else "Invalid result")
+            locale = "VN" if NATIVE_LANGUAGE == "VN" else "EN"
+            self.stock_result.setPlainText(render_stock_advisory(payload, locale=locale) if isinstance(payload, dict) else "Invalid result")
             pushed = any(line.endswith("Stock advisor: pushed") for line in self.stock_process_log)
             message = "Advisor completed and dashboard updated." if pushed else "Advisor completed locally; dashboard push needs configuration."
             self._set_stock_status(message, "green" if pushed else "amber")

@@ -12,12 +12,21 @@ from eod_collector.services.collector import CollectorService
 
 logger = logging.getLogger("eod_collector")
 
-# Official 30 constituents of VN30 index
-VN30_CONSTITUENTS = [
+# Constituents across HOSE, HNX, and UPCoM exchanges
+ALL_EXCHANGE_CONSTITUENTS = [
+    # HOSE VN30 & Top Midcaps
     "ACB", "BCM", "BID", "BVH", "CTG", "FPT", "GAS", "GVR", "HDB", "HPG",
     "MBB", "MSN", "MWG", "PLX", "POW", "SAB", "SHB", "SSB", "SSI", "STB",
     "TCB", "TPB", "VCB", "VHM", "VIB", "VIC", "VJC", "VNM", "VPB", "VRE",
+    "DIG", "DXG", "NLG", "PDR", "KDH", "REE", "VCI", "HCM", "DGC", "DCM",
+    "DPM", "FRT", "VHC", "PC1", "GEX", "VGC", "PVD", "PVT", "KBC", "SBT",
+    # HNX Top Liquidity
+    "SHS", "PVS", "IDC", "CEO", "MBS", "NTP", "TNG", "BSI", "VGS", "PVC",
+    # UPCoM Top Liquidity
+    "BSR", "VEA", "MCH", "ACV", "OIL", "QNS", "DDV", "MSR", "C4G", "VGT",
 ]
+
+VN30_CONSTITUENTS = ALL_EXCHANGE_CONSTITUENTS[:30]
 
 BASE_PRICES = {
     "FPT": 125.0, "HPG": 28.5, "VCB": 92.0, "VHM": 42.0, "VIC": 45.0,
@@ -42,8 +51,11 @@ class LocalEODMarketDataProvider:
         pass
 
     def get_vn30_symbols(self) -> list[str]:
-        """Return current VN30 constituent symbols."""
-        return list(VN30_CONSTITUENTS)
+        """Return constituent symbols across HOSE, HNX, UPCoM for scanning."""
+        db_symbols = self.service.repository.get_all_symbols()
+        if db_symbols:
+            return sorted(set(db_symbols).union(ALL_EXCHANGE_CONSTITUENTS))
+        return list(ALL_EXCHANGE_CONSTITUENTS)
 
     def has_trading_session(self, trading_date: date) -> bool:
         """Return whether local DB or market calendar reports session for the date."""

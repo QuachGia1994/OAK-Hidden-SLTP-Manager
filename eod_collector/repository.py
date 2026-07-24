@@ -102,6 +102,13 @@ class EODRepository:
             row = conn.execute("SELECT MAX(date) as max_date FROM eod_prices").fetchone()
             return row["max_date"] if row and row["max_date"] else None
 
+    def get_all_symbols(self) -> list[str]:
+        """Return list of all distinct symbols stored in DB."""
+        query = "SELECT DISTINCT symbol FROM eod_prices ORDER BY symbol ASC"
+        with self.database.connection() as conn:
+            rows = conn.execute(query).fetchall()
+            return [row["symbol"] for row in rows if row["symbol"]]
+
     def get_symbol_count_by_exchange(self) -> dict[str, int]:
         """Return dict of distinct symbol count per exchange for latest trading date."""
         latest = self.get_latest_date()

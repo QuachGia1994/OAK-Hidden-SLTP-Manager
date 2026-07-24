@@ -121,18 +121,53 @@ def save_ssi_desktop_credentials(api_key: str, api_secret: str) -> None:
         pass
 
 
-def render_stock_advisory(payload: Mapping[str, object]) -> str:
-    """Render a compact trading-terminal summary for the desktop tab."""
+def render_stock_advisory(payload: Mapping[str, object], locale: str = "VN") -> str:
+    """Render a clean trading-terminal summary for the desktop tab in VN or EN."""
+    is_vn = str(locale).upper() == "VN"
     signal = payload.get("signal") if isinstance(payload.get("signal"), Mapping) else {}
-    action = "BUY / HOLD" if payload.get("action") == "BUY_OR_HOLD" else "SELL / AVOID"
-    lines = [
-        f"{signal.get('date', '—')}  |  H4 {signal.get('direction', '—')}  |  {payload.get('status', '—')}",
-        f"ACTION: {action}",
-        "",
-    ]
+    direction = str(signal.get("direction", "—"))
+    if is_vn:
+        dir_text = "MUA (BUY)" if direction == "BUY" else ("BÁN (SELL)" if direction == "SELL" else direction)
+    else:
+        dir_text = direction
+
+    action = str(payload.get("action", "—"))
+    if is_vn:
+        action_text = "MUA / NẮM GIỮ (BUY / HOLD)" if action == "BUY_OR_HOLD" else "BÁN / ĐỨNG NGOÀI (SELL / AVOID)"
+    else:
+        action_text = "BUY / HOLD" if action == "BUY_OR_HOLD" else "SELL / AVOID"
+
+    status = str(payload.get("status", "—"))
+    if is_vn:
+        status_text = "SẴN SÀNG" if status == "READY" else ("KHÔNG CÓ TÍN HIỆU" if status == "NO_TRADE" else status)
+    else:
+        status_text = status
+
+    date_str = str(signal.get("date", "—"))
+
+    if is_vn:
+        header = f"{date_str}  |  Tín hiệu H4: {dir_text}  |  Trạng thái: {status_text}"
+        act_line = f"HÀNH ĐỘNG KHUYẾN NGHỊ: {action_text}"
+    else:
+        header = f"{date_str}  |  H4 {dir_text}  |  {status_text}"
+        act_line = f"ACTION: {action_text}"
+
+    lines = [header, act_line, ""]
     candidates = payload.get("candidates") if isinstance(payload.get("candidates"), list) else []
-    lines.extend(_candidate_lines(candidates))
-    lines.extend(["", "USER CONFIRMATION REQUIRED", "NO ORDER SUBMITTED"])
+    lines.extend(_candidate_lines(candidates, is_vn=is_vn))
+
+    if is_vn:
+        lines.extend([
+            "",
+            "⚠️ YÊU CẦU USER XÁC NHẬN TRƯỚC KHI GIAO DỊCH THỰC TẾ",
+            "🚫 MODULE CHỈ KHUYẾN NGHỊ - KHÔNG TỰ ĐỘNG GỬI LỆNH",
+        ])
+    else:
+        lines.extend([
+            "",
+            "USER CONFIRMATION REQUIRED",
+            "NO ORDER SUBMITTED",
+        ])
     return "\n".join(lines)
 
 
@@ -145,14 +180,20 @@ def _advisor_arguments(root: Path, output: Path, settings: StockAdvisorDesktopSe
     ]
 
 
-def _candidate_lines(candidates: Sequence[object]) -> list[str]:
-    lines = ["RANK  SYMBOL   WEIGHT   CONDITIONAL HIT"]
+def _candidate_lines(candidates: Sequence[object], is_vn: bool = True) -> list[str]:
+    if is_vn:
+        lines = ["STT   MÃ CK     TỶ TRỌNG   THẮNG ĐIỀU KIỆN (HIT)"]
+    else:
+        lines = ["RANK  SYMBOL   WEIGHT   CONDITIONAL HIT"]
     for item in candidates:
         if not isinstance(item, Mapping):
             continue
         weight = float(item.get("weight", 0)) * 100
         hit_rate = float(item.get("conditional_hit_rate", 0)) * 100
-        lines.append(f"{item.get('rank', '—'):>4}  {item.get('symbol', '—'):<7}  {weight:>5.1f}%   {hit_rate:>6.1f}%")
+        lines.append(f"{item.get('rank', '—'):>4}  {item.get('symbol', '—'):<7}  {weight:>6.1f}%   {hit_rate:>10.1f}%")
     if len(lines) == 1:
-        lines.append("—     NO ELIGIBLE SYMBOL")
+        if is_vn:
+            lines.append(" —    KHÔNG CÓ MÃ NÀO ĐẠT TIÊU CHUẨN LỌC")
+        else:
+            lines.append(" —    NO ELIGIBLE SYMBOL")
     return lines

@@ -96,7 +96,7 @@ def _advisory_warnings(backtest: AdvisoryBacktest, policy: ScannerPolicy) -> lis
 
 
 def run_advisor(args: argparse.Namespace) -> dict[str, object]:
-    """Run one read-only advisory scan using current VN30 constituents."""
+    """Run one read-only advisory scan using available HOSE, HNX, UPCoM constituents."""
     if args.backfill_h4:
         _backfill_h4(args.backfill_h4, Path(args.signals_log))
     signals = extract_h4_signals(_load_records(Path(args.signals_log)))
@@ -104,7 +104,7 @@ def run_advisor(args: argparse.Namespace) -> dict[str, object]:
         raise AdvisorError(AdvisorErrorCode.INVALID_HISTORY, "No valid H=4 signal history")
     current_signal = signals[-1]
     _validate_signal_freshness(current_signal, args.allow_stale)
-    policy = ScannerPolicy(hurdle_rate=args.hurdle_bps / 10_000)
+    policy = ScannerPolicy(hurdle_rate=args.hurdle_bps / 10_000, top_count=args.top_count)
     points, data_errors = _load_vn30_points(current_signal.trading_date, args.history_days)
     scores = _score_current_universe(signals, points, current_signal, policy)
     selection = select_top_stocks(scores, current_signal.direction, args.capital, policy)
@@ -250,10 +250,11 @@ def _write_payload(payload: Mapping[str, object], output: str | None) -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="VN30 H=4 recommendation-only scanner")
+    parser = argparse.ArgumentParser(description="HOSE HNX UPCoM H=4 recommendation-only scanner")
     parser.add_argument("--signals-log", default="signals_log.json")
     parser.add_argument("--capital", type=float, default=_environment_float("STOCK_DEPLOYABLE_CAPITAL", 0.0))
     parser.add_argument("--hurdle-bps", type=float, default=_environment_float("STOCK_HURDLE_BPS", 0.0))
+    parser.add_argument("--top-count", type=int, default=0, help="Max candidates (0 = all eligible)")
     parser.add_argument("--history-days", type=int, default=365)
     parser.add_argument("--backtest-decisions", type=int, default=250)
     parser.add_argument("--backfill-h4", nargs="?", const=260, type=int, default=0)

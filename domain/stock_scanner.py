@@ -78,10 +78,10 @@ class ScannerPolicy:
     minimum_conditional_hit_rate: float = 0.60
     hurdle_rate: float = 0.0
     maximum_absolute_return: float = 0.15
-    top_count: int = 3
+    top_count: int = 3  # 0 means return ALL eligible candidates
 
     def __post_init__(self) -> None:
-        if self.window_size < 2 or self.top_count < 1:
+        if self.window_size < 2 or self.top_count < 0:
             raise StockScannerError(StockScannerErrorCode.INVALID_POLICY, "Window and top count must be positive")
         if not 1 <= self.minimum_direction_samples <= self.window_size:
             raise StockScannerError(StockScannerErrorCode.INVALID_POLICY, "Direction samples must fit the window")
@@ -283,16 +283,22 @@ def select_top_stocks(
     capital: float,
     policy: ScannerPolicy | None = None,
 ) -> StockSelection:
-    """Return up to three equal advisory slots; never submit an order."""
+    """Return equal advisory slots for eligible candidates; never submit an order."""
     if not isfinite(capital) or capital < 0:
         raise StockScannerError(StockScannerErrorCode.INVALID_CAPITAL, "Capital must be finite and non-negative")
     active_policy = policy or ScannerPolicy()
     ranked = sorted((score for score in scores if score.eligible), key=_ranking_key, reverse=True)
-    selected = ranked[: active_policy.top_count]
-    candidates = _build_candidates(selected, capital, active_policy.top_count)
-    status = "NO_TRADE" if not candidates else "READY" if len(candidates) == active_policy.top_count else "PARTIAL"
+    if active_policy.top_count and active_policy.top_count > 0:
+        selected = ranked[: active_policy.top_count]
+        target_slots = active_policy.top_count
+    else:
+        selected = ranked
+        target_slots = len(selected) if selected else 1
+
+    candidates = _build_candidates(selected, capital, target_slots)
+    status = "NO_TRADE" if not candidates else "READY" if len(candidates) == target_slots else "PARTIAL"
     action = "BUY_OR_HOLD" if direction is Direction.BUY else "SELL_OR_AVOID"
-    cash_weight = max(0.0, 1.0 - len(candidates) / active_policy.top_count)
+    cash_weight = max(0.0, 1.0 - len(candidates) / target_slots) if target_slots > 0 else 1.0
     return StockSelection(direction, action, status, candidates, cash_weight)
 
 
