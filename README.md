@@ -45,4 +45,4 @@ AI chỉ phản biện bằng chứng Google/DuckDuckGo đã thu thập, không 
 
 Tải installer NativeQt, bản unpack và source bundle tại [GitHub Releases](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases).
 
-> OAK là phần mềm hỗ trợ vận hành, không phải cam kết lợi nhuận hay tư vấn đầu tư. Bộ lọc VN30 mặc định chỉ đưa ra khuyến nghị; mọi giao dịch thật phải được người dùng xác nhận trực tiếp.
+> OAK là phần mềm hỗ trợ vận hành, không phải cam kết lợi nhuận hay tư vấn đầu tư. Bộ lọc Cổ phiếu tự động đưa ra kết quả phân tích định lượng từ dữ liệu EOD local.

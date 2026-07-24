@@ -1,25 +1,23 @@
-# Bộ khuyến nghị VN30 theo H=4 (Local EOD)
+# Bộ lọc Cổ phiếu Toàn sàn (Local EOD)
 
-Module này quét thành phần VN30 hiện tại và đưa ra tối đa ba mã cho phiên chiều dựa trên dữ liệu EOD Local (không cần API Key). Đây chỉ là khuyến nghị mặc định. Module không có khả năng gửi lệnh, không nhận OTP hoặc private key giao dịch, và mọi giao dịch thật phải được User xác nhận riêng.
+Module này quét toàn bộ các mã cổ phiếu trên 3 sàn (HOSE, HNX, UPCoM) với tiêu chí **vốn hoá / quy mô ≥ 100 tỷ VND** và xếp hạng các mã tối ưu dựa trên dữ liệu EOD Local (không cần API Key). Module hoạt động ở chế độ bộ lọc thuần túy (Read-only Filter), không tự động gửi lệnh giao dịch.
 
-## Mô hình
+## Mô hình & Quy tắc quét
 
-- Signal: `Stock-DIRECTION` tại H=4; bản ghi cũ tự fallback về hướng XAUUSD cuối cùng.
-- Điểm vào tham chiếu: Giá EOD / VWAP tham chiếu của phiên giao dịch.
-- Kỳ nắm giữ: từ ngày signal tới phiên giao dịch kế tiếp.
-- Cửa sổ active: 25 outcome đã hoàn tất trước ngày quyết định.
-- Điều kiện mặc định: đủ ít nhất 8 mẫu cùng hướng, hit-rate toàn kỳ từ 72%, hit-rate cùng hướng từ 60%, beta dương và edge cùng hướng lớn hơn hurdle.
-- Phân bổ: tối đa ba slot, mỗi slot bằng một phần ba vốn khả dụng. Slot không đạt chuẩn được giữ bằng tiền mặt.
-- Gate phiên: chỉ tạo kết quả khi có dữ liệu phiên đúng ngày signal; ngày nghỉ sẽ dừng.
-- `BUY`: mua hoặc tiếp tục giữ sau khi User xác nhận.
-- `SELL`: bán nếu đang sở hữu hoặc đưa vào danh sách tránh mua sau khi User xác nhận. Không tạo vị thế bán khống.
+- **Signal**: Tín hiệu mốc D1 (dựa trên H=4 core); bản ghi cũ tự fallback về hướng XAUUSD cuối cùng.
+- **Vũ trụ cổ phiếu**: Bao phủ 3 sàn HOSE, HNX, UPCoM với các doanh nghiệp niêm yết có vốn hóa ≥ 100 tỷ VND.
+- **Điểm vào tham chiếu**: Giá EOD / phiên chiều của ngày giao dịch.
+- **Kỳ nắm giữ**: Từ ngày signal tới phiên giao dịch kế tiếp.
+- **Cửa sổ active**: 25 phiên hoàn tất trước ngày quyết định.
+- **Điều kiện bộ lọc (ScannerPolicy)**: Đủ ít nhất 8 mẫu cùng hướng, hit-rate toàn kỳ ≥ 55% (hiệu chỉnh cho thị trường Việt Nam), hit-rate cùng hướng ≥ 60%, beta dương và edge cùng hướng vượt hurdle.
+- **Hiển thị bảng xếp hạng**: Bao gồm Xếp hạng (`#`), Mã cổ phiếu (`MÃ`), Tên công ty đầy đủ (`TÊN CÔNG TY`), Tỷ trọng (`TỶ TRỌNG`), Độ khớp (`KHỚP D1`) và `EDGE`.
 
 ## Quản lý dữ liệu Local EOD (`eod_collector`)
 
-Hệ thống sử dụng bộ thu thập dữ liệu EOD nội bộ lưu trữ trong SQLite (`data/market.db`), hoàn toàn không yêu cầu SSI API Key hay tài khoản chứng khoán:
+Hệ thống sử dụng bộ thu thập dữ liệu EOD tự động qua VPS TradingView Public API lưu trữ trong SQLite (`data/market.db`), hoàn toàn không yêu cầu API Key hay tài khoản chứng khoán:
 
 ```powershell
-# Cập nhật dữ liệu EOD cuối ngày
+# Cập nhật dữ liệu EOD cuối ngày (15h00+)
 python -m eod_collector update
 
 # Xem trạng thái dữ liệu lưu trữ
@@ -29,26 +27,18 @@ python -m eod_collector status
 python -m eod_collector backfill --days 30
 ```
 
-## Khởi chạy Bộ lọc VN30
+## Khởi chạy Bộ lọc Cổ phiếu
 
-Chạy trực tiếp từ giao diện Desktop app (1-click) hoặc bằng dòng lệnh:
+Chạy trực tiếp từ giao diện Desktop app (nút **Chạy bộ lọc Cổ phiếu**) hoặc bằng dòng lệnh:
 
 ```powershell
-python vn_stock_advisor.py --capital 90000000 --hurdle-bps 0 --output stock_recommendation.json
+python vn_stock_advisor.py --capital 90000000 --allow-stale --output stock_recommendation.json
 ```
-
-`--hurdle-bps` phải được đặt theo tổng chi phí và biên an toàn thực tế của tài khoản. Giá trị `0` không khấu trừ chi phí.
 
 ## Đọc kết quả
 
-Các trường an toàn luôn có trong JSON:
+JSON khuyến nghị xuất ra `stock_recommendation.json` và đồng bộ lên Web Dashboard (`/stock-advisor`):
 
-```json
-{
-  "advisory_only": true,
-  "requires_user_confirmation": true,
-  "orders_submitted": false
-}
-```
-
-`READY` nghĩa là đủ ba mã, `PARTIAL` nghĩa là chỉ một hoặc hai mã đạt chuẩn, và `NO_TRADE` nghĩa là không mã nào vượt toàn bộ gate. Không được biến một trong các trạng thái này thành lệnh thật nếu chưa có xác nhận trực tiếp của User.
+- `READY`: Chọn lọc danh sách mã tối ưu vượt qua các tiêu chuẩn định lượng.
+- `PARTIAL`: Tìm thấy mã đạt chuẩn nhưng chưa lấp đầy số slot kỳ vọng.
+- `NO_TRADE`: Không có mã nào vượt qua toàn bộ tiêu chí lọc trong phiên.
