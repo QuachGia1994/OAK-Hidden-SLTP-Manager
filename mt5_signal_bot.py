@@ -62,12 +62,24 @@ def get_target_minute(hour):
 
 TARGET_HOURS = [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15]
 
-def get_target_hours(broker_dt=None):
+def get_target_hours(broker_dt=None, weekday=None):
     """Return weekday-aware active rhythm slots."""
-    if broker_dt is not None:
-        wd = broker_dt.weekday()
+    wd = None
+    if weekday is not None:
+        wd = int(weekday)
+    elif broker_dt is not None:
+        if isinstance(broker_dt, int):
+            wd = broker_dt
+        elif hasattr(broker_dt, "weekday"):
+            wd = broker_dt.weekday()
+
+    if wd is not None:
+        if wd in (5, 6):
+            return []
         if wd in (0, 3, 4):  # Mon (0), Thu (3), Fri (4)
             return [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 1500, 15]
+        return [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15]
+
     return [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 23
@@ -98,20 +110,6 @@ def get_rhythm_label(hour):
     return None
 
 
-def get_target_hours(broker_dt=None, weekday=None):
-    """Return active H slots for the broker weekday.
-
-    Python weekday: Mon=0 .. Sun=6.
-    Mon–Fri → active H=2,3,4,5,7,8,9,11,12,13,14,15; weekend → [].
-    """
-    if weekday is None:
-        if broker_dt is None:
-            weekday = datetime.now().weekday()
-        else:
-            weekday = broker_dt.weekday()
-    if weekday >= 5:
-        return []
-    return list(TARGET_HOURS)
 BROKER_GMT = 0
 
 # =====================================================================
@@ -1220,7 +1218,7 @@ def calculate_slot_signal(broker_dt, hour):
         return {
             "signal": final_signal,
             "pattern_signal": m1_sig,
-            "report": f"H=15:00{sp_tag}: M30 Phân nhóm {group} ({detail}) ➔ XAUUSD {final_signal}",
+            "report": f"H=15:00{sp_tag}: M30 Phân nhóm {group} ({detail}) -> XAUUSD {final_signal}",
             "m30_dir": None,
             "h1_signal": None,
             "skip_xau_m30": True,
@@ -1897,13 +1895,14 @@ def rebuild_recent_history(days=7):
     for target_date in reversed(dates):
         if target_date.weekday() >= 5:
             continue
-        fake_broker_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
-        hours = get_target_hours(fake_broker_dt)
+        hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
         for hour in hours:
             if target_date == today and not is_slot_ready(broker_dt, hour):
                 continue
+            slot_hour_num = 15 if hour == 1500 else hour
+            slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=slot_hour_num)
             try:
-                if rebuild_slot_signal(fake_broker_dt, hour):
+                if rebuild_slot_signal(slot_dt, hour):
                     rebuilt += 1
             except Exception as error:
                 print(f"  [REBUILD] Error {target_date.isoformat()} H={hour}: {error}")
