@@ -14,7 +14,7 @@ import signal
 import sys
 import threading
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time as dt_time, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
@@ -2154,7 +2154,7 @@ class NativeShell:
         now = datetime.now()
         if now.weekday() in (5, 6):  # Weekend
             return
-        if now.time() < time(15, 0):  # Before market close
+        if now.time() < dt_time(15, 0):  # Before market close
             return
         today_str = now.strftime("%Y-%m-%d")
         if getattr(self, "_last_auto_eod_date", None) == today_str:
