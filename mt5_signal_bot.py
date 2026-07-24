@@ -1473,8 +1473,14 @@ def get_h11_priority_and_nogold_rules(broker_dt):
 
 
 
-def get_h7_h8_priority_rule(broker_dt):
-    """Prioritize H=8 when H=6 and calculated H=7/8 agree, else H=7."""
+def get_h7_h9_priority_rule(broker_dt):
+    """Prioritize H=9 when H=6 candle dir matches expected reversal dir, else H=7.
+
+    H=8 was merged into H=9 — so priority is either H=7 or H=9.
+    Rule: XAUUSD expected direction at H=7/H=9 = reverse of H=5 today.
+    - If H=6 candle direction == expected_dir  → H=9 is priority
+    - If H=6 candle direction != expected_dir  → H=7 is priority
+    """
     if broker_dt is None:
         return None
     if (broker_dt.hour, broker_dt.minute) < (7, 0):
@@ -1483,7 +1489,8 @@ def get_h7_h8_priority_rule(broker_dt):
     h5_today = _lookup_h5_signal_today(broker_dt)
     if h5_today not in ("BUY", "SELL"):
         return None
-    h78_dir = "GIAM" if h5_today == "BUY" else "TANG"
+    # XAUUSD reverses H=5 → expected dir is opposite
+    expected_dir = "GIAM" if h5_today == "BUY" else "TANG"
 
     ts_h6 = broker_time_to_ts(broker_dt, 6, 0)
     c_h6 = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_H1, ts_h6)
@@ -1498,8 +1505,13 @@ def get_h7_h8_priority_rule(broker_dt):
         if h6_dir not in ("TANG", "GIAM"):
             return None
 
-    priority_slot = 8 if h6_dir == h78_dir else 7
+    # H=6 confirms trend → H=9 (deeper continuation), otherwise H=7 catches the early move
+    priority_slot = 9 if h6_dir == expected_dir else 7
     return {"priority_slot": priority_slot, "priority_label": f"Ưu tiên đi H={priority_slot}"}
+
+
+# Keep old alias for backward compatibility with tests that import the old name
+get_h7_h8_priority_rule = get_h7_h9_priority_rule
 
 
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
@@ -1567,7 +1579,7 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7"
 
     rules = get_h11_priority_and_nogold_rules(broker_dt) if broker_dt is not None else None
-    h78_rules = get_h7_h8_priority_rule(broker_dt) if broker_dt is not None and h in (7, 8) else None
+    h79_rules = get_h7_h9_priority_rule(broker_dt) if broker_dt is not None and h in (7, 9) else None
 
     notes = {
         2: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
@@ -1598,9 +1610,9 @@ def get_hour_note(H, weekday=None, broker_dt=None):
     if is_xau_no_trade_label_slot(H, broker_dt=broker_dt):
         base_note = base_note + "; 🚫 no-gold label" if base_note else "🚫 no-gold label"
 
-    if h78_rules is not None:
-        if h == h78_rules["priority_slot"]:
-            prefix = f"★ {h78_rules['priority_label']}"
+    if h79_rules is not None:
+        if h == h79_rules["priority_slot"]:
+            prefix = f"★ {h79_rules['priority_label']}"
             base_note = f"{prefix} · {base_note}" if base_note else prefix
 
     return base_note

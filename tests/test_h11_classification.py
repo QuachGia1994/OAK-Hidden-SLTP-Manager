@@ -268,25 +268,25 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
 class TestH7H8PriorityRules(unittest.TestCase):
     @patch("mt5_signal_bot.get_candle_by_ts")
     @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_tang_and_h78_tang_prioritizes_h8(self, mock_h5, mock_candle):
-        # H=5 today is SELL -> H=7,8 calculated as reverse_signal(SELL) = BUY (Tăng)
+    def test_h6_tang_and_h79_tang_prioritizes_h9(self, mock_h5, mock_candle):
+        # H=5 today is SELL -> expected XAUUSD dir = TANG (reversal)
         mock_h5.return_value = "SELL"
-        # H=6 candle is Tăng (Close > Open)
+        # H=6 candle is Tăng (Close > Open) - confirms trend direction -> H=9 priority
         mock_candle.return_value = {"open": 2000.0, "close": 2010.0}
 
         dt = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
         from mt5_signal_bot import get_h7_h8_priority_rule
         rule = get_h7_h8_priority_rule(dt)
         self.assertIsNotNone(rule)
-        self.assertEqual(rule["priority_slot"], 8)
-        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=8")
+        self.assertEqual(rule["priority_slot"], 9)
+        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=9")
 
     @patch("mt5_signal_bot.get_candle_by_ts")
     @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_giam_and_h78_tang_prioritizes_h7(self, mock_h5, mock_candle):
-        # H=5 today is SELL -> H=7,8 calculated as reverse_signal(SELL) = BUY (Tăng)
+    def test_h6_giam_and_h79_tang_prioritizes_h7(self, mock_h5, mock_candle):
+        # H=5 today is SELL -> expected dir = TANG (Tăng)
         mock_h5.return_value = "SELL"
-        # H=6 candle is Giảm (Close < Open)
+        # H=6 candle is Giảm (Close < Open) - contradicts -> H=7 priority
         mock_candle.return_value = {"open": 2010.0, "close": 2000.0}
 
         dt = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
@@ -298,8 +298,10 @@ class TestH7H8PriorityRules(unittest.TestCase):
 
     @patch("mt5_signal_bot.get_candle_by_ts")
     @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_tang_and_h78_giam_prioritizes_h7(self, mock_h5, mock_candle):
+    def test_h6_tang_and_h79_giam_prioritizes_h7(self, mock_h5, mock_candle):
+        # H=5 today is BUY -> expected dir = GIAM (reversal)
         mock_h5.return_value = "BUY"
+        # H=6 candle is Tăng (Close > Open) - contradicts GIAM -> H=7 priority
         mock_candle.return_value = {"open": 2000.0, "close": 2010.0}
 
         rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
@@ -309,14 +311,16 @@ class TestH7H8PriorityRules(unittest.TestCase):
 
     @patch("mt5_signal_bot.get_candle_by_ts")
     @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_giam_and_h78_giam_prioritizes_h8(self, mock_h5, mock_candle):
+    def test_h6_giam_and_h79_giam_prioritizes_h9(self, mock_h5, mock_candle):
+        # H=5 today is BUY -> expected dir = GIAM (reversal)
         mock_h5.return_value = "BUY"
+        # H=6 candle is Giảm (Close < Open) - confirms GIAM -> H=9 priority
         mock_candle.return_value = {"open": 2010.0, "close": 2000.0}
 
         rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
 
-        self.assertEqual(rule["priority_slot"], 8)
-        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=8")
+        self.assertEqual(rule["priority_slot"], 9)
+        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=9")
 
     @patch("mt5_signal_bot.get_candle_by_ts", return_value=None)
     @patch("mt5_signal_bot._lookup_h5_signal_today", return_value="SELL")
@@ -347,7 +351,7 @@ class TestH7H8PriorityRules(unittest.TestCase):
         current_h6_ts = mock_candle.call_args_list[0].args[2]
         previous_h1_ts = mock_candle.call_args_list[1].args[2]
         self.assertEqual(previous_h1_ts, current_h6_ts - 3600)
-        self.assertEqual(rule["priority_slot"], 8)
+        self.assertEqual(rule["priority_slot"], 9)
 
 
 if __name__ == "__main__":
