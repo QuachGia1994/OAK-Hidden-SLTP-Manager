@@ -3,7 +3,7 @@ import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { SignalCard } from "@/components/SignalCard";
 import { getTodaySignals, getBotState, getEconomicNews, maskSignal } from "@/lib/data";
-import { getTargetHours, getSignalLabel } from "@/lib/constants";
+import { getTargetHours, getSignalLabel, getSlotTimeValue } from "@/lib/constants";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { hasVipAccess } from "@/lib/vip";
@@ -63,7 +63,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       hour_note: null,
       ...signal,
     };
-  }).sort((a, b) => b.hour - a.hour);
+  }).sort((a, b) => getSlotTimeValue(b.hour) - getSlotTimeValue(a.hour));
 
   const botStatus = botState ? t.running : "N/A";
   const directionText = activeDDirection ? getSignalLabel(activeDDirection, locale) : "—";

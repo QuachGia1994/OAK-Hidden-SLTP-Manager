@@ -10,14 +10,24 @@ export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
+  // Mon=1, Thu=4, Fri=5 include H=15:00 (slot 1500)
+  if (jsDayOfWeek === 1 || jsDayOfWeek === 4 || jsDayOfWeek === 5) {
+    return [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 1500, 15];
+  }
   return [...TARGET_HOURS];
 }
 
 export function getTargetMinute(hour: number): number {
   const h = Number(hour);
   if (h === 7 || h === 9 || h === 14) return 15;
-  if (h === 11) return 0;
+  if (h === 11 || h === 1500) return 0;
   return 45;
+}
+
+export function getSlotTimeValue(hour: number): number {
+  const h = Number(hour);
+  if (h === 1500) return 15.0;
+  return h + getTargetMinute(h) / 60;
 }
 
 export const GBP_PAIRS: string[] = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"];
@@ -61,12 +71,16 @@ const HOUR_NOTES: Record<number, string> = {
   11: "H=11: Phân nhóm H1 (SW/BT) từ H=10,9,8,7",
   12: "Chỉ Vàng (XAUUSD)",
   14: "GBP group cùng chiều H=5 hôm nay",
+  1500: "XAUUSD theo M30 (13:00-14:30) (Thứ 2 / Thứ 5 / Thứ 6)",
   15: "Chỉ Vàng (XAUUSD)",
 };
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
   const h = Number(hour);
   if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
+  if (h === 1500) {
+    return "XAUUSD theo M30 (13:00-14:30) (Thứ 2 / Thứ 5 / Thứ 6)";
+  }
   if ((h === 2 || h === 3) && jsWeekday === 3) {
     return "XAUUSD đảo từ H=5 hôm qua";
   }
@@ -96,12 +110,13 @@ type RuleLocale = "VN" | "EN";
 export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
   VN: {
     1: [
-      "Slots: H=2-5,7,9,11-15",
+      "Slots: H=2-5,7,9,11-15 (Gồm H=15:00)",
       "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
       "H=7: XAUUSD đảo từ H=5 hôm nay.",
       "H=9: XAUUSD đảo từ H=5 hôm nay; GBP đảo từ H=5 hôm qua.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
-      "H=14: GBP cùng chiều H=5 hôm nay."
+      "H=14: GBP cùng chiều H=5 hôm nay.",
+      "H=15:00: XAUUSD theo 4 nến M30 (13:00-14:30)."
     ],
     2: [
       "Slots: H=2-5,7,9,11-15",
@@ -120,30 +135,33 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=14: Tắt nhóm GBP (Thứ 4)."
     ],
     4: [
-      "Slots: H=2-5,7,9,11-15",
+      "Slots: H=2-5,7,9,11-15 (Gồm H=15:00)",
       "H=2,3: XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2.",
       "H=7: XAUUSD đảo từ H=5 hôm nay.",
       "H=9: XAUUSD đảo từ H=5 hôm nay; GBP đảo từ H=5 hôm qua.",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
-      "H=14: GBP cùng chiều H=5 hôm nay."
+      "H=14: GBP cùng chiều H=5 hôm nay.",
+      "H=15:00: XAUUSD theo 4 nến M30 (13:00-14:30)."
     ],
     5: [
-      "Slots: H=2-5,7,9,11-15",
+      "Slots: H=2-5,7,9,11-15 (Gồm H=15:00)",
       "H=2,3: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.",
       "H=7: XAUUSD đảo từ H=5 hôm nay.",
       "H=9: XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6).",
       "H=11: Phân nhóm H1 XAUUSD (SW/BT) từ H=10,9,8,7.",
-      "H=14: GBP đảo từ H=5 hôm nay (Thứ 6)."
+      "H=14: GBP đảo từ H=5 hôm nay (Thứ 6).",
+      "H=15:00: XAUUSD theo 4 nến M30 (13:00-14:30)."
     ],
   },
   EN: {
     1: [
-      "Slots: H=2-5,7,9,11-15",
+      "Slots: H=2-5,7,9,11-15 (Includes H=15:00)",
       "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
       "H=7: XAUUSD reverses from H=5 today.",
       "H=9: XAUUSD reverses from H=5 today; GBP reverses from H=5 yesterday.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
-      "H=14: GBP follows H=5 today."
+      "H=14: GBP follows H=5 today.",
+      "H=15:00: XAUUSD based on 4 M30 candles (13:00-14:30)."
     ],
     2: [
       "Slots: H=2-5,7,9,11-15",
@@ -162,27 +180,44 @@ export const DAY_RULES: Record<RuleLocale, Record<number, string[]>> = {
       "H=14: GBP group disabled (Wed)."
     ],
     4: [
-      "Slots: H=2-5,7,9,11-15",
+      "Slots: H=2-5,7,9,11-15 (Includes H=15:00)",
       "H=2,3: XAUUSD and GBPAUD reuse Monday's history.",
       "H=7: XAUUSD reverses from H=5 today.",
       "H=9: XAUUSD reverses from H=5 today; GBP reverses from H=5 yesterday.",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
-      "H=14: GBP follows H=5 today."
+      "H=14: GBP follows H=5 today.",
+      "H=15:00: XAUUSD based on 4 M30 candles (13:00-14:30)."
     ],
     5: [
-      "Slots: H=2-5,7,9,11-15",
+      "Slots: H=2-5,7,9,11-15 (Includes H=15:00)",
       "H=2,3: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.",
       "H=7: XAUUSD reverses from H=5 today.",
       "H=9: XAUUSD reverses from H=5 today; GBP follows H=5 yesterday (Fri).",
       "H=11: Classify H1 XAUUSD group (SW/BT) from H=10,9,8,7.",
-      "H=14: GBP reverses from H=5 today (Fri)."
-    ],
-  },
+      "H=14: GBP reverses from H=5 today (Fri).",
+      "H=15:00: XAUUSD based on 4 M30 candles (13:00-14:30)."
+    ]
+  }
 };
 
-export function getDayRules(locale: RuleLocale, jsWeekday: number, date: Date = new Date()): string[] {
-  const rules = [...(DAY_RULES[locale][jsWeekday] || [])];
-  return rules;
+export function getDayRules(
+  arg1: number | RuleLocale,
+  arg2?: RuleLocale | number,
+  _date?: Date
+): string[] {
+  let locale: RuleLocale = "VN";
+  let jsWeekday = 1;
+
+  if (typeof arg1 === "string") {
+    locale = arg1 as RuleLocale;
+    jsWeekday = typeof arg2 === "number" ? arg2 : 1;
+  } else {
+    jsWeekday = arg1;
+    locale = (arg2 as RuleLocale) || "VN";
+  }
+
+  const langRules = DAY_RULES[locale] ?? DAY_RULES.VN;
+  return langRules[jsWeekday] ?? [];
 }
 
 export function getSignalColor(signal: string): string {
@@ -203,7 +238,8 @@ export function getSignalLabel(signal: string, locale: "VN" | "EN" = "VN"): stri
 }
 
 export function formatHour(h: number): string {
-  return h.toString().padStart(2, "0");
+  const hourNum = h === 1500 ? 15 : Number(h);
+  return hourNum.toString().padStart(2, "0");
 }
 
 export function weekdayFromDate(dateStr: string): number {

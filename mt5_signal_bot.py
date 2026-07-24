@@ -53,16 +53,22 @@ DISABLED_HOURS = set()
 
 def get_target_minute(hour):
     """Return the configured target minute for a specific hour."""
-    if hour == 7:
+    h = int(hour)
+    if h in (7, 9, 14):
         return 15
-    if hour == 9:
-        return 15
-    if hour == 11:
+    if h in (11, 1500):
         return 0
-    if hour == 14:
-        return 15
     return 45
+
 TARGET_HOURS = [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15]
+
+def get_target_hours(broker_dt=None):
+    """Return weekday-aware active rhythm slots."""
+    if broker_dt is not None:
+        wd = broker_dt.weekday()
+        if wd in (0, 3, 4):  # Mon (0), Thu (3), Fri (4)
+            return [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 1500, 15]
+    return [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 23
 D_DIRECTION_PAIR = "Stock-DIRECTION"
@@ -1093,6 +1099,73 @@ def evaluate_h11_classification(broker_dt, symbol="XAUUSD"):
     return evaluate_classification_for_slot(broker_dt, 11, symbol)
 
 
+def evaluate_h15_m30_classification(broker_dt, symbol="XAUUSD"):
+    """Evaluate 4 M30 candles before 15:00 Broker time.
+    M30 candles: 14:30 (m1), 14:00 (m2), 13:30 (m3), 13:00 (m4).
+    """
+    if broker_dt is None:
+        return "BT", "14:30:Tăng, 14:00:Tăng, 13:30:Giảm, 13:00:Giảm [Rule 3]", "BUY", "BUY"
+
+    m_times = [(13, 0), (13, 30), (14, 0), (14, 30)]
+    dirs = {}
+    vn_dirs = {}
+    for h, m in m_times:
+        ts = broker_time_to_ts(broker_dt, h, m)
+        c = get_candle_by_ts(symbol, mt5.TIMEFRAME_M30, ts)
+        if c is not None:
+            open_p = round(float(_rate_value(c, "open")), 2)
+            close_p = round(float(_rate_value(c, "close")), 2)
+            if close_p > open_p:
+                d = "TANG"
+            elif close_p < open_p:
+                d = "GIAM"
+            else:
+                doji_d = resolve_doji(symbol, mt5.TIMEFRAME_M30, ts, broker_dt)
+                d = "TANG" if doji_d == "TANG" else "GIAM"
+        else:
+            d = "TANG"
+        time_key = f"{h:02d}:{m:02d}"
+        dirs[time_key] = d
+        vn_dirs[time_key] = "Tăng" if d == "TANG" else "Giảm"
+
+    d1 = dirs["14:30"]
+    d2 = dirs["14:00"]
+    d3 = dirs["13:30"]
+    d4 = dirs["13:00"]
+
+    if d1 == "TANG":
+        if d2 == "GIAM" and d3 == "TANG" and d4 == "GIAM":
+            group, rule_num = "SW", 1
+        elif d2 == "GIAM" and d3 == "TANG" and d4 == "TANG":
+            group, rule_num = "BT", 2
+        elif d2 == "TANG" and d3 == "GIAM":
+            group, rule_num = "BT", 3
+        elif d2 == "TANG" and d3 == "TANG":
+            group, rule_num = "SW", 4
+        else:
+            group, rule_num = "SW", 5
+    else:
+        if d2 == "TANG" and d3 == "GIAM" and d4 == "TANG":
+            group, rule_num = "SW", 6
+        elif d2 == "TANG" and d3 == "GIAM" and d4 == "GIAM":
+            group, rule_num = "BT", 7
+        elif d2 == "GIAM" and d3 == "TANG":
+            group, rule_num = "BT", 8
+        elif d2 == "GIAM" and d3 == "GIAM":
+            group, rule_num = "SW", 9
+        else:
+            group, rule_num = "SW", 10
+
+    m1_signal = "BUY" if d1 == "TANG" else "SELL"
+    if group == "SW":
+        final_signal = reverse_signal(m1_signal)
+    else:
+        final_signal = m1_signal
+
+    detail = f"14:30:{vn_dirs['14:30']}, 14:00:{vn_dirs['14:00']}, 13:30:{vn_dirs['13:30']}, 13:00:{vn_dirs['13:00']} [Rule {rule_num}]"
+    return group, detail, final_signal, m1_signal
+
+
 def calculate_slot_signal(broker_dt, hour):
     """Apply the canonical H-slot matrix for live and rebuilt signals."""
     hour = int(hour)
@@ -1103,6 +1176,27 @@ def calculate_slot_signal(broker_dt, hour):
             "m30_dir": None,
             "h1_signal": None,
             "skip_xau_m30": True,
+        }
+    # H=15:00: XAUUSD M30 4-candle classification (14:30, 14:00, 13:30, 13:00) on Mon (0), Thu (3), Fri (4)
+    if hour == 1500:
+        if broker_dt.weekday() not in (0, 3, 4):
+            return {
+                "signal": "WAIT",
+                "report": "H=15:00: chỉ hoạt động vào Thứ 2, Thứ 5, Thứ 6.",
+                "m30_dir": None,
+                "h1_signal": None,
+                "skip_xau_m30": True,
+                "pair_dirs": {},
+            }
+        group, detail, final_signal, m1_sig = evaluate_h15_m30_classification(broker_dt)
+        return {
+            "signal": final_signal,
+            "pattern_signal": m1_sig,
+            "report": f"H=15:00: M30 Phân nhóm {group} ({detail}) ➔ XAUUSD {final_signal}",
+            "m30_dir": None,
+            "h1_signal": None,
+            "skip_xau_m30": True,
+            "pair_dirs": {"XAUUSD": final_signal},
         }
     # H=2,3: XAUUSD đảo từ H=5 hôm qua (Nếu Thứ 5 thì dùng lại y chang Thứ 2)
     if hour in (2, 3):
@@ -1435,6 +1529,8 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         return ""
     if h in DISABLED_HOURS:
         return ""
+    if h == 1500:
+        return "XAUUSD theo M30 (13:00-14:30) (Thứ 2 / Thứ 5 / Thứ 6)"
     if h == 11:
         if broker_dt is not None:
             res_h11 = evaluate_h11_classification(broker_dt)
@@ -1711,6 +1807,8 @@ def is_slot_ready(broker_dt, hour):
         return _lookup_h5_signal_yesterday(broker_dt) in ("BUY", "SELL")
     if h in (7, 8, 14):
         return _lookup_h5_signal_today(broker_dt) in ("BUY", "SELL")
+    if h == 1500:
+        return broker_dt.hour >= 15
     if h in (11, 12, 13, 15):
         return broker_dt.hour >= 11
     target_min = get_target_minute(h)

@@ -40,6 +40,7 @@ const ENGLISH_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\(Thứ 6 đảo\)/g, "(Fri reverses)"],
   [/Tắt nhóm GBP \(Thứ 4\)/g, "GBP group disabled (Wed)"],
   [/Tắt nhóm GBP/g, "GBP group disabled"],
+  [/XAUUSD theo M30 \(13:00-14:30\) \(Thứ 2 \/ Thứ 5 \/ Thứ 6\)/g, "XAUUSD based on M30 (13:00-14:30) (Mon / Thu / Fri)"],
   [/H=11: Phân nhóm H1 \(SW\/BT\) từ H=10,9,8,7/g, "H=11: Classify H1 (SW/BT) from H=10,9,8,7"],
   [/XAUUSD đảo ngược \(Thứ 4 \/ Thứ 5\)/g, "XAUUSD reverses (Wed / Thu)"],
 ];

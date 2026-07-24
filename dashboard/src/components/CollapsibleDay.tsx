@@ -21,10 +21,12 @@ interface CollapsibleDayProps {
   defaultOpen?: boolean;
 }
 
+import { getSlotTimeValue } from "@/lib/constants";
+
 export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: CollapsibleDayProps) {
   const [open, setOpen] = useState(defaultOpen);
   const { locale } = useLocale();
-  const daySignals = [...signals].sort((a, b) => b.hour - a.hour);
+  const daySignals = [...signals].sort((a, b) => getSlotTimeValue(b.hour) - getSlotTimeValue(a.hour));
   const weekday = weekdayLabel(date, locale);
   const verdictCounts = daySignals.reduce(
     (counts, signal) => {

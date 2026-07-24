@@ -5,7 +5,8 @@ import { getTargetMinute } from "@/lib/constants";
 
 function brokerSlotToDate(date: string, hour: number, minute: number) {
   const [year, month, day] = date.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day, hour - 3, minute, 0));
+  const actualHour = hour === 1500 ? 15 : hour;
+  return new Date(Date.UTC(year, month - 1, day, actualHour - 3, minute, 0));
 }
 
 export function BrokerLocalTime({
@@ -17,8 +18,9 @@ export function BrokerLocalTime({
   hour: number;
   minute?: number;
 }) {
+  const actualHour = hour === 1500 ? 15 : hour;
   const actualMinute = minute ?? getTargetMinute(hour);
-  const fallback = `${String((hour + 4) % 24).padStart(2, "0")}:${String(actualMinute).padStart(2, "0")}`;
+  const fallback = `${String((actualHour + 4) % 24).padStart(2, "0")}:${String(actualMinute).padStart(2, "0")}`;
   const slotDate = useMemo(() => brokerSlotToDate(date, hour, actualMinute), [date, hour, actualMinute]);
   const [text, setText] = useState(fallback);
 
