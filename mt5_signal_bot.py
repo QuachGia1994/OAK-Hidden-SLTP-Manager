@@ -1045,7 +1045,8 @@ def evaluate_classification_for_slot(broker_dt, slot_hour, symbol="XAUUSD"):
             high_p = round(float(_rate_value(c, "high", max(open_p, close_p))), 2)
             low_p = round(float(_rate_value(c, "low", min(open_p, close_p))), 2)
             d = candle_direction(c)
-            if d == "DOJI":
+            is_doji = (d == "DOJI")
+            if is_doji:
                 doji_d = resolve_doji(symbol, mt5.TIMEFRAME_H1, ts_h1, broker_dt)
                 d = doji_d if doji_d in ("TANG", "GIAM") else "TANG"
                 print(f"  [DOJI] H1@{h:02d}:00 DOJI -> fallback: {d}")
@@ -1056,6 +1057,7 @@ def evaluate_classification_for_slot(broker_dt, slot_hour, symbol="XAUUSD"):
                 "low": low_p,
                 "close": close_p,
                 "dir": d,
+                "doji": is_doji,
             })
         else:
             d = "TANG"
@@ -1131,7 +1133,8 @@ def evaluate_h15_m30_classification(broker_dt, symbol="XAUUSD"):
             high_p = round(float(_rate_value(c, "high", max(open_p, close_p))), 2)
             low_p = round(float(_rate_value(c, "low", min(open_p, close_p))), 2)
             d = candle_direction(c)
-            if d == "DOJI":
+            is_doji = (d == "DOJI")
+            if is_doji:
                 doji_d = resolve_doji(symbol, mt5.TIMEFRAME_M30, ts, broker_dt)
                 d = doji_d if doji_d in ("TANG", "GIAM") else "TANG"
                 print(f"  [DOJI] M30@{h:02d}:{m:02d} DOJI -> fallback: {d}")
@@ -1143,6 +1146,7 @@ def evaluate_h15_m30_classification(broker_dt, symbol="XAUUSD"):
                 "low": low_p,
                 "close": close_p,
                 "dir": d,
+                "doji": is_doji,
             })
         else:
             d = "TANG"

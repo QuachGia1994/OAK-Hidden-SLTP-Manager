@@ -6,6 +6,7 @@ export interface H11Candle {
   low: number;
   close: number;
   dir: string;
+  doji?: boolean;
 }
 
 export interface Signal {
