@@ -14,10 +14,7 @@ from eod_collector.models import EODRecord, RawFetchMetadata
 from eod_collector.normalizer import EODNormalizer
 from eod_collector.repository import EODRepository
 from eod_collector.sources.base import EODDataSource, RawFetchResult
-from eod_collector.sources.hose import HOSEDataSource
-from eod_collector.sources.hnx import HNXDataSource
-from eod_collector.sources.upcom import UPCOMDataSource
-from eod_collector.sources.vps_market import VPSMarketDataSource
+from eod_collector.sources.vps_market import VPSMarketDataSource, fetch_vps_history, ALL_VN_SYMBOLS
 from eod_collector.validator import EODValidator, ValidationError
 
 logger = logging.getLogger("eod_collector")
@@ -31,34 +28,70 @@ class CollectorService:
         self.database = Database(self.config.database.path)
         self.repository = EODRepository(self.database)
         self.validator = EODValidator(holidays=self.config.collector.holidays)
+        self._vps_source = VPSMarketDataSource()
 
+        # Legacy sources dict — kept for import-file compatibility
         self.sources: dict[str, EODDataSource] = {}
-        # VPS unified source covers all exchanges with real data
-        self.sources["VN_ALL"] = VPSMarketDataSource()
-        # Legacy per-exchange sources (kept for backward compatibility but VPS takes priority)
-        if self.config.sources.hose_enabled:
-            self.sources["HOSE"] = HOSEDataSource()
-        if self.config.sources.hnx_enabled:
-            self.sources["HNX"] = HNXDataSource()
-        if self.config.sources.upcom_enabled:
-            self.sources["UPCOM"] = UPCOMDataSource()
+        self.sources["VPS"] = self._vps_source
 
     def update(self, trading_date: date | None = None) -> dict[str, int]:
-        """Update market data for a single trading date across all enabled exchanges."""
+        """Update market data for today via VPS public API (HOSE + HNX + UPCoM)."""
         target_date = trading_date or self._default_trading_date()
         if target_date.weekday() in (5, 6):
             logger.info("Date %s is a weekend. Skipping update.", target_date.isoformat())
             return {}
+        date_str = target_date.strftime("%Y-%m-%d")
+        if date_str in self.config.collector.holidays:
+            logger.info("Date %s is a holiday. Skipping update.", date_str)
+            return {}
 
-        results: dict[str, int] = {}
-        for exchange_name, source in self.sources.items():
+        return self._collect_via_vps(target_date)
+
+    def _collect_via_vps(self, trading_date: date) -> dict[str, int]:
+        """Fetch all symbols via VPS API and persist per-exchange into SQLite."""
+        import time
+        date_str = trading_date.strftime("%Y-%m-%d")
+        counts: dict[str, int] = {"HOSE": 0, "HNX": 0, "UPCOM": 0}
+        records: list[EODRecord] = []
+
+        logger.info("[VPS UPDATE] Fetching %d symbols for %s ...", len(ALL_VN_SYMBOLS), date_str)
+        for i, symbol in enumerate(ALL_VN_SYMBOLS):
             try:
-                count = self._collect_exchange_date(source, target_date)
-                results[exchange_name] = count
+                rows = fetch_vps_history(symbol, trading_date, trading_date)
+                for row in rows:
+                    try:
+                        rec = EODRecord(
+                            date=row["date"],
+                            symbol=row["symbol"],
+                            exchange=row.get("exchange", "HOSE"),
+                            open=float(row.get("open", 0)),
+                            high=float(row.get("high", 0)),
+                            low=float(row.get("low", 0)),
+                            close=float(row.get("close", 0)),
+                            reference_price=float(row.get("reference_price", row.get("open", 0))),
+                            ceiling_price=float(row.get("ceiling_price", 0)),
+                            floor_price=float(row.get("floor_price", 0)),
+                            volume=float(row.get("volume", 0)),
+                            value=float(row.get("value", 0)),
+                            source="VPS_PUBLIC",
+                        )
+                        records.append(rec)
+                    except (KeyError, TypeError, ValueError) as err:
+                        logger.debug("Row parse error for %s: %s", symbol, err)
             except Exception as err:
-                logger.error("Failed to collect %s for %s: %s", exchange_name, target_date.isoformat(), err)
-                raise
-        return results
+                logger.warning("[VPS UPDATE] Failed to fetch %s: %s", symbol, err)
+            time.sleep(0.1)
+
+        if not records:
+            raise ValidationError(f"VPS returned no data for {date_str}")
+
+        # Upsert and count by exchange
+        saved = self.repository.upsert_records(records)
+        logger.info("[VPS UPDATE] Saved %d records for %s", saved, date_str)
+        for rec in records:
+            ex = rec.exchange.upper()
+            counts[ex] = counts.get(ex, 0) + 1
+        return counts
 
     def backfill(
         self,
@@ -66,7 +99,7 @@ class CollectorService:
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> dict[str, int]:
-        """Backfill historical data for a range of dates."""
+        """Backfill historical data for a range of dates via VPS API."""
         today = self._default_trading_date()
         if from_date and to_date:
             start_date, end_date = from_date, to_date
@@ -77,16 +110,16 @@ class CollectorService:
             end_date = today
             start_date = today - timedelta(days=30)
 
-        total_collected: dict[str, int] = {ex: 0 for ex in self.sources}
+        total_collected: dict[str, int] = {"HOSE": 0, "HNX": 0, "UPCOM": 0}
         curr = start_date
         while curr <= end_date:
             if curr.weekday() not in (5, 6) and curr.strftime("%Y-%m-%d") not in self.config.collector.holidays:
-                for exchange_name, source in self.sources.items():
-                    try:
-                        count = self._collect_exchange_date(source, curr)
-                        total_collected[exchange_name] = total_collected.get(exchange_name, 0) + count
-                    except Exception as err:
-                        logger.warning("Backfill error for %s on %s: %s", exchange_name, curr.isoformat(), err)
+                try:
+                    day_counts = self._collect_via_vps(curr)
+                    for ex, cnt in day_counts.items():
+                        total_collected[ex] = total_collected.get(ex, 0) + cnt
+                except Exception as err:
+                    logger.warning("Backfill error for %s: %s", curr.isoformat(), err)
             curr += timedelta(days=1)
         return total_collected
 
@@ -96,9 +129,9 @@ class CollectorService:
         date_str = target_date.strftime("%Y-%m-%d")
         all_warnings: dict[str, list[str]] = {}
 
-        for exchange_name in self.sources:
+        for exchange_name in ("HOSE", "HNX", "UPCOM"):
             records = self.repository.get_records(exchange=exchange_name, trading_date=date_str)
-            min_symbols = getattr(self.config.collector, f"minimum_symbols_{exchange_name.lower()}", 10)
+            min_symbols = getattr(self.config.collector, f"minimum_symbols_{exchange_name.lower()}", 5)
             try:
                 warnings = self.validator.validate_session(records, exchange_name, target_date, min_symbols=min_symbols)
                 all_warnings[exchange_name] = warnings

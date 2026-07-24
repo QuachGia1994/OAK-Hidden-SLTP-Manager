@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from eod_collector.sources.base import EODDataSource, RawFetchResult
@@ -60,7 +60,9 @@ def fetch_vps_history(
     Returns a list of dicts with keys:
         date (str YYYY-MM-DD), symbol, open, high, low, close, volume, value, source
     """
-    from_ts = _date_to_ts(from_date)
+    # VPS TradingView API requires a lookback window (minimum ~5-7 days) to return data
+    req_from_date = from_date - timedelta(days=7)
+    from_ts = _date_to_ts(req_from_date)
     to_ts = _date_to_ts(to_date) + 86400  # inclusive end
     url = f"{_VPS_BASE_URL}?symbol={symbol}&resolution=D&from={from_ts}&to={to_ts}"
 
@@ -86,10 +88,19 @@ def fetch_vps_history(
     closes     = payload.get("c") or []
     volumes    = payload.get("v") or []
 
+    from_str = from_date.strftime("%Y-%m-%d")
+    to_str = to_date.strftime("%Y-%m-%d")
+
     rows: list[dict[str, Any]] = []
     for i, ts in enumerate(timestamps):
         try:
-            trading_date = datetime.fromtimestamp(int(ts), tz=timezone.utc).strftime("%Y-%m-%d")
+            trading_date_dt = datetime.fromtimestamp(int(ts), tz=timezone.utc).date()
+            trading_date = trading_date_dt.strftime("%Y-%m-%d")
+
+            # Filter to requested date window
+            if trading_date < from_str or trading_date > to_str:
+                continue
+
             close_price  = float(closes[i])
             open_price   = float(opens[i])  if i < len(opens)   else close_price
             high_price   = float(highs[i])  if i < len(highs)   else close_price
