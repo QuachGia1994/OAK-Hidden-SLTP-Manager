@@ -84,10 +84,18 @@ class CollectorService:
                 logger.warning("[VPS UPDATE] Failed to fetch %s: %s", symbol, err)
             return res
 
+        total_syms = len(ALL_VN_SYMBOLS)
+        print(f"[VPS EOD] Fetching {total_syms} symbols for {date_str}...", flush=True)
         with ThreadPoolExecutor(max_workers=16) as executor:
             futures = [executor.submit(_fetch_one, s) for s in ALL_VN_SYMBOLS]
+            _done = 0
             for future in as_completed(futures):
                 records.extend(future.result())
+                _done += 1
+                # Emit progress every 10 symbols so Qt can animate the bar
+                if _done % 10 == 0 or _done == total_syms:
+                    _pct = int(_done / total_syms * 100)
+                    print(f"[VPS EOD] {_done}/{total_syms} ({_pct}%)", flush=True)
 
         if not records:
             raise ValidationError(f"VPS returned no data for {date_str}")

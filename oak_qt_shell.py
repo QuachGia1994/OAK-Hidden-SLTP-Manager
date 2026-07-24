@@ -170,7 +170,8 @@ NATIVE_TEXT = {
         "Advisor settings saved.": "Đã lưu cài đặt bộ lọc.",
         "Running VN30 advisor...": "Đang chạy bộ lọc Cổ phiếu...",
         "Auto backfill: pausing Signal Bot...": "Tự backfill: đang tạm dừng Signal Bot...",
-        "Advisor completed and dashboard updated.": "Đã lọc xong và cập nhật dashboard.",
+        "Advisor completed and dashboard updated.": "Bộ lọc hoàn tất và cập nhật dashboard thành công.",
+        "Advisor completed locally; dashboard push needs configuration.": "Bộ lọc hoàn tất (local). Dashboard cập nhật khi có Redis/VPS.",
         "PROFILE": "HỒ SƠ",
         "Start selected": "Chạy profile đã chọn",
         "Stop selected": "Dừng profile đã chọn",
@@ -2220,17 +2221,29 @@ class NativeShell:
             clean = line.strip()
             if not clean or not hasattr(self, "stock_progress_bar") or self.stock_progress_bar is None:
                 continue
-            if "Fetching" in clean and "symbols" in clean:
-                match = re.search(r"Fetching (\d+) symbols", clean)
-                if match:
-                    tot = match.group(1)
-                    self.stock_progress_bar.setFormat(f"Đang kết nối VPS API (0/{tot} mã)...")
-            elif "Saved" in clean and "records" in clean:
-                match = re.search(r"Saved (\d+) records", clean)
+            # New format: [VPS EOD] N/TOTAL (PCT%) — emitted every 10 symbols
+            match_prog = re.search(r"\[VPS EOD\] (\d+)/(\d+) \((\d+)%\)", clean)
+            if match_prog:
+                cur = int(match_prog.group(1))
+                tot = int(match_prog.group(2))
+                pct = int(match_prog.group(3))
+                self.stock_progress_bar.setValue(pct)
+                self.stock_progress_bar.setFormat(f"Đang tải EOD VPS: {cur}/{tot} mã ({pct}%)...")
+                continue
+            # Announce: [VPS EOD] Fetching N symbols for DATE...
+            match_total = re.search(r"\[VPS EOD\] Fetching (\d+) symbols", clean)
+            if match_total:
+                tot = match_total.group(1)
+                self.stock_progress_bar.setValue(1)
+                self.stock_progress_bar.setFormat(f"Đang kết nối VPS API (0/{tot} mã)...")
+                continue
+            # Final save confirmation from logger
+            if ("Saved" in clean or "saved" in clean) and "records" in clean:
+                match = re.search(r"(\d+) records", clean)
                 if match:
                     cnt = match.group(1)
                     self.stock_progress_bar.setValue(100)
-                    self.stock_progress_bar.setFormat(f"Đã cập nhật xong {cnt} mã EOD 100%")
+                    self.stock_progress_bar.setFormat(f"Đã cập nhật xong {cnt} bản ghi EOD ✓")
 
     def _eod_update_done(self, code: int, process: Any, is_auto: bool) -> None:
         if getattr(self, "eod_update_process", None) is process:
@@ -2242,11 +2255,12 @@ class NativeShell:
             self._set_stock_status(msg, "green")
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                 self.stock_progress_bar.setValue(100)
-                self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất 100%")
+                self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất ✓ 100%")
         else:
-            self._set_stock_status(f"EOD update failed (code {code})", "red")
+            err_msg = f"Cập nhật EOD thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"EOD update failed (code {code})"
+            self._set_stock_status(err_msg, "red")
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
-                self.stock_progress_bar.setFormat("Lỗi cập nhật EOD")
+                self.stock_progress_bar.setFormat("Lỗi cập nhật EOD ✗")
 
     def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
         capital_str = self.stock_fields.get("capital", QT.QLineEdit()).text().strip() or "90000000"
@@ -2330,7 +2344,7 @@ class NativeShell:
         self.stock_process = process
         self.stock_process_log = []
         self.stock_result.clear()
-        self._set_stock_status("Running VN30 advisor...", "amber")
+        self._set_stock_status(native_text("Running VN30 advisor..."), "amber")
         process.start()
 
     def _stock_process_environment(self, client_id: str, api_key: str, api_secret: str) -> Any:
@@ -2370,11 +2384,12 @@ class NativeShell:
             self.stock_result.setPlainText(render_stock_advisory(payload, locale=locale) if isinstance(payload, dict) else "Invalid result")
             pushed = any(line.endswith("Stock advisor: pushed") for line in self.stock_process_log)
             message = "Advisor completed and dashboard updated." if pushed else "Advisor completed locally; dashboard push needs configuration."
-            self._set_stock_status(message, "green" if pushed else "amber")
+            self._set_stock_status(native_text(message), "green" if pushed else "amber")
         else:
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
-                self.stock_progress_bar.setFormat("Lỗi chạy bộ lọc (Error)")
-            self._set_stock_status(f"Advisor failed with code {code}", "red")
+                self.stock_progress_bar.setFormat("Lỗi chạy bộ lọc ✗")
+            fail_msg = f"Bộ lọc thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"Advisor failed with code {code}"
+            self._set_stock_status(fail_msg, "red")
         self._restart_signal_bot_after_stock()
 
     def _stock_advisor_error(self, error: Any, process: Any) -> None:

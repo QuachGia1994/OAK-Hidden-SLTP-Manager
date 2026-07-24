@@ -34,7 +34,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
               {locale === "EN" ? "Signal history" : "Lịch sử tín hiệu"}
             </h1>
             <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-              {locale === "EN" ? "Last 7 days · broker-session archive" : "7 ngày gần nhất · kho phiên broker"}
+              {locale === "EN" ? "Last 30 sessions · broker-session archive" : "30 phiên gần nhất · kho phiên broker"}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3">

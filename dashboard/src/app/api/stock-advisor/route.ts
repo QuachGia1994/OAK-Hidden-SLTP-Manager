@@ -42,5 +42,5 @@ function isSafeAdvisory(value: StockAdvisory): boolean {
   if (!value || typeof value !== "object") return false;
   if (value.advisory_only !== true || value.requires_user_confirmation !== true) return false;
   if (value.orders_submitted !== false || !Array.isArray(value.candidates)) return false;
-  return value.candidates.length <= 3;
+  return value.candidates.length <= 50;
 }

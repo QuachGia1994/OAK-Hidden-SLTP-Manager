@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-07-24T08:08:05.851623+00:00",
+  "generated_at": "2026-07-24T11:51:55.445241+00:00",
   "advisory_only": true,
   "requires_user_confirmation": true,
   "orders_submitted": false,
@@ -14,19 +14,23 @@
   "candidates": [
     {
       "rank": 1,
-      "symbol": "VGS",
-      "weight": 0.3333333333333333,
-      "capital": 30000000.0,
-      "hit_rate": 0.64,
-      "conditional_hit_rate": 1.0,
-      "conditional_edge": 0.004994509221201179,
-      "r_squared": 0.10990754844754147
+      "symbol": "TMS",
+      "weight": 0.25,
+      "capital": 22500000.0,
+      "close_price": 0.0,
+      "price_change_pct": 0.0,
+      "hit_rate": 0.6,
+      "conditional_hit_rate": 0.625,
+      "conditional_edge": 0.0060281641674843345,
+      "r_squared": 0.15390920389925233
     },
     {
       "rank": 2,
-      "symbol": "PVC",
-      "weight": 0.3333333333333333,
-      "capital": 30000000.0,
+      "symbol": "VGS",
+      "weight": 0.25,
+      "capital": 22500000.0,
+      "close_price": 0.0,
+      "price_change_pct": 0.0,
       "hit_rate": 0.64,
       "conditional_hit_rate": 1.0,
       "conditional_edge": 0.004994509221201179,
@@ -34,9 +38,23 @@
     },
     {
       "rank": 3,
+      "symbol": "PVC",
+      "weight": 0.25,
+      "capital": 22500000.0,
+      "close_price": 0.0,
+      "price_change_pct": 0.0,
+      "hit_rate": 0.64,
+      "conditional_hit_rate": 1.0,
+      "conditional_edge": 0.004994509221201179,
+      "r_squared": 0.10990754844754147
+    },
+    {
+      "rank": 4,
       "symbol": "BSI",
-      "weight": 0.3333333333333333,
-      "capital": 30000000.0,
+      "weight": 0.25,
+      "capital": 22500000.0,
+      "close_price": 0.0,
+      "price_change_pct": 0.0,
       "hit_rate": 0.64,
       "conditional_hit_rate": 1.0,
       "conditional_edge": 0.004994509221201179,
@@ -44,13 +62,13 @@
     }
   ],
   "cash_weight": 0.0,
-  "rejected_symbols": 143,
+  "rejected_symbols": 1483,
   "data_errors": [],
   "backtest": {
     "requested_decisions": 250,
-    "evaluated_decisions": 215,
-    "hit_rate": 0.5255813953488372,
-    "mean_aligned_return": 0.0011026279298609314,
+    "evaluated_decisions": 218,
+    "hit_rate": 0.5275229357798165,
+    "mean_aligned_return": 0.0015912354788341788,
     "met_requested_decisions": false
   },
   "policy": {

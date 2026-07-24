@@ -16,7 +16,7 @@ export function HistoryList({ signals, isVIP }: HistoryListProps) {
     if (!dateMap.has(signal.date)) dateMap.set(signal.date, []);
     dateMap.get(signal.date)!.push(signal);
   }
-  const dates = [...dateMap.keys()].sort().reverse().slice(0, 7);
+  const dates = [...dateMap.keys()].sort().reverse().slice(0, 30);
 
   if (dates.length === 0) {
     return (
