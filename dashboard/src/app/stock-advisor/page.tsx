@@ -1,9 +1,6 @@
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { getStockAdvisory, maskStockAdvisory } from "@/lib/data";
-import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
-import { getStockAdvisory, maskStockAdvisory } from "@/lib/data";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
-import { localizeAdvisorWarning } from "@/lib/stock-advisor-i18n";
 import type { StockAdvisory, StockAdvisorCandidate } from "@/lib/types";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
