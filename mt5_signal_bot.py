@@ -77,10 +77,10 @@ def get_target_hours(broker_dt=None, weekday=None):
         if wd in (5, 6):
             return []
         if wd in (0, 1, 2, 3, 4):  # Mon (0) to Fri (4)
-            return [2, 4, 5, 6, 9, 12, 14, 15]
+            return [2, 4, 5, 6, 9, 12, 14, 16]
         return []
 
-    return [2, 4, 5, 6, 9, 12, 14, 15]
+    return [2, 4, 5, 6, 9, 12, 14, 16]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
 SIGNAL_LOGIC_VERSION = 31
 D_DIRECTION_PAIR = "Stock-DIRECTION"
@@ -1539,17 +1539,51 @@ def calculate_slot_signal(broker_dt, hour):
             pair_dirs["GBPUSD"] = gbpusd
         report = f"H=14: đảo H=4 ({h4_signal} -> {final_signal})"
         return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
-    # H=15 (H=15:45): đảo ngược H=15:00 hoặc logic gốc
-    if hour == 15:
-        h1500_signal = _lookup_h1500_signal_today(broker_dt)
-        if h1500_signal in ("BUY", "SELL"):
-            final_signal = reverse_signal(h1500_signal)
+    # H=16 (thay cho H=15:45): so sánh H=6/9 với H=12/14
+    if hour in (15, 16):
+        h6_is_p = is_priority_slot(broker_dt, 6)
+        h9_is_p = is_priority_slot(broker_dt, 9)
+        h9_sig = _lookup_signal_from_log(broker_dt, 9)
+        h6_sig = _lookup_h6_signal_today(broker_dt)
+        if h9_is_p and h9_sig in ("BUY", "SELL"):
+            h6_9_sig = h9_sig
+        elif h6_is_p and h6_sig in ("BUY", "SELL"):
+            h6_9_sig = h6_sig
         else:
-            result = analyze(broker_dt, hour)
-            final_result = _finalize_pattern_result(result, broker_dt, hour, reverse=True)
-            final_signal = final_result.get("signal")
-        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
-        return {"signal": final_signal, "pattern_signal": h1500_signal or final_signal, "report": f"H=15: đảo H=15:45 -> {final_signal}.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {"XAUUSD": final_signal}}
+            h6_9_sig = h9_sig if h9_sig in ("BUY", "SELL") else h6_sig
+
+        h12_is_p = is_priority_slot(broker_dt, 12)
+        h14_is_p = is_priority_slot(broker_dt, 14)
+        h14_sig = _lookup_signal_from_log(broker_dt, 14)
+        h12_sig = _lookup_signal_from_log(broker_dt, 12)
+        if h14_is_p and h14_sig in ("BUY", "SELL"):
+            h12_14_sig = h14_sig
+        elif h12_is_p and h12_sig in ("BUY", "SELL"):
+            h12_14_sig = h12_sig
+        else:
+            h12_14_sig = h14_sig if h14_sig in ("BUY", "SELL") else h12_sig
+
+        if h6_9_sig not in ("BUY", "SELL") or h12_14_sig not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": "H=16: thiếu H=6/9 hoặc H=12/14.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {}}
+
+        if h6_9_sig != h12_14_sig:
+            final_signal = h6_9_sig
+            relation = "ngược chiều -> cùng H=6/9"
+        else:
+            final_signal = reverse_signal(h6_9_sig)
+            relation = "cùng chiều -> ngược H=6/9"
+
+        final_signal = _apply_weekday_extra_inversion(16, final_signal, broker_dt)
+        report = f"H=16: H=6/9={h6_9_sig}, H=12/14={h12_14_sig} ({relation}) -> {final_signal}"
+        return {
+            "signal": final_signal,
+            "pattern_signal": h6_9_sig,
+            "report": report,
+            "m30_dir": None,
+            "h1_signal": None,
+            "skip_xau_m30": True,
+            "pair_dirs": {"XAUUSD": final_signal},
+        }
 
     result = analyze(broker_dt, hour)
     return _finalize_pattern_result(result, broker_dt, hour)
