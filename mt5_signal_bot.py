@@ -1421,10 +1421,10 @@ def get_entry_time_for_slot(broker_dt, hour):
         group_h12 = evaluate_4_m30_classification_before_hour(broker_dt, 12)
         return "14:49" if group_h12 == "BT" else "14:15"
     if h == 15:
-        # H=15:45: Xét theo nhãn Ưu tiên của H=12 và H=14
-        # Ưu tiên H=14 -> 16:49 Brk (Local 20:49), Ưu tiên H=12 -> 16:11 Brk (Local 20:11)
-        h14_is_priority = is_priority_slot(broker_dt, 14)
-        return "16:49" if h14_is_priority else "16:11"
+        # H=15:45: Xét theo nhãn Ưu tiên của H=6 và H=9
+        # Ưu tiên H=9 (khi H=6 là BT) -> 16:49 Brk (Local 20:49), Ưu tiên H=6 (khi H=6 là SW) -> 16:11 Brk (Local 20:11)
+        h9_is_priority = is_priority_slot(broker_dt, 9)
+        return "16:49" if h9_is_priority else "16:11"
 
     if h == 4:
         return "04:45"
