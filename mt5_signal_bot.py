@@ -77,7 +77,7 @@ def get_target_hours(broker_dt=None, weekday=None):
         if wd in (5, 6):
             return []
         if wd in (0, 1, 2, 3, 4):  # Mon (0) to Fri (4)
-            return [2, 4, 5, 6, 9, 12, 14, 1500, 15]
+            return [2, 4, 5, 6, 9, 12, 14, 15]
         return []
 
     return [2, 4, 5, 6, 9, 12, 14, 15]
@@ -374,12 +374,14 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
     if not entry_time:
         entry_time = get_entry_time_for_slot(broker_dt, H)
+    is_priority = is_priority_slot(broker_dt, H)
     record = {
         "date": broker_dt.date().isoformat(),
         "hour": H,
         "ts": datetime.now().timestamp(),
         "signal": sig,
         "entry_time": entry_time,
+        "is_priority": is_priority,
         "pair_dirs": pair_dirs,
         "entry_prices": {},
         "current_prices": current_prices,
@@ -1408,6 +1410,20 @@ def get_entry_time_for_slot(broker_dt, hour):
     if h == 1500:
         return "15:00"
     return f"{h:02d}:45"
+
+
+def is_priority_slot(broker_dt, hour):
+    """Return True if slot has priority badge according to 4-M30 selection rules."""
+    h = int(hour)
+    if h == 6:
+        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "SW"
+    if h == 9:
+        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "BT"
+    if h == 12:
+        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "SW"
+    if h == 14:
+        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "BT"
+    return False
 
 
 def calculate_slot_signal(broker_dt, hour):

@@ -72,8 +72,15 @@ export function SignalCard({
       <div className="relative border-b border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--terminal-accent)]">
-              {locale === "EN" ? "Entry Time" : "Giờ vào lệnh"}
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--terminal-accent)]">
+                {locale === "EN" ? "Entry Time" : "Giờ vào lệnh"}
+              </span>
+              {signal.is_priority && (
+                <span className="inline-flex items-center rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-bold text-amber-400 border border-amber-500/30">
+                  ⭐ {locale === "EN" ? "Priority" : "Ưu tiên"}
+                </span>
+              )}
             </div>
             <div className="mt-0.5 flex flex-wrap items-baseline gap-1.5">
               <span className="font-mono text-2xl font-black tabular-nums text-[var(--foreground)]">

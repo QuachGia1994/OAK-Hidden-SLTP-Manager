@@ -10,7 +10,7 @@ export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
  */
 export function getTargetHours(jsDayOfWeek: number): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
-  return [2, 4, 5, 6, 9, 12, 14, 1500, 15];
+  return [2, 4, 5, 6, 9, 12, 14, 15];
 }
 
 export function getTargetMinute(hour: number): number {

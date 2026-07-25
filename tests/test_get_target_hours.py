@@ -11,7 +11,7 @@ class TestGetTargetHours(unittest.TestCase):
         for wd in (0, 1, 2, 3, 4):
             with self.subTest(wd=wd):
                 hours = get_target_hours(weekday=wd)
-                self.assertEqual(hours, [2, 4, 5, 6, 9, 12, 14, 1500, 15])
+                self.assertEqual(hours, [2, 4, 5, 6, 9, 12, 14, 15])
                 self.assertEqual(hours[0], 2)
                 self.assertEqual(hours[-1], 15)
                 self.assertNotIn(3, hours)
@@ -27,7 +27,7 @@ class TestGetTargetHours(unittest.TestCase):
         self.assertIn(9, hours)
         self.assertIn(12, hours)
         self.assertIn(14, hours)
-        self.assertIn(1500, hours)
+        self.assertNotIn(1500, hours)
         self.assertIn(15, hours)
         self.assertNotIn(10, hours)
 
