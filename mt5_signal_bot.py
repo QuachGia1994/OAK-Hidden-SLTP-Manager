@@ -1379,9 +1379,33 @@ def evaluate_3_m30_classification_for_h2(broker_dt, symbol="XAUUSD"):
     return "SW"
 
 
+def is_priority_slot(broker_dt, hour):
+    """Return True if slot has priority badge according to 4-M30 selection rules."""
+    if broker_dt is None:
+        return False
+    h = int(hour)
+    wd = broker_dt.weekday()
+    if h == 6:
+        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "SW"
+    if h == 9:
+        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "BT"
+    if h == 12:
+        if wd == 0:  # Monday: H=14 is always Priority, not H=12
+            return False
+        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "SW"
+    if h == 14:
+        if wd == 0:  # Monday: H=14 is always Priority
+            return True
+        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "BT"
+    return False
+
+
 def get_entry_time_for_slot(broker_dt, hour):
     """Calculate entry_time (Broker HH:MM) based on 4-M30 candle classification rules."""
     h = int(hour)
+    if broker_dt is None:
+        return f"{h:02d}:45"
+    wd = broker_dt.weekday()
     if h == 2:
         group = evaluate_3_m30_classification_for_h2(broker_dt)
         return "03:49" if group == "SW" else "03:11"
@@ -1392,36 +1416,21 @@ def get_entry_time_for_slot(broker_dt, hour):
     if h == 12:
         return "12:11"
     if h == 14:
-        return "14:49"
+        if wd == 0:
+            return "14:49"
+        group_h12 = evaluate_4_m30_classification_before_hour(broker_dt, 12)
+        return "14:49" if group_h12 == "BT" else "14:15"
     if h == 15:
-        group_h16 = evaluate_4_m30_classification_before_hour(broker_dt, 16)
-        return "16:49" if group_h16 == "SW" else "16:11"
+        # H=15:45: Xét theo nhãn Ưu tiên của H=12 và H=14
+        # Ưu tiên H=14 -> 16:49 Brk (Local 20:49), Ưu tiên H=12 -> 16:11 Brk (Local 20:11)
+        h14_is_priority = is_priority_slot(broker_dt, 14)
+        return "16:49" if h14_is_priority else "16:11"
 
     if h == 4:
         return "04:45"
     if h == 5:
         return "05:45"
-    if h == 9:
-        return "09:15"
-    if h == 14:
-        return "14:15"
-    if h == 1500:
-        return "15:00"
     return f"{h:02d}:45"
-
-
-def is_priority_slot(broker_dt, hour):
-    """Return True if slot has priority badge according to 4-M30 selection rules."""
-    h = int(hour)
-    if h == 6:
-        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "SW"
-    if h == 9:
-        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "BT"
-    if h == 12:
-        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "SW"
-    if h == 14:
-        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "BT"
-    return False
 
 
 def calculate_slot_signal(broker_dt, hour):
