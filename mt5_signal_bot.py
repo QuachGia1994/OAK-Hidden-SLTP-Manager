@@ -82,7 +82,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return [2, 4, 5, 6, 9, 12, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 27
+SIGNAL_LOGIC_VERSION = 28
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1260,27 +1260,45 @@ def calculate_slot_signal(broker_dt, hour):
                 return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hôm qua.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
             final_signal = reverse_signal(h5_yesterday)
             return {"signal": final_signal, "pattern_signal": h5_yesterday, "report": f"H={hour}: đảo H=5 hôm qua ({h5_yesterday} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=6: XAUUSD đảo từ H=5 hôm nay
+    # H=6: XAUUSD đảo từ H=5 hôm nay, nếu cùng chiều H=2 thì đảo tiếp
     if hour == 6:
         h5_today = _lookup_h5_signal_today(broker_dt)
-        if h5_today not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        final_signal = reverse_signal(h5_today)
-        return {"signal": final_signal, "pattern_signal": h5_today, "report": f"H={hour}: đảo H=5 hôm nay ({h5_today} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=9: GBP group (GBPUSD=reverse H=2, GBPAUD=reverse H=5 today)
+        h2_signal = _lookup_h2_signal_today(broker_dt)
+        if h5_today not in ("BUY", "SELL") or h2_signal not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hoặc H=2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        initial = reverse_signal(h5_today)
+        if initial == h2_signal:  # cùng chiều H=2 → đảo tiếp
+            final_signal = reverse_signal(initial)
+            report = f"H=6: đảo H=5 ({h5_today} -> {initial}), cùng chiều H=2 ({h2_signal}) -> đảo tiếp ({final_signal})."
+        else:
+            final_signal = initial
+            report = f"H=6: đảo H=5 ({h5_today} -> {final_signal}), ngược chiều H=2 ({h2_signal}) -> giữ nguyên."
+        return {"signal": final_signal, "pattern_signal": h5_today, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+    # H=9: MIXED (XAUUSD đảo H=5 + double-reverse, GBPUSD đảo H=2, GBPAUD đảo H=5)
     if hour == 9:
         h5_today = _lookup_h5_signal_today(broker_dt)
         h2_signal = _lookup_h2_signal_today(broker_dt)
         if h5_today not in ("BUY", "SELL") or h2_signal not in ("BUY", "SELL"):
             return {"signal": "WAIT", "report": "H=9: thiếu H=5 hoặc H=2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        # XAUUSD: đảo H=5, nếu cùng chiều H=2 thì đảo tiếp
+        initial_xau = reverse_signal(h5_today)
+        if initial_xau == h2_signal:
+            final_xau = reverse_signal(initial_xau)
+            xau_report = f"XAUUSD: đảo H=5 ({h5_today} -> {initial_xau}), cùng H=2 -> đảo tiếp ({final_xau})"
+        else:
+            final_xau = initial_xau
+            xau_report = f"XAUUSD: đảo H=5 ({h5_today} -> {final_xau}), ngược H=2 -> giữ"
+        # GBP
         gbpusd = reverse_signal(h2_signal)
         gbpaud = reverse_signal(h5_today)
-        report = (f"H=9 [GBPUSD]: đảo H=2 ({h2_signal} -> {gbpusd})\n"
+        report = (f"H=9 [{xau_report}]\n"
+                  f"H=9 [GBPUSD]: đảo H=2 ({h2_signal} -> {gbpusd})\n"
                   f"H=9 [GBPAUD]: đảo H=5 hôm nay ({h5_today} -> {gbpaud})")
         return {
             "signal": "MIXED",
+            "xau_signal": final_xau,
             "gbp_signal": gbpusd,
-            "pair_dirs": {"GBPUSD": gbpusd, "GBPAUD": gbpaud},
+            "pair_dirs": {"XAUUSD": final_xau, "GBPUSD": gbpusd, "GBPAUD": gbpaud},
             "report": report,
             "m30_dir": None,
             "h1_signal": None,
@@ -1680,11 +1698,11 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
         return result
     if signal not in ("BUY", "SELL"):
         return result
-    # H=9: GBP group only (GBPUSD, GBPAUD), no XAUUSD
+    # H=9: MIXED (XAUUSD + GBPUSD + GBPAUD)
     if h == 9:
         if signal == "MIXED" and full_result:
             pair_dirs = full_result.get("pair_dirs", {})
-            for pair in ("GBPUSD", "GBPAUD"):
+            for pair in ("XAUUSD", "GBPUSD", "GBPAUD"):
                 if pair in pair_dirs:
                     result[pair] = pair_dirs[pair]
         else:

@@ -65,8 +65,8 @@ export function resolveGbpDirection(
 const HOUR_NOTES: Record<number, string> = {
   2: "XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua",
   5: "Chỉ Vàng (XAUUSD)",
-  6: "XAUUSD đảo từ H=5 hôm nay",
-  9: "GBPUSD đảo H=2, GBPAUD đảo H=5 hôm nay",
+  6: "XAUUSD đảo H=5, kiểm tra cùng chiều H=2",
+  9: "XAUUSD đảo H=5 + double-reverse, GBPUSD đảo H=2, GBPAUD đảo H=5",
   12: "XAUUSD đảo ngược H=4",
   14: "XAUUSD đảo H=4, GBPUSD đảo H=2, GBPAUD đảo H=4",
   1500: "XAUUSD theo M30 (13:00-14:30) (Thứ 2 / Thứ 5 / Thứ 6)",
