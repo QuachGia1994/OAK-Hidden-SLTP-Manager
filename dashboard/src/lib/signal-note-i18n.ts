@@ -22,7 +22,7 @@ const ENGLISH_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/Ưu tiên H=(\d+)/g, "Priority H=$1"],
   [/Đảo signal ra Vàng \(XAUUSD\)/g, "Reverse to gold (XAUUSD)"],
   [/Chỉ Vàng \(XAUUSD\)/g, "XAU only"],
-  [/H=(3|7): Đảo chiều từ H=2\./g, "H=$1: reverse the final H=2 direction."],
+  [/H=6: Đảo chiều từ H=2\./g, "H=6: reverse the final H=2 direction."],
   [/XAUUSD theo D-direction H=4/g, "XAUUSD follows H=4 Stock-direction"],
   [/XAUUSD đảo từ H=5 hôm qua/g, "XAUUSD reverses from H=5 yesterday"],
   [/XAUUSD đảo từ H=5 hôm nay/g, "XAUUSD reverses from H=5 today"],

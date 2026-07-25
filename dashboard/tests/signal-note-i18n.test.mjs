@@ -29,8 +29,8 @@ test("localizes every priority badge and its description in EN", () => {
       description: "XAUUSD reverses from H=5 yesterday",
     },
     {
-      note: "★ Ưu tiên đi H=7 · XAUUSD đảo từ H=5 hôm nay",
-      badge: "★ Priority H=7",
+      note: "★ Ưu tiên đi H=6 · XAUUSD đảo từ H=5 hôm nay",
+      badge: "★ Priority H=6",
       description: "XAUUSD reverses from H=5 today",
     },
     {

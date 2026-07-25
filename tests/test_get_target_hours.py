@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Weekday-aware target hours with disabled H=6/H=10/H=17 slots."""
+"""Weekday-aware target hours with disabled H=3 slot."""
 import unittest
 from datetime import datetime, timezone
 
@@ -12,26 +12,26 @@ class TestGetTargetHours(unittest.TestCase):
             with self.subTest(wd=wd):
                 hours = get_target_hours(weekday=wd)
                 if wd in (0, 3, 4):
-                    self.assertEqual(hours, [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 1500, 15])
+                    self.assertEqual(hours, [2, 4, 5, 6, 9, 11, 12, 13, 14, 1500, 15])
                 else:
-                    self.assertEqual(hours, [2, 3, 4, 5, 7, 9, 11, 12, 13, 14, 15])
+                    self.assertEqual(hours, [2, 4, 5, 6, 9, 11, 12, 13, 14, 15])
                 self.assertEqual(hours[0], 2)
                 self.assertEqual(hours[-1], 15)
-                self.assertNotIn(6, hours)
+                self.assertNotIn(3, hours)
                 self.assertNotIn(10, hours)
                 self.assertIn(11, hours)
 
     def test_thursday_includes_early_and_late(self):
         dt = datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc)
         hours = get_target_hours(dt)
-        self.assertIn(3, hours)
+        self.assertNotIn(3, hours)
         self.assertIn(4, hours)
+        self.assertIn(6, hours)
         self.assertIn(9, hours)
         self.assertIn(12, hours)
         self.assertIn(14, hours)
         self.assertIn(1500, hours)
         self.assertIn(15, hours)
-        self.assertNotIn(6, hours)
         self.assertNotIn(10, hours)
 
     def test_weekend_empty(self):

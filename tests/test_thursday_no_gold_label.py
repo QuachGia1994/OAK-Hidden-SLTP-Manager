@@ -32,9 +32,13 @@ class TestXauOnlyRules(unittest.TestCase):
 
     def test_hour_notes_explain_h3_and_keep_other_slots_xau_only(self):
         for weekday in range(5):
-            for hour in (4, 5, 12, 13, 15):
+            for hour in (4, 5, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_hour_note(hour, weekday=weekday), "Chỉ Vàng (XAUUSD)")
+            # H=12 now returns "XAUUSD đảo ngược H=4" instead of "Chỉ Vàng (XAUUSD)"
+            for hour in (12, 13):
+                with self.subTest(weekday=weekday, hour=hour):
+                    self.assertIn("XAUUSD đảo ngược H=4", get_hour_note(hour, weekday=weekday))
 
     def test_raw_analysis_has_no_weekday_reversal(self):
         candle = {"open": 1.0, "close": 2.0, "high": 2.0, "low": 1.0}

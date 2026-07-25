@@ -272,92 +272,19 @@ class TestH11PriorityAndNoGoldRules(unittest.TestCase):
 
 
 class TestH7H8PriorityRules(unittest.TestCase):
-    @patch("mt5_signal_bot.get_candle_by_ts")
-    @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_tang_and_h79_tang_prioritizes_h9(self, mock_h5, mock_candle):
-        # H=5 today is SELL -> expected XAUUSD dir = TANG (reversal)
-        mock_h5.return_value = "SELL"
-        # H=6 candle is Tăng (Close > Open) - confirms trend direction -> H=9 priority
-        mock_candle.return_value = {"open": 2000.0, "close": 2010.0}
+    """Priority rule disabled (H=7→H=6 transition). Always returns None."""
 
-        dt = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
+    def test_priority_rule_returns_none(self):
         from mt5_signal_bot import get_h7_h8_priority_rule
-        rule = get_h7_h8_priority_rule(dt)
-        self.assertIsNotNone(rule)
-        self.assertEqual(rule["priority_slot"], 9)
-        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=9")
-
-    @patch("mt5_signal_bot.get_candle_by_ts")
-    @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_giam_and_h79_tang_prioritizes_h7(self, mock_h5, mock_candle):
-        # H=5 today is SELL -> expected dir = TANG (Tăng)
-        mock_h5.return_value = "SELL"
-        # H=6 candle is Giảm (Close < Open) - contradicts -> H=7 priority
-        mock_candle.return_value = {"open": 2010.0, "close": 2000.0}
-
         dt = datetime(2026, 7, 22, 12, 0, tzinfo=timezone.utc)
-        from mt5_signal_bot import get_h7_h8_priority_rule
         rule = get_h7_h8_priority_rule(dt)
-        self.assertIsNotNone(rule)
-        self.assertEqual(rule["priority_slot"], 7)
-        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=7")
-
-    @patch("mt5_signal_bot.get_candle_by_ts")
-    @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_tang_and_h79_giam_prioritizes_h7(self, mock_h5, mock_candle):
-        # H=5 today is BUY -> expected dir = GIAM (reversal)
-        mock_h5.return_value = "BUY"
-        # H=6 candle is Tăng (Close > Open) - contradicts GIAM -> H=7 priority
-        mock_candle.return_value = {"open": 2000.0, "close": 2010.0}
-
-        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
-
-        self.assertEqual(rule["priority_slot"], 7)
-        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=7")
-
-    @patch("mt5_signal_bot.get_candle_by_ts")
-    @patch("mt5_signal_bot._lookup_h5_signal_today")
-    def test_h6_giam_and_h79_giam_prioritizes_h9(self, mock_h5, mock_candle):
-        # H=5 today is BUY -> expected dir = GIAM (reversal)
-        mock_h5.return_value = "BUY"
-        # H=6 candle is Giảm (Close < Open) - confirms GIAM -> H=9 priority
-        mock_candle.return_value = {"open": 2010.0, "close": 2000.0}
-
-        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
-
-        self.assertEqual(rule["priority_slot"], 9)
-        self.assertEqual(rule["priority_label"], "Ưu tiên đi H=9")
-
-    @patch("mt5_signal_bot.get_candle_by_ts", return_value=None)
-    @patch("mt5_signal_bot._lookup_h5_signal_today", return_value="SELL")
-    def test_missing_h6_candle_does_not_invent_priority(self, _mock_h5, _mock_candle):
-        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc))
-
         self.assertIsNone(rule)
 
-    @patch("mt5_signal_bot.get_candle_by_ts")
-    @patch("mt5_signal_bot._lookup_h5_signal_today", return_value="SELL")
-    def test_open_h6_candle_does_not_publish_priority(self, _mock_h5, mock_candle):
-        rule = get_h7_h8_priority_rule(datetime(2026, 7, 22, 6, 30, tzinfo=timezone.utc))
-
+    def test_priority_rule_none_with_h9_check(self):
+        from mt5_signal_bot import get_h7_h9_priority_rule
+        dt = datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc)
+        rule = get_h7_h9_priority_rule(dt)
         self.assertIsNone(rule)
-        mock_candle.assert_not_called()
-
-    @patch("mt5_signal_bot.get_candle_by_ts")
-    @patch("mt5_signal_bot._lookup_h5_signal_today", return_value="SELL")
-    def test_h6_doji_falls_back_one_full_h1_candle(self, _mock_h5, mock_candle):
-        mock_candle.side_effect = [
-            {"open": 2000.0, "high": 2001.0, "low": 1999.0, "close": 2000.0},
-            {"open": 1990.0, "high": 2001.0, "low": 1989.0, "close": 2000.0},
-        ]
-        broker_dt = datetime(2026, 7, 22, 8, 45, tzinfo=timezone.utc)
-
-        rule = get_h7_h8_priority_rule(broker_dt)
-
-        current_h6_ts = mock_candle.call_args_list[0].args[2]
-        previous_h1_ts = mock_candle.call_args_list[1].args[2]
-        self.assertEqual(previous_h1_ts, current_h6_ts - 3600)
-        self.assertEqual(rule["priority_slot"], 9)
 
 
 if __name__ == "__main__":

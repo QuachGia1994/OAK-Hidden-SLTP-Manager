@@ -84,8 +84,8 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             ],
         )
 
-    def test_h7_active_returns_pair_dirs(self):
-        """H=7 is now active — pair_dirs should contain XAUUSD."""
+    def test_h6_active_returns_pair_dirs(self):
+        """H=6 is now active — pair_dirs should contain XAUUSD."""
         for broker_dt in (
             datetime(2026, 7, 7, tzinfo=timezone.utc),
             datetime(2026, 7, 9, tzinfo=timezone.utc),
@@ -93,7 +93,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             with self.subTest(weekday=broker_dt.weekday()):
                     self.assertIn(
                         "XAUUSD",
-                        get_pair_direction(7, "BUY", broker_dt)
+                        get_pair_direction(6, "BUY", broker_dt)
                     )
 
     def test_news_parse_marks_system_display_timezone(self):

@@ -30,7 +30,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
 
     def test_xauusd_slots_have_xauusd_only(self):
         for weekday in range(5):
-            for hour in (2, 3, 4, 5, 7, 8, 12, 13, 15):
+            for hour in (2, 4, 5, 6, 8, 12, 13, 15):
                 for signal in ("BUY", "SELL"):
                     with self.subTest(weekday=weekday, hour=hour, signal=signal):
                         dt = _make_dt(2026, 7, 6, weekday_offset=weekday)
