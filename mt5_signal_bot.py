@@ -49,7 +49,7 @@ SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
 # Mon–Fri active rhythm slots. H=6/H=10/H=17 are intentionally inactive.
 # Slot outputs may contain XAUUSD, GBPAUD, or the configured GBP group.
-DISABLED_HOURS = {3}
+DISABLED_HOURS = {3, 11}
 
 def get_target_minute(hour):
     """Return the configured target minute for a specific hour."""
@@ -60,7 +60,7 @@ def get_target_minute(hour):
         return 0
     return 45
 
-TARGET_HOURS = [2, 4, 5, 6, 9, 11, 12, 13, 14, 15]
+TARGET_HOURS = [2, 4, 5, 6, 9, 12, 13, 14, 15]
 
 def get_target_hours(broker_dt=None, weekday=None):
     """Return weekday-aware active rhythm slots."""
@@ -77,12 +77,12 @@ def get_target_hours(broker_dt=None, weekday=None):
         if wd in (5, 6):
             return []
         if wd in (0, 3, 4):  # Mon (0), Thu (3), Fri (4)
-            return [2, 4, 5, 6, 9, 11, 12, 13, 14, 1500, 15]
-        return [2, 4, 5, 6, 9, 11, 12, 13, 14, 15]
+            return [2, 4, 5, 6, 9, 12, 13, 14, 1500, 15]
+        return [2, 4, 5, 6, 9, 12, 13, 14, 15]
 
-    return [2, 4, 5, 6, 9, 11, 12, 13, 14, 15]
+    return [2, 4, 5, 6, 9, 12, 13, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 24
+SIGNAL_LOGIC_VERSION = 25
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1485,19 +1485,8 @@ def get_h11_priority_and_nogold_rules(broker_dt):
 
     priority_label = f"Ưu tiên đi H={priority_slot}"
 
-    # ── No-gold label (from TODAY's H=11) ──
+    # ── No-gold label: DISABLED (H=11 disabled) ──
     has_nogold = False
-
-    if weekday == 0:    # Monday: BT → no-gold
-        has_nogold = (today_group == "BT")
-    elif weekday == 1:  # Tuesday: SW → no-gold
-        has_nogold = (today_group == "SW")
-    elif weekday == 2:  # Wednesday: SW → no-gold
-        has_nogold = (today_group == "SW")
-    elif weekday == 3:  # Thursday: SW → no-gold; special day BT → also no-gold
-        has_nogold = (today_group == "SW") or (is_special and today_group == "BT")
-    elif weekday == 4:  # Friday: BT → no-gold
-        has_nogold = (today_group == "BT")
 
     return {
         "prev_h11_group": prev_group,
@@ -1519,32 +1508,8 @@ get_h7_h8_priority_rule = get_h7_h9_priority_rule
 
 
 def is_xau_no_trade_label_slot(H, broker_dt=None, weekday=None):
-    """Return True if slot H has a no-gold label attached based on today's H=11 SW/BT logic,
-    OR if H=12,13 has its own 4-candle lookback evaluating to SW."""
-    try:
-        h = int(H)
-    except (TypeError, ValueError):
-        return False
-
-    if h not in (12, 13, 15):
-        return False
-
-    if broker_dt is None:
-        return False
-
-    # 1. Inherit from H=11
-    rules = get_h11_priority_and_nogold_rules(broker_dt)
-    has_label = rules["has_nogold_label"]
-
-    # 2. Evaluate independent 4-candle logic for H=12 and H=13 if the time has come
-    if h in (12, 13):
-        actual_broker_time = get_broker_time()
-        if broker_dt.date() < actual_broker_time.date() or actual_broker_time.hour >= h:
-            group, _, _ = evaluate_classification_for_slot(broker_dt, h)
-            if group == "SW":
-                has_label = True
-
-    return has_label
+    """No-gold label disabled (H=11 disabled). Always returns False."""
+    return False
 
 
 # Back-compat alias

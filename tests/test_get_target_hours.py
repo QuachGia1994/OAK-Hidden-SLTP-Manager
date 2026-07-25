@@ -12,14 +12,14 @@ class TestGetTargetHours(unittest.TestCase):
             with self.subTest(wd=wd):
                 hours = get_target_hours(weekday=wd)
                 if wd in (0, 3, 4):
-                    self.assertEqual(hours, [2, 4, 5, 6, 9, 11, 12, 13, 14, 1500, 15])
+                    self.assertEqual(hours, [2, 4, 5, 6, 9, 12, 13, 14, 1500, 15])
                 else:
-                    self.assertEqual(hours, [2, 4, 5, 6, 9, 11, 12, 13, 14, 15])
+                    self.assertEqual(hours, [2, 4, 5, 6, 9, 12, 13, 14, 15])
                 self.assertEqual(hours[0], 2)
                 self.assertEqual(hours[-1], 15)
                 self.assertNotIn(3, hours)
                 self.assertNotIn(10, hours)
-                self.assertIn(11, hours)
+                self.assertNotIn(11, hours)
 
     def test_thursday_includes_early_and_late(self):
         dt = datetime(2026, 7, 9, 12, 0, tzinfo=timezone.utc)

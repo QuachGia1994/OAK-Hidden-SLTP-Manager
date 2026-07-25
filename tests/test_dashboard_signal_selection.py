@@ -52,7 +52,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             "h11_candles": candles,
         }
 
-        self.assertEqual(select_signals_for_dashboard([h11]), [h11])
+        self.assertEqual(select_signals_for_dashboard([h11]), [])
 
     def test_drops_h11_without_complete_four_candle_payload(self):
         incomplete = {
