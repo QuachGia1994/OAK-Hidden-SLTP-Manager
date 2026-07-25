@@ -69,19 +69,30 @@ export function SignalCard({
 
   return (
     <article className="terminal-panel group signal-rail overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
-      <div className="relative px-4 py-3.5 border-b border-[var(--panel-border)] bg-[var(--surface)]">
+      <div className="relative border-b border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-baseline gap-2">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--terminal-accent)]">
+              {locale === "EN" ? "Entry Time" : "Giờ vào lệnh"}
+            </div>
+            <div className="mt-0.5 flex flex-wrap items-baseline gap-1.5">
               <span className="font-mono text-2xl font-black tabular-nums text-[var(--foreground)]">
                 <BrokerLocalTime date={signal.date} hour={signal.hour} entryTime={signal.entry_time} />
               </span>
-              <span className="font-mono text-xs text-[var(--muted)]">
+              <span className="font-mono text-xs font-semibold text-[var(--muted)]">
                 ({signal.entry_time ?? `${formatHour(signal.hour)}:${String(getTargetMinute(signal.hour)).padStart(2, '0')}`} Brk)
               </span>
             </div>
           </div>
-          <span className="font-mono text-xs text-[var(--muted)]">{signal.date}</span>
+          <div className="text-right">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              {locale === "EN" ? "Slot" : "Mốc"}
+            </div>
+            <div className="font-mono text-xs font-bold text-[var(--foreground)]">
+              H={signal.hour === 1500 ? "15:00" : signal.hour}
+            </div>
+            <div className="font-mono text-[10px] text-[var(--muted)]">{signal.date}</div>
+          </div>
         </div>
       </div>
 
