@@ -76,9 +76,9 @@ def get_target_hours(broker_dt=None, weekday=None):
     if wd is not None:
         if wd in (5, 6):
             return []
-        if wd in (0, 3, 4):  # Mon (0), Thu (3), Fri (4)
+        if wd in (0, 1, 2, 3, 4):  # Mon (0) to Fri (4)
             return [2, 4, 5, 6, 9, 12, 14, 1500, 15]
-        return [2, 4, 5, 6, 9, 12, 14, 15]
+        return []
 
     return [2, 4, 5, 6, 9, 12, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
