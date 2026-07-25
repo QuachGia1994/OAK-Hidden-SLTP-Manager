@@ -15,7 +15,6 @@ class TestRhythmLabels(unittest.TestCase):
             8: "Nhịp 2 · AUD",
             9: "Nhịp 3 · GBP",
             12: "Nhịp 4 · EUR",
-            13: "Nhịp 4 · EUR",
             14: "Nhịp 5 · USD",
             15: "Nhịp 5 · USD",
         }

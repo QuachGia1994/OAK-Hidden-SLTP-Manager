@@ -44,7 +44,7 @@ export function SignalCard({
     : (signal.hour === 9)
       ? (isWednesday ? ["XAUUSD"] : ["XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"])
       : (signal.hour === 14)
-        ? (isWednesday ? [] : (weekday === 4 ? ["GBPAUD", "GBPJPY"] : ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]))
+        ? (isWednesday ? ["XAUUSD"] : (weekday === 4 ? ["XAUUSD", "GBPAUD", "GBPJPY"] : ["XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]))
         : (signal.hour === 2 || signal.hour === 3)
           ? (isWednesday ? ["XAUUSD"] : ["XAUUSD", "GBPAUD"])
           : ["XAUUSD"];

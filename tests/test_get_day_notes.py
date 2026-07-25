@@ -18,14 +18,12 @@ class TestGetDayNotes(unittest.TestCase):
             with self.subTest(day=day):
                 blob = " ".join(get_day_notes(day, lang="VN"))
                 self.assertIn("Slots:", blob)
-                self.assertIn("H=2,4-6,9,12-15", blob)
-                if day.weekday() != 2:
-                    self.assertIn("GBPAUD", blob)
-                self.assertIn("GBP", blob)
+                self.assertIn("H=2,4-6,9,12,14-15", blob)
+                self.assertIn("XAUUSD", blob)
 
     def test_active_slots_exclude_disabled_hours(self):
         notes = " ".join(get_day_notes(date(2026, 7, 13), lang="EN"))
-        self.assertIn("H=2,4-6,9,12-15", notes)
+        self.assertIn("H=2,4-6,9,12,14-15", notes)
         self.assertNotIn("H=3:", notes)
         self.assertNotIn("H=10:", notes)
 

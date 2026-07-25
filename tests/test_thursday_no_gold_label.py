@@ -35,8 +35,8 @@ class TestXauOnlyRules(unittest.TestCase):
             for hour in (4, 5, 15):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertEqual(get_hour_note(hour, weekday=weekday), "Chỉ Vàng (XAUUSD)")
-            # H=12 now returns "XAUUSD đảo ngược H=4" instead of "Chỉ Vàng (XAUUSD)"
-            for hour in (12, 13):
+            # H=12,14 now returns "XAUUSD đảo ngược H=4" instead of "Chỉ Vàng (XAUUSD)"
+            for hour in (12, 14):
                 with self.subTest(weekday=weekday, hour=hour):
                     self.assertIn("XAUUSD đảo ngược H=4", get_hour_note(hour, weekday=weekday))
 

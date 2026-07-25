@@ -49,7 +49,7 @@ SYMBOL = "GBPUSD"
 # Default full band; use get_target_hours(broker_dt) for weekday-aware slots.
 # Mon–Fri active rhythm slots. H=6/H=10/H=17 are intentionally inactive.
 # Slot outputs may contain XAUUSD, GBPAUD, or the configured GBP group.
-DISABLED_HOURS = {3, 11}
+DISABLED_HOURS = {3, 11, 13}
 
 def get_target_minute(hour):
     """Return the configured target minute for a specific hour."""
@@ -60,7 +60,7 @@ def get_target_minute(hour):
         return 0
     return 45
 
-TARGET_HOURS = [2, 4, 5, 6, 9, 12, 13, 14, 15]
+TARGET_HOURS = [2, 4, 5, 6, 9, 12, 14, 15]
 
 def get_target_hours(broker_dt=None, weekday=None):
     """Return weekday-aware active rhythm slots."""
@@ -77,12 +77,12 @@ def get_target_hours(broker_dt=None, weekday=None):
         if wd in (5, 6):
             return []
         if wd in (0, 3, 4):  # Mon (0), Thu (3), Fri (4)
-            return [2, 4, 5, 6, 9, 12, 13, 14, 1500, 15]
-        return [2, 4, 5, 6, 9, 12, 13, 14, 15]
+            return [2, 4, 5, 6, 9, 12, 14, 1500, 15]
+        return [2, 4, 5, 6, 9, 12, 14, 15]
 
-    return [2, 4, 5, 6, 9, 12, 13, 14, 15]
+    return [2, 4, 5, 6, 9, 12, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 25
+SIGNAL_LOGIC_VERSION = 26
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -103,7 +103,7 @@ def get_rhythm_label(hour):
         return "Nhịp 2 · AUD"
     if h == 9:
         return "Nhịp 3 · GBP"
-    if h in (11, 12, 13):
+    if h in (11, 12):
         return "Nhịp 4 · EUR"
     if h in (14, 15):
         return "Nhịp 5 · USD"
@@ -1309,14 +1309,13 @@ def calculate_slot_signal(broker_dt, hour):
             "pair_dirs": {},
             "h11_candles": candles,
         }
-    # H=14: GBP group cùng chiều H=5 hôm nay (Thứ 6 đảo), không XAUUSD
+    # H=14: XAUUSD đảo ngược H=4
     if hour == 14:
-        h5_today = _lookup_h5_signal_today(broker_dt)
-        if h5_today not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": "H=14: thiếu H=5 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        wd = broker_dt.weekday()
-        final_signal = reverse_signal(h5_today) if wd == 4 else h5_today
-        return {"signal": final_signal, "pattern_signal": h5_today, "report": f"H=14: {'đảo' if wd == 4 else 'cùng'} H=5 hôm nay ({h5_today} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        h4_signal = _lookup_h4_signal_today(broker_dt)
+        if h4_signal not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": "H=14: thiếu H=4 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        final_signal = reverse_signal(h4_signal)
+        return {"signal": final_signal, "pattern_signal": h4_signal, "report": f"H=14: đảo H=4 ({h4_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=12,13: XAUUSD đảo ngược H=4 (Thứ 5 đặc biệt: cùng chiều H=4)
     if hour in (12, 13):
         h4_signal = _lookup_h4_signal_today(broker_dt)
@@ -1555,20 +1554,17 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         6: "XAUUSD đảo từ H=5 hôm nay",
         9: "XAUUSD đảo từ H=5 hôm nay; GBP group đảo từ H=5 hôm qua",
         12: "XAUUSD đảo ngược H=4",
-        13: "XAUUSD đảo ngược H=4",
-        14: "GBP group cùng chiều H=5 hôm nay",
+        14: "XAUUSD đảo ngược H=4",
     }
     if broker_dt is not None:
         if broker_dt.weekday() == 2:  # Wednesday (Thứ 4)
             notes[2] = "XAUUSD đảo từ H=5 hôm qua"
             notes[9] = "XAUUSD đảo từ H=5 hôm nay"
-            notes[14] = "Tắt nhóm GBP (Thứ 4)"
         elif h == 2 and broker_dt.weekday() == 3:
             notes[2] = "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2"
         elif broker_dt.weekday() == 4:
             notes[2] = "XAUUSD đảo từ H=5 hôm qua; GBPAUD ngược chiều H=5 hôm qua"
             notes[9] = "XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6)"
-            notes[14] = "GBP group đảo từ H=5 hôm nay (Thứ 6)"
     base_note = notes.get(h, "Chỉ Vàng (XAUUSD)")
 
     if rules is not None:
@@ -1681,17 +1677,23 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
         return result
     if signal not in ("BUY", "SELL"):
         return result
-    # H=9,14: GBP group only, no XAUUSD
-    if h in (9, 14):
+    # H=9: GBP group only, no XAUUSD
+    if h == 9:
         pairs_to_use = GBP_PAIRS
-        if h == 14 and broker_dt is not None and broker_dt.weekday() in (2, 3):
-            pairs_to_use = ["GBPAUD", "GBPJPY"]
         for pair in pairs_to_use:
             result[pair] = signal
         return result
     # All active hours: XAUUSD
     result["XAUUSD"] = signal
     apply_d_direction_marker(result, H, broker_dt)
+    # H=14: add GBP group alongside XAUUSD
+    if h == 14 and broker_dt is not None:
+        if broker_dt.weekday() in (2, 3):
+            gbp_pairs = ["GBPAUD", "GBPJPY"]
+        else:
+            gbp_pairs = GBP_PAIRS
+        for pair in gbp_pairs:
+            result[pair] = signal
     # H=2: add GBPAUD
     if h == 2 and broker_dt is not None:
         if broker_dt.weekday() == 3:  # Thursday
@@ -1810,15 +1812,17 @@ def is_slot_ready(broker_dt, hour):
     """Check if slot hour can be calculated based on time or dependency availability.
 
     - H=2, 9: ready as soon as H=5 yesterday exists.
-    - H=6, 8, 14: ready as soon as H=5 today exists.
-    - H=11: ready as soon as H=10 candle closes (broker hour >= 11).
-    - H=4, 5, 12, 13, 15: ready once hour < broker_dt.hour or (hour == broker_dt.hour and broker_dt.minute >= 45).
+    - H=6, 8: ready as soon as H=5 today exists.
+    - H=14: ready as soon as H=4 today exists.
+    - H=4, 5, 12, 15: ready once hour < broker_dt.hour or (hour == broker_dt.hour and broker_dt.minute >= 45).
     """
     h = int(hour)
     if h in (2, 9):
         return _lookup_h5_signal_yesterday(broker_dt) in ("BUY", "SELL")
-    if h in (6, 8, 14):
+    if h in (6, 8):
         return _lookup_h5_signal_today(broker_dt) in ("BUY", "SELL")
+    if h == 14:
+        return _lookup_h4_signal_today(broker_dt) in ("BUY", "SELL")
     if h == 1500:
         return broker_dt.hour >= 15
     if h in (11, 12, 13, 15):

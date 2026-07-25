@@ -66,7 +66,7 @@ export function localizeHourNote(
   const rawNote = note?.trim() ?? "";
   const translatedNote = locale === "EN" ? translateToEnglish(rawNote) : rawNote;
   const hasPriorityBadge = rawNote.includes("★");
-  const hasNoGoldBadge = rawNote.includes("no-gold");
+  const hasNoGoldBadge = false; // no-gold label disabled
   const visibleNote = translatedNote.replace(NO_GOLD_SUFFIX, "").trim();
   const noteParts = visibleNote.split("·");
 

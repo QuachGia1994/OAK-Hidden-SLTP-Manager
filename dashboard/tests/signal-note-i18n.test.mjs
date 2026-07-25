@@ -88,5 +88,5 @@ test("keeps VN notes unchanged and separates no-gold metadata", () => {
   assert.equal(unchanged.badgeText, "★ Ưu tiên đi H=8");
   assert.equal(unchanged.descriptionText, "XAUUSD đảo từ H=5 hôm nay");
   assert.equal(localized.descriptionText, "XAU only");
-  assert.equal(localized.hasNoGoldBadge, true);
+  assert.equal(localized.hasNoGoldBadge, false);
 });
