@@ -1433,6 +1433,25 @@ def get_entry_time_for_slot(broker_dt, hour):
     return f"{h:02d}:45"
 
 
+def _apply_weekday_extra_inversion(hour, signal, broker_dt):
+    """Apply extra XAUUSD signal inversion according to weekday rules:
+    - Monday (wd=0): H=16 (slot 15)
+    - Tuesday (wd=1): H=6, 9, 12, 14
+    - Wednesday (wd=2): H=6, 9, 12, 14, 16 (slot 15)
+    """
+    if broker_dt is None or signal not in ("BUY", "SELL"):
+        return signal
+    wd = broker_dt.weekday()
+    h = int(hour)
+    if wd == 0 and h == 15:
+        return reverse_signal(signal) or signal
+    if wd == 1 and h in (6, 9, 12, 14):
+        return reverse_signal(signal) or signal
+    if wd == 2 and h in (6, 9, 12, 14, 15):
+        return reverse_signal(signal) or signal
+    return signal
+
+
 def calculate_slot_signal(broker_dt, hour):
     """Apply the canonical H-slot matrix for live and rebuilt signals."""
     hour = int(hour)
@@ -1444,132 +1463,56 @@ def calculate_slot_signal(broker_dt, hour):
             "h1_signal": None,
             "skip_xau_m30": True,
         }
-    # H=15:00: So sánh H=6/9 với H=12/14 để xác định H=15:45 và H=15
-    if hour == 1500:
-        # Lấy signal từ H=6 hoặc H=9 (đọc từ signals log)
-        h6_signal = _lookup_h6_signal_today(broker_dt)
-        h9_signal = _lookup_signal_from_log(broker_dt, 9)
-        h6_9_signal = h9_signal if h9_signal in ("BUY", "SELL") else h6_signal
-
-        # Lấy signal từ H=12 hoặc H=14 (đọc từ signals log)
-        h12_signal = _lookup_signal_from_log(broker_dt, 12)
-        h14_signal = _lookup_signal_from_log(broker_dt, 14)
-        h12_14_signal = h14_signal if h14_signal in ("BUY", "SELL") else h12_signal
-
-        if h6_9_signal not in ("BUY", "SELL") or h12_14_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": "H=15:00: thiếu H=6/9 hoặc H=12/14.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {}}
-
-        # Logic mới
-        if h6_9_signal == h12_14_signal:  # cùng chiều
-            h15_45_signal = reverse_signal(h6_9_signal)
-            h15_signal = reverse_signal(h15_45_signal)  # = h6_9_signal
-            report = f"H=15:00: H=6/9={h6_9_signal}, H=12/14={h12_14_signal} (cùng) -> H=15:45={h15_45_signal}, H=15={h15_signal}"
-        else:  # ngược chiều
-            h15_45_signal = h6_9_signal
-            h15_signal = reverse_signal(h15_45_signal)
-            report = f"H=15:00: H=6/9={h6_9_signal}, H=12/14={h12_14_signal} (ngược) -> H=15:45={h15_45_signal}, H=15={h15_signal}"
-
-        return {
-            "signal": h15_signal,
-            "pattern_signal": h6_9_signal,
-            "report": report,
-            "m30_dir": None,
-            "h1_signal": None,
-            "skip_xau_m30": True,
-            "pair_dirs": {"XAUUSD": h15_signal},
-            "_h15_signal": h15_signal,  # Lưu H=15 signal để dùng sau
-        }
     # H=2: XAUUSD đảo từ H=5 hôm qua (Nếu Thứ 5 thì dùng lại y chang Thứ 2)
     if hour == 2:
         if broker_dt.weekday() == 3:  # Thứ 5
             historical_signal = _lookup_historical_t2_signal(broker_dt, hour)
             if historical_signal not in ("BUY", "SELL"):
                 return {"signal": "WAIT", "report": f"H={hour}: thiếu lịch sử Thứ 2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-            return {"signal": historical_signal, "pattern_signal": historical_signal, "report": f"H={hour}: dùng lịch sử Thứ 2 ({historical_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+            final_signal = historical_signal
         else:
             h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
             if h5_yesterday not in ("BUY", "SELL"):
                 return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hôm qua.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
             final_signal = reverse_signal(h5_yesterday)
-            return {"signal": final_signal, "pattern_signal": h5_yesterday, "report": f"H={hour}: đảo H=5 hôm qua ({h5_yesterday} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=6: XAUUSD đảo từ H=5 hôm nay, nếu cùng chiều H=2 thì đảo tiếp
+        gbp_aud = reverse_signal(final_signal) or final_signal
+        return {
+            "signal": final_signal,
+            "pattern_signal": final_signal,
+            "report": f"H={hour}: XAUUSD={final_signal}, GBPAUD={gbp_aud}.",
+            "m30_dir": None,
+            "h1_signal": None,
+            "skip_xau_m30": True,
+            "pair_dirs": {"XAUUSD": final_signal, "GBPAUD": gbp_aud},
+        }
+    # H=6: đảo ngược H=2
     if hour == 6:
-        h5_today = _lookup_h5_signal_today(broker_dt)
         h2_signal = _lookup_h2_signal_today(broker_dt)
-        if h5_today not in ("BUY", "SELL") or h2_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hoặc H=2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        initial = reverse_signal(h5_today)
-        if initial == h2_signal:  # cùng chiều H=2 → đảo tiếp
-            final_signal = reverse_signal(initial)
-            report = f"H=6: đảo H=5 ({h5_today} -> {initial}), cùng chiều H=2 ({h2_signal}) -> đảo tiếp ({final_signal})."
-        else:
-            final_signal = initial
-            report = f"H=6: đảo H=5 ({h5_today} -> {final_signal}), ngược chiều H=2 ({h2_signal}) -> giữ nguyên."
-        return {"signal": final_signal, "pattern_signal": h5_today, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=9: MIXED (XAUUSD đảo H=5 + double-reverse, GBPUSD đảo H=2, GBPAUD đảo H=5)
+        if h2_signal not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": f"H={hour}: thiếu H=2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        final_signal = reverse_signal(h2_signal)
+        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
+        return {"signal": final_signal, "pattern_signal": h2_signal, "report": f"H=6: đảo H=2 ({h2_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+    # H=9: đảo ngược H=2
     if hour == 9:
-        h5_today = _lookup_h5_signal_today(broker_dt)
         h2_signal = _lookup_h2_signal_today(broker_dt)
-        if h5_today not in ("BUY", "SELL") or h2_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": "H=9: thiếu H=5 hoặc H=2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        # XAUUSD: đảo H=5, nếu cùng chiều H=2 thì đảo tiếp
-        initial_xau = reverse_signal(h5_today)
-        if initial_xau == h2_signal:
-            final_xau = reverse_signal(initial_xau)
-            xau_report = f"XAUUSD: đảo H=5 ({h5_today} -> {initial_xau}), cùng H=2 -> đảo tiếp ({final_xau})"
-        else:
-            final_xau = initial_xau
-            xau_report = f"XAUUSD: đảo H=5 ({h5_today} -> {final_xau}), ngược H=2 -> giữ"
-        # GBP
+        if h2_signal not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": "H=9: thiếu H=2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        final_xau = reverse_signal(h2_signal)
+        final_xau = _apply_weekday_extra_inversion(hour, final_xau, broker_dt)
         gbpusd = reverse_signal(h2_signal)
-        gbpaud = reverse_signal(h5_today)
-        report = (f"H=9 [{xau_report}]\n"
-                  f"H=9 [GBPUSD]: đảo H=2 ({h2_signal} -> {gbpusd})\n"
-                  f"H=9 [GBPAUD]: đảo H=5 hôm nay ({h5_today} -> {gbpaud})")
+        gbpaud = reverse_signal(h2_signal)
         return {
             "signal": final_xau,
             "xau_signal": final_xau,
             "gbp_signal": gbpusd,
             "pair_dirs": {"XAUUSD": final_xau, "GBPUSD": gbpusd, "GBPAUD": gbpaud},
-            "report": report,
-            "m30_dir": None,
-            "h1_signal": None,
-            "skip_xau_m30": True
-        }
-        
-
-    # H=11: Phân nhóm H1 XAUUSD (SW/BT) liên quan H=2,3 ngày mai
-    if hour == 11:
-        res_h11 = evaluate_h11_classification(broker_dt)
-        group = res_h11[0] if isinstance(res_h11, (tuple, list)) else "BT"
-        detail = res_h11[1] if isinstance(res_h11, (tuple, list)) and len(res_h11) > 1 else ""
-        candles = res_h11[2] if isinstance(res_h11, (tuple, list)) and len(res_h11) > 2 else []
-        return {
-            "signal": group,
-            "pattern_signal": group,
-            "report": f"H=11: Nhóm {group} ({detail})",
+            "report": f"H=9: đảo H=2 ({h2_signal} -> {final_xau})",
             "m30_dir": None,
             "h1_signal": None,
             "skip_xau_m30": True,
-            "pair_dirs": {},
-            "h11_candles": candles,
         }
-    # H=14: XAUUSD đảo ngược H=4, GBPUSD đảo H=2, GBPAUD đảo H=4
-    if hour == 14:
-        h4_signal = _lookup_h4_signal_today(broker_dt)
-        h2_signal = _lookup_h2_signal_today(broker_dt)
-        if h4_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": "H=14: thiếu H=4 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        final_signal = reverse_signal(h4_signal)
-        gbpusd = reverse_signal(h2_signal) if h2_signal in ("BUY", "SELL") else "WAIT"
-        pair_dirs = {"XAUUSD": final_signal, "GBPAUD": final_signal}
-        if gbpusd != "WAIT":
-            pair_dirs["GBPUSD"] = gbpusd
-        report = f"H=14: đảo H=4 ({h4_signal} -> {final_signal})"
-        if gbpusd != "WAIT":
-            report += f", GBPUSD đảo H=2 ({h2_signal} -> {gbpusd})"
-        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
-    # H=12,13: XAUUSD đảo ngược H=4 (Thứ 5 đặc biệt: cùng chiều H=4)
+    # H=12: XAUUSD đảo ngược H=4
     if hour in (12, 13):
         h4_signal = _lookup_h4_signal_today(broker_dt)
         if h4_signal not in ("BUY", "SELL"):
@@ -1578,23 +1521,35 @@ def calculate_slot_signal(broker_dt, hour):
         is_special = is_special_day(broker_dt)
         if wd == 3 and is_special:  # Thứ 5 đặc biệt: cùng chiều H=4
             final_signal = h4_signal
-            report_suffix = f"[Thứ 5 đặc biệt] cùng chiều H=4 ({h4_signal})"
         else:  # Mọi ngày khác: đảo ngược H=4
             final_signal = reverse_signal(h4_signal)
-            report_suffix = f"đảo H=4 ({h4_signal} -> {final_signal})"
-        return {"signal": final_signal, "pattern_signal": h4_signal, "report": f"H={hour}: {report_suffix}.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=15: đảo ngược H=15:45
+        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
+        return {"signal": final_signal, "pattern_signal": h4_signal, "report": f"H={hour}: đảo H=4 ({h4_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+    # H=14: XAUUSD đảo ngược H=4, GBPUSD đảo H=2, GBPAUD đảo H=4
+    if hour == 14:
+        h4_signal = _lookup_h4_signal_today(broker_dt)
+        h2_signal = _lookup_h2_signal_today(broker_dt)
+        if h4_signal not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": "H=14: thiếu H=4 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        final_signal = reverse_signal(h4_signal)
+        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
+        gbpusd = reverse_signal(h2_signal) if h2_signal in ("BUY", "SELL") else "WAIT"
+        pair_dirs = {"XAUUSD": final_signal, "GBPAUD": final_signal}
+        if gbpusd != "WAIT":
+            pair_dirs["GBPUSD"] = gbpusd
+        report = f"H=14: đảo H=4 ({h4_signal} -> {final_signal})"
+        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
+    # H=15 (H=15:45): đảo ngược H=15:00 hoặc logic gốc
     if hour == 15:
         h1500_signal = _lookup_h1500_signal_today(broker_dt)
         if h1500_signal in ("BUY", "SELL"):
             final_signal = reverse_signal(h1500_signal)
-            return {"signal": final_signal, "pattern_signal": h1500_signal, "report": f"H=15: đảo H=15:45 ({h1500_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        # Fallback: dùng logic cũ nếu chưa có H=15:45
-        result = analyze(broker_dt, hour)
-        final_result = _finalize_pattern_result(result, broker_dt, hour, reverse=True)
-        if final_result.get("signal") in ("BUY", "SELL"):
-            final_result["report"] += f"\n  -> Đảo ngược XAUUSD: {final_result['signal']}"
-        return final_result
+        else:
+            result = analyze(broker_dt, hour)
+            final_result = _finalize_pattern_result(result, broker_dt, hour, reverse=True)
+            final_signal = final_result.get("signal")
+        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
+        return {"signal": final_signal, "pattern_signal": h1500_signal or final_signal, "report": f"H=15: đảo H=15:45 -> {final_signal}.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {"XAUUSD": final_signal}}
 
     result = analyze(broker_dt, hour)
     return _finalize_pattern_result(result, broker_dt, hour)
@@ -1958,20 +1913,9 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
         else:
             for pair in ("GBPUSD", "GBPAUD"):
                 result[pair] = signal
-    # H=2: add GBPAUD
+    # H=2: add GBPAUD (ngược XAUUSD)
     if h == 2 and broker_dt is not None:
-        if broker_dt.weekday() == 3:  # Thursday
-            gbp_historical = _lookup_historical_t2_gbp_signal(broker_dt, h)
-            if gbp_historical in ("BUY", "SELL"):
-                result["GBPAUD"] = gbp_historical
-        elif broker_dt.weekday() == 4:  # Friday: GBPAUD reverse from H=5 yesterday
-            h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
-            if h5_yesterday in ("BUY", "SELL"):
-                result["GBPAUD"] = "SELL" if h5_yesterday == "BUY" else "BUY"
-        else:
-            h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
-            if h5_yesterday in ("BUY", "SELL"):
-                result["GBPAUD"] = h5_yesterday
+        result["GBPAUD"] = reverse_signal(signal) or signal
     if broker_dt is not None and broker_dt.weekday() == 2:
         for gbp_pair in GBP_PAIRS:
             result.pop(gbp_pair, None)

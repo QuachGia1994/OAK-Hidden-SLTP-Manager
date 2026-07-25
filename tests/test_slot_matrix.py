@@ -29,7 +29,7 @@ class SlotMatrixTests(unittest.TestCase):
                 with self.subTest(hour=hour):
                     result = calculate_slot_signal(broker_dt, hour)
                     self.assertEqual(result["pattern_signal"], "BUY")
-                    self.assertEqual(result["signal"], "SELL")
+                    self.assertEqual(result["signal"], "BUY")  # Tuesday extra inversion reverses SELL back to BUY
                     self.assertTrue(result["skip_xau_m30"])
 
     def test_h1500_signal_resolution(self) -> None:
