@@ -82,7 +82,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return [2, 4, 5, 6, 9, 12, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 29
+SIGNAL_LOGIC_VERSION = 30
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1003,6 +1003,44 @@ def _lookup_h6_signal_today(broker_dt):
     return _lookup_h6_signal_for_date(broker_dt, broker_dt.date())
 
 
+def _lookup_h1500_signal_for_date(broker_dt, target_date):
+    """Look up H=1500 signal from signals_log for a specific date."""
+    date_str = target_date.isoformat() if hasattr(target_date, 'isoformat') else str(target_date)
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            for record in reversed(data):
+                if record.get("date") == date_str and int(record.get("hour", -1)) == 1500:
+                    sig = record.get("signal")
+                    if sig in ("BUY", "SELL"):
+                        return sig
+    except Exception as e:
+        print(f"[WARN] Cannot lookup H=1500 for {date_str}: {e}")
+    return None
+
+
+def _lookup_h1500_signal_today(broker_dt):
+    return _lookup_h1500_signal_for_date(broker_dt, broker_dt.date())
+
+
+def _lookup_signal_from_log(broker_dt, hour):
+    """Generic lookup: read signal for a given hour from signals_log.json."""
+    date_str = broker_dt.date().isoformat()
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            for record in reversed(data):
+                if record.get("date") == date_str and int(record.get("hour", -1)) == hour:
+                    sig = record.get("signal")
+                    if sig in ("BUY", "SELL"):
+                        return sig
+    except Exception as e:
+        print(f"[WARN] Cannot lookup H={hour} for {date_str}: {e}")
+    return None
+
+
 def _lookup_h5_signal_yesterday(broker_dt):
     """Look up H=5 from the most recent previous weekday."""
     d = broker_dt.date() - timedelta(days=1)
@@ -1247,17 +1285,14 @@ def calculate_slot_signal(broker_dt, hour):
         }
     # H=15:00: So sánh H=6/9 với H=12/14 để xác định H=15:45 và H=15
     if hour == 1500:
-        # Lấy signal từ H=6 hoặc H=9
+        # Lấy signal từ H=6 hoặc H=9 (đọc từ signals log)
         h6_signal = _lookup_h6_signal_today(broker_dt)
-        h9_data = day_signals.get((broker_dt.date(), 9), {})
-        h9_xau = h9_data.get("xau_signal") if isinstance(h9_data, dict) else None
-        h6_9_signal = h9_xau if h9_xau in ("BUY", "SELL") else h6_signal
+        h9_signal = _lookup_signal_from_log(broker_dt, 9)
+        h6_9_signal = h9_signal if h9_signal in ("BUY", "SELL") else h6_signal
 
-        # Lấy signal từ H=12 hoặc H=14
-        h12_data = day_signals.get((broker_dt.date(), 12), {})
-        h12_signal = h12_data.get("signal") if isinstance(h12_data, dict) else None
-        h14_data = day_signals.get((broker_dt.date(), 14), {})
-        h14_signal = h14_data.get("signal") if isinstance(h14_data, dict) else None
+        # Lấy signal từ H=12 hoặc H=14 (đọc từ signals log)
+        h12_signal = _lookup_signal_from_log(broker_dt, 12)
+        h14_signal = _lookup_signal_from_log(broker_dt, 14)
         h12_14_signal = h14_signal if h14_signal in ("BUY", "SELL") else h12_signal
 
         if h6_9_signal not in ("BUY", "SELL") or h12_14_signal not in ("BUY", "SELL"):
@@ -1389,8 +1424,7 @@ def calculate_slot_signal(broker_dt, hour):
         return {"signal": final_signal, "pattern_signal": h4_signal, "report": f"H={hour}: {report_suffix}.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=15: đảo ngược H=15:45
     if hour == 15:
-        h1500_data = day_signals.get((broker_dt.date(), 1500), {})
-        h1500_signal = h1500_data.get("signal") if isinstance(h1500_data, dict) else None
+        h1500_signal = _lookup_h1500_signal_today(broker_dt)
         if h1500_signal in ("BUY", "SELL"):
             final_signal = reverse_signal(h1500_signal)
             return {"signal": final_signal, "pattern_signal": h1500_signal, "report": f"H=15: đảo H=15:45 ({h1500_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
