@@ -372,12 +372,14 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
                pattern_signal=None, h11_candles=None):
     """Append signal data to signals_log.json for website consumption."""
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
+    if not entry_time:
+        entry_time = get_entry_time_for_slot(broker_dt, H)
     record = {
         "date": broker_dt.date().isoformat(),
         "hour": H,
         "ts": datetime.now().timestamp(),
         "signal": sig,
-        "entry_time": None,
+        "entry_time": entry_time,
         "pair_dirs": pair_dirs,
         "entry_prices": {},
         "current_prices": current_prices,
@@ -1273,6 +1275,135 @@ def evaluate_h15_m30_classification(broker_dt, symbol="XAUUSD"):
 
     detail = f"14:30:{vn_dirs['14:30']}, 14:00:{vn_dirs['14:00']}, 13:30:{vn_dirs['13:30']}, 13:00:{vn_dirs['13:00']} [Rule {rule_num}]"
     return group, detail, final_signal, m1_signal, candles
+
+
+def evaluate_4_m30_classification_before_hour(broker_dt, target_hour, symbol="XAUUSD"):
+    """Evaluate 4 M30 candles before target_hour Broker time."""
+    if broker_dt is None:
+        return "BT"
+
+    h_m1, m_m1 = target_hour - 1, 30
+    h_m2, m_m2 = target_hour - 1, 0
+    h_m3, m_m3 = target_hour - 2, 30
+    h_m4, m_m4 = target_hour - 2, 0
+
+    m_times = [(h_m4, m_m4), (h_m3, m_m3), (h_m2, m_m2), (h_m1, m_m1)]
+    dirs = {}
+    for h, m in m_times:
+        ts = broker_time_to_ts(broker_dt, h, m)
+        c = get_candle_by_ts(symbol, mt5.TIMEFRAME_M30, ts)
+        if c is not None:
+            d = candle_direction(c)
+            if d == "DOJI":
+                doji_d = resolve_doji(symbol, mt5.TIMEFRAME_M30, ts, broker_dt)
+                d = doji_d if doji_d in ("TANG", "GIAM") else "TANG"
+        else:
+            d = "TANG"
+        time_key = f"{h:02d}:{m:02d}"
+        dirs[time_key] = d
+
+    d1 = dirs[f"{h_m1:02d}:{m_m1:02d}"]
+    d2 = dirs[f"{h_m2:02d}:{m_m2:02d}"]
+    d3 = dirs[f"{h_m3:02d}:{m_m3:02d}"]
+    d4 = dirs[f"{h_m4:02d}:{m_m4:02d}"]
+
+    if d1 == "TANG":
+        if d2 == "GIAM" and d3 == "TANG" and d4 == "GIAM":
+            group = "SW"
+        elif d2 == "GIAM" and d3 == "TANG" and d4 == "TANG":
+            group = "BT"
+        elif d2 == "TANG" and d3 == "GIAM":
+            group = "BT"
+        elif d2 == "TANG" and d3 == "TANG":
+            group = "SW"
+        else:
+            group = "SW"
+    else:
+        if d2 == "TANG" and d3 == "GIAM" and d4 == "TANG":
+            group = "SW"
+        elif d2 == "TANG" and d3 == "GIAM" and d4 == "GIAM":
+            group = "BT"
+        elif d2 == "GIAM" and d3 == "TANG":
+            group = "BT"
+        elif d2 == "GIAM" and d3 == "GIAM":
+            group = "SW"
+        else:
+            group = "SW"
+
+    return group
+
+
+def evaluate_3_m30_classification_for_h2(broker_dt, symbol="XAUUSD"):
+    """Evaluate 3 M30 candles before 03:00 Broker time for H=2 (02:30, 02:00, 01:30)."""
+    if broker_dt is None:
+        return "BT"
+
+    m_times = [(1, 30), (2, 0), (2, 30)]
+    dirs = {}
+    for h, m in m_times:
+        ts = broker_time_to_ts(broker_dt, h, m)
+        c = get_candle_by_ts(symbol, mt5.TIMEFRAME_M30, ts)
+        if c is not None:
+            d = candle_direction(c)
+            if d == "DOJI":
+                doji_d = resolve_doji(symbol, mt5.TIMEFRAME_M30, ts, broker_dt)
+                d = doji_d if doji_d in ("TANG", "GIAM") else "TANG"
+        else:
+            d = "TANG"
+        dirs[f"{h:02d}:{m:02d}"] = d
+
+    d1 = dirs["02:30"]
+    d2 = dirs["02:00"]
+    d3 = dirs["01:30"]
+
+    if d1 == "TANG" and d2 == "TANG" and d3 == "TANG":
+        return "SW"
+    if d1 == "GIAM" and d2 == "TANG" and d3 == "TANG":
+        return "SW"
+    if d1 == "GIAM" and d2 == "TANG" and d3 == "GIAM":
+        return "BT"
+    if d1 == "GIAM" and d2 == "GIAM" and d3 == "TANG":
+        return "BT"
+
+    if d1 == "GIAM" and d2 == "GIAM" and d3 == "GIAM":
+        return "SW"
+    if d1 == "TANG" and d2 == "GIAM" and d3 == "GIAM":
+        return "SW"
+    if d1 == "TANG" and d2 == "GIAM" and d3 == "TANG":
+        return "BT"
+    if d1 == "TANG" and d2 == "TANG" and d3 == "GIAM":
+        return "BT"
+
+    return "SW"
+
+
+def get_entry_time_for_slot(broker_dt, hour):
+    """Calculate entry_time (Broker HH:MM) based on 4-M30 candle classification rules."""
+    h = int(hour)
+    if h == 2:
+        group = evaluate_3_m30_classification_for_h2(broker_dt)
+        return "03:49" if group == "SW" else "03:11"
+    if h == 15:
+        group = evaluate_4_m30_classification_before_hour(broker_dt, 16)
+        return "16:49" if group == "SW" else "16:11"
+    if h == 6:
+        group = evaluate_4_m30_classification_before_hour(broker_dt, 6)
+        return "06:11" if group == "SW" else "09:49"
+    if h == 12:
+        group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
+        return "12:11" if group == "SW" else "14:49"
+
+    if h == 4:
+        return "04:45"
+    if h == 5:
+        return "05:45"
+    if h == 9:
+        return "09:15"
+    if h == 14:
+        return "14:15"
+    if h == 1500:
+        return "15:00"
+    return f"{h:02d}:45"
 
 
 def calculate_slot_signal(broker_dt, hour):

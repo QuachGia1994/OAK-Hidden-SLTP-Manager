@@ -74,10 +74,10 @@ export function SignalCard({
           <div className="min-w-0">
             <div className="flex flex-wrap items-baseline gap-2">
               <span className="font-mono text-2xl font-black tabular-nums text-[var(--foreground)]">
-                <BrokerLocalTime date={signal.date} hour={signal.hour} />
+                <BrokerLocalTime date={signal.date} hour={signal.hour} entryTime={signal.entry_time} />
               </span>
               <span className="font-mono text-xs text-[var(--muted)]">
-                ({formatHour(signal.hour)}:{String(getTargetMinute(signal.hour)).padStart(2, '0')} Brk)
+                ({signal.entry_time ?? `${formatHour(signal.hour)}:${String(getTargetMinute(signal.hour)).padStart(2, '0')}`} Brk)
               </span>
             </div>
           </div>

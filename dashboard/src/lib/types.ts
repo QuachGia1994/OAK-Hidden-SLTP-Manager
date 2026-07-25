@@ -18,6 +18,7 @@ export interface Signal {
   pair_dirs: Record<string, string>;
   entry_prices: Record<string, number>;
   current_prices: Record<string, number>;
+  entry_time?: string | null;
   hour_note: string | null;
   d_direction: "BUY" | "SELL" | null;
   h11_candles?: H11Candle[];
