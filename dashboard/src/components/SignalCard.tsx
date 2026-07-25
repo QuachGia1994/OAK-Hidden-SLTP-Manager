@@ -89,7 +89,7 @@ export function SignalCard({
               {locale === "EN" ? "Slot" : "Mốc"}
             </div>
             <div className="font-mono text-xs font-bold text-[var(--foreground)]">
-              H={signal.hour === 1500 ? "15:00" : signal.hour}
+              H={signal.hour === 1500 ? "15:00" : signal.hour === 15 ? "15:45" : signal.hour}
             </div>
             <div className="font-mono text-[10px] text-[var(--muted)]">{signal.date}</div>
           </div>

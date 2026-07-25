@@ -1383,15 +1383,19 @@ def get_entry_time_for_slot(broker_dt, hour):
     if h == 2:
         group = evaluate_3_m30_classification_for_h2(broker_dt)
         return "03:49" if group == "SW" else "03:11"
-    if h == 15:
-        group = evaluate_4_m30_classification_before_hour(broker_dt, 16)
-        return "16:49" if group == "SW" else "16:11"
     if h == 6:
-        group = evaluate_4_m30_classification_before_hour(broker_dt, 6)
-        return "06:11" if group == "SW" else "09:49"
+        return "06:11"
+    if h == 9:
+        group_h6 = evaluate_4_m30_classification_before_hour(broker_dt, 6)
+        return "09:49" if group_h6 == "BT" else "09:15"
     if h == 12:
-        group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
-        return "12:11" if group == "SW" else "14:49"
+        return "12:11"
+    if h == 14:
+        group_h12 = evaluate_4_m30_classification_before_hour(broker_dt, 12)
+        return "14:49" if group_h12 == "BT" else "14:15"
+    if h == 15:
+        group_h16 = evaluate_4_m30_classification_before_hour(broker_dt, 16)
+        return "16:49" if group_h16 == "SW" else "16:11"
 
     if h == 4:
         return "04:45"
