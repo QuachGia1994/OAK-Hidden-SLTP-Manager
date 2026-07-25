@@ -25,7 +25,7 @@ class SlotMatrixTests(unittest.TestCase):
         ), patch.object(
             mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"
         ):
-            for hour in (12, 15):
+            for hour in (12,):
                 with self.subTest(hour=hour):
                     result = calculate_slot_signal(broker_dt, hour)
                     self.assertEqual(result["pattern_signal"], "BUY")

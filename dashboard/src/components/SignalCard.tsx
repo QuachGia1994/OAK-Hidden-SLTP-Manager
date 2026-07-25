@@ -55,6 +55,10 @@ export function SignalCard({
       ? Object.keys(signal.pair_dirs).filter((p) => {
           if (p === "Stock-DIRECTION" || p === "GBP-DIRECTION") return false;
           if (isWednesday && GBP_PAIRS.includes(p)) return false;
+          // H=9: only XAUUSD, GBPUSD, GBPAUD
+          if (signal.hour === 9 && !["XAUUSD", "GBPUSD", "GBPAUD"].includes(p)) return false;
+          // H=14: only XAUUSD, GBPUSD, GBPAUD
+          if (signal.hour === 14 && !["XAUUSD", "GBPUSD", "GBPAUD"].includes(p)) return false;
           return true;
         })
       : defaultPairs;

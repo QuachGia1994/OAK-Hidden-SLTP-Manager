@@ -82,7 +82,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return [2, 4, 5, 6, 9, 12, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 28
+SIGNAL_LOGIC_VERSION = 29
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -982,6 +982,27 @@ def _lookup_h4_signal_today(broker_dt):
     return _lookup_h4_signal_for_date(broker_dt, broker_dt.date())
 
 
+def _lookup_h6_signal_for_date(broker_dt, target_date):
+    """Look up H=6 signal from signals_log for a specific date."""
+    date_str = target_date.isoformat() if hasattr(target_date, 'isoformat') else str(target_date)
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            for record in reversed(data):
+                if record.get("date") == date_str and int(record.get("hour", -1)) == 6:
+                    sig = record.get("signal")
+                    if sig in ("BUY", "SELL"):
+                        return sig
+    except Exception as e:
+        print(f"[WARN] Cannot lookup H=6 for {date_str}: {e}")
+    return None
+
+
+def _lookup_h6_signal_today(broker_dt):
+    return _lookup_h6_signal_for_date(broker_dt, broker_dt.date())
+
+
 def _lookup_h5_signal_yesterday(broker_dt):
     """Look up H=5 from the most recent previous weekday."""
     d = broker_dt.date() - timedelta(days=1)
@@ -1224,28 +1245,43 @@ def calculate_slot_signal(broker_dt, hour):
             "h1_signal": None,
             "skip_xau_m30": True,
         }
-    # H=15:00: XAUUSD M30 4-candle classification (14:30, 14:00, 13:30, 13:00) on Mon (0), Thu (3), Fri (4)
+    # H=15:00: So sánh H=6/9 với H=12/14 để xác định H=15:45 và H=15
     if hour == 1500:
-        if broker_dt.weekday() not in (0, 3, 4):
-            return {
-                "signal": "WAIT",
-                "report": "H=15:00: chỉ hoạt động vào Thứ 2, Thứ 5, Thứ 6.",
-                "m30_dir": None,
-                "h1_signal": None,
-                "skip_xau_m30": True,
-                "pair_dirs": {},
-            }
-        group, detail, final_signal, m1_sig, candles = evaluate_h15_m30_classification(broker_dt)
-        sp_tag = " [Special Day]" if is_special_day(broker_dt) else ""
+        # Lấy signal từ H=6 hoặc H=9
+        h6_signal = _lookup_h6_signal_today(broker_dt)
+        h9_data = day_signals.get((broker_dt.date(), 9), {})
+        h9_xau = h9_data.get("xau_signal") if isinstance(h9_data, dict) else None
+        h6_9_signal = h9_xau if h9_xau in ("BUY", "SELL") else h6_signal
+
+        # Lấy signal từ H=12 hoặc H=14
+        h12_data = day_signals.get((broker_dt.date(), 12), {})
+        h12_signal = h12_data.get("signal") if isinstance(h12_data, dict) else None
+        h14_data = day_signals.get((broker_dt.date(), 14), {})
+        h14_signal = h14_data.get("signal") if isinstance(h14_data, dict) else None
+        h12_14_signal = h14_signal if h14_signal in ("BUY", "SELL") else h12_signal
+
+        if h6_9_signal not in ("BUY", "SELL") or h12_14_signal not in ("BUY", "SELL"):
+            return {"signal": "WAIT", "report": "H=15:00: thiếu H=6/9 hoặc H=12/14.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {}}
+
+        # Logic mới
+        if h6_9_signal == h12_14_signal:  # cùng chiều
+            h15_45_signal = reverse_signal(h6_9_signal)
+            h15_signal = reverse_signal(h15_45_signal)  # = h6_9_signal
+            report = f"H=15:00: H=6/9={h6_9_signal}, H=12/14={h12_14_signal} (cùng) -> H=15:45={h15_45_signal}, H=15={h15_signal}"
+        else:  # ngược chiều
+            h15_45_signal = h6_9_signal
+            h15_signal = reverse_signal(h15_45_signal)
+            report = f"H=15:00: H=6/9={h6_9_signal}, H=12/14={h12_14_signal} (ngược) -> H=15:45={h15_45_signal}, H=15={h15_signal}"
+
         return {
-            "signal": final_signal,
-            "pattern_signal": m1_sig,
-            "report": f"H=15:00{sp_tag}: M30 Phân nhóm {group} ({detail}) -> XAUUSD {final_signal}",
+            "signal": h15_45_signal,
+            "pattern_signal": h6_9_signal,
+            "report": report,
             "m30_dir": None,
             "h1_signal": None,
             "skip_xau_m30": True,
-            "pair_dirs": {"XAUUSD": final_signal},
-            "h11_candles": candles,
+            "pair_dirs": {"XAUUSD": h15_45_signal},
+            "_h15_signal": h15_signal,  # Lưu H=15 signal để dùng sau
         }
     # H=2: XAUUSD đảo từ H=5 hôm qua (Nếu Thứ 5 thì dùng lại y chang Thứ 2)
     if hour == 2:
@@ -1351,13 +1387,18 @@ def calculate_slot_signal(broker_dt, hour):
             final_signal = reverse_signal(h4_signal)
             report_suffix = f"đảo H=4 ({h4_signal} -> {final_signal})"
         return {"signal": final_signal, "pattern_signal": h4_signal, "report": f"H={hour}: {report_suffix}.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=15: XAUUSD đảo ngược vào Thứ 4 (weekday == 2) và Thứ 5 (weekday == 3)
-    if hour == 15 and broker_dt.weekday() in (2, 3):
+    # H=15: đảo ngược H=15:45
+    if hour == 15:
+        h1500_data = day_signals.get((broker_dt.date(), 1500), {})
+        h1500_signal = h1500_data.get("signal") if isinstance(h1500_data, dict) else None
+        if h1500_signal in ("BUY", "SELL"):
+            final_signal = reverse_signal(h1500_signal)
+            return {"signal": final_signal, "pattern_signal": h1500_signal, "report": f"H=15: đảo H=15:45 ({h1500_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        # Fallback: dùng logic cũ nếu chưa có H=15:45
         result = analyze(broker_dt, hour)
         final_result = _finalize_pattern_result(result, broker_dt, hour, reverse=True)
         if final_result.get("signal") in ("BUY", "SELL"):
-            wd_name = "Thứ 4" if broker_dt.weekday() == 2 else "Thứ 5"
-            final_result["report"] += f"\n  -> [{wd_name}] Đảo ngược XAUUSD: {final_result['signal']}"
+            final_result["report"] += f"\n  -> Đảo ngược XAUUSD: {final_result['signal']}"
         return final_result
 
     result = analyze(broker_dt, hour)

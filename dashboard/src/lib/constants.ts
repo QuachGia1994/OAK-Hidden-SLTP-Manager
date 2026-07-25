@@ -69,8 +69,8 @@ const HOUR_NOTES: Record<number, string> = {
   9: "XAUUSD đảo H=5 + double-reverse, GBPUSD đảo H=2, GBPAUD đảo H=5",
   12: "XAUUSD đảo ngược H=4",
   14: "XAUUSD đảo H=4, GBPUSD đảo H=2, GBPAUD đảo H=4",
-  1500: "XAUUSD theo M30 (13:00-14:30) (Thứ 2 / Thứ 5 / Thứ 6)",
-  15: "Chỉ Vàng (XAUUSD)",
+  1500: "H=15:45: So sánh H=6/9 với H=12/14",
+  15: "H=15: đảo H=15:45",
 };
 
 export function getHourNote(hour: number, jsWeekday?: number): string | null {
