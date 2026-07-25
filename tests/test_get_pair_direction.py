@@ -38,12 +38,12 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                         self.assertIn("XAUUSD", result)
                         self.assertEqual(result["XAUUSD"], signal)
 
-    def test_h9_returns_gbp_group_no_xau(self):
+    def test_h9_returns_gbp_group_and_xau(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=1)
         # H=9 MIXED: pair_dirs come from calculate_slot_signal
-        full_result = {"pair_dirs": {"GBPUSD": "BUY", "GBPAUD": "BUY"}}
+        full_result = {"pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "BUY", "GBPAUD": "BUY"}}
         result = get_pair_direction(9, "BUY", dt, full_result=full_result)
-        self.assertNotIn("XAUUSD", result)
+        self.assertIn("XAUUSD", result)
         self.assertEqual(result.get("GBPAUD"), "BUY")
         self.assertEqual(result.get("GBPUSD"), "BUY")
 

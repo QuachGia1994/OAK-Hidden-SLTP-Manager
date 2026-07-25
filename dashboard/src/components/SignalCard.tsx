@@ -33,16 +33,12 @@ export function SignalCard({
     descriptionText,
     hasNoGoldBadge,
   } = localizeHourNote(rawHourNote, locale);
-  const showHourNote = Boolean(
-    hourNote &&
-      rawHourNote !== "Chỉ Vàng (XAUUSD)" &&
-      hourNote !== "XAU only"
-  );
+  const showHourNote = false;
 
   const defaultPairs = signal.hour === 11
     ? []
     : (signal.hour === 9)
-      ? ["GBPUSD", "GBPAUD"]
+      ? ["XAUUSD", "GBPUSD", "GBPAUD"]
       : (signal.hour === 14)
         ? ["XAUUSD", "GBPUSD", "GBPAUD"]
         : (signal.hour === 2 || signal.hour === 3)

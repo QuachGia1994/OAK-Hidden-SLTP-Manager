@@ -73,31 +73,8 @@ const HOUR_NOTES: Record<number, string> = {
   15: "H=15: đảo H=15:45",
 };
 
-export function getHourNote(hour: number, jsWeekday?: number): string | null {
-  const h = Number(hour);
-  if (DISABLED_HOURS.has(h)) return "Chỉ Vàng (XAUUSD)";
-  if (h === 1500) {
-    return "XAUUSD theo M30 (13:00-14:30) (Thứ 2 / Thứ 5 / Thứ 6)";
-  }
-  if (h === 2 && jsWeekday === 3) {
-    return "XAUUSD đảo từ H=5 hôm qua";
-  }
-  if (h === 2 && jsWeekday === 4) {
-    return "XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2";
-  }
-  if (h === 9 && jsWeekday === 3) {
-    return "XAUUSD đảo từ H=5 hôm nay";
-  }
-  if (h === 9 && jsWeekday === 5) {
-    return "XAUUSD đảo từ H=5 hôm nay; GBP cùng chiều H=5 hôm qua (Thứ 6)";
-  }
-  if (h === 14 && jsWeekday === 3) {
-    return "Tắt nhóm GBP (Thứ 4)";
-  }
-  if (h === 15 && (jsWeekday === 3 || jsWeekday === 4)) {
-    return "XAUUSD đảo ngược (Thứ 4 / Thứ 5)";
-  }
-  return HOUR_NOTES[hour] ?? "Chỉ Vàng (XAUUSD)";
+export function getHourNote(_hour: number, _jsWeekday?: number): string | null {
+  return null;
 }
 
 type RuleLocale = "VN" | "EN";

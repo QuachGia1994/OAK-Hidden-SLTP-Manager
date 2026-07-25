@@ -1000,7 +1000,8 @@ def _lookup_h6_signal_for_date(broker_dt, target_date):
 
 
 def _lookup_h6_signal_today(broker_dt):
-    return _lookup_h6_signal_for_date(broker_dt, broker_dt.date())
+    target_date = broker_dt.date() if hasattr(broker_dt, 'date') and callable(getattr(broker_dt, 'date')) else broker_dt
+    return _lookup_h6_signal_for_date(broker_dt, target_date)
 
 
 def _lookup_h1500_signal_for_date(broker_dt, target_date):
@@ -1021,12 +1022,14 @@ def _lookup_h1500_signal_for_date(broker_dt, target_date):
 
 
 def _lookup_h1500_signal_today(broker_dt):
-    return _lookup_h1500_signal_for_date(broker_dt, broker_dt.date())
+    target_date = broker_dt.date() if hasattr(broker_dt, 'date') and callable(getattr(broker_dt, 'date')) else broker_dt
+    return _lookup_h1500_signal_for_date(broker_dt, target_date)
 
 
 def _lookup_signal_from_log(broker_dt, hour):
     """Generic lookup: read signal for a given hour from signals_log.json."""
-    date_str = broker_dt.date().isoformat()
+    target_date = broker_dt.date() if hasattr(broker_dt, 'date') and callable(getattr(broker_dt, 'date')) else broker_dt
+    date_str = target_date.isoformat() if hasattr(target_date, 'isoformat') else str(target_date)
     try:
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
@@ -1309,13 +1312,13 @@ def calculate_slot_signal(broker_dt, hour):
             report = f"H=15:00: H=6/9={h6_9_signal}, H=12/14={h12_14_signal} (ngược) -> H=15:45={h15_45_signal}, H=15={h15_signal}"
 
         return {
-            "signal": h15_45_signal,
+            "signal": h15_signal,
             "pattern_signal": h6_9_signal,
             "report": report,
             "m30_dir": None,
             "h1_signal": None,
             "skip_xau_m30": True,
-            "pair_dirs": {"XAUUSD": h15_45_signal},
+            "pair_dirs": {"XAUUSD": h15_signal},
             "_h15_signal": h15_signal,  # Lưu H=15 signal để dùng sau
         }
     # H=2: XAUUSD đảo từ H=5 hôm qua (Nếu Thứ 5 thì dùng lại y chang Thứ 2)
@@ -1775,13 +1778,12 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
         return result
     # H=9: MIXED (XAUUSD + GBPUSD + GBPAUD)
     if h == 9:
-        if signal == "MIXED" and full_result:
-            pair_dirs = full_result.get("pair_dirs", {})
+        if full_result and "pair_dirs" in full_result and full_result["pair_dirs"]:
             for pair in ("XAUUSD", "GBPUSD", "GBPAUD"):
-                if pair in pair_dirs:
-                    result[pair] = pair_dirs[pair]
+                if pair in full_result["pair_dirs"]:
+                    result[pair] = full_result["pair_dirs"][pair]
         else:
-            for pair in ("GBPUSD", "GBPAUD"):
+            for pair in ("XAUUSD", "GBPUSD", "GBPAUD"):
                 result[pair] = signal
         return result
     # All active hours: XAUUSD
