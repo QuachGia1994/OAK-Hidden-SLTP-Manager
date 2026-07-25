@@ -82,7 +82,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return [2, 4, 5, 6, 9, 12, 14, 16]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 31
+SIGNAL_LOGIC_VERSION = 32
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1485,14 +1485,21 @@ def calculate_slot_signal(broker_dt, hour):
             "skip_xau_m30": True,
             "pair_dirs": {"XAUUSD": final_signal, "GBPAUD": gbp_aud},
         }
-    # H=6: đảo ngược H=2
+    # H=6: đảo ngược H=2, sau đó áp dụng 4 H1 lookback
     if hour == 6:
         h2_signal = _lookup_h2_signal_today(broker_dt)
         if h2_signal not in ("BUY", "SELL"):
             return {"signal": "WAIT", "report": f"H={hour}: thiếu H=2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
         final_signal = reverse_signal(h2_signal)
         final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
-        return {"signal": final_signal, "pattern_signal": h2_signal, "report": f"H=6: đảo H=2 ({h2_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        # 4 H1 lookback: BT -> đảo lại, SW -> giữ nguyên
+        group, detail, _ = evaluate_classification_for_slot(broker_dt, 6)
+        if group == "BT":
+            final_signal = reverse_signal(final_signal)
+            report = f"H=6: đảo H=2 ({h2_signal} -> {reverse_signal(h2_signal)}), BT({detail}) -> đảo lại ({final_signal})."
+        else:
+            report = f"H=6: đảo H=2 ({h2_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
+        return {"signal": final_signal, "pattern_signal": h2_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=9: đảo ngược H=2
     if hour == 9:
         h2_signal = _lookup_h2_signal_today(broker_dt)
@@ -1512,7 +1519,7 @@ def calculate_slot_signal(broker_dt, hour):
             "h1_signal": None,
             "skip_xau_m30": True,
         }
-    # H=12: XAUUSD đảo ngược H=4
+    # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback
     if hour in (12, 13):
         h4_signal = _lookup_h4_signal_today(broker_dt)
         if h4_signal not in ("BUY", "SELL"):
@@ -1524,7 +1531,14 @@ def calculate_slot_signal(broker_dt, hour):
         else:  # Mọi ngày khác: đảo ngược H=4
             final_signal = reverse_signal(h4_signal)
         final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
-        return {"signal": final_signal, "pattern_signal": h4_signal, "report": f"H={hour}: đảo H=4 ({h4_signal} -> {final_signal}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        # 4 H1 lookback: BT -> đảo lại, SW -> giữ nguyên
+        group, detail, _ = evaluate_classification_for_slot(broker_dt, 12)
+        if group == "BT":
+            final_signal = reverse_signal(final_signal)
+            report = f"H={hour}: đảo H=4 ({h4_signal} -> {reverse_signal(h4_signal)}), BT({detail}) -> đảo lại ({final_signal})."
+        else:
+            report = f"H={hour}: đảo H=4 ({h4_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
+        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=14: XAUUSD đảo ngược H=4, GBPUSD đảo H=2, GBPAUD đảo H=4
     if hour == 14:
         h4_signal = _lookup_h4_signal_today(broker_dt)
