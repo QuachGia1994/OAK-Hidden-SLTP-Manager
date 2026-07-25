@@ -82,7 +82,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return [2, 4, 5, 6, 9, 12, 14, 15]
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 30
+SIGNAL_LOGIC_VERSION = 31
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1366,7 +1366,7 @@ def calculate_slot_signal(broker_dt, hour):
                   f"H=9 [GBPUSD]: đảo H=2 ({h2_signal} -> {gbpusd})\n"
                   f"H=9 [GBPAUD]: đảo H=5 hôm nay ({h5_today} -> {gbpaud})")
         return {
-            "signal": "MIXED",
+            "signal": final_xau,
             "xau_signal": final_xau,
             "gbp_signal": gbpusd,
             "pair_dirs": {"XAUUSD": final_xau, "GBPUSD": gbpusd, "GBPAUD": gbpaud},
