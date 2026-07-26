@@ -198,7 +198,7 @@ export function StockLookupModal({
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)]">
+      <div className="relative z-10 w-full max-w-2xl max-h-[90vh] min-h-[500px] overflow-y-auto rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)]">
         {/* Header + Search */}
         <div className="sticky top-0 z-10 border-b border-[var(--panel-border)] bg-[var(--surface)] px-5 py-4">
           <div className="flex items-center justify-between mb-3">
@@ -358,17 +358,22 @@ function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta:
   return (
     <div className="space-y-2">
       {dividends.map((d, i) => (
-        <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2">
-          <span className="font-mono text-xs text-[var(--muted)]">{d.ex_date}</span>
+        <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2.5">
+          <div className="flex flex-col gap-0.5">
+            <span className="font-mono text-xs font-bold text-[var(--foreground)]">{d.ex_date}</span>
+            {d.pay_date && <span className="text-[10px] text-[var(--muted)]">{t("Thanh toán", "Pay")}: {d.pay_date}</span>}
+          </div>
           <div className="flex items-center gap-2">
             {d.cash_amount > 0 && (
-              <span className="rounded-md bg-[var(--terminal-accent)]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--terminal-accent)]">
+              <span className="rounded-md bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-accent)]">
                 {d.cash_amount.toLocaleString("vi-VN")}đ
+                <span className="ml-1 text-[9px] font-normal opacity-70">{t("tiền", "cash")}</span>
               </span>
             )}
             {d.stock_ratio > 0 && (
-              <span className="rounded-md bg-[var(--terminal-warning)]/10 px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--terminal-warning)]">
+              <span className="rounded-md bg-[var(--terminal-warning)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-warning)]">
                 {d.stock_ratio}%
+                <span className="ml-1 text-[9px] font-normal opacity-70">{t("cổ phiếu", "stock")}</span>
               </span>
             )}
           </div>
@@ -385,28 +390,65 @@ function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta:
 }
 
 function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: string, en: string) => string }) {
-  if (!foreign) return <EmptyState text={t("Chưa có dữ liệu khối ngoại", "No foreign trading data")} />;
+  if (!foreign) return <EmptyState text={t("Chưa có dữ liệu sở hữu nước ngoài", "No foreign ownership data")} />;
+  const pct = foreign.foreignRatio || 0;
+  const domestic = Math.max(100 - pct, 0);
+  const r = 80;
+  const circ = 2 * Math.PI * r;
+  const strokeW = 16;
+  const foreignLen = (pct / 100) * circ;
+  const domesticLen = circ - foreignLen;
+
   return (
-    <div className="space-y-3">
-      <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-3">
-        <span className="font-mono text-2xl font-black text-[var(--foreground)]">
-          {foreign.foreignRatio ? `${foreign.foreignRatio.toFixed(1)}%` : "—"}
-        </span>
-        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--surface)]">
-          <div className="h-full rounded-full bg-[var(--terminal-accent)]" style={{ width: `${Math.min(foreign.foreignRatio || 0, 100)}%` }} />
+    <div className="space-y-4">
+      {/* Donut chart */}
+      <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-5">
+        <h3 className="mb-3 text-center text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
+          {t("Cơ cấu sở hữu", "Ownership Structure")}
+        </h3>
+        <div className="flex items-center justify-center gap-8">
+          {/* SVG Donut */}
+          <svg width={200} height={200} viewBox="0 0 200 200" className="shrink-0">
+            <circle cx={100} cy={100} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
+            {/* Foreign */}
+            <circle
+              cx={100} cy={100} r={r} fill="none"
+              stroke="var(--terminal-accent)" strokeWidth={strokeW}
+              strokeDasharray={`${foreignLen} ${circ}`}
+              strokeLinecap="round"
+              transform="rotate(-90 100 100)"
+            />
+            {/* Domestic */}
+            <circle
+              cx={100} cy={100} r={r} fill="none"
+              stroke="var(--muted)" strokeWidth={strokeW}
+              strokeDasharray={`${domesticLen} ${circ}`}
+              strokeDashoffset={-foreignLen}
+              strokeLinecap="round"
+              transform="rotate(-90 100 100)"
+            />
+            <text x={100} y={95} textAnchor="middle" fill="var(--terminal-accent)" fontSize="24" fontWeight="900" fontFamily="monospace">
+              {pct.toFixed(1)}%
+            </text>
+            <text x={100} y={115} textAnchor="middle" fill="var(--muted)" fontSize="11" fontWeight="600" fontFamily="monospace">
+              {t("Nước ngoài", "Foreign")}
+            </text>
+          </svg>
+          {/* Legend */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-[var(--terminal-accent)]" />
+              <span className="text-xs text-[var(--muted)]">{t("Nước ngoài", "Foreign")}</span>
+              <span className="font-mono text-sm font-bold text-[var(--terminal-accent)]">{pct.toFixed(1)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-3 w-3 rounded-full bg-[var(--muted)]" />
+              <span className="text-xs text-[var(--muted)]">{t("Trong nước", "Domestic")}</span>
+              <span className="font-mono text-sm font-bold text-[var(--foreground)]">{domestic.toFixed(1)}%</span>
+            </div>
+          </div>
         </div>
       </div>
-      {foreign.recentTrades.length > 0 && (
-        <div className="space-y-1.5">
-          {foreign.recentTrades.slice(0, 5).map((t2, i) => (
-            <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 text-xs">
-              <span className="font-mono text-[var(--muted)]">{t2.date}</span>
-              <span className="text-[var(--terminal-accent)]">Mua: {t2.buyVol.toLocaleString()}</span>
-              <span className="text-[var(--terminal-danger)]">Bán: {t2.sellVol.toLocaleString()}</span>
-            </div>
-          ))}
-        </div>
-      )}
       {foreign.fetchedAt && (
         <p className="text-[10px] text-[var(--muted)]">
           {t("Nguồn", "Source")}: {foreign.source} | {t("Cập nhật", "Updated")}: {new Date(foreign.fetchedAt).toLocaleDateString("vi-VN")}
