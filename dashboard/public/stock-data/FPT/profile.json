@@ -1,8 +1,9 @@
 {
   "symbol": "FPT",
-  "name": "Trang chủ",
-  "exchange": "UPCOM",
-  "source": "HNX",
-  "source_url": "https://www.hnx.vn/co-phieu/FPT",
-  "fetched_at": "2026-07-26T12:25:22.259144+00:00"
+  "name": "FPT",
+  "exchange": "HOSE",
+  "market_cap": 107831.13,
+  "source": "CafeF",
+  "source_url": "https://cafef.vn/du-lieu/screener.aspx?symbol=FPT",
+  "fetched_at": "2026-07-26T12:44:06.743738+00:00"
 }

@@ -1,8 +1,9 @@
 {
   "symbol": "TCB",
-  "name": "Trang chủ",
-  "exchange": "UPCOM",
-  "source": "HNX",
-  "source_url": "https://www.hnx.vn/co-phieu/TCB",
-  "fetched_at": "2026-07-26T12:25:47.569328+00:00"
+  "name": "TCB",
+  "exchange": "HOSE",
+  "market_cap": 202666.48,
+  "source": "CafeF",
+  "source_url": "https://cafef.vn/du-lieu/screener.aspx?symbol=TCB",
+  "fetched_at": "2026-07-26T12:44:30.221844+00:00"
 }

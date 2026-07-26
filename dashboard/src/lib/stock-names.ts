@@ -1,36 +1,36 @@
 /**
  * Dictionary mapping Vietnam Stock Tickers to full Company Names & Market Cap across HOSE, HNX, UPCoM.
  */
-export const COMPANY_NAMES: Record<string, { name: string; exchange: string; cap: string }> = {
+export const COMPANY_NAMES: Record<string, { name: string; exchange: string; cap: string; industry?: string }> = {
   // HOSE VN30 & Midcaps
   ACB: { name: "Ngân hàng Á Châu", exchange: "HOSE", cap: "98.500 tỷ" },
   BCM: { name: "Tổng Công ty Becamex IDC", exchange: "HOSE", cap: "67.800 tỷ" },
-  BID: { name: "Ngân hàng BIDV", exchange: "HOSE", cap: "282.000 tỷ" },
+  BID: { name: "Ngân hàng BIDV", exchange: "HOSE", cap: "282.000 tỷ", industry: "Ngân hàng" },
   BVH: { name: "Tập đoàn Bảo Việt", exchange: "HOSE", cap: "30.600 tỷ" },
-  CTG: { name: "Ngân hàng VietinBank", exchange: "HOSE", cap: "189.000 tỷ" },
-  FPT: { name: "Tập đoàn FPT", exchange: "HOSE", cap: "188.500 tỷ" },
+  CTG: { name: "Ngân hàng VietinBank", exchange: "HOSE", cap: "189.000 tỷ", industry: "Ngân hàng" },
+  FPT: { name: "Tập đoàn FPT", exchange: "HOSE", cap: "188.500 tỷ", industry: "Công nghệ thông tin" },
   GAS: { name: "Tổng Công ty Khí Việt Nam (PV GAS)", exchange: "HOSE", cap: "179.000 tỷ" },
   GVR: { name: "Tập đoàn CN Cao su Việt Nam", exchange: "HOSE", cap: "137.000 tỷ" },
   HDB: { name: "Ngân hàng HDBank", exchange: "HOSE", cap: "69.500 tỷ" },
-  HPG: { name: "Tập đoàn Hòa Phát", exchange: "HOSE", cap: "167.000 tỷ" },
+  HPG: { name: "Tập đoàn Hòa Phát", exchange: "HOSE", cap: "167.000 tỷ", industry: "Sản xuất thép" },
   MBB: { name: "Ngân hàng Quân Đội (MB)", exchange: "HOSE", cap: "128.000 tỷ" },
-  MSN: { name: "Tập đoàn Masan", exchange: "HOSE", cap: "108.000 tỷ" },
-  MWG: { name: "Công ty CP Thế Giới Di Động", exchange: "HOSE", cap: "91.500 tỷ" },
+  MSN: { name: "Tập đoàn Masan", exchange: "HOSE", cap: "108.000 tỷ", industry: "Hàng tiêu dùng" },
+  MWG: { name: "Công ty CP Thế Giới Di Động", exchange: "HOSE", cap: "91.500 tỷ", industry: "Bán lẻ" },
   PLX: { name: "Tập đoàn Xăng dầu Việt Nam (Petrolimex)", exchange: "HOSE", cap: "49.500 tỷ" },
   POW: { name: "Tổng Công ty Điện lực Dầu khí Việt Nam", exchange: "HOSE", cap: "29.400 tỷ" },
   SAB: { name: "Tổng Công ty Sabeco", exchange: "HOSE", cap: "74.900 tỷ" },
   SHB: { name: "Ngân hàng SHB", exchange: "HOSE", cap: "42.300 tỷ" },
   SSB: { name: "Ngân hàng SeABank", exchange: "HOSE", cap: "63.200 tỷ" },
-  SSI: { name: "Công ty CP Chứng khoán SSI", exchange: "HOSE", cap: "54.800 tỷ" },
+  SSI: { name: "Công ty CP Chứng khoán SSI", exchange: "HOSE", cap: "54.800 tỷ", industry: "Chứng khoán" },
   STB: { name: "Ngân hàng Sacombank", exchange: "HOSE", cap: "58.900 tỷ" },
-  TCB: { name: "Ngân hàng Techcombank", exchange: "HOSE", cap: "170.000 tỷ" },
+  TCB: { name: "Ngân hàng Techcombank", exchange: "HOSE", cap: "170.000 tỷ", industry: "Ngân hàng" },
   TPB: { name: "Ngân hàng TPBank", exchange: "HOSE", cap: "41.000 tỷ" },
-  VCB: { name: "Ngân hàng Vietcombank", exchange: "HOSE", cap: "518.000 tỷ" },
+  VCB: { name: "Ngân hàng Vietcombank", exchange: "HOSE", cap: "518.000 tỷ", industry: "Ngân hàng" },
   VHM: { name: "Công ty CP Vinhomes", exchange: "HOSE", cap: "184.000 tỷ" },
   VIB: { name: "Ngân hàng VIB", exchange: "HOSE", cap: "59.600 tỷ" },
   VIC: { name: "Tập đoàn Vingroup", exchange: "HOSE", cap: "173.000 tỷ" },
   VJC: { name: "Công ty CP Hàng không Vietjet", exchange: "HOSE", cap: "57.300 tỷ" },
-  VNM: { name: "Công ty CP Sữa Việt Nam (Vinamilk)", exchange: "HOSE", cap: "143.000 tỷ" },
+  VNM: { name: "Công ty CP Sữa Việt Nam (Vinamilk)", exchange: "HOSE", cap: "143.000 tỷ", industry: "Sản xuất thực phẩm" },
   VPB: { name: "Ngân hàng VPBank", exchange: "HOSE", cap: "155.000 tỷ" },
   VRE: { name: "Công ty CP Vincom Retail", exchange: "HOSE", cap: "51.400 tỷ" },
   DGC: { name: "Tập đoàn Hóa chất Đức Giang", exchange: "HOSE", cap: "43.700 tỷ" },
@@ -76,7 +76,7 @@ export const COMPANY_NAMES: Record<string, { name: string; exchange: string; cap
   IDI: { name: "Công ty CP Đầu tư & Phát triển Đa Quốc Gia", exchange: "HOSE", cap: "2.900 tỷ" },
   FMC: { name: "Công ty CP Thực phẩm Sao Ta", exchange: "HOSE", cap: "3.400 tỷ" },
   PAN: { name: "Tập đoàn PAN", exchange: "HOSE", cap: "4.800 tỷ" },
-  TMS: { name: "CTCP Transimex", exchange: "HOSE", cap: "6.360 tỷ" },
+  TMS: { name: "CTCP Transimex", exchange: "HOSE", cap: "6.360 tỷ", industry: "Vận tải logistics" },
 
   // HNX
   BSI: { name: "Công ty CP Chứng khoán BIDC (BSC)", exchange: "HNX", cap: "7.400 tỷ" },
@@ -125,4 +125,10 @@ export function getExchange(symbol: string): string {
   if (!sym) return "HOSE";
   const rawEx = COMPANY_NAMES[sym]?.exchange || "HOSE";
   return rawEx === "UPCOM" ? "UPCoM" : rawEx;
+}
+
+export function getIndustry(symbol: string): string {
+  const sym = (symbol || "").toUpperCase().trim();
+  if (!sym) return "";
+  return COMPANY_NAMES[sym]?.industry || "";
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocale } from "./LocaleProvider";
-import { getCompanyName, getMarketCap, getExchange } from "@/lib/stock-names";
+import { getCompanyName, getMarketCap, getExchange, getIndustry } from "@/lib/stock-names";
 
 type TabKey = "overview" | "reports" | "dividends" | "foreign" | "chart";
 
@@ -191,7 +191,7 @@ export function StockLookupModal({
   if (!isOpen) return null;
 
   const sym = activeSymbol || "";
-  const companyName = profile?.name || (sym ? getCompanyName(sym) : "");
+  const companyName = (profile?.name && profile.name !== sym) ? profile.name : (sym ? getCompanyName(sym) : "");
   const exchange = profile?.exchange || (sym ? getExchange(sym) : "");
 
   const tabs: { key: TabKey; label: string }[] = [
@@ -289,7 +289,7 @@ export function StockLookupModal({
               </div>
 
               {/* Tab content */}
-              {activeTab === "overview" && <OverviewTab profile={profile} t={t} />}
+              {activeTab === "overview" && <OverviewTab profile={profile} foreign={foreign} t={t} />}
               {activeTab === "reports" && <ReportsTab reports={reports} meta={reportsMeta} t={t} />}
               {activeTab === "dividends" && <DividendsTab dividends={dividends} meta={dividendsMeta} t={t} />}
               {activeTab === "foreign" && <ForeignTab foreign={foreign} t={t} />}
@@ -302,13 +302,63 @@ export function StockLookupModal({
   );
 }
 
-function OverviewTab({ profile, t }: { profile: ProfileData | null; t: (vn: string, en: string) => string }) {
+function OverviewTab({ profile, foreign, t }: { profile: ProfileData | null; foreign: ForeignInfo | null; t: (vn: string, en: string) => string }) {
   if (!profile) return <EmptyState text={t("Chưa có dữ liệu tổng quan", "No overview data")} />;
+
+  // Market cap stored in "tỷ" units — display directly
+  const formatCap = profile.market_cap > 0
+    ? `${profile.market_cap.toLocaleString("vi-VN", { maximumFractionDigits: 2 })} tỷ`
+    : "—";
+
+  // Info columns matching FireAnt Hồ sơ
+  const industry = profile.industry || (profile.symbol ? getIndustry(profile.symbol) : "");
+  const leftInfo: { label: string; value: string }[] = [
+    { label: t("Sàn", "Exchange"), value: profile.exchange || "—" },
+    { label: t("Ngành", "Industry"), value: industry || "—" },
+    { label: t("Vốn hoá", "Market Cap"), value: formatCap },
+    { label: t("Nguồn", "Source"), value: profile.source },
+  ];
+
+  const rightInfo: { label: string; value: string }[] = [
+    { label: t("Nước ngoài", "Foreign"), value: foreign ? `${foreign.foreignRatio.toFixed(1)}%` : "—" },
+    { label: t("Tổ chức", "Institutional"), value: foreign ? `${foreign.institutionalRatio.toFixed(1)}%` : "—" },
+    { label: t("Room NN", "Foreign Room"), value: foreign ? `${foreign.roomRemaining.toFixed(2)}%` : "—" },
+  ];
+
   return (
-    <div className="space-y-3">
-      <Row label={t("Nguồn", "Source")} value={profile.source} />
-      <Row label={t("Ngành", "Industry")} value={profile.industry || "—"} />
-      <Row label={t("Vốn hoá", "Market Cap")} value={profile.market_cap ? `${profile.market_cap.toLocaleString("vi-VN")} tỷ` : "—"} />
+    <div className="space-y-4">
+      {/* Two-column info layout matching FireAnt */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Thông tin cơ bản */}
+        <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-4">
+          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+            {t("Thông tin cơ bản", "Basic Info")}
+          </h3>
+          <div className="space-y-2.5">
+            {leftInfo.map((row, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-[11px] text-[var(--muted)]">{row.label}</span>
+                <span className="font-mono text-xs font-bold text-[var(--foreground)]">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Thông tin cổ đông */}
+        <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-4">
+          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+            {t("Cổ đông chính", "Key Shareholders")}
+          </h3>
+          <div className="space-y-2.5">
+            {rightInfo.map((row, i) => (
+              <div key={i} className="flex items-center justify-between">
+                <span className="text-[11px] text-[var(--muted)]">{row.label}</span>
+                <span className="font-mono text-xs font-bold text-[var(--foreground)]">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {profile.fetchedAt && (
         <p className="text-[10px] text-[var(--muted)]">
           {t("Cập nhật", "Updated")}: {new Date(profile.fetchedAt).toLocaleDateString("vi-VN")}
@@ -401,14 +451,14 @@ function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta:
                 <div className="flex items-center gap-2">
                   {d.cash_amount > 0 && (
                     <span className="rounded-[8px] bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-accent)]">
-                      {d.cash_amount.toLocaleString("vi-VN")}đ
-                      <span className="ml-1 text-[9px] font-normal opacity-70">{t("tiền", "cash")}</span>
+                      {(d.cash_amount * 100).toLocaleString("vi-VN")}đ
+                      <span className="ml-1 text-[9px] font-normal opacity-70">{t("/cp", "/share")}</span>
                     </span>
                   )}
                   {d.stock_ratio > 0 && (
                     <span className="rounded-[8px] bg-[var(--terminal-warning)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-warning)]">
-                      {d.stock_ratio}%
-                      <span className="ml-1 text-[9px] font-normal opacity-70">{t("cổ phiếu", "stock")}</span>
+                      {d.stock_ratio.toFixed(2)}%
+                      <span className="ml-1 text-[9px] font-normal opacity-70">{t("cp", "stock")}</span>
                     </span>
                   )}
                 </div>

@@ -19,6 +19,10 @@ _CAFEF_REALTIME = "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symb
 _CAFEF_DIVIDEND = "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol={symbol}"
 _CAFEF_OWNERSHIP = "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol={symbol}"
 _CAFEF_INDICATORS = "https://cafef.vn/du-lieu/Ajax/PageNew/ChiSoTaiChinh.ashx?Symbol={symbol}"
+_CAFEF_HEADER = "https://cafef.vn/du-lieu/Ajax/PageNew/PriceRealTimeHeader.ashx?Symbol={symbol}"
+
+# MaSan codes from CafeF PriceRealTimeHeader
+_EXCHANGE_MAP = {1: "HOSE", 2: "HNX", 3: "UPCOM"}
 
 
 def _extract_text(html: str, pattern: str) -> str:
@@ -41,7 +45,7 @@ def parse_profile(html: str, symbol: str) -> StockProfile | None:
     elif re.search(r"UPCoM|UPCOM", html, re.IGNORECASE):
         exchange = "UPCOM"
 
-    # Try market cap
+    # Try market cap from HTML
     market_cap = 0
     cap_match = re.search(r"V[ốơ]n\s*ho[aá][=:]\s*([\d.,]+)\s*(t[yỷ]|tri[eệ]u|ngh[ìi]n)", html, re.IGNORECASE)
     if cap_match:
@@ -52,10 +56,17 @@ def parse_profile(html: str, symbol: str) -> StockProfile | None:
         elif "nghìn" in unit:
             market_cap = val * 1e6
 
+    # Try to extract industry from screener page
+    industry = ""
+    ind_match = re.search(r"Ng[aà]nh[^>]*>([^<]+)", html, re.IGNORECASE)
+    if ind_match:
+        industry = escape_html_text(ind_match.group(1).strip())
+
     return StockProfile(
         symbol=symbol,
         name=name.split("-")[0].strip() if "-" in name else name.strip(),
         exchange=exchange,
+        industry=industry,
         market_cap=market_cap,
         source="CafeF",
         source_url=_CAFEF_SEARCH.format(symbol=symbol),
@@ -64,12 +75,36 @@ def parse_profile(html: str, symbol: str) -> StockProfile | None:
 
 
 def fetch_profile(symbol: str) -> StockProfile | None:
-    """Fetch company profile from CafeF."""
+    """Fetch company profile from CafeF, enriched with PriceRealTimeHeader and ChiSoTaiChinh."""
     url = _CAFEF_SEARCH.format(symbol=symbol)
     html = fetch_html(url)
-    if not html:
-        return None
-    return parse_profile(html, symbol)
+    profile = parse_profile(html, symbol) if html else None
+
+    if not profile:
+        profile = StockProfile(
+            symbol=symbol,
+            name=symbol,
+            exchange="",
+            industry="",
+            market_cap=0,
+            source="CafeF",
+            source_url=_CAFEF_SEARCH.format(symbol=symbol),
+            fetched_at=utcnow_iso(),
+        )
+
+    # Enrich exchange from PriceRealTimeHeader (more reliable than HTML)
+    header_data = fetch_json(_CAFEF_HEADER.format(symbol=symbol))
+    if header_data and header_data.get("Success"):
+        ma_san = header_data.get("Data", {}).get("MaSan", 0)
+        if ma_san in _EXCHANGE_MAP:
+            profile.exchange = _EXCHANGE_MAP[ma_san]
+
+    # Enrich market cap from ChiSoTaiChinh (more reliable than HTML)
+    indicators = fetch_indicators(symbol)
+    if indicators and indicators.market_cap > 0:
+        profile.market_cap = indicators.market_cap
+
+    return profile
 
 
 def fetch_foreign_trading(symbol: str) -> ForeignData | None:
