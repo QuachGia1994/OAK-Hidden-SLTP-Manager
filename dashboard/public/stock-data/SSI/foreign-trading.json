@@ -1,0 +1,15 @@
+{
+  "symbol": "SSI",
+  "foreignRatio": 28.4,
+  "recentTrades": [
+    {
+      "date": "2026-07-24",
+      "buyVol": 500000,
+      "sellVol": 300000
+    }
+  ],
+  "source": "CafeF",
+  "sourceUrl": "",
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

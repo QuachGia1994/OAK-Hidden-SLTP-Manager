@@ -1,0 +1,15 @@
+{
+  "symbol": "CTG",
+  "dividends": [
+    {
+      "ex_date": "2026-05-10",
+      "pay_date": "2026-05-25",
+      "cash_amount": 450,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    }
+  ],
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

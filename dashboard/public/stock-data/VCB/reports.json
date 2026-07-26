@@ -1,0 +1,23 @@
+{
+  "symbol": "VCB",
+  "reports": [
+    {
+      "period": "Q1/2026",
+      "type": "Báo cáo tài chính quý",
+      "publishedAt": "2026-04-20",
+      "pdfUrl": "https://s.cafef.vn/hose/vcb-ngan-hang-tmcp-ngoai-thuong-viet-nam.chn",
+      "source": "SSC/CafeF",
+      "sourceUrl": ""
+    },
+    {
+      "period": "Q4/2025",
+      "type": "Báo cáo tài chính quý",
+      "publishedAt": "2026-01-20",
+      "pdfUrl": "https://s.cafef.vn/hose/vcb-ngan-hang-tmcp-ngoai-thuong-viet-nam.chn",
+      "source": "SSC/CafeF",
+      "sourceUrl": ""
+    }
+  ],
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

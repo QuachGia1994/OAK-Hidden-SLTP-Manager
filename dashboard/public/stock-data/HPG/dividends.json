@@ -1,0 +1,39 @@
+{
+  "symbol": "HPG",
+  "dividends": [
+    {
+      "ex_date": "2026-03-15",
+      "pay_date": "2026-04-01",
+      "cash_amount": 500,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    },
+    {
+      "ex_date": "2025-09-20",
+      "pay_date": "2025-10-05",
+      "cash_amount": 300,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    },
+    {
+      "ex_date": "2025-03-15",
+      "pay_date": "2025-04-01",
+      "cash_amount": 500,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    },
+    {
+      "ex_date": "2024-09-20",
+      "pay_date": "2024-10-05",
+      "cash_amount": 250,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    }
+  ],
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

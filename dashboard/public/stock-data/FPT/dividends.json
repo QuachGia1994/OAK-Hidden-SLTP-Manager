@@ -1,0 +1,23 @@
+{
+  "symbol": "FPT",
+  "dividends": [
+    {
+      "ex_date": "2026-05-15",
+      "pay_date": "2026-06-01",
+      "cash_amount": 1000,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    },
+    {
+      "ex_date": "2025-11-15",
+      "pay_date": "2025-12-01",
+      "cash_amount": 800,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    }
+  ],
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

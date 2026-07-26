@@ -1,0 +1,15 @@
+{
+  "symbol": "MWG",
+  "dividends": [
+    {
+      "ex_date": "2025-09-10",
+      "pay_date": "2025-09-25",
+      "cash_amount": 0,
+      "stock_ratio": 10,
+      "source": "VSDC",
+      "sourceUrl": ""
+    }
+  ],
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

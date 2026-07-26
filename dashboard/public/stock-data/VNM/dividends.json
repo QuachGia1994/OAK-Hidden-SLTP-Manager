@@ -1,0 +1,15 @@
+{
+  "symbol": "VNM",
+  "dividends": [
+    {
+      "ex_date": "2026-06-10",
+      "pay_date": "2026-06-25",
+      "cash_amount": 1200,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    }
+  ],
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

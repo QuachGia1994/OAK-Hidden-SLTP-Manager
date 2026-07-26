@@ -1,0 +1,15 @@
+{
+  "symbol": "TCB",
+  "foreignRatio": 31.8,
+  "recentTrades": [
+    {
+      "date": "2026-07-24",
+      "buyVol": 800000,
+      "sellVol": 600000
+    }
+  ],
+  "source": "CafeF",
+  "sourceUrl": "",
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}

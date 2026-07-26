@@ -1,0 +1,15 @@
+{
+  "symbol": "BID",
+  "dividends": [
+    {
+      "ex_date": "2026-06-20",
+      "pay_date": "2026-07-05",
+      "cash_amount": 700,
+      "stock_ratio": 0,
+      "source": "VSDC",
+      "sourceUrl": ""
+    }
+  ],
+  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "stale": false
+}
