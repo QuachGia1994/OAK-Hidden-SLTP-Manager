@@ -202,7 +202,7 @@ export function StockLookupModal({
 
       <div className="relative z-10 w-full max-w-2xl max-h-[90vh] min-h-[500px] overflow-y-auto rounded-[24px] border border-[var(--panel-border)] bg-[var(--surface)] p-6">
         {/* Header + Search */}
-        <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-4 border-b border-[var(--panel-border)] bg-[var(--surface)] px-6 py-5">
+        <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-5 border-b border-[var(--panel-border)] bg-[var(--surface)] px-6 py-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
               {t("Tra cứu cổ phiếu", "Stock Lookup")}
@@ -256,7 +256,7 @@ export function StockLookupModal({
           {activeSymbol && !loading && !error && (
             <>
               {/* Stock header */}
-              <div className="mb-3 flex items-center gap-3">
+              <div className="mb-3 flex items-center gap-3 pt-1">
                 <span className="font-mono text-xl font-black text-[var(--foreground)]">{sym}</span>
                 {exchange && <span className="rounded-[8px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-[var(--muted)]">{exchange}</span>}
                 {companyName && <span className="text-sm text-[var(--muted)] truncate">{companyName}</span>}
