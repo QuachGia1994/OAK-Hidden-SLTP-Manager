@@ -641,12 +641,24 @@ def get_day_notes(now, lang="VN"):
         dt = now if isinstance(now, datetime) else datetime.combine(today, datetime.min.time())
         suppress_late_slots = is_special_day(dt) or is_post_special_day(dt)
         special_day_2 = is_special_day_2(dt)
+        weekday = dt.weekday()
+        if weekday in (1, 2) and not suppress_late_slots:
+            from datetime import timedelta
+            thu = dt + timedelta(days=3 - weekday)
+            if is_special_day(thu):
+                suppress_late_slots = True
+        # Mon in last week of month also suppress
+        if weekday == 0 and not suppress_late_slots:
+            from datetime import timedelta
+            fri = dt + timedelta(days=4)
+            if (fri + timedelta(days=7)).month != fri.month:
+                suppress_late_slots = True
     except Exception:
         suppress_late_slots = False
         special_day_2 = False
     if suppress_late_slots:
-        notes_vn.append("Ngày đặc biệt/hậu đặc biệt: không tạo H12, H14, H16.")
-        notes_en.append("Special/post-special day: H12, H14, and H16 are not generated.")
+        notes_vn.append("Cuối tháng/đầu tháng: không tạo H12, H14, H16 (Thứ 2–Thứ 6 cuối tháng + Thứ 2–Thứ 4 đầu tháng; Thứ 5–6 + Mon(sau) chỉ khi SD1).")
+        notes_en.append("Month boundary: H12, H14, H16 suppressed (Mon–Fri last week + Mon–Wed first week; Thu–Fri + Mon-after only when SD1).")
     if special_day_2:
         notes_vn.append("Ngày đặc biệt 2: H=6 và H=9 đảo thêm 1 lần (2nd/3rd Fri).")
         notes_en.append("Special day 2: H=6 and H=9 get an extra reversal (2nd/3rd Fri).")

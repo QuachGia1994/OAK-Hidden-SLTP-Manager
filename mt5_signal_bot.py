@@ -1398,13 +1398,29 @@ def calculate_slot_signal(broker_dt, hour):
             "skip_xau_m30": True,
             "suppressed": True,
         }
-    # Dynamic disable: special Thu/Fri and Monday after → disable H=12, 14, 16
+    # Suppress H=12/14/16 around month-boundary transition:
+    #   Cuối tháng: Mon-Fri all suppress (last Fri week)
+    #   Đầu tháng: Mon-Tue-Wed suppress; Thu-Fri only when SD1
+    #   Mon-after: only when SD1 (post-special)
     if hour in (12, 14, 16) and broker_dt is not None:
         wd = broker_dt.weekday()
+        # Thu+Fri: SD1 gate
         if wd in (3, 4) and is_special_day(broker_dt):
             return {"signal": "WAIT", "report": f"H={hour}: suppressed (special day).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
+        # Mon-after special pair (post-special)
         if wd == 0 and is_post_special_day(broker_dt):
             return {"signal": "WAIT", "report": f"H={hour}: suppressed (Monday after special day).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
+        # Mon in last week of month (Fri of this week is last Fri)
+        if wd == 0:
+            fri_this_week = broker_dt + timedelta(days=4)
+            fri_next_week = fri_this_week + timedelta(days=7)
+            if fri_next_week.month != fri_this_week.month:
+                return {"signal": "WAIT", "report": f"H={hour}: suppressed (Monday, last week of month).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
+        # Tue/Wed in month-boundary week (Thu of this week is special)
+        if wd in (1, 2):
+            days_to_thu = 3 - wd
+            if is_special_day(broker_dt + timedelta(days=days_to_thu)):
+                return {"signal": "WAIT", "report": f"H={hour}: suppressed (Tue/Wed before month-boundary special pair).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
     # H=3: XAUUSD reverses yesterday H=5; Thursday reuses Monday H=3.
     if hour == 3:
         entry_group = evaluate_3_m30_classification_for_h3(broker_dt)
