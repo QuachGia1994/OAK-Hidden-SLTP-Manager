@@ -16,10 +16,36 @@ logger = logging.getLogger("stock_data_crawler")
 ALLOWED_HOSTS = {
     "congcu.cafef.vn",
     "s.cafef.vn",
+    "cafef.vn",
+    "www.cafef.vn",
     "www.vsd.vn",
     "www.hnx.vn",
     "hnx.vn",
     "congbo.ssc.gov.vn",
+    # IR websites (with and without www, redirect targets)
+    "www.hoaphat.com.vn",
+    "www.vinamilk.com.vn",
+    "www.fpt.com.vn",
+    "fpt.com",
+    "www.vietcombank.com.vn",
+    "www.techcombank.com.vn",
+    "www.thegioididong.com",
+    "www.thegioididong.com.vn",
+    "www.msn.com.vn",
+    "www.ssi.com.vn",
+    "www.bidv.com.vn",
+    "bidv.com.vn",
+    "www.vietinbank.vn",
+    "www.transimex.com.vn",
+    "www.vingroup.vn",
+    "www.pvgas.com.vn",
+    "www.petrolimex.com.vn",
+    "www.sabeco.com.vn",
+    "www.baoviet.com.vn",
+    "www.vietjetair.com",
+    "www.vincomretail.com",
+    "www.pnj.com.vn",
+    "www.hdbank.com.vn",
 }
 
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,12}$")
@@ -50,9 +76,30 @@ class _RedirectGuard(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def _build_opener() -> urllib.request.OpenerDirector:
-    """Build a URL opener with SSL verification and redirect guard."""
-    ssl_ctx = ssl.create_default_context()
+# Vietnamese hosts that may have SSL certificate issues on some machines
+_VN_SSL_BYPASS_HOSTS = {
+    "www.hnx.vn",
+    "hnx.vn",
+    "www.vsd.vn",
+    "congbo.ssc.gov.vn",
+    "www.transimex.com.vn",
+    "www.techcombank.com.vn",
+}
+
+
+def _build_opener(url: str) -> urllib.request.OpenerDirector:
+    """Build a URL opener with SSL verification and redirect guard.
+
+    Disables SSL verification for known Vietnamese hosts that have
+    certificate issues on some machines.
+    """
+    host = urlparse(url).hostname or ""
+    if host in _VN_SSL_BYPASS_HOSTS:
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+    else:
+        ssl_ctx = ssl.create_default_context()
     handlers = [
         urllib.request.HTTPSHandler(context=ssl_ctx),
         _RedirectGuard(),
@@ -80,7 +127,7 @@ def fetch_html(url: str) -> str | None:
         "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
     }
 
-    opener = _build_opener()
+    opener = _build_opener(url)
     for attempt in range(MAX_RETRIES + 1):
         try:
             req = urllib.request.Request(url, headers=headers)
@@ -116,7 +163,7 @@ def fetch_json(url: str) -> Any | None:
         "Accept": "application/json,*/*",
     }
 
-    opener = _build_opener()
+    opener = _build_opener(url)
     for attempt in range(MAX_RETRIES + 1):
         try:
             req = urllib.request.Request(url, headers=headers)

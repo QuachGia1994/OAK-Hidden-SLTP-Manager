@@ -2,14 +2,16 @@
   "symbol": "VNM",
   "reports": [
     {
-      "period": "Q1/2026",
-      "type": "Báo cáo tài chính quý",
-      "publishedAt": "2026-04-24",
-      "pdfUrl": "",
-      "source": "SSC/CafeF",
-      "sourceUrl": ""
+      "period": "Quy chế hoạt động",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://d8um25gjecm9v.cloudfront.net/cms/Vinamilk_Quy_che_hoat_dong_san_giao_dich_TMDT_vinamilk_com_vn_Cap_nhat_03_09_2025_88a7d62ae9.pdf",
+      "source": "IR",
+      "source_url": "https://d8um25gjecm9v.cloudfront.net/cms/Vinamilk_Quy_che_hoat_dong_san_giao_dich_TMDT_vinamilk_com_vn_Cap_nhat_03_09_2025_88a7d62ae9.pdf"
     }
   ],
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "source": "IR",
+  "sourceUrl": "https://www.vinamilk.com.vn/vi/quan-he-co-dong/bao-cao-tai-chinh",
+  "fetchedAt": "2026-07-26T11:28:32.787354+00:00",
   "stale": false
 }

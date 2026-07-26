@@ -1,11 +1,8 @@
 {
   "symbol": "TCB",
-  "name": "Ngân hàng TMCP Kỹ Thương Việt Nam",
-  "exchange": "HOSE",
-  "industry": "Ngân hàng",
-  "market_cap": 170000,
-  "source": "CafeF",
-  "sourceUrl": "https://s.cafef.vn",
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": false
+  "name": "Trang chủ",
+  "exchange": "UPCOM",
+  "source": "HNX",
+  "source_url": "https://www.hnx.vn/co-phieu/TCB",
+  "fetched_at": "2026-07-26T11:27:58.532053+00:00"
 }

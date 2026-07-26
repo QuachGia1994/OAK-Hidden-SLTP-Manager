@@ -2,38 +2,168 @@
   "symbol": "HPG",
   "reports": [
     {
-      "period": "Q1/2026",
-      "type": "Báo cáo tài chính quý",
-      "publishedAt": "2026-04-25",
-      "pdfUrl": "https://s.cafef.vn/hose/hpg-cong-ty-co-phan-tap-doan-hoa-phat.chn",
-      "source": "SSC/CafeF",
-      "sourceUrl": ""
+      "period": "Tổng quan tình hình kinh doanh Quý I/2026",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bcq1-2026-vn-v4.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bcq1-2026-vn-v4.pdf"
     },
     {
-      "period": "Q4/2025",
-      "type": "Báo cáo tài chính quý",
-      "publishedAt": "2026-01-28",
-      "pdfUrl": "https://s.cafef.vn/hose/hpg-cong-ty-co-phan-tap-doan-hoa-phat.chn",
-      "source": "SSC/CafeF",
-      "sourceUrl": ""
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bcq1-2026-vn-v4.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bcq1-2026-vn-v4.pdf"
     },
     {
-      "period": "Q3/2025",
-      "type": "Báo cáo tài chính quý",
-      "publishedAt": "2025-10-25",
-      "pdfUrl": "https://s.cafef.vn/hose/hpg-cong-ty-co-phan-tap-doan-hoa-phat.chn",
-      "source": "SSC/CafeF",
-      "sourceUrl": ""
+      "period": "Báo cáo tài chính hợp nhất Quý I/2026",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bctc-hop-nhat-quy-i-2026.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bctc-hop-nhat-quy-i-2026.pdf"
     },
     {
-      "period": "Q2/2025",
-      "type": "Báo cáo tài chính quý",
-      "publishedAt": "2025-07-25",
-      "pdfUrl": "https://s.cafef.vn/hose/hpg-cong-ty-co-phan-tap-doan-hoa-phat.chn",
-      "source": "SSC/CafeF",
-      "sourceUrl": ""
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bctc-hop-nhat-quy-i-2026.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/bctc-hop-nhat-quy-i-2026.pdf"
+    },
+    {
+      "period": "Báo cáo tài chính riêng Quý I/2026",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/20260429-hpg-bctc-rieng-cong-ty-me-quy1-2026.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/20260429-hpg-bctc-rieng-cong-ty-me-quy1-2026.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/20260429-hpg-bctc-rieng-cong-ty-me-quy1-2026.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/04/20260429-hpg-bctc-rieng-cong-ty-me-quy1-2026.pdf"
+    },
+    {
+      "period": "BCTC hợp nhất năm 2025 sau kiểm toán",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-hop-nhat-nam-2025-sau-kiem-toan.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-hop-nhat-nam-2025-sau-kiem-toan.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-hop-nhat-nam-2025-sau-kiem-toan.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-hop-nhat-nam-2025-sau-kiem-toan.pdf"
+    },
+    {
+      "period": "BCTC Công ty mẹ sau kiểm toán năm 2025",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-cong-ty-me-sau-kiem-toan-nam-2025-1.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-cong-ty-me-sau-kiem-toan-nam-2025-1.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-cong-ty-me-sau-kiem-toan-nam-2025-1.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-bctc-cong-ty-me-sau-kiem-toan-nam-2025-1.pdf"
+    },
+    {
+      "period": "CBTT - Công văn giải trình BCTC kiểm toán Công ty ",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-cong-ty-me-nam-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-cong-ty-me-nam-2025.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-cong-ty-me-nam-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-cong-ty-me-nam-2025.pdf"
+    },
+    {
+      "period": "CBTT - Công văn giải trình BCTC kiểm toán hợp nhất",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-hop-nhat-nam-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-hop-nhat-nam-2025.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-hop-nhat-nam-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/03/20260327-hpg-cong-van-giai-trinh-bctc-kiem-toan-hop-nhat-nam-2025.pdf"
+    },
+    {
+      "period": "Báo cáo tài chính riêng Qúy IV năm 2025",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-rieng-cong-ty-me-va-giai-trinh-q4-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-rieng-cong-ty-me-va-giai-trinh-q4-2025.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-rieng-cong-ty-me-va-giai-trinh-q4-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-rieng-cong-ty-me-va-giai-trinh-q4-2025.pdf"
+    },
+    {
+      "period": "Báo cáo tài chính hợp nhất Qúy IV năm 2025",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-hop-nhat-va-giai-trinh-q4-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-hop-nhat-va-giai-trinh-q4-2025.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-hop-nhat-va-giai-trinh-q4-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/20260130-hpg-bao-cao-tai-chinh-hop-nhat-va-giai-trinh-q4-2025.pdf"
+    },
+    {
+      "period": "Tổng quan tình hình kinh doanh Qúy IV năm 2025",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/tong-quan-tinh-hinh-kinh-doanh-hpg-quy-4-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/tong-quan-tinh-hinh-kinh-doanh-hpg-quy-4-2025.pdf"
+    },
+    {
+      "period": "Download",
+      "type": "Báo cáo tài chính",
+      "published_at": "",
+      "pdf_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/tong-quan-tinh-hinh-kinh-doanh-hpg-quy-4-2025.pdf",
+      "source": "IR",
+      "source_url": "https://file.hoaphat.com.vn/hoaphat-com-vn/2026/01/tong-quan-tinh-hinh-kinh-doanh-hpg-quy-4-2025.pdf"
     }
   ],
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
+  "source": "IR",
+  "sourceUrl": "https://www.hoaphat.com.vn/quan-he-co-dong/bao-cao-tai-chinh",
+  "fetchedAt": "2026-07-26T11:27:38.018073+00:00",
   "stale": false
 }

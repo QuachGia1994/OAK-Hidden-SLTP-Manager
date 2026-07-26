@@ -1,11 +1,8 @@
 {
   "symbol": "SSI",
-  "name": "CTCP Chứng khoán SSI",
-  "exchange": "HOSE",
-  "industry": "Chứng khoán",
-  "market_cap": 54800,
-  "source": "CafeF",
-  "sourceUrl": "https://s.cafef.vn",
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": false
+  "name": "Trang chủ",
+  "exchange": "UPCOM",
+  "source": "HNX",
+  "source_url": "https://www.hnx.vn/co-phieu/SSI",
+  "fetched_at": "2026-07-26T11:27:53.951438+00:00"
 }
