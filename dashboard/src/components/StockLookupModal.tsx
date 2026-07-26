@@ -61,7 +61,7 @@ export function StockLookupModal({
   onClose: () => void;
 }) {
   const { locale } = useLocale();
-  const t = (vn: string, en: string) => (locale === "EN" ? en : vn);
+  const t = useCallback((vn: string, en: string) => (locale === "EN" ? en : vn), [locale]);
 
   const [searchInput, setSearchInput] = useState("");
   const [activeSymbol, setActiveSymbol] = useState<string | null>(null);
