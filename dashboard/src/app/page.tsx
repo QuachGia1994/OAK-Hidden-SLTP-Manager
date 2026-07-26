@@ -39,8 +39,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const brokerClock = getBrokerDateParts(botState, now);
   const botWasAvailable = Boolean(botState);
-  // Capture broker offset before VIP masking so schedule pills can convert to local time.
-  const brokerOffset = typeof botState?.broker_utc_offset === "number" ? botState.broker_utc_offset : null;
+  // Capture broker offset: botState > signal data > default 3 (GMT+3 summer)
+  let brokerOffset = typeof botState?.broker_utc_offset === "number" ? botState.broker_utc_offset : null;
+  if (brokerOffset === null) {
+    // Fallback: extract from today's signals if available
+    for (const sig of signals) {
+      if (typeof sig.broker_utc_offset === "number") {
+        brokerOffset = sig.broker_utc_offset;
+        break;
+      }
+    }
+  }
+  if (brokerOffset === null) {
+    brokerOffset = 3; // Default GMT+3 (broker summer time)
+  }
   if (!isVIP) {
     signals = signals.map(maskSignal);
     botState = null;
