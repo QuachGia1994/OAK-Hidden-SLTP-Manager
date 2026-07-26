@@ -944,6 +944,35 @@ def is_special_day_2(broker_dt):
     else:
         return nth == 2
 
+
+def is_month_boundary_suppress(broker_dt):
+    """Check if H=6/9/12/14/16 should be WAIT at month-boundary transition.
+
+    Rule:
+      Cuối tháng: Mon-Fri all suppress (last Fri week)
+      Đầu tháng: Mon-Tue-Wed suppress; Thu-Fri only when SD1
+      Mon-after: only when SD1 (post-special)
+    """
+    if broker_dt is None:
+        return False
+    wd = broker_dt.weekday()
+    if wd == 0:
+        # Mon-after special pair
+        if is_post_special_day(broker_dt):
+            return True
+        # Mon in last week of month (Fri of this week is last Fri)
+        fri = broker_dt + timedelta(days=4)
+        if (fri + timedelta(days=7)).month != fri.month:
+            return True
+    if wd in (1, 2):
+        thu = broker_dt + timedelta(days=3 - wd)
+        if is_special_day(thu):
+            return True
+    if wd in (3, 4) and is_special_day(broker_dt):
+        return True
+    return False
+
+
 def _lookup_historical_t2_signal(broker_dt, target_hour):
     """Look up the previous Monday signal for Thursday history reuse."""
     monday_date = broker_dt.date() - timedelta(days=3)
@@ -1398,29 +1427,6 @@ def calculate_slot_signal(broker_dt, hour):
             "skip_xau_m30": True,
             "suppressed": True,
         }
-    # Suppress H=12/14/16 around month-boundary transition:
-    #   Cuối tháng: Mon-Fri all suppress (last Fri week)
-    #   Đầu tháng: Mon-Tue-Wed suppress; Thu-Fri only when SD1
-    #   Mon-after: only when SD1 (post-special)
-    if hour in (12, 14, 16) and broker_dt is not None:
-        wd = broker_dt.weekday()
-        # Thu+Fri: SD1 gate
-        if wd in (3, 4) and is_special_day(broker_dt):
-            return {"signal": "WAIT", "report": f"H={hour}: suppressed (special day).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
-        # Mon-after special pair (post-special)
-        if wd == 0 and is_post_special_day(broker_dt):
-            return {"signal": "WAIT", "report": f"H={hour}: suppressed (Monday after special day).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
-        # Mon in last week of month (Fri of this week is last Fri)
-        if wd == 0:
-            fri_this_week = broker_dt + timedelta(days=4)
-            fri_next_week = fri_this_week + timedelta(days=7)
-            if fri_next_week.month != fri_this_week.month:
-                return {"signal": "WAIT", "report": f"H={hour}: suppressed (Monday, last week of month).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
-        # Tue/Wed in month-boundary week (Thu of this week is special)
-        if wd in (1, 2):
-            days_to_thu = 3 - wd
-            if is_special_day(broker_dt + timedelta(days=days_to_thu)):
-                return {"signal": "WAIT", "report": f"H={hour}: suppressed (Tue/Wed before month-boundary special pair).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
     # H=3: XAUUSD reverses yesterday H=5; Thursday reuses Monday H=3.
     if hour == 3:
         entry_group = evaluate_3_m30_classification_for_h3(broker_dt)
@@ -1476,7 +1482,13 @@ def calculate_slot_signal(broker_dt, hour):
         if broker_dt is not None and is_special_day_2(broker_dt):
             final_signal = reverse_signal(final_signal)
             report += f" [Special day 2 -> đảo lại ({final_signal})]"
-        return {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        result = {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        # Month-boundary: XAUUSD = WAIT, keep priority/entry
+        if is_month_boundary_suppress(broker_dt):
+            result["signal"] = "WAIT"
+            result["report"] += " [XAUUSD = WAIT (month boundary)]"
+            result["suppressed"] = True
+        return result
     # H=9: same XAU branch as H=6, plus GBP derived from H=3/H=5.
     if hour == 9:
         priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 6)
@@ -1505,7 +1517,7 @@ def calculate_slot_signal(broker_dt, hour):
         if broker_dt is not None and is_special_day_2(broker_dt):
             final_xau = reverse_signal(final_xau)
             report += f" [Special day 2 -> đảo lại ({final_xau})]"
-        return {
+        result = {
             "signal": final_xau,
             "xau_signal": final_xau,
             "gbp_signal": gbpusd,
@@ -1515,6 +1527,14 @@ def calculate_slot_signal(broker_dt, hour):
             "h1_signal": None,
             "skip_xau_m30": True,
         }
+        # Month-boundary: XAUUSD = WAIT, keep GBP/priority
+        if is_month_boundary_suppress(broker_dt):
+            result["signal"] = "WAIT"
+            result["xau_signal"] = "WAIT"
+            result["pair_dirs"]["XAUUSD"] = "WAIT"
+            result["report"] += " [XAUUSD = WAIT (month boundary)]"
+            result["suppressed"] = True
+        return result
     # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback
     if hour == 12:
         priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
@@ -1534,7 +1554,12 @@ def calculate_slot_signal(broker_dt, hour):
             report = f"H={hour}: đảo H=4 ({h4_signal} -> {reverse_signal(h4_signal)}), BT({detail}) -> đảo lại ({final_signal})."
         else:
             report = f"H={hour}: đảo H=4 ({h4_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
-        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        result = {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        if is_month_boundary_suppress(broker_dt):
+            result["signal"] = "WAIT"
+            result["report"] += " [XAUUSD = WAIT (month boundary)]"
+            result["suppressed"] = True
+        return result
     # H=14: XAUUSD = same as H=12 (special Thursday + reverse H=4 + 4H1 lookback)
     if hour == 14:
         entry_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
@@ -1561,7 +1586,13 @@ def calculate_slot_signal(broker_dt, hour):
         if gbpaud != "WAIT":
             pair_dirs["GBPAUD"] = gbpaud
         report = f"H=14: XAU={final_signal}, GBPUSD={gbpusd}, GBPAUD={gbpaud}"
-        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
+        result = {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
+        if is_month_boundary_suppress(broker_dt):
+            result["signal"] = "WAIT"
+            result["pair_dirs"]["XAUUSD"] = "WAIT"
+            result["report"] += " [XAUUSD = WAIT (month boundary)]"
+            result["suppressed"] = True
+        return result
     # H=16: H6 priority pairs H6↔H12; H9 priority pairs H9↔H14.
     if hour == 16:
         group_h6 = evaluate_4_m30_classification_before_hour(broker_dt, 6)
@@ -1582,7 +1613,7 @@ def calculate_slot_signal(broker_dt, hour):
 
         final_signal = _apply_weekday_extra_inversion(16, final_signal, broker_dt)
         report = f"H=16: H={left_hour}={left_signal}, H={right_hour}={right_signal} ({relation}) -> {final_signal}"
-        return {
+        result = {
             "signal": final_signal,
             "pattern_signal": left_signal,
             "report": report,
@@ -1591,6 +1622,12 @@ def calculate_slot_signal(broker_dt, hour):
             "skip_xau_m30": True,
             "pair_dirs": {"XAUUSD": final_signal},
         }
+        if is_month_boundary_suppress(broker_dt):
+            result["signal"] = "WAIT"
+            result["pair_dirs"]["XAUUSD"] = "WAIT"
+            result["report"] += " [XAUUSD = WAIT (month boundary)]"
+            result["suppressed"] = True
+        return result
 
     result = _finalize_pattern_result(analyze(broker_dt, hour), broker_dt, hour)
     if is_deactivated_signal_slot(broker_dt, hour):
