@@ -162,15 +162,32 @@ async function buildForeign(symbol: string): Promise<Record<string, unknown> | n
 
   let institutionalRatio = 0;
   let managementRatio = 0;
-  const topShareholders: unknown[] = [];
+  // Deduplicate: merge same-name shareholders, keep strongest type, then sort & take top 10
+  const nameMap = new Map<string, { name: string; ratio: number; type: string }>();
   for (const sh of (od.CoDongSoHuu || [])) {
     const code = String(sh.Code || "");
     const name = String(sh.Name || "").replace(/<[^>]+>/g, "").trim();
     const ratio = parseFloat(String(sh.AssetRate || "0").replace(",", ".")) || 0;
-    if (code.startsWith("CEO_")) { managementRatio += ratio; if (topShareholders.length < 10 && name && ratio > 0) topShareholders.push({ name, ratio, type: "BLĐ" }); }
-    else if (code.startsWith("CORP_")) { institutionalRatio += ratio; if (topShareholders.length < 10 && name && ratio > 0) topShareholders.push({ name, ratio, type: "TC" }); }
-    else { if (topShareholders.length < 10 && name && ratio > 0) topShareholders.push({ name, ratio, type: "TN" }); }
+    if (!name || ratio <= 0) continue;
+
+    let shType: string;
+    if (code.startsWith("CEO_")) { shType = "BLĐ"; managementRatio += ratio; }
+    else if (code.startsWith("CORP_")) { shType = "TC"; institutionalRatio += ratio; }
+    else { shType = "TN"; }
+
+    const existing = nameMap.get(name);
+    if (existing) {
+      existing.ratio += ratio;
+      // BLĐ > TC > TN — upgrade type if more authoritative
+      if (shType === "BLĐ" && existing.type !== "BLĐ") existing.type = "BLĐ";
+      else if (shType === "TC" && existing.type === "TN") existing.type = "TC";
+    } else {
+      nameMap.set(name, { name, ratio, type: shType });
+    }
   }
+  const topShareholders = Array.from(nameMap.values())
+    .sort((a, b) => b.ratio - a.ratio)
+    .slice(0, 10);
 
   // Room from RealtimePrice
   const rtUrl = `${CAFEF_BASE}/RealtimePrice.ashx?Symbol=${symbol}`;

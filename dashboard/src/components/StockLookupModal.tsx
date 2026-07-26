@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocale } from "./LocaleProvider";
-import { getCompanyName, getMarketCap, getExchange, getIndustry } from "@/lib/stock-names";
+import { getCompanyName, getMarketCap, getExchange, getIndustry, getDescription } from "@/lib/stock-names";
 
 type TabKey = "overview" | "reports" | "dividends" | "foreign" | "chart";
 
@@ -344,50 +344,43 @@ function OverviewTab({ profile, foreign, t }: { profile: ProfileData | null; for
 
   // Info columns matching FireAnt Hồ sơ
   const industry = profile.industry || (profile.symbol ? getIndustry(profile.symbol) : "");
-  const leftInfo: { label: string; value: string }[] = [
+  const description = profile.symbol ? getDescription(profile.symbol) : "";
+
+  const infoRows: { label: string; value: string }[] = [
     { label: t("Sàn", "Exchange"), value: profile.exchange || "—" },
     { label: t("Ngành", "Industry"), value: industry || "—" },
     { label: t("Vốn hoá", "Market Cap"), value: formatCap },
-    { label: t("Nguồn", "Source"), value: profile.source },
-  ];
-
-  const rightInfo: { label: string; value: string }[] = [
     { label: t("Nước ngoài", "Foreign"), value: foreign ? `${foreign.foreignRatio.toFixed(1)}%` : "—" },
     { label: t("Tổ chức", "Institutional"), value: foreign ? `${foreign.institutionalRatio.toFixed(1)}%` : "—" },
+    { label: t("BLĐ", "Management"), value: foreign ? `${foreign.managementRatio.toFixed(1)}%` : "—" },
     { label: t("Room NN", "Foreign Room"), value: foreign ? `${foreign.roomRemaining.toFixed(2)}%` : "—" },
+    { label: t("Nguồn", "Source"), value: profile.source },
   ];
 
   return (
     <div className="space-y-4">
-      {/* Two-column info layout matching FireAnt */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* Thông tin cơ bản */}
-        <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-4">
-          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-            {t("Thông tin cơ bản", "Basic Info")}
+      {/* Company description (tiểu sử) */}
+      {description && (
+        <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
+          <h3 className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+            {t("Giới thiệu", "Introduction")}
           </h3>
-          <div className="space-y-2.5">
-            {leftInfo.map((row, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-[11px] text-[var(--muted)]">{row.label}</span>
-                <span className="font-mono text-xs font-bold text-[var(--foreground)]">{row.value}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-xs leading-relaxed text-[var(--foreground)] opacity-80">{description}</p>
         </div>
-        {/* Thông tin cổ đông */}
-        <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-4">
-          <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-            {t("Cổ đông chính", "Key Shareholders")}
-          </h3>
-          <div className="space-y-2.5">
-            {rightInfo.map((row, i) => (
-              <div key={i} className="flex items-center justify-between">
-                <span className="text-[11px] text-[var(--muted)]">{row.label}</span>
-                <span className="font-mono text-xs font-bold text-[var(--foreground)]">{row.value}</span>
-              </div>
-            ))}
-          </div>
+      )}
+
+      {/* Single-column info layout (mobile-friendly, matches FireAnt Hồ sơ) */}
+      <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
+        <h3 className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+          {t("Thông tin cơ bản", "Basic Info")}
+        </h3>
+        <div className="space-y-2.5">
+          {infoRows.map((row, i) => (
+            <div key={i} className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-[var(--muted)] shrink-0">{row.label}</span>
+              <span className="font-mono text-xs font-bold text-[var(--foreground)] truncate text-right">{row.value}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -520,36 +513,31 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
     { label: t("Khác", "Others"), pct: Math.max(0, 100 - (foreign.foreignRatio || 0) - (foreign.stateRatio || 0)), color: "#f4b740" },
   ];
 
-  // Right panel list: Ban lãnh đạo, Tổ chức, Nước ngoài (matching FireAnt)
-  const groupList = [
-    { label: t("Ban lãnh đạo", "Management"), pct: foreign.managementRatio || 0 },
-    { label: t("Tổ chức", "Institutional"), pct: foreign.institutionalRatio || 0 },
-    { label: t("Nước ngoài", "Foreign"), pct: foreign.foreignRatio || 0 },
-  ];
-
   const r = 55;
   const circ = 2 * Math.PI * r;
   const strokeW = 14;
   let offset = 0;
 
-  // Type badge color mapping
+  // Type color mapping for shareholder list
   const typeColors: Record<string, string> = {
     "BLĐ": "var(--terminal-accent)",
     "TC": "var(--terminal-warning)",
     "TN": "#5b8def",
   };
+  const typeLabels: Record<string, string> = {
+    "BLĐ": t("BLĐ", "Mgmt"),
+    "TC": t("TC", "Inst"),
+    "TN": t("TN", "Fgn"),
+  };
 
   return (
     <div className="space-y-4">
-      {/* Cơ cấu sở hữu — two-panel layout matching FireAnt */}
+      {/* Cơ cấu sở hữu — simplified FireAnt-style */}
       <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-5">
-        <h3 className="mb-1 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+        <h3 className="mb-4 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
           {t("Cơ cấu sở hữu", "Ownership Structure")}
         </h3>
-        <p className="mb-4 text-center text-[10px] text-[var(--muted)] opacity-70">
-          {t("Phân bố theo nhóm cổ đông", "Distribution by shareholder group")}
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-6">
+        <div className="flex items-center justify-center gap-6">
           {/* Donut chart */}
           <svg width={140} height={140} viewBox="0 0 140 140" className="shrink-0">
             <circle cx={70} cy={70} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
@@ -570,72 +558,58 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
               offset += len;
               return el;
             })}
-            {/* Center text */}
-            <text x={70} y={70} textAnchor="middle" dominantBaseline="central"
-              className="fill-[var(--foreground)] font-mono text-[11px] font-bold">
+            <text x={70} y={62} textAnchor="middle" dominantBaseline="central"
+              className="fill-[var(--foreground)] font-mono text-sm font-bold">
               {foreign.foreignRatio.toFixed(1)}%
+            </text>
+            <text x={70} y={80} textAnchor="middle" dominantBaseline="central"
+              className="fill-[var(--muted)] font-mono text-[9px]">
+              {t("Nước ngoài", "Foreign")}
             </text>
           </svg>
 
-          {/* Legend + group list */}
-          <div className="space-y-3">
-            {/* Donut legend */}
-            <div className="space-y-1.5">
-              {donutSegments.map((seg, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded shrink-0" style={{ backgroundColor: seg.color }} />
-                  <span className="text-[11px] text-[var(--muted)] min-w-[70px]">{seg.label}</span>
-                  <span className="font-mono text-xs font-bold text-[var(--foreground)] tabular-nums">{seg.pct.toFixed(1)}%</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-[var(--panel-border)]" />
-
-            {/* Nhóm cổ đông quan trọng */}
-            <div>
-              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]">
-                {t("Nhóm cổ đông quan trọng", "Key Shareholder Groups")}
-              </p>
-              <div className="space-y-1.5">
-                {groupList.map((g, i) => (
-                  <div key={i} className="flex items-center justify-between">
-                    <span className="text-[11px] text-[var(--muted)]">{g.label}</span>
-                    <span className="font-mono text-xs font-bold text-[var(--foreground)] tabular-nums">{g.pct.toFixed(2)}%</span>
-                  </div>
-                ))}
+          {/* Legend */}
+          <div className="space-y-2">
+            {donutSegments.map((seg, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded shrink-0" style={{ backgroundColor: seg.color }} />
+                <span className="text-[11px] text-[var(--muted)]">{seg.label}</span>
+                <span className="font-mono text-xs font-bold text-[var(--foreground)] tabular-nums">{seg.pct.toFixed(1)}%</span>
               </div>
-            </div>
+            ))}
           </div>
         </div>
 
         {/* Room NN info */}
         {foreign.roomRemaining > 0 && (
-          <div className="mt-3 flex items-center justify-center gap-2">
-            <span className="text-[10px] text-[var(--muted)]">{t("Room NN còn lại", "Foreign room left")}:</span>
-            <span className="font-mono text-[11px] font-bold text-[var(--terminal-accent)]">{foreign.roomRemaining.toFixed(2)}%</span>
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-[8px] bg-[var(--terminal-accent)]/10 px-3 py-2">
+            <span className="text-[11px] text-[var(--muted)]">{t("Room NN còn lại", "Foreign room left")}:</span>
+            <span className="font-mono text-xs font-bold text-[var(--terminal-accent)]">{foreign.roomRemaining.toFixed(2)}%</span>
           </div>
         )}
       </div>
 
-      {/* Top cổ đông lớn nhất */}
+      {/* Top cổ đông lớn nhất — FireAnt-style clean list */}
       {foreign.topShareholders && foreign.topShareholders.length > 0 && (
         <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
           <h3 className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
             {t("Top cổ đông lớn nhất", "Top Shareholders")}
           </h3>
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {foreign.topShareholders.slice(0, 10).map((sh, i) => (
-              <div key={i} className="flex items-center justify-between py-1.5 border-b border-[var(--panel-border)] last:border-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-[10px] text-[var(--muted)] w-4 text-center">{i + 1}</span>
-                  <span className="text-xs text-[var(--foreground)] truncate">{sh.name}</span>
+              <div key={i} className="flex items-center gap-3">
+                <span className="font-mono text-[10px] text-[var(--muted)] w-3 text-right tabular-nums">{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-[var(--foreground)] truncate">{sh.name}</span>
+                    <span className="font-mono text-xs font-bold tabular-nums shrink-0" style={{ color: typeColors[sh.type] || "var(--foreground)" }}>{sh.ratio.toFixed(2)}%</span>
+                  </div>
+                  {/* Percentage bar */}
+                  <div className="mt-1 h-1 rounded-full bg-[var(--panel-border)] overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(sh.ratio, 100)}%`, backgroundColor: typeColors[sh.type] || "var(--muted)" }} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="rounded-[6px] px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ backgroundColor: `color-mix(in srgb, ${typeColors[sh.type] || "var(--muted)"} 15%, transparent)`, color: typeColors[sh.type] || "var(--muted)" }}>{sh.type === "BLĐ" ? t("BLĐ", "Mgmt") : sh.type === "TC" ? t("TC", "Inst") : t("TN", "Fgn")}</span>
-                  <span className="font-mono text-xs font-bold tabular-nums min-w-[45px] text-right" style={{ color: typeColors[sh.type] || "var(--foreground)" }}>{sh.ratio.toFixed(2)}%</span>
-                </div>
+                <span className="rounded-[4px] px-1 py-0.5 text-[8px] font-bold uppercase shrink-0" style={{ backgroundColor: `color-mix(in srgb, ${typeColors[sh.type] || "var(--muted)"} 15%, transparent)`, color: typeColors[sh.type] || "var(--muted)" }}>{typeLabels[sh.type] || sh.type}</span>
               </div>
             ))}
           </div>

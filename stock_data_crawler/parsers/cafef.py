@@ -272,34 +272,43 @@ def fetch_ownership(symbol: str) -> ForeignData | None:
     state_ratio = float(d.get("NhaNuoc", 0) or 0)
 
     shareholders_raw = d.get("CoDongSoHuu", [])
-    top_shareholders: list[TopShareholder] = []
     institutional_total = 0.0
     management_total = 0.0
 
-    # Iterate ALL shareholders for totals, collect top 10 for display
+    # Build deduplicated map: merge same-name shareholders, keep strongest type
+    name_map: dict[str, TopShareholder] = {}
     for sh in shareholders_raw:
         code = str(sh.get("Code", ""))
         name = _clean_html_name(str(sh.get("Name", "")))
         ratio = _parse_ratio(sh.get("AssetRate", 0))
 
+        if not name or ratio <= 0:
+            continue
+
+        # Determine type: CEO_ → BLĐ, CORP_ → TC, else → TN
         if code.startswith("CEO_"):
+            sh_type = "BLĐ"
             management_total += ratio
         elif code.startswith("CORP_"):
+            sh_type = "TC"
             institutional_total += ratio
+        else:
+            sh_type = "TN"
 
-        # Collect top shareholders for display (limit to 10)
-        if len(top_shareholders) < 10 and name and ratio > 0:
-            if code.startswith("CEO_"):
-                sh_type = "BLĐ"
-            elif code.startswith("CORP_"):
-                sh_type = "TC"
-            else:
-                sh_type = "TN"
-            top_shareholders.append(TopShareholder(
-                name=name,
-                ratio=ratio,
-                type=sh_type,
-            ))
+        # Merge if same name already exists — sum ratios, upgrade type priority
+        if name in name_map:
+            existing = name_map[name]
+            existing.ratio += ratio
+            # BLĐ > TC > TN — keep the more authoritative type
+            if sh_type == "BLĐ" and existing.type != "BLĐ":
+                existing.type = "BLĐ"
+            elif sh_type == "TC" and existing.type == "TN":
+                existing.type = "TC"
+        else:
+            name_map[name] = TopShareholder(name=name, ratio=ratio, type=sh_type)
+
+    # Sort by ratio descending, take top 10
+    top_shareholders = sorted(name_map.values(), key=lambda s: s.ratio, reverse=True)[:10]
 
     return ForeignData(
         symbol=symbol,

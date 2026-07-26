@@ -7,14 +7,14 @@
   "roomRemaining": 7.78,
   "topShareholders": [
     {
-      "name": "CTCP Dịch vụ Văn hóa Việt",
-      "ratio": 5.51,
+      "name": "CTCP Prosper Logistics",
+      "ratio": 18.64,
       "type": "TC"
     },
     {
-      "name": "Nguyễn Hồng Kim Chi",
-      "ratio": 0.09,
-      "type": "BLĐ"
+      "name": "CTCP Dịch vụ Văn hóa Việt",
+      "ratio": 15.58,
+      "type": "TC"
     },
     {
       "name": "JWD Asia Holding Private Limited",
@@ -22,14 +22,14 @@
       "type": "TC"
     },
     {
+      "name": "Công ty TNHH Quản lý quỹ SSI",
+      "ratio": 2.33,
+      "type": "TN"
+    },
+    {
       "name": "Nguyễn Chí Đức",
       "ratio": 0.48,
       "type": "BLĐ"
-    },
-    {
-      "name": "CTCP Prosper Logistics",
-      "ratio": 18.64,
-      "type": "TC"
     },
     {
       "name": "Công ty cổ phần VINAPRINT",
@@ -42,19 +42,14 @@
       "type": "BLĐ"
     },
     {
-      "name": "Nguyễn Bảo Trung",
-      "ratio": 0.06,
+      "name": "Nguyễn Hồng Kim Chi",
+      "ratio": 0.09,
       "type": "BLĐ"
     },
     {
-      "name": "Công ty TNHH Quản lý quỹ SSI",
-      "ratio": 2.33,
-      "type": "TN"
-    },
-    {
-      "name": "CTCP Dịch vụ Văn hóa Việt",
-      "ratio": 10.07,
-      "type": "TC"
+      "name": "Nguyễn Bảo Trung",
+      "ratio": 0.06,
+      "type": "BLĐ"
     }
   ],
   "recentTrades": [],
