@@ -9,6 +9,9 @@ export interface Signal {
   current_prices: Record<string, number>;
   signal_time?: string | null;
   entry_time?: string | null;
+  /** Vietnam local time (UTC+7) — populated by bot since v3.18.1 */
+  signal_time_local?: string | null;
+  entry_time_local?: string | null;
   signal_at_utc?: string | number | null;
   broker_utc_offset?: string | number | null;
   broker_clock_verified?: boolean;

@@ -1,7 +1,7 @@
 "use client";
 
 import { getEntryTimeLabel, getSignalColor, getSignalLabel, getSignalTime } from "@/lib/constants";
-import { isVerifiedBrokerClockMetadata } from "@/lib/broker-time";
+import { brokerTimeToLocal, isVerifiedBrokerClockMetadata } from "@/lib/broker-time";
 import { isEffectivelyDeactivated } from "@/lib/signal-display";
 import type { Signal } from "@/lib/types";
 import { BrokerLocalTime } from "./BrokerLocalTime";
@@ -29,6 +29,19 @@ function visiblePairs(signal: Signal): string[] {
   });
 }
 
+/** Resolve local (Vietnam) time, falling back to broker-time conversion. */
+function resolveLocalTime(
+  localTime: string | null | undefined,
+  brokerTime: string | null | undefined,
+  brokerOffset: string | number | null | undefined,
+): string | null {
+  if (VALID_TIME.test(localTime || "")) return localTime as string;
+  if (!VALID_TIME.test(brokerTime || "")) return null;
+  const offset = Number(brokerOffset);
+  if (!Number.isFinite(offset)) return null;
+  return brokerTimeToLocal(brokerTime as string, offset);
+}
+
 export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: boolean }) {
   const { locale } = useLocale();
   const signalTime = VALID_TIME.test(signal.signal_time || "")
@@ -37,6 +50,16 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
   const entryTime = VALID_TIME.test(signal.entry_time || "")
     ? signal.entry_time as string
     : signal.ts === 0 ? getEntryTimeLabel(signal.hour, signal.date) : "—";
+  const localSignalTime = resolveLocalTime(
+    signal.signal_time_local,
+    signal.signal_time,
+    signal.broker_utc_offset,
+  );
+  const localEntryTime = resolveLocalTime(
+    signal.entry_time_local,
+    signal.entry_time,
+    signal.broker_utc_offset,
+  );
   const pairs = visiblePairs(signal);
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
@@ -63,12 +86,12 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
               <TimeBlock
                 label={locale === "EN" ? "Signal" : "Phát signal"}
                 brokerTime={signalTime}
-                signal={signal}
+                localTime={localSignalTime}
               />
               <TimeBlock
                 label={locale === "EN" ? "Entry" : "Vào lệnh"}
                 brokerTime={entryTime}
-                signal={signal}
+                localTime={localEntryTime}
               />
             </div>
             <div className="shrink-0 text-right">
@@ -118,35 +141,20 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
 function TimeBlock({
   label,
   brokerTime,
-  signal,
+  localTime,
 }: {
   label: string;
   brokerTime: string;
-  signal: Signal;
+  localTime: string | null;
 }) {
-  const hasLocalTime = VALID_TIME.test(brokerTime)
-    && isVerifiedBrokerClockMetadata({
-      date: signal.date,
-      signalTime: signal.signal_time,
-      signalAtUtc: signal.signal_at_utc,
-      brokerUtcOffset: signal.broker_utc_offset,
-      brokerClockVerified: signal.broker_clock_verified,
-    });
   return (
     <div className="min-w-0">
       <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--terminal-accent)]">{label}</div>
-      {hasLocalTime ? (
+      {localTime ? (
         <>
           <div className="mt-0.5 font-mono text-lg font-black tabular-nums text-[var(--foreground)]">
-            <BrokerLocalTime
-              date={signal.date}
-              brokerTime={brokerTime}
-              brokerUtcOffset={signal.broker_utc_offset}
-              signalTime={signal.signal_time}
-              signalAtUtc={signal.signal_at_utc}
-              brokerClockVerified={signal.broker_clock_verified}
-            />
-            <span className="ml-1 text-[9px] font-bold uppercase text-[var(--muted)]">Local</span>
+            {localTime}
+            <span className="ml-1 text-[9px] font-bold uppercase text-[var(--muted)]">VN</span>
           </div>
           <div className="font-mono text-[10px] font-semibold text-[var(--muted)]">{brokerTime} Broker</div>
         </>

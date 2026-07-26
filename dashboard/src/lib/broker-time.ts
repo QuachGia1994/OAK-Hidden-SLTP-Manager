@@ -3,6 +3,27 @@ const BROKER_TIME = /^(\d{2}):(\d{2})$/;
 const UTC_OFFSET = /^(?:UTC)?([+-]?)(\d{1,2})(?::(\d{2}))?$/;
 const AWARE_TIMESTAMP = /(?:Z|[+-]\d{2}:\d{2})$/i;
 
+/** Vietnam local timezone — Indochina Time, no DST. */
+export const VN_UTC_OFFSET = 7;
+
+/**
+ * Convert a Broker wall-clock "HH:MM" string to Vietnam local "HH:MM".
+ * Broker offset is in hours (e.g. 2 for GMT+2 winter, 3 for GMT+3 summer).
+ */
+export function brokerTimeToLocal(
+  brokerTime: string,
+  brokerOffsetHours: number,
+  localOffset: number = VN_UTC_OFFSET,
+): string {
+  const match = BROKER_TIME.exec(brokerTime);
+  if (!match) return brokerTime;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  const diff = localOffset - brokerOffsetHours;
+  const localHour = ((hour + diff) % 24 + 24) % 24;
+  return `${String(localHour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 interface BrokerClockMetadata {
   date: string;
   signalTime?: string | null;

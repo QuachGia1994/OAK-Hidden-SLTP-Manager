@@ -3,6 +3,7 @@ import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { SignalCard } from "@/components/SignalCard";
 import { getTodaySignals, getBotState, getEconomicNews, maskSignal } from "@/lib/data";
 import { getSignalLabel, getSignalTime, getSlotTimeValue, getTargetHours } from "@/lib/constants";
+import { brokerTimeToLocal } from "@/lib/broker-time";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { hasVipAccess } from "@/lib/vip";
@@ -38,6 +39,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const brokerClock = getBrokerDateParts(botState, now);
   const botWasAvailable = Boolean(botState);
+  // Capture broker offset before VIP masking so schedule pills can convert to local time.
+  const brokerOffset = typeof botState?.broker_utc_offset === "number" ? botState.broker_utc_offset : null;
   if (!isVIP) {
     signals = signals.map(maskSignal);
     botState = null;
@@ -145,6 +148,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   brokerDate={todayStr}
                   signalTime={signalsByHour.get(h)?.signal_time}
                   signal={sig}
+                  brokerOffset={brokerOffset}
                   locale={locale}
                 />
               );
@@ -280,12 +284,14 @@ function SchedulePill({
   brokerDate,
   signalTime,
   signal,
+  brokerOffset,
   locale,
 }: {
   hour: number;
   brokerDate: string;
   signalTime?: string | null;
   signal: string | null;
+  brokerOffset: number | null;
   locale: "VN" | "EN";
 }) {
   const tone = signal === "BUY" ? "buy" : signal === "SELL" ? "sell" : signal === "WAIT" ? "wait" : (signal === "BT" || signal === "SW") ? "gold" : "idle";
@@ -297,11 +303,25 @@ function SchedulePill({
     gold: "border-dashed border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/10 text-[var(--terminal-warning)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-warning)_15%,transparent)]",
   }[tone];
 
+  const brokerTime = signalTime || getSignalTime(hour, brokerDate);
+  const localTime = brokerOffset !== null ? brokerTimeToLocal(brokerTime, brokerOffset) : null;
+
   return (
     <div className={`min-w-[7.35rem] rounded-xl border px-3 py-2 text-center transition-all ${toneClass}`}>
-      <div className="font-mono text-base font-black tabular-nums">
-        {signalTime || getSignalTime(hour, brokerDate)} <span className="text-[9px] uppercase">Broker</span>
-      </div>
+      {localTime ? (
+        <>
+          <div className="font-mono text-base font-black tabular-nums">
+            {localTime} <span className="text-[9px] uppercase">VN</span>
+          </div>
+          <div className="mt-0.5 font-mono text-[10px] text-[var(--muted)]">
+            {brokerTime} Broker
+          </div>
+        </>
+      ) : (
+        <div className="font-mono text-base font-black tabular-nums">
+          {brokerTime} <span className="text-[9px] uppercase">Broker</span>
+        </div>
+      )}
       {signal && (
         <div className="mt-0.5 font-mono text-xs font-bold">
           {getSignalLabel(signal, locale)}
