@@ -1,6 +1,7 @@
-"""HTTP client with hostname allowlist, retry, and timeout for stock data crawling."""
+"""HTTP client with hostname allowlist, redirect guard, retry, and timeout for stock data crawling."""
 from __future__ import annotations
 
+import html
 import logging
 import re
 import ssl
@@ -26,10 +27,6 @@ TIMEOUT = 15
 MAX_RETRIES = 2
 RETRY_DELAY = 2
 
-_NO_VERIFY_SSL = ssl.create_default_context()
-_NO_VERIFY_SSL.check_hostname = False
-_NO_VERIFY_SSL.verify_mode = ssl.CERT_NONE
-
 
 def validate_symbol(symbol: str) -> bool:
     return bool(SYMBOL_RE.match(symbol))
@@ -38,6 +35,33 @@ def validate_symbol(symbol: str) -> bool:
 def _is_allowed(url: str) -> bool:
     host = urlparse(url).hostname or ""
     return host in ALLOWED_HOSTS
+
+
+class _RedirectGuard(urllib.request.HTTPRedirectHandler):
+    """Block redirects to hosts outside the allowlist."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _is_allowed(newurl):
+            logger.warning("Blocked redirect to non-allowed host: %s -> %s", req.get_full_url(), newurl)
+            raise urllib.error.HTTPError(
+                newurl, code, "Redirect blocked: non-allowed host", headers, fp,
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _build_opener() -> urllib.request.OpenerDirector:
+    """Build a URL opener with SSL verification and redirect guard."""
+    ssl_ctx = ssl.create_default_context()
+    handlers = [
+        urllib.request.HTTPSHandler(context=ssl_ctx),
+        _RedirectGuard(),
+    ]
+    return urllib.request.build_opener(*handlers)
+
+
+def escape_html_text(text: str) -> str:
+    """Escape HTML entities in parsed text content."""
+    return html.escape(text, quote=False)
 
 
 def fetch_html(url: str) -> str | None:
@@ -55,10 +79,11 @@ def fetch_html(url: str) -> str | None:
         "Accept-Language": "vi-VN,vi;q=0.9,en;q=0.8",
     }
 
+    opener = _build_opener()
     for attempt in range(MAX_RETRIES + 1):
         try:
             req = urllib.request.Request(url, headers=headers)
-            resp = urllib.request.urlopen(req, timeout=TIMEOUT, context=_NO_VERIFY_SSL)
+            resp = opener.open(req, timeout=TIMEOUT)
             data = resp.read(MAX_RESPONSE_BYTES + 1)
             if len(data) > MAX_RESPONSE_BYTES:
                 logger.warning("Response too large from %s: %d bytes", url, len(data))
@@ -90,10 +115,11 @@ def fetch_json(url: str) -> Any | None:
         "Accept": "application/json,*/*",
     }
 
+    opener = _build_opener()
     for attempt in range(MAX_RETRIES + 1):
         try:
             req = urllib.request.Request(url, headers=headers)
-            resp = urllib.request.urlopen(req, timeout=TIMEOUT, context=_NO_VERIFY_SSL)
+            resp = opener.open(req, timeout=TIMEOUT)
             data = resp.read(MAX_RESPONSE_BYTES + 1)
             if len(data) > MAX_RESPONSE_BYTES:
                 return None

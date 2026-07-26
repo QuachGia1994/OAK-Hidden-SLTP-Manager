@@ -36,6 +36,8 @@ class FinancialReport:
 class ReportData:
     symbol: str
     reports: list[FinancialReport] = field(default_factory=list)
+    source: str = ""
+    source_url: str = ""
     fetched_at: str = ""
     stale: bool = False
 
@@ -43,6 +45,8 @@ class ReportData:
         return {
             "symbol": self.symbol,
             "reports": [asdict(r) for r in self.reports],
+            "source": self.source,
+            "sourceUrl": self.source_url,
             "fetchedAt": self.fetched_at,
             "stale": self.stale,
         }
@@ -62,6 +66,8 @@ class DividendEntry:
 class DividendData:
     symbol: str
     dividends: list[DividendEntry] = field(default_factory=list)
+    source: str = ""
+    source_url: str = ""
     fetched_at: str = ""
     stale: bool = False
 
@@ -69,6 +75,8 @@ class DividendData:
         return {
             "symbol": self.symbol,
             "dividends": [asdict(d) for d in self.dividends],
+            "source": self.source,
+            "sourceUrl": self.source_url,
             "fetchedAt": self.fetched_at,
             "stale": self.stale,
         }
@@ -77,8 +85,8 @@ class DividendData:
 @dataclass
 class ForeignTrade:
     date: str
-    buy_vol: float = 0
-    sell_vol: float = 0
+    buyVol: float = 0
+    sellVol: float = 0
 
 
 @dataclass

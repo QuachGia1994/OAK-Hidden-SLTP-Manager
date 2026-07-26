@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from stock_data_crawler.models import DividendData, DividendEntry, utcnow_iso
-from stock_data_crawler.http_client import fetch_html
+from stock_data_crawler.http_client import fetch_html, escape_html_text
 
 logger = logging.getLogger("stock_data_crawler")
 
@@ -70,6 +70,8 @@ def parse_dividends(html: str, symbol: str) -> DividendData | None:
     return DividendData(
         symbol=symbol,
         dividends=dividends[:10],
+        source="VSDC",
+        source_url=_VSDC_URL.format(symbol=symbol),
         fetched_at=utcnow_iso(),
     )
 

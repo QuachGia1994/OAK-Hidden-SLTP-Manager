@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from stock_data_crawler.models import ReportData, FinancialReport, utcnow_iso
-from stock_data_crawler.http_client import fetch_html
+from stock_data_crawler.http_client import fetch_html, escape_html_text
 
 logger = logging.getLogger("stock_data_crawler")
 
@@ -26,7 +26,7 @@ def parse_reports(html: str, symbol: str) -> ReportData | None:
     )
 
     for url, title in pdf_links[:10]:
-        title = title.strip()
+        title = escape_html_text(title.strip())
         if not title or len(title) < 5:
             continue
 
@@ -89,6 +89,8 @@ def parse_reports(html: str, symbol: str) -> ReportData | None:
     return ReportData(
         symbol=symbol,
         reports=reports,
+        source="SSC/CafeF",
+        source_url=_SSC_URL.format(symbol=symbol),
         fetched_at=utcnow_iso(),
     )
 

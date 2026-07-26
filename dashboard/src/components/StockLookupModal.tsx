@@ -23,6 +23,15 @@ interface ReportItem {
   publishedAt: string;
   pdfUrl: string;
   source: string;
+  sourceUrl: string;
+}
+
+interface ReportsData {
+  reports: ReportItem[];
+  source: string;
+  sourceUrl: string;
+  fetchedAt: string;
+  stale: boolean;
 }
 
 interface DividendItem {
@@ -31,11 +40,20 @@ interface DividendItem {
   cash_amount: number;
   stock_ratio: number;
   source: string;
+  sourceUrl: string;
+}
+
+interface DividendsData {
+  dividends: DividendItem[];
+  source: string;
+  sourceUrl: string;
+  fetchedAt: string;
+  stale: boolean;
 }
 
 interface ForeignInfo {
   foreignRatio: number;
-  recentTrades: { date: string; buy_vol: number; sell_vol: number }[];
+  recentTrades: { date: string; buyVol: number; sellVol: number }[];
   source: string;
   fetchedAt: string;
   stale: boolean;
@@ -68,7 +86,9 @@ export function StockLookupModal({
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [reports, setReports] = useState<ReportItem[]>([]);
+  const [reportsMeta, setReportsMeta] = useState<{ source: string; fetchedAt: string; stale: boolean } | null>(null);
   const [dividends, setDividends] = useState<DividendItem[]>([]);
+  const [dividendsMeta, setDividendsMeta] = useState<{ source: string; fetchedAt: string; stale: boolean } | null>(null);
   const [foreign, setForeign] = useState<ForeignInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +104,9 @@ export function StockLookupModal({
       setActiveSymbol(null);
       setProfile(null);
       setReports([]);
+      setReportsMeta(null);
       setDividends([]);
+      setDividendsMeta(null);
       setForeign(null);
       setError(null);
       setActiveTab("overview");
@@ -98,13 +120,15 @@ export function StockLookupModal({
     setError(null);
     setProfile(null);
     setReports([]);
+    setReportsMeta(null);
     setDividends([]);
+    setDividendsMeta(null);
     setForeign(null);
 
     Promise.allSettled([
       fetchStockData<ProfileData>(activeSymbol, "profile"),
-      fetchStockData<{ reports: ReportItem[] }>(activeSymbol, "reports"),
-      fetchStockData<{ dividends: DividendItem[] }>(activeSymbol, "dividends"),
+      fetchStockData<ReportsData>(activeSymbol, "reports"),
+      fetchStockData<DividendsData>(activeSymbol, "dividends"),
       fetchStockData<ForeignInfo>(activeSymbol, "foreign-trading"),
     ]).then(([prof, rep, div, forr]) => {
       const p = prof.status === "fulfilled" ? prof.value : null;
@@ -116,8 +140,14 @@ export function StockLookupModal({
         setError(t("Không tìm thấy dữ liệu", "No data found"));
       } else {
         if (p) setProfile(p);
-        if (r?.reports) setReports(r.reports);
-        if (d?.dividends) setDividends(d.dividends);
+        if (r?.reports) {
+          setReports(r.reports);
+          setReportsMeta({ source: r.source, fetchedAt: r.fetchedAt, stale: r.stale });
+        }
+        if (d?.dividends) {
+          setDividends(d.dividends);
+          setDividendsMeta({ source: d.source, fetchedAt: d.fetchedAt, stale: d.stale });
+        }
         if (f) setForeign(f);
       }
     }).catch(() => setError("Failed to load"))
@@ -246,8 +276,8 @@ export function StockLookupModal({
 
               {/* Tab content */}
               {activeTab === "overview" && <OverviewTab profile={profile} t={t} />}
-              {activeTab === "reports" && <ReportsTab reports={reports} t={t} />}
-              {activeTab === "dividends" && <DividendsTab dividends={dividends} t={t} />}
+              {activeTab === "reports" && <ReportsTab reports={reports} meta={reportsMeta} t={t} />}
+              {activeTab === "dividends" && <DividendsTab dividends={dividends} meta={dividendsMeta} t={t} />}
               {activeTab === "foreign" && <ForeignTab foreign={foreign} t={t} />}
               {activeTab === "chart" && <ChartTab symbol={sym} />}
             </>
@@ -275,7 +305,9 @@ function OverviewTab({ profile, t }: { profile: ProfileData | null; t: (vn: stri
   );
 }
 
-function ReportsTab({ reports, t }: { reports: ReportItem[]; t: (vn: string, en: string) => string }) {
+type MetaInfo = { source: string; fetchedAt: string; stale: boolean } | null;
+
+function ReportsTab({ reports, meta, t }: { reports: ReportItem[]; meta: MetaInfo; t: (vn: string, en: string) => string }) {
   if (!reports.length) return <EmptyState text={t("Chưa có báo cáo tài chính", "No financial reports")} />;
   return (
     <div className="space-y-2">
@@ -285,23 +317,41 @@ function ReportsTab({ reports, t }: { reports: ReportItem[]; t: (vn: string, en:
             <span className="font-mono text-xs font-bold text-[var(--foreground)]">{r.period}</span>
             <span className="ml-2 text-[10px] text-[var(--muted)]">{r.type}</span>
           </div>
-          {r.pdfUrl && (
-            <a
-              href={r.pdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-md bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[10px] font-bold text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/20"
-            >
-              PDF
-            </a>
-          )}
+          <div className="flex items-center gap-1.5">
+            {r.pdfUrl && (
+              <>
+                <a
+                  href={r.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[10px] font-bold text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/20"
+                >
+                  PDF
+                </a>
+                <a
+                  href={r.pdfUrl}
+                  download
+                  className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[10px] font-bold text-[var(--muted)] hover:text-[var(--foreground)]"
+                  title={t("Tải xuống", "Download")}
+                >
+                  <svg className="h-3 w-3 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                </a>
+              </>
+            )}
+          </div>
         </div>
       ))}
+      {meta && (
+        <p className="text-[10px] text-[var(--muted)] pt-1">
+          {t("Nguồn", "Source")}: {meta.source} | {t("Cập nhật", "Updated")}: {new Date(meta.fetchedAt).toLocaleDateString("vi-VN")}
+          {meta.stale && <span className="ml-1 text-[var(--terminal-warning)]">({t("cũ", "stale")})</span>}
+        </p>
+      )}
     </div>
   );
 }
 
-function DividendsTab({ dividends, t }: { dividends: DividendItem[]; t: (vn: string, en: string) => string }) {
+function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta: MetaInfo; t: (vn: string, en: string) => string }) {
   if (!dividends.length) return <EmptyState text={t("Chưa có dữ liệu cổ tức", "No dividend data")} />;
   return (
     <div className="space-y-2">
@@ -322,6 +372,12 @@ function DividendsTab({ dividends, t }: { dividends: DividendItem[]; t: (vn: str
           </div>
         </div>
       ))}
+      {meta && (
+        <p className="text-[10px] text-[var(--muted)] pt-1">
+          {t("Nguồn", "Source")}: {meta.source} | {t("Cập nhật", "Updated")}: {new Date(meta.fetchedAt).toLocaleDateString("vi-VN")}
+          {meta.stale && <span className="ml-1 text-[var(--terminal-warning)]">({t("cũ", "stale")})</span>}
+        </p>
+      )}
     </div>
   );
 }
@@ -343,8 +399,8 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
           {foreign.recentTrades.slice(0, 5).map((t2, i) => (
             <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 text-xs">
               <span className="font-mono text-[var(--muted)]">{t2.date}</span>
-              <span className="text-[var(--terminal-accent)]">Mua: {t2.buy_vol.toLocaleString()}</span>
-              <span className="text-[var(--terminal-danger)]">Bán: {t2.sell_vol.toLocaleString()}</span>
+              <span className="text-[var(--terminal-accent)]">Mua: {t2.buyVol.toLocaleString()}</span>
+              <span className="text-[var(--terminal-danger)]">Bán: {t2.sellVol.toLocaleString()}</span>
             </div>
           ))}
         </div>

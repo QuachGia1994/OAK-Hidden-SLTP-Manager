@@ -6,7 +6,7 @@ import re
 from typing import Any
 
 from stock_data_crawler.models import StockProfile, ForeignData, ForeignTrade, utcnow_iso
-from stock_data_crawler.http_client import fetch_html
+from stock_data_crawler.http_client import fetch_html, escape_html_text
 
 logger = logging.getLogger("stock_data_crawler")
 
@@ -16,7 +16,7 @@ _CAFEF_SEARCH = "https://s.cafef.vn/screener.aspx?symbol={symbol}"
 
 def _extract_text(html: str, pattern: str) -> str:
     m = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
-    return m.group(1).strip() if m else ""
+    return escape_html_text(m.group(1).strip()) if m else ""
 
 
 def parse_profile(html: str, symbol: str) -> StockProfile | None:
@@ -65,6 +65,15 @@ def fetch_profile(symbol: str) -> StockProfile | None:
     return parse_profile(html, symbol)
 
 
+def fetch_foreign_trading(symbol: str) -> ForeignData | None:
+    """Fetch foreign trading data from CafeF."""
+    url = _CAFEF_SEARCH.format(symbol=symbol)
+    html = fetch_html(url)
+    if not html:
+        return None
+    return parse_foreign_trading(html, symbol)
+
+
 def parse_foreign_trading(html: str, symbol: str) -> ForeignData | None:
     """Parse CafeF foreign trading data from HTML."""
     # Look for foreign ownership percentage
@@ -83,8 +92,8 @@ def parse_foreign_trading(html: str, symbol: str) -> ForeignData | None:
         try:
             trades.append(ForeignTrade(
                 date=date_str,
-                buy_vol=float(buy_vol.replace(",", "")),
-                sell_vol=float(sell_vol.replace(",", "")),
+                buyVol=float(buy_vol.replace(",", "")),
+                sellVol=float(sell_vol.replace(",", "")),
             ))
         except (ValueError, IndexError):
             continue

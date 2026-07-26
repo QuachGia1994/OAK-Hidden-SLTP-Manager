@@ -35,43 +35,46 @@ def crawl_symbol(symbol: str, output_base: str) -> dict[str, bool]:
         profile = cafef.fetch_profile(symbol)
         if not profile:
             profile = hnx_parser.fetch_profile(symbol)
-        if profile:
-            results["profile"] = write_profile(profile, output_dir)
-        else:
+        results["profile"] = write_profile(profile, output_dir)
+        if not profile:
             logger.info("[%s] No profile data", symbol)
     except Exception as exc:
         logger.error("[%s] Profile error: %s", symbol, exc)
+        write_profile(None, output_dir)  # keep stale cache
 
-    # 2. Financial reports (SSC/CafeF)
+    # 2. Financial reports (SSC/CafeF primary, HNX fallback)
     try:
         reports = ssc.fetch_reports(symbol)
-        if reports:
-            results["reports"] = write_reports(reports, output_dir)
-        else:
+        if not reports:
+            reports = hnx_parser.fetch_reports(symbol)
+        results["reports"] = write_reports(reports, output_dir)
+        if not reports:
             logger.info("[%s] No reports data", symbol)
     except Exception as exc:
         logger.error("[%s] Reports error: %s", symbol, exc)
+        write_reports(None, output_dir)  # keep stale cache
 
-    # 3. Dividends (VSDC)
+    # 3. Dividends (VSDC primary, HNX fallback)
     try:
         dividends = vsdc.fetch_dividends(symbol)
-        if dividends:
-            results["dividends"] = write_dividends(dividends, output_dir)
-        else:
+        if not dividends:
+            dividends = hnx_parser.fetch_events(symbol)
+        results["dividends"] = write_dividends(dividends, output_dir)
+        if not dividends:
             logger.info("[%s] No dividend data", symbol)
     except Exception as exc:
         logger.error("[%s] Dividends error: %s", symbol, exc)
+        write_dividends(None, output_dir)  # keep stale cache
 
     # 4. Foreign trading (CafeF)
     try:
-        foreign = cafef.parse_foreign_trading(
-            open(os.path.join(output_dir, "profile.json")).read() if os.path.exists(os.path.join(output_dir, "profile.json")) else "",
-            symbol,
-        )
-        if foreign:
-            results["foreign"] = write_foreign(foreign, output_dir)
+        foreign = cafef.fetch_foreign_trading(symbol)
+        results["foreign"] = write_foreign(foreign, output_dir)
+        if not foreign:
+            logger.info("[%s] No foreign trading data", symbol)
     except Exception as exc:
         logger.error("[%s] Foreign error: %s", symbol, exc)
+        write_foreign(None, output_dir)  # keep stale cache
 
     return results
 
