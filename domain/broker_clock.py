@@ -274,13 +274,31 @@ class BrokerClock:
     @staticmethod
     def _stable_period(value: date) -> tuple[str, int] | None:
         month_day = (value.month, value.day)
-        if (4, 16) <= month_day <= (9, 30):
+        # US DST transitions: spring forward ~mid-March, fall back ~early November
+        # Broker timezone follows US DST schedule
+        if (4, 1) <= month_day <= (9, 30):
             return ("summer", value.year)
-        if month_day >= (11, 16):
-            return ("winter", value.year + 1)
-        if month_day <= (2, 29):
+        if month_day >= (11, 1) or month_day <= (2, 29):
             return ("winter", value.year)
+        # March 1–31 and October 1–31 are transition months — classify by which DST regime is closer
+        if month_day[0] == 3:
+            # March: second Sunday onward is summer (US spring forward)
+            second_sunday = BrokerClock._nth_sunday_of_month(value.year, 3, 2)
+            if value.day >= second_sunday:
+                return ("summer", value.year)
+            return ("winter", value.year)
+        if month_day[0] == 10:
+            # October: after first Sunday is winter (US fall back is first Sunday of November)
+            # October is still summer until November transition
+            return ("summer", value.year)
         return None
+
+    @staticmethod
+    def _nth_sunday_of_month(year: int, month: int, n: int) -> int:
+        """Return the day number of the Nth Sunday in a given month (1-indexed)."""
+        first_day = date(year, month, 1)
+        first_sunday = 1 + (6 - first_day.weekday()) % 7
+        return first_sunday + (n - 1) * 7
 
     def _load_utc_offsets(self, start_date: date, end_date: date) -> None:
         start_utc = datetime.combine(start_date - timedelta(days=1), time.min, timezone.utc)
