@@ -48,6 +48,20 @@ except Exception:
 SYMBOL = "GBPUSD"
 TARGET_HOURS = [3, 4, 5, 6, 9, 12, 14, 16]
 ACTIVE_HOURS = frozenset(TARGET_HOURS)
+VN_UTC_OFFSET = 7  # Vietnam local timezone (Indochina Time, no DST)
+
+
+def _broker_time_to_local(broker_time_str, broker_offset, local_offset=VN_UTC_OFFSET):
+    """Convert a Broker wall-clock 'HH:MM' string to local (Vietnam) 'HH:MM'."""
+    if not broker_time_str or ":" not in broker_time_str:
+        return broker_time_str
+    try:
+        hour, minute = (int(part) for part in broker_time_str.split(":"))
+        diff = local_offset - broker_offset
+        local_hour = (hour + diff) % 24
+        return f"{local_hour:02d}:{minute:02d}"
+    except (ValueError, TypeError):
+        return broker_time_str
 
 
 def get_signal_time_for_slot(broker_dt, hour):
@@ -457,9 +471,13 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     )
     signal_utc = BROKER_CLOCK.utc_from_broker_datetime(signal_broker_dt)
     record["signal_at_utc"] = signal_utc.isoformat()
-    record["broker_utc_offset"] = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
+    broker_offset = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
+    record["broker_utc_offset"] = broker_offset
     record["broker_clock_verified"] = True
     record["broker_timestamp_mode"] = getattr(BROKER_CLOCK, "timestamp_mode", None)
+    # Local (Vietnam) times for dashboard display
+    record["signal_time_local"] = _broker_time_to_local(signal_time, broker_offset)
+    record["entry_time_local"] = _broker_time_to_local(entry_time, broker_offset) if entry_time else None
     if pattern_signal:
         record["pattern_signal"] = pattern_signal
     try:
@@ -567,9 +585,29 @@ def _has_dashboard_payload(signal):
     return False
 
 
+def _enrich_local_times(signal_record):
+    """Add signal_time_local / entry_time_local to older records that lack them."""
+    if "signal_time_local" in signal_record:
+        return signal_record
+    broker_offset = signal_record.get("broker_utc_offset")
+    if broker_offset is None:
+        return signal_record
+    signal_time = signal_record.get("signal_time") or ""
+    entry_time = signal_record.get("entry_time") or ""
+    if signal_time:
+        signal_record["signal_time_local"] = _broker_time_to_local(signal_time, broker_offset)
+    if entry_time:
+        signal_record["entry_time_local"] = _broker_time_to_local(entry_time, broker_offset)
+    return signal_record
+
+
 def select_signals_for_dashboard(all_signals):
     """Keep renderable signal history for active logical slots."""
-    return [signal for signal in all_signals if _has_dashboard_payload(signal)]
+    return [
+        _enrich_local_times(signal)
+        for signal in all_signals
+        if _has_dashboard_payload(signal)
+    ]
 
 
 def _dashboard_log_pair_dirs(hour, signal, pair_dirs):
