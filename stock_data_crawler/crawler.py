@@ -70,12 +70,21 @@ def crawl_symbol(symbol: str, output_base: str) -> dict[str, bool]:
         logger.error("[%s] Dividends error: %s", symbol, exc)
         write_dividends(None, output_dir)  # keep stale cache
 
-    # 4. Foreign trading (CafeF)
+    # 4. Ownership structure (CafeF CoCauSoHuu primary + RealtimePrice for room)
     try:
-        foreign = cafef.fetch_foreign_trading(symbol)
+        foreign = cafef.fetch_ownership(symbol)
+        if not foreign:
+            foreign = cafef.fetch_foreign_trading(symbol)
+        # Merge RoomConLai from RealtimePrice into ownership data
+        if foreign:
+            realtime = cafef.fetch_foreign_trading(symbol)
+            if realtime:
+                foreign.room_remaining = realtime.foreign_ratio  # RoomConLai %
+                if not foreign.recent_trades and realtime.recent_trades:
+                    foreign.recent_trades = realtime.recent_trades
         results["foreign"] = write_foreign(foreign, output_dir)
         if not foreign:
-            logger.info("[%s] No foreign trading data", symbol)
+            logger.info("[%s] No ownership data", symbol)
     except Exception as exc:
         logger.error("[%s] Foreign error: %s", symbol, exc)
         write_foreign(None, output_dir)  # keep stale cache

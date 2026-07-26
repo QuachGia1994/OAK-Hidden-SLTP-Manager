@@ -59,10 +59,13 @@ interface TopShareholder {
 
 interface ForeignInfo {
   foreignRatio: number;
+  stateRatio: number;
   institutionalRatio: number;
   managementRatio: number;
+  roomRemaining: number;
   topShareholders: TopShareholder[];
   source: string;
+  sourceUrl: string;
   fetchedAt: string;
   stale: boolean;
 }
@@ -428,57 +431,110 @@ function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta:
 function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: string, en: string) => string }) {
   if (!foreign) return <EmptyState text={t("Chưa có dữ liệu cổ đông", "No shareholder data")} />;
 
-  const segments = [
-    { label: t("Room NN còn lại", "Foreign Room Left"), pct: foreign.foreignRatio || 0, color: "var(--terminal-accent)" },
-    { label: t("Tổ chức", "Institutional"), pct: foreign.institutionalRatio || 0, color: "var(--terminal-warning)" },
-    { label: t("Ban lãnh đạo", "Management"), pct: foreign.managementRatio || 0, color: "color-mix(in srgb, var(--terminal-accent) 60%, var(--terminal-warning))" },
+  // Donut chart: 3 segments matching FireAnt — Nước ngoài, Nhà nước, Khác
+  const donutSegments = [
+    { label: t("Nước ngoài", "Foreign"), pct: foreign.foreignRatio || 0, color: "#5b8def" },
+    { label: t("Nhà nước", "State"), pct: foreign.stateRatio || 0, color: "#00c991" },
+    { label: t("Khác", "Others"), pct: Math.max(0, 100 - (foreign.foreignRatio || 0) - (foreign.stateRatio || 0)), color: "#f4b740" },
   ];
-  const other = Math.max(0, 100 - segments.reduce((s, x) => s + x.pct, 0));
-  const all = [...segments, { label: t("Khác", "Others"), pct: other, color: "var(--muted)" }];
 
-  const r = 60;
+  // Right panel list: Ban lãnh đạo, Tổ chức, Nước ngoài (matching FireAnt)
+  const groupList = [
+    { label: t("Ban lãnh đạo", "Management"), pct: foreign.managementRatio || 0 },
+    { label: t("Tổ chức", "Institutional"), pct: foreign.institutionalRatio || 0 },
+    { label: t("Nước ngoài", "Foreign"), pct: foreign.foreignRatio || 0 },
+  ];
+
+  const r = 55;
   const circ = 2 * Math.PI * r;
-  const strokeW = 12;
+  const strokeW = 14;
   let offset = 0;
+
+  // Type badge color mapping
+  const typeColors: Record<string, string> = {
+    "BLĐ": "var(--terminal-accent)",
+    "TC": "var(--terminal-warning)",
+    "TN": "#5b8def",
+  };
 
   return (
     <div className="space-y-4">
-      {/* Cơ cấu sở hữu */}
+      {/* Cơ cấu sở hữu — two-panel layout matching FireAnt */}
       <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-5">
-        <h3 className="mb-4 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+        <h3 className="mb-1 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
           {t("Cơ cấu sở hữu", "Ownership Structure")}
         </h3>
+        <p className="mb-4 text-center text-[10px] text-[var(--muted)] opacity-70">
+          {t("Phân bố theo nhóm cổ đông", "Distribution by shareholder group")}
+        </p>
         <div className="flex flex-wrap items-center justify-center gap-6">
-          <svg width={160} height={160} viewBox="0 0 160 160" className="shrink-0">
-            <circle cx={80} cy={80} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
-            {all.map((seg, i) => {
+          {/* Donut chart */}
+          <svg width={140} height={140} viewBox="0 0 140 140" className="shrink-0">
+            <circle cx={70} cy={70} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
+            {donutSegments.map((seg, i) => {
               const len = (seg.pct / 100) * circ;
               const dash = `${len} ${circ - len}`;
               const el = (
                 <circle
                   key={i}
-                  cx={80} cy={80} r={r} fill="none"
+                  cx={70} cy={70} r={r} fill="none"
                   stroke={seg.color} strokeWidth={strokeW}
                   strokeDasharray={dash}
                   strokeDashoffset={-offset}
-                  strokeLinecap="round"
-                  transform="rotate(-90 80 80)"
+                  strokeLinecap="butt"
+                  transform="rotate(-90 70 70)"
                 />
               );
               offset += len;
               return el;
             })}
+            {/* Center text */}
+            <text x={70} y={70} textAnchor="middle" dominantBaseline="central"
+              className="fill-[var(--foreground)] font-mono text-[11px] font-bold">
+              {foreign.foreignRatio.toFixed(1)}%
+            </text>
           </svg>
-          <div className="space-y-2">
-            {all.map((seg, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
-                <span className="text-[11px] text-[var(--muted)] min-w-[80px]">{seg.label}</span>
-                <span className="font-mono text-xs font-bold text-[var(--foreground)] tabular-nums">{seg.pct.toFixed(1)}%</span>
+
+          {/* Legend + group list */}
+          <div className="space-y-3">
+            {/* Donut legend */}
+            <div className="space-y-1.5">
+              {donutSegments.map((seg, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded shrink-0" style={{ backgroundColor: seg.color }} />
+                  <span className="text-[11px] text-[var(--muted)] min-w-[70px]">{seg.label}</span>
+                  <span className="font-mono text-xs font-bold text-[var(--foreground)] tabular-nums">{seg.pct.toFixed(1)}%</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-[var(--panel-border)]" />
+
+            {/* Nhóm cổ đông quan trọng */}
+            <div>
+              <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--muted)]">
+                {t("Nhóm cổ đông quan trọng", "Key Shareholder Groups")}
+              </p>
+              <div className="space-y-1.5">
+                {groupList.map((g, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <span className="text-[11px] text-[var(--muted)]">{g.label}</span>
+                    <span className="font-mono text-xs font-bold text-[var(--foreground)] tabular-nums">{g.pct.toFixed(2)}%</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
         </div>
+
+        {/* Room NN info */}
+        {foreign.roomRemaining > 0 && (
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <span className="text-[10px] text-[var(--muted)]">{t("Room NN còn lại", "Foreign room left")}:</span>
+            <span className="font-mono text-[11px] font-bold text-[var(--terminal-accent)]">{foreign.roomRemaining.toFixed(2)}%</span>
+          </div>
+        )}
       </div>
 
       {/* Top cổ đông lớn nhất */}
@@ -495,8 +551,8 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
                   <span className="text-xs text-[var(--foreground)] truncate">{sh.name}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="rounded-[6px] bg-[var(--surface)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[var(--muted)]">{sh.type}</span>
-                  <span className="font-mono text-xs font-bold text-[var(--terminal-accent)] tabular-nums min-w-[40px] text-right">{sh.ratio.toFixed(2)}%</span>
+                  <span className="rounded-[6px] px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ backgroundColor: `color-mix(in srgb, ${typeColors[sh.type] || "var(--muted)"} 15%, transparent)`, color: typeColors[sh.type] || "var(--muted)" }}>{sh.type === "BLĐ" ? t("BLĐ", "Mgmt") : sh.type === "TC" ? t("TC", "Inst") : t("TN", "Fgn")}</span>
+                  <span className="font-mono text-xs font-bold tabular-nums min-w-[45px] text-right" style={{ color: typeColors[sh.type] || "var(--foreground)" }}>{sh.ratio.toFixed(2)}%</span>
                 </div>
               </div>
             ))}
@@ -507,6 +563,7 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
       {foreign.fetchedAt && (
         <p className="text-[10px] text-[var(--muted)]">
           {t("Nguồn", "Source")}: {foreign.source} | {t("Cập nhật", "Updated")}: {new Date(foreign.fetchedAt).toLocaleDateString("vi-VN")}
+          {foreign.stale && <span className="ml-1 text-[var(--terminal-warning)]">({t("cũ", "stale")})</span>}
         </p>
       )}
     </div>
@@ -514,33 +571,33 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
 }
 
 function ChartTab({ symbol, t }: { symbol: string; t: (vn: string, en: string) => string }) {
-  // TradingView uses HOSE:{SYMBOL} format for Vietnamese stocks
-  // Some stocks may not be available on TradingView widget
-  const tvSymbol = `HOSE:${symbol}`;
-  const tvUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`;
+  // Try multiple symbol formats — TradingView uses different exchange codes for VN
+  const tvSymbols = [`HOSE:${symbol}`, `XVN:${symbol}`, symbol];
+  const tvUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbols[0])}`;
 
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)]">
         <iframe
-          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_chart_${symbol}&symbol=${encodeURIComponent(tvSymbol)}&interval=D&theme=dark&style=1&locale=vi_VN&hide_side_toolbar=1&hide_top_toolbar=0&withdateranges=1&save_image=0&details=0&calendar=0&studies=[]&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D`}
+          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_chart_${symbol}&symbol=${encodeURIComponent(tvSymbols[0])}&interval=D&theme=dark&style=1&locale=vi_VN&hide_side_toolbar=0&hide_top_toolbar=0&withdateranges=1&save_image=0&details=0&calendar=0&studies=[]&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%22header_symbol_search%22%2C%22show_domestic_time_over_non_domestic_popup%22%5D`}
           className="w-full"
-          style={{ height: 420, border: "none" }}
+          style={{ height: 400, border: "none" }}
           title={`${symbol} chart`}
           loading="lazy"
+          sandbox="allow-scripts allow-same-origin allow-popups-to-escape-sandbox"
         />
       </div>
-      <p className="text-center text-[10px] text-[var(--muted)]">
-        {t("Một số mã có thể không có biểu đồ trên TradingView", "Some tickers may not have charts on TradingView")}
-      </p>
-      <div className="text-center">
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <p className="text-[10px] text-[var(--muted)]">
+          {t("Một số mã VN có thể không có biểu đồ trên TradingView widget", "Some VN tickers may not have charts on TradingView widget")}
+        </p>
         <a
           href={tvUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 rounded-[14px] bg-[var(--terminal-accent)]/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/20 focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]/40 focus-visible:outline-none"
+          className="inline-flex items-center gap-2 rounded-[14px] bg-[var(--terminal-accent)]/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/20 focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]/40 focus-visible:outline-none"
         >
-          {t("Mở biểu đồ trên TradingView", "Open chart on TradingView")}
+          {t("Mở TradingView", "Open TradingView")}
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </a>
       </div>

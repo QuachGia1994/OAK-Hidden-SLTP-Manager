@@ -1,9 +1,62 @@
 {
   "symbol": "VNM",
-  "foreignRatio": 50.77,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": [],
+  "foreignRatio": 49.21,
+  "stateRatio": 0.0,
+  "institutionalRatio": 31.439999999999998,
+  "managementRatio": 0.45999999999999996,
+  "roomRemaining": 50.77,
+  "topShareholders": [
+    {
+      "name": "Bùi Thị Hương",
+      "ratio": 0.01,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Arisaig Asean Fund Limited",
+      "ratio": 1.64,
+      "type": "TC"
+    },
+    {
+      "name": "F&amp;N Dairy Investments PTE.LTD",
+      "ratio": 22.29,
+      "type": "TC"
+    },
+    {
+      "name": "Lê Thành Liêm",
+      "ratio": 0.02,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Trịnh Quốc Dũng",
+      "ratio": 0.01,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Employees Provident Fund Board",
+      "ratio": 1.27,
+      "type": "TC"
+    },
+    {
+      "name": "Tổng Công ty Đầu tư và Kinh doanh vốn Nhà nước",
+      "ratio": 36.0,
+      "type": "TN"
+    },
+    {
+      "name": "Mai Kiều Liên",
+      "ratio": 0.31,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Mai Hoài Anh",
+      "ratio": 0.02,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Nguyễn Thị Thanh Hòa",
+      "ratio": 0.05,
+      "type": "BLĐ"
+    }
+  ],
   "recentTrades": [
     {
       "date": "2026-07-26",
@@ -12,7 +65,7 @@
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=VNM",
-  "fetchedAt": "2026-07-26T11:36:56.783758+00:00",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=VNM",
+  "fetchedAt": "2026-07-26T12:26:17.146342+00:00",
   "stale": false
 }

@@ -1,9 +1,62 @@
 {
   "symbol": "MSN",
-  "foreignRatio": 79.93,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": [],
+  "foreignRatio": 23.97,
+  "stateRatio": 0.0,
+  "institutionalRatio": 51.63999999999999,
+  "managementRatio": 4.24,
+  "roomRemaining": 79.93,
+  "topShareholders": [
+    {
+      "name": "Nguyễn Anh Nguyên",
+      "ratio": 0.08,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Nguyễn Hoàng Yến",
+      "ratio": 2.9,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Nguyễn Thiều Quang",
+      "ratio": 0.18,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Đoàn Thị Mỹ Duyên",
+      "ratio": 0.05,
+      "type": "BLĐ"
+    },
+    {
+      "name": "PENM III Germany Gmbh &amp; Co.KG",
+      "ratio": 1.85,
+      "type": "TC"
+    },
+    {
+      "name": "Công ty TNHH MTV Xây dựng Hoa Hướng Dương",
+      "ratio": 12.88,
+      "type": "TC"
+    },
+    {
+      "name": "Nguyễn Thiều Nam",
+      "ratio": 0.05,
+      "type": "BLĐ"
+    },
+    {
+      "name": "CTCP Masan",
+      "ratio": 25.29,
+      "type": "TC"
+    },
+    {
+      "name": "Trần Phương Bắc",
+      "ratio": 0.02,
+      "type": "BLĐ"
+    },
+    {
+      "name": "BCC Meerkat II, LLC",
+      "ratio": 1.02,
+      "type": "TC"
+    }
+  ],
   "recentTrades": [
     {
       "date": "2026-07-26",
@@ -12,7 +65,7 @@
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=MSN",
-  "fetchedAt": "2026-07-26T11:36:35.967976+00:00",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=MSN",
+  "fetchedAt": "2026-07-26T12:25:57.572624+00:00",
   "stale": false
 }

@@ -1,9 +1,32 @@
 {
   "symbol": "BID",
-  "foreignRatio": 12.48,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": [],
+  "foreignRatio": 17.52,
+  "stateRatio": 0.0,
+  "institutionalRatio": 90.94,
+  "managementRatio": 0.01,
+  "roomRemaining": 12.48,
+  "topShareholders": [
+    {
+      "name": "Ngân hàng Thương mại cổ phần Đầu tư và Phát triển Việt Nam",
+      "ratio": 1.77,
+      "type": "TN"
+    },
+    {
+      "name": "Ngân hàng Nhà nước Việt Nam (SBV)",
+      "ratio": 76.73,
+      "type": "TC"
+    },
+    {
+      "name": "Trần Lục Lang",
+      "ratio": 0.01,
+      "type": "BLĐ"
+    },
+    {
+      "name": "KEB Hana Bank, Co.,Ltd.",
+      "ratio": 14.21,
+      "type": "TC"
+    }
+  ],
   "recentTrades": [
     {
       "date": "2026-07-26",
@@ -12,7 +35,7 @@
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=BID",
-  "fetchedAt": "2026-07-26T11:36:15.805456+00:00",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=BID",
+  "fetchedAt": "2026-07-26T12:25:36.300405+00:00",
   "stale": false
 }

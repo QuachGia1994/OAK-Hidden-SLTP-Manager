@@ -1,4 +1,4 @@
-"""CafeF parser — company profile, foreign trading, and dividends via JSON API."""
+"""CafeF parser — company profile, ownership, dividends, financial indicators via JSON API."""
 from __future__ import annotations
 
 import logging
@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from stock_data_crawler.models import (
-    StockProfile, ForeignData, ForeignTrade, DividendData, DividendEntry, utcnow_iso,
+    StockProfile, ForeignData, ForeignTrade, DividendData, DividendEntry,
+    FinancialData, FinancialIndicator, TopShareholder, utcnow_iso,
 )
 from stock_data_crawler.http_client import fetch_html, fetch_json, escape_html_text
 
@@ -16,6 +17,8 @@ logger = logging.getLogger("stock_data_crawler")
 _CAFEF_SEARCH = "https://cafef.vn/du-lieu/screener.aspx?symbol={symbol}"
 _CAFEF_REALTIME = "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol={symbol}"
 _CAFEF_DIVIDEND = "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol={symbol}"
+_CAFEF_OWNERSHIP = "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol={symbol}"
+_CAFEF_INDICATORS = "https://cafef.vn/du-lieu/Ajax/PageNew/ChiSoTaiChinh.ashx?Symbol={symbol}"
 
 
 def _extract_text(html: str, pattern: str) -> str:
@@ -192,3 +195,201 @@ def parse_foreign_trading(html: str, symbol: str) -> ForeignData | None:
         source_url=_CAFEF_SEARCH.format(symbol=symbol),
         fetched_at=utcnow_iso(),
     )
+
+
+def _clean_html_name(text: str) -> str:
+    """Strip HTML tags from shareholder name (CafeF returns <a> tags)."""
+    text = re.sub(r"<[^>]+>", "", text).strip()
+    return escape_html_text(text) if text else ""
+
+
+def _parse_ratio(val: Any) -> float:
+    """Parse Vietnamese-formatted ratio like '5,51' → 5.51."""
+    if isinstance(val, (int, float)):
+        return float(val)
+    s = str(val).replace(",", ".").strip()
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def fetch_ownership(symbol: str) -> ForeignData | None:
+    """Fetch ownership structure from CafeF CoCauSoHuu JSON API.
+
+    Returns ForeignData with:
+    - foreign_ratio: NuocNgoai % (actual foreign ownership)
+    - state_ratio: NhaNuoc % (state ownership)
+    - institutional_ratio: sum of CORP_ shareholders %
+    - management_ratio: sum of CEO_ shareholders %
+    - top_shareholders: list of top shareholders with type classification
+    """
+    url = _CAFEF_OWNERSHIP.format(symbol=symbol)
+    data = fetch_json(url)
+    if not data or not data.get("Success"):
+        return None
+
+    d = data.get("Data", {})
+    if not isinstance(d, dict):
+        return None
+
+    foreign_ratio = float(d.get("NuocNgoai", 0) or 0)
+    state_ratio = float(d.get("NhaNuoc", 0) or 0)
+
+    shareholders_raw = d.get("CoDongSoHuu", [])
+    top_shareholders: list[TopShareholder] = []
+    institutional_total = 0.0
+    management_total = 0.0
+
+    # Iterate ALL shareholders for totals, collect top 10 for display
+    for sh in shareholders_raw:
+        code = str(sh.get("Code", ""))
+        name = _clean_html_name(str(sh.get("Name", "")))
+        ratio = _parse_ratio(sh.get("AssetRate", 0))
+
+        if code.startswith("CEO_"):
+            management_total += ratio
+        elif code.startswith("CORP_"):
+            institutional_total += ratio
+
+        # Collect top shareholders for display (limit to 10)
+        if len(top_shareholders) < 10 and name and ratio > 0:
+            if code.startswith("CEO_"):
+                sh_type = "BLĐ"
+            elif code.startswith("CORP_"):
+                sh_type = "TC"
+            else:
+                sh_type = "TN"
+            top_shareholders.append(TopShareholder(
+                name=name,
+                ratio=ratio,
+                type=sh_type,
+            ))
+
+    return ForeignData(
+        symbol=symbol,
+        foreign_ratio=foreign_ratio,
+        state_ratio=state_ratio,
+        institutional_ratio=institutional_total,
+        management_ratio=management_total,
+        top_shareholders=top_shareholders,
+        source="CafeF",
+        source_url=url,
+        fetched_at=utcnow_iso(),
+    )
+
+
+def fetch_indicators(symbol: str) -> FinancialData | None:
+    """Fetch financial indicators from CafeF ChiSoTaiChinh JSON API.
+
+    Returns market cap, EPS, P/E, P/B, shares outstanding, etc.
+    """
+    url = _CAFEF_INDICATORS.format(symbol=symbol)
+    data = fetch_json(url)
+    if not data or not data.get("Success"):
+        return None
+
+    items = data.get("Data", [])
+    if not items:
+        return None
+
+    indicators: list[FinancialIndicator] = []
+    market_cap = 0.0
+    shares_outstanding = 0.0
+    eps = 0.0
+    pe_ratio = 0.0
+    pb_ratio = 0.0
+
+    for item in items:
+        code = str(item.get("Code", ""))
+        label = re.sub(r"<[^>]+>", "", str(item.get("Text", ""))).strip()
+        value = str(item.get("Value", ""))
+        number = int(item.get("Number", 0))
+
+        indicators.append(FinancialIndicator(
+            code=code,
+            label=label,
+            value=value,
+            number=number,
+        ))
+
+        # Extract key financial metrics
+        if code == "VonHoaThiTruong":
+            market_cap = _parse_vn_number(value)
+        elif code == "EPScoBan":
+            try:
+                eps = float(value.replace(",", "."))
+            except (ValueError, TypeError):
+                eps = 0.0
+        elif code == "P/E":
+            try:
+                pe_ratio = float(value.replace(",", "."))
+            except (ValueError, TypeError):
+                pe_ratio = 0.0
+        elif code == "Beta":  # CafeF calls P/B as "Beta" in Code field
+            try:
+                pb_ratio = float(value.replace(",", "."))
+            except (ValueError, TypeError):
+                pb_ratio = 0.0
+        elif code == "KlcpNY":
+            shares_outstanding = _parse_vn_number(value)
+        elif code == "KlcpLuuHanh":
+            if shares_outstanding == 0:
+                shares_outstanding = _parse_vn_number(value)
+
+    return FinancialData(
+        symbol=symbol,
+        indicators=indicators,
+        market_cap=market_cap,
+        shares_outstanding=shares_outstanding,
+        eps=eps,
+        pe_ratio=pe_ratio,
+        pb_ratio=pb_ratio,
+        source="CafeF",
+        source_url=url,
+        fetched_at=utcnow_iso(),
+    )
+
+
+def _parse_vn_number(s: str) -> float:
+    """Parse Vietnamese-formatted number like '6,364.83' or '172,734,187' → float."""
+    s = s.strip()
+    # Vietnamese uses comma as thousands separator, dot as decimal
+    # But sometimes it's reversed (dot as thousands, comma as decimal)
+    # Check pattern: if contains both comma and dot, need to determine format
+    if "," in s and "." in s:
+        # If comma appears before dot → comma is thousands, dot is decimal
+        # e.g., "6,364.83" → 6364.83
+        last_comma = s.rfind(",")
+        last_dot = s.rfind(".")
+        if last_comma < last_dot:
+            # comma=thousands, dot=decimal
+            return float(s.replace(",", ""))
+        else:
+            # dot=thousands, comma=decimal (European format)
+            return float(s.replace(".", "").replace(",", "."))
+    elif "," in s:
+        # Only commas: could be thousands separator or decimal
+        # e.g., "172,734,187" → 172734187 (thousands)
+        # e.g., "5,51" → 5.51 (decimal)
+        parts = s.split(",")
+        if len(parts) > 2:
+            # Multiple commas → thousands separator
+            return float(s.replace(",", ""))
+        else:
+            # Single comma → likely decimal separator
+            return float(s.replace(",", "."))
+    elif "." in s:
+        # Only dots
+        parts = s.split(".")
+        if len(parts) > 2:
+            # Multiple dots → thousands separator
+            return float(s.replace(".", ""))
+        else:
+            # Single dot → decimal
+            return float(s)
+    else:
+        try:
+            return float(s)
+        except (ValueError, TypeError):
+            return 0.0

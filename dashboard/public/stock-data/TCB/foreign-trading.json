@@ -1,9 +1,62 @@
 {
   "symbol": "TCB",
-  "foreignRatio": 1.26,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": [],
+  "foreignRatio": 21.31,
+  "stateRatio": 0.0,
+  "institutionalRatio": 0.0,
+  "managementRatio": 2.89,
+  "roomRemaining": 1.26,
+  "topShareholders": [
+    {
+      "name": "Nguyễn Thu Lan",
+      "ratio": 0.03,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Jens Lottner",
+      "ratio": 0.01,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Alexandre Charles Emmanuel Macaire",
+      "ratio": 0.02,
+      "type": "BLĐ"
+    },
+    {
+      "name": "CTCP EuroWindow Holding",
+      "ratio": 0.03,
+      "type": "TN"
+    },
+    {
+      "name": "Hồ Anh Minh",
+      "ratio": 4.86,
+      "type": "TN"
+    },
+    {
+      "name": "Hồ Minh Anh",
+      "ratio": 2.03,
+      "type": "TN"
+    },
+    {
+      "name": "Nguyễn Thiều Quang",
+      "ratio": 0.85,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Nguyễn Tuấn Minh",
+      "ratio": 0.01,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Nguyễn Cảnh Sơn",
+      "ratio": 0.51,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Nguyễn Đăng Quang",
+      "ratio": 0.27,
+      "type": "BLĐ"
+    }
+  ],
   "recentTrades": [
     {
       "date": "2026-07-26",
@@ -12,7 +65,7 @@
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=TCB",
-  "fetchedAt": "2026-07-26T11:36:46.489608+00:00",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=TCB",
+  "fetchedAt": "2026-07-26T12:26:06.785395+00:00",
   "stale": false
 }

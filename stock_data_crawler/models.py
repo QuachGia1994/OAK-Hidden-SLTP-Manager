@@ -93,15 +93,17 @@ class ForeignTrade:
 class TopShareholder:
     name: str = ""
     ratio: float = 0
-    type: str = ""  # "TN", "TC", "BLĐ"
+    type: str = ""  # "BLĐ" (CEO_), "TC" (CORP_), "TN" (foreign)
 
 
 @dataclass
 class ForeignData:
     symbol: str
-    foreign_ratio: float = 0
-    institutional_ratio: float = 0
-    management_ratio: float = 0
+    foreign_ratio: float = 0        # Actual foreign ownership % (NuocNgoai from CoCauSoHuu)
+    state_ratio: float = 0           # State ownership % (NhaNuoc from CoCauSoHuu)
+    institutional_ratio: float = 0   # Sum of CORP_ shareholders %
+    management_ratio: float = 0      # Sum of CEO_ shareholders %
+    room_remaining: float = 0        # Foreign room remaining % (RoomConLai from RealtimePrice)
     top_shareholders: list[TopShareholder] = field(default_factory=list)
     recent_trades: list[ForeignTrade] = field(default_factory=list)
     source: str = ""
@@ -113,10 +115,50 @@ class ForeignData:
         return {
             "symbol": self.symbol,
             "foreignRatio": self.foreign_ratio,
+            "stateRatio": self.state_ratio,
             "institutionalRatio": self.institutional_ratio,
             "managementRatio": self.management_ratio,
+            "roomRemaining": self.room_remaining,
             "topShareholders": [asdict(sh) for sh in self.top_shareholders],
             "recentTrades": [asdict(t) for t in self.recent_trades],
+            "source": self.source,
+            "sourceUrl": self.source_url,
+            "fetchedAt": self.fetched_at,
+            "stale": self.stale,
+        }
+
+
+@dataclass
+class FinancialIndicator:
+    code: str
+    label: str
+    value: str
+    number: int = 0
+
+
+@dataclass
+class FinancialData:
+    symbol: str
+    indicators: list[FinancialIndicator] = field(default_factory=list)
+    market_cap: float = 0
+    shares_outstanding: float = 0
+    eps: float = 0
+    pe_ratio: float = 0
+    pb_ratio: float = 0
+    source: str = ""
+    source_url: str = ""
+    fetched_at: str = ""
+    stale: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "symbol": self.symbol,
+            "indicators": [asdict(i) for i in self.indicators],
+            "marketCap": self.market_cap,
+            "sharesOutstanding": self.shares_outstanding,
+            "eps": self.eps,
+            "peRatio": self.pe_ratio,
+            "pbRatio": self.pb_ratio,
             "source": self.source,
             "sourceUrl": self.source_url,
             "fetchedAt": self.fetched_at,

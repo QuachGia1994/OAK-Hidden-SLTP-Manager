@@ -1,9 +1,37 @@
 {
   "symbol": "VCB",
-  "foreignRatio": 9.88,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": [],
+  "foreignRatio": 20.12,
+  "stateRatio": 0.0,
+  "institutionalRatio": 79.87,
+  "managementRatio": 0.0,
+  "roomRemaining": 9.88,
+  "topShareholders": [
+    {
+      "name": "GIC Private Limited",
+      "ratio": 2.16,
+      "type": "TC"
+    },
+    {
+      "name": "Ngân hàng Nhà nước Việt Nam (SBV)",
+      "ratio": 63.34,
+      "type": "TC"
+    },
+    {
+      "name": "Mizuho Bank, Ltd",
+      "ratio": 12.7,
+      "type": "TC"
+    },
+    {
+      "name": "Quỹ đầu tư Chính Phủ Singapore",
+      "ratio": 1.67,
+      "type": "TC"
+    },
+    {
+      "name": "Market Vectors Vietnam ETF",
+      "ratio": 0.9,
+      "type": "TN"
+    }
+  ],
   "recentTrades": [
     {
       "date": "2026-07-26",
@@ -12,7 +40,7 @@
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=VCB",
-  "fetchedAt": "2026-07-26T11:36:54.115466+00:00",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=VCB",
+  "fetchedAt": "2026-07-26T12:26:15.613274+00:00",
   "stale": false
 }

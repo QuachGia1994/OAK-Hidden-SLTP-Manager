@@ -1,9 +1,62 @@
 {
   "symbol": "MWG",
-  "foreignRatio": 0.02,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": [],
+  "foreignRatio": 48.97,
+  "stateRatio": 0.0,
+  "institutionalRatio": 48.519999999999996,
+  "managementRatio": 5.8999999999999995,
+  "roomRemaining": 0.02,
+  "topShareholders": [
+    {
+      "name": "Điêu Chính Hải Triều",
+      "ratio": 0.77,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Hoàng Hữu Hưng",
+      "ratio": 0.01,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Phạm Văn Trọng",
+      "ratio": 0.18,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Nhóm quỹ ngoại Dragon Capital",
+      "ratio": 7.87,
+      "type": "TC"
+    },
+    {
+      "name": "Wareham Group Limited",
+      "ratio": 1.34,
+      "type": "TC"
+    },
+    {
+      "name": "Công ty TNHH Tư vấn Đầu tư Trần Huy",
+      "ratio": 2.19,
+      "type": "TC"
+    },
+    {
+      "name": "Vũ Đăng Linh",
+      "ratio": 0.08,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Đoàn Văn Hiểu Em",
+      "ratio": 0.24,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Công ty TNHH MTV Sơn Ban",
+      "ratio": 2.2,
+      "type": "TC"
+    },
+    {
+      "name": "Đặng Minh Lượm",
+      "ratio": 0.15,
+      "type": "BLĐ"
+    }
+  ],
   "recentTrades": [
     {
       "date": "2026-07-26",
@@ -12,7 +65,7 @@
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=MWG",
-  "fetchedAt": "2026-07-26T11:36:30.603587+00:00",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=MWG",
+  "fetchedAt": "2026-07-26T12:25:52.059840+00:00",
   "stale": false
 }

@@ -1,9 +1,62 @@
 {
   "symbol": "FPT",
-  "foreignRatio": 21.92,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": [],
+  "foreignRatio": 26.96,
+  "stateRatio": 0.0,
+  "institutionalRatio": 23.92,
+  "managementRatio": 11.869999999999997,
+  "roomRemaining": 21.92,
+  "topShareholders": [
+    {
+      "name": "Nguyễn Việt Thắng",
+      "ratio": 0.01,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Macquarie Bank Limited OBU",
+      "ratio": 4.48,
+      "type": "TC"
+    },
+    {
+      "name": "CTBC Vietnam Equity Fund",
+      "ratio": 1.11,
+      "type": "TC"
+    },
+    {
+      "name": "Đỗ Cao Bảo",
+      "ratio": 0.93,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Tổng Công ty Đầu tư và Kinh doanh vốn Nhà nước",
+      "ratio": 4.9,
+      "type": "TN"
+    },
+    {
+      "name": "Cashew Investments Pte.Ltd",
+      "ratio": 1.72,
+      "type": "TC"
+    },
+    {
+      "name": "MACQUANE BANK LIMITED",
+      "ratio": 3.95,
+      "type": "TC"
+    },
+    {
+      "name": "The Caravel Fund (International) Limited",
+      "ratio": 1.84,
+      "type": "TC"
+    },
+    {
+      "name": "Hoàng Hữu Chiến",
+      "ratio": 0.06,
+      "type": "BLĐ"
+    },
+    {
+      "name": "Bùi Quang Ngọc",
+      "ratio": 1.47,
+      "type": "BLĐ"
+    }
+  ],
   "recentTrades": [
     {
       "date": "2026-07-26",
@@ -12,7 +65,7 @@
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=FPT",
-  "fetchedAt": "2026-07-26T11:36:22.069506+00:00",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/CoCauSoHuu.ashx?Symbol=FPT",
+  "fetchedAt": "2026-07-26T12:25:42.598792+00:00",
   "stale": false
 }
