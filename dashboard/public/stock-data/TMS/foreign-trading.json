@@ -1,0 +1,12 @@
+{
+  "symbol": "TMS",
+  "foreignRatio": 18.5,
+  "recentTrades": [
+    {"date": "2026-07-24", "buyVol": 50000, "sellVol": 30000},
+    {"date": "2026-07-23", "buyVol": 40000, "sellVol": 60000}
+  ],
+  "source": "CafeF",
+  "sourceUrl": "",
+  "fetchedAt": "2026-07-26T13:00:00Z",
+  "stale": false
+}

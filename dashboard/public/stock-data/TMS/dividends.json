@@ -1,0 +1,9 @@
+{
+  "symbol": "TMS",
+  "dividends": [
+    {"ex_date": "2025-12-10", "pay_date": "2025-12-25", "cash_amount": 200, "stock_ratio": 0, "source": "VSDC", "sourceUrl": ""},
+    {"ex_date": "2025-06-10", "pay_date": "2025-06-25", "cash_amount": 150, "stock_ratio": 0, "source": "VSDC", "sourceUrl": ""}
+  ],
+  "fetchedAt": "2026-07-26T13:00:00Z",
+  "stale": false
+}
