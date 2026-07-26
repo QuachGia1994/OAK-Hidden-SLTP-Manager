@@ -19,6 +19,7 @@ ALLOWED_HOSTS = {
     "www.vsd.vn",
     "www.hnx.vn",
     "hnx.vn",
+    "congbo.ssc.gov.vn",
 }
 
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,12}$")

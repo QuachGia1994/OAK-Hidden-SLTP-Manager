@@ -2,7 +2,7 @@ name: Stock Data Crawl
 
 on:
   schedule:
-    - cron: "0 2 * * 1-5"  # Mon-Fri 2am UTC (9am VN)
+    - cron: "0 2 * * 1-6"  # Mon-Sat 2am UTC (9am VN)
   workflow_dispatch:
     inputs:
       symbols:
@@ -10,9 +10,9 @@ on:
         required: false
         default: ""
       limit:
-        description: "Max symbols to crawl (0=all)"
+        description: "Max symbols to crawl (0=all, default 50)"
         required: false
-        default: "0"
+        default: "50"
 
 jobs:
   crawl:
@@ -33,12 +33,13 @@ jobs:
           if [ -n "${{ github.event.inputs.symbols }}" ]; then
             SYMBOLS_FLAG="--symbols ${{ github.event.inputs.symbols }}"
           fi
+          LIMIT="${{ github.event.inputs.limit || '50' }}"
           python -m stock_data_crawler.crawler \
             --symbols-file data/symbols.json \
             --output dashboard/public/stock-data \
             --workers 4 \
             $SYMBOLS_FLAG \
-            --limit ${{ github.event.inputs.limit || '0' }}
+            --limit "$LIMIT"
 
       - name: Commit if changed
         run: |

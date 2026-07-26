@@ -10,8 +10,11 @@ from stock_data_crawler.http_client import fetch_html, escape_html_text
 
 logger = logging.getLogger("stock_data_crawler")
 
-# CafeF SSC proxy (SSC itself requires auth, CafeF mirrors the data)
-_SSC_URL = "https://s.cafef.vn/hose/{symbol}-cong-ty-co-phuong-thuoc-san.chn"
+# Direct SSC disclosure portal
+_SSC_DIRECT_URL = "https://congbo.ssc.gov.vn/tra-cong-bo?ma-ck={symbol}"
+
+# CafeF SSC proxy (fallback when direct SSC fails)
+_CAFEF_SSC_URL = "https://s.cafef.vn/hose/{symbol}-cong-ty-co-phuong-thuoc-san.chn"
 
 
 def parse_reports(html: str, symbol: str) -> ReportData | None:
@@ -90,14 +93,25 @@ def parse_reports(html: str, symbol: str) -> ReportData | None:
         symbol=symbol,
         reports=reports,
         source="SSC/CafeF",
-        source_url=_SSC_URL.format(symbol=symbol),
+        source_url=_CAFEF_SSC_URL.format(symbol=symbol),
         fetched_at=utcnow_iso(),
     )
 
 
 def fetch_reports(symbol: str) -> ReportData | None:
-    """Fetch financial reports from SSC/CafeF."""
-    url = _SSC_URL.format(symbol=symbol)
+    """Fetch financial reports — direct SSC first, CafeF fallback."""
+    # Try direct SSC first
+    url = _SSC_DIRECT_URL.format(symbol=symbol)
+    html = fetch_html(url)
+    if html:
+        result = parse_reports(html, symbol)
+        if result:
+            result.source = "SSC"
+            result.source_url = _SSC_DIRECT_URL.format(symbol=symbol)
+            return result
+
+    # Fallback to CafeF
+    url = _CAFEF_SSC_URL.format(symbol=symbol)
     html = fetch_html(url)
     if not html:
         return None

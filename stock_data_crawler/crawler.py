@@ -11,7 +11,7 @@ from typing import Sequence
 
 from stock_data_crawler.http_client import validate_symbol
 from stock_data_crawler.writer import write_profile, write_reports, write_dividends, write_foreign
-from stock_data_crawler.parsers import cafef, vsdc, ssc, hnx_parser
+from stock_data_crawler.parsers import cafef, vsdc, ssc, hnx_parser, ir_fallback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,11 +42,13 @@ def crawl_symbol(symbol: str, output_base: str) -> dict[str, bool]:
         logger.error("[%s] Profile error: %s", symbol, exc)
         write_profile(None, output_dir)  # keep stale cache
 
-    # 2. Financial reports (SSC/CafeF primary, HNX fallback)
+    # 2. Financial reports (SSC direct → CafeF proxy → HNX → IR fallback)
     try:
         reports = ssc.fetch_reports(symbol)
         if not reports:
             reports = hnx_parser.fetch_reports(symbol)
+        if not reports:
+            reports = ir_fallback.fetch_reports(symbol)
         results["reports"] = write_reports(reports, output_dir)
         if not reports:
             logger.info("[%s] No reports data", symbol)
