@@ -40,9 +40,16 @@ export function CandidateTableClient({
       <section className="terminal-panel overflow-hidden rounded-xl">
         <div className="flex flex-col gap-2 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <div className="flex items-center gap-3">
-            <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
-              {locale === "EN" ? "Ranked candidates" : "Xếp hạng mã"} ({displayCandidates.length})
-            </h2>
+            <div>
+              <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
+                {locale === "EN" ? "Ranked candidates" : "Xếp hạng mã"} ({displayCandidates.length})
+              </h2>
+              <p className="mt-0.5 text-[10px] text-[var(--muted)]">
+                {locale === "EN"
+                  ? "Click any symbol to view details on TCBS"
+                  : "Nhấn vào mã để xem chi tiết trên TCBS"}
+              </p>
+            </div>
             <button
               onClick={openEmptyLookup}
               className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-[var(--panel-border)] bg-transparent px-2.5 py-1 text-[10px] font-semibold text-[var(--muted)] transition-colors hover:border-[var(--terminal-accent)]/40 hover:text-[var(--terminal-accent)]"
