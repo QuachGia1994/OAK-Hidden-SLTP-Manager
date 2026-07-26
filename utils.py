@@ -159,6 +159,7 @@ SIGNAL_ICONS = {
     "SELL": ("Bán", "\U0001f534"),
     "SW": ("Sideway", "\U0001f7e1"),
     "BT": ("Bình Thường", "\u26aa"),
+    "WAIT": ("Chờ", "\u23f3"),
 }
 VN_DIR = {"TANG": "Tăng", "GIAM": "Giảm", "DOJI": "Doji"}
 

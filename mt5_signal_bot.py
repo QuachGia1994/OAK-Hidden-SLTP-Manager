@@ -1766,8 +1766,18 @@ def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
         icon = "🟡" if xau == "SW" else "⚪"
         lbl = "Sideway" if xau == "SW" else "Bình Thường"
         lines.append(f"  XAUUSD: {icon} {lbl}")
+    elif xau == "WAIT":
+        lines.append("  XAUUSD: ⏳ WAIT")
     elif xau is None:
         pass
+
+    for gbp_pair in GBP_PAIRS:
+        gbp_dir = (pair_dirs or {}).get(gbp_pair)
+        if gbp_dir in ("BUY", "SELL"):
+            g_icon, _ = get_signal_icon(gbp_dir)
+            lines.append(f"  {gbp_pair}: {g_icon} {gbp_dir}")
+        elif gbp_dir == "WAIT":
+            lines.append(f"  {gbp_pair}: ⏳ WAIT")
 
     d_direction = (pair_dirs or {}).get(D_DIRECTION_PAIR)
     # D-direction calculated but hidden from display (v3.16.5)
@@ -1839,6 +1849,11 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
                 result[pair] = gbp
         return result
     if signal == "WAIT":
+        if full_result and "pair_dirs" in full_result:
+            for pair, direction in full_result["pair_dirs"].items():
+                result[pair] = direction
+        if not result:
+            result["XAUUSD"] = "WAIT"
         return result
     if signal not in ("BUY", "SELL"):
         return result
@@ -1915,11 +1930,15 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
         return pair_dirs
     title = f"{emoji} Tín hiệu H={H} — {icon} {sig}"
     footer = "Chỉ tham khảo. Kỷ luật là sức mạnh!"
+    suppressed_note = ""
+    if signal_data.get("suppressed"):
+        suppressed_note = "⚠️ Month boundary — XAUUSD = WAIT, giữ nguyên Priority + Entry + GBP\n\n"
     msg = (
         f"{title}\n"
         f"============================\n"
         f"Phát: {signal_time} Broker | Entry: {entry_time} Broker\n"
         f"============================\n\n"
+        f"{suppressed_note}"
         f"{report}\n\n"
         f"KẾT LUẬN (XAUUSD): {icon} {sig}\n"
         f"-------------------\n{pair_text}\n-------------------\n"
@@ -2304,37 +2323,40 @@ def _process_live_slot(broker_dt, hour):
         return False
 
     result = calculate_slot_signal(broker_dt, hour)
-    if result.get("suppressed"):
-        print(f"  [SUPPRESSED] H={hour} - {result.get('report', '')}")
-        sent_today.add(key)
-        _save_state(day_signals, sent_today)
-        return False
+    suppressed = bool(result.get("suppressed"))
+    if suppressed:
+        print(f"  [SUPPRESSED] H={hour} - XAUUSD=WAIT (month boundary), sending report")
     signal = result.get("signal")
-    if signal not in ("BUY", "SELL") or not entry_time:
+    if not suppressed and (signal not in ("BUY", "SELL") or not entry_time):
         print(f"  [RETRY] H={hour} - {result.get('report', 'incomplete data')}")
         return False
 
     pair_dirs = get_pair_direction(hour, signal, broker_dt, full_result=result)
     if not pair_dirs:
-        print(f"  [RETRY] H={hour} - no pair directions")
-        return False
+        if suppressed:
+            pair_dirs = {"XAUUSD": "WAIT"}
+        else:
+            print(f"  [RETRY] H={hour} - no pair directions")
+            return False
     hour_note = get_hour_note(hour, broker_dt=broker_dt)
-    log_signal(
-        hour,
-        broker_dt,
-        signal,
-        entry_time,
-        pair_dirs,
-        hour_note,
-        pattern_signal=result.get("pattern_signal"),
-        deactivated=result.get("deactivated", False),
-    )
+    if not suppressed:
+        log_signal(
+            hour,
+            broker_dt,
+            signal,
+            entry_time,
+            pair_dirs,
+            hour_note,
+            pattern_signal=result.get("pattern_signal"),
+            deactivated=result.get("deactivated", False),
+        )
     push_to_dashboard()
     reported_pairs = send_report(result, hour, broker_dt)
-    _remember_daily_direction(hour, broker_dt, signal, result, reported_pairs)
+    if not suppressed:
+        _remember_daily_direction(hour, broker_dt, signal, result, reported_pairs)
     sent_today.add(key)
     _save_state(day_signals, sent_today)
-    print(f"  [SENT] H={hour} signal={signal} entry={entry_time}")
+    print(f"  [SENT] H={hour} signal={signal} entry={entry_time}{' (XAUUSD=WAIT)' if suppressed else ''}")
     return True
 
 

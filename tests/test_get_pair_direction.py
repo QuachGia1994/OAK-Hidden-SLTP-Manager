@@ -74,9 +74,14 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
 
     def test_non_buy_sell_signal_returns_empty(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=0)
-        for signal in ("WAIT", "NONE", "", "HOLD"):
+        for signal in ("NONE", "", "HOLD"):
             with self.subTest(signal=signal):
                 self.assertEqual(get_pair_direction(6, signal, dt), {})
+
+    def test_wait_signal_returns_xauusd_wait(self):
+        dt = _make_dt(2026, 7, 7, weekday_offset=0)
+        result = get_pair_direction(6, "WAIT", dt)
+        self.assertEqual(result, {"XAUUSD": "WAIT"})
 
 
 
