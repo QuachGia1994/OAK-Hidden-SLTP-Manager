@@ -30,13 +30,44 @@ export function CandidateTableClient({
     setLookupOpen(true);
   };
 
+  const openEmptyLookup = () => {
+    setLookupSymbol(null);
+    setLookupOpen(true);
+  };
+
   return (
     <>
+      {/* Search bar — standalone */}
+      <div className="terminal-panel rounded-xl px-4 py-3 sm:px-5">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]">
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <button
+            onClick={openEmptyLookup}
+            className="flex-1 rounded-lg border border-dashed border-[var(--panel-border)] bg-transparent px-3 py-2 text-left text-sm text-[var(--muted)] transition-colors hover:border-[var(--terminal-accent)]/40 hover:text-[var(--foreground)]"
+          >
+            {locale === "EN"
+              ? "Enter any stock ticker to view financial details..."
+              : "Nhập mã cổ phiếu bất kỳ để xem chi tiết tài chính..."}
+          </button>
+        </div>
+      </div>
+
       <section className="terminal-panel overflow-hidden rounded-xl">
         <div className="flex flex-col gap-2 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
-            {locale === "EN" ? "Ranked candidates" : "Xếp hạng mã"} ({displayCandidates.length})
-          </h2>
+          <div>
+            <h2 className="terminal-section-heading text-sm font-bold uppercase tracking-[0.18em]">
+              {locale === "EN" ? "Ranked candidates" : "Xếp hạng mã"} ({displayCandidates.length})
+            </h2>
+            <p className="mt-0.5 text-[10px] text-[var(--muted)]">
+              {locale === "EN"
+                ? "Click any symbol to view full financial report"
+                : "Nhấn vào mã để xem báo cáo tài chính chi tiết"}
+            </p>
+          </div>
           <label className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none text-[var(--muted)]">
             <input
               type="checkbox"
@@ -79,7 +110,7 @@ export function CandidateTableClient({
       </section>
 
       <StockLookupModal
-        symbol={lookupSymbol}
+        initialSymbol={lookupSymbol}
         isOpen={lookupOpen}
         onClose={() => setLookupOpen(false)}
       />
@@ -103,9 +134,8 @@ function CandidateRow({
     <div className="advisor-row">
       <span className="font-mono text-xs font-bold text-[var(--muted)]">{candidate.rank}</span>
       <span
-        className="font-mono text-lg font-black text-[var(--foreground)] cursor-pointer hover:text-[var(--terminal-accent)] transition-colors"
+        className="font-mono text-lg font-black text-[var(--foreground)] cursor-pointer underline decoration-dashed decoration-[var(--terminal-accent)]/40 underline-offset-2 hover:text-[var(--terminal-accent)] hover:decoration-[var(--terminal-accent)] transition-colors"
         onClick={() => onSymbolClick(candidate.symbol)}
-        title={locale === "EN" ? "Click to view details" : "Nhấn để xem chi tiết"}
       >
         {candidate.symbol}
       </span>

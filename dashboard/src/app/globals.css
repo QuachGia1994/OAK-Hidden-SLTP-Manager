@@ -621,3 +621,11 @@ body {
   .page-shell,
   .nav-shell { padding-inline: 1.5rem; }
 }
+
+@media print {
+  body { background: #fff !important; color: #000 !important; }
+  .terminal-nav, .terminal-page::before, nav, footer, button, input, .no-print { display: none !important; }
+  .fixed { position: static !important; }
+  .backdrop-blur-sm { display: none !important; }
+  .space-y-4 > * { break-inside: avoid; }
+}
