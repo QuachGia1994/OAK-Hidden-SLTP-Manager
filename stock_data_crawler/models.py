@@ -90,11 +90,19 @@ class ForeignTrade:
 
 
 @dataclass
+class TopShareholder:
+    name: str = ""
+    ratio: float = 0
+    type: str = ""  # "TN", "TC", "BLĐ"
+
+
+@dataclass
 class ForeignData:
     symbol: str
     foreign_ratio: float = 0
     institutional_ratio: float = 0
     management_ratio: float = 0
+    top_shareholders: list[TopShareholder] = field(default_factory=list)
     recent_trades: list[ForeignTrade] = field(default_factory=list)
     source: str = ""
     source_url: str = ""
@@ -107,6 +115,7 @@ class ForeignData:
             "foreignRatio": self.foreign_ratio,
             "institutionalRatio": self.institutional_ratio,
             "managementRatio": self.management_ratio,
+            "topShareholders": [asdict(sh) for sh in self.top_shareholders],
             "recentTrades": [asdict(t) for t in self.recent_trades],
             "source": self.source,
             "sourceUrl": self.source_url,
