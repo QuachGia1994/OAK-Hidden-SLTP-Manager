@@ -2,14 +2,64 @@
   "symbol": "MSN",
   "dividends": [
     {
-      "ex_date": "2025-12-10",
-      "pay_date": "2025-12-25",
-      "cash_amount": 500,
-      "stock_ratio": 0,
-      "source": "VSDC",
-      "sourceUrl": ""
+      "ex_date": "2022-07-03",
+      "pay_date": "",
+      "cash_amount": 8.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN"
+    },
+    {
+      "ex_date": "2022-04-11",
+      "pay_date": "",
+      "cash_amount": 0.0,
+      "stock_ratio": 20.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN"
+    },
+    {
+      "ex_date": "2021-12-14",
+      "pay_date": "",
+      "cash_amount": 2.5,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN"
+    },
+    {
+      "ex_date": "2021-06-30",
+      "pay_date": "",
+      "cash_amount": 9.5,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN"
+    },
+    {
+      "ex_date": "2020-12-16",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN"
+    },
+    {
+      "ex_date": "2017-01-22",
+      "pay_date": "",
+      "cash_amount": 0.0,
+      "stock_ratio": 50.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN"
+    },
+    {
+      "ex_date": "2017-01-03",
+      "pay_date": "",
+      "cash_amount": 30.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN"
     }
   ],
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": true
+  "source": "CafeF",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=MSN",
+  "fetchedAt": "2026-07-26T11:36:35.060110+00:00",
+  "stale": false
 }

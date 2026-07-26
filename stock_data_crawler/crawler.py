@@ -56,9 +56,11 @@ def crawl_symbol(symbol: str, output_base: str) -> dict[str, bool]:
         logger.error("[%s] Reports error: %s", symbol, exc)
         write_reports(None, output_dir)  # keep stale cache
 
-    # 3. Dividends (VSDC primary, HNX fallback)
+    # 3. Dividends (CafeF JSON API primary, VSDC fallback, HNX fallback)
     try:
-        dividends = vsdc.fetch_dividends(symbol)
+        dividends = cafef.fetch_dividends(symbol)
+        if not dividends:
+            dividends = vsdc.fetch_dividends(symbol)
         if not dividends:
             dividends = hnx_parser.fetch_events(symbol)
         results["dividends"] = write_dividends(dividends, output_dir)

@@ -2,22 +2,112 @@
   "symbol": "FPT",
   "dividends": [
     {
-      "ex_date": "2026-05-15",
-      "pay_date": "2026-06-01",
-      "cash_amount": 1000,
-      "stock_ratio": 0,
-      "source": "VSDC",
-      "sourceUrl": ""
+      "ex_date": "2026-05-27",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
     },
     {
-      "ex_date": "2025-11-15",
-      "pay_date": "2025-12-01",
-      "cash_amount": 800,
-      "stock_ratio": 0,
-      "source": "VSDC",
-      "sourceUrl": ""
+      "ex_date": "2025-11-30",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2025-06-11",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2024-12-01",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2024-06-11",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2023-08-23",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2023-07-05",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 15.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2022-08-23",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2022-06-12",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 20.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2021-08-15",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2021-05-31",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 15.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2020-08-16",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
+    },
+    {
+      "ex_date": "2020-05-12",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 15.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT"
     }
   ],
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": true
+  "source": "CafeF",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=FPT",
+  "fetchedAt": "2026-07-26T11:36:21.080580+00:00",
+  "stale": false
 }

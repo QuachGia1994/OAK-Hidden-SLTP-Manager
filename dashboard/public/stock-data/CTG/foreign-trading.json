@@ -1,18 +1,18 @@
 {
   "symbol": "CTG",
-  "foreignRatio": 12.8,
+  "foreignRatio": 5.5,
+  "institutionalRatio": 0,
+  "managementRatio": 0,
+  "topShareholders": [],
   "recentTrades": [
     {
-      "date": "2026-07-24",
-      "buyVol": 400000,
-      "sellVol": 300000
+      "date": "2026-07-26",
+      "buyVol": 1380520,
+      "sellVol": 1183400
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "",
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": true,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": []
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=CTG",
+  "fetchedAt": "2026-07-26T11:36:14.175497+00:00",
+  "stale": false
 }

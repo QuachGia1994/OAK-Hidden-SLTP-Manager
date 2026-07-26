@@ -2,14 +2,80 @@
   "symbol": "SSI",
   "dividends": [
     {
-      "ex_date": "2026-05-20",
-      "pay_date": "2026-06-05",
-      "cash_amount": 350,
-      "stock_ratio": 0,
-      "source": "VSDC",
-      "sourceUrl": ""
+      "ex_date": "2025-09-24",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2024-09-22",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2023-06-19",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2022-06-21",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2021-09-07",
+      "pay_date": "",
+      "cash_amount": 0.0,
+      "stock_ratio": 33.33333333333333,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2021-06-14",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2020-07-19",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2020-04-08",
+      "pay_date": "",
+      "cash_amount": 0.0,
+      "stock_ratio": 16.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
+    },
+    {
+      "ex_date": "2019-10-03",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI"
     }
   ],
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": true
+  "source": "CafeF",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=SSI",
+  "fetchedAt": "2026-07-26T11:36:37.915921+00:00",
+  "stale": false
 }

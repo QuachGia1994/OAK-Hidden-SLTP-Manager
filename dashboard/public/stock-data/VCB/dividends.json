@@ -2,22 +2,112 @@
   "symbol": "VCB",
   "dividends": [
     {
-      "ex_date": "2026-06-15",
-      "pay_date": "2026-07-01",
-      "cash_amount": 800,
-      "stock_ratio": 0,
-      "source": "VSDC",
-      "sourceUrl": ""
+      "ex_date": "2026-07-22",
+      "pay_date": "",
+      "cash_amount": 4.5,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
     },
     {
-      "ex_date": "2025-12-15",
-      "pay_date": "2025-12-30",
-      "cash_amount": 500,
-      "stock_ratio": 0,
-      "source": "VSDC",
-      "sourceUrl": ""
+      "ex_date": "2025-10-02",
+      "pay_date": "",
+      "cash_amount": 4.5,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2025-03-11",
+      "pay_date": "",
+      "cash_amount": 0.0,
+      "stock_ratio": 49.5,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2023-07-24",
+      "pay_date": "",
+      "cash_amount": 0.0,
+      "stock_ratio": 18.099999999999998,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2021-12-21",
+      "pay_date": "",
+      "cash_amount": 12.0,
+      "stock_ratio": 27.6,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2020-12-20",
+      "pay_date": "",
+      "cash_amount": 8.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2019-12-29",
+      "pay_date": "",
+      "cash_amount": 8.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2017-09-27",
+      "pay_date": "",
+      "cash_amount": 8.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2016-09-08",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 35.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2015-06-25",
+      "pay_date": "",
+      "cash_amount": 10.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2014-06-17",
+      "pay_date": "",
+      "cash_amount": 12.0,
+      "stock_ratio": 15.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2013-02-25",
+      "pay_date": "",
+      "cash_amount": 12.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
+    },
+    {
+      "ex_date": "2010-03-09",
+      "pay_date": "",
+      "cash_amount": 12.0,
+      "stock_ratio": 0.0,
+      "source": "CafeF",
+      "source_url": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB"
     }
   ],
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": true
+  "source": "CafeF",
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/LichSuKien.ashx?Symbol=VCB",
+  "fetchedAt": "2026-07-26T11:36:53.167793+00:00",
+  "stale": false
 }

@@ -514,26 +514,33 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
 }
 
 function ChartTab({ symbol, t }: { symbol: string; t: (vn: string, en: string) => string }) {
-  const tvSymbol = encodeURIComponent(`HOSE:${symbol}`);
+  // TradingView uses HOSE:{SYMBOL} format for Vietnamese stocks
+  // Some stocks may not be available on TradingView widget
+  const tvSymbol = `HOSE:${symbol}`;
+  const tvUrl = `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvSymbol)}`;
+
   return (
     <div className="space-y-3">
       <div className="overflow-hidden rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)]">
         <iframe
-          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_chart_${symbol}&symbol=${tvSymbol}&interval=D&theme=dark&style=1&locale=vi_VN&hide_side_toolbar=1&hide_top_toolbar=0&withdateranges=1&save_image=0&details=0&calendar=0&studies=[]`}
+          src={`https://s.tradingview.com/widgetembed/?frameElementId=tv_chart_${symbol}&symbol=${encodeURIComponent(tvSymbol)}&interval=D&theme=dark&style=1&locale=vi_VN&hide_side_toolbar=1&hide_top_toolbar=0&withdateranges=1&save_image=0&details=0&calendar=0&studies=[]&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D`}
           className="w-full"
           style={{ height: 420, border: "none" }}
           title={`${symbol} chart`}
           loading="lazy"
         />
       </div>
+      <p className="text-center text-[10px] text-[var(--muted)]">
+        {t("Một số mã có thể không có biểu đồ trên TradingView", "Some tickers may not have charts on TradingView")}
+      </p>
       <div className="text-center">
         <a
-          href={`https://www.tradingview.com/symbols/HOSE-${symbol}/`}
+          href={tvUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 rounded-[14px] bg-[var(--terminal-accent)]/10 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/20 focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]/40 focus-visible:outline-none"
         >
-          {t("Mở full chart", "Open full chart")}
+          {t("Mở biểu đồ trên TradingView", "Open chart on TradingView")}
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </a>
       </div>

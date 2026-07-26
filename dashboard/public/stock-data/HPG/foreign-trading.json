@@ -1,28 +1,18 @@
 {
   "symbol": "HPG",
-  "foreignRatio": 48.5,
+  "foreignRatio": 27.62,
+  "institutionalRatio": 0,
+  "managementRatio": 0,
+  "topShareholders": [],
   "recentTrades": [
     {
-      "date": "2026-07-24",
-      "buyVol": 1200000,
-      "sellVol": 800000
-    },
-    {
-      "date": "2026-07-23",
-      "buyVol": 950000,
-      "sellVol": 1100000
-    },
-    {
-      "date": "2026-07-22",
-      "buyVol": 1400000,
-      "sellVol": 600000
+      "date": "2026-07-26",
+      "buyVol": 5728558,
+      "sellVol": 1531070
     }
   ],
   "source": "CafeF",
-  "sourceUrl": "",
-  "fetchedAt": "2026-07-26T06:20:20.332122+00:00",
-  "stale": true,
-  "institutionalRatio": 0,
-  "managementRatio": 0,
-  "topShareholders": []
+  "sourceUrl": "https://cafef.vn/du-lieu/Ajax/PageNew/RealtimePrice.ashx?Symbol=HPG",
+  "fetchedAt": "2026-07-26T11:36:14.240319+00:00",
+  "stale": false
 }
