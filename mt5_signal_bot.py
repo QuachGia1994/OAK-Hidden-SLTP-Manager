@@ -1275,10 +1275,7 @@ def get_entry_time_for_slot(broker_dt, hour):
     if h == 12:
         return "12:11"
     if h == 14:
-        group_h12 = evaluate_4_m30_classification_before_hour(broker_dt, 12)
-        if group_h12 is None:
-            return None
-        return "14:49" if group_h12 == "BT" else "14:15"
+        return "14:49"
     if h == 16:
         group_h6 = evaluate_4_m30_classification_before_hour(broker_dt, 6)
         if group_h6 is None:

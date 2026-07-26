@@ -34,7 +34,7 @@ export function NavBar() {
               <path d="M14.8 3 6 12h5.1L9.2 21 18 10h-5.1L14.8 3Z" fill="currentColor" />
             </svg>
           </span>
-          <span className="font-mono text-base font-black tracking-tight text-zinc-900 dark:text-zinc-100">
+          <span className="font-mono text-base font-black tracking-tight text-[var(--foreground)]">
             SLTP<span className="terminal-accent-text">.</span>
           </span>
         </Link>
@@ -107,7 +107,7 @@ export function NavBar() {
 
 function StatusDot({ locale }: { locale: "VN" | "EN" }) {
   return (
-    <div className="flex items-center gap-1.5 text-xs text-zinc-400 dark:text-zinc-500">
+    <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
       <div className="terminal-status-dot h-2 w-2 rounded-full" />
       <span className="hidden md:inline">{locale === "EN" ? "Running" : "Đang chạy"}</span>
     </div>

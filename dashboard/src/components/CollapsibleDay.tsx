@@ -57,10 +57,10 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
         </svg>
         <div className="min-w-0">
-          <h2 className="font-mono text-base font-black text-zinc-800 dark:text-zinc-100">
-            {date} <span className="text-zinc-400 dark:text-zinc-500">({weekday})</span>
+          <h2 className="font-mono text-base font-black text-[var(--foreground)]">
+            {date} <span className="text-[var(--muted)]">({weekday})</span>
           </h2>
-          <p className="mt-0.5 text-[11px] font-semibold text-zinc-500 dark:text-zinc-400">
+          <p className="mt-0.5 text-[11px] font-semibold text-[var(--muted)]">
             {daySignals.length} {locale === "EN" ? `signal${daySignals.length !== 1 ? "s" : ""}` : "tín hiệu"}
           </p>
         </div>
@@ -88,9 +88,9 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
 
 function VerdictCount({ label, value, tone }: { label: string; value: number; tone: "buy" | "sell" | "wait" }) {
   const toneClass = {
-    buy: "text-[color:var(--terminal-accent)]",
-    sell: "text-[color:var(--terminal-danger)]",
-    wait: "text-zinc-500 dark:text-zinc-400",
+    buy: "text-[var(--terminal-accent)]",
+    sell: "text-[var(--terminal-danger)]",
+    wait: "text-[var(--muted)]",
   }[tone];
 
   return <span className={toneClass}>{label} {value}</span>;

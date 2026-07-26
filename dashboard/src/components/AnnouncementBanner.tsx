@@ -39,10 +39,10 @@ export function AnnouncementBanner() {
   const isVN = locale === "VN";
 
   return (
-    <div className="relative z-40 max-w-full overflow-hidden border-b border-emerald-500/30 bg-gradient-to-r from-emerald-950/90 via-teal-900/90 to-emerald-950/90 text-emerald-100 dark:from-emerald-950/90 dark:via-teal-950/90 dark:to-emerald-950/90 dark:text-emerald-100 shadow-sm">
+    <div className="relative z-40 max-w-full overflow-hidden border-b border-[var(--terminal-accent)]/30 bg-[color:var(--surface-raised)] text-[var(--foreground)]">
       <div className="page-shell flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-3 py-2 px-3 sm:py-2.5 sm:px-4 text-xs">
         <div className="flex items-center gap-2 min-w-0 w-full sm:w-auto">
-          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px]">
+          <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--terminal-accent)]/20 text-[var(--terminal-accent)] font-bold text-[10px]">
             NEW
           </span>
           <p className="font-medium text-center sm:text-left text-[11px] sm:text-xs leading-normal sm:truncate w-full min-w-0">
@@ -54,7 +54,7 @@ export function AnnouncementBanner() {
         <div className="flex items-center justify-center gap-3 shrink-0 w-full sm:w-auto">
           <Link
             href="/stock-advisor"
-            className="inline-flex items-center gap-1 rounded-lg bg-emerald-500 px-3 py-1 text-[11px] font-bold text-zinc-950 transition-hover hover:bg-emerald-400 focus:outline-none"
+            className="inline-flex items-center gap-1 rounded-lg bg-[var(--terminal-accent)] px-3 py-1 text-[11px] font-bold text-[#04130F] transition-hover hover:bg-[var(--terminal-accent-strong)] focus:outline-none"
           >
             <span>{isVN ? "Xem ngay" : "Explore"}</span>
             <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
@@ -63,7 +63,7 @@ export function AnnouncementBanner() {
           </Link>
           <button
             onClick={dismiss}
-            className="rounded-md p-1 text-emerald-300/70 hover:bg-emerald-800/40 hover:text-emerald-100 transition-colors"
+            className="rounded-md p-1 text-[var(--muted)] hover:bg-[var(--surface-raised)] hover:text-[var(--foreground)] transition-colors"
             aria-label="Close announcement"
             title={isVN ? "Đóng thông báo" : "Dismiss"}
           >

@@ -28,7 +28,7 @@ export function HistoryList({ signals, isVIP }: HistoryListProps) {
             <path d="M5 12h14M12 5v14" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
           </svg>
         </div>
-        <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm font-semibold text-[var(--muted)]">
           {locale === "EN" ? "No signals yet" : "Chưa có tín hiệu nào"}
         </p>
       </div>
