@@ -12,7 +12,7 @@ Real engineering with AI satisfies four core layers simultaneously:
 3. **High-Quality Taste & Design Standards (Google Labs design.md)**: Interfaces must feel intentional, structured, and premium. Reject generic templates and AI slop.
 4. **LLM Self-Correction & Security**: Surface assumptions, stay surgical, be goal-driven, and actively hunt for bugs/vulnerabilities before shipping.
 
-### The 11 Core Disciplines
+### The 12 Core Disciplines
 1. **Grilling (Alignment)**: Conduct structured clarification across goals, constraints, data model, and edge cases before writing code.
 2. **Domain Modeling**: Maintain a precise, living model of entities, value objects, and ubiquitous language.
 3. **Test-Driven Development (TDD)**: Red → Green (minimal) → Refactor.
@@ -30,6 +30,7 @@ Real engineering with AI satisfies four core layers simultaneously:
 9. **Karpathy 4 Principles**: Think Before Coding → Simplicity First → Surgical Changes → Goal-Driven Execution.
 10. **Strix Bug & Security Gate**: Before finishing, audit for OWASP Top 10, access control, business logic flaws, race conditions, concurrency issues, and auth flaws.
 11. **Cascading Impact Scan**: Always find and update every file affected by your changes.
+12. **Evidence-Based Release Gate**: Self-review, test, run, inspect, and verify acceptance criteria before declaring completion or production readiness. Correctness and evidence take priority over speed.
 
 ---
 
@@ -45,11 +46,75 @@ Khi sửa lỗi, refactor hoặc thêm tính năng:
    - Nếu có lỗi, tiếp tục tự động sửa cho đến khi build pass 100%.
 
 ### Rule 2.2: Automatic Git & Vercel Deployment
-Ngay khi code đã sửa xong, các file liên quan đã cập nhật và build verification PASS:
+Chỉ được phép commit/push/deploy sau khi **Rule 2.3 — Production Readiness Gate** đã PASS cho toàn bộ phạm vi thay đổi:
 1. **Git Staging**: Execute `git add .`
-2. **Git Commit**: Tạo commit message ngắn gọn theo chuẩn Conventional Commits (ví dụ: `fix(auth): update token handler and update dependent components`).
-3. **Push / Vercel Deploy**: Execute `git push origin HEAD` để tự động kích hoạt Vercel build/deploy pipeline.
-4. **Final Summary**: Báo cáo ngắn gọn cho người dùng: "Đã sửa X, cập nhật Y file liên quan, build pass và đã push Vercel thành công."
+2. **Git Commit**: Tạo commit message ngắn gọn theo chuẩn Conventional Commits (ví dụ: `fix(auth): update token handler and dependent components`).
+3. **Push / Vercel Deploy**: Execute `git push origin HEAD` để kích hoạt Vercel build/deploy pipeline.
+4. **Post-Deploy Verification**: Kiểm tra trạng thái pipeline/deployment, mở bản deploy và chạy smoke test tối thiểu trên môi trường đã deploy khi công cụ cho phép.
+5. **No Blind Deployment**: Nếu test, runtime verification hoặc post-deploy verification chưa chạy được, KHÔNG được mô tả thay đổi là production-ready. Phải ghi rõ `UNVERIFIED` hoặc `BLOCKED` cùng nguyên nhân.
+6. **Final Summary**: Báo cáo chính xác những gì đã chạy và bằng chứng tương ứng; không gom “build pass” thành “mọi thứ đều hoạt động”.
+
+### Rule 2.3: Mandatory Self-Review, Testing, Acceptance & Production Readiness Gate
+Sau MỖI lần viết, sửa, refactor hoặc xóa code, agent BẮT BUỘC hoàn tất toàn bộ vòng kiểm chứng dưới đây. Ưu tiên **chậm mà chắc**, đúng và có bằng chứng hơn phản hồi nhanh nhưng chưa kiểm nghiệm.
+
+1. **Re-read Scope & Acceptance Criteria**:
+   - Đọc lại yêu cầu ban đầu, constraints và acceptance criteria.
+   - Lập checklist PASS/FAIL/NOT RUN cho từng tiêu chí; không tự ý đổi nghĩa yêu cầu để khớp với code vừa viết.
+
+2. **Mandatory Self-Review of the Diff**:
+   - Chạy `git diff --check`, `git diff --stat` và đọc toàn bộ `git diff` liên quan.
+   - Tìm accidental changes, code thừa, duplicate logic, naming mơ hồ, lỗi boundary/null/error handling, log nhạy cảm, debug code, TODO/FIXME mới và thay đổi ngoài phạm vi.
+   - Kiểm tra lại tính đơn giản, kiến trúc, khả năng bảo trì và cascading side effects.
+
+3. **Static Quality Gate**:
+   - Chạy formatter, linter, type checker và build phù hợp với stack.
+   - Ví dụ: `npm run lint`, `npx tsc --noEmit`, `npm run build`, `pytest`, `ruff check`, `mypy`, `swift test`, `swift build`, `xcodebuild`.
+   - Không bỏ qua warning nghiêm trọng. Không dùng cờ vô hiệu hóa kiểm tra chỉ để làm pipeline xanh.
+
+4. **Automated Test Gate**:
+   - Chạy unit tests và các integration/E2E tests liên quan trực tiếp đến thay đổi.
+   - Với bug fix, phải thêm hoặc cập nhật ít nhất một regression test có khả năng FAIL trước bản sửa và PASS sau bản sửa, khi codebase cho phép.
+   - Sau khi test mục tiêu pass, chạy regression suite rộng nhất hợp lý để phát hiện lỗi lan truyền.
+
+5. **Real Runtime / Smoke Test Gate**:
+   - Khởi chạy ứng dụng, service, CLI hoặc build artifact thật thay vì chỉ đọc code.
+   - Kiểm tra tối thiểu: happy path, failure path, một edge case quan trọng, trạng thái loading/empty/error và log/console/network/database liên quan.
+   - Với UI: kiểm tra render thật, interaction, responsive states, keyboard/focus và lỗi console; chụp screenshot hoặc dùng browser/simulator verification khi công cụ hỗ trợ.
+   - Với API/backend: gọi endpoint thật trong môi trường test, xác minh status code, schema, side effects, idempotency và error behavior.
+
+6. **Security, Reliability & Performance Review**:
+   - Quét secrets, auth/access control, validation, injection, unsafe file/path handling, race conditions, concurrency, resource leaks và dữ liệu nhạy cảm trong log.
+   - Kiểm tra timeout, retry, cancellation, rollback/recovery và failure isolation khi có liên quan.
+   - Không tuyên bố hiệu năng được cải thiện nếu chưa benchmark hoặc chưa có số đo trước/sau.
+
+7. **Fix → Re-run Until Clean**:
+   - Nếu bất kỳ bước nào FAIL, tiếp tục tìm root cause, sửa và chạy lại tất cả gate bị ảnh hưởng.
+   - Một test pass trước lần sửa cuối không được tính là bằng chứng sau lần sửa cuối.
+
+8. **Acceptance Test & Evidence Matrix**:
+   - Đối chiếu từng acceptance criterion với bằng chứng cụ thể: command, test name, screenshot, log, response hoặc manual verification result.
+   - Phân loại rõ: `PASS`, `FAIL`, `NOT RUN`, `BLOCKED`, `NOT APPLICABLE`.
+
+9. **Strict Production-Ready Definition**:
+   - Chỉ được dùng các cụm `production-ready`, `verified`, `done`, `fixed completely` khi tất cả gate phù hợp đã PASS trong môi trường đủ gần production và không còn lỗi Critical/High đã biết.
+   - `Build PASS` chỉ có nghĩa là build thành công.
+   - `Tests PASS` chỉ có nghĩa là các test đã liệt kê thành công.
+   - `Runtime VERIFIED` chỉ có nghĩa là luồng đã thực sự được chạy và quan sát.
+   - Nếu thiếu môi trường, credentials, thiết bị, emulator, dependency hoặc quyền truy cập, phải ghi rõ `UNVERIFIED`/`BLOCKED`; tuyệt đối không suy đoán rằng code sẽ chạy.
+
+10. **Evidence-Based Final Report**:
+    Báo cáo cuối bắt buộc gồm:
+    - Thay đổi chính và các file bị tác động.
+    - Commands/tests đã chạy cùng kết quả PASS/FAIL.
+    - Luồng runtime đã kiểm tra thực tế.
+    - Acceptance criteria matrix.
+    - Known limitations, phần chưa chạy và rủi ro còn lại.
+    - Trạng thái chính xác: `CODE COMPLETE`, `BUILD PASS`, `TESTS PASS`, `RUNTIME VERIFIED`, `DEPLOYED`, hoặc `PRODUCTION-READY`.
+
+11. **Zero False Confidence**:
+    - Không được công bố production chỉ vì code nhìn hợp lý, typecheck pass hoặc AI đã tự review bằng mắt.
+    - Không bịa kết quả test, log, screenshot, benchmark hay deployment.
+    - Khi không thể kiểm chứng, nói thẳng điều chưa kiểm chứng và đưa lệnh chính xác để hoàn tất gate đó.
 
 ---
 
@@ -96,5 +161,5 @@ Dành cho các dự án Swift / macOS / iOS:
 Khi làm việc trong Antigravity Chat:
 - Để kích hoạt suy luận đa bước trước khi sửa code lớn:  
   `[Think Deep] <Yêu cầu công việc>`
-- Để chạy workflow sửa code + push Vercel tự động:  
-  `Sửa lỗi X, quét toàn bộ side-effects, typecheck và push Vercel khi hoàn tất.`
+- Để chạy workflow sửa code + kiểm chứng sâu + push Vercel tự động:  
+  `Sửa lỗi X, quét toàn bộ side-effects, tự review diff, chạy lint/typecheck/build/tests, smoke test runtime, nghiệm thu theo acceptance criteria và chỉ push Vercel khi toàn bộ Production Readiness Gate PASS.`

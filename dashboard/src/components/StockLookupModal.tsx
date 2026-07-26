@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocale } from "./LocaleProvider";
 
-const TCBS = "https://apipubaws.tcbs.com.vn/stock-insight";
-
 interface StockLookupData {
   symbol: string;
   overview: {
@@ -56,73 +54,14 @@ function formatPct(value: number): string {
 }
 
 async function fetchTCBS(symbol: string): Promise<StockLookupData> {
-  const headers = { Accept: "application/json", "User-Agent": "Mozilla/5.0" };
-  const opts: RequestInit = { headers, signal: AbortSignal.timeout(12000) };
-
-  const [ovRaw, finRaw, divRaw, forRaw] = await Promise.allSettled([
-    fetch(`${TCBS}/v1/stock/${symbol}/overview`, opts),
-    fetch(`${TCBS}/v1/stock/${symbol}/financial-declaration`, opts),
-    fetch(`${TCBS}/v2/stock/${symbol}/dividend-history`, opts),
-    fetch(`${TCBS}/v1/stock/${symbol}/ownership`, opts),
-  ]);
-
-  const extract = (r: PromiseSettledResult<Response>): any => {
-    if (r.status === "rejected") return null;
-    if (!r.value.ok) return null;
-    return r.value.json();
-  };
-  const extractData = (raw: any): any => {
-    if (!raw) return null;
-    const d = raw.data ?? raw;
-    return Array.isArray(d) && d.length > 0 ? d[0] : d;
-  };
-  const extractList = (raw: any): any[] => {
-    if (!raw) return [];
-    const d = raw.data ?? raw;
-    return Array.isArray(d) ? d : [];
-  };
-
-  const ov = extractData(await extract(ovRaw)) || {};
-  const finList = extractList(await extract(finRaw));
-  const divList = extractList(await extract(divRaw));
-  const forData = extractData(await extract(forRaw)) || {};
-
-  return {
-    symbol: symbol.toUpperCase(),
-    overview: {
-      symbol: symbol.toUpperCase(),
-      name: ov.companyName || ov.name || symbol.toUpperCase(),
-      exchange: ov.exchange || "",
-      industry: ov.industry || "",
-      market_cap: ov.marketCap || 0,
-      market_cap_display: formatCap(ov.marketCap || 0),
-      pe: ov.pe || 0,
-      pb: ov.pb || 0,
-      roe: ov.roe || 0,
-      eps: ov.eps || 0,
-    },
-    financials: finList.slice(0, 4).map((f: any) => ({
-      period: f.period || "",
-      quarter: f.quarter || "",
-      year: f.year || "",
-      revenue: f.revenue || 0,
-      revenue_yoy: f.revenueYoy || 0,
-      net_profit: f.netProfit || 0,
-      net_profit_yoy: f.netProfitYoy || 0,
-      eps: f.eps || 0,
-      roe: f.roe || 0,
-    })),
-    dividends: divList.slice(0, 10).map((d: any) => ({
-      ex_date: d.exDividendDate || d.exDate || "",
-      cash_dividend: d.cashDividend || d.dividendPerShare || 0,
-      stock_dividend: d.stockDividend || 0,
-    })),
-    foreign: {
-      foreign_ratio: forData.foreignOwnershipRatio || forData.foreignPercent || 0,
-      foreign_buy_volume: forData.foreignBuyVolume || 0,
-      foreign_sell_volume: forData.foreignSellVolume || 0,
-    },
-  };
+  const res = await fetch(`/api/stock-lookup?symbol=${encodeURIComponent(symbol)}`, {
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
 export function StockLookupModal({
