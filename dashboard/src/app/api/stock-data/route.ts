@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
     const raw = await readFile(filePath, "utf-8");
     const data = JSON.parse(raw);
     return NextResponse.json(data, {
-      headers: { "Cache-Control": "public, max-age=3600" },
+      headers: { "Cache-Control": "public, max-age=300" },
     });
   } catch {
     return NextResponse.json({ error: "Not found", symbol, file }, { status: 404 });

@@ -429,7 +429,7 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
   if (!foreign) return <EmptyState text={t("Chưa có dữ liệu cổ đông", "No shareholder data")} />;
 
   const segments = [
-    { label: t("Nước ngoài", "Foreign"), pct: foreign.foreignRatio || 0, color: "var(--terminal-accent)" },
+    { label: t("Room NN còn lại", "Foreign Room Left"), pct: foreign.foreignRatio || 0, color: "var(--terminal-accent)" },
     { label: t("Tổ chức", "Institutional"), pct: foreign.institutionalRatio || 0, color: "var(--terminal-warning)" },
     { label: t("Ban lãnh đạo", "Management"), pct: foreign.managementRatio || 0, color: "color-mix(in srgb, var(--terminal-accent) 60%, var(--terminal-warning))" },
   ];
