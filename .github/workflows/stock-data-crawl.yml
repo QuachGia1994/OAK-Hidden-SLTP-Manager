@@ -35,7 +35,7 @@ jobs:
           fi
           LIMIT="${{ github.event.inputs.limit || '50' }}"
           python -m stock_data_crawler.crawler \
-            --symbols-file data/symbols.json \
+            --symbols-file stock_data_crawler/symbols.json \
             --output dashboard/public/stock-data \
             --workers 4 \
             $SYMBOLS_FLAG \

@@ -136,20 +136,20 @@ export function StockLookupModal({
     setDividendsMeta(null);
     setForeign(null);
 
+    // Try static data first, fallback to realtime CafeF API
     Promise.allSettled([
       fetchStockData<ProfileData>(activeSymbol, "profile"),
       fetchStockData<ReportsData>(activeSymbol, "reports"),
       fetchStockData<DividendsData>(activeSymbol, "dividends"),
       fetchStockData<ForeignInfo>(activeSymbol, "foreign-trading"),
-    ]).then(([prof, rep, div, forr]) => {
+    ]).then(async ([prof, rep, div, forr]) => {
       const p = prof.status === "fulfilled" ? prof.value : null;
       const r = rep.status === "fulfilled" ? rep.value : null;
       const d = div.status === "fulfilled" ? div.value : null;
       const f = forr.status === "fulfilled" ? forr.value : null;
 
-      if (!p && !r && !d && !f) {
-        setError(t("Không tìm thấy dữ liệu", "No data found"));
-      } else {
+      // If static data exists, use it
+      if (p || r?.reports || d?.dividends || f) {
         if (p) setProfile(p);
         if (r?.reports) {
           setReports(r.reports);
@@ -160,6 +160,38 @@ export function StockLookupModal({
           setDividendsMeta({ source: d.source, fetchedAt: d.fetchedAt, stale: d.stale });
         }
         if (f) setForeign(f);
+        setLoading(false);
+        return;
+      }
+
+      // No static data → try realtime CafeF API
+      try {
+        const rtRes = await fetch(`/api/stock-data-realtime?symbol=${activeSymbol}`);
+        if (!rtRes.ok) {
+          setError(t("Không tìm thấy dữ liệu", "No data found"));
+          setLoading(false);
+          return;
+        }
+        const rtData = await rtRes.json();
+
+        if (rtData.profile) {
+          const rp = rtData.profile as ProfileData;
+          setProfile(rp);
+        }
+        if (rtData.dividends) {
+          const rd = rtData.dividends as DividendsData;
+          if (rd.dividends?.length) {
+            setDividends(rd.dividends);
+            setDividendsMeta({ source: rd.source, fetchedAt: rd.fetchedAt, stale: false });
+          }
+        }
+        if (rtData.foreign) {
+          const rf = rtData.foreign as ForeignInfo;
+          setForeign(rf);
+        }
+        // Note: realtime doesn't return reports (static only)
+      } catch {
+        setError(t("Không tìm thấy dữ liệu", "No data found"));
       }
     }).catch(() => setError("Failed to load"))
       .finally(() => setLoading(false));
