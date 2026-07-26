@@ -620,7 +620,7 @@ def get_day_notes(now, lang="VN"):
         "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai "
         "và luôn deactivated. GBPAUD luôn ngược XAUUSD.",
         "H4/H5: pattern GBPUSD M5/M30 kết hợp XAUUSD M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
-        "H6/H9: phân nhóm 4 nến H1, áp dụng đảo theo thứ và đảo thêm vào ngày đặc biệt.",
+        "H6/H9: phân nhóm 4 nến H1, áp dụng đảo theo thứ và đảo thêm vào ngày đặc biệt + ngày đặc biệt 2 (2nd/3rd Fri).",
         "H12/H14: đảo H4 rồi áp dụng đảo theo thứ và nhóm 4 H1; 4 M30 quyết định priority/entry.",
         "H16: dùng nhánh priority H6-H12 hoặc H9-H14; thiếu dependency thì WAIT.",
     ]
@@ -631,21 +631,26 @@ def get_day_notes(now, lang="VN"):
         "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3 "
         "and is always deactivated. GBPAUD always opposes XAUUSD.",
         "H4/H5: GBPUSD M5/M30 pattern combined with XAUUSD M30; always deactivated and intermediate-only.",
-        "H6/H9: four-H1 grouping with weekday and special-day reversals.",
+        "H6/H9: four-H1 grouping with weekday, special-day, and special-day-2 (2nd/3rd Fri) reversals.",
         "H12/H14: reverse H4, then apply weekday and four-H1 reversals; four-M30 controls priority/entry.",
         "H16: uses the priority H6-H12 or H9-H14 branch; missing dependencies produce WAIT.",
     ]
 
     try:
-        from mt5_signal_bot import is_post_special_day, is_special_day
+        from mt5_signal_bot import is_post_special_day, is_special_day, is_special_day_2
         dt = now if isinstance(now, datetime) else datetime.combine(today, datetime.min.time())
         suppress_late_slots = is_special_day(dt) or is_post_special_day(dt)
+        special_day_2 = is_special_day_2(dt)
     except Exception:
         suppress_late_slots = False
+        special_day_2 = False
     if suppress_late_slots:
         notes_vn.append("Ngày đặc biệt/hậu đặc biệt: không tạo H12, H14, H16.")
         notes_en.append("Special/post-special day: H12, H14, and H16 are not generated.")
-    elif weekday in (0, 4):
+    if special_day_2:
+        notes_vn.append("Ngày đặc biệt 2: H=6 và H=9 đảo thêm 1 lần (2nd/3rd Fri).")
+        notes_en.append("Special day 2: H=6 and H=9 get an extra reversal (2nd/3rd Fri).")
+    if not suppress_late_slots and weekday in (0, 4):
         notes_vn.append("Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority; SW → H14 priority.")
         notes_en.append("Normal Monday/Friday: BT selects H12 priority; SW selects H14 priority.")
     else:

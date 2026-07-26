@@ -893,6 +893,57 @@ def is_post_special_day(broker_dt):
     fri_dt = datetime(prev_fri.year, prev_fri.month, prev_fri.day, tzinfo=broker_dt.tzinfo)
     return is_special_day(thu_dt) or is_special_day(fri_dt)
 
+
+def _first_friday_of_month(year, month):
+    """Return the day number of the first Friday in a given month."""
+    for day in range(1, 8):
+        if datetime(year, month, day).weekday() == 4:
+            return day
+    return None
+
+
+def _count_fridays_in_month(year, month):
+    """Count how many Fridays fall in a given month."""
+    first = _first_friday_of_month(year, month)
+    if first is None:
+        return 0
+    count = 0
+    d = first
+    while d <= 31:
+        try:
+            datetime(year, month, d)
+            count += 1
+            d += 7
+        except ValueError:
+            break
+    return count
+
+
+def is_special_day_2(broker_dt):
+    """Check if today is a 'ngày đặc biệt 2' Friday.
+
+    Rule:
+    - Months with 5 Fridays: 2nd and 3rd Friday (excluding 1st) are special day 2
+    - Months with 4 Fridays: only 2nd Friday (excluding 1st) is special day 2
+    - 1st Friday is NEVER a special day 2
+    - Applies only to Fridays (weekday 4)
+    """
+    if broker_dt is None or broker_dt.weekday() != 4:
+        return False
+    dt = broker_dt.date()
+    first = _first_friday_of_month(dt.year, dt.month)
+    if first is None:
+        return False
+    # Determine which Nth Friday this is
+    nth = (dt.day - first) // 7 + 1
+    if nth == 1:
+        return False
+    total = _count_fridays_in_month(dt.year, dt.month)
+    if total >= 5:
+        return nth in (2, 3)
+    else:
+        return nth == 2
+
 def _lookup_historical_t2_signal(broker_dt, target_hour):
     """Look up the previous Monday signal for Thursday history reuse."""
     monday_date = broker_dt.date() - timedelta(days=3)
@@ -1405,6 +1456,10 @@ def calculate_slot_signal(broker_dt, hour):
         if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
             final_signal = reverse_signal(final_signal)
             report += f" [Special day -> đảo lại ({final_signal})]"
+        # Special day 2: reverse H=6 on specific Fridays (2nd/3rd Fri in 5-Fri months, 2nd Fri in 4-Fri months)
+        if broker_dt is not None and is_special_day_2(broker_dt):
+            final_signal = reverse_signal(final_signal)
+            report += f" [Special day 2 -> đảo lại ({final_signal})]"
         return {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=9: same XAU branch as H=6, plus GBP derived from H=3/H=5.
     if hour == 9:
@@ -1430,6 +1485,10 @@ def calculate_slot_signal(broker_dt, hour):
         if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
             final_xau = reverse_signal(final_xau)
             report += f" [Special day -> đảo lại ({final_xau})]"
+        # Special day 2: reverse H=9 on specific Fridays
+        if broker_dt is not None and is_special_day_2(broker_dt):
+            final_xau = reverse_signal(final_xau)
+            report += f" [Special day 2 -> đảo lại ({final_xau})]"
         return {
             "signal": final_xau,
             "xau_signal": final_xau,
