@@ -51,11 +51,17 @@ interface DividendsData {
   stale: boolean;
 }
 
+interface TopShareholder {
+  name: string;
+  ratio: number;
+  type: string;
+}
+
 interface ForeignInfo {
   foreignRatio: number;
   institutionalRatio: number;
   managementRatio: number;
-  recentTrades: { date: string; buyVol: number; sellVol: number }[];
+  topShareholders: TopShareholder[];
   source: string;
   fetchedAt: string;
   stale: boolean;
@@ -189,7 +195,7 @@ export function StockLookupModal({
     { key: "overview", label: t("Tổng quan", "Overview") },
     { key: "reports", label: t("Báo cáo", "Reports") },
     { key: "dividends", label: t("Cổ tức", "Dividends") },
-    { key: "foreign", label: t("Nước ngoài", "Foreign") },
+    { key: "foreign", label: t("Cổ đông", "Shareholders") },
     { key: "chart", label: t("Biểu đồ", "Chart") },
   ];
 
@@ -202,7 +208,7 @@ export function StockLookupModal({
 
       <div className="relative z-10 w-full max-w-2xl max-h-[90vh] min-h-[500px] overflow-y-auto rounded-[24px] border border-[var(--panel-border)] bg-[var(--surface)] p-6">
         {/* Header + Search */}
-        <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-5 border-b border-[var(--panel-border)] bg-[var(--surface)] px-6 py-5">
+        <div className="sticky top-0 z-10 -mx-6 -mt-6 mb-6 border-b border-[var(--panel-border)] bg-[var(--surface)] px-6 py-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
               {t("Tra cứu cổ phiếu", "Stock Lookup")}
@@ -256,7 +262,7 @@ export function StockLookupModal({
           {activeSymbol && !loading && !error && (
             <>
               {/* Stock header */}
-              <div className="mb-3 flex items-center gap-3 pt-1">
+              <div className="mb-3 flex items-center gap-3 pt-3">
                 <span className="font-mono text-xl font-black text-[var(--foreground)]">{sym}</span>
                 {exchange && <span className="rounded-[8px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-[var(--muted)]">{exchange}</span>}
                 {companyName && <span className="text-sm text-[var(--muted)] truncate">{companyName}</span>}
@@ -361,32 +367,56 @@ function ReportsTab({ reports, meta, t }: { reports: ReportItem[]; meta: MetaInf
 
 function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta: MetaInfo; t: (vn: string, en: string) => string }) {
   if (!dividends.length) return <EmptyState text={t("Chưa có dữ liệu cổ tức", "No dividend data")} />;
+
+  // Group by year
+  const byYear = new Map<string, DividendItem[]>();
+  for (const d of dividends) {
+    const year = d.ex_date?.slice(0, 4) || "—";
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year)!.push(d);
+  }
+
   return (
-    <div className="space-y-2">
-      {dividends.map((d, i) => (
-        <div key={i} className="flex items-center justify-between rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2.5">
-          <div className="flex flex-col gap-0.5">
-            <span className="font-mono text-xs font-bold text-[var(--foreground)]">{d.ex_date}</span>
-            {d.pay_date && <span className="text-[10px] text-[var(--muted)]">{t("Thanh toán", "Pay")}: {d.pay_date}</span>}
+    <div className="space-y-4">
+      <h3 className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+        {t("Diễn biến cổ tức", "Dividend History")}
+      </h3>
+
+      {Array.from(byYear.entries()).map(([year, items]) => (
+        <div key={year}>
+          <div className="mb-2 flex items-center gap-2">
+            <span className="font-mono text-xs font-black text-[var(--terminal-accent)]">{year}</span>
+            <div className="flex-1 border-t border-[var(--panel-border)]" />
           </div>
-          <div className="flex items-center gap-2">
-            {d.cash_amount > 0 && (
-              <span className="rounded-[8px] bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-accent)]">
-                {d.cash_amount.toLocaleString("vi-VN")}đ
-                <span className="ml-1 text-[9px] font-normal opacity-70">{t("tiền", "cash")}</span>
-              </span>
-            )}
-            {d.stock_ratio > 0 && (
-              <span className="rounded-[8px] bg-[var(--terminal-warning)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-warning)]">
-                {d.stock_ratio}%
-                <span className="ml-1 text-[9px] font-normal opacity-70">{t("cổ phiếu", "stock")}</span>
-              </span>
-            )}
+          <div className="space-y-1.5">
+            {items.map((d, i) => (
+              <div key={i} className="flex items-center justify-between rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2.5">
+                <div className="flex flex-col gap-0.5">
+                  <span className="font-mono text-xs font-bold text-[var(--foreground)]">{d.ex_date}</span>
+                  {d.pay_date && <span className="text-[10px] text-[var(--muted)]">{t("Thanh toán", "Pay")}: {d.pay_date}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {d.cash_amount > 0 && (
+                    <span className="rounded-[8px] bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-accent)]">
+                      {d.cash_amount.toLocaleString("vi-VN")}đ
+                      <span className="ml-1 text-[9px] font-normal opacity-70">{t("tiền", "cash")}</span>
+                    </span>
+                  )}
+                  {d.stock_ratio > 0 && (
+                    <span className="rounded-[8px] bg-[var(--terminal-warning)]/10 px-2.5 py-1 font-mono text-[11px] font-bold text-[var(--terminal-warning)]">
+                      {d.stock_ratio}%
+                      <span className="ml-1 text-[9px] font-normal opacity-70">{t("cổ phiếu", "stock")}</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}
+
       {meta && (
-        <p className="text-[10px] text-[var(--muted)] pt-1">
+        <p className="text-[10px] text-[var(--muted)]">
           {t("Nguồn", "Source")}: {meta.source} | {t("Cập nhật", "Updated")}: {new Date(meta.fetchedAt).toLocaleDateString("vi-VN")}
           {meta.stale && <span className="ml-1 text-[var(--terminal-warning)]">({t("cũ", "stale")})</span>}
         </p>
@@ -396,7 +426,7 @@ function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta:
 }
 
 function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: string, en: string) => string }) {
-  if (!foreign) return <EmptyState text={t("Chưa có dữ liệu sở hữu", "No ownership data")} />;
+  if (!foreign) return <EmptyState text={t("Chưa có dữ liệu cổ đông", "No shareholder data")} />;
 
   const segments = [
     { label: t("Nước ngoài", "Foreign"), pct: foreign.foreignRatio || 0, color: "var(--terminal-accent)" },
@@ -406,42 +436,38 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
   const other = Math.max(0, 100 - segments.reduce((s, x) => s + x.pct, 0));
   const all = [...segments, { label: t("Khác", "Others"), pct: other, color: "var(--muted)" }];
 
-  const r = 70;
+  const r = 60;
   const circ = 2 * Math.PI * r;
-  const strokeW = 14;
+  const strokeW = 12;
   let offset = 0;
 
   return (
     <div className="space-y-4">
+      {/* Cơ cấu sở hữu */}
       <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-5">
         <h3 className="mb-4 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
           {t("Cơ cấu sở hữu", "Ownership Structure")}
         </h3>
         <div className="flex flex-wrap items-center justify-center gap-6">
-          <svg width={180} height={180} viewBox="0 0 180 180" className="shrink-0">
-            <circle cx={90} cy={90} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
+          <svg width={160} height={160} viewBox="0 0 160 160" className="shrink-0">
+            <circle cx={80} cy={80} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
             {all.map((seg, i) => {
               const len = (seg.pct / 100) * circ;
               const dash = `${len} ${circ - len}`;
               const el = (
                 <circle
                   key={i}
-                  cx={90} cy={90} r={r} fill="none"
+                  cx={80} cy={80} r={r} fill="none"
                   stroke={seg.color} strokeWidth={strokeW}
                   strokeDasharray={dash}
                   strokeDashoffset={-offset}
                   strokeLinecap="round"
-                  transform="rotate(-90 90 90)"
+                  transform="rotate(-90 80 80)"
                 />
               );
               offset += len;
               return el;
             })}
-            {all.filter(s => s.pct > 0).length === 1 && all[0].pct > 0 && (
-              <text x={90} y={86} textAnchor="middle" fill={all[0].color} fontSize="22" fontWeight="900" fontFamily="monospace">
-                {all[0].pct.toFixed(1)}%
-              </text>
-            )}
           </svg>
           <div className="space-y-2">
             {all.map((seg, i) => (
@@ -454,6 +480,30 @@ function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: strin
           </div>
         </div>
       </div>
+
+      {/* Top cổ đông lớn nhất */}
+      {foreign.topShareholders && foreign.topShareholders.length > 0 && (
+        <div className="rounded-[14px] border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
+          <h3 className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+            {t("Top cổ đông lớn nhất", "Top Shareholders")}
+          </h3>
+          <div className="space-y-1.5">
+            {foreign.topShareholders.slice(0, 10).map((sh, i) => (
+              <div key={i} className="flex items-center justify-between py-1.5 border-b border-[var(--panel-border)] last:border-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-mono text-[10px] text-[var(--muted)] w-4 text-center">{i + 1}</span>
+                  <span className="text-xs text-[var(--foreground)] truncate">{sh.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="rounded-[6px] bg-[var(--surface)] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[var(--muted)]">{sh.type}</span>
+                  <span className="font-mono text-xs font-bold text-[var(--terminal-accent)] tabular-nums min-w-[40px] text-right">{sh.ratio.toFixed(2)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {foreign.fetchedAt && (
         <p className="text-[10px] text-[var(--muted)]">
           {t("Nguồn", "Source")}: {foreign.source} | {t("Cập nhật", "Updated")}: {new Date(foreign.fetchedAt).toLocaleDateString("vi-VN")}
