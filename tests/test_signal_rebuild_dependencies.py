@@ -1,4 +1,4 @@
-"""Regression tests for dependency-aware current-day history rebuilds."""
+"""Regression tests for the single startup history rebuild."""
 
 import tempfile
 import unittest
@@ -10,11 +10,14 @@ import mt5_signal_bot
 
 
 class SignalRebuildDependencyTests(unittest.TestCase):
-    def test_today_rechecks_h7_h8_after_rebuilding_h5(self):
-        rebuilt_hours = []
+    def test_startup_rebuild_uses_45_calendar_days(self):
+        with patch.object(mt5_signal_bot, "rebuild_recent_history", return_value=1) as rebuild:
+            self.assertEqual(mt5_signal_bot.rebuild_signals_on_startup(), 1)
 
-        def is_ready(_broker_dt, hour):
-            return hour in (4, 5) or (hour in (7, 8) and 5 in rebuilt_hours)
+        rebuild.assert_called_once_with(days=45)
+
+    def test_current_day_rebuild_visits_only_active_slots(self):
+        rebuilt_hours = []
 
         def rebuild(_broker_dt, hour):
             rebuilt_hours.append(hour)
@@ -27,14 +30,13 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 patch.object(mt5_signal_bot, "mt5_ready", True),
                 patch.object(mt5_signal_bot, "_SIGNALS_LOG", str(signal_log)),
                 patch.object(mt5_signal_bot, "get_broker_time", return_value=datetime(2026, 7, 22, 9, 25)),
-                patch.object(mt5_signal_bot, "get_target_hours", return_value=[4, 5, 7, 8]),
-                patch.object(mt5_signal_bot, "is_slot_ready", side_effect=is_ready),
+                patch.object(mt5_signal_bot, "is_slot_ready", return_value=True),
                 patch.object(mt5_signal_bot, "rebuild_slot_signal", side_effect=rebuild),
             ):
                 count = mt5_signal_bot.rebuild_recent_history(days=1)
 
-        self.assertEqual(rebuilt_hours, [4, 5, 7, 8])
-        self.assertEqual(count, 4)
+        self.assertEqual(rebuilt_hours, [3, 4, 5, 6, 9, 12, 14, 16])
+        self.assertEqual(count, 8)
 
 
 if __name__ == "__main__":

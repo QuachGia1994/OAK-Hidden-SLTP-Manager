@@ -22,34 +22,6 @@ def send_telegram_raw(token, chat_id, text, parse_mode="Markdown"):
         return resp.read()
 
 
-def send_telegram_photo_raw(token, chat_id, photo_bytes, caption=None, parse_mode="Markdown"):
-    """Send photo via Telegram Bot API (POST multipart/form-data)."""
-    url = f"https://api.telegram.org/bot{token}/sendPhoto"
-    boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
-    body = bytearray()
-
-    def add_field(name, val):
-        body.extend(f"--{boundary}\r\n".encode("utf-8"))
-        body.extend(f'Content-Disposition: form-data; name="{name}"\r\n\r\n{val}\r\n'.encode("utf-8"))
-
-    add_field("chat_id", str(chat_id))
-    if caption:
-        add_field("caption", caption)
-        if parse_mode:
-            add_field("parse_mode", parse_mode)
-
-    body.extend(f"--{boundary}\r\n".encode("utf-8"))
-    body.extend(f'Content-Disposition: form-data; name="photo"; filename="h11_chart.png"\r\n'.encode("utf-8"))
-    body.extend(f"Content-Type: image/png\r\n\r\n".encode("utf-8"))
-    body.extend(photo_bytes)
-    body.extend(f"\r\n--{boundary}--\r\n".encode("utf-8"))
-
-    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
-    req = urllib.request.Request(url, data=bytes(body), headers=headers)
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        return json.loads(resp.read().decode())
-
-
 def send_telegram_with_keyboard(token, chat_id, text, inline_keyboard, parse_mode=None):
     """Send message with inline keyboard via Telegram Bot API.
 
@@ -201,8 +173,11 @@ def vn_direction(d):
     return VN_DIR.get(d, d)
 
 
+ACTIVE_SIGNAL_HOURS = frozenset({3, 4, 5, 6, 9, 12, 14, 16})
+
+
 def get_latest_display_signal(signals, today=None, allow_fallback=True):
-    """Pick the newest signal row for dashboard display (today first, else latest date+hour)."""
+    """Pick the newest actionable active-slot signal for the desktop dashboard."""
     if not signals:
         return None
     if today is None:
@@ -214,14 +189,23 @@ def get_latest_display_signal(signals, today=None, allow_fallback=True):
         except (TypeError, ValueError):
             return 0
 
-    today_rows = [s for s in signals if s.get("date") == today and s.get("pair_dirs")]
+    def _is_actionable(row):
+        if not isinstance(row, dict) or row.get("deactivated") is True:
+            return False
+        try:
+            hour = int(row.get("hour"))
+        except (TypeError, ValueError):
+            return False
+        return hour in ACTIVE_SIGNAL_HOURS and bool(row.get("pair_dirs"))
+
+    today_rows = [s for s in signals if s.get("date") == today and _is_actionable(s)]
     if today_rows:
         return max(today_rows, key=_hour_key)
 
     if not allow_fallback:
         return None
 
-    dated = [s for s in signals if s.get("pair_dirs")]
+    dated = [s for s in signals if _is_actionable(s)]
     if not dated:
         return None
     return max(dated, key=lambda s: (s.get("date") or "", _hour_key(s)))

@@ -79,9 +79,22 @@ class SQLiteStore:
                 telegram_configured INTEGER DEFAULT 0,
                 telegram_api_ok INTEGER DEFAULT 0,
                 telegram_last_check TEXT DEFAULT '',
-                telegram_bot_name TEXT DEFAULT ''
+                telegram_bot_name TEXT DEFAULT '',
+                broker_time TEXT DEFAULT '',
+                broker_utc_offset INTEGER,
+                broker_observed_at_utc TEXT DEFAULT ''
             );
         """)
+        heartbeat_columns = {
+            row[1] for row in self._conn.execute("PRAGMA table_info(worker_heartbeat)").fetchall()
+        }
+        for column, definition in (
+            ("broker_time", "TEXT DEFAULT ''"),
+            ("broker_utc_offset", "INTEGER"),
+            ("broker_observed_at_utc", "TEXT DEFAULT ''"),
+        ):
+            if column not in heartbeat_columns:
+                self._conn.execute(f"ALTER TABLE worker_heartbeat ADD COLUMN {column} {definition}")
         self._conn.commit()
         log.debug("SQLite initialized: %s", self._db_path)
 
@@ -203,7 +216,9 @@ class SQLiteStore:
     def publish_heartbeat(self, profile, state, server="", login=0, balance=0, equity=0,
                           last_error="", telegram_configured=False, telegram_api_ok=False,
                           telegram_last_check="", telegram_bot_name="",
-                          preserve_telegram=False):
+                          preserve_telegram=False, broker_time=None,
+                          broker_utc_offset=None, broker_observed_at_utc=None,
+                          preserve_broker_clock=True):
         """Publish worker heartbeat. Called by worker every ~2s.
 
         preserve_telegram=True keeps prior telegram_* fields (MT5-only refresh).
@@ -217,14 +232,25 @@ class SQLiteStore:
             telegram_api_ok = bool(prev.get("telegram_api_ok", telegram_api_ok))
             telegram_last_check = prev.get("telegram_last_check", telegram_last_check) or ""
             telegram_bot_name = prev.get("telegram_bot_name", telegram_bot_name) or ""
+        if preserve_broker_clock:
+            prev = self.get_heartbeat(profile) or {}
+            broker_time = prev.get("broker_time", "") if broker_time is None else broker_time
+            broker_utc_offset = prev.get("broker_utc_offset") if broker_utc_offset is None else broker_utc_offset
+            broker_observed_at_utc = (
+                prev.get("broker_observed_at_utc", "")
+                if broker_observed_at_utc is None
+                else broker_observed_at_utc
+            )
         self._conn.execute(
             """INSERT OR REPLACE INTO worker_heartbeat
                (profile, state, last_seen, server, login, balance, equity, last_error,
-                telegram_configured, telegram_api_ok, telegram_last_check, telegram_bot_name)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 telegram_configured, telegram_api_ok, telegram_last_check, telegram_bot_name,
+                 broker_time, broker_utc_offset, broker_observed_at_utc)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (profile, state, now, server, login, balance, equity, last_error,
              1 if telegram_configured else 0, 1 if telegram_api_ok else 0,
-             telegram_last_check, telegram_bot_name)
+             telegram_last_check, telegram_bot_name, broker_time or "",
+             broker_utc_offset, broker_observed_at_utc or "")
         )
         self._conn.commit()
 

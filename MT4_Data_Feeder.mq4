@@ -1,264 +1,184 @@
 //+------------------------------------------------------------------+
-//|                                         MT4_Data_Feeder.mq4      |
-//|                          Data Feeder for MT4-MT5 Dual Signal     |
-//|                          Gui du lieu nến tu MT4 ve Python Server |
+//| MT4 data feeder for the MT4-MT5 comparison server               |
+//| Publication clocks follow the MT5 signal bot Broker schedule.   |
 //+------------------------------------------------------------------+
 #property copyright "OAK Group"
-#property version   "1.00"
+#property version   "2.00"
 #property strict
 
-//+------------------------------------------------------------------+
-//| CAU HINH                                                           |
-//+------------------------------------------------------------------+
-input string   ServerURL     = "http://127.0.0.1:5000/mt4_data";
-input string   BrokerName    = "MT4";
-input string   SymbolName    = "GBPUSD";
-input int      MagicNumber   = 99999;
+input string ServerURL  = "http://127.0.0.1:5000/mt4_data";
+input string BrokerName = "MT4";
+input string SymbolName = "GBPUSD";
 
-// Gio kich hoat (Server Time) - phut 50
-int targetHours[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+int logicalSlots[]  = {3, 4, 5, 6, 9, 12, 14, 16};
+int signalHours[]   = {3, 4, 5, 6, 9, 12, 14, 16};
+int signalMinutes[] = {0, 45, 45, 0, 0, 0, 0, 0};
+datetime lastSentMinute = 0;
 
-//+------------------------------------------------------------------+
-//| Expert initialization function                                     |
-//+------------------------------------------------------------------+
 int OnInit()
 {
-   Print("===========================================");
-   Print("MT4 Data Feeder v1.0 - Khoi dong");
-   Print("Server: ", ServerURL);
-   Print("Broker: ", BrokerName);
-   Print("Symbol: ", SymbolName);
-   Print("Target Hours: 02-15:50");
-   Print("===========================================");
-
-   // Kiem tra WebRequest permission
-   // BUOC QUAN TRONG: Phai tick vao "Allow WebRequest for listed URL"
-   // trong Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL:
-   //   http://127.0.0.1:5000
-   Print("[SETUP] Neu thay loi WebRequest, hay:");
-   Print("  1. Vao Tools -> Options -> Expert Advisors");
-   Print("  2. Tick vao 'Allow WebRequest for listed URL'");
-   Print("  3. Them: http://127.0.0.1:5000");
-   Print("  4. Restart MT4");
-
+   Print("MT4 Data Feeder v2.0 - active slots H=3,4,5,6,9,12,14,16");
+   Print("Allow WebRequest for: ", ServerURL);
    return(INIT_SUCCEEDED);
 }
 
-//+------------------------------------------------------------------+
-//| Expert deinitialization function                                   |
-//+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-   Print("MT4 Data Feeder - Dung.");
+   Print("MT4 Data Feeder stopped.");
 }
 
-//+------------------------------------------------------------------+
-//| Xac dinh huong nến                                                |
-//| Tra ve: "TANG", "GIAM", hoac "DOJI"                              |
-//+------------------------------------------------------------------+
+datetime DateOnly(datetime value)
+{
+   return StrToTime(TimeToString(value, TIME_DATE));
+}
+
+bool IsRawSpecialDate(datetime value)
+{
+   int weekday = TimeDayOfWeek(value); // Thu=4, Fri=5 in MQL4
+   if(weekday != 4 && weekday != 5)
+      return false;
+   if(TimeMonth(value + 7 * 86400) != TimeMonth(value))
+      return true;
+   datetime wednesday = value - ((weekday == 4) ? 86400 : 2 * 86400);
+   int wednesdayDay = TimeDay(wednesday);
+   if(wednesdayDay == 30 || wednesdayDay == 1)
+      return true;
+   int day = TimeDay(value);
+   return weekday == 5 && (day == 3 || day == 4 || day == 7);
+}
+
+bool IsSpecialPair(datetime serverTime)
+{
+   int weekday = TimeDayOfWeek(serverTime);
+   if(weekday != 4 && weekday != 5)
+      return false;
+   datetime currentDate = DateOnly(serverTime);
+   datetime thursday = (weekday == 4) ? currentDate : currentDate - 86400;
+   datetime friday = thursday + 86400;
+   if(TimeYear(thursday) != TimeYear(friday))
+      return false;
+   return IsRawSpecialDate(thursday) || IsRawSpecialDate(friday);
+}
+
+bool IsPostSpecialMonday(datetime serverTime)
+{
+   if(TimeDayOfWeek(serverTime) != 1)
+      return false;
+   return IsSpecialPair(DateOnly(serverTime) - 4 * 86400);
+}
+
+bool IsSuppressedSlot(int slot, datetime serverTime)
+{
+   if(slot != 12 && slot != 14 && slot != 16)
+      return false;
+   return IsSpecialPair(serverTime) || IsPostSpecialMonday(serverTime);
+}
+
+bool ResolvePublication(datetime serverTime, int &slot, int &patternHour, bool &deactivated)
+{
+   int currentHour = TimeHour(serverTime);
+   int currentMinute = TimeMinute(serverTime);
+   bool special = IsSpecialPair(serverTime);
+   for(int index = 0; index < ArraySize(logicalSlots); index++)
+   {
+      int publicationHour = signalHours[index];
+      int publicationMinute = signalMinutes[index];
+      if(logicalSlots[index] == 9 && special)
+         publicationHour = 8;
+      if(currentHour != publicationHour || currentMinute != publicationMinute)
+         continue;
+      slot = logicalSlots[index];
+      if(IsSuppressedSlot(slot, serverTime))
+         continue;
+      patternHour = publicationMinute >= 45 ? publicationHour : publicationHour - 1;
+      if(patternHour < 0)
+         patternHour += 24;
+      deactivated = slot == 3 && TimeDayOfWeek(serverTime) == 4 && special;
+      return true;
+   }
+   return false;
+}
+
 string GetCandleDirection(int timeframe, int shift)
 {
-   double openPrice  = iOpen(SymbolName, timeframe, shift);
+   double openPrice = iOpen(SymbolName, timeframe, shift);
    double closePrice = iClose(SymbolName, timeframe, shift);
-   double highPrice  = iHigh(SymbolName, timeframe, shift);
-   double lowPrice   = iLow(SymbolName, timeframe, shift);
-
-   // Kiem tra rỗng
+   double highPrice = iHigh(SymbolName, timeframe, shift);
+   double lowPrice = iLow(SymbolName, timeframe, shift);
    if(openPrice == 0 || closePrice == 0)
-   {
-      Print("[WARN] Du lieu rỗng TF=", timeframe, " shift=", shift);
       return "DOJI";
-   }
-
-   double body = MathAbs(closePrice - openPrice);
    double range = highPrice - lowPrice;
-
-   if(range == 0)
+   if(range <= 0 || MathAbs(closePrice - openPrice) / range < 0.05)
       return "DOJI";
-
-   // DOJI: body nho hon 5% cua range
-   if(body / range < 0.05)
-      return "DOJI";
-
-   if(closePrice > openPrice)
-      return "TANG";
-   else if(closePrice < openPrice)
-      return "GIAM";
-
-   return "DOJI";
+   return closePrice > openPrice ? "TANG" : "GIAM";
 }
 
-//+------------------------------------------------------------------+
-//| Tinh so nến M5 lùi tu thoi diem H:50                              |
-//| M5@H:35 -> shift = (H*60+50 - H*60-35) / 5 = 3                  |
-//| M5@H:40 -> shift = (H*60+50 - H*60-40) / 5 = 2                  |
-//+------------------------------------------------------------------+
-int GetM5Shift(int activationHour, int candleMinute)
+int CandleShift(int activationHour, int activationMinute,
+                int candleHour, int candleMinute, int timeframeMinutes)
 {
-   int currentMinutes = activationHour * 60 + 50;
-   int candleMinutes  = activationHour * 60 + candleMinute;
-   return (currentMinutes - candleMinutes) / 5;
+   int activation = activationHour * 60 + activationMinute;
+   int candle = candleHour * 60 + candleMinute;
+   int difference = activation - candle;
+   if(difference < 0)
+      difference += 24 * 60;
+   return difference / timeframeMinutes;
 }
 
-//+------------------------------------------------------------------+
-//| Tinh so nến M15 lùi tu thoi diem H:50                             |
-//| M15@H:30 -> shift = (H*60+50 - H*60-30) / 15 = 1 (round)       |
-//| Chi dung khi (50-30)/15 = 1.33 -> lay shift 1                    |
-//+------------------------------------------------------------------+
-int GetM15Shift(int activationHour, int candleMinute)
-{
-   int currentMinutes = activationHour * 60 + 50;
-   int candleMinutes  = activationHour * 60 + candleMinute;
-   int diff = currentMinutes - candleMinutes;
-   // Round len de lay nến chua dong (gan nhat voi thoi diem can lay)
-   return (diff + 14) / 15;  // ceil(diff/15)
-}
-
-//+------------------------------------------------------------------+
-//| Tinh so nến H1 lùi tu thoi diem H:50                              |
-//| H1@(H-1):00 -> can tinh tu thoi diem H:50                        |
-//| So phut tu (H-1):00 den H:50 = 60 + 50 = 110 phut               |
-//| H1 shift = 110/60 = 1.83 -> lay shift 2 (nến da dong truoc do)  |
-//| NHUNG: Tai thoi diem H:50, nến H:00 chua dong,                  |
-//|        nến (H-1):00 la nến truoc do -> shift = 2                 |
-//+------------------------------------------------------------------+
-int GetH1Shift(int activationHour)
-{
-   // H:50 hien tai. Can lay H1@(H-1):00
-   // H1@H:00 dang chay (chua dong) -> shift = 1
-   // H1@(H-1):00 da dong -> shift = 2
-   return 2;
-}
-
-//+------------------------------------------------------------------+
-//| Gui du lieu qua WebRequest POST                                    |
-//+------------------------------------------------------------------+
 bool SendDataToServer(string jsonPayload)
 {
    string headers = "Content-Type: application/json\r\n";
-   char   postData[];
-   char   resultData[];
+   char postData[];
+   char resultData[];
    string resultHeaders;
-
-   // Chuyen string sang char array
-   int len = StringLen(jsonPayload);
-   ArrayResize(postData, len);
-   for(int i = 0; i < len; i++)
-      postData[i] = (uchar)StringGetCharacter(jsonPayload, i);
-
-   Print("[WebRequest] Dang gui: ", jsonPayload);
-
-   int res = WebRequest(
-      "POST",
-      ServerURL,
-      headers,
-      5000,          // timeout 5s
-      postData,
-      resultData,
-      resultHeaders
-   );
-
-   if(res == -1)
+   int length = StringToCharArray(jsonPayload, postData, 0, WHOLE_ARRAY, CP_UTF8) - 1;
+   if(length < 0)
+      return false;
+   ArrayResize(postData, length);
+   int response = WebRequest("POST", ServerURL, headers, 5000, postData, resultData, resultHeaders);
+   if(response == -1)
    {
-      int err = GetLastError();
-      Print("[ERROR] WebRequest that bai! Error code: ", err);
-      if(err == 4060)
-      {
-         Print("=============================================");
-         Print("Huong dan fix loi 4060:");
-         Print("  1. Vao Tools -> Options -> Expert Advisors");
-         Print("  2. Tick vao 'Allow WebRequest for listed URL'");
-         Print("  3. Them URL: http://127.0.0.1:5000");
-         Print("  4. Restart MT4");
-         Print("=============================================");
-      }
+      Print("[ERROR] WebRequest failed: ", GetLastError());
       return false;
    }
-
-   // Doc ket qua tu server
-   string result = "";
-   for(int i = 0; i < ArraySize(resultData); i++)
-      result += CharToString((uchar)resultData[i]);
-
-   Print("[WebRequest] Response (", res, "): ", result);
-   return true;
+   Print("[WebRequest] HTTP ", response);
+   return response >= 200 && response < 300;
 }
 
-//+------------------------------------------------------------------+
-//| OnTick - Vong lloop chinh                                          |
-//+------------------------------------------------------------------+
 void OnTick()
 {
-   // Lay Server Time
    datetime serverTime = TimeCurrent();
-   int hour   = TimeHour(serverTime);
-   int minute = TimeMinute(serverTime);
-   int second = TimeSecond(serverTime);
-
-   // Chi kich hoat tai phut 50, giay 00
-   if(minute != 50 || second != 0)
+   int slot = -1;
+   int patternHour = -1;
+   bool deactivated = false;
+   if(!ResolvePublication(serverTime, slot, patternHour, deactivated))
       return;
-
-   // Kiem tra gio kich hoat
-   bool isTarget = false;
-   for(int i = 0; i < ArraySize(targetHours); i++)
-   {
-      if(hour == targetHours[i])
-      {
-         isTarget = true;
-         break;
-      }
-   }
-   if(!isTarget)
+   datetime minuteKey = serverTime - TimeSeconds(serverTime);
+   if(minuteKey == lastSentMinute)
       return;
+   lastSentMinute = minuteKey;
 
-   Print("===========================================");
-   Print("[SIGNAL] Kich hoat tai ", TimeToStr(serverTime, TIME_DATE|TIME_MINUTES|TIME_SECONDS));
-
-   // --- BƯỚC 1: Lay nến M5 ---
-   int shiftM35 = GetM5Shift(hour, 35);
-   int shiftM40 = GetM5Shift(hour, 40);
-
+   int activationHour = TimeHour(serverTime);
+   int activationMinute = TimeMinute(serverTime);
+   int shiftM35 = CandleShift(activationHour, activationMinute, patternHour, 35, 5);
+   int shiftM40 = CandleShift(activationHour, activationMinute, patternHour, 40, 5);
+   int shiftM30 = CandleShift(activationHour, activationMinute, patternHour, 0, 30);
    string dirM35 = GetCandleDirection(PERIOD_M5, shiftM35);
    string dirM40 = GetCandleDirection(PERIOD_M5, shiftM40);
-
-   Print("[M5] Shift=", shiftM35, " M5@35=", dirM35);
-   Print("[M5] Shift=", shiftM40, " M5@40=", dirM40);
-
-   // --- BƯỚC 2: Lay H1 va M15 ---
-   int shiftH1  = GetH1Shift(hour);
-   int shiftM15 = GetM15Shift(hour, 30);
-
-   string dirH1  = GetCandleDirection(PERIOD_H1, shiftH1);
-   string dirM15 = GetCandleDirection(PERIOD_M15, shiftM15);
-
-   int h1Hour = hour - 1;
-   if(h1Hour < 0) h1Hour = 23;
-
-   Print("[H1]  Shift=", shiftH1, " H1@", h1Hour, ":00=", dirH1);
-   Print("[M15] Shift=", shiftM15, " M15@", hour, ":30=", dirM15);
-
-   // --- BƯỚC 3: Dong goi JSON ---
-   string timeStr = IntegerToString(hour) + ":50";
+   string dirM30 = GetCandleDirection(PERIOD_M30, shiftM30);
+   string signalTime = StringFormat("%02d:%02d", activationHour, activationMinute);
 
    string json = "{";
    json += "\"broker\":\"" + BrokerName + "\",";
-   json += "\"time\":\"" + timeStr + "\",";
+   json += "\"time\":\"" + signalTime + "\",";
+   json += "\"slot\":" + IntegerToString(slot) + ",";
+   json += "\"pattern_hour\":" + IntegerToString(patternHour) + ",";
+   json += "\"deactivated\":" + (deactivated ? "true" : "false") + ",";
    json += "\"m35\":\"" + dirM35 + "\",";
    json += "\"m40\":\"" + dirM40 + "\",";
-   json += "\"h1\":\"" + dirH1 + "\",";
-   json += "\"m15\":\"" + dirM15 + "\"";
-   json += "}";
+   json += "\"m30\":\"" + dirM30 + "\"}";
 
-   Print("[JSON] ", json);
-
-   // --- BƯỚC 4: Gui len Server ---
-   bool ok = SendDataToServer(json);
-   if(ok)
-      Print("[OK] Da gui thanh cong!");
-   else
-      Print("[FAIL] Gui that bai!");
-
-   Print("===========================================");
+   Print("[SIGNAL] H=", slot, " @ ", signalTime, " Broker: ", json);
+   if(!SendDataToServer(json))
+      lastSentMinute = 0; // allow another tick in this publication minute to retry
 }
 //+------------------------------------------------------------------+

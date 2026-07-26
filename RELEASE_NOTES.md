@@ -1,5 +1,14 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [v3.18.0] - 2026-07-26
+
+- Đồng bộ logical slot còn hoạt động thành H=3, H=4, H=5, H=6, H=9, H=12, H=14 và H=16; tách giờ phát signal khỏi giờ entry và loại bỏ toàn bộ H=2/H=11/H=13/H=15/H=1500 cũ.
+- Bổ sung retry nến chậm đến entry, chống gửi bù/trùng sau restart, startup rebuild 45 ngày duy nhất và trả `WAIT` khi dữ liệu nến thiếu hoặc DOJI chưa resolve.
+- Chuẩn hóa ngày đặc biệt Thu–Fri, loại trừ cặp 31/12/2026–01/01/2027; H=3 Thứ Năm đặc biệt được lưu ở trạng thái `deactivated`, còn H=12/H=14/H=16 bị suppress hoàn toàn vào special/post-special.
+- Thống nhất Broker clock suy từ nến D1 MT5 theo từng ngày, fail-closed khi không xác định được offset, đồng thời đưa thời gian Broker chuẩn sang worker, desktop và Dashboard.
+- Chuyển quyền auto-close ALL về Signal Bot tại 17:59 cho XAUUSD và 19:59 cho nhóm GBP, có xác nhận vị thế còn lại và retry qua restart; Copy Trade Manager chỉ giữ lịch đóng thủ công.
+- Dashboard/API hiển thị riêng giờ phát, giờ entry và giờ local; làm mờ signal `deactivated` với cảnh báo **KHÔNG VÀO LỆNH**, lọc record slot cũ và gỡ toàn bộ RHYTHM/H11 chart dead code.
+
 ## [v3.17.1] - 2026-07-23
 
 - Ghi JSON lịch đóng lệnh bằng file tạm riêng, retry khóa Windows và transaction chung giữa worker/NativeQt, tránh `Loop Error [WinError 5]` lẫn mất lịch do ghi đè đồng thời.

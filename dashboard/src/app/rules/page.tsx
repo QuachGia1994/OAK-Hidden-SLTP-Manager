@@ -1,7 +1,8 @@
-import { formatHour, getDayRules, getTargetMinute } from "@/lib/constants";
+import { formatHour, getDayRules } from "@/lib/constants";
 import { getBrokerDateParts } from "@/lib/trading-time";
-import { BrokerLocalTime } from "@/components/BrokerLocalTime";
+import { getBotState } from "@/lib/data";
 import { BrowserDateText } from "@/components/BrowserDateText";
+import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 import type { ReactNode } from "react";
@@ -9,15 +10,19 @@ import type { ReactNode } from "react";
 export const dynamic = "force-dynamic";
 
 export default async function RulesPage() {
-  const today = new Date();
-  const { dayOfWeek, currentHour, todayStr } = getBrokerDateParts(today);
+  const now = new Date();
+  const botState = await getBotState();
+  const brokerClock = getBrokerDateParts(botState, now);
   const headerList = await headers();
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
-  const todayRules = getDayRules(locale, dayOfWeek, today);
+  const todayRules = brokerClock
+    ? getDayRules(locale, brokerClock.dayOfWeek, new Date(`${brokerClock.todayStr}T00:00:00Z`))
+    : [];
 
   return (
     <div className="page-shell terminal-page space-y-5">
+      <DashboardAutoRefresh />
       <header className="terminal-hero rules-hero overflow-hidden rounded-xl">
         <div className="relative grid lg:grid-cols-[minmax(15rem,0.85fr)_minmax(0,2.15fr)]">
           <div className="flex min-h-32 flex-col justify-center border-b border-[color:var(--panel-border)] px-5 py-5 lg:border-b-0 lg:border-r lg:px-6">
@@ -30,20 +35,25 @@ export default async function RulesPage() {
           <div className="rules-meta-grid grid sm:grid-cols-3">
             <RuleMeta
               label={locale === "EN" ? "Broker date" : "Ngày broker"}
-              value={
+              value={brokerClock ? (
                 <BrowserDateText
-                  date={today.toISOString()}
+                  date={brokerClock.todayStr}
                   locale={t.dateTimeFormat}
                   options={{ weekday: "long", day: "numeric", month: "numeric", year: "numeric" }}
+                  calendarDate
                 />
-              }
+              ) : "—"}
             />
             <RuleMeta label={t.scope} value={locale === "EN" ? "Broker-day rules" : "Quy tắc theo ngày broker"} />
             <RuleMeta
               label={t.currentHour}
-              value={<>{formatHour(currentHour)}:{String(getTargetMinute(currentHour)).padStart(2, '0')} Broker · <BrokerLocalTime date={todayStr} hour={currentHour} /></>}
-              live
-              subLabel={t.brokerSynced}
+              value={brokerClock
+                ? <>{formatHour(brokerClock.currentHour)}:{String(brokerClock.currentMinute).padStart(2, "0")} Broker</>
+                : "—"}
+              live={Boolean(brokerClock)}
+              subLabel={brokerClock
+                ? t.brokerSynced
+                : locale === "EN" ? "Broker clock unavailable" : "Chưa có đồng hồ Broker tin cậy"}
             />
           </div>
         </div>

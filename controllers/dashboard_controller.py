@@ -2,6 +2,91 @@
 """Dashboard frame, news, status cards, theme, language, docs."""
 from __future__ import annotations
 
+from datetime import datetime as _DateTime, timedelta as _TimeDelta, timezone as _Timezone
+
+
+_ACTIVE_SIGNAL_SLOTS = (3, 4, 5, 6, 9, 12, 14, 16)
+_FALLBACK_SIGNAL_TIMES = {
+    3: "03:00",
+    4: "04:45",
+    5: "05:45",
+    6: "06:00",
+    9: "09:00",
+    12: "12:00",
+    14: "14:00",
+    16: "16:00",
+}
+
+
+def _broker_now_from_heartbeat(heartbeat, now_utc=None, max_age_seconds=15):
+    """Return Broker wall time only from a fresh, internally consistent heartbeat."""
+    if not isinstance(heartbeat, dict):
+        return None
+    try:
+        offset = int(heartbeat.get("broker_utc_offset"))
+        if not -12 <= offset <= 14:
+            return None
+        observed = _DateTime.fromisoformat(str(heartbeat.get("broker_observed_at_utc", "")).replace("Z", "+00:00"))
+        if observed.tzinfo is None:
+            return None
+        observed = observed.astimezone(_Timezone.utc)
+        reported = _DateTime.fromisoformat(str(heartbeat.get("broker_time", "")))
+        if reported.tzinfo is not None:
+            return None
+        expected = (observed + _TimeDelta(hours=offset)).replace(tzinfo=None)
+        if abs((reported - expected).total_seconds()) > 2:
+            return None
+        utc_now = now_utc or _DateTime.now(_Timezone.utc)
+        if utc_now.tzinfo is None:
+            return None
+        age = (utc_now.astimezone(_Timezone.utc) - observed).total_seconds()
+        if age < -2 or age > max_age_seconds:
+            return None
+        return (utc_now.astimezone(_Timezone.utc) + _TimeDelta(hours=offset)).replace(tzinfo=None)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _next_desktop_signal(now):
+    """Return the next ``(logical_slot, broker_datetime)`` for the desktop card."""
+    try:
+        from mt5_signal_bot import (
+            get_signal_time_for_slot,
+            get_target_hours,
+            is_post_special_day,
+            is_special_day,
+        )
+    except Exception:
+        get_signal_time_for_slot = None
+        get_target_hours = None
+        is_post_special_day = None
+        is_special_day = None
+
+    for day_offset in range(8):
+        day = now + _TimeDelta(days=day_offset)
+        if day.weekday() >= 5:
+            continue
+        slots = list(get_target_hours(day) if get_target_hours else _ACTIVE_SIGNAL_SLOTS)
+        is_suppressed_day = bool(
+            (is_special_day and is_special_day(day))
+            or (is_post_special_day and is_post_special_day(day))
+        )
+        for slot in slots:
+            if slot not in _ACTIVE_SIGNAL_SLOTS:
+                continue
+            if is_suppressed_day and slot in (12, 14, 16):
+                continue
+            signal_time = (
+                get_signal_time_for_slot(day, slot)
+                if get_signal_time_for_slot
+                else _FALLBACK_SIGNAL_TIMES[slot]
+            )
+            hour, minute = (int(value) for value in signal_time.split(":"))
+            target = day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if target > now:
+                return slot, target
+    return None
+
 class DashboardControllerMixin:
     """Dashboard frame, news, status cards, theme, language, docs."""
 
@@ -677,40 +762,50 @@ class DashboardControllerMixin:
             if self._widget_alive(card_sig):
                 pair_dirs = {}
                 latest = None
-                now = datetime.now()
-                is_weekend = now.weekday() >= 5
+                now = _broker_now_from_heartbeat(hb)
+                clock_ready = now is not None
+                is_weekend = bool(clock_ready and now.weekday() >= 5)
                 try:
                     # Project root (not controllers/) — signals_log lives next to OAK_*.py
-                    if is_weekend:
+                    if not clock_ready:
+                        card_sig.configure(text=f"{T('ui_current')}: Broker —")
+                    elif is_weekend:
                         card_sig.configure(text=f"{T('ui_current')}: {T('sig_no_trade')}")
                     signals_file = os.path.join(self._project_root(), "signals_log.json")
-                    if not is_weekend and not os.path.exists(signals_file):
+                    if clock_ready and not is_weekend and not os.path.exists(signals_file):
                         # Fallback: cwd (Documents run path)
                         signals_file = os.path.join(os.getcwd(), "signals_log.json")
-                    if not is_weekend and os.path.exists(signals_file):
+                    if clock_ready and not is_weekend and os.path.exists(signals_file):
                         with open(signals_file, "r", encoding="utf-8") as f:
                             signals = json.load(f)
                         if signals:
                             try:
                                 from utils import get_latest_display_signal as _glds
-                                latest = _glds(signals) or signals[-1]
+                                latest = _glds(signals, today=now.date().isoformat(), allow_fallback=False)
                             except Exception:
                                 try:
-                                    latest = get_latest_display_signal(signals) or signals[-1]
+                                    latest = get_latest_display_signal(
+                                        signals,
+                                        today=now.date().isoformat(),
+                                        allow_fallback=False,
+                                    )
                                 except Exception:
-                                    latest = signals[-1] if isinstance(signals, list) else None
+                                    latest = None
                             if latest:
                                 sig = latest.get("signal", "—")
                                 icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "🟡" if sig == "SW" else "⚪"
                                 hour = latest.get("hour")
-                                hour_txt = f" H={int(hour):02d}:45" if hour is not None else ""
+                                signal_time = latest.get("signal_time")
+                                hour_txt = f" H={int(hour):02d}" if hour is not None else ""
+                                if signal_time:
+                                    hour_txt += f" · {signal_time} Broker"
                                 card_sig.configure(text=f"{T('ui_current')}: {icon} {sig}{hour_txt}")
                                 pair_dirs = latest.get("pair_dirs") or {}
                             else:
                                 card_sig.configure(text=T("ui_current_dash"))
                         else:
                             card_sig.configure(text=T("ui_current_dash"))
-                    elif not is_weekend:
+                    elif clock_ready and not is_weekend:
                         card_sig.configure(text=T("ui_current_dash"))
                 except Exception as _sig_err:
                     try:
@@ -731,7 +826,7 @@ class DashboardControllerMixin:
                     for pair, lbl in pair_labels.items():
                         if not self._widget_alive(lbl):
                             continue
-                        if is_weekend:
+                        if not clock_ready or is_weekend:
                             lbl.configure(text="—", text_color=muted)
                             continue
                         if pair == "XAUUSD":
@@ -749,28 +844,16 @@ class DashboardControllerMixin:
                             continue
                         lbl.configure(text="—", text_color=muted)
 
-                # Next slot countdown (T2-T6=H2-5,7-9,12-15; broker weekday)
-                try:
-                    from mt5_signal_bot import get_target_hours as _gth
-                    target_hours = _gth(weekday=now.weekday())
-                except Exception:
-                    target_hours = [] if is_weekend else [2, 3, 4, 5, 7, 8, 9, 11, 12, 13, 14, 15]
-                if not target_hours:
+                # Logical slots use their actual Broker-time publication schedule.
+                next_signal = _next_desktop_signal(now) if clock_ready else None
+                if not next_signal:
                     self.card_signal_next.configure(text=f"{T('ui_next')}: —")
                     self.card_signal_countdown.configure(text=f"{T('ui_countdown')}: —")
                 else:
-                    next_h = None
-                    for h in target_hours:
-                        if now.hour < h or (now.hour == h and now.minute < 45):
-                            next_h = h
-                            break
-                    if next_h is None:
-                        next_h = target_hours[0]
-                    self.card_signal_next.configure(text=f"{T('ui_next')}: {next_h:02d}:45")
-                    target = now.replace(hour=next_h, minute=45, second=0, microsecond=0)
-                    if target < now:
-                        from datetime import timedelta
-                        target += timedelta(days=1)
+                    next_h, target = next_signal
+                    self.card_signal_next.configure(
+                        text=f"{T('ui_next')}: H={next_h:02d} · {target:%H:%M} Broker"
+                    )
                     diff = target - now
                     hrs, rem = divmod(int(diff.total_seconds()), 3600)
                     mins, secs = divmod(rem, 60)

@@ -1,11 +1,11 @@
 import type { Signal, BotState, NewsItem, StockAdvisory } from "./types";
 import { redis, KEYS } from "./redis";
-import { DISABLED_HOURS } from "./constants";
+import { filterDisplayableSignals } from "./constants";
 
 export async function getSignals(): Promise<Signal[]> {
   try {
     const data = await redis.get(KEYS.signals);
-    return ((data as Signal[]) || []).filter((signal) => !DISABLED_HOURS.has(Number(signal.hour)));
+    return filterDisplayableSignals((data as Signal[]) || []);
   } catch {
     return [];
   }
@@ -27,7 +27,6 @@ export function maskSignal(signal: Signal): Signal {
     current_prices: {},
     hour_note: null,
     d_direction: null,
-    h11_candles: undefined,
   };
 }
 

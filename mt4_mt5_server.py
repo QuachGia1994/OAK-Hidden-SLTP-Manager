@@ -4,16 +4,18 @@ MT4-MT5 Dual Signal Server v2.0
 ================================
 Flask API nhan du lieu tu MT4 EA, lay du lieu MT5 tu dong,
 so sanh tin hieu va gui bao cao Telegram.
-Tinh gio hoan toan tu tick.time (UTC timestamp).
+MT5 timestamps la UTC; broker clock duoc suy tu gio mo nen D1.
 """
 import os
 import sys
 import json
-import calendar
 import urllib.request
 import urllib.parse
-from datetime import datetime, timedelta, timezone
+import threading
+from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
+from domain.broker_clock import BrokerClock
+from domain.json_io import load_json, save_json
 
 try:
     import MetaTrader5 as mt5
@@ -25,6 +27,7 @@ except ImportError:
 # CAU HINH - doc tu config.json (gitignored)
 # =====================================================================
 _config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+_delivery_state_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mt4_server_state.json")
 try:
     with open(_config_path, "r", encoding="utf-8") as _f:
         _cfg = json.load(_f)
@@ -38,8 +41,10 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 SYMBOL = "GBPUSD"
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
-TARGET_HOURS = [2, 4, 5, 6, 9, 12, 14, 15]
-BROKER_GMT = 0
+TARGET_HOURS = [3, 4, 5, 6, 9, 12, 14, 16]
+BROKER_CLOCK = BrokerClock(mt5)
+_delivery_lock = threading.Lock()
+_deliveries_in_progress = set()
 
 app = Flask(__name__)
 
@@ -70,44 +75,96 @@ def fmt_time(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 def get_broker_time():
-    """Lay broker time tu tick.time (UTC). Khong phu thuoc local."""
-    if mt5_ready:
-        tick = mt5.symbol_info_tick(SYMBOL)
-        if tick is not None:
-            utc_dt = datetime.fromtimestamp(tick.time, tz=timezone.utc).replace(tzinfo=None)
-            return utc_dt + timedelta(hours=BROKER_GMT)
-    now_utc = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-    return now_utc + timedelta(hours=BROKER_GMT)
+    """Lay broker time tu moc mo nen D1 UTC; khong doan offset."""
+    if not mt5_ready:
+        raise RuntimeError("MT5 unavailable; broker clock is unknown")
+    return BROKER_CLOCK.now()
 
 def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
     """Chuyen broker time + hour/minute thanh UTC timestamp."""
     target_broker = broker_dt.replace(hour=hour, minute=minute, second=second, microsecond=0)
-    target_utc = target_broker - timedelta(hours=BROKER_GMT)
-    return calendar.timegm(target_utc.timetuple())
+    target_utc = BROKER_CLOCK.utc_from_broker_datetime(target_broker)
+    return int(target_utc.timestamp())
+
+def _is_raw_special_date(target_date):
+    weekday = target_date.weekday()
+    if weekday not in (3, 4):
+        return False
+    if (target_date + timedelta(days=7)).month != target_date.month:
+        return True
+    wednesday = target_date - timedelta(days=1 if weekday == 3 else 2)
+    return wednesday.day in (30, 1) or (weekday == 4 and target_date.day in (3, 4, 7))
+
+
+def is_special_day(broker_dt):
+    """Use the same Thu/Fri pair calendar as the signal bot."""
+    if broker_dt.weekday() not in (3, 4):
+        return False
+    target_date = broker_dt.date()
+    thursday = target_date if target_date.weekday() == 3 else target_date - timedelta(days=1)
+    friday = thursday + timedelta(days=1)
+    if thursday.year != friday.year:
+        return False
+    return _is_raw_special_date(thursday) or _is_raw_special_date(friday)
+
+
+def is_post_special_monday(broker_dt):
+    if broker_dt.weekday() != 0:
+        return False
+    return is_special_day(broker_dt - timedelta(days=4))
+
+
+def is_slot_suppressed(broker_dt, slot):
+    return slot in (12, 14, 16) and (
+        is_special_day(broker_dt) or is_post_special_monday(broker_dt)
+    )
+
+
+def is_deactivated_h3(broker_dt, slot):
+    return slot == 3 and broker_dt.weekday() == 3 and is_special_day(broker_dt)
+
+
+def _delivery_key(broker_dt, slot):
+    return f"{broker_dt.date().isoformat()}:{slot}"
+
+
+def _delivered_keys():
+    state = load_json(_delivery_state_path, {"delivered": []})
+    if not isinstance(state, dict):
+        return set()
+    return {str(value) for value in state.get("delivered", [])}
+
+
+def _start_delivery(key):
+    with _delivery_lock:
+        if key in _deliveries_in_progress or key in _delivered_keys():
+            return False
+        _deliveries_in_progress.add(key)
+        return True
+
+
+def _release_delivery(key):
+    with _delivery_lock:
+        _deliveries_in_progress.discard(key)
+
+
+def _complete_delivery(key):
+    with _delivery_lock:
+        delivered = sorted((*_delivered_keys(), key))[-128:]
+        save_json(_delivery_state_path, {"delivered": delivered})
+        _deliveries_in_progress.discard(key)
+
+
+def get_signal_time_for_slot(broker_dt, slot):
+    """Return the publication clock for one active logical slot."""
+    clocks = {3: "03:00", 4: "04:45", 5: "05:45", 6: "06:00", 9: "09:00", 12: "12:00", 14: "14:00", 16: "16:00"}
+    if slot == 9 and is_special_day(broker_dt):
+        return "08:00"
+    return clocks[slot]
+
 
 def get_schedule_note(broker_dt):
-    """Return a short note about today's schedule focus."""
-    today = broker_dt.date()
-    year = today.year
-    month = today.month
-    last_day = calendar.monthrange(year, month)[1]
-
-    last_fri = today.replace(day=last_day)
-    while last_fri.weekday() != 4:
-        last_fri -= timedelta(days=1)
-    if today == last_fri:
-        return "THU 6 CUOI THANG"
-
-    last_wed = today.replace(day=last_day)
-    while last_wed.weekday() != 2:
-        last_wed -= timedelta(days=1)
-    if today == last_wed:
-        return "THU 4 CUOI THANG"
-
-    if today.weekday() == 2 and today.day in (1, 30):
-        return "THU 4 NGAY 30/1 TAY"
-
-    return "Binh thuong"
+    return "SPECIAL THU-FRI" if is_special_day(broker_dt) else "NORMAL"
 
 # =====================================================================
 # MT5 CANDLE
@@ -162,7 +219,7 @@ def calculate_signal(m35_dir, m40_dir, m30_dir):
 # MT5 DATA FETCHER
 # =====================================================================
 def fetch_mt5_data(broker_dt, H):
-    """Lay nến MT5 tai H:45 su dung broker time tu tick.time."""
+    """Lay nến MT5 tai H:45 bang broker clock da xac minh."""
     if not mt5_ready:
         return {"m35":"N/A","m40":"N/A","m30":"N/A","signal":"WAIT"}
 
@@ -192,6 +249,7 @@ def fetch_mt5_data(broker_dt, H):
 # =====================================================================
 @app.route("/mt4_data", methods=["POST"])
 def receive_mt4_data():
+    delivery_key = None
     try:
         data = request.get_json(force=True)
         if not isinstance(data, dict):
@@ -211,7 +269,8 @@ def receive_mt4_data():
 
         broker_dt = get_broker_time()
         print(f"\n{'='*55}")
-        print(f"[{fmt_time(broker_dt)} GMT+{BROKER_GMT}] Nhan tu MT4:")
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
+        print(f"[{fmt_time(broker_dt)} GMT{broker_offset:+d}] Nhan tu MT4:")
         print(json.dumps(data, indent=2, ensure_ascii=False))
 
         broker = data.get("broker", "MT4")
@@ -222,13 +281,24 @@ def receive_mt4_data():
 
         mt4_signal = calculate_signal(mt4_m35, mt4_m40, mt4_m30)
 
-        h_parts = time_str.replace(":45", "").strip()
         try:
-            H = int(h_parts)
-        except ValueError:
-            H = broker_dt.hour
+            H = int(data.get("slot"))
+            pattern_hour = int(data.get("pattern_hour"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "slot and pattern_hour must be integers"}), 400
+        if H not in TARGET_HOURS or not 0 <= pattern_hour <= 23:
+            return jsonify({"error": "inactive slot or invalid pattern_hour"}), 400
+        if time_str != get_signal_time_for_slot(broker_dt, H):
+            return jsonify({"error": "request does not match the Broker publication clock"}), 409
+        if is_slot_suppressed(broker_dt, H):
+            return jsonify({"status": "suppressed", "slot": H}), 200
 
-        mt5_data = fetch_mt5_data(broker_dt, H)
+        deactivated = is_deactivated_h3(broker_dt, H)
+        delivery_key = _delivery_key(broker_dt, H)
+        if not _start_delivery(delivery_key):
+            return jsonify({"status": "duplicate", "slot": H}), 200
+
+        mt5_data = fetch_mt5_data(broker_dt, pattern_hour)
         mt5_signal = mt5_data["signal"]
 
         if mt4_signal == "WAIT" or mt5_signal == "WAIT":
@@ -243,13 +313,21 @@ def receive_mt4_data():
         else:
             conclusion = f"XUNG DOT: MT4={mt4_signal} vs MT5={mt5_signal} - KHONG VAO"
 
-        msg = build_telegram(
-            broker, time_str, H,
-            mt4_m35, mt4_m40, mt4_m30, mt4_signal,
-            mt5_data, mt5_signal,
-            conclusion, broker_dt
-        )
-        send_telegram(msg)
+        if deactivated:
+            msg = build_deactivated_warning(broker, time_str, H, broker_dt)
+        else:
+            msg = build_telegram(
+                broker, time_str, H, pattern_hour,
+                mt4_m35, mt4_m40, mt4_m30, mt4_signal,
+                mt5_data, mt5_signal,
+                conclusion, broker_dt
+            )
+        if send_telegram(msg) is None:
+            _release_delivery(delivery_key)
+            delivery_key = None
+            return jsonify({"status": "retry", "msg": "Telegram delivery failed"}), 503
+        _complete_delivery(delivery_key)
+        delivery_key = None
 
         print(f"  MT4: {mt4_signal} | MT5: {mt5_signal}")
         print(f"  => {conclusion}")
@@ -260,17 +338,30 @@ def receive_mt4_data():
             "mt4": mt4_signal,
             "mt5": mt5_signal,
             "conclusion": conclusion,
+            "deactivated": deactivated,
         })
 
     except Exception as e:
+        if delivery_key:
+            _release_delivery(delivery_key)
         print(f"[ERROR] {e}")
         return jsonify({"status": "error", "msg": "Internal server error"}), 500
 
 # =====================================================================
 # TELEGRAM REPORT
 # =====================================================================
+def build_deactivated_warning(broker, time_str, H, broker_dt):
+    return (
+        "=== CANH BAO SIGNAL DEACTIVATED ===\n"
+        f"Thoi gian: {fmt_time(broker_dt)}\n"
+        f"Nguon: {broker} | Logical slot: H={H} | Phat: {time_str} Broker\n"
+        "Trang thai: deactivated=true\n"
+        "KHONG VAO LENH - chi ghi nhan doi chieu ky thuat."
+    )
+
+
 def build_telegram(
-    broker, time_str, H,
+    broker, time_str, H, pattern_hour,
     mt4_m35, mt4_m40, mt4_m30, mt4_sig,
     mt5, mt5_sig,
     conclusion, broker_dt
@@ -284,18 +375,18 @@ def build_telegram(
     return (
         f"=== BAO CAO DOI CHIEU ===\n"
         f"Thoi gian: {now_s}\n"
-        f"Kich hoat: {fmt_hour(H)}:45\n"
+        f"Logical slot: H={H} | Phat: {time_str} Broker\n"
         f"Tap trung: {note}\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
-        f"  M5@{fmt_hour(H)}:35 = {mt4_m35}\n"
-        f"  M5@{fmt_hour(H)}:40 = {mt4_m40}\n"
-        f"  M30@{fmt_hour(H)}:00 = {mt4_m30}\n"
+        f"  M5@{fmt_hour(pattern_hour)}:35 = {mt4_m35}\n"
+        f"  M5@{fmt_hour(pattern_hour)}:40 = {mt4_m40}\n"
+        f"  M30@{fmt_hour(pattern_hour)}:00 = {mt4_m30}\n"
         f"  => {ico(mt4_sig)}\n\n"
         f"--- {SYMBOL} (MT5) ---\n"
-        f"  M5@{fmt_hour(H)}:35 = {mt5['m35']}\n"
-        f"  M5@{fmt_hour(H)}:40 = {mt5['m40']}\n"
-        f"  M30@{fmt_hour(H)}:00 = {mt5['m30']}\n"
+        f"  M5@{fmt_hour(pattern_hour)}:35 = {mt5['m35']}\n"
+        f"  M5@{fmt_hour(pattern_hour)}:40 = {mt5['m40']}\n"
+        f"  M30@{fmt_hour(pattern_hour)}:00 = {mt5['m30']}\n"
         f"  => {ico(mt5_sig)}\n\n"
         f"===========================\n"
         f"KET LUAN: {conclusion}\n"
@@ -339,7 +430,7 @@ def main():
     print("  MT4-MT5 Dual Signal Server v2.0")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {TARGET_HOURS}")
-    print(f"  Broker GMT+{BROKER_GMT} (tu tick.time)")
+    print("  Broker clock: derived from MT5 D1 UTC bar opens")
     print("=" * 55)
 
     if not ensure_mt5_running():

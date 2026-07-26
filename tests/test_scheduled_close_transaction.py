@@ -4,7 +4,6 @@ import tempfile
 import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from unittest.mock import patch
 
 from domain.copy_trade_manager import CopyTradeManager
@@ -18,7 +17,6 @@ class ScheduledCloseTransactionTests(unittest.TestCase):
         manager.scheduled_close_file = path
         manager.scheduled_trades = []
         manager._scheduled_close = []
-        manager._last_auto_close_date = None
         manager.notify = lambda _message: None
         return manager
 
@@ -62,40 +60,60 @@ class ScheduledCloseTransactionTests(unittest.TestCase):
                 [10, 20],
             )
 
-    def test_auto_daily_retries_after_first_persistence_failure(self):
-        class FixedDatetime(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return cls(2026, 7, 22, 8, 0, 0)
-
-            @classmethod
-            def utcnow(cls):
-                return cls(2026, 7, 22, 1, 0, 0)
-
+    def test_copy_manager_does_not_create_automatic_daily_closes(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "scheduled_close_Vantage.json")
             manager = self.make_manager(path)
-            attempts = {"count": 0}
+            save_json(path, [])
 
-            def flaky_save(file, payload):
-                attempts["count"] += 1
-                if attempts["count"] == 1:
-                    raise PermissionError("busy")
-                return save_json(file, payload)
+            manager._check_scheduled_trades()
 
-            with patch("domain.copy_trade_manager.datetime", FixedDatetime):
-                with patch("domain.copy_trade_manager.mt5.symbol_info_tick", return_value=None):
-                    with patch(
-                        "domain.copy_trade_manager.save_json",
-                        side_effect=flaky_save,
-                    ):
-                        with self.assertRaises(PermissionError):
-                            manager._auto_schedule_daily_closes()
-                        self.assertIsNone(manager._last_auto_close_date)
-                        manager._auto_schedule_daily_closes()
+            self.assertEqual(load_json(path, []), [])
+            self.assertNotIn("_auto_schedule_daily_closes", inspect.getsource(CopyTradeManager))
 
-            self.assertEqual(manager._last_auto_close_date, "2026-07-22")
-            self.assertEqual(len(load_json(path, [])), 2)
+    def test_manual_scheduled_close_is_preserved(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "scheduled_close_Vantage.json")
+            manual = {
+                "id": 7,
+                "time": "12:00:00",
+                "date": "2099-01-01",
+                "filter": "all",
+                "sym": "XAUUSD",
+                "ticket": "",
+            }
+            save_json(path, [manual])
+            manager = self.make_manager(path)
+            manager._scheduled_close = [manual]
+
+            manager._check_scheduled_trades()
+
+            self.assertEqual(load_json(path, []), [manual])
+
+    def test_legacy_automatic_close_is_removed_without_touching_manual_close(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "scheduled_close_Vantage.json")
+            manual = {
+                "id": 7,
+                "time": "12:00:00",
+                "date": "2099-01-01",
+                "filter": "all",
+                "sym": "XAUUSD",
+                "ticket": "",
+            }
+            legacy_auto = {
+                **manual,
+                "id": 8,
+                "sym": "GBP",
+                "is_auto_daily": True,
+            }
+            save_json(path, [manual, legacy_auto])
+            manager = self.make_manager(path)
+            manager._scheduled_close = [manual, legacy_auto]
+
+            manager._check_scheduled_trades()
+
+            self.assertEqual(load_json(path, []), [manual])
 
     def test_lock_timeout_is_propagated(self):
         class BusyLock:

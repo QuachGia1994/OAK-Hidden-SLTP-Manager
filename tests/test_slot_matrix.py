@@ -1,51 +1,104 @@
-"""Regression tests for the current XAU-only slot matrix."""
-from datetime import datetime, timezone
+"""Regression tests for the active logical slot matrix."""
+from datetime import datetime
 from unittest.mock import patch
 import unittest
 
 import mt5_signal_bot
-from mt5_signal_bot import calculate_slot_signal, get_pair_direction
 
 
 class SlotMatrixTests(unittest.TestCase):
-    def test_h3_is_disabled(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 3, 45, tzinfo=timezone.utc)
-        with patch.object(mt5_signal_bot, "_lookup_h5_signal_yesterday", return_value="BUY"):
-            result = calculate_slot_signal(broker_dt, 3)
-            self.assertEqual(result["signal"], "WAIT")
+    def test_removed_slots_are_suppressed(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
 
+        for hour in (2, 11, 13, 15, 1500):
+            with self.subTest(hour=hour):
+                result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
+                self.assertEqual(result["signal"], "WAIT")
+                self.assertTrue(result["suppressed"])
 
+    def test_h3_uses_monday_history_on_thursday(self) -> None:
+        thursday = datetime(2026, 7, 23, 3, 0)
 
-    def test_h2_and_normal_slots_apply_m5_m30_then_xau_m30(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 8, 45, tzinfo=timezone.utc)
         with patch.object(
             mt5_signal_bot,
-            "analyze",
-            side_effect=lambda *_args: {"signal": "BUY", "report": "pattern", "h1_signal": None},
+            "_lookup_historical_t2_signal",
+            return_value="BUY",
         ), patch.object(
-            mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"
+            mt5_signal_bot,
+            "evaluate_3_m30_classification_for_h3",
+            return_value="SW",
         ):
-            for hour in (12,):
-                with self.subTest(hour=hour):
-                    result = calculate_slot_signal(broker_dt, hour)
-                    self.assertEqual(result["pattern_signal"], "BUY")
-                    self.assertEqual(result["signal"], "BUY")  # Tuesday extra inversion reverses SELL back to BUY
-                    self.assertTrue(result["skip_xau_m30"])
+            result = mt5_signal_bot.calculate_slot_signal(thursday, 3)
 
-    def test_h1500_signal_resolution(self) -> None:
-        from mt5_signal_bot import resolve_h1500_signal
-        # Normal Mon (wd=0, special=False)
-        self.assertEqual(resolve_h1500_signal("SW", "BUY", 0, False), "BUY")
-        self.assertEqual(resolve_h1500_signal("BT", "BUY", 0, False), "SELL")
-        # Normal Thu/Fri (wd=3, special=False)
-        self.assertEqual(resolve_h1500_signal("SW", "BUY", 3, False), "SELL")
-        self.assertEqual(resolve_h1500_signal("BT", "BUY", 3, False), "BUY")
-        # Special Thu/Fri (wd=3/4, special=True)
-        self.assertEqual(resolve_h1500_signal("SW", "BUY", 4, True), "BUY")
-        self.assertEqual(resolve_h1500_signal("BT", "BUY", 4, True), "SELL")
-        # Special Mon (wd=0, special=True)
-        self.assertEqual(resolve_h1500_signal("SW", "BUY", 0, True), "SELL")
-        self.assertEqual(resolve_h1500_signal("BT", "BUY", 0, True), "BUY")
+        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(result["pair_dirs"], {"XAUUSD": "BUY", "GBPAUD": "SELL"})
+        self.assertNotIn("deactivated", result)
+
+    def test_special_thursday_h3_is_saved_as_deactivated_direction(self) -> None:
+        special_thursday = datetime(2026, 8, 6, 3, 0)
+
+        with patch.object(
+            mt5_signal_bot,
+            "_lookup_historical_t2_signal",
+            return_value="SELL",
+        ), patch.object(
+            mt5_signal_bot,
+            "evaluate_3_m30_classification_for_h3",
+            return_value="SW",
+        ):
+            result = mt5_signal_bot.calculate_slot_signal(special_thursday, 3)
+
+        self.assertEqual(result["signal"], "SELL")
+        self.assertEqual(result["pair_dirs"], {"XAUUSD": "SELL", "GBPAUD": "BUY"})
+        self.assertTrue(result["deactivated"])
+
+    def test_h16_sw_branch_compares_h6_and_h12(self) -> None:
+        thursday = datetime(2026, 7, 23, 16, 0)
+
+        with (
+            patch.object(mt5_signal_bot, "evaluate_4_m30_classification_before_hour", return_value="SW"),
+            patch.object(
+                mt5_signal_bot,
+                "_lookup_signal_from_log",
+                side_effect=lambda _dt, hour: {6: "BUY", 12: "SELL"}.get(hour),
+            ) as lookup,
+        ):
+            result = mt5_signal_bot.calculate_slot_signal(thursday, 16)
+
+        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual([call.args[1] for call in lookup.call_args_list], [6, 12])
+
+    def test_h16_bt_branch_compares_h9_and_h14(self) -> None:
+        thursday = datetime(2026, 7, 23, 16, 0)
+
+        with (
+            patch.object(mt5_signal_bot, "evaluate_4_m30_classification_before_hour", return_value="BT"),
+            patch.object(
+                mt5_signal_bot,
+                "_lookup_signal_from_log",
+                side_effect=lambda _dt, hour: {9: "SELL", 14: "SELL"}.get(hour),
+            ) as lookup,
+        ):
+            result = mt5_signal_bot.calculate_slot_signal(thursday, 16)
+
+        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual([call.args[1] for call in lookup.call_args_list], [9, 14])
+
+    def test_h16_waits_when_a_dependency_is_missing(self) -> None:
+        thursday = datetime(2026, 7, 23, 16, 0)
+
+        with (
+            patch.object(mt5_signal_bot, "evaluate_4_m30_classification_before_hour", return_value="SW"),
+            patch.object(
+                mt5_signal_bot,
+                "_lookup_signal_from_log",
+                side_effect=lambda _dt, hour: "BUY" if hour == 6 else None,
+            ),
+        ):
+            result = mt5_signal_bot.calculate_slot_signal(thursday, 16)
+
+        self.assertEqual(result["signal"], "WAIT")
+        self.assertEqual(result["pair_dirs"], {})
 
 
 if __name__ == "__main__":

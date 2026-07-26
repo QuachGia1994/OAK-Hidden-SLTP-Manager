@@ -14,7 +14,7 @@ import winsound
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 import MetaTrader5 as mt5
 
@@ -35,8 +35,10 @@ from domain.mt5_orders import get_filling_type, send_order_with_retry
 from domain.ticket_manager import TicketManager, trades_file_for_profile
 from domain.file_lock import FileLock
 from domain.balance import get_start_day_balance
+from domain.broker_clock import BrokerClock
 
 log = setup_logger("copy_trade")
+_BROKER_CLOCK = BrokerClock(mt5)
 
 def get_natural_response(category, **kwargs):
     try:
@@ -79,38 +81,36 @@ def _extract_close_ticket(raw_text: str) -> str:
     return match.group(1) if match else ""
 
 
-def _broker_clock_to_local_clock(broker_clock: str, broker_utc_offset: float, local_utc_offset: float) -> str:
-    """Convert a broker HH:MM clock into the worker's local HH:MM clock."""
+def _broker_clock_to_local_datetime(
+    broker_clock: str,
+    now_utc: datetime | None = None,
+    broker_clock_resolver: BrokerClock | None = None,
+    local_timezone=None,
+) -> datetime:
+    """Resolve the next Broker clock occurrence to an absolute local datetime."""
     match = re.fullmatch(r"(\d{1,2}):([0-5]\d)", broker_clock or "")
-    if not match or not -12 <= broker_utc_offset <= 14 or not -12 <= local_utc_offset <= 14:
+    if not match:
         raise ValueError("giờ broker không hợp lệ")
     hour, minute = map(int, match.groups())
     if hour > 23:
         raise ValueError("giờ broker không hợp lệ")
-    shifted = hour * 60 + minute + round((local_utc_offset - broker_utc_offset) * 60)
-    shifted %= 24 * 60
-    return f"{shifted // 60:02d}:{shifted % 60:02d}"
-
-
-def _live_broker_utc_offset() -> int:
-    """Read the active MT5 server offset without guessing when ticks are unavailable."""
-    now_epoch = time.time()
-    for symbol in ("XAUUSD", "GBPUSD"):
-        tick = mt5.symbol_info_tick(symbol)
-        if tick is None:
-            continue
-        offset = round((float(tick.time) - now_epoch) / 3600)
-        if -12 <= offset <= 14:
-            return offset
-    raise ValueError("không xác định được múi giờ broker")
-
-
-def _local_utc_offset() -> float:
-    """Return the Windows local UTC offset in hours."""
-    offset = datetime.now().astimezone().utcoffset()
-    if offset is None:
-        raise ValueError("không xác định được múi giờ Windows")
-    return offset.total_seconds() / 3600
+    utc_now = now_utc or datetime.now(timezone.utc)
+    if utc_now.tzinfo is None:
+        raise ValueError("now_utc phải có timezone")
+    utc_now = utc_now.astimezone(timezone.utc)
+    resolver = broker_clock_resolver or _BROKER_CLOCK
+    broker_now = resolver.broker_from_utc_datetime(utc_now)
+    target_broker = broker_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if target_broker < broker_now:
+        target_broker += timedelta(days=1)
+    while target_broker.weekday() in (5, 6):
+        target_broker += timedelta(days=1)
+    target_utc = resolver.utc_from_broker_datetime(target_broker)
+    target_local = (
+        target_utc.astimezone(local_timezone)
+        if local_timezone is not None else target_utc.astimezone()
+    )
+    return target_local.replace(tzinfo=None)
 
 
 class CopyTradeManager:
@@ -174,7 +174,6 @@ class CopyTradeManager:
         self._scheduled_close = load_json(self.scheduled_close_file, [])
         if not isinstance(self._scheduled_close, list):
             self._scheduled_close = []
-        self._last_auto_close_date = None
         self.connected_logged = False
 
         # --- IGNORE EXISTING MASTER TRADES ON STARTUP ---
@@ -1081,20 +1080,21 @@ class CopyTradeManager:
                 symbol = pending_cmd[2].upper()
                 lot = pending_cmd[3]
                 time_val = pending_cmd[4]
-                if time_val.startswith("@"):
-                    time_val = _broker_clock_to_local_clock(
-                        time_val[1:],
-                        _live_broker_utc_offset(),
-                        _local_utc_offset(),
-                    )
-                if len(time_val.split(":")) == 2: time_val += ":00"
-                
                 now_dt = datetime.now()
-                target_dt = datetime.strptime(time_val, "%H:%M:%S").replace(year=now_dt.year, month=now_dt.month, day=now_dt.day)
-                if target_dt < now_dt:
-                    target_dt += timedelta(days=1)
-                    while target_dt.weekday() in (5, 6):
+                if time_val.startswith("@"):
+                    target_dt = _broker_clock_to_local_datetime(time_val[1:])
+                else:
+                    if len(time_val.split(":")) == 2:
+                        time_val += ":00"
+                    target_dt = datetime.strptime(time_val, "%H:%M:%S").replace(
+                        year=now_dt.year,
+                        month=now_dt.month,
+                        day=now_dt.day,
+                    )
+                    if target_dt < now_dt:
                         target_dt += timedelta(days=1)
+                        while target_dt.weekday() in (5, 6):
+                            target_dt += timedelta(days=1)
                 time_val = target_dt.strftime("%H:%M:%S")
                 target_date_str = target_dt.strftime("%Y-%m-%d")
 
@@ -1412,13 +1412,8 @@ class CopyTradeManager:
                             save_json(task_file, new_tasks)
                         except: pass
                     
-                    # 2. Clear Scheduled Closes (keep fixed daily closes)
-                    deleted_scheduled = self._remove_scheduled_closes(
-                        lambda task: not (
-                            isinstance(task, dict)
-                            and (task.get("is_auto_daily") or task.get("sym") in ("XAUUSD", "GBP"))
-                        )
-                    ) or 0
+                    # 2. Clear Scheduled Closes
+                    deleted_scheduled = self._remove_scheduled_closes(lambda _task: True) or 0
                     
                     resp = get_natural_response("all_ticket_close_deleted", p_count=deleted_partials, s_count=deleted_scheduled)
                     self.notify(f"🗑️ [{profile_name}] {resp}")
@@ -1430,13 +1425,8 @@ class CopyTradeManager:
                     count_entries = len(self.scheduled_trades)
                     self.scheduled_trades = []
                     save_json(self.scheduled_file, self.scheduled_trades)
-                    # Xóa scheduled close tasks (trừ daily fixed schedule close)
-                    count_closes = self._remove_scheduled_closes(
-                        lambda task: not (
-                            isinstance(task, dict)
-                            and (task.get("is_auto_daily") or task.get("sym") in ("XAUUSD", "GBP"))
-                        )
-                    ) or 0
+                    # Xóa toàn bộ scheduled close tasks
+                    count_closes = self._remove_scheduled_closes(lambda _task: True) or 0
                     # Xóa lệnh canh chốt từng phần (price/profit partials) của profile này
                     count_partials = 0
                     task_file = self.pending_partials_file
@@ -2396,105 +2386,7 @@ class CopyTradeManager:
 
         self._with_scheduled_file_lock(_fin)
 
-    def _auto_schedule_daily_closes(self):
-        """Auto-schedule daily closes for XAUUSD and GBP if they are not already scheduled for today."""
-        now_dt = datetime.now()
-        
-        # We need to get the broker's current date to know if it's a weekday for the broker
-        try:
-            tick = mt5.symbol_info_tick("XAUUSD")
-            if tick is not None:
-                # tick.time is broker time timestamp; time.time() is UTC timestamp
-                broker_gmt = round((tick.time - time.time()) / 3600.0)
-                # If calculated offset is unrealistic (e.g. stale tick on weekends), fallback to GMT+3
-                if not (-12 <= broker_gmt <= 14):
-                    broker_gmt = 3
-            else:
-                broker_gmt = 3
-        except Exception:
-            broker_gmt = 3
-
-        broker_now = datetime.utcnow() + timedelta(hours=broker_gmt)
-        broker_date = broker_now.date()
-        broker_date_str = broker_date.strftime("%Y-%m-%d")
-        
-        # Guard to only attempt scheduling once per broker calendar day
-        if getattr(self, "_last_auto_close_date", None) == broker_date_str:
-            return
-        
-        if broker_now.weekday() >= 5:
-            self._last_auto_close_date = broker_date_str
-            return
-
-        xau_broker_time_str = "17:49:00"
-        gbp_broker_time_str = "19:49:00"
-        
-        try:
-            local_dt = datetime.now()
-            utc_dt = datetime.utcnow()
-            local_gmt = round((local_dt - utc_dt).total_seconds() / 3600.0)
-        except Exception:
-            local_gmt = 7
-            
-        offset_hours = broker_gmt - local_gmt
-        
-        xau_broker_dt = datetime.combine(broker_date, datetime.strptime(xau_broker_time_str, "%H:%M:%S").time())
-        xau_local_dt = xau_broker_dt - timedelta(hours=offset_hours)
-        
-        gbp_broker_dt = datetime.combine(broker_date, datetime.strptime(gbp_broker_time_str, "%H:%M:%S").time())
-        gbp_local_dt = gbp_broker_dt - timedelta(hours=offset_hours)
-        
-        xau_local_date_str = xau_local_dt.strftime("%Y-%m-%d")
-        xau_local_time_str = xau_local_dt.strftime("%H:%M:%S")
-        
-        gbp_local_date_str = gbp_local_dt.strftime("%Y-%m-%d")
-        gbp_local_time_str = gbp_local_dt.strftime("%H:%M:%S")
-
-        planned = [
-            {
-                "time": xau_local_time_str,
-                "date": xau_local_date_str,
-                "filter": "all",
-                "sym": "XAUUSD",
-                "ticket": "",
-                "is_auto_daily": True,
-                "_skip": xau_local_dt < now_dt,
-            },
-            {
-                "time": gbp_local_time_str,
-                "date": gbp_local_date_str,
-                "filter": "all",
-                "sym": "GBP",
-                "ticket": "",
-                "is_auto_daily": True,
-                "_skip": gbp_local_dt < now_dt,
-            },
-        ]
-        added = self._ensure_scheduled_closes(planned)
-        if added is None:
-            return
-
-        self._last_auto_close_date = broker_date_str
-        added_by_symbol = {task["sym"]: task for task in added}
-        xau_scheduled = "XAUUSD" not in added_by_symbol
-        gbp_scheduled = "GBP" not in added_by_symbol
-        profile_name = self.config.get("profile_name", "Unknown")
-        if not xau_scheduled:
-            new_id = added_by_symbol["XAUUSD"]["id"]
-            self.notify(
-                f"🤖 [{profile_name}] Tự động hẹn giờ ĐÓNG XAUUSD (ID: {new_id}) "
-                f"lúc {xau_local_time_str} ({xau_local_date_str}) [Broker: {xau_broker_time_str}]."
-            )
-
-        if not gbp_scheduled:
-            new_id = added_by_symbol["GBP"]["id"]
-            self.notify(
-                f"🤖 [{profile_name}] Tự động hẹn giờ ĐÓNG GBP (ID: {new_id}) "
-                f"lúc {gbp_local_time_str} ({gbp_local_date_str}) [Broker: {gbp_broker_time_str}]."
-            )
-            
     def _check_scheduled_trades(self):
-        self._auto_schedule_daily_closes()
         if not self.scheduled_trades and not getattr(self, "_scheduled_close", None): return
 
         now_dt = datetime.now()
@@ -2580,6 +2472,8 @@ class CopyTradeManager:
             def pop_due(closes):
                 remaining_closes = []
                 for close_info in closes:
+                    if isinstance(close_info, dict) and close_info.get("is_auto_daily"):
+                        continue
                     if isinstance(close_info, dict):
                         c_time = close_info.get("time", "00:00:00")
                         c_date = close_info.get("date", now_date)

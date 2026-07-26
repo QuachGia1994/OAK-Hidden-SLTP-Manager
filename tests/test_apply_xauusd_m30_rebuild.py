@@ -21,26 +21,26 @@ def _dt_thursday():
 
 
 class TestApplyXauusdM30Rebuild(unittest.TestCase):
-    def test_h2_is_enabled(self):
-        self.assertNotIn(2, mt5_signal_bot.DISABLED_HOURS)
+    def test_h3_is_the_active_logical_early_slot(self):
+        self.assertIn(3, mt5_signal_bot.ACTIVE_HOURS)
+        self.assertNotIn(2, mt5_signal_bot.ACTIVE_HOURS)
 
-    def test_h2_thursday_is_enabled(self):
-        self.assertNotIn(2, mt5_signal_bot.DISABLED_HOURS)
-
-    def test_h2_pair_direction_is_not_empty(self):
+    def test_h3_pair_direction_includes_opposite_gbpaud(self):
         dt = _dt_thursday()
-        pair_dirs = get_pair_direction(2, "BUY", dt)
-        self.assertIn("XAUUSD", pair_dirs)
+        pair_dirs = get_pair_direction(3, "BUY", dt)
+        self.assertEqual(pair_dirs["XAUUSD"], "BUY")
+        self.assertEqual(pair_dirs["GBPAUD"], "SELL")
 
-    def test_normal_slots_apply_xau_m30_flip_and_keep_xau_only(self):
+    def test_normal_slots_apply_xau_m30_flip_and_keep_direction_marker(self):
         dt = _dt_tuesday()
-        for hour in (12, 15):
+        for hour in (4, 5):
             with self.subTest(hour=hour):
                 pair_dirs = get_pair_direction(hour, "BUY", dt)
                 with patch.object(mt5_signal_bot, "get_xauusd_m30_signal", return_value="BUY"):
                     apply_xauusd_m30_logic(pair_dirs, "BUY", dt, hour)
                 self.assertEqual(pair_dirs["XAUUSD"], "SELL")
-                self.assertEqual(set(pair_dirs).difference({"XAUUSD"}), set())
+                marker = "Stock-DIRECTION" if hour == 4 else "GBP-DIRECTION"
+                self.assertEqual(pair_dirs[marker], "SELL")
 
 
 if __name__ == "__main__":

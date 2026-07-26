@@ -30,7 +30,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
 
     def test_xauusd_slots_have_xauusd_only(self):
         for weekday in range(5):
-            for hour in (2, 4, 5, 6, 8, 12, 14, 15):
+            for hour in (3, 4, 5, 6, 12, 14, 16):
                 for signal in ("BUY", "SELL"):
                     with self.subTest(weekday=weekday, hour=hour, signal=signal):
                         dt = _make_dt(2026, 7, 6, weekday_offset=weekday)
@@ -56,6 +56,21 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
         self.assertEqual(result["XAUUSD"], "SELL")
         self.assertEqual(result.get("GBPAUD"), "SELL")
         self.assertEqual(result.get("GBPUSD"), "SELL")
+
+    def test_wednesday_keeps_gbp_for_h9_and_h14(self):
+        wednesday = _make_dt(2026, 7, 6, weekday_offset=2)
+        for hour in (9, 14):
+            with self.subTest(hour=hour):
+                full_result = {
+                    "pair_dirs": {
+                        "XAUUSD": "BUY",
+                        "GBPUSD": "BUY",
+                        "GBPAUD": "SELL",
+                    }
+                }
+                result = get_pair_direction(hour, "BUY", wednesday, full_result=full_result)
+                self.assertEqual(result["GBPUSD"], "BUY")
+                self.assertEqual(result["GBPAUD"], "SELL")
 
     def test_non_buy_sell_signal_returns_empty(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=0)

@@ -85,6 +85,5 @@ export function maskSignalForPublic(signal: Record<string, unknown>) {
     current_prices: {},
     d_direction: null,
     hour_note: null,
-    h11_candles: undefined,
   };
 }

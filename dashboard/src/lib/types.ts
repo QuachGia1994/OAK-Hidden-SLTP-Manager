@@ -1,14 +1,3 @@
-export interface H11Candle {
-  hour: number;
-  label?: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  dir: string;
-  doji?: boolean;
-}
-
 export interface Signal {
   date: string;
   hour: number;
@@ -18,11 +7,15 @@ export interface Signal {
   pair_dirs: Record<string, string>;
   entry_prices: Record<string, number>;
   current_prices: Record<string, number>;
+  signal_time?: string | null;
   entry_time?: string | null;
+  signal_at_utc?: string | number | null;
+  broker_utc_offset?: string | number | null;
   is_priority?: boolean;
   hour_note: string | null;
   d_direction: "BUY" | "SELL" | null;
-  h11_candles?: H11Candle[];
+  deactivated?: boolean;
+  logic_version?: number | string | null;
 }
 
 export interface BotState {
@@ -31,6 +24,9 @@ export interface BotState {
   sent_today: [string, number][];
   d_direction: string | null;
   d_direction_date: string | null;
+  broker_utc_offset?: number | null;
+  broker_time?: string | null;
+  broker_observed_at_utc?: string | null;
 }
 
 export interface NewsItem {

@@ -613,35 +613,38 @@ def get_day_notes(now, lang="VN"):
             return ["Cuối tuần: không trade theo schedule bot."]
         return ["Weekend: no bot trade schedule."]
 
-    day_rules_vn = {
-        0: ["Slots: H=2,4-6,9,12,14-15 (Gồm H=15:00)", "H=2: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.", "H=6: XAUUSD đảo từ H=5 hôm nay.", "H=9: GBPUSD đảo H=2, GBPAUD đảo H=5 hôm nay.", "H=12: XAUUSD đảo ngược H=4.", "H=14: XAUUSD đảo H=4, GBPUSD đảo H=2, GBPAUD đảo H=4.", "H=15:00: XAUUSD theo 4 nến M30 (13:00-14:30)."],
-        1: ["Slots: H=2,4-6,9,12,14-15", "H=2: XAUUSD đảo từ H=5 hôm qua; GBPAUD cùng chiều H=5 hôm qua.", "H=6: XAUUSD đảo từ H=5 hôm nay.", "H=9: GBPUSD đảo H=2, GBPAUD đảo H=5 hôm nay.", "H=12: XAUUSD đảo ngược H=4.", "H=14: XAUUSD đảo H=4, GBPUSD đảo H=2, GBPAUD đảo H=4."],
-        2: ["Slots: H=2,4-6,9,12,14-15", "H=2: XAUUSD đảo từ H=5 hôm qua.", "H=6: XAUUSD đảo từ H=5 hôm nay.", "H=9: GBPUSD đảo H=2, GBPAUD đảo H=5 hôm nay.", "H=12: XAUUSD đảo ngược H=4.", "H=14: XAUUSD đảo H=4, GBPUSD đảo H=2, GBPAUD đảo H=4."],
-        3: ["Slots: H=2,4-6,9,12,14-15 (Gồm H=15:00)", "H=2: XAUUSD & GBPAUD dùng lại lịch sử của Thứ 2.", "H=6: XAUUSD đảo từ H=5 hôm nay.", "H=9: GBPUSD đảo H=2, GBPAUD đảo H=5 hôm nay.", "H=12: XAUUSD đảo ngược H=4.", "H=14: XAUUSD đảo H=4, GBPUSD đảo H=2, GBPAUD đảo H=4.", "H=15:00: XAUUSD theo 4 nến M30 (13:00-14:30)."],
-        4: ["Slots: H=2,4-6,9,12,14-15 (Gồm H=15:00)", "H=2: XAUUSD đảo từ H=5 hôm qua; GBPAUD ngược chiều H=5 hôm qua.", "H=6: XAUUSD đảo từ H=5 hôm nay.", "H=9: GBPUSD đảo H=2, GBPAUD đảo H=5 hôm nay.", "H=12: XAUUSD đảo ngược H=4.", "H=14: XAUUSD đảo H=4, GBPUSD đảo H=2, GBPAUD đảo H=4.", "H=15:00: XAUUSD theo 4 nến M30 (13:00-14:30)."],
-    }
-    day_rules_en = {
-        0: ["Slots: H=2,4-6,9,12,14-15 (Includes H=15:00)", "H=2: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.", "H=6: XAUUSD reverses from H=5 today.", "H=9: GBPUSD reverses H=2, GBPAUD reverses H=5 today.", "H=12: XAUUSD reverses H=4.", "H=14: XAUUSD reverses H=4, GBPUSD reverses H=2, GBPAUD reverses H=4.", "H=15:00: XAUUSD based on 4 M30 candles (13:00-14:30)."],
-        1: ["Slots: H=2,4-6,9,12,14-15", "H=2: XAUUSD reverses from H=5 yesterday; GBPAUD follows H=5 yesterday.", "H=6: XAUUSD reverses from H=5 today.", "H=9: GBPUSD reverses H=2, GBPAUD reverses H=5 today.", "H=12: XAUUSD reverses H=4.", "H=14: XAUUSD reverses H=4, GBPUSD reverses H=2, GBPAUD reverses H=4."],
-        2: ["Slots: H=2,4-6,9,12,14-15", "H=2: XAUUSD reverses from H=5 yesterday.", "H=6: XAUUSD reverses from H=5 today.", "H=9: GBPUSD reverses H=2, GBPAUD reverses H=5 today.", "H=12: XAUUSD reverses H=4.", "H=14: XAUUSD reverses H=4, GBPUSD reverses H=2, GBPAUD reverses H=4."],
-        3: ["Slots: H=2,4-6,9,12,14-15 (Includes H=15:00)", "H=2: XAUUSD and GBPAUD reuse Monday's history.", "H=6: XAUUSD reverses from H=5 today.", "H=9: GBPUSD reverses H=2, GBPAUD reverses H=5 today.", "H=12: XAUUSD reverses H=4.", "H=14: XAUUSD reverses H=4, GBPUSD reverses H=2, GBPAUD reverses H=4.", "H=15:00: XAUUSD based on 4 M30 candles (13:00-14:30)."],
-        4: ["Slots: H=2,4-6,9,12,14-15 (Includes H=15:00)", "H=2: XAUUSD reverses from H=5 yesterday; GBPAUD reverses H=5 yesterday (Fri).", "H=6: XAUUSD reverses from H=5 today.", "H=9: GBPUSD reverses H=2, GBPAUD reverses H=5 today.", "H=12: XAUUSD reverses H=4.", "H=14: XAUUSD reverses H=4, GBPUSD reverses H=2, GBPAUD reverses H=4.", "H=15:00: XAUUSD based on 4 M30 candles (13:00-14:30)."],
-    }
-
-    notes_vn = list(day_rules_vn.get(weekday, []))
-    notes_en = list(day_rules_en.get(weekday, []))
+    notes_vn = [
+        "Slots: H=3,4,5,6,9,12,14,16.",
+        "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; "
+        "H9 09:00 (08:00 ngày đặc biệt); H12 12:00; H14 14:00; H16 16:00.",
+        "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai. "
+        "GBPAUD luôn ngược XAUUSD.",
+        "H4/H5: pattern GBPUSD M5/M30 kết hợp XAUUSD M30.",
+        "H6/H9: phân nhóm 4 nến H1, áp dụng đảo theo thứ và đảo thêm vào ngày đặc biệt.",
+        "H12/H14: đảo H4 rồi áp dụng đảo theo thứ và nhóm 4 H1; 4 M30 chỉ quyết định priority/entry. Priority chỉ áp dụng Thứ Ba-Thứ Năm.",
+        "H16: dùng nhánh priority H6-H12 hoặc H9-H14; thiếu dependency thì WAIT.",
+    ]
+    notes_en = [
+        "Slots: H=3,4,5,6,9,12,14,16.",
+        "Broker publication: H3 03:00; H4 04:45; H5 05:45; H6 06:00; "
+        "H9 09:00 (08:00 on special days); H12 12:00; H14 14:00; H16 16:00.",
+        "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3. "
+        "GBPAUD always opposes XAUUSD.",
+        "H4/H5: GBPUSD M5/M30 pattern combined with XAUUSD M30.",
+        "H6/H9: four-H1 grouping with weekday and special-day reversals.",
+        "H12/H14: reverse H4, then apply weekday and four-H1 reversals; four-M30 only controls priority/entry. Priority applies Tuesday through Thursday only.",
+        "H16: uses the priority H6-H12 or H9-H14 branch; missing dependencies produce WAIT.",
+    ]
 
     try:
-        from mt5_signal_bot import get_h11_priority_and_nogold_rules
-        dt = now if isinstance(now, datetime) else datetime.combine(now, datetime.min.time())
-        rules = get_h11_priority_and_nogold_rules(dt)
-        p_label = rules["priority_label"]
-        prev_group = rules["prev_h11_group"]
-        priority_line = f"★ H=11 hôm qua ({prev_group}) ➔ {p_label}"
-        notes_vn.insert(1, priority_line)
-        notes_en.insert(1, priority_line)
+        from mt5_signal_bot import is_post_special_day, is_special_day
+        dt = now if isinstance(now, datetime) else datetime.combine(today, datetime.min.time())
+        suppress_late_slots = is_special_day(dt) or is_post_special_day(dt)
     except Exception:
-        pass
+        suppress_late_slots = False
+    if suppress_late_slots:
+        notes_vn.append("Ngày đặc biệt/hậu đặc biệt: không tạo H12, H14, H16.")
+        notes_en.append("Special/post-special day: H12, H14, and H16 are not generated.")
 
     if lang == "VN":
         return notes_vn

@@ -26,7 +26,9 @@ import { getSlotTimeValue } from "@/lib/constants";
 export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: CollapsibleDayProps) {
   const [open, setOpen] = useState(defaultOpen);
   const { locale } = useLocale();
-  const daySignals = [...signals].sort((a, b) => getSlotTimeValue(b.hour) - getSlotTimeValue(a.hour));
+  const daySignals = [...signals].sort(
+    (a, b) => getSlotTimeValue(b.hour, b.signal_time) - getSlotTimeValue(a.hour, a.signal_time),
+  );
   const weekday = weekdayLabel(date, locale);
   const verdictCounts = daySignals.reduce(
     (counts, signal) => {

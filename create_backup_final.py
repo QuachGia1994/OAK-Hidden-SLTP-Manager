@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure") and (sys.stdout.encoding or "").lower() !=
 
 
 def read_version():
-    version = "v3.17.1"
+    version = "v3.18.0"
     for path in ("domain/constants.py", "OAK_Hidden_SLTP_Manager.py"):
         try:
             with open(path, "r", encoding="utf-8") as f:

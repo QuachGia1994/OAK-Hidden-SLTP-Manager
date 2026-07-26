@@ -1,5 +1,14 @@
 # RELEASE NOTES
 
+## [v3.18.0] - 2026-07-26
+
+- Standardize the active logical slots as H=3, H=4, H=5, H=6, H=9, H=12, H=14, and H=16; separate publication from entry time and remove all legacy H=2/H=11/H=13/H=15/H=1500 paths.
+- Retry delayed candles only until entry, prevent restart catch-up/duplicates, keep a single 45-day startup rebuild, and return `WAIT` for missing candles or unresolved DOJI data.
+- Normalize special Thursday–Friday pairs while excluding 31 December 2026–1 January 2027; persist special-Thursday H=3 as `deactivated` and fully suppress H=12/H=14/H=16 on special/post-special days.
+- Use one fail-closed Broker clock inferred from MT5 D1 candles per date and publish its canonical time fields to the worker, desktop app, and Dashboard.
+- Make Signal Bot the sole owner of close-ALL at 17:59 for XAUUSD and 19:59 for the GBP group, with position verification and restart-safe retries; Copy Trade Manager retains manual scheduled closes only.
+- Show publication, entry, and local time separately in the Dashboard/API; dim `deactivated` signals with a **DO NOT ENTER** warning, filter legacy slots, and remove the dead RHYTHM/H11 chart paths.
+
 ## [v3.17.1] - 2026-07-23
 
 - Write scheduled-close JSON through per-writer temporary files, Windows-lock retries, and shared worker/NativeQt transactions, preventing both `Loop Error [WinError 5]` and concurrent lost updates.

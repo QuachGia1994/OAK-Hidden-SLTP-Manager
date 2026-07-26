@@ -36,34 +36,24 @@ class _FakeResponse:
 
 
 class DashboardSignalSelectionTests(unittest.TestCase):
-    def test_h11_live_log_never_fabricates_pair_directions(self):
-        self.assertEqual(_dashboard_log_pair_dirs(11, "SW", {}), {})
-
-    def test_keeps_h11_classification_without_pair_dirs(self):
-        candles = [
-            {"hour": hour, "open": 1, "high": 2, "low": 0, "close": 2, "dir": "TANG"}
-            for hour in (7, 8, 9, 10)
+    def test_drops_every_removed_legacy_slot(self):
+        legacy = [
+            {"date": "2026-07-21", "hour": hour, "pair_dirs": {"XAUUSD": "BUY"}}
+            for hour in (2, 11, 13, 15, 1500)
         ]
-        h11 = {
-            "date": "2026-07-21",
-            "hour": 11,
-            "signal": "SW",
-            "pair_dirs": {},
-            "h11_candles": candles,
+
+        self.assertEqual(select_signals_for_dashboard(legacy), [])
+
+    def test_keeps_deactivated_h3_for_warning_card(self):
+        h3 = {
+            "date": "2026-08-06",
+            "hour": 3,
+            "signal": "BUY",
+            "deactivated": True,
+            "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "SELL"},
         }
 
-        self.assertEqual(select_signals_for_dashboard([h11]), [])
-
-    def test_drops_h11_without_complete_four_candle_payload(self):
-        incomplete = {
-            "date": "2026-07-21",
-            "hour": 11,
-            "signal": "SW",
-            "pair_dirs": {},
-            "h11_candles": [{"hour": 7}],
-        }
-
-        self.assertEqual(select_signals_for_dashboard([incomplete]), [])
+        self.assertEqual(select_signals_for_dashboard([h3]), [h3])
 
     def test_keeps_all_signal_days_when_pair_dirs_exist(self):
         signals = [

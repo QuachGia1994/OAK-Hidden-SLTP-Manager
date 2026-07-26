@@ -15,7 +15,7 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- The signal engine uses `GBPUSD` as its pattern source; trade output includes `XAUUSD`, `GBPAUD` at H=2/H=3, and the GBP group at H=9/H=14.
+- The signal engine uses `GBPUSD` as its pattern source; trade output includes `XAUUSD`, `GBPAUD` at H=3, and the GBP group at H=9/H=14.
 - Telegram bridge with profile-safe commands and MiMo worker support. Quick orders accept `<lot> <broker HH:MM> <profile>` and convert it to the Windows clock.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
@@ -32,11 +32,11 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 
 - Trading days: Monday to Friday.
 - Weekend: no desktop signal, no next slot, no countdown.
-- Active slots: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=11, H=12, H=13, H=14, and H=15**. Live Telegram signals are sent at broker `:45`; the dashboard may calculate earlier once dependencies are complete.
-- Core-disabled slots: **H=6, H=10, and H=17**.
-- H=2/H=3 reverse the previous trading day's H=5 for XAUUSD while `GBPAUD` follows that H=5. H=7/H=8 reverse today's H=5 for XAUUSD. H=9 reverses the GBP group from the prior H=5 (Friday follows); H=14 follows today's H=5 (Friday reverses).
-- H=7/H=8 badge: H=8 is preferred when the XAUUSD H=6 candle agrees with the direction derived for H=7/H=8; otherwise H=7 is preferred. No badge is produced when H=6 is missing or unresolved.
-- H=11 classifies SW/BT from the four XAUUSD H1 candles H=7–H=10 and emits no BUY/SELL. **History** renders their four-candle OHLC SVG chart.
+- The only logical slots are **H=3, H=4, H=5, H=6, H=9, H=12, H=14, and H=16**, Monday through Friday.
+- Broker publication times: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` or `08:00` on special days; H12 `12:00`; H14 `14:00`; H16 `16:00`. Entry is never earlier than publication.
+- H3 reverses the previous trading day's H5, except Thursday reuses Monday H3. H4/H5 use the GBPUSD M5/M30 pattern plus XAUUSD M30. H6/H9 use a four-H1 group. H12/H14 reverse H4, then apply weekday and four-H1 reversals; four-M30 data only controls priority/entry and completeness.
+- H12/H14 priority applies Tuesday through Thursday only. H16 chooses the H6–H12 or H9–H14 branch by priority; missing dependencies produce `WAIT`.
+- Special Thursday/Friday pairs and the following post-special Monday do not generate H12/H14/H16. Special-Thursday H3 is retained with `deactivated=true` for reference and is not an actionable signal. A Thursday/Friday pair spanning two calendar years is not special.
 - H=4 D-direction and H=5 GBP-direction remain internal markers.
 
 ## Fact Check AI

@@ -123,6 +123,23 @@ class TestHeartbeat(unittest.TestCase):
         hb = self.store.get_heartbeat("Vantage")
         self.assertAlmostEqual(hb["balance"], 2000)
 
+    def test_refresh_preserves_broker_clock_fields_by_default(self):
+        observed = datetime(2026, 7, 20, 1, 0, tzinfo=timezone.utc).isoformat()
+        self.store.publish_heartbeat(
+            "Vantage",
+            "connected",
+            broker_time="2026-07-20T04:00:00",
+            broker_utc_offset=3,
+            broker_observed_at_utc=observed,
+        )
+
+        self.store.publish_heartbeat("Vantage", "connected", balance=2000)
+
+        heartbeat = self.store.get_heartbeat("Vantage")
+        self.assertEqual(heartbeat["broker_time"], "2026-07-20T04:00:00")
+        self.assertEqual(heartbeat["broker_utc_offset"], 3)
+        self.assertEqual(heartbeat["broker_observed_at_utc"], observed)
+
 
 if __name__ == "__main__":
     unittest.main()

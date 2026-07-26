@@ -15,7 +15,7 @@
 
 - MT5 monitor đa hồ sơ, cô lập theo từng profile.
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
-- Signal engine dùng pattern `GBPUSD`; output giao dịch gồm `XAUUSD`, `GBPAUD` ở H=2/H=3 và nhóm GBP ở H=9/H=14.
+- Signal engine dùng pattern `GBPUSD`; output giao dịch gồm `XAUUSD`, `GBPAUD` ở H=3 và nhóm GBP ở H=9/H=14.
 - Telegram bridge, MiMo worker, Copy Trading guardrail và lệnh hẹn giờ an toàn. Lệnh nhanh nhận `<lot> <HH:MM broker> <profile>` và tự đổi sang giờ Windows.
 - Fact Check dùng bằng chứng Google + DuckDuckGo, hỗ trợ OCR và dán ảnh clipboard.
 - NativeQt nhẹ, không WebEngine/Chromium, có theme Dark, Deep Sea và Contrast.
@@ -28,11 +28,11 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 
 ## Signal engine hiện hành
 
-- Chạy Thứ 2 đến Thứ 6; slot active: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=11, H=12, H=13, H=14, H=15**. Telegram live gửi đúng phút `:45` broker; dashboard có thể tính sớm khi dependency đã đủ.
-- Tắt core: **H=6, H=10, H=17**.
-- H=2/H=3: XAUUSD đảo H=5 hôm qua, `GBPAUD` cùng chiều H=5 hôm qua (Thứ 6 GBPAUD ngược chiều). H=7/H=8: XAUUSD đảo H=5 hôm nay. H=9 đảo nhóm GBP từ H=5 hôm qua (Thứ 6 cùng chiều); H=14 cùng chiều H=5 hôm nay (Thứ 6 đảo).
-- Badge H=7/H=8: ưu tiên H=8 khi hướng nến XAUUSD H=6 trùng hướng đã suy ra cho H=7/H=8; ngược hướng thì ưu tiên H=7. Thiếu hoặc không xác định được nến H=6 thì không gắn badge.
-- H=11 phân loại SW/BT từ bốn nến H1 XAUUSD H=7–H=10, không phát BUY/SELL; tab **Lịch sử** hiển thị biểu đồ SVG OHLC bốn nến.
+- Chạy Thứ 2 đến Thứ 6; slot logic duy nhất: **H=3, H=4, H=5, H=6, H=9, H=12, H=14, H=16**.
+- Giờ phát Broker: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` hoặc `08:00` ngày đặc biệt; H12 `12:00`; H14 `14:00`; H16 `16:00`. Entry luôn bằng hoặc sau giờ phát.
+- H3 đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai. H4/H5 dùng pattern GBPUSD M5/M30 và XAUUSD M30. H6/H9 dùng nhóm bốn H1. H12/H14 đảo H4, áp dụng đảo theo thứ và nhóm bốn H1; bốn M30 chỉ xác định priority/entry và kiểm tra dữ liệu đầy đủ.
+- Priority H12/H14 chỉ áp dụng Thứ Ba–Thứ Năm. H16 chọn nhánh H6–H12 hoặc H9–H14 theo priority; thiếu dependency thì `WAIT`.
+- Ngày đặc biệt Thứ Năm/Thứ Sáu và Thứ Hai hậu đặc biệt không tạo H12/H14/H16. H3 Thứ Năm đặc biệt vẫn được lưu với `deactivated=true` để tham khảo nhưng không phải tín hiệu vào lệnh. Cặp Thứ Năm–Thứ Sáu bắc cầu sang năm mới không được tính là ngày đặc biệt.
 
 ## Fact Check AI
 

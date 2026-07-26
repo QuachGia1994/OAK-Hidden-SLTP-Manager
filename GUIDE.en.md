@@ -12,28 +12,28 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 ## Signal engine
 
 - Pattern source: `GBPUSD` M5/M30.
-- Output/trade pairs: `XAUUSD`, `GBPAUD` at H=2/H=3, and the GBP group at H=9/H=14. H=12/H=13/H=15 may receive a no-gold label from the H=11 classification.
+- Output/trade pairs: `XAUUSD`, `GBPAUD` at H=3, and the GBP group at H=9/H=14.
 - Trading days: Monday to Friday. Weekend slots are off.
-- Active slots: **H=2, H=3, H=4, H=5, H=7, H=8, H=9, H=11, H=12, H=13, H=14, H=15**. Live Telegram signals are sent at broker `:45`.
-- Disabled slots: **H=6, H=10, H=17**.
-- H=11 uses the four H=7–H=10 gold H1 candles for SW/BT classification.
+- Active slots: **H=3, H=4, H=5, H=6, H=9, H=12, H=14, H=16**.
+- Broker publication: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` (`08:00` on special days); H12 `12:00`; H14 `14:00`; H16 `16:00`.
+- Entry: H3 `03:11/03:49`; H4 `04:45`; H5 `05:45`; H6 `06:11`; H9 `09:49` (`08:30` on special days); H12 `12:11`; H14 `14:15/14:49`; H16 `16:11/16:49`.
+- Special and post-special days do not generate H12/H14/H16; special-Thursday H3 is retained only as `deactivated`. A Thursday/Friday pair spanning New Year is not special.
 
 ### Core matrix
 
 | Slot | Rule |
 | --- | --- |
-| H=2/H=3 | XAUUSD reverses the prior trading day's H=5; `GBPAUD` follows that prior H=5. |
-| H=4/H=5/H=12/H=13/H=15 | M5/M30 + XAUUSD M30; H=4/H=5 retain internal direction markers. |
-| H=7/H=8 | XAUUSD reverses today's H=5. H=8 is preferred when H=6 agrees with the derived direction; otherwise H=7 is preferred. No badge is shown when H=6 is missing/unresolved. |
-| H=9 | The GBP group reverses the prior H=5; Friday follows it. |
-| H=11 | SW/BT classification from the four XAUUSD H1 candles H=7–H=10; no BUY/SELL is emitted. |
-| H=14 | The GBP group follows today's H=5; Friday reverses it. |
+| H=3 | XAUUSD reverses the prior trading day's H5; Thursday reuses Monday H3. `GBPAUD` opposes XAUUSD. |
+| H=4/H=5 | GBPUSD M5/M30 pattern combined with XAUUSD M30. |
+| H=6/H=9 | Four-H1 grouping with weekday and special-day reversals. H9 also emits GBPUSD and GBPAUD. |
+| H=12/H=14 | Reverse H4, then apply weekday and four-H1 reversals. Four-M30 data only controls priority/entry and completeness; priority applies Tuesday through Thursday only. H14 also emits GBPUSD and GBPAUD. |
+| H=16 | Selects the priority H6–H12 or H9–H14 branch; missing dependencies produce `WAIT`. |
 
 ## Dashboard
 
 - Production: https://oak-hidden-sltp-manager-dun.vercel.app
 - Use the explicit **EN / VN** switch. News times are rendered in the viewer’s local system timezone, including daylight-saving changes.
-- **History** retains H=11 and renders the four H1 candles as an OHLC SVG chart.
+- `deactivated` signals are reference-only, visually muted, and excluded from the current actionable signal.
 - The Fact Check page accepts pasted text, uploads, drag-and-drop, and clipboard images.
 
 ## Fact Check
@@ -47,6 +47,7 @@ Google and DuckDuckGo collect the evidence. AI is optional and only reviews that
 
 - Telegram quick orders use `<lot> <broker HH:MM> <profile>` (for example `0.01 09:15 vantage`); execution time is independent of the signal H slot and is converted to the Windows clock before scheduling. `/pending` is created only after a valid user reply.
 - A scheduled close with a time is queued, not executed immediately.
+- The signal bot closes every `XAUUSD*` position at `17:59` Broker and every `GBPAUD*`, `GBPCAD*`, `GBPJPY*`, and `GBPUSD*` position at `19:59` Broker. This intraday rule intentionally does not filter by profile, magic number, or comment.
 - Copy Trading guardrails, daily caps, and the kill switch are enforced by the worker.
 - Treat every signal as decision support, not a trading guarantee.
 

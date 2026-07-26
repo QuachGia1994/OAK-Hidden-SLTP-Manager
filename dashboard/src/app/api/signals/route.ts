@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { redis, KEYS, requireAuth, canSeeVipData, maskSignalForPublic } from "@/lib/redis";
+import { filterDisplayableSignals } from "@/lib/constants";
+import type { Signal } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
-    const signals = ((await redis.get(KEYS.signals)) as Record<string, unknown>[]) || [];
+    const signals = filterDisplayableSignals(
+      ((await redis.get(KEYS.signals)) as Array<Signal & Record<string, unknown>>) || [],
+    );
     if (canSeeVipData(request)) {
       return NextResponse.json(signals);
     }
@@ -20,15 +24,20 @@ export async function POST(request: Request) {
   const denied = requireAuth(request);
   if (denied) return denied;
   try {
-    const body = await request.json();
-    const incoming = (body as any[]).slice(-2000);
+    const body: unknown = await request.json();
+    if (!Array.isArray(body)) {
+      return NextResponse.json({ ok: false, error: "body must be an array" }, { status: 400 });
+    }
+    const incoming = filterDisplayableSignals(body as Array<Signal & Record<string, unknown>>).slice(-2000);
 
     // A bot push contains the rebuilt history for its dates. Replace those
-    // dates atomically so removed slots (for example obsolete H=2/H=14) do
+    // dates atomically so removed slots do
     // not survive indefinitely in Redis.
-    const existing = ((await redis.get(KEYS.signals)) as any[]) || [];
+    const existing = filterDisplayableSignals(
+      ((await redis.get(KEYS.signals)) as Array<Signal & Record<string, unknown>>) || [],
+    );
     const incomingDates = new Set(incoming.map((signal) => signal?.date).filter(Boolean));
-    const map = new Map<string, any>();
+    const map = new Map<string, Signal & Record<string, unknown>>();
     for (const s of existing) {
       if (!incomingDates.has(s?.date)) map.set(`${s.date}:${s.hour}`, s);
     }

@@ -1,9 +1,8 @@
-import { BrokerLocalTime } from "@/components/BrokerLocalTime";
 import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { SignalCard } from "@/components/SignalCard";
 import { getTodaySignals, getBotState, getEconomicNews, maskSignal } from "@/lib/data";
-import { getTargetHours, getSignalLabel, getSlotTimeValue } from "@/lib/constants";
+import { getSignalLabel, getSignalTime, getSlotTimeValue, getTargetHours } from "@/lib/constants";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { hasVipAccess } from "@/lib/vip";
@@ -37,14 +36,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     console.error("Dashboard fetch error:", e);
   }
 
+  const brokerClock = getBrokerDateParts(botState, now);
+  const botWasAvailable = Boolean(botState);
   if (!isVIP) {
     signals = signals.map(maskSignal);
     botState = null;
   }
 
-  const { todayStr, dayOfWeek } = getBrokerDateParts(now);
-  const hoursToday = getTargetHours(dayOfWeek);
-  const todaySignals = signals.filter((s) => s.date === todayStr);
+  const todayStr = brokerClock?.todayStr ?? "";
+  const hoursToday = brokerClock ? getTargetHours(brokerClock.dayOfWeek, todayStr) : [];
+  const todaySignals = brokerClock ? signals.filter((s) => s.date === todayStr) : [];
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
   const h4StockDirection = todaySignals.find((s) => s.hour === 4)?.pair_dirs?.["Stock-DIRECTION"];
   const h5GBPDirection = todaySignals.find((s) => s.hour === 5)?.pair_dirs?.["GBP-DIRECTION"];
@@ -60,12 +61,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       pair_dirs: {},
       entry_prices: {},
       current_prices: {},
+      signal_time: getSignalTime(h, todayStr),
       hour_note: null,
       ...signal,
     };
-  }).sort((a, b) => getSlotTimeValue(b.hour) - getSlotTimeValue(a.hour));
+  }).sort(
+    (a, b) => getSlotTimeValue(b.hour, b.signal_time) - getSlotTimeValue(a.hour, a.signal_time),
+  );
 
-  const botStatus = botState ? t.running : "N/A";
+  const botStatus = brokerClock && botWasAvailable
+    ? t.running
+    : locale === "EN" ? "UNSYNCED" : "CHƯA ĐỒNG BỘ";
   const directionText = activeDDirection ? getSignalLabel(activeDDirection, locale) : "—";
   const gbpDirectionText = h5GBPDirection ? getSignalLabel(h5GBPDirection, locale) : "—";
 
@@ -81,11 +87,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               {t.dashboard}
             </h1>
             <p className="mt-2 text-sm sm:text-base text-[var(--muted)]">
-              <BrowserDateText
-                date={now.toISOString()}
-                locale={t.dateTimeFormat}
-                options={{ weekday: "long", year: "numeric", month: "long", day: "numeric" }}
-              />
+              {brokerClock ? (
+                <BrowserDateText
+                  date={todayStr}
+                  locale={t.dateTimeFormat}
+                  options={{ weekday: "long", year: "numeric", month: "long", day: "numeric" }}
+                  calendarDate
+                />
+              ) : locale === "EN" ? "Broker date unavailable" : "Chưa có ngày Broker tin cậy"}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:min-w-[300px]">
@@ -96,7 +105,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricTile label={t.statusBot} value={botStatus} tone={botState ? "buy" : "idle"} icon="bot" />
+        <MetricTile label={t.statusBot} value={botStatus} tone={brokerClock ? "buy" : "idle"} icon="bot" />
         <MetricTile
           label={locale === "EN" ? "Stock direction · H4" : "Hướng Stock · H4"}
           mobileLabel="Stock · H4"
@@ -119,33 +128,56 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h2 className="terminal-section-heading text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
             {t.schedule}
           </h2>
-          <span className="terminal-live hidden rounded-lg border border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 px-3 py-1 font-mono text-[11px] font-bold text-[var(--terminal-accent)] uppercase tracking-[0.16em] sm:inline">
-            {locale === "EN" ? "Broker synced" : "Đồng bộ broker"}
+          <span className={`hidden rounded-lg border px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] sm:inline ${brokerClock ? "terminal-live border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)]" : "border-amber-500/30 bg-amber-500/10 text-amber-500"}`}>
+            {brokerClock
+              ? locale === "EN" ? "Broker synced" : "Đồng bộ Broker"
+              : locale === "EN" ? "Broker unsynced" : "Broker chưa đồng bộ"}
           </span>
         </div>
-        <div className="terminal-schedule lux-scroll -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1.5">
-          {hoursToday.map((h) => {
-            const sig = signalsByHour.get(h)?.signal || null;
-            return (
-              <SchedulePill key={h} hour={h} date={todayStr} signal={sig} locale={locale} />
-            );
-          })}
-        </div>
+        {brokerClock ? (
+          <div className="terminal-schedule lux-scroll -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1.5">
+            {hoursToday.map((h) => {
+              const sig = signalsByHour.get(h)?.signal || null;
+              return (
+                <SchedulePill
+                  key={h}
+                  hour={h}
+                  brokerDate={todayStr}
+                  signalTime={signalsByHour.get(h)?.signal_time}
+                  signal={sig}
+                  locale={locale}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/[0.06] px-4 py-5 text-sm font-semibold text-amber-500">
+            {locale === "EN"
+              ? "No active schedule until a fresh Broker clock is received."
+              : "Không kích hoạt lịch cho đến khi nhận được đồng hồ Broker mới."}
+          </p>
+        )}
       </section>
 
       <section>
         <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
           {t.signalToday}
         </h2>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {allSlots.map((signal) => (
-            <SignalCard
-              key={`${signal.date}-${signal.hour}`}
-              signal={signal}
-              isVIP={isVIP}
-            />
-          ))}
-        </div>
+        {brokerClock ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {allSlots.map((signal) => (
+              <SignalCard
+                key={`${signal.date}-${signal.hour}`}
+                signal={signal}
+                isVIP={isVIP}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm font-medium text-[var(--muted)]">
+            {locale === "EN" ? "Today’s signals are hidden while the Broker clock is unsynced." : "Ẩn signal hôm nay khi đồng hồ Broker chưa đồng bộ."}
+          </p>
+        )}
       </section>
 
       {news.length > 0 && (
@@ -245,12 +277,14 @@ function MetricIcon({ name }: { name: "bot" | "signal" | "direction" | "news" })
 
 function SchedulePill({
   hour,
-  date,
+  brokerDate,
+  signalTime,
   signal,
   locale,
 }: {
   hour: number;
-  date: string;
+  brokerDate: string;
+  signalTime?: string | null;
   signal: string | null;
   locale: "VN" | "EN";
 }) {
@@ -266,7 +300,7 @@ function SchedulePill({
   return (
     <div className={`min-w-[7.35rem] rounded-xl border px-3 py-2 text-center transition-all ${toneClass}`}>
       <div className="font-mono text-base font-black tabular-nums">
-        <BrokerLocalTime date={date} hour={hour} />
+        {signalTime || getSignalTime(hour, brokerDate)} <span className="text-[9px] uppercase">Broker</span>
       </div>
       {signal && (
         <div className="mt-0.5 font-mono text-xs font-bold">
