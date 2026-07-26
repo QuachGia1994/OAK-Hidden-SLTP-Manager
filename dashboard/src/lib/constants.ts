@@ -101,7 +101,7 @@ export function getEntryTimeLabel(hour: number, brokerDate?: string): string {
   if (numericHour === 6) return "06:11";
   if (numericHour === 9) return brokerDate && isSpecialBrokerDate(brokerDate) ? "08:30" : "09:49";
   if (numericHour === 12) return "12:11";
-  if (numericHour === 14) return "14:15/14:49";
+  if (numericHour === 14) return "14:49";
   if (numericHour === 16) return "16:11/16:49";
   return "—";
 }
@@ -147,7 +147,7 @@ const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
     "Slots: H=3,4,5,6,9,12,14,16.",
     "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H9 09:00 (08:00 ngày đặc biệt); H12 12:00; H14 14:00; H16 16:00.",
-    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H9 09:49 (08:30 ngày đặc biệt); H12 12:11; H14 14:15/14:49; H16 16:11/16:49.",
+    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H9 09:49 (08:30 ngày đặc biệt); H12 12:11; H14 14:49; H16 16:11/16:49.",
     "H3 luôn deactivated vào mọi Thứ Năm; H4/H5 luôn deactivated và chỉ dùng làm dependency trung gian.",
     "H9 và H14 luôn giữ GBPUSD, GBPAUD; không tắt nhóm GBP vào Thứ Tư.",
     "H12/H14 đảo H4 rồi áp dụng đảo theo thứ và nhóm 4 H1; 4 M30 chỉ quyết định priority/entry.",
@@ -156,7 +156,7 @@ const CORE_RULES: Record<RuleLocale, string[]> = {
   EN: [
     "Slots: H=3,4,5,6,9,12,14,16.",
     "Broker signal times: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H9 09:00 (08:00 on special days); H12 12:00; H14 14:00; H16 16:00.",
-    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H9 09:49 (08:30 on special days); H12 12:11; H14 14:15/14:49; H16 16:11/16:49.",
+    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H9 09:49 (08:30 on special days); H12 12:11; H14 14:49; H16 16:11/16:49.",
     "H3 is always deactivated every Thursday; H4/H5 are always deactivated and intermediate-only.",
     "H9 and H14 always keep GBPUSD and GBPAUD; Wednesday does not disable GBP pairs.",
     "H12/H14 reverse H4, then apply weekday and four-H1 reversals; four-M30 only controls priority/entry.",
