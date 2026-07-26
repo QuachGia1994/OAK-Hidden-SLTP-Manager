@@ -1,0 +1,77 @@
+[Think Deep]
+
+Thay hệ thống stock lookup Google Search placeholder bằng hệ thống dữ liệu miễn
+phí, không sử dụng API key hoặc API thương mại.
+
+Giữ nguyên:
+- Nguồn VPS hiện tại cho OHLC và biểu đồ.
+
+Nguồn dữ liệu web công khai:
+1. SSC Disclosure Portal:
+   - Danh sách báo cáo tài chính.
+   - Metadata báo cáo.
+   - Link file tải xuống.
+2. VSDC:
+   - Cổ tức.
+   - Ngày đăng ký cuối cùng.
+   - Ngày thanh toán.
+   - Tỷ lệ và số tiền trên mỗi cổ phiếu.
+3. HNX:
+   - Hồ sơ doanh nghiệp HNX/UPCoM.
+   - Lịch sự kiện.
+   - Báo cáo và file đính kèm.
+4. CafeF chỉ làm fallback:
+   - Báo cáo tài chính.
+   - Thông tin doanh nghiệp.
+   - Giao dịch khối ngoại.
+5. Website IR của doanh nghiệp làm fallback PDF khi có mapping đáng tin cậy.
+
+Không gọi các website nguồn trực tiếp từ browser.
+
+Triển khai scheduled crawler:
+- Chạy bằng GitHub Actions.
+- Parse HTML server-side.
+- Chuẩn hóa dữ liệu thành JSON tĩnh.
+- Lưu tại public/stock-data/{SYMBOL}/.
+- Không tải lại dữ liệu cũ nếu không thay đổi.
+- Giữ bản cache gần nhất khi nguồn lỗi.
+- Ghi sourceUrl, source, fetchedAt và stale cho mọi record.
+
+Các file:
+- profile.json
+- reports.json
+- dividends.json
+- foreign-trading.json
+
+UI:
+- Xóa toàn bộ link Google Search.
+- Đổi “Ngoại tệ” thành “Khối ngoại”.
+- Đổi “Tài chính” thành “BCTC”.
+- Thêm tab Tổng quan, BCTC, Cổ tức, Khối ngoại, Biểu đồ.
+- Báo cáo có nút Xem PDF và Tải xuống.
+- Hiển thị nguồn và thời gian cập nhật.
+- Có loading, empty, stale và error state.
+- Khi nguồn lỗi, dùng cache gần nhất thay vì trả danh sách rỗng.
+
+Security:
+- Chỉ crawl HTTPS.
+- Chỉ chấp nhận hostname trong allowlist.
+- Không cho người dùng truyền URL tùy ý.
+- Chặn redirect sang hostname ngoài allowlist.
+- Giới hạn kích thước file và timeout.
+- Validate mã bằng /^[A-Z0-9]{2,12}$/.
+- Escape toàn bộ nội dung HTML đã parse.
+
+Kiểm thử bắt buộc:
+- Parser fixtures cho SSC, VSDC, HNX và CafeF.
+- Test VNM thuộc HOSE.
+- Test một mã HNX.
+- Test một mã UPCoM.
+- Test báo cáo có PDF.
+- Test báo cáo thiếu PDF.
+- Test cổ tức tiền mặt và cổ phiếu.
+- Test nguồn timeout và sử dụng stale cache.
+- Test link độc hại và redirect ngoài allowlist.
+- Chạy lint, typecheck, build và toàn bộ test.
+- Deploy preview rồi runtime smoke test modal.
+- Không công bố production-ready nếu crawler thật hoặc tải PDF chưa được kiểm chứng.
