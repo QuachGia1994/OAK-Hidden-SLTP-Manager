@@ -1,6 +1,15 @@
 const BROKER_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const BROKER_TIME = /^(\d{2}):(\d{2})$/;
 const UTC_OFFSET = /^(?:UTC)?([+-]?)(\d{1,2})(?::(\d{2}))?$/;
+const AWARE_TIMESTAMP = /(?:Z|[+-]\d{2}:\d{2})$/i;
+
+interface BrokerClockMetadata {
+  date: string;
+  signalTime?: string | null;
+  signalAtUtc?: string | number | null;
+  brokerUtcOffset?: string | number | null;
+  brokerClockVerified?: boolean | null;
+}
 
 export function parseBrokerOffset(value: string | number | null | undefined): number | null {
   if (typeof value === "number") {
@@ -23,35 +32,59 @@ function absoluteTimestamp(value: string | number | null | undefined): number | 
     if (!Number.isFinite(value)) return null;
     return value < 1_000_000_000_000 ? value * 1000 : value;
   }
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string" || !AWARE_TIMESTAMP.test(value.trim())) return null;
   const parsed = Date.parse(value);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+function brokerWallTimestamp(date: string, brokerTime: string, offsetMinutes: number): number | null {
+  const dateMatch = BROKER_DATE.exec(date);
+  const timeMatch = BROKER_TIME.exec(brokerTime);
+  if (!dateMatch || !timeMatch) return null;
+
+  const [year, month, day, hour, minute] = [
+    Number(dateMatch[1]), Number(dateMatch[2]), Number(dateMatch[3]),
+    Number(timeMatch[1]), Number(timeMatch[2]),
+  ];
+  if (hour > 23 || minute > 59) return null;
+  const wallTimestamp = Date.UTC(year, month - 1, day, hour, minute);
+  const wallDate = new Date(wallTimestamp);
+  if (wallDate.getUTCFullYear() !== year || wallDate.getUTCMonth() !== month - 1
+    || wallDate.getUTCDate() !== day) return null;
+  return wallTimestamp - offsetMinutes * 60_000;
+}
+
+export function isVerifiedBrokerClockMetadata(metadata: BrokerClockMetadata): boolean {
+  if (metadata.brokerClockVerified !== true || !metadata.signalTime) return false;
+  const offsetMinutes = parseBrokerOffset(metadata.brokerUtcOffset);
+  if (offsetMinutes === null) return false;
+  const expectedSignalTimestamp = brokerWallTimestamp(
+    metadata.date,
+    metadata.signalTime,
+    offsetMinutes,
+  );
+  const signalTimestamp = absoluteTimestamp(metadata.signalAtUtc);
+  return expectedSignalTimestamp !== null && signalTimestamp === expectedSignalTimestamp;
 }
 
 export function resolveBrokerTimestamp({
   date,
   brokerTime,
   brokerUtcOffset,
-  utcTimestamp,
-}: {
-  date: string;
+  signalTime,
+  signalAtUtc,
+  brokerClockVerified,
+}: BrokerClockMetadata & {
   brokerTime: string;
-  brokerUtcOffset?: string | number | null;
-  utcTimestamp?: string | number | null;
 }): number | null {
+  if (!isVerifiedBrokerClockMetadata({
+    date,
+    signalTime,
+    signalAtUtc,
+    brokerUtcOffset,
+    brokerClockVerified,
+  })) return null;
   const offsetMinutes = parseBrokerOffset(brokerUtcOffset);
   if (offsetMinutes === null) return null;
-  const absolute = absoluteTimestamp(utcTimestamp);
-  if (absolute !== null) return absolute;
-
-  const dateMatch = BROKER_DATE.exec(date);
-  const timeMatch = BROKER_TIME.exec(brokerTime);
-  if (!dateMatch || !timeMatch) return null;
-  return Date.UTC(
-    Number(dateMatch[1]),
-    Number(dateMatch[2]) - 1,
-    Number(dateMatch[3]),
-    Number(timeMatch[1]),
-    Number(timeMatch[2]),
-  ) - offsetMinutes * 60_000;
+  return brokerWallTimestamp(date, brokerTime, offsetMinutes);
 }

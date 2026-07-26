@@ -15,8 +15,11 @@ class Mt4FeederContractTests(unittest.TestCase):
         self.assertIn("IsSpecialPair(serverTime) || IsPostSpecialMonday(serverTime)", self.source)
         self.assertIn("if(IsSuppressedSlot(slot, serverTime))", self.source)
 
-    def test_marks_only_special_thursday_h3_as_deactivated(self) -> None:
-        self.assertIn("deactivated = slot == 3 && TimeDayOfWeek(serverTime) == 4 && special", self.source)
+    def test_marks_dependency_slots_and_every_thursday_h3_as_deactivated(self) -> None:
+        self.assertIn(
+            "deactivated = slot == 4 || slot == 5 || (slot == 3 && TimeDayOfWeek(serverTime) == 4)",
+            self.source,
+        )
         self.assertIn('json += "\\\"deactivated\\\":"', self.source)
 
 

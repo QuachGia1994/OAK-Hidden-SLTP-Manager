@@ -68,8 +68,9 @@ class SpecialSignalDayTests(unittest.TestCase):
                 result = mt5_signal_bot.calculate_slot_signal(special_thursday, hour)
                 self.assertFalse(result.get("suppressed", False))
 
-    def test_only_special_thursday_h3_is_deactivated(self) -> None:
+    def test_every_thursday_h3_is_deactivated(self) -> None:
         special_thursday = datetime(2026, 8, 6, 3, 0)
+        regular_thursday = datetime(2026, 7, 23, 3, 0)
         special_friday = datetime(2026, 8, 7, 3, 0)
 
         with patch.object(
@@ -82,6 +83,7 @@ class SpecialSignalDayTests(unittest.TestCase):
             return_value="SW",
         ):
             thursday_result = mt5_signal_bot.calculate_slot_signal(special_thursday, 3)
+            regular_thursday_result = mt5_signal_bot.calculate_slot_signal(regular_thursday, 3)
         with patch.object(
             mt5_signal_bot,
             "_lookup_h5_signal_yesterday",
@@ -94,8 +96,22 @@ class SpecialSignalDayTests(unittest.TestCase):
             friday_result = mt5_signal_bot.calculate_slot_signal(special_friday, 3)
 
         self.assertTrue(thursday_result["deactivated"])
+        self.assertTrue(regular_thursday_result["deactivated"])
         self.assertEqual(friday_result["signal"], "SELL")
         self.assertFalse(friday_result.get("deactivated", False))
+
+    def test_h4_and_h5_are_deactivated_every_weekday(self) -> None:
+        monday = datetime(2026, 7, 20, 4, 45)
+
+        for weekday in range(5):
+            broker_dt = monday + timedelta(days=weekday)
+            for hour in (4, 5):
+                with self.subTest(weekday=weekday, hour=hour):
+                    self.assertTrue(
+                        mt5_signal_bot.is_deactivated_signal_slot(broker_dt, hour)
+                    )
+
+        self.assertFalse(mt5_signal_bot.is_deactivated_signal_slot(monday, 3))
 
 
 if __name__ == "__main__":

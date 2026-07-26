@@ -32,6 +32,7 @@ config.json
 bot_state.json
 signals_log.json
 mt4_server_state.json
+broker_clock_cache.json*
 
 # Dashboard
 dashboard/node_modules/

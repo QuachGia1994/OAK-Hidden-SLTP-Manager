@@ -42,8 +42,24 @@ class SignalRecordContractTests(unittest.TestCase):
         self.assertEqual(record["entry_time"], "03:11")
         self.assertEqual(record["signal_at_utc"], "2026-08-06T00:00:00+00:00")
         self.assertEqual(record["broker_utc_offset"], 3)
-        self.assertEqual(record["logic_version"], 40)
+        self.assertTrue(record["broker_clock_verified"])
+        self.assertEqual(record["logic_version"], 41)
         self.assertTrue(record["deactivated"])
+
+    def test_h4_record_is_forced_deactivated_for_dependency_only_use(self) -> None:
+        broker_dt = datetime(2026, 8, 4, 4, 45)
+        captured = []
+
+        with (
+            patch.object(mt5_signal_bot, "BROKER_CLOCK", _FakeBrokerClock()),
+            patch.object(mt5_signal_bot, "get_current_prices", return_value={}),
+            patch.object(mt5_signal_bot, "is_priority_slot", return_value=False),
+            patch.object(mt5_signal_bot, "_write_signals_log_atomic", side_effect=captured.append),
+            patch.object(mt5_signal_bot.os.path, "exists", return_value=False),
+        ):
+            mt5_signal_bot.log_signal(4, broker_dt, "BUY", "04:45", {"XAUUSD": "BUY"}, "")
+
+        self.assertTrue(captured[0][0]["deactivated"])
 
     def test_special_h9_record_keeps_logical_hour_despite_0800_publication(self) -> None:
         broker_dt = datetime(2026, 8, 6, 8, 0)

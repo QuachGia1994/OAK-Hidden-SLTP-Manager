@@ -4,7 +4,7 @@ MT4-MT5 Dual Signal Server v2.0
 ================================
 Flask API nhan du lieu tu MT4 EA, lay du lieu MT5 tu dong,
 so sanh tin hieu va gui bao cao Telegram.
-MT5 timestamps la UTC; broker clock duoc suy tu gio mo nen D1.
+MT5 timestamp encoding duoc hieu chuan bang tick song; loi clock thi fail-closed.
 """
 import os
 import sys
@@ -42,7 +42,10 @@ except Exception:
 SYMBOL = "GBPUSD"
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
 TARGET_HOURS = [3, 4, 5, 6, 9, 12, 14, 16]
-BROKER_CLOCK = BrokerClock(mt5)
+BROKER_CLOCK = BrokerClock(
+    mt5,
+    cache_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "broker_clock_cache.json"),
+)
 _delivery_lock = threading.Lock()
 _deliveries_in_progress = set()
 
@@ -81,10 +84,9 @@ def get_broker_time():
     return BROKER_CLOCK.now()
 
 def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
-    """Chuyen broker time + hour/minute thanh UTC timestamp."""
+    """Convert Broker wall time to the timestamp encoding used by this terminal."""
     target_broker = broker_dt.replace(hour=hour, minute=minute, second=second, microsecond=0)
-    target_utc = BROKER_CLOCK.utc_from_broker_datetime(target_broker)
-    return int(target_utc.timestamp())
+    return BROKER_CLOCK.mt5_timestamp_from_broker_datetime(target_broker)
 
 def _is_raw_special_date(target_date):
     weekday = target_date.weekday()
@@ -120,8 +122,8 @@ def is_slot_suppressed(broker_dt, slot):
     )
 
 
-def is_deactivated_h3(broker_dt, slot):
-    return slot == 3 and broker_dt.weekday() == 3 and is_special_day(broker_dt)
+def is_deactivated_slot(broker_dt, slot):
+    return slot in (4, 5) or (slot == 3 and broker_dt.weekday() == 3)
 
 
 def _delivery_key(broker_dt, slot):
@@ -293,7 +295,7 @@ def receive_mt4_data():
         if is_slot_suppressed(broker_dt, H):
             return jsonify({"status": "suppressed", "slot": H}), 200
 
-        deactivated = is_deactivated_h3(broker_dt, H)
+        deactivated = is_deactivated_slot(broker_dt, H)
         delivery_key = _delivery_key(broker_dt, H)
         if not _start_delivery(delivery_key):
             return jsonify({"status": "duplicate", "slot": H}), 200
@@ -430,7 +432,7 @@ def main():
     print("  MT4-MT5 Dual Signal Server v2.0")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {TARGET_HOURS}")
-    print("  Broker clock: derived from MT5 D1 UTC bar opens")
+    print("  Broker clock: live-tick calibrated, fail-closed")
     print("=" * 55)
 
     if not ensure_mt5_running():

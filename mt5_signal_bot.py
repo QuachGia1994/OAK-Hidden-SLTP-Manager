@@ -103,12 +103,15 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 40
+SIGNAL_LOGIC_VERSION = 41
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
 
-BROKER_CLOCK = BrokerClock(mt5)
+BROKER_CLOCK = BrokerClock(
+    mt5,
+    cache_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "broker_clock_cache.json"),
+)
 
 # =====================================================================
 # HEARTBEAT - publish to SQLite for GUI to read
@@ -423,6 +426,7 @@ def get_current_prices(pair_dirs):
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
                pattern_signal=None, deactivated=False):
     """Append signal data to signals_log.json for website consumption."""
+    deactivated = bool(deactivated or is_deactivated_signal_slot(broker_dt, H))
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
     if not entry_time:
         entry_time = get_entry_time_for_slot(broker_dt, H)
@@ -441,7 +445,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         "current_prices": current_prices,
         "hour_note": hour_note,
         "d_direction": (pair_dirs or {}).get(D_DIRECTION_PAIR),
-        "deactivated": bool(deactivated),
+        "deactivated": deactivated,
         "logic_version": SIGNAL_LOGIC_VERSION,
     }
     signal_hour, signal_minute = (int(part) for part in signal_time.split(":"))
@@ -454,6 +458,8 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     signal_utc = BROKER_CLOCK.utc_from_broker_datetime(signal_broker_dt)
     record["signal_at_utc"] = signal_utc.isoformat()
     record["broker_utc_offset"] = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
+    record["broker_clock_verified"] = True
+    record["broker_timestamp_mode"] = getattr(BROKER_CLOCK, "timestamp_mode", None)
     if pattern_signal:
         record["pattern_signal"] = pattern_signal
     try:
@@ -728,9 +734,9 @@ def fmt_hour(h):
     return f"{h:02d}"
 
 def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
-    """Chuyen broker datetime + hour/minute thanh UTC timestamp de so sanh voi rate."""
+    """Convert Broker wall time to the timestamp encoding used by this terminal."""
     target_broker = broker_dt.replace(hour=hour, minute=minute, second=second, microsecond=0)
-    return int(BROKER_CLOCK.utc_from_broker_datetime(target_broker).timestamp())
+    return BROKER_CLOCK.mt5_timestamp_from_broker_datetime(target_broker)
 
 # =====================================================================
 # MT5 CANDLE HELPER
@@ -1233,15 +1239,20 @@ def is_priority_slot(broker_dt, hour):
         return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "SW"
     if h == 9:
         return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "BT"
-    if h == 12:
+    if h in (12, 14):
+        group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
         if wd in (0, 4):
-            return False
-        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "SW"
-    if h == 14:
-        if wd in (0, 4):
-            return False
-        return evaluate_4_m30_classification_before_hour(broker_dt, 12) == "BT"
+            return group == ("BT" if h == 12 else "SW")
+        return group == ("SW" if h == 12 else "BT")
     return False
+
+
+def is_deactivated_signal_slot(broker_dt, hour):
+    """Return whether a calculated slot is dependency-only and must not be traded."""
+    if broker_dt is None:
+        return False
+    h = int(hour)
+    return h in (4, 5) or (h == 3 and broker_dt.weekday() == 3)
 
 
 def get_entry_time_for_slot(broker_dt, hour):
@@ -1347,7 +1358,6 @@ def calculate_slot_signal(broker_dt, hour):
         if wd == 0 and is_post_special_day(broker_dt):
             return {"signal": "WAIT", "report": f"H={hour}: suppressed (Monday after special day).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "suppressed": True}
     # H=3: XAUUSD reverses yesterday H=5; Thursday reuses Monday H=3.
-    h3_deactivated = False
     if hour == 3:
         entry_group = evaluate_3_m30_classification_for_h3(broker_dt)
         if entry_group is None:
@@ -1357,8 +1367,6 @@ def calculate_slot_signal(broker_dt, hour):
             if historical_signal not in ("BUY", "SELL"):
                 return {"signal": "WAIT", "report": f"H={hour}: thiếu lịch sử Thứ 2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
             final_signal = historical_signal
-            if is_special_day(broker_dt):
-                h3_deactivated = True
         else:
             h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
             if h5_yesterday not in ("BUY", "SELL"):
@@ -1374,7 +1382,7 @@ def calculate_slot_signal(broker_dt, hour):
             "skip_xau_m30": True,
             "pair_dirs": {"XAUUSD": final_signal, "GBPAUD": gbp_aud},
         }
-        if h3_deactivated:
+        if is_deactivated_signal_slot(broker_dt, hour):
             result["deactivated"] = True
         return result
     # H=6: reverse H=3, then apply the four-H1 classification.
@@ -1437,10 +1445,9 @@ def calculate_slot_signal(broker_dt, hour):
         }
     # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback
     if hour == 12:
-        if broker_dt.weekday() in (1, 2, 3):
-            priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
-            if priority_group is None:
-                return {"signal": "WAIT", "report": "H=12: incomplete priority 4M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+        priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
+        if priority_group is None:
+            return {"signal": "WAIT", "report": "H=12: incomplete priority 4M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
         h4_signal = _lookup_h4_signal_today(broker_dt)
         if h4_signal not in ("BUY", "SELL"):
             return {"signal": "WAIT", "report": f"H={hour}: thiếu H=4 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
@@ -1513,8 +1520,10 @@ def calculate_slot_signal(broker_dt, hour):
             "pair_dirs": {"XAUUSD": final_signal},
         }
 
-    result = analyze(broker_dt, hour)
-    return _finalize_pattern_result(result, broker_dt, hour)
+    result = _finalize_pattern_result(analyze(broker_dt, hour), broker_dt, hour)
+    if is_deactivated_signal_slot(broker_dt, hour):
+        result["deactivated"] = True
+    return result
 
 def candle_info_line(candle, label):
     if candle is None:
@@ -1777,11 +1786,19 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
     pair_text = format_telegram_pair_block(pair_dirs, H, broker_dt)
     signal_time = get_signal_time_for_slot(broker_dt, H)
     entry_time = get_entry_time_for_slot(broker_dt, H) or "N/A"
-    deactivated = bool(signal_data.get("deactivated"))
+    deactivated = bool(
+        signal_data.get("deactivated") or is_deactivated_signal_slot(broker_dt, H)
+    )
     if deactivated:
+        reason = (
+            "SLOT TRUNG GIAN CHỈ DÙNG ĐỂ TÍNH TOÁN"
+            if int(H) in (4, 5)
+            else "H=3 THỨ NĂM CHỈ DÙNG ĐỂ ĐỐI CHIẾU"
+        )
         send_telegram(
-            "⛔ H=3 THỨ NĂM ĐẶC BIỆT — KHÔNG VÀO LỆNH\n"
+            f"⛔ H={H} — KHÔNG VÀO LỆNH\n"
             "============================\n"
+            f"{reason}\n"
             f"Phát: {signal_time} Broker | Entry tham chiếu: {entry_time} Broker\n"
             "Signal đã được lưu ở trạng thái deactivated chỉ để đối chiếu.\n"
             "Không dùng bản ghi này để giao dịch."
@@ -1954,7 +1971,7 @@ def try_init_mt5():
     return False
 
 def get_broker_time():
-    """Return Broker wall-clock time derived from validated MT5 D1 bars."""
+    """Return Broker wall time from the calibrated MT5 timestamp mode."""
     if not mt5_ready:
         raise BrokerClockError("MT5 is not connected")
     return BROKER_CLOCK.now()
@@ -2219,7 +2236,7 @@ def main(profile_name=None):
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {', '.join(f'H={h}' for h in TARGET_HOURS)}")
     print(f"  Auto-close: XAUUSD 17:59, GBP 19:59 (Broker)")
-    print("  Broker clock: MT5 D1-derived, fail-closed")
+    print("  Broker clock: live-tick calibrated, fail-closed")
     print("=" * 55)
 
     if try_init_mt5():

@@ -20,14 +20,15 @@ class SignalPriorityTests(unittest.TestCase):
                 ):
                     self.assertEqual(mt5_signal_bot.is_priority_slot(broker_dt, 6), group == "SW")
                     self.assertEqual(mt5_signal_bot.is_priority_slot(broker_dt, 9), group == "BT")
-                    late_priority_allowed = weekday in (1, 2, 3)
+                    h12_group = "BT" if weekday in (0, 4) else "SW"
+                    h14_group = "SW" if weekday in (0, 4) else "BT"
                     self.assertEqual(
                         mt5_signal_bot.is_priority_slot(broker_dt, 12),
-                        late_priority_allowed and group == "SW",
+                        group == h12_group,
                     )
                     self.assertEqual(
                         mt5_signal_bot.is_priority_slot(broker_dt, 14),
-                        late_priority_allowed and group == "BT",
+                        group == h14_group,
                     )
 
     def test_h16_selection_uses_only_h6_priority_group(self) -> None:

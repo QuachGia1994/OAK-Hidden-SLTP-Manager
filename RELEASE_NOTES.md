@@ -1,5 +1,12 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [v3.18.1] - 2026-07-26
+
+- Chuẩn hóa trạng thái tham chiếu: H=3 luôn `deactivated` vào mọi Thứ Năm; H=4/H=5 luôn `deactivated`, chỉ làm dependency trung gian và không phải tín hiệu vào lệnh.
+- Sửa ma trận priority ngày thường: Thứ Hai/Thứ Sáu dùng BT → H12 và SW → H14; Thứ Ba/Thứ Tư/Thứ Năm dùng SW → H12 và BT → H14. Special Thu/Fri và post-special Monday tiếp tục suppress H12/H14/H16.
+- Thay suy luận D1 bằng BrokerClock hiệu chỉnh từ tick live mới, fail-closed khi dữ liệu stale/thiếu/mâu thuẫn; tách UTC tuyệt đối dùng cho lịch/UI khỏi timestamp wall-clock của dữ liệu MT5.
+- Đồng bộ rule text trên README/GUIDE, reminder và Dashboard Rules theo contract v3.18.1.
+
 ## [v3.18.0] - 2026-07-26
 
 - Đồng bộ logical slot còn hoạt động thành H=3, H=4, H=5, H=6, H=9, H=12, H=14 và H=16; tách giờ phát signal khỏi giờ entry và loại bỏ toàn bộ H=2/H=11/H=13/H=15/H=1500 cũ.

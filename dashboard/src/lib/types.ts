@@ -11,6 +11,7 @@ export interface Signal {
   entry_time?: string | null;
   signal_at_utc?: string | number | null;
   broker_utc_offset?: string | number | null;
+  broker_clock_verified?: boolean;
   is_priority?: boolean;
   hour_note: string | null;
   d_direction: "BUY" | "SELL" | null;

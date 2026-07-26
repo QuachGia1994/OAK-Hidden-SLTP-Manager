@@ -32,7 +32,7 @@ class SlotMatrixTests(unittest.TestCase):
 
         self.assertEqual(result["signal"], "BUY")
         self.assertEqual(result["pair_dirs"], {"XAUUSD": "BUY", "GBPAUD": "SELL"})
-        self.assertNotIn("deactivated", result)
+        self.assertTrue(result["deactivated"])
 
     def test_special_thursday_h3_is_saved_as_deactivated_direction(self) -> None:
         special_thursday = datetime(2026, 8, 6, 3, 0)

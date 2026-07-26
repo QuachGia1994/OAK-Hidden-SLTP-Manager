@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.17.0)
+# OAK Hidden SLTP Manager (v3.18.1)
 
 [![CI](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/QuachGia1994/OAK-Hidden-SLTP-Manager)](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
@@ -34,10 +34,10 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 - Weekend: no desktop signal, no next slot, no countdown.
 - The only logical slots are **H=3, H=4, H=5, H=6, H=9, H=12, H=14, and H=16**, Monday through Friday.
 - Broker publication times: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` or `08:00` on special days; H12 `12:00`; H14 `14:00`; H16 `16:00`. Entry is never earlier than publication.
-- H3 reverses the previous trading day's H5, except Thursday reuses Monday H3. H4/H5 use the GBPUSD M5/M30 pattern plus XAUUSD M30. H6/H9 use a four-H1 group. H12/H14 reverse H4, then apply weekday and four-H1 reversals; four-M30 data only controls priority/entry and completeness.
-- H12/H14 priority applies Tuesday through Thursday only. H16 chooses the H6–H12 or H9–H14 branch by priority; missing dependencies produce `WAIT`.
-- Special Thursday/Friday pairs and the following post-special Monday do not generate H12/H14/H16. Special-Thursday H3 is retained with `deactivated=true` for reference and is not an actionable signal. A Thursday/Friday pair spanning two calendar years is not special.
-- H=4 D-direction and H=5 GBP-direction remain internal markers.
+- H3 reverses the previous trading day's H5; Thursday reuses Monday H3 and is always stored with `deactivated=true`. H4/H5 use the GBPUSD M5/M30 pattern plus XAUUSD M30, but are always `deactivated` intermediate dependencies rather than actionable signals.
+- On normal Monday/Friday sessions, BT selects H12 priority and SW selects H14 priority. On normal Tuesday/Wednesday/Thursday sessions, SW selects H12 priority and BT selects H14 priority. H16 chooses the H6–H12 or H9–H14 branch by priority; missing dependencies produce `WAIT`.
+- Special Thursday/Friday pairs and the following post-special Monday do not generate H12/H14/H16. A Thursday/Friday pair spanning two calendar years is not special.
+- BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations. Absolute UTC used by scheduling/UI is kept separate from the wall-clock timestamp encoding exposed by some MT5 terminals for bars and ticks.
 
 ## Fact Check AI
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { getEntryTimeLabel, getSignalColor, getSignalLabel, getSignalTime } from "@/lib/constants";
-import { parseBrokerOffset } from "@/lib/broker-time";
+import { isVerifiedBrokerClockMetadata } from "@/lib/broker-time";
+import { isEffectivelyDeactivated } from "@/lib/signal-display";
 import type { Signal } from "@/lib/types";
 import { BrokerLocalTime } from "./BrokerLocalTime";
 import { useLocale } from "./LocaleProvider";
@@ -39,6 +40,7 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
   const pairs = visiblePairs(signal);
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
+  const effectiveDeactivated = isEffectivelyDeactivated(signal);
 
   const getPairDirection = (pair: string) => {
     if (!isVIP) return "locked";
@@ -48,13 +50,13 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
 
   return (
     <article className="terminal-panel group signal-rail relative overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
-      {signal.deactivated ? (
+      {effectiveDeactivated ? (
         <div className="relative z-10 border-b border-amber-500/35 bg-amber-500/15 px-4 py-2 text-center font-mono text-[11px] font-black uppercase tracking-[0.16em] text-amber-500">
           {locale === "EN" ? "DO NOT ENTER" : "KHÔNG VÀO LỆNH"}
         </div>
       ) : null}
 
-      <div className={signal.deactivated ? "opacity-40 grayscale" : ""}>
+      <div className={effectiveDeactivated ? "opacity-40 grayscale" : ""}>
         <header className="border-b border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
@@ -62,7 +64,6 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
                 label={locale === "EN" ? "Signal" : "Phát signal"}
                 brokerTime={signalTime}
                 signal={signal}
-                utcTimestamp={signal.signal_at_utc}
               />
               <TimeBlock
                 label={locale === "EN" ? "Entry" : "Vào lệnh"}
@@ -118,15 +119,19 @@ function TimeBlock({
   label,
   brokerTime,
   signal,
-  utcTimestamp,
 }: {
   label: string;
   brokerTime: string;
   signal: Signal;
-  utcTimestamp?: string | number | null;
 }) {
   const hasLocalTime = VALID_TIME.test(brokerTime)
-    && parseBrokerOffset(signal.broker_utc_offset) !== null;
+    && isVerifiedBrokerClockMetadata({
+      date: signal.date,
+      signalTime: signal.signal_time,
+      signalAtUtc: signal.signal_at_utc,
+      brokerUtcOffset: signal.broker_utc_offset,
+      brokerClockVerified: signal.broker_clock_verified,
+    });
   return (
     <div className="min-w-0">
       <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--terminal-accent)]">{label}</div>
@@ -137,7 +142,9 @@ function TimeBlock({
               date={signal.date}
               brokerTime={brokerTime}
               brokerUtcOffset={signal.broker_utc_offset}
-              utcTimestamp={utcTimestamp}
+              signalTime={signal.signal_time}
+              signalAtUtc={signal.signal_at_utc}
+              brokerClockVerified={signal.broker_clock_verified}
             />
             <span className="ml-1 text-[9px] font-bold uppercase text-[var(--muted)]">Local</span>
           </div>

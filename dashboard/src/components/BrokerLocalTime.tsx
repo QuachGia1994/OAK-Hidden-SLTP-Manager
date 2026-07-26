@@ -7,19 +7,25 @@ export function BrokerLocalTime({
   date,
   brokerTime,
   brokerUtcOffset,
-  utcTimestamp,
+  signalTime,
+  signalAtUtc,
+  brokerClockVerified,
 }: {
   date: string;
   brokerTime: string;
   brokerUtcOffset?: string | number | null;
-  utcTimestamp?: string | number | null;
+  signalTime?: string | null;
+  signalAtUtc?: string | number | null;
+  brokerClockVerified?: boolean;
 }) {
   const timestamp = useMemo(() => resolveBrokerTimestamp({
     date,
     brokerTime,
     brokerUtcOffset,
-    utcTimestamp,
-  }), [brokerTime, brokerUtcOffset, date, utcTimestamp]);
+    signalTime,
+    signalAtUtc,
+    brokerClockVerified,
+  }), [brokerClockVerified, brokerTime, brokerUtcOffset, date, signalAtUtc, signalTime]);
   const [localTime, setLocalTime] = useState<string | null>(null);
 
   useEffect(() => {

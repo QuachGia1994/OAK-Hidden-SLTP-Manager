@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseBrokerOffset, resolveBrokerTimestamp } from "../src/lib/broker-time.ts";
+import {
+  isVerifiedBrokerClockMetadata,
+  parseBrokerOffset,
+  resolveBrokerTimestamp,
+} from "../src/lib/broker-time.ts";
 import {
   filterActiveSignals,
   filterDisplayableSignals,
@@ -12,6 +16,7 @@ import {
   isSpecialBrokerDate,
   TARGET_HOURS,
 } from "../src/lib/constants.ts";
+import { isEffectivelyDeactivated } from "../src/lib/signal-display.ts";
 
 test("uses only the approved logical slots and signal times", () => {
   assert.deepEqual(TARGET_HOURS, [3, 4, 5, 6, 9, 12, 14, 16]);
@@ -68,24 +73,60 @@ test("rejects legacy H3 records after the logical-slot repurpose", () => {
   ]);
 });
 
-test("converts local time only when the record carries a Broker UTC offset", () => {
+test("converts local time only with verified, consistent Broker clock metadata", () => {
   assert.equal(parseBrokerOffset(-12), -720);
   assert.equal(parseBrokerOffset("UTC+14:00"), 840);
   assert.equal(parseBrokerOffset(15), null);
   assert.equal(parseBrokerOffset("UTC-13:00"), null);
-  assert.equal(resolveBrokerTimestamp({
+
+  const verifiedUtcMetadata = {
     date: "2026-08-06",
+    signalTime: "03:00",
+    signalAtUtc: "2026-08-06T03:00:00Z",
+    brokerUtcOffset: 0,
+    brokerClockVerified: true,
+  };
+  assert.equal(isVerifiedBrokerClockMetadata(verifiedUtcMetadata), true);
+  assert.equal(isVerifiedBrokerClockMetadata({
+    ...verifiedUtcMetadata,
+    brokerClockVerified: false,
+  }), false);
+  assert.equal(isVerifiedBrokerClockMetadata({
+    ...verifiedUtcMetadata,
+    signalAtUtc: "2026-08-06T03:01:00Z",
+  }), false);
+  assert.equal(isVerifiedBrokerClockMetadata({
+    ...verifiedUtcMetadata,
+    signalAtUtc: "2026-08-06T03:00:00",
+  }), false);
+
+  assert.equal(resolveBrokerTimestamp({
+    ...verifiedUtcMetadata,
     brokerTime: "03:11",
+  }), Date.UTC(2026, 7, 6, 3, 11));
+  assert.equal(resolveBrokerTimestamp({
+    ...verifiedUtcMetadata,
+    brokerTime: "03:11",
+    brokerClockVerified: undefined,
   }), null);
-  assert.equal(resolveBrokerTimestamp({
-    date: "2026-08-06",
-    brokerTime: "03:11",
-    brokerUtcOffset: "+03:00",
-  }), Date.UTC(2026, 7, 6, 0, 11));
   assert.equal(resolveBrokerTimestamp({
     date: "2026-08-06",
     brokerTime: "03:00",
     brokerUtcOffset: 3,
-    utcTimestamp: "2026-08-06T00:00:00Z",
+    signalTime: "03:00",
+    signalAtUtc: "2026-08-06T00:00:00Z",
+    brokerClockVerified: true,
   }), Date.UTC(2026, 7, 6, 0, 0));
+});
+
+test("derives deactivated card state for safety slots and Thursday H3 placeholders", () => {
+  assert.equal(isEffectivelyDeactivated({ date: "2026-08-05", hour: 4 }), true);
+  assert.equal(isEffectivelyDeactivated({ date: "2026-08-07", hour: 5 }), true);
+  assert.equal(isEffectivelyDeactivated({ date: "2026-08-06", hour: 3 }), true);
+  assert.equal(isEffectivelyDeactivated({ date: "2026-08-07", hour: 3 }), false);
+  assert.equal(isEffectivelyDeactivated({
+    date: "2026-08-07",
+    hour: 9,
+    deactivated: true,
+  }), true);
 });

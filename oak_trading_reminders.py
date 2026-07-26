@@ -617,22 +617,22 @@ def get_day_notes(now, lang="VN"):
         "Slots: H=3,4,5,6,9,12,14,16.",
         "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; "
         "H9 09:00 (08:00 ngày đặc biệt); H12 12:00; H14 14:00; H16 16:00.",
-        "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai. "
-        "GBPAUD luôn ngược XAUUSD.",
-        "H4/H5: pattern GBPUSD M5/M30 kết hợp XAUUSD M30.",
+        "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai "
+        "và luôn deactivated. GBPAUD luôn ngược XAUUSD.",
+        "H4/H5: pattern GBPUSD M5/M30 kết hợp XAUUSD M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
         "H6/H9: phân nhóm 4 nến H1, áp dụng đảo theo thứ và đảo thêm vào ngày đặc biệt.",
-        "H12/H14: đảo H4 rồi áp dụng đảo theo thứ và nhóm 4 H1; 4 M30 chỉ quyết định priority/entry. Priority chỉ áp dụng Thứ Ba-Thứ Năm.",
+        "H12/H14: đảo H4 rồi áp dụng đảo theo thứ và nhóm 4 H1; 4 M30 quyết định priority/entry.",
         "H16: dùng nhánh priority H6-H12 hoặc H9-H14; thiếu dependency thì WAIT.",
     ]
     notes_en = [
         "Slots: H=3,4,5,6,9,12,14,16.",
         "Broker publication: H3 03:00; H4 04:45; H5 05:45; H6 06:00; "
         "H9 09:00 (08:00 on special days); H12 12:00; H14 14:00; H16 16:00.",
-        "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3. "
-        "GBPAUD always opposes XAUUSD.",
-        "H4/H5: GBPUSD M5/M30 pattern combined with XAUUSD M30.",
+        "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3 "
+        "and is always deactivated. GBPAUD always opposes XAUUSD.",
+        "H4/H5: GBPUSD M5/M30 pattern combined with XAUUSD M30; always deactivated and intermediate-only.",
         "H6/H9: four-H1 grouping with weekday and special-day reversals.",
-        "H12/H14: reverse H4, then apply weekday and four-H1 reversals; four-M30 only controls priority/entry. Priority applies Tuesday through Thursday only.",
+        "H12/H14: reverse H4, then apply weekday and four-H1 reversals; four-M30 controls priority/entry.",
         "H16: uses the priority H6-H12 or H9-H14 branch; missing dependencies produce WAIT.",
     ]
 
@@ -645,6 +645,12 @@ def get_day_notes(now, lang="VN"):
     if suppress_late_slots:
         notes_vn.append("Ngày đặc biệt/hậu đặc biệt: không tạo H12, H14, H16.")
         notes_en.append("Special/post-special day: H12, H14, and H16 are not generated.")
+    elif weekday in (0, 4):
+        notes_vn.append("Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority; SW → H14 priority.")
+        notes_en.append("Normal Monday/Friday: BT selects H12 priority; SW selects H14 priority.")
+    else:
+        notes_vn.append("Ngày thường Thứ Ba/Thứ Tư/Thứ Năm: SW → H12 priority; BT → H14 priority.")
+        notes_en.append("Normal Tuesday/Wednesday/Thursday: SW selects H12 priority; BT selects H14 priority.")
 
     if lang == "VN":
         return notes_vn

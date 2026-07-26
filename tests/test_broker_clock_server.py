@@ -20,23 +20,25 @@ class BrokerClockServerTests(unittest.TestCase):
             with patch.object(mt4_mt5_server.BROKER_CLOCK, "now", return_value=expected):
                 self.assertEqual(mt4_mt5_server.get_broker_time(), expected)
 
-    def test_broker_clock_conversion_uses_date_specific_offset(self):
+    def test_broker_clock_conversion_uses_mt5_timestamp_encoding_mode(self):
         broker_value = datetime(2026, 3, 30, 16, 0)
-        expected_utc = datetime(2026, 3, 30, 13, 0, tzinfo=timezone.utc)
+        expected_timestamp = int(datetime(2026, 3, 30, 16, 0, tzinfo=timezone.utc).timestamp())
         with patch.object(
             mt4_mt5_server.BROKER_CLOCK,
-            "utc_from_broker_datetime",
-            return_value=expected_utc,
+            "mt5_timestamp_from_broker_datetime",
+            return_value=expected_timestamp,
         ) as convert:
             timestamp = mt4_mt5_server.broker_time_to_ts(broker_value, 16)
 
         convert.assert_called_once_with(broker_value)
-        self.assertEqual(timestamp, int(expected_utc.timestamp()))
+        self.assertEqual(timestamp, expected_timestamp)
 
     def test_special_and_post_special_slots_match_signal_bot_contract(self):
         special_thursday = datetime(2026, 8, 6, 3, 0)
         post_special_monday = datetime(2026, 8, 10, 12, 0)
-        self.assertTrue(mt4_mt5_server.is_deactivated_h3(special_thursday, 3))
+        self.assertTrue(mt4_mt5_server.is_deactivated_slot(special_thursday, 3))
+        self.assertTrue(mt4_mt5_server.is_deactivated_slot(datetime(2026, 7, 21, 4, 45), 4))
+        self.assertTrue(mt4_mt5_server.is_deactivated_slot(datetime(2026, 7, 21, 5, 45), 5))
         self.assertTrue(mt4_mt5_server.is_slot_suppressed(special_thursday, 12))
         self.assertTrue(mt4_mt5_server.is_slot_suppressed(post_special_monday, 16))
         self.assertFalse(mt4_mt5_server.is_special_day(datetime(2026, 12, 31, 3, 0)))

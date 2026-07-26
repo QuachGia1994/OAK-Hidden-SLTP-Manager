@@ -93,7 +93,7 @@ bool ResolvePublication(datetime serverTime, int &slot, int &patternHour, bool &
       patternHour = publicationMinute >= 45 ? publicationHour : publicationHour - 1;
       if(patternHour < 0)
          patternHour += 24;
-      deactivated = slot == 3 && TimeDayOfWeek(serverTime) == 4 && special;
+      deactivated = slot == 4 || slot == 5 || (slot == 3 && TimeDayOfWeek(serverTime) == 4);
       return true;
    }
    return false;

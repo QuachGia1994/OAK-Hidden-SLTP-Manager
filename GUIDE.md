@@ -1,4 +1,4 @@
-# Hướng dẫn OAK Manager (v3.17.0)
+# Hướng dẫn OAK Manager (v3.18.1)
 
 OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor worker, Hidden SL/TP, copy trade, lệnh hẹn giờ, Telegram, chẩn đoán và dashboard web.
 
@@ -17,16 +17,18 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 - Slot active: **H=3, H=4, H=5, H=6, H=9, H=12, H=14, H=16**.
 - Giờ phát Broker: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` (`08:00` ngày đặc biệt); H12 `12:00`; H14 `14:00`; H16 `16:00`.
 - Entry tương ứng: H3 `03:11/03:49`; H4 `04:45`; H5 `05:45`; H6 `06:11`; H9 `09:49` (`08:30` ngày đặc biệt); H12 `12:11`; H14 `14:15/14:49`; H16 `16:11/16:49`.
-- Ngày đặc biệt và Thứ Hai hậu đặc biệt không tạo H12/H14/H16; H3 Thứ Năm đặc biệt chỉ lưu dạng `deactivated`. Cặp Thứ Năm–Thứ Sáu bắc cầu năm mới không phải ngày đặc biệt.
+- H3 luôn `deactivated` vào mọi Thứ Năm. H4/H5 luôn là mốc trung gian `deactivated`, chỉ cấp dependency và không phải tín hiệu vào lệnh.
+- Ngày đặc biệt Thứ Năm/Thứ Sáu và Thứ Hai hậu đặc biệt không tạo H12/H14/H16. Cặp Thứ Năm–Thứ Sáu bắc cầu năm mới không phải ngày đặc biệt.
+- BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed nếu tick stale, thiếu hoặc mâu thuẫn; UTC tuyệt đối được tách khỏi timestamp wall-clock của dữ liệu MT5.
 
 ### Ma trận core
 
 | Mốc | Rule |
 | --- | --- |
-| H=3 | XAUUSD đảo H=5 của phiên trước; riêng Thứ Năm dùng lại H=3 Thứ Hai. `GBPAUD` ngược XAUUSD. |
-| H=4/H=5 | Pattern GBPUSD M5/M30 kết hợp XAUUSD M30. |
+| H=3 | XAUUSD đảo H=5 của phiên trước; riêng Thứ Năm dùng lại H=3 Thứ Hai và luôn `deactivated`. `GBPAUD` ngược XAUUSD. |
+| H=4/H=5 | Pattern GBPUSD M5/M30 kết hợp XAUUSD M30; luôn `deactivated`, chỉ dùng làm dependency trung gian. |
 | H=6/H=9 | Phân nhóm bốn nến H1; áp dụng đảo theo thứ và đảo thêm ngày đặc biệt. H=9 còn có GBPUSD và GBPAUD. |
-| H=12/H=14 | Đảo H=4, sau đó áp dụng đảo theo thứ và phân nhóm bốn H1. Bốn M30 chỉ xác định priority/entry và tính đầy đủ; priority chỉ áp dụng Thứ Ba–Thứ Năm. H=14 còn có GBPUSD và GBPAUD. |
+| H=12/H=14 | Đảo H=4, sau đó áp dụng đảo theo thứ và phân nhóm bốn H1. Ngày thường Mon/Fri: BT → H12, SW → H14; Tue/Wed/Thu: SW → H12, BT → H14. Bốn M30 quyết định priority/entry và tính đầy đủ. H=14 còn có GBPUSD và GBPAUD. |
 | H=16 | Chọn nhánh priority H6–H12 hoặc H9–H14; thiếu dependency thì `WAIT`. |
 
 ## Dashboard

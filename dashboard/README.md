@@ -12,8 +12,10 @@ Dashboard cho OAK Hidden SLTP Manager, deploy trên Vercel.
 - Bot state và D direction
 - Lịch sử tối đa 30 phiên cho các slot H=3,4,5,6,9,12,14,16
 - Hiển thị riêng giờ phát signal và entry theo Broker; chỉ đổi sang giờ local khi record có `broker_utc_offset`
-- Signal `deactivated` được làm mờ và gắn cảnh báo rõ “KHÔNG VÀO LỆNH”
-- Đồng hồ Broker chỉ hoạt động khi BotState có observation UTC hợp lệ trong 5 phút; thiếu/stale sẽ ẩn lịch thay vì đoán múi giờ
+- Signal `deactivated` được làm mờ và gắn cảnh báo rõ “KHÔNG VÀO LỆNH”; gồm H3 mọi Thứ Năm và H4/H5 trung gian mọi ngày
+- Ngày thường Mon/Fri: BT → H12 priority, SW → H14 priority; Tue/Wed/Thu: SW → H12 priority, BT → H14 priority. Special Thu/Fri và post-special Monday ẩn H12/H14/H16
+- Đồng hồ Broker chỉ hoạt động khi BotState có observation UTC hợp lệ từ BrokerClock đã hiệu chỉnh bằng tick live mới; thiếu/stale/mâu thuẫn sẽ ẩn lịch thay vì đoán múi giờ
+- Dashboard chỉ dùng UTC tuyệt đối và offset do backend cung cấp; không tự suy offset từ timestamp wall-clock của nến/tick MT5
 - Rules page
 - Fact-check text/ảnh
 - VIP access bằng `/?vip=TOKEN`

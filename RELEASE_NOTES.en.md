@@ -1,5 +1,12 @@
 # RELEASE NOTES
 
+## [v3.18.1] - 2026-07-26
+
+- Standardize reference-only states: H=3 is always `deactivated` every Thursday; H=4/H=5 are always `deactivated`, intermediate-only dependencies and never actionable signals.
+- Correct normal-session priority: Monday/Friday use BT → H12 and SW → H14; Tuesday/Wednesday/Thursday use SW → H12 and BT → H14. Special Thu/Fri and post-special Monday continue to suppress H12/H14/H16.
+- Replace D1-only inference with BrokerClock calibration from a fresh live tick, failing closed on stale, missing, or inconsistent observations; separate scheduling/UI absolute UTC from MT5 wall-clock data timestamps.
+- Synchronize README/Guide, reminder, and Dashboard Rules text with the v3.18.1 contract.
+
 ## [v3.18.0] - 2026-07-26
 
 - Standardize the active logical slots as H=3, H=4, H=5, H=6, H=9, H=12, H=14, and H=16; separate publication from entry time and remove all legacy H=2/H=11/H=13/H=15/H=1500 paths.

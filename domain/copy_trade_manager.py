@@ -38,7 +38,10 @@ from domain.balance import get_start_day_balance
 from domain.broker_clock import BrokerClock
 
 log = setup_logger("copy_trade")
-_BROKER_CLOCK = BrokerClock(mt5)
+_BROKER_CLOCK = BrokerClock(
+    mt5,
+    cache_path=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "broker_clock_cache.json"),
+)
 
 def get_natural_response(category, **kwargs):
     try:
