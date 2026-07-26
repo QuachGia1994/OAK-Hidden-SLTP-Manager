@@ -38,10 +38,6 @@ export function StockLookupModal({
     }
   }, [searchInput]);
 
-  const openOnTCBS = (sym: string) => {
-    window.open(`https://www.tcbs.com.vn/stock-quotes/${sym}`, "_blank", "noopener,noreferrer");
-  };
-
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -67,11 +63,15 @@ export function StockLookupModal({
   const marketCap = sym ? getMarketCap(sym, locale) : "";
   const exchange = sym ? getExchange(sym) : "";
 
-  const quickLinks = [
-    { label: "Tài chính", path: "financial" },
-    { label: "Cổ tức", path: "dividend" },
-    { label: "Ngoại tệ", path: "ownership" },
-    { label: "Biểu đồ", path: "chart" },
+  const openLink = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const makeLinks = (s: string) => [
+    { label: "Tài chính", url: `https://www.google.com/search?q=${s}+t%C3%A0i+ch%C3%ADnh+cafef.vn` },
+    { label: "Cổ tức", url: `https://www.google.com/search?q=${s}+c%E1%BB%95+t%E1%BB%A9c+lich-su` },
+    { label: "Ngoại tệ", url: `https://www.google.com/search?q=${s}+t%E1%BB%B7+l%E1%BB%87+n%C6%B0%E1%BB%9Bc+ngo%C3%A0i` },
+    { label: "Biểu đồ", url: `https://www.google.com/search?q=${s}+chart+stock` },
   ];
 
   return (
@@ -107,7 +107,7 @@ export function StockLookupModal({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   doSearch();
-                  if (searchInput.trim()) openOnTCBS(searchInput.trim().toUpperCase());
+                  if (searchInput.trim()) openLink(`https://www.google.com/search?q=${searchInput.trim().toUpperCase()}+c%E1%BB%95+phi%E1%BA%BFu`);
                 }
               }}
               placeholder={t("Nhập mã (VD: HPG)...", "Enter ticker (e.g. HPG)...")}
@@ -117,7 +117,7 @@ export function StockLookupModal({
             <button
               onClick={() => {
                 doSearch();
-                if (searchInput.trim()) openOnTCBS(searchInput.trim().toUpperCase());
+                if (searchInput.trim()) openLink(`https://www.google.com/search?q=${searchInput.trim().toUpperCase()}+c%E1%BB%95+phi%E1%BA%BFu`);
               }}
               className="rounded-lg bg-[var(--terminal-accent)] px-4 py-2 font-mono text-xs font-black uppercase text-[#04130F] transition-colors hover:bg-[var(--terminal-accent-strong)]"
             >
@@ -163,21 +163,21 @@ export function StockLookupModal({
                 )}
               </div>
 
-              {/* Quick links to TCBS */}
+              {/* Quick links */}
               <div>
                 <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--muted)]">
-                  {t("Xem chi tiết trên TCBS", "View details on TCBS")}
+                  {t("Xem chi tiết", "View details")}
                 </p>
                 <div className="grid grid-cols-2 gap-2">
-                  {quickLinks.map((link) => (
+                  {makeLinks(sym).map((link) => (
                     <button
-                      key={link.path}
-                      onClick={() => openOnTCBS(sym)}
+                      key={link.label}
+                      onClick={() => openLink(link.url)}
                       className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2.5 text-left text-xs font-semibold text-[var(--foreground)] transition-colors hover:border-[var(--terminal-accent)]/40 hover:bg-[var(--surface)]"
                     >
                       <span className="block text-[var(--muted)]">{link.label}</span>
                       <span className="mt-0.5 block font-mono text-[10px] text-[var(--terminal-accent)]">
-                        tcbs.com.vn →
+                        Google →
                       </span>
                     </button>
                   ))}
@@ -186,10 +186,10 @@ export function StockLookupModal({
 
               {/* Open full page button */}
               <button
-                onClick={() => openOnTCBS(sym)}
+                onClick={() => openLink(`https://www.google.com/search?q=${sym}+c%E1%BB%95+phi%E1%BA%BFu+t%C3%A0i+ch%C3%ADnh+cafef`)}
                 className="w-full rounded-xl bg-[var(--terminal-accent)] py-3 font-mono text-sm font-black uppercase text-[#04130F] transition-colors hover:bg-[var(--terminal-accent-strong)]"
               >
-                {t("Mở trang đầy đủ trên TCBS", "Open full page on TCBS")}
+                {t("Tìm kiếm đầy đủ trên Google", "Search full info on Google")}
               </button>
             </div>
           )}
