@@ -93,6 +93,8 @@ class ForeignTrade:
 class ForeignData:
     symbol: str
     foreign_ratio: float = 0
+    institutional_ratio: float = 0
+    management_ratio: float = 0
     recent_trades: list[ForeignTrade] = field(default_factory=list)
     source: str = ""
     source_url: str = ""
@@ -103,6 +105,8 @@ class ForeignData:
         return {
             "symbol": self.symbol,
             "foreignRatio": self.foreign_ratio,
+            "institutionalRatio": self.institutional_ratio,
+            "managementRatio": self.management_ratio,
             "recentTrades": [asdict(t) for t in self.recent_trades],
             "source": self.source,
             "sourceUrl": self.source_url,

@@ -53,6 +53,8 @@ interface DividendsData {
 
 interface ForeignInfo {
   foreignRatio: number;
+  institutionalRatio: number;
+  managementRatio: number;
   recentTrades: { date: string; buyVol: number; sellVol: number }[];
   source: string;
   fetchedAt: string;
@@ -185,7 +187,7 @@ export function StockLookupModal({
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: "overview", label: t("Tổng quan", "Overview") },
-    { key: "reports", label: "BCTC" },
+    { key: "reports", label: t("Báo cáo", "Reports") },
     { key: "dividends", label: t("Cổ tức", "Dividends") },
     { key: "foreign", label: t("Nước ngoài", "Foreign") },
     { key: "chart", label: t("Biểu đồ", "Chart") },
@@ -308,43 +310,58 @@ function OverviewTab({ profile, t }: { profile: ProfileData | null; t: (vn: stri
 type MetaInfo = { source: string; fetchedAt: string; stale: boolean } | null;
 
 function ReportsTab({ reports, meta, t }: { reports: ReportItem[]; meta: MetaInfo; t: (vn: string, en: string) => string }) {
-  if (!reports.length) return <EmptyState text={t("Chưa có báo cáo tài chính", "No financial reports")} />;
   return (
-    <div className="space-y-2">
-      {reports.map((r, i) => (
-        <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2.5">
-          <div>
-            <span className="font-mono text-xs font-bold text-[var(--foreground)]">{r.period}</span>
-            <span className="ml-2 text-[10px] text-[var(--muted)]">{r.type}</span>
+    <div className="space-y-4">
+      {/* Báo cáo tài chính */}
+      <div>
+        <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--muted)]">
+          {t("Báo cáo tài chính", "Financial Reports")}
+        </h3>
+        {reports.length === 0 ? (
+          <EmptyState text={t("Chưa có báo cáo tài chính", "No financial reports")} />
+        ) : (
+          <div className="space-y-2">
+            {reports.map((r, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2.5">
+                <div>
+                  <span className="font-mono text-xs font-bold text-[var(--foreground)]">{r.period}</span>
+                  <span className="ml-2 text-[10px] text-[var(--muted)]">{r.type}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {r.pdfUrl && (
+                    <>
+                      <a href={r.pdfUrl} target="_blank" rel="noopener noreferrer"
+                        className="rounded-md bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[10px] font-bold text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/20">
+                        PDF
+                      </a>
+                      <a href={r.pdfUrl} download target="_blank" rel="noopener noreferrer"
+                        className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[10px] font-bold text-[var(--muted)] hover:text-[var(--foreground)]"
+                        title={t("Tải xuống", "Download")}>
+                        <svg className="h-3 w-3 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </a>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="flex items-center gap-1.5">
-            {r.pdfUrl && (
-              <>
-                <a
-                  href={r.pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-md bg-[var(--terminal-accent)]/10 px-2.5 py-1 font-mono text-[10px] font-bold text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/20"
-                >
-                  PDF
-                </a>
-                <a
-                  href={r.pdfUrl}
-                  download
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[10px] font-bold text-[var(--muted)] hover:text-[var(--foreground)]"
-                  title={t("Tải xuống", "Download")}
-                >
-                  <svg className="h-3 w-3 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </a>
-              </>
-            )}
-          </div>
+        )}
+      </div>
+
+      {/* Chỉ tiêu tài chính */}
+      <div>
+        <h3 className="mb-2 text-[11px] font-bold uppercase tracking-wide text-[var(--muted)]">
+          {t("Chỉ tiêu tài chính", "Financial Indicators")}
+        </h3>
+        <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4 text-center">
+          <p className="text-xs text-[var(--muted)]">
+            {t("Đang phát triển — dữ liệu sẽ được cập nhật từ BCTC", "Coming soon — data will be extracted from financial reports")}
+          </p>
         </div>
-      ))}
+      </div>
+
       {meta && (
-        <p className="text-[10px] text-[var(--muted)] pt-1">
+        <p className="text-[10px] text-[var(--muted)]">
           {t("Nguồn", "Source")}: {meta.source} | {t("Cập nhật", "Updated")}: {new Date(meta.fetchedAt).toLocaleDateString("vi-VN")}
           {meta.stale && <span className="ml-1 text-[var(--terminal-warning)]">({t("cũ", "stale")})</span>}
         </p>
@@ -390,62 +407,61 @@ function DividendsTab({ dividends, meta, t }: { dividends: DividendItem[]; meta:
 }
 
 function ForeignTab({ foreign, t }: { foreign: ForeignInfo | null; t: (vn: string, en: string) => string }) {
-  if (!foreign) return <EmptyState text={t("Chưa có dữ liệu sở hữu nước ngoài", "No foreign ownership data")} />;
-  const pct = foreign.foreignRatio || 0;
-  const domestic = Math.max(100 - pct, 0);
-  const r = 80;
+  if (!foreign) return <EmptyState text={t("Chưa có dữ liệu sở hữu", "No ownership data")} />;
+
+  const segments = [
+    { label: t("Nước ngoài", "Foreign"), pct: foreign.foreignRatio || 0, color: "var(--terminal-accent)" },
+    { label: t("Tổ chức", "Institutional"), pct: foreign.institutionalRatio || 0, color: "var(--terminal-warning)" },
+    { label: t("Ban lãnh đạo", "Management"), pct: foreign.managementRatio || 0, color: "#6366f1" },
+  ];
+  const other = Math.max(0, 100 - segments.reduce((s, x) => s + x.pct, 0));
+  const all = [...segments, { label: t("Khác", "Others"), pct: other, color: "var(--muted)" }];
+
+  const r = 70;
   const circ = 2 * Math.PI * r;
-  const strokeW = 16;
-  const foreignLen = (pct / 100) * circ;
-  const domesticLen = circ - foreignLen;
+  const strokeW = 14;
+  let offset = 0;
 
   return (
     <div className="space-y-4">
-      {/* Donut chart */}
       <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-5">
-        <h3 className="mb-3 text-center text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
+        <h3 className="mb-4 text-center text-xs font-bold uppercase tracking-wide text-[var(--muted)]">
           {t("Cơ cấu sở hữu", "Ownership Structure")}
         </h3>
-        <div className="flex items-center justify-center gap-8">
-          {/* SVG Donut */}
-          <svg width={200} height={200} viewBox="0 0 200 200" className="shrink-0">
-            <circle cx={100} cy={100} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
-            {/* Foreign */}
-            <circle
-              cx={100} cy={100} r={r} fill="none"
-              stroke="var(--terminal-accent)" strokeWidth={strokeW}
-              strokeDasharray={`${foreignLen} ${circ}`}
-              strokeLinecap="round"
-              transform="rotate(-90 100 100)"
-            />
-            {/* Domestic */}
-            <circle
-              cx={100} cy={100} r={r} fill="none"
-              stroke="var(--muted)" strokeWidth={strokeW}
-              strokeDasharray={`${domesticLen} ${circ}`}
-              strokeDashoffset={-foreignLen}
-              strokeLinecap="round"
-              transform="rotate(-90 100 100)"
-            />
-            <text x={100} y={95} textAnchor="middle" fill="var(--terminal-accent)" fontSize="24" fontWeight="900" fontFamily="monospace">
-              {pct.toFixed(1)}%
-            </text>
-            <text x={100} y={115} textAnchor="middle" fill="var(--muted)" fontSize="11" fontWeight="600" fontFamily="monospace">
-              {t("Nước ngoài", "Foreign")}
-            </text>
+        <div className="flex flex-wrap items-center justify-center gap-6">
+          <svg width={180} height={180} viewBox="0 0 180 180" className="shrink-0">
+            <circle cx={90} cy={90} r={r} fill="none" stroke="var(--surface)" strokeWidth={strokeW} />
+            {all.map((seg, i) => {
+              const len = (seg.pct / 100) * circ;
+              const dash = `${len} ${circ - len}`;
+              const el = (
+                <circle
+                  key={i}
+                  cx={90} cy={90} r={r} fill="none"
+                  stroke={seg.color} strokeWidth={strokeW}
+                  strokeDasharray={dash}
+                  strokeDashoffset={-offset}
+                  strokeLinecap="round"
+                  transform="rotate(-90 90 90)"
+                />
+              );
+              offset += len;
+              return el;
+            })}
+            {all.filter(s => s.pct > 0).length === 1 && all[0].pct > 0 && (
+              <text x={90} y={86} textAnchor="middle" fill={all[0].color} fontSize="22" fontWeight="900" fontFamily="monospace">
+                {all[0].pct.toFixed(1)}%
+              </text>
+            )}
           </svg>
-          {/* Legend */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[var(--terminal-accent)]" />
-              <span className="text-xs text-[var(--muted)]">{t("Nước ngoài", "Foreign")}</span>
-              <span className="font-mono text-sm font-bold text-[var(--terminal-accent)]">{pct.toFixed(1)}%</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="h-3 w-3 rounded-full bg-[var(--muted)]" />
-              <span className="text-xs text-[var(--muted)]">{t("Trong nước", "Domestic")}</span>
-              <span className="font-mono text-sm font-bold text-[var(--foreground)]">{domestic.toFixed(1)}%</span>
-            </div>
+          <div className="space-y-2">
+            {all.map((seg, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: seg.color }} />
+                <span className="text-[11px] text-[var(--muted)] min-w-[80px]">{seg.label}</span>
+                <span className="font-mono text-xs font-bold text-[var(--foreground)] tabular-nums">{seg.pct.toFixed(1)}%</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
