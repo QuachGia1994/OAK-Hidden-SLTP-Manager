@@ -1508,7 +1508,7 @@ def calculate_slot_signal(broker_dt, hour):
         if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
             final_signal = reverse_signal(final_signal)
             report += f" [Special day -> đảo lại ({final_signal})]"
-        # Special day 2: H=6 đảo thêm khi Thứ 6 là special day 2 (2nd/3rd Fri)
+        # Special day 2: H=6 đảo thêm khi Thứ 4/6 là special day 2
         if broker_dt is not None and is_special_day_2(broker_dt):
             final_signal = reverse_signal(final_signal)
             report += f" [Special day 2 -> đảo lại ({final_signal})]"
