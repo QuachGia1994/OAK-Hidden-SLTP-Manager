@@ -116,14 +116,70 @@ def is_post_special_monday(broker_dt):
     return is_special_day(broker_dt - timedelta(days=4))
 
 
+def _first_friday_of_month(year, month):
+    """Return the day number of the first Friday in a given month."""
+    for day in range(1, 8):
+        if datetime(year, month, day).weekday() == 4:
+            return day
+    return None
+
+
+def _last_friday_of_month(year, month):
+    """Return the day number of the last Friday in a given month."""
+    first = _first_friday_of_month(year, month)
+    if first is None:
+        return None
+    d = first
+    while True:
+        next_d = d + 7
+        try:
+            datetime(year, month, next_d)
+            d = next_d
+        except ValueError:
+            return d
+
+
+def _is_in_restricted_calendar_period(dt):
+    """Check whether *dt* falls in the month-end restricted period.
+
+    The restricted period spans from the Tuesday of the week containing
+    the last Friday of month M (= last_friday - 3) through the Monday
+    immediately after the first Friday of month M+1 (= first_friday + 3).
+    Both endpoints are inclusive.
+    """
+    if dt is None:
+        return False
+    d = dt.date() if hasattr(dt, "date") and callable(dt.date) else dt
+
+    for src_year, src_month in ((d.year - 1, 12) if d.month == 1 else (d.year, d.month - 1), (d.year, d.month)):
+        last_fri_day = _last_friday_of_month(src_year, src_month)
+        if last_fri_day is None:
+            continue
+        start_day = last_fri_day - 3  # Tue of the week containing last Fri
+        if start_day < 1:
+            continue
+        tgt_year, tgt_month = (src_year + 1, 1) if src_month == 12 else (src_year, src_month + 1)
+        first_fri_day = _first_friday_of_month(tgt_year, tgt_month)
+        if first_fri_day is None:
+            continue
+        start = datetime(src_year, src_month, start_day).date()
+        end = datetime(tgt_year, tgt_month, first_fri_day + 3).date()  # Mon after Fri
+        if start <= d <= end:
+            return True
+    return False
+
+
 def is_slot_suppressed(broker_dt, slot):
-    return slot in (12, 14, 16) and (
-        is_special_day(broker_dt) or is_post_special_monday(broker_dt)
-    )
+    return False
 
 
 def is_deactivated_slot(broker_dt, slot):
-    return slot in (4, 5) or (slot == 3 and broker_dt.weekday() == 3)
+    if slot in (4, 5) or (slot == 3 and broker_dt.weekday() == 3):
+        return True
+    # Restricted calendar period: H=12 and H=16 are DO NOT ENTER
+    if slot in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
+        return True
+    return False
 
 
 def _delivery_key(broker_dt, slot):

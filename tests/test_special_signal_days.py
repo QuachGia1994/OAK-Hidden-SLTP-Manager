@@ -216,13 +216,43 @@ class SpecialDay2Tests(unittest.TestCase):
         self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 14)))  # 2nd Fri
         self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 21))) # 3rd Fri (4-Fri month)
 
-    def test_h12_not_suppressed_on_special_day_2(self) -> None:
-        """Special day 2 does NOT suppress H=12/14/16 — only regular special day does."""
+    def test_h12_not_suppressed_on_special_day_or_month_boundary(self) -> None:
+        """H=12 emits BUY/SELL on special days outside restricted period; deactivated inside restricted."""
+        # Aug 6 and Jul 30 fall in the restricted calendar period (Jul 28 → Aug 10)
+        # → H=12 is DO NOT ENTER (deactivated) during restricted period
+        restricted_days = [
+            datetime(2026, 8, 6, 12, 0),   # special Thu inside restricted
+            datetime(2026, 7, 30, 12, 0),   # month boundary inside restricted
+        ]
+        for broker_dt in restricted_days:
+            with self.subTest(day=broker_dt.date()):
+                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 12))
+
+        # Outside restricted period: H=12 still emits on special days
+        # Sep 24, 2026 (special Thu) is outside all restricted periods
+        non_restricted_special = datetime(2026, 9, 24, 12, 0)
+        with patch.object(
+            mt5_signal_bot,
+            "evaluate_4_m30_classification_before_hour",
+            return_value="SW",
+        ), patch.object(
+            mt5_signal_bot,
+            "_lookup_h4_signal_today",
+            return_value="BUY",
+        ), patch.object(
+            mt5_signal_bot,
+            "evaluate_classification_for_slot",
+            return_value=("SW", "detail", None),
+        ):
+            result = mt5_signal_bot.calculate_slot_signal(non_restricted_special, 12)
+            self.assertFalse(result.get("suppressed", False))
+            self.assertFalse(result.get("deactivated", False))
+
         # May 8 (2nd Friday, 5-Fri month) is special day 2 but NOT regular special day
         may_8 = datetime(2026, 5, 8)
         self.assertTrue(mt5_signal_bot.is_special_day_2(may_8))
         self.assertFalse(mt5_signal_bot.is_special_day(may_8))
-        # Aug 6 (Thu) is a regular special day — H=12 should be suppressed
+        # Aug 6 (Thu) is a regular special day — H=12 still emits signal
         aug_6 = datetime(2026, 8, 6)
         self.assertTrue(mt5_signal_bot.is_special_day(aug_6))
         # Aug 14 (2nd Fri, 4-Fri month) is special day 2 but NOT regular special day

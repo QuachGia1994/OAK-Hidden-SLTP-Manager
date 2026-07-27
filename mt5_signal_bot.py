@@ -936,6 +936,52 @@ def _first_friday_of_month(year, month):
     return None
 
 
+def _last_friday_of_month(year, month):
+    """Return the day number of the last Friday in a given month."""
+    first = _first_friday_of_month(year, month)
+    if first is None:
+        return None
+    d = first
+    while True:
+        next_d = d + 7
+        try:
+            datetime(year, month, next_d)
+            d = next_d
+        except ValueError:
+            return d
+
+
+def _is_in_restricted_calendar_period(dt):
+    """Check whether *dt* falls in the month-end restricted period.
+
+    The restricted period spans from the Tuesday of the week containing
+    the last Friday of month M (= last_friday - 3) through the Monday
+    immediately after the first Friday of month M+1 (= first_friday + 3).
+    Both endpoints are inclusive. A date can fall in up to two overlapping
+    restricted windows (prev→cur and cur→next), so we check both.
+    """
+    if dt is None:
+        return False
+    d = dt.date() if hasattr(dt, "date") and callable(dt.date) else dt
+
+    for src_year, src_month in ((d.year - 1, 12) if d.month == 1 else (d.year, d.month - 1), (d.year, d.month)):
+        last_fri_day = _last_friday_of_month(src_year, src_month)
+        if last_fri_day is None:
+            continue
+        start_day = last_fri_day - 3  # Tue of the week containing last Fri
+        if start_day < 1:
+            continue
+        tgt_year, tgt_month = (src_year + 1, 1) if src_month == 12 else (src_year, src_month + 1)
+        first_fri_day = _first_friday_of_month(tgt_year, tgt_month)
+        if first_fri_day is None:
+            continue
+        start = datetime(src_year, src_month, start_day).date()
+        end = datetime(tgt_year, tgt_month, first_fri_day + 3).date()  # Mon after Fri
+        if start <= d <= end:
+            return True
+    return False
+
+
 def _count_fridays_in_month(year, month):
     """Count how many Fridays fall in a given month."""
     first = _first_friday_of_month(year, month)
@@ -1369,6 +1415,9 @@ def is_deactivated_signal_slot(broker_dt, hour):
         return True
     # H=16 on Thursday (Thứ 5): always deactivated (DO NOT ENTER)
     if h == 16 and broker_dt.weekday() == 3:
+        return True
+    # Restricted calendar period: H=12 and H=16 are DO NOT ENTER
+    if h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
         return True
     return False
 
@@ -1833,11 +1882,17 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
         signal_data.get("deactivated") or is_deactivated_signal_slot(broker_dt, H)
     )
     if deactivated:
-        reason = (
-            "SLOT TRUNG GIAN CHỈ DÙNG ĐỂ TÍNH TOÁN"
-            if int(H) in (4, 5)
-            else "H=3 THỨ NĂM CHỈ DÙNG ĐỂ ĐỐI CHIẾU"
-        )
+        h = int(H)
+        if h in (4, 5):
+            reason = "SLOT TRUNG GIAN CHỈ DÙNG ĐỂ TÍNH TOÁN"
+        elif h == 3 and broker_dt.weekday() == 3:
+            reason = "H=3 THỨ NĂM CHỈ DÙNG ĐỂ ĐỐI CHIẾU"
+        elif h == 16 and broker_dt.weekday() == 3:
+            reason = "H=16 THỨ NĂM: DEACTIVATED (DO NOT ENTER)"
+        elif h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
+            reason = f"H={h} GIAI HẠN CUỘI THÁNG: DEACTIVATED (DO NOT ENTER)"
+        else:
+            reason = "SLOT DEACTIVATED"
         send_telegram(
             f"⛔ H={H} — KHÔNG VÀO LỆNH\n"
             "============================\n"
