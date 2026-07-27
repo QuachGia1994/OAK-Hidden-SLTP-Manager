@@ -113,7 +113,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 45
+SIGNAL_LOGIC_VERSION = 46
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1410,6 +1410,9 @@ def is_deactivated_signal_slot(broker_dt, hour):
     # H=16 on Thursday (Thứ 5): always deactivated (DO NOT ENTER)
     if h == 16 and broker_dt.weekday() == 3:
         return True
+    # H=16 on Monday (Thứ 2): always deactivated (DO NOT ENTER)
+    if h == 16 and broker_dt.weekday() == 0:
+        return True
     # Restricted calendar period: H=12 and H=16 are DO NOT ENTER
     if h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
         return True
@@ -1883,6 +1886,8 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             reason = "H=3 THỨ NĂM CHỈ DÙNG ĐỂ ĐỐI CHIẾU"
         elif h == 16 and broker_dt.weekday() == 3:
             reason = "H=16 THỨ NĂM: DEACTIVATED (DO NOT ENTER)"
+        elif h == 16 and broker_dt.weekday() == 0:
+            reason = "H=16 THỨ 2: DEACTIVATED (DO NOT ENTER)"
         elif h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
             reason = f"H={h} GIAI HẠN CUỘI THÁNG: DEACTIVATED (DO NOT ENTER)"
         else:

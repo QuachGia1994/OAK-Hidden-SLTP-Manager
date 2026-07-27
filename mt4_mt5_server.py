@@ -178,6 +178,9 @@ def is_deactivated_slot(broker_dt, slot):
     # Thursday H=16: always deactivated (DO NOT ENTER)
     if slot == 16 and broker_dt.weekday() == 3:
         return True
+    # Monday H=16: always deactivated (DO NOT ENTER)
+    if slot == 16 and broker_dt.weekday() == 0:
+        return True
     # Restricted calendar period: H=12 and H=16 are DO NOT ENTER
     if slot in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
         return True
