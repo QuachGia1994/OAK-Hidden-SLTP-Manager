@@ -614,7 +614,6 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     notes_vn = [
-        "Slots: H=3,4,5,6,12,16.",
         "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
         "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai "
         "và luôn deactivated.",
@@ -624,7 +623,6 @@ def get_day_notes(now, lang="VN"):
         "H16: so sánh H6↔H12 — opposite → follow H6, same → reverse H6. Phát ngay sau H=12.",
     ]
     notes_en = [
-        "Slots: H=3,4,5,6,12,16.",
         "Broker publication: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
         "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3 "
         "and is always deactivated.",
