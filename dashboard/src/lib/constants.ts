@@ -137,22 +137,18 @@ type RuleLocale = "VN" | "EN";
 
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "Slots: H=3,4,5,6,12,16.",
-    "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
-    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H12 12:11; H16 16:11/16:49.",
-    "H3 luôn deactivated vào mọi Thứ Năm; H4/H5 luôn deactivated và chỉ dùng làm dependency trung gian.",
-    "H6 đảo H=3, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
-    "H12 đảo H=4, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
-    "H16 so sánh H6↔H12: opposite → follow H6, same → reverse H6.",
+    "H3: XAUUSD đảo H5 hôm qua; Thứ Năm dùng lại H3 Thứ Hai, luôn deactivated.",
+    "H4/H5: pattern M5/M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
+    "H6: đảo H=3, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
+    "H12: đảo H=4, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
+    "H16: so sánh H6↔H12 — opposite → follow H6, same → reverse H6. Phát ngay sau H=12.",
   ],
   EN: [
-    "Slots: H=3,4,5,6,12,16.",
-    "Broker signal times: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
-    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H12 12:11; H16 16:11/16:49.",
-    "H3 is always deactivated every Thursday; H4/H5 are always deactivated and intermediate-only.",
-    "H6 reverses H3, then applies four-H1 group (BT→reverse again, SW→keep).",
-    "H12 reverses H4, then applies four-H1 group (BT→reverse again, SW→keep).",
-    "H16 compares H6↔H12: opposite → follow H6, same → reverse H6.",
+    "H3: reverses previous day's H5; Thursday reuses Monday H3, always deactivated.",
+    "H4/H5: M5/M30 pattern; always deactivated and intermediate-only.",
+    "H6: reverses H3, then applies four-H1 group (BT→reverse again, SW→keep).",
+    "H12: reverses H4, then applies four-H1 group (BT→reverse again, SW→keep).",
+    "H16: compares H6↔H12 — opposite → follow H6, same → reverse H6. Emitted right after H=12.",
   ],
 };
 
@@ -165,17 +161,7 @@ export function getDayRules(
   const weekday = typeof arg1 === "number" ? arg1 : typeof arg2 === "number" ? arg2 : 1;
   if (weekday === 0 || weekday === 6) return [];
 
-  const rules = [...CORE_RULES[locale]];
-  if (weekday === 1 || weekday === 5) {
-    rules.push(locale === "EN"
-      ? "Normal Monday/Friday: BT selects H12 priority."
-      : "Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority.");
-  } else {
-    rules.push(locale === "EN"
-      ? "Normal Tuesday/Wednesday/Thursday: SW selects H12 priority."
-      : "Ngày thường Thứ Ba/Thứ Tư/Thứ Năm: SW → H12 priority.");
-  }
-  return rules;
+  return [...CORE_RULES[locale]];
 }
 
 export function getSignalColor(signal: string): string {
