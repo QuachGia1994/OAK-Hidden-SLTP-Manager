@@ -984,30 +984,7 @@ def is_special_day_2(broker_dt):
 
 
 def is_month_boundary_suppress(broker_dt):
-    """Check if H=6/9/12/14/16 should be WAIT at month-boundary transition.
-
-    Rule:
-      Cuối tháng: Mon-Fri all suppress (last Fri week)
-      Đầu tháng: Mon-Tue-Wed suppress; Thu-Fri only when SD1
-      Mon-after: only when SD1 (post-special)
-    """
-    if broker_dt is None:
-        return False
-    wd = broker_dt.weekday()
-    if wd == 0:
-        # Mon-after special pair
-        if is_post_special_day(broker_dt):
-            return True
-        # Mon in last week of month (Fri of this week is last Fri)
-        fri = broker_dt + timedelta(days=4)
-        if (fri + timedelta(days=7)).month != fri.month:
-            return True
-    if wd in (1, 2):
-        thu = broker_dt + timedelta(days=3 - wd)
-        if is_special_day(thu):
-            return True
-    if wd in (3, 4) and is_special_day(broker_dt):
-        return True
+    """Disabled — month boundary suppression removed. XAUUSD always uses normal signal."""
     return False
 
 
@@ -1100,11 +1077,6 @@ def _lookup_signal_from_log(broker_dt, hour):
                     sig = record.get("signal")
                     if sig in ("BUY", "SELL"):
                         return sig
-                    # Month-boundary fallback: use pattern_signal when signal is WAIT
-                    if sig == "WAIT":
-                        pat = record.get("pattern_signal")
-                        if pat in ("BUY", "SELL"):
-                            return pat
     except Exception as e:
         print(f"[WARN] Cannot lookup H={hour} for {date_str}: {e}")
     return None
@@ -1525,11 +1497,6 @@ def calculate_slot_signal(broker_dt, hour):
         #     final_signal = reverse_signal(final_signal)
         #     report += f" [Special day 2 -> đảo lại ({final_signal})]"
         result = {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        # Month-boundary: XAUUSD = WAIT, keep priority/entry
-        if is_month_boundary_suppress(broker_dt):
-            result["signal"] = "WAIT"
-            result["report"] += " [XAUUSD = WAIT (month boundary)]"
-            result["suppressed"] = True
         return result
     # H=9: same XAU branch as H=6, plus GBP derived from H=3/H=5.
     if hour == 9:
@@ -1568,13 +1535,6 @@ def calculate_slot_signal(broker_dt, hour):
             "h1_signal": None,
             "skip_xau_m30": True,
         }
-        # Month-boundary: XAUUSD = WAIT, keep GBP/priority
-        if is_month_boundary_suppress(broker_dt):
-            result["signal"] = "WAIT"
-            result["xau_signal"] = "WAIT"
-            result["pair_dirs"]["XAUUSD"] = "WAIT"
-            result["report"] += " [XAUUSD = WAIT (month boundary)]"
-            result["suppressed"] = True
         return result
     # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback
     if hour == 12:
@@ -1595,12 +1555,7 @@ def calculate_slot_signal(broker_dt, hour):
             report = f"H={hour}: đảo H=4 ({h4_signal} -> {reverse_signal(h4_signal)}), BT({detail}) -> đảo lại ({final_signal})."
         else:
             report = f"H={hour}: đảo H=4 ({h4_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
-        result = {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        if is_month_boundary_suppress(broker_dt):
-            result["signal"] = "WAIT"
-            result["report"] += " [XAUUSD = WAIT (month boundary)]"
-            result["suppressed"] = True
-        return result
+        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
     # H=14: XAUUSD = same as H=12 (special Thursday + reverse H=4 + 4H1 lookback)
     if hour == 14:
         entry_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
@@ -1627,13 +1582,7 @@ def calculate_slot_signal(broker_dt, hour):
         if gbpaud != "WAIT":
             pair_dirs["GBPAUD"] = gbpaud
         report = f"H=14: XAU={final_signal}, GBPUSD={gbpusd}, GBPAUD={gbpaud}"
-        result = {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
-        if is_month_boundary_suppress(broker_dt):
-            result["signal"] = "WAIT"
-            result["pair_dirs"]["XAUUSD"] = "WAIT"
-            result["report"] += " [XAUUSD = WAIT (month boundary)]"
-            result["suppressed"] = True
-        return result
+        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
     # H=16: H6 priority pairs H6↔H12; H9 priority pairs H9↔H14.
     if hour == 16:
         group_h6 = evaluate_4_m30_classification_before_hour(broker_dt, 6)
@@ -1654,7 +1603,7 @@ def calculate_slot_signal(broker_dt, hour):
 
         final_signal = _apply_weekday_extra_inversion(16, final_signal, broker_dt)
         report = f"H=16: H={left_hour}={left_signal}, H={right_hour}={right_signal} ({relation}) -> {final_signal}"
-        result = {
+        return {
             "signal": final_signal,
             "pattern_signal": left_signal,
             "report": report,
@@ -1663,12 +1612,6 @@ def calculate_slot_signal(broker_dt, hour):
             "skip_xau_m30": True,
             "pair_dirs": {"XAUUSD": final_signal},
         }
-        if is_month_boundary_suppress(broker_dt):
-            result["signal"] = "WAIT"
-            result["pair_dirs"]["XAUUSD"] = "WAIT"
-            result["report"] += " [XAUUSD = WAIT (month boundary)]"
-            result["suppressed"] = True
-        return result
 
     result = _finalize_pattern_result(analyze(broker_dt, hour), broker_dt, hour)
     if is_deactivated_signal_slot(broker_dt, hour):
@@ -1812,13 +1755,14 @@ def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
     elif xau is None:
         pass
 
-    for gbp_pair in GBP_PAIRS:
-        gbp_dir = (pair_dirs or {}).get(gbp_pair)
-        if gbp_dir in ("BUY", "SELL"):
-            g_icon, _ = get_signal_icon(gbp_dir)
-            lines.append(f"  {gbp_pair}: {g_icon} {gbp_dir}")
-        elif gbp_dir == "WAIT":
-            lines.append(f"  {gbp_pair}: ⏳ WAIT")
+    # GBP pairs hidden from Telegram display (user decision: only track XAUUSD)
+    # for gbp_pair in GBP_PAIRS:
+    #     gbp_dir = (pair_dirs or {}).get(gbp_pair)
+    #     if gbp_dir in ("BUY", "SELL"):
+    #         g_icon, _ = get_signal_icon(gbp_dir)
+    #         lines.append(f"  {gbp_pair}: {g_icon} {gbp_dir}")
+    #     elif gbp_dir == "WAIT":
+    #         lines.append(f"  {gbp_pair}: ⏳ WAIT")
 
     d_direction = (pair_dirs or {}).get(D_DIRECTION_PAIR)
     # D-direction calculated but hidden from display (v3.16.5)
@@ -1964,22 +1908,18 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             f"⛔ H={H} — KHÔNG VÀO LỆNH\n"
             "============================\n"
             f"{reason}\n"
-            f"Phát: {signal_time} Broker | Entry tham chiếu: {entry_time} Broker\n"
+            f"Phát: {signal_time} Broker\n"
             "Signal đã được lưu ở trạng thái deactivated chỉ để đối chiếu.\n"
             "Không dùng bản ghi này để giao dịch."
         )
         return pair_dirs
     title = f"{emoji} Tín hiệu H={H} — {icon} {sig}"
     footer = "Chỉ tham khảo. Kỷ luật là sức mạnh!"
-    suppressed_note = ""
-    if signal_data.get("suppressed"):
-        suppressed_note = "⚠️ Month boundary — XAUUSD = WAIT, giữ nguyên Priority + Entry + GBP\n\n"
     msg = (
         f"{title}\n"
         f"============================\n"
-        f"Phát: {signal_time} Broker | Entry: {entry_time} Broker\n"
+        f"Phát: {signal_time} Broker\n"
         f"============================\n\n"
-        f"{suppressed_note}"
         f"{report}\n\n"
         f"KẾT LUẬN (XAUUSD): {icon} {sig}\n"
         f"-------------------\n{pair_text}\n-------------------\n"
@@ -2364,21 +2304,15 @@ def _process_live_slot(broker_dt, hour):
         return False
 
     result = calculate_slot_signal(broker_dt, hour)
-    suppressed = bool(result.get("suppressed"))
-    if suppressed:
-        print(f"  [SUPPRESSED] H={hour} - XAUUSD=WAIT (month boundary), sending report")
     signal = result.get("signal")
-    if not suppressed and (signal not in ("BUY", "SELL") or not entry_time):
+    if signal not in ("BUY", "SELL") or not entry_time:
         print(f"  [RETRY] H={hour} - {result.get('report', 'incomplete data')}")
         return False
 
     pair_dirs = get_pair_direction(hour, signal, broker_dt, full_result=result)
     if not pair_dirs:
-        if suppressed:
-            pair_dirs = {"XAUUSD": "WAIT"}
-        else:
-            print(f"  [RETRY] H={hour} - no pair directions")
-            return False
+        print(f"  [RETRY] H={hour} - no pair directions")
+        return False
     hour_note = get_hour_note(hour, broker_dt=broker_dt)
     log_signal(
         hour,
@@ -2392,11 +2326,10 @@ def _process_live_slot(broker_dt, hour):
     )
     push_to_dashboard()
     reported_pairs = send_report(result, hour, broker_dt)
-    if not suppressed:
-        _remember_daily_direction(hour, broker_dt, signal, result, reported_pairs)
+    _remember_daily_direction(hour, broker_dt, signal, result, reported_pairs)
     sent_today.add(key)
     _save_state(day_signals, sent_today)
-    print(f"  [SENT] H={hour} signal={signal} entry={entry_time}{' (XAUUSD=WAIT)' if suppressed else ''}")
+    print(f"  [SENT] H={hour} signal={signal} entry={entry_time}")
     return True
 
 
