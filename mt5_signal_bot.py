@@ -113,7 +113,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 43
+SIGNAL_LOGIC_VERSION = 44
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1003,9 +1003,8 @@ def is_special_day_2(broker_dt):
     """Check if today is a 'ngày đặc biệt 2' Friday or the Wednesday before it.
 
     Rule:
-    - Months with 5 Fridays: 2nd and 3rd Friday (excluding 1st) are special day 2
-    - Months with 4 Fridays: only 2nd Friday (excluding 1st) is special day 2
-    - 1st Friday is NEVER a special day 2
+    - Months with 5 Fridays: 1st, 2nd and 3rd Friday are special day 2
+    - Months with 4 Fridays: 1st and 2nd Friday are special day 2
     - Wednesday (wd=2) immediately before a special_day_2 Friday is also special_day_2
     """
     if broker_dt is None:
@@ -1030,13 +1029,11 @@ def _is_friday_special_day_2(friday_dt):
     if first is None:
         return False
     nth = (dt.day - first) // 7 + 1
-    if nth == 1:
-        return False
     total = _count_fridays_in_month(dt.year, dt.month)
     if total >= 5:
-        return nth in (2, 3)
+        return nth in (1, 2, 3)
     else:
-        return nth == 2
+        return nth in (1, 2)
 
 
 def is_month_boundary_suppress(broker_dt):

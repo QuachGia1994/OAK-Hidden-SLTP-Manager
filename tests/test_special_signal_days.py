@@ -148,14 +148,14 @@ class SpecialSignalDayTests(unittest.TestCase):
 
 
 class SpecialDay2Tests(unittest.TestCase):
-    """Test 'ngày đặc biệt 2' logic: 2nd/3rd Fri in 5-Fri months, 2nd Fri in 4-Fri months."""
+    """Test 'ngày đặc biệt 2' logic: 1st/2nd/3rd Fri in 5-Fri months, 1st/2nd Fri in 4-Fri months."""
 
     def test_5_friday_month_first_on_day_1(self) -> None:
         # May 2026: starts on Friday → Fri = 1, 8, 15, 22, 29 (5 Fridays)
-        # Special day 2 = 2nd (8) + 3rd (15)
+        # Special day 2 = 1st (1) + 2nd (8) + 3rd (15)
+        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 5, 1)))   # 1st Fri
         self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 5, 8)))   # 2nd Fri
         self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 5, 15)))  # 3rd Fri
-        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 5, 1)))  # 1st Fri
         self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 5, 22))) # 4th Fri
         self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 5, 29))) # 5th Fri
 
@@ -182,26 +182,30 @@ class SpecialDay2Tests(unittest.TestCase):
 
     def test_4_friday_month(self) -> None:
         # February 2026: starts on Sunday → Fri = 6,13,20,27 (4 Fridays)
-        # Special day 2 = only 2nd Fri (13)
+        # Special day 2 = 1st (6) + 2nd (13)
+        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 2, 6)))   # 1st Fri
         self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 2, 13)))  # 2nd Fri
-        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 2, 6)))  # 1st Fri
         self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 2, 20))) # 3rd Fri
         self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 2, 27))) # 4th Fri
 
-    def test_non_friday_is_never_special_day_2(self) -> None:
-        for wd in range(4):  # Monday through Thursday
-            dt = datetime(2026, 8, 3 + wd)  # Mon Aug 3, Tue 4, Wed 5, Thu 6
+    def test_non_friday_non_wednesday_is_never_special_day_2(self) -> None:
+        # Monday and Tuesday are never special_day_2
+        for wd in range(2):  # Monday (0) and Tuesday (1)
+            dt = datetime(2026, 8, 3 + wd)  # Mon Aug 3, Tue 4
             with self.subTest(day=dt.date()):
                 self.assertFalse(mt5_signal_bot.is_special_day_2(dt))
+        # Wednesday before a special_day_2 Friday IS special_day_2
+        wed_before_1st_sd2 = datetime(2026, 8, 5)  # Wed before 1st Fri Aug 7
+        self.assertTrue(mt5_signal_bot.is_special_day_2(wed_before_1st_sd2))
 
     def test_5_friday_month_first_on_day_2(self) -> None:
         # January 2026: starts Thursday → first Fri = 2, Fri = 2,9,16,23,30 (5 Fridays)
-        # Special day 2 = 2nd (9) + 3rd (16)
-        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 9)))
-        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 16)))
-        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 2)))
-        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 23)))
-        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 30)))
+        # Special day 2 = 1st (2) + 2nd (9) + 3rd (16)
+        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 2)))   # 1st Fri
+        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 9)))   # 2nd Fri
+        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 16)))  # 3rd Fri
+        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 23))) # 4th Fri
+        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2026, 1, 30))) # 5th Fri
 
     def test_5_friday_month_first_on_day_7(self) -> None:
         # December 2026: starts on Tuesday → first Fri = 5, Fri = 5,12,19,26 — only 4 Fridays
@@ -218,7 +222,8 @@ class SpecialDay2Tests(unittest.TestCase):
         # For first Fri = 7: month starting Saturday, 7 is first Fri
         # June 2025: starts on Sunday → first Fri = 6
         # March 2025: starts on Saturday → first Fri = 7! Fri = 7,14,21,28 (4 Fridays)
-        self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 7)))  # 1st Fri
+        # Special day 2 = 1st (7) + 2nd (14)
+        self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 7)))   # 1st Fri
         self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 14)))  # 2nd Fri
         self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 21))) # 3rd Fri (4-Fri month)
 
