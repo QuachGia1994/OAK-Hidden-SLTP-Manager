@@ -113,7 +113,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 44
+SIGNAL_LOGIC_VERSION = 45
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -903,29 +903,26 @@ def _is_raw_special_day(target_date):
 
 
 def is_special_day(broker_dt):
-    """Return whether this Broker Thursday/Friday belongs to a special pair."""
-    if broker_dt is None or broker_dt.weekday() not in (3, 4):
+    """Return whether this Broker Thursday belongs to a special Thu/Fri pair."""
+    if broker_dt is None or broker_dt.weekday() != 3:
         return False
-    target_date = broker_dt.date()
-    thursday = target_date if target_date.weekday() == 3 else target_date - timedelta(days=1)
+    thursday = broker_dt.date()
     friday = thursday + timedelta(days=1)
     if thursday.year != friday.year:
         return False
     return _is_raw_special_day(thursday) or _is_raw_special_day(friday)
 
 def is_post_special_day(broker_dt):
-    """Check if today is Monday after a special Thu/Fri."""
+    """Check if today is Monday after a special Thursday."""
     if broker_dt is None:
         return False
     wd = broker_dt.weekday()
     dt = broker_dt.date()
     if wd != 0:
         return False
-    prev_thu = dt - timedelta(days=3)
-    prev_fri = dt - timedelta(days=2)
+    prev_thu = dt - timedelta(days=4)
     thu_dt = datetime(prev_thu.year, prev_thu.month, prev_thu.day, tzinfo=broker_dt.tzinfo)
-    fri_dt = datetime(prev_fri.year, prev_fri.month, prev_fri.day, tzinfo=broker_dt.tzinfo)
-    return is_special_day(thu_dt) or is_special_day(fri_dt)
+    return is_special_day(thu_dt)
 
 
 def _first_friday_of_month(year, month):
@@ -1550,8 +1547,8 @@ def calculate_slot_signal(broker_dt, hour):
             report = f"H=6: đảo H=3 ({h3_signal} -> {reverse_signal(h3_signal)}), BT({detail}) -> đảo lại ({final_signal})."
         else:
             report = f"H=6: đảo H=3 ({h3_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
-        # Special day: H=6 đảo thêm khi Thứ 5/6 là special day
-        if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
+        # Special day: H=6 đảo thêm khi Thứ 5 là special day (only Thursday)
+        if broker_dt is not None and is_special_day(broker_dt):
             final_signal = reverse_signal(final_signal)
             report += f" [Special day -> đảo lại ({final_signal})]"
         # Special day 2: H=6 đảo thêm khi Thứ 4/6 là special day 2

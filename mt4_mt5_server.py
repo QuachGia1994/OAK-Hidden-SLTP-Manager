@@ -99,11 +99,10 @@ def _is_raw_special_date(target_date):
 
 
 def is_special_day(broker_dt):
-    """Use the same Thu/Fri pair calendar as the signal bot."""
-    if broker_dt.weekday() not in (3, 4):
+    """Use the same Thursday-only special_day_1 calendar as the signal bot."""
+    if broker_dt.weekday() != 3:
         return False
-    target_date = broker_dt.date()
-    thursday = target_date if target_date.weekday() == 3 else target_date - timedelta(days=1)
+    thursday = broker_dt.date()
     friday = thursday + timedelta(days=1)
     if thursday.year != friday.year:
         return False
@@ -176,6 +175,9 @@ def is_slot_suppressed(broker_dt, slot):
 def is_deactivated_slot(broker_dt, slot):
     if slot in (4, 5) or (slot == 3 and broker_dt.weekday() == 3):
         return True
+    # Thursday H=16: always deactivated (DO NOT ENTER)
+    if slot == 16 and broker_dt.weekday() == 3:
+        return True
     # Restricted calendar period: H=12 and H=16 are DO NOT ENTER
     if slot in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
         return True
@@ -215,14 +217,12 @@ def _complete_delivery(key):
 
 def get_signal_time_for_slot(broker_dt, slot):
     """Return the publication clock for one active logical slot."""
-    clocks = {3: "03:00", 4: "04:45", 5: "05:45", 6: "06:00", 9: "09:00", 12: "12:00", 14: "14:00", 16: "16:00"}
-    if slot == 9 and is_special_day(broker_dt):
-        return "08:00"
+    clocks = {3: "03:00", 4: "04:45", 5: "05:45", 6: "06:00", 12: "12:00", 16: "16:00"}
     return clocks[slot]
 
 
 def get_schedule_note(broker_dt):
-    return "SPECIAL THU-FRI" if is_special_day(broker_dt) else "NORMAL"
+    return "SPECIAL THU" if is_special_day(broker_dt) else "NORMAL"
 
 # =====================================================================
 # MT5 CANDLE
