@@ -614,7 +614,6 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     notes_vn = [
-        "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
         "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai "
         "và luôn deactivated.",
         "H4/H5: pattern M5/M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
@@ -623,7 +622,6 @@ def get_day_notes(now, lang="VN"):
         "H16: so sánh H6↔H12 — opposite → follow H6, same → reverse H6. Phát ngay sau H=12.",
     ]
     notes_en = [
-        "Broker publication: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
         "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3 "
         "and is always deactivated.",
         "H4/H5: M5/M30 pattern; always deactivated and intermediate-only.",
@@ -631,23 +629,6 @@ def get_day_notes(now, lang="VN"):
         "H12: reverses H4, then applies four-H1 group (BT→reverse again, SW→keep).",
         "H16: compares H6↔H12 — opposite → follow H6, same → reverse H6. Emitted right after H=12.",
     ]
-
-    try:
-        from mt5_signal_bot import is_month_boundary_suppress, is_special_day_2
-        dt = now if isinstance(now, datetime) else datetime.combine(today, datetime.min.time())
-        suppress_late_slots = is_month_boundary_suppress(dt)
-        special_day_2 = is_special_day_2(dt)
-    except Exception:
-        suppress_late_slots = False
-        special_day_2 = False
-    # Month boundary disabled; no special priority for H9/H14 (removed).
-    # Special day 2 reversals disabled for H=6 and H=9 (user decision).
-    if weekday in (0, 4):
-        notes_vn.append("Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority.")
-        notes_en.append("Normal Monday/Friday: BT selects H12 priority.")
-    else:
-        notes_vn.append("Ngày thường Thứ Ba/Thứ Tư/Thứ Năm: SW → H12 priority.")
-        notes_en.append("Normal Tuesday/Wednesday/Thursday: SW selects H12 priority.")
 
     if lang == "VN":
         return notes_vn
