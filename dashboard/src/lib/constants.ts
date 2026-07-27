@@ -139,16 +139,16 @@ const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
     "H3: XAUUSD đảo H5 hôm qua; Thứ Năm dùng lại H3 Thứ Hai, luôn deactivated.",
     "H4/H5: pattern M5/M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
-    "H6: đảo H=3, áp dụng nhóm 4H1. Special day (Thứ 5/6) và Special day 2 (Thứ 6) đảo thêm.",
-    "H12: đảo H=4, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
-    "H16: so sánh H6↔H12 — opposite → follow H6, same → reverse H6. Phát ngay sau H=12.",
+    "H6: đảo H=3, áp dụng nhóm 4H1. Special day (Thứ 5/6) và Special day 2 (Thứ 4/6) đảo thêm.",
+    "H12: đảo H=4 + nhóm 4H1. Thứ 5: H=12 = đảo ngược H=16 Thứ 4 hôm qua.",
+    "H16: so sánh H6↔H12. Thứ 5: deactivated (DO NOT ENTER). Phát ngay sau H=12.",
   ],
   EN: [
     "H3: reverses previous day's H5; Thursday reuses Monday H3, always deactivated.",
     "H4/H5: M5/M30 pattern; always deactivated and intermediate-only.",
-    "H6: reverses H3, applies four-H1 group. Extra reversal on Special day (Thu/Fri) and Special day 2 (Fri).",
-    "H12: reverses H4, then applies four-H1 group (BT→reverse again, SW→keep).",
-    "H16: compares H6↔H12 — opposite → follow H6, same → reverse H6. Emitted right after H=12.",
+    "H6: reverses H3, applies four-H1 group. Extra reversal on Special day (Thu/Fri) and Special day 2 (Wed/Fri).",
+    "H12: reverses H4 + four-H1 group. Thursday: H=12 = reverse of Wednesday's H=16.",
+    "H16: compares H6↔H12. Thursday: deactivated (DO NOT ENTER). Emitted right after H=12.",
   ],
 };
 

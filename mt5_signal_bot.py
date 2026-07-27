@@ -954,21 +954,35 @@ def _count_fridays_in_month(year, month):
 
 
 def is_special_day_2(broker_dt):
-    """Check if today is a 'ngày đặc biệt 2' Friday.
+    """Check if today is a 'ngày đặc biệt 2' Friday or the Wednesday before it.
 
     Rule:
     - Months with 5 Fridays: 2nd and 3rd Friday (excluding 1st) are special day 2
     - Months with 4 Fridays: only 2nd Friday (excluding 1st) is special day 2
     - 1st Friday is NEVER a special day 2
-    - Applies only to Fridays (weekday 4)
+    - Wednesday (wd=2) immediately before a special_day_2 Friday is also special_day_2
     """
-    if broker_dt is None or broker_dt.weekday() != 4:
+    if broker_dt is None:
         return False
-    dt = broker_dt.date()
+    wd = broker_dt.weekday()
+    # Wednesday before a special_day_2 Friday
+    if wd == 2:
+        friday = broker_dt + timedelta(days=2)
+        return _is_friday_special_day_2(friday)
+    # Direct Friday check
+    if wd == 4:
+        return _is_friday_special_day_2(broker_dt)
+    return False
+
+
+def _is_friday_special_day_2(friday_dt):
+    """Check whether a given date (must be a Friday) qualifies as special day 2."""
+    if friday_dt is None or friday_dt.weekday() != 4:
+        return False
+    dt = friday_dt.date()
     first = _first_friday_of_month(dt.year, dt.month)
     if first is None:
         return False
-    # Determine which Nth Friday this is
     nth = (dt.day - first) // 7 + 1
     if nth == 1:
         return False
@@ -1084,6 +1098,14 @@ def _lookup_h5_signal_yesterday(broker_dt):
     while d.weekday() >= 5:
         d -= timedelta(days=1)
     return _lookup_h5_signal_for_date(broker_dt, d)
+
+
+def _lookup_h16_signal_yesterday(broker_dt):
+    """Look up H=16 from the most recent previous weekday."""
+    d = broker_dt.date() - timedelta(days=1)
+    while d.weekday() >= 5:
+        d -= timedelta(days=1)
+    return _lookup_signal_from_log(broker_dt, 16)
 
 
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
@@ -1341,7 +1363,14 @@ def is_deactivated_signal_slot(broker_dt, hour):
     if broker_dt is None:
         return False
     h = int(hour)
-    return h in (4, 5) or (h == 3 and broker_dt.weekday() == 3)
+    if h in (4, 5):
+        return True
+    if h == 3 and broker_dt.weekday() == 3:
+        return True
+    # H=16 on Thursday (Thứ 5): always deactivated (DO NOT ENTER)
+    if h == 16 and broker_dt.weekday() == 3:
+        return True
+    return False
 
 
 def get_entry_time_for_slot(broker_dt, hour):
@@ -1487,6 +1516,15 @@ def calculate_slot_signal(broker_dt, hour):
         return result
     # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback
     if hour == 12:
+        # Thursday (Thứ 5): H=12 = reverse of yesterday H=16 (always, not just special_day_2)
+        if broker_dt is not None and broker_dt.weekday() == 3:
+            h16_yesterday = _lookup_h16_signal_yesterday(broker_dt)
+            if h16_yesterday not in ("BUY", "SELL"):
+                return {"signal": "WAIT", "report": "H=12: thiếu H=16 Thứ 4.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
+            final_signal = reverse_signal(h16_yesterday)
+            final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
+            report = f"H=12: đảo H=16 Thứ 4 ({h16_yesterday} -> {final_signal})."
+            return {"signal": final_signal, "pattern_signal": h16_yesterday, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
         priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
         if priority_group is None:
             return {"signal": "WAIT", "report": "H=12: incomplete priority 4M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
