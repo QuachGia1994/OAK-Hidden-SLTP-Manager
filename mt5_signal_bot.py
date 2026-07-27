@@ -1517,14 +1517,13 @@ def calculate_slot_signal(broker_dt, hour):
             report = f"H=6: đảo H=3 ({h3_signal} -> {reverse_signal(h3_signal)}), BT({detail}) -> đảo lại ({final_signal})."
         else:
             report = f"H=6: đảo H=3 ({h3_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
-        # Special day: reverse H=6 signal
-        if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
-            final_signal = reverse_signal(final_signal)
-            report += f" [Special day -> đảo lại ({final_signal})]"
-        # Special day 2: reverse H=6 on specific Fridays (2nd/3rd Fri in 5-Fri months, 2nd Fri in 4-Fri months)
-        if broker_dt is not None and is_special_day_2(broker_dt):
-            final_signal = reverse_signal(final_signal)
-            report += f" [Special day 2 -> đảo lại ({final_signal})]"
+        # Special day / Special day 2: temporarily disabled (user decision)
+        # if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
+        #     final_signal = reverse_signal(final_signal)
+        #     report += f" [Special day -> đảo lại ({final_signal})]"
+        # if broker_dt is not None and is_special_day_2(broker_dt):
+        #     final_signal = reverse_signal(final_signal)
+        #     report += f" [Special day 2 -> đảo lại ({final_signal})]"
         result = {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
         # Month-boundary: XAUUSD = WAIT, keep priority/entry
         if is_month_boundary_suppress(broker_dt):
@@ -1552,14 +1551,13 @@ def calculate_slot_signal(broker_dt, hour):
         h5_today = _lookup_h5_signal_today(broker_dt)
         gbpaud = reverse_signal(h5_today) if h5_today in ("BUY", "SELL") else "WAIT"
         report = f"H=9: đảo H=3 ({h3_signal}), 4H1({group}={detail}), XAU={final_xau}, GBPUSD={gbpusd}, GBPAUD={gbpaud}"
-        # Special day: reverse H=9 signal
-        if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
-            final_xau = reverse_signal(final_xau)
-            report += f" [Special day -> đảo lại ({final_xau})]"
-        # Special day 2: reverse H=9 on specific Fridays
-        if broker_dt is not None and is_special_day_2(broker_dt):
-            final_xau = reverse_signal(final_xau)
-            report += f" [Special day 2 -> đảo lại ({final_xau})]"
+        # Special day / Special day 2: temporarily disabled (user decision)
+        # if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
+        #     final_xau = reverse_signal(final_xau)
+        #     report += f" [Special day -> đảo lại ({final_xau})]"
+        # if broker_dt is not None and is_special_day_2(broker_dt):
+        #     final_xau = reverse_signal(final_xau)
+        #     report += f" [Special day 2 -> đảo lại ({final_xau})]"
         result = {
             "signal": final_xau,
             "xau_signal": final_xau,
