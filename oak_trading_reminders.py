@@ -614,26 +614,24 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     notes_vn = [
-        "Slots: H=3,4,5,6,9,12,14,16.",
-        "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; "
-        "H9 09:00 (08:00 ngày đặc biệt); H12 12:00; H14 14:00; H16 16:00.",
+        "Slots: H=3,4,5,6,12,16.",
+        "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
         "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai "
-        "và luôn deactivated. GBPAUD luôn ngược XAUUSD.",
-        "H4/H5: pattern GBPUSD M5/M30 kết hợp XAUUSD M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
-        "H6/H9: phân nhóm 4 nến H1, áp dụng đảo theo thứ và đảo thêm vào ngày đặc biệt + ngày đặc biệt 2 (2nd/3rd Fri).",
-        "H12/H14: đảo H4 rồi áp dụng đảo theo thứ và nhóm 4 H1; 4 M30 quyết định priority/entry.",
-        "H16: dùng nhánh priority H6-H12 hoặc H9-H14; thiếu dependency thì WAIT.",
+        "và luôn deactivated.",
+        "H4/H5: pattern M5/M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
+        "H6: đảo H=3, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
+        "H12: đảo H=4, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
+        "H16: so sánh H6↔H12 — opposite → follow H6, same → reverse H6. Phát ngay sau H=12.",
     ]
     notes_en = [
-        "Slots: H=3,4,5,6,9,12,14,16.",
-        "Broker publication: H3 03:00; H4 04:45; H5 05:45; H6 06:00; "
-        "H9 09:00 (08:00 on special days); H12 12:00; H14 14:00; H16 16:00.",
+        "Slots: H=3,4,5,6,12,16.",
+        "Broker publication: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
         "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3 "
-        "and is always deactivated. GBPAUD always opposes XAUUSD.",
-        "H4/H5: GBPUSD M5/M30 pattern combined with XAUUSD M30; always deactivated and intermediate-only.",
-        "H6/H9: four-H1 grouping with weekday, special-day, and special-day-2 (2nd/3rd Fri) reversals.",
-        "H12/H14: reverse H4, then apply weekday and four-H1 reversals; four-M30 controls priority/entry.",
-        "H16: uses the priority H6-H12 or H9-H14 branch; missing dependencies produce WAIT.",
+        "and is always deactivated.",
+        "H4/H5: M5/M30 pattern; always deactivated and intermediate-only.",
+        "H6: reverses H3, then applies four-H1 group (BT→reverse again, SW→keep).",
+        "H12: reverses H4, then applies four-H1 group (BT→reverse again, SW→keep).",
+        "H16: compares H6↔H12 — opposite → follow H6, same → reverse H6. Emitted right after H=12.",
     ]
 
     try:
@@ -644,18 +642,14 @@ def get_day_notes(now, lang="VN"):
     except Exception:
         suppress_late_slots = False
         special_day_2 = False
-    if suppress_late_slots:
-        notes_vn.append("Cuối tháng/đầu tháng: H=6/9/12/14/16 — XAUUSD = WAIT, ưu tiên + entry + GBP giữ nguyên.")
-        notes_en.append("Month boundary: H=6/9/12/14/16 — XAUUSD = WAIT; priority, entry, GBP kept.")
-    if special_day_2:
-        notes_vn.append("Ngày đặc biệt 2: H=6 và H=9 đảo thêm 1 lần (2nd/3rd Fri).")
-        notes_en.append("Special day 2: H=6 and H=9 get an extra reversal (2nd/3rd Fri).")
-    if not suppress_late_slots and weekday in (0, 4):
-        notes_vn.append("Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority; SW → H14 priority.")
-        notes_en.append("Normal Monday/Friday: BT selects H12 priority; SW selects H14 priority.")
+    # Month boundary disabled; no special priority for H9/H14 (removed).
+    # Special day 2 reversals disabled for H=6 and H=9 (user decision).
+    if weekday in (0, 4):
+        notes_vn.append("Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority.")
+        notes_en.append("Normal Monday/Friday: BT selects H12 priority.")
     else:
-        notes_vn.append("Ngày thường Thứ Ba/Thứ Tư/Thứ Năm: SW → H12 priority; BT → H14 priority.")
-        notes_en.append("Normal Tuesday/Wednesday/Thursday: SW selects H12 priority; BT selects H14 priority.")
+        notes_vn.append("Ngày thường Thứ Ba/Thứ Tư/Thứ Năm: SW → H12 priority.")
+        notes_en.append("Normal Tuesday/Wednesday/Thursday: SW selects H12 priority.")
 
     if lang == "VN":
         return notes_vn

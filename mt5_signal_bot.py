@@ -743,7 +743,7 @@ def build_startup_telegram_message(broker_dt, mt5_connected):
         "🤖 BOT KHỞI ĐỘNG\n"
         f"Nguồn pattern: {SYMBOL} | MT5: {mt5_status}\n"
         f"Slots: {', '.join(f'H={h}' for h in TARGET_HOURS)}\n"
-        "🔒 Auto-close: XAUUSD 17:59, GBP 19:59 (Broker)\n"
+        "🔒 Auto-close: XAUUSD 17:59 (Broker)\n"
         f"Quy tắc hôm nay:\n{rules}"
     )
 
