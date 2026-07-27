@@ -46,7 +46,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "GBPUSD"
-TARGET_HOURS = [3, 4, 5, 6, 9, 12, 14, 16]
+TARGET_HOURS = [3, 4, 5, 6, 12, 16]
 ACTIVE_HOURS = frozenset(TARGET_HOURS)
 VN_UTC_OFFSET = 7  # Vietnam local timezone (Indochina Time, no DST)
 
@@ -75,12 +75,8 @@ def get_signal_time_for_slot(broker_dt, hour):
         return "05:45"
     if h == 6:
         return "06:00"
-    if h == 9:
-        return "08:00" if is_special_day(broker_dt) else "09:00"
     if h == 12:
         return "12:00"
-    if h == 14:
-        return "14:00"
     if h == 16:
         return "16:00"
     raise ValueError(f"Unsupported signal slot H={h}")
@@ -1332,13 +1328,11 @@ def is_priority_slot(broker_dt, hour):
     wd = broker_dt.weekday()
     if h == 6:
         return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "SW"
-    if h == 9:
-        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "BT"
-    if h in (12, 14):
+    if h == 12:
         group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
         if wd in (0, 4):
-            return group == ("BT" if h == 12 else "SW")
-        return group == ("SW" if h == 12 else "BT")
+            return group == "BT"
+        return group == "SW"
     return False
 
 
@@ -1363,14 +1357,8 @@ def get_entry_time_for_slot(broker_dt, hour):
         return "03:49" if group == "SW" else "03:11"
     if h == 6:
         return "06:11"
-    if h == 9:
-        if wd in (3, 4) and is_special_day(broker_dt):
-            return "08:30"
-        return "09:49"
     if h == 12:
         return "12:11"
-    if h == 14:
-        return "14:49"
     if h == 16:
         group_h6 = evaluate_4_m30_classification_before_hour(broker_dt, 6)
         if group_h6 is None:
@@ -1392,9 +1380,7 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
         4: "04:45",
         5: "05:45",
         6: "06:11",
-        9: "08:30" if is_special_day(broker_dt) else "09:49",
         12: "12:11",
-        14: "14:49",
         16: "16:49",
     }
     clock = entry_time or get_entry_time_for_slot(broker_dt, h) or fallback_clocks[h]
@@ -1421,11 +1407,11 @@ def _apply_weekday_extra_inversion(hour, signal, broker_dt):
     h = int(hour)
     if wd == 0 and h == 16:
         return reverse_signal(signal) or signal
-    if wd == 1 and h in (6, 9, 12, 14):
+    if wd == 1 and h in (6, 12):
         return reverse_signal(signal) or signal
-    if wd == 2 and h in (6, 9, 12, 14, 16):
+    if wd == 2 and h in (6, 12, 16):
         return reverse_signal(signal) or signal
-    if wd == 4 and h in (6, 9):
+    if wd == 4 and h == 6:
         return reverse_signal(signal) or signal
     return signal
 
@@ -1498,44 +1484,6 @@ def calculate_slot_signal(broker_dt, hour):
         #     report += f" [Special day 2 -> đảo lại ({final_signal})]"
         result = {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
         return result
-    # H=9: same XAU branch as H=6, plus GBP derived from H=3/H=5.
-    if hour == 9:
-        priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 6)
-        if priority_group is None:
-            return {"signal": "WAIT", "report": "H=9: incomplete priority 4M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        h3_signal = _lookup_h3_signal_today(broker_dt)
-        if h3_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": "H=9: thiếu H=3.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        final_xau = reverse_signal(h3_signal)
-        final_xau = _apply_weekday_extra_inversion(hour, final_xau, broker_dt)
-        # 4H1 lookback (same as H=6): BT → reverse, SW → keep
-        group, detail, _ = evaluate_classification_for_slot(broker_dt, 6)
-        if group is None:
-            return {"signal": "WAIT", "report": f"H=9: incomplete 4H1 ({detail}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        if group == "BT":
-            final_xau = reverse_signal(final_xau)
-        gbpusd = reverse_signal(h3_signal)
-        h5_today = _lookup_h5_signal_today(broker_dt)
-        gbpaud = reverse_signal(h5_today) if h5_today in ("BUY", "SELL") else "WAIT"
-        report = f"H=9: đảo H=3 ({h3_signal}), 4H1({group}={detail}), XAU={final_xau}, GBPUSD={gbpusd}, GBPAUD={gbpaud}"
-        # Special day / Special day 2: temporarily disabled (user decision)
-        # if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
-        #     final_xau = reverse_signal(final_xau)
-        #     report += f" [Special day -> đảo lại ({final_xau})]"
-        # if broker_dt is not None and is_special_day_2(broker_dt):
-        #     final_xau = reverse_signal(final_xau)
-        #     report += f" [Special day 2 -> đảo lại ({final_xau})]"
-        result = {
-            "signal": final_xau,
-            "xau_signal": final_xau,
-            "gbp_signal": gbpusd,
-            "pair_dirs": {"XAUUSD": final_xau, "GBPUSD": gbpusd, "GBPAUD": gbpaud},
-            "report": report,
-            "m30_dir": None,
-            "h1_signal": None,
-            "skip_xau_m30": True,
-        }
-        return result
     # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback
     if hour == 12:
         priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
@@ -1556,53 +1504,22 @@ def calculate_slot_signal(broker_dt, hour):
         else:
             report = f"H={hour}: đảo H=4 ({h4_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
         return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=14: XAUUSD = same as H=12 (special Thursday + reverse H=4 + 4H1 lookback)
-    if hour == 14:
-        entry_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
-        if entry_group is None:
-            return {"signal": "WAIT", "report": "H=14: incomplete entry 4M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        h4_signal = _lookup_h4_signal_today(broker_dt)
-        if h4_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": "H=14: thiếu H=4 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        final_signal = reverse_signal(h4_signal)
-        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
-        # 4H1 lookback (same as H=12): BT → reverse, SW → keep
-        group, detail, _ = evaluate_classification_for_slot(broker_dt, 12)
-        if group is None:
-            return {"signal": "WAIT", "report": f"H=14: incomplete 4H1 ({detail}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        if group == "BT":
-            final_signal = reverse_signal(final_signal)
-        # GBP pairs
-        h5_today = _lookup_h5_signal_today(broker_dt)
-        gbpusd = h5_today if h5_today in ("BUY", "SELL") else "WAIT"
-        gbpaud = reverse_signal(h4_signal) if h4_signal in ("BUY", "SELL") else "WAIT"
-        pair_dirs = {"XAUUSD": final_signal}
-        if gbpusd != "WAIT":
-            pair_dirs["GBPUSD"] = gbpusd
-        if gbpaud != "WAIT":
-            pair_dirs["GBPAUD"] = gbpaud
-        report = f"H=14: XAU={final_signal}, GBPUSD={gbpusd}, GBPAUD={gbpaud}"
-        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": pair_dirs}
-    # H=16: H6 priority pairs H6↔H12; H9 priority pairs H9↔H14.
+    # H=16: always pairs H6↔H12 (H=9 and H=14 removed).
     if hour == 16:
-        group_h6 = evaluate_4_m30_classification_before_hour(broker_dt, 6)
-        if group_h6 is None:
-            return {"signal": "WAIT", "report": "H=16: incomplete H6/H9 priority candles.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {}}
-        left_hour, right_hour = (6, 12) if group_h6 == "SW" else (9, 14)
-        left_signal = _lookup_signal_from_log(broker_dt, left_hour)
-        right_signal = _lookup_signal_from_log(broker_dt, right_hour)
+        left_signal = _lookup_signal_from_log(broker_dt, 6)
+        right_signal = _lookup_signal_from_log(broker_dt, 12)
         if left_signal not in ("BUY", "SELL") or right_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": f"H=16: missing H={left_hour} or H={right_hour}.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {}}
+            return {"signal": "WAIT", "report": "H=16: missing H=6 or H=12.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {}}
 
         if left_signal != right_signal:
             final_signal = left_signal
-            relation = f"opposite -> follow H={left_hour}"
+            relation = "opposite -> follow H=6"
         else:
             final_signal = reverse_signal(left_signal)
-            relation = f"same -> reverse H={left_hour}"
+            relation = "same -> reverse H=6"
 
         final_signal = _apply_weekday_extra_inversion(16, final_signal, broker_dt)
-        report = f"H=16: H={left_hour}={left_signal}, H={right_hour}={right_signal} ({relation}) -> {final_signal}"
+        report = f"H=16: H6={left_signal}, H12={right_signal} ({relation}) -> {final_signal}"
         return {
             "signal": final_signal,
             "pattern_signal": left_signal,
@@ -1724,10 +1641,8 @@ def get_hour_note(H, weekday=None, broker_dt=None):
         4: "XAUUSD theo pattern M5/M30; tạo Stock-DIRECTION",
         5: "XAUUSD theo pattern M5/M30; tạo GBP-DIRECTION",
         6: "XAUUSD đảo H=3, sau đó áp dụng nhóm 4H1",
-        9: "XAUUSD theo nhánh H=6; GBPUSD đảo H=3; GBPAUD đảo H=5",
         12: "XAUUSD đảo H=4, sau đó áp dụng nhóm 4H1",
-        14: "XAUUSD theo nhánh H=12; GBPUSD theo H=5; GBPAUD đảo H=4",
-        16: "H6 priority: H6↔H12; H9 priority: H9↔H14",
+        16: "So sánh H6↔H12: opposite → follow H6, same → reverse H6",
     }
     if broker_dt is not None and h == 3 and broker_dt.weekday() == 3:
         notes[3] = "XAUUSD & GBPAUD dùng lại lịch sử H=3 của Thứ 2"
@@ -1842,29 +1757,9 @@ def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
         return result
     if signal not in ("BUY", "SELL"):
         return result
-    # H=9: MIXED (XAUUSD + GBPUSD + GBPAUD)
-    if h == 9:
-        if full_result and "pair_dirs" in full_result and full_result["pair_dirs"]:
-            for pair in ("XAUUSD", "GBPUSD", "GBPAUD"):
-                if pair in full_result["pair_dirs"]:
-                    result[pair] = full_result["pair_dirs"][pair]
-        else:
-            for pair in ("XAUUSD", "GBPUSD", "GBPAUD"):
-                result[pair] = signal
-        return result
     # All active hours: XAUUSD
     result["XAUUSD"] = signal
     apply_d_direction_marker(result, H, broker_dt)
-    # H=14: add GBPUSD + GBPAUD alongside XAUUSD
-    if h == 14 and broker_dt is not None:
-        # H=14 pair_dirs come from calculate_slot_signal if available
-        if full_result and "pair_dirs" in full_result:
-            for pair in ("GBPUSD", "GBPAUD"):
-                if pair in full_result["pair_dirs"]:
-                    result[pair] = full_result["pair_dirs"][pair]
-        else:
-            for pair in ("GBPUSD", "GBPAUD"):
-                result[pair] = signal
     # H=3: add GBPAUD opposite XAUUSD.
     if h == 3 and broker_dt is not None:
         result["GBPAUD"] = reverse_signal(signal) or signal

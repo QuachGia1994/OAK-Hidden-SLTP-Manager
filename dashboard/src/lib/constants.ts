@@ -1,4 +1,4 @@
-export const TARGET_HOURS = [3, 4, 5, 6, 9, 12, 14, 16] as const;
+export const TARGET_HOURS = [3, 4, 5, 6, 12, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
@@ -68,11 +68,8 @@ export function isPostSpecialMonday(date: string): boolean {
 }
 
 /** Active logical slots for a Broker calendar date. */
-export function getTargetHours(jsDayOfWeek: number, brokerDate?: string): number[] {
+export function getTargetHours(jsDayOfWeek: number, _brokerDate?: string): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
-  if (brokerDate && (isSpecialBrokerDate(brokerDate) || isPostSpecialMonday(brokerDate))) {
-    return TARGET_HOURS.filter((hour) => ![12, 14, 16].includes(hour));
-  }
   return [...TARGET_HOURS];
 }
 
@@ -81,14 +78,11 @@ const SIGNAL_TIMES: Readonly<Record<number, string>> = {
   4: "04:45",
   5: "05:45",
   6: "06:00",
-  9: "09:00",
   12: "12:00",
-  14: "14:00",
   16: "16:00",
 };
 
 export function getSignalTime(hour: number, brokerDate?: string): string {
-  if (Number(hour) === 9 && brokerDate && isSpecialBrokerDate(brokerDate)) return "08:00";
   return SIGNAL_TIMES[Number(hour)] ?? "--:--";
 }
 
@@ -99,9 +93,7 @@ export function getEntryTimeLabel(hour: number, brokerDate?: string): string {
   if (numericHour === 4) return "04:45";
   if (numericHour === 5) return "05:45";
   if (numericHour === 6) return "06:11";
-  if (numericHour === 9) return brokerDate && isSpecialBrokerDate(brokerDate) ? "08:30" : "09:49";
   if (numericHour === 12) return "12:11";
-  if (numericHour === 14) return "14:49";
   if (numericHour === 16) return "16:11/16:49";
   return "—";
 }
@@ -145,22 +137,22 @@ type RuleLocale = "VN" | "EN";
 
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "Slots: H=3,4,5,6,9,12,14,16.",
-    "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H9 09:00 (08:00 ngày đặc biệt); H12 12:00; H14 14:00; H16 16:00.",
-    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H9 09:49 (08:30 ngày đặc biệt); H12 12:11; H14 14:49; H16 16:11/16:49.",
+    "Slots: H=3,4,5,6,12,16.",
+    "Giờ phát Broker: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
+    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H12 12:11; H16 16:11/16:49.",
     "H3 luôn deactivated vào mọi Thứ Năm; H4/H5 luôn deactivated và chỉ dùng làm dependency trung gian.",
-    "H9 và H14 luôn giữ GBPUSD, GBPAUD; không tắt nhóm GBP vào Thứ Tư.",
-    "H12/H14 đảo H4 rồi áp dụng đảo theo thứ và nhóm 4 H1; 4 M30 chỉ quyết định priority/entry.",
-    "H16 dùng cặp H6-H12 khi H6 priority, hoặc H9-H14 khi H9 priority; thiếu dependency thì WAIT.",
+    "H6 đảo H=3, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
+    "H12 đảo H=4, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
+    "H16 so sánh H6↔H12: opposite → follow H6, same → reverse H6.",
   ],
   EN: [
-    "Slots: H=3,4,5,6,9,12,14,16.",
-    "Broker signal times: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H9 09:00 (08:00 on special days); H12 12:00; H14 14:00; H16 16:00.",
-    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H9 09:49 (08:30 on special days); H12 12:11; H14 14:49; H16 16:11/16:49.",
+    "Slots: H=3,4,5,6,12,16.",
+    "Broker signal times: H3 03:00; H4 04:45; H5 05:45; H6 06:00; H12 12:00; H16 16:00.",
+    "Entry: H3 03:11/03:49; H4 04:45; H5 05:45; H6 06:11; H12 12:11; H16 16:11/16:49.",
     "H3 is always deactivated every Thursday; H4/H5 are always deactivated and intermediate-only.",
-    "H9 and H14 always keep GBPUSD and GBPAUD; Wednesday does not disable GBP pairs.",
-    "H12/H14 reverse H4, then apply weekday and four-H1 reversals; four-M30 only controls priority/entry.",
-    "H16 uses H6-H12 when H6 is priority, or H9-H14 when H9 is priority; a missing dependency produces WAIT.",
+    "H6 reverses H3, then applies four-H1 group (BT→reverse again, SW→keep).",
+    "H12 reverses H4, then applies four-H1 group (BT→reverse again, SW→keep).",
+    "H16 compares H6↔H12: opposite → follow H6, same → reverse H6.",
   ],
 };
 
@@ -174,22 +166,14 @@ export function getDayRules(
   if (weekday === 0 || weekday === 6) return [];
 
   const rules = [...CORE_RULES[locale]];
-  const brokerDate = date ? date.toISOString().slice(0, 10) : undefined;
-  const suppressed = Boolean(
-    brokerDate && (isSpecialBrokerDate(brokerDate) || isPostSpecialMonday(brokerDate)),
-  );
-  if (suppressed) {
+  if (weekday === 1 || weekday === 5) {
     rules.push(locale === "EN"
-      ? "Special Thursday/Friday or post-special Monday: H12, H14 and H16 are suppressed."
-      : "Phiên đặc biệt Thứ Năm/Thứ Sáu hoặc Thứ Hai hậu đặc biệt: ẩn H12, H14 và H16.");
-  } else if (weekday === 1 || weekday === 5) {
-    rules.push(locale === "EN"
-      ? "Normal Monday/Friday: BT selects H12 priority; SW selects H14 priority."
-      : "Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority; SW → H14 priority.");
+      ? "Normal Monday/Friday: BT selects H12 priority."
+      : "Ngày thường Thứ Hai/Thứ Sáu: BT → H12 priority.");
   } else {
     rules.push(locale === "EN"
-      ? "Normal Tuesday/Wednesday/Thursday: SW selects H12 priority; BT selects H14 priority."
-      : "Ngày thường Thứ Ba/Thứ Tư/Thứ Năm: SW → H12 priority; BT → H14 priority.");
+      ? "Normal Tuesday/Wednesday/Thursday: SW selects H12 priority."
+      : "Ngày thường Thứ Ba/Thứ Tư/Thứ Năm: SW → H12 priority.");
   }
   return rules;
 }
