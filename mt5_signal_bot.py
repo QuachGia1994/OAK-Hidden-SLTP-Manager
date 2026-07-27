@@ -1100,6 +1100,11 @@ def _lookup_signal_from_log(broker_dt, hour):
                     sig = record.get("signal")
                     if sig in ("BUY", "SELL"):
                         return sig
+                    # Month-boundary fallback: use pattern_signal when signal is WAIT
+                    if sig == "WAIT":
+                        pat = record.get("pattern_signal")
+                        if pat in ("BUY", "SELL"):
+                            return pat
     except Exception as e:
         print(f"[WARN] Cannot lookup H={hour} for {date_str}: {e}")
     return None
