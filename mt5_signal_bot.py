@@ -113,7 +113,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 41
+SIGNAL_LOGIC_VERSION = 42
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1830,6 +1830,11 @@ def is_slot_ready(broker_dt, hour):
     h = int(hour)
     if h not in ACTIVE_HOURS:
         return False
+    # H=16: ready immediately when H=6 and H=12 are logged (pure dependency, no live candles).
+    if h == 16:
+        h6 = _lookup_signal_from_log(broker_dt, 6)
+        h12 = _lookup_signal_from_log(broker_dt, 12)
+        return h6 in ("BUY", "SELL") and h12 in ("BUY", "SELL")
     return broker_dt >= get_signal_datetime_for_slot(broker_dt, h)
 
 
@@ -2188,16 +2193,21 @@ def _process_live_slot(broker_dt, hour):
     key = (broker_dt.date(), hour)
     if key in sent_today:
         return False
-    signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
-    if broker_dt < signal_dt:
+    # H=16: pure dependency slot — emit as soon as H=6 and H=12 are logged, no signal_dt/entry check.
+    if hour == 16 and not is_slot_ready(broker_dt, 16):
         return False
-    entry_time = get_entry_time_for_slot(broker_dt, hour)
-    if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
-        print(f"  [MISSED] H={hour} exceeded entry deadline")
-        sent_today.add(key)
-        _save_state(day_signals, sent_today)
-        return False
+    if hour != 16:
+        signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
+        if broker_dt < signal_dt:
+            return False
+        entry_time = get_entry_time_for_slot(broker_dt, hour)
+        if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
+            print(f"  [MISSED] H={hour} exceeded entry deadline")
+            sent_today.add(key)
+            _save_state(day_signals, sent_today)
+            return False
 
+    entry_time = get_entry_time_for_slot(broker_dt, hour)
     result = calculate_slot_signal(broker_dt, hour)
     signal = result.get("signal")
     if signal not in ("BUY", "SELL") or not entry_time:
