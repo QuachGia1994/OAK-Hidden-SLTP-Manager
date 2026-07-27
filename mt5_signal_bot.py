@@ -2377,17 +2377,16 @@ def _process_live_slot(broker_dt, hour):
             print(f"  [RETRY] H={hour} - no pair directions")
             return False
     hour_note = get_hour_note(hour, broker_dt=broker_dt)
-    if not suppressed:
-        log_signal(
-            hour,
-            broker_dt,
-            signal,
-            entry_time,
-            pair_dirs,
-            hour_note,
-            pattern_signal=result.get("pattern_signal"),
-            deactivated=result.get("deactivated", False),
-        )
+    log_signal(
+        hour,
+        broker_dt,
+        signal,
+        entry_time,
+        pair_dirs,
+        hour_note,
+        pattern_signal=result.get("pattern_signal"),
+        deactivated=result.get("deactivated", False),
+    )
     push_to_dashboard()
     reported_pairs = send_report(result, hour, broker_dt)
     if not suppressed:
