@@ -41,36 +41,39 @@ class SpecialSignalDayTests(unittest.TestCase):
         self.assertFalse(mt5_signal_bot.is_post_special_day(datetime(2026, 8, 17)))
         self.assertFalse(mt5_signal_bot.is_post_special_day(datetime(2027, 1, 4)))
 
-    def test_late_slots_are_suppressed_on_pair_and_post_monday(self) -> None:
+    def test_late_slots_are_deactivated_in_restricted_period(self) -> None:
         for broker_dt in (
-            datetime(2026, 8, 6, 12, 0),
-            datetime(2026, 8, 7, 12, 0),
-            datetime(2026, 8, 10, 12, 0),
+            datetime(2026, 8, 6, 12, 0),   # special Thu inside restricted
+            datetime(2026, 8, 7, 12, 0),   # special Fri inside restricted
+            datetime(2026, 8, 10, 12, 0),  # post-SD1 Mon inside restricted
         ):
             with self.subTest(day=broker_dt.date()):
-                self.assertTrue(mt5_signal_bot.is_month_boundary_suppress(broker_dt))
+                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 12))
+                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 16))
 
     def test_month_boundary_suppress_schedule(self) -> None:
-        # Cuối tháng: Mon-Fri all suppress; Đầu tháng: Mon-Wed suppress; Thu-Fri + Mon-after only SD1
+        # Restricted calendar period: Tue of last-Fri week through Mon after first Fri of next month
+        # Jul 2026 → Aug 2026: last Fri Jul = 31, Tue of that week = 28; first Fri Aug = 7, Mon after = 10
+        # Restricted: 2026-07-28 through 2026-08-10 inclusive
         suppress_days = [
-            datetime(2026, 7, 27),  # Mon last week
-            datetime(2026, 7, 28),  # Tue last week
-            datetime(2026, 7, 29),  # Wed last week
+            datetime(2026, 7, 28),  # Tue of last-Fri week
+            datetime(2026, 7, 29),  # Wed
             datetime(2026, 7, 30),  # Thu SD1
             datetime(2026, 7, 31),  # Fri SD1
-            datetime(2026, 8, 3),   # Mon post-SD1 / đầu tháng
+            datetime(2026, 8, 3),   # Mon đầu tháng
             datetime(2026, 8, 4),   # Tue đầu tháng
             datetime(2026, 8, 5),   # Wed đầu tháng
             datetime(2026, 8, 6),   # Thu SD1
             datetime(2026, 8, 7),   # Fri SD1
-            datetime(2026, 8, 10),  # Mon post-SD1
+            datetime(2026, 8, 10),  # Mon after first Fri
         ]
         for dt in suppress_days:
             with self.subTest(day=dt.date()):
-                self.assertTrue(mt5_signal_bot.is_month_boundary_suppress(dt), f"{dt.date()} should suppress")
+                self.assertTrue(mt5_signal_bot._is_in_restricted_calendar_period(dt), f"{dt.date()} should be in restricted period")
 
         no_suppress_days = [
-            datetime(2026, 8, 11),  # Tue regular
+            datetime(2026, 7, 27),  # Mon before restricted starts
+            datetime(2026, 8, 11),  # Tue after restricted
             datetime(2026, 8, 12),  # Wed regular
             datetime(2026, 8, 13),  # Thu regular
             datetime(2026, 8, 14),  # Fri regular
@@ -78,22 +81,25 @@ class SpecialSignalDayTests(unittest.TestCase):
         ]
         for dt in no_suppress_days:
             with self.subTest(day=dt.date()):
-                self.assertFalse(mt5_signal_bot.is_month_boundary_suppress(dt), f"{dt.date()} should NOT suppress")
+                self.assertFalse(mt5_signal_bot._is_in_restricted_calendar_period(dt), f"{dt.date()} should NOT be in restricted period")
 
-    def test_h6_and_h9_are_not_suppressed_by_special_gate(self) -> None:
-        special_thursday = datetime(2026, 8, 6, 9, 0)
-        for hour in (6, 9):
-            with self.subTest(hour=hour), patch.object(
-                mt5_signal_bot,
-                "_lookup_h3_signal_today",
-                return_value=None,
-            ), patch.object(
-                mt5_signal_bot,
-                "evaluate_4_m30_classification_before_hour",
-                return_value="SW",
-            ):
-                result = mt5_signal_bot.calculate_slot_signal(special_thursday, hour)
-                self.assertFalse(result.get("suppressed", False))
+    def test_h6_is_not_deactivated_on_special_day(self) -> None:
+        special_thursday = datetime(2026, 9, 24, 6, 0)  # special Thu outside restricted
+        with patch.object(
+            mt5_signal_bot,
+            "_lookup_h3_signal_today",
+            return_value="BUY",
+        ), patch.object(
+            mt5_signal_bot,
+            "evaluate_4_m30_classification_before_hour",
+            return_value="SW",
+        ), patch.object(
+            mt5_signal_bot,
+            "evaluate_classification_for_slot",
+            return_value=("SW", "detail", None),
+        ):
+            result = mt5_signal_bot.calculate_slot_signal(special_thursday, 6)
+            self.assertFalse(result.get("deactivated", False))
 
     def test_every_thursday_h3_is_deactivated(self) -> None:
         special_thursday = datetime(2026, 8, 6, 3, 0)

@@ -35,8 +35,8 @@ class SignalRebuildDependencyTests(unittest.TestCase):
             ):
                 count = mt5_signal_bot.rebuild_recent_history(days=1)
 
-        self.assertEqual(rebuilt_hours, [3, 4, 5, 6, 9, 12, 14, 16])
-        self.assertEqual(count, 8)
+        self.assertEqual(rebuilt_hours, [3, 4, 5, 6, 12, 16])
+        self.assertEqual(count, 6)
 
 
 if __name__ == "__main__":

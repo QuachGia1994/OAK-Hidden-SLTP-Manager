@@ -21,17 +21,17 @@ class DesktopSignalScheduleTests(unittest.TestCase):
         self.assertEqual(slot, 3)
         self.assertEqual(target.strftime("%Y-%m-%d %H:%M"), "2026-07-20 03:00")
 
-    def test_special_day_moves_h9_and_suppresses_late_slots(self):
+    def test_special_day_next_slot_is_h12(self):
+        # After H=6 on a special day, next is H=12 (H=9/H=14 removed)
         slot, target = _next_desktop_signal(datetime(2026, 8, 6, 7, 50))
-        self.assertEqual((slot, target.strftime("%H:%M")), (9, "08:00"))
+        self.assertEqual((slot, target.strftime("%H:%M")), (12, "12:00"))
 
         slot, target = _next_desktop_signal(datetime(2026, 8, 6, 11, 0))
-        self.assertEqual(slot, 3)
-        self.assertEqual(target.strftime("%Y-%m-%d %H:%M"), "2026-08-07 03:00")
+        self.assertEqual((slot, target.strftime("%H:%M")), (12, "12:00"))
 
     def test_new_year_pair_is_not_special(self):
         slot, target = _next_desktop_signal(datetime(2026, 12, 31, 7, 50))
-        self.assertEqual((slot, target.strftime("%H:%M")), (9, "09:00"))
+        self.assertEqual((slot, target.strftime("%H:%M")), (12, "12:00"))
 
         slot, target = _next_desktop_signal(datetime(2026, 12, 31, 11, 0))
         self.assertEqual((slot, target.strftime("%H:%M")), (12, "12:00"))

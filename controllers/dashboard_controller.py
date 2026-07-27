@@ -5,15 +5,13 @@ from __future__ import annotations
 from datetime import datetime as _DateTime, timedelta as _TimeDelta, timezone as _Timezone
 
 
-_ACTIVE_SIGNAL_SLOTS = (3, 4, 5, 6, 9, 12, 14, 16)
+_ACTIVE_SIGNAL_SLOTS = (3, 4, 5, 6, 12, 16)
 _FALLBACK_SIGNAL_TIMES = {
     3: "03:00",
     4: "04:45",
     5: "05:45",
     6: "06:00",
-    9: "09:00",
     12: "12:00",
-    14: "14:00",
     16: "16:00",
 }
 
@@ -67,14 +65,8 @@ def _next_desktop_signal(now):
         if day.weekday() >= 5:
             continue
         slots = list(get_target_hours(day) if get_target_hours else _ACTIVE_SIGNAL_SLOTS)
-        is_suppressed_day = bool(
-            (is_special_day and is_special_day(day))
-            or (is_post_special_day and is_post_special_day(day))
-        )
         for slot in slots:
             if slot not in _ACTIVE_SIGNAL_SLOTS:
-                continue
-            if is_suppressed_day and slot in (12, 14, 16):
                 continue
             signal_time = (
                 get_signal_time_for_slot(day, slot)

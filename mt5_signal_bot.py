@@ -113,7 +113,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 42
+SIGNAL_LOGIC_VERSION = 43
 D_DIRECTION_PAIR = "Stock-DIRECTION"
 GBP_DIRECTION_PAIR = "GBP-DIRECTION"
 
@@ -1151,7 +1151,7 @@ def _lookup_h16_signal_yesterday(broker_dt):
     d = broker_dt.date() - timedelta(days=1)
     while d.weekday() >= 5:
         d -= timedelta(days=1)
-    return _lookup_signal_from_log(broker_dt, 16)
+    return _lookup_signal_from_log(d, 16)
 
 
 def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):

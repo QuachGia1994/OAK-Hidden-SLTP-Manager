@@ -20,7 +20,7 @@ class SignalBotRuntimeTests(unittest.TestCase):
             mt5_connected=True,
         )
 
-        self.assertIn("Slots: H=3, H=4, H=5, H=6, H=9, H=12, H=14, H=16", message)
+        self.assertIn("Slots: H=3, H=4, H=5, H=6, H=12, H=16", message)
         self.assertNotIn("02-15:45", message)
         self.assertNotIn("RHYTHM", message.upper())
 
