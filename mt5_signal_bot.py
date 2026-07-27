@@ -1475,13 +1475,14 @@ def calculate_slot_signal(broker_dt, hour):
             report = f"H=6: đảo H=3 ({h3_signal} -> {reverse_signal(h3_signal)}), BT({detail}) -> đảo lại ({final_signal})."
         else:
             report = f"H=6: đảo H=3 ({h3_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
-        # Special day / Special day 2: temporarily disabled (user decision)
-        # if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
-        #     final_signal = reverse_signal(final_signal)
-        #     report += f" [Special day -> đảo lại ({final_signal})]"
-        # if broker_dt is not None and is_special_day_2(broker_dt):
-        #     final_signal = reverse_signal(final_signal)
-        #     report += f" [Special day 2 -> đảo lại ({final_signal})]"
+        # Special day: H=6 đảo thêm khi Thứ 5/6 là special day
+        if broker_dt is not None and broker_dt.weekday() in (3, 4) and is_special_day(broker_dt):
+            final_signal = reverse_signal(final_signal)
+            report += f" [Special day -> đảo lại ({final_signal})]"
+        # Special day 2: H=6 đảo thêm khi Thứ 6 là special day 2 (2nd/3rd Fri)
+        if broker_dt is not None and is_special_day_2(broker_dt):
+            final_signal = reverse_signal(final_signal)
+            report += f" [Special day 2 -> đảo lại ({final_signal})]"
         result = {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
         return result
     # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback

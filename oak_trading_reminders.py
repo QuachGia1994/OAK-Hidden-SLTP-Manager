@@ -617,7 +617,7 @@ def get_day_notes(now, lang="VN"):
         "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai "
         "và luôn deactivated.",
         "H4/H5: pattern M5/M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
-        "H6: đảo H=3, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
+        "H6: đảo H=3, áp dụng nhóm 4H1. Special day (Thứ 5/6) và Special day 2 (Thứ 6) đảo thêm.",
         "H12: đảo H=4, sau đó áp dụng nhóm 4H1 (BT→đảo lại, SW→giữ nguyên).",
         "H16: so sánh H6↔H12 — opposite → follow H6, same → reverse H6. Phát ngay sau H=12.",
     ]
@@ -625,7 +625,7 @@ def get_day_notes(now, lang="VN"):
         "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3 "
         "and is always deactivated.",
         "H4/H5: M5/M30 pattern; always deactivated and intermediate-only.",
-        "H6: reverses H3, then applies four-H1 group (BT→reverse again, SW→keep).",
+        "H6: reverses H3, applies four-H1 group. Extra reversal on Special day (Thu/Fri) and Special day 2 (Fri).",
         "H12: reverses H4, then applies four-H1 group (BT→reverse again, SW→keep).",
         "H16: compares H6↔H12 — opposite → follow H6, same → reverse H6. Emitted right after H=12.",
     ]
