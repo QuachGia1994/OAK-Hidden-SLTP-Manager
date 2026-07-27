@@ -102,11 +102,12 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
               <div className="font-mono text-[10px] text-[var(--muted)]">{signal.date}</div>
             </div>
           </div>
-          {signal.is_priority ? (
+          {/* Priority badge hidden (user decision: clean display, only XAUUSD) */}
+          {/* {signal.is_priority ? (
             <span className="mt-2 inline-flex rounded-md border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-400">
               ★ {locale === "EN" ? "Priority" : "Ưu tiên"}
             </span>
-          ) : null}
+          ) : null} */}
         </header>
 
         <div className="border-b border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
