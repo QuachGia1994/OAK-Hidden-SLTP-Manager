@@ -39,20 +39,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const brokerClock = getBrokerDateParts(botState, now);
   const botWasAvailable = Boolean(botState);
-  // Capture broker offset: botState > signal data > default 3 (GMT+3 summer)
-  let brokerOffset = typeof botState?.broker_utc_offset === "number" ? botState.broker_utc_offset : null;
-  if (brokerOffset === null) {
-    // Fallback: extract from today's signals if available
-    for (const sig of signals) {
-      if (typeof sig.broker_utc_offset === "number") {
-        brokerOffset = sig.broker_utc_offset;
-        break;
-      }
-    }
-  }
-  if (brokerOffset === null) {
-    brokerOffset = 3; // Default GMT+3 (broker summer time)
-  }
+  const brokerOffset = brokerClock && typeof botState?.broker_utc_offset === "number"
+    ? botState.broker_utc_offset
+    : null;
   if (!isVIP) {
     signals = signals.map(maskSignal);
     botState = null;
@@ -62,9 +51,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hoursToday = brokerClock ? getTargetHours(brokerClock.dayOfWeek, todayStr) : [];
   const todaySignals = brokerClock ? signals.filter((s) => s.date === todayStr) : [];
   const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
-  const h4StockDirection = todaySignals.find((s) => s.hour === 4)?.pair_dirs?.["Stock-DIRECTION"];
-  const h5GBPDirection = todaySignals.find((s) => s.hour === 5)?.pair_dirs?.["GBP-DIRECTION"];
-  const activeDDirection = (botState?.d_direction_date === todayStr ? botState?.d_direction : null) || h4StockDirection || null;
 
   const allSlots = hoursToday.map((h) => {
     const signal = signalsByHour.get(h);
@@ -87,8 +73,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const botStatus = brokerClock && botWasAvailable
     ? t.running
     : locale === "EN" ? "UNSYNCED" : "CHƯA ĐỒNG BỘ";
-  const directionText = activeDDirection ? getSignalLabel(activeDDirection, locale) : "—";
-  const gbpDirectionText = h5GBPDirection ? getSignalLabel(h5GBPDirection, locale) : "—";
 
   return (
     <div className="page-shell terminal-page space-y-5">
@@ -119,22 +103,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-2">
         <MetricTile label={t.statusBot} value={botStatus} tone={brokerClock ? "buy" : "idle"} icon="bot" />
-        <MetricTile
-          label={locale === "EN" ? "Stock direction · H4" : "Hướng Stock · H4"}
-          mobileLabel="Stock · H4"
-          value={directionText}
-          tone={activeDDirection === "BUY" ? "buy" : activeDDirection === "SELL" ? "sell" : "idle"}
-          icon="direction"
-        />
-        <MetricTile
-          label={locale === "EN" ? "GBP direction · H5" : "Hướng GBP · H5"}
-          mobileLabel="GBP · H5"
-          value={gbpDirectionText}
-          tone={h5GBPDirection === "BUY" ? "buy" : h5GBPDirection === "SELL" ? "sell" : "idle"}
-          icon="direction"
-        />
         <MetricTile label={t.statusNews} value={news.length.toString()} tone={news.length > 0 ? "buy" : "idle"} icon="news" />
       </section>
 
@@ -143,7 +113,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <h2 className="terminal-section-heading text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
             {t.schedule}
           </h2>
-          <span className={`hidden rounded-lg border px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] sm:inline ${brokerClock ? "terminal-live border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)]" : "border-amber-500/30 bg-amber-500/10 text-amber-500"}`}>
+          <span className={`hidden rounded-lg border px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] sm:inline ${brokerClock ? "terminal-live border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)]" : "border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/10 text-[var(--terminal-warning)]"}`}>
             {brokerClock
               ? locale === "EN" ? "Broker synced" : "Đồng bộ Broker"
               : locale === "EN" ? "Broker unsynced" : "Broker chưa đồng bộ"}
@@ -152,13 +122,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         {brokerClock ? (
           <div className="terminal-schedule lux-scroll -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1.5">
             {hoursToday.map((h) => {
-              const sig = signalsByHour.get(h)?.signal || null;
+              const slotSignal = signalsByHour.get(h);
+              const sig = slotSignal?.signal || null;
               return (
                 <SchedulePill
                   key={h}
                   hour={h}
                   brokerDate={todayStr}
-                  signalTime={signalsByHour.get(h)?.signal_time}
+                  signalTime={slotSignal?.signal_time}
                   signal={sig}
                   brokerOffset={brokerOffset}
                   locale={locale}
@@ -167,7 +138,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             })}
           </div>
         ) : (
-          <p className="rounded-xl border border-dashed border-amber-500/30 bg-amber-500/[0.06] px-4 py-5 text-sm font-semibold text-amber-500">
+          <p className="rounded-xl border border-dashed border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/[0.08] px-4 py-5 text-sm font-semibold text-[var(--terminal-warning)]">
             {locale === "EN"
               ? "No active schedule until a fresh Broker clock is received."
               : "Không kích hoạt lịch cho đến khi nhận được đồng hồ Broker mới."}

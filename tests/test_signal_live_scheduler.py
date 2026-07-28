@@ -18,6 +18,7 @@ class SignalLiveSchedulerTests(unittest.TestCase):
                 "calculate_slot_signal",
                 return_value={"signal": "WAIT", "report": "missing candle"},
             ) as calculate,
+            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="06:11"),
             patch.object(mt5_signal_bot, "_save_state") as save,
         ):
             emitted = mt5_signal_bot._process_live_slot(broker_dt, 6)
@@ -34,6 +35,7 @@ class SignalLiveSchedulerTests(unittest.TestCase):
         with (
             patch.object(mt5_signal_bot, "sent_today", sent),
             patch.object(mt5_signal_bot, "calculate_slot_signal") as calculate,
+            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="06:11"),
             patch.object(mt5_signal_bot, "_save_state") as save,
         ):
             emitted = mt5_signal_bot._process_live_slot(broker_dt, 6)
@@ -55,7 +57,6 @@ class SignalLiveSchedulerTests(unittest.TestCase):
             {
                 (broker_dt.date(), 3),
                 (broker_dt.date(), 4),
-                (broker_dt.date(), 5),
                 (broker_dt.date(), 6),
                 (broker_dt.date(), 9),
             },
@@ -82,14 +83,13 @@ class SignalLiveSchedulerTests(unittest.TestCase):
             "report": "special H3 warning",
             "pattern_signal": "BUY",
             "deactivated": True,
-            "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "SELL"},
-            "skip_xau_m30": True,
+            "pair_dirs": {"XAUUSD": "BUY"},
         }
 
         with (
             patch.object(mt5_signal_bot, "sent_today", sent),
             patch.object(mt5_signal_bot, "calculate_slot_signal", return_value=result),
-            patch.object(mt5_signal_bot, "evaluate_3_m30_classification_for_h3", return_value="BT"),
+            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="03:11"),
             patch.object(mt5_signal_bot, "log_signal") as log_signal,
             patch.object(mt5_signal_bot, "push_to_dashboard"),
             patch.object(mt5_signal_bot, "send_report", return_value=result["pair_dirs"]),

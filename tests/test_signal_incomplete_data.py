@@ -1,4 +1,5 @@
 """Missing candles and unresolved DOJI must fail closed."""
+from contextlib import ExitStack
 from datetime import datetime
 from unittest.mock import patch
 import unittest
@@ -6,103 +7,62 @@ import unittest
 import mt5_signal_bot
 
 
-DOJI = {"open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0}
+DOJI = {"open": 1.0, "high": 2.0, "low": 0.0, "close": 1.0}
+ACTIVE_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+LEGACY_SEAMS = (
+    "analyze",
+    "apply_xauusd_m30_logic",
+    "evaluate_3_m30_classification_for_h3",
+    "evaluate_4_m30_classification_before_hour",
+    "evaluate_classification_for_slot",
+    "evaluate_h3_m30_slot",
+    "evaluate_m30_m15_slot",
+    "evaluate_slot_candle_groups",
+)
 
 
 class SignalIncompleteDataTests(unittest.TestCase):
-    def test_four_h1_missing_candle_returns_incomplete(self) -> None:
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=None),
-        ):
-            group, detail, candles = mt5_signal_bot.evaluate_classification_for_slot(
-                datetime(2026, 7, 14, 12, 0),
-                12,
-            )
-
-        self.assertIsNone(group)
-        self.assertIn("missing H1", detail)
-        self.assertEqual(candles, [])
-
-    def test_four_h1_unresolved_doji_returns_incomplete(self) -> None:
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=DOJI),
-            patch.object(mt5_signal_bot, "resolve_doji", return_value=None),
-        ):
-            group, detail, _candles = mt5_signal_bot.evaluate_classification_for_slot(
-                datetime(2026, 7, 14, 12, 0),
-                12,
-            )
-
-        self.assertIsNone(group)
-        self.assertIn("unresolved DOJI", detail)
-
-    def test_four_m30_missing_or_unresolved_returns_incomplete(self) -> None:
+    def test_previous_day_gbp_h1_missing_or_unresolved_doji_is_incomplete(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         with (
             patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
             patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=None),
         ):
-            self.assertIsNone(
-                mt5_signal_bot.evaluate_4_m30_classification_before_hour(broker_dt, 12)
-            )
+            self.assertIsNone(mt5_signal_bot.evaluate_previous_day_gbp_h1_pair(broker_dt, 12, "GBPUSD"))
         with (
             patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
             patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=DOJI),
             patch.object(mt5_signal_bot, "resolve_doji", return_value=None),
         ):
-            self.assertIsNone(
-                mt5_signal_bot.evaluate_4_m30_classification_before_hour(broker_dt, 12)
-            )
+            self.assertIsNone(mt5_signal_bot.evaluate_previous_day_gbp_h1_pair(broker_dt, 12, "GBPUSD"))
 
-    def test_h3_three_m30_missing_or_unresolved_returns_incomplete(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 3, 0)
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=None),
-        ):
-            self.assertIsNone(mt5_signal_bot.evaluate_3_m30_classification_for_h3(broker_dt))
+    def test_xau_m15_missing_or_unresolved_doji_is_incomplete(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", return_value=None):
+            self.assertIsNone(mt5_signal_bot.evaluate_xauusd_m15_group_for_slot(broker_dt, 12))
         with (
             patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
             patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=DOJI),
             patch.object(mt5_signal_bot, "resolve_doji", return_value=None),
         ):
-            self.assertIsNone(mt5_signal_bot.evaluate_3_m30_classification_for_h3(broker_dt))
+            self.assertIsNone(mt5_signal_bot.evaluate_xauusd_m15_group_for_slot(broker_dt, 12))
 
-    def test_xau_m30_missing_or_unresolved_returns_none(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 9, 0)
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=None),
-        ):
-            self.assertIsNone(mt5_signal_bot.get_xauusd_m30_signal(broker_dt, 9))
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=DOJI),
-            patch.object(mt5_signal_bot, "resolve_doji", return_value=None),
-        ):
-            self.assertIsNone(mt5_signal_bot.get_xauusd_m30_signal(broker_dt, 9))
-
-    def test_slot_calculation_waits_on_incomplete_four_h1(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 6, 0)
-        with (
-            patch.object(
-                mt5_signal_bot,
-                "evaluate_4_m30_classification_before_hour",
-                return_value="SW",
-            ),
-            patch.object(mt5_signal_bot, "_lookup_h3_signal_today", return_value="BUY"),
-            patch.object(
-                mt5_signal_bot,
-                "evaluate_classification_for_slot",
-                return_value=(None, "missing H1@05:00", []),
-            ),
-        ):
-            result = mt5_signal_bot.calculate_slot_signal(broker_dt, 6)
-
-        self.assertEqual(result["signal"], "WAIT")
-        self.assertIn("incomplete", result["report"])
+    def test_every_active_slot_waits_when_new_context_is_incomplete(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
+        for hour in ACTIVE_SLOTS:
+            with self.subTest(hour=hour), ExitStack() as stack:
+                stack.enter_context(patch.object(mt5_signal_bot, "evaluate_gbp_h1_slot", return_value=None))
+                for name in LEGACY_SEAMS:
+                    stack.enter_context(
+                        patch.object(
+                            mt5_signal_bot,
+                            name,
+                            side_effect=AssertionError(f"legacy fallback used: {name}"),
+                            create=True,
+                        )
+                    )
+                result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
+            self.assertEqual(result["signal"], "WAIT")
 
 
 if __name__ == "__main__":

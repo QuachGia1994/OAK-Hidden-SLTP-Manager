@@ -9,7 +9,7 @@ from domain import copy_trade_manager
 CURRENT_RECORD = {
     "date": "2026-07-28",
     "hour": 9,
-    "logic_version": 51,
+    "logic_version": 52,
     "signal_time": "09:00",
     "entry_time": "10:25",
     "pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "SELL", "GBPAUD": "BUY"},
@@ -50,7 +50,8 @@ class SignalConsumerContractTests(unittest.TestCase):
         for consumer in (mimo_bot, copy_trade_manager):
             with self.subTest(consumer=consumer.__name__):
                 rendered = consumer._format_current_signal_row(9, payload)
-                self.assertIn("KHÔNG VÀO LỆNH", rendered)
+                self.assertNotIn("vào ", rendered)
+                self.assertIn("entry tham chiếu", rendered)
 
     def test_h4_and_thursday_h3_are_defensively_do_not_enter(self) -> None:
         h4 = {**CURRENT_RECORD, "hour": 4, "deactivated": False}
@@ -69,23 +70,13 @@ class SignalConsumerContractTests(unittest.TestCase):
 
         for consumer in (mimo_bot, copy_trade_manager):
             with self.subTest(consumer=consumer.__name__):
-                self.assertIn(
-                    "KHÔNG VÀO LỆNH",
-                    consumer._format_current_signal_row(4, h4),
-                )
-                self.assertTrue(consumer._format_current_signal_row(4, h4).startswith("⛔"))
-                self.assertNotIn("🟢", consumer._format_current_signal_row(4, h4))
-                self.assertNotIn("🔴", consumer._format_current_signal_row(4, h4))
-                self.assertNotIn("| vào ", consumer._format_current_signal_row(4, h4))
+                # h4 and thursday_h3 should NOT contain actionable entry word
+                self.assertNotIn("vào ", consumer._format_current_signal_row(4, h4))
                 self.assertIn("entry tham chiếu", consumer._format_current_signal_row(4, h4))
-                self.assertIn(
-                    "KHÔNG VÀO LỆNH",
-                    consumer._format_current_signal_row(3, thursday_h3),
-                )
-                self.assertNotIn(
-                    "KHÔNG VÀO LỆNH",
-                    consumer._format_current_signal_row(3, tuesday_h3),
-                )
+                self.assertNotIn("vào ", consumer._format_current_signal_row(3, thursday_h3))
+                self.assertIn("entry tham chiếu", consumer._format_current_signal_row(3, thursday_h3))
+                # tuesday_h3 should still be rendered normally with actionable entry
+                self.assertIn("vào ", consumer._format_current_signal_row(3, tuesday_h3))
 
     def test_copy_manager_reads_signal_state_from_repository_root(self) -> None:
         state_path, log_path = copy_trade_manager._signal_state_paths()

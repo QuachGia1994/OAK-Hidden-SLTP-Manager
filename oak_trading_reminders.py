@@ -614,24 +614,26 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     notes_vn = [
-        "H3: XAUUSD đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai "
-        "và luôn deactivated.",
-        "H4/H5: pattern M5/M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
-        "H6: đảo H=3, áp dụng nhóm 4H1. Special day (Thứ 5/6) và Special day 2 (Thứ 4/6) đảo thêm.",
-        "H12: đảo H=4 + nhóm 4H1. Thứ 5: H=12 = đảo ngược H=16 Thứ 4 hôm qua. "
-        "Giai hạn cuối tháng (Thứ 2 cuối → Thứ 2 sau Thứ 6 đầu tháng sau): DO NOT ENTER.",
-        "H16: so sánh H6↔H12. Thứ 5: deactivated (DO NOT ENTER). "
-        "Giai hạn cuối tháng: DO NOT ENTER. Phát ngay sau H=12.",
+        "Slots: H=3,4,6,9,12,14,16. Giờ phát Broker: H3 03:00; H4 04:00; H6 06:00; "
+        "H9 09:00; H12 12:00; H14 14:00; H16 16:00.",
+        "Chỉ phát XAUUSD. Mỗi mốc dùng hai H1 GBPUSD đã hoàn tất của ngày hôm qua ngay trước cùng mốc logic "
+        "(ví dụ H9 hôm nay dùng H8/H7 hôm qua, H8 là nền): ngược chiều → BT, giữ nền; cùng chiều → SW, đảo nền. "
+        "Kết quả GBPUSD là signal XAUUSD cuối cùng.",
+        "Lặp hai H1 GBPAUD cùng thời điểm hôm qua chỉ để đối chiếu. Kết quả GBPUSD/GBPAUD trùng nhau → entry H:11. "
+        "Nếu khác nhau, bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD tiếp theo theo SW/BT "
+        "(H9 bỏ 08:45, dùng 08:30/08:15/08:00): SW → (H+1):25, BT → H:49; H3 SW → 04:49, BT → 03:49.",
+        "H3 mọi Thứ Năm và H4 mọi ngày luôn deactivated. Thiếu nến hoặc DOJI chưa resolve → WAIT.",
     ]
     notes_en = [
-        "H3: XAUUSD reverses the previous trading day's H5; Thursday reuses Monday H3 "
-        "and is always deactivated.",
-        "H4/H5: M5/M30 pattern; always deactivated and intermediate-only.",
-        "H6: reverses H3, applies four-H1 group. Extra reversal on Special day (Thu/Fri) and Special day 2 (Wed/Fri).",
-        "H12: reverses H4 + four-H1 group. Thursday: H=12 = reverse of Wednesday's H=16. "
-        "Month-end restricted period (last Tue → Mon after first Fri of next month): DO NOT ENTER.",
-        "H16: compares H6↔H12. Thursday: deactivated (DO NOT ENTER). "
-        "Month-end restricted period: DO NOT ENTER. Emitted right after H=12.",
+        "Slots: H=3,4,6,9,12,14,16. Broker publication: H3 03:00; H4 04:00; H6 06:00; "
+        "H9 09:00; H12 12:00; H14 14:00; H16 16:00.",
+        "Emits XAUUSD only. Each slot uses two completed GBPUSD H1 bars from yesterday immediately before the equivalent logical slot "
+        "(for H9 today, yesterday H8/H7; H8 is the base): opposite → BT and keep the base; same → SW and reverse the base. "
+        "The GBPUSD result is the final XAUUSD signal.",
+        "Repeat the equivalent two GBPAUD H1 bars from yesterday only for comparison. Matching GBPUSD/GBPAUD results → entry H:11. "
+        "If they differ, skip the M15 immediately before the slot and classify the next three XAUUSD M15 bars with SW/BT "
+        "(H9 skips 08:45 and uses 08:30/08:15/08:00): SW → (H+1):25, BT → H:49; H3 SW → 04:49, BT → 03:49.",
+        "H3 every Thursday and H4 every day are deactivated. Missing candles or unresolved DOJI → WAIT.",
     ]
 
     if lang == "VN":

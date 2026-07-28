@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [3, 6, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
-/** Minimum backend contract — M15 canonical matrix v51. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 51;
+/** Minimum backend contract — previous-session resolver v52. */
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 52;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 

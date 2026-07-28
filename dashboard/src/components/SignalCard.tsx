@@ -2,7 +2,6 @@
 
 import { getEntryTimeLabel, getSignalColor, getSignalLabel, getSignalTime } from "@/lib/constants";
 import { verifiedBrokerTimeToLocal } from "@/lib/broker-time";
-import { isEffectivelyDeactivated } from "@/lib/signal-display";
 import type { Signal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
@@ -53,7 +52,6 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
   const pairs = defaultPairsForHour(signal.hour);
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
-  const effectiveDeactivated = isEffectivelyDeactivated(signal);
 
   const getPairDirection = (pair: string) => {
     if (!isVIP) return "locked";
@@ -62,55 +60,47 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
 
   return (
     <article className="terminal-panel group signal-rail relative overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
-      {effectiveDeactivated ? (
-        <div className="relative z-10 border-b border-[var(--terminal-warning)]/45 bg-[var(--terminal-warning)]/10 px-4 py-2 text-center font-mono text-[11px] font-black uppercase tracking-[0.16em] text-[var(--terminal-warning)]">
-          {locale === "EN" ? "DO NOT ENTER" : "KHÔNG VÀO LỆNH"}
-        </div>
-      ) : null}
-
-      <div className={effectiveDeactivated ? "opacity-40 grayscale" : ""}>
-        <header className="border-b border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
-              <TimeBlock
-                label={locale === "EN" ? "Signal" : "Phát signal"}
-                brokerTime={signalTime}
-                localTime={localSignalTime}
-              />
-              <TimeBlock
-                label={locale === "EN" ? "Entry" : "Vào lệnh"}
-                brokerTime={entryTime}
-                localTime={localEntryTime}
-              />
-            </div>
-            <div className="shrink-0 text-right">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                {locale === "EN" ? "Slot" : "Mốc"}
-              </div>
-              <div className="font-mono text-xs font-bold text-[var(--foreground)]">H={signal.hour}</div>
-              <div className="font-mono text-[10px] text-[var(--muted)]">{signal.date}</div>
-            </div>
+      <header className="border-b border-[var(--panel-border)] bg-[var(--surface)] px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
+            <TimeBlock
+              label={locale === "EN" ? "Signal" : "Phát signal"}
+              brokerTime={signalTime}
+              localTime={localSignalTime}
+            />
+            <TimeBlock
+              label={locale === "EN" ? "Entry" : "Vào lệnh"}
+              brokerTime={entryTime}
+              localTime={localEntryTime}
+            />
           </div>
-        </header>
-
-        <div className="border-b border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
-          <div className="terminal-kicker mb-1.5 text-[var(--muted)]">
-            {locale === "EN" ? "Verdict" : "Kết luận"}
+          <div className="shrink-0 text-right">
+            <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--muted)]">
+              {locale === "EN" ? "Slot" : "Mốc"}
+            </div>
+            <div className="font-mono text-xs font-bold text-[var(--foreground)]">H={signal.hour}</div>
+            <div className="font-mono text-[10px] text-[var(--muted)]">{signal.date}</div>
           </div>
-          {isVIP ? (
-            <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(signal.signal)}`}>
-              {getSignalLabel(signal.signal, locale)}
-            </span>
-          ) : (
-            <LockedVerdict locale={locale} />
-          )}
         </div>
+      </header>
 
-        <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
-          {pairs.map((pair) => (
-            <PairBadge key={pair} pair={pair} direction={getPairDirection(pair)} />
-          ))}
+      <div className="border-b border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
+        <div className="terminal-kicker mb-1.5 text-[var(--muted)]">
+          {locale === "EN" ? "Verdict" : "Kết luận"}
         </div>
+        {isVIP ? (
+          <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(signal.signal)}`}>
+            {getSignalLabel(signal.signal, locale)}
+          </span>
+        ) : (
+          <LockedVerdict locale={locale} />
+        )}
+      </div>
+
+      <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
+        {pairs.map((pair) => (
+          <PairBadge key={pair} pair={pair} direction={getPairDirection(pair)} />
+        ))}
       </div>
     </article>
   );

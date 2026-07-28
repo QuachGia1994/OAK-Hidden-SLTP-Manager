@@ -1,4 +1,4 @@
-"""Regression coverage for the M15 canonical matrix (v51+).
+"""Regression coverage for the M15 canonical matrix (v52+).
 
 Truth table (24 cases = 6 hours × 2 groups × 2 base directions):
 
@@ -86,7 +86,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
 
     def test_active_slots_and_logic_version(self) -> None:
         self.assertEqual(mt5_signal_bot.ACTIVE_HOURS, frozenset(ACTIVE_SLOTS))
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 51)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 52)
 
     def test_dashboard_excludes_h4_h5(self) -> None:
         """H=4 and H=5 must not appear in dashboard TARGET_HOURS."""
@@ -104,6 +104,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
 
     def test_truth_table_all_24_cases(self) -> None:
         """Verify all 24 combinations against the canonical truth table."""
+        prev_session = datetime(2026, 7, 13).date()
         for hour in DASHBOARD_SLOTS:
             hour_group = "early" if hour in (3, 6, 9) else "late"
             for base_dir in ("TANG", "GIAM"):
@@ -113,7 +114,8 @@ class M15CanonicalMatrixTests(unittest.TestCase):
                     directions = (base_dir,) + pullback
 
                     with self.subTest(hour=hour, base=base_dir, group=group), \
-                         patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=directions):
+                         patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=directions), \
+                         patch.object(mt5_signal_bot, "resolve_previous_broker_session", return_value=prev_session):
                         result = mt5_signal_bot.evaluate_m15_4candle_for_slot(
                             datetime(2026, 7, 14, 12, 0), hour,
                         )
@@ -161,19 +163,21 @@ class M15CanonicalMatrixTests(unittest.TestCase):
             self.assertIn(pair, result["pair_dirs"])
             self.assertEqual(result["pair_dirs"]["XAUUSD"], "BUY")
 
-    def test_m15_4candle_uses_yesterday_candles(self) -> None:
+    def test_m15_4candle_uses_previous_session_candles(self) -> None:
         broker_dt = datetime(2026, 7, 14, 9, 0)
+        prev_session = datetime(2026, 7, 13).date()
         seen: list[datetime] = []
 
         def lookback(symbol, tf, candle_dt):
             seen.append(candle_dt)
             return "TANG"
 
-        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback):
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback), \
+             patch.object(mt5_signal_bot, "resolve_previous_broker_session", return_value=prev_session):
             mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 9)
 
         for dt in seen:
-            self.assertEqual(dt.date(), datetime(2026, 7, 13).date())
+            self.assertEqual(dt.date(), prev_session)
         self.assertCountEqual(seen, [
             datetime(2026, 7, 13, 8, 30),
             datetime(2026, 7, 13, 8, 15),
@@ -183,7 +187,9 @@ class M15CanonicalMatrixTests(unittest.TestCase):
 
     def test_m15_4candle_none_when_missing(self) -> None:
         broker_dt = datetime(2026, 7, 14, 9, 0)
-        with patch.object(mt5_signal_bot, "_lookback_candle_direction", return_value=None):
+        prev_session = datetime(2026, 7, 13).date()
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", return_value=None), \
+             patch.object(mt5_signal_bot, "resolve_previous_broker_session", return_value=prev_session):
             self.assertIsNone(mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 9))
 
     def test_m15_4candle_none_for_h4(self) -> None:
@@ -193,12 +199,12 @@ class M15CanonicalMatrixTests(unittest.TestCase):
     def test_evaluate_gbp_h1_slot_h4_legacy(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         h1 = mt5_signal_bot.mt5.TIMEFRAME_H1
-        previous_day = broker_dt.date() - timedelta(days=1)
+        prev_session = datetime(2026, 7, 13).date()
         candles = {
-            ("GBPUSD", h1, datetime.combine(previous_day, datetime.min.time()).replace(hour=3)): _candle("TANG"),
-            ("GBPUSD", h1, datetime.combine(previous_day, datetime.min.time()).replace(hour=2)): _candle("GIAM"),
-            ("GBPAUD", h1, datetime.combine(previous_day, datetime.min.time()).replace(hour=3)): _candle("TANG"),
-            ("GBPAUD", h1, datetime.combine(previous_day, datetime.min.time()).replace(hour=2)): _candle("GIAM"),
+            ("GBPUSD", h1, datetime.combine(prev_session, datetime.min.time()).replace(hour=3)): _candle("TANG"),
+            ("GBPUSD", h1, datetime.combine(prev_session, datetime.min.time()).replace(hour=2)): _candle("GIAM"),
+            ("GBPAUD", h1, datetime.combine(prev_session, datetime.min.time()).replace(hour=3)): _candle("TANG"),
+            ("GBPAUD", h1, datetime.combine(prev_session, datetime.min.time()).replace(hour=2)): _candle("GIAM"),
         }
 
         def get_candle(symbol, timeframe, timestamp):
@@ -208,6 +214,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
         with (
             patch.object(mt5_signal_bot, "broker_time_to_ts", side_effect=_timestamp),
             patch.object(mt5_signal_bot, "get_candle_by_ts", side_effect=get_candle),
+            patch.object(mt5_signal_bot, "resolve_previous_broker_session", return_value=prev_session),
         ):
             result = mt5_signal_bot.evaluate_gbp_h1_slot(broker_dt, 4)
         self.assertEqual(result["signal"], "BUY")
@@ -251,7 +258,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
         self.assertIn("GBPUSD", note_h14)
 
         note_h4 = mt5_signal_bot.get_hour_note(4)
-        self.assertIn("DO NOT ENTER", note_h4)
+        self.assertIn("H1", note_h4)
 
 
 if __name__ == "__main__":

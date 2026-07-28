@@ -9,12 +9,12 @@ import mt5_signal_bot
 class SpecialSignalDayTests(unittest.TestCase):
     def test_remaining_2026_calendar(self) -> None:
         expected_days = {
-            "2026-07-30",
-            "2026-08-06", "2026-08-27",
-            "2026-09-03", "2026-09-24",
-            "2026-10-01", "2026-10-29",
-            "2026-11-26",
-            "2026-12-03", "2026-12-24",
+            "2026-07-30", "2026-07-31",
+            "2026-08-06", "2026-08-07", "2026-08-27", "2026-08-28",
+            "2026-09-03", "2026-09-04", "2026-09-24", "2026-09-25",
+            "2026-10-01", "2026-10-02", "2026-10-29", "2026-10-30",
+            "2026-11-26", "2026-11-27",
+            "2026-12-03", "2026-12-04", "2026-12-24", "2026-12-25",
         }
         cursor = datetime(2026, 7, 26)
         last_day = datetime(2026, 12, 31)
@@ -41,15 +41,16 @@ class SpecialSignalDayTests(unittest.TestCase):
         self.assertFalse(mt5_signal_bot.is_post_special_day(datetime(2026, 8, 17)))
         self.assertFalse(mt5_signal_bot.is_post_special_day(datetime(2027, 1, 4)))
 
-    def test_late_slots_are_deactivated_in_restricted_period(self) -> None:
+    def test_special_and_post_special_days_do_not_set_deactivated_direct_slots(self) -> None:
         for broker_dt in (
             datetime(2026, 8, 6, 12, 0),   # special Thu inside restricted
             datetime(2026, 8, 7, 12, 0),   # special Fri inside restricted
             datetime(2026, 8, 10, 12, 0),  # post-SD1 Mon inside restricted
         ):
             with self.subTest(day=broker_dt.date()):
-                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 12))
-                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 16))
+                for hour in (6, 9, 12, 14, 16):
+                    with self.subTest(hour=hour):
+                        self.assertFalse(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, hour))
 
     def test_month_boundary_suppress_schedule(self) -> None:
         # Restricted calendar period: Tue of last-Fri week through Mon after first Fri of next month
@@ -85,18 +86,16 @@ class SpecialSignalDayTests(unittest.TestCase):
 
     def test_h6_is_not_deactivated_on_special_day(self) -> None:
         special_thursday = datetime(2026, 9, 24, 6, 0)  # special Thu outside restricted
+        context = {
+            "signal": "BUY",
+            "entry_time": "06:11",
+            "pair_dirs": {"XAUUSD": "BUY"},
+        }
         with patch.object(
             mt5_signal_bot,
-            "_lookup_h3_signal_today",
-            return_value="BUY",
-        ), patch.object(
-            mt5_signal_bot,
-            "evaluate_4_m30_classification_before_hour",
-            return_value="SW",
-        ), patch.object(
-            mt5_signal_bot,
-            "evaluate_classification_for_slot",
-            return_value=("SW", "detail", None),
+            "evaluate_gbp_h1_slot",
+            return_value=context,
+            create=True,
         ):
             result = mt5_signal_bot.calculate_slot_signal(special_thursday, 6)
             self.assertFalse(result.get("deactivated", False))
@@ -105,46 +104,37 @@ class SpecialSignalDayTests(unittest.TestCase):
         special_thursday = datetime(2026, 8, 6, 3, 0)
         regular_thursday = datetime(2026, 7, 23, 3, 0)
         special_friday = datetime(2026, 8, 7, 3, 0)
+        context = {
+            "signal": "BUY",
+            "entry_time": "03:11",
+            "pair_dirs": {"XAUUSD": "BUY"},
+        }
 
         with patch.object(
             mt5_signal_bot,
-            "_lookup_historical_t2_signal",
-            return_value="BUY",
-        ), patch.object(
-            mt5_signal_bot,
-            "evaluate_3_m30_classification_for_h3",
-            return_value="SW",
+            "evaluate_gbp_h1_slot",
+            side_effect=lambda *_args: dict(context),
+            create=True,
         ):
             thursday_result = mt5_signal_bot.calculate_slot_signal(special_thursday, 3)
             regular_thursday_result = mt5_signal_bot.calculate_slot_signal(regular_thursday, 3)
-        with patch.object(
-            mt5_signal_bot,
-            "_lookup_h5_signal_yesterday",
-            return_value="BUY",
-        ), patch.object(
-            mt5_signal_bot,
-            "evaluate_3_m30_classification_for_h3",
-            return_value="SW",
-        ):
             friday_result = mt5_signal_bot.calculate_slot_signal(special_friday, 3)
 
         self.assertTrue(thursday_result["deactivated"])
         self.assertTrue(regular_thursday_result["deactivated"])
-        self.assertEqual(friday_result["signal"], "SELL")
+        self.assertEqual(friday_result["signal"], "BUY")
         self.assertFalse(friday_result.get("deactivated", False))
 
-    def test_h4_and_h5_are_deactivated_every_weekday(self) -> None:
+    def test_h4_is_deactivated_every_weekday_while_h5_is_inactive(self) -> None:
         monday = datetime(2026, 7, 20, 4, 45)
 
         for weekday in range(5):
             broker_dt = monday + timedelta(days=weekday)
-            for hour in (4, 5):
-                with self.subTest(weekday=weekday, hour=hour):
-                    self.assertTrue(
-                        mt5_signal_bot.is_deactivated_signal_slot(broker_dt, hour)
-                    )
+            with self.subTest(weekday=weekday):
+                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 4))
 
         self.assertFalse(mt5_signal_bot.is_deactivated_signal_slot(monday, 3))
+        self.assertNotIn(5, mt5_signal_bot.ACTIVE_HOURS)
 
 
 class SpecialDay2Tests(unittest.TestCase):
@@ -227,37 +217,19 @@ class SpecialDay2Tests(unittest.TestCase):
         self.assertTrue(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 14)))  # 2nd Fri
         self.assertFalse(mt5_signal_bot.is_special_day_2(datetime(2025, 3, 21))) # 3rd Fri (4-Fri month)
 
-    def test_h12_not_suppressed_on_special_day_or_month_boundary(self) -> None:
-        """H=12 emits BUY/SELL on special days outside restricted period; deactivated inside restricted."""
-        # Aug 6 and Jul 30 fall in the restricted calendar period (Jul 28 → Aug 10)
-        # → H=12 is DO NOT ENTER (deactivated) during restricted period
+    def test_restricted_calendar_is_not_a_deactivated_slot_rule(self) -> None:
+        """Special and month-boundary dates do not set a deactivated flag."""
+        # Aug 6 and Jul 30 fall in the restricted calendar period (Jul 28 to Aug 10).
+        # The reset rules keep H=12 active; the calendar must not deactivate it.
         restricted_days = [
             datetime(2026, 8, 6, 12, 0),   # special Thu inside restricted
             datetime(2026, 7, 30, 12, 0),   # month boundary inside restricted
         ]
         for broker_dt in restricted_days:
             with self.subTest(day=broker_dt.date()):
-                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 12))
-
-        # Outside restricted period: H=12 still emits on special days
-        # Sep 24, 2026 (special Thu) is outside all restricted periods
-        non_restricted_special = datetime(2026, 9, 24, 12, 0)
-        with patch.object(
-            mt5_signal_bot,
-            "evaluate_4_m30_classification_before_hour",
-            return_value="SW",
-        ), patch.object(
-            mt5_signal_bot,
-            "_lookup_h4_signal_today",
-            return_value="BUY",
-        ), patch.object(
-            mt5_signal_bot,
-            "evaluate_classification_for_slot",
-            return_value=("SW", "detail", None),
-        ):
-            result = mt5_signal_bot.calculate_slot_signal(non_restricted_special, 12)
-            self.assertFalse(result.get("suppressed", False))
-            self.assertFalse(result.get("deactivated", False))
+                for hour in (6, 9, 12, 14, 16):
+                    with self.subTest(hour=hour):
+                        self.assertFalse(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, hour))
 
         # May 8 (2nd Friday, 5-Fri month) is special day 2 but NOT regular special day
         may_8 = datetime(2026, 5, 8)

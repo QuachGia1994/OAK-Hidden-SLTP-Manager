@@ -27,14 +27,14 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
   const [open, setOpen] = useState(defaultOpen);
   const { locale } = useLocale();
   const daySignals = [...signals].sort(
-    (a, b) => getSlotTimeValue(b.hour, b.signal_time) - getSlotTimeValue(a.hour, a.signal_time),
+    (a, b) => getSlotTimeValue(b.hour, b.signal_time) - getSlotTimeValue(a.hour, b.signal_time),
   );
   const weekday = weekdayLabel(date, locale);
   const verdictCounts = daySignals.reduce(
     (counts, signal) => {
       if (signal.signal === "BUY") counts.buy += 1;
-      if (signal.signal === "SELL") counts.sell += 1;
-      if (signal.signal === "WAIT") counts.wait += 1;
+      else if (signal.signal === "SELL") counts.sell += 1;
+      else counts.wait += 1;
       return counts;
     },
     { buy: 0, sell: 0, wait: 0 },

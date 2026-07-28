@@ -36,13 +36,22 @@ class H4BackfillTests(unittest.TestCase):
         self.assertEqual(rebuilt_dates, ["2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17"])
 
     def test_before_h4_cutoff_excludes_the_current_date(self) -> None:
-        now = datetime(2026, 7, 17, 4, 30)
+        now = datetime(2026, 7, 17, 3, 59)
         with patch.object(mt5_signal_bot, "mt5_ready", True), patch.object(
             mt5_signal_bot, "get_broker_time", return_value=now
         ), patch.object(mt5_signal_bot, "rebuild_slot_signal", return_value=True) as rebuild:
             mt5_signal_bot.rebuild_h4_history(session_count=1)
 
         self.assertEqual(rebuild.call_args.args[0].date().isoformat(), "2026-07-16")
+
+    def test_h4_cutoff_includes_the_current_date(self) -> None:
+        now = datetime(2026, 7, 17, 4, 0)
+        with patch.object(mt5_signal_bot, "mt5_ready", True), patch.object(
+            mt5_signal_bot, "get_broker_time", return_value=now
+        ), patch.object(mt5_signal_bot, "rebuild_slot_signal", return_value=True) as rebuild:
+            mt5_signal_bot.rebuild_h4_history(session_count=1)
+
+        self.assertEqual(rebuild.call_args.args[0].date().isoformat(), "2026-07-17")
 
 
 if __name__ == "__main__":

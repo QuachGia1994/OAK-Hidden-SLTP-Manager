@@ -53,7 +53,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(PROJECT_DIR, "profiles.json")
 SETTINGS_FILE = os.path.join(PROJECT_DIR, "settings.json")
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 6, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 51
+MINIMUM_SIGNAL_LOGIC_VERSION = 52
 
 # Files cho OAK integration
 TELE_INBOX_FILE = os.path.join(PROJECT_DIR, "tele_inbox.json")
@@ -137,6 +137,7 @@ def _select_current_signal_rows(log_rows, target_date=None):
 
 
 def _is_do_not_enter_signal(hour, payload):
+    """Return True for slots that must not be actioned — H4 and Thursday H3."""
     if payload.get("deactivated") or hour == 4:
         return True
     if hour != 3:
@@ -151,16 +152,15 @@ def _format_current_signal_row(hour, payload):
     """Render Broker publication/entry clocks without reconstructing them."""
     direction = payload["pair_dirs"]["XAUUSD"]
     do_not_enter = _is_do_not_enter_signal(hour, payload)
-    icon = "⛔" if do_not_enter else "🟢" if direction == "BUY" else "🔴"
     signal_time = payload.get("signal_time") or "--:--"
     entry_time = payload.get("entry_time") or "--:--"
     if do_not_enter:
         return (
-            f"{icon} H={hour:02d} — KHÔNG VÀO LỆNH | phát {signal_time} Broker | "
-            f"entry tham chiếu {entry_time} Broker | hướng tham chiếu XAUUSD:{direction}"
+            f"H={hour:02d} | phát {signal_time} Broker | "
+            f"entry tham chiếu {entry_time} Broker | XAUUSD:{direction}"
         )
     return (
-        f"{icon} H={hour:02d} | phát {signal_time} Broker | "
+        f"H={hour:02d} | phát {signal_time} Broker | "
         f"vào {entry_time} Broker → *XAUUSD:{direction}*"
     )
 

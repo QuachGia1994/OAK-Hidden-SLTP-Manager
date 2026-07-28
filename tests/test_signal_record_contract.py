@@ -22,7 +22,6 @@ class SignalRecordContractTests(unittest.TestCase):
         with (
             patch.object(mt5_signal_bot, "BROKER_CLOCK", _FakeBrokerClock()),
             patch.object(mt5_signal_bot, "get_current_prices", return_value={}),
-            patch.object(mt5_signal_bot, "is_priority_slot", return_value=False),
             patch.object(mt5_signal_bot, "_write_signals_log_atomic", side_effect=captured.append),
             patch.object(mt5_signal_bot.os.path, "exists", return_value=False),
         ):
@@ -31,7 +30,7 @@ class SignalRecordContractTests(unittest.TestCase):
                 broker_dt,
                 "BUY",
                 "03:11",
-                {"XAUUSD": "BUY", "GBPAUD": "SELL"},
+                {"XAUUSD": "BUY"},
                 "",
                 deactivated=True,
             )
@@ -43,32 +42,34 @@ class SignalRecordContractTests(unittest.TestCase):
         self.assertEqual(record["signal_at_utc"], "2026-08-06T00:00:00+00:00")
         self.assertEqual(record["broker_utc_offset"], 3)
         self.assertTrue(record["broker_clock_verified"])
-        self.assertEqual(record["logic_version"], 41)
+        self.assertEqual(record["logic_version"], mt5_signal_bot.SIGNAL_LOGIC_VERSION)
         self.assertTrue(record["deactivated"])
+        self.assertNotIn("is_priority", record)
 
-    def test_h4_record_is_forced_deactivated_for_dependency_only_use(self) -> None:
-        broker_dt = datetime(2026, 8, 4, 4, 45)
+    def test_h4_grouped_record_is_forced_deactivated(self) -> None:
+        broker_dt = datetime(2026, 8, 4, 4, 0)
         captured = []
 
         with (
             patch.object(mt5_signal_bot, "BROKER_CLOCK", _FakeBrokerClock()),
             patch.object(mt5_signal_bot, "get_current_prices", return_value={}),
-            patch.object(mt5_signal_bot, "is_priority_slot", return_value=False),
             patch.object(mt5_signal_bot, "_write_signals_log_atomic", side_effect=captured.append),
             patch.object(mt5_signal_bot.os.path, "exists", return_value=False),
         ):
-            mt5_signal_bot.log_signal(4, broker_dt, "BUY", "04:45", {"XAUUSD": "BUY"}, "")
+            mt5_signal_bot.log_signal(4, broker_dt, "BUY", "04:49", {"XAUUSD": "BUY"}, "")
 
-        self.assertTrue(captured[0][0]["deactivated"])
+        record = captured[0][0]
+        self.assertEqual(record["signal_time"], "04:00")
+        self.assertEqual(record["entry_time"], "04:49")
+        self.assertTrue(record["deactivated"])
 
-    def test_special_h9_record_keeps_logical_hour_despite_0800_publication(self) -> None:
-        broker_dt = datetime(2026, 8, 6, 8, 0)
+    def test_special_h9_record_uses_the_normal_0900_publication_clock(self) -> None:
+        broker_dt = datetime(2026, 8, 6, 9, 0)
         captured = []
 
         with (
             patch.object(mt5_signal_bot, "BROKER_CLOCK", _FakeBrokerClock()),
             patch.object(mt5_signal_bot, "get_current_prices", return_value={}),
-            patch.object(mt5_signal_bot, "is_priority_slot", return_value=False),
             patch.object(mt5_signal_bot, "_write_signals_log_atomic", side_effect=captured.append),
             patch.object(mt5_signal_bot.os.path, "exists", return_value=False),
         ):
@@ -76,15 +77,15 @@ class SignalRecordContractTests(unittest.TestCase):
                 9,
                 broker_dt,
                 "SELL",
-                "08:30",
-                {"XAUUSD": "SELL", "GBPUSD": "BUY", "GBPAUD": "BUY"},
+                "09:49",
+                {"XAUUSD": "SELL"},
                 "",
             )
 
         record = captured[0][0]
         self.assertEqual(record["hour"], 9)
-        self.assertEqual(record["signal_time"], "08:00")
-        self.assertEqual(record["entry_time"], "08:30")
+        self.assertEqual(record["signal_time"], "09:00")
+        self.assertEqual(record["entry_time"], "09:49")
 
     def test_deactivated_telegram_is_warning_only(self) -> None:
         broker_dt = datetime(2026, 8, 6, 3, 0)
@@ -92,19 +93,34 @@ class SignalRecordContractTests(unittest.TestCase):
             "signal": "BUY",
             "report": "trade-style report must not be forwarded",
             "deactivated": True,
-            "skip_xau_m30": True,
-            "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "SELL"},
+            "entry_time": "03:11",
+            "pair_dirs": {"XAUUSD": "BUY"},
         }
 
-        with (
-            patch.object(mt5_signal_bot, "evaluate_3_m30_classification_for_h3", return_value="BT"),
-            patch.object(mt5_signal_bot, "send_telegram") as send,
-        ):
+        with patch.object(mt5_signal_bot, "send_telegram") as send:
             mt5_signal_bot.send_report(signal_data, 3, broker_dt)
 
         message = send.call_args.args[0]
         self.assertIn("deactivated", message)
+        self.assertIn("Mốc entry tham chiếu: 03:11 Broker", message)
         self.assertNotIn(signal_data["report"], message)
+
+    def test_actionable_telegram_uses_calculated_entry_time(self) -> None:
+        broker_dt = datetime(2026, 8, 5, 3, 0)
+        signal_data = {
+            "signal": "BUY",
+            "report": "GBP H1/M15 confirmed",
+            "entry_time": "04:49",
+        }
+
+        with (
+            patch.object(mt5_signal_bot, "get_pair_direction", return_value={"XAUUSD": "BUY"}),
+            patch.object(mt5_signal_bot, "format_telegram_pair_block", return_value="XAUUSD: BUY"),
+            patch.object(mt5_signal_bot, "send_telegram") as send,
+        ):
+            mt5_signal_bot.send_report(signal_data, 3, broker_dt)
+
+        self.assertIn("Vào lệnh: 04:49 Broker", send.call_args.args[0])
 
 
 if __name__ == "__main__":

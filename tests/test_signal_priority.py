@@ -1,50 +1,66 @@
-"""Priority matrix for H6/H9 and H12/H14."""
-from datetime import datetime, timedelta
+"""The retired priority badge cannot alter GBP H1 slot calculation."""
+from contextlib import ExitStack
+from datetime import datetime
 from unittest.mock import patch
 import unittest
 
 import mt5_signal_bot
 
 
+DIRECT_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+
+
 class SignalPriorityTests(unittest.TestCase):
-    def test_five_weekday_matrix_for_sw_and_bt(self) -> None:
-        monday = datetime(2026, 7, 20, 12, 0)
+    def test_priority_classifier_is_removed(self) -> None:
+        self.assertFalse(hasattr(mt5_signal_bot, "is_priority_slot"))
+        self.assertFalse(
+            hasattr(mt5_signal_bot, "evaluate_4_m30_classification_before_hour")
+        )
 
-        for weekday in range(5):
-            broker_dt = monday + timedelta(days=weekday)
-            for group in ("SW", "BT"):
-                with self.subTest(weekday=weekday, group=group), patch.object(
-                    mt5_signal_bot,
-                    "evaluate_4_m30_classification_before_hour",
-                    return_value=group,
-                ):
-                    self.assertEqual(mt5_signal_bot.is_priority_slot(broker_dt, 6), group == "SW")
-                    self.assertEqual(mt5_signal_bot.is_priority_slot(broker_dt, 9), group == "BT")
-                    h12_group = "BT" if weekday in (0, 4) else "SW"
-                    h14_group = "SW" if weekday in (0, 4) else "BT"
-                    self.assertEqual(
-                        mt5_signal_bot.is_priority_slot(broker_dt, 12),
-                        group == h12_group,
+    def test_direct_slots_do_not_depend_on_retired_priority_or_signal_lookups(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
+        context = {
+            "signal": "BUY",
+            "entry_time": "12:11",
+            "pair_dirs": {"XAUUSD": "BUY"},
+        }
+        legacy = (
+            "analyze",
+            "evaluate_classification_for_slot",
+            "evaluate_3_m30_classification_for_h3",
+            "evaluate_4_m30_classification_before_hour",
+            "_lookup_h3_signal_today",
+            "_lookup_h4_signal_today",
+            "_lookup_h5_signal_today",
+            "_lookup_h5_signal_yesterday",
+            "_lookup_h16_signal_yesterday",
+            "_lookup_signal_from_log",
+        )
+
+        for hour in DIRECT_SLOTS:
+            with self.subTest(hour=hour), ExitStack() as stack:
+                stack.enter_context(
+                    patch.object(
+                        mt5_signal_bot,
+                        "evaluate_gbp_h1_slot",
+                        return_value=dict(context),
+                        create=True,
                     )
-                    self.assertEqual(
-                        mt5_signal_bot.is_priority_slot(broker_dt, 14),
-                        group == h14_group,
+                )
+                for name in legacy:
+                    stack.enter_context(
+                        patch.object(
+                            mt5_signal_bot,
+                            name,
+                            side_effect=AssertionError(f"legacy path used: {name}"),
+                            create=True,
+                        )
                     )
+                result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
 
-    def test_h16_selection_uses_only_h6_priority_group(self) -> None:
-        thursday = datetime(2026, 7, 23, 16, 0)
-
-        with (
-            patch.object(
-                mt5_signal_bot,
-                "evaluate_4_m30_classification_before_hour",
-                return_value="SW",
-            ) as classify,
-            patch.object(mt5_signal_bot, "_lookup_signal_from_log", return_value="BUY"),
-        ):
-            mt5_signal_bot.calculate_slot_signal(thursday, 16)
-
-        classify.assert_called_once_with(thursday, 6)
+            self.assertIn(result["signal"], ("BUY", "SELL"))
+            self.assertNotIn("m30_dir", result)
+            self.assertNotIn("h1_signal", result)
 
 
 if __name__ == "__main__":

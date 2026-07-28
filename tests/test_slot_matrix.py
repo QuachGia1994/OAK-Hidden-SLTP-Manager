@@ -1,4 +1,5 @@
-"""Regression tests for the active logical slot matrix."""
+"""Regression tests for the active logical GBP H1 slot matrix."""
+from contextlib import ExitStack
 from datetime import datetime
 from unittest.mock import patch
 import unittest
@@ -6,99 +7,84 @@ import unittest
 import mt5_signal_bot
 
 
+ACTIVE_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+
+
+def _result(hour: int) -> dict[str, object]:
+    return {
+        "signal": "BUY",
+        "entry_time": f"{hour:02d}:11",
+        "pair_dirs": {"XAUUSD": "BUY"},
+    }
+
+
 class SlotMatrixTests(unittest.TestCase):
     def test_removed_slots_are_suppressed(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
-
-        for hour in (2, 11, 13, 15, 1500):
+        for hour in (2, 5, 11, 13, 15, 1500):
             with self.subTest(hour=hour):
                 result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
                 self.assertEqual(result["signal"], "WAIT")
                 self.assertTrue(result["suppressed"])
 
-    def test_h3_uses_monday_history_on_thursday(self) -> None:
-        thursday = datetime(2026, 7, 23, 3, 0)
+    def test_every_active_slot_uses_the_gbp_h1_context(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
+        legacy = (
+            "analyze",
+            "apply_xauusd_m30_logic",
+            "evaluate_3_m30_classification_for_h3",
+            "evaluate_4_m30_classification_before_hour",
+            "evaluate_classification_for_slot",
+            "evaluate_h3_m30_slot",
+            "evaluate_m30_m15_slot",
+            "evaluate_slot_candle_groups",
+            "_lookup_h3_signal_today",
+            "_lookup_h4_signal_today",
+            "_lookup_h16_signal_yesterday",
+            "_lookup_signal_from_log",
+        )
+        for hour in ACTIVE_SLOTS:
+            with self.subTest(hour=hour), ExitStack() as stack:
+                evaluate = stack.enter_context(
+                    patch.object(mt5_signal_bot, "evaluate_gbp_h1_slot", return_value=_result(hour))
+                )
+                for name in legacy:
+                    stack.enter_context(
+                        patch.object(
+                            mt5_signal_bot,
+                            name,
+                            side_effect=AssertionError(f"legacy path used: {name}"),
+                            create=True,
+                        )
+                    )
+                result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
+            evaluate.assert_called_once_with(broker_dt, hour)
+            self.assertEqual(result["signal"], "BUY")
+            self.assertFalse(result.get("suppressed", False))
 
+    def test_h4_and_thursday_h3_are_deactivated(self) -> None:
         with patch.object(
             mt5_signal_bot,
-            "_lookup_historical_t2_signal",
-            return_value="BUY",
-        ), patch.object(
-            mt5_signal_bot,
-            "evaluate_3_m30_classification_for_h3",
-            return_value="SW",
+            "evaluate_gbp_h1_slot",
+            side_effect=lambda _dt, hour: _result(hour),
         ):
-            result = mt5_signal_bot.calculate_slot_signal(thursday, 3)
+            h4 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 14, 4), 4)
+            thursday_h3 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 23, 3), 3)
+            friday_h3 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 24, 3), 3)
+        self.assertTrue(h4["deactivated"])
+        self.assertTrue(thursday_h3["deactivated"])
+        self.assertFalse(friday_h3.get("deactivated", False))
 
-        self.assertEqual(result["signal"], "BUY")
-        self.assertEqual(result["pair_dirs"], {"XAUUSD": "BUY", "GBPAUD": "SELL"})
-        self.assertTrue(result["deactivated"])
-
-    def test_special_thursday_h3_is_saved_as_deactivated_direction(self) -> None:
-        special_thursday = datetime(2026, 8, 6, 3, 0)
-
-        with patch.object(
-            mt5_signal_bot,
-            "_lookup_historical_t2_signal",
-            return_value="SELL",
-        ), patch.object(
-            mt5_signal_bot,
-            "evaluate_3_m30_classification_for_h3",
-            return_value="SW",
-        ):
-            result = mt5_signal_bot.calculate_slot_signal(special_thursday, 3)
-
-        self.assertEqual(result["signal"], "SELL")
-        self.assertEqual(result["pair_dirs"], {"XAUUSD": "SELL", "GBPAUD": "BUY"})
-        self.assertTrue(result["deactivated"])
-
-    def test_h16_sw_branch_compares_h6_and_h12(self) -> None:
-        thursday = datetime(2026, 7, 23, 16, 0)
-
-        with (
-            patch.object(mt5_signal_bot, "evaluate_4_m30_classification_before_hour", return_value="SW"),
-            patch.object(
+    def test_every_active_slot_waits_when_gbp_h1_context_is_missing(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
+        for hour in ACTIVE_SLOTS:
+            with self.subTest(hour=hour), patch.object(
                 mt5_signal_bot,
-                "_lookup_signal_from_log",
-                side_effect=lambda _dt, hour: {6: "BUY", 12: "SELL"}.get(hour),
-            ) as lookup,
-        ):
-            result = mt5_signal_bot.calculate_slot_signal(thursday, 16)
-
-        self.assertEqual(result["signal"], "BUY")
-        self.assertEqual([call.args[1] for call in lookup.call_args_list], [6, 12])
-
-    def test_h16_bt_branch_compares_h9_and_h14(self) -> None:
-        thursday = datetime(2026, 7, 23, 16, 0)
-
-        with (
-            patch.object(mt5_signal_bot, "evaluate_4_m30_classification_before_hour", return_value="BT"),
-            patch.object(
-                mt5_signal_bot,
-                "_lookup_signal_from_log",
-                side_effect=lambda _dt, hour: {9: "SELL", 14: "SELL"}.get(hour),
-            ) as lookup,
-        ):
-            result = mt5_signal_bot.calculate_slot_signal(thursday, 16)
-
-        self.assertEqual(result["signal"], "BUY")
-        self.assertEqual([call.args[1] for call in lookup.call_args_list], [9, 14])
-
-    def test_h16_waits_when_a_dependency_is_missing(self) -> None:
-        thursday = datetime(2026, 7, 23, 16, 0)
-
-        with (
-            patch.object(mt5_signal_bot, "evaluate_4_m30_classification_before_hour", return_value="SW"),
-            patch.object(
-                mt5_signal_bot,
-                "_lookup_signal_from_log",
-                side_effect=lambda _dt, hour: "BUY" if hour == 6 else None,
-            ),
-        ):
-            result = mt5_signal_bot.calculate_slot_signal(thursday, 16)
-
-        self.assertEqual(result["signal"], "WAIT")
-        self.assertEqual(result["pair_dirs"], {})
+                "evaluate_gbp_h1_slot",
+                return_value=None,
+            ):
+                result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
+            self.assertEqual(result["signal"], "WAIT")
 
 
 if __name__ == "__main__":
