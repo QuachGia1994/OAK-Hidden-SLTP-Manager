@@ -1,37 +1,57 @@
-export const TARGET_HOURS = [3, 4, 5, 6, 12, 16] as const;
+export const TARGET_HOURS = [3, 6, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
+/** Minimum backend contract that uses the M15 4-candle rule (v50+). */
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 50;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 
 export function isActiveSignalHour(hour: unknown): boolean {
-  const numericHour = typeof hour === "number" ? hour : Number(hour);
-  return Number.isInteger(numericHour) && ACTIVE_HOURS.has(numericHour);
+  return typeof hour === "number" && Number.isInteger(hour) && ACTIVE_HOURS.has(hour);
 }
 
 export function filterActiveSignals<T extends { hour?: unknown }>(signals: readonly T[]): T[] {
   return signals.filter((signal) => isActiveSignalHour(signal.hour));
 }
 
-export function isDisplayableSignal(signal: { hour?: unknown; date?: unknown; logic_version?: unknown }): boolean {
-  if (!isActiveSignalHour(signal.hour)) return false;
-  // H=3 was repurposed from a removed legacy slot. Only the new contract is safe to display.
-  const logicVersion = Number(signal.logic_version);
-  if (Number(signal.hour) === 3 && (!Number.isInteger(logicVersion) || logicVersion < 40)) return false;
-  if (typeof signal.date !== "string") return true;
-  const parsed = parseBrokerDate(signal.date);
-  if (!parsed) return true;
-  return getTargetHours(parsed.getUTCDay(), signal.date).includes(Number(signal.hour));
+interface DisplayableSignalInput {
+  hour?: unknown;
+  date?: unknown;
+  logic_version?: unknown;
+  pair_dirs?: unknown;
+  signal?: unknown;
 }
 
-export function filterDisplayableSignals<T extends { hour?: unknown; date?: unknown; logic_version?: unknown }>(signals: readonly T[]): T[] {
+export function isDisplayableSignal(signal: DisplayableSignalInput): boolean {
+  if (!isActiveSignalHour(signal.hour)) return false;
+  if (typeof signal.logic_version !== "number"
+    || !Number.isInteger(signal.logic_version)
+    || signal.logic_version < ACTIVE_SIGNAL_LOGIC_VERSION) return false;
+  if (typeof signal.date !== "string") return false;
+  const parsed = parseBrokerDate(signal.date);
+  if (!parsed) return false;
+  if (!signal.pair_dirs || typeof signal.pair_dirs !== "object" || Array.isArray(signal.pair_dirs)) return false;
+  const xauusd = (signal.pair_dirs as Record<string, unknown>).XAUUSD;
+  if (xauusd !== "BUY" && xauusd !== "SELL") return false;
+  if (signal.signal !== xauusd) return false;
+  return getTargetHours(parsed.getUTCDay(), signal.date).includes(signal.hour as number);
+}
+
+export function filterDisplayableSignals<T extends DisplayableSignalInput>(signals: readonly T[]): T[] {
   return signals.filter(isDisplayableSignal);
 }
 
 function parseBrokerDate(date: string): Date | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!match) return null;
-  const parsed = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year
+    && parsed.getUTCMonth() === month - 1
+    && parsed.getUTCDate() === day
+    ? parsed
+    : null;
 }
 
 function addUtcDays(date: Date, days: number): Date {
@@ -75,26 +95,30 @@ export function getTargetHours(jsDayOfWeek: number, _brokerDate?: string): numbe
 
 const SIGNAL_TIMES: Readonly<Record<number, string>> = {
   3: "03:00",
-  4: "04:45",
-  5: "05:45",
   6: "06:00",
+  9: "09:00",
   12: "12:00",
+  14: "14:00",
   16: "16:00",
 };
 
-export function getSignalTime(hour: number, brokerDate?: string): string {
+export function getSignalTime(hour: number, _brokerDate?: string): string {
   return SIGNAL_TIMES[Number(hour)] ?? "--:--";
 }
 
-/** Safe display value for a future slot whose classification/priority is not known yet. */
-export function getEntryTimeLabel(hour: number, brokerDate?: string): string {
+function formatBrokerTime(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/** Display entry time label for a slot. */
+export function getEntryTimeLabel(hour: number, _brokerDate?: string): string {
   const numericHour = Number(hour);
-  if (numericHour === 3) return "03:11/03:49";
-  if (numericHour === 4) return "04:45";
-  if (numericHour === 5) return "05:45";
-  if (numericHour === 6) return "06:11";
-  if (numericHour === 12) return "12:11";
-  if (numericHour === 16) return "16:11/16:49";
+  if ([3, 6, 9, 12, 14, 16].includes(numericHour)) {
+    return [
+      formatBrokerTime(numericHour, 49),
+      formatBrokerTime(numericHour + 1, 25),
+    ].join(" / ");
+  }
   return "—";
 }
 
@@ -108,27 +132,6 @@ export function getSlotTimeValue(hour: number, signalTime?: string | null): numb
   return Number.isFinite(hours) && Number.isFinite(minutes) ? hours + minutes / 60 : Number(hour);
 }
 
-export const GBP_PAIRS: string[] = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"];
-export const ALL_PAIRS = ["XAUUSD", ...GBP_PAIRS];
-
-export function getFocusGbpPairs(_hour: number, _jsWeekday?: number): string[] {
-  return [];
-}
-
-export function isGbpFocusOnlySlot(hour: number): boolean {
-  return Number.isFinite(Number(hour)) && Number(hour) >= 5;
-}
-
-export function resolveGbpDirection(
-  pair: string,
-  _hour: number,
-  pairDirs?: Record<string, string> | null,
-  _xauDir?: string | null,
-): string {
-  const direction = pairDirs?.[pair];
-  return direction === "BUY" || direction === "SELL" || direction === "--" ? direction : "-";
-}
-
 export function getHourNote(_hour: number, _jsWeekday?: number): string | null {
   return null;
 }
@@ -137,18 +140,14 @@ type RuleLocale = "VN" | "EN";
 
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "H3: XAUUSD đảo H5 hôm qua; Thứ Năm dùng lại H3 Thứ Hai, luôn deactivated.",
-    "H4/H5: pattern M5/M30; luôn deactivated, chỉ dùng làm dependency trung gian.",
-    "H6: đảo H=3, áp dụng nhóm 4H1. Special day (Thứ 5/6) và Special day 2 (Thứ 4/6) đảo thêm.",
-    "H12: đảo H=4 + nhóm 4H1. Thứ 5: H=12 = đảo ngược H=16 Thứ 4 hôm qua.",
-    "H16: so sánh H6↔H12. Thứ 5: deactivated (DO NOT ENTER). Phát ngay sau H=12.",
+    "Mọi slot H3/H6/H9/H12/H14/H16 phát Broker lúc H:00. Tín hiệu XAUUSD lấy từ 4 nến M15 của ngày hôm qua: GBPAUD cho H3/H6/H9, GBPUSD cho H12/H14/H16. Nến gần nhất (H-0:30 hôm qua) là nền; 3 nến lùi sau (H-0:45, H-1:00, H-1:15 hôm qua) phân nhóm SW/BT.",
+    "Nhóm SW (giảm giảm giảm / tăng giảm giảm…) → đảo ngược hướng nền. Nhóm BT (giảm tăng giảm / giảm giảm tăng…) → giữ nguyên hướng nền. Entry: SW → (H+1):25, BT → H:49.",
+    "DOJI lùi thêm một nến; thiếu nến hoặc không thể phân loại → WAIT. H3 deactivated vào Thứ Năm.",
   ],
   EN: [
-    "H3: reverses previous day's H5; Thursday reuses Monday H3, always deactivated.",
-    "H4/H5: M5/M30 pattern; always deactivated and intermediate-only.",
-    "H6: reverses H3, applies four-H1 group. Extra reversal on Special day (Thu/Fri) and Special day 2 (Wed/Fri).",
-    "H12: reverses H4 + four-H1 group. Thursday: H=12 = reverse of Wednesday's H=16.",
-    "H16: compares H6↔H12. Thursday: deactivated (DO NOT ENTER). Emitted right after H=12.",
+    "Every H3/H6/H9/H12/H14/H16 slot publishes at Broker H:00. The XAUUSD signal comes from 4 M15 candles of the previous day: GBPAUD for H3/H6/H9, GBPUSD for H12/H14/H16. The nearest candle (H-0:30 yesterday) is the base; the 3 pullback candles (H-0:45, H-1:00, H-1:15 yesterday) classify SW or BT.",
+    "SW group (decrease-decrease-decrease / increase-decrease-decrease…) → reverse the base direction. BT group (decrease-increase-decrease / decrease-decrease-increase…) → keep the base direction. Entry: SW → (H+1):25, BT → H:49.",
+    "A DOJI looks one candle further back; missing or unresolved candles produce WAIT. H3 is deactivated on Thursday.",
   ],
 };
 

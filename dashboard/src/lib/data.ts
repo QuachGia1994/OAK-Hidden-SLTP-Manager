@@ -1,20 +1,21 @@
 import type { Signal, BotState, NewsItem, StockAdvisory } from "./types";
 import { redis, KEYS } from "./redis";
-import { filterDisplayableSignals } from "./constants";
+import { isActiveSignalHour } from "./constants";
+export { maskStockAdvisory } from "./stock-advisor-display";
 
 export async function getSignals(): Promise<Signal[]> {
   try {
     const data = await redis.get(KEYS.signals);
-    return filterDisplayableSignals((data as Signal[]) || []);
+    return (data as Signal[]) || [];
   } catch {
     return [];
   }
 }
 
+/** Return all signals for active hours (including WAIT) — dashboard fills missing hours itself. */
 export async function getTodaySignals(): Promise<Signal[]> {
-  // Redis now stores recent signal history as well. The dashboard page
-  // is responsible for filtering today's rows from that backlog.
-  return getSignals();
+  const all = await getSignals();
+  return all.filter((s) => isActiveSignalHour(s.hour));
 }
 
 export function maskSignal(signal: Signal): Signal {
@@ -26,7 +27,6 @@ export function maskSignal(signal: Signal): Signal {
     entry_prices: {},
     current_prices: {},
     hour_note: null,
-    d_direction: null,
   };
 }
 
@@ -56,11 +56,3 @@ export async function getStockAdvisory(): Promise<StockAdvisory | null> {
   }
 }
 
-export function maskStockAdvisory(advisory: StockAdvisory): StockAdvisory {
-  return {
-    ...advisory,
-    signal: { ...advisory.signal, direction: "WAIT" },
-    candidates: [],
-    backtest: { ...advisory.backtest, hit_rate: 0, mean_aligned_return: 0 },
-  };
-}

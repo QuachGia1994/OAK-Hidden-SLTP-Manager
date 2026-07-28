@@ -64,6 +64,31 @@ class M15FourCandleSlotTests(unittest.TestCase):
         self.assertEqual(mt5_signal_bot._m15_pair_for_hour(16), "GBPUSD")
         self.assertIsNone(mt5_signal_bot._m15_pair_for_hour(4))
 
+    def test_m15_4candle_uses_yesterday_candles(self) -> None:
+        """Candles must come from yesterday, not today."""
+        broker_dt = datetime(2026, 7, 14, 9, 0)
+        seen: list[datetime] = []
+
+        def lookback(symbol, tf, candle_dt):
+            seen.append(candle_dt)
+            return "TANG"
+
+        with patch.object(
+            mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback,
+        ):
+            mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 9)
+
+        # All candles must be from yesterday (2026-07-13)
+        for dt in seen:
+            self.assertEqual(dt.date(), datetime(2026, 7, 13).date())
+        # Specific times: 8:30, 8:15, 8:00, 7:45 yesterday
+        self.assertCountEqual(seen, [
+            datetime(2026, 7, 13, 8, 30),
+            datetime(2026, 7, 13, 8, 15),
+            datetime(2026, 7, 13, 8, 0),
+            datetime(2026, 7, 13, 7, 45),
+        ])
+
     def test_m15_4candle_base_sw_reverses(self) -> None:
         broker_dt = datetime(2026, 7, 14, 9, 0)
         directions = ("TANG", "GIAM", "GIAM", "GIAM")

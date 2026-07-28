@@ -1033,10 +1033,10 @@ def _m15_pair_for_hour(hour):
 
 
 def evaluate_m15_4candle_for_slot(broker_dt, hour):
-    """Evaluate 4 M15 candles (base + 3 pullback) for a slot.
+    """Evaluate 4 M15 candles (base + 3 pullback) from yesterday for a slot.
 
-    H=3,6,9  → GBPAUD M15 at offsets 30, 45, 60, 75 min before slot.
-    H=12,14,16 → GBPUSD M15 at same offsets.
+    H=3,6,9  → GBPAUD M15 yesterday at offsets 30, 45, 60, 75 min before slot hour.
+    H=12,14,16 → GBPUSD M15 yesterday at same offsets.
     Offset-30 candle = base direction → BUY(TANG)/SELL(GIAM).
     Offsets 45,60,75 = 3 pullback candles → classify SW or BT.
     SW → reverse base; BT → keep base.
@@ -1045,9 +1045,10 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     pair = _m15_pair_for_hour(h)
     if broker_dt is None or pair is None:
         return None
-    slot_dt = broker_dt.replace(hour=h, minute=0, second=0, microsecond=0)
+    # Use yesterday's date at the same slot hour, then apply minute offsets.
+    yesterday_slot = broker_dt.replace(hour=h, minute=0, second=0, microsecond=0) - timedelta(days=1)
     all_dirs = [
-        _lookback_candle_direction(pair, mt5.TIMEFRAME_M15, slot_dt - timedelta(minutes=offset))
+        _lookback_candle_direction(pair, mt5.TIMEFRAME_M15, yesterday_slot - timedelta(minutes=offset))
         for offset in (30, 45, 60, 75)
     ]
     if any(d is None for d in all_dirs):
@@ -1238,7 +1239,7 @@ def get_hour_note(H, broker_dt=None):
     if pair is None:
         return ""
     note = (
-        f"{pair} M15 4-candle lookback: base (offset -30m) + 3 pullback candles "
+        f"{pair} M15 4-candle lookback (yesterday): base (offset -30m) + 3 pullback candles "
         f"(offsets -45/-60/-75m). SW → reverse base; BT → keep base. "
         f"Entry: SW → H+1:25, BT → H:49."
     )
