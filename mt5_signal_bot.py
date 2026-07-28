@@ -116,7 +116,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 52
+SIGNAL_LOGIC_VERSION = 53
 
 
 BROKER_CLOCK = BrokerClock(
@@ -972,6 +972,19 @@ _THREE_CANDLE_GROUPS = {
     ("TANG", "TANG", "GIAM"): "BT",
 }
 
+_XAUUSD2_PULLBACK_GROUPS = {
+    # Base=TANG patterns
+    ("TANG", "GIAM", "TANG"): "SW",
+    ("TANG", "TANG", "TANG"): "SW",
+    ("TANG", "TANG", "GIAM"): "SW",
+    ("TANG", "GIAM", "GIAM"): "BT",
+    # Base=GIAM mirrors (swap TANG↔GIAM)
+    ("GIAM", "TANG", "GIAM"): "SW",
+    ("GIAM", "GIAM", "GIAM"): "SW",
+    ("GIAM", "GIAM", "TANG"): "SW",
+    ("GIAM", "TANG", "TANG"): "BT",
+}
+
 
 def _lookback_candle_direction(symbol, timeframe, candle_dt):
     """Read one completed candle, resolving a DOJI with exactly one older bar."""
@@ -1157,7 +1170,57 @@ def _entry_time_from_m15_4candle(hour, pullback_group):
         return f"{h + 1:02d}:25"
     if pullback_group == "BT":
         return f"{h:02d}:49"
-    return None
+
+
+def evaluate_xauusd2_m15_for_slot(broker_dt, hour):
+    """Evaluate 4 M15 XAUUSD candles from TODAY (current broker session).
+
+    Same lookback method as GBPAUD/GBPUSD but uses XAUUSD candles from today.
+    Offsets: H-0:30 (base), H-0:45, H-1:00, H-1:15 (pullback).
+    XAUUSD2 SW/BT classification differs from GBP:
+      SW: TANG GIAM TANG, TANG TANG TANG, TANG TANG GIAM
+      BT: TANG GIAM GIAM
+    (GIAM base mirrors the same pattern.)
+    Base is reversed first, then canonical matrix applies:
+      SW → reverse(reversed base) = original base
+      BT → keep(reversed base) = opposite of original base
+    """
+    h = int(hour)
+    if h not in ACTIVE_HOURS:
+        return None
+    source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
+    all_dirs = [
+        _lookback_candle_direction("XAUUSD", mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
+        for offset in (30, 45, 60, 75)
+    ]
+    if any(d is None for d in all_dirs):
+        return None
+    base_dir = all_dirs[0]
+    if base_dir not in ("TANG", "GIAM"):
+        return None
+    pullback_dirs = all_dirs[1:]
+    pullback_group = _classify_xauusd2_pullback(pullback_dirs)
+    if pullback_group not in ("SW", "BT"):
+        return None
+    base_signal = "BUY" if base_dir == "TANG" else "SELL"
+    reversed_base = reverse_signal(base_signal)
+    xauusd2_signal = reverse_signal(reversed_base) if pullback_group == "SW" else reversed_base
+    return {
+        "base_direction": base_dir,
+        "base_signal": base_signal,
+        "pullback_group": pullback_group,
+        "xauusd2_signal": xauusd2_signal,
+    }
+
+
+def _classify_xauusd2_pullback(directions):
+    """Classify 3 pullback candles for XAUUSD2.
+
+    SW: TANG GIAM TANG, TANG TANG TANG, TANG TANG GIAM
+    BT: TANG GIAM GIAM
+    GIAM base mirrors (swap TANG↔GIAM in the table).
+    """
+    return _XAUUSD2_PULLBACK_GROUPS.get(tuple(directions))
 
 
 def evaluate_gbp_h1_slot(broker_dt, hour):
@@ -1214,6 +1277,10 @@ def evaluate_gbp_h1_slot(broker_dt, hour):
     gbp_signal = m15["gbp_signal"]
     gbp_pair = m15["pair"]
     pair_dirs = {"XAUUSD": xau_signal, gbp_pair: gbp_signal}
+    # XAUUSD2: same M15 4-candle lookback on XAUUSD today
+    xauusd2 = evaluate_xauusd2_m15_for_slot(broker_dt, h)
+    if xauusd2 is not None:
+        pair_dirs["XAUUSD2"] = xauusd2["xauusd2_signal"]
     source_date_str = m15.get("source_date", "unknown")
     return {
         "signal": xau_signal,
@@ -1320,6 +1387,7 @@ def get_hour_note(H, broker_dt=None):
         f"{pair} M15 (previous session): base + 3 pullback. "
         f"SW → XAUUSD đảo Base; BT → XAUUSD giữ Base. "
         f"{'GBPAUD ngược Base.' if h in (3,6,9) else 'GBPUSD cùng Base.'} "
+        f"XAUUSD2: same M15 lookback on XAUUSD today. "
         f"Entry: SW → H+1:25, BT → H:49."
     )
     return note
@@ -1339,6 +1407,10 @@ def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
         if gbp_dir in ("BUY", "SELL"):
             icon, _ = get_signal_icon(gbp_dir)
             lines.append(f"  {gbp_pair}: {icon} {gbp_dir}")
+    xauusd2_dir = (pair_dirs or {}).get("XAUUSD2")
+    if xauusd2_dir in ("BUY", "SELL"):
+        icon, _ = get_signal_icon(xauusd2_dir)
+        lines.append(f"  XAUUSD2: {icon} {xauusd2_dir}")
     return "\n".join(lines) if lines else "  (no pair)"
 
 
@@ -1369,7 +1441,7 @@ def get_pair_direction(H, signal, broker_dt, full_result=None):
         result["XAUUSD"] = pair_dirs.get("XAUUSD", "WAIT")
         # Include GBP pair if present
         for k, v in pair_dirs.items():
-            if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD"):
+            if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD", "XAUUSD2"):
                 result[k] = v if v in ("BUY", "SELL") else "WAIT"
         return result
     if signal not in ("BUY", "SELL"):
@@ -1378,7 +1450,7 @@ def get_pair_direction(H, signal, broker_dt, full_result=None):
     # Include GBP pair signal from full_result
     pair_dirs = (full_result or {}).get("pair_dirs", {})
     for k, v in pair_dirs.items():
-        if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD"):
+        if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD", "XAUUSD2"):
             result[k] = v
     return result
 
@@ -1468,7 +1540,7 @@ def rebuild_slot_signal(broker_dt, h):
     # WAIT records must carry a valid pair_dirs contract for dashboard display.
     if sig == "WAIT" and not pair_dirs:
         gbp_pair = _m15_pair_for_hour(h)
-        pair_dirs = {"XAUUSD": "WAIT"}
+        pair_dirs = {"XAUUSD": "WAIT", "XAUUSD2": "WAIT"}
         if gbp_pair:
             pair_dirs[gbp_pair] = "WAIT"
     hour_note = get_hour_note(h, broker_dt=broker_dt)

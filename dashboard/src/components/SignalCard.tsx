@@ -11,10 +11,10 @@ const VALID_TIME = /^\d{2}:\d{2}$/;
 /** Return the correct pair list for a given hour slot. */
 function defaultPairsForHour(hour: number): string[] {
   if ([3, 6, 9].includes(hour)) {
-    return ["XAUUSD", "GBPAUD"];
+    return ["XAUUSD", "GBPAUD", "XAUUSD2"];
   }
   if ([12, 14, 16].includes(hour)) {
-    return ["XAUUSD", "GBPUSD"];
+    return ["XAUUSD", "GBPUSD", "XAUUSD2"];
   }
   return [];
 }

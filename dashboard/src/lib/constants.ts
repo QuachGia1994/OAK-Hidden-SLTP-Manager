@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [3, 6, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
-/** Minimum backend contract — previous-session resolver v52. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 52;
+/** Minimum backend contract — XAUUSD2 added to pair_dirs (M15 today). */
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 53;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 

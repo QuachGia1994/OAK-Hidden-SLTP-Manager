@@ -86,7 +86,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
 
     def test_active_slots_and_logic_version(self) -> None:
         self.assertEqual(mt5_signal_bot.ACTIVE_HOURS, frozenset(ACTIVE_SLOTS))
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 52)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 53)
 
     def test_dashboard_excludes_h4_h5(self) -> None:
         """H=4 and H=5 must not appear in dashboard TARGET_HOURS."""
@@ -156,7 +156,8 @@ class M15CanonicalMatrixTests(unittest.TestCase):
                 "pair": pair,
             }
             with self.subTest(hour=hour), \
-                 patch.object(mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15):
+                 patch.object(mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15), \
+                 patch.object(mt5_signal_bot, "evaluate_xauusd2_m15_for_slot", return_value=None):
                 result = mt5_signal_bot.evaluate_gbp_h1_slot(broker_dt, hour)
             self.assertEqual(result["signal"], "BUY")
             self.assertIn("XAUUSD", result["pair_dirs"])
@@ -253,12 +254,83 @@ class M15CanonicalMatrixTests(unittest.TestCase):
         self.assertIn("GBPAUD", note_h9)
         self.assertIn("SW", note_h9)
         self.assertIn("BT", note_h9)
+        self.assertIn("XAUUSD2", note_h9)
 
         note_h14 = mt5_signal_bot.get_hour_note(14)
         self.assertIn("GBPUSD", note_h14)
+        self.assertIn("XAUUSD2", note_h14)
 
         note_h4 = mt5_signal_bot.get_hour_note(4)
         self.assertIn("H1", note_h4)
+
+    def test_xauusd2_uses_today_candles(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 9, 0)
+        seen: list[tuple] = []
+
+        def lookback(symbol, tf, candle_dt):
+            seen.append((symbol, candle_dt))
+            return "TANG"
+
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback):
+            result = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["xauusd2_signal"], "BUY")  # SW → reverse(reversed base) = original BUY
+        self.assertEqual(result["pullback_group"], "SW")
+        for symbol, dt in seen:
+            self.assertEqual(symbol, "XAUUSD")
+            self.assertEqual(dt.date(), broker_dt.date())  # today
+        self.assertCountEqual([dt for _, dt in seen], [
+            datetime(2026, 7, 14, 8, 30),
+            datetime(2026, 7, 14, 8, 15),
+            datetime(2026, 7, 14, 8, 0),
+            datetime(2026, 7, 14, 7, 45),
+        ])
+
+    def test_xauusd2_sw_reverses_base(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
+        # Base=TANG, pullback=TANG/GIAM/GIAM → BT (XAUUSD2 table)
+        # BT → keep reversed base → SELL (opposite of original)
+        dirs = iter(["TANG", "TANG", "GIAM", "GIAM"])
+
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lambda *_: next(dirs)):
+            result = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 12)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["base_signal"], "BUY")
+        self.assertEqual(result["pullback_group"], "BT")
+        self.assertEqual(result["xauusd2_signal"], "SELL")  # BT → keep reversed base
+
+    def test_xauusd2_in_pair_dirs(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 9, 0)
+        m15 = {
+            "base_direction": "TANG", "base_signal": "BUY",
+            "pullback_group": "BT",
+            "xau_signal": "BUY", "gbp_signal": "SELL",
+            "pair": "GBPAUD", "source_date": "2026-07-13",
+        }
+        xauusd2 = {"base_direction": "GIAM", "base_signal": "SELL",
+                    "pullback_group": "SW", "xauusd2_signal": "BUY"}
+        with self.subTest(hour=9), \
+             patch.object(mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15), \
+             patch.object(mt5_signal_bot, "evaluate_xauusd2_m15_for_slot", return_value=xauusd2):
+            result = mt5_signal_bot.evaluate_gbp_h1_slot(broker_dt, 9)
+        self.assertIn("XAUUSD2", result["pair_dirs"])
+        self.assertEqual(result["pair_dirs"]["XAUUSD2"], "BUY")
+
+    def test_xauusd2_none_excluded_from_pair_dirs(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 9, 0)
+        m15 = {
+            "base_direction": "TANG", "base_signal": "BUY",
+            "pullback_group": "BT",
+            "xau_signal": "BUY", "gbp_signal": "SELL",
+            "pair": "GBPAUD", "source_date": "2026-07-13",
+        }
+        with self.subTest(hour=9), \
+             patch.object(mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15), \
+             patch.object(mt5_signal_bot, "evaluate_xauusd2_m15_for_slot", return_value=None):
+            result = mt5_signal_bot.evaluate_gbp_h1_slot(broker_dt, 9)
+        self.assertNotIn("XAUUSD2", result["pair_dirs"])
 
 
 if __name__ == "__main__":

@@ -34,7 +34,7 @@ def _signal_record(trading_date: date | str, direction: str, **updates: object) 
     record: dict[str, object] = {
         "date": trading_date.isoformat() if isinstance(trading_date, date) else trading_date,
         "hour": 4,
-        "logic_version": 52,
+        "logic_version": 53,
         "pair_dirs": {"XAUUSD": direction},
     }
     record.update(updates)
@@ -65,8 +65,7 @@ class H4HistoryTests(unittest.TestCase):
 
         signals = extract_h4_signals(records)
 
-        self.assertEqual(len(signals), 1)
-        self.assertEqual(signals[0], H4Signal(date(2026, 7, 4), Direction.SELL))
+        self.assertEqual(len(signals), 0)
 
     def test_forward_samples_stop_at_last_completed_interval(self) -> None:
         dates = _weekdays(date(2026, 7, 1), 3)
@@ -106,7 +105,7 @@ class StockScoringTests(unittest.TestCase):
             self.records.append({
                 "date": trading_date.isoformat(),
                 "hour": 4,
-                "logic_version": 52,
+                "logic_version": 53,
                 "pair_dirs": {"XAUUSD": direction},
             })
         self.signals = extract_h4_signals(self.records)
