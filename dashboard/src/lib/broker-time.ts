@@ -88,6 +88,18 @@ export function isVerifiedBrokerClockMetadata(metadata: BrokerClockMetadata): bo
   return expectedSignalTimestamp !== null && signalTimestamp === expectedSignalTimestamp;
 }
 
+/** Convert a Broker clock only when its absolute timestamp and offset agree. */
+export function verifiedBrokerTimeToLocal(
+  metadata: BrokerClockMetadata,
+  brokerTime: string | null | undefined,
+): string | null {
+  if (!brokerTime || !BROKER_TIME.test(brokerTime)) return null;
+  if (!isVerifiedBrokerClockMetadata(metadata)) return null;
+  const offsetMinutes = parseBrokerOffset(metadata.brokerUtcOffset);
+  if (offsetMinutes === null) return null;
+  return brokerTimeToLocal(brokerTime, offsetMinutes / 60);
+}
+
 export function resolveBrokerTimestamp({
   date,
   brokerTime,
