@@ -116,7 +116,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 53
+SIGNAL_LOGIC_VERSION = 54
 
 
 BROKER_CLOCK = BrokerClock(
@@ -972,18 +972,49 @@ _THREE_CANDLE_GROUPS = {
     ("TANG", "TANG", "GIAM"): "BT",
 }
 
-_XAUUSD2_PULLBACK_GROUPS = {
-    # Base=TANG patterns
-    ("TANG", "GIAM", "TANG"): "SW",
-    ("TANG", "TANG", "TANG"): "SW",
-    ("TANG", "TANG", "GIAM"): "SW",
-    ("TANG", "GIAM", "GIAM"): "BT",
-    # Base=GIAM mirrors (swap TANG↔GIAM)
-    ("GIAM", "TANG", "GIAM"): "SW",
-    ("GIAM", "GIAM", "GIAM"): "SW",
-    ("GIAM", "GIAM", "TANG"): "SW",
-    ("GIAM", "TANG", "TANG"): "BT",
+_XAUUSD2_FOUR_CANDLE_SW = {
+    ("TANG", "GIAM", "TANG", "GIAM"),
+    ("GIAM", "TANG", "GIAM", "TANG"),
 }
+
+_XAUUSD2_THREE_CANDLE_GROUPS = {
+    ("TANG", "TANG", "TANG"): "SW",
+    ("TANG", "GIAM", "GIAM"): "SW",
+    ("TANG", "TANG", "GIAM"): "BT",
+    ("TANG", "GIAM", "TANG"): "BT",
+    ("GIAM", "GIAM", "GIAM"): "SW",
+    ("GIAM", "TANG", "TANG"): "SW",
+    ("GIAM", "GIAM", "TANG"): "BT",
+    ("GIAM", "TANG", "GIAM"): "BT",
+}
+
+
+def _classify_xauusd2_pattern(pattern_directions):
+    """Classify 4 pattern candles for XAUUSD2.
+
+    Checks 4-candle alternating SW first (precedence), then falls back
+    to the 3-candle lookup table.
+    """
+    pattern4 = tuple(pattern_directions)
+    if len(pattern4) != 4:
+        return None
+    if pattern4 in _XAUUSD2_FOUR_CANDLE_SW:
+        return {
+            "group": "SW",
+            "matched_pattern": pattern4,
+            "pattern_length": 4,
+            "classification_reason": "alternating_four_candle_sw",
+        }
+    pattern3 = pattern4[:3]
+    group = _XAUUSD2_THREE_CANDLE_GROUPS.get(pattern3)
+    if group is None:
+        return None
+    return {
+        "group": group,
+        "matched_pattern": pattern3,
+        "pattern_length": 3,
+        "classification_reason": "three_candle_pattern",
+    }
 
 
 def _lookback_candle_direction(symbol, timeframe, candle_dt):
@@ -1173,17 +1204,14 @@ def _entry_time_from_m15_4candle(hour, pullback_group):
 
 
 def evaluate_xauusd2_m15_for_slot(broker_dt, hour):
-    """Evaluate 4 M15 XAUUSD candles from TODAY (current broker session).
+    """Evaluate five XAUUSD M15 candles from the current Broker session.
 
-    Same lookback method as GBPAUD/GBPUSD but uses XAUUSD candles from today.
-    Offsets: H-0:30 (base), H-0:45, H-1:00, H-1:15 (pullback).
-    XAUUSD2 SW/BT classification differs from GBP:
-      SW: TANG GIAM TANG, TANG TANG TANG, TANG TANG GIAM
-      BT: TANG GIAM GIAM
-    (GIAM base mirrors the same pattern.)
+    Offset -30 is Base; offsets -45/-60/-75 form the primary pattern;
+    offset -90 confirms alternating four-candle SW.
+
     Base is reversed first, then canonical matrix applies:
-      SW → reverse(reversed base) = original base
-      BT → keep(reversed base) = opposite of original base
+      SW → reverse(reversed base) = original base direction
+      BT → keep(reversed base)    = opposite of original base direction
     """
     h = int(hour)
     if h not in ACTIVE_HOURS:
@@ -1191,36 +1219,35 @@ def evaluate_xauusd2_m15_for_slot(broker_dt, hour):
     source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
     all_dirs = [
         _lookback_candle_direction("XAUUSD", mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
-        for offset in (30, 45, 60, 75)
+        for offset in (30, 45, 60, 75, 90)
     ]
     if any(d is None for d in all_dirs):
         return None
     base_dir = all_dirs[0]
     if base_dir not in ("TANG", "GIAM"):
         return None
-    pullback_dirs = all_dirs[1:]
-    pullback_group = _classify_xauusd2_pullback(pullback_dirs)
-    if pullback_group not in ("SW", "BT"):
+    pattern_directions = all_dirs[1:]
+    classification = _classify_xauusd2_pattern(pattern_directions)
+    if classification is None:
         return None
     base_signal = "BUY" if base_dir == "TANG" else "SELL"
     reversed_base = reverse_signal(base_signal)
-    xauusd2_signal = reverse_signal(reversed_base) if pullback_group == "SW" else reversed_base
+    if classification["group"] == "SW":
+        xauusd2_signal = reverse_signal(reversed_base)
+    else:
+        xauusd2_signal = reversed_base
     return {
         "base_direction": base_dir,
         "base_signal": base_signal,
-        "pullback_group": pullback_group,
+        "reversed_base_signal": reversed_base,
+        "pattern_directions": pattern_directions,
+        "matched_pattern": classification["matched_pattern"],
+        "pattern_length": classification["pattern_length"],
+        "pullback_group": classification["group"],
+        "classification_reason": classification["classification_reason"],
+        "offsets": [30, 45, 60, 75, 90],
         "xauusd2_signal": xauusd2_signal,
     }
-
-
-def _classify_xauusd2_pullback(directions):
-    """Classify 3 pullback candles for XAUUSD2.
-
-    SW: TANG GIAM TANG, TANG TANG TANG, TANG TANG GIAM
-    BT: TANG GIAM GIAM
-    GIAM base mirrors (swap TANG↔GIAM in the table).
-    """
-    return _XAUUSD2_PULLBACK_GROUPS.get(tuple(directions))
 
 
 def evaluate_gbp_h1_slot(broker_dt, hour):

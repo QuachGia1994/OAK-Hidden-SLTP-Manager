@@ -86,7 +86,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
 
     def test_active_slots_and_logic_version(self) -> None:
         self.assertEqual(mt5_signal_bot.ACTIVE_HOURS, frozenset(ACTIVE_SLOTS))
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 53)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 54)
 
     def test_dashboard_excludes_h4_h5(self) -> None:
         """H=4 and H=5 must not appear in dashboard TARGET_HOURS."""
@@ -264,7 +264,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
         self.assertIn("H1", note_h4)
 
     def test_xauusd2_uses_today_candles(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 9, 0)
+        broker_dt = datetime(2026, 7, 29, 9, 0)
         seen: list[tuple] = []
 
         def lookback(symbol, tf, candle_dt):
@@ -281,50 +281,170 @@ class M15CanonicalMatrixTests(unittest.TestCase):
             self.assertEqual(symbol, "XAUUSD")
             self.assertEqual(dt.date(), broker_dt.date())  # today
         self.assertCountEqual([dt for _, dt in seen], [
-            datetime(2026, 7, 14, 8, 30),
-            datetime(2026, 7, 14, 8, 15),
-            datetime(2026, 7, 14, 8, 0),
-            datetime(2026, 7, 14, 7, 45),
+            datetime(2026, 7, 29, 8, 30),   # -30 Base
+            datetime(2026, 7, 29, 8, 15),   # -45
+            datetime(2026, 7, 29, 8, 0),    # -60
+            datetime(2026, 7, 29, 7, 45),   # -75
+            datetime(2026, 7, 29, 7, 30),   # -90
         ])
 
-    def test_xauusd2_sw_reverses_base(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 12, 0)
-        # Base=TANG, pullback=TANG/GIAM/GIAM → BT (XAUUSD2 table)
-        # BT → keep reversed base → SELL (opposite of original)
-        dirs = iter(["TANG", "TANG", "GIAM", "GIAM"])
+    def test_xauusd2_10_classification_cases(self) -> None:
+        """Verify all 10 SW/BT patterns with correct precedence."""
+        cases = [
+            # SW cases (6)
+            (("TANG", "TANG", "TANG", "TANG"), "SW", ("TANG", "TANG", "TANG"), 3, "three_candle_pattern"),
+            (("TANG", "GIAM", "GIAM", "TANG"), "SW", ("TANG", "GIAM", "GIAM"), 3, "three_candle_pattern"),
+            (("TANG", "GIAM", "TANG", "GIAM"), "SW", ("TANG", "GIAM", "TANG", "GIAM"), 4, "alternating_four_candle_sw"),
+            (("GIAM", "GIAM", "GIAM", "GIAM"), "SW", ("GIAM", "GIAM", "GIAM"), 3, "three_candle_pattern"),
+            (("GIAM", "TANG", "TANG", "GIAM"), "SW", ("GIAM", "TANG", "TANG"), 3, "three_candle_pattern"),
+            (("GIAM", "TANG", "GIAM", "TANG"), "SW", ("GIAM", "TANG", "GIAM", "TANG"), 4, "alternating_four_candle_sw"),
+            # BT cases (4)
+            (("TANG", "TANG", "GIAM", "TANG"), "BT", ("TANG", "TANG", "GIAM"), 3, "three_candle_pattern"),
+            (("TANG", "GIAM", "TANG", "TANG"), "BT", ("TANG", "GIAM", "TANG"), 3, "three_candle_pattern"),
+            (("GIAM", "GIAM", "TANG", "GIAM"), "BT", ("GIAM", "GIAM", "TANG"), 3, "three_candle_pattern"),
+            (("GIAM", "TANG", "GIAM", "GIAM"), "BT", ("GIAM", "TANG", "GIAM"), 3, "three_candle_pattern"),
+        ]
+        for pattern4, expected_group, expected_matched, expected_len, expected_reason in cases:
+            with self.subTest(pattern=pattern4):
+                cls = mt5_signal_bot._classify_xauusd2_pattern(pattern4)
+                self.assertIsNotNone(cls)
+                self.assertEqual(cls["group"], expected_group)
+                self.assertEqual(cls["matched_pattern"], expected_matched)
+                self.assertEqual(cls["pattern_length"], expected_len)
+                self.assertEqual(cls["classification_reason"], expected_reason)
 
+    def test_xauusd2_alternating_precedence(self) -> None:
+        """TGT defaults to BT, but TGTG overrides to SW."""
+        cls_3 = mt5_signal_bot._classify_xauusd2_pattern(("TANG", "GIAM", "TANG", "TANG"))
+        self.assertEqual(cls_3["group"], "BT")
+        self.assertEqual(cls_3["pattern_length"], 3)
+
+        cls_4 = mt5_signal_bot._classify_xauusd2_pattern(("TANG", "GIAM", "TANG", "GIAM"))
+        self.assertEqual(cls_4["group"], "SW")
+        self.assertEqual(cls_4["pattern_length"], 4)
+
+        cls_3g = mt5_signal_bot._classify_xauusd2_pattern(("GIAM", "TANG", "GIAM", "GIAM"))
+        self.assertEqual(cls_3g["group"], "BT")
+        self.assertEqual(cls_3g["pattern_length"], 3)
+
+        cls_4g = mt5_signal_bot._classify_xauusd2_pattern(("GIAM", "TANG", "GIAM", "TANG"))
+        self.assertEqual(cls_4g["group"], "SW")
+        self.assertEqual(cls_4g["pattern_length"], 4)
+
+    def test_xauusd2_base_mapping(self) -> None:
+        """SW → same as original base; BT → opposite of original base."""
+        broker_dt = datetime(2026, 7, 29, 9, 0)
+        # Base=BUY, SW → BUY
+        dirs_sw_buy = iter(["TANG", "TANG", "TANG", "TANG", "TANG"])
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lambda *_: next(dirs_sw_buy)):
+            r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        self.assertEqual(r["xauusd2_signal"], "BUY")
+
+        # Base=BUY, BT → SELL
+        dirs_bt_buy = iter(["TANG", "TANG", "TANG", "GIAM", "TANG"])
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lambda *_: next(dirs_bt_buy)):
+            r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        self.assertEqual(r["xauusd2_signal"], "SELL")
+
+        # Base=SELL, SW → SELL
+        dirs_sw_sell = iter(["GIAM", "GIAM", "GIAM", "GIAM", "GIAM"])
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lambda *_: next(dirs_sw_sell)):
+            r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        self.assertEqual(r["xauusd2_signal"], "SELL")
+
+        # Base=SELL, BT → BUY
+        dirs_bt_sell = iter(["GIAM", "GIAM", "GIAM", "TANG", "GIAM"])
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lambda *_: next(dirs_bt_sell)):
+            r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        self.assertEqual(r["xauusd2_signal"], "BUY")
+
+    def test_xauusd2_return_evidence(self) -> None:
+        broker_dt = datetime(2026, 7, 29, 9, 0)
+        dirs = iter(["TANG", "GIAM", "TANG", "GIAM", "TANG"])  # TGTG alternating SW
         with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lambda *_: next(dirs)):
-            result = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 12)
+            r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        self.assertIsNotNone(r)
+        self.assertEqual(r["base_direction"], "TANG")
+        self.assertEqual(r["base_signal"], "BUY")
+        self.assertEqual(r["reversed_base_signal"], "SELL")
+        self.assertEqual(r["pattern_directions"], ["GIAM", "TANG", "GIAM", "TANG"])
+        self.assertEqual(r["matched_pattern"], ("GIAM", "TANG", "GIAM", "TANG"))
+        self.assertEqual(r["pattern_length"], 4)
+        self.assertEqual(r["classification_reason"], "alternating_four_candle_sw")
+        self.assertEqual(r["offsets"], [30, 45, 60, 75, 90])
+        self.assertEqual(r["xauusd2_signal"], "BUY")
 
-        self.assertIsNotNone(result)
-        self.assertEqual(result["base_signal"], "BUY")
-        self.assertEqual(result["pullback_group"], "BT")
-        self.assertEqual(result["xauusd2_signal"], "SELL")  # BT → keep reversed base
+    def test_xauusd2_failure_cases(self) -> None:
+        broker_dt = datetime(2026, 7, 29, 9, 0)
+        # Missing any candle → None
+        for missing_idx in range(5):
+            with self.subTest(missing_idx=missing_idx):
+                def lookback(idx=missing_idx):
+                    def _fn(*args):
+                        return None if len([i for i in range(5) if i == idx]) > 0 and args[0] == "XAUUSD" else "TANG"
+                    return _fn
+                # Simpler: just return None for one call
+                call_count = [0]
+                def lookback_none(*_):
+                    call_count[0] += 1
+                    return None if call_count[0] == missing_idx + 1 else "TANG"
+                with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback_none):
+                    r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+                self.assertIsNone(r)
+
+        # Base unresolved DOJI → None
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", return_value="DOJI"):
+            r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        self.assertIsNone(r)
+
+        # Unsupported pattern → None (e.g. all DOJI resolved to unknown)
+        bad_dirs = iter(["TANG", "GIAM", "GIAM", "TANG", "GIAM"])  # TGGT → first 3 = TGG=SW, but 4th makes it not alternating
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lambda *_: next(bad_dirs)):
+            r = mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        # TGGT: 3-candle TGG=SW, 4-candle not alternating → still SW (not unsupported)
+        # So this is actually a valid result. Let's test a truly unsupported case.
+        # There are no truly unsupported 3-candle patterns in the table (all 8 are covered).
+        # So the only None case is when _classify_xauusd2_pattern gets wrong length input.
+        self.assertIsNotNone(r)  # TGGT → SW from 3-candle
+
+    def test_xauusd2_no_previous_session(self) -> None:
+        """XAUUSD2 uses today's candles, never previous session."""
+        broker_dt = datetime(2026, 7, 29, 9, 0)
+        seen_dates = []
+
+        def lookback(symbol, tf, candle_dt):
+            seen_dates.append(candle_dt.date())
+            return "TANG"
+
+        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback):
+            mt5_signal_bot.evaluate_xauusd2_m15_for_slot(broker_dt, 9)
+        for d in seen_dates:
+            self.assertEqual(d, broker_dt.date())
 
     def test_xauusd2_in_pair_dirs(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 9, 0)
+        broker_dt = datetime(2026, 7, 29, 9, 0)
         m15 = {
             "base_direction": "TANG", "base_signal": "BUY",
             "pullback_group": "BT",
             "xau_signal": "BUY", "gbp_signal": "SELL",
-            "pair": "GBPAUD", "source_date": "2026-07-13",
+            "pair": "GBPAUD", "source_date": "2026-07-28",
         }
         xauusd2 = {"base_direction": "GIAM", "base_signal": "SELL",
-                    "pullback_group": "SW", "xauusd2_signal": "BUY"}
+                    "pullback_group": "SW", "xauusd2_signal": "SELL"}
         with self.subTest(hour=9), \
              patch.object(mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15), \
              patch.object(mt5_signal_bot, "evaluate_xauusd2_m15_for_slot", return_value=xauusd2):
             result = mt5_signal_bot.evaluate_gbp_h1_slot(broker_dt, 9)
         self.assertIn("XAUUSD2", result["pair_dirs"])
-        self.assertEqual(result["pair_dirs"]["XAUUSD2"], "BUY")
+        self.assertEqual(result["pair_dirs"]["XAUUSD2"], "SELL")
 
     def test_xauusd2_none_excluded_from_pair_dirs(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 9, 0)
+        broker_dt = datetime(2026, 7, 29, 9, 0)
         m15 = {
             "base_direction": "TANG", "base_signal": "BUY",
             "pullback_group": "BT",
             "xau_signal": "BUY", "gbp_signal": "SELL",
-            "pair": "GBPAUD", "source_date": "2026-07-13",
+            "pair": "GBPAUD", "source_date": "2026-07-28",
         }
         with self.subTest(hour=9), \
              patch.object(mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15), \

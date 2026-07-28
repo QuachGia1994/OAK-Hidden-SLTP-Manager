@@ -106,8 +106,8 @@ class WaitRecordContractTests(unittest.TestCase):
             self.assertEqual(result.get("XAUUSD"), "WAIT",
                              f"H={h}: XAUUSD should be WAIT in WAIT pair_dirs")
 
-    def test_signal_logic_version_is_53(self):
-        self.assertEqual(SIGNAL_LOGIC_VERSION, 53)
+    def test_signal_logic_version_is_54(self):
+        self.assertEqual(SIGNAL_LOGIC_VERSION, 54)
 
     def test_deactivated_slots_still_deactivated(self):
         """Safety guard: deactivated slots remain deactivated."""
