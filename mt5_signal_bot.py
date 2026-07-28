@@ -1939,6 +1939,16 @@ def rebuild_slot_signal(broker_dt, h):
     if broker_dt.weekday() >= 5:
         return False
 
+    # Early deactivation for H=12/H=16 in restricted calendar period
+    if h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
+        entry_time = get_entry_time_for_slot(broker_dt, h)
+        if not entry_time:
+            return False
+        log_signal(h, broker_dt, "WAIT", entry_time, {},
+                   f"H={h} GIAI ĐOẠN CUỐI THÁNG: DEACTIVATED (DO NOT ENTER)",
+                   deactivated=True)
+        return True
+
     result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
     if sig == "WAIT":
@@ -1996,8 +2006,12 @@ def rebuild_recent_history(days=45):
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
         for hour in hours:
+            # Skip only if slot is not ready AND not early-deactivatable
             if target_date == today and not is_slot_ready(broker_dt, hour):
-                continue
+                if hour not in (12, 16) or not _is_in_restricted_calendar_period(
+                    datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
+                ):
+                    continue
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             try:
                 if rebuild_slot_signal(slot_dt, hour):

@@ -386,9 +386,9 @@ class DashboardControllerMixin:
             )
             with urllib.request.urlopen(req, timeout=15) as resp:
                 resp.read()
-            log.info("Dashboard news synced (%d items)", len(parsed))
+            self.log(f"Dashboard news synced ({len(parsed)} items)")
         except Exception as e:
-            log.warning("Dashboard news push failed: %s", e)
+            self.log(f"Dashboard news push failed: {e}")
 
 
     def _display_news_result(self, news, token=None):
