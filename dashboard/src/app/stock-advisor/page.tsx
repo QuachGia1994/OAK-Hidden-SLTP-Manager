@@ -42,10 +42,12 @@ function AdvisorHeader({ advisory, locale, isVIP }: { advisory: StockAdvisory; l
   const statusLabel = advisory.status === "READY"
     ? locale === "EN" ? "READY" : "SẴN SÀNG"
     : advisory.status === "PARTIAL"
-    ? locale === "EN" ? "PARTIAL" : "BỘ PHẬN"
+    ? locale === "EN" ? "PARTIAL" : "CHƯA ĐỦ 3 MÃ"
     : locale === "EN" ? "NO TRADE" : "KHÔNG MUA";
 
-  const actionLabel = advisory.action === "BUY_OR_HOLD"
+  const actionLabel = !isVIP
+    ? locale === "EN" ? "LOCKED" : "KHÓA"
+    : advisory.action === "BUY_OR_HOLD"
     ? locale === "EN" ? "BUY" : "MUA"
     : locale === "EN" ? "AVOID" : "TRÁNH";
 
@@ -70,7 +72,7 @@ function AdvisorHeader({ advisory, locale, isVIP }: { advisory: StockAdvisory; l
         </div>
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <HeroStat label={locale === "EN" ? "STATUS" : "TRẠNG THÁI"} value={statusLabel} valueClass={statusColor} />
-          <HeroStat label={locale === "EN" ? "SIGNAL D1" : "MỐC D1"} value={actionLabel} valueClass="text-[var(--terminal-accent-strong)] font-bold" />
+          <HeroStat label={locale === "EN" ? "SIGNAL D1" : "MỐC D1"} value={actionLabel} valueClass={isVIP ? "text-[var(--terminal-accent-strong)] font-bold" : "text-[var(--terminal-warning)] font-bold"} />
           <HeroStat label={locale === "EN" ? "ACCESS" : "QUYỀN XEM"} value={isVIP ? (locale === "EN" ? "UNLOCKED" : "ĐÃ MỞ") : (locale === "EN" ? "LOCKED" : "KHÓA")} valueClass={isVIP ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-warning)]"} />
         </div>
       </div>

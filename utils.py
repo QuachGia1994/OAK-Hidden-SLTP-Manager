@@ -5,7 +5,7 @@ import os
 import urllib.error
 import urllib.request
 import urllib.parse
-from datetime import datetime
+from datetime import date, datetime
 
 
 # --- Telegram ---
@@ -174,7 +174,8 @@ def vn_direction(d):
     return VN_DIR.get(d, d)
 
 
-ACTIVE_SIGNAL_HOURS = frozenset({3, 4, 5, 6, 9, 12, 14, 16})
+ACTIVE_SIGNAL_HOURS = frozenset({3, 6, 9, 12, 14, 16})
+ACTIVE_SIGNAL_LOGIC_VERSION = 51
 
 
 def get_latest_display_signal(signals, today=None, allow_fallback=True):
@@ -195,9 +196,20 @@ def get_latest_display_signal(signals, today=None, allow_fallback=True):
             return False
         try:
             hour = int(row.get("hour"))
+            logic_version = int(row.get("logic_version"))
+            trading_date = date.fromisoformat(str(row.get("date")))
         except (TypeError, ValueError):
             return False
-        return hour in ACTIVE_SIGNAL_HOURS and bool(row.get("pair_dirs"))
+        if hour not in ACTIVE_SIGNAL_HOURS:
+            return False
+        if logic_version < ACTIVE_SIGNAL_LOGIC_VERSION:
+            return False
+        if hour == 3 and trading_date.weekday() == 3:
+            return False
+        pair_dirs = row.get("pair_dirs")
+        if not isinstance(pair_dirs, dict):
+            return False
+        return pair_dirs.get("XAUUSD") in ("BUY", "SELL")
 
     today_rows = [s for s in signals if s.get("date") == today and _is_actionable(s)]
     if today_rows:

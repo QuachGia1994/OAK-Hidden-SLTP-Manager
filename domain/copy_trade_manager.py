@@ -38,10 +38,83 @@ from domain.balance import get_start_day_balance
 from domain.broker_clock import BrokerClock
 
 log = setup_logger("copy_trade")
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ACTIVE_SIGNAL_SLOTS = frozenset({3, 6, 9, 12, 14, 16})
+MINIMUM_SIGNAL_LOGIC_VERSION = 51
 _BROKER_CLOCK = BrokerClock(
     mt5,
-    cache_path=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "broker_clock_cache.json"),
+    cache_path=os.path.join(_PROJECT_ROOT, "broker_clock_cache.json"),
 )
+
+
+def _is_current_signal_record(record):
+    """Accept only XAUUSD records from the current signal contract."""
+    if not isinstance(record, dict):
+        return False
+    try:
+        hour = int(record.get("hour"))
+        logic_version = int(record.get("logic_version"))
+        date.fromisoformat(record.get("date"))
+    except (TypeError, ValueError):
+        return False
+    pair_dirs = record.get("pair_dirs")
+    return (
+        hour in ACTIVE_SIGNAL_SLOTS
+        and logic_version >= MINIMUM_SIGNAL_LOGIC_VERSION
+        and isinstance(pair_dirs, dict)
+        and pair_dirs.get("XAUUSD") in ("BUY", "SELL")
+    )
+
+
+def _select_current_signal_rows(log_rows, target_date=None):
+    """Return the latest current-contract record per slot for one date."""
+    valid_rows = [row for row in (log_rows or []) if _is_current_signal_record(row)]
+    selected_date = target_date or max(
+        (row.get("date") for row in valid_rows if row.get("date")),
+        default=None,
+    )
+    by_hour = {}
+    for row in valid_rows:
+        if row.get("date") == selected_date:
+            by_hour[int(row["hour"])] = row
+    return selected_date, by_hour
+
+
+def _is_do_not_enter_signal(hour, payload):
+    if payload.get("deactivated") or hour == 4:
+        return True
+    if hour != 3:
+        return False
+    try:
+        return date.fromisoformat(payload.get("date")).weekday() == 3
+    except (TypeError, ValueError):
+        return False
+
+
+def _format_current_signal_row(hour, payload):
+    """Render Broker publication/entry clocks supplied by the signal record."""
+    direction = payload["pair_dirs"]["XAUUSD"]
+    do_not_enter = _is_do_not_enter_signal(hour, payload)
+    icon = "⛔" if do_not_enter else "🟢" if direction == "BUY" else "🔴"
+    signal_time = payload.get("signal_time") or "--:--"
+    entry_time = payload.get("entry_time") or "--:--"
+    if do_not_enter:
+        return (
+            f"{icon} H={hour:02d} — KHÔNG VÀO LỆNH | phát {signal_time} Broker | "
+            f"entry tham chiếu {entry_time} Broker | hướng tham chiếu XAUUSD:{direction}"
+        )
+    return (
+        f"{icon} H={hour:02d} | phát {signal_time} Broker | "
+        f"vào {entry_time} Broker → *XAUUSD:{direction}*"
+    )
+
+
+def _signal_state_paths():
+    """Resolve shared signal state beside the application entry points."""
+    return (
+        os.path.join(_PROJECT_ROOT, "bot_state.json"),
+        os.path.join(_PROJECT_ROOT, "signals_log.json"),
+    )
 
 def get_natural_response(category, **kwargs):
     try:
@@ -680,23 +753,14 @@ class CopyTradeManager:
             return
         if cmd[0] in ("/signal", "/tinhieu", "/tin_hieu"):
             try:
-                base = os.path.dirname(os.path.abspath(__file__))
-                state = load_json(os.path.join(base, "bot_state.json"), {})
-                log_rows = load_json(os.path.join(base, "signals_log.json"), [])
-                today = state.get("date")
-                if not today and isinstance(log_rows, list) and log_rows:
-                    today = max((r.get("date") for r in log_rows if r.get("date")), default=None)
+                state_path, log_path = _signal_state_paths()
+                state = load_json(state_path, {})
+                log_rows = load_json(log_path, [])
+                target_date = state.get("date") if isinstance(state, dict) else None
+                today, by_hour = _select_current_signal_rows(log_rows, target_date)
                 if not today:
                     self._send_mimo_response("📡 Chưa có tín hiệu hôm nay (`bot_state` / `signals_log`).")
                     return
-                today_rows = [r for r in (log_rows or []) if r.get("date") == today]
-                by_hour = {}
-                for row in today_rows:
-                    try:
-                        h = int(row.get("hour"))
-                    except (TypeError, ValueError):
-                        continue
-                    by_hour[h] = row
                 lines = [
                     f"📡 *TÍN HIỆU HÔM NAY* ({today})",
                     "",
@@ -706,18 +770,7 @@ class CopyTradeManager:
                 else:
                     for h in sorted(by_hour.keys()):
                         payload = by_hour[h] or {}
-                        sig = payload.get("signal", "?")
-                        icon = "🟢" if sig == "BUY" else "🔴" if sig == "SELL" else "⚪"
-                        pair_dirs = payload.get("pair_dirs") or {}
-                        pair_bits = []
-                        for pair in ("XAUUSD", "GBPAUD", "GBPCAD", "GBPUSD", "GBPJPY"):
-                            direction = pair_dirs.get(pair)
-                            if direction in ("BUY", "SELL", "--"):
-                                pair_bits.append(f"{pair}:{direction}")
-                        extra = f"\n   {', '.join(pair_bits)}" if pair_bits else ""
-                        note = payload.get("hour_note")
-                        note_line = f"\n   📝 {note}" if note else ""
-                        lines.append(f"{icon} H={h:02d}:45 → *{sig}*{extra}{note_line}")
+                        lines.append(_format_current_signal_row(h, payload))
                 self._send_mimo_response("\n".join(lines))
             except Exception as e:
                 self._send_mimo_response(f"❌ Lỗi /signal: {e}")

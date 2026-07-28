@@ -4,7 +4,6 @@ import type { StockAdvisory } from "./types";
 export function maskStockAdvisory(advisory: StockAdvisory): StockAdvisory {
   return {
     ...advisory,
-    action: "LOCKED",
     signal: { ...advisory.signal, direction: "WAIT" },
     candidates: [],
     backtest: { ...advisory.backtest, hit_rate: 0, mean_aligned_return: 0 },

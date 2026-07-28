@@ -15,19 +15,14 @@ export interface Signal {
   signal_at_utc?: string | number | null;
   broker_utc_offset?: string | number | null;
   broker_clock_verified?: boolean;
-  is_priority?: boolean;
   hour_note: string | null;
-  d_direction: "BUY" | "SELL" | null;
   deactivated?: boolean;
   logic_version?: number | string | null;
 }
 
 export interface BotState {
   date: string;
-  day_signals: Record<string, { signal: string; m30_dir: string }>;
   sent_today: [string, number][];
-  d_direction: string | null;
-  d_direction_date: string | null;
   broker_utc_offset?: number | null;
   broker_time?: string | null;
   broker_observed_at_utc?: string | null;

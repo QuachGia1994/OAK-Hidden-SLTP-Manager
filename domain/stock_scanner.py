@@ -9,6 +9,9 @@ from statistics import fmean
 from typing import Iterable, Mapping, Sequence
 
 
+MINIMUM_SIGNAL_LOGIC_VERSION = 51
+
+
 class Direction(Enum):
     """Canonical H=4 direction encoded for return alignment."""
 
@@ -42,7 +45,7 @@ class StockScannerError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class H4Signal:
-    """One final H=4 Stock-DIRECTION for a broker trading date."""
+    """One final current-contract H=4 XAUUSD direction for a broker date."""
 
     trading_date: date
     direction: Direction
@@ -162,10 +165,10 @@ class AdvisoryBacktest:
 
 
 def extract_h4_signals(records: Iterable[Mapping[str, object]], limit: int | None = None) -> list[H4Signal]:
-    """Extract chronological, deduplicated H=4 signals from the JSON log."""
+    """Extract current-contract XAUUSD H=4 signals from the JSON log."""
     signals_by_date: dict[date, H4Signal] = {}
     for record in records:
-        if _record_hour(record) != 4:
+        if not _is_current_h4_record(record):
             continue
         trading_date = _record_date(record.get("date"))
         direction = _record_direction(record)
@@ -328,6 +331,14 @@ def _record_hour(record: Mapping[str, object]) -> int | None:
         return None
 
 
+def _is_current_h4_record(record: Mapping[str, object]) -> bool:
+    try:
+        logic_version = int(record.get("logic_version"))
+    except (TypeError, ValueError):
+        return False
+    return _record_hour(record) == 4 and logic_version >= MINIMUM_SIGNAL_LOGIC_VERSION
+
+
 def _record_date(value: object) -> date | None:
     try:
         return date.fromisoformat(str(value))
@@ -339,8 +350,7 @@ def _record_direction(record: Mapping[str, object]) -> Direction | None:
     pair_dirs = record.get("pair_dirs")
     if not isinstance(pair_dirs, Mapping):
         return None
-    marker = Direction.parse(pair_dirs.get("Stock-DIRECTION"))
-    return marker or Direction.parse(pair_dirs.get("XAUUSD"))
+    return Direction.parse(pair_dirs.get("XAUUSD"))
 
 
 def _valid_unique_points(points: Sequence[AfternoonPoint]) -> list[AfternoonPoint]:
