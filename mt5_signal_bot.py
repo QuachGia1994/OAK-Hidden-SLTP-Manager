@@ -116,7 +116,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 52
+SIGNAL_LOGIC_VERSION = 53
 
 
 BROKER_CLOCK = BrokerClock(
@@ -1080,11 +1080,25 @@ def resolve_previous_broker_session(broker_dt, symbol, timeframe):
     return None
 
 
+def _m15_source_hour(hour):
+    """Return the source hour used for M15 candle offsets.
+
+    H=9 uses H=8 so that GBPAUD candles are at 07:30/07:15/07:00/06:45
+    of the previous session rather than 08:30/08:15/08:00/07:45.
+    """
+    h = int(hour)
+    if h == 9:
+        return 8
+    return h
+
+
 def evaluate_m15_4candle_for_slot(broker_dt, hour):
     """Evaluate 4 M15 candles (base + 3 pullback) from the previous trading session.
 
-    H=3,6,9  → GBPAUD M15 previous session at offsets 30, 45, 60, 75 min before slot hour.
-    H=12,14,16 → GBPUSD M15 previous session at same offsets.
+    H=3,6 → GBPAUD M15 previous session at offsets from slot hour.
+    H=8 → GBPAUD M15 previous session (used by slot H=9 on dashboard).
+    H=9 → GBPAUD M15 previous session at H=8 position (07:30/07:15/07:00/06:45).
+    H=12,14,16 → GBPUSD M15 previous session at offsets from slot hour.
     Offset-30 candle = base direction → BUY(TANG)/SELL(GIAM).
     Offsets 45,60,75 = 3 pullback candles → classify SW or BT.
 
@@ -1097,10 +1111,11 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     pair = _m15_pair_for_hour(h)
     if broker_dt is None or pair is None:
         return None
+    source_h = _m15_source_hour(h)
     prev_session = resolve_previous_broker_session(broker_dt, pair, mt5.TIMEFRAME_M15)
     if prev_session is None:
         return None
-    source_slot = datetime.combine(prev_session, datetime.min.time()).replace(hour=h, minute=0)
+    source_slot = datetime.combine(prev_session, datetime.min.time()).replace(hour=source_h, minute=0)
     all_dirs = [
         _lookback_candle_direction(pair, mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
         for offset in (30, 45, 60, 75)

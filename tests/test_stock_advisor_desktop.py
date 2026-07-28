@@ -21,7 +21,7 @@ class StockAdvisorDesktopTests(unittest.TestCase):
             {
                 "date": f"2026-06-{index:02d}",
                 "hour": 4,
-                "logic_version": 52,
+                "logic_version": 53,
                 "pair_dirs": {"XAUUSD": "BUY"},
             }
             for index in range(1, 27)
@@ -29,7 +29,7 @@ class StockAdvisorDesktopTests(unittest.TestCase):
         current.append({
             "date": today.isoformat(),
             "hour": 4,
-            "logic_version": 52,
+            "logic_version": 53,
             "pair_dirs": {"XAUUSD": "SELL"},
         })
 

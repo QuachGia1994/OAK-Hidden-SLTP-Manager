@@ -86,7 +86,7 @@ class M15CanonicalMatrixTests(unittest.TestCase):
 
     def test_active_slots_and_logic_version(self) -> None:
         self.assertEqual(mt5_signal_bot.ACTIVE_HOURS, frozenset(ACTIVE_SLOTS))
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 52)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 53)
 
     def test_dashboard_excludes_h4_h5(self) -> None:
         """H=4 and H=5 must not appear in dashboard TARGET_HOURS."""
@@ -179,10 +179,10 @@ class M15CanonicalMatrixTests(unittest.TestCase):
         for dt in seen:
             self.assertEqual(dt.date(), prev_session)
         self.assertCountEqual(seen, [
-            datetime(2026, 7, 13, 8, 30),
-            datetime(2026, 7, 13, 8, 15),
-            datetime(2026, 7, 13, 8, 0),
-            datetime(2026, 7, 13, 7, 45),
+            datetime(2026, 7, 13, 7, 30),
+            datetime(2026, 7, 13, 7, 15),
+            datetime(2026, 7, 13, 7, 0),
+            datetime(2026, 7, 13, 6, 45),
         ])
 
     def test_m15_4candle_none_when_missing(self) -> None:
