@@ -1039,7 +1039,10 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     H=12,14,16 → GBPUSD M15 yesterday at same offsets.
     Offset-30 candle = base direction → BUY(TANG)/SELL(GIAM).
     Offsets 45,60,75 = 3 pullback candles → classify SW or BT.
-    SW → reverse base; BT → keep base.
+
+    SW/BT → XAUUSD derivation depends on hour group:
+      H=3,6,9:  BT → reverse base (XAUUSD opposite of GBP pair); SW → keep base.
+      H=12,14,16: BT → keep base; SW → reverse base (XAUUSD opposite of GBP pair).
     """
     h = int(hour)
     pair = _m15_pair_for_hour(h)
@@ -1061,12 +1064,21 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     if pullback_group not in ("SW", "BT"):
         return None
     base_signal = "BUY" if base_dir == "TANG" else "SELL"
-    derived_signal = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
+    # GBP pair signal = base signal (the M15 pair's own direction)
+    gbp_signal = base_signal
+    # XAUUSD derivation: hour-group-dependent SW/BT mapping
+    if h in (3, 6, 9):
+        # H=3,6,9: BT → reverse, SW → keep
+        xau_signal = reverse_signal(base_signal) if pullback_group == "BT" else base_signal
+    else:
+        # H=12,14,16: BT → keep, SW → reverse
+        xau_signal = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
     return {
         "base_direction": base_dir,
         "base_signal": base_signal,
         "pullback_group": pullback_group,
-        "derived_signal": derived_signal,
+        "gbp_signal": gbp_signal,
+        "xau_signal": xau_signal,
         "pair": pair,
     }
 
@@ -1141,21 +1153,25 @@ def evaluate_gbp_h1_slot(broker_dt, hour):
     entry_time = _entry_time_from_m15_4candle(h, m15["pullback_group"])
     if entry_time is None:
         return None
-    final_signal = m15["derived_signal"]
-    pair_dirs = {"XAUUSD": final_signal}
+    xau_signal = m15["xau_signal"]
+    gbp_signal = m15["gbp_signal"]
+    gbp_pair = m15["pair"]
+    pair_dirs = {"XAUUSD": xau_signal, gbp_pair: gbp_signal}
     return {
-        "signal": final_signal,
+        "signal": xau_signal,
         "pattern_signal": m15["base_signal"],
         "entry_time": entry_time,
         "report": (
-            f"H={h}: {m15['pair']} M15 4-candle — base={m15['base_direction']} "
-            f"({m15['base_signal']}), pullback={m15['pullback_group']} -> {final_signal}."
+            f"H={h}: {gbp_pair} M15 4-candle — base={m15['base_direction']} "
+            f"({gbp_signal}), pullback={m15['pullback_group']} -> XAUUSD={xau_signal}."
         ),
         "pair_dirs": pair_dirs,
-        "m15_pair": m15["pair"],
+        "m15_pair": gbp_pair,
         "m15_base_direction": m15["base_direction"],
         "m15_base_signal": m15["base_signal"],
         "m15_pullback_group": m15["pullback_group"],
+        "m15_gbp_signal": gbp_signal,
+        "m15_xau_signal": xau_signal,
     }
 
 
@@ -1239,8 +1255,8 @@ def get_hour_note(H, broker_dt=None):
     if pair is None:
         return ""
     note = (
-        f"{pair} M15 4-candle lookback (yesterday): base (offset -30m) + 3 pullback candles "
-        f"(offsets -45/-60/-75m). SW → reverse base; BT → keep base. "
+        f"{pair} M15 4-candle (yesterday): base + 3 pullback. "
+        f"{'H=3,6,9: BT→đảo ngược, SW→giữ nguyên.' if h in (3,6,9) else 'H=12,14,16: BT→giữ nguyên, SW→đảo ngược.'} "
         f"Entry: SW → H+1:25, BT → H:49."
     )
     if broker_dt is not None and h == 3 and broker_dt.weekday() == 3:
@@ -1249,18 +1265,20 @@ def get_hour_note(H, broker_dt=None):
 
 
 def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
-    """Render only the final XAUUSD direction for Telegram."""
+    """Render XAUUSD and GBP pair directions for Telegram."""
+    lines = []
     xau = (pair_dirs or {}).get("XAUUSD")
     if xau in ("BUY", "SELL"):
         icon, _ = get_signal_icon(xau)
-        return f"  XAUUSD: {icon} {xau}"
-    if xau == "SW":
-        return "  XAUUSD: SW (Sideway)"
-    if xau == "BT":
-        return "  XAUUSD: BT"
-    if xau == "WAIT":
-        return "  XAUUSD: WAIT"
-    return "  (no pair)"
+        lines.append(f"  XAUUSD: {icon} {xau}")
+    elif xau == "WAIT":
+        lines.append("  XAUUSD: WAIT")
+    for gbp_pair in ("GBPUSD", "GBPAUD"):
+        gbp_dir = (pair_dirs or {}).get(gbp_pair)
+        if gbp_dir in ("BUY", "SELL"):
+            icon, _ = get_signal_icon(gbp_dir)
+            lines.append(f"  {gbp_pair}: {icon} {gbp_dir}")
+    return "\n".join(lines) if lines else "  (no pair)"
 
 
 GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
@@ -1286,12 +1304,21 @@ def get_pair_direction(H, signal, broker_dt, full_result=None):
     if signal in ("SW", "BT"):
         return {}
     if signal == "WAIT":
-        xau = (full_result or {}).get("pair_dirs", {}).get("XAUUSD")
-        result["XAUUSD"] = xau if xau in ("BUY", "SELL") else "WAIT"
+        pair_dirs = (full_result or {}).get("pair_dirs", {})
+        result["XAUUSD"] = pair_dirs.get("XAUUSD", "WAIT")
+        # Include GBP pair if present
+        for k, v in pair_dirs.items():
+            if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD"):
+                result[k] = v if v in ("BUY", "SELL") else "WAIT"
         return result
     if signal not in ("BUY", "SELL"):
         return result
     result["XAUUSD"] = signal
+    # Include GBP pair signal from full_result
+    pair_dirs = (full_result or {}).get("pair_dirs", {})
+    for k, v in pair_dirs.items():
+        if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD"):
+            result[k] = v
     return result
 
 # =====================================================================
@@ -1370,11 +1397,19 @@ def rebuild_slot_signal(broker_dt, h):
 
     result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
+    entry_time = get_entry_time_for_slot(broker_dt, h)
+
+    # Log WAIT signals too so dashboard shows all scheduled hours.
     if sig == "WAIT":
-        return False
+        pair_dirs = result.get("pair_dirs", {})
+        hour_note = get_hour_note(h, broker_dt=broker_dt)
+        log_signal(h, broker_dt, "WAIT", entry_time or "N/A", pair_dirs, hour_note,
+                   pattern_signal=result.get("pattern_signal"),
+                   deactivated=result.get("deactivated", False))
+        return True
+
     if sig not in ("BUY", "SELL", "SW", "BT", "MIXED"):
         return False
-    entry_time = get_entry_time_for_slot(broker_dt, h)
     if not entry_time:
         return False
 

@@ -31,7 +31,8 @@ export function isDisplayableSignal(signal: DisplayableSignalInput): boolean {
   if (!parsed) return false;
   if (!signal.pair_dirs || typeof signal.pair_dirs !== "object" || Array.isArray(signal.pair_dirs)) return false;
   const xauusd = (signal.pair_dirs as Record<string, unknown>).XAUUSD;
-  if (xauusd !== "BUY" && xauusd !== "SELL") return false;
+  // Accept BUY, SELL, or WAIT (WAIT signals are logged so dashboard shows all hours).
+  if (xauusd !== "BUY" && xauusd !== "SELL" && xauusd !== "WAIT") return false;
   if (signal.signal !== xauusd) return false;
   return getTargetHours(parsed.getUTCDay(), signal.date).includes(signal.hour as number);
 }
@@ -140,14 +141,14 @@ type RuleLocale = "VN" | "EN";
 
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "Mọi slot H3/H6/H9/H12/H14/H16 phát Broker lúc H:00. Tín hiệu XAUUSD lấy từ 4 nến M15 của ngày hôm qua: GBPAUD cho H3/H6/H9, GBPUSD cho H12/H14/H16. Nến gần nhất (H-0:30 hôm qua) là nền; 3 nến lùi sau (H-0:45, H-1:00, H-1:15 hôm qua) phân nhóm SW/BT.",
-    "Nhóm SW (giảm giảm giảm / tăng giảm giảm…) → đảo ngược hướng nền. Nhóm BT (giảm tăng giảm / giảm giảm tăng…) → giữ nguyên hướng nền. Entry: SW → (H+1):25, BT → H:49.",
-    "DOJI lùi thêm một nến; thiếu nến hoặc không thể phân loại → WAIT. H3 deactivated vào Thứ Năm.",
+    "Mọi slot H3/H6/H9/H12/H14/H16 phát Broker lúc H:00. Tín hiệu lấy từ 4 nến M15 của ngày hôm qua: GBPAUD cho H3/H6/H9, GBPUSD cho H12/H14/H16. Nến gần nhất (H-0:30 hôm qua) là nền; 3 nến lùi sau phân nhóm SW/BT.",
+    "H3/H6/H9: nhóm BT → XAUUSD đảo ngược so với GBPAUD; SW → giữ nguyên. H12/H14/H16: nhóm BT → XAUUSD giữ nguyên so với GBPUSD; SW → đảo ngược.",
+    "Entry: SW → (H+1):25, BT → H:49. DOJI lùi thêm một nến; thiếu nến → WAIT. H3 deactivated vào Thứ Năm.",
   ],
   EN: [
-    "Every H3/H6/H9/H12/H14/H16 slot publishes at Broker H:00. The XAUUSD signal comes from 4 M15 candles of the previous day: GBPAUD for H3/H6/H9, GBPUSD for H12/H14/H16. The nearest candle (H-0:30 yesterday) is the base; the 3 pullback candles (H-0:45, H-1:00, H-1:15 yesterday) classify SW or BT.",
-    "SW group (decrease-decrease-decrease / increase-decrease-decrease…) → reverse the base direction. BT group (decrease-increase-decrease / decrease-decrease-increase…) → keep the base direction. Entry: SW → (H+1):25, BT → H:49.",
-    "A DOJI looks one candle further back; missing or unresolved candles produce WAIT. H3 is deactivated on Thursday.",
+    "Every H3/H6/H9/H12/H14/H16 slot publishes at Broker H:00. Signal from 4 M15 candles of the previous day: GBPAUD for H3/H6/H9, GBPUSD for H12/H14/H16. Nearest candle (H-0:30 yesterday) is the base; 3 pullback candles classify SW or BT.",
+    "H3/H6/H9: BT group → XAUUSD reverses GBPAUD; SW → keeps. H12/H14/H16: BT group → XAUUSD keeps GBPUSD; SW → reverses.",
+    "Entry: SW → (H+1):25, BT → H:49. DOJI looks one candle further back; missing candles → WAIT. H3 deactivated on Thursday.",
   ],
 };
 

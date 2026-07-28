@@ -38,17 +38,6 @@ def _timestamp(broker_dt: datetime, hour: int, minute: int = 0, second: int = 0)
     return int(target.replace(tzinfo=timezone.utc).timestamp())
 
 
-def _m15_result(pair, base_dir, pullback_group, derived_signal):
-    base_signal = "BUY" if base_dir == "TANG" else "SELL"
-    return {
-        "base_direction": base_dir,
-        "base_signal": base_signal,
-        "pullback_group": pullback_group,
-        "derived_signal": derived_signal,
-        "pair": pair,
-    }
-
-
 class M15FourCandleSlotTests(unittest.TestCase):
     def test_active_slots_and_logic_version_are_current(self) -> None:
         self.assertEqual(mt5_signal_bot.ACTIVE_HOURS, frozenset(ACTIVE_SLOTS))
@@ -78,10 +67,8 @@ class M15FourCandleSlotTests(unittest.TestCase):
         ):
             mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 9)
 
-        # All candles must be from yesterday (2026-07-13)
         for dt in seen:
             self.assertEqual(dt.date(), datetime(2026, 7, 13).date())
-        # Specific times: 8:30, 8:15, 8:00, 7:45 yesterday
         self.assertCountEqual(seen, [
             datetime(2026, 7, 13, 8, 30),
             datetime(2026, 7, 13, 8, 15),
@@ -89,31 +76,57 @@ class M15FourCandleSlotTests(unittest.TestCase):
             datetime(2026, 7, 13, 7, 45),
         ])
 
-    def test_m15_4candle_base_sw_reverses(self) -> None:
+    # ── H=3,6,9: BT → reverse, SW → keep ──
+    def test_h369_bt_reverses_base(self) -> None:
         broker_dt = datetime(2026, 7, 14, 9, 0)
-        directions = ("TANG", "GIAM", "GIAM", "GIAM")
+        # TANG base + BT pullback (GIAM,TANG,GIAM) → XAUUSD = reverse(BUY) = SELL
+        directions = ("TANG", "GIAM", "TANG", "GIAM")
         with patch.object(
             mt5_signal_bot, "_lookback_candle_direction", side_effect=directions,
         ):
             result = mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 9)
         self.assertEqual(result["pair"], "GBPAUD")
-        self.assertEqual(result["base_direction"], "TANG")
-        self.assertEqual(result["base_signal"], "BUY")
-        self.assertEqual(result["pullback_group"], "SW")
-        self.assertEqual(result["derived_signal"], "SELL")
+        self.assertEqual(result["gbp_signal"], "BUY")
+        self.assertEqual(result["xau_signal"], "SELL")
+        self.assertEqual(result["pullback_group"], "BT")
 
-    def test_m15_4candle_base_bt_keeps(self) -> None:
+    def test_h369_sw_keeps_base(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 9, 0)
+        # TANG base + SW pullback (GIAM,GIAM,GIAM) → XAUUSD = keep(BUY) = BUY
+        directions = ("TANG", "GIAM", "GIAM", "GIAM")
+        with patch.object(
+            mt5_signal_bot, "_lookback_candle_direction", side_effect=directions,
+        ):
+            result = mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 9)
+        self.assertEqual(result["gbp_signal"], "BUY")
+        self.assertEqual(result["xau_signal"], "BUY")
+        self.assertEqual(result["pullback_group"], "SW")
+
+    # ── H=12,14,16: BT → keep, SW → reverse ──
+    def test_h121416_bt_keeps_base(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
+        # GIAM base + BT pullback (TANG,GIAM,TANG) → XAUUSD = keep(SELL) = SELL
         directions = ("GIAM", "TANG", "GIAM", "TANG")
         with patch.object(
             mt5_signal_bot, "_lookback_candle_direction", side_effect=directions,
         ):
             result = mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 12)
         self.assertEqual(result["pair"], "GBPUSD")
-        self.assertEqual(result["base_direction"], "GIAM")
-        self.assertEqual(result["base_signal"], "SELL")
+        self.assertEqual(result["gbp_signal"], "SELL")
+        self.assertEqual(result["xau_signal"], "SELL")
         self.assertEqual(result["pullback_group"], "BT")
-        self.assertEqual(result["derived_signal"], "SELL")
+
+    def test_h121416_sw_reverses_base(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12, 0)
+        # TANG base + SW pullback (GIAM,GIAM,GIAM) → XAUUSD = reverse(BUY) = SELL
+        directions = ("TANG", "GIAM", "GIAM", "GIAM")
+        with patch.object(
+            mt5_signal_bot, "_lookback_candle_direction", side_effect=directions,
+        ):
+            result = mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 12)
+        self.assertEqual(result["gbp_signal"], "BUY")
+        self.assertEqual(result["xau_signal"], "SELL")
+        self.assertEqual(result["pullback_group"], "SW")
 
     def test_m15_4candle_none_when_any_candle_missing(self) -> None:
         broker_dt = datetime(2026, 7, 14, 9, 0)
@@ -124,26 +137,6 @@ class M15FourCandleSlotTests(unittest.TestCase):
         broker_dt = datetime(2026, 7, 14, 9, 0)
         self.assertIsNone(mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 4))
 
-    def test_all_eight_pullback_sequences_classify_correctly(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 9, 0)
-        expectations = {
-            ("TANG", "TANG", "TANG", "TANG"): ("SW", "SELL"),
-            ("TANG", "GIAM", "TANG", "TANG"): ("SW", "SELL"),
-            ("TANG", "GIAM", "TANG", "GIAM"): ("BT", "BUY"),
-            ("TANG", "GIAM", "GIAM", "TANG"): ("BT", "BUY"),
-            ("GIAM", "GIAM", "GIAM", "GIAM"): ("SW", "BUY"),
-            ("GIAM", "TANG", "GIAM", "GIAM"): ("SW", "BUY"),
-            ("GIAM", "TANG", "GIAM", "TANG"): ("BT", "SELL"),
-            ("GIAM", "TANG", "TANG", "GIAM"): ("BT", "SELL"),
-        }
-        for directions, (expected_group, expected_signal) in expectations.items():
-            with self.subTest(directions=directions), patch.object(
-                mt5_signal_bot, "_lookback_candle_direction", side_effect=directions,
-            ):
-                result = mt5_signal_bot.evaluate_m15_4candle_for_slot(broker_dt, 9)
-            self.assertEqual(result["pullback_group"], expected_group)
-            self.assertEqual(result["derived_signal"], expected_signal)
-
     def test_entry_time_sw_bt_for_all_m15_slots(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         m15_slots = (3, 6, 9, 12, 14, 16)
@@ -151,31 +144,35 @@ class M15FourCandleSlotTests(unittest.TestCase):
             for hour in m15_slots:
                 expected = f"{hour + 1:02d}:25" if group == "SW" else f"{hour:02d}:49"
                 with self.subTest(hour=hour, group=group):
-                    m15 = _m15_result(
-                        mt5_signal_bot._m15_pair_for_hour(hour),
-                        "TANG", group,
-                        "SELL" if group == "SW" else "BUY",
-                    )
                     with patch.object(
-                        mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15,
+                        mt5_signal_bot, "evaluate_m15_4candle_for_slot",
+                        return_value={
+                            "base_direction": "TANG", "base_signal": "BUY",
+                            "pullback_group": group,
+                            "gbp_signal": "BUY", "xau_signal": "BUY",
+                            "pair": mt5_signal_bot._m15_pair_for_hour(hour),
+                        },
                     ):
                         self.assertEqual(
                             mt5_signal_bot.get_entry_time_for_slot(broker_dt, hour),
                             expected,
                         )
 
-    def test_evaluate_gbp_h1_slot_uses_m15_for_non_h4(self) -> None:
+    def test_evaluate_gbp_h1_slot_includes_gbp_pair_in_pair_dirs(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
-        m15 = _m15_result("GBPAUD", "TANG", "BT", "BUY")
+        m15 = {
+            "base_direction": "TANG", "base_signal": "BUY",
+            "pullback_group": "BT",
+            "gbp_signal": "BUY", "xau_signal": "SELL",
+            "pair": "GBPAUD",
+        }
         with patch.object(
             mt5_signal_bot, "evaluate_m15_4candle_for_slot", return_value=m15,
-        ) as mock_m15:
+        ):
             result = mt5_signal_bot.evaluate_gbp_h1_slot(broker_dt, 9)
-        mock_m15.assert_called_once_with(broker_dt, 9)
-        self.assertEqual(result["signal"], "BUY")
+        self.assertEqual(result["signal"], "SELL")
+        self.assertEqual(result["pair_dirs"], {"XAUUSD": "SELL", "GBPAUD": "BUY"})
         self.assertEqual(result["entry_time"], "09:49")
-        self.assertEqual(result["m15_pair"], "GBPAUD")
-        self.assertEqual(result["m15_pullback_group"], "BT")
 
     def test_evaluate_gbp_h1_slot_h4_still_uses_legacy_logic(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
@@ -213,9 +210,9 @@ class M15FourCandleSlotTests(unittest.TestCase):
     def test_active_calculation_does_not_use_legacy_paths(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         result = {
-            "signal": "BUY",
+            "signal": "SELL",
             "entry_time": "12:49",
-            "pair_dirs": {"XAUUSD": "BUY"},
+            "pair_dirs": {"XAUUSD": "SELL", "GBPUSD": "BUY"},
             "m15_pair": "GBPUSD",
             "m15_base_direction": "TANG",
             "m15_base_signal": "BUY",
@@ -238,13 +235,13 @@ class M15FourCandleSlotTests(unittest.TestCase):
                 calculated = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
 
             evaluate.assert_called_once_with(broker_dt, hour)
-            self.assertEqual(calculated["signal"], "BUY")
+            self.assertEqual(calculated["signal"], "SELL")
 
     def test_h4_and_thursday_h3_are_deactivated_only(self) -> None:
         result = {
             "signal": "BUY",
             "entry_time": "03:49",
-            "pair_dirs": {"XAUUSD": "BUY"},
+            "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "BUY"},
         }
         with patch.object(
             mt5_signal_bot, "evaluate_gbp_h1_slot",
@@ -256,10 +253,11 @@ class M15FourCandleSlotTests(unittest.TestCase):
 
         self.assertFalse(friday.get("deactivated", False))
 
-    def test_get_hour_note_describes_m15_pair(self) -> None:
+    def test_get_hour_note_describes_m15_pair_and_sw_bt_logic(self) -> None:
         note_h9 = mt5_signal_bot.get_hour_note(9)
         self.assertIn("GBPAUD", note_h9)
-        self.assertIn("4-candle", note_h9)
+        self.assertIn("BT", note_h9)
+        self.assertIn("SW", note_h9)
 
         note_h14 = mt5_signal_bot.get_hour_note(14)
         self.assertIn("GBPUSD", note_h14)

@@ -4,6 +4,9 @@ interface SignalDeactivationInput {
   deactivated?: boolean;
 }
 
+/** The dashboard presents signal directions for gold and GBP pairs. */
+export const DISPLAYED_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD"] as const;
+
 function brokerWeekday(date: string): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!match) return null;
@@ -16,6 +19,6 @@ function brokerWeekday(date: string): number | null {
 
 export function isEffectivelyDeactivated(signal: SignalDeactivationInput): boolean {
   if (signal.deactivated === true) return true;
-  if (signal.hour === 4 || signal.hour === 5) return true;
+  if (signal.hour === 4) return true;
   return signal.hour === 3 && brokerWeekday(signal.date) === 4;
 }
