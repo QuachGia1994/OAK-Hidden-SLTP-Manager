@@ -1040,9 +1040,10 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     Offset-30 candle = base direction → BUY(TANG)/SELL(GIAM).
     Offsets 45,60,75 = 3 pullback candles → classify SW or BT.
 
-    SW/BT → XAUUSD derivation depends on hour group:
-      H=3,6,9:  BT → reverse base (XAUUSD opposite of GBP pair); SW → keep base.
-      H=12,14,16: BT → keep base; SW → reverse base (XAUUSD opposite of GBP pair).
+    M15 pattern determines XAUUSD first, then GBP pair = reverse of XAUUSD:
+      H=3,6,9:  BT → XAUUSD reverses base; SW → XAUUSD keeps base.
+      H=12,14,16: BT → XAUUSD keeps base; SW → XAUUSD reverses base.
+      GBP pair signal is always the opposite of XAUUSD.
     """
     h = int(hour)
     pair = _m15_pair_for_hour(h)
@@ -1064,21 +1065,21 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     if pullback_group not in ("SW", "BT"):
         return None
     base_signal = "BUY" if base_dir == "TANG" else "SELL"
-    # GBP pair signal = base signal (the M15 pair's own direction)
-    gbp_signal = base_signal
-    # XAUUSD derivation: hour-group-dependent SW/BT mapping
+    # XAUUSD is computed FIRST from the M15 pattern
     if h in (3, 6, 9):
         # H=3,6,9: BT → reverse, SW → keep
         xau_signal = reverse_signal(base_signal) if pullback_group == "BT" else base_signal
     else:
         # H=12,14,16: BT → keep, SW → reverse
         xau_signal = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
+    # GBP pair signal = opposite of XAUUSD
+    gbp_signal = reverse_signal(xau_signal)
     return {
         "base_direction": base_dir,
         "base_signal": base_signal,
         "pullback_group": pullback_group,
-        "gbp_signal": gbp_signal,
         "xau_signal": xau_signal,
+        "gbp_signal": gbp_signal,
         "pair": pair,
     }
 
@@ -1391,36 +1392,24 @@ def is_slot_ready(broker_dt, hour):
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
 def rebuild_slot_signal(broker_dt, h):
-    """Recalculate one slot with current logic and overwrite signals_log (date, hour)."""
+    """Recalculate one slot with current logic and overwrite signals_log (date, hour).
+    Always logs the result — including WAIT and deactivated slots — so the dashboard
+    shows every scheduled hour."""
     if broker_dt.weekday() >= 5:
         return False
 
     result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
     entry_time = get_entry_time_for_slot(broker_dt, h)
-
-    # Log WAIT signals too so dashboard shows all scheduled hours.
-    if sig == "WAIT":
-        pair_dirs = result.get("pair_dirs", {})
-        hour_note = get_hour_note(h, broker_dt=broker_dt)
-        log_signal(h, broker_dt, "WAIT", entry_time or "N/A", pair_dirs, hour_note,
-                   pattern_signal=result.get("pattern_signal"),
-                   deactivated=result.get("deactivated", False))
-        return True
-
-    if sig not in ("BUY", "SELL", "SW", "BT", "MIXED"):
-        return False
-    if not entry_time:
-        return False
-
-    pair_dirs = get_pair_direction(h, sig, broker_dt, full_result=result)
-    if not pair_dirs:
-        return False
-
+    pair_dirs = result.get("pair_dirs", {})
+    if not pair_dirs and sig not in ("WAIT",):
+        pair_dirs = get_pair_direction(h, sig, broker_dt, full_result=result)
     hour_note = get_hour_note(h, broker_dt=broker_dt)
-    log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note,
+    deactivated = bool(result.get("deactivated") or is_deactivated_signal_slot(broker_dt, h))
+
+    log_signal(h, broker_dt, sig or "WAIT", entry_time or "N/A", pair_dirs or {}, hour_note,
                pattern_signal=result.get("pattern_signal"),
-               deactivated=result.get("deactivated", False))
+               deactivated=deactivated)
     return True
 
 
