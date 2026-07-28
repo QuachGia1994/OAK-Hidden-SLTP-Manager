@@ -45,9 +45,10 @@ except Exception:
     DASHBOARD_URL = ""
     print("[WARN] config.json not found or invalid.")
 
-SYMBOL = "GBPUSD"
-TARGET_HOURS = [3, 4, 5, 6, 12, 16]
+SYMBOL = "XAUUSD"
+TARGET_HOURS = [3, 4, 6, 9, 12, 14, 16]
 ACTIVE_HOURS = frozenset(TARGET_HOURS)
+GBP_SOURCE_PAIRS = ("GBPUSD", "GBPAUD")
 VN_UTC_OFFSET = 7  # Vietnam local timezone (Indochina Time, no DST)
 
 
@@ -70,13 +71,15 @@ def get_signal_time_for_slot(broker_dt, hour):
     if h == 3:
         return "03:00"
     if h == 4:
-        return "04:45"
-    if h == 5:
-        return "05:45"
+        return "04:00"
     if h == 6:
         return "06:00"
+    if h == 9:
+        return "09:00"
     if h == 12:
         return "12:00"
+    if h == 14:
+        return "14:00"
     if h == 16:
         return "16:00"
     raise ValueError(f"Unsupported signal slot H={h}")
@@ -113,9 +116,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 46
-D_DIRECTION_PAIR = "Stock-DIRECTION"
-GBP_DIRECTION_PAIR = "GBP-DIRECTION"
+SIGNAL_LOGIC_VERSION = 50
 
 
 BROKER_CLOCK = BrokerClock(
@@ -279,10 +280,10 @@ def _trading_date():
     return get_broker_time().date()
 
 def _load_state():
-    """Load persisted state from disk. Returns dict with day_signals, sent_today, etc."""
+    """Load restart-safe sent-slot and auto-close state."""
     try:
-        with open(_STATE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        with open(_STATE_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
@@ -303,16 +304,9 @@ def _load_state():
         except (TypeError, ValueError):
             continue
 
-    # Daily signal state expires at the Broker date boundary. Auto-close
-    # obligations remain pending across restarts and date/weekend boundaries.
     today_str = _trading_date().isoformat()
     if data.get("date") != today_str:
         return {"auto_close_pending": pending_closes, "auto_close_last_alert": close_alerts}
-
-    # Rebuild day_signals keys as (date, hour) tuples matching main loop format
-    day_signals = {}
-    for k, v in data.get("day_signals", {}).items():
-        day_signals[(datetime.strptime(data["date"], "%Y-%m-%d").date(), int(k))] = v
 
     restored_sent = set()
     for raw_date, raw_hour in data.get("sent_today", []):
@@ -323,30 +317,23 @@ def _load_state():
             continue
 
     return {
-        "day_signals": day_signals,
         "sent_today": restored_sent,
         "auto_close_completed": set(data.get("auto_close_completed", [])),
         "auto_close_pending": pending_closes,
         "auto_close_last_alert": close_alerts,
-        "d_direction": data.get("d_direction"),
-        "d_direction_date": data.get("d_direction_date"),
     }
 
-def _save_state(day_signals, sent_today):
-    """Persist state to disk."""
+def _save_state(sent_today):
+    """Persist sent logical slots and pending auto-close obligations."""
     broker_now = get_broker_time()
     today_str = broker_now.date().isoformat()
-    # Convert day_signals keys to string for JSON
-    ds_json = {}
-    for (d, h), v in day_signals.items():
-        ds_str = d if isinstance(d, str) else d.isoformat()
-        if ds_str == today_str:
-            ds_json[str(h)] = v
-    st_json = [[d.isoformat() if hasattr(d, 'isoformat') else d, h] for d, h in sent_today]
+    sent_rows = [
+        [trading_date.isoformat() if hasattr(trading_date, "isoformat") else trading_date, hour]
+        for trading_date, hour in sent_today
+    ]
     data = {
         "date": today_str,
-        "day_signals": ds_json,
-        "sent_today": st_json,
+        "sent_today": sent_rows,
         "auto_close_completed": sorted(
             category
             for close_date, category in _auto_close_completed
@@ -365,16 +352,14 @@ def _save_state(day_signals, sent_today):
         "broker_time": broker_now.replace(microsecond=0).isoformat(),
         "broker_utc_offset": BROKER_CLOCK.utc_offset_for_date(broker_now.date()),
         "broker_observed_at_utc": datetime.now(timezone.utc).isoformat(),
-        "d_direction": ds_json.get("4", {}).get("d_direction"),
-        "d_direction_date": today_str if ds_json.get("4", {}).get("d_direction") else None,
     }
     try:
-        tmp_file = _STATE_FILE + ".tmp"
-        with open(tmp_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-        os.replace(tmp_file, _STATE_FILE)
-    except Exception as e:
-        print(f"[WARN] Cannot save state: {e}")
+        temporary = _STATE_FILE + ".tmp"
+        with open(temporary, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False)
+        os.replace(temporary, _STATE_FILE)
+    except Exception as error:
+        print(f"[WARN] Cannot save state: {error}")
 
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
 
@@ -394,44 +379,20 @@ def _write_signals_log_atomic(data):
             pass
 
 
-def _get_d_direction_from_day(date_value):
-    """Find the stored H=4 D-direction for a trading date."""
-    h4_data = day_signals.get((date_value, 4), {})
-    d_direction = h4_data.get("d_direction") if isinstance(h4_data, dict) else None
-    if d_direction in ("BUY", "SELL"):
-        return d_direction
-
-    date_str = date_value.isoformat() if hasattr(date_value, "isoformat") else str(date_value)
-    try:
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as file:
-                data = json.load(file)
-            for record in reversed(data):
-                if record.get("date") != date_str or int(record.get("hour", -1)) != 4:
-                    continue
-                d_direction = (record.get("pair_dirs") or {}).get(D_DIRECTION_PAIR)
-                if d_direction in ("BUY", "SELL"):
-                    return d_direction
-    except Exception as error:
-        print(f"[WARN] Cannot restore D-direction: {error}")
-    return None
-
-
 def get_current_prices(pair_dirs):
-    """Lấy giá market hiện tại (tick)."""
+    """Return current prices only for final tradeable pair directions."""
     prices = {}
     for pair, direction in pair_dirs.items():
-        if pair == D_DIRECTION_PAIR or pair == GBP_DIRECTION_PAIR:
-            continue
         if direction not in ("BUY", "SELL"):
             continue
         try:
             tick = mt5.symbol_info_tick(pair)
             if tick:
                 prices[pair] = round(tick.bid, 5)
-        except Exception as e:
-            log.warning("MT5 tick fetch error for %s: %s", pair, e)
+        except Exception as error:
+            log.warning("MT5 tick fetch error for %s: %s", pair, error)
     return prices
+
 
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
                pattern_signal=None, deactivated=False):
@@ -441,7 +402,6 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     if not entry_time:
         entry_time = get_entry_time_for_slot(broker_dt, H)
     signal_time = get_signal_time_for_slot(broker_dt, H)
-    is_priority = is_priority_slot(broker_dt, H)
     record = {
         "date": broker_dt.date().isoformat(),
         "hour": H,
@@ -449,12 +409,10 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         "signal": sig,
         "signal_time": signal_time,
         "entry_time": entry_time,
-        "is_priority": is_priority,
         "pair_dirs": pair_dirs,
         "entry_prices": {},
         "current_prices": current_prices,
         "hour_note": hour_note,
-        "d_direction": (pair_dirs or {}).get(D_DIRECTION_PAIR),
         "deactivated": deactivated,
         "logic_version": SIGNAL_LOGIC_VERSION,
     }
@@ -576,9 +534,17 @@ def _has_dashboard_payload(signal):
         return False
     if hour not in ACTIVE_HOURS:
         return False
-    if signal.get("pair_dirs"):
-        return True
-    return False
+    try:
+        logic_version = int(signal.get("logic_version"))
+    except (TypeError, ValueError):
+        return False
+    if logic_version < SIGNAL_LOGIC_VERSION:
+        return False
+    pair_dirs = signal.get("pair_dirs")
+    if not isinstance(pair_dirs, dict):
+        return False
+    xauusd_direction = pair_dirs.get("XAUUSD")
+    return xauusd_direction in ("BUY", "SELL") and signal.get("signal") == xauusd_direction
 
 
 def _enrich_local_times(signal_record):
@@ -604,15 +570,6 @@ def select_signals_for_dashboard(all_signals):
         for signal in all_signals
         if _has_dashboard_payload(signal)
     ]
-
-
-def _dashboard_log_pair_dirs(hour, signal, pair_dirs):
-    """Return live-log directions for an active logical slot."""
-    if pair_dirs:
-        return pair_dirs
-    if int(hour) in (9, 14):
-        return {pair: signal for pair in GBP_PAIRS}
-    return {"XAUUSD": signal}
 
 
 def push_state_to_dashboard():
@@ -741,9 +698,9 @@ def build_startup_telegram_message(broker_dt, mt5_connected):
     mt5_status = "OK" if mt5_connected else "N/A"
     return (
         "🤖 BOT KHỞI ĐỘNG\n"
-        f"Nguồn pattern: {SYMBOL} | MT5: {mt5_status}\n"
+        f"Nguồn: GBPUSD/GBPAUD H1 hôm qua + {SYMBOL} M15 hôm nay | MT5: {mt5_status}\n"
         f"Slots: {', '.join(f'H={h}' for h in TARGET_HOURS)}\n"
-        "🔒 Auto-close: XAUUSD 17:59 (Broker)\n"
+        "🔒 Auto-close ALL: XAUUSD 17:59; GBPAUD/GBPCAD/GBPJPY/GBPUSD 19:59 (Broker)\n"
         f"Quy tắc hôm nay:\n{rules}"
     )
 
@@ -781,7 +738,7 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
 
-    # Tăng số nến để覆盖 sâu hơn (M5: 5000 ≈ 17 ngày, M30/H1 đủ lớn)
+    # Keep enough history for prior-day H1 and current M15 lookups.
     rates = _copy_rates_near_timestamp(symbol, timeframe, target_ts)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
@@ -817,13 +774,6 @@ def _copy_rates_near_timestamp(symbol, timeframe, target_ts):
     return mt5.copy_rates_from_pos(symbol, timeframe, 0, 5000)
 
 
-def _rate_value(rate, field, default=0):
-    """Read a field from either an MT5 structured row or a test dictionary."""
-    try:
-        return rate[field]
-    except (KeyError, IndexError, TypeError, ValueError):
-        return default
-
 def candle_direction(candle):
     if candle is None:
         return None
@@ -844,8 +794,7 @@ def candle_direction(candle):
 def resolve_doji(symbol, timeframe, target_ts, broker_dt):
     """Nến DOJI → lùi 1 nến trước cùng khung, lấy direction nến trước đó."""
     timeframe_seconds = {
-        mt5.TIMEFRAME_M5: 300,
-        mt5.TIMEFRAME_M30: 1800,
+        mt5.TIMEFRAME_M15: 900,
         mt5.TIMEFRAME_H1: 3600,
     }
     prev_offset = timeframe_seconds.get(timeframe)
@@ -857,37 +806,6 @@ def resolve_doji(symbol, timeframe, target_ts, broker_dt):
     if d and d != "DOJI":
         return d
     return None
-
-def get_h1_candle_for_slot(broker_dt, H):
-    """Lấy nến H1 của GBPUSD tại (H-1):00 — nến trước slot hiện tại."""
-    if H < 1:
-        return None
-    ts_h1 = broker_time_to_ts(broker_dt, H - 1, 0, 0)
-    c_h1 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_H1, ts_h1)
-    if c_h1 is None:
-        print(f"  [H1] Không có dữ liệu H1 GBPUSD tại {H-1}:00")
-        return None
-    return c_h1
-
-def get_xauusd_m30_signal(broker_dt, H):
-    """Lấy signal từ nến M30 của XAUUSD tại (H-1):30."""
-    if H < 1:
-        return None
-    ts_m30 = broker_time_to_ts(broker_dt, H - 1, 30, 0)
-    c_m30 = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_M30, ts_m30)
-    if c_m30 is None:
-        print(f"  [M30 XAUUSD] Khong co du lieu tai {H-1}:30")
-        return None
-    d_m30 = candle_direction(c_m30)
-    if d_m30 == "DOJI":
-        d_m30 = resolve_doji("XAUUSD", mt5.TIMEFRAME_M30, ts_m30, broker_dt)
-        if d_m30 is None:
-            return None
-        print(f"  [DOJI] M30 XAUUSD@{H-1}:30 DOJI -> fallback: {d_m30}")
-    if d_m30 and d_m30 != "DOJI":
-        return "BUY" if d_m30 == "TANG" else "SELL"
-    return None
-
 
 def _is_raw_special_day(target_date):
     """Evaluate the original calendar triggers for one Thu/Fri date."""
@@ -903,10 +821,11 @@ def _is_raw_special_day(target_date):
 
 
 def is_special_day(broker_dt):
-    """Return whether this Broker Thursday belongs to a special Thu/Fri pair."""
-    if broker_dt is None or broker_dt.weekday() != 3:
+    """Return whether a Broker Thursday or Friday belongs to a special pair."""
+    if broker_dt is None or broker_dt.weekday() not in (3, 4):
         return False
-    thursday = broker_dt.date()
+    current = broker_dt.date()
+    thursday = current if broker_dt.weekday() == 3 else current - timedelta(days=1)
     friday = thursday + timedelta(days=1)
     if thursday.year != friday.year:
         return False
@@ -1038,364 +957,205 @@ def is_month_boundary_suppress(broker_dt):
     return False
 
 
-def _lookup_historical_t2_signal(broker_dt, target_hour):
-    """Look up the previous Monday signal for Thursday history reuse."""
-    monday_date = broker_dt.date() - timedelta(days=3)
-    date_str = monday_date.isoformat()
-    try:
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-            for record in reversed(data):
-                if record.get("date") == date_str and int(record.get("hour", -1)) == target_hour:
-                    sig = record.get("signal")
-                    if sig in ("BUY", "SELL"):
-                        return sig
-    except Exception as e:
-        print(f"[WARN] Cannot look up Monday H={target_hour} signal: {e}")
-    return None
-
-def _lookup_h3_signal_today(broker_dt):
-    """Look up today's H=3 signal from signals_log history."""
-    date_str = broker_dt.date().isoformat()
-    try:
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-            for record in reversed(data):
-                if record.get("date") == date_str and int(record.get("hour", -1)) == 3:
-                    sig = record.get("signal")
-                    if sig in ("BUY", "SELL"):
-                        return sig
-    except Exception as e:
-        print(f"[WARN] Cannot lookup today H=3 signal: {e}")
-    return None
+_THREE_CANDLE_GROUPS = {
+    ("TANG", "TANG", "TANG"): "SW",
+    ("GIAM", "TANG", "TANG"): "SW",
+    ("GIAM", "TANG", "GIAM"): "BT",
+    ("GIAM", "GIAM", "TANG"): "BT",
+    ("GIAM", "GIAM", "GIAM"): "SW",
+    ("TANG", "GIAM", "GIAM"): "SW",
+    ("TANG", "GIAM", "TANG"): "BT",
+    ("TANG", "TANG", "GIAM"): "BT",
+}
 
 
-def _lookup_h5_signal_for_date(broker_dt, target_date):
-    """Look up H=5 signal from signals_log for a specific date."""
-    date_str = target_date.isoformat() if hasattr(target_date, 'isoformat') else str(target_date)
-    try:
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-            for record in reversed(data):
-                if record.get("date") == date_str and int(record.get("hour", -1)) == 5:
-                    sig = record.get("signal")
-                    if sig in ("BUY", "SELL"):
-                        return sig
-    except Exception as e:
-        print(f"[WARN] Cannot lookup H=5 for {date_str}: {e}")
-    return None
-
-
-def _lookup_h5_signal_today(broker_dt):
-    return _lookup_h5_signal_for_date(broker_dt, broker_dt.date())
-
-
-def _lookup_h4_signal_for_date(broker_dt, target_date):
-    """Look up H=4 signal from signals_log for a specific date."""
-    date_str = target_date.isoformat() if hasattr(target_date, 'isoformat') else str(target_date)
-    try:
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-            for record in reversed(data):
-                if record.get("date") == date_str and int(record.get("hour", -1)) == 4:
-                    sig = record.get("signal")
-                    if sig in ("BUY", "SELL"):
-                        return sig
-    except Exception as e:
-        print(f"[WARN] Cannot lookup H=4 for {date_str}: {e}")
-    return None
-
-
-def _lookup_h4_signal_today(broker_dt):
-    return _lookup_h4_signal_for_date(broker_dt, broker_dt.date())
-
-
-def _lookup_signal_from_log(broker_dt, hour):
-    """Generic lookup: read signal for a given hour from signals_log.json."""
-    target_date = broker_dt.date() if hasattr(broker_dt, 'date') and callable(getattr(broker_dt, 'date')) else broker_dt
-    date_str = target_date.isoformat() if hasattr(target_date, 'isoformat') else str(target_date)
-    try:
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-            for record in reversed(data):
-                if record.get("date") == date_str and int(record.get("hour", -1)) == hour:
-                    sig = record.get("signal")
-                    if sig in ("BUY", "SELL"):
-                        return sig
-    except Exception as e:
-        print(f"[WARN] Cannot lookup H={hour} for {date_str}: {e}")
-    return None
-
-
-def _lookup_h5_signal_yesterday(broker_dt):
-    """Look up H=5 from the most recent previous weekday."""
-    d = broker_dt.date() - timedelta(days=1)
-    while d.weekday() >= 5:
-        d -= timedelta(days=1)
-    return _lookup_h5_signal_for_date(broker_dt, d)
-
-
-def _lookup_h16_signal_yesterday(broker_dt):
-    """Look up H=16 from the most recent previous weekday."""
-    d = broker_dt.date() - timedelta(days=1)
-    while d.weekday() >= 5:
-        d -= timedelta(days=1)
-    return _lookup_signal_from_log(d, 16)
-
-
-def apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H):
-    """Cùng chiều XAUUSD M30 -> đảo XAUUSD, ngược chiều -> theo XAUUSD M30.
-
-    Update the XAUUSD direction after M30 post-processing.
-    """
-    xau_m30 = get_xauusd_m30_signal(broker_dt, H)
-    if xau_m30 is None:
+def _lookback_candle_direction(symbol, timeframe, candle_dt):
+    """Read one completed candle, resolving a DOJI with exactly one older bar."""
+    target_ts = broker_time_to_ts(candle_dt, candle_dt.hour, candle_dt.minute)
+    direction = candle_direction(get_candle_by_ts(symbol, timeframe, target_ts))
+    if direction in ("TANG", "GIAM"):
+        return direction
+    if direction != "DOJI":
         return None
-    if "XAUUSD" not in pair_dirs:
-        return pair_dirs
-    if sig == xau_m30:
-        final_xau = "SELL" if xau_m30 == "BUY" else "BUY"
-    else:
-        final_xau = xau_m30
-
-    pair_dirs["XAUUSD"] = final_xau
-    apply_d_direction_marker(pair_dirs, H, broker_dt)
-    return pair_dirs
+    resolved = resolve_doji(symbol, timeframe, target_ts, candle_dt)
+    return resolved if resolved in ("TANG", "GIAM") else None
 
 
-def _reversed_h3_result(broker_dt, hour):
-    """Build a dependent slot from the final XAUUSD H=3 direction."""
-    h3_signal = _lookup_h3_signal_today(broker_dt)
-    final_signal = reverse_signal(h3_signal)
-    if final_signal is None:
-        return {"signal": "WAIT", "report": f"H={hour}: thiếu H=3 để đảo chiều."}
+def _classify_three_candles(directions):
+    """Classify newest-to-oldest directions with the existing SW/BT table."""
+    return _THREE_CANDLE_GROUPS.get(tuple(directions))
+
+
+def evaluate_previous_day_gbp_h1_pair(broker_dt, hour, symbol):
+    """Derive one XAU direction from yesterday's two completed GBP H1 bars."""
+    if broker_dt is None:
+        return None
+    slot_dt = broker_dt.replace(hour=int(hour), minute=0, second=0, microsecond=0)
+    previous_slot_dt = slot_dt - timedelta(days=1)
+    newest_dt = previous_slot_dt - timedelta(hours=1)
+    older_dt = previous_slot_dt - timedelta(hours=2)
+    newest_direction = _lookback_candle_direction(symbol, mt5.TIMEFRAME_H1, newest_dt)
+    older_direction = _lookback_candle_direction(symbol, mt5.TIMEFRAME_H1, older_dt)
+    if newest_direction not in ("TANG", "GIAM") or older_direction not in ("TANG", "GIAM"):
+        return None
+    base_signal = "BUY" if newest_direction == "TANG" else "SELL"
+    group = "SW" if newest_direction == older_direction else "BT"
+    derived_signal = reverse_signal(base_signal) if group == "SW" else base_signal
     return {
-        "signal": final_signal,
-        "pattern_signal": h3_signal,
-        "report": f"H={hour}: đảo ngược H=3 ({h3_signal} -> {final_signal}).",
-        "m30_dir": None,
-        "h1_signal": None,
-        "skip_xau_m30": True,
+        "newest_direction": newest_direction,
+        "older_direction": older_direction,
+        "group": group,
+        "base_signal": base_signal,
+        "derived_signal": derived_signal,
     }
 
 
-def _finalize_pattern_result(result, broker_dt, hour, reverse=False):
-    """Apply the XAU M30 post-process exactly once to an analysed slot."""
-    pattern_signal = result.get("signal")
-    pair_dirs = get_pair_direction(hour, pattern_signal, broker_dt)
-    if not pair_dirs:
-        return result
-    
-    if pattern_signal != "WAIT" and not result.get("skip_xau_m30"):
-        if apply_xauusd_m30_logic(pair_dirs, pattern_signal, broker_dt, hour) is None:
-            return {
-                "signal": "WAIT",
-                "report": f"H={hour}: missing or unresolved XAUUSD M30.",
-                "skip_xau_m30": True,
-            }
-        
-    final_signal = pair_dirs.get("XAUUSD", pattern_signal)
-    if reverse:
-        final_signal = reverse_signal(final_signal) or final_signal
-    result["pattern_signal"] = pattern_signal
-    result["signal"] = final_signal
-    result["skip_xau_m30"] = True
-    return result
-
-
-
-
-
-def evaluate_classification_for_slot(broker_dt, slot_hour, symbol="XAUUSD"):
-    """Evaluate the four completed H1 candles immediately before a slot."""
-    h1, h2, h3, h4 = slot_hour - 1, slot_hour - 2, slot_hour - 3, slot_hour - 4
-    if broker_dt is None:
-        return None, "missing broker time", []
-
-    dirs = {}
-    vn_dirs = {}
-    candles = []
-    for h in (h4, h3, h2, h1):
-        ts_h1 = broker_time_to_ts(broker_dt, h, 0)
-        c = get_candle_by_ts(symbol, mt5.TIMEFRAME_H1, ts_h1)
-        if c is not None:
-            open_p = round(float(_rate_value(c, "open")), 2)
-            close_p = round(float(_rate_value(c, "close")), 2)
-            high_p = round(float(_rate_value(c, "high", max(open_p, close_p))), 2)
-            low_p = round(float(_rate_value(c, "low", min(open_p, close_p))), 2)
-            d = candle_direction(c)
-            is_doji = (d == "DOJI")
-            if is_doji:
-                doji_d = resolve_doji(symbol, mt5.TIMEFRAME_H1, ts_h1, broker_dt)
-                if doji_d not in ("TANG", "GIAM"):
-                    return None, f"unresolved DOJI H1@{h:02d}:00", candles
-                d = doji_d
-                print(f"  [DOJI] H1@{h:02d}:00 DOJI -> fallback: {d}")
-            candles.append({
-                "hour": h,
-                "open": open_p,
-                "high": high_p,
-                "low": low_p,
-                "close": close_p,
-                "dir": d,
-                "doji": is_doji,
-            })
-        else:
-            return None, f"missing H1@{h:02d}:00", candles
-        dirs[h] = d
-        vn_dirs[h] = "Tăng" if d == "TANG" else "Giảm"
-
-    d1, d2, d3, d4 = dirs[h1], dirs[h2], dirs[h3], dirs[h4]
-
-    if d1 == "TANG":
-        if d2 == "GIAM" and d3 == "TANG" and d4 == "GIAM":
-            group, rule_num = "SW", 1
-        elif d2 == "GIAM" and d3 == "TANG" and d4 == "TANG":
-            group, rule_num = "BT", 2
-        elif d2 == "TANG" and d3 == "GIAM":
-            group, rule_num = "BT", 3
-        elif d2 == "TANG" and d3 == "TANG":
-            group, rule_num = "SW", 4
-        else:
-            group, rule_num = "SW", 5
-    else:
-        if d2 == "TANG" and d3 == "GIAM" and d4 == "TANG":
-            group, rule_num = "SW", 6
-        elif d2 == "TANG" and d3 == "GIAM" and d4 == "GIAM":
-            group, rule_num = "BT", 7
-        elif d2 == "GIAM" and d3 == "TANG":
-            group, rule_num = "BT", 8
-        elif d2 == "GIAM" and d3 == "GIAM":
-            group, rule_num = "SW", 9
-        else:
-            group, rule_num = "SW", 10
-
-    detail = f"H{h1}:{vn_dirs[h1]}, H{h2}:{vn_dirs[h2]}, H{h3}:{vn_dirs[h3]}, H{h4}:{vn_dirs[h4]}"
-    return group, detail, candles
-
-def evaluate_4_m30_classification_before_hour(broker_dt, target_hour, symbol="XAUUSD"):
-    """Evaluate 4 M30 candles before target_hour Broker time."""
+def evaluate_xauusd_m15_group_for_slot(broker_dt, hour):
+    """Classify XAUUSD M15 bars two through four immediately before a slot."""
     if broker_dt is None:
         return None
-
-    h_m1, m_m1 = target_hour - 1, 30
-    h_m2, m_m2 = target_hour - 1, 0
-    h_m3, m_m3 = target_hour - 2, 30
-    h_m4, m_m4 = target_hour - 2, 0
-
-    m_times = [(h_m4, m_m4), (h_m3, m_m3), (h_m2, m_m2), (h_m1, m_m1)]
-    dirs = {}
-    for h, m in m_times:
-        ts = broker_time_to_ts(broker_dt, h, m)
-        c = get_candle_by_ts(symbol, mt5.TIMEFRAME_M30, ts)
-        if c is not None:
-            d = candle_direction(c)
-            if d == "DOJI":
-                doji_d = resolve_doji(symbol, mt5.TIMEFRAME_M30, ts, broker_dt)
-                if doji_d not in ("TANG", "GIAM"):
-                    return None
-                d = doji_d
-        else:
-            return None
-        time_key = f"{h:02d}:{m:02d}"
-        dirs[time_key] = d
-
-    d1 = dirs[f"{h_m1:02d}:{m_m1:02d}"]
-    d2 = dirs[f"{h_m2:02d}:{m_m2:02d}"]
-    d3 = dirs[f"{h_m3:02d}:{m_m3:02d}"]
-    d4 = dirs[f"{h_m4:02d}:{m_m4:02d}"]
-
-    if d1 == "TANG":
-        if d2 == "GIAM" and d3 == "TANG" and d4 == "GIAM":
-            group = "SW"
-        elif d2 == "GIAM" and d3 == "TANG" and d4 == "TANG":
-            group = "BT"
-        elif d2 == "TANG" and d3 == "GIAM":
-            group = "BT"
-        elif d2 == "TANG" and d3 == "TANG":
-            group = "SW"
-        else:
-            group = "SW"
-    else:
-        if d2 == "TANG" and d3 == "GIAM" and d4 == "TANG":
-            group = "SW"
-        elif d2 == "TANG" and d3 == "GIAM" and d4 == "GIAM":
-            group = "BT"
-        elif d2 == "GIAM" and d3 == "TANG":
-            group = "BT"
-        elif d2 == "GIAM" and d3 == "GIAM":
-            group = "SW"
-        else:
-            group = "SW"
-
-    return group
+    slot_dt = broker_dt.replace(hour=int(hour), minute=0, second=0, microsecond=0)
+    directions = [
+        _lookback_candle_direction(SYMBOL, mt5.TIMEFRAME_M15, slot_dt - timedelta(minutes=offset))
+        for offset in (30, 45, 60)
+    ]
+    return _classify_three_candles(directions)
 
 
-def evaluate_3_m30_classification_for_h3(broker_dt, symbol="XAUUSD"):
-    """Evaluate H=3 from M30 candles at 01:30, 02:00, and 02:30 Broker."""
-    if broker_dt is None:
-        return None
-
-    m_times = [(1, 30), (2, 0), (2, 30)]
-    dirs = {}
-    for h, m in m_times:
-        ts = broker_time_to_ts(broker_dt, h, m)
-        c = get_candle_by_ts(symbol, mt5.TIMEFRAME_M30, ts)
-        if c is not None:
-            d = candle_direction(c)
-            if d == "DOJI":
-                doji_d = resolve_doji(symbol, mt5.TIMEFRAME_M30, ts, broker_dt)
-                if doji_d not in ("TANG", "GIAM"):
-                    return None
-                d = doji_d
-        else:
-            return None
-        dirs[f"{h:02d}:{m:02d}"] = d
-
-    d1 = dirs["02:30"]
-    d2 = dirs["02:00"]
-    d3 = dirs["01:30"]
-
-    if d1 == "TANG" and d2 == "TANG" and d3 == "TANG":
-        return "SW"
-    if d1 == "GIAM" and d2 == "TANG" and d3 == "TANG":
-        return "SW"
-    if d1 == "GIAM" and d2 == "TANG" and d3 == "GIAM":
-        return "BT"
-    if d1 == "GIAM" and d2 == "GIAM" and d3 == "TANG":
-        return "BT"
-
-    if d1 == "GIAM" and d2 == "GIAM" and d3 == "GIAM":
-        return "SW"
-    if d1 == "TANG" and d2 == "GIAM" and d3 == "GIAM":
-        return "SW"
-    if d1 == "TANG" and d2 == "GIAM" and d3 == "TANG":
-        return "BT"
-    if d1 == "TANG" and d2 == "TANG" and d3 == "GIAM":
-        return "BT"
-
-    return "SW"
-
-
-def is_priority_slot(broker_dt, hour):
-    """Return True if slot has priority badge according to 4-M30 selection rules."""
-    if broker_dt is None:
-        return False
+def _m15_pair_for_hour(hour):
+    """Return the GBP pair used for M15 4-candle lookback by hour group."""
     h = int(hour)
-    wd = broker_dt.weekday()
-    if h == 6:
-        return evaluate_4_m30_classification_before_hour(broker_dt, 6) == "SW"
-    if h == 12:
-        group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
-        if wd in (0, 4):
-            return group == "BT"
-        return group == "SW"
-    return False
+    if h in (3, 6, 9):
+        return "GBPAUD"
+    if h in (12, 14, 16):
+        return "GBPUSD"
+    return None
+
+
+def evaluate_m15_4candle_for_slot(broker_dt, hour):
+    """Evaluate 4 M15 candles (base + 3 pullback) for a slot.
+
+    H=3,6,9  → GBPAUD M15 at offsets 30, 45, 60, 75 min before slot.
+    H=12,14,16 → GBPUSD M15 at same offsets.
+    Offset-30 candle = base direction → BUY(TANG)/SELL(GIAM).
+    Offsets 45,60,75 = 3 pullback candles → classify SW or BT.
+    SW → reverse base; BT → keep base.
+    """
+    h = int(hour)
+    pair = _m15_pair_for_hour(h)
+    if broker_dt is None or pair is None:
+        return None
+    slot_dt = broker_dt.replace(hour=h, minute=0, second=0, microsecond=0)
+    all_dirs = [
+        _lookback_candle_direction(pair, mt5.TIMEFRAME_M15, slot_dt - timedelta(minutes=offset))
+        for offset in (30, 45, 60, 75)
+    ]
+    if any(d is None for d in all_dirs):
+        return None
+    base_dir = all_dirs[0]
+    if base_dir not in ("TANG", "GIAM"):
+        return None
+    pullback_dirs = all_dirs[1:]
+    pullback_group = _classify_three_candles(pullback_dirs)
+    if pullback_group not in ("SW", "BT"):
+        return None
+    base_signal = "BUY" if base_dir == "TANG" else "SELL"
+    derived_signal = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
+    return {
+        "base_direction": base_dir,
+        "base_signal": base_signal,
+        "pullback_group": pullback_group,
+        "derived_signal": derived_signal,
+        "pair": pair,
+    }
+
+
+def _entry_time_from_gbp_derivations(hour, directions_match, m15_group=None):
+    """Map the two GBP-derived XAU directions to the Broker entry clock."""
+    h = int(hour)
+    if directions_match:
+        return f"{h:02d}:11"
+    if m15_group not in ("SW", "BT"):
+        return None
+    if h == 3:
+        return "04:49" if m15_group == "SW" else "03:49"
+    return f"{h + 1:02d}:25" if m15_group == "SW" else f"{h:02d}:49"
+
+
+def _entry_time_from_m15_4candle(hour, pullback_group):
+    """Map M15 4-candle pullback group to Broker entry clock."""
+    h = int(hour)
+    if pullback_group == "SW":
+        return f"{h + 1:02d}:25"
+    if pullback_group == "BT":
+        return f"{h:02d}:49"
+    return None
+
+
+def evaluate_gbp_h1_slot(broker_dt, hour):
+    """Build an XAUUSD slot signal.
+
+    H=4 → legacy GBP H1 pair logic (GBPUSD + GBPAUD yesterday H1).
+    H=3,6,9,12,14,16 → M15 4-candle lookback (GBPAUD or GBPUSD).
+    """
+    h = int(hour)
+    if h not in ACTIVE_HOURS:
+        return None
+
+    # ── H=4: legacy GBP H1 pair logic ──
+    if h == 4:
+        gbpusd = evaluate_previous_day_gbp_h1_pair(broker_dt, h, "GBPUSD")
+        gbpaud = evaluate_previous_day_gbp_h1_pair(broker_dt, h, "GBPAUD")
+        if gbpusd is None or gbpaud is None:
+            return None
+        directions_match = gbpusd["derived_signal"] == gbpaud["derived_signal"]
+        m15_group = None if directions_match else evaluate_xauusd_m15_group_for_slot(broker_dt, h)
+        entry_time = _entry_time_from_gbp_derivations(h, directions_match, m15_group)
+        if entry_time is None:
+            return None
+        final_signal = gbpusd["derived_signal"]
+        pair_dirs = {"XAUUSD": final_signal}
+        source_date = (broker_dt - timedelta(days=1)).date().isoformat()
+        comparison = "same" if directions_match else f"opposite, XAU M15={m15_group}"
+        return {
+            "signal": final_signal,
+            "pattern_signal": gbpusd["base_signal"],
+            "entry_time": entry_time,
+            "report": (
+                f"H={h}: GBPUSD {source_date}={gbpusd['group']} -> {final_signal}; "
+                f"GBPAUD={gbpaud['group']} -> {gbpaud['derived_signal']}; {comparison}."
+            ),
+            "pair_dirs": pair_dirs,
+            "gbpusd_group": gbpusd["group"],
+            "gbpaud_group": gbpaud["group"],
+            "gbpusd_derived_signal": gbpusd["derived_signal"],
+            "gbpaud_derived_signal": gbpaud["derived_signal"],
+            "xau_m15_group": m15_group,
+        }
+
+    # ── H=3,6,9,12,14,16: M15 4-candle lookback ──
+    m15 = evaluate_m15_4candle_for_slot(broker_dt, h)
+    if m15 is None:
+        return None
+    entry_time = _entry_time_from_m15_4candle(h, m15["pullback_group"])
+    if entry_time is None:
+        return None
+    final_signal = m15["derived_signal"]
+    pair_dirs = {"XAUUSD": final_signal}
+    return {
+        "signal": final_signal,
+        "pattern_signal": m15["base_signal"],
+        "entry_time": entry_time,
+        "report": (
+            f"H={h}: {m15['pair']} M15 4-candle — base={m15['base_direction']} "
+            f"({m15['base_signal']}), pullback={m15['pullback_group']} -> {final_signal}."
+        ),
+        "pair_dirs": pair_dirs,
+        "m15_pair": m15["pair"],
+        "m15_base_direction": m15["base_direction"],
+        "m15_base_signal": m15["base_signal"],
+        "m15_pullback_group": m15["pullback_group"],
+    }
 
 
 def is_deactivated_signal_slot(broker_dt, hour):
@@ -1403,92 +1163,43 @@ def is_deactivated_signal_slot(broker_dt, hour):
     if broker_dt is None:
         return False
     h = int(hour)
-    if h in (4, 5):
+    if h == 4:
         return True
     if h == 3 and broker_dt.weekday() == 3:
-        return True
-    # H=16 on Thursday (Thứ 5): always deactivated (DO NOT ENTER)
-    if h == 16 and broker_dt.weekday() == 3:
-        return True
-    # H=16 on Monday (Thứ 2): always deactivated (DO NOT ENTER)
-    if h == 16 and broker_dt.weekday() == 0:
-        return True
-    # Restricted calendar period: H=12 and H=16 are DO NOT ENTER
-    if h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
         return True
     return False
 
 
 def get_entry_time_for_slot(broker_dt, hour):
-    """Calculate entry_time (Broker HH:MM) based on 4-M30 candle classification rules."""
+    """Calculate the Broker entry clock for one logical slot."""
     h = int(hour)
-    if broker_dt is None:
-        return f"{h:02d}:45"
-    wd = broker_dt.weekday()
-    if h == 3:
-        group = evaluate_3_m30_classification_for_h3(broker_dt)
-        if group is None:
-            return None
-        return "03:49" if group == "SW" else "03:11"
-    if h == 6:
-        return "06:11"
-    if h == 12:
-        return "12:11"
-    if h == 16:
-        group_h6 = evaluate_4_m30_classification_before_hour(broker_dt, 6)
-        if group_h6 is None:
-            return None
-        return "16:11" if group_h6 == "SW" else "16:49"
-
-    if h == 4:
-        return "04:45"
-    if h == 5:
-        return "05:45"
-    return f"{h:02d}:45"
+    if broker_dt is None or h not in ACTIVE_HOURS:
+        return None
+    result = evaluate_gbp_h1_slot(broker_dt, h)
+    return result.get("entry_time") if result else None
 
 
 def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
     """Return the last Broker datetime at which a live slot may be emitted."""
     h = int(hour)
     fallback_clocks = {
-        3: "03:49",
-        4: "04:45",
-        5: "05:45",
-        6: "06:11",
-        12: "12:11",
-        16: "16:49",
+        3: "04:49",
+        4: "05:25",
+        6: "07:25",
+        9: "10:25",
+        12: "13:25",
+        14: "15:25",
+        16: "17:25",
     }
     clock = entry_time or get_entry_time_for_slot(broker_dt, h) or fallback_clocks[h]
     deadline_hour, deadline_minute = (int(part) for part in clock.split(":"))
     deadline = broker_dt.replace(
         hour=deadline_hour,
         minute=deadline_minute,
-        second=59 if h in (4, 5) else 0,
-        microsecond=999999 if h in (4, 5) else 0,
+        second=0,
+        microsecond=0,
     )
     return deadline
-
-
-def _apply_weekday_extra_inversion(hour, signal, broker_dt):
-    """Apply extra XAUUSD signal inversion according to weekday rules:
-    - Monday (wd=0): H=16
-    - Tuesday (wd=1): H=6, 9, 12, 14
-    - Wednesday (wd=2): H=6, 9, 12, 14, 16
-    - Friday (wd=4): H=6, 9
-    """
-    if broker_dt is None or signal not in ("BUY", "SELL"):
-        return signal
-    wd = broker_dt.weekday()
-    h = int(hour)
-    if wd == 0 and h == 16:
-        return reverse_signal(signal) or signal
-    if wd == 1 and h in (6, 12):
-        return reverse_signal(signal) or signal
-    if wd == 2 and h in (6, 12, 16):
-        return reverse_signal(signal) or signal
-    if wd == 4 and h == 6:
-        return reverse_signal(signal) or signal
-    return signal
 
 
 def calculate_slot_signal(broker_dt, hour):
@@ -1498,284 +1209,62 @@ def calculate_slot_signal(broker_dt, hour):
         return {
             "signal": "WAIT",
             "report": f"H={hour}: inactive slot.",
-            "m30_dir": None,
-            "h1_signal": None,
-            "skip_xau_m30": True,
             "suppressed": True,
         }
-    # H=3: XAUUSD reverses yesterday H=5; Thursday reuses Monday H=3.
-    if hour == 3:
-        entry_group = evaluate_3_m30_classification_for_h3(broker_dt)
-        if entry_group is None:
-            return {"signal": "WAIT", "report": "H=3: incomplete 3M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        if broker_dt.weekday() == 3:  # Thứ 5
-            historical_signal = _lookup_historical_t2_signal(broker_dt, hour)
-            if historical_signal not in ("BUY", "SELL"):
-                return {"signal": "WAIT", "report": f"H={hour}: thiếu lịch sử Thứ 2.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-            final_signal = historical_signal
-        else:
-            h5_yesterday = _lookup_h5_signal_yesterday(broker_dt)
-            if h5_yesterday not in ("BUY", "SELL"):
-                return {"signal": "WAIT", "report": f"H={hour}: thiếu H=5 hôm qua.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-            final_signal = reverse_signal(h5_yesterday)
-        gbp_aud = reverse_signal(final_signal) or final_signal
-        result = {
-            "signal": final_signal,
-            "pattern_signal": final_signal,
-            "report": f"H={hour}: XAUUSD={final_signal}, GBPAUD={gbp_aud}.",
-            "m30_dir": None,
-            "h1_signal": None,
-            "skip_xau_m30": True,
-            "pair_dirs": {"XAUUSD": final_signal, "GBPAUD": gbp_aud},
-        }
-        if is_deactivated_signal_slot(broker_dt, hour):
-            result["deactivated"] = True
-        return result
-    # H=6: reverse H=3, then apply the four-H1 classification.
-    if hour == 6:
-        priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 6)
-        if priority_group is None:
-            return {"signal": "WAIT", "report": "H=6: incomplete priority 4M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        h3_signal = _lookup_h3_signal_today(broker_dt)
-        if h3_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": f"H={hour}: thiếu H=3.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        final_signal = reverse_signal(h3_signal)
-        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
-        # 4 H1 lookback: BT -> đảo lại, SW -> giữ nguyên
-        group, detail, _ = evaluate_classification_for_slot(broker_dt, 6)
-        if group is None:
-            return {"signal": "WAIT", "report": f"H=6: incomplete 4H1 ({detail}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        if group == "BT":
-            final_signal = reverse_signal(final_signal)
-            report = f"H=6: đảo H=3 ({h3_signal} -> {reverse_signal(h3_signal)}), BT({detail}) -> đảo lại ({final_signal})."
-        else:
-            report = f"H=6: đảo H=3 ({h3_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
-        # Special day: H=6 đảo thêm khi Thứ 5 là special day (only Thursday)
-        if broker_dt is not None and is_special_day(broker_dt):
-            final_signal = reverse_signal(final_signal)
-            report += f" [Special day -> đảo lại ({final_signal})]"
-        # Special day 2: H=6 đảo thêm khi Thứ 4/6 là special day 2
-        if broker_dt is not None and is_special_day_2(broker_dt):
-            final_signal = reverse_signal(final_signal)
-            report += f" [Special day 2 -> đảo lại ({final_signal})]"
-        result = {"signal": final_signal, "pattern_signal": h3_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        return result
-    # H=12: XAUUSD đảo ngược H=4, sau đó áp dụng 4 H1 lookback
-    if hour == 12:
-        # Thursday (Thứ 5): H=12 = reverse of yesterday H=16 (always, not just special_day_2)
-        if broker_dt is not None and broker_dt.weekday() == 3:
-            h16_yesterday = _lookup_h16_signal_yesterday(broker_dt)
-            if h16_yesterday not in ("BUY", "SELL"):
-                return {"signal": "WAIT", "report": "H=12: thiếu H=16 Thứ 4.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-            final_signal = reverse_signal(h16_yesterday)
-            final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
-            report = f"H=12: đảo H=16 Thứ 4 ({h16_yesterday} -> {final_signal})."
-            return {"signal": final_signal, "pattern_signal": h16_yesterday, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        priority_group = evaluate_4_m30_classification_before_hour(broker_dt, 12)
-        if priority_group is None:
-            return {"signal": "WAIT", "report": "H=12: incomplete priority 4M30.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        h4_signal = _lookup_h4_signal_today(broker_dt)
-        if h4_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": f"H={hour}: thiếu H=4 hôm nay.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        final_signal = reverse_signal(h4_signal)
-        final_signal = _apply_weekday_extra_inversion(hour, final_signal, broker_dt)
-        # 4 H1 lookback: BT -> đảo lại, SW -> giữ nguyên
-        group, detail, _ = evaluate_classification_for_slot(broker_dt, 12)
-        if group is None:
-            return {"signal": "WAIT", "report": f"H=12: incomplete 4H1 ({detail}).", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-        if group == "BT":
-            final_signal = reverse_signal(final_signal)
-            report = f"H={hour}: đảo H=4 ({h4_signal} -> {reverse_signal(h4_signal)}), BT({detail}) -> đảo lại ({final_signal})."
-        else:
-            report = f"H={hour}: đảo H=4 ({h4_signal} -> {final_signal}), SW({detail}) -> giữ nguyên."
-        return {"signal": final_signal, "pattern_signal": h4_signal, "report": report, "m30_dir": None, "h1_signal": None, "skip_xau_m30": True}
-    # H=16: always pairs H6↔H12 (H=9 and H=14 removed).
-    if hour == 16:
-        left_signal = _lookup_signal_from_log(broker_dt, 6)
-        right_signal = _lookup_signal_from_log(broker_dt, 12)
-        if left_signal not in ("BUY", "SELL") or right_signal not in ("BUY", "SELL"):
-            return {"signal": "WAIT", "report": "H=16: missing H=6 or H=12.", "m30_dir": None, "h1_signal": None, "skip_xau_m30": True, "pair_dirs": {}}
-
-        if left_signal != right_signal:
-            final_signal = left_signal
-            relation = "opposite -> follow H=6"
-        else:
-            final_signal = reverse_signal(left_signal)
-            relation = "same -> reverse H=6"
-
-        final_signal = _apply_weekday_extra_inversion(16, final_signal, broker_dt)
-        report = f"H=16: H6={left_signal}, H12={right_signal} ({relation}) -> {final_signal}"
+    result = evaluate_gbp_h1_slot(broker_dt, hour)
+    if result is None:
         return {
-            "signal": final_signal,
-            "pattern_signal": left_signal,
-            "report": report,
-            "m30_dir": None,
-            "h1_signal": None,
-            "skip_xau_m30": True,
-            "pair_dirs": {"XAUUSD": final_signal},
+            "signal": "WAIT",
+            "report": f"H={hour}: incomplete GBP M15 4-candle or GBP H1 pair data.",
         }
-
-    result = _finalize_pattern_result(analyze(broker_dt, hour), broker_dt, hour)
     if is_deactivated_signal_slot(broker_dt, hour):
         result["deactivated"] = True
     return result
 
-def candle_info_line(candle, label):
-    if candle is None:
-        return f"  {label}: Khong co du lieu"
-    d = candle_direction(candle)
-    arrow = {"TANG": "\u2191", "GIAM": "\u2193", "DOJI": "\u2194"}.get(d, "")
-    vn = vn_direction(d)
-    return (
-        f"  *{label}: {vn} {arrow}*\n"
-        f"    *O={candle['open']:.5f} C={candle['close']:.5f}* "
-        f"H={candle['high']:.5f} L={candle['low']:.5f}"
-    )
-
-# =====================================================================
-# PHAN TICH TIN HIEU
-# =====================================================================
-def analyze(broker_dt, H):
-    """Tính signal pattern M5/M30 cho các slot cơ bản."""
-    actual_broker_time = get_broker_time()
-    if broker_dt.date() == actual_broker_time.date():
-        signal_dt = get_signal_datetime_for_slot(broker_dt, H)
-        if actual_broker_time < signal_dt:
-            return {"signal": "WAIT", "report": f"Chua toi {get_signal_time_for_slot(broker_dt, H)}", "skip_xau_m30": True}
-
-    ts_m35 = broker_time_to_ts(broker_dt, H, 35)
-    ts_m40 = broker_time_to_ts(broker_dt, H, 40)
-
-    c_m35 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m35)
-    c_m40 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m40)
-
-    d_m35 = candle_direction(c_m35)
-    d_m40 = candle_direction(c_m40)
-
-    if d_m35 is None or d_m40 is None:
-        print(f"  [SKIP] Khong du du lieu M5 tai {fmt_hour(H)}:35 / {fmt_hour(H)}:40")
-        return {"signal": "WAIT", "report": "Khong du du lieu M5", "skip_xau_m30": True}
-    # DOJI fallback: lùi 1 nến trước cùng khung
-    if d_m35 == "DOJI":
-        d_m35 = resolve_doji(SYMBOL, mt5.TIMEFRAME_M5, ts_m35, broker_dt)
-        if d_m35 is None:
-            return {"signal": "WAIT", "report": "Unresolved DOJI M5@35", "skip_xau_m30": True}
-        print(f"  [DOJI] M5@{fmt_hour(H)}:35 DOJI -> fallback: {d_m35}")
-    if d_m40 == "DOJI":
-        d_m40 = resolve_doji(SYMBOL, mt5.TIMEFRAME_M5, ts_m40, broker_dt)
-        if d_m40 is None:
-            return {"signal": "WAIT", "report": "Unresolved DOJI M5@40", "skip_xau_m30": True}
-        print(f"  [DOJI] M5@{fmt_hour(H)}:40 DOJI -> fallback: {d_m40}")
-
-    ts_m30 = broker_time_to_ts(broker_dt, H, 0)
-    c_m30 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30)
-    d_m30 = candle_direction(c_m30)
-
-    if d_m30 is None:
-        return {"signal": "WAIT", "report": "Không đủ dữ liệu M30"}
-    # DOJI fallback: lùi 1 nến trước cùng khung
-    if d_m30 == "DOJI":
-        d_m30 = resolve_doji(SYMBOL, mt5.TIMEFRAME_M30, ts_m30, broker_dt)
-        if d_m30 is None:
-            return {"signal": "WAIT", "report": "Unresolved DOJI M30", "skip_xau_m30": True}
-        print(f"  [DOJI] M30@{fmt_hour(H)}:00 DOJI -> fallback: {d_m30}")
-
-    vn_m35 = vn_direction(d_m35)
-    vn_m40 = vn_direction(d_m40)
-    vn_m30 = vn_direction(d_m30)
-
-    if d_m35 == d_m40:
-        signal = "BUY" if d_m30 == "TANG" else "SELL"
-        report = (
-            f"PATTERN: Cùng chiều ({vn_m35})\n"
-            f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
-            f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lấy M30@{fmt_hour(H)}:00 (Cùng chiều)\n"
-            f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:00')}"
-        )
-    else:
-        signal = "SELL" if d_m30 == "TANG" else "BUY"
-        report = (
-            f"PATTERN: Ngược chiều ({vn_m35} + {vn_m40})\n"
-            f"{candle_info_line(c_m35, f'M5@{fmt_hour(H)}:35')}\n"
-            f"{candle_info_line(c_m40, f'M5@{fmt_hour(H)}:40')}\n"
-            f"  -> Lấy M30@{fmt_hour(H)}:00 (Ngược chiều)\n"
-            f"{candle_info_line(c_m30, f'M30@{fmt_hour(H)}:00')}"
-        )
-
-    return {"signal": signal, "h1_signal": None, "report": report, "m30_dir": d_m30, "h1_flipped": False}
-
-def _resolve_weekday(broker_dt=None, weekday=None):
-    if weekday is not None:
-        return weekday
-    if broker_dt is not None:
-        return broker_dt.weekday()
-    return None
-
-
-def get_hour_note(H, weekday=None, broker_dt=None):
-    """Return the note for a slot."""
+def get_hour_note(H, broker_dt=None):
+    """Describe the current slot rule."""
     try:
         h = int(H)
     except (TypeError, ValueError):
         return ""
     if h not in ACTIVE_HOURS:
         return ""
-    notes = {
-        3: "XAUUSD đảo H=5 hôm qua; GBPAUD ngược XAUUSD",
-        4: "XAUUSD theo pattern M5/M30; tạo Stock-DIRECTION",
-        5: "XAUUSD theo pattern M5/M30; tạo GBP-DIRECTION",
-        6: "XAUUSD đảo H=3, sau đó áp dụng nhóm 4H1",
-        12: "XAUUSD đảo H=4, sau đó áp dụng nhóm 4H1",
-        16: "So sánh H6↔H12: opposite → follow H6, same → reverse H6",
-    }
+    if h == 4:
+        return (
+            "Yesterday's GBPUSD/GBPAUD H1 derives XAUUSD; matching directions "
+            "enter H:11, otherwise XAUUSD M15 #2-#4 sets the late entry. DO NOT ENTER."
+        )
+    pair = _m15_pair_for_hour(h)
+    if pair is None:
+        return ""
+    note = (
+        f"{pair} M15 4-candle lookback: base (offset -30m) + 3 pullback candles "
+        f"(offsets -45/-60/-75m). SW → reverse base; BT → keep base. "
+        f"Entry: SW → H+1:25, BT → H:49."
+    )
     if broker_dt is not None and h == 3 and broker_dt.weekday() == 3:
-        notes[3] = "XAUUSD & GBPAUD dùng lại lịch sử H=3 của Thứ 2"
-    return notes.get(h, "")
-
-
-def get_focus_gbp_pairs(H, broker_dt=None, weekday=None):
-    """XAU-only mode: no GBP focus pairs."""
-    return []
+        note += " DO NOT ENTER."
+    return note
 
 
 def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
-    """Telegram pair block for XAU-only mode."""
-    lines = []
+    """Render only the final XAUUSD direction for Telegram."""
     xau = (pair_dirs or {}).get("XAUUSD")
     if xau in ("BUY", "SELL"):
-        p_icon, _ = get_signal_icon(xau)
-        lines.append(f"  XAUUSD: {p_icon} {xau}")
-    elif xau in ("SW", "BT"):
-        icon = "🟡" if xau == "SW" else "⚪"
-        lbl = "Sideway" if xau == "SW" else "Bình Thường"
-        lines.append(f"  XAUUSD: {icon} {lbl}")
-    elif xau == "WAIT":
-        lines.append("  XAUUSD: ⏳ WAIT")
-    elif xau is None:
-        pass
-
-    # GBP pairs hidden from Telegram display (user decision: only track XAUUSD)
-    # for gbp_pair in GBP_PAIRS:
-    #     gbp_dir = (pair_dirs or {}).get(gbp_pair)
-    #     if gbp_dir in ("BUY", "SELL"):
-    #         g_icon, _ = get_signal_icon(gbp_dir)
-    #         lines.append(f"  {gbp_pair}: {g_icon} {gbp_dir}")
-    #     elif gbp_dir == "WAIT":
-    #         lines.append(f"  {gbp_pair}: ⏳ WAIT")
-
-    d_direction = (pair_dirs or {}).get(D_DIRECTION_PAIR)
-    # D-direction calculated but hidden from display (v3.16.5)
-
-    if not lines:
-        lines.append("  (không có cặp)")
-    return "\n".join(lines)
+        icon, _ = get_signal_icon(xau)
+        return f"  XAUUSD: {icon} {xau}"
+    if xau == "SW":
+        return "  XAUUSD: SW (Sideway)"
+    if xau == "BT":
+        return "  XAUUSD: BT"
+    if xau == "WAIT":
+        return "  XAUUSD: WAIT"
+    return "  (no pair)"
 
 
 GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
 ALL_PAIRS = ["XAUUSD"] + GBP_PAIRS
 
-day_signals = {}
 sent_today = set()
 
 def reverse_signal(signal):
@@ -1787,73 +1276,27 @@ def reverse_signal(signal):
     return None
 
 
-def get_d_direction_from_xau(xau_signal, broker_dt=None, weekday=None):
-    """Calculate D-direction from the H=4 XAUUSD direction."""
-    if xau_signal not in ("BUY", "SELL"):
-        return None
-    wd = _resolve_weekday(broker_dt, weekday)
-    if wd in (0, 1, 2, 3, 4):
-        return xau_signal
-    return None
-
-
-def apply_d_direction_marker(pair_dirs, H, broker_dt):
-    """Attach direction pseudo pairs for UI/Telegram display.
-
-    H=4 → Stock-DIRECTION (direction of day derived from XAUUSD)
-    H=5 → GBP-DIRECTION (direction of day derived from XAUUSD)
-    """
-    h = int(H)
-    if h not in (4, 5):
-        return None
-    d_direction = get_d_direction_from_xau(pair_dirs.get("XAUUSD"), broker_dt)
-    if not d_direction:
-        return None
-    if h == 4:
-        pair_dirs[D_DIRECTION_PAIR] = d_direction
-    elif h == 5:
-        pair_dirs[GBP_DIRECTION_PAIR] = d_direction
-    return d_direction
-
-
-def get_pair_direction(H, signal, broker_dt, h1_signal=None, full_result=None):
-    """Return the configured XAU or GBP output directions for one slot."""
+def get_pair_direction(H, signal, broker_dt, full_result=None):
+    """Return the final XAUUSD direction for one active slot."""
     result = {}
     h = int(H)
     if h not in ACTIVE_HOURS:
         return result
     if signal in ("SW", "BT"):
         return {}
-    if signal == "MIXED" and h == 9 and full_result:
-        xau = full_result.get("xau_signal")
-        gbp = full_result.get("gbp_signal")
-        if xau in ("BUY", "SELL"):
-            result["XAUUSD"] = xau
-        if gbp in ("BUY", "SELL"):
-            for pair in GBP_PAIRS:
-                result[pair] = gbp
-        return result
     if signal == "WAIT":
-        if full_result and "pair_dirs" in full_result:
-            for pair, direction in full_result["pair_dirs"].items():
-                result[pair] = direction
-        if not result:
-            result["XAUUSD"] = "WAIT"
+        xau = (full_result or {}).get("pair_dirs", {}).get("XAUUSD")
+        result["XAUUSD"] = xau if xau in ("BUY", "SELL") else "WAIT"
         return result
     if signal not in ("BUY", "SELL"):
         return result
-    # All active hours: XAUUSD
     result["XAUUSD"] = signal
-    apply_d_direction_marker(result, H, broker_dt)
-    # H=3: add GBPAUD opposite XAUUSD.
-    if h == 3 and broker_dt is not None:
-        result["GBPAUD"] = reverse_signal(signal) or signal
     return result
 
 # =====================================================================
 # GUI TELEGRAM BAO CAO
 # =====================================================================
-def send_report(signal_data, H, broker_dt, h1_signal=None):
+def send_report(signal_data, H, broker_dt):
     sig = signal_data["signal"]
     report = signal_data["report"]
     icon, emoji = get_signal_icon(sig)
@@ -1863,33 +1306,21 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
         H,
         sig,
         broker_dt,
-        h1_signal=signal_data.get("h1_signal"),
         full_result=signal_data
     )
 
-    # Canonical slot calculation already applies XAU M30 once.
-    if not signal_data.get("skip_xau_m30"):
-        if apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, H) is None:
-            return {}
-
     pair_text = format_telegram_pair_block(pair_dirs, H, broker_dt)
     signal_time = get_signal_time_for_slot(broker_dt, H)
-    entry_time = get_entry_time_for_slot(broker_dt, H) or "N/A"
+    entry_time = signal_data.get("entry_time") or get_entry_time_for_slot(broker_dt, H) or "N/A"
     deactivated = bool(
         signal_data.get("deactivated") or is_deactivated_signal_slot(broker_dt, H)
     )
     if deactivated:
         h = int(H)
-        if h in (4, 5):
+        if h == 4:
             reason = "SLOT TRUNG GIAN CHỈ DÙNG ĐỂ TÍNH TOÁN"
         elif h == 3 and broker_dt.weekday() == 3:
             reason = "H=3 THỨ NĂM CHỈ DÙNG ĐỂ ĐỐI CHIẾU"
-        elif h == 16 and broker_dt.weekday() == 3:
-            reason = "H=16 THỨ NĂM: DEACTIVATED (DO NOT ENTER)"
-        elif h == 16 and broker_dt.weekday() == 0:
-            reason = "H=16 THỨ 2: DEACTIVATED (DO NOT ENTER)"
-        elif h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
-            reason = f"H={h} GIAI HẠN CUỘI THÁNG: DEACTIVATED (DO NOT ENTER)"
         else:
             reason = "SLOT DEACTIVATED"
         send_telegram(
@@ -1897,6 +1328,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
             "============================\n"
             f"{reason}\n"
             f"Phát: {signal_time} Broker\n"
+            f"Mốc entry tham chiếu: {entry_time} Broker\n"
             "Signal đã được lưu ở trạng thái deactivated chỉ để đối chiếu.\n"
             "Không dùng bản ghi này để giao dịch."
         )
@@ -1907,6 +1339,7 @@ def send_report(signal_data, H, broker_dt, h1_signal=None):
         f"{title}\n"
         f"============================\n"
         f"Phát: {signal_time} Broker\n"
+        f"Vào lệnh: {entry_time} Broker\n"
         f"============================\n\n"
         f"{report}\n\n"
         f"KẾT LUẬN (XAUUSD): {icon} {sig}\n"
@@ -1923,11 +1356,6 @@ def is_slot_ready(broker_dt, hour):
     h = int(hour)
     if h not in ACTIVE_HOURS:
         return False
-    # H=16: ready immediately when H=6 and H=12 are logged (pure dependency, no live candles).
-    if h == 16:
-        h6 = _lookup_signal_from_log(broker_dt, 6)
-        h12 = _lookup_signal_from_log(broker_dt, 12)
-        return h6 in ("BUY", "SELL") and h12 in ("BUY", "SELL")
     return broker_dt >= get_signal_datetime_for_slot(broker_dt, h)
 
 
@@ -1939,16 +1367,6 @@ def rebuild_slot_signal(broker_dt, h):
     if broker_dt.weekday() >= 5:
         return False
 
-    # Early deactivation for H=12/H=16 in restricted calendar period
-    if h in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
-        entry_time = get_entry_time_for_slot(broker_dt, h)
-        if not entry_time:
-            return False
-        log_signal(h, broker_dt, "WAIT", entry_time, {},
-                   f"H={h} GIAI ĐOẠN CUỐI THÁNG: DEACTIVATED (DO NOT ENTER)",
-                   deactivated=True)
-        return True
-
     result = calculate_slot_signal(broker_dt, h)
     sig = result.get("signal")
     if sig == "WAIT":
@@ -1959,12 +1377,9 @@ def rebuild_slot_signal(broker_dt, h):
     if not entry_time:
         return False
 
-    pair_dirs = get_pair_direction(h, sig, broker_dt, h1_signal=result.get("h1_signal"), full_result=result)
+    pair_dirs = get_pair_direction(h, sig, broker_dt, full_result=result)
     if not pair_dirs:
         return False
-
-    if not result.get("skip_xau_m30"):
-        apply_xauusd_m30_logic(pair_dirs, sig, broker_dt, h)
 
     hour_note = get_hour_note(h, broker_dt=broker_dt)
     log_signal(h, broker_dt, sig, entry_time, pair_dirs, hour_note,
@@ -1974,7 +1389,7 @@ def rebuild_slot_signal(broker_dt, h):
 
 
 def rebuild_recent_history(days=45):
-    """Recalculate and replace the latest 30 trading sessions (45 calendar days) using current logic v23."""
+    """Recalculate recent sessions with the current GBP H1 / XAU M15 logic."""
     if not mt5_ready:
         print("  [REBUILD] MT5 not ready, skip")
         return 0
@@ -1987,15 +1402,18 @@ def rebuild_recent_history(days=45):
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as file:
                 data = json.load(file)
-        # Replace each recent weekday completely. Filtering only active slots left
         # Replace the recent window entirely so stale/old slot rows do not survive.
         rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
-        filtered = [
-            record
-            for record in data
-            if record.get("date") not in rebuild_dates
-            and int(record.get("hour", -1)) in ACTIVE_HOURS
-        ]
+        filtered = []
+        for record in data if isinstance(data, list) else []:
+            if not isinstance(record, dict):
+                continue
+            try:
+                record_hour = int(record.get("hour", -1))
+            except (TypeError, ValueError):
+                continue
+            if record.get("date") not in rebuild_dates and record_hour in ACTIVE_HOURS:
+                filtered.append(record)
         _write_signals_log_atomic(filtered)
     except Exception as error:
         print(f"  [REBUILD] Cannot clear stale history: {error}")
@@ -2006,12 +1424,9 @@ def rebuild_recent_history(days=45):
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
         for hour in hours:
-            # Skip only if slot is not ready AND not early-deactivatable
+            # Today's future publication windows are not rebuilt yet.
             if target_date == today and not is_slot_ready(broker_dt, hour):
-                if hour not in (12, 16) or not _is_in_restricted_calendar_period(
-                    datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
-                ):
-                    continue
+                continue
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             try:
                 if rebuild_slot_signal(slot_dt, hour):
@@ -2031,7 +1446,7 @@ def rebuild_h4_history(session_count=35):
     target_dates = _recent_h4_dates(get_broker_time(), session_count)
     rebuilt = 0
     for target_date in target_dates:
-        target_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=12)
+        target_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=4)
         try:
             rebuilt += int(rebuild_slot_signal(target_dt, 4))
         except Exception as error:
@@ -2047,7 +1462,7 @@ def _recent_h4_dates(broker_dt, session_count):
     except (TypeError, ValueError):
         return []
     cursor = broker_dt.date()
-    if (broker_dt.hour, broker_dt.minute) < (4, 45):
+    if (broker_dt.hour, broker_dt.minute) < (4, 0):
         cursor -= timedelta(days=1)
     dates = []
     while len(dates) < remaining:
@@ -2058,7 +1473,7 @@ def _recent_h4_dates(broker_dt, session_count):
 
 
 def rebuild_signals_on_startup():
-    """Backward-compatible startup hook; refreshes 30 trading sessions of recent history using logic v23."""
+    """Startup hook that refreshes recent history using the active slot logic."""
     return rebuild_recent_history(days=45)
 
 
@@ -2226,7 +1641,7 @@ def _process_auto_close_group(broker_dt, category, cutoff, prefixes, obligation_
         return
     if not is_pending:
         _auto_close_pending.add(key)
-        _save_state(day_signals, sent_today)
+        _save_state(sent_today)
     minute_key = (broker_dt.date(), broker_dt.hour, broker_dt.minute)
     if _auto_close_last_attempt.get(key) == minute_key:
         return
@@ -2237,7 +1652,7 @@ def _process_auto_close_group(broker_dt, category, cutoff, prefixes, obligation_
         _auto_close_pending.discard(key)
         _auto_close_completed.add(key)
         _auto_close_last_alert.pop(key, None)
-        _save_state(day_signals, sent_today)
+        _save_state(sent_today)
         if outcome["attempted"]:
             send_telegram(
                 f"🔒 Đã đóng ALL {category.upper()}: "
@@ -2247,7 +1662,7 @@ def _process_auto_close_group(broker_dt, category, cutoff, prefixes, obligation_
     last_alert = _auto_close_last_alert.get(key)
     if last_alert is None or (broker_dt - last_alert).total_seconds() >= 900:
         _auto_close_last_alert[key] = broker_dt
-        _save_state(day_signals, sent_today)
+        _save_state(sent_today)
         send_telegram(
             f"⚠️ Auto-close {category.upper()} chưa hoàn tất; "
             f"còn {outcome['remaining'] if outcome['remaining'] is not None else 'N/A'} lệnh. Bot sẽ retry mỗi phút."
@@ -2280,43 +1695,29 @@ def _mark_passed_slots_on_startup(broker_dt):
             sent_today.add((broker_dt.date(), hour))
 
 
-def _remember_daily_direction(hour, broker_dt, signal, result, pair_dirs):
-    """Persist the two daily direction markers used by downstream features."""
-    marker = D_DIRECTION_PAIR if hour == 4 else GBP_DIRECTION_PAIR if hour == 5 else None
-    if marker is None:
-        return
-    direction = (pair_dirs or {}).get(marker)
-    if direction not in ("BUY", "SELL"):
-        return
-    day_signals[(broker_dt.date(), hour)] = {
-        "signal": signal,
-        "m30_dir": result.get("m30_dir"),
-        "d_direction": direction,
-    }
-
-
 def _process_live_slot(broker_dt, hour):
     """Publish one due logical slot, retrying incomplete data until its deadline."""
     key = (broker_dt.date(), hour)
     if key in sent_today:
         return False
-    # H=16: pure dependency slot — emit as soon as H=6 and H=12 are logged, no signal_dt/entry check.
-    if hour == 16 and not is_slot_ready(broker_dt, 16):
+    signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
+    if broker_dt < signal_dt:
         return False
-    if hour != 16:
-        signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
-        if broker_dt < signal_dt:
-            return False
-        entry_time = get_entry_time_for_slot(broker_dt, hour)
-        if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
-            print(f"  [MISSED] H={hour} exceeded entry deadline")
-            sent_today.add(key)
-            _save_state(day_signals, sent_today)
-            return False
-
     entry_time = get_entry_time_for_slot(broker_dt, hour)
+    if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
+        print(f"  [MISSED] H={hour} exceeded entry deadline")
+        sent_today.add(key)
+        _save_state(sent_today)
+        return False
+
     result = calculate_slot_signal(broker_dt, hour)
     signal = result.get("signal")
+    entry_time = result.get("entry_time") or entry_time
+    if entry_time and broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
+        print(f"  [MISSED] H={hour} entry window closed")
+        sent_today.add(key)
+        _save_state(sent_today)
+        return False
     if signal not in ("BUY", "SELL") or not entry_time:
         print(f"  [RETRY] H={hour} - {result.get('report', 'incomplete data')}")
         return False
@@ -2337,18 +1738,17 @@ def _process_live_slot(broker_dt, hour):
         deactivated=result.get("deactivated", False),
     )
     push_to_dashboard()
-    reported_pairs = send_report(result, hour, broker_dt)
-    _remember_daily_direction(hour, broker_dt, signal, result, reported_pairs)
+    send_report(result, hour, broker_dt)
     sent_today.add(key)
-    _save_state(day_signals, sent_today)
+    _save_state(sent_today)
     print(f"  [SENT] H={hour} signal={signal} entry={entry_time}")
     return True
 
 
 def main(profile_name=None):
-    global mt5_ready, day_signals, sent_today, _active_profile, _broker_clock_error
+    global mt5_ready, sent_today, _active_profile, _broker_clock_error
     print("=" * 55)
-    print("  MT5 Multi-Timeframe Signal Bot v3.18.0")
+    print("  MT5 Multi-Timeframe Signal Bot v3.18.2")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {', '.join(f'H={h}' for h in TARGET_HOURS)}")
     print(f"  Auto-close: XAUUSD 17:59, GBP 19:59 (Broker)")
@@ -2408,7 +1808,6 @@ def main(profile_name=None):
     # Restore state from previous run (same day only)
     saved = _load_state()
     sent_today = saved.get("sent_today", set())
-    day_signals = saved.get("day_signals", {})
     _auto_close_completed.update(
         (broker_dt.date(), category)
         for category in saved.get("auto_close_completed", set())
@@ -2418,8 +1817,6 @@ def main(profile_name=None):
     _auto_close_last_alert.clear()
     _auto_close_last_alert.update(saved.get("auto_close_last_alert", {}))
 
-    if day_signals:
-        print(f"  [RESTORE] day_signals: {list(day_signals.keys())}")
     if sent_today:
         print(f"  [RESTORE] sent_today: {sent_today}")
 
@@ -2428,16 +1825,13 @@ def main(profile_name=None):
     # Rebuild signals_log from MT5 before pushing (avoid stale pair_dirs after rule changes)
     startup_rebuilt = rebuild_signals_on_startup()
 
-    # Do not replay live Telegram slots whose publication minute already passed.
-    _mark_passed_slots_on_startup(broker_dt)
-    _save_state(day_signals, sent_today)
-
     push_to_dashboard()
     if startup_rebuilt > 0:
         print(f"\n[DASHBOARD] Pushed after rebuild ({startup_rebuilt} slots refreshed)")
 
     try:
         last_price_push_minute = None
+        startup_slots_marked = False
         while True:
             if not mt5_ready:
                 try_init_mt5()
@@ -2450,12 +1844,18 @@ def main(profile_name=None):
                 print(f"[BROKER CLOCK] Fail-closed: {error}")
                 time.sleep(5)
                 continue
+            if not startup_slots_marked:
+                # Rebuild can cross a publication boundary; guard from a fresh
+                # Broker clock so restart never replays a slot that just passed.
+                _mark_passed_slots_on_startup(broker_dt)
+                _save_state(sent_today)
+                startup_slots_marked = True
             for hour in get_target_hours(broker_dt):
                 _process_live_slot(broker_dt, hour)
 
             price_push_minute = (broker_dt.date(), broker_dt.hour, broker_dt.minute)
             if price_push_minute != last_price_push_minute:
-                _save_state(day_signals, sent_today)
+                _save_state(sent_today)
                 push_state_to_dashboard()
                 push_prices_to_dashboard()
                 last_price_push_minute = price_push_minute

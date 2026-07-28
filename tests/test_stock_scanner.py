@@ -8,6 +8,7 @@ import unittest
 from domain.stock_scanner import (
     AfternoonPoint,
     Direction,
+    H4Signal,
     ScannerPolicy,
     StockScannerError,
     StockScore,
@@ -29,14 +30,24 @@ def _weekdays(start: date, count: int) -> list[date]:
     return dates
 
 
+def _signal_record(trading_date: date | str, direction: str, **updates: object) -> dict[str, object]:
+    record: dict[str, object] = {
+        "date": trading_date.isoformat() if isinstance(trading_date, date) else trading_date,
+        "hour": 4,
+        "logic_version": 50,
+        "pair_dirs": {"XAUUSD": direction},
+    }
+    record.update(updates)
+    return record
+
+
 class H4HistoryTests(unittest.TestCase):
-    def test_extracts_sorted_h4_and_falls_back_to_final_xau(self) -> None:
+    def test_extracts_sorted_current_contract_h4_xau(self) -> None:
         records = [
-            {"date": "2026-07-02", "hour": 4, "pair_dirs": {"XAUUSD": "SELL"}},
-            {"date": "2026-07-01", "hour": 4, "pair_dirs": {"XAUUSD": "SELL"}},
-            {"date": "2026-07-01", "hour": 4, "pair_dirs": {"Stock-DIRECTION": "BUY"}},
-            {"date": "2026-07-03", "hour": 5, "pair_dirs": {"XAUUSD": "BUY"}},
-            {"date": "bad-date", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
+            _signal_record("2026-07-02", "SELL"),
+            _signal_record("2026-07-01", "BUY"),
+            _signal_record("2026-07-03", "BUY", hour=5),
+            _signal_record("bad-date", "BUY"),
         ]
 
         signals = extract_h4_signals(records)
@@ -44,12 +55,22 @@ class H4HistoryTests(unittest.TestCase):
         self.assertEqual([signal.trading_date.isoformat() for signal in signals], ["2026-07-01", "2026-07-02"])
         self.assertEqual([signal.direction for signal in signals], [Direction.BUY, Direction.SELL])
 
+    def test_rejects_missing_or_stale_version_and_legacy_stock_marker(self) -> None:
+        records = [
+            {"date": "2026-07-01", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
+            _signal_record("2026-07-02", "BUY", logic_version=48),
+            _signal_record("2026-07-03", "BUY", pair_dirs={"Stock-DIRECTION": "BUY"}),
+            _signal_record("2026-07-04", "SELL", logic_version=50),
+        ]
+
+        signals = extract_h4_signals(records)
+
+        self.assertEqual(len(signals), 1)
+        self.assertEqual(signals[0], H4Signal(date(2026, 7, 4), Direction.SELL))
+
     def test_forward_samples_stop_at_last_completed_interval(self) -> None:
         dates = _weekdays(date(2026, 7, 1), 3)
-        records = [
-            {"date": item.isoformat(), "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}}
-            for item in dates
-        ]
+        records = [_signal_record(item, "BUY") for item in dates]
         points = [
             AfternoonPoint(dates[0], 100.0, 1_000_000),
             AfternoonPoint(dates[1], 102.0, 1_000_000),
@@ -64,9 +85,7 @@ class H4HistoryTests(unittest.TestCase):
 
     def test_missing_stock_session_does_not_bridge_two_market_sessions(self) -> None:
         dates = _weekdays(date(2026, 7, 1), 3)
-        records = [
-            {"date": dates[0].isoformat(), "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}}
-        ]
+        records = [_signal_record(dates[0], "BUY")]
         points = [AfternoonPoint(dates[0], 100.0), AfternoonPoint(dates[2], 102.0)]
 
         samples = build_forward_samples(
@@ -87,7 +106,8 @@ class StockScoringTests(unittest.TestCase):
             self.records.append({
                 "date": trading_date.isoformat(),
                 "hour": 4,
-                "pair_dirs": {"Stock-DIRECTION": direction},
+                "logic_version": 50,
+                "pair_dirs": {"XAUUSD": direction},
             })
         self.signals = extract_h4_signals(self.records)
         self.policy = ScannerPolicy(hurdle_rate=0.001)
@@ -169,7 +189,7 @@ class StockScoringTests(unittest.TestCase):
         records = []
         for index, trading_date in enumerate(dates[:-1]):
             direction = "BUY" if index % 2 == 0 else "SELL"
-            records.append({"date": trading_date.isoformat(), "hour": 4, "pair_dirs": {"XAUUSD": direction}})
+            records.append(_signal_record(trading_date, direction))
         signals = extract_h4_signals(records)
         aligned = self._points_for(dates, signals, True)
         inverse = self._points_for(dates, signals, False)

@@ -18,10 +18,20 @@ class StockAdvisorDesktopTests(unittest.TestCase):
     def test_first_run_requires_backfill_and_current_history_does_not(self) -> None:
         today = date(2026, 7, 17)
         current = [
-            {"date": f"2026-06-{index:02d}", "hour": 4, "pair_dirs": {"Stock-DIRECTION": "BUY"}}
+            {
+                "date": f"2026-06-{index:02d}",
+                "hour": 4,
+                "logic_version": 50,
+                "pair_dirs": {"XAUUSD": "BUY"},
+            }
             for index in range(1, 27)
         ]
-        current.append({"date": today.isoformat(), "hour": 4, "pair_dirs": {"Stock-DIRECTION": "SELL"}})
+        current.append({
+            "date": today.isoformat(),
+            "hour": 4,
+            "logic_version": 50,
+            "pair_dirs": {"XAUUSD": "SELL"},
+        })
 
         self.assertTrue(requires_h4_backfill([], today))
         self.assertFalse(requires_h4_backfill(current, today))

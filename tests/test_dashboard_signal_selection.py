@@ -6,7 +6,6 @@ from datetime import datetime, time, timezone
 from unittest.mock import patch
 
 from mt5_signal_bot import (
-    _dashboard_log_pair_dirs,
     _latest_today_news_cache,
     _parse_news_for_dashboard,
     get_pair_direction,
@@ -39,7 +38,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
     def test_drops_every_removed_legacy_slot(self):
         legacy = [
             {"date": "2026-07-21", "hour": hour, "pair_dirs": {"XAUUSD": "BUY"}}
-            for hour in (2, 11, 13, 15, 1500)
+            for hour in (2, 5, 11, 13, 15, 1500)
         ]
 
         self.assertEqual(select_signals_for_dashboard(legacy), [])
@@ -50,16 +49,16 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             "hour": 3,
             "signal": "BUY",
             "deactivated": True,
-            "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "SELL"},
+            "pair_dirs": {"XAUUSD": "BUY"},
+            "logic_version": 50,
         }
 
         self.assertEqual(select_signals_for_dashboard([h3]), [h3])
 
-    def test_keeps_all_signal_days_when_pair_dirs_exist(self):
+    def test_drops_removed_h5_records_even_when_pair_dirs_exist(self):
         signals = [
-            {"date": "2026-07-03", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
-            {"date": "2026-07-03", "hour": 5, "pair_dirs": {"XAUUSD": "SELL"}},
-            {"date": "2026-07-04", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
+            {"date": "2026-07-03", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 50},
+            {"date": "2026-07-04", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 50},
             {"date": "2026-07-04", "hour": 5, "pair_dirs": {}},
         ]
 
@@ -68,11 +67,45 @@ class DashboardSignalSelectionTests(unittest.TestCase):
         self.assertEqual(
             result,
             [
-                {"date": "2026-07-03", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
-                {"date": "2026-07-03", "hour": 5, "pair_dirs": {"XAUUSD": "SELL"}},
-                {"date": "2026-07-04", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
+                {"date": "2026-07-03", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 50},
+                {"date": "2026-07-04", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 50},
             ],
         )
+
+    def test_drops_active_records_without_current_logic_version(self):
+        missing = {"date": "2026-07-03", "hour": 9, "pair_dirs": {"XAUUSD": "BUY"}}
+        stale = {
+            "date": "2026-07-03",
+            "hour": 9,
+            "pair_dirs": {"XAUUSD": "BUY"},
+            "logic_version": 48,
+        }
+        current = {
+            "date": "2026-07-03",
+            "hour": 9,
+            "signal": "BUY",
+            "pair_dirs": {"XAUUSD": "BUY"},
+            "logic_version": 50,
+        }
+
+        self.assertEqual(
+            select_signals_for_dashboard([missing, stale, current]),
+            [current],
+        )
+
+    def test_drops_current_records_without_a_valid_xauusd_direction(self):
+        records = [
+            {"date": "2026-07-03", "hour": 9, "logic_version": 50,
+             "pair_dirs": {"GBPUSD": "BUY"}},
+            {"date": "2026-07-03", "hour": 12, "logic_version": 50,
+             "pair_dirs": {"XAUUSD": "WAIT"}},
+            {"date": "2026-07-03", "hour": 9, "logic_version": 50,
+             "signal": "SELL", "pair_dirs": {"XAUUSD": "BUY"}},
+            {"date": "2026-07-03", "hour": 14, "logic_version": 50,
+             "signal": "SELL", "pair_dirs": {"XAUUSD": "SELL"}},
+        ]
+
+        self.assertEqual(select_signals_for_dashboard(records), [records[-1]])
 
     def test_h6_active_returns_pair_dirs(self):
         """H=6 is now active — pair_dirs should contain XAUUSD."""
