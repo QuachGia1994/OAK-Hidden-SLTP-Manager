@@ -34,7 +34,7 @@ def _signal_record(trading_date: date | str, direction: str, **updates: object) 
     record: dict[str, object] = {
         "date": trading_date.isoformat() if isinstance(trading_date, date) else trading_date,
         "hour": 4,
-        "logic_version": 50,
+        "logic_version": 51,
         "pair_dirs": {"XAUUSD": direction},
     }
     record.update(updates)
@@ -60,7 +60,7 @@ class H4HistoryTests(unittest.TestCase):
             {"date": "2026-07-01", "hour": 4, "pair_dirs": {"XAUUSD": "BUY"}},
             _signal_record("2026-07-02", "BUY", logic_version=48),
             _signal_record("2026-07-03", "BUY", pair_dirs={"Stock-DIRECTION": "BUY"}),
-            _signal_record("2026-07-04", "SELL", logic_version=50),
+            _signal_record("2026-07-04", "SELL", logic_version=51),
         ]
 
         signals = extract_h4_signals(records)
@@ -106,7 +106,7 @@ class StockScoringTests(unittest.TestCase):
             self.records.append({
                 "date": trading_date.isoformat(),
                 "hour": 4,
-                "logic_version": 50,
+                "logic_version": 51,
                 "pair_dirs": {"XAUUSD": direction},
             })
         self.signals = extract_h4_signals(self.records)

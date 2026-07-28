@@ -116,7 +116,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 
     return list(TARGET_HOURS)
 # Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 50
+SIGNAL_LOGIC_VERSION = 51
 
 
 BROKER_CLOCK = BrokerClock(
@@ -1040,16 +1040,15 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     Offset-30 candle = base direction → BUY(TANG)/SELL(GIAM).
     Offsets 45,60,75 = 3 pullback candles → classify SW or BT.
 
-    M15 pattern determines XAUUSD first, then GBP pair = reverse of XAUUSD:
-      H=3,6,9:  BT → XAUUSD reverses base; SW → XAUUSD keeps base.
-      H=12,14,16: BT → XAUUSD keeps base; SW → XAUUSD reverses base.
-      GBP pair signal is always the opposite of XAUUSD.
+    Canonical matrix (two invariants):
+      1. Every slot: SW → XAUUSD reverses Base; BT → XAUUSD keeps Base.
+      2. H=3/6/9:  GBPAUD always opposite of Base.
+         H=12/14/16: GBPUSD always same as Base.
     """
     h = int(hour)
     pair = _m15_pair_for_hour(h)
     if broker_dt is None or pair is None:
         return None
-    # Use yesterday's date at the same slot hour, then apply minute offsets.
     yesterday_slot = broker_dt.replace(hour=h, minute=0, second=0, microsecond=0) - timedelta(days=1)
     all_dirs = [
         _lookback_candle_direction(pair, mt5.TIMEFRAME_M15, yesterday_slot - timedelta(minutes=offset))
@@ -1065,15 +1064,18 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     if pullback_group not in ("SW", "BT"):
         return None
     base_signal = "BUY" if base_dir == "TANG" else "SELL"
-    # XAUUSD is computed FIRST from the M15 pattern
+
+    # Invariant 1: SW → reverse Base, BT → keep Base (for XAUUSD)
+    xau_signal = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
+
+    # Invariant 2: GBP pair depends on hour group
     if h in (3, 6, 9):
-        # H=3,6,9: BT → reverse, SW → keep
-        xau_signal = reverse_signal(base_signal) if pullback_group == "BT" else base_signal
+        # GBPAUD always opposite of Base
+        gbp_signal = reverse_signal(base_signal)
     else:
-        # H=12,14,16: BT → keep, SW → reverse
-        xau_signal = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
-    # GBP pair signal = opposite of XAUUSD
-    gbp_signal = reverse_signal(xau_signal)
+        # GBPUSD always same as Base
+        gbp_signal = base_signal
+
     return {
         "base_direction": base_dir,
         "base_signal": base_signal,
@@ -1163,8 +1165,11 @@ def evaluate_gbp_h1_slot(broker_dt, hour):
         "pattern_signal": m15["base_signal"],
         "entry_time": entry_time,
         "report": (
-            f"H={h}: {gbp_pair} M15 4-candle — base={m15['base_direction']} "
-            f"({gbp_signal}), pullback={m15['pullback_group']} -> XAUUSD={xau_signal}."
+            f"H={h}: {gbp_pair} M15 — "
+            f"base={m15['base_direction']}/{m15['base_signal']}, "
+            f"group={m15['pullback_group']}, "
+            f"XAUUSD={xau_signal}, "
+            f"{gbp_pair}={gbp_signal}."
         ),
         "pair_dirs": pair_dirs,
         "m15_pair": gbp_pair,
@@ -1256,8 +1261,9 @@ def get_hour_note(H, broker_dt=None):
     if pair is None:
         return ""
     note = (
-        f"{pair} M15 4-candle (yesterday): base + 3 pullback. "
-        f"{'H=3,6,9: BT→đảo ngược, SW→giữ nguyên.' if h in (3,6,9) else 'H=12,14,16: BT→giữ nguyên, SW→đảo ngược.'} "
+        f"{pair} M15 (yesterday): base + 3 pullback. "
+        f"SW → XAUUSD đảo Base; BT → XAUUSD giữ Base. "
+        f"{'GBPAUD ngược Base.' if h in (3,6,9) else 'GBPUSD cùng Base.'} "
         f"Entry: SW → H+1:25, BT → H:49."
     )
     if broker_dt is not None and h == 3 and broker_dt.weekday() == 3:

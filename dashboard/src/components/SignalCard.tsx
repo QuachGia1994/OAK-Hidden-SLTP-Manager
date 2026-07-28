@@ -1,45 +1,37 @@
 "use client";
 
 import { getEntryTimeLabel, getSignalColor, getSignalLabel, getSignalTime } from "@/lib/constants";
-import { brokerTimeToLocal, isVerifiedBrokerClockMetadata } from "@/lib/broker-time";
+import { verifiedBrokerTimeToLocal } from "@/lib/broker-time";
 import { isEffectivelyDeactivated } from "@/lib/signal-display";
 import type { Signal } from "@/lib/types";
-import { BrokerLocalTime } from "./BrokerLocalTime";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
 
-const VISIBLE_GBP_SLOTS = new Set([9, 14]);
 const VALID_TIME = /^\d{2}:\d{2}$/;
 
+/** Return the correct pair list for a given hour slot. */
 function defaultPairsForHour(hour: number): string[] {
-  if (VISIBLE_GBP_SLOTS.has(hour)) return ["XAUUSD", "GBPUSD", "GBPAUD"];
-  if (hour === 3) return ["XAUUSD", "GBPAUD"];
-  return ["XAUUSD"];
-}
-
-function visiblePairs(signal: Signal): string[] {
-  const pairs = Object.keys(signal.pair_dirs || {});
-  if (pairs.length === 0) return defaultPairsForHour(signal.hour);
-  return pairs.filter((pair) => {
-    if (pair === "Stock-DIRECTION" || pair === "GBP-DIRECTION") return false;
-    if (VISIBLE_GBP_SLOTS.has(signal.hour)) {
-      return ["XAUUSD", "GBPUSD", "GBPAUD"].includes(pair);
-    }
-    return true;
-  });
+  if ([3, 6, 9].includes(hour)) {
+    return ["XAUUSD", "GBPAUD"];
+  }
+  if ([12, 14, 16].includes(hour)) {
+    return ["XAUUSD", "GBPUSD"];
+  }
+  return [];
 }
 
 /** Resolve local (Vietnam) time, falling back to broker-time conversion. */
 function resolveLocalTime(
-  localTime: string | null | undefined,
+  signal: Signal,
   brokerTime: string | null | undefined,
-  brokerOffset: string | number | null | undefined,
 ): string | null {
-  if (VALID_TIME.test(localTime || "")) return localTime as string;
-  if (!VALID_TIME.test(brokerTime || "")) return null;
-  const offset = Number(brokerOffset);
-  if (!Number.isFinite(offset)) return null;
-  return brokerTimeToLocal(brokerTime as string, offset);
+  return verifiedBrokerTimeToLocal({
+    date: signal.date,
+    signalTime: signal.signal_time,
+    signalAtUtc: signal.signal_at_utc,
+    brokerUtcOffset: signal.broker_utc_offset,
+    brokerClockVerified: signal.broker_clock_verified,
+  }, brokerTime);
 }
 
 export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: boolean }) {
@@ -51,30 +43,27 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
     ? signal.entry_time as string
     : signal.ts === 0 ? getEntryTimeLabel(signal.hour, signal.date) : "—";
   const localSignalTime = resolveLocalTime(
-    signal.signal_time_local,
+    signal,
     signal.signal_time,
-    signal.broker_utc_offset,
   );
   const localEntryTime = resolveLocalTime(
-    signal.entry_time_local,
+    signal,
     signal.entry_time,
-    signal.broker_utc_offset,
   );
-  const pairs = visiblePairs(signal);
+  const pairs = defaultPairsForHour(signal.hour);
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
   const effectiveDeactivated = isEffectivelyDeactivated(signal);
 
   const getPairDirection = (pair: string) => {
     if (!isVIP) return "locked";
-    return signal.pair_dirs?.[pair]
-      || (["BUY", "SELL", "SW", "BT"].includes(signal.signal) ? signal.signal : "-");
+    return signal.pair_dirs?.[pair] || "-";
   };
 
   return (
     <article className="terminal-panel group signal-rail relative overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
       {effectiveDeactivated ? (
-        <div className="relative z-10 border-b border-amber-500/35 bg-amber-500/15 px-4 py-2 text-center font-mono text-[11px] font-black uppercase tracking-[0.16em] text-amber-500">
+        <div className="relative z-10 border-b border-[var(--terminal-warning)]/45 bg-[var(--terminal-warning)]/10 px-4 py-2 text-center font-mono text-[11px] font-black uppercase tracking-[0.16em] text-[var(--terminal-warning)]">
           {locale === "EN" ? "DO NOT ENTER" : "KHÔNG VÀO LỆNH"}
         </div>
       ) : null}
@@ -102,12 +91,6 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
               <div className="font-mono text-[10px] text-[var(--muted)]">{signal.date}</div>
             </div>
           </div>
-          {/* Priority badge hidden (user decision: clean display, only XAUUSD) */}
-          {/* {signal.is_priority ? (
-            <span className="mt-2 inline-flex rounded-md border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-[10px] font-bold uppercase text-amber-400">
-              ★ {locale === "EN" ? "Priority" : "Ưu tiên"}
-            </span>
-          ) : null} */}
         </header>
 
         <div className="border-b border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4">
@@ -127,12 +110,6 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
           {pairs.map((pair) => (
             <PairBadge key={pair} pair={pair} direction={getPairDirection(pair)} />
           ))}
-          {signal.pair_dirs?.["Stock-DIRECTION"] ? (
-            <PairBadge pair="Stock-DIRECTION" direction={isVIP ? signal.pair_dirs["Stock-DIRECTION"] : "locked"} />
-          ) : null}
-          {signal.pair_dirs?.["GBP-DIRECTION"] ? (
-            <PairBadge pair="GBP-DIRECTION" direction={isVIP ? signal.pair_dirs["GBP-DIRECTION"] : "locked"} />
-          ) : null}
         </div>
       </div>
     </article>
