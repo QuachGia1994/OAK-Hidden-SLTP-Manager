@@ -115,7 +115,7 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 60
+SIGNAL_LOGIC_VERSION = 61
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 
 XAUUSD_WEEKDAY_INVERSION_HOURS = {
@@ -1194,6 +1194,7 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
     weekday_rule = weekday_rule_names.get(broker_dt.weekday()) if weekday_inversion_applied else None
 
     entry_time = f"{h + 1:02d}:25" if pullback_group == "SW" else f"{h:02d}:49"
+    entry_basis_direction = post_offset15_direction if symbol == "XAUUSD" else symbol_adjusted_direction
 
     return {
         "symbol": symbol,
@@ -1215,6 +1216,7 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
         "post_offset15_direction": post_offset15_direction,
         "symbol_adjusted_direction": symbol_adjusted_direction,
         "gbpusd_h9plus_inversion_applied": gbpusd_h9plus_inversion_applied,
+        "entry_basis_direction": entry_basis_direction,
         "pre_weekday_direction": pre_weekday_direction,
         "broker_weekday": broker_dt.weekday(),
         "weekday_inversion_applied": weekday_inversion_applied,
@@ -1751,18 +1753,25 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
         followup_close_dt = source_slot.replace(minute=45)
         followup_dir = get_completed_m15_direction_by_close_time("GBPAUD", followup_close_dt)
 
+    xau_res = pair_results.get("XAUUSD")
+    xau_entry_basis_signal = xau_res["entry_basis_direction"] if xau_res else "WAIT"
+    final_xauusd_signal = xau_res["direction"] if xau_res else "WAIT"
+    weekday_inversion_applied = xau_res["weekday_inversion_applied"] if xau_res else False
+
     entry_plan = build_xau_entry_plan(
         broker_dt,
         h,
-        pair_dirs.get("XAUUSD", "WAIT"),
+        xau_entry_basis_signal,
         gbpaud_off15_dir,
         followup_gbpaud_direction=followup_dir,
     )
 
-    top_signal = pair_dirs.get("XAUUSD", "WAIT")
+    top_signal = final_xauusd_signal
     if entry_plan["entry_state"] == "WAIT":
         top_signal = "WAIT"
         pair_dirs["XAUUSD"] = "WAIT"
+    else:
+        pair_dirs["XAUUSD"] = final_xauusd_signal
 
     final_xau_entry = entry_plan["entry_time"]
     pair_entry_times["XAUUSD"] = final_xau_entry
@@ -1837,6 +1846,10 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
         "pair_entry_at_utc": pair_entry_at_utc,
         "pair_groups": pair_groups,
         "pair_evidence": pair_evidence,
+        "entry_basis_xauusd_signal": xau_entry_basis_signal,
+        "final_xauusd_signal": final_xauusd_signal,
+        "weekday_inversion_applied": weekday_inversion_applied,
+        "entry_time_basis": "PRE_WEEKDAY_XAUUSD",
         "source_date": source_date_str,
         "report": "\n".join(report_lines),
     }

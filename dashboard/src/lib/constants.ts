@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [3, 7, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 /** Minimum backend contract — delayed GBP pair entry schedule, H3 GBPUSD deferred. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 60;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 61;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 
