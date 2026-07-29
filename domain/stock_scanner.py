@@ -9,7 +9,7 @@ from statistics import fmean
 from typing import Iterable, Mapping, Sequence
 
 
-MINIMUM_SIGNAL_LOGIC_VERSION = 55
+MINIMUM_SIGNAL_LOGIC_VERSION = 58
 
 
 class Direction(Enum):

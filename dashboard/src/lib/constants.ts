@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [3, 7, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
-/** Minimum backend contract — independent XAUUSD/GBPUSD/GBPAUD M15 classifier. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 57;
+/** Minimum backend contract — history rebuild resolves H9+ follow-up entry times. */
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 58;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 

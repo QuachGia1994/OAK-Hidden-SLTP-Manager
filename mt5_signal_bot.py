@@ -115,7 +115,7 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 57
+SIGNAL_LOGIC_VERSION = 58
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 
 
@@ -1485,8 +1485,52 @@ def build_xau_entry_plan(
             }
 
 
-def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False):
-    """Evaluate XAUUSD, GBPUSD, and GBPAUD M15 signals independently for current Broker date."""
+def can_resolve_entry_followup(slot_dt, as_of_dt=None, historical_complete=False):
+    """Return True if the GBPAUD H:45 follow-up candle is available for entry resolution.
+
+    A. Past dates: historical_complete=True → always resolve.
+    B. Today before H:45: as_of_dt < H:45 → keep PENDING_FOLLOWUP.
+    C. Today from H:45: as_of_dt >= H:45 → resolve READY/WAIT.
+    """
+    if historical_complete:
+        return True
+    if as_of_dt is None:
+        return False
+    followup_close_dt = slot_dt.replace(minute=45, second=0, microsecond=0)
+    return as_of_dt >= followup_close_dt
+
+
+ENTRY_PLAN_FIELDS = (
+    "entry_state",
+    "entry_candidate",
+    "entry_rule",
+    "entry_xauusd_signal",
+    "entry_gbpaud_offset15_direction",
+    "entry_gbpaud_offset15_signal",
+    "entry_initial_relation",
+    "entry_followup_required",
+    "entry_followup_close_time",
+    "entry_followup_bar_open_time",
+    "entry_followup_direction",
+    "entry_followup_signal",
+    "entry_followup_relation",
+    "entry_decided_at",
+    "pair_entry_times",
+    "pair_groups",
+    "pair_evidence",
+)
+
+
+def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
+                                as_of_dt=None, resolve_historical_followup=False):
+    """Evaluate XAUUSD, GBPUSD, and GBPAUD M15 signals independently for current Broker date.
+
+    broker_dt: determines the logical slot date and hour (e.g. 2026-07-28 12:00).
+    as_of_dt:  determines the "current time" for follow-up availability.
+               Live mode: use BrokerClock current time.
+               Rebuild past: leave None (historical_complete handles it).
+    resolve_historical_followup: True for past-date rebuilds → always read H:45 candle.
+    """
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
@@ -1528,9 +1572,10 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False):
     gbpaud_off15_dir = pair_offset15_dirs.get("GBPAUD")
     followup_dir = None
     source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
-    followup_close_dt = source_slot.replace(minute=45)
 
-    if check_followup or (broker_dt >= followup_close_dt):
+    if can_resolve_entry_followup(source_slot, as_of_dt=as_of_dt,
+                                  historical_complete=resolve_historical_followup):
+        followup_close_dt = source_slot.replace(minute=45)
         followup_dir = get_completed_m15_direction_by_close_time("GBPAUD", followup_close_dt)
 
     entry_plan = build_xau_entry_plan(
@@ -1645,8 +1690,11 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
     return deadline
 
 
-def calculate_slot_signal(broker_dt, hour):
-    """Apply current M15 multi-pair evaluation for live and rebuilt signals."""
+def calculate_slot_signal(broker_dt, hour, as_of_dt=None):
+    """Apply current M15 multi-pair evaluation for live and rebuilt signals.
+
+    as_of_dt: current time for follow-up availability. Defaults to broker_dt.
+    """
     hour = int(hour)
     if hour not in ACTIVE_HOURS:
         return {
@@ -1654,7 +1702,7 @@ def calculate_slot_signal(broker_dt, hour):
             "report": f"H={hour}: inactive slot.",
             "suppressed": True,
         }
-    result = evaluate_gbp_h1_slot(broker_dt, hour)
+    result = evaluate_gbp_h1_slot(broker_dt, hour, as_of_dt=as_of_dt or broker_dt)
     if result is None:
         return {
             "signal": "WAIT",
@@ -1791,16 +1839,27 @@ def is_slot_ready(broker_dt, hour):
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def rebuild_slot_signal(broker_dt, h):
+def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None, historical_complete=False):
     """Recalculate one slot with current logic and overwrite signals_log (date, hour).
     Always logs the result -- including WAIT and deactivated slots -- so the dashboard
-    shows every scheduled hour."""
+    shows every scheduled hour.
+
+    as_of_dt: current time for follow-up availability. Past dates use historical_complete.
+    historical_complete: True for past dates → always resolve H:45 follow-up.
+    """
     if broker_dt.weekday() >= 5:
         return False
 
-    result = calculate_slot_signal(broker_dt, h)
+    result = evaluate_all_pairs_for_slot(
+        broker_dt, h,
+        as_of_dt=as_of_dt,
+        resolve_historical_followup=historical_complete,
+    )
+    if result is None:
+        result = calculate_slot_signal(broker_dt, h, as_of_dt=as_of_dt)
+
     sig = result.get("signal")
-    entry_time = get_entry_time_for_slot(broker_dt, h)
+    entry_time = result.get("entry_time")
     source_date = result.get("source_date")
     pair_dirs = result.get("pair_dirs", {})
     if not pair_dirs and sig not in ("WAIT",):
@@ -1810,10 +1869,16 @@ def rebuild_slot_signal(broker_dt, h):
     hour_note = get_hour_note(h, broker_dt=broker_dt)
     deactivated = bool(result.get("deactivated") or is_deactivated_signal_slot(broker_dt, h))
 
+    extra_fields = {
+        key: result.get(key)
+        for key in ENTRY_PLAN_FIELDS
+        if key in result
+    }
     log_signal(h, broker_dt, sig or "WAIT", entry_time or "N/A", pair_dirs or {}, hour_note,
                pattern_signal=result.get("pattern_signal"),
                deactivated=deactivated,
-               source_date=source_date)
+               source_date=source_date,
+               extra_fields=extra_fields if extra_fields else None)
     return True
 
 
@@ -1860,8 +1925,11 @@ def rebuild_recent_history(days=45):
             if target_date == today and not is_slot_ready(broker_dt, hour):
                 continue
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
+            historical_complete = target_date < today
             try:
-                if rebuild_slot_signal(slot_dt, hour):
+                if rebuild_slot_signal(slot_dt, hour,
+                                       as_of_dt=broker_dt,
+                                       historical_complete=historical_complete):
                     rebuilt += 1
             except Exception as error:
                 print(f"  [REBUILD] Error {target_date.isoformat()} H={hour}: {error}")

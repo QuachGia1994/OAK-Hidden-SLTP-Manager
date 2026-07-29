@@ -113,7 +113,7 @@ class SpecialSignalDayTests(unittest.TestCase):
         with patch.object(
             mt5_signal_bot,
             "evaluate_gbp_h1_slot",
-            side_effect=lambda *_args: dict(context),
+            side_effect=lambda *_args, **_kwargs: dict(context),
             create=True,
         ):
             thursday_result = mt5_signal_bot.calculate_slot_signal(special_thursday, 3)

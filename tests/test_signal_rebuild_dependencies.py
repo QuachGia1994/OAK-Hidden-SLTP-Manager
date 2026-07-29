@@ -20,7 +20,7 @@ class SignalRebuildDependencyTests(unittest.TestCase):
     def test_current_day_rebuild_visits_only_active_slots(self):
         rebuilt_hours = []
 
-        def rebuild(_broker_dt, hour):
+        def rebuild(_broker_dt, hour, **kwargs):
             rebuilt_hours.append(hour)
             return True
 

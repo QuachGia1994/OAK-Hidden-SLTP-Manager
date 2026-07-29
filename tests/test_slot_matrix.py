@@ -58,7 +58,7 @@ class SlotMatrixTests(unittest.TestCase):
                         )
                     )
                 result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
-            evaluate.assert_called_once_with(broker_dt, hour)
+            evaluate.assert_called_once_with(broker_dt, hour, as_of_dt=broker_dt)
             self.assertEqual(result["signal"], "BUY")
             self.assertFalse(result.get("suppressed", False))
 
@@ -66,7 +66,7 @@ class SlotMatrixTests(unittest.TestCase):
         with patch.object(
             mt5_signal_bot,
             "evaluate_gbp_h1_slot",
-            side_effect=lambda _dt, hour: _result(hour),
+            side_effect=lambda _dt, hour, **kwargs: _result(hour),
         ):
             h4 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 14, 4), 4)
             thursday_h3 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 23, 3), 3)

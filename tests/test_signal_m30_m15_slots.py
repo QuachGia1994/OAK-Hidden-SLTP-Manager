@@ -50,7 +50,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
     """Exhaustive test matrix for shared symbol M15 evaluation engine (v57)."""
 
     def test_logic_version_and_signal_pairs(self) -> None:
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 57)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 58)
         self.assertEqual(mt5_signal_bot.SIGNAL_PAIRS, SIGNAL_PAIRS)
 
     def test_84_post_filter_subcases(self) -> None:
@@ -180,7 +180,7 @@ class PairIndependenceTests(unittest.TestCase):
         ]
 
         with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=sequence):
-            res = mt5_signal_bot.evaluate_all_pairs_for_slot(broker_dt, 9)
+            res = mt5_signal_bot.evaluate_all_pairs_for_slot(broker_dt, 9, as_of_dt=broker_dt)
 
         self.assertIsNotNone(res)
         self.assertEqual(res["signal"], "SELL")
