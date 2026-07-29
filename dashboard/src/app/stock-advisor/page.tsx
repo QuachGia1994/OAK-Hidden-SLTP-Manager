@@ -18,13 +18,8 @@ export default async function StockAdvisorPage({ searchParams }: { searchParams:
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"));
   const maskedAdvisory = advisory && !isVIP ? maskStockAdvisory(advisory) : advisory;
 
-  // Prevent CDN from caching VIP-gated responses across day boundaries
-  const { cookies } = await import("next/headers");
-  const resHeaders = new Headers();
-  resHeaders.set("Cache-Control", "no-store, must-revalidate");
-
   return (
-    <div className="space-y-6">
+    <div className="page-shell terminal-page space-y-5">
       <DashboardAutoRefresh />
       {maskedAdvisory ? (
         <>

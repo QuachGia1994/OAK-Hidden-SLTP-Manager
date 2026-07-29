@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [3, 7, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 /** Minimum backend contract — delayed GBP pair entry schedule, H3 GBPUSD deferred. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 59;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 60;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 
@@ -142,24 +142,46 @@ type RuleLocale = "VN" | "EN";
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
     "Mọi slot H3/H7/H9/H12/H14/H16 phát Broker lúc H:00. Đánh giá độc lập ba symbol: XAUUSD, GBPUSD, GBPAUD bằng M15 (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 đảo signal lần cuối.",
-    "Entry time XAUUSD do nến GBPAUD quyết định (H3: 03:11/03:49/04:49; H7: 07:11/07:49/08:25; H≥9: H:11/H:49/(H+1):25). Nến follow-up H:45 đóng lúc H:45.",
+    "XAUUSD đảo final signal theo ma trận ngày Broker (Thứ Hai: H7/H14; Thứ Ba: Không đảo; Thứ Tư: H3/H7/H9/H12/H14/H16; Thứ Năm: H7/H9; Thứ Sáu: H3/H12/H16). Entry time XAUUSD do nến GBPAUD quyết định.",
   ],
   EN: [
     "Every slot evaluates XAUUSD, GBPUSD, GBPAUD on M15 candles (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 final signal is inverted.",
-    "XAUUSD entry time is dynamically planned by GBPAUD candle relations (H3: 03:11/03:49/04:49; H7: 07:11/07:49/08:25; H≥9: H:11/H:49/(H+1):25).",
+    "XAUUSD final signal is inverted per Broker weekday matrix (Mon: H7/H14; Tue: none; Wed: all slots; Thu: H7/H9; Fri: H3/H12/H16). XAUUSD entry time is dynamically planned by GBPAUD candle relations.",
   ],
+};
+
+const WEEKDAY_RULES: Record<RuleLocale, Record<number, string>> = {
+  VN: {
+    1: "Thứ Hai: XAUUSD đảo final signal tại H7 và H14.",
+    2: "Thứ Ba: XAUUSD không có weekday inversion.",
+    3: "Thứ Tư: XAUUSD đảo final signal ở toàn bộ H3/H7/H9/H12/H14/H16.",
+    4: "Thứ Năm: XAUUSD đảo final signal tại H7 và H9.",
+    5: "Thứ Sáu: XAUUSD đảo final signal tại H3, H12 và H16.",
+  },
+  EN: {
+    1: "Monday: XAUUSD final signal is inverted at H7 and H14.",
+    2: "Tuesday: XAUUSD has no weekday inversion.",
+    3: "Wednesday: XAUUSD final signal is inverted across all slots (H3/H7/H9/H12/H14/H16).",
+    4: "Thursday: XAUUSD final signal is inverted at H7 and H9.",
+    5: "Friday: XAUUSD final signal is inverted at H3, H12, and H16.",
+  },
 };
 
 export function getDayRules(
   arg1: number | RuleLocale,
   arg2?: RuleLocale | number,
-  date?: Date,
+  _date?: Date,
 ): string[] {
   const locale = typeof arg1 === "string" ? arg1 : (arg2 as RuleLocale) || "VN";
   const weekday = typeof arg1 === "number" ? arg1 : typeof arg2 === "number" ? arg2 : 1;
   if (weekday === 0 || weekday === 6) return [];
 
-  return [...CORE_RULES[locale]];
+  const baseRules = [...CORE_RULES[locale]];
+  const daySpecific = WEEKDAY_RULES[locale]?.[weekday];
+  if (daySpecific) {
+    baseRules.push(daySpecific);
+  }
+  return baseRules;
 }
 
 export function getSignalColor(signal: string): string {

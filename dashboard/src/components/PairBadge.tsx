@@ -3,14 +3,29 @@
 import { getSignalLabel } from "@/lib/constants";
 import { useLocale } from "./LocaleProvider";
 
-interface PairBadgeProps {
+export interface PairBadgeProps {
   pair: string;
   direction: string;
-  entryTime?: string | null;
+  brokerEntryTime?: string | null;
+  localEntryTime?: {
+    time: string;
+    zoneLabel: string;
+    dateDelta: number;
+  } | null;
+  state?: string | null;
+  label?: string | null;
 }
 
-export function PairBadge({ pair, direction, entryTime }: PairBadgeProps) {
+export function PairBadge({
+  pair,
+  direction,
+  brokerEntryTime,
+  localEntryTime,
+  state,
+  label,
+}: PairBadgeProps) {
   const { locale } = useLocale();
+
   if (direction === "locked") {
     return (
       <div className="flex items-center justify-between py-1.5">
@@ -32,11 +47,38 @@ export function PairBadge({ pair, direction, entryTime }: PairBadgeProps) {
   }
 
   return (
-    <div className="flex items-center justify-between py-1.5">
-      <span className="font-mono text-sm font-black text-[var(--foreground)]">{pair}</span>
+    <div className="flex items-center justify-between py-1.5 gap-2">
+      <div className="flex items-center gap-1.5">
+        <span className="font-mono text-sm font-black text-[var(--foreground)]">{pair}</span>
+        {label && (
+          <span className="text-[9px] font-medium font-sans px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
+            {label}
+          </span>
+        )}
+      </div>
       <div className="flex items-center gap-2">
-        {entryTime && (
-          <span className="font-mono text-[10px] text-[var(--muted)]">{entryTime}</span>
+        {state === "DEFERRED_TO_H7" ? (
+          <span className="text-[10px] font-mono text-[var(--muted)] italic">Chờ H7</span>
+        ) : (
+          (localEntryTime || brokerEntryTime) && (
+            <div className="flex flex-col items-end leading-tight">
+              {localEntryTime ? (
+                <span className="font-mono text-xs font-bold text-[var(--foreground)]">
+                  {localEntryTime.time} <span className="text-[9px] font-normal text-[var(--muted)]">{localEntryTime.zoneLabel}</span>
+                  {localEntryTime.dateDelta !== 0 && (
+                    <span className="text-[9px] text-amber-400 ml-0.5">
+                      {localEntryTime.dateDelta > 0 ? "+1d" : "-1d"}
+                    </span>
+                  )}
+                </span>
+              ) : null}
+              {brokerEntryTime ? (
+                <span className="font-mono text-[9px] text-[var(--muted)]">
+                  {brokerEntryTime} Broker
+                </span>
+              ) : null}
+            </div>
+          )
         )}
         <span className={`text-[10px] font-mono font-black tracking-wide px-2.5 py-1 rounded-md border ${
           direction === "BUY"
@@ -47,7 +89,7 @@ export function PairBadge({ pair, direction, entryTime }: PairBadgeProps) {
             ? "border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)]"
             : "border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)] font-semibold"
         }`}>
-          {getSignalLabel(direction, locale)}
+          {state === "DEFERRED_TO_H7" ? "WAIT" : getSignalLabel(direction, locale)}
         </span>
       </div>
     </div>

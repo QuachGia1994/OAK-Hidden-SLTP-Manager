@@ -1,57 +1,42 @@
 "use client";
 
 import { getEntryTimeLabel, getSignalColor, getSignalLabel, getSignalTime } from "@/lib/constants";
-import { verifiedBrokerTimeToLocal } from "@/lib/broker-time";
+import { FormattedLocalTime, useBrowserBrokerTime } from "@/hooks/useBrowserBrokerTime";
 import type { Signal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
-
-const VALID_TIME = /^\d{2}:\d{2}$/;
-
 import { DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
 
-/** Resolve local (Vietnam) time, falling back to broker-time conversion. */
-function resolveLocalTime(
-  signal: Signal,
-  brokerTime: string | null | undefined,
-): string | null {
-  return verifiedBrokerTimeToLocal({
-    date: signal.date,
-    signalTime: signal.signal_time,
-    signalAtUtc: signal.signal_at_utc,
-    brokerUtcOffset: signal.broker_utc_offset,
-    brokerClockVerified: signal.broker_clock_verified,
-  }, brokerTime);
-}
+const VALID_TIME = /^\d{2}:\d{2}$/;
 
 export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: boolean }) {
   const { locale } = useLocale();
   const signalTime = VALID_TIME.test(signal.signal_time || "")
-    ? signal.signal_time as string
+    ? (signal.signal_time as string)
     : getSignalTime(signal.hour, signal.date);
+
+  const isPendingFollowup = signal.entry_state === "PENDING_FOLLOWUP";
   const entryTime = VALID_TIME.test(signal.entry_time || "")
-    ? signal.entry_time as string
-    : signal.ts === 0 ? getEntryTimeLabel(signal.hour, signal.date) : "—";
-  const localSignalTime = resolveLocalTime(
+    ? (signal.entry_time as string)
+    : isPendingFollowup
+    ? `Chờ nến ${String(signal.hour).padStart(2, "0")}:45`
+    : signal.ts === 0
+    ? getEntryTimeLabel(signal.hour, signal.date)
+    : "—";
+
+  const localSignalTime = useBrowserBrokerTime(
     signal,
-    signal.signal_time,
+    signalTime,
+    signal.signal_at_utc ? String(signal.signal_at_utc) : null,
   );
-  const localEntryTime = resolveLocalTime(
+  const localEntryTime = useBrowserBrokerTime(
     signal,
-    signal.entry_time,
+    VALID_TIME.test(signal.entry_time || "") ? signal.entry_time : null,
+    signal.entry_at_utc,
   );
+
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
-
-  const getPairDirection = (pair: string) => {
-    if (!isVIP) return "locked";
-    return signal.pair_dirs?.[pair] || "-";
-  };
-
-  const getPairEntryTime = (pair: string) => {
-    if (!isVIP) return null;
-    return signal.pair_entry_times?.[pair] || null;
-  };
 
   return (
     <article className="terminal-panel group signal-rail relative overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
@@ -67,6 +52,7 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
               label={locale === "EN" ? "Entry" : "Vào lệnh"}
               brokerTime={entryTime}
               localTime={localEntryTime}
+              isPending={isPendingFollowup}
             />
           </div>
           <div className="shrink-0 text-right">
@@ -94,10 +80,38 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
 
       <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
         {DISPLAYED_SIGNAL_PAIRS.map((pair) => (
-          <PairBadge key={pair} pair={pair} direction={getPairDirection(pair)} entryTime={getPairEntryTime(pair)} />
+          <PairRow key={pair} pair={pair} signal={signal} isVIP={isVIP} />
         ))}
       </div>
     </article>
+  );
+}
+
+function PairRow({
+  pair,
+  signal,
+  isVIP,
+}: {
+  pair: string;
+  signal: Signal;
+  isVIP: boolean;
+}) {
+  const direction = isVIP ? signal.pair_dirs?.[pair] || "-" : "locked";
+  const brokerEntryTime = isVIP ? signal.pair_entry_times?.[pair] || null : null;
+  const utcIso = isVIP ? signal.pair_entry_at_utc?.[pair] || null : null;
+  const localEntryTime = useBrowserBrokerTime(signal, brokerEntryTime, utcIso);
+  const state = isVIP ? signal.pair_entry_states?.[pair] || null : null;
+  const label = isVIP ? signal.pair_labels?.[pair] || null : null;
+
+  return (
+    <PairBadge
+      pair={pair}
+      direction={direction}
+      brokerEntryTime={brokerEntryTime}
+      localEntryTime={localEntryTime}
+      state={state}
+      label={label}
+    />
   );
 }
 
@@ -105,24 +119,33 @@ function TimeBlock({
   label,
   brokerTime,
   localTime,
+  isPending,
 }: {
   label: string;
   brokerTime: string;
-  localTime: string | null;
+  localTime: FormattedLocalTime | null;
+  isPending?: boolean;
 }) {
   return (
     <div className="min-w-0">
       <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--terminal-accent)]">{label}</div>
-      {localTime ? (
+      {isPending ? (
+        <div className="mt-0.5 font-mono text-xs font-bold text-amber-400 leading-snug animate-pulse">
+          {brokerTime}
+        </div>
+      ) : localTime ? (
         <>
-          <div className="mt-0.5 font-mono text-lg font-black tabular-nums text-[var(--foreground)]">
-            {localTime}
-            <span className="ml-1 text-[9px] font-bold uppercase text-[var(--muted)]">VN</span>
+          <div className="mt-0.5 font-mono text-base font-black tabular-nums text-[var(--foreground)] leading-snug">
+            {localTime.time}
+            <span className="ml-1 text-[9px] font-bold uppercase text-[var(--muted)]">{localTime.zoneLabel}</span>
+            {localTime.dateDelta !== 0 && (
+              <span className="ml-1 text-[9px] text-amber-400">{localTime.dateDelta > 0 ? "+1d" : "-1d"}</span>
+            )}
           </div>
           <div className="font-mono text-[10px] font-semibold text-[var(--muted)]">{brokerTime} Broker</div>
         </>
       ) : (
-        <div className="mt-0.5 font-mono text-lg font-black tabular-nums text-[var(--foreground)]">
+        <div className="mt-0.5 font-mono text-base font-black tabular-nums text-[var(--foreground)] leading-snug">
           {brokerTime} <span className="text-[9px] font-bold uppercase text-[var(--muted)]">Broker</span>
         </div>
       )}
@@ -139,14 +162,11 @@ function LockedVerdict({ locale }: { locale: "VN" | "EN" }) {
           <div className="text-sm font-black text-[var(--foreground)]">
             {locale === "EN" ? "VIP only" : "Chỉ VIP"}
           </div>
-          <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--muted)]">
-            {locale === "EN" ? "Unlock to view" : "Mở khóa để xem"}
+          <div className="text-xs text-[var(--muted)]">
+            {locale === "EN" ? "Enter access code to unlock" : "Nhập mã để xem tín hiệu thô"}
           </div>
         </div>
       </div>
-      <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] px-2.5 py-1 font-mono text-[10px] font-black uppercase text-[var(--muted)]">
-        {locale === "EN" ? "Locked" : "Khóa"}
-      </span>
     </div>
   );
 }

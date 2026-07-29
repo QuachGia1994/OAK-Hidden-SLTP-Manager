@@ -50,7 +50,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
     """Exhaustive test matrix for shared symbol M15 evaluation engine (v57)."""
 
     def test_logic_version_and_signal_pairs(self) -> None:
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 59)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 60)
         self.assertEqual(mt5_signal_bot.SIGNAL_PAIRS, SIGNAL_PAIRS)
 
     def test_84_post_filter_subcases(self) -> None:
@@ -85,8 +85,9 @@ class M15MultiPairMatrixTests(unittest.TestCase):
         self.assertEqual(total_subcases, 84)
 
     def test_288_table_driven_matrix(self) -> None:
-        """3 symbols × 6 slots × 8 patterns × 2 Base directions = 288 cases with offset -15 post-filter and GBPUSD H>=9 inversion."""
-        broker_dt = datetime(2026, 7, 29, 12, 0)
+        """3 symbols × 6 slots × 8 patterns × 2 Base directions = 288 cases with offset -15 post-filter, GBPUSD H>=9, and XAUUSD weekday matrix."""
+        # Tuesday: 2026-07-14 (weekday 1, no XAUUSD weekday inversion)
+        broker_dt = datetime(2026, 7, 14, 12, 0)
         total_cases = 0
 
         for symbol in SIGNAL_PAIRS:
@@ -98,8 +99,6 @@ class M15MultiPairMatrixTests(unittest.TestCase):
                     for group, pattern in all_patterns:
                         total_cases += 1
                         prov_dir = mt5_signal_bot.reverse_signal(base_signal) if group == "SW" else base_signal
-                        if hour == 14:
-                            prov_dir = mt5_signal_bot.reverse_signal(prov_dir)
                         expected_entry = f"{hour + 1:02d}:25" if group == "SW" else f"{hour:02d}:49"
 
                         # Provide offset -15 = "GIAM" ("SELL")
@@ -115,7 +114,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
 
                         self.assertIsNotNone(res)
                         self.assertEqual(res["symbol"], symbol)
-                        self.assertEqual(res["source_date"], "2026-07-29")
+                        self.assertEqual(res["source_date"], "2026-07-14")
                         self.assertEqual(res["offsets"], [15, 30, 45, 60, 75])
                         self.assertEqual(res["base_direction"], base_dir)
                         self.assertEqual(res["base_signal"], base_signal)
@@ -132,10 +131,11 @@ class M15MultiPairMatrixTests(unittest.TestCase):
         self.assertEqual(total_cases, 288)
 
     def test_h14_evaluation_order_and_evidence(self) -> None:
-        """Verify H14 applies slot adjustment before offset -15 post-filter and records all evidence."""
+        """Verify H14 applies weekday matrix on Mon/Wed and records evidence without old unconditional reversal."""
+        # Wednesday: 2026-07-29 (weekday 2, XAUUSD H14 inverts)
         broker_dt = datetime(2026, 7, 29, 14, 0)
-        # Base TANG ("BUY"), pattern BT -> pattern_dir BUY, slot_adj H14 -> SELL, pre_offset15 -> SELL
-        # offset15 GIAM ("SELL") -> relation SAME -> action REVERSE -> final BUY
+        # Base TANG ("BUY"), pattern BT -> pattern_dir BUY, pre_offset15 -> BUY
+        # offset15 GIAM ("SELL") -> relation OPPOSITE -> action KEEP -> post_offset15 BUY -> Wed inversion SELL
         sequence = ["TANG", "GIAM", "TANG", "GIAM", "GIAM"]
 
         with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=sequence):
@@ -146,13 +146,15 @@ class M15MultiPairMatrixTests(unittest.TestCase):
         self.assertEqual(res["base_signal"], "BUY")
         self.assertEqual(res["pullback_group"], "BT")
         self.assertEqual(res["pattern_direction"], "BUY")
-        self.assertEqual(res["slot_adjusted_direction"], "SELL")
-        self.assertEqual(res["pre_offset15_direction"], "SELL")
+        self.assertEqual(res["slot_adjusted_direction"], "BUY")
+        self.assertEqual(res["pre_offset15_direction"], "BUY")
         self.assertEqual(res["offset15_direction"], "GIAM")
         self.assertEqual(res["offset15_signal"], "SELL")
-        self.assertEqual(res["offset15_relation"], "SAME")
-        self.assertEqual(res["offset15_action"], "REVERSE")
-        self.assertEqual(res["direction"], "BUY")
+        self.assertEqual(res["offset15_relation"], "OPPOSITE")
+        self.assertEqual(res["offset15_action"], "KEEP")
+        self.assertEqual(res["post_offset15_direction"], "BUY")
+        self.assertTrue(res["weekday_inversion_applied"])
+        self.assertEqual(res["direction"], "SELL")
         self.assertEqual(res["offsets"], [15, 30, 45, 60, 75])
 
 
@@ -160,12 +162,8 @@ class PairIndependenceTests(unittest.TestCase):
     """Verify complete independence between XAUUSD, GBPUSD, and GBPAUD."""
 
     def test_concurrent_independent_directions(self) -> None:
-        """H=9: XAUUSD pattern SW -> SELL, GBPUSD pattern BT -> BUY, GBPAUD pattern SW -> BUY."""
-        broker_dt = datetime(2026, 7, 29, 9, 0)
-
-    def test_concurrent_independent_directions(self) -> None:
         """H=9: XAUUSD pattern SW -> SELL, GBPUSD pattern BT -> BUY (inverted to SELL for H9), GBPAUD pattern SW -> BUY."""
-        broker_dt = datetime(2026, 7, 29, 9, 45)
+        broker_dt = datetime(2026, 7, 14, 9, 45)
 
         # Lookback sequence per symbol: -30, -45, -60, -75, -15, plus GBPAUD 09:45 followup
         sequence = [
@@ -200,7 +198,7 @@ class PairIndependenceTests(unittest.TestCase):
 
     def test_gbpusd_missing_candle_isolation(self) -> None:
         """Missing candle on GBPUSD makes only GBPUSD WAIT."""
-        broker_dt = datetime(2026, 7, 29, 9, 0)
+        broker_dt = datetime(2026, 7, 14, 9, 0)
 
         def mock_lookback(symbol, tf, candle_dt):
             if symbol == "GBPUSD":

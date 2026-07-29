@@ -39,6 +39,11 @@ export interface Signal {
   entry_followup_signal?: string | null;
   entry_followup_relation?: string | null;
   entry_decided_at?: string | null;
+  pair_entry_states?: Record<string, string | null>;
+  pair_signal_states?: Record<string, string | null>;
+  pair_labels?: Record<string, string | null>;
+  pair_entry_at_utc?: Record<string, string | null>;
+  entry_at_utc?: string | null;
 }
 
 export interface BotState {

@@ -80,7 +80,7 @@ export function maskSignalForPublic(signal: Record<string, unknown>) {
     ...signal,
     signal: "WAIT",
     pattern_signal: undefined,
-    pair_dirs: {},
+    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT", GBPAUD: "WAIT" },
     entry_prices: {},
     current_prices: {},
     hour_note: null,

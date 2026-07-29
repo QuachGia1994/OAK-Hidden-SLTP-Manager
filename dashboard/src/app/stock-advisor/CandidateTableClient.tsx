@@ -125,12 +125,14 @@ function CandidateRow({
   return (
     <div className="advisor-row">
       <span className="font-mono text-xs font-bold text-[var(--muted)]">{candidate.rank}</span>
-      <span
-        className="font-mono text-lg font-black text-[var(--foreground)] cursor-pointer underline decoration-dashed decoration-[var(--terminal-accent)]/40 underline-offset-2 hover:text-[var(--terminal-accent)] hover:decoration-[var(--terminal-accent)] transition-colors"
+      <button
+        type="button"
+        className="font-mono text-lg font-black text-[var(--foreground)] text-left cursor-pointer underline decoration-dashed decoration-[var(--terminal-accent)]/40 underline-offset-2 hover:text-[var(--terminal-accent)] hover:decoration-[var(--terminal-accent)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)] rounded"
         onClick={() => onSymbolClick(candidate.symbol)}
+        aria-label={`Xem chi tiết mã ${candidate.symbol}`}
       >
         {candidate.symbol}
-      </span>
+      </button>
       <span className="font-sans text-xs text-[var(--muted)] font-medium truncate" title={companyName}>{companyName}</span>
       <span className="font-mono text-xs text-[var(--terminal-warning)] font-semibold">{marketCap}</span>
       <PriceCell price={candidate.close_price} changePct={candidate.price_change_pct} />

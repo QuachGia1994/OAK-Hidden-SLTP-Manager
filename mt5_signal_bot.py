@@ -115,8 +115,26 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 59
+SIGNAL_LOGIC_VERSION = 60
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
+
+XAUUSD_WEEKDAY_INVERSION_HOURS = {
+    0: frozenset({7, 14}),                # Monday
+    1: frozenset(),                       # Tuesday
+    2: frozenset({3, 7, 9, 12, 14, 16}), # Wednesday
+    3: frozenset({7, 9}),                 # Thursday
+    4: frozenset({3, 12, 16}),            # Friday
+}
+
+
+def should_invert_xauusd_for_weekday(broker_dt, hour):
+    """Return True if XAUUSD should be inverted based on Broker weekday and active slot hour."""
+    if broker_dt is None:
+        return False
+    h = int(hour)
+    if h not in ACTIVE_HOURS:
+        return False
+    return h in XAUUSD_WEEKDAY_INVERSION_HOURS.get(broker_dt.weekday(), frozenset())
 
 
 def get_evaluated_pairs_for_hour(hour):
@@ -1136,8 +1154,7 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
 
     base_signal = "BUY" if base_dir == "TANG" else "SELL"
     pattern_direction = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
-    slot_adjusted_direction = reverse_signal(pattern_direction) if h == 14 else pattern_direction
-    pre_offset15_direction = slot_adjusted_direction
+    pre_offset15_direction = pattern_direction
 
     # Offset -15 post-filter
     offset15_dt = source_slot - timedelta(minutes=15)
@@ -1149,12 +1166,32 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
     post_offset15_direction = filter_res["final_signal"]
 
     # Final inversion for GBPUSD at H>=9 (H9, H12, H14, H16)
-    if symbol == "GBPUSD" and h >= 9:
-        final_direction = reverse_signal(post_offset15_direction)
-        gbpusd_h9plus_inversion_applied = True
-    else:
-        final_direction = post_offset15_direction
-        gbpusd_h9plus_inversion_applied = False
+    symbol_adjusted_direction = (
+        reverse_signal(post_offset15_direction)
+        if symbol == "GBPUSD" and h >= 9
+        else post_offset15_direction
+    )
+    gbpusd_h9plus_inversion_applied = (symbol == "GBPUSD" and h >= 9)
+
+    # Weekday inversion for XAUUSD
+    pre_weekday_direction = symbol_adjusted_direction
+    weekday_inversion_applied = (
+        symbol == "XAUUSD" and should_invert_xauusd_for_weekday(broker_dt, h)
+    )
+    final_direction = (
+        reverse_signal(pre_weekday_direction)
+        if weekday_inversion_applied
+        else pre_weekday_direction
+    )
+
+    weekday_rule_names = {
+        0: "MON_H7_H14",
+        1: None,
+        2: "WED_ALL",
+        3: "THU_H7_H9",
+        4: "FRI_H3_H12_H16",
+    }
+    weekday_rule = weekday_rule_names.get(broker_dt.weekday()) if weekday_inversion_applied else None
 
     entry_time = f"{h + 1:02d}:25" if pullback_group == "SW" else f"{h:02d}:49"
 
@@ -1168,7 +1205,7 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
         "pattern_length": 3,
         "pullback_group": pullback_group,
         "pattern_direction": pattern_direction,
-        "slot_adjusted_direction": slot_adjusted_direction,
+        "slot_adjusted_direction": pattern_direction,
         "pre_offset15_direction": pre_offset15_direction,
         "offset15_datetime": offset15_dt.isoformat(),
         "offset15_direction": offset15_direction,
@@ -1176,7 +1213,12 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
         "offset15_relation": filter_res["relation"],
         "offset15_action": filter_res["action"],
         "post_offset15_direction": post_offset15_direction,
+        "symbol_adjusted_direction": symbol_adjusted_direction,
         "gbpusd_h9plus_inversion_applied": gbpusd_h9plus_inversion_applied,
+        "pre_weekday_direction": pre_weekday_direction,
+        "broker_weekday": broker_dt.weekday(),
+        "weekday_inversion_applied": weekday_inversion_applied,
+        "weekday_inversion_rule": weekday_rule,
         "classification_reason": "shared_three_candle_pattern_with_offset15_filter",
         "offsets": [15, 30, 45, 60, 75],
         "direction": final_direction,
@@ -1515,6 +1557,20 @@ def can_resolve_entry_followup(slot_dt, as_of_dt=None, historical_complete=False
     return as_of_dt >= followup_close_dt
 
 
+def compute_utc_iso(date_obj, time_str, offset_hours):
+    """Convert a naive local date object and 'HH:MM' time string into an ISO-8601 UTC string."""
+    if not time_str or ":" not in str(time_str):
+        return None
+    try:
+        parts = str(time_str).split(":")
+        h, m = int(parts[0]), int(parts[1])
+        dt = datetime.combine(date_obj, datetime.min.time()).replace(hour=h, minute=m)
+        utc_dt = dt - timedelta(hours=offset_hours)
+        return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    except Exception:
+        return None
+
+
 ENTRY_PLAN_FIELDS = (
     "entry_state",
     "entry_candidate",
@@ -1533,6 +1589,9 @@ ENTRY_PLAN_FIELDS = (
     "pair_entry_times",
     "pair_entry_states",
     "pair_signal_states",
+    "pair_labels",
+    "pair_entry_at_utc",
+    "entry_at_utc",
     "pair_groups",
     "pair_evidence",
 )
@@ -1744,10 +1803,28 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
         f"candidate={entry_plan['entry_candidate']} rule={entry_plan['entry_rule']}"
     )
 
+    pair_labels = {
+        "XAUUSD": None,
+        "GBPUSD": None,
+        "GBPAUD": "Stock-Direction" if h == 3 else None,
+    }
+
+    try:
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
+    except Exception:
+        broker_offset = 3
+    entry_at_utc = compute_utc_iso(broker_dt.date(), final_xau_entry, broker_offset)
+    pair_entry_at_utc = {
+        symbol: compute_utc_iso(broker_dt.date(), pair_entry_times.get(symbol), broker_offset)
+        for symbol in SIGNAL_PAIRS
+    }
+
     res_dict = {
         "logic_version": SIGNAL_LOGIC_VERSION,
         "signal": top_signal,
         "entry_time": final_xau_entry,
+        "entry_at_utc": entry_at_utc,
+        "broker_utc_offset": broker_offset,
         "pair_dirs": pair_dirs,
         "pair_pre_offset15_dirs": pair_pre_offset15_dirs,
         "pair_offset15_dirs": pair_offset15_dirs,
@@ -1756,6 +1833,8 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
         "pair_entry_times": pair_entry_times,
         "pair_entry_states": pair_entry_states,
         "pair_signal_states": pair_signal_states,
+        "pair_labels": pair_labels,
+        "pair_entry_at_utc": pair_entry_at_utc,
         "pair_groups": pair_groups,
         "pair_evidence": pair_evidence,
         "source_date": source_date_str,
