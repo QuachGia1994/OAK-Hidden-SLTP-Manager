@@ -9,6 +9,11 @@ import { DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
 
 const VALID_TIME = /^\d{2}:\d{2}$/;
 
+function getPendingEntryLabel(locale: "VN" | "EN", hour: number): string {
+  const time = `${String(hour).padStart(2, "0")}:45`;
+  return locale === "EN" ? `Awaiting ${time} Broker candle` : `Chờ nến Broker ${time}`;
+}
+
 export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: boolean }) {
   const { locale } = useLocale();
   const signalTime = VALID_TIME.test(signal.signal_time || "")
@@ -19,7 +24,7 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
   const entryTime = VALID_TIME.test(signal.entry_time || "")
     ? (signal.entry_time as string)
     : isPendingFollowup
-    ? `Chờ nến ${String(signal.hour).padStart(2, "0")}:45`
+    ? getPendingEntryLabel(locale, signal.hour)
     : signal.ts === 0
     ? getEntryTimeLabel(signal.hour, signal.date)
     : "—";
@@ -70,9 +75,15 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
           {locale === "EN" ? "Verdict" : "Kết luận"}
         </div>
         {isVIP ? (
-          <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(signal.signal)}`}>
-            {getSignalLabel(signal.signal, locale)}
-          </span>
+          isPendingFollowup ? (
+            <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
+              {locale === "EN" ? "PENDING" : "ĐANG CHỜ"}
+            </span>
+          ) : (
+            <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(signal.signal)}`}>
+              {getSignalLabel(signal.signal, locale)}
+            </span>
+          )
         ) : (
           <LockedVerdict locale={locale} />
         )}

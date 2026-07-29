@@ -1,7 +1,12 @@
-export const TARGET_HOURS = [3, 7, 9, 12, 14, 16] as const;
+import {
+  ACTIVE_SIGNAL_LOGIC_VERSION,
+  PUBLIC_SIGNAL_SLOTS,
+  RULES_BY_LOCALE,
+} from "./generated-signal-rules.js";
+
+export { ACTIVE_SIGNAL_LOGIC_VERSION, PUBLIC_SIGNAL_SLOTS, RULES_BY_LOCALE };
+export const TARGET_HOURS = PUBLIC_SIGNAL_SLOTS;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
-/** Minimum backend contract — delayed GBP pair entry schedule, H3 GBPUSD deferred. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 61;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 
@@ -139,34 +144,6 @@ export function getHourNote(_hour: number, _jsWeekday?: number): string | null {
 
 type RuleLocale = "VN" | "EN";
 
-const CORE_RULES: Record<RuleLocale, string[]> = {
-  VN: [
-    "Mọi slot H3/H7/H9/H12/H14/H16 đánh giá độc lập GBPAUD và GBPUSD trên M15 (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 đảo signal lần cuối.",
-    "GBPAUD là nguồn direction cho XAUUSD. Khi entry XAU kết thúc bằng :11 hoặc :25, XAUUSD cùng chiều GBPAUD. Khi entry XAU kết thúc bằng :49, XAUUSD đảo ngược GBPAUD. Logic direction XAUUSD độc lập và weekday inversion đang tạm ngưng. Phép tính XAU cũ chỉ được dùng nội bộ làm cơ sở chọn nhánh entry.",
-  ],
-  EN: [
-    "Every slot evaluates GBPAUD and GBPUSD independently on M15 candles (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 final signal is inverted.",
-    "GBPAUD is the direction source for XAUUSD. When XAU entry ends in :11 or :25, XAUUSD takes the SAME direction as GBPAUD. When XAU entry ends in :49, XAUUSD takes the REVERSE direction of GBPAUD. Independent XAUUSD direction logic and weekday inversion are temporarily suspended. The old XAU calculation is only used internally as entry-timing basis.",
-  ],
-};
-
-const WEEKDAY_RULES: Record<RuleLocale, Record<number, string>> = {
-  VN: {
-    1: "Thứ Hai: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
-    2: "Thứ Ba: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
-    3: "Thứ Tư: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
-    4: "Thứ Năm: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
-    5: "Thứ Sáu: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
-  },
-  EN: {
-    1: "Monday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
-    2: "Tuesday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
-    3: "Wednesday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
-    4: "Thursday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
-    5: "Friday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
-  },
-};
-
 export function getDayRules(
   arg1: number | RuleLocale,
   arg2?: RuleLocale | number,
@@ -176,12 +153,8 @@ export function getDayRules(
   const weekday = typeof arg1 === "number" ? arg1 : typeof arg2 === "number" ? arg2 : 1;
   if (weekday === 0 || weekday === 6) return [];
 
-  const baseRules = [...CORE_RULES[locale]];
-  const daySpecific = WEEKDAY_RULES[locale]?.[weekday];
-  if (daySpecific) {
-    baseRules.push(daySpecific);
-  }
-  return baseRules;
+  const rules = RULES_BY_LOCALE[locale];
+  return rules ? [...rules] : [];
 }
 
 export function getSignalColor(signal: string): string {

@@ -50,7 +50,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
     """Exhaustive test matrix for shared symbol M15 evaluation engine (v57)."""
 
     def test_logic_version_and_signal_pairs(self) -> None:
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 62)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 63)
         self.assertEqual(mt5_signal_bot.SIGNAL_PAIRS, SIGNAL_PAIRS)
 
     def test_84_post_filter_subcases(self) -> None:

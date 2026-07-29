@@ -9,7 +9,7 @@ from domain import copy_trade_manager
 CURRENT_RECORD = {
     "date": "2026-07-28",
     "hour": 9,
-    "logic_version": 62,
+    "logic_version": 63,
     "signal_time": "09:00",
     "entry_time": "10:25",
     "pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "SELL", "GBPAUD": "BUY"},

@@ -178,10 +178,10 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the v62 M15 multi-pair rules", () => {
+test("shows the v63 M15 multi-pair rules", () => {
   const rules = getDayRules("EN", 2);
   assert.equal(rules.some((rule) => /M30|priority|compares H6/i.test(rule)), false);
-  assert.equal(rules.some((rule) => rule.includes("evaluates GBPAUD and GBPUSD independently")), true);
-  assert.equal(rules.some((rule) => rule.includes("GBPUSD H≥9 final signal is inverted")), true);
+  assert.equal(rules.some((rule) => rule.includes("calculated independently")), true);
+  assert.equal(rules.some((rule) => rule.includes("GBPUSD final signal is inverted")), true);
   assert.equal(rules.some((rule) => rule.includes("GBPAUD is the direction source for XAUUSD")), true);
 });

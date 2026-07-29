@@ -116,7 +116,7 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 62
+SIGNAL_LOGIC_VERSION = 63
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 INDEPENDENT_M15_PAIRS = ("GBPUSD", "GBPAUD")
@@ -350,7 +350,7 @@ def _trading_date():
     return get_broker_time().date()
 
 def _load_state():
-    """Load restart-safe sent-slot and auto-close state."""
+    """Load restart-safe sent-slot, entry-alert, and auto-close state."""
     try:
         with open(_STATE_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
@@ -378,6 +378,18 @@ def _load_state():
     if data.get("date") != today_str:
         return {"auto_close_pending": pending_closes, "auto_close_last_alert": close_alerts}
 
+    stored_ver = data.get("signal_logic_version")
+    if stored_ver != SIGNAL_LOGIC_VERSION:
+        print(f"  [STATE] Dropping stale sent_today: stored v{stored_ver}, current v{SIGNAL_LOGIC_VERSION}")
+        return {
+            "auto_close_completed": set(data.get("auto_close_completed", [])),
+            "auto_close_pending": pending_closes,
+            "auto_close_last_alert": close_alerts,
+            "sent_today": set(),
+            "entry_alerts_sent": set(),
+            "entry_alerts_pending": {},
+        }
+
     restored_sent = set()
     for raw_date, raw_hour in data.get("sent_today", []):
         try:
@@ -386,24 +398,46 @@ def _load_state():
         except (TypeError, ValueError):
             continue
 
+    alerts_sent = set(data.get("entry_alerts_sent", []))
+    alerts_pending = data.get("entry_alerts_pending", {})
+    if not isinstance(alerts_pending, dict):
+        alerts_pending = {}
+
     return {
         "sent_today": restored_sent,
         "auto_close_completed": set(data.get("auto_close_completed", [])),
         "auto_close_pending": pending_closes,
         "auto_close_last_alert": close_alerts,
+        "entry_alerts_sent": alerts_sent,
+        "entry_alerts_pending": alerts_pending,
     }
 
-def _save_state(sent_today):
-    """Persist sent logical slots and pending auto-close obligations."""
-    broker_now = get_broker_time()
+
+def _save_state(sent_today, broker_dt=None):
+    """Persist sent logical slots, entry alerts, and pending auto-close obligations."""
+    if broker_dt is not None:
+        broker_now = broker_dt
+    else:
+        try:
+            broker_now = get_broker_time()
+        except Exception:
+            broker_now = datetime.now()
     today_str = broker_now.date().isoformat()
     sent_rows = [
         [trading_date.isoformat() if hasattr(trading_date, "isoformat") else trading_date, hour]
-        for trading_date, hour in sent_today
+        for trading_date, hour in (sent_today or set())
     ]
+    try:
+        broker_utc_offset = BROKER_CLOCK.utc_offset_for_date(broker_now.date())
+    except Exception:
+        broker_utc_offset = 3
+
     data = {
         "date": today_str,
+        "signal_logic_version": SIGNAL_LOGIC_VERSION,
         "sent_today": sent_rows,
+        "entry_alerts_sent": sorted(list(entry_alerts_sent)),
+        "entry_alerts_pending": entry_alerts_pending,
         "auto_close_completed": sorted(
             category
             for close_date, category in _auto_close_completed
@@ -420,7 +454,7 @@ def _save_state(sent_today):
             ]
         ),
         "broker_time": broker_now.replace(microsecond=0).isoformat(),
-        "broker_utc_offset": BROKER_CLOCK.utc_offset_for_date(broker_now.date()),
+        "broker_utc_offset": broker_utc_offset,
         "broker_observed_at_utc": datetime.now(timezone.utc).isoformat(),
     }
     try:
@@ -769,28 +803,7 @@ def push_prices_to_dashboard():
     except Exception as e:
         print(f"[DASHBOARD] Prices push error: {e}")
 
-def build_startup_telegram_message(broker_dt, mt5_connected):
-    """Build the startup Telegram note from the same daily matrix as the dashboard."""
-    day_notes = get_day_notes(broker_dt, lang="VN")
-    rules = "\n".join(f"⚠️ {note}" for note in day_notes)
-    mt5_status = "OK" if mt5_connected else "N/A"
-    return (
-        "🤖 BOT KHỞI ĐỘNG\n"
-        f"Nguồn: GBPUSD/GBPAUD H1 hôm qua + {SYMBOL} M15 hôm nay | MT5: {mt5_status}\n"
-        f"Slots: {', '.join(f'H={h}' for h in TARGET_HOURS)}\n"
-        "🔒 Auto-close ALL: XAUUSD 17:59; GBPAUD/GBPCAD/GBPJPY/GBPUSD 19:59 (Broker)\n"
-        f"Quy tắc hôm nay:\n{rules}"
-    )
 
-# =====================================================================
-# TELEGRAM
-# =====================================================================
-def send_telegram(text):
-    try:
-        return send_telegram_raw(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, text)
-    except Exception as e:
-        print(f"[ERROR] Telegram: {e}")
-        return None
 
 
 # =====================================================================
@@ -2022,6 +2035,255 @@ GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
 ALL_PAIRS = ["XAUUSD"] + GBP_PAIRS
 
 sent_today = set()
+ENTRY_ALERT_GRACE_MINUTES = 5
+entry_alerts_sent = set()
+entry_alerts_pending = {}
+
+
+def load_signal_rule_contract():
+    """Load canonical signal rule contract from signal_rule_contract.json."""
+    contract_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signal_rule_contract.json")
+    if os.path.exists(contract_path):
+        try:
+            with open(contract_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "logic_version": SIGNAL_LOGIC_VERSION,
+        "public_slots": [3, 7, 9, 12, 14, 16],
+        "internal_slots": [4],
+        "rules": {"VN": [], "EN": []},
+        "startup_summary": {
+            "VN": [
+                "Slots: H3 · H7 · H9 · H12 · H14 · H16",
+                "Pairs: GBPAUD / GBPUSD → XAUUSD",
+                "XAU: entry :11/:25 = cùng GBPAUD · :49 = đảo",
+                "H3: GBPUSD chờ H7 · GBPAUD là Stock-Direction",
+                "Safety: H4 nội bộ · thiếu dữ liệu → WAIT",
+                "Auto-close: XAU 17:59 · GBP 19:59 Broker",
+            ]
+        },
+    }
+
+
+def send_telegram(text: str) -> bool:
+    """Send a text message via Telegram Bot API (POST). Returns True strictly on HTTP 200 ok=True."""
+    if not text:
+        return False
+    token = resolve_telegram_token() or TELEGRAM_TOKEN
+    chat_id = TELEGRAM_CHAT_ID
+    if not token or not chat_id:
+        print("[TELEGRAM] Missing token or chat_id")
+        return False
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": text,
+    }).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    try:
+        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status == 200:
+                res_body = json.loads(resp.read().decode("utf-8"))
+                if isinstance(res_body, dict) and res_body.get("ok") is True:
+                    return True
+                print(f"[TELEGRAM] Response ok=False: {res_body}")
+                return False
+            print(f"[TELEGRAM] HTTP status {resp.status}")
+            return False
+    except Exception as e:
+        print(f"[TELEGRAM] Send error: {e}")
+        return False
+
+
+def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None):
+    """Build compact startup Telegram message per canonical contract."""
+    ver = SIGNAL_LOGIC_VERSION
+    mt5_status = "✅ OK" if mt5_connected else "⚠️ DISCONNECTED"
+    broker_time_str = "--:--"
+    if broker_dt is not None:
+        try:
+            broker_time_str = broker_dt.strftime("%H:%M")
+        except Exception:
+            pass
+    return (
+        f"🤖 OAK SIGNAL BOT ONLINE · v{ver}\n"
+        f"MT5: {mt5_status} | Broker: {broker_time_str}\n"
+        "Slots: H3 · H7 · H9 · H12 · H14 · H16\n"
+        "Pairs: GBPAUD / GBPUSD → XAUUSD\n"
+        "XAU: entry :11/:25 = cùng GBPAUD · :49 = đảo\n"
+        "H3: GBPUSD chờ H7 · GBPAUD là Stock-Direction\n"
+        "Safety: H4 nội bộ · thiếu dữ liệu → WAIT\n"
+        "Auto-close: XAU 17:59 · GBP 19:59 Broker"
+    )
+
+
+def build_xau_entry_alert_fingerprint(trading_date, hour, logic_version, direction, entry_time):
+    """Build a unique string fingerprint for an XAUUSD entry alert."""
+    return f"{trading_date}|{hour}|{logic_version}|{direction}|{entry_time}"
+
+
+def should_send_xau_entry_alert(current_result, sent_fingerprints):
+    """Return True if current_result is a READY XAUUSD entry alert that has not been sent yet."""
+    if not current_result or not isinstance(current_result, dict):
+        return False
+    if current_result.get("entry_state") != "READY":
+        return False
+    pair_entry_states = current_result.get("pair_entry_states", {})
+    if pair_entry_states.get("XAUUSD") != "READY":
+        return False
+    pair_dirs = current_result.get("pair_dirs", {})
+    xau_dir = pair_dirs.get("XAUUSD")
+    if xau_dir not in ("BUY", "SELL"):
+        return False
+    pair_entry_times = current_result.get("pair_entry_times", {})
+    xau_entry = pair_entry_times.get("XAUUSD")
+    if not xau_entry or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(xau_entry)):
+        return False
+    fp = build_xau_entry_alert_fingerprint(
+        current_result.get("source_date"),
+        current_result.get("hour"),
+        current_result.get("logic_version", SIGNAL_LOGIC_VERSION),
+        xau_dir,
+        xau_entry,
+    )
+    return fp not in (sent_fingerprints or set())
+
+
+def build_entry_ready_telegram_message(record, broker_dt=None):
+    """Build concise user-facing Telegram message when XAUUSD entry becomes READY."""
+    h = record.get("hour")
+    pair_dirs = record.get("pair_dirs", {})
+    pair_entry_times = record.get("pair_entry_times", {})
+    xau_dir = pair_dirs.get("XAUUSD", "WAIT")
+    gbpaud_dir = pair_dirs.get("GBPAUD", "WAIT")
+    gbpusd_dir = pair_dirs.get("GBPUSD", "WAIT")
+    xau_entry = pair_entry_times.get("XAUUSD", "--:--")
+    gbpusd_entry = pair_entry_times.get("GBPUSD")
+    gbpaud_entry = pair_entry_times.get("GBPAUD")
+    ver = record.get("logic_version", SIGNAL_LOGIC_VERSION)
+    source_date = record.get("source_date", "")
+
+    xau_icon = "🟢" if xau_dir == "BUY" else "🔴" if xau_dir == "SELL" else "⚪"
+
+    relation = record.get("xauusd_entry_relation") or "SAME"
+    match = re.search(r":([0-5]\d)", str(xau_entry))
+    minute = match.group(1) if match else "11"
+    relation_label = f":{minute} = CÙNG" if relation == "SAME" else f":{minute} = ĐẢO"
+
+    local_str = ""
+    if source_date and xau_entry and getattr(BROKER_CLOCK, "verified", True):
+        try:
+            s_date = datetime.fromisoformat(source_date).date()
+            b_offset = record.get("broker_utc_offset", 3)
+            utc_iso = compute_utc_iso(s_date, xau_entry, b_offset)
+            if utc_iso:
+                utc_dt = datetime.fromisoformat(utc_iso.replace("Z", "+00:00"))
+                local_dt = utc_dt.astimezone()
+                tz_name = local_dt.strftime("%Z") or "Local"
+                if local_dt.tzinfo and hasattr(local_dt.tzinfo, "utcoffset"):
+                    offset_sec = local_dt.tzinfo.utcoffset(local_dt).total_seconds()
+                    offset_h = int(offset_sec // 3600)
+                    tz_name = f"GMT{'+' if offset_h >= 0 else ''}{offset_h}"
+                local_time_formatted = local_dt.strftime("%H:%M")
+                date_delta = (local_dt.date() - s_date).days
+                delta_str = " +1d" if date_delta > 0 else " -1d" if date_delta < 0 else ""
+                local_str = f" · {local_time_formatted} {tz_name}{delta_str}"
+        except Exception:
+            pass
+
+    gbp_entry_str = f"{gbpusd_entry} Broker" if gbpusd_entry and gbpusd_entry != "DEFERRED_TO_H7" else "Chờ H7"
+    gbpaud_entry_str = f"{gbpaud_entry} Broker" if gbpaud_entry else "--:--"
+
+    lines = [
+        f"🚨 XAUUSD ENTRY READY · H{h}",
+        f"XAUUSD: {xau_icon} {xau_dir}",
+        f"Entry: {xau_entry} Broker{local_str}",
+        f"Nguồn: GBPAUD {gbpaud_dir} · {relation_label}",
+        f"GBPUSD: {gbpusd_dir} · {gbp_entry_str}",
+        f"GBPAUD: {gbpaud_dir} · {gbpaud_entry_str}",
+        f"Logic: v{ver} · {source_date}",
+    ]
+    return "\n".join(lines)
+
+
+def send_xau_entry_ready_alert(record, broker_dt=None) -> bool:
+    """Attempt sending an entry ready alert. Add to entry_alerts_sent if success, else queue in entry_alerts_pending."""
+    global entry_alerts_sent, entry_alerts_pending
+    h = record.get("hour")
+    source_date = record.get("source_date")
+    ver = record.get("logic_version", SIGNAL_LOGIC_VERSION)
+    xau_dir = (record.get("pair_dirs") or {}).get("XAUUSD")
+    xau_entry = (record.get("pair_entry_times") or {}).get("XAUUSD")
+
+    if not source_date or xau_dir not in ("BUY", "SELL") or not xau_entry:
+        return False
+
+    fp = build_xau_entry_alert_fingerprint(source_date, h, ver, xau_dir, xau_entry)
+    if fp in entry_alerts_sent:
+        return True
+
+    # Check if entry is expired (> 5 minutes past entry datetime)
+    if broker_dt is not None and source_date and xau_entry:
+        try:
+            s_date = datetime.fromisoformat(source_date).date()
+            em_match = re.fullmatch(r"([01]\d|2[0-3]):([0-5]\d)", str(xau_entry))
+            if em_match:
+                eh, em = int(em_match.group(1)), int(em_match.group(2))
+                entry_dt = datetime.combine(s_date, datetime.min.time()).replace(hour=eh, minute=em)
+                if broker_dt > entry_dt + timedelta(minutes=ENTRY_ALERT_GRACE_MINUTES):
+                    print(f"  [ENTRY ALERT EXPIRED] H={h} entry={xau_entry} past grace limit ({broker_dt})")
+                    entry_alerts_pending.pop(fp, None)
+                    return False
+        except Exception:
+            pass
+
+    msg = build_entry_ready_telegram_message(record, broker_dt=broker_dt)
+    success = send_telegram(msg)
+    if success:
+        entry_alerts_sent.add(fp)
+        entry_alerts_pending.pop(fp, None)
+        _save_state(sent_today, broker_dt=broker_dt)
+        print(f"  [ALERT SENT] H={h} XAUUSD={xau_dir} entry={xau_entry} fp={fp}")
+        return True
+    else:
+        entry_alerts_pending[fp] = {
+            "record": record,
+            "added_at": broker_dt.isoformat() if broker_dt else "",
+            "attempts": entry_alerts_pending.get(fp, {}).get("attempts", 0) + 1,
+        }
+        _save_state(sent_today, broker_dt=broker_dt)
+        print(f"  [ALERT QUEUED] H={h} fp={fp} (will retry)")
+        return False
+
+
+def reconcile_due_xau_entry_alerts(broker_dt):
+    """Reconcile and retry pending/due XAUUSD entry ready alerts on startup or live loop."""
+    global entry_alerts_pending, entry_alerts_sent
+    if not broker_dt:
+        return
+
+    # 1. Check pending queue retries
+    pending_fps = list(entry_alerts_pending.keys())
+    for fp in pending_fps:
+        item = entry_alerts_pending.get(fp)
+        if not item:
+            continue
+        record = item.get("record") if isinstance(item, dict) else None
+        if record:
+            send_xau_entry_ready_alert(record, broker_dt=broker_dt)
+
+    # 2. Check today's public slots for unannounced READY records
+    hours = get_target_hours(broker_dt)
+    for hour in hours:
+        slot_dt = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=hour)
+        if broker_dt < slot_dt:
+            continue
+        res = evaluate_all_pairs_for_slot(slot_dt, hour, as_of_dt=broker_dt, resolve_historical_followup=True)
+        if res and should_send_xau_entry_alert(res, entry_alerts_sent):
+            send_xau_entry_ready_alert(res, broker_dt=broker_dt)
 
 
 def reverse_signal(signal):
@@ -2496,7 +2758,7 @@ def _process_live_slot(broker_dt, hour):
 
     Handles three states:
     - PENDING_FOLLOWUP: log signal without entry, keep retrying until follow-up resolves.
-    - READY: log signal with entry, send Telegram, mark sent.
+    - READY: log signal with entry, send Telegram entry alert, mark sent.
     - WAIT: keep retrying until deadline.
     """
     key = (broker_dt.date(), hour)
@@ -2516,6 +2778,20 @@ def _process_live_slot(broker_dt, hour):
     entry_time = result.get("entry_time")
 
     if entry_state == "PENDING_FOLLOWUP":
+        source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=hour, minute=0)
+        cutoff_dt = source_slot.replace(minute=45)
+        if broker_dt >= cutoff_dt:
+            print(f"  [ENTRY] H={hour} follow-up due=45 now={broker_dt.strftime('%H:%M')} resolving...")
+            resolved = evaluate_all_pairs_for_slot(
+                source_slot, hour, as_of_dt=broker_dt, resolve_historical_followup=True
+            )
+            if resolved:
+                result = resolved
+                entry_state = result.get("entry_state")
+                signal = result.get("signal")
+                entry_time = result.get("entry_time")
+
+    if entry_state == "PENDING_FOLLOWUP":
         pair_dirs = get_pair_direction(hour, signal, broker_dt, full_result=result)
         hour_note = get_hour_note(hour, broker_dt=broker_dt)
         extra_fields = {
@@ -2532,6 +2808,7 @@ def _process_live_slot(broker_dt, hour):
         push_to_dashboard()
         print(f"  [PENDING] H={hour} signal={signal} candidate={result.get('entry_candidate')} rule={result.get('entry_rule')}")
         return False
+
 
     if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
         print(f"  [MISSED] H={hour} exceeded entry deadline")
@@ -2560,17 +2837,19 @@ def _process_live_slot(broker_dt, hour):
         extra_fields=extra_fields if extra_fields else None,
     )
     push_to_dashboard()
-    send_report(result, hour, broker_dt)
     sent_today.add(key)
-    _save_state(sent_today)
+    if should_send_xau_entry_alert(result, entry_alerts_sent):
+        send_xau_entry_ready_alert(result, broker_dt=broker_dt)
+    else:
+        _save_state(sent_today)
     print(f"  [SENT] H={hour} signal={signal} entry={entry_time}")
     return True
 
 
 def main(profile_name=None):
-    global mt5_ready, sent_today, _active_profile, _broker_clock_error
+    global mt5_ready, sent_today, _active_profile, _broker_clock_error, entry_alerts_sent, entry_alerts_pending
     print("=" * 55)
-    print("  MT5 Multi-Timeframe Signal Bot v3.18.2")
+    print(f"  MT5 Multi-Timeframe Signal Bot v{SIGNAL_LOGIC_VERSION}")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {', '.join(f'H={h}' for h in TARGET_HOURS)}")
     print(f"  Auto-close: XAUUSD 17:59, GBP 19:59 (Broker)")
@@ -2630,6 +2909,9 @@ def main(profile_name=None):
     # Restore state from previous run (same day only)
     saved = _load_state()
     sent_today = saved.get("sent_today", set())
+    entry_alerts_sent.update(saved.get("entry_alerts_sent", set()))
+    entry_alerts_pending.update(saved.get("entry_alerts_pending", {}))
+
     _auto_close_completed.update(
         (broker_dt.date(), category)
         for category in saved.get("auto_close_completed", set())
@@ -2646,6 +2928,7 @@ def main(profile_name=None):
 
     # Rebuild signals_log from MT5 before pushing (avoid stale pair_dirs after rule changes)
     startup_rebuilt = rebuild_signals_on_startup()
+    reconcile_due_xau_entry_alerts(broker_dt)
 
     push_to_dashboard()
     if startup_rebuilt > 0:

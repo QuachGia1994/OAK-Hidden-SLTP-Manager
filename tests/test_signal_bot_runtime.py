@@ -20,13 +20,11 @@ class SignalBotRuntimeTests(unittest.TestCase):
             mt5_connected=True,
         )
 
-        self.assertIn("Slots: H=3, H=4, H=7, H=9, H=12, H=14, H=16", message)
-        self.assertIn("GBPUSD/GBPAUD H1 hôm qua + XAUUSD M15 hôm nay", message)
-        self.assertIn("XAUUSD 17:59", message)
-        self.assertIn("GBPAUD/GBPCAD/GBPJPY/GBPUSD 19:59", message)
-        self.assertNotIn("H=5", message)
-        self.assertNotIn("02-15:45", message)
-        self.assertNotIn("RHYTHM", message.upper())
+        self.assertIn("🤖 OAK SIGNAL BOT ONLINE · v63", message)
+        self.assertIn("Slots: H3 · H7 · H9 · H12 · H14 · H16", message)
+        self.assertIn("Pairs: GBPAUD / GBPUSD → XAUUSD", message)
+        self.assertIn("Auto-close: XAU 17:59 · GBP 19:59 Broker", message)
+        self.assertNotIn("H1 hôm qua", message)
 
     def test_live_loop_has_no_per_signal_history_rebuild(self) -> None:
         source = inspect.getsource(mt5_signal_bot.main)
