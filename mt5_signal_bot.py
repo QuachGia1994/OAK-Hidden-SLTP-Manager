@@ -380,7 +380,7 @@ def _load_state():
 
     stored_ver = data.get("signal_logic_version")
     if stored_ver != SIGNAL_LOGIC_VERSION:
-        print(f"  [STATE] Dropping stale sent_today: stored v{stored_ver}, current v{SIGNAL_LOGIC_VERSION}")
+        print(f"  [STATE] Dropping stale sent_today: stored version={stored_ver or 'legacy'}, current version={SIGNAL_LOGIC_VERSION}")
         return {
             "auto_close_completed": set(data.get("auto_close_completed", [])),
             "auto_close_pending": pending_closes,
@@ -481,6 +481,54 @@ def _write_signals_log_atomic(data):
                 os.remove(temporary)
         except OSError:
             pass
+
+
+def send_telegram(text: str) -> bool:
+    """Send Telegram messages without allowing Telegram failure to stop the signal bot."""
+    if not text:
+        return False
+
+    try:
+        profile_name = _active_profile or ""
+        profile_cfg = load_profile_config(profile_name)
+
+        token = resolve_telegram_token(
+            profile_name,
+            profile_cfg.get("tele_token"),
+            global_fallback=TELEGRAM_TOKEN,
+        )
+        chat_id = profile_cfg.get("tele_chat") or TELEGRAM_CHAT_ID
+    except Exception as error:
+        print(f"[TELEGRAM] Cannot resolve profile credentials: {error}")
+        return False
+
+    if not token or not chat_id:
+        print(
+            "[TELEGRAM] Missing token or chat_id "
+            f"for profile={profile_name or '<default>'}"
+        )
+        return False
+
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = json.dumps({
+        "chat_id": chat_id,
+        "text": text,
+    }).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    try:
+        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status == 200:
+                res_body = json.loads(resp.read().decode("utf-8"))
+                if isinstance(res_body, dict) and res_body.get("ok") is True:
+                    return True
+                print(f"[TELEGRAM] Response ok=False: {res_body}")
+                return False
+            print(f"[TELEGRAM] HTTP status {resp.status}")
+            return False
+    except Exception as e:
+        print(f"[TELEGRAM] Send error: {e}")
+        return False
 
 
 def get_current_prices(pair_dirs):
@@ -2067,35 +2115,7 @@ def load_signal_rule_contract():
     }
 
 
-def send_telegram(text: str) -> bool:
-    """Send a text message via Telegram Bot API (POST). Returns True strictly on HTTP 200 ok=True."""
-    if not text:
-        return False
-    token = resolve_telegram_token() or TELEGRAM_TOKEN
-    chat_id = TELEGRAM_CHAT_ID
-    if not token or not chat_id:
-        print("[TELEGRAM] Missing token or chat_id")
-        return False
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({
-        "chat_id": chat_id,
-        "text": text,
-    }).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    try:
-        req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            if resp.status == 200:
-                res_body = json.loads(resp.read().decode("utf-8"))
-                if isinstance(res_body, dict) and res_body.get("ok") is True:
-                    return True
-                print(f"[TELEGRAM] Response ok=False: {res_body}")
-                return False
-            print(f"[TELEGRAM] HTTP status {resp.status}")
-            return False
-    except Exception as e:
-        print(f"[TELEGRAM] Send error: {e}")
-        return False
+
 
 
 def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None):
