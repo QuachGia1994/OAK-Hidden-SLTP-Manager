@@ -1874,7 +1874,7 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None, historical_complete=Fals
         for key in ENTRY_PLAN_FIELDS
         if key in result
     }
-    log_signal(h, broker_dt, sig or "WAIT", entry_time or "N/A", pair_dirs or {}, hour_note,
+    log_signal(h, broker_dt, sig or "WAIT", entry_time, pair_dirs or {}, hour_note,
                pattern_signal=result.get("pattern_signal"),
                deactivated=deactivated,
                source_date=source_date,
@@ -2188,27 +2188,46 @@ def _process_auto_closes(broker_dt):
 
 
 def _mark_passed_slots_on_startup(broker_dt):
-    """Suppress catch-up Telegram sends for publication minutes already passed."""
+    """Suppress catch-up Telegram sends for publication minutes already passed.
+
+    Only mark a slot as sent if its entry is already resolved (READY or WAIT).
+    PENDING_FOLLOWUP slots must NOT be marked sent — the live loop needs to
+    resolve their follow-up candles and update entry_time.
+    """
     for hour in get_target_hours(broker_dt):
         signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
-        if broker_dt >= signal_dt:
+        if broker_dt < signal_dt:
+            continue
+        # Check if this slot's entry is already resolved
+        slot_dt = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=hour)
+        result = evaluate_all_pairs_for_slot(
+            slot_dt, hour,
+            as_of_dt=broker_dt,
+            resolve_historical_followup=False,
+        )
+        if result is None:
+            result = calculate_slot_signal(broker_dt, hour, as_of_dt=broker_dt)
+        entry_state = result.get("entry_state") if result else None
+        if entry_state == "PENDING_FOLLOWUP":
+            print(f"  [STARTUP] H={hour} pending follow-up — not marking sent")
+            continue
+        if entry_state == "READY" or result.get("signal") == "WAIT":
             sent_today.add((broker_dt.date(), hour))
 
 
 def _process_live_slot(broker_dt, hour):
-    """Publish one due logical slot, retrying incomplete data until its deadline."""
+    """Publish one due logical slot, retrying incomplete data until its deadline.
+
+    Handles three states:
+    - PENDING_FOLLOWUP: log signal without entry, keep retrying until follow-up resolves.
+    - READY: log signal with entry, send Telegram, mark sent.
+    - WAIT: keep retrying until deadline.
+    """
     key = (broker_dt.date(), hour)
     if key in sent_today:
         return False
     signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
     if broker_dt < signal_dt:
-        return False
-
-    entry_time = get_entry_time_for_slot(broker_dt, hour)
-    if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
-        print(f"  [MISSED] H={hour} exceeded entry deadline")
-        sent_today.add(key)
-        _save_state(sent_today)
         return False
 
     result = calculate_slot_signal(broker_dt, hour)
@@ -2218,21 +2237,21 @@ def _process_live_slot(broker_dt, hour):
 
     entry_state = result.get("entry_state")
     signal = result.get("signal")
-    entry_time = result.get("entry_time") or entry_time
+    entry_time = result.get("entry_time")
 
     if entry_state == "PENDING_FOLLOWUP":
         pair_dirs = get_pair_direction(hour, signal, broker_dt, full_result=result)
         hour_note = get_hour_note(hour, broker_dt=broker_dt)
+        extra_fields = {
+            key_: result.get(key_)
+            for key_ in ENTRY_PLAN_FIELDS
+            if key_ in result
+        }
         log_signal(
-            hour,
-            broker_dt,
-            signal,
-            None,
-            pair_dirs,
-            hour_note,
+            hour, broker_dt, signal, None, pair_dirs, hour_note,
             pattern_signal=result.get("pattern_signal"),
             deactivated=result.get("deactivated", False),
-            extra_fields=result,
+            extra_fields=extra_fields if extra_fields else None,
         )
         push_to_dashboard()
         print(f"  [PENDING] H={hour} signal={signal} candidate={result.get('entry_candidate')} rule={result.get('entry_rule')}")
@@ -2253,16 +2272,16 @@ def _process_live_slot(broker_dt, hour):
         print(f"  [RETRY] H={hour} - no pair directions")
         return False
     hour_note = get_hour_note(hour, broker_dt=broker_dt)
+    extra_fields = {
+        key_: result.get(key_)
+        for key_ in ENTRY_PLAN_FIELDS
+        if key_ in result
+    }
     log_signal(
-        hour,
-        broker_dt,
-        signal,
-        entry_time,
-        pair_dirs,
-        hour_note,
+        hour, broker_dt, signal, entry_time, pair_dirs, hour_note,
         pattern_signal=result.get("pattern_signal"),
         deactivated=result.get("deactivated", False),
-        extra_fields=result,
+        extra_fields=extra_fields if extra_fields else None,
     )
     push_to_dashboard()
     send_report(result, hour, broker_dt)

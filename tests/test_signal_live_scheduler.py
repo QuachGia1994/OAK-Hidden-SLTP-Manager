@@ -16,9 +16,8 @@ class SignalLiveSchedulerTests(unittest.TestCase):
             patch.object(
                 mt5_signal_bot,
                 "calculate_slot_signal",
-                return_value={"signal": "WAIT", "report": "missing candle"},
+                return_value={"signal": "WAIT", "entry_state": "WAIT", "report": "missing candle"},
             ) as calculate,
-            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="07:11"),
             patch.object(mt5_signal_bot, "_save_state") as save,
         ):
             emitted = mt5_signal_bot._process_live_slot(broker_dt, 7)
@@ -32,16 +31,21 @@ class SignalLiveSchedulerTests(unittest.TestCase):
         broker_dt = datetime(2026, 7, 14, 8, 26)
         sent = set()
 
+        # With the new flow, calculate_slot_signal is called first.
+        # Return a READY result with entry_time=07:11 so the deadline check triggers.
+        result = {
+            "signal": "BUY",
+            "entry_state": "READY",
+            "entry_time": "07:11",
+        }
         with (
             patch.object(mt5_signal_bot, "sent_today", sent),
-            patch.object(mt5_signal_bot, "calculate_slot_signal") as calculate,
-            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="07:11"),
+            patch.object(mt5_signal_bot, "calculate_slot_signal", return_value=result),
             patch.object(mt5_signal_bot, "_save_state") as save,
         ):
             emitted = mt5_signal_bot._process_live_slot(broker_dt, 7)
 
         self.assertFalse(emitted)
-        calculate.assert_not_called()
         save.assert_called_once()
         self.assertEqual(sent, {(broker_dt.date(), 7)})
 
@@ -49,7 +53,12 @@ class SignalLiveSchedulerTests(unittest.TestCase):
         broker_dt = datetime(2026, 7, 14, 10, 0)
         sent = set()
 
-        with patch.object(mt5_signal_bot, "sent_today", sent):
+        # All slots return READY → all marked sent
+        ready_result = {"signal": "BUY", "entry_state": "READY", "entry_time": "09:11"}
+        with (
+            patch.object(mt5_signal_bot, "sent_today", sent),
+            patch.object(mt5_signal_bot, "evaluate_all_pairs_for_slot", return_value=ready_result),
+        ):
             mt5_signal_bot._mark_passed_slots_on_startup(broker_dt)
 
         self.assertEqual(
@@ -91,7 +100,6 @@ class SignalLiveSchedulerTests(unittest.TestCase):
         with (
             patch.object(mt5_signal_bot, "sent_today", sent),
             patch.object(mt5_signal_bot, "calculate_slot_signal", return_value=result),
-            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="03:11"),
             patch.object(mt5_signal_bot, "log_signal") as log_signal,
             patch.object(mt5_signal_bot, "push_to_dashboard"),
             patch.object(mt5_signal_bot, "send_report", return_value=result["pair_dirs"]),
