@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [3, 7, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 /** Minimum backend contract — independent XAUUSD/GBPUSD/GBPAUD M15 classifier. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 55;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 56;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 
@@ -94,17 +94,16 @@ export function getTargetHours(jsDayOfWeek: number, _brokerDate?: string): numbe
   return [...TARGET_HOURS];
 }
 
-const SIGNAL_TIMES: Readonly<Record<number, string>> = {
-  3: "03:00",
-  7: "07:00",
-  9: "09:00",
-  12: "12:00",
-  14: "14:00",
-  16: "16:00",
-};
-
-export function getSignalTime(hour: number, _brokerDate?: string): string {
-  return SIGNAL_TIMES[Number(hour)] ?? "--:--";
+export function getSignalTime(hour: number, _date?: string): string {
+  const signalTimes: Record<number, string> = {
+    3: "03:00",
+    7: "07:00",
+    9: "09:00",
+    12: "12:00",
+    14: "14:00",
+    16: "16:00",
+  };
+  return signalTimes[hour] || "--:--";
 }
 
 function formatBrokerTime(hour: number, minute: number): string {
@@ -112,15 +111,16 @@ function formatBrokerTime(hour: number, minute: number): string {
 }
 
 /** Display entry time label for a slot. */
-export function getEntryTimeLabel(hour: number, _brokerDate?: string): string {
-  const numericHour = Number(hour);
-  if ([3, 7, 9, 12, 14, 16].includes(numericHour)) {
-    return [
-      formatBrokerTime(numericHour, 49),
-      formatBrokerTime(numericHour + 1, 25),
-    ].join(" / ");
-  }
-  return "—";
+export function getEntryTimeLabel(hour: number, _date?: string): string {
+  const entryLabels: Record<number, string> = {
+    3: "03:49 / 04:25",
+    7: "07:49 / 08:25",
+    9: "09:49 / 10:25",
+    12: "12:49 / 13:25",
+    14: "14:49 / 15:25",
+    16: "16:49 / 17:25",
+  };
+  return entryLabels[hour] || "--:--";
 }
 
 export function getTargetMinute(hour: number): number {
@@ -142,13 +142,13 @@ type RuleLocale = "VN" | "EN";
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
     "Mọi slot H3/H7/H9/H12/H14/H16 phát Broker lúc H:00. Đánh giá độc lập ba symbol: XAUUSD, GBPUSD, GBPAUD dùng nến M15 của chính symbol đó trong ngày Broker hiện tại.",
-    "Nến offset -30 làm Base; 3 nến pattern (-45/-60/-75) phân nhóm SW (đảo Base) hoặc BT (giữ Base). Riêng slot H14 đảo ngược signal cuối.",
-    "Mốc entry: SW → (H+1):25, BT → H:49. Thiếu nến → WAIT.",
+    "Nến offset -30 làm Base; 3 nến pattern (-45/-60/-75) phân nhóm SW (đảo Base) hoặc BT (giữ Base). Slot H14 đảo thêm một lần.",
+    "Hậu kiểm nến -15 của cùng symbol: cùng hướng signal tạm → đảo, ngược hướng → giữ. Entry time: SW → (H+1):25, BT → H:49. Thiếu nến/unresolved → WAIT.",
   ],
   EN: [
     "Every slot (H3/H7/H9/H12/H14/H16) evaluates XAUUSD, GBPUSD, and GBPAUD independently on current Broker date M15 candles (-30 Base, -45/-60/-75 pattern).",
-    "SW → reverse Base; BT → keep Base. H14 reverses final calculated signal. DOJI M15 steps back 1 M15 bar and reverses previous direction.",
-    "Entry time: SW → (H+1):25, BT → H:49. Missing candles → WAIT.",
+    "SW → reverse Base; BT → keep Base. H14 reverses calculated direction.",
+    "Offset -15 post-filter for same symbol: same direction → reverse provisional signal, opposite direction → keep. Entry time: SW → (H+1):25, BT → H:49. Missing → WAIT.",
   ],
 };
 

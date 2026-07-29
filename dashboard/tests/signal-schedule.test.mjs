@@ -178,10 +178,10 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the v55 M15 multi-pair rules", () => {
+test("shows the v56 M15 multi-pair rules", () => {
   const rules = getDayRules("EN", 2);
   assert.equal(rules.some((rule) => /M30|priority|compares H6/i.test(rule)), false);
   assert.equal(rules.some((rule) => rule.includes("evaluates XAUUSD, GBPUSD, and GBPAUD independently")), true);
-  assert.equal(rules.some((rule) => rule.includes("SW → reverse Base")), true);
+  assert.equal(rules.some((rule) => rule.includes("Offset -15 post-filter")), true);
   assert.equal(rules.some((rule) => rule.includes("(H+1):25")), true);
 });

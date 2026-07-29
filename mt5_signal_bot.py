@@ -115,7 +115,7 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 55
+SIGNAL_LOGIC_VERSION = 56
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 
 
@@ -1042,10 +1042,53 @@ def resolve_previous_broker_session(broker_dt, symbol, timeframe):
     return None
 
 
+def candle_direction_to_signal(direction):
+    """Convert candle direction 'TANG'/'GIAM' to signal 'BUY'/'SELL'."""
+    if direction == "TANG":
+        return "BUY"
+    if direction == "GIAM":
+        return "SELL"
+    return None
+
+
+def apply_offset15_filter(provisional_signal, offset15_direction):
+    """Post-process provisional signal against offset -15 candle direction.
+
+    Contract:
+    - provisional_signal must be BUY or SELL.
+    - offset15_direction must be TANG or GIAM.
+    - returns None if inputs are invalid/unresolved.
+    """
+    if provisional_signal not in ("BUY", "SELL"):
+        return None
+    offset15_signal = candle_direction_to_signal(offset15_direction)
+    if offset15_signal is None:
+        return None
+
+    same_direction = (provisional_signal == offset15_signal)
+    if same_direction:
+        final_signal = reverse_signal(provisional_signal)
+        relation = "SAME"
+        action = "REVERSE"
+    else:
+        final_signal = provisional_signal
+        relation = "OPPOSITE"
+        action = "KEEP"
+
+    return {
+        "offset15_direction": offset15_direction,
+        "offset15_signal": offset15_signal,
+        "relation": relation,
+        "action": action,
+        "final_signal": final_signal,
+    }
+
+
 def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
-    """Evaluate 4 M15 candles (base + 3 pattern) from current Broker session for a symbol.
+    """Evaluate 5 M15 candles (offsets -15, -30, -45, -60, -75) from current Broker session for a symbol.
 
     Offsets:
+      -15 = Post-filter candle
       -30 = Base
       -45 = Pattern 1
       -60 = Pattern 2
@@ -1055,23 +1098,35 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
     source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
-    all_dirs = [
-        _lookback_candle_direction(symbol, mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
-        for offset in (30, 45, 60, 75)
-    ]
-    if any(d is None for d in all_dirs):
-        return None
-    base_dir = all_dirs[0]
+
+    # Base (-30) and pattern (-45, -60, -75)
+    base_dir = _lookback_candle_direction(symbol, mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=30))
     if base_dir not in ("TANG", "GIAM"):
         return None
-    pattern_dirs = all_dirs[1:]
+
+    pattern_dirs = [
+        _lookback_candle_direction(symbol, mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
+        for offset in (45, 60, 75)
+    ]
+    if any(d is None or d not in ("TANG", "GIAM") for d in pattern_dirs):
+        return None
+
     pullback_group = _classify_three_candles(pattern_dirs)
     if pullback_group not in ("SW", "BT"):
         return None
+
     base_signal = "BUY" if base_dir == "TANG" else "SELL"
-    final_direction = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
-    if h == 14:
-        final_direction = reverse_signal(final_direction)
+    pattern_direction = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
+    slot_adjusted_direction = reverse_signal(pattern_direction) if h == 14 else pattern_direction
+    pre_offset15_direction = slot_adjusted_direction
+
+    # Offset -15 post-filter
+    offset15_dt = source_slot - timedelta(minutes=15)
+    offset15_direction = _lookback_candle_direction(symbol, mt5.TIMEFRAME_M15, offset15_dt)
+    filter_res = apply_offset15_filter(pre_offset15_direction, offset15_direction)
+    if filter_res is None:
+        return None
+
     entry_time = f"{h + 1:02d}:25" if pullback_group == "SW" else f"{h:02d}:49"
 
     return {
@@ -1083,9 +1138,17 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
         "matched_pattern": tuple(pattern_dirs),
         "pattern_length": 3,
         "pullback_group": pullback_group,
-        "classification_reason": "shared_three_candle_pattern",
-        "offsets": [30, 45, 60, 75],
-        "direction": final_direction,
+        "pattern_direction": pattern_direction,
+        "slot_adjusted_direction": slot_adjusted_direction,
+        "pre_offset15_direction": pre_offset15_direction,
+        "offset15_datetime": offset15_dt.isoformat(),
+        "offset15_direction": offset15_direction,
+        "offset15_signal": filter_res["offset15_signal"],
+        "offset15_relation": filter_res["relation"],
+        "offset15_action": filter_res["action"],
+        "classification_reason": "shared_three_candle_pattern_with_offset15_filter",
+        "offsets": [15, 30, 45, 60, 75],
+        "direction": filter_res["final_signal"],
         "entry_time": entry_time,
     }
 
@@ -1101,6 +1164,10 @@ def evaluate_all_pairs_for_slot(broker_dt, hour):
         pair_results[symbol] = evaluate_symbol_m15_for_slot(broker_dt, h, symbol)
 
     pair_dirs = {}
+    pair_pre_offset15_dirs = {}
+    pair_offset15_dirs = {}
+    pair_offset15_relations = {}
+    pair_offset15_actions = {}
     pair_entry_times = {}
     pair_groups = {}
     pair_evidence = {}
@@ -1109,11 +1176,19 @@ def evaluate_all_pairs_for_slot(broker_dt, hour):
         res = pair_results[symbol]
         if res is None:
             pair_dirs[symbol] = "WAIT"
+            pair_pre_offset15_dirs[symbol] = "WAIT"
+            pair_offset15_dirs[symbol] = None
+            pair_offset15_relations[symbol] = None
+            pair_offset15_actions[symbol] = None
             pair_entry_times[symbol] = None
             pair_groups[symbol] = None
             pair_evidence[symbol] = None
         else:
             pair_dirs[symbol] = res["direction"]
+            pair_pre_offset15_dirs[symbol] = res["pre_offset15_direction"]
+            pair_offset15_dirs[symbol] = res["offset15_direction"]
+            pair_offset15_relations[symbol] = res["offset15_relation"]
+            pair_offset15_actions[symbol] = res["offset15_action"]
             pair_entry_times[symbol] = res["entry_time"]
             pair_groups[symbol] = res["pullback_group"]
             pair_evidence[symbol] = res
@@ -1129,15 +1204,23 @@ def evaluate_all_pairs_for_slot(broker_dt, hour):
             report_lines.append(f"  {symbol}: WAIT (missing M15 candle data)")
         else:
             report_lines.append(
-                f"  {symbol}: base={res['base_direction']}/{res['base_signal']}, "
-                f"pattern={','.join(res['pattern_directions'])}, group={res['pullback_group']}, "
-                f"direction={res['direction']}, entry={res['entry_time']}"
+                f"  {symbol}: base={res['base_direction']}/{res['base_signal']} "
+                f"pattern={','.join(res['pattern_directions'])} group={res['pullback_group']} "
+                f"pattern_dir={res['pattern_direction']} slot_adj={res['slot_adjusted_direction']} "
+                f"offset15={res['offset15_direction']}/{res['offset15_signal']} "
+                f"relation={res['offset15_relation']} action={res['offset15_action']} "
+                f"final={res['direction']} entry={res['entry_time']}"
             )
 
     return {
+        "logic_version": SIGNAL_LOGIC_VERSION,
         "signal": top_signal,
         "entry_time": top_entry_time,
         "pair_dirs": pair_dirs,
+        "pair_pre_offset15_dirs": pair_pre_offset15_dirs,
+        "pair_offset15_dirs": pair_offset15_dirs,
+        "pair_offset15_relations": pair_offset15_relations,
+        "pair_offset15_actions": pair_offset15_actions,
         "pair_entry_times": pair_entry_times,
         "pair_groups": pair_groups,
         "pair_evidence": pair_evidence,

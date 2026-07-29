@@ -5,6 +5,10 @@ export interface Signal {
   signal: "BUY" | "SELL" | "WAIT" | "SW" | "BT";
   pattern_signal?: string;
   pair_dirs: Record<string, string>;
+  pair_pre_offset15_dirs?: Record<string, string>;
+  pair_offset15_dirs?: Record<string, string | null>;
+  pair_offset15_relations?: Record<string, string | null>;
+  pair_offset15_actions?: Record<string, string | null>;
   pair_entry_times?: Record<string, string | null>;
   pair_groups?: Record<string, string | null>;
   pair_evidence?: Record<string, unknown>;
