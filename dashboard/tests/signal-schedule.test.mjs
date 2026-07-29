@@ -167,7 +167,7 @@ test("derives deactivated card state for H4 and explicit deactivated flag", () =
 });
 
 test("renders canonical signal pairs", () => {
-  assert.deepEqual(DISPLAYED_SIGNAL_PAIRS, ["XAUUSD", "GBPUSD", "GBPAUD"]);
+  assert.deepEqual(DISPLAYED_SIGNAL_PAIRS, ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"]);
 });
 
 test("does not re-filter already validated history after VIP masking", () => {
@@ -178,12 +178,10 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the v67 M15 multi-pair rules", () => {
+test("shows the v69 M15 5-symbol rules", () => {
   const rules = getDayRules("EN", 2);
-  assert.equal(rules.some((rule) => /M30|priority|compares H6/i.test(rule)), false);
-  assert.equal(rules.some((rule) => rule.includes("completed H1 candle")), true);
-  assert.equal(rules.some((rule) => rule.includes("GBPUSD signal is inverted")), true);
-  assert.equal(rules.some((rule) => rule.includes("entry :11/:25 means SAME")), true);
-  assert.equal(rules.some((rule) => rule.includes("H3 is active on every")), true);
-  assert.equal(rules.some((rule) => rule.includes("only for XAUUSD entry timing")), true);
+  assert.equal(rules.some((rule) => rule.includes("The XAUUSD Entry Time selects the M15 Base candle")), true);
+  assert.equal(rules.some((rule) => rule.includes("Entry H:11 uses the M15 candle opening at H−00:15")), true);
+  assert.equal(rules.some((rule) => rule.includes("Each symbol reads its own M15 candle")), true);
+  assert.equal(rules.some((rule) => rule.includes("inverted once more")), true);
 });

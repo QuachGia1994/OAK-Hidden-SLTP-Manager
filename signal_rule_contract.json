@@ -1,5 +1,5 @@
 {
-  "logic_version": 68,
+  "logic_version": 69,
   "public_slots": [
     3,
     7,
@@ -11,20 +11,6 @@
   "internal_slots": [],
   "rules": {
     "VN": [
-      "GBPAUD và GBPUSD được tính độc lập bằng M15 của ngày Broker hiện tại: -30 là Base, -45/-60/-75 là pattern và -15 là hậu kiểm.",
-      "H3 chưa tính GBPUSD; GBPUSD bắt đầu từ H7. Từ H9 trở đi, final signal GBPUSD được đảo một lần.",
-      "GBPAUD là nguồn direction cho XAUUSD. Entry XAU kết thúc bằng :11 hoặc :25 thì XAUUSD cùng chiều GBPAUD; entry kết thúc bằng :49 thì XAUUSD đảo chiều GBPAUD.",
-      "XAUUSD dùng entry riêng. GBPUSD và GBPAUD vào sau entry XAU theo pair_entry_times của từng symbol.",
-      "H3 Thứ Năm không actionable. Thiếu dữ liệu hoặc DOJI không resolve được thì WAIT."
-    ],
-    "EN": [
-      "GBPAUD and GBPUSD are calculated independently using current Broker day M15 candles: -30 is Base, -45/-60/-75 are pattern, and -15 is post-filter.",
-      "H3 does not evaluate GBPUSD; GBPUSD starts at H7. From H9 onwards, GBPUSD final signal is inverted once.",
-      "GBPAUD is the direction source for XAUUSD. When XAU entry ends in :11 or :25, XAUUSD takes the SAME direction as GBPAUD; when XAU entry ends in :49, XAUUSD takes the REVERSE direction of GBPAUD.",
-      "XAUUSD uses its own entry time. GBPUSD and GBPAUD enter after XAU entry per pair_entry_times for each symbol.",
-      "Thursday H3 is non-actionable. Missing data or unresolved DOJI results in WAIT."
-    ],
-    "vn": [
       "Entry Time của XAUUSD quyết định cây M15 Base dùng tạo signal cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.",
       "Entry H:11 dùng cây M15 mở H−00:15, đóng H:00 và đảo Base.",
       "Entry H:49 dùng cây M15 mở H:00, đóng H:15 và giữ nguyên Base.",
@@ -33,7 +19,7 @@
       "Tại H14 và H16, signal của cả năm symbol được đảo thêm một lần.",
       "Base thiếu dữ liệu hoặc DOJI thì riêng symbol đó WAIT."
     ],
-    "en": [
+    "EN": [
       "The XAUUSD Entry Time selects the M15 Base candle used to derive signals for XAUUSD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.",
       "Entry H:11 uses the M15 candle opening at H−00:15 and closing at H:00, then reverses the Base.",
       "Entry H:49 uses the M15 candle opening at H:00 and closing at H:15, then keeps the Base direction.",
@@ -43,5 +29,5 @@
       "A missing or DOJI Base results in WAIT only for that symbol."
     ]
   },
-  "startup_summary": "v68: Stage A/B engine, 5 symbols (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD)"
+  "startup_summary": "v69: Stage A/B engine, 5 symbols (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD)"
 }

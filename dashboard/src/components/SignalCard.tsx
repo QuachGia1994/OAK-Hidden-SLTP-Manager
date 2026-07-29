@@ -19,16 +19,18 @@ function getPendingEntryLabel(locale: "VN" | "EN", hour: number): string {
 export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: boolean }) {
   const { locale } = useLocale();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [evidence, setEvidence] = useState<SignalEvidence | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
 
-  const fetchEvidence = useCallback(async () => {
+  const fetchEvidence = useCallback(async (symbol: string) => {
+    setSelectedSymbol(symbol);
     setDrawerOpen(true);
     setEvidenceLoading(true);
     setEvidenceError(null);
     try {
-      const res = await fetch(`/api/signals/evidence?date=${signal.date}&hour=${signal.hour}`);
+      const res = await fetch(`/api/signals/evidence?date=${signal.date}&hour=${signal.hour}&symbol=${symbol}`);
       if (res.status === 403) {
         setEvidenceError(locale === "EN" ? "VIP access required" : "Yêu cầu quyền VIP");
         setEvidenceLoading(false);
@@ -127,7 +129,7 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
 
       <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
         {DISPLAYED_SIGNAL_PAIRS.map((pair) => (
-          <PairRow key={pair} pair={pair} signal={signal} isVIP={isVIP} onInspect={isVIP ? fetchEvidence : undefined} />
+          <PairRow key={pair} pair={pair} signal={signal} isVIP={isVIP} onInspect={isVIP ? () => fetchEvidence(pair) : undefined} />
         ))}
       </div>
 
@@ -139,6 +141,7 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
         onClose={() => setDrawerOpen(false)}
         date={signal.date}
         hour={signal.hour}
+        symbol={selectedSymbol}
       />
     </article>
   );

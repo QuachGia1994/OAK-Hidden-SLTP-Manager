@@ -144,7 +144,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 68
+SIGNAL_LOGIC_VERSION = 69
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 INDEPENDENT_M15_PAIRS = ("GBPUSD", "GBPAUD")
@@ -807,17 +807,26 @@ def push_to_dashboard():
         print(f"[DASHBOARD] Push error: {e}")
 
 
-def push_evidence_to_dashboard(broker_dt, hour):
-    """Push M15 candle evidence for one slot to the dashboard (best effort)."""
+def push_signal_evidence_to_dashboard(record):
+    """Push M15 candle evidence for one evaluated slot record to the dashboard (best effort)."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
         return
     api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
     try:
-        evidence = build_pair_evidence(broker_dt, hour)
+        evidence = record.get("pair_evidence")
         if not evidence:
             return
-        key = f"{broker_dt.date().isoformat()}:{hour}"
+        logic_version = record.get("logic_version", SIGNAL_LOGIC_VERSION)
+        key = f"{record['source_date']}:{record.get('slot_hour', 'XX')}:v{logic_version}"
+        # If the record is missing slot_hour directly at the top level, we might have to infer it,
+        # but wait, slot_hour isn't at the top level of `evaluate_all_pairs_for_slot` payload?
+        # Oh, the record itself is the top-level payload. We can get hour from pair_evidence items.
+        first_ev = next((ev for ev in evidence.values() if ev), None)
+        hour = first_ev.get("slot_hour") if first_ev else None
+        if hour is not None:
+            key = f"{record['source_date']}:{hour}:v{logic_version}"
+            
         payload_dict = {key: evidence}
         headers = {"Content-Type": "application/json"}
         if api_key:
@@ -828,11 +837,10 @@ def push_evidence_to_dashboard(broker_dt, hour):
             data=payload,
             headers=headers,
         )
-        resp = urllib.request.urlopen(req, timeout=10)
-        resp.read()
-        print(f"[DASHBOARD] Evidence pushed OK ({key})")
+        with urllib.request.urlopen(req, timeout=3) as res:
+            pass
     except Exception as e:
-        print(f"[DASHBOARD] Evidence push error: {e}")
+        print(f"  [DASHBOARD] Evidence push error: {e}")
 
 def push_prices_to_dashboard():
     """Push giá realtime lên Redis."""
@@ -1313,67 +1321,6 @@ def _symbol_digits(symbol):
     return 2 if symbol == "XAUUSD" else 5
 
 
-def build_pair_evidence(broker_dt, hour):
-    """Build the full evidence payload for all pairs at a given slot.
-
-    Returns a dict keyed by symbol, each containing:
-      - analysis: list of 5 candle evidence dicts (offsets -75/-60/-45/-30/-15)
-      - evaluation: the evaluate_symbol_m15_for_slot result for this symbol
-      - derivation: optional derivation info (XAUUSD from GBPAUD, H3 GBPUSD DEFERRED)
-    """
-    h = int(hour)
-    if broker_dt is None or h not in ACTIVE_HOURS:
-        return None
-
-    source_slot = datetime.combine(
-        broker_dt.date(), datetime.min.time()
-    ).replace(hour=h, minute=0)
-
-    pair_evidence = {}
-    symbols_to_evaluate = ["XAUUSD", "GBPAUD"] if h == 3 else ["XAUUSD", "GBPUSD", "GBPAUD"]
-
-    for symbol in symbols_to_evaluate:
-        candles = []
-        for offset in (-75, -60, -45, -30, -15):
-            candle_ev = read_m15_candle_evidence(
-                symbol, source_slot,
-                offset_minutes=offset,
-                role=CANDLE_ROLES[offset],
-            )
-            candles.append(candle_ev)
-
-        evaluation = evaluate_symbol_m15_for_slot(broker_dt, h, symbol)
-
-        derivation = None
-        if symbol == "XAUUSD":
-            gbpaud_eval = evaluate_symbol_m15_for_slot(broker_dt, h, "GBPAUD")
-            if gbpaud_eval is not None:
-                derivation = {
-                    "type": "XAUUSD_FROM_GBPAUD",
-                    "source_symbol": "GBPAUD",
-                    "source_direction": gbpaud_eval["direction"],
-                    "entry_time": evaluation.get("entry_time") if evaluation else None,
-                }
-        elif symbol == "GBPUSD" and h == 3:
-            derivation = {
-                "type": "DEFERRED_TO_H7",
-                "reason": "H3 does not evaluate GBPUSD; GBPUSD starts at H7",
-            }
-        elif symbol == "GBPUSD" and h >= 9:
-            if evaluation is not None:
-                derivation = {
-                    "type": "GBPUSD_H9PLUS_INVERSION",
-                    "original_direction": evaluation.get("post_offset15_direction"),
-                    "inverted": True,
-                }
-
-        pair_evidence[symbol] = {
-            "analysis": candles,
-            "evaluation": evaluation,
-            "derivation": derivation,
-        }
-
-    return pair_evidence
 
 
 def compare_signal_directions(left_signal, right_signal):
@@ -1878,11 +1825,11 @@ def load_signal_rule_contract():
         "rules": {"VN": [], "EN": []},
         "startup_summary": {
             "VN": [
-                "Slots: H3 · H7 · H9 · H12 · H14 · H16",
-                "Pairs: GBPAUD / GBPUSD → XAUUSD",
-                "XAU: entry :11/:25 = cùng GBPAUD · :49 = đảo",
-                "H3: GBPUSD chờ H7 · GBPAUD là Stock-Direction",
-                "Auto-close: XAU 17:59 · GBP 19:59 Broker",
+                "Slots: H3 - H7 - H9 - H12 - H14 - H16\n"
+                "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
+                "Signal source: Entry-selected independent M15 Base\n"
+                "Entry rules: H:11 reverse | H:49 keep | (H+1):25 reverse | H14/H16 reverse once more\n"
+                "Auto-close: XAU 17:59 | GBP 19:59 Broker",
             ]
         },
     }
@@ -1904,11 +1851,11 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
     return (
         f"🤖 OAK SIGNAL BOT ONLINE · v{ver}\n"
         f"MT5: {mt5_status} | Broker: {broker_time_str}\n"
-        "Slots: H3 · H7 · H9 · H12 · H14 · H16\n"
-        "Pairs: GBPAUD / GBPUSD → XAUUSD\n"
-        "XAU: entry :11/:25 = cùng GBPAUD · :49 = đảo\n"
-        "H3: GBPUSD chờ H7 · GBPAUD là Stock-Direction\n"
-        "Auto-close: XAU 17:59 · GBP 19:59 Broker"
+        "Slots: H3 - H7 - H9 - H12 - H14 - H16\n"
+        "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
+        "Signal source: Entry-selected independent M15 Base\n"
+        "Entry rules: H:11 reverse | H:49 keep | (H+1):25 reverse | H14/H16 reverse once more\n"
+        "Auto-close: XAU 17:59 | GBP 19:59 Broker"
     )
 
 
@@ -2612,13 +2559,16 @@ def _process_live_slot(broker_dt, hour):
         deactivated=result.get("deactivated", False),
         extra_fields=extra_fields if extra_fields else None,
     )
+    _save_state(sent_today)
     push_to_dashboard()
-    push_evidence_to_dashboard(broker_dt, hour)
-    sent_today.add(key)
+    push_signal_evidence_to_dashboard(result)
+    
+    # Note: send_telegram is done by the alert or earlier? The legacy bot just prints.
     if should_send_xau_entry_alert(result, entry_alerts_sent):
         send_xau_entry_ready_alert(result, broker_dt=broker_dt)
-    else:
-        _save_state(sent_today)
+        
+    sent_today.add(key)
+    _save_state(sent_today)
     print(f"  [SENT] H={hour} signal={signal} entry={entry_time}")
     return True
 
@@ -2808,7 +2758,7 @@ def evaluate_xau_entry_timing_basis_m15(broker_dt, hour):
     }
 
 
-def build_gbp_entry_plan(slot_dt, hour, xau_entry_state, xau_entry_time, *, gbpusd_enabled=True):
+def build_gbp_entry_plan(slot_dt, hour, xau_entry_state, xau_entry_time):
     h = int(hour)
     gbp_pairs = ["GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"]
     
@@ -2821,55 +2771,18 @@ def build_gbp_entry_plan(slot_dt, hour, xau_entry_state, xau_entry_time, *, gbpu
     if xau_entry_state == "PENDING_FOLLOWUP":
         for p in gbp_pairs:
             result["pair_entry_states"][p] = "PENDING_XAU_ENTRY"
-        if h == 3:
-            result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
-            result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
         return result
 
     if xau_entry_state == "WAIT" or xau_entry_time is None:
-        if h == 3:
-            result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
-            result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
         return result
 
-    # XAU is READY
-    if h == 3:
-        gbp_entry = H3_GBPAUD_ENTRY_MAP.get(xau_entry_time)
-        if gbp_entry is None:
-            result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
-            result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
-            return result
-        
-        for p in gbp_pairs:
-            if p == "GBPUSD":
-                result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
-                result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
-            else:
-                result["pair_entry_times"][p] = gbp_entry
-                result["pair_entry_states"][p] = "READY"
-        return result
-
-    h_str = f"{h:02d}"
-    valid_xau_entries = (f"{h_str}:11", f"{h_str}:49", f"{h+1:02d}:25")
-    if xau_entry_time not in valid_xau_entries:
-        return result
-
-    if xau_entry_time in (f"{h_str}:11", f"{h_str}:49"):
-        gbp_entry = f"{h+1:02d}:20"
-    else:
-        gbp_entry = f"{h+2:02d}:00"
-
+    # In v69, all pairs share the identical entry time as XAUUSD
     for p in gbp_pairs:
-        if not gbpusd_enabled and p == "GBPUSD":
-            result["pair_entry_states"][p] = "DEFERRED_TO_H7"
-            result["pair_signal_states"][p] = "DEFERRED_TO_H7"
-            continue
-        result["pair_entry_times"][p] = gbp_entry
+        result["pair_entry_times"][p] = xau_entry_time
         result["pair_entry_states"][p] = "READY"
         result["pair_signal_states"][p] = "READY"
         
     return result
-
 
 def classify_xau_entry_branch(slot_dt, hour, xau_entry_time):
     if not xau_entry_time or not isinstance(xau_entry_time, str):
@@ -2918,6 +2831,7 @@ def evaluate_pair_from_selected_base(slot_dt, hour, symbol, xau_entry_time, *, a
         if as_of_dt < base_close_time:
             return {
                 "symbol": symbol,
+        "logic_version": SIGNAL_LOGIC_VERSION,
                 "timeframe": "M15",
                 "slot_hour": hour,
                 "source_date": slot_dt.date().isoformat(),
@@ -2966,6 +2880,7 @@ def evaluate_pair_from_selected_base(slot_dt, hour, symbol, xau_entry_time, *, a
 
     return {
         "symbol": symbol,
+        "logic_version": SIGNAL_LOGIC_VERSION,
         "timeframe": "M15",
         "slot_hour": hour,
         "source_date": slot_dt.date().isoformat(),
@@ -2995,14 +2910,7 @@ def derive_all_pair_signals_from_xau_entry(slot_dt, hour, xau_entry_plan, *, as_
 
     xau_entry_time = xau_entry_plan["entry_time"]
     for symbol in SIGNAL_PAIRS:
-        if symbol == "GBPUSD" and hour == 3:
-            pair_evidence["GBPUSD"] = {
-                "direction": "WAIT",
-                "state": "DEFERRED_TO_H7",
-                "reason": "GBPUSD_NOT_EVALUATED_AT_H3",
-                "evaluated": False
-            }
-            continue
+
             
         evidence = evaluate_pair_from_selected_base(
             slot_dt, hour, symbol, xau_entry_time, 
@@ -3021,7 +2929,7 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
 
-    gbpusd_enabled = h != 3
+    
     source_slot = broker_dt.replace(hour=h, minute=0, second=0, microsecond=0)
 
     # 1. Evaluate Entry Planner basis
@@ -3052,7 +2960,7 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     # 5. Build GBP Entry Plan (pair_entry_times for all pairs)
     gbp_entry_plan = build_gbp_entry_plan(
         source_slot, h, entry_plan["entry_state"], final_xau_entry,
-        gbpusd_enabled=gbpusd_enabled,
+        
     )
     
     pair_entry_times = {"XAUUSD": final_xau_entry}
@@ -3077,9 +2985,7 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     report_lines.append(f"  XAUUSD Entry Plan: state={entry_plan['entry_state']} time={entry_plan['entry_time']} rule={entry_plan.get('entry_rule', 'N/A')}")
     
     for symbol in SIGNAL_PAIRS:
-        if symbol == "GBPUSD" and not gbpusd_enabled:
-            report_lines.append(f"  {symbol}: DEFERRED_TO_H7")
-            continue
+
         ev = pair_evidence.get(symbol)
         if ev and ev.get("direction") == "PENDING_BASE_CANDLE":
             report_lines.append(f"  {symbol}: PENDING BASE CANDLE")

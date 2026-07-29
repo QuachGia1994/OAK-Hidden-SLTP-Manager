@@ -5,7 +5,8 @@ interface SignalDeactivationInput {
 }
 
 /** The dashboard presents signal directions for gold and GBP pairs. */
-export const DISPLAYED_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD"] as const;
+export const DISPLAYED_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 69;
 
 function brokerWeekday(date: string): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);

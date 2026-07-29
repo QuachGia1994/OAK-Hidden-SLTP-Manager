@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { redis, KEYS, canSeeVipData } from "@/lib/redis";
+import { ACTIVE_SIGNAL_LOGIC_VERSION, DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
 import type { SignalEvidence } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +21,8 @@ export async function GET(request: Request) {
   const hour = searchParams.get("hour");
   const symbol = searchParams.get("symbol");
 
-  if (!date || !hour) {
-    return NextResponse.json({ error: "date and hour are required" }, { status: 400 });
+  if (!date || !hour || !symbol) {
+    return NextResponse.json({ error: "date, hour, and symbol are required" }, { status: 400 });
   }
 
   const hourNum = parseInt(hour, 10);
@@ -29,33 +30,33 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid hour" }, { status: 400 });
   }
 
+  if (!DISPLAYED_SIGNAL_PAIRS.includes(symbol as any)) {
+    return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
+  }
+
   try {
-    const allEvidence = (await redis.get(KEYS.evidence)) as Record<string, SignalEvidence> | null;
+    // Expected incoming evidence structure from bot POST:
+    // { "2026-07-29:14:v69": { "XAUUSD": SignalEvidence, "GBPUSD": SignalEvidence, ... } }
+    const allEvidence = (await redis.get(KEYS.evidence)) as Record<string, Record<string, SignalEvidence>> | null;
     if (!allEvidence) {
       return NextResponse.json({ error: "no evidence data" }, { status: 404 });
     }
 
-    const key = `${date}:${hour}`;
+    const key = `${date}:${hour}:v${ACTIVE_SIGNAL_LOGIC_VERSION}`;
     const slotEvidence = allEvidence[key];
     if (!slotEvidence) {
-      return NextResponse.json({ error: "evidence not found" }, { status: 404 });
+      return NextResponse.json({ error: "evidence not found for this slot and version" }, { status: 404 });
     }
 
-    // If symbol is specified, return only that symbol's evidence
-    if (symbol) {
-      const pairEvidence = slotEvidence[symbol];
-      if (!pairEvidence) {
-        return NextResponse.json({ error: "symbol not found" }, { status: 404 });
-      }
-      return NextResponse.json(pairEvidence, {
-        headers: { "Cache-Control": "private, no-store" },
-      });
+    const pairEvidence = slotEvidence[symbol];
+    if (!pairEvidence) {
+      return NextResponse.json({ error: "symbol evidence not found" }, { status: 404 });
     }
 
-    return NextResponse.json(slotEvidence, {
+    return NextResponse.json(pairEvidence, {
       headers: { "Cache-Control": "private, no-store" },
     });
-  } catch {
+  } catch (e) {
     return NextResponse.json({ error: "internal error" }, { status: 500 });
   }
 }
@@ -76,8 +77,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "body must be an object" }, { status: 400 });
     }
 
-    const incoming = body as Record<string, SignalEvidence>;
-    const existing = ((await redis.get(KEYS.evidence)) as Record<string, SignalEvidence>) || {};
+    const incoming = body as Record<string, Record<string, SignalEvidence>>;
+    const existing = ((await redis.get(KEYS.evidence)) as Record<string, Record<string, SignalEvidence>>) || {};
 
     // Merge: replace existing keys with incoming
     const merged = { ...existing, ...incoming };

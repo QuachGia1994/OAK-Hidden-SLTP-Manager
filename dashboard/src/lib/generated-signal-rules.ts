@@ -1,24 +1,10 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 68;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 69;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16] as const;
 export const INTERNAL_SIGNAL_SLOTS = [] as const;
 
 export const RULES_BY_LOCALE = {
   "VN": [
-    "GBPAUD và GBPUSD được tính độc lập bằng M15 của ngày Broker hiện tại: -30 là Base, -45/-60/-75 là pattern và -15 là hậu kiểm.",
-    "H3 chưa tính GBPUSD; GBPUSD bắt đầu từ H7. Từ H9 trở đi, final signal GBPUSD được đảo một lần.",
-    "GBPAUD là nguồn direction cho XAUUSD. Entry XAU kết thúc bằng :11 hoặc :25 thì XAUUSD cùng chiều GBPAUD; entry kết thúc bằng :49 thì XAUUSD đảo chiều GBPAUD.",
-    "XAUUSD dùng entry riêng. GBPUSD và GBPAUD vào sau entry XAU theo pair_entry_times của từng symbol.",
-    "H3 Thứ Năm không actionable. Thiếu dữ liệu hoặc DOJI không resolve được thì WAIT."
-  ],
-  "EN": [
-    "GBPAUD and GBPUSD are calculated independently using current Broker day M15 candles: -30 is Base, -45/-60/-75 are pattern, and -15 is post-filter.",
-    "H3 does not evaluate GBPUSD; GBPUSD starts at H7. From H9 onwards, GBPUSD final signal is inverted once.",
-    "GBPAUD is the direction source for XAUUSD. When XAU entry ends in :11 or :25, XAUUSD takes the SAME direction as GBPAUD; when XAU entry ends in :49, XAUUSD takes the REVERSE direction of GBPAUD.",
-    "XAUUSD uses its own entry time. GBPUSD and GBPAUD enter after XAU entry per pair_entry_times for each symbol.",
-    "Thursday H3 is non-actionable. Missing data or unresolved DOJI results in WAIT."
-  ],
-  "vn": [
     "Entry Time của XAUUSD quyết định cây M15 Base dùng tạo signal cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.",
     "Entry H:11 dùng cây M15 mở H−00:15, đóng H:00 và đảo Base.",
     "Entry H:49 dùng cây M15 mở H:00, đóng H:15 và giữ nguyên Base.",
@@ -27,7 +13,7 @@ export const RULES_BY_LOCALE = {
     "Tại H14 và H16, signal của cả năm symbol được đảo thêm một lần.",
     "Base thiếu dữ liệu hoặc DOJI thì riêng symbol đó WAIT."
   ],
-  "en": [
+  "EN": [
     "The XAUUSD Entry Time selects the M15 Base candle used to derive signals for XAUUSD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.",
     "Entry H:11 uses the M15 candle opening at H−00:15 and closing at H:00, then reverses the Base.",
     "Entry H:49 uses the M15 candle opening at H:00 and closing at H:15, then keeps the Base direction.",
@@ -38,4 +24,4 @@ export const RULES_BY_LOCALE = {
   ]
 } as const;
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v68: Stage A/B engine, 5 symbols (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD)" as const;
+export const STARTUP_SUMMARY_BY_LOCALE = "v69: Stage A/B engine, 5 symbols (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD)" as const;

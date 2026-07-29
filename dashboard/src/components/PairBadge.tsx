@@ -72,18 +72,10 @@ export function PairBadge({
             {label}
           </span>
         )}
-        {pair === "XAUUSD" && (
-          <span className="text-[9px] font-medium font-sans px-1 py-0.2 rounded border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]">
-            {locale === "VN" ? "Theo GBPAUD H1" : "From GBPAUD H1"}
-          </span>
-        )}
+        
       </div>
       <div className="flex items-center gap-2">
-        {state === "DEFERRED_TO_H7" ? (
-          <span className="text-[10px] font-mono text-[var(--muted)] italic">
-            {locale === "EN" ? "Starts at H7" : "Chờ H7"}
-          </span>
-        ) : (
+{
           (localEntryTime || brokerEntryTime) && (
             <div className="flex flex-col items-end leading-tight">
               {localEntryTime ? (
@@ -103,7 +95,7 @@ export function PairBadge({
               ) : null}
             </div>
           )
-        )}
+        }
         <span className={`text-[10px] font-mono font-black tracking-wide px-2.5 py-1 rounded-md border ${
           direction === "BUY"
             ? "border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/15 text-[var(--terminal-accent)]"
