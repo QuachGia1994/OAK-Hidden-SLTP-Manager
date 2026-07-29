@@ -21,6 +21,7 @@ class SignalTelegramTests(unittest.TestCase):
         with (
             patch("mt5_signal_bot.load_profile_config", return_value=mock_cfg),
             patch("mt5_signal_bot.resolve_telegram_token", return_value="resolved_keyring_token") as mock_resolve,
+            patch.object(mt5_signal_bot, "TELEGRAM_ADMIN_CHAT_ID", "7732907060"),
             patch("urllib.request.urlopen") as mock_urlopen,
         ):
             mock_resp = MagicMock()
@@ -43,6 +44,7 @@ class SignalTelegramTests(unittest.TestCase):
         with (
             patch("mt5_signal_bot.load_profile_config", return_value=mock_cfg),
             patch("mt5_signal_bot.resolve_telegram_token", return_value="profile_raw_token_999") as mock_resolve,
+            patch.object(mt5_signal_bot, "TELEGRAM_ADMIN_CHAT_ID", "7732907060"),
             patch("urllib.request.urlopen") as mock_urlopen,
         ):
             mock_resp = MagicMock()
@@ -65,6 +67,7 @@ class SignalTelegramTests(unittest.TestCase):
         with (
             patch("mt5_signal_bot.load_profile_config", return_value=mock_cfg),
             patch("mt5_signal_bot.resolve_telegram_token", return_value="global_fallback_token_123") as mock_resolve,
+            patch.object(mt5_signal_bot, "TELEGRAM_ADMIN_CHAT_ID", "7732907060"),
             patch("urllib.request.urlopen") as mock_urlopen,
         ):
             mock_resp = MagicMock()
@@ -107,7 +110,7 @@ class SignalTelegramTests(unittest.TestCase):
         with (
             patch("mt5_signal_bot.load_profile_config", return_value={}),
             patch("mt5_signal_bot.resolve_telegram_token", return_value=""),
-            patch.object(mt5_signal_bot, "TELEGRAM_CHAT_ID", ""),
+            patch.object(mt5_signal_bot, "TELEGRAM_ADMIN_CHAT_ID", ""),
         ):
             res = mt5_signal_bot.send_telegram("Test missing creds")
 
@@ -121,6 +124,7 @@ class SignalTelegramTests(unittest.TestCase):
         with (
             patch("mt5_signal_bot.load_profile_config", return_value=mock_cfg),
             patch("mt5_signal_bot.resolve_telegram_token", return_value="valid_token"),
+            patch.object(mt5_signal_bot, "TELEGRAM_ADMIN_CHAT_ID", "7732907060"),
             patch("urllib.request.urlopen", side_effect=urllib.error.URLError("Network down")),
         ):
             res = mt5_signal_bot.send_telegram("Test network error")
@@ -135,6 +139,7 @@ class SignalTelegramTests(unittest.TestCase):
         with (
             patch("mt5_signal_bot.load_profile_config", return_value=mock_cfg),
             patch("mt5_signal_bot.resolve_telegram_token", return_value="valid_token") as mock_resolve,
+            patch.object(mt5_signal_bot, "TELEGRAM_ADMIN_CHAT_ID", "7732907060"),
             patch("urllib.request.urlopen") as mock_urlopen,
         ):
             mock_resp = MagicMock()
