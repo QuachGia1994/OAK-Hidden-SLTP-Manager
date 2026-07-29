@@ -3,19 +3,41 @@ import { redis, KEYS } from "./redis";
 import { isActiveSignalHour } from "./constants";
 export { maskStockAdvisory } from "./stock-advisor-display";
 
-export async function getSignals(): Promise<Signal[]> {
+export interface DataResult<T> {
+  data: T;
+  ok: boolean;
+  error?: string;
+}
+
+export async function getSignalsResult(): Promise<DataResult<Signal[]>> {
   try {
     const data = await redis.get(KEYS.signals);
-    return (data as Signal[]) || [];
-  } catch {
-    return [];
+    if (!data) return { data: [], ok: true };
+    return { data: data as Signal[], ok: true };
+  } catch (e) {
+    console.error("[REDIS READ FAILED]", e);
+    return { data: [], ok: false, error: "REDIS_READ_FAILED" };
   }
 }
 
+export async function getSignals(): Promise<Signal[]> {
+  const res = await getSignalsResult();
+  return res.data;
+}
+
 /** Return all signals for active hours (including WAIT) — dashboard fills missing hours itself. */
+export async function getTodaySignalsResult(): Promise<DataResult<Signal[]>> {
+  const res = await getSignalsResult();
+  if (!res.ok) return res;
+  return {
+    data: res.data.filter((s) => isActiveSignalHour(s.hour)),
+    ok: true,
+  };
+}
+
 export async function getTodaySignals(): Promise<Signal[]> {
-  const all = await getSignals();
-  return all.filter((s) => isActiveSignalHour(s.hour));
+  const res = await getTodaySignalsResult();
+  return res.data;
 }
 
 export function maskSignal(signal: Signal): Signal {
@@ -23,7 +45,7 @@ export function maskSignal(signal: Signal): Signal {
     ...signal,
     signal: "WAIT",
     pattern_signal: undefined,
-    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT", GBPAUD: "WAIT" },
+    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT", GBPAUD: "WAIT", GBPJPY: "WAIT", GBPCAD: "WAIT" },
     entry_prices: {},
     current_prices: {},
     hour_note: null,

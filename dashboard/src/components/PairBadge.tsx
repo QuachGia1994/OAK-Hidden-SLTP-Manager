@@ -119,7 +119,7 @@ export function PairBadge({
             ? "border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)]"
             : "border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)] font-semibold"
         }`}>
-          {state === "DEFERRED_TO_H7" ? "WAIT" : getSignalLabel(direction, locale)}
+          {getSignalLabel(direction, locale)}
         </span>
       </div>
     </Wrapper>

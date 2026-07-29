@@ -1,7 +1,8 @@
 import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { SignalCard } from "@/components/SignalCard";
-import { getTodaySignals, getBotState, getEconomicNews, maskSignal } from "@/lib/data";
+import { getTodaySignalsResult, getBotState, getEconomicNews, maskSignal, DataResult } from "@/lib/data";
+import { selectBestSignalRecord } from "@/lib/signal-resolver";
 import { getSignalLabel, getSignalTime, getSlotTimeValue, getTargetHours } from "@/lib/constants";
 import { brokerTimeToLocal } from "@/lib/broker-time";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
@@ -16,6 +17,7 @@ function formatNewsDisplayTime(item: { time?: string; local_time?: string }) {
 }
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ vip?: string }> }) {
+  let signalsResult: DataResult<any[]> = { data: [], ok: true };
   let signals: any[] = [];
   let botState: any = null;
   let news: any[] = [];
@@ -28,13 +30,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const t = getLocaleTexts(locale);
 
   try {
-    [signals, botState, news] = await Promise.all([
-      getTodaySignals(),
+    [signalsResult, botState, news] = await Promise.all([
+      getTodaySignalsResult(),
       getBotState(),
       getEconomicNews(),
     ]);
+    signals = signalsResult.data;
   } catch (e) {
     console.error("Dashboard fetch error:", e);
+    signalsResult = { data: [], ok: false, error: String(e) };
   }
 
   const brokerClock = getBrokerDateParts(botState, now);
@@ -50,10 +54,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const todayStr = brokerClock?.todayStr ?? "";
   const hoursToday = brokerClock ? getTargetHours(brokerClock.dayOfWeek, todayStr) : [];
   const todaySignals = brokerClock ? signals.filter((s) => s.date === todayStr) : [];
-  const signalsByHour = new Map(todaySignals.map((s) => [s.hour, s]));
 
   const allSlots = hoursToday.map((h) => {
-    const signal = signalsByHour.get(h);
+    const signal = selectBestSignalRecord(todaySignals, todayStr, h);
     return {
       date: todayStr,
       hour: h,
@@ -122,7 +125,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         {brokerClock ? (
           <div className="terminal-schedule lux-scroll -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1.5">
             {hoursToday.map((h) => {
-              const slotSignal = signalsByHour.get(h);
+              const slotSignal = selectBestSignalRecord(todaySignals, todayStr, h);
               const sig = slotSignal?.signal || null;
               return (
                 <SchedulePill
@@ -157,6 +160,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 key={`${signal.date}-${signal.hour}`}
                 signal={signal}
                 isVIP={isVIP}
+                redisOk={signalsResult.ok}
+                brokerNow={now}
               />
             ))}
           </div>

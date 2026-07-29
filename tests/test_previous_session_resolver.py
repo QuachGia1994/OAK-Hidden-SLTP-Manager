@@ -97,8 +97,8 @@ class WaitRecordContractTests(unittest.TestCase):
             self.assertEqual(result.get("GBPUSD"), "WAIT")
             self.assertEqual(result.get("GBPAUD"), "WAIT")
 
-    def test_signal_logic_version_is_69(self):
-        self.assertEqual(SIGNAL_LOGIC_VERSION, 69)
+    def test_signal_logic_version_is_70(self):
+        self.assertEqual(SIGNAL_LOGIC_VERSION, 70)
 
     def test_no_slot_is_deactivated_v65(self):
         """Since v65, no active slot is deactivated on any weekday."""

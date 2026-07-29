@@ -44,7 +44,18 @@ export interface Signal {
   pair_labels?: Record<string, string | null>;
   pair_entry_at_utc?: Record<string, string | null>;
   entry_at_utc?: string | null;
+  record_revision?: number;
+  state_updated_at_utc?: string | null;
 }
+
+export type SlotDisplayState =
+  | "SCHEDULED"
+  | "SYNCING"
+  | "PENDING_ENTRY_FOLLOWUP"
+  | "PENDING_BASE_CANDLE"
+  | "READY"
+  | "PARTIAL_WAIT"
+  | "WAIT";
 
 export interface BotState {
   date: string;

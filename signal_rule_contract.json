@@ -1,5 +1,5 @@
 {
-  "logic_version": 69,
+  "logic_version": 70,
   "public_slots": [
     3,
     7,
@@ -11,7 +11,8 @@
   "internal_slots": [],
   "rules": {
     "VN": [
-      "Entry Time của XAUUSD quyết định cây M15 Base dùng tạo signal cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.",
+      "Mọi slot H3, H7, H9, H12, H14 và H16 đều tính đủ XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.",
+      "Entry Time của XAUUSD quyết định cây M15 Base dùng tạo signal cho cả 5 cặp.",
       "Entry H:11 dùng cây M15 mở H−00:15, đóng H:00 và đảo Base.",
       "Entry H:49 dùng cây M15 mở H:00, đóng H:15 và giữ nguyên Base.",
       "Entry (H+1):25 dùng cây M15 mở H:00, đóng H:15 và đảo Base.",
@@ -20,7 +21,8 @@
       "Base thiếu dữ liệu hoặc DOJI thì riêng symbol đó WAIT."
     ],
     "EN": [
-      "The XAUUSD Entry Time selects the M15 Base candle used to derive signals for XAUUSD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.",
+      "All H3, H7, H9, H12, H14, and H16 slots evaluate XAUUSD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.",
+      "The XAUUSD Entry Time selects the M15 Base candle used to derive signals for all five pairs.",
       "Entry H:11 uses the M15 candle opening at H−00:15 and closing at H:00, then reverses the Base.",
       "Entry H:49 uses the M15 candle opening at H:00 and closing at H:15, then keeps the Base direction.",
       "Entry (H+1):25 uses the M15 candle opening at H:00 and closing at H:15, then reverses the Base.",
@@ -29,5 +31,5 @@
       "A missing or DOJI Base results in WAIT only for that symbol."
     ]
   },
-  "startup_summary": "v69: Stage A/B engine, 5 symbols (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD)"
+  "startup_summary": "v70: Stage A/B engine, 5 symbols across all 6 slots (H3, H7, H9, H12, H14, H16)"
 }

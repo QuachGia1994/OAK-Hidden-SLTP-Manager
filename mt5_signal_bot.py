@@ -144,29 +144,19 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 69
+SIGNAL_LOGIC_VERSION = 70
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 INDEPENDENT_M15_PAIRS = ("GBPUSD", "GBPAUD")
 
 
-
-
-
-
-
-
-
 def get_evaluated_pairs_for_hour(hour):
     """Return which pairs are evaluated at a given slot hour.
 
-    H3: XAUUSD + GBPAUD only (GBPUSD deferred to H7).
-    H7/H9/H12/H14/H16: all three.
+    All active slots (H3, H7, H9, H12, H14, H16) evaluate all five pairs.
     """
     h = int(hour)
-    if h == 3:
-        return ("XAUUSD", "GBPAUD", "GBPJPY", "GBPCAD")
-    if h in (7, 9, 12, 14, 16):
+    if h in ACTIVE_HOURS:
         return SIGNAL_PAIRS
     return ()
 
@@ -744,7 +734,7 @@ def push_state_to_dashboard():
         return False
 
 
-def push_to_dashboard():
+def push_to_dashboard(snapshot_complete: bool = False):
     """Push data to dashboard API (best effort, non-blocking)."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
@@ -763,7 +753,15 @@ def push_to_dashboard():
                 all_signals = json.load(f)
             signals = select_signals_for_dashboard(all_signals)
             if signals:
-                payload = json.dumps(signals).encode("utf-8")
+                mode = "FULL_SNAPSHOT" if snapshot_complete else "UPSERT"
+                body = {
+                    "mode": mode,
+                    "snapshot_complete": snapshot_complete,
+                    "source": "mt5_signal_bot",
+                    "logic_version": SIGNAL_LOGIC_VERSION,
+                    "records": signals,
+                }
+                payload = json.dumps(body).encode("utf-8")
                 req = urllib.request.Request(
                     f"{dashboard_url}/api/signals",
                     data=payload,
@@ -771,7 +769,7 @@ def push_to_dashboard():
                 )
                 resp = urllib.request.urlopen(req, timeout=15)
                 resp.read()
-                print(f"[DASHBOARD] Signals pushed OK ({len(signals)} items)")
+                print(f"[DASHBOARD] Signals pushed OK ({len(signals)} items, mode={mode})")
         if push_state_to_dashboard():
             print("[DASHBOARD] State pushed OK")
         # Push today's newest VN/EN news cache.
@@ -2026,7 +2024,7 @@ def build_entry_ready_telegram_message(record, broker_dt=None):
     gbpusd_local_str = _format_pair_local(gbpusd_entry, b_offset, source_date) if gbpusd_entry else ""
     gbpaud_local_str = _format_pair_local(gbpaud_entry, b_offset, source_date) if gbpaud_entry else ""
 
-    gbpusd_entry_display = f"{gbpusd_entry} Broker{gbpusd_local_str}" if gbpusd_entry and gbpusd_state != "DEFERRED_TO_H7" else "Chờ H7"
+    gbpusd_entry_display = f"{gbpusd_entry} Broker{gbpusd_local_str}" if gbpusd_entry else "--:--"
     gbpaud_entry_display = f"{gbpaud_entry} Broker{gbpaud_local_str}" if gbpaud_entry else "--:--"
 
     lines = [
@@ -2732,7 +2730,7 @@ def main(profile_name=None):
     startup_rebuilt = rebuild_signals_on_startup()
     reconcile_due_xau_entry_alerts(broker_dt)
 
-    push_to_dashboard()
+    push_to_dashboard(snapshot_complete=True)
     if startup_rebuilt > 0:
         print(f"\n[DASHBOARD] Pushed after rebuild ({startup_rebuilt} slots refreshed)")
 
@@ -2849,9 +2847,16 @@ def build_gbp_entry_plan(slot_dt, hour, xau_entry_state, xau_entry_time):
     if xau_entry_state == "WAIT" or xau_entry_time is None:
         return result
 
-    # In v69, all pairs share the identical entry time as XAUUSD
+    h_str = f"{h:02d}"
+    if xau_entry_time in (f"{h_str}:11", f"{h_str}:49", "03:11", "03:49"):
+        gbp_entry = f"{h+1:02d}:20"
+    elif xau_entry_time in (f"{h+1:02d}:25", "04:25"):
+        gbp_entry = f"{h+2:02d}:00"
+    else:
+        gbp_entry = xau_entry_time
+
     for p in gbp_pairs:
-        result["pair_entry_times"][p] = xau_entry_time
+        result["pair_entry_times"][p] = gbp_entry
         result["pair_entry_states"][p] = "READY"
         result["pair_signal_states"][p] = "READY"
         
@@ -3070,8 +3075,14 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
         for symbol in SIGNAL_PAIRS
     }
     
+    entry_state_val = entry_plan.get("entry_state", "WAIT")
+    rev_map = {"WAIT": 1, "PENDING_FOLLOWUP": 2, "READY": 3}
+    record_revision = rev_map.get(entry_state_val, 1)
+
     res_dict = {
         "logic_version": SIGNAL_LOGIC_VERSION,
+        "record_revision": record_revision,
+        "state_updated_at_utc": datetime.now(timezone.utc).isoformat(),
         "signal": top_signal,
         "entry_time": final_xau_entry,
         "entry_at_utc": entry_at_utc,

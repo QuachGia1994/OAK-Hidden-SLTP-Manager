@@ -9,6 +9,8 @@ import { PairBadge } from "./PairBadge";
 import { DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
 import { SignalEvidenceDrawer } from "./SignalEvidenceDrawer";
 
+import { getSlotDisplayState } from "@/lib/signal-resolver";
+
 const VALID_TIME = /^\d{2}:\d{2}$/;
 
 function getPendingEntryLabel(locale: "VN" | "EN", hour: number): string {
@@ -16,7 +18,17 @@ function getPendingEntryLabel(locale: "VN" | "EN", hour: number): string {
   return locale === "EN" ? `Awaiting ${time} Broker candle` : `Chờ nến Broker ${time}`;
 }
 
-export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: boolean }) {
+export function SignalCard({
+  signal,
+  isVIP = false,
+  redisOk = true,
+  brokerNow = null,
+}: {
+  signal: Signal;
+  isVIP?: boolean;
+  redisOk?: boolean;
+  brokerNow?: Date | string | null;
+}) {
   const { locale } = useLocale();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
@@ -25,12 +37,13 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
 
   const fetchEvidence = useCallback(async (symbol: string) => {
-    setSelectedSymbol(symbol);
+    if (symbol !== "XAUUSD") return;
+    setSelectedSymbol("XAUUSD");
     setDrawerOpen(true);
     setEvidenceLoading(true);
     setEvidenceError(null);
     try {
-      const res = await fetch(`/api/signals/evidence?date=${signal.date}&hour=${signal.hour}&symbol=${symbol}`);
+      const res = await fetch(`/api/signals/evidence?date=${signal.date}&hour=${signal.hour}&symbol=XAUUSD`);
       if (res.status === 403) {
         setEvidenceError(locale === "EN" ? "VIP access required" : "Yêu cầu quyền VIP");
         setEvidenceLoading(false);
@@ -54,18 +67,32 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
     setEvidenceLoading(false);
   }, [signal.date, signal.hour, locale]);
 
+  const displayState = getSlotDisplayState({
+    brokerNow,
+    slotDate: signal.date,
+    hour: signal.hour,
+    signal,
+    redisOk,
+  });
+
   const signalTime = VALID_TIME.test(signal.signal_time || "")
     ? (signal.signal_time as string)
     : getSignalTime(signal.hour, signal.date);
 
-  const isPendingFollowup = signal.entry_state === "PENDING_FOLLOWUP";
-  const entryTime = VALID_TIME.test(signal.entry_time || "")
-    ? (signal.entry_time as string)
-    : isPendingFollowup
-    ? getPendingEntryLabel(locale, signal.hour)
-    : signal.ts === 0
-    ? getEntryTimeLabel(signal.hour, signal.date)
-    : "—";
+  let entryTime = "—";
+  if (displayState === "SCHEDULED") {
+    entryTime = getEntryTimeLabel(signal.hour, signal.date);
+  } else if (displayState === "SYNCING") {
+    entryTime = locale === "EN" ? "Syncing bot data…" : "Đang nhận dữ liệu Bot";
+  } else if (displayState === "PENDING_ENTRY_FOLLOWUP") {
+    entryTime = getPendingEntryLabel(locale, signal.hour);
+  } else if (displayState === "PENDING_BASE_CANDLE") {
+    entryTime = VALID_TIME.test(signal.entry_time || "")
+      ? `${signal.entry_time} Broker`
+      : getEntryTimeLabel(signal.hour, signal.date);
+  } else if (VALID_TIME.test(signal.entry_time || "")) {
+    entryTime = signal.entry_time as string;
+  }
 
   const localSignalTime = useBrowserBrokerTime(
     signal,
@@ -94,8 +121,8 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
             <TimeBlock
               label={locale === "EN" ? "Entry" : "Vào lệnh"}
               brokerTime={entryTime}
-              localTime={localEntryTime}
-              isPending={isPendingFollowup}
+              localTime={displayState === "READY" || displayState === "PARTIAL_WAIT" ? localEntryTime : null}
+              isPending={displayState === "PENDING_ENTRY_FOLLOWUP" || displayState === "SYNCING"}
             />
           </div>
           <div className="shrink-0 text-right">
@@ -113,9 +140,25 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
           {locale === "EN" ? "Verdict" : "Kết luận"}
         </div>
         {isVIP ? (
-          isPendingFollowup ? (
+          displayState === "SCHEDULED" ? (
+            <span className="font-mono text-3xl font-black leading-none text-[var(--muted)]">
+              {locale === "EN" ? "UPCOMING" : "CHỜ MỐC"}
+            </span>
+          ) : displayState === "SYNCING" ? (
+            <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
+              {locale === "EN" ? "SYNCING" : "ĐANG ĐỒNG BỘ"}
+            </span>
+          ) : displayState === "PENDING_ENTRY_FOLLOWUP" ? (
             <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
               {locale === "EN" ? "PENDING" : "ĐANG CHỜ"}
+            </span>
+          ) : displayState === "PENDING_BASE_CANDLE" ? (
+            <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
+              {locale === "EN" ? "PENDING BASE" : "ĐANG CHỜ BASE"}
+            </span>
+          ) : displayState === "WAIT" ? (
+            <span className="font-mono text-3xl font-black leading-none text-[var(--muted)]">
+              {locale === "EN" ? "WAIT" : "Chờ"}
             </span>
           ) : (
             <span className={`font-mono text-4xl font-black leading-none ${getSignalColor(signal.signal)}`}>
@@ -129,7 +172,14 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
 
       <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
         {DISPLAYED_SIGNAL_PAIRS.map((pair) => (
-          <PairRow key={pair} pair={pair} signal={signal} isVIP={isVIP} onInspect={isVIP ? () => fetchEvidence(pair) : undefined} />
+          <PairRow
+            key={pair}
+            pair={pair}
+            signal={signal}
+            isVIP={isVIP}
+            displayState={displayState}
+            onInspect={isVIP && pair === "XAUUSD" ? () => fetchEvidence("XAUUSD") : undefined}
+          />
         ))}
       </div>
 
@@ -151,14 +201,28 @@ function PairRow({
   pair,
   signal,
   isVIP,
+  displayState,
   onInspect,
 }: {
   pair: string;
   signal: Signal;
   isVIP: boolean;
+  displayState: string;
   onInspect?: () => void;
 }) {
-  const direction = isVIP ? signal.pair_dirs?.[pair] || "-" : "locked";
+  let direction = "locked";
+  if (isVIP) {
+    if (displayState === "SCHEDULED") {
+      direction = "—";
+    } else if (displayState === "SYNCING") {
+      direction = "…";
+    } else if (displayState === "PENDING_ENTRY_FOLLOWUP" || displayState === "PENDING_BASE_CANDLE") {
+      direction = "WAIT";
+    } else {
+      direction = signal.pair_dirs?.[pair] || "WAIT";
+    }
+  }
+
   const brokerEntryTime = isVIP ? signal.pair_entry_times?.[pair] || null : null;
   const utcIso = isVIP ? signal.pair_entry_at_utc?.[pair] || null : null;
   const localEntryTime = useBrowserBrokerTime(signal, brokerEntryTime, utcIso);

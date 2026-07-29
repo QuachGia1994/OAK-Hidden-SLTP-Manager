@@ -6,6 +6,7 @@ from datetime import datetime, time, timezone
 from unittest.mock import patch
 
 from mt5_signal_bot import (
+    SIGNAL_LOGIC_VERSION,
     _latest_today_news_cache,
     _parse_news_for_dashboard,
     get_pair_direction,
@@ -50,7 +51,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             "signal": "BUY",
             "deactivated": True,
             "pair_dirs": {"XAUUSD": "BUY"},
-            "logic_version": 69,
+            "logic_version": SIGNAL_LOGIC_VERSION,
         }
 
         self.assertEqual(select_signals_for_dashboard([h3]), [h3])
@@ -79,7 +80,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             "hour": 9,
             "signal": "BUY",
             "pair_dirs": {"XAUUSD": "BUY"},
-            "logic_version": 69,
+            "logic_version": SIGNAL_LOGIC_VERSION,
         }
 
         self.assertEqual(
@@ -89,13 +90,13 @@ class DashboardSignalSelectionTests(unittest.TestCase):
 
     def test_drops_current_records_without_a_valid_xauusd_direction(self):
         records = [
-            {"date": "2026-07-03", "hour": 9, "logic_version": 69,
+            {"date": "2026-07-03", "hour": 9, "logic_version": SIGNAL_LOGIC_VERSION,
              "pair_dirs": {"GBPUSD": "BUY"}},
-            {"date": "2026-07-03", "hour": 12, "logic_version": 69,
+            {"date": "2026-07-03", "hour": 12, "logic_version": SIGNAL_LOGIC_VERSION,
              "signal": "WAIT", "pair_dirs": {"XAUUSD": "INVALID"}},
-            {"date": "2026-07-03", "hour": 9, "logic_version": 69,
+            {"date": "2026-07-03", "hour": 9, "logic_version": SIGNAL_LOGIC_VERSION,
              "signal": "SELL", "pair_dirs": {"XAUUSD": "BUY"}},
-            {"date": "2026-07-03", "hour": 14, "logic_version": 69,
+            {"date": "2026-07-03", "hour": 14, "logic_version": SIGNAL_LOGIC_VERSION,
              "signal": "SELL", "pair_dirs": {"XAUUSD": "SELL"}},
         ]
 
