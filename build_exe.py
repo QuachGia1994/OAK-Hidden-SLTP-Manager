@@ -26,6 +26,7 @@ EXTRA_PACKAGE_FILES = [
     "GUIDE.en.md",
     "RELEASE_NOTES.md",
     "RELEASE_NOTES.en.md",
+    "signal_rule_contract.json",
 ]
 
 
@@ -93,6 +94,7 @@ def build_args():
         "--hidden-import=numpy.ma.core",
         "--hidden-import=numpy.ma.extras",
         "--collect-all=MetaTrader5",
+        f"--add-data={os.path.join(PROJECT_ROOT, 'signal_rule_contract.json')};.",
         "--hidden-import=secret_store",
         "--hidden-import=oak_logger",
         "--hidden-import=oak_response_dict",

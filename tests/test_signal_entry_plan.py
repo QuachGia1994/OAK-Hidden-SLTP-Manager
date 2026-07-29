@@ -9,6 +9,32 @@ import mt5_signal_bot
 class XauEntryPlanTests(unittest.TestCase):
     """Unit tests for build_xau_entry_plan state machine and rules."""
 
+    def test_followup_uses_single_gbpaud_m15_opening_at_h30(self) -> None:
+        close_time = datetime(2026, 7, 29, 9, 45)
+        with patch.object(
+            mt5_signal_bot,
+            "_lookback_candle_direction",
+            return_value="TANG",
+        ) as read_direction:
+            direction = mt5_signal_bot.get_completed_m15_direction_by_close_time(
+                "GBPAUD", close_time
+            )
+
+        self.assertEqual(direction, "TANG")
+        read_direction.assert_called_once_with(
+            "GBPAUD",
+            mt5_signal_bot.mt5.TIMEFRAME_M15,
+            datetime(2026, 7, 29, 9, 30),
+        )
+
+        pending = mt5_signal_bot.build_xau_entry_plan(
+            datetime(2026, 7, 29, 9), 9, "BUY", "TANG"
+        )
+        self.assertEqual(
+            pending["entry_followup_bar_open_time"],
+            "2026-07-29T09:30:00",
+        )
+
     def test_h3_same(self) -> None:
         dt = datetime(2026, 7, 29, 3, 0)
         res = mt5_signal_bot.build_xau_entry_plan(dt, 3, "BUY", "TANG")

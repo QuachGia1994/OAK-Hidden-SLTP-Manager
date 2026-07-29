@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { getEntryTimeLabel, getSignalColor, getSignalLabel, getSignalTime } from "@/lib/constants";
 import { FormattedLocalTime, useBrowserBrokerTime } from "@/hooks/useBrowserBrokerTime";
 import type { Signal, SignalEvidence } from "@/lib/types";
@@ -15,7 +15,9 @@ const VALID_TIME = /^\d{2}:\d{2}$/;
 
 function getPendingEntryLabel(locale: "VN" | "EN", hour: number): string {
   const time = `${String(hour).padStart(2, "0")}:45`;
-  return locale === "EN" ? `Awaiting ${time} Broker candle` : `Chờ nến Broker ${time}`;
+  return locale === "EN"
+    ? `Awaiting GBPAUD M15 close at ${time}`
+    : `Chờ GBPAUD M15 đóng lúc ${time}`;
 }
 
 export function SignalCard({
@@ -35,36 +37,44 @@ export function SignalCard({
   const [evidence, setEvidence] = useState<SignalEvidence | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
+  const evidenceRequest = useRef(0);
 
   const fetchEvidence = useCallback(async (symbol: string) => {
-    if (symbol !== "XAUUSD") return;
-    setSelectedSymbol("XAUUSD");
+    const requestId = ++evidenceRequest.current;
+    setSelectedSymbol(symbol);
     setDrawerOpen(true);
     setEvidenceLoading(true);
     setEvidenceError(null);
+    setEvidence(null);
     try {
-      const res = await fetch(`/api/signals/evidence?date=${signal.date}&hour=${signal.hour}&symbol=XAUUSD`);
+      const params = new URLSearchParams({
+        date: signal.date,
+        hour: String(signal.hour),
+        symbol,
+      });
+      const res = await fetch(`/api/signals/evidence?${params.toString()}`);
+      if (requestId !== evidenceRequest.current) return;
       if (res.status === 403) {
         setEvidenceError(locale === "EN" ? "VIP access required" : "Yêu cầu quyền VIP");
-        setEvidenceLoading(false);
         return;
       }
       if (res.status === 404) {
         setEvidenceError(locale === "EN" ? "No evidence data for this slot" : "Không có dữ liệu bằng chứng cho mốc này");
-        setEvidenceLoading(false);
         return;
       }
       if (!res.ok) {
         setEvidenceError(locale === "EN" ? "Failed to load evidence" : "Tải bằng chứng thất bại");
-        setEvidenceLoading(false);
         return;
       }
       const data = await res.json();
-      setEvidence(data);
+      if (requestId === evidenceRequest.current) setEvidence(data);
     } catch {
-      setEvidenceError(locale === "EN" ? "Network error" : "Lỗi mạng");
+      if (requestId === evidenceRequest.current) {
+        setEvidenceError(locale === "EN" ? "Network error" : "Lỗi mạng");
+      }
+    } finally {
+      if (requestId === evidenceRequest.current) setEvidenceLoading(false);
     }
-    setEvidenceLoading(false);
   }, [signal.date, signal.hour, locale]);
 
   const displayState = getSlotDisplayState({
@@ -80,7 +90,9 @@ export function SignalCard({
     : getSignalTime(signal.hour, signal.date);
 
   let entryTime = "—";
-  if (displayState === "SCHEDULED") {
+  if (signal.h3_wait_until_h7 || signal.terminal_wait) {
+    entryTime = locale === "EN" ? "From H7" : "Từ H7";
+  } else if (displayState === "SCHEDULED") {
     entryTime = getEntryTimeLabel(signal.hour, signal.date);
   } else if (displayState === "SYNCING") {
     entryTime = locale === "EN" ? "Syncing bot data…" : "Đang nhận dữ liệu Bot";
@@ -88,7 +100,7 @@ export function SignalCard({
     entryTime = getPendingEntryLabel(locale, signal.hour);
   } else if (displayState === "PENDING_BASE_CANDLE") {
     entryTime = VALID_TIME.test(signal.entry_time || "")
-      ? `${signal.entry_time} Broker`
+      ? (signal.entry_time as string)
       : getEntryTimeLabel(signal.hour, signal.date);
   } else if (VALID_TIME.test(signal.entry_time || "")) {
     entryTime = signal.entry_time as string;
@@ -156,6 +168,10 @@ export function SignalCard({
             <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
               {locale === "EN" ? "PENDING BASE" : "ĐANG CHỜ BASE"}
             </span>
+          ) : displayState === "WAIT" && (signal.h3_wait_until_h7 || signal.terminal_wait) ? (
+            <span className="font-mono text-3xl font-black leading-none text-[var(--terminal-warning)]">
+              {locale === "EN" ? "WAIT UNTIL H7" : "CHỜ H7"}
+            </span>
           ) : displayState === "WAIT" ? (
             <span className="font-mono text-3xl font-black leading-none text-[var(--muted)]">
               {locale === "EN" ? "WAIT" : "Chờ"}
@@ -178,7 +194,7 @@ export function SignalCard({
             signal={signal}
             isVIP={isVIP}
             displayState={displayState}
-            onInspect={isVIP && pair === "XAUUSD" ? () => fetchEvidence("XAUUSD") : undefined}
+            onInspect={isVIP ? () => fetchEvidence(pair) : undefined}
           />
         ))}
       </div>
@@ -216,7 +232,11 @@ function PairRow({
       direction = "—";
     } else if (displayState === "SYNCING") {
       direction = "…";
-    } else if (displayState === "PENDING_ENTRY_FOLLOWUP" || displayState === "PENDING_BASE_CANDLE") {
+    } else if (
+      displayState === "PENDING_ENTRY_FOLLOWUP"
+      || displayState === "PENDING_BASE_CANDLE"
+      || signal.terminal_wait
+    ) {
       direction = "WAIT";
     } else {
       direction = signal.pair_dirs?.[pair] || "WAIT";
@@ -254,6 +274,7 @@ function TimeBlock({
   localTime: FormattedLocalTime | null;
   isPending?: boolean;
 }) {
+  const showBrokerSuffix = VALID_TIME.test(brokerTime);
   return (
     <div className="min-w-0">
       <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--terminal-accent)]">{label}</div>
@@ -274,7 +295,10 @@ function TimeBlock({
         </>
       ) : (
         <div className="mt-0.5 font-mono text-base font-black tabular-nums text-[var(--foreground)] leading-snug">
-          {brokerTime} <span className="text-[9px] font-bold uppercase text-[var(--muted)]">Broker</span>
+          {brokerTime}
+          {showBrokerSuffix && (
+            <span className="ml-1 text-[9px] font-bold uppercase text-[var(--muted)]">Broker</span>
+          )}
         </div>
       )}
     </div>

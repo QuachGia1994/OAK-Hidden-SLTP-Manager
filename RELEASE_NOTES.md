@@ -1,5 +1,11 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [Signal logic v71] - 2026-07-29
+
+- Khôi phục Stage B signal độc lập cho đủ `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`: H7/H9/H12/H14/H16 dùng đúng bốn H1 C1..C4 và ma trận 10 rule SW/BT; entry chọn C1 và chỉ `15:25`/`16:49` có lần đảo ngoại lệ.
+- H3 dùng H1 04:00 (C1/Base), 03:00, 02:00 của phiên Broker trước với ma trận ba nến. Thứ Năm dùng nguồn Thứ Hai cùng tuần: BT giữ kết quả, XAUUSD SW trả WAIT và chờ từ H7.
+- Đồng bộ Signal Bot, MT4 feeder, MT4/MT5 comparator, Dashboard evidence/API, rule contract, tài liệu và regression tests; record cũ bị loại bằng logic version 71.
+
 ## [v3.18.2] - 2026-07-29
 
 - GBPAUD lấy hướng cây H1 hoàn tất ngay trước mốc signal (H3 dùng H2, H7 dùng H6, v.v.) thay vì dùng M15 Base/pattern/post-filter. TĂNG → BUY, GIẢM → SELL. M15 offset -15 và H:45 follow-up chỉ dùng cho XAU entry timing.

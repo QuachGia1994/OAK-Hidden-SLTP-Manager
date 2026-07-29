@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { redis, KEYS, canSeeVipData } from "@/lib/redis";
 import { ACTIVE_SIGNAL_LOGIC_VERSION, DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
+import { isActiveSignalHour } from "@/lib/constants";
 import type { SignalEvidence } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-/** GET /api/signals/evidence?date=YYYY-MM-DD&hour=H
+/** GET /api/signals/evidence?date=YYYY-MM-DD&hour=H&symbol=XAUUSD
  *
- * Returns M15 candle evidence for the given date/hour.
+ * Returns H1 signal evidence for one symbol in the given date/hour slot.
  * VIP-only: non-VIP requests receive 403.
  * Response headers include Cache-Control: private, no-store.
  */
@@ -25,24 +26,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "date, hour, and symbol are required" }, { status: 400 });
   }
 
-  const hourNum = parseInt(hour, 10);
-  if (![3, 7, 9, 12, 14, 16].includes(hourNum)) {
+  const hourNum = Number(hour);
+  if (!Number.isInteger(hourNum) || !isActiveSignalHour(hourNum)) {
     return NextResponse.json({ error: "invalid hour" }, { status: 400 });
   }
 
-  if (symbol && symbol !== "XAUUSD") {
-    return NextResponse.json({ error: "evidence is only available for XAUUSD" }, { status: 400 });
+  const parsedDate = new Date(`${date}T00:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsedDate.valueOf())
+    || parsedDate.toISOString().slice(0, 10) !== date) {
+    return NextResponse.json({ error: "invalid date" }, { status: 400 });
+  }
+
+  if (!DISPLAYED_SIGNAL_PAIRS.some((pair) => pair === symbol)) {
+    return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
   }
 
   try {
     // Expected incoming evidence structure from bot POST:
-    // { "2026-07-29:14:v69": SignalEvidence }
+    // { "2026-07-29:14:XAUUSD:v71": SignalEvidence }
     const allEvidence = (await redis.get(KEYS.evidence)) as Record<string, SignalEvidence> | null;
     if (!allEvidence) {
       return NextResponse.json({ error: "no evidence data" }, { status: 404 });
     }
 
-    const key = `${date}:${hour}:v${ACTIVE_SIGNAL_LOGIC_VERSION}`;
+    const key = `${date}:${hour}:${symbol}:v${ACTIVE_SIGNAL_LOGIC_VERSION}`;
     const evidence = allEvidence[key];
     if (!evidence) {
       return NextResponse.json({ error: "evidence not found for this slot and version" }, { status: 404 });
@@ -58,7 +65,7 @@ export async function GET(request: Request) {
 
 /** POST /api/signals/evidence
  *
- * Bot pushes evidence data. Keyed by date:hour → symbol evidence map.
+ * Bot pushes evidence data keyed by date:hour:symbol:logic-version.
  * Requires API key auth.
  */
 export async function POST(request: Request) {
@@ -78,10 +85,10 @@ export async function POST(request: Request) {
     // Merge: replace existing keys with incoming
     const merged = { ...existing, ...incoming };
 
-    // Keep only the last 200 slots of evidence (each slot = date:hour)
+    // Keep the newest 1,000 records (200 complete slots × five symbols).
     const keys = Object.keys(merged).sort();
-    if (keys.length > 200) {
-      for (const oldKey of keys.slice(0, keys.length - 200)) {
+    if (keys.length > 1000) {
+      for (const oldKey of keys.slice(0, keys.length - 1000)) {
         delete merged[oldKey];
       }
     }

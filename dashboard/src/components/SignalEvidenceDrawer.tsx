@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { SignalEvidence, EvidenceCandle } from "@/lib/types";
+import { ACTIVE_SIGNAL_LOGIC_VERSION } from "@/lib/signal-display";
 import { useLocale } from "./LocaleProvider";
 
 interface SignalEvidenceDrawerProps {
@@ -79,7 +80,8 @@ export function SignalEvidenceDrawer({
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm font-black text-[var(--foreground)]">{symbol}</span>
               <span className="text-xs font-bold uppercase tracking-wider text-[var(--terminal-accent)]">
-                {locale === "EN" ? "Evidence v" : "Bằng chứng v"}{evidence?.logic_version || "69"}
+                {locale === "EN" ? "Evidence v" : "Bằng chứng v"}
+                {evidence?.logic_version || ACTIVE_SIGNAL_LOGIC_VERSION}
               </span>
             </div>
             <div className="font-mono text-sm text-[var(--foreground)]">
@@ -134,7 +136,7 @@ function EvidenceContent({ evidence, locale }: { evidence: SignalEvidence; local
       {/* Target summary block */}
       <div className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4 space-y-3">
         <div className="text-xs font-bold uppercase tracking-wider text-[var(--terminal-accent)]">
-          {locale === "EN" ? "Entry State" : "Trạng thái Entry"}
+          {locale === "EN" ? "Signal derivation" : "Nguồn tạo signal"}
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-mono">
           <div className="text-[var(--muted)]">
@@ -149,13 +151,30 @@ function EvidenceContent({ evidence, locale }: { evidence: SignalEvidence; local
           <div className="text-[var(--muted)]">
             Branch: <span className="text-[var(--foreground)]">{evidence.entry_branch || "—"}</span>
           </div>
+          <div className="text-[var(--muted)]">
+            Group: <span className="text-[var(--foreground)] font-bold">{evidence.group || "—"}</span>
+          </div>
+          <div className="text-[var(--muted)]">
+            Base: <span className="text-[var(--foreground)]">{evidence.signal_base || "—"}</span>
+          </div>
+          <div className="text-[var(--muted)]">
+            Final: <span className="text-[var(--foreground)] font-bold">{evidence.direction || "WAIT"}</span>
+          </div>
+          <div className="text-[var(--muted)]">
+            Action: <span className="text-[var(--foreground)]">{evidence.entry_action || "—"}</span>
+          </div>
         </div>
+        {evidence.reused_monday && (
+          <div className="rounded border border-[var(--terminal-warning)]/35 bg-[var(--terminal-warning)]/10 px-2.5 py-2 text-xs font-semibold text-[var(--terminal-warning)]">
+            {locale === "EN" ? "Thursday reuses Monday" : "Thứ Năm dùng lại Thứ Hai"}: {evidence.reused_monday}
+          </div>
+        )}
       </div>
 
-      {/* M15 Chart Block */}
+      {/* H1 Chart Block */}
       <div className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-4 space-y-3">
         <div className="text-xs font-bold uppercase tracking-wider text-[var(--terminal-accent)]">
-          {locale === "EN" ? "M15 Candle Sequence" : "Chuỗi nến M15"}
+          {locale === "EN" ? "H1 candle sequence" : "Chuỗi nến H1"}
         </div>
         
         {evidence.candles && evidence.candles.length > 0 ? (
@@ -201,17 +220,13 @@ function MultiCandleSvg({ candles, locale }: { candles: EvidenceCandle[]; locale
   const candleWidth = Math.min(24, slotW * 0.6);
 
   const formatTime = (isoString: string) => {
-    try {
-      const d = new Date(isoString);
-      return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-    } catch {
-      return isoString;
-    }
+    const match = /T(\d{2}:\d{2})/.exec(isoString);
+    return match?.[1] || isoString;
   };
 
   return (
     <div className="w-full overflow-x-auto pb-2">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[320px] max-w-[500px]" role="img" aria-label={locale === "EN" ? "M15 candle sequence" : "Chuỗi nến M15"}>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[320px] max-w-[500px]" role="img" aria-label={locale === "EN" ? "H1 candle sequence" : "Chuỗi nến H1"}>
         {/* Horizontal Grid lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((frac, i) => {
           const p = yMin + yRange * frac;
@@ -221,8 +236,8 @@ function MultiCandleSvg({ candles, locale }: { candles: EvidenceCandle[]; locale
         {/* Draw candles */}
         {candles.map((c, i) => {
           const cx = padding.left + i * slotW + slotW / 2;
-          const isHighlight = c.role === "PRE_H" || c.role === "H45";
-          const opacity = isHighlight ? 1.0 : 0.4;
+          const isHighlight = c.role.includes("BASE");
+          const opacity = isHighlight ? 1 : 0.72;
           
           if (c.state === "PENDING" || c.state === "MISSING") {
             // Draw placeholder box

@@ -11,25 +11,25 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 
 ## Signal engine
 
-- Signal source: two `GBPUSD` H1 bars from yesterday; `GBPAUD` takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2, H7 uses H6, etc.). TANG → BUY, GIAM → SELL. `XAUUSD` M15 selects entry time only.
-- Output/trade pair: `XAUUSD` only.
+- Entry and signal sources are separate: M15 selects entry; each symbol's own H1 candles create its final direction.
+- Outputs: `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, and `GBPCAD` are evaluated independently.
 - Trading days: Monday to Friday. Weekend slots are off.
-- Active slots: **H=3, H=4, H=6, H=9, H=12, H=14, H=16**.
-- Broker publication: H3 `03:00`; H4 `04:00`; H6 `06:00`; H9 `09:00`; H12 `12:00`; H14 `14:00`; H16 `16:00`.
-- Every H=3/4/6/9/12/14/16 slot publishes at `H:00`. Read the two completed `GBPUSD` H1 bars from yesterday immediately before the equivalent logical slot (for example, H9 today uses yesterday H8 and H7; H8 is the base). Opposite H1 bars are BT and keep the base direction; same-direction H1 bars are SW and reverse the base direction. This is the final XAUUSD signal.
-- GBPAUD takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2, H7 uses H6, etc.). TANG → BUY, GIAM → SELL. Matching GBPUSD and GBPAUD results → entry `H:11`; differing results → classify today's three completed XAUUSD M15 bars after skipping the immediately preceding bar with the existing SW/BT table (H9 skips `08:45` and uses `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`.
-- H3 is active on every Broker trading weekday. H3 does not evaluate GBPUSD; GBPUSD starts at H7. XAU H3 entry: :11/:25 = SAME GBPAUD · :49 = REVERSE. H4 is always `deactivated`/`DO NOT ENTER`, calculation/reference-only. A missing candle or unresolved DOJI at any step returns `WAIT`.
+- Active slots: **H=3, H=7, H=9, H=12, H=14, H=16**; each publishes at Broker `H:00`.
+- Stage A uses XAUUSD M15 Base `H−00:30`, pattern `H−00:45/H−01:00/H−01:15`, and the XAUUSD `H−00:15` post-filter, then compares with GBPAUD M15 `H−00:15`; when needed, one GBPAUD M15 bar opening at `H:30` and closing at `H:45` selects `H:11`, `H:49`, or `(H+1):25`.
+- H3 uses the previous Broker session's three H1 candles in order: C1/Base `04:00`, C2 `03:00`, C3 `02:00`. The eight-case three-candle matrix classifies SW/BT; SW reverses Base and BT keeps it.
+- Thursday H3 recomputes the same week's Monday source: BT reuses Monday's direction; XAUUSD SW terminates H3 as `WAIT`, sends no tradable signal, and resumes from H7.
+- H7/H9/H12/H14/H16 use four H1 candles from each symbol. `(H+1):25` selects C1 at `H:00`; `H:11/H:49` selects C1 at `H−1:00`. The exact ten-rule classifier derives SW/BT; then `H:11/H:49` reverses Signal Base, `(H+1):25` keeps it, and only `15:25`/`16:49` reverse once more.
+- A missing candle or unresolved DOJI makes that symbol `WAIT`; an unclosed C1 is pending and retried only until entry.
 - BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations; absolute UTC is separated from MT5 wall-clock data timestamps.
 
 ### Core matrix
 
 | Slot | Rule |
 | --- | --- |
-| H=3 | Uses the same two-H1 GBPUSD rule from yesterday; H3 is active on every Broker trading weekday. H3 does not evaluate GBPUSD; GBPUSD starts at H7. GBPAUD takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2). TANG → BUY, GIAM → SELL. XAU H3 entry: :11/:25 = SAME GBPAUD · :49 = REVERSE. When the two GBP results differ, M15 SW enters `04:25`, BT enters `03:49`. |
-| H=4 | Uses the same two-H1/M15 rule but is always `deactivated`/`DO NOT ENTER`; calculation/reference-only. |
-| H=6/H=9/H=12/H=14/H=16 | Emits XAUUSD only. The final signal comes from yesterday's two GBPUSD H1 bars; GBPAUD takes the direction of the completed H1 bar immediately before the signal slot (H7 uses H6, etc.). TANG → BUY, GIAM → SELL. |
+| H=3 | C1/Base = previous-session H1 04:00, C2 = 03:00, C3 = 02:00; use the three-candle SW/BT matrix. Thursday uses Monday's source: keep BT, while XAUUSD SW makes the whole slot WAIT until H7. |
+| H=7/H=9/H=12/H=14/H=16 | Each symbol uses entry-selected H1 C1..C4 and the ten-rule matrix. `H:11/H:49` reverse Signal Base; `(H+1):25` keeps it; only `15:25`/`16:49` reverse again. |
 
-When the GBP results match, every slot uses entry `H:11`. When they differ, classify today's three completed XAUUSD M15 bars after skipping the immediately preceding bar with the SW/BT table (H9 skips `08:45` and uses `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`. An unresolved DOJI or missing candle returns `WAIT`.
+Stage A determines entry only; M15 direction is not the final signal. The Dashboard can open each symbol's H1 C1..C4 evidence (C1..C3 for H3).
 
 ## Dashboard
 

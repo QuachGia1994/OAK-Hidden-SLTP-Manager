@@ -57,16 +57,16 @@ export function PairBadge({
     SW: "border-[var(--terminal-warning)]/20 bg-[var(--terminal-warning)]/5",
   };
 
-  const isXauusd = pair === "XAUUSD";
-  const canOpenEvidence = isXauusd && onClick;
+  const canOpenEvidence = Boolean(hasEvidence && onClick);
 
   const Wrapper = canOpenEvidence ? "button" : "div";
   const wrapperProps = canOpenEvidence
     ? {
+        type: "button" as const,
         onClick: onClick,
         "aria-label": locale === "VN" 
-          ? `Xem biểu đồ M15 ${pair}` 
-          : `View M15 chart for ${pair}`,
+          ? `Xem bằng chứng H1 ${pair}`
+          : `View H1 evidence for ${pair}`,
       }
     : {
         "aria-label": `${direction} signal for ${pair}`
@@ -76,7 +76,7 @@ export function PairBadge({
     <Wrapper
       {...wrapperProps}
       className={`relative group flex items-center justify-between w-full p-2.5 rounded border transition-all text-left overflow-hidden ${
-        canOpenEvidence ? "hover:border-[var(--terminal-accent)]/50 focus:outline-none focus:ring-1 focus:ring-[var(--terminal-accent)] cursor-pointer" : ""
+        canOpenEvidence ? "cursor-pointer hover:border-[var(--terminal-accent)]/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]/70" : ""
       } ${baseColors[direction] || baseColors.WAIT}`}
     >
       <div className="relative z-10 flex items-center justify-between w-full">

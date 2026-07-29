@@ -155,8 +155,8 @@ test("converts local time only with verified, consistent Broker clock metadata",
   }), Date.UTC(2026, 7, 6, 0, 0));
 });
 
-test("derives deactivated card state for H4 and explicit deactivated flag", () => {
-  assert.equal(isEffectivelyDeactivated({ date: "2026-08-05", hour: 4 }), true);
+test("derives deactivated card state only from the explicit record flag", () => {
+  assert.equal(isEffectivelyDeactivated({ date: "2026-08-05", hour: 4 }), false);
   assert.equal(isEffectivelyDeactivated({ date: "2026-08-06", hour: 3 }), false);
   assert.equal(isEffectivelyDeactivated({ date: "2026-08-07", hour: 3 }), false);
   assert.equal(isEffectivelyDeactivated({
@@ -178,10 +178,53 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the v69 M15 5-symbol rules", () => {
+test("shows the v71 H1 five-symbol rules", () => {
   const rules = getDayRules("EN", 2);
-  assert.equal(rules.some((rule) => rule.includes("The XAUUSD Entry Time selects the M15 Base candle")), true);
-  assert.equal(rules.some((rule) => rule.includes("Entry H:11 uses the M15 candle opening at H−00:15")), true);
-  assert.equal(rules.some((rule) => rule.includes("Each symbol reads its own M15 candle")), true);
-  assert.equal(rules.some((rule) => rule.includes("inverted once more")), true);
+  assert.equal(rules.some((rule) => rule.includes("GBPAUD M15 H−00:15")), true);
+  assert.equal(rules.some((rule) => rule.includes("opening at H:30 and closing at H:45")), true);
+  assert.equal(rules.some((rule) => rule.includes("04:00/03:00/02:00 H1 candles")), true);
+  assert.equal(rules.some((rule) => rule.includes("Thursday H3 reuses")), true);
+  assert.equal(rules.some((rule) => rule.includes("exactly four H1 candles")), true);
+  assert.equal(rules.some((rule) => rule.includes("Only Entry 15:25 and 16:49")), true);
+});
+
+test("evidence API and pair cards support all five H1 symbols", () => {
+  const route = fs.readFileSync(
+    new URL("../src/app/api/signals/evidence/route.ts", import.meta.url),
+    "utf8",
+  );
+  const card = fs.readFileSync(
+    new URL("../src/components/SignalCard.tsx", import.meta.url),
+    "utf8",
+  );
+  const badge = fs.readFileSync(
+    new URL("../src/components/PairBadge.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.equal(route.includes("evidence is only available for XAUUSD"), false);
+  assert.equal(route.includes("${date}:${hour}:${symbol}:v${ACTIVE_SIGNAL_LOGIC_VERSION}"), true);
+  assert.equal(card.includes("fetchEvidence(pair)"), true);
+  assert.equal(badge.includes("View H1 evidence"), true);
+});
+
+test("resolver treats terminal wait as final and pending Base as non-ready", () => {
+  const resolver = fs.readFileSync(
+    new URL("../src/lib/signal-resolver.ts", import.meta.url),
+    "utf8",
+  );
+  assert.equal(resolver.includes("if (s.terminal_wait) return 5"), true);
+  assert.equal(resolver.includes('if (signal.terminal_wait)'), true);
+  assert.equal(resolver.includes('signal.signal_state === "PENDING_BASE_CANDLE"'), true);
+});
+
+test("H3 terminal wait card explicitly resumes from H7", () => {
+  const card = fs.readFileSync(
+    new URL("../src/components/SignalCard.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.equal(card.includes("WAIT UNTIL H7"), true);
+  assert.equal(card.includes("CHỜ H7"), true);
+  assert.equal(card.includes('entryTime = locale === "EN" ? "From H7" : "Từ H7"'), true);
+  assert.equal(card.includes("const showBrokerSuffix = VALID_TIME.test(brokerTime)"), true);
+  assert.equal(card.includes("`${signal.entry_time} Broker`"), false);
 });

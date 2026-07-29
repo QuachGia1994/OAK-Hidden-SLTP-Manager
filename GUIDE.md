@@ -11,25 +11,25 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 
 ## Signal engine
 
-- Nguồn signal: hai H1 `GBPUSD` của ngày hôm qua; `GBPAUD` lấy hướng cây H1 hoàn tất ngay trước mốc signal (H3 dùng H2, H7 dùng H6, v.v.). TĂNG → BUY, GIẢM → SELL. `XAUUSD` M15 chỉ chọn entry.
-- Output/cặp giao dịch: chỉ `XAUUSD`.
+- Nguồn entry và nguồn signal tách biệt: M15 chọn entry; H1 của chính từng symbol tạo hướng cuối.
+- Output: `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD` được tính độc lập.
 - Chạy Thứ 2 đến Thứ 6; cuối tuần tắt toàn bộ slot.
-- Slot active: **H=3, H=4, H=6, H=9, H=12, H=14, H=16**.
-- Giờ phát Broker: H3 `03:00`; H4 `04:00`; H6 `06:00`; H9 `09:00`; H12 `12:00`; H14 `14:00`; H16 `16:00`.
-- Mỗi mốc H=3/4/6/9/12/14/16 phát đúng `H:00`. Lấy hai H1 hoàn tất của `GBPUSD` từ ngày hôm qua ngay trước cùng mốc logic (ví dụ H9 hôm nay dùng H8 và H7 hôm qua; H8 là nền). Hai H1 ngược chiều → BT, giữ hướng nền; hai H1 cùng chiều → SW, đảo hướng nền. Đây là signal XAUUSD cuối cùng.
-- GBPAUD lấy hướng cây H1 hoàn tất ngay trước mốc signal (H3 dùng H2, H7 dùng H6, v.v.). TĂNG → BUY, GIẢM → SELL. Kết quả GBPUSD và GBPAUD trùng nhau → entry `H:11`; khác nhau → bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD đã hoàn tất tiếp theo trong ngày bằng bảng SW/BT (H9 bỏ `08:45`, dùng `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`.
-- H3 hoạt động mọi ngày giao dịch Broker. H3 chưa tính GBPUSD; GBPUSD bắt đầu từ H7. Entry XAU H3: :11/:25 = cùng GBPAUD · :49 = đảo. H4 luôn `deactivated`/`DO NOT ENTER`, chỉ phục vụ tính toán/tham chiếu. Thiếu nến hoặc DOJI không resolve được ở bất kỳ bước nào trả `WAIT`.
+- Slot active: **H=3, H=7, H=9, H=12, H=14, H=16**; tất cả phát đúng `H:00` Broker.
+- Stage A dùng XAUUSD M15 Base `H−00:30`, pattern `H−00:45/H−01:00/H−01:15`, post-filter XAUUSD `H−00:15`, rồi so với GBPAUD M15 `H−00:15`; khi cần dùng một nến GBPAUD M15 mở `H:30`/đóng `H:45` để chọn `H:11`, `H:49` hoặc `(H+1):25`.
+- H3 dùng ba H1 của phiên Broker trước theo thứ tự C1/Base `04:00`, C2 `03:00`, C3 `02:00`. Cả 8 tổ hợp được phân nhóm bằng ma trận ba nến; SW đảo Base, BT giữ Base.
+- H3 Thứ Năm tính lại nguồn của Thứ Hai cùng tuần: BT dùng lại hướng Thứ Hai; nếu XAUUSD là SW thì slot H3 kết thúc ở `WAIT`, không gửi signal giao dịch và chờ từ H7.
+- H7/H9/H12/H14/H16 dùng bốn H1 của từng symbol. `(H+1):25` chọn C1 tại `H:00`; `H:11/H:49` chọn C1 tại `H−1:00`. Phân loại đúng 10 rule SW/BT; SW đảo C1, BT giữ C1. Sau đó nhánh `H:11/H:49` đảo Signal Base, `(H+1):25` giữ; riêng `15:25` và `16:49` đảo thêm một lần.
+- Thiếu nến hoặc DOJI không resolve được trả `WAIT` cho đúng symbol; C1 chưa đóng là trạng thái pending và được retry đến entry.
 - BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed nếu tick stale, thiếu hoặc mâu thuẫn; UTC tuyệt đối được tách khỏi timestamp wall-clock của dữ liệu MT5.
 
 ### Ma trận core
 
 | Mốc | Rule |
 | --- | --- |
-| H=3 | Cùng rule hai H1 GBPUSD ngày hôm qua; H3 hoạt động mọi ngày giao dịch Broker. H3 chưa tính GBPUSD; GBPUSD bắt đầu từ H7. GBPAUD lấy hướng cây H1 hoàn tất ngay trước mốc signal (H3 dùng H2). TĂNG → BUY, GIẢM → SELL. Entry XAU H3: :11/:25 = cùng GBPAUD · :49 = đảo. Khi hai kết quả GBP khác nhau, M15 SW vào `04:25`, BT vào `03:49`. |
-| H=4 | Cùng rule hai H1/M15 nhưng luôn `deactivated`/`DO NOT ENTER`; chỉ phục vụ tính toán/tham chiếu. |
-| H=6/H=9/H=12/H=14/H=16 | Chỉ phát XAUUSD. Signal cuối cùng lấy từ hai H1 GBPUSD hôm qua; GBPAUD lấy hướng cây H1 hoàn tất ngay trước mốc signal (H7 dùng H6, v.v.). TĂNG → BUY, GIẢM → SELL. |
+| H=3 | C1/Base = H1 04:00, C2 = 03:00, C3 = 02:00 của phiên Broker trước; ma trận ba nến SW/BT. Thứ Năm dùng nguồn Thứ Hai: BT giữ, XAUUSD SW → toàn slot WAIT đến H7. |
+| H=7/H=9/H=12/H=14/H=16 | Mỗi symbol dùng C1..C4 H1 theo entry đã chọn và ma trận 10 rule. `H:11/H:49` đảo Signal Base; `(H+1):25` giữ; chỉ `15:25`/`16:49` đảo thêm. |
 
-Khi hai kết quả GBP trùng nhau, mọi mốc dùng entry `H:11`. Khi khác nhau, bỏ M15 ngay trước mốc rồi dùng ba M15 XAUUSD đã hoàn tất tiếp theo trong ngày theo bảng SW/BT (H9 bỏ `08:45`, dùng `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`. DOJI chưa resolve hoặc thiếu nến → `WAIT`.
+Stage A chỉ quyết định entry; không dùng hướng M15 làm signal cuối. Dashboard cho phép mở bằng chứng H1 C1..C4 (H3: C1..C3) của từng symbol.
 
 ## Dashboard
 

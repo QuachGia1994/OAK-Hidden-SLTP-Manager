@@ -16,6 +16,14 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify
 from domain.broker_clock import BrokerClock
 from domain.json_io import load_json, save_json
+from domain.signal_rules import (
+    apply_entry_rule,
+    classify_four_h1_group,
+    classify_three_candle_group,
+    derive_signal_base,
+    derive_xau_entry_basis,
+    select_xau_entry_time,
+)
 
 try:
     import MetaTrader5 as mt5
@@ -42,6 +50,7 @@ except Exception:
 XAUUSD_SYMBOL = "XAUUSD"
 GBPUSD_SYMBOL = "GBPUSD"
 GBPAUD_SYMBOL = "GBPAUD"
+SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
 TARGET_HOURS = [3, 7, 9, 12, 14, 16]
 BROKER_CLOCK = BrokerClock(
@@ -244,12 +253,12 @@ def _mark_delivery_missed(key):
 
 def get_signal_time_for_slot(broker_dt, slot):
     """Return the publication clock for one active logical slot."""
-    clocks = {3: "03:00", 4: "04:00", 6: "06:00", 9: "09:00", 12: "12:00", 14: "14:00", 16: "16:00"}
+    clocks = {hour: f"{hour:02d}:00" for hour in TARGET_HOURS}
     return clocks[slot]
 
 
 def get_schedule_note(broker_dt):
-    return "YESTERDAY GBP H1 + TODAY XAUUSD M15"
+    return "STAGE A ENTRY + H3 THREE-H1 / H7+ FOUR-H1 SIGNALS"
 
 
 def _entry_datetime(broker_dt, entry_time):
@@ -303,75 +312,7 @@ def candle_dir(c):
     return "TANG" if c["close"] > c["open"] else "GIAM"
 
 # =====================================================================
-# SIGNAL LOGIC
-# =====================================================================
-_THREE_CANDLE_GROUPS = {
-    ("TANG", "TANG", "TANG"): "SW",
-    ("GIAM", "TANG", "TANG"): "SW",
-    ("GIAM", "TANG", "GIAM"): "BT",
-    ("GIAM", "GIAM", "TANG"): "BT",
-    ("GIAM", "GIAM", "GIAM"): "SW",
-    ("TANG", "GIAM", "GIAM"): "SW",
-    ("TANG", "GIAM", "TANG"): "BT",
-    ("TANG", "TANG", "GIAM"): "BT",
-}
-
-
-def _derive_xau_from_h1(newest_direction, older_direction):
-    if newest_direction not in ("TANG", "GIAM") or older_direction not in ("TANG", "GIAM"):
-        return None, None
-    base_signal = "BUY" if newest_direction == "TANG" else "SELL"
-    group = "SW" if newest_direction == older_direction else "BT"
-    if group == "SW":
-        base_signal = "SELL" if base_signal == "BUY" else "BUY"
-    return base_signal, group
-
-
-def _opposite_entry_time(slot, m15_group):
-    if m15_group == "BT":
-        return f"{int(slot):02d}:49"
-    if m15_group != "SW":
-        return None
-    if int(slot) == 3:
-        return "04:25"
-    return f"{int(slot) + 1:02d}:25"
-
-
-def calculate_context(
-    slot,
-    gbpusd_h1_1,
-    gbpusd_h1_2,
-    gbpaud_h1_1,
-    gbpaud_h1_2,
-    xau_m15_directions,
-):
-    """Calculate XAUUSD from yesterday's GBP H1 and today's XAU M15."""
-    gbpusd_signal, gbpusd_group = _derive_xau_from_h1(gbpusd_h1_1, gbpusd_h1_2)
-    gbpaud_signal, gbpaud_group = _derive_xau_from_h1(gbpaud_h1_1, gbpaud_h1_2)
-    result = {
-        "signal": "WAIT",
-        "entry_time": None,
-        "gbpusd_signal": gbpusd_signal,
-        "gbpusd_group": gbpusd_group,
-        "gbpaud_signal": gbpaud_signal,
-        "gbpaud_group": gbpaud_group,
-        "m15_group": None,
-    }
-    if gbpusd_signal not in ("BUY", "SELL") or gbpaud_signal not in ("BUY", "SELL"):
-        return result
-    result["signal"] = gbpusd_signal
-    if gbpusd_signal == gbpaud_signal:
-        result["entry_time"] = f"{int(slot):02d}:11"
-        return result
-    m15_group = _THREE_CANDLE_GROUPS.get(tuple(xau_m15_directions))
-    result["m15_group"] = m15_group
-    result["entry_time"] = _opposite_entry_time(slot, m15_group)
-    if result["entry_time"] is None:
-        result["signal"] = "WAIT"
-    return result
-
-# =====================================================================
-# MT5 DATA FETCHER
+# SIGNAL LOGIC AND MT5 DATA FETCHER
 # =====================================================================
 def _resolved_direction(symbol, timeframe, candle_dt, fallback_delta):
     target_ts = broker_datetime_to_ts(candle_dt)
@@ -382,51 +323,129 @@ def _resolved_direction(symbol, timeframe, candle_dt, fallback_delta):
         return None
     fallback_ts = broker_datetime_to_ts(candle_dt - fallback_delta)
     fallback = candle_dir(get_candle_by_ts(symbol, timeframe, fallback_ts))
-    return fallback if fallback in ("TANG", "GIAM") else None
+    if fallback not in ("TANG", "GIAM"):
+        return None
+    if timeframe == mt5.TIMEFRAME_M15:
+        return "GIAM" if fallback == "TANG" else "TANG"
+    return fallback
+
+
+def _fetch_stage_a_entry(broker_dt, slot):
+    slot_dt = broker_dt.replace(hour=int(slot), minute=0, second=0, microsecond=0)
+    m15 = timedelta(minutes=15)
+    base = _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - 2 * m15, m15)
+    patterns = tuple(
+        _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - offset * m15, m15)
+        for offset in (3, 4, 5)
+    )
+    xau_offset15 = _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - m15, m15)
+    basis = derive_xau_entry_basis(base, patterns, xau_offset15)
+    gbpaud_initial = _resolved_direction(GBPAUD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - m15, m15)
+    followup = _resolved_direction(GBPAUD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt + 2 * m15, m15)
+    return select_xau_entry_time(slot, basis, gbpaud_initial, followup)
+
+
+def _h3_source_context(broker_dt, symbol):
+    for days_back in range(1, 8):
+        candidate = broker_dt.date() - timedelta(days=days_back)
+        if candidate.weekday() >= 5:
+            continue
+        day_start = datetime.combine(candidate, datetime.min.time())
+        directions = tuple(
+            _resolved_direction(
+                symbol, mt5.TIMEFRAME_H1, day_start.replace(hour=hour), timedelta(hours=1)
+            )
+            for hour in (4, 3, 2)
+        )
+        if directions[0] not in ("TANG", "GIAM"):
+            continue
+        group = classify_three_candle_group(directions)
+        signal = derive_signal_base(directions[0], group) if group else "WAIT"
+        return {"signal": signal, "group": group, "directions": directions, "source": day_start}
+    return {"signal": "WAIT", "group": None, "directions": (), "source": None}
+
+
+def _h3_context_for_pair(broker_dt, symbol):
+    if broker_dt.weekday() != 3:
+        return _h3_source_context(broker_dt, symbol)
+    monday_dt = broker_dt - timedelta(days=3)
+    context = _h3_source_context(monday_dt, symbol)
+    if context.get("group") == "SW":
+        return {**context, "signal": "WAIT", "thursday_wait_until_h7": True}
+    return {**context, "reused_monday": monday_dt.date().isoformat()}
+
+
+def _h1_context_for_pair(broker_dt, slot, symbol, entry_time):
+    slot_dt = broker_dt.replace(hour=int(slot), minute=0, second=0, microsecond=0)
+    if int(slot) == 3:
+        return _h3_context_for_pair(broker_dt, symbol)
+    plus_1_entry = f"{int(slot) + 1:02d}:25"
+    base_dt = slot_dt if entry_time == plus_1_entry else slot_dt - timedelta(hours=1)
+    if broker_dt < base_dt + timedelta(hours=1):
+        return {"signal": "WAIT", "group": None, "directions": (), "source": base_dt}
+    directions = tuple(
+        _resolved_direction(symbol, mt5.TIMEFRAME_H1, base_dt - timedelta(hours=index), timedelta(hours=1))
+        for index in range(4)
+    )
+    group = classify_four_h1_group(directions)
+    signal_base = derive_signal_base(directions[0], group) if group else "WAIT"
+    return {
+        "signal": apply_entry_rule(signal_base, entry_time, slot),
+        "group": group,
+        "directions": directions,
+        "source": base_dt,
+    }
+
+
+def calculate_context(slot, entry_time, pair_dirs, pair_groups=None):
+    """Normalize one terminal's final v71 context."""
+    normalized = {
+        symbol: pair_dirs.get(symbol) if pair_dirs.get(symbol) in ("BUY", "SELL", "WAIT") else "WAIT"
+        for symbol in SIGNAL_PAIRS
+    }
+    groups = {
+        symbol: value if value in ("SW", "BT", "WAIT", None) else None
+        for symbol, value in dict(pair_groups or {}).items()
+        if symbol in SIGNAL_PAIRS
+    }
+    return {
+        "signal": normalized["XAUUSD"],
+        "entry_time": entry_time,
+        "pair_dirs": normalized,
+        "pair_groups": groups,
+    }
 
 
 def fetch_mt5_data(broker_dt, slot):
-    """Read the Broker-timed H1/M15 context from MT5."""
+    """Read Stage-A entry and independent H1 pair signals from MT5."""
     if not mt5_ready:
-        return {"signal": "WAIT", "entry_time": None}
-    slot_dt = broker_dt.replace(hour=int(slot), minute=0, second=0, microsecond=0)
-    yesterday_slot = slot_dt - timedelta(days=1)
-    h1_delta = timedelta(hours=1)
-    directions = {
-        "gbpusd_h1_1": _resolved_direction(GBPUSD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - h1_delta, h1_delta),
-        "gbpusd_h1_2": _resolved_direction(GBPUSD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - 2 * h1_delta, h1_delta),
-        "gbpaud_h1_1": _resolved_direction(GBPAUD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - h1_delta, h1_delta),
-        "gbpaud_h1_2": _resolved_direction(GBPAUD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - 2 * h1_delta, h1_delta),
-        "xau_m15_1": None,
-        "xau_m15_2": None,
-        "xau_m15_3": None,
+        return calculate_context(slot, None, {})
+    if int(slot) == 3 and broker_dt.weekday() == 3:
+        h3_evidence = {
+            symbol: _h3_context_for_pair(broker_dt, symbol)
+            for symbol in SIGNAL_PAIRS
+        }
+        if h3_evidence["XAUUSD"].get("group") == "SW":
+            return calculate_context(
+                slot,
+                None,
+                {symbol: value["signal"] for symbol, value in h3_evidence.items()},
+                {symbol: value["group"] for symbol, value in h3_evidence.items()},
+            )
+    entry = _fetch_stage_a_entry(broker_dt, slot)
+    entry_time = entry.get("entry_time")
+    if entry.get("state") != "READY" or not entry_time:
+        return calculate_context(slot, None, {})
+    evidence = {
+        symbol: _h1_context_for_pair(broker_dt, slot, symbol, entry_time)
+        for symbol in SIGNAL_PAIRS
     }
-    gbpusd_signal, _ = _derive_xau_from_h1(
-        directions["gbpusd_h1_1"], directions["gbpusd_h1_2"]
-    )
-    gbpaud_signal, _ = _derive_xau_from_h1(
-        directions["gbpaud_h1_1"], directions["gbpaud_h1_2"]
-    )
-    if (
-        gbpusd_signal in ("BUY", "SELL")
-        and gbpaud_signal in ("BUY", "SELL")
-        and gbpusd_signal != gbpaud_signal
-    ):
-        m15_delta = timedelta(minutes=15)
-        directions.update({
-            "xau_m15_1": _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - 2 * m15_delta, m15_delta),
-            "xau_m15_2": _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - 3 * m15_delta, m15_delta),
-            "xau_m15_3": _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - 4 * m15_delta, m15_delta),
-        })
-    context = calculate_context(
+    return calculate_context(
         slot,
-        directions["gbpusd_h1_1"],
-        directions["gbpusd_h1_2"],
-        directions["gbpaud_h1_1"],
-        directions["gbpaud_h1_2"],
-        (directions["xau_m15_1"], directions["xau_m15_2"], directions["xau_m15_3"]),
+        entry_time,
+        {symbol: value["signal"] for symbol, value in evidence.items()},
+        {symbol: value["group"] for symbol, value in evidence.items()},
     )
-    return {**directions, **context}
 
 # =====================================================================
 # FLASK ENDPOINT
@@ -444,21 +463,22 @@ def receive_mt4_data():
         if not isinstance(time_str, str) or len(time_str) > 20:
             return jsonify({"error": "Invalid time field"}), 400
 
-        direction_fields = (
-            "gbpusd_h1_1",
-            "gbpusd_h1_2",
-            "gbpaud_h1_1",
-            "gbpaud_h1_2",
-            "xau_m15_1",
-            "xau_m15_2",
-            "xau_m15_3",
-        )
+        direction_fields = tuple(f"{symbol.lower()}_signal" for symbol in SIGNAL_PAIRS)
+        group_fields = tuple(f"{symbol.lower()}_group" for symbol in SIGNAL_PAIRS)
         # Sanitize string fields
-        for key in ("broker", *direction_fields):
+        for key in ("broker", *direction_fields, *group_fields):
             val = data.get(key, "")
             if not isinstance(val, str):
                 data[key] = str(val)
             data[key] = data[key][:50]  # Limit length
+        terminal_wait = data.get("terminal_wait") is True
+        entry_value = data.get("entry_time")
+        valid_entry = isinstance(entry_value, str) and (
+            terminal_wait and entry_value == ""
+            or _entry_datetime(datetime.now(), entry_value) is not None
+        )
+        if not valid_entry:
+            return jsonify({"error": "invalid entry_time"}), 400
 
         broker_dt = get_broker_time()
         print(f"\n{'='*55}")
@@ -477,15 +497,9 @@ def receive_mt4_data():
             return jsonify({"error": "inactive slot"}), 400
         mt4_context = calculate_context(
             H,
-            data.get("gbpusd_h1_1"),
-            data.get("gbpusd_h1_2"),
-            data.get("gbpaud_h1_1"),
-            data.get("gbpaud_h1_2"),
-            (
-                data.get("xau_m15_1"),
-                data.get("xau_m15_2"),
-                data.get("xau_m15_3"),
-            ),
+            data.get("entry_time"),
+            {symbol: data.get(f"{symbol.lower()}_signal") for symbol in SIGNAL_PAIRS},
+            {symbol: data.get(f"{symbol.lower()}_group") for symbol in SIGNAL_PAIRS},
         )
         mt4_signal = mt4_context["signal"]
         if time_str != get_signal_time_for_slot(broker_dt, H):
@@ -500,6 +514,37 @@ def receive_mt4_data():
             return jsonify({"status": "missed", "slot": H}), 200
         if terminal_status == "delivered":
             return jsonify({"status": "duplicate", "slot": H}), 200
+        if terminal_wait:
+            valid_terminal_wait = (
+                H == 3
+                and broker_dt.weekday() == 3
+                and mt4_signal == "WAIT"
+                and mt4_context.get("pair_groups", {}).get("XAUUSD") == "SW"
+            )
+            if not valid_terminal_wait:
+                return jsonify({"error": "invalid terminal_wait context"}), 409
+            if not _start_delivery(delivery_key):
+                return jsonify({"status": "retry", "slot": H, "reason": "IN_PROGRESS"}), 503
+            mt5_data = fetch_mt5_data(broker_dt, H)
+            matched = (
+                mt5_data.get("signal") == "WAIT"
+                and mt5_data.get("pair_groups", {}).get("XAUUSD") == "SW"
+            )
+            if not matched:
+                _release_delivery(delivery_key)
+                delivery_key = None
+                return jsonify({
+                    "status": "retry",
+                    "slot": H,
+                    "reason": "MT5_H3_CONTEXT_MISMATCH",
+                }), 425
+            _complete_delivery(delivery_key)
+            delivery_key = None
+            return jsonify({
+                "status": "wait_until_h7",
+                "slot": H,
+                "matched": matched,
+            }), 200
         if mt4_signal == "WAIT" or _entry_datetime(
             broker_dt, mt4_context.get("entry_time")
         ) is None:
@@ -532,12 +577,13 @@ def receive_mt4_data():
                 "mt5_entry_time": mt5_entry,
             }), 200
 
-        if mt4_signal == mt5_signal and mt4_entry == mt5_entry:
-            conclusion = f"HOP LUU: {mt4_signal} @ {mt4_entry}"
+        pair_matches = mt4_context.get("pair_dirs") == mt5_data.get("pair_dirs")
+        if pair_matches and mt4_entry == mt5_entry:
+            conclusion = f"HOP LUU 5 PAIRS @ {mt4_entry}"
         else:
             conclusion = (
-                f"XUNG DOT: MT4={mt4_signal}@{mt4_entry} "
-                f"vs MT5={mt5_signal}@{mt5_entry} - KHONG VAO"
+                f"XUNG DOT: MT4={mt4_context.get('pair_dirs')}@{mt4_entry} "
+                f"vs MT5={mt5_data.get('pair_dirs')}@{mt5_entry} - KHONG VAO"
             )
 
         if deactivated:
@@ -595,6 +641,14 @@ def build_telegram(
     now_s = fmt_time(broker_dt)
     note = get_schedule_note(broker_dt)
 
+    mt4_pairs = " | ".join(
+        f"{symbol}:{mt4_context.get('pair_dirs', {}).get(symbol, 'WAIT')}"
+        for symbol in SIGNAL_PAIRS
+    )
+    mt5_pairs = " | ".join(
+        f"{symbol}:{mt5_context.get('pair_dirs', {}).get(symbol, 'WAIT')}"
+        for symbol in SIGNAL_PAIRS
+    )
     return (
         f"=== BAO CAO DOI CHIEU ===\n"
         f"Thoi gian: {now_s}\n"
@@ -602,15 +656,11 @@ def build_telegram(
         f"Tap trung: {note}\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
-        f"  GBPUSD H1: {mt4_context.get('gbpusd_group')} -> {ico(mt4_context.get('gbpusd_signal'))}\n"
-        f"  GBPAUD H1: {mt4_context.get('gbpaud_group')} -> {ico(mt4_context.get('gbpaud_signal'))}\n"
-        f"  XAUUSD M15: {mt4_context.get('m15_group') or 'not needed'}\n"
-        f"  => {ico(mt4_context.get('signal'))} @ {mt4_context.get('entry_time')}\n\n"
+        f"  {mt4_pairs}\n"
+        f"  => XAU {ico(mt4_context.get('signal'))} @ {mt4_context.get('entry_time')}\n\n"
         f"--- MT5 ---\n"
-        f"  GBPUSD H1: {mt5_context.get('gbpusd_group')} -> {ico(mt5_context.get('gbpusd_signal'))}\n"
-        f"  GBPAUD H1: {mt5_context.get('gbpaud_group')} -> {ico(mt5_context.get('gbpaud_signal'))}\n"
-        f"  XAUUSD M15: {mt5_context.get('m15_group') or 'not needed'}\n"
-        f"  => {ico(mt5_context.get('signal'))} @ {mt5_context.get('entry_time')}\n\n"
+        f"  {mt5_pairs}\n"
+        f"  => XAU {ico(mt5_context.get('signal'))} @ {mt5_context.get('entry_time')}\n\n"
         f"===========================\n"
         f"KET LUAN: {conclusion}\n"
         f"===========================\n"
@@ -650,8 +700,8 @@ def ensure_mt5_running():
 def main():
     global mt5_ready
     print("=" * 55)
-    print("  MT4-MT5 Dual Signal Server v2.0")
-    print(f"  Symbols: {GBPUSD_SYMBOL}, {GBPAUD_SYMBOL}, {XAUUSD_SYMBOL}")
+    print("  MT4-MT5 Dual Signal Server v2.10 / signal v71")
+    print(f"  Symbols: {', '.join(SIGNAL_PAIRS)}")
     print(f"  Target Hours: {TARGET_HOURS}")
     print("  Broker clock: live-tick calibrated, fail-closed")
     print("=" * 55)

@@ -26,6 +26,7 @@ EXTRA_PACKAGE_FILES = (
     "GUIDE.md",
     "RELEASE_NOTES.en.md",
     "RELEASE_NOTES.md",
+    "signal_rule_contract.json",
 )
 HIDDEN_IMPORTS = (
     "PySide6.QtCore",
@@ -101,6 +102,7 @@ def build_args() -> list[str]:
         "--noconfirm",
         f"--icon={ICON_PATH}",
         f"--add-data={ICON_PATH};.",
+        f"--add-data={os.path.join(PROJECT_ROOT, 'signal_rule_contract.json')};.",
         f"--distpath={DIST_ROOT}",
         f"--workpath={BUILD_ROOT}",
         f"--specpath={BUILD_ROOT}",

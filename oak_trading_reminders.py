@@ -16,6 +16,7 @@ import re
 from oak_response_dict import get_random_response # Import new response module
 from utils import load_json_file
 from oak_logger import setup_logger
+from domain.json_io import resource_path
 
 try:
     from zoneinfo import ZoneInfo
@@ -613,12 +614,18 @@ def get_day_notes(now, lang="VN"):
             return ["Cuối tuần: không trade theo schedule bot."]
         return ["Weekend: no bot trade schedule."]
 
-    notes_vn = ['Entry Time của XAUUSD quyết định cây M15 Base dùng tạo signal cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.', 'Entry H:11 dùng cây M15 mở H−00:15, đóng H:00 và đảo Base.', 'Entry H:49 dùng cây M15 mở H:00, đóng H:15 và giữ nguyên Base.', 'Entry (H+1):25 dùng cây M15 mở H:00, đóng H:15 và đảo Base.', 'Mỗi symbol đọc cây M15 của chính nó. Không symbol nào cung cấp direction cho symbol khác.', 'Tại H14 và H16, signal của cả năm symbol được đảo thêm một lần.', 'Base thiếu dữ liệu hoặc DOJI thì riêng symbol đó WAIT.']
-    notes_en = ['The XAUUSD Entry Time selects the M15 Base candle used to derive signals for XAUUSD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.', 'Entry H:11 uses the M15 candle opening at H−00:15 and closing at H:00, then reverses the Base.', 'Entry H:49 uses the M15 candle opening at H:00 and closing at H:15, then keeps the Base direction.', 'Entry (H+1):25 uses the M15 candle opening at H:00 and closing at H:15, then reverses the Base.', 'Each symbol reads its own M15 candle. No symbol provides direction for another symbol.', 'At H14 and H16, the signal of all five symbols is inverted once more.', 'A missing or DOJI Base results in WAIT only for that symbol.']
-
-    if lang == "VN":
-        return notes_vn
-    return notes_en
+    contract_path = resource_path("signal_rule_contract.json")
+    if not os.path.exists(contract_path):
+        contract_path = os.path.join(os.path.dirname(__file__), "signal_rule_contract.json")
+    try:
+        with open(contract_path, "r", encoding="utf-8") as contract_file:
+            rules = json.load(contract_file).get("rules", {})
+        selected = rules.get("VN" if lang == "VN" else "EN")
+        if isinstance(selected, list) and selected:
+            return selected
+    except (OSError, ValueError, TypeError):
+        log.exception("Unable to load canonical signal rules")
+    return ["Không tải được rule signal."] if lang == "VN" else ["Signal rules unavailable."]
 
 class OakTradingReminder:
     def __init__(self, token=None, chat_id=None):

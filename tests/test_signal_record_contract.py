@@ -48,6 +48,28 @@ class SignalRecordContractTests(unittest.TestCase):
     def test_h4_is_no_longer_an_active_slot(self) -> None:
         self.assertNotIn(4, mt5_signal_bot.ACTIVE_HOURS)
 
+    def test_terminal_wait_record_does_not_invent_an_entry_time(self) -> None:
+        broker_dt = datetime(2026, 7, 30, 3, 5)
+        captured = []
+        with (
+            patch.object(mt5_signal_bot, "BROKER_CLOCK", _FakeBrokerClock()),
+            patch.object(mt5_signal_bot, "_write_signals_log_atomic", side_effect=captured.append),
+            patch.object(mt5_signal_bot.os.path, "exists", return_value=False),
+            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="03:11") as fallback,
+        ):
+            mt5_signal_bot.log_signal(
+                3,
+                broker_dt,
+                "WAIT",
+                None,
+                {"XAUUSD": "WAIT"},
+                "",
+                extra_fields={"terminal_wait": True, "h3_wait_until_h7": True},
+            )
+
+        self.assertIsNone(captured[0][0]["entry_time"])
+        fallback.assert_not_called()
+
     def test_special_h9_record_uses_the_normal_0900_publication_clock(self) -> None:
         broker_dt = datetime(2026, 8, 6, 9, 0)
         captured = []

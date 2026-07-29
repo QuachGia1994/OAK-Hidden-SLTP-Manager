@@ -15,7 +15,7 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- The signal engine emits `XAUUSD` only: `GBPUSD` H1 supplies the signal, `GBPAUD` takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2, H7 uses H6, etc.). TANG → BUY, GIAM → SELL, and `XAUUSD` M15 selects entry time only.
+- The signal engine independently evaluates `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, and `GBPCAD`; M15 selects the entry branch, while each symbol's own H1 candles produce its final direction.
 - Telegram bridge with profile-safe commands and MiMo worker support. Quick orders accept `<lot> <broker HH:MM> <profile>` and convert it to the Windows clock.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
@@ -32,11 +32,11 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 
 - Trading days: Monday to Friday.
 - Weekend: no desktop signal, no next slot, no countdown.
-- The only logical slots are **H=3, H=4, H=6, H=9, H=12, H=14, and H=16**, Monday through Friday.
-- Broker publication times: H3 `03:00`; H4 `04:00`; H6 `06:00`; H9 `09:00`; H12 `12:00`; H14 `14:00`; H16 `16:00`. Entry is never earlier than publication.
-- Every H=3/4/6/9/12/14/16 slot publishes at `H:00`. Read the two completed `GBPUSD` H1 bars from yesterday immediately before the equivalent logical slot (for example, H9 today uses yesterday H8 and H7; H8 is the base). Opposite bars are BT and keep the base direction; same-direction bars are SW and reverse the base direction. This is the final XAUUSD signal.
-- GBPAUD takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2, H7 uses H6, etc.). TANG → BUY, GIAM → SELL. If the GBPUSD and GBPAUD results match, entry is `H:11`. If they differ, skip the M15 immediately before the slot and classify the next three completed XAUUSD M15 bars with the existing SW/BT table (for H9, skip `08:45` and use `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 SW → `04:25`, BT → `03:49`.
-- H3 is active on every Broker trading weekday; H4 every day remains `deactivated`/`DO NOT ENTER`. A missing candle or unresolved DOJI at any step returns `WAIT`.
+- The only logical slots are **H=3, H=7, H=9, H=12, H=14, and H=16**, Monday through Friday; every slot publishes at Broker `H:00`.
+- Stage A keeps the M15 entry planner: XAUUSD uses Base `H−00:30`, pattern `H−00:45/H−01:00/H−01:15`, and the XAUUSD `H−00:15` post-filter; it then compares with GBPAUD M15 `H−00:15` and, when needed, uses the GBPAUD M15 bar opening at `H:30` and closing at `H:45` to select `H:11`, `H:49`, or `(H+1):25`.
+- H3: each symbol uses the previous Broker session's H1 `04:00` (C1/Base), `03:00`, and `02:00` with the three-candle SW/BT matrix. Thursday reuses the same week's Monday source: BT keeps Monday's result; XAUUSD SW makes the entire H3 slot `WAIT` until H7.
+- H7/H9/H12/H14/H16: entry `(H+1):25` selects C1 opening at `H:00`; entry `H:11/H:49` selects C1 at `H−1:00`. Each symbol classifies its own C1..C4 with the ten rules; SW reverses C1 and BT keeps it. `(H+1):25` keeps Signal Base, `H:11/H:49` reverses it, and only `15:25`/`16:49` reverse once more.
+- Missing candles or an unresolved DOJI make only that symbol `WAIT`; an unclosed selected H1 Base is retried until entry and is never emitted late.
 - BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations. Absolute UTC used by scheduling/UI is kept separate from the wall-clock timestamp encoding exposed by some MT5 terminals for bars and ticks.
 
 ## Fact Check AI

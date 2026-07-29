@@ -7,6 +7,32 @@ import mt5_signal_bot
 
 
 class SignalLiveSchedulerTests(unittest.TestCase):
+    def test_thursday_h3_monday_sw_is_terminal_wait_until_h7(self) -> None:
+        broker_dt = datetime(2026, 7, 30, 3, 5)
+        sent = set()
+        result = {
+            "signal": "WAIT",
+            "signal_state": "WAIT",
+            "entry_state": "PENDING_FOLLOWUP",
+            "entry_time": None,
+            "terminal_wait": True,
+            "pair_dirs": {"XAUUSD": "WAIT"},
+        }
+        with (
+            patch.object(mt5_signal_bot, "sent_today", sent),
+            patch.object(mt5_signal_bot, "calculate_slot_signal", return_value=result),
+            patch.object(mt5_signal_bot, "log_signal") as log_signal,
+            patch.object(mt5_signal_bot, "push_to_dashboard"),
+            patch.object(mt5_signal_bot, "push_signal_evidence"),
+            patch.object(mt5_signal_bot, "_save_state") as save,
+        ):
+            processed = mt5_signal_bot._process_live_slot(broker_dt, 3)
+
+        self.assertTrue(processed)
+        self.assertIn((broker_dt.date(), 3), sent)
+        self.assertEqual(log_signal.call_args.args[2], "WAIT")
+        save.assert_called_once()
+
     def test_incomplete_signal_retries_before_deadline(self) -> None:
         broker_dt = datetime(2026, 7, 14, 7, 5)
         pending = set()

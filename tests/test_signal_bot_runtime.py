@@ -20,7 +20,9 @@ class SignalBotRuntimeTests(unittest.TestCase):
             mt5_connected=True,
         )
 
-        self.assertIn("🤖 OAK SIGNAL BOT ONLINE · v70", message)
+        self.assertIn("🤖 OAK SIGNAL BOT ONLINE · v71", message)
+        self.assertIn("H3 three-H1 | H7+ four-H1 10-rule classifier", message)
+        self.assertIn("H3 Thursday: Monday BT reused | Monday SW waits until H7", message)
         self.assertIn("Slots: H3 - H7 - H9 - H12 - H14 - H16", message)
         self.assertIn("Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD", message)
         self.assertIn("Auto-close: XAU 17:59 | GBP 19:59 Broker", message)

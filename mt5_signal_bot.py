@@ -19,6 +19,12 @@ from repositories.sqlite_store import SQLiteStore
 from secret_store import resolve_telegram_token, migrate_plaintext_tokens
 from telegram_client import telegram_get_me
 from domain.broker_clock import BrokerClock, BrokerClockError
+from domain.signal_rules import (
+    apply_entry_rule,
+    classify_four_h1_group,
+    classify_three_candle_group,
+    derive_signal_base,
+)
 
 log = setup_logger("signal")
 
@@ -55,7 +61,6 @@ except Exception:
 SYMBOL = "XAUUSD"
 TARGET_HOURS = [3, 7, 9, 12, 14, 16]
 ACTIVE_HOURS = frozenset(TARGET_HOURS)
-GBP_SOURCE_PAIRS = ("GBPUSD", "GBPAUD")
 VN_UTC_OFFSET = 7  # Vietnam local timezone (Indochina Time, no DST)
 
 
@@ -144,10 +149,9 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 70
+SIGNAL_LOGIC_VERSION = 71
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
-INDEPENDENT_M15_PAIRS = ("GBPUSD", "GBPAUD")
 
 
 def get_evaluated_pairs_for_hour(hour):
@@ -527,7 +531,8 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     """Append signal data to signals_log.json for website consumption."""
     deactivated = bool(deactivated or is_deactivated_signal_slot(broker_dt, H))
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
-    if not entry_time:
+    terminal_wait = bool(isinstance(extra_fields, dict) and extra_fields.get("terminal_wait"))
+    if not entry_time and not terminal_wait:
         entry_time = get_entry_time_for_slot(broker_dt, H)
     signal_time = get_signal_time_for_slot(broker_dt, H)
     record = {
@@ -806,100 +811,39 @@ def push_to_dashboard(snapshot_complete: bool = False):
 
 
 
-def push_xauusd_evidence(broker_dt, hour, result):
-    """Build and push XAUUSD 4-candle M15 evidence for the dashboard."""
+def _dashboard_signal_evidence(broker_dt, hour, result):
+    """Build versioned dashboard evidence records from an evaluated slot."""
+    pair_evidence = result.get("pair_evidence") or {}
+    logic_version = result.get("logic_version", SIGNAL_LOGIC_VERSION)
+    source_date = broker_dt.date().isoformat()
+    records = {}
+    for symbol, raw_evidence in pair_evidence.items():
+        evidence = dict(raw_evidence or {})
+        evidence.update({
+            "logic_version": logic_version,
+            "date": source_date,
+            "hour": int(hour),
+            "symbol": symbol,
+            "entry_time": result.get("entry_time"),
+            "entry_state": result.get("entry_state"),
+            "entry_rule": result.get("entry_rule"),
+            "signal_state": (result.get("pair_signal_states") or {}).get(symbol),
+        })
+        key = f"{source_date}:{int(hour)}:{symbol}:v{logic_version}"
+        records[key] = evidence
+    return records
+
+
+def push_signal_evidence(broker_dt, hour, result):
+    """Push evaluated H1 evidence for every signal pair to the dashboard."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
         return
     api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
-    
+    payload_dict = _dashboard_signal_evidence(broker_dt, hour, result)
+    if not payload_dict:
+        return
     try:
-        source_slot = broker_dt.replace(hour=hour, minute=0, second=0, microsecond=0)
-        logic_version = result.get("logic_version", SIGNAL_LOGIC_VERSION)
-        key = f"{source_slot.date().isoformat()}:{hour}:v{logic_version}"
-        
-        # 1. PRE_H (H-15m -> H:00)
-        pre_h_open = source_slot - timedelta(minutes=15)
-        pre_h_close = source_slot
-        
-        # 2. CONTEXT_H00 (H:00 -> H:15)
-        ctx00_open = source_slot
-        ctx00_close = source_slot + timedelta(minutes=15)
-        
-        # 3. CONTEXT_H15 (H:15 -> H:30)
-        ctx15_open = source_slot + timedelta(minutes=15)
-        ctx15_close = source_slot + timedelta(minutes=30)
-        
-        # 4. H45 (H:30 -> H:45)
-        h45_open = source_slot + timedelta(minutes=30)
-        h45_close = source_slot + timedelta(minutes=45)
-        
-        def build_candle_evidence(role, open_dt, close_dt, is_pending_if_future=True):
-            if is_pending_if_future and broker_dt < close_dt:
-                return {
-                    "role": role,
-                    "state": "PENDING",
-                    "open_time": open_dt.isoformat(),
-                    "close_time": close_dt.isoformat(),
-                    "open": None,
-                    "high": None,
-                    "low": None,
-                    "close": None,
-                    "tick_volume": None,
-                    "direction": "WAIT"
-                }
-            
-            target_ts = broker_time_to_ts(open_dt, open_dt.hour, open_dt.minute)
-            c = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_M15, target_ts)
-            if not c:
-                return {
-                    "role": role,
-                    "state": "MISSING",
-                    "open_time": open_dt.isoformat(),
-                    "close_time": close_dt.isoformat(),
-                    "open": None,
-                    "high": None,
-                    "low": None,
-                    "close": None,
-                    "tick_volume": None,
-                    "direction": "WAIT"
-                }
-            
-            return {
-                "role": role,
-                "state": "READY",
-                "open_time": open_dt.isoformat(),
-                "close_time": close_dt.isoformat(),
-                "open": c["open"],
-                "high": c["high"],
-                "low": c["low"],
-                "close": c["close"],
-                "tick_volume": c["tick_volume"],
-                "direction": candle_direction(c)
-            }
-            
-        candles = [
-            build_candle_evidence("PRE_H", pre_h_open, pre_h_close, False),
-            build_candle_evidence("CONTEXT_H00", ctx00_open, ctx00_close, True),
-            build_candle_evidence("CONTEXT_H15", ctx15_open, ctx15_close, True),
-            build_candle_evidence("H45", h45_open, h45_close, True)
-        ]
-        
-        payload_dict = {
-            key: {
-                "logic_version": logic_version,
-                "source_date": source_slot.date().isoformat(),
-                "hour": hour,
-                "symbol": "XAUUSD",
-                "timeframe": "M15",
-                "entry_time": result.get("entry_time"),
-                "entry_state": result.get("entry_state"),
-                "entry_rule": result.get("entry_rule"),
-                "entry_branch": result.get("entry_branch"),
-                "candles": candles
-            }
-        }
-        
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["X-API-Key"] = api_key
@@ -909,8 +853,8 @@ def push_xauusd_evidence(broker_dt, hour, result):
             data=payload,
             headers=headers,
         )
-        with urllib.request.urlopen(req, timeout=3) as res:
-            pass
+        with urllib.request.urlopen(req, timeout=3) as response:
+            response.read()
     except Exception as e:
         print(f"  [DASHBOARD] Evidence push error: {e}")
 
@@ -1216,17 +1160,14 @@ def _lookback_candle_direction(symbol, timeframe, candle_dt):
     return resolved if resolved in ("TANG", "GIAM") else None
 
 
-
-
-
 _previous_session_cache = {}
 
 def resolve_previous_broker_session(broker_dt, symbol, timeframe):
     """Find the most recent Broker trading session before *broker_dt*.
 
     Scans backwards up to 7 calendar days, skipping weekends and sessions
-    with no data for the given symbol/timeframe. Results are cached per
-    (broker_date, symbol, timeframe) within a rebuild pass.
+    without the exact 04:00 source candle. Successful results are cached per
+    (broker_date, symbol, timeframe); failures remain retryable.
 
     Returns the session date (``datetime.date``) or ``None`` if no session
     is found within the lookback window.
@@ -1240,21 +1181,17 @@ def resolve_previous_broker_session(broker_dt, symbol, timeframe):
         if candidate.weekday() >= 5:
             candidate -= timedelta(days=1)
             continue
+        source_open = datetime.combine(candidate, datetime.min.time()).replace(hour=4)
         try:
-            bars = mt5.copy_rates_from(
-                symbol,
-                timeframe,
-                datetime.combine(candidate, datetime.min.time()).replace(hour=12),
-                1,
-            )
-            if bars is not None and len(bars) > 0:
+            source_ts = broker_time_to_ts(source_open, 4)
+            if get_candle_by_ts(symbol, timeframe, source_ts) is not None:
                 _previous_session_cache[cache_key] = candidate
                 return candidate
-        except Exception:
-            pass
+        except Exception as error:
+            log.warning("Previous Broker session lookup failed for %s: %s", symbol, error)
+            return None
         candidate -= timedelta(days=1)
 
-    _previous_session_cache[cache_key] = None
     return None
 
 
@@ -1267,12 +1204,6 @@ def candle_direction_to_signal(direction):
     return None
 
 
-
-
-
-
-
-
 def get_completed_m15_direction_by_close_time(symbol, close_dt):
     """Return the candle direction of an M15 bar that closed at close_dt.
 
@@ -1282,14 +1213,11 @@ def get_completed_m15_direction_by_close_time(symbol, close_dt):
     return _lookback_candle_direction(symbol, mt5.TIMEFRAME_M15, bar_open_dt)
 
 
-
-
-
 def evaluate_gbpaud_entry_timing_m15(broker_dt, hour):
     """Read GBPAUD M15 offset -15 for XAU entry timing only.
 
     This does NOT determine the final GBPAUD signal.
-    The final GBPAUD signal comes from evaluate_gbpaud_h1_for_slot().
+    Stage B derives that signal from GBPAUD's own H1 evidence.
     """
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
@@ -1304,67 +1232,6 @@ def evaluate_gbpaud_entry_timing_m15(broker_dt, hour):
         "offset15_datetime": offset15_dt.isoformat(),
         "offset15_direction": offset15_direction,
         "offset15_signal": candle_direction_to_signal(offset15_direction),
-    }
-
-
-# =====================================================================
-# M15 CANDLE EVIDENCE (v67)
-# =====================================================================
-
-CANDLE_ROLES = {
-    -75: "PATTERN_3",
-    -60: "PATTERN_2",
-    -45: "PATTERN_1",
-    -30: "BASE",
-    -15: "POST_FILTER",
-}
-
-
-def read_m15_candle_evidence(symbol, open_dt, *, offset_minutes, role):
-    """Fetch one M15 candle and its resolved direction for the evidence inspector.
-
-    offset_minutes: negative values offset into the past from open_dt
-      e.g. -75 → 75 minutes before open_dt (PATTERN_3)
-           -30 → 30 minutes before open_dt (BASE)
-           -15 → 15 minutes before open_dt (POST_FILTER)
-
-    Returns a dict with OHLC, direction, and optional DOJI resolution,
-    or None if the candle cannot be read.
-    """
-    candle_dt = open_dt + timedelta(minutes=offset_minutes)
-    target_ts = broker_time_to_ts(candle_dt, candle_dt.hour, candle_dt.minute)
-    raw_candle = get_candle_by_ts(symbol, mt5.TIMEFRAME_M15, target_ts)
-    if raw_candle is None:
-        return None
-
-    raw_direction = candle_direction(raw_candle)
-    doji_resolution = None
-    resolved_direction = raw_direction
-
-    if raw_direction == "DOJI":
-        resolved = resolve_doji(symbol, mt5.TIMEFRAME_M15, target_ts, candle_dt)
-        if resolved in ("TANG", "GIAM"):
-            resolved_direction = resolved
-            prev_ts = target_ts - 900
-            prev_candle = get_candle_by_ts(symbol, mt5.TIMEFRAME_M15, prev_ts)
-            doji_resolution = {
-                "strategy": "PREVIOUS_M15_REVERSED",
-                "source_offset_minutes": offset_minutes + 15,
-                "source_candle": _serialize_candle_ohlc(prev_candle, symbol) if prev_candle is not None else None,
-            }
-        else:
-            resolved_direction = None
-    elif raw_direction not in ("TANG", "GIAM"):
-        resolved_direction = None
-
-    return {
-        "offset_minutes": offset_minutes,
-        "role": role,
-        "candle_datetime": candle_dt.isoformat(),
-        "candle": _serialize_candle_ohlc(raw_candle, symbol),
-        "raw_direction": raw_direction,
-        "resolved_direction": resolved_direction,
-        "doji_resolution": doji_resolution,
     }
 
 
@@ -1752,24 +1619,12 @@ ENTRY_PLAN_FIELDS = (
     "pair_labels",
     "pair_entry_at_utc",
     "entry_at_utc",
+    "signal_state",
+    "terminal_wait",
+    "h3_wait_until_h7",
     "pair_groups",
     "pair_evidence",
 )
-
-# --- GBP entry planner ---
-# Canonical pair entry maps: GBP entry depends on XAUUSD entry only.
-
-H3_GBPAUD_ENTRY_MAP = {
-    "03:11": "04:20",
-    "03:49": "04:20",
-    "04:25": "05:00",
-}
-
-# For H>=7: XAU H:11/H:49 → GBP (H+1):20; XAU (H+1):25 → GBP (H+2):00
-
-
-
-
 
 def is_deactivated_signal_slot(broker_dt, hour):
     """Return whether a calculated slot is dependency-only and must not be traded.
@@ -1821,7 +1676,7 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
 
 
 def calculate_slot_signal(broker_dt, hour, as_of_dt=None):
-    """Apply current M15 multi-pair evaluation for live and rebuilt signals.
+    """Apply current entry planning and four-H1 multi-pair signal logic.
 
     as_of_dt: current time for follow-up availability. Defaults to broker_dt.
     """
@@ -1836,7 +1691,7 @@ def calculate_slot_signal(broker_dt, hour, as_of_dt=None):
     if result is None:
         return {
             "signal": "WAIT",
-            "report": f"H={hour}: incomplete M15 candle data.",
+            "report": f"H={hour}: incomplete entry or H1 candle data.",
         }
     if is_deactivated_signal_slot(broker_dt, hour):
         result["deactivated"] = True
@@ -1851,11 +1706,15 @@ def get_hour_note(H, broker_dt=None):
         return ""
     if h not in ACTIVE_HOURS:
         return ""
+    if h == 3:
+        return (
+            "Each pair uses previous-session H1 04:00 Base plus 03:00/02:00 and the "
+            "three-candle SW/BT classifier. Thursday reuses Monday: BT keeps it; SW waits until H7."
+        )
     return (
-        "XAUUSD, GBPUSD, GBPAUD M15 (current date): base (-30) + 3 pattern (-45/-60/-75). "
-        "SW → reverse base; BT → keep base. "
-        "DOJI M15 → step back 1 M15 and reverse previous direction. "
-        "Entry: SW → H+1:25, BT → H:49."
+        "Each pair uses C1 Base plus C2/C3/C4 H1 and the 10-rule SW/BT classifier. "
+        "Entry H:11/H:49 reverses Signal Base; (H+1):25 keeps it. "
+        "Only 15:25 and 16:49 reverse once more."
     )
 
 
@@ -1899,8 +1758,9 @@ def load_signal_rule_contract():
             "VN": [
                 "Slots: H3 - H7 - H9 - H12 - H14 - H16\n"
                 "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
-                "Signal source: Entry-selected independent M15 Base\n"
-                "Entry rules: H:11 reverse | H:49 keep | (H+1):25 reverse | H14/H16 reverse once more\n"
+                "Signal source: H3 three-H1 | H7+ four-H1 10-rule classifier\n"
+                "H3 Thursday: Monday BT reused | Monday SW waits until H7\n"
+                "Entry rules: H:11/H:49 reverse | (H+1):25 keep | exceptions 15:25/16:49\n"
                 "Auto-close: XAU 17:59 | GBP 19:59 Broker",
             ]
         },
@@ -1925,8 +1785,9 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
         f"MT5: {mt5_status} | Broker: {broker_time_str}\n"
         "Slots: H3 - H7 - H9 - H12 - H14 - H16\n"
         "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
-        "Signal source: Entry-selected independent M15 Base\n"
-        "Entry rules: H:11 reverse | H:49 keep | (H+1):25 reverse | H14/H16 reverse once more\n"
+        "Signal source: H3 three-H1 | H7+ four-H1 10-rule classifier\n"
+        "H3 Thursday: Monday BT reused | Monday SW waits until H7\n"
+        "Entry rules: H:11/H:49 reverse | (H+1):25 keep | exceptions 15:25/16:49\n"
         "Auto-close: XAU 17:59 | GBP 19:59 Broker"
     )
 
@@ -2250,7 +2111,7 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None, historical_complete=Fals
 
 
 def rebuild_recent_history(days=45):
-    """Recalculate recent sessions with the current GBP H1 / XAU M15 logic."""
+    """Recalculate recent sessions with Stage A entry and current H1 signal rules."""
     if not mt5_ready:
         print("  [REBUILD] MT5 not ready, skip")
         return 0
@@ -2524,8 +2385,7 @@ def _mark_passed_slots_on_startup(broker_dt):
     """Suppress catch-up Telegram sends for publication minutes already passed.
 
     Only mark a slot as sent if its entry is already resolved (READY or WAIT).
-    PENDING_FOLLOWUP slots must NOT be marked sent — the live loop needs to
-    resolve their follow-up candles and update entry_time.
+    Pending entry follow-up or H1 Base slots must remain retryable.
     """
     for hour in get_target_hours(broker_dt):
         signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
@@ -2541,8 +2401,12 @@ def _mark_passed_slots_on_startup(broker_dt):
         if result is None:
             result = calculate_slot_signal(broker_dt, hour, as_of_dt=broker_dt)
         entry_state = result.get("entry_state") if result else None
-        if entry_state == "PENDING_FOLLOWUP":
-            print(f"  [STARTUP] H={hour} pending follow-up — not marking sent")
+        signal_state = result.get("signal_state") if result else None
+        if result and result.get("terminal_wait"):
+            sent_today.add((broker_dt.date(), hour))
+            continue
+        if entry_state == "PENDING_FOLLOWUP" or signal_state == "PENDING_BASE_CANDLE":
+            print(f"  [STARTUP] H={hour} still pending — not marking sent")
             continue
         if entry_state == "READY" or result.get("signal") == "WAIT":
             sent_today.add((broker_dt.date(), hour))
@@ -2569,8 +2433,24 @@ def _process_live_slot(broker_dt, hour):
         return False
 
     entry_state = result.get("entry_state")
+    signal_state = result.get("signal_state")
     signal = result.get("signal")
     entry_time = result.get("entry_time")
+
+    if result.get("terminal_wait"):
+        pair_dirs = get_pair_direction(hour, "WAIT", broker_dt, full_result=result)
+        extra_fields = {key_: result.get(key_) for key_ in ENTRY_PLAN_FIELDS if key_ in result}
+        log_signal(
+            hour, broker_dt, "WAIT", entry_time, pair_dirs,
+            get_hour_note(hour, broker_dt=broker_dt),
+            extra_fields=extra_fields,
+        )
+        sent_today.add(key)
+        _save_state(sent_today)
+        push_to_dashboard()
+        push_signal_evidence(broker_dt, hour, result)
+        print(f"  [WAIT] H={hour} Monday group SW — next active slot H=7")
+        return True
 
     if entry_state == "PENDING_FOLLOWUP":
         source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=hour, minute=0)
@@ -2583,6 +2463,7 @@ def _process_live_slot(broker_dt, hour):
             if resolved:
                 result = resolved
                 entry_state = result.get("entry_state")
+                signal_state = result.get("signal_state")
                 signal = result.get("signal")
                 entry_time = result.get("entry_time")
 
@@ -2601,11 +2482,27 @@ def _process_live_slot(broker_dt, hour):
             extra_fields=extra_fields if extra_fields else None,
         )
         push_to_dashboard()
+        push_signal_evidence(broker_dt, hour, result)
         print(f"  [PENDING] H={hour} signal={signal} candidate={result.get('entry_candidate')} rule={result.get('entry_rule')}")
         return False
 
+    deadline = get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time)
+    if signal_state == "PENDING_BASE_CANDLE" and broker_dt <= deadline:
+        pair_dirs = get_pair_direction(hour, signal, broker_dt, full_result=result)
+        hour_note = get_hour_note(hour, broker_dt=broker_dt)
+        extra_fields = {key_: result.get(key_) for key_ in ENTRY_PLAN_FIELDS if key_ in result}
+        log_signal(
+            hour, broker_dt, signal or "WAIT", entry_time, pair_dirs, hour_note,
+            pattern_signal=result.get("pattern_signal"),
+            deactivated=result.get("deactivated", False),
+            extra_fields=extra_fields,
+        )
+        push_to_dashboard()
+        push_signal_evidence(broker_dt, hour, result)
+        print(f"  [PENDING] H={hour} waiting for selected H1 Base to close")
+        return False
 
-    if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
+    if broker_dt > deadline:
         print(f"  [MISSED] H={hour} exceeded entry deadline")
         sent_today.add(key)
         _save_state(sent_today)
@@ -2633,6 +2530,7 @@ def _process_live_slot(broker_dt, hour):
     )
     _save_state(sent_today)
     push_to_dashboard()
+    push_signal_evidence(broker_dt, hour, result)
     
     # Note: send_telegram is done by the alert or earlier? The legacy bot just prints.
     if should_send_xau_entry_alert(result, entry_alerts_sent):
@@ -2875,127 +2773,178 @@ def classify_xau_entry_branch(slot_dt, hour, xau_entry_time):
         return "H_PLUS_1_25"
     return None
 
-def select_signal_base_window(slot_dt, hour, entry_branch):
-    if entry_branch == "H_11":
-        return {
-            "base_open_offset_minutes": -15,
-            "base_close_offset_minutes": 0,
-            "base_open_time": slot_dt - timedelta(minutes=15),
-            "base_close_time": slot_dt
-        }
-    if entry_branch in ("H_49", "H_PLUS_1_25"):
-        return {
-            "base_open_offset_minutes": 0,
-            "base_close_offset_minutes": 15,
-            "base_open_time": slot_dt,
-            "base_close_time": slot_dt + timedelta(minutes=15)
-        }
+def _empty_h1_candle(role, open_dt, state):
+    return {
+        "role": role,
+        "state": state,
+        "open_time": open_dt.isoformat(),
+        "close_time": (open_dt + timedelta(hours=1)).isoformat(),
+        "open": None,
+        "high": None,
+        "low": None,
+        "close": None,
+        "tick_volume": None,
+        "raw_direction": None,
+        "resolved_direction": None,
+        "direction": "WAIT",
+    }
+
+
+def read_h1_candle_evidence(symbol, open_dt, role):
+    """Read one exact Broker H1 candle and resolve one DOJI fallback."""
+    target_ts = broker_time_to_ts(open_dt, open_dt.hour, 0)
+    candle = get_candle_by_ts(symbol, mt5.TIMEFRAME_H1, target_ts)
+    if candle is None:
+        return _empty_h1_candle(role, open_dt, "MISSING")
+    raw_direction = candle_direction(candle)
+    resolved = raw_direction
+    if raw_direction == "DOJI":
+        resolved = resolve_doji(symbol, mt5.TIMEFRAME_H1, target_ts, open_dt)
+    resolved = resolved if resolved in ("TANG", "GIAM") else None
+    result = _empty_h1_candle(role, open_dt, "READY")
+    result.update(_serialize_candle_ohlc(candle, symbol))
+    result.update({
+        "raw_direction": raw_direction,
+        "resolved_direction": resolved,
+        "direction": candle_direction_to_signal(resolved) or "WAIT",
+    })
+    return result
+
+
+def _h1_base_open_time(slot_dt, hour, entry_time):
+    branch = classify_xau_entry_branch(slot_dt, hour, entry_time)
+    if branch == "H_PLUS_1_25":
+        return slot_dt
+    if branch in ("H_11", "H_49"):
+        return slot_dt - timedelta(hours=1)
     return None
 
-def evaluate_pair_from_selected_base(slot_dt, hour, symbol, xau_entry_time, *, as_of_dt=None, historical_complete=False):
-    entry_branch = classify_xau_entry_branch(slot_dt, hour, xau_entry_time)
-    if not entry_branch:
-        return None
-        
-    base_window = select_signal_base_window(slot_dt, hour, entry_branch)
-    if not base_window:
-        return None
-        
-    base_open_time = base_window["base_open_time"]
-    base_close_time = base_window["base_close_time"]
-    
-    # Check if base is still pending
-    if as_of_dt is not None and not historical_complete:
-        if as_of_dt < base_close_time:
-            return {
-                "symbol": symbol,
-        "logic_version": SIGNAL_LOGIC_VERSION,
-                "timeframe": "M15",
-                "slot_hour": hour,
-                "source_date": slot_dt.date().isoformat(),
-                "xau_entry_time": xau_entry_time,
-                "entry_branch": entry_branch,
-                "base_open_offset_minutes": base_window["base_open_offset_minutes"],
-                "base_close_offset_minutes": base_window["base_close_offset_minutes"],
-                "base_open_time": base_open_time.isoformat(),
-                "base_close_time": base_close_time.isoformat(),
-                "direction": "PENDING_BASE_CANDLE",
-                "classification_reason": "PENDING_BASE_CANDLE"
-            }
 
-    # Fetch Base Candle (which is guaranteed to be closed)
-    target_ts = broker_time_to_ts(base_open_time, base_open_time.hour, base_open_time.minute)
-    raw_candle = get_candle_by_ts(symbol, mt5.TIMEFRAME_M15, target_ts)
-    raw_direction = candle_direction(raw_candle) if raw_candle else None
-    
-    if raw_direction == "DOJI" or not raw_direction:
-        base_direction = "DOJI"
-        base_signal = None
-    else:
-        base_direction = raw_direction
-        base_signal = "BUY" if raw_direction == "TANG" else "SELL"
-        
-    if base_signal is None:
-        primary_action = None
-        primary_direction = None
-        final_direction = "WAIT"
-    else:
-        if entry_branch == "H_11":
-            primary_action = "REVERSE"
-            primary_direction = reverse_signal(base_signal)
-        elif entry_branch == "H_49":
-            primary_action = "KEEP"
-            primary_direction = base_signal
-        else: # H_PLUS_1_25
-            primary_action = "REVERSE"
-            primary_direction = reverse_signal(base_signal)
-            
-        slot_inversion_applied = (hour in (14, 16))
-        if slot_inversion_applied:
-            final_direction = reverse_signal(primary_direction)
-        else:
-            final_direction = primary_direction
-
+def _pair_evidence_shell(slot_dt, hour, symbol, entry_time):
     return {
         "symbol": symbol,
         "logic_version": SIGNAL_LOGIC_VERSION,
-        "timeframe": "M15",
-        "slot_hour": hour,
+        "timeframe": "H1",
+        "slot_hour": int(hour),
         "source_date": slot_dt.date().isoformat(),
-        "xau_entry_time": xau_entry_time,
-        "entry_branch": entry_branch,
-        "base_open_offset_minutes": base_window["base_open_offset_minutes"],
-        "base_close_offset_minutes": base_window["base_close_offset_minutes"],
-        "base_open_time": base_open_time.isoformat(),
-        "base_close_time": base_close_time.isoformat(),
-        "base_candle": _serialize_candle_ohlc(raw_candle, symbol) if raw_candle else None,
-        "base_direction": base_direction,
-        "base_signal": base_signal,
-        "primary_action": primary_action,
-        "primary_direction": primary_direction,
-        "slot_inversion_applied": (hour in (14, 16)) if base_signal else False,
-        "slot_inversion_rule": "H14_H16_REVERSE_ALL_PAIRS" if (hour in (14, 16) and base_signal) else None,
-        "direction": final_direction,
-        "classification_reason": "ENTRY_SELECTED_SINGLE_M15_BASE" if base_signal else "DOJI_OR_MISSING_BASE_WAIT"
+        "xau_entry_time": entry_time,
+        "entry_branch": classify_xau_entry_branch(slot_dt, hour, entry_time),
+        "group": None,
+        "signal_base": None,
+        "entry_action": None,
+        "exception_applied": False,
+        "direction": "WAIT",
+        "candles": [],
     }
 
-def derive_all_pair_signals_from_xau_entry(slot_dt, hour, xau_entry_plan, *, as_of_dt=None, historical_complete=False):
-    pair_dirs = {p: "WAIT" for p in SIGNAL_PAIRS}
-    
-    if xau_entry_plan.get("entry_state") != "READY" or not xau_entry_plan.get("entry_time"):
-        return pair_dirs
 
-    xau_entry_time = xau_entry_plan["entry_time"]
+def _evaluate_h3_source(slot_dt, symbol, entry_time):
+    """Evaluate H3 from previous-session H1 04:00 Base, 03:00 and 02:00."""
+    result = _pair_evidence_shell(slot_dt, 3, symbol, entry_time)
+    previous_date = resolve_previous_broker_session(slot_dt, symbol, mt5.TIMEFRAME_H1)
+    if previous_date is None:
+        result["classification_reason"] = "MISSING_PREVIOUS_BROKER_SESSION"
+        return result
+    source_start = datetime.combine(previous_date, datetime.min.time()).replace(tzinfo=slot_dt.tzinfo)
+    times = [source_start.replace(hour=hour) for hour in (4, 3, 2)]
+    candles = [read_h1_candle_evidence(symbol, value, f"C{index + 1}{'_BASE' if index == 0 else ''}") for index, value in enumerate(times)]
+    directions = tuple(candle.get("resolved_direction") for candle in candles)
+    group = classify_three_candle_group(directions)
+    signal_base = derive_signal_base(directions[0], group) if group else "WAIT"
+    result.update({
+        "source_date": previous_date.isoformat(),
+        "candles": candles,
+        "group": group,
+        "base_direction": directions[0],
+        "signal_base": signal_base,
+        "entry_action": "KEEP_H3_THREE_H1",
+        "direction": signal_base,
+        "classification_reason": "H3_PREVIOUS_SESSION_THREE_H1" if group else "INCOMPLETE_H3_H1_WAIT",
+    })
+    return result
+
+
+def _evaluate_h3_with_thursday_reuse(slot_dt, symbol, entry_time):
+    if slot_dt.weekday() != 3:
+        return _evaluate_h3_source(slot_dt, symbol, entry_time)
+    monday_date = slot_dt.date() - timedelta(days=3)
+    monday_slot = datetime.combine(monday_date, datetime.min.time()).replace(
+        hour=3, tzinfo=slot_dt.tzinfo
+    )
+    result = _evaluate_h3_source(monday_slot, symbol, entry_time)
+    result.update({"slot_hour": 3, "xau_entry_time": entry_time, "reused_monday": monday_date.isoformat()})
+    if result.get("group") == "SW":
+        result["direction"] = "WAIT"
+        result["classification_reason"] = "THURSDAY_MONDAY_SW_WAIT_UNTIL_H7"
+    elif result.get("group") == "BT":
+        result["classification_reason"] = "THURSDAY_REUSE_MONDAY_BT"
+    return result
+
+
+def evaluate_pair_from_selected_h1(
+    slot_dt, hour, symbol, xau_entry_time, *, as_of_dt=None, historical_complete=False
+):
+    """Derive one symbol from H1 evidence selected by the XAU entry branch."""
+    h = int(hour)
+    if h == 3:
+        return _evaluate_h3_with_thursday_reuse(slot_dt, symbol, xau_entry_time)
+    result = _pair_evidence_shell(slot_dt, h, symbol, xau_entry_time)
+    base_open = _h1_base_open_time(slot_dt, h, xau_entry_time)
+    if base_open is None:
+        result["classification_reason"] = "INVALID_ENTRY_BRANCH"
+        return result
+    if as_of_dt is not None and not historical_complete and as_of_dt < base_open + timedelta(hours=1):
+        result["candles"] = [_empty_h1_candle("C1_BASE", base_open, "PENDING")]
+        result["classification_reason"] = "PENDING_H1_BASE_CANDLE"
+        return result
+    times = [base_open - timedelta(hours=index) for index in range(4)]
+    candles = [read_h1_candle_evidence(symbol, value, f"C{index + 1}{'_BASE' if index == 0 else ''}") for index, value in enumerate(times)]
+    directions = tuple(candle.get("resolved_direction") for candle in candles)
+    group = classify_four_h1_group(directions)
+    signal_base = derive_signal_base(directions[0], group) if group else "WAIT"
+    final_signal = apply_entry_rule(signal_base, xau_entry_time, h)
+    result.update({
+        "source_date": base_open.date().isoformat(),
+        "candles": candles,
+        "group": group,
+        "base_direction": directions[0],
+        "signal_base": signal_base,
+        "entry_action": "KEEP" if result["entry_branch"] == "H_PLUS_1_25" else "REVERSE",
+        "exception_applied": xau_entry_time in ("15:25", "16:49"),
+        "direction": final_signal,
+        "classification_reason": "FOUR_H1_TEN_RULE_CLASSIFIER" if group else "INCOMPLETE_H1_WAIT",
+    })
+    return result
+
+
+def _derive_pair_signals_and_evidence(
+    slot_dt, hour, xau_entry_plan, *, as_of_dt=None, historical_complete=False
+):
+    pair_dirs = {pair: "WAIT" for pair in SIGNAL_PAIRS}
+    pair_evidence = {}
+    entry_time = xau_entry_plan.get("entry_time")
+    if int(hour) != 3 and (
+        xau_entry_plan.get("entry_state") != "READY" or not entry_time
+    ):
+        return pair_dirs, pair_evidence
     for symbol in SIGNAL_PAIRS:
-        evidence = evaluate_pair_from_selected_base(
-            slot_dt, hour, symbol, xau_entry_time, 
-            as_of_dt=as_of_dt, historical_complete=historical_complete
+        evidence = evaluate_pair_from_selected_h1(
+            slot_dt, hour, symbol, entry_time,
+            as_of_dt=as_of_dt, historical_complete=historical_complete,
         )
-        if evidence:
-            pair_dirs[symbol] = evidence.get("direction", "WAIT")
-            if pair_dirs[symbol] == "PENDING_BASE_CANDLE":
-                pair_dirs[symbol] = "WAIT"
-                
+        pair_evidence[symbol] = evidence
+        pair_dirs[symbol] = evidence.get("direction", "WAIT")
+    return pair_dirs, pair_evidence
+
+
+def derive_all_pair_signals_from_xau_entry(
+    slot_dt, hour, xau_entry_plan, *, as_of_dt=None, historical_complete=False
+):
+    """Backward-compatible direction-only wrapper for the H1 signal stage."""
+    pair_dirs, _ = _derive_pair_signals_and_evidence(
+        slot_dt, hour, xau_entry_plan,
+        as_of_dt=as_of_dt, historical_complete=historical_complete,
+    )
     return pair_dirs
 
 def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=None, resolve_historical_followup=False):
@@ -3009,17 +2958,17 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     # 1. Evaluate Entry Planner basis
     xau_basis_res = evaluate_xau_entry_timing_basis_m15(broker_dt, h)
     xau_basis_signal = xau_basis_res["entry_basis_direction"] if xau_basis_res else "WAIT"
-    xau_planner_candidate = xau_basis_res["entry_time"] if xau_basis_res else None
-
     # 2. Evaluate GBPAUD timing (only used for entry)
     gbpaud_timing_res = evaluate_gbpaud_entry_timing_m15(broker_dt, h)
     gbpaud_off15_dir = gbpaud_timing_res["offset15_direction"] if gbpaud_timing_res else None
     
-    # 3. Resolve follow-up candle if needed
+    # 3. Resolve the GBPAUD M15 follow-up candle at H:45 when needed.
     followup_dir = None
     if can_resolve_entry_followup(source_slot, as_of_dt=as_of_dt, historical_complete=resolve_historical_followup):
         followup_close_dt = source_slot.replace(minute=45)
-        followup_dir = get_completed_m15_direction_by_close_time("GBPAUD", followup_close_dt)
+        followup_dir = get_completed_m15_direction_by_close_time(
+            "GBPAUD", followup_close_dt
+        )
         
     # 4. Build XAU Entry Plan
     entry_plan = build_xau_entry_plan(
@@ -3028,7 +2977,6 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
         gbpaud_off15_dir,
         followup_gbpaud_direction=followup_dir,
     )
-
     final_xau_entry = entry_plan["entry_time"]
     
     # 5. Build GBP Entry Plan (pair_entry_times for all pairs)
@@ -3046,28 +2994,50 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     pair_signal_states = {"XAUUSD": entry_plan["entry_state"]}
     pair_signal_states.update(gbp_entry_plan["pair_signal_states"])
 
-    # 6. derive final signals using STAGE B
-    pair_dirs = derive_all_pair_signals_from_xau_entry(
-        source_slot, h, entry_plan, as_of_dt=as_of_dt, historical_complete=resolve_historical_followup
+    # 6. Derive final signals using the four-H1 Stage B.
+    history_is_complete = bool(
+        resolve_historical_followup
+        and (as_of_dt is None or source_slot.date() < as_of_dt.date())
     )
+    pair_dirs, pair_evidence = _derive_pair_signals_and_evidence(
+        source_slot,
+        h,
+        entry_plan,
+        as_of_dt=as_of_dt,
+        historical_complete=history_is_complete,
+    )
+    if entry_plan.get("entry_state") == "READY":
+        pair_signal_states = {
+            symbol: (
+                "PENDING_BASE_CANDLE"
+                if evidence.get("classification_reason") == "PENDING_H1_BASE_CANDLE"
+                else "READY"
+                if pair_dirs.get(symbol) in ("BUY", "SELL")
+                else "WAIT"
+            )
+            for symbol, evidence in pair_evidence.items()
+        }
     
     top_signal = pair_dirs.get("XAUUSD", "WAIT")
     
     # Prepare reporting and payload
-    source_date_str = broker_dt.date().isoformat()
+    xau_evidence = pair_evidence.get("XAUUSD", {})
+    source_date_str = xau_evidence.get("source_date", broker_dt.date().isoformat())
     report_lines = [f"H={h} ({source_date_str}) [v{SIGNAL_LOGIC_VERSION}]:"]
     report_lines.append(f"  XAUUSD Entry Plan: state={entry_plan['entry_state']} time={entry_plan['entry_time']} rule={entry_plan.get('entry_rule', 'N/A')}")
     
     for symbol in SIGNAL_PAIRS:
+        evidence = pair_evidence.get(symbol, {})
         d = pair_dirs.get(symbol, "WAIT")
-        report_lines.append(f"  {symbol}: {d}")
+        group = evidence.get("group")
+        report_lines.append(f"  {symbol}: {d} ({group or 'WAIT'})")
             
     pair_labels = {p: None for p in SIGNAL_PAIRS}
 
     try:
         broker_offset = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
     except Exception:
-        broker_offset = 3
+        broker_offset = None
 
     entry_at_utc = compute_utc_iso(broker_dt.date(), final_xau_entry, broker_offset)
     pair_entry_at_utc = {
@@ -3076,14 +3046,42 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     }
     
     entry_state_val = entry_plan.get("entry_state", "WAIT")
-    rev_map = {"WAIT": 1, "PENDING_FOLLOWUP": 2, "READY": 3}
-    record_revision = rev_map.get(entry_state_val, 1)
+    xau_signal_state = pair_signal_states.get("XAUUSD", entry_state_val)
+    signal_state = (
+        "PENDING_BASE_CANDLE"
+        if xau_signal_state == "PENDING_BASE_CANDLE"
+        else "READY"
+        if top_signal in ("BUY", "SELL")
+        else "WAIT"
+    )
+    terminal_wait = bool(
+        h == 3
+        and xau_evidence.get("classification_reason") == "THURSDAY_MONDAY_SW_WAIT_UNTIL_H7"
+    )
+    revision_key = (
+        "TERMINAL_WAIT"
+        if terminal_wait
+        else signal_state
+        if entry_state_val == "READY"
+        else entry_state_val
+    )
+    rev_map = {
+        "WAIT": 1,
+        "PENDING_FOLLOWUP": 2,
+        "PENDING_BASE_CANDLE": 3,
+        "READY": 4,
+        "TERMINAL_WAIT": 5,
+    }
+    record_revision = rev_map.get(revision_key, 1)
 
     res_dict = {
         "logic_version": SIGNAL_LOGIC_VERSION,
         "record_revision": record_revision,
         "state_updated_at_utc": datetime.now(timezone.utc).isoformat(),
         "signal": top_signal,
+        "signal_state": signal_state,
+        "terminal_wait": terminal_wait,
+        "h3_wait_until_h7": terminal_wait,
         "entry_time": final_xau_entry,
         "entry_at_utc": entry_at_utc,
         "broker_utc_offset": broker_offset,
@@ -3093,7 +3091,11 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
         "pair_signal_states": pair_signal_states,
         "pair_labels": pair_labels,
         "pair_entry_at_utc": pair_entry_at_utc,
-        "pair_groups": {},
+        "pair_groups": {
+            symbol: evidence.get("group")
+            for symbol, evidence in pair_evidence.items()
+        },
+        "pair_evidence": pair_evidence,
         
         "xau_entry_planner_basis_signal": xau_basis_signal,
         "source_date": source_date_str,

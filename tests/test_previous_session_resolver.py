@@ -1,7 +1,7 @@
 """Tests for resolve_previous_broker_session and Monday WAIT persistence."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -19,68 +19,74 @@ from mt5_signal_bot import (
 )
 
 
-def _mock_candle_present(*args, **kwargs):
-    """Mock copy_rates_from that returns a bar for any weekday."""
-    return [1]
-
-
-def _mock_candle_absent(*args, **kwargs):
-    """Mock copy_rates_from that returns no bars."""
-    return None
-
-
 class PreviousSessionResolverTests(unittest.TestCase):
     """Verify that resolve_previous_broker_session skips weekends and holidays."""
 
     def setUp(self):
         _previous_session_cache.clear()
+        self.timestamp_patch = patch(
+            "mt5_signal_bot.broker_time_to_ts",
+            side_effect=lambda broker_dt, _hour: broker_dt.date(),
+        )
+        self.timestamp_patch.start()
 
-    @patch("mt5_signal_bot.mt5.copy_rates_from", _mock_candle_present)
-    def test_monday_resolves_to_friday(self):
+    def tearDown(self):
+        self.timestamp_patch.stop()
+
+    @patch("mt5_signal_bot.get_candle_by_ts", return_value={"time": 1})
+    def test_monday_resolves_to_friday(self, _read_candle):
         broker_dt = datetime(2026, 7, 27, 9, 0)  # Monday
         result = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
         self.assertEqual(result, date(2026, 7, 24))  # Friday
 
-    @patch("mt5_signal_bot.mt5.copy_rates_from", _mock_candle_present)
-    def test_tuesday_resolves_to_monday(self):
+    @patch("mt5_signal_bot.get_candle_by_ts", return_value={"time": 1})
+    def test_tuesday_resolves_to_monday(self, _read_candle):
         broker_dt = datetime(2026, 7, 28, 9, 0)  # Tuesday
         result = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
         self.assertEqual(result, date(2026, 7, 27))  # Monday
 
-    @patch("mt5_signal_bot.mt5.copy_rates_from", _mock_candle_absent)
-    def test_returns_none_when_no_session_found(self):
+    @patch("mt5_signal_bot.get_candle_by_ts", return_value=None)
+    def test_returns_none_when_no_session_found(self, _read_candle):
         broker_dt = datetime(2026, 7, 27, 9, 0)
         result = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
         self.assertIsNone(result)
 
-    @patch("mt5_signal_bot.mt5.copy_rates_from")
-    def test_skips_holiday_and_finds_earlier_session(self, mock_copy):
-        call_count = [0]
-        def side_effect(*args, **kwargs):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                return None  # Thursday has no data
-            return [1]  # Wednesday has data
-        mock_copy.side_effect = side_effect
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    def test_skips_holiday_and_finds_earlier_session(self, read_candle):
+        read_candle.side_effect = (None, {"time": 1})
         broker_dt = datetime(2026, 7, 24, 9, 0)  # Friday
         result = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
-        self.assertIsNotNone(result)
+        self.assertEqual(result, date(2026, 7, 22))
 
-    @patch("mt5_signal_bot.mt5.copy_rates_from", _mock_candle_present)
-    def test_caches_result(self):
+    @patch("mt5_signal_bot.get_candle_by_ts", return_value={"time": 1})
+    def test_caches_result(self, read_candle):
         broker_dt = datetime(2026, 7, 27, 9, 0)
         result1 = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
         result2 = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
         self.assertEqual(result1, result2)
+        read_candle.assert_called_once()
 
-    @patch("mt5_signal_bot.mt5.copy_rates_from", _mock_candle_present)
-    def test_wednesday_resolves_to_tuesday(self):
+    @patch("mt5_signal_bot.get_candle_by_ts")
+    def test_failed_lookup_is_not_cached(self, read_candle):
+        broker_dt = datetime(2026, 7, 27, 9, 0)
+        read_candle.return_value = None
+        self.assertIsNone(
+            resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
+        )
+        read_candle.return_value = {"time": 1}
+        self.assertEqual(
+            resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15),
+            date(2026, 7, 24),
+        )
+
+    @patch("mt5_signal_bot.get_candle_by_ts", return_value={"time": 1})
+    def test_wednesday_resolves_to_tuesday(self, _read_candle):
         broker_dt = datetime(2026, 7, 22, 9, 0)  # Wednesday
         result = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
         self.assertEqual(result, date(2026, 7, 21))  # Tuesday
 
-    @patch("mt5_signal_bot.mt5.copy_rates_from", _mock_candle_present)
-    def test_friday_resolves_to_thursday(self):
+    @patch("mt5_signal_bot.get_candle_by_ts", return_value={"time": 1})
+    def test_friday_resolves_to_thursday(self, _read_candle):
         broker_dt = datetime(2026, 7, 24, 9, 0)  # Friday
         result = resolve_previous_broker_session(broker_dt, "GBPAUD", _mock_mt5.TIMEFRAME_M15)
         self.assertEqual(result, date(2026, 7, 23))  # Thursday
@@ -97,8 +103,8 @@ class WaitRecordContractTests(unittest.TestCase):
             self.assertEqual(result.get("GBPUSD"), "WAIT")
             self.assertEqual(result.get("GBPAUD"), "WAIT")
 
-    def test_signal_logic_version_is_70(self):
-        self.assertEqual(SIGNAL_LOGIC_VERSION, 70)
+    def test_signal_logic_version_is_71(self):
+        self.assertEqual(SIGNAL_LOGIC_VERSION, 71)
 
     def test_no_slot_is_deactivated_v65(self):
         """Since v65, no active slot is deactivated on any weekday."""

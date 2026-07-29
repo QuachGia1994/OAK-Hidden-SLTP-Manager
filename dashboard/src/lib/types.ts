@@ -26,6 +26,9 @@ export interface Signal {
   deactivated?: boolean;
   logic_version?: number | string | null;
   entry_state?: "READY" | "PENDING_FOLLOWUP" | "WAIT";
+  signal_state?: "READY" | "PENDING_BASE_CANDLE" | "WAIT";
+  terminal_wait?: boolean;
+  h3_wait_until_h7?: boolean;
   entry_candidate?: string | null;
   entry_rule?: string | null;
   entry_xauusd_signal?: string | null;
@@ -158,7 +161,7 @@ export interface FactCheckSource {
 
 // =====================================================================
 // =====================================================================
-// Signal Evidence (v69)
+// Signal Evidence (v71)
 // =====================================================================
 
 export interface CandleOhlc {
@@ -170,11 +173,13 @@ export interface CandleOhlc {
 }
 
 export interface EvidenceCandle extends CandleOhlc {
-  role: "PRE_H" | "CONTEXT_H00" | "CONTEXT_H15" | "H45";
+  role: string;
   state: "READY" | "PENDING" | "MISSING";
   open_time: string;
   close_time: string;
   direction: "BUY" | "SELL" | "DOJI" | "WAIT";
+  raw_direction?: "TANG" | "GIAM" | "DOJI" | null;
+  resolved_direction?: "TANG" | "GIAM" | null;
 }
 
 export interface SignalEvidence {
@@ -187,5 +192,14 @@ export interface SignalEvidence {
   entry_state: string | null;
   entry_rule: string | null;
   entry_branch: string | null;
+  signal_state?: string | null;
+  group?: "SW" | "BT" | null;
+  base_direction?: "TANG" | "GIAM" | null;
+  signal_base?: "BUY" | "SELL" | "WAIT" | null;
+  direction?: "BUY" | "SELL" | "WAIT" | null;
+  entry_action?: string | null;
+  exception_applied?: boolean;
+  classification_reason?: string | null;
+  reused_monday?: string | null;
   candles: EvidenceCandle[];
 }

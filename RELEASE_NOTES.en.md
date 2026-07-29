@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## [Signal logic v71] - 2026-07-29
+
+- Restore independent Stage-B signals for `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, and `GBPCAD`: H7/H9/H12/H14/H16 use exact H1 C1..C4 windows and the ten-rule SW/BT matrix; entry selects C1 and only `15:25`/`16:49` apply the extra exception reversal.
+- H3 uses previous-session H1 04:00 (C1/Base), 03:00, and 02:00 with the three-candle matrix. Thursday uses the same week's Monday source: BT keeps the result, while XAUUSD SW returns WAIT and resumes from H7.
+- Synchronize Signal Bot, the MT4 feeder, MT4/MT5 comparator, Dashboard evidence/API, canonical rule contract, documentation, and regression tests; logic version 71 filters stale records.
+
 ## [v3.18.2] - 2026-07-29
 
 - GBPAUD takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2, H7 uses H6, etc.) instead of using M15 Base/pattern/post-filter. TANG → BUY, GIAM → SELL. The M15 offset -15 and H:45 follow-up are only used for XAU entry timing.

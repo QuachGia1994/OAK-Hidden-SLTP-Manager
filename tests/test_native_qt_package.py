@@ -14,6 +14,7 @@ class NativeQtPackageTests(unittest.TestCase):
         self.assertIn("LICENSE.txt", EXTRA_PACKAGE_FILES)
         self.assertIn("THIRD_PARTY_NOTICES.md", EXTRA_PACKAGE_FILES)
         self.assertIn("DESIGN.md", EXTRA_PACKAGE_FILES)
+        self.assertIn("signal_rule_contract.json", EXTRA_PACKAGE_FILES)
 
     def test_native_package_and_shell_share_the_app_version(self) -> None:
         self.assertEqual(PACKAGE_VERSION, APP_VERSION)

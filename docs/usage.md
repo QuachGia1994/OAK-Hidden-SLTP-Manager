@@ -5,11 +5,12 @@
 
 ### Dashboard
 - Xem trạng thái hiện tại của MT5 và Telegram
-- Xem tín hiệu hiện tại và lịch sử của các slot H=3,4,6,9,12,14,16
-- Chỉ phát `XAUUSD`: hai H1 `GBPUSD` của ngày hôm qua tạo signal, `GBPAUD` lấy hướng cây H1 hoàn tất ngay trước mốc signal (H3 dùng H2, H7 dùng H6, v.v.). TĂNG → BUY, GIẢM → SELL, còn `XAUUSD` M15 chỉ quyết định entry.
-- Mỗi H phát đúng `H:00`. Dùng hai H1 hoàn tất hôm qua ngay trước cùng mốc logic (ví dụ H9 hôm nay dùng H8/H7 hôm qua, H8 là nền): ngược chiều → BT, giữ nền; cùng chiều → SW, đảo nền. Kết quả GBPUSD là signal XAUUSD cuối cùng.
-- GBPAUD lấy hướng cây H1 hoàn tất ngay trước mốc signal (H3 dùng H2, H7 dùng H6, v.v.). TĂNG → BUY, GIẢM → SELL. Kết quả GBPUSD/GBPAUD trùng nhau → `H:11`. Nếu khác nhau, bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD tiếp theo theo SW/BT (H9 bỏ `08:45`, dùng `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 SW → `04:25`, BT → `03:49`.
-- H3 hoạt động mọi ngày giao dịch Broker; H4 mọi ngày đều là `deactivated`/`DO NOT ENTER`: được làm mờ, chỉ dùng đối chiếu/tính toán và không được coi là tín hiệu vào lệnh. Thiếu nến hoặc DOJI không resolve được → `WAIT`.
+- Xem tín hiệu hiện tại và lịch sử của các slot H=3,7,9,12,14,16 cho `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`.
+- Mỗi slot phát đúng `H:00` Broker. M15 XAUUSD/GBPAUD chỉ chọn entry `H:11`, `H:49` hoặc `(H+1):25`; hướng signal cuối lấy từ H1 riêng của từng symbol.
+- Stage A giữ phép so hiện hành: XAUUSD Base/pattern/post-filter M15 so với GBPAUD M15 `H−00:15`; nhánh cần follow-up dùng GBPAUD M15 mở `H:30`, đóng `H:45`.
+- H3 dùng H1 04:00 (C1/Base), 03:00, 02:00 của phiên Broker trước và ma trận ba nến SW/BT. Thứ Năm dùng nguồn Thứ Hai; XAUUSD SW khiến toàn H3 `WAIT` đến H7, BT giữ kết quả Thứ Hai.
+- H7/H9/H12/H14/H16 dùng bốn H1 C1..C4 theo entry đã chọn và ma trận 10 rule. Nhánh `H:11/H:49` đảo Signal Base, `(H+1):25` giữ; chỉ `15:25`/`16:49` đảo thêm.
+- Thiếu nến hoặc DOJI không resolve được → symbol đó `WAIT`; selected C1 chưa đóng → pending và retry đến entry.
 - Giờ local chỉ xuất hiện khi backend có BrokerClock đã hiệu chỉnh từ tick live mới; clock stale/thiếu/mâu thuẫn sẽ fail-closed thay vì đoán offset
 - Cập nhật tin tức
 

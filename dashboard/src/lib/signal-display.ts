@@ -1,3 +1,5 @@
+import { ACTIVE_SIGNAL_LOGIC_VERSION } from "./generated-signal-rules.js";
+
 interface SignalDeactivationInput {
   date: string;
   hour: number;
@@ -6,20 +8,8 @@ interface SignalDeactivationInput {
 
 /** The dashboard presents signal directions for gold and GBP pairs. */
 export const DISPLAYED_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 69;
-
-function brokerWeekday(date: string): number | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  if (!match) return null;
-  const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
-  const candidate = new Date(Date.UTC(year, month - 1, day));
-  if (candidate.getUTCFullYear() !== year || candidate.getUTCMonth() !== month - 1
-    || candidate.getUTCDate() !== day) return null;
-  return candidate.getUTCDay();
-}
+export { ACTIVE_SIGNAL_LOGIC_VERSION };
 
 export function isEffectivelyDeactivated(signal: SignalDeactivationInput): boolean {
-  if (signal.deactivated === true) return true;
-  if (signal.hour === 4) return true;
-  return false;
+  return signal.deactivated === true;
 }
