@@ -115,8 +115,23 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 58
+SIGNAL_LOGIC_VERSION = 59
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
+
+
+def get_evaluated_pairs_for_hour(hour):
+    """Return which pairs are evaluated at a given slot hour.
+
+    H3: XAUUSD + GBPAUD only (GBPUSD deferred to H7).
+    H4: all three (internal dependency).
+    H7/H9/H12/H14/H16: all three.
+    """
+    h = int(hour)
+    if h == 3:
+        return ("XAUUSD", "GBPAUD")
+    if h in (4, 7, 9, 12, 14, 16):
+        return SIGNAL_PAIRS
+    return ()
 
 
 BROKER_CLOCK = BrokerClock(
@@ -1516,9 +1531,90 @@ ENTRY_PLAN_FIELDS = (
     "entry_followup_relation",
     "entry_decided_at",
     "pair_entry_times",
+    "pair_entry_states",
+    "pair_signal_states",
     "pair_groups",
     "pair_evidence",
 )
+
+# --- GBP entry planner ---
+# Canonical pair entry maps: GBP entry depends on XAUUSD entry only.
+
+H3_GBPAUD_ENTRY_MAP = {
+    "03:11": "04:20",
+    "03:49": "04:20",
+    "04:49": "05:00",
+}
+
+# For H>=7: XAU H:11/H:49 → GBP (H+1):20; XAU (H+1):25 → GBP (H+2):00
+
+
+def build_gbp_entry_plan(slot_dt, hour, xau_entry_state, xau_entry_time,
+                         *, gbpusd_enabled=True):
+    """Build pair-specific entry times for GBPUSD and GBPAUD.
+
+    GBP entry depends only on the XAUUSD entry, not on GBP signal direction.
+    H3: GBPAUD uses explicit map; GBPUSD is DEFERRED_TO_H7.
+    H>=7: GBP entry = (H+1):20 if XAU entry is H:11 or H:49;
+                       (H+2):00 if XAU entry is (H+1):25.
+    """
+    h = int(hour)
+    result = {
+        "pair_entry_times": {"GBPUSD": None, "GBPAUD": None},
+        "pair_entry_states": {"GBPUSD": "WAIT", "GBPAUD": "WAIT"},
+        "pair_signal_states": {"GBPUSD": "WAIT", "GBPAUD": "WAIT"},
+    }
+
+    if xau_entry_state == "PENDING_FOLLOWUP":
+        result["pair_entry_states"]["GBPAUD"] = "PENDING_XAU_ENTRY"
+        if h == 3:
+            result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+            result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+        elif gbpusd_enabled:
+            result["pair_entry_states"]["GBPUSD"] = "PENDING_XAU_ENTRY"
+        return result
+
+    if xau_entry_state == "WAIT" or xau_entry_time is None:
+        if h == 3:
+            result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+            result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+        return result
+
+    # XAU entry is READY with a valid entry_time
+    if h == 3:
+        gbp_entry = H3_GBPAUD_ENTRY_MAP.get(xau_entry_time)
+        if gbp_entry is None:
+            # Unknown XAU entry time at H3 → fail closed
+            result["pair_entry_states"]["GBPAUD"] = "WAIT"
+            result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+            result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+            return result
+        result["pair_entry_times"]["GBPAUD"] = gbp_entry
+        result["pair_entry_states"]["GBPAUD"] = "READY"
+        result["pair_entry_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+        result["pair_signal_states"]["GBPUSD"] = "DEFERRED_TO_H7"
+        return result
+
+    # H >= 7
+    h_str = f"{h:02d}"
+    valid_xau_entries = (f"{h_str}:11", f"{h_str}:49", f"{h+1:02d}:25")
+    if xau_entry_time not in valid_xau_entries:
+        # Unknown XAU entry time → fail closed
+        return result
+
+    if xau_entry_time in (f"{h_str}:11", f"{h_str}:49"):
+        gbp_entry = f"{h+1:02d}:20"
+    else:  # (H+1):25
+        gbp_entry = f"{h+2:02d}:00"
+
+    if gbpusd_enabled:
+        result["pair_entry_times"]["GBPUSD"] = gbp_entry
+        result["pair_entry_states"]["GBPUSD"] = "READY"
+        result["pair_signal_states"]["GBPUSD"] = "READY"
+    result["pair_entry_times"]["GBPAUD"] = gbp_entry
+    result["pair_entry_states"]["GBPAUD"] = "READY"
+    result["pair_signal_states"]["GBPAUD"] = "READY"
+    return result
 
 
 def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
@@ -1535,8 +1631,11 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
 
+    evaluated_pairs = get_evaluated_pairs_for_hour(h)
+    gbpusd_enabled = "GBPUSD" in evaluated_pairs
+
     pair_results = {}
-    for symbol in SIGNAL_PAIRS:
+    for symbol in evaluated_pairs:
         pair_results[symbol] = evaluate_symbol_m15_for_slot(broker_dt, h, symbol)
 
     pair_dirs = {}
@@ -1549,6 +1648,21 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
     pair_evidence = {}
 
     for symbol in SIGNAL_PAIRS:
+        if symbol not in evaluated_pairs:
+            # Not evaluated at this slot (e.g. GBPUSD at H3)
+            pair_dirs[symbol] = "WAIT"
+            pair_pre_offset15_dirs[symbol] = "WAIT"
+            pair_offset15_dirs[symbol] = None
+            pair_offset15_relations[symbol] = None
+            pair_offset15_actions[symbol] = None
+            pair_entry_times[symbol] = None
+            pair_groups[symbol] = None
+            pair_evidence[symbol] = {
+                "state": "DEFERRED_TO_H7",
+                "reason": "GBPUSD_NOT_EVALUATED_AT_H3",
+                "evaluated": False,
+            } if symbol == "GBPUSD" and h == 3 else None
+            continue
         res = pair_results[symbol]
         if res is None:
             pair_dirs[symbol] = "WAIT"
@@ -1565,7 +1679,7 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
             pair_offset15_dirs[symbol] = res["offset15_direction"]
             pair_offset15_relations[symbol] = res["offset15_relation"]
             pair_offset15_actions[symbol] = res["offset15_action"]
-            pair_entry_times[symbol] = None  # XAUUSD entry is assigned below via entry planner
+            pair_entry_times[symbol] = None
             pair_groups[symbol] = res["pullback_group"]
             pair_evidence[symbol] = res
 
@@ -1594,11 +1708,26 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
     final_xau_entry = entry_plan["entry_time"]
     pair_entry_times["XAUUSD"] = final_xau_entry
 
+    # GBP pair-specific entry plan
+    gbp_entry_plan = build_gbp_entry_plan(
+        source_slot, h, entry_plan["entry_state"], final_xau_entry,
+        gbpusd_enabled=gbpusd_enabled,
+    )
+    pair_entry_times["GBPUSD"] = gbp_entry_plan["pair_entry_times"]["GBPUSD"]
+    pair_entry_times["GBPAUD"] = gbp_entry_plan["pair_entry_times"]["GBPAUD"]
+    pair_entry_states = {"XAUUSD": entry_plan["entry_state"]}
+    pair_entry_states.update(gbp_entry_plan["pair_entry_states"])
+    pair_signal_states = {"XAUUSD": entry_plan["entry_state"]}
+    pair_signal_states.update(gbp_entry_plan["pair_signal_states"])
+
     source_date_str = broker_dt.date().isoformat()
 
     report_lines = [f"H={h} M15 ({source_date_str}) [v{SIGNAL_LOGIC_VERSION}]:"]
     for symbol in SIGNAL_PAIRS:
-        res = pair_results[symbol]
+        if symbol not in evaluated_pairs:
+            report_lines.append(f"  {symbol}: not evaluated at H={h}")
+            continue
+        res = pair_results.get(symbol)
         if res is None:
             report_lines.append(f"  {symbol}: WAIT (missing M15 candle data)")
         else:
@@ -1625,6 +1754,8 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
         "pair_offset15_relations": pair_offset15_relations,
         "pair_offset15_actions": pair_offset15_actions,
         "pair_entry_times": pair_entry_times,
+        "pair_entry_states": pair_entry_states,
+        "pair_signal_states": pair_signal_states,
         "pair_groups": pair_groups,
         "pair_evidence": pair_evidence,
         "source_date": source_date_str,

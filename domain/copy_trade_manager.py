@@ -40,7 +40,7 @@ from domain.broker_clock import BrokerClock
 log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 6, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 58
+MINIMUM_SIGNAL_LOGIC_VERSION = 59
 _BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(_PROJECT_ROOT, "broker_clock_cache.json"),

@@ -50,7 +50,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
     """Exhaustive test matrix for shared symbol M15 evaluation engine (v57)."""
 
     def test_logic_version_and_signal_pairs(self) -> None:
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 58)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 59)
         self.assertEqual(mt5_signal_bot.SIGNAL_PAIRS, SIGNAL_PAIRS)
 
     def test_84_post_filter_subcases(self) -> None:
@@ -195,8 +195,8 @@ class PairIndependenceTests(unittest.TestCase):
         self.assertEqual(res["pair_offset15_dirs"]["GBPUSD"], "GIAM")
         self.assertEqual(res["pair_offset15_dirs"]["GBPAUD"], "GIAM")
         self.assertEqual(res["pair_entry_times"]["XAUUSD"], "10:25")
-        self.assertIsNone(res["pair_entry_times"]["GBPUSD"])
-        self.assertIsNone(res["pair_entry_times"]["GBPAUD"])
+        self.assertEqual(res["pair_entry_times"]["GBPUSD"], "11:00")
+        self.assertEqual(res["pair_entry_times"]["GBPAUD"], "11:00")
 
     def test_gbpusd_missing_candle_isolation(self) -> None:
         """Missing candle on GBPUSD makes only GBPUSD WAIT."""
@@ -214,7 +214,7 @@ class PairIndependenceTests(unittest.TestCase):
         self.assertEqual(res["pair_dirs"]["XAUUSD"], "SELL")
         self.assertEqual(res["pair_dirs"]["GBPUSD"], "WAIT")
         self.assertEqual(res["pair_dirs"]["GBPAUD"], "SELL")
-        self.assertIsNone(res["pair_entry_times"]["GBPUSD"])
+        self.assertEqual(res["pair_entry_times"]["GBPUSD"], "10:20")  # entry time still assigned
 
     def test_xauusd_missing_candle_isolation(self) -> None:
         """Missing candle on XAUUSD sets top-level signal=WAIT, preserving GBP pairs."""
@@ -248,7 +248,7 @@ class PairIndependenceTests(unittest.TestCase):
         self.assertEqual(set(queried_symbols), {"GBPAUD"})
 
     def test_all_slots_query_all_three_symbols(self) -> None:
-        """Every slot H3, H7, H9, H12, H14, H16 queries MT5 for XAUUSD, GBPUSD, and GBPAUD."""
+        """H3 queries XAUUSD+GBPAUD; H7+ queries all three."""
         for hour in DASHBOARD_SLOTS:
             broker_dt = datetime(2026, 7, 29, hour, 0)
             queried = []
@@ -260,7 +260,10 @@ class PairIndependenceTests(unittest.TestCase):
                  patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=mock_lookback):
                 mt5_signal_bot.evaluate_all_pairs_for_slot(broker_dt, hour)
 
-            self.assertCountEqual(queried, ["XAUUSD"] * 5 + ["GBPUSD"] * 5 + ["GBPAUD"] * 5)
+            if hour == 3:
+                self.assertNotIn("GBPUSD", queried)
+            else:
+                self.assertCountEqual(queried, ["XAUUSD"] * 5 + ["GBPUSD"] * 5 + ["GBPAUD"] * 5)
 
 
 class DojiM15ResolutionTests(unittest.TestCase):
