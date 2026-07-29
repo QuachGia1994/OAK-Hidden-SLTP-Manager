@@ -807,27 +807,101 @@ def push_to_dashboard():
         print(f"[DASHBOARD] Push error: {e}")
 
 
-def push_signal_evidence_to_dashboard(record):
-    """Push M15 candle evidence for one evaluated slot record to the dashboard (best effort)."""
+
+def push_xauusd_evidence(broker_dt, hour, result):
+    """Build and push XAUUSD 4-candle M15 evidence for the dashboard."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
         return
     api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
+    
     try:
-        evidence = record.get("pair_evidence")
-        if not evidence:
-            return
-        logic_version = record.get("logic_version", SIGNAL_LOGIC_VERSION)
-        key = f"{record['source_date']}:{record.get('slot_hour', 'XX')}:v{logic_version}"
-        # If the record is missing slot_hour directly at the top level, we might have to infer it,
-        # but wait, slot_hour isn't at the top level of `evaluate_all_pairs_for_slot` payload?
-        # Oh, the record itself is the top-level payload. We can get hour from pair_evidence items.
-        first_ev = next((ev for ev in evidence.values() if ev), None)
-        hour = first_ev.get("slot_hour") if first_ev else None
-        if hour is not None:
-            key = f"{record['source_date']}:{hour}:v{logic_version}"
+        source_slot = broker_dt.replace(hour=hour, minute=0, second=0, microsecond=0)
+        logic_version = result.get("logic_version", SIGNAL_LOGIC_VERSION)
+        key = f"{source_slot.date().isoformat()}:{hour}:v{logic_version}"
+        
+        # 1. PRE_H (H-15m -> H:00)
+        pre_h_open = source_slot - timedelta(minutes=15)
+        pre_h_close = source_slot
+        
+        # 2. CONTEXT_H00 (H:00 -> H:15)
+        ctx00_open = source_slot
+        ctx00_close = source_slot + timedelta(minutes=15)
+        
+        # 3. CONTEXT_H15 (H:15 -> H:30)
+        ctx15_open = source_slot + timedelta(minutes=15)
+        ctx15_close = source_slot + timedelta(minutes=30)
+        
+        # 4. H45 (H:30 -> H:45)
+        h45_open = source_slot + timedelta(minutes=30)
+        h45_close = source_slot + timedelta(minutes=45)
+        
+        def build_candle_evidence(role, open_dt, close_dt, is_pending_if_future=True):
+            if is_pending_if_future and broker_dt < close_dt:
+                return {
+                    "role": role,
+                    "state": "PENDING",
+                    "open_time": open_dt.isoformat(),
+                    "close_time": close_dt.isoformat(),
+                    "open": None,
+                    "high": None,
+                    "low": None,
+                    "close": None,
+                    "tick_volume": None,
+                    "direction": "WAIT"
+                }
             
-        payload_dict = {key: evidence}
+            target_ts = broker_time_to_ts(open_dt, open_dt.hour, open_dt.minute)
+            c = get_candle_by_ts("XAUUSD", mt5.TIMEFRAME_M15, target_ts)
+            if not c:
+                return {
+                    "role": role,
+                    "state": "MISSING",
+                    "open_time": open_dt.isoformat(),
+                    "close_time": close_dt.isoformat(),
+                    "open": None,
+                    "high": None,
+                    "low": None,
+                    "close": None,
+                    "tick_volume": None,
+                    "direction": "WAIT"
+                }
+            
+            return {
+                "role": role,
+                "state": "READY",
+                "open_time": open_dt.isoformat(),
+                "close_time": close_dt.isoformat(),
+                "open": c["open"],
+                "high": c["high"],
+                "low": c["low"],
+                "close": c["close"],
+                "tick_volume": c["tick_volume"],
+                "direction": candle_direction(c)
+            }
+            
+        candles = [
+            build_candle_evidence("PRE_H", pre_h_open, pre_h_close, False),
+            build_candle_evidence("CONTEXT_H00", ctx00_open, ctx00_close, True),
+            build_candle_evidence("CONTEXT_H15", ctx15_open, ctx15_close, True),
+            build_candle_evidence("H45", h45_open, h45_close, True)
+        ]
+        
+        payload_dict = {
+            key: {
+                "logic_version": logic_version,
+                "source_date": source_slot.date().isoformat(),
+                "hour": hour,
+                "symbol": "XAUUSD",
+                "timeframe": "M15",
+                "entry_time": result.get("entry_time"),
+                "entry_state": result.get("entry_state"),
+                "entry_rule": result.get("entry_rule"),
+                "entry_branch": result.get("entry_branch"),
+                "candles": candles
+            }
+        }
+        
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["X-API-Key"] = api_key
@@ -2561,7 +2635,6 @@ def _process_live_slot(broker_dt, hour):
     )
     _save_state(sent_today)
     push_to_dashboard()
-    push_signal_evidence_to_dashboard(result)
     
     # Note: send_telegram is done by the alert or earlier? The legacy bot just prints.
     if should_send_xau_entry_alert(result, entry_alerts_sent):
@@ -2903,26 +2976,22 @@ def evaluate_pair_from_selected_base(slot_dt, hour, symbol, xau_entry_time, *, a
 
 def derive_all_pair_signals_from_xau_entry(slot_dt, hour, xau_entry_plan, *, as_of_dt=None, historical_complete=False):
     pair_dirs = {p: "WAIT" for p in SIGNAL_PAIRS}
-    pair_evidence = {p: None for p in SIGNAL_PAIRS}
     
     if xau_entry_plan.get("entry_state") != "READY" or not xau_entry_plan.get("entry_time"):
-        return pair_dirs, pair_evidence
+        return pair_dirs
 
     xau_entry_time = xau_entry_plan["entry_time"]
     for symbol in SIGNAL_PAIRS:
-
-            
         evidence = evaluate_pair_from_selected_base(
             slot_dt, hour, symbol, xau_entry_time, 
             as_of_dt=as_of_dt, historical_complete=historical_complete
         )
         if evidence:
-            pair_evidence[symbol] = evidence
             pair_dirs[symbol] = evidence.get("direction", "WAIT")
             if pair_dirs[symbol] == "PENDING_BASE_CANDLE":
-                pair_dirs[symbol] = "WAIT" # Keep directory state as WAIT while pending
+                pair_dirs[symbol] = "WAIT"
                 
-    return pair_dirs, pair_evidence
+    return pair_dirs
 
 def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=None, resolve_historical_followup=False):
     h = int(hour)
@@ -2973,7 +3042,7 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     pair_signal_states.update(gbp_entry_plan["pair_signal_states"])
 
     # 6. derive final signals using STAGE B
-    pair_dirs, pair_evidence = derive_all_pair_signals_from_xau_entry(
+    pair_dirs = derive_all_pair_signals_from_xau_entry(
         source_slot, h, entry_plan, as_of_dt=as_of_dt, historical_complete=resolve_historical_followup
     )
     
@@ -2985,14 +3054,8 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
     report_lines.append(f"  XAUUSD Entry Plan: state={entry_plan['entry_state']} time={entry_plan['entry_time']} rule={entry_plan.get('entry_rule', 'N/A')}")
     
     for symbol in SIGNAL_PAIRS:
-
-        ev = pair_evidence.get(symbol)
-        if ev and ev.get("direction") == "PENDING_BASE_CANDLE":
-            report_lines.append(f"  {symbol}: PENDING BASE CANDLE")
-        elif ev and ev.get("base_direction"):
-            report_lines.append(f"  {symbol}: base={ev['base_direction']}/{ev['base_signal']} action={ev['primary_action']} final={ev['direction']}")
-        else:
-            report_lines.append(f"  {symbol}: WAIT")
+        d = pair_dirs.get(symbol, "WAIT")
+        report_lines.append(f"  {symbol}: {d}")
             
     pair_labels = {p: None for p in SIGNAL_PAIRS}
 
@@ -3020,7 +3083,7 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False, as_of_dt=
         "pair_labels": pair_labels,
         "pair_entry_at_utc": pair_entry_at_utc,
         "pair_groups": {},
-        "pair_evidence": pair_evidence,
+        
         "xau_entry_planner_basis_signal": xau_basis_signal,
         "source_date": source_date_str,
         "report": "\n".join(report_lines),

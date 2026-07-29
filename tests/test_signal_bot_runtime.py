@@ -21,9 +21,9 @@ class SignalBotRuntimeTests(unittest.TestCase):
         )
 
         self.assertIn("🤖 OAK SIGNAL BOT ONLINE · v69", message)
-        self.assertIn("Slots: H3 · H7 · H9 · H12 · H14 · H16", message)
-        self.assertIn("Pairs: GBPAUD / GBPUSD → XAUUSD", message)
-        self.assertIn("Auto-close: XAU 17:59 · GBP 19:59 Broker", message)
+        self.assertIn("Slots: H3 - H7 - H9 - H12 - H14 - H16", message)
+        self.assertIn("Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD", message)
+        self.assertIn("Auto-close: XAU 17:59 | GBP 19:59 Broker", message)
         self.assertNotIn("H1 hôm qua", message)
 
     def test_live_loop_has_no_per_signal_history_rebuild(self) -> None:

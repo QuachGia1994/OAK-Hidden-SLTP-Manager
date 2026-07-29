@@ -146,35 +146,35 @@ export interface FactCheckSource {
 }
 
 // =====================================================================
+// =====================================================================
 // Signal Evidence (v69)
 // =====================================================================
 
 export interface CandleOhlc {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  tick_volume: number;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  tick_volume: number | null;
+}
+
+export interface EvidenceCandle extends CandleOhlc {
+  role: "PRE_H" | "CONTEXT_H00" | "CONTEXT_H15" | "H45";
+  state: "READY" | "PENDING" | "MISSING";
+  open_time: string;
+  close_time: string;
+  direction: "BUY" | "SELL" | "DOJI" | "WAIT";
 }
 
 export interface SignalEvidence {
-  symbol: string;
   logic_version: number;
-  slot_hour: number;
   source_date: string;
-  xau_entry_time: string;
-  entry_branch: string;
-  base_open_offset_minutes: number;
-  base_close_offset_minutes: number;
-  base_open_time: string;
-  base_close_time: string;
-  base_candle: CandleOhlc | null;
-  base_direction: string | null;
-  base_signal: string | null;
-  primary_action: string | null;
-  primary_direction: string | null;
-  slot_inversion_applied: boolean;
-  slot_inversion_rule: string | null;
-  direction: string;
-  classification_reason: string;
+  hour: number;
+  symbol: string;
+  timeframe: string;
+  entry_time: string | null;
+  entry_state: string | null;
+  entry_rule: string | null;
+  entry_branch: string | null;
+  candles: EvidenceCandle[];
 }
