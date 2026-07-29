@@ -50,7 +50,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
     """Exhaustive test matrix for shared symbol M15 evaluation engine (v57)."""
 
     def test_logic_version_and_signal_pairs(self) -> None:
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 61)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 62)
         self.assertEqual(mt5_signal_bot.SIGNAL_PAIRS, SIGNAL_PAIRS)
 
     def test_84_post_filter_subcases(self) -> None:
@@ -131,11 +131,10 @@ class M15MultiPairMatrixTests(unittest.TestCase):
         self.assertEqual(total_cases, 288)
 
     def test_h14_evaluation_order_and_evidence(self) -> None:
-        """Verify H14 applies weekday matrix on Mon/Wed and records evidence without old unconditional reversal."""
-        # Wednesday: 2026-07-29 (weekday 2, XAUUSD H14 inverts)
+        """Verify evaluate_symbol_m15_for_slot records evidence and returns post_offset15 direction for XAUUSD."""
         broker_dt = datetime(2026, 7, 29, 14, 0)
         # Base TANG ("BUY"), pattern BT -> pattern_dir BUY, pre_offset15 -> BUY
-        # offset15 GIAM ("SELL") -> relation OPPOSITE -> action KEEP -> post_offset15 BUY -> Wed inversion SELL
+        # offset15 GIAM ("SELL") -> relation OPPOSITE -> action KEEP -> post_offset15 BUY
         sequence = ["TANG", "GIAM", "TANG", "GIAM", "GIAM"]
 
         with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=sequence):
@@ -153,8 +152,8 @@ class M15MultiPairMatrixTests(unittest.TestCase):
         self.assertEqual(res["offset15_relation"], "OPPOSITE")
         self.assertEqual(res["offset15_action"], "KEEP")
         self.assertEqual(res["post_offset15_direction"], "BUY")
-        self.assertTrue(res["weekday_inversion_applied"])
-        self.assertEqual(res["direction"], "SELL")
+        self.assertFalse(res["weekday_inversion_applied"])
+        self.assertEqual(res["direction"], "BUY")
         self.assertEqual(res["offsets"], [15, 30, 45, 60, 75])
 
 
@@ -181,9 +180,9 @@ class PairIndependenceTests(unittest.TestCase):
             res = mt5_signal_bot.evaluate_all_pairs_for_slot(broker_dt, 9, as_of_dt=broker_dt)
 
         self.assertIsNotNone(res)
-        self.assertEqual(res["signal"], "SELL")
+        self.assertEqual(res["signal"], "BUY")
         self.assertEqual(res["entry_time"], "10:25")
-        self.assertEqual(res["pair_dirs"]["XAUUSD"], "SELL")
+        self.assertEqual(res["pair_dirs"]["XAUUSD"], "BUY")
         self.assertEqual(res["pair_dirs"]["GBPUSD"], "SELL")
         self.assertEqual(res["pair_dirs"]["GBPAUD"], "BUY")
         self.assertEqual(res["pair_pre_offset15_dirs"]["XAUUSD"], "SELL")

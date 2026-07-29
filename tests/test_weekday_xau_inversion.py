@@ -76,12 +76,12 @@ class WeekdayXauInversionTests(unittest.TestCase):
                     "final_signal": "SELL",
                 }),
             ):
+                self.assertTrue(mt5_signal_bot.should_invert_xauusd_for_weekday(wednesday_dt, h))
                 res = mt5_signal_bot.evaluate_symbol_m15_for_slot(wednesday_dt, h, "XAUUSD")
                 self.assertIsNotNone(res)
-                # post_offset15 is SELL. Weekday inversion inverts to BUY.
-                self.assertEqual(res["direction"], "BUY")
-                self.assertTrue(res["weekday_inversion_applied"])
-                self.assertEqual(res["weekday_inversion_rule"], "WED_ALL")
+                # Active weekday inversion is disabled in v62
+                self.assertFalse(res["weekday_inversion_applied"])
+                self.assertIsNone(res["weekday_inversion_rule"])
 
 
 if __name__ == "__main__":

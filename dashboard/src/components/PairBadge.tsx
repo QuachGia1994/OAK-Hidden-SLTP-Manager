@@ -55,6 +55,11 @@ export function PairBadge({
             {label}
           </span>
         )}
+        {pair === "XAUUSD" && (
+          <span className="text-[9px] font-medium font-sans px-1 py-0.2 rounded border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]">
+            {locale === "VN" ? "Theo GBPAUD" : "From GBPAUD"}
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {state === "DEFERRED_TO_H7" ? (

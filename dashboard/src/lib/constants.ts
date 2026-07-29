@@ -141,29 +141,29 @@ type RuleLocale = "VN" | "EN";
 
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "Mọi slot H3/H7/H9/H12/H14/H16 phát Broker lúc H:00. Đánh giá độc lập ba symbol: XAUUSD, GBPUSD, GBPAUD bằng M15 (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 đảo signal lần cuối.",
-    "XAUUSD đảo final signal theo ma trận ngày Broker (Thứ Hai: H7/H14; Thứ Ba: Không đảo; Thứ Tư: H3/H7/H9/H12/H14/H16; Thứ Năm: H7/H9; Thứ Sáu: H3/H12/H16). Entry time XAUUSD do nến GBPAUD quyết định.",
+    "Mọi slot H3/H7/H9/H12/H14/H16 đánh giá độc lập GBPAUD và GBPUSD trên M15 (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 đảo signal lần cuối.",
+    "GBPAUD là nguồn direction cho XAUUSD. Khi entry XAU kết thúc bằng :11 hoặc :25, XAUUSD cùng chiều GBPAUD. Khi entry XAU kết thúc bằng :49, XAUUSD đảo ngược GBPAUD. Logic direction XAUUSD độc lập và weekday inversion đang tạm ngưng. Phép tính XAU cũ chỉ được dùng nội bộ làm cơ sở chọn nhánh entry.",
   ],
   EN: [
-    "Every slot evaluates XAUUSD, GBPUSD, GBPAUD on M15 candles (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 final signal is inverted.",
-    "XAUUSD final signal is inverted per Broker weekday matrix (Mon: H7/H14; Tue: none; Wed: all slots; Thu: H7/H9; Fri: H3/H12/H16). XAUUSD entry time is dynamically planned by GBPAUD candle relations.",
+    "Every slot evaluates GBPAUD and GBPUSD independently on M15 candles (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 final signal is inverted.",
+    "GBPAUD is the direction source for XAUUSD. When XAU entry ends in :11 or :25, XAUUSD takes the SAME direction as GBPAUD. When XAU entry ends in :49, XAUUSD takes the REVERSE direction of GBPAUD. Independent XAUUSD direction logic and weekday inversion are temporarily suspended. The old XAU calculation is only used internally as entry-timing basis.",
   ],
 };
 
 const WEEKDAY_RULES: Record<RuleLocale, Record<number, string>> = {
   VN: {
-    1: "Thứ Hai: XAUUSD đảo final signal tại H7 và H14.",
-    2: "Thứ Ba: XAUUSD không có weekday inversion.",
-    3: "Thứ Tư: XAUUSD đảo final signal ở toàn bộ H3/H7/H9/H12/H14/H16.",
-    4: "Thứ Năm: XAUUSD đảo final signal tại H7 và H9.",
-    5: "Thứ Sáu: XAUUSD đảo final signal tại H3, H12 và H16.",
+    1: "Thứ Hai: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
+    2: "Thứ Ba: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
+    3: "Thứ Tư: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
+    4: "Thứ Năm: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
+    5: "Thứ Sáu: GBPAUD tính M15 độc lập; XAUUSD suy từ GBPAUD + mốc entry.",
   },
   EN: {
-    1: "Monday: XAUUSD final signal is inverted at H7 and H14.",
-    2: "Tuesday: XAUUSD has no weekday inversion.",
-    3: "Wednesday: XAUUSD final signal is inverted across all slots (H3/H7/H9/H12/H14/H16).",
-    4: "Thursday: XAUUSD final signal is inverted at H7 and H9.",
-    5: "Friday: XAUUSD final signal is inverted at H3, H12, and H16.",
+    1: "Monday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
+    2: "Tuesday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
+    3: "Wednesday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
+    4: "Thursday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
+    5: "Friday: GBPAUD evaluated on M15; XAUUSD derived from GBPAUD + entry branch.",
   },
 };
 

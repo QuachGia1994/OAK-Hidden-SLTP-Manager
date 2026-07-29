@@ -8,6 +8,7 @@ import json
 import time
 import threading
 import socket
+import re
 from datetime import datetime, timedelta, timezone
 import urllib.request
 
@@ -115,8 +116,10 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 61
+SIGNAL_LOGIC_VERSION = 62
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
+DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
+INDEPENDENT_M15_PAIRS = ("GBPUSD", "GBPAUD")
 
 XAUUSD_WEEKDAY_INVERSION_HOURS = {
     0: frozenset({7, 14}),                # Monday
@@ -125,6 +128,40 @@ XAUUSD_WEEKDAY_INVERSION_HOURS = {
     3: frozenset({7, 9}),                 # Thursday
     4: frozenset({3, 12, 16}),            # Friday
 }
+
+
+def derive_xauusd_from_gbpaud_entry(gbpaud_signal, xau_entry_time):
+    """Derive final XAUUSD direction from final GBPAUD signal and XAUUSD Broker Entry Time.
+
+    Minute :11 or :25 -> XAUUSD SAME direction as GBPAUD.
+    Minute :49 -> XAUUSD OPPOSITE (reverse) direction of GBPAUD.
+    """
+    if gbpaud_signal not in ("BUY", "SELL"):
+        return None
+
+    match = re.fullmatch(r"(?:[01]\d|2[0-3]):([0-5]\d)", str(xau_entry_time or ""))
+    if not match:
+        return None
+
+    entry_minute = int(match.group(1))
+
+    if entry_minute in (11, 25):
+        return {
+            "direction": gbpaud_signal,
+            "relation": "SAME",
+            "rule": "GBPAUD_SAME_FOR_XAU_ENTRY_11_OR_25",
+            "entry_minute_class": entry_minute,
+        }
+
+    if entry_minute == 49:
+        return {
+            "direction": reverse_signal(gbpaud_signal),
+            "relation": "OPPOSITE",
+            "rule": "GBPAUD_REVERSE_FOR_XAU_ENTRY_49",
+            "entry_minute_class": 49,
+        }
+
+    return None
 
 
 def should_invert_xauusd_for_weekday(broker_dt, hour):
@@ -1173,25 +1210,11 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
     )
     gbpusd_h9plus_inversion_applied = (symbol == "GBPUSD" and h >= 9)
 
-    # Weekday inversion for XAUUSD
+    # Weekday inversion for XAUUSD (disabled in v62)
     pre_weekday_direction = symbol_adjusted_direction
-    weekday_inversion_applied = (
-        symbol == "XAUUSD" and should_invert_xauusd_for_weekday(broker_dt, h)
-    )
-    final_direction = (
-        reverse_signal(pre_weekday_direction)
-        if weekday_inversion_applied
-        else pre_weekday_direction
-    )
-
-    weekday_rule_names = {
-        0: "MON_H7_H14",
-        1: None,
-        2: "WED_ALL",
-        3: "THU_H7_H9",
-        4: "FRI_H3_H12_H16",
-    }
-    weekday_rule = weekday_rule_names.get(broker_dt.weekday()) if weekday_inversion_applied else None
+    weekday_inversion_applied = False
+    weekday_rule = None
+    final_direction = symbol_adjusted_direction
 
     entry_time = f"{h + 1:02d}:25" if pullback_group == "SW" else f"{h:02d}:49"
     entry_basis_direction = post_offset15_direction if symbol == "XAUUSD" else symbol_adjusted_direction
@@ -1754,27 +1777,50 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
         followup_dir = get_completed_m15_direction_by_close_time("GBPAUD", followup_close_dt)
 
     xau_res = pair_results.get("XAUUSD")
-    xau_entry_basis_signal = xau_res["entry_basis_direction"] if xau_res else "WAIT"
-    final_xauusd_signal = xau_res["direction"] if xau_res else "WAIT"
-    weekday_inversion_applied = xau_res["weekday_inversion_applied"] if xau_res else False
+    xau_entry_planner_basis_signal = xau_res["entry_basis_direction"] if xau_res else "WAIT"
 
     entry_plan = build_xau_entry_plan(
         broker_dt,
         h,
-        xau_entry_basis_signal,
+        xau_entry_planner_basis_signal,
         gbpaud_off15_dir,
         followup_gbpaud_direction=followup_dir,
     )
 
-    top_signal = final_xauusd_signal
-    if entry_plan["entry_state"] == "WAIT":
-        top_signal = "WAIT"
-        pair_dirs["XAUUSD"] = "WAIT"
-    else:
-        pair_dirs["XAUUSD"] = final_xauusd_signal
-
     final_xau_entry = entry_plan["entry_time"]
     pair_entry_times["XAUUSD"] = final_xau_entry
+
+    final_gbpaud_signal = pair_dirs.get("GBPAUD", "WAIT")
+    derived_xau = None
+    if entry_plan["entry_state"] == "READY" and final_xau_entry and final_gbpaud_signal in ("BUY", "SELL"):
+        derived_xau = derive_xauusd_from_gbpaud_entry(final_gbpaud_signal, final_xau_entry)
+
+    if derived_xau is not None:
+        final_xauusd_signal = derived_xau["direction"]
+        top_signal = final_xauusd_signal
+        pair_dirs["XAUUSD"] = final_xauusd_signal
+    else:
+        final_xauusd_signal = "WAIT"
+        top_signal = "WAIT"
+        pair_dirs["XAUUSD"] = "WAIT"
+
+    pair_evidence["XAUUSD"] = {
+        "direction_source": "GBPAUD_BY_XAU_ENTRY_TIME",
+        "source_pair": "GBPAUD",
+        "source_direction": final_gbpaud_signal,
+        "entry_time": final_xau_entry,
+        "entry_minute_class": derived_xau["entry_minute_class"] if derived_xau else None,
+        "relation": derived_xau["relation"] if derived_xau else None,
+        "derivation_rule": derived_xau["rule"] if derived_xau else None,
+        "final_direction": final_xauusd_signal,
+        "independent_direction_disabled": True,
+        "entry_planner_basis": {
+            "signal": xau_entry_planner_basis_signal,
+            "use": "ENTRY_TIMING_ONLY",
+            "actionable": False,
+        },
+    }
+    pair_groups["XAUUSD"] = None
 
     # GBP pair-specific entry plan
     gbp_entry_plan = build_gbp_entry_plan(
@@ -1846,10 +1892,17 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False,
         "pair_entry_at_utc": pair_entry_at_utc,
         "pair_groups": pair_groups,
         "pair_evidence": pair_evidence,
-        "entry_basis_xauusd_signal": xau_entry_basis_signal,
+        "xauusd_direction_source": "GBPAUD_BY_XAU_ENTRY_TIME",
+        "xauusd_source_pair": "GBPAUD",
+        "xauusd_source_signal": final_gbpaud_signal,
+        "xauusd_entry_relation": derived_xau["relation"] if derived_xau else None,
+        "xauusd_entry_minute_class": derived_xau["entry_minute_class"] if derived_xau else None,
+        "xauusd_derivation_rule": derived_xau["rule"] if derived_xau else None,
+        "xau_entry_planner_basis_signal": xau_entry_planner_basis_signal,
+        "xau_independent_direction_disabled": True,
+        "weekday_inversion_applied": False,
+        "weekday_inversion_rule": None,
         "final_xauusd_signal": final_xauusd_signal,
-        "weekday_inversion_applied": weekday_inversion_applied,
-        "entry_time_basis": "PRE_WEEKDAY_XAUUSD",
         "source_date": source_date_str,
         "report": "\n".join(report_lines),
     }

@@ -24,28 +24,29 @@ class WeekdayEntryIndependenceTests(unittest.TestCase):
             )
 
         self.assertIsNotNone(res)
-        self.assertEqual(res["logic_version"], 61)
-        self.assertTrue(res["weekday_inversion_applied"])
+        self.assertEqual(res["logic_version"], 62)
+        self.assertFalse(res["weekday_inversion_applied"])
 
-        # Pre-weekday XAU entry basis signal was SELL
-        self.assertEqual(res["entry_basis_xauusd_signal"], "SELL")
-        # Final XAUUSD signal after Wednesday H7 inversion is BUY
-        self.assertEqual(res["final_xauusd_signal"], "BUY")
-        self.assertEqual(res["signal"], "BUY")
-        self.assertEqual(res["pair_dirs"]["XAUUSD"], "BUY")
+        # Legacy XAU entry basis signal was SELL
+        self.assertEqual(res["xau_entry_planner_basis_signal"], "SELL")
+        # Final XAUUSD signal derived from GBPAUD (SELL) + entry 08:25 (:25 -> SAME) is SELL
+        self.assertEqual(res["final_xauusd_signal"], "SELL")
+        self.assertEqual(res["signal"], "SELL")
+        self.assertEqual(res["pair_dirs"]["XAUUSD"], "SELL")
 
-        # ENTRY TIMING MUST NOT BE SHIFTED BY WEEKDAY INVERSION:
+        # ENTRY TIMING MUST NOT BE SHIFTED BY DERIVATION:
         self.assertEqual(res["entry_time"], "08:25")
         self.assertEqual(res["pair_entry_times"]["XAUUSD"], "08:25")
         self.assertEqual(res["pair_entry_times"]["GBPUSD"], "09:00")
         self.assertEqual(res["pair_entry_times"]["GBPAUD"], "09:00")
 
     def test_wednesday_h9_entry_branches_regression(self) -> None:
-        """Wednesday H9 weekday inversion flips XAU direction, but all 3 entry branches preserve v59 entry timing."""
+        """Wednesday H9 entry branches preserve v61 entry timing and derive XAU direction from GBPAUD."""
         wednesday_dt = datetime(2026, 7, 29, 9, 0)
 
         # Branch 1: Initial relation OPPOSITE -> entry 09:11 Broker, GBP entry 10:20 Broker
-        # XAU entry_basis = BUY, GBPAUD offset15 = SELL -> OPPOSITE
+        # GBPAUD offset15 = SELL -> final GBPAUD = BUY
+        # Entry 09:11 (:11 -> SAME) -> derived XAU = BUY
         def mock_branch1(symbol, tf, candle_dt):
             if symbol == "XAUUSD":
                 return "GIAM"  # SW GIAM -> BUY pre-weekday basis
@@ -59,14 +60,14 @@ class WeekdayEntryIndependenceTests(unittest.TestCase):
             )
 
         self.assertIsNotNone(res1)
-        self.assertEqual(res1["entry_basis_xauusd_signal"], "BUY")
-        self.assertEqual(res1["final_xauusd_signal"], "SELL")  # Wed H9 inverted
+        self.assertEqual(res1["xau_entry_planner_basis_signal"], "BUY")
+        self.assertEqual(res1["final_xauusd_signal"], "BUY")  # Derived SAME from GBPAUD BUY @ :11
         self.assertEqual(res1["entry_time"], "09:11")
         self.assertEqual(res1["pair_entry_times"]["GBPUSD"], "10:20")
         self.assertEqual(res1["pair_entry_times"]["GBPAUD"], "10:20")
 
     def test_all_weekday_inversion_slots_non_mutation(self) -> None:
-        """Across all weekday inversion slots, entry_state and entry_time are invariant to weekday direction inversion."""
+        """Across all slots, entry_state and entry_time are invariant in v62."""
         dates_and_slots = [
             (datetime(2026, 7, 13), (7, 14)),                # Monday
             (datetime(2026, 7, 15), (3, 7, 9, 12, 14, 16)), # Wednesday
@@ -85,7 +86,7 @@ class WeekdayEntryIndependenceTests(unittest.TestCase):
                         dt, slot_h, resolve_historical_followup=True
                     )
                     self.assertIsNotNone(res)
-                    self.assertTrue(res["weekday_inversion_applied"])
+                    self.assertFalse(res["weekday_inversion_applied"])
                     self.assertIsNotNone(res["entry_time"])
                     self.assertIsNotNone(res["pair_entry_times"]["XAUUSD"])
                     self.assertIsNotNone(res["pair_entry_times"]["GBPAUD"])
