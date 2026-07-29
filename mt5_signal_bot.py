@@ -36,7 +36,11 @@ try:
     with open(_config_path, "r", encoding="utf-8") as _f:
         _cfg = json.load(_f)
     TELEGRAM_TOKEN = _cfg.get("telegram_token", "")
-    TELEGRAM_ADMIN_CHAT_ID = _cfg.get("telegram_admin_chat_id") or _cfg.get("telegram_chat_id", "")
+    TELEGRAM_ADMIN_CHAT_ID = str(
+        _cfg.get("telegram_admin_chat_id")
+        or _cfg.get("telegram_chat_id")
+        or ""
+    ).strip()
     TELEGRAM_CHAT_ID = TELEGRAM_ADMIN_CHAT_ID
     MT5_PATH = _cfg.get("mt5_path", "")
     DASHBOARD_URL = _cfg.get("dashboard_url", "")
@@ -58,14 +62,12 @@ VN_UTC_OFFSET = 7  # Vietnam local timezone (Indochina Time, no DST)
 def resolve_signal_admin_chat_id(profile_cfg=None):
     """Return a positive integer admin chat ID for signal notifications.
 
+    Reads from config.json keys (telegram_admin_chat_id or telegram_chat_id).
+    Never uses profile_cfg["tele_chat"] — that is a group/channel ID.
     Rejects group/channel IDs (<= 0) and invalid values.
     Returns None if no valid admin chat ID is available.
     """
-    raw_id = None
-    if profile_cfg:
-        raw_id = profile_cfg.get("tele_chat")
-    if not raw_id:
-        raw_id = TELEGRAM_ADMIN_CHAT_ID
+    raw_id = TELEGRAM_ADMIN_CHAT_ID
     if not raw_id:
         return None
     try:
@@ -97,8 +99,6 @@ def get_signal_time_for_slot(broker_dt, hour):
     h = int(hour)
     if h == 3:
         return "03:00"
-    if h == 4:
-        return "04:00"
     if h == 7:
         return "07:00"
     if h == 9:
@@ -546,6 +546,10 @@ def send_telegram(text: str) -> bool:
             if resp.status == 200:
                 res_body = json.loads(resp.read().decode("utf-8"))
                 if isinstance(res_body, dict) and res_body.get("ok") is True:
+                    print(
+                        f"[TELEGRAM] Sent private admin notification "
+                        f"for profile={profile_name or '<default>'}"
+                    )
                     return True
                 print(f"[TELEGRAM] Response ok=False: {res_body}")
                 return False
@@ -2878,6 +2882,8 @@ def main(profile_name=None):
     print(f"  Target Hours: {', '.join(f'H={h}' for h in TARGET_HOURS)}")
     print(f"  Auto-close: XAUUSD 17:59, GBP 19:59 (Broker)")
     print("  Broker clock: live-tick calibrated, fail-closed")
+    admin_ok = bool(TELEGRAM_ADMIN_CHAT_ID and resolve_signal_admin_chat_id())
+    print(f"  Telegram admin destination: {'yes' if admin_ok else 'no'}")
     print("=" * 55)
 
     if try_init_mt5():

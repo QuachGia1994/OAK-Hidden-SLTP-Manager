@@ -79,14 +79,15 @@ class SignalTelegramTests(unittest.TestCase):
             "VantageDemo", "", global_fallback=mt5_signal_bot.TELEGRAM_TOKEN
         )
 
-    def test_profile_chat_priority(self) -> None:
-        """Test D: profile tele_chat takes priority over global TELEGRAM_CHAT_ID."""
+    def test_admin_chat_id_from_config(self) -> None:
+        """Test D: TELEGRAM_ADMIN_CHAT_ID from config.json is used for routing."""
         mt5_signal_bot._active_profile = "VantageDemo"
-        mock_cfg = {"tele_token": "valid_token", "tele_chat": "999888777"}
+        mock_cfg = {"tele_token": "valid_token", "tele_chat": "-1001234567890"}
 
         with (
             patch("mt5_signal_bot.load_profile_config", return_value=mock_cfg),
             patch("mt5_signal_bot.resolve_telegram_token", return_value="valid_token"),
+            patch.object(mt5_signal_bot, "TELEGRAM_ADMIN_CHAT_ID", "7732907060"),
             patch("urllib.request.urlopen") as mock_urlopen,
         ):
             mock_resp = MagicMock()
@@ -94,10 +95,11 @@ class SignalTelegramTests(unittest.TestCase):
             mock_resp.read.return_value = b'{"ok": true}'
             mock_urlopen.return_value.__enter__.return_value = mock_resp
 
-            mt5_signal_bot.send_telegram("Test chat priority")
+            mt5_signal_bot.send_telegram("Test admin chat routing")
 
             req = mock_urlopen.call_args[0][0]
-            self.assertIn(b'"chat_id": 999888777', req.data)
+            self.assertIn(b'"chat_id": 7732907060', req.data)
+            self.assertNotIn(b'"chat_id": -1001234567890', req.data)
 
     def test_missing_credentials_fails_safely(self) -> None:
         """Test E: missing token or chat ID returns False without raising an exception."""
