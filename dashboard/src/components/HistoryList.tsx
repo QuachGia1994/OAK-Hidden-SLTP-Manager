@@ -3,7 +3,6 @@
 import { CollapsibleDay } from "./CollapsibleDay";
 import type { Signal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
-import { isDisplayableSignal } from "@/lib/constants";
 
 interface HistoryListProps {
   signals: Signal[];
@@ -14,7 +13,6 @@ export function HistoryList({ signals, isVIP }: HistoryListProps) {
   const { locale } = useLocale();
   const dateMap = new Map<string, Signal[]>();
   for (const signal of signals) {
-    if (!isDisplayableSignal(signal)) continue;
     if (!dateMap.has(signal.date)) dateMap.set(signal.date, []);
     dateMap.get(signal.date)!.push(signal);
   }

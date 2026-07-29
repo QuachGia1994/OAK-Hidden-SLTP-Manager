@@ -36,7 +36,7 @@ class SignalRebuildDependencyTests(unittest.TestCase):
             ):
                 count = mt5_signal_bot.rebuild_recent_history(days=1)
 
-        self.assertEqual(rebuilt_hours, [3, 4, 6, 9, 12, 14, 16])
+        self.assertEqual(rebuilt_hours, [3, 4, 7, 9, 12, 14, 16])
         self.assertEqual(count, 7)
 
     def test_rebuild_drops_malformed_rows_without_preserving_stale_window(self):

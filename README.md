@@ -15,7 +15,7 @@
 
 - MT5 monitor đa hồ sơ, cô lập theo từng profile.
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
-- Signal engine dùng pattern `GBPUSD`; output giao dịch gồm `XAUUSD`, `GBPAUD` ở H=3 và nhóm GBP ở H=9/H=14.
+- Signal engine chỉ phát `XAUUSD`: `GBPUSD` H1 là nguồn signal, `GBPAUD` H1 chỉ dùng đối chiếu, và `XAUUSD` M15 chỉ dùng chọn entry.
 - Telegram bridge, MiMo worker, Copy Trading guardrail và lệnh hẹn giờ an toàn. Lệnh nhanh nhận `<lot> <HH:MM broker> <profile>` và tự đổi sang giờ Windows.
 - Fact Check dùng bằng chứng Google + DuckDuckGo, hỗ trợ OCR và dán ảnh clipboard.
 - NativeQt nhẹ, không WebEngine/Chromium, có theme Dark, Deep Sea và Contrast.
@@ -28,11 +28,11 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 
 ## Signal engine hiện hành
 
-- Chạy Thứ 2 đến Thứ 6; slot logic duy nhất: **H=3, H=4, H=5, H=6, H=9, H=12, H=14, H=16**.
-- Giờ phát Broker: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` hoặc `08:00` ngày đặc biệt; H12 `12:00`; H14 `14:00`; H16 `16:00`. Entry luôn bằng hoặc sau giờ phát.
-- H3 đảo H5 của ngày giao dịch trước; riêng Thứ Năm dùng lại H3 Thứ Hai và luôn lưu `deactivated=true`. H4/H5 dùng pattern GBPUSD M5/M30 và XAUUSD M30 nhưng luôn là mốc trung gian `deactivated`, chỉ cấp dependency cho các slot sau và không phải tín hiệu vào lệnh.
-- Ngày thường: Thứ Hai/Thứ Sáu chọn BT → H12 priority, SW → H14 priority; Thứ Ba/Thứ Tư/Thứ Năm chọn SW → H12 priority, BT → H14 priority. H16 chọn nhánh H6–H12 hoặc H9–H14 theo priority; thiếu dependency thì `WAIT`.
-- Ngày đặc biệt Thứ Năm/Thứ Sáu và Thứ Hai hậu đặc biệt không tạo H12/H14/H16. Cặp Thứ Năm–Thứ Sáu bắc cầu sang năm mới không được tính là ngày đặc biệt.
+- Chạy Thứ 2 đến Thứ 6; slot logic duy nhất: **H=3, H=4, H=6, H=9, H=12, H=14, H=16**.
+- Giờ phát Broker: H3 `03:00`; H4 `04:00`; H6 `06:00`; H9 `09:00`; H12 `12:00`; H14 `14:00`; H16 `16:00`. Entry luôn bằng hoặc sau giờ phát.
+- Mỗi mốc H=3/4/6/9/12/14/16 phát đúng `H:00`. Lấy hai H1 đã hoàn tất của `GBPUSD` từ ngày hôm qua, ngay trước cùng mốc logic (ví dụ H9 hôm nay dùng H8 và H7 hôm qua; H8 là nến nền). Hai nến ngược chiều → BT và giữ hướng nến nền; hai nến cùng chiều → SW và đảo hướng nến nền. Đây là signal XAUUSD cuối cùng.
+- Lặp lại phép tính hai H1 `GBPAUD` của ngày hôm qua chỉ để đối chiếu; không phát pair GBP. Nếu kết quả GBPUSD và GBPAUD trùng nhau, entry là `H:11`. Nếu khác nhau, bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD đã hoàn tất tiếp theo trong ngày theo bảng SW/BT hiện có (ví dụ H9 bỏ `08:45`, dùng `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; riêng H3: SW → `04:49`, BT → `03:49`.
+- H3 mọi Thứ Năm và H4 mọi ngày luôn `deactivated`/`DO NOT ENTER`. Thiếu nến hoặc DOJI không resolve được ở bất kỳ bước nào thì `WAIT`.
 - BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed khi tick stale, thiếu hoặc mâu thuẫn. UTC tuyệt đối dùng cho lịch/UI được tách khỏi timestamp kiểu wall-clock mà một số terminal MT5 dùng cho dữ liệu nến/tick.
 
 ## Fact Check AI

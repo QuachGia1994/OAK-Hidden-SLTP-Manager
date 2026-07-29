@@ -11,25 +11,25 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 
 ## Signal engine
 
-- Nguồn pattern: `GBPUSD` M5/M30.
-- Output/cặp giao dịch: `XAUUSD`, `GBPAUD` ở H=3 và nhóm GBP ở H=9/H=14.
+- Nguồn signal: hai H1 `GBPUSD` của ngày hôm qua; hai H1 `GBPAUD` chỉ để đối chiếu. `XAUUSD` M15 chỉ chọn entry.
+- Output/cặp giao dịch: chỉ `XAUUSD`.
 - Chạy Thứ 2 đến Thứ 6; cuối tuần tắt toàn bộ slot.
-- Slot active: **H=3, H=4, H=5, H=6, H=9, H=12, H=14, H=16**.
-- Giờ phát Broker: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` (`08:00` ngày đặc biệt); H12 `12:00`; H14 `14:00`; H16 `16:00`.
-- Entry tương ứng: H3 `03:11/03:49`; H4 `04:45`; H5 `05:45`; H6 `06:11`; H9 `09:49` (`08:30` ngày đặc biệt); H12 `12:11`; H14 `14:15/14:49`; H16 `16:11/16:49`.
-- H3 luôn `deactivated` vào mọi Thứ Năm. H4/H5 luôn là mốc trung gian `deactivated`, chỉ cấp dependency và không phải tín hiệu vào lệnh.
-- Ngày đặc biệt Thứ Năm/Thứ Sáu và Thứ Hai hậu đặc biệt không tạo H12/H14/H16. Cặp Thứ Năm–Thứ Sáu bắc cầu năm mới không phải ngày đặc biệt.
+- Slot active: **H=3, H=4, H=6, H=9, H=12, H=14, H=16**.
+- Giờ phát Broker: H3 `03:00`; H4 `04:00`; H6 `06:00`; H9 `09:00`; H12 `12:00`; H14 `14:00`; H16 `16:00`.
+- Mỗi mốc H=3/4/6/9/12/14/16 phát đúng `H:00`. Lấy hai H1 hoàn tất của `GBPUSD` từ ngày hôm qua ngay trước cùng mốc logic (ví dụ H9 hôm nay dùng H8 và H7 hôm qua; H8 là nền). Hai H1 ngược chiều → BT, giữ hướng nền; hai H1 cùng chiều → SW, đảo hướng nền. Đây là signal XAUUSD cuối cùng.
+- Lặp phép tính với hai H1 `GBPAUD` cùng thời điểm hôm qua chỉ để đối chiếu. Kết quả GBPUSD và GBPAUD trùng nhau → entry `H:11`; khác nhau → bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD đã hoàn tất tiếp theo trong ngày bằng bảng SW/BT (H9 bỏ `08:45`, dùng `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; riêng H3: SW → `04:49`, BT → `03:49`.
+- H3 luôn `deactivated` vào mọi Thứ Năm. H4 luôn `deactivated`/`DO NOT ENTER`, chỉ phục vụ tính toán/tham chiếu. Thiếu nến hoặc DOJI không resolve được ở bất kỳ bước nào trả `WAIT`.
 - BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed nếu tick stale, thiếu hoặc mâu thuẫn; UTC tuyệt đối được tách khỏi timestamp wall-clock của dữ liệu MT5.
 
 ### Ma trận core
 
 | Mốc | Rule |
 | --- | --- |
-| H=3 | XAUUSD đảo H=5 của phiên trước; riêng Thứ Năm dùng lại H=3 Thứ Hai và luôn `deactivated`. `GBPAUD` ngược XAUUSD. |
-| H=4/H=5 | Pattern GBPUSD M5/M30 kết hợp XAUUSD M30; luôn `deactivated`, chỉ dùng làm dependency trung gian. |
-| H=6/H=9 | Phân nhóm bốn nến H1; áp dụng đảo theo thứ và đảo thêm ngày đặc biệt. H=9 còn có GBPUSD và GBPAUD. |
-| H=12/H=14 | Đảo H=4, sau đó áp dụng đảo theo thứ và phân nhóm bốn H1. Ngày thường Mon/Fri: BT → H12, SW → H14; Tue/Wed/Thu: SW → H12, BT → H14. Bốn M30 quyết định priority/entry và tính đầy đủ. H=14 còn có GBPUSD và GBPAUD. |
-| H=16 | Chọn nhánh priority H6–H12 hoặc H9–H14; thiếu dependency thì `WAIT`. |
+| H=3 | Cùng rule hai H1 GBPUSD ngày hôm qua; H3 mọi Thứ Năm luôn `deactivated`. Khi hai kết quả GBP khác nhau, M15 SW vào `04:49`, BT vào `03:49`. |
+| H=4 | Cùng rule hai H1/M15 nhưng luôn `deactivated`/`DO NOT ENTER`; chỉ phục vụ tính toán/tham chiếu. |
+| H=6/H=9/H=12/H=14/H=16 | Chỉ phát XAUUSD. Signal cuối cùng lấy từ hai H1 GBPUSD hôm qua; GBPAUD chỉ đối chiếu entry. |
+
+Khi hai kết quả GBP trùng nhau, mọi mốc dùng entry `H:11`. Khi khác nhau, bỏ M15 ngay trước mốc rồi dùng ba M15 XAUUSD đã hoàn tất tiếp theo trong ngày theo bảng SW/BT (H9 bỏ `08:45`, dùng `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 là ngoại lệ SW → `04:49`, BT → `03:49`. DOJI chưa resolve hoặc thiếu nến → `WAIT`.
 
 ## Dashboard
 

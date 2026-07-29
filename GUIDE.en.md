@@ -11,25 +11,25 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 
 ## Signal engine
 
-- Pattern source: `GBPUSD` M5/M30.
-- Output/trade pairs: `XAUUSD`, `GBPAUD` at H=3, and the GBP group at H=9/H=14.
+- Signal source: two `GBPUSD` H1 bars from yesterday; two `GBPAUD` H1 bars are comparison-only. `XAUUSD` M15 selects entry time only.
+- Output/trade pair: `XAUUSD` only.
 - Trading days: Monday to Friday. Weekend slots are off.
-- Active slots: **H=3, H=4, H=5, H=6, H=9, H=12, H=14, H=16**.
-- Broker publication: H3 `03:00`; H4 `04:45`; H5 `05:45`; H6 `06:00`; H9 `09:00` (`08:00` on special days); H12 `12:00`; H14 `14:00`; H16 `16:00`.
-- Entry: H3 `03:11/03:49`; H4 `04:45`; H5 `05:45`; H6 `06:11`; H9 `09:49` (`08:30` on special days); H12 `12:11`; H14 `14:15/14:49`; H16 `16:11/16:49`.
-- H3 is always `deactivated` every Thursday. H4/H5 are always `deactivated` intermediate dependencies and are never actionable signals.
-- Special Thursday/Friday sessions and post-special Monday do not generate H12/H14/H16. A Thursday/Friday pair spanning New Year is not special.
+- Active slots: **H=3, H=4, H=6, H=9, H=12, H=14, H=16**.
+- Broker publication: H3 `03:00`; H4 `04:00`; H6 `06:00`; H9 `09:00`; H12 `12:00`; H14 `14:00`; H16 `16:00`.
+- Every H=3/4/6/9/12/14/16 slot publishes at `H:00`. Read the two completed `GBPUSD` H1 bars from yesterday immediately before the equivalent logical slot (for example, H9 today uses yesterday H8 and H7; H8 is the base). Opposite H1 bars are BT and keep the base direction; same-direction H1 bars are SW and reverse the base direction. This is the final XAUUSD signal.
+- Repeat the calculation for the equivalent two `GBPAUD` H1 bars from yesterday only for comparison. Matching GBPUSD and GBPAUD results → entry `H:11`; differing results → classify today's three completed XAUUSD M15 bars after skipping the immediately preceding bar with the existing SW/BT table (H9 skips `08:45` and uses `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 is the exception: SW → `04:49`, BT → `03:49`.
+- H3 is always `deactivated` every Thursday. H4 is always `deactivated`/`DO NOT ENTER`, calculation/reference-only. A missing candle or unresolved DOJI at any step returns `WAIT`.
 - BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations; absolute UTC is separated from MT5 wall-clock data timestamps.
 
 ### Core matrix
 
 | Slot | Rule |
 | --- | --- |
-| H=3 | XAUUSD reverses the prior trading day's H5; Thursday reuses Monday H3 and is always `deactivated`. `GBPAUD` opposes XAUUSD. |
-| H=4/H=5 | GBPUSD M5/M30 pattern combined with XAUUSD M30; always `deactivated` and used only as intermediate dependencies. |
-| H=6/H=9 | Four-H1 grouping with weekday and special-day reversals. H9 also emits GBPUSD and GBPAUD. |
-| H=12/H=14 | Reverse H4, then apply weekday and four-H1 reversals. On normal Mon/Fri, BT → H12 and SW → H14; on normal Tue/Wed/Thu, SW → H12 and BT → H14. Four-M30 controls priority/entry and completeness. H14 also emits GBPUSD and GBPAUD. |
-| H=16 | Selects the priority H6–H12 or H9–H14 branch; missing dependencies produce `WAIT`. |
+| H=3 | Uses the same two-H1 GBPUSD rule from yesterday; every Thursday it is `deactivated`. When the two GBP results differ, M15 SW enters `04:49`, BT enters `03:49`. |
+| H=4 | Uses the same two-H1/M15 rule but is always `deactivated`/`DO NOT ENTER`; calculation/reference-only. |
+| H=6/H=9/H=12/H=14/H=16 | Emits XAUUSD only. The final signal comes from yesterday's two GBPUSD H1 bars; GBPAUD is entry-time comparison only. |
+
+When the GBP results match, every slot uses entry `H:11`. When they differ, classify today's three completed XAUUSD M15 bars after skipping the immediately preceding bar with the SW/BT table (H9 skips `08:45` and uses `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 is the exception SW → `04:49`, BT → `03:49`. An unresolved DOJI or missing candle returns `WAIT`.
 
 ## Dashboard
 

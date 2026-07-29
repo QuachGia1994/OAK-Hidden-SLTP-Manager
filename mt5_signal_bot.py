@@ -46,7 +46,7 @@ except Exception:
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "XAUUSD"
-TARGET_HOURS = [3, 4, 6, 9, 12, 14, 16]
+TARGET_HOURS = [3, 4, 7, 9, 12, 14, 16]
 ACTIVE_HOURS = frozenset(TARGET_HOURS)
 GBP_SOURCE_PAIRS = ("GBPUSD", "GBPAUD")
 VN_UTC_OFFSET = 7  # Vietnam local timezone (Indochina Time, no DST)
@@ -72,8 +72,8 @@ def get_signal_time_for_slot(broker_dt, hour):
         return "03:00"
     if h == 4:
         return "04:00"
-    if h == 6:
-        return "06:00"
+    if h == 7:
+        return "07:00"
     if h == 9:
         return "09:00"
     if h == 12:
@@ -115,8 +115,8 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-# Bump when pair-direction / slot rules change to trace rebuilds in logs.
-SIGNAL_LOGIC_VERSION = 54
+SIGNAL_LOGIC_VERSION = 55
+SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 
 
 BROKER_CLOCK = BrokerClock(
@@ -795,8 +795,18 @@ def candle_direction(candle):
         return "GIAM"
     return "DOJI"
 
+def reverse_candle_direction(direction):
+    if direction == "TANG":
+        return "GIAM"
+    if direction == "GIAM":
+        return "TANG"
+    return None
+
 def resolve_doji(symbol, timeframe, target_ts, broker_dt):
-    """Nến DOJI → lùi 1 nến trước cùng khung, lấy direction nến trước đó."""
+    """Nến DOJI → lùi 1 nến trước cùng khung (900s for M15).
+    For M15: reverse the direction of previous candle (TANG -> GIAM, GIAM -> TANG).
+    For H1: keep previous direction if TANG/GIAM.
+    """
     timeframe_seconds = {
         mt5.TIMEFRAME_M15: 900,
         mt5.TIMEFRAME_H1: 3600,
@@ -807,6 +817,8 @@ def resolve_doji(symbol, timeframe, target_ts, broker_dt):
     prev_ts = target_ts - prev_offset
     prev_candle = get_candle_by_ts(symbol, timeframe, prev_ts)
     d = candle_direction(prev_candle)
+    if timeframe == mt5.TIMEFRAME_M15:
+        return reverse_candle_direction(d)
     if d and d != "DOJI":
         return d
     return None
@@ -957,7 +969,7 @@ def _is_friday_special_day_2(friday_dt):
 
 
 def is_month_boundary_suppress(broker_dt):
-    """Disabled — month boundary suppression removed. XAUUSD always uses normal signal."""
+    """Disabled -- month boundary suppression removed."""
     return False
 
 
@@ -971,50 +983,6 @@ _THREE_CANDLE_GROUPS = {
     ("TANG", "GIAM", "TANG"): "BT",
     ("TANG", "TANG", "GIAM"): "BT",
 }
-
-_XAUUSD2_FOUR_CANDLE_SW = {
-    ("TANG", "GIAM", "TANG", "GIAM"),
-    ("GIAM", "TANG", "GIAM", "TANG"),
-}
-
-_XAUUSD2_THREE_CANDLE_GROUPS = {
-    ("TANG", "TANG", "TANG"): "SW",
-    ("TANG", "GIAM", "GIAM"): "SW",
-    ("TANG", "TANG", "GIAM"): "BT",
-    ("TANG", "GIAM", "TANG"): "BT",
-    ("GIAM", "GIAM", "GIAM"): "SW",
-    ("GIAM", "TANG", "TANG"): "SW",
-    ("GIAM", "GIAM", "TANG"): "BT",
-    ("GIAM", "TANG", "GIAM"): "BT",
-}
-
-
-def _classify_xauusd2_pattern(pattern_directions):
-    """Classify 4 pattern candles for XAUUSD2.
-
-    Checks 4-candle alternating SW first (precedence), then falls back
-    to the 3-candle lookup table.
-    """
-    pattern4 = tuple(pattern_directions)
-    if len(pattern4) != 4:
-        return None
-    if pattern4 in _XAUUSD2_FOUR_CANDLE_SW:
-        return {
-            "group": "SW",
-            "matched_pattern": pattern4,
-            "pattern_length": 4,
-            "classification_reason": "alternating_four_candle_sw",
-        }
-    pattern3 = pattern4[:3]
-    group = _XAUUSD2_THREE_CANDLE_GROUPS.get(pattern3)
-    if group is None:
-        return None
-    return {
-        "group": group,
-        "matched_pattern": pattern3,
-        "pattern_length": 3,
-        "classification_reason": "three_candle_pattern",
-    }
 
 
 def _lookback_candle_direction(symbol, timeframe, candle_dt):
@@ -1034,54 +1002,6 @@ def _classify_three_candles(directions):
     return _THREE_CANDLE_GROUPS.get(tuple(directions))
 
 
-def evaluate_previous_day_gbp_h1_pair(broker_dt, hour, symbol):
-    """Derive one XAU direction from the previous session's two completed GBP H1 bars."""
-    if broker_dt is None:
-        return None
-    prev_session = resolve_previous_broker_session(broker_dt, symbol, mt5.TIMEFRAME_H1)
-    if prev_session is None:
-        return None
-    previous_slot_dt = datetime.combine(prev_session, datetime.min.time()).replace(hour=int(hour), minute=0)
-    newest_dt = previous_slot_dt - timedelta(hours=1)
-    older_dt = previous_slot_dt - timedelta(hours=2)
-    newest_direction = _lookback_candle_direction(symbol, mt5.TIMEFRAME_H1, newest_dt)
-    older_direction = _lookback_candle_direction(symbol, mt5.TIMEFRAME_H1, older_dt)
-    if newest_direction not in ("TANG", "GIAM") or older_direction not in ("TANG", "GIAM"):
-        return None
-    base_signal = "BUY" if newest_direction == "TANG" else "SELL"
-    group = "SW" if newest_direction == older_direction else "BT"
-    derived_signal = reverse_signal(base_signal) if group == "SW" else base_signal
-    return {
-        "newest_direction": newest_direction,
-        "older_direction": older_direction,
-        "group": group,
-        "base_signal": base_signal,
-        "derived_signal": derived_signal,
-    }
-
-
-def evaluate_xauusd_m15_group_for_slot(broker_dt, hour):
-    """Classify XAUUSD M15 bars two through four immediately before a slot."""
-    if broker_dt is None:
-        return None
-    slot_dt = broker_dt.replace(hour=int(hour), minute=0, second=0, microsecond=0)
-    directions = [
-        _lookback_candle_direction(SYMBOL, mt5.TIMEFRAME_M15, slot_dt - timedelta(minutes=offset))
-        for offset in (30, 45, 60)
-    ]
-    return _classify_three_candles(directions)
-
-
-def _m15_pair_for_hour(hour):
-    """Return the GBP pair used for M15 4-candle lookback by hour group."""
-    h = int(hour)
-    if h in (3, 6, 9):
-        return "GBPAUD"
-    if h in (12, 14, 16):
-        return "GBPUSD"
-    return None
-
-
 _previous_session_cache: dict[tuple, object] = {}
 
 
@@ -1089,7 +1009,7 @@ def resolve_previous_broker_session(broker_dt, symbol, timeframe):
     """Find the most recent Broker trading session before *broker_dt*.
 
     Scans backwards up to 7 calendar days, skipping weekends and sessions
-    with no data for the given symbol/timeframe.  Results are cached per
+    with no data for the given symbol/timeframe. Results are cached per
     (broker_date, symbol, timeframe) within a rebuild pass.
 
     Returns the session date (``datetime.date``) or ``None`` if no session
@@ -1104,8 +1024,6 @@ def resolve_previous_broker_session(broker_dt, symbol, timeframe):
         if candidate.weekday() >= 5:
             candidate -= timedelta(days=1)
             continue
-        # Verify the candidate session has at least one bar for the symbol.
-        # Use copy_rates_from_by_date which takes date range directly.
         try:
             bars = mt5.copy_rates_from(
                 symbol,
@@ -1124,29 +1042,21 @@ def resolve_previous_broker_session(broker_dt, symbol, timeframe):
     return None
 
 
-def evaluate_m15_4candle_for_slot(broker_dt, hour):
-    """Evaluate 4 M15 candles (base + 3 pullback) from the previous trading session.
+def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
+    """Evaluate 4 M15 candles (base + 3 pattern) from current Broker session for a symbol.
 
-    H=3,6,9 → GBPAUD M15 previous session at offsets from slot hour.
-    H=12,14,16 → GBPUSD M15 previous session at offsets from slot hour.
-    Offset-30 candle = base direction → BUY(TANG)/SELL(GIAM).
-    Offsets 45,60,75 = 3 pullback candles → classify SW or BT.
-
-    Canonical matrix (two invariants):
-      1. Every slot: SW → XAUUSD reverses Base; BT → XAUUSD keeps Base.
-      2. H=3/6/9:  GBPAUD always opposite of Base.
-         H=12/14/16: GBPUSD always same as Base.
+    Offsets:
+      -30 = Base
+      -45 = Pattern 1
+      -60 = Pattern 2
+      -75 = Pattern 3
     """
     h = int(hour)
-    pair = _m15_pair_for_hour(h)
-    if broker_dt is None or pair is None:
+    if broker_dt is None or h not in ACTIVE_HOURS:
         return None
-    prev_session = resolve_previous_broker_session(broker_dt, pair, mt5.TIMEFRAME_M15)
-    if prev_session is None:
-        return None
-    source_slot = datetime.combine(prev_session, datetime.min.time()).replace(hour=h, minute=0)
+    source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
     all_dirs = [
-        _lookback_candle_direction(pair, mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
+        _lookback_candle_direction(symbol, mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
         for offset in (30, 45, 60, 75)
     ]
     if any(d is None for d in all_dirs):
@@ -1154,181 +1064,90 @@ def evaluate_m15_4candle_for_slot(broker_dt, hour):
     base_dir = all_dirs[0]
     if base_dir not in ("TANG", "GIAM"):
         return None
-    pullback_dirs = all_dirs[1:]
-    pullback_group = _classify_three_candles(pullback_dirs)
+    pattern_dirs = all_dirs[1:]
+    pullback_group = _classify_three_candles(pattern_dirs)
     if pullback_group not in ("SW", "BT"):
         return None
     base_signal = "BUY" if base_dir == "TANG" else "SELL"
-
-    # Invariant 1: SW → reverse Base, BT → keep Base (for XAUUSD)
-    xau_signal = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
-
-    # Invariant 2: GBP pair depends on hour group
-    if h in (3, 6, 9):
-        # GBPAUD always opposite of Base
-        gbp_signal = reverse_signal(base_signal)
-    else:
-        # GBPUSD always same as Base
-        gbp_signal = base_signal
+    final_direction = reverse_signal(base_signal) if pullback_group == "SW" else base_signal
+    if h == 14:
+        final_direction = reverse_signal(final_direction)
+    entry_time = f"{h + 1:02d}:25" if pullback_group == "SW" else f"{h:02d}:49"
 
     return {
+        "symbol": symbol,
+        "source_date": broker_dt.date().isoformat(),
         "base_direction": base_dir,
         "base_signal": base_signal,
+        "pattern_directions": pattern_dirs,
+        "matched_pattern": tuple(pattern_dirs),
+        "pattern_length": 3,
         "pullback_group": pullback_group,
-        "xau_signal": xau_signal,
-        "gbp_signal": gbp_signal,
-        "pair": pair,
-        "source_date": prev_session.isoformat(),
-    }
-
-
-def _entry_time_from_gbp_derivations(hour, directions_match, m15_group=None):
-    """Map the two GBP-derived XAU directions to the Broker entry clock."""
-    h = int(hour)
-    if directions_match:
-        return f"{h:02d}:11"
-    if m15_group not in ("SW", "BT"):
-        return None
-    if h == 3:
-        return "04:49" if m15_group == "SW" else "03:49"
-    return f"{h + 1:02d}:25" if m15_group == "SW" else f"{h:02d}:49"
-
-
-def _entry_time_from_m15_4candle(hour, pullback_group):
-    """Map M15 4-candle pullback group to Broker entry clock."""
-    h = int(hour)
-    if pullback_group == "SW":
-        return f"{h + 1:02d}:25"
-    if pullback_group == "BT":
-        return f"{h:02d}:49"
-
-
-def evaluate_xauusd2_m15_for_slot(broker_dt, hour):
-    """Evaluate five XAUUSD M15 candles from the current Broker session.
-
-    Offset -30 is Base; offsets -45/-60/-75 form the primary pattern;
-    offset -90 confirms alternating four-candle SW.
-
-    Base is reversed first, then canonical matrix applies:
-      SW → reverse(reversed base) = original base direction
-      BT → keep(reversed base)    = opposite of original base direction
-    """
-    h = int(hour)
-    if h not in ACTIVE_HOURS:
-        return None
-    source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
-    all_dirs = [
-        _lookback_candle_direction("XAUUSD", mt5.TIMEFRAME_M15, source_slot - timedelta(minutes=offset))
-        for offset in (30, 45, 60, 75, 90)
-    ]
-    if any(d is None for d in all_dirs):
-        return None
-    base_dir = all_dirs[0]
-    if base_dir not in ("TANG", "GIAM"):
-        return None
-    pattern_directions = all_dirs[1:]
-    classification = _classify_xauusd2_pattern(pattern_directions)
-    if classification is None:
-        return None
-    base_signal = "BUY" if base_dir == "TANG" else "SELL"
-    reversed_base = reverse_signal(base_signal)
-    if classification["group"] == "SW":
-        xauusd2_signal = reverse_signal(reversed_base)
-    else:
-        xauusd2_signal = reversed_base
-    return {
-        "base_direction": base_dir,
-        "base_signal": base_signal,
-        "reversed_base_signal": reversed_base,
-        "pattern_directions": pattern_directions,
-        "matched_pattern": classification["matched_pattern"],
-        "pattern_length": classification["pattern_length"],
-        "pullback_group": classification["group"],
-        "classification_reason": classification["classification_reason"],
-        "offsets": [30, 45, 60, 75, 90],
-        "xauusd2_signal": xauusd2_signal,
-    }
-
-
-def evaluate_gbp_h1_slot(broker_dt, hour):
-    """Build an XAUUSD slot signal.
-
-    H=4 → legacy GBP H1 pair logic (GBPUSD + GBPAUD yesterday H1).
-    H=3,6,9,12,14,16 → M15 4-candle lookback (GBPAUD or GBPUSD).
-    """
-    h = int(hour)
-    if h not in ACTIVE_HOURS:
-        return None
-
-    # ── H=4: legacy GBP H1 pair logic ──
-    if h == 4:
-        gbpusd = evaluate_previous_day_gbp_h1_pair(broker_dt, h, "GBPUSD")
-        gbpaud = evaluate_previous_day_gbp_h1_pair(broker_dt, h, "GBPAUD")
-        if gbpusd is None or gbpaud is None:
-            return None
-        directions_match = gbpusd["derived_signal"] == gbpaud["derived_signal"]
-        m15_group = None if directions_match else evaluate_xauusd_m15_group_for_slot(broker_dt, h)
-        entry_time = _entry_time_from_gbp_derivations(h, directions_match, m15_group)
-        if entry_time is None:
-            return None
-        final_signal = gbpusd["derived_signal"]
-        pair_dirs = {"XAUUSD": final_signal}
-        source_date = resolve_previous_broker_session(broker_dt, "GBPUSD", mt5.TIMEFRAME_H1)
-        source_date_str = source_date.isoformat() if source_date else "unknown"
-        comparison = "same" if directions_match else f"opposite, XAU M15={m15_group}"
-        return {
-            "signal": final_signal,
-            "pattern_signal": gbpusd["base_signal"],
-            "entry_time": entry_time,
-            "report": (
-                f"H={h}: GBPUSD {source_date_str}={gbpusd['group']} -> {final_signal}; "
-                f"GBPAUD={gbpaud['group']} -> {gbpaud['derived_signal']}; {comparison}."
-            ),
-            "pair_dirs": pair_dirs,
-            "source_date": source_date_str,
-            "gbpusd_group": gbpusd["group"],
-            "gbpaud_group": gbpaud["group"],
-            "gbpusd_derived_signal": gbpusd["derived_signal"],
-            "gbpaud_derived_signal": gbpaud["derived_signal"],
-            "xau_m15_group": m15_group,
-        }
-
-    # ── H=3,6,9,12,14,16: M15 4-candle lookback ──
-    m15 = evaluate_m15_4candle_for_slot(broker_dt, h)
-    if m15 is None:
-        return None
-    entry_time = _entry_time_from_m15_4candle(h, m15["pullback_group"])
-    if entry_time is None:
-        return None
-    xau_signal = m15["xau_signal"]
-    gbp_signal = m15["gbp_signal"]
-    gbp_pair = m15["pair"]
-    pair_dirs = {"XAUUSD": xau_signal, gbp_pair: gbp_signal}
-    # XAUUSD2: same M15 4-candle lookback on XAUUSD today
-    xauusd2 = evaluate_xauusd2_m15_for_slot(broker_dt, h)
-    if xauusd2 is not None:
-        pair_dirs["XAUUSD2"] = xauusd2["xauusd2_signal"]
-    source_date_str = m15.get("source_date", "unknown")
-    return {
-        "signal": xau_signal,
-        "pattern_signal": m15["base_signal"],
+        "classification_reason": "shared_three_candle_pattern",
+        "offsets": [30, 45, 60, 75],
+        "direction": final_direction,
         "entry_time": entry_time,
-        "report": (
-            f"H={h}: {gbp_pair} M15 ({source_date_str}) — "
-            f"base={m15['base_direction']}/{m15['base_signal']}, "
-            f"group={m15['pullback_group']}, "
-            f"XAUUSD={xau_signal}, "
-            f"{gbp_pair}={gbp_signal}."
-        ),
-        "pair_dirs": pair_dirs,
-        "source_date": source_date_str,
-        "m15_pair": gbp_pair,
-        "m15_base_direction": m15["base_direction"],
-        "m15_base_signal": m15["base_signal"],
-        "m15_pullback_group": m15["pullback_group"],
-        "m15_gbp_signal": gbp_signal,
-        "m15_xau_signal": xau_signal,
     }
+
+
+def evaluate_all_pairs_for_slot(broker_dt, hour):
+    """Evaluate XAUUSD, GBPUSD, and GBPAUD M15 signals independently for current Broker date."""
+    h = int(hour)
+    if broker_dt is None or h not in ACTIVE_HOURS:
+        return None
+
+    pair_results = {}
+    for symbol in SIGNAL_PAIRS:
+        pair_results[symbol] = evaluate_symbol_m15_for_slot(broker_dt, h, symbol)
+
+    pair_dirs = {}
+    pair_entry_times = {}
+    pair_groups = {}
+    pair_evidence = {}
+
+    for symbol in SIGNAL_PAIRS:
+        res = pair_results[symbol]
+        if res is None:
+            pair_dirs[symbol] = "WAIT"
+            pair_entry_times[symbol] = None
+            pair_groups[symbol] = None
+            pair_evidence[symbol] = None
+        else:
+            pair_dirs[symbol] = res["direction"]
+            pair_entry_times[symbol] = res["entry_time"]
+            pair_groups[symbol] = res["pullback_group"]
+            pair_evidence[symbol] = res
+
+    top_signal = pair_dirs.get("XAUUSD", "WAIT")
+    top_entry_time = pair_entry_times.get("XAUUSD") or "N/A"
+    source_date_str = broker_dt.date().isoformat()
+
+    report_lines = [f"H={h} M15 ({source_date_str}):"]
+    for symbol in SIGNAL_PAIRS:
+        res = pair_results[symbol]
+        if res is None:
+            report_lines.append(f"  {symbol}: WAIT (missing M15 candle data)")
+        else:
+            report_lines.append(
+                f"  {symbol}: base={res['base_direction']}/{res['base_signal']}, "
+                f"pattern={','.join(res['pattern_directions'])}, group={res['pullback_group']}, "
+                f"direction={res['direction']}, entry={res['entry_time']}"
+            )
+
+    return {
+        "signal": top_signal,
+        "entry_time": top_entry_time,
+        "pair_dirs": pair_dirs,
+        "pair_entry_times": pair_entry_times,
+        "pair_groups": pair_groups,
+        "pair_evidence": pair_evidence,
+        "source_date": source_date_str,
+        "report": "\n".join(report_lines),
+    }
+
+
+evaluate_multi_pair_m15_slot = evaluate_all_pairs_for_slot
+evaluate_gbp_h1_slot = evaluate_all_pairs_for_slot
 
 
 def is_deactivated_signal_slot(broker_dt, hour):
@@ -1348,7 +1167,7 @@ def get_entry_time_for_slot(broker_dt, hour):
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
-    result = evaluate_gbp_h1_slot(broker_dt, h)
+    result = evaluate_all_pairs_for_slot(broker_dt, h)
     return result.get("entry_time") if result else None
 
 
@@ -1358,7 +1177,7 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
     fallback_clocks = {
         3: "04:49",
         4: "05:25",
-        6: "07:25",
+        7: "08:25",
         9: "10:25",
         12: "13:25",
         14: "15:25",
@@ -1376,7 +1195,7 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
 
 
 def calculate_slot_signal(broker_dt, hour):
-    """Apply the canonical H-slot matrix for live and rebuilt signals."""
+    """Apply current M15 multi-pair evaluation for live and rebuilt signals."""
     hour = int(hour)
     if hour not in ACTIVE_HOURS:
         return {
@@ -1388,11 +1207,12 @@ def calculate_slot_signal(broker_dt, hour):
     if result is None:
         return {
             "signal": "WAIT",
-            "report": f"H={hour}: incomplete GBP M15 4-candle or GBP H1 pair data.",
+            "report": f"H={hour}: incomplete M15 candle data.",
         }
     if is_deactivated_signal_slot(broker_dt, hour):
         result["deactivated"] = True
     return result
+
 
 def get_hour_note(H, broker_dt=None):
     """Describe the current slot rule."""
@@ -1402,42 +1222,24 @@ def get_hour_note(H, broker_dt=None):
         return ""
     if h not in ACTIVE_HOURS:
         return ""
-    if h == 4:
-        return (
-            "Yesterday's GBPUSD/GBPAUD H1 derives XAUUSD; matching directions "
-            "enter H:11, otherwise XAUUSD M15 #2-#4 sets the late entry."
-        )
-    pair = _m15_pair_for_hour(h)
-    if pair is None:
-        return ""
-    note = (
-        f"{pair} M15 (previous session): base + 3 pullback. "
-        f"SW → XAUUSD đảo Base; BT → XAUUSD giữ Base. "
-        f"{'GBPAUD ngược Base.' if h in (3,6,9) else 'GBPUSD cùng Base.'} "
-        f"XAUUSD2: same M15 lookback on XAUUSD today. "
-        f"Entry: SW → H+1:25, BT → H:49."
+    return (
+        "XAUUSD, GBPUSD, GBPAUD M15 (current date): base (-30) + 3 pattern (-45/-60/-75). "
+        "SW → reverse base; BT → keep base. "
+        "DOJI M15 → step back 1 M15 and reverse previous direction. "
+        "Entry: SW → H+1:25, BT → H:49."
     )
-    return note
 
 
 def format_telegram_pair_block(pair_dirs, H, broker_dt=None, weekday=None):
-    """Render XAUUSD and GBP pair directions for Telegram."""
+    """Render XAUUSD, GBPUSD, and GBPAUD pair directions for Telegram."""
     lines = []
-    xau = (pair_dirs or {}).get("XAUUSD")
-    if xau in ("BUY", "SELL"):
-        icon, _ = get_signal_icon(xau)
-        lines.append(f"  XAUUSD: {icon} {xau}")
-    elif xau == "WAIT":
-        lines.append("  XAUUSD: WAIT")
-    for gbp_pair in ("GBPUSD", "GBPAUD"):
-        gbp_dir = (pair_dirs or {}).get(gbp_pair)
-        if gbp_dir in ("BUY", "SELL"):
-            icon, _ = get_signal_icon(gbp_dir)
-            lines.append(f"  {gbp_pair}: {icon} {gbp_dir}")
-    xauusd2_dir = (pair_dirs or {}).get("XAUUSD2")
-    if xauusd2_dir in ("BUY", "SELL"):
-        icon, _ = get_signal_icon(xauusd2_dir)
-        lines.append(f"  XAUUSD2: {icon} {xauusd2_dir}")
+    for pair in SIGNAL_PAIRS:
+        direction = (pair_dirs or {}).get(pair)
+        if direction in ("BUY", "SELL"):
+            icon, _ = get_signal_icon(direction)
+            lines.append(f"  {pair}: {icon} {direction}")
+        else:
+            lines.append(f"  {pair}: WAIT")
     return "\n".join(lines) if lines else "  (no pair)"
 
 
@@ -1445,6 +1247,7 @@ GBP_PAIRS = ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]
 ALL_PAIRS = ["XAUUSD"] + GBP_PAIRS
 
 sent_today = set()
+
 
 def reverse_signal(signal):
     """Return the opposite trading direction."""
@@ -1456,29 +1259,14 @@ def reverse_signal(signal):
 
 
 def get_pair_direction(H, signal, broker_dt, full_result=None):
-    """Return the final XAUUSD direction for one active slot."""
+    """Return the final pair directions for one active slot."""
     result = {}
     h = int(H)
     if h not in ACTIVE_HOURS:
         return result
-    if signal in ("SW", "BT"):
-        return {}
-    if signal == "WAIT":
-        pair_dirs = (full_result or {}).get("pair_dirs", {})
-        result["XAUUSD"] = pair_dirs.get("XAUUSD", "WAIT")
-        # Include GBP pair if present
-        for k, v in pair_dirs.items():
-            if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD", "XAUUSD2"):
-                result[k] = v if v in ("BUY", "SELL") else "WAIT"
-        return result
-    if signal not in ("BUY", "SELL"):
-        return result
-    result["XAUUSD"] = signal
-    # Include GBP pair signal from full_result
     pair_dirs = (full_result or {}).get("pair_dirs", {})
-    for k, v in pair_dirs.items():
-        if k != "XAUUSD" and k in ("GBPAUD", "GBPUSD", "XAUUSD2"):
-            result[k] = v
+    for pair in SIGNAL_PAIRS:
+        result[pair] = pair_dirs.get(pair, "WAIT" if signal == "WAIT" else (signal if pair == "XAUUSD" else "WAIT"))
     return result
 
 # =====================================================================
@@ -1552,7 +1340,7 @@ def is_slot_ready(broker_dt, hour):
 # =====================================================================
 def rebuild_slot_signal(broker_dt, h):
     """Recalculate one slot with current logic and overwrite signals_log (date, hour).
-    Always logs the result — including WAIT and deactivated slots — so the dashboard
+    Always logs the result -- including WAIT and deactivated slots -- so the dashboard
     shows every scheduled hour."""
     if broker_dt.weekday() >= 5:
         return False
@@ -1564,12 +1352,8 @@ def rebuild_slot_signal(broker_dt, h):
     pair_dirs = result.get("pair_dirs", {})
     if not pair_dirs and sig not in ("WAIT",):
         pair_dirs = get_pair_direction(h, sig, broker_dt, full_result=result)
-    # WAIT records must carry a valid pair_dirs contract for dashboard display.
     if sig == "WAIT" and not pair_dirs:
-        gbp_pair = _m15_pair_for_hour(h)
-        pair_dirs = {"XAUUSD": "WAIT", "XAUUSD2": "WAIT"}
-        if gbp_pair:
-            pair_dirs[gbp_pair] = "WAIT"
+        pair_dirs = {"XAUUSD": "WAIT", "GBPUSD": "WAIT", "GBPAUD": "WAIT"}
     hour_note = get_hour_note(h, broker_dt=broker_dt)
     deactivated = bool(result.get("deactivated") or is_deactivated_signal_slot(broker_dt, h))
 

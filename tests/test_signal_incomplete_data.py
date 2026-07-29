@@ -8,7 +8,7 @@ import mt5_signal_bot
 
 
 DOJI = {"open": 1.0, "high": 2.0, "low": 0.0, "close": 1.0}
-ACTIVE_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+ACTIVE_SLOTS = (3, 4, 7, 9, 12, 14, 16)
 LEGACY_SEAMS = (
     "analyze",
     "apply_xauusd_m30_logic",
@@ -22,30 +22,12 @@ LEGACY_SEAMS = (
 
 
 class SignalIncompleteDataTests(unittest.TestCase):
-    def test_previous_day_gbp_h1_missing_or_unresolved_doji_is_incomplete(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 12, 0)
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=None),
-        ):
-            self.assertIsNone(mt5_signal_bot.evaluate_previous_day_gbp_h1_pair(broker_dt, 12, "GBPUSD"))
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=DOJI),
-            patch.object(mt5_signal_bot, "resolve_doji", return_value=None),
-        ):
-            self.assertIsNone(mt5_signal_bot.evaluate_previous_day_gbp_h1_pair(broker_dt, 12, "GBPUSD"))
-
-    def test_xau_m15_missing_or_unresolved_doji_is_incomplete(self) -> None:
+    def test_m15_missing_or_unresolved_doji_is_incomplete(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         with patch.object(mt5_signal_bot, "_lookback_candle_direction", return_value=None):
-            self.assertIsNone(mt5_signal_bot.evaluate_xauusd_m15_group_for_slot(broker_dt, 12))
-        with (
-            patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=1),
-            patch.object(mt5_signal_bot, "get_candle_by_ts", return_value=DOJI),
-            patch.object(mt5_signal_bot, "resolve_doji", return_value=None),
-        ):
-            self.assertIsNone(mt5_signal_bot.evaluate_xauusd_m15_group_for_slot(broker_dt, 12))
+            self.assertIsNone(mt5_signal_bot.evaluate_symbol_m15_for_slot(broker_dt, 12, "XAUUSD"))
+            self.assertIsNone(mt5_signal_bot.evaluate_symbol_m15_for_slot(broker_dt, 12, "GBPUSD"))
+            self.assertIsNone(mt5_signal_bot.evaluate_symbol_m15_for_slot(broker_dt, 12, "GBPAUD"))
 
     def test_every_active_slot_waits_when_new_context_is_incomplete(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)

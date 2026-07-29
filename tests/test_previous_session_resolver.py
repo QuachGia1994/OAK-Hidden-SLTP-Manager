@@ -12,7 +12,6 @@ sys.modules.setdefault("MetaTrader5", _mock_mt5)
 from mt5_signal_bot import (
     ACTIVE_HOURS,
     SIGNAL_LOGIC_VERSION,
-    _m15_pair_for_hour,
     _previous_session_cache,
     get_pair_direction,
     is_deactivated_signal_slot,
@@ -90,24 +89,16 @@ class PreviousSessionResolverTests(unittest.TestCase):
 class WaitRecordContractTests(unittest.TestCase):
     """Verify WAIT records have proper pair_dirs for dashboard display."""
 
-    def test_m15_pair_for_hour(self):
-        self.assertEqual(_m15_pair_for_hour(3), "GBPAUD")
-        self.assertEqual(_m15_pair_for_hour(6), "GBPAUD")
-        self.assertEqual(_m15_pair_for_hour(9), "GBPAUD")
-        self.assertEqual(_m15_pair_for_hour(12), "GBPUSD")
-        self.assertEqual(_m15_pair_for_hour(14), "GBPUSD")
-        self.assertEqual(_m15_pair_for_hour(16), "GBPUSD")
-        self.assertIsNone(_m15_pair_for_hour(4))
-
-    def test_wait_pair_dirs_includes_xauusd_and_gbp_pair(self):
-        """When signal is WAIT, pair_dirs must contain XAUUSD=WAIT and the GBP pair=WAIT."""
-        for h in (3, 6, 9, 12, 14, 16):
+    def test_wait_pair_dirs_includes_xauusd_and_gbp_pairs(self):
+        """When signal is WAIT, pair_dirs must contain XAUUSD, GBPUSD, GBPAUD."""
+        for h in (3, 7, 9, 12, 14, 16):
             result = get_pair_direction(h, "WAIT", None, full_result=None)
-            self.assertEqual(result.get("XAUUSD"), "WAIT",
-                             f"H={h}: XAUUSD should be WAIT in WAIT pair_dirs")
+            self.assertEqual(result.get("XAUUSD"), "WAIT")
+            self.assertEqual(result.get("GBPUSD"), "WAIT")
+            self.assertEqual(result.get("GBPAUD"), "WAIT")
 
-    def test_signal_logic_version_is_54(self):
-        self.assertEqual(SIGNAL_LOGIC_VERSION, 54)
+    def test_signal_logic_version_is_55(self):
+        self.assertEqual(SIGNAL_LOGIC_VERSION, 55)
 
     def test_deactivated_slots_still_deactivated(self):
         """Safety guard: deactivated slots remain deactivated."""

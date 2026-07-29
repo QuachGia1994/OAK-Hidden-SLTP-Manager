@@ -7,7 +7,7 @@ import unittest
 import mt5_signal_bot
 
 
-ACTIVE_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+ACTIVE_SLOTS = (3, 4, 7, 9, 12, 14, 16)
 
 
 def _result(hour: int) -> dict[str, object]:

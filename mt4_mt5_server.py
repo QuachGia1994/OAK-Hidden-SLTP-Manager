@@ -39,9 +39,11 @@ except Exception:
     TELEGRAM_CHAT_ID = ""
     MT5_PATH = ""
     print("[WARN] config.json not found or invalid.")
-SYMBOL = "GBPUSD"
+XAUUSD_SYMBOL = "XAUUSD"
+GBPUSD_SYMBOL = "GBPUSD"
+GBPAUD_SYMBOL = "GBPAUD"
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
-TARGET_HOURS = [3, 4, 5, 6, 9, 12, 14, 16]
+TARGET_HOURS = [3, 4, 7, 9, 12, 14, 16]
 BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "broker_clock_cache.json"),
@@ -88,6 +90,11 @@ def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
     target_broker = broker_dt.replace(hour=hour, minute=minute, second=second, microsecond=0)
     return BROKER_CLOCK.mt5_timestamp_from_broker_datetime(target_broker)
 
+
+def broker_datetime_to_ts(broker_dt):
+    """Convert one explicit Broker wall datetime to the terminal timestamp mode."""
+    return BROKER_CLOCK.mt5_timestamp_from_broker_datetime(broker_dt)
+
 def _is_raw_special_date(target_date):
     weekday = target_date.weekday()
     if weekday not in (3, 4):
@@ -99,10 +106,11 @@ def _is_raw_special_date(target_date):
 
 
 def is_special_day(broker_dt):
-    """Use the same Thursday-only special_day_1 calendar as the signal bot."""
-    if broker_dt.weekday() != 3:
+    """Use the signal bot's special Thursday/Friday pair calendar."""
+    if broker_dt.weekday() not in (3, 4):
         return False
-    thursday = broker_dt.date()
+    current = broker_dt.date()
+    thursday = current if broker_dt.weekday() == 3 else current - timedelta(days=1)
     friday = thursday + timedelta(days=1)
     if thursday.year != friday.year:
         return False
@@ -173,16 +181,7 @@ def is_slot_suppressed(broker_dt, slot):
 
 
 def is_deactivated_slot(broker_dt, slot):
-    if slot in (4, 5) or (slot == 3 and broker_dt.weekday() == 3):
-        return True
-    # Thursday H=16: always deactivated (DO NOT ENTER)
-    if slot == 16 and broker_dt.weekday() == 3:
-        return True
-    # Monday H=16: always deactivated (DO NOT ENTER)
-    if slot == 16 and broker_dt.weekday() == 0:
-        return True
-    # Restricted calendar period: H=12 and H=16 are DO NOT ENTER
-    if slot in (12, 16) and _is_in_restricted_calendar_period(broker_dt):
+    if slot == 4 or (slot == 3 and broker_dt.weekday() == 3):
         return True
     return False
 
@@ -191,16 +190,28 @@ def _delivery_key(broker_dt, slot):
     return f"{broker_dt.date().isoformat()}:{slot}"
 
 
-def _delivered_keys():
-    state = load_json(_delivery_state_path, {"delivered": []})
+def _delivery_state():
+    state = load_json(_delivery_state_path, {"delivered": [], "missed": []})
     if not isinstance(state, dict):
-        return set()
-    return {str(value) for value in state.get("delivered", [])}
+        return {"delivered": set(), "missed": set()}
+    return {
+        "delivered": {str(value) for value in state.get("delivered", [])},
+        "missed": {str(value) for value in state.get("missed", [])},
+    }
+
+
+def _terminal_delivery_status(key):
+    state = _delivery_state()
+    if key in state["missed"]:
+        return "missed"
+    if key in state["delivered"]:
+        return "delivered"
+    return None
 
 
 def _start_delivery(key):
     with _delivery_lock:
-        if key in _deliveries_in_progress or key in _delivered_keys():
+        if key in _deliveries_in_progress or _terminal_delivery_status(key):
             return False
         _deliveries_in_progress.add(key)
         return True
@@ -213,19 +224,52 @@ def _release_delivery(key):
 
 def _complete_delivery(key):
     with _delivery_lock:
-        delivered = sorted((*_delivered_keys(), key))[-128:]
-        save_json(_delivery_state_path, {"delivered": delivered})
+        state = _delivery_state()
+        delivered = sorted((*state["delivered"], key))[-128:]
+        save_json(
+            _delivery_state_path,
+            {"delivered": delivered, "missed": sorted(state["missed"])[-128:]},
+        )
+        _deliveries_in_progress.discard(key)
+
+
+def _mark_delivery_missed(key):
+    with _delivery_lock:
+        state = _delivery_state()
+        missed = sorted((*state["missed"], key))[-128:]
+        save_json(
+            _delivery_state_path,
+            {"delivered": sorted(state["delivered"])[-128:], "missed": missed},
+        )
         _deliveries_in_progress.discard(key)
 
 
 def get_signal_time_for_slot(broker_dt, slot):
     """Return the publication clock for one active logical slot."""
-    clocks = {3: "03:00", 4: "04:45", 5: "05:45", 6: "06:00", 12: "12:00", 16: "16:00"}
+    clocks = {3: "03:00", 4: "04:00", 6: "06:00", 9: "09:00", 12: "12:00", 14: "14:00", 16: "16:00"}
     return clocks[slot]
 
 
 def get_schedule_note(broker_dt):
-    return "SPECIAL THU" if is_special_day(broker_dt) else "NORMAL"
+    return "YESTERDAY GBP H1 + TODAY XAUUSD M15"
+
+
+def _entry_datetime(broker_dt, entry_time):
+    try:
+        hour, minute = (int(value) for value in entry_time.split(":"))
+    except (AttributeError, TypeError, ValueError):
+        return None
+    if not 0 <= hour <= 23 or not 0 <= minute <= 59:
+        return None
+    return broker_dt.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
+def _is_past_earliest_entry(broker_dt, *entry_times):
+    entries = [_entry_datetime(broker_dt, value) for value in entry_times]
+    if any(value is None for value in entries):
+        return False
+    current_minute = broker_dt.replace(second=0, microsecond=0)
+    return current_minute > min(entries)
 
 # =====================================================================
 # MT5 CANDLE
@@ -263,47 +307,128 @@ def candle_dir(c):
 # =====================================================================
 # SIGNAL LOGIC
 # =====================================================================
-def calculate_signal(m35_dir, m40_dir, m30_dir):
-    if m35_dir is None or m40_dir is None:
-        return "WAIT"
-    if m35_dir == "DOJI" or m40_dir == "DOJI":
-        return "WAIT"
-    if m30_dir is None or m30_dir == "DOJI":
-        return "WAIT"
+_THREE_CANDLE_GROUPS = {
+    ("TANG", "TANG", "TANG"): "SW",
+    ("GIAM", "TANG", "TANG"): "SW",
+    ("GIAM", "TANG", "GIAM"): "BT",
+    ("GIAM", "GIAM", "TANG"): "BT",
+    ("GIAM", "GIAM", "GIAM"): "SW",
+    ("TANG", "GIAM", "GIAM"): "SW",
+    ("TANG", "GIAM", "TANG"): "BT",
+    ("TANG", "TANG", "GIAM"): "BT",
+}
 
-    if m35_dir == m40_dir:
-        return "BUY" if m30_dir == "TANG" else "SELL"
-    else:
-        return "SELL" if m30_dir == "TANG" else "BUY"
+
+def _derive_xau_from_h1(newest_direction, older_direction):
+    if newest_direction not in ("TANG", "GIAM") or older_direction not in ("TANG", "GIAM"):
+        return None, None
+    base_signal = "BUY" if newest_direction == "TANG" else "SELL"
+    group = "SW" if newest_direction == older_direction else "BT"
+    if group == "SW":
+        base_signal = "SELL" if base_signal == "BUY" else "BUY"
+    return base_signal, group
+
+
+def _opposite_entry_time(slot, m15_group):
+    if m15_group == "BT":
+        return f"{int(slot):02d}:49"
+    if m15_group != "SW":
+        return None
+    if int(slot) == 3:
+        return "04:49"
+    return f"{int(slot) + 1:02d}:25"
+
+
+def calculate_context(
+    slot,
+    gbpusd_h1_1,
+    gbpusd_h1_2,
+    gbpaud_h1_1,
+    gbpaud_h1_2,
+    xau_m15_directions,
+):
+    """Calculate XAUUSD from yesterday's GBP H1 and today's XAU M15."""
+    gbpusd_signal, gbpusd_group = _derive_xau_from_h1(gbpusd_h1_1, gbpusd_h1_2)
+    gbpaud_signal, gbpaud_group = _derive_xau_from_h1(gbpaud_h1_1, gbpaud_h1_2)
+    result = {
+        "signal": "WAIT",
+        "entry_time": None,
+        "gbpusd_signal": gbpusd_signal,
+        "gbpusd_group": gbpusd_group,
+        "gbpaud_signal": gbpaud_signal,
+        "gbpaud_group": gbpaud_group,
+        "m15_group": None,
+    }
+    if gbpusd_signal not in ("BUY", "SELL") or gbpaud_signal not in ("BUY", "SELL"):
+        return result
+    result["signal"] = gbpusd_signal
+    if gbpusd_signal == gbpaud_signal:
+        result["entry_time"] = f"{int(slot):02d}:11"
+        return result
+    m15_group = _THREE_CANDLE_GROUPS.get(tuple(xau_m15_directions))
+    result["m15_group"] = m15_group
+    result["entry_time"] = _opposite_entry_time(slot, m15_group)
+    if result["entry_time"] is None:
+        result["signal"] = "WAIT"
+    return result
 
 # =====================================================================
 # MT5 DATA FETCHER
 # =====================================================================
-def fetch_mt5_data(broker_dt, H):
-    """Lay nến MT5 tai H:45 bang broker clock da xac minh."""
+def _resolved_direction(symbol, timeframe, candle_dt, fallback_delta):
+    target_ts = broker_datetime_to_ts(candle_dt)
+    direction = candle_dir(get_candle_by_ts(symbol, timeframe, target_ts))
+    if direction in ("TANG", "GIAM"):
+        return direction
+    if direction != "DOJI":
+        return None
+    fallback_ts = broker_datetime_to_ts(candle_dt - fallback_delta)
+    fallback = candle_dir(get_candle_by_ts(symbol, timeframe, fallback_ts))
+    return fallback if fallback in ("TANG", "GIAM") else None
+
+
+def fetch_mt5_data(broker_dt, slot):
+    """Read the Broker-timed H1/M15 context from MT5."""
     if not mt5_ready:
-        return {"m35":"N/A","m40":"N/A","m30":"N/A","signal":"WAIT"}
-
-    ts_m35 = broker_time_to_ts(broker_dt, H, 35)
-    ts_m40 = broker_time_to_ts(broker_dt, H, 40)
-    ts_m30 = broker_time_to_ts(broker_dt, H, 0)
-
-    c_m35 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m35)
-    c_m40 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M5, ts_m40)
-    c_m30 = get_candle_by_ts(SYMBOL, mt5.TIMEFRAME_M30, ts_m30)
-
-    d_m35 = candle_dir(c_m35)
-    d_m40 = candle_dir(c_m40)
-    d_m30 = candle_dir(c_m30)
-
-    sig = calculate_signal(d_m35, d_m40, d_m30)
-
-    return {
-        "m35": d_m35 or "N/A",
-        "m40": d_m40 or "N/A",
-        "m30": d_m30 or "N/A",
-        "signal": sig,
+        return {"signal": "WAIT", "entry_time": None}
+    slot_dt = broker_dt.replace(hour=int(slot), minute=0, second=0, microsecond=0)
+    yesterday_slot = slot_dt - timedelta(days=1)
+    h1_delta = timedelta(hours=1)
+    directions = {
+        "gbpusd_h1_1": _resolved_direction(GBPUSD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - h1_delta, h1_delta),
+        "gbpusd_h1_2": _resolved_direction(GBPUSD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - 2 * h1_delta, h1_delta),
+        "gbpaud_h1_1": _resolved_direction(GBPAUD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - h1_delta, h1_delta),
+        "gbpaud_h1_2": _resolved_direction(GBPAUD_SYMBOL, mt5.TIMEFRAME_H1, yesterday_slot - 2 * h1_delta, h1_delta),
+        "xau_m15_1": None,
+        "xau_m15_2": None,
+        "xau_m15_3": None,
     }
+    gbpusd_signal, _ = _derive_xau_from_h1(
+        directions["gbpusd_h1_1"], directions["gbpusd_h1_2"]
+    )
+    gbpaud_signal, _ = _derive_xau_from_h1(
+        directions["gbpaud_h1_1"], directions["gbpaud_h1_2"]
+    )
+    if (
+        gbpusd_signal in ("BUY", "SELL")
+        and gbpaud_signal in ("BUY", "SELL")
+        and gbpusd_signal != gbpaud_signal
+    ):
+        m15_delta = timedelta(minutes=15)
+        directions.update({
+            "xau_m15_1": _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - 2 * m15_delta, m15_delta),
+            "xau_m15_2": _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - 3 * m15_delta, m15_delta),
+            "xau_m15_3": _resolved_direction(XAUUSD_SYMBOL, mt5.TIMEFRAME_M15, slot_dt - 4 * m15_delta, m15_delta),
+        })
+    context = calculate_context(
+        slot,
+        directions["gbpusd_h1_1"],
+        directions["gbpusd_h1_2"],
+        directions["gbpaud_h1_1"],
+        directions["gbpaud_h1_2"],
+        (directions["xau_m15_1"], directions["xau_m15_2"], directions["xau_m15_3"]),
+    )
+    return {**directions, **context}
 
 # =====================================================================
 # FLASK ENDPOINT
@@ -321,8 +446,17 @@ def receive_mt4_data():
         if not isinstance(time_str, str) or len(time_str) > 20:
             return jsonify({"error": "Invalid time field"}), 400
 
+        direction_fields = (
+            "gbpusd_h1_1",
+            "gbpusd_h1_2",
+            "gbpaud_h1_1",
+            "gbpaud_h1_2",
+            "xau_m15_1",
+            "xau_m15_2",
+            "xau_m15_3",
+        )
         # Sanitize string fields
-        for key in ["broker", "m35", "m40", "m30"]:
+        for key in ("broker", *direction_fields):
             val = data.get(key, "")
             if not isinstance(val, str):
                 data[key] = str(val)
@@ -336,19 +470,26 @@ def receive_mt4_data():
 
         broker = data.get("broker", "MT4")
         time_str = data.get("time", "")
-        mt4_m35 = data.get("m35", "N/A")
-        mt4_m40 = data.get("m40", "N/A")
-        mt4_m30 = data.get("m30", "N/A")
-
-        mt4_signal = calculate_signal(mt4_m35, mt4_m40, mt4_m30)
 
         try:
             H = int(data.get("slot"))
-            pattern_hour = int(data.get("pattern_hour"))
         except (TypeError, ValueError):
-            return jsonify({"error": "slot and pattern_hour must be integers"}), 400
-        if H not in TARGET_HOURS or not 0 <= pattern_hour <= 23:
-            return jsonify({"error": "inactive slot or invalid pattern_hour"}), 400
+            return jsonify({"error": "slot must be an integer"}), 400
+        if H not in TARGET_HOURS:
+            return jsonify({"error": "inactive slot"}), 400
+        mt4_context = calculate_context(
+            H,
+            data.get("gbpusd_h1_1"),
+            data.get("gbpusd_h1_2"),
+            data.get("gbpaud_h1_1"),
+            data.get("gbpaud_h1_2"),
+            (
+                data.get("xau_m15_1"),
+                data.get("xau_m15_2"),
+                data.get("xau_m15_3"),
+            ),
+        )
+        mt4_signal = mt4_context["signal"]
         if time_str != get_signal_time_for_slot(broker_dt, H):
             return jsonify({"error": "request does not match the Broker publication clock"}), 409
         if is_slot_suppressed(broker_dt, H):
@@ -356,32 +497,56 @@ def receive_mt4_data():
 
         deactivated = is_deactivated_slot(broker_dt, H)
         delivery_key = _delivery_key(broker_dt, H)
-        if not _start_delivery(delivery_key):
+        terminal_status = _terminal_delivery_status(delivery_key)
+        if terminal_status == "missed":
+            return jsonify({"status": "missed", "slot": H}), 200
+        if terminal_status == "delivered":
             return jsonify({"status": "duplicate", "slot": H}), 200
+        if mt4_signal == "WAIT" or _entry_datetime(
+            broker_dt, mt4_context.get("entry_time")
+        ) is None:
+            return jsonify({"status": "retry", "slot": H, "reason": "MT4_WAIT"}), 425
+        if not _start_delivery(delivery_key):
+            terminal_status = _terminal_delivery_status(delivery_key)
+            if terminal_status == "missed":
+                return jsonify({"status": "missed", "slot": H}), 200
+            if terminal_status == "delivered":
+                return jsonify({"status": "duplicate", "slot": H}), 200
+            return jsonify({"status": "retry", "slot": H, "reason": "IN_PROGRESS"}), 503
 
-        mt5_data = fetch_mt5_data(broker_dt, pattern_hour)
+        mt5_data = fetch_mt5_data(broker_dt, H)
         mt5_signal = mt5_data["signal"]
+        mt4_entry = mt4_context.get("entry_time")
+        mt5_entry = mt5_data.get("entry_time")
 
-        if mt4_signal == "WAIT" or mt5_signal == "WAIT":
-            if mt4_signal == "WAIT" and mt5_signal == "WAIT":
-                conclusion = "KHONG XAC DINH - Ca 2 khong du dieu kien"
-            elif mt4_signal == "WAIT":
-                conclusion = f"KHONG XAC DINH - MT4 WAIT, MT5={mt5_signal}"
-            else:
-                conclusion = f"KHONG XAC DINH - MT5 WAIT, MT4={mt4_signal}"
-        elif mt4_signal == mt5_signal:
-            conclusion = f"HOP LUU: {mt4_signal}"
+        if mt5_signal == "WAIT" or _entry_datetime(broker_dt, mt5_entry) is None:
+            _release_delivery(delivery_key)
+            delivery_key = None
+            return jsonify({"status": "retry", "slot": H, "reason": "MT5_WAIT"}), 425
+        delivery_dt = get_broker_time()
+        if _is_past_earliest_entry(delivery_dt, mt4_entry, mt5_entry):
+            _mark_delivery_missed(delivery_key)
+            delivery_key = None
+            return jsonify({
+                "status": "missed",
+                "slot": H,
+                "mt4_entry_time": mt4_entry,
+                "mt5_entry_time": mt5_entry,
+            }), 200
+
+        if mt4_signal == mt5_signal and mt4_entry == mt5_entry:
+            conclusion = f"HOP LUU: {mt4_signal} @ {mt4_entry}"
         else:
-            conclusion = f"XUNG DOT: MT4={mt4_signal} vs MT5={mt5_signal} - KHONG VAO"
+            conclusion = (
+                f"XUNG DOT: MT4={mt4_signal}@{mt4_entry} "
+                f"vs MT5={mt5_signal}@{mt5_entry} - KHONG VAO"
+            )
 
         if deactivated:
-            msg = build_deactivated_warning(broker, time_str, H, broker_dt)
+            msg = build_deactivated_warning(broker, time_str, H, delivery_dt)
         else:
             msg = build_telegram(
-                broker, time_str, H, pattern_hour,
-                mt4_m35, mt4_m40, mt4_m30, mt4_signal,
-                mt5_data, mt5_signal,
-                conclusion, broker_dt
+                broker, time_str, H, mt4_context, mt5_data, conclusion, delivery_dt
             )
         if send_telegram(msg) is None:
             _release_delivery(delivery_key)
@@ -398,6 +563,8 @@ def receive_mt4_data():
             "status": "ok",
             "mt4": mt4_signal,
             "mt5": mt5_signal,
+            "mt4_entry_time": mt4_entry,
+            "mt5_entry_time": mt5_entry,
             "conclusion": conclusion,
             "deactivated": deactivated,
         })
@@ -422,10 +589,7 @@ def build_deactivated_warning(broker, time_str, H, broker_dt):
 
 
 def build_telegram(
-    broker, time_str, H, pattern_hour,
-    mt4_m35, mt4_m40, mt4_m30, mt4_sig,
-    mt5, mt5_sig,
-    conclusion, broker_dt
+    broker, time_str, H, mt4_context, mt5_context, conclusion, broker_dt
 ):
     def ico(s):
         return {"BUY": "Mua", "SELL": "Bán"}.get(s, "Chờ")
@@ -440,15 +604,15 @@ def build_telegram(
         f"Tap trung: {note}\n"
         f"===========================\n\n"
         f"--- {broker} (MT4) ---\n"
-        f"  M5@{fmt_hour(pattern_hour)}:35 = {mt4_m35}\n"
-        f"  M5@{fmt_hour(pattern_hour)}:40 = {mt4_m40}\n"
-        f"  M30@{fmt_hour(pattern_hour)}:00 = {mt4_m30}\n"
-        f"  => {ico(mt4_sig)}\n\n"
-        f"--- {SYMBOL} (MT5) ---\n"
-        f"  M5@{fmt_hour(pattern_hour)}:35 = {mt5['m35']}\n"
-        f"  M5@{fmt_hour(pattern_hour)}:40 = {mt5['m40']}\n"
-        f"  M30@{fmt_hour(pattern_hour)}:00 = {mt5['m30']}\n"
-        f"  => {ico(mt5_sig)}\n\n"
+        f"  GBPUSD H1: {mt4_context.get('gbpusd_group')} -> {ico(mt4_context.get('gbpusd_signal'))}\n"
+        f"  GBPAUD H1: {mt4_context.get('gbpaud_group')} -> {ico(mt4_context.get('gbpaud_signal'))}\n"
+        f"  XAUUSD M15: {mt4_context.get('m15_group') or 'not needed'}\n"
+        f"  => {ico(mt4_context.get('signal'))} @ {mt4_context.get('entry_time')}\n\n"
+        f"--- MT5 ---\n"
+        f"  GBPUSD H1: {mt5_context.get('gbpusd_group')} -> {ico(mt5_context.get('gbpusd_signal'))}\n"
+        f"  GBPAUD H1: {mt5_context.get('gbpaud_group')} -> {ico(mt5_context.get('gbpaud_signal'))}\n"
+        f"  XAUUSD M15: {mt5_context.get('m15_group') or 'not needed'}\n"
+        f"  => {ico(mt5_context.get('signal'))} @ {mt5_context.get('entry_time')}\n\n"
         f"===========================\n"
         f"KET LUAN: {conclusion}\n"
         f"===========================\n"
@@ -489,7 +653,7 @@ def main():
     global mt5_ready
     print("=" * 55)
     print("  MT4-MT5 Dual Signal Server v2.0")
-    print(f"  Symbol: {SYMBOL}")
+    print(f"  Symbols: {GBPUSD_SYMBOL}, {GBPAUD_SYMBOL}, {XAUUSD_SYMBOL}")
     print(f"  Target Hours: {TARGET_HOURS}")
     print("  Broker clock: live-tick calibrated, fail-closed")
     print("=" * 55)

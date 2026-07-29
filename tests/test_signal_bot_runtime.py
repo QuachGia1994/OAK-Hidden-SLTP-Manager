@@ -20,7 +20,7 @@ class SignalBotRuntimeTests(unittest.TestCase):
             mt5_connected=True,
         )
 
-        self.assertIn("Slots: H=3, H=4, H=6, H=9, H=12, H=14, H=16", message)
+        self.assertIn("Slots: H=3, H=4, H=7, H=9, H=12, H=14, H=16", message)
         self.assertIn("GBPUSD/GBPAUD H1 hôm qua + XAUUSD M15 hôm nay", message)
         self.assertIn("XAUUSD 17:59", message)
         self.assertIn("GBPAUD/GBPCAD/GBPJPY/GBPUSD 19:59", message)

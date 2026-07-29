@@ -83,7 +83,6 @@ export function maskSignalForPublic(signal: Record<string, unknown>) {
     pair_dirs: {},
     entry_prices: {},
     current_prices: {},
-    d_direction: null,
     hour_note: null,
   };
 }

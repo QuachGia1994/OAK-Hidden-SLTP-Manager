@@ -5,13 +5,14 @@ from __future__ import annotations
 from datetime import datetime as _DateTime, timedelta as _TimeDelta, timezone as _Timezone
 
 
-_ACTIVE_SIGNAL_SLOTS = (3, 4, 5, 6, 12, 16)
+_ACTIVE_SIGNAL_SLOTS = (3, 4, 6, 9, 12, 14, 16)
 _FALLBACK_SIGNAL_TIMES = {
     3: "03:00",
-    4: "04:45",
-    5: "05:45",
+    4: "04:00",
     6: "06:00",
+    9: "09:00",
     12: "12:00",
+    14: "14:00",
     16: "16:00",
 }
 
@@ -51,14 +52,10 @@ def _next_desktop_signal(now):
         from mt5_signal_bot import (
             get_signal_time_for_slot,
             get_target_hours,
-            is_post_special_day,
-            is_special_day,
         )
     except Exception:
         get_signal_time_for_slot = None
         get_target_hours = None
-        is_post_special_day = None
-        is_special_day = None
 
     for day_offset in range(8):
         day = now + _TimeDelta(days=day_offset)

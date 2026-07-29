@@ -77,7 +77,6 @@ export function NavBar() {
               </button>
             ))}
           </div>
-          <StatusDot locale={locale} />
           <button
             onClick={cycleTheme}
             className="terminal-theme-toggle border p-2"
@@ -102,14 +101,5 @@ export function NavBar() {
         </div>
       </div>
     </nav>
-  );
-}
-
-function StatusDot({ locale }: { locale: "VN" | "EN" }) {
-  return (
-    <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
-      <div className="terminal-status-dot h-2 w-2 rounded-full" />
-      <span className="hidden md:inline">{locale === "EN" ? "Running" : "Đang chạy"}</span>
-    </div>
   );
 }

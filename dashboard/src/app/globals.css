@@ -8,8 +8,8 @@
   --surface-raised: #f4f8f5;
   --panel-border: rgba(14, 26, 20, 0.22);
   --muted: #33443c;
-  --terminal-accent: #00a876;
-  --terminal-accent-strong: #009468;
+  --terminal-accent: #007a57;
+  --terminal-accent-strong: #006b4d;
   --terminal-warning: #946000;
   --terminal-danger: #b82d3e;
   --terminal-shadow: 0 1px 0 rgba(14, 26, 20, 0.08);
@@ -345,15 +345,6 @@ body {
 }
 
 .signal-rail:hover { border-color: color-mix(in srgb, var(--terminal-accent) 56%, var(--panel-border)); }
-
-.direction-badge {
-  border-color: color-mix(in srgb, var(--terminal-accent) 40%, var(--panel-border));
-  background: color-mix(in srgb, var(--terminal-accent) 9%, var(--surface));
-}
-
-.direction-badge[data-tone="stock"] { --direction-accent: #58b7dc; }
-.direction-badge[data-tone="gbp"] { --direction-accent: #b38be0; }
-.direction-badge { border-left: 2px solid var(--direction-accent, var(--terminal-accent)); }
 
 .advisor-safety {
   border-color: color-mix(in srgb, var(--terminal-warning) 42%, var(--panel-border));

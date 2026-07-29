@@ -7,7 +7,7 @@ import unittest
 import mt5_signal_bot
 
 
-DIRECT_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+DIRECT_SLOTS = (3, 4, 7, 9, 12, 14, 16)
 
 
 class SignalPriorityTests(unittest.TestCase):

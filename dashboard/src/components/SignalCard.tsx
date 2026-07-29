@@ -8,16 +8,7 @@ import { PairBadge } from "./PairBadge";
 
 const VALID_TIME = /^\d{2}:\d{2}$/;
 
-/** Return the correct pair list for a given hour slot. */
-function defaultPairsForHour(hour: number): string[] {
-  if ([3, 6, 9].includes(hour)) {
-    return ["XAUUSD", "GBPAUD", "XAUUSD2"];
-  }
-  if ([12, 14, 16].includes(hour)) {
-    return ["XAUUSD", "GBPUSD", "XAUUSD2"];
-  }
-  return [];
-}
+import { DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
 
 /** Resolve local (Vietnam) time, falling back to broker-time conversion. */
 function resolveLocalTime(
@@ -49,13 +40,17 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
     signal,
     signal.entry_time,
   );
-  const pairs = defaultPairsForHour(signal.hour);
   const isSell = signal.signal === "SELL";
   const isBuy = signal.signal === "BUY";
 
   const getPairDirection = (pair: string) => {
     if (!isVIP) return "locked";
     return signal.pair_dirs?.[pair] || "-";
+  };
+
+  const getPairEntryTime = (pair: string) => {
+    if (!isVIP) return null;
+    return signal.pair_entry_times?.[pair] || null;
   };
 
   return (
@@ -98,8 +93,8 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
       </div>
 
       <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
-        {pairs.map((pair) => (
-          <PairBadge key={pair} pair={pair} direction={getPairDirection(pair)} />
+        {DISPLAYED_SIGNAL_PAIRS.map((pair) => (
+          <PairBadge key={pair} pair={pair} direction={getPairDirection(pair)} entryTime={getPairEntryTime(pair)} />
         ))}
       </div>
     </article>

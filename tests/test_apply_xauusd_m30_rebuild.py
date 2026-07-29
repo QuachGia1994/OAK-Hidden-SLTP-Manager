@@ -17,7 +17,7 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         dt = datetime(2026, 7, 9, 2, 45, tzinfo=timezone.utc)
         pair_dirs = get_pair_direction(3, "BUY", dt)
         self.assertEqual(pair_dirs["XAUUSD"], "BUY")
-        self.assertEqual(pair_dirs, {"XAUUSD": "BUY"})
+        self.assertEqual(pair_dirs, {"XAUUSD": "BUY", "GBPUSD": "WAIT", "GBPAUD": "WAIT"})
 
     def test_h4_uses_gbp_h1_logic_and_stays_deactivated(self) -> None:
         broker_dt = datetime(2026, 7, 14, 4, 0, tzinfo=timezone.utc)

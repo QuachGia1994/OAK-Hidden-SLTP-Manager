@@ -8,7 +8,7 @@ import mt5_signal_bot
 
 class SignalLiveSchedulerTests(unittest.TestCase):
     def test_incomplete_signal_retries_before_deadline(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 6, 5)
+        broker_dt = datetime(2026, 7, 14, 7, 5)
         pending = set()
 
         with (
@@ -18,32 +18,32 @@ class SignalLiveSchedulerTests(unittest.TestCase):
                 "calculate_slot_signal",
                 return_value={"signal": "WAIT", "report": "missing candle"},
             ) as calculate,
-            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="06:11"),
+            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="07:11"),
             patch.object(mt5_signal_bot, "_save_state") as save,
         ):
-            emitted = mt5_signal_bot._process_live_slot(broker_dt, 6)
+            emitted = mt5_signal_bot._process_live_slot(broker_dt, 7)
 
         self.assertFalse(emitted)
-        calculate.assert_called_once_with(broker_dt, 6)
+        calculate.assert_called_once_with(broker_dt, 7)
         save.assert_not_called()
         self.assertEqual(pending, set())
 
     def test_slot_is_marked_missed_after_entry_deadline(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 6, 12)
+        broker_dt = datetime(2026, 7, 14, 7, 12)
         sent = set()
 
         with (
             patch.object(mt5_signal_bot, "sent_today", sent),
             patch.object(mt5_signal_bot, "calculate_slot_signal") as calculate,
-            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="06:11"),
+            patch.object(mt5_signal_bot, "get_entry_time_for_slot", return_value="07:11"),
             patch.object(mt5_signal_bot, "_save_state") as save,
         ):
-            emitted = mt5_signal_bot._process_live_slot(broker_dt, 6)
+            emitted = mt5_signal_bot._process_live_slot(broker_dt, 7)
 
         self.assertFalse(emitted)
         calculate.assert_not_called()
         save.assert_called_once()
-        self.assertEqual(sent, {(broker_dt.date(), 6)})
+        self.assertEqual(sent, {(broker_dt.date(), 7)})
 
     def test_restart_marks_passed_publications_without_catch_up(self) -> None:
         broker_dt = datetime(2026, 7, 14, 10, 0)
@@ -57,20 +57,20 @@ class SignalLiveSchedulerTests(unittest.TestCase):
             {
                 (broker_dt.date(), 3),
                 (broker_dt.date(), 4),
-                (broker_dt.date(), 6),
+                (broker_dt.date(), 7),
                 (broker_dt.date(), 9),
             },
         )
 
     def test_sent_guard_prevents_duplicate_calculation(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 6, 5)
-        sent = {(broker_dt.date(), 6)}
+        broker_dt = datetime(2026, 7, 14, 7, 5)
+        sent = {(broker_dt.date(), 7)}
 
         with (
             patch.object(mt5_signal_bot, "sent_today", sent),
             patch.object(mt5_signal_bot, "calculate_slot_signal") as calculate,
         ):
-            emitted = mt5_signal_bot._process_live_slot(broker_dt, 6)
+            emitted = mt5_signal_bot._process_live_slot(broker_dt, 7)
 
         self.assertFalse(emitted)
         calculate.assert_not_called()

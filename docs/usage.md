@@ -5,10 +5,11 @@
 
 ### Dashboard
 - Xem trạng thái hiện tại của MT5 và Telegram
-- Xem tín hiệu hiện tại và lịch sử của các slot H=3,4,5,6,9,12,14,16
-- H3 mọi Thứ Năm và H4/H5 mọi ngày đều là `deactivated`: được làm mờ, chỉ dùng đối chiếu/dependency và không được coi là tín hiệu vào lệnh
-- Ngày thường Mon/Fri: BT → H12 priority, SW → H14 priority; Tue/Wed/Thu: SW → H12 priority, BT → H14 priority
-- Ngày đặc biệt Thu/Fri và Thứ Hai hậu đặc biệt không tạo H12/H14/H16
+- Xem tín hiệu hiện tại và lịch sử của các slot H=3,4,6,9,12,14,16
+- Chỉ phát `XAUUSD`: hai H1 `GBPUSD` của ngày hôm qua tạo signal, hai H1 `GBPAUD` cùng thời điểm chỉ để đối chiếu, còn `XAUUSD` M15 chỉ quyết định entry.
+- Mỗi H phát đúng `H:00`. Dùng hai H1 hoàn tất hôm qua ngay trước cùng mốc logic (ví dụ H9 hôm nay dùng H8/H7 hôm qua, H8 là nền): ngược chiều → BT, giữ nền; cùng chiều → SW, đảo nền. Kết quả GBPUSD là signal XAUUSD cuối cùng.
+- Kết quả GBPUSD/GBPAUD trùng nhau → `H:11`. Nếu khác nhau, bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD tiếp theo theo SW/BT (H9 bỏ `08:45`, dùng `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 ngoại lệ SW → `04:49`, BT → `03:49`.
+- H3 mọi Thứ Năm và H4 mọi ngày đều là `deactivated`/`DO NOT ENTER`: được làm mờ, chỉ dùng đối chiếu/tính toán và không được coi là tín hiệu vào lệnh. Thiếu nến hoặc DOJI không resolve được → `WAIT`.
 - Giờ local chỉ xuất hiện khi backend có BrokerClock đã hiệu chỉnh từ tick live mới; clock stale/thiếu/mâu thuẫn sẽ fail-closed thay vì đoán offset
 - Cập nhật tin tức
 

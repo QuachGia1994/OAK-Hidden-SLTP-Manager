@@ -23,7 +23,7 @@ export function maskSignal(signal: Signal): Signal {
     ...signal,
     signal: "WAIT",
     pattern_signal: undefined,
-    pair_dirs: { XAUUSD: "WAIT", XAUUSD2: "WAIT" },
+    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT", GBPAUD: "WAIT" },
     entry_prices: {},
     current_prices: {},
     hour_note: null,

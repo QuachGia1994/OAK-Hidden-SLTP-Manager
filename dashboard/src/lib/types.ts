@@ -5,6 +5,9 @@ export interface Signal {
   signal: "BUY" | "SELL" | "WAIT" | "SW" | "BT";
   pattern_signal?: string;
   pair_dirs: Record<string, string>;
+  pair_entry_times?: Record<string, string | null>;
+  pair_groups?: Record<string, string | null>;
+  pair_evidence?: Record<string, unknown>;
   entry_prices: Record<string, number>;
   current_prices: Record<string, number>;
   signal_time?: string | null;
@@ -72,7 +75,7 @@ export interface StockAdvisory {
   requires_user_confirmation: true;
   orders_submitted: false;
   status: "READY" | "PARTIAL" | "NO_TRADE";
-  action: "BUY_OR_HOLD" | "SELL_OR_AVOID";
+  action: "BUY_OR_HOLD" | "SELL_OR_AVOID" | "LOCKED";
   signal: { date: string; direction: "BUY" | "SELL" | "WAIT"; holding_window: string };
   candidates: StockAdvisorCandidate[];
   cash_weight: number;

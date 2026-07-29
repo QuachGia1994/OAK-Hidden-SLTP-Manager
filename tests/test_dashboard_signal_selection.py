@@ -50,15 +50,15 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             "signal": "BUY",
             "deactivated": True,
             "pair_dirs": {"XAUUSD": "BUY"},
-            "logic_version": 54,
+            "logic_version": 55,
         }
 
         self.assertEqual(select_signals_for_dashboard([h3]), [h3])
 
     def test_drops_removed_h5_records_even_when_pair_dirs_exist(self):
         signals = [
-            {"date": "2026-07-03", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 54},
-            {"date": "2026-07-04", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 54},
+            {"date": "2026-07-03", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 55},
+            {"date": "2026-07-04", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 55},
             {"date": "2026-07-04", "hour": 5, "pair_dirs": {}},
         ]
 
@@ -67,8 +67,8 @@ class DashboardSignalSelectionTests(unittest.TestCase):
         self.assertEqual(
             result,
             [
-                {"date": "2026-07-03", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 54},
-                {"date": "2026-07-04", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 54},
+                {"date": "2026-07-03", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 55},
+                {"date": "2026-07-04", "hour": 4, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}, "logic_version": 55},
             ],
         )
 
@@ -85,7 +85,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             "hour": 9,
             "signal": "BUY",
             "pair_dirs": {"XAUUSD": "BUY"},
-            "logic_version": 54,
+            "logic_version": 55,
         }
 
         self.assertEqual(
@@ -95,20 +95,20 @@ class DashboardSignalSelectionTests(unittest.TestCase):
 
     def test_drops_current_records_without_a_valid_xauusd_direction(self):
         records = [
-            {"date": "2026-07-03", "hour": 9, "logic_version": 54,
+            {"date": "2026-07-03", "hour": 9, "logic_version": 55,
              "pair_dirs": {"GBPUSD": "BUY"}},
-            {"date": "2026-07-03", "hour": 12, "logic_version": 54,
-             "pair_dirs": {"XAUUSD": "WAIT"}},
-            {"date": "2026-07-03", "hour": 9, "logic_version": 54,
+            {"date": "2026-07-03", "hour": 12, "logic_version": 55,
+             "signal": "WAIT", "pair_dirs": {"XAUUSD": "INVALID"}},
+            {"date": "2026-07-03", "hour": 9, "logic_version": 55,
              "signal": "SELL", "pair_dirs": {"XAUUSD": "BUY"}},
-            {"date": "2026-07-03", "hour": 14, "logic_version": 54,
+            {"date": "2026-07-03", "hour": 14, "logic_version": 55,
              "signal": "SELL", "pair_dirs": {"XAUUSD": "SELL"}},
         ]
 
         self.assertEqual(select_signals_for_dashboard(records), [records[-1]])
 
-    def test_h6_active_returns_pair_dirs(self):
-        """H=6 is now active — pair_dirs should contain XAUUSD."""
+    def test_h7_active_returns_pair_dirs(self):
+        """H=7 is active — pair_dirs should contain XAUUSD."""
         for broker_dt in (
             datetime(2026, 7, 7, tzinfo=timezone.utc),
             datetime(2026, 7, 9, tzinfo=timezone.utc),
@@ -116,7 +116,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
             with self.subTest(weekday=broker_dt.weekday()):
                     self.assertIn(
                         "XAUUSD",
-                        get_pair_direction(6, "BUY", broker_dt)
+                        get_pair_direction(7, "BUY", broker_dt)
                     )
 
     def test_news_parse_marks_system_display_timezone(self):

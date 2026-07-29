@@ -1,7 +1,7 @@
-export const TARGET_HOURS = [3, 6, 9, 12, 14, 16] as const;
+export const TARGET_HOURS = [3, 7, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
-/** Minimum backend contract — XAUUSD2 five-candle classifier with 10-case SW/BT. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 54;
+/** Minimum backend contract — independent XAUUSD/GBPUSD/GBPAUD M15 classifier. */
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 55;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 
@@ -96,7 +96,7 @@ export function getTargetHours(jsDayOfWeek: number, _brokerDate?: string): numbe
 
 const SIGNAL_TIMES: Readonly<Record<number, string>> = {
   3: "03:00",
-  6: "06:00",
+  7: "07:00",
   9: "09:00",
   12: "12:00",
   14: "14:00",
@@ -114,7 +114,7 @@ function formatBrokerTime(hour: number, minute: number): string {
 /** Display entry time label for a slot. */
 export function getEntryTimeLabel(hour: number, _brokerDate?: string): string {
   const numericHour = Number(hour);
-  if ([3, 6, 9, 12, 14, 16].includes(numericHour)) {
+  if ([3, 7, 9, 12, 14, 16].includes(numericHour)) {
     return [
       formatBrokerTime(numericHour, 49),
       formatBrokerTime(numericHour + 1, 25),
@@ -141,14 +141,14 @@ type RuleLocale = "VN" | "EN";
 
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "Mọi slot H3/H6/H9/H12/H14/H16 phát Broker lúc H:00. Tín hiệu lấy từ 4 nến M15 của ngày hôm qua: GBPAUD cho H3/H6/H9, GBPUSD cho H12/H14/H16. Nến gần nhất (H-0:30 hôm qua) là nền; 3 nến lùi sau phân nhóm SW/BT.",
-    "Quy tắc chung: SW → XAUUSD đảo hướng nền; BT → XAUUSD giữ nguyên hướng nền. H3/H6/H9: GBPAUD luôn ngược hướng nền. H12/H14/H16: GBPUSD luôn cùng hướng nền.",
-    "Entry: SW → (H+1):25, BT → H:49. DOJI lùi thêm một nến; thiếu nến → WAIT. H3 deactivated vào Thứ Năm.",
+    "Mọi slot H3/H7/H9/H12/H14/H16 phát Broker lúc H:00. Đánh giá độc lập ba symbol: XAUUSD, GBPUSD, GBPAUD dùng nến M15 của chính symbol đó trong ngày Broker hiện tại.",
+    "Nến offset -30 làm Base; 3 nến pattern (-45/-60/-75) phân nhóm SW (đảo Base) hoặc BT (giữ Base). Riêng slot H14 đảo ngược signal cuối.",
+    "Mốc entry: SW → (H+1):25, BT → H:49. Thiếu nến → WAIT.",
   ],
   EN: [
-    "Every H3/H6/H9/H12/H14/H16 slot publishes at Broker H:00. Signal from 4 M15 candles of the previous day: GBPAUD for H3/H6/H9, GBPUSD for H12/H14/H16. Nearest candle (H-0:30 yesterday) is the base; 3 pullback candles classify SW or BT.",
-    "Universal rule: SW → XAUUSD reverses the base; BT → XAUUSD keeps the base. H3/H6/H9: GBPAUD always opposite of base. H12/H14/H16: GBPUSD always same as base.",
-    "Entry: SW → (H+1):25, BT → H:49. DOJI looks one candle further back; missing candles → WAIT. H3 deactivated on Thursday.",
+    "Every slot (H3/H7/H9/H12/H14/H16) evaluates XAUUSD, GBPUSD, and GBPAUD independently on current Broker date M15 candles (-30 Base, -45/-60/-75 pattern).",
+    "SW → reverse Base; BT → keep Base. H14 reverses final calculated signal. DOJI M15 steps back 1 M15 bar and reverses previous direction.",
+    "Entry time: SW → (H+1):25, BT → H:49. Missing candles → WAIT.",
   ],
 };
 

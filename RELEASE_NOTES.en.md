@@ -1,5 +1,12 @@
 # RELEASE NOTES
 
+## [v3.18.2] - 2026-07-28
+
+- Replace the complete signal matrix with one rule for H=3/H=4/H=6/H=9/H=12/H=14/H=16: derive XAUUSD from the two equivalent-slot GBPUSD H1 candles on the previous Broker day, using GBPAUD only as the comparison branch for entry selection.
+- Matching derived directions enter at `H:11`. Opposite directions classify today's three XAUUSD M15 candles after skipping the immediately preceding bar; for H=9 this skips 08:45 and uses exactly 08:30/08:15/08:00 to choose `H:49` or `(H+1):25` (03:49/04:49 for H=3).
+- Keep fail-closed behavior for missing candles or unresolved DOJI, emit XAUUSD only, retain H=4 and Thursday H=3 as `deactivated`, and remove H=5 together with retired M30/4H1/priority/RHYTHM logic.
+- Raise the signal contract to logic version 49 and synchronize the bot, MT4/MT5 comparator, desktop, API, Dashboard, documentation, and regression tests so stale records cannot enter the current UI.
+
 ## [v3.18.1] - 2026-07-26
 
 - Standardize reference-only states: H=3 is always `deactivated` every Thursday; H=4/H=5 are always `deactivated`, intermediate-only dependencies and never actionable signals.

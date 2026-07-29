@@ -8,12 +8,9 @@ export async function GET(request: Request) {
     const state = (await redis.get(KEYS.state)) as Record<string, unknown> | null;
     if (!state) return NextResponse.json(null);
     if (canSeeVipData(request)) return NextResponse.json(state);
-    // Hide D-direction and day signal payloads from unauthenticated scrapers
+    // Public clients only need the current date and idempotency slots.
     return NextResponse.json({
       date: state.date ?? null,
-      d_direction: null,
-      d_direction_date: null,
-      day_signals: {},
       sent_today: [],
     });
   } catch {
