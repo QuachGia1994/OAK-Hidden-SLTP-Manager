@@ -125,15 +125,8 @@ class SpecialSignalDayTests(unittest.TestCase):
         self.assertEqual(friday_result["signal"], "BUY")
         self.assertFalse(friday_result.get("deactivated", False))
 
-    def test_h4_is_deactivated_every_weekday_while_h5_is_inactive(self) -> None:
-        monday = datetime(2026, 7, 20, 4, 45)
-
-        for weekday in range(5):
-            broker_dt = monday + timedelta(days=weekday)
-            with self.subTest(weekday=weekday):
-                self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 4))
-
-        self.assertFalse(mt5_signal_bot.is_deactivated_signal_slot(monday, 3))
+    def test_h4_is_removed_from_active_hours_while_h5_is_inactive(self) -> None:
+        self.assertNotIn(4, mt5_signal_bot.ACTIVE_HOURS)
         self.assertNotIn(5, mt5_signal_bot.ACTIVE_HOURS)
 
 

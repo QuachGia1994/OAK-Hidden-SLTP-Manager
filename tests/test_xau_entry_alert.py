@@ -12,14 +12,14 @@ class XauEntryAlertTests(unittest.TestCase):
         mt5_signal_bot.entry_alerts_pending.clear()
 
     def test_fingerprint_generation(self) -> None:
-        fp = mt5_signal_bot.build_xau_entry_alert_fingerprint("2026-07-29", 7, 63, "BUY", "08:25")
-        self.assertEqual(fp, "2026-07-29|7|63|BUY|08:25")
+        fp = mt5_signal_bot.build_xau_entry_alert_fingerprint("2026-07-29", 7, 64, "BUY", "08:25")
+        self.assertEqual(fp, "2026-07-29|7|64|BUY|08:25")
 
     def test_should_send_xau_entry_alert_detection(self) -> None:
         ready_record = {
           "source_date": "2026-07-29",
           "hour": 7,
-          "logic_version": 63,
+          "logic_version": 64,
           "entry_state": "READY",
           "pair_entry_states": {"XAUUSD": "READY"},
           "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "BUY"},
@@ -28,7 +28,7 @@ class XauEntryAlertTests(unittest.TestCase):
         self.assertTrue(mt5_signal_bot.should_send_xau_entry_alert(ready_record, set()))
 
         # Deduplication: If fingerprint is already in sent set, returns False
-        fp = "2026-07-29|7|63|BUY|08:25"
+        fp = "2026-07-29|7|64|BUY|08:25"
         self.assertFalse(mt5_signal_bot.should_send_xau_entry_alert(ready_record, {fp}))
 
         # Non-READY state returns False
@@ -39,13 +39,13 @@ class XauEntryAlertTests(unittest.TestCase):
         record = {
           "source_date": "2026-07-29",
           "hour": 7,
-          "logic_version": 63,
+          "logic_version": 64,
           "entry_state": "READY",
           "pair_entry_states": {"XAUUSD": "READY"},
           "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "BUY", "GBPUSD": "BUY"},
           "pair_entry_times": {"XAUUSD": "08:25", "GBPUSD": "09:00", "GBPAUD": "09:00"},
         }
-        fp = "2026-07-29|7|63|BUY|08:25"
+        fp = "2026-07-29|7|64|BUY|08:25"
         broker_dt = datetime(2026, 7, 29, 7, 30)
 
         with patch.object(mt5_signal_bot, "send_telegram", return_value=True):
@@ -59,13 +59,13 @@ class XauEntryAlertTests(unittest.TestCase):
         record = {
           "source_date": "2026-07-29",
           "hour": 7,
-          "logic_version": 63,
+          "logic_version": 64,
           "entry_state": "READY",
           "pair_entry_states": {"XAUUSD": "READY"},
           "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "BUY", "GBPUSD": "BUY"},
           "pair_entry_times": {"XAUUSD": "08:25", "GBPUSD": "09:00", "GBPAUD": "09:00"},
         }
-        fp = "2026-07-29|7|63|BUY|08:25"
+        fp = "2026-07-29|7|64|BUY|08:25"
         broker_dt = datetime(2026, 7, 29, 7, 30)
 
         with patch.object(mt5_signal_bot, "send_telegram", return_value=False):
@@ -79,7 +79,7 @@ class XauEntryAlertTests(unittest.TestCase):
         record = {
           "source_date": "2026-07-29",
           "hour": 7,
-          "logic_version": 63,
+          "logic_version": 64,
           "entry_state": "READY",
           "pair_entry_states": {"XAUUSD": "READY"},
           "pair_dirs": {"XAUUSD": "BUY", "GBPAUD": "BUY", "GBPUSD": "BUY"},

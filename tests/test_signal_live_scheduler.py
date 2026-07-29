@@ -65,7 +65,6 @@ class SignalLiveSchedulerTests(unittest.TestCase):
             sent,
             {
                 (broker_dt.date(), 3),
-                (broker_dt.date(), 4),
                 (broker_dt.date(), 7),
                 (broker_dt.date(), 9),
             },

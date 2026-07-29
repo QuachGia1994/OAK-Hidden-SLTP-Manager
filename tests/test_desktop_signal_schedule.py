@@ -5,10 +5,10 @@ from controllers.dashboard_controller import _next_desktop_signal
 
 
 class DesktopSignalScheduleTests(unittest.TestCase):
-    def test_h4_uses_the_0400_publication_clock(self):
+    def test_h7_uses_the_0700_publication_clock(self):
         slot, target = _next_desktop_signal(datetime(2026, 7, 14, 3, 15))
 
-        self.assertEqual((slot, target.strftime("%H:%M")), (4, "04:00"))
+        self.assertEqual((slot, target.strftime("%H:%M")), (7, "07:00"))
 
     def test_uses_actual_publication_time_instead_of_blanket_minute_45(self):
         now = datetime(2026, 7, 14, 5, 50)

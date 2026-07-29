@@ -63,7 +63,9 @@ export function PairBadge({
       </div>
       <div className="flex items-center gap-2">
         {state === "DEFERRED_TO_H7" ? (
-          <span className="text-[10px] font-mono text-[var(--muted)] italic">Chờ H7</span>
+          <span className="text-[10px] font-mono text-[var(--muted)] italic">
+            {locale === "EN" ? "Starts at H7" : "Chờ H7"}
+          </span>
         ) : (
           (localEntryTime || brokerEntryTime) && (
             <div className="flex flex-col items-end leading-tight">

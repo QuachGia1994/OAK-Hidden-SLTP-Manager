@@ -18,19 +18,19 @@ class TestGetDayNotes(unittest.TestCase):
             with self.subTest(day=day):
                 blob = " ".join(get_day_notes(day, lang="VN"))
                 self.assertIn("Slots:", blob)
-                self.assertIn("H=3,4,6,9,12,14,16", blob)
+                self.assertIn("H=3,7,9,12,14,16", blob)
                 self.assertIn("XAUUSD", blob)
 
     def test_active_slots_exclude_disabled_hours(self):
         notes = " ".join(get_day_notes(date(2026, 7, 13), lang="EN"))
-        self.assertIn("H=3,4,6,9,12,14,16", notes)
+        self.assertIn("H=3,7,9,12,14,16", notes)
         self.assertNotIn("H=2:", notes)
         self.assertNotIn("H=10:", notes)
         self.assertNotIn("H=15", notes)
 
     def test_notes_publish_the_new_broker_schedule(self):
         notes = " ".join(get_day_notes(date(2026, 7, 14), lang="EN"))
-        for publication in ("H3 03:00", "H4 04:00", "H6 06:00", "H16 16:00"):
+        for publication in ("H3 03:00", "H7 07:00", "H16 16:00"):
             with self.subTest(publication=publication):
                 self.assertIn(publication, notes)
 
@@ -47,7 +47,7 @@ class TestGetDayNotes(unittest.TestCase):
         for day in (date(2026, 8, 6), date(2026, 8, 7)):
             with self.subTest(day=day):
                 notes = " ".join(get_day_notes(day, lang="EN"))
-                self.assertIn("H=3,4,6,9,12,14,16", notes)
+                self.assertIn("H=3,7,9,12,14,16", notes)
                 self.assertNotIn("are not generated", notes)
                 self.assertNotIn("are suppressed", notes)
 

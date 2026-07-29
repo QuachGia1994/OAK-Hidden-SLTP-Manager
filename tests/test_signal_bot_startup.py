@@ -45,7 +45,7 @@ class SignalBotStartupTests(unittest.TestCase):
         mock_send_telegram.assert_called()
         # Verify the startup message contained bot online tag
         startup_msg_call = mock_send_telegram.call_args_list[0][0][0]
-        self.assertIn("🤖 OAK SIGNAL BOT ONLINE · v63", startup_msg_call)
+        self.assertIn("🤖 OAK SIGNAL BOT ONLINE · v64", startup_msg_call)
 
 
 if __name__ == "__main__":

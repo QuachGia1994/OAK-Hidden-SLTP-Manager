@@ -28,7 +28,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
     def test_xauusd_slots_have_xauusd_only_without_full_result(self):
         """Without full_result, only XAUUSD is returned."""
         for weekday in range(5):
-            for hour in (3, 4, 7, 9, 12, 14, 16):
+            for hour in (3, 7, 9, 12, 14, 16):
                 for signal in ("BUY", "SELL"):
                     with self.subTest(weekday=weekday, hour=hour, signal=signal):
                         dt = _make_dt(2026, 7, 6, weekday_offset=weekday)

@@ -20,11 +20,11 @@ class SignalRuleContractSyncTests(unittest.TestCase):
         with open(contract_path, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        self.assertEqual(data.get("logic_version"), 63)
+        self.assertEqual(data.get("logic_version"), 64)
         self.assertEqual(data.get("public_slots"), [3, 7, 9, 12, 14, 16])
-        self.assertEqual(data.get("internal_slots"), [4])
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 63)
-        self.assertEqual(ACTIVE_SIGNAL_LOGIC_VERSION, 63)
+        self.assertEqual(data.get("internal_slots"), [])
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 64)
+        self.assertEqual(ACTIVE_SIGNAL_LOGIC_VERSION, 64)
 
     def test_generator_check_passes(self) -> None:
         """Verify scripts/generate_dashboard_signal_rules.py --check returns exit code 0."""

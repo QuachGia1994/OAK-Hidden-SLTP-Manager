@@ -97,7 +97,7 @@ class SignalTelegramTests(unittest.TestCase):
             mt5_signal_bot.send_telegram("Test chat priority")
 
             req = mock_urlopen.call_args[0][0]
-            self.assertIn(b'"chat_id": "999888777"', req.data)
+            self.assertIn(b'"chat_id": 999888777', req.data)
 
     def test_missing_credentials_fails_safely(self) -> None:
         """Test E: missing token or chat ID returns False without raising an exception."""

@@ -46,7 +46,7 @@ class DeactivatedSlotTests(unittest.TestCase):
 
     def test_only_early_reference_slots_are_deactivated(self) -> None:
         monday = datetime(2026, 7, 20)
-        self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(monday, 4))
+        self.assertNotIn(4, mt5_signal_bot.ACTIVE_HOURS)
         self.assertFalse(mt5_signal_bot.is_deactivated_signal_slot(monday, 3))
         self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(datetime(2026, 7, 23), 3))
 
@@ -59,7 +59,6 @@ class Mt4ServerDeactivatedSlotTests(unittest.TestCase):
                 with self.subTest(day=broker_dt.date(), hour=hour):
                     self.assertFalse(mt4_mt5_server.is_deactivated_slot(broker_dt, hour))
 
-        self.assertTrue(mt4_mt5_server.is_deactivated_slot(datetime(2026, 7, 20), 4))
         self.assertTrue(mt4_mt5_server.is_deactivated_slot(datetime(2026, 7, 23), 3))
 
 

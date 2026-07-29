@@ -43,7 +43,7 @@ XAUUSD_SYMBOL = "XAUUSD"
 GBPUSD_SYMBOL = "GBPUSD"
 GBPAUD_SYMBOL = "GBPAUD"
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
-TARGET_HOURS = [3, 4, 7, 9, 12, 14, 16]
+TARGET_HOURS = [3, 7, 9, 12, 14, 16]
 BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "broker_clock_cache.json"),
@@ -181,7 +181,7 @@ def is_slot_suppressed(broker_dt, slot):
 
 
 def is_deactivated_slot(broker_dt, slot):
-    if slot == 4 or (slot == 3 and broker_dt.weekday() == 3):
+    if slot == 3 and broker_dt.weekday() == 3:
         return True
     return False
 

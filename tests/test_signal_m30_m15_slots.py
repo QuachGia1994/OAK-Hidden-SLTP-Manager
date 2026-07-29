@@ -50,7 +50,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
     """Exhaustive test matrix for shared symbol M15 evaluation engine (v57)."""
 
     def test_logic_version_and_signal_pairs(self) -> None:
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 63)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 64)
         self.assertEqual(mt5_signal_bot.SIGNAL_PAIRS, SIGNAL_PAIRS)
 
     def test_84_post_filter_subcases(self) -> None:
@@ -375,7 +375,6 @@ class HourNoteAndDeactivationTests(unittest.TestCase):
     def test_is_deactivated_signal_slot(self) -> None:
         broker_dt = datetime(2026, 7, 23)  # Thursday
         self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 3))
-        self.assertTrue(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 4))
         self.assertFalse(mt5_signal_bot.is_deactivated_signal_slot(broker_dt, 9))
 
 

@@ -24,7 +24,7 @@ class WeekdayEntryIndependenceTests(unittest.TestCase):
             )
 
         self.assertIsNotNone(res)
-        self.assertEqual(res["logic_version"], 63)
+        self.assertEqual(res["logic_version"], 64)
         self.assertFalse(res["weekday_inversion_applied"])
 
         # Legacy XAU entry basis signal was SELL

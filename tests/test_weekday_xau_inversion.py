@@ -23,28 +23,16 @@ class WeekdayXauInversionTests(unittest.TestCase):
             4: (datetime(2026, 7, 17, 12, 0), {3, 12, 16}),
         }
 
-        all_slots = (3, 4, 7, 9, 12, 14, 16)
+        all_slots = (3, 7, 9, 12, 14, 16)
         for weekday, (dt, expected_inverted_slots) in dates.items():
             self.assertEqual(dt.weekday(), weekday)
             for h in all_slots:
                 with self.subTest(weekday=weekday, hour=h):
                     should_invert = mt5_signal_bot.should_invert_xauusd_for_weekday(dt, h)
-                    if h == 4:
-                        # Internal slot H4 is never weekday-inverted
-                        self.assertFalse(should_invert)
-                    else:
-                        self.assertEqual(should_invert, h in expected_inverted_slots)
+                    self.assertEqual(should_invert, h in expected_inverted_slots)
 
-    def test_h4_is_never_weekday_inverted(self) -> None:
-        for weekday_dt in (
-            datetime(2026, 7, 13),  # Mon
-            datetime(2026, 7, 14),  # Tue
-            datetime(2026, 7, 15),  # Wed
-            datetime(2026, 7, 16),  # Thu
-            datetime(2026, 7, 17),  # Fri
-        ):
-            with self.subTest(day=weekday_dt.date()):
-                self.assertFalse(mt5_signal_bot.should_invert_xauusd_for_weekday(weekday_dt, 4))
+    def test_h4_is_not_in_active_hours(self) -> None:
+        self.assertNotIn(4, mt5_signal_bot.ACTIVE_HOURS)
 
     def test_unconditional_h14_reversal_is_removed(self) -> None:
         """Verify H14 on Tuesday (weekday 1) is NOT inverted since Tue has no weekday inversion."""

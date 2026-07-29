@@ -12,17 +12,17 @@ input string GbpUsdSymbol = "GBPUSD";
 input string GbpAudSymbol = "GBPAUD";
 input string XauUsdSymbol = "XAUUSD";
 
-int logicalSlots[]  = {3, 4, 6, 9, 12, 14, 16};
-int signalHours[]   = {3, 4, 6, 9, 12, 14, 16};
-int signalMinutes[] = {0, 0, 0, 0, 0, 0, 0};
-int deadlineHours[]   = {4, 5, 7, 10, 13, 15, 17};
-int deadlineMinutes[] = {49, 25, 25, 25, 25, 25, 25};
-datetime lastAttemptMinutes[7];
-int completedDateKeys[7];
+int logicalSlots[]  = {3, 7, 9, 12, 14, 16};
+int signalHours[]   = {3, 7, 9, 12, 14, 16};
+int signalMinutes[] = {0, 0, 0, 0, 0, 0};
+int deadlineHours[]   = {4, 8, 10, 13, 15, 17};
+int deadlineMinutes[] = {49, 25, 25, 25, 25, 25};
+datetime lastAttemptMinutes[6];
+int completedDateKeys[6];
 
 int OnInit()
 {
-   Print("MT4 Data Feeder v2.0 - active slots H=3,4,6,9,12,14,16");
+   Print("MT4 Data Feeder v2.0 - active slots H=3,7,9,12,14,16");
    Print("Allow WebRequest for: ", ServerURL);
    SymbolSelect(GbpUsdSymbol, true);
    SymbolSelect(GbpAudSymbol, true);
@@ -111,7 +111,7 @@ bool SendDataToServer(string jsonPayload)
 bool SendSlotData(int index, datetime serverTime)
 {
    int slot = logicalSlots[index];
-   bool deactivated = slot == 4 || (slot == 3 && TimeDayOfWeek(serverTime) == 4);
+   bool deactivated = (slot == 3 && TimeDayOfWeek(serverTime) == 4);
    datetime todayStart = StrToTime(TimeToString(serverTime, TIME_DATE));
    datetime yesterdayStart = StrToTime(TimeToString(todayStart - 12 * 3600, TIME_DATE));
    datetime yesterdaySlot = yesterdayStart + slot * 3600;

@@ -19,19 +19,13 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         self.assertEqual(pair_dirs["XAUUSD"], "BUY")
         self.assertEqual(pair_dirs, {"XAUUSD": "BUY", "GBPUSD": "WAIT", "GBPAUD": "WAIT"})
 
-    def test_h4_uses_gbp_h1_logic_and_stays_deactivated(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 4, 0, tzinfo=timezone.utc)
-        context = {
-            "signal": "BUY",
-            "entry_time": "04:11",
-            "pair_dirs": {"XAUUSD": "BUY"},
-        }
+    def test_h4_is_no_longer_an_active_slot(self) -> None:
         self.assertFalse(hasattr(mt5_signal_bot, "apply_xauusd_m30_logic"))
-        with patch.object(mt5_signal_bot, "evaluate_gbp_h1_slot", return_value=context):
-            result = calculate_slot_signal(broker_dt, 4)
-
-        self.assertIn(result["signal"], ("BUY", "SELL"))
-        self.assertTrue(result["deactivated"])
+        self.assertNotIn(4, mt5_signal_bot.ACTIVE_HOURS)
+        broker_dt = datetime(2026, 7, 14, 4, 0, tzinfo=timezone.utc)
+        result = calculate_slot_signal(broker_dt, 4)
+        self.assertEqual(result["signal"], "WAIT")
+        self.assertTrue(result.get("suppressed", False))
 
 
 if __name__ == "__main__":

@@ -46,22 +46,8 @@ class SignalRecordContractTests(unittest.TestCase):
         self.assertTrue(record["deactivated"])
         self.assertNotIn("is_priority", record)
 
-    def test_h4_grouped_record_is_forced_deactivated(self) -> None:
-        broker_dt = datetime(2026, 8, 4, 4, 0)
-        captured = []
-
-        with (
-            patch.object(mt5_signal_bot, "BROKER_CLOCK", _FakeBrokerClock()),
-            patch.object(mt5_signal_bot, "get_current_prices", return_value={}),
-            patch.object(mt5_signal_bot, "_write_signals_log_atomic", side_effect=captured.append),
-            patch.object(mt5_signal_bot.os.path, "exists", return_value=False),
-        ):
-            mt5_signal_bot.log_signal(4, broker_dt, "BUY", "04:49", {"XAUUSD": "BUY"}, "")
-
-        record = captured[0][0]
-        self.assertEqual(record["signal_time"], "04:00")
-        self.assertEqual(record["entry_time"], "04:49")
-        self.assertTrue(record["deactivated"])
+    def test_h4_is_no_longer_an_active_slot(self) -> None:
+        self.assertNotIn(4, mt5_signal_bot.ACTIVE_HOURS)
 
     def test_special_h9_record_uses_the_normal_0900_publication_clock(self) -> None:
         broker_dt = datetime(2026, 8, 6, 9, 0)

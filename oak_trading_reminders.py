@@ -614,7 +614,7 @@ def get_day_notes(now, lang="VN"):
         return ["Weekend: no bot trade schedule."]
 
     notes_vn = [
-        "Slots: H=3,4,6,9,12,14,16. Giờ phát Broker: H3 03:00; H4 04:00; H6 06:00; "
+        "Slots: H=3,7,9,12,14,16. Giờ phát Broker: H3 03:00; H7 07:00; "
         "H9 09:00; H12 12:00; H14 14:00; H16 16:00.",
         "Chỉ phát XAUUSD. Mỗi mốc dùng hai H1 GBPUSD đã hoàn tất của ngày hôm qua ngay trước cùng mốc logic "
         "(ví dụ H9 hôm nay dùng H8/H7 hôm qua, H8 là nền): ngược chiều → BT, giữ nền; cùng chiều → SW, đảo nền. "
@@ -622,10 +622,10 @@ def get_day_notes(now, lang="VN"):
         "Lặp hai H1 GBPAUD cùng thời điểm hôm qua chỉ để đối chiếu. Kết quả GBPUSD/GBPAUD trùng nhau → entry H:11. "
         "Nếu khác nhau, bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD tiếp theo theo SW/BT "
         "(H9 bỏ 08:45, dùng 08:30/08:15/08:00): SW → (H+1):25, BT → H:49; H3 SW → 04:49, BT → 03:49.",
-        "H3 mọi Thứ Năm và H4 mọi ngày luôn deactivated. Thiếu nến hoặc DOJI chưa resolve → WAIT.",
+        "H3 mọi Thứ Năm luôn deactivated. Thiếu nến hoặc DOJI chưa resolve → WAIT.",
     ]
     notes_en = [
-        "Slots: H=3,4,6,9,12,14,16. Broker publication: H3 03:00; H4 04:00; H6 06:00; "
+        "Slots: H=3,7,9,12,14,16. Broker publication: H3 03:00; H7 07:00; "
         "H9 09:00; H12 12:00; H14 14:00; H16 16:00.",
         "Emits XAUUSD only. Each slot uses two completed GBPUSD H1 bars from yesterday immediately before the equivalent logical slot "
         "(for H9 today, yesterday H8/H7; H8 is the base): opposite → BT and keep the base; same → SW and reverse the base. "
@@ -633,7 +633,7 @@ def get_day_notes(now, lang="VN"):
         "Repeat the equivalent two GBPAUD H1 bars from yesterday only for comparison. Matching GBPUSD/GBPAUD results → entry H:11. "
         "If they differ, skip the M15 immediately before the slot and classify the next three XAUUSD M15 bars with SW/BT "
         "(H9 skips 08:45 and uses 08:30/08:15/08:00): SW → (H+1):25, BT → H:49; H3 SW → 04:49, BT → 03:49.",
-        "H3 every Thursday and H4 every day are deactivated. Missing candles or unresolved DOJI → WAIT.",
+        "H3 every Thursday is deactivated. Missing candles or unresolved DOJI → WAIT.",
     ]
 
     if lang == "VN":

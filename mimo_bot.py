@@ -53,7 +53,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(PROJECT_DIR, "profiles.json")
 SETTINGS_FILE = os.path.join(PROJECT_DIR, "settings.json")
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 63
+MINIMUM_SIGNAL_LOGIC_VERSION = 64
 
 # Files cho OAK integration
 TELE_INBOX_FILE = os.path.join(PROJECT_DIR, "tele_inbox.json")
@@ -137,8 +137,8 @@ def _select_current_signal_rows(log_rows, target_date=None):
 
 
 def _is_do_not_enter_signal(hour, payload):
-    """Return True for slots that must not be actioned — H4 and Thursday H3."""
-    if payload.get("deactivated") or hour == 4:
+    """Return True for slots that must not be actioned — Thursday H3."""
+    if payload.get("deactivated"):
         return True
     if hour != 3:
         return False

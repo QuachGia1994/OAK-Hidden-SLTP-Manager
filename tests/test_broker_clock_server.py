@@ -72,7 +72,7 @@ class BrokerClockServerTests(unittest.TestCase):
         special_thursday = datetime(2026, 8, 6, 3, 0)
         post_special_monday = datetime(2026, 8, 10, 12, 0)
         self.assertTrue(mt4_mt5_server.is_deactivated_slot(special_thursday, 3))
-        self.assertTrue(mt4_mt5_server.is_deactivated_slot(datetime(2026, 7, 21, 4, 0), 4))
+        self.assertNotIn(4, mt4_mt5_server.TARGET_HOURS)
         self.assertNotIn(5, mt4_mt5_server.TARGET_HOURS)
         self.assertFalse(mt4_mt5_server.is_slot_suppressed(special_thursday, 12))
         self.assertFalse(mt4_mt5_server.is_slot_suppressed(post_special_monday, 16))

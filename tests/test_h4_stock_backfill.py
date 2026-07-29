@@ -1,4 +1,4 @@
-"""Tests for deep H=4 history rebuilding."""
+"""Tests for deep H=4 history rebuilding (retired — H4 is no longer a signal slot)."""
 from datetime import datetime, timezone
 import inspect
 import unittest
@@ -23,35 +23,8 @@ class H4BackfillTests(unittest.TestCase):
         self.assertEqual(result, candle)
         recent.assert_not_called()
 
-    def test_rebuilds_only_h4_for_requested_weekday_sessions(self) -> None:
-        now = datetime(2026, 7, 17, 12, 0)
-        with patch.object(mt5_signal_bot, "mt5_ready", True), patch.object(
-            mt5_signal_bot, "get_broker_time", return_value=now
-        ), patch.object(mt5_signal_bot, "rebuild_slot_signal", return_value=True) as rebuild:
-            count = mt5_signal_bot.rebuild_h4_history(session_count=5)
-
-        self.assertEqual(count, 5)
-        self.assertEqual([call.args[1] for call in rebuild.call_args_list], [4, 4, 4, 4, 4])
-        rebuilt_dates = [call.args[0].date().isoformat() for call in rebuild.call_args_list]
-        self.assertEqual(rebuilt_dates, ["2026-07-13", "2026-07-14", "2026-07-15", "2026-07-16", "2026-07-17"])
-
-    def test_before_h4_cutoff_excludes_the_current_date(self) -> None:
-        now = datetime(2026, 7, 17, 3, 59)
-        with patch.object(mt5_signal_bot, "mt5_ready", True), patch.object(
-            mt5_signal_bot, "get_broker_time", return_value=now
-        ), patch.object(mt5_signal_bot, "rebuild_slot_signal", return_value=True) as rebuild:
-            mt5_signal_bot.rebuild_h4_history(session_count=1)
-
-        self.assertEqual(rebuild.call_args.args[0].date().isoformat(), "2026-07-16")
-
-    def test_h4_cutoff_includes_the_current_date(self) -> None:
-        now = datetime(2026, 7, 17, 4, 0)
-        with patch.object(mt5_signal_bot, "mt5_ready", True), patch.object(
-            mt5_signal_bot, "get_broker_time", return_value=now
-        ), patch.object(mt5_signal_bot, "rebuild_slot_signal", return_value=True) as rebuild:
-            mt5_signal_bot.rebuild_h4_history(session_count=1)
-
-        self.assertEqual(rebuild.call_args.args[0].date().isoformat(), "2026-07-17")
+    def test_rebuild_h4_history_is_removed(self) -> None:
+        self.assertFalse(hasattr(mt5_signal_bot, "rebuild_h4_history"))
 
 
 if __name__ == "__main__":

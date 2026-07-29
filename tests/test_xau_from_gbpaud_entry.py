@@ -95,7 +95,7 @@ class XauFromGbpaudEntryTests(unittest.TestCase):
             res = mt5_signal_bot.evaluate_all_pairs_for_slot(dt, 7, resolve_historical_followup=True)
 
         self.assertIsNotNone(res)
-        self.assertEqual(res["logic_version"], 63)
+        self.assertEqual(res["logic_version"], 64)
         self.assertEqual(res["pair_entry_times"]["XAUUSD"], "08:25")
         self.assertEqual(res["pair_entry_times"]["GBPUSD"], "09:00")
         self.assertEqual(res["pair_entry_times"]["GBPAUD"], "09:00")

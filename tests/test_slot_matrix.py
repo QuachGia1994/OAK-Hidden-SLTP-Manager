@@ -7,7 +7,7 @@ import unittest
 import mt5_signal_bot
 
 
-ACTIVE_SLOTS = (3, 4, 7, 9, 12, 14, 16)
+ACTIVE_SLOTS = (3, 7, 9, 12, 14, 16)
 
 
 def _result(hour: int) -> dict[str, object]:
@@ -62,16 +62,14 @@ class SlotMatrixTests(unittest.TestCase):
             self.assertEqual(result["signal"], "BUY")
             self.assertFalse(result.get("suppressed", False))
 
-    def test_h4_and_thursday_h3_are_deactivated(self) -> None:
+    def test_thursday_h3_is_deactivated(self) -> None:
         with patch.object(
             mt5_signal_bot,
             "evaluate_gbp_h1_slot",
             side_effect=lambda _dt, hour, **kwargs: _result(hour),
         ):
-            h4 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 14, 4), 4)
             thursday_h3 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 23, 3), 3)
             friday_h3 = mt5_signal_bot.calculate_slot_signal(datetime(2026, 7, 24, 3), 3)
-        self.assertTrue(h4["deactivated"])
         self.assertTrue(thursday_h3["deactivated"])
         self.assertFalse(friday_h3.get("deactivated", False))
 

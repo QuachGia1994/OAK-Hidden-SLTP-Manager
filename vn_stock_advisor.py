@@ -223,9 +223,9 @@ def _backfill_h4(session_count: int, signals_log: Path) -> None:
     if not was_ready and not mt5_signal_bot.try_init_mt5():
         raise AdvisorError(AdvisorErrorCode.MT5_BACKFILL_FAILED, "MT5 initialization failed")
     try:
-        rebuilt = mt5_signal_bot.rebuild_h4_history(session_count=session_count)
+        rebuilt = mt5_signal_bot.rebuild_recent_history(days=session_count)
         if rebuilt == 0:
-            raise AdvisorError(AdvisorErrorCode.MT5_BACKFILL_FAILED, "No H=4 sessions were rebuilt")
+            raise AdvisorError(AdvisorErrorCode.MT5_BACKFILL_FAILED, "No sessions were rebuilt")
     finally:
         if not was_ready:
             mt5_signal_bot.mt5.shutdown()

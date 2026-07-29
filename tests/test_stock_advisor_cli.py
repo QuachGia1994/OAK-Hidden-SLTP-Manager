@@ -76,13 +76,13 @@ class StockAdvisorSafetyTests(unittest.TestCase):
         target = Path("C:/OAK/signals_log.json").resolve()
         observed = []
 
-        def rebuild(session_count: int) -> int:
-            observed.append((session_count, Path(mt5_signal_bot._SIGNALS_LOG)))
+        def rebuild(days: int) -> int:
+            observed.append((days, Path(mt5_signal_bot._SIGNALS_LOG)))
             return 1
 
         with patch.object(mt5_signal_bot, "mt5_ready", True):
             with patch.object(mt5_signal_bot, "_SIGNALS_LOG", "original"):
-                with patch.object(mt5_signal_bot, "rebuild_h4_history", side_effect=rebuild):
+                with patch.object(mt5_signal_bot, "rebuild_recent_history", side_effect=rebuild):
                     vn_stock_advisor._backfill_h4(1, target)
 
         self.assertEqual(observed, [(1, target)])

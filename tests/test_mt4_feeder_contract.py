@@ -9,18 +9,18 @@ class Mt4FeederContractTests(unittest.TestCase):
         cls.source = (Path(__file__).parents[1] / "MT4_Data_Feeder.mq4").read_text(encoding="utf-8")
 
     def test_uses_only_active_logical_slots(self) -> None:
-        self.assertIn("int logicalSlots[]  = {3, 4, 6, 9, 12, 14, 16};", self.source)
+        self.assertIn("int logicalSlots[]  = {3, 7, 9, 12, 14, 16};", self.source)
 
     def test_h9_and_h14_keep_normal_schedules_without_special_suppression(self) -> None:
-        self.assertIn("int signalHours[]   = {3, 4, 6, 9, 12, 14, 16};", self.source)
-        self.assertIn("int signalMinutes[] = {0, 0, 0, 0, 0, 0, 0};", self.source)
+        self.assertIn("int signalHours[]   = {3, 7, 9, 12, 14, 16};", self.source)
+        self.assertIn("int signalMinutes[] = {0, 0, 0, 0, 0, 0};", self.source)
         self.assertNotIn("IsSuppressedSlot(slot, serverTime)", self.source)
 
     def test_retries_every_slot_once_per_minute_through_its_max_deadline(self) -> None:
-        self.assertIn("int deadlineHours[]   = {4, 5, 7, 10, 13, 15, 17};", self.source)
-        self.assertIn("int deadlineMinutes[] = {49, 25, 25, 25, 25, 25, 25};", self.source)
-        self.assertIn("datetime lastAttemptMinutes[7];", self.source)
-        self.assertIn("int completedDateKeys[7];", self.source)
+        self.assertIn("int deadlineHours[]   = {4, 8, 10, 13, 15, 17};", self.source)
+        self.assertIn("int deadlineMinutes[] = {49, 25, 25, 25, 25, 25};", self.source)
+        self.assertIn("datetime lastAttemptMinutes[6];", self.source)
+        self.assertIn("int completedDateKeys[6];", self.source)
         self.assertIn("for(int index = 0; index < ArraySize(logicalSlots); index++)", self.source)
         self.assertIn("lastAttemptMinutes[index] = currentMinute;", self.source)
         self.assertIn("if(SendSlotData(index, serverTime))", self.source)
@@ -36,11 +36,12 @@ class Mt4FeederContractTests(unittest.TestCase):
         self.assertIn("EventKillTimer();", self.source)
         self.assertEqual(self.source.count("ProcessEligibleSlots();"), 2)
 
-    def test_marks_dependency_slots_and_every_thursday_h3_as_deactivated(self) -> None:
+    def test_marks_every_thursday_h3_as_deactivated(self) -> None:
         self.assertIn(
-            "deactivated = slot == 4 || (slot == 3 && TimeDayOfWeek(serverTime) == 4)",
+            "deactivated = (slot == 3 && TimeDayOfWeek(serverTime) == 4)",
             self.source,
         )
+        self.assertNotIn("slot == 4", self.source)
         self.assertIn('json += "\\\"deactivated\\\":"', self.source)
 
     def test_uses_yesterday_h1_pairs_and_today_xau_m15_context(self) -> None:

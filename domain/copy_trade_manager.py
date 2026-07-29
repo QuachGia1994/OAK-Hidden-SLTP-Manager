@@ -40,7 +40,7 @@ from domain.broker_clock import BrokerClock
 log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 63
+MINIMUM_SIGNAL_LOGIC_VERSION = 64
 _BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(_PROJECT_ROOT, "broker_clock_cache.json"),
@@ -81,8 +81,8 @@ def _select_current_signal_rows(log_rows, target_date=None):
 
 
 def _is_do_not_enter_signal(hour, payload):
-    """Return True for slots that must not be actioned — H4 and Thursday H3."""
-    if payload.get("deactivated") or hour == 4:
+    """Return True for slots that must not be actioned — Thursday H3."""
+    if payload.get("deactivated"):
         return True
     if hour != 3:
         return False

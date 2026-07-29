@@ -97,14 +97,14 @@ class WaitRecordContractTests(unittest.TestCase):
             self.assertEqual(result.get("GBPUSD"), "WAIT")
             self.assertEqual(result.get("GBPAUD"), "WAIT")
 
-    def test_signal_logic_version_is_63(self):
-        self.assertEqual(SIGNAL_LOGIC_VERSION, 63)
+    def test_signal_logic_version_is_64(self):
+        self.assertEqual(SIGNAL_LOGIC_VERSION, 64)
 
     def test_deactivated_slots_still_deactivated(self):
-        """Safety guard: deactivated slots remain deactivated."""
+        """Safety guard: Thursday H3 remains deactivated; H4 is no longer active."""
         thursday = datetime(2026, 7, 30, 3, 0)
         self.assertTrue(is_deactivated_signal_slot(thursday, 3))
-        self.assertTrue(is_deactivated_signal_slot(thursday, 4))
+        self.assertNotIn(4, ACTIVE_HOURS)
         tuesday = datetime(2026, 7, 28, 3, 0)
         self.assertFalse(is_deactivated_signal_slot(tuesday, 3))
 

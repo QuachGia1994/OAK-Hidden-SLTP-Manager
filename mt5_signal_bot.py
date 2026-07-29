@@ -36,21 +36,47 @@ try:
     with open(_config_path, "r", encoding="utf-8") as _f:
         _cfg = json.load(_f)
     TELEGRAM_TOKEN = _cfg.get("telegram_token", "")
-    TELEGRAM_CHAT_ID = _cfg.get("telegram_chat_id", "")
+    TELEGRAM_ADMIN_CHAT_ID = _cfg.get("telegram_admin_chat_id") or _cfg.get("telegram_chat_id", "")
+    TELEGRAM_CHAT_ID = TELEGRAM_ADMIN_CHAT_ID
     MT5_PATH = _cfg.get("mt5_path", "")
     DASHBOARD_URL = _cfg.get("dashboard_url", "")
 except Exception:
     TELEGRAM_TOKEN = ""
+    TELEGRAM_ADMIN_CHAT_ID = ""
     TELEGRAM_CHAT_ID = ""
     MT5_PATH = ""
     DASHBOARD_URL = ""
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "XAUUSD"
-TARGET_HOURS = [3, 4, 7, 9, 12, 14, 16]
+TARGET_HOURS = [3, 7, 9, 12, 14, 16]
 ACTIVE_HOURS = frozenset(TARGET_HOURS)
 GBP_SOURCE_PAIRS = ("GBPUSD", "GBPAUD")
 VN_UTC_OFFSET = 7  # Vietnam local timezone (Indochina Time, no DST)
+
+
+def resolve_signal_admin_chat_id(profile_cfg=None):
+    """Return a positive integer admin chat ID for signal notifications.
+
+    Rejects group/channel IDs (<= 0) and invalid values.
+    Returns None if no valid admin chat ID is available.
+    """
+    raw_id = None
+    if profile_cfg:
+        raw_id = profile_cfg.get("tele_chat")
+    if not raw_id:
+        raw_id = TELEGRAM_ADMIN_CHAT_ID
+    if not raw_id:
+        return None
+    try:
+        chat_id = int(raw_id)
+    except (TypeError, ValueError):
+        print(f"[WARN] Invalid telegram admin chat ID: {raw_id}")
+        return None
+    if chat_id <= 0:
+        print(f"[WARN] Group/channel chat ID rejected for admin routing: {chat_id}")
+        return None
+    return chat_id
 
 
 def _broker_time_to_local(broker_time_str, broker_offset, local_offset=VN_UTC_OFFSET):
@@ -116,7 +142,7 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 63
+SIGNAL_LOGIC_VERSION = 64
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 INDEPENDENT_M15_PAIRS = ("GBPUSD", "GBPAUD")
@@ -178,13 +204,12 @@ def get_evaluated_pairs_for_hour(hour):
     """Return which pairs are evaluated at a given slot hour.
 
     H3: XAUUSD + GBPAUD only (GBPUSD deferred to H7).
-    H4: all three (internal dependency).
     H7/H9/H12/H14/H16: all three.
     """
     h = int(hour)
     if h == 3:
         return ("XAUUSD", "GBPAUD")
-    if h in (4, 7, 9, 12, 14, 16):
+    if h in (7, 9, 12, 14, 16):
         return SIGNAL_PAIRS
     return ()
 
@@ -497,12 +522,12 @@ def send_telegram(text: str) -> bool:
             profile_cfg.get("tele_token"),
             global_fallback=TELEGRAM_TOKEN,
         )
-        chat_id = profile_cfg.get("tele_chat") or TELEGRAM_CHAT_ID
+        chat_id = resolve_signal_admin_chat_id(profile_cfg)
     except Exception as error:
         print(f"[TELEGRAM] Cannot resolve profile credentials: {error}")
         return False
 
-    if not token or not chat_id:
+    if not token or chat_id is None:
         print(
             "[TELEGRAM] Missing token or chat_id "
             f"for profile={profile_name or '<default>'}"
@@ -1980,8 +2005,6 @@ def is_deactivated_signal_slot(broker_dt, hour):
     if broker_dt is None:
         return False
     h = int(hour)
-    if h == 4:
-        return True
     if h == 3 and broker_dt.weekday() == 3:
         return True
     return False
@@ -2001,7 +2024,6 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
     h = int(hour)
     fallback_clocks = {
         3: "04:49",
-        4: "05:25",
         7: "08:25",
         9: "10:25",
         12: "13:25",
@@ -2100,7 +2122,7 @@ def load_signal_rule_contract():
     return {
         "logic_version": SIGNAL_LOGIC_VERSION,
         "public_slots": [3, 7, 9, 12, 14, 16],
-        "internal_slots": [4],
+        "internal_slots": [],
         "rules": {"VN": [], "EN": []},
         "startup_summary": {
             "VN": [
@@ -2108,7 +2130,6 @@ def load_signal_rule_contract():
                 "Pairs: GBPAUD / GBPUSD → XAUUSD",
                 "XAU: entry :11/:25 = cùng GBPAUD · :49 = đảo",
                 "H3: GBPUSD chờ H7 · GBPAUD là Stock-Direction",
-                "Safety: H4 nội bộ · thiếu dữ liệu → WAIT",
                 "Auto-close: XAU 17:59 · GBP 19:59 Broker",
             ]
         },
@@ -2135,7 +2156,6 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
         "Pairs: GBPAUD / GBPUSD → XAUUSD\n"
         "XAU: entry :11/:25 = cùng GBPAUD · :49 = đảo\n"
         "H3: GBPUSD chờ H7 · GBPAUD là Stock-Direction\n"
-        "Safety: H4 nội bộ · thiếu dữ liệu → WAIT\n"
         "Auto-close: XAU 17:59 · GBP 19:59 Broker"
     )
 
@@ -2173,16 +2193,29 @@ def should_send_xau_entry_alert(current_result, sent_fingerprints):
 
 
 def build_entry_ready_telegram_message(record, broker_dt=None):
-    """Build concise user-facing Telegram message when XAUUSD entry becomes READY."""
+    """Build concise user-facing Telegram message when XAUUSD entry becomes READY.
+
+    Formats GMT local time for all three signal pairs.
+    Validates hour as integer (fail closed → None if missing/invalid).
+    """
     h = record.get("hour")
+    try:
+        h = int(h)
+    except (TypeError, ValueError):
+        return None
+    if h not in ACTIVE_HOURS:
+        return None
+
     pair_dirs = record.get("pair_dirs", {})
     pair_entry_times = record.get("pair_entry_times", {})
+    pair_entry_states = record.get("pair_entry_states", {})
     xau_dir = pair_dirs.get("XAUUSD", "WAIT")
     gbpaud_dir = pair_dirs.get("GBPAUD", "WAIT")
     gbpusd_dir = pair_dirs.get("GBPUSD", "WAIT")
     xau_entry = pair_entry_times.get("XAUUSD", "--:--")
     gbpusd_entry = pair_entry_times.get("GBPUSD")
     gbpaud_entry = pair_entry_times.get("GBPAUD")
+    gbpusd_state = pair_entry_states.get("GBPUSD", "WAIT")
     ver = record.get("logic_version", SIGNAL_LOGIC_VERSION)
     source_date = record.get("source_date", "")
 
@@ -2193,37 +2226,42 @@ def build_entry_ready_telegram_message(record, broker_dt=None):
     minute = match.group(1) if match else "11"
     relation_label = f":{minute} = CÙNG" if relation == "SAME" else f":{minute} = ĐẢO"
 
-    local_str = ""
-    if source_date and xau_entry and getattr(BROKER_CLOCK, "verified", True):
+    b_offset = record.get("broker_utc_offset", 3)
+
+    def _format_pair_local(entry_time, b_offset, source_date):
+        """Format local GMT time string for a pair entry."""
+        if not entry_time or not source_date:
+            return ""
         try:
             s_date = datetime.fromisoformat(source_date).date()
-            b_offset = record.get("broker_utc_offset", 3)
-            utc_iso = compute_utc_iso(s_date, xau_entry, b_offset)
+            utc_iso = compute_utc_iso(s_date, entry_time, b_offset)
             if utc_iso:
                 utc_dt = datetime.fromisoformat(utc_iso.replace("Z", "+00:00"))
                 local_dt = utc_dt.astimezone()
-                tz_name = local_dt.strftime("%Z") or "Local"
-                if local_dt.tzinfo and hasattr(local_dt.tzinfo, "utcoffset"):
-                    offset_sec = local_dt.tzinfo.utcoffset(local_dt).total_seconds()
-                    offset_h = int(offset_sec // 3600)
-                    tz_name = f"GMT{'+' if offset_h >= 0 else ''}{offset_h}"
+                offset_sec = local_dt.utcoffset().total_seconds() if local_dt.tzinfo else 0
+                offset_h = int(offset_sec // 3600)
+                tz_name = f"GMT{'+' if offset_h >= 0 else ''}{offset_h}"
                 local_time_formatted = local_dt.strftime("%H:%M")
                 date_delta = (local_dt.date() - s_date).days
                 delta_str = " +1d" if date_delta > 0 else " -1d" if date_delta < 0 else ""
-                local_str = f" · {local_time_formatted} {tz_name}{delta_str}"
+                return f" · {local_time_formatted} {tz_name}{delta_str}"
         except Exception:
             pass
+        return ""
 
-    gbp_entry_str = f"{gbpusd_entry} Broker" if gbpusd_entry and gbpusd_entry != "DEFERRED_TO_H7" else "Chờ H7"
-    gbpaud_entry_str = f"{gbpaud_entry} Broker" if gbpaud_entry else "--:--"
+    xau_local_str = _format_pair_local(xau_entry, b_offset, source_date)
+    gbpusd_local_str = _format_pair_local(gbpusd_entry, b_offset, source_date) if gbpusd_entry else ""
+    gbpaud_local_str = _format_pair_local(gbpaud_entry, b_offset, source_date) if gbpaud_entry else ""
+
+    gbpusd_entry_display = f"{gbpusd_entry} Broker{gbpusd_local_str}" if gbpusd_entry and gbpusd_state != "DEFERRED_TO_H7" else "Chờ H7"
+    gbpaud_entry_display = f"{gbpaud_entry} Broker{gbpaud_local_str}" if gbpaud_entry else "--:--"
 
     lines = [
         f"🚨 XAUUSD ENTRY READY · H{h}",
-        f"XAUUSD: {xau_icon} {xau_dir}",
-        f"Entry: {xau_entry} Broker{local_str}",
+        f"XAUUSD: {xau_icon} {xau_dir} · {xau_entry} Broker{xau_local_str}",
         f"Nguồn: GBPAUD {gbpaud_dir} · {relation_label}",
-        f"GBPUSD: {gbpusd_dir} · {gbp_entry_str}",
-        f"GBPAUD: {gbpaud_dir} · {gbpaud_entry_str}",
+        f"GBPUSD: {gbpusd_dir} · {gbpusd_entry_display}",
+        f"GBPAUD: {gbpaud_dir} · {gbpaud_entry_display}",
         f"Logic: v{ver} · {source_date}",
     ]
     return "\n".join(lines)
@@ -2494,40 +2532,6 @@ def rebuild_recent_history(days=45):
 
     print(f"  [REBUILD] Done: {rebuilt} slots refreshed across {days} days (logic v{SIGNAL_LOGIC_VERSION})")
     return rebuilt
-
-
-def rebuild_h4_history(session_count=35):
-    """Backfill only H=4 weekday signals without clearing unrelated history."""
-    if not mt5_ready:
-        print("  [H4 BACKFILL] MT5 not ready, skip")
-        return 0
-    target_dates = _recent_h4_dates(get_broker_time(), session_count)
-    rebuilt = 0
-    for target_date in target_dates:
-        target_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=4)
-        try:
-            rebuilt += int(rebuild_slot_signal(target_dt, 4))
-        except Exception as error:
-            print(f"  [H4 BACKFILL] Error {target_date.isoformat()}: {error}")
-    print(f"  [H4 BACKFILL] Done: {rebuilt}/{len(target_dates)} sessions")
-    return rebuilt
-
-
-def _recent_h4_dates(broker_dt, session_count):
-    """Return chronological weekdays whose H=4 cutoff has passed."""
-    try:
-        remaining = max(0, int(session_count))
-    except (TypeError, ValueError):
-        return []
-    cursor = broker_dt.date()
-    if (broker_dt.hour, broker_dt.minute) < (4, 0):
-        cursor -= timedelta(days=1)
-    dates = []
-    while len(dates) < remaining:
-        if cursor.weekday() < 5:
-            dates.append(cursor)
-        cursor -= timedelta(days=1)
-    return list(reversed(dates))
 
 
 def rebuild_signals_on_startup():
