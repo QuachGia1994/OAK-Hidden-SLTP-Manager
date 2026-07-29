@@ -20,5 +20,5 @@ function brokerWeekday(date: string): number | null {
 export function isEffectivelyDeactivated(signal: SignalDeactivationInput): boolean {
   if (signal.deactivated === true) return true;
   if (signal.hour === 4) return true;
-  return signal.hour === 3 && brokerWeekday(signal.date) === 4;
+  return false;
 }

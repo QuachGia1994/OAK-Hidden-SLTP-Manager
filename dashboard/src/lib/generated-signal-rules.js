@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 64;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 68;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16];
 export const INTERNAL_SIGNAL_SLOTS = [];
 
@@ -17,24 +17,25 @@ export const RULES_BY_LOCALE = {
     "GBPAUD is the direction source for XAUUSD. When XAU entry ends in :11 or :25, XAUUSD takes the SAME direction as GBPAUD; when XAU entry ends in :49, XAUUSD takes the REVERSE direction of GBPAUD.",
     "XAUUSD uses its own entry time. GBPUSD and GBPAUD enter after XAU entry per pair_entry_times for each symbol.",
     "Thursday H3 is non-actionable. Missing data or unresolved DOJI results in WAIT."
+  ],
+  "vn": [
+    "Entry Time của XAUUSD quyết định cây M15 Base dùng tạo signal cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.",
+    "Entry H:11 dùng cây M15 mở H−00:15, đóng H:00 và đảo Base.",
+    "Entry H:49 dùng cây M15 mở H:00, đóng H:15 và giữ nguyên Base.",
+    "Entry (H+1):25 dùng cây M15 mở H:00, đóng H:15 và đảo Base.",
+    "Mỗi symbol đọc cây M15 của chính nó. Không symbol nào cung cấp direction cho symbol khác.",
+    "Tại H14 và H16, signal của cả năm symbol được đảo thêm một lần.",
+    "Base thiếu dữ liệu hoặc DOJI thì riêng symbol đó WAIT."
+  ],
+  "en": [
+    "The XAUUSD Entry Time selects the M15 Base candle used to derive signals for XAUUSD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.",
+    "Entry H:11 uses the M15 candle opening at H−00:15 and closing at H:00, then reverses the Base.",
+    "Entry H:49 uses the M15 candle opening at H:00 and closing at H:15, then keeps the Base direction.",
+    "Entry (H+1):25 uses the M15 candle opening at H:00 and closing at H:15, then reverses the Base.",
+    "Each symbol reads its own M15 candle. No symbol provides direction for another symbol.",
+    "At H14 and H16, the signal of all five symbols is inverted once more.",
+    "A missing or DOJI Base results in WAIT only for that symbol."
   ]
 };
 
-export const STARTUP_SUMMARY_BY_LOCALE = {
-  "VN": [
-    "Slots: H3 · H7 · H9 · H12 · H14 · H16",
-    "Pairs: GBPAUD / GBPUSD → XAUUSD",
-    "XAU: entry :11/:25 = cùng GBPAUD · :49 = đảo",
-    "H3: GBPUSD chờ H7 · GBPAUD là Stock-Direction",
-    "Safety: Thiếu dữ liệu / DOJI → WAIT",
-    "Auto-close: XAU 17:59 · GBP 19:59 Broker"
-  ],
-  "EN": [
-    "Slots: H3 · H7 · H9 · H12 · H14 · H16",
-    "Pairs: GBPAUD / GBPUSD → XAUUSD",
-    "XAU: entry :11/:25 = SAME GBPAUD · :49 = REVERSE",
-    "H3: GBPUSD deferred to H7 · GBPAUD Stock-Direction",
-    "Safety: Missing data / DOJI → WAIT",
-    "Auto-close: XAU 17:59 · GBP 19:59 Broker"
-  ]
-};
+export const STARTUP_SUMMARY_BY_LOCALE = "v68: Stage A/B engine, 5 symbols (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD)";

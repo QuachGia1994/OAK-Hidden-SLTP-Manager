@@ -18,7 +18,7 @@ class Mt4FeederContractTests(unittest.TestCase):
 
     def test_retries_every_slot_once_per_minute_through_its_max_deadline(self) -> None:
         self.assertIn("int deadlineHours[]   = {4, 8, 10, 13, 15, 17};", self.source)
-        self.assertIn("int deadlineMinutes[] = {49, 25, 25, 25, 25, 25};", self.source)
+        self.assertIn("int deadlineMinutes[] = {25, 25, 25, 25, 25, 25};", self.source)
         self.assertIn("datetime lastAttemptMinutes[6];", self.source)
         self.assertIn("int completedDateKeys[6];", self.source)
         self.assertIn("for(int index = 0; index < ArraySize(logicalSlots); index++)", self.source)
@@ -36,12 +36,11 @@ class Mt4FeederContractTests(unittest.TestCase):
         self.assertIn("EventKillTimer();", self.source)
         self.assertEqual(self.source.count("ProcessEligibleSlots();"), 2)
 
-    def test_marks_every_thursday_h3_as_deactivated(self) -> None:
-        self.assertIn(
-            "deactivated = (slot == 3 && TimeDayOfWeek(serverTime) == 4)",
-            self.source,
-        )
-        self.assertNotIn("slot == 4", self.source)
+    def test_no_thursday_h3_deactivation_v65(self) -> None:
+        """Since v65, deactivated is always false; no weekday check."""
+        self.assertIn("bool deactivated = false;", self.source)
+        self.assertNotIn("TimeDayOfWeek(serverTime) == 4", self.source)
+        self.assertNotIn("slot == 3 &&", self.source)
         self.assertIn('json += "\\\"deactivated\\\":"', self.source)
 
     def test_uses_yesterday_h1_pairs_and_today_xau_m15_context(self) -> None:

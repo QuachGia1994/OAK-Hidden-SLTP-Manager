@@ -29,7 +29,7 @@ class XauEntryPlanTests(unittest.TestCase):
         dt = datetime(2026, 7, 29, 3, 45)
         res = mt5_signal_bot.build_xau_entry_plan(dt, 3, "BUY", "GIAM", followup_gbpaud_direction="GIAM")
         self.assertEqual(res["entry_state"], "READY")
-        self.assertEqual(res["entry_time"], "04:49")
+        self.assertEqual(res["entry_time"], "04:25")
         self.assertEqual(res["entry_rule"], "H3_OPPOSITE_THEN_OPPOSITE")
 
     def test_h3_opposite_then_same(self) -> None:
@@ -99,28 +99,3 @@ class XauEntryPlanTests(unittest.TestCase):
             self.assertEqual(res["entry_time"], f"{hour:02d}:49")
             self.assertEqual(res["entry_rule"], "H9PLUS_SAME_THEN_OPPOSITE")
 
-    def test_gbpusd_h9plus_inversion_in_evaluation(self) -> None:
-        """Verify GBPUSD signal is inverted for H>=9 but unchanged for H<9."""
-        dt = datetime(2026, 7, 29, 9, 0)
-        # Base TANG, pattern BT (GIAM, GIAM, TANG -> BT), prov BUY. offset -15 GIAM (SELL) -> KEEP -> BUY.
-        # For GBPUSD H=9: final is inverted to SELL.
-        lookback_dirs = ("TANG", "GIAM", "GIAM", "TANG", "GIAM")
-        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback_dirs):
-            res_gbpusd = mt5_signal_bot.evaluate_symbol_m15_for_slot(dt, 9, "GBPUSD")
-        self.assertIsNotNone(res_gbpusd)
-        self.assertEqual(res_gbpusd["post_offset15_direction"], "BUY")
-        self.assertTrue(res_gbpusd["gbpusd_h9plus_inversion_applied"])
-        self.assertEqual(res_gbpusd["direction"], "SELL")
-
-        # For H=3, no inversion applied for GBPUSD
-        dt3 = datetime(2026, 7, 29, 3, 0)
-        with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback_dirs):
-            res_gbpusd_h3 = mt5_signal_bot.evaluate_symbol_m15_for_slot(dt3, 3, "GBPUSD")
-        self.assertIsNotNone(res_gbpusd_h3)
-        self.assertEqual(res_gbpusd_h3["post_offset15_direction"], "BUY")
-        self.assertFalse(res_gbpusd_h3["gbpusd_h9plus_inversion_applied"])
-        self.assertEqual(res_gbpusd_h3["direction"], "BUY")
-
-
-if __name__ == "__main__":
-    unittest.main()

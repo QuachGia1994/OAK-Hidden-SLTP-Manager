@@ -1,10 +1,15 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [v3.18.2] - 2026-07-29
+
+- GBPAUD lấy hướng cây H1 hoàn tất ngay trước mốc signal (H3 dùng H2, H7 dùng H6, v.v.) thay vì dùng M15 Base/pattern/post-filter. TĂNG → BUY, GIẢM → SELL. M15 offset -15 và H:45 follow-up chỉ dùng cho XAU entry timing.
+- Nâng contract signal lên logic version 67.
+
 ## [v3.18.2] - 2026-07-28
 
 - Thay toàn bộ ma trận signal bằng một quy tắc chung cho H=3/H=4/H=6/H=9/H=12/H=14/H=16: suy hướng XAUUSD từ hai nến H1 GBPUSD của ngày Broker trước đó tại mốc tương ứng; GBPAUD chỉ dùng để đối chiếu và chọn nhánh entry.
-- Nếu hai hướng suy ra trùng nhau, entry là `H:11`. Nếu ngược nhau, phân loại ba nến XAUUSD M15 hôm nay sau khi bỏ nến sát mốc; ví dụ H=9 bỏ 08:45 và dùng đúng 08:30/08:15/08:00 để chọn `H:49` hoặc `(H+1):25` (H=3 dùng 03:49/04:49).
-- Giữ fail-closed khi thiếu nến hoặc DOJI không resolve được, chỉ xuất XAUUSD, giữ H=4 và H=3 Thứ Năm ở trạng thái `deactivated`, đồng thời xóa H=5 cùng toàn bộ logic M30/4H1/priority/RHYTHM đã nghỉ.
+- Nếu hai hướng suy ra trùng nhau, entry là `H:11`. Nếu ngược nhau, phân loại ba nến XAUUSD M15 hôm nay sau khi bỏ nến sát mốc; ví dụ H=9 bỏ 08:45 và dùng đúng 08:30/08:15/08:00 để chọn `H:49` hoặc `(H+1):25` (H=3 dùng 03:49/04:25).
+- Giữ fail-closed khi thiếu nến hoặc DOJI không resolve được, chỉ xuất XAUUSD, giữ H=4 ở trạng thái `deactivated`, đồng thời xóa H=5 cùng toàn bộ logic M30/4H1/priority/RHYTHM đã nghỉ.
 - Nâng contract signal lên logic version 49; đồng bộ bot, MT4/MT5 comparator, desktop, API, Dashboard, tài liệu và regression tests để record cũ không thể lọt vào giao diện hiện hành.
 
 ## [v3.18.1] - 2026-07-26

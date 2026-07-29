@@ -40,7 +40,7 @@ class TestGetDayNotes(unittest.TestCase):
         self.assertIn("yesterday H8/H7", notes)
         self.assertIn("Matching GBPUSD/GBPAUD results", notes)
         self.assertIn("H9 skips 08:45 and uses 08:30/08:15/08:00", notes)
-        self.assertIn("H3 SW → 04:49, BT → 03:49", notes)
+        self.assertIn("H3 SW → 04:25, BT → 03:49", notes)
         self.assertNotIn("M30", notes)
 
     def test_special_pair_notes_keep_late_slots(self):

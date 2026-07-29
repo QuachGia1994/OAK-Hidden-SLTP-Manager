@@ -35,25 +35,25 @@ class SignalCoreScheduleTests(unittest.TestCase):
         for hour, entry_time in ((3, "03:11"), (9, "09:49"), (16, "16:11")):
             with self.subTest(hour=hour), patch.object(
                 mt5_signal_bot,
-                "evaluate_gbp_h1_slot",
+                "evaluate_all_pairs_for_slot",
                 return_value={"entry_time": entry_time},
             ):
                 self.assertEqual(mt5_signal_bot.get_entry_time_for_slot(broker_dt, hour), entry_time)
 
     def test_incomplete_classification_has_no_dynamic_entry(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
-        with patch.object(mt5_signal_bot, "evaluate_gbp_h1_slot", return_value=None):
+        with patch.object(mt5_signal_bot, "evaluate_all_pairs_for_slot", return_value=None):
             for hour in ACTIVE_SLOTS:
                 with self.subTest(hour=hour):
                     self.assertIsNone(mt5_signal_bot.get_entry_time_for_slot(broker_dt, hour))
 
     def test_retry_deadlines_follow_the_resolved_entry_window(self) -> None:
         regular_tuesday = datetime(2026, 7, 14, 12, 0)
-        entries = {3: "04:49", 7: "08:25", 9: "09:11", 12: "13:25", 14: "14:49", 16: "16:11"}
+        entries = {3: "04:25", 7: "08:25", 9: "09:11", 12: "13:25", 14: "14:49", 16: "16:11"}
         for hour, entry_time in entries.items():
             with self.subTest(hour=hour), patch.object(
                 mt5_signal_bot,
-                "evaluate_gbp_h1_slot",
+                "evaluate_all_pairs_for_slot",
                 return_value={"entry_time": entry_time},
             ):
                 self.assertEqual(

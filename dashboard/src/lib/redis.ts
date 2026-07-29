@@ -15,6 +15,7 @@ export const KEYS = {
   factcheck: "sltp:factcheck",
   heartbeat: "sltp:heartbeat",
   stockAdvisor: "sltp:stock-advisor",
+  evidence: "sltp:evidence",
 };
 
 // API auth helper — rejects write requests without valid key.

@@ -144,3 +144,83 @@ export interface FactCheckSource {
   reliability: "high" | "medium" | "low";
   engine?: string;
 }
+
+// =====================================================================
+// M15 Candle Evidence (v67)
+// =====================================================================
+
+export type CandleRole = "PATTERN_3" | "PATTERN_2" | "PATTERN_1" | "BASE" | "POST_FILTER" | "H1_SOURCE";
+
+export interface CandleOhlc {
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  tick_volume: number;
+}
+
+export interface DojiResolution {
+  strategy: "PREVIOUS_M15_REVERSED";
+  source_offset_minutes: number;
+  source_candle: CandleOhlc | null;
+}
+
+export interface CandleEvidence {
+  offset_minutes: number;
+  role: CandleRole;
+  candle_datetime: string;
+  candle: CandleOhlc | null;
+  raw_direction: string | null;
+  resolved_direction: "TANG" | "GIAM" | null;
+  doji_resolution: DojiResolution | null;
+}
+
+// =====================================================================
+// H1 Candle Evidence for GBPAUD (v67)
+// =====================================================================
+
+export interface H1CandleEvidence {
+  /** Which H hour this H1 candle belongs to (e.g. H2 for signal slot H3) */
+  source_hour: number;
+  /** Signal slot this H1 candle feeds into */
+  target_hour: number;
+  candle_open_time: string;
+  candle_close_time: string;
+  candle: CandleOhlc | null;
+  raw_direction: string | null;
+  resolved_direction: "BUY" | "SELL" | null;
+  is_doji: boolean;
+}
+
+export type DerivationType = "XAUUSD_FROM_GBPAUD_H1" | "XAUUSD_ENTRY_TIMING" | "DEFERRED_TO_H7" | "GBPUSD_H9PLUS_INVERSION";
+
+export interface PairDerivation {
+  type: DerivationType;
+  source_symbol?: string;
+  source_direction?: string;
+  /** The H1 source hour used for GBPAUD direction (e.g. 2 for H3) */
+  h1_source_hour?: number;
+  /** The signal slot hour */
+  h1_target_hour?: number;
+  /** M15 offset-15 direction for entry timing */
+  offset15_direction?: string | null;
+  /** SAME or OPPOSITE relation between GBPAUD H1 and XAUUSD */
+  entry_relation?: "SAME" | "OPPOSITE" | null;
+  entry_time?: string | null;
+  reason?: string;
+  original_direction?: string;
+  inverted?: boolean;
+}
+
+export interface PairEvidence {
+  /** M15 candle analysis (GBPUSD / GBPAUD entry timing) */
+  analysis: (CandleEvidence | null)[];
+  /** H1 candle evidence for GBPAUD final direction */
+  h1_evidence?: H1CandleEvidence | null;
+  evaluation: Record<string, unknown> | null;
+  derivation: PairDerivation | null;
+}
+
+export interface SignalEvidence {
+  [symbol: string]: PairEvidence;
+}

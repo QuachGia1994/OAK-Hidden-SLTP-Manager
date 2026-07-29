@@ -25,15 +25,15 @@ class SignalIncompleteDataTests(unittest.TestCase):
     def test_m15_missing_or_unresolved_doji_is_incomplete(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         with patch.object(mt5_signal_bot, "_lookback_candle_direction", return_value=None):
-            self.assertIsNone(mt5_signal_bot.evaluate_symbol_m15_for_slot(broker_dt, 12, "XAUUSD"))
-            self.assertIsNone(mt5_signal_bot.evaluate_symbol_m15_for_slot(broker_dt, 12, "GBPUSD"))
-            self.assertIsNone(mt5_signal_bot.evaluate_symbol_m15_for_slot(broker_dt, 12, "GBPAUD"))
+            self.assertIsNone(mt5_signal_bot.evaluate_xau_entry_timing_basis_m15(broker_dt, 12))
+            self.assertIsNone(mt5_signal_bot.evaluate_xau_entry_timing_basis_m15(broker_dt, 12))
+            self.assertIsNone(mt5_signal_bot.evaluate_xau_entry_timing_basis_m15(broker_dt, 12))
 
     def test_every_active_slot_waits_when_new_context_is_incomplete(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         for hour in ACTIVE_SLOTS:
             with self.subTest(hour=hour), ExitStack() as stack:
-                stack.enter_context(patch.object(mt5_signal_bot, "evaluate_gbp_h1_slot", return_value=None))
+                stack.enter_context(patch.object(mt5_signal_bot, "evaluate_all_pairs_for_slot", return_value=None))
                 for name in LEGACY_SEAMS:
                     stack.enter_context(
                         patch.object(

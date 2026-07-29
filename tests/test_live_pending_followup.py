@@ -51,8 +51,8 @@ class H3PendingFollowupTests(unittest.TestCase):
         self.assertEqual(plan["entry_state"], "READY")
         self.assertEqual(plan["entry_time"], "03:49")
 
-    def test_h3_opposite_followup_opposite_gives_0449(self):
-        """H3 OPPOSITE + follow-up OPPOSITE → 04:49."""
+    def test_h3_opposite_followup_opposite_gives_0425(self):
+        """H3 OPPOSITE + follow-up OPPOSITE → 04:25."""
         slot_dt = datetime(2026, 7, 29, 3, 0)
         plan = mt5_signal_bot.build_xau_entry_plan(
             slot_dt, 3,
@@ -61,7 +61,7 @@ class H3PendingFollowupTests(unittest.TestCase):
             followup_gbpaud_direction="GIAM",   # OPPOSITE followup
         )
         self.assertEqual(plan["entry_state"], "READY")
-        self.assertEqual(plan["entry_time"], "04:49")
+        self.assertEqual(plan["entry_time"], "04:25")
 
     def test_can_resolve_h3_followup_after_0345(self):
         """After 03:45, H3 follow-up should be resolvable."""

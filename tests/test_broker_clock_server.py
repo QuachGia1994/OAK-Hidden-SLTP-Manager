@@ -71,7 +71,7 @@ class BrokerClockServerTests(unittest.TestCase):
     def test_special_and_post_special_slots_match_signal_bot_contract(self):
         special_thursday = datetime(2026, 8, 6, 3, 0)
         post_special_monday = datetime(2026, 8, 10, 12, 0)
-        self.assertTrue(mt4_mt5_server.is_deactivated_slot(special_thursday, 3))
+        self.assertFalse(mt4_mt5_server.is_deactivated_slot(special_thursday, 3))
         self.assertNotIn(4, mt4_mt5_server.TARGET_HOURS)
         self.assertNotIn(5, mt4_mt5_server.TARGET_HOURS)
         self.assertFalse(mt4_mt5_server.is_slot_suppressed(special_thursday, 12))
@@ -97,11 +97,12 @@ class BrokerClockServerTests(unittest.TestCase):
         self.assertEqual(response.get_json()["status"], "ok")
         send.assert_called_once()
 
-    def test_deactivated_h3_warns_once_and_is_restart_safe(self):
+    def test_thursday_h3_is_active_and_deduplicated(self):
+        """Since v65, H3 is active on every weekday including Thursday."""
         broker_dt = datetime(2026, 8, 6, 3, 0)
         payload = _mt4_payload(3, "03:00")
         mt5_data = _mt5_context(3)
-        mt5_data["entry_time"] = "04:49"
+        mt5_data["entry_time"] = "04:25"
         with tempfile.TemporaryDirectory() as temp_dir:
             state_path = f"{temp_dir}/mt4_server_state.json"
             mt4_mt5_server._deliveries_in_progress.clear()
@@ -118,10 +119,8 @@ class BrokerClockServerTests(unittest.TestCase):
                 duplicate = client.post("/mt4_data", json=payload)
 
         self.assertEqual(first.status_code, 200)
-        self.assertTrue(first.get_json()["deactivated"])
+        self.assertFalse(first.get_json().get("deactivated", False))
         self.assertEqual(duplicate.get_json()["status"], "duplicate")
-        self.assertIn("KHONG VAO LENH", send.call_args.args[0])
-        self.assertNotIn("=> Mua", send.call_args.args[0])
         send.assert_called_once()
 
     def test_h1_results_drive_signal_and_m15_only_breaks_opposite_entry(self):
@@ -146,14 +145,14 @@ class BrokerClockServerTests(unittest.TestCase):
         self.assertEqual(same["signal"], "BUY")
         self.assertEqual(same["entry_time"], "12:11")
 
-    def test_h3_uses_0449_as_the_late_opposite_entry(self):
+    def test_h3_uses_0425_as_the_late_opposite_entry(self):
         context = mt4_mt5_server.calculate_context(
             3,
             "TANG", "GIAM",
             "GIAM", "TANG",
             ("TANG", "TANG", "TANG"),
         )
-        self.assertEqual(context["entry_time"], "04:49")
+        self.assertEqual(context["entry_time"], "04:25")
 
     def test_fetch_uses_yesterday_h1_and_skips_the_first_today_m15(self):
         broker_dt = datetime(2026, 8, 6, 9, 0)

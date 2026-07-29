@@ -175,7 +175,7 @@ def vn_direction(d):
 
 
 ACTIVE_SIGNAL_HOURS = frozenset({3, 7, 9, 12, 14, 16})
-ACTIVE_SIGNAL_LOGIC_VERSION = 64
+ACTIVE_SIGNAL_LOGIC_VERSION = 68
 
 
 def get_latest_display_signal(signals, today=None, allow_fallback=True):
@@ -203,8 +203,6 @@ def get_latest_display_signal(signals, today=None, allow_fallback=True):
         if hour not in ACTIVE_SIGNAL_HOURS:
             return False
         if logic_version < ACTIVE_SIGNAL_LOGIC_VERSION:
-            return False
-        if hour == 3 and trading_date.weekday() == 3:
             return False
         pair_dirs = row.get("pair_dirs")
         if not isinstance(pair_dirs, dict):

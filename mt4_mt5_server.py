@@ -181,8 +181,6 @@ def is_slot_suppressed(broker_dt, slot):
 
 
 def is_deactivated_slot(broker_dt, slot):
-    if slot == 3 and broker_dt.weekday() == 3:
-        return True
     return False
 
 
@@ -335,7 +333,7 @@ def _opposite_entry_time(slot, m15_group):
     if m15_group != "SW":
         return None
     if int(slot) == 3:
-        return "04:49"
+        return "04:25"
     return f"{int(slot) + 1:02d}:25"
 
 

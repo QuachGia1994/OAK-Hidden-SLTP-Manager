@@ -14,6 +14,8 @@ export interface PairBadgeProps {
   } | null;
   state?: string | null;
   label?: string | null;
+  onClick?: () => void;
+  hasEvidence?: boolean;
 }
 
 export function PairBadge({
@@ -23,6 +25,8 @@ export function PairBadge({
   localEntryTime,
   state,
   label,
+  onClick,
+  hasEvidence,
 }: PairBadgeProps) {
   const { locale } = useLocale();
 
@@ -47,9 +51,22 @@ export function PairBadge({
   }
 
   return (
-    <div className="flex items-center justify-between py-1.5 gap-2">
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex items-center justify-between py-1.5 gap-2 w-full text-left ${
+        onClick ? "cursor-pointer hover:bg-[var(--surface-raised)] rounded-md transition-colors min-h-[44px]" : "cursor-default"
+      }`}
+      aria-label={onClick ? (locale === "EN" ? `Inspect ${pair} evidence` : `Kiểm tra bằng chứng ${pair}`) : undefined}
+    >
       <div className="flex items-center gap-1.5">
         <span className="font-mono text-sm font-black text-[var(--foreground)]">{pair}</span>
+        {onClick && (
+          <svg className="w-3.5 h-3.5 text-[var(--muted)]/60 hover:text-[var(--terminal-accent)] transition-colors" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25" />
+          </svg>
+        )}
         {label && (
           <span className="text-[9px] font-medium font-sans px-1.5 py-0.5 rounded border border-amber-500/30 bg-amber-500/10 text-amber-400">
             {label}
@@ -57,7 +74,7 @@ export function PairBadge({
         )}
         {pair === "XAUUSD" && (
           <span className="text-[9px] font-medium font-sans px-1 py-0.2 rounded border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]">
-            {locale === "VN" ? "Theo GBPAUD" : "From GBPAUD"}
+            {locale === "VN" ? "Theo GBPAUD H1" : "From GBPAUD H1"}
           </span>
         )}
       </div>
@@ -99,6 +116,6 @@ export function PairBadge({
           {state === "DEFERRED_TO_H7" ? "WAIT" : getSignalLabel(direction, locale)}
         </span>
       </div>
-    </div>
+    </button>
   );
 }

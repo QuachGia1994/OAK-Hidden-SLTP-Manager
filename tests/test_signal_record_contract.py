@@ -32,7 +32,6 @@ class SignalRecordContractTests(unittest.TestCase):
                 "03:11",
                 {"XAUUSD": "BUY"},
                 "",
-                deactivated=True,
             )
 
         record = captured[0][0]
@@ -43,7 +42,7 @@ class SignalRecordContractTests(unittest.TestCase):
         self.assertEqual(record["broker_utc_offset"], 3)
         self.assertTrue(record["broker_clock_verified"])
         self.assertEqual(record["logic_version"], mt5_signal_bot.SIGNAL_LOGIC_VERSION)
-        self.assertTrue(record["deactivated"])
+        self.assertFalse(record.get("deactivated", False))
         self.assertNotIn("is_priority", record)
 
     def test_h4_is_no_longer_an_active_slot(self) -> None:
@@ -96,7 +95,7 @@ class SignalRecordContractTests(unittest.TestCase):
         signal_data = {
             "signal": "BUY",
             "report": "GBP H1/M15 confirmed",
-            "entry_time": "04:49",
+            "entry_time": "04:25",
         }
 
         with (
@@ -106,7 +105,7 @@ class SignalRecordContractTests(unittest.TestCase):
         ):
             mt5_signal_bot.send_report(signal_data, 3, broker_dt)
 
-        self.assertIn("Vào lệnh: 04:49 Broker", send.call_args.args[0])
+        self.assertIn("Vào lệnh: 04:25 Broker", send.call_args.args[0])
 
 
 if __name__ == "__main__":

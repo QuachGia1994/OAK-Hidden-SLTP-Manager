@@ -1,11 +1,13 @@
 "use client";
 
+import { useState, useCallback } from "react";
 import { getEntryTimeLabel, getSignalColor, getSignalLabel, getSignalTime } from "@/lib/constants";
 import { FormattedLocalTime, useBrowserBrokerTime } from "@/hooks/useBrowserBrokerTime";
-import type { Signal } from "@/lib/types";
+import type { Signal, SignalEvidence } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
 import { DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
+import { SignalEvidenceDrawer } from "./SignalEvidenceDrawer";
 
 const VALID_TIME = /^\d{2}:\d{2}$/;
 
@@ -16,6 +18,40 @@ function getPendingEntryLabel(locale: "VN" | "EN", hour: number): string {
 
 export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: boolean }) {
   const { locale } = useLocale();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [evidence, setEvidence] = useState<SignalEvidence | null>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceError, setEvidenceError] = useState<string | null>(null);
+
+  const fetchEvidence = useCallback(async () => {
+    setDrawerOpen(true);
+    setEvidenceLoading(true);
+    setEvidenceError(null);
+    try {
+      const res = await fetch(`/api/signals/evidence?date=${signal.date}&hour=${signal.hour}`);
+      if (res.status === 403) {
+        setEvidenceError(locale === "EN" ? "VIP access required" : "Yêu cầu quyền VIP");
+        setEvidenceLoading(false);
+        return;
+      }
+      if (res.status === 404) {
+        setEvidenceError(locale === "EN" ? "No evidence data for this slot" : "Không có dữ liệu bằng chứng cho mốc này");
+        setEvidenceLoading(false);
+        return;
+      }
+      if (!res.ok) {
+        setEvidenceError(locale === "EN" ? "Failed to load evidence" : "Tải bằng chứng thất bại");
+        setEvidenceLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setEvidence(data);
+    } catch {
+      setEvidenceError(locale === "EN" ? "Network error" : "Lỗi mạng");
+    }
+    setEvidenceLoading(false);
+  }, [signal.date, signal.hour, locale]);
+
   const signalTime = VALID_TIME.test(signal.signal_time || "")
     ? (signal.signal_time as string)
     : getSignalTime(signal.hour, signal.date);
@@ -91,9 +127,19 @@ export function SignalCard({ signal, isVIP = false }: { signal: Signal; isVIP?: 
 
       <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
         {DISPLAYED_SIGNAL_PAIRS.map((pair) => (
-          <PairRow key={pair} pair={pair} signal={signal} isVIP={isVIP} />
+          <PairRow key={pair} pair={pair} signal={signal} isVIP={isVIP} onInspect={isVIP ? fetchEvidence : undefined} />
         ))}
       </div>
+
+      <SignalEvidenceDrawer
+        evidence={evidence}
+        loading={evidenceLoading}
+        error={evidenceError}
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        date={signal.date}
+        hour={signal.hour}
+      />
     </article>
   );
 }
@@ -102,10 +148,12 @@ function PairRow({
   pair,
   signal,
   isVIP,
+  onInspect,
 }: {
   pair: string;
   signal: Signal;
   isVIP: boolean;
+  onInspect?: () => void;
 }) {
   const direction = isVIP ? signal.pair_dirs?.[pair] || "-" : "locked";
   const brokerEntryTime = isVIP ? signal.pair_entry_times?.[pair] || null : null;
@@ -122,6 +170,8 @@ function PairRow({
       localEntryTime={localEntryTime}
       state={state}
       label={label}
+      onClick={onInspect}
+      hasEvidence={isVIP}
     />
   );
 }

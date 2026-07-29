@@ -21,10 +21,6 @@ def _make_dt(year, month, day, weekday_offset=0):
 class TestGetPairDirectionHSlots(unittest.TestCase):
     """Test H-slot direction rules with XAUUSD + GBP pairs."""
 
-    def test_pair_lists(self):
-        self.assertEqual(GBP_PAIRS, ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"])
-        self.assertEqual(ALL_PAIRS, ["XAUUSD", "GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"])
-
     def test_xauusd_slots_have_xauusd_only_without_full_result(self):
         """Without full_result, only XAUUSD is returned."""
         for weekday in range(5):
@@ -35,7 +31,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
                         result = get_pair_direction(hour, signal, dt)
                         self.assertIn("XAUUSD", result)
                         self.assertEqual(result["XAUUSD"], signal)
-                        self.assertEqual(result, {"XAUUSD": signal, "GBPUSD": "WAIT", "GBPAUD": "WAIT"})
+                        self.assertEqual(result, {"XAUUSD": signal, "GBPUSD": "WAIT", "GBPAUD": "WAIT", "GBPJPY": "WAIT", "GBPCAD": "WAIT"})
 
     def test_h9_includes_gbp_pairs_from_full_result(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=1)
@@ -78,7 +74,7 @@ class TestGetPairDirectionHSlots(unittest.TestCase):
     def test_wait_signal_returns_xauusd_wait(self):
         dt = _make_dt(2026, 7, 7, weekday_offset=0)
         result = get_pair_direction(7, "WAIT", dt)
-        self.assertEqual(result, {"XAUUSD": "WAIT", "GBPUSD": "WAIT", "GBPAUD": "WAIT"})
+        self.assertEqual(result, {"XAUUSD": "WAIT", "GBPUSD": "WAIT", "GBPAUD": "WAIT", "GBPJPY": "WAIT", "GBPCAD": "WAIT"})
 
 
 if __name__ == "__main__":

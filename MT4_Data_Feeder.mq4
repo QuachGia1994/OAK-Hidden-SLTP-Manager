@@ -16,7 +16,7 @@ int logicalSlots[]  = {3, 7, 9, 12, 14, 16};
 int signalHours[]   = {3, 7, 9, 12, 14, 16};
 int signalMinutes[] = {0, 0, 0, 0, 0, 0};
 int deadlineHours[]   = {4, 8, 10, 13, 15, 17};
-int deadlineMinutes[] = {49, 25, 25, 25, 25, 25};
+int deadlineMinutes[] = {25, 25, 25, 25, 25, 25};
 datetime lastAttemptMinutes[6];
 int completedDateKeys[6];
 
@@ -111,7 +111,7 @@ bool SendDataToServer(string jsonPayload)
 bool SendSlotData(int index, datetime serverTime)
 {
    int slot = logicalSlots[index];
-   bool deactivated = (slot == 3 && TimeDayOfWeek(serverTime) == 4);
+   bool deactivated = false;
    datetime todayStart = StrToTime(TimeToString(serverTime, TIME_DATE));
    datetime yesterdayStart = StrToTime(TimeToString(todayStart - 12 * 3600, TIME_DATE));
    datetime yesterdaySlot = yesterdayStart + slot * 3600;

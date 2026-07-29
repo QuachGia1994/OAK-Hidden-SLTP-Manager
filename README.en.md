@@ -1,4 +1,4 @@
-# OAK Hidden SLTP Manager (v3.18.1)
+# OAK Hidden SLTP Manager (v3.18.2)
 
 [![CI](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/actions/workflows/ci.yml/badge.svg)](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/QuachGia1994/OAK-Hidden-SLTP-Manager)](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases)
@@ -15,7 +15,7 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- The signal engine emits `XAUUSD` only: `GBPUSD` H1 supplies the signal, `GBPAUD` H1 is comparison-only, and `XAUUSD` M15 selects entry time only.
+- The signal engine emits `XAUUSD` only: `GBPUSD` H1 supplies the signal, `GBPAUD` takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2, H7 uses H6, etc.). TANG → BUY, GIAM → SELL, and `XAUUSD` M15 selects entry time only.
 - Telegram bridge with profile-safe commands and MiMo worker support. Quick orders accept `<lot> <broker HH:MM> <profile>` and convert it to the Windows clock.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
@@ -35,8 +35,8 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 - The only logical slots are **H=3, H=4, H=6, H=9, H=12, H=14, and H=16**, Monday through Friday.
 - Broker publication times: H3 `03:00`; H4 `04:00`; H6 `06:00`; H9 `09:00`; H12 `12:00`; H14 `14:00`; H16 `16:00`. Entry is never earlier than publication.
 - Every H=3/4/6/9/12/14/16 slot publishes at `H:00`. Read the two completed `GBPUSD` H1 bars from yesterday immediately before the equivalent logical slot (for example, H9 today uses yesterday H8 and H7; H8 is the base). Opposite bars are BT and keep the base direction; same-direction bars are SW and reverse the base direction. This is the final XAUUSD signal.
-- Repeat that two-H1 calculation with yesterday's `GBPAUD` only for comparison; no GBP pair is emitted. If the GBPUSD and GBPAUD results match, entry is `H:11`. If they differ, skip the M15 immediately before the slot and classify the next three completed XAUUSD M15 bars with the existing SW/BT table (for H9, skip `08:45` and use `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 is the exception: SW → `04:49`, BT → `03:49`.
-- H3 every Thursday and H4 every day remain `deactivated`/`DO NOT ENTER`. A missing candle or unresolved DOJI at any step returns `WAIT`.
+- GBPAUD takes the direction of the completed H1 bar immediately before the signal slot (H3 uses H2, H7 uses H6, etc.). TANG → BUY, GIAM → SELL. If the GBPUSD and GBPAUD results match, entry is `H:11`. If they differ, skip the M15 immediately before the slot and classify the next three completed XAUUSD M15 bars with the existing SW/BT table (for H9, skip `08:45` and use `08:30`/`08:15`/`08:00`): SW → `(H+1):25`, BT → `H:49`; H3 SW → `04:25`, BT → `03:49`.
+- H3 is active on every Broker trading weekday; H4 every day remains `deactivated`/`DO NOT ENTER`. A missing candle or unresolved DOJI at any step returns `WAIT`.
 - BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations. Absolute UTC used by scheduling/UI is kept separate from the wall-clock timestamp encoding exposed by some MT5 terminals for bars and ticks.
 
 ## Fact Check AI

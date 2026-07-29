@@ -29,7 +29,7 @@ test("uses only the approved logical slots and signal times", () => {
     "03:00", "07:00", "09:00", "12:00", "14:00", "16:00",
   ]);
   assert.equal(getSignalTime(5), "--:--");
-  assert.equal(getEntryTimeLabel(3), "03:11 / 03:49 / 04:49");
+  assert.equal(getEntryTimeLabel(3), "03:11 / 03:49 / 04:25");
   assert.equal(getSignalTime(9, "2026-08-06"), "09:00");
   assert.equal(getEntryTimeLabel(7, "2026-08-06"), "07:11 / 07:49 / 08:25");
   assert.equal(getEntryTimeLabel(9, "2026-08-06"), "09:11 / 09:49 / 10:25");
@@ -71,7 +71,7 @@ test("includes H12, H14 and H16 on special and post-special sessions", () => {
   ]);
 });
 
-test("rejects every active record before the GBP H1 and XAUUSD M15 contract", () => {
+test("rejects every active record before the GBPAUD H1 and XAUUSD entry contract", () => {
   assert.deepEqual(filterDisplayableSignals([
     { date: "2026-07-25", hour: 3, signal: "BUY", pair_dirs: { XAUUSD: "BUY" } },
     { date: "2026-07-26", hour: 3, logic_version: 48, signal: "BUY", pair_dirs: { XAUUSD: "BUY" } },
@@ -155,9 +155,9 @@ test("converts local time only with verified, consistent Broker clock metadata",
   }), Date.UTC(2026, 7, 6, 0, 0));
 });
 
-test("derives deactivated card state for safety slots and Thursday H3 placeholders", () => {
+test("derives deactivated card state for H4 and explicit deactivated flag", () => {
   assert.equal(isEffectivelyDeactivated({ date: "2026-08-05", hour: 4 }), true);
-  assert.equal(isEffectivelyDeactivated({ date: "2026-08-06", hour: 3 }), true);
+  assert.equal(isEffectivelyDeactivated({ date: "2026-08-06", hour: 3 }), false);
   assert.equal(isEffectivelyDeactivated({ date: "2026-08-07", hour: 3 }), false);
   assert.equal(isEffectivelyDeactivated({
     date: "2026-08-07",
@@ -178,10 +178,12 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the v63 M15 multi-pair rules", () => {
+test("shows the v67 M15 multi-pair rules", () => {
   const rules = getDayRules("EN", 2);
   assert.equal(rules.some((rule) => /M30|priority|compares H6/i.test(rule)), false);
-  assert.equal(rules.some((rule) => rule.includes("calculated independently")), true);
-  assert.equal(rules.some((rule) => rule.includes("GBPUSD final signal is inverted")), true);
-  assert.equal(rules.some((rule) => rule.includes("GBPAUD is the direction source for XAUUSD")), true);
+  assert.equal(rules.some((rule) => rule.includes("completed H1 candle")), true);
+  assert.equal(rules.some((rule) => rule.includes("GBPUSD signal is inverted")), true);
+  assert.equal(rules.some((rule) => rule.includes("entry :11/:25 means SAME")), true);
+  assert.equal(rules.some((rule) => rule.includes("H3 is active on every")), true);
+  assert.equal(rules.some((rule) => rule.includes("only for XAUUSD entry timing")), true);
 });

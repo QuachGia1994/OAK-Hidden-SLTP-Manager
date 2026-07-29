@@ -613,28 +613,8 @@ def get_day_notes(now, lang="VN"):
             return ["Cuối tuần: không trade theo schedule bot."]
         return ["Weekend: no bot trade schedule."]
 
-    notes_vn = [
-        "Slots: H=3,7,9,12,14,16. Giờ phát Broker: H3 03:00; H7 07:00; "
-        "H9 09:00; H12 12:00; H14 14:00; H16 16:00.",
-        "Chỉ phát XAUUSD. Mỗi mốc dùng hai H1 GBPUSD đã hoàn tất của ngày hôm qua ngay trước cùng mốc logic "
-        "(ví dụ H9 hôm nay dùng H8/H7 hôm qua, H8 là nền): ngược chiều → BT, giữ nền; cùng chiều → SW, đảo nền. "
-        "Kết quả GBPUSD là signal XAUUSD cuối cùng.",
-        "Lặp hai H1 GBPAUD cùng thời điểm hôm qua chỉ để đối chiếu. Kết quả GBPUSD/GBPAUD trùng nhau → entry H:11. "
-        "Nếu khác nhau, bỏ M15 ngay trước mốc rồi phân loại ba M15 XAUUSD tiếp theo theo SW/BT "
-        "(H9 bỏ 08:45, dùng 08:30/08:15/08:00): SW → (H+1):25, BT → H:49; H3 SW → 04:49, BT → 03:49.",
-        "H3 mọi Thứ Năm luôn deactivated. Thiếu nến hoặc DOJI chưa resolve → WAIT.",
-    ]
-    notes_en = [
-        "Slots: H=3,7,9,12,14,16. Broker publication: H3 03:00; H7 07:00; "
-        "H9 09:00; H12 12:00; H14 14:00; H16 16:00.",
-        "Emits XAUUSD only. Each slot uses two completed GBPUSD H1 bars from yesterday immediately before the equivalent logical slot "
-        "(for H9 today, yesterday H8/H7; H8 is the base): opposite → BT and keep the base; same → SW and reverse the base. "
-        "The GBPUSD result is the final XAUUSD signal.",
-        "Repeat the equivalent two GBPAUD H1 bars from yesterday only for comparison. Matching GBPUSD/GBPAUD results → entry H:11. "
-        "If they differ, skip the M15 immediately before the slot and classify the next three XAUUSD M15 bars with SW/BT "
-        "(H9 skips 08:45 and uses 08:30/08:15/08:00): SW → (H+1):25, BT → H:49; H3 SW → 04:49, BT → 03:49.",
-        "H3 every Thursday is deactivated. Missing candles or unresolved DOJI → WAIT.",
-    ]
+    notes_vn = ['Entry Time của XAUUSD quyết định cây M15 Base dùng tạo signal cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.', 'Entry H:11 dùng cây M15 mở H−00:15, đóng H:00 và đảo Base.', 'Entry H:49 dùng cây M15 mở H:00, đóng H:15 và giữ nguyên Base.', 'Entry (H+1):25 dùng cây M15 mở H:00, đóng H:15 và đảo Base.', 'Mỗi symbol đọc cây M15 của chính nó. Không symbol nào cung cấp direction cho symbol khác.', 'Tại H14 và H16, signal của cả năm symbol được đảo thêm một lần.', 'Base thiếu dữ liệu hoặc DOJI thì riêng symbol đó WAIT.']
+    notes_en = ['The XAUUSD Entry Time selects the M15 Base candle used to derive signals for XAUUSD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.', 'Entry H:11 uses the M15 candle opening at H−00:15 and closing at H:00, then reverses the Base.', 'Entry H:49 uses the M15 candle opening at H:00 and closing at H:15, then keeps the Base direction.', 'Entry (H+1):25 uses the M15 candle opening at H:00 and closing at H:15, then reverses the Base.', 'Each symbol reads its own M15 candle. No symbol provides direction for another symbol.', 'At H14 and H16, the signal of all five symbols is inverted once more.', 'A missing or DOJI Base results in WAIT only for that symbol.']
 
     if lang == "VN":
         return notes_vn

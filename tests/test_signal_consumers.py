@@ -9,7 +9,7 @@ from domain import copy_trade_manager
 CURRENT_RECORD = {
     "date": "2026-07-28",
     "hour": 9,
-    "logic_version": 64,
+    "logic_version": 68,
     "signal_time": "09:00",
     "entry_time": "10:25",
     "pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "SELL", "GBPAUD": "BUY"},
@@ -53,7 +53,8 @@ class SignalConsumerContractTests(unittest.TestCase):
                 self.assertNotIn("vào ", rendered)
                 self.assertIn("entry tham chiếu", rendered)
 
-    def test_thursday_h3_is_defensively_do_not_enter(self) -> None:
+    def test_thursday_h3_is_actionable_v65(self) -> None:
+        """Since v65, Thursday H3 is an actionable slot like any other weekday."""
         thursday_h3 = {
             **CURRENT_RECORD,
             "date": "2026-07-30",
@@ -69,8 +70,7 @@ class SignalConsumerContractTests(unittest.TestCase):
 
         for consumer in (mimo_bot, copy_trade_manager):
             with self.subTest(consumer=consumer.__name__):
-                self.assertNotIn("vào ", consumer._format_current_signal_row(3, thursday_h3))
-                self.assertIn("entry tham chiếu", consumer._format_current_signal_row(3, thursday_h3))
+                self.assertIn("vào ", consumer._format_current_signal_row(3, thursday_h3))
                 self.assertIn("vào ", consumer._format_current_signal_row(3, tuesday_h3))
 
     def test_copy_manager_reads_signal_state_from_repository_root(self) -> None:
