@@ -29,7 +29,7 @@ class SignalLiveSchedulerTests(unittest.TestCase):
         self.assertEqual(pending, set())
 
     def test_slot_is_marked_missed_after_entry_deadline(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 7, 12)
+        broker_dt = datetime(2026, 7, 14, 8, 26)
         sent = set()
 
         with (
@@ -80,6 +80,8 @@ class SignalLiveSchedulerTests(unittest.TestCase):
         sent = set()
         result = {
             "signal": "BUY",
+            "entry_state": "READY",
+            "entry_time": "03:11",
             "report": "special H3 warning",
             "pattern_signal": "BUY",
             "deactivated": True,

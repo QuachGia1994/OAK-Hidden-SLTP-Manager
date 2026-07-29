@@ -25,6 +25,20 @@ export interface Signal {
   hour_note: string | null;
   deactivated?: boolean;
   logic_version?: number | string | null;
+  entry_state?: "READY" | "PENDING_FOLLOWUP" | "WAIT";
+  entry_candidate?: string | null;
+  entry_rule?: string | null;
+  entry_xauusd_signal?: string | null;
+  entry_gbpaud_offset15_direction?: string | null;
+  entry_gbpaud_offset15_signal?: string | null;
+  entry_initial_relation?: string | null;
+  entry_followup_required?: boolean;
+  entry_followup_close_time?: string | null;
+  entry_followup_bar_open_time?: string | null;
+  entry_followup_direction?: string | null;
+  entry_followup_signal?: string | null;
+  entry_followup_relation?: string | null;
+  entry_decided_at?: string | null;
 }
 
 export interface BotState {

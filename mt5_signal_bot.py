@@ -115,7 +115,7 @@ def get_target_hours(broker_dt=None, weekday=None):
         return []
 
     return list(TARGET_HOURS)
-SIGNAL_LOGIC_VERSION = 56
+SIGNAL_LOGIC_VERSION = 57
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 
 
@@ -395,7 +395,7 @@ def get_current_prices(pair_dirs):
 
 
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
-               pattern_signal=None, deactivated=False, source_date=None):
+               pattern_signal=None, deactivated=False, source_date=None, extra_fields=None):
     """Append signal data to signals_log.json for website consumption."""
     deactivated = bool(deactivated or is_deactivated_signal_slot(broker_dt, H))
     current_prices = get_current_prices(pair_dirs) if sig in ("BUY", "SELL") else {}
@@ -436,6 +436,10 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         record["pattern_signal"] = pattern_signal
     if source_date:
         record["source_date"] = source_date
+    if extra_fields and isinstance(extra_fields, dict):
+        for k, v in extra_fields.items():
+            if k not in ("date", "hour", "ts", "signal", "pair_dirs", "signal_time"):
+                record[k] = v
     try:
         data = []
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
@@ -1127,6 +1131,16 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
     if filter_res is None:
         return None
 
+    post_offset15_direction = filter_res["final_signal"]
+
+    # Final inversion for GBPUSD at H>=9 (H9, H12, H14, H16)
+    if symbol == "GBPUSD" and h >= 9:
+        final_direction = reverse_signal(post_offset15_direction)
+        gbpusd_h9plus_inversion_applied = True
+    else:
+        final_direction = post_offset15_direction
+        gbpusd_h9plus_inversion_applied = False
+
     entry_time = f"{h + 1:02d}:25" if pullback_group == "SW" else f"{h:02d}:49"
 
     return {
@@ -1146,14 +1160,332 @@ def evaluate_symbol_m15_for_slot(broker_dt, hour, symbol):
         "offset15_signal": filter_res["offset15_signal"],
         "offset15_relation": filter_res["relation"],
         "offset15_action": filter_res["action"],
+        "post_offset15_direction": post_offset15_direction,
+        "gbpusd_h9plus_inversion_applied": gbpusd_h9plus_inversion_applied,
         "classification_reason": "shared_three_candle_pattern_with_offset15_filter",
         "offsets": [15, 30, 45, 60, 75],
-        "direction": filter_res["final_signal"],
+        "direction": final_direction,
         "entry_time": entry_time,
     }
 
 
-def evaluate_all_pairs_for_slot(broker_dt, hour):
+def get_completed_m15_direction_by_close_time(symbol, close_dt):
+    """Return the candle direction of an M15 bar that closed at close_dt.
+
+    Bar open time is close_dt - 15 minutes.
+    """
+    bar_open_dt = close_dt - timedelta(minutes=15)
+    return _lookback_candle_direction(symbol, mt5.TIMEFRAME_M15, bar_open_dt)
+
+
+def compare_signal_directions(left_signal, right_signal):
+    """Compare two signals ('BUY'/'SELL'). Return 'SAME', 'OPPOSITE', or None."""
+    if left_signal not in ("BUY", "SELL"):
+        return None
+    if right_signal not in ("BUY", "SELL"):
+        return None
+    return "SAME" if left_signal == right_signal else "OPPOSITE"
+
+
+def build_xau_entry_plan(
+    broker_dt,
+    hour,
+    xauusd_signal,
+    gbpaud_offset15_direction,
+    followup_gbpaud_direction=None,
+):
+    """Build XAUUSD entry plan based on final XAUUSD signal and GBPAUD candle directions.
+
+    Returns dict with entry_state ('READY', 'PENDING_FOLLOWUP', 'WAIT'), entry_time,
+    entry_candidate, entry_rule, and detailed evidence fields.
+    """
+    h = int(hour)
+    if broker_dt is None or h not in ACTIVE_HOURS:
+        return {
+            "entry_state": "WAIT",
+            "entry_time": None,
+            "entry_candidate": None,
+            "entry_rule": "INVALID_SLOT",
+            "entry_xauusd_signal": xauusd_signal,
+            "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+            "entry_gbpaud_offset15_signal": None,
+            "entry_initial_relation": None,
+            "entry_followup_required": False,
+            "entry_followup_close_time": None,
+            "entry_followup_bar_open_time": None,
+            "entry_followup_direction": None,
+            "entry_followup_signal": None,
+            "entry_followup_relation": None,
+            "entry_decided_at": None,
+        }
+
+    gbpaud_offset15_signal = candle_direction_to_signal(gbpaud_offset15_direction)
+    initial_relation = compare_signal_directions(xauusd_signal, gbpaud_offset15_signal)
+
+    if xauusd_signal not in ("BUY", "SELL") or initial_relation is None:
+        return {
+            "entry_state": "WAIT",
+            "entry_time": None,
+            "entry_candidate": None,
+            "entry_rule": "MISSING_INITIAL_DATA",
+            "entry_xauusd_signal": xauusd_signal,
+            "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+            "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+            "entry_initial_relation": initial_relation,
+            "entry_followup_required": False,
+            "entry_followup_close_time": None,
+            "entry_followup_bar_open_time": None,
+            "entry_followup_direction": None,
+            "entry_followup_signal": None,
+            "entry_followup_relation": None,
+            "entry_decided_at": None,
+        }
+
+    source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
+    followup_close_dt = source_slot.replace(minute=45)
+    followup_open_dt = source_slot.replace(minute=30)
+    followup_close_iso = followup_close_dt.isoformat()
+    followup_open_iso = followup_open_dt.isoformat()
+
+    if h == 3:
+        if initial_relation == "SAME":
+            return {
+                "entry_state": "READY",
+                "entry_time": "03:11",
+                "entry_candidate": "03:11",
+                "entry_rule": "H3_SAME",
+                "entry_xauusd_signal": xauusd_signal,
+                "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                "entry_initial_relation": initial_relation,
+                "entry_followup_required": False,
+                "entry_followup_close_time": None,
+                "entry_followup_bar_open_time": None,
+                "entry_followup_direction": None,
+                "entry_followup_signal": None,
+                "entry_followup_relation": None,
+                "entry_decided_at": source_slot.isoformat(),
+            }
+        else:  # OPPOSITE
+            if followup_gbpaud_direction is None:
+                return {
+                    "entry_state": "PENDING_FOLLOWUP",
+                    "entry_time": None,
+                    "entry_candidate": "03:49",
+                    "entry_rule": "H3_PENDING_0345",
+                    "entry_xauusd_signal": xauusd_signal,
+                    "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                    "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                    "entry_initial_relation": initial_relation,
+                    "entry_followup_required": True,
+                    "entry_followup_close_time": followup_close_iso,
+                    "entry_followup_bar_open_time": followup_open_iso,
+                    "entry_followup_direction": None,
+                    "entry_followup_signal": None,
+                    "entry_followup_relation": None,
+                    "entry_decided_at": None,
+                }
+            followup_signal = candle_direction_to_signal(followup_gbpaud_direction)
+            followup_rel = compare_signal_directions(xauusd_signal, followup_signal)
+            if followup_rel is None:
+                return {
+                    "entry_state": "WAIT",
+                    "entry_time": None,
+                    "entry_candidate": "03:49",
+                    "entry_rule": "H3_FOLLOWUP_UNRESOLVED",
+                    "entry_xauusd_signal": xauusd_signal,
+                    "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                    "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                    "entry_initial_relation": initial_relation,
+                    "entry_followup_required": True,
+                    "entry_followup_close_time": followup_close_iso,
+                    "entry_followup_bar_open_time": followup_open_iso,
+                    "entry_followup_direction": followup_gbpaud_direction,
+                    "entry_followup_signal": followup_signal,
+                    "entry_followup_relation": None,
+                    "entry_decided_at": None,
+                }
+            final_entry = "04:49" if followup_rel == "OPPOSITE" else "03:49"
+            rule_name = "H3_OPPOSITE_THEN_OPPOSITE" if followup_rel == "OPPOSITE" else "H3_OPPOSITE_THEN_SAME"
+            return {
+                "entry_state": "READY",
+                "entry_time": final_entry,
+                "entry_candidate": final_entry,
+                "entry_rule": rule_name,
+                "entry_xauusd_signal": xauusd_signal,
+                "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                "entry_initial_relation": initial_relation,
+                "entry_followup_required": True,
+                "entry_followup_close_time": followup_close_iso,
+                "entry_followup_bar_open_time": followup_open_iso,
+                "entry_followup_direction": followup_gbpaud_direction,
+                "entry_followup_signal": followup_signal,
+                "entry_followup_relation": followup_rel,
+                "entry_decided_at": followup_close_iso,
+            }
+
+    elif h == 7:
+        if initial_relation == "SAME":
+            return {
+                "entry_state": "READY",
+                "entry_time": "07:11",
+                "entry_candidate": "07:11",
+                "entry_rule": "H7_SAME",
+                "entry_xauusd_signal": xauusd_signal,
+                "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                "entry_initial_relation": initial_relation,
+                "entry_followup_required": False,
+                "entry_followup_close_time": None,
+                "entry_followup_bar_open_time": None,
+                "entry_followup_direction": None,
+                "entry_followup_signal": None,
+                "entry_followup_relation": None,
+                "entry_decided_at": source_slot.isoformat(),
+            }
+        else:  # OPPOSITE
+            if followup_gbpaud_direction is None:
+                return {
+                    "entry_state": "PENDING_FOLLOWUP",
+                    "entry_time": None,
+                    "entry_candidate": "07:49",
+                    "entry_rule": "H7_PENDING_0745",
+                    "entry_xauusd_signal": xauusd_signal,
+                    "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                    "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                    "entry_initial_relation": initial_relation,
+                    "entry_followup_required": True,
+                    "entry_followup_close_time": followup_close_iso,
+                    "entry_followup_bar_open_time": followup_open_iso,
+                    "entry_followup_direction": None,
+                    "entry_followup_signal": None,
+                    "entry_followup_relation": None,
+                    "entry_decided_at": None,
+                }
+            followup_signal = candle_direction_to_signal(followup_gbpaud_direction)
+            followup_rel = compare_signal_directions(xauusd_signal, followup_signal)
+            if followup_rel is None:
+                return {
+                    "entry_state": "WAIT",
+                    "entry_time": None,
+                    "entry_candidate": "07:49",
+                    "entry_rule": "H7_FOLLOWUP_UNRESOLVED",
+                    "entry_xauusd_signal": xauusd_signal,
+                    "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                    "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                    "entry_initial_relation": initial_relation,
+                    "entry_followup_required": True,
+                    "entry_followup_close_time": followup_close_iso,
+                    "entry_followup_bar_open_time": followup_open_iso,
+                    "entry_followup_direction": followup_gbpaud_direction,
+                    "entry_followup_signal": followup_signal,
+                    "entry_followup_relation": None,
+                    "entry_decided_at": None,
+                }
+            final_entry = "08:25" if followup_rel == "OPPOSITE" else "07:49"
+            rule_name = "H7_OPPOSITE_THEN_OPPOSITE" if followup_rel == "OPPOSITE" else "H7_OPPOSITE_THEN_SAME"
+            return {
+                "entry_state": "READY",
+                "entry_time": final_entry,
+                "entry_candidate": final_entry,
+                "entry_rule": rule_name,
+                "entry_xauusd_signal": xauusd_signal,
+                "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                "entry_initial_relation": initial_relation,
+                "entry_followup_required": True,
+                "entry_followup_close_time": followup_close_iso,
+                "entry_followup_bar_open_time": followup_open_iso,
+                "entry_followup_direction": followup_gbpaud_direction,
+                "entry_followup_signal": followup_signal,
+                "entry_followup_relation": followup_rel,
+                "entry_decided_at": followup_close_iso,
+            }
+
+    else:  # H >= 9 (H9, H12, H14, H16)
+        h_str = f"{h:02d}"
+        if initial_relation == "OPPOSITE":
+            entry_t = f"{h_str}:11"
+            return {
+                "entry_state": "READY",
+                "entry_time": entry_t,
+                "entry_candidate": entry_t,
+                "entry_rule": "H9PLUS_OPPOSITE",
+                "entry_xauusd_signal": xauusd_signal,
+                "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                "entry_initial_relation": initial_relation,
+                "entry_followup_required": False,
+                "entry_followup_close_time": None,
+                "entry_followup_bar_open_time": None,
+                "entry_followup_direction": None,
+                "entry_followup_signal": None,
+                "entry_followup_relation": None,
+                "entry_decided_at": source_slot.isoformat(),
+            }
+        else:  # SAME
+            cand_t = f"{h_str}:49"
+            if followup_gbpaud_direction is None:
+                return {
+                    "entry_state": "PENDING_FOLLOWUP",
+                    "entry_time": None,
+                    "entry_candidate": cand_t,
+                    "entry_rule": f"H9PLUS_PENDING_{h_str}45",
+                    "entry_xauusd_signal": xauusd_signal,
+                    "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                    "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                    "entry_initial_relation": initial_relation,
+                    "entry_followup_required": True,
+                    "entry_followup_close_time": followup_close_iso,
+                    "entry_followup_bar_open_time": followup_open_iso,
+                    "entry_followup_direction": None,
+                    "entry_followup_signal": None,
+                    "entry_followup_relation": None,
+                    "entry_decided_at": None,
+                }
+            followup_signal = candle_direction_to_signal(followup_gbpaud_direction)
+            followup_rel = compare_signal_directions(xauusd_signal, followup_signal)
+            if followup_rel is None:
+                return {
+                    "entry_state": "WAIT",
+                    "entry_time": None,
+                    "entry_candidate": cand_t,
+                    "entry_rule": "H9PLUS_FOLLOWUP_UNRESOLVED",
+                    "entry_xauusd_signal": xauusd_signal,
+                    "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                    "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                    "entry_initial_relation": initial_relation,
+                    "entry_followup_required": True,
+                    "entry_followup_close_time": followup_close_iso,
+                    "entry_followup_bar_open_time": followup_open_iso,
+                    "entry_followup_direction": followup_gbpaud_direction,
+                    "entry_followup_signal": followup_signal,
+                    "entry_followup_relation": None,
+                    "entry_decided_at": None,
+                }
+            final_entry = f"{h + 1:02d}:25" if followup_rel == "SAME" else f"{h_str}:49"
+            rule_name = "H9PLUS_SAME_THEN_SAME" if followup_rel == "SAME" else "H9PLUS_SAME_THEN_OPPOSITE"
+            return {
+                "entry_state": "READY",
+                "entry_time": final_entry,
+                "entry_candidate": final_entry,
+                "entry_rule": rule_name,
+                "entry_xauusd_signal": xauusd_signal,
+                "entry_gbpaud_offset15_direction": gbpaud_offset15_direction,
+                "entry_gbpaud_offset15_signal": gbpaud_offset15_signal,
+                "entry_initial_relation": initial_relation,
+                "entry_followup_required": True,
+                "entry_followup_close_time": followup_close_iso,
+                "entry_followup_bar_open_time": followup_open_iso,
+                "entry_followup_direction": followup_gbpaud_direction,
+                "entry_followup_signal": followup_signal,
+                "entry_followup_relation": followup_rel,
+                "entry_decided_at": followup_close_iso,
+            }
+
+
+def evaluate_all_pairs_for_slot(broker_dt, hour, check_followup=False):
     """Evaluate XAUUSD, GBPUSD, and GBPAUD M15 signals independently for current Broker date."""
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
@@ -1189,15 +1521,37 @@ def evaluate_all_pairs_for_slot(broker_dt, hour):
             pair_offset15_dirs[symbol] = res["offset15_direction"]
             pair_offset15_relations[symbol] = res["offset15_relation"]
             pair_offset15_actions[symbol] = res["offset15_action"]
-            pair_entry_times[symbol] = res["entry_time"]
+            pair_entry_times[symbol] = None  # XAUUSD entry is assigned below via entry planner
             pair_groups[symbol] = res["pullback_group"]
             pair_evidence[symbol] = res
 
+    gbpaud_off15_dir = pair_offset15_dirs.get("GBPAUD")
+    followup_dir = None
+    source_slot = datetime.combine(broker_dt.date(), datetime.min.time()).replace(hour=h, minute=0)
+    followup_close_dt = source_slot.replace(minute=45)
+
+    if check_followup or (broker_dt >= followup_close_dt):
+        followup_dir = get_completed_m15_direction_by_close_time("GBPAUD", followup_close_dt)
+
+    entry_plan = build_xau_entry_plan(
+        broker_dt,
+        h,
+        pair_dirs.get("XAUUSD", "WAIT"),
+        gbpaud_off15_dir,
+        followup_gbpaud_direction=followup_dir,
+    )
+
     top_signal = pair_dirs.get("XAUUSD", "WAIT")
-    top_entry_time = pair_entry_times.get("XAUUSD") or "N/A"
+    if entry_plan["entry_state"] == "WAIT":
+        top_signal = "WAIT"
+        pair_dirs["XAUUSD"] = "WAIT"
+
+    final_xau_entry = entry_plan["entry_time"]
+    pair_entry_times["XAUUSD"] = final_xau_entry
+
     source_date_str = broker_dt.date().isoformat()
 
-    report_lines = [f"H={h} M15 ({source_date_str}):"]
+    report_lines = [f"H={h} M15 ({source_date_str}) [v{SIGNAL_LOGIC_VERSION}]:"]
     for symbol in SIGNAL_PAIRS:
         res = pair_results[symbol]
         if res is None:
@@ -1209,13 +1563,17 @@ def evaluate_all_pairs_for_slot(broker_dt, hour):
                 f"pattern_dir={res['pattern_direction']} slot_adj={res['slot_adjusted_direction']} "
                 f"offset15={res['offset15_direction']}/{res['offset15_signal']} "
                 f"relation={res['offset15_relation']} action={res['offset15_action']} "
-                f"final={res['direction']} entry={res['entry_time']}"
+                f"final={res['direction']}"
             )
+    report_lines.append(
+        f"  XAUUSD Entry Plan: state={entry_plan['entry_state']} time={entry_plan['entry_time']} "
+        f"candidate={entry_plan['entry_candidate']} rule={entry_plan['entry_rule']}"
+    )
 
-    return {
+    res_dict = {
         "logic_version": SIGNAL_LOGIC_VERSION,
         "signal": top_signal,
-        "entry_time": top_entry_time,
+        "entry_time": final_xau_entry,
         "pair_dirs": pair_dirs,
         "pair_pre_offset15_dirs": pair_pre_offset15_dirs,
         "pair_offset15_dirs": pair_offset15_dirs,
@@ -1227,6 +1585,8 @@ def evaluate_all_pairs_for_slot(broker_dt, hour):
         "source_date": source_date_str,
         "report": "\n".join(report_lines),
     }
+    res_dict.update(entry_plan)
+    return res_dict
 
 
 evaluate_multi_pair_m15_slot = evaluate_all_pairs_for_slot
@@ -1250,7 +1610,7 @@ def get_entry_time_for_slot(broker_dt, hour):
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
-    result = evaluate_all_pairs_for_slot(broker_dt, h)
+    result = evaluate_gbp_h1_slot(broker_dt, h)
     return result.get("entry_time") if result else None
 
 
@@ -1266,8 +1626,16 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
         14: "15:25",
         16: "17:25",
     }
-    clock = entry_time or get_entry_time_for_slot(broker_dt, h) or fallback_clocks[h]
-    deadline_hour, deadline_minute = (int(part) for part in clock.split(":"))
+    clock = entry_time if (entry_time and ":" in str(entry_time)) else None
+    if not clock:
+        try:
+            clock = get_entry_time_for_slot(broker_dt, h)
+        except Exception:
+            clock = None
+    if not clock or ":" not in str(clock):
+        clock = fallback_clocks.get(h, "17:25")
+
+    deadline_hour, deadline_minute = (int(part) for part in str(clock).split(":"))
     deadline = broker_dt.replace(
         hour=deadline_hour,
         minute=deadline_minute,
@@ -1347,6 +1715,8 @@ def get_pair_direction(H, signal, broker_dt, full_result=None):
     h = int(H)
     if h not in ACTIVE_HOURS:
         return result
+    if signal not in ("BUY", "SELL", "WAIT"):
+        return {}
     pair_dirs = (full_result or {}).get("pair_dirs", {})
     for pair in SIGNAL_PAIRS:
         result[pair] = pair_dirs.get(pair, "WAIT" if signal == "WAIT" else (signal if pair == "XAUUSD" else "WAIT"))
@@ -1765,6 +2135,7 @@ def _process_live_slot(broker_dt, hour):
     signal_dt = get_signal_datetime_for_slot(broker_dt, hour)
     if broker_dt < signal_dt:
         return False
+
     entry_time = get_entry_time_for_slot(broker_dt, hour)
     if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
         print(f"  [MISSED] H={hour} exceeded entry deadline")
@@ -1773,14 +2144,39 @@ def _process_live_slot(broker_dt, hour):
         return False
 
     result = calculate_slot_signal(broker_dt, hour)
+    if not result:
+        print(f"  [RETRY] H={hour} - no evaluation result")
+        return False
+
+    entry_state = result.get("entry_state")
     signal = result.get("signal")
     entry_time = result.get("entry_time") or entry_time
-    if entry_time and broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
-        print(f"  [MISSED] H={hour} entry window closed")
+
+    if entry_state == "PENDING_FOLLOWUP":
+        pair_dirs = get_pair_direction(hour, signal, broker_dt, full_result=result)
+        hour_note = get_hour_note(hour, broker_dt=broker_dt)
+        log_signal(
+            hour,
+            broker_dt,
+            signal,
+            None,
+            pair_dirs,
+            hour_note,
+            pattern_signal=result.get("pattern_signal"),
+            deactivated=result.get("deactivated", False),
+            extra_fields=result,
+        )
+        push_to_dashboard()
+        print(f"  [PENDING] H={hour} signal={signal} candidate={result.get('entry_candidate')} rule={result.get('entry_rule')}")
+        return False
+
+    if broker_dt > get_slot_retry_deadline(broker_dt, hour, entry_time=entry_time):
+        print(f"  [MISSED] H={hour} exceeded entry deadline")
         sent_today.add(key)
         _save_state(sent_today)
         return False
-    if signal not in ("BUY", "SELL") or not entry_time:
+
+    if signal not in ("BUY", "SELL") or not entry_time or entry_state != "READY":
         print(f"  [RETRY] H={hour} - {result.get('report', 'incomplete data')}")
         return False
 
@@ -1798,6 +2194,7 @@ def _process_live_slot(broker_dt, hour):
         hour_note,
         pattern_signal=result.get("pattern_signal"),
         deactivated=result.get("deactivated", False),
+        extra_fields=result,
     )
     push_to_dashboard()
     send_report(result, hour, broker_dt)

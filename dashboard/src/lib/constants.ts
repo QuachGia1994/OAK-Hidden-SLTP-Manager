@@ -1,7 +1,7 @@
 export const TARGET_HOURS = [3, 7, 9, 12, 14, 16] as const;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 /** Minimum backend contract — independent XAUUSD/GBPUSD/GBPAUD M15 classifier. */
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 56;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 57;
 
 const ACTIVE_HOURS = new Set<number>(TARGET_HOURS);
 
@@ -113,12 +113,12 @@ function formatBrokerTime(hour: number, minute: number): string {
 /** Display entry time label for a slot. */
 export function getEntryTimeLabel(hour: number, _date?: string): string {
   const entryLabels: Record<number, string> = {
-    3: "03:49 / 04:25",
-    7: "07:49 / 08:25",
-    9: "09:49 / 10:25",
-    12: "12:49 / 13:25",
-    14: "14:49 / 15:25",
-    16: "16:49 / 17:25",
+    3: "03:11 / 03:49 / 04:49",
+    7: "07:11 / 07:49 / 08:25",
+    9: "09:11 / 09:49 / 10:25",
+    12: "12:11 / 12:49 / 13:25",
+    14: "14:11 / 14:49 / 15:25",
+    16: "16:11 / 16:49 / 17:25",
   };
   return entryLabels[hour] || "--:--";
 }
@@ -141,14 +141,12 @@ type RuleLocale = "VN" | "EN";
 
 const CORE_RULES: Record<RuleLocale, string[]> = {
   VN: [
-    "Mọi slot H3/H7/H9/H12/H14/H16 phát Broker lúc H:00. Đánh giá độc lập ba symbol: XAUUSD, GBPUSD, GBPAUD dùng nến M15 của chính symbol đó trong ngày Broker hiện tại.",
-    "Nến offset -30 làm Base; 3 nến pattern (-45/-60/-75) phân nhóm SW (đảo Base) hoặc BT (giữ Base). Slot H14 đảo thêm một lần.",
-    "Hậu kiểm nến -15 của cùng symbol: cùng hướng signal tạm → đảo, ngược hướng → giữ. Entry time: SW → (H+1):25, BT → H:49. Thiếu nến/unresolved → WAIT.",
+    "Mọi slot H3/H7/H9/H12/H14/H16 phát Broker lúc H:00. Đánh giá độc lập ba symbol: XAUUSD, GBPUSD, GBPAUD bằng M15 (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 đảo signal lần cuối.",
+    "Entry time XAUUSD do nến GBPAUD quyết định (H3: 03:11/03:49/04:49; H7: 07:11/07:49/08:25; H≥9: H:11/H:49/(H+1):25). Nến follow-up H:45 đóng lúc H:45.",
   ],
   EN: [
-    "Every slot (H3/H7/H9/H12/H14/H16) evaluates XAUUSD, GBPUSD, and GBPAUD independently on current Broker date M15 candles (-30 Base, -45/-60/-75 pattern).",
-    "SW → reverse Base; BT → keep Base. H14 reverses calculated direction.",
-    "Offset -15 post-filter for same symbol: same direction → reverse provisional signal, opposite direction → keep. Entry time: SW → (H+1):25, BT → H:49. Missing → WAIT.",
+    "Every slot evaluates XAUUSD, GBPUSD, GBPAUD on M15 candles (-30 Base, -45/-60/-75 pattern, -15 post-filter). GBPUSD H≥9 final signal is inverted.",
+    "XAUUSD entry time is dynamically planned by GBPAUD candle relations (H3: 03:11/03:49/04:49; H7: 07:11/07:49/08:25; H≥9: H:11/H:49/(H+1):25).",
   ],
 };
 

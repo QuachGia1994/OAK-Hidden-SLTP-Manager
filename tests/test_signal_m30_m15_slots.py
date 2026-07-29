@@ -47,10 +47,10 @@ def _timestamp(broker_dt: datetime, hour: int, minute: int = 0, second: int = 0)
 
 
 class M15MultiPairMatrixTests(unittest.TestCase):
-    """Exhaustive test matrix for shared symbol M15 evaluation engine (v56)."""
+    """Exhaustive test matrix for shared symbol M15 evaluation engine (v57)."""
 
     def test_logic_version_and_signal_pairs(self) -> None:
-        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 56)
+        self.assertEqual(mt5_signal_bot.SIGNAL_LOGIC_VERSION, 57)
         self.assertEqual(mt5_signal_bot.SIGNAL_PAIRS, SIGNAL_PAIRS)
 
     def test_84_post_filter_subcases(self) -> None:
@@ -85,7 +85,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
         self.assertEqual(total_subcases, 84)
 
     def test_288_table_driven_matrix(self) -> None:
-        """3 symbols × 6 slots × 8 patterns × 2 Base directions = 288 cases with offset -15 post-filter."""
+        """3 symbols × 6 slots × 8 patterns × 2 Base directions = 288 cases with offset -15 post-filter and GBPUSD H>=9 inversion."""
         broker_dt = datetime(2026, 7, 29, 12, 0)
         total_cases = 0
 
@@ -106,7 +106,8 @@ class M15MultiPairMatrixTests(unittest.TestCase):
                         # prov_dir BUY + GIAM -> OPPOSITE KEEP -> BUY
                         # prov_dir SELL + GIAM -> SAME REVERSE -> BUY
                         lookback_dirs = (base_dir,) + pattern + ("GIAM",)
-                        expected_final = "BUY"
+                        post_offset15_expected = "BUY"
+                        expected_final = "SELL" if (symbol == "GBPUSD" and hour >= 9) else "BUY"
 
                         with self.subTest(symbol=symbol, hour=hour, base=base_dir, group=group, pattern=pattern), \
                              patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=lookback_dirs):
@@ -124,6 +125,7 @@ class M15MultiPairMatrixTests(unittest.TestCase):
                         self.assertEqual(res["pre_offset15_direction"], prov_dir)
                         self.assertEqual(res["offset15_direction"], "GIAM")
                         self.assertEqual(res["offset15_signal"], "SELL")
+                        self.assertEqual(res["post_offset15_direction"], post_offset15_expected)
                         self.assertEqual(res["direction"], expected_final)
                         self.assertEqual(res["entry_time"], expected_entry)
 
@@ -161,14 +163,20 @@ class PairIndependenceTests(unittest.TestCase):
         """H=9: XAUUSD pattern SW -> SELL, GBPUSD pattern BT -> BUY, GBPAUD pattern SW -> BUY."""
         broker_dt = datetime(2026, 7, 29, 9, 0)
 
-        # Lookback sequence per symbol: -30, -45, -60, -75, -15
+    def test_concurrent_independent_directions(self) -> None:
+        """H=9: XAUUSD pattern SW -> SELL, GBPUSD pattern BT -> BUY (inverted to SELL for H9), GBPAUD pattern SW -> BUY."""
+        broker_dt = datetime(2026, 7, 29, 9, 45)
+
+        # Lookback sequence per symbol: -30, -45, -60, -75, -15, plus GBPAUD 09:45 followup
         sequence = [
             # XAUUSD 5 candles: base TANG, SW pattern (TANG, TANG, TANG) -> prov SELL; offset15 TANG (BUY) -> OPPOSITE KEEP -> SELL
             "TANG", "TANG", "TANG", "TANG", "TANG",
-            # GBPUSD 5 candles: base TANG, BT pattern (GIAM, TANG, GIAM) -> prov BUY; offset15 GIAM (SELL) -> OPPOSITE KEEP -> BUY
+            # GBPUSD 5 candles: base TANG, BT pattern (GIAM, TANG, GIAM) -> prov BUY; offset15 GIAM (SELL) -> OPPOSITE KEEP -> BUY -> inverted H9 -> SELL
             "TANG", "GIAM", "TANG", "GIAM", "GIAM",
             # GBPAUD 5 candles: base GIAM, SW pattern (GIAM, GIAM, GIAM) -> prov BUY; offset15 GIAM (SELL) -> OPPOSITE KEEP -> BUY
             "GIAM", "GIAM", "GIAM", "GIAM", "GIAM",
+            # GBPAUD 09:45 followup candle (1 candle)
+            "GIAM",
         ]
 
         with patch.object(mt5_signal_bot, "_lookback_candle_direction", side_effect=sequence):
@@ -178,7 +186,7 @@ class PairIndependenceTests(unittest.TestCase):
         self.assertEqual(res["signal"], "SELL")
         self.assertEqual(res["entry_time"], "10:25")
         self.assertEqual(res["pair_dirs"]["XAUUSD"], "SELL")
-        self.assertEqual(res["pair_dirs"]["GBPUSD"], "BUY")
+        self.assertEqual(res["pair_dirs"]["GBPUSD"], "SELL")
         self.assertEqual(res["pair_dirs"]["GBPAUD"], "BUY")
         self.assertEqual(res["pair_pre_offset15_dirs"]["XAUUSD"], "SELL")
         self.assertEqual(res["pair_pre_offset15_dirs"]["GBPUSD"], "BUY")
@@ -187,8 +195,8 @@ class PairIndependenceTests(unittest.TestCase):
         self.assertEqual(res["pair_offset15_dirs"]["GBPUSD"], "GIAM")
         self.assertEqual(res["pair_offset15_dirs"]["GBPAUD"], "GIAM")
         self.assertEqual(res["pair_entry_times"]["XAUUSD"], "10:25")
-        self.assertEqual(res["pair_entry_times"]["GBPUSD"], "09:49")
-        self.assertEqual(res["pair_entry_times"]["GBPAUD"], "10:25")
+        self.assertIsNone(res["pair_entry_times"]["GBPUSD"])
+        self.assertIsNone(res["pair_entry_times"]["GBPAUD"])
 
     def test_gbpusd_missing_candle_isolation(self) -> None:
         """Missing candle on GBPUSD makes only GBPUSD WAIT."""
@@ -222,7 +230,7 @@ class PairIndependenceTests(unittest.TestCase):
 
         self.assertEqual(res["signal"], "WAIT")
         self.assertEqual(res["pair_dirs"]["XAUUSD"], "WAIT")
-        self.assertEqual(res["pair_dirs"]["GBPUSD"], "SELL")
+        self.assertEqual(res["pair_dirs"]["GBPUSD"], "BUY")
         self.assertEqual(res["pair_dirs"]["GBPAUD"], "SELL")
 
     def test_no_cross_symbol_direction_derivation(self) -> None:
@@ -241,8 +249,8 @@ class PairIndependenceTests(unittest.TestCase):
 
     def test_all_slots_query_all_three_symbols(self) -> None:
         """Every slot H3, H7, H9, H12, H14, H16 queries MT5 for XAUUSD, GBPUSD, and GBPAUD."""
-        broker_dt = datetime(2026, 7, 29, 12, 0)
         for hour in DASHBOARD_SLOTS:
+            broker_dt = datetime(2026, 7, 29, hour, 0)
             queried = []
             def mock_lookback(symbol, tf, candle_dt):
                 queried.append(symbol)

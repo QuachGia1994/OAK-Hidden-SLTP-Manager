@@ -29,12 +29,12 @@ test("uses only the approved logical slots and signal times", () => {
     "03:00", "07:00", "09:00", "12:00", "14:00", "16:00",
   ]);
   assert.equal(getSignalTime(5), "--:--");
-  assert.equal(getEntryTimeLabel(3), "03:49 / 04:25");
+  assert.equal(getEntryTimeLabel(3), "03:11 / 03:49 / 04:49");
   assert.equal(getSignalTime(9, "2026-08-06"), "09:00");
-  assert.equal(getEntryTimeLabel(7, "2026-08-06"), "07:49 / 08:25");
-  assert.equal(getEntryTimeLabel(9, "2026-08-06"), "09:49 / 10:25");
-  assert.equal(getEntryTimeLabel(14, "2026-08-06"), "14:49 / 15:25");
-  assert.equal(getEntryTimeLabel(16, "2026-08-11"), "16:49 / 17:25");
+  assert.equal(getEntryTimeLabel(7, "2026-08-06"), "07:11 / 07:49 / 08:25");
+  assert.equal(getEntryTimeLabel(9, "2026-08-06"), "09:11 / 09:49 / 10:25");
+  assert.equal(getEntryTimeLabel(14, "2026-08-06"), "14:11 / 14:49 / 15:25");
+  assert.equal(getEntryTimeLabel(16, "2026-08-11"), "16:11 / 16:49 / 17:25");
   assert.deepEqual(
     filterActiveSignals([{ hour: 2 }, { hour: 3 }, { hour: 5 }, { hour: 11 }, { hour: 15 }, { hour: 16 }, { hour: 1500 }]),
     [{ hour: 3 }, { hour: 16 }],
@@ -178,10 +178,10 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the v56 M15 multi-pair rules", () => {
+test("shows the v57 M15 multi-pair rules", () => {
   const rules = getDayRules("EN", 2);
   assert.equal(rules.some((rule) => /M30|priority|compares H6/i.test(rule)), false);
-  assert.equal(rules.some((rule) => rule.includes("evaluates XAUUSD, GBPUSD, and GBPAUD independently")), true);
-  assert.equal(rules.some((rule) => rule.includes("Offset -15 post-filter")), true);
-  assert.equal(rules.some((rule) => rule.includes("(H+1):25")), true);
+  assert.equal(rules.some((rule) => rule.includes("evaluates XAUUSD, GBPUSD, GBPAUD")), true);
+  assert.equal(rules.some((rule) => rule.includes("GBPUSD H≥9 final signal is inverted")), true);
+  assert.equal(rules.some((rule) => rule.includes("XAUUSD entry time is dynamically planned")), true);
 });

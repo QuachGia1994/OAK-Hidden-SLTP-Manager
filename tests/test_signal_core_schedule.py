@@ -6,7 +6,7 @@ import unittest
 import mt5_signal_bot
 
 
-ACTIVE_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+ACTIVE_SLOTS = (3, 4, 7, 9, 12, 14, 16)
 
 
 class SignalCoreScheduleTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class SignalCoreScheduleTests(unittest.TestCase):
         expected = {
             3: "03:00",
             4: "04:00",
-            6: "06:00",
+            7: "07:00",
             9: "09:00",
             12: "12:00",
             14: "14:00",
@@ -50,7 +50,7 @@ class SignalCoreScheduleTests(unittest.TestCase):
 
     def test_retry_deadlines_follow_the_resolved_entry_window(self) -> None:
         regular_tuesday = datetime(2026, 7, 14, 12, 0)
-        entries = {3: "04:49", 4: "05:25", 6: "06:49", 9: "09:11", 12: "13:25", 14: "14:49", 16: "16:11"}
+        entries = {3: "04:49", 4: "05:25", 7: "08:25", 9: "09:11", 12: "13:25", 14: "14:49", 16: "16:11"}
         for hour, entry_time in entries.items():
             with self.subTest(hour=hour), patch.object(
                 mt5_signal_bot,

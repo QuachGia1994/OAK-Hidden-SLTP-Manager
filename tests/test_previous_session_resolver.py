@@ -98,7 +98,7 @@ class WaitRecordContractTests(unittest.TestCase):
             self.assertEqual(result.get("GBPAUD"), "WAIT")
 
     def test_signal_logic_version_is_56(self):
-        self.assertEqual(SIGNAL_LOGIC_VERSION, 56)
+        self.assertEqual(SIGNAL_LOGIC_VERSION, 57)
 
     def test_deactivated_slots_still_deactivated(self):
         """Safety guard: deactivated slots remain deactivated."""

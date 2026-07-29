@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import datetime as _DateTime, timedelta as _TimeDelta, timezone as _Timezone
 
 
-_ACTIVE_SIGNAL_SLOTS = (3, 4, 6, 9, 12, 14, 16)
+_ACTIVE_SIGNAL_SLOTS = (3, 4, 7, 9, 12, 14, 16)
 _FALLBACK_SIGNAL_TIMES = {
     3: "03:00",
     4: "04:00",
-    6: "06:00",
+    7: "07:00",
     9: "09:00",
     12: "12:00",
     14: "14:00",
