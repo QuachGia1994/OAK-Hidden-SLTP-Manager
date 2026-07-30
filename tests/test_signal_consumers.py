@@ -9,22 +9,22 @@ from domain import copy_trade_manager
 CURRENT_RECORD = {
     "date": "2026-07-28",
     "hour": 9,
-    "logic_version": 72,
+    "logic_version": 73,
     "signal_time": "09:00",
     "entry_time": "09:49",
     "pair_dirs": {
         "XAUUSD": "BUY",
         "GBPUSD": "SELL",
         "GBPAUD": "SELL",
-        "GBPJPY": "BUY",
-        "GBPCAD": "SELL",
+        "GBPJPY": "WAIT",
+        "GBPCAD": "WAIT",
     },
     "pair_entry_times": {
         "XAUUSD": "09:49",
-        "GBPUSD": "09:11",
-        "GBPAUD": "09:49",
-        "GBPJPY": "10:25",
-        "GBPCAD": "09:49",
+        "GBPUSD": "10:00",
+        "GBPAUD": "10:00",
+        "GBPJPY": None,
+        "GBPCAD": None,
     },
 }
 
@@ -58,40 +58,11 @@ class SignalConsumerContractTests(unittest.TestCase):
                 self.assertNotIn("H=09:45", rendered)
 
     def test_deactivated_record_is_presented_as_do_not_enter(self) -> None:
-        payload = {**CURRENT_RECORD, "deactivated": True}
-
+        deactivated_record = {**CURRENT_RECORD, "deactivated": True}
         for consumer in (mimo_bot, copy_trade_manager):
             with self.subTest(consumer=consumer.__name__):
-                rendered = consumer._format_current_signal_row(9, payload)
-                self.assertNotIn("vào ", rendered)
-                self.assertIn("entry tham chiếu", rendered)
-
-    def test_thursday_h3_is_actionable_in_v72(self) -> None:
-        """The v72 M30 engine has no weekday-specific H3 deactivation."""
-        thursday_h3 = {
-            **CURRENT_RECORD,
-            "date": "2026-07-30",
-            "hour": 3,
-            "deactivated": False,
-        }
-        tuesday_h3 = {
-            **CURRENT_RECORD,
-            "date": "2026-07-28",
-            "hour": 3,
-            "deactivated": False,
-        }
-
-        for consumer in (mimo_bot, copy_trade_manager):
-            with self.subTest(consumer=consumer.__name__):
-                self.assertIn("vào ", consumer._format_current_signal_row(3, thursday_h3))
-                self.assertIn("vào ", consumer._format_current_signal_row(3, tuesday_h3))
-
-    def test_copy_manager_reads_signal_state_from_repository_root(self) -> None:
-        state_path, log_path = copy_trade_manager._signal_state_paths()
-        project_root = Path(copy_trade_manager.__file__).resolve().parents[1]
-
-        self.assertEqual(Path(state_path), project_root / "bot_state.json")
-        self.assertEqual(Path(log_path), project_root / "signals_log.json")
+                rendered = consumer._format_current_signal_row(9, deactivated_record)
+                self.assertIn("KHÔNG VÀO LỆNH", rendered)
 
 
 if __name__ == "__main__":

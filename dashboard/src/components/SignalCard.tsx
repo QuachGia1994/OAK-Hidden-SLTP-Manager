@@ -89,6 +89,9 @@ export function SignalCard({
     entryTime = getEntryTimeLabel(signal.hour, signal.date);
   } else if (displayState === "SYNCING") {
     entryTime = locale === "EN" ? "Syncing bot data…" : "Đang nhận dữ liệu Bot";
+  } else if (displayState === "PENDING_LAYER3") {
+    const resTime = signal.entry_resolution_time || `${String(signal.hour).padStart(2, "0")}:30`;
+    entryTime = locale === "EN" ? `Awaiting Layer 3 · closes ${resTime}` : `Chờ Tầng 3 · đóng ${resTime} Broker`;
   } else if (
     (displayState === "READY" || displayState === "PARTIAL_WAIT")
     && VALID_TIME.test(signal.entry_time || "")
@@ -209,22 +212,24 @@ function PairRow({
   onInspect?: () => void;
 }) {
   let direction = "locked";
+  const isDisabled = signal.pair_signal_states?.[pair] === "DISABLED" || pair === "GBPJPY" || pair === "GBPCAD";
   const pairReady = isSignalPairReady(signal, pair);
   if (isVIP) {
-    if (displayState === "SCHEDULED") {
+    if (isDisabled) {
+      direction = "OFF";
+    } else if (displayState === "SCHEDULED") {
       direction = "—";
     } else if (displayState === "SYNCING") {
       direction = "…";
     } else {
-      direction = pairReady ? signal.pair_dirs?.[pair] || "WAIT" : "WAIT";
+      direction = signal.pair_dirs?.[pair] || "WAIT";
     }
   }
-
-  const brokerEntryTime = isVIP && pairReady ? signal.pair_entry_times?.[pair] || null : null;
-  const utcIso = isVIP && pairReady ? signal.pair_entry_at_utc?.[pair] || null : null;
+  const brokerEntryTime = isVIP && !isDisabled ? signal.pair_entry_times?.[pair] || null : null;
+  const utcIso = isVIP && !isDisabled && pairReady ? signal.pair_entry_at_utc?.[pair] || null : null;
   const localEntryTime = useBrowserBrokerTime(signal, brokerEntryTime, utcIso);
-  const state = isVIP ? signal.pair_entry_states?.[pair] || null : null;
-  const label = isVIP ? signal.pair_labels?.[pair] || null : null;
+  const state = isVIP ? (isDisabled ? "DISABLED" : signal.pair_entry_states?.[pair] || null) : null;
+  const label = isVIP ? (isDisabled ? "OFF" : signal.pair_labels?.[pair] || null) : null;
 
   return (
     <PairBadge
@@ -272,10 +277,7 @@ function TimeBlock({
         </>
       ) : (
         <div className="mt-0.5 font-mono text-base font-black tabular-nums text-[var(--foreground)] leading-snug">
-          {brokerTime}
-          {showBrokerSuffix && (
-            <span className="ml-1 text-[9px] font-bold uppercase text-[var(--muted)]">Broker</span>
-          )}
+          {brokerTime} Broker
         </div>
       )}
     </div>

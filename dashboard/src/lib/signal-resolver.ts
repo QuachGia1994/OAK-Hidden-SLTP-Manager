@@ -1,5 +1,5 @@
 import type { Signal, SlotDisplayState } from "./types";
-import { ACTIVE_SIGNAL_LOGIC_VERSION, countReadySignalPairs, DISPLAYED_SIGNAL_PAIRS } from "./signal-display";
+import { ACTIVE_SIGNAL_LOGIC_VERSION, ACTIVE_SIGNAL_PAIRS, countReadySignalPairs } from "./signal-display";
 
 /**
  * Select the best signal record for a given date and hour from a list of records.
@@ -127,8 +127,12 @@ export function getSlotDisplayState(params: GetSlotDisplayStateParams): SlotDisp
 
   // Real record evaluation
   if (signal) {
+    if (signal.entry_state === "PENDING_LAYER3") {
+      return "PENDING_LAYER3";
+    }
+
     const readyPairs = countReadySignalPairs(signal);
-    if (readyPairs === DISPLAYED_SIGNAL_PAIRS.length) return "READY";
+    if (readyPairs === ACTIVE_SIGNAL_PAIRS.length) return "READY";
     if (readyPairs > 0) return "PARTIAL_WAIT";
   }
 

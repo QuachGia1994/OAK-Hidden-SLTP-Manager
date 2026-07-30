@@ -202,7 +202,7 @@ test("fails closed until each displayed pair has a validated entry", () => {
   };
   assert.equal(isSignalPairReady(partial, "XAUUSD"), true);
   assert.equal(isSignalPairReady(partial, "GBPUSD"), false);
-  assert.equal(countReadySignalPairs(partial), 4);
+  assert.equal(countReadySignalPairs(partial), 2);
 });
 
 test("public signal masking removes entries, groups, and evidence", () => {
@@ -242,14 +242,14 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the current GBP then XAU two-layer rules", () => {
+test("shows the current three-layer M30 rules", () => {
   const rules = getDayRules("EN", 2);
-  assert.equal(rules.some((rule) => rule.includes("GBP Signal first")), true);
-  assert.equal(rules.some((rule) => rule.includes("H3 Layer 1 uses 02:30, 02:00, and 01:30")), true);
-  assert.equal(rules.some((rule) => rule.includes("next full Broker hour")), true);
-  assert.equal(rules.some((rule) => rule.includes("H3, H14, and H16 reverse")), true);
-  assert.equal(rules.some((rule) => rule.includes("H7, H9, and H12 keep")), true);
-  assert.equal(rules.some((rule) => rule.includes("H1, M15, and other symbols are never used as fallbacks")), true);
+  assert.equal(rules.some((rule) => rule.includes("Layer 1")), true);
+  assert.equal(rules.some((rule) => rule.includes("Layer 2")), true);
+  assert.equal(rules.some((rule) => rule.includes("Layer 3")), true);
+  assert.equal(rules.some((rule) => rule.includes("candle OPEN times")), true);
+  assert.equal(rules.some((rule) => rule.includes("next full hour")), true);
+  assert.equal(rules.some((rule) => rule.includes("inverted at H3, H14, H16")), true);
 });
 
 test("only the XAU row opens XAU M30 timing evidence", () => {

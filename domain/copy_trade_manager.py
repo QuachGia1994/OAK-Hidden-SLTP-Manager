@@ -40,7 +40,7 @@ from domain.broker_clock import BrokerClock
 log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 72
+MINIMUM_SIGNAL_LOGIC_VERSION = 73
 _BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(_PROJECT_ROOT, "broker_clock_cache.json"),
@@ -96,7 +96,7 @@ def _format_current_signal_row(hour, payload):
     if do_not_enter:
         return (
             f"H={hour:02d} | phát {signal_time} Broker | "
-            f"entry tham chiếu {entry_time} Broker | XAUUSD:{direction}"
+            f"entry tham chiếu {entry_time} Broker | KHÔNG VÀO LỆNH (XAUUSD:{direction})"
         )
     return (
         f"H={hour:02d} | phát {signal_time} Broker | "

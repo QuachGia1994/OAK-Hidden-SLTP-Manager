@@ -53,7 +53,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(PROJECT_DIR, "profiles.json")
 SETTINGS_FILE = os.path.join(PROJECT_DIR, "settings.json")
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 72
+MINIMUM_SIGNAL_LOGIC_VERSION = 73
 
 # Files cho OAK integration
 TELE_INBOX_FILE = os.path.join(PROJECT_DIR, "tele_inbox.json")
@@ -152,12 +152,14 @@ def _format_current_signal_row(hour, payload):
     if do_not_enter:
         return (
             f"H={hour:02d} | phát {signal_time} Broker | "
-            f"entry tham chiếu {entry_time} Broker | XAUUSD:{direction}"
+            f"entry tham chiếu {entry_time} Broker | KHÔNG VÀO LỆNH (XAUUSD:{direction})"
         )
     return (
         f"H={hour:02d} | phát {signal_time} Broker | "
         f"vào {entry_time} Broker → *XAUUSD:{direction}*"
     )
+
+
 
 def save_json(path, data):
     try:

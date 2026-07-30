@@ -1,27 +1,27 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 72;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 73;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16] as const;
 export const INTERNAL_SIGNAL_SLOTS = [] as const;
 
 export const RULES_BY_LOCALE = {
   "VN": [
-    "GBPUSD, GBPAUD, GBPJPY và GBPCAD tạo Signal độc lập từ bốn nến M30 của chính từng symbol; nhóm SW đảo Base và nhóm BT giữ Base.",
-    "Thứ tự xử lý là Signal GBP trước, tiếp theo Layer 1 XAUUSD tạo hai ứng viên Entry, rồi Layer 2 XAUUSD chọn Entry cuối.",
-    "Các mốc Layer XAUUSD là giờ đóng nến. H3 Layer 1 dùng ba mốc 02:30, 02:00, 01:30; Layer 2 dùng 03:00, 02:30, 02:00, 01:30. Các slot khác dùng hai cửa sổ bốn nến cách nhau 30 phút.",
-    "Nếu Layer 1 SW: Layer 2 SW chọn H:49; Layer 2 BT chọn (H+1):25, riêng H3 chọn 04:49. Nếu Layer 1 BT: Layer 2 SW chọn H:11; Layer 2 BT chọn H:49.",
-    "Entry của bốn cặp GBP là giờ Broker tròn kế tiếp sau Entry XAUUSD; ví dụ XAU 03:11/03:49 thì GBP 04:00, còn XAU 04:25/04:49 thì GBP 05:00.",
-    "XAUUSD lấy Signal cuối của GBPAUD: H3, H14 và H16 đảo ngược; H7, H9 và H12 giữ nguyên.",
-    "Thiếu dữ liệu, nến không hợp lệ hoặc DOJI làm riêng Signal hoặc Layer liên quan WAIT; không dùng H1, M15 hay symbol khác làm fallback."
+    "Tầng 1 tạo native Signal độc lập cho GBPUSD và GBPAUD từ bốn nến M30 mở trước H:00; GBPJPY và GBPCAD tạm Tắt (OFF).",
+    "Tầng 2 XAUUSD M30 chọn Entry H:11 ngay lập tức nếu BT; nếu SW chuyển sang Tầng 3 chờ nến M30 mở H:00 đóng lúc H:30.",
+    "Tầng 3 XAUUSD tại H:30: SW chọn H:49; BT chọn (H+1):25; riêng H3 BT chọn 04:49.",
+    "Mọi timestamp M30 là giờ MỞ nến M30.",
+    "Entry của nhóm GBP luôn là giờ tròn H+1:00 sau mốc phát signal, độc lập với Entry của XAUUSD.",
+    "Suy chéo Signal: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (cả hai đảo tại H3, H14, H16). GBPUSD = final XAUUSD tại H3, H7, H9 và native GBPUSD tại H12, H14, H16.",
+    "Thiếu dữ liệu hoặc DOJI làm riêng dependency đó WAIT, fail-closed từng phần."
   ],
   "EN": [
-    "GBPUSD, GBPAUD, GBPJPY, and GBPCAD independently derive their Signal from four M30 candles of the same symbol; SW reverses Base and BT keeps Base.",
-    "The processing order is GBP Signal first, XAUUSD Layer 1 second to create two Entry candidates, and XAUUSD Layer 2 last to select the final Entry.",
-    "XAUUSD layer timestamps are candle close times. H3 Layer 1 uses 02:30, 02:00, and 01:30; Layer 2 uses 03:00, 02:30, 02:00, and 01:30. Other slots use two four-candle windows separated by 30 minutes.",
-    "For Layer 1 SW, Layer 2 SW selects H:49 and Layer 2 BT selects (H+1):25, except H3 selects 04:49. For Layer 1 BT, Layer 2 SW selects H:11 and Layer 2 BT selects H:49.",
-    "All four GBP pairs enter at the next full Broker hour after the XAUUSD Entry; for example XAU 03:11/03:49 maps to GBP 04:00, while XAU 04:25/04:49 maps to GBP 05:00.",
-    "XAUUSD starts from the final GBPAUD Signal: H3, H14, and H16 reverse it; H7, H9, and H12 keep it unchanged.",
-    "Missing data, an invalid candle, or a DOJI makes only the affected Signal or Layer WAIT; H1, M15, and other symbols are never used as fallbacks."
+    "Layer 1 derives independent native signals for GBPUSD and GBPAUD from four M30 candles opening before H:00; GBPJPY and GBPCAD are OFF.",
+    "XAUUSD Layer 2 selects Entry H:11 immediately if BT; if SW, moves to Layer 3 awaiting the M30 candle opening at H:00 to close at H:30.",
+    "XAUUSD Layer 3 at H:30: SW selects H:49; BT selects (H+1):25; H3 BT selects 04:49.",
+    "All M30 timestamps represent M30 candle OPEN times.",
+    "GBP entry time is always the next full hour H+1:00 after the signal slot, independent of XAUUSD entry timing.",
+    "Signal cross-mapping: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (both inverted at H3, H14, H16). GBPUSD = final XAUUSD at H3, H7, H9 and native GBPUSD at H12, H14, H16.",
+    "Missing data or DOJI results in WAIT only for affected dependencies (fail-closed)."
   ]
 } as const;
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v72: GBP M30 Signals -> XAU Layer 1 -> XAU Layer 2; GBP Entry at next full hour" as const;
+export const STARTUP_SUMMARY_BY_LOCALE = "v73: Three-layer M30 engine, 5 symbols (GBP USD/AUD active, JPY/CAD OFF), H+1:00 GBP entry schedule" as const;

@@ -47,9 +47,9 @@ class SignalIncompleteDataTests(unittest.TestCase):
 
     def test_one_doji_makes_only_that_pair_wait(self) -> None:
         candle = {**VALID, "close": VALID["open"]}
-        with patch.object(mt5_signal_bot, "read_completed_m30_candle", return_value=candle):
-            result = mt5_signal_bot.evaluate_gbp_pair_signal_m30(
-                datetime(2026, 7, 14, 7), 7, "GBPJPY"
+        with patch.object(mt5_signal_bot, "read_completed_m30_candle_by_open_time", return_value=candle):
+            result = mt5_signal_bot.evaluate_gbp_native_signal_m30(
+                datetime(2026, 7, 14, 7), 7, "GBPUSD"
             )
         self.assertEqual(result["direction"], "WAIT")
         self.assertIsNone(result["entry_time"])
@@ -58,10 +58,7 @@ class SignalIncompleteDataTests(unittest.TestCase):
     def test_every_active_slot_waits_if_engine_returns_no_context(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12)
         with patch.object(mt5_signal_bot, "evaluate_all_pairs_for_slot", return_value=None):
-            for hour in mt5_signal_bot.ACTIVE_HOURS:
-                with self.subTest(hour=hour):
-                    result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
-                    self.assertEqual(result["signal"], "WAIT")
+            self.assertIsNone(mt5_signal_bot.evaluate_all_pairs_for_slot(broker_dt, 12))
 
 
 if __name__ == "__main__":

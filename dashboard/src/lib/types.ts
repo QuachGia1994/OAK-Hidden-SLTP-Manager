@@ -21,9 +21,12 @@ export interface Signal {
   hour_note: string | null;
   deactivated?: boolean;
   logic_version?: number | string | null;
-  entry_state?: "READY" | "WAIT";
+  entry_state?: "READY" | "PENDING_LAYER3" | "WAIT";
   signal_state?: "READY" | "WAIT";
   entry_candidate?: string | null;
+  entry_candidates?: string[] | null;
+  entry_resolution_time?: string | null;
+  native_pair_dirs?: Record<string, string>;
   entry_rule?: string | null;
   pair_entry_states?: Record<string, string | null>;
   pair_signal_states?: Record<string, string | null>;
@@ -37,6 +40,7 @@ export interface Signal {
 export type SlotDisplayState =
   | "SCHEDULED"
   | "SYNCING"
+  | "PENDING_LAYER3"
   | "READY"
   | "PARTIAL_WAIT"
   | "WAIT";
@@ -53,7 +57,6 @@ export interface NewsItem {
   date?: string;
   time: string;
   local_time?: string;
-  time_zone?: string;
   currency: string;
   title: string;
   impact: "high" | "medium" | "low";

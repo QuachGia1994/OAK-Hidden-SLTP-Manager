@@ -150,7 +150,9 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 72
+SIGNAL_LOGIC_VERSION = 73
+ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
+DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SIGNAL_PAIRS = ("XAUUSD", *GBP_SIGNAL_PAIRS)
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -1118,7 +1120,7 @@ def _serialize_candle_ohlc(candle, symbol):
         "high": round(float(candle["high"]), digits),
         "low": round(float(candle["low"]), digits),
         "close": round(float(candle["close"]), digits),
-        "tick_volume": int(candle["tick_volume"]),
+        "tick_volume": int(candle.get("tick_volume", 0)),
     }
 
 
@@ -1289,10 +1291,9 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
         f"🤖 OAK SIGNAL BOT ONLINE · v{ver}\n"
         f"MT5: {mt5_status} | Broker: {broker_time_str}\n"
         "Slots: H3 - H7 - H9 - H12 - H14 - H16\n"
-        "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
-        "Signal engine: GBP M30 signals -> XAU Layer 1 -> XAU Layer 2\n"
-        "Entry: XAU from XAU M30; GBP at the next full Broker hour\n"
-        "XAUUSD: reverse GBPAUD at H3/H14/H16; keep GBPAUD at H7/H9/H12\n"
+        "Pairs: XAUUSD | GBPUSD | GBPAUD (GBPJPY/CAD: OFF)\n"
+        "Signal engine: Three-layer M30 (L1 GBP native, L2/3 XAU entry)\n"
+        "Entry: XAU L2 BT H:11 / L3 SW H:49 / L3 BT (H+1):25; GBP H+1:00\n"
         "Auto-close: XAU 17:59 | GBP 19:59 Broker"
     )
 
@@ -2051,12 +2052,13 @@ def _m30_candle_direction(candle):
     return "DOJI"
 
 
-def read_completed_m30_candle(symbol, open_dt, completed_by=None):
-    """Read one exact, valid M30 candle that has closed by ``completed_by``."""
+def read_completed_m30_candle_by_open_time(symbol, open_dt, as_of_dt=None):
+    """Read one M30 candle by its exact OPEN time that has completed by ``as_of_dt``."""
     if symbol not in SIGNAL_PAIRS:
         return None
-    cutoff = completed_by or open_dt + timedelta(minutes=30)
-    if open_dt + timedelta(minutes=30) > cutoff:
+    close_dt = open_dt + timedelta(minutes=30)
+    cutoff = as_of_dt or close_dt
+    if close_dt > cutoff:
         return None
     target_ts = broker_time_to_ts(open_dt, open_dt.hour, open_dt.minute)
     candle = get_candle_by_ts(symbol, mt5.TIMEFRAME_M30, target_ts)
@@ -2066,6 +2068,11 @@ def read_completed_m30_candle(symbol, open_dt, completed_by=None):
         return candle if int(candle["time"]) == int(target_ts) else None
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def read_completed_m30_candle(symbol, open_dt, completed_by=None):
+    """Alias for backwards compatibility."""
+    return read_completed_m30_candle_by_open_time(symbol, open_dt, as_of_dt=completed_by)
 
 
 def _empty_m30_candle(role, open_dt, close_dt):
@@ -2083,8 +2090,8 @@ def _empty_m30_candle(role, open_dt, close_dt):
     }
 
 
-def _m30_candle_evidence(symbol, role, close_dt, candle):
-    open_dt = close_dt - timedelta(minutes=30)
+def _m30_candle_evidence_by_open(symbol, role, open_dt, candle):
+    close_dt = open_dt + timedelta(minutes=30)
     evidence = _empty_m30_candle(role, open_dt, close_dt)
     if candle is None:
         return evidence
@@ -2093,15 +2100,15 @@ def _m30_candle_evidence(symbol, role, close_dt, candle):
     return evidence
 
 
-def _classify_m30_layer(symbol, close_times, candles_by_close, classifier):
+def _classify_m30_layer_by_open_times(symbol, open_times, candles_by_open, classifier):
     candles = [
-        _m30_candle_evidence(
+        _m30_candle_evidence_by_open(
             symbol,
             f"C{index + 1}{'_BASE' if index == 0 else ''}",
-            close_dt,
-            candles_by_close.get(close_dt),
+            open_dt,
+            candles_by_open.get(open_dt),
         )
-        for index, close_dt in enumerate(close_times)
+        for index, open_dt in enumerate(open_times)
     ]
     directions = [candle.get("direction") for candle in candles]
     classification = classifier(directions)
@@ -2114,15 +2121,52 @@ def _classify_m30_layer(symbol, close_times, candles_by_close, classifier):
     }
 
 
-def _read_m30_close_windows(symbol, close_times, completed_by):
+def _read_m30_open_windows(symbol, open_times, as_of_dt=None):
     return {
-        close_dt: read_completed_m30_candle(
+        open_dt: read_completed_m30_candle_by_open_time(
             symbol,
-            close_dt - timedelta(minutes=30),
-            completed_by,
+            open_dt,
+            as_of_dt,
         )
-        for close_dt in sorted(set(close_times))
+        for open_dt in sorted(set(open_times))
     }
+
+
+def get_m30_layer_open_times(slot_dt):
+    """Return exact M30 candle OPEN times for Layer 1, 2, and 3."""
+    h = slot_dt.hour
+    l1_open = (
+        slot_dt - timedelta(minutes=60),
+        slot_dt - timedelta(minutes=90),
+        slot_dt - timedelta(minutes=120),
+        slot_dt - timedelta(minutes=150),
+    )
+    if h == 3:
+        l2_open = (
+            slot_dt - timedelta(minutes=30),  # 02:30
+            slot_dt - timedelta(minutes=60),  # 02:00
+            slot_dt - timedelta(minutes=90),  # 01:30
+        )
+        l3_open = (
+            slot_dt,                          # 03:00
+            slot_dt - timedelta(minutes=30),  # 02:30
+            slot_dt - timedelta(minutes=60),  # 02:00
+            slot_dt - timedelta(minutes=90),  # 01:30
+        )
+    else:
+        l2_open = (
+            slot_dt - timedelta(minutes=30),  # H-00:30
+            slot_dt - timedelta(minutes=60),  # H-01:00
+            slot_dt - timedelta(minutes=90),  # H-01:30
+            slot_dt - timedelta(minutes=120), # H-02:00
+        )
+        l3_open = (
+            slot_dt,                          # H:00
+            slot_dt - timedelta(minutes=30),  # H-00:30
+            slot_dt - timedelta(minutes=60),  # H-01:00
+            slot_dt - timedelta(minutes=90),  # H-01:30
+        )
+    return {"layer1": l1_open, "layer2": l2_open, "layer3": l3_open}
 
 
 def _empty_gbp_signal_evidence(slot_dt, hour, symbol):
@@ -2135,26 +2179,30 @@ def _empty_gbp_signal_evidence(slot_dt, hour, symbol):
         "layer1": {},
         "direction": "WAIT",
         "entry_time": None,
-        "signal_state": "WAIT",
-        "entry_state": "WAIT",
-        "classification_reason": "INCOMPLETE_GBP_M30_SIGNAL_WAIT",
+        "signal_state": "DISABLED" if symbol in DISABLED_SIGNAL_PAIRS else "WAIT",
+        "entry_state": "DISABLED" if symbol in DISABLED_SIGNAL_PAIRS else "WAIT",
+        "classification_reason": "DISABLED_PAIR" if symbol in DISABLED_SIGNAL_PAIRS else "INCOMPLETE_GBP_M30_SIGNAL_WAIT",
     }
 
 
-def evaluate_gbp_pair_signal_m30(slot_dt, hour, symbol):
-    """Derive one GBP signal independently; XAU timing assigns its entry later."""
+def evaluate_gbp_native_signal_m30(slot_dt, hour, symbol, as_of_dt=None):
+    """Evaluate Layer 1 native GBP M30 signal using M30 candle OPEN times."""
     result = _empty_gbp_signal_evidence(slot_dt, hour, symbol)
+    if symbol in DISABLED_SIGNAL_PAIRS:
+        return result
     if symbol not in GBP_SIGNAL_PAIRS or int(hour) not in ACTIVE_HOURS:
         return result
-    open_times = gbp_signal_open_times(slot_dt)
-    close_times = tuple(value + timedelta(minutes=30) for value in open_times)
-    candles = _read_m30_close_windows(symbol, close_times, slot_dt)
-    layer1 = _classify_m30_layer(symbol, close_times, candles, classify_four_candle_group)
+
+    windows = get_m30_layer_open_times(slot_dt)
+    l1_open_times = windows["layer1"]
+    candles = _read_m30_open_windows(symbol, l1_open_times, as_of_dt=as_of_dt or slot_dt)
+    layer1 = _classify_m30_layer_by_open_times(symbol, l1_open_times, candles, classify_four_candle_group)
     signal = derive_gbp_signal_from_layer1(layer1["base_direction"], layer1["group"])
     layer1.update(signal)
     ready = signal["signal"] in ("BUY", "SELL")
     result.update({
         "layer1": layer1,
+        "native_signal": signal["signal"] if ready else "WAIT",
         "direction": signal["signal"] if ready else "WAIT",
         "signal_state": "READY" if ready else "WAIT",
         "classification_reason": "INDEPENDENT_GBP_M30_SIGNAL" if ready else "INCOMPLETE_GBP_M30_SIGNAL_WAIT",
@@ -2162,86 +2210,104 @@ def evaluate_gbp_pair_signal_m30(slot_dt, hour, symbol):
     return result
 
 
-def evaluate_xau_entry_timing_m30(slot_dt, hour):
-    """Use XAU M30 Layer 1/2 groups to choose the final XAU entry."""
-    windows = xau_entry_layer_close_times(slot_dt)
-    close_times = (*windows["layer1"], *windows["layer2"])
-    candles = _read_m30_close_windows("XAUUSD", close_times, slot_dt)
-    layer1_classifier = classify_three_candle_group if int(hour) == 3 else classify_four_candle_group
-    layer1 = _classify_m30_layer("XAUUSD", windows["layer1"], candles, layer1_classifier)
-    layer2 = _classify_m30_layer("XAUUSD", windows["layer2"], candles, classify_four_candle_group)
-    entry = select_two_layer_entry(hour, layer1["group"], layer2["group"])
-    layer1["entry_candidates"] = entry["entry_candidates"]
-    layer2["entry_selection"] = entry["entry_selection"]
+evaluate_gbp_pair_signal_m30 = evaluate_gbp_native_signal_m30
+
+
+def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
+    """Evaluate XAUUSD entry timing across Layer 2 and Layer 3 M30 open windows."""
+    h = int(hour)
+    windows = get_m30_layer_open_times(slot_dt)
+    cutoff = as_of_dt or slot_dt
+
+    # Layer 2 evaluation at slot_dt (H:00)
+    l2_open_times = windows["layer2"]
+    l2_candles = _read_m30_open_windows("XAUUSD", l2_open_times, cutoff)
+    l2_classifier = classify_three_candle_group if h == 3 else classify_four_candle_group
+    layer2 = _classify_m30_layer_by_open_times("XAUUSD", l2_open_times, l2_candles, l2_classifier)
+
+    # Layer 2 BT -> immediate entry at H:11 (03:11 at H3)
+    if layer2["group"] == "BT":
+        entry_t = "03:11" if h == 3 else f"{h:02d}:11"
+        return {
+            "symbol": "XAUUSD",
+            "timeframe": "M30",
+            "slot_hour": h,
+            "layer2": layer2,
+            "layer3": None,
+            "entry_time": entry_t,
+            "entry_state": "READY",
+            "entry_candidates": [entry_t],
+            "classification_reason": "XAU_LAYER2_BT_ENTRY",
+        }
+
+    # Layer 2 SW -> check Layer 3 if cutoff >= H:30
+    h30_dt = slot_dt + timedelta(minutes=30)
+    l3_open_times = windows["layer3"]
+    if cutoff >= h30_dt:
+        l3_candles = _read_m30_open_windows("XAUUSD", l3_open_times, cutoff)
+        layer3 = _classify_m30_layer_by_open_times("XAUUSD", l3_open_times, l3_candles, classify_four_candle_group)
+        if layer3["group"] == "SW":
+            entry_t = "03:49" if h == 3 else f"{h:02d}:49"
+        else:  # BT
+            entry_t = "04:49" if h == 3 else f"{h + 1:02d}:25"
+        return {
+            "symbol": "XAUUSD",
+            "timeframe": "M30",
+            "slot_hour": h,
+            "layer2": layer2,
+            "layer3": layer3,
+            "entry_time": entry_t,
+            "entry_state": "READY",
+            "entry_candidates": [entry_t],
+            "classification_reason": f"XAU_LAYER3_{layer3['group']}_ENTRY",
+        }
+
+    # Still pending Layer 3 (H:00 to H:30)
+    cand_sw = "03:49" if h == 3 else f"{h:02d}:49"
+    cand_bt = "04:49" if h == 3 else f"{h + 1:02d}:25"
     return {
         "symbol": "XAUUSD",
         "timeframe": "M30",
-        "slot_hour": int(hour),
-        "layer1": layer1,
+        "slot_hour": h,
         "layer2": layer2,
-        "entry_time": entry["entry_time"],
-        "entry_state": entry["state"],
-        "classification_reason": "XAU_TWO_LAYER_M30_ENTRY" if entry["state"] == "READY" else "INCOMPLETE_XAU_M30_ENTRY_WAIT",
+        "layer3": None,
+        "entry_time": None,
+        "entry_state": "PENDING_LAYER3",
+        "entry_candidates": [cand_sw, cand_bt],
+        "entry_resolution_time": f"{h:02d}:30",
+        "classification_reason": "XAU_LAYER2_SW_PENDING_LAYER3",
     }
 
 
-def derive_xau_from_gbpaud(hour, gbpaud_evidence, timing_evidence):
-    """Map the final GBPAUD signal by slot; keep entry from XAU timing layers."""
-    source_signal = (gbpaud_evidence or {}).get("direction")
-    timing_entry = (timing_evidence or {}).get("entry_time")
-    signal_ready = source_signal in ("BUY", "SELL")
-    timing_ready = (timing_evidence or {}).get("entry_state") == "READY" and bool(timing_entry)
-    reverses_gbpaud = int(hour) in (3, 14, 16)
-    direction = reverse_signal(source_signal) if reverses_gbpaud else source_signal
-    ready = signal_ready and timing_ready
+def derive_all_pair_final_signals(hour, native_gbpusd_dir, native_gbpaud_dir):
+    """Pure non-recursive cross mapping table for final pair directions."""
+    h = int(hour)
+    reverses = h in (3, 14, 16)
+
+    # 1. XAUUSD = reverse(native_gbpaud) if H in (3,14,16) else native_gbpaud
+    final_xauusd = reverse_signal(native_gbpaud_dir) if reverses else native_gbpaud_dir
+
+    # 2. GBPAUD = reverse(native_gbpusd) if H in (3,14,16) else native_gbpusd
+    final_gbpaud = reverse_signal(native_gbpusd_dir) if reverses else native_gbpusd_dir
+
+    # 3. GBPUSD = final_xauusd if H in (3,7,9) else native_gbpusd
+    if h in (3, 7, 9):
+        final_gbpusd = final_xauusd
+    else:
+        final_gbpusd = native_gbpusd_dir
+
     return {
-        "symbol": "XAUUSD",
-        "logic_version": SIGNAL_LOGIC_VERSION,
-        "timeframe": "M30",
-        "slot_hour": int(hour),
-        "source_symbol": "GBPAUD",
-        "source_signal": source_signal if signal_ready else "WAIT",
-        "direction_relation_to_gbpaud": "OPPOSITE" if reverses_gbpaud else "SAME",
-        "direction_rule": "OPPOSITE_GBPAUD" if reverses_gbpaud else "SAME_AS_GBPAUD",
-        "layer1": (timing_evidence or {}).get("layer1", {}),
-        "layer2": (timing_evidence or {}).get("layer2", {}),
-        "direction": direction if signal_ready else "WAIT",
-        "entry_time": timing_entry if ready else None,
-        "signal_state": "READY" if signal_ready else "WAIT",
-        "entry_state": "READY" if ready else "WAIT",
-        "classification_reason": "XAU_DIRECTION_GBPAUD_ENTRY_XAU_M30" if ready else "XAU_SIGNAL_OR_ENTRY_WAIT",
-        "source_evidence": "pair_evidence.GBPAUD",
+        "XAUUSD": final_xauusd,
+        "GBPAUD": final_gbpaud,
+        "GBPUSD": final_gbpusd,
+        "GBPJPY": "WAIT",
+        "GBPCAD": "WAIT",
     }
 
 
-def _evaluate_all_gbp_pairs(slot_dt, hour):
-    evidence = {}
-    for symbol in GBP_SIGNAL_PAIRS:
-        try:
-            evidence[symbol] = evaluate_gbp_pair_signal_m30(slot_dt, hour, symbol)
-        except Exception as error:
-            log.warning("GBP M30 evaluation failed for %s H=%s: %s", symbol, hour, error)
-            evidence[symbol] = _empty_gbp_signal_evidence(slot_dt, hour, symbol)
-    return evidence
-
-
-def _assign_gbp_entries(pair_evidence, xau_timing):
-    gbp_entry = deferred_gbp_entry_time((xau_timing or {}).get("entry_time"))
-    for symbol in GBP_SIGNAL_PAIRS:
-        item = pair_evidence[symbol]
-        ready = item.get("direction") in ("BUY", "SELL") and bool(gbp_entry)
-        item["entry_time"] = gbp_entry if ready else None
-        item["entry_state"] = "READY" if ready else "WAIT"
-        item["entry_rule"] = "NEXT_FULL_HOUR_AFTER_XAU" if ready else None
-
-
-def _pair_payload_from_evidence(pair_evidence):
-    return {
-        "pair_dirs": {symbol: item.get("direction", "WAIT") for symbol, item in pair_evidence.items()},
-        "pair_entry_times": {symbol: item.get("entry_time") for symbol, item in pair_evidence.items()},
-        "pair_signal_states": {symbol: item.get("signal_state", "WAIT") for symbol, item in pair_evidence.items()},
-        "pair_entry_states": {symbol: item.get("entry_state", "WAIT") for symbol, item in pair_evidence.items()},
-    }
+def next_full_hour_after_signal_slot(slot_dt):
+    """GBP entry is always the next full Broker hour after the signal slot."""
+    return (slot_dt + timedelta(hours=1)).strftime("%H:00")
 
 
 def _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset):
@@ -2251,70 +2317,146 @@ def _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset):
     }
 
 
-def _pair_group_labels(pair_groups):
-    labels = {
-        symbol: (f"L1 {pair_groups[symbol]}" if pair_groups.get(symbol) else None)
-        for symbol in SIGNAL_PAIRS
-    }
-    if pair_groups.get("XAUUSD"):
-        labels["XAUUSD"] = f"XAU L1 {pair_groups['XAUUSD']}"
-    return labels
-
-
-def evaluate_all_pairs_for_slot(broker_dt, hour):
-    """Evaluate GBP directions first, then XAU Layer 1/2 entry timing."""
+def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None):
+    """Evaluate 3-Layer M30 Core Engine for all 5 pairs at a slot."""
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
     slot_dt = broker_dt.replace(hour=h, minute=0, second=0, microsecond=0)
-    pair_evidence = _evaluate_all_gbp_pairs(slot_dt, h)
-    timing = evaluate_xau_entry_timing_m30(slot_dt, h)
-    _assign_gbp_entries(pair_evidence, timing)
-    pair_evidence["XAUUSD"] = derive_xau_from_gbpaud(h, pair_evidence["GBPAUD"], timing)
-    pair_evidence = {symbol: pair_evidence[symbol] for symbol in SIGNAL_PAIRS}
-    payload = _pair_payload_from_evidence(pair_evidence)
-    pair_entries = payload["pair_entry_times"]
+    eval_dt = as_of_dt or broker_dt
+
+    # 1. Evaluate native signals for GBPUSD and GBPAUD
+    gbpusd_native_ev = evaluate_gbp_native_signal_m30(slot_dt, h, "GBPUSD", as_of_dt=eval_dt)
+    gbpaud_native_ev = evaluate_gbp_native_signal_m30(slot_dt, h, "GBPAUD", as_of_dt=eval_dt)
+
+    native_ev = {
+        "GBPUSD": gbpusd_native_ev,
+        "GBPAUD": gbpaud_native_ev,
+        "GBPJPY": _empty_gbp_signal_evidence(slot_dt, h, "GBPJPY"),
+        "GBPCAD": _empty_gbp_signal_evidence(slot_dt, h, "GBPCAD"),
+    }
+
+    native_gbpusd_dir = gbpusd_native_ev.get("native_signal", "WAIT")
+    native_gbpaud_dir = gbpaud_native_ev.get("native_signal", "WAIT")
+
+    # 2. Derive final signals via non-recursive cross mapping table
+    final_dirs = derive_all_pair_final_signals(h, native_gbpusd_dir, native_gbpaud_dir)
+
+    # 3. Evaluate XAU entry timing
+    timing = evaluate_xau_entry_timing_m30(slot_dt, h, as_of_dt=eval_dt)
+
+    # 4. GBP entry schedule: H+1:00
+    gbp_entry_t = next_full_hour_after_signal_slot(slot_dt)
+
+    # Build per-pair payload maps
+    pair_dirs = {}
+    pair_entry_times = {}
+    pair_signal_states = {}
+    pair_entry_states = {}
+    pair_groups = {}
+    pair_labels = {}
+    pair_evidence = {}
+
+    for symbol in SIGNAL_PAIRS:
+        if symbol in DISABLED_SIGNAL_PAIRS:
+            pair_dirs[symbol] = "WAIT"
+            pair_entry_times[symbol] = None
+            pair_signal_states[symbol] = "DISABLED"
+            pair_entry_states[symbol] = "DISABLED"
+            pair_groups[symbol] = None
+            pair_labels[symbol] = "OFF"
+            pair_evidence[symbol] = {
+                "symbol": symbol,
+                "logic_version": SIGNAL_LOGIC_VERSION,
+                "direction": "WAIT",
+                "entry_time": None,
+                "signal_state": "DISABLED",
+                "entry_state": "DISABLED",
+                "label": "OFF",
+            }
+        elif symbol == "XAUUSD":
+            p_dir = final_dirs["XAUUSD"]
+            e_state = timing["entry_state"]
+            e_time = timing["entry_time"]
+            ready = p_dir in ("BUY", "SELL") and e_state == "READY"
+            pair_dirs["XAUUSD"] = p_dir if ready else "WAIT"
+            pair_entry_times["XAUUSD"] = e_time if ready else None
+            pair_signal_states["XAUUSD"] = "READY" if p_dir in ("BUY", "SELL") else "WAIT"
+            pair_entry_states["XAUUSD"] = e_state
+            pair_groups["XAUUSD"] = (timing.get("layer2") or {}).get("group")
+            pair_labels["XAUUSD"] = f"XAU L2 {pair_groups['XAUUSD']}" if pair_groups["XAUUSD"] else "XAU"
+            pair_evidence["XAUUSD"] = {
+                "symbol": "XAUUSD",
+                "logic_version": SIGNAL_LOGIC_VERSION,
+                "direction": pair_dirs["XAUUSD"],
+                "entry_time": pair_entry_times["XAUUSD"],
+                "signal_state": pair_signal_states["XAUUSD"],
+                "entry_state": e_state,
+                "timing": timing,
+                "source_evidence": "native_pair_dirs.GBPAUD",
+            }
+        else:
+            p_dir = final_dirs[symbol]
+            sig_ready = p_dir in ("BUY", "SELL")
+            pair_dirs[symbol] = p_dir if sig_ready else "WAIT"
+            pair_entry_times[symbol] = gbp_entry_t if sig_ready else None
+            pair_signal_states[symbol] = "READY" if sig_ready else "WAIT"
+            pair_entry_states[symbol] = "READY" if sig_ready else "WAIT"
+            ev = native_ev[symbol]
+            pair_groups[symbol] = (ev.get("layer1") or {}).get("group")
+            pair_labels[symbol] = f"L1 {pair_groups[symbol]}" if pair_groups[symbol] else symbol
+            pair_evidence[symbol] = {
+                "symbol": symbol,
+                "logic_version": SIGNAL_LOGIC_VERSION,
+                "direction": pair_dirs[symbol],
+                "entry_time": pair_entry_times[symbol],
+                "signal_state": pair_signal_states[symbol],
+                "entry_state": pair_entry_states[symbol],
+                "native_evidence": ev,
+            }
+
     try:
         broker_offset = BROKER_CLOCK.utc_offset_for_date(slot_dt.date())
     except Exception:
         broker_offset = None
-    pair_groups = {
-        symbol: (item.get("layer1") or {}).get("group")
-        for symbol, item in pair_evidence.items()
-    }
-    top_signal = payload["pair_dirs"]["XAUUSD"]
-    top_entry = pair_entries["XAUUSD"]
+
+    top_signal = pair_dirs["XAUUSD"]
+    top_entry = pair_entry_times["XAUUSD"]
+
     return {
         "logic_version": SIGNAL_LOGIC_VERSION,
         "record_revision": 2 if top_signal in ("BUY", "SELL") else 1,
         "state_updated_at_utc": datetime.now(timezone.utc).isoformat(),
         "signal": top_signal,
-        "signal_state": payload["pair_signal_states"]["XAUUSD"],
-        "entry_state": payload["pair_entry_states"]["XAUUSD"],
+        "signal_state": pair_signal_states["XAUUSD"],
+        "entry_state": pair_entry_states["XAUUSD"],
         "entry_time": top_entry,
         "entry_candidate": top_entry,
-        "entry_rule": "XAU_TWO_LAYER_M30" if top_entry else None,
+        "entry_candidates": timing.get("entry_candidates"),
+        "entry_resolution_time": timing.get("entry_resolution_time"),
+        "native_pair_dirs": {s: native_ev.get(s, {}).get("native_signal", "WAIT") for s in GBP_SIGNAL_PAIRS},
+        "entry_rule": "THREE_LAYER_M30" if top_entry else None,
         "entry_at_utc": compute_utc_iso(slot_dt.date(), top_entry, broker_offset),
         "broker_utc_offset": broker_offset,
-        **payload,
-        "pair_entry_at_utc": _pair_entry_utc_map(slot_dt, pair_entries, broker_offset),
+        "pair_dirs": pair_dirs,
+        "pair_entry_times": pair_entry_times,
+        "pair_signal_states": pair_signal_states,
+        "pair_entry_states": pair_entry_states,
+        "pair_entry_at_utc": _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset),
         "pair_groups": pair_groups,
-        "pair_labels": _pair_group_labels(pair_groups),
+        "pair_labels": pair_labels,
         "pair_evidence": pair_evidence,
         "source_date": slot_dt.date().isoformat(),
-        "report": _two_layer_m30_report(h, slot_dt, pair_evidence),
+        "report": _three_layer_m30_report(h, slot_dt, pair_evidence),
     }
 
 
-def _two_layer_m30_report(hour, slot_dt, pair_evidence):
-    lines = [f"H={hour} ({slot_dt.date().isoformat()}) [v{SIGNAL_LOGIC_VERSION}] GBP signal -> XAU L1 -> XAU L2:"]
-    for symbol in SIGNAL_PAIRS:
-        item = pair_evidence[symbol]
-        layer1 = (item.get("layer1") or {}).get("group")
-        layer2 = (item.get("layer2") or {}).get("group")
+def _three_layer_m30_report(hour, slot_dt, pair_evidence):
+    lines = [f"H={hour} ({slot_dt.date().isoformat()}) [v{SIGNAL_LOGIC_VERSION}] Three-Layer M30:"]
+    for symbol in DISPLAY_SIGNAL_PAIRS:
+        item = pair_evidence.get(symbol, {})
         lines.append(
-            f"  {symbol}: {item.get('direction', 'WAIT')} entry={item.get('entry_time') or 'WAIT'} "
-            f"L1={layer1 or '-'} L2={layer2 or '-'}"
+            f"  {symbol}: {item.get('direction', 'WAIT')} entry={item.get('entry_time') or 'OFF'}"
         )
     return "\n".join(lines)
 
