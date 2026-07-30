@@ -2,7 +2,7 @@ import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { DDirectionPanel } from "@/components/DDirectionPanel";
 import { SignalCard } from "@/components/SignalCard";
-import { getTodaySignalsResult, getBotState, getEconomicNews, DataResult } from "@/lib/data";
+import { getTodaySignalsResult, getBotState, getEconomicNews, getCurrentDDirectionResult, DataResult } from "@/lib/data";
 import { maskSignalForPublic } from "@/lib/signal-display";
 import { selectBestSignalRecord } from "@/lib/signal-resolver";
 import { getSignalLabel, getSignalTime, getSlotTimeValue, getTargetHours } from "@/lib/constants";
@@ -23,6 +23,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let signals: any[] = [];
   let botState: any = null;
   let news: any[] = [];
+  let dDirectionResult: DataResult<any> = { data: null, ok: true };
   const now = new Date();
 
   const params = await searchParams;
@@ -32,10 +33,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const t = getLocaleTexts(locale);
 
   try {
-    [signalsResult, botState, news] = await Promise.all([
+    [signalsResult, botState, news, dDirectionResult] = await Promise.all([
       getTodaySignalsResult(),
       getBotState(),
       getEconomicNews(),
+      getCurrentDDirectionResult(),
     ]);
     signals = signalsResult.data;
   } catch (e) {
@@ -153,8 +155,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       {brokerClock && (
         <DDirectionPanel
-          dailyDirections={todaySignals[0]?.daily_directions || todaySignals[0]?.d_directions}
-          dDirections={todaySignals[0]?.d_directions}
+          snapshot={dDirectionResult.data}
+          date={todayStr}
           locale={locale}
         />
       )}

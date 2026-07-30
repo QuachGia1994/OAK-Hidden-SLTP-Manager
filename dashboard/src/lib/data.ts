@@ -1,4 +1,4 @@
-import type { Signal, BotState, NewsItem, StockAdvisory } from "./types";
+import type { Signal, BotState, NewsItem, StockAdvisory, DDirectionSnapshotV2 } from "./types";
 import { redis, KEYS } from "./redis";
 import { isActiveSignalHour } from "./constants";
 export { maskStockAdvisory } from "./stock-advisor-display";
@@ -66,3 +66,47 @@ export async function getStockAdvisory(): Promise<StockAdvisory | null> {
   }
 }
 
+export async function getCurrentDDirectionResult(): Promise<DataResult<DDirectionSnapshotV2 | null>> {
+  try {
+    const raw = await redis.get(KEYS.dDirectionCurrent);
+    if (!raw) return { data: null, ok: true };
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return { data: parsed as DDirectionSnapshotV2, ok: true };
+  } catch (e) {
+    console.error("[REDIS READ D-DIRECTION FAILED]", e);
+    return { data: null, ok: false, error: "REDIS_READ_FAILED" };
+  }
+}
+
+export async function getDDirectionByDate(date: string): Promise<DDirectionSnapshotV2 | null> {
+  try {
+    const raw = await redis.hget(KEYS.dDirectionHistory, date);
+    if (!raw) return null;
+    return typeof raw === "string" ? JSON.parse(raw) : (raw as DDirectionSnapshotV2);
+  } catch {
+    return null;
+  }
+}
+
+export async function getDDirectionHistoryResult(
+  from?: string,
+  to?: string
+): Promise<Record<string, DDirectionSnapshotV2>> {
+  try {
+    const historyMap = (await redis.hgetall(KEYS.dDirectionHistory)) as Record<string, unknown> | null;
+    if (!historyMap) return {};
+    const result: Record<string, DDirectionSnapshotV2> = {};
+    for (const [key, raw] of Object.entries(historyMap)) {
+      if ((!from || key >= from) && (!to || key <= to)) {
+        try {
+          result[key] = typeof raw === "string" ? JSON.parse(raw) : (raw as DDirectionSnapshotV2);
+        } catch {
+          // ignore parsing error for corrupted entries
+        }
+      }
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}

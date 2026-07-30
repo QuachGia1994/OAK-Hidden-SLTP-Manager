@@ -271,3 +271,39 @@ export function isSignalEvidenceV3(ev: unknown): ev is SignalEvidenceV3 {
   const e = ev as Record<string, unknown>;
   return e["evidence_schema_version"] === 3;
 }
+
+export interface DDirectionSymbolData {
+  symbol: string;
+  timeframe: string;
+  target_date: string;
+  session_date: string | null;
+  d_candle_open_time?: string | null;
+  d_candle_open_time_broker?: string | null;
+  d_candle_close_time_broker?: string | null;
+  d_candle_open_at_utc?: string | null;
+  d_candle_close_at_utc?: string | null;
+  d_candle_open_time_local?: string | null;
+  d_candle_close_time_local?: string | null;
+  price_digits?: number;
+  candle?: CandleOhlc | null;
+  raw_direction?: string | null;
+  d_direction: "BUY" | "SELL" | "WAIT";
+  d_state: string;
+  execution_status?: "ON" | "OFF";
+  discovery_rule: string;
+}
+
+export interface DDirectionSnapshotV2 {
+  schema_version: 2;
+  logic_version: number;
+  target_local_date: string;
+  target_broker_date: string;
+  published_at_utc: string;
+  published_at_local: string;
+  publication_timezone: string;
+  publication_rule: string;
+  broker_utc_offset: number | null;
+  state: "PENDING_PUBLICATION" | "SYNCING" | "READY" | "PARTIAL" | "MISSING";
+  symbols: Record<string, DDirectionSymbolData>;
+  message?: string;
+}

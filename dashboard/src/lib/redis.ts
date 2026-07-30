@@ -18,6 +18,8 @@ export const KEYS = {
   heartbeat: "sltp:heartbeat",
   stockAdvisor: "sltp:stock-advisor",
   evidence: "sltp:evidence",
+  dDirectionCurrent: "sltp:d_direction:current",
+  dDirectionHistory: "sltp:d_direction:history",
 };
 
 // API auth helper — rejects write requests without valid key.

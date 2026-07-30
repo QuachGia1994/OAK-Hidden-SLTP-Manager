@@ -17,7 +17,10 @@ export const RULES_BY_LOCALE = {
     "Thiếu dữ liệu hoặc DOJI làm riêng dependency đó WAIT, fail-closed từng phần.",
     "GBPJPY và GBPCAD tạm Tắt (OFF).",
     "Day Mode phải được giữ nguyên từ mốc anchor đầu tiên trong ngày. Entry H:49 không thay đổi Day Mode. Restart hoặc rebuild không được làm mất nguồn Day Mode.",
-    "Signal Evidence của XAUUSD, GBPUSD và GBPAUD được hiển thị độc lập theo đúng D-Direction hoặc H1 của từng symbol."
+    "Signal Evidence của XAUUSD, GBPUSD và GBPAUD được hiển thị độc lập theo đúng D-Direction hoặc H1 của từng symbol.",
+    "D-Direction được tính và công bố độc lập lúc 06:00 GMT+7 mỗi ngày, không phụ thuộc mốc Signal H3.",
+    "D-Direction lịch sử được lưu riêng theo ngày để có thể đối chiếu cây M30 nguồn và kết quả Signal.",
+    "Mọi giờ Signal, Entry và D evidence đều hiển thị song song giờ Local của người dùng và giờ Broker khi dữ liệu chuyển đổi hợp lệ."
   ],
   "EN": [
     "Entry Engine: XAUUSD Layer 2 selects Entry H:11 immediately if BT; if SW, moves to Layer 3 awaiting the M30 candle opening at H:00 to close at H:30.",
@@ -32,8 +35,11 @@ export const RULES_BY_LOCALE = {
     "Missing data or DOJI results in WAIT only for affected dependencies (fail-closed).",
     "GBPJPY and GBPCAD are OFF.",
     "Day Mode must be preserved from the first anchor in the day. Entry H:49 never modifies Day Mode. Restart or rebuild must not lose Day Mode source metadata.",
-    "Signal Evidence for XAUUSD, GBPUSD, and GBPAUD is rendered independently based on each symbol's own D-Direction or H1."
+    "Signal Evidence for XAUUSD, GBPUSD, and GBPAUD is rendered independently based on each symbol's own D-Direction or H1.",
+    "D-Direction is calculated and published independently at 06:00 GMT+7 daily, without depending on H3 signal slots.",
+    "Historical D-Direction is stored separately by date for cross-referencing source M30 candles and signal outcomes.",
+    "All Signal times, Entry times, and D evidence display both user Local time and Broker time when valid conversion metadata is present."
   ]
 } as const;
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v81: Day Mode persistence + per-pair evidence" as const;
+export const STARTUP_SUMMARY_BY_LOCALE = "v81: Day Mode persistence + per-pair evidence + 06:00 D publication" as const;

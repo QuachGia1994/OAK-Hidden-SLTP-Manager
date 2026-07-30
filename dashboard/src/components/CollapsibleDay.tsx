@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SignalCard } from "./SignalCard";
-import type { Signal } from "@/lib/types";
+import { DDirectionPanel } from "./DDirectionPanel";
+import type { Signal, DDirectionSnapshotV2 } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
+import { getSlotTimeValue } from "@/lib/constants";
 
 function weekdayLabel(dateStr: string, locale: "VN" | "EN"): string {
   const [year, month, dayOfMonth] = dateStr.split("-").map(Number);
@@ -19,15 +21,27 @@ interface CollapsibleDayProps {
   signals: Signal[];
   isVIP: boolean;
   defaultOpen?: boolean;
+  initialDSnapshot?: DDirectionSnapshotV2 | null;
 }
 
-import { getSlotTimeValue } from "@/lib/constants";
-
-export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: CollapsibleDayProps) {
+export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false, initialDSnapshot }: CollapsibleDayProps) {
   const [open, setOpen] = useState(defaultOpen);
+  const [dSnapshot, setDSnapshot] = useState<DDirectionSnapshotV2 | null>(initialDSnapshot || null);
   const { locale } = useLocale();
+
+  useEffect(() => {
+    if (open && !dSnapshot) {
+      fetch(`/api/signals/d-direction?date=${date}`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.symbols) setDSnapshot(data);
+        })
+        .catch(() => {});
+    }
+  }, [open, date, dSnapshot]);
+
   const daySignals = [...signals].sort(
-    (a, b) => getSlotTimeValue(b.hour, b.signal_time) - getSlotTimeValue(a.hour, b.signal_time),
+    (a, b) => getSlotTimeValue(b.hour, b.signal_time || null) - getSlotTimeValue(a.hour, a.signal_time || null),
   );
   const weekday = weekdayLabel(date, locale);
   const verdictCounts = daySignals.reduce(
@@ -72,14 +86,17 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false }: Co
         <span className="history-day-state font-mono text-xs">{open ? "−" : "+"}</span>
       </button>
       {open && (
-        <div className="history-day-content grid grid-cols-1 gap-3 px-4 pb-4 pt-4 md:grid-cols-2 xl:grid-cols-3">
-          {daySignals.map((signal) => (
-            <SignalCard
-              key={`${signal.date}-${signal.hour}`}
-              signal={signal}
-              isVIP={isVIP}
-            />
-          ))}
+        <div className="history-day-content px-4 pb-4 pt-4 space-y-4">
+          <DDirectionPanel snapshot={dSnapshot} date={date} locale={locale} />
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {daySignals.map((signal) => (
+              <SignalCard
+                key={`${signal.date}-${signal.hour}`}
+                signal={signal}
+                isVIP={isVIP}
+              />
+            ))}
+          </div>
         </div>
       )}
     </section>

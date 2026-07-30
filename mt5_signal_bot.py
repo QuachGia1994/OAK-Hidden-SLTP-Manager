@@ -10,7 +10,8 @@ import threading
 import socket
 import re
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, time as dtime, date
+from zoneinfo import ZoneInfo
 import traceback
 import urllib.request
 from collections.abc import Mapping
@@ -1917,6 +1918,289 @@ def clear_d_direction_cache():
 
 
 # =====================================================================
+# DAILY D PUBLICATION ENGINE (06:00 GMT+7)
+# =====================================================================
+
+try:
+    HO_CHI_MINH_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+except Exception:
+    HO_CHI_MINH_TZ = timezone(timedelta(hours=7))
+D_PUBLICATION_LOCAL_HOUR = 6
+D_PUBLICATION_LOCAL_MINUTE = 0
+D_PUBLICATION_TIMEZONE = "Asia/Ho_Chi_Minh"
+D_DIRECTION_SCHEMA_VERSION = 2
+D_HISTORY_SCHEMA_VERSION = 1
+_D_DIRECTION_HISTORY_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "d_direction_history.json")
+
+SYMBOL_PRICE_DIGITS = {
+    "XAUUSD": 2,
+    "GBPUSD": 5,
+    "GBPAUD": 5,
+    "GBPJPY": 3,
+    "GBPCAD": 5,
+}
+
+def get_symbol_price_digits(symbol):
+    if mt5_ready:
+        try:
+            info = mt5.symbol_info(symbol)
+            if info and hasattr(info, "digits"):
+                return int(info.digits)
+        except Exception:
+            pass
+    return SYMBOL_PRICE_DIGITS.get(symbol, 5)
+
+def get_d_publication_datetime_local(local_date):
+    if isinstance(local_date, str):
+        local_date = datetime.strptime(local_date, "%Y-%m-%d").date()
+    return datetime.combine(local_date, dtime(D_PUBLICATION_LOCAL_HOUR, D_PUBLICATION_LOCAL_MINUTE), tzinfo=HO_CHI_MINH_TZ)
+
+def get_d_publication_datetime_utc(local_date):
+    local_dt = get_d_publication_datetime_local(local_date)
+    return local_dt.astimezone(timezone.utc)
+
+def is_d_publication_due(now_utc, local_date):
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    pub_utc = get_d_publication_datetime_utc(local_date)
+    return now_utc >= pub_utc
+
+def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
+    now_utc = datetime.now(timezone.utc)
+    now_local = now_utc.astimezone(HO_CHI_MINH_TZ)
+
+    if target_broker_date is None:
+        target_broker_date = target_local_date
+
+    if isinstance(target_local_date, str):
+        target_local_date_str = target_local_date
+    else:
+        target_local_date_str = target_local_date.isoformat()
+
+    if isinstance(target_broker_date, str):
+        target_broker_date_obj = datetime.strptime(target_broker_date, "%Y-%m-%d").date()
+    else:
+        target_broker_date_obj = target_broker_date
+
+    d_dirs = calculate_all_d_directions(target_broker_date_obj)
+
+    symbols_payload = {}
+    states = []
+
+    for symbol in D_DIRECTION_PAIRS:
+        item = d_dirs.get(symbol) or {}
+        d_state = item.get("d_state", "MISSING")
+        d_dir = item.get("d_direction", "WAIT")
+        candle = item.get("candle")
+        session_date = item.get("session_date")
+        d_candle_open_time = item.get("d_candle_open_time")
+
+        open_time_broker = None
+        close_time_broker = None
+        open_at_utc = None
+        close_at_utc = None
+        open_time_local = None
+        close_time_local = None
+
+        if d_candle_open_time:
+            try:
+                utc_open = datetime.fromisoformat(d_candle_open_time.replace("Z", "+00:00"))
+                utc_close = utc_open + timedelta(minutes=30)
+                open_at_utc = utc_open.isoformat()
+                close_at_utc = utc_close.isoformat()
+
+                offset = BROKER_CLOCK.utc_offset_for_date(utc_open.date())
+                broker_open = utc_open - timedelta(hours=offset)
+                broker_close = utc_close - timedelta(hours=offset)
+                open_time_broker = broker_open.strftime("%H:%M")
+                close_time_broker = broker_close.strftime("%H:%M")
+
+                local_open = utc_open.astimezone(HO_CHI_MINH_TZ)
+                local_close = utc_close.astimezone(HO_CHI_MINH_TZ)
+                open_time_local = local_open.strftime("%H:%M")
+                close_time_local = local_close.strftime("%H:%M")
+            except Exception:
+                pass
+
+        digits = get_symbol_price_digits(symbol)
+        raw_dir = item.get("d_candle_direction")
+
+        symbols_payload[symbol] = {
+            "symbol": symbol,
+            "timeframe": "M30",
+            "target_date": target_broker_date_obj.isoformat(),
+            "session_date": session_date,
+            "d_candle_open_time": d_candle_open_time,
+            "d_candle_open_time_broker": open_time_broker,
+            "d_candle_close_time_broker": close_time_broker,
+            "d_candle_open_at_utc": open_at_utc,
+            "d_candle_close_at_utc": close_at_utc,
+            "d_candle_open_time_local": open_time_local,
+            "d_candle_close_time_local": close_time_local,
+            "price_digits": digits,
+            "candle": candle,
+            "raw_direction": raw_dir,
+            "d_direction": d_dir,
+            "d_state": d_state,
+            "execution_status": "OFF" if symbol in DISABLED_SIGNAL_PAIRS else "ON",
+            "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
+        }
+        states.append(d_state)
+
+    if all(s in ("READY", "DOJI") for s in states):
+        snapshot_state = "READY"
+    elif any(s in ("READY", "DOJI") for s in states):
+        snapshot_state = "PARTIAL"
+    else:
+        snapshot_state = "MISSING"
+
+    try:
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(now_utc.date())
+    except Exception:
+        broker_offset = None
+
+    return {
+        "schema_version": 2,
+        "logic_version": SIGNAL_LOGIC_VERSION,
+        "target_local_date": target_local_date_str,
+        "target_broker_date": target_broker_date_obj.isoformat(),
+        "published_at_utc": now_utc.isoformat(),
+        "published_at_local": now_local.isoformat(),
+        "publication_timezone": D_PUBLICATION_TIMEZONE,
+        "publication_rule": "DAILY_AT_06_00_LOCAL",
+        "broker_utc_offset": broker_offset,
+        "state": snapshot_state,
+        "symbols": symbols_payload,
+    }
+
+def _load_d_direction_history_records():
+    if not os.path.exists(_D_DIRECTION_HISTORY_LOG):
+        return {}
+    try:
+        with open(_D_DIRECTION_HISTORY_LOG, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return data
+            elif isinstance(data, list):
+                res = {}
+                for row in data:
+                    if isinstance(row, dict) and "target_local_date" in row:
+                        res[row["target_local_date"]] = row
+                return res
+    except Exception as e:
+        print(f"[DAILY-D] Failed to load local D history: {e}")
+    return {}
+
+def save_d_direction_snapshot_local(snapshot):
+    records = _load_d_direction_history_records()
+    target_date = snapshot.get("target_local_date")
+    if target_date:
+        records[target_date] = snapshot
+        try:
+            tmp_path = f"{_D_DIRECTION_HISTORY_LOG}.tmp.{os.getpid()}"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(records, f, indent=2, ensure_ascii=False)
+            os.replace(tmp_path, _D_DIRECTION_HISTORY_LOG)
+        except Exception as e:
+            print(f"[DAILY-D] Failed to save local D history: {e}")
+
+def push_d_direction_snapshot(snapshot, force=False):
+    dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
+    if not dashboard_url:
+        print("[DAILY-D] No dashboard_url configured, skip push.")
+        return False
+    api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
+    target_date = snapshot.get("target_local_date", "unknown")
+    print(f"[DAILY-D] Pushing D snapshot for {target_date} to {dashboard_url}/api/signals/d-direction ...")
+    try:
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["X-API-Key"] = api_key
+            headers["Authorization"] = f"Bearer {api_key}"
+        payload = json.dumps(snapshot).encode("utf-8")
+        req = urllib.request.Request(
+            f"{dashboard_url}/api/signals/d-direction",
+            data=payload,
+            headers=headers
+        )
+        resp = urllib.request.urlopen(req, timeout=15)
+        resp.read()
+        print(f"[DAILY-D] Pushed D snapshot for {target_date} OK")
+        return True
+    except Exception as e:
+        print(f"[DAILY-D] Failed to push D snapshot: {e}")
+        return False
+
+def publish_d_direction_daily(target_local_date=None, force=False):
+    if target_local_date is None:
+        target_local_date = datetime.now(HO_CHI_MINH_TZ).date()
+    elif isinstance(target_local_date, str):
+        target_local_date = datetime.strptime(target_local_date, "%Y-%m-%d").date()
+
+    target_date_str = target_local_date.isoformat()
+    state_data = _load_state()
+    published_dates = set(state_data.get("d_published_local_dates", []))
+
+    if target_date_str in published_dates and not force:
+        print(f"  [DAILY-D] Date {target_date_str} already published, skip.")
+        return _load_d_direction_history_records().get(target_date_str)
+
+    pub_utc = get_d_publication_datetime_utc(target_local_date)
+    try:
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(pub_utc.date())
+        broker_dt = pub_utc - timedelta(hours=broker_offset)
+        target_broker_date = broker_dt.date()
+    except Exception:
+        target_broker_date = target_local_date
+
+    print(f"  [DAILY-D] Calculating D-Direction snapshot for local_date={target_date_str}, broker_date={target_broker_date} ...")
+
+    attempts = 0
+    snapshot = None
+    deadline_local = datetime.combine(target_local_date, dtime(6, 10), tzinfo=HO_CHI_MINH_TZ)
+
+    while True:
+        attempts += 1
+        snapshot = build_d_direction_snapshot_v2(target_local_date, target_broker_date)
+        if snapshot["state"] in ("READY", "DOJI") or not force:
+            break
+
+        current_local = datetime.now(HO_CHI_MINH_TZ)
+        if current_local >= deadline_local or attempts >= 6:
+            print(f"  [DAILY-D] Reached deadline or max attempts ({attempts}), publishing state={snapshot['state']}")
+            break
+
+        print(f"  [DAILY-D] Attempt {attempts}: state={snapshot['state']}, retrying in 10s...")
+        time.sleep(10)
+
+    save_d_direction_snapshot_local(snapshot)
+    pushed = push_d_direction_snapshot(snapshot, force=force)
+
+    if snapshot["state"] in ("READY", "PARTIAL") or pushed:
+        published_dates.add(target_date_str)
+        state_data["d_published_local_dates"] = list(published_dates)
+        state_data["d_last_success_at"] = datetime.now(timezone.utc).isoformat()
+        _save_state(state_data)
+
+    print(f"  [DAILY-D] Published {target_date_str} state={snapshot['state']} (pushed={pushed})")
+    return snapshot
+
+def rebuild_d_direction_history(days=45):
+    print(f"[REBUILD-D-HISTORY] Rebuilding past {days} days of D-Direction snapshots...")
+    today_local = datetime.now(HO_CHI_MINH_TZ).date()
+    for i in range(days, -1, -1):
+        target_date = today_local - timedelta(days=i)
+        print(f"  --> Processing {target_date} ...")
+        publish_d_direction_daily(target_date, force=True)
+    print(f"[REBUILD-D-HISTORY] Completed {days} days rebuild.")
+
+def repair_d_direction_date(date_str):
+    print(f"[REPAIR-D-DATE] Repairing D-Direction snapshot for date {date_str}...")
+    snapshot = publish_d_direction_daily(date_str, force=True)
+    print(f"[REPAIR-D-DATE] Done repairing {date_str}: state={snapshot.get('state') if snapshot else 'FAILED'}")
+
+
+# =====================================================================
 # D-DIRECTION + DAY MODE ENGINE (v80)
 # =====================================================================
 
@@ -2676,6 +2960,16 @@ def main(profile_name=None):
     except Exception as error:
         _d_directions_today = {}
         print(f"  [D-DIR] Error: {error}")
+
+    # Independent Daily 06:00 GMT+7 D-Direction publication check
+    today_local = datetime.now(HO_CHI_MINH_TZ).date()
+    now_utc = datetime.now(timezone.utc)
+    if is_d_publication_due(now_utc, today_local):
+        print(f"  [DAILY-D] Publication is due for local date {today_local.isoformat()}")
+        publish_d_direction_daily(today_local)
+    else:
+        print(f"  [DAILY-D] Before 06:00 GMT+7, today's publication scheduled for 06:00 GMT+7.")
+
     reconcile_due_xau_entry_alerts(broker_dt)
 
     push_to_dashboard(snapshot_complete=True)
@@ -3547,10 +3841,16 @@ if __name__ == "__main__":
                         help="Repair specific date (YYYY-MM-DD), repeatable")
     parser.add_argument("--rebuild-all", action="store_true",
                         help="Full deterministic rebuild of recent history")
+    parser.add_argument("--rebuild-d-history", action="store_true",
+                        help="Rebuild D-Direction history snapshots")
+    parser.add_argument("--repair-d-date", type=str,
+                        help="Repair D-Direction snapshot for specific date YYYY-MM-DD")
+    parser.add_argument("--days", type=int, default=45,
+                        help="Number of days for rebuild (default: 45)")
     args, _ = parser.parse_known_args()
 
     if args.repair_history or args.repair_date:
-        if not mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize():
+        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
             print("[REPAIR] MT5 init failed")
         else:
             mt5_ready = True
@@ -3562,14 +3862,34 @@ if __name__ == "__main__":
             finally:
                 mt5.shutdown()
     elif args.rebuild_all:
-        if not mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize():
+        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
             print("[REBUILD] MT5 init failed")
         else:
             mt5_ready = True
             BROKER_CLOCK.clear_cache()
             try:
-                rebuild_recent_history(days=45)
+                rebuild_recent_history(days=args.days)
                 push_to_dashboard(snapshot_complete=True)
+            finally:
+                mt5.shutdown()
+    elif args.rebuild_d_history:
+        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
+            print("[REBUILD-D] MT5 init failed")
+        else:
+            mt5_ready = True
+            BROKER_CLOCK.clear_cache()
+            try:
+                rebuild_d_direction_history(days=args.days)
+            finally:
+                mt5.shutdown()
+    elif args.repair_d_date:
+        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
+            print("[REPAIR-D] MT5 init failed")
+        else:
+            mt5_ready = True
+            BROKER_CLOCK.clear_cache()
+            try:
+                repair_d_direction_date(args.repair_d_date)
             finally:
                 mt5.shutdown()
     else:
