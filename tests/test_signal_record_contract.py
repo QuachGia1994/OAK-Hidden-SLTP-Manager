@@ -1,4 +1,4 @@
-"""Canonical v74 signal record and Telegram payload fields."""
+"""Canonical v75 signal record and Telegram payload fields."""
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -60,7 +60,7 @@ class SignalRecordContractTests(unittest.TestCase):
         self.assertEqual(record["pair_entry_times"], pair_entries)
         self.assertEqual(record["signal_at_utc"], "2026-08-06T00:00:00+00:00")
         self.assertEqual(record["broker_utc_offset"], 3)
-        self.assertEqual(record["logic_version"], 74)
+        self.assertEqual(record["logic_version"], 75)
         self.assertFalse(record["deactivated"])
 
     def test_wait_record_never_invents_an_entry_time(self) -> None:

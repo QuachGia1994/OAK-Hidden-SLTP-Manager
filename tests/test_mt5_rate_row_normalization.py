@@ -1,4 +1,4 @@
-"""MT5 rate row normalization: numpy.void and dict compatibility for v74."""
+"""MT5 rate row normalization: numpy.void and dict compatibility for v75."""
 
 import unittest
 from unittest.mock import patch

@@ -152,7 +152,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 74
+SIGNAL_LOGIC_VERSION = 75
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -452,6 +452,21 @@ def _save_state(sent_today, broker_dt=None):
         return False
 
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
+
+
+def _get_current_entry_state(date_str, hour):
+    """Read the current XAUUSD entry_state from signals_log for one slot."""
+    try:
+        if not os.path.exists(_SIGNALS_LOG) or os.path.getsize(_SIGNALS_LOG) <= 2:
+            return None
+        with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+            data = json.load(f)
+        for record in reversed(data):
+            if record.get("date") == date_str and int(record.get("hour", -1)) == hour:
+                return record.get("entry_state")
+    except Exception:
+        pass
+    return None
 
 
 def _write_signals_log_atomic(data):
@@ -1539,17 +1554,19 @@ def is_slot_ready(broker_dt, hour):
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def rebuild_slot_signal(broker_dt, h):
+def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
     """Recalculate one slot with current logic and overwrite signals_log (date, hour).
     Always logs the result -- including WAIT and deactivated slots -- so the dashboard
     shows every scheduled hour.
 
-    The v72 inputs are complete by the logical H:00 slot.
+    ``as_of_dt`` controls how much market data the evaluator may read:
+    - current-day rebuild: pass ``broker_now`` so Layer 3 resolves when past H:30;
+    - historical rebuild: pass a far-future timestamp so all layers resolve.
     """
     if broker_dt.weekday() >= 5:
         return False
 
-    result = evaluate_all_pairs_for_slot(broker_dt, h)
+    result = evaluate_all_pairs_for_slot(broker_dt, h, as_of_dt=as_of_dt)
     if result is None:
         result = calculate_slot_signal(broker_dt, h)
 
@@ -1620,8 +1637,12 @@ def rebuild_recent_history(days=45):
                 continue
             attempted += 1
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
+            if target_date == today:
+                rebuild_as_of = broker_dt
+            else:
+                rebuild_as_of = slot_dt + timedelta(days=1)
             try:
-                if rebuild_slot_signal(slot_dt, hour):
+                if rebuild_slot_signal(slot_dt, hour, as_of_dt=rebuild_as_of):
                     refreshed += 1
             except Exception as error:
                 failed += 1
@@ -1895,14 +1916,27 @@ def _all_pair_entries_ready(result):
 
 
 def _process_live_slot(broker_dt, hour):
-    """Publish one due v72 slot and fail closed until XAUUSD is ready."""
+    """Publish one due slot, re-evaluating PENDING_LAYER3 until entry resolves."""
     key = (broker_dt.date(), hour)
-    if key in sent_today or broker_dt < get_signal_datetime_for_slot(broker_dt, hour):
+
+    if broker_dt < get_signal_datetime_for_slot(broker_dt, hour):
         return False
+
+    is_recheck = False
+    if key in sent_today:
+        prev_entry_state = _get_current_entry_state(broker_dt.date().isoformat(), hour)
+        if prev_entry_state == "PENDING_LAYER3":
+            h30 = broker_dt.replace(hour=hour, minute=30, second=0, microsecond=0)
+            if broker_dt >= h30:
+                is_recheck = True
+        if not is_recheck:
+            return False
+
     result = calculate_slot_signal(broker_dt, hour)
     if not result:
         print(f"  [RETRY] H={hour} - no evaluation result")
         return False
+
     deadline = get_slot_retry_deadline(broker_dt, hour, result.get("entry_time"))
     xau_actionable = (
         result.get("signal") in ("BUY", "SELL")
@@ -1910,20 +1944,23 @@ def _process_live_slot(broker_dt, hour):
         and result.get("signal_state") == "READY"
         and result.get("entry_time")
     )
+
     if xau_actionable and broker_dt > deadline:
         sent_today.add(key)
         _save_state(sent_today, broker_dt=broker_dt)
         print(f"  [MISSED] H={hour} resolved after XAUUSD entry {result.get('entry_time')}")
         return False
+
     if not xau_actionable:
         _persist_live_result(broker_dt, hour, result)
         if broker_dt > deadline:
             sent_today.add(key)
             _save_state(sent_today, broker_dt=broker_dt)
-            print(f"  [MISSED] H={hour} exceeded latest v72 entry deadline")
+            print(f"  [MISSED] H={hour} exceeded latest entry deadline")
         else:
-            print(f"  [RETRY] H={hour} - incomplete GBPAUD/XAUUSD M30 data")
+            print(f"  [RETRY] H={hour} - {result.get('entry_state', 'WAIT')}")
         return False
+
     _persist_live_result(broker_dt, hour, result)
     if not _all_pair_entries_ready(result):
         print(f"  [RETRY] H={hour} - one or more GBP pair entries are incomplete")
@@ -1932,7 +1969,8 @@ def _process_live_slot(broker_dt, hour):
         send_xau_entry_ready_alert(result, broker_dt=broker_dt)
     sent_today.add(key)
     _save_state(sent_today, broker_dt=broker_dt)
-    print(f"  [SENT] H={hour} signal={result['signal']} entry={result['entry_time']}")
+    tag = "RESOLVED" if is_recheck else "SENT"
+    print(f"  [{tag}] H={hour} signal={result['signal']} entry={result['entry_time']}")
     return True
 
 
@@ -2440,10 +2478,10 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None):
             p_dir = final_dirs["XAUUSD"]
             e_state = timing["entry_state"]
             e_time = timing["entry_time"]
-            ready = p_dir in ("BUY", "SELL") and e_state == "READY"
-            pair_dirs["XAUUSD"] = p_dir if ready else "WAIT"
-            pair_entry_times["XAUUSD"] = e_time if ready else None
-            pair_signal_states["XAUUSD"] = "READY" if p_dir in ("BUY", "SELL") else "WAIT"
+            sig_ready = p_dir in ("BUY", "SELL")
+            pair_dirs["XAUUSD"] = p_dir if sig_ready else "WAIT"
+            pair_entry_times["XAUUSD"] = e_time if (sig_ready and e_state == "READY") else None
+            pair_signal_states["XAUUSD"] = "READY" if sig_ready else "WAIT"
             pair_entry_states["XAUUSD"] = e_state
             pair_groups["XAUUSD"] = (timing.get("layer2") or {}).get("group")
             pair_labels["XAUUSD"] = f"XAU L2 {pair_groups['XAUUSD']}" if pair_groups["XAUUSD"] else "XAU"

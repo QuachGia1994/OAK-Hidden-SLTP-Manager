@@ -6,7 +6,7 @@ import unittest
 from oak_trading_reminders import _friday_of_same_week, get_day_notes
 
 class TestGetDayNotes(unittest.TestCase):
-    def test_weekday_notes_v74(self):
+    def test_weekday_notes_v75(self):
         for day in (
             date(2025, 4, 28),
             date(2025, 4, 29),

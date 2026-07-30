@@ -1,4 +1,4 @@
-"""Versioned v74 record/evidence payload regression tests."""
+"""Versioned v75 record/evidence payload regression tests."""
 
 from datetime import datetime
 from unittest.mock import patch
@@ -39,7 +39,7 @@ class SignalApiUpsertTests(unittest.TestCase):
         ):
             result = mt5_signal_bot.evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 3), 3)
 
-        self.assertEqual(result["logic_version"], 74)
+        self.assertEqual(result["logic_version"], 75)
         self.assertEqual(result["record_revision"], 2)
         for field in (
             "pair_dirs",
@@ -61,7 +61,7 @@ class SignalApiUpsertTests(unittest.TestCase):
             result = mt5_signal_bot.evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 7), 7)
         records = mt5_signal_bot._dashboard_signal_evidence(datetime(2026, 7, 29, 7), 7, result)
         self.assertEqual(len(records), 5)
-        self.assertTrue(all(key.endswith(":v74") for key in records))
+        self.assertTrue(all(key.endswith(":v75") for key in records))
 
 if __name__ == "__main__":
     unittest.main()

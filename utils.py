@@ -175,7 +175,7 @@ def vn_direction(d):
 
 
 ACTIVE_SIGNAL_HOURS = frozenset({3, 7, 9, 12, 14, 16})
-ACTIVE_SIGNAL_LOGIC_VERSION = 74
+ACTIVE_SIGNAL_LOGIC_VERSION = 75
 
 
 def get_latest_display_signal(signals, today=None, allow_fallback=True):

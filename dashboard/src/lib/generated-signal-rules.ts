@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 74;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 75;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16] as const;
 export const INTERNAL_SIGNAL_SLOTS = [] as const;
 
@@ -24,4 +24,4 @@ export const RULES_BY_LOCALE = {
   ]
 } as const;
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v74: normalize MT5 rate rows at boundary, three-layer M30 engine, 5 symbols (GBP USD/AUD active, JPY/CAD OFF), H+1:00 GBP entry schedule" as const;
+export const STARTUP_SUMMARY_BY_LOCALE = "v75: decouple XAU signal from entry, resolve overdue Layer 3, normalize MT5 rate rows" as const;
