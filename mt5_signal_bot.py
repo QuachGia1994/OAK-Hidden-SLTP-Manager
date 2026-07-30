@@ -11,7 +11,9 @@ import socket
 import re
 import math
 from datetime import datetime, timedelta, timezone
+import traceback
 import urllib.request
+from collections.abc import Mapping
 
 from utils import send_telegram_raw, send_telegram_with_keyboard
 from oak_logger import setup_logger
@@ -150,7 +152,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 73
+SIGNAL_LOGIC_VERSION = 74
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -941,7 +943,7 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
 
     max_diff = 180
     if best and min_diff <= max_diff:
-        return best
+        return normalize_mt5_rate_row(best)
     return None
 
 
@@ -1110,17 +1112,68 @@ def is_month_boundary_suppress(broker_dt):
     return False
 
 
+_MISSING = object()
+
+
+def _mt5_rate_field(row, field, default=_MISSING):
+    """Safely read one field from an MT5 rate row (dict or numpy.void)."""
+    if row is None:
+        if default is _MISSING:
+            raise KeyError(field)
+        return default
+
+    if isinstance(row, Mapping):
+        value = row.get(field, default)
+    else:
+        dtype = getattr(row, "dtype", None)
+        names = getattr(dtype, "names", None)
+        if names and field in names:
+            value = row[field]
+        else:
+            try:
+                value = row[field]
+            except (KeyError, IndexError, TypeError, ValueError):
+                value = getattr(row, field, default)
+
+    if value is _MISSING:
+        raise KeyError(field)
+
+    if hasattr(value, "item"):
+        try:
+            value = value.item()
+        except (TypeError, ValueError):
+            pass
+
+    return value
+
+
+def normalize_mt5_rate_row(row):
+    """Convert an MT5 rate row (numpy.void or dict) to a plain Python dict."""
+    if row is None:
+        return None
+    return {
+        "time": int(_mt5_rate_field(row, "time")),
+        "open": float(_mt5_rate_field(row, "open")),
+        "high": float(_mt5_rate_field(row, "high")),
+        "low": float(_mt5_rate_field(row, "low")),
+        "close": float(_mt5_rate_field(row, "close")),
+        "tick_volume": int(_mt5_rate_field(row, "tick_volume", 0)),
+        "spread": int(_mt5_rate_field(row, "spread", 0)),
+        "real_volume": int(_mt5_rate_field(row, "real_volume", 0)),
+    }
+
+
 def _serialize_candle_ohlc(candle, symbol):
-    """Serialize an MT5 candle array row to a plain dict with proper precision."""
+    """Serialize an MT5 candle row to a plain dict with proper precision."""
     if candle is None:
         return None
     digits = _symbol_digits(symbol)
     return {
-        "open": round(float(candle["open"]), digits),
-        "high": round(float(candle["high"]), digits),
-        "low": round(float(candle["low"]), digits),
-        "close": round(float(candle["close"]), digits),
-        "tick_volume": int(candle.get("tick_volume", 0)),
+        "open": round(float(_mt5_rate_field(candle, "open")), digits),
+        "high": round(float(_mt5_rate_field(candle, "high")), digits),
+        "low": round(float(_mt5_rate_field(candle, "low")), digits),
+        "close": round(float(_mt5_rate_field(candle, "close")), digits),
+        "tick_volume": int(_mt5_rate_field(candle, "tick_volume", 0)),
     }
 
 
@@ -1554,7 +1607,9 @@ def rebuild_recent_history(days=45):
     except Exception as error:
         print(f"  [REBUILD] Cannot clear stale history: {error}")
 
-    rebuilt = 0
+    attempted = 0
+    refreshed = 0
+    failed = 0
     for target_date in reversed(dates):
         if target_date.weekday() >= 5:
             continue
@@ -1563,15 +1618,22 @@ def rebuild_recent_history(days=45):
             # Today's future publication windows are not rebuilt yet.
             if target_date == today and not is_slot_ready(broker_dt, hour):
                 continue
+            attempted += 1
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             try:
                 if rebuild_slot_signal(slot_dt, hour):
-                    rebuilt += 1
+                    refreshed += 1
             except Exception as error:
-                print(f"  [REBUILD] Error {target_date.isoformat()} H={hour}: {error}")
+                failed += 1
+                print(f"  [REBUILD] ERROR date={target_date.isoformat()} H={hour}"
+                      f" symbol=XAUUSD error_type={type(error).__name__}: {error}")
+                traceback.print_exc()
 
-    print(f"  [REBUILD] Done: {rebuilt} slots refreshed across {days} days (logic v{SIGNAL_LOGIC_VERSION})")
-    return rebuilt
+    print(f"  [REBUILD] Attempted: {attempted}")
+    print(f"  [REBUILD] Refreshed: {refreshed}")
+    print(f"  [REBUILD] Failed: {failed}")
+    print(f"  [REBUILD] Logic v{SIGNAL_LOGIC_VERSION}")
+    return refreshed
 
 
 def rebuild_signals_on_startup():

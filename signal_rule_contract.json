@@ -1,5 +1,5 @@
 {
-  "logic_version": 73,
+  "logic_version": 74,
   "public_slots": [3, 7, 9, 12, 14, 16],
   "internal_slots": [],
   "rules": {
@@ -22,5 +22,5 @@
       "Missing data or DOJI results in WAIT only for affected dependencies (fail-closed)."
     ]
   },
-  "startup_summary": "v73: Three-layer M30 engine, 5 symbols (GBP USD/AUD active, JPY/CAD OFF), H+1:00 GBP entry schedule"
+  "startup_summary": "v74: normalize MT5 rate rows at boundary, three-layer M30 engine, 5 symbols (GBP USD/AUD active, JPY/CAD OFF), H+1:00 GBP entry schedule"
 }

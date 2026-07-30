@@ -41,7 +41,7 @@ class SignalBotStartupTests(unittest.TestCase):
         self.assertEqual(mt5_signal_bot._active_profile, "VantageDemo")
         startup_message = send.call_args_list[0].args[0]
         self.assertIn("OAK SIGNAL BOT ONLINE", startup_message)
-        self.assertIn("v73", startup_message)
+        self.assertIn("v74", startup_message)
 
 
 if __name__ == "__main__":
