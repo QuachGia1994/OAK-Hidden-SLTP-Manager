@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 75;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 76;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16];
 export const INTERNAL_SIGNAL_SLOTS = [];
 
@@ -10,7 +10,7 @@ export const RULES_BY_LOCALE = {
     "Tầng 3 XAUUSD tại H:30: SW chọn H:49; BT chọn (H+1):25; riêng H3 BT chọn 04:49.",
     "Mọi timestamp M30 là giờ MỞ nến M30.",
     "Entry của nhóm GBP luôn là giờ tròn H+1:00 sau mốc phát signal, độc lập với Entry của XAUUSD.",
-    "Suy chéo Signal: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (cả hai đảo tại H3, H14, H16). GBPUSD = final XAUUSD tại H12, H14, H16 và native GBPUSD tại H3, H7, H9.",
+    "Suy chéo Signal: XAUUSD lấy native GBPAUD và GBPAUD lấy native GBPUSD; cả hai được đảo tại H3, H14 và H16. Tại H3, H7 và H9, final GBPUSD bằng final XAUUSD. Tại H12, H14 và H16, final GBPUSD dùng native GBPUSD của chính nó.",
     "Thiếu dữ liệu hoặc DOJI làm riêng dependency đó WAIT, fail-closed từng phần."
   ],
   "EN": [
@@ -19,9 +19,9 @@ export const RULES_BY_LOCALE = {
     "XAUUSD Layer 3 at H:30: SW selects H:49; BT selects (H+1):25; H3 BT selects 04:49.",
     "All M30 timestamps represent M30 candle OPEN times.",
     "GBP entry time is always the next full hour H+1:00 after the signal slot, independent of XAUUSD entry timing.",
-    "Signal cross-mapping: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (both inverted at H3, H14, H16). GBPUSD = final XAUUSD at H12, H14, H16 and native GBPUSD at H3, H7, H9.",
+    "Signal cross-mapping: XAUUSD uses native GBPAUD and GBPAUD uses native GBPUSD; both are inverted at H3, H14, and H16. At H3, H7, and H9, final GBPUSD equals final XAUUSD. At H12, H14, and H16, final GBPUSD uses its own native GBPUSD signal.",
     "Missing data or DOJI results in WAIT only for affected dependencies (fail-closed)."
   ]
 };
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v75: decouple XAU signal from entry, resolve overdue Layer 3, normalize MT5 rate rows";
+export const STARTUP_SUMMARY_BY_LOCALE = "v76: fix GBPUSD follows XAUUSD at H3/H7/H9, decouple signal from entry, normalize MT5 rate rows";

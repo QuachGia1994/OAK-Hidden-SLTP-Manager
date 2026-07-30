@@ -1,4 +1,4 @@
-"""Regression coverage for the v75 live signal-loop startup."""
+"""Regression coverage for the v76 live signal-loop startup."""
 
 import inspect
 import re
@@ -14,12 +14,12 @@ class SignalBotRuntimeTests(unittest.TestCase):
         self.assertNotIn("d_direction=d_direction", source)
         self.assertNotIn("d_direction", inspect.signature(mt5_signal_bot.get_pair_direction).parameters)
 
-    def test_startup_message_describes_only_the_v75_engine(self) -> None:
+    def test_startup_message_describes_only_the_v76_engine(self) -> None:
         message = mt5_signal_bot.build_startup_telegram_message(
             datetime(2026, 7, 16, 1), mt5_connected=True
         )
         self.assertIn("OAK SIGNAL BOT ONLINE", message)
-        self.assertIn("v75", message)
+        self.assertIn("v76", message)
         self.assertIn("Three-layer M30", message)
         self.assertIn("Slots: H3 - H7 - H9 - H12 - H14 - H16", message)
 

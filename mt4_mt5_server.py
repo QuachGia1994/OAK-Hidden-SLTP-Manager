@@ -41,7 +41,7 @@ except Exception:
     MT5_PATH = ""
     print("[WARN] config.json not found or invalid.")
 XAUUSD_SYMBOL = "XAUUSD"
-SIGNAL_LOGIC_VERSION = 75
+SIGNAL_LOGIC_VERSION = 76
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SIGNAL_PAIRS = ("XAUUSD", *GBP_SIGNAL_PAIRS)
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.

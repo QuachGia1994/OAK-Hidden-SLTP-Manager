@@ -1,4 +1,4 @@
-"""Rebuild passes correct as_of_dt for current-day vs historical slots (v75)."""
+"""Rebuild passes correct as_of_dt for current-day vs historical slots (v76)."""
 
 import unittest
 from datetime import datetime, timedelta

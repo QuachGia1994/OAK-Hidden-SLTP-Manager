@@ -152,7 +152,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 75
+SIGNAL_LOGIC_VERSION = 76
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -2382,19 +2382,25 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
 def derive_all_pair_final_signals(hour, native_gbpusd_dir, native_gbpaud_dir):
     """Pure non-recursive cross mapping table for final pair directions."""
     h = int(hour)
-    reverses = h in (3, 14, 16)
+    reverse_cross_source = h in (3, 14, 16)
 
-    # 1. XAUUSD = reverse(native_gbpaud) if H in (3,14,16) else native_gbpaud
-    final_xauusd = reverse_signal(native_gbpaud_dir) if reverses else native_gbpaud_dir
+    final_xauusd = (
+        reverse_signal(native_gbpaud_dir)
+        if reverse_cross_source
+        else native_gbpaud_dir
+    )
 
-    # 2. GBPAUD = reverse(native_gbpusd) if H in (3,14,16) else native_gbpusd
-    final_gbpaud = reverse_signal(native_gbpusd_dir) if reverses else native_gbpusd_dir
+    final_gbpaud = (
+        reverse_signal(native_gbpusd_dir)
+        if reverse_cross_source
+        else native_gbpusd_dir
+    )
 
-    # 3. GBPUSD = final_xauusd if H in (12, 14, 16) else native_gbpusd
-    if h in (12, 14, 16):
-        final_gbpusd = final_xauusd
-    else:
-        final_gbpusd = native_gbpusd_dir
+    final_gbpusd = (
+        final_xauusd
+        if h in (3, 7, 9)
+        else native_gbpusd_dir
+    )
 
     return {
         "XAUUSD": final_xauusd,
@@ -2504,8 +2510,12 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None):
             pair_entry_states[symbol] = "READY" if sig_ready else "WAIT"
             ev = native_ev[symbol]
             pair_groups[symbol] = (ev.get("layer1") or {}).get("group")
-            pair_labels[symbol] = f"L1 {pair_groups[symbol]}" if pair_groups[symbol] else symbol
-            pair_evidence[symbol] = {
+            follows_xau = symbol == "GBPUSD" and h in (3, 7, 9)
+            if follows_xau:
+                pair_labels[symbol] = "FOLLOW_XAUUSD"
+            else:
+                pair_labels[symbol] = f"L1 {pair_groups[symbol]}" if pair_groups[symbol] else symbol
+            evidence = {
                 "symbol": symbol,
                 "logic_version": SIGNAL_LOGIC_VERSION,
                 "direction": pair_dirs[symbol],
@@ -2514,6 +2524,13 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None):
                 "entry_state": pair_entry_states[symbol],
                 "native_evidence": ev,
             }
+            if follows_xau:
+                evidence["signal_source"] = "FINAL_XAUUSD"
+                evidence["cross_mapping_rule"] = "GBPUSD_FOLLOWS_XAUUSD_AT_H3_H7_H9"
+                evidence["native_gbpusd_direction"] = native_gbpusd_dir
+            else:
+                evidence["signal_source"] = "NATIVE_LAYER1"
+            pair_evidence[symbol] = evidence
 
     try:
         broker_offset = BROKER_CLOCK.utc_offset_for_date(slot_dt.date())

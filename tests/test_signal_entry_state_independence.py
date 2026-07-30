@@ -1,4 +1,4 @@
-"""XAUUSD signal direction is independent of entry state (v75)."""
+"""XAUUSD signal direction is independent of entry state (v76)."""
 
 import unittest
 from datetime import datetime
