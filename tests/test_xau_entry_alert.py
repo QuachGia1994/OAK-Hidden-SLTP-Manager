@@ -1,4 +1,4 @@
-"""XAUUSD v76 entry alert detection, deduplication, and retry queue."""
+"""XAUUSD v77 entry alert detection, deduplication, and retry queue."""
 
 from datetime import datetime
 from unittest.mock import patch
@@ -11,7 +11,7 @@ def _ready_record():
     return {
         "source_date": "2026-07-29",
         "hour": 7,
-        "logic_version": 76,
+        "logic_version": 77,
         "broker_utc_offset": 3,
         "entry_state": "READY",
         "pair_entry_states": {symbol: "READY" for symbol in mt5_signal_bot.SIGNAL_PAIRS},
@@ -45,7 +45,7 @@ class XauEntryAlertTests(unittest.TestCase):
 
     def test_detection_and_deduplication(self) -> None:
         record = _ready_record()
-        fingerprint = "76|2026-07-29|7|XAUUSD|07:49"
+        fingerprint = "77|2026-07-29|7|XAUUSD|07:49"
         self.assertTrue(mt5_signal_bot.should_send_xau_entry_alert(record, set()))
         self.assertFalse(mt5_signal_bot.should_send_xau_entry_alert(record, {fingerprint}))
         self.assertFalse(
@@ -55,7 +55,7 @@ class XauEntryAlertTests(unittest.TestCase):
         )
 
     def test_success_persists_fingerprint(self) -> None:
-        fingerprint = "76|2026-07-29|7|XAUUSD|07:49"
+        fingerprint = "77|2026-07-29|7|XAUUSD|07:49"
         with (
             patch.object(mt5_signal_bot, "send_telegram", return_value=True),
             patch.object(mt5_signal_bot, "_save_state") as save_state,

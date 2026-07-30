@@ -39,12 +39,12 @@ class TestH3ThreeLayerEntry(unittest.TestCase):
         slot_dt = datetime(2026, 7, 30, 3, 0, 0)
         res = evaluate_xau_entry_timing_m30(slot_dt, 3, as_of_dt=slot_dt)
         self.assertEqual(res["entry_state"], "PENDING_LAYER3")
-        self.assertEqual(res["entry_candidates"], ["03:49", "04:49"])
+        self.assertEqual(res["entry_candidates"], ["03:49", "04:25"])
         self.assertEqual(res["entry_resolution_time"], "03:30")
 
     @patch("mt5_signal_bot.read_completed_m30_candle_by_open_time")
-    def test_h3_layer3_bt_resolves_0449(self, mock_read):
-        # H3 Layer 3 at 03:30: C1(03:00)=TANG, C2(02:30)=TANG, C3(02:00)=GIAM, C4(01:30)=GIAM -> Rule 4 BT -> 04:49
+    def test_h3_layer3_bt_resolves_0425(self, mock_read):
+        # H3 Layer 3 at 03:30: C1(03:00)=TANG, C2(02:30)=TANG, C3(02:00)=GIAM, C4(01:30)=GIAM -> Rule 4 BT -> 04:25
         def fake_candle(symbol, open_dt, as_of_dt=None):
             t_str = open_dt.strftime("%H:%M")
             if t_str in ("03:00", "02:30"):
@@ -57,7 +57,7 @@ class TestH3ThreeLayerEntry(unittest.TestCase):
         as_of_dt = datetime(2026, 7, 30, 3, 30, 0)
         res = evaluate_xau_entry_timing_m30(slot_dt, 3, as_of_dt=as_of_dt)
         self.assertEqual(res["entry_state"], "READY")
-        self.assertEqual(res["entry_time"], "04:49")
+        self.assertEqual(res["entry_time"], "04:25")
 
 if __name__ == "__main__":
     unittest.main()

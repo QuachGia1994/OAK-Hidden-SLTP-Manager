@@ -39,7 +39,7 @@ class SignalApiUpsertTests(unittest.TestCase):
         ):
             result = mt5_signal_bot.evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 3), 3)
 
-        self.assertEqual(result["logic_version"], 76)
+        self.assertEqual(result["logic_version"], 77)
         self.assertEqual(result["record_revision"], 2)
         for field in (
             "pair_dirs",
@@ -61,7 +61,7 @@ class SignalApiUpsertTests(unittest.TestCase):
             result = mt5_signal_bot.evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 7), 7)
         records = mt5_signal_bot._dashboard_signal_evidence(datetime(2026, 7, 29, 7), 7, result)
         self.assertEqual(len(records), 5)
-        self.assertTrue(all(key.endswith(":v76") for key in records))
+        self.assertTrue(all(key.endswith(":v77") for key in records))
 
 if __name__ == "__main__":
     unittest.main()

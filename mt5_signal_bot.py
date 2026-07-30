@@ -152,7 +152,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 76
+SIGNAL_LOGIC_VERSION = 77
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -1640,9 +1640,9 @@ def validate_cross_mapping(record):
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def _build_rebuild_record(broker_dt, h, *, as_of_dt=None):
+def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=None):
     """Evaluate one slot and return the record dict without persisting."""
-    result = evaluate_all_pairs_for_slot(broker_dt, h, as_of_dt=as_of_dt)
+    result = evaluate_all_pairs_for_slot(broker_dt, h, as_of_dt=as_of_dt, prior_slot_results=prior_slot_results)
     if result is None:
         result = calculate_slot_signal(broker_dt, h)
 
@@ -1733,6 +1733,7 @@ def rebuild_recent_history(days=45):
         if target_date.weekday() >= 5:
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
+        day_results = {}
         for hour in hours:
             if target_date == today and not is_slot_ready(broker_dt, hour):
                 continue
@@ -1740,9 +1741,10 @@ def rebuild_recent_history(days=45):
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
             try:
-                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of)
+                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of, prior_slot_results=day_results if hour == 16 else None)
                 if record is None:
                     continue
+                day_results[hour] = record
                 violation = validate_cross_mapping(record)
                 if violation:
                     violations += 1
@@ -2513,6 +2515,66 @@ def evaluate_gbp_native_signal_m30(slot_dt, hour, symbol, as_of_dt=None):
 evaluate_gbp_pair_signal_m30 = evaluate_gbp_native_signal_m30
 
 
+H16_PRIOR_SLOT_PRIORITY = (14, 12, 9, 7, 3)
+
+
+def classify_entry_branch(source_hour, entry_time):
+    """Classify a prior slot's entry into H_11, H_49, or H_PLUS_1_25."""
+    if not entry_time:
+        return None
+    h = int(source_hour)
+    if entry_time == f"{h:02d}:11":
+        return "H_11"
+    if entry_time.endswith(":49"):
+        return "H_49"
+    if entry_time == f"{h + 1:02d}:25" or (h == 3 and entry_time == "04:25"):
+        return "H_PLUS_1_25"
+    return None
+
+
+def resolve_h16_inherited_entry(prior_slot_results):
+    """Scan prior slots H14→H12→H9→H7→H3 for nearest eligible entry."""
+    for source_hour in H16_PRIOR_SLOT_PRIORITY:
+        result = prior_slot_results.get(source_hour)
+        if not result:
+            continue
+        if result.get("entry_state") != "READY":
+            continue
+        entry_time = result.get("entry_time")
+        branch = classify_entry_branch(source_hour, entry_time)
+        if branch == "H_11":
+            return {
+                "entry_time": "16:11",
+                "entry_state": "READY",
+                "entry_rule": "H16_INHERITS_NEAREST_ELIGIBLE_PRIOR_ENTRY",
+                "entry_source_hour": source_hour,
+                "entry_source_time": entry_time,
+                "entry_source_branch": "H_11",
+                "entry_candidates": ["16:11", "17:25"],
+            }
+        if branch == "H_PLUS_1_25":
+            return {
+                "entry_time": "17:25",
+                "entry_state": "READY",
+                "entry_rule": "H16_INHERITS_NEAREST_ELIGIBLE_PRIOR_ENTRY",
+                "entry_source_hour": source_hour,
+                "entry_source_time": entry_time,
+                "entry_source_branch": "H_PLUS_1_25",
+                "entry_candidates": ["16:11", "17:25"],
+            }
+        # H_49 → skip, continue scanning
+    return {
+        "entry_time": None,
+        "entry_state": "WAIT",
+        "entry_rule": "H16_INHERITS_NEAREST_ELIGIBLE_PRIOR_ENTRY",
+        "entry_source_hour": None,
+        "entry_source_time": None,
+        "entry_source_branch": None,
+        "entry_candidates": ["16:11", "17:25"],
+        "failure_reason": "NO_ELIGIBLE_PRIOR_ENTRY",
+    }
+
+
 def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
     """Evaluate XAUUSD entry timing across Layer 2 and Layer 3 M30 open windows."""
     h = int(hour)
@@ -2548,8 +2610,20 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
         layer3 = _classify_m30_layer_by_open_times("XAUUSD", l3_open_times, l3_candles, classify_four_candle_group)
         if layer3["group"] == "SW":
             entry_t = "03:49" if h == 3 else f"{h:02d}:49"
-        else:  # BT
-            entry_t = "04:49" if h == 3 else f"{h + 1:02d}:25"
+        elif layer3["group"] == "BT":
+            entry_t = "04:25" if h == 3 else f"{h + 1:02d}:25"
+        else:
+            return {
+                "symbol": "XAUUSD",
+                "timeframe": "M30",
+                "slot_hour": h,
+                "layer2": layer2,
+                "layer3": layer3,
+                "entry_time": None,
+                "entry_state": "WAIT",
+                "entry_candidates": [],
+                "classification_reason": "XAU_LAYER3_UNRESOLVED",
+            }
         return {
             "symbol": "XAUUSD",
             "timeframe": "M30",
@@ -2564,7 +2638,7 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
 
     # Still pending Layer 3 (H:00 to H:30)
     cand_sw = "03:49" if h == 3 else f"{h:02d}:49"
-    cand_bt = "04:49" if h == 3 else f"{h + 1:02d}:25"
+    cand_bt = "04:25" if h == 3 else f"{h + 1:02d}:25"
     return {
         "symbol": "XAUUSD",
         "timeframe": "M30",
@@ -2623,7 +2697,32 @@ def _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset):
     }
 
 
-def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None):
+def _resolve_pair_failure_reason(hour, symbol, native_gbpusd_ev, native_gbpaud_ev):
+    """Determine the top-level failure_reason for a pair based on dependencies."""
+    h = int(hour)
+    if symbol == "XAUUSD":
+        source_ev = native_gbpaud_ev
+        source_symbol = "GBPAUD"
+    elif symbol == "GBPAUD":
+        source_ev = native_gbpusd_ev
+        source_symbol = "GBPUSD"
+    elif symbol == "GBPUSD" and h in (3, 7, 9):
+        source_ev = native_gbpaud_ev
+        source_symbol = "GBPAUD"
+    elif symbol == "GBPUSD" and h in (12, 14, 16):
+        source_ev = native_gbpusd_ev
+        source_symbol = "GBPUSD"
+    else:
+        return None, None
+    if not isinstance(source_ev, dict):
+        return None, None
+    reason = source_ev.get("failure_reason")
+    if not reason:
+        return None, None
+    return reason, source_symbol
+
+
+def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_results=None):
     """Evaluate 3-Layer M30 Core Engine for all 5 pairs at a slot."""
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
@@ -2649,7 +2748,15 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None):
     final_dirs = derive_all_pair_final_signals(h, native_gbpusd_dir, native_gbpaud_dir)
 
     # 3. Evaluate XAU entry timing
-    timing = evaluate_xau_entry_timing_m30(slot_dt, h, as_of_dt=eval_dt)
+    if h == 16:
+        timing = resolve_h16_inherited_entry(prior_slot_results or {})
+        timing["symbol"] = "XAUUSD"
+        timing["timeframe"] = "M30"
+        timing["slot_hour"] = h
+        timing["layer2"] = None
+        timing["layer3"] = None
+    else:
+        timing = evaluate_xau_entry_timing_m30(slot_dt, h, as_of_dt=eval_dt)
 
     # 4. GBP entry schedule: H+1:00
     gbp_entry_t = next_full_hour_after_signal_slot(slot_dt)
@@ -2732,6 +2839,20 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None):
                 evidence["signal_source"] = "NATIVE_LAYER1"
             pair_evidence[symbol] = evidence
 
+    # Flatten failure_reason from native evidence to top-level pair evidence
+    native_gbpusd_ev = native_ev.get("GBPUSD", {})
+    native_gbpaud_ev = native_ev.get("GBPAUD", {})
+    for symbol in pair_evidence:
+        if pair_evidence[symbol].get("signal_state") == "WAIT" and pair_evidence[symbol].get("signal_state") != "DISABLED":
+            reason, source_sym = _resolve_pair_failure_reason(h, symbol, native_gbpusd_ev, native_gbpaud_ev)
+            if reason:
+                pair_evidence[symbol]["failure_reason"] = reason
+                pair_evidence[symbol]["failure_source_symbol"] = source_sym
+                for key in ("missing_open_times", "doji_open_times", "invalid_open_times"):
+                    source_data = (native_gbpaud_ev if source_sym == "GBPAUD" else native_gbpusd_ev).get(key, [])
+                    if source_data:
+                        pair_evidence[symbol][key] = source_data
+
     try:
         broker_offset = BROKER_CLOCK.utc_offset_for_date(slot_dt.date())
     except Exception:
@@ -2801,16 +2922,19 @@ def repair_history(target_dates=None, days=45):
     doji_count = 0
     missing_count = 0
     updated = 0
+    updated_records_list = []
     for target_date in sorted(dates):
         if target_date.weekday() >= 5:
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
+        day_results = {}
         for hour in hours:
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
             try:
-                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of)
+                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of, prior_slot_results=day_results if hour == 16 else None)
                 attempted += 1
+                day_results[hour] = record
                 sig = record.get("signal", "WAIT")
                 entry_state = record.get("entry_state", "WAIT")
 
@@ -2855,6 +2979,7 @@ def repair_history(target_dates=None, days=45):
                     data.append(record)
                     _write_signals_log_atomic(data)
                     updated += 1
+                    updated_records_list.append(record)
             except Exception as error:
                 print(f"  [REPAIR] ERROR date={target_date.isoformat()} H={hour}"
                       f" error_type={type(error).__name__}: {error}")
@@ -2865,7 +2990,7 @@ def repair_history(target_dates=None, days=45):
     print(f"  [REPAIR] DATA_MISSING: {missing_count}")
     print(f"  [REPAIR] Updated: {updated}")
     clear_history_cache()
-    return updated
+    return {"updated": updated, "attempted": attempted, "ready": ready_count, "doji": doji_count, "data_missing": missing_count, "records": updated_records_list}
 
 
 if __name__ == "__main__":
@@ -2887,7 +3012,9 @@ if __name__ == "__main__":
             mt5_ready = True
             BROKER_CLOCK.clear_cache()
             try:
-                repair_history(target_dates=args.repair_date)
+                result = repair_history(target_dates=args.repair_date)
+                if result["updated"] > 0:
+                    push_to_dashboard(snapshot_complete=False)
             finally:
                 mt5.shutdown()
     elif args.rebuild_all:
