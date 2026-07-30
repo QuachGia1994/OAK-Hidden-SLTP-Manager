@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 77;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 78;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16] as const;
 export const INTERNAL_SIGNAL_SLOTS = [] as const;
 
@@ -26,4 +26,4 @@ export const RULES_BY_LOCALE = {
   ]
 } as const;
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v77: H3 BT entry 04:25, Layer 3 unresolved → WAIT, H16 inherits nearest eligible prior entry, flatten failure_reason to top-level pair evidence" as const;
+export const STARTUP_SUMMARY_BY_LOCALE = "v78: Layer 3 grace period at H:30, D-Direction from previous broker session, H3 BT entry 04:25, H16 inherits nearest eligible prior entry" as const;

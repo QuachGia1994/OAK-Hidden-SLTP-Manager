@@ -152,7 +152,9 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 77
+SIGNAL_LOGIC_VERSION = 78
+LAYER3_CANDLE_GRACE_SECONDS = 90
+D_DIRECTION_SCHEMA_VERSION = 1
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -616,6 +618,9 @@ def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         for k, v in extra_fields.items():
             if k not in ("date", "hour", "ts", "signal", "pair_dirs", "signal_time"):
                 record[k] = v
+    if _d_directions_today:
+        record["daily_directions"] = _d_directions_today
+        record["d_direction_schema_version"] = D_DIRECTION_SCHEMA_VERSION
     return record
 
 def _parse_news_for_dashboard(news_lines, source_date=None):
@@ -1267,7 +1272,7 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
     """Return the last Broker datetime at which a live slot may be emitted."""
     h = int(hour)
     fallback_clocks = {
-        3: "04:49",
+        3: "04:25",
         7: "08:25",
         9: "10:25",
         12: "13:25",
@@ -1291,6 +1296,11 @@ def get_slot_retry_deadline(broker_dt, hour, entry_time=None):
         microsecond=0,
     )
     return deadline
+
+
+def get_layer3_resolution_datetime(slot_dt):
+    """Return the Broker datetime at which Layer 3 can first be evaluated."""
+    return slot_dt + timedelta(minutes=30)
 
 
 def calculate_slot_signal(broker_dt, hour):
@@ -1331,6 +1341,7 @@ GBP_PAIRS = list(GBP_SIGNAL_PAIRS)
 ALL_PAIRS = list(SIGNAL_PAIRS)
 
 sent_today = set()
+_d_directions_today = {}
 ENTRY_ALERT_GRACE_MINUTES = 5
 entry_alerts_sent = set()
 entry_alerts_pending = {}
@@ -1614,6 +1625,163 @@ def clear_history_cache():
     _cache.clear()
 
 
+D_DIRECTION_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+_d_direction_cache = {}
+
+
+def find_previous_available_broker_session(symbol, target_broker_date):
+    """Find the most recent Broker date before target_date that has M30 bars."""
+    search_start = datetime.combine(target_broker_date - timedelta(days=10), datetime.min.time())
+    search_end = datetime.combine(target_broker_date, datetime.min.time())
+
+    try:
+        mt5.symbol_select(symbol, True)
+        rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M30, search_start, search_end)
+    except Exception:
+        return None
+
+    if rates is None or len(rates) == 0:
+        return None
+
+    broker_dates_with_bars = set()
+    for row in rates:
+        ts = int(row["time"]) if hasattr(row, "dtype") else int(row.get("time", 0))
+        utc_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+        try:
+            broker_offset = BROKER_CLOCK.utc_offset_for_date(utc_dt.date())
+            broker_dt = utc_dt - timedelta(hours=broker_offset)
+            if broker_dt.date() < target_broker_date:
+                broker_dates_with_bars.add(broker_dt.date())
+        except Exception:
+            continue
+
+    if not broker_dates_with_bars:
+        return None
+    return max(broker_dates_with_bars)
+
+
+def find_last_completed_m30_of_session(symbol, session_date):
+    """Find the last valid completed M30 candle in a broker session."""
+    session_start = datetime.combine(session_date, datetime.min.time())
+    session_end = datetime.combine(session_date + timedelta(days=1), datetime.min.time())
+
+    try:
+        mt5.symbol_select(symbol, True)
+        rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M30, session_start, session_end)
+    except Exception:
+        return None, "MT5_FETCH_ERROR"
+
+    if rates is None or len(rates) == 0:
+        return None, "MISSING"
+
+    # Convert to broker time and filter to session_date
+    session_bars = []
+    for row in rates:
+        norm = normalize_mt5_rate_row(row)
+        utc_dt = datetime.fromtimestamp(norm["time"], tz=timezone.utc)
+        try:
+            broker_offset = BROKER_CLOCK.utc_offset_for_date(utc_dt.date())
+            broker_dt = utc_dt - timedelta(hours=broker_offset)
+            if broker_dt.date() == session_date and broker_dt.minute in (0, 30):
+                session_bars.append((broker_dt, norm))
+        except Exception:
+            continue
+
+    if not session_bars:
+        return None, "MISSING"
+
+    # Sort by broker time descending, find last valid bar
+    session_bars.sort(key=lambda x: x[0], reverse=True)
+    for broker_dt, norm in session_bars:
+        if _valid_m30_ohlc(norm):
+            return norm, "READY"
+
+    return None, "INVALID"
+
+
+def calculate_d_direction(symbol, target_broker_date):
+    """Calculate D-Direction for one symbol on one target Broker date."""
+    cache_key = (target_broker_date.isoformat(), symbol)
+    if cache_key in _d_direction_cache:
+        return _d_direction_cache[cache_key]
+
+    session_date = find_previous_available_broker_session(symbol, target_broker_date)
+    if session_date is None:
+        result = {
+            "symbol": symbol,
+            "timeframe": "M30",
+            "target_date": target_broker_date.isoformat(),
+            "session_date": None,
+            "d_candle_direction": None,
+            "d_direction": "WAIT",
+            "d_state": "MISSING",
+            "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
+        }
+        _d_direction_cache[cache_key] = result
+        return result
+
+    candle, status = find_last_completed_m30_of_session(symbol, session_date)
+
+    if candle is None:
+        result = {
+            "symbol": symbol,
+            "timeframe": "M30",
+            "target_date": target_broker_date.isoformat(),
+            "session_date": session_date.isoformat(),
+            "d_candle_direction": None,
+            "d_direction": "WAIT",
+            "d_state": status,
+            "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
+        }
+        _d_direction_cache[cache_key] = result
+        return result
+
+    direction = _m30_candle_direction(candle)
+    if direction == "TANG":
+        d_dir = "BUY"
+        d_state = "READY"
+    elif direction == "GIAM":
+        d_dir = "SELL"
+        d_state = "READY"
+    else:  # DOJI
+        d_dir = "WAIT"
+        d_state = "DOJI"
+
+    result = {
+        "symbol": symbol,
+        "timeframe": "M30",
+        "target_date": target_broker_date.isoformat(),
+        "session_date": session_date.isoformat(),
+        "d_candle_open_time": datetime.fromtimestamp(candle["time"], tz=timezone.utc).isoformat(),
+        "candle": {
+            "open": candle["open"],
+            "high": candle["high"],
+            "low": candle["low"],
+            "close": candle["close"],
+            "tick_volume": candle.get("tick_volume", 0),
+        },
+        "d_candle_direction": direction,
+        "d_direction": d_dir,
+        "d_state": d_state,
+        "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
+    }
+    _d_direction_cache[cache_key] = result
+    return result
+
+
+def calculate_all_d_directions(target_broker_date):
+    """Calculate D-Direction for all 5 symbols."""
+    return {
+        symbol: calculate_d_direction(symbol, target_broker_date)
+        for symbol in D_DIRECTION_PAIRS
+    }
+
+
+def clear_d_direction_cache():
+    """Clear the D-Direction cache."""
+    _d_direction_cache.clear()
+
+
 def validate_cross_mapping(record):
     """Verify cross-mapping invariants for a rebuilt record."""
     pair_dirs = record.get("pair_dirs", {})
@@ -1744,6 +1912,17 @@ def rebuild_recent_history(days=45):
                 record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of, prior_slot_results=day_results if hour == 16 else None)
                 if record is None:
                     continue
+                # Calculate D-Direction for the record's date
+                record_date = record.get("source_date") or record.get("date")
+                if record_date:
+                    try:
+                        from datetime import date as _date_type
+                        rec_date = _date_type.fromisoformat(record_date) if isinstance(record_date, str) else record_date
+                        daily_dirs = calculate_all_d_directions(rec_date)
+                        record["daily_directions"] = daily_dirs
+                        record["d_direction_schema_version"] = D_DIRECTION_SCHEMA_VERSION
+                    except Exception:
+                        pass
                 day_results[hour] = record
                 violation = validate_cross_mapping(record)
                 if violation:
@@ -2116,7 +2295,7 @@ def _process_live_slot(broker_dt, hour):
 
 
 def main(profile_name=None):
-    global mt5_ready, sent_today, _active_profile, _broker_clock_error, entry_alerts_sent, entry_alerts_pending
+    global mt5_ready, sent_today, _d_directions_today, _active_profile, _broker_clock_error, entry_alerts_sent, entry_alerts_pending
     print("=" * 55)
     print(f"  MT5 Multi-Timeframe Signal Bot v{SIGNAL_LOGIC_VERSION}")
     print(f"  Symbol: {SYMBOL}")
@@ -2199,6 +2378,15 @@ def main(profile_name=None):
 
     # Rebuild signals_log from MT5 before pushing (avoid stale pair_dirs after rule changes)
     startup_rebuilt = rebuild_signals_on_startup()
+    # Calculate D-Direction for current Broker date
+    try:
+        _d_directions_today = calculate_all_d_directions(broker_dt.date())
+        print(f"  [D-DIR] Calculated for {broker_dt.date().isoformat()}")
+        for sym, dd in _d_directions_today.items():
+            print(f"    {sym}: {dd.get('d_direction', 'WAIT')} (session={dd.get('session_date', 'N/A')})")
+    except Exception as error:
+        _d_directions_today = {}
+        print(f"  [D-DIR] Error: {error}")
     reconcile_due_xau_entry_alerts(broker_dt)
 
     push_to_dashboard(snapshot_complete=True)
@@ -2607,6 +2795,25 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
     l3_open_times = windows["layer3"]
     if cutoff >= h30_dt:
         l3_candles = _read_m30_open_windows("XAUUSD", l3_open_times, cutoff)
+        # Check if the H:00 candle (first in layer3) is available
+        h00_candle = l3_candles.get(l3_open_times[0])
+        grace_deadline = h30_dt + timedelta(seconds=LAYER3_CANDLE_GRACE_SECONDS)
+        if h00_candle is None and cutoff < grace_deadline:
+            # Candle not yet available from MT5, still within grace — stay pending
+            cand_sw = "03:49" if h == 3 else f"{h:02d}:49"
+            cand_bt = "04:25" if h == 3 else f"{h + 1:02d}:25"
+            return {
+                "symbol": "XAUUSD",
+                "timeframe": "M30",
+                "slot_hour": h,
+                "layer2": layer2,
+                "layer3": None,
+                "entry_time": None,
+                "entry_state": "PENDING_LAYER3",
+                "entry_candidates": [cand_sw, cand_bt],
+                "entry_resolution_time": f"{h:02d}:30",
+                "classification_reason": "XAU_LAYER3_CANDLE_PENDING_GRACE",
+            }
         layer3 = _classify_m30_layer_by_open_times("XAUUSD", l3_open_times, l3_candles, classify_four_candle_group)
         if layer3["group"] == "SW":
             entry_t = "03:49" if h == 3 else f"{h:02d}:49"

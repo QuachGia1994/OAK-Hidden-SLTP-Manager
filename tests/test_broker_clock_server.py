@@ -26,7 +26,7 @@ PAIR_GROUPS = {symbol: "BT" for symbol in mt4_mt5_server.SIGNAL_PAIRS}
 
 
 def _payload():
-    payload = {"broker": "MT4", "time": "12:00", "slot": 12, "logic_version": 76}
+    payload = {"broker": "MT4", "time": "12:00", "slot": 12, "logic_version": 78}
     for symbol in mt4_mt5_server.SIGNAL_PAIRS:
         key = symbol.lower()
         payload[f"{key}_signal"] = PAIR_DIRS[symbol]
