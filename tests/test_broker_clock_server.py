@@ -9,7 +9,7 @@ import mt4_mt5_server
 
 
 PAIR_DIRS = {
-    "XAUUSD": "SELL",
+    "XAUUSD": "BUY",
     "GBPUSD": "SELL",
     "GBPAUD": "BUY",
     "GBPJPY": "BUY",
@@ -91,7 +91,7 @@ class BrokerClockServerTests(unittest.TestCase):
     def test_server_enforces_the_slot_specific_gbpaud_mapping(self) -> None:
         for slot in mt4_mt5_server.TARGET_HOURS:
             with self.subTest(slot=slot):
-                xau_direction = "BUY" if slot in (3, 14, 16) else "SELL"
+                xau_direction = "SELL" if slot in (3, 14, 16) else "BUY"
                 directions = {symbol: "BUY" for symbol in mt4_mt5_server.SIGNAL_PAIRS}
                 directions["XAUUSD"] = xau_direction
                 xau_entry = f"{slot:02d}:49"
@@ -102,7 +102,7 @@ class BrokerClockServerTests(unittest.TestCase):
                 directions["XAUUSD"] = "SELL" if xau_direction == "BUY" else "BUY"
                 self.assertEqual(
                     mt4_mt5_server._payload_contract_error(slot, directions, entries),
-                    "XAUUSD signal does not follow GBPAUD",
+                    "XAUUSD signal does not follow slot GBPAUD mapping",
                 )
 
     def test_wait_is_retryable_without_telegram(self) -> None:

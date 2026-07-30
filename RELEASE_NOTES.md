@@ -1,5 +1,12 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [Signal logic v72.1] - 2026-07-30
+
+- Sửa mapping XAUUSD: lấy Signal cuối GBPAUD, đảo tại H3/H14/H16 và giữ nguyên tại H7/H9/H12.
+- Evidence VIP fallback sang `pair_evidence` trong signal snapshot khi startup rebuild chưa seed kho evidence riêng; request dùng đúng logic version của card.
+- Signal snapshot là nguồn evidence ưu tiên để key cũ không ghi đè card mới; đồng bộ GBP entry, quyền free-VIP cuối tuần và metadata revision khi persist.
+- Đồng bộ bộ mask SSR với API để entry, group và evidence không bị serialize cho người dùng public.
+
 ## [Signal logic v72] - 2026-07-30
 
 - Thay engine hiện hành bằng chuỗi `GBP Signal → XAU Layer 1 → XAU Layer 2` dùng M30 đã đóng; bốn GBP pair tạo hướng độc lập, còn hai layer XAUUSD chỉ quyết định entry.

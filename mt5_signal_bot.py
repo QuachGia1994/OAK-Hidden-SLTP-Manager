@@ -1158,6 +1158,8 @@ ENTRY_PLAN_FIELDS = (
     "signal_state",
     "pair_groups",
     "pair_evidence",
+    "record_revision",
+    "state_updated_at_utc",
 )
 
 def is_deactivated_signal_slot(broker_dt, hour):
@@ -1290,7 +1292,7 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
         "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
         "Signal engine: GBP M30 signals -> XAU Layer 1 -> XAU Layer 2\n"
         "Entry: XAU from XAU M30; GBP at the next full Broker hour\n"
-        "XAUUSD: Reverse GBPAUD; H3/H14/H16 reverse XAU once more\n"
+        "XAUUSD: reverse GBPAUD at H3/H14/H16; keep GBPAUD at H7/H9/H12\n"
         "Auto-close: XAU 17:59 | GBP 19:59 Broker"
     )
 
@@ -1374,7 +1376,7 @@ def build_entry_ready_telegram_message(record, broker_dt=None):
     for symbol in GBP_SIGNAL_PAIRS:
         lines.append(_telegram_pair_line(symbol, directions.get(symbol, "WAIT"), entries.get(symbol), broker_offset, source_date))
     lines.append(_telegram_pair_line("XAUUSD", directions.get("XAUUSD", "WAIT"), entries.get("XAUUSD"), broker_offset, source_date))
-    relation = "SAME AS" if hour in (3, 14, 16) else "OPPOSITE"
+    relation = "OPPOSITE" if hour in (3, 14, 16) else "SAME AS"
     lines.append(
         f"XAU direction: {relation} GBPAUD "
         f"({directions.get('GBPAUD', 'WAIT')})"
@@ -2184,13 +2186,13 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour):
 
 
 def derive_xau_from_gbpaud(hour, gbpaud_evidence, timing_evidence):
-    """Derive XAU direction from GBPAUD and entry from XAU timing layers."""
+    """Map the final GBPAUD signal by slot; keep entry from XAU timing layers."""
     source_signal = (gbpaud_evidence or {}).get("direction")
     timing_entry = (timing_evidence or {}).get("entry_time")
     signal_ready = source_signal in ("BUY", "SELL")
     timing_ready = (timing_evidence or {}).get("entry_state") == "READY" and bool(timing_entry)
-    matches_gbpaud = int(hour) in (3, 14, 16)
-    direction = source_signal if matches_gbpaud else reverse_signal(source_signal)
+    reverses_gbpaud = int(hour) in (3, 14, 16)
+    direction = reverse_signal(source_signal) if reverses_gbpaud else source_signal
     ready = signal_ready and timing_ready
     return {
         "symbol": "XAUUSD",
@@ -2199,8 +2201,8 @@ def derive_xau_from_gbpaud(hour, gbpaud_evidence, timing_evidence):
         "slot_hour": int(hour),
         "source_symbol": "GBPAUD",
         "source_signal": source_signal if signal_ready else "WAIT",
-        "direction_relation_to_gbpaud": "SAME" if matches_gbpaud else "OPPOSITE",
-        "direction_rule": "SAME_AS_GBPAUD" if matches_gbpaud else "OPPOSITE_GBPAUD",
+        "direction_relation_to_gbpaud": "OPPOSITE" if reverses_gbpaud else "SAME",
+        "direction_rule": "OPPOSITE_GBPAUD" if reverses_gbpaud else "SAME_AS_GBPAUD",
         "layer1": (timing_evidence or {}).get("layer1", {}),
         "layer2": (timing_evidence or {}).get("layer2", {}),
         "direction": direction if signal_ready else "WAIT",

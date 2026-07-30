@@ -32,7 +32,7 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 - Mỗi GBP pair tự dùng bốn nến M30 đã đóng của chính symbol, theo giờ đóng `H−00:30/H−01:00/H−01:30/H−02:00`. Nến gần nhất là Base; nhóm SW đảo Base, nhóm BT giữ Base.
 - Entry XAUUSD dùng hai layer XAUUSD M30. H3: Layer 1 = `02:30/02:00/01:30`, Layer 2 = `03:00/02:30/02:00/01:30`. Các slot khác: Layer 1 = `H−01:00/H−01:30/H−02:00/H−02:30`, Layer 2 trễ hơn 30 phút = `H−00:30/H−01:00/H−01:30/H−02:00`.
 - Bảng entry XAU: `SW+SW → H:49`; `SW+BT → (H+1):25` (riêng H3 `04:49`); `BT+SW → H:11`; `BT+BT → H:49`. Bốn GBP pair vào ở giờ Broker tròn kế tiếp sau entry XAU.
-- Hướng XAUUSD chỉ follow GBPAUD: **H7/H9/H12 đảo chiều**; **H3/H14/H16 cùng chiều**. Entry XAU vẫn lấy từ hai layer XAUUSD, không lấy từ GBPAUD.
+- XAUUSD lấy Signal cuối của GBPAUD: **H3/H14/H16 đảo ngược**; **H7/H9/H12 giữ nguyên**. Entry XAU vẫn lấy từ hai layer XAUUSD, không lấy từ GBPAUD.
 - Thiếu nến, OHLC không hợp lệ hoặc DOJI làm Signal/Layer liên quan `WAIT`; không lùi thêm nến và không fallback về H1, M15 hay symbol khác.
 - BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed khi tick stale, thiếu hoặc mâu thuẫn. UTC tuyệt đối dùng cho lịch/UI được tách khỏi timestamp kiểu wall-clock mà một số terminal MT5 dùng cho dữ liệu nến/tick.
 

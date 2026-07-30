@@ -101,7 +101,7 @@ class SignalRecordContractTests(unittest.TestCase):
                 "GBPAUD": "BUY",
                 "GBPJPY": "SELL",
                 "GBPCAD": "BUY",
-                "XAUUSD": "SELL",
+                "XAUUSD": "BUY",
             },
             "pair_entry_times": {
                 "GBPUSD": "08:00",
@@ -116,7 +116,7 @@ class SignalRecordContractTests(unittest.TestCase):
         self.assertIn("Entry 08:00 Broker", message)
         self.assertIn("GBPJPY:", message)
         self.assertIn("Entry 08:00 Broker", message)
-        self.assertIn("XAU direction: OPPOSITE GBPAUD (BUY)", message)
+        self.assertIn("XAU direction: SAME AS GBPAUD (BUY)", message)
         self.assertNotIn("L1", message)
         self.assertNotIn("SW", message)
         self.assertNotIn("BT", message)

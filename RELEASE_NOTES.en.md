@@ -1,5 +1,12 @@
 # RELEASE NOTES
 
+## [Signal logic v72.1] - 2026-07-30
+
+- Fix the XAUUSD mapping: start from the final GBPAUD Signal, reverse it at H3/H14/H16, and keep it at H7/H9/H12.
+- Let VIP evidence fall back to `pair_evidence` in the signal snapshot when startup rebuild has not seeded the dedicated evidence store; request the card's exact logic version.
+- Prefer evidence embedded in the displayed snapshot so a stale key cannot override a new card; preserve GBP entry, weekend free-VIP access, and revision metadata.
+- Reuse the API's complete public mask during SSR so entries, groups, and evidence are never serialized for public users.
+
 ## [Signal logic v72] - 2026-07-30
 
 - Replace the active engine with the completed-M30 sequence `GBP Signal → XAU Layer 1 → XAU Layer 2`; four GBP pairs independently derive direction, while the two XAUUSD layers select entry only.

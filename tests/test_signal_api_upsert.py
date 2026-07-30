@@ -14,7 +14,7 @@ def _gbp_evidence(symbol, direction="BUY", group="BT"):
         "entry_time": None,
         "signal_state": "READY",
         "entry_state": "WAIT",
-        "layer1": {"group": group},
+        "layer1": {"group": group, "base_signal": direction},
     }
 
 
@@ -28,6 +28,10 @@ def _timing(entry_time):
 
 
 class SignalApiUpsertTests(unittest.TestCase):
+    def test_persisted_entry_plan_keeps_revision_metadata(self) -> None:
+        self.assertIn("record_revision", mt5_signal_bot.ENTRY_PLAN_FIELDS)
+        self.assertIn("state_updated_at_utc", mt5_signal_bot.ENTRY_PLAN_FIELDS)
+
     def test_ready_result_has_versioned_five_pair_maps(self) -> None:
         rows = {symbol: _gbp_evidence(symbol) for symbol in mt5_signal_bot.GBP_SIGNAL_PAIRS}
         with (
@@ -48,7 +52,7 @@ class SignalApiUpsertTests(unittest.TestCase):
             "pair_entry_at_utc",
         ):
             self.assertEqual(set(result[field]), set(mt5_signal_bot.SIGNAL_PAIRS))
-        self.assertEqual(result["pair_dirs"]["XAUUSD"], result["pair_dirs"]["GBPAUD"])
+        self.assertNotEqual(result["pair_dirs"]["XAUUSD"], result["pair_dirs"]["GBPAUD"])
         self.assertNotEqual(result["pair_entry_times"]["XAUUSD"], result["pair_entry_times"]["GBPAUD"])
 
     def test_xau_evidence_references_instead_of_duplicating_gbpaud(self) -> None:

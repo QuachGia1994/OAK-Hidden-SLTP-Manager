@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
+import { isFreeVipWeekend } from "./vip-policy";
 export { maskSignalForPublic } from "./signal-display";
 
 export const redis = new Redis({
@@ -70,6 +71,7 @@ export function canSeeVipData(request: Request): boolean {
   }
   // No VIP lock configured → public (dev / free mode)
   if (!VIP_TOKEN) return true;
+  if (isFreeVipWeekend()) return true;
   const cookie = request.headers.get("cookie") || "";
   const match = cookie.match(/(?:^|;\s*)vip_access=([^;]+)/);
   const val = match ? decodeURIComponent(match[1]) : "";

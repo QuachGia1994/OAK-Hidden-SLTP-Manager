@@ -40,18 +40,6 @@ export async function getTodaySignals(): Promise<Signal[]> {
   return res.data;
 }
 
-export function maskSignal(signal: Signal): Signal {
-  return {
-    ...signal,
-    signal: "WAIT",
-    pattern_signal: undefined,
-    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT", GBPAUD: "WAIT", GBPJPY: "WAIT", GBPCAD: "WAIT" },
-    entry_prices: {},
-    current_prices: {},
-    hour_note: null,
-  };
-}
-
 export async function getBotState(): Promise<BotState | null> {
   try {
     const data = await redis.get(KEYS.state);

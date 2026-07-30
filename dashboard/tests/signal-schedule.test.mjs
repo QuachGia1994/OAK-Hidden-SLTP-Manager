@@ -28,6 +28,8 @@ import {
   isSignalPairReady,
   maskSignalForPublic,
 } from "../src/lib/signal-display.ts";
+import { resolveSignalEvidence } from "../src/lib/signal-evidence.ts";
+import { isFreeVipWeekend } from "../src/lib/vip-policy.ts";
 
 test("uses only the approved logical slots and signal times", () => {
   assert.deepEqual(TARGET_HOURS, [3, 7, 9, 12, 14, 16]);
@@ -222,6 +224,16 @@ test("public signal masking removes entries, groups, and evidence", () => {
   assert.equal(masked.pair_evidence, undefined);
 });
 
+test("public SSR uses the same complete signal mask as the API", () => {
+  const page = fs.readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+  const history = fs.readFileSync(new URL("../src/app/signals/page.tsx", import.meta.url), "utf8");
+  const data = fs.readFileSync(new URL("../src/lib/data.ts", import.meta.url), "utf8");
+  assert.equal(page.includes('import { maskSignalForPublic } from "@/lib/signal-display"'), true);
+  assert.equal(page.includes("signals = signals.map(maskSignalForPublic)"), true);
+  assert.equal(history.includes("signals.map(maskSignalForPublic)"), true);
+  assert.equal(data.includes("export function maskSignal("), false);
+});
+
 test("does not re-filter already validated history after VIP masking", () => {
   const source = fs.readFileSync(
     new URL("../src/components/HistoryList.tsx", import.meta.url),
@@ -235,7 +247,8 @@ test("shows the current GBP then XAU two-layer rules", () => {
   assert.equal(rules.some((rule) => rule.includes("GBP Signal first")), true);
   assert.equal(rules.some((rule) => rule.includes("H3 Layer 1 uses 02:30, 02:00, and 01:30")), true);
   assert.equal(rules.some((rule) => rule.includes("next full Broker hour")), true);
-  assert.equal(rules.some((rule) => rule.includes("H3, H14, and H16")), true);
+  assert.equal(rules.some((rule) => rule.includes("H3, H14, and H16 reverse")), true);
+  assert.equal(rules.some((rule) => rule.includes("H7, H9, and H12 keep")), true);
   assert.equal(rules.some((rule) => rule.includes("H1, M15, and other symbols are never used as fallbacks")), true);
 });
 
@@ -245,13 +258,77 @@ test("only the XAU row opens XAU M30 timing evidence", () => {
   const badge = fs.readFileSync(new URL("../src/components/PairBadge.tsx", import.meta.url), "utf8");
   const drawer = fs.readFileSync(new URL("../src/components/SignalEvidenceDrawer.tsx", import.meta.url), "utf8");
   assert.equal(route.includes("ACTIVE_SIGNAL_LOGIC_VERSION"), true);
-  assert.equal(card.includes('pair === "XAUUSD" ? () => fetchEvidence(pair)'), true);
-  assert.equal(card.includes('hasEvidence={isVIP && pair === "XAUUSD"}'), true);
+  assert.equal(route.includes('searchParams.get("version")'), true);
+  assert.equal(card.includes("signal.logic_version"), true);
+  assert.equal(card.includes('Boolean(signal.pair_evidence?.XAUUSD)'), true);
+  assert.equal(card.includes("hasEvidence={Boolean(onInspect)}"), true);
   assert.equal(badge.includes("View M30 evidence"), true);
   assert.equal(drawer.includes("XAUUSD · M30"), true);
   assert.equal(drawer.includes("GBP ENTRY"), true);
   assert.equal(drawer.includes("SAME AS GBPAUD"), true);
   assert.equal(drawer.includes("OPPOSITE GBPAUD"), true);
+});
+
+test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
+  const embedded = { direction: "SELL", layer1: { group: "SW" }, layer2: { group: "SW" } };
+  const evidence = resolveSignalEvidence({
+    evidenceStore: null,
+    signals: [{
+      date: "2026-07-30",
+      hour: 3,
+      logic_version: 72,
+      pair_evidence: { XAUUSD: embedded },
+      pair_entry_times: { XAUUSD: "03:49", GBPAUD: "04:00" },
+      pair_entry_states: { XAUUSD: "READY" },
+      pair_signal_states: { XAUUSD: "READY" },
+    }],
+    date: "2026-07-30",
+    hour: 3,
+    symbol: "XAUUSD",
+    logicVersion: 72,
+  });
+  assert.equal(evidence?.direction, "SELL");
+  assert.equal(evidence?.entry_time, "03:49");
+  assert.equal(evidence?.gbp_entry_time, "04:00");
+  assert.equal(evidence?.symbol, "XAUUSD");
+});
+
+test("embedded evidence from the displayed signal wins over a stale dedicated record", () => {
+  const direct = { direction: "BUY", entry_time: "03:11" };
+  const evidence = resolveSignalEvidence({
+    evidenceStore: { "2026-07-30:3:XAUUSD:v72": direct },
+    signals: [{
+      date: "2026-07-30", hour: 3, logic_version: 72,
+      pair_evidence: { XAUUSD: { direction: "SELL" } },
+    }],
+    date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: 72,
+  });
+  assert.equal(evidence?.direction, "SELL");
+  assert.equal(evidence?.date, "2026-07-30");
+  assert.equal(evidence?.hour, 3);
+});
+
+test("dedicated evidence fallback is normalized to the requested slot identity", () => {
+  const evidence = resolveSignalEvidence({
+    evidenceStore: { "2026-07-30:3:XAUUSD:v72": { direction: "SELL" } },
+    signals: [],
+    date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: 72,
+  });
+  assert.equal(evidence?.date, "2026-07-30");
+  assert.equal(evidence?.hour, 3);
+  assert.equal(evidence?.symbol, "XAUUSD");
+  assert.equal(evidence?.logic_version, 72);
+});
+
+test("free VIP weekend uses the Vietnam calendar at the UTC boundary", () => {
+  assert.equal(isFreeVipWeekend(new Date("2026-07-31T16:59:59Z")), false);
+  assert.equal(isFreeVipWeekend(new Date("2026-07-31T17:00:00Z")), true);
+  assert.equal(isFreeVipWeekend(new Date("2026-08-02T16:59:59Z")), true);
+  assert.equal(isFreeVipWeekend(new Date("2026-08-02T17:00:00Z")), false);
+  const redisSource = fs.readFileSync(new URL("../src/lib/redis.ts", import.meta.url), "utf8");
+  const vipSource = fs.readFileSync(new URL("../src/lib/vip.ts", import.meta.url), "utf8");
+  assert.equal(redisSource.includes("isFreeVipWeekend()"), true);
+  assert.equal(vipSource.includes("isFreeVipWeekend()"), true);
 });
 
 test("resolver and card contain no removed pending-followup states", () => {

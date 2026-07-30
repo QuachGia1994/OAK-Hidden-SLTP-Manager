@@ -52,7 +52,7 @@ class GbpPairIndependenceTests(unittest.TestCase):
             {symbol: result["pair_dirs"][symbol] for symbol in mt5_signal_bot.GBP_SIGNAL_PAIRS},
             {"GBPUSD": "SELL", "GBPAUD": "BUY", "GBPJPY": "BUY", "GBPCAD": "SELL"},
         )
-        self.assertEqual(result["pair_dirs"]["XAUUSD"], "SELL")
+        self.assertEqual(result["pair_dirs"]["XAUUSD"], "BUY")
         self.assertEqual(result["pair_entry_times"]["XAUUSD"], "07:49")
         self.assertEqual(
             {result["pair_entry_times"][symbol] for symbol in mt5_signal_bot.GBP_SIGNAL_PAIRS},

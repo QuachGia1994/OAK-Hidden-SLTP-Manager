@@ -226,7 +226,7 @@ bool SendSlotData(int index, datetime serverTime)
    entries[0] = xauEntry;
    groups[0] = xauLayer1;
    signals[0] = (slot == 3 || slot == 14 || slot == 16)
-      ? signals[2] : ReverseSignal(signals[2]);
+      ? ReverseSignal(signals[2]) : signals[2];
    if(signals[2] == "WAIT") { signals[0] = "WAIT"; entries[0] = ""; }
    string gbpEntry = NextFullHourEntry(xauEntry);
    for(int entryIndex = 1; entryIndex < 5; entryIndex++)

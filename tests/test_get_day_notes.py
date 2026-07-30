@@ -21,8 +21,8 @@ class TestGetDayNotes(unittest.TestCase):
                 self.assertIn("H3 Layer 1", blob)
                 self.assertIn("Layer 2", blob)
                 self.assertIn("giờ Broker tròn kế tiếp", blob)
-                self.assertIn("H7, H9 và H12 đảo chiều", blob)
-                self.assertIn("H3, H14 và H16 cùng chiều", blob)
+                self.assertIn("H3, H14 và H16 đảo ngược", blob)
+                self.assertIn("H7, H9 và H12 giữ nguyên", blob)
 
     def test_weekend_has_no_schedule(self):
         self.assertIn("Cuối tuần", " ".join(get_day_notes(date(2025, 5, 3), lang="VN")))

@@ -6,7 +6,7 @@ import { FormattedLocalTime, useBrowserBrokerTime } from "@/hooks/useBrowserBrok
 import type { Signal, SignalEvidence } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
-import { DISPLAYED_SIGNAL_PAIRS, isSignalPairReady } from "@/lib/signal-display";
+import { ACTIVE_SIGNAL_LOGIC_VERSION, DISPLAYED_SIGNAL_PAIRS, isSignalPairReady } from "@/lib/signal-display";
 import { SignalEvidenceDrawer } from "./SignalEvidenceDrawer";
 
 import { getSlotDisplayState } from "@/lib/signal-resolver";
@@ -31,6 +31,7 @@ export function SignalCard({
   const [evidenceLoading, setEvidenceLoading] = useState(false);
   const [evidenceError, setEvidenceError] = useState<string | null>(null);
   const evidenceRequest = useRef(0);
+  const logicVersion = Number(signal.logic_version) || ACTIVE_SIGNAL_LOGIC_VERSION;
 
   const fetchEvidence = useCallback(async (symbol: string) => {
     const requestId = ++evidenceRequest.current;
@@ -44,6 +45,7 @@ export function SignalCard({
         date: signal.date,
         hour: String(signal.hour),
         symbol,
+        version: String(logicVersion),
       });
       const res = await fetch(`/api/signals/evidence?${params.toString()}`);
       if (requestId !== evidenceRequest.current) return;
@@ -68,7 +70,7 @@ export function SignalCard({
     } finally {
       if (requestId === evidenceRequest.current) setEvidenceLoading(false);
     }
-  }, [signal.date, signal.hour, locale]);
+  }, [signal.date, signal.hour, logicVersion, locale]);
 
   const displayState = getSlotDisplayState({
     brokerNow,
@@ -171,7 +173,9 @@ export function SignalCard({
             signal={signal}
             isVIP={isVIP}
             displayState={displayState}
-            onInspect={isVIP && pair === "XAUUSD" ? () => fetchEvidence(pair) : undefined}
+            onInspect={isVIP && pair === "XAUUSD" && Boolean(signal.pair_evidence?.XAUUSD)
+              ? () => fetchEvidence(pair)
+              : undefined}
           />
         ))}
       </div>
@@ -184,6 +188,7 @@ export function SignalCard({
         onClose={() => setDrawerOpen(false)}
         date={signal.date}
         hour={signal.hour}
+        version={logicVersion}
         symbol={selectedSymbol}
       />
     </article>
@@ -230,7 +235,7 @@ function PairRow({
       state={state}
       label={label}
       onClick={onInspect}
-      hasEvidence={isVIP && pair === "XAUUSD"}
+      hasEvidence={Boolean(onInspect)}
     />
   );
 }

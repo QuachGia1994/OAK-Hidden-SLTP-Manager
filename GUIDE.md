@@ -18,7 +18,7 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 - Signal GBP dùng bốn giờ đóng M30 `H−00:30/H−01:00/H−01:30/H−02:00`; cây gần nhất là Base. Ma trận 10 rule phân SW/BT; SW đảo Base, BT giữ Base.
 - XAU Layer 1 tạo hai candidate entry, Layer 2 chọn kết quả cuối. H3 dùng Layer 1 `02:30/02:00/01:30` và Layer 2 `03:00/02:30/02:00/01:30`; các slot khác dùng hai cửa sổ bốn nến cách nhau 30 phút.
 - Entry XAU: `SW+SW → H:49`, `SW+BT → (H+1):25` (H3 `04:49`), `BT+SW → H:11`, `BT+BT → H:49`. Entry của bốn GBP pair là giờ Broker tròn kế tiếp sau entry XAU.
-- Hướng XAUUSD: H7/H9/H12 đảo GBPAUD; H3/H14/H16 cùng chiều GBPAUD. Không dùng kết quả layer XAU để đổi hướng.
+- XAUUSD lấy Signal cuối của GBPAUD: H3/H14/H16 đảo ngược; H7/H9/H12 giữ nguyên. Không dùng kết quả layer XAU để đổi hướng.
 - Thiếu nến, OHLC sai hoặc DOJI trả `WAIT` cho Signal/Layer bị ảnh hưởng; không dùng H1/M15 hoặc symbol khác làm fallback.
 - BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed nếu tick stale, thiếu hoặc mâu thuẫn; UTC tuyệt đối được tách khỏi timestamp wall-clock của dữ liệu MT5.
 
@@ -26,9 +26,9 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 
 | Mốc | Rule |
 | --- | --- |
-| H=3 | GBP Signal: bốn M30 như rule chung. XAU L1: `02:30/02:00/01:30`; XAU L2: `03:00/02:30/02:00/01:30`. Nhánh muộn là `04:49`. XAU cùng chiều GBPAUD. |
-| H=7/H=9/H=12 | Hai layer XAU M30 cách nhau 30 phút; nhánh muộn `(H+1):25`. XAU đảo chiều GBPAUD. |
-| H=14/H=16 | Hai layer XAU M30 cách nhau 30 phút; nhánh muộn `(H+1):25`. XAU cùng chiều GBPAUD. |
+| H=3 | GBP Signal: bốn M30 như rule chung. XAU L1: `02:30/02:00/01:30`; XAU L2: `03:00/02:30/02:00/01:30`. Nhánh muộn là `04:49`. XAU đảo Signal GBPAUD. |
+| H=7/H=9/H=12 | Hai layer XAU M30 cách nhau 30 phút; nhánh muộn `(H+1):25`. XAU giữ nguyên Signal GBPAUD. |
+| H=14/H=16 | Hai layer XAU M30 cách nhau 30 phút; nhánh muộn `(H+1):25`. XAU đảo Signal GBPAUD. |
 
 Dashboard cho phép mở bằng chứng XAUUSD M30 để xem cả hai layer, nhóm SW/BT, hai candidate và entry cuối. Signal GBP vẫn hiển thị độc lập trên từng dòng.
 

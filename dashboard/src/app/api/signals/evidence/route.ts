@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { redis, KEYS, canSeeVipData } from "@/lib/redis";
 import { ACTIVE_SIGNAL_LOGIC_VERSION, DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
 import { isActiveSignalHour } from "@/lib/constants";
-import type { SignalEvidence } from "@/lib/types";
+import { resolveSignalEvidence } from "@/lib/signal-evidence";
+import type { Signal, SignalEvidence } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export async function GET(request: Request) {
   const date = searchParams.get("date");
   const hour = searchParams.get("hour");
   const symbol = searchParams.get("symbol");
+  const version = searchParams.get("version");
 
   if (!date || !hour || !symbol) {
     return NextResponse.json({ error: "date, hour, and symbol are required" }, { status: 400 });
@@ -29,6 +31,11 @@ export async function GET(request: Request) {
   const hourNum = Number(hour);
   if (!Number.isInteger(hourNum) || !isActiveSignalHour(hourNum)) {
     return NextResponse.json({ error: "invalid hour" }, { status: 400 });
+  }
+
+  const requestedVersion = version === null ? ACTIVE_SIGNAL_LOGIC_VERSION : Number(version);
+  if (!Number.isInteger(requestedVersion) || requestedVersion < 1 || requestedVersion > 999) {
+    return NextResponse.json({ error: "invalid version" }, { status: 400 });
   }
 
   const parsedDate = new Date(`${date}T00:00:00Z`);
@@ -42,15 +49,18 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Expected incoming evidence structure from bot POST:
-    // { "2026-07-29:14:XAUUSD:v72": SignalEvidence }
-    const allEvidence = (await redis.get(KEYS.evidence)) as Record<string, SignalEvidence> | null;
-    if (!allEvidence) {
-      return NextResponse.json({ error: "no evidence data" }, { status: 404 });
-    }
-
-    const key = `${date}:${hour}:${symbol}:v${ACTIVE_SIGNAL_LOGIC_VERSION}`;
-    const evidence = allEvidence[key];
+    const [allEvidence, signals] = await Promise.all([
+      redis.get(KEYS.evidence) as Promise<Record<string, SignalEvidence> | null>,
+      redis.get(KEYS.signals) as Promise<Signal[] | null>,
+    ]);
+    const evidence = resolveSignalEvidence({
+      evidenceStore: allEvidence,
+      signals: signals || [],
+      date,
+      hour: hourNum,
+      symbol,
+      logicVersion: requestedVersion,
+    });
     if (!evidence) {
       return NextResponse.json({ error: "evidence not found for this slot and version" }, { status: 404 });
     }

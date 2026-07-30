@@ -14,8 +14,8 @@ def _timing(entry):
 
 
 class XauFollowsGbpaudTests(unittest.TestCase):
-    def test_regular_slots_reverse_gbpaud(self) -> None:
-        for hour in (7, 9, 12):
+    def test_h3_h14_h16_reverse_final_gbpaud_signal(self) -> None:
+        for hour in (3, 14, 16):
             with self.subTest(hour=hour):
                 evidence = mt5_signal_bot.derive_xau_from_gbpaud(
                     hour, _source("BUY"), _timing(f"{hour:02d}:49")
@@ -25,13 +25,13 @@ class XauFollowsGbpaudTests(unittest.TestCase):
                 self.assertEqual(evidence["direction_relation_to_gbpaud"], "OPPOSITE")
                 self.assertEqual(evidence["direction_rule"], "OPPOSITE_GBPAUD")
 
-    def test_same_direction_slots_equal_gbpaud(self) -> None:
-        for hour in (3, 14, 16):
+    def test_h7_h9_h12_keep_final_gbpaud_signal(self) -> None:
+        for hour in (7, 9, 12):
             with self.subTest(hour=hour):
                 evidence = mt5_signal_bot.derive_xau_from_gbpaud(
-                    hour, _source("SELL"), _timing(f"{hour:02d}:11")
+                    hour, _source("BUY"), _timing(f"{hour:02d}:49")
                 )
-                self.assertEqual(evidence["direction"], "SELL")
+                self.assertEqual(evidence["direction"], "BUY")
                 self.assertEqual(evidence["direction_relation_to_gbpaud"], "SAME")
                 self.assertEqual(evidence["direction_rule"], "SAME_AS_GBPAUD")
 
@@ -45,7 +45,6 @@ class XauFollowsGbpaudTests(unittest.TestCase):
         self.assertEqual(evidence["direction"], "WAIT")
         self.assertIsNone(evidence["entry_time"])
         self.assertEqual(evidence["source_symbol"], "GBPAUD")
-
 
 if __name__ == "__main__":
     unittest.main()

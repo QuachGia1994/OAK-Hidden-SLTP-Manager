@@ -10,7 +10,7 @@ export const RULES_BY_LOCALE = {
     "Các mốc Layer XAUUSD là giờ đóng nến. H3 Layer 1 dùng ba mốc 02:30, 02:00, 01:30; Layer 2 dùng 03:00, 02:30, 02:00, 01:30. Các slot khác dùng hai cửa sổ bốn nến cách nhau 30 phút.",
     "Nếu Layer 1 SW: Layer 2 SW chọn H:49; Layer 2 BT chọn (H+1):25, riêng H3 chọn 04:49. Nếu Layer 1 BT: Layer 2 SW chọn H:11; Layer 2 BT chọn H:49.",
     "Entry của bốn cặp GBP là giờ Broker tròn kế tiếp sau Entry XAUUSD; ví dụ XAU 03:11/03:49 thì GBP 04:00, còn XAU 04:25/04:49 thì GBP 05:00.",
-    "Hướng XAUUSD follow GBPAUD: H7, H9 và H12 đảo chiều; H3, H14 và H16 cùng chiều.",
+    "XAUUSD lấy Signal cuối của GBPAUD: H3, H14 và H16 đảo ngược; H7, H9 và H12 giữ nguyên.",
     "Thiếu dữ liệu, nến không hợp lệ hoặc DOJI làm riêng Signal hoặc Layer liên quan WAIT; không dùng H1, M15 hay symbol khác làm fallback."
   ],
   "EN": [
@@ -19,7 +19,7 @@ export const RULES_BY_LOCALE = {
     "XAUUSD layer timestamps are candle close times. H3 Layer 1 uses 02:30, 02:00, and 01:30; Layer 2 uses 03:00, 02:30, 02:00, and 01:30. Other slots use two four-candle windows separated by 30 minutes.",
     "For Layer 1 SW, Layer 2 SW selects H:49 and Layer 2 BT selects (H+1):25, except H3 selects 04:49. For Layer 1 BT, Layer 2 SW selects H:11 and Layer 2 BT selects H:49.",
     "All four GBP pairs enter at the next full Broker hour after the XAUUSD Entry; for example XAU 03:11/03:49 maps to GBP 04:00, while XAU 04:25/04:49 maps to GBP 05:00.",
-    "XAUUSD follows GBPAUD direction: H7, H9, and H12 are opposite; H3, H14, and H16 match.",
+    "XAUUSD starts from the final GBPAUD Signal: H3, H14, and H16 reverse it; H7, H9, and H12 keep it unchanged.",
     "Missing data, an invalid candle, or a DOJI makes only the affected Signal or Layer WAIT; H1, M15, and other symbols are never used as fallbacks."
   ]
 };

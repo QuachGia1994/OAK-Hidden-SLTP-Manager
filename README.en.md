@@ -36,7 +36,7 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 - Each GBP pair uses four completed M30 candles from that symbol, with close times `H−00:30/H−01:00/H−01:30/H−02:00`. The newest candle is Base; SW reverses Base and BT keeps Base.
 - XAUUSD entry uses two XAUUSD M30 layers. H3 Layer 1 is `02:30/02:00/01:30`, and Layer 2 is `03:00/02:30/02:00/01:30`. Other slots use Layer 1 `H−01:00/H−01:30/H−02:00/H−02:30` and Layer 2 shifted 30 minutes later: `H−00:30/H−01:00/H−01:30/H−02:00`.
 - XAU entry table: `SW+SW → H:49`; `SW+BT → (H+1):25` (H3 uses `04:49`); `BT+SW → H:11`; `BT+BT → H:49`. All four GBP pairs enter at the next full Broker hour after the XAU entry.
-- XAUUSD direction follows GBPAUD only: **H7/H9/H12 are opposite**; **H3/H14/H16 match**. XAU entry still comes from the two XAUUSD layers, never from GBPAUD.
+- XAUUSD starts from the final GBPAUD Signal: **H3/H14/H16 reverse it**; **H7/H9/H12 keep it unchanged**. XAU entry still comes from the two XAUUSD layers, never from GBPAUD.
 - Missing candles, invalid OHLC, or a DOJI make the affected Signal/Layer `WAIT`; the engine never looks farther back or falls back to H1, M15, or another symbol.
 - BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations. Absolute UTC used by scheduling/UI is kept separate from the wall-clock timestamp encoding exposed by some MT5 terminals for bars and ticks.
 

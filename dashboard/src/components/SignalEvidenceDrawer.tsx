@@ -15,11 +15,12 @@ interface Props {
   onClose: () => void;
   date: string;
   hour: number;
+  version: number;
   symbol: string | null;
 }
 
 export function SignalEvidenceDrawer(props: Props) {
-  const { evidence, loading, error, open, onClose, date, hour, symbol } = props;
+  const { evidence, loading, error, open, onClose, date, hour, version, symbol } = props;
   const { locale } = useLocale();
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -66,7 +67,7 @@ export function SignalEvidenceDrawer(props: Props) {
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="signal-evidence-title">
       <button type="button" className="fixed inset-0 cursor-default bg-black/65 backdrop-blur-sm" onClick={onClose} aria-label={locale === "EN" ? "Close evidence" : "Đóng bằng chứng"} />
       <div ref={drawerRef} className="fixed inset-y-0 right-0 flex w-[min(640px,94vw)] flex-col overflow-hidden border-l border-[var(--panel-border)] bg-[var(--surface)] shadow-2xl max-md:inset-x-0 max-md:bottom-0 max-md:top-auto max-md:h-[90dvh] max-md:w-full max-md:rounded-t-2xl max-md:border-l-0 max-md:border-t">
-        <DrawerHeader date={date} hour={hour} symbol={symbol} version={evidence?.logic_version} locale={locale} onClose={onClose} />
+        <DrawerHeader date={date} hour={hour} symbol={symbol} version={evidence?.logic_version || version} locale={locale} onClose={onClose} />
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {loading && <StatusText text={locale === "EN" ? "Loading M30 evidence…" : "Đang tải bằng chứng M30…"} />}
           {error && <div className="rounded-lg border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 px-4 py-3 text-sm text-[var(--terminal-danger)]">{error}</div>}
@@ -127,10 +128,10 @@ function Sequence({ locale }: { locale: "VN" | "EN" }) {
 
 function DerivationSummary({ evidence, locale }: { evidence: SignalEvidence; locale: "VN" | "EN" }) {
   const relation = evidence.direction_relation_to_gbpaud
-    || ([3, 14, 16].includes(evidence.hour) ? "SAME" : "OPPOSITE");
-  const ruleLabel = relation === "SAME"
-    ? (locale === "EN" ? "SAME AS GBPAUD" : "CÙNG CHIỀU GBPAUD")
-    : (locale === "EN" ? "OPPOSITE GBPAUD" : "ĐẢO CHIỀU GBPAUD");
+    || ([3, 14, 16].includes(evidence.hour) ? "OPPOSITE" : "SAME");
+  const ruleLabel = relation === "OPPOSITE"
+    ? (locale === "EN" ? "OPPOSITE GBPAUD" : "ĐẢO CHIỀU GBPAUD")
+    : (locale === "EN" ? "SAME AS GBPAUD" : "GIỮ NGUYÊN GBPAUD");
   return (
     <section className="rounded-xl border border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/[0.055] px-4 py-4">
       <p className="terminal-kicker text-[var(--terminal-accent)]">{locale === "EN" ? "Final mapping" : "Ánh xạ cuối"}</p>

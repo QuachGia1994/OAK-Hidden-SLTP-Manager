@@ -341,9 +341,13 @@ def _payload_contract_error(slot, directions, entries):
             return f"invalid {symbol} entry"
         if directions[symbol] == "WAIT" and entry is not None:
             return f"WAIT {symbol} must not have entry"
-    expected_xau = directions["GBPAUD"] if slot in (3, 14, 16) else _reverse_direction(directions["GBPAUD"])
+    expected_xau = (
+        _reverse_direction(directions["GBPAUD"])
+        if slot in (3, 14, 16)
+        else directions["GBPAUD"]
+    )
     if directions["XAUUSD"] != expected_xau:
-        return "XAUUSD signal does not follow GBPAUD"
+        return "XAUUSD signal does not follow slot GBPAUD mapping"
     if directions["XAUUSD"] in ("BUY", "SELL"):
         expected_gbp_entry = signal_engine.deferred_gbp_entry_time(entries["XAUUSD"])
         for symbol in GBP_SIGNAL_PAIRS:

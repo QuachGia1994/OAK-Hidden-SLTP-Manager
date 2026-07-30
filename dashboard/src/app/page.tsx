@@ -1,7 +1,8 @@
 import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { SignalCard } from "@/components/SignalCard";
-import { getTodaySignalsResult, getBotState, getEconomicNews, maskSignal, DataResult } from "@/lib/data";
+import { getTodaySignalsResult, getBotState, getEconomicNews, DataResult } from "@/lib/data";
+import { maskSignalForPublic } from "@/lib/signal-display";
 import { selectBestSignalRecord } from "@/lib/signal-resolver";
 import { getSignalLabel, getSignalTime, getSlotTimeValue, getTargetHours } from "@/lib/constants";
 import { brokerTimeToLocal } from "@/lib/broker-time";
@@ -47,7 +48,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     ? botState.broker_utc_offset
     : null;
   if (!isVIP) {
-    signals = signals.map(maskSignal);
+    signals = signals.map(maskSignalForPublic);
     botState = null;
   }
 

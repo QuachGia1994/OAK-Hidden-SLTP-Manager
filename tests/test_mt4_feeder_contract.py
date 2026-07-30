@@ -56,7 +56,7 @@ class Mt4FeederContractTests(unittest.TestCase):
     def test_xau_direction_follows_gbpaud_but_entry_uses_xau_layers(self) -> None:
         self.assertIn("entries[0] = xauEntry;", self.source)
         self.assertIn("(slot == 3 || slot == 14 || slot == 16)", self.source)
-        self.assertIn("? signals[2] : ReverseSignal(signals[2]);", self.source)
+        self.assertIn("? ReverseSignal(signals[2]) : signals[2];", self.source)
         self.assertIn("string gbpEntry = NextFullHourEntry(xauEntry);", self.source)
 
     def test_payload_carries_pair_specific_entries_at_version_72(self) -> None:

@@ -1,5 +1,6 @@
-import { getSignals, maskSignal } from "@/lib/data";
+import { getSignals } from "@/lib/data";
 import { HistoryList } from "@/components/HistoryList";
+import { maskSignalForPublic } from "@/lib/signal-display";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
@@ -19,7 +20,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   const headerList = await headers();
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
-  const visibleSignals = isVIP ? signals : signals.map(maskSignal);
+  const visibleSignals = isVIP ? signals : signals.map(maskSignalForPublic);
   const accessText = isVIP
     ? locale === "EN" ? "Unlocked" : "Đã mở"
     : locale === "EN" ? "Locked" : "Đã khóa";

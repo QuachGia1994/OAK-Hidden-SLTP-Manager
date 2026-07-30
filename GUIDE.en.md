@@ -18,7 +18,7 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 - GBP signals use four M30 close times `H−00:30/H−01:00/H−01:30/H−02:00`; the newest candle is Base. The ten-rule matrix classifies SW/BT; SW reverses Base and BT keeps Base.
 - XAU Layer 1 creates two entry candidates and Layer 2 selects the final result. H3 uses Layer 1 `02:30/02:00/01:30` and Layer 2 `03:00/02:30/02:00/01:30`; other slots use two four-candle windows separated by 30 minutes.
 - XAU entry: `SW+SW → H:49`, `SW+BT → (H+1):25` (H3 uses `04:49`), `BT+SW → H:11`, and `BT+BT → H:49`. All four GBP entries are the next full Broker hour after the XAU entry.
-- XAUUSD direction: H7/H9/H12 reverse GBPAUD; H3/H14/H16 match GBPAUD. XAU layer results never change direction.
+- XAUUSD starts from the final GBPAUD Signal: H3/H14/H16 reverse it; H7/H9/H12 keep it unchanged. XAU layer results never change direction.
 - A missing candle, invalid OHLC, or DOJI makes the affected Signal/Layer `WAIT`; H1, M15, and other symbols are never fallbacks.
 - BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations; absolute UTC is separated from MT5 wall-clock data timestamps.
 
@@ -26,9 +26,9 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 
 | Slot | Rule |
 | --- | --- |
-| H=3 | GBP Signal uses the shared four-M30 rule. XAU L1 is `02:30/02:00/01:30`; XAU L2 is `03:00/02:30/02:00/01:30`. The late branch is `04:49`. XAU matches GBPAUD. |
-| H=7/H=9/H=12 | Two XAU M30 layers separated by 30 minutes; the late branch is `(H+1):25`. XAU reverses GBPAUD. |
-| H=14/H=16 | Two XAU M30 layers separated by 30 minutes; the late branch is `(H+1):25`. XAU matches GBPAUD. |
+| H=3 | GBP Signal uses the shared four-M30 rule. XAU L1 is `02:30/02:00/01:30`; XAU L2 is `03:00/02:30/02:00/01:30`. The late branch is `04:49`. XAU reverses the GBPAUD Signal. |
+| H=7/H=9/H=12 | Two XAU M30 layers separated by 30 minutes; the late branch is `(H+1):25`. XAU keeps the GBPAUD Signal unchanged. |
+| H=14/H=16 | Two XAU M30 layers separated by 30 minutes; the late branch is `(H+1):25`. XAU reverses the GBPAUD Signal. |
 
 The Dashboard opens XAUUSD M30 evidence for both layers, their SW/BT groups, the two candidates, and the final entry. GBP signals remain independent rows.
 
