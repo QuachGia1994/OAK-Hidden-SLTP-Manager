@@ -6,7 +6,7 @@ import unittest
 from oak_trading_reminders import _friday_of_same_week, get_day_notes
 
 class TestGetDayNotes(unittest.TestCase):
-    def test_weekday_notes_v76(self):
+    def test_weekday_notes_v80(self):
         for day in (
             date(2025, 4, 28),
             date(2025, 4, 29),
@@ -16,10 +16,9 @@ class TestGetDayNotes(unittest.TestCase):
         ):
             with self.subTest(day=day):
                 blob = " ".join(get_day_notes(day, lang="VN"))
-                self.assertIn("Tầng 1", blob)
-                self.assertIn("Tầng 2", blob)
-                self.assertIn("Tầng 3", blob)
-                self.assertIn("timestamp M30 là giờ MỞ nến M30", blob)
+                self.assertIn("Entry Engine", blob)
+                self.assertIn("Signal Engine", blob)
+                self.assertIn("D-Direction", blob)
                 self.assertIn("giờ tròn H+1:00", blob)
                 self.assertIn("GBPJPY và GBPCAD tạm Tắt (OFF)", blob)
 
