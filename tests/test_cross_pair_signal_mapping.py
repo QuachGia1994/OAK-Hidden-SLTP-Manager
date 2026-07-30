@@ -7,7 +7,7 @@ class TestCrossPairSignalMapping(unittest.TestCase):
         # native GBPUSD=BUY, native GBPAUD=BUY
         # H7: XAU = native GBPAUD = BUY
         # GBPAUD = native GBPUSD = BUY
-        # GBPUSD = final XAU = BUY
+        # GBPUSD = native GBPUSD = BUY
         res = derive_all_pair_final_signals(7, "BUY", "BUY")
         self.assertEqual(res["XAUUSD"], "BUY")
         self.assertEqual(res["GBPAUD"], "BUY")
@@ -19,11 +19,11 @@ class TestCrossPairSignalMapping(unittest.TestCase):
         # native GBPUSD=BUY, native GBPAUD=BUY
         # H14: XAU = reverse(native GBPAUD) = SELL
         # GBPAUD = reverse(native GBPUSD) = SELL
-        # GBPUSD = native GBPUSD = BUY
+        # GBPUSD = final XAUUSD = SELL (since H14 in 12, 14, 16)
         res = derive_all_pair_final_signals(14, "BUY", "BUY")
         self.assertEqual(res["XAUUSD"], "SELL")
         self.assertEqual(res["GBPAUD"], "SELL")
-        self.assertEqual(res["GBPUSD"], "BUY")
+        self.assertEqual(res["GBPUSD"], "SELL")
 
     def test_gbp_entry_schedule_is_next_full_hour(self):
         self.assertEqual(next_full_hour_after_signal_slot(datetime(2026, 7, 30, 3, 0)), "04:00")

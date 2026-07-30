@@ -10,7 +10,7 @@ export const RULES_BY_LOCALE = {
     "Tầng 3 XAUUSD tại H:30: SW chọn H:49; BT chọn (H+1):25; riêng H3 BT chọn 04:49.",
     "Mọi timestamp M30 là giờ MỞ nến M30.",
     "Entry của nhóm GBP luôn là giờ tròn H+1:00 sau mốc phát signal, độc lập với Entry của XAUUSD.",
-    "Suy chéo Signal: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (cả hai đảo tại H3, H14, H16). GBPUSD = final XAUUSD tại H3, H7, H9 và native GBPUSD tại H12, H14, H16.",
+    "Suy chéo Signal: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (cả hai đảo tại H3, H14, H16). GBPUSD = final XAUUSD tại H12, H14, H16 và native GBPUSD tại H3, H7, H9.",
     "Thiếu dữ liệu hoặc DOJI làm riêng dependency đó WAIT, fail-closed từng phần."
   ],
   "EN": [
@@ -19,7 +19,7 @@ export const RULES_BY_LOCALE = {
     "XAUUSD Layer 3 at H:30: SW selects H:49; BT selects (H+1):25; H3 BT selects 04:49.",
     "All M30 timestamps represent M30 candle OPEN times.",
     "GBP entry time is always the next full hour H+1:00 after the signal slot, independent of XAUUSD entry timing.",
-    "Signal cross-mapping: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (both inverted at H3, H14, H16). GBPUSD = final XAUUSD at H3, H7, H9 and native GBPUSD at H12, H14, H16.",
+    "Signal cross-mapping: XAUUSD = native GBPAUD; GBPAUD = native GBPUSD (both inverted at H3, H14, H16). GBPUSD = final XAUUSD at H12, H14, H16 and native GBPUSD at H3, H7, H9.",
     "Missing data or DOJI results in WAIT only for affected dependencies (fail-closed)."
   ]
 } as const;

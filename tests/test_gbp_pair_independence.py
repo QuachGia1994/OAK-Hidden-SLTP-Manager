@@ -51,10 +51,10 @@ class GbpPairIndependenceTests(unittest.TestCase):
 
         # H7: XAUUSD = native GBPAUD = BUY
         # GBPAUD = native GBPUSD = SELL
-        # GBPUSD = final XAUUSD = BUY
+        # GBPUSD = native GBPUSD = SELL (since H7 not in 12, 14, 16)
         self.assertEqual(result["pair_dirs"]["XAUUSD"], "BUY")
         self.assertEqual(result["pair_dirs"]["GBPAUD"], "SELL")
-        self.assertEqual(result["pair_dirs"]["GBPUSD"], "BUY")
+        self.assertEqual(result["pair_dirs"]["GBPUSD"], "SELL")
         self.assertEqual(result["pair_entry_times"]["XAUUSD"], "07:49")
         self.assertEqual(result["pair_entry_times"]["GBPUSD"], "08:00")
         self.assertEqual(result["pair_entry_times"]["GBPAUD"], "08:00")

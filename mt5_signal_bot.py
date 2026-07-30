@@ -2290,8 +2290,8 @@ def derive_all_pair_final_signals(hour, native_gbpusd_dir, native_gbpaud_dir):
     # 2. GBPAUD = reverse(native_gbpusd) if H in (3,14,16) else native_gbpusd
     final_gbpaud = reverse_signal(native_gbpusd_dir) if reverses else native_gbpusd_dir
 
-    # 3. GBPUSD = final_xauusd if H in (3,7,9) else native_gbpusd
-    if h in (3, 7, 9):
+    # 3. GBPUSD = final_xauusd if H in (12, 14, 16) else native_gbpusd
+    if h in (12, 14, 16):
         final_gbpusd = final_xauusd
     else:
         final_gbpusd = native_gbpusd_dir
