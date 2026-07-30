@@ -1,8 +1,8 @@
 //+------------------------------------------------------------------+
-//| MT4 data feeder for the MT4-MT5 v71 comparison server           |
+//| MT4 data feeder for the MT4-MT5 v72 comparison server           |
 //+------------------------------------------------------------------+
 #property copyright "OAK Group"
-#property version   "2.10"
+#property version   "2.12"
 #property strict
 
 input string ServerURL    = "http://127.0.0.1:5000/mt4_data";
@@ -15,7 +15,7 @@ input string GbpCadSymbol = "GBPCAD";
 
 int logicalSlots[]    = {3, 7, 9, 12, 14, 16};
 int deadlineHours[]   = {4, 8, 10, 13, 15, 17};
-int deadlineMinutes[] = {25, 25, 25, 25, 25, 25};
+int deadlineMinutes[] = {49, 25, 25, 25, 25, 25};
 datetime lastAttemptMinutes[6];
 int completedDateKeys[6];
 
@@ -25,8 +25,7 @@ int OnInit()
    BuildSymbolList(symbols);
    for(int index = 0; index < ArraySize(symbols); index++)
       SymbolSelect(symbols[index], true);
-   Print("MT4 Data Feeder v2.10 - v71 H3 three-H1 + four-H1 signals");
-   Print("Allow WebRequest for: ", ServerURL);
+   Print("MT4 Data Feeder v2.12 - signal v72 GBP signals then XAU entry layers");
    EventSetTimer(1);
    return(INIT_SUCCEEDED);
 }
@@ -34,7 +33,6 @@ int OnInit()
 void OnDeinit(const int reason)
 {
    EventKillTimer();
-   Print("MT4 Data Feeder stopped.");
 }
 
 void BuildSymbolList(string &symbols[])
@@ -74,154 +72,126 @@ string DirectionToSignal(string direction)
    return "WAIT";
 }
 
-string GetRawCandleDirection(string symbolName, int timeframe, int shift)
+string GetM30Direction(string symbolName, datetime candleOpenTime)
 {
-   if(shift < 0) return "MISSING";
-   double openPrice = iOpen(symbolName, timeframe, shift);
-   double closePrice = iClose(symbolName, timeframe, shift);
-   double highPrice = iHigh(symbolName, timeframe, shift);
-   double lowPrice = iLow(symbolName, timeframe, shift);
-   if(openPrice == 0 || closePrice == 0) return "MISSING";
-   double range = highPrice - lowPrice;
-   if(range <= 0 || MathAbs(closePrice - openPrice) / range < 0.02)
-      return "DOJI";
-   return closePrice > openPrice ? "TANG" : "GIAM";
+   int shift = iBarShift(symbolName, PERIOD_M30, candleOpenTime, true);
+   if(shift < 0 || iTime(symbolName, PERIOD_M30, shift) != candleOpenTime) return "MISSING";
+   double openPrice = iOpen(symbolName, PERIOD_M30, shift);
+   double highPrice = iHigh(symbolName, PERIOD_M30, shift);
+   double lowPrice = iLow(symbolName, PERIOD_M30, shift);
+   double closePrice = iClose(symbolName, PERIOD_M30, shift);
+   if(!MathIsValidNumber(openPrice) || !MathIsValidNumber(highPrice) ||
+      !MathIsValidNumber(lowPrice) || !MathIsValidNumber(closePrice)) return "MISSING";
+   if(highPrice < MathMax(openPrice, closePrice) ||
+      lowPrice > MathMin(openPrice, closePrice) || highPrice < lowPrice) return "MISSING";
+   if(closePrice > openPrice) return "TANG";
+   if(closePrice < openPrice) return "GIAM";
+   return "DOJI";
 }
 
-string GetResolvedDirection(string symbolName, int timeframe, datetime candleTime)
+string ClassifyThree(string c1, string c2, string c3, int &ruleNumber)
 {
-   int shift = iBarShift(symbolName, timeframe, candleTime, true);
-   string direction = GetRawCandleDirection(symbolName, timeframe, shift);
-   if(direction != "DOJI") return direction;
-   string previous = GetRawCandleDirection(symbolName, timeframe, shift + 1);
-   if(previous != "TANG" && previous != "GIAM") return "MISSING";
-   if(timeframe == PERIOD_M15)
-      return previous == "TANG" ? "GIAM" : "TANG";
-   return previous;
-}
-
-string ClassifyThree(string c1, string c2, string c3)
-{
-   if(c1 == "TANG" && c2 == "TANG" && c3 == "TANG") return "SW";
-   if(c1 == "GIAM" && c2 == "TANG" && c3 == "TANG") return "SW";
-   if(c1 == "GIAM" && c2 == "TANG" && c3 == "GIAM") return "BT";
-   if(c1 == "GIAM" && c2 == "GIAM" && c3 == "TANG") return "BT";
-   if(c1 == "GIAM" && c2 == "GIAM" && c3 == "GIAM") return "SW";
-   if(c1 == "TANG" && c2 == "GIAM" && c3 == "GIAM") return "SW";
-   if(c1 == "TANG" && c2 == "GIAM" && c3 == "TANG") return "BT";
-   if(c1 == "TANG" && c2 == "TANG" && c3 == "GIAM") return "BT";
+   ruleNumber = 0;
+   if(c1 == "TANG" && c2 == "TANG" && c3 == "TANG") { ruleNumber = 1; return "SW"; }
+   if(c1 == "GIAM" && c2 == "TANG" && c3 == "TANG") { ruleNumber = 2; return "SW"; }
+   if(c1 == "GIAM" && c2 == "TANG" && c3 == "GIAM") { ruleNumber = 3; return "BT"; }
+   if(c1 == "GIAM" && c2 == "GIAM" && c3 == "TANG") { ruleNumber = 4; return "BT"; }
+   if(c1 == "GIAM" && c2 == "GIAM" && c3 == "GIAM") { ruleNumber = 5; return "SW"; }
+   if(c1 == "TANG" && c2 == "GIAM" && c3 == "GIAM") { ruleNumber = 6; return "SW"; }
+   if(c1 == "TANG" && c2 == "GIAM" && c3 == "TANG") { ruleNumber = 7; return "BT"; }
+   if(c1 == "TANG" && c2 == "TANG" && c3 == "GIAM") { ruleNumber = 8; return "BT"; }
    return "WAIT";
 }
 
-string ClassifyFour(string c1, string c2, string c3, string c4)
+string ClassifyFour(string c1, string c2, string c3, string c4, int &ruleNumber)
 {
-   if((c1 != "TANG" && c1 != "GIAM") ||
-      (c2 != "TANG" && c2 != "GIAM") ||
-      (c3 != "TANG" && c3 != "GIAM") ||
-      (c4 != "TANG" && c4 != "GIAM")) return "WAIT";
-   if(c1 == "TANG")
+   ruleNumber = 0;
+   if((c1 != "TANG" && c1 != "GIAM") || (c2 != "TANG" && c2 != "GIAM") ||
+      (c3 != "TANG" && c3 != "GIAM") || (c4 != "TANG" && c4 != "GIAM")) return "WAIT";
+   if(c1 == "TANG" && c2 == "TANG" && c3 == "TANG") { ruleNumber = 1; return "SW"; }
+   if(c1 == "TANG" && c2 == "GIAM" && c3 == "TANG" && c4 == "GIAM") { ruleNumber = 2; return "SW"; }
+   if(c1 == "TANG" && c2 == "GIAM" && c3 == "GIAM") { ruleNumber = 3; return "SW"; }
+   if(c1 == "TANG" && c2 == "TANG" && c3 == "GIAM") { ruleNumber = 4; return "BT"; }
+   if(c1 == "TANG") { ruleNumber = 5; return "BT"; }
+   if(c2 == "GIAM" && c3 == "GIAM") { ruleNumber = 6; return "SW"; }
+   if(c2 == "TANG" && c3 == "GIAM" && c4 == "TANG") { ruleNumber = 7; return "SW"; }
+   if(c2 == "TANG" && c3 == "TANG") { ruleNumber = 8; return "SW"; }
+   if(c2 == "GIAM") { ruleNumber = 9; return "BT"; }
+   ruleNumber = 10;
+   return "BT";
+}
+
+string SelectXauEntry(int slot, string layer1Group, string layer2Group)
+{
+   if((layer1Group != "SW" && layer1Group != "BT") ||
+      (layer2Group != "SW" && layer2Group != "BT")) return "";
+   string earlyEntry;
+   string lateEntry;
+   if(layer1Group == "SW")
    {
-      if(c2 == "TANG" && c3 == "TANG") return "SW";
-      if(c2 == "GIAM" && c3 == "TANG") return c4 == "GIAM" ? "SW" : "BT";
-      return c2 == "GIAM" ? "SW" : "BT";
+      earlyEntry = StringFormat("%02d:49", slot);
+      lateEntry = slot == 3 ? "04:49" : StringFormat("%02d:25", slot + 1);
    }
-   if(c2 == "GIAM" && c3 == "GIAM") return "SW";
-   if(c2 == "TANG" && c3 == "GIAM") return c4 == "TANG" ? "SW" : "BT";
-   return c2 == "TANG" ? "SW" : "BT";
-}
-
-string DeriveSignalBase(string baseDirection, string group)
-{
-   string signal = DirectionToSignal(baseDirection);
-   if(signal == "WAIT" || (group != "SW" && group != "BT")) return "WAIT";
-   return group == "SW" ? ReverseSignal(signal) : signal;
-}
-
-string ApplyEntryRule(string signalBase, string entryTime, int slot)
-{
-   if(signalBase != "BUY" && signalBase != "SELL") return "WAIT";
-   string h11 = StringFormat("%02d:11", slot);
-   string h49 = StringFormat("%02d:49", slot);
-   string plus25 = StringFormat("%02d:25", slot + 1);
-   string result = "WAIT";
-   if(entryTime == plus25) result = signalBase;
-   else if(entryTime == h11 || entryTime == h49) result = ReverseSignal(signalBase);
-   if(entryTime == "15:25" || entryTime == "16:49") result = ReverseSignal(result);
-   return result;
-}
-
-string DeriveXauEntryBasis(datetime slotTime)
-{
-   string base = GetResolvedDirection(XauUsdSymbol, PERIOD_M15, slotTime - 30 * 60);
-   string p1 = GetResolvedDirection(XauUsdSymbol, PERIOD_M15, slotTime - 45 * 60);
-   string p2 = GetResolvedDirection(XauUsdSymbol, PERIOD_M15, slotTime - 60 * 60);
-   string p3 = GetResolvedDirection(XauUsdSymbol, PERIOD_M15, slotTime - 75 * 60);
-   string offset15 = GetResolvedDirection(XauUsdSymbol, PERIOD_M15, slotTime - 15 * 60);
-   string group = ClassifyThree(p1, p2, p3);
-   string provisional = DeriveSignalBase(base, group);
-   string offsetSignal = DirectionToSignal(offset15);
-   if(provisional == "WAIT" || offsetSignal == "WAIT") return "WAIT";
-   return provisional == offsetSignal ? ReverseSignal(provisional) : provisional;
-}
-
-string SelectEntryTime(int slot, datetime slotTime, datetime serverTime)
-{
-   string xauSignal = DeriveXauEntryBasis(slotTime);
-   string initialDirection = GetResolvedDirection(GbpAudSymbol, PERIOD_M15, slotTime - 15 * 60);
-   string initialSignal = DirectionToSignal(initialDirection);
-   if(xauSignal == "WAIT" || initialSignal == "WAIT") return "";
-   bool same = xauSignal == initialSignal;
-   if((slot == 3 || slot == 7) && same) return StringFormat("%02d:11", slot);
-   if(slot >= 9 && !same) return StringFormat("%02d:11", slot);
-   if(serverTime < slotTime + 45 * 60) return "";
-   string followupDirection = GetResolvedDirection(GbpAudSymbol, PERIOD_M15, slotTime + 30 * 60);
-   string followupSignal = DirectionToSignal(followupDirection);
-   if(followupSignal == "WAIT") return "";
-   bool followupSame = xauSignal == followupSignal;
-   if(slot == 3) return followupSame ? "03:49" : "04:25";
-   if(slot == 7) return followupSame ? "07:49" : "08:25";
-   return followupSame ? StringFormat("%02d:25", slot + 1) : StringFormat("%02d:49", slot);
-}
-
-string EvaluateH3Source(string symbolName, datetime referenceTime, string &group)
-{
-   datetime referenceStart = StrToTime(TimeToString(referenceTime, TIME_DATE));
-   for(int daysBack = 1; daysBack <= 7; daysBack++)
+   else
    {
-      datetime sourceStart = referenceStart - daysBack * 86400;
-      int weekday = TimeDayOfWeek(sourceStart);
-      if(weekday == 0 || weekday == 6) continue;
-      string c1 = GetResolvedDirection(symbolName, PERIOD_H1, sourceStart + 4 * 3600);
-      if(c1 != "TANG" && c1 != "GIAM") continue;
-      string c2 = GetResolvedDirection(symbolName, PERIOD_H1, sourceStart + 3 * 3600);
-      string c3 = GetResolvedDirection(symbolName, PERIOD_H1, sourceStart + 2 * 3600);
-      group = ClassifyThree(c1, c2, c3);
-      return DeriveSignalBase(c1, group);
+      earlyEntry = StringFormat("%02d:11", slot);
+      lateEntry = StringFormat("%02d:49", slot);
    }
-   group = "WAIT";
-   return "WAIT";
+   return layer2Group == "SW" ? earlyEntry : lateEntry;
 }
 
-string EvaluatePairSignal(string symbolName, int slot, datetime slotTime,
-                          datetime serverTime, string entryTime, string &group)
+string NextFullHourEntry(string xauEntry)
 {
+   if(StringLen(xauEntry) != 5) return "";
+   int hour = (int)StringToInteger(StringSubstr(xauEntry, 0, 2));
+   return StringFormat("%02d:00", (hour + 1) % 24);
+}
+
+bool EvaluateGbpSignal(string symbolName, datetime slotTime,
+                       string &signal, string &layer1Group)
+{
+   int ruleNumber = 0;
+   layer1Group = ClassifyFour(
+      GetM30Direction(symbolName, slotTime - 60 * 60),
+      GetM30Direction(symbolName, slotTime - 90 * 60),
+      GetM30Direction(symbolName, slotTime - 120 * 60),
+      GetM30Direction(symbolName, slotTime - 150 * 60), ruleNumber);
+   string baseSignal = DirectionToSignal(GetM30Direction(symbolName, slotTime - 60 * 60));
+   signal = layer1Group == "SW" ? ReverseSignal(baseSignal) : baseSignal;
+   if(layer1Group == "WAIT" || signal == "WAIT") { signal = "WAIT"; return false; }
+   return true;
+}
+
+bool EvaluateXauTiming(int slot, datetime slotTime, string &entryTime,
+                       string &layer1Group, string &layer2Group)
+{
+   int layer1Rule = 0;
    if(slot == 3)
-   {
-      datetime reference = slotTime;
-      if(TimeDayOfWeek(slotTime) == 4) reference = slotTime - 3 * 86400;
-      string result = EvaluateH3Source(symbolName, reference, group);
-      if(TimeDayOfWeek(slotTime) == 4 && group == "SW") return "WAIT";
-      return result;
-   }
-   string plus25 = StringFormat("%02d:25", slot + 1);
-   datetime baseTime = entryTime == plus25 ? slotTime : slotTime - 3600;
-   if(serverTime < baseTime + 3600) return "WAIT";
-   string c1 = GetResolvedDirection(symbolName, PERIOD_H1, baseTime);
-   string c2 = GetResolvedDirection(symbolName, PERIOD_H1, baseTime - 3600);
-   string c3 = GetResolvedDirection(symbolName, PERIOD_H1, baseTime - 7200);
-   string c4 = GetResolvedDirection(symbolName, PERIOD_H1, baseTime - 10800);
-   group = ClassifyFour(c1, c2, c3, c4);
-   return ApplyEntryRule(DeriveSignalBase(c1, group), entryTime, slot);
+      layer1Group = ClassifyThree(
+         GetM30Direction(XauUsdSymbol, slotTime - 60 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 90 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 120 * 60), layer1Rule);
+   else
+      layer1Group = ClassifyFour(
+         GetM30Direction(XauUsdSymbol, slotTime - 90 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 120 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 150 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 180 * 60), layer1Rule);
+   int layer2Rule = 0;
+   if(slot == 3)
+      layer2Group = ClassifyFour(
+         GetM30Direction(XauUsdSymbol, slotTime - 30 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 60 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 90 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 120 * 60), layer2Rule);
+   else
+      layer2Group = ClassifyFour(
+         GetM30Direction(XauUsdSymbol, slotTime - 60 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 90 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 120 * 60),
+         GetM30Direction(XauUsdSymbol, slotTime - 150 * 60), layer2Rule);
+   entryTime = SelectXauEntry(slot, layer1Group, layer2Group);
+   return entryTime != "";
 }
 
 bool SendDataToServer(string jsonPayload)
@@ -234,12 +204,7 @@ bool SendDataToServer(string jsonPayload)
    if(length < 0) return false;
    ArrayResize(postData, length);
    int response = WebRequest("POST", ServerURL, headers, 5000, postData, resultData, resultHeaders);
-   if(response == -1)
-   {
-      Print("[ERROR] WebRequest failed: ", GetLastError());
-      return false;
-   }
-   Print("[WebRequest] HTTP ", response);
+   if(response == -1) { Print("[ERROR] WebRequest failed: ", GetLastError()); return false; }
    return response >= 200 && response < 300;
 }
 
@@ -250,43 +215,36 @@ bool SendSlotData(int index, datetime serverTime)
    datetime slotTime = todayStart + slot * 3600;
    string symbols[5];
    BuildSymbolList(symbols);
-   string signals[5];
-   string groups[5];
-   bool thursdayH3 = slot == 3 && TimeDayOfWeek(slotTime) == 4;
-   if(thursdayH3)
-      for(int h3Index = 0; h3Index < 5; h3Index++)
-         signals[h3Index] = EvaluatePairSignal(
-            symbols[h3Index], slot, slotTime, serverTime, "", groups[h3Index]
-         );
+   string signals[5], entries[5], groups[5];
+   for(int pairIndex = 1; pairIndex < 5; pairIndex++)
+      EvaluateGbpSignal(symbols[pairIndex], slotTime, signals[pairIndex], groups[pairIndex]);
 
-   bool terminalWait = thursdayH3 && groups[0] == "SW";
-   string entryTime = "";
-   if(!terminalWait)
-   {
-      entryTime = SelectEntryTime(slot, slotTime, serverTime);
-      if(entryTime == "") return false;
-      if(!thursdayH3)
-         for(int pairIndex = 0; pairIndex < 5; pairIndex++)
-            signals[pairIndex] = EvaluatePairSignal(
-               symbols[pairIndex], slot, slotTime, serverTime, entryTime, groups[pairIndex]
-            );
-   }
-   if(signals[0] == "WAIT" && !terminalWait) return false;
+   string xauEntry;
+   string xauLayer1;
+   string xauLayer2;
+   if(!EvaluateXauTiming(slot, slotTime, xauEntry, xauLayer1, xauLayer2)) return false;
+   entries[0] = xauEntry;
+   groups[0] = xauLayer1;
+   signals[0] = (slot == 3 || slot == 14 || slot == 16)
+      ? signals[2] : ReverseSignal(signals[2]);
+   if(signals[2] == "WAIT") { signals[0] = "WAIT"; entries[0] = ""; }
+   string gbpEntry = NextFullHourEntry(xauEntry);
+   for(int entryIndex = 1; entryIndex < 5; entryIndex++)
+      entries[entryIndex] = signals[entryIndex] == "WAIT" ? "" : gbpEntry;
 
    string fields[5] = {"xauusd", "gbpusd", "gbpaud", "gbpjpy", "gbpcad"};
    string json = "{";
    json += "\"broker\":\"" + BrokerName + "\",";
    json += "\"time\":\"" + StringFormat("%02d:00", slot) + "\",";
    json += "\"slot\":" + IntegerToString(slot) + ",";
-   json += "\"entry_time\":\"" + entryTime + "\",";
-   json += "\"terminal_wait\":" + (terminalWait ? "true" : "false") + ",";
+   json += "\"logic_version\":72,";
    for(int outputIndex = 0; outputIndex < 5; outputIndex++)
    {
       json += "\"" + fields[outputIndex] + "_signal\":\"" + signals[outputIndex] + "\",";
+      json += "\"" + fields[outputIndex] + "_entry\":\"" + entries[outputIndex] + "\",";
       json += "\"" + fields[outputIndex] + "_group\":\"" + groups[outputIndex] + "\"";
       json += outputIndex < 4 ? "," : "}";
    }
-   Print("[SIGNAL] H=", slot, " entry=", entryTime, " Broker: ", json);
    return SendDataToServer(json);
 }
 
@@ -297,8 +255,7 @@ void ProcessEligibleSlots()
    int dateKey = DateKey(serverTime);
    for(int index = 0; index < ArraySize(logicalSlots); index++)
    {
-      if(completedDateKeys[index] == dateKey ||
-         lastAttemptMinutes[index] == currentMinute ||
+      if(completedDateKeys[index] == dateKey || lastAttemptMinutes[index] == currentMinute ||
          !IsEligibleMinute(index, serverTime, currentMinute)) continue;
       lastAttemptMinutes[index] = currentMinute;
       if(SendSlotData(index, serverTime)) completedDateKeys[index] = dateKey;

@@ -1,5 +1,6 @@
 import { Redis } from "@upstash/redis";
 import { NextResponse } from "next/server";
+export { maskSignalForPublic } from "./signal-display";
 
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL || "",
@@ -73,17 +74,4 @@ export function canSeeVipData(request: Request): boolean {
   const match = cookie.match(/(?:^|;\s*)vip_access=([^;]+)/);
   const val = match ? decodeURIComponent(match[1]) : "";
   return safeEqual(val, VIP_TOKEN);
-}
-
-/** Strip sensitive fields for non-VIP public GET. */
-export function maskSignalForPublic(signal: Record<string, unknown>) {
-  return {
-    ...signal,
-    signal: "WAIT",
-    pattern_signal: undefined,
-    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT", GBPAUD: "WAIT" },
-    entry_prices: {},
-    current_prices: {},
-    hour_note: null,
-  };
 }

@@ -1,5 +1,5 @@
-"""Missing candles and unresolved DOJI must fail closed."""
-from contextlib import ExitStack
+"""Missing, invalid, or DOJI M30 candles fail closed without fallback."""
+
 from datetime import datetime
 from unittest.mock import patch
 import unittest
@@ -7,44 +7,61 @@ import unittest
 import mt5_signal_bot
 
 
-DOJI = {"open": 1.0, "high": 2.0, "low": 0.0, "close": 1.0}
-ACTIVE_SLOTS = (3, 4, 7, 9, 12, 14, 16)
-LEGACY_SEAMS = (
-    "analyze",
-    "apply_xauusd_m30_logic",
-    "evaluate_3_m30_classification_for_h3",
-    "evaluate_4_m30_classification_before_hour",
-    "evaluate_classification_for_slot",
-    "evaluate_h3_m30_slot",
-    "evaluate_m30_m15_slot",
-    "evaluate_slot_candle_groups",
-)
+VALID = {
+    "time": 100,
+    "open": 1.0,
+    "high": 1.2,
+    "low": 0.9,
+    "close": 1.1,
+    "tick_volume": 10,
+}
 
 
 class SignalIncompleteDataTests(unittest.TestCase):
-    def test_m15_missing_or_unresolved_doji_is_incomplete(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 12, 0)
-        with patch.object(mt5_signal_bot, "_lookback_candle_direction", return_value=None):
-            self.assertIsNone(mt5_signal_bot.evaluate_xau_entry_timing_basis_m15(broker_dt, 12))
-            self.assertIsNone(mt5_signal_bot.evaluate_xau_entry_timing_basis_m15(broker_dt, 12))
-            self.assertIsNone(mt5_signal_bot.evaluate_xau_entry_timing_basis_m15(broker_dt, 12))
-
-    def test_every_active_slot_waits_when_new_context_is_incomplete(self) -> None:
-        broker_dt = datetime(2026, 7, 14, 12, 0)
-        for hour in ACTIVE_SLOTS:
-            with self.subTest(hour=hour), ExitStack() as stack:
-                stack.enter_context(patch.object(mt5_signal_bot, "evaluate_all_pairs_for_slot", return_value=None))
-                for name in LEGACY_SEAMS:
-                    stack.enter_context(
-                        patch.object(
-                            mt5_signal_bot,
-                            name,
-                            side_effect=AssertionError(f"legacy fallback used: {name}"),
-                            create=True,
+    def test_exact_timestamp_and_valid_ohlc_are_required(self) -> None:
+        open_dt = datetime(2026, 7, 14, 6)
+        with patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=100):
+            for candle in (
+                None,
+                {**VALID, "time": 99},
+                {**VALID, "high": 0.8},
+                {**VALID, "open": float("nan")},
+            ):
+                with self.subTest(candle=candle), patch.object(
+                    mt5_signal_bot, "get_candle_by_ts", return_value=candle
+                ):
+                    self.assertIsNone(
+                        mt5_signal_bot.read_completed_m30_candle(
+                            "GBPUSD", open_dt, datetime(2026, 7, 14, 7)
                         )
                     )
-                result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
-            self.assertEqual(result["signal"], "WAIT")
+
+    def test_unclosed_candle_is_rejected(self) -> None:
+        open_dt = datetime(2026, 7, 14, 6, 30)
+        with patch.object(mt5_signal_bot, "get_candle_by_ts") as read:
+            value = mt5_signal_bot.read_completed_m30_candle(
+                "GBPUSD", open_dt, datetime(2026, 7, 14, 6, 45)
+            )
+        self.assertIsNone(value)
+        read.assert_not_called()
+
+    def test_one_doji_makes_only_that_pair_wait(self) -> None:
+        candle = {**VALID, "close": VALID["open"]}
+        with patch.object(mt5_signal_bot, "read_completed_m30_candle", return_value=candle):
+            result = mt5_signal_bot.evaluate_gbp_pair_signal_m30(
+                datetime(2026, 7, 14, 7), 7, "GBPJPY"
+            )
+        self.assertEqual(result["direction"], "WAIT")
+        self.assertIsNone(result["entry_time"])
+        self.assertEqual(result["signal_state"], "WAIT")
+
+    def test_every_active_slot_waits_if_engine_returns_no_context(self) -> None:
+        broker_dt = datetime(2026, 7, 14, 12)
+        with patch.object(mt5_signal_bot, "evaluate_all_pairs_for_slot", return_value=None):
+            for hour in mt5_signal_bot.ACTIVE_HOURS:
+                with self.subTest(hour=hour):
+                    result = mt5_signal_bot.calculate_slot_signal(broker_dt, hour)
+                    self.assertEqual(result["signal"], "WAIT")
 
 
 if __name__ == "__main__":

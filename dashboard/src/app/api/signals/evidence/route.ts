@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /** GET /api/signals/evidence?date=YYYY-MM-DD&hour=H&symbol=XAUUSD
  *
- * Returns H1 signal evidence for one symbol in the given date/hour slot.
+ * Returns v72 M30 evidence for one symbol in the given date/hour slot.
  * VIP-only: non-VIP requests receive 403.
  * Response headers include Cache-Control: private, no-store.
  */
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
 
   try {
     // Expected incoming evidence structure from bot POST:
-    // { "2026-07-29:14:XAUUSD:v71": SignalEvidence }
+    // { "2026-07-29:14:XAUUSD:v72": SignalEvidence }
     const allEvidence = (await redis.get(KEYS.evidence)) as Record<string, SignalEvidence> | null;
     if (!allEvidence) {
       return NextResponse.json({ error: "no evidence data" }, { status: 404 });

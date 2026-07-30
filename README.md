@@ -15,7 +15,7 @@
 
 - MT5 monitor đa hồ sơ, cô lập theo từng profile.
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
-- Signal engine tính độc lập `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`; M15 chỉ chọn nhánh entry, còn hướng cuối lấy từ H1 của chính từng symbol.
+- Signal engine v72: bốn cặp GBP tạo hướng độc lập từ M30; XAUUSD follow hướng GBPAUD và tự chọn entry bằng hai layer XAUUSD M30.
 - Telegram bridge, MiMo worker, Copy Trading guardrail và lệnh hẹn giờ an toàn. Lệnh nhanh nhận `<lot> <HH:MM broker> <profile>` và tự đổi sang giờ Windows.
 - Fact Check dùng bằng chứng Google + DuckDuckGo, hỗ trợ OCR và dán ảnh clipboard.
 - NativeQt nhẹ, không WebEngine/Chromium, có theme Dark, Deep Sea và Contrast.
@@ -29,10 +29,11 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 ## Signal engine hiện hành
 
 - Chạy Thứ 2 đến Thứ 6; slot logic duy nhất: **H=3, H=7, H=9, H=12, H=14, H=16**; mọi slot phát đúng `H:00` Broker.
-- Stage A giữ nguyên bộ chọn entry M15: XAUUSD dùng Base `H−00:30`, pattern `H−00:45/H−01:00/H−01:15`, post-filter XAUUSD `H−00:15`; sau đó so với GBPAUD M15 `H−00:15` và, khi cần, GBPAUD M15 mở `H:30`/đóng `H:45` để chọn `H:11`, `H:49` hoặc `(H+1):25`.
-- H3: từng symbol dùng H1 `04:00` (C1/Base), `03:00`, `02:00` của phiên Broker trước và ma trận ba nến SW/BT. Thứ Năm dùng lại nguồn Thứ Hai cùng tuần: BT giữ kết quả Thứ Hai; nếu XAUUSD thuộc SW thì toàn H3 trả `WAIT` và chờ từ H7.
-- H7/H9/H12/H14/H16: entry `(H+1):25` chọn C1 mở `H:00`; entry `H:11/H:49` chọn C1 mở `H−1:00`. Mỗi symbol tự phân loại C1..C4 theo 10 rule; SW đảo C1, BT giữ C1. Nhánh `(H+1):25` giữ Signal Base, nhánh `H:11/H:49` đảo; chỉ `15:25` và `16:49` đảo thêm một lần.
-- Thiếu nến hoặc DOJI không resolve được khiến đúng symbol đó `WAIT`; selected H1 Base chưa đóng thì bot retry đến entry và không phát muộn.
+- Mỗi GBP pair tự dùng bốn nến M30 đã đóng của chính symbol, theo giờ đóng `H−00:30/H−01:00/H−01:30/H−02:00`. Nến gần nhất là Base; nhóm SW đảo Base, nhóm BT giữ Base.
+- Entry XAUUSD dùng hai layer XAUUSD M30. H3: Layer 1 = `02:30/02:00/01:30`, Layer 2 = `03:00/02:30/02:00/01:30`. Các slot khác: Layer 1 = `H−01:00/H−01:30/H−02:00/H−02:30`, Layer 2 trễ hơn 30 phút = `H−00:30/H−01:00/H−01:30/H−02:00`.
+- Bảng entry XAU: `SW+SW → H:49`; `SW+BT → (H+1):25` (riêng H3 `04:49`); `BT+SW → H:11`; `BT+BT → H:49`. Bốn GBP pair vào ở giờ Broker tròn kế tiếp sau entry XAU.
+- Hướng XAUUSD chỉ follow GBPAUD: **H7/H9/H12 đảo chiều**; **H3/H14/H16 cùng chiều**. Entry XAU vẫn lấy từ hai layer XAUUSD, không lấy từ GBPAUD.
+- Thiếu nến, OHLC không hợp lệ hoặc DOJI làm Signal/Layer liên quan `WAIT`; không lùi thêm nến và không fallback về H1, M15 hay symbol khác.
 - BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed khi tick stale, thiếu hoặc mâu thuẫn. UTC tuyệt đối dùng cho lịch/UI được tách khỏi timestamp kiểu wall-clock mà một số terminal MT5 dùng cho dữ liệu nến/tick.
 
 ## Fact Check AI

@@ -5,10 +5,6 @@ export interface Signal {
   signal: "BUY" | "SELL" | "WAIT" | "SW" | "BT";
   pattern_signal?: string;
   pair_dirs: Record<string, string>;
-  pair_pre_offset15_dirs?: Record<string, string>;
-  pair_offset15_dirs?: Record<string, string | null>;
-  pair_offset15_relations?: Record<string, string | null>;
-  pair_offset15_actions?: Record<string, string | null>;
   pair_entry_times?: Record<string, string | null>;
   pair_groups?: Record<string, string | null>;
   pair_evidence?: Record<string, unknown>;
@@ -25,23 +21,10 @@ export interface Signal {
   hour_note: string | null;
   deactivated?: boolean;
   logic_version?: number | string | null;
-  entry_state?: "READY" | "PENDING_FOLLOWUP" | "WAIT";
-  signal_state?: "READY" | "PENDING_BASE_CANDLE" | "WAIT";
-  terminal_wait?: boolean;
-  h3_wait_until_h7?: boolean;
+  entry_state?: "READY" | "WAIT";
+  signal_state?: "READY" | "WAIT";
   entry_candidate?: string | null;
   entry_rule?: string | null;
-  entry_xauusd_signal?: string | null;
-  entry_gbpaud_offset15_direction?: string | null;
-  entry_gbpaud_offset15_signal?: string | null;
-  entry_initial_relation?: string | null;
-  entry_followup_required?: boolean;
-  entry_followup_close_time?: string | null;
-  entry_followup_bar_open_time?: string | null;
-  entry_followup_direction?: string | null;
-  entry_followup_signal?: string | null;
-  entry_followup_relation?: string | null;
-  entry_decided_at?: string | null;
   pair_entry_states?: Record<string, string | null>;
   pair_signal_states?: Record<string, string | null>;
   pair_labels?: Record<string, string | null>;
@@ -54,8 +37,6 @@ export interface Signal {
 export type SlotDisplayState =
   | "SCHEDULED"
   | "SYNCING"
-  | "PENDING_ENTRY_FOLLOWUP"
-  | "PENDING_BASE_CANDLE"
   | "READY"
   | "PARTIAL_WAIT"
   | "WAIT";
@@ -161,7 +142,7 @@ export interface FactCheckSource {
 
 // =====================================================================
 // =====================================================================
-// Signal Evidence (v71)
+// Signal Evidence (v72)
 // =====================================================================
 
 export interface CandleOhlc {
@@ -174,32 +155,44 @@ export interface CandleOhlc {
 
 export interface EvidenceCandle extends CandleOhlc {
   role: string;
-  state: "READY" | "PENDING" | "MISSING";
+  state: "READY" | "MISSING";
   open_time: string;
   close_time: string;
-  direction: "BUY" | "SELL" | "DOJI" | "WAIT";
-  raw_direction?: "TANG" | "GIAM" | "DOJI" | null;
-  resolved_direction?: "TANG" | "GIAM" | null;
+  direction: "TANG" | "GIAM" | "DOJI" | null;
+}
+
+export interface M30EvidenceLayer {
+  candles: EvidenceCandle[];
+  directions: Array<"TANG" | "GIAM" | "DOJI" | null>;
+  base_direction: "TANG" | "GIAM" | "DOJI" | null;
+  base_signal?: "BUY" | "SELL" | "WAIT";
+  group: "SW" | "BT" | null;
+  rule_number: number | null;
+  signal_action?: "REVERSE_BASE" | "KEEP_BASE" | null;
+  signal?: "BUY" | "SELL" | "WAIT";
+  entry_candidates?: string[];
+  entry_selection?: "EARLY" | "LATE" | null;
 }
 
 export interface SignalEvidence {
   logic_version: number;
-  source_date: string;
+  source_date?: string;
+  date?: string;
   hour: number;
   symbol: string;
   timeframe: string;
   entry_time: string | null;
   entry_state: string | null;
-  entry_rule: string | null;
-  entry_branch: string | null;
+  entry_rule?: string | null;
   signal_state?: string | null;
-  group?: "SW" | "BT" | null;
-  base_direction?: "TANG" | "GIAM" | null;
-  signal_base?: "BUY" | "SELL" | "WAIT" | null;
   direction?: "BUY" | "SELL" | "WAIT" | null;
-  entry_action?: string | null;
-  exception_applied?: boolean;
   classification_reason?: string | null;
-  reused_monday?: string | null;
-  candles: EvidenceCandle[];
+  layer1?: M30EvidenceLayer;
+  layer2?: M30EvidenceLayer;
+  source_symbol?: "GBPAUD";
+  source_signal?: "BUY" | "SELL" | "WAIT";
+  direction_relation_to_gbpaud?: "SAME" | "OPPOSITE";
+  direction_rule?: "SAME_AS_GBPAUD" | "OPPOSITE_GBPAUD";
+  source_evidence?: SignalEvidence | string;
+  gbp_entry_time?: string | null;
 }

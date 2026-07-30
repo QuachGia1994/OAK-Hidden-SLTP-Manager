@@ -1,5 +1,11 @@
 # RELEASE NOTES
 
+## [Signal logic v72] - 2026-07-30
+
+- Replace the active engine with the completed-M30 sequence `GBP Signal → XAU Layer 1 → XAU Layer 2`; four GBP pairs independently derive direction, while the two XAUUSD layers select entry only.
+- XAUUSD follows GBPAUD direction: H7/H9/H12 are opposite; H3/H14/H16 match. XAU uses the two-layer entry table, and GBP entry is the next full Broker hour after XAU.
+- Synchronize Signal Bot, comparator API, MT4 feeder, Dashboard evidence/cards, canonical rules, and docs; missing/DOJI data fails closed and records before logic version 72 are excluded from the active UI.
+
 ## [Signal logic v71] - 2026-07-29
 
 - Restore independent Stage-B signals for `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, and `GBPCAD`: H7/H9/H12/H14/H16 use exact H1 C1..C4 windows and the ten-rule SW/BT matrix; entry selects C1 and only `15:25`/`16:49` apply the extra exception reversal.

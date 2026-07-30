@@ -21,7 +21,13 @@ import {
   isSpecialBrokerDate,
   TARGET_HOURS,
 } from "../src/lib/constants.ts";
-import { DISPLAYED_SIGNAL_PAIRS, isEffectivelyDeactivated } from "../src/lib/signal-display.ts";
+import {
+  countReadySignalPairs,
+  DISPLAYED_SIGNAL_PAIRS,
+  isEffectivelyDeactivated,
+  isSignalPairReady,
+  maskSignalForPublic,
+} from "../src/lib/signal-display.ts";
 
 test("uses only the approved logical slots and signal times", () => {
   assert.deepEqual(TARGET_HOURS, [3, 7, 9, 12, 14, 16]);
@@ -29,7 +35,7 @@ test("uses only the approved logical slots and signal times", () => {
     "03:00", "07:00", "09:00", "12:00", "14:00", "16:00",
   ]);
   assert.equal(getSignalTime(5), "--:--");
-  assert.equal(getEntryTimeLabel(3), "03:11 / 03:49 / 04:25");
+  assert.equal(getEntryTimeLabel(3), "03:11 / 03:49 / 04:49");
   assert.equal(getSignalTime(9, "2026-08-06"), "09:00");
   assert.equal(getEntryTimeLabel(7, "2026-08-06"), "07:11 / 07:49 / 08:25");
   assert.equal(getEntryTimeLabel(9, "2026-08-06"), "09:11 / 09:49 / 10:25");
@@ -71,7 +77,7 @@ test("includes H12, H14 and H16 on special and post-special sessions", () => {
   ]);
 });
 
-test("rejects every active record before the GBPAUD H1 and XAUUSD entry contract", () => {
+test("rejects every active record before the v72 M30 contract", () => {
   assert.deepEqual(filterDisplayableSignals([
     { date: "2026-07-25", hour: 3, signal: "BUY", pair_dirs: { XAUUSD: "BUY" } },
     { date: "2026-07-26", hour: 3, logic_version: 48, signal: "BUY", pair_dirs: { XAUUSD: "BUY" } },
@@ -170,6 +176,52 @@ test("renders canonical signal pairs", () => {
   assert.deepEqual(DISPLAYED_SIGNAL_PAIRS, ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"]);
 });
 
+test("fails closed until each displayed pair has a validated entry", () => {
+  const directions = Object.fromEntries(DISPLAYED_SIGNAL_PAIRS.map((symbol) => [symbol, "BUY"]));
+  const waiting = {
+    ts: 1,
+    date: "2026-07-30",
+    hour: 7,
+    signal: "BUY",
+    signal_state: "READY",
+    entry_state: "WAIT",
+    pair_dirs: directions,
+    pair_entry_times: Object.fromEntries(DISPLAYED_SIGNAL_PAIRS.map((symbol) => [symbol, null])),
+    pair_entry_states: Object.fromEntries(DISPLAYED_SIGNAL_PAIRS.map((symbol) => [symbol, "WAIT"])),
+  };
+  assert.equal(isSignalPairReady(waiting, "XAUUSD"), false);
+  assert.equal(countReadySignalPairs(waiting), 0);
+
+  const partial = {
+    ...waiting,
+    entry_state: "READY",
+    pair_entry_times: Object.fromEntries(DISPLAYED_SIGNAL_PAIRS.map((symbol) => [symbol, symbol === "GBPUSD" ? null : "07:49"])),
+    pair_entry_states: Object.fromEntries(DISPLAYED_SIGNAL_PAIRS.map((symbol) => [symbol, symbol === "GBPUSD" ? "WAIT" : "READY"])),
+  };
+  assert.equal(isSignalPairReady(partial, "XAUUSD"), true);
+  assert.equal(isSignalPairReady(partial, "GBPUSD"), false);
+  assert.equal(countReadySignalPairs(partial), 4);
+});
+
+test("public signal masking removes entries, groups, and evidence", () => {
+  const masked = maskSignalForPublic({
+    signal: "BUY",
+    signal_state: "READY",
+    entry_time: "07:49",
+    entry_at_utc: "2026-07-30T04:49:00Z",
+    pair_dirs: { XAUUSD: "BUY" },
+    pair_entry_times: { XAUUSD: "07:49" },
+    pair_groups: { XAUUSD: "SW" },
+    pair_evidence: { XAUUSD: { candles: ["private"] } },
+  });
+  assert.equal(masked.signal, "WAIT");
+  assert.equal(masked.entry_time, null);
+  assert.equal(masked.entry_at_utc, null);
+  assert.deepEqual(masked.pair_entry_times, Object.fromEntries(DISPLAYED_SIGNAL_PAIRS.map((symbol) => [symbol, null])));
+  assert.deepEqual(masked.pair_groups, {});
+  assert.equal(masked.pair_evidence, undefined);
+});
+
 test("does not re-filter already validated history after VIP masking", () => {
   const source = fs.readFileSync(
     new URL("../src/components/HistoryList.tsx", import.meta.url),
@@ -178,53 +230,36 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the v71 H1 five-symbol rules", () => {
+test("shows the current GBP then XAU two-layer rules", () => {
   const rules = getDayRules("EN", 2);
-  assert.equal(rules.some((rule) => rule.includes("GBPAUD M15 H−00:15")), true);
-  assert.equal(rules.some((rule) => rule.includes("opening at H:30 and closing at H:45")), true);
-  assert.equal(rules.some((rule) => rule.includes("04:00/03:00/02:00 H1 candles")), true);
-  assert.equal(rules.some((rule) => rule.includes("Thursday H3 reuses")), true);
-  assert.equal(rules.some((rule) => rule.includes("exactly four H1 candles")), true);
-  assert.equal(rules.some((rule) => rule.includes("Only Entry 15:25 and 16:49")), true);
+  assert.equal(rules.some((rule) => rule.includes("GBP Signal first")), true);
+  assert.equal(rules.some((rule) => rule.includes("H3 Layer 1 uses 02:30, 02:00, and 01:30")), true);
+  assert.equal(rules.some((rule) => rule.includes("next full Broker hour")), true);
+  assert.equal(rules.some((rule) => rule.includes("H3, H14, and H16")), true);
+  assert.equal(rules.some((rule) => rule.includes("H1, M15, and other symbols are never used as fallbacks")), true);
 });
 
-test("evidence API and pair cards support all five H1 symbols", () => {
-  const route = fs.readFileSync(
-    new URL("../src/app/api/signals/evidence/route.ts", import.meta.url),
-    "utf8",
-  );
-  const card = fs.readFileSync(
-    new URL("../src/components/SignalCard.tsx", import.meta.url),
-    "utf8",
-  );
-  const badge = fs.readFileSync(
-    new URL("../src/components/PairBadge.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.equal(route.includes("evidence is only available for XAUUSD"), false);
-  assert.equal(route.includes("${date}:${hour}:${symbol}:v${ACTIVE_SIGNAL_LOGIC_VERSION}"), true);
-  assert.equal(card.includes("fetchEvidence(pair)"), true);
-  assert.equal(badge.includes("View H1 evidence"), true);
+test("only the XAU row opens XAU M30 timing evidence", () => {
+  const route = fs.readFileSync(new URL("../src/app/api/signals/evidence/route.ts", import.meta.url), "utf8");
+  const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
+  const badge = fs.readFileSync(new URL("../src/components/PairBadge.tsx", import.meta.url), "utf8");
+  const drawer = fs.readFileSync(new URL("../src/components/SignalEvidenceDrawer.tsx", import.meta.url), "utf8");
+  assert.equal(route.includes("ACTIVE_SIGNAL_LOGIC_VERSION"), true);
+  assert.equal(card.includes('pair === "XAUUSD" ? () => fetchEvidence(pair)'), true);
+  assert.equal(card.includes('hasEvidence={isVIP && pair === "XAUUSD"}'), true);
+  assert.equal(badge.includes("View M30 evidence"), true);
+  assert.equal(drawer.includes("XAUUSD · M30"), true);
+  assert.equal(drawer.includes("GBP ENTRY"), true);
+  assert.equal(drawer.includes("SAME AS GBPAUD"), true);
+  assert.equal(drawer.includes("OPPOSITE GBPAUD"), true);
 });
 
-test("resolver treats terminal wait as final and pending Base as non-ready", () => {
-  const resolver = fs.readFileSync(
-    new URL("../src/lib/signal-resolver.ts", import.meta.url),
-    "utf8",
-  );
-  assert.equal(resolver.includes("if (s.terminal_wait) return 5"), true);
-  assert.equal(resolver.includes('if (signal.terminal_wait)'), true);
-  assert.equal(resolver.includes('signal.signal_state === "PENDING_BASE_CANDLE"'), true);
-});
-
-test("H3 terminal wait card explicitly resumes from H7", () => {
-  const card = fs.readFileSync(
-    new URL("../src/components/SignalCard.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.equal(card.includes("WAIT UNTIL H7"), true);
-  assert.equal(card.includes("CHỜ H7"), true);
-  assert.equal(card.includes('entryTime = locale === "EN" ? "From H7" : "Từ H7"'), true);
+test("resolver and card contain no removed pending-followup states", () => {
+  const resolver = fs.readFileSync(new URL("../src/lib/signal-resolver.ts", import.meta.url), "utf8");
+  const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
+  for (const removed of ["terminal_wait", "PENDING_BASE_CANDLE", "PENDING_FOLLOWUP", "WAIT UNTIL H7"]) {
+    assert.equal(resolver.includes(removed), false);
+    assert.equal(card.includes(removed), false);
+  }
   assert.equal(card.includes("const showBrokerSuffix = VALID_TIME.test(brokerTime)"), true);
-  assert.equal(card.includes("`${signal.entry_time} Broker`"), false);
 });

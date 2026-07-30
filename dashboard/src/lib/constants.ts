@@ -118,7 +118,7 @@ function formatBrokerTime(hour: number, minute: number): string {
 /** Display entry time label for a slot. */
 export function getEntryTimeLabel(hour: number, _date?: string): string {
   const entryLabels: Record<number, string> = {
-    3: "03:11 / 03:49 / 04:25",
+    3: "03:11 / 03:49 / 04:49",
     7: "07:11 / 07:49 / 08:25",
     9: "09:11 / 09:49 / 10:25",
     12: "12:11 / 12:49 / 13:25",

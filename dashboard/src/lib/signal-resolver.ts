@@ -1,5 +1,5 @@
 import type { Signal, SlotDisplayState } from "./types";
-import { ACTIVE_SIGNAL_LOGIC_VERSION } from "./signal-display";
+import { ACTIVE_SIGNAL_LOGIC_VERSION, countReadySignalPairs, DISPLAYED_SIGNAL_PAIRS } from "./signal-display";
 
 /**
  * Select the best signal record for a given date and hour from a list of records.
@@ -76,13 +76,7 @@ export function isRealRecord(s: Signal): boolean {
 }
 
 function getRecordStateRank(s: Signal): number {
-  if (s.terminal_wait) return 5;
-  if (s.signal_state === "READY") return 4;
-  if (s.signal_state === "PENDING_BASE_CANDLE") return 3;
-  if (s.entry_state === "READY") return 2;
-  if (s.entry_state === "PENDING_FOLLOWUP") return 1;
-  if (s.entry_state === "WAIT") return 0;
-  return 0;
+  return countReadySignalPairs(s);
 }
 
 export interface GetSlotDisplayStateParams {
@@ -133,31 +127,9 @@ export function getSlotDisplayState(params: GetSlotDisplayStateParams): SlotDisp
 
   // Real record evaluation
   if (signal) {
-    if (signal.terminal_wait) {
-      return "WAIT";
-    }
-
-    if (signal.entry_state === "PENDING_FOLLOWUP") {
-      return "PENDING_ENTRY_FOLLOWUP";
-    }
-
-    if (signal.signal_state === "PENDING_BASE_CANDLE") {
-      return "PENDING_BASE_CANDLE";
-    }
-
-    if (signal.entry_state === "READY" || signal.signal_state === "READY") {
-      const dirs = Object.values(signal.pair_dirs || {});
-      const hasActivePair = dirs.some((d) => d === "BUY" || d === "SELL");
-      const hasWaitPair = dirs.some((d) => d === "WAIT" || !d);
-
-      if (hasActivePair && hasWaitPair) {
-        return "PARTIAL_WAIT";
-      }
-      if (hasActivePair) {
-        return "READY";
-      }
-      return "WAIT";
-    }
+    const readyPairs = countReadySignalPairs(signal);
+    if (readyPairs === DISPLAYED_SIGNAL_PAIRS.length) return "READY";
+    if (readyPairs > 0) return "PARTIAL_WAIT";
   }
 
   return "WAIT";

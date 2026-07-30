@@ -1,5 +1,11 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [Signal logic v72] - 2026-07-30
+
+- Thay engine hiện hành bằng chuỗi `GBP Signal → XAU Layer 1 → XAU Layer 2` dùng M30 đã đóng; bốn GBP pair tạo hướng độc lập, còn hai layer XAUUSD chỉ quyết định entry.
+- Hướng XAUUSD follow GBPAUD: H7/H9/H12 đảo chiều; H3/H14/H16 cùng chiều. Entry XAU theo bảng hai layer; entry GBP là giờ Broker tròn kế tiếp sau entry XAU.
+- Đồng bộ Signal Bot, comparator API, MT4 feeder, Dashboard evidence/cards, rule contract và tài liệu; thiếu/DOJI fail-closed và record trước logic version 72 bị loại khỏi UI hiện hành.
+
 ## [Signal logic v71] - 2026-07-29
 
 - Khôi phục Stage B signal độc lập cho đủ `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`: H7/H9/H12/H14/H16 dùng đúng bốn H1 C1..C4 và ma trận 10 rule SW/BT; entry chọn C1 và chỉ `15:25`/`16:49` có lần đảo ngoại lệ.

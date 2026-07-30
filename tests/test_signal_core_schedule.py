@@ -30,7 +30,7 @@ class SignalCoreScheduleTests(unittest.TestCase):
             with self.subTest(day=broker_dt.date()):
                 self.assertEqual(mt5_signal_bot.get_signal_time_for_slot(broker_dt, 9), "09:00")
 
-    def test_dynamic_entry_time_comes_from_gbp_h1_evaluation(self) -> None:
+    def test_dynamic_xau_entry_time_comes_from_canonical_xau_m30_layers(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)
         for hour, entry_time in ((3, "03:11"), (9, "09:49"), (16, "16:11")):
             with self.subTest(hour=hour), patch.object(
@@ -49,7 +49,7 @@ class SignalCoreScheduleTests(unittest.TestCase):
 
     def test_retry_deadlines_follow_the_resolved_entry_window(self) -> None:
         regular_tuesday = datetime(2026, 7, 14, 12, 0)
-        entries = {3: "04:25", 7: "08:25", 9: "09:11", 12: "13:25", 14: "14:49", 16: "16:11"}
+        entries = {3: "04:49", 7: "08:25", 9: "09:11", 12: "13:25", 14: "14:49", 16: "16:11"}
         for hour, entry_time in entries.items():
             with self.subTest(hour=hour), patch.object(
                 mt5_signal_bot,

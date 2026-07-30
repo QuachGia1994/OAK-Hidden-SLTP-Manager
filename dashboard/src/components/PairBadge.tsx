@@ -65,8 +65,8 @@ export function PairBadge({
         type: "button" as const,
         onClick: onClick,
         "aria-label": locale === "VN" 
-          ? `Xem bằng chứng H1 ${pair}`
-          : `View H1 evidence for ${pair}`,
+          ? `Xem bằng chứng M30 ${pair}`
+          : `View M30 evidence for ${pair}`,
       }
     : {
         "aria-label": `${direction} signal for ${pair}`
@@ -85,6 +85,11 @@ export function PairBadge({
             <span className="font-mono text-sm font-bold tracking-tight text-[var(--foreground)] truncate">
               {pair}
             </span>
+            {label && (
+              <span className="rounded border border-[var(--panel-border)] bg-[var(--surface)] px-1.5 py-0.5 font-mono text-[10px] font-bold text-[var(--muted)]">
+                {label}
+              </span>
+            )}
             {canOpenEvidence && (
               <ChartLine className="w-3.5 h-3.5 text-[var(--muted)] group-hover:text-[var(--terminal-accent)] transition-colors shrink-0" />
             )}
@@ -110,7 +115,7 @@ export function PairBadge({
             </div>
           ) : null}
         </div>
-        <span className={`text-[10px] font-mono font-black tracking-wide px-2.5 py-1 rounded-md border ${
+        <span aria-label={state || undefined} className={`text-[10px] font-mono font-black tracking-wide px-2.5 py-1 rounded-md border ${
           direction === "BUY"
             ? "border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/15 text-[var(--terminal-accent)]"
             : direction === "SELL"

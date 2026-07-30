@@ -9,10 +9,23 @@ from domain import copy_trade_manager
 CURRENT_RECORD = {
     "date": "2026-07-28",
     "hour": 9,
-    "logic_version": 71,
+    "logic_version": 72,
     "signal_time": "09:00",
-    "entry_time": "10:25",
-    "pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "SELL", "GBPAUD": "BUY"},
+    "entry_time": "09:49",
+    "pair_dirs": {
+        "XAUUSD": "BUY",
+        "GBPUSD": "SELL",
+        "GBPAUD": "SELL",
+        "GBPJPY": "BUY",
+        "GBPCAD": "SELL",
+    },
+    "pair_entry_times": {
+        "XAUUSD": "09:49",
+        "GBPUSD": "09:11",
+        "GBPAUD": "09:49",
+        "GBPJPY": "10:25",
+        "GBPCAD": "09:49",
+    },
 }
 
 
@@ -38,7 +51,7 @@ class SignalConsumerContractTests(unittest.TestCase):
             with self.subTest(consumer=consumer.__name__):
                 rendered = consumer._format_current_signal_row(9, CURRENT_RECORD)
                 self.assertIn("09:00 Broker", rendered)
-                self.assertIn("10:25 Broker", rendered)
+                self.assertIn("09:49 Broker", rendered)
                 self.assertIn("XAUUSD:BUY", rendered)
                 self.assertNotIn("GBPUSD", rendered)
                 self.assertNotIn("GBPAUD", rendered)
@@ -53,8 +66,8 @@ class SignalConsumerContractTests(unittest.TestCase):
                 self.assertNotIn("vào ", rendered)
                 self.assertIn("entry tham chiếu", rendered)
 
-    def test_thursday_h3_is_actionable_v65(self) -> None:
-        """Since v65, Thursday H3 is an actionable slot like any other weekday."""
+    def test_thursday_h3_is_actionable_in_v72(self) -> None:
+        """The v72 M30 engine has no weekday-specific H3 deactivation."""
         thursday_h3 = {
             **CURRENT_RECORD,
             "date": "2026-07-30",

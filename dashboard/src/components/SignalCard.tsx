@@ -6,19 +6,12 @@ import { FormattedLocalTime, useBrowserBrokerTime } from "@/hooks/useBrowserBrok
 import type { Signal, SignalEvidence } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { PairBadge } from "./PairBadge";
-import { DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
+import { DISPLAYED_SIGNAL_PAIRS, isSignalPairReady } from "@/lib/signal-display";
 import { SignalEvidenceDrawer } from "./SignalEvidenceDrawer";
 
 import { getSlotDisplayState } from "@/lib/signal-resolver";
 
 const VALID_TIME = /^\d{2}:\d{2}$/;
-
-function getPendingEntryLabel(locale: "VN" | "EN", hour: number): string {
-  const time = `${String(hour).padStart(2, "0")}:45`;
-  return locale === "EN"
-    ? `Awaiting GBPAUD M15 close at ${time}`
-    : `Chờ GBPAUD M15 đóng lúc ${time}`;
-}
 
 export function SignalCard({
   signal,
@@ -90,19 +83,14 @@ export function SignalCard({
     : getSignalTime(signal.hour, signal.date);
 
   let entryTime = "—";
-  if (signal.h3_wait_until_h7 || signal.terminal_wait) {
-    entryTime = locale === "EN" ? "From H7" : "Từ H7";
-  } else if (displayState === "SCHEDULED") {
+  if (displayState === "SCHEDULED") {
     entryTime = getEntryTimeLabel(signal.hour, signal.date);
   } else if (displayState === "SYNCING") {
     entryTime = locale === "EN" ? "Syncing bot data…" : "Đang nhận dữ liệu Bot";
-  } else if (displayState === "PENDING_ENTRY_FOLLOWUP") {
-    entryTime = getPendingEntryLabel(locale, signal.hour);
-  } else if (displayState === "PENDING_BASE_CANDLE") {
-    entryTime = VALID_TIME.test(signal.entry_time || "")
-      ? (signal.entry_time as string)
-      : getEntryTimeLabel(signal.hour, signal.date);
-  } else if (VALID_TIME.test(signal.entry_time || "")) {
+  } else if (
+    (displayState === "READY" || displayState === "PARTIAL_WAIT")
+    && VALID_TIME.test(signal.entry_time || "")
+  ) {
     entryTime = signal.entry_time as string;
   }
 
@@ -117,8 +105,9 @@ export function SignalCard({
     signal.entry_at_utc,
   );
 
-  const isSell = signal.signal === "SELL";
-  const isBuy = signal.signal === "BUY";
+  const xauPairReady = isSignalPairReady(signal, "XAUUSD");
+  const isSell = xauPairReady && signal.signal === "SELL";
+  const isBuy = xauPairReady && signal.signal === "BUY";
 
   return (
     <article className="terminal-panel group signal-rail relative overflow-hidden rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] transition-all duration-200 hover:border-[var(--terminal-accent)]/40">
@@ -134,7 +123,7 @@ export function SignalCard({
               label={locale === "EN" ? "Entry" : "Vào lệnh"}
               brokerTime={entryTime}
               localTime={displayState === "READY" || displayState === "PARTIAL_WAIT" ? localEntryTime : null}
-              isPending={displayState === "PENDING_ENTRY_FOLLOWUP" || displayState === "SYNCING"}
+              isPending={displayState === "SYNCING"}
             />
           </div>
           <div className="shrink-0 text-right">
@@ -160,18 +149,6 @@ export function SignalCard({
             <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
               {locale === "EN" ? "SYNCING" : "ĐANG ĐỒNG BỘ"}
             </span>
-          ) : displayState === "PENDING_ENTRY_FOLLOWUP" ? (
-            <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
-              {locale === "EN" ? "PENDING" : "ĐANG CHỜ"}
-            </span>
-          ) : displayState === "PENDING_BASE_CANDLE" ? (
-            <span className="font-mono text-3xl font-black leading-none text-amber-400 animate-pulse">
-              {locale === "EN" ? "PENDING BASE" : "ĐANG CHỜ BASE"}
-            </span>
-          ) : displayState === "WAIT" && (signal.h3_wait_until_h7 || signal.terminal_wait) ? (
-            <span className="font-mono text-3xl font-black leading-none text-[var(--terminal-warning)]">
-              {locale === "EN" ? "WAIT UNTIL H7" : "CHỜ H7"}
-            </span>
           ) : displayState === "WAIT" ? (
             <span className="font-mono text-3xl font-black leading-none text-[var(--muted)]">
               {locale === "EN" ? "WAIT" : "Chờ"}
@@ -186,7 +163,7 @@ export function SignalCard({
         )}
       </div>
 
-      <div className={`px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
+      <div className={`space-y-2 px-4 py-3 ${isBuy ? "bg-[var(--terminal-accent)]/[0.035]" : isSell ? "bg-[var(--terminal-danger)]/[0.035]" : ""}`}>
         {DISPLAYED_SIGNAL_PAIRS.map((pair) => (
           <PairRow
             key={pair}
@@ -194,7 +171,7 @@ export function SignalCard({
             signal={signal}
             isVIP={isVIP}
             displayState={displayState}
-            onInspect={isVIP ? () => fetchEvidence(pair) : undefined}
+            onInspect={isVIP && pair === "XAUUSD" ? () => fetchEvidence(pair) : undefined}
           />
         ))}
       </div>
@@ -227,24 +204,19 @@ function PairRow({
   onInspect?: () => void;
 }) {
   let direction = "locked";
+  const pairReady = isSignalPairReady(signal, pair);
   if (isVIP) {
     if (displayState === "SCHEDULED") {
       direction = "—";
     } else if (displayState === "SYNCING") {
       direction = "…";
-    } else if (
-      displayState === "PENDING_ENTRY_FOLLOWUP"
-      || displayState === "PENDING_BASE_CANDLE"
-      || signal.terminal_wait
-    ) {
-      direction = "WAIT";
     } else {
-      direction = signal.pair_dirs?.[pair] || "WAIT";
+      direction = pairReady ? signal.pair_dirs?.[pair] || "WAIT" : "WAIT";
     }
   }
 
-  const brokerEntryTime = isVIP ? signal.pair_entry_times?.[pair] || null : null;
-  const utcIso = isVIP ? signal.pair_entry_at_utc?.[pair] || null : null;
+  const brokerEntryTime = isVIP && pairReady ? signal.pair_entry_times?.[pair] || null : null;
+  const utcIso = isVIP && pairReady ? signal.pair_entry_at_utc?.[pair] || null : null;
   const localEntryTime = useBrowserBrokerTime(signal, brokerEntryTime, utcIso);
   const state = isVIP ? signal.pair_entry_states?.[pair] || null : null;
   const label = isVIP ? signal.pair_labels?.[pair] || null : null;
@@ -258,7 +230,7 @@ function PairRow({
       state={state}
       label={label}
       onClick={onInspect}
-      hasEvidence={isVIP}
+      hasEvidence={isVIP && pair === "XAUUSD"}
     />
   );
 }
