@@ -153,14 +153,18 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 80
+SIGNAL_LOGIC_VERSION = 81
+ACTIVE_SIGNAL_LOGIC_VERSION = 81
+MINIMUM_SIGNAL_LOGIC_VERSION = 81
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 3
 LAYER3_CANDLE_GRACE_SECONDS = 90
-D_DIRECTION_SCHEMA_VERSION = 1
+D_DIRECTION_SCHEMA_VERSION = 2
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SIGNAL_PAIRS = ("XAUUSD", *GBP_SIGNAL_PAIRS)
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+EVIDENCE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 
 
 def get_evaluated_pairs_for_hour(hour):
@@ -455,6 +459,19 @@ def _save_state(sent_today, broker_dt=None):
         return False
 
 _SIGNALS_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "signals_log.json")
+
+
+def _load_signals_log_records():
+    """Load all signal records from signals_log.json safely."""
+    try:
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+    except Exception:
+        pass
+    return []
 
 
 def _get_current_entry_state(date_str, hour):
@@ -1248,7 +1265,123 @@ ENTRY_PLAN_FIELDS = (
     "pair_evidence",
     "record_revision",
     "state_updated_at_utc",
+    "day_mode",
+    "day_mode_state",
+    "day_mode_source_hour",
+    "day_mode_source_entry_time",
+    "day_mode_source_branch",
+    "day_mode_resolved_at",
+    "d_directions",
+    "signal_engine",
+    "evidence_schema_version",
 )
+
+_VALID_DAY_MODES = {"DAY_MODE_H11", "DAY_MODE_H_PLUS_1_25"}
+_VALID_DAY_MODE_BRANCHES = {"H_11", "H_PLUS_1_25"}
+
+
+def serialize_day_mode(day_mode):
+    """Serialize a DayMode dataclass to a plain dict for JSON/Redis/Telegram.
+
+    Returns a dict with all day_mode_* fields set to None when day_mode is None.
+    Never serializes the dataclass object itself — only scalar fields.
+    """
+    if day_mode is None:
+        return {
+            "day_mode": None,
+            "day_mode_state": "UNRESOLVED_WAITING_FOR_ANCHOR",
+            "day_mode_source_hour": None,
+            "day_mode_source_entry_time": None,
+            "day_mode_source_branch": None,
+            "day_mode_resolved_at": None,
+        }
+    return {
+        "day_mode": day_mode.mode,
+        "day_mode_state": "RESOLVED",
+        "day_mode_source_hour": day_mode.source_hour,
+        "day_mode_source_entry_time": day_mode.source_entry_time,
+        "day_mode_source_branch": day_mode.source_branch,
+        "day_mode_resolved_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def deserialize_day_mode(record):
+    """Reconstruct a DayMode from a serialized record dict.
+
+    Returns None if the record lacks valid day_mode metadata.
+    Validates mode, source_branch, source_hour, and source_entry_time.
+    """
+    if not isinstance(record, dict):
+        return None
+    mode = record.get("day_mode")
+    if mode not in _VALID_DAY_MODES:
+        return None
+    source_hour = record.get("day_mode_source_hour")
+    source_entry = record.get("day_mode_source_entry_time")
+    source_branch = record.get("day_mode_source_branch")
+    if source_branch not in _VALID_DAY_MODE_BRANCHES:
+        return None
+    try:
+        source_hour_int = int(source_hour)
+    except (TypeError, ValueError):
+        return None
+    if not source_entry or not isinstance(source_entry, str):
+        return None
+    return DayMode(
+        mode=mode,
+        source_hour=source_hour_int,
+        source_entry_time=source_entry,
+        source_branch=source_branch,
+    )
+
+
+def day_mode_from_result(result):
+    """Extract a DayMode from an evaluate_all_pairs_for_slot result dict.
+
+    The result contains 'day_mode' as a DayMode object (transient).
+    This helper returns the object or None.
+    """
+    dm = result.get("day_mode")
+    if isinstance(dm, DayMode):
+        return dm
+    return None
+
+
+def reconstruct_current_day_mode(records, broker_date, active_logic_version):
+    """Reconstruct the current DayMode from persisted records at startup.
+
+    Scans records for the given broker date and logic version, in chronological
+    slot order (H3 -> H7 -> H9 -> H12 -> H14 -> H16), and returns the first resolved
+    DayMode found. Returns None if no resolved mode is found.
+    """
+    if not records or not broker_date:
+        return None
+    date_str = broker_date.isoformat() if hasattr(broker_date, 'isoformat') else str(broker_date)
+    try:
+        active_ver = int(active_logic_version)
+    except (TypeError, ValueError):
+        return None
+    candidates = []
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        if rec.get("date") != date_str:
+            continue
+        try:
+            rec_ver = int(rec.get("logic_version", 0))
+        except (TypeError, ValueError):
+            continue
+        if rec_ver != active_ver:
+            continue
+        candidates.append(rec)
+    HOUR_ORDER = {3: 0, 7: 1, 9: 2, 12: 3, 14: 4, 16: 5}
+    candidates.sort(key=lambda r: HOUR_ORDER.get(int(r.get("hour", 99)), 99))
+    for rec in candidates:
+        dm = deserialize_day_mode(rec)
+        if dm is not None:
+            return dm
+    return None
+
 
 def is_deactivated_signal_slot(broker_dt, hour):
     """Return whether a calculated slot is dependency-only and must not be traded.
@@ -1921,38 +2054,22 @@ def read_previous_h1_candle(symbol, slot_dt, as_of_dt=None):
     return candle, direction
 
 
-def validate_cross_mapping(record):
-    """Verify cross-mapping invariants for a rebuilt record."""
-    pair_dirs = record.get("pair_dirs", {})
-    hour = int(record.get("hour", -1))
-    evidence = record.get("pair_evidence", {})
-
-    gbp_native = evidence.get("GBPUSD", {}).get("native_evidence", {})
-    native_gbpusd = gbp_native.get("direction", "WAIT") if isinstance(gbp_native, dict) else "WAIT"
-
-    xau_dir = pair_dirs.get("XAUUSD", "WAIT")
-    gbpusd_dir = pair_dirs.get("GBPUSD", "WAIT")
-
-    if hour in (3, 7, 9):
-        if xau_dir != gbpusd_dir and xau_dir in ("BUY", "SELL"):
-            return f"CONTRACT_VIOLATION: GBPUSD({gbpusd_dir}) != XAUUSD({xau_dir}) at H{hour}"
-
-    if hour in (12, 14, 16):
-        if native_gbpusd in ("BUY", "SELL") and gbpusd_dir != native_gbpusd:
-            return f"CONTRACT_VIOLATION: GBPUSD({gbpusd_dir}) != native({native_gbpusd}) at H{hour}"
-
-    return None
-
-
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
 def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=None, day_mode=None, d_directions=None):
-    """Evaluate one slot and return the record dict without persisting."""
+    """Evaluate one slot and return (record_dict, next_day_mode) without persisting.
+
+    Returns a tuple so the caller can propagate DayMode across slots without
+    reading it back from the serialized record (which only has scalar fields).
+    """
     result = evaluate_all_pairs_for_slot(broker_dt, h, as_of_dt=as_of_dt, prior_slot_results=prior_slot_results,
                                           day_mode=day_mode, d_directions=d_directions)
     if result is None:
         result = calculate_slot_signal(broker_dt, h)
+
+    # Extract the DayMode object (transient) before serialization
+    next_day_mode = day_mode_from_result(result)
 
     sig = result.get("signal")
     entry_time = result.get("entry_time")
@@ -1965,19 +2082,34 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     hour_note = get_hour_note(h, broker_dt=broker_dt)
     deactivated = bool(result.get("deactivated") or is_deactivated_signal_slot(broker_dt, h))
 
-    extra_fields = {
-        key: result.get(key)
-        for key in ENTRY_PLAN_FIELDS
-        if key in result
-    }
+    # Build extra_fields with serialized DayMode (scalar fields only, no dataclass)
+    extra_fields = {}
+    for key in ENTRY_PLAN_FIELDS:
+        if key in result:
+            val = result[key]
+            # Serialize DayMode object to scalar fields
+            if key == "day_mode" and isinstance(val, DayMode):
+                extra_fields.update(serialize_day_mode(val))
+            elif key == "day_mode" and val is None:
+                extra_fields.update(serialize_day_mode(None))
+            else:
+                extra_fields[key] = val
 
-    return _format_signal_record(
+    # Ensure evidence schema version is set
+    extra_fields.setdefault("evidence_schema_version", SIGNAL_EVIDENCE_SCHEMA_VERSION)
+
+    record = _format_signal_record(
         h, broker_dt, sig or "WAIT", entry_time, pair_dirs or {}, hour_note,
         pattern_signal=result.get("pattern_signal"),
         deactivated=deactivated,
         source_date=source_date,
         extra_fields=extra_fields if extra_fields else None,
     )
+
+    # Clean up any transient _day_mode_object before JSON serialization
+    record.pop("_day_mode_object", None)
+
+    return record, next_day_mode
 
 
 def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
@@ -1991,7 +2123,7 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
         return False
 
     try:
-        record = _build_rebuild_record(broker_dt, h, as_of_dt=as_of_dt)
+        record, _next_dm = _build_rebuild_record(broker_dt, h, as_of_dt=as_of_dt)
     except Exception as error:
         print(f"  [REBUILD] ERROR date={broker_dt.date().isoformat()} H={h}"
               f" error_type={type(error).__name__}: {error}")
@@ -2054,16 +2186,15 @@ def rebuild_recent_history(days=45):
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
             try:
-                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of,
+                record, next_day_mode = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of,
                                                prior_slot_results=day_results if hour == 16 else None,
                                                day_mode=current_day_mode,
                                                d_directions=day_d_directions)
                 if record is None:
                     continue
-                # Update day mode from record
-                dm = record.get("day_mode")
-                if isinstance(dm, DayMode):
-                    current_day_mode = dm
+                # Propagate DayMode across slots from the transient object
+                if next_day_mode is not None:
+                    current_day_mode = next_day_mode
                 # Store D-Directions in record
                 if day_d_directions:
                     record["daily_directions"] = day_d_directions
@@ -2341,12 +2472,19 @@ def _mark_passed_slots_on_startup(broker_dt):
 
 
 def _persist_live_result(broker_dt, hour, result):
+    """Persist a live slot result with serialized DayMode (scalar fields only)."""
     pair_dirs = get_pair_direction(hour, result.get("signal", "WAIT"), broker_dt, full_result=result)
-    extra_fields = {
-        field: result.get(field)
-        for field in ENTRY_PLAN_FIELDS
-        if field in result
-    }
+    extra_fields = {}
+    for field in ENTRY_PLAN_FIELDS:
+        if field in result:
+            val = result[field]
+            if field == "day_mode" and isinstance(val, DayMode):
+                extra_fields.update(serialize_day_mode(val))
+            elif field == "day_mode" and val is None:
+                extra_fields.update(serialize_day_mode(None))
+            else:
+                extra_fields[field] = val
+    extra_fields.setdefault("evidence_schema_version", SIGNAL_EVIDENCE_SCHEMA_VERSION)
     log_signal(
         hour,
         broker_dt,
@@ -2399,10 +2537,14 @@ def _process_live_slot(broker_dt, hour):
         print(f"  [RETRY] H={hour} - no evaluation result")
         return False
 
-    # Update day mode from result
+    # Update day mode from result with invariant: do not overwrite existing mode
+    # unless new mode is from the same source hour or current mode is None.
     dm = result.get("day_mode")
     if isinstance(dm, DayMode):
-        _current_day_mode = dm
+        if _current_day_mode is None:
+            _current_day_mode = dm
+        elif dm.source_hour == _current_day_mode.source_hour and dm.mode == _current_day_mode.mode:
+            pass  # Same mode, no change needed
 
     deadline = get_slot_retry_deadline(broker_dt, hour, result.get("entry_time"))
     xau_actionable = (
@@ -2540,8 +2682,21 @@ def main(profile_name=None):
     if startup_rebuilt > 0:
         print(f"\n[DASHBOARD] Pushed after rebuild ({startup_rebuilt} slots refreshed)")
 
-    # Reset day mode at startup
+    # Reconstruct day mode from saved records (do not reset to None)
     _current_day_mode = None
+    try:
+        records = _load_signals_log_records()
+        _current_day_mode = reconstruct_current_day_mode(
+            records,
+            broker_dt.date(),
+            SIGNAL_LOGIC_VERSION,
+        )
+    except Exception as error:
+        print(f"  [DAY MODE] Reconstruction error: {error}")
+    if _current_day_mode:
+        print(f"  [DAY MODE] Reconstructed: {_current_day_mode.mode} (source H{_current_day_mode.source_hour} {_current_day_mode.source_entry_time})")
+    else:
+        print(f"  [DAY MODE] No resolved mode found, will anchor at next eligible entry")
 
     try:
         last_price_push_minute = None
@@ -2996,38 +3151,6 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
     }
 
 
-def derive_all_pair_final_signals(hour, native_gbpusd_dir, native_gbpaud_dir):
-    """Pure non-recursive cross mapping table for final pair directions."""
-    h = int(hour)
-    reverse_cross_source = h in (3, 14, 16)
-
-    final_xauusd = (
-        reverse_signal(native_gbpaud_dir)
-        if reverse_cross_source
-        else native_gbpaud_dir
-    )
-
-    final_gbpaud = (
-        reverse_signal(native_gbpusd_dir)
-        if reverse_cross_source
-        else native_gbpusd_dir
-    )
-
-    final_gbpusd = (
-        final_xauusd
-        if h in (3, 7, 9)
-        else native_gbpusd_dir
-    )
-
-    return {
-        "XAUUSD": final_xauusd,
-        "GBPAUD": final_gbpaud,
-        "GBPUSD": final_gbpusd,
-        "GBPJPY": "WAIT",
-        "GBPCAD": "WAIT",
-    }
-
-
 def next_full_hour_after_signal_slot(slot_dt):
     """GBP entry is always the next full Broker hour after the signal slot."""
     return (slot_dt + timedelta(hours=1)).strftime("%H:00")
@@ -3038,31 +3161,6 @@ def _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset):
         symbol: compute_utc_iso(slot_dt.date(), pair_entry_times.get(symbol), broker_offset)
         for symbol in SIGNAL_PAIRS
     }
-
-
-def _resolve_pair_failure_reason(hour, symbol, native_gbpusd_ev, native_gbpaud_ev):
-    """Determine the top-level failure_reason for a pair based on dependencies."""
-    h = int(hour)
-    if symbol == "XAUUSD":
-        source_ev = native_gbpaud_ev
-        source_symbol = "GBPAUD"
-    elif symbol == "GBPAUD":
-        source_ev = native_gbpusd_ev
-        source_symbol = "GBPUSD"
-    elif symbol == "GBPUSD" and h in (3, 7, 9):
-        source_ev = native_gbpaud_ev
-        source_symbol = "GBPAUD"
-    elif symbol == "GBPUSD" and h in (12, 14, 16):
-        source_ev = native_gbpusd_ev
-        source_symbol = "GBPUSD"
-    else:
-        return None, None
-    if not isinstance(source_ev, dict):
-        return None, None
-    reason = source_ev.get("failure_reason")
-    if not reason:
-        return None, None
-    return reason, source_symbol
 
 
 def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_results=None, day_mode=None, d_directions=None):
@@ -3158,15 +3256,28 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
             pair_labels[symbol] = f"H16 {'Đảo D' if action_label == 'REVERSE_D' else 'Theo D'}"
             pair_groups[symbol] = None
             pair_evidence[symbol] = {
+                "evidence_schema_version": SIGNAL_EVIDENCE_SCHEMA_VERSION,
+                "logic_version": SIGNAL_LOGIC_VERSION,
+                "date": slot_dt.date().isoformat(),
+                "hour": h,
                 "symbol": symbol,
                 "signal_engine": "D_DIRECTION_H16_WEEKDAY_V1",
-                "slot_hour": h,
-                "d_direction": d_dir,
-                "h16_action": h16_action,
-                "action_label": action_label,
                 "direction": final_dir,
                 "signal_state": pair_signal_states[symbol],
+                "current_entry_time": sym_entry_time,
+                "current_entry_branch": None,
+                "day_mode": new_day_mode.mode if new_day_mode else None,
+                "day_mode_source_hour": new_day_mode.source_hour if new_day_mode else None,
+                "day_mode_source_entry_time": new_day_mode.source_entry_time if new_day_mode else None,
+                "day_mode_source_branch": new_day_mode.source_branch if new_day_mode else None,
+                "primary_source": "D_DIRECTION",
+                "primary_action": action_label,
+                "primary_direction": d_dir,
+                "weekday_adjustment_applied": False,
+                "weekday_adjustment_rule": None,
                 "d_evidence": d_info,
+                "h1_evidence": None,
+                "entry_timing": timing if symbol == "XAUUSD" else None,
             }
             continue
 
@@ -3177,11 +3288,35 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
             pair_signal_states[symbol] = "WAIT"
             pair_labels[symbol] = "No Entry"
             pair_groups[symbol] = None
-            pair_evidence[symbol] = {"symbol": symbol, "direction": "WAIT", "signal_state": "WAIT"}
+            pair_evidence[symbol] = {
+                "evidence_schema_version": SIGNAL_EVIDENCE_SCHEMA_VERSION,
+                "logic_version": SIGNAL_LOGIC_VERSION,
+                "date": slot_dt.date().isoformat(),
+                "hour": h,
+                "symbol": symbol,
+                "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V1",
+                "direction": "WAIT",
+                "signal_state": "WAIT",
+                "current_entry_time": sym_entry_time,
+                "current_entry_branch": None,
+                "day_mode": new_day_mode.mode if new_day_mode else None,
+                "day_mode_source_hour": new_day_mode.source_hour if new_day_mode else None,
+                "day_mode_source_entry_time": new_day_mode.source_entry_time if new_day_mode else None,
+                "day_mode_source_branch": new_day_mode.source_branch if new_day_mode else None,
+                "primary_source": None,
+                "primary_action": "WAIT",
+                "primary_direction": "WAIT",
+                "weekday_adjustment_applied": False,
+                "weekday_adjustment_rule": None,
+                "d_evidence": d_info,
+                "h1_evidence": None,
+                "entry_timing": timing if symbol == "XAUUSD" else None,
+            }
             continue
 
         # Determine primary action
         action = resolve_primary_signal_action(new_day_mode, entry_branch)
+        h1_ev = None
 
         if action == "REVERSE_H1":
             # Read H1 candle for this symbol
@@ -3194,6 +3329,23 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
                 primary_dir = "WAIT"
             source = "PREVIOUS_COMPLETED_H1"
             label = "Đảo H1"
+
+            if h1_candle is not None:
+                h1_close_dt = slot_dt.replace(minute=0, second=0, microsecond=0)
+                h1_open_dt = h1_close_dt - timedelta(hours=1)
+                h1_ev = {
+                    "symbol": symbol,
+                    "timeframe": "H1",
+                    "open_time": h1_open_dt.strftime("%H:%M"),
+                    "close_time": h1_close_dt.strftime("%H:%M"),
+                    "open": float(h1_candle["open"]) if h1_candle.get("open") is not None else None,
+                    "high": float(h1_candle["high"]) if h1_candle.get("high") is not None else None,
+                    "low": float(h1_candle["low"]) if h1_candle.get("low") is not None else None,
+                    "close": float(h1_candle["close"]) if h1_candle.get("close") is not None else None,
+                    "open_exact": f"{h1_candle['open']:.5f}" if isinstance(h1_candle.get("open"), (int, float)) else str(h1_candle.get("open")),
+                    "close_exact": f"{h1_candle['close']:.5f}" if isinstance(h1_candle.get("close"), (int, float)) else str(h1_candle.get("close")),
+                    "direction": h1_dir or "DOJI",
+                }
         elif action == "KEEP_D":
             primary_dir = d_dir
             source = "D_DIRECTION"
@@ -3220,24 +3372,28 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
         pair_labels[symbol] = label
         pair_groups[symbol] = None
         pair_evidence[symbol] = {
+            "evidence_schema_version": SIGNAL_EVIDENCE_SCHEMA_VERSION,
+            "logic_version": SIGNAL_LOGIC_VERSION,
+            "date": slot_dt.date().isoformat(),
+            "hour": h,
             "symbol": symbol,
             "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V1",
-            "slot_hour": h,
+            "direction": final_dir,
+            "signal_state": pair_signal_states[symbol],
+            "current_entry_time": sym_entry_time,
+            "current_entry_branch": entry_branch,
             "day_mode": new_day_mode.mode if new_day_mode else None,
             "day_mode_source_hour": new_day_mode.source_hour if new_day_mode else None,
             "day_mode_source_entry_time": new_day_mode.source_entry_time if new_day_mode else None,
             "day_mode_source_branch": new_day_mode.source_branch if new_day_mode else None,
-            "current_entry_time": sym_entry_time,
-            "current_entry_branch": entry_branch,
             "primary_source": source,
             "primary_action": action,
-            "d_direction": d_dir,
             "primary_direction": primary_dir,
             "weekday_adjustment_applied": inversion_rule is not None,
             "weekday_adjustment_rule": inversion_rule,
-            "direction": final_dir,
-            "signal_state": pair_signal_states[symbol],
             "d_evidence": d_info,
+            "h1_evidence": h1_ev,
+            "entry_timing": timing if symbol == "XAUUSD" else None,
         }
 
     # Top-level signal = XAUUSD direction
@@ -3327,38 +3483,27 @@ def repair_history(target_dates=None, days=45):
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
         day_results = {}
+        current_day_mode = None
         for hour in hours:
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
             try:
-                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of, prior_slot_results=day_results if hour == 16 else None)
+                record, next_day_mode = _build_rebuild_record(
+                    slot_dt, hour, as_of_dt=rebuild_as_of,
+                    prior_slot_results=day_results if hour == 16 else None,
+                    day_mode=current_day_mode,
+                )
+                if next_day_mode is not None:
+                    current_day_mode = next_day_mode
                 attempted += 1
                 day_results[hour] = record
                 sig = record.get("signal", "WAIT")
                 entry_state = record.get("entry_state", "WAIT")
 
-                evidence = record.get("pair_evidence", {})
-                gbpaud_ev = evidence.get("GBPAUD", {})
-                gbpaud_state = gbpaud_ev.get("signal_state", "WAIT")
-                gbpaud_reason = gbpaud_ev.get("failure_reason")
-
                 if sig in ("BUY", "SELL") and entry_state == "READY":
                     ready_count += 1
-                elif gbpaud_reason == "DOJI":
-                    doji_count += 1
-                elif gbpaud_reason in ("MISSING_CANDLE", "MT5_FETCH_ERROR", "INVALID_CANDLE"):
-                    missing_count += 1
-                    missing_times = gbpaud_ev.get("missing_open_times", [])
-                    print(f"  [REPAIR] DATA_MISSING date={target_date.isoformat()} H={hour}"
-                          f" symbol=GBPAUD reason={gbpaud_reason}"
-                          f" missing={missing_times}")
                 else:
                     ready_count += 1
-
-                violation = validate_cross_mapping(record)
-                if violation:
-                    print(f"  [REPAIR] {violation} date={target_date.isoformat()} H={hour}")
-                    continue
 
                 date_str = record["date"]
                 hour_val = int(record["hour"])

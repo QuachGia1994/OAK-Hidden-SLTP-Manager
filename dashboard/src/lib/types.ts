@@ -199,3 +199,75 @@ export interface SignalEvidence {
   source_evidence?: SignalEvidence | string;
   gbp_entry_time?: string | null;
 }
+
+export interface DDirectionEvidence {
+  symbol: string;
+  timeframe: string;
+  target_date: string;
+  session_date: string | null;
+  d_candle_open_time?: string | null;
+  candle?: CandleOhlc | null;
+  d_candle_direction?: string | null;
+  d_direction: "BUY" | "SELL" | "WAIT";
+  d_state: string;
+  discovery_rule: string;
+}
+
+export interface H1SignalEvidence {
+  symbol: string;
+  timeframe: "H1";
+  open_time: string;
+  close_time: string;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+  open_exact: string | null;
+  close_exact: string | null;
+  direction: "TANG" | "GIAM" | "DOJI" | null;
+}
+
+export interface XauEntryTimingEvidence {
+  symbol: "XAUUSD";
+  timeframe: "M30";
+  slot_hour: number;
+  layer2: M30EvidenceLayer | null;
+  layer3: M30EvidenceLayer | null;
+  entry_time: string | null;
+  entry_state: string;
+  entry_candidates: string[];
+  classification_reason: string;
+}
+
+export interface SignalEvidenceV3 {
+  evidence_schema_version: 3;
+  logic_version: number;
+  date: string;
+  hour: number;
+  symbol: "XAUUSD" | "GBPUSD" | "GBPAUD";
+  signal_engine: "D_DIRECTION_DYNAMIC_DAY_MODE_V1" | "D_DIRECTION_H16_WEEKDAY_V1";
+  direction: "BUY" | "SELL" | "WAIT";
+  signal_state: string;
+  current_entry_time: string | null;
+  current_entry_branch: "H_11" | "H_49" | "H_PLUS_1_25" | null;
+  day_mode: "DAY_MODE_H11" | "DAY_MODE_H_PLUS_1_25" | null;
+  day_mode_source_hour: number | null;
+  day_mode_source_entry_time: string | null;
+  day_mode_source_branch: string | null;
+  primary_source: "D_DIRECTION" | "PREVIOUS_COMPLETED_H1" | null;
+  primary_action: "KEEP_D" | "REVERSE_D" | "REVERSE_H1" | "WAIT";
+  primary_direction: "BUY" | "SELL" | "WAIT";
+  weekday_adjustment_applied: boolean;
+  weekday_adjustment_rule: string | null;
+  d_evidence?: DDirectionEvidence | null;
+  h1_evidence?: H1SignalEvidence | null;
+  entry_timing?: XauEntryTimingEvidence | null;
+}
+
+export type SignalEvidenceUnion = SignalEvidenceV3 | SignalEvidence;
+
+export function isSignalEvidenceV3(ev: unknown): ev is SignalEvidenceV3 {
+  if (!ev || typeof ev !== "object") return false;
+  const e = ev as Record<string, unknown>;
+  return e["evidence_schema_version"] === 3;
+}

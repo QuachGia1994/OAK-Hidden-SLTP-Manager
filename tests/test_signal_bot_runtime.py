@@ -19,7 +19,7 @@ class SignalBotRuntimeTests(unittest.TestCase):
             datetime(2026, 7, 16, 1), mt5_connected=True
         )
         self.assertIn("OAK SIGNAL BOT ONLINE", message)
-        self.assertIn("v80", message)
+        self.assertIn("v81", message)
         self.assertIn("Slots: H3 - H7 - H9 - H12 - H14 - H16", message)
 
     def test_live_loop_has_no_per_signal_history_rebuild(self) -> None:

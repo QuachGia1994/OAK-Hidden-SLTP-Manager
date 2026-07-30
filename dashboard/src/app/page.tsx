@@ -1,5 +1,6 @@
 import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
+import { DDirectionPanel } from "@/components/DDirectionPanel";
 import { SignalCard } from "@/components/SignalCard";
 import { getTodaySignalsResult, getBotState, getEconomicNews, DataResult } from "@/lib/data";
 import { maskSignalForPublic } from "@/lib/signal-display";
@@ -149,6 +150,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </p>
         )}
       </section>
+
+      {brokerClock && (
+        <DDirectionPanel
+          dailyDirections={todaySignals[0]?.daily_directions || todaySignals[0]?.d_directions}
+          dDirections={todaySignals[0]?.d_directions}
+          locale={locale}
+        />
+      )}
 
       <section>
         <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">

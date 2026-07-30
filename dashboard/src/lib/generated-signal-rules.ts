@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 80;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 81;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16] as const;
 export const INTERNAL_SIGNAL_SLOTS = [] as const;
 
@@ -15,7 +15,9 @@ export const RULES_BY_LOCALE = {
     "Đảo bổ sung theo weekday-slot: Thứ 4 H14, Thứ 6 H3/H7/H12/H14 (không áp dụng H9, H16).",
     "Entry GBP luôn là giờ tròn H+1:00 sau mốc phát signal, độc lập với Entry XAUUSD.",
     "Thiếu dữ liệu hoặc DOJI làm riêng dependency đó WAIT, fail-closed từng phần.",
-    "GBPJPY và GBPCAD tạm Tắt (OFF)."
+    "GBPJPY và GBPCAD tạm Tắt (OFF).",
+    "Day Mode phải được giữ nguyên từ mốc anchor đầu tiên trong ngày. Entry H:49 không thay đổi Day Mode. Restart hoặc rebuild không được làm mất nguồn Day Mode.",
+    "Signal Evidence của XAUUSD, GBPUSD và GBPAUD được hiển thị độc lập theo đúng D-Direction hoặc H1 của từng symbol."
   ],
   "EN": [
     "Entry Engine: XAUUSD Layer 2 selects Entry H:11 immediately if BT; if SW, moves to Layer 3 awaiting the M30 candle opening at H:00 to close at H:30.",
@@ -28,8 +30,10 @@ export const RULES_BY_LOCALE = {
     "Weekday-slot extra inversions: Wednesday H14, Friday H3/H7/H12/H14 (not applied to H9 or H16).",
     "GBP entry time is always the next full hour H+1:00 after the signal slot, independent of XAUUSD entry timing.",
     "Missing data or DOJI results in WAIT only for affected dependencies (fail-closed).",
-    "GBPJPY and GBPCAD are OFF."
+    "GBPJPY and GBPCAD are OFF.",
+    "Day Mode must be preserved from the first anchor in the day. Entry H:49 never modifies Day Mode. Restart or rebuild must not lose Day Mode source metadata.",
+    "Signal Evidence for XAUUSD, GBPUSD, and GBPAUD is rendered independently based on each symbol's own D-Direction or H1."
   ]
 } as const;
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v80: D-Direction + Day Mode engine, entry from Layer 2/3 M30, H16 weekday rules, Wednesday H14 and Friday H3/H7/H12/H14 inversions, H3 BT entry 04:25" as const;
+export const STARTUP_SUMMARY_BY_LOCALE = "v81: Day Mode persistence + per-pair evidence" as const;

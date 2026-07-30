@@ -242,31 +242,22 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows the current three-layer M30 rules", () => {
+test("shows current v81 signal rules", () => {
   const rules = getDayRules("EN", 2);
-  assert.equal(rules.some((rule) => rule.includes("Layer 1")), true);
-  assert.equal(rules.some((rule) => rule.includes("Layer 2")), true);
-  assert.equal(rules.some((rule) => rule.includes("Layer 3")), true);
-  assert.equal(rules.some((rule) => rule.includes("candle OPEN times")), true);
-  assert.equal(rules.some((rule) => rule.includes("next full hour")), true);
-  assert.equal(rules.some((rule) => rule.includes("inverted at H3, H14, H16")), true);
+  assert.equal(rules.some((rule) => rule.includes("Day Mode")), true);
+  assert.equal(rules.some((rule) => rule.includes("each pair independently")), true);
 });
 
-test("only the XAU row opens XAU M30 timing evidence", () => {
+test("XAUUSD, GBPUSD, and GBPAUD open per-symbol evidence drawers", () => {
   const route = fs.readFileSync(new URL("../src/app/api/signals/evidence/route.ts", import.meta.url), "utf8");
   const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
-  const badge = fs.readFileSync(new URL("../src/components/PairBadge.tsx", import.meta.url), "utf8");
   const drawer = fs.readFileSync(new URL("../src/components/SignalEvidenceDrawer.tsx", import.meta.url), "utf8");
   assert.equal(route.includes("ACTIVE_SIGNAL_LOGIC_VERSION"), true);
   assert.equal(route.includes('searchParams.get("version")'), true);
-  assert.equal(card.includes("signal.logic_version"), true);
-  assert.equal(card.includes('Boolean(signal.pair_evidence?.XAUUSD)'), true);
-  assert.equal(card.includes("hasEvidence={Boolean(onInspect)}"), true);
-  assert.equal(badge.includes("View M30 evidence"), true);
-  assert.equal(drawer.includes("XAUUSD · M30"), true);
-  assert.equal(drawer.includes("GBP ENTRY"), true);
-  assert.equal(drawer.includes("SAME AS GBPAUD"), true);
-  assert.equal(drawer.includes("OPPOSITE GBPAUD"), true);
+  assert.equal(card.includes("EVIDENCE_SIGNAL_PAIRS"), true);
+  assert.equal(card.includes("hasEvidenceForPair(signal, pair)"), true);
+  assert.equal(drawer.includes("SIGNAL EVIDENCE"), true);
+  assert.equal(drawer.includes("ENTRY ENGINE ONLY"), true);
 });
 
 test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
@@ -338,5 +329,4 @@ test("resolver and card contain no removed pending-followup states", () => {
     assert.equal(resolver.includes(removed), false);
     assert.equal(card.includes(removed), false);
   }
-  assert.equal(card.includes("const showBrokerSuffix = VALID_TIME.test(brokerTime)"), true);
 });

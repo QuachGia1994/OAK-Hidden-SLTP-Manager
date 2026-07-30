@@ -22,7 +22,7 @@ class SignalRebuildDependencyTests(unittest.TestCase):
 
         def build_record(_broker_dt, hour, **kwargs):
             rebuilt_hours.append(hour)
-            return {
+            rec = {
                 "date": "2026-07-22",
                 "hour": hour,
                 "signal": "BUY",
@@ -31,6 +31,7 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 "pair_evidence": {},
                 "logic_version": mt5_signal_bot.SIGNAL_LOGIC_VERSION,
             }
+            return rec, None
 
         with tempfile.TemporaryDirectory() as temp_dir:
             signal_log = Path(temp_dir) / "signals_log.json"
@@ -67,7 +68,7 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 patch.object(mt5_signal_bot, "_SIGNALS_LOG", str(signal_log)),
                 patch.object(mt5_signal_bot, "get_broker_time", return_value=today),
                 patch.object(mt5_signal_bot, "is_slot_ready", return_value=True),
-                patch.object(mt5_signal_bot, "_build_rebuild_record", return_value=None),
+                patch.object(mt5_signal_bot, "_build_rebuild_record", return_value=(None, None)),
                 patch.object(mt5_signal_bot, "warm_m30_history"),
             ):
                 mt5_signal_bot.rebuild_recent_history(days=1)
