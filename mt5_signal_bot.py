@@ -22,7 +22,6 @@ from secret_store import resolve_telegram_token, migrate_plaintext_tokens
 from telegram_client import telegram_get_me
 from domain.broker_clock import BrokerClock, BrokerClockError
 from domain.signal_rules import (
-    classify_four_candle_group,
     classify_three_candle_group,
     deferred_gbp_entry_time,
     derive_gbp_signal_from_layer1,
@@ -152,7 +151,7 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 78
+SIGNAL_LOGIC_VERSION = 79
 LAYER3_CANDLE_GRACE_SECONDS = 90
 D_DIRECTION_SCHEMA_VERSION = 1
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
@@ -2437,9 +2436,9 @@ def main(profile_name=None):
         print("  Bot stopped.")
 
 def gbp_signal_open_times(slot_dt):
-    """Return the four MT5 M30 open times used for one GBP signal."""
+    """Return the three MT5 M30 open times used for one GBP signal."""
     slot = slot_dt.replace(minute=0, second=0, microsecond=0)
-    return tuple(slot - timedelta(minutes=value) for value in (60, 90, 120, 150))
+    return tuple(slot - timedelta(minutes=value) for value in (60, 90, 120))
 
 
 def xau_entry_layer_close_times(slot_dt):
@@ -2447,10 +2446,10 @@ def xau_entry_layer_close_times(slot_dt):
     slot = slot_dt.replace(minute=0, second=0, microsecond=0)
     if slot.hour == 3:
         layer1_offsets = (30, 60, 90)
-        layer2_offsets = (0, 30, 60, 90)
+        layer2_offsets = (0, 30, 60)
     else:
-        layer1_offsets = (60, 90, 120, 150)
-        layer2_offsets = (30, 60, 90, 120)
+        layer1_offsets = (60, 90, 120)
+        layer2_offsets = (30, 60, 90)
     return {
         "layer1": tuple(slot - timedelta(minutes=value) for value in layer1_offsets),
         "layer2": tuple(slot - timedelta(minutes=value) for value in layer2_offsets),
@@ -2572,6 +2571,7 @@ def _classify_m30_layer_by_open_times(symbol, open_times, candles_by_open, class
         "base_direction": directions[0] if directions else None,
         "group": classification["group"],
         "rule_number": classification["rule_number"],
+        "classifier_model": "M30_3_CANDLE_8_CASE",
     }
 
 
@@ -2595,39 +2595,22 @@ def _read_m30_open_windows_with_status(symbol, open_times, as_of_dt=None):
 
 
 def get_m30_layer_open_times(slot_dt):
-    """Return exact M30 candle OPEN times for Layer 1, 2, and 3."""
-    h = slot_dt.hour
+    """Return exact M30 candle OPEN times for Layer 1, 2, and 3. All layers use 3 candles."""
     l1_open = (
         slot_dt - timedelta(minutes=60),
         slot_dt - timedelta(minutes=90),
         slot_dt - timedelta(minutes=120),
-        slot_dt - timedelta(minutes=150),
     )
-    if h == 3:
-        l2_open = (
-            slot_dt - timedelta(minutes=30),  # 02:30
-            slot_dt - timedelta(minutes=60),  # 02:00
-            slot_dt - timedelta(minutes=90),  # 01:30
-        )
-        l3_open = (
-            slot_dt,                          # 03:00
-            slot_dt - timedelta(minutes=30),  # 02:30
-            slot_dt - timedelta(minutes=60),  # 02:00
-            slot_dt - timedelta(minutes=90),  # 01:30
-        )
-    else:
-        l2_open = (
-            slot_dt - timedelta(minutes=30),  # H-00:30
-            slot_dt - timedelta(minutes=60),  # H-01:00
-            slot_dt - timedelta(minutes=90),  # H-01:30
-            slot_dt - timedelta(minutes=120), # H-02:00
-        )
-        l3_open = (
-            slot_dt,                          # H:00
-            slot_dt - timedelta(minutes=30),  # H-00:30
-            slot_dt - timedelta(minutes=60),  # H-01:00
-            slot_dt - timedelta(minutes=90),  # H-01:30
-        )
+    l2_open = (
+        slot_dt - timedelta(minutes=30),
+        slot_dt - timedelta(minutes=60),
+        slot_dt - timedelta(minutes=90),
+    )
+    l3_open = (
+        slot_dt,
+        slot_dt - timedelta(minutes=30),
+        slot_dt - timedelta(minutes=60),
+    )
     return {"layer1": l1_open, "layer2": l2_open, "layer3": l3_open}
 
 
@@ -2660,7 +2643,7 @@ def evaluate_gbp_native_signal_m30(slot_dt, hour, symbol, as_of_dt=None):
     cutoff = as_of_dt or slot_dt
     candles_with_status = _read_m30_open_windows_with_status(symbol, l1_open_times, as_of_dt=cutoff)
     candles = {open_dt: status_pair[0] for open_dt, status_pair in candles_with_status.items()}
-    layer1 = _classify_m30_layer_by_open_times(symbol, l1_open_times, candles, classify_four_candle_group)
+    layer1 = _classify_m30_layer_by_open_times(symbol, l1_open_times, candles, classify_three_candle_group)
     signal = derive_gbp_signal_from_layer1(layer1["base_direction"], layer1["group"])
     layer1.update(signal)
     ready = signal["signal"] in ("BUY", "SELL")
@@ -2772,7 +2755,7 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
     # Layer 2 evaluation at slot_dt (H:00)
     l2_open_times = windows["layer2"]
     l2_candles = _read_m30_open_windows("XAUUSD", l2_open_times, cutoff)
-    l2_classifier = classify_three_candle_group if h == 3 else classify_four_candle_group
+    l2_classifier = classify_three_candle_group
     layer2 = _classify_m30_layer_by_open_times("XAUUSD", l2_open_times, l2_candles, l2_classifier)
 
     # Layer 2 BT -> immediate entry at H:11 (03:11 at H3)
@@ -2814,7 +2797,7 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
                 "entry_resolution_time": f"{h:02d}:30",
                 "classification_reason": "XAU_LAYER3_CANDLE_PENDING_GRACE",
             }
-        layer3 = _classify_m30_layer_by_open_times("XAUUSD", l3_open_times, l3_candles, classify_four_candle_group)
+        layer3 = _classify_m30_layer_by_open_times("XAUUSD", l3_open_times, l3_candles, classify_three_candle_group)
         if layer3["group"] == "SW":
             entry_t = "03:49" if h == 3 else f"{h:02d}:49"
         elif layer3["group"] == "BT":

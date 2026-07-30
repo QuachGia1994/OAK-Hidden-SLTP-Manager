@@ -98,7 +98,7 @@ def entry_candidates(slot_hour, layer1_group):
     if hour not in ACTIVE_SIGNAL_HOURS or layer1_group not in ("SW", "BT"):
         return None
     if layer1_group == "SW":
-        late = "04:49" if hour == 3 else f"{hour + 1:02d}:25"
+        late = "04:25" if hour == 3 else f"{hour + 1:02d}:25"
         return (f"{hour:02d}:49", late)
     return (f"{hour:02d}:11", f"{hour:02d}:49")
 

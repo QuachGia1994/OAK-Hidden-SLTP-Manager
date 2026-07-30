@@ -1,4 +1,4 @@
-"""D-Direction: last completed M30 of previous broker session (v78)."""
+"""D-Direction: last completed M30 of previous broker session (v79)."""
 
 import unittest
 from datetime import datetime, date

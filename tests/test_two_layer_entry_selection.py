@@ -9,7 +9,7 @@ class TwoLayerEntrySelectionTests(unittest.TestCase):
     def test_h3_decision_table(self) -> None:
         expected = {
             ("SW", "SW"): "03:49",
-            ("SW", "BT"): "04:49",
+            ("SW", "BT"): "04:25",
             ("BT", "SW"): "03:11",
             ("BT", "BT"): "03:49",
         }
