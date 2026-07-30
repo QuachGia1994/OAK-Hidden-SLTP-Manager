@@ -54,6 +54,11 @@ export function PairBadge({
     BUY: "border-[var(--terminal-accent)]/20 bg-[var(--terminal-accent)]/5",
     SELL: "border-[var(--terminal-danger)]/20 bg-[var(--terminal-danger)]/5",
     WAIT: "border-[var(--panel-border)] bg-[var(--surface-raised)]",
+    DOJI: "border-[var(--terminal-warning)]/20 bg-[var(--terminal-warning)]/5",
+    DATA_MISSING: "border-[var(--terminal-danger)]/15 bg-[var(--terminal-danger)]/5",
+    MISSING_CANDLE: "border-[var(--terminal-danger)]/15 bg-[var(--terminal-danger)]/5",
+    INVALID_CANDLE: "border-[var(--terminal-danger)]/15 bg-[var(--terminal-danger)]/5",
+    CLASSIFIER_UNRESOLVED: "border-[var(--terminal-danger)]/15 bg-[var(--terminal-danger)]/5",
     SW: "border-[var(--terminal-warning)]/20 bg-[var(--terminal-warning)]/5",
   };
 
@@ -119,6 +124,10 @@ export function PairBadge({
           direction === "BUY"
             ? "border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/15 text-[var(--terminal-accent)]"
             : direction === "SELL"
+            ? "border-[var(--terminal-danger)]/30 bg-[var(--terminal-danger)]/15 text-[var(--terminal-danger)]"
+            : direction === "DOJI"
+            ? "border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)]"
+            : (direction === "DATA_MISSING" || direction === "MISSING_CANDLE" || direction === "INVALID_CANDLE" || direction === "CLASSIFIER_UNRESOLVED")
             ? "border-[var(--terminal-danger)]/30 bg-[var(--terminal-danger)]/15 text-[var(--terminal-danger)]"
             : direction === "SW"
             ? "border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)]"

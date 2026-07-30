@@ -222,7 +222,10 @@ function PairRow({
     } else if (displayState === "SYNCING") {
       direction = "…";
     } else {
-      direction = signal.pair_dirs?.[pair] || "WAIT";
+      const rawDir = signal.pair_dirs?.[pair] || "WAIT";
+      const evidence = signal.pair_evidence?.[pair] as Record<string, string> | undefined;
+      const failReason = evidence?.failure_reason;
+      direction = rawDir === "WAIT" && failReason ? failReason : rawDir;
     }
   }
   const brokerEntryTime = isVIP && !isDisabled ? signal.pair_entry_times?.[pair] || null : null;

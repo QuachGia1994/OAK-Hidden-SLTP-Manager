@@ -169,6 +169,10 @@ export function getSignalLabel(signal: string, locale: RuleLocale = "VN"): strin
   if (signal === "BUY" || signal === "Mua") return locale === "EN" ? "Buy" : "Mua";
   if (signal === "SELL" || signal === "Bán") return locale === "EN" ? "Sell" : "Bán";
   if (signal === "WAIT") return locale === "EN" ? "WAIT" : "Chờ";
+  if (signal === "DOJI") return "DOJI";
+  if (signal === "DATA_MISSING" || signal === "MISSING_CANDLE") return locale === "EN" ? "M30 missing" : "Thiếu M30";
+  if (signal === "INVALID_CANDLE") return locale === "EN" ? "Invalid data" : "Dữ liệu lỗi";
+  if (signal === "CLASSIFIER_UNRESOLVED") return locale === "EN" ? "Classifier error" : "Lỗi phân loại";
   if (signal === "OFF" || signal === "DISABLED") return locale === "EN" ? "Off" : "Tắt";
   if (signal === "SW") return "Sideway";
   if (signal === "BT") return locale === "EN" ? "Normal" : "Bình Thường";

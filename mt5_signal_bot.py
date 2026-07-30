@@ -554,6 +554,28 @@ def get_current_prices(pair_dirs):
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
                pattern_signal=None, deactivated=False, source_date=None, extra_fields=None):
     """Append signal data to signals_log.json for website consumption."""
+    record = _format_signal_record(
+        H, broker_dt, sig, entry_time, pair_dirs, hour_note,
+        pattern_signal=pattern_signal, deactivated=deactivated,
+        source_date=source_date, extra_fields=extra_fields,
+    )
+    try:
+        data = []
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+        key = (record["date"], record["hour"])
+        data = [d for d in data if (d["date"], d["hour"]) != key]
+        data.append(record)
+        data = data[-2000:]
+        _write_signals_log_atomic(data)
+    except Exception as e:
+        print(f"[WARN] Cannot log signal: {e}")
+
+
+def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
+                          pattern_signal=None, deactivated=False, source_date=None, extra_fields=None):
+    """Build one signal record dict without persisting."""
     deactivated = bool(deactivated or is_deactivated_signal_slot(broker_dt, H))
     current_prices = get_current_prices(pair_dirs)
     signal_time = get_signal_time_for_slot(broker_dt, H)
@@ -584,7 +606,6 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     record["broker_utc_offset"] = broker_offset
     record["broker_clock_verified"] = True
     record["broker_timestamp_mode"] = getattr(BROKER_CLOCK, "timestamp_mode", None)
-    # Local (Vietnam) times for dashboard display
     record["signal_time_local"] = _broker_time_to_local(signal_time, broker_offset)
     record["entry_time_local"] = _broker_time_to_local(entry_time, broker_offset) if entry_time else None
     if pattern_signal:
@@ -595,19 +616,7 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         for k, v in extra_fields.items():
             if k not in ("date", "hour", "ts", "signal", "pair_dirs", "signal_time"):
                 record[k] = v
-    try:
-        data = []
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
-                data = json.load(f)
-        # Deduplicate: replace existing entry for same (date, hour)
-        key = (record["date"], record["hour"])
-        data = [d for d in data if (d["date"], d["hour"]) != key]
-        data.append(record)
-        data = data[-2000:]
-        _write_signals_log_atomic(data)
-    except Exception as e:
-        print(f"[WARN] Cannot log signal: {e}")
+    return record
 
 def _parse_news_for_dashboard(news_lines, source_date=None):
     """Parse news strings like '• 19:30 CAD 🔴 [HIGH] GDP m/m' into structured objects."""
@@ -937,6 +946,9 @@ def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
 # =====================================================================
 def get_candle_by_ts(symbol, timeframe, target_ts):
     """Lay nến gan nhat voi UTC timestamp. Tra ve dict hoac None."""
+    cached = _cache.get((symbol, int(target_ts)))
+    if cached is not None and abs(int(cached["time"]) - int(target_ts)) <= 180:
+        return cached
     if not mt5.symbol_select(symbol, True):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
@@ -1552,20 +1564,84 @@ def is_slot_ready(broker_dt, hour):
 
 
 # =====================================================================
+# M30 HISTORY CACHE & WARM-UP
+# =====================================================================
+
+HISTORY_REBUILD_SCHEMA_VERSION = 2
+
+_cache = {}
+
+
+def warm_m30_history(symbols, start_dt, end_dt):
+    """Batch-load M30 history for symbols into the in-memory cache."""
+    if not mt5_ready:
+        return
+    for symbol in symbols:
+        try:
+            mt5.symbol_select(symbol, True)
+        except Exception:
+            pass
+        try:
+            rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M30, start_dt, end_dt)
+        except Exception as error:
+            print(f"  [HISTORY] {symbol} M30 fetch error: {error}")
+            continue
+        if rates is None or len(rates) == 0:
+            print(f"  [HISTORY] {symbol} M30 loaded 0 bars")
+            continue
+        count = 0
+        for row in rates:
+            norm = normalize_mt5_rate_row(row)
+            ts = norm["time"]
+            _cache[(symbol, ts)] = norm
+            count += 1
+        print(f"  [HISTORY] {symbol} M30 loaded {count} bars")
+
+
+def get_cached_candle(symbol, open_dt):
+    """Look up one normalized candle dict from the M30 history cache."""
+    target_ts = broker_time_to_ts(open_dt, open_dt.hour, open_dt.minute)
+    cached = _cache.get((symbol, target_ts))
+    if cached is None:
+        return None
+    if abs(int(cached["time"]) - int(target_ts)) > 180:
+        return None
+    return cached
+
+
+def clear_history_cache():
+    """Clear the in-memory M30 history cache."""
+    _cache.clear()
+
+
+def validate_cross_mapping(record):
+    """Verify cross-mapping invariants for a rebuilt record."""
+    pair_dirs = record.get("pair_dirs", {})
+    hour = int(record.get("hour", -1))
+    evidence = record.get("pair_evidence", {})
+
+    gbp_native = evidence.get("GBPUSD", {}).get("native_evidence", {})
+    native_gbpusd = gbp_native.get("direction", "WAIT") if isinstance(gbp_native, dict) else "WAIT"
+
+    xau_dir = pair_dirs.get("XAUUSD", "WAIT")
+    gbpusd_dir = pair_dirs.get("GBPUSD", "WAIT")
+
+    if hour in (3, 7, 9):
+        if xau_dir != gbpusd_dir and xau_dir in ("BUY", "SELL"):
+            return f"CONTRACT_VIOLATION: GBPUSD({gbpusd_dir}) != XAUUSD({xau_dir}) at H{hour}"
+
+    if hour in (12, 14, 16):
+        if native_gbpusd in ("BUY", "SELL") and gbpusd_dir != native_gbpusd:
+            return f"CONTRACT_VIOLATION: GBPUSD({gbpusd_dir}) != native({native_gbpusd}) at H{hour}"
+
+    return None
+
+
+# =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
-def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
-    """Recalculate one slot with current logic and overwrite signals_log (date, hour).
-    Always logs the result -- including WAIT and deactivated slots -- so the dashboard
-    shows every scheduled hour.
-
-    ``as_of_dt`` controls how much market data the evaluator may read:
-    - current-day rebuild: pass ``broker_now`` so Layer 3 resolves when past H:30;
-    - historical rebuild: pass a far-future timestamp so all layers resolve.
-    """
-    if broker_dt.weekday() >= 5:
-        return False
-
+def _build_rebuild_record(broker_dt, h, *, as_of_dt=None):
+    """Evaluate one slot and return the record dict without persisting."""
     result = evaluate_all_pairs_for_slot(broker_dt, h, as_of_dt=as_of_dt)
     if result is None:
         result = calculate_slot_signal(broker_dt, h)
@@ -1586,16 +1662,54 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
         for key in ENTRY_PLAN_FIELDS
         if key in result
     }
-    log_signal(h, broker_dt, sig or "WAIT", entry_time, pair_dirs or {}, hour_note,
-               pattern_signal=result.get("pattern_signal"),
-               deactivated=deactivated,
-               source_date=source_date,
-               extra_fields=extra_fields if extra_fields else None)
+
+    return _format_signal_record(
+        h, broker_dt, sig or "WAIT", entry_time, pair_dirs or {}, hour_note,
+        pattern_signal=result.get("pattern_signal"),
+        deactivated=deactivated,
+        source_date=source_date,
+        extra_fields=extra_fields if extra_fields else None,
+    )
+
+
+def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
+    """Recalculate one slot with current logic and overwrite signals_log (date, hour).
+
+    ``as_of_dt`` controls how much market data the evaluator may read:
+    - current-day rebuild: pass ``broker_now`` so Layer 3 resolves when past H:30;
+    - historical rebuild: pass a far-future timestamp so all layers resolve.
+    """
+    if broker_dt.weekday() >= 5:
+        return False
+
+    try:
+        record = _build_rebuild_record(broker_dt, h, as_of_dt=as_of_dt)
+    except Exception as error:
+        print(f"  [REBUILD] ERROR date={broker_dt.date().isoformat()} H={h}"
+              f" error_type={type(error).__name__}: {error}")
+        traceback.print_exc()
+        return False
+
+    date_str = record["date"]
+    hour_val = int(record["hour"])
+    try:
+        if not os.path.exists(_SIGNALS_LOG) or os.path.getsize(_SIGNALS_LOG) <= 2:
+            _write_signals_log_atomic([record])
+        else:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                data = json.load(f)
+            data = [rec for rec in data
+                    if not (rec.get("date") == date_str and int(rec.get("hour", -1)) == hour_val)]
+            data.append(record)
+            _write_signals_log_atomic(data)
+    except Exception as error:
+        print(f"  [REBUILD] WRITE ERROR date={date_str} H={hour_val}: {error}")
+        return False
     return True
 
 
 def rebuild_recent_history(days=45):
-    """Recalculate recent sessions with the active two-layer M30 rules."""
+    """Recalculate recent sessions with warm-up, two-phase publish, and validation."""
     if not mt5_ready:
         print("  [REBUILD] MT5 not ready, skip")
         return 0
@@ -1603,57 +1717,82 @@ def rebuild_recent_history(days=45):
     broker_dt = get_broker_time()
     today = broker_dt.date()
     dates = [today - timedelta(days=i) for i in range(days)]
-    try:
-        data = []
-        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
-            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as file:
-                data = json.load(file)
-        # Replace the recent window entirely so stale/old slot rows do not survive.
-        rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
-        filtered = []
-        for record in data if isinstance(data, list) else []:
-            if not isinstance(record, dict):
-                continue
-            try:
-                record_hour = int(record.get("hour", -1))
-            except (TypeError, ValueError):
-                continue
-            if record.get("date") not in rebuild_dates and record_hour in ACTIVE_HOURS:
-                filtered.append(record)
-        _write_signals_log_atomic(filtered)
-    except Exception as error:
-        print(f"  [REBUILD] Cannot clear stale history: {error}")
 
+    # Phase 0: warm M30 history cache
+    oldest = min(d for d in dates if d.weekday() < 5)
+    warm_start = datetime.combine(oldest - timedelta(days=2), datetime.min.time())
+    warm_m30_history(["XAUUSD", "GBPUSD", "GBPAUD"], warm_start, broker_dt)
+
+    # Phase A: evaluate all slots in memory
+    rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
+    candidate_records = {}
     attempted = 0
-    refreshed = 0
     failed = 0
+    violations = 0
     for target_date in reversed(dates):
         if target_date.weekday() >= 5:
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
         for hour in hours:
-            # Today's future publication windows are not rebuilt yet.
             if target_date == today and not is_slot_ready(broker_dt, hour):
                 continue
             attempted += 1
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
-            if target_date == today:
-                rebuild_as_of = broker_dt
-            else:
-                rebuild_as_of = slot_dt + timedelta(days=1)
+            rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
             try:
-                if rebuild_slot_signal(slot_dt, hour, as_of_dt=rebuild_as_of):
-                    refreshed += 1
+                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of)
+                if record is None:
+                    continue
+                violation = validate_cross_mapping(record)
+                if violation:
+                    violations += 1
+                    print(f"  [REBUILD] {violation} date={target_date.isoformat()} H={hour}")
+                key = (record["date"], int(record["hour"]))
+                candidate_records[key] = record
             except Exception as error:
                 failed += 1
                 print(f"  [REBUILD] ERROR date={target_date.isoformat()} H={hour}"
-                      f" symbol=XAUUSD error_type={type(error).__name__}: {error}")
+                      f" error_type={type(error).__name__}: {error}")
                 traceback.print_exc()
 
+    if attempted == 0:
+        print(f"  [REBUILD] No slots to rebuild")
+        clear_history_cache()
+        return 0
+
+    # Phase B: atomic publish
+    try:
+        existing_data = []
+        if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+            with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                existing_data = json.load(f)
+        kept = []
+        for rec in (existing_data if isinstance(existing_data, list) else []):
+            if not isinstance(rec, dict):
+                continue
+            try:
+                rec_hour = int(rec.get("hour", -1))
+            except (TypeError, ValueError):
+                continue
+            if rec.get("date") in rebuild_dates and rec_hour in ACTIVE_HOURS:
+                continue
+            kept.append(rec)
+        kept.extend(candidate_records.values())
+        kept = kept[-2000:]
+        _write_signals_log_atomic(kept)
+    except Exception as error:
+        print(f"  [REBUILD] PUBLISH ERROR: {error}")
+        traceback.print_exc()
+        clear_history_cache()
+        return 0
+
+    refreshed = len(candidate_records)
     print(f"  [REBUILD] Attempted: {attempted}")
     print(f"  [REBUILD] Refreshed: {refreshed}")
     print(f"  [REBUILD] Failed: {failed}")
-    print(f"  [REBUILD] Logic v{SIGNAL_LOGIC_VERSION}")
+    print(f"  [REBUILD] Cross-mapping violations: {violations}")
+    print(f"  [REBUILD] Logic v{SIGNAL_LOGIC_VERSION}, schema v{HISTORY_REBUILD_SCHEMA_VERSION}")
+    clear_history_cache()
     return refreshed
 
 
@@ -2175,6 +2314,31 @@ def read_completed_m30_candle(symbol, open_dt, completed_by=None):
     return read_completed_m30_candle_by_open_time(symbol, open_dt, as_of_dt=completed_by)
 
 
+def read_m30_candle_status(symbol, open_dt, as_of_dt=None):
+    """Return (candle_or_none, status_string) with diagnostic detail.
+
+    Delegates to ``read_completed_m30_candle_by_open_time`` for the actual fetch
+    so that existing test mocks remain effective.
+    """
+    if symbol not in SIGNAL_PAIRS:
+        return None, "DISABLED"
+    close_dt = open_dt + timedelta(minutes=30)
+    cutoff = as_of_dt or close_dt
+    if close_dt > cutoff:
+        return None, "NOT_YET_CLOSED"
+    try:
+        candle = read_completed_m30_candle_by_open_time(symbol, open_dt, as_of_dt)
+    except Exception as error:
+        print(f"  [CANDLE] ERROR symbol={symbol} open={open_dt.strftime('%H:%M')} {error}")
+        return None, "MT5_FETCH_ERROR"
+    if candle is None:
+        return None, "MISSING_CANDLE"
+    direction = _m30_candle_direction(candle)
+    if direction == "DOJI":
+        return candle, "DOJI"
+    return candle, "READY"
+
+
 def _empty_m30_candle(role, open_dt, close_dt):
     return {
         "role": role,
@@ -2228,6 +2392,14 @@ def _read_m30_open_windows(symbol, open_times, as_of_dt=None):
             open_dt,
             as_of_dt,
         )
+        for open_dt in sorted(set(open_times))
+    }
+
+
+def _read_m30_open_windows_with_status(symbol, open_times, as_of_dt=None):
+    """Return {open_dt: (candle_or_none, status_string)}."""
+    return {
+        open_dt: read_m30_candle_status(symbol, open_dt, as_of_dt)
         for open_dt in sorted(set(open_times))
     }
 
@@ -2295,17 +2467,45 @@ def evaluate_gbp_native_signal_m30(slot_dt, hour, symbol, as_of_dt=None):
 
     windows = get_m30_layer_open_times(slot_dt)
     l1_open_times = windows["layer1"]
-    candles = _read_m30_open_windows(symbol, l1_open_times, as_of_dt=as_of_dt or slot_dt)
+    cutoff = as_of_dt or slot_dt
+    candles_with_status = _read_m30_open_windows_with_status(symbol, l1_open_times, as_of_dt=cutoff)
+    candles = {open_dt: status_pair[0] for open_dt, status_pair in candles_with_status.items()}
     layer1 = _classify_m30_layer_by_open_times(symbol, l1_open_times, candles, classify_four_candle_group)
     signal = derive_gbp_signal_from_layer1(layer1["base_direction"], layer1["group"])
     layer1.update(signal)
     ready = signal["signal"] in ("BUY", "SELL")
+
+    failure_reason = None
+    missing_open_times = []
+    doji_open_times = []
+    invalid_open_times = []
+    if not ready:
+        for open_dt, (_candle, status) in candles_with_status.items():
+            if status == "MISSING_CANDLE":
+                missing_open_times.append(open_dt.strftime("%Y-%m-%dT%H:%M:%S"))
+            elif status == "DOJI":
+                doji_open_times.append(open_dt.strftime("%Y-%m-%dT%H:%M:%S"))
+            elif status == "INVALID_CANDLE":
+                invalid_open_times.append(open_dt.strftime("%Y-%m-%dT%H:%M:%S"))
+        if missing_open_times:
+            failure_reason = "MISSING_CANDLE"
+        elif invalid_open_times:
+            failure_reason = "INVALID_CANDLE"
+        elif doji_open_times:
+            failure_reason = "DOJI"
+        else:
+            failure_reason = "CLASSIFIER_UNRESOLVED"
+
     result.update({
         "layer1": layer1,
         "native_signal": signal["signal"] if ready else "WAIT",
         "direction": signal["signal"] if ready else "WAIT",
         "signal_state": "READY" if ready else "WAIT",
         "classification_reason": "INDEPENDENT_GBP_M30_SIGNAL" if ready else "INCOMPLETE_GBP_M30_SIGNAL_WAIT",
+        "failure_reason": failure_reason,
+        "missing_open_times": missing_open_times,
+        "doji_open_times": doji_open_times,
+        "invalid_open_times": invalid_open_times,
     })
     return result
 
@@ -2578,11 +2778,130 @@ def _three_layer_m30_report(hour, slot_dt, pair_evidence):
     return "\n".join(lines)
 
 
+def repair_history(target_dates=None, days=45):
+    """Targeted repair of historical records with unresolved native signals."""
+    if not mt5_ready:
+        print("  [REPAIR] MT5 not ready")
+        return 0
+
+    broker_dt = get_broker_time()
+    today = broker_dt.date()
+
+    if target_dates:
+        dates = [datetime.strptime(d, "%Y-%m-%d").date() for d in target_dates]
+    else:
+        dates = [today - timedelta(days=i) for i in range(days)]
+
+    oldest = min(dates)
+    warm_start = datetime.combine(oldest - timedelta(days=2), datetime.min.time())
+    warm_m30_history(["XAUUSD", "GBPUSD", "GBPAUD"], warm_start, broker_dt)
+
+    attempted = 0
+    ready_count = 0
+    doji_count = 0
+    missing_count = 0
+    updated = 0
+    for target_date in sorted(dates):
+        if target_date.weekday() >= 5:
+            continue
+        hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
+        for hour in hours:
+            slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
+            rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
+            try:
+                record = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of)
+                attempted += 1
+                sig = record.get("signal", "WAIT")
+                entry_state = record.get("entry_state", "WAIT")
+
+                evidence = record.get("pair_evidence", {})
+                gbpaud_ev = evidence.get("GBPAUD", {})
+                gbpaud_state = gbpaud_ev.get("signal_state", "WAIT")
+                gbpaud_reason = gbpaud_ev.get("failure_reason")
+
+                if sig in ("BUY", "SELL") and entry_state == "READY":
+                    ready_count += 1
+                elif gbpaud_reason == "DOJI":
+                    doji_count += 1
+                elif gbpaud_reason in ("MISSING_CANDLE", "MT5_FETCH_ERROR", "INVALID_CANDLE"):
+                    missing_count += 1
+                    missing_times = gbpaud_ev.get("missing_open_times", [])
+                    print(f"  [REPAIR] DATA_MISSING date={target_date.isoformat()} H={hour}"
+                          f" symbol=GBPAUD reason={gbpaud_reason}"
+                          f" missing={missing_times}")
+                else:
+                    ready_count += 1
+
+                violation = validate_cross_mapping(record)
+                if violation:
+                    print(f"  [REPAIR] {violation} date={target_date.isoformat()} H={hour}")
+                    continue
+
+                date_str = record["date"]
+                hour_val = int(record["hour"])
+                if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+                    with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                        data = json.load(f)
+                    existing = [r for r in data
+                                if r.get("date") == date_str and int(r.get("hour", -1)) == hour_val]
+                    if existing:
+                        old = existing[0]
+                        if (old.get("signal") == record.get("signal")
+                                and old.get("pair_dirs") == record.get("pair_dirs")
+                                and old.get("entry_state") == record.get("entry_state")):
+                            continue
+                    data = [r for r in data
+                            if not (r.get("date") == date_str and int(r.get("hour", -1)) == hour_val)]
+                    data.append(record)
+                    _write_signals_log_atomic(data)
+                    updated += 1
+            except Exception as error:
+                print(f"  [REPAIR] ERROR date={target_date.isoformat()} H={hour}"
+                      f" error_type={type(error).__name__}: {error}")
+
+    print(f"  [REPAIR] Attempted: {attempted}")
+    print(f"  [REPAIR] READY: {ready_count}")
+    print(f"  [REPAIR] DOJI: {doji_count}")
+    print(f"  [REPAIR] DATA_MISSING: {missing_count}")
+    print(f"  [REPAIR] Updated: {updated}")
+    clear_history_cache()
+    return updated
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", type=str, help="Profile name for heartbeat")
+    parser.add_argument("--repair-history", action="store_true",
+                        help="Repair historical records with unresolved native signals")
+    parser.add_argument("--repair-date", type=str, action="append",
+                        help="Repair specific date (YYYY-MM-DD), repeatable")
+    parser.add_argument("--rebuild-all", action="store_true",
+                        help="Full deterministic rebuild of recent history")
     args, _ = parser.parse_known_args()
-    main(profile_name=args.profile)
+
+    if args.repair_history or args.repair_date:
+        if not mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize():
+            print("[REPAIR] MT5 init failed")
+        else:
+            mt5_ready = True
+            BROKER_CLOCK.clear_cache()
+            try:
+                repair_history(target_dates=args.repair_date)
+            finally:
+                mt5.shutdown()
+    elif args.rebuild_all:
+        if not mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize():
+            print("[REBUILD] MT5 init failed")
+        else:
+            mt5_ready = True
+            BROKER_CLOCK.clear_cache()
+            try:
+                rebuild_recent_history(days=45)
+                push_to_dashboard(snapshot_complete=True)
+            finally:
+                mt5.shutdown()
+    else:
+        main(profile_name=args.profile)
 
 

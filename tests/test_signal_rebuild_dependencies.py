@@ -20,9 +20,17 @@ class SignalRebuildDependencyTests(unittest.TestCase):
     def test_current_day_rebuild_visits_only_active_slots(self):
         rebuilt_hours = []
 
-        def rebuild(_broker_dt, hour, **kwargs):
+        def build_record(_broker_dt, hour, **kwargs):
             rebuilt_hours.append(hour)
-            return True
+            return {
+                "date": "2026-07-22",
+                "hour": hour,
+                "signal": "BUY",
+                "pair_dirs": {"XAUUSD": "BUY"},
+                "entry_state": "READY",
+                "pair_evidence": {},
+                "logic_version": mt5_signal_bot.SIGNAL_LOGIC_VERSION,
+            }
 
         with tempfile.TemporaryDirectory() as temp_dir:
             signal_log = Path(temp_dir) / "signals_log.json"
@@ -32,7 +40,8 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 patch.object(mt5_signal_bot, "_SIGNALS_LOG", str(signal_log)),
                 patch.object(mt5_signal_bot, "get_broker_time", return_value=datetime(2026, 7, 22, 9, 25)),
                 patch.object(mt5_signal_bot, "is_slot_ready", return_value=True),
-                patch.object(mt5_signal_bot, "rebuild_slot_signal", side_effect=rebuild),
+                patch.object(mt5_signal_bot, "_build_rebuild_record", side_effect=build_record),
+                patch.object(mt5_signal_bot, "warm_m30_history"),
             ):
                 count = mt5_signal_bot.rebuild_recent_history(days=1)
 
@@ -42,9 +51,10 @@ class SignalRebuildDependencyTests(unittest.TestCase):
     def test_rebuild_drops_malformed_rows_without_preserving_stale_window(self):
         today = datetime(2026, 7, 22, 9, 25)
         retained = {"date": "2026-07-20", "hour": 9, "pair_dirs": {"XAUUSD": "BUY"}}
+        non_active_hour = {"date": today.date().isoformat(), "hour": 5}
         rows = [
             retained,
-            {"date": today.date().isoformat(), "hour": 5},
+            non_active_hour,
             {"date": today.date().isoformat(), "hour": "bad"},
             "not-a-record",
         ]
@@ -57,11 +67,15 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 patch.object(mt5_signal_bot, "_SIGNALS_LOG", str(signal_log)),
                 patch.object(mt5_signal_bot, "get_broker_time", return_value=today),
                 patch.object(mt5_signal_bot, "is_slot_ready", return_value=True),
-                patch.object(mt5_signal_bot, "rebuild_slot_signal", return_value=False),
+                patch.object(mt5_signal_bot, "_build_rebuild_record", return_value=None),
+                patch.object(mt5_signal_bot, "warm_m30_history"),
             ):
                 mt5_signal_bot.rebuild_recent_history(days=1)
 
-            self.assertEqual(json.loads(signal_log.read_text(encoding="utf-8")), [retained])
+            result = json.loads(signal_log.read_text(encoding="utf-8"))
+            self.assertIn(retained, result)
+            self.assertIn(non_active_hour, result)
+            self.assertEqual(len(result), 2)
 
 
 if __name__ == "__main__":
