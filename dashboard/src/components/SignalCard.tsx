@@ -6,6 +6,7 @@ import { ACTIVE_SIGNAL_LOGIC_VERSION, ACTIVE_SIGNAL_PAIRS } from "@/lib/signal-d
 import { useLocale } from "./LocaleProvider";
 import { BrokerLocalTime } from "./BrokerLocalTime";
 import { hasEvidenceForPair } from "@/lib/signal-evidence";
+import { getT } from "@/lib/translations";
 
 const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD", "GBPUSD", "GBPAUD"]);
 
@@ -20,6 +21,7 @@ interface SignalCardProps {
 
 export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: SignalCardProps) {
   const { locale } = useLocale();
+  const t = getT(locale).evidence;
   const hour = Number(signal.hour);
   const signalTime = signal.signal_time || `${String(hour).padStart(2, "0")}:00`;
   const brokerOffset = typeof signal.broker_utc_offset === "number" ? signal.broker_utc_offset : 3;
@@ -132,10 +134,13 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                 {isClickable && (
                   <button
                     type="button"
-                    onClick={() => fetchEvidence(pair)}
-                    className="flex min-h-7 min-w-7 items-center justify-center rounded bg-[var(--terminal-accent)]/10 px-2 py-0.5 text-[10px] font-bold text-[var(--terminal-accent)] transition-colors hover:bg-[var(--terminal-accent)]/20"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchEvidence(pair);
+                    }}
+                    className="flex min-h-9 min-w-9 items-center justify-center rounded bg-[var(--terminal-accent)]/10 px-3 py-1 text-[10px] font-bold text-[var(--terminal-accent)] transition-colors hover:bg-[var(--terminal-accent)]/20"
                   >
-                    {isLoading ? "…" : "EVIDENCE"}
+                    {isLoading ? t.loading : t.button}
                   </button>
                 )}
               </div>

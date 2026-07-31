@@ -157,7 +157,10 @@ class TestDPublicationEngine(unittest.TestCase):
             except Exception:
                 pass
         try:
-            pub_dates = {"2026-07-30", "2026-07-31"}
+            pub_dates = {
+                "2026-07-30": {"snapshot_state": "READY", "dashboard_acknowledged": True},
+                "2026-07-31": {"snapshot_state": "READY", "dashboard_acknowledged": True}
+            }
             last_success = "2026-07-30T23:00:00Z"
             mt5_signal_bot._save_state(
                 d_published_local_dates=pub_dates,

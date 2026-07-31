@@ -13,6 +13,7 @@ import type {
 import { isSignalEvidenceV3 } from "@/lib/types";
 import { ACTIVE_SIGNAL_LOGIC_VERSION } from "@/lib/signal-display";
 import { useLocale } from "./LocaleProvider";
+import { getT } from "@/lib/translations";
 
 const FOCUSABLE_SELECTOR =
   "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
@@ -32,6 +33,7 @@ interface Props {
 export function SignalEvidenceDrawer(props: Props) {
   const { evidence, loading, error, open, onClose, date, hour, version, symbol } = props;
   const { locale } = useLocale();
+  const t = getT(locale).evidence;
   const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,7 +91,7 @@ export function SignalEvidenceDrawer(props: Props) {
         type="button"
         className="fixed inset-0 cursor-default bg-black/65 backdrop-blur-sm"
         onClick={onClose}
-        aria-label={locale === "EN" ? "Close evidence" : "Đóng bằng chứng"}
+        aria-label={t.closeDrawer}
       />
       <div
         ref={drawerRef}
@@ -105,18 +107,18 @@ export function SignalEvidenceDrawer(props: Props) {
         />
         <div className="flex-1 overflow-y-auto px-5 py-5">
           {loading && (
-            <StatusText text={locale === "EN" ? "Loading evidence…" : "Đang tải bằng chứng…"} />
+            <StatusText text={t.loading} />
           )}
           {error && (
             <div className="rounded-lg border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 px-4 py-3 text-sm text-[var(--terminal-danger)]">
-              {error}
+              {t.errorPrefix} {error}
             </div>
           )}
           {evidence && !loading && !error && (
             <EvidenceContent evidence={evidence} currentSymbol={currentSymbol} locale={locale} />
           )}
           {!loading && !error && !evidence && (
-            <StatusText text={locale === "EN" ? "No evidence available" : "Không có bằng chứng"} />
+            <StatusText text={t.noEvidence} />
           )}
         </div>
       </div>
@@ -147,7 +149,7 @@ function DrawerHeader({
             {symbol}
           </span>
           <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--terminal-accent)]">
-            SIGNAL EVIDENCE · v{version || ACTIVE_SIGNAL_LOGIC_VERSION}
+            {getT(locale).evidence.titleSuffix} · v{version || ACTIVE_SIGNAL_LOGIC_VERSION}
           </span>
         </div>
         <div className="mt-1 font-mono text-xs text-[var(--muted)]">

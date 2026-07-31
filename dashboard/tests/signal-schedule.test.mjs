@@ -256,7 +256,7 @@ test("XAUUSD, GBPUSD, and GBPAUD open per-symbol evidence drawers", () => {
   assert.equal(route.includes('searchParams.get("version")'), true);
   assert.equal(card.includes("EVIDENCE_SIGNAL_PAIRS"), true);
   assert.equal(card.includes("hasEvidenceForPair(signal, pair)"), true);
-  assert.equal(drawer.includes("SIGNAL EVIDENCE"), true);
+  assert.equal(drawer.includes("titleSuffix"), true);
   assert.equal(drawer.includes("ENTRY ENGINE ONLY"), true);
 });
 
