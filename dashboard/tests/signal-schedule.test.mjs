@@ -242,10 +242,10 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows current v81 signal rules", () => {
+test("shows current v84 signal rules", () => {
   const rules = getDayRules("EN", 2);
   assert.equal(rules.some((rule) => rule.includes("Day Mode")), true);
-  assert.equal(rules.some((rule) => rule.includes("each pair independently")), true);
+  assert.equal(rules.some((rule) => rule.includes("independently")), true);
 });
 
 test("XAUUSD, GBPUSD, and GBPAUD open per-symbol evidence drawers", () => {

@@ -118,6 +118,24 @@ class BrokerClock:
         offset = self.utc_offset_for_date(broker_datetime.date())
         return (broker_datetime - timedelta(hours=offset)).replace(tzinfo=timezone.utc)
 
+    def configure_symbols(self, symbols: Iterable[str]) -> None:
+        """Configure resolved symbols for MT5 tick calibration and D1 history queries."""
+        cleaned = tuple(dict.fromkeys(s.strip() for s in symbols if isinstance(s, str) and s.strip()))
+        if not cleaned:
+            return
+        with self._lock:
+            if self._symbols == cleaned:
+                return
+            self._symbols = cleaned
+            self._daily_symbols = tuple(
+                symbol for symbol in self._symbols if not symbol.upper().startswith("BTC")
+            ) or self._symbols
+            self._offsets.clear()
+            self._offset_sources.clear()
+            self._verified_offset_dates.clear()
+            self._current_offsets.clear()
+            self._timestamp_mode = None
+
     def mt5_timestamp_from_broker_datetime(self, broker_datetime: datetime) -> int:
         """Encode Broker wall time exactly as the connected MT5 terminal does."""
         self._require_naive_broker_datetime(broker_datetime)
@@ -129,6 +147,22 @@ class BrokerClock:
         if mode == "utc":
             return int(self.utc_from_broker_datetime(broker_datetime).timestamp())
         raise BrokerClockError("MT5 timestamp mode is not calibrated")
+
+    def broker_datetime_from_mt5_timestamp(self, timestamp: int | float) -> datetime:
+        """Decode an MT5 open timestamp into naive Broker datetime according to calibrated mode."""
+        with self._lock:
+            mode = self._timestamp_mode
+        if mode is None:
+            self.current_utc_offset()
+            with self._lock:
+                mode = self._timestamp_mode
+        if mode == "utc":
+            utc_dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+            return self.broker_from_utc_datetime(utc_dt)
+        elif mode == "broker_wall":
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc).replace(tzinfo=None)
+        else:
+            raise BrokerClockError("MT5 timestamp mode is not calibrated")
 
     def broker_from_utc_datetime(self, utc_datetime: datetime) -> datetime:
         """Convert an aware UTC datetime into a naive Broker datetime."""

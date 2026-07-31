@@ -153,12 +153,12 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 83
-ACTIVE_SIGNAL_LOGIC_VERSION = 83
-MINIMUM_SIGNAL_LOGIC_VERSION = 83
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 5
+SIGNAL_LOGIC_VERSION = 84
+ACTIVE_SIGNAL_LOGIC_VERSION = 84
+MINIMUM_SIGNAL_LOGIC_VERSION = 84
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 6
 LAYER3_CANDLE_GRACE_SECONDS = 90
-D_DIRECTION_SCHEMA_VERSION = 5
+D_DIRECTION_SCHEMA_VERSION = 6
 D_SESSION_POLICY = {
     "normal_close_broker": "23:00",
     "timeframe_minutes": 30,
@@ -621,11 +621,18 @@ def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         second=0,
         microsecond=0,
     )
-    signal_utc = BROKER_CLOCK.utc_from_broker_datetime(signal_broker_dt)
+    try:
+        signal_utc = BROKER_CLOCK.utc_from_broker_datetime(signal_broker_dt)
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
+        clock_verified = True
+    except Exception:
+        broker_offset = 3
+        signal_utc = (signal_broker_dt - timedelta(hours=3)).replace(tzinfo=timezone.utc)
+        clock_verified = False
+
     record["signal_at_utc"] = signal_utc.isoformat()
-    broker_offset = BROKER_CLOCK.utc_offset_for_date(broker_dt.date())
     record["broker_utc_offset"] = broker_offset
-    record["broker_clock_verified"] = True
+    record["broker_clock_verified"] = clock_verified
     record["broker_timestamp_mode"] = getattr(BROKER_CLOCK, "timestamp_mode", None)
     record["signal_time_local"] = _broker_time_to_local(signal_time, broker_offset)
     record["entry_time_local"] = _broker_time_to_local(entry_time, broker_offset) if entry_time else None
@@ -966,14 +973,15 @@ def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
 # =====================================================================
 def get_candle_by_ts(symbol, timeframe, target_ts):
     """Lay nến gan nhat voi UTC timestamp. Tra ve dict hoac None."""
-    cached = _cache.get((symbol, int(target_ts)))
+    key = (symbol, timeframe, int(target_ts))
+    cached = _cache.get(key)
     if cached is not None and abs(int(cached["time"]) - int(target_ts)) <= 180:
         return cached
     if not mt5.symbol_select(symbol, True):
         print(f"[WARN] Khong the select symbol: {symbol}")
         return None
 
-    # Query a narrow range around the exact M30 open timestamp.
+    # Query a narrow range around the target open timestamp.
     rates = _copy_rates_near_timestamp(symbol, timeframe, target_ts)
     if rates is None or len(rates) == 0:
         print(f"[WARN] Khong lay duoc du lieu {symbol} TF={timeframe}")
@@ -990,8 +998,18 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
 
     max_diff = 180
     if best and min_diff <= max_diff:
-        return normalize_mt5_rate_row(best)
+        norm = normalize_mt5_rate_row(best)
+        _cache[key] = norm
+        _cache[(symbol, timeframe, int(norm["time"]))] = norm
+        return norm
     return None
+
+
+def get_candle_by_broker_datetime(symbol, timeframe, broker_open_dt):
+    """Fetch one candle by Broker open datetime using canonical timestamp encoding."""
+    resolved_symbol = resolve_mt5_symbol(symbol)
+    encoded_timestamp = BROKER_CLOCK.mt5_timestamp_from_broker_datetime(broker_open_dt)
+    return get_candle_by_ts(resolved_symbol, timeframe, encoded_timestamp)
 
 
 def _copy_rates_near_timestamp(symbol, timeframe, target_ts):
@@ -1743,7 +1761,7 @@ def warm_m30_history(symbols, start_dt, end_dt):
         for row in rates:
             norm = normalize_mt5_rate_row(row)
             ts = norm["time"]
-            _cache[(symbol, ts)] = norm
+            _cache[(symbol, mt5.TIMEFRAME_M30, ts)] = norm
             count += 1
         print(f"  [HISTORY] {symbol} M30 loaded {count} bars")
 
@@ -1751,7 +1769,7 @@ def warm_m30_history(symbols, start_dt, end_dt):
 def get_cached_candle(symbol, open_dt):
     """Look up one normalized candle dict from the M30 history cache."""
     target_ts = broker_time_to_ts(open_dt, open_dt.hour, open_dt.minute)
-    cached = _cache.get((symbol, target_ts))
+    cached = _cache.get((symbol, mt5.TIMEFRAME_M30, target_ts))
     if cached is None:
         return None
     if abs(int(cached["time"]) - int(target_ts)) > 180:
@@ -1808,19 +1826,17 @@ def find_previous_available_broker_session(symbol, target_broker_date):
 
 
 def load_h4_history_for_d(source_symbol, target_broker_date, broker_offset):
-    """Load H4 bars covering the search window for D-Direction.
-
-    Fetches a wide UTC range and returns all H4 bars with Broker timestamps.
-    """
-    search_start_broker = datetime.combine(target_broker_date - timedelta(days=10), datetime.min.time())
-    search_end_broker = datetime.combine(target_broker_date, dtime(4, 0))
-    utc_start = search_start_broker - timedelta(hours=broker_offset)
-    utc_end = search_end_broker - timedelta(hours=broker_offset)
-
+    """Load H4 bars covering the search window for D-Direction using canonical encoding."""
+    resolved_symbol = resolve_mt5_symbol(source_symbol)
+    broker_start = datetime.combine(target_broker_date - timedelta(days=10), dtime.min)
+    broker_end = datetime.combine(target_broker_date, dtime(4, 0))
     try:
-        resolved = resolve_mt5_symbol(source_symbol)
-        mt5.symbol_select(resolved, True)
-        rates = mt5.copy_rates_range(resolved, mt5.TIMEFRAME_H4, utc_start, utc_end)
+        start_ts = BROKER_CLOCK.mt5_timestamp_from_broker_datetime(broker_start)
+        end_ts = BROKER_CLOCK.mt5_timestamp_from_broker_datetime(broker_end)
+        api_start = datetime.fromtimestamp(start_ts, tz=timezone.utc)
+        api_end = datetime.fromtimestamp(end_ts, tz=timezone.utc)
+        mt5.symbol_select(resolved_symbol, True)
+        rates = mt5.copy_rates_range(resolved_symbol, mt5.TIMEFRAME_H4, api_start, api_end)
     except Exception as exc:
         print(f"[D-H4] Fetch error for {source_symbol}: {exc}")
         return []
@@ -1832,12 +1848,11 @@ def load_h4_history_for_d(source_symbol, target_broker_date, broker_offset):
     bars = []
     for row in rates:
         norm = normalize_mt5_rate_row(row)
-        utc_dt = datetime.fromtimestamp(norm["time"], tz=timezone.utc)
         try:
-            bar_offset = BROKER_CLOCK.utc_offset_for_date(utc_dt.date())
+            broker_open = BROKER_CLOCK.broker_datetime_from_mt5_timestamp(norm["time"])
         except Exception:
-            bar_offset = broker_offset
-        broker_open = utc_dt + timedelta(hours=bar_offset)
+            utc_dt = datetime.fromtimestamp(norm["time"], tz=timezone.utc)
+            broker_open = (utc_dt + timedelta(hours=broker_offset)).replace(tzinfo=None)
         bars.append((broker_open, norm))
 
     print(f"[D-H4] Loaded {len(bars)} H4 bars for {source_symbol}")
@@ -1889,28 +1904,75 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date):
     Does NOT fallback to H4 16:00 or M30 if 20:00 is missing.
     Searches back up to 10 days for the most recent H4 20:00.
     """
+    if hasattr(target_broker_date, "date") and callable(getattr(target_broker_date, "date")):
+        try:
+            target_broker_date = target_broker_date.date()
+        except Exception:
+            pass
+
     try:
         broker_offset = BROKER_CLOCK.utc_offset_for_date(target_broker_date)
     except Exception:
         print("[D-H4] Broker clock not calibrated")
         return None, None, None
 
+    resolved_symbol = resolve_mt5_symbol(source_symbol)
+    latest_session_date = None
+
+    # Step 1: Try exact H4 20:00 lookup per day
+    for lookback_days in range(1, 11):
+        try:
+            session_date = target_broker_date - timedelta(days=lookback_days)
+        except Exception:
+            session_date = date.today() - timedelta(days=lookback_days)
+        broker_open = datetime.combine(session_date, dtime(20, 0))
+        try:
+            candle = get_candle_by_broker_datetime(source_symbol, mt5.TIMEFRAME_H4, broker_open)
+        except Exception:
+            candle = None
+
+        if candle is not None:
+            try:
+                decoded_open = BROKER_CLOCK.broker_datetime_from_mt5_timestamp(candle["time"])
+            except Exception:
+                decoded_open = None
+
+            if decoded_open == broker_open:
+                print(f"[D-H4] {source_symbol} (resolved {resolved_symbol}): session={session_date}, open={broker_open.strftime('%H:%M')} Broker")
+                return candle, session_date, broker_offset
+
+        if latest_session_date is None:
+            latest_session_date = session_date
+
+    # Step 2: Fallback range query with canonical encoding
     bars = load_h4_history_for_d(source_symbol, target_broker_date, broker_offset)
     if not bars:
-        return None, None, broker_offset
+        return None, latest_session_date, broker_offset
 
     candidates = []
     for broker_open, norm in bars:
+        try:
+            is_before_target = broker_open.date() < target_broker_date
+        except Exception:
+            is_before_target = True
+
         if (broker_open.hour == 20
                 and broker_open.minute == 0
-                and broker_open.date() < target_broker_date):
+                and is_before_target):
             candidates.append((broker_open.date(), broker_open, norm))
 
     if not candidates:
         found_opens = [f"{bo.strftime('%Y-%m-%d %H:%M')}" for bo, _ in bars[-12:]]
         print(f"[D-H4] No H4 20:00 found for {source_symbol}. Broker opens: {found_opens}")
-        past_dates = [bo.date() for bo, _ in bars if bo.date() < target_broker_date]
-        latest_session_date = max(past_dates) if past_dates else None
+        past_dates = []
+        for bo, _ in bars:
+            try:
+                if bo.date() < target_broker_date:
+                    past_dates.append(bo.date())
+            except Exception:
+                past_dates.append(bo.date())
+        if past_dates:
+            latest_session_date = max(past_dates)
         return None, latest_session_date, broker_offset
 
     candidates.sort(key=lambda x: x[0], reverse=True)
@@ -2006,13 +2068,16 @@ def find_last_completed_m30_of_session(symbol, session_date):
 
 
 def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset):
-    """Build D-Direction evidence payload v4 from H4 20:00 candle."""
+    """Build D-Direction evidence payload v6 from H4 20:00 candle."""
     utc_open = datetime.fromtimestamp(candle["time"], tz=timezone.utc)
     utc_close = utc_open + timedelta(hours=4)
-    broker_open = utc_open + timedelta(hours=broker_offset)
-    broker_close = utc_close + timedelta(hours=broker_offset)
-    local_open = broker_open + timedelta(hours=VN_UTC_OFFSET)
-    local_close = broker_close + timedelta(hours=VN_UTC_OFFSET)
+    try:
+        broker_open = BROKER_CLOCK.broker_datetime_from_mt5_timestamp(candle["time"])
+    except Exception:
+        broker_open = (utc_open + timedelta(hours=broker_offset)).replace(tzinfo=None)
+    broker_close = broker_open + timedelta(hours=4)
+    local_open = utc_open.astimezone(HO_CHI_MINH_TZ)
+    local_close = utc_close.astimezone(HO_CHI_MINH_TZ)
 
     direction = exact_candle_direction(candle)
     if direction == "TANG":
@@ -2036,8 +2101,8 @@ def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_d
         "source_open_at_utc": utc_open.isoformat(),
         "d_candle_open_time_broker": f"{broker_open.hour:02d}:{broker_open.minute:02d}",
         "d_candle_close_time_broker": f"{broker_close.hour:02d}:{broker_close.minute:02d}",
-        "d_candle_open_time_local": f"{local_open.hour:02d}:{local_open.minute:02d}",
-        "d_candle_close_time_local": f"{local_close.hour:02d}:{local_close.minute:02d}",
+        "d_candle_open_time_local": local_open.strftime("%H:%M"),
+        "d_candle_close_time_local": local_close.strftime("%H:%M"),
         "broker_utc_offset": broker_offset,
         "local_timezone": "Asia/Ho_Chi_Minh",
         "d_candle_open_at_utc": utc_open.isoformat(),
@@ -2284,7 +2349,7 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
         snapshot_state = "MISSING"
 
     try:
-        broker_offset = BROKER_CLOCK.utc_offset_for_date(now_utc.date())
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(target_broker_date_obj)
     except Exception:
         broker_offset = None
 
@@ -2390,22 +2455,42 @@ def publish_d_direction_daily(target_local_date=None, force=False):
 
     while True:
         attempts += 1
+        if attempts > 1:
+            clear_d_direction_cache()
+            resolved_clock_symbols = tuple(
+                dict.fromkeys(
+                    resolve_mt5_symbol(s) for s in ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+                )
+            )
+            BROKER_CLOCK.configure_symbols(resolved_clock_symbols)
+            for s in resolved_clock_symbols:
+                try:
+                    mt5.symbol_select(s, True)
+                except Exception:
+                    pass
+
         snapshot = build_d_direction_snapshot_v2(target_local_date, target_broker_date)
         if snapshot["state"] in ("READY", "DOJI") or not force:
             break
 
         current_local = datetime.now(HO_CHI_MINH_TZ)
-        if current_local >= deadline_local or attempts >= 6:
+        if current_local >= deadline_local or attempts >= 10:
             print(f"  [DAILY-D] Reached deadline or max attempts ({attempts}), publishing state={snapshot['state']}")
             break
 
-        print(f"  [DAILY-D] Attempt {attempts}: state={snapshot['state']}, retrying in 10s...")
-        time.sleep(10)
+        sleep_sec = 5 if attempts <= 6 else (15 if attempts <= 14 else 60)
+        print(f"  [DAILY-D] Attempt {attempts}: state={snapshot['state']}, retrying in {sleep_sec}s...")
+        time.sleep(sleep_sec)
 
     save_d_direction_snapshot_local(snapshot)
     pushed = push_d_direction_snapshot(snapshot, force=force)
 
-    if snapshot["state"] in ("READY", "PARTIAL"):
+    syms = snapshot.get("symbols", {})
+    gbp_ok = syms.get("GBPUSD", {}).get("d_state") in ("READY", "DOJI")
+    gbpaud_ok = syms.get("GBPAUD", {}).get("d_state") in ("READY", "DOJI")
+    active_sources_ready = gbp_ok and gbpaud_ok
+
+    if snapshot["state"] == "READY" or (snapshot["state"] == "PARTIAL" and active_sources_ready):
         published_dates.add(target_date_str)
         _save_state(
             d_published_local_dates=published_dates,
@@ -2501,31 +2586,38 @@ def resolve_primary_signal_action(day_mode, entry_branch):
 
 
 def apply_special_adjustment(direction, *, broker_date, slot_hour, primary_source, symbol=None):
-    """Apply the three canonical final inversion rules (v83).
+    """Apply canonical v84 final inversion rules.
 
-    Rule A: Wednesday H3, D-sourced → reverse once.
-    Rule B: Thursday H3, D-sourced → reverse once.
-    Rule C: Friday H16, D-sourced → reverse once.
-    No other rules exist.
+    A. H3: Wednesday (wd=2) & Thursday (wd=3) when primary_source == "D_DIRECTION".
+    B. H16: Tuesday (wd=1), Wednesday (wd=2), and Friday (wd=4) when primary_source == "D_DIRECTION".
+    C. H14: Tuesday (wd=1) & Wednesday (wd=2) ALWAYS invert final signal once (any source).
     """
     if direction not in ("BUY", "SELL"):
         return direction, None
-    if primary_source != "D_DIRECTION":
-        return direction, None
+
     wd = broker_date.weekday()
     h = int(slot_hour)
 
-    if h == 3 and wd == 2:
-        reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "WEDNESDAY_H3_D_EXTRA_REVERSE"
+    if h == 3 and wd == 2 and primary_source == "D_DIRECTION":
+        return reverse_signal(direction), "WEDNESDAY_H3_D_EXTRA_REVERSE"
 
-    if h == 3 and wd == 3:
-        reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "THURSDAY_H3_D_EXTRA_REVERSE"
+    if h == 3 and wd == 3 and primary_source == "D_DIRECTION":
+        return reverse_signal(direction), "THURSDAY_H3_D_EXTRA_REVERSE"
 
-    if h == 16 and wd == 4:
-        reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "FRIDAY_H16_D_EXTRA_REVERSE"
+    if h == 16 and wd == 1 and primary_source == "D_DIRECTION":
+        return reverse_signal(direction), "TUESDAY_H16_D_EXTRA_REVERSE"
+
+    if h == 16 and wd == 2 and primary_source == "D_DIRECTION":
+        return reverse_signal(direction), "WEDNESDAY_H16_D_EXTRA_REVERSE"
+
+    if h == 16 and wd == 4 and primary_source == "D_DIRECTION":
+        return reverse_signal(direction), "FRIDAY_H16_D_EXTRA_REVERSE"
+
+    if h == 14 and wd == 1:
+        return reverse_signal(direction), "TUESDAY_H14_FINAL_REVERSE"
+
+    if h == 14 and wd == 2:
+        return reverse_signal(direction), "WEDNESDAY_H14_FINAL_REVERSE"
 
     return direction, None
 
@@ -3142,6 +3234,20 @@ def main(profile_name=None):
     print("=" * 55)
 
     _active_profile = resolve_active_profile(profile_name)
+
+    resolved_clock_symbols = tuple(
+        dict.fromkeys(
+            resolve_mt5_symbol(symbol)
+            for symbol in (
+                "XAUUSD",
+                "GBPUSD",
+                "GBPAUD",
+                "GBPJPY",
+                "GBPCAD",
+            )
+        )
+    )
+    BROKER_CLOCK.configure_symbols(resolved_clock_symbols)
 
     def heartbeat_thread():
         global _broker_clock_error
@@ -4133,10 +4239,129 @@ def repair_history(target_dates=None, days=45):
     return {"updated": updated, "attempted": attempted, "ready": ready_count, "doji": doji_count, "data_missing": missing_count, "records": updated_records_list}
 
 
+def diagnose_h4_d(target_date_str=None, profile_name=None):
+    """Diagnostic CLI for H4 D-Direction calculation."""
+    if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
+        print("[DIAGNOSE-H4-D] MT5 initialization failed")
+        return
+
+    global mt5_ready
+    mt5_ready = True
+    active_profile = resolve_active_profile(profile_name)
+
+    resolved_clock_symbols = tuple(
+        dict.fromkeys(
+            resolve_mt5_symbol(symbol)
+            for symbol in ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+        )
+    )
+    BROKER_CLOCK.configure_symbols(resolved_clock_symbols)
+    BROKER_CLOCK.clear_cache()
+
+    try:
+        broker_offset = BROKER_CLOCK.current_utc_offset()
+        broker_dt = BROKER_CLOCK.now()
+        ts_mode = BROKER_CLOCK.timestamp_mode
+    except Exception as exc:
+        print(f"[DIAGNOSE-H4-D] BrokerClock calibration failed: {exc}")
+        return
+
+    print("=" * 60)
+    print("  H4 D-DIRECTION DIAGNOSTIC REPORT")
+    print("=" * 60)
+    print(f"Profile: {active_profile}")
+    print(f"BrokerClock symbols: {list(BROKER_CLOCK._symbols)}")
+    print(f"Timestamp mode: {ts_mode}")
+    print(f"Broker UTC offset: {broker_offset:+03d}:00")
+    print(f"Broker now: {broker_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+
+    if target_date_str:
+        target_date = datetime.strptime(target_date_str, "%Y-%m-%d").date()
+    else:
+        target_date = broker_dt.date()
+
+    print(f"Target Broker Date: {target_date.isoformat()}")
+
+    for canonical_symbol in D_DIRECTION_PAIRS:
+        source_symbol = D_SOURCE_SYMBOL.get(canonical_symbol, canonical_symbol)
+        print("-" * 60)
+        print(f"Canonical Symbol: {canonical_symbol}")
+        print(f"Canonical Source: {source_symbol}")
+        resolved_source = resolve_mt5_symbol(source_symbol)
+        print(f"Resolved Source: {resolved_source}")
+
+        sel_res = mt5.symbol_select(resolved_source, True)
+        print(f"symbol_select result ({resolved_source}): {sel_res}")
+
+        candidate_broker_dt = None
+        encoded_ts = None
+        api_start = None
+        api_end = None
+        found_candle = None
+        failure_reason = None
+        decoded_opens = []
+
+        for lookback_days in range(1, 11):
+            session_date = target_date - timedelta(days=lookback_days)
+            broker_open_dt = datetime.combine(session_date, dtime(20, 0))
+            if candidate_broker_dt is None:
+                candidate_broker_dt = broker_open_dt
+                try:
+                    encoded_ts = BROKER_CLOCK.mt5_timestamp_from_broker_datetime(broker_open_dt)
+                    utc_target = datetime.fromtimestamp(encoded_ts, tz=timezone.utc)
+                    api_start = utc_target - timedelta(minutes=3)
+                    api_end = utc_target + timedelta(minutes=3)
+                except Exception:
+                    pass
+
+            try:
+                candle = get_candle_by_broker_datetime(source_symbol, mt5.TIMEFRAME_H4, broker_open_dt)
+                if candle is not None:
+                    decoded = BROKER_CLOCK.broker_datetime_from_mt5_timestamp(candle["time"])
+                    decoded_opens.append(decoded.strftime("%Y-%m-%d %H:%M"))
+                    if decoded == broker_open_dt:
+                        found_candle = candle
+                        break
+            except Exception as err:
+                failure_reason = str(err)
+
+        bars = load_h4_history_for_d(source_symbol, target_date, broker_offset)
+        bars_count = len(bars)
+        if not decoded_opens:
+            decoded_opens = [b[0].strftime("%Y-%m-%d %H:%M") for b in bars[-6:]]
+
+        if found_candle is None:
+            failure_reason = failure_reason or "MISSING_H4_20"
+
+        print(f"Candidate Broker datetime: {candidate_broker_dt}")
+        print(f"Encoded MT5 timestamp: {encoded_ts}")
+        print(f"API UTC start/end: {api_start} -> {api_end}")
+        print(f"Bars returned: {bars_count}")
+        print(f"Decoded Broker opens: {decoded_opens}")
+
+        if found_candle:
+            raw_dir = exact_candle_direction(found_candle)
+            d_dir = "BUY" if raw_dir == "TANG" else ("SELL" if raw_dir == "GIAM" else "WAIT")
+            print(f"Selected H4 candle time (epoch): {found_candle['time']}")
+            print(f"OHLC: O={found_candle['open']} H={found_candle['high']} L={found_candle['low']} C={found_candle['close']}")
+            print(f"D Direction: {d_dir} (raw: {raw_dir})")
+            print(f"Failure reason: None")
+        else:
+            print("Selected H4 candle: None")
+            print("OHLC: N/A")
+            print("D Direction: WAIT")
+            print(f"Failure reason: {failure_reason}")
+
+    print("=" * 60)
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", type=str, help="Profile name for heartbeat")
+    parser.add_argument("--diagnose-h4-d", action="store_true",
+                        help="Diagnose H4 D-Direction calculation and symbol resolution")
+    parser.add_argument("--date", type=str, help="Target date YYYY-MM-DD for diagnosis")
     parser.add_argument("--repair-history", action="store_true",
                         help="Repair historical records with unresolved native signals")
     parser.add_argument("--repair-date", type=str, action="append",
@@ -4151,7 +4376,9 @@ if __name__ == "__main__":
                         help="Number of days for rebuild (default: 45)")
     args, _ = parser.parse_known_args()
 
-    if args.repair_history or args.repair_date:
+    if args.diagnose_h4_d:
+        diagnose_h4_d(target_date_str=args.date, profile_name=args.profile)
+    elif args.repair_history or args.repair_date:
         if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
             print("[REPAIR] MT5 init failed")
         else:
