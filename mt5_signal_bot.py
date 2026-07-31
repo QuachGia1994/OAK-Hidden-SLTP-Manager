@@ -153,12 +153,12 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 82
-ACTIVE_SIGNAL_LOGIC_VERSION = 82
-MINIMUM_SIGNAL_LOGIC_VERSION = 82
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 4
+SIGNAL_LOGIC_VERSION = 83
+ACTIVE_SIGNAL_LOGIC_VERSION = 83
+MINIMUM_SIGNAL_LOGIC_VERSION = 83
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 5
 LAYER3_CANDLE_GRACE_SECONDS = 90
-D_DIRECTION_SCHEMA_VERSION = 4
+D_DIRECTION_SCHEMA_VERSION = 5
 D_SESSION_POLICY = {
     "normal_close_broker": "23:00",
     "timeframe_minutes": 30,
@@ -352,36 +352,19 @@ def _trading_date():
     return get_broker_time().date()
 
 def _load_state():
-    """Load restart-safe sent-slot, entry-alert, auto-close, and D publication state."""
+    """Load restart-safe sent-slot, entry-alert, and D publication state."""
     try:
         with open(_STATE_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
-    pending_closes = set()
-    for item in data.get("auto_close_pending", []):
-        try:
-            raw_date, category = item
-            pending_closes.add((datetime.strptime(str(raw_date), "%Y-%m-%d").date(), str(category)))
-        except (TypeError, ValueError):
-            continue
-
-    close_alerts = {}
-    for item in data.get("auto_close_last_alert", []):
-        try:
-            raw_date, category, raw_timestamp = item
-            key = (datetime.strptime(str(raw_date), "%Y-%m-%d").date(), str(category))
-            close_alerts[key] = datetime.fromisoformat(str(raw_timestamp))
-        except (TypeError, ValueError):
-            continue
-
     pub_dates = set(data.get("d_published_local_dates", []))
     last_success = data.get("d_last_success_at")
 
     today_str = _trading_date().isoformat()
     if data.get("date") != today_str:
-        res = {"auto_close_pending": pending_closes, "auto_close_last_alert": close_alerts}
+        res = {}
         if pub_dates:
             res["d_published_local_dates"] = pub_dates
         if last_success is not None:
@@ -392,9 +375,6 @@ def _load_state():
     if stored_ver != SIGNAL_LOGIC_VERSION:
         print(f"  [STATE] Dropping stale sent_today: stored version={stored_ver or 'legacy'}, current version={SIGNAL_LOGIC_VERSION}")
         return {
-            "auto_close_completed": set(data.get("auto_close_completed", [])),
-            "auto_close_pending": pending_closes,
-            "auto_close_last_alert": close_alerts,
             "sent_today": set(),
             "entry_alerts_sent": set(),
             "entry_alerts_pending": {},
@@ -417,9 +397,6 @@ def _load_state():
 
     return {
         "sent_today": restored_sent,
-        "auto_close_completed": set(data.get("auto_close_completed", [])),
-        "auto_close_pending": pending_closes,
-        "auto_close_last_alert": close_alerts,
         "entry_alerts_sent": alerts_sent,
         "entry_alerts_pending": alerts_pending,
         "d_published_local_dates": pub_dates,
@@ -428,7 +405,7 @@ def _load_state():
 
 
 def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None, d_last_success_at=None):
-    """Persist sent logical slots, entry alerts, pending auto-close obligations, and D-Direction publication state."""
+    """Persist sent logical slots, entry alerts, and D-Direction publication state."""
     if sent_today is None:
         try:
             sent_today = globals().get("sent_today", set())
@@ -464,21 +441,6 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None, d
         "sent_today": sent_rows,
         "entry_alerts_sent": sorted(list(entry_alerts_sent)),
         "entry_alerts_pending": entry_alerts_pending,
-        "auto_close_completed": sorted(
-            category
-            for close_date, category in _auto_close_completed
-            if close_date.isoformat() == today_str
-        ),
-        "auto_close_pending": sorted(
-            [[close_date.isoformat(), category] for close_date, category in _auto_close_pending]
-        ),
-        "auto_close_last_alert": sorted(
-            [
-                [close_date.isoformat(), category, alert_time.isoformat()]
-                for (close_date, category), alert_time in _auto_close_last_alert.items()
-                if (close_date, category) in _auto_close_pending
-            ]
-        ),
         "broker_time": broker_now.replace(microsecond=0).isoformat() if has_verified_clock else "",
         "broker_utc_offset": broker_utc_offset,
         "broker_observed_at_utc": datetime.now(timezone.utc).isoformat() if has_verified_clock else "",
@@ -1556,11 +1518,11 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
     return (
         f"🤖 OAK SIGNAL BOT ONLINE · v{ver}\n"
         f"MT5: {mt5_status} | Broker: {broker_time_str}\n"
-        "Slots: H3 - H7 - H9 - H12 - H14 - H16\n"
-        "Pairs: XAUUSD | GBPUSD | GBPAUD (GBPJPY/CAD: OFF)\n"
-        "Signal engine: Independent M30 per symbol + H4 20:00 D\n"
-        "Entry: L2 BT H:11 / L3 SW H:49 / L3 BT (H+1):25\n"
-        "Auto-close: XAU 17:59 | GBP 19:59 Broker"
+        "Slots: H3 · H7 · H9 · H12 · H14 · H16\n"
+        "Pairs: XAUUSD | GBPUSD | GBPAUD\n"
+        "GBPJPY/GBPCAD: ANALYTICAL · EXEC OFF\n"
+        "Signal engine: Independent M30 Entry + H4 20:00 D\n"
+        "D source: XAUUSD follows GBPUSD H4 20:00"
     )
 
 
@@ -1807,13 +1769,21 @@ _d_direction_cache = {}
 
 
 def find_previous_available_broker_session(symbol, target_broker_date):
-    """Find the most recent Broker date before target_date that has M30 bars."""
-    search_start = datetime.combine(target_broker_date - timedelta(days=10), datetime.min.time())
-    search_end = datetime.combine(target_broker_date, datetime.min.time())
+    """Find the most recent Broker date before target_date that has market data."""
+    try:
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(target_broker_date)
+    except Exception:
+        print("[D-H4] Broker clock not calibrated — cannot find previous session")
+        return None
+
+    search_start_broker = datetime.combine(target_broker_date - timedelta(days=10), datetime.min.time())
+    search_end_broker = datetime.combine(target_broker_date, datetime.min.time())
+    utc_start = search_start_broker - timedelta(hours=broker_offset)
+    utc_end = search_end_broker - timedelta(hours=broker_offset)
 
     try:
         mt5.symbol_select(symbol, True)
-        rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M30, search_start, search_end)
+        rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_M30, utc_start, utc_end)
     except Exception:
         return None
 
@@ -1825,8 +1795,8 @@ def find_previous_available_broker_session(symbol, target_broker_date):
         ts = int(row["time"]) if hasattr(row, "dtype") else int(row.get("time", 0))
         utc_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
         try:
-            broker_offset = BROKER_CLOCK.utc_offset_for_date(utc_dt.date())
-            broker_dt = utc_dt - timedelta(hours=broker_offset)
+            bar_offset = BROKER_CLOCK.utc_offset_for_date(utc_dt.date())
+            broker_dt = utc_dt + timedelta(hours=bar_offset)
             if broker_dt.date() < target_broker_date:
                 broker_dates_with_bars.add(broker_dt.date())
         except Exception:
@@ -1837,43 +1807,116 @@ def find_previous_available_broker_session(symbol, target_broker_date):
     return max(broker_dates_with_bars)
 
 
+def load_h4_history_for_d(source_symbol, target_broker_date, broker_offset):
+    """Load H4 bars covering the search window for D-Direction.
+
+    Fetches a wide UTC range and returns all H4 bars with Broker timestamps.
+    """
+    search_start_broker = datetime.combine(target_broker_date - timedelta(days=10), datetime.min.time())
+    search_end_broker = datetime.combine(target_broker_date, dtime(4, 0))
+    utc_start = search_start_broker - timedelta(hours=broker_offset)
+    utc_end = search_end_broker - timedelta(hours=broker_offset)
+
+    try:
+        resolved = resolve_mt5_symbol(source_symbol)
+        mt5.symbol_select(resolved, True)
+        rates = mt5.copy_rates_range(resolved, mt5.TIMEFRAME_H4, utc_start, utc_end)
+    except Exception as exc:
+        print(f"[D-H4] Fetch error for {source_symbol}: {exc}")
+        return []
+
+    if rates is None or len(rates) == 0:
+        print(f"[D-H4] No H4 bars returned for {source_symbol}")
+        return []
+
+    bars = []
+    for row in rates:
+        norm = normalize_mt5_rate_row(row)
+        utc_dt = datetime.fromtimestamp(norm["time"], tz=timezone.utc)
+        try:
+            bar_offset = BROKER_CLOCK.utc_offset_for_date(utc_dt.date())
+        except Exception:
+            bar_offset = broker_offset
+        broker_open = utc_dt + timedelta(hours=bar_offset)
+        bars.append((broker_open, norm))
+
+    print(f"[D-H4] Loaded {len(bars)} H4 bars for {source_symbol}")
+    return bars
+
+
+def resolve_mt5_symbol(symbol):
+    """Resolve a canonical symbol name to the broker's actual symbol.
+
+    Tries the raw symbol first, then common suffixes/prefixes.
+    Returns the raw symbol unchanged if MT5 is not available.
+    """
+    if not hasattr(mt5, 'symbol_info'):
+        return symbol
+    try:
+        info = mt5.symbol_info(symbol)
+        if info is not None:
+            return symbol
+    except Exception:
+        pass
+
+    for suffix in ("+", ".a", ".i", "m", ".m", "c", ".c", "#", "."):
+        candidate = symbol + suffix
+        try:
+            info = mt5.symbol_info(candidate)
+            if info is not None:
+                print(f"[D-H4] Resolved {symbol} → {candidate}")
+                return candidate
+        except Exception:
+            continue
+
+    for prefix in (".",):
+        candidate = prefix + symbol
+        try:
+            info = mt5.symbol_info(candidate)
+            if info is not None:
+                print(f"[D-H4] Resolved {symbol} → {candidate}")
+                return candidate
+        except Exception:
+            continue
+
+    return symbol
+
+
 def find_previous_session_h4_20_candle(source_symbol, target_broker_date):
     """Find the H4 candle with Broker open time exactly 20:00 from the previous available session.
 
     Returns (candle_norm, session_date, broker_offset) or (None, None, None) if not found.
     Does NOT fallback to H4 16:00 or M30 if 20:00 is missing.
+    Searches back up to 10 days for the most recent H4 20:00.
     """
-    session_date = find_previous_available_broker_session(source_symbol, target_broker_date)
-    if session_date is None:
+    try:
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(target_broker_date)
+    except Exception:
+        print("[D-H4] Broker clock not calibrated")
         return None, None, None
 
-    session_start = datetime.combine(session_date, datetime.min.time())
-    session_end = datetime.combine(session_date + timedelta(days=1), datetime.min.time())
+    bars = load_h4_history_for_d(source_symbol, target_broker_date, broker_offset)
+    if not bars:
+        return None, None, broker_offset
 
-    try:
-        mt5.symbol_select(source_symbol, True)
-        rates = mt5.copy_rates_range(source_symbol, mt5.TIMEFRAME_H4, session_start, session_end)
-    except Exception:
-        return None, session_date, None
+    candidates = []
+    for broker_open, norm in bars:
+        if (broker_open.hour == 20
+                and broker_open.minute == 0
+                and broker_open.date() < target_broker_date):
+            candidates.append((broker_open.date(), broker_open, norm))
 
-    if rates is None or len(rates) == 0:
-        return None, session_date, None
+    if not candidates:
+        found_opens = [f"{bo.strftime('%Y-%m-%d %H:%M')}" for bo, _ in bars[-12:]]
+        print(f"[D-H4] No H4 20:00 found for {source_symbol}. Broker opens: {found_opens}")
+        past_dates = [bo.date() for bo, _ in bars if bo.date() < target_broker_date]
+        latest_session_date = max(past_dates) if past_dates else None
+        return None, latest_session_date, broker_offset
 
-    try:
-        broker_offset = BROKER_CLOCK.utc_offset_for_date(session_date)
-    except Exception:
-        return None, session_date, None
-
-    for row in rates:
-        norm = normalize_mt5_rate_row(row)
-        utc_dt = datetime.fromtimestamp(norm["time"], tz=timezone.utc)
-        broker_open = utc_dt + timedelta(hours=broker_offset)
-        if (broker_open.date() == session_date
-                and broker_open.hour == 20
-                and broker_open.minute == 0):
-            return norm, session_date, broker_offset
-
-    return None, session_date, broker_offset
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    session_date, broker_open, norm = candidates[0]
+    print(f"[D-H4] {source_symbol}: session={session_date}, open={broker_open.strftime('%H:%M')} Broker")
+    return norm, session_date, broker_offset
 
 
 def _parse_broker_time_to_minutes(broker_time_str):
@@ -2062,24 +2105,32 @@ def calculate_d_direction(symbol, target_broker_date):
     """Calculate D-Direction for one symbol on one target Broker date using H4 20:00."""
     cache_key = (target_broker_date.isoformat(), symbol)
     if cache_key in _d_direction_cache:
-        return _d_direction_cache[cache_key]
+        cached = _d_direction_cache[cache_key]
+        if cached.get("d_state") not in ("MISSING", "MISSING_H4_20", "MISSING_PREVIOUS_SESSION",
+                                          "WAITING_BROKER_CLOCK"):
+            return cached
+        _d_direction_cache.pop(cache_key, None)
 
     source_symbol = D_SOURCE_SYMBOL.get(symbol, symbol)
 
     source_cache_key = (target_broker_date.isoformat(), source_symbol)
     if source_cache_key in _d_direction_cache and symbol != source_symbol:
         source_evidence = _d_direction_cache[source_cache_key]
-        result = dict(source_evidence)
-        result["symbol"] = symbol
-        _d_direction_cache[cache_key] = result
-        return result
+        if source_evidence.get("d_state") not in ("MISSING", "MISSING_H4_20",
+                                                    "MISSING_PREVIOUS_SESSION",
+                                                    "WAITING_BROKER_CLOCK"):
+            result = dict(source_evidence)
+            result["symbol"] = symbol
+            _d_direction_cache[cache_key] = result
+            return result
 
     evidence = _compute_d_from_source(symbol, source_symbol, target_broker_date)
-    _d_direction_cache[cache_key] = evidence
-
-    if symbol == source_symbol:
-        _d_direction_cache[source_cache_key] = evidence
-
+    d_state = evidence.get("d_state", "")
+    if d_state not in ("MISSING", "MISSING_H4_20", "MISSING_PREVIOUS_SESSION",
+                        "WAITING_BROKER_CLOCK"):
+        _d_direction_cache[cache_key] = evidence
+        if symbol == source_symbol:
+            _d_direction_cache[source_cache_key] = evidence
     return evidence
 
 
@@ -2089,8 +2140,11 @@ def calculate_all_d_directions(target_broker_date):
     unique_sources = set(D_SOURCE_SYMBOL.values())
     for src in unique_sources:
         source_results[src] = _compute_d_from_source(src, src, target_broker_date)
-        cache_key = (target_broker_date.isoformat(), src)
-        _d_direction_cache[cache_key] = source_results[src]
+        d_state = source_results[src].get("d_state", "")
+        if d_state not in ("MISSING", "MISSING_H4_20", "MISSING_PREVIOUS_SESSION",
+                            "WAITING_BROKER_CLOCK"):
+            cache_key = (target_broker_date.isoformat(), src)
+            _d_direction_cache[cache_key] = source_results[src]
 
     results = {}
     for symbol in D_DIRECTION_PAIRS:
@@ -2351,7 +2405,7 @@ def publish_d_direction_daily(target_local_date=None, force=False):
     save_d_direction_snapshot_local(snapshot)
     pushed = push_d_direction_snapshot(snapshot, force=force)
 
-    if snapshot["state"] in ("READY", "PARTIAL") or pushed:
+    if snapshot["state"] in ("READY", "PARTIAL"):
         published_dates.add(target_date_str)
         _save_state(
             d_published_local_dates=published_dates,
@@ -2446,39 +2500,47 @@ def resolve_primary_signal_action(day_mode, entry_branch):
     return "KEEP_D" if entry_branch == mode_branch else "REVERSE_D"
 
 
-def apply_new_final_signal_inversion(direction, broker_date, slot_hour, primary_source, symbol=None):
-    """Apply the three new final inversion rules (v82).
+def apply_special_adjustment(direction, *, broker_date, slot_hour, primary_source, symbol=None):
+    """Apply the three canonical final inversion rules (v83).
 
-    Rule A: H3 Wed/Thu → invert if primary_source is D_DIRECTION.
-    Rule B: H16 Tue/Wed/Fri → invert if primary_source is D_DIRECTION.
-    Rule C: H14 Tue/Wed → invert always (regardless of source).
+    Rule A: Wednesday H3, D-sourced → reverse once.
+    Rule B: Thursday H3, D-sourced → reverse once.
+    Rule C: Friday H16, D-sourced → reverse once.
+    No other rules exist.
     """
     if direction not in ("BUY", "SELL"):
+        return direction, None
+    if primary_source != "D_DIRECTION":
         return direction, None
     wd = broker_date.weekday()
     h = int(slot_hour)
 
-    # Rule A: H3 Wednesday(2) / Thursday(3), D-based only
-    if h == 3 and wd in (2, 3) and primary_source == "D_DIRECTION":
+    if h == 3 and wd == 2:
         reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "H3_WED_THU_D_EXTRA_REVERSE"
+        return reversed_dir, "WEDNESDAY_H3_D_EXTRA_REVERSE"
 
-    # Rule C: H14 Tuesday(1) / Wednesday(2), always invert
-    if h == 14 and wd in (1, 2):
+    if h == 3 and wd == 3:
         reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "H14_TUE_WED_EXTRA_REVERSE"
+        return reversed_dir, "THURSDAY_H3_D_EXTRA_REVERSE"
 
-    # Rule B: H16 Tuesday(1) / Wednesday(2) / Friday(4), D-based only
-    if h == 16 and wd in (1, 2, 4) and primary_source == "D_DIRECTION":
+    if h == 16 and wd == 4:
         reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "H16_TUE_WED_FRI_D_EXTRA_REVERSE"
+        return reversed_dir, "FRIDAY_H16_D_EXTRA_REVERSE"
 
     return direction, None
 
 
+def apply_new_final_signal_inversion(direction, broker_date, slot_hour, primary_source, symbol=None):
+    """Backward-compatible wrapper — delegates to apply_special_adjustment."""
+    return apply_special_adjustment(direction, broker_date=broker_date,
+                                     slot_hour=slot_hour, primary_source=primary_source,
+                                     symbol=symbol)
+
+
 def apply_weekday_slot_inversion(direction, broker_date, slot_hour):
-    """Legacy wrapper — delegates to apply_new_final_signal_inversion with D source."""
-    return apply_new_final_signal_inversion(direction, broker_date, slot_hour, "D_DIRECTION")
+    """Legacy wrapper — delegates to apply_special_adjustment with D source."""
+    return apply_special_adjustment(direction, broker_date=broker_date,
+                                     slot_hour=slot_hour, primary_source="D_DIRECTION")
 
 
 def read_previous_h1_candle(symbol, slot_dt, as_of_dt=None):
@@ -2727,11 +2789,153 @@ def backfill_missing_days():
     """Backward-compatible alias; rebuild now covers startup refresh."""
     return rebuild_signals_on_startup()
 
+
+def rebuild_current_day_slots_after_d_ready(broker_dt):
+    """Rebuild all passed signal slots for today when D transitions MISSING → READY.
+
+    Called once immediately after a READY D snapshot is obtained during the live
+    loop so that slots that fired while D was MISSING are corrected without a
+    full restart.  Entry times already computed are preserved — only Signal
+    direction is recalculated using the newly available D-Direction.
+
+    Slot order: H3 → H7 → H9 → H12 → H14 → H16.
+    Only slots whose publication datetime ≤ broker_now are rebuilt.
+    """
+    global _current_day_mode
+    target_date = broker_dt.date()
+    hours = [h for h in [3, 7, 9, 12, 14, 16]
+             if broker_dt >= get_signal_datetime_for_slot(broker_dt, h)]
+    if not hours:
+        print("[D-READY] No completed slots to rebuild today")
+        return 0
+
+    print(f"[D-READY] Rebuilding current-day slots: {hours} after D READY")
+    try:
+        day_d_directions = calculate_all_d_directions(target_date)
+    except Exception as exc:
+        print(f"[D-READY] Could not fetch D-directions for rebuild: {exc}")
+        return 0
+
+    rebuilt = 0
+    current_pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
+    day_results = {}
+    for hour in hours:
+        slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
+        try:
+            record, next_day_modes = _build_rebuild_record(
+                slot_dt,
+                hour,
+                as_of_dt=broker_dt,
+                prior_slot_results=day_results if hour == 16 else None,
+                day_mode=current_pair_day_modes,
+                d_directions=day_d_directions,
+            )
+            if record is None:
+                continue
+            if isinstance(next_day_modes, dict):
+                for sym, dm in next_day_modes.items():
+                    if dm is not None:
+                        current_pair_day_modes[sym] = dm
+            record["daily_directions"] = day_d_directions
+            record["d_direction_schema_version"] = D_DIRECTION_SCHEMA_VERSION
+            day_results[hour] = record
+
+            # Upsert into signals_log
+            try:
+                existing_data = []
+                if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
+                    with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
+                        existing_data = json.load(f)
+                key_date = record["date"]
+                key_hour = int(record["hour"])
+                filtered = [r for r in (existing_data if isinstance(existing_data, list) else [])
+                            if not (r.get("date") == key_date and int(r.get("hour", -1)) == key_hour)]
+                filtered.append(record)
+                filtered = filtered[-2000:]
+                _write_signals_log_atomic(filtered)
+            except Exception as write_exc:
+                print(f"[D-READY] Upsert error H={hour}: {write_exc}")
+                continue
+
+            pair_dirs = record.get("pair_dirs", {})
+            push_to_dashboard()
+            rebuilt += 1
+            print(f"[D-READY] Rebuilt H={hour}: {pair_dirs}")
+        except Exception as exc:
+            print(f"[D-READY] Rebuild error H={hour}: {exc}")
+
+    if rebuilt:
+        print(f"[D-READY] {rebuilt} slot(s) rebuilt and pushed to dashboard")
+    return rebuilt
+
 # =====================================================================
 # MAIN LOOP
 # =====================================================================
 mt5_ready = False
 _broker_clock_error = ""
+
+# Track last known D snapshot state per broker date to detect MISSING → READY transitions
+_d_state_per_date: dict = {}  # {date: snapshot_state_str}
+
+
+def _check_and_rebuild_after_d_ready(broker_dt):
+    """Check if D just became READY and, if so, rebuild today's passed slots once.
+
+    Runs each live-loop tick, but the rebuild is triggered at most once per
+    (date, state-transition) event, so it is effectively O(1) extra work on
+    steady-state loops where D is already READY.
+    """
+    global _d_directions_today
+    today = broker_dt.date()
+    prev_state = _d_state_per_date.get(today, "")
+
+    # Only compute a fresh snapshot check once per minute to avoid spam
+    try:
+        now_key = (today, broker_dt.hour, broker_dt.minute)
+        if not hasattr(_check_and_rebuild_after_d_ready, "_last_check_key"):
+            _check_and_rebuild_after_d_ready._last_check_key = None
+        if _check_and_rebuild_after_d_ready._last_check_key == now_key:
+            return
+        _check_and_rebuild_after_d_ready._last_check_key = now_key
+    except Exception:
+        pass
+
+    try:
+        fresh_directions = calculate_all_d_directions(today)
+    except Exception as exc:
+        print(f"[D-READY] Error fetching D directions: {exc}")
+        return
+
+    states = [v.get("d_state", "MISSING") for v in fresh_directions.values()
+              if isinstance(v, dict)]
+    if all(s in ("READY", "DOJI") for s in states):
+        current_state = "READY"
+    elif any(s in ("READY", "DOJI") for s in states):
+        current_state = "PARTIAL"
+    else:
+        current_state = "MISSING"
+
+    _d_state_per_date[today] = current_state
+
+    # Transition from non-READY to READY/PARTIAL → rebuild
+    if current_state in ("READY", "PARTIAL") and prev_state not in ("READY", "PARTIAL"):
+        print(f"[D-READY] D transitioned {prev_state!r} → {current_state!r} for {today} — running catch-up rebuild")
+        _d_directions_today = fresh_directions
+        rebuild_current_day_slots_after_d_ready(broker_dt)
+        # Also refresh the published snapshot to reflect READY state
+        try:
+            today_local = datetime.now(HO_CHI_MINH_TZ).date()
+            target_date_str = today_local.isoformat()
+            state_data = _load_state()
+            published_dates = set(state_data.get("d_published_local_dates", []))
+            if target_date_str not in published_dates:
+                publish_d_direction_daily(today_local, force=True)
+        except Exception as exc:
+            print(f"[D-READY] Error publishing D snapshot after catch-up: {exc}")
+
+    elif current_state in ("READY", "PARTIAL") and prev_state in ("READY", "PARTIAL"):
+        # Already READY — keep _d_directions_today fresh
+        _d_directions_today = fresh_directions
 
 def try_init_mt5():
     global mt5_ready
@@ -2793,145 +2997,7 @@ def resolve_active_profile(profile_name, profiles_path=None):
     return ""
 
 
-_auto_close_completed = set()
-_auto_close_pending = set()
-_auto_close_last_attempt = {}
-_auto_close_last_alert = {}
 _current_day_mode = None  # DayMode or None — tracked across live slots
-
-
-def _close_positions_by_prefix(prefixes, label):
-    """Close every matching position and report attempted/closed/remaining counts."""
-    if not mt5_ready:
-        return {"attempted": 0, "closed": 0, "remaining": None}
-    positions = mt5.positions_get()
-    if positions is None:
-        return {"attempted": 0, "closed": 0, "remaining": None}
-    matching = [
-        position
-        for position in positions
-        if any(position.symbol.upper().startswith(prefix.upper()) for prefix in prefixes)
-    ]
-    closed = 0
-    for pos in matching:
-        tick = mt5.symbol_info_tick(pos.symbol)
-        if not tick:
-            continue
-        price = tick.bid if pos.type == mt5.POSITION_TYPE_BUY else tick.ask
-        request = {
-            "action": mt5.TRADE_ACTION_DEAL,
-            "symbol": pos.symbol,
-            "volume": pos.volume,
-            "type": mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY,
-            "position": pos.ticket,
-            "price": price,
-            "deviation": 20,
-            "magic": 0,
-            "comment": f"Auto-Close {label}",
-            "type_time": mt5.ORDER_TIME_GTC,
-        }
-        filling_mode = _get_order_filling_mode(pos.symbol)
-        if filling_mode is None:
-            print(f"[AUTO-CLOSE] Cannot determine filling mode for {pos.symbol}")
-            continue
-        request["type_filling"] = filling_mode
-        try:
-            res = mt5.order_send(request)
-            success_codes = {mt5.TRADE_RETCODE_DONE}
-            if hasattr(mt5, "TRADE_RETCODE_DONE_PARTIAL"):
-                success_codes.add(mt5.TRADE_RETCODE_DONE_PARTIAL)
-            if res and res.retcode in success_codes:
-                closed += 1
-        except Exception as e:
-            print(f"[AUTO-CLOSE] Error closing {pos.symbol}: {e}")
-    remaining_positions = mt5.positions_get()
-    if remaining_positions is None:
-        remaining = None
-    else:
-        remaining = sum(
-            any(position.symbol.upper().startswith(prefix.upper()) for prefix in prefixes)
-            for position in remaining_positions
-        )
-    return {"attempted": len(matching), "closed": closed, "remaining": remaining}
-
-
-def _get_order_filling_mode(symbol):
-    """Choose a filling mode allowed by the symbol and execution mode."""
-    try:
-        if not mt5.symbol_select(symbol, True):
-            return None
-    except Exception:
-        return None
-    info = mt5.symbol_info(symbol)
-    if info is None:
-        return None
-    allowed = int(getattr(info, "filling_mode", 0) or 0)
-    if allowed & 2:
-        return getattr(mt5, "ORDER_FILLING_IOC", None)
-    if allowed & 1:
-        return getattr(mt5, "ORDER_FILLING_FOK", None)
-    execution_mode = getattr(info, "trade_exemode", None)
-    market_execution = getattr(mt5, "SYMBOL_TRADE_EXECUTION_MARKET", 2)
-    if execution_mode is not None and execution_mode != market_execution:
-        return getattr(mt5, "ORDER_FILLING_RETURN", None)
-    return None
-
-
-def _process_auto_close_group(broker_dt, category, cutoff, prefixes, obligation_date=None):
-    """Retry one daily ALL-position close group once per Broker minute."""
-    close_date = obligation_date or broker_dt.date()
-    key = (close_date, category)
-    is_pending = key in _auto_close_pending
-    if key in _auto_close_completed:
-        return
-    if not is_pending and (close_date != broker_dt.date() or (broker_dt.hour, broker_dt.minute) < cutoff):
-        return
-    if not is_pending:
-        _auto_close_pending.add(key)
-        _save_state(sent_today, broker_dt=broker_dt)
-    minute_key = (broker_dt.date(), broker_dt.hour, broker_dt.minute)
-    if _auto_close_last_attempt.get(key) == minute_key:
-        return
-    _auto_close_last_attempt[key] = minute_key
-    label = f"{category.upper()}-{cutoff[0]:02d}:{cutoff[1]:02d}"
-    outcome = _close_positions_by_prefix(prefixes, label)
-    if outcome["remaining"] == 0:
-        _auto_close_pending.discard(key)
-        _auto_close_completed.add(key)
-        _auto_close_last_alert.pop(key, None)
-        _save_state(sent_today, broker_dt=broker_dt)
-        if outcome["attempted"]:
-            send_telegram(
-                f"🔒 Đã đóng ALL {category.upper()}: "
-                f"{outcome['closed']}/{outcome['attempted']} lệnh lúc {cutoff[0]:02d}:{cutoff[1]:02d} Broker"
-            )
-        return
-    last_alert = _auto_close_last_alert.get(key)
-    if last_alert is None or (broker_dt - last_alert).total_seconds() >= 900:
-        _auto_close_last_alert[key] = broker_dt
-        _save_state(sent_today, broker_dt=broker_dt)
-        send_telegram(
-            f"⚠️ Auto-close {category.upper()} chưa hoàn tất; "
-            f"còn {outcome['remaining'] if outcome['remaining'] is not None else 'N/A'} lệnh. Bot sẽ retry mỗi phút."
-        )
-
-
-def _process_auto_closes(broker_dt):
-    """Run weekday intraday ALL-position closes on the Broker clock."""
-    if broker_dt.weekday() >= 5:
-        return
-    groups = {
-        "xau": ((17, 59), ["XAUUSD"]),
-        "gbp": ((19, 59), ["GBPAUD", "GBPCAD", "GBPJPY", "GBPUSD"]),
-    }
-    for close_date, category in sorted(_auto_close_pending):
-        if category in groups:
-            cutoff, prefixes = groups[category]
-            _process_auto_close_group(broker_dt, category, cutoff, prefixes, close_date)
-    pending_categories = {category for _, category in _auto_close_pending}
-    for category, (cutoff, prefixes) in groups.items():
-        if category not in pending_categories:
-            _process_auto_close_group(broker_dt, category, cutoff, prefixes)
 
 
 def _mark_passed_slots_on_startup(broker_dt):
@@ -3059,7 +3125,6 @@ def main(profile_name=None):
     print(f"  MT5 Multi-Timeframe Signal Bot v{SIGNAL_LOGIC_VERSION}")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {', '.join(f'H={h}' for h in TARGET_HOURS)}")
-    print(f"  Auto-close: XAUUSD 17:59, GBP 19:59 (Broker)")
     print("  Broker clock: live-tick calibrated, fail-closed")
     admin_ok = bool(TELEGRAM_ADMIN_CHAT_ID and resolve_signal_admin_chat_id())
     print(f"  Telegram admin destination: {'yes' if admin_ok else 'no'}")
@@ -3070,7 +3135,7 @@ def main(profile_name=None):
         if info:
             print(f"  Balance: ${info.balance:,.2f}")
     else:
-        print("[WARN] MT5 init failed - signal and auto-close are fail-closed")
+        print("[WARN] MT5 init failed - signal is fail-closed")
 
     print("=" * 55)
     print("  Dang chay... Ctrl+C de dung")
@@ -3120,15 +3185,6 @@ def main(profile_name=None):
     sent_today = saved.get("sent_today", set())
     entry_alerts_sent.update(saved.get("entry_alerts_sent", set()))
     entry_alerts_pending.update(saved.get("entry_alerts_pending", {}))
-
-    _auto_close_completed.update(
-        (broker_dt.date(), category)
-        for category in saved.get("auto_close_completed", set())
-    )
-    _auto_close_pending.clear()
-    _auto_close_pending.update(saved.get("auto_close_pending", set()))
-    _auto_close_last_alert.clear()
-    _auto_close_last_alert.update(saved.get("auto_close_last_alert", {}))
 
     if sent_today:
         print(f"  [RESTORE] sent_today: {sent_today}")
@@ -3214,7 +3270,9 @@ def main(profile_name=None):
                 push_prices_to_dashboard()
                 last_price_push_minute = price_push_minute
 
-            _process_auto_closes(broker_dt)
+            # D-MISSING → READY catch-up: rebuild passed slots when D becomes available
+            _check_and_rebuild_after_d_ready(broker_dt)
+
             time.sleep(5)
 
     except KeyboardInterrupt:

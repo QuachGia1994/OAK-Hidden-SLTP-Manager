@@ -58,6 +58,9 @@ export const localeLabels = {
     xauReverse: "Đảo signal ra Vàng",
     dDirectionH4Source: "Nến H4 mở 20:00 Broker",
     missingH4_20: "Thiếu H4 20:00",
+    wednesdayH3DReverse: "Đảo Thứ 4 H3 D",
+    thursdayH3DReverse: "Đảo Thứ 5 H3 D",
+    fridayH16DReverse: "Đảo Thứ 6 H16 D",
     dateTimeFormat: "vi-VN",
   },
   EN: {

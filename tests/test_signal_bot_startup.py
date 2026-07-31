@@ -32,7 +32,7 @@ class SignalBotStartupTests(unittest.TestCase):
             patch.object(mt5_signal_bot, "push_prices_to_dashboard"),
             patch.object(mt5_signal_bot, "send_telegram", return_value=True) as send,
             patch.object(mt5_signal_bot, "_process_live_slot"),
-            patch.object(mt5_signal_bot, "_process_auto_closes"),
+            patch.object(mt5_signal_bot, "_check_and_rebuild_after_d_ready"),
             patch.object(mt5_signal_bot, "_save_state"),
         ):
             terminal.account_info.return_value = account
@@ -41,7 +41,7 @@ class SignalBotStartupTests(unittest.TestCase):
         self.assertEqual(mt5_signal_bot._active_profile, "VantageDemo")
         startup_message = send.call_args_list[0].args[0]
         self.assertIn("OAK SIGNAL BOT ONLINE", startup_message)
-        self.assertIn("v82", startup_message)
+        self.assertIn("v83", startup_message)
 
 
 if __name__ == "__main__":
