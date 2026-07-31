@@ -35,6 +35,10 @@ export interface Signal {
   entry_at_utc?: string | null;
   record_revision?: number;
   state_updated_at_utc?: string | null;
+  /** Per-symbol Day Modes (v82) — keyed by symbol e.g. { "XAUUSD": "DAY_MODE_H11", "GBPUSD": null } */
+  pair_day_modes?: Record<string, string | null>;
+  /** Per-symbol entry branch selection (v82) */
+  pair_entry_branches?: Record<string, string | null>;
 }
 
 export type SlotDisplayState =
@@ -211,6 +215,8 @@ export interface DDirectionEvidence {
   d_direction: "BUY" | "SELL" | "WAIT";
   d_state: string;
   discovery_rule: string;
+  /** v82: source symbol for D (e.g. XAUUSD uses GBPUSD as source) */
+  d_source_symbol?: string;
 }
 
 export interface H1SignalEvidence {
@@ -291,6 +297,10 @@ export interface DDirectionSymbolData {
   d_state: string;
   execution_status?: "ON" | "OFF";
   discovery_rule: string;
+  /** v82: symbol providing the D source candle (e.g. "GBPUSD" for XAUUSD) */
+  source_symbol?: string;
+  /** v82: broker-local open time of the H4 20:00 source candle */
+  source_open_time_broker?: string;
 }
 
 export interface DDirectionSnapshotV2 {

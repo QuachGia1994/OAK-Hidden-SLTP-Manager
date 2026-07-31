@@ -329,7 +329,7 @@ function DCandleSection({ dEvidence, locale }: { dEvidence?: DDirectionEvidence 
         <div><span className="text-[var(--muted)]">Session Date: </span><span className="font-bold">{dEvidence.session_date || dEvidence.target_date}</span></div>
         <div><span className="text-[var(--muted)]">D Direction: </span><span className="font-black text-[var(--foreground)]">{dDir}</span></div>
       </div>
-      <SingleCandleChart candle={candle} direction={dDir} label={`D M30 (${dEvidence.d_candle_open_time || "23:30"})`} />
+      <SingleCandleChart candle={candle} direction={dDir} label={`D H4 20:00 (${dEvidence.d_candle_open_time || "20:00"})`} />
     </div>
   );
 }

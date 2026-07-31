@@ -100,7 +100,7 @@ export function DDirectionDrawer({ symbolData, open, onClose }: Props) {
                 <div className="font-bold text-[var(--foreground)]">{symbolData.d_state}</div>
               </div>
               <div>
-                <div className="text-[var(--muted)] text-[10px]">Broker M30 Window</div>
+                <div className="text-[var(--muted)] text-[10px]">H4 20:00 Broker Window</div>
                 <div className="font-bold text-[var(--foreground)]">
                   {symbolData.d_candle_open_time_broker || "—"} → {symbolData.d_candle_close_time_broker || "—"}
                 </div>
@@ -117,7 +117,15 @@ export function DDirectionDrawer({ symbolData, open, onClose }: Props) {
           {/* SECTION: CANDLE CHART & OHLC */}
           <section className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)]/60 p-4 space-y-3">
             <div className="flex items-center justify-between text-[11px] font-bold">
-              <span>LAST COMPLETED M30 CANDLE</span>
+              <span>
+                {locale === "VN"
+                  ? symbolData.symbol === "XAUUSD"
+                    ? "Nguồn D: GBPUSD H4 20:00"
+                    : `Nguồn D: ${symbolData.symbol} H4 20:00`
+                  : symbolData.symbol === "XAUUSD"
+                    ? "D Source: GBPUSD H4 20:00"
+                    : `D Source: ${symbolData.symbol} H4 20:00`}
+              </span>
               <span style={{ color }}>{symbolData.raw_direction || symbolData.d_direction}</span>
             </div>
 

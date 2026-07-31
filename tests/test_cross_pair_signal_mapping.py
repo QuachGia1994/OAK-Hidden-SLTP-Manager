@@ -1,4 +1,4 @@
-"""D-Direction + Day Mode signal engine: each pair uses its own D independently (v80)."""
+"""D-Direction + Day Mode signal engine: each pair uses its own D independently (v82)."""
 
 import unittest
 from datetime import datetime
@@ -14,16 +14,17 @@ from mt5_signal_bot import (
 
 def _d_dirs(xau="BUY", gbpusd="SELL", gbpaud="BUY", gbpjpy="SELL", gbpcad="BUY"):
     return {
-        "XAUUSD": {"d_direction": xau, "d_state": "READY", "symbol": "XAUUSD"},
-        "GBPUSD": {"d_direction": gbpusd, "d_state": "READY", "symbol": "GBPUSD"},
-        "GBPAUD": {"d_direction": gbpaud, "d_state": "READY", "symbol": "GBPAUD"},
-        "GBPJPY": {"d_direction": gbpjpy, "d_state": "READY", "symbol": "GBPJPY"},
-        "GBPCAD": {"d_direction": gbpcad, "d_state": "READY", "symbol": "GBPCAD"},
+        "XAUUSD": {"d_direction": xau, "d_state": "READY", "symbol": "XAUUSD", "source_symbol": "GBPUSD", "timeframe": "H4"},
+        "GBPUSD": {"d_direction": gbpusd, "d_state": "READY", "symbol": "GBPUSD", "source_symbol": "GBPUSD", "timeframe": "H4"},
+        "GBPAUD": {"d_direction": gbpaud, "d_state": "READY", "symbol": "GBPAUD", "source_symbol": "GBPAUD", "timeframe": "H4"},
+        "GBPJPY": {"d_direction": gbpjpy, "d_state": "READY", "symbol": "GBPJPY", "source_symbol": "GBPJPY", "timeframe": "H4"},
+        "GBPCAD": {"d_direction": gbpcad, "d_state": "READY", "symbol": "GBPCAD", "source_symbol": "GBPCAD", "timeframe": "H4"},
     }
 
 
-def _timing(entry_time):
+def _timing(entry_time, symbol="XAUUSD"):
     return {
+        "symbol": symbol,
         "entry_time": entry_time,
         "entry_state": "READY",
         "layer1": {"group": "BT"},
@@ -32,8 +33,17 @@ def _timing(entry_time):
     }
 
 
+def _symbol_timing(symbol, entry_time):
+    """Return timing dict for any symbol."""
+    return _timing(entry_time, symbol=symbol)
+
+
+# Use Monday July 27 to avoid final inversion rules (Wed/Thu at H3, Tue/Wed/Fri at H16, Tue/Wed at H14)
+_MONDAY = datetime(2026, 7, 27)
+
+
 class CrossPairSignalMappingTests(unittest.TestCase):
-    """In v80, each pair uses its own D-Direction independently via Day Mode."""
+    """In v82, each pair uses its own D-Direction independently via Day Mode + independent M30 entry."""
 
     @patch("mt5_signal_bot.BROKER_CLOCK")
     def test_h3_all_pairs_use_own_d_with_day_mode_h11(self, mock_clock):
@@ -41,9 +51,9 @@ class CrossPairSignalMappingTests(unittest.TestCase):
         mode = DayMode(mode="DAY_MODE_H11", source_hour=3, source_entry_time="03:11", source_branch="H_11")
         with (
             patch("mt5_signal_bot.calculate_all_d_directions", return_value=_d_dirs()),
-            patch("mt5_signal_bot.evaluate_xau_entry_timing_m30", return_value=_timing("03:11")),
+            patch("mt5_signal_bot.evaluate_symbol_entry_timing_m30", side_effect=lambda sym, *a, **kw: _symbol_timing(sym, "03:11")),
         ):
-            result = evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 3), 3, day_mode=mode)
+            result = evaluate_all_pairs_for_slot(_MONDAY.replace(hour=3), 3, day_mode=mode)
 
         # H_11 matches DAY_MODE_H11 → KEEP_D for all pairs
         self.assertEqual(result["pair_dirs"]["XAUUSD"], "BUY")
@@ -57,9 +67,9 @@ class CrossPairSignalMappingTests(unittest.TestCase):
         mode = DayMode(mode="DAY_MODE_H11", source_hour=3, source_entry_time="03:11", source_branch="H_11")
         with (
             patch("mt5_signal_bot.calculate_all_d_directions", return_value=_d_dirs(xau="BUY", gbpusd="SELL")),
-            patch("mt5_signal_bot.evaluate_xau_entry_timing_m30", return_value=_timing("07:11")),
+            patch("mt5_signal_bot.evaluate_symbol_entry_timing_m30", side_effect=lambda sym, *a, **kw: _symbol_timing(sym, "07:11")),
         ):
-            result = evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 7), 7, day_mode=mode)
+            result = evaluate_all_pairs_for_slot(_MONDAY.replace(hour=7), 7, day_mode=mode)
 
         # XAUUSD D=BUY, KEEP_D → BUY
         self.assertEqual(result["pair_dirs"]["XAUUSD"], "BUY")
@@ -72,9 +82,9 @@ class CrossPairSignalMappingTests(unittest.TestCase):
         mode = DayMode(mode="DAY_MODE_H11", source_hour=3, source_entry_time="03:11", source_branch="H_11")
         with (
             patch("mt5_signal_bot.calculate_all_d_directions", return_value=_d_dirs()),
-            patch("mt5_signal_bot.evaluate_xau_entry_timing_m30", return_value=_timing("12:11")),
+            patch("mt5_signal_bot.evaluate_symbol_entry_timing_m30", side_effect=lambda sym, *a, **kw: _symbol_timing(sym, "12:11")),
         ):
-            result = evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 12), 12, day_mode=mode)
+            result = evaluate_all_pairs_for_slot(_MONDAY.replace(hour=12), 12, day_mode=mode)
 
         # Each pair uses its own D independently
         self.assertEqual(result["pair_dirs"]["XAUUSD"], "BUY")

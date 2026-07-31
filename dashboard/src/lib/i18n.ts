@@ -56,6 +56,8 @@ export const localeLabels = {
     xauOnly: "Chỉ Vàng",
     lockedBadge: "Khóa",
     xauReverse: "Đảo signal ra Vàng",
+    dDirectionH4Source: "Nến H4 mở 20:00 Broker",
+    missingH4_20: "Thiếu H4 20:00",
     dateTimeFormat: "vi-VN",
   },
   EN: {
@@ -88,6 +90,8 @@ export const localeLabels = {
     xauOnly: "XAU only",
     lockedBadge: "Locked",
     xauReverse: "Reverse to gold",
+    dDirectionH4Source: "H4 opened at 20:00 Broker",
+    missingH4_20: "Missing H4 20:00",
     dateTimeFormat: "en-US",
   },
 } as const;

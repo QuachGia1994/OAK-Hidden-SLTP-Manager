@@ -8,10 +8,19 @@ class TestH3AllFivePairs(unittest.TestCase):
         self.assertIn("GBPUSD", evaluated)
         self.assertEqual(len(evaluated), 5)
 
-    def test_h3_gbp_entry_plan(self) -> None:
-        self.assertEqual(mt5_signal_bot.deferred_gbp_entry_time("03:11"), "04:00")
-        self.assertEqual(mt5_signal_bot.deferred_gbp_entry_time("03:49"), "04:00")
-        self.assertEqual(mt5_signal_bot.deferred_gbp_entry_time("04:49"), "05:00")
+    def test_entry_timing_symbols_include_all_pairs(self) -> None:
+        """All 5 symbols run independent entry timing in v82."""
+        self.assertEqual(
+            mt5_signal_bot.ENTRY_TIMING_SYMBOLS,
+            ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"),
+        )
+
+    def test_no_deferred_gbp_import(self) -> None:
+        """deferred_gbp_entry_time is no longer imported in the bot."""
+        self.assertFalse(
+            hasattr(mt5_signal_bot, "deferred_gbp_entry_time"),
+            "deferred_gbp_entry_time should not be imported in bot module",
+        )
 
     def test_no_deferred_to_h7_in_bot(self) -> None:
         with open("mt5_signal_bot.py", "r", encoding="utf-8") as f:

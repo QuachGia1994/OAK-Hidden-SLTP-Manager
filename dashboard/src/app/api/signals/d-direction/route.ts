@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         schema_version: 2,
-        logic_version: 81,
+        logic_version: 82,
         target_local_date: date || new Date().toISOString().slice(0, 10),
         target_broker_date: date || new Date().toISOString().slice(0, 10),
         published_at_utc: "",

@@ -1,11 +1,11 @@
 {
   "2026-07-31": {
-    "schema_version": 2,
-    "logic_version": 81,
+    "schema_version": 4,
+    "logic_version": 82,
     "target_local_date": "2026-07-31",
     "target_broker_date": "2026-07-31",
-    "published_at_utc": "2026-07-31T00:44:55.537461+00:00",
-    "published_at_local": "2026-07-31T07:44:55.537461+07:00",
+    "published_at_utc": "2026-07-31T02:40:11.752005+00:00",
+    "published_at_local": "2026-07-31T09:40:11.752005+07:00",
     "publication_timezone": "Asia/Ho_Chi_Minh",
     "publication_rule": "DAILY_AT_06_00_LOCAL",
     "broker_utc_offset": null,
@@ -13,30 +13,32 @@
     "symbols": {
       "XAUUSD": {
         "symbol": "XAUUSD",
-        "timeframe": "M30",
+        "source_symbol": "GBPUSD",
+        "timeframe": "H4",
         "target_date": "2026-07-31",
         "session_date": null,
-        "d_candle_open_time": null,
+        "source_open_time_broker": "20:00",
         "d_candle_open_time_broker": null,
         "d_candle_close_time_broker": null,
         "d_candle_open_at_utc": null,
         "d_candle_close_at_utc": null,
         "d_candle_open_time_local": null,
         "d_candle_close_time_local": null,
-        "price_digits": 2,
+        "price_digits": 5,
         "candle": null,
         "raw_direction": null,
         "d_direction": "WAIT",
         "d_state": "MISSING",
         "execution_status": "ON",
-        "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION"
+        "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00"
       },
       "GBPUSD": {
         "symbol": "GBPUSD",
-        "timeframe": "M30",
+        "source_symbol": "GBPUSD",
+        "timeframe": "H4",
         "target_date": "2026-07-31",
         "session_date": null,
-        "d_candle_open_time": null,
+        "source_open_time_broker": "20:00",
         "d_candle_open_time_broker": null,
         "d_candle_close_time_broker": null,
         "d_candle_open_at_utc": null,
@@ -49,14 +51,15 @@
         "d_direction": "WAIT",
         "d_state": "MISSING",
         "execution_status": "ON",
-        "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION"
+        "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00"
       },
       "GBPAUD": {
         "symbol": "GBPAUD",
-        "timeframe": "M30",
+        "source_symbol": "GBPAUD",
+        "timeframe": "H4",
         "target_date": "2026-07-31",
         "session_date": null,
-        "d_candle_open_time": null,
+        "source_open_time_broker": "20:00",
         "d_candle_open_time_broker": null,
         "d_candle_close_time_broker": null,
         "d_candle_open_at_utc": null,
@@ -69,14 +72,15 @@
         "d_direction": "WAIT",
         "d_state": "MISSING",
         "execution_status": "ON",
-        "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION"
+        "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00"
       },
       "GBPJPY": {
         "symbol": "GBPJPY",
-        "timeframe": "M30",
+        "source_symbol": "GBPJPY",
+        "timeframe": "H4",
         "target_date": "2026-07-31",
         "session_date": null,
-        "d_candle_open_time": null,
+        "source_open_time_broker": "20:00",
         "d_candle_open_time_broker": null,
         "d_candle_close_time_broker": null,
         "d_candle_open_at_utc": null,
@@ -89,14 +93,15 @@
         "d_direction": "WAIT",
         "d_state": "MISSING",
         "execution_status": "OFF",
-        "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION"
+        "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00"
       },
       "GBPCAD": {
         "symbol": "GBPCAD",
-        "timeframe": "M30",
+        "source_symbol": "GBPCAD",
+        "timeframe": "H4",
         "target_date": "2026-07-31",
         "session_date": null,
-        "d_candle_open_time": null,
+        "source_open_time_broker": "20:00",
         "d_candle_open_time_broker": null,
         "d_candle_close_time_broker": null,
         "d_candle_open_at_utc": null,
@@ -109,7 +114,7 @@
         "d_direction": "WAIT",
         "d_state": "MISSING",
         "execution_status": "OFF",
-        "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION"
+        "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00"
       }
     }
   }

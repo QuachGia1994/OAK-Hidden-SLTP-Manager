@@ -11,6 +11,7 @@ from mt5_signal_bot import (
     HO_CHI_MINH_TZ,
     D_PUBLICATION_LOCAL_HOUR,
     D_PUBLICATION_LOCAL_MINUTE,
+    D_DIRECTION_SCHEMA_VERSION,
 )
 
 
@@ -49,47 +50,77 @@ class TestDPublicationEngine(unittest.TestCase):
             "XAUUSD": {
                 "d_direction": "SELL",
                 "d_state": "READY",
+                "source_symbol": "GBPUSD",
                 "session_date": "2026-07-30",
-                "d_candle_open_time": "2026-07-30T19:30:00Z",
+                "d_candle_open_time_broker": "20:00",
+                "d_candle_close_time_broker": "00:00",
+                "d_candle_open_at_utc": "2026-07-30T17:00:00+00:00",
+                "d_candle_close_at_utc": "2026-07-30T21:00:00+00:00",
+                "d_candle_open_time_local": "03:00",
+                "d_candle_close_time_local": "07:00",
                 "candle": {"open": 2380.5, "high": 2382.1, "low": 2379.0, "close": 2381.2},
-                "d_candle_direction": "GIAM",
+                "raw_direction": "GIAM",
             },
             "GBPUSD": {
                 "d_direction": "BUY",
                 "d_state": "READY",
+                "source_symbol": "GBPUSD",
                 "session_date": "2026-07-30",
-                "d_candle_open_time": "2026-07-30T19:30:00Z",
+                "d_candle_open_time_broker": "20:00",
+                "d_candle_close_time_broker": "00:00",
+                "d_candle_open_at_utc": "2026-07-30T17:00:00+00:00",
+                "d_candle_close_at_utc": "2026-07-30T21:00:00+00:00",
+                "d_candle_open_time_local": "03:00",
+                "d_candle_close_time_local": "07:00",
                 "candle": {"open": 1.2850, "high": 1.2890, "low": 1.2840, "close": 1.2880},
-                "d_candle_direction": "TANG",
+                "raw_direction": "TANG",
             },
             "GBPAUD": {
                 "d_direction": "BUY",
                 "d_state": "READY",
+                "source_symbol": "GBPAUD",
                 "session_date": "2026-07-30",
-                "d_candle_open_time": "2026-07-30T19:30:00Z",
+                "d_candle_open_time_broker": "20:00",
+                "d_candle_close_time_broker": "00:00",
+                "d_candle_open_at_utc": "2026-07-30T17:00:00+00:00",
+                "d_candle_close_at_utc": "2026-07-30T21:00:00+00:00",
+                "d_candle_open_time_local": "03:00",
+                "d_candle_close_time_local": "07:00",
                 "candle": {"open": 1.9500, "high": 1.9550, "low": 1.9490, "close": 1.9540},
-                "d_candle_direction": "TANG",
+                "raw_direction": "TANG",
             },
             "GBPJPY": {
                 "d_direction": "WAIT",
                 "d_state": "DOJI",
+                "source_symbol": "GBPJPY",
                 "session_date": "2026-07-30",
-                "d_candle_open_time": "2026-07-30T19:30:00Z",
+                "d_candle_open_time_broker": "20:00",
+                "d_candle_close_time_broker": "00:00",
+                "d_candle_open_at_utc": "2026-07-30T17:00:00+00:00",
+                "d_candle_close_at_utc": "2026-07-30T21:00:00+00:00",
+                "d_candle_open_time_local": "03:00",
+                "d_candle_close_time_local": "07:00",
                 "candle": {"open": 200.50, "high": 201.00, "low": 200.00, "close": 200.50},
-                "d_candle_direction": "DOJI",
+                "raw_direction": "DOJI",
             },
             "GBPCAD": {
                 "d_direction": "SELL",
                 "d_state": "READY",
+                "source_symbol": "GBPCAD",
                 "session_date": "2026-07-30",
-                "d_candle_open_time": "2026-07-30T19:30:00Z",
+                "d_candle_open_time_broker": "20:00",
+                "d_candle_close_time_broker": "00:00",
+                "d_candle_open_at_utc": "2026-07-30T17:00:00+00:00",
+                "d_candle_close_at_utc": "2026-07-30T21:00:00+00:00",
+                "d_candle_open_time_local": "03:00",
+                "d_candle_close_time_local": "07:00",
                 "candle": {"open": 1.7500, "high": 1.7520, "low": 1.7480, "close": 1.7490},
-                "d_candle_direction": "GIAM",
+                "raw_direction": "GIAM",
             },
         }
 
         snapshot = build_d_direction_snapshot_v2("2026-07-31", "2026-07-31")
-        self.assertEqual(snapshot["schema_version"], 2)
+        self.assertEqual(snapshot["schema_version"], D_DIRECTION_SCHEMA_VERSION)
         self.assertEqual(snapshot["target_local_date"], "2026-07-31")
         self.assertEqual(snapshot["publication_timezone"], "Asia/Ho_Chi_Minh")
         self.assertEqual(snapshot["publication_rule"], "DAILY_AT_06_00_LOCAL")
@@ -105,13 +136,13 @@ class TestDPublicationEngine(unittest.TestCase):
         # Check symbol metadata
         xau = snapshot["symbols"]["XAUUSD"]
         self.assertEqual(xau["d_direction"], "SELL")
-        self.assertEqual(xau["price_digits"], 2)
+        self.assertEqual(xau["source_symbol"], "GBPUSD")
+        self.assertEqual(xau["timeframe"], "H4")
         self.assertEqual(xau["execution_status"], "ON")
 
         jpy = snapshot["symbols"]["GBPJPY"]
         self.assertEqual(jpy["d_direction"], "WAIT")
         self.assertEqual(jpy["d_state"], "DOJI")
-        self.assertEqual(jpy["price_digits"], 3)
         self.assertEqual(jpy["execution_status"], "OFF")
 
     @patch("mt5_signal_bot._STATE_FILE", "tests_tmp_state.json")

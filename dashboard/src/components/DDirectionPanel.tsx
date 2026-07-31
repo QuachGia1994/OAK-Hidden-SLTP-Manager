@@ -181,9 +181,19 @@ function DDirectionCard({
           </div>
 
           <div className="flex justify-between text-[10px]">
-            <span className="text-[var(--muted)]">M30 Broker:</span>
+            <span className="text-[var(--muted)]">H4 20:00:</span>
             <span className="font-mono font-bold text-[var(--foreground)]">
               {data?.d_candle_open_time_broker || "—"} → {data?.d_candle_close_time_broker || "—"}
+            </span>
+          </div>
+          <div className="flex justify-between text-[10px]">
+            <span className="text-[var(--muted)]">
+              {locale === "EN" ? "Source:" : "Nguồn:"}
+            </span>
+            <span className="font-mono font-bold text-[var(--terminal-accent)]">
+              {symbol === "XAUUSD"
+                ? "GBPUSD H4 20:00"
+                : `${symbol} H4 20:00`}
             </span>
           </div>
 

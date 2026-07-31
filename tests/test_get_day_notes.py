@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Unit tests for the current daily rule notes."""
+"""Unit tests for the current daily rule notes (v82)."""
 from datetime import date
 import unittest
 
 from oak_trading_reminders import _friday_of_same_week, get_day_notes
 
 class TestGetDayNotes(unittest.TestCase):
-    def test_weekday_notes_v80(self):
+    def test_weekday_notes_v82(self):
         for day in (
             date(2025, 4, 28),
             date(2025, 4, 29),
@@ -19,7 +19,8 @@ class TestGetDayNotes(unittest.TestCase):
                 self.assertIn("Entry Engine", blob)
                 self.assertIn("Signal Engine", blob)
                 self.assertIn("D-Direction", blob)
-                self.assertIn("giờ tròn H+1:00", blob)
+                self.assertIn("M30", blob)
+                self.assertIn("H4", blob)
                 self.assertIn("GBPJPY và GBPCAD tạm Tắt (OFF)", blob)
 
     def test_weekend_has_no_schedule(self):

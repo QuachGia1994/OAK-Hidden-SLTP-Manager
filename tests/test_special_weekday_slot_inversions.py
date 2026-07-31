@@ -1,4 +1,11 @@
-"""Wednesday H14 and Friday H3/H7/H12/H14 extra inversions (v80)."""
+"""Legacy weekday slot inversion tests — replaced by test_new_final_inversions.py (v82).
+
+The old WEDNESDAY_H14_EXTRA_REVERSE and FRIDAY_H3_H7_H12_H14_EXTRA_REVERSE rules
+have been replaced by 3 new rules in v82:
+- H3_WED_THU_D_EXTRA_REVERSE
+- H14_TUE_WED_EXTRA_REVERSE
+- H16_TUE_WED_FRI_D_EXTRA_REVERSE
+"""
 
 import unittest
 from datetime import date
@@ -6,20 +13,20 @@ from datetime import date
 from mt5_signal_bot import apply_weekday_slot_inversion
 
 
-class WeekdaySlotInversionTests(unittest.TestCase):
+class LegacyWeekdaySlotInversionTests(unittest.TestCase):
+    """Updated tests using the v82 rule names via the legacy wrapper."""
+
     def test_wednesday_h14_reverses_buy(self):
-        # Wednesday = weekday 2
         wed = date(2026, 7, 29)
-        self.assertEqual(wed.weekday(), 2)
         result, rule = apply_weekday_slot_inversion("BUY", wed, 14)
         self.assertEqual(result, "SELL")
-        self.assertEqual(rule, "WEDNESDAY_H14_EXTRA_REVERSE")
+        self.assertEqual(rule, "H14_TUE_WED_EXTRA_REVERSE")
 
     def test_wednesday_h14_reverses_sell(self):
         wed = date(2026, 7, 29)
         result, rule = apply_weekday_slot_inversion("SELL", wed, 14)
         self.assertEqual(result, "BUY")
-        self.assertEqual(rule, "WEDNESDAY_H14_EXTRA_REVERSE")
+        self.assertEqual(rule, "H14_TUE_WED_EXTRA_REVERSE")
 
     def test_wednesday_h12_no_inversion(self):
         wed = date(2026, 7, 29)
@@ -27,57 +34,64 @@ class WeekdaySlotInversionTests(unittest.TestCase):
         self.assertEqual(result, "BUY")
         self.assertIsNone(rule)
 
-    def test_friday_h3_reverses(self):
+    def test_friday_h3_no_longer_reverses(self):
+        """Friday H3 is NO LONGER inverted in v82."""
         fri = date(2026, 7, 31)
-        self.assertEqual(fri.weekday(), 4)
         result, rule = apply_weekday_slot_inversion("BUY", fri, 3)
-        self.assertEqual(result, "SELL")
-        self.assertEqual(rule, "FRIDAY_H3_H7_H12_H14_EXTRA_REVERSE")
+        self.assertEqual(result, "BUY")
+        self.assertIsNone(rule)
 
-    def test_friday_h7_reverses(self):
+    def test_friday_h7_no_longer_reverses(self):
         fri = date(2026, 7, 31)
         result, rule = apply_weekday_slot_inversion("SELL", fri, 7)
-        self.assertEqual(result, "BUY")
-        self.assertEqual(rule, "FRIDAY_H3_H7_H12_H14_EXTRA_REVERSE")
+        self.assertEqual(result, "SELL")
+        self.assertIsNone(rule)
 
-    def test_friday_h12_reverses(self):
+    def test_friday_h12_no_longer_reverses(self):
         fri = date(2026, 7, 31)
         result, rule = apply_weekday_slot_inversion("BUY", fri, 12)
-        self.assertEqual(result, "SELL")
-        self.assertEqual(rule, "FRIDAY_H3_H7_H12_H14_EXTRA_REVERSE")
+        self.assertEqual(result, "BUY")
+        self.assertIsNone(rule)
 
-    def test_friday_h14_reverses(self):
+    def test_friday_h14_no_longer_reverses(self):
         fri = date(2026, 7, 31)
         result, rule = apply_weekday_slot_inversion("SELL", fri, 14)
-        self.assertEqual(result, "BUY")
-        self.assertEqual(rule, "FRIDAY_H3_H7_H12_H14_EXTRA_REVERSE")
+        self.assertEqual(result, "SELL")
+        self.assertIsNone(rule)
 
     def test_friday_h9_no_inversion(self):
-        """Friday H9 is NOT inverted."""
         fri = date(2026, 7, 31)
         result, rule = apply_weekday_slot_inversion("BUY", fri, 9)
         self.assertEqual(result, "BUY")
         self.assertIsNone(rule)
 
-    def test_friday_h16_no_inversion(self):
-        """Friday H16 is NOT inverted."""
+    def test_friday_h16_reverses(self):
+        """Friday H16 IS inverted in v82 (new rule)."""
         fri = date(2026, 7, 31)
         result, rule = apply_weekday_slot_inversion("BUY", fri, 16)
-        self.assertEqual(result, "BUY")
-        self.assertIsNone(rule)
+        self.assertEqual(result, "SELL")
+        self.assertEqual(rule, "H16_TUE_WED_FRI_D_EXTRA_REVERSE")
 
-    def test_thursday_no_inversion(self):
-        thu = date(2026, 7, 30)
-        self.assertEqual(thu.weekday(), 3)
-        result, rule = apply_weekday_slot_inversion("BUY", thu, 14)
-        self.assertEqual(result, "BUY")
-        self.assertIsNone(rule)
-
-    def test_wait_not_inverted(self):
+    def test_wednesday_h3_reverses(self):
+        """Wednesday H3 IS inverted in v82 (new rule)."""
         wed = date(2026, 7, 29)
-        result, rule = apply_weekday_slot_inversion("WAIT", wed, 14)
-        self.assertEqual(result, "WAIT")
-        self.assertIsNone(rule)
+        result, rule = apply_weekday_slot_inversion("BUY", wed, 3)
+        self.assertEqual(result, "SELL")
+        self.assertEqual(rule, "H3_WED_THU_D_EXTRA_REVERSE")
+
+    def test_tuesday_h14_reverses(self):
+        """Tuesday H14 IS inverted in v82 (new rule)."""
+        tue = date(2026, 7, 28)
+        result, rule = apply_weekday_slot_inversion("SELL", tue, 14)
+        self.assertEqual(result, "BUY")
+        self.assertEqual(rule, "H14_TUE_WED_EXTRA_REVERSE")
+
+    def test_tuesday_h16_reverses(self):
+        """Tuesday H16 IS inverted in v82 (new rule)."""
+        tue = date(2026, 7, 28)
+        result, rule = apply_weekday_slot_inversion("BUY", tue, 16)
+        self.assertEqual(result, "SELL")
+        self.assertEqual(rule, "H16_TUE_WED_FRI_D_EXTRA_REVERSE")
 
 
 if __name__ == "__main__":

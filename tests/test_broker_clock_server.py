@@ -1,4 +1,4 @@
-"""MT4/MT5 comparison server tests for the v72 timing contract."""
+"""MT4/MT5 comparison server tests for the v82 timing contract."""
 
 import tempfile
 import unittest
@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch
 
 import mt4_mt5_server
+from domain.signal_rules import deferred_gbp_entry_time
 
 
 PAIR_DIRS = {
@@ -37,6 +38,11 @@ def _payload():
 
 def _context():
     return mt4_mt5_server.calculate_context(12, PAIR_DIRS, PAIR_ENTRIES, PAIR_GROUPS)
+
+
+# Patch target: mt5_signal_bot (imported as signal_engine in mt4_mt5_server) no longer has
+# deferred_gbp_entry_time. We inject it from domain.signal_rules using create=True.
+_PATCH_TARGET = "mt5_signal_bot.deferred_gbp_entry_time"
 
 
 class BrokerClockServerTests(unittest.TestCase):
@@ -72,6 +78,7 @@ class BrokerClockServerTests(unittest.TestCase):
                 patch.object(mt4_mt5_server, "get_broker_time", return_value=broker_dt),
                 patch.object(mt4_mt5_server, "fetch_mt5_data", return_value=_context()),
                 patch.object(mt4_mt5_server, "send_telegram", return_value=b"ok") as send,
+                patch(_PATCH_TARGET, deferred_gbp_entry_time, create=True),
             ):
                 client = mt4_mt5_server.app.test_client()
                 first = client.post("/mt4_data", json=_payload())
@@ -81,6 +88,7 @@ class BrokerClockServerTests(unittest.TestCase):
         self.assertEqual(duplicate.get_json()["status"], "duplicate")
         send.assert_called_once()
 
+    @patch(_PATCH_TARGET, deferred_gbp_entry_time, create=True)
     def test_payload_rejects_gbp_entry_not_deferred_from_xau(self) -> None:
         payload = _payload()
         payload["gbpusd_entry"] = "12:49"
@@ -98,12 +106,13 @@ class BrokerClockServerTests(unittest.TestCase):
                 gbp_entry = f"{slot + 1:02d}:00"
                 entries = {symbol: gbp_entry for symbol in mt4_mt5_server.SIGNAL_PAIRS}
                 entries["XAUUSD"] = xau_entry
-                self.assertIsNone(mt4_mt5_server._payload_contract_error(slot, directions, entries))
-                directions["XAUUSD"] = "SELL" if xau_direction == "BUY" else "BUY"
-                self.assertEqual(
-                    mt4_mt5_server._payload_contract_error(slot, directions, entries),
-                    "XAUUSD signal does not follow slot GBPAUD mapping",
-                )
+                with patch(_PATCH_TARGET, deferred_gbp_entry_time, create=True):
+                    self.assertIsNone(mt4_mt5_server._payload_contract_error(slot, directions, entries))
+                    directions["XAUUSD"] = "SELL" if xau_direction == "BUY" else "BUY"
+                    self.assertEqual(
+                        mt4_mt5_server._payload_contract_error(slot, directions, entries),
+                        "XAUUSD signal does not follow slot GBPAUD mapping",
+                    )
 
     def test_wait_is_retryable_without_telegram(self) -> None:
         payload = _payload()
@@ -115,7 +124,9 @@ class BrokerClockServerTests(unittest.TestCase):
             mt4_mt5_server, "_delivery_state_path", f"{temp_dir}/state.json"
         ), patch.object(
             mt4_mt5_server, "get_broker_time", return_value=datetime(2026, 8, 6, 12, 5)
-        ), patch.object(mt4_mt5_server, "send_telegram") as send:
+        ), patch.object(mt4_mt5_server, "send_telegram") as send, patch(
+            _PATCH_TARGET, deferred_gbp_entry_time, create=True
+        ):
             response = mt4_mt5_server.app.test_client().post("/mt4_data", json=payload)
         self.assertEqual(response.status_code, 425)
         self.assertEqual(response.get_json()["reason"], "MT4_WAIT")
@@ -129,7 +140,9 @@ class BrokerClockServerTests(unittest.TestCase):
             mt4_mt5_server, "_delivery_state_path", f"{temp_dir}/state.json"
         ), patch.object(
             mt4_mt5_server, "get_broker_time", return_value=datetime(2026, 8, 6, 12, 5)
-        ), patch.object(mt4_mt5_server, "send_telegram") as send:
+        ), patch.object(mt4_mt5_server, "send_telegram") as send, patch(
+            _PATCH_TARGET, deferred_gbp_entry_time, create=True
+        ):
             response = mt4_mt5_server.app.test_client().post("/mt4_data", json=payload)
         self.assertEqual(response.status_code, 425)
         self.assertEqual(response.get_json()["reason"], "MT4_WAIT")
@@ -146,6 +159,7 @@ class BrokerClockServerTests(unittest.TestCase):
                 patch.object(mt4_mt5_server, "get_broker_time", return_value=datetime(2026, 8, 6, 12, 5)),
                 patch.object(mt4_mt5_server, "fetch_mt5_data", return_value=mt5_context),
                 patch.object(mt4_mt5_server, "send_telegram") as send,
+                patch(_PATCH_TARGET, deferred_gbp_entry_time, create=True),
             ):
                 response = mt4_mt5_server.app.test_client().post("/mt4_data", json=_payload())
         self.assertEqual(response.status_code, 425)

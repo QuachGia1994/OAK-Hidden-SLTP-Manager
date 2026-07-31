@@ -18,11 +18,11 @@ from mt5_signal_bot import (
 
 def _fixture_d_dirs():
     return {
-        "XAUUSD": {"d_direction": "SELL", "d_state": "READY", "symbol": "XAUUSD"},
-        "GBPUSD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPUSD"},
-        "GBPAUD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPAUD"},
-        "GBPJPY": {"d_direction": "WAIT", "d_state": "DOJI", "symbol": "GBPJPY"},
-        "GBPCAD": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPCAD"},
+        "XAUUSD": {"d_direction": "SELL", "d_state": "READY", "symbol": "XAUUSD", "source_symbol": "GBPUSD", "timeframe": "H4", "source_open_time_broker": "20:00"},
+        "GBPUSD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPUSD", "source_symbol": "GBPUSD", "timeframe": "H4", "source_open_time_broker": "20:00"},
+        "GBPAUD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPAUD", "source_symbol": "GBPAUD", "timeframe": "H4", "source_open_time_broker": "20:00"},
+        "GBPJPY": {"d_direction": "WAIT", "d_state": "DOJI", "symbol": "GBPJPY", "source_symbol": "GBPJPY", "timeframe": "H4", "source_open_time_broker": "20:00"},
+        "GBPCAD": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPCAD", "source_symbol": "GBPCAD", "timeframe": "H4", "source_open_time_broker": "20:00"},
     }
 
 
@@ -59,13 +59,19 @@ class DayModeMatrixTests(unittest.TestCase):
             with (
                 patch.object(mt5_signal_bot, "calculate_all_d_directions", return_value=d_dirs),
                 patch.object(mt5_signal_bot, "evaluate_xau_entry_timing_m30", return_value=_fixture_entry_timings(h)),
+                patch.object(mt5_signal_bot, "evaluate_symbol_entry_timing_m30", return_value=_fixture_entry_timings(h)),
                 patch.object(mt5_signal_bot.BROKER_CLOCK, "utc_offset_for_date", return_value=3),
             ):
-                rec, next_mode = _build_rebuild_record(
+                rec, next_modes = _build_rebuild_record(
                     target_date.replace(hour=h), h, day_mode=current_mode, d_directions=d_dirs
                 )
-                if next_mode is not None:
-                    current_mode = next_mode
+                if isinstance(next_modes, dict):
+                    # Use XAUUSD mode for backward compat
+                    xau_dm = next_modes.get("XAUUSD")
+                    if xau_dm is not None:
+                        current_mode = xau_dm
+                elif next_modes is not None:
+                    current_mode = next_modes
                 results[h] = rec
 
         # Assert Day Mode source is H3 04:25 H_PLUS_1_25 for all
@@ -76,12 +82,13 @@ class DayModeMatrixTests(unittest.TestCase):
             self.assertEqual(rec["day_mode_source_entry_time"], "04:25")
             self.assertEqual(rec["day_mode_source_branch"], "H_PLUS_1_25")
 
-        # H3: KEEP_D -> XAU: SELL, GBPUSD: BUY, GBPAUD: BUY
-        self.assertEqual(results[3]["pair_dirs"]["XAUUSD"], "SELL")
-        self.assertEqual(results[3]["pair_dirs"]["GBPUSD"], "BUY")
-        self.assertEqual(results[3]["pair_dirs"]["GBPAUD"], "BUY")
+        # H3: KEEP_D then Rule A (Thu H3 D-based) INVERT
+        # Primary: XAU=SELL, GBP=BUY, AUD=BUY → Invert → XAU=BUY, GBP=SELL, AUD=SELL
+        self.assertEqual(results[3]["pair_dirs"]["XAUUSD"], "BUY")
+        self.assertEqual(results[3]["pair_dirs"]["GBPUSD"], "SELL")
+        self.assertEqual(results[3]["pair_dirs"]["GBPAUD"], "SELL")
 
-        # H7: KEEP_D -> XAU: SELL, GBPUSD: BUY, GBPAUD: BUY
+        # H7: KEEP_D, no inversion on Thursday H7
         self.assertEqual(results[7]["pair_dirs"]["XAUUSD"], "SELL")
         self.assertEqual(results[7]["pair_dirs"]["GBPUSD"], "BUY")
         self.assertEqual(results[7]["pair_dirs"]["GBPAUD"], "BUY")

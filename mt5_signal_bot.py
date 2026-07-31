@@ -26,7 +26,6 @@ from telegram_client import telegram_get_me
 from domain.broker_clock import BrokerClock, BrokerClockError
 from domain.signal_rules import (
     classify_three_candle_group,
-    deferred_gbp_entry_time,
     derive_gbp_signal_from_layer1,
     select_two_layer_entry,
 )
@@ -154,18 +153,31 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 81
-ACTIVE_SIGNAL_LOGIC_VERSION = 81
-MINIMUM_SIGNAL_LOGIC_VERSION = 81
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 3
+SIGNAL_LOGIC_VERSION = 82
+ACTIVE_SIGNAL_LOGIC_VERSION = 82
+MINIMUM_SIGNAL_LOGIC_VERSION = 82
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 4
 LAYER3_CANDLE_GRACE_SECONDS = 90
-D_DIRECTION_SCHEMA_VERSION = 2
+D_DIRECTION_SCHEMA_VERSION = 4
+D_SESSION_POLICY = {
+    "normal_close_broker": "23:00",
+    "timeframe_minutes": 30,
+    "allow_early_close": True,
+}
 ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
 DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SIGNAL_PAIRS = ("XAUUSD", *GBP_SIGNAL_PAIRS)
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 EVIDENCE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
+ENTRY_TIMING_SYMBOLS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+D_SOURCE_SYMBOL = {
+    "XAUUSD": "GBPUSD",
+    "GBPUSD": "GBPUSD",
+    "GBPAUD": "GBPAUD",
+    "GBPJPY": "GBPJPY",
+    "GBPCAD": "GBPCAD",
+}
 
 
 def get_evaluated_pairs_for_hour(hour):
@@ -893,7 +905,7 @@ def push_to_dashboard(snapshot_complete: bool = False):
 
 
 def _dashboard_signal_evidence(broker_dt, hour, result):
-    """Build versioned two-layer M30 evidence records for the dashboard."""
+    """Build versioned evidence records for the dashboard (v82 per-symbol)."""
     pair_evidence = result.get("pair_evidence") or {}
     logic_version = result.get("logic_version", SIGNAL_LOGIC_VERSION)
     source_date = broker_dt.date().isoformat()
@@ -907,13 +919,9 @@ def _dashboard_signal_evidence(broker_dt, hour, result):
             "symbol": symbol,
             "entry_time": (result.get("pair_entry_times") or {}).get(symbol),
             "entry_state": (result.get("pair_entry_states") or {}).get(symbol),
-            "entry_rule": evidence.get("entry_rule") or (
-                "XAU_TWO_LAYER_M30" if symbol == "XAUUSD" else "NEXT_FULL_HOUR_AFTER_XAU"
-            ),
+            "entry_rule": evidence.get("entry_rule") or "INDEPENDENT_M30_ENGINE",
             "signal_state": (result.get("pair_signal_states") or {}).get(symbol),
         })
-        if symbol == "XAUUSD":
-            evidence["gbp_entry_time"] = deferred_gbp_entry_time(evidence.get("entry_time"))
         key = f"{source_date}:{int(hour)}:{symbol}:v{logic_version}"
         records[key] = evidence
     return records
@@ -1283,6 +1291,7 @@ ENTRY_PLAN_FIELDS = (
     "entry_rule",
     "pair_entry_times",
     "pair_entry_states",
+    "pair_entry_branches",
     "pair_signal_states",
     "pair_labels",
     "pair_entry_at_utc",
@@ -1298,6 +1307,11 @@ ENTRY_PLAN_FIELDS = (
     "day_mode_source_entry_time",
     "day_mode_source_branch",
     "day_mode_resolved_at",
+    "pair_day_modes",
+    "pair_day_mode_states",
+    "pair_day_mode_source_hours",
+    "pair_day_mode_source_entry_times",
+    "pair_day_mode_source_branches",
     "d_directions",
     "signal_engine",
     "evidence_schema_version",
@@ -1544,8 +1558,8 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
         f"MT5: {mt5_status} | Broker: {broker_time_str}\n"
         "Slots: H3 - H7 - H9 - H12 - H14 - H16\n"
         "Pairs: XAUUSD | GBPUSD | GBPAUD (GBPJPY/CAD: OFF)\n"
-        "Signal engine: Three-layer M30 (L1 GBP native, L2/3 XAU entry)\n"
-        "Entry: XAU L2 BT H:11 / L3 SW H:49 / L3 BT (H+1):25; GBP H+1:00\n"
+        "Signal engine: Independent M30 per symbol + H4 20:00 D\n"
+        "Entry: L2 BT H:11 / L3 SW H:49 / L3 BT (H+1):25\n"
         "Auto-close: XAU 17:59 | GBP 19:59 Broker"
     )
 
@@ -1613,7 +1627,7 @@ def _telegram_pair_line(symbol, direction, entry_time, broker_offset, source_dat
 
 
 def build_entry_ready_telegram_message(record, broker_dt=None):
-    """Build the v72 five-pair private-admin signal message."""
+    """Build the v82 per-pair signal message."""
     del broker_dt
     try:
         hour = int(record.get("hour"))
@@ -1625,15 +1639,17 @@ def build_entry_ready_telegram_message(record, broker_dt=None):
     entries = record.get("pair_entry_times") or {}
     source_date = record.get("source_date") or record.get("date") or ""
     broker_offset = record.get("broker_utc_offset")
+    exec_states = record.get("pair_entry_states") or {}
     lines = [f"🚨 SIGNAL READY · H{hour} · v{record.get('logic_version', SIGNAL_LOGIC_VERSION)}"]
-    for symbol in GBP_SIGNAL_PAIRS:
-        lines.append(_telegram_pair_line(symbol, directions.get(symbol, "WAIT"), entries.get(symbol), broker_offset, source_date))
-    lines.append(_telegram_pair_line("XAUUSD", directions.get("XAUUSD", "WAIT"), entries.get("XAUUSD"), broker_offset, source_date))
-    relation = "OPPOSITE" if hour in (3, 14, 16) else "SAME AS"
-    lines.append(
-        f"XAU direction: {relation} GBPAUD "
-        f"({directions.get('GBPAUD', 'WAIT')})"
-    )
+    for symbol in DISPLAY_SIGNAL_PAIRS:
+        dir_val = directions.get(symbol, "WAIT")
+        entry_val = entries.get(symbol)
+        exec_off = exec_states.get(symbol) == "DISABLED"
+        icon = "🟢" if dir_val == "BUY" else "🔴" if dir_val == "SELL" else "⚪"
+        entry = entry_val if entry_val else "WAIT"
+        local = _format_entry_local(entry_val, broker_offset, source_date)
+        suffix = " · EXEC OFF" if exec_off else ""
+        lines.append(f"{symbol}: {icon} {dir_val} · Entry {entry} Broker{local}{suffix}")
     return "\n".join(lines)
 
 
@@ -1821,6 +1837,91 @@ def find_previous_available_broker_session(symbol, target_broker_date):
     return max(broker_dates_with_bars)
 
 
+def find_previous_session_h4_20_candle(source_symbol, target_broker_date):
+    """Find the H4 candle with Broker open time exactly 20:00 from the previous available session.
+
+    Returns (candle_norm, session_date, broker_offset) or (None, None, None) if not found.
+    Does NOT fallback to H4 16:00 or M30 if 20:00 is missing.
+    """
+    session_date = find_previous_available_broker_session(source_symbol, target_broker_date)
+    if session_date is None:
+        return None, None, None
+
+    session_start = datetime.combine(session_date, datetime.min.time())
+    session_end = datetime.combine(session_date + timedelta(days=1), datetime.min.time())
+
+    try:
+        mt5.symbol_select(source_symbol, True)
+        rates = mt5.copy_rates_range(source_symbol, mt5.TIMEFRAME_H4, session_start, session_end)
+    except Exception:
+        return None, session_date, None
+
+    if rates is None or len(rates) == 0:
+        return None, session_date, None
+
+    try:
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(session_date)
+    except Exception:
+        return None, session_date, None
+
+    for row in rates:
+        norm = normalize_mt5_rate_row(row)
+        utc_dt = datetime.fromtimestamp(norm["time"], tz=timezone.utc)
+        broker_open = utc_dt + timedelta(hours=broker_offset)
+        if (broker_open.date() == session_date
+                and broker_open.hour == 20
+                and broker_open.minute == 0):
+            return norm, session_date, broker_offset
+
+    return None, session_date, broker_offset
+
+
+def _parse_broker_time_to_minutes(broker_time_str):
+    """Convert 'HH:MM' broker time string to minutes since midnight."""
+    if not broker_time_str or ":" not in str(broker_time_str):
+        return None
+    try:
+        parts = str(broker_time_str).split(":")
+        return int(parts[0]) * 60 + int(parts[1])
+    except (ValueError, TypeError):
+        return None
+
+
+def _session_close_minutes_from_policy(policy):
+    """Return normal session close in minutes from D_SESSION_POLICY."""
+    return _parse_broker_time_to_minutes(policy.get("normal_close_broker", "23:00"))
+
+
+def classify_session_state(session_date, session_bars, policy):
+    """Classify whether a session is complete, early-close, or incomplete.
+
+    Rules:
+    - exact normal D bar at normal_close_minutes - 30: SESSION_COMPLETE_NORMAL
+    - no normal bar, but last valid bar >= 18:30 and < normal D bar time: EARLY_CLOSE
+    - last valid bar < 18:30: HISTORY_INCOMPLETE, do NOT select early fake D
+    """
+    if not session_bars:
+        return "SESSION_MISSING", None, None
+
+    normal_close_minutes = _session_close_minutes_from_policy(policy)
+    earliest_incomplete_minutes = 18 * 60 + 30
+    normal_d_bar_minutes = None if normal_close_minutes is None else normal_close_minutes - 30
+
+    for broker_dt, norm in session_bars:
+        if not _valid_m30_ohlc(norm):
+            continue
+        bar_minutes = broker_dt.hour * 60 + broker_dt.minute
+        if normal_d_bar_minutes is not None and bar_minutes == normal_d_bar_minutes:
+            return "SESSION_COMPLETE_NORMAL", broker_dt, norm
+        if normal_d_bar_minutes is None or bar_minutes < normal_d_bar_minutes:
+            if bar_minutes < earliest_incomplete_minutes:
+                return "SESSION_HISTORY_INCOMPLETE", broker_dt, norm
+            return "SESSION_COMPLETE_EARLY_CLOSE", broker_dt, norm
+        return "SESSION_HISTORY_INCOMPLETE", broker_dt, norm
+
+    return "SESSION_INVALID", None, None
+
+
 def find_last_completed_m30_of_session(symbol, session_date):
     """Find the last valid completed M30 candle in a broker session."""
     session_start = datetime.combine(session_date, datetime.min.time())
@@ -1853,67 +1954,52 @@ def find_last_completed_m30_of_session(symbol, session_date):
 
     # Sort by broker time descending, find last valid bar
     session_bars.sort(key=lambda x: x[0], reverse=True)
-    for broker_dt, norm in session_bars:
-        if _valid_m30_ohlc(norm):
-            return norm, "READY"
+    session_state, selected_broker_dt, selected_norm = classify_session_state(
+        session_date, session_bars, D_SESSION_POLICY
+    )
+    if selected_norm is None:
+        return None, session_state
+    return selected_norm, session_state
 
-    return None, "INVALID"
 
+def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset):
+    """Build D-Direction evidence payload v4 from H4 20:00 candle."""
+    utc_open = datetime.fromtimestamp(candle["time"], tz=timezone.utc)
+    utc_close = utc_open + timedelta(hours=4)
+    broker_open = utc_open + timedelta(hours=broker_offset)
+    broker_close = utc_close + timedelta(hours=broker_offset)
+    local_open = broker_open + timedelta(hours=VN_UTC_OFFSET)
+    local_close = broker_close + timedelta(hours=VN_UTC_OFFSET)
 
-def calculate_d_direction(symbol, target_broker_date):
-    """Calculate D-Direction for one symbol on one target Broker date."""
-    cache_key = (target_broker_date.isoformat(), symbol)
-    if cache_key in _d_direction_cache:
-        return _d_direction_cache[cache_key]
-
-    session_date = find_previous_available_broker_session(symbol, target_broker_date)
-    if session_date is None:
-        result = {
-            "symbol": symbol,
-            "timeframe": "M30",
-            "target_date": target_broker_date.isoformat(),
-            "session_date": None,
-            "d_candle_direction": None,
-            "d_direction": "WAIT",
-            "d_state": "MISSING",
-            "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
-        }
-        _d_direction_cache[cache_key] = result
-        return result
-
-    candle, status = find_last_completed_m30_of_session(symbol, session_date)
-
-    if candle is None:
-        result = {
-            "symbol": symbol,
-            "timeframe": "M30",
-            "target_date": target_broker_date.isoformat(),
-            "session_date": session_date.isoformat(),
-            "d_candle_direction": None,
-            "d_direction": "WAIT",
-            "d_state": status,
-            "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
-        }
-        _d_direction_cache[cache_key] = result
-        return result
-
-    direction = _m30_candle_direction(candle)
+    direction = exact_candle_direction(candle)
     if direction == "TANG":
         d_dir = "BUY"
         d_state = "READY"
     elif direction == "GIAM":
         d_dir = "SELL"
         d_state = "READY"
-    else:  # DOJI
+    else:
         d_dir = "WAIT"
         d_state = "DOJI"
 
-    result = {
-        "symbol": symbol,
-        "timeframe": "M30",
+    return {
+        "schema_version": D_DIRECTION_SCHEMA_VERSION,
+        "symbol": target_symbol,
+        "source_symbol": source_symbol,
+        "timeframe": "H4",
         "target_date": target_broker_date.isoformat(),
-        "session_date": session_date.isoformat(),
-        "d_candle_open_time": datetime.fromtimestamp(candle["time"], tz=timezone.utc).isoformat(),
+        "session_date": session_date.isoformat() if session_date else None,
+        "source_open_time_broker": "20:00",
+        "source_open_at_utc": utc_open.isoformat(),
+        "d_candle_open_time_broker": f"{broker_open.hour:02d}:{broker_open.minute:02d}",
+        "d_candle_close_time_broker": f"{broker_close.hour:02d}:{broker_close.minute:02d}",
+        "d_candle_open_time_local": f"{local_open.hour:02d}:{local_open.minute:02d}",
+        "d_candle_close_time_local": f"{local_close.hour:02d}:{local_close.minute:02d}",
+        "broker_utc_offset": broker_offset,
+        "local_timezone": "Asia/Ho_Chi_Minh",
+        "d_candle_open_at_utc": utc_open.isoformat(),
+        "d_candle_close_at_utc": utc_close.isoformat(),
+        "price_digits": get_symbol_price_digits(source_symbol),
         "candle": {
             "open": candle["open"],
             "high": candle["high"],
@@ -1921,21 +2007,104 @@ def calculate_d_direction(symbol, target_broker_date):
             "close": candle["close"],
             "tick_volume": candle.get("tick_volume", 0),
         },
-        "d_candle_direction": direction,
+        "raw_direction": direction,
         "d_direction": d_dir,
         "d_state": d_state,
-        "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
+        "failure_reason": None,
+        "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00",
     }
-    _d_direction_cache[cache_key] = result
-    return result
+
+
+def _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, failure_reason):
+    """Build D-Direction evidence for missing/incomplete H4 20:00."""
+    d_state = "MISSING_H4_20" if failure_reason == "MISSING_H4_20" else "MISSING"
+    return {
+        "schema_version": D_DIRECTION_SCHEMA_VERSION,
+        "symbol": target_symbol,
+        "source_symbol": source_symbol,
+        "timeframe": "H4",
+        "target_date": target_broker_date.isoformat(),
+        "session_date": session_date.isoformat() if session_date else None,
+        "source_open_time_broker": "20:00",
+        "source_open_at_utc": None,
+        "d_candle_open_time_broker": None,
+        "d_candle_close_time_broker": None,
+        "d_candle_open_time_local": None,
+        "d_candle_close_time_local": None,
+        "broker_utc_offset": broker_offset,
+        "local_timezone": "Asia/Ho_Chi_Minh",
+        "d_candle_open_at_utc": None,
+        "d_candle_close_at_utc": None,
+        "price_digits": get_symbol_price_digits(source_symbol),
+        "candle": None,
+        "raw_direction": None,
+        "d_direction": "WAIT",
+        "d_state": d_state,
+        "failure_reason": failure_reason,
+        "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00",
+    }
+
+
+def _compute_d_from_source(target_symbol, source_symbol, target_broker_date):
+    """Compute D-Direction for target_symbol using the source_symbol's H4 20:00 candle."""
+    candle, session_date, broker_offset = find_previous_session_h4_20_candle(source_symbol, target_broker_date)
+
+    if session_date is None:
+        return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, None, None, "MISSING_PREVIOUS_SESSION")
+
+    if candle is None:
+        return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, "MISSING_H4_20")
+
+    return _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset)
+
+
+def calculate_d_direction(symbol, target_broker_date):
+    """Calculate D-Direction for one symbol on one target Broker date using H4 20:00."""
+    cache_key = (target_broker_date.isoformat(), symbol)
+    if cache_key in _d_direction_cache:
+        return _d_direction_cache[cache_key]
+
+    source_symbol = D_SOURCE_SYMBOL.get(symbol, symbol)
+
+    source_cache_key = (target_broker_date.isoformat(), source_symbol)
+    if source_cache_key in _d_direction_cache and symbol != source_symbol:
+        source_evidence = _d_direction_cache[source_cache_key]
+        result = dict(source_evidence)
+        result["symbol"] = symbol
+        _d_direction_cache[cache_key] = result
+        return result
+
+    evidence = _compute_d_from_source(symbol, source_symbol, target_broker_date)
+    _d_direction_cache[cache_key] = evidence
+
+    if symbol == source_symbol:
+        _d_direction_cache[source_cache_key] = evidence
+
+    return evidence
 
 
 def calculate_all_d_directions(target_broker_date):
-    """Calculate D-Direction for all 5 symbols."""
-    return {
-        symbol: calculate_d_direction(symbol, target_broker_date)
-        for symbol in D_DIRECTION_PAIRS
-    }
+    """Calculate D-Direction for all 5 symbols using H4 20:00 source mapping."""
+    source_results = {}
+    unique_sources = set(D_SOURCE_SYMBOL.values())
+    for src in unique_sources:
+        source_results[src] = _compute_d_from_source(src, src, target_broker_date)
+        cache_key = (target_broker_date.isoformat(), src)
+        _d_direction_cache[cache_key] = source_results[src]
+
+    results = {}
+    for symbol in D_DIRECTION_PAIRS:
+        source_symbol = D_SOURCE_SYMBOL.get(symbol, symbol)
+        if symbol == source_symbol:
+            results[symbol] = source_results[source_symbol]
+        else:
+            src_ev = source_results[source_symbol]
+            result = dict(src_ev)
+            result["symbol"] = symbol
+            results[symbol] = result
+            cache_key = (target_broker_date.isoformat(), symbol)
+            _d_direction_cache[cache_key] = result
+    return results
 
 
 def clear_d_direction_cache():
@@ -1954,7 +2123,6 @@ except Exception:
 D_PUBLICATION_LOCAL_HOUR = 6
 D_PUBLICATION_LOCAL_MINUTE = 0
 D_PUBLICATION_TIMEZONE = "Asia/Ho_Chi_Minh"
-D_DIRECTION_SCHEMA_VERSION = 2
 D_HISTORY_SCHEMA_VERSION = 1
 _D_DIRECTION_HISTORY_LOG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "d_direction_history.json")
 
@@ -2019,44 +2187,25 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
         d_dir = item.get("d_direction", "WAIT")
         candle = item.get("candle")
         session_date = item.get("session_date")
-        d_candle_open_time = item.get("d_candle_open_time")
+        source_symbol = item.get("source_symbol", symbol)
 
-        open_time_broker = None
-        close_time_broker = None
-        open_at_utc = None
-        close_at_utc = None
-        open_time_local = None
-        close_time_local = None
+        open_time_broker = item.get("d_candle_open_time_broker")
+        close_time_broker = item.get("d_candle_close_time_broker")
+        open_at_utc = item.get("d_candle_open_at_utc")
+        close_at_utc = item.get("d_candle_close_at_utc")
+        open_time_local = item.get("d_candle_open_time_local")
+        close_time_local = item.get("d_candle_close_time_local")
 
-        if d_candle_open_time:
-            try:
-                utc_open = datetime.fromisoformat(d_candle_open_time.replace("Z", "+00:00"))
-                utc_close = utc_open + timedelta(minutes=30)
-                open_at_utc = utc_open.isoformat()
-                close_at_utc = utc_close.isoformat()
-
-                offset = BROKER_CLOCK.utc_offset_for_date(utc_open.date())
-                broker_open = utc_open - timedelta(hours=offset)
-                broker_close = utc_close - timedelta(hours=offset)
-                open_time_broker = broker_open.strftime("%H:%M")
-                close_time_broker = broker_close.strftime("%H:%M")
-
-                local_open = utc_open.astimezone(HO_CHI_MINH_TZ)
-                local_close = utc_close.astimezone(HO_CHI_MINH_TZ)
-                open_time_local = local_open.strftime("%H:%M")
-                close_time_local = local_close.strftime("%H:%M")
-            except Exception:
-                pass
-
-        digits = get_symbol_price_digits(symbol)
-        raw_dir = item.get("d_candle_direction")
+        digits = get_symbol_price_digits(source_symbol)
+        raw_dir = item.get("raw_direction")
 
         symbols_payload[symbol] = {
             "symbol": symbol,
-            "timeframe": "M30",
+            "source_symbol": source_symbol,
+            "timeframe": "H4",
             "target_date": target_broker_date_obj.isoformat(),
             "session_date": session_date,
-            "d_candle_open_time": d_candle_open_time,
+            "source_open_time_broker": "20:00",
             "d_candle_open_time_broker": open_time_broker,
             "d_candle_close_time_broker": close_time_broker,
             "d_candle_open_at_utc": open_at_utc,
@@ -2069,7 +2218,7 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
             "d_direction": d_dir,
             "d_state": d_state,
             "execution_status": "OFF" if symbol in DISABLED_SIGNAL_PAIRS else "ON",
-            "discovery_rule": "LAST_COMPLETED_M30_OF_PREVIOUS_AVAILABLE_BROKER_SESSION",
+            "discovery_rule": "PREVIOUS_AVAILABLE_SESSION_EXACT_H4_OPEN_20_00",
         }
         states.append(d_state)
 
@@ -2086,7 +2235,7 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
         broker_offset = None
 
     return {
-        "schema_version": 2,
+        "schema_version": D_DIRECTION_SCHEMA_VERSION,
         "logic_version": SIGNAL_LOGIC_VERSION,
         "target_local_date": target_local_date_str,
         "target_broker_date": target_broker_date_obj.isoformat(),
@@ -2297,57 +2446,39 @@ def resolve_primary_signal_action(day_mode, entry_branch):
     return "KEEP_D" if entry_branch == mode_branch else "REVERSE_D"
 
 
-def friday_d_action(friday_date):
-    """Return KEEP_D or REVERSE_D for a given Friday date."""
-    day = friday_date.day
-    ordinal = (day - 1) // 7 + 1
-    if ordinal == 1:
-        return "KEEP_D" if day in (3, 4, 7) else "REVERSE_D"
-    if ordinal == 2:
-        return "REVERSE_D"
-    return "KEEP_D"
+def apply_new_final_signal_inversion(direction, broker_date, slot_hour, primary_source, symbol=None):
+    """Apply the three new final inversion rules (v82).
 
-
-def resolve_h16_d_action(broker_date):
-    """Return KEEP_D or REVERSE_D for H16 on a given Broker date."""
-    from datetime import timedelta as _td
-    wd = broker_date.weekday()
-
-    if wd == 0:  # Monday → use previous Friday's rule
-        ref_friday = broker_date - _td(days=3)
-        return friday_d_action(ref_friday)
-    if wd == 1:  # Tuesday
-        return "REVERSE_D"
-    if wd == 2:  # Wednesday
-        return "REVERSE_D"
-    if wd == 3:  # Thursday
-        prev_wed = broker_date - _td(days=1)
-        if prev_wed.day in (30, 1):
-            return "REVERSE_D"
-        return "KEEP_D"
-    if wd == 4:  # Friday
-        return friday_d_action(broker_date)
-    return "KEEP_D"
-
-
-def apply_weekday_slot_inversion(direction, broker_date, slot_hour):
-    """Apply Wednesday H14 and Friday H3/H7/H12/H14 extra inversions."""
+    Rule A: H3 Wed/Thu → invert if primary_source is D_DIRECTION.
+    Rule B: H16 Tue/Wed/Fri → invert if primary_source is D_DIRECTION.
+    Rule C: H14 Tue/Wed → invert always (regardless of source).
+    """
     if direction not in ("BUY", "SELL"):
         return direction, None
     wd = broker_date.weekday()
     h = int(slot_hour)
 
-    # Wednesday H14 extra reverse
-    if wd == 2 and h == 14:
+    # Rule A: H3 Wednesday(2) / Thursday(3), D-based only
+    if h == 3 and wd in (2, 3) and primary_source == "D_DIRECTION":
         reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "WEDNESDAY_H14_EXTRA_REVERSE"
+        return reversed_dir, "H3_WED_THU_D_EXTRA_REVERSE"
 
-    # Friday H3/H7/H12/H14 extra reverse (NOT H9, NOT H16)
-    if wd == 4 and h in (3, 7, 12, 14):
+    # Rule C: H14 Tuesday(1) / Wednesday(2), always invert
+    if h == 14 and wd in (1, 2):
         reversed_dir = "SELL" if direction == "BUY" else "BUY"
-        return reversed_dir, "FRIDAY_H3_H7_H12_H14_EXTRA_REVERSE"
+        return reversed_dir, "H14_TUE_WED_EXTRA_REVERSE"
+
+    # Rule B: H16 Tuesday(1) / Wednesday(2) / Friday(4), D-based only
+    if h == 16 and wd in (1, 2, 4) and primary_source == "D_DIRECTION":
+        reversed_dir = "SELL" if direction == "BUY" else "BUY"
+        return reversed_dir, "H16_TUE_WED_FRI_D_EXTRA_REVERSE"
 
     return direction, None
+
+
+def apply_weekday_slot_inversion(direction, broker_date, slot_hour):
+    """Legacy wrapper — delegates to apply_new_final_signal_inversion with D source."""
+    return apply_new_final_signal_inversion(direction, broker_date, slot_hour, "D_DIRECTION")
 
 
 def read_previous_h1_candle(symbol, slot_dt, as_of_dt=None):
@@ -2365,22 +2496,45 @@ def read_previous_h1_candle(symbol, slot_dt, as_of_dt=None):
     return candle, direction
 
 
+def _build_h1_evidence(symbol, h1_candle, h1_dir, slot_dt):
+    """Build H1 evidence payload for signal evidence records."""
+    if h1_candle is None:
+        return None
+    h1_close_dt = slot_dt.replace(minute=0, second=0, microsecond=0)
+    h1_open_dt = h1_close_dt - timedelta(hours=1)
+    return {
+        "symbol": symbol,
+        "timeframe": "H1",
+        "open_time": h1_open_dt.strftime("%H:%M"),
+        "close_time": h1_close_dt.strftime("%H:%M"),
+        "open": float(h1_candle["open"]) if h1_candle.get("open") is not None else None,
+        "high": float(h1_candle["high"]) if h1_candle.get("high") is not None else None,
+        "low": float(h1_candle["low"]) if h1_candle.get("low") is not None else None,
+        "close": float(h1_candle["close"]) if h1_candle.get("close") is not None else None,
+        "open_exact": f"{h1_candle['open']:.5f}" if isinstance(h1_candle.get("open"), (int, float)) else str(h1_candle.get("open")),
+        "close_exact": f"{h1_candle['close']:.5f}" if isinstance(h1_candle.get("close"), (int, float)) else str(h1_candle.get("close")),
+        "direction": h1_dir or "DOJI",
+    }
+
+
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
 def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=None, day_mode=None, d_directions=None):
-    """Evaluate one slot and return (record_dict, next_day_mode) without persisting.
+    """Evaluate one slot and return (record_dict, next_day_modes) without persisting.
 
-    Returns a tuple so the caller can propagate DayMode across slots without
-    reading it back from the serialized record (which only has scalar fields).
+    Returns a tuple so the caller can propagate per-symbol DayModes across slots.
+    next_day_modes is a dict {symbol: DayMode|None} for per-symbol propagation.
     """
     result = evaluate_all_pairs_for_slot(broker_dt, h, as_of_dt=as_of_dt, prior_slot_results=prior_slot_results,
                                           day_mode=day_mode, d_directions=d_directions)
     if result is None:
         result = calculate_slot_signal(broker_dt, h)
 
-    # Extract the DayMode object (transient) before serialization
-    next_day_mode = day_mode_from_result(result)
+    next_day_modes = result.get("_pair_day_modes_objects", {})
+    if not next_day_modes:
+        next_dm = day_mode_from_result(result)
+        next_day_modes = {sym: next_dm for sym in SIGNAL_PAIRS}
 
     sig = result.get("signal")
     entry_time = result.get("entry_time")
@@ -2393,12 +2547,10 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     hour_note = get_hour_note(h, broker_dt=broker_dt)
     deactivated = bool(result.get("deactivated") or is_deactivated_signal_slot(broker_dt, h))
 
-    # Build extra_fields with serialized DayMode (scalar fields only, no dataclass)
     extra_fields = {}
     for key in ENTRY_PLAN_FIELDS:
         if key in result:
             val = result[key]
-            # Serialize DayMode object to scalar fields
             if key == "day_mode" and isinstance(val, DayMode):
                 extra_fields.update(serialize_day_mode(val))
             elif key == "day_mode" and val is None:
@@ -2406,7 +2558,12 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
             else:
                 extra_fields[key] = val
 
-    # Ensure evidence schema version is set
+    for pkey in ("pair_day_modes", "pair_day_mode_states", "pair_day_mode_source_hours",
+                 "pair_day_mode_source_entry_times", "pair_day_mode_source_branches",
+                 "pair_entry_branches"):
+        if pkey in result:
+            extra_fields[pkey] = result[pkey]
+
     extra_fields.setdefault("evidence_schema_version", SIGNAL_EVIDENCE_SCHEMA_VERSION)
 
     record = _format_signal_record(
@@ -2417,10 +2574,10 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
         extra_fields=extra_fields if extra_fields else None,
     )
 
-    # Clean up any transient _day_mode_object before JSON serialization
     record.pop("_day_mode_object", None)
+    record.pop("_pair_day_modes_objects", None)
 
-    return record, next_day_mode
+    return record, next_day_modes
 
 
 def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
@@ -2484,7 +2641,7 @@ def rebuild_recent_history(days=45):
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
         day_results = {}
-        current_day_mode = None
+        current_pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
         # Compute D-Directions once per date
         try:
             day_d_directions = calculate_all_d_directions(target_date)
@@ -2497,15 +2654,17 @@ def rebuild_recent_history(days=45):
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
             try:
-                record, next_day_mode = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of,
+                record, next_day_modes = _build_rebuild_record(slot_dt, hour, as_of_dt=rebuild_as_of,
                                                prior_slot_results=day_results if hour == 16 else None,
-                                               day_mode=current_day_mode,
+                                               day_mode=current_pair_day_modes,
                                                d_directions=day_d_directions)
                 if record is None:
                     continue
-                # Propagate DayMode across slots from the transient object
-                if next_day_mode is not None:
-                    current_day_mode = next_day_mode
+                # Propagate per-symbol DayModes across slots
+                if isinstance(next_day_modes, dict):
+                    for sym, dm in next_day_modes.items():
+                        if dm is not None:
+                            current_pair_day_modes[sym] = dm
                 # Store D-Directions in record
                 if day_d_directions:
                     record["daily_directions"] = day_d_directions
@@ -3333,17 +3492,31 @@ def classify_entry_branch(source_hour, entry_time):
 
 
 def resolve_h16_inherited_entry(prior_slot_results):
-    """Scan prior slots H14→H12→H9→H7→H3 for nearest eligible entry."""
+    """Scan prior slots H14→H12→H9→H7→H3 for nearest eligible entry (XAUUSD backward-compat)."""
+    return resolve_h16_inherited_entry_for_symbol("XAUUSD", prior_slot_results)
+
+
+def resolve_h16_inherited_entry_for_symbol(symbol, prior_slot_results):
+    """Scan prior slots for nearest eligible entry for a specific symbol."""
     for source_hour in H16_PRIOR_SLOT_PRIORITY:
         result = prior_slot_results.get(source_hour)
         if not result:
             continue
-        if result.get("entry_state") != "READY":
+        pair_entry_states = result.get("pair_entry_states", {})
+        pair_entry_times = result.get("pair_entry_times", {})
+        if pair_entry_states.get(symbol) != "READY":
+            entry_time = result.get("entry_time")
+            if result.get("entry_state") != "READY":
+                continue
+            entry_time = result.get("entry_time")
+        else:
+            entry_time = pair_entry_times.get(symbol)
+        if not entry_time:
             continue
-        entry_time = result.get("entry_time")
         branch = classify_entry_branch(source_hour, entry_time)
         if branch == "H_11":
             return {
+                "symbol": symbol,
                 "entry_time": "16:11",
                 "entry_state": "READY",
                 "entry_rule": "H16_INHERITS_NEAREST_ELIGIBLE_PRIOR_ENTRY",
@@ -3354,6 +3527,7 @@ def resolve_h16_inherited_entry(prior_slot_results):
             }
         if branch == "H_PLUS_1_25":
             return {
+                "symbol": symbol,
                 "entry_time": "17:25",
                 "entry_state": "READY",
                 "entry_rule": "H16_INHERITS_NEAREST_ELIGIBLE_PRIOR_ENTRY",
@@ -3362,8 +3536,8 @@ def resolve_h16_inherited_entry(prior_slot_results):
                 "entry_source_branch": "H_PLUS_1_25",
                 "entry_candidates": ["16:11", "17:25"],
             }
-        # H_49 → skip, continue scanning
     return {
+        "symbol": symbol,
         "entry_time": None,
         "entry_state": "WAIT",
         "entry_rule": "H16_INHERITS_NEAREST_ELIGIBLE_PRIOR_ENTRY",
@@ -3375,23 +3549,23 @@ def resolve_h16_inherited_entry(prior_slot_results):
     }
 
 
-def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
-    """Evaluate XAUUSD entry timing across Layer 2 and Layer 3 M30 open windows."""
+def evaluate_symbol_entry_timing_m30(symbol, slot_dt, hour, as_of_dt=None):
+    """Evaluate entry timing for any symbol across Layer 2 and Layer 3 M30 open windows."""
     h = int(hour)
     windows = get_m30_layer_open_times(slot_dt)
     cutoff = as_of_dt or slot_dt
 
     # Layer 2 evaluation at slot_dt (H:00)
     l2_open_times = windows["layer2"]
-    l2_candles = _read_m30_open_windows("XAUUSD", l2_open_times, cutoff)
+    l2_candles = _read_m30_open_windows(symbol, l2_open_times, cutoff)
     l2_classifier = classify_three_candle_group
-    layer2 = _classify_m30_layer_by_open_times("XAUUSD", l2_open_times, l2_candles, l2_classifier)
+    layer2 = _classify_m30_layer_by_open_times(symbol, l2_open_times, l2_candles, l2_classifier)
 
     # Layer 2 BT -> immediate entry at H:11 (03:11 at H3)
     if layer2["group"] == "BT":
         entry_t = "03:11" if h == 3 else f"{h:02d}:11"
         return {
-            "symbol": "XAUUSD",
+            "symbol": symbol,
             "timeframe": "M30",
             "slot_hour": h,
             "layer2": layer2,
@@ -3399,23 +3573,22 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
             "entry_time": entry_t,
             "entry_state": "READY",
             "entry_candidates": [entry_t],
-            "classification_reason": "XAU_LAYER2_BT_ENTRY",
+            "classification_reason": f"{symbol}_LAYER2_BT_ENTRY",
         }
 
     # Layer 2 SW -> check Layer 3 if cutoff >= H:30
     h30_dt = slot_dt + timedelta(minutes=30)
     l3_open_times = windows["layer3"]
     if cutoff >= h30_dt:
-        l3_candles = _read_m30_open_windows("XAUUSD", l3_open_times, cutoff)
+        l3_candles = _read_m30_open_windows(symbol, l3_open_times, cutoff)
         # Check if the H:00 candle (first in layer3) is available
         h00_candle = l3_candles.get(l3_open_times[0])
         grace_deadline = h30_dt + timedelta(seconds=LAYER3_CANDLE_GRACE_SECONDS)
         if h00_candle is None and cutoff < grace_deadline:
-            # Candle not yet available from MT5, still within grace — stay pending
             cand_sw = "03:49" if h == 3 else f"{h:02d}:49"
             cand_bt = "04:25" if h == 3 else f"{h + 1:02d}:25"
             return {
-                "symbol": "XAUUSD",
+                "symbol": symbol,
                 "timeframe": "M30",
                 "slot_hour": h,
                 "layer2": layer2,
@@ -3424,16 +3597,16 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
                 "entry_state": "PENDING_LAYER3",
                 "entry_candidates": [cand_sw, cand_bt],
                 "entry_resolution_time": f"{h:02d}:30",
-                "classification_reason": "XAU_LAYER3_CANDLE_PENDING_GRACE",
+                "classification_reason": f"{symbol}_LAYER3_CANDLE_PENDING_GRACE",
             }
-        layer3 = _classify_m30_layer_by_open_times("XAUUSD", l3_open_times, l3_candles, classify_three_candle_group)
+        layer3 = _classify_m30_layer_by_open_times(symbol, l3_open_times, l3_candles, classify_three_candle_group)
         if layer3["group"] == "SW":
             entry_t = "03:49" if h == 3 else f"{h:02d}:49"
         elif layer3["group"] == "BT":
             entry_t = "04:25" if h == 3 else f"{h + 1:02d}:25"
         else:
             return {
-                "symbol": "XAUUSD",
+                "symbol": symbol,
                 "timeframe": "M30",
                 "slot_hour": h,
                 "layer2": layer2,
@@ -3441,10 +3614,10 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
                 "entry_time": None,
                 "entry_state": "WAIT",
                 "entry_candidates": [],
-                "classification_reason": "XAU_LAYER3_UNRESOLVED",
+                "classification_reason": f"{symbol}_LAYER3_UNRESOLVED",
             }
         return {
-            "symbol": "XAUUSD",
+            "symbol": symbol,
             "timeframe": "M30",
             "slot_hour": h,
             "layer2": layer2,
@@ -3452,14 +3625,14 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
             "entry_time": entry_t,
             "entry_state": "READY",
             "entry_candidates": [entry_t],
-            "classification_reason": f"XAU_LAYER3_{layer3['group']}_ENTRY",
+            "classification_reason": f"{symbol}_LAYER3_{layer3['group']}_ENTRY",
         }
 
     # Still pending Layer 3 (H:00 to H:30)
     cand_sw = "03:49" if h == 3 else f"{h:02d}:49"
     cand_bt = "04:25" if h == 3 else f"{h + 1:02d}:25"
     return {
-        "symbol": "XAUUSD",
+        "symbol": symbol,
         "timeframe": "M30",
         "slot_hour": h,
         "layer2": layer2,
@@ -3468,8 +3641,13 @@ def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
         "entry_state": "PENDING_LAYER3",
         "entry_candidates": [cand_sw, cand_bt],
         "entry_resolution_time": f"{h:02d}:30",
-        "classification_reason": "XAU_LAYER2_SW_PENDING_LAYER3",
+        "classification_reason": f"{symbol}_LAYER2_SW_PENDING_LAYER3",
     }
+
+
+def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
+    """Backward-compatible wrapper — delegates to generic engine with XAUUSD."""
+    return evaluate_symbol_entry_timing_m30("XAUUSD", slot_dt, hour, as_of_dt=as_of_dt)
 
 
 def next_full_hour_after_signal_slot(slot_dt):
@@ -3485,7 +3663,7 @@ def _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset):
 
 
 def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_results=None, day_mode=None, d_directions=None):
-    """Evaluate D-Direction + Day Mode engine for all 5 pairs at a slot (v80)."""
+    """Evaluate independent Entry + D-Direction + per-symbol Day Mode for all 5 pairs (v82)."""
     h = int(hour)
     if broker_dt is None or h not in ACTIVE_HOURS:
         return None
@@ -3493,88 +3671,108 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
     eval_dt = as_of_dt or broker_dt
     target_date = broker_dt.date()
 
-    # Get D-Directions
     if d_directions is None:
         d_directions = calculate_all_d_directions(target_date)
 
-    # === ENTRY ENGINE (unchanged) ===
-    if h == 16:
-        timing = resolve_h16_inherited_entry(prior_slot_results or {})
-        timing["symbol"] = "XAUUSD"
-        timing["timeframe"] = "M30"
-        timing["slot_hour"] = h
-        timing["layer2"] = None
-        timing["layer3"] = None
+    # Normalize day_mode input: support both legacy single DayMode and new dict
+    if isinstance(day_mode, dict):
+        pair_day_modes = dict(day_mode)
+    elif isinstance(day_mode, DayMode):
+        pair_day_modes = {sym: day_mode for sym in SIGNAL_PAIRS}
     else:
-        timing = evaluate_xau_entry_timing_m30(slot_dt, h, as_of_dt=eval_dt)
+        pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
 
-    xau_entry_time = timing.get("entry_time")
-    xau_entry_state = timing.get("entry_state", "WAIT")
+    # === PER-SYMBOL ENTRY ENGINE ===
+    pair_timings = {}
+    for symbol in ENTRY_TIMING_SYMBOLS:
+        if h == 16:
+            pair_timings[symbol] = resolve_h16_inherited_entry_for_symbol(symbol, prior_slot_results or {})
+        else:
+            pair_timings[symbol] = evaluate_symbol_entry_timing_m30(symbol, slot_dt, h, as_of_dt=eval_dt)
 
-    # === SIGNAL ENGINE (new) ===
-    entry_branch = classify_slot_entry_branch(h, xau_entry_time) if h != 16 else None
-
-    # Day Mode: resolve or anchor (not for H16)
-    new_day_mode = day_mode
-    was_anchored = False
-    if h != 16 and entry_branch is not None:
-        new_day_mode, was_anchored = resolve_or_anchor_day_mode(day_mode, h, xau_entry_time)
-
-    # GBP entry schedule: H+1:00
-    gbp_entry_t = next_full_hour_after_signal_slot(slot_dt)
-
-    # Build per-pair signals
     pair_dirs = {}
     pair_signal_states = {}
     pair_entry_states = {}
     pair_entry_times = {}
+    pair_entry_branches = {}
     pair_labels = {}
     pair_evidence = {}
     pair_groups = {}
 
     for symbol in SIGNAL_PAIRS:
-        # Disabled pairs
         if symbol in DISABLED_SIGNAL_PAIRS:
+            timing = pair_timings.get(symbol, {})
+            sym_entry_time = timing.get("entry_time")
             pair_dirs[symbol] = "WAIT"
             pair_signal_states[symbol] = "DISABLED"
             pair_entry_states[symbol] = "DISABLED"
-            pair_entry_times[symbol] = None
+            pair_entry_times[symbol] = sym_entry_time
+            pair_entry_branches[symbol] = None
             pair_labels[symbol] = "OFF"
             pair_groups[symbol] = None
             pair_evidence[symbol] = _empty_gbp_signal_evidence(slot_dt, h, symbol)
+            pair_evidence[symbol]["entry_time"] = sym_entry_time
+            pair_evidence[symbol]["entry_timing"] = timing
             continue
 
-        # Get D for this symbol
+        timing = pair_timings.get(symbol, {})
         d_info = d_directions.get(symbol, {})
         d_dir = d_info.get("d_direction", "WAIT")
-
-        # Entry for this symbol
-        if symbol == "XAUUSD":
-            sym_entry_time = xau_entry_time
-            sym_entry_state = xau_entry_state
-        else:
-            sym_entry_time = gbp_entry_t
-            sym_entry_state = "READY" if d_dir in ("BUY", "SELL") else "WAIT"
+        sym_entry_time = timing.get("entry_time")
+        sym_entry_state = timing.get("entry_state", "WAIT")
 
         pair_entry_times[symbol] = sym_entry_time
         pair_entry_states[symbol] = sym_entry_state
 
-        # === H16 special path ===
         if h == 16:
-            h16_action = resolve_h16_d_action(target_date)
-            if d_dir in ("BUY", "SELL"):
-                if h16_action == "REVERSE_D":
-                    final_dir = "SELL" if d_dir == "BUY" else "BUY"
+            entry_branch = classify_slot_entry_branch(h, sym_entry_time)
+            pair_entry_branches[symbol] = entry_branch
+            sym_day_mode = pair_day_modes.get(symbol)
+
+            if entry_branch is not None:
+                action = resolve_primary_signal_action(sym_day_mode, entry_branch)
+                source = "D_DIRECTION"
+                h1_ev = None
+                if action == "REVERSE_H1":
+                    h1_candle, h1_dir = read_previous_h1_candle(symbol, slot_dt, as_of_dt=eval_dt)
+                    if h1_dir == "TANG":
+                        primary_dir = "SELL"
+                    elif h1_dir == "GIAM":
+                        primary_dir = "BUY"
+                    else:
+                        primary_dir = "WAIT"
+                    source = "PREVIOUS_COMPLETED_H1"
+                    label = "Đảo H1"
+                    h1_ev = _build_h1_evidence(symbol, h1_candle, h1_dir, slot_dt)
+                elif action == "KEEP_D":
+                    primary_dir = d_dir
+                    label = "Theo D"
+                elif action == "REVERSE_D":
+                    primary_dir = ("SELL" if d_dir == "BUY" else "BUY") if d_dir in ("BUY", "SELL") else "WAIT"
+                    label = "Đảo D"
                 else:
-                    final_dir = d_dir
-                action_label = "REVERSE_D" if h16_action == "REVERSE_D" else "KEEP_D"
+                    primary_dir = "WAIT"
+                    source = "NONE"
+                    label = "WAIT"
             else:
-                final_dir = "WAIT"
-                action_label = "D_WAIT"
+                if d_dir in ("BUY", "SELL"):
+                    action = "KEEP_D"
+                    primary_dir = d_dir
+                    source = "D_DIRECTION"
+                    label = "H16 Theo D"
+                else:
+                    action = "WAIT"
+                    primary_dir = "WAIT"
+                    source = "NONE"
+                    label = "WAIT"
+
+            final_dir, inversion_rule = apply_new_final_signal_inversion(
+                primary_dir, broker_dt, h, source, symbol
+            )
 
             pair_dirs[symbol] = final_dir
             pair_signal_states[symbol] = "READY" if final_dir in ("BUY", "SELL") else "WAIT"
-            pair_labels[symbol] = f"H16 {'Đảo D' if action_label == 'REVERSE_D' else 'Theo D'}"
+            pair_labels[symbol] = label
             pair_groups[symbol] = None
             pair_evidence[symbol] = {
                 "evidence_schema_version": SIGNAL_EVIDENCE_SCHEMA_VERSION,
@@ -3582,29 +3780,45 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
                 "date": slot_dt.date().isoformat(),
                 "hour": h,
                 "symbol": symbol,
-                "signal_engine": "D_DIRECTION_H16_WEEKDAY_V1",
+                "entry_engine": "INDEPENDENT_THREE_CANDLE_M30_V1",
+                "signal_engine": "D_DIRECTION_H16_INDEPENDENT_V2",
                 "direction": final_dir,
                 "signal_state": pair_signal_states[symbol],
                 "current_entry_time": sym_entry_time,
-                "current_entry_branch": None,
-                "day_mode": new_day_mode.mode if new_day_mode else None,
-                "day_mode_source_hour": new_day_mode.source_hour if new_day_mode else None,
-                "day_mode_source_entry_time": new_day_mode.source_entry_time if new_day_mode else None,
-                "day_mode_source_branch": new_day_mode.source_branch if new_day_mode else None,
-                "primary_source": "D_DIRECTION",
-                "primary_action": action_label,
-                "primary_direction": d_dir,
-                "weekday_adjustment_applied": False,
-                "weekday_adjustment_rule": None,
+                "current_entry_branch": entry_branch,
+                "entry_time": sym_entry_time,
+                "entry_branch": entry_branch,
+                "day_mode": sym_day_mode.mode if sym_day_mode else None,
+                "day_mode_source_hour": sym_day_mode.source_hour if sym_day_mode else None,
+                "day_mode_source_entry_time": sym_day_mode.source_entry_time if sym_day_mode else None,
+                "day_mode_source_branch": sym_day_mode.source_branch if sym_day_mode else None,
+                "primary_source": source,
+                "primary_action": action,
+                "primary_direction": primary_dir,
+                "final_inversion_applied": inversion_rule is not None,
+                "final_inversion_rule": inversion_rule,
+                "weekday_adjustment_applied": inversion_rule is not None,
+                "weekday_adjustment_rule": inversion_rule,
+                "d_source_symbol": d_info.get("source_symbol"),
+                "d_timeframe": d_info.get("timeframe", "H4"),
+                "d_source_open_broker": d_info.get("source_open_time_broker", "20:00"),
                 "d_evidence": d_info,
-                "h1_evidence": None,
-                "entry_timing": timing if symbol == "XAUUSD" else None,
+                "h1_evidence": h1_ev,
+                "entry_timing": timing,
             }
             continue
 
         # === H3-H14 signal path ===
+        entry_branch = classify_slot_entry_branch(h, sym_entry_time)
+        pair_entry_branches[symbol] = entry_branch
+
+        sym_day_mode = pair_day_modes.get(symbol)
+        was_anchored = False
+        if entry_branch is not None:
+            sym_day_mode, was_anchored = resolve_or_anchor_day_mode(sym_day_mode, h, sym_entry_time)
+            pair_day_modes[symbol] = sym_day_mode
+
         if entry_branch is None:
-            # No valid entry branch
             pair_dirs[symbol] = "WAIT"
             pair_signal_states[symbol] = "WAIT"
             pair_labels[symbol] = "No Entry"
@@ -3615,69 +3829,54 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
                 "date": slot_dt.date().isoformat(),
                 "hour": h,
                 "symbol": symbol,
-                "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V1",
+                "entry_engine": "INDEPENDENT_THREE_CANDLE_M30_V1",
+                "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V2",
                 "direction": "WAIT",
                 "signal_state": "WAIT",
                 "current_entry_time": sym_entry_time,
                 "current_entry_branch": None,
-                "day_mode": new_day_mode.mode if new_day_mode else None,
-                "day_mode_source_hour": new_day_mode.source_hour if new_day_mode else None,
-                "day_mode_source_entry_time": new_day_mode.source_entry_time if new_day_mode else None,
-                "day_mode_source_branch": new_day_mode.source_branch if new_day_mode else None,
+                "entry_time": sym_entry_time,
+                "entry_branch": None,
+                "day_mode": sym_day_mode.mode if sym_day_mode else None,
+                "day_mode_source_hour": sym_day_mode.source_hour if sym_day_mode else None,
+                "day_mode_source_entry_time": sym_day_mode.source_entry_time if sym_day_mode else None,
+                "day_mode_source_branch": sym_day_mode.source_branch if sym_day_mode else None,
                 "primary_source": None,
                 "primary_action": "WAIT",
                 "primary_direction": "WAIT",
+                "final_inversion_applied": False,
+                "final_inversion_rule": None,
                 "weekday_adjustment_applied": False,
                 "weekday_adjustment_rule": None,
+                "d_source_symbol": d_info.get("source_symbol"),
+                "d_timeframe": d_info.get("timeframe", "H4"),
+                "d_source_open_broker": d_info.get("source_open_time_broker", "20:00"),
                 "d_evidence": d_info,
                 "h1_evidence": None,
-                "entry_timing": timing if symbol == "XAUUSD" else None,
+                "entry_timing": timing,
             }
             continue
 
-        # Determine primary action
-        action = resolve_primary_signal_action(new_day_mode, entry_branch)
+        action = resolve_primary_signal_action(sym_day_mode, entry_branch)
         h1_ev = None
 
         if action == "REVERSE_H1":
-            # Read H1 candle for this symbol
             h1_candle, h1_dir = read_previous_h1_candle(symbol, slot_dt, as_of_dt=eval_dt)
             if h1_dir == "TANG":
-                primary_dir = "SELL"  # reverse of TANG (BUY)
+                primary_dir = "SELL"
             elif h1_dir == "GIAM":
-                primary_dir = "BUY"  # reverse of GIAM (SELL)
+                primary_dir = "BUY"
             else:
                 primary_dir = "WAIT"
             source = "PREVIOUS_COMPLETED_H1"
             label = "Đảo H1"
-
-            if h1_candle is not None:
-                h1_close_dt = slot_dt.replace(minute=0, second=0, microsecond=0)
-                h1_open_dt = h1_close_dt - timedelta(hours=1)
-                h1_ev = {
-                    "symbol": symbol,
-                    "timeframe": "H1",
-                    "open_time": h1_open_dt.strftime("%H:%M"),
-                    "close_time": h1_close_dt.strftime("%H:%M"),
-                    "open": float(h1_candle["open"]) if h1_candle.get("open") is not None else None,
-                    "high": float(h1_candle["high"]) if h1_candle.get("high") is not None else None,
-                    "low": float(h1_candle["low"]) if h1_candle.get("low") is not None else None,
-                    "close": float(h1_candle["close"]) if h1_candle.get("close") is not None else None,
-                    "open_exact": f"{h1_candle['open']:.5f}" if isinstance(h1_candle.get("open"), (int, float)) else str(h1_candle.get("open")),
-                    "close_exact": f"{h1_candle['close']:.5f}" if isinstance(h1_candle.get("close"), (int, float)) else str(h1_candle.get("close")),
-                    "direction": h1_dir or "DOJI",
-                }
+            h1_ev = _build_h1_evidence(symbol, h1_candle, h1_dir, slot_dt)
         elif action == "KEEP_D":
             primary_dir = d_dir
             source = "D_DIRECTION"
             label = "Theo D"
         elif action == "REVERSE_D":
-            if d_dir == "BUY":
-                primary_dir = "SELL"
-            elif d_dir == "SELL":
-                primary_dir = "BUY"
-            else:
-                primary_dir = "WAIT"
+            primary_dir = ("SELL" if d_dir == "BUY" else "BUY") if d_dir in ("BUY", "SELL") else "WAIT"
             source = "D_DIRECTION"
             label = "Đảo D"
         else:
@@ -3685,8 +3884,9 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
             source = "NONE"
             label = "WAIT"
 
-        # Apply weekday-slot inversion
-        final_dir, inversion_rule = apply_weekday_slot_inversion(primary_dir, broker_dt, h)
+        final_dir, inversion_rule = apply_new_final_signal_inversion(
+            primary_dir, broker_dt, h, source, symbol
+        )
 
         pair_dirs[symbol] = final_dir
         pair_signal_states[symbol] = "READY" if final_dir in ("BUY", "SELL") else "WAIT"
@@ -3698,38 +3898,46 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
             "date": slot_dt.date().isoformat(),
             "hour": h,
             "symbol": symbol,
-            "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V1",
+            "entry_engine": "INDEPENDENT_THREE_CANDLE_M30_V1",
+            "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V2",
             "direction": final_dir,
             "signal_state": pair_signal_states[symbol],
             "current_entry_time": sym_entry_time,
             "current_entry_branch": entry_branch,
-            "day_mode": new_day_mode.mode if new_day_mode else None,
-            "day_mode_source_hour": new_day_mode.source_hour if new_day_mode else None,
-            "day_mode_source_entry_time": new_day_mode.source_entry_time if new_day_mode else None,
-            "day_mode_source_branch": new_day_mode.source_branch if new_day_mode else None,
+            "entry_time": sym_entry_time,
+            "entry_branch": entry_branch,
+            "day_mode": sym_day_mode.mode if sym_day_mode else None,
+            "day_mode_source_hour": sym_day_mode.source_hour if sym_day_mode else None,
+            "day_mode_source_entry_time": sym_day_mode.source_entry_time if sym_day_mode else None,
+            "day_mode_source_branch": sym_day_mode.source_branch if sym_day_mode else None,
             "primary_source": source,
             "primary_action": action,
             "primary_direction": primary_dir,
+            "final_inversion_applied": inversion_rule is not None,
+            "final_inversion_rule": inversion_rule,
             "weekday_adjustment_applied": inversion_rule is not None,
             "weekday_adjustment_rule": inversion_rule,
+            "d_source_symbol": d_info.get("source_symbol"),
+            "d_timeframe": d_info.get("timeframe", "H4"),
+            "d_source_open_broker": d_info.get("source_open_time_broker", "20:00"),
             "d_evidence": d_info,
             "h1_evidence": h1_ev,
-            "entry_timing": timing if symbol == "XAUUSD" else None,
+            "entry_timing": timing,
         }
 
-    # Top-level signal = XAUUSD direction
     top_signal = pair_dirs.get("XAUUSD", "WAIT")
     top_entry = pair_entry_times.get("XAUUSD")
     top_signal_state = pair_signal_states.get("XAUUSD", "WAIT")
     top_entry_state = pair_entry_states.get("XAUUSD", "WAIT")
+    xau_timing = pair_timings.get("XAUUSD", {})
 
     try:
         broker_offset = BROKER_CLOCK.utc_offset_for_date(slot_dt.date())
     except Exception:
         broker_offset = None
 
-    # Day mode metadata
-    day_mode_state = "RESOLVED" if new_day_mode else "UNRESOLVED_WAITING_FOR_ANCHOR"
+    xau_dm = pair_day_modes.get("XAUUSD")
+    day_mode_state = "RESOLVED" if any(pair_day_modes.values()) else "UNRESOLVED_WAITING_FOR_ANCHOR"
 
     return {
         "logic_version": SIGNAL_LOGIC_VERSION,
@@ -3740,8 +3948,8 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
         "signal_state": top_signal_state,
         "entry_state": top_entry_state,
         "entry_candidate": top_entry,
-        "entry_candidates": timing.get("entry_candidates"),
-        "entry_resolution_time": timing.get("entry_resolution_time"),
+        "entry_candidates": xau_timing.get("entry_candidates"),
+        "entry_resolution_time": xau_timing.get("entry_resolution_time"),
         "entry_rule": "D_DIRECTION_DAY_MODE" if top_entry else None,
         "entry_at_utc": compute_utc_iso(slot_dt.date(), top_entry, broker_offset),
         "broker_utc_offset": broker_offset,
@@ -3749,19 +3957,26 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
         "pair_signal_states": pair_signal_states,
         "pair_entry_states": pair_entry_states,
         "pair_entry_times": pair_entry_times,
+        "pair_entry_branches": pair_entry_branches,
         "pair_entry_at_utc": _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset),
         "pair_labels": pair_labels,
         "pair_groups": pair_groups,
         "pair_evidence": pair_evidence,
         "source_date": target_date.isoformat(),
-        "day_mode": new_day_mode,
+        "day_mode": xau_dm,
+        "pair_day_modes": {s: dm.mode if dm else None for s, dm in pair_day_modes.items()},
+        "pair_day_mode_states": {s: "RESOLVED" if dm else "UNRESOLVED_WAITING_FOR_ANCHOR" for s, dm in pair_day_modes.items()},
+        "pair_day_mode_source_hours": {s: dm.source_hour if dm else None for s, dm in pair_day_modes.items()},
+        "pair_day_mode_source_entry_times": {s: dm.source_entry_time if dm else None for s, dm in pair_day_modes.items()},
+        "pair_day_mode_source_branches": {s: dm.source_branch if dm else None for s, dm in pair_day_modes.items()},
         "day_mode_state": day_mode_state,
-        "day_mode_source_hour": new_day_mode.source_hour if new_day_mode else None,
-        "day_mode_source_entry_time": new_day_mode.source_entry_time if new_day_mode else None,
-        "day_mode_source_branch": new_day_mode.source_branch if new_day_mode else None,
+        "day_mode_source_hour": xau_dm.source_hour if xau_dm else None,
+        "day_mode_source_entry_time": xau_dm.source_entry_time if xau_dm else None,
+        "day_mode_source_branch": xau_dm.source_branch if xau_dm else None,
         "d_directions": d_directions,
         "report": f"H={h} signal={top_signal} entry={top_entry}",
-        "timing": timing,
+        "timing": xau_timing,
+        "_pair_day_modes_objects": pair_day_modes,
     }
 
 
@@ -3804,18 +4019,20 @@ def repair_history(target_dates=None, days=45):
             continue
         hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
         day_results = {}
-        current_day_mode = None
+        current_pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
         for hour in hours:
             slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
             rebuild_as_of = broker_dt if target_date == today else slot_dt + timedelta(days=1)
             try:
-                record, next_day_mode = _build_rebuild_record(
+                record, next_day_modes = _build_rebuild_record(
                     slot_dt, hour, as_of_dt=rebuild_as_of,
                     prior_slot_results=day_results if hour == 16 else None,
-                    day_mode=current_day_mode,
+                    day_mode=current_pair_day_modes,
                 )
-                if next_day_mode is not None:
-                    current_day_mode = next_day_mode
+                if isinstance(next_day_modes, dict):
+                    for sym, dm in next_day_modes.items():
+                        if dm is not None:
+                            current_pair_day_modes[sym] = dm
                 attempted += 1
                 day_results[hour] = record
                 sig = record.get("signal", "WAIT")

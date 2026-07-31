@@ -1,4 +1,4 @@
-"""H:49 uses reverse of previous completed H1 candle (v80)."""
+"""H:49 uses reverse of previous completed H1 candle (v82)."""
 
 import unittest
 from datetime import datetime
@@ -11,6 +11,27 @@ from mt5_signal_bot import (
     classify_slot_entry_branch,
     evaluate_all_pairs_for_slot,
 )
+
+
+def _d_dirs():
+    return {
+        "XAUUSD": {"d_direction": "BUY", "d_state": "READY", "symbol": "XAUUSD", "source_symbol": "GBPUSD", "timeframe": "H4"},
+        "GBPUSD": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPUSD", "source_symbol": "GBPUSD", "timeframe": "H4"},
+        "GBPAUD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPAUD", "source_symbol": "GBPAUD", "timeframe": "H4"},
+        "GBPJPY": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPJPY", "source_symbol": "GBPJPY", "timeframe": "H4"},
+        "GBPCAD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPCAD", "source_symbol": "GBPCAD", "timeframe": "H4"},
+    }
+
+
+def _timing(entry_time, symbol="XAUUSD"):
+    return {
+        "symbol": symbol,
+        "entry_time": entry_time,
+        "entry_state": "READY",
+        "layer1": {"group": "BT"},
+        "layer2": {"group": "SW"},
+        "layer3": {"group": "SW"},
+    }
 
 
 class ResolvePrimaryActionH49Tests(unittest.TestCase):
@@ -30,21 +51,11 @@ class H49SignalEngineTests(unittest.TestCase):
         """H:49 with H1 TANG → SELL (reverse of BUY)."""
         mock_clock.utc_offset_for_date.return_value = 3
         mode = DayMode(mode="DAY_MODE_H11", source_hour=3, source_entry_time="03:11", source_branch="H_11")
-        d_dirs = {
-            "XAUUSD": {"d_direction": "BUY", "d_state": "READY", "symbol": "XAUUSD"},
-            "GBPUSD": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPUSD"},
-            "GBPAUD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPAUD"},
-            "GBPJPY": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPJPY"},
-            "GBPCAD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPCAD"},
-        }
         h1_candle = {"open": 2340.0, "close": 2345.0, "high": 2346.0, "low": 2339.0}
 
         with (
-            patch("mt5_signal_bot.calculate_all_d_directions", return_value=d_dirs),
-            patch("mt5_signal_bot.evaluate_xau_entry_timing_m30", return_value={
-                "entry_time": "07:49", "entry_state": "READY",
-                "layer1": {"group": "BT"}, "layer2": {"group": "SW"}, "layer3": {"group": "SW"},
-            }),
+            patch("mt5_signal_bot.calculate_all_d_directions", return_value=_d_dirs()),
+            patch("mt5_signal_bot.evaluate_symbol_entry_timing_m30", side_effect=lambda sym, *a, **kw: _timing("07:49", symbol=sym)),
             patch("mt5_signal_bot.read_previous_h1_candle", return_value=(h1_candle, "TANG")),
         ):
             result = evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 7), 7, day_mode=mode)
@@ -59,21 +70,11 @@ class H49SignalEngineTests(unittest.TestCase):
         """H:49 with H1 GIAM → BUY (reverse of SELL)."""
         mock_clock.utc_offset_for_date.return_value = 3
         mode = DayMode(mode="DAY_MODE_H11", source_hour=3, source_entry_time="03:11", source_branch="H_11")
-        d_dirs = {
-            "XAUUSD": {"d_direction": "BUY", "d_state": "READY", "symbol": "XAUUSD"},
-            "GBPUSD": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPUSD"},
-            "GBPAUD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPAUD"},
-            "GBPJPY": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPJPY"},
-            "GBPCAD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPCAD"},
-        }
         h1_candle = {"open": 2345.0, "close": 2340.0, "high": 2346.0, "low": 2339.0}
 
         with (
-            patch("mt5_signal_bot.calculate_all_d_directions", return_value=d_dirs),
-            patch("mt5_signal_bot.evaluate_xau_entry_timing_m30", return_value={
-                "entry_time": "07:49", "entry_state": "READY",
-                "layer1": {"group": "BT"}, "layer2": {"group": "SW"}, "layer3": {"group": "SW"},
-            }),
+            patch("mt5_signal_bot.calculate_all_d_directions", return_value=_d_dirs()),
+            patch("mt5_signal_bot.evaluate_symbol_entry_timing_m30", side_effect=lambda sym, *a, **kw: _timing("07:49", symbol=sym)),
             patch("mt5_signal_bot.read_previous_h1_candle", return_value=(h1_candle, "GIAM")),
         ):
             result = evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 7), 7, day_mode=mode)
@@ -86,21 +87,11 @@ class H49SignalEngineTests(unittest.TestCase):
         """H:49 with H1 DOJI → WAIT."""
         mock_clock.utc_offset_for_date.return_value = 3
         mode = DayMode(mode="DAY_MODE_H11", source_hour=3, source_entry_time="03:11", source_branch="H_11")
-        d_dirs = {
-            "XAUUSD": {"d_direction": "BUY", "d_state": "READY", "symbol": "XAUUSD"},
-            "GBPUSD": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPUSD"},
-            "GBPAUD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPAUD"},
-            "GBPJPY": {"d_direction": "SELL", "d_state": "READY", "symbol": "GBPJPY"},
-            "GBPCAD": {"d_direction": "BUY", "d_state": "READY", "symbol": "GBPCAD"},
-        }
         h1_candle = {"open": 2345.0, "close": 2345.0, "high": 2346.0, "low": 2344.0}
 
         with (
-            patch("mt5_signal_bot.calculate_all_d_directions", return_value=d_dirs),
-            patch("mt5_signal_bot.evaluate_xau_entry_timing_m30", return_value={
-                "entry_time": "07:49", "entry_state": "READY",
-                "layer1": {"group": "BT"}, "layer2": {"group": "SW"}, "layer3": {"group": "SW"},
-            }),
+            patch("mt5_signal_bot.calculate_all_d_directions", return_value=_d_dirs()),
+            patch("mt5_signal_bot.evaluate_symbol_entry_timing_m30", side_effect=lambda sym, *a, **kw: _timing("07:49", symbol=sym)),
             patch("mt5_signal_bot.read_previous_h1_candle", return_value=(h1_candle, "DOJI")),
         ):
             result = evaluate_all_pairs_for_slot(datetime(2026, 7, 29, 7), 7, day_mode=mode)
