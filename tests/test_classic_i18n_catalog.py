@@ -17,7 +17,7 @@ def classic_translation_keys() -> set[str]:
     for path in ROOT.rglob("*.py"):
         if EXCLUDED_PARTS.intersection(path.parts):
             continue
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
                 continue

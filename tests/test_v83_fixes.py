@@ -14,6 +14,8 @@ class TestH4BrokerTimezoneConversion(unittest.TestCase):
     def test_broker_utc_plus3_selects_correct_h4(self, mock_mt5, mock_clock):
         """Broker UTC+3: H4 20:00 Broker = 17:00 UTC."""
         mock_clock.utc_offset_for_date.return_value = 3
+        mock_clock.mt5_timestamp_from_broker_datetime.side_effect = lambda dt: int((dt - timedelta(hours=3)).replace(tzinfo=timezone.utc).timestamp())
+        mock_clock.broker_datetime_from_mt5_timestamp.side_effect = lambda ts: datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=3)
         target_date = datetime(2026, 7, 31).date()
         session_date = datetime(2026, 7, 30).date()
 
@@ -38,6 +40,8 @@ class TestH4BrokerTimezoneConversion(unittest.TestCase):
     def test_broker_utc_plus2_selects_correct_h4(self, mock_mt5, mock_clock):
         """Broker UTC+2: H4 20:00 Broker = 18:00 UTC."""
         mock_clock.utc_offset_for_date.return_value = 2
+        mock_clock.mt5_timestamp_from_broker_datetime.side_effect = lambda dt: int((dt - timedelta(hours=2)).replace(tzinfo=timezone.utc).timestamp())
+        mock_clock.broker_datetime_from_mt5_timestamp.side_effect = lambda ts: datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=2)
         target_date = datetime(2026, 7, 31).date()
         session_date = datetime(2026, 7, 30).date()
 

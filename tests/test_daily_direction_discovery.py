@@ -75,6 +75,8 @@ class DailyDirectionDiscoveryTests(unittest.TestCase):
     def test_normal_session_finds_h4_20_candle(self, mock_mt5, mock_clock):
         """H4 20:00 candle from previous session → BUY (TANG)."""
         mock_clock.utc_offset_for_date.return_value = 3
+        mock_clock.mt5_timestamp_from_broker_datetime.side_effect = lambda dt: int((dt - timedelta(hours=3)).replace(tzinfo=timezone.utc).timestamp())
+        mock_clock.broker_datetime_from_mt5_timestamp.side_effect = lambda ts: datetime.fromtimestamp(ts, tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=3)
         mock_mt5.symbol_select.return_value = True
         mock_mt5.TIMEFRAME_M30 = 16385
         mock_mt5.TIMEFRAME_H4 = 16408

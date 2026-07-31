@@ -159,6 +159,9 @@ MINIMUM_SIGNAL_LOGIC_VERSION = 84
 SIGNAL_EVIDENCE_SCHEMA_VERSION = 6
 LAYER3_CANDLE_GRACE_SECONDS = 90
 D_DIRECTION_SCHEMA_VERSION = 6
+D_PUBLICATION_STATE_SCHEMA_VERSION = 2
+DASHBOARD_TRANSPORT_SCHEMA_VERSION = 3
+SIGNAL_SUMMARY_SCHEMA_VERSION = 2
 D_SESSION_POLICY = {
     "normal_close_broker": "23:00",
     "timeframe_minutes": 30,
@@ -352,21 +355,46 @@ def _trading_date():
     return get_broker_time().date()
 
 def _load_state():
-    """Load restart-safe sent-slot, entry-alert, and D publication state."""
+    """Load restart-safe sent-slot, entry-alert, and D publication state.
+
+    Supports three legacy formats for d_publication_state:
+      A. Legacy list: ["2026-07-31"] -> migrated as UNKNOWN_LEGACY, acknowledged=False
+      B. Legacy set from runtime (also iterable non-dict).
+      C. New metadata dictionary with snapshot_state, dashboard_acknowledged, etc.
+
+    Legacy dates are intentionally NOT treated as READY/acknowledged — they must
+    be re-verified against the actual Dashboard state before being considered complete.
+    """
     try:
         with open(_STATE_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
 
-    pub_dates = set(data.get("d_published_local_dates", []))
+    # Support both old key (d_published_local_dates) and new key (d_publication_state).
+    raw_pub_state = data.get("d_publication_state") or data.get("d_published_local_dates", {})
+    if isinstance(raw_pub_state, (list, set)):
+        # Legacy list/set: migrate to UNKNOWN_LEGACY — NOT acknowledged, NOT READY.
+        pub_state = {
+            str(d): {
+                "snapshot_state": "UNKNOWN_LEGACY",
+                "dashboard_acknowledged": False,
+                "schema_version": D_PUBLICATION_STATE_SCHEMA_VERSION,
+            }
+            for d in raw_pub_state
+        }
+    elif isinstance(raw_pub_state, dict):
+        pub_state = raw_pub_state
+    else:
+        pub_state = {}
+
     last_success = data.get("d_last_success_at")
 
     today_str = _trading_date().isoformat()
     if data.get("date") != today_str:
         res = {}
-        if pub_dates:
-            res["d_published_local_dates"] = pub_dates
+        if pub_state:
+            res["d_publication_state"] = pub_state
         if last_success is not None:
             res["d_last_success_at"] = last_success
         return res
@@ -378,7 +406,7 @@ def _load_state():
             "sent_today": set(),
             "entry_alerts_sent": set(),
             "entry_alerts_pending": {},
-            "d_published_local_dates": pub_dates,
+            "d_publication_state": pub_state,
             "d_last_success_at": last_success,
         }
 
@@ -399,13 +427,19 @@ def _load_state():
         "sent_today": restored_sent,
         "entry_alerts_sent": alerts_sent,
         "entry_alerts_pending": alerts_pending,
-        "d_published_local_dates": pub_dates,
+        "d_publication_state": pub_state,
         "d_last_success_at": last_success,
     }
 
 
-def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None, d_last_success_at=None):
-    """Persist sent logical slots, entry alerts, and D-Direction publication state."""
+def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None,
+                d_publication_state=None, d_last_success_at=None):
+    """Persist sent logical slots, entry alerts, and D-Direction publication state.
+
+    Accepts both legacy `d_published_local_dates` kwarg (for backward compat in tests)
+    and new `d_publication_state` dict. The new key takes priority.
+    The metadata dict is always written as-is — never converted to sorted list.
+    """
     if sent_today is None:
         try:
             sent_today = globals().get("sent_today", set())
@@ -432,7 +466,14 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None, d
     has_verified_clock = broker_utc_offset is not None
 
     existing = _load_state()
-    pub_dates = d_published_local_dates if d_published_local_dates is not None else existing.get("d_published_local_dates", set())
+    # d_publication_state (new key) takes priority over legacy d_published_local_dates kwarg.
+    if d_publication_state is not None:
+        pub_state = d_publication_state
+    elif d_published_local_dates is not None:
+        # Legacy kwarg provided — accept as-is (may be dict from old tests)
+        pub_state = d_published_local_dates
+    else:
+        pub_state = existing.get("d_publication_state", {})
     last_success = d_last_success_at if d_last_success_at is not None else existing.get("d_last_success_at")
 
     data = {
@@ -444,7 +485,7 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None, d
         "broker_time": broker_now.replace(microsecond=0).isoformat() if has_verified_clock else "",
         "broker_utc_offset": broker_utc_offset,
         "broker_observed_at_utc": datetime.now(timezone.utc).isoformat() if has_verified_clock else "",
-        "d_published_local_dates": sorted(list(pub_dates)),
+        "d_publication_state": pub_state,
     }
     if last_success:
         data["d_last_success_at"] = last_success
@@ -820,23 +861,63 @@ def push_to_dashboard(snapshot_complete: bool = False):
                 all_signals = json.load(f)
             signals = select_signals_for_dashboard(all_signals)
             if signals:
-                mode = "FULL_SNAPSHOT" if snapshot_complete else "UPSERT"
-                body = {
-                    "mode": mode,
-                    "snapshot_complete": snapshot_complete,
-                    "source": "mt5_signal_bot",
-                    "logic_version": SIGNAL_LOGIC_VERSION,
-                    "records": signals,
-                }
-                payload = json.dumps(body).encode("utf-8")
-                req = urllib.request.Request(
-                    f"{dashboard_url}/api/signals",
-                    data=payload,
-                    headers=headers
-                )
-                resp = urllib.request.urlopen(req, timeout=15)
-                resp.read()
-                print(f"[DASHBOARD] Signals pushed OK ({len(signals)} items, mode={mode})")
+                for batch in split_records_by_encoded_size(signals, max_records=20, max_bytes=350 * 1024):
+                    body = {
+                        "clear_all": (batch is signals[:len(batch)] and snapshot_complete),
+                        "source": "mt5_signal_bot",
+                        "logic_version": SIGNAL_LOGIC_VERSION,
+                        "records": batch,
+                    }
+                    payload = json.dumps(body).encode("utf-8")
+                    endpoint = "/api/signals/history/batch"
+                    req = urllib.request.Request(
+                        f"{dashboard_url}{endpoint}",
+                        data=payload,
+                        headers=headers
+                    )
+                    try:
+                        with urllib.request.urlopen(req, timeout=15) as resp:
+                            status = resp.status
+                            resp.read()
+                        print(
+                            f"[DASHBOARD] POST {endpoint} records={len(batch)} "
+                            f"bytes={len(payload)} status={status}"
+                        )
+                    except urllib.error.HTTPError as http_err:
+                        if http_err.code == 413:
+                            print(
+                                f"[DASHBOARD] POST {endpoint} records={len(batch)} "
+                                f"bytes={len(payload)} status=413 action=split"
+                            )
+                            # Retry with half batch size
+                            half = max(1, len(batch) // 2)
+                            for i in range(0, len(batch), half):
+                                sub = batch[i:i+half]
+                                sub_body = {
+                                    "clear_all": False,
+                                    "source": "mt5_signal_bot",
+                                    "logic_version": SIGNAL_LOGIC_VERSION,
+                                    "records": sub,
+                                }
+                                sub_payload = json.dumps(sub_body).encode("utf-8")
+                                try:
+                                    req2 = urllib.request.Request(
+                                        f"{dashboard_url}{endpoint}",
+                                        data=sub_payload,
+                                        headers=headers
+                                    )
+                                    with urllib.request.urlopen(req2, timeout=15) as resp2:
+                                        status2 = resp2.status
+                                        resp2.read()
+                                    print(
+                                        f"[DASHBOARD] POST {endpoint} records={len(sub)} "
+                                        f"bytes={len(sub_payload)} status={status2} (retry after 413)"
+                                    )
+                                except Exception as retry_err:
+                                    print(f"[DASHBOARD] Retry sub-batch FAILED: {retry_err}")
+                        else:
+                            raise
+                print(f"[DASHBOARD] Signals pushed OK ({len(signals)} items, snapshot={snapshot_complete})")
         if push_state_to_dashboard():
             print("[DASHBOARD] State pushed OK")
         # Push today's newest VN/EN news cache.
@@ -2398,34 +2479,192 @@ def save_d_direction_snapshot_local(snapshot):
         except Exception as e:
             print(f"[DAILY-D] Failed to save local D history: {e}")
 
-def push_d_direction_snapshot(snapshot, force=False):
+
+# =====================================================================
+# DASHBOARD PUSH INFRASTRUCTURE
+# =====================================================================
+
+@dataclass
+class DashboardPushResult:
+    """Structured result from a dashboard push operation."""
+    ok: bool
+    status_code: int | None
+    endpoint: str
+    bytes_sent: int
+    error: str | None
+    acknowledged: bool  # True only for 2xx + ok=true in JSON response
+
+
+def is_d_publication_complete(
+    metadata,
+    *,
+    logic_version: int,
+    d_schema_version: int,
+) -> bool:
+    """Return True only when the D publication is fully verified complete.
+
+    A publication is ONLY complete when ALL of the following hold:
+    - metadata is a dict
+    - logic_version matches current SIGNAL_LOGIC_VERSION
+    - d_schema_version matches current D_DIRECTION_SCHEMA_VERSION
+    - snapshot_state is READY (or PARTIAL but active sources are READY)
+    - dashboard_acknowledged is True (2xx HTTP confirmed)
+    - digest key exists (non-empty)
+    - last_http_status is in 200..299
+
+    MISSING, UNKNOWN_LEGACY, and push-failed states always return False.
+    """
+    if not isinstance(metadata, dict):
+        return False
+    if metadata.get("logic_version") != logic_version:
+        return False
+    if metadata.get("d_schema_version") != d_schema_version:
+        return False
+    snap_state = metadata.get("snapshot_state", "")
+    if snap_state not in ("READY", "PARTIAL"):
+        return False
+    if snap_state == "PARTIAL":
+        # For PARTIAL: active sources (GBPUSD, GBPAUD) must be individually READY
+        active_source_states = metadata.get("active_source_states", {})
+        if not (
+            active_source_states.get("GBPUSD") in ("READY", "DOJI")
+            and active_source_states.get("GBPAUD") in ("READY", "DOJI")
+        ):
+            return False
+    if not metadata.get("dashboard_acknowledged", False):
+        return False
+    if not metadata.get("digest"):
+        return False
+    http_status = metadata.get("last_http_status")
+    if not (isinstance(http_status, int) and 200 <= http_status <= 299):
+        return False
+    return True
+
+
+def snapshot_is_publishable(snapshot: dict) -> bool:
+    """Return True when D snapshot has enough data to publish.
+
+    Active signal sources are GBPUSD and GBPAUD (XAUUSD shares GBPUSD).
+    GBPJPY and GBPCAD are EXEC OFF so their absence never blocks publication.
+    Publication is allowed when both GBPUSD and GBPAUD have d_state READY or DOJI.
+    """
+    syms = snapshot.get("symbols", {})
+    gbpusd_ok = syms.get("GBPUSD", {}).get("d_state") in ("READY", "DOJI")
+    gbpaud_ok = syms.get("GBPAUD", {}).get("d_state") in ("READY", "DOJI")
+    return gbpusd_ok and gbpaud_ok
+
+
+def validate_local_ready_snapshot(target_date_str: str) -> bool:
+    """Return True if local d_direction_history.json has a READY/PARTIAL record for that date."""
+    try:
+        records = _load_d_direction_history_records()
+        snap = records.get(target_date_str, {})
+        return snap.get("state") in ("READY", "PARTIAL")
+    except Exception:
+        return False
+
+
+def split_records_by_encoded_size(records, max_records=20, max_bytes=350 * 1024):
+    """Split signal records into batches ensuring no batch exceeds size limits.
+
+    Args:
+        records: list of signal record dicts
+        max_records: maximum records per batch (default 20)
+        max_bytes: maximum JSON byte size per batch (default 350 KiB)
+
+    Yields individual batches as lists.
+    """
+    current_batch = []
+    current_size = 0
+    for record in records:
+        encoded = json.dumps(record, default=str).encode("utf-8")
+        rec_size = len(encoded)
+        # If a single record exceeds the limit, yield it alone to avoid infinite loop
+        if rec_size >= max_bytes:
+            if current_batch:
+                yield current_batch
+                current_batch = []
+                current_size = 0
+            yield [record]
+            continue
+        if (current_batch and (len(current_batch) >= max_records or current_size + rec_size > max_bytes)):
+            yield current_batch
+            current_batch = []
+            current_size = 0
+        current_batch.append(record)
+        current_size += rec_size
+    if current_batch:
+        yield current_batch
+
+
+def push_d_direction_snapshot(snapshot, force=False) -> DashboardPushResult:
+    """Push a D-Direction snapshot to the dashboard API.
+
+    Returns a DashboardPushResult. Reads response body to verify ok=true.
+    Only sets acknowledged=True when HTTP 2xx AND response contains ok=true.
+    """
+    endpoint = "/api/signals/d-direction"
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
-        print("[DAILY-D] No dashboard_url configured, skip push.")
-        return False
+        print("[D-PUBLISH] No dashboard_url configured, skip push.")
+        return DashboardPushResult(ok=False, status_code=None, endpoint=endpoint,
+                                   bytes_sent=0, error="No dashboard_url", acknowledged=False)
     api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
     target_date = snapshot.get("target_local_date", "unknown")
-    print(f"[DAILY-D] Pushing D snapshot for {target_date} to {dashboard_url}/api/signals/d-direction ...")
     try:
         headers = {"Content-Type": "application/json"}
         if api_key:
             headers["X-API-Key"] = api_key
             headers["Authorization"] = f"Bearer {api_key}"
         payload = json.dumps(snapshot).encode("utf-8")
+        bytes_sent = len(payload)
         req = urllib.request.Request(
-            f"{dashboard_url}/api/signals/d-direction",
+            f"{dashboard_url}{endpoint}",
             data=payload,
             headers=headers
         )
-        resp = urllib.request.urlopen(req, timeout=15)
-        resp.read()
-        print(f"[DAILY-D] Pushed D snapshot for {target_date} OK")
-        return True
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            status_code = resp.status
+            body_raw = resp.read()
+        print(
+            f"[D-PUBLISH] POST {endpoint} "
+            f"date={target_date} bytes={bytes_sent} status={status_code}"
+        )
+        acknowledged = False
+        if 200 <= status_code <= 299:
+            try:
+                body = json.loads(body_raw.decode("utf-8"))
+                acknowledged = bool(body.get("ok") is True)
+            except Exception:
+                acknowledged = True  # 2xx with non-JSON body: accept
+        if acknowledged:
+            print(f"[D-PUBLISH] D snapshot for {target_date} acknowledged OK")
+        else:
+            print(f"[D-PUBLISH] D snapshot for {target_date}: HTTP {status_code} but not acknowledged")
+        return DashboardPushResult(
+            ok=200 <= status_code <= 299,
+            status_code=status_code,
+            endpoint=endpoint,
+            bytes_sent=bytes_sent,
+            error=None,
+            acknowledged=acknowledged,
+        )
     except Exception as e:
-        print(f"[DAILY-D] Failed to push D snapshot: {e}")
-        return False
+        err = str(e)
+        print(f"[D-PUBLISH] Failed to push D snapshot for {target_date}: {err}")
+        return DashboardPushResult(ok=False, status_code=None, endpoint=endpoint,
+                                   bytes_sent=0, error=err, acknowledged=False)
+
 
 def publish_d_direction_daily(target_local_date=None, force=False):
+    """Publish the D-Direction snapshot for a given local date.
+
+    Bug fixes vs previous version:
+    - Skip gate: uses is_d_publication_complete() — UNKNOWN_LEGACY and push-failed never skip.
+    - Retry condition: uses snapshot_is_publishable() — `force` does NOT affect retry.
+    - Mark published: only sets acknowledged=True when push HTTP 2xx + ok=true.
+    - Saves structured metadata with digest, version fields, HTTP status.
+    """
     if target_local_date is None:
         target_local_date = datetime.now(HO_CHI_MINH_TZ).date()
     elif isinstance(target_local_date, str):
@@ -2433,11 +2672,27 @@ def publish_d_direction_daily(target_local_date=None, force=False):
 
     target_date_str = target_local_date.isoformat()
     state_data = _load_state()
-    published_dates = set(state_data.get("d_published_local_dates", []))
+    publication_state = state_data.get("d_publication_state", {})
+    metadata = publication_state.get(target_date_str)
 
-    if target_date_str in published_dates and not force:
-        print(f"  [DAILY-D] Date {target_date_str} already published, skip.")
+    # FIX #1: Skip gate uses is_d_publication_complete() — not mere membership.
+    # MISSING, UNKNOWN_LEGACY, or push-failed metadata NEVER skips.
+    if (
+        not force
+        and is_d_publication_complete(
+            metadata,
+            logic_version=SIGNAL_LOGIC_VERSION,
+            d_schema_version=D_DIRECTION_SCHEMA_VERSION,
+        )
+        and validate_local_ready_snapshot(target_date_str)
+    ):
+        prev_state = metadata.get("snapshot_state", "")
+        print(f"  [D-PUBLISH] Date {target_date_str} already published and acknowledged (state={prev_state}), skip.")
         return _load_d_direction_history_records().get(target_date_str)
+    elif metadata:
+        prev_state = metadata.get("snapshot_state", "NONE")
+        if prev_state not in ("READY", "PARTIAL"):
+            print(f"  [D-PUBLISH] Previous metadata incomplete (state={prev_state}), will overwrite.")
 
     pub_utc = get_d_publication_datetime_utc(target_local_date)
     try:
@@ -2470,7 +2725,10 @@ def publish_d_direction_daily(target_local_date=None, force=False):
                     pass
 
         snapshot = build_d_direction_snapshot_v2(target_local_date, target_broker_date)
-        if snapshot["state"] in ("READY", "DOJI") or not force:
+
+        # FIX #2: Retry condition uses snapshot_is_publishable() — `force` does NOT affect this.
+        # Normal startup with force=False must also retry MISSING snapshots.
+        if snapshot_is_publishable(snapshot):
             break
 
         current_local = datetime.now(HO_CHI_MINH_TZ)
@@ -2483,22 +2741,52 @@ def publish_d_direction_daily(target_local_date=None, force=False):
         time.sleep(sleep_sec)
 
     save_d_direction_snapshot_local(snapshot)
-    pushed = push_d_direction_snapshot(snapshot, force=force)
+    push_result = push_d_direction_snapshot(snapshot, force=force)
 
+    # Compute digest for tracking
+    import hashlib
+    digest = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()[:16]
+
+    # Build active_source_states for PARTIAL validation
     syms = snapshot.get("symbols", {})
-    gbp_ok = syms.get("GBPUSD", {}).get("d_state") in ("READY", "DOJI")
-    gbpaud_ok = syms.get("GBPAUD", {}).get("d_state") in ("READY", "DOJI")
-    active_sources_ready = gbp_ok and gbpaud_ok
+    active_source_states = {
+        "GBPUSD": syms.get("GBPUSD", {}).get("d_state", "MISSING"),
+        "GBPAUD": syms.get("GBPAUD", {}).get("d_state", "MISSING"),
+    }
 
-    if snapshot["state"] == "READY" or (snapshot["state"] == "PARTIAL" and active_sources_ready):
-        published_dates.add(target_date_str)
+    # FIX #3: Only mark acknowledged when push_result.acknowledged is True.
+    new_metadata = {
+        "schema_version": D_PUBLICATION_STATE_SCHEMA_VERSION,
+        "logic_version": SIGNAL_LOGIC_VERSION,
+        "d_schema_version": D_DIRECTION_SCHEMA_VERSION,
+        "snapshot_state": snapshot["state"],
+        "dashboard_acknowledged": push_result.acknowledged,
+        "digest": digest if push_result.acknowledged else None,
+        "last_http_status": push_result.status_code,
+        "last_error": push_result.error,
+        "published_at_utc": datetime.now(timezone.utc).isoformat(),
+        "last_attempt_at_utc": datetime.now(timezone.utc).isoformat(),
+        "active_source_states": active_source_states,
+    }
+    publication_state[target_date_str] = new_metadata
+
+    if push_result.acknowledged:
         _save_state(
-            d_published_local_dates=published_dates,
+            d_publication_state=publication_state,
             d_last_success_at=datetime.now(timezone.utc).isoformat(),
         )
-
-    print(f"  [DAILY-D] Published {target_date_str} state={snapshot['state']} (pushed={pushed})")
+        print(f"  [D-PUBLISH] Published {target_date_str} state={snapshot['state']} HTTP {push_result.status_code} acknowledged")
+    else:
+        _save_state(d_publication_state=publication_state)
+        print(
+            f"  [D-PUBLISH] Published {target_date_str} state={snapshot['state']} "
+            f"push_ok={push_result.ok} acknowledged=False "
+            f"(will retry)"
+        )
     return snapshot
+
 
 def rebuild_d_direction_history(days=45):
     print(f"[REBUILD-D-HISTORY] Rebuilding past {days} days of D-Direction snapshots...")
@@ -2892,6 +3180,9 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
 
     Slot order: H3 → H7 → H9 → H12 → H14 → H16.
     Only slots whose publication datetime ≤ broker_now are rebuilt.
+
+    FIX: push_to_dashboard() is NOT called inside the per-hour loop.
+    Instead compact signal records are collected and pushed ONCE after the loop.
     """
     global _current_day_mode
     target_date = broker_dt.date()
@@ -2909,6 +3200,7 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
         return 0
 
     rebuilt = 0
+    rebuilt_hours = []
     current_pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
     day_results = {}
     for hour in hours:
@@ -2950,15 +3242,22 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
                 continue
 
             pair_dirs = record.get("pair_dirs", {})
-            push_to_dashboard()
             rebuilt += 1
-            print(f"[D-READY] Rebuilt H={hour}: {pair_dirs}")
+            rebuilt_hours.append(hour)
+            print(f"[D-READY] Local rebuild H={hour}: {pair_dirs}")
         except Exception as exc:
             print(f"[D-READY] Rebuild error H={hour}: {exc}")
 
     if rebuilt:
-        print(f"[D-READY] {rebuilt} slot(s) rebuilt and pushed to dashboard")
+        hours_str = ", ".join(f"H{h}" for h in rebuilt_hours)
+        print(f"[D-READY] Local rebuild OK: {rebuilt} slots ({hours_str})")
+        # Push compact current signal summaries ONCE after all slots rebuilt
+        try:
+            _push_compact_current_signals([day_results[h] for h in rebuilt_hours if h in day_results])
+        except Exception as push_exc:
+            print(f"[D-READY] Dashboard push FAILED: {push_exc}")
     return rebuilt
+
 
 # =====================================================================
 # MAIN LOOP
@@ -2968,6 +3267,98 @@ _broker_clock_error = ""
 
 # Track last known D snapshot state per broker date to detect MISSING → READY transitions
 _d_state_per_date: dict = {}  # {date: snapshot_state_str}
+
+
+def _push_compact_current_signals(records):
+    """Push compact current-day signal summaries to the dashboard.
+
+    Strips heavy fields (pair_evidence, d_directions, M30 arrays) before sending.
+    Uses split_records_by_encoded_size to avoid 413.
+    """
+    dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
+    if not dashboard_url or not records:
+        return
+    api_key = os.environ.get("DASHBOARD_API_KEY", "") or _cfg.get("dashboard_api_key", "")
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["X-API-Key"] = api_key
+
+    _HEAVY_FIELDS = {
+        "pair_evidence", "d_directions", "daily_directions",
+        "m30_candles", "h1_candle", "m30_layer1", "m30_layer2", "m30_layer3",
+    }
+
+    compact_records = []
+    for rec in records:
+        compact = {k: v for k, v in rec.items() if k not in _HEAVY_FIELDS}
+        # Track which pairs have evidence available
+        pair_ev = rec.get("pair_evidence") or {}
+        if pair_ev:
+            compact["evidence_available"] = {sym: True for sym in pair_ev if pair_ev[sym]}
+            compact["evidence_keys"] = {
+                sym: f"{rec.get('date', '')}:{rec.get('hour', '')}:{sym}:v{SIGNAL_LOGIC_VERSION}"
+                for sym in pair_ev if pair_ev[sym]
+            }
+        compact_records.append(compact)
+
+    pushed = 0
+    for batch in split_records_by_encoded_size(compact_records, max_records=20, max_bytes=350 * 1024):
+        payload = json.dumps({"records": batch, "source": "mt5_signal_bot_compact",
+                              "logic_version": SIGNAL_LOGIC_VERSION}).encode("utf-8")
+        endpoint = "/api/signals/current"
+        try:
+            req = urllib.request.Request(
+                f"{dashboard_url}{endpoint}",
+                data=payload,
+                headers=headers,
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                status = resp.status
+                resp.read()
+            print(
+                f"[DASHBOARD] POST {endpoint} records={len(batch)} "
+                f"bytes={len(payload)} status={status}"
+            )
+            if 200 <= status <= 299:
+                pushed += len(batch)
+        except urllib.error.HTTPError as http_err:
+            if http_err.code == 413:
+                print(
+                    f"[DASHBOARD] POST {endpoint} records={len(batch)} "
+                    f"bytes={len(payload)} status=413 action=split_needed"
+                )
+                # Re-split to half and retry once
+                half = max(1, len(batch) // 2)
+                for i in range(0, len(batch), half):
+                    sub = batch[i:i+half]
+                    sub_payload = json.dumps({"records": sub, "source": "mt5_signal_bot_compact",
+                                             "logic_version": SIGNAL_LOGIC_VERSION}).encode("utf-8")
+                    try:
+                        req2 = urllib.request.Request(
+                            f"{dashboard_url}{endpoint}",
+                            data=sub_payload,
+                            headers=headers,
+                        )
+                        with urllib.request.urlopen(req2, timeout=15) as resp2:
+                            status2 = resp2.status
+                            resp2.read()
+                        print(
+                            f"[DASHBOARD] POST {endpoint} records={len(sub)} "
+                            f"bytes={len(sub_payload)} status={status2} (retry after 413)"
+                        )
+                        if 200 <= status2 <= 299:
+                            pushed += len(sub)
+                    except Exception as retry_exc:
+                        print(f"[DASHBOARD] Retry sub-batch FAILED: {retry_exc}")
+            else:
+                print(f"[DASHBOARD] POST {endpoint} FAILED: HTTP {http_err.code}")
+        except Exception as exc:
+            print(f"[DASHBOARD] POST {endpoint} FAILED: {exc}")
+
+    if pushed > 0:
+        print(f"[DASHBOARD] Current signal summaries pushed OK ({pushed} records)")
+    else:
+        print("[DASHBOARD] Current signal summaries push FAILED (0 records delivered)")
 
 
 def _check_and_rebuild_after_d_ready(broker_dt):
@@ -3014,13 +3405,19 @@ def _check_and_rebuild_after_d_ready(broker_dt):
         print(f"[D-READY] D transitioned {prev_state!r} → {current_state!r} for {today} — running catch-up rebuild")
         _d_directions_today = fresh_directions
         rebuild_current_day_slots_after_d_ready(broker_dt)
-        # Also refresh the published snapshot to reflect READY state
+        # FIX: Use dict metadata instead of legacy set membership to decide if D push is needed
         try:
             today_local = datetime.now(HO_CHI_MINH_TZ).date()
             target_date_str = today_local.isoformat()
             state_data = _load_state()
-            published_dates = set(state_data.get("d_published_local_dates", []))
-            if target_date_str not in published_dates:
+            pub_state = state_data.get("d_publication_state", {})
+            metadata = pub_state.get(target_date_str)
+            if not is_d_publication_complete(
+                metadata,
+                logic_version=SIGNAL_LOGIC_VERSION,
+                d_schema_version=D_DIRECTION_SCHEMA_VERSION,
+            ):
+                print(f"[D-READY] D publication incomplete for {target_date_str}, force-pushing snapshot")
                 publish_d_direction_daily(today_local, force=True)
         except Exception as exc:
             print(f"[D-READY] Error publishing D snapshot after catch-up: {exc}")
@@ -3028,6 +3425,7 @@ def _check_and_rebuild_after_d_ready(broker_dt):
     elif current_state in ("READY", "PARTIAL") and prev_state in ("READY", "PARTIAL"):
         # Already READY — keep _d_directions_today fresh
         _d_directions_today = fresh_directions
+
 
 def try_init_mt5():
     global mt5_ready

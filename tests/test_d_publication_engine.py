@@ -168,7 +168,7 @@ class TestDPublicationEngine(unittest.TestCase):
             )
 
             loaded = mt5_signal_bot._load_state()
-            self.assertEqual(loaded.get("d_published_local_dates"), pub_dates)
+            self.assertEqual(loaded.get("d_publication_state"), pub_dates)
             self.assertEqual(loaded.get("d_last_success_at"), last_success)
         finally:
             if os.path.exists(tmp_file):

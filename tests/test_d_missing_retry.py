@@ -21,8 +21,11 @@ class TestDMissingRetry(unittest.TestCase):
     @patch("mt5_signal_bot._load_state")
     @patch("mt5_signal_bot._save_state")
     def test_missing_is_retried_until_ready(self, mock_save, mock_load, mock_save_local, mock_push, mock_build, mock_sleep):
-        mock_load.return_value = {"d_published_local_dates": {}}
-        mock_push.return_value = True
+        mock_load.return_value = {"d_publication_state": {}}
+        mock_push.return_value = mt5_signal_bot.DashboardPushResult(
+            ok=True, status_code=200, endpoint="/api/signals/d-direction",
+            bytes_sent=100, error=None, acknowledged=True
+        )
 
         future_date = (datetime.now(timezone.utc) + timedelta(days=5)).date()
 

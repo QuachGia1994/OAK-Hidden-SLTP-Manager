@@ -92,7 +92,27 @@ export async function POST(request: Request) {
     await redis.set(KEYS.dDirectionCurrent, payload);
     await redis.hset(KEYS.dDirectionHistory, { [targetDate]: payload });
 
-    return NextResponse.json({ ok: true, target_local_date: targetDate });
+    // Compute a short digest so the bot can verify the exact snapshot was stored
+    const digestInput = `${targetDate}:${body.state ?? ""}:${body.logic_version ?? ""}`;
+    let digest = "";
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(payload);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      digest = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+    } catch {
+      digest = digestInput.slice(0, 16);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      target_local_date: targetDate,
+      snapshot_state: body.state ?? null,
+      logic_version: body.logic_version ?? null,
+      schema_version: body.schema_version ?? null,
+      digest,
+    });
   } catch (error) {
     return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
   }
