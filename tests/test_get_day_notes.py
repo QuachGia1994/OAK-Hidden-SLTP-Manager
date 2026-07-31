@@ -21,7 +21,7 @@ class TestGetDayNotes(unittest.TestCase):
                 self.assertIn("D-Direction", blob)
                 self.assertIn("M30", blob)
                 self.assertIn("H4", blob)
-                self.assertIn("GBPJPY và GBPCAD tạm Tắt (OFF)", blob)
+                self.assertIn("Tất cả 5 cặp (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD) đều bật (ON)", blob)
 
     def test_weekend_has_no_schedule(self):
         self.assertIn("Cuối tuần", " ".join(get_day_notes(date(2025, 5, 3), lang="VN")))

@@ -15,8 +15,8 @@ interface SignalPairReadinessInput {
 const VALID_ENTRY_TIME = /^\d{2}:\d{2}$/;
 
 /** The dashboard presents signal directions for gold and GBP pairs. */
-export const ACTIVE_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD"] as const;
-export const DISABLED_SIGNAL_PAIRS = ["GBPJPY", "GBPCAD"] as const;
+export const ACTIVE_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
+export const DISABLED_SIGNAL_PAIRS = [] as const;
 export const DISPLAYED_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
 export { ACTIVE_SIGNAL_LOGIC_VERSION };
 
@@ -26,7 +26,7 @@ export function isEffectivelyDeactivated(signal: SignalDeactivationInput): boole
 
 /** A pair is tradable only when its direction and validated entry are both ready. */
 export function isSignalPairReady(signal: SignalPairReadinessInput, symbol: string): boolean {
-  if (DISABLED_SIGNAL_PAIRS.includes(symbol as any)) return false;
+  if ((DISABLED_SIGNAL_PAIRS as readonly string[]).includes(symbol)) return false;
   const direction = signal.pair_dirs?.[symbol];
   const entryTime = signal.pair_entry_times?.[symbol];
   return (

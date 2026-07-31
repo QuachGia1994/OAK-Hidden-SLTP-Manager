@@ -1,4 +1,4 @@
-﻿"""Test: Evidence is tracked separately with evidence_available markers."""
+"""Test: Evidence is tracked separately with evidence_available markers."""
 import json
 import os
 import sys
@@ -65,7 +65,7 @@ class TestSignalEvidenceSeparateStorage(unittest.TestCase):
                 ev_keys = record.get("evidence_keys", {})
                 if ev_keys:
                     for sym, key in ev_keys.items():
-                        self.assertIn("v84", key, f"Key {key!r} missing version for {sym}")
+                        self.assertIn("v85", key, f"Key {key!r} missing version for {sym}")
 
     def test_pair_evidence_not_in_compact_record(self):
         """pair_evidence raw data must not appear in compact summary."""

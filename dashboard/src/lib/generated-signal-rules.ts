@@ -1,5 +1,5 @@
 // AUTO-GENERATED FILE BY scripts/generate_dashboard_signal_rules.py. DO NOT EDIT DIRECTLY.
-export const ACTIVE_SIGNAL_LOGIC_VERSION = 84;
+export const ACTIVE_SIGNAL_LOGIC_VERSION = 85;
 export const PUBLIC_SIGNAL_SLOTS = [3, 7, 9, 12, 14, 16] as const;
 export const INTERNAL_SIGNAL_SLOTS = [] as const;
 
@@ -17,7 +17,7 @@ export const RULES_BY_LOCALE = {
     "Final Inversion: H3 Thứ Tư và Thứ Năm đảo khi Signal dùng D-Direction.",
     "Final Inversion: H16 Thứ Ba, Thứ Tư và Thứ Sáu đảo khi Signal dùng D-Direction.",
     "Final Inversion: H14 Thứ Ba và Thứ Tư luôn đảo Final Signal một lần.",
-    "GBPJPY và GBPCAD tạm Tắt (OFF) — chỉ tính analytical, không giao dịch.",
+    "Tất cả 5 cặp (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD) đều bật (ON) và giao dịch đầy đủ.",
     "Không có Auto-Close. Người dùng tự quyết định thời điểm đóng lệnh.",
     "D-Direction được tính và công bố độc lập lúc 06:00 GMT+7 mỗi ngày.",
     "Snapshot D MISSING không được đánh dấu là đã publish; bot retry cho đến khi READY.",
@@ -36,7 +36,7 @@ export const RULES_BY_LOCALE = {
     "Final Inversion: H3 Wednesday and Thursday invert when Signal uses D-Direction.",
     "Final Inversion: H16 Tuesday, Wednesday, and Friday invert when Signal uses D-Direction.",
     "Final Inversion: H14 Tuesday and Wednesday always invert Final Signal once.",
-    "GBPJPY and GBPCAD are OFF (analytical only).",
+    "All 5 pairs (XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD) are ON and fully executed.",
     "No Auto-Close. User manages position closing manually.",
     "D-Direction is calculated and published independently at 06:00 GMT+7 daily.",
     "MISSING D snapshot is never marked as published; bot retries until READY.",
@@ -44,4 +44,4 @@ export const RULES_BY_LOCALE = {
   ]
 } as const;
 
-export const STARTUP_SUMMARY_BY_LOCALE = "v84: BrokerClock symbol resolution + H4 20:00 exact encoding + v84 final inversions + auto-close removed" as const;
+export const STARTUP_SUMMARY_BY_LOCALE = "v85: Correct D target broker date + GMT+7 time conversion + GBPJPY & GBPCAD fully enabled" as const;

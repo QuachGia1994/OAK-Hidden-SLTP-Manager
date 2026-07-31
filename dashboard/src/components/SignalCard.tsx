@@ -8,7 +8,7 @@ import { BrokerLocalTime } from "./BrokerLocalTime";
 import { hasEvidenceForPair } from "@/lib/signal-evidence";
 import { getT } from "@/lib/translations";
 
-const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD", "GBPUSD", "GBPAUD"]);
+const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"]);
 
 interface SignalCardProps {
   signal: Signal;

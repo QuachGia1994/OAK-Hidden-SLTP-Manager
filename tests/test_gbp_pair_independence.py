@@ -52,9 +52,8 @@ class GbpPairIndependenceTests(unittest.TestCase):
         self.assertEqual(result["pair_entry_times"]["XAUUSD"], "07:11")
         self.assertEqual(result["pair_entry_times"]["GBPUSD"], "07:11")
         self.assertEqual(result["pair_entry_times"]["GBPAUD"], "07:11")
-        # Disabled pairs
-        self.assertEqual(result["pair_signal_states"]["GBPJPY"], "DISABLED")
-        self.assertEqual(result["pair_signal_states"]["GBPCAD"], "DISABLED")
+        self.assertEqual(result["pair_signal_states"]["GBPJPY"], "READY")
+        self.assertEqual(result["pair_signal_states"]["GBPCAD"], "READY")
 
 
 if __name__ == "__main__":

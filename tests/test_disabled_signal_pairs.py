@@ -19,12 +19,12 @@ class TestDisabledSignalPairs(unittest.TestCase):
         pair_entry_states = res["pair_entry_states"]
         pair_labels = res["pair_labels"]
 
-        self.assertEqual(pair_signal_states["GBPJPY"], "DISABLED")
-        self.assertEqual(pair_signal_states["GBPCAD"], "DISABLED")
-        self.assertEqual(pair_entry_states["GBPJPY"], "DISABLED")
-        self.assertEqual(pair_entry_states["GBPCAD"], "DISABLED")
-        self.assertEqual(pair_labels["GBPJPY"], "OFF")
-        self.assertEqual(pair_labels["GBPCAD"], "OFF")
+        self.assertNotEqual(pair_signal_states["GBPJPY"], "DISABLED")
+        self.assertNotEqual(pair_signal_states["GBPCAD"], "DISABLED")
+        self.assertNotEqual(pair_entry_states["GBPJPY"], "DISABLED")
+        self.assertNotEqual(pair_entry_states["GBPCAD"], "DISABLED")
+        self.assertNotEqual(pair_labels["GBPJPY"], "OFF")
+        self.assertNotEqual(pair_labels["GBPCAD"], "OFF")
 
 if __name__ == "__main__":
     unittest.main()

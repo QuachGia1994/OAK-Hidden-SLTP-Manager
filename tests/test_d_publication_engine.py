@@ -143,7 +143,7 @@ class TestDPublicationEngine(unittest.TestCase):
         jpy = snapshot["symbols"]["GBPJPY"]
         self.assertEqual(jpy["d_direction"], "WAIT")
         self.assertEqual(jpy["d_state"], "DOJI")
-        self.assertEqual(jpy["execution_status"], "OFF")
+        self.assertEqual(jpy["execution_status"], "ON")
 
     @patch("mt5_signal_bot._STATE_FILE", "tests_tmp_state.json")
     @patch("mt5_signal_bot.get_broker_time")

@@ -153,12 +153,12 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 84
-ACTIVE_SIGNAL_LOGIC_VERSION = 84
-MINIMUM_SIGNAL_LOGIC_VERSION = 84
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 6
+SIGNAL_LOGIC_VERSION = 85
+ACTIVE_SIGNAL_LOGIC_VERSION = 85
+MINIMUM_SIGNAL_LOGIC_VERSION = 85
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 7
 LAYER3_CANDLE_GRACE_SECONDS = 90
-D_DIRECTION_SCHEMA_VERSION = 6
+D_DIRECTION_SCHEMA_VERSION = 7
 D_PUBLICATION_STATE_SCHEMA_VERSION = 2
 DASHBOARD_TRANSPORT_SCHEMA_VERSION = 3
 SIGNAL_SUMMARY_SCHEMA_VERSION = 2
@@ -167,12 +167,12 @@ D_SESSION_POLICY = {
     "timeframe_minutes": 30,
     "allow_early_close": True,
 }
-ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
-DISABLED_SIGNAL_PAIRS = ("GBPJPY", "GBPCAD")
+ACTIVE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+DISABLED_SIGNAL_PAIRS = ()
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SIGNAL_PAIRS = ("XAUUSD", *GBP_SIGNAL_PAIRS)
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
-EVIDENCE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD")
+EVIDENCE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 ENTRY_TIMING_SYMBOLS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 D_SOURCE_SYMBOL = {
     "XAUUSD": "GBPUSD",
@@ -1618,8 +1618,7 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
         f"🤖 OAK SIGNAL BOT ONLINE · v{ver}\n"
         f"MT5: {mt5_status} | Broker: {broker_time_str}\n"
         "Slots: H3 · H7 · H9 · H12 · H14 · H16\n"
-        "Pairs: XAUUSD | GBPUSD | GBPAUD\n"
-        "GBPJPY/GBPCAD: ANALYTICAL · EXEC OFF\n"
+        "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
         "Signal engine: Independent M30 Entry + H4 20:00 D\n"
         "D source: XAUUSD follows GBPUSD H4 20:00"
     )
@@ -2149,7 +2148,7 @@ def find_last_completed_m30_of_session(symbol, session_date):
 
 
 def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset):
-    """Build D-Direction evidence payload v6 from H4 20:00 candle."""
+    """Build D-Direction evidence payload v7 from H4 20:00 candle."""
     utc_open = datetime.fromtimestamp(candle["time"], tz=timezone.utc)
     utc_close = utc_open + timedelta(hours=4)
     try:
@@ -2171,6 +2170,25 @@ def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_d
         d_dir = "WAIT"
         d_state = "DOJI"
 
+    broker_offset_str = f"+{broker_offset:02d}:00" if broker_offset and broker_offset >= 0 else f"{broker_offset:03d}:00"
+
+    source_candle_identity = {
+        "canonical_symbol": target_symbol,
+        "resolved_mt5_symbol": resolve_mt5_symbol(source_symbol),
+        "timeframe": "H4",
+        "epoch": int(candle["time"]),
+        "broker_open_at": f"{session_date.isoformat()}T20:00:00{broker_offset_str}",
+        "broker_close_at": f"{(session_date + timedelta(days=1)).isoformat()}T00:00:00{broker_offset_str}",
+        "utc_open_at": utc_open.isoformat(),
+        "utc_close_at": utc_close.isoformat(),
+        "local_open_at": local_open.isoformat(),
+        "local_close_at": local_close.isoformat(),
+        "open_exact": str(candle["open"]),
+        "high_exact": str(candle["high"]),
+        "low_exact": str(candle["low"]),
+        "close_exact": str(candle["close"]),
+    }
+
     return {
         "schema_version": D_DIRECTION_SCHEMA_VERSION,
         "symbol": target_symbol,
@@ -2184,10 +2202,13 @@ def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_d
         "d_candle_close_time_broker": f"{broker_close.hour:02d}:{broker_close.minute:02d}",
         "d_candle_open_time_local": local_open.strftime("%H:%M"),
         "d_candle_close_time_local": local_close.strftime("%H:%M"),
+        "d_candle_open_at_local": local_open.isoformat(),
+        "d_candle_close_at_local": local_close.isoformat(),
         "broker_utc_offset": broker_offset,
         "local_timezone": "Asia/Ho_Chi_Minh",
         "d_candle_open_at_utc": utc_open.isoformat(),
         "d_candle_close_at_utc": utc_close.isoformat(),
+        "source_candle_identity": source_candle_identity,
         "price_digits": get_symbol_price_digits(source_symbol),
         "candle": {
             "open": candle["open"],
@@ -2220,10 +2241,13 @@ def _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, 
         "d_candle_close_time_broker": None,
         "d_candle_open_time_local": None,
         "d_candle_close_time_local": None,
+        "d_candle_open_at_local": None,
+        "d_candle_close_at_local": None,
         "broker_utc_offset": broker_offset,
         "local_timezone": "Asia/Ho_Chi_Minh",
         "d_candle_open_at_utc": None,
         "d_candle_close_at_utc": None,
+        "source_candle_identity": None,
         "price_digits": get_symbol_price_digits(source_symbol),
         "candle": None,
         "raw_direction": None,
@@ -2244,7 +2268,13 @@ def _compute_d_from_source(target_symbol, source_symbol, target_broker_date):
     if candle is None:
         return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, "MISSING_H4_20")
 
-    return _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset)
+    ev = _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset)
+    print(f"[D-H4] {source_symbol} candidate: {session_date.isoformat()} 20:00 Broker")
+    print(f"[D-H4] Selected session: {session_date.isoformat()}")
+    print(f"[D-H4] O={candle['open']} H={candle['high']} L={candle['low']} C={candle['close']}")
+    print(f"[D-H4] Direction: {ev['d_direction']}")
+    return ev
+
 
 
 def calculate_d_direction(symbol, target_broker_date):
@@ -2353,6 +2383,50 @@ def get_d_publication_datetime_utc(local_date):
     local_dt = get_d_publication_datetime_local(local_date)
     return local_dt.astimezone(timezone.utc)
 
+def resolve_target_broker_date_for_d(target_local_date, broker_clock=None):
+    """Resolve canonical Target Broker Date for D publication.
+
+    Given a target_local_date (e.g. 2026-07-31), publication happens at 06:00 GMT+7.
+    Publication local: 2026-07-31 06:00 +07:00
+    Publication UTC:   2026-07-30 23:00 UTC
+    With Broker UTC+3:
+    Broker datetime:   2026-07-30 23:00 UTC + 3h = 2026-07-31 02:00 Broker
+    Target Broker Date: 2026-07-31 (date portion of Broker datetime at publication).
+    """
+    if broker_clock is None:
+        broker_clock = BROKER_CLOCK
+
+    if isinstance(target_local_date, str):
+        target_local_date = datetime.strptime(target_local_date, "%Y-%m-%d").date()
+    elif hasattr(target_local_date, "date") and callable(getattr(target_local_date, "date")):
+        try:
+            target_local_date = target_local_date.date()
+        except Exception:
+            pass
+
+    publication_local = datetime.combine(
+        target_local_date,
+        dtime(D_PUBLICATION_LOCAL_HOUR, D_PUBLICATION_LOCAL_MINUTE),
+        tzinfo=HO_CHI_MINH_TZ,
+    )
+    publication_utc = publication_local.astimezone(timezone.utc)
+
+    try:
+        if hasattr(broker_clock, "broker_from_utc_datetime") and callable(getattr(broker_clock, "broker_from_utc_datetime")):
+            broker_dt = broker_clock.broker_from_utc_datetime(publication_utc)
+            return broker_dt.date()
+    except Exception:
+        pass
+
+    try:
+        broker_offset = broker_clock.utc_offset_for_date(target_local_date)
+    except Exception:
+        broker_offset = 3
+
+    broker_tz = timezone(timedelta(hours=broker_offset))
+    broker_dt = publication_utc.astimezone(broker_tz)
+    return broker_dt.date()
+
 def is_d_publication_due(now_utc, local_date):
     if now_utc.tzinfo is None:
         now_utc = now_utc.replace(tzinfo=timezone.utc)
@@ -2363,13 +2437,15 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
     now_utc = datetime.now(timezone.utc)
     now_local = now_utc.astimezone(HO_CHI_MINH_TZ)
 
-    if target_broker_date is None:
-        target_broker_date = target_local_date
-
     if isinstance(target_local_date, str):
         target_local_date_str = target_local_date
+        target_local_date_obj = datetime.strptime(target_local_date, "%Y-%m-%d").date()
     else:
+        target_local_date_obj = target_local_date
         target_local_date_str = target_local_date.isoformat()
+
+    if target_broker_date is None:
+        target_broker_date = resolve_target_broker_date_for_d(target_local_date_obj, BROKER_CLOCK)
 
     if isinstance(target_broker_date, str):
         target_broker_date_obj = datetime.strptime(target_broker_date, "%Y-%m-%d").date()
@@ -2694,15 +2770,22 @@ def publish_d_direction_daily(target_local_date=None, force=False):
         if prev_state not in ("READY", "PARTIAL"):
             print(f"  [D-PUBLISH] Previous metadata incomplete (state={prev_state}), will overwrite.")
 
+    pub_local = get_d_publication_datetime_local(target_local_date)
     pub_utc = get_d_publication_datetime_utc(target_local_date)
+    target_broker_date = resolve_target_broker_date_for_d(target_local_date, BROKER_CLOCK)
     try:
-        broker_offset = BROKER_CLOCK.utc_offset_for_date(pub_utc.date())
-        broker_dt = pub_utc - timedelta(hours=broker_offset)
-        target_broker_date = broker_dt.date()
+        broker_offset = BROKER_CLOCK.utc_offset_for_date(target_local_date)
     except Exception:
-        target_broker_date = target_local_date
+        broker_offset = 3
+    broker_tz = timezone(timedelta(hours=broker_offset))
+    broker_dt = pub_utc.astimezone(broker_tz)
 
-    print(f"  [DAILY-D] Calculating D-Direction snapshot for local_date={target_date_str}, broker_date={target_broker_date} ...")
+    print(f"[D-DATE] Local target: {target_date_str}")
+    print(f"[D-DATE] Publication local: {pub_local.isoformat()}")
+    print(f"[D-DATE] Publication UTC: {pub_utc.isoformat()}")
+    print(f"[D-DATE] Broker offset: +{broker_offset:02d}:00")
+    print(f"[D-DATE] Broker datetime: {broker_dt.strftime('%Y-%m-%d %H:%M')}")
+    print(f"[D-DATE] Target Broker date: {target_broker_date.isoformat()}")
 
     attempts = 0
     snapshot = None
