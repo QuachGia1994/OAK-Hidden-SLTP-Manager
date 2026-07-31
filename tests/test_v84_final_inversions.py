@@ -22,35 +22,35 @@ class TestV84FinalInversions(unittest.TestCase):
         broker_date = datetime(2026, 7, 29).date() # Wed
         sig, rule = apply_special_adjustment("BUY", broker_date=broker_date, slot_hour=3, primary_source="D_DIRECTION")
         self.assertEqual(sig, "SELL")
-        self.assertEqual(rule, "WEDNESDAY_H3_D_EXTRA_REVERSE")
+        self.assertEqual(rule, "H3_WEDNESDAY")
 
     def test_h3_thursday_source_d_inverts(self):
         broker_date = datetime(2026, 7, 30).date() # Thu
         sig, rule = apply_special_adjustment("SELL", broker_date=broker_date, slot_hour=3, primary_source="D_DIRECTION")
         self.assertEqual(sig, "BUY")
-        self.assertEqual(rule, "THURSDAY_H3_D_EXTRA_REVERSE")
+        self.assertEqual(rule, "H3_THURSDAY")
 
-    def test_h3_wednesday_source_h1_no_inversion(self):
+    def test_h3_wednesday_source_h1_inverts_in_v86(self):
         broker_date = datetime(2026, 7, 29).date() # Wed
         sig, rule = apply_special_adjustment("BUY", broker_date=broker_date, slot_hour=3, primary_source="PREVIOUS_COMPLETED_H1")
-        self.assertEqual(sig, "BUY")
-        self.assertIsNone(rule)
+        self.assertEqual(sig, "SELL")
+        self.assertEqual(rule, "H3_WEDNESDAY")
 
     def test_h14_tuesday_always_inverts(self):
         broker_date = datetime(2026, 7, 28).date() # Tue
         sig_d, rule_d = apply_special_adjustment("BUY", broker_date=broker_date, slot_hour=14, primary_source="D_DIRECTION")
         self.assertEqual(sig_d, "SELL")
-        self.assertEqual(rule_d, "TUESDAY_H14_FINAL_REVERSE")
+        self.assertEqual(rule_d, "H14_TUESDAY")
 
         sig_h1, rule_h1 = apply_special_adjustment("SELL", broker_date=broker_date, slot_hour=14, primary_source="PREVIOUS_COMPLETED_H1")
         self.assertEqual(sig_h1, "BUY")
-        self.assertEqual(rule_h1, "TUESDAY_H14_FINAL_REVERSE")
+        self.assertEqual(rule_h1, "H14_TUESDAY")
 
     def test_h14_wednesday_always_inverts(self):
         broker_date = datetime(2026, 7, 29).date() # Wed
         sig, rule = apply_special_adjustment("BUY", broker_date=broker_date, slot_hour=14, primary_source="D_DIRECTION")
         self.assertEqual(sig, "SELL")
-        self.assertEqual(rule, "WEDNESDAY_H14_FINAL_REVERSE")
+        self.assertEqual(rule, "H14_WEDNESDAY")
 
     def test_h14_thursday_friday_no_inversion(self):
         thu_date = datetime(2026, 7, 30).date()
@@ -69,21 +69,21 @@ class TestV84FinalInversions(unittest.TestCase):
 
         sig_tue, r_tue = apply_special_adjustment("BUY", broker_date=tue, slot_hour=16, primary_source="D_DIRECTION")
         self.assertEqual(sig_tue, "SELL")
-        self.assertEqual(r_tue, "TUESDAY_H16_D_EXTRA_REVERSE")
+        self.assertEqual(r_tue, "H16_TUESDAY")
 
         sig_wed, r_wed = apply_special_adjustment("SELL", broker_date=wed, slot_hour=16, primary_source="D_DIRECTION")
         self.assertEqual(sig_wed, "BUY")
-        self.assertEqual(r_wed, "WEDNESDAY_H16_D_EXTRA_REVERSE")
+        self.assertEqual(r_wed, "H16_WEDNESDAY")
 
         sig_fri, r_fri = apply_special_adjustment("BUY", broker_date=fri, slot_hour=16, primary_source="D_DIRECTION")
         self.assertEqual(sig_fri, "SELL")
-        self.assertEqual(r_fri, "FRIDAY_H16_D_EXTRA_REVERSE")
+        self.assertEqual(r_fri, "H16_FRIDAY_NORMAL")
 
-    def test_h16_tuesday_source_h1_no_inversion(self):
+    def test_h16_tuesday_source_h1_inverts_in_v86(self):
         tue = datetime(2026, 7, 28).date()
         sig, rule = apply_special_adjustment("BUY", broker_date=tue, slot_hour=16, primary_source="PREVIOUS_COMPLETED_H1")
-        self.assertEqual(sig, "BUY")
-        self.assertIsNone(rule)
+        self.assertEqual(sig, "SELL")
+        self.assertEqual(rule, "H16_TUESDAY")
 
     def test_h16_monday_thursday_no_inversion(self):
         mon = datetime(2026, 7, 27).date()

@@ -38,6 +38,10 @@ export async function GET(request: Request) {
           headers: { "Cache-Control": "private, no-store" },
         });
       }
+      return NextResponse.json(
+        { error: "D_HISTORY_NOT_FOUND", date },
+        { status: 404, headers: { "Cache-Control": "private, no-store" } }
+      );
     }
 
     const current = (await redis.get(KEYS.dDirectionCurrent)) as DDirectionSnapshotV2 | null;

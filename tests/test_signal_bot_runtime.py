@@ -19,7 +19,7 @@ class SignalBotRuntimeTests(unittest.TestCase):
             datetime(2026, 7, 16, 1), mt5_connected=True
         )
         self.assertIn("OAK SIGNAL BOT ONLINE", message)
-        self.assertIn("v85", message)
+        self.assertIn("v86", message)
         self.assertIn("Slots: H3", message)
         self.assertIn("Independent M30 Entry + H4 20:00 D", message)
 

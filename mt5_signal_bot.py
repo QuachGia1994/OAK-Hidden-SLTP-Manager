@@ -17,6 +17,7 @@ import urllib.request
 from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from typing import Protocol, Optional
 
 from utils import send_telegram_raw, send_telegram_with_keyboard
 from oak_logger import setup_logger
@@ -153,15 +154,16 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 85
-ACTIVE_SIGNAL_LOGIC_VERSION = 85
-MINIMUM_SIGNAL_LOGIC_VERSION = 85
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 7
+SIGNAL_LOGIC_VERSION = 86
+ACTIVE_SIGNAL_LOGIC_VERSION = 86
+MINIMUM_SIGNAL_LOGIC_VERSION = 86
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 8
 LAYER3_CANDLE_GRACE_SECONDS = 90
-D_DIRECTION_SCHEMA_VERSION = 7
+D_DIRECTION_SCHEMA_VERSION = 8
 D_PUBLICATION_STATE_SCHEMA_VERSION = 2
 DASHBOARD_TRANSPORT_SCHEMA_VERSION = 3
 SIGNAL_SUMMARY_SCHEMA_VERSION = 2
+MARKET_DATA_PROVIDER_SCHEMA_VERSION = 1
 D_SESSION_POLICY = {
     "normal_close_broker": "23:00",
     "timeframe_minutes": 30,
@@ -1058,9 +1060,11 @@ def get_candle_by_ts(symbol, timeframe, target_ts):
     cached = _cache.get(key)
     if cached is not None and abs(int(cached["time"]) - int(target_ts)) <= 180:
         return cached
-    if not mt5.symbol_select(symbol, True):
-        print(f"[WARN] Khong the select symbol: {symbol}")
-        return None
+
+    if not (MARKET_DATA_PROVIDER and getattr(MARKET_DATA_PROVIDER, "name", "") == "MT4"):
+        if not mt5.symbol_select(symbol, True):
+            print(f"[WARN] Khong the select symbol: {symbol}")
+            return None
 
     # Query a narrow range around the target open timestamp.
     rates = _copy_rates_near_timestamp(symbol, timeframe, target_ts)
@@ -1094,8 +1098,15 @@ def get_candle_by_broker_datetime(symbol, timeframe, broker_open_dt):
 
 
 def _copy_rates_near_timestamp(symbol, timeframe, target_ts):
-    """Load an exact historical window, with the recent-bar fallback."""
+    """Load an exact historical window using MARKET_DATA_PROVIDER (MT4 Feed)."""
     target = datetime.fromtimestamp(target_ts, tz=timezone.utc)
+    if MARKET_DATA_PROVIDER and getattr(MARKET_DATA_PROVIDER, "name", "") == "MT4":
+        bars = MARKET_DATA_PROVIDER.get_bars(symbol, str(timeframe), target - timedelta(minutes=3), target + timedelta(minutes=3))
+        if bars:
+            return bars
+        if getattr(MARKET_DATA_PROVIDER, "_feed_store", {}):
+            return None
+
     start = target - timedelta(minutes=3)
     end = target + timedelta(minutes=3)
     try:
@@ -1858,8 +1869,11 @@ def get_cached_candle(symbol, open_dt):
 
 
 def clear_history_cache():
-    """Clear the in-memory M30 history cache."""
+    """Clear the in-memory M30 history cache, D-direction cache, and market data provider store."""
     _cache.clear()
+    _d_direction_cache.clear()
+    if hasattr(MARKET_DATA_PROVIDER, "clear"):
+        MARKET_DATA_PROVIDER.clear()
 
 
 D_DIRECTION_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -1915,6 +1929,10 @@ def load_h4_history_for_d(source_symbol, target_broker_date, broker_offset):
         end_ts = BROKER_CLOCK.mt5_timestamp_from_broker_datetime(broker_end)
         api_start = datetime.fromtimestamp(start_ts, tz=timezone.utc)
         api_end = datetime.fromtimestamp(end_ts, tz=timezone.utc)
+        if MARKET_DATA_PROVIDER and getattr(MARKET_DATA_PROVIDER, "name", "") == "MT4":
+            bars = MARKET_DATA_PROVIDER.get_bars(source_symbol, "H4", broker_start, broker_end)
+            if bars:
+                return bars
         mt5.symbol_select(resolved_symbol, True)
         rates = mt5.copy_rates_range(resolved_symbol, mt5.TIMEFRAME_H4, api_start, api_end)
     except Exception as exc:
@@ -2433,19 +2451,114 @@ def is_d_publication_due(now_utc, local_date):
     pub_utc = get_d_publication_datetime_utc(local_date)
     return now_utc >= pub_utc
 
-def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
-    now_utc = datetime.now(timezone.utc)
-    now_local = now_utc.astimezone(HO_CHI_MINH_TZ)
+class MarketDataProvider(Protocol):
+    name: str
+
+    def get_bars(
+        self,
+        symbol: str,
+        timeframe: str,
+        start_broker: datetime,
+        end_broker: datetime,
+    ) -> list[dict]:
+        ...
+
+    def get_exact_bar(
+        self,
+        symbol: str,
+        timeframe: str,
+        broker_open: datetime,
+    ) -> Optional[dict]:
+        ...
+
+
+class MT4FeedProvider:
+    """Exclusive market-data provider for Signal engine (v86)."""
+    name: str = "MT4"
+
+    def __init__(self, feed_store=None):
+        self._feed_store = feed_store or {}
+
+    def clear(self):
+        self._feed_store.clear()
+
+    def register_bars(self, symbol: str, timeframe: str, bars: list[dict]):
+        key = (symbol, str(timeframe))
+        if key not in self._feed_store:
+            self._feed_store[key] = []
+        self._feed_store[key].extend(bars)
+
+    def get_bars(
+        self,
+        symbol: str,
+        timeframe: str,
+        start_broker: datetime,
+        end_broker: datetime,
+    ) -> list[dict]:
+        key = (symbol, str(timeframe))
+        store = self._feed_store.get(key, [])
+        if not store:
+            return []
+        res = []
+        for bar in store:
+            b_dt = bar.get("broker_dt")
+            if b_dt and start_broker <= b_dt <= end_broker:
+                res.append(bar)
+        return res
+
+    def get_exact_bar(
+        self,
+        symbol: str,
+        timeframe: str,
+        broker_open: datetime,
+    ) -> Optional[dict]:
+        key = (symbol, str(timeframe))
+        store = self._feed_store.get(key, [])
+        for bar in store:
+            b_dt = bar.get("broker_dt")
+            if b_dt and b_dt == broker_open:
+                return bar
+        return None
+
+
+MARKET_DATA_PROVIDER = MT4FeedProvider()
+
+
+def set_market_data_provider(provider):
+    global MARKET_DATA_PROVIDER
+    MARKET_DATA_PROVIDER = provider
+
+
+def build_d_direction_snapshot_for_date(
+    target_local_date,
+    market_data_provider=None,
+    broker_clock=None,
+) -> dict:
+    """Pure, date-isolated builder for D-Direction snapshot of a specific target_local_date (v86).
+
+    Does NOT read global CURRENT_DATE or datetime.now(), does NOT read Redis current snapshot,
+    does NOT mutate snapshot of any other date.
+    Returns a brand new independent snapshot dictionary object.
+    """
+    if market_data_provider is None:
+        market_data_provider = MARKET_DATA_PROVIDER
+    if broker_clock is None:
+        broker_clock = BROKER_CLOCK
 
     if isinstance(target_local_date, str):
         target_local_date_str = target_local_date
         target_local_date_obj = datetime.strptime(target_local_date, "%Y-%m-%d").date()
+    elif hasattr(target_local_date, "date") and callable(getattr(target_local_date, "date")):
+        try:
+            target_local_date_obj = target_local_date.date()
+        except Exception:
+            target_local_date_obj = target_local_date
+        target_local_date_str = target_local_date_obj.isoformat()
     else:
         target_local_date_obj = target_local_date
         target_local_date_str = target_local_date.isoformat()
 
-    if target_broker_date is None:
-        target_broker_date = resolve_target_broker_date_for_d(target_local_date_obj, BROKER_CLOCK)
+    target_broker_date = resolve_target_broker_date_for_d(target_local_date_obj, broker_clock)
 
     if isinstance(target_broker_date, str):
         target_broker_date_obj = datetime.strptime(target_broker_date, "%Y-%m-%d").date()
@@ -2478,6 +2591,7 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
         symbols_payload[symbol] = {
             "symbol": symbol,
             "source_symbol": source_symbol,
+            "data_provider": getattr(market_data_provider, "name", "MT4"),
             "timeframe": "H4",
             "target_date": target_broker_date_obj.isoformat(),
             "session_date": session_date,
@@ -2489,7 +2603,7 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
             "d_candle_open_time_local": open_time_local,
             "d_candle_close_time_local": close_time_local,
             "price_digits": digits,
-            "candle": candle,
+            "candle": dict(candle) if candle else None,
             "raw_direction": raw_dir,
             "d_direction": d_dir,
             "d_state": d_state,
@@ -2506,23 +2620,32 @@ def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
         snapshot_state = "MISSING"
 
     try:
-        broker_offset = BROKER_CLOCK.utc_offset_for_date(target_broker_date_obj)
+        broker_offset = broker_clock.utc_offset_for_date(target_broker_date_obj)
     except Exception:
-        broker_offset = None
+        broker_offset = 3
 
     return {
         "schema_version": D_DIRECTION_SCHEMA_VERSION,
         "logic_version": SIGNAL_LOGIC_VERSION,
         "target_local_date": target_local_date_str,
         "target_broker_date": target_broker_date_obj.isoformat(),
-        "published_at_utc": now_utc.isoformat(),
-        "published_at_local": now_local.isoformat(),
-        "publication_timezone": D_PUBLICATION_TIMEZONE,
-        "publication_rule": "DAILY_AT_06_00_LOCAL",
         "broker_utc_offset": broker_offset,
+        "publication_timezone": "Asia/Ho_Chi_Minh",
+        "publication_rule": "DAILY_AT_06_00_LOCAL",
         "state": snapshot_state,
+        "snapshot_state": snapshot_state,
+        "data_provider": getattr(market_data_provider, "name", "MT4"),
         "symbols": symbols_payload,
     }
+
+
+def build_d_direction_snapshot_v2(target_local_date, target_broker_date=None):
+    now_utc = datetime.now(timezone.utc)
+    now_local = now_utc.astimezone(HO_CHI_MINH_TZ)
+    snapshot = build_d_direction_snapshot_for_date(target_local_date)
+    snapshot["published_at_utc"] = now_utc.isoformat()
+    snapshot["published_at_local"] = now_local.isoformat()
+    return snapshot
 
 def _load_d_direction_history_records():
     if not os.path.exists(_D_DIRECTION_HISTORY_LOG):
@@ -2956,44 +3079,80 @@ def resolve_primary_signal_action(day_mode, entry_branch):
     return "KEEP_D" if entry_branch == mode_branch else "REVERSE_D"
 
 
-def apply_special_adjustment(direction, *, broker_date, slot_hour, primary_source, symbol=None):
-    """Apply canonical v84 final inversion rules.
+def should_reverse_final_signal(slot_hour: int, signal_date: date) -> tuple[bool, str]:
+    """Evaluate canonical v86 final signal reverse rules.
 
-    A. H3: Wednesday (wd=2) & Thursday (wd=3) when primary_source == "D_DIRECTION".
-    B. H16: Tuesday (wd=1), Wednesday (wd=2), and Friday (wd=4) when primary_source == "D_DIRECTION".
-    C. H14: Tuesday (wd=1) & Wednesday (wd=2) ALWAYS invert final signal once (any source).
+    Returns (should_reverse: bool, reason_code: str).
     """
+    if isinstance(signal_date, str):
+        signal_date = datetime.strptime(signal_date, "%Y-%m-%d").date()
+    elif hasattr(signal_date, "date") and callable(getattr(signal_date, "date")):
+        try:
+            signal_date = signal_date.date()
+        except Exception:
+            pass
+
+    weekday = signal_date.weekday()  # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri
+    day_of_month = signal_date.day
+
+    prev_wednesday = signal_date - timedelta(days=1)
+    prev_wed_boundary = prev_wednesday.day in (30, 1)
+
+    h = int(slot_hour)
+
+    if h == 3:
+        if weekday == 2:  # Wednesday
+            return True, "H3_WEDNESDAY"
+        elif weekday == 3:  # Thursday
+            if prev_wed_boundary:
+                return False, "H3_THURSDAY_PREVIOUS_WED_MONTH_BOUNDARY_EXCEPTION"
+            return True, "H3_THURSDAY"
+        elif weekday == 4:  # Friday
+            if day_of_month in (3, 4, 7):
+                return True, "H3_FRIDAY_SPECIAL_DAY_3_4_7"
+            return False, "H3_NORMAL"
+        else:
+            return False, "H3_NORMAL"
+
+    elif h == 14:
+        if weekday == 1:  # Tuesday
+            return True, "H14_TUESDAY"
+        elif weekday == 2:  # Wednesday
+            return True, "H14_WEDNESDAY"
+        else:
+            return False, "H14_NORMAL"
+
+    elif h == 16:
+        if weekday == 1:  # Tuesday
+            return True, "H16_TUESDAY"
+        elif weekday == 2:  # Wednesday
+            return True, "H16_WEDNESDAY"
+        elif weekday == 3:  # Thursday
+            if prev_wed_boundary:
+                return True, "H16_THURSDAY_PREVIOUS_WED_MONTH_BOUNDARY"
+            return False, "H16_THURSDAY_NORMAL"
+        elif weekday == 4:  # Friday
+            if day_of_month in (3, 4, 7):
+                return False, "H16_FRIDAY_SPECIAL_DAY_3_4_7_EXCEPTION"
+            return True, "H16_FRIDAY_NORMAL"
+        else:
+            return False, "H16_NORMAL"
+
+    return False, f"H{h}_NO_REVERSE"
+
+
+def apply_special_adjustment(direction, *, broker_date, slot_hour, primary_source=None, symbol=None):
+    """Apply canonical v86 final inversion rules."""
     if direction not in ("BUY", "SELL"):
         return direction, None
 
-    wd = broker_date.weekday()
-    h = int(slot_hour)
-
-    if h == 3 and wd == 2 and primary_source == "D_DIRECTION":
-        return reverse_signal(direction), "WEDNESDAY_H3_D_EXTRA_REVERSE"
-
-    if h == 3 and wd == 3 and primary_source == "D_DIRECTION":
-        return reverse_signal(direction), "THURSDAY_H3_D_EXTRA_REVERSE"
-
-    if h == 16 and wd == 1 and primary_source == "D_DIRECTION":
-        return reverse_signal(direction), "TUESDAY_H16_D_EXTRA_REVERSE"
-
-    if h == 16 and wd == 2 and primary_source == "D_DIRECTION":
-        return reverse_signal(direction), "WEDNESDAY_H16_D_EXTRA_REVERSE"
-
-    if h == 16 and wd == 4 and primary_source == "D_DIRECTION":
-        return reverse_signal(direction), "FRIDAY_H16_D_EXTRA_REVERSE"
-
-    if h == 14 and wd == 1:
-        return reverse_signal(direction), "TUESDAY_H14_FINAL_REVERSE"
-
-    if h == 14 and wd == 2:
-        return reverse_signal(direction), "WEDNESDAY_H14_FINAL_REVERSE"
-
+    should_rev, reason = should_reverse_final_signal(slot_hour, broker_date)
+    if should_rev:
+        return reverse_signal(direction), reason
     return direction, None
 
 
-def apply_new_final_signal_inversion(direction, broker_date, slot_hour, primary_source, symbol=None):
+def apply_new_final_signal_inversion(direction, broker_date, slot_hour, primary_source=None, symbol=None):
     """Backward-compatible wrapper — delegates to apply_special_adjustment."""
     return apply_special_adjustment(direction, broker_date=broker_date,
                                      slot_hour=slot_hour, primary_source=primary_source,
