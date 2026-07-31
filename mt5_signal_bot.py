@@ -340,7 +340,7 @@ def _trading_date():
     return get_broker_time().date()
 
 def _load_state():
-    """Load restart-safe sent-slot, entry-alert, and auto-close state."""
+    """Load restart-safe sent-slot, entry-alert, auto-close, and D publication state."""
     try:
         with open(_STATE_FILE, "r", encoding="utf-8") as file:
             data = json.load(file)
@@ -364,9 +364,17 @@ def _load_state():
         except (TypeError, ValueError):
             continue
 
+    pub_dates = set(data.get("d_published_local_dates", []))
+    last_success = data.get("d_last_success_at")
+
     today_str = _trading_date().isoformat()
     if data.get("date") != today_str:
-        return {"auto_close_pending": pending_closes, "auto_close_last_alert": close_alerts}
+        res = {"auto_close_pending": pending_closes, "auto_close_last_alert": close_alerts}
+        if pub_dates:
+            res["d_published_local_dates"] = pub_dates
+        if last_success is not None:
+            res["d_last_success_at"] = last_success
+        return res
 
     stored_ver = data.get("signal_logic_version")
     if stored_ver != SIGNAL_LOGIC_VERSION:
@@ -378,6 +386,8 @@ def _load_state():
             "sent_today": set(),
             "entry_alerts_sent": set(),
             "entry_alerts_pending": {},
+            "d_published_local_dates": pub_dates,
+            "d_last_success_at": last_success,
         }
 
     restored_sent = set()
@@ -400,11 +410,19 @@ def _load_state():
         "auto_close_last_alert": close_alerts,
         "entry_alerts_sent": alerts_sent,
         "entry_alerts_pending": alerts_pending,
+        "d_published_local_dates": pub_dates,
+        "d_last_success_at": last_success,
     }
 
 
-def _save_state(sent_today, broker_dt=None):
-    """Persist sent logical slots, entry alerts, and pending auto-close obligations."""
+def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None, d_last_success_at=None):
+    """Persist sent logical slots, entry alerts, pending auto-close obligations, and D-Direction publication state."""
+    if sent_today is None:
+        try:
+            sent_today = globals().get("sent_today", set())
+        except Exception:
+            sent_today = set()
+
     broker_now = broker_dt
     if broker_now is None:
         try:
@@ -423,6 +441,10 @@ def _save_state(sent_today, broker_dt=None):
         print(f"[WARN] Cannot attach Broker clock metadata to state: {error}")
         broker_utc_offset = None
     has_verified_clock = broker_utc_offset is not None
+
+    existing = _load_state()
+    pub_dates = d_published_local_dates if d_published_local_dates is not None else existing.get("d_published_local_dates", set())
+    last_success = d_last_success_at if d_last_success_at is not None else existing.get("d_last_success_at")
 
     data = {
         "date": today_str,
@@ -448,7 +470,11 @@ def _save_state(sent_today, broker_dt=None):
         "broker_time": broker_now.replace(microsecond=0).isoformat() if has_verified_clock else "",
         "broker_utc_offset": broker_utc_offset,
         "broker_observed_at_utc": datetime.now(timezone.utc).isoformat() if has_verified_clock else "",
+        "d_published_local_dates": sorted(list(pub_dates)),
     }
+    if last_success:
+        data["d_last_success_at"] = last_success
+
     try:
         temporary = _STATE_FILE + ".tmp"
         with open(temporary, "w", encoding="utf-8") as file:
@@ -2178,9 +2204,10 @@ def publish_d_direction_daily(target_local_date=None, force=False):
 
     if snapshot["state"] in ("READY", "PARTIAL") or pushed:
         published_dates.add(target_date_str)
-        state_data["d_published_local_dates"] = list(published_dates)
-        state_data["d_last_success_at"] = datetime.now(timezone.utc).isoformat()
-        _save_state(state_data)
+        _save_state(
+            d_published_local_dates=published_dates,
+            d_last_success_at=datetime.now(timezone.utc).isoformat(),
+        )
 
     print(f"  [DAILY-D] Published {target_date_str} state={snapshot['state']} (pushed={pushed})")
     return snapshot

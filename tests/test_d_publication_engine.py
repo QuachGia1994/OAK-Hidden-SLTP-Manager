@@ -114,6 +114,35 @@ class TestDPublicationEngine(unittest.TestCase):
         self.assertEqual(jpy["price_digits"], 3)
         self.assertEqual(jpy["execution_status"], "OFF")
 
+    @patch("mt5_signal_bot._STATE_FILE", "tests_tmp_state.json")
+    @patch("mt5_signal_bot.get_broker_time")
+    def test_d_published_local_dates_persistence(self, mock_broker_time):
+        mock_broker_time.return_value = datetime(2026, 7, 31, 2, 0, 0)
+        import os
+        tmp_file = "tests_tmp_state.json"
+        if os.path.exists(tmp_file):
+            try:
+                os.remove(tmp_file)
+            except Exception:
+                pass
+        try:
+            pub_dates = {"2026-07-30", "2026-07-31"}
+            last_success = "2026-07-30T23:00:00Z"
+            mt5_signal_bot._save_state(
+                d_published_local_dates=pub_dates,
+                d_last_success_at=last_success,
+            )
+
+            loaded = mt5_signal_bot._load_state()
+            self.assertEqual(loaded.get("d_published_local_dates"), pub_dates)
+            self.assertEqual(loaded.get("d_last_success_at"), last_success)
+        finally:
+            if os.path.exists(tmp_file):
+                try:
+                    os.remove(tmp_file)
+                except Exception:
+                    pass
+
 
 if __name__ == "__main__":
     unittest.main()
