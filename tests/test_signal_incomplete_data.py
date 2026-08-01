@@ -3,6 +3,9 @@
 from datetime import datetime
 from unittest.mock import patch
 import unittest
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
 
 import mt5_signal_bot
 
@@ -20,21 +23,31 @@ VALID = {
 class SignalIncompleteDataTests(unittest.TestCase):
     def test_exact_timestamp_and_valid_ohlc_are_required(self) -> None:
         open_dt = datetime(2026, 7, 14, 6)
-        with patch.object(mt5_signal_bot, "broker_time_to_ts", return_value=100):
-            for candle in (
-                None,
-                {**VALID, "time": 99},
-                {**VALID, "high": 0.8},
-                {**VALID, "open": float("nan")},
+        for candle in (
+            None,
+            {**VALID, "high": 0.8},
+            {**VALID, "open": float("nan")},
+        ):
+            with self.subTest(candle=candle), patch.object(
+                mt5_signal_bot, "get_candle_by_broker_datetime", return_value=candle
             ):
-                with self.subTest(candle=candle), patch.object(
-                    mt5_signal_bot, "get_candle_by_ts", return_value=candle
-                ):
-                    self.assertIsNone(
-                        mt5_signal_bot.read_completed_m30_candle(
-                            "GBPUSD", open_dt, datetime(2026, 7, 14, 7)
-                        )
+                self.assertIsNone(
+                    mt5_signal_bot.read_completed_m30_candle(
+                        "GBPUSD", open_dt, datetime(2026, 7, 14, 7)
                     )
+                )
+
+    def test_uses_the_exact_broker_m30_open_time(self) -> None:
+        open_dt = datetime(2026, 7, 14, 6)
+        with patch.object(
+            mt5_signal_bot, "get_candle_by_broker_datetime", return_value=VALID
+        ) as read:
+            result = mt5_signal_bot.read_completed_m30_candle(
+                "GBPUSD", open_dt, datetime(2026, 7, 14, 7)
+            )
+
+        self.assertEqual(result, VALID)
+        read.assert_called_once_with("GBPUSD", "M30", open_dt)
 
     def test_unclosed_candle_is_rejected(self) -> None:
         open_dt = datetime(2026, 7, 14, 6, 30)

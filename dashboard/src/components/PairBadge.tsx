@@ -62,16 +62,16 @@ export function PairBadge({
     SW: "border-[var(--terminal-warning)]/20 bg-[var(--terminal-warning)]/5",
   };
 
-  const canOpenEvidence = Boolean(hasEvidence && onClick);
+  const canOpenEvidence = pair === "XAUUSD" && Boolean(hasEvidence && onClick);
 
   const Wrapper = canOpenEvidence ? "button" : "div";
   const wrapperProps = canOpenEvidence
     ? {
         type: "button" as const,
         onClick: onClick,
-        "aria-label": locale === "VN" 
-          ? `Xem bằng chứng M30 ${pair}`
-          : `View M30 evidence for ${pair}`,
+        "aria-label": locale === "VN"
+          ? "Xem bằng chứng Entry XAUUSD"
+          : "View XAUUSD entry evidence",
       }
     : {
         "aria-label": `${direction} signal for ${pair}`

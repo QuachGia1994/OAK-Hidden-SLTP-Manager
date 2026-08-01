@@ -84,7 +84,7 @@ def save_json_file(path, data):
 # --- Process command construction ---
 SIGNAL_SCRIPT_MAP = {
     "signal_bot": "mt5_signal_bot.py",
-    "mt_server": "mt4_mt5_server.py",
+    "mt4_feed_server": "mt4_feed_server.py",
     "mimo_bot": "mimo_bot.py",
     "mimo_worker": "mimo_worker.py",
     "factcheck_worker": "factcheck_worker.py",
@@ -92,7 +92,7 @@ SIGNAL_SCRIPT_MAP = {
 
 FROZEN_MODE_FLAGS = {
     "signal_bot": "--signal-bot",
-    "mt_server": "--mt-server",
+    "mt4_feed_server": "--mt4-feed-server",
     "mimo_bot": "--mimo-bot",
     "mimo_worker": "--mimo-worker",
     "factcheck_worker": "--factcheck-worker",
@@ -175,7 +175,7 @@ def vn_direction(d):
 
 
 ACTIVE_SIGNAL_HOURS = frozenset({3, 7, 9, 12, 14, 16})
-ACTIVE_SIGNAL_LOGIC_VERSION = 80
+ACTIVE_SIGNAL_LOGIC_VERSION = 87
 
 
 def get_latest_display_signal(signals, today=None, allow_fallback=True):
@@ -192,7 +192,7 @@ def get_latest_display_signal(signals, today=None, allow_fallback=True):
             return 0
 
     def _is_actionable(row):
-        if not isinstance(row, dict) or row.get("deactivated") is True:
+        if not isinstance(row, dict):
             return False
         try:
             hour = int(row.get("hour"))
@@ -202,7 +202,7 @@ def get_latest_display_signal(signals, today=None, allow_fallback=True):
             return False
         if hour not in ACTIVE_SIGNAL_HOURS:
             return False
-        if logic_version < ACTIVE_SIGNAL_LOGIC_VERSION:
+        if logic_version != ACTIVE_SIGNAL_LOGIC_VERSION:
             return False
         pair_dirs = row.get("pair_dirs")
         if not isinstance(pair_dirs, dict):

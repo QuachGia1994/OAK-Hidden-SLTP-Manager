@@ -44,22 +44,17 @@ class LatestDisplaySignalTests(unittest.TestCase):
 
         self.assertIsNone(latest)
 
-    def test_ignores_effectively_deactivated_signal_for_actionable_display(self):
-        signals = [
-            {"date": "2026-07-30", "hour": 3, "deactivated": True,
-             "logic_version": CURRENT_VERSION,
-             "pair_dirs": {"XAUUSD": "BUY"}},
-            {"date": "2026-07-30", "hour": 9, "logic_version": CURRENT_VERSION,
-             "pair_dirs": {"XAUUSD": "BUY"}},
-        ]
+    def test_legacy_deactivated_flag_does_not_hide_a_v87_signal(self):
+        signal = {"date": "2026-07-30", "hour": 3, "deactivated": True,
+                  "logic_version": CURRENT_VERSION, "pair_dirs": {"XAUUSD": "BUY"}}
 
-        latest = get_latest_display_signal(signals, today="2026-07-30")
+        latest = get_latest_display_signal([signal], today="2026-07-30", allow_fallback=False)
 
-        self.assertEqual(latest["hour"], 9)
+        self.assertEqual(latest, signal)
 
     def test_thursday_h3_is_actionable_v65(self):
         """Since v65, Thursday H3 is actionable like any other weekday."""
-        signal = {"date": "2026-07-30", "hour": 3, "deactivated": False,
+        signal = {"date": "2026-07-30", "hour": 3,
                   "logic_version": CURRENT_VERSION, "pair_dirs": {"XAUUSD": "BUY"}}
         result = get_latest_display_signal([signal], today=signal["date"], allow_fallback=False)
         self.assertIsNotNone(result)

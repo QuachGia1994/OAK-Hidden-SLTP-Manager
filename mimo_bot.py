@@ -136,24 +136,11 @@ def _select_current_signal_rows(log_rows, target_date=None):
     return selected_date, by_hour
 
 
-def _is_do_not_enter_signal(hour, payload):
-    """Return True for slots that must not be actioned — deactivated only."""
-    if payload.get("deactivated"):
-        return True
-    return False
-
-
 def _format_current_signal_row(hour, payload):
     """Render Broker publication/entry clocks without reconstructing them."""
     direction = payload["pair_dirs"]["XAUUSD"]
-    do_not_enter = _is_do_not_enter_signal(hour, payload)
     signal_time = payload.get("signal_time") or "--:--"
     entry_time = payload.get("entry_time") or "--:--"
-    if do_not_enter:
-        return (
-            f"H={hour:02d} | phát {signal_time} Broker | "
-            f"entry tham chiếu {entry_time} Broker | KHÔNG VÀO LỆNH (XAUUSD:{direction})"
-        )
     return (
         f"H={hour:02d} | phát {signal_time} Broker | "
         f"vào {entry_time} Broker → *XAUUSD:{direction}*"
@@ -504,7 +491,7 @@ def _process_mimo(chat_id, prompt):
 
         if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
             now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            result = f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- MT4-MT5 Server: đang chạy\n- Tất cả hoạt động bình thường."
+            result = f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- MT4 Feed Server: đang chạy\n- Tất cả hoạt động bình thường."
         elif any(w in cmd_lower for w in ["signal", "tin hieu"]):
             result = "Tín hiệu hiện tại: Đang chờ slot kích hoạt tiếp theo."
         elif any(w in cmd_lower for w in ["time", "gio", "thoi gian"]):

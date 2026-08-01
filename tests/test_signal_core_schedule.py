@@ -2,6 +2,9 @@
 from datetime import datetime
 from unittest.mock import patch
 import unittest
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
 
 import mt5_signal_bot
 
@@ -29,6 +32,26 @@ class SignalCoreScheduleTests(unittest.TestCase):
         for broker_dt in (datetime(2026, 8, 6), datetime(2026, 8, 7)):
             with self.subTest(day=broker_dt.date()):
                 self.assertEqual(mt5_signal_bot.get_signal_time_for_slot(broker_dt, 9), "09:00")
+
+    def test_special_and_post_special_days_keep_all_slots(self) -> None:
+        self.assertEqual(
+            mt5_signal_bot.get_target_hours(datetime(2026, 8, 6)),
+            list(ACTIVE_SLOTS),
+        )
+        self.assertEqual(
+            mt5_signal_bot.get_target_hours(datetime(2026, 8, 10)),
+            list(ACTIVE_SLOTS),
+        )
+        self.assertEqual(
+            mt5_signal_bot.get_target_hours(datetime(2026, 8, 11)),
+            list(ACTIVE_SLOTS),
+        )
+
+    def test_direct_late_slot_evaluation_runs_without_calendar_filter(self) -> None:
+        with patch.object(mt5_signal_bot, "evaluate_all_pairs_for_slot", return_value={"signal": "BUY"}):
+            result = mt5_signal_bot.calculate_slot_signal(datetime(2026, 8, 6, 12), 12)
+        self.assertEqual(result["signal"], "BUY")
+        self.assertNotIn("suppressed", result)
 
     def test_dynamic_xau_entry_time_comes_from_canonical_xau_m30_layers(self) -> None:
         broker_dt = datetime(2026, 7, 14, 12, 0)

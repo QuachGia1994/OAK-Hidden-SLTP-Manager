@@ -19,7 +19,6 @@ export interface Signal {
   broker_utc_offset?: string | number | null;
   broker_clock_verified?: boolean;
   hour_note: string | null;
-  deactivated?: boolean;
   logic_version?: number | string | null;
   entry_state?: "READY" | "PENDING_LAYER3" | "WAIT";
   signal_state?: "READY" | "WAIT";
@@ -289,12 +288,14 @@ export interface SignalEvidenceV3 {
   h1_evidence?: H1SignalEvidence | null;
   entry_timing?: XauEntryTimingEvidence | null;
   entry_source_symbol?: string;
+  entry_branch?: "H_11" | "H_49" | "H_PLUS_1_25" | null;
   reference_d_symbol?: string;
   reference_d_direction?: string;
   pair_d_direction?: string;
   d_relation?: string;
   relation_rule?: string;
   core_signal?: string;
+  base_signal_source?: "PREVIOUS_XAU_H1_REVERSED" | "REFERENCE_D_DAY_MODE" | "REFERENCE_D_UNRESOLVED" | string;
   final_reverse_applied?: boolean;
   final_reverse_reason?: string | null;
   final_signal?: string;

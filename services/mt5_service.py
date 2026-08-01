@@ -2,6 +2,7 @@
 """MT5 connection and trading operations service."""
 import MetaTrader5 as mt5
 from oak_logger import setup_logger
+from services.mt5_terminal_service import ensure_mt5_profile_connected
 
 log = setup_logger("mt5_service")
 
@@ -15,14 +16,16 @@ class MT5Service:
 
     def connect(self):
         """Initialize MT5 connection."""
-        ok = mt5.initialize(path=self._path) if self._path else mt5.initialize()
+        profile = {"path": self._path or ""}
+        result = ensure_mt5_profile_connected(profile, mt5_module=mt5)
+        ok = result.ok
         if ok:
             self._connected = True
             info = mt5.account_info()
             if info:
                 log.info("MT5 connected: %s | %s", info.server, info.login)
         else:
-            log.error("MT5 init failed: %s", mt5.last_error())
+            log.error("MT5 init failed [%s]: %s", result.failure_code, result.message)
         return ok
 
     def disconnect(self):

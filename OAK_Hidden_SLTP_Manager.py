@@ -264,7 +264,7 @@ def run_worker(profile_name):
         # Load Config
         if not os.path.exists(CONFIG_FILE):
             print(f"Error: {CONFIG_FILE} not found.")
-            return
+            return 1
 
         # Load Settings (Lang)
         global CURRENT_LANG
@@ -281,7 +281,7 @@ def run_worker(profile_name):
             
         if profile_name not in profiles:
             print(f"Error: Profile '{profile_name}' not found.")
-            return
+            return 1
             
         config = profiles[profile_name]
         config["profile_name"] = profile_name
@@ -328,9 +328,11 @@ def run_worker(profile_name):
                 
         worker.join()
         print("Worker Process Exited.")
+        return 2 if getattr(worker, "launch_failed", False) else 0
         
     except Exception as e:
         print(f"Worker Error: {e}", flush=True)
+        return 1
     finally:
         _release_worker_lock()
 
@@ -340,7 +342,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", action="store_true", help="Run in worker mode")
     parser.add_argument("--signal-bot", action="store_true", help="Run signal bot mode")
-    parser.add_argument("--mt-server", action="store_true", help="Run MT4-MT5 server mode")
+    parser.add_argument("--mt4-feed-server", action="store_true", help="Run MT4 raw feed server mode")
     parser.add_argument("--mimo-bot", action="store_true", help="Run MiMo Telegram bot mode")
     parser.add_argument("--mimo-worker", action="store_true", help="Run MiMo worker mode")
     parser.add_argument("--factcheck-worker", action="store_true", help="Run fact-check worker mode")
@@ -350,9 +352,9 @@ if __name__ == "__main__":
     if args.factcheck_worker:
         import factcheck_worker
         factcheck_worker.main()
-    elif args.mt_server:
-        import mt4_mt5_server
-        mt4_mt5_server.main()
+    elif args.mt4_feed_server:
+        import mt4_feed_server
+        mt4_feed_server.main()
     elif args.mimo_bot:
         import runpy
         runpy.run_module("mimo_bot", run_name="__main__")
@@ -364,7 +366,7 @@ if __name__ == "__main__":
         import mt5_signal_bot
         mt5_signal_bot.main(profile_name=args.profile)
     elif args.worker and args.profile:
-        run_worker(args.profile)
+        sys.exit(run_worker(args.profile) or 0)
     else:
         try:
             # Critical: when this file is run as __main__, a later

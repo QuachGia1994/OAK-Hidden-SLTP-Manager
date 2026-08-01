@@ -2,6 +2,9 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
 import unittest
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
 
 import mt5_signal_bot
 from mt5_signal_bot import calculate_slot_signal, get_pair_direction
@@ -25,7 +28,7 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         broker_dt = datetime(2026, 7, 14, 4, 0, tzinfo=timezone.utc)
         result = calculate_slot_signal(broker_dt, 4)
         self.assertEqual(result["signal"], "WAIT")
-        self.assertTrue(result.get("suppressed", False))
+        self.assertNotIn("suppressed", result)
 
 
 if __name__ == "__main__":

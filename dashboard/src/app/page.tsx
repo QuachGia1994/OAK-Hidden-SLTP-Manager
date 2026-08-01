@@ -1,7 +1,7 @@
 import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { DDirectionPanel } from "@/components/DDirectionPanel";
-import { SignalCard } from "@/components/SignalCard";
+import { SignalCardWithEvidence } from "@/components/SignalCardWithEvidence";
 import { getTodaySignalsResult, getBotState, getEconomicNews, getCurrentDDirectionResult, DataResult } from "@/lib/data";
 import { maskSignalForPublic } from "@/lib/signal-display";
 import { selectBestSignalRecord } from "@/lib/signal-resolver";
@@ -181,12 +181,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         {brokerClock ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {allSlots.map((signal) => (
-              <SignalCard
+              <SignalCardWithEvidence
                 key={`${signal.date}-${signal.hour}`}
                 signal={signal}
                 isVIP={isVIP}
-                redisOk={signalsResult.ok}
-                brokerNow={now}
               />
             ))}
           </div>

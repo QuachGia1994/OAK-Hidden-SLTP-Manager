@@ -11,12 +11,13 @@ import threading
 import subprocess
 from typing import Dict, Any, Callable, Optional
 from oak_logger import setup_logger
+from services.mt4_feed_health import read_mt4_feed_health
 
 log = setup_logger("signal_supervisor")
 
 
 class SignalProcessSupervisor:
-    """Supervises signal processes (mt5_signal_bot, mt4_mt5_server, etc.)."""
+    """Supervises Feed/Signal/worker processes with feed-first startup."""
 
     def __init__(
         self,
@@ -183,6 +184,13 @@ class SignalProcessSupervisor:
             return
         if info.get("proc") and info["proc"].poll() is None:
             return
+        if key == "signal_bot":
+            health = read_mt4_feed_health(timeout=3.0)
+            if not health.feed_connected:
+                state = health.data_state.upper() if health.listener_available else "UNAVAILABLE"
+                self._set_running_ui(key, False, status="Blocked")
+                self._log(f"[MT4 FEED] Signal Bot blocked: feed {state}; live heartbeat required")
+                return
 
         self._kill_orphan_processes(key)
         self._intentional_stop[key] = False
@@ -333,9 +341,41 @@ class SignalProcessSupervisor:
             self._ui(_finish)
 
     def start_all_signals(self, profile: str = "") -> None:
-        for key in self._signal_procs:
+        keys = list(self._signal_procs)
+        feed_connected = True
+        if "mt4_feed_server" in keys:
+            self.start_signal_process("mt4_feed_server", profile)
+            feed_connected = self._wait_for_feed_health()
+        for key in keys:
+            if key == "mt4_feed_server":
+                continue
+            if key == "signal_bot" and not feed_connected:
+                self._log("[MT4 FEED] Signal Bot blocked until a live heartbeat is CONNECTED")
+                self._set_running_ui(key, False, status="Blocked")
+                continue
             self.start_signal_process(key, profile)
             time.sleep(1)
+
+    def _wait_for_feed_health(self, timeout: float = 15.0) -> bool:
+        """Wait for a live MT4 heartbeat; a listener alone is not feed-ready."""
+        deadline = time.monotonic() + timeout
+        last_state = None
+        while time.monotonic() < deadline:
+            health = read_mt4_feed_health(timeout=3.0)
+            if health.feed_connected:
+                self._log("[MT4 FEED] listener ready; live heartbeat CONNECTED")
+                return True
+            status = (
+                f"listener ready; feed {health.data_state.upper()}"
+                if health.listener_available
+                else "listener unavailable"
+            )
+            if status != last_state:
+                self._log(f"[MT4 FEED] {status}; waiting for live heartbeat")
+                last_state = status
+            time.sleep(0.5)
+        self._log("[MT4 FEED] live heartbeat not CONNECTED; Signal Bot is blocked")
+        return False
 
     def stop_all_signals(self, *, wait: bool = True) -> None:
         for key in list(self._signal_procs.keys()):

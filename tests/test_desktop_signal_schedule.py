@@ -22,7 +22,7 @@ class DesktopSignalScheduleTests(unittest.TestCase):
         self.assertEqual((slot, target.strftime("%H:%M")), (9, "09:00"))
 
         slot, target = _next_desktop_signal(datetime(2026, 8, 6, 11, 0))
-        self.assertEqual((slot, target.strftime("%H:%M")), (12, "12:00"))
+        self.assertEqual((slot, target.strftime("%Y-%m-%d %H:%M")), (12, "2026-08-06 12:00"))
 
     def test_new_year_pair_is_not_special(self):
         slot, target = _next_desktop_signal(datetime(2026, 12, 31, 7, 50))

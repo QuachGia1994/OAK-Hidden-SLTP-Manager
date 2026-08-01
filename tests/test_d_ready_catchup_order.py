@@ -13,6 +13,10 @@ import ast
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
+
 
 class TestDReadyCatchupOrder(unittest.TestCase):
     def test_rebuild_does_not_call_push_to_dashboard_per_hour(self):

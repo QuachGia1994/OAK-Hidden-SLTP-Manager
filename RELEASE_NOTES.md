@@ -1,5 +1,16 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [Signal logic v87.2] - 2026-08-01
+
+- Chuẩn hóa tài liệu pipeline bốn layer: Layer 2–3 chọn Entry Plan XAUUSD; Layer 1 tạo Reference Signal từ D GBPUSD kết hợp Entry branch/Day Mode (có ngoại lệ H:49 dùng H1 XAUUSD); Layer 4 áp dụng Final Reverse đúng một lần.
+- Sửa kết nối MT4 Feed v87 cho WebRequest: EA dùng `http://127.0.0.1/mt4-feed` trên cổng HTTP mặc định `80`; `:5001` chỉ còn là health/management nội bộ. Một EA tự nhận diện symbol cho mỗi chart hỗ trợ và thay feeder cũ `:5000/mt4_data`.
+- Giữ nguyên Copy Trade Close All thủ công và hành vi Auto Closed Opposite hiện có; Signal Bot vẫn không sinh lịch Auto-Close trùng.
+
+## [Signal logic v87.1] - 2026-08-01
+
+- Xóa hoàn toàn Auto-Close khỏi Signal Bot; bot không còn tự đóng position và Copy Trade không sinh lịch đóng trùng từ core Signal.
+- Xóa suppress theo special/post-special; mọi slot H3/H7/H9/H12/H14/H16 hoạt động Thứ Hai–Thứ Sáu. Ngày đặc biệt chỉ là đầu vào cho Final Reverse H3/H14/H16.
+
 ## [Signal logic v87] - 2026-08-01
 
 - Kết nối MT4 EA raw feed với SQLite persistent; MT4 là nguồn market-data và Broker Clock, MT5 chỉ còn execution/account/position.

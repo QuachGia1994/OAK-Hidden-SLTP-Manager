@@ -19,7 +19,7 @@ def process_command(cmd):
 
     if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
         now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        return f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- MT4-MT5 Server: đang chạy\n- Tất cả hoạt động bình thường."
+        return f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- MT4 Feed Server: đang chạy\n- Tất cả hoạt động bình thường."
 
     if any(w in cmd_lower for w in ["signal", "tin hieu"]):
         return "Tin hieu hien tai: Dang cho slot kich hoat tiep theo. Xem chi tiet tren Telegram bot."

@@ -1,6 +1,7 @@
 {
   "Vantage": {
     "path": "C:\\\\Path\\\\To\\\\Your\\\\MT5\\\\terminal64.exe",
+    "mt5_portable": false,
     "magic": -1,
     "tele_token": "YOUR_TELEGRAM_BOT_TOKEN",
     "tele_chat": "YOUR_CHAT_ID",

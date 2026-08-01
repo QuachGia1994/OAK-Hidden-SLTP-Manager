@@ -1,5 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 
 from domain.signal_v87 import build_entry_plan, evaluate_slot, final_reverse
 
@@ -75,6 +76,89 @@ class TestSignalV87Core(unittest.TestCase):
         plan = build_entry_plan(slot_dt, 7, provider, slot_dt + timedelta(minutes=30))
         self.assertEqual(plan["entry_state"], "WAIT")
         self.assertEqual(plan["failure_reason"], "WAIT_MT4_DATA")
+
+    def test_h7_layer2_doji_or_missing_never_falls_through_to_layer3(self):
+        slot_dt = datetime(2026, 8, 3, 7)
+        for state in ("DOJI", "MISSING"):
+            with self.subTest(state=state):
+                provider = FixtureProvider()
+                # Layer 2: TANG / GIAM / unresolved.  Layer 3 would be
+                # TANG / TANG / GIAM (BT) if it were incorrectly consulted.
+                provider.add("XAUUSD", "M30", slot_dt - timedelta(minutes=30), 1, 2)
+                provider.add("XAUUSD", "M30", slot_dt - timedelta(minutes=60), 2, 1)
+                if state == "DOJI":
+                    provider.add("XAUUSD", "M30", slot_dt - timedelta(minutes=90), 1, 1)
+                provider.add("XAUUSD", "M30", slot_dt, 1, 2)
+
+                plan = build_entry_plan(slot_dt, 7, provider, slot_dt + timedelta(minutes=30))
+
+                self.assertEqual(plan["entry_state"], "WAIT")
+                self.assertIsNone(plan["entry_time"])
+                self.assertIsNone(plan["layer3"])
+
+    def test_h16_layer2_doji_or_missing_never_falls_through_to_layer3(self):
+        slot_dt = datetime(2026, 8, 3, 16)
+        for state in ("DOJI", "MISSING"):
+            with self.subTest(state=state):
+                provider = FixtureProvider()
+                # Layer 2: TANG / GIAM / unresolved.  Layer 3 would be
+                # TANG / TANG / GIAM (BT) if it were incorrectly consulted.
+                provider.add("XAUUSD", "H1", slot_dt.replace(hour=5), 1, 2)
+                provider.add("XAUUSD", "H1", slot_dt.replace(hour=4), 2, 1)
+                if state == "DOJI":
+                    provider.add("XAUUSD", "H1", slot_dt.replace(hour=3), 1, 1)
+                provider.add("XAUUSD", "H1", slot_dt.replace(hour=10), 1, 2)
+                provider.add("XAUUSD", "H1", slot_dt.replace(hour=9), 1, 2)
+                provider.add("XAUUSD", "H1", slot_dt.replace(hour=8), 2, 1)
+
+                plan = build_entry_plan(slot_dt, 16, provider, slot_dt)
+
+                self.assertEqual(plan["entry_state"], "WAIT")
+                self.assertIsNone(plan["entry_time"])
+                self.assertIsNone(plan["layer3"])
+
+    def test_pending_layer3_cannot_reverse_reference_d_from_an_existing_day_mode(self):
+        provider = FixtureProvider()
+        slot_dt = datetime(2026, 8, 3, 7)
+        add_m30_layer(provider, slot_dt, ("TANG", "TANG", "TANG"))
+        snapshot = {symbol: {"d_direction": "BUY"} for symbol in ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")}
+
+        result = evaluate_slot(
+            slot_dt,
+            7,
+            provider,
+            snapshot,
+            day_mode=SimpleNamespace(source_branch="H_11"),
+            as_of=slot_dt,
+        )
+
+        self.assertEqual(result["entry_state"], "PENDING_LAYER3")
+        self.assertEqual(result["signal"], "WAIT")
+        self.assertEqual(result["core_signal"], "WAIT")
+
+    def test_h49_xau_reference_does_not_report_missing_gbp_d_as_its_own_failure(self):
+        provider = FixtureProvider()
+        slot_dt = datetime(2026, 8, 3, 7)
+        # Both M30 layers are SW, selecting the H:49 exception branch.
+        add_m30_layer(provider, slot_dt, ("TANG", "TANG", "TANG"))
+        provider.add("XAUUSD", "M30", slot_dt, 1, 2)
+        provider.add("XAUUSD", "H1", slot_dt - timedelta(hours=1), 1, 2)
+        snapshot = {"XAUUSD": {"d_direction": "BUY"}}
+
+        result = evaluate_slot(
+            slot_dt,
+            7,
+            provider,
+            snapshot,
+            as_of=slot_dt + timedelta(minutes=30),
+        )
+
+        self.assertEqual(result["entry_time"], "07:49")
+        self.assertEqual(result["signal"], "SELL")
+        self.assertIsNone(result["failure_reason"])
+        self.assertIsNone(result["pair_evidence"]["XAUUSD"]["failure_reason"])
+        self.assertEqual(result["pair_dirs"]["GBPAUD"], "WAIT")
+        self.assertEqual(result["pair_evidence"]["GBPAUD"]["failure_reason"], "WAIT_MT4_DATA")
 
     def test_final_reverse_matrix_sample(self):
         self.assertEqual(final_reverse(3, datetime(2026, 8, 5).date()), (True, "H3_WEDNESDAY"))

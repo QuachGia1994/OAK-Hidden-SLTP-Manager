@@ -6,17 +6,22 @@
 ### Dashboard
 - Xem trạng thái hiện tại của MT5 và Telegram
 - Xem tín hiệu hiện tại và lịch sử của các slot H=3,7,9,12,14,16 cho `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`.
-- Mỗi slot phát đúng `H:00` Broker. Bốn GBP pair tạo Signal độc lập bằng bốn nến M30 của chính symbol; SW đảo Base, BT giữ Base.
-- XAUUSD dùng hai layer XAU M30 để chọn entry. H3 dùng Layer 1 `02:30/02:00/01:30` và Layer 2 `03:00/02:30/02:00/01:30`; các slot khác dùng hai cửa sổ bốn nến cách nhau 30 phút.
-- Entry XAU theo bảng `SW+SW=H:49`, `SW+BT=(H+1):25` (H3 `04:49`), `BT+SW=H:11`, `BT+BT=H:49`. Entry GBP là giờ Broker tròn kế tiếp.
-- XAU lấy Signal cuối GBPAUD: H3/H14/H16 đảo ngược; H7/H9/H12 giữ nguyên.
+- Mỗi slot phát đúng `H:00` Broker. GBPUSD là Reference Signal; XAU entry lấy từ một Entry Plan XAUUSD dùng chung cho cả năm pair.
+- **Layer 2–3 — Entry Plan XAUUSD:** hai nhóm ba nến XAUUSD chọn branch/entry chung. H3/H7/H9/H12/H14 dùng M30 `H−00:30/H−01:00/H−01:30`, rồi nếu SW dùng M30 `H:00/H−00:30/H−01:00`; H16 dùng các nhóm H1 riêng. BT Layer 2 → `H:11`; SW Layer 2 + SW Layer 3 → `H:49`; SW Layer 2 + BT Layer 3 → `(H+1):25` (riêng H3 `04:25`).
+- **Layer 1 — Reference Signal:** khi Entry Plan đã chốt branch, `H:11` / `(H+1):25` ghép D GBPUSD với Day Mode chung: cùng branch giữ D, khác branch đảo D. Riêng branch `H:49` đảo nến H1 XAUUSD hoàn tất ngay trước slot.
+- **Suy direction theo cặp:** XAUUSD và GBPUSD cùng Reference Signal Layer 1; GBPAUD, GBPJPY và GBPCAD suy theo quan hệ D của từng pair với GBPUSD. Cả năm pair dùng chung giờ entry XAUUSD.
+- **Layer 4 — Final Reverse:** đảo các direction đã suy theo ma trận weekday/date đúng một lần.
 - Thiếu nến, OHLC sai hoặc DOJI → Signal/Layer liên quan `WAIT`; không fallback H1/M15 hoặc symbol khác.
+- Tất cả slot H3/H7/H9/H12/H14/H16 vẫn chạy từ Thứ Hai đến Thứ Sáu, kể cả special Thu/Fri và post-special Monday; ngày đặc biệt chỉ đi vào Final Reverse H3/H14/H16.
 - Giờ local chỉ xuất hiện khi backend có BrokerClock đã hiệu chỉnh từ tick live mới; clock stale/thiếu/mâu thuẫn sẽ fail-closed thay vì đoán offset
 - Cập nhật tin tức
 
 ### Tín Hiệu
-- Quản lý các process nền như signal bot, MT4-MT5 server, MIMO bot
+- Quản lý các process nền như signal bot, MT4 Feed Server, MIMO bot
 - Bắt đầu/dừng từng process riêng lẻ
+- MT4 Feed v87 cần server đang chạy và EA `MT4_Data_Feeder.mq4` đặt `FeedBaseURL=http://127.0.0.1/mt4-feed` (cổng HTTP mặc định 80), đồng thời cho phép `http://127.0.0.1` trong WebRequest của MT4. Cổng `:5001` chỉ dành cho health/management nội bộ. EA có thể gắn vào mọi chart để lưu raw bars, tự nhận diện `Symbol()` và tiền tố/hậu tố broker; core Signal v87 vẫn cần XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, GBPCAD. Không nhập `SymbolName`.
+- Không dùng endpoint cũ `http://127.0.0.1:5000/mt4_data` hoặc EA cũ có `ServerURL/BrokerName/SymbolName/MagicNumber`; feed đó không tương thích v87.
+- Copy Trade **Close All** thủ công và **Auto Closed Opposite** hiện có giữ nguyên; Signal Bot không tạo lịch Auto-Close trùng.
 
 ### Quản lý Profile
 - Tạo/sửa/xóa các profile cho nhiều tài khoản/terminal khác nhau

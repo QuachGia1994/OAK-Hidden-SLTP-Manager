@@ -1,14 +1,13 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useCallback, useId, useState } from "react";
 import type { Signal } from "@/lib/types";
 import { ACTIVE_SIGNAL_LOGIC_VERSION, ACTIVE_SIGNAL_PAIRS } from "@/lib/signal-display";
 import { useLocale } from "./LocaleProvider";
 import { BrokerLocalTime } from "./BrokerLocalTime";
 import { hasEvidenceForPair } from "@/lib/signal-evidence";
-import { getT } from "@/lib/translations";
 
-const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"]);
+const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD"]);
 
 interface SignalCardProps {
   signal: Signal;
@@ -21,7 +20,8 @@ interface SignalCardProps {
 
 export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: SignalCardProps) {
   const { locale } = useLocale();
-  const t = getT(locale).evidence;
+  const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
+  const pairRowsId = useId();
   const hour = Number(signal.hour);
   const signalTime = signal.signal_time || `${String(hour).padStart(2, "0")}:00`;
   // Legacy records without an offset stay Broker-only; never guess local time.
@@ -39,7 +39,32 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
 
   const signalState = signal.signal_state || "READY";
   const entryState = signal.entry_state || "READY";
-  const isDeactivated = Boolean(signal.deactivated);
+  const primaryDirection = signal.pair_dirs?.XAUUSD || signal.signal || "WAIT";
+  const primaryEntryTime = signal.pair_entry_times?.XAUUSD ?? signal.entry_time ?? null;
+  const primaryEntryUtc = signal.pair_entry_at_utc?.XAUUSD ?? signal.entry_at_utc ?? null;
+  const primaryDirectionClass =
+    primaryDirection === "BUY" || primaryDirection === "Mua"
+      ? "border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)]"
+      : primaryDirection === "SELL" || primaryDirection === "Bán"
+        ? "border-[var(--terminal-danger)]/30 bg-[var(--terminal-danger)]/10 text-[var(--terminal-danger)]"
+        : "border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]";
+  const mobileCopy = locale === "EN"
+    ? {
+        primary: "Primary signal",
+        entry: "Entry",
+        show: "Show pair details",
+        hide: "Hide pair details",
+        showLabel: `Show ${ACTIVE_SIGNAL_PAIRS.length} pair entries for H${hour}`,
+        hideLabel: `Hide ${ACTIVE_SIGNAL_PAIRS.length} pair entries for H${hour}`,
+      }
+    : {
+        primary: "Tín hiệu chính",
+        entry: "Vào lệnh",
+        show: "Xem chi tiết các cặp",
+        hide: "Ẩn chi tiết các cặp",
+        showLabel: `Xem ${ACTIVE_SIGNAL_PAIRS.length} cặp tại H${hour}`,
+        hideLabel: `Ẩn ${ACTIVE_SIGNAL_PAIRS.length} cặp tại H${hour}`,
+      };
 
   return (
     <div className="terminal-panel rounded-xl p-4 transition-all hover:border-[var(--terminal-accent)]/30 space-y-3">
@@ -71,14 +96,12 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
         <div className="text-right font-mono">
           <span
             className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-              isDeactivated
-                ? "bg-[var(--surface-raised)] text-[var(--muted)]"
-                : entryState === "READY"
+              entryState === "READY"
                 ? "bg-[var(--terminal-accent)]/15 text-[var(--terminal-accent)] border border-[var(--terminal-accent)]/30"
                 : "bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)] border border-[var(--terminal-warning)]/30"
             }`}
           >
-            {isDeactivated ? "OFF" : entryState}
+            {entryState}
           </span>
           {signal.entry_time && (
             <div className="mt-1 text-[11px] font-bold text-[var(--foreground)]">
@@ -88,8 +111,55 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
         </div>
       </div>
 
+      {/* On phones the primary, actionable XAUUSD direction remains visible; the five-row breakdown is opt-in. */}
+      <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--panel-border)]/50 bg-[var(--surface-raised)]/45 px-3 py-2 sm:hidden">
+        <div className="min-w-0">
+          <div className="text-[10px] font-mono font-bold uppercase tracking-[0.12em] text-[var(--muted)]">
+            {mobileCopy.primary}
+          </div>
+          <div className="mt-0.5 flex items-center gap-2">
+            <span className="font-mono text-xs font-black text-[var(--foreground)]">XAUUSD</span>
+            <span className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-black ${primaryDirectionClass}`}>
+              {primaryDirection}
+            </span>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-[10px] font-mono font-bold uppercase tracking-[0.1em] text-[var(--muted)]">{mobileCopy.entry}</div>
+          <BrokerLocalTime
+            brokerTime={primaryEntryTime}
+            utcIso={primaryEntryUtc}
+            brokerUtcOffset={brokerOffset}
+            brokerClockVerified={brokerClockVerified}
+            date={signal.date}
+            labelLocal="GMT+7"
+            labelBroker="Broker"
+            className="text-[11px]"
+          />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setMobileDetailsOpen((open) => !open)}
+        aria-expanded={mobileDetailsOpen}
+        aria-controls={pairRowsId}
+        aria-label={mobileDetailsOpen ? mobileCopy.hideLabel : mobileCopy.showLabel}
+        className="flex min-h-11 w-full items-center justify-between rounded-lg border border-[var(--panel-border)]/60 bg-[var(--surface-raised)]/25 px-3 font-mono text-xs font-bold text-[var(--foreground)] transition-colors hover:border-[var(--terminal-accent)]/45 hover:bg-[var(--terminal-accent)]/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)] sm:hidden"
+      >
+        <span>{mobileDetailsOpen ? mobileCopy.hide : mobileCopy.show}</span>
+        <svg
+          viewBox="0 0 24 24"
+          className={`h-4 w-4 shrink-0 text-[var(--terminal-accent)] transition-transform ${mobileDetailsOpen ? "rotate-180" : ""}`}
+          fill="none"
+          aria-hidden="true"
+        >
+          <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
       {/* ACTIVE PAIR ROWS */}
-      <div className="space-y-2 font-mono text-xs">
+      <div id={pairRowsId} className={`space-y-2 font-mono text-xs ${mobileDetailsOpen ? "block" : "hidden"} sm:block`}>
         {ACTIVE_SIGNAL_PAIRS.map((pair) => {
           const dir = signal.pair_dirs?.[pair] || "WAIT";
           const entryTime = signal.pair_entry_times?.[pair] ?? null;
@@ -142,9 +212,20 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                       e.stopPropagation();
                       fetchEvidence(pair);
                     }}
-                    className="flex min-h-9 min-w-9 items-center justify-center rounded bg-[var(--terminal-accent)]/10 px-3 py-1 text-[10px] font-bold text-[var(--terminal-accent)] transition-colors hover:bg-[var(--terminal-accent)]/20"
+                    className="flex min-h-11 min-w-11 items-center justify-center rounded bg-[var(--terminal-accent)]/10 p-2 text-[16px] text-[var(--terminal-accent)] transition-colors hover:bg-[var(--terminal-accent)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]"
+                    aria-label={locale === "EN" ? "View XAUUSD entry evidence" : "Xem bằng chứng Entry XAUUSD"}
+                    title={locale === "EN" ? "View XAUUSD entry evidence" : "Xem bằng chứng Entry XAUUSD"}
                   >
-                    {isLoading ? t.loading : t.button}
+                    {isLoading ? (
+                      <span
+                        className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                        <path d="M5 19V5m0 14h14M8 16v-4m4 4V8m4 8V5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                      </svg>
+                    )}
                   </button>
                 )}
               </div>

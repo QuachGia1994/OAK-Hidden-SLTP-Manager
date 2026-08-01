@@ -2,6 +2,9 @@ import unittest
 import os
 import tempfile
 from datetime import date, datetime, timezone
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
 
 from mt5_signal_bot import MT4FeedProvider, build_d_direction_snapshot_for_date
 from repositories.mt4_feed_store import MT4FeedStore

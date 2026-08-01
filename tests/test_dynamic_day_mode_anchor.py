@@ -1,6 +1,9 @@
 """DayMode anchoring: first H:11 or (H+1):25 anchors; H:49 never anchors."""
 
 import unittest
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
 
 from mt5_signal_bot import (
     DayMode,

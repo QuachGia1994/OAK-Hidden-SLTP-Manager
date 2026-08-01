@@ -30,6 +30,7 @@ from domain.ghost_operator import GhostOperator
 from domain.copy_trade_manager import CopyTradeManager
 from domain.balance import get_start_day_balance
 from domain.file_lock import FileLock
+from services.mt5_terminal_service import ensure_mt5_profile_connected
 
 log = setup_logger("monitor_worker")
 
@@ -40,6 +41,8 @@ class MonitorWorker(threading.Thread):
         self.log = log_callback
         self.stop_event = stop_event
         self.daemon = True
+        self._be_retry_state = {}
+        self.launch_failed = False
         self.ghost_op = GhostOperator(self.config.get("login_id"))
         self.ghost_mode_active = False
 
@@ -61,6 +64,20 @@ class MonitorWorker(threading.Thread):
                 self.log("✅ News Briefing Service Started.")
             except Exception as e:
                 self.log(f"⚠️ Reminder Service Error: {e}")
+
+    def _clear_be_retry_state_for_tickets(self, tickets):
+        """Forget retry state once a monitored position is no longer open."""
+        if not tickets:
+            return
+        profile = str(self.config.get("profile_name", "") or "default")
+        for retry_key in list(self._be_retry_state):
+            if (
+                isinstance(retry_key, tuple)
+                and len(retry_key) >= 2
+                and retry_key[0] == profile
+                and retry_key[1] in tickets
+            ):
+                self._be_retry_state.pop(retry_key, None)
 
     def notify(self, message, telegram=True):
         """Unified logging and telegram notification."""
@@ -239,49 +256,119 @@ class MonitorWorker(threading.Thread):
             for _ in range(3): winsound.Beep(2000, 200); time.sleep(0.1)
         
     def move_sl_to_entry(self, pos):
-        visible_sltp = bool(self.config.get("visible_sltp", False))
-        if not visible_sltp:
-            return True # Không làm gì trên MT5 nếu không bật SL TP hiện
-            
-        # Kiểm tra SL hiện tại
-        # Nếu SL hiện tại == 0 (chưa có SL), dời về Entry
-        # Nếu SL hiện tại != 0, kiểm tra xem SL hiện tại có tệ hơn Entry không?
-        # - Buy: SL < Price Open -> Tệ hơn -> Dời lên Entry
-        # - Sell: SL > Price Open -> Tệ hơn -> Dời xuống Entry
-        # Nếu SL hiện tại đã tốt hơn Entry (Buy: > Entry, Sell: < Entry), giữ nguyên.
-        
-        current_sl = pos.sl
-        entry_price = pos.price_open
-        should_move = False
-        
-        if current_sl == 0:
-            should_move = True
-        else:
-            if pos.type == mt5.POSITION_TYPE_BUY:
-                if current_sl < entry_price:
-                    should_move = True
-            else: # SELL
-                if current_sl > entry_price:
-                    should_move = True
-        
-        if not should_move:
+        """Move SL to entry once, with retcode-aware retry/backoff."""
+        if not bool(self.config.get("visible_sltp", False)):
             return True
-
-        req = {
-            "action": mt5.TRADE_ACTION_SLTP,
-            "position": pos.ticket,
-            "symbol": pos.symbol,
-            "sl": entry_price, # Move to Entry
-            "tp": pos.tp
-        }
-        res = mt5.order_send(req)
-        if res.retcode == mt5.TRADE_RETCODE_DONE:
-            msg = f"{T('log_move_be_ok')} {pos.ticket} | {pos.symbol} -> {entry_price}"
-            self.notify(msg)
-            return True
-        else:
-            self.log(f"{T('log_move_be_fail')} {pos.ticket} | Err {res.retcode}")
+        profile = str(self.config.get("profile_name", "default"))
+        key = (profile, int(getattr(pos, "ticket", 0)), "MOVE_BE")
+        state = self._be_retry_state.setdefault(key, {
+            "attempt_count": 0, "last_retcode": None, "last_attempt_at": 0.0,
+            "next_retry_at": 0.0, "last_logged_at": 0.0, "last_target_sl": None,
+            "last_position_update_time": None,
+        })
+        state["last_position_update_time"] = getattr(
+            pos, "time_update_msc", getattr(pos, "time_update", None)
+        )
+        now = time.time()
+        current_sl = float(getattr(pos, "sl", 0.0) or 0.0)
+        entry_price = float(getattr(pos, "price_open", 0.0) or 0.0)
+        if entry_price <= 0:
             return False
+        is_buy = int(getattr(pos, "type", -1)) == getattr(mt5, "POSITION_TYPE_BUY", 0)
+        should_move = current_sl == 0.0 or (is_buy and current_sl < entry_price) or (not is_buy and current_sl > entry_price)
+        if not should_move:
+            self._be_retry_state.pop(key, None)
+            return True
+        if now < float(state.get("next_retry_at", 0.0) or 0.0):
+            return False
+        target_sl, invalid_reason = self._normalize_be_target(pos, entry_price)
+        if target_sl is None:
+            signature = (invalid_reason, round(entry_price, 10), getattr(pos, "price_current", None))
+            if state.get("invalid_signature") != signature:
+                state["invalid_signature"] = signature
+                self._be_log_once(state, f"[BE] {pos.ticket} hoãn SL: {invalid_reason}")
+            state["next_retry_at"] = now + 30.0
+            return False
+        if state.get("last_target_sl") != target_sl:
+            state["attempt_count"] = 0
+            state["last_target_sl"] = target_sl
+            state["next_retry_at"] = 0.0
+        state["last_attempt_at"] = now
+        state["attempt_count"] = int(state.get("attempt_count", 0)) + 1
+        req = {"action": mt5.TRADE_ACTION_SLTP, "position": pos.ticket, "symbol": pos.symbol,
+               "sl": target_sl, "tp": getattr(pos, "tp", 0.0)}
+        try:
+            res = mt5.order_send(req)
+            retcode = int(getattr(res, "retcode", -1))
+        except Exception as error:
+            retcode = -1
+            self._be_log_once(state, f"[BE] {pos.ticket} order_send exception: {error}")
+        state["last_retcode"] = retcode
+        if retcode == getattr(mt5, "TRADE_RETCODE_DONE", 10009):
+            self._be_retry_state.pop(key, None)
+            self.notify(f"{T('log_move_be_ok')} {pos.ticket} | {pos.symbol} -> {target_sl}")
+            return True
+        if retcode == 10025:
+            refreshed = mt5.positions_get(ticket=pos.ticket)
+            if refreshed and abs(float(getattr(refreshed[0], "sl", 0.0) or 0.0) - target_sl) <= max(1e-8, abs(target_sl) * 1e-7):
+                self._be_retry_state.pop(key, None)
+                return True
+            state["next_retry_at"] = now + 60.0
+            self._be_log_once(state, f"[BE] {pos.ticket} NO_CHANGES; đang xác minh SL")
+            return False
+        if retcode == 10018:
+            state["next_retry_at"] = now + 900.0
+            self._be_log_once(state, f"[BE] {pos.ticket} hoãn SL: thị trường đóng cửa.")
+            return False
+        if retcode == 10024:
+            state["next_retry_at"] = now + min(900.0, 15.0 * (2 ** min(state["attempt_count"], 6)))
+            self._be_log_once(state, f"[BE] {pos.ticket} bị giới hạn request; sẽ retry có backoff.")
+            return False
+        if retcode == 10016:
+            state["next_retry_at"] = now + 30.0
+            self._be_log_once(state, f"[BE] {pos.ticket} hoãn SL: khoảng cách stop chưa hợp lệ.")
+            return False
+        if retcode == 10027:
+            state["next_retry_at"] = now + 300.0
+            self._be_log_once(state, f"[BE] {pos.ticket} chờ bật Algo Trading.")
+            return False
+        if retcode == 10031:
+            state["next_retry_at"] = now + 30.0
+            self._be_log_once(state, f"[BE] {pos.ticket} chờ MT5 reconnect.")
+            return False
+        state["next_retry_at"] = now + min(300.0, 15.0 * (2 ** min(state["attempt_count"], 4)))
+        self._be_log_once(state, f"[BE] {pos.ticket} deferred; Err {retcode}")
+        return False
+
+    def _be_log_once(self, state, message):
+        now = time.time()
+        if now - float(state.get("last_logged_at", 0.0) or 0.0) >= 60.0:
+            self.log(message)
+            state["last_logged_at"] = now
+
+    def _normalize_be_target(self, pos, entry_price):
+        try:
+            info = mt5.symbol_info(pos.symbol)
+            tick = mt5.symbol_info_tick(pos.symbol)
+            if info is None or tick is None:
+                return None, "thiếu symbol/tick"
+            digits = int(getattr(info, "digits", 5) or 5)
+            tick_size = float(getattr(info, "trade_tick_size", 0.0) or getattr(info, "point", 0.0) or 0.0)
+            if tick_size <= 0:
+                return None, "thiếu tick size"
+            target = round(round(entry_price / tick_size) * tick_size, digits)
+            min_distance = max(float(getattr(info, "trade_stops_level", 0) or 0), float(getattr(info, "trade_freeze_level", 0) or 0)) * float(getattr(info, "point", tick_size) or tick_size)
+            is_buy = int(getattr(pos, "type", -1)) == getattr(mt5, "POSITION_TYPE_BUY", 0)
+            market_price = float(getattr(tick, "bid" if is_buy else "ask", 0.0) or 0.0)
+            if market_price <= 0:
+                return None, "thiếu giá thị trường"
+            if is_buy and target > market_price - min_distance:
+                return None, "stop buy vượt stops/freeze level"
+            if not is_buy and target < market_price + min_distance:
+                return None, "stop sell vượt stops/freeze level"
+            return target, None
+        except Exception as error:
+            return None, f"không đọc được constraint ({error})"
 
     def run(self):
         try:
@@ -358,18 +445,47 @@ class MonitorWorker(threading.Thread):
             if symbol_str:
                 monitored_symbols = [s.strip().upper() for s in symbol_str.split(",") if s.strip()]
 
-            # Init MT5
-            if path:
-                if not os.path.exists(path):
-                    self.notify(T("err_path") + f" {path}")
-                    return
-                is_init = mt5.initialize(path)
-            else:
-                is_init = mt5.initialize()
+            # Create the heartbeat publisher before launching MT5.  A failed
+            # launch must still be visible to NativeQt/dashboard instead of
+            # looking like a worker that never started.
+            try:
+                _hb_store = SQLiteStore()
+            except Exception:
+                _hb_store = None
 
-            if not is_init:
-                self.notify(T("err_connect") + f" {mt5.last_error()}")
+            # Shared launcher: validate, start and connect exactly one terminal
+            # for this profile worker.  Do not let the MT5 package silently
+            # attach to another profile when a configured path is stale.
+            launch = ensure_mt5_profile_connected(self.config, mt5_module=mt5)
+            if not launch.ok:
+                self.launch_failed = True
+                profile_name = self.config.get("profile_name", "") or "default"
+                failure = f"{launch.failure_code or 'IPC_FAILED'}: {launch.message}"
+                if _hb_store is not None:
+                    try:
+                        _hb_store.publish_heartbeat(
+                            profile=profile_name,
+                            state="error",
+                            last_error=failure[:200],
+                            data_provider="MT4",
+                            data_state="disconnected",
+                            execution_provider="MT5",
+                            execution_state="error",
+                        )
+                    except Exception as heartbeat_error:
+                        self.log(f"[MT5-LAUNCH] heartbeat publish failed: {heartbeat_error}")
+                self.notify(
+                    f"[MT5-LAUNCH] Profile={profile_name} "
+                    f"status={launch.failure_code or 'IPC_FAILED'} path={launch.terminal_path} "
+                    f"message={launch.message}"
+                )
+                if _hb_store is not None:
+                    _hb_store.close()
                 return
+            self.log(
+                f"[MT5-LAUNCH] Profile={self.config.get('profile_name', 'unknown')} "
+                f"CONNECTED path={launch.terminal_path} attempts={launch.initialize_attempts}"
+            )
 
             # Check Info
             account = mt5.account_info()
@@ -453,11 +569,6 @@ class MonitorWorker(threading.Thread):
             tg_last_check = ""
             tg_fail_streak = 0
             tg_ok_since = 0.0  # last successful getMe monotonic time
-            try:
-                _hb_store = SQLiteStore()
-            except Exception:
-                _hb_store = None
-
             # TRACKING: Initialize known tickets for closure detection
             self.known_tickets = set()
             first_run = True
@@ -573,21 +684,16 @@ class MonitorWorker(threading.Thread):
                         last_reconnect_check = time.time()
                         if not mt5.terminal_info():
                             self.log("⚠️ Connection lost. Attempting reconnect...")
-                            # Try to restart MT5 terminal if path exists
-                            if path and os.path.exists(path):
-                                try:
-                                    self.log(f"🚀 Starting MT5 terminal: {path}")
-                                    subprocess.Popen([path])
-                                    time.sleep(3)  # Wait for terminal to start
-                                except Exception as e:
-                                    self.log(f"❌ Failed to start MT5: {e}")
-                            # Try to connect
-                            if path: mt5.initialize(path)
-                            else: mt5.initialize()
-                            if mt5.terminal_info():
+                            launch = ensure_mt5_profile_connected(
+                                self.config, mt5_module=mt5, timeout_seconds=10
+                            )
+                            if launch.ok:
                                 self.log("✅ Reconnected.")
                             else:
-                                self.log("⚠️ Still disconnected. Will retry in 10s...")
+                                self.log(
+                                    f"⚠️ Still disconnected ({launch.failure_code}); "
+                                    "will retry with backoff."
+                                )
 
                     # Check Language Change (Every 2s)
                     if time.time() - last_lang_check > 2.0:
@@ -639,6 +745,7 @@ class MonitorWorker(threading.Thread):
                         # ---------------------------------------------------------
                         if not first_run:
                             closed_tickets = self.known_tickets - current_tickets
+                            self._clear_be_retry_state_for_tickets(closed_tickets)
                             for ticket in closed_tickets:
                                 # Fetch Deal History
                                 try:
@@ -1034,4 +1141,3 @@ class MonitorWorker(threading.Thread):
         finally:
             mt5.shutdown()
             self.log(T("log_monitor_stop"))
-

@@ -37,6 +37,7 @@ from domain.signal_v87 import (
     final_reverse as final_reverse_v87,
 )
 from domain.mt5_execution import MT5ExecutionGateway
+from services.mt5_terminal_service import ensure_mt5_profile_connected
 
 log = setup_logger("signal")
 
@@ -182,7 +183,7 @@ DISABLED_SIGNAL_PAIRS = ()
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SIGNAL_PAIRS = ("XAUUSD", *GBP_SIGNAL_PAIRS)
 DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
-EVIDENCE_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+EVIDENCE_SIGNAL_PAIRS = ("XAUUSD",)
 ENTRY_TIMING_SYMBOLS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 D_SOURCE_SYMBOL = {symbol: symbol for symbol in SIGNAL_PAIRS}
 
@@ -429,7 +430,7 @@ def _trading_date():
     return get_broker_time().date()
 
 def _load_state():
-    """Load restart-safe sent-slot, entry-alert, and D publication state.
+    """Load restart-safe sent-slot, signal-alert, and D publication state.
 
     Supports three legacy formats for d_publication_state:
       A. Legacy list: ["2026-07-31"] -> migrated as UNKNOWN_LEGACY, acknowledged=False
@@ -478,8 +479,8 @@ def _load_state():
         print(f"  [STATE] Dropping stale sent_today: stored version={stored_ver or 'legacy'}, current version={SIGNAL_LOGIC_VERSION}")
         return {
             "sent_today": set(),
-            "entry_alerts_sent": set(),
-            "entry_alerts_pending": {},
+            "signal_alerts_sent": set(),
+            "signal_alerts_pending": {},
             "d_publication_state": pub_state,
             "d_last_success_at": last_success,
         }
@@ -492,15 +493,15 @@ def _load_state():
         except (TypeError, ValueError):
             continue
 
-    alerts_sent = set(data.get("entry_alerts_sent", []))
-    alerts_pending = data.get("entry_alerts_pending", {})
+    alerts_sent = set(data.get("signal_alerts_sent", []))
+    alerts_pending = data.get("signal_alerts_pending", {})
     if not isinstance(alerts_pending, dict):
         alerts_pending = {}
 
     return {
         "sent_today": restored_sent,
-        "entry_alerts_sent": alerts_sent,
-        "entry_alerts_pending": alerts_pending,
+        "signal_alerts_sent": alerts_sent,
+        "signal_alerts_pending": alerts_pending,
         "d_publication_state": pub_state,
         "d_last_success_at": last_success,
     }
@@ -508,7 +509,7 @@ def _load_state():
 
 def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None,
                 d_publication_state=None, d_last_success_at=None):
-    """Persist sent logical slots, entry alerts, and D-Direction publication state.
+    """Persist sent logical slots, signal alerts, and D-Direction publication state.
 
     Accepts both legacy `d_published_local_dates` kwarg (for backward compat in tests)
     and new `d_publication_state` dict. The new key takes priority.
@@ -560,8 +561,8 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None,
         "date": today_str,
         "signal_logic_version": SIGNAL_LOGIC_VERSION,
         "sent_today": sent_rows,
-        "entry_alerts_sent": sorted(list(entry_alerts_sent)),
-        "entry_alerts_pending": entry_alerts_pending,
+        "signal_alerts_sent": sorted(list(signal_alerts_sent)),
+        "signal_alerts_pending": signal_alerts_pending,
         "broker_time": broker_now.replace(microsecond=0).isoformat() if has_verified_clock else "",
         "broker_utc_offset": broker_utc_offset,
         "broker_observed_at_utc": health.observed_at_utc if has_verified_clock and health else "",
@@ -699,11 +700,11 @@ def get_current_prices(pair_dirs):
 
 
 def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
-               pattern_signal=None, deactivated=False, source_date=None, extra_fields=None):
+               pattern_signal=None, source_date=None, extra_fields=None):
     """Append signal data to signals_log.json for website consumption."""
     record = _format_signal_record(
         H, broker_dt, sig, entry_time, pair_dirs, hour_note,
-        pattern_signal=pattern_signal, deactivated=deactivated,
+        pattern_signal=pattern_signal,
         source_date=source_date, extra_fields=extra_fields,
     )
     try:
@@ -721,9 +722,8 @@ def log_signal(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
 
 
 def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
-                          pattern_signal=None, deactivated=False, source_date=None, extra_fields=None):
+                          pattern_signal=None, source_date=None, extra_fields=None):
     """Build one signal record dict without persisting."""
-    deactivated = bool(deactivated or is_deactivated_signal_slot(broker_dt, H))
     current_prices = get_current_prices(pair_dirs)
     signal_time = get_signal_time_for_slot(broker_dt, H)
     record = {
@@ -737,7 +737,6 @@ def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         "entry_prices": {},
         "current_prices": current_prices,
         "hour_note": hour_note,
-        "deactivated": deactivated,
         "logic_version": SIGNAL_LOGIC_VERSION,
     }
     signal_hour, signal_minute = (int(part) for part in signal_time.split(":"))
@@ -764,15 +763,21 @@ def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     record["broker_utc_offset"] = broker_offset
     record["broker_clock_verified"] = clock_verified
     record["broker_timestamp_mode"] = "MT4_FEED"
-    record["signal_time_local"] = _broker_time_to_local(signal_time, broker_offset) if broker_offset is not None else None
-    record["entry_time_local"] = _broker_time_to_local(entry_time, broker_offset) if entry_time and broker_offset is not None else None
+    record["signal_time_local"] = (
+        _broker_time_to_local(signal_time, broker_offset)
+        if broker_offset is not None and clock_verified else None
+    )
+    record["entry_time_local"] = (
+        _broker_time_to_local(entry_time, broker_offset)
+        if entry_time and broker_offset is not None and clock_verified else None
+    )
     if pattern_signal:
         record["pattern_signal"] = pattern_signal
     if source_date:
         record["source_date"] = source_date
     if extra_fields and isinstance(extra_fields, dict):
         for k, v in extra_fields.items():
-            if k not in ("date", "hour", "ts", "signal", "pair_dirs", "signal_time"):
+            if k not in ("date", "hour", "ts", "signal", "pair_dirs", "signal_time", "deactivated"):
                 record[k] = v
     if _d_directions_today:
         record["daily_directions"] = _d_directions_today
@@ -883,6 +888,8 @@ def _has_dashboard_payload(signal):
 def _enrich_local_times(signal_record):
     """Add signal_time_local / entry_time_local to older records that lack them."""
     if "signal_time_local" in signal_record:
+        return signal_record
+    if signal_record.get("broker_clock_verified") is not True:
         return signal_record
     broker_offset = signal_record.get("broker_utc_offset")
     if broker_offset is None:
@@ -1044,21 +1051,27 @@ def push_to_dashboard(snapshot_complete: bool = False):
 
 
 def _dashboard_signal_evidence(broker_dt, hour, result):
-    """Build versioned evidence records for the dashboard (v82 per-symbol)."""
+    """Build one versioned XAUUSD entry-evidence record for the dashboard."""
     pair_evidence = result.get("pair_evidence") or {}
     logic_version = result.get("logic_version", SIGNAL_LOGIC_VERSION)
     source_date = broker_dt.date().isoformat()
     records = {}
-    for symbol, raw_evidence in pair_evidence.items():
+    for symbol in ("XAUUSD",):
+        raw_evidence = pair_evidence.get(symbol)
+        if not raw_evidence:
+            continue
         evidence = dict(raw_evidence or {})
+        timing = result.get("timing") if isinstance(result.get("timing"), dict) else {}
+        timeframe = str(timing.get("timeframe") or result.get("entry_timeframe") or "M30").upper()
+        default_entry_rule = "XAUUSD_H1_ENTRY_PLAN" if timeframe == "H1" else "XAUUSD_M30_ENTRY_PLAN"
         evidence.update({
             "logic_version": logic_version,
             "date": source_date,
             "hour": int(hour),
             "symbol": symbol,
-            "entry_time": (result.get("pair_entry_times") or {}).get(symbol),
-            "entry_state": (result.get("pair_entry_states") or {}).get(symbol),
-            "entry_rule": evidence.get("entry_rule") or "INDEPENDENT_M30_ENGINE",
+            "entry_time": result.get("entry_time") or (result.get("pair_entry_times") or {}).get(symbol),
+            "entry_state": result.get("entry_state") or (result.get("pair_entry_states") or {}).get(symbol),
+            "entry_rule": evidence.get("entry_rule") or default_entry_rule,
             "signal_state": (result.get("pair_signal_states") or {}).get(symbol),
         })
         key = f"{source_date}:{int(hour)}:{symbol}:v{logic_version}"
@@ -1067,7 +1080,7 @@ def _dashboard_signal_evidence(broker_dt, hour, result):
 
 
 def push_signal_evidence(broker_dt, hour, result):
-    """Push evaluated M30 evidence for every signal pair to the dashboard."""
+    """Push the single XAUUSD entry-evidence source to the dashboard."""
     dashboard_url = os.environ.get("DASHBOARD_API_URL", "") or DASHBOARD_URL
     if not dashboard_url:
         return
@@ -1221,157 +1234,6 @@ def _provider_bars_near_timestamp(symbol, timeframe, target_ts, use_mt5_fallback
 
 def _provider_timeframe(timeframe):
     return {30: "M30", 60: "H1", 240: "H4", 16385: "M30", 16388: "H4", "30": "M30", "60": "H1", "240": "H4", "16385": "M30", "16388": "H4"}.get(timeframe, str(timeframe).upper())
-
-
-
-def _is_raw_special_day(target_date):
-    """Evaluate the original calendar triggers for one Thu/Fri date."""
-    weekday = target_date.weekday()
-    if weekday not in (3, 4):
-        return False
-    if (target_date + timedelta(days=7)).month != target_date.month:
-        return True
-    wednesday = target_date - timedelta(days=1 if weekday == 3 else 2)
-    if wednesday.day in (30, 1):
-        return True
-    return weekday == 4 and target_date.day in (3, 4, 7)
-
-
-def is_special_day(broker_dt):
-    """Return whether a Broker Thursday or Friday belongs to a special pair."""
-    if broker_dt is None or broker_dt.weekday() not in (3, 4):
-        return False
-    current = broker_dt.date()
-    thursday = current if broker_dt.weekday() == 3 else current - timedelta(days=1)
-    friday = thursday + timedelta(days=1)
-    if thursday.year != friday.year:
-        return False
-    return _is_raw_special_day(thursday) or _is_raw_special_day(friday)
-
-def is_post_special_day(broker_dt):
-    """Check if today is Monday after a special Thursday."""
-    if broker_dt is None:
-        return False
-    wd = broker_dt.weekday()
-    dt = broker_dt.date()
-    if wd != 0:
-        return False
-    prev_thu = dt - timedelta(days=4)
-    thu_dt = datetime(prev_thu.year, prev_thu.month, prev_thu.day, tzinfo=broker_dt.tzinfo)
-    return is_special_day(thu_dt)
-
-
-def _first_friday_of_month(year, month):
-    """Return the day number of the first Friday in a given month."""
-    for day in range(1, 8):
-        if datetime(year, month, day).weekday() == 4:
-            return day
-    return None
-
-
-def _last_friday_of_month(year, month):
-    """Return the day number of the last Friday in a given month."""
-    first = _first_friday_of_month(year, month)
-    if first is None:
-        return None
-    d = first
-    while True:
-        next_d = d + 7
-        try:
-            datetime(year, month, next_d)
-            d = next_d
-        except ValueError:
-            return d
-
-
-def _is_in_restricted_calendar_period(dt):
-    """Check whether *dt* falls in the month-end restricted period.
-
-    The restricted period spans from the Tuesday of the week containing
-    the last Friday of month M (= last_friday - 3) through the Monday
-    immediately after the first Friday of month M+1 (= first_friday + 3).
-    Both endpoints are inclusive. A date can fall in up to two overlapping
-    restricted windows (prev→cur and cur→next), so we check both.
-    """
-    if dt is None:
-        return False
-    d = dt.date() if hasattr(dt, "date") and callable(dt.date) else dt
-
-    for src_year, src_month in ((d.year - 1, 12) if d.month == 1 else (d.year, d.month - 1), (d.year, d.month)):
-        last_fri_day = _last_friday_of_month(src_year, src_month)
-        if last_fri_day is None:
-            continue
-        start_day = last_fri_day - 3  # Tue of the week containing last Fri
-        if start_day < 1:
-            continue
-        tgt_year, tgt_month = (src_year + 1, 1) if src_month == 12 else (src_year, src_month + 1)
-        first_fri_day = _first_friday_of_month(tgt_year, tgt_month)
-        if first_fri_day is None:
-            continue
-        start = datetime(src_year, src_month, start_day).date()
-        end = datetime(tgt_year, tgt_month, first_fri_day + 3).date()  # Mon after Fri
-        if start <= d <= end:
-            return True
-    return False
-
-
-def _count_fridays_in_month(year, month):
-    """Count how many Fridays fall in a given month."""
-    first = _first_friday_of_month(year, month)
-    if first is None:
-        return 0
-    count = 0
-    d = first
-    while d <= 31:
-        try:
-            datetime(year, month, d)
-            count += 1
-            d += 7
-        except ValueError:
-            break
-    return count
-
-
-def is_special_day_2(broker_dt):
-    """Check if today is a 'ngày đặc biệt 2' Friday or the Wednesday before it.
-
-    Rule:
-    - Months with 5 Fridays: 1st, 2nd and 3rd Friday are special day 2
-    - Months with 4 Fridays: 1st and 2nd Friday are special day 2
-    - Wednesday (wd=2) immediately before a special_day_2 Friday is also special_day_2
-    """
-    if broker_dt is None:
-        return False
-    wd = broker_dt.weekday()
-    # Wednesday before a special_day_2 Friday
-    if wd == 2:
-        friday = broker_dt + timedelta(days=2)
-        return _is_friday_special_day_2(friday)
-    # Direct Friday check
-    if wd == 4:
-        return _is_friday_special_day_2(broker_dt)
-    return False
-
-
-def _is_friday_special_day_2(friday_dt):
-    """Check whether a given date (must be a Friday) qualifies as special day 2."""
-    if friday_dt is None or friday_dt.weekday() != 4:
-        return False
-    dt = friday_dt.date()
-    first = _first_friday_of_month(dt.year, dt.month)
-    if first is None:
-        return False
-    nth = (dt.day - first) // 7 + 1
-    total = _count_fridays_in_month(dt.year, dt.month)
-    if total >= 5:
-        return nth in (1, 2, 3)
-    else:
-        return nth in (1, 2)
-
-
-def is_month_boundary_suppress(broker_dt):
-    """Disabled -- month boundary suppression removed."""
-    return False
 
 
 _MISSING = object()
@@ -1617,16 +1479,6 @@ def reconstruct_current_day_mode(records, broker_date, active_logic_version):
     return None
 
 
-def is_deactivated_signal_slot(broker_dt, hour):
-    """Return whether a calculated slot is dependency-only and must not be traded.
-
-    Since v65, no active slot has a weekday deactivation rule.
-    This function returns False for all active slots.
-    It exists for backward compatibility with consumers that check this field.
-    """
-    return False
-
-
 def get_entry_time_for_slot(broker_dt, hour):
     """Calculate the Broker entry clock for one logical slot."""
     h = int(hour)
@@ -1678,7 +1530,6 @@ def calculate_slot_signal(broker_dt, hour, day_mode=None, d_directions=None):
         return {
             "signal": "WAIT",
             "report": f"H={hour}: inactive slot.",
-            "suppressed": True,
         }
     result = evaluate_all_pairs_for_slot(broker_dt, hour, day_mode=day_mode, d_directions=d_directions)
     if result is None:
@@ -1686,8 +1537,6 @@ def calculate_slot_signal(broker_dt, hour, day_mode=None, d_directions=None):
             "signal": "WAIT",
             "report": f"H={hour}: incomplete D-Direction + Day Mode data.",
         }
-    if is_deactivated_signal_slot(broker_dt, hour):
-        result["deactivated"] = True
     return result
 
 
@@ -1700,8 +1549,8 @@ def get_hour_note(H, broker_dt=None):
     if h not in ACTIVE_HOURS:
         return ""
     return (
-        "XAUUSD determines one common Entry Plan for all five pairs; "
-        "GBPUSD is the Reference Signal and D relations derive the other directions."
+        "GBPUSD is the Reference Signal; XAUUSD provides the shared Entry Plan "
+        "and D relations derive the remaining pair directions."
     )
 
 
@@ -1710,9 +1559,8 @@ ALL_PAIRS = list(SIGNAL_PAIRS)
 
 sent_today = set()
 _d_directions_today = {}
-ENTRY_ALERT_GRACE_MINUTES = 5
-entry_alerts_sent = set()
-entry_alerts_pending = {}
+signal_alerts_sent = set()
+signal_alerts_pending = {}
 
 
 def load_signal_rule_contract():
@@ -1729,7 +1577,7 @@ def load_signal_rule_contract():
         "public_slots": [3, 7, 9, 12, 14, 16],
         "internal_slots": [],
         "rules": {"VN": [], "EN": []},
-        "startup_summary": "v72: two-layer independent M30 for GBP pairs",
+        "startup_summary": "v87 canonical signal engine",
     }
 
 
@@ -1750,185 +1598,117 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
             pass
     return (
         f"🤖 OAK SIGNAL BOT ONLINE · v{ver}\n"
-        f"Market data MT4: {feed_state.upper()}\n"
-        f"Execution MT5: {mt5_status}\n"
-        f"Clock: MT4 Broker Clock · {broker_time_str}\n"
-        "Slots: H3 · H7 · H9 · H12 · H14 · H16\n"
-        "Pairs: XAUUSD | GBPUSD | GBPAUD | GBPJPY | GBPCAD\n"
-        "Entry: Common XAUUSD Entry\n"
-        "Signal: Reference GBPUSD/XAUUSD + D relation matrix"
+        f"MT4 Feed: {feed_state.upper()} · MT5: {mt5_status}\n"
+        f"Broker Clock: {broker_time_str}\n"
+        "Slots: H3 · H7 · H9 · H12 · H14 · H16"
     )
 
 
-def build_xau_entry_alert_fingerprint(trading_date, hour, logic_version, symbol, entry_time):
-    """Build the canonical version/date/hour/symbol/entry de-duplication key."""
-    return f"{logic_version}|{trading_date}|{hour}|{symbol}|{entry_time}"
+def _signal_date(record):
+    return str(record.get("source_date") or record.get("date") or "")
 
 
-def should_send_xau_entry_alert(current_result, sent_fingerprints):
-    """Return True if current_result is a READY XAUUSD entry alert that has not been sent yet."""
-    if not current_result or not isinstance(current_result, dict):
-        return False
-    if current_result.get("entry_state") != "READY":
-        return False
-    pair_entry_states = current_result.get("pair_entry_states", {})
-    if pair_entry_states.get("XAUUSD") != "READY":
-        return False
-    pair_dirs = current_result.get("pair_dirs", {})
-    xau_dir = pair_dirs.get("XAUUSD")
-    if xau_dir not in ("BUY", "SELL"):
-        return False
-    pair_entry_times = current_result.get("pair_entry_times", {})
-    xau_entry = pair_entry_times.get("XAUUSD")
-    if not xau_entry or not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(xau_entry)):
-        return False
-    fp = build_xau_entry_alert_fingerprint(
-        current_result.get("source_date"),
-        current_result.get("hour"),
-        current_result.get("logic_version", SIGNAL_LOGIC_VERSION),
-        "XAUUSD",
-        xau_entry,
-    )
-    return fp not in (sent_fingerprints or set())
+def _signal_directions(record):
+    directions = record.get("pair_dirs") or {}
+    return tuple((symbol, str(directions.get(symbol, "WAIT"))) for symbol in DISPLAY_SIGNAL_PAIRS)
 
 
-def _format_entry_local(entry_time, broker_offset, source_date):
-    if (
-        not entry_time
-        or not source_date
-        or isinstance(broker_offset, bool)
-        or not isinstance(broker_offset, (int, float))
-    ):
-        return ""
+def build_signal_alert_fingerprint(record):
+    """Deduplicate by logic/date/slot/revision/directions, never Entry metadata."""
     try:
-        source = datetime.fromisoformat(source_date).date()
-        utc_iso = compute_utc_iso(source, entry_time, broker_offset)
-        if not utc_iso:
-            return ""
-        local_dt = datetime.fromisoformat(utc_iso.replace("Z", "+00:00")).astimezone(HO_CHI_MINH_TZ)
-        offset_hours = int((local_dt.utcoffset() or timedelta()).total_seconds() // 3600)
-        zone = f"GMT{'+' if offset_hours >= 0 else ''}{offset_hours}"
-        day_delta = (local_dt.date() - source).days
-        suffix = " +1d" if day_delta > 0 else " -1d" if day_delta < 0 else ""
-        return f" · {local_dt.strftime('%H:%M')} {zone}{suffix}"
-    except (AttributeError, TypeError, ValueError):
-        return ""
+        hour = int(record.get("hour"))
+    except (TypeError, ValueError):
+        hour = -1
+    directions = ";".join(f"{symbol}={direction}" for symbol, direction in _signal_directions(record))
+    return "|".join((
+        str(record.get("logic_version", SIGNAL_LOGIC_VERSION)),
+        _signal_date(record), str(hour), str(record.get("record_revision", 1)), directions,
+    ))
 
 
-def _telegram_pair_line(symbol, direction, entry_time, broker_offset, source_date):
-    icon = "🟢" if direction == "BUY" else "🔴" if direction == "SELL" else "⚪"
-    entry = entry_time if entry_time else "WAIT"
-    local = _format_entry_local(entry_time, broker_offset, source_date)
-    return f"{symbol}: {icon} {direction or 'WAIT'} · Entry {entry} Broker{local}"
+def _signal_base_prefix(record):
+    return "|".join((
+        str(record.get("logic_version", SIGNAL_LOGIC_VERSION)),
+        _signal_date(record), str(int(record.get("hour"))),
+    )) + "|"
 
 
-def build_entry_ready_telegram_message(record, broker_dt=None):
-    """Build the v87 common-entry signal message with D/reverse evidence."""
-    del broker_dt
+def _sent_same_signal_directions(record, sent_fingerprints=None):
+    prefix = _signal_base_prefix(record)
+    directions = ";".join(f"{symbol}={direction}" for symbol, direction in _signal_directions(record))
+    sent = signal_alerts_sent if sent_fingerprints is None else sent_fingerprints
+    return any(str(item).startswith(prefix) and str(item).split("|", 4)[-1] == directions for item in sent)
+
+
+def build_signal_telegram_message(record, broker_dt=None, updated=False):
+    """Build the compact Signal-only message; Entry stays on the web dashboard."""
     try:
         hour = int(record.get("hour"))
     except (TypeError, ValueError):
         return None
     if hour not in ACTIVE_HOURS:
         return None
-    directions = record.get("pair_dirs") or {}
-    entries = record.get("pair_entry_times") or {}
-    source_date = record.get("source_date") or record.get("date") or ""
-    broker_offset = record.get("broker_utc_offset")
-    exec_states = record.get("pair_entry_states") or {}
-    common_entry = record.get("entry_time") or entries.get("XAUUSD") or "WAIT"
-    reference_d = record.get("reference_d_direction") or "WAIT"
-    reference_signal = directions.get("GBPUSD", "WAIT")
-    lines = [f"🚨 SIGNAL READY · H{hour} · v{record.get('logic_version', SIGNAL_LOGIC_VERSION)}"]
-    # Reset after the legacy icon header so v87's common-entry header is the
-    # only header sent to Telegram.
-    lines = [
-        f"SIGNAL READY · H{hour} · v{record.get('logic_version', SIGNAL_LOGIC_VERSION)}",
-        f"Common Entry: {common_entry} Broker",
-        f"Reference: GBPUSD D {reference_d} · Signal {reference_signal}",
-    ]
-    for symbol in DISPLAY_SIGNAL_PAIRS:
-        dir_val = directions.get(symbol, "WAIT")
-        entry_val = entries.get(symbol)
-        exec_off = exec_states.get(symbol) == "DISABLED"
-        icon = "🟢" if dir_val == "BUY" else "🔴" if dir_val == "SELL" else "⚪"
-        entry = entry_val if entry_val else "WAIT"
-        local = _format_entry_local(entry_val, broker_offset, source_date)
-        suffix = " · EXEC OFF" if exec_off else ""
-        lines.append(f"{symbol}: {icon} {dir_val} · Entry {entry} Broker{local}{suffix}")
-    for symbol in ("GBPAUD", "GBPJPY", "GBPCAD"):
-        relation = (record.get("pair_d_relations") or {}).get(symbol)
-        if relation and relation != "UNRESOLVED":
-            lines.append(f"D relation {symbol}: {relation}")
-    final_reverse = record.get("final_reverse_reason") if record.get("final_reverse_applied") else None
-    lines.append(f"Final Reverse: {final_reverse or 'NONE'}")
+    lines = [("SIGNAL UPDATED" if updated else "🚨 SIGNAL") + f" H{hour}"]
+    for symbol, direction in _signal_directions(record):
+        icon = "🟢" if direction == "BUY" else "🔴" if direction == "SELL" else "⚪"
+        lines.append(f"{symbol}: {icon} {direction}")
+    if broker_dt is not None:
+        lines.append(f"Logic v{record.get('logic_version', SIGNAL_LOGIC_VERSION)} · Broker {broker_dt.strftime('%H:%M')}")
     return "\n".join(lines)
 
 
-def send_xau_entry_ready_alert(record, broker_dt=None) -> bool:
-    """Attempt sending an entry ready alert. Add to entry_alerts_sent if success, else queue in entry_alerts_pending."""
-    global entry_alerts_sent, entry_alerts_pending
-    h = record.get("hour")
-    source_date = record.get("source_date")
-    ver = record.get("logic_version", SIGNAL_LOGIC_VERSION)
-    xau_dir = (record.get("pair_dirs") or {}).get("XAUUSD")
-    xau_entry = (record.get("pair_entry_times") or {}).get("XAUUSD")
-
-    if not source_date or xau_dir not in ("BUY", "SELL") or not xau_entry:
+def should_send_signal_alert(record, sent_fingerprints=None):
+    if not isinstance(record, dict) or record.get("signal") not in ("BUY", "SELL"):
         return False
-
-    fp = build_xau_entry_alert_fingerprint(source_date, h, ver, "XAUUSD", xau_entry)
-    if fp in entry_alerts_sent:
-        return True
-
-    # Check if entry is expired (> 5 minutes past entry datetime)
-    if broker_dt is not None and source_date and xau_entry:
-        try:
-            s_date = datetime.fromisoformat(source_date).date()
-            em_match = re.fullmatch(r"([01]\d|2[0-3]):([0-5]\d)", str(xau_entry))
-            if em_match:
-                eh, em = int(em_match.group(1)), int(em_match.group(2))
-                entry_dt = datetime.combine(s_date, datetime.min.time()).replace(hour=eh, minute=em)
-                if broker_dt > entry_dt + timedelta(minutes=ENTRY_ALERT_GRACE_MINUTES):
-                    print(f"  [ENTRY ALERT EXPIRED] H={h} entry={xau_entry} past grace limit ({broker_dt})")
-                    entry_alerts_pending.pop(fp, None)
-                    return False
-        except Exception:
-            pass
-
-    msg = build_entry_ready_telegram_message(record, broker_dt=broker_dt)
-    success = send_telegram(msg)
-    if success:
-        entry_alerts_sent.add(fp)
-        entry_alerts_pending.pop(fp, None)
-        _save_state(sent_today, broker_dt=broker_dt)
-        print(f"  [ALERT SENT] H={h} XAUUSD={xau_dir} entry={xau_entry} fp={fp}")
-        return True
-    else:
-        entry_alerts_pending[fp] = {
-            "record": record,
-            "added_at": broker_dt.isoformat() if broker_dt else "",
-            "attempts": entry_alerts_pending.get(fp, {}).get("attempts", 0) + 1,
-        }
-        _save_state(sent_today, broker_dt=broker_dt)
-        print(f"  [ALERT QUEUED] H={h} fp={fp} (will retry)")
+    if record.get("signal_state", "READY") != "READY" or record.get("entry_state") != "READY":
         return False
+    if any(direction not in ("BUY", "SELL") for _, direction in _signal_directions(record)):
+        return False
+    return not _sent_same_signal_directions(record, sent_fingerprints)
 
 
-def reconcile_due_xau_entry_alerts(broker_dt):
-    """Retry alerts already queued before restart; never create catch-up alerts."""
-    global entry_alerts_pending, entry_alerts_sent
+def send_signal_alert(record, broker_dt=None):
+    """Send a decision alert once and queue transient delivery failures."""
+    if broker_dt is not None and _signal_date(record) != broker_dt.date().isoformat():
+        return False
+    if not should_send_signal_alert(record, signal_alerts_sent):
+        return True
+    updated = any(str(item).startswith(_signal_base_prefix(record)) for item in signal_alerts_sent)
+    fingerprint = build_signal_alert_fingerprint(record)
+    message = build_signal_telegram_message(record, broker_dt=broker_dt, updated=updated)
+    if not message:
+        return False
+    if send_telegram(message):
+        signal_alerts_sent.add(fingerprint)
+        signal_alerts_pending.pop(fingerprint, None)
+        _save_state(sent_today, broker_dt=broker_dt)
+        print(f"  [SIGNAL ALERT SENT] H={record.get('hour')} fp={fingerprint}")
+        return True
+    signal_alerts_pending[fingerprint] = {
+        "record": dict(record), "added_at": broker_dt.isoformat() if broker_dt else "",
+        "attempts": signal_alerts_pending.get(fingerprint, {}).get("attempts", 0) + 1,
+    }
+    _save_state(sent_today, broker_dt=broker_dt)
+    return False
+
+
+def reconcile_pending_signal_alerts(broker_dt):
     if not broker_dt:
         return
-
-    pending_fps = list(entry_alerts_pending.keys())
-    for fp in pending_fps:
-        item = entry_alerts_pending.get(fp)
-        if not item:
-            continue
+    changed = False
+    for fingerprint, item in list(signal_alerts_pending.items()):
         record = item.get("record") if isinstance(item, dict) else None
-        if record:
-            send_xau_entry_ready_alert(record, broker_dt=broker_dt)
+        # Pending alerts are delivery retries for today's live signal only.
+        # Never replay an old day's signal after restart.
+        if not record or _signal_date(record) != broker_dt.date().isoformat():
+            signal_alerts_pending.pop(fingerprint, None)
+            changed = True
+            continue
+        send_signal_alert(record, broker_dt=broker_dt)
+        changed = True
+    if changed:
+        _save_state(sent_today, broker_dt=broker_dt)
+
 
 def reverse_signal(signal):
     """Return the opposite trading direction."""
@@ -2685,7 +2465,7 @@ class MarketDataClockError(BrokerClockError):
 @dataclass
 class FeedHealth:
     state: str           # "connected" | "degraded" | "stale" | "disconnected"
-    fresh: bool          # True for connected or degraded
+    fresh: bool          # True only while the MT4 heartbeat is live enough to schedule signals
     degraded: bool
     age_seconds: float
     observed_at_utc: str
@@ -2749,8 +2529,6 @@ class MT4FeedProvider:
             bar.setdefault("timeframe", self._normalize_timeframe(timeframe))
             if "broker_dt" not in bar and bar.get("broker_open_at"):
                 bar["broker_dt"] = self._parse_broker_datetime(bar["broker_open_at"])
-            if "time" not in bar and bar.get("broker_dt"):
-                bar["time"] = int((bar["broker_dt"] - timedelta(hours=3)).replace(tzinfo=timezone.utc).timestamp())
             bar.setdefault("is_complete", True)
             self._memory_store[key].append(bar)
 
@@ -2785,7 +2563,10 @@ class MT4FeedProvider:
         if age_sec <= 15:
             return FeedHealth("connected", True, False, age_sec, obs_str, True)
         elif age_sec <= 60:
-            return FeedHealth("degraded", True, True, age_sec, obs_str, True)
+            # Historical bars remain readable while the feed is degraded, but
+            # its extrapolated clock is no longer authoritative for a live
+            # signal.  Fail closed instead of scheduling into a stopped MT4.
+            return FeedHealth("degraded", False, True, age_sec, obs_str, True)
         else:
             return FeedHealth("stale", False, False, age_sec, obs_str, True)
 
@@ -3604,8 +3385,6 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     if sig == "WAIT" and not pair_dirs:
         pair_dirs = {"XAUUSD": "WAIT", "GBPUSD": "WAIT", "GBPAUD": "WAIT"}
     hour_note = get_hour_note(h, broker_dt=broker_dt)
-    deactivated = bool(result.get("deactivated") or is_deactivated_signal_slot(broker_dt, h))
-
     extra_fields = {}
     for key in ENTRY_PLAN_FIELDS:
         if key in result:
@@ -3628,7 +3407,6 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     record = _format_signal_record(
         h, broker_dt, sig or "WAIT", entry_time, pair_dirs or {}, hour_note,
         pattern_signal=result.get("pattern_signal"),
-        deactivated=deactivated,
         source_date=source_date,
         extra_fields=extra_fields if extra_fields else None,
     )
@@ -3803,7 +3581,7 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
     """
     global _current_day_mode
     target_date = broker_dt.date()
-    hours = [h for h in [3, 7, 9, 12, 14, 16]
+    hours = [h for h in get_target_hours(broker_dt)
              if broker_dt >= get_signal_datetime_for_slot(broker_dt, h)]
     if not hours:
         print("[D-READY] No completed slots to rebuild today")
@@ -3881,6 +3659,7 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
 # =====================================================================
 mt5_ready = False
 _broker_clock_error = ""
+_mt5_connection_error = ""
 
 # Track last known D snapshot state per broker date to detect MISSING → READY transitions
 _d_state_per_date: dict = {}  # {date: snapshot_state_str}
@@ -3909,7 +3688,8 @@ def _push_compact_current_signals(records):
     for rec in records:
         compact = {k: v for k, v in rec.items() if k not in _HEAVY_FIELDS}
         # Track which pairs have evidence available
-        pair_ev = rec.get("pair_evidence") or {}
+        pair_ev = {"XAUUSD": (rec.get("pair_evidence") or {}).get("XAUUSD")}
+        pair_ev = {key: value for key, value in pair_ev.items() if value}
         if pair_ev:
             compact["evidence_available"] = {sym: True for sym in pair_ev if pair_ev[sym]}
             compact["evidence_keys"] = {
@@ -4044,18 +3824,38 @@ def _check_and_rebuild_after_d_ready(broker_dt):
         _d_directions_today = fresh_directions
 
 
+def _mt5_profile_config(profile_name=None):
+    """Return one explicit profile config for every MT5 entry point."""
+    resolved = profile_name or _active_profile
+    profile = {"path": MT5_PATH}
+    if resolved:
+        loaded = load_profile_config(resolved)
+        if loaded:
+            profile.update(loaded)
+        profile["profile_name"] = resolved
+    return profile
+
+
 def try_init_mt5():
-    global mt5_ready
+    global mt5_ready, _mt5_connection_error
     if mt5_ready:
         return True
-    ok = mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()
+    profile = _mt5_profile_config()
+    launch = ensure_mt5_profile_connected(profile, mt5_module=mt5, timeout_seconds=60)
+    ok = launch.ok
     if ok:
         mt5_ready = True
         BROKER_CLOCK.clear_cache()
         info = mt5.account_info()
         if info:
             print(f"  [OK] MT5: {info.server} | {info.login}")
+        _mt5_connection_error = ""
         return True
+    details = [str(launch.failure_code or "MT5_INIT_FAILED"), str(launch.message or "")]
+    if launch.last_error:
+        details.append(f"MT5 last_error={launch.last_error}")
+    _mt5_connection_error = " | ".join(part for part in details if part)
+    print(f"  [WARN] MT5 execution unavailable: {_mt5_connection_error}")
     return False
 
 def get_broker_time():
@@ -4066,6 +3866,20 @@ def get_broker_time():
     if not health.fresh or not getattr(health, "clock_verified", True):
         raise MarketDataClockError(f"MT4 feed clock is unavailable/stale (state={getattr(health, 'state', 'stale')})")
     return MARKET_DATA_PROVIDER.get_broker_now()
+
+
+_last_broker_clock_log = ("", 0.0)
+
+
+def _log_broker_clock_failure(error):
+    """Emit one clock failure line per state, then at most once per minute."""
+    global _last_broker_clock_log
+    message = str(error)
+    now = time.time()
+    previous, previous_at = _last_broker_clock_log
+    if message != previous or now - previous_at >= 60.0:
+        print(f"[BROKER CLOCK] Fail-closed: {message}")
+        _last_broker_clock_log = (message, now)
 
 
 def resolve_active_profile(profile_name, profiles_path=None):
@@ -4240,6 +4054,11 @@ def _persist_live_result(broker_dt, hour, result):
                 extra_fields.update(serialize_day_mode(val))
             elif field == "day_mode" and val is None:
                 extra_fields.update(serialize_day_mode(None))
+            elif field == "pair_evidence" and isinstance(val, dict):
+                # Entry evidence has one source of truth: XAUUSD.  Pair
+                # directions still remain in pair_dirs/pair relations.
+                xau_evidence = val.get("XAUUSD")
+                extra_fields[field] = {"XAUUSD": xau_evidence} if xau_evidence else {}
             else:
                 extra_fields[field] = val
     extra_fields.setdefault("evidence_schema_version", SIGNAL_EVIDENCE_SCHEMA_VERSION)
@@ -4333,8 +4152,15 @@ def _process_live_slot(broker_dt, hour):
         print(f"  [RETRY] H={hour} - one or more GBP pair entries are incomplete")
         return False
     schedule_orders_for_signal(result, broker_dt, hour)
-    if should_send_xau_entry_alert(result, entry_alerts_sent):
-        send_xau_entry_ready_alert(result, broker_dt=broker_dt)
+    alert_record = dict(result)
+    alert_record.update({
+        "hour": hour,
+        "source_date": broker_dt.date().isoformat(),
+        "record_revision": 2,
+        "pair_dirs": result.get("pair_dirs") or get_pair_direction(hour, result.get("signal"), broker_dt, full_result=result),
+    })
+    if should_send_signal_alert(alert_record, signal_alerts_sent):
+        send_signal_alert(alert_record, broker_dt=broker_dt)
     sent_today.add(key)
     _save_state(sent_today, broker_dt=broker_dt)
     tag = "RESOLVED" if is_recheck else "SENT"
@@ -4343,7 +4169,7 @@ def _process_live_slot(broker_dt, hour):
 
 
 def main(profile_name=None):
-    global mt5_ready, sent_today, _d_directions_today, _active_profile, _broker_clock_error, entry_alerts_sent, entry_alerts_pending, _current_day_mode
+    global mt5_ready, sent_today, _d_directions_today, _active_profile, _broker_clock_error, _mt5_connection_error, signal_alerts_sent, signal_alerts_pending, _current_day_mode
     print("=" * 55)
     print(f"  MT5 Multi-Timeframe Signal Bot v{SIGNAL_LOGIC_VERSION}")
     print(f"  Symbol: {SYMBOL}")
@@ -4353,18 +4179,18 @@ def main(profile_name=None):
     print(f"  Telegram admin destination: {'yes' if admin_ok else 'no'}")
     print("=" * 55)
 
+    _active_profile = resolve_active_profile(profile_name)
+
     if try_init_mt5():
         info = mt5.account_info()
         if info:
             print(f"  Balance: ${info.balance:,.2f}")
     else:
-        print("[WARN] MT5 init failed - signal is fail-closed")
+        print("[WARN] MT5 execution is disabled; Signal calculation awaits MT4 Feed.")
 
     print("=" * 55)
     print("  Dang chay... Ctrl+C de dung")
     print("=" * 55)
-
-    _active_profile = resolve_active_profile(profile_name)
 
     resolved_clock_symbols = tuple(
         dict.fromkeys(
@@ -4393,10 +4219,11 @@ def main(profile_name=None):
             except BrokerClockError as error:
                 _broker_clock_error = str(error)
             try:
+                errors = [error for error in (_broker_clock_error, _mt5_connection_error) if error]
                 publish_heartbeat(
                     _active_profile,
                     mt5_ready,
-                    _broker_clock_error,
+                    " | ".join(errors),
                     broker_dt=heartbeat_broker_dt,
                 )
             except Exception:
@@ -4414,14 +4241,14 @@ def main(profile_name=None):
             _broker_clock_error = ""
         except BrokerClockError as error:
             _broker_clock_error = str(error)
-            print(f"[BROKER CLOCK] Fail-closed: {error}")
+            _log_broker_clock_failure(error)
             time.sleep(5)
 
     # Restore state from previous run (same day only)
     saved = _load_state()
     sent_today = saved.get("sent_today", set())
-    entry_alerts_sent.update(saved.get("entry_alerts_sent", set()))
-    entry_alerts_pending.update(saved.get("entry_alerts_pending", {}))
+    signal_alerts_sent.update(saved.get("signal_alerts_sent", set()))
+    signal_alerts_pending.update(saved.get("signal_alerts_pending", {}))
 
     if sent_today:
         print(f"  [RESTORE] sent_today: {sent_today}")
@@ -4453,7 +4280,7 @@ def main(profile_name=None):
     else:
         print(f"  [DAILY-D] Before 06:00 GMT+7, today's publication scheduled for 06:00 GMT+7.")
 
-    reconcile_due_xau_entry_alerts(broker_dt)
+    reconcile_pending_signal_alerts(broker_dt)
 
     push_to_dashboard(snapshot_complete=True)
     if startup_rebuilt > 0:
@@ -4488,7 +4315,7 @@ def main(profile_name=None):
                 _broker_clock_error = ""
             except BrokerClockError as error:
                 _broker_clock_error = str(error)
-                print(f"[BROKER CLOCK] Fail-closed: {error}")
+                _log_broker_clock_failure(error)
                 time.sleep(5)
                 continue
             # Reset day mode when broker date changes
@@ -4780,107 +4607,6 @@ def resolve_h16_entry_plan_compatibility(prior_slot_results=None):
     }
 
 
-def evaluate_symbol_entry_timing_m30(symbol, slot_dt, hour, as_of_dt=None):
-    """Evaluate entry timing for any symbol across Layer 2 and Layer 3 M30 open windows."""
-    h = int(hour)
-    windows = get_m30_layer_open_times(slot_dt)
-    cutoff = as_of_dt or slot_dt
-
-    # Layer 2 evaluation at slot_dt (H:00)
-    l2_open_times = windows["layer2"]
-    l2_candles = _read_m30_open_windows(symbol, l2_open_times, cutoff)
-    l2_classifier = classify_three_candle_group
-    layer2 = _classify_m30_layer_by_open_times(symbol, l2_open_times, l2_candles, l2_classifier)
-
-    # Layer 2 BT -> immediate entry at H:11 (03:11 at H3)
-    if layer2["group"] == "BT":
-        entry_t = "03:11" if h == 3 else f"{h:02d}:11"
-        return {
-            "symbol": symbol,
-            "timeframe": "M30",
-            "slot_hour": h,
-            "layer2": layer2,
-            "layer3": None,
-            "entry_time": entry_t,
-            "entry_state": "READY",
-            "entry_candidates": [entry_t],
-            "classification_reason": f"{symbol}_LAYER2_BT_ENTRY",
-        }
-
-    # Layer 2 SW -> check Layer 3 if cutoff >= H:30
-    h30_dt = slot_dt + timedelta(minutes=30)
-    l3_open_times = windows["layer3"]
-    if cutoff >= h30_dt:
-        l3_candles = _read_m30_open_windows(symbol, l3_open_times, cutoff)
-        # Check if the H:00 candle (first in layer3) is available
-        h00_candle = l3_candles.get(l3_open_times[0])
-        grace_deadline = h30_dt + timedelta(seconds=LAYER3_CANDLE_GRACE_SECONDS)
-        if h00_candle is None and cutoff < grace_deadline:
-            cand_sw = "03:49" if h == 3 else f"{h:02d}:49"
-            cand_bt = "04:25" if h == 3 else f"{h + 1:02d}:25"
-            return {
-                "symbol": symbol,
-                "timeframe": "M30",
-                "slot_hour": h,
-                "layer2": layer2,
-                "layer3": None,
-                "entry_time": None,
-                "entry_state": "PENDING_LAYER3",
-                "entry_candidates": [cand_sw, cand_bt],
-                "entry_resolution_time": f"{h:02d}:30",
-                "classification_reason": f"{symbol}_LAYER3_CANDLE_PENDING_GRACE",
-            }
-        layer3 = _classify_m30_layer_by_open_times(symbol, l3_open_times, l3_candles, classify_three_candle_group)
-        if layer3["group"] == "SW":
-            entry_t = "03:49" if h == 3 else f"{h:02d}:49"
-        elif layer3["group"] == "BT":
-            entry_t = "04:25" if h == 3 else f"{h + 1:02d}:25"
-        else:
-            return {
-                "symbol": symbol,
-                "timeframe": "M30",
-                "slot_hour": h,
-                "layer2": layer2,
-                "layer3": layer3,
-                "entry_time": None,
-                "entry_state": "WAIT",
-                "entry_candidates": [],
-                "classification_reason": f"{symbol}_LAYER3_UNRESOLVED",
-            }
-        return {
-            "symbol": symbol,
-            "timeframe": "M30",
-            "slot_hour": h,
-            "layer2": layer2,
-            "layer3": layer3,
-            "entry_time": entry_t,
-            "entry_state": "READY",
-            "entry_candidates": [entry_t],
-            "classification_reason": f"{symbol}_LAYER3_{layer3['group']}_ENTRY",
-        }
-
-    # Still pending Layer 3 (H:00 to H:30)
-    cand_sw = "03:49" if h == 3 else f"{h:02d}:49"
-    cand_bt = "04:25" if h == 3 else f"{h + 1:02d}:25"
-    return {
-        "symbol": symbol,
-        "timeframe": "M30",
-        "slot_hour": h,
-        "layer2": layer2,
-        "layer3": None,
-        "entry_time": None,
-        "entry_state": "PENDING_LAYER3",
-        "entry_candidates": [cand_sw, cand_bt],
-        "entry_resolution_time": f"{h:02d}:30",
-        "classification_reason": f"{symbol}_LAYER2_SW_PENDING_LAYER3",
-    }
-
-
-def evaluate_xau_entry_timing_m30(slot_dt, hour, as_of_dt=None):
-    """Backward-compatible wrapper — delegates to generic engine with XAUUSD."""
-    return evaluate_symbol_entry_timing_m30("XAUUSD", slot_dt, hour, as_of_dt=as_of_dt)
-
-
 def next_full_hour_after_signal_slot(slot_dt):
     """GBP entry is always the next full Broker hour after the signal slot."""
     return (slot_dt + timedelta(hours=1)).strftime("%H:00")
@@ -4890,324 +4616,6 @@ def _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset):
     return {
         symbol: compute_utc_iso(slot_dt.date(), pair_entry_times.get(symbol), broker_offset)
         for symbol in SIGNAL_PAIRS
-    }
-
-
-def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_results=None, day_mode=None, d_directions=None):
-    """Evaluate independent Entry + D-Direction + per-symbol Day Mode for all 5 pairs (v82)."""
-    h = int(hour)
-    if broker_dt is None or h not in ACTIVE_HOURS:
-        return None
-    slot_dt = broker_dt.replace(hour=h, minute=0, second=0, microsecond=0)
-    eval_dt = as_of_dt or broker_dt
-    target_date = broker_dt.date()
-
-    if d_directions is None:
-        d_directions = calculate_all_d_directions(target_date)
-
-    # Normalize day_mode input: support both legacy single DayMode and new dict
-    if isinstance(day_mode, dict):
-        pair_day_modes = dict(day_mode)
-    elif isinstance(day_mode, DayMode):
-        pair_day_modes = {sym: day_mode for sym in SIGNAL_PAIRS}
-    else:
-        pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
-
-    # === PER-SYMBOL ENTRY ENGINE ===
-    pair_timings = {}
-    for symbol in ENTRY_TIMING_SYMBOLS:
-        if h == 16:
-            pair_timings[symbol] = resolve_h16_entry_plan_compatibility(prior_slot_results or {})
-        else:
-            pair_timings[symbol] = evaluate_symbol_entry_timing_m30(symbol, slot_dt, h, as_of_dt=eval_dt)
-
-    pair_dirs = {}
-    pair_signal_states = {}
-    pair_entry_states = {}
-    pair_entry_times = {}
-    pair_entry_branches = {}
-    pair_labels = {}
-    pair_evidence = {}
-    pair_groups = {}
-
-    for symbol in SIGNAL_PAIRS:
-        if symbol in DISABLED_SIGNAL_PAIRS:
-            timing = pair_timings.get(symbol, {})
-            sym_entry_time = timing.get("entry_time")
-            pair_dirs[symbol] = "WAIT"
-            pair_signal_states[symbol] = "DISABLED"
-            pair_entry_states[symbol] = "DISABLED"
-            pair_entry_times[symbol] = sym_entry_time
-            pair_entry_branches[symbol] = None
-            pair_labels[symbol] = "OFF"
-            pair_groups[symbol] = None
-            pair_evidence[symbol] = _empty_gbp_signal_evidence(slot_dt, h, symbol)
-            pair_evidence[symbol]["entry_time"] = sym_entry_time
-            pair_evidence[symbol]["entry_timing"] = timing
-            continue
-
-        timing = pair_timings.get(symbol, {})
-        d_info = d_directions.get(symbol, {})
-        d_dir = d_info.get("d_direction", "WAIT")
-        sym_entry_time = timing.get("entry_time")
-        sym_entry_state = timing.get("entry_state", "WAIT")
-
-        pair_entry_times[symbol] = sym_entry_time
-        pair_entry_states[symbol] = sym_entry_state
-
-        if h == 16:
-            entry_branch = classify_slot_entry_branch(h, sym_entry_time)
-            pair_entry_branches[symbol] = entry_branch
-            sym_day_mode = pair_day_modes.get(symbol)
-
-            if entry_branch is not None:
-                action = resolve_primary_signal_action(sym_day_mode, entry_branch)
-                source = "D_DIRECTION"
-                h1_ev = None
-                if action == "REVERSE_H1":
-                    h1_candle, h1_dir = read_previous_h1_candle(symbol, slot_dt, as_of_dt=eval_dt)
-                    if h1_dir == "TANG":
-                        primary_dir = "SELL"
-                    elif h1_dir == "GIAM":
-                        primary_dir = "BUY"
-                    else:
-                        primary_dir = "WAIT"
-                    source = "PREVIOUS_COMPLETED_H1"
-                    label = "Đảo H1"
-                    h1_ev = _build_h1_evidence(symbol, h1_candle, h1_dir, slot_dt)
-                elif action == "KEEP_D":
-                    primary_dir = d_dir
-                    label = "Theo D"
-                elif action == "REVERSE_D":
-                    primary_dir = ("SELL" if d_dir == "BUY" else "BUY") if d_dir in ("BUY", "SELL") else "WAIT"
-                    label = "Đảo D"
-                else:
-                    primary_dir = "WAIT"
-                    source = "NONE"
-                    label = "WAIT"
-            else:
-                if d_dir in ("BUY", "SELL"):
-                    action = "KEEP_D"
-                    primary_dir = d_dir
-                    source = "D_DIRECTION"
-                    label = "H16 Theo D"
-                else:
-                    action = "WAIT"
-                    primary_dir = "WAIT"
-                    source = "NONE"
-                    label = "WAIT"
-
-            final_dir, inversion_rule = apply_new_final_signal_inversion(
-                primary_dir, broker_dt, h, source, symbol
-            )
-
-            pair_dirs[symbol] = final_dir
-            pair_signal_states[symbol] = "READY" if final_dir in ("BUY", "SELL") else "WAIT"
-            pair_labels[symbol] = label
-            pair_groups[symbol] = None
-            pair_evidence[symbol] = {
-                "evidence_schema_version": SIGNAL_EVIDENCE_SCHEMA_VERSION,
-                "logic_version": SIGNAL_LOGIC_VERSION,
-                "date": slot_dt.date().isoformat(),
-                "hour": h,
-                "symbol": symbol,
-                "entry_engine": "INDEPENDENT_THREE_CANDLE_M30_V1",
-                "signal_engine": "D_DIRECTION_H16_INDEPENDENT_V2",
-                "direction": final_dir,
-                "signal_state": pair_signal_states[symbol],
-                "current_entry_time": sym_entry_time,
-                "current_entry_branch": entry_branch,
-                "entry_time": sym_entry_time,
-                "entry_branch": entry_branch,
-                "day_mode": sym_day_mode.mode if sym_day_mode else None,
-                "day_mode_source_hour": sym_day_mode.source_hour if sym_day_mode else None,
-                "day_mode_source_entry_time": sym_day_mode.source_entry_time if sym_day_mode else None,
-                "day_mode_source_branch": sym_day_mode.source_branch if sym_day_mode else None,
-                "primary_source": source,
-                "primary_action": action,
-                "primary_direction": primary_dir,
-                "final_inversion_applied": inversion_rule is not None,
-                "final_inversion_rule": inversion_rule,
-                "weekday_adjustment_applied": inversion_rule is not None,
-                "weekday_adjustment_rule": inversion_rule,
-                "d_source_symbol": d_info.get("source_symbol"),
-                "d_timeframe": d_info.get("timeframe", "H4"),
-                "d_source_open_broker": d_info.get("source_open_time_broker", "20:00"),
-                "d_evidence": d_info,
-                "h1_evidence": h1_ev,
-                "entry_timing": timing,
-            }
-            continue
-
-        # === H3-H14 signal path ===
-        entry_branch = classify_slot_entry_branch(h, sym_entry_time)
-        pair_entry_branches[symbol] = entry_branch
-
-        sym_day_mode = pair_day_modes.get(symbol)
-        was_anchored = False
-        if entry_branch is not None:
-            sym_day_mode, was_anchored = resolve_or_anchor_day_mode(sym_day_mode, h, sym_entry_time)
-            pair_day_modes[symbol] = sym_day_mode
-
-        if entry_branch is None:
-            pair_dirs[symbol] = "WAIT"
-            pair_signal_states[symbol] = "WAIT"
-            pair_labels[symbol] = "No Entry"
-            pair_groups[symbol] = None
-            pair_evidence[symbol] = {
-                "evidence_schema_version": SIGNAL_EVIDENCE_SCHEMA_VERSION,
-                "logic_version": SIGNAL_LOGIC_VERSION,
-                "date": slot_dt.date().isoformat(),
-                "hour": h,
-                "symbol": symbol,
-                "entry_engine": "INDEPENDENT_THREE_CANDLE_M30_V1",
-                "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V2",
-                "direction": "WAIT",
-                "signal_state": "WAIT",
-                "current_entry_time": sym_entry_time,
-                "current_entry_branch": None,
-                "entry_time": sym_entry_time,
-                "entry_branch": None,
-                "day_mode": sym_day_mode.mode if sym_day_mode else None,
-                "day_mode_source_hour": sym_day_mode.source_hour if sym_day_mode else None,
-                "day_mode_source_entry_time": sym_day_mode.source_entry_time if sym_day_mode else None,
-                "day_mode_source_branch": sym_day_mode.source_branch if sym_day_mode else None,
-                "primary_source": None,
-                "primary_action": "WAIT",
-                "primary_direction": "WAIT",
-                "final_inversion_applied": False,
-                "final_inversion_rule": None,
-                "weekday_adjustment_applied": False,
-                "weekday_adjustment_rule": None,
-                "d_source_symbol": d_info.get("source_symbol"),
-                "d_timeframe": d_info.get("timeframe", "H4"),
-                "d_source_open_broker": d_info.get("source_open_time_broker", "20:00"),
-                "d_evidence": d_info,
-                "h1_evidence": None,
-                "entry_timing": timing,
-            }
-            continue
-
-        action = resolve_primary_signal_action(sym_day_mode, entry_branch)
-        h1_ev = None
-
-        if action == "REVERSE_H1":
-            h1_candle, h1_dir = read_previous_h1_candle(symbol, slot_dt, as_of_dt=eval_dt)
-            if h1_dir == "TANG":
-                primary_dir = "SELL"
-            elif h1_dir == "GIAM":
-                primary_dir = "BUY"
-            else:
-                primary_dir = "WAIT"
-            source = "PREVIOUS_COMPLETED_H1"
-            label = "Đảo H1"
-            h1_ev = _build_h1_evidence(symbol, h1_candle, h1_dir, slot_dt)
-        elif action == "KEEP_D":
-            primary_dir = d_dir
-            source = "D_DIRECTION"
-            label = "Theo D"
-        elif action == "REVERSE_D":
-            primary_dir = ("SELL" if d_dir == "BUY" else "BUY") if d_dir in ("BUY", "SELL") else "WAIT"
-            source = "D_DIRECTION"
-            label = "Đảo D"
-        else:
-            primary_dir = "WAIT"
-            source = "NONE"
-            label = "WAIT"
-
-        final_dir, inversion_rule = apply_new_final_signal_inversion(
-            primary_dir, broker_dt, h, source, symbol
-        )
-
-        pair_dirs[symbol] = final_dir
-        pair_signal_states[symbol] = "READY" if final_dir in ("BUY", "SELL") else "WAIT"
-        pair_labels[symbol] = label
-        pair_groups[symbol] = None
-        pair_evidence[symbol] = {
-            "evidence_schema_version": SIGNAL_EVIDENCE_SCHEMA_VERSION,
-            "logic_version": SIGNAL_LOGIC_VERSION,
-            "date": slot_dt.date().isoformat(),
-            "hour": h,
-            "symbol": symbol,
-            "entry_engine": "INDEPENDENT_THREE_CANDLE_M30_V1",
-            "signal_engine": "D_DIRECTION_DYNAMIC_DAY_MODE_V2",
-            "direction": final_dir,
-            "signal_state": pair_signal_states[symbol],
-            "current_entry_time": sym_entry_time,
-            "current_entry_branch": entry_branch,
-            "entry_time": sym_entry_time,
-            "entry_branch": entry_branch,
-            "day_mode": sym_day_mode.mode if sym_day_mode else None,
-            "day_mode_source_hour": sym_day_mode.source_hour if sym_day_mode else None,
-            "day_mode_source_entry_time": sym_day_mode.source_entry_time if sym_day_mode else None,
-            "day_mode_source_branch": sym_day_mode.source_branch if sym_day_mode else None,
-            "primary_source": source,
-            "primary_action": action,
-            "primary_direction": primary_dir,
-            "final_inversion_applied": inversion_rule is not None,
-            "final_inversion_rule": inversion_rule,
-            "weekday_adjustment_applied": inversion_rule is not None,
-            "weekday_adjustment_rule": inversion_rule,
-            "d_source_symbol": d_info.get("source_symbol"),
-            "d_timeframe": d_info.get("timeframe", "H4"),
-            "d_source_open_broker": d_info.get("source_open_time_broker", "20:00"),
-            "d_evidence": d_info,
-            "h1_evidence": h1_ev,
-            "entry_timing": timing,
-        }
-
-    top_signal = pair_dirs.get("XAUUSD", "WAIT")
-    top_entry = pair_entry_times.get("XAUUSD")
-    top_signal_state = pair_signal_states.get("XAUUSD", "WAIT")
-    top_entry_state = pair_entry_states.get("XAUUSD", "WAIT")
-    xau_timing = pair_timings.get("XAUUSD", {})
-
-    try:
-        broker_offset = BROKER_CLOCK.utc_offset_for_date(slot_dt.date())
-    except Exception:
-        broker_offset = None
-
-    xau_dm = pair_day_modes.get("XAUUSD")
-    day_mode_state = "RESOLVED" if any(pair_day_modes.values()) else "UNRESOLVED_WAITING_FOR_ANCHOR"
-
-    return {
-        "logic_version": SIGNAL_LOGIC_VERSION,
-        "record_revision": 2 if top_signal in ("BUY", "SELL") else 1,
-        "state_updated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "signal": top_signal,
-        "entry_time": top_entry,
-        "signal_state": top_signal_state,
-        "entry_state": top_entry_state,
-        "entry_candidate": top_entry,
-        "entry_candidates": xau_timing.get("entry_candidates"),
-        "entry_resolution_time": xau_timing.get("entry_resolution_time"),
-        "entry_rule": "D_DIRECTION_DAY_MODE" if top_entry else None,
-        "entry_at_utc": compute_utc_iso(slot_dt.date(), top_entry, broker_offset),
-        "broker_utc_offset": broker_offset,
-        "pair_dirs": pair_dirs,
-        "pair_signal_states": pair_signal_states,
-        "pair_entry_states": pair_entry_states,
-        "pair_entry_times": pair_entry_times,
-        "pair_entry_branches": pair_entry_branches,
-        "pair_entry_at_utc": _pair_entry_utc_map(slot_dt, pair_entry_times, broker_offset),
-        "pair_labels": pair_labels,
-        "pair_groups": pair_groups,
-        "pair_evidence": pair_evidence,
-        "source_date": target_date.isoformat(),
-        "day_mode": xau_dm,
-        "pair_day_modes": {s: dm.mode if dm else None for s, dm in pair_day_modes.items()},
-        "pair_day_mode_states": {s: "RESOLVED" if dm else "UNRESOLVED_WAITING_FOR_ANCHOR" for s, dm in pair_day_modes.items()},
-        "pair_day_mode_source_hours": {s: dm.source_hour if dm else None for s, dm in pair_day_modes.items()},
-        "pair_day_mode_source_entry_times": {s: dm.source_entry_time if dm else None for s, dm in pair_day_modes.items()},
-        "pair_day_mode_source_branches": {s: dm.source_branch if dm else None for s, dm in pair_day_modes.items()},
-        "day_mode_state": day_mode_state,
-        "day_mode_source_hour": xau_dm.source_hour if xau_dm else None,
-        "day_mode_source_entry_time": xau_dm.source_entry_time if xau_dm else None,
-        "day_mode_source_branch": xau_dm.source_branch if xau_dm else None,
-        "d_directions": d_directions,
-        "report": f"H={h} signal={top_signal} entry={top_entry}",
-        "timing": xau_timing,
-        "_pair_day_modes_objects": pair_day_modes,
     }
 
 
@@ -5376,13 +4784,16 @@ def repair_history(target_dates=None, days=45):
 
 def diagnose_h4_d(target_date_str=None, profile_name=None):
     """Diagnostic CLI for H4 D-Direction calculation."""
-    if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
-        print("[DIAGNOSE-H4-D] MT5 initialization failed")
+    active_profile = resolve_active_profile(profile_name)
+    launch = ensure_mt5_profile_connected(
+        _mt5_profile_config(active_profile), mt5_module=mt5, timeout_seconds=10
+    )
+    if not launch.ok:
+        print(f"[DIAGNOSE-H4-D] MT5 initialization failed: {launch.failure_code} {launch.message}")
         return
 
     global mt5_ready
     mt5_ready = True
-    active_profile = resolve_active_profile(profile_name)
 
     resolved_clock_symbols = tuple(
         dict.fromkeys(
@@ -5490,6 +4901,25 @@ def diagnose_h4_d(target_date_str=None, profile_name=None):
     print("=" * 60)
 
 
+def _init_mt5_for_cli(profile_name, label):
+    """Connect maintenance commands through the same profile launcher."""
+    launch = ensure_mt5_profile_connected(
+        _mt5_profile_config(profile_name), mt5_module=mt5, timeout_seconds=10
+    )
+    if not launch.ok:
+        print(f"[{label}] MT5 init failed: {launch.failure_code} {launch.message}")
+    return launch.ok
+
+
+def _run_feed_only_rebuild(days):
+    """Rebuild v87 records from the MT4 Feed without requiring MT5 execution."""
+    print("[REBUILD] MT4 Feed is the only rebuild dependency; MT5 execution is optional.")
+    rebuilt = rebuild_recent_history(days=days)
+    if rebuilt > 0:
+        push_to_dashboard(snapshot_complete=True)
+    return rebuilt
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
@@ -5514,9 +4944,7 @@ if __name__ == "__main__":
     if args.diagnose_h4_d:
         diagnose_h4_d(target_date_str=args.date, profile_name=args.profile)
     elif args.repair_history or args.repair_date:
-        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
-            print("[REPAIR] MT5 init failed")
-        else:
+        if _init_mt5_for_cli(args.profile, "REPAIR"):
             mt5_ready = True
             BROKER_CLOCK.clear_cache()
             try:
@@ -5526,20 +4954,9 @@ if __name__ == "__main__":
             finally:
                 mt5.shutdown()
     elif args.rebuild_all:
-        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
-            print("[REBUILD] MT5 init failed")
-        else:
-            mt5_ready = True
-            BROKER_CLOCK.clear_cache()
-            try:
-                rebuild_recent_history(days=args.days)
-                push_to_dashboard(snapshot_complete=True)
-            finally:
-                mt5.shutdown()
+        _run_feed_only_rebuild(args.days)
     elif args.rebuild_d_history:
-        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
-            print("[REBUILD-D] MT5 init failed")
-        else:
+        if _init_mt5_for_cli(args.profile, "REBUILD-D"):
             mt5_ready = True
             BROKER_CLOCK.clear_cache()
             try:
@@ -5547,9 +4964,7 @@ if __name__ == "__main__":
             finally:
                 mt5.shutdown()
     elif args.repair_d_date:
-        if not (mt5.initialize(path=MT5_PATH) if MT5_PATH else mt5.initialize()):
-            print("[REPAIR-D] MT5 init failed")
-        else:
+        if _init_mt5_for_cli(args.profile, "REPAIR-D"):
             mt5_ready = True
             BROKER_CLOCK.clear_cache()
             try:

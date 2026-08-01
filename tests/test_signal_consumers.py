@@ -57,12 +57,13 @@ class SignalConsumerContractTests(unittest.TestCase):
                 self.assertNotIn("GBPAUD", rendered)
                 self.assertNotIn("H=09:45", rendered)
 
-    def test_deactivated_record_is_presented_as_do_not_enter(self) -> None:
+    def test_legacy_deactivated_flag_does_not_change_signal_presentation(self) -> None:
         deactivated_record = {**CURRENT_RECORD, "deactivated": True}
         for consumer in (mimo_bot, copy_trade_manager):
             with self.subTest(consumer=consumer.__name__):
                 rendered = consumer._format_current_signal_row(9, deactivated_record)
-                self.assertIn("KHÔNG VÀO LỆNH", rendered)
+                self.assertIn("vào 09:49 Broker", rendered)
+                self.assertNotIn("KHÔNG VÀO LỆNH", rendered)
 
 
 if __name__ == "__main__":

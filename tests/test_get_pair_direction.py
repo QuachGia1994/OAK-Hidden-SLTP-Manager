@@ -2,6 +2,9 @@
 """Unit tests for pair direction rules with GBP pairs."""
 import unittest
 from datetime import datetime, timezone
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
 
 from mt5_signal_bot import (
     ALL_PAIRS,

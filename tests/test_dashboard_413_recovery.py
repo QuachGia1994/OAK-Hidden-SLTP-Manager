@@ -8,6 +8,10 @@ from unittest.mock import patch, MagicMock, call
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
+
 
 class TestDashboard413Recovery(unittest.TestCase):
     def _make_records(self, n=5):

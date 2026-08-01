@@ -22,15 +22,15 @@ from typing import Any, Callable
 from domain.file_lock import FileLock
 from domain.json_io import save_json
 from services.debug_bundle_service import build_debug_bundle_bytes
-StockAdvisorDesktopError = Exception
-StockAdvisorDesktopErrorCode = Exception
-StockAdvisorDesktopSettings = type('StockAdvisorDesktopSettings', (), {'client_id': 'oak', 'capital': 90000000.0, 'hurdle_bps': 0})
-StockAdvisorLaunchPlan = type('StockAdvisorLaunchPlan', (), {})
-build_stock_advisor_launch_plan = lambda *a, **k: None
-load_ssi_desktop_credentials = lambda *a, **k: None
-render_stock_advisory = lambda *a, **k: None
-requires_h4_backfill_file = lambda *a, **k: False
-save_ssi_desktop_credentials = lambda *a, **k: None
+from services.mt4_feed_health import read_mt4_feed_health
+from services.stock_advisor_desktop import (
+    StockAdvisorDesktopError,
+    StockAdvisorDesktopSettings,
+    StockAdvisorLaunchPlan,
+    build_stock_advisor_launch_plan,
+    render_stock_advisory,
+    requires_d1_backfill_file,
+)
 from domain.constants import VERSION as APP_VERSION
 from utils import UnsupportedFrozenProcessError, build_signal_process_cmd
 
@@ -68,8 +68,8 @@ def apply_window_icon(target: Any) -> None:
 
 
 SIGNAL_DEFS = (
+    ("mt4_feed_server", "MT4 Feed Server", "#1f538d"),
     ("signal_bot", "MT5 Signal Bot", "#2fa572"),
-    ("mt_server", "MT4-MT5 Server", "#1f538d"),
     ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
     ("mimo_worker", "MiMo Worker", "#d4a03d"),
     ("factcheck_worker", "Fact Check Worker", "#00bfa5"),
@@ -138,17 +138,12 @@ NATIVE_TEXT = {
         "Settings": "Cài đặt",
         "ONE-CLICK STOCK FILTER": "BỘ LỌC CỔ PHIẾU BẰNG LOCAL EOD",
         "LOCAL EOD MARKET DATA": "DỮ LIỆU THỊ TRƯỜNG LOCAL EOD",
-        "SSI Client ID": "SSI Client ID",
-        "SSI API key": "SSI API key",
-        "SSI API secret": "SSI API secret",
         "Deployable capital": "Vốn khả dụng (VND)",
         "Hurdle (bps)": "Chi phí + biên an toàn (bps)",
-        "Save SSI credentials": "Lưu thông tin SSI",
         "Update EOD Data (15:00+)": "Cập nhật dữ liệu EOD (15h00+)",
         "Run advisor": "Chạy bộ lọc Cổ phiếu",
         "Run VN30 Advisor": "Chạy bộ lọc Cổ phiếu",
         "ADVISORY RESULT": "KẾT QUẢ KHUYẾN NGHỊ",
-        "Credentials are stored in Windows Credential Manager.": "Thông tin SSI được lưu trong Windows Credential Manager.",
         "Local EOD Database (data/market.db) · Auto-updated after 15:00": "Cơ sở dữ liệu Local EOD (data/market.db) · Tự động cập nhật sau 15h00",
         "Local EOD Mode: No API key or account required.": "Chế độ Local EOD: Không cần API key hay tài khoản.",
         "Updating local EOD data...": "Đang cập nhật dữ liệu EOD...",
@@ -163,8 +158,6 @@ NATIVE_TEXT = {
         "Execution": "Thực thi",
         "DISABLED": "ĐÃ TẮT",
         "This module has no order submission capability.": "Module này không có khả năng gửi lệnh.",
-        "Enter SSI credentials once, then press Run advisor.": "Nhập thông tin SSI một lần, sau đó nhấn Chạy bộ lọc.",
-        "SSI credentials saved securely.": "Đã lưu thông tin SSI an toàn.",
         "Advisor settings saved.": "Đã lưu cài đặt bộ lọc.",
         "Running VN30 advisor...": "Đang chạy bộ lọc Cổ phiếu...",
         "Auto backfill: pausing Signal Bot...": "Tự backfill: đang tạm dừng Signal Bot...",
@@ -180,6 +173,8 @@ NATIVE_TEXT = {
         "Native Qt/QSS shell · no WebEngine": "Native Qt/QSS · không WebEngine",
         "Running": "Đang chạy",
         "Stopped": "Đã dừng",
+        "Degraded": "Suy giảm",
+        "Blocked": "Bị chặn",
         "RUNNING": "ĐANG CHẠY",
         "IDLE": "NHÀN RỖI",
         "ON": "BẬT",
@@ -558,6 +553,31 @@ def write_bytes_atomic(path: Path, payload: bytes) -> None:
     temp_path.replace(path)
 
 
+def format_feed_card_details(
+    state: str,
+    age_seconds: int,
+    coverage: dict[str, dict[str, int]],
+) -> tuple[str, str]:
+    """Return a compact card summary and full coverage tooltip."""
+    age = max(0, int(age_seconds))
+    summary = f"Feed: {state} · heartbeat {age}s · {len(coverage)} symbols"
+    xauusd = coverage.get("XAUUSD")
+    if xauusd:
+        summary += (
+            "\nBars XAUUSD M30/H1/H4: "
+            f"{xauusd.get('M30', 0)}/{xauusd.get('H1', 0)}/{xauusd.get('H4', 0)}"
+        )
+    else:
+        summary += "\nBars: awaiting XAUUSD"
+    details = ["Feed coverage:"]
+    for symbol, counts in coverage.items():
+        details.append(
+            f"{symbol} M30:{counts.get('M30', 0)} "
+            f"H1:{counts.get('H1', 0)} H4:{counts.get('H4', 0)}"
+        )
+    return summary, "\n".join(details)
+
+
 def load_qt() -> tuple[SimpleNamespace | None, str]:
     """Import only QtCore/QtGui/QtWidgets, never QtWebEngine."""
     try:
@@ -602,6 +622,7 @@ def app_qss(theme: str = "dark") -> str:
     QFrame[role="hint"]{background:#0c211b;border:1px solid #1b735d;border-radius:16px}
     QFrame[role="signal"]{background:#0c1110;border:1px solid #25312c;border-radius:18px}
     QFrame[role="signal"][state="running"]{border:1px solid #1bb58b;background:#0b211a}
+    QFrame[role="signal"][state="degraded"]{border:1px solid #b7832f;background:#201a0b}
     QLabel[role="tiny"]{color:#87958f;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
     QLabel[role="muted"]{color:#9aa9a3;font-size:12px}
     QLabel[role="stockStatus"]{color:#dbe7e1;font-size:12px;font-weight:700;padding:4px 2px}
@@ -768,7 +789,6 @@ class NativeShell:
         self.signal_summary = None
         self.stock_process = None
         self.stock_pending_launch = None
-        self.stock_restart_signal_bot = False
         self.stock_process_log: list[str] = []
         self.stock_fields: dict[str, Any] = {}
         self.stock_run_btn = None
@@ -946,7 +966,7 @@ class NativeShell:
         layout.setSpacing(14)
         header = QT.QHBoxLayout()
         header.addWidget(label("Signals", role="section"))
-        self.signal_summary = label("0/5 running", role="muted")
+        self.signal_summary = label(f"0/{len(SIGNAL_DEFS)} running", role="muted")
         header.addWidget(self.signal_summary)
         header.addStretch(1)
         clear_logs = button("Clear logs")
@@ -983,7 +1003,7 @@ class NativeShell:
         self.stock_result = QT.QTextEdit()
         self.stock_result.setReadOnly(True)
         self.stock_result.setProperty("role", "mini")
-        self.stock_result.setPlainText(native_text("Press Run VN30 Advisor to scan 30 constituents using local EOD data."))
+        self.stock_result.setPlainText(native_text("Press Run Local EOD D1 Scanner to rank symbols using completed local data."))
         layout.addWidget(self._section("LOCAL EOD MARKET DATA", controls_scroll), 1)
         layout.addWidget(self._section("ADVISORY RESULT", self.stock_result), 2)
         return page
@@ -993,6 +1013,7 @@ class NativeShell:
         layout = QT.QVBoxLayout(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
+        self._build_stock_fields(layout)
         layout.addLayout(self._stock_advisor_actions())
         self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
         self.stock_status.setWordWrap(True)
@@ -1028,7 +1049,6 @@ class NativeShell:
     def _build_stock_fields(self, layout: Any) -> None:
         for title, key in (
             ("Deployable capital", "capital"),
-            ("Hurdle (bps)", "hurdle_bps"),
         ):
             field = self._stock_advisor_field(secret=False)
             self.stock_fields[key] = field
@@ -1048,7 +1068,7 @@ class NativeShell:
         actions = QT.QVBoxLayout()
         self.stock_update_eod_btn = button("Update EOD Data (15:00+)")
         self.stock_update_eod_btn.setProperty("stockAction", "update_eod")
-        self.stock_run_btn = button("Run VN30 Advisor", primary=True)
+        self.stock_run_btn = button("Run Local EOD D1 Scanner", primary=True)
         self.stock_update_eod_btn.clicked.connect(self.update_eod_data)
         self.stock_run_btn.clicked.connect(self.run_stock_advisor)
         actions.addWidget(self.stock_update_eod_btn)
@@ -1341,6 +1361,19 @@ class NativeShell:
         console.setProperty("role", "mini")
         console.document().setMaximumBlockCount(700)
         layout.addLayout(header)
+        feed_info = None
+        if key == "mt4_feed_server":
+            feed_info = QT.QLabel(
+                "Feed: DISCONNECTED · no v87 heartbeat\n"
+                "Attach EA v87 to a chart · HTTP 80"
+            )
+            feed_info.setProperty("role", "muted")
+            feed_info.setWordWrap(True)
+            feed_info.setMaximumHeight(42)
+            feed_info.setToolTip(
+                "Feed status appears here. Full symbol/timeframe coverage is available on hover."
+            )
+            layout.addWidget(feed_info)
         layout.addWidget(console, 1)
         self.signal_cards[key] = {
             "frame": frame,
@@ -1353,6 +1386,7 @@ class NativeShell:
             "copy": copy_log,
             "start": start,
             "stop": stop,
+            "feed_info": feed_info,
         }
         return frame
 
@@ -1549,7 +1583,7 @@ class NativeShell:
             self.profile_rows_layout.addStretch(1)
             return
         for name, cfg in self.profiles.items():
-            status = "RUNNING" if name in running else "IDLE"
+            status = self._profile_status(name, name in running)
             self.profile_rows_layout.addWidget(self._profile_row(name, cfg, status))
         self.profile_rows_layout.addStretch(1)
 
@@ -1570,7 +1604,7 @@ class NativeShell:
         left = QT.QVBoxLayout()
         left.addWidget(label(name))
         left.addWidget(label(str(cfg.get("server") or cfg.get("broker") or "MT5"), role="muted"))
-        status_label = label(status, accent="green" if status == "RUNNING" else "")
+        status_label = label(status, accent="green" if status == "RUNNING" else "red" if status == "ERROR" else "")
         action = button("Stop" if status == "RUNNING" else "Start")
         action.setFixedWidth(88)
         if status == "RUNNING":
@@ -1602,11 +1636,11 @@ class NativeShell:
             return
         running = set(self._running_profiles())
         for name, cfg in self.profiles.items():
-            status = "RUNNING" if name in running else "IDLE"
+            status = self._profile_status(name, name in running)
             self.profile_cards_layout.addWidget(self._profile_card(name, cfg, status))
         self.profile_cards_layout.addStretch(1)
         cfg = self.profiles.get(self.selected, {})
-        status = "RUNNING" if self.selected in running else "IDLE"
+        status = self._profile_status(self.selected, self.selected in running)
         self.profile_detail.setPlainText(self._profile_detail_text(self.selected, cfg, status))
         self._load_profile_editor(self.selected, cfg, status)
 
@@ -1624,7 +1658,7 @@ class NativeShell:
         select = button("Selected" if name == self.selected else "Use", primary=name == self.selected)
         select.setFixedWidth(96)
         select.clicked.connect(lambda _checked=False, n=name: self.select_profile(n))
-        header.addWidget(label(status, accent="green" if status == "RUNNING" else ""))
+        header.addWidget(label(status, accent="green" if status == "RUNNING" else "red" if status == "ERROR" else ""))
         header.addWidget(select)
         layout.addLayout(header)
         path_label = label(str(cfg.get("path") or "No terminal path"), role="muted")
@@ -2159,7 +2193,6 @@ class NativeShell:
             return
         values = {
             "capital": self.settings.get("stock_capital", 90_000_000),
-            "hurdle_bps": self.settings.get("stock_hurdle_bps", 0),
         }
         for key, value in values.items():
             if key in self.stock_fields:
@@ -2267,11 +2300,9 @@ class NativeShell:
 
     def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
         capital_str = self.stock_fields.get("capital", QT.QLineEdit()).text().strip() or "90000000"
-        hurdle_str = self.stock_fields.get("hurdle_bps", QT.QLineEdit()).text().strip() or "0"
         return StockAdvisorDesktopSettings(
             client_id="oak-stock-scanner",
             capital=float(capital_str),
-            hurdle_bps=float(hurdle_str),
         )
 
     def save_stock_advisor_settings(self) -> None:
@@ -2284,14 +2315,10 @@ class NativeShell:
             return
         self._set_stock_status("Advisor settings saved.", "green")
 
-    def _save_stock_credentials_if_entered(self) -> bool:
-        return False
-
     def _persist_stock_settings(self, settings: StockAdvisorDesktopSettings) -> None:
         next_settings = dict(self.settings)
         next_settings["stock_client_id"] = settings.client_id
         next_settings["stock_capital"] = settings.capital
-        next_settings["stock_hurdle_bps"] = settings.hurdle_bps
         write_json_atomic(SETTINGS_FILE, next_settings)
         self.settings = next_settings
 
@@ -2301,40 +2328,27 @@ class NativeShell:
             return
         try:
             settings = self._stock_settings_from_form()
-            credentials = self._stock_credentials_for_run()
             self._persist_stock_settings(settings)
         except (StockAdvisorDesktopError, OSError, ValueError, RuntimeError) as error:
             self._set_stock_status(f"Cannot run advisor: {error}", "red")
             return
         today = datetime.now(timezone(timedelta(hours=7))).date()
-        needs_backfill = requires_h4_backfill_file(ROOT / "signals_log.json", today)
+        needs_backfill = requires_d1_backfill_file(ROOT / "data" / "market.db", today)
         plan = build_stock_advisor_launch_plan(ROOT, sys.executable, getattr(sys, "frozen", False), settings, needs_backfill)
-        self.stock_pending_launch = (plan, settings.client_id, *credentials)
-        self.stock_restart_signal_bot = needs_backfill and self._signal_is_running("signal_bot")
+        self.stock_pending_launch = plan
         self.stock_run_btn.setEnabled(False)
-        if self.stock_restart_signal_bot:
-            self._set_stock_status("Auto backfill: pausing Signal Bot...", "amber")
-            self.stop_signal("signal_bot")
-            return
         self._launch_pending_stock_advisor()
-
-    def _stock_credentials_for_run(self) -> tuple[str, str]:
-        return ("local-eod-key", "local-eod-secret")
-
-    def _signal_is_running(self, key: str) -> bool:
-        process = self.signal_processes.get(key)
-        return bool(process and process.state() != QT.NotRunning)
 
     def _launch_pending_stock_advisor(self) -> None:
         if self.stock_pending_launch is None:
             return
-        plan, client_id, api_key, api_secret = self.stock_pending_launch
+        plan = self.stock_pending_launch
         self.stock_pending_launch = None
         process = QT.QProcess(self.window)
         process.setProgram(plan.program)
         process.setArguments(list(plan.arguments))
         process.setWorkingDirectory(str(ROOT))
-        process.setProcessEnvironment(self._stock_process_environment(client_id, api_key, api_secret))
+        process.setProcessEnvironment(self._process_environment())
         process.setProcessChannelMode(QT.QProcess.ProcessChannelMode.MergedChannels)
         if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
             self.stock_progress_bar.setRange(0, 100)
@@ -2347,15 +2361,8 @@ class NativeShell:
         self.stock_process = process
         self.stock_process_log = []
         self.stock_result.clear()
-        self._set_stock_status(native_text("Running VN30 advisor..."), "amber")
+        self._set_stock_status(native_text("Running Local EOD D1 scanner..."), "amber")
         process.start()
-
-    def _stock_process_environment(self, client_id: str, api_key: str, api_secret: str) -> Any:
-        environment = self._process_environment()
-        environment.insert("SSI_CLIENT_ID", client_id)
-        environment.insert("SSI_API_KEY", api_key)
-        environment.insert("SSI_API_SECRET", api_secret)
-        return environment
 
     def _read_stock_advisor_output(self, process: Any) -> None:
         data = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace")
@@ -2364,14 +2371,13 @@ class NativeShell:
             if clean:
                 self.stock_process_log.append(clean)
                 self.stock_result.append(clean)
-                match = re.search(r"\[Local EOD\] (\d+)/(\d+)\s+(\w+)", clean)
+                match = re.search(r"\[Local EOD(?: D1)?\] (\w+) \((\d+) bars\)", clean)
                 if match and hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
-                    cur = int(match.group(1))
-                    tot = int(match.group(2))
-                    sym = match.group(3)
-                    pct = int((cur / tot) * 100)
+                    sym = match.group(1)
+                    cur = int(match.group(2))
+                    pct = min(99, max(1, cur))
                     self.stock_progress_bar.setValue(pct)
-                    self.stock_progress_bar.setFormat(f"Đang quét [{cur}/{tot} mã] {sym}... {pct}%")
+                    self.stock_progress_bar.setFormat(f"Đang đọc D1 {sym} ({cur} bars)...")
                     self.stock_progress_bar.setVisible(True)
 
     def _stock_advisor_done(self, code: int, process: Any) -> None:
@@ -2393,17 +2399,9 @@ class NativeShell:
                 self.stock_progress_bar.setFormat("Lỗi chạy bộ lọc ✗")
             fail_msg = f"Bộ lọc thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"Advisor failed with code {code}"
             self._set_stock_status(fail_msg, "red")
-        self._restart_signal_bot_after_stock()
-
     def _stock_advisor_error(self, error: Any, process: Any) -> None:
         if self.stock_process is process:
             self._set_stock_status(f"Advisor process error: {error}", "red")
-
-    def _restart_signal_bot_after_stock(self) -> None:
-        if not self.stock_restart_signal_bot:
-            return
-        self.stock_restart_signal_bot = False
-        self.start_signal("signal_bot")
 
     def _set_stock_status(self, message: str, accent: str = "muted") -> None:
         if self.stock_status is None:
@@ -2552,6 +2550,26 @@ class NativeShell:
     def _running_profiles(self) -> list[str]:
         return [name for name, proc in self.monitor_processes.items() if proc.state() != QT.NotRunning]
 
+    def _profile_status(self, name: str, running: bool | None = None) -> str:
+        """Show a recent launcher error instead of collapsing it into IDLE."""
+        active = self._profile_is_running(name) if running is None else running
+        if active:
+            return "RUNNING"
+        try:
+            from repositories.sqlite_store import SQLiteStore
+            store = SQLiteStore()
+            heartbeat = store.get_heartbeat(name)
+            store.close()
+            if heartbeat and heartbeat.get("state") == "error" and heartbeat.get("last_error"):
+                last_seen = datetime.fromisoformat(str(heartbeat.get("last_seen", "")).replace("Z", "+00:00"))
+                if last_seen.tzinfo is None:
+                    last_seen = last_seen.replace(tzinfo=timezone.utc)
+                if (datetime.now(timezone.utc) - last_seen).total_seconds() <= 300:
+                    return "ERROR"
+        except Exception:
+            pass
+        return "IDLE"
+
     def _profile_is_running(self, profile: str) -> bool:
         proc = self.monitor_processes.get(profile)
         return bool(proc and proc.state() != QT.NotRunning)
@@ -2602,7 +2620,10 @@ class NativeShell:
     def _worker_done(self, profile: str, code: int, proc: Any) -> None:
         if self.monitor_processes.get(profile) is proc:
             self.monitor_processes.pop(profile, None)
-        self.log(f"Monitor stopped: {profile} (code {code})")
+        if code:
+            self.log(f"Monitor error: {profile} (code {code}); press Start to retry")
+        else:
+            self.log(f"Monitor stopped: {profile} (code {code})")
 
     def _worker_error(self, profile: str, error: Any) -> None:
         self.log(f"Monitor error on {profile}: {error}")
@@ -2631,8 +2652,34 @@ class NativeShell:
         self.log("Classic CTk UI launched.")
 
     def start_all_signals(self) -> None:
-        for index, (key, _name, _color) in enumerate(SIGNAL_DEFS):
+        keys = [key for key, _name, _color in SIGNAL_DEFS]
+        if "mt4_feed_server" in keys:
+            self.start_signal("mt4_feed_server")
+            self._wait_for_feed_before_signals(keys)
+            return
+        for index, key in enumerate(keys):
             QT.QTimer.singleShot(index * 250, lambda k=key: self.start_signal(k))
+
+    def _wait_for_feed_before_signals(self, keys: list[str], deadline: float | None = None) -> None:
+        """Start workers after a live MT4 heartbeat, not HTTP 200 alone."""
+        deadline = deadline or (time.monotonic() + 15.0)
+        health = read_mt4_feed_health(timeout=3.0)
+        ready = health.feed_connected
+        if ready or time.monotonic() >= deadline:
+            if not ready:
+                state = health.data_state.upper() if health.listener_available else "UNAVAILABLE"
+                self._append_signal_log(
+                    "signal_bot",
+                    f"[MT4 FEED] Listener {state}; Signal Bot blocked until a CONNECTED v87 heartbeat via HTTP 80.",
+                )
+            for index, key in enumerate(keys):
+                if key != "mt4_feed_server":
+                    if key == "signal_bot" and not ready:
+                        self._set_signal_running(key, False, status="Blocked")
+                        continue
+                    QT.QTimer.singleShot(index * 250, lambda k=key: self.start_signal(k))
+            return
+        QT.QTimer.singleShot(500, lambda: self._wait_for_feed_before_signals(keys, deadline))
 
     def stop_all_signals(self) -> None:
         for key, _name, _color in SIGNAL_DEFS:
@@ -2652,11 +2699,73 @@ class NativeShell:
 
     def _refresh_signal_states(self) -> None:
         for key, _name, _color in SIGNAL_DEFS:
+            # The Feed Server may be owned by a previous/native shell while
+            # its local listener remains healthy.  Its card is therefore
+            # refreshed from the health endpoint below, not only QProcess.
+            if key == "mt4_feed_server":
+                continue
             proc = self.signal_processes.get(key)
             running = bool(proc and proc.state() != QT.NotRunning)
             pid = proc.processId() if running else None
             self._set_signal_running(key, running, pid)
+        self._refresh_feed_card()
         self._refresh_signal_summary()
+
+    def _refresh_feed_card(self) -> None:
+        card = self.signal_cards.get("mt4_feed_server")
+        if not card or card.get("feed_info") is None:
+            return
+        now = time.monotonic()
+        if now - getattr(self, "_last_feed_card_refresh", 0.0) < 5.0:
+            return
+        self._last_feed_card_refresh = now
+        store = None
+        try:
+            from repositories.mt4_feed_store import MT4FeedStore
+            store = MT4FeedStore(str(ROOT / "mt4_feed.db"))
+            health = read_mt4_feed_health(timeout=0.5)
+            self._feed_listener_available = health.listener_available
+            if health.listener_available:
+                listener_status = "Running" if health.feed_connected else "Degraded"
+                self._set_signal_running(
+                    "mt4_feed_server",
+                    health.feed_connected,
+                    status=listener_status,
+                    preserve_controls=True,
+                )
+            else:
+                proc = self.signal_processes.get("mt4_feed_server")
+                if not proc or proc.state() == QT.NotRunning:
+                    self._set_signal_running("mt4_feed_server", False)
+            heartbeat = store.get_latest_heartbeat()
+            if not heartbeat:
+                card["feed_info"].setText(
+                    "Feed: DISCONNECTED · no v87 heartbeat\n"
+                    "Attach EA v87 to a chart · HTTP 80"
+                )
+                return
+            observed = datetime.fromisoformat(str(heartbeat.get("observed_at_utc", "")).replace("Z", "+00:00"))
+            age = max(0, int((datetime.now(timezone.utc) - observed).total_seconds()))
+            state = "CONNECTED" if age <= 15 else "DEGRADED" if age <= 60 else "STALE"
+            coverage: dict[str, dict[str, int]] = {}
+            for symbol in ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"):
+                counts: dict[str, int] = {}
+                for timeframe in ("M30", "H1", "H4"):
+                    bars = store.get_bars(symbol, timeframe, "1970-01-01 00:00:00", "2099-12-31 23:59:59")
+                    counts[timeframe] = len(bars)
+                coverage[symbol] = counts
+            summary, tooltip = format_feed_card_details(state, age, coverage)
+            card["feed_info"].setText(summary)
+            card["feed_info"].setToolTip(tooltip)
+        except Exception as error:
+            card["feed_info"].setText(f"Feed: DEGRADED · {error}")
+
+        finally:
+            if store is not None:
+                try:
+                    store.close()
+                except Exception:
+                    pass
 
     def _refresh_signal_summary(self) -> None:
         if self.signal_summary is None:
@@ -2666,6 +2775,10 @@ class NativeShell:
             for proc in self.signal_processes.values()
             if proc and proc.state() != QT.NotRunning
         )
+        feed_proc = self.signal_processes.get("mt4_feed_server")
+        feed_owned_by_shell = bool(feed_proc and feed_proc.state() != QT.NotRunning)
+        if getattr(self, "_feed_listener_available", False) and not feed_owned_by_shell:
+            running += 1
         self.signal_summary.setText(native_format("{running}/{total} running", running=running, total=len(SIGNAL_DEFS)))
 
     def start_signal(self, key: str) -> None:
@@ -2676,6 +2789,13 @@ class NativeShell:
         if proc and proc.state() != QT.NotRunning:
             self._append_signal_log(key, f"{card['name']} is already running.")
             return
+        if key == "signal_bot":
+            health = read_mt4_feed_health(timeout=3.0)
+            if not health.feed_connected:
+                state = health.data_state.upper() if health.listener_available else "UNAVAILABLE"
+                self._append_signal_log(key, f"[MT4 FEED] Signal Bot blocked: feed {state}; live heartbeat required.")
+                self._set_signal_running(key, False, status="Blocked")
+                return
         profile = self.selected if key == "signal_bot" else ""
         try:
             cmd = build_signal_process_cmd(
@@ -2729,31 +2849,33 @@ class NativeShell:
             self.signal_processes.pop(key, None)
         self._append_signal_log(key, f"Exited with code {code}.")
         self._set_signal_running(key, False)
-        self._resume_stock_after_signal_stop(key)
 
     def _signal_error(self, key: str, error: Any, proc: Any) -> None:
         if self.signal_processes.get(key) is proc:
             self.signal_processes.pop(key, None)
         self._append_signal_log(key, f"Process error: {error}")
         self._set_signal_running(key, False)
-        self._resume_stock_after_signal_stop(key)
-
-    def _resume_stock_after_signal_stop(self, key: str) -> None:
-        if key != "signal_bot" or self.stock_pending_launch is None:
-            return
-        QT.QTimer.singleShot(0, self._launch_pending_stock_advisor)
-
-    def _set_signal_running(self, key: str, running: bool, pid: int | None = None) -> None:
+    def _set_signal_running(
+        self,
+        key: str,
+        running: bool,
+        pid: int | None = None,
+        status: str | None = None,
+        preserve_controls: bool = False,
+    ) -> None:
         card = self.signal_cards.get(key)
         if not card:
             return
-        card["status"].setText(native_text("Running" if running else "Stopped"))
+        label = native_text(status) if status else native_text("Running" if running else "Stopped")
+        card["status"].setText(label)
         card["status"].setProperty("accent", "green" if running else "")
-        card["dot"].setProperty("accent", "green" if running else "red")
-        card["frame"].setProperty("state", "running" if running else "stopped")
-        card["pid"].setText(f"PID: {pid}" if running and pid else "PID: ---")
-        card["start"].setEnabled(not running)
-        card["stop"].setEnabled(running)
+        degraded = status in {"Blocked", "Degraded"}
+        card["dot"].setProperty("accent", "green" if running else "amber" if degraded else "red")
+        card["frame"].setProperty("state", "running" if running else "degraded" if degraded else "stopped")
+        if not preserve_controls:
+            card["pid"].setText(f"PID: {pid}" if running and pid else "PID: ---")
+            card["start"].setEnabled(not running)
+            card["stop"].setEnabled(running)
         for widget_name in ("frame", "dot", "status", "start", "stop", "pid"):
             widget = card[widget_name]
             widget.style().unpolish(widget)
@@ -2880,10 +3002,10 @@ def run_embedded_worker(argv: list[str]) -> int | None:
 
         mt5_signal_bot.main(profile_name=profile_arg(argv))
         return 0
-    if "--mt-server" in argv:
-        import mt4_mt5_server
+    if "--mt4-feed-server" in argv:
+        import mt4_feed_server
 
-        mt4_mt5_server.main()
+        mt4_feed_server.main()
         return 0
     if "--mimo-bot" in argv:
         runpy.run_module("mimo_bot", run_name="__main__")

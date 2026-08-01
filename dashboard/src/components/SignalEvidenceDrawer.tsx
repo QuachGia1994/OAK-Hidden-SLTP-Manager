@@ -3,7 +3,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import type {
   SignalEvidenceV3,
-  SignalEvidence,
   SignalEvidenceUnion,
   DDirectionEvidence,
   H1SignalEvidence,
@@ -79,7 +78,8 @@ export function SignalEvidenceDrawer(props: Props) {
     };
   }, [open]);
 
-  const currentSymbol = symbol || (evidence && "symbol" in evidence && typeof evidence.symbol === "string" ? evidence.symbol : "XAUUSD");
+  const currentSymbol = "XAUUSD";
+  if (!open) return null;
 
   return (
     <div
@@ -186,7 +186,11 @@ function EvidenceContent({
     }
     return <EvidenceV3Content evidence={evidence} symbol={currentSymbol} locale={locale} />;
   }
-  return <LegacyEvidenceContent evidence={evidence as SignalEvidence} locale={locale} />;
+  return (
+    <StatusText
+      text={locale === "EN" ? "Evidence version is not supported" : "Phiên bản evidence không được hỗ trợ"}
+    />
+  );
 }
 
 function EvidenceV87Content({
@@ -199,22 +203,29 @@ function EvidenceV87Content({
   locale: "VN" | "EN";
 }) {
   const timing = evidence.entry_timing;
-  const relation = evidence.d_relation || "UNRESOLVED";
+  const entryBranch = evidence.current_entry_branch || evidence.entry_branch || timing?.entry_branch || "—";
+  const referenceSymbol = evidence.reference_d_symbol || "GBPUSD";
+  const layer1Source = evidence.base_signal_source === "PREVIOUS_XAU_H1_REVERSED"
+    ? (locale === "EN" ? "Previous completed XAUUSD H1, reversed" : "H1 XAUUSD hoàn tất ngay trước mốc, đảo chiều")
+    : evidence.base_signal_source === "REFERENCE_D_DAY_MODE"
+    ? (locale === "EN" ? "GBPUSD D + Day Mode / entry branch" : "D GBPUSD + Day Mode / nhánh Entry")
+    : (locale === "EN" ? "Waiting for D / entry branch" : "Chờ D / nhánh Entry");
   return (
     <div className="space-y-4 font-mono text-xs">
-      <EvidenceSection title={locale === "EN" ? "COMMON XAUUSD ENTRY" : "ENTRY CHUNG XAUUSD"}>
+      <EvidenceSection title={locale === "EN" ? "LAYERS 2–3 · COMMON XAUUSD ENTRY" : "LAYER 2–3 · ENTRY CHUNG XAUUSD"}>
         <p>{locale === "EN" ? "Source" : "Nguồn"}: XAUUSD · {timing?.timeframe || "M30"}</p>
-        <p>{locale === "EN" ? "Selected" : "Đã chọn"}: <strong>{evidence.current_entry_time || timing?.entry_time || "WAIT"}</strong> · {evidence.current_entry_branch || timing?.entry_branch || "—"}</p>
-        <p>{locale === "EN" ? "All five pairs share this Entry Time." : "Cả năm cặp dùng chung Entry Time này."}</p>
+        <p>{locale === "EN" ? "Selected" : "Đã chọn"}: <strong>{evidence.current_entry_time || timing?.entry_time || "WAIT"}</strong> · {entryBranch}</p>
+        <p>{locale === "EN" ? "This XAUUSD entry plan is shared by the signal card." : "Kế hoạch Entry XAUUSD này là nguồn chung của signal card."}</p>
         {timing?.layer2 && <CandleMiniTable label="LAYER 2" layer={timing.layer2} />}
         {timing?.layer3 && <CandleMiniTable label="LAYER 3" layer={timing.layer3} />}
       </EvidenceSection>
-      <EvidenceSection title={locale === "EN" ? "INDEPENDENT D / REFERENCE RELATION" : "D ĐỘC LẬP / QUAN HỆ THAM CHIẾU"}>
-        <p>{symbol} D: {evidence.pair_d_direction || "WAIT"}</p>
-        <p>Reference GBPUSD D: {evidence.reference_d_direction || "WAIT"}</p>
-        <p>Relation: <strong>{relation}</strong> · {evidence.relation_rule || "—"}</p>
+      <EvidenceSection title={locale === "EN" ? "LAYER 1 · REFERENCE SIGNAL" : "LAYER 1 · TÍN HIỆU THAM CHIẾU"}>
+        <p>{locale === "EN" ? "Reference D" : "D tham chiếu"}: {referenceSymbol} · <strong>{evidence.reference_d_direction || "WAIT"}</strong></p>
+        <p>{locale === "EN" ? "Entry branch" : "Nhánh Entry"}: {entryBranch}</p>
+        <p>{locale === "EN" ? "Rule" : "Quy tắc"}: {layer1Source}</p>
+        <p>{locale === "EN" ? "Layer 1 output" : "Kết quả Layer 1"}: <strong>{evidence.core_signal || "WAIT"}</strong></p>
       </EvidenceSection>
-      <EvidenceSection title={locale === "EN" ? "FINAL ADJUSTMENT" : "ĐIỀU CHỈNH CUỐI"}>
+      <EvidenceSection title={locale === "EN" ? "LAYER 4 · FINAL REVERSE" : "LAYER 4 · ĐẢO CUỐI"}>
         <p>Core: {evidence.core_signal || "WAIT"} → Final: <strong>{evidence.final_signal || evidence.direction}</strong></p>
         <p>{evidence.final_reverse_applied ? `REVERSE · ${evidence.final_reverse_reason || "—"}` : (locale === "EN" ? "No Final Reverse" : "Không đảo Final")}</p>
       </EvidenceSection>
@@ -502,21 +513,6 @@ function XauEntryTimingSection({ timing, locale }: { timing: XauEntryTimingEvide
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function LegacyEvidenceContent({ evidence, locale }: { evidence: SignalEvidence; locale: "VN" | "EN" }) {
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-4 font-mono text-xs">
-        <h3 className="font-bold text-[var(--foreground)] mb-2">Legacy Signal Evidence (v72)</h3>
-        <dl className="grid grid-cols-2 gap-2">
-          <dt className="text-[var(--muted)]">Symbol</dt><dd className="font-bold">{evidence.symbol}</dd>
-          <dt className="text-[var(--muted)]">Direction</dt><dd className="font-bold">{evidence.direction || "WAIT"}</dd>
-          <dt className="text-[var(--muted)]">Entry Time</dt><dd className="font-bold">{evidence.entry_time || "—"}</dd>
-        </dl>
-      </div>
     </div>
   );
 }

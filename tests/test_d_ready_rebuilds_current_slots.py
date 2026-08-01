@@ -5,6 +5,10 @@ from unittest.mock import patch, MagicMock
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
+
 import mt5_signal_bot
 
 

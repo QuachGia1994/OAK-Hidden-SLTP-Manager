@@ -80,24 +80,11 @@ def _select_current_signal_rows(log_rows, target_date=None):
     return selected_date, by_hour
 
 
-def _is_do_not_enter_signal(hour, payload):
-    """Return True for slots that must not be actioned — deactivated only."""
-    if payload.get("deactivated"):
-        return True
-    return False
-
-
 def _format_current_signal_row(hour, payload):
     """Render Broker publication/entry clocks supplied by the signal record."""
     direction = payload["pair_dirs"]["XAUUSD"]
-    do_not_enter = _is_do_not_enter_signal(hour, payload)
     signal_time = payload.get("signal_time") or "--:--"
     entry_time = payload.get("entry_time") or "--:--"
-    if do_not_enter:
-        return (
-            f"H={hour:02d} | phát {signal_time} Broker | "
-            f"entry tham chiếu {entry_time} Broker | KHÔNG VÀO LỆNH (XAUUSD:{direction})"
-        )
     return (
         f"H={hour:02d} | phát {signal_time} Broker | "
         f"vào {entry_time} Broker → *XAUUSD:{direction}*"

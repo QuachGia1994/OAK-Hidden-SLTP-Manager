@@ -1,11 +1,5 @@
 import { ACTIVE_SIGNAL_LOGIC_VERSION } from "./generated-signal-rules.js";
 
-interface SignalDeactivationInput {
-  date: string;
-  hour: number;
-  deactivated?: boolean;
-}
-
 interface SignalPairReadinessInput {
   pair_dirs?: Record<string, string>;
   pair_entry_times?: Record<string, string | null>;
@@ -19,10 +13,6 @@ export const ACTIVE_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBP
 export const DISABLED_SIGNAL_PAIRS = [] as const;
 export const DISPLAYED_SIGNAL_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
 export { ACTIVE_SIGNAL_LOGIC_VERSION };
-
-export function isEffectivelyDeactivated(signal: SignalDeactivationInput): boolean {
-  return signal.deactivated === true;
-}
 
 /** A pair is tradable only when its direction and validated entry are both ready. */
 export function isSignalPairReady(signal: SignalPairReadinessInput, symbol: string): boolean {

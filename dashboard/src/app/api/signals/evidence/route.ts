@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
 import { redis, KEYS, canSeeVipData } from "@/lib/redis";
-import { ACTIVE_SIGNAL_LOGIC_VERSION, DISPLAYED_SIGNAL_PAIRS } from "@/lib/signal-display";
+import { ACTIVE_SIGNAL_LOGIC_VERSION } from "@/lib/signal-display";
 import { isActiveSignalHour } from "@/lib/constants";
 import { resolveSignalEvidence } from "@/lib/signal-evidence";
 import type { Signal, SignalEvidence } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-const EVIDENCE_KEY = /^(\d{4}-\d{2}-\d{2}):(\d+):(XAUUSD|GBPUSD|GBPAUD|GBPJPY|GBPCAD):v(\d+)$/;
+const EVIDENCE_KEY = /^(\d{4}-\d{2}-\d{2}):(\d+):XAUUSD:v(\d+)$/;
 
 function isCurrentEvidenceEntry(key: string, value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const match = EVIDENCE_KEY.exec(key);
-  if (!match || Number(match[4]) !== ACTIVE_SIGNAL_LOGIC_VERSION) return false;
+  if (!match || Number(match[3]) !== ACTIVE_SIGNAL_LOGIC_VERSION) return false;
   const evidence = value as Record<string, unknown>;
   return Number(evidence.logic_version) === ACTIVE_SIGNAL_LOGIC_VERSION
     && Number(evidence.evidence_schema_version) === 9
     && Number(evidence.hour) === Number(match[2])
-    && evidence.symbol === match[3];
+    && evidence.symbol === "XAUUSD";
 }
 
 /** GET /api/signals/evidence?date=YYYY-MM-DD&hour=H&symbol=XAUUSD
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "invalid date" }, { status: 400 });
   }
 
-  if (!DISPLAYED_SIGNAL_PAIRS.some((pair) => pair === symbol)) {
+  if (symbol !== "XAUUSD") {
     return NextResponse.json({ error: "invalid symbol" }, { status: 400 });
   }
 
@@ -74,7 +74,7 @@ export async function GET(request: Request) {
       symbol,
       logicVersion: requestedVersion,
     });
-    const evidenceKey = `${date}:${hourNum}:${symbol}:v${requestedVersion}`;
+    const evidenceKey = `${date}:${hourNum}:XAUUSD:v${requestedVersion}`;
     if (!evidence || !isCurrentEvidenceEntry(evidenceKey, evidence)) {
       return NextResponse.json({ error: "evidence not found for this slot and version" }, { status: 404 });
     }
@@ -105,7 +105,7 @@ export async function POST(request: Request) {
 
     const rawIncoming = body as Record<string, SignalEvidence>;
     const incoming = Object.fromEntries(
-      Object.entries(rawIncoming).filter(([key, value]) => isCurrentEvidenceEntry(key, value)),
+      Object.entries(rawIncoming).filter(([key, value]) => isCurrentEvidenceEntry(key, value) && key.includes(":XAUUSD:")),
     ) as Record<string, SignalEvidence>;
     if (Object.keys(incoming).length === 0) {
       return NextResponse.json({ ok: false, error: "no current v87 evidence entries" }, { status: 400 });
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     // Merge: replace existing keys with incoming
     const merged = { ...existing, ...incoming };
 
-    // Keep the newest 1,000 records (200 complete slots × five symbols).
+    // Keep the newest 1,000 single-source XAU entry records.
     const keys = Object.keys(merged).sort();
     if (keys.length > 1000) {
       for (const oldKey of keys.slice(0, keys.length - 1000)) {

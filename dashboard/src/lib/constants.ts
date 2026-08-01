@@ -96,6 +96,8 @@ export function isPostSpecialMonday(date: string): boolean {
 /** Active logical slots for a Broker calendar date. */
 export function getTargetHours(jsDayOfWeek: number, _brokerDate?: string): number[] {
   if (jsDayOfWeek === 0 || jsDayOfWeek === 6) return [];
+  // Special dates influence only the v87 Final Reverse rules. They do not
+  // remove any logical signal slot from the weekday schedule.
   return [...TARGET_HOURS];
 }
 

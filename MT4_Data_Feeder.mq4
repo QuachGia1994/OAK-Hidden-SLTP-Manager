@@ -4,34 +4,108 @@
 //| live in the Python core and are never calculated here.           |
 //+------------------------------------------------------------------+
 #property copyright "OAK Group"
-#property version   "2.13"
+#property version   "2.16"
 #property strict
 
-input string FeedBaseURL = "http://127.0.0.1:5001/mt4-feed";
+// MT4 WebRequest publishes through default HTTP port 80.  The local server
+// still exposes :5001 separately for desktop/Bot health checks.
+input string FeedBaseURL = "http://127.0.0.1/mt4-feed";
 input string FeedToken = "";
 input string SourceId = "mt4_ea";
-input string BrokerName = "MT4";
-input string XauUsdSymbol = "XAUUSD";
-input string GbpUsdSymbol = "GBPUSD";
-input string GbpAudSymbol = "GBPAUD";
-input string GbpJpySymbol = "GBPJPY";
-input string GbpCadSymbol = "GBPCAD";
 
 long sequenceNumber = 0;
-bool backfillSent = false;
+string effectiveFeedBaseURL = "";
+string chartCanonicalSymbol = "";
+string chartResolvedSymbol = "";
+bool chartUsesCoreCanonical = false;
+bool backfillPending = true;
+datetime lastClockWarningAt = 0;
+datetime lastBackfillAttemptAt = 0;
+datetime lastLiveTickUtc = 0;
+datetime lastPublishedTickUtc = 0;
 
-void BuildSymbols(string &canonicalSymbols[], string &resolvedSymbols[])
+#define BACKFILL_DAYS 45
+#define BACKFILL_RETRY_SECONDS 30
+
+string ResolveFeedBaseURL()
 {
-   canonicalSymbols[0] = "XAUUSD";
-   canonicalSymbols[1] = "GBPUSD";
-   canonicalSymbols[2] = "GBPAUD";
-   canonicalSymbols[3] = "GBPJPY";
-   canonicalSymbols[4] = "GBPCAD";
-   resolvedSymbols[0] = XauUsdSymbol;
-   resolvedSymbols[1] = GbpUsdSymbol;
-   resolvedSymbols[2] = GbpAudSymbol;
-   resolvedSymbols[3] = GbpJpySymbol;
-   resolvedSymbols[4] = GbpCadSymbol;
+   // MT4 keeps an EA's old input values on each chart after recompilation.
+   // Migrate the prior v87 :5001 loopback setting automatically so existing
+   // charts do not keep failing WebRequest after the server changes to :80.
+   if(StringFind(FeedBaseURL, "http://127.0.0.1:") == 0)
+   {
+      Print("[MT4 FEED] Migrating legacy loopback FeedBaseURL to HTTP port 80.");
+      return "http://127.0.0.1/mt4-feed";
+   }
+   return FeedBaseURL;
+}
+
+// Keep a stable JSON/database-safe key for a chart symbol that has not yet
+// been added to the signal core.  Fixed-width UTF-16 hex makes punctuation
+// reversible and collision-proof: EUR.USD, EUR-USD and EUR_USD cannot share
+// a storage key.  The exact broker spelling remains in chartResolvedSymbol.
+string FallbackCanonicalSymbol(string normalized)
+{
+   string fallback = "RAW_";
+   for(int index = 0; index < StringLen(normalized); index++)
+      fallback += StringFormat("%04X", StringGetCharacter(normalized, index));
+   return fallback;
+}
+
+bool IsAsciiAlphaNumeric(int code)
+{
+   return (code >= 65 && code <= 90) || (code >= 48 && code <= 57);
+}
+
+// GOLD is a valid broker alias only when it is a complete token, optionally
+// surrounded by broker separators such as '.', '+', '_' or '#'.  This avoids
+// turning unrelated symbols such as GOLDMAN into XAUUSD.
+bool IsGoldAlias(string normalized)
+{
+   int length = StringLen(normalized);
+   int searchFrom = 0;
+   while(searchFrom < length)
+   {
+      int position = StringFind(normalized, "GOLD", searchFrom);
+      if(position < 0) return false;
+      int end = position + 4;
+      bool leftBoundary = position == 0 || !IsAsciiAlphaNumeric(StringGetCharacter(normalized, position - 1));
+      bool rightBoundary = end >= length || !IsAsciiAlphaNumeric(StringGetCharacter(normalized, end));
+      if(leftBoundary && rightBoundary) return true;
+      searchFrom = end;
+   }
+   return false;
+}
+
+bool ResolveChartSymbol()
+{
+   string normalized = Symbol();
+   StringToUpper(normalized);
+   chartResolvedSymbol = Symbol();
+   chartUsesCoreCanonical = true;
+
+   // StringFind deliberately permits both broker prefixes and suffixes:
+   // e.g. OAK.XAUUSD.a, mGBPUSD, and GBPJPY.pro all resolve correctly.
+   if(StringFind(normalized, "XAUUSD") >= 0 || IsGoldAlias(normalized))
+      chartCanonicalSymbol = "XAUUSD";
+   else if(StringFind(normalized, "GBPUSD") >= 0)
+      chartCanonicalSymbol = "GBPUSD";
+   else if(StringFind(normalized, "GBPAUD") >= 0)
+      chartCanonicalSymbol = "GBPAUD";
+   else if(StringFind(normalized, "GBPJPY") >= 0)
+      chartCanonicalSymbol = "GBPJPY";
+   else if(StringFind(normalized, "GBPCAD") >= 0)
+      chartCanonicalSymbol = "GBPCAD";
+   else
+   {
+      // Publish a normalized raw symbol instead of rejecting the chart.  It
+      // lets the feeder be attached to future symbols now; the collector/core
+      // can opt into that symbol independently when it is ready to consume it.
+      chartUsesCoreCanonical = false;
+      chartCanonicalSymbol = FallbackCanonicalSymbol(normalized);
+   }
+
+   return StringLen(chartResolvedSymbol) > 0;
 }
 
 string IsoBrokerTime(datetime value)
@@ -39,6 +113,11 @@ string IsoBrokerTime(datetime value)
    return StringFormat("%04d-%02d-%02d %02d:%02d:%02d",
                        TimeYear(value), TimeMonth(value), TimeDay(value),
                        TimeHour(value), TimeMinute(value), TimeSeconds(value));
+}
+
+string LongText(long value)
+{
+   return DoubleToString((double)value, 0);
 }
 
 string JsonEscape(string value)
@@ -59,34 +138,60 @@ bool PostJson(string endpoint, string payload)
    if(length <= 0) return false;
    ArrayResize(body, length);
    ResetLastError();
-   int status = WebRequest("POST", FeedBaseURL + endpoint, headers, 5000, body, response, responseHeaders);
+   int status = WebRequest("POST", effectiveFeedBaseURL + endpoint, headers, 5000, body, response, responseHeaders);
+   int errorCode = GetLastError();
    if(status < 200 || status >= 300)
    {
-      Print("[MT4 FEED] POST failed endpoint=", endpoint, " status=", status, " error=", GetLastError());
+      Print("[MT4 FEED] POST failed endpoint=", endpoint, " status=", status, " error=", errorCode);
+      if(status == -1 && errorCode == 5200)
+      {
+         Print("[MT4 FEED] WebRequest is blocked. Set FeedBaseURL to http://127.0.0.1/mt4-feed (no custom port) and allow http://127.0.0.1 in Tools > Options > Expert Advisors > Allow WebRequest for listed URL.");
+      }
       return false;
    }
    return true;
 }
 
-void PublishHeartbeat()
+bool ResolveBrokerOffset(datetime brokerNow, datetime utcNow, int &offsetHours)
+{
+   int offsetSeconds = (int)(brokerNow - utcNow);
+   offsetHours = (int)MathRound((double)offsetSeconds / 3600.0);
+   if(offsetHours < -14 || offsetHours > 14)
+      return false;
+   // TimeCurrent freezes at the last quote when the market is closed.  A
+   // fresh broker clock must remain close to a whole-hour UTC offset.
+   return MathAbs(offsetSeconds - (offsetHours * 3600)) <= 30;
+}
+
+bool PublishHeartbeat()
 {
    sequenceNumber++;
    datetime brokerNow = TimeCurrent();
    datetime utcNow = TimeGMT();
-   int offsetSeconds = (int)(brokerNow - utcNow);
-   int offsetHours = offsetSeconds / 3600;
+   int offsetHours = 0;
+   if(!ResolveBrokerOffset(brokerNow, utcNow, offsetHours))
+   {
+      if(lastClockWarningAt == 0 || utcNow - lastClockWarningAt >= 60)
+      {
+         Print("[MT4 FEED] Broker clock is stale/inconsistent; waiting for a live tick before publishing heartbeat or bars.");
+         lastClockWarningAt = utcNow;
+      }
+      return false;
+   }
+   datetime brokerTimeUtc = brokerNow - (offsetHours * 3600);
    string payload = "{";
    payload += "\"schema_version\":2,";
    payload += "\"source_id\":\"" + JsonEscape(SourceId) + "\",";
    payload += "\"account\":\"" + IntegerToString(AccountNumber()) + "\",";
    payload += "\"server\":\"" + JsonEscape(AccountServer()) + "\",";
+   payload += "\"chart_symbol\":\"" + JsonEscape(chartResolvedSymbol) + "\",";
    payload += "\"broker_time\":\"" + IsoBrokerTime(brokerNow) + "\",";
-   payload += "\"broker_time_utc\":\"" + IsoBrokerTime(utcNow) + "\",";
+   payload += "\"broker_time_utc\":\"" + IsoBrokerTime(brokerTimeUtc) + "\",";
    payload += "\"broker_utc_offset\":" + IntegerToString(offsetHours) + ",";
    payload += "\"observed_at_utc\":\"" + IsoBrokerTime(utcNow) + "\",";
-   payload += "\"last_sequence\":" + LongToString(sequenceNumber);
+   payload += "\"last_sequence\":" + LongText(sequenceNumber);
    payload += "}";
-   PostJson("/heartbeat", payload);
+   return PostJson("/heartbeat", payload);
 }
 
 string TimeframeName(int timeframe)
@@ -98,9 +203,22 @@ string TimeframeName(int timeframe)
 
 int BackfillBars(int timeframe)
 {
-   if(timeframe == PERIOD_H4) return 1200; // at least 180 calendar days
-   if(timeframe == PERIOD_H1) return 2500; // at least 90 calendar days
-   return 5000;                            // at least 90 calendar days
+   // Roughly 45 calendar days of completed FX candles, including a small
+   // weekend/history-loading buffer.  The actual readiness check below uses
+   // timestamps rather than assuming a fixed number of trading-day bars.
+   if(timeframe == PERIOD_H4) return 300;
+   if(timeframe == PERIOD_H1) return 1150;
+   return 2300;
+}
+
+bool HasBackfillHistory(int timeframe)
+{
+   int available = iBars(chartResolvedSymbol, timeframe);
+   if(available <= 1) return false;
+   int oldestShift = MathMin(available - 1, BackfillBars(timeframe));
+   datetime oldestOpen = iTime(chartResolvedSymbol, timeframe, oldestShift);
+   datetime requiredOpen = TimeCurrent() - (BACKFILL_DAYS * 86400);
+   return oldestOpen > 0 && oldestOpen <= requiredOpen;
 }
 
 bool PublishBars(string canonicalSymbol, string resolvedSymbol, int timeframe, int count)
@@ -131,40 +249,47 @@ bool PublishBars(string canonicalSymbol, string resolvedSymbol, int timeframe, i
       payload += "\"high\":\"" + DoubleToString(iHigh(resolvedSymbol, timeframe, shift), priceDigits) + "\",";
       payload += "\"low\":\"" + DoubleToString(iLow(resolvedSymbol, timeframe, shift), priceDigits) + "\",";
       payload += "\"close\":\"" + DoubleToString(iClose(resolvedSymbol, timeframe, shift), priceDigits) + "\",";
-      payload += "\"tick_volume\":" + LongToString(iVolume(resolvedSymbol, timeframe, shift)) + ",\"is_complete\":true}";
+      payload += "\"tick_volume\":" + LongText(iVolume(resolvedSymbol, timeframe, shift)) + ",\"is_complete\":true}";
       emitted++;
    }
    payload += "]}";
    return emitted > 0 && PostJson("/bars", payload);
 }
 
-void PublishAllBars(bool backfill)
+bool PublishChartBars(bool backfill)
 {
-   string canonicalSymbols[5];
-   string resolvedSymbols[5];
-   BuildSymbols(canonicalSymbols, resolvedSymbols);
    int timeframes[3] = {PERIOD_M30, PERIOD_H1, PERIOD_H4};
-   for(int s = 0; s < ArraySize(canonicalSymbols); s++)
+   bool backfillComplete = true;
+   for(int t = 0; t < ArraySize(timeframes); t++)
    {
-      for(int t = 0; t < ArraySize(timeframes); t++)
-      {
-         int count = backfill ? BackfillBars(timeframes[t]) : 3;
-         PublishBars(canonicalSymbols[s], resolvedSymbols[s], timeframes[t], count);
-      }
+      int count = backfill ? BackfillBars(timeframes[t]) : 3;
+      bool published = PublishBars(chartCanonicalSymbol, chartResolvedSymbol, timeframes[t], count);
+      if(backfill && (!published || !HasBackfillHistory(timeframes[t])))
+         backfillComplete = false;
    }
+   return !backfill || backfillComplete;
 }
 
 int OnInit()
 {
-   string canonicalSymbols[5];
-   string resolvedSymbols[5];
-   BuildSymbols(canonicalSymbols, resolvedSymbols);
-   for(int index = 0; index < ArraySize(resolvedSymbols); index++) SymbolSelect(resolvedSymbols[index], true);
-   Print("MT4 raw feed publisher v87; Broker clock and candles only");
+   effectiveFeedBaseURL = ResolveFeedBaseURL();
+   if(!ResolveChartSymbol())
+   {
+      Print("[MT4 FEED] Chart symbol is empty; cannot publish market data.");
+      return INIT_FAILED;
+   }
+   if(!SymbolSelect(chartResolvedSymbol, true))
+   {
+      Print("[MT4 FEED] Cannot select chart symbol: ", chartResolvedSymbol);
+      return INIT_FAILED;
+   }
+   Print("MT4 raw feed publisher v87 chart=", chartResolvedSymbol,
+         " canonical=", chartCanonicalSymbol,
+         " mode=", (chartUsesCoreCanonical ? "core" : "raw"),
+         " endpoint=", effectiveFeedBaseURL,
+         ". Attach one instance to every chart to publish.");
    EventSetTimer(3);
-   PublishHeartbeat();
-   PublishAllBars(true);
-   backfillSent = true;
+   Print("[MT4 FEED] Waiting for the first live chart tick before publishing heartbeat or bars.");
    return INIT_SUCCEEDED;
 }
 
@@ -175,12 +300,37 @@ void OnDeinit(const int reason)
 
 void OnTimer()
 {
-   PublishHeartbeat();
-   PublishAllBars(false);
+   datetime utcNow = TimeGMT();
+   // TimeCurrent can retain a weekend/terminal-start timestamp that still
+   // resembles a valid UTC offset.  A heartbeat must always be caused by a
+   // chart tick observed after the EA started; otherwise the Signal Bot could
+   // briefly see a false CONNECTED state from a frozen Broker clock.
+   if(lastLiveTickUtc <= lastPublishedTickUtc)
+   {
+      if(lastClockWarningAt == 0 || utcNow - lastClockWarningAt >= 60)
+      {
+         Print("[MT4 FEED] No fresh chart tick; waiting before publishing heartbeat or bars.");
+         lastClockWarningAt = utcNow;
+      }
+      return;
+   }
+   if(!PublishHeartbeat()) return;
+   lastPublishedTickUtc = lastLiveTickUtc;
+   if(backfillPending &&
+      (lastBackfillAttemptAt == 0 || utcNow - lastBackfillAttemptAt >= BACKFILL_RETRY_SECONDS))
+   {
+      lastBackfillAttemptAt = utcNow;
+      backfillPending = !PublishChartBars(backfillPending);
+      if(!backfillPending)
+         Print("[MT4 FEED] 45-day chart backfill is complete.");
+      return;
+   }
+   PublishChartBars(false);
 }
 
 void OnTick()
 {
-   // Timer owns publishing so ticks cannot create duplicate feed batches.
+   // Timer owns publishing; a tick only authorizes the next timer batch.
+   lastLiveTickUtc = TimeGMT();
 }
 //+------------------------------------------------------------------+

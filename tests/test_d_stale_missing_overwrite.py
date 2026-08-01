@@ -8,6 +8,10 @@ from unittest.mock import patch, MagicMock
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
+
 
 class TestDStaleMissingOverwrite(unittest.TestCase):
     def test_is_d_publication_complete_returns_false_for_missing(self):

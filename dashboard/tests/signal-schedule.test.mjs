@@ -24,7 +24,6 @@ import {
 import {
   countReadySignalPairs,
   DISPLAYED_SIGNAL_PAIRS,
-  isEffectivelyDeactivated,
   isSignalPairReady,
   maskSignalForPublic,
 } from "../src/lib/signal-display.ts";
@@ -62,7 +61,7 @@ test("recognizes the remaining paired special dates in 2026", () => {
   assert.equal(isSpecialBrokerDate("2027-01-01"), false);
 });
 
-test("includes H12, H14 and H16 on special and post-special sessions", () => {
+test("keeps every logical slot on special and post-special sessions", () => {
   assert.deepEqual(getTargetHours(4, "2026-08-06"), [3, 7, 9, 12, 14, 16]);
   assert.equal(isPostSpecialMonday("2026-08-10"), true);
   assert.deepEqual(getTargetHours(1, "2026-08-10"), [3, 7, 9, 12, 14, 16]);
@@ -161,17 +160,6 @@ test("converts local time only with verified, consistent Broker clock metadata",
   }), Date.UTC(2026, 7, 6, 0, 0));
 });
 
-test("derives deactivated card state only from the explicit record flag", () => {
-  assert.equal(isEffectivelyDeactivated({ date: "2026-08-05", hour: 4 }), false);
-  assert.equal(isEffectivelyDeactivated({ date: "2026-08-06", hour: 3 }), false);
-  assert.equal(isEffectivelyDeactivated({ date: "2026-08-07", hour: 3 }), false);
-  assert.equal(isEffectivelyDeactivated({
-    date: "2026-08-07",
-    hour: 9,
-    deactivated: true,
-  }), true);
-});
-
 test("renders canonical signal pairs", () => {
   assert.deepEqual(DISPLAYED_SIGNAL_PAIRS, ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"]);
 });
@@ -246,7 +234,7 @@ test("shows current v87 signal rules", () => {
   assert.equal(rules.some((rule) => rule.includes("independently")), true);
 });
 
-test("XAUUSD, GBPUSD, and GBPAUD open per-symbol evidence drawers", () => {
+test("only XAUUSD opens the shared entry evidence drawer", () => {
   const route = fs.readFileSync(new URL("../src/app/api/signals/evidence/route.ts", import.meta.url), "utf8");
   const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
   const drawer = fs.readFileSync(new URL("../src/components/SignalEvidenceDrawer.tsx", import.meta.url), "utf8");
@@ -254,12 +242,33 @@ test("XAUUSD, GBPUSD, and GBPAUD open per-symbol evidence drawers", () => {
   assert.equal(route.includes('searchParams.get("version")'), true);
   assert.equal(card.includes("EVIDENCE_SIGNAL_PAIRS"), true);
   assert.equal(card.includes("hasEvidenceForPair(signal, pair)"), true);
+  assert.equal(card.includes("View XAUUSD entry evidence"), true);
+  assert.equal(card.includes("gbp_entry_time"), false);
   assert.equal(drawer.includes("titleSuffix"), true);
   assert.equal(drawer.includes("COMMON XAUUSD ENTRY"), true);
 });
 
+test("keeps the primary signal visible while pair details collapse only on mobile", () => {
+  const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
+  assert.equal(card.includes('const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false)'), true);
+  assert.equal(card.includes('const primaryDirection = signal.pair_dirs?.XAUUSD || signal.signal || "WAIT"'), true);
+  assert.equal(card.includes('const primaryEntryTime = signal.pair_entry_times?.XAUUSD ?? signal.entry_time ?? null'), true);
+  assert.equal(card.includes('aria-expanded={mobileDetailsOpen}'), true);
+  assert.equal(card.includes('aria-controls={pairRowsId}'), true);
+  assert.equal(card.includes('id={pairRowsId}'), true);
+  assert.equal(card.includes('sm:hidden'), true);
+  assert.equal(card.includes('sm:block'), true);
+});
+
 test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
-  const embedded = { direction: "SELL", layer1: { group: "SW" }, layer2: { group: "SW" } };
+  const embedded = {
+    direction: "SELL",
+    logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
+    evidence_schema_version: 9,
+    symbol: "XAUUSD",
+    layer1: { group: "SW" },
+    layer2: { group: "SW" },
+  };
   const evidence = resolveSignalEvidence({
     evidenceStore: null,
     signals: [{
@@ -278,8 +287,24 @@ test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
   });
   assert.equal(evidence?.direction, "SELL");
   assert.equal(evidence?.entry_time, "03:49");
-  assert.equal(evidence?.gbp_entry_time, "04:00");
   assert.equal(evidence?.symbol, "XAUUSD");
+});
+
+test("legacy embedded evidence is rejected instead of upgraded to v87", () => {
+  const evidence = resolveSignalEvidence({
+    evidenceStore: null,
+    signals: [{
+      date: "2026-07-30",
+      hour: 3,
+      logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
+      pair_evidence: { XAUUSD: { direction: "SELL" } },
+    }],
+    date: "2026-07-30",
+    hour: 3,
+    symbol: "XAUUSD",
+    logicVersion: ACTIVE_SIGNAL_LOGIC_VERSION,
+  });
+  assert.equal(evidence, null);
 });
 
 test("embedded evidence from the displayed signal wins over a stale dedicated record", () => {
@@ -287,8 +312,15 @@ test("embedded evidence from the displayed signal wins over a stale dedicated re
   const evidence = resolveSignalEvidence({
     evidenceStore: { [`2026-07-30:3:XAUUSD:v${ACTIVE_SIGNAL_LOGIC_VERSION}`]: direct },
     signals: [{
-      date: "2026-07-30", hour: 3, logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
-      pair_evidence: { XAUUSD: { direction: "SELL" } },
+    date: "2026-07-30", hour: 3, logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
+      pair_evidence: {
+        XAUUSD: {
+          direction: "SELL",
+          logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
+          evidence_schema_version: 9,
+          symbol: "XAUUSD",
+        },
+      },
     }],
     date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: ACTIVE_SIGNAL_LOGIC_VERSION,
   });
@@ -299,7 +331,12 @@ test("embedded evidence from the displayed signal wins over a stale dedicated re
 
 test("dedicated evidence fallback is normalized to the requested slot identity", () => {
   const evidence = resolveSignalEvidence({
-    evidenceStore: { [`2026-07-30:3:XAUUSD:v${ACTIVE_SIGNAL_LOGIC_VERSION}`]: { direction: "SELL" } },
+    evidenceStore: { [`2026-07-30:3:XAUUSD:v${ACTIVE_SIGNAL_LOGIC_VERSION}`]: {
+      direction: "SELL",
+      logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
+      evidence_schema_version: 9,
+      symbol: "XAUUSD",
+    } },
     signals: [],
     date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: ACTIVE_SIGNAL_LOGIC_VERSION,
   });
@@ -307,6 +344,15 @@ test("dedicated evidence fallback is normalized to the requested slot identity",
   assert.equal(evidence?.hour, 3);
   assert.equal(evidence?.symbol, "XAUUSD");
   assert.equal(evidence?.logic_version, ACTIVE_SIGNAL_LOGIC_VERSION);
+});
+
+test("legacy dedicated evidence is rejected instead of upgraded to v87", () => {
+  const evidence = resolveSignalEvidence({
+    evidenceStore: { [`2026-07-30:3:XAUUSD:v${ACTIVE_SIGNAL_LOGIC_VERSION}`]: { direction: "SELL" } },
+    signals: [],
+    date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: ACTIVE_SIGNAL_LOGIC_VERSION,
+  });
+  assert.equal(evidence, null);
 });
 
 test("free VIP weekend uses the Vietnam calendar at the UTC boundary", () => {

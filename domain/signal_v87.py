@@ -113,6 +113,8 @@ def build_entry_plan(slot_dt: datetime, slot_hour: int, provider, as_of: datetim
         layer2 = _layer(provider, "XAUUSD", "H1", layer2_opens, as_of, "LAYER_2")
         if layer2["group"] == "BT":
             return _entry_result(h, "16:11", "H_11", ("16:11",), layer2, None)
+        if layer2["group"] != "SW":
+            return _entry_result(h, None, None, (), layer2, None)
         layer3_opens = tuple(slot_dt.replace(hour=x, minute=0, second=0, microsecond=0) for x in (10, 9, 8))
         layer3 = _layer(provider, "XAUUSD", "H1", layer3_opens, as_of, "LAYER_3")
         entry = "16:49" if layer3["group"] == "BT" else "17:25" if layer3["group"] == "SW" else None
@@ -123,6 +125,8 @@ def build_entry_plan(slot_dt: datetime, slot_hour: int, provider, as_of: datetim
     if layer2["group"] == "BT":
         entry = f"{h:02d}:11"
         return _entry_result(h, entry, "H_11", (entry,), layer2, None)
+    if layer2["group"] != "SW":
+        return _entry_result(h, None, None, (), layer2, None)
     layer3_opens = (slot_dt, slot_dt - timedelta(minutes=30), slot_dt - timedelta(minutes=60))
     layer3 = _layer(provider, "XAUUSD", "M30", layer3_opens, as_of, "LAYER_3")
     entry = f"{h:02d}:49" if layer3["group"] == "SW" else ("04:25" if h == 3 else f"{h + 1:02d}:25") if layer3["group"] == "BT" else None
@@ -144,12 +148,6 @@ def build_entry_plan(slot_dt: datetime, slot_hour: int, provider, as_of: datetim
 
 
 def _entry_result(hour, entry, branch, candidates, layer2, layer3, entry_state=None):
-    required_layers = (layer2, layer3) if layer3 is not None else (layer2,)
-    has_missing_candle = any(
-        candle.get("state") == "MISSING"
-        for layer in required_layers
-        for candle in layer.get("candles", [])
-    )
     return {
         "symbol": "XAUUSD",
         "slot_hour": hour,
@@ -164,7 +162,7 @@ def _entry_result(hour, entry, branch, candidates, layer2, layer3, entry_state=N
         "timeframe": "H1" if hour == 16 else "M30",
         "source_symbol": "XAUUSD",
         "entry_selection": layer2.get("group") if layer3 is None else layer3.get("group"),
-        "failure_reason": "WAIT_MT4_DATA" if has_missing_candle and not entry and entry_state != "PENDING_LAYER3" else None,
+        "failure_reason": "WAIT_MT4_DATA" if not entry and entry_state != "PENDING_LAYER3" else None,
     }
 
 
@@ -172,6 +170,14 @@ def classify_d_relation(pair_direction: str | None, reference_direction: str | N
     if pair_direction not in ("BUY", "SELL") or reference_direction not in ("BUY", "SELL"):
         return "UNRESOLVED"
     return "SAME_AS_REFERENCE" if pair_direction == reference_direction else "OPPOSITE_TO_REFERENCE"
+
+
+def derive_gbpjpy_signal(reference_signal: str | None, d_relation: str, final_reverse_applied: bool = False) -> str:
+    """Apply the canonical H16 GBPJPY relation and optional final reverse once."""
+    if reference_signal not in ("BUY", "SELL"):
+        return "WAIT"
+    core = reverse_signal(reference_signal) if d_relation == "SAME_AS_REFERENCE" else reference_signal if d_relation == "OPPOSITE_TO_REFERENCE" else "WAIT"
+    return reverse_signal(core) if final_reverse_applied and core in ("BUY", "SELL") else core
 
 
 def _mode_branch(day_mode):
@@ -184,6 +190,8 @@ def _mode_branch(day_mode):
 
 def _reference_base(entry, slot_dt, provider, reference_d, day_mode):
     branch = entry.get("entry_branch")
+    if entry.get("entry_state") != "READY" or branch not in ("H_11", "H_49", "H_PLUS_1_25"):
+        return "WAIT", day_mode, "ENTRY_PLAN_UNRESOLVED"
     if branch == "H_49":
         h1 = _bar(provider, "XAUUSD", "H1", slot_dt - timedelta(hours=1), slot_dt)
         direction = candle_direction(h1)
@@ -196,6 +204,23 @@ def _reference_base(entry, slot_dt, provider, reference_d, day_mode):
     if base == "WAIT" or mode_branch is None:
         return "WAIT", day_mode, "REFERENCE_D_UNRESOLVED"
     return (base if branch == mode_branch else reverse_signal(base)), day_mode, "REFERENCE_D_DAY_MODE"
+
+
+def _requires_reference_d(symbol: str, entry: dict[str, Any]) -> bool:
+    """Return whether one pair needs GBPUSD D for this resolved branch."""
+    return entry.get("entry_branch") != "H_49" or symbol not in ("XAUUSD", "GBPUSD")
+
+
+def _signal_failure_reason(symbol: str, entry: dict[str, Any], d_snapshot: dict[str, dict], final_signal: str) -> str | None:
+    """Keep diagnostics aligned with each pair's actual fail-closed state."""
+    if entry.get("failure_reason"):
+        return entry["failure_reason"]
+    reference_d = (d_snapshot.get("GBPUSD") or {}).get("d_direction")
+    if _requires_reference_d(symbol, entry) and reference_d not in ("BUY", "SELL"):
+        return "WAIT_MT4_DATA"
+    if final_signal not in ("BUY", "SELL"):
+        return "WAIT_MT4_DATA"
+    return None
 
 
 def final_reverse(slot_hour: int, signal_date) -> tuple[bool, str]:
@@ -258,9 +283,7 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
     pair_times = {symbol: entry.get("entry_time") for symbol in PAIRS}
     pair_branches = {symbol: entry.get("entry_branch") for symbol in PAIRS}
     evidence = {symbol: _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, should_reverse, reason, base_source) for symbol in PAIRS}
-    failure_reason = entry.get("failure_reason")
-    if failure_reason is None and reference_d not in ("BUY", "SELL"):
-        failure_reason = "WAIT_MT4_DATA"
+    failure_reason = _signal_failure_reason("XAUUSD", entry, d_snapshot, final["XAUUSD"])
     return {
         "logic_version": 87,
         "signal": final["XAUUSD"],
@@ -319,7 +342,7 @@ def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, revers
         "final_reverse_reason": reason if reversed_once else None,
         "final_signal": final.get(symbol, "WAIT"),
         "base_signal_source": base_source,
-        "failure_reason": entry.get("failure_reason") or (
-            "WAIT_MT4_DATA" if (d_snapshot.get("GBPUSD") or {}).get("d_direction") not in ("BUY", "SELL") else None
+        "failure_reason": _signal_failure_reason(
+            symbol, entry, d_snapshot, final.get(symbol, "WAIT"),
         ),
     }

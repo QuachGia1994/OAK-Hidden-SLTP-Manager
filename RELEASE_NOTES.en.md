@@ -1,5 +1,16 @@
 # RELEASE NOTES
 
+## [Signal logic v87.2] - 2026-08-01
+
+- Document the canonical pipeline as four layers: Layers 2–3 choose the XAUUSD Entry Plan, Layer 1 produces the Reference Signal from GBPUSD D plus the resolved Entry branch/Day Mode (with the H:49 XAU H1 exception), and Layer 4 applies Final Reverse once.
+- Fix the v87 MT4 Feed connection for WebRequest: the EA uses `http://127.0.0.1/mt4-feed` on default HTTP port `80`; `:5001` is now local health/management only. One EA auto-detects symbols per supported chart and replaces the legacy `:5000/mt4_data` feeder.
+- Keep the manual Copy Trade Close All path and existing Auto Closed Opposite behavior untouched; Signal Bot still does not create a duplicate Auto-Close schedule.
+
+## [Signal logic v87.1] - 2026-08-01
+
+- Remove Auto-Close from the Signal Bot completely; it no longer closes positions and Copy Trade does not create a duplicate close schedule from Signal core.
+- Remove special/post-special slot suppression; every H3/H7/H9/H12/H14/H16 slot runs Monday–Friday. Special dates only feed Final Reverse for H3/H14/H16.
+
 ## [Signal logic v87] - 2026-08-01
 
 - Connect the raw MT4 EA feed to a persistent SQLite store; MT4 is the market-data and Broker-clock authority, while MT5 remains execution/account/position only.

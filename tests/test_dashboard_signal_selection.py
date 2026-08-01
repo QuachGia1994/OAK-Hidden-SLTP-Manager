@@ -4,6 +4,9 @@ import os
 import tempfile
 from datetime import datetime, time, timezone
 from unittest.mock import patch
+from mt4_feed_test_environment import install_isolated_mt4_feed_database
+
+install_isolated_mt4_feed_database()
 
 from mt5_signal_bot import (
     SIGNAL_LOGIC_VERSION,
@@ -44,7 +47,7 @@ class DashboardSignalSelectionTests(unittest.TestCase):
 
         self.assertEqual(select_signals_for_dashboard(legacy), [])
 
-    def test_keeps_deactivated_h3_for_warning_card(self):
+    def test_keeps_legacy_deactivated_h3_without_warning_semantics(self):
         h3 = {
             "date": "2026-08-06",
             "hour": 3,

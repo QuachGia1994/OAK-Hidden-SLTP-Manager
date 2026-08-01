@@ -29,11 +29,20 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 ## Signal engine hiện hành
 
 - Chạy Thứ 2 đến Thứ 6 với các logical slot **H=3, H=7, H=9, H=12, H=14, H=16**; signal phát tại `H:00` Broker.
-- H3/H7/H9/H12/H14 dùng hai Layer ba nến M30 XAUUSD. Layer 2 dùng `H−00:30/H−01:00/H−01:30`; Layer 2 BT chọn `H:11`, SW chuyển Layer 3. Layer 3 dùng `H:00/H−00:30/H−01:00`; SW chọn `H:49`, BT chọn `(H+1):25`, riêng H3 là `04:25`.
-- H16 dùng hai Layer H1 XAUUSD: Layer 2 `05:00/04:00/03:00` → BT `16:11`; nếu SW, Layer 3 `10:00/09:00/08:00` → BT `16:49`, SW `17:25`.
-- GBPUSD là Reference Signal; XAUUSD luôn khóa cùng Signal. GBPAUD cùng D thì follow, ngược D thì reverse; GBPJPY/GBPCAD áp dụng ngược lại. Final Reverse chạy đúng một lần sau core.
+- `H4` còn lại trong contract là timeframe D-Direction mở lúc `20:00` Broker của phiên trước, không phải một logical signal slot.
+- **Layer 2–3 — Entry Plan XAUUSD:** H3/H7/H9/H12/H14 phân loại hai nhóm ba nến M30: Layer 2 `H−00:30/H−01:00/H−01:30` → BT `H:11`; SW mở Layer 3 `H:00/H−00:30/H−01:00` → SW `H:49`, BT `(H+1):25`, riêng H3 `04:25`. H16 dùng nhóm H1 XAUUSD độc lập: Layer 2 `05:00/04:00/03:00` → `16:11`; nếu SW, Layer 3 `10:00/09:00/08:00` → BT `16:49`, SW `17:25`.
+- **Layer 1 — Reference Signal:** sau khi Entry Plan chốt nhánh, `H:11` / `(H+1):25` ghép D của GBPUSD với Day Mode chung: cùng nhánh giữ D, khác nhánh đảo D. Riêng `H:49` đảo chiều nến H1 XAUUSD hoàn tất ngay trước slot.
+- **Suy direction theo cặp:** XAUUSD và GBPUSD dùng chung Reference Signal của Layer 1. GBPAUD cùng D follow/ngược D reverse; GBPJPY/GBPCAD áp dụng quan hệ ngược lại.
+- **Layer 4 — Final Reverse:** chạy sau khi suy direction cho năm cặp và chỉ đảo đúng một lần.
+- Special Thu/Fri và post-special Monday không suppress slot; chỉ Final Reverse H3/H14/H16 thay đổi theo weekday/date.
 - D-Direction của cả năm symbol lấy độc lập từ H4 mở `20:00` Broker của phiên trước. Thiếu nến hoặc DOJI trả `WAIT`; không fallback sang MT5.
 - MT4 heartbeat là nguồn duy nhất cho Broker Clock và market-data. MT5 mất kết nối vẫn có thể hiển thị/tính lịch; MT4 stale/disconnected thì Signal fail-closed.
+
+### Cài MT4 Feed v87
+
+1. Chạy MT4 Feed Server trước, sau đó đặt input `FeedBaseURL` của `MT4_Data_Feeder.mq4` v87 là `http://127.0.0.1/mt4-feed` (cổng HTTP mặc định 80). Trong MT4, thêm `http://127.0.0.1` vào quyền **WebRequest**. Cổng `:5001` chỉ dùng cho health/management nội bộ.
+2. EA có thể gắn vào **bất kỳ chart nào** để lưu raw bars: tự đọc `Symbol()`, nhận cả tiền tố/hậu tố broker và chuẩn hóa key an toàn; không cấu hình `SymbolName` thủ công. Core Signal v87 vẫn cần XAUUSD (hoặc GOLD), GBPUSD, GBPAUD, GBPJPY và GBPCAD.
+3. Không dùng endpoint cũ `http://127.0.0.1:5000/mt4_data` hay EA có input `ServerURL`, `BrokerName`, `SymbolName`, `MagicNumber`. Đó là feed trước v87 và sẽ làm server ở trạng thái disconnected.
 
 ## Fact Check AI
 

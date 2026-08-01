@@ -4,7 +4,7 @@ Module này quét toàn bộ các mã cổ phiếu trên 3 sàn (HOSE, HNX, UPCo
 
 ## Mô hình & Quy tắc quét
 
-- **Signal**: Tín hiệu mốc D1 (dựa trên H=4 core); bản ghi cũ tự fallback về hướng XAUUSD cuối cùng.
+- **Signal**: Tín hiệu D1 độc lập từ chuỗi Local EOD đã hoàn tất; không đọc logical slot Forex, D-Direction, MT4 Feed hay XAUUSD.
 - **Vũ trụ cổ phiếu**: Bao phủ 3 sàn HOSE, HNX, UPCoM với các doanh nghiệp niêm yết có vốn hóa ≥ 100 tỷ VND.
 - **Điểm vào tham chiếu**: Giá EOD / phiên chiều của ngày giao dịch.
 - **Kỳ nắm giữ**: Từ ngày signal tới phiên giao dịch kế tiếp.

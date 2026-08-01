@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SignalCard } from "./SignalCard";
+import { SignalCardWithEvidence } from "./SignalCardWithEvidence";
 import { DDirectionPanel } from "./DDirectionPanel";
 import type { Signal, DDirectionSnapshotV2 } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
@@ -90,7 +90,7 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false, init
           <DDirectionPanel snapshot={dSnapshot} date={date} locale={locale} />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {daySignals.map((signal) => (
-              <SignalCard
+              <SignalCardWithEvidence
                 key={`${signal.date}-${signal.hour}`}
                 signal={signal}
                 isVIP={isVIP}

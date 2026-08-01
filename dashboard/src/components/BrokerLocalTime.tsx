@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { isVerifiedBrokerClockMetadata } from "@/lib/broker-time";
 
 interface Props {
   brokerTime?: string | null;
@@ -40,7 +41,17 @@ export function BrokerLocalTime({
       && brokerUtcOffset <= 14
       && Boolean(date);
 
-    if (utcIso && hasVerifiedClock) {
+    const absoluteClockVerified = utcIso
+      ? isVerifiedBrokerClockMetadata({
+          date: date || "",
+          signalTime: brokerTime,
+          signalAtUtc: utcIso,
+          brokerUtcOffset,
+          brokerClockVerified,
+        })
+      : false;
+
+    if (utcIso && absoluteClockVerified) {
       try {
         const utcDt = new Date(utcIso);
         if (!isNaN(utcDt.getTime())) {
@@ -56,7 +67,7 @@ export function BrokerLocalTime({
       }
     }
 
-    if (!localStr && hasVerifiedClock && brokerTime && date) {
+    if (!localStr && !utcIso && hasVerifiedClock && brokerTime && date) {
       try {
         const [h, m] = brokerTime.split(":").map(Number);
         if (Number.isFinite(h) && Number.isFinite(m)) {
