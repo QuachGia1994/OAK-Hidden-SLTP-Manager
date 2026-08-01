@@ -15,7 +15,7 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- Signal engine v72: four GBP pairs independently derive direction from M30; XAUUSD follows GBPAUD direction and selects its own entry through two XAUUSD M30 layers.
+- Signal engine v87: MT4 Feed is the sole market-data and Broker-clock authority; MT5 is execution/account/position only. One XAUUSD Entry Plan is shared by all five pairs.
 - Telegram bridge with profile-safe commands and MiMo worker support. Quick orders accept `<lot> <broker HH:MM> <profile>` and convert it to the Windows clock.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
@@ -33,12 +33,11 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 - Trading days: Monday to Friday.
 - Weekend: no desktop signal, no next slot, no countdown.
 - The only logical slots are **H=3, H=7, H=9, H=12, H=14, and H=16**, Monday through Friday; every slot publishes at Broker `H:00`.
-- Each GBP pair uses four completed M30 candles from that symbol, with close times `H−00:30/H−01:00/H−01:30/H−02:00`. The newest candle is Base; SW reverses Base and BT keeps Base.
-- XAUUSD entry uses two XAUUSD M30 layers. H3 Layer 1 is `02:30/02:00/01:30`, and Layer 2 is `03:00/02:30/02:00/01:30`. Other slots use Layer 1 `H−01:00/H−01:30/H−02:00/H−02:30` and Layer 2 shifted 30 minutes later: `H−00:30/H−01:00/H−01:30/H−02:00`.
-- XAU entry table: `SW+SW → H:49`; `SW+BT → (H+1):25` (H3 uses `04:49`); `BT+SW → H:11`; `BT+BT → H:49`. All four GBP pairs enter at the next full Broker hour after the XAU entry.
-- XAUUSD starts from the final GBPAUD Signal: **H3/H14/H16 reverse it**; **H7/H9/H12 keep it unchanged**. XAU entry still comes from the two XAUUSD layers, never from GBPAUD.
-- Missing candles, invalid OHLC, or a DOJI make the affected Signal/Layer `WAIT`; the engine never looks farther back or falls back to H1, M15, or another symbol.
-- BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations. Absolute UTC used by scheduling/UI is kept separate from the wall-clock timestamp encoding exposed by some MT5 terminals for bars and ticks.
+- H3/H7/H9/H12/H14 use two three-candle XAUUSD M30 layers: Layer 2 `H−00:30/H−01:00/H−01:30` → BT `H:11`; SW moves to Layer 3 `H:00/H−00:30/H−01:00` → SW `H:49`, BT `(H+1):25`, with H3 `04:25`.
+- H16 uses independent XAUUSD H1 layers: `05:00/04:00/03:00` → BT `16:11`; SW then `10:00/09:00/08:00` → BT `16:49`, SW `17:25`.
+- GBPUSD is the Reference Signal and XAUUSD is locked to it. GBPAUD follows/reverses by D relation; GBPJPY/GBPCAD apply the inverse relation. Final Reverse runs exactly once.
+- D-Direction is independent for all five symbols from the previous-session H4 candle opened at `20:00` Broker. Missing/DOJI data returns `WAIT`; there is no MT5 candle fallback.
+- MT4 heartbeat supplies the Broker Clock. MT5 execution loss only disables execution; stale/disconnected MT4 data fails the Signal closed.
 
 ## Fact Check AI
 

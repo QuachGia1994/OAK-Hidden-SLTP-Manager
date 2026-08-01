@@ -9,22 +9,22 @@ from domain import copy_trade_manager
 CURRENT_RECORD = {
     "date": "2026-07-28",
     "hour": 9,
-    "logic_version": 80,
+    "logic_version": 87,
     "signal_time": "09:00",
     "entry_time": "09:49",
     "pair_dirs": {
         "XAUUSD": "BUY",
-        "GBPUSD": "SELL",
+        "GBPUSD": "BUY",
         "GBPAUD": "SELL",
-        "GBPJPY": "WAIT",
-        "GBPCAD": "WAIT",
+        "GBPJPY": "SELL",
+        "GBPCAD": "SELL",
     },
     "pair_entry_times": {
         "XAUUSD": "09:49",
-        "GBPUSD": "10:00",
-        "GBPAUD": "10:00",
-        "GBPJPY": None,
-        "GBPCAD": None,
+        "GBPUSD": "09:49",
+        "GBPAUD": "09:49",
+        "GBPJPY": "09:49",
+        "GBPCAD": "09:49",
     },
 }
 

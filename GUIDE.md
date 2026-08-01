@@ -11,16 +11,17 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 
 ## Signal engine
 
-- Bốn hướng GBP được tính độc lập từ M30 của chính từng symbol. Hướng XAUUSD follow GBPAUD; entry XAUUSD được chọn riêng từ hai layer XAUUSD M30.
-- Output: `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`, mỗi symbol có entry riêng trong record/API.
+- MT5 execution gateway ghi intent theo khóa idempotency v87; chỉ gửi lệnh khi profile bật `signal_execution_enabled=true` hoặc biến môi trường `SIGNAL_BOT_EXECUTION_ENABLED=true`.
+
+- MT4 Feed là nguồn market-data và Broker Clock duy nhất; MT5 chỉ dùng cho execution/account/position.
+- Output gồm `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`; cả năm symbol dùng chung Entry Plan XAUUSD nhưng direction riêng theo Reference/D relation.
 - Chạy Thứ 2 đến Thứ 6; cuối tuần tắt toàn bộ slot.
 - Slot active: **H=3, H=7, H=9, H=12, H=14, H=16**; tất cả phát đúng `H:00` Broker.
-- Signal GBP dùng bốn giờ đóng M30 `H−00:30/H−01:00/H−01:30/H−02:00`; cây gần nhất là Base. Ma trận 10 rule phân SW/BT; SW đảo Base, BT giữ Base.
-- XAU Layer 1 tạo hai candidate entry, Layer 2 chọn kết quả cuối. H3 dùng Layer 1 `02:30/02:00/01:30` và Layer 2 `03:00/02:30/02:00/01:30`; các slot khác dùng hai cửa sổ bốn nến cách nhau 30 phút.
-- Entry XAU: `SW+SW → H:49`, `SW+BT → (H+1):25` (H3 `04:49`), `BT+SW → H:11`, `BT+BT → H:49`. Entry của bốn GBP pair là giờ Broker tròn kế tiếp sau entry XAU.
-- XAUUSD lấy Signal cuối của GBPAUD: H3/H14/H16 đảo ngược; H7/H9/H12 giữ nguyên. Không dùng kết quả layer XAU để đổi hướng.
-- Thiếu nến, OHLC sai hoặc DOJI trả `WAIT` cho Signal/Layer bị ảnh hưởng; không dùng H1/M15 hoặc symbol khác làm fallback.
-- BrokerClock hiệu chỉnh từ tick live mới của terminal và fail-closed nếu tick stale, thiếu hoặc mâu thuẫn; UTC tuyệt đối được tách khỏi timestamp wall-clock của dữ liệu MT5.
+- H3/H7/H9/H12/H14 dùng hai Layer ba nến M30 XAUUSD: Layer 2 `H−00:30/H−01:00/H−01:30`; BT → `H:11`, SW → Layer 3 `H:00/H−00:30/H−01:00`; Layer 3 SW → `H:49`, BT → `(H+1):25`, riêng H3 `04:25`.
+- H16 dùng Layer H1 XAUUSD `05:00/04:00/03:00`; BT → `16:11`, SW → Layer 3 `10:00/09:00/08:00`; Layer 3 BT → `16:49`, SW → `17:25`.
+- GBPUSD là Reference Signal và XAUUSD khóa cùng Signal. GBPAUD cùng D follow/ngược D reverse; GBPJPY/GBPCAD cùng D reverse/ngược D follow. Final Reverse chỉ áp dụng một lần.
+- Thiếu nến, OHLC sai hoặc DOJI trả `WAIT`; không dùng MT5 candle fallback.
+- MT4 heartbeat là nguồn Broker Clock; MT4 stale/disconnected thì Signal fail-closed, còn MT5 disconnected chỉ khóa execution.
 
 ### Ma trận core
 
@@ -50,7 +51,7 @@ Google và DuckDuckGo thu thập bằng chứng. AI là lớp phản biện tùy
 
 - Lệnh nhanh Telegram dùng `<lot> <HH:MM broker> <profile>` (ví dụ `0.01 09:15 vantage`); giờ thực thi độc lập với giờ H của signal và được đổi sang giờ Windows trước khi xếp lịch. Chỉ phản hồi hợp lệ của user mới tạo `/pending`.
 - Lệnh đóng có giờ được đưa vào hàng đợi, không đóng ngay.
-- Signal bot đóng toàn bộ position `XAUUSD*` lúc `17:59` Broker và toàn bộ `GBPAUD*`, `GBPCAD*`, `GBPJPY*`, `GBPUSD*` lúc `19:59` Broker. Quy tắc intraday này cố ý không lọc profile, magic number hay comment.
+- Signal bot không tự sinh lịch Auto-Close; đóng lệnh thủ công theo lịch của người dùng.
 - Worker thực thi guardrail Copy Trading, giới hạn ngày và kill switch.
 - Signal chỉ là hỗ trợ quyết định, không phải bảo đảm giao dịch.
 

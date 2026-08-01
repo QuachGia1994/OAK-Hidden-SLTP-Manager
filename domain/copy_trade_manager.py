@@ -40,7 +40,7 @@ from domain.broker_clock import BrokerClock
 log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 80
+MINIMUM_SIGNAL_LOGIC_VERSION = 87
 _BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(_PROJECT_ROOT, "broker_clock_cache.json"),
@@ -60,7 +60,7 @@ def _is_current_signal_record(record):
     pair_dirs = record.get("pair_dirs")
     return (
         hour in ACTIVE_SIGNAL_SLOTS
-        and logic_version >= MINIMUM_SIGNAL_LOGIC_VERSION
+        and logic_version == MINIMUM_SIGNAL_LOGIC_VERSION
         and isinstance(pair_dirs, dict)
         and pair_dirs.get("XAUUSD") in ("BUY", "SELL")
     )

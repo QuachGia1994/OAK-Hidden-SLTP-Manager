@@ -13,7 +13,8 @@ class TestAutoCloseRemoved(unittest.TestCase):
     def test_startup_telegram_message_structure(self):
         msg = build_startup_telegram_message(datetime(2026, 7, 31, 5, 0, 0), True)
         self.assertIn(f"v{SIGNAL_LOGIC_VERSION}", msg)
-        self.assertIn("Independent M30 Entry + H4 20:00 D", msg)
+        self.assertIn("Entry: Common XAUUSD Entry", msg)
+        self.assertIn("Market data MT4", msg)
 
     def test_contract_rules_state_no_auto_close(self):
         import json

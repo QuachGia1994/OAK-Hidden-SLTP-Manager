@@ -11,9 +11,9 @@ const validState = {
 };
 
 test("advances a fresh, consistent Broker clock from its UTC observation", () => {
-  assert.deepEqual(getBrokerDateParts(validState, new Date("2026-08-06T00:02:30Z")), {
+  assert.deepEqual(getBrokerDateParts(validState, new Date("2026-08-06T00:00:30Z")), {
     currentHour: 3,
-    currentMinute: 2,
+    currentMinute: 0,
     dayOfWeek: 4,
     todayStr: "2026-08-06",
   });
@@ -36,12 +36,12 @@ test("derives the Broker calendar date across a UTC day boundary", () => {
   const state = {
     date: "2026-08-07",
     broker_utc_offset: 3,
-    broker_time: "2026-08-07T00:59:00",
-    broker_observed_at_utc: "2026-08-06T21:59:00Z",
+    broker_time: "2026-08-07T00:59:30",
+    broker_observed_at_utc: "2026-08-06T21:59:30Z",
   };
-  assert.deepEqual(getBrokerDateParts(state, new Date("2026-08-06T22:01:00Z")), {
+  assert.deepEqual(getBrokerDateParts(state, new Date("2026-08-06T22:00:30Z")), {
     currentHour: 1,
-    currentMinute: 1,
+    currentMinute: 0,
     dayOfWeek: 5,
     todayStr: "2026-08-07",
   });

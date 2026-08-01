@@ -5,7 +5,7 @@ import type { DDirectionSnapshotV2, DDirectionSymbolData } from "@/lib/types";
 import { DDirectionDrawer } from "./DDirectionDrawer";
 
 const DISPLAY_SYMBOLS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
-const OFF_SYMBOLS = new Set(["GBPJPY", "GBPCAD"]);
+const OFF_SYMBOLS = new Set<string>();
 
 const DEFAULT_DIGITS: Record<string, number> = {
   XAUUSD: 2,
@@ -105,6 +105,7 @@ export function DDirectionPanel({ snapshot, date, locale, className = "" }: Prop
 
       <DDirectionDrawer
         symbolData={selectedSymbol}
+        referenceDirection={symbols.GBPUSD?.d_direction || "WAIT"}
         open={Boolean(selectedSymbol)}
         onClose={() => setSelectedSymbol(null)}
       />
@@ -191,9 +192,7 @@ function DDirectionCard({
               {locale === "EN" ? "Source:" : "Nguồn:"}
             </span>
             <span className="font-mono font-bold text-[var(--terminal-accent)]">
-              {symbol === "XAUUSD"
-                ? "GBPUSD H4 20:00"
-                : `${symbol} H4 20:00`}
+              {`${symbol} H4 20:00`}
             </span>
           </div>
 

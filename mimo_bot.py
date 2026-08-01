@@ -53,7 +53,7 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(PROJECT_DIR, "profiles.json")
 SETTINGS_FILE = os.path.join(PROJECT_DIR, "settings.json")
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 80
+MINIMUM_SIGNAL_LOGIC_VERSION = 87
 
 # Files cho OAK integration
 TELE_INBOX_FILE = os.path.join(PROJECT_DIR, "tele_inbox.json")
@@ -116,7 +116,7 @@ def _is_current_signal_record(record):
     pair_dirs = record.get("pair_dirs")
     return (
         hour in ACTIVE_SIGNAL_SLOTS
-        and logic_version >= MINIMUM_SIGNAL_LOGIC_VERSION
+        and logic_version == MINIMUM_SIGNAL_LOGIC_VERSION
         and isinstance(pair_dirs, dict)
         and pair_dirs.get("XAUUSD") in ("BUY", "SELL")
     )

@@ -1,6 +1,6 @@
 import type { Signal, BotState, NewsItem, StockAdvisory, DDirectionSnapshotV2 } from "./types";
 import { redis, KEYS } from "./redis";
-import { isActiveSignalHour } from "./constants";
+import { ACTIVE_SIGNAL_LOGIC_VERSION, filterDisplayableSignals } from "./constants";
 export { maskStockAdvisory } from "./stock-advisor-display";
 
 export interface DataResult<T> {
@@ -30,7 +30,7 @@ export async function getTodaySignalsResult(): Promise<DataResult<Signal[]>> {
   const res = await getSignalsResult();
   if (!res.ok) return res;
   return {
-    data: res.data.filter((s) => isActiveSignalHour(s.hour)),
+    data: filterDisplayableSignals(res.data),
     ok: true,
   };
 }
@@ -71,7 +71,7 @@ export async function getCurrentDDirectionResult(): Promise<DataResult<DDirectio
     const raw = await redis.get(KEYS.dDirectionCurrent);
     if (!raw) return { data: null, ok: true };
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    return { data: parsed as DDirectionSnapshotV2, ok: true };
+    return { data: isCurrentDDirectionSnapshot(parsed) ? parsed as DDirectionSnapshotV2 : null, ok: true };
   } catch (e) {
     console.error("[REDIS READ D-DIRECTION FAILED]", e);
     return { data: null, ok: false, error: "REDIS_READ_FAILED" };
@@ -82,7 +82,8 @@ export async function getDDirectionByDate(date: string): Promise<DDirectionSnaps
   try {
     const raw = await redis.hget(KEYS.dDirectionHistory, date);
     if (!raw) return null;
-    return typeof raw === "string" ? JSON.parse(raw) : (raw as DDirectionSnapshotV2);
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return isCurrentDDirectionSnapshot(parsed) ? parsed as DDirectionSnapshotV2 : null;
   } catch {
     return null;
   }
@@ -99,7 +100,8 @@ export async function getDDirectionHistoryResult(
     for (const [key, raw] of Object.entries(historyMap)) {
       if ((!from || key >= from) && (!to || key <= to)) {
         try {
-          result[key] = typeof raw === "string" ? JSON.parse(raw) : (raw as DDirectionSnapshotV2);
+          const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+          if (isCurrentDDirectionSnapshot(parsed)) result[key] = parsed as DDirectionSnapshotV2;
         } catch {
           // ignore parsing error for corrupted entries
         }
@@ -109,4 +111,12 @@ export async function getDDirectionHistoryResult(
   } catch {
     return {};
   }
+}
+
+function isCurrentDDirectionSnapshot(value: unknown): value is DDirectionSnapshotV2 {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as Record<string, unknown>;
+  return Number(snapshot.logic_version) === ACTIVE_SIGNAL_LOGIC_VERSION
+    && Number(snapshot.schema_version) === 9
+    && typeof snapshot.target_local_date === "string";
 }

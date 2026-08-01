@@ -6,6 +6,8 @@ interface Props {
   brokerTime?: string | null;
   utcIso?: string | null;
   brokerUtcOffset?: number | null;
+  /** Local conversion is shown only when the feed explicitly verified the clock. */
+  brokerClockVerified?: boolean;
   date?: string | null;
   labelLocal?: string;
   labelBroker?: string;
@@ -18,6 +20,7 @@ export function BrokerLocalTime({
   brokerTime,
   utcIso,
   brokerUtcOffset,
+  brokerClockVerified = false,
   date,
   labelLocal = "GMT+7",
   labelBroker = "Broker",
@@ -30,7 +33,14 @@ export function BrokerLocalTime({
     let localStr: string | null = null;
     let brokerStr: string = brokerTime || "--:--";
 
-    if (utcIso) {
+    const hasVerifiedClock = brokerClockVerified === true
+      && typeof brokerUtcOffset === "number"
+      && Number.isInteger(brokerUtcOffset)
+      && brokerUtcOffset >= -12
+      && brokerUtcOffset <= 14
+      && Boolean(date);
+
+    if (utcIso && hasVerifiedClock) {
       try {
         const utcDt = new Date(utcIso);
         if (!isNaN(utcDt.getTime())) {
@@ -46,7 +56,7 @@ export function BrokerLocalTime({
       }
     }
 
-    if (!localStr && brokerTime && brokerUtcOffset !== undefined && brokerUtcOffset !== null && date) {
+    if (!localStr && hasVerifiedClock && brokerTime && date) {
       try {
         const [h, m] = brokerTime.split(":").map(Number);
         if (Number.isFinite(h) && Number.isFinite(m)) {
@@ -68,7 +78,7 @@ export function BrokerLocalTime({
     }
 
     return { localTime: localStr, brokerTimeDisplay: brokerStr };
-  }, [brokerTime, utcIso, brokerUtcOffset, date]);
+  }, [brokerTime, utcIso, brokerUtcOffset, brokerClockVerified, date]);
 
   if (badgeStyle) {
     return (

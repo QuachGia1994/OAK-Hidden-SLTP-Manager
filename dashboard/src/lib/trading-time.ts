@@ -1,6 +1,8 @@
 import type { BotState } from "./types";
 
-export const BROKER_CLOCK_MAX_AGE_MS = 5 * 60_000;
+// Keep the UI's fail-closed threshold aligned with the MT4 feed contract:
+// connected/degraded heartbeats are usable through 60 seconds.
+export const BROKER_CLOCK_MAX_AGE_MS = 60_000;
 const BROKER_CLOCK_MAX_FUTURE_MS = 30_000;
 const CLOCK_CONSISTENCY_TOLERANCE_MS = 90_000;
 const BROKER_WALL_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/;

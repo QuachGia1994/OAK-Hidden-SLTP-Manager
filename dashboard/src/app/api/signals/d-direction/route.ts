@@ -1,8 +1,17 @@
 import { NextResponse } from "next/server";
 import { redis, KEYS, requireAuth } from "@/lib/redis";
 import type { DDirectionSnapshotV2 } from "@/lib/types";
+import { ACTIVE_SIGNAL_LOGIC_VERSION } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
+
+function isCurrentSnapshot(value: unknown): value is DDirectionSnapshotV2 {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as Record<string, unknown>;
+  return Number(snapshot.logic_version) === ACTIVE_SIGNAL_LOGIC_VERSION
+    && Number(snapshot.schema_version) === 9
+    && typeof snapshot.target_local_date === "string";
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -18,9 +27,11 @@ export async function GET(request: Request) {
         for (const [key, raw] of Object.entries(historyMap)) {
           if (key >= from && key <= to) {
             try {
-              result[key] = typeof raw === "string" ? JSON.parse(raw) : raw;
+              const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+              if (isCurrentSnapshot(parsed)) result[key] = parsed;
             } catch {
-              result[key] = raw;
+              // Ignore malformed/legacy history; callers must never receive a
+              // snapshot that cannot be validated against the v87 contract.
             }
           }
         }
@@ -34,6 +45,12 @@ export async function GET(request: Request) {
       const raw = await redis.hget(KEYS.dDirectionHistory, date);
       if (raw) {
         const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+        if (!isCurrentSnapshot(parsed)) {
+          return NextResponse.json(
+            { error: "D_HISTORY_NOT_FOUND", date },
+            { status: 404, headers: { "Cache-Control": "private, no-store" } },
+          );
+        }
         return NextResponse.json(parsed, {
           headers: { "Cache-Control": "private, no-store" },
         });
@@ -45,7 +62,7 @@ export async function GET(request: Request) {
     }
 
     const current = (await redis.get(KEYS.dDirectionCurrent)) as DDirectionSnapshotV2 | null;
-    if (current) {
+    if (current && isCurrentSnapshot(current)) {
       return NextResponse.json(current, {
         headers: { "Cache-Control": "private, no-store" },
       });
@@ -53,8 +70,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        schema_version: 2,
-        logic_version: 82,
+        schema_version: 9,
+        logic_version: 87,
         target_local_date: date || new Date().toISOString().slice(0, 10),
         target_broker_date: date || new Date().toISOString().slice(0, 10),
         published_at_utc: "",
@@ -90,6 +107,12 @@ export async function POST(request: Request) {
     const symbols = body.symbols;
     if (!targetDate || !symbols || typeof symbols !== "object") {
       return NextResponse.json({ ok: false, error: "Missing target_local_date or symbols" }, { status: 400 });
+    }
+    if (typeof targetDate !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      return NextResponse.json({ ok: false, error: "target_local_date must be YYYY-MM-DD" }, { status: 400 });
+    }
+    if (Number(body.logic_version) !== ACTIVE_SIGNAL_LOGIC_VERSION || Number(body.schema_version) !== 9) {
+      return NextResponse.json({ ok: false, error: "unsupported D-Direction contract version" }, { status: 400 });
     }
 
     const payload = JSON.stringify(body);

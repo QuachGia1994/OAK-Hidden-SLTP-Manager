@@ -37,7 +37,7 @@ test("uses only the approved logical slots and signal times", () => {
     "03:00", "07:00", "09:00", "12:00", "14:00", "16:00",
   ]);
   assert.equal(getSignalTime(5), "--:--");
-  assert.equal(getEntryTimeLabel(3), "03:11 / 03:49 / 04:49");
+  assert.equal(getEntryTimeLabel(3), "03:11 / 03:49 / 04:25");
   assert.equal(getSignalTime(9, "2026-08-06"), "09:00");
   assert.equal(getEntryTimeLabel(7, "2026-08-06"), "07:11 / 07:49 / 08:25");
   assert.equal(getEntryTimeLabel(9, "2026-08-06"), "09:11 / 09:49 / 10:25");
@@ -79,7 +79,7 @@ test("includes H12, H14 and H16 on special and post-special sessions", () => {
   ]);
 });
 
-test("rejects every active record before the v72 M30 contract", () => {
+test("rejects every active record before the v87 contract", () => {
   assert.deepEqual(filterDisplayableSignals([
     { date: "2026-07-25", hour: 3, signal: "BUY", pair_dirs: { XAUUSD: "BUY" } },
     { date: "2026-07-26", hour: 3, logic_version: 48, signal: "BUY", pair_dirs: { XAUUSD: "BUY" } },
@@ -91,9 +91,7 @@ test("rejects every active record before the v72 M30 contract", () => {
     { date: "2026-07-27", hour: 12, logic_version: ACTIVE_SIGNAL_LOGIC_VERSION + 1, signal: "SELL", pair_dirs: { XAUUSD: "SELL" } },
     { date: "2026-07-27", hour: 5, logic_version: ACTIVE_SIGNAL_LOGIC_VERSION, signal: "BUY", pair_dirs: { XAUUSD: "BUY" } },
     { date: "2026-07-27", hour: 14, logic_version: ACTIVE_SIGNAL_LOGIC_VERSION, signal: "BUY", pair_dirs: { GBPUSD: "BUY" } },
-  ]), [
-    { date: "2026-07-27", hour: 12, logic_version: ACTIVE_SIGNAL_LOGIC_VERSION + 1, signal: "SELL", pair_dirs: { XAUUSD: "SELL" } },
-  ]);
+  ]), []);
 });
 
 test("converts local time only with verified, consistent Broker clock metadata", () => {
@@ -202,7 +200,7 @@ test("fails closed until each displayed pair has a validated entry", () => {
   };
   assert.equal(isSignalPairReady(partial, "XAUUSD"), true);
   assert.equal(isSignalPairReady(partial, "GBPUSD"), false);
-  assert.equal(countReadySignalPairs(partial), 2);
+  assert.equal(countReadySignalPairs(partial), 4);
 });
 
 test("public signal masking removes entries, groups, and evidence", () => {
@@ -242,7 +240,7 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows current v84 signal rules", () => {
+test("shows current v87 signal rules", () => {
   const rules = getDayRules("EN", 2);
   assert.equal(rules.some((rule) => rule.includes("Day Mode")), true);
   assert.equal(rules.some((rule) => rule.includes("independently")), true);
@@ -257,7 +255,7 @@ test("XAUUSD, GBPUSD, and GBPAUD open per-symbol evidence drawers", () => {
   assert.equal(card.includes("EVIDENCE_SIGNAL_PAIRS"), true);
   assert.equal(card.includes("hasEvidenceForPair(signal, pair)"), true);
   assert.equal(drawer.includes("titleSuffix"), true);
-  assert.equal(drawer.includes("ENTRY ENGINE ONLY"), true);
+  assert.equal(drawer.includes("COMMON XAUUSD ENTRY"), true);
 });
 
 test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
@@ -267,7 +265,7 @@ test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
     signals: [{
       date: "2026-07-30",
       hour: 3,
-      logic_version: 72,
+      logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
       pair_evidence: { XAUUSD: embedded },
       pair_entry_times: { XAUUSD: "03:49", GBPAUD: "04:00" },
       pair_entry_states: { XAUUSD: "READY" },
@@ -276,7 +274,7 @@ test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
     date: "2026-07-30",
     hour: 3,
     symbol: "XAUUSD",
-    logicVersion: 72,
+    logicVersion: ACTIVE_SIGNAL_LOGIC_VERSION,
   });
   assert.equal(evidence?.direction, "SELL");
   assert.equal(evidence?.entry_time, "03:49");
@@ -287,12 +285,12 @@ test("evidence lookup falls back to embedded startup-rebuild evidence", () => {
 test("embedded evidence from the displayed signal wins over a stale dedicated record", () => {
   const direct = { direction: "BUY", entry_time: "03:11" };
   const evidence = resolveSignalEvidence({
-    evidenceStore: { "2026-07-30:3:XAUUSD:v72": direct },
+    evidenceStore: { [`2026-07-30:3:XAUUSD:v${ACTIVE_SIGNAL_LOGIC_VERSION}`]: direct },
     signals: [{
-      date: "2026-07-30", hour: 3, logic_version: 72,
+      date: "2026-07-30", hour: 3, logic_version: ACTIVE_SIGNAL_LOGIC_VERSION,
       pair_evidence: { XAUUSD: { direction: "SELL" } },
     }],
-    date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: 72,
+    date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: ACTIVE_SIGNAL_LOGIC_VERSION,
   });
   assert.equal(evidence?.direction, "SELL");
   assert.equal(evidence?.date, "2026-07-30");
@@ -301,14 +299,14 @@ test("embedded evidence from the displayed signal wins over a stale dedicated re
 
 test("dedicated evidence fallback is normalized to the requested slot identity", () => {
   const evidence = resolveSignalEvidence({
-    evidenceStore: { "2026-07-30:3:XAUUSD:v72": { direction: "SELL" } },
+    evidenceStore: { [`2026-07-30:3:XAUUSD:v${ACTIVE_SIGNAL_LOGIC_VERSION}`]: { direction: "SELL" } },
     signals: [],
-    date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: 72,
+    date: "2026-07-30", hour: 3, symbol: "XAUUSD", logicVersion: ACTIVE_SIGNAL_LOGIC_VERSION,
   });
   assert.equal(evidence?.date, "2026-07-30");
   assert.equal(evidence?.hour, 3);
   assert.equal(evidence?.symbol, "XAUUSD");
-  assert.equal(evidence?.logic_version, 72);
+  assert.equal(evidence?.logic_version, ACTIVE_SIGNAL_LOGIC_VERSION);
 });
 
 test("free VIP weekend uses the Vietnam calendar at the UTC boundary", () => {
@@ -325,7 +323,7 @@ test("free VIP weekend uses the Vietnam calendar at the UTC boundary", () => {
 test("resolver and card contain no removed pending-followup states", () => {
   const resolver = fs.readFileSync(new URL("../src/lib/signal-resolver.ts", import.meta.url), "utf8");
   const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
-  for (const removed of ["terminal_wait", "PENDING_BASE_CANDLE", "PENDING_FOLLOWUP", "WAIT UNTIL H7"]) {
+  for (const removed of ["terminal_wait", "PENDING_BASE_CANDLE", "PENDING_FOLLOWUP", "WAIT UNTIL H7", "NEXT_FULL_BROKER_HOUR"]) {
     assert.equal(resolver.includes(removed), false);
     assert.equal(card.includes(removed), false);
   }

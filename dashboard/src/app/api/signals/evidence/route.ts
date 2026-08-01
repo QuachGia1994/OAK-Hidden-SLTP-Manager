@@ -7,9 +7,22 @@ import type { Signal, SignalEvidence } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+const EVIDENCE_KEY = /^(\d{4}-\d{2}-\d{2}):(\d+):(XAUUSD|GBPUSD|GBPAUD|GBPJPY|GBPCAD):v(\d+)$/;
+
+function isCurrentEvidenceEntry(key: string, value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const match = EVIDENCE_KEY.exec(key);
+  if (!match || Number(match[4]) !== ACTIVE_SIGNAL_LOGIC_VERSION) return false;
+  const evidence = value as Record<string, unknown>;
+  return Number(evidence.logic_version) === ACTIVE_SIGNAL_LOGIC_VERSION
+    && Number(evidence.evidence_schema_version) === 9
+    && Number(evidence.hour) === Number(match[2])
+    && evidence.symbol === match[3];
+}
+
 /** GET /api/signals/evidence?date=YYYY-MM-DD&hour=H&symbol=XAUUSD
  *
- * Returns v72 M30 evidence for one symbol in the given date/hour slot.
+ * Returns v87 common XAU entry + independent D/relation evidence for one pair.
  * VIP-only: non-VIP requests receive 403.
  * Response headers include Cache-Control: private, no-store.
  */
@@ -34,8 +47,8 @@ export async function GET(request: Request) {
   }
 
   const requestedVersion = version === null ? ACTIVE_SIGNAL_LOGIC_VERSION : Number(version);
-  if (!Number.isInteger(requestedVersion) || requestedVersion < 1 || requestedVersion > 999) {
-    return NextResponse.json({ error: "invalid version" }, { status: 400 });
+  if (requestedVersion !== ACTIVE_SIGNAL_LOGIC_VERSION) {
+    return NextResponse.json({ error: "unsupported signal logic version" }, { status: 400 });
   }
 
   const parsedDate = new Date(`${date}T00:00:00Z`);
@@ -61,7 +74,8 @@ export async function GET(request: Request) {
       symbol,
       logicVersion: requestedVersion,
     });
-    if (!evidence) {
+    const evidenceKey = `${date}:${hourNum}:${symbol}:v${requestedVersion}`;
+    if (!evidence || !isCurrentEvidenceEntry(evidenceKey, evidence)) {
       return NextResponse.json({ error: "evidence not found for this slot and version" }, { status: 404 });
     }
 
@@ -89,8 +103,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, error: "body must be an object" }, { status: 400 });
     }
 
-    const incoming = body as Record<string, SignalEvidence>;
-    const existing = ((await redis.get(KEYS.evidence)) as Record<string, SignalEvidence>) || {};
+    const rawIncoming = body as Record<string, SignalEvidence>;
+    const incoming = Object.fromEntries(
+      Object.entries(rawIncoming).filter(([key, value]) => isCurrentEvidenceEntry(key, value)),
+    ) as Record<string, SignalEvidence>;
+    if (Object.keys(incoming).length === 0) {
+      return NextResponse.json({ ok: false, error: "no current v87 evidence entries" }, { status: 400 });
+    }
+    const rawExisting = ((await redis.get(KEYS.evidence)) as Record<string, SignalEvidence>) || {};
+    const existing = Object.fromEntries(
+      Object.entries(rawExisting).filter(([key, value]) => isCurrentEvidenceEntry(key, value)),
+    ) as Record<string, SignalEvidence>;
 
     // Merge: replace existing keys with incoming
     const merged = { ...existing, ...incoming };

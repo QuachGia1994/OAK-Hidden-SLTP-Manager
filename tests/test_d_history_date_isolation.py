@@ -1,38 +1,53 @@
 import unittest
-from datetime import date
-from unittest.mock import patch, MagicMock
-from mt5_signal_bot import build_d_direction_snapshot_for_date, MT4FeedProvider
+import os
+import tempfile
+from datetime import date, datetime, timezone
+
+from mt5_signal_bot import MT4FeedProvider, build_d_direction_snapshot_for_date
+from repositories.mt4_feed_store import MT4FeedStore
+
 
 class TestDHistoryDateIsolation(unittest.TestCase):
-    @patch("mt5_signal_bot.calculate_all_d_directions")
-    def test_history_snapshots_have_isolated_dates_and_objects(self, mock_calc):
-        def fake_calc(target_broker_date):
-            session = f"2026-07-{target_broker_date.day - 1:02d}"
-            return {
-                "GBPUSD": {
-                    "d_state": "READY",
-                    "d_direction": "SELL" if target_broker_date.day % 2 == 0 else "BUY",
-                    "candle": {"open": "1.3400", "high": "1.3500", "low": "1.3300", "close": "1.3450"},
-                    "session_date": session,
-                    "source_symbol": "GBPUSD",
-                }
-            }
+    def test_each_target_date_selects_its_own_previous_session(self):
+        temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+        temp_db.close()
+        store = MT4FeedStore(db_path=temp_db.name)
+        self.addCleanup(store.close)
+        self.addCleanup(lambda: os.path.exists(temp_db.name) and os.unlink(temp_db.name))
+        provider = MT4FeedProvider(feed_store=store)
+        for heartbeat_date in ("2026-07-29", "2026-07-30", "2026-07-31"):
+            store.save_heartbeat({
+                "schema_version": 2,
+                "source_id": "test-ea",
+                "broker_time": f"{heartbeat_date}T14:00:00",
+                "broker_utc_offset": 3,
+                "observed_at_utc": datetime.now(timezone.utc).isoformat(),
+            })
+        for symbol in ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"):
+            for session_date, opening, closing in (
+                (date(2026, 7, 28), "1.0", "2.0"),
+                (date(2026, 7, 29), "2.0", "1.0"),
+                (date(2026, 7, 30), "3.0", "4.0"),
+            ):
+                provider.register_bars(symbol, "H4", [{
+                    "broker_dt": datetime.combine(session_date, datetime.min.time()).replace(hour=20),
+                    "open": float(opening),
+                    "high": max(float(opening), float(closing)),
+                    "low": min(float(opening), float(closing)),
+                    "close": float(closing),
+                    "open_exact": opening,
+                    "close_exact": closing,
+                    "is_complete": True,
+                }])
 
-        mock_calc.side_effect = fake_calc
-        provider = MT4FeedProvider()
-        mock_clock = MagicMock()
-        mock_clock.utc_offset_for_date.return_value = 3
-        mock_clock.broker_from_utc_datetime.side_effect = lambda dt: dt + timedelta(hours=3)
+        first = build_d_direction_snapshot_for_date(date(2026, 7, 29), provider)
+        second = build_d_direction_snapshot_for_date(date(2026, 7, 30), provider)
+        third = build_d_direction_snapshot_for_date(date(2026, 7, 31), provider)
+        self.assertEqual(first["symbols"]["GBPUSD"]["session_date"], "2026-07-28")
+        self.assertEqual(second["symbols"]["GBPUSD"]["session_date"], "2026-07-29")
+        self.assertEqual(third["symbols"]["GBPUSD"]["session_date"], "2026-07-30")
+        self.assertIsNot(first["symbols"], second["symbols"])
 
-        snap_31 = build_d_direction_snapshot_for_date(date(2026, 7, 31), provider, mock_clock)
-        snap_30 = build_d_direction_snapshot_for_date(date(2026, 7, 30), provider, mock_clock)
-
-        self.assertIsNot(snap_31, snap_30)
-        self.assertNotEqual(snap_31["target_local_date"], snap_30["target_local_date"])
-
-        # Mutate snap_31 and assert snap_30 is untouched
-        snap_31["symbols"]["GBPUSD"]["candle"]["open"] = "0.0000"
-        self.assertEqual(snap_30["symbols"]["GBPUSD"]["candle"]["open"], "1.3400")
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@ import { ACTIVE_SIGNAL_LOGIC_VERSION } from "./generated-signal-rules.js";
 import type { SignalEvidenceUnion } from "./types.ts";
 import { isSignalEvidenceV3 } from "./types.ts";
 
-const EVIDENCE_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD"] as const;
+const EVIDENCE_PAIRS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
 
 export type EvidencePair = (typeof EVIDENCE_PAIRS)[number];
 
@@ -59,7 +59,7 @@ export function resolveSignalEvidence(
         if (evidence && typeof evidence === "object" && symbol in evidence) {
           const ev = evidence[symbol] as Record<string, unknown> | undefined;
           if (ev && typeof ev === "object") {
-            return { ...ev, logic_version: logicVer, date, hour, symbol, evidence_schema_version: 3 };
+          return { ...ev, logic_version: logicVer, date, hour, symbol, evidence_schema_version: Number(ev.evidence_schema_version ?? 9) };
           }
         }
       }
@@ -84,7 +84,7 @@ export function resolveSignalEvidence(
       date: d,
       hour: h,
       symbol: sym,
-      evidence_schema_version: 3,
+      evidence_schema_version: Number((embedded as Record<string, unknown>).evidence_schema_version ?? 9),
     };
   }
 
@@ -97,7 +97,7 @@ export function resolveSignalEvidence(
       date: d,
       hour: h,
       symbol: sym,
-      evidence_schema_version: 3,
+      evidence_schema_version: Number((direct as Record<string, unknown>).evidence_schema_version ?? 9),
     };
   }
 

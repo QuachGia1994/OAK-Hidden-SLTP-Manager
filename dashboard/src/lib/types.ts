@@ -23,6 +23,7 @@ export interface Signal {
   logic_version?: number | string | null;
   entry_state?: "READY" | "PENDING_LAYER3" | "WAIT";
   signal_state?: "READY" | "WAIT";
+  failure_reason?: string | null;
   entry_candidate?: string | null;
   entry_candidates?: string[] | null;
   entry_resolution_time?: string | null;
@@ -35,10 +36,21 @@ export interface Signal {
   entry_at_utc?: string | null;
   record_revision?: number;
   state_updated_at_utc?: string | null;
-  /** Per-symbol Day Modes (v82) — keyed by symbol e.g. { "XAUUSD": "DAY_MODE_H11", "GBPUSD": null } */
+  /** Common Day Mode metadata retained for history compatibility. */
   pair_day_modes?: Record<string, string | null>;
-  /** Per-symbol entry branch selection (v82) */
+  /** Common entry branch copied to each pair. */
   pair_entry_branches?: Record<string, string | null>;
+  core_signal?: string | null;
+  core_signals?: Record<string, string>;
+  final_reverse_applied?: boolean;
+  final_reverse_reason?: string | null;
+  pair_d_directions?: Record<string, string>;
+  pair_d_relations?: Record<string, string>;
+  pair_relation_rules?: Record<string, string>;
+  reference_d_symbol?: string;
+  reference_d_direction?: string;
+  entry_timeframe?: string | null;
+  entry_source_symbol?: string;
 }
 
 export type SlotDisplayState =
@@ -55,6 +67,11 @@ export interface BotState {
   broker_utc_offset?: number | null;
   broker_time?: string | null;
   broker_observed_at_utc?: string | null;
+  data_provider?: string;
+  data_state?: "connected" | "degraded" | "stale" | "disconnected";
+  data_observed_at_utc?: string | null;
+  execution_provider?: string;
+  execution_state?: "connected" | "disconnected" | "disabled";
 }
 
 export interface NewsItem {
@@ -215,8 +232,10 @@ export interface DDirectionEvidence {
   d_direction: "BUY" | "SELL" | "WAIT";
   d_state: string;
   discovery_rule: string;
-  /** v82: source symbol for D (e.g. XAUUSD uses GBPUSD as source) */
+  /** Independent MT4 source symbol for this D snapshot. */
   d_source_symbol?: string;
+  source_symbol?: string;
+  data_provider?: string;
 }
 
 export interface H1SignalEvidence {
@@ -235,39 +254,51 @@ export interface H1SignalEvidence {
 
 export interface XauEntryTimingEvidence {
   symbol: "XAUUSD";
-  timeframe: "M30";
+  timeframe: "M30" | "H1";
   slot_hour: number;
   layer2: M30EvidenceLayer | null;
   layer3: M30EvidenceLayer | null;
   entry_time: string | null;
+  entry_branch?: "H_11" | "H_49" | "H_PLUS_1_25" | null;
   entry_state: string;
   entry_candidates: string[];
   classification_reason: string;
 }
 
 export interface SignalEvidenceV3 {
-  evidence_schema_version: 3;
+  evidence_schema_version: number;
   logic_version: number;
   date: string;
   hour: number;
-  symbol: "XAUUSD" | "GBPUSD" | "GBPAUD";
-  signal_engine: "D_DIRECTION_DYNAMIC_DAY_MODE_V1" | "D_DIRECTION_H16_WEEKDAY_V1";
-  direction: "BUY" | "SELL" | "WAIT";
-  signal_state: string;
-  current_entry_time: string | null;
-  current_entry_branch: "H_11" | "H_49" | "H_PLUS_1_25" | null;
-  day_mode: "DAY_MODE_H11" | "DAY_MODE_H_PLUS_1_25" | null;
-  day_mode_source_hour: number | null;
-  day_mode_source_entry_time: string | null;
-  day_mode_source_branch: string | null;
-  primary_source: "D_DIRECTION" | "PREVIOUS_COMPLETED_H1" | null;
-  primary_action: "KEEP_D" | "REVERSE_D" | "REVERSE_H1" | "WAIT";
-  primary_direction: "BUY" | "SELL" | "WAIT";
-  weekday_adjustment_applied: boolean;
-  weekday_adjustment_rule: string | null;
+  symbol: "XAUUSD" | "GBPUSD" | "GBPAUD" | "GBPJPY" | "GBPCAD";
+  signal_engine?: string;
+  direction?: "BUY" | "SELL" | "WAIT";
+  signal_state?: string;
+  current_entry_time?: string | null;
+  current_entry_branch?: "H_11" | "H_49" | "H_PLUS_1_25" | null;
+  day_mode?: "DAY_MODE_H11" | "DAY_MODE_H_PLUS_1_25" | null;
+  day_mode_source_hour?: number | null;
+  day_mode_source_entry_time?: string | null;
+  day_mode_source_branch?: string | null;
+  primary_source?: "D_DIRECTION" | "PREVIOUS_COMPLETED_H1" | null;
+  primary_action?: "KEEP_D" | "REVERSE_D" | "REVERSE_H1" | "WAIT";
+  primary_direction?: "BUY" | "SELL" | "WAIT";
+  weekday_adjustment_applied?: boolean;
+  weekday_adjustment_rule?: string | null;
   d_evidence?: DDirectionEvidence | null;
   h1_evidence?: H1SignalEvidence | null;
   entry_timing?: XauEntryTimingEvidence | null;
+  entry_source_symbol?: string;
+  reference_d_symbol?: string;
+  reference_d_direction?: string;
+  pair_d_direction?: string;
+  d_relation?: string;
+  relation_rule?: string;
+  core_signal?: string;
+  final_reverse_applied?: boolean;
+  final_reverse_reason?: string | null;
+  final_signal?: string;
+  failure_reason?: string | null;
 }
 
 export type SignalEvidenceUnion = SignalEvidenceV3 | SignalEvidence;
@@ -275,7 +306,7 @@ export type SignalEvidenceUnion = SignalEvidenceV3 | SignalEvidence;
 export function isSignalEvidenceV3(ev: unknown): ev is SignalEvidenceV3 {
   if (!ev || typeof ev !== "object") return false;
   const e = ev as Record<string, unknown>;
-  return e["evidence_schema_version"] === 3;
+  return typeof e["evidence_schema_version"] === "number" && Number(e["evidence_schema_version"]) === 9;
 }
 
 export interface DDirectionSymbolData {
@@ -297,14 +328,15 @@ export interface DDirectionSymbolData {
   d_state: string;
   execution_status?: "ON" | "OFF";
   discovery_rule: string;
-  /** v82: symbol providing the D source candle (e.g. "GBPUSD" for XAUUSD) */
+  /** Independent canonical symbol providing this D source candle. */
   source_symbol?: string;
-  /** v82: broker-local open time of the H4 20:00 source candle */
+  data_provider?: string;
+  /** Broker-local open time of the H4 20:00 source candle. */
   source_open_time_broker?: string;
 }
 
 export interface DDirectionSnapshotV2 {
-  schema_version: 2;
+  schema_version: number;
   logic_version: number;
   target_local_date: string;
   target_broker_date: string;
@@ -316,4 +348,6 @@ export interface DDirectionSnapshotV2 {
   state: "PENDING_PUBLICATION" | "SYNCING" | "READY" | "PARTIAL" | "MISSING";
   symbols: Record<string, DDirectionSymbolData>;
   message?: string;
+  snapshot_state?: string;
+  data_provider?: string;
 }

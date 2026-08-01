@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type {
   SignalEvidenceV3,
   SignalEvidence,
@@ -8,6 +8,7 @@ import type {
   DDirectionEvidence,
   H1SignalEvidence,
   XauEntryTimingEvidence,
+  M30EvidenceLayer,
   EvidenceCandle,
 } from "@/lib/types";
 import { isSignalEvidenceV3 } from "@/lib/types";
@@ -180,9 +181,66 @@ function EvidenceContent({
   locale: "VN" | "EN";
 }) {
   if (isSignalEvidenceV3(evidence)) {
+    if (evidence.evidence_schema_version === 9) {
+      return <EvidenceV87Content evidence={evidence} symbol={currentSymbol} locale={locale} />;
+    }
     return <EvidenceV3Content evidence={evidence} symbol={currentSymbol} locale={locale} />;
   }
   return <LegacyEvidenceContent evidence={evidence as SignalEvidence} locale={locale} />;
+}
+
+function EvidenceV87Content({
+  evidence,
+  symbol,
+  locale,
+}: {
+  evidence: SignalEvidenceV3;
+  symbol: string;
+  locale: "VN" | "EN";
+}) {
+  const timing = evidence.entry_timing;
+  const relation = evidence.d_relation || "UNRESOLVED";
+  return (
+    <div className="space-y-4 font-mono text-xs">
+      <EvidenceSection title={locale === "EN" ? "COMMON XAUUSD ENTRY" : "ENTRY CHUNG XAUUSD"}>
+        <p>{locale === "EN" ? "Source" : "Nguồn"}: XAUUSD · {timing?.timeframe || "M30"}</p>
+        <p>{locale === "EN" ? "Selected" : "Đã chọn"}: <strong>{evidence.current_entry_time || timing?.entry_time || "WAIT"}</strong> · {evidence.current_entry_branch || timing?.entry_branch || "—"}</p>
+        <p>{locale === "EN" ? "All five pairs share this Entry Time." : "Cả năm cặp dùng chung Entry Time này."}</p>
+        {timing?.layer2 && <CandleMiniTable label="LAYER 2" layer={timing.layer2} />}
+        {timing?.layer3 && <CandleMiniTable label="LAYER 3" layer={timing.layer3} />}
+      </EvidenceSection>
+      <EvidenceSection title={locale === "EN" ? "INDEPENDENT D / REFERENCE RELATION" : "D ĐỘC LẬP / QUAN HỆ THAM CHIẾU"}>
+        <p>{symbol} D: {evidence.pair_d_direction || "WAIT"}</p>
+        <p>Reference GBPUSD D: {evidence.reference_d_direction || "WAIT"}</p>
+        <p>Relation: <strong>{relation}</strong> · {evidence.relation_rule || "—"}</p>
+      </EvidenceSection>
+      <EvidenceSection title={locale === "EN" ? "FINAL ADJUSTMENT" : "ĐIỀU CHỈNH CUỐI"}>
+        <p>Core: {evidence.core_signal || "WAIT"} → Final: <strong>{evidence.final_signal || evidence.direction}</strong></p>
+        <p>{evidence.final_reverse_applied ? `REVERSE · ${evidence.final_reverse_reason || "—"}` : (locale === "EN" ? "No Final Reverse" : "Không đảo Final")}</p>
+      </EvidenceSection>
+    </div>
+  );
+}
+
+function EvidenceSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)]/60 p-4 space-y-2">
+      <div className="terminal-kicker text-[var(--terminal-accent)]">{title}</div>
+      {children}
+    </section>
+  );
+}
+
+function CandleMiniTable({ label, layer }: { label: string; layer: M30EvidenceLayer }) {
+  return (
+    <div className="mt-2 overflow-x-auto rounded border border-[var(--panel-border)]/60">
+      <div className="border-b border-[var(--panel-border)]/60 px-2 py-1 font-bold text-[10px] text-[var(--muted)]">{label}</div>
+      <table className="w-full text-left text-[11px]"><thead><tr><th className="px-2 py-1">Candle</th><th className="px-2 py-1">Open</th><th className="px-2 py-1">Direction</th></tr></thead>
+        <tbody>{(layer.candles || []).map((candle) => <tr key={`${candle.role}-${candle.open_time}`}><td className="px-2 py-1">{candle.role || "—"}</td><td className="px-2 py-1">{candle.open_time || "—"}</td><td className="px-2 py-1">{candle.direction || "WAIT"}</td></tr>)}</tbody>
+      </table>
+      <div className="border-t border-[var(--panel-border)]/60 px-2 py-1">Group: {layer.group || "WAIT"}</div>
+    </div>
+  );
 }
 
 function EvidenceV3Content({
@@ -195,7 +253,7 @@ function EvidenceV3Content({
   locale: "VN" | "EN";
 }) {
   const isXau = symbol === "XAUUSD";
-  const dayModeLabel = formatDayModeLabel(evidence.day_mode);
+  const dayModeLabel = formatDayModeLabel(evidence.day_mode ?? null);
   const isOppositeBranch =
     evidence.day_mode_source_branch &&
     evidence.current_entry_branch &&
@@ -306,11 +364,11 @@ function EvidenceV3Content({
             : "Chỉ dùng để chọn giờ vào lệnh (Entry Time), KHÔNG quyết định hướng BUY/SELL."}
         </p>
 
-        {isXau && evidence.entry_timing ? (
+        {evidence.entry_timing ? (
           <XauEntryTimingSection timing={evidence.entry_timing} locale={locale} />
         ) : (
           <div className="pt-2 text-xs font-bold text-[var(--foreground)]">
-            {locale === "EN" ? "Entry schedule:" : "Lịch vào lệnh:"} NEXT_FULL_BROKER_HOUR ({evidence.current_entry_time || "H+1:00"})
+            {locale === "EN" ? "Common XAUUSD Entry:" : "Entry chung XAUUSD:"} {evidence.current_entry_time || "WAIT"}
           </div>
         )}
       </section>
@@ -419,7 +477,7 @@ function XauEntryTimingSection({ timing, locale }: { timing: XauEntryTimingEvide
 
       {l2 && (
         <div className="space-y-1">
-          <div className="text-[10px] font-bold text-[var(--muted)]">LAYER 2 (BT H:11)</div>
+          <div className="text-[10px] font-bold text-[var(--muted)]">LAYER 2 · {l2.group || "WAIT"} ({timing.timeframe})</div>
           <div className="flex gap-2">
             {l2.candles?.map((c, i) => (
               <div key={i} className="flex-1 rounded border border-[var(--panel-border)] bg-[var(--surface)] p-2 text-center text-[10px]">
@@ -433,7 +491,7 @@ function XauEntryTimingSection({ timing, locale }: { timing: XauEntryTimingEvide
 
       {l3 && (
         <div className="space-y-1">
-          <div className="text-[10px] font-bold text-[var(--muted)]">LAYER 3 (SW PENDING)</div>
+          <div className="text-[10px] font-bold text-[var(--muted)]">LAYER 3 · {l3.group || "WAIT"} ({timing.timeframe})</div>
           <div className="flex gap-2">
             {l3.candles?.map((c, i) => (
               <div key={i} className="flex-1 rounded border border-[var(--panel-border)] bg-[var(--surface)] p-2 text-center text-[10px]">

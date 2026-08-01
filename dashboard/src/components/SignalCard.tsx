@@ -24,7 +24,9 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
   const t = getT(locale).evidence;
   const hour = Number(signal.hour);
   const signalTime = signal.signal_time || `${String(hour).padStart(2, "0")}:00`;
-  const brokerOffset = typeof signal.broker_utc_offset === "number" ? signal.broker_utc_offset : 3;
+  // Legacy records without an offset stay Broker-only; never guess local time.
+  const brokerOffset = typeof signal.broker_utc_offset === "number" ? signal.broker_utc_offset : null;
+  const brokerClockVerified = signal.broker_clock_verified === true;
 
   const fetchEvidence = useCallback(
     (symbol: string) => {
@@ -58,6 +60,7 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
               brokerTime={signalTime}
               utcIso={typeof signal.signal_at_utc === "string" ? signal.signal_at_utc : null}
               brokerUtcOffset={brokerOffset}
+              brokerClockVerified={brokerClockVerified}
               date={signal.date}
               labelLocal="GMT+7"
               labelBroker="Broker"
@@ -125,6 +128,7 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                     brokerTime={entryTime}
                     utcIso={entryUtc}
                     brokerUtcOffset={brokerOffset}
+                    brokerClockVerified={brokerClockVerified}
                     date={signal.date}
                     labelLocal="GMT+7"
                     labelBroker="Broker"

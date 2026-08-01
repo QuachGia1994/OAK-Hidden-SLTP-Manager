@@ -1,5 +1,12 @@
 # RELEASE NOTES
 
+## [Signal logic v87] - 2026-08-01
+
+- Connect the raw MT4 EA feed to a persistent SQLite store; MT4 is the market-data and Broker-clock authority, while MT5 remains execution/account/position only.
+- Split Data/Execution heartbeat state, catch up due slots after late clock recovery, fail closed on stale feed, and remove MT5 candle fallback from the Signal Engine.
+- Compute independent per-symbol D-Direction from the previous-session H4 20:00 candle; use one common XAUUSD Entry Plan for all five pairs and two XAUUSD H1 layers for H16.
+- Raise dashboard/evidence to schema 9, filter legacy logic records, show MT4 Feed/MT5 Execution/Broker Clock separately, and keep Auto-Close outside the Signal Bot scope.
+
 ## [Signal logic v72.1] - 2026-07-30
 
 - Fix the XAUUSD mapping: start from the final GBPAUD Signal, reverse it at H3/H14/H16, and keep it at H7/H9/H12.

@@ -11,24 +11,23 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 
 ## Signal engine
 
-- Four GBP directions are independently derived from each symbol's own M30 candles. XAUUSD direction follows GBPAUD, while XAUUSD entry is selected by two XAUUSD M30 layers.
-- Outputs: `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, and `GBPCAD`; every symbol has its own entry field in records/API payloads.
+- MT4 Feed is the sole market-data and Broker-clock authority; MT5 is execution/account/position only.
+- Outputs: `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, and `GBPCAD`; all five share one XAUUSD Entry Plan while direction remains pair-specific.
 - Trading days: Monday to Friday. Weekend slots are off.
 - Active slots: **H=3, H=7, H=9, H=12, H=14, H=16**; each publishes at Broker `H:00`.
-- GBP signals use four M30 close times `H−00:30/H−01:00/H−01:30/H−02:00`; the newest candle is Base. The ten-rule matrix classifies SW/BT; SW reverses Base and BT keeps Base.
-- XAU Layer 1 creates two entry candidates and Layer 2 selects the final result. H3 uses Layer 1 `02:30/02:00/01:30` and Layer 2 `03:00/02:30/02:00/01:30`; other slots use two four-candle windows separated by 30 minutes.
-- XAU entry: `SW+SW → H:49`, `SW+BT → (H+1):25` (H3 uses `04:49`), `BT+SW → H:11`, and `BT+BT → H:49`. All four GBP entries are the next full Broker hour after the XAU entry.
-- XAUUSD starts from the final GBPAUD Signal: H3/H14/H16 reverse it; H7/H9/H12 keep it unchanged. XAU layer results never change direction.
-- A missing candle, invalid OHLC, or DOJI makes the affected Signal/Layer `WAIT`; H1, M15, and other symbols are never fallbacks.
-- BrokerClock calibrates from a fresh live terminal tick and fails closed for stale, missing, or inconsistent observations; absolute UTC is separated from MT5 wall-clock data timestamps.
+- H3/H7/H9/H12/H14 use two three-candle XAUUSD M30 layers: Layer 2 `H−00:30/H−01:00/H−01:30` → BT `H:11`; SW moves to Layer 3 `H:00/H−00:30/H−01:00` → SW `H:49`, BT `(H+1):25`, with H3 `04:25`.
+- H16 uses independent XAUUSD H1 layers: `05:00/04:00/03:00` → BT `16:11`; SW then `10:00/09:00/08:00` → BT `16:49`, SW `17:25`.
+- GBPUSD is the Reference Signal and XAUUSD is locked to it. GBPAUD follows/reverses by D relation; GBPJPY/GBPCAD apply the inverse relation. Final Reverse runs exactly once.
+- D-Direction is independent for all five symbols from the previous-session H4 candle opened at `20:00` Broker. Missing/DOJI data returns `WAIT`; there is no MT5 candle fallback.
+- MT4 heartbeat supplies the Broker Clock. MT5 execution loss only disables execution; stale/disconnected MT4 data fails the Signal closed.
+- The MT5 execution gateway persists v87 idempotency intents; it sends orders only when the profile explicitly sets `signal_execution_enabled=true` (or `SIGNAL_BOT_EXECUTION_ENABLED=true`).
 
 ### Core matrix
 
 | Slot | Rule |
 | --- | --- |
-| H=3 | GBP Signal uses the shared four-M30 rule. XAU L1 is `02:30/02:00/01:30`; XAU L2 is `03:00/02:30/02:00/01:30`. The late branch is `04:49`. XAU reverses the GBPAUD Signal. |
-| H=7/H=9/H=12 | Two XAU M30 layers separated by 30 minutes; the late branch is `(H+1):25`. XAU keeps the GBPAUD Signal unchanged. |
-| H=14/H=16 | Two XAU M30 layers separated by 30 minutes; the late branch is `(H+1):25`. XAU reverses the GBPAUD Signal. |
+| H=3/H=7/H=9/H=12/H=14 | XAU M30 Layer 2 BT → `H:11`; SW → Layer 3 SW `H:49` or BT `(H+1):25` (H3 `04:25`). |
+| H=16 | XAU H1 Layer 2 BT → `16:11`; Layer 2 SW + Layer 3 BT → `16:49`; Layer 3 SW → `17:25`. |
 
 The Dashboard opens XAUUSD M30 evidence for both layers, their SW/BT groups, the two candidates, and the final entry. GBP signals remain independent rows.
 
@@ -50,7 +49,7 @@ Google and DuckDuckGo collect the evidence. AI is optional and only reviews that
 
 - Telegram quick orders use `<lot> <broker HH:MM> <profile>` (for example `0.01 09:15 vantage`); execution time is independent of the signal H slot and is converted to the Windows clock before scheduling. `/pending` is created only after a valid user reply.
 - A scheduled close with a time is queued, not executed immediately.
-- The signal bot closes every `XAUUSD*` position at `17:59` Broker and every `GBPAUD*`, `GBPCAD*`, `GBPJPY*`, and `GBPUSD*` position at `19:59` Broker. This intraday rule intentionally does not filter by profile, magic number, or comment.
+- The signal bot does not create an Auto-Close schedule; users manage closing positions manually.
 - Copy Trading guardrails, daily caps, and the kill switch are enforced by the worker.
 - Treat every signal as decision support, not a trading guarantee.
 

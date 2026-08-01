@@ -6,11 +6,12 @@ import { useLocale } from "./LocaleProvider";
 
 interface Props {
   symbolData: DDirectionSymbolData | null;
+  referenceDirection?: string;
   open: boolean;
   onClose: () => void;
 }
 
-export function DDirectionDrawer({ symbolData, open, onClose }: Props) {
+export function DDirectionDrawer({ symbolData, referenceDirection = "WAIT", open, onClose }: Props) {
   const { locale } = useLocale();
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -66,7 +67,7 @@ export function DDirectionDrawer({ symbolData, open, onClose }: Props) {
               </span>
             </div>
             <div className="mt-0.5 font-mono text-xs text-[var(--muted)]">
-              Target: {symbolData.target_date} · Session: {symbolData.session_date || "—"}
+              Target: {symbolData.target_date} · Session: {symbolData.session_date || "—"} · {symbolData.data_provider || "MT4"}
             </div>
           </div>
           <button
@@ -112,6 +113,18 @@ export function DDirectionDrawer({ symbolData, open, onClose }: Props) {
                 </div>
               </div>
             </div>
+            <div className="border-t border-[var(--panel-border)]/60 pt-3 text-xs">
+              <div className="text-[var(--muted)] text-[10px]">Reference D · GBPUSD</div>
+              <div className="font-bold text-[var(--foreground)]">
+                {referenceDirection} · {symbolData.symbol === "GBPUSD"
+                  ? "REFERENCE"
+                  : symbolData.d_direction === referenceDirection && referenceDirection !== "WAIT"
+                  ? "SAME_AS_REFERENCE"
+                  : symbolData.d_direction !== "WAIT" && referenceDirection !== "WAIT"
+                  ? "OPPOSITE_TO_REFERENCE"
+                  : "UNRESOLVED"}
+              </div>
+            </div>
           </section>
 
           {/* SECTION: CANDLE CHART & OHLC */}
@@ -119,12 +132,8 @@ export function DDirectionDrawer({ symbolData, open, onClose }: Props) {
             <div className="flex items-center justify-between text-[11px] font-bold">
               <span>
                 {locale === "VN"
-                  ? symbolData.symbol === "XAUUSD"
-                    ? "Nguồn D: GBPUSD H4 20:00"
-                    : `Nguồn D: ${symbolData.symbol} H4 20:00`
-                  : symbolData.symbol === "XAUUSD"
-                    ? "D Source: GBPUSD H4 20:00"
-                    : `D Source: ${symbolData.symbol} H4 20:00`}
+                  ? `Nguồn D độc lập: ${symbolData.symbol} H4 20:00`
+                  : `Independent D source: ${symbolData.symbol} H4 20:00`}
               </span>
               <span style={{ color }}>{symbolData.raw_direction || symbolData.d_direction}</span>
             </div>

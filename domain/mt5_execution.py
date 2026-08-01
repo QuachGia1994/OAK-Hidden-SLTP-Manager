@@ -1,0 +1,185 @@
+"""MT5 execution gateway for v87 common-entry signals.
+
+The gateway persists one intent per ``logic/date/slot/symbol/entry/direction``
+key before it can send an order.  This keeps restarts idempotent and leaves
+pending intents retryable when MT5 is disconnected or a broker rejects a fill.
+"""
+from __future__ import annotations
+
+import hashlib
+from datetime import datetime, timedelta, timezone
+
+
+SIGNAL_LOGIC_VERSION = 87
+SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+
+
+def _utc_now():
+    return datetime.now(timezone.utc).replace(microsecond=0)
+
+
+def _iso(value):
+    if isinstance(value, datetime):
+        current = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return current.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return str(value or "")
+
+
+class MT5ExecutionGateway:
+    """Queue and, when explicitly enabled, execute all five v87 pair intents."""
+
+    def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=87000, symbol_resolver=None):
+        self.mt5 = mt5_module
+        self.store = store
+        self.enabled = bool(enabled)
+        self.volume = float(volume)
+        self.magic = int(magic)
+        self.symbol_resolver = symbol_resolver or (lambda symbol: symbol)
+
+    def schedule_signal(self, result, broker_date, slot_hour, now_utc=None):
+        """Persist the common-entry intent for each ready pair exactly once."""
+        if not self._is_actionable(result, slot_hour):
+            return []
+        date_text = broker_date.isoformat() if hasattr(broker_date, "isoformat") else str(broker_date)
+        entries = result.get("pair_entry_times") or {}
+        entry_at = result.get("pair_entry_at_utc") or {}
+        created_at = _iso(now_utc or _utc_now())
+        keys = []
+        for symbol in SIGNAL_PAIRS:
+            direction = (result.get("pair_dirs") or {}).get(symbol)
+            entry_time = entries.get(symbol) or result.get("entry_time")
+            entry_utc = entry_at.get(symbol) or result.get("entry_at_utc")
+            if direction not in ("BUY", "SELL") or not entry_time or not entry_utc:
+                continue
+            key = self._key(date_text, slot_hour, symbol, entry_time, direction)
+            self.store.upsert_signal_execution_intent({
+                "idempotency_key": key,
+                "logic_version": SIGNAL_LOGIC_VERSION,
+                "broker_date": date_text,
+                "slot_hour": int(slot_hour),
+                "symbol": symbol,
+                "common_entry_time": str(entry_time),
+                "direction": direction,
+                "entry_at_utc": _iso(entry_utc),
+                "status": "PENDING",
+                "attempts": 0,
+                "next_attempt_at_utc": _iso(entry_utc),
+                "order_ticket": None,
+                "last_error": "",
+                "created_at_utc": created_at,
+                "updated_at_utc": created_at,
+            })
+            keys.append(key)
+        return keys
+
+    def process_due(self, now_utc=None):
+        """Execute due intents; failures remain pending for a one-minute retry."""
+        if not self.enabled:
+            return []
+        now = now_utc if isinstance(now_utc, datetime) else _utc_now()
+        now_iso = _iso(now)
+        executed = []
+        for intent in self.store.get_due_signal_execution_intents(now_iso):
+            result = self._execute_intent(intent)
+            if result.get("ok"):
+                executed.append(intent["idempotency_key"])
+        return executed
+
+    @staticmethod
+    def _is_actionable(result, slot_hour):
+        if not isinstance(result, dict) or int(result.get("logic_version", -1)) != SIGNAL_LOGIC_VERSION:
+            return False
+        if int(result.get("hour", slot_hour)) != int(slot_hour):
+            return False
+        if result.get("signal_state") != "READY" or result.get("entry_state") != "READY":
+            return False
+        directions = result.get("pair_dirs") or {}
+        states = result.get("pair_signal_states") or {}
+        entries = result.get("pair_entry_times") or {}
+        return all(directions.get(symbol) in ("BUY", "SELL") and states.get(symbol) == "READY" for symbol in SIGNAL_PAIRS) and len({entries.get(symbol) for symbol in SIGNAL_PAIRS}) == 1
+
+    @staticmethod
+    def _key(date_text, slot_hour, symbol, entry_time, direction):
+        return f"{SIGNAL_LOGIC_VERSION}|{date_text}|{int(slot_hour)}|{symbol}|{entry_time}|{direction}"
+
+    def _execute_intent(self, intent):
+        key = intent["idempotency_key"]
+        now = _utc_now()
+        try:
+            symbol = self.symbol_resolver(intent["symbol"])
+            if not self.mt5.symbol_select(symbol, True):
+                raise RuntimeError("symbol is not available")
+            comment = "OAK87-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
+            existing = self._find_existing(symbol, comment)
+            if existing is not None:
+                self.store.update_signal_execution_intent(key, status="EXECUTED", order_ticket=int(existing), updated_at_utc=_iso(now), last_error="")
+                return {"ok": True, "ticket": existing}
+            tick = self.mt5.symbol_info_tick(symbol)
+            info = self.mt5.symbol_info(symbol)
+            if not tick or not info or self.volume <= 0:
+                raise RuntimeError("MT5 symbol tick/info unavailable")
+            order_type = getattr(self.mt5, "ORDER_TYPE_BUY", 0) if intent["direction"] == "BUY" else getattr(self.mt5, "ORDER_TYPE_SELL", 1)
+            price = tick.ask if order_type == getattr(self.mt5, "ORDER_TYPE_BUY", 0) else tick.bid
+            request = {
+                "action": getattr(self.mt5, "TRADE_ACTION_DEAL", 1),
+                "symbol": symbol,
+                "volume": self._normalise_volume(info),
+                "type": order_type,
+                "price": price,
+                "deviation": 20,
+                "magic": self.magic,
+                "comment": comment,
+                "type_time": getattr(self.mt5, "ORDER_TIME_GTC", 0),
+                "type_filling": self._filling_mode(info),
+            }
+            response = self._send_with_filling_retry(request)
+            done = getattr(self.mt5, "TRADE_RETCODE_DONE", 10009)
+            partial = getattr(self.mt5, "TRADE_RETCODE_DONE_PARTIAL", 10010)
+            retcode = getattr(response, "retcode", None)
+            if retcode not in (done, partial):
+                existing = self._find_existing(symbol, comment)
+                if existing is None:
+                    raise RuntimeError(getattr(response, "comment", "order rejected") if response else "order_send returned no result")
+            ticket = getattr(response, "order", None) or getattr(response, "deal", None)
+            self.store.update_signal_execution_intent(key, status="EXECUTED", order_ticket=ticket, last_error="", updated_at_utc=_iso(now))
+            return {"ok": True, "ticket": ticket}
+        except Exception as error:
+            attempts = int(intent.get("attempts") or 0) + 1
+            retry_at = now + timedelta(minutes=1)
+            self.store.update_signal_execution_intent(key, status="PENDING", attempts=attempts, next_attempt_at_utc=_iso(retry_at), last_error=str(error)[:500], updated_at_utc=_iso(now))
+            return {"ok": False, "error": str(error)}
+
+    def _find_existing(self, symbol, comment):
+        for getter in (self.mt5.positions_get, self.mt5.orders_get):
+            rows = getter(symbol=symbol) or []
+            for row in rows:
+                if getattr(row, "comment", "") == comment:
+                    return getattr(row, "ticket", None) or getattr(row, "order", None)
+        return None
+
+    def _normalise_volume(self, info):
+        minimum = float(getattr(info, "volume_min", self.volume))
+        maximum = float(getattr(info, "volume_max", self.volume))
+        step = float(getattr(info, "volume_step", 0.01) or 0.01)
+        volume = min(max(self.volume, minimum), maximum)
+        return round(round(volume / step) * step, 8)
+
+    def _filling_mode(self, info):
+        mode = getattr(info, "filling_mode", None)
+        valid = {getattr(self.mt5, name, value) for name, value in (("ORDER_FILLING_IOC", 1), ("ORDER_FILLING_FOK", 0), ("ORDER_FILLING_RETURN", 2))}
+        return mode if mode in valid else next(iter(valid))
+
+    def _send_with_filling_retry(self, request):
+        response = self.mt5.order_send(request)
+        invalid = getattr(self.mt5, "TRADE_RETCODE_INVALID_FILL", 10030)
+        if getattr(response, "retcode", None) != invalid:
+            return response
+        for mode_name in ("ORDER_FILLING_IOC", "ORDER_FILLING_FOK", "ORDER_FILLING_RETURN"):
+            mode = getattr(self.mt5, mode_name, None)
+            if mode is None or mode == request.get("type_filling"):
+                continue
+            request["type_filling"] = mode
+            response = self.mt5.order_send(request)
+            if getattr(response, "retcode", None) != invalid:
+                break
+        return response

@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-MT4-MT5 Dual Signal Server v2.0
-================================
-Flask API nhan du lieu tu MT4 EA, lay du lieu MT5 tu dong,
-so sanh tin hieu va gui bao cao Telegram.
-MT5 timestamp encoding duoc hieu chuan bang tick song; loi clock thi fail-closed.
+"""Legacy execution/comparator server with a v87-compatible MT4 feed route.
+
+The production Signal Engine reads ``mt4_feed.db`` directly through
+``MT4FeedProvider``.  The raw ``/mt4-feed/*`` routes below are retained for
+older deployments; they ingest only schema-v2 feed data and do not participate
+in Signal calculation.
 """
 import os
 import sys
@@ -12,11 +12,14 @@ import json
 import urllib.request
 import urllib.parse
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify
 from domain.broker_clock import BrokerClock
 from domain.json_io import load_json, save_json
 import mt5_signal_bot as signal_engine
+from repositories.mt4_feed_store import MT4FeedStore
+
+feed_store = MT4FeedStore()
 
 try:
     import MetaTrader5 as mt5
@@ -41,11 +44,12 @@ except Exception:
     MT5_PATH = ""
     print("[WARN] config.json not found or invalid.")
 XAUUSD_SYMBOL = "XAUUSD"
-SIGNAL_LOGIC_VERSION = 80
+SIGNAL_LOGIC_VERSION = 87
 GBP_SIGNAL_PAIRS = ("GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SIGNAL_PAIRS = ("XAUUSD", *GBP_SIGNAL_PAIRS)
 # Kept in sync with the MT5 Signal Bot for diagnostics and startup reporting.
 TARGET_HOURS = [3, 7, 9, 12, 14, 16]
+LEGACY_COMPARATOR_ENABLED = os.environ.get("MT4_LEGACY_COMPARATOR_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
 BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), "broker_clock_cache.json"),
@@ -54,6 +58,19 @@ _delivery_lock = threading.Lock()
 _deliveries_in_progress = set()
 
 app = Flask(__name__)
+
+
+def _feed_authorized():
+    """Validate raw MT4 feed requests when a local feed token is configured."""
+    expected = os.environ.get("MT4_FEED_TOKEN", "").strip()
+    return not expected or request.headers.get("X-MT4-FEED-TOKEN", "") == expected
+
+
+@app.before_request
+def authenticate_raw_feed():
+    if request.path.startswith(("/mt4-feed/", "/api/mt4-feed/")) and not _feed_authorized():
+        return jsonify({"ok": False, "error": "unauthorized feed"}), 401
+    return None
 
 # =====================================================================
 # TELEGRAM
@@ -82,20 +99,29 @@ def fmt_time(dt):
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 def get_broker_time():
-    """Lay broker time tu moc mo nen D1 UTC; khong doan offset."""
-    if not mt5_ready:
-        raise RuntimeError("MT5 unavailable; broker clock is unknown")
-    return BROKER_CLOCK.now()
+    """Return Broker wall time from the persistent MT4 feed heartbeat only."""
+    provider = getattr(signal_engine, "MARKET_DATA_PROVIDER", None)
+    if provider is None:
+        raise RuntimeError("MT4 feed clock unavailable")
+    health = provider.get_health()
+    if not health.fresh or not getattr(health, "clock_verified", True):
+        raise RuntimeError("MT4 feed clock stale")
+    return provider.get_broker_now()
+
 
 def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
-    """Convert Broker wall time to the timestamp encoding used by this terminal."""
+    """Convert an MT4 Broker wall time to an absolute UTC timestamp."""
     target_broker = broker_dt.replace(hour=hour, minute=minute, second=second, microsecond=0)
-    return BROKER_CLOCK.mt5_timestamp_from_broker_datetime(target_broker)
+    provider = getattr(signal_engine, "MARKET_DATA_PROVIDER", None)
+    if provider is None:
+        raise RuntimeError("MT4 feed clock unavailable")
+    offset = provider.get_broker_utc_offset(target_broker.date())
+    return int((target_broker - timedelta(hours=offset)).replace(tzinfo=timezone.utc).timestamp())
 
 
 def broker_datetime_to_ts(broker_dt):
-    """Convert one explicit Broker wall datetime to the terminal timestamp mode."""
-    return BROKER_CLOCK.mt5_timestamp_from_broker_datetime(broker_dt)
+    """Convert one explicit MT4 Broker wall datetime to UTC."""
+    return broker_time_to_ts(broker_dt, broker_dt.hour, broker_dt.minute, broker_dt.second)
 
 def _is_raw_special_date(target_date):
     weekday = target_date.weekday()
@@ -251,7 +277,7 @@ def get_signal_time_for_slot(broker_dt, slot):
 
 
 def get_schedule_note(broker_dt):
-    return "TWO-LAYER INDEPENDENT M30 FOR GBP PAIRS; XAU FOLLOWS GBPAUD"
+    return "COMMON XAUUSD ENTRY PLAN; GBPUSD REFERENCE; MT5 EXECUTION ONLY"
 
 
 def _entry_datetime(broker_dt, entry_time):
@@ -300,7 +326,7 @@ def calculate_context(slot, pair_dirs, pair_entry_times, pair_groups=None):
 
 
 def fetch_mt5_data(broker_dt, slot):
-    """Evaluate MT5 with the canonical v72 engine shared by the signal bot."""
+    """Read the v87 Signal Engine result; MT5 is execution-only."""
     if not mt5_ready:
         return calculate_context(slot, {}, {}, {})
     result = signal_engine.evaluate_all_pairs_for_slot(broker_dt, slot)
@@ -341,18 +367,15 @@ def _payload_contract_error(slot, directions, entries):
             return f"invalid {symbol} entry"
         if directions[symbol] == "WAIT" and entry is not None:
             return f"WAIT {symbol} must not have entry"
-    expected_xau = (
-        _reverse_direction(directions["GBPAUD"])
-        if slot in (3, 14, 16)
-        else directions["GBPAUD"]
-    )
-    if directions["XAUUSD"] != expected_xau:
-        return "XAUUSD signal does not follow slot GBPAUD mapping"
-    if directions["XAUUSD"] in ("BUY", "SELL"):
-        expected_gbp_entry = signal_engine.deferred_gbp_entry_time(entries["XAUUSD"])
-        for symbol in GBP_SIGNAL_PAIRS:
-            if directions[symbol] in ("BUY", "SELL") and entries[symbol] != expected_gbp_entry:
-                return f"{symbol} entry must be the next full hour after XAUUSD"
+    # v87 is one common XAUUSD Entry Plan and a Reference Signal locked to
+    # GBPUSD.  The legacy endpoint may still receive a payload, but it must
+    # never invent a deferred GBP entry or derive XAU from GBPAUD.
+    if directions["XAUUSD"] != directions["GBPUSD"]:
+        return "XAUUSD and GBPUSD must share the v87 Reference Signal"
+    if entries["XAUUSD"]:
+        for symbol in SIGNAL_PAIRS:
+            if directions[symbol] in ("BUY", "SELL") and entries[symbol] != entries["XAUUSD"]:
+                return f"{symbol} entry must match the common XAUUSD Entry Plan"
     return None
 
 
@@ -384,6 +407,11 @@ def _all_pairs_ready(context):
 
 @app.route("/mt4_data", methods=["POST"])
 def receive_mt4_data():
+    if not LEGACY_COMPARATOR_ENABLED:
+        return jsonify({
+            "status": "disabled",
+            "error": "legacy MT4/MT5 comparator is disabled; use the raw MT4 feed endpoints",
+        }), 410
     delivery_key = None
     try:
         data = request.get_json(force=True)
@@ -456,6 +484,115 @@ def receive_mt4_data():
             _release_delivery(delivery_key)
         print(f"[ERROR] {error}")
         return jsonify({"status": "error", "msg": "Internal server error"}), 500
+
+
+# =====================================================================
+# RAW MT4 FEED INGESTION API (v87)
+# =====================================================================
+
+@app.route("/mt4-feed/heartbeat", methods=["POST"])
+@app.route("/api/mt4-feed/heartbeat", methods=["POST"])
+def post_mt4_feed_heartbeat():
+    try:
+        data = request.get_json(force=True) or {}
+        if not isinstance(data, dict):
+            return jsonify({"error": "invalid json payload"}), 400
+        if int(data.get("schema_version", 0)) != 2:
+            return jsonify({"error": "schema_version must be 2"}), 400
+        feed_store.save_heartbeat(data)
+        return jsonify({"status": "ok", "source_id": data.get("source_id", "mt4_ea")}), 200
+    except (TypeError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/mt4-feed/bars", methods=["POST"])
+@app.route("/api/mt4-feed/bars", methods=["POST"])
+def post_mt4_feed_bars():
+    try:
+        data = request.get_json(force=True) or {}
+        if not isinstance(data, dict):
+            return jsonify({"error": "invalid json payload"}), 400
+        source_id = data.get("source_id", "mt4_ea")
+        symbol = str(data.get("symbol", "")).upper()
+        resolved_symbol = data.get("resolved_symbol", symbol)
+        timeframe = str(data.get("timeframe", "")).upper()
+        bars = data.get("bars", [])
+        if int(data.get("schema_version", 0)) != 2:
+            return jsonify({"error": "schema_version must be 2"}), 400
+        if symbol not in {"XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"}:
+            return jsonify({"error": "unsupported symbol"}), 400
+        if timeframe not in {"M30", "H1", "H4"}:
+            return jsonify({"error": "unsupported timeframe"}), 400
+        if not symbol or not timeframe or not isinstance(bars, list):
+            return jsonify({"error": "missing symbol, timeframe, or bars list"}), 400
+        if any(not isinstance(bar, dict) for bar in bars):
+            return jsonify({"error": "bars must contain JSON objects"}), 400
+        if any(not bool(bar.get("is_complete", False)) for bar in bars):
+            return jsonify({"error": "only completed candles may be published"}), 400
+        inserted = feed_store.save_bars(source_id, symbol, resolved_symbol, timeframe, bars)
+        return jsonify({"status": "ok", "inserted": inserted}), 200
+    except (TypeError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/mt4-feed/health", methods=["GET"])
+@app.route("/api/mt4-feed/health", methods=["GET"])
+def get_mt4_feed_health():
+    try:
+        hb = feed_store.get_latest_heartbeat()
+        if not hb:
+            return jsonify({"status": "disconnected", "data_provider": "MT4", "data_state": "disconnected", "fresh": False, "message": "No heartbeat received"}), 200
+        try:
+            if int(hb.get("schema_version", 0)) != 2:
+                raise ValueError("unsupported heartbeat schema")
+            feed_store.get_broker_utc_offset()
+        except (TypeError, ValueError) as exc:
+            return jsonify({"status": "degraded", "data_provider": "MT4", "data_state": "degraded", "fresh": False,
+                            "clock_verified": False, "message": str(exc), "heartbeat": hb}), 200
+        obs_str = hb.get("observed_at_utc", "")
+        try:
+            obs_dt = datetime.fromisoformat(obs_str) if "T" in obs_str else datetime.strptime(obs_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+            now_utc = datetime.now(timezone.utc)
+            age_sec = (now_utc - obs_dt).total_seconds()
+        except Exception:
+            age_sec = 999.0
+
+        if age_sec <= 15:
+            state = "connected"
+        elif age_sec <= 60:
+            state = "degraded"
+        else:
+            state = "stale"
+
+        return jsonify({
+            "status": state,
+            "data_provider": "MT4",
+            "data_state": state,
+            "fresh": state in ("connected", "degraded"),
+            "clock_verified": True,
+            "age_seconds": round(age_sec, 2),
+            "heartbeat": hb
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/mt4-feed/bars", methods=["GET"])
+@app.route("/api/mt4-feed/bars", methods=["GET"])
+def get_mt4_feed_bars_endpoint():
+    try:
+        symbol = request.args.get("symbol", "GBPUSD")
+        timeframe = request.args.get("timeframe", "M30")
+        start = request.args.get("start", "1970-01-01 00:00:00")
+        end = request.args.get("end", "2099-12-31 23:59:59")
+        bars = feed_store.get_bars(symbol, timeframe, start, end)
+        return jsonify({"symbol": symbol, "timeframe": timeframe, "count": len(bars), "bars": bars}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # TELEGRAM REPORT
@@ -538,10 +675,10 @@ def ensure_mt5_running():
 def main():
     global mt5_ready
     print("=" * 55)
-    print("  MT4-MT5 Dual Signal Server v2.12 / signal v72")
+    print("  MT4-MT5 execution bridge / signal v87")
     print(f"  Symbols: {', '.join(SIGNAL_PAIRS)}")
     print(f"  Target Hours: {TARGET_HOURS}")
-    print("  Broker clock: live-tick calibrated, fail-closed")
+    print("  Broker clock: MT4 Feed heartbeat authority, fail-closed")
     print("=" * 55)
 
     if not ensure_mt5_running():
@@ -549,7 +686,8 @@ def main():
         print("  Server van chay, nhung MT5 data se KHONG co.")
 
     print("=" * 55)
-    print("  API: POST http://localhost:5000/mt4_data")
+    print("  API: POST http://localhost:5000/mt4_data (legacy execution bridge)")
+    print("  Raw feed API: POST http://localhost:5000/mt4-feed/heartbeat|bars")
     print("  Dang chay... Ctrl+C de dung")
     print("=" * 55)
 

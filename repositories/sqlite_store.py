@@ -82,7 +82,29 @@ class SQLiteStore:
                 telegram_bot_name TEXT DEFAULT '',
                 broker_time TEXT DEFAULT '',
                 broker_utc_offset INTEGER,
-                broker_observed_at_utc TEXT DEFAULT ''
+                broker_observed_at_utc TEXT DEFAULT '',
+                data_provider TEXT DEFAULT 'MT4',
+                data_state TEXT DEFAULT 'disconnected',
+                data_observed_at_utc TEXT DEFAULT '',
+                execution_provider TEXT DEFAULT 'MT5',
+                execution_state TEXT DEFAULT 'disconnected'
+            );
+            CREATE TABLE IF NOT EXISTS signal_execution_intents (
+                idempotency_key TEXT PRIMARY KEY,
+                logic_version INTEGER NOT NULL,
+                broker_date TEXT NOT NULL,
+                slot_hour INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                common_entry_time TEXT NOT NULL,
+                direction TEXT NOT NULL,
+                entry_at_utc TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_attempt_at_utc TEXT NOT NULL,
+                order_ticket INTEGER,
+                last_error TEXT DEFAULT '',
+                created_at_utc TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
             );
         """)
         heartbeat_columns = {
@@ -92,6 +114,11 @@ class SQLiteStore:
             ("broker_time", "TEXT DEFAULT ''"),
             ("broker_utc_offset", "INTEGER"),
             ("broker_observed_at_utc", "TEXT DEFAULT ''"),
+            ("data_provider", "TEXT DEFAULT 'MT4'"),
+            ("data_state", "TEXT DEFAULT 'disconnected'"),
+            ("data_observed_at_utc", "TEXT DEFAULT ''"),
+            ("execution_provider", "TEXT DEFAULT 'MT5'"),
+            ("execution_state", "TEXT DEFAULT 'disconnected'"),
         ):
             if column not in heartbeat_columns:
                 self._conn.execute(f"ALTER TABLE worker_heartbeat ADD COLUMN {column} {definition}")
@@ -201,6 +228,43 @@ class SQLiteStore:
             rows = self._conn.execute("SELECT * FROM signal_history ORDER BY date DESC, hour DESC LIMIT ?", (limit,)).fetchall()
         return [dict(r) for r in rows]
 
+    # --- Signal execution intents ---
+    def upsert_signal_execution_intent(self, intent):
+        """Insert one v87 intent once; duplicate idempotency keys are ignored."""
+        fields = (
+            "idempotency_key", "logic_version", "broker_date", "slot_hour",
+            "symbol", "common_entry_time", "direction", "entry_at_utc",
+            "status", "attempts", "next_attempt_at_utc", "order_ticket",
+            "last_error", "created_at_utc", "updated_at_utc",
+        )
+        values = tuple(intent.get(field) for field in fields)
+        self._conn.execute(
+            f"INSERT OR IGNORE INTO signal_execution_intents ({','.join(fields)}) VALUES ({','.join('?' for _ in fields)})",
+            values,
+        )
+        self._conn.commit()
+
+    def get_due_signal_execution_intents(self, now_utc, limit=50):
+        """Return pending intents whose UTC entry and retry windows are due."""
+        rows = self._conn.execute(
+            "SELECT * FROM signal_execution_intents WHERE status='PENDING' AND entry_at_utc<=? AND next_attempt_at_utc<=? ORDER BY entry_at_utc LIMIT ?",
+            (now_utc, now_utc, int(limit)),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def update_signal_execution_intent(self, key, **changes):
+        """Update a whitelisted execution-intent state atomically."""
+        allowed = {"status", "attempts", "next_attempt_at_utc", "order_ticket", "last_error", "updated_at_utc"}
+        payload = {name: value for name, value in changes.items() if name in allowed}
+        if not payload:
+            return
+        assignments = ", ".join(f"{name}=?" for name in payload)
+        self._conn.execute(
+            f"UPDATE signal_execution_intents SET {assignments} WHERE idempotency_key=?",
+            (*payload.values(), key),
+        )
+        self._conn.commit()
+
     # --- Settings ---
     def get_setting(self, key, default=None):
         """Get a setting value."""
@@ -218,7 +282,9 @@ class SQLiteStore:
                           telegram_last_check="", telegram_bot_name="",
                           preserve_telegram=False, broker_time=None,
                           broker_utc_offset=None, broker_observed_at_utc=None,
-                          preserve_broker_clock=True):
+                          preserve_broker_clock=True, data_provider="MT4",
+                          data_state="disconnected", data_observed_at_utc="",
+                          execution_provider="MT5", execution_state="disconnected"):
         """Publish worker heartbeat. Called by worker every ~2s.
 
         preserve_telegram=True keeps prior telegram_* fields (MT5-only refresh).
@@ -245,12 +311,14 @@ class SQLiteStore:
             """INSERT OR REPLACE INTO worker_heartbeat
                (profile, state, last_seen, server, login, balance, equity, last_error,
                  telegram_configured, telegram_api_ok, telegram_last_check, telegram_bot_name,
-                 broker_time, broker_utc_offset, broker_observed_at_utc)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 broker_time, broker_utc_offset, broker_observed_at_utc,
+                 data_provider, data_state, data_observed_at_utc, execution_provider, execution_state)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (profile, state, now, server, login, balance, equity, last_error,
              1 if telegram_configured else 0, 1 if telegram_api_ok else 0,
              telegram_last_check, telegram_bot_name, broker_time or "",
-             broker_utc_offset, broker_observed_at_utc or "")
+             broker_utc_offset, broker_observed_at_utc or "", data_provider, data_state,
+             data_observed_at_utc or "", execution_provider, execution_state)
         )
         self._conn.commit()
 

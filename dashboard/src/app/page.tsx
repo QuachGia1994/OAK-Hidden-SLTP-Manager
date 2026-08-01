@@ -46,7 +46,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   }
 
   const brokerClock = getBrokerDateParts(botState, now);
-  const botWasAvailable = Boolean(botState);
+  const publicDataState = botState?.data_state || (brokerClock ? "connected" : "disconnected");
+  const publicExecutionState = botState?.execution_state || "disconnected";
   const brokerOffset = brokerClock && typeof botState?.broker_utc_offset === "number"
     ? botState.broker_utc_offset
     : null;
@@ -77,9 +78,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     (a, b) => getSlotTimeValue(b.hour, b.signal_time) - getSlotTimeValue(a.hour, a.signal_time),
   );
 
-  const botStatus = brokerClock && botWasAvailable
+  const botStatus = brokerClock
     ? t.running
-    : locale === "EN" ? "UNSYNCED" : "CHƯA ĐỒNG BỘ";
+    : publicDataState === "stale" || publicDataState === "disconnected"
+      ? (locale === "EN" ? "Waiting for MT4 Feed" : "Đang chờ MT4 Feed")
+      : (locale === "EN" ? "UNSYNCED" : "CHƯA ĐỒNG BỘ");
 
   return (
     <div className="page-shell terminal-page space-y-5">
@@ -113,6 +116,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-2">
         <MetricTile label={t.statusBot} value={botStatus} tone={brokerClock ? "buy" : "idle"} icon="bot" />
         <MetricTile label={t.statusNews} value={news.length.toString()} tone={news.length > 0 ? "buy" : "idle"} icon="news" />
+      </section>
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label={locale === "EN" ? "System status" : "Trạng thái hệ thống"}>
+        <StatusChip label="MT4 Feed" value={publicDataState} healthy={publicDataState === "connected" || publicDataState === "degraded"} />
+        <StatusChip label="MT5 Execution" value={publicExecutionState} healthy={publicExecutionState === "connected"} />
+        <StatusChip
+          label={locale === "EN" ? "Broker Clock" : "Đồng hồ Broker"}
+          value={brokerClock ? publicDataState : "waiting"}
+          healthy={Boolean(brokerClock) && (publicDataState === "connected" || publicDataState === "degraded")}
+        />
       </section>
 
       <section className="terminal-panel rounded-2xl p-5 sm:p-6">
@@ -220,6 +233,17 @@ function MiniStat({ label, value }: { label: string; value: string }) {
     <div className="terminal-stat rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-3">
       <div className="terminal-kicker mb-1 text-[var(--muted)]">{label}</div>
       <div className="terminal-stat-value text-xl font-black font-mono text-[var(--foreground)]">{value}</div>
+    </div>
+  );
+}
+
+function StatusChip({ label, value, healthy }: { label: string; value: string; healthy: boolean }) {
+  return (
+    <div className="terminal-panel rounded-xl px-4 py-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-semibold text-[var(--muted)]">{label}</span>
+        <span className={`rounded-md px-2 py-1 font-mono text-[10px] font-bold uppercase ${healthy ? "bg-[var(--terminal-accent)]/12 text-[var(--terminal-accent)]" : "bg-[var(--terminal-warning)]/12 text-[var(--terminal-warning)]"}`}>{value}</span>
+      </div>
     </div>
   );
 }

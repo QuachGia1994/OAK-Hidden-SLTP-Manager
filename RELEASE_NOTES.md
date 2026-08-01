@@ -1,5 +1,12 @@
 # NHẬT KÝ CẬP NHẬT
 
+## [Signal logic v87] - 2026-08-01
+
+- Kết nối MT4 EA raw feed với SQLite persistent; MT4 là nguồn market-data và Broker Clock, MT5 chỉ còn execution/account/position.
+- Sửa heartbeat tách Data/Execution, catch-up slot khi clock về muộn, fail-closed khi feed stale và loại bỏ toàn bộ MT5 candle fallback khỏi Signal Engine.
+- Tính D-Direction độc lập từng symbol bằng H4 20:00 phiên trước; dùng một Entry Plan XAUUSD chung cho cả năm cặp, H16 chuyển sang hai Layer H1 XAUUSD.
+- Nâng evidence/dashboard lên schema 9, lọc record logic cũ, bổ sung hiển thị MT4 Feed/MT5 Execution/Broker Clock và giữ Auto-Close ngoài phạm vi Signal Bot.
+
 ## [Signal logic v72.1] - 2026-07-30
 
 - Sửa mapping XAUUSD: lấy Signal cuối GBPAUD, đảo tại H3/H14/H16 và giữ nguyên tại H7/H9/H12.
