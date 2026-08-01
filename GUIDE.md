@@ -20,7 +20,7 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 - **Layer 2–3 — Entry Plan XAUUSD:** H3/H7/H9/H12/H14 phân loại hai nhóm ba nến M30: Layer 2 `H−00:30/H−01:00/H−01:30` → BT `H:11`; SW mở Layer 3 `H:00/H−00:30/H−01:00` → SW `H:49`, BT `(H+1):25`, riêng H3 `04:25`. H16 dùng nhóm H1 XAUUSD độc lập: Layer 2 `05:00/04:00/03:00` → `16:11`; nếu SW, Layer 3 `10:00/09:00/08:00` → BT `16:49`, SW `17:25`.
 - **Layer 1 — Reference Signal:** khi Entry Plan chốt nhánh, `H:11` / `(H+1):25` ghép D GBPUSD với Day Mode chung: cùng nhánh giữ D, khác nhánh đảo D. Riêng `H:49` đảo chiều nến H1 XAUUSD đã hoàn tất ngay trước slot.
 - **Suy direction theo cặp:** XAUUSD và GBPUSD dùng chung Reference Signal Layer 1. GBPAUD cùng D follow/ngược D reverse; GBPJPY/GBPCAD cùng D reverse/ngược D follow.
-- **Layer 4 — Final Reverse:** chạy đúng một lần sau bước suy direction theo cặp.
+- **Layer 4 — Final Reverse:** chỉ chạy đúng một lần cho XAUUSD sau bước suy direction theo cặp; GBP pair không bị đảo ở Layer 4.
 - Thiếu nến, OHLC sai hoặc DOJI trả `WAIT`; không dùng MT5 candle fallback.
 - MT4 heartbeat là nguồn Broker Clock; MT4 stale/disconnected thì Signal fail-closed, còn MT5 disconnected chỉ khóa execution.
 

@@ -15,8 +15,8 @@ class H16GBPJPYTests(unittest.TestCase):
     def test_opposite_relation_follows_reference(self):
         self.assertEqual(derive_gbpjpy_signal("BUY", "OPPOSITE_TO_REFERENCE"), "BUY")
 
-    def test_final_reverse_applies_once(self):
-        self.assertEqual(derive_gbpjpy_signal("SELL", "SAME_AS_REFERENCE", True), "SELL")
+    def test_final_reverse_is_not_part_of_gbpjpy_derivation(self):
+        self.assertEqual(derive_gbpjpy_signal("SELL", "SAME_AS_REFERENCE"), "BUY")
 
     def test_h16_evidence_uses_h1_entry_rule(self):
         record = bot._dashboard_signal_evidence(

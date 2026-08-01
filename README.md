@@ -33,7 +33,7 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 - **Layer 2–3 — Entry Plan XAUUSD:** H3/H7/H9/H12/H14 phân loại hai nhóm ba nến M30: Layer 2 `H−00:30/H−01:00/H−01:30` → BT `H:11`; SW mở Layer 3 `H:00/H−00:30/H−01:00` → SW `H:49`, BT `(H+1):25`, riêng H3 `04:25`. H16 dùng nhóm H1 XAUUSD độc lập: Layer 2 `05:00/04:00/03:00` → `16:11`; nếu SW, Layer 3 `10:00/09:00/08:00` → BT `16:49`, SW `17:25`.
 - **Layer 1 — Reference Signal:** sau khi Entry Plan chốt nhánh, `H:11` / `(H+1):25` ghép D của GBPUSD với Day Mode chung: cùng nhánh giữ D, khác nhánh đảo D. Riêng `H:49` đảo chiều nến H1 XAUUSD hoàn tất ngay trước slot.
 - **Suy direction theo cặp:** XAUUSD và GBPUSD dùng chung Reference Signal của Layer 1. GBPAUD cùng D follow/ngược D reverse; GBPJPY/GBPCAD áp dụng quan hệ ngược lại.
-- **Layer 4 — Final Reverse:** chạy sau khi suy direction cho năm cặp và chỉ đảo đúng một lần.
+- **Layer 4 — Final Reverse:** chạy sau khi suy direction nhưng chỉ đảo XAUUSD đúng một lần; GBP pair giữ kết quả Layer 1/D relation.
 - Special Thu/Fri và post-special Monday không suppress slot; chỉ Final Reverse H3/H14/H16 thay đổi theo weekday/date.
 - D-Direction của cả năm symbol lấy độc lập từ H4 mở `20:00` Broker của phiên trước. Thiếu nến hoặc DOJI trả `WAIT`; không fallback sang MT5.
 - MT4 heartbeat là nguồn duy nhất cho Broker Clock và market-data. MT5 mất kết nối vẫn có thể hiển thị/tính lịch; MT4 stale/disconnected thì Signal fail-closed.

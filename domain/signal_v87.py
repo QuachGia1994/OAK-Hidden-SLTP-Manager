@@ -172,12 +172,11 @@ def classify_d_relation(pair_direction: str | None, reference_direction: str | N
     return "SAME_AS_REFERENCE" if pair_direction == reference_direction else "OPPOSITE_TO_REFERENCE"
 
 
-def derive_gbpjpy_signal(reference_signal: str | None, d_relation: str, final_reverse_applied: bool = False) -> str:
-    """Apply the canonical H16 GBPJPY relation and optional final reverse once."""
+def derive_gbpjpy_signal(reference_signal: str | None, d_relation: str) -> str:
+    """Derive GBPJPY from the Reference Signal and its D relation."""
     if reference_signal not in ("BUY", "SELL"):
         return "WAIT"
-    core = reverse_signal(reference_signal) if d_relation == "SAME_AS_REFERENCE" else reference_signal if d_relation == "OPPOSITE_TO_REFERENCE" else "WAIT"
-    return reverse_signal(core) if final_reverse_applied and core in ("BUY", "SELL") else core
+    return reverse_signal(reference_signal) if d_relation == "SAME_AS_REFERENCE" else reference_signal if d_relation == "OPPOSITE_TO_REFERENCE" else "WAIT"
 
 
 def _mode_branch(day_mode):
@@ -279,10 +278,26 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
     else:
         core.update({symbol: "WAIT" for symbol in ("GBPAUD", "GBPJPY", "GBPCAD")})
     should_reverse, reason = final_reverse(int(slot_hour), slot_dt.date())
-    final = {symbol: reverse_signal(signal) if should_reverse and signal in ("BUY", "SELL") else signal for symbol, signal in core.items()}
+    final = dict(core)
+    if should_reverse and core["XAUUSD"] in ("BUY", "SELL"):
+        final["XAUUSD"] = reverse_signal(core["XAUUSD"])
     pair_times = {symbol: entry.get("entry_time") for symbol in PAIRS}
     pair_branches = {symbol: entry.get("entry_branch") for symbol in PAIRS}
-    evidence = {symbol: _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, should_reverse, reason, base_source) for symbol in PAIRS}
+    evidence = {
+        symbol: _evidence(
+            symbol,
+            slot_dt,
+            entry,
+            d_snapshot,
+            relations,
+            core,
+            final,
+            should_reverse and symbol == "XAUUSD",
+            reason,
+            base_source,
+        )
+        for symbol in PAIRS
+    }
     failure_reason = _signal_failure_reason("XAUUSD", entry, d_snapshot, final["XAUUSD"])
     return {
         "logic_version": 87,

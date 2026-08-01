@@ -957,9 +957,12 @@ def push_to_dashboard(snapshot_complete: bool = False):
                 all_signals = json.load(f)
             signals = select_signals_for_dashboard(all_signals)
             if signals:
-                for batch in split_records_by_encoded_size(signals, max_records=20, max_bytes=350 * 1024):
+                for batch_index, batch in enumerate(
+                    split_records_by_encoded_size(signals, max_records=20, max_bytes=350 * 1024)
+                ):
+                    clears_snapshot = snapshot_complete and batch_index == 0
                     body = {
-                        "clear_all": (batch is signals[:len(batch)] and snapshot_complete),
+                        "clear_all": clears_snapshot,
                         "source": "mt5_signal_bot",
                         "logic_version": SIGNAL_LOGIC_VERSION,
                         "records": batch,
@@ -987,10 +990,10 @@ def push_to_dashboard(snapshot_complete: bool = False):
                             )
                             # Retry with half batch size
                             half = max(1, len(batch) // 2)
-                            for i in range(0, len(batch), half):
+                            for sub_index, i in enumerate(range(0, len(batch), half)):
                                 sub = batch[i:i+half]
                                 sub_body = {
-                                    "clear_all": False,
+                                    "clear_all": clears_snapshot and sub_index == 0,
                                     "source": "mt5_signal_bot",
                                     "logic_version": SIGNAL_LOGIC_VERSION,
                                     "records": sub,
@@ -2618,6 +2621,18 @@ class MT4FeedProvider:
         except Exception as exc:
             raise MarketDataClockError(f"No verified MT4 Broker offset is available: {exc}") from exc
 
+    def get_latest_completed_broker_datetime(self, symbol=None, timeframe=None):
+        """Return a persisted completed-bar boundary for offline history maintenance."""
+        if self._db_store is None:
+            return None
+        getter = getattr(self._db_store, "get_latest_completed_broker_datetime", None)
+        if not callable(getter):
+            return None
+        try:
+            return getter(symbol=symbol, timeframe=timeframe)
+        except Exception:
+            return None
+
     def get_bars(
         self,
         symbol: str,
@@ -3458,8 +3473,15 @@ def rebuild_recent_history(days=45):
     try:
         broker_dt = get_broker_time()
     except MarketDataClockError as exc:
-        print(f"  [REBUILD] MT4 clock unavailable, skip: {exc}")
-        return 0
+        anchor_getter = getattr(MARKET_DATA_PROVIDER, "get_latest_completed_broker_datetime", None)
+        broker_dt = anchor_getter(symbol="XAUUSD", timeframe="M30") if callable(anchor_getter) else None
+        if broker_dt is None:
+            print(f"  [REBUILD] MT4 clock unavailable, skip: {exc}")
+            return 0
+        print(
+            "  [REBUILD] MT4 live clock unavailable; rebuilding only completed persisted history "
+            f"through {broker_dt.strftime('%Y-%m-%d %H:%M')} Broker."
+        )
     today = broker_dt.date()
     dates = [today - timedelta(days=i) for i in range(days)]
 

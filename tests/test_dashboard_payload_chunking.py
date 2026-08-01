@@ -2,7 +2,10 @@
 import json
 import os
 import sys
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -62,6 +65,52 @@ class TestDashboardPayloadChunking(unittest.TestCase):
         batches = list(bot.split_records_by_encoded_size([huge], max_records=20, max_bytes=350 * 1024))
         self.assertEqual(len(batches), 1)
         self.assertEqual(len(batches[0]), 1)
+
+    def test_complete_snapshot_clears_only_the_first_history_batch(self):
+        import mt5_signal_bot as bot
+
+        records = [
+            {
+                "date": "2026-07-31",
+                "hour": (3, 7, 9, 12, 14, 16)[index % 6],
+                "signal": "SELL",
+                "logic_version": 87,
+                "pair_dirs": {"XAUUSD": "SELL"},
+            }
+            for index in range(21)
+        ]
+        payloads = []
+
+        class FakeResponse:
+            status = 200
+
+            def read(self):
+                return b'{"ok":true}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+        def fake_urlopen(request, timeout=15):
+            if request.full_url.endswith("/api/signals/history/batch"):
+                payloads.append(json.loads(request.data.decode("utf-8")))
+            return FakeResponse()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            signal_log = Path(temp_dir) / "signals_log.json"
+            signal_log.write_text(json.dumps(records), encoding="utf-8")
+            with (
+                patch.object(bot, "_SIGNALS_LOG", str(signal_log)),
+                patch.object(bot, "DASHBOARD_URL", "http://fake"),
+                patch.object(bot, "push_state_to_dashboard", return_value=False),
+                patch.object(bot, "_latest_today_news_cache", return_value=None),
+                patch("urllib.request.urlopen", fake_urlopen),
+            ):
+                bot.push_to_dashboard(snapshot_complete=True)
+
+        self.assertEqual([payload["clear_all"] for payload in payloads], [True, False])
 
 
 if __name__ == "__main__":

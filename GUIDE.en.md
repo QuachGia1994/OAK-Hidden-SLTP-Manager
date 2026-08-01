@@ -18,7 +18,7 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 - **Layers 2–3 — XAUUSD Entry Plan:** H3/H7/H9/H12/H14 classify two three-candle M30 groups: Layer 2 `H−00:30/H−01:00/H−01:30` → BT `H:11`; SW opens Layer 3 `H:00/H−00:30/H−01:00` → SW `H:49`, BT `(H+1):25`, with H3 `04:25`. H16 uses its independent XAUUSD H1 groups: Layer 2 `05:00/04:00/03:00` → `16:11`; if SW, Layer 3 `10:00/09:00/08:00` → BT `16:49`, SW `17:25`.
 - **Layer 1 — Reference Signal:** once the Entry Plan resolves, `H:11` / `(H+1):25` combines GBPUSD D with the common Day Mode: the same branch keeps D and a different branch reverses it. `H:49` is the exception: it reverses the immediately prior completed XAUUSD H1 candle.
 - **Pair derivation:** XAUUSD and GBPUSD share Layer 1's Reference Signal. GBPAUD follows on same D and reverses on opposite D; GBPJPY/GBPCAD apply the inverse relation.
-- **Layer 4 — Final Reverse:** applies exactly once after pair derivation.
+- **Layer 4 — Final Reverse:** applies exactly once to XAUUSD after pair derivation; GBP pair directions are not inverted by Layer 4.
 - D-Direction is independent for all five symbols from the previous-session H4 candle opened at `20:00` Broker. Missing/DOJI data returns `WAIT`; there is no MT5 candle fallback.
 - MT4 heartbeat supplies the Broker Clock. MT5 execution loss only disables execution; stale/disconnected MT4 data fails the Signal closed.
 - The MT5 execution gateway persists v87 idempotency intents; it sends orders only when the profile explicitly sets `signal_execution_enabled=true` (or `SIGNAL_BOT_EXECUTION_ENABLED=true`).

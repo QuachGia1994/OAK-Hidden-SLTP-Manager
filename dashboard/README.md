@@ -14,7 +14,7 @@ Dashboard cho OAK Hidden SLTP Manager, deploy trên Vercel.
 - Hiển thị riêng giờ phát signal và entry theo Broker; chỉ đổi sang giờ local khi record có `broker_utc_offset`
 - Dashboard hiển thị đủ năm hướng signal và entry theo từng symbol: XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.
 - Dashboard/API chỉ nhận record slot active có `logic_version >= 87`, để contract cũ không lẫn vào lịch hiện tại hoặc lịch sử.
-- Mọi slot H3/H7/H9/H12/H14/H16 phát tại `H:00` Broker. Layer 2–3 là Entry Plan XAUUSD chung; Layer 1 ghép D GBPUSD với branch/Day Mode (riêng H:49 đảo H1 XAUUSD vừa hoàn tất); Layer 4 Final Reverse chỉ chạy một lần cuối.
+- Mọi slot H3/H7/H9/H12/H14/H16 phát tại `H:00` Broker. Layer 2–3 là Entry Plan XAUUSD chung; Layer 1 ghép D GBPUSD với branch/Day Mode (riêng H:49 đảo H1 XAUUSD vừa hoàn tất); Layer 4 Final Reverse chỉ đảo XAUUSD một lần cuối.
 - Special Thu/Fri và post-special Monday không loại slot nào; chúng chỉ cung cấp đầu vào cho Final Reverse của H3/H14/H16.
 - GBPAUD, GBPJPY và GBPCAD suy direction theo quan hệ D với GBPUSD; cả năm pair dùng cùng Entry Plan XAUUSD.
 - VIP mở inspector từ dòng XAUUSD để xem Layer 2/3 Entry Plan, Layer 1 Reference Signal, Layer 4 Final Reverse, nhóm SW/BT, candidate và entry cuối. Thiếu/DOJI → WAIT, không dùng fallback.

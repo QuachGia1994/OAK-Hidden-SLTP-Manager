@@ -160,6 +160,31 @@ class TestSignalV87Core(unittest.TestCase):
         self.assertEqual(result["pair_dirs"]["GBPAUD"], "WAIT")
         self.assertEqual(result["pair_evidence"]["GBPAUD"]["failure_reason"], "WAIT_MT4_DATA")
 
+    def test_h16_final_reverse_only_changes_xauusd(self):
+        provider = FixtureProvider()
+        slot_dt = datetime(2026, 7, 31, 16)
+        for opening, direction in zip((5, 4, 3), ("TANG", "TANG", "TANG")):
+            provider.add("XAUUSD", "H1", slot_dt.replace(hour=opening), 1 if direction == "TANG" else 2, 2 if direction == "TANG" else 1)
+        for opening, direction in zip((10, 9, 8), ("GIAM", "TANG", "GIAM")):
+            provider.add("XAUUSD", "H1", slot_dt.replace(hour=opening), 2 if direction == "GIAM" else 1, 1 if direction == "GIAM" else 2)
+        provider.add("XAUUSD", "H1", slot_dt.replace(hour=15), 2, 1)
+        snapshot = {
+            "XAUUSD": {"d_direction": "WAIT"},
+            "GBPUSD": {"d_direction": "SELL"},
+            "GBPAUD": {"d_direction": "SELL"},
+            "GBPJPY": {"d_direction": "SELL"},
+            "GBPCAD": {"d_direction": "BUY"},
+        }
+
+        result = evaluate_slot(slot_dt, 16, provider, snapshot, as_of=slot_dt + timedelta(hours=2))
+
+        self.assertEqual(result["entry_time"], "16:49")
+        self.assertEqual(result["core_signals"]["GBPJPY"], "SELL")
+        self.assertEqual(result["pair_dirs"]["GBPJPY"], "SELL")
+        self.assertEqual(result["pair_dirs"]["XAUUSD"], "SELL")
+        self.assertTrue(result["pair_evidence"]["XAUUSD"]["final_reverse_applied"])
+        self.assertFalse(result["pair_evidence"]["GBPJPY"]["final_reverse_applied"])
+
     def test_final_reverse_matrix_sample(self):
         self.assertEqual(final_reverse(3, datetime(2026, 8, 5).date()), (True, "H3_WEDNESDAY"))
         self.assertEqual(final_reverse(3, datetime(2026, 8, 6).date()), (True, "H3_THURSDAY"))

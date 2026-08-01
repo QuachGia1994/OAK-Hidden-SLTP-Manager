@@ -229,30 +229,128 @@ class MT4FeedStore:
         return result
 
     def get_broker_utc_offset(self, broker_date=None, source_id: Optional[str] = None) -> int:
-        """Return the verified offset for a Broker date, never a guessed default."""
+        """Return a verified Broker-date offset from heartbeats or raw bar UTC timestamps."""
         self._ensure_open()
-        if broker_date is not None:
-            date_text = broker_date.isoformat() if hasattr(broker_date, "isoformat") else str(broker_date)
-            if source_id:
-                row = self._conn.execute(
-                    "SELECT broker_utc_offset FROM mt4_feed_clock_offsets WHERE source_id = ? AND broker_date = ?",
-                    (source_id, date_text),
-                ).fetchone()
+        try:
+            if broker_date is None:
+                query = "SELECT broker_utc_offset FROM mt4_feed_heartbeat"
+                params = ()
+                if source_id:
+                    query += " WHERE source_id = ?"
+                    params = (source_id,)
+                query += " ORDER BY observed_at_utc DESC LIMIT 1"
+                row = self._conn.execute(query, params).fetchone()
             else:
-                row = self._conn.execute(
-                    "SELECT broker_utc_offset FROM mt4_feed_clock_offsets WHERE broker_date = ? ORDER BY observed_at_utc DESC LIMIT 1",
-                    (date_text,),
-                ).fetchone()
-        else:
-            heartbeat = self.get_latest_heartbeat(source_id)
-            row = {"broker_utc_offset": heartbeat.get("broker_utc_offset")} if heartbeat else None
-        self._finish_ephemeral()
-        if row is None:
+                date_text = broker_date.isoformat() if hasattr(broker_date, "isoformat") else str(broker_date)
+                if source_id:
+                    row = self._conn.execute(
+                        "SELECT broker_utc_offset FROM mt4_feed_clock_offsets WHERE source_id = ? AND broker_date = ?",
+                        (source_id, date_text),
+                    ).fetchone()
+                else:
+                    row = self._conn.execute(
+                        "SELECT broker_utc_offset FROM mt4_feed_clock_offsets WHERE broker_date = ? ORDER BY observed_at_utc DESC LIMIT 1",
+                        (date_text,),
+                    ).fetchone()
+                if row is None:
+                    return self._derive_and_cache_bar_offset(date_text, source_id)
+            if row is None:
+                raise ValueError("no verified Broker UTC offset is available")
+            raw_offset = row["broker_utc_offset"] if isinstance(row, (sqlite3.Row, dict)) else row[0]
+            if raw_offset is None:
+                raise ValueError("no verified Broker UTC offset is available")
+            return self._validate_offset(raw_offset)
+        finally:
+            self._finish_ephemeral()
+
+    def _derive_and_cache_bar_offset(self, date_text: str, source_id: Optional[str]) -> int:
+        """Derive one historical offset from persisted Broker and UTC bar timestamps."""
+        query = """
+            SELECT source_id, broker_open_at, utc_open_at, received_at_utc
+            FROM mt4_feed_bars
+            WHERE substr(broker_open_at, 1, 10) = ?
+              AND utc_open_at <> ''
+              AND is_complete = 1
+        """
+        params = [date_text]
+        if source_id:
+            query += " AND source_id = ?"
+            params.append(source_id)
+        query += " ORDER BY source_id, broker_open_at"
+        rows = self._conn.execute(query, params).fetchall()
+        if not rows:
             raise ValueError("no verified Broker UTC offset is available")
-        raw_offset = row["broker_utc_offset"] if isinstance(row, (sqlite3.Row, dict)) else row[0]
-        if raw_offset is None:
-            raise ValueError("no verified Broker UTC offset is available")
-        return self._validate_offset(raw_offset)
+
+        offsets_by_source: Dict[str, list[tuple[datetime, int, str]]] = {}
+        for row in rows:
+            broker_dt = self._parse_datetime(row["broker_open_at"], assume_utc=False).replace(tzinfo=None)
+            utc_dt = self._parse_datetime(row["utc_open_at"], assume_utc=True).astimezone(timezone.utc).replace(tzinfo=None)
+            raw_offset = (broker_dt - utc_dt).total_seconds() / 3600
+            rounded_offset = round(raw_offset)
+            if abs(raw_offset - rounded_offset) > (1 / 3600):
+                raise ValueError("historical bar Broker UTC offset is not a whole hour")
+            offset = self._validate_offset(rounded_offset)
+            offsets_by_source.setdefault(str(row["source_id"]), []).append(
+                (broker_dt, offset, str(row["received_at_utc"]))
+            )
+
+        derived_by_source: Dict[str, tuple[int, str]] = {}
+        for source, values in offsets_by_source.items():
+            ordered = sorted(values, key=lambda item: item[0])
+            unique_offsets = {offset for _, offset, _ in ordered}
+            if len(unique_offsets) > 2 or max(unique_offsets) - min(unique_offsets) > 1:
+                raise ValueError("inconsistent historical Broker UTC offsets")
+            transitions = sum(
+                current[1] != previous[1]
+                for previous, current in zip(ordered, ordered[1:])
+            )
+            if transitions > 1:
+                raise ValueError("inconsistent historical Broker UTC offset transition")
+            _, offset, observed_at_utc = ordered[-1]
+            derived_by_source[source] = (offset, observed_at_utc)
+
+        offsets = {value[0] for value in derived_by_source.values()}
+        if len(offsets) != 1:
+            raise ValueError("inconsistent Broker UTC offsets across feed sources")
+        offset = offsets.pop()
+        for source, (source_offset, observed_at_utc) in derived_by_source.items():
+            self._conn.execute(
+                """
+                INSERT OR REPLACE INTO mt4_feed_clock_offsets
+                    (source_id, broker_date, broker_utc_offset, observed_at_utc)
+                VALUES (?, ?, ?, ?)
+                """,
+                (source, date_text, source_offset, observed_at_utc),
+            )
+        self._conn.commit()
+        return offset
+
+    def get_latest_completed_broker_datetime(
+        self,
+        symbol: Optional[str] = None,
+        timeframe: Optional[str] = None,
+    ) -> Optional[datetime]:
+        """Return the latest completed Broker wall time persisted by the MT4 feed."""
+        self._ensure_open()
+        try:
+            clauses = ["is_complete = 1", "broker_close_at <> ''"]
+            params = []
+            if symbol:
+                clauses.append("canonical_symbol = ?")
+                params.append(symbol)
+            if timeframe:
+                clauses.append("timeframe = ?")
+                params.append(timeframe)
+            where = " AND ".join(clauses)
+            row = self._conn.execute(
+                f"SELECT broker_close_at FROM mt4_feed_bars WHERE {where} ORDER BY broker_close_at DESC LIMIT 1",
+                params,
+            ).fetchone()
+            if not row:
+                return None
+            return self._parse_datetime(row["broker_close_at"], assume_utc=False).replace(tzinfo=None)
+        finally:
+            self._finish_ephemeral()
 
     def get_clock_offset_history(self, source_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Return cached per-date offsets for DST-aware history rebuilds."""
