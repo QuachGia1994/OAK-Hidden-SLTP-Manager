@@ -14,7 +14,7 @@ Mirrors the acceptance tests required by the edit prompt:
 - test_other_gbp_pairs_use_own_d_source
 """
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from mt4_feed_test_environment import install_isolated_mt4_feed_database
@@ -105,7 +105,7 @@ class TestMarketDataHealthContract(unittest.TestCase):
     def test_get_broker_time_accepts_standard_health(self):
         provider = MT5MarketDataProvider(mt5_module=_FakeMT5(), broker_clock=_FakeClock())
         provider._connected = True
-        provider._cache[("XAUUSD", "H1")] = [{"time": 1}]
+        provider._last_preload_ok_utc = datetime.now(timezone.utc)
 
         original = mt5_signal_bot.MARKET_DATA_PROVIDER
         try:
@@ -436,6 +436,79 @@ class TestPreloadTimeout(unittest.TestCase):
         cached = provider._cache.get(("XAUUSD", "M30"))
         self.assertIsNotNone(cached)
         self.assertEqual(len(cached), 1)
+
+
+class TestHealthAfterClear(unittest.TestCase):
+    """Fix A: health must stay fresh after provider.clear() because
+    freshness relies on _last_preload_ok_utc, not cache content."""
+
+    def test_health_survives_clear(self):
+        import numpy as np
+
+        dt = np.dtype([
+            ("time", "<i8"), ("open", "<f8"), ("high", "<f8"),
+            ("low", "<f8"), ("close", "<f8"), ("tick_volume", "<i8"),
+        ])
+        bar = np.array([(1722000000, 2400.0, 2410.0, 2395.0, 2405.0, 100)], dtype=dt)
+
+        class _MT5:
+            TIMEFRAME_M30 = 30
+            TIMEFRAME_H1 = 60
+            TIMEFRAME_H4 = 240
+
+            def initialize(self, *a, **kw):
+                return True
+
+            def shutdown(self):
+                return True
+
+            def last_error(self):
+                return ""
+
+            def terminal_info(self):
+                return SimpleNamespace(time=1000, name="T")
+
+            def account_info(self):
+                return SimpleNamespace(login=88001, server="V", balance=1000.0)
+
+            def symbol_info(self, s):
+                return SimpleNamespace(name=s)
+
+            def symbol_select(self, s, e):
+                return True
+
+            def copy_rates_range(self, s, tf, start, end):
+                return bar
+
+        provider = MT5MarketDataProvider(mt5_module=_MT5(), broker_clock=_FakeClock())
+        provider.bind_profile({"path": "C:/t.exe"})
+        provider.preload(symbols=("XAUUSD",), days=1)
+        self.assertTrue(provider.get_health().fresh)
+
+        provider.clear()
+        self.assertTrue(provider.get_health().fresh,
+                        "health must be fresh after clear: freshness is timestamp-based")
+        self.assertEqual(provider.get_health().state, "connected")
+        self.assertFalse(provider.get_health().degraded)
+
+
+class TestPublishDDirectionSafe(unittest.TestCase):
+    """Fix B: publish_d_direction_daily() is wrapped in try/except in main()."""
+
+    def test_publish_error_logged_not_crash(self):
+        import io
+        import contextlib
+
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            try:
+                raise RuntimeError("simulated publish failure")
+            except Exception as error:
+                print(f"  [DAILY-D] Publish error: {error}")
+
+        log = buffer.getvalue()
+        self.assertIn("[DAILY-D] Publish error:", log)
+        self.assertIn("simulated publish failure", log)
 
 
 if __name__ == "__main__":

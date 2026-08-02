@@ -115,6 +115,7 @@ class MT5MarketDataProvider:
         self._health_error = ""
         self._profile_cfg = {}
         self._preload_days = int(os.environ.get("MT5_PRELOAD_DAYS", self._conf.get("preload_days", 14)) or 14)
+        self._last_preload_ok_utc = None
 
     # ------------------------------------------------------------------ #
     # Connection / preload
@@ -316,6 +317,8 @@ class MT5MarketDataProvider:
         except Exception:
             pass
         complete = not missing
+        if complete or (loaded_total > 0 and len(missing) < len(symbols) * len(timeframes)):
+            self._last_preload_ok_utc = datetime.now(timezone.utc)
         if complete:
             print(f"[MT5 DATA] Coverage ready: {len(symbols)} symbols x {len(timeframes)} timeframes")
         else:
@@ -439,11 +442,13 @@ class MT5MarketDataProvider:
                 clock_verified=self.is_broker_utc_offset_verified(),
                 error=self._health_error,
             )
-        reads = sum(len(v) for v in self._cache.values() if isinstance(v, list))
+        now_utc = datetime.now(timezone.utc)
+        fresh_age_limit = timedelta(hours=int(os.environ.get("MT5_HEALTH_FRESH_HOURS", "8") or 8))
+        fresh = self._last_preload_ok_utc is not None and (now_utc - self._last_preload_ok_utc) <= fresh_age_limit
         return MarketDataHealth(
-            state="connected" if reads > 0 else "degraded",
-            fresh=reads > 0,
-            degraded=self._connected and reads == 0,
+            state="connected" if self._last_preload_ok_utc is not None else "degraded",
+            fresh=fresh,
+            degraded=self._connected and (self._last_preload_ok_utc is None or not fresh),
             age_seconds=0.0,
             observed_at_utc=datetime.now(timezone.utc).isoformat(),
             clock_verified=self.is_broker_utc_offset_verified(),

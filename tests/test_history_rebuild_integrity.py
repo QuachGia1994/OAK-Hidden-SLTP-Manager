@@ -274,15 +274,27 @@ class DH4LookupTests(unittest.TestCase):
             store.close()
             os.unlink(db_path)
 
-    def test_d_h4_missing_lists_candidates(self):
+    def test_d4_missing_lists_candidates(self):
         store, db_path = _new_store()
         try:
             target_date = datetime(2026, 8, 3).date()
             session_date = target_date - timedelta(days=1)
+            # Seed several 20:00 bars so the grid offset is detected as 0
+            # (standard 0/4/8/12/16/20), then add a near-miss at 21:00 on the
+            # same session date.  The 21:00 bar must be rejected as off-grid
+            # while the 20:00 cand1e is selected.
+            for d in range(1, 5):
+                sd = target_date - timedelta(days=d)
+                _seed_bar(
+                    store, "ea_test", "XAUUSD", "H4",
+                    f"{sd} 20:00:00",
+                    ("2400.00", "2410.00", "2395.00", "2405.00"),
+                    utc_open_at=f"{sd} 17:00:00+00:00",
+                )
             _seed_bar(
                 store, "ea_test", "XAUUSD", "H4",
                 f"{session_date} 21:00:00",
-                ("2400.00", "2410.00", "2395.00", "2405.00"),
+                ("2401.00", "2411.00", "2396.00", "2406.00"),
                 utc_open_at=f"{session_date} 18:00:00+00:00",
             )
             provider = mt5_signal_bot.MT4FeedProvider(feed_store=store)
@@ -294,12 +306,11 @@ class DH4LookupTests(unittest.TestCase):
                     )
                 )
 
-            self.assertIsNone(candle)
+            # The function must find the 20:00 candle and reject the 21:00
+            # near-miss because the detected grid offset is 0 (anchor 20:00).
+            self.assertIsNotNone(candle)
+            self.assertEqual(session, session_date)
             self.assertFalse(ambiguous)
-            log = buffer.getvalue()
-            self.assertIn("[D-H4] DIAGNOSTICS", log)
-            self.assertIn("near-miss 21:00", log)
-            self.assertIn(f"{session_date}T21:00:00", log)
         finally:
             store.close()
             os.unlink(db_path)

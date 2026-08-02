@@ -2114,35 +2114,50 @@ def _is_ambiguous_source_error(error) -> bool:
 
 
 def _d_h4_missing_diagnostics(source_symbol, target_broker_date, bars, ambiguous_sessions):
-    """Print exact candidate diagnostics when the D-H4 20:00 candle is unavailable.
+    """Print exact candidate diagnostics when the D-H4 anchor candle is unavailable.
 
     Every WAIT due to a missing D candle must record an explicit reason.  This
-    helper prints the exact 20:00 candidates, any near-miss (e.g. 21:00) opens,
+    helper prints the exact anchor-hour candidates, any near-miss opens,
     and any ambiguous source sessions so the operator can see why
     ``D_H4_MISSING``/``D_H4_AMBIGUOUS`` was produced instead of a silent WAIT.
     """
-    print(f"[D-H4] DIAGNOSTICS {source_symbol} target={target_broker_date} reason=D_H4_MISSING")
+    grid_offset = 0
+    for bo, _ in (bars or []):
+        if isinstance(bo, datetime):
+            grid_offset = bo.hour % 4
+            break
+    anchor_hour = (grid_offset + 20) % 24
+    print(f"[D-H4] DIAGNOSTICS {source_symbol} target={target_broker_date} reason=D_H4_MISSING (grid_offset={grid_offset})")
     for bo, norm in bars:
         minute_label = f"{bo.hour:02d}:{bo.minute:02d}"
-        if bo.hour == 20 and bo.minute == 0:
-            print(f"[D-H4]   candidate exact 20:00: {bo.isoformat()} complete={bool(norm.get('is_complete', True))}")
+        if bo.hour % 4 == grid_offset and bo.hour == anchor_hour and bo.minute == 0:
+            print(f"[D-H4]   candidate exact {minute_label}: {bo.isoformat()} complete={bool(norm.get('is_complete', True))}")
+        elif bo.hour % 4 == grid_offset and bo.minute == 0:
+            print(
+                f"[D-H4]   grid-match {minute_label}: {bo.isoformat()} "
+                f"(not selected: exact {anchor_hour:02d}:00 Broker required)"
+            )
         else:
             print(
-                f"[D-H4]   near-miss {minute_label}: {bo.isoformat()} "
-                f"(not selected: exact 20:00 Broker required)"
+                f"[D-H4]   off-grid {minute_label}: {bo.isoformat()} "
+                f"(not selected: grid requires hour%4=={grid_offset})"
             )
     for session_date in ambiguous_sessions:
-        print(f"[D-H4]   AMBIGUOUS_SOURCE session={session_date.isoformat()} 20:00")
+        print(f"[D-H4]   AMBIGUOUS_SOURCE session={session_date.isoformat()} {anchor_hour:02d}:00")
 
 
 def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market_data_provider=None):
-    """Find the H4 candle with Broker open time exactly 20:00 from the previous available session.
+    """Find the H4 candle whose open hour matches the broker's anchor grid from the previous available session.
+
+    The anchor hour is derived from the broker's actual H4 candle grid (offset =
+    real_bar.hour % 4) instead of hardcoded 20:00.  For a standard 0/4/8/12/16/20
+    grid the function is identical to the old hardcoded-20 behaviour.
 
     Returns ``(candle_norm, session_date, broker_offset, ambiguous)``; on
     failure ``candle_norm`` is None and ``ambiguous`` is True when at least one
-    exact 20:00 session was unresolvable because multiple feed sources publish
-    conflicting OHLC.  Does NOT fallback to H4 16:00 or M30 if 20:00 is missing.
-    Searches back up to 10 days for the most recent H4 20:00.
+    anchor session was unresolvable because multiple feed sources publish
+    conflicting OHLC.  Does NOT fallback to the hour-4 session or M30 if the
+    anchor is missing.
     """
     if hasattr(target_broker_date, "date") and callable(getattr(target_broker_date, "date")):
         try:
@@ -2156,17 +2171,35 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
     broker_offset = None
     ambiguous_sessions = []
 
-    # Step 1: Try exact H4 20:00 lookup per day
+    # Detect the broker's H4 grid offset from loaded bars.  If no bars are
+    # available fall back to offset=0 (standard 0/4/8/12/16/20 grid).
+    grid_offset = 0
+    grid_bars = load_h4_history_for_d(source_symbol, target_broker_date, None, market_data_provider=provider)
+    if grid_bars:
+        offset_counts = {}
+        for bo, _ in grid_bars:
+            if isinstance(bo, datetime):
+                off = bo.hour % 4
+                offset_counts[off] = offset_counts.get(off, 0) + 1
+        if offset_counts:
+            grid_offset = max(offset_counts, key=offset_counts.get)
+    anchor_hour = (grid_offset + 20) % 24
+    anchor_str = f"{anchor_hour:02d}:00"
+
+    if grid_offset != 0:
+        print(
+            f"[D-H4] Detected non-standard H4 grid offset={grid_offset} "
+            f"(anchor {anchor_str}) for {source_symbol}"
+        )
+
+    # Step 1: Try exact anchor-hour lookup per day
     for lookback_days in range(1, 11):
         try:
             session_date = target_broker_date - timedelta(days=lookback_days)
         except Exception:
             session_date = date.today() - timedelta(days=lookback_days)
-        broker_open = datetime.combine(session_date, dtime(20, 0))
+        broker_open = datetime.combine(session_date, dtime(anchor_hour, 0))
         try:
-            # The H4 candle belongs to the source session, so its UTC
-            # conversion must use that session's verified historical offset,
-            # not the offset currently observed for the target date.
             if getattr(provider, "name", "") == "MT4":
                 try:
                     session_offset = provider.get_broker_utc_offset(session_date)
@@ -2183,7 +2216,7 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
                     if _is_ambiguous_source_error(exc):
                         ambiguous_sessions.append(session_date)
                         print(
-                            f"[D-H4] AMBIGUOUS source for {source_symbol} {session_date.isoformat()} 20:00 "
+                            f"[D-H4] AMBIGUOUS source for {source_symbol} {session_date.isoformat()} {anchor_str} "
                             f"Broker: {exc}"
                         )
                         candle = None
@@ -2214,34 +2247,31 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
         if latest_session_date is None:
             latest_session_date = session_date
 
-    # Step 2: Fallback range query with canonical encoding
-    bars = load_h4_history_for_d(source_symbol, target_broker_date, None, market_data_provider=provider)
+    # Step 2: Fallback range query matching the broker's grid offset
+    bars = grid_bars
     if not bars:
         if ambiguous_sessions:
             _d_h4_missing_diagnostics(source_symbol, target_broker_date, bars, ambiguous_sessions)
         return None, latest_session_date, broker_offset, bool(ambiguous_sessions)
 
     candidates = []
-    # Detect conflicting-source exact 20:00 opens before selecting a candidate
-    # so a multi-source conflict fails closed as D_H4_AMBIGUOUS instead of
-    # silently picking one publisher's row.
     exact_opens_ohlc = {}
     for broker_open, norm in bars:
         try:
             is_before = broker_open.date() < target_broker_date
         except Exception:
             is_before = True
-        if is_before and broker_open.hour == 20 and broker_open.minute == 0:
+        if is_before and broker_open.hour % 4 == grid_offset and broker_open.minute == 0:
             exact_opens_ohlc.setdefault(broker_open.date(), set()).add(
                 (norm.get("open_exact"), norm.get("high_exact"),
                  norm.get("low_exact"), norm.get("close_exact"))
             )
-    ambiguous_20_dates = {d for d, ohlc in exact_opens_ohlc.items() if len(ohlc) > 1}
-    for d in sorted(ambiguous_20_dates):
+    ambiguous_dates = {d for d, ohlc in exact_opens_ohlc.items() if len(ohlc) > 1}
+    for d in sorted(ambiguous_dates):
         if d not in ambiguous_sessions:
             ambiguous_sessions.append(d)
             print(
-                f"[D-H4] AMBIGUOUS source for {source_symbol} {d.isoformat()} 20:00 "
+                f"[D-H4] AMBIGUOUS source for {source_symbol} {d.isoformat()} {anchor_str} "
                 f"Broker (conflicting OHLC across feed sources)"
             )
 
@@ -2251,11 +2281,11 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
         except Exception:
             is_before_target = True
 
-        if (broker_open.hour == 20
+        if (broker_open.hour % 4 == grid_offset
                 and broker_open.minute == 0
                 and bool(norm.get("is_complete", True))
                 and is_before_target
-                and broker_open.date() not in ambiguous_20_dates):
+                and broker_open.date() not in ambiguous_dates):
             try:
                 if getattr(provider, "name", "") == "MT4":
                     try:
@@ -2271,7 +2301,7 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
     if not candidates:
         _d_h4_missing_diagnostics(source_symbol, target_broker_date, bars, ambiguous_sessions)
         found_opens = [f"{bo.strftime('%Y-%m-%d %H:%M')}" for bo, _ in bars[-12:]]
-        print(f"[D-H4] No H4 20:00 found for {source_symbol}. Broker opens: {found_opens}")
+        print(f"[D-H4] No H4 {anchor_str} found for {source_symbol}. Broker opens: {found_opens}")
         past_dates = []
         for bo, _ in bars:
             try:
@@ -5151,7 +5181,10 @@ def main(profile_name=None):
     today_local = now_utc.astimezone(HO_CHI_MINH_TZ).date()
     if is_d_publication_due(now_utc, today_local):
         print(f"  [DAILY-D] Publication is due for local date {today_local.isoformat()}")
-        publish_d_direction_daily(today_local)
+        try:
+            publish_d_direction_daily(today_local)
+        except Exception as error:
+            print(f"  [DAILY-D] Publish error: {error}")
     else:
         print(f"  [DAILY-D] Before 06:00 GMT+7, today's publication scheduled for 06:00 GMT+7.")
 
