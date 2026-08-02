@@ -355,5 +355,88 @@ class TestPreloadNumpyAndErrorResilience(unittest.TestCase):
         self.assertEqual(len(cached), 2)
 
 
+class TestPreloadTimeout(unittest.TestCase):
+    def test_hung_copy_rates_range_times_out_and_reports_missing(self):
+        import os
+        import time
+        import numpy as np
+
+        dt = np.dtype([
+            ("time", "<i8"), ("open", "<f8"), ("high", "<f8"),
+            ("low", "<f8"), ("close", "<f8"), ("tick_volume", "<i8"),
+        ])
+        xau_m30_bars = np.array([
+            (1722000000, 2400.0, 2410.0, 2395.0, 2405.0, 100),
+        ], dtype=dt)
+
+        class _HangingMT5:
+            TIMEFRAME_M30 = 30
+            TIMEFRAME_H1 = 60
+
+            def __init__(self):
+                self.initialize_calls = 0
+                self._initialized = True
+
+            def initialize(self, *args, **kwargs):
+                self.initialize_calls += 1
+                return True
+
+            def shutdown(self):
+                return True
+
+            def last_error(self):
+                return ""
+
+            def terminal_info(self):
+                from types import SimpleNamespace
+                return SimpleNamespace(time=0, name="MetaTrader 5")
+
+            def account_info(self):
+                from types import SimpleNamespace
+                return SimpleNamespace(login=88001, server="VantageMarkets-Server", balance=1000.0)
+
+            def symbol_info(self, symbol):
+                from types import SimpleNamespace
+                return SimpleNamespace(name=symbol)
+
+            def symbol_select(self, symbol, enable):
+                return True
+
+            def copy_rates_range(self, symbol, timeframe, start, end):
+                # M30 succeeds quickly; H1 hangs beyond the configured timeout.
+                if timeframe == 30:
+                    return xau_m30_bars
+                time.sleep(5)
+                return None
+
+        fake = _HangingMT5()
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=_FakeClock())
+        provider.bind_profile({"path": "C:/x/terminal64.exe"})
+
+        old_timeout = os.environ.get("MT5_COPY_RATES_TIMEOUT_SECONDS")
+        os.environ["MT5_COPY_RATES_TIMEOUT_SECONDS"] = "2"
+        # Re-read the env var so __init__ picks it up if re-read. The value
+        # is read inside preload() at call time, so setting it here is enough.
+        start = time.monotonic()
+        try:
+            result = provider.preload(symbols=("XAUUSD",), timeframes=("M30", "H1"), days=60)
+        finally:
+            if old_timeout is None:
+                os.environ.pop("MT5_COPY_RATES_TIMEOUT_SECONDS", None)
+            else:
+                os.environ["MT5_COPY_RATES_TIMEOUT_SECONDS"] = old_timeout
+        elapsed = time.monotonic() - start
+
+        # preload must return within ~timeout, not hang for 30s.
+        self.assertLess(elapsed, 10)
+        self.assertIs(result.complete, False)
+        self.assertEqual(result.attempted, 2)
+        self.assertIn("XAUUSD H1", result.missing)
+        self.assertNotIn("XAUUSD M30", result.missing)
+        cached = provider._cache.get(("XAUUSD", "M30"))
+        self.assertIsNotNone(cached)
+        self.assertEqual(len(cached), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

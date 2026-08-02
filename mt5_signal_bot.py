@@ -3018,7 +3018,7 @@ def _market_data_provider_from_config():
 def _build_mt5_provider():
     """Build the default MT5-backed provider (reads directly from the terminal)."""
     from providers.mt5_market_data_provider import MT5MarketDataProvider
-    conf = {"mt5_path": MT5_PATH, "preload_days": 60}
+    conf = {"mt5_path": MT5_PATH, "preload_days": 14}
     try:
         provider = MT5MarketDataProvider(mt5_module=mt5, broker_clock=BROKER_CLOCK, conf=conf)
     except Exception:
@@ -5060,13 +5060,14 @@ def main(profile_name=None):
     BROKER_CLOCK.configure_symbols(resolved_clock_symbols)
 
     # Sequential startup: the first preload must finish before the Broker clock
-    # is consulted, so History is never rebuilt from an empty MT5 cache.
+    # is consulted, so History is never rebuilt from an empty MT5 cache.  An
+    # initial short window (default 14 days via MT5_PRELOAD_DAYS) keeps startup
+    # responsive; history_rebuild_worker extends coverage in the background.
     if data_provider_name == "MT5" and hasattr(MARKET_DATA_PROVIDER, "preload"):
         try:
             preload_result = MARKET_DATA_PROVIDER.preload(
                 symbols=ACTIVE_SIGNAL_PAIRS,
                 timeframes=("M30", "H1", "H4"),
-                days=60,
             )
             if getattr(preload_result, "complete", False) is False:
                 print("[MT5 DATA] Coverage incomplete; failing closed and preserving existing History.")

@@ -13,6 +13,7 @@ attribute 'get'`` failure mode is impossible.
 from __future__ import annotations
 
 import os
+import concurrent.futures
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -113,7 +114,7 @@ class MT5MarketDataProvider:
         self._connected = False
         self._health_error = ""
         self._profile_cfg = {}
-        self._preload_days = int(self._conf.get("preload_days", 60) or 60)
+        self._preload_days = int(os.environ.get("MT5_PRELOAD_DAYS", self._conf.get("preload_days", 14)) or 14)
 
     # ------------------------------------------------------------------ #
     # Connection / preload
@@ -268,11 +269,13 @@ class MT5MarketDataProvider:
             print(f"[MT5 DATA] preload skipped: {self._health_error}")
             return PreloadResult(0, 0, [], False, None, "", "")
         symbols = list(symbols or CANONICAL_SYMBOLS)
-        preload_days = int(days or self._preload_days or 60)
+        preload_days = int(days or self._preload_days or 14)
+        timeout_seconds = int(os.environ.get("MT5_COPY_RATES_TIMEOUT_SECONDS", "15") or 15)
         now_utc = datetime.now(timezone.utc)
         start_utc = now_utc - timedelta(days=preload_days)
         missing = []
         loaded_total = 0
+        print(f"[MT5 DATA] preload starting: connected={self._connected}, symbols={symbols}, timeframes={timeframes}, days={preload_days}")
         for canonical in symbols:
             resolved = self.resolve_symbol(canonical)
             self._select_symbol(resolved)
@@ -282,7 +285,10 @@ class MT5MarketDataProvider:
                     missing.append(f"{canonical} {tf}")
                     continue
                 try:
-                    rates = self._copy_rates_range(resolved, attr, start_utc, now_utc)
+                    print(f"[MT5 DATA] fetching {canonical} {tf}...")
+                    rates = self._copy_rates_range_with_timeout(
+                        resolved, attr, start_utc, now_utc, timeout_seconds
+                    )
                     rows = rates if rates is not None and len(rates) > 0 else []
                     bars = [self._normalize_bar(canonical, resolved, tf, row) for row in rows]
                     self._store_bars(canonical, tf, bars)
@@ -290,6 +296,9 @@ class MT5MarketDataProvider:
                     print(f"[MT5 DATA] {canonical} {tf} loaded={len(bars)}")
                     if not bars:
                         missing.append(f"{canonical} {tf}")
+                except TimeoutError:
+                    missing.append(f"{canonical} {tf}")
+                    print(f"[MT5 DATA] {canonical} {tf} timed out after {timeout_seconds}s")
                 except Exception as exc:
                     missing.append(f"{canonical} {tf}")
                     print(f"[MT5 DATA] {canonical} {tf} failed: {exc}")
@@ -338,6 +347,27 @@ class MT5MarketDataProvider:
         if rates is not None and len(rates) == 0:
             print(f"[MT5 DATA] {resolved} empty history; mt5.last_error={getattr(mt5, 'last_error', lambda: '')()}")
         return rates
+
+    def _copy_rates_range_with_timeout(self, resolved, attr, start_utc, end_utc, timeout_seconds):
+        """Run _copy_rates_range in a worker thread; abort on timeout.
+
+        A hung MT5 terminal (downloading history from broker) can block
+        copy_rates_range indefinitely. Submitting it via a ThreadPoolExecutor
+        and calling result(timeout=...) lets us give up after
+        ``timeout_seconds`` so preload and the rest of main() stay responsive.
+
+        ``shutdown(wait=False, cancel_futures=True)`` lets the still-running
+        worker thread be abandoned (daemon) rather than blocking the caller.
+        """
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(self._copy_rates_range, resolved, attr, start_utc, end_utc)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError as exc:
+            future.cancel()
+            raise TimeoutError(f"copy_rates_range timed out after {timeout_seconds}s") from exc
+        finally:
+            executor.shutdown(wait=False, cancel_futures=True)
 
     def _store_bars(self, canonical, tf, bars):
         key = (canonical, tf.upper())
