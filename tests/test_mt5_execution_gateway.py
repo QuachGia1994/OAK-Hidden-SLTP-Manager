@@ -54,14 +54,16 @@ class FakeMT5:
 
 def ready_result():
     return {
-        "logic_version": 87,
+        "logic_version": 88,
         "signal_state": "READY",
         "entry_state": "READY",
         "entry_time": "09:49",
-        "pair_dirs": {symbol: "BUY" for symbol in SIGNAL_PAIRS},
-        "pair_signal_states": {symbol: "READY" for symbol in SIGNAL_PAIRS},
-        "pair_entry_times": {symbol: "09:49" for symbol in SIGNAL_PAIRS},
-        "pair_entry_at_utc": {symbol: "2026-08-03T06:49:00Z" for symbol in SIGNAL_PAIRS},
+        "hour": 9,
+        "applicable_pairs": ["XAUUSD", "GBPUSD", "GBPCAD"],
+        "pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "BUY", "GBPAUD": None, "GBPJPY": None, "GBPCAD": "BUY"},
+        "pair_signal_states": {"XAUUSD": "READY", "GBPUSD": "READY", "GBPAUD": "NOT_APPLICABLE", "GBPJPY": "NOT_APPLICABLE", "GBPCAD": "READY"},
+        "pair_entry_times": {"XAUUSD": "09:49", "GBPUSD": "09:49", "GBPAUD": None, "GBPJPY": None, "GBPCAD": "09:49"},
+        "pair_entry_at_utc": {"XAUUSD": "2026-08-03T06:49:00Z", "GBPUSD": "2026-08-03T06:49:00Z", "GBPCAD": "2026-08-03T06:49:00Z"},
     }
 
 
@@ -73,7 +75,9 @@ def test_schedule_is_idempotent_and_disabled_gateway_does_not_send():
     first = gateway.schedule_signal(result, date(2026, 8, 3), 9)
     second = gateway.schedule_signal(result, date(2026, 8, 3), 9)
     assert first == second
-    assert len(store.rows) == 5
+    # H9 is slot-scoped: only XAUUSD, GBPUSD, GBPCAD get intents.
+    assert len(store.rows) == 3
+    assert all("GBPAUD" not in key and "GBPJPY" not in key for key in store.rows)
     assert mt5.sent == []
 
 
@@ -84,6 +88,6 @@ def test_enabled_gateway_sends_each_common_entry_once():
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
     gateway.schedule_signal(ready_result(), date(2026, 8, 3), 9, now_utc=now)
     gateway.process_due(now_utc=now)
-    assert len(mt5.sent) == 5
-    assert {request["comment"] for request in mt5.sent}.__len__() == 5
+    assert len(mt5.sent) == 3
+    assert {request["comment"] for request in mt5.sent}.__len__() == 3
     assert {row["status"] for row in store.rows.values()} == {"EXECUTED"}

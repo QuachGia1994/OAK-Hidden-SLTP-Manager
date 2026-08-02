@@ -43,6 +43,12 @@ export interface Signal {
   core_signals?: Record<string, string>;
   final_reverse_applied?: boolean;
   final_reverse_reason?: string | null;
+  /** v88: slot-scoped active pairs evaluated for this signal. */
+  applicable_pairs?: string[];
+  /** v88: per-symbol pre-reverse core signal (after Reference/D relation). */
+  pair_core_signals?: Record<string, string | null>;
+  /** v88: per-symbol Final Reverse application flag. */
+  pair_final_reverse_applied?: Record<string, boolean>;
   pair_d_directions?: Record<string, string>;
   pair_d_relations?: Record<string, string>;
   pair_relation_rules?: Record<string, string>;
@@ -326,7 +332,7 @@ export function isSignalEvidenceV3(ev: unknown): ev is SignalEvidenceV3 {
   if (!ev || typeof ev !== "object") return false;
   const e = ev as Record<string, unknown>;
   return typeof e["evidence_schema_version"] === "number"
-    && (Number(e["evidence_schema_version"]) === 9 || Number(e["evidence_schema_version"]) === 10);
+    && [9, 10, 11].includes(Number(e["evidence_schema_version"]));
 }
 
 export interface DDirectionSymbolData {

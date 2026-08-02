@@ -8,6 +8,7 @@ import { selectBestSignalRecord } from "@/lib/signal-resolver";
 import { getSignalLabel, getSignalTime, getSlotTimeValue, getTargetHours } from "@/lib/constants";
 import { brokerTimeToLocal } from "@/lib/broker-time";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
+import { formatSystemState } from "@/lib/translations";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
@@ -119,11 +120,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label={locale === "EN" ? "System status" : "Trạng thái hệ thống"}>
-        <StatusChip label="MT4 Feed" value={publicDataState} healthy={publicDataState === "connected" || publicDataState === "degraded"} />
-        <StatusChip label="MT5 Execution" value={publicExecutionState} healthy={publicExecutionState === "connected"} />
+        <StatusChip label="MT4 Feed" value={formatSystemState(publicDataState, locale)} healthy={publicDataState === "connected" || publicDataState === "degraded"} />
+        <StatusChip label="MT5 Execution" value={formatSystemState(publicExecutionState, locale)} healthy={publicExecutionState === "connected"} />
         <StatusChip
           label={locale === "EN" ? "Broker Clock" : "Đồng hồ Broker"}
-          value={brokerClock ? publicDataState : "waiting"}
+          value={brokerClock ? formatSystemState(publicDataState, locale) : (locale === "EN" ? "Waiting" : "Đang chờ")}
           healthy={Boolean(brokerClock) && (publicDataState === "connected" || publicDataState === "degraded")}
         />
       </section>

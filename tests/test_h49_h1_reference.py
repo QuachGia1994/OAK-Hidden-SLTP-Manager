@@ -121,7 +121,7 @@ class TestH49H1Reference(unittest.TestCase):
         self.assertEqual(h49["reversed_signal"], "BUY")
         self.assertEqual(h49["state"], "READY")
         self.assertIsNone(h49["failure_reason"])
-        self.assertEqual(result["pair_evidence"]["XAUUSD"]["evidence_schema_version"], 10)
+        self.assertEqual(result["pair_evidence"]["XAUUSD"]["evidence_schema_version"], 11)
 
 
 if __name__ == "__main__":

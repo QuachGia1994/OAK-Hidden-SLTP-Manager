@@ -6,11 +6,12 @@ install_isolated_mt4_feed_database()
 import mt5_signal_bot
 
 class TestH3AllFivePairs(unittest.TestCase):
-    def test_h3_evaluates_all_five_pairs(self) -> None:
+    def test_h3_evaluates_slot_scoped_pairs(self) -> None:
         evaluated = mt5_signal_bot.get_evaluated_pairs_for_hour(3)
-        self.assertEqual(evaluated, mt5_signal_bot.SIGNAL_PAIRS)
+        self.assertEqual(evaluated, ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY"))
         self.assertIn("GBPUSD", evaluated)
-        self.assertEqual(len(evaluated), 5)
+        self.assertNotIn("GBPCAD", evaluated)
+        self.assertEqual(len(evaluated), 4)
 
     def test_entry_timing_symbols_include_all_pairs(self) -> None:
         """All 5 symbols run independent entry timing in v82."""

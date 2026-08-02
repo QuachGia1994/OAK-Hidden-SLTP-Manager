@@ -39,7 +39,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isCurrentXauEvidence(value: unknown, logicVersion: number): value is Record<string, unknown> {
   if (!isRecord(value)) return false;
-  return (Number(value.evidence_schema_version) === 9 || Number(value.evidence_schema_version) === 10)
+  return [9, 10, 11].includes(Number(value.evidence_schema_version))
     && Number(value.logic_version) === logicVersion
     && value.symbol === "XAUUSD";
 }

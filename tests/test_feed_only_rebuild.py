@@ -1,4 +1,4 @@
-"""A v87 log rebuild depends on the MT4 feed, not the MT5 execution gateway."""
+"""A v88 log rebuild depends on the MT4 feed, not the MT5 execution gateway."""
 from unittest.mock import patch
 import unittest
 from mt4_feed_test_environment import install_isolated_mt4_feed_database
@@ -17,7 +17,18 @@ class FeedOnlyRebuildTests(unittest.TestCase):
             rebuilt = mt5_signal_bot._run_feed_only_rebuild(45)
 
         self.assertEqual(rebuilt, 6)
-        rebuild.assert_called_once_with(days=45)
+        rebuild.assert_called_once_with(days=45, include_weekends=False)
+        push.assert_called_once_with(snapshot_complete=True)
+
+    def test_weekend_rebuild_is_forwarded(self):
+        with (
+            patch.object(mt5_signal_bot, "rebuild_recent_history", return_value=6) as rebuild,
+            patch.object(mt5_signal_bot, "push_to_dashboard") as push,
+        ):
+            rebuilt = mt5_signal_bot._run_feed_only_rebuild(45, include_weekends=True)
+
+        self.assertEqual(rebuilt, 6)
+        rebuild.assert_called_once_with(days=45, include_weekends=True)
         push.assert_called_once_with(snapshot_complete=True)
 
     def test_does_not_publish_stale_records_when_the_feed_cannot_rebuild(self):

@@ -6,6 +6,7 @@ import { ACTIVE_SIGNAL_LOGIC_VERSION, ACTIVE_SIGNAL_PAIRS } from "@/lib/signal-d
 import { useLocale } from "./LocaleProvider";
 import { BrokerLocalTime } from "./BrokerLocalTime";
 import { hasEvidenceForPair } from "@/lib/signal-evidence";
+import { getT, formatFinalReverseReason } from "@/lib/translations";
 
 const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD"]);
 
@@ -20,6 +21,7 @@ interface SignalCardProps {
 
 export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: SignalCardProps) {
   const { locale } = useLocale();
+  const t = getT(locale);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const pairRowsId = useId();
   const hour = Number(signal.hour);
@@ -27,6 +29,17 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
   // Legacy records without an offset stay Broker-only; never guess local time.
   const brokerOffset = typeof signal.broker_utc_offset === "number" ? signal.broker_utc_offset : null;
   const brokerClockVerified = signal.broker_clock_verified === true;
+
+  // v88 slot-scoped contract: only the declared applicable pairs are shown.
+  // Older v87 5-pair records keep the legacy full row set (never inferred).
+  const logicVersion = Number(signal.logic_version || 0);
+  const applicablePairs =
+    logicVersion >= 88 && Array.isArray(signal.applicable_pairs) && signal.applicable_pairs.length > 0
+      ? signal.applicable_pairs
+      : ACTIVE_SIGNAL_PAIRS;
+
+  const finalReverseApplied = logicVersion >= 88 && signal.final_reverse_applied === true;
+  const reverseReason = finalReverseApplied ? formatFinalReverseReason(signal.final_reverse_reason, locale) : null;
 
   const fetchEvidence = useCallback(
     (symbol: string) => {
@@ -51,19 +64,26 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
         primary: "Primary signal",
         show: "Show pair details",
         hide: "Hide pair details",
-        showLabel: `Show ${ACTIVE_SIGNAL_PAIRS.length} pair entries for H${hour}`,
-        hideLabel: `Hide ${ACTIVE_SIGNAL_PAIRS.length} pair entries for H${hour}`,
+        showLabel: `Show ${applicablePairs.length} pair entries for H${hour}`,
+        hideLabel: `Hide ${applicablePairs.length} pair entries for H${hour}`,
       }
     : {
         primary: "Tín hiệu chính",
         show: "Xem chi tiết các cặp",
         hide: "Ẩn chi tiết các cặp",
-        showLabel: `Xem ${ACTIVE_SIGNAL_PAIRS.length} cặp tại H${hour}`,
-        hideLabel: `Ẩn ${ACTIVE_SIGNAL_PAIRS.length} cặp tại H${hour}`,
+        showLabel: `Xem ${applicablePairs.length} cặp tại H${hour}`,
+        hideLabel: `Ẩn ${applicablePairs.length} cặp tại H${hour}`,
       };
 
+  const reverseAppliedToCard = finalReverseApplied
+    && Object.values(signal.pair_final_reverse_applied || {}).some(Boolean);
+
   return (
-    <div className="terminal-panel rounded-xl p-4 transition-all hover:border-[var(--terminal-accent)]/30 space-y-3">
+    <div
+      className={`terminal-panel rounded-xl p-4 transition-all hover:border-[var(--terminal-accent)]/30 space-y-3 ${
+        reverseAppliedToCard ? "border-[var(--terminal-warning)]/70 ring-1 ring-[var(--terminal-warning)]/25" : ""
+      }`}
+    >
       {/* HEADER: SLOT & DUAL TIMEZONE */}
       <div className="flex items-center justify-between border-b border-[var(--panel-border)]/60 pb-3">
         <div>
@@ -74,6 +94,14 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
             <span className="text-[10px] font-mono text-[var(--muted)]">
               ({signalTime} Broker)
             </span>
+            {reverseAppliedToCard && (
+              <span
+                className="rounded-md border border-[var(--terminal-warning)]/50 bg-[var(--terminal-warning)]/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--terminal-warning)]"
+                title={reverseReason || undefined}
+              >
+                {t.finalReverse.badge}
+              </span>
+            )}
           </div>
           <div className="mt-1 font-mono text-xs">
             <span className="text-[var(--muted)]">Signal: </span>
@@ -97,11 +125,19 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                 : "bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)] border border-[var(--terminal-warning)]/30"
             }`}
           >
-            {entryState}
+            {t.signalCard.entry}
           </span>
           {signal.entry_time && (
             <div className="mt-1 text-[11px] font-bold text-[var(--foreground)]">
-              Entry: {signal.entry_time}
+              <BrokerLocalTime
+                brokerTime={signal.entry_time}
+                utcIso={typeof signal.entry_at_utc === "string" ? signal.entry_at_utc : null}
+                brokerUtcOffset={brokerOffset}
+                brokerClockVerified={brokerClockVerified}
+                date={signal.date}
+                labelLocal="GMT+7"
+                labelBroker="Broker"
+              />
             </div>
           )}
         </div>
@@ -143,7 +179,7 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
 
       {/* ACTIVE PAIR ROWS */}
       <div id={pairRowsId} className={`space-y-2 font-mono text-xs ${mobileDetailsOpen ? "block" : "hidden"} sm:block`}>
-        {ACTIVE_SIGNAL_PAIRS.map((pair) => {
+        {applicablePairs.map((pair) => {
           const dir = signal.pair_dirs?.[pair] || "WAIT";
           const isClickable = isVIP && EVIDENCE_SIGNAL_PAIRS.has(pair) && hasEvidenceForPair(signal, pair);
           const isLoading = loadingEvidence === pair;

@@ -74,7 +74,7 @@ class TestDashboardPayloadChunking(unittest.TestCase):
                 "date": "2026-07-31",
                 "hour": (3, 7, 9, 12, 14, 16)[index % 6],
                 "signal": "SELL",
-                "logic_version": 87,
+                "logic_version": 88,
                 "pair_dirs": {"XAUUSD": "SELL"},
             }
             for index in range(21)

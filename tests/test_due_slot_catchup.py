@@ -41,8 +41,8 @@ class TestDueSlotCatchup(unittest.TestCase):
 
     def test_reconstruct_sent_slots_reads_only_persisted_records(self):
         sample_records = [
-            {"date": "2026-07-31", "hour": 3, "signal": "BUY", "logic_version": 87, "record_revision": 2},
-            {"date": "2026-07-31", "hour": 7, "signal": "SELL", "logic_version": 87, "record_revision": 2},
+            {"date": "2026-07-31", "hour": 3, "signal": "BUY", "logic_version": 88, "record_revision": 3},
+            {"date": "2026-07-31", "hour": 7, "signal": "SELL", "logic_version": 88, "record_revision": 3},
         ]
         res = reconstruct_sent_slots(date(2026, 7, 31), records=sample_records)
         self.assertIn((date(2026, 7, 31), 3), res)
@@ -54,7 +54,7 @@ class TestDueSlotCatchup(unittest.TestCase):
             "date": "2026-07-31",
             "hour": 7,
             "signal": "BUY",
-            "logic_version": 87,
+            "logic_version": 88,
             "record_revision": 1,
             "entry_state": "PENDING_LAYER3",
         }]
@@ -69,10 +69,10 @@ class TestDueSlotCatchup(unittest.TestCase):
         self, mock_log, mock_persist, mock_eval, mock_d_ready, mock_store
     ):
         mock_store.get_signals_by_date.return_value = [
-            {"date": "2026-07-24", "hour": 3, "signal": "BUY", "logic_version": 87, "record_revision": 2, "entry_state": "READY"},
-            {"date": "2026-07-24", "hour": 7, "signal": "WAIT", "logic_version": 87, "record_revision": 1, "entry_state": "READY"},
-            {"date": "2026-07-24", "hour": 9, "signal": "WAIT", "logic_version": 87, "record_revision": 1, "entry_state": "READY"},
-            {"date": "2026-07-24", "hour": 12, "signal": "WAIT", "logic_version": 87, "record_revision": 1, "entry_state": "READY"},
+            {"date": "2026-07-24", "hour": 3, "signal": "BUY", "logic_version": 88, "record_revision": 3, "entry_state": "READY"},
+            {"date": "2026-07-24", "hour": 7, "signal": "WAIT", "logic_version": 88, "record_revision": 1, "entry_state": "READY"},
+            {"date": "2026-07-24", "hour": 9, "signal": "WAIT", "logic_version": 88, "record_revision": 1, "entry_state": "READY"},
+            {"date": "2026-07-24", "hour": 12, "signal": "WAIT", "logic_version": 88, "record_revision": 1, "entry_state": "READY"},
         ]
         mock_eval.return_value = {
             "date": "2026-07-24",

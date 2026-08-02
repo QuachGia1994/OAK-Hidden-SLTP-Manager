@@ -1,8 +1,11 @@
-"""MT5 execution gateway for v87 common-entry signals.
+"""MT5 execution gateway for v88 slot-scoped common-entry signals.
 
 The gateway persists one intent per ``logic/date/slot/symbol/entry/direction``
 key before it can send an order.  This keeps restarts idempotent and leaves
 pending intents retryable when MT5 is disconnected or a broker rejects a fill.
+
+Only the slot's ``applicable_pairs`` are scheduled; inactive pairs are
+NOT_APPLICABLE and never produce an intent or an order.
 """
 from __future__ import annotations
 
@@ -10,7 +13,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 
-SIGNAL_LOGIC_VERSION = 87
+SIGNAL_LOGIC_VERSION = 88
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 
 
@@ -25,10 +28,21 @@ def _iso(value):
     return str(value or "")
 
 
-class MT5ExecutionGateway:
-    """Queue and, when explicitly enabled, execute all five v87 pair intents."""
+def applicable_pairs_for(result):
+    """Return the slot-scoped pairs that may be scheduled from a v88 result."""
+    if not isinstance(result, dict):
+        return ()
+    declared = result.get("applicable_pairs")
+    if isinstance(declared, (list, tuple)) and declared:
+        return tuple(declared)
+    states = result.get("pair_signal_states") or {}
+    return tuple(symbol for symbol in SIGNAL_PAIRS if states.get(symbol) != "NOT_APPLICABLE")
 
-    def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=87000, symbol_resolver=None):
+
+class MT5ExecutionGateway:
+    """Queue and, when explicitly enabled, execute the slot's applicable intents."""
+
+    def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=88000, symbol_resolver=None):
         self.mt5 = mt5_module
         self.store = store
         self.enabled = bool(enabled)
@@ -37,7 +51,7 @@ class MT5ExecutionGateway:
         self.symbol_resolver = symbol_resolver or (lambda symbol: symbol)
 
     def schedule_signal(self, result, broker_date, slot_hour, now_utc=None):
-        """Persist the common-entry intent for each ready pair exactly once."""
+        """Persist the common-entry intent for each applicable ready pair once."""
         if not self._is_actionable(result, slot_hour):
             return []
         date_text = broker_date.isoformat() if hasattr(broker_date, "isoformat") else str(broker_date)
@@ -45,7 +59,7 @@ class MT5ExecutionGateway:
         entry_at = result.get("pair_entry_at_utc") or {}
         created_at = _iso(now_utc or _utc_now())
         keys = []
-        for symbol in SIGNAL_PAIRS:
+        for symbol in applicable_pairs_for(result):
             direction = (result.get("pair_dirs") or {}).get(symbol)
             entry_time = entries.get(symbol) or result.get("entry_time")
             entry_utc = entry_at.get(symbol) or result.get("entry_at_utc")
@@ -96,7 +110,10 @@ class MT5ExecutionGateway:
         directions = result.get("pair_dirs") or {}
         states = result.get("pair_signal_states") or {}
         entries = result.get("pair_entry_times") or {}
-        return all(directions.get(symbol) in ("BUY", "SELL") and states.get(symbol) == "READY" for symbol in SIGNAL_PAIRS) and len({entries.get(symbol) for symbol in SIGNAL_PAIRS}) == 1
+        applicable = applicable_pairs_for(result)
+        if not applicable:
+            return False
+        return all(directions.get(symbol) in ("BUY", "SELL") and states.get(symbol) == "READY" for symbol in applicable) and len({entries.get(symbol) for symbol in applicable}) == 1
 
     @staticmethod
     def _key(date_text, slot_hour, symbol, entry_time, direction):
@@ -109,7 +126,7 @@ class MT5ExecutionGateway:
             symbol = self.symbol_resolver(intent["symbol"])
             if not self.mt5.symbol_select(symbol, True):
                 raise RuntimeError("symbol is not available")
-            comment = "OAK87-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
+            comment = "OAK88-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
             existing = self._find_existing(symbol, comment)
             if existing is not None:
                 self.store.update_signal_execution_intent(key, status="EXECUTED", order_ticket=int(existing), updated_at_utc=_iso(now), last_error="")

@@ -228,10 +228,12 @@ test("does not re-filter already validated history after VIP masking", () => {
   assert.equal(source.includes("isDisplayableSignal"), false);
 });
 
-test("shows current v87 signal rules", () => {
+test("shows current v88 signal rules", () => {
   const rules = getDayRules("EN", 2);
   assert.equal(rules.some((rule) => rule.includes("Day Mode")), true);
   assert.equal(rules.some((rule) => rule.includes("independently")), true);
+  assert.equal(rules.some((rule) => rule.includes("slot-scoped")), true);
+  assert.equal(rules.some((rule) => rule.includes("24/7")), true);
 });
 
 test("only XAUUSD opens the shared entry evidence drawer", () => {
@@ -262,10 +264,12 @@ test("keeps the primary signal visible while pair details collapse only on mobil
   assert.equal(card.includes('sm:block'), true);
 });
 
-test("entry time is rendered once, in the card header, not per pair or on mobile", () => {
+test("entry time is rendered once, in the card header via BrokerLocalTime, not per pair or on mobile", () => {
   const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
-  const headerEntry = card.includes("Entry: {signal.entry_time}");
-  assert.equal(headerEntry, true);
+  assert.equal(card.includes("Entry: {signal.entry_time}"), false);
+  assert.equal(card.includes("<BrokerLocalTime"), true);
+  assert.equal(card.includes("brokerTime={signal.entry_time}"), true);
+  assert.equal(card.includes("utcIso={typeof signal.entry_at_utc === \"string\" ? signal.entry_at_utc : null}"), true);
   assert.equal(card.includes("pair_entry_times?.XAUUSD"), false);
   assert.equal(card.includes("pair_entry_times?.[pair]"), false);
   assert.equal(card.includes("primaryEntryTime"), false);

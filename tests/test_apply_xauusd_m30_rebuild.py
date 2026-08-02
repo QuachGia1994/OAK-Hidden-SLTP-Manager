@@ -20,7 +20,11 @@ class TestApplyXauusdM30Rebuild(unittest.TestCase):
         dt = datetime(2026, 7, 9, 2, 45, tzinfo=timezone.utc)
         pair_dirs = get_pair_direction(3, "BUY", dt)
         self.assertEqual(pair_dirs["XAUUSD"], "BUY")
-        self.assertEqual(pair_dirs, {"XAUUSD": "BUY", "GBPUSD": "WAIT", "GBPAUD": "WAIT", "GBPJPY": "WAIT", "GBPCAD": "WAIT"})
+        self.assertEqual(pair_dirs["GBPUSD"], "WAIT")
+        self.assertEqual(pair_dirs["GBPAUD"], "WAIT")
+        self.assertEqual(pair_dirs["GBPJPY"], "WAIT")
+        # GBPCAD is NOT_APPLICABLE at H3.
+        self.assertIsNone(pair_dirs["GBPCAD"])
 
     def test_h4_is_no_longer_an_active_slot(self) -> None:
         self.assertFalse(hasattr(mt5_signal_bot, "apply_xauusd_m30_logic"))

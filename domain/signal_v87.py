@@ -1,4 +1,4 @@
-"""Pure v87 signal rules using only the completed MT4 feed bars.
+"""Pure v88 signal rules using only the completed MT4 feed bars.
 
 The module deliberately has no MetaTrader import and no wall-clock reads.  The
 caller supplies a Broker-date, a feed provider, and (for live evaluation) an
@@ -13,6 +13,29 @@ from typing import Any
 
 PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SLOTS = (3, 7, 9, 12, 14, 16)
+
+# Canonical slot-level active pair map.  XAUUSD and GBPUSD are evaluated at
+# every slot and always share the same Signal.  A pair absent from a slot is
+# NOT_APPLICABLE: it is never derived, never read for D, never scheduled, and
+# never published.
+SLOT_ACTIVE_PAIRS = {
+    3: ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY"),
+    7: ("XAUUSD", "GBPUSD", "GBPJPY"),
+    9: ("XAUUSD", "GBPUSD", "GBPCAD"),
+    12: ("XAUUSD", "GBPUSD", "GBPAUD"),
+    14: ("XAUUSD", "GBPUSD", "GBPCAD"),
+    16: ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"),
+}
+
+
+def get_evaluated_pairs_for_hour(hour):
+    """Return the canonical active pairs evaluated at a given slot hour."""
+    return tuple(SLOT_ACTIVE_PAIRS.get(int(hour), ()))
+
+
+class SignalInvariantError(Exception):
+    """Raised when a signal invariant is violated (e.g. XAUUSD != GBPUSD)."""
+    pass
 
 
 def reverse_signal(signal: str | None) -> str:
@@ -237,6 +260,13 @@ def evaluate_h49_reference_signal(slot_dt, provider, *, as_of=None) -> dict[str,
         }
     direction = candle_direction(h1)
     reversed_signal = {"TANG": "SELL", "GIAM": "BUY"}.get(direction, "WAIT")
+    print(
+        f"[H49-H1] date={slot_dt.strftime('%Y-%m-%d')} slot=H{slot_dt.hour}"
+        f" source=XAUUSD H1 window={source_open.strftime('%H:%M')}->{source_close.strftime('%H:%M')} Broker"
+        f" source_id={h1.get('source_id')}"
+        f" open={h1.get('open_exact')} close={h1.get('close_exact')}"
+        f" direction={direction} reversed_signal={reversed_signal}"
+    )
     return {
         "state": "READY" if reversed_signal != "WAIT" else "WAIT",
         "source_symbol": "XAUUSD",
@@ -293,6 +323,9 @@ def _signal_failure_reason(symbol: str, entry: dict[str, Any], d_snapshot: dict[
 
 def final_reverse(slot_hour: int, signal_date) -> tuple[bool, str]:
     weekday = signal_date.weekday()
+    # Weekend backtest/rebuild records never invert: there is no weekend rule.
+    if weekday >= 5:
+        return False, "WEEKEND_NO_REVERSE"
     day = signal_date.day
     if slot_hour == 3:
         if weekday == 2:
@@ -318,25 +351,42 @@ def final_reverse(slot_hour: int, signal_date) -> tuple[bool, str]:
 
 
 def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[str, dict], day_mode=None, as_of: datetime | None = None) -> dict[str, Any]:
-    """Run entry, reference, D relation, and final reverse exactly once."""
+    """Run entry, reference, D relation, and final reverse exactly once.
+
+    Only the slot's applicable pairs are derived.  Inactive pairs get
+    ``direction=None``, ``pair_signal_state=NOT_APPLICABLE`` and are excluded
+    from D reading, evidence, and execution.  XAUUSD == GBPUSD is enforced at
+    the final payload with ``SignalInvariantError`` on violation.
+    """
     entry = build_entry_plan(slot_dt, slot_hour, provider, as_of)
     reference_d = (d_snapshot.get("GBPUSD") or {}).get("d_direction")
     base_signal, next_mode, base_source, h49_ref = _reference_base(entry, slot_dt, provider, reference_d, day_mode)
+    applicable = get_evaluated_pairs_for_hour(int(slot_hour))
     # XAUUSD's D candle is independent evidence even though its Signal is
     # locked to the GBPUSD Reference Signal.  Preserve that relation in the
     # payload so the drawer can explain an opposite XAU D without changing
     # the locked Signal.
-    relations = {
-        "XAUUSD": classify_d_relation(
-            (d_snapshot.get("XAUUSD") or {}).get("d_direction"), reference_d
-        ),
-        "GBPUSD": "REFERENCE",
-    }
-    for symbol in ("GBPAUD", "GBPJPY", "GBPCAD"):
-        relations[symbol] = classify_d_relation((d_snapshot.get(symbol) or {}).get("d_direction"), reference_d)
-    core = {"XAUUSD": base_signal, "GBPUSD": base_signal}
-    if base_signal in ("BUY", "SELL"):
-        for symbol in ("GBPAUD", "GBPJPY", "GBPCAD"):
+    relations: dict[str, Any] = {}
+    for symbol in PAIRS:
+        if symbol not in applicable:
+            relations[symbol] = None
+        elif symbol == "XAUUSD":
+            relations[symbol] = classify_d_relation(
+                (d_snapshot.get("XAUUSD") or {}).get("d_direction"), reference_d
+            )
+        elif symbol == "GBPUSD":
+            relations[symbol] = "REFERENCE"
+        else:
+            relations[symbol] = classify_d_relation((d_snapshot.get(symbol) or {}).get("d_direction"), reference_d)
+
+    core: dict[str, Any] = {}
+    for symbol in PAIRS:
+        if symbol not in applicable:
+            core[symbol] = None
+            continue
+        if symbol in ("XAUUSD", "GBPUSD"):
+            core[symbol] = base_signal
+        elif base_signal in ("BUY", "SELL"):
             relation = relations[symbol]
             if relation == "UNRESOLVED":
                 core[symbol] = "WAIT"
@@ -344,14 +394,25 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
                 core[symbol] = base_signal if relation == "SAME_AS_REFERENCE" else reverse_signal(base_signal)
             else:
                 core[symbol] = reverse_signal(base_signal) if relation == "SAME_AS_REFERENCE" else base_signal
-    else:
-        core.update({symbol: "WAIT" for symbol in ("GBPAUD", "GBPJPY", "GBPCAD")})
+        else:
+            core[symbol] = "WAIT"
     should_reverse, reason = final_reverse(int(slot_hour), slot_dt.date())
     final = dict(core)
-    if should_reverse and core["XAUUSD"] in ("BUY", "SELL"):
-        final["XAUUSD"] = reverse_signal(core["XAUUSD"])
-    pair_times = {symbol: entry.get("entry_time") for symbol in PAIRS}
-    pair_branches = {symbol: entry.get("entry_branch") for symbol in PAIRS}
+    if should_reverse:
+        for symbol in applicable:
+            if core[symbol] in ("BUY", "SELL"):
+                final[symbol] = reverse_signal(core[symbol])
+    if final.get("XAUUSD") != final.get("GBPUSD"):
+        raise SignalInvariantError(
+            f"XAUUSD != GBPUSD invariant violated at H{slot_hour} {slot_dt.date()}: "
+            f"{final.get('XAUUSD')} vs {final.get('GBPUSD')}"
+        )
+    pair_final_reverse_applied = {
+        symbol: bool(should_reverse and symbol in applicable and core.get(symbol) in ("BUY", "SELL"))
+        for symbol in PAIRS
+    }
+    pair_times = {symbol: entry.get("entry_time") if symbol in applicable else None for symbol in PAIRS}
+    pair_branches = {symbol: entry.get("entry_branch") if symbol in applicable else None for symbol in PAIRS}
     evidence = {
         symbol: _evidence(
             symbol,
@@ -361,16 +422,16 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
             relations,
             core,
             final,
-            should_reverse and symbol == "XAUUSD",
+            pair_final_reverse_applied[symbol],
             reason,
             base_source,
             h49_ref,
         )
-        for symbol in PAIRS
+        for symbol in applicable
     }
     failure_reason = _signal_failure_reason("XAUUSD", entry, d_snapshot, final["XAUUSD"], h49_ref)
     return {
-        "logic_version": 87,
+        "logic_version": 88,
         "signal": final["XAUUSD"],
         "signal_state": "READY" if final["XAUUSD"] in ("BUY", "SELL") else "WAIT",
         "entry_time": entry.get("entry_time"),
@@ -380,16 +441,40 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
         "entry_candidates": entry.get("entry_candidates"),
         "entry_timeframe": entry.get("timeframe"),
         "entry_source_symbol": "XAUUSD",
+        "applicable_pairs": list(applicable),
         "pair_dirs": final,
         "core_signal": core["XAUUSD"],
         "core_signals": core,
+        "pair_core_signals": core,
         "final_reverse_applied": should_reverse,
         "final_reverse_reason": reason if should_reverse else None,
-        "pair_signal_states": {symbol: "READY" if final[symbol] in ("BUY", "SELL") else "WAIT" for symbol in PAIRS},
-        "pair_entry_states": {symbol: entry.get("entry_state") for symbol in PAIRS},
+        "pair_final_reverse_applied": pair_final_reverse_applied,
+        "pair_signal_states": {
+            symbol: (
+                "NOT_APPLICABLE"
+                if final[symbol] is None
+                else "READY" if final[symbol] in ("BUY", "SELL") else "WAIT"
+            )
+            for symbol in PAIRS
+        },
+        "execution_state": {
+            symbol: (
+                "NOT_APPLICABLE"
+                if symbol not in applicable
+                else "READY" if final[symbol] in ("BUY", "SELL") and entry.get("entry_state") == "READY" else "WAIT"
+            )
+            for symbol in PAIRS
+        },
+        "pair_entry_states": {
+            symbol: entry.get("entry_state") if symbol in applicable else "NOT_APPLICABLE"
+            for symbol in PAIRS
+        },
         "pair_entry_times": pair_times,
         "pair_entry_branches": pair_branches,
-        "pair_d_directions": {symbol: (d_snapshot.get(symbol) or {}).get("d_direction", "WAIT") for symbol in PAIRS},
+        "pair_d_directions": {
+            symbol: ((d_snapshot.get(symbol) or {}).get("d_direction") if symbol in applicable else None)
+            for symbol in PAIRS
+        },
         "pair_d_relations": relations,
         "pair_relation_rules": {"XAUUSD": "FOLLOW_REFERENCE_SIGNAL", "GBPUSD": "REFERENCE_SIGNAL", "GBPAUD": "SAME_FOLLOW_OPPOSITE_REVERSE", "GBPJPY": "SAME_REVERSE_OPPOSITE_FOLLOW", "GBPCAD": "SAME_REVERSE_OPPOSITE_FOLLOW"},
         "reference_d_symbol": "GBPUSD",
@@ -406,8 +491,8 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
 
 def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, reversed_once, reason, base_source, h49_ref=None):
     evidence = {
-        "evidence_schema_version": 10,
-        "logic_version": 87,
+        "evidence_schema_version": 11,
+        "logic_version": 88,
         "date": slot_dt.date().isoformat(),
         "hour": slot_dt.hour,
         "symbol": symbol,

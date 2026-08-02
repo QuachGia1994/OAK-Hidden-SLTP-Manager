@@ -32,9 +32,12 @@ from domain.signal_rules import (
 )
 from domain.signal_v87 import (
     PAIRS as V87_PAIRS,
+    SLOT_ACTIVE_PAIRS as V87_SLOT_ACTIVE_PAIRS,
+    SignalInvariantError,
     evaluate_slot as evaluate_v87_slot,
     build_entry_plan as build_v87_entry_plan,
     final_reverse as final_reverse_v87,
+    get_evaluated_pairs_for_hour as get_core_evaluated_pairs_for_hour,
 )
 from domain.mt5_execution import MT5ExecutionGateway
 from services.mt5_terminal_service import ensure_mt5_profile_connected
@@ -142,7 +145,7 @@ def get_signal_datetime_for_slot(broker_dt, hour):
     )
 
 def get_target_hours(broker_dt=None, weekday=None):
-    """Return the active logical signal slots for a Broker weekday."""
+    """Return the active logical signal slots for a Broker weekday (live policy)."""
     wd = None
     if weekday is not None:
         wd = int(weekday)
@@ -162,15 +165,63 @@ def get_target_hours(broker_dt=None, weekday=None):
     return list(TARGET_HOURS)
 
 
-SIGNAL_LOGIC_VERSION = 87
-ACTIVE_SIGNAL_LOGIC_VERSION = 87
-MINIMUM_SIGNAL_LOGIC_VERSION = 87
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 10
+def get_live_target_hours(broker_dt=None, weekday=None):
+    """Live scheduler policy: Monday–Friday by default.
+
+    Weekend live execution is enabled only when the active profile explicitly
+    sets ``signal_live_weekends = true``.  Backtest/rebuild must use
+    ``get_rebuild_target_hours(..., include_weekends=True)`` instead.
+    """
+    wd = None
+    if weekday is not None:
+        wd = int(weekday)
+    elif broker_dt is not None:
+        if isinstance(broker_dt, int):
+            wd = broker_dt
+        elif hasattr(broker_dt, "weekday"):
+            wd = broker_dt.weekday()
+    if wd in (5, 6):
+        if _signal_live_weekends_enabled():
+            return list(TARGET_HOURS)
+        return []
+    if wd in (0, 1, 2, 3, 4):
+        return list(TARGET_HOURS)
+    return list(TARGET_HOURS)
+
+
+def get_rebuild_target_hours(broker_dt=None, weekday=None, *, include_weekends=False):
+    """Rebuild/backtest policy: full slot set, optionally including weekends."""
+    wd = None
+    if weekday is not None:
+        wd = int(weekday)
+    elif broker_dt is not None:
+        if isinstance(broker_dt, int):
+            wd = broker_dt
+        elif hasattr(broker_dt, "weekday"):
+            wd = broker_dt.weekday()
+    if wd in (5, 6) and not include_weekends:
+        return []
+    return list(TARGET_HOURS)
+
+
+def _signal_live_weekends_enabled():
+    """Return whether the active profile explicitly enables live weekend slots."""
+    try:
+        cfg = load_profile_config(_active_profile) if _active_profile else {}
+    except Exception:
+        cfg = {}
+    return bool(cfg.get("signal_live_weekends"))
+
+
+SIGNAL_LOGIC_VERSION = 88
+ACTIVE_SIGNAL_LOGIC_VERSION = 88
+MINIMUM_SIGNAL_LOGIC_VERSION = 88
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 11
 LAYER3_CANDLE_GRACE_SECONDS = 90
 D_DIRECTION_SCHEMA_VERSION = 9
 D_PUBLICATION_STATE_SCHEMA_VERSION = 2
 DASHBOARD_TRANSPORT_SCHEMA_VERSION = 3
-SIGNAL_SUMMARY_SCHEMA_VERSION = 3
+SIGNAL_SUMMARY_SCHEMA_VERSION = 4
 MARKET_DATA_PROVIDER_SCHEMA_VERSION = 2
 HEARTBEAT_SCHEMA_VERSION = 2
 D_SESSION_POLICY = {
@@ -191,12 +242,11 @@ D_SOURCE_SYMBOL = {symbol: symbol for symbol in SIGNAL_PAIRS}
 def get_evaluated_pairs_for_hour(hour):
     """Return which pairs are evaluated at a given slot hour.
 
-    All active slots (H3, H7, H9, H12, H14, H16) evaluate all five pairs.
+    Canonical source of truth is the core v88 ``SLOT_ACTIVE_PAIRS`` map:
+    XAUUSD/GBPUSD at every slot, plus the slot-specific GBP pairs.  Pairs not
+    in the map for a slot are NOT_APPLICABLE (not ``WAIT``).
     """
-    h = int(hour)
-    if h in ACTIVE_HOURS:
-        return SIGNAL_PAIRS
-    return ()
+    return tuple(get_core_evaluated_pairs_for_hour(int(hour)))
 
 
 BROKER_CLOCK = BrokerClock(
@@ -247,8 +297,15 @@ def _get_signal_execution_gateway():
 
 
 def schedule_orders_for_signal(result, broker_dt, hour):
-    """Persist common-entry MT5 intents; actual sends require explicit opt-in."""
+    """Persist common-entry MT5 intents; actual sends require explicit opt-in.
+
+    Live weekend execution is gated: intents are only queued for Sat/Sun when
+    the active profile sets ``signal_live_weekends = true``.
+    """
     if not result or broker_dt is None:
+        return []
+    if getattr(broker_dt, "weekday", None) is not None and broker_dt.weekday() >= 5 and not _signal_live_weekends_enabled():
+        log.info("Live weekend execution disabled (signal_live_weekends=false); skip H=%s", hour)
         return []
     try:
         return _get_signal_execution_gateway().schedule_signal(result, broker_dt.date(), hour)
@@ -1367,6 +1424,9 @@ ENTRY_PLAN_FIELDS = (
     "pair_d_directions",
     "pair_d_relations",
     "pair_relation_rules",
+    "applicable_pairs",
+    "pair_core_signals",
+    "pair_final_reverse_applied",
     "reference_d_symbol",
     "reference_d_direction",
     "entry_timeframe",
@@ -1613,7 +1673,13 @@ def _signal_date(record):
 
 def _signal_directions(record):
     directions = record.get("pair_dirs") or {}
-    return tuple((symbol, str(directions.get(symbol, "WAIT"))) for symbol in DISPLAY_SIGNAL_PAIRS)
+    hour = int(record.get("hour") or 0)
+    applicable = get_evaluated_pairs_for_hour(hour)
+    return tuple(
+        (symbol, str(directions.get(symbol, "WAIT")))
+        for symbol in DISPLAY_SIGNAL_PAIRS
+        if symbol in applicable
+    )
 
 
 def build_signal_alert_fingerprint(record):
@@ -1723,7 +1789,11 @@ def reverse_signal(signal):
 
 
 def get_pair_direction(H, signal, broker_dt, full_result=None):
-    """Return the final pair directions for one active slot."""
+    """Return the final pair directions for one active slot.
+
+    Only the slot's applicable pairs are returned with a direction; inactive
+    pairs are ``None`` (NOT_APPLICABLE), never ``WAIT``.
+    """
     result = {}
     h = int(H)
     if h not in ACTIVE_HOURS:
@@ -1732,7 +1802,10 @@ def get_pair_direction(H, signal, broker_dt, full_result=None):
         return {}
     pair_dirs = (full_result or {}).get("pair_dirs", {})
     for pair in SIGNAL_PAIRS:
-        result[pair] = pair_dirs.get(pair, "WAIT" if signal == "WAIT" else (signal if pair == "XAUUSD" else "WAIT"))
+        if pair not in get_evaluated_pairs_for_hour(h):
+            result[pair] = None
+        else:
+            result[pair] = pair_dirs.get(pair, "WAIT" if signal == "WAIT" else (signal if pair == "XAUUSD" else "WAIT"))
     return result
 
 # =====================================================================
@@ -3458,14 +3531,18 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     return record, next_day_modes
 
 
-def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
+def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None, include_weekends=False):
     """Recalculate one slot with current logic and overwrite signals_log (date, hour).
 
     ``as_of_dt`` controls how much market data the evaluator may read:
     - current-day rebuild: pass ``broker_now`` so Layer 3 resolves when past H:30;
     - historical rebuild: pass a far-future timestamp so all layers resolve.
+
+    ``include_weekends`` allows rebuilding Sat/Sun slots from the persisted MT4
+    feed (backtest mode); live execution never runs weekends without an explicit
+    ``signal_live_weekends = true`` profile gate.
     """
-    if broker_dt.weekday() >= 5:
+    if broker_dt.weekday() >= 5 and not include_weekends:
         return False
 
     try:
@@ -3494,8 +3571,14 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None):
     return True
 
 
-def rebuild_recent_history(days=45):
-    """Recalculate recent sessions from the persistent MT4 feed."""
+def rebuild_recent_history(days=45, include_weekends=False):
+    """Recalculate recent sessions from the persistent MT4 feed.
+
+    ``include_weekends`` enables 24/7 backtest rebuild: Sat/Sun slots are
+    evaluated against the persisted Broker bars instead of being skipped, and
+    they are never filled with Friday candles.  When ``include_weekends`` is
+    false (default) the live Mon–Fri policy is applied.
+    """
     try:
         broker_dt = get_broker_time()
     except MarketDataClockError as exc:
@@ -3512,19 +3595,23 @@ def rebuild_recent_history(days=45):
     dates = [today - timedelta(days=i) for i in range(days)]
 
     # Phase 0: warm M30 history cache
-    oldest = min(d for d in dates if d.weekday() < 5)
+    oldest = min(d for d in dates if d.weekday() < 5 or include_weekends)
     warm_start = datetime.combine(oldest - timedelta(days=2), datetime.min.time())
     warm_m30_history(["XAUUSD", "GBPUSD", "GBPAUD"], warm_start, broker_dt)
 
     # Phase A: evaluate all slots in memory
-    rebuild_dates = {target_date.isoformat() for target_date in dates if target_date.weekday() < 5}
+    rebuild_dates = {target_date.isoformat() for target_date in dates
+                     if target_date.weekday() < 5 or include_weekends}
     candidate_records = {}
     attempted = 0
     failed = 0
     for target_date in reversed(dates):
-        if target_date.weekday() >= 5:
+        if target_date.weekday() >= 5 and not include_weekends:
             continue
-        hours = get_target_hours(datetime.combine(target_date, datetime.min.time()))
+        hours = get_rebuild_target_hours(
+            datetime.combine(target_date, datetime.min.time()),
+            include_weekends=include_weekends,
+        )
         day_results = {}
         current_pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
         # Compute D-Directions once per date
@@ -3629,7 +3716,7 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
     """
     global _current_day_mode
     target_date = broker_dt.date()
-    hours = [h for h in get_target_hours(broker_dt)
+    hours = [h for h in get_live_target_hours(broker_dt)
              if broker_dt >= get_signal_datetime_for_slot(broker_dt, h)]
     if not hours:
         print("[D-READY] No completed slots to rebuild today")
@@ -4049,7 +4136,7 @@ def catchup_due_slots(broker_dt):
     if broker_dt is None:
         return
     today = broker_dt.date()
-    target_hours = get_target_hours(broker_dt)
+    target_hours = get_live_target_hours(broker_dt)
 
     try:
         current_records = _stored_signals_for_date(today)
@@ -4125,17 +4212,19 @@ def _persist_live_result(broker_dt, hour, result):
 
 
 def _all_pair_entries_ready(result):
-    """Return whether every canonical pair has an actionable validated entry."""
+    """Return whether every applicable pair has an actionable validated entry."""
     directions = result.get("pair_dirs") or {}
     signal_states = result.get("pair_signal_states") or {}
     entry_states = result.get("pair_entry_states") or {}
     entry_times = result.get("pair_entry_times") or {}
+    hour = int(result.get("hour") or 0)
+    applicable = get_evaluated_pairs_for_hour(hour)
     return all(
         directions.get(symbol) in ("BUY", "SELL")
         and signal_states.get(symbol) == "READY"
         and entry_states.get(symbol) == "READY"
         and bool(re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", str(entry_times.get(symbol) or "")))
-        for symbol in SIGNAL_PAIRS
+        for symbol in applicable
     )
 
 
@@ -4375,7 +4464,7 @@ def main(profile_name=None):
                 _save_state(sent_today, broker_dt=broker_dt)
                 catchup_due_slots(broker_dt)
                 startup_slots_marked = True
-            for hour in get_target_hours(broker_dt):
+            for hour in get_live_target_hours(broker_dt):
                 _process_live_slot(broker_dt, hour)
             process_pending_execution_orders()
 
@@ -4959,11 +5048,52 @@ def _init_mt5_for_cli(profile_name, label):
     return launch.ok
 
 
-def _run_feed_only_rebuild(days):
-    """Rebuild v87 records from the MT4 Feed without requiring MT5 execution."""
+def _run_feed_only_rebuild(days=45, include_weekends=False):
+    """Rebuild v88 records from the MT4 Feed without requiring MT5 execution."""
     print("[REBUILD] MT4 Feed is the only rebuild dependency; MT5 execution is optional.")
-    rebuilt = rebuild_recent_history(days=days)
+    rebuilt = rebuild_recent_history(days=days, include_weekends=include_weekends)
     if rebuilt > 0:
+        push_to_dashboard(snapshot_complete=True)
+    return rebuilt
+
+
+def rebuild_target_dates(target_dates, *, force=False, include_weekends=False):
+    """Rebuild one or more specific dates from the persisted MT4 feed.
+
+    Each (date, hour) record is replaced in place (never duplicated).  The
+    ``force`` flag explicitly allows overwriting an existing record; without it
+    the rebuild still replaces the matching (date, hour) row to keep the log
+    free of stale v87 payloads.
+    """
+    if not target_dates:
+        return 0
+    rebuilt = 0
+    for date_str in target_dates:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            print(f"  [REBUILD] invalid date: {date_str}")
+            continue
+        hours = get_rebuild_target_hours(
+            datetime.combine(target_date, datetime.min.time()),
+            include_weekends=include_weekends,
+        )
+        for hour in hours:
+            slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
+            try:
+                ok = rebuild_slot_signal(
+                    slot_dt, hour,
+                    as_of_dt=slot_dt + timedelta(days=1),
+                    include_weekends=include_weekends,
+                )
+                if ok:
+                    rebuilt += 1
+            except Exception as error:
+                print(f"  [REBUILD] ERROR date={date_str} H={hour}"
+                      f" error_type={type(error).__name__}: {error}")
+                traceback.print_exc()
+    if rebuilt > 0:
+        clear_history_cache()
         push_to_dashboard(snapshot_complete=True)
     return rebuilt
 
@@ -4981,6 +5111,14 @@ if __name__ == "__main__":
                         help="Repair specific date (YYYY-MM-DD), repeatable")
     parser.add_argument("--rebuild-all", action="store_true",
                         help="Full deterministic rebuild of recent history")
+    parser.add_argument("--rebuild-signals", action="store_true",
+                        help="Alias of --rebuild-all (v88 full rebuild)")
+    parser.add_argument("--rebuild-date", type=str, action="append",
+                        help="Rebuild specific date (YYYY-MM-DD), repeatable")
+    parser.add_argument("--include-weekends", action="store_true",
+                        help="24/7 rebuild: include Sat/Sun backtest slots from persisted feed")
+    parser.add_argument("--force", action="store_true",
+                        help="Force rebuild replacing the existing record (no duplicate)")
     parser.add_argument("--rebuild-d-history", action="store_true",
                         help="Rebuild D-Direction history snapshots")
     parser.add_argument("--repair-d-date", type=str,
@@ -5001,8 +5139,10 @@ if __name__ == "__main__":
                     push_to_dashboard(snapshot_complete=False)
             finally:
                 mt5.shutdown()
-    elif args.rebuild_all:
-        _run_feed_only_rebuild(args.days)
+    elif args.rebuild_all or args.rebuild_signals:
+        _run_feed_only_rebuild(args.days, include_weekends=args.include_weekends)
+    elif args.rebuild_date:
+        rebuild_target_dates(args.rebuild_date, force=args.force, include_weekends=args.include_weekends)
     elif args.rebuild_d_history:
         if _init_mt5_for_cli(args.profile, "REBUILD-D"):
             mt5_ready = True

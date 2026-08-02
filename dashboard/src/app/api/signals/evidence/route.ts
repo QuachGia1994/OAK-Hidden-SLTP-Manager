@@ -15,7 +15,7 @@ function isCurrentEvidenceEntry(key: string, value: unknown): boolean {
   if (!match || Number(match[3]) !== ACTIVE_SIGNAL_LOGIC_VERSION) return false;
   const evidence = value as Record<string, unknown>;
   return Number(evidence.logic_version) === ACTIVE_SIGNAL_LOGIC_VERSION
-    && (Number(evidence.evidence_schema_version) === 9 || Number(evidence.evidence_schema_version) === 10)
+    && [9, 10, 11].includes(Number(evidence.evidence_schema_version))
     && Number(evidence.hour) === Number(match[2])
     && evidence.symbol === "XAUUSD";
 }

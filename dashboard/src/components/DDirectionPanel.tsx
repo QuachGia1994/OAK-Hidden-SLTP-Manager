@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import type { DDirectionSnapshotV2, DDirectionSymbolData } from "@/lib/types";
 import { DDirectionDrawer } from "./DDirectionDrawer";
+import { getT, formatSystemState } from "@/lib/translations";
 
 const DISPLAY_SYMBOLS = ["XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"] as const;
 const OFF_SYMBOLS = new Set<string>();
@@ -24,6 +25,7 @@ interface Props {
 
 export function DDirectionPanel({ snapshot, date, locale, className = "" }: Props) {
   const [selectedSymbol, setSelectedSymbol] = useState<DDirectionSymbolData | null>(null);
+  const t = getT(locale);
 
   const state = snapshot?.state || (snapshot?.message ? "PENDING_PUBLICATION" : "SYNCING");
   const targetDate = snapshot?.target_local_date || date || "—";
@@ -55,14 +57,10 @@ export function DDirectionPanel({ snapshot, date, locale, className = "" }: Prop
                 ? "Scheduled 06:00 GMT+7"
                 : "Chờ công bố 06:00 GMT+7"
               : state === "SYNCING"
-              ? locale === "EN"
-                ? "Syncing"
-                : "Đang nhận"
+              ? formatSystemState("SYNCING", locale)
               : state === "MISSING"
-              ? locale === "EN"
-                ? "Data Missing"
-                : "Thiếu dữ liệu"
-              : state}
+              ? formatSystemState("MISSING", locale)
+              : formatSystemState(state, locale)}
           </span>
         </div>
       </div>
@@ -131,6 +129,7 @@ function DDirectionCard({
   const dDir = data?.d_direction || "WAIT";
   const dState = data?.d_state || "MISSING";
   const candle = data?.candle;
+  const t = getT(locale);
 
   const isDoji = Boolean(
     data?.raw_direction === "DOJI" ||
@@ -170,14 +169,14 @@ function DDirectionCard({
                 backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`,
               }}
             >
-              {dDir}
+              {dDir === "BUY" ? t.directions.BUY : dDir === "SELL" ? t.directions.SELL : t.directions.WAIT}
             </span>
           </div>
         </div>
 
         <div className="mt-2 space-y-1 font-mono text-[11px]">
           <div className="flex justify-between text-[10px] text-[var(--muted)]">
-            <span>Session:</span>
+            <span>{t.dDirection.session}:</span>
             <span className="font-bold text-[var(--foreground)]">{data?.session_date || "—"}</span>
           </div>
 

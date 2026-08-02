@@ -53,10 +53,16 @@ class TestSignalV87Core(unittest.TestCase):
         }
         result = evaluate_slot(slot_dt, 7, provider, snapshot)
         self.assertEqual(result["entry_time"], "07:11")
-        self.assertEqual(set(result["pair_entry_times"].values()), {"07:11"})
+        self.assertEqual({result["pair_entry_times"][s] for s in ("XAUUSD", "GBPUSD", "GBPJPY")}, {"07:11"})
         self.assertEqual(result["signal"], "SELL")
         self.assertEqual(result["pair_d_relations"]["XAUUSD"], "OPPOSITE_TO_REFERENCE")
         self.assertEqual(result["pair_dirs"]["XAUUSD"], result["pair_dirs"]["GBPUSD"])
+        # H7 applies to XAUUSD, GBPUSD, GBPJPY only.
+        self.assertEqual(result["applicable_pairs"], ["XAUUSD", "GBPUSD", "GBPJPY"])
+        self.assertIsNone(result["pair_dirs"]["GBPAUD"])
+        self.assertIsNone(result["pair_dirs"]["GBPCAD"])
+        self.assertEqual(result["pair_signal_states"]["GBPAUD"], "NOT_APPLICABLE")
+        self.assertEqual(result["pair_signal_states"]["GBPCAD"], "NOT_APPLICABLE")
 
     def test_h16_layers(self):
         provider = FixtureProvider()
@@ -160,10 +166,14 @@ class TestSignalV87Core(unittest.TestCase):
         self.assertEqual(result["signal"], "SELL")
         self.assertIsNone(result["failure_reason"])
         self.assertIsNone(result["pair_evidence"]["XAUUSD"]["failure_reason"])
-        self.assertEqual(result["pair_dirs"]["GBPAUD"], "WAIT")
-        self.assertEqual(result["pair_evidence"]["GBPAUD"]["failure_reason"], "WAIT_MT4_DATA")
+        # GBPAUD is NOT_APPLICABLE at H7: no D read, no evidence, no failure.
+        self.assertIsNone(result["pair_dirs"]["GBPAUD"])
+        self.assertEqual(result["pair_signal_states"]["GBPAUD"], "NOT_APPLICABLE")
+        self.assertNotIn("GBPAUD", result["pair_evidence"])
+        # GBPJPY is applicable at H7 but its D is absent, so it fails closed.
+        self.assertEqual(result["pair_evidence"]["GBPJPY"]["failure_reason"], "WAIT_MT4_DATA")
 
-    def test_h16_final_reverse_only_changes_xauusd(self):
+    def test_h16_final_reverse_changes_every_applicable_pair_once(self):
         provider = FixtureProvider()
         slot_dt = datetime(2026, 7, 31, 16)
         for opening, direction in zip((5, 4, 3), ("TANG", "TANG", "TANG")):
@@ -183,10 +193,17 @@ class TestSignalV87Core(unittest.TestCase):
 
         self.assertEqual(result["entry_time"], "16:49")
         self.assertEqual(result["core_signals"]["GBPJPY"], "SELL")
-        self.assertEqual(result["pair_dirs"]["GBPJPY"], "SELL")
+        self.assertTrue(result["final_reverse_applied"])
+        self.assertEqual(result["final_reverse_reason"], "H16_FRIDAY")
+        # v88: Final Reverse is applied once to EVERY applicable pair.
+        self.assertEqual(result["pair_dirs"]["GBPJPY"], "BUY")
         self.assertEqual(result["pair_dirs"]["XAUUSD"], "SELL")
+        self.assertEqual(result["pair_dirs"]["GBPUSD"], "SELL")
+        self.assertEqual(result["pair_dirs"]["GBPAUD"], "SELL")
+        self.assertEqual(result["pair_dirs"]["GBPCAD"], "SELL")
         self.assertTrue(result["pair_evidence"]["XAUUSD"]["final_reverse_applied"])
-        self.assertFalse(result["pair_evidence"]["GBPJPY"]["final_reverse_applied"])
+        self.assertTrue(result["pair_evidence"]["GBPJPY"]["final_reverse_applied"])
+        self.assertTrue(result["pair_final_reverse_applied"]["GBPJPY"])
 
     def test_final_reverse_matrix_sample(self):
         self.assertEqual(final_reverse(3, datetime(2026, 8, 5).date()), (True, "H3_WEDNESDAY"))

@@ -1,19 +1,1009 @@
-Implement a MetaTrader 5 entry guard with the following rules:
+﻿ÄĂ£ kiá»ƒm tra xong `main` má»›i nháº¥t `0c246e2`. Báº£n nĂ y Ä‘Ă£ sá»­a helper H:49 vĂ  rĂºt Entry khá»i tá»«ng dĂ²ng symbol, nhÆ°ng áº£nh cá»§a báº¡n váº«n Ä‘ang hiá»ƒn thá»‹ **record H7 cÅ© chÆ°a Ä‘Æ°á»£c rebuild**. Core hiá»‡n táº¡i Ä‘Ă£ quy Ä‘á»‹nh H:49 láº¥y H1 XAUUSD ngay trÆ°á»›c slot vĂ  Ä‘áº£o chiá»u, nhÆ°ng history rebuild láº¡i loáº¡i toĂ n bá»™ Thá»© Báº£y/Chá»§ Nháº­t.
 
-1. Determine a restricted calendar period:
-   - Start date: the last Tuesday of a given month.
-   - End date: the Monday immediately following the first Friday
-     of the next month.
-   - Both the start date and end date are inclusive.
+NgoĂ i ra cĂ²n hai bug cáº§n sá»­a cĂ¹ng lĂºc:
 
-2. Example:
-   - Last Tuesday of July 2026: 2026-07-28.
-   - First Friday of August 2026: 2026-08-07.
-   - Monday immediately after that Friday: 2026-08-10.
-   - Restricted period: 2026-07-28 through 2026-08-10 inclusive.
+- Final Reverse trong core hiá»‡n **chá»‰ Ä‘áº£o XAUUSD**, khiáº¿n `GBPUSD = XAUUSD` cĂ³ thá»ƒ bá»‹ phĂ¡ vá»¡ á»Ÿ cĂ¡c má»‘c Ä‘áº£o.
+- Signal Card váº«n hard-code `Signal`, `Entry`, `READY` vĂ  chá»‰ hiá»ƒn thá»‹ Entry Broker dáº¡ng text, khĂ´ng dĂ¹ng láº¡i `BrokerLocalTime`. CĂ¡c status nhÆ° `STALE`, `CONNECTED`, `WAITING` cÅ©ng Ä‘ang hiá»ƒn thá»‹ enum thĂ´.
 
-3. During the restricted calendar period:
-   - When the MetaTrader 5 hour is H=12, status must be:
-     DO NOT ENTER.
-   - When the MetaTrader 5 hour is H=16, status must be:
-     DO NOT ENTER.
+## Prompt hoĂ n chá»‰nh cho Agent Local Build
+
+```text
+Báº¡n Ä‘ang sá»­a repository:
+
+https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager
+
+==================================================
+0. Báº®T Äáº¦U
+==================================================
+
+Cháº¡y:
+
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+git rev-parse HEAD
+git status --short
+
+Expected starting HEAD:
+
+0c246e275fd9597c9ef7c796071aea2f401e2b9c
+
+Äá»c vĂ  tuĂ¢n thá»§:
+
+- AGENTS.md
+- Google Labs Code design.md
+- engineering/testing/release workflow hiá»‡n hĂ nh.
+
+KhĂ´ng redesign Dashboard.
+KhĂ´ng khĂ´i phá»¥c Entry Time á»Ÿ tá»«ng symbol row.
+Evidence váº«n chá»‰ dĂ nh cho XAUUSD.
+
+Task nĂ y sá»­a Ä‘á»“ng bá»™:
+
+1. H7 ngĂ y 2026-07-31 váº«n dĂ¹ng record cÅ© sai.
+2. Rebuild pháº£i há»— trá»£ cáº£ Thá»© Báº£y vĂ  Chá»§ Nháº­t Ä‘á»ƒ backtest dá»¯ liá»‡u 24/7.
+3. Giá»›i háº¡n symbol Ä‘Æ°á»£c tĂ­nh theo tá»«ng slot.
+4. XAUUSD vĂ  GBPUSD luĂ´n cĂ³ cĂ¹ng Signal.
+5. Final Reverse pháº£i Ă¡p dá»¥ng nháº¥t quĂ¡n cho toĂ n bá»™ symbol active.
+6. Entry header pháº£i cĂ³ cáº£ GMT+7 vĂ  Broker.
+7. Signal Card cĂ³ Final Reverse pháº£i cĂ³ viá»n ná»•i dá»… nháº­n biáº¿t.
+8. Viá»‡t hĂ³a toĂ n bá»™ Dashboard khi locale=VN.
+
+==================================================
+1. REGRESSION H7 NGĂ€Y 2026-07-31
+==================================================
+
+Record cáº§n sá»­a:
+
+date:
+2026-07-31
+
+slot:
+H7
+
+entry_branch:
+H_49
+
+entry_time:
+07:49 Broker
+
+Nguá»“n Signal báº¯t buá»™c:
+
+XAUUSD H1 má»Ÿ 06:00
+Ä‘Ă³ng 07:00 Broker.
+
+Mapping:
+
+H1 Close > Open:
+candle_direction = TANG
+core_reference_signal = SELL
+
+H1 Close < Open:
+candle_direction = GIAM
+core_reference_signal = BUY
+
+H1 Open == Close:
+WAIT
+
+H7 khĂ´ng cĂ³ Final Reverse.
+
+Do Ä‘Ă³ náº¿u candle 06:00â€“07:00 lĂ  GIáº¢M:
+
+XAUUSD = BUY
+GBPUSD = BUY
+
+KhĂ´ng Ä‘Æ°á»£c tiáº¿p tá»¥c hiá»ƒn thá»‹ SELL.
+
+==================================================
+2. KHĂ”NG HARD-CODE BUY CHO NGĂ€Y 31/7
+==================================================
+
+Pháº£i Ä‘á»c candle tháº­t tá»« MT4 Feed active source:
+
+canonical_symbol = XAUUSD
+timeframe = H1
+broker_open_at = 2026-07-31 06:00:00
+
+Log má»™t láº§n khi rebuild:
+
+[H49-H1]
+date=2026-07-31
+slot=H7
+source=XAUUSD H1
+window=06:00->07:00 Broker
+source_id=<active source>
+open=<exact>
+close=<exact>
+direction=GIAM
+reversed_signal=BUY
+
+Náº¿u database cĂ³ nhiá»u source_id:
+
+- chá»‰ dĂ¹ng active source tá»« heartbeat;
+- khĂ´ng LIMIT 1 tĂ¹y Ă½;
+- náº¿u nhiá»u nguá»“n xung Ä‘á»™t vĂ  khĂ´ng xĂ¡c Ä‘á»‹nh Ä‘Æ°á»£c nguá»“n active:
+  fail closed vá»›i AMBIGUOUS_MT4_FEED_SOURCE.
+
+==================================================
+3. BUMP LOGIC VERSION
+==================================================
+
+Task nĂ y thay Ä‘á»•i pair applicability vĂ  sá»­a Final Reverse toĂ n bá»™ pairs.
+
+Bump:
+
+SIGNAL_LOGIC_VERSION = 88
+ACTIVE_SIGNAL_LOGIC_VERSION = 88
+MINIMUM_SIGNAL_LOGIC_VERSION = 88
+
+Bump:
+
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 11
+SIGNAL_SUMMARY_SCHEMA_VERSION = 4
+
+Update:
+
+signal_rule_contract.json = 88
+
+KhĂ´ng Ä‘á»ƒ Dashboard Æ°u tiĂªn record v87 cÅ©.
+
+==================================================
+4. FORCE REBUILD NGĂ€Y 2026-07-31
+==================================================
+
+Sau khi nĂ¢ng v88:
+
+- rebuild D snapshot cáº§n thiáº¿t;
+- rebuild láº§n lÆ°á»£t H3, H7, H9, H12, H14, H16;
+- thay tháº¿ record cĂ¹ng date/hour;
+- khĂ´ng append duplicate;
+- thay tháº¿ evidence XAUUSD cĂ¹ng date/hour/version;
+- clear server history cache;
+- republish compact current/history batches.
+
+Acceptance riĂªng:
+
+2026-07-31 H7 H:49
++ H1 XAUUSD giáº£m
+= XAUUSD BUY
+= GBPUSD BUY.
+
+==================================================
+5. REBUILD Cáº¢ THá»¨ Báº¢Y VĂ€ CHá»¦ NHáº¬T
+==================================================
+
+Current code Ä‘ang loáº¡i weekend á»Ÿ ba nÆ¡i:
+
+- get_target_hours();
+- rebuild_slot_signal();
+- rebuild_recent_history().
+
+KhĂ´ng tiáº¿p tá»¥c dĂ¹ng cĂ¹ng má»™t calendar policy cho live trading vĂ  backtest.
+
+TĂ¡ch rĂµ:
+
+def get_live_target_hours(...):
+    ...
+
+def get_rebuild_target_hours(..., include_weekends=False):
+    ...
+
+Live máº·c Ä‘á»‹nh:
+
+Mondayâ€“Friday.
+
+Historical/backtest khi:
+
+include_weekends=True
+
+pháº£i tráº£ Ä‘á»§:
+
+H3
+H7
+H9
+H12
+H14
+H16
+
+cho cáº£ báº£y ngĂ y.
+
+==================================================
+6. WEEKEND KHĂ”NG ÄÆ¯á»¢C Báº¬T LIVE EXECUTION Máº¶C Äá»NH
+==================================================
+
+YĂªu cáº§u cá»§a user lĂ  backtest 24/7, khĂ´ng pháº£i tá»± Ä‘á»™ng trade weekend.
+
+Do Ä‘Ă³:
+
+- rebuild/backtest: cho phĂ©p weekend;
+- live scheduler: giá»¯ Mondayâ€“Friday;
+- chá»‰ báº­t live weekend khi profile cĂ³ explicit config:
+
+signal_live_weekends = true
+
+Default:
+
+false.
+
+KhĂ´ng thay Ä‘á»•i execution máº·c Ä‘á»‹nh.
+
+==================================================
+7. CLI REBUILD
+==================================================
+
+ThĂªm CLI rĂµ rĂ ng:
+
+python mt5_signal_bot.py \
+  --profile Vantage \
+  --rebuild-signals \
+  --days 45 \
+  --include-weekends
+
+VĂ  rebuild Ä‘Ăºng má»™t ngĂ y:
+
+python mt5_signal_bot.py \
+  --profile Vantage \
+  --rebuild-date 2026-07-31 \
+  --include-weekends \
+  --force
+
+KhĂ´ng yĂªu cáº§u live MT4 heartbeat náº¿u persisted bars Ä‘Ă£ Ä‘á»§.
+
+Náº¿u live clock unavailable:
+
+dĂ¹ng latest completed persisted Broker datetime lĂ m anchor.
+
+==================================================
+8. WEEKEND DATA POLICY
+==================================================
+
+Äá»‘i vá»›i Saturday/Sunday:
+
+Náº¿u Ä‘á»§ candle MT4:
+
+- tĂ­nh Signal bĂ¬nh thÆ°á»ng;
+- lÆ°u READY.
+
+Náº¿u thiáº¿u candle:
+
+- táº¡o hoáº·c lÆ°u tráº¡ng thĂ¡i WAIT_MT4_DATA;
+- khĂ´ng mÆ°á»£n candle Friday Ä‘á»ƒ giáº£ láº­p M30/H1 weekend;
+- khĂ´ng bá» luĂ´n ngĂ y khá»i history.
+
+D-Direction váº«n tĂ¬m nearest previous completed H4 20:00 theo policy
+hiá»‡n hĂ nh.
+
+Final Reverse Saturday/Sunday:
+
+khĂ´ng Ä‘áº£o vĂ¬ khĂ´ng cĂ³ rule weekend.
+
+==================================================
+9. SYMBOL APPLICABILITY THEO SLOT
+==================================================
+
+Canonical map:
+
+SLOT_ACTIVE_PAIRS = {
+    3:  ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY"),
+    7:  ("XAUUSD", "GBPUSD", "GBPJPY"),
+    9:  ("XAUUSD", "GBPUSD", "GBPCAD"),
+    12: ("XAUUSD", "GBPUSD", "GBPAUD"),
+    14: ("XAUUSD", "GBPUSD", "GBPCAD"),
+    16: ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"),
+}
+
+Meaning:
+
+GBPJPY:
+chá»‰ H3, H7, H16.
+
+GBPAUD:
+chá»‰ H3, H12, H16.
+
+GBPCAD:
+chá»‰ H9, H14, H16.
+
+XAUUSD:
+má»i slot.
+
+GBPUSD:
+má»i slot vĂ  luĂ´n báº±ng XAUUSD.
+
+==================================================
+10. PURE HELPER CHO ACTIVE PAIRS
+==================================================
+
+Táº¡o má»™t source of truth:
+
+def get_evaluated_pairs_for_hour(hour):
+    return SLOT_ACTIVE_PAIRS.get(int(hour), ())
+
+KhĂ´ng giá»¯ docstring cÅ© nĂ³i má»i slot tĂ­nh Ä‘á»§ nÄƒm cáº·p.
+
+Äá»“ng bá»™ map nĂ y sang:
+
+- core evaluation;
+- history rebuild;
+- current rebuild;
+- Telegram;
+- Dashboard;
+- execution scheduling;
+- tests;
+- rule contract.
+
+KhĂ´ng duplicate map trong frontend.
+
+Frontend nháº­n tá»« payload:
+
+applicable_pairs
+
+hoáº·c generated constants cĂ¹ng contract.
+
+==================================================
+11. INACTIVE PAIR KHĂ”NG PHáº¢I WAIT
+==================================================
+
+Pair khĂ´ng Ă¡p dá»¥ng táº¡i slot khĂ´ng Ä‘Æ°á»£c Ä‘áº·t thĂ nh WAIT vĂ¬ WAIT cĂ³ nghÄ©a lĂ 
+Ä‘ang thiáº¿u dá»¯ liá»‡u hoáº·c chÆ°a resolve.
+
+Canonical state:
+
+direction:
+null
+
+pair_signal_state:
+NOT_APPLICABLE
+
+execution_state:
+NOT_APPLICABLE
+
+KhĂ´ng:
+
+- Ä‘á»c D relation;
+- derive Signal;
+- táº¡o order intent;
+- gá»­i Telegram;
+- táº¡o Evidence;
+- tĂ­nh failure_reason WAIT_MT4_DATA.
+
+Dashboard chá»‰ render cĂ¡c pair applicable cá»§a slot.
+
+KhĂ´ng cáº§n hiá»ƒn thá»‹ hĂ ng OFF hoáº·c KhĂ´ng Ă¡p dá»¥ng trong Signal Card.
+
+==================================================
+12. XAUUSD VĂ€ GBPUSD LUĂ”N Báº°NG NHAU
+==================================================
+
+Core:
+
+core["XAUUSD"] = reference_signal
+core["GBPUSD"] = reference_signal
+
+Sau Final Reverse:
+
+final["XAUUSD"] == final["GBPUSD"]
+
+báº¯t buá»™c Ä‘Ăºng á»Ÿ má»i slot.
+
+ThĂªm invariant:
+
+assert final["XAUUSD"] == final["GBPUSD"]
+
+Náº¿u invariant tháº¥t báº¡i:
+
+raise SignalInvariantError
+
+KhĂ´ng publish record sai.
+
+==================================================
+13. FIX FINAL REVERSE CHá»ˆ Äáº¢O XAUUSD
+==================================================
+
+Current core Ä‘ang chá»‰ reverse:
+
+final["XAUUSD"]
+
+ÄĂ¢y lĂ  sai vá»›i contract slot-level Final Reverse.
+
+Canonical:
+
+if should_reverse:
+    for symbol in applicable_pairs:
+        if core[symbol] in ("BUY", "SELL"):
+            final[symbol] = reverse_signal(core[symbol])
+
+Pair khĂ´ng applicable khĂ´ng tham gia.
+
+Final Reverse pháº£i cháº¡y Ä‘Ăºng má»™t láº§n sau khi:
+
+- reference signal Ä‘Ă£ cĂ³;
+- D relation Ä‘Ă£ derive;
+- active pair map Ä‘Ă£ Ă¡p dá»¥ng.
+
+KhĂ´ng reverse láº§n hai á»Ÿ frontend/rebuild/Telegram.
+
+==================================================
+14. PAYLOAD FINAL REVERSE
+==================================================
+
+Top-level:
+
+final_reverse_applied: true|false
+final_reverse_reason: string|null
+
+Pair-level:
+
+pair_final_reverse_applied = {
+    applicable_symbol: true|false
+}
+
+pair_core_signals:
+...
+
+pair_dirs:
+...
+
+Náº¿u Final Reverse Ă¡p dá»¥ng cho card, má»i applicable BUY/SELL Ä‘á»u Ä‘Æ°á»£c Ä‘áº£o.
+
+==================================================
+15. SIGNAL CARD VIá»€N Ná»”I KHI CĂ“ FINAL REVERSE
+==================================================
+
+Náº¿u:
+
+signal.final_reverse_applied === true
+
+thĂªm style card:
+
+- viá»n warning/accent rĂµ hÆ¡n;
+- subtle outer ring hoáº·c glow;
+- khĂ´ng dĂ¹ng animation nháº¥p nhĂ¡y;
+- váº«n há»£p dark/light mode;
+- khĂ´ng lĂ m layout thay Ä‘á»•i kĂ­ch thÆ°á»›c.
+
+VĂ­ dá»¥ class:
+
+border-[var(--terminal-warning)]/70
+ring-1
+ring-[var(--terminal-warning)]/25
+shadow-[0_0_0_1px_color-mix(...)]
+
+ThĂªm badge nhá» trong header:
+
+VN:
+ÄĂƒ Äáº¢O
+
+EN:
+REVERSED
+
+Tooltip/title hiá»ƒn thá»‹ lĂ½ do Ä‘Ă£ localization.
+
+KhĂ´ng báº¯t user pháº£i má»Ÿ Evidence má»›i biáº¿t card Ä‘Ă£ Ä‘áº£o.
+
+==================================================
+16. LOCALIZE FINAL REVERSE REASONS
+==================================================
+
+KhĂ´ng hiá»ƒn thá»‹ enum thĂ´:
+
+H14_TUESDAY
+H16_FRIDAY
+H3_WEDNESDAY
+
+Táº¡o formatter:
+
+formatFinalReverseReason(reason, locale)
+
+VĂ­ dá»¥ VN:
+
+H3_WEDNESDAY
+â†’ H3 Ä‘áº£o theo quy táº¯c Thá»© TÆ°
+
+H14_TUESDAY
+â†’ H14 Ä‘áº£o theo quy táº¯c Thá»© Ba
+
+H16_FRIDAY
+â†’ H16 Ä‘áº£o theo quy táº¯c Thá»© SĂ¡u
+
+CĂ¡c exception pháº£i Ä‘Æ°á»£c diá»…n giáº£i rĂµ.
+
+==================================================
+17. ENTRY HEADER CĂ“ GMT+7 VĂ€ BROKER
+==================================================
+
+Hiá»‡n header chá»‰ render:
+
+Entry: 14:11
+
+Äá»•i thĂ nh:
+
+VN:
+
+VĂ o lá»‡nh:
+18:11 GMT+7 (14:11 Broker)
+
+EN:
+
+Entry:
+18:11 GMT+7 (14:11 Broker)
+
+DĂ¹ng BrokerLocalTime vá»›i canonical top-level fields:
+
+entry_time
+entry_at_utc
+broker_utc_offset
+broker_clock_verified
+date
+
+KhĂ´ng tĂ­nh local time báº±ng cá»™ng cá»©ng trong React.
+
+Náº¿u entry_at_utc thiáº¿u nhÆ°ng Broker offset verified:
+
+formatter cĂ³ thá»ƒ convert theo helper hiá»‡n hĂ nh.
+
+Náº¿u offset khĂ´ng verified:
+
+chá»‰ hiá»ƒn thá»‹ Broker, khĂ´ng Ä‘oĂ¡n GMT+7.
+
+==================================================
+18. ENTRY CHá»ˆ HIá»‚N THá» Má»˜T Láº¦N
+==================================================
+
+Giá»¯:
+
+Entry á»Ÿ header Signal Card.
+
+KhĂ´ng khĂ´i phá»¥c Entry vĂ o:
+
+- XAUUSD row;
+- GBPUSD row;
+- cĂ¡c GBP row;
+- mobile primary summary;
+- expanded details.
+
+Táº¥t cáº£ applicable pairs dĂ¹ng common Entry XAUUSD.
+
+==================================================
+19. VIá»†T HĂ“A SIGNAL CARD
+==================================================
+
+Khi locale=VN khĂ´ng Ä‘Æ°á»£c hiá»ƒn thá»‹:
+
+Signal:
+Entry:
+READY
+WAIT
+BUY
+SELL
+REVERSED
+Show pair details
+Hide pair details
+
+DĂ¹ng:
+
+Signal / signalTime label:
+PhĂ¡t tĂ­n hiá»‡u
+
+Entry:
+VĂ o lá»‡nh
+
+READY:
+Sáºµn sĂ ng
+
+WAIT:
+Chá»
+
+BUY:
+Mua
+
+SELL:
+BĂ¡n
+
+REVERSED:
+ÄĂ£ Ä‘áº£o
+
+CĂ³ thá»ƒ giá»¯:
+
+XAUUSD
+GBPUSD
+H7
+GMT+7
+Broker
+MT4
+MT5
+
+==================================================
+20. VIá»†T HĂ“A STATUS DASHBOARD
+==================================================
+
+Hiá»‡n status chip Ä‘ang render enum trá»±c tiáº¿p.
+
+ThĂªm formatter:
+
+formatSystemState(state, locale)
+
+VN:
+
+connected:
+ÄĂ£ káº¿t ná»‘i
+
+degraded:
+Suy giáº£m
+
+stale:
+QuĂ¡ háº¡n
+
+disconnected:
+Máº¥t káº¿t ná»‘i
+
+waiting:
+Äang chá»
+
+ready:
+Sáºµn sĂ ng
+
+pending:
+Äang xá»­ lĂ½
+
+TĂªn label VN:
+
+MT4 Feed:
+Dá»¯ liá»‡u MT4
+
+MT5 Execution:
+Thá»±c thi MT5
+
+Broker Clock:
+Äá»“ng há»“ Broker
+
+EN giá»¯ thuáº­t ngá»¯ tiáº¿ng Anh.
+
+KhĂ´ng hiá»‡n STALE / CONNECTED / WAITING trong locale VN.
+
+==================================================
+21. VIá»†T HĂ“A D-DIRECTION PANEL
+==================================================
+
+Khi VN:
+
+BUY â†’ MUA
+SELL â†’ BĂN
+WAIT â†’ CHá»œ
+READY â†’ Sáº´N SĂ€NG
+MISSING â†’ THIáº¾U Dá»® LIá»†U
+
+CĂ¡c label:
+
+Session â†’ PhiĂªn nguá»“n
+Source â†’ Nguá»“n
+Open â†’ Má»Ÿ
+Close â†’ ÄĂ³ng
+Local â†’ Giá» GMT+7
+
+KhĂ´ng Ä‘á»•i tĂªn ká»¹ thuáº­t:
+
+D-Direction
+H4
+Broker
+OHLC
+symbols.
+
+==================================================
+22. Má»˜T I18N SOURCE OF TRUTH
+==================================================
+
+KhĂ´ng thĂªm ternary locale ráº£i rĂ¡c tiáº¿p tá»¥c.
+
+Má»Ÿ rá»™ng há»‡ thá»‘ng i18n hiá»‡n hĂ nh:
+
+getLocaleTexts()
+translations.ts
+
+ThĂªm nhĂ³m:
+
+signalCard
+systemStatus
+directions
+finalReverse
+dDirection
+
+DĂ¹ng formatter chung cho:
+
+- Signal Card;
+- Schedule Pill;
+- D panel;
+- History;
+- Evidence;
+- status chips.
+
+KhĂ´ng cĂ³ hai dictionary BUY/SELL khĂ¡c nhau.
+
+==================================================
+23. H7 NGĂ€Y 31/7 PHáº¢I REBUILD Báº°NG V88
+==================================================
+
+Runtime acceptance:
+
+Query XAUUSD H1:
+
+2026-07-31 06:00â€“07:00 Broker.
+
+Náº¿u:
+
+Close < Open
+
+thĂ¬ record v88 H7:
+
+entry_time = 07:49
+entry_branch = H_49
+core_signal = BUY
+pair_dirs.XAUUSD = BUY
+pair_dirs.GBPUSD = BUY
+final_reverse_applied = false
+
+Applicable pairs H7:
+
+XAUUSD
+GBPUSD
+GBPJPY
+
+KhĂ´ng tĂ­nh:
+
+GBPAUD
+GBPCAD.
+
+GBPJPY Ä‘Æ°á»£c derive theo D relation.
+
+==================================================
+24. SLOT EXPECTATIONS
+==================================================
+
+H3 rows:
+
+XAUUSD
+GBPUSD
+GBPAUD
+GBPJPY
+
+H7 rows:
+
+XAUUSD
+GBPUSD
+GBPJPY
+
+H9 rows:
+
+XAUUSD
+GBPUSD
+GBPCAD
+
+H12 rows:
+
+XAUUSD
+GBPUSD
+GBPAUD
+
+H14 rows:
+
+XAUUSD
+GBPUSD
+GBPCAD
+
+H16 rows:
+
+XAUUSD
+GBPUSD
+GBPAUD
+GBPJPY
+GBPCAD
+
+Telegram cÅ©ng chá»‰ liá»‡t kĂª cĂ¡c rows tÆ°Æ¡ng á»©ng.
+
+==================================================
+25. EXECUTION SAFETY
+==================================================
+
+Chá»‰ schedule order cho applicable pairs.
+
+VĂ­ dá»¥ H7:
+
+khĂ´ng Ä‘Æ°á»£c táº¡o intent GBPAUD hoáº·c GBPCAD.
+
+H14:
+
+khĂ´ng Ä‘Æ°á»£c táº¡o intent GBPAUD hoáº·c GBPJPY.
+
+H16:
+
+Ä‘Æ°á»£c táº¡o Ä‘á»§ nÄƒm náº¿u direction READY.
+
+Restart idempotency giá»¯ nguyĂªn.
+
+==================================================
+26. BACKWARD COMPATIBILITY
+==================================================
+
+Records v87 cĂ³ thá»ƒ cĂ³ Ä‘á»§ nÄƒm pair dirs.
+
+Dashboard v88 khĂ´ng Ä‘Æ°á»£c suy active pairs tá»« dá»¯ liá»‡u v87.
+
+Chá»‰ hiá»ƒn thá»‹ records:
+
+logic_version >= 88
+
+cho contract má»›i.
+
+KhĂ´ng giá»¯ fallback v87 náº¿u v88 record cĂ¹ng slot Ä‘ang WAIT do thiáº¿u data,
+trá»« khi resolver policy Ä‘Ă£ Ä‘Æ°á»£c user xĂ¡c nháº­n.
+
+Fail closed hÆ¡n lĂ  hiá»ƒn thá»‹ record semantics cÅ©.
+
+==================================================
+27. TEST CORE
+==================================================
+
+ThĂªm tests:
+
+test_h7_2026_07_31_down_h1_is_buy
+test_h49_uses_previous_completed_xau_h1
+test_xauusd_equals_gbpusd_all_slots
+test_final_reverse_applies_to_all_applicable_pairs
+test_final_reverse_applied_once
+test_inactive_pairs_are_not_applicable
+test_inactive_pairs_do_not_require_d
+test_inactive_pairs_do_not_schedule_orders
+
+Table expected active pairs:
+
+H3  XAU GBPUSD GBPAUD GBPJPY
+H7  XAU GBPUSD GBPJPY
+H9  XAU GBPUSD GBPCAD
+H12 XAU GBPUSD GBPAUD
+H14 XAU GBPUSD GBPCAD
+H16 all five.
+
+==================================================
+28. TEST WEEKEND REBUILD
+==================================================
+
+Saturday fixture cĂ³ Ä‘á»§ MT4 bars:
+
+Expected:
+6 records Ä‘Æ°á»£c rebuild.
+
+Sunday fixture cĂ³ Ä‘á»§ MT4 bars:
+
+Expected:
+6 records Ä‘Æ°á»£c rebuild.
+
+Weekend thiáº¿u bars:
+
+Expected:
+WAIT_MT4_DATA records hoáº·c documented missing records;
+khĂ´ng silently skip date.
+
+Live scheduler default Saturday:
+
+Expected:
+khĂ´ng execution.
+
+Live scheduler vá»›i signal_live_weekends=true:
+
+Expected:
+cho phĂ©p schedule theo explicit config.
+
+==================================================
+29. TEST FRONTEND
+==================================================
+
+VN Signal Card:
+
+- khĂ´ng chá»©a Signal:
+- khĂ´ng chá»©a Entry:
+- khĂ´ng chá»©a READY
+- khĂ´ng chá»©a BUY/SELL
+- Entry hiá»ƒn thá»‹ GMT+7 vĂ  Broker;
+- Entry chá»‰ xuáº¥t hiá»‡n má»™t láº§n;
+- card reversed cĂ³ viá»n/ring vĂ  badge ÄĂƒ Äáº¢O.
+
+VN status:
+
+- khĂ´ng chá»©a STALE;
+- khĂ´ng chá»©a CONNECTED;
+- khĂ´ng chá»©a WAITING.
+
+Slot rows:
+
+Ä‘Ăºng active pair map.
+
+EN:
+
+giá»¯ Ä‘Ăºng tiáº¿ng Anh.
+
+==================================================
+30. VALIDATION
+==================================================
+
+Python:
+
+python -m compileall -q .
+
+python -m unittest \
+  tests.test_h49_h1_reference -v
+
+python -m unittest \
+  tests.test_h7_2026_07_31_regression -v
+
+python -m unittest \
+  tests.test_slot_pair_applicability_v88 -v
+
+python -m unittest \
+  tests.test_final_reverse_all_active_pairs -v
+
+python -m unittest \
+  tests.test_weekend_history_rebuild -v
+
+python -m unittest \
+  tests.test_weekend_live_execution_gate -v
+
+python -m unittest \
+  tests.test_pair_execution_applicability -v
+
+python -m unittest discover -s tests -v
+
+Dashboard:
+
+cd dashboard
+npm ci
+npx tsc --noEmit
+npm run test:i18n
+npm run build
+
+ThĂªm component tests:
+
+SignalCard localization
+SignalCard common Entry time
+SignalCard reverse highlight
+slot pair row filtering
+system status localization
+
+==================================================
+31. RUNTIME ACCEPTANCE
+==================================================
+
+1. Pull vĂ  cháº¡y v88.
+2. Rebuild riĂªng 2026-07-31.
+3. H7 pháº£i Ä‘á»c H1 XAUUSD 06:00â€“07:00.
+4. Náº¿u H1 giáº£m, XAUUSD vĂ  GBPUSD pháº£i BUY.
+5. H7 chá»‰ hiá»ƒn thá»‹ XAUUSD, GBPUSD vĂ  GBPJPY.
+6. Entry 07:49 hiá»ƒn thá»‹ má»™t láº§n.
+7. Entry cĂ³ cáº£ GMT+7 vĂ  Broker.
+8. Card cĂ³ reverse pháº£i ná»•i viá»n vĂ  badge ÄĂƒ Äáº¢O.
+9. VN khĂ´ng cĂ²n READY/BUY/SELL/STALE/CONNECTED/WAITING.
+10. Rebuild Thá»© Báº£y/Chá»§ Nháº­t cĂ³ records náº¿u feed Ä‘á»§.
+11. Live execution weekend váº«n táº¯t máº·c Ä‘á»‹nh.
+12. KhĂ´ng táº¡o order cho inactive pairs.
+13. History khĂ´ng cĂ³ duplicate date/hour.
+14. GitHub Actions PASS.
+15. Vercel READY.
+16. Smoke test desktop/mobile.
+17. KhĂ´ng gá»i production-ready náº¿u H7 31/7 chÆ°a Ä‘Æ°á»£c Ä‘á»‘i chiáº¿u vá»›i candle
+    MT4 thá»±c táº¿.
+
+Commit suggestion:
+
+fix(signal): rebuild weekends and scope active pairs by slot
+```
+
+## Báº£ng cuá»‘i cĂ¹ng cáº§n khĂ³a
+
+```text
+H3  : XAUUSD, GBPUSD, GBPAUD, GBPJPY
+H7  : XAUUSD, GBPUSD, GBPJPY
+H9  : XAUUSD, GBPUSD, GBPCAD
+H12 : XAUUSD, GBPUSD, GBPAUD
+H14 : XAUUSD, GBPUSD, GBPCAD
+H16 : XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD
+```
+
+Äiá»ƒm dá»… bá»‹ Agent lĂ m sai nháº¥t lĂ  gĂ¡n pair khĂ´ng Ă¡p dá»¥ng thĂ nh `WAIT`. **KhĂ´ng Ă¡p dá»¥ng vĂ  Ä‘ang chá» lĂ  hai tráº¡ng thĂ¡i khĂ¡c nhau.** Pair khĂ´ng thuá»™c slot pháº£i bá»‹ loáº¡i khá»i calculation, Telegram, UI vĂ  execution, chá»© khĂ´ng Ä‘Æ°á»£c biáº¿n thĂ nh má»™t tĂ­n hiá»‡u â€œÄ‘ang lá»—iâ€.
