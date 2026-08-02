@@ -57,6 +57,14 @@ export function SignalCardWithEvidence({ signal, isVIP }: SignalCardWithEvidence
           hour={Number(signal.hour)}
           version={versionForSignal(signal)}
           symbol="XAUUSD"
+          waitReasons={
+            signal.wait_reasons && typeof signal.wait_reasons === "object"
+              ? (signal.wait_reasons as Record<string, string>)
+              : undefined
+          }
+          rebuildState={typeof signal.rebuild_state === "string" ? signal.rebuild_state : undefined}
+          rebuildStateReason={typeof signal.rebuild_state_reason === "string" ? signal.rebuild_state_reason : undefined}
+          failureReason={typeof signal.failure_reason === "string" ? signal.failure_reason : undefined}
         />
       )}
     </>

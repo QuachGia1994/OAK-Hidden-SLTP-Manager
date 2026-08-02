@@ -6,6 +6,7 @@ import { DDirectionPanel } from "./DDirectionPanel";
 import type { Signal, HistorySignal, DDirectionSnapshotV2 } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { getSlotTimeValue } from "@/lib/constants";
+import { isSignalRecordIncomplete } from "@/lib/signal-integrity";
 
 function weekdayLabel(dateStr: string, locale: "VN" | "EN"): string {
   const [year, month, dayOfMonth] = dateStr.split("-").map(Number);
@@ -29,23 +30,32 @@ interface CollapsibleDayProps {
 export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false, initialDSnapshot }: CollapsibleDayProps) {
   const [open, setOpen] = useState(defaultOpen);
   const [dSnapshot, setDSnapshot] = useState<DDirectionSnapshotV2 | null>(initialDSnapshot || null);
+  const [dSnapshotStatus, setDSnapshotStatus] = useState<"idle" | "loading" | "missing" | "ready">(
+    initialDSnapshot ? "ready" : "idle",
+  );
   const { locale } = useLocale();
 
   useEffect(() => {
-    if (open && !dSnapshot) {
-      fetch(`/api/signals/d-direction?date=${date}`)
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data && data.symbols) setDSnapshot(data);
-        })
-        .catch(() => {});
-    }
-  }, [open, date, dSnapshot]);
+    if (!open || dSnapshotStatus === "ready") return;
+    setDSnapshotStatus("loading");
+    fetch(`/api/signals/d-direction?date=${date}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data && data.symbols) {
+          setDSnapshot(data);
+          setDSnapshotStatus("ready");
+        } else {
+          setDSnapshotStatus("missing");
+        }
+      })
+      .catch(() => setDSnapshotStatus("missing"));
+  }, [open, date, dSnapshotStatus]);
 
   const daySignals = [...signals].sort(
     (a, b) => getSlotTimeValue(b.hour, b.signal_time || null) - getSlotTimeValue(a.hour, a.signal_time || null),
   );
   const weekday = weekdayLabel(date, locale);
+  const dayIncomplete = daySignals.some((signal) => isSignalRecordIncomplete(signal as Record<string, unknown>));
   const verdictCounts = daySignals.reduce(
     (counts, signal) => {
       if (signal.signal === "BUY") counts.buy += 1;
@@ -81,6 +91,11 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false, init
           </p>
         </div>
         <div className="ml-auto hidden items-center gap-3 font-mono text-xs font-bold sm:flex">
+          {dayIncomplete && (
+            <span className="rounded-md border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--terminal-danger)]">
+              {locale === "EN" ? "Incomplete rebuild" : "Rebuild chưa toàn vẹn"}
+            </span>
+          )}
           <VerdictCount label="BUY" value={verdictCounts.buy} tone="buy" />
           <VerdictCount label="SELL" value={verdictCounts.sell} tone="sell" />
           <VerdictCount label={locale === "EN" ? "WAIT" : "CHỜ"} value={verdictCounts.wait} tone="wait" />
@@ -89,7 +104,12 @@ export function CollapsibleDay({ date, signals, isVIP, defaultOpen = false, init
       </button>
       {open && (
         <div className="history-day-content px-4 pb-4 pt-4 space-y-4">
-          <DDirectionPanel snapshot={dSnapshot} date={date} locale={locale} />
+          <DDirectionPanel
+            snapshot={dSnapshot}
+            date={date}
+            locale={locale}
+            snapshotStatus={dSnapshotStatus === "idle" || dSnapshotStatus === "loading" ? "loading" : dSnapshotStatus}
+          />
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {daySignals.map((signal) => (
               <SignalCardWithEvidence

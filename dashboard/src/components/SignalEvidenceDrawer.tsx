@@ -15,6 +15,7 @@ import { isSignalEvidenceV3 } from "@/lib/types";
 import { ACTIVE_SIGNAL_LOGIC_VERSION } from "@/lib/signal-display";
 import { useLocale } from "./LocaleProvider";
 import { getT, formatDirection, formatBranch } from "@/lib/translations";
+import { isMissingInputWaitReason } from "@/lib/signal-integrity";
 
 const FOCUSABLE_SELECTOR =
   "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
@@ -29,10 +30,15 @@ interface Props {
   hour: number;
   version: number;
   symbol: string | null;
+  waitReasons?: Record<string, string>;
+  rebuildState?: string;
+  rebuildStateReason?: string;
+  failureReason?: string | null;
 }
 
 export function SignalEvidenceDrawer(props: Props) {
-  const { evidence, loading, error, open, onClose, date, hour, version, symbol } = props;
+  const { evidence, loading, error, open, onClose, date, hour, version, symbol,
+    waitReasons, rebuildState, rebuildStateReason, failureReason } = props;
   const { locale } = useLocale();
   const t = getT(locale).evidence;
   const drawerRef = useRef<HTMLDivElement>(null);
@@ -82,6 +88,15 @@ export function SignalEvidenceDrawer(props: Props) {
   const currentSymbol = "XAUUSD";
   if (!open) return null;
 
+  const missingWaitReasons = Object.entries(waitReasons || {})
+    .filter(([, reason]) => isMissingInputWaitReason(reason))
+    .map(([pair, reason]) => ({ pair, reason }));
+  const incomplete =
+    rebuildState === "REBUILD_INCOMPLETE"
+    || missingWaitReasons.length > 0
+    || isMissingInputWaitReason(failureReason);
+  const historyT = getT(locale).history;
+
   return (
     <div
       className="fixed inset-0 z-50"
@@ -108,6 +123,32 @@ export function SignalEvidenceDrawer(props: Props) {
           onClose={onClose}
         />
         <div className="flex-1 overflow-y-auto px-5 py-5">
+          {incomplete && (
+            <div className="mb-4 space-y-2 rounded-xl border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 px-4 py-3 font-mono text-xs">
+              <div className="flex items-center gap-2">
+                <span className="font-black uppercase tracking-wider text-[var(--terminal-danger)]">
+                  {historyT.incompleteBadge}
+                </span>
+                {rebuildStateReason && (
+                  <span className="text-[10px] font-bold text-[var(--terminal-warning)]">
+                    {rebuildStateReason}
+                  </span>
+                )}
+              </div>
+              {missingWaitReasons.map(({ pair, reason }) => (
+                <div key={pair} className="flex items-center justify-between gap-2">
+                  <span className="text-[var(--muted)]">{historyT.waitReason} · {pair}</span>
+                  <span className="font-black text-[var(--terminal-warning)]">{reason}</span>
+                </div>
+              ))}
+              {missingWaitReasons.length === 0 && failureReason && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[var(--muted)]">{historyT.waitReason}</span>
+                  <span className="font-black text-[var(--terminal-warning)]">{failureReason}</span>
+                </div>
+              )}
+            </div>
+          )}
           {loading && (
             <StatusText text={t.loading} />
           )}

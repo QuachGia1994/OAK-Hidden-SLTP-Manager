@@ -21,13 +21,19 @@ interface Props {
   date?: string;
   locale: "VN" | "EN";
   className?: string;
+  /** Resolved availability of the D snapshot: "loading" while fetching, "missing" once resolved absent. */
+  snapshotStatus?: "loading" | "missing" | "ready";
 }
 
-export function DDirectionPanel({ snapshot, date, locale, className = "" }: Props) {
+export function DDirectionPanel({ snapshot, date, locale, className = "", snapshotStatus = "ready" }: Props) {
   const [selectedSymbol, setSelectedSymbol] = useState<DDirectionSymbolData | null>(null);
   const t = getT(locale);
 
-  const state = snapshot?.state || (snapshot?.message ? "PENDING_PUBLICATION" : "SYNCING");
+  const snapshotMissing =
+    snapshotStatus === "missing"
+    || (snapshot?.state === "MISSING")
+    || (snapshotStatus === "ready" && !snapshot);
+  const state = snapshot?.state || (snapshot?.message ? "PENDING_PUBLICATION" : (snapshotMissing ? "MISSING" : "SYNCING"));
   const targetDate = snapshot?.target_local_date || date || "—";
   const symbols = snapshot?.symbols || {};
 
@@ -79,7 +85,20 @@ export function DDirectionPanel({ snapshot, date, locale, className = "" }: Prop
         </div>
       )}
 
-      {state !== "PENDING_PUBLICATION" && state !== "SYNCING" && (
+      {state === "MISSING" && (
+        <div className="rounded-xl border border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/[0.06] p-4 text-xs font-mono text-[var(--terminal-warning)]">
+          <span className="font-black uppercase tracking-wider">
+            {locale === "EN" ? "D snapshot missing" : "D snapshot thiếu"}
+          </span>
+          <span className="mt-1 block text-[var(--muted)]">
+            {locale === "EN"
+              ? "Signals were rebuilt before the D-Direction snapshot for this session was verified."
+              : "Tín hiệu được rebuild trước khi D-Direction của phiên này được xác minh."}
+          </span>
+        </div>
+      )}
+
+      {state !== "PENDING_PUBLICATION" && state !== "SYNCING" && state !== "MISSING" && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           {DISPLAY_SYMBOLS.map((sym) => {
             const data = symbols[sym];

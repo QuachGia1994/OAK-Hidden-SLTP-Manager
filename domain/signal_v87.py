@@ -229,6 +229,23 @@ def _mode_branch(day_mode):
     return getattr(day_mode, "source_branch", None)
 
 
+def _resolve_single_source_bar(provider, symbol: str, timeframe: str, broker_open: datetime) -> dict | None:
+    """Read one bar without an active source, resolving to a single offline source.
+
+    Offline rebuilds have no live heartbeat, so the engine may still read the
+    one persisted source.  When multiple sources publish conflicting OHLC for
+    the same exact bar this raises ``AmbiguousMT4FeedSourceError`` so the caller
+    can fail closed with an explicit ``*_AMBIGUOUS`` reason instead of a silent
+    ``*_MISSING``.
+    """
+    try:
+        return provider.get_exact_bar(symbol, timeframe, broker_open)
+    except Exception as error:
+        if type(error).__name__ == "AmbiguousMT4FeedSourceError":
+            raise
+        return None
+
+
 def evaluate_h49_reference_signal(slot_dt, provider, *, as_of=None) -> dict[str, Any]:
     """Resolve the exact H1 XAUUSD candle right before the slot and reverse it.
 
@@ -240,7 +257,34 @@ def evaluate_h49_reference_signal(slot_dt, provider, *, as_of=None) -> dict[str,
     source_open = slot_dt - timedelta(hours=1)
     source_close = slot_dt
     cutoff = as_of if as_of is not None else slot_dt
-    h1 = _bar(provider, "XAUUSD", "H1", source_open, cutoff)
+    source_id = _resolve_active_source_id(provider)
+    if source_id is not None:
+        h1 = _bar(provider, "XAUUSD", "H1", source_open, cutoff, source_id=source_id)
+    else:
+        # No live active source: allow the single persisted offline source,
+        # but fail closed with an explicit ambiguous-source reason on conflict.
+        if cutoff is not None and source_open + timedelta(hours=1) > cutoff:
+            h1 = None
+        else:
+            try:
+                h1 = _resolve_single_source_bar(provider, "XAUUSD", "H1", source_open)
+            except Exception:
+                return {
+                    "state": "WAIT",
+                    "source_symbol": "XAUUSD",
+                    "timeframe": "H1",
+                    "broker_open_at": source_open.isoformat(),
+                    "broker_close_at": source_close.isoformat(),
+                    "source_id": None,
+                    "resolved_symbol": None,
+                    "open_exact": None,
+                    "high_exact": None,
+                    "low_exact": None,
+                    "close_exact": None,
+                    "candle_direction": None,
+                    "reversed_signal": "WAIT",
+                    "failure_reason": "H49_H1_AMBIGUOUS",
+                }
     if not h1:
         return {
             "state": "WAIT",

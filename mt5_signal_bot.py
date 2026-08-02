@@ -809,8 +809,18 @@ def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
         except TypeError:
             broker_offset = MARKET_DATA_PROVIDER.get_broker_utc_offset()
         signal_utc = (signal_broker_dt - timedelta(hours=broker_offset)).replace(tzinfo=timezone.utc)
-        health = MARKET_DATA_PROVIDER.get_health()
-        clock_verified = bool(health.fresh and getattr(health, "clock_verified", True))
+        # Historical records are verified against the per-date Broker offset
+        # persisted for that broker_date — never against the live heartbeat
+        # freshness.  An offline rebuild with persisted bars but a stale
+        # heartbeat must still emit verified local times.
+        verifier = getattr(MARKET_DATA_PROVIDER, "is_broker_utc_offset_verified", None)
+        if callable(verifier):
+            try:
+                clock_verified = bool(verifier(broker_dt.date()))
+            except TypeError:
+                clock_verified = bool(verifier())
+        else:
+            clock_verified = False
     except Exception:
         broker_offset = None
         signal_utc = None
@@ -1850,6 +1860,41 @@ def is_slot_ready(broker_dt, hour):
 
 HISTORY_REBUILD_SCHEMA_VERSION = 2
 
+# WAIT reasons that still complete a rebuilt slot: the candle exists and is
+# directionless (DOJI) or the pair is legitimately out of the slot's scope.
+VALID_WAIT_REASONS = frozenset({
+    "H49_H1_DOJI",
+    "D_H4_DOJI",
+    "M30_LAYER_DOJI",
+    "NOT_APPLICABLE",
+})
+
+# WAIT reasons that mean the slot cannot be published as complete history: the
+# rebuild is missing a required input (bar, D candle, clock, or source).
+MISSING_INPUT_WAIT_REASONS = frozenset({
+    "H49_H1_MISSING",
+    "H49_H1_AMBIGUOUS",
+    "D_H4_MISSING",
+    "D_H4_AMBIGUOUS",
+    "M30_LAYER2_MISSING",
+    "M30_LAYER3_MISSING",
+    "CLOCK_OFFSET_UNVERIFIED",
+    "ACTIVE_SOURCE_MISSING",
+    "D_SNAPSHOT_NOT_PUBLISHED",
+    "WRONG_SESSION_DATE",
+    "WAIT_MT4_DATA",
+})
+
+# Completeness of the most recent rebuild, consumed by the push gate so an
+# incomplete rebuild is never published as a complete snapshot.
+_LAST_REBUILD_COMPLETE = False
+
+
+class RebuildIntegrityError(Exception):
+    """Raised when a rebuild candidate WAITs without an explicit reason."""
+    pass
+
+
 _cache = {}
 
 
@@ -2021,11 +2066,47 @@ def resolve_mt5_symbol(symbol):
     return symbol
 
 
+def _is_ambiguous_source_error(error) -> bool:
+    """Return whether an exception signals multiple conflicting MT4 feed sources."""
+    name = type(error).__name__
+    if name == "AmbiguousMT4FeedSourceError":
+        return True
+    try:
+        from repositories.mt4_feed_store import AmbiguousMT4FeedSourceError
+        return isinstance(error, AmbiguousMT4FeedSourceError)
+    except Exception:
+        return False
+
+
+def _d_h4_missing_diagnostics(source_symbol, target_broker_date, bars, ambiguous_sessions):
+    """Print exact candidate diagnostics when the D-H4 20:00 candle is unavailable.
+
+    Every WAIT due to a missing D candle must record an explicit reason.  This
+    helper prints the exact 20:00 candidates, any near-miss (e.g. 21:00) opens,
+    and any ambiguous source sessions so the operator can see why
+    ``D_H4_MISSING``/``D_H4_AMBIGUOUS`` was produced instead of a silent WAIT.
+    """
+    print(f"[D-H4] DIAGNOSTICS {source_symbol} target={target_broker_date} reason=D_H4_MISSING")
+    for bo, norm in bars:
+        minute_label = f"{bo.hour:02d}:{bo.minute:02d}"
+        if bo.hour == 20 and bo.minute == 0:
+            print(f"[D-H4]   candidate exact 20:00: {bo.isoformat()} complete={bool(norm.get('is_complete', True))}")
+        else:
+            print(
+                f"[D-H4]   near-miss {minute_label}: {bo.isoformat()} "
+                f"(not selected: exact 20:00 Broker required)"
+            )
+    for session_date in ambiguous_sessions:
+        print(f"[D-H4]   AMBIGUOUS_SOURCE session={session_date.isoformat()} 20:00")
+
+
 def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market_data_provider=None):
     """Find the H4 candle with Broker open time exactly 20:00 from the previous available session.
 
-    Returns (candle_norm, session_date, broker_offset) or (None, None, None) if not found.
-    Does NOT fallback to H4 16:00 or M30 if 20:00 is missing.
+    Returns ``(candle_norm, session_date, broker_offset, ambiguous)``; on
+    failure ``candle_norm`` is None and ``ambiguous`` is True when at least one
+    exact 20:00 session was unresolvable because multiple feed sources publish
+    conflicting OHLC.  Does NOT fallback to H4 16:00 or M30 if 20:00 is missing.
     Searches back up to 10 days for the most recent H4 20:00.
     """
     if hasattr(target_broker_date, "date") and callable(getattr(target_broker_date, "date")):
@@ -2038,6 +2119,7 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
     resolved_symbol = source_symbol
     latest_session_date = None
     broker_offset = None
+    ambiguous_sessions = []
 
     # Step 1: Try exact H4 20:00 lookup per day
     for lookback_days in range(1, 11):
@@ -2060,7 +2142,18 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
             if getattr(provider, "name", "") != "MT4":
                 candle = None
             elif hasattr(provider, "get_exact_bar"):
-                candle = provider.get_exact_bar(source_symbol, "H4", broker_open)
+                try:
+                    candle = provider.get_exact_bar(source_symbol, "H4", broker_open)
+                except Exception as exc:
+                    if _is_ambiguous_source_error(exc):
+                        ambiguous_sessions.append(session_date)
+                        print(
+                            f"[D-H4] AMBIGUOUS source for {source_symbol} {session_date.isoformat()} 20:00 "
+                            f"Broker: {exc}"
+                        )
+                        candle = None
+                    else:
+                        raise
             else:
                 candle = next(
                     (
@@ -2078,7 +2171,7 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
         if candle is not None and bool(candle.get("is_complete", True)):
             if getattr(provider, "name", "") == "MT4" or candle.get("broker_dt") == broker_open:
                 print(f"[D-H4] {source_symbol} (resolved {resolved_symbol}): session={session_date}, open={broker_open.strftime('%H:%M')} Broker")
-                return candle, session_date, session_offset
+                return candle, session_date, session_offset, bool(ambiguous_sessions)
 
         if latest_session_date is None:
             latest_session_date = session_date
@@ -2086,9 +2179,34 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
     # Step 2: Fallback range query with canonical encoding
     bars = load_h4_history_for_d(source_symbol, target_broker_date, None, market_data_provider=provider)
     if not bars:
-        return None, latest_session_date, broker_offset
+        if ambiguous_sessions:
+            _d_h4_missing_diagnostics(source_symbol, target_broker_date, bars, ambiguous_sessions)
+        return None, latest_session_date, broker_offset, bool(ambiguous_sessions)
 
     candidates = []
+    # Detect conflicting-source exact 20:00 opens before selecting a candidate
+    # so a multi-source conflict fails closed as D_H4_AMBIGUOUS instead of
+    # silently picking one publisher's row.
+    exact_opens_ohlc = {}
+    for broker_open, norm in bars:
+        try:
+            is_before = broker_open.date() < target_broker_date
+        except Exception:
+            is_before = True
+        if is_before and broker_open.hour == 20 and broker_open.minute == 0:
+            exact_opens_ohlc.setdefault(broker_open.date(), set()).add(
+                (norm.get("open_exact"), norm.get("high_exact"),
+                 norm.get("low_exact"), norm.get("close_exact"))
+            )
+    ambiguous_20_dates = {d for d, ohlc in exact_opens_ohlc.items() if len(ohlc) > 1}
+    for d in sorted(ambiguous_20_dates):
+        if d not in ambiguous_sessions:
+            ambiguous_sessions.append(d)
+            print(
+                f"[D-H4] AMBIGUOUS source for {source_symbol} {d.isoformat()} 20:00 "
+                f"Broker (conflicting OHLC across feed sources)"
+            )
+
     for broker_open, norm in bars:
         try:
             is_before_target = broker_open.date() < target_broker_date
@@ -2098,7 +2216,8 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
         if (broker_open.hour == 20
                 and broker_open.minute == 0
                 and bool(norm.get("is_complete", True))
-                and is_before_target):
+                and is_before_target
+                and broker_open.date() not in ambiguous_20_dates):
             try:
                 if getattr(provider, "name", "") == "MT4":
                     try:
@@ -2112,6 +2231,7 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
             candidates.append((broker_open.date(), broker_open, norm, candidate_offset))
 
     if not candidates:
+        _d_h4_missing_diagnostics(source_symbol, target_broker_date, bars, ambiguous_sessions)
         found_opens = [f"{bo.strftime('%Y-%m-%d %H:%M')}" for bo, _ in bars[-12:]]
         print(f"[D-H4] No H4 20:00 found for {source_symbol}. Broker opens: {found_opens}")
         past_dates = []
@@ -2123,12 +2243,12 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
                 past_dates.append(bo.date())
         if past_dates:
             latest_session_date = max(past_dates)
-        return None, latest_session_date, broker_offset
+        return None, latest_session_date, broker_offset, bool(ambiguous_sessions)
 
     candidates.sort(key=lambda x: x[0], reverse=True)
     session_date, broker_open, norm, broker_offset = candidates[0]
     print(f"[D-H4] {source_symbol}: session={session_date}, open={broker_open.strftime('%H:%M')} Broker")
-    return norm, session_date, broker_offset
+    return norm, session_date, broker_offset, bool(ambiguous_sessions)
 
 
 def _parse_broker_time_to_minutes(broker_time_str):
@@ -2288,7 +2408,12 @@ def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_d
 
 def _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, failure_reason):
     """Build D-Direction evidence for missing/incomplete H4 20:00."""
-    d_state = "MISSING_H4_20" if failure_reason == "MISSING_H4_20" else "MISSING"
+    if failure_reason == "MISSING_H4_20":
+        d_state = "MISSING_H4_20"
+    elif failure_reason in ("AMBIGUOUS_H4_20", "AMBIGUOUS", "H4_20_AMBIGUOUS"):
+        d_state = "AMBIGUOUS_H4_20"
+    else:
+        d_state = "MISSING"
     return {
         "schema_version": D_DIRECTION_SCHEMA_VERSION,
         "symbol": target_symbol,
@@ -2322,7 +2447,7 @@ def _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, 
 
 def _compute_d_from_source(target_symbol, source_symbol, target_broker_date, market_data_provider=None):
     """Compute D-Direction for target_symbol using the source_symbol's H4 20:00 candle."""
-    candle, session_date, broker_offset = find_previous_session_h4_20_candle(
+    candle, session_date, broker_offset, ambiguous = find_previous_session_h4_20_candle(
         source_symbol, target_broker_date, market_data_provider=market_data_provider
     )
 
@@ -2330,6 +2455,8 @@ def _compute_d_from_source(target_symbol, source_symbol, target_broker_date, mar
         return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, None, None, "MISSING_PREVIOUS_SESSION")
 
     if candle is None:
+        if ambiguous:
+            return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, "AMBIGUOUS_H4_20")
         return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, "MISSING_H4_20")
 
     ev = _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset)
@@ -2585,6 +2712,9 @@ class MarketDataProvider(Protocol):
     def get_broker_utc_offset(self, broker_date=None) -> int:
         ...
 
+    def is_broker_utc_offset_verified(self, broker_date=None) -> bool:
+        ...
+
     def get_bars(
         self,
         symbol: str,
@@ -2723,6 +2853,17 @@ class MT4FeedProvider:
             return self._db_store.get_broker_utc_offset(broker_date=broker_date)
         except Exception as exc:
             raise MarketDataClockError(f"No verified MT4 Broker offset is available: {exc}") from exc
+
+    def is_broker_utc_offset_verified(self, broker_date=None) -> bool:
+        if self._db_store is None:
+            return False
+        verifier = getattr(self._db_store, "is_broker_utc_offset_verified", None)
+        if not callable(verifier):
+            return False
+        try:
+            return bool(verifier(broker_date))
+        except Exception:
+            return False
 
     def get_latest_completed_broker_datetime(self, symbol=None, timeframe=None):
         """Return a persisted completed-bar boundary for offline history maintenance."""
@@ -3499,6 +3640,103 @@ def _build_h1_evidence(symbol, h1_candle, h1_dir, slot_dt):
 # =====================================================================
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
+def _entry_layer_missing_reason(entry):
+    """Return the first missing entry layer reason, else the entry failure_reason."""
+    layers = (entry or {}).get("layers") or {}
+    for layer_name, missing_reason in (("layer2", "M30_LAYER2_MISSING"), ("layer3", "M30_LAYER3_MISSING")):
+        layer = layers.get(layer_name)
+        if layer and any(c.get("state") == "MISSING" for c in (layer.get("candles") or [])):
+            return missing_reason
+    if (entry or {}).get("failure_reason"):
+        return entry.get("failure_reason")
+    return None
+
+
+def _single_pair_wait_reason(symbol, result, d_directions):
+    """Explain why one applicable pair resolved to WAIT.
+
+    Priority: XAUUSD H49 H1 evidence → entry layers → D candle state →
+    global failure reason → generic WAIT_MT4_DATA.
+    """
+    evidence = result.get("pair_evidence") or {}
+    entry = result.get("timing") or result.get("entry_plan") or {}
+    if symbol == "XAUUSD":
+        h49 = (evidence.get("XAUUSD") or {}).get("h49_h1_evidence") or {}
+        if h49.get("failure_reason"):
+            return h49["failure_reason"]
+    layer_reason = _entry_layer_missing_reason(entry)
+    if layer_reason:
+        return layer_reason
+    d = (d_directions or {}).get(symbol) or {}
+    d_state = str(d.get("d_state") or "")
+    if d_state in ("MISSING_H4_20", "MISSING"):
+        return "D_H4_MISSING"
+    if d_state in ("AMBIGUOUS_H4_20", "AMBIGUOUS", "H4_20_AMBIGUOUS"):
+        return "D_H4_AMBIGUOUS"
+    if d_state == "DOJI":
+        return "D_H4_DOJI"
+    if result.get("failure_reason"):
+        return result["failure_reason"]
+    return "WAIT_MT4_DATA"
+
+
+def _compute_pair_wait_reasons(result, d_directions=None):
+    """Return an explicit reason for every WAIT pair on a rebuild result."""
+    if d_directions is None:
+        d_directions = result.get("d_directions") or result.get("pair_d_directions") or {}
+    pair_dirs = result.get("pair_dirs") or {}
+    pair_signal_states = result.get("pair_signal_states") or {}
+    applicable = set(result.get("applicable_pairs") or [])
+    reasons = {}
+    for symbol in SIGNAL_PAIRS:
+        direction = pair_dirs.get(symbol)
+        state = pair_signal_states.get(symbol)
+        if symbol not in applicable and state in ("NOT_APPLICABLE", None):
+            reasons[symbol] = "NOT_APPLICABLE"
+            continue
+        if direction in ("BUY", "SELL"):
+            reasons[symbol] = "READY"
+            continue
+        if state != "WAIT" and direction != "WAIT":
+            reasons[symbol] = "READY"
+            continue
+        reasons[symbol] = _single_pair_wait_reason(symbol, result, d_directions)
+    return reasons
+
+
+def _assert_wait_reasons_present(record):
+    """Raise RebuildIntegrityError when a WAIT pair has no explicit wait_reason."""
+    pair_dirs = record.get("pair_dirs") or {}
+    wait_reasons = record.get("wait_reasons") or {}
+    applicable = record.get("applicable_pairs")
+    if applicable is None:
+        applicable = get_evaluated_pairs_for_hour(int(record.get("hour") or -1))
+    for symbol in applicable:
+        if pair_dirs.get(symbol) == "WAIT" and not wait_reasons.get(symbol):
+            raise RebuildIntegrityError(
+                f"WAIT pair {symbol} at {record.get('date')} H{record.get('hour')} "
+                "has no explicit wait_reason"
+            )
+
+
+def _compute_rebuild_complete(records):
+    """Return True when every rebuilt record satisfies the integrity contract."""
+    if not records:
+        return False
+    for record in records:
+        if record.get("rebuild_state") == "REBUILD_INCOMPLETE":
+            return False
+        wait_reasons = record.get("wait_reasons") or {}
+        pair_signal_states = record.get("pair_signal_states") or {}
+        for symbol, state in pair_signal_states.items():
+            if state != "WAIT":
+                continue
+            reason = wait_reasons.get(symbol)
+            if reason not in VALID_WAIT_REASONS:
+                return False
+    return True
+
+
 def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=None, day_mode=None, d_directions=None):
     """Evaluate one slot and return (record_dict, next_day_modes) without persisting.
 
@@ -3549,6 +3787,12 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
         source_date=source_date,
         extra_fields=extra_fields if extra_fields else None,
     )
+
+    # WAIT-reason integrity contract: every WAIT pair must carry an explicit
+    # reason so no blind/missing-input WAIT is published as completed history.
+    wait_reasons = _compute_pair_wait_reasons(result, d_directions)
+    record["wait_reasons"] = wait_reasons
+    _assert_wait_reasons_present(record)
 
     record.pop("_day_mode_object", None)
     record.pop("_pair_day_modes_objects", None)
@@ -3697,6 +3941,7 @@ def rebuild_recent_history(days=45, include_weekends=False):
     valid candidates are produced (e.g., MT4 feed has no bars), the rebuild
     aborts and existing history is preserved.
     """
+    global _LAST_REBUILD_COMPLETE
     try:
         broker_dt = get_broker_time()
     except MarketDataClockError as exc:
@@ -3732,11 +3977,18 @@ def rebuild_recent_history(days=45, include_weekends=False):
         )
         day_results = {}
         current_pair_day_modes = {sym: None for sym in SIGNAL_PAIRS}
-        # Compute D-Directions once per date
+        # Compute D-Directions once per date, then verify the D snapshot can be
+        # published BEFORE any signal record of that date is treated as complete.
+        day_d_directions = None
+        day_d_publishable = False
         try:
             day_d_directions = calculate_all_d_directions(target_date)
+            if day_d_directions:
+                day_d_snapshot = build_d_direction_snapshot_for_date(target_date, MARKET_DATA_PROVIDER)
+                day_d_publishable = snapshot_is_publishable(day_d_snapshot)
         except Exception:
             day_d_directions = None
+            day_d_publishable = False
         for hour in hours:
             if target_date == today and not is_slot_ready(broker_dt, hour):
                 continue
@@ -3759,6 +4011,13 @@ def rebuild_recent_history(days=45, include_weekends=False):
                 if day_d_directions:
                     record["daily_directions"] = day_d_directions
                     record["d_direction_schema_version"] = D_DIRECTION_SCHEMA_VERSION
+                # D snapshot integrity: never publish a slot as READY/complete
+                # when the D snapshot for its session was not rebuilt/verified.
+                if not day_d_publishable:
+                    record["rebuild_state"] = "REBUILD_INCOMPLETE"
+                    record.setdefault("rebuild_state_reason", "D_SNAPSHOT_NOT_PUBLISHED")
+                else:
+                    record["rebuild_state"] = "READY"
                 day_results[hour] = record
                 key = (record["date"], int(record["hour"]))
                 candidate_records[key] = record
@@ -3769,6 +4028,7 @@ def rebuild_recent_history(days=45, include_weekends=False):
                 traceback.print_exc()
 
     if attempted == 0:
+        _LAST_REBUILD_COMPLETE = False
         print(f"  [REBUILD] No slots to rebuild")
         clear_history_cache()
         return 0
@@ -3787,6 +4047,7 @@ def rebuild_recent_history(days=45, include_weekends=False):
 
     if attempted > 0 and len(valid_candidates) == 0:
         # ABORT: zero valid candidates — preserve existing history
+        _LAST_REBUILD_COMPLETE = False
         print(f"  [REBUILD] ABORTED")
         print(f"  Reason: ZERO_VALID_CANDIDATES")
         print(f"  Existing history preserved.")
@@ -3838,6 +4099,7 @@ def rebuild_recent_history(days=45, include_weekends=False):
         merged = merged[-2000:]
         _write_signals_log_atomic(merged)
     except Exception as error:
+        _LAST_REBUILD_COMPLETE = False
         print(f"  [REBUILD] PUBLISH ERROR: {error}")
         traceback.print_exc()
         clear_history_cache()
@@ -3845,6 +4107,7 @@ def rebuild_recent_history(days=45, include_weekends=False):
 
     refreshed = len(valid_candidates)
     succeeded = refreshed
+    _LAST_REBUILD_COMPLETE = _compute_rebuild_complete(list(valid_candidates.values()))
     print(f"  [REBUILD] Attempted: {attempted}")
     print(f"  [REBUILD] Succeeded: {succeeded}")
     print(f"  [REBUILD] Failed: {failed}")
@@ -3852,6 +4115,7 @@ def rebuild_recent_history(days=45, include_weekends=False):
     print(f"  [REBUILD] Inserted new: {inserted_new}")
     print(f"  [REBUILD] Replaced old: {replaced_old}")
     print(f"  [REBUILD] Rejected candidates: {rejected_candidates}")
+    print(f"  [REBUILD] Integrity complete: {_LAST_REBUILD_COMPLETE}")
     print(f"  [REBUILD] Logic v{SIGNAL_LOGIC_VERSION}, schema v{HISTORY_REBUILD_SCHEMA_VERSION}")
     clear_history_cache()
     return refreshed
@@ -5220,7 +5484,9 @@ def _run_feed_only_rebuild(days=45, include_weekends=False):
     print("[REBUILD] MT4 Feed is the only rebuild dependency; MT5 execution is optional.")
     rebuilt = rebuild_recent_history(days=days, include_weekends=include_weekends)
     if rebuilt > 0:
-        push_to_dashboard(snapshot_complete=True)
+        # Never push an incomplete rebuild as a complete snapshot: the
+        # snapshot_complete flag reflects the integrity gate result.
+        push_to_dashboard(snapshot_complete=_LAST_REBUILD_COMPLETE)
     return rebuilt
 
 

@@ -7,6 +7,7 @@ import { useLocale } from "./LocaleProvider";
 import { BrokerLocalTime } from "./BrokerLocalTime";
 import { hasEvidenceForPair } from "@/lib/signal-evidence";
 import { getT, formatFinalReverseReason } from "@/lib/translations";
+import { getWaitReasonForPair, isMissingInputWaitReason, isSignalRecordIncomplete } from "@/lib/signal-integrity";
 
 const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD"]);
 
@@ -42,6 +43,8 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
 
   const finalReverseApplied = logicVersion >= 88 && signal.final_reverse_applied === true;
   const reverseReason = finalReverseApplied ? formatFinalReverseReason(signal.final_reverse_reason as string | null | undefined, locale) : null;
+
+  const recordIncomplete = isSignalRecordIncomplete(signal as Record<string, unknown>);
 
   const fetchEvidence = useCallback(
     (symbol: string) => {
@@ -104,6 +107,14 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                 {t.finalReverse.badge}
               </span>
             )}
+            {recordIncomplete && (
+              <span
+                className="rounded-md border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--terminal-danger)]"
+                title={locale === "EN" ? t.history.missingSource : t.history.missingSource}
+              >
+                {t.history.missingSource}
+              </span>
+            )}
           </div>
           <div className="mt-1 font-mono text-xs">
             <span className="text-[var(--muted)]">Signal: </span>
@@ -112,6 +123,7 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
               utcIso={typeof signal.signal_at_utc === "string" ? signal.signal_at_utc : null}
               brokerUtcOffset={brokerOffset}
               brokerClockVerified={brokerClockVerified}
+              localTime={typeof signal.signal_time_local === "string" ? signal.signal_time_local : null}
               date={signal.date}
               labelLocal="GMT+7"
               labelBroker="Broker"
@@ -136,6 +148,7 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                 utcIso={typeof signal.entry_at_utc === "string" ? signal.entry_at_utc : null}
                 brokerUtcOffset={brokerOffset}
                 brokerClockVerified={brokerClockVerified}
+                localTime={typeof signal.entry_time_local === "string" ? signal.entry_time_local : null}
                 date={signal.date}
                 labelLocal="GMT+7"
                 labelBroker="Broker"
@@ -183,6 +196,8 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
       <div id={pairRowsId} className={`space-y-2 font-mono text-xs ${mobileDetailsOpen ? "block" : "hidden"} sm:block`}>
         {applicablePairs.map((pair) => {
           const dir = signal.pair_dirs?.[pair] || "WAIT";
+          const waitReason = dir === "WAIT" ? getWaitReasonForPair(signal as Record<string, unknown>, pair) : null;
+          const showMissingReason = waitReason !== null && isMissingInputWaitReason(waitReason);
           const isClickable = isVIP && EVIDENCE_SIGNAL_PAIRS.has(pair) && hasEvidenceForPair(signal as Record<string, unknown>, pair);
           const isLoading = loadingEvidence === pair;
 
@@ -196,9 +211,13 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
           return (
             <div
               key={pair}
-              className="flex items-center justify-between rounded-lg border border-[var(--panel-border)]/40 bg-[var(--surface-raised)]/40 px-3 py-2"
+              className={`flex items-center justify-between rounded-lg border px-3 py-2 ${
+                showMissingReason
+                  ? "border-[var(--terminal-danger)]/35 bg-[var(--terminal-danger)]/[0.05]"
+                  : "border-[var(--panel-border)]/40 bg-[var(--surface-raised)]/40"
+              }`}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <span className="font-bold text-[var(--foreground)]">{pair}</span>
                 <span
                   className="rounded px-1.5 py-0.5 text-[10px] font-black"
@@ -209,6 +228,11 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                 >
                   {dir}
                 </span>
+                {showMissingReason && (
+                  <span className="truncate font-mono text-[10px] font-bold text-[var(--terminal-warning)]">
+                    {t.history.missingSource}: {waitReason}
+                  </span>
+                )}
               </div>
 
               {isClickable && (

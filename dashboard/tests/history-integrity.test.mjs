@@ -1,0 +1,108 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import test from "node:test";
+
+import {
+  countIncompleteSignals,
+  getWaitReasonForPair,
+  isMissingInputWaitReason,
+  isSignalRecordIncomplete,
+  MISSING_INPUT_WAIT_REASONS,
+  VALID_WAIT_REASONS,
+} from "../src/lib/signal-integrity.ts";
+
+test("test_history_displays_integrity_warning", () => {
+  const page = fs.readFileSync(new URL("../src/app/signals/page.tsx", import.meta.url), "utf8");
+  const day = fs.readFileSync(new URL("../src/components/CollapsibleDay.tsx", import.meta.url), "utf8");
+  assert.equal(page.includes("countIncompleteSignals"), true);
+  assert.equal(page.includes("History rebuild is incomplete"), true);
+  assert.equal(page.includes("History rebuild chưa toàn vẹn"), true);
+  assert.equal(page.includes("INCOMPLETE"), true);
+  assert.equal(page.includes("CHƯA TOÀN VẸN"), true);
+  assert.equal(day.includes("isSignalRecordIncomplete"), true);
+  assert.equal(day.includes("Incomplete rebuild"), true);
+  assert.equal(day.includes("Rebuild chưa toàn vẹn"), true);
+});
+
+test("test_d_snapshot_missing_not_loading_forever", () => {
+  const panel = fs.readFileSync(new URL("../src/components/DDirectionPanel.tsx", import.meta.url), "utf8");
+  const day = fs.readFileSync(new URL("../src/components/CollapsibleDay.tsx", import.meta.url), "utf8");
+  assert.equal(panel.includes("snapshotStatus"), true);
+  assert.equal(panel.includes('"MISSING"'), true);
+  assert.equal(panel.includes("D snapshot thiếu"), true);
+  assert.equal(panel.includes("D snapshot missing"), true);
+  assert.equal(day.includes('"missing"'), true);
+  assert.equal(day.includes("setDSnapshotStatus(\"missing\")"), true);
+});
+
+test("test_wait_reason_visible_in_evidence", () => {
+  const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
+  const drawer = fs.readFileSync(new URL("../src/components/SignalEvidenceDrawer.tsx", import.meta.url), "utf8");
+  const withEvidence = fs.readFileSync(new URL("../src/components/SignalCardWithEvidence.tsx", import.meta.url), "utf8");
+  assert.equal(card.includes("getWaitReasonForPair"), true);
+  assert.equal(card.includes("isMissingInputWaitReason"), true);
+  assert.equal(card.includes("t.history.missingSource"), true);
+  assert.equal(drawer.includes("waitReasons"), true);
+  assert.equal(drawer.includes("isMissingInputWaitReason"), true);
+  assert.equal(drawer.includes("historyT.waitReason"), true);
+  assert.equal(withEvidence.includes("waitReasons"), true);
+  assert.equal(withEvidence.includes("rebuildState"), true);
+});
+
+test("test_local_time_visible_for_rebuilt_history", () => {
+  const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
+  const brokerTime = fs.readFileSync(new URL("../src/components/BrokerLocalTime.tsx", import.meta.url), "utf8");
+  assert.equal(card.includes("signal.signal_time_local"), true);
+  assert.equal(card.includes("signal.entry_time_local"), true);
+  assert.equal(brokerTime.includes("localTime"), true);
+  assert.equal(brokerTime.includes("localTime || null"), true);
+  assert.equal(brokerTime.includes("broker_clock_verified"), false);
+});
+
+test("wait reason taxonomy matches the backend integrity gate", () => {
+  for (const reason of ["H49_H1_DOJI", "D_H4_DOJI", "M30_LAYER_DOJI", "NOT_APPLICABLE"]) {
+    assert.equal(VALID_WAIT_REASONS.has(reason), true, reason);
+    assert.equal(isMissingInputWaitReason(reason), false, reason);
+  }
+  for (const reason of [
+    "H49_H1_MISSING", "H49_H1_AMBIGUOUS", "D_H4_MISSING", "D_H4_AMBIGUOUS",
+    "M30_LAYER2_MISSING", "M30_LAYER3_MISSING", "CLOCK_OFFSET_UNVERIFIED",
+    "ACTIVE_SOURCE_MISSING", "D_SNAPSHOT_NOT_PUBLISHED", "WRONG_SESSION_DATE",
+    "WAIT_MT4_DATA",
+  ]) {
+    assert.equal(MISSING_INPUT_WAIT_REASONS.has(reason), true, reason);
+    assert.equal(isMissingInputWaitReason(reason), true, reason);
+  }
+});
+
+test("a WAIT with a missing-input reason marks the history record incomplete", () => {
+  const doji = {
+    rebuild_state: "READY",
+    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT" },
+    wait_reasons: { XAUUSD: "H49_H1_DOJI", GBPUSD: "H49_H1_DOJI" },
+  };
+  assert.equal(isSignalRecordIncomplete(doji), false);
+
+  const missing = {
+    rebuild_state: "READY",
+    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "BUY" },
+    wait_reasons: { XAUUSD: "D_H4_MISSING" },
+  };
+  assert.equal(isSignalRecordIncomplete(missing), true);
+
+  const dSnapshot = {
+    rebuild_state: "REBUILD_INCOMPLETE",
+    rebuild_state_reason: "D_SNAPSHOT_NOT_PUBLISHED",
+    pair_dirs: {},
+  };
+  assert.equal(isSignalRecordIncomplete(dSnapshot), true);
+
+  const recordFailure = {
+    signal_state: "WAIT",
+    failure_reason: "H49_H1_AMBIGUOUS",
+    pair_dirs: { XAUUSD: "WAIT" },
+  };
+  assert.equal(isSignalRecordIncomplete(recordFailure), true);
+  assert.equal(getWaitReasonForPair(recordFailure, "XAUUSD"), "H49_H1_AMBIGUOUS");
+  assert.equal(countIncompleteSignals([doji, missing, dSnapshot, recordFailure]), 3);
+});

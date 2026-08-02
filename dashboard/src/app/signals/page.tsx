@@ -2,6 +2,7 @@ import { getSignalsResult } from "@/lib/data";
 import { HistoryList } from "@/components/HistoryList";
 import { maskSignalForPublic } from "@/lib/signal-display";
 import { resolveHistorySignals } from "@/lib/constants";
+import { countIncompleteSignals } from "@/lib/signal-integrity";
 import type { HistorySignal } from "@/lib/types";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
@@ -29,6 +30,7 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   const accessText = isVIP
     ? locale === "EN" ? "Unlocked" : "Đã mở"
     : locale === "EN" ? "Locked" : "Đã khóa";
+  const incompleteCount = isVIP ? countIncompleteSignals(visibleSignals) : 0;
 
   return (
     <div className="page-shell terminal-page space-y-5">
@@ -49,6 +51,29 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
           </div>
         </div>
       </section>
+
+      {incompleteCount > 0 && (
+        <section
+          className="terminal-panel rounded-xl border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/[0.06] px-5 py-4"
+          role="status"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="font-mono text-xs font-black uppercase tracking-[0.18em] text-[var(--terminal-danger)]">
+                {locale === "EN" ? "History rebuild is incomplete" : "History rebuild chưa toàn vẹn"}
+              </div>
+              <p className="mt-1 text-xs font-medium text-[var(--muted)]">
+                {locale === "EN"
+                  ? `${incompleteCount} session record${incompleteCount === 1 ? "" : "s"} is missing required inputs. WAIT states there are not valid conclusions.`
+                  : `${incompleteCount} record phiên thiếu input bắt buộc. WAIT tại đó không phải kết luận hợp lệ.`}
+              </p>
+            </div>
+            <span className="rounded-md border border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 px-2.5 py-1 font-mono text-[10px] font-black text-[var(--terminal-danger)]">
+              {locale === "EN" ? "INCOMPLETE" : "CHƯA TOÀN VẸN"}
+            </span>
+          </div>
+        </section>
+      )}
 
       <HistoryList signals={visibleSignals} isVIP={isVIP} />
     </div>

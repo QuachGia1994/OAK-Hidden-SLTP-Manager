@@ -297,6 +297,53 @@ class MT4FeedStore:
         finally:
             self._finish_ephemeral()
 
+    def is_broker_utc_offset_verified(self, broker_date=None) -> bool:
+        """Return whether a single unambiguous Broker UTC offset is verified for a date.
+
+        ``True`` when a unique offset exists for ``broker_date`` (multiple
+        sources agreeing on the same offset are fine).  ``False`` when the
+        offset is missing or when sources publish conflicting offsets — never
+        picks the most recent row when sources disagree.  Without a date, uses
+        the latest recorded offset.
+        """
+        self._ensure_open()
+        try:
+            if broker_date is None:
+                row = self._conn.execute(
+                    "SELECT broker_utc_offset FROM mt4_feed_clock_offsets ORDER BY observed_at_utc DESC LIMIT 1"
+                ).fetchone()
+                if not row or row["broker_utc_offset"] is None:
+                    return False
+                try:
+                    self._validate_offset(row["broker_utc_offset"])
+                    return True
+                except Exception:
+                    return False
+            date_text = broker_date.isoformat() if hasattr(broker_date, "isoformat") else str(broker_date)
+            rows = self._conn.execute(
+                "SELECT broker_utc_offset FROM mt4_feed_clock_offsets WHERE broker_date = ?",
+                (date_text,),
+            ).fetchall()
+            offsets = set()
+            for row in rows:
+                if row["broker_utc_offset"] is None:
+                    continue
+                try:
+                    offsets.add(self._validate_offset(row["broker_utc_offset"]))
+                except Exception:
+                    return False
+            if not offsets:
+                # No cached heartbeat offset for this date: try deriving one
+                # single consistent offset from the persisted bars themselves.
+                try:
+                    self._derive_and_cache_bar_offset(date_text, None)
+                    return True
+                except Exception:
+                    return False
+            return len(offsets) == 1
+        finally:
+            self._finish_ephemeral()
+
     def _derive_and_cache_bar_offset(self, date_text: str, source_id: Optional[str]) -> int:
         """Derive one historical offset from persisted Broker and UTC bar timestamps."""
         query = """
@@ -383,6 +430,26 @@ class MT4FeedStore:
             if not row:
                 return None
             return self._parse_datetime(row["broker_close_at"], assume_utc=False).replace(tzinfo=None)
+        finally:
+            self._finish_ephemeral()
+
+    def get_latest_bar_received_at(self) -> Optional[datetime]:
+        """Return the newest bar arrival time (UTC, aware) across the whole feed.
+
+        The History Rebuild Worker uses this to detect persisted-bar changes
+        without any dependency on a live heartbeat or ``feed_connected``.
+        """
+        self._ensure_open()
+        try:
+            row = self._conn.execute(
+                "SELECT MAX(received_at_utc) AS m FROM mt4_feed_bars"
+            ).fetchone()
+            if not row or not row["m"]:
+                return None
+            parsed = self._parse_datetime(row["m"], assume_utc=True)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
         finally:
             self._finish_ephemeral()
 

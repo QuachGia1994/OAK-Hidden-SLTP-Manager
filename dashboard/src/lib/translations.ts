@@ -207,6 +207,30 @@ export const translations = {
       running: "Đang chạy",
     },
   },
+  history: {
+    EN: {
+      incompleteBadge: "REBUILD INCOMPLETE",
+      missingSource: "Missing input",
+      dSnapshotMissing: "D snapshot missing",
+      dSnapshotMissingHint: "Signals were rebuilt before the D-Direction snapshot for this session was verified.",
+      bannerTitle: "History rebuild is incomplete",
+      bannerBody: "Some sessions are missing required inputs (H1/D candle, source, or Broker clock). Their WAIT states are not valid conclusions.",
+      waitReason: "WAIT reason",
+      rebuilt: "Rebuilt",
+      localTimeNote: "Local times use each session’s verified Broker clock, not the live heartbeat.",
+    },
+    VN: {
+      incompleteBadge: "REBUILD CHƯA TOÀN VẸN",
+      missingSource: "Thiếu nguồn",
+      dSnapshotMissing: "D snapshot thiếu",
+      dSnapshotMissingHint: "Tín hiệu được rebuild trước khi D-Direction của phiên này được xác minh.",
+      bannerTitle: "History rebuild chưa toàn vẹn",
+      bannerBody: "Một số phiên thiếu input bắt buộc (candle H1/D, nguồn, hoặc đồng hồ Broker). WAIT của chúng không phải kết luận hợp lệ.",
+      waitReason: "Lý do WAIT",
+      rebuilt: "Đã rebuild",
+      localTimeNote: "Giờ local dùng đồng hồ Broker đã xác minh theo từng phiên, không dùng heartbeat live.",
+    },
+  },
 };
 
 export function getT(locale: Locale) {
@@ -217,6 +241,7 @@ export function getT(locale: Locale) {
     dDirection: translations.dDirection[locale],
     signalCard: translations.signalCard[locale],
     systemStatus: translations.systemStatus[locale],
+    history: translations.history[locale],
   };
 }
 

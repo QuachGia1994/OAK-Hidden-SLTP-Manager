@@ -14,6 +14,7 @@ class FeedOnlyRebuildTests(unittest.TestCase):
             patch.object(mt5_signal_bot, "rebuild_recent_history", return_value=6) as rebuild,
             patch.object(mt5_signal_bot, "push_to_dashboard") as push,
         ):
+            mt5_signal_bot._LAST_REBUILD_COMPLETE = True
             rebuilt = mt5_signal_bot._run_feed_only_rebuild(45)
 
         self.assertEqual(rebuilt, 6)
@@ -25,11 +26,23 @@ class FeedOnlyRebuildTests(unittest.TestCase):
             patch.object(mt5_signal_bot, "rebuild_recent_history", return_value=6) as rebuild,
             patch.object(mt5_signal_bot, "push_to_dashboard") as push,
         ):
+            mt5_signal_bot._LAST_REBUILD_COMPLETE = True
             rebuilt = mt5_signal_bot._run_feed_only_rebuild(45, include_weekends=True)
 
         self.assertEqual(rebuilt, 6)
         rebuild.assert_called_once_with(days=45, include_weekends=True)
         push.assert_called_once_with(snapshot_complete=True)
+
+    def test_incomplete_rebuild_never_pushes_a_complete_snapshot(self):
+        with (
+            patch.object(mt5_signal_bot, "rebuild_recent_history", return_value=6) as rebuild,
+            patch.object(mt5_signal_bot, "push_to_dashboard") as push,
+        ):
+            mt5_signal_bot._LAST_REBUILD_COMPLETE = False
+            rebuilt = mt5_signal_bot._run_feed_only_rebuild(45)
+
+        self.assertEqual(rebuilt, 6)
+        push.assert_called_once_with(snapshot_complete=False)
 
     def test_does_not_publish_stale_records_when_the_feed_cannot_rebuild(self):
         with (

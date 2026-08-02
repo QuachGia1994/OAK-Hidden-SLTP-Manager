@@ -56,6 +56,11 @@ export interface Signal {
   reference_d_direction?: string;
   entry_timeframe?: string | null;
   entry_source_symbol?: string;
+  /** v88 rebuild integrity: per-pair explicit WAIT reason. */
+  wait_reasons?: Record<string, string>;
+  /** v88 rebuild integrity: READY or REBUILD_INCOMPLETE. */
+  rebuild_state?: string;
+  rebuild_state_reason?: string | null;
   /** History: v87 fallback metadata */
   is_legacy_logic?: boolean;
   legacy_logic_version?: number;
@@ -76,16 +81,27 @@ export interface HistorySignal {
   signal_state?: string;
   entry_time?: string | null;
   entry_time_local?: string | null;
+  signal_time_local?: string | null;
   entry_at_utc?: string | null;
   entry_candidate?: string | null;
   entry_rule?: string | null;
   logic_version?: number | string | null;
   hour_note?: string | null;
   signal_time?: string | null;
+  signal_at_utc?: string | number | null;
+  broker_utc_offset?: number | string | null;
+  broker_clock_verified?: boolean;
+  failure_reason?: string | null;
   pattern_signal?: string;
   is_legacy_logic?: boolean;
   legacy_logic_version?: number;
   applicable_pairs?: string[];
+  pair_signal_states?: Record<string, string | null>;
+  /** v88 rebuild integrity: per-pair explicit WAIT reason. */
+  wait_reasons?: Record<string, string>;
+  /** v88 rebuild integrity: READY or REBUILD_INCOMPLETE. */
+  rebuild_state?: string;
+  rebuild_state_reason?: string | null;
   ts?: number;
   entry_prices?: Record<string, number>;
   current_prices?: Record<string, number>;

@@ -9,6 +9,8 @@ interface Props {
   brokerUtcOffset?: number | null;
   /** Local conversion is shown only when the feed explicitly verified the clock. */
   brokerClockVerified?: boolean;
+  /** Pre-computed local time persisted by the bot (per-date historical offset). */
+  localTime?: string | null;
   date?: string | null;
   labelLocal?: string;
   labelBroker?: string;
@@ -22,6 +24,7 @@ export function BrokerLocalTime({
   utcIso,
   brokerUtcOffset,
   brokerClockVerified = false,
+  localTime,
   date,
   labelLocal = "GMT+7",
   labelBroker = "Broker",
@@ -31,7 +34,7 @@ export function BrokerLocalTime({
   const times = useMemo(() => {
     if (!brokerTime && !utcIso) return { localTime: null, brokerTimeDisplay: "--:--" };
 
-    let localStr: string | null = null;
+    let localStr: string | null = localTime || null;
     let brokerStr: string = brokerTime || "--:--";
 
     const hasVerifiedClock = brokerClockVerified === true
@@ -89,7 +92,7 @@ export function BrokerLocalTime({
     }
 
     return { localTime: localStr, brokerTimeDisplay: brokerStr };
-  }, [brokerTime, utcIso, brokerUtcOffset, brokerClockVerified, date]);
+  }, [brokerTime, utcIso, brokerUtcOffset, brokerClockVerified, date, localTime]);
 
   if (badgeStyle) {
     return (
