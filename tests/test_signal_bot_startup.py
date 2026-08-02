@@ -39,6 +39,7 @@ class SignalBotStartupTests(unittest.TestCase):
             patch.object(mt5_signal_bot, "_check_and_rebuild_after_d_ready"),
             patch.object(mt5_signal_bot, "_save_state"),
             patch.object(mt5_signal_bot.MARKET_DATA_PROVIDER, "get_broker_utc_offset", return_value=3),
+            patch.object(mt5_signal_bot.MARKET_DATA_PROVIDER, "_compute_offset", return_value=3),
         ):
             terminal.account_info.return_value = account
             mt5_signal_bot.main(profile_name="VantageDemo")

@@ -223,5 +223,137 @@ class TestDSourceSymbolMapping(unittest.TestCase):
                 self.assertEqual(mt5_signal_bot.D_SOURCE_SYMBOL[symbol], symbol)
 
 
+class _FakeMT5WithNumpy:
+    """Fake MT5 that returns real numpy structured arrays and raises on demand."""
+
+    TIMEFRAME_M30 = 30
+    TIMEFRAME_H1 = 60
+    TIMEFRAME_H4 = 240
+
+    def __init__(self, rates_map=None, errors_map=None):
+        self._rates_map = rates_map or {}
+        self._errors_map = errors_map or {}
+        self.initialize_calls = 0
+        self._initialized = True
+
+    def initialize(self, *args, **kwargs):
+        self.initialize_calls += 1
+        return True
+
+    def shutdown(self):
+        return True
+
+    def last_error(self):
+        return ""
+
+    def terminal_info(self):
+        from types import SimpleNamespace
+        return SimpleNamespace(time=0, name="MetaTrader 5")
+
+    def account_info(self):
+        from types import SimpleNamespace
+        return SimpleNamespace(login=88001, server="VantageMarkets-Server", balance=1000.0)
+
+    def symbol_info(self, symbol):
+        from types import SimpleNamespace
+        return SimpleNamespace(name=symbol)
+
+    def symbol_select(self, symbol, enable):
+        return True
+
+    def copy_rates_range(self, symbol, timeframe, start, end):
+        key = (symbol, timeframe)
+        if key in self._errors_map:
+            raise RuntimeError(self._errors_map[key])
+        return self._rates_map.get(key)
+
+
+class TestPreloadNumpyAndErrorResilience(unittest.TestCase):
+    def test_numpy_array_does_not_trigger_truthiness_error(self):
+        import numpy as np
+
+        dt = np.dtype([
+            ("time", "<i8"), ("open", "<f8"), ("high", "<f8"),
+            ("low", "<f8"), ("close", "<f8"), ("tick_volume", "<i8"),
+        ])
+        xau_m30_bars = np.array([
+            (1722000000, 2400.0, 2410.0, 2395.0, 2405.0, 100),
+            (1722001800, 2405.0, 2415.0, 2400.0, 2412.0, 120),
+            (1722003600, 2412.0, 2420.0, 2408.0, 2418.0, 90),
+        ], dtype=dt)
+
+        fake = _FakeMT5WithNumpy(rates_map={("XAUUSD", 30): xau_m30_bars})
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=_FakeClock())
+        provider.bind_profile({"path": "C:/x/terminal64.exe"})
+
+        result = provider.preload(symbols=("XAUUSD",), timeframes=("M30",), days=60)
+
+        self.assertIs(result.complete, True)
+        self.assertEqual(result.loaded, 3)
+        cached = provider._cache.get(("XAUUSD", "M30"))
+        self.assertIsNotNone(cached)
+        self.assertEqual(len(cached), 3)
+
+    def test_error_on_one_tf_does_not_kill_other_tfs(self):
+        import numpy as np
+
+        dt = np.dtype([
+            ("time", "<i8"), ("open", "<f8"), ("high", "<f8"),
+            ("low", "<f8"), ("close", "<f8"), ("tick_volume", "<i8"),
+        ])
+        xau_m30_bars = np.array([
+            (1722000000, 2400.0, 2410.0, 2395.0, 2405.0, 100),
+        ], dtype=dt)
+
+        fake = _FakeMT5WithNumpy(
+            rates_map={("XAUUSD", 30): xau_m30_bars},
+            errors_map={("XAUUSD", 60): "MT5 history unavailable for H1"},
+        )
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=_FakeClock())
+        provider.bind_profile({"path": "C:/x/terminal64.exe"})
+
+        result = provider.preload(symbols=("XAUUSD",), timeframes=("M30", "H1"), days=60)
+
+        self.assertIs(result.complete, False)
+        self.assertEqual(result.attempted, 2)
+        self.assertIn("XAUUSD H1", result.missing)
+        self.assertNotIn("XAUUSD M30", result.missing)
+        cached = provider._cache.get(("XAUUSD", "M30"))
+        self.assertIsNotNone(cached)
+        self.assertEqual(len(cached), 1)
+
+    def test_multiple_errors_accumulate_in_missing(self):
+        import numpy as np
+
+        dt = np.dtype([
+            ("time", "<i8"), ("open", "<f8"), ("high", "<f8"),
+            ("low", "<f8"), ("close", "<f8"), ("tick_volume", "<i8"),
+        ])
+        xau_m30_bars = np.array([
+            (1722000000, 2400.0, 2410.0, 2395.0, 2405.0, 100),
+            (1722001800, 2405.0, 2415.0, 2400.0, 2412.0, 120),
+        ], dtype=dt)
+
+        fake = _FakeMT5WithNumpy(
+            rates_map={("XAUUSD", 30): xau_m30_bars},
+            errors_map={
+                ("XAUUSD", 60): "MT5 H1 unavailable",
+                ("GBPUSD", 30): "MT5 M30 unavailable for GBPUSD",
+                ("GBPUSD", 60): "MT5 H1 unavailable for GBPUSD",
+            },
+        )
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=_FakeClock())
+        provider.bind_profile({"path": "C:/x/terminal64.exe"})
+
+        result = provider.preload(symbols=("XAUUSD", "GBPUSD"), timeframes=("M30", "H1"), days=60)
+
+        self.assertIs(result.complete, False)
+        self.assertEqual(result.attempted, 4)
+        self.assertEqual(sorted(result.missing), ["GBPUSD H1", "GBPUSD M30", "XAUUSD H1"])
+        cached = provider._cache.get(("XAUUSD", "M30"))
+        self.assertIsNotNone(cached)
+        self.assertEqual(len(cached), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

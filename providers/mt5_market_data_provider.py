@@ -281,13 +281,18 @@ class MT5MarketDataProvider:
                 if attr is None:
                     missing.append(f"{canonical} {tf}")
                     continue
-                rates = self._copy_rates_range(resolved, attr, start_utc, now_utc)
-                bars = [self._normalize_bar(canonical, resolved, tf, row) for row in (rates or [])]
-                self._store_bars(canonical, tf, bars)
-                loaded_total += len(bars)
-                print(f"[MT5 DATA] {canonical} {tf} loaded={len(bars)}")
-                if not bars:
+                try:
+                    rates = self._copy_rates_range(resolved, attr, start_utc, now_utc)
+                    rows = rates if rates is not None and len(rates) > 0 else []
+                    bars = [self._normalize_bar(canonical, resolved, tf, row) for row in rows]
+                    self._store_bars(canonical, tf, bars)
+                    loaded_total += len(bars)
+                    print(f"[MT5 DATA] {canonical} {tf} loaded={len(bars)}")
+                    if not bars:
+                        missing.append(f"{canonical} {tf}")
+                except Exception as exc:
                     missing.append(f"{canonical} {tf}")
+                    print(f"[MT5 DATA] {canonical} {tf} failed: {exc}")
         account = None
         server = ""
         terminal_path = ""
