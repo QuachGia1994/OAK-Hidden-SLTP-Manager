@@ -104,7 +104,8 @@ class TestMT4FeedServer(unittest.TestCase):
     def test_backfill_bars_alone_keep_feed_disconnected_until_a_heartbeat(self):
         """Weekend backfill publishes history bars without a live tick, but the
         health endpoint must stay 'disconnected' (Signal Bot stays blocked from
-        start) until a fresh heartbeat arrives."""
+        start) until a fresh heartbeat arrives.  Persisted bars are reported as
+        available so offline rebuild can use them."""
         payload = {
             "schema_version": 2,
             "source_id": "ea-test",
@@ -118,6 +119,9 @@ class TestMT4FeedServer(unittest.TestCase):
 
         health = self.client.get("/mt4-feed/health").get_json()
         self.assertEqual(health["data_state"], "disconnected")
+        self.assertEqual(health["heartbeat_state"], "disconnected")
+        self.assertTrue(health["bars_available"])
+        self.assertEqual(health["latest_bar_by_symbol_timeframe"].get("XAUUSD:M30"), "2026-08-01 14:00:00")
 
         heartbeat = {
             "schema_version": 2,
@@ -129,7 +133,48 @@ class TestMT4FeedServer(unittest.TestCase):
             "last_sequence": 1,
         }
         self.assertEqual(self.client.post("/mt4-feed/heartbeat", json=heartbeat).status_code, 200)
-        self.assertEqual(self.client.get("/mt4-feed/health").get_json()["data_state"], "connected")
+        connected = self.client.get("/mt4-feed/health").get_json()
+        self.assertEqual(connected["data_state"], "connected")
+        self.assertEqual(connected["heartbeat_state"], "connected")
+        self.assertTrue(connected["bars_available"])
+
+    def test_health_exposes_bars_availability_and_heartbeat_state_contract(self):
+        """Health must distinguish server_running / bars_available / live heartbeat."""
+        health = self.client.get("/mt4-feed/health").get_json()
+        self.assertEqual(health["data_state"], "disconnected")
+        self.assertEqual(health["heartbeat_state"], "disconnected")
+        self.assertFalse(health["bars_available"])
+        self.assertEqual(health["latest_bar_by_symbol_timeframe"], {})
+
+        self.client.post("/mt4-feed/bars", json={
+            "schema_version": 2,
+            "source_id": "ea-test",
+            "symbol": "XAUUSD",
+            "timeframe": "M30",
+            "bars": [self._completed_bar()],
+        })
+        health = self.client.get("/mt4-feed/health").get_json()
+        self.assertEqual(health["data_state"], "disconnected")
+        self.assertTrue(health["bars_available"])
+        self.assertEqual(health["latest_bar_by_symbol_timeframe"]["XAUUSD:M30"], "2026-08-01 14:00:00")
+
+    def test_stale_heartbeat_is_reported_as_stale_but_bars_stay_available(self):
+        from datetime import timedelta
+        stale_at = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+        heartbeat = {
+            "schema_version": 2,
+            "source_id": "ea-test",
+            "broker_time": "2026-08-01T14:00:00",
+            "broker_time_utc": "2026-08-01T11:00:00",
+            "broker_utc_offset": 3,
+            "observed_at_utc": stale_at,
+            "last_sequence": 1,
+        }
+        self.assertEqual(self.client.post("/mt4-feed/heartbeat", json=heartbeat).status_code, 200)
+        health = self.client.get("/mt4-feed/health").get_json()
+        self.assertEqual(health["data_state"], "stale")
+        self.assertEqual(health["heartbeat_state"], "stale")
+        self.assertFalse(health["bars_available"])
 
     def test_accepts_prefixed_and_suffixed_future_symbol(self):
         payload = {

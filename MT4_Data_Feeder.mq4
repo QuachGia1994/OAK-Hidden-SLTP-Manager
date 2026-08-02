@@ -21,6 +21,8 @@ bool chartUsesCoreCanonical = false;
 bool backfillPending = true;
 datetime lastClockWarningAt = 0;
 datetime lastBackfillAttemptAt = 0;
+datetime lastBackfillLogAt = 0;
+datetime lastBackfillIncompleteLogAt = 0;
 datetime lastLiveTickUtc = 0;
 datetime lastPublishedTickUtc = 0;
 
@@ -253,7 +255,30 @@ bool PublishBars(string canonicalSymbol, string resolvedSymbol, int timeframe, i
       emitted++;
    }
    payload += "]}";
-   return emitted > 0 && PostJson("/bars", payload);
+   if(emitted <= 0) return false;
+   if(!PostJson("/bars", payload)) return false;
+   Print("[MT4 FEED] Bars published symbol=", canonicalSymbol,
+         " timeframe=", TimeframeName(timeframe), " bars=", emitted);
+   return true;
+}
+
+void LogInsufficientHistory(int timeframe)
+{
+   // Throttle the incomplete-backfill diagnostic to once per minute so a quiet
+   // weekend or a broker that loads history slowly does not flood the Experts log.
+   datetime utcNow = TimeGMT();
+   if(lastBackfillIncompleteLogAt != 0 && utcNow - lastBackfillIncompleteLogAt < 60)
+      return;
+   lastBackfillIncompleteLogAt = utcNow;
+   int available = iBars(chartResolvedSymbol, timeframe);
+   int oldestShift = MathMin(available - 1, BackfillBars(timeframe));
+   datetime oldestOpen = iTime(chartResolvedSymbol, timeframe, oldestShift);
+   datetime requiredOpen = TimeCurrent() - (BACKFILL_DAYS * 86400);
+   Print("[MT4 FEED] Backfill history insufficient symbol=", chartResolvedSymbol,
+         " timeframe=", TimeframeName(timeframe),
+         " available=", available,
+         " oldest_open=", IsoBrokerTime(oldestOpen),
+         " required_open<=", IsoBrokerTime(requiredOpen));
 }
 
 bool PublishChartBars(bool backfill)
@@ -265,7 +290,10 @@ bool PublishChartBars(bool backfill)
       int count = backfill ? BackfillBars(timeframes[t]) : 3;
       bool published = PublishBars(chartCanonicalSymbol, chartResolvedSymbol, timeframes[t], count);
       if(backfill && (!published || !HasBackfillHistory(timeframes[t])))
+      {
          backfillComplete = false;
+         LogInsufficientHistory(timeframes[t]);
+      }
    }
    return !backfill || backfillComplete;
 }
@@ -311,6 +339,11 @@ void OnTimer()
       (lastBackfillAttemptAt == 0 || utcNow - lastBackfillAttemptAt >= BACKFILL_RETRY_SECONDS))
    {
       lastBackfillAttemptAt = utcNow;
+      if(lastBackfillLogAt == 0 || utcNow - lastBackfillLogAt >= 60)
+      {
+         Print("[MT4 FEED] Backfill allowed without fresh live tick.");
+         lastBackfillLogAt = utcNow;
+      }
       backfillPending = !PublishChartBars(true);
       if(!backfillPending)
          Print("[MT4 FEED] 45-day chart backfill is complete.");

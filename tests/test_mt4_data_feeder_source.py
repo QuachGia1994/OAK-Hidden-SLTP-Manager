@@ -120,6 +120,18 @@ class MT4DataFeederSourceTests(unittest.TestCase):
         self.assertIn("lastLiveTickUtc = TimeGMT();", source)
         self.assertIn("PublishChartBars(false);", source)
 
+    def test_backfill_runs_without_a_live_tick_and_logs_diagnostics(self):
+        """Backfill must not depend on lastLiveTickUtc/OnTick(); the heartbeat live
+        gate must remain untouched so the feed stays 'disconnected' until a real tick."""
+        source = SOURCE.read_text(encoding="utf-8")
+        self.assertIn("Backfill allowed without fresh live tick.", source)
+        self.assertIn("45-day chart backfill is complete.", source)
+        self.assertIn("Bars published symbol=", source)
+        self.assertIn("Backfill history insufficient symbol=", source)
+        self.assertIn("LogInsufficientHistory(int timeframe)", source)
+        self.assertIn("lastBackfillLogAt", source)
+        self.assertIn("lastBackfillIncompleteLogAt", source)
+
     def test_v87_ea_has_no_manual_per_symbol_inputs_or_legacy_endpoint(self):
         source = SOURCE.read_text(encoding="utf-8")
 

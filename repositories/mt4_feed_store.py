@@ -386,6 +386,42 @@ class MT4FeedStore:
         finally:
             self._finish_ephemeral()
 
+    def get_bar_availability(self, lookback_days: int = 45) -> Dict[str, Any]:
+        """Summarize persisted completed bars for diagnostics and offline rebuild.
+
+        Returns a dict with:
+        - ``bars_available``: True when any completed bar exists within the
+          lookback window (regardless of heartbeat freshness).
+        - ``latest_bar_by_symbol_timeframe``: mapping ``"SYMBOL:TIMEFRAME"`` to
+          the latest completed ``broker_close_at`` for that symbol/timeframe.
+        - ``summary``: one row per symbol/timeframe with count and oldest/latest
+          Broker timestamps.
+        """
+        self._ensure_open()
+        try:
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+            rows = self._conn.execute("""
+                SELECT canonical_symbol, timeframe, COUNT(*) AS bar_count,
+                       MIN(broker_open_at) AS oldest_open,
+                       MAX(broker_close_at) AS latest_close
+                FROM mt4_feed_bars
+                WHERE is_complete = 1 AND broker_close_at >= ?
+                GROUP BY canonical_symbol, timeframe
+                ORDER BY canonical_symbol, timeframe
+            """, (cutoff,)).fetchall()
+            summary = [dict(row) for row in rows]
+            latest_by_symbol_timeframe = {
+                f"{row['canonical_symbol']}:{row['timeframe']}": row["latest_close"]
+                for row in summary
+            }
+            return {
+                "bars_available": bool(summary),
+                "latest_bar_by_symbol_timeframe": latest_by_symbol_timeframe,
+                "summary": summary,
+            }
+        finally:
+            self._finish_ephemeral()
+
     def get_clock_offset_history(self, source_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """Return cached per-date offsets for DST-aware history rebuilds."""
         self._ensure_open()

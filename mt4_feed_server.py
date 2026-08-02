@@ -12,12 +12,14 @@ from flask import Flask, jsonify, request
 from werkzeug.serving import make_server
 
 from repositories.mt4_feed_store import MT4FeedStore
+from oak_logger import setup_logger
 
 app = Flask(__name__)
 feed_store = MT4FeedStore()
 feed_store_lock = threading.RLock()
 feed_error_lock = threading.Lock()
 last_feed_error = None
+log = setup_logger("mt4_feed_server")
 SUPPORTED_TIMEFRAMES = {"M30", "H1", "H4"}
 SCHEMA_VERSION = 2
 MAX_SYMBOL_LENGTH = 128
@@ -165,6 +167,7 @@ def post_bars():
                 resolved_symbol, timeframe, bars,
             )
         _clear_feed_error("bars")
+        log.info("bars received symbol=%s timeframe=%s count=%d source_id=%s", symbol, timeframe, count, payload.get("source_id", "mt4_ea"))
         return jsonify({"ok": True, "inserted": count})
     except (TypeError, ValueError) as exc:
         _record_feed_error("bars", exc)
@@ -174,15 +177,36 @@ def post_bars():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
+def _bar_availability_payload():
+    """Return persisted-bar diagnostics independent of heartbeat freshness."""
+    with feed_store_lock:
+        availability = feed_store.get_bar_availability()
+    return {
+        "bars_available": availability.get("bars_available", False),
+        "latest_bar_by_symbol_timeframe": availability.get("latest_bar_by_symbol_timeframe", {}),
+    }
+
+
+def _heartbeat_state(data_state: str) -> str:
+    """Map the health data_state onto the three-state heartbeat contract."""
+    return "connected" if data_state == "connected" else "stale" if data_state in ("degraded", "stale") else "disconnected"
+
+
 @app.get("/mt4-feed/health")
 def get_health():
     with feed_store_lock:
         heartbeat = feed_store.get_latest_heartbeat()
+    base = {
+        "ok": True,
+        "data_provider": "MT4",
+        "data_state": "disconnected",
+        "heartbeat_state": "disconnected",
+        **_bar_availability_payload(),
+    }
     if not heartbeat:
-        response = {"ok": True, "data_provider": "MT4", "data_state": "disconnected"}
         if error := _latest_feed_error():
-            response["last_feed_error"] = error
-        return jsonify(response)
+            base["last_feed_error"] = error
+        return jsonify(base)
     try:
         if int(heartbeat.get("schema_version", 0)) != SCHEMA_VERSION:
             raise ValueError("unsupported heartbeat schema")
@@ -190,9 +214,9 @@ def get_health():
             feed_store.get_broker_utc_offset()
     except (TypeError, ValueError):
         response = {
-            "ok": True,
-            "data_provider": "MT4",
+            **base,
             "data_state": "degraded",
+            "heartbeat_state": _heartbeat_state("degraded"),
             "clock_verified": False,
             "heartbeat": _public_heartbeat(heartbeat),
         }
@@ -207,9 +231,14 @@ def get_health():
     except (TypeError, ValueError):
         age = float("inf")
     state = "connected" if age <= 15 else "degraded" if age <= 60 else "stale"
-    response = {"ok": True, "data_provider": "MT4", "data_state": state,
-                "clock_verified": state in ("connected", "degraded"),
-                "age_seconds": age, "heartbeat": _public_heartbeat(heartbeat)}
+    response = {
+        **base,
+        "data_state": state,
+        "heartbeat_state": _heartbeat_state(state),
+        "clock_verified": state in ("connected", "degraded"),
+        "age_seconds": age,
+        "heartbeat": _public_heartbeat(heartbeat),
+    }
     if error := _latest_feed_error():
         response["last_feed_error"] = error
     return jsonify(response)
