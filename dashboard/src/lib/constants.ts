@@ -3,8 +3,10 @@ import {
   PUBLIC_SIGNAL_SLOTS,
   RULES_BY_LOCALE,
 } from "./generated-signal-rules.js";
+import type { HistorySignal } from "./types";
 
 export { ACTIVE_SIGNAL_LOGIC_VERSION, PUBLIC_SIGNAL_SLOTS, RULES_BY_LOCALE };
+export type { HistorySignal };
 export const TARGET_HOURS = PUBLIC_SIGNAL_SLOTS;
 export const TARGET_HOURS_THURSDAY = [...TARGET_HOURS];
 
@@ -26,6 +28,8 @@ interface DisplayableSignalInput {
   signal?: unknown;
 }
 
+export type { DisplayableSignalInput };
+
 export function isDisplayableSignal(signal: DisplayableSignalInput): boolean {
   if (!isActiveSignalHour(signal.hour)) return false;
   if (typeof signal.logic_version !== "number"
@@ -44,6 +48,46 @@ export function isDisplayableSignal(signal: DisplayableSignalInput): boolean {
 
 export function filterDisplayableSignals<T extends DisplayableSignalInput>(signals: readonly T[]): T[] {
   return signals.filter(isDisplayableSignal);
+}
+
+/** Current/live dashboard: strict v88 only. */
+export function filterCurrentSignals<T extends DisplayableSignalInput>(signals: readonly T[]): T[] {
+  return signals.filter(isDisplayableSignal);
+}
+
+/** History page: v88 preferred, v87 fallback per date/hour.
+ *  Adds is_legacy_logic / legacy_logic_version metadata to v87 records. */
+export function resolveHistorySignals<T extends DisplayableSignalInput & Record<string, unknown>>(signals: readonly T[]): HistorySignal[] {
+  // Group by (date, hour)
+  const byKey = new Map<string, { v88?: T; v87?: T }>();
+  for (const s of signals) {
+    const key = `${s.date}:${s.hour}`;
+    const entry = byKey.get(key) || { v88: undefined, v87: undefined };
+    const ver = Number(s.logic_version || 0);
+    if (ver === ACTIVE_SIGNAL_LOGIC_VERSION) {
+      entry.v88 = s;
+    } else if (ver === ACTIVE_SIGNAL_LOGIC_VERSION - 1) {
+      entry.v87 = s;
+    }
+    byKey.set(key, entry);
+  }
+
+  const resolved: HistorySignal[] = [];
+  for (const entry of byKey.values()) {
+    if (entry.v88) {
+      resolved.push(entry.v88 as unknown as HistorySignal);
+    } else if (entry.v87) {
+      const v87 = { ...entry.v87, is_legacy_logic: true, legacy_logic_version: ACTIVE_SIGNAL_LOGIC_VERSION - 1 } as HistorySignal;
+      resolved.push(v87);
+    }
+  }
+  // Sort by date desc, hour desc (newest first)
+  resolved.sort((a, b) => {
+    const dateCmp = b.date.localeCompare(a.date);
+    if (dateCmp !== 0) return dateCmp;
+    return b.hour - a.hour;
+  });
+  return resolved;
 }
 
 function parseBrokerDate(date: string): Date | null {

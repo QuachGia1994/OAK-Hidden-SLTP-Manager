@@ -1,14 +1,16 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { Signal, SignalEvidenceUnion } from "@/lib/types";
+import type { Signal, HistorySignal, SignalEvidenceUnion } from "@/lib/types";
 import { ACTIVE_SIGNAL_LOGIC_VERSION } from "@/lib/signal-display";
 import { fetchSignalEvidence } from "@/lib/signal-evidence";
 import { SignalCard } from "./SignalCard";
 import { SignalEvidenceDrawer } from "./SignalEvidenceDrawer";
 
+type HistorySignalRecord = Signal | HistorySignal;
+
 interface SignalCardWithEvidenceProps {
-  signal: Signal;
+  signal: HistorySignalRecord;
   isVIP: boolean;
 }
 
@@ -61,7 +63,7 @@ export function SignalCardWithEvidence({ signal, isVIP }: SignalCardWithEvidence
   );
 }
 
-function versionForSignal(signal: Signal): number {
+function versionForSignal(signal: HistorySignalRecord): number {
   const version = Number(signal.logic_version ?? ACTIVE_SIGNAL_LOGIC_VERSION);
   return Number.isFinite(version) ? version : ACTIVE_SIGNAL_LOGIC_VERSION;
 }

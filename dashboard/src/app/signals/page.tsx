@@ -1,7 +1,8 @@
-import { getSignals } from "@/lib/data";
+import { getSignalsResult } from "@/lib/data";
 import { HistoryList } from "@/components/HistoryList";
 import { maskSignalForPublic } from "@/lib/signal-display";
-import { filterDisplayableSignals } from "@/lib/constants";
+import { resolveHistorySignals } from "@/lib/constants";
+import type { HistorySignal } from "@/lib/types";
 import { hasVipAccess } from "@/lib/vip";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
@@ -9,9 +10,9 @@ import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 
 export default async function SignalsPage({ searchParams }: { searchParams: Promise<{ vip?: string }> }) {
-  let signals: any[] = [];
+  let signalsResult: { data: any[]; ok: boolean; error?: string } = { data: [], ok: true };
   try {
-    signals = await getSignals();
+    signalsResult = await getSignalsResult();
   } catch (e) {
     console.error("Signals fetch error:", e);
   }
@@ -21,8 +22,10 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
   const headerList = await headers();
   const locale = detectServerLocaleFromCookie(headerList.get("cookie"), headerList.get("accept-language"));
   const t = getLocaleTexts(locale);
-  signals = filterDisplayableSignals(signals);
-  const visibleSignals = isVIP ? signals : signals.map(maskSignalForPublic);
+  
+  // History page: v88 first, v87 fallback with legacy metadata
+  const signals = signalsResult.ok ? resolveHistorySignals(signalsResult.data as unknown as Array<Record<string, unknown> & { date: string; hour: number; logic_version?: unknown; pair_dirs?: unknown; signal?: unknown }>) : [];
+  const visibleSignals: HistorySignal[] = isVIP ? signals : signals.map((s) => maskSignalForPublic(s as Record<string, unknown>) as unknown as HistorySignal);
   const accessText = isVIP
     ? locale === "EN" ? "Unlocked" : "Đã mở"
     : locale === "EN" ? "Locked" : "Đã khóa";

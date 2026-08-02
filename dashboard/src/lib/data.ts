@@ -1,6 +1,6 @@
 import type { Signal, BotState, NewsItem, StockAdvisory, DDirectionSnapshotV2 } from "./types";
 import { redis, KEYS } from "./redis";
-import { ACTIVE_SIGNAL_LOGIC_VERSION, filterDisplayableSignals } from "./constants";
+import { ACTIVE_SIGNAL_LOGIC_VERSION, filterDisplayableSignals, resolveHistorySignals, filterCurrentSignals, HistorySignal, DisplayableSignalInput } from "./constants";
 export { maskStockAdvisory } from "./stock-advisor-display";
 
 export interface DataResult<T> {
@@ -30,13 +30,28 @@ export async function getTodaySignalsResult(): Promise<DataResult<Signal[]>> {
   const res = await getSignalsResult();
   if (!res.ok) return res;
   return {
-    data: filterDisplayableSignals(res.data),
+    data: filterCurrentSignals(res.data),
     ok: true,
   };
 }
 
 export async function getTodaySignals(): Promise<Signal[]> {
   const res = await getTodaySignalsResult();
+  return res.data;
+}
+
+/** Return history signals with v88-first, v87-fallback resolution and migration metadata. */
+export async function getHistorySignalsResult(): Promise<DataResult<HistorySignal[]>> {
+  const res = await getSignalsResult();
+  if (!res.ok) return { data: [], ok: res.ok, error: res.error };
+  return {
+    data: resolveHistorySignals(res.data as unknown as Array<DisplayableSignalInput & Record<string, unknown>>),
+    ok: true,
+  };
+}
+
+export async function getHistorySignals(): Promise<HistorySignal[]> {
+  const res = await getHistorySignalsResult();
   return res.data;
 }
 

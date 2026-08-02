@@ -30,8 +30,9 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 "date": "2026-07-22",
                 "hour": hour,
                 "signal": "BUY",
-                "pair_dirs": {"XAUUSD": "BUY"},
+                "pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "BUY"},
                 "entry_state": "READY",
+                "entry_time": "07:49",
                 "pair_evidence": {},
                 "logic_version": mt5_signal_bot.SIGNAL_LOGIC_VERSION,
             }
@@ -53,16 +54,14 @@ class SignalRebuildDependencyTests(unittest.TestCase):
         self.assertEqual(rebuilt_hours, [3, 7, 9, 12, 14, 16])
         self.assertEqual(count, 6)
 
-    def test_rebuild_drops_malformed_rows_without_preserving_stale_window(self):
+    def test_rebuild_preserves_existing_when_zero_valid_candidates(self):
+        """When rebuild produces zero valid candidates, existing history must be preserved."""
         today = datetime(2026, 7, 22, 9, 25)
         retained = {"date": "2026-07-20", "hour": 9, "pair_dirs": {"XAUUSD": "BUY"}}
         non_active_hour = {"date": today.date().isoformat(), "hour": 5}
-        rows = [
-            retained,
-            non_active_hour,
-            {"date": today.date().isoformat(), "hour": "bad"},
-            "not-a-record",
-        ]
+        malformed1 = {"date": today.date().isoformat(), "hour": "bad"}
+        malformed2 = "not-a-record"
+        rows = [retained, non_active_hour, malformed1, malformed2]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             signal_log = Path(temp_dir) / "signals_log.json"
@@ -78,9 +77,12 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 mt5_signal_bot.rebuild_recent_history(days=1)
 
             result = json.loads(signal_log.read_text(encoding="utf-8"))
+            # All existing records must be preserved when rebuild aborts
             self.assertIn(retained, result)
             self.assertIn(non_active_hour, result)
-            self.assertEqual(len(result), 2)
+            self.assertIn(malformed1, result)
+            self.assertIn(malformed2, result)
+            self.assertEqual(len(result), 4)
 
     def test_history_rebuild_uses_latest_completed_bar_when_live_clock_is_stale(self):
         anchor = datetime(2026, 7, 31, 23, 30)
@@ -92,7 +94,9 @@ class SignalRebuildDependencyTests(unittest.TestCase):
                 "date": broker_dt.date().isoformat(),
                 "hour": hour,
                 "signal": "SELL",
-                "pair_dirs": {"XAUUSD": "SELL"},
+                "pair_dirs": {"XAUUSD": "SELL", "GBPUSD": "SELL"},
+                "entry_state": "READY",
+                "entry_time": "07:49",
                 "logic_version": mt5_signal_bot.SIGNAL_LOGIC_VERSION,
             }, {}
 

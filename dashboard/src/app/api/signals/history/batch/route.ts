@@ -1,9 +1,42 @@
 import { NextResponse } from "next/server";
 import { redis, KEYS, requireAuth } from "@/lib/redis";
-import { filterDisplayableSignals } from "@/lib/constants";
+import { filterDisplayableSignals, resolveHistorySignals, filterCurrentSignals, ACTIVE_SIGNAL_LOGIC_VERSION, HistorySignal } from "@/lib/constants";
 import type { Signal } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
+
+  try {
+    const existing = resolveHistorySignals(
+      ((await redis.get(KEYS.signals)) as Array<Signal & Record<string, unknown>>) || [],
+    );
+
+    // Compute migration status
+    const versions: Record<string, number> = {};
+    for (const s of existing) {
+      const ver = Number(s.logic_version || 0);
+      versions[String(ver)] = (versions[String(ver)] || 0) + 1;
+    }
+    const v88Count = versions[String(ACTIVE_SIGNAL_LOGIC_VERSION)] || 0;
+    const v87Count = versions[String(ACTIVE_SIGNAL_LOGIC_VERSION - 1)] || 0;
+    let migration_status = "COMPLETE";
+    if (v87Count > 0 && v88Count === 0) migration_status = "LEGACY_ONLY";
+    else if (v87Count > 0 && v88Count > 0) migration_status = "PARTIAL";
+
+    return NextResponse.json({ 
+      ok: true, 
+      records: existing,
+      total: existing.length,
+      versions,
+      migration_status
+    });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   const denied = requireAuth(request);
@@ -25,14 +58,15 @@ export async function POST(request: Request) {
     const incoming = filterDisplayableSignals(recordsRaw);
     
     // If clearAll is set, we start fresh (e.g., first chunk of a total rebuild)
-    const existing = clearAll ? [] : filterDisplayableSignals(
+    const existing = clearAll ? [] : resolveHistorySignals(
       ((await redis.get(KEYS.signals)) as Array<Signal & Record<string, unknown>>) || [],
     );
 
+    // Map stores the merged records by key
     const map = new Map<string, Signal & Record<string, unknown>>();
 
     for (const s of existing) {
-      map.set(`${s.date}:${s.hour}`, s);
+      map.set(`${s.date}:${s.hour}`, s as Signal & Record<string, unknown>);
     }
 
     for (const inc of incoming) {
@@ -78,7 +112,26 @@ export async function POST(request: Request) {
 
     const merged = [...map.values()].sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 2000);
     await redis.set(KEYS.signals, merged);
-    return NextResponse.json({ ok: true, count: merged.length });
+    
+    // Compute migration status for response
+    const versions: Record<string, number> = {};
+    for (const s of merged) {
+      const ver = Number(s.logic_version || 0);
+      versions[String(ver)] = (versions[String(ver)] || 0) + 1;
+    }
+    const v88Count = versions[String(ACTIVE_SIGNAL_LOGIC_VERSION)] || 0;
+    const v87Count = versions[String(ACTIVE_SIGNAL_LOGIC_VERSION - 1)] || 0;
+    let migration_status = "COMPLETE";
+    if (v87Count > 0 && v88Count === 0) migration_status = "LEGACY_ONLY";
+    else if (v87Count > 0 && v88Count > 0) migration_status = "PARTIAL";
+
+    return NextResponse.json({ 
+      ok: true, 
+      count: merged.length,
+      total: merged.length,
+      versions,
+      migration_status
+    });
   } catch (e) {
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }

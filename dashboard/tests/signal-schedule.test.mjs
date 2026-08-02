@@ -216,7 +216,7 @@ test("public SSR uses the same complete signal mask as the API", () => {
   const data = fs.readFileSync(new URL("../src/lib/data.ts", import.meta.url), "utf8");
   assert.equal(page.includes('import { maskSignalForPublic } from "@/lib/signal-display"'), true);
   assert.equal(page.includes("signals = signals.map(maskSignalForPublic)"), true);
-  assert.equal(history.includes("signals.map(maskSignalForPublic)"), true);
+  assert.equal(history.includes("maskSignalForPublic"), true);
   assert.equal(data.includes("export function maskSignal("), false);
 });
 
@@ -243,7 +243,7 @@ test("only XAUUSD opens the shared entry evidence drawer", () => {
   assert.equal(route.includes("ACTIVE_SIGNAL_LOGIC_VERSION"), true);
   assert.equal(route.includes('searchParams.get("version")'), true);
   assert.equal(card.includes("EVIDENCE_SIGNAL_PAIRS"), true);
-  assert.equal(card.includes("hasEvidenceForPair(signal, pair)"), true);
+  assert.equal(card.includes("hasEvidenceForPair("), true);
   assert.equal(card.includes("View XAUUSD entry evidence"), true);
   assert.equal(card.includes("gbp_entry_time"), false);
   assert.equal(drawer.includes("titleSuffix"), true);

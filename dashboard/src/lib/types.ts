@@ -56,6 +56,39 @@ export interface Signal {
   reference_d_direction?: string;
   entry_timeframe?: string | null;
   entry_source_symbol?: string;
+  /** History: v87 fallback metadata */
+  is_legacy_logic?: boolean;
+  legacy_logic_version?: number;
+}
+
+/**
+ * History signal — permissive type used by history API, HistoryList, and resolveHistorySignals.
+ * NOT a strict subset of Signal: v87 records from Redis may lack ts/entry_prices/current_prices/hour_note.
+ * Includes an index signature so it can be cast to Record<string, unknown> when needed.
+ */
+export interface HistorySignal {
+  [key: string]: unknown;
+  date: string;
+  hour: number;
+  signal: string;
+  pair_dirs: Record<string, string>;
+  entry_state?: string;
+  signal_state?: string;
+  entry_time?: string | null;
+  entry_time_local?: string | null;
+  entry_at_utc?: string | null;
+  entry_candidate?: string | null;
+  entry_rule?: string | null;
+  logic_version?: number | string | null;
+  hour_note?: string | null;
+  signal_time?: string | null;
+  pattern_signal?: string;
+  is_legacy_logic?: boolean;
+  legacy_logic_version?: number;
+  applicable_pairs?: string[];
+  ts?: number;
+  entry_prices?: Record<string, number>;
+  current_prices?: Record<string, number>;
 }
 
 export type SlotDisplayState =

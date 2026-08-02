@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { SignalCardWithEvidence } from "./SignalCardWithEvidence";
 import { DDirectionPanel } from "./DDirectionPanel";
-import type { Signal, DDirectionSnapshotV2 } from "@/lib/types";
+import type { Signal, HistorySignal, DDirectionSnapshotV2 } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 import { getSlotTimeValue } from "@/lib/constants";
 
@@ -16,9 +16,11 @@ function weekdayLabel(dateStr: string, locale: "VN" | "EN"): string {
   return labels[day];
 }
 
+type HistorySignalRecord = Signal | HistorySignal;
+
 interface CollapsibleDayProps {
   date: string;
-  signals: Signal[];
+  signals: HistorySignalRecord[];
   isVIP: boolean;
   defaultOpen?: boolean;
   initialDSnapshot?: DDirectionSnapshotV2 | null;

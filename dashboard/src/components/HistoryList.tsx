@@ -1,17 +1,19 @@
 "use client";
 
 import { CollapsibleDay } from "./CollapsibleDay";
-import type { Signal } from "@/lib/types";
+import type { Signal, HistorySignal } from "@/lib/types";
 import { useLocale } from "./LocaleProvider";
 
+type HistorySignalRecord = Signal | HistorySignal;
+
 interface HistoryListProps {
-  signals: Signal[];
+  signals: HistorySignalRecord[];
   isVIP: boolean;
 }
 
 export function HistoryList({ signals, isVIP }: HistoryListProps) {
   const { locale } = useLocale();
-  const dateMap = new Map<string, Signal[]>();
+  const dateMap = new Map<string, HistorySignalRecord[]>();
   for (const signal of signals) {
     if (!dateMap.has(signal.date)) dateMap.set(signal.date, []);
     dateMap.get(signal.date)!.push(signal);

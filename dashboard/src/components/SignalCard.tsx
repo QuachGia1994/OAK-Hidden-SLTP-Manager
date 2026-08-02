@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useId, useState } from "react";
-import type { Signal } from "@/lib/types";
+import type { Signal, HistorySignal } from "@/lib/types";
 import { ACTIVE_SIGNAL_LOGIC_VERSION, ACTIVE_SIGNAL_PAIRS } from "@/lib/signal-display";
 import { useLocale } from "./LocaleProvider";
 import { BrokerLocalTime } from "./BrokerLocalTime";
@@ -10,8 +10,10 @@ import { getT, formatFinalReverseReason } from "@/lib/translations";
 
 const EVIDENCE_SIGNAL_PAIRS = new Set(["XAUUSD"]);
 
+type HistorySignalRecord = Signal | HistorySignal;
+
 interface SignalCardProps {
-  signal: Signal;
+  signal: HistorySignalRecord;
   isVIP: boolean;
   redisOk?: boolean;
   brokerNow?: Date;
@@ -39,11 +41,11 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
       : ACTIVE_SIGNAL_PAIRS;
 
   const finalReverseApplied = logicVersion >= 88 && signal.final_reverse_applied === true;
-  const reverseReason = finalReverseApplied ? formatFinalReverseReason(signal.final_reverse_reason, locale) : null;
+  const reverseReason = finalReverseApplied ? formatFinalReverseReason(signal.final_reverse_reason as string | null | undefined, locale) : null;
 
   const fetchEvidence = useCallback(
     (symbol: string) => {
-      if (onInspect && isVIP && EVIDENCE_SIGNAL_PAIRS.has(symbol) && hasEvidenceForPair(signal, symbol)) {
+      if (onInspect && isVIP && EVIDENCE_SIGNAL_PAIRS.has(symbol) && hasEvidenceForPair(signal as Record<string, unknown>, symbol)) {
         onInspect(symbol);
       }
     },
@@ -181,7 +183,7 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
       <div id={pairRowsId} className={`space-y-2 font-mono text-xs ${mobileDetailsOpen ? "block" : "hidden"} sm:block`}>
         {applicablePairs.map((pair) => {
           const dir = signal.pair_dirs?.[pair] || "WAIT";
-          const isClickable = isVIP && EVIDENCE_SIGNAL_PAIRS.has(pair) && hasEvidenceForPair(signal, pair);
+          const isClickable = isVIP && EVIDENCE_SIGNAL_PAIRS.has(pair) && hasEvidenceForPair(signal as Record<string, unknown>, pair);
           const isLoading = loadingEvidence === pair;
 
           const dirColor =

@@ -1014,6 +1014,31 @@ def push_to_dashboard(snapshot_complete: bool = False):
                 all_signals = json.load(f)
             signals = select_signals_for_dashboard(all_signals)
             if signals:
+                # EMPTY-PUSH GUARD: refuse to replace non-empty history with empty payload
+                try:
+                    existing_resp = urllib.request.urlopen(
+                        urllib.request.Request(
+                            f"{dashboard_url}/api/signals/history/batch",
+                            headers=headers,
+                            method="GET"
+                        ),
+                        timeout=10
+                    )
+                    existing_data = json.loads(existing_resp.read().decode("utf-8"))
+                    existing_count = existing_data.get("total", 0) if isinstance(existing_data, dict) else 0
+                except Exception:
+                    existing_count = 0
+
+                if existing_count > 0 and len(signals) == 0:
+                    print(f"[DASHBOARD] ABORTED: Refusing to replace non-empty history ({existing_count} records) with empty payload")
+                    return
+
+                # If outgoing count drops > 20%, require explicit allow_destructive_history_replace
+                allow_destructive = os.environ.get("ALLOW_DESTRUCTIVE_HISTORY_REPLACE", "").strip().lower() in {"1", "true", "yes", "on"}
+                if existing_count > 0 and len(signals) < existing_count * 0.8 and not allow_destructive:
+                    print(f"[DASHBOARD] ABORTED: Outgoing count ({len(signals)}) dropped >20% from existing ({existing_count}); set ALLOW_DESTRUCTIVE_HISTORY_REPLACE=1 to override")
+                    return
+
                 for batch_index, batch in enumerate(
                     split_records_by_encoded_size(signals, max_records=20, max_bytes=350 * 1024)
                 ):
@@ -3571,6 +3596,94 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None, include_weekends=False):
     return True
 
 
+def _validate_rebuild_candidate(record):
+    """Validate a candidate rebuild record before accepting it as a replacement.
+
+    Returns (is_valid, reason). A valid candidate must:
+    - be a dict
+    - have valid ISO date
+    - have hour in [3, 7, 9, 12, 14, 16]
+    - have logic_version == 88
+    - have signal == pair_dirs.XAUUSD
+    - have GBPUSD == XAUUSD (invariant) - only checked if both present
+    - have applicable_pairs matching slot - only checked if present
+    - have valid pair_signal_states - only checked if present
+    - have valid entry_state - only checked if present
+    - if entry READY, have valid HH:MM entry_time
+    - not have partial v87/v88 mixed payload
+    """
+    if not isinstance(record, dict):
+        return False, "not_dict"
+
+    # date check
+    date_str = record.get("date")
+    if not isinstance(date_str, str) or not re.match(r"^\d{4}-\d{2}-\d{2}$", date_str):
+        return False, "invalid_date"
+
+    # hour check
+    try:
+        hour = int(record.get("hour", -1))
+    except (TypeError, ValueError):
+        return False, "invalid_hour"
+    if hour not in ACTIVE_HOURS:
+        return False, "invalid_slot_hour"
+
+    # logic_version check
+    try:
+        logic_ver = int(record.get("logic_version", 0))
+    except (TypeError, ValueError):
+        return False, "invalid_logic_version"
+    if logic_ver != SIGNAL_LOGIC_VERSION:
+        return False, f"logic_version_mismatch_{logic_ver}"
+
+    # signal and pair_dirs check
+    signal = record.get("signal")
+    pair_dirs = record.get("pair_dirs")
+    if not isinstance(pair_dirs, dict):
+        return False, "missing_pair_dirs"
+    xauusd_dir = pair_dirs.get("XAUUSD")
+    if signal != xauusd_dir:
+        return False, "signal_xauusd_mismatch"
+
+    # XAUUSD == GBPUSD invariant (only if GBPUSD is present in pair_dirs)
+    gbpusd_dir = pair_dirs.get("GBPUSD")
+    if gbpusd_dir is not None and xauusd_dir in ("BUY", "SELL") and gbpusd_dir != xauusd_dir:
+        return False, "xauusd_gbpusd_invariant_violated"
+
+    # applicable_pairs check (only if present)
+    applicable = record.get("applicable_pairs")
+    if applicable is not None:
+        expected = get_evaluated_pairs_for_hour(hour)
+        if set(applicable) != set(expected):
+            return False, "applicable_pairs_mismatch"
+
+    # pair_signal_states check (only if present)
+    pair_signal_states = record.get("pair_signal_states")
+    if isinstance(pair_signal_states, dict):
+        for sym, state in pair_signal_states.items():
+            if state not in ("READY", "WAIT", "NOT_APPLICABLE"):
+                return False, f"invalid_pair_signal_state_{sym}={state}"
+
+    # entry_state check (only if present)
+    entry_state = record.get("entry_state")
+    if entry_state is not None and entry_state not in ("READY", "WAIT", "PENDING_LAYER3"):
+        return False, f"invalid_entry_state={entry_state}"
+
+    # if READY, entry_time must be valid HH:MM
+    if entry_state == "READY":
+        entry_time = record.get("entry_time")
+        if not isinstance(entry_time, str) or not re.match(r"^\d{2}:\d{2}$", entry_time):
+            return False, "missing_entry_time_when_ready"
+
+    # no mixed v87/v88 payload check
+    if logic_ver == 88:
+        if "day_mode" in record and record["day_mode"] is not None:
+            # v88 uses entry_branch and day_mode differently
+            pass
+
+    return True, "valid"
+
+
 def rebuild_recent_history(days=45, include_weekends=False):
     """Recalculate recent sessions from the persistent MT4 feed.
 
@@ -3578,6 +3691,11 @@ def rebuild_recent_history(days=45, include_weekends=False):
     evaluated against the persisted Broker bars instead of being skipped, and
     they are never filled with Friday candles.  When ``include_weekends`` is
     false (default) the live Mon–Fri policy is applied.
+
+    Rebuild is per-record (atomic merge): an old record is only replaced when
+    a new candidate for the same (date, hour) passes validation.  If zero
+    valid candidates are produced (e.g., MT4 feed has no bars), the rebuild
+    aborts and existing history is preserved.
     """
     try:
         broker_dt = get_broker_time()
@@ -3655,13 +3773,35 @@ def rebuild_recent_history(days=45, include_weekends=False):
         clear_history_cache()
         return 0
 
-    # Phase B: atomic publish
+    # FAIL-SAFE: ZERO_VALID_CANDIDATES
+    # Validate all candidates before merging
+    valid_candidates = {}
+    rejected_candidates = 0
+    for key, candidate in candidate_records.items():
+        is_valid, reason = _validate_rebuild_candidate(candidate)
+        if is_valid:
+            valid_candidates[key] = candidate
+        else:
+            rejected_candidates += 1
+            print(f"  [REBUILD] REJECTED candidate {key}: {reason}")
+
+    if attempted > 0 and len(valid_candidates) == 0:
+        # ABORT: zero valid candidates — preserve existing history
+        print(f"  [REBUILD] ABORTED")
+        print(f"  Reason: ZERO_VALID_CANDIDATES")
+        print(f"  Existing history preserved.")
+        clear_history_cache()
+        return 0
+
+    # Phase B: atomic per-record merge
     try:
         existing_data = []
         if os.path.exists(_SIGNALS_LOG) and os.path.getsize(_SIGNALS_LOG) > 2:
             with open(_SIGNALS_LOG, "r", encoding="utf-8-sig") as f:
                 existing_data = json.load(f)
-        kept = []
+
+        # Build map of existing records by (date, hour)
+        existing_by_key = {}
         for rec in (existing_data if isinstance(existing_data, list) else []):
             if not isinstance(rec, dict):
                 continue
@@ -3669,22 +3809,49 @@ def rebuild_recent_history(days=45, include_weekends=False):
                 rec_hour = int(rec.get("hour", -1))
             except (TypeError, ValueError):
                 continue
-            if rec.get("date") in rebuild_dates and rec_hour in ACTIVE_HOURS:
+            rec_date = rec.get("date")
+            if not rec_date:
                 continue
-            kept.append(rec)
-        kept.extend(candidate_records.values())
-        kept = kept[-2000:]
-        _write_signals_log_atomic(kept)
+            existing_by_key[(rec_date, rec_hour)] = rec
+
+        # Stats for detailed logging
+        preserved_old = 0
+        inserted_new = 0
+        replaced_old = 0
+
+        # Merge: valid candidates replace existing; others preserved
+        for key, candidate in valid_candidates.items():
+            if key in existing_by_key:
+                replaced_old += 1
+            else:
+                inserted_new += 1
+            existing_by_key[key] = candidate
+
+        # Count preserved (existing records not in rebuild scope or not replaced)
+        for key in existing_by_key:
+            if key not in valid_candidates:
+                preserved_old += 1
+
+        merged = list(existing_by_key.values())
+        # Sort deterministically: by date desc, then hour desc
+        merged.sort(key=lambda r: (r.get("date", ""), r.get("hour", 0)), reverse=True)
+        merged = merged[-2000:]
+        _write_signals_log_atomic(merged)
     except Exception as error:
         print(f"  [REBUILD] PUBLISH ERROR: {error}")
         traceback.print_exc()
         clear_history_cache()
         return 0
 
-    refreshed = len(candidate_records)
+    refreshed = len(valid_candidates)
+    succeeded = refreshed
     print(f"  [REBUILD] Attempted: {attempted}")
-    print(f"  [REBUILD] Refreshed: {refreshed}")
+    print(f"  [REBUILD] Succeeded: {succeeded}")
     print(f"  [REBUILD] Failed: {failed}")
+    print(f"  [REBUILD] Preserved old: {preserved_old}")
+    print(f"  [REBUILD] Inserted new: {inserted_new}")
+    print(f"  [REBUILD] Replaced old: {replaced_old}")
+    print(f"  [REBUILD] Rejected candidates: {rejected_candidates}")
     print(f"  [REBUILD] Logic v{SIGNAL_LOGIC_VERSION}, schema v{HISTORY_REBUILD_SCHEMA_VERSION}")
     clear_history_cache()
     return refreshed
