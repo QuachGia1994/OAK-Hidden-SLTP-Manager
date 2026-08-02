@@ -20,7 +20,7 @@ class MT4DataFeederSourceTests(unittest.TestCase):
         self.assertIn('StringFind(normalized, "GBPAUD") >= 0', source)
         self.assertIn('StringFind(normalized, "GBPJPY") >= 0', source)
         self.assertIn('StringFind(normalized, "GBPCAD") >= 0', source)
-        self.assertIn("Waiting for the first live chart tick before publishing heartbeat or bars.", source)
+        self.assertIn("Backfill bars publish immediately from History Center; heartbeat/live bars wait for the first live chart tick.", source)
         self.assertIn("Attach one instance to every chart to publish.", source)
 
     def test_unknown_chart_symbols_publish_a_safe_raw_fallback_instead_of_failing_init(self):
@@ -71,14 +71,14 @@ class MT4DataFeederSourceTests(unittest.TestCase):
         self.assertIn("Broker clock is stale/inconsistent", source)
         self.assertIn("waiting for a live tick before publishing heartbeat or bars", source)
         self.assertIn("if(!PublishHeartbeat()) return;", source)
-        self.assertIn("PublishChartBars(backfillPending);", source)
+        self.assertIn("PublishChartBars(false);", source)
 
     def test_terminal_start_cannot_publish_a_frozen_weekend_clock_before_a_live_tick(self):
         source = SOURCE.read_text(encoding="utf-8")
 
         self.assertIn("datetime lastLiveTickUtc = 0;", source)
         self.assertIn("datetime lastPublishedTickUtc = 0;", source)
-        self.assertIn("Waiting for the first live chart tick before publishing heartbeat or bars.", source)
+        self.assertIn("Backfill bars publish immediately from History Center; heartbeat/live bars wait for the first live chart tick.", source)
         self.assertIn("if(lastLiveTickUtc <= lastPublishedTickUtc)", source)
         self.assertIn("No fresh chart tick; waiting before publishing heartbeat or bars.", source)
         self.assertIn("lastPublishedTickUtc = lastLiveTickUtc;", source)
@@ -94,8 +94,31 @@ class MT4DataFeederSourceTests(unittest.TestCase):
         self.assertIn("return 2300;", source)
         self.assertIn("bool HasBackfillHistory(int timeframe)", source)
         self.assertIn("TimeCurrent() - (BACKFILL_DAYS * 86400)", source)
-        self.assertIn("backfillPending = !PublishChartBars(backfillPending);", source)
+        self.assertIn("backfillPending = !PublishChartBars(true);", source)
         self.assertIn("utcNow - lastBackfillAttemptAt >= BACKFILL_RETRY_SECONDS", source)
+
+    def test_backfill_publishes_without_a_live_tick_but_heartbeat_stays_gated(self):
+        """Backfill must not depend on lastLiveTickUtc/OnTick(); the heartbeat live
+        gate must remain untouched so the feed stays 'disconnected' until a real tick."""
+        source = SOURCE.read_text(encoding="utf-8")
+
+        # Backfill branch runs on its own timer gate (backfillPending + retry),
+        # independent of lastLiveTickUtc.
+        self.assertIn("backfillPending = !PublishChartBars(true);", source)
+        backfill_start = source.index("void OnTimer()")
+        backfill_gate = source.find("if(backfillPending &&", backfill_start)
+        tick_gate = source.find("if(lastLiveTickUtc <= lastPublishedTickUtc)", backfill_start)
+        self.assertNotEqual(backfill_gate, -1)
+        self.assertNotEqual(tick_gate, -1)
+        # The backfill branch must be evaluated before (or independent of) the
+        # live-tick gate, so it can publish on a quiet weekend/market-closed.
+        self.assertLess(backfill_gate, tick_gate)
+
+        # The heartbeat live gate is intentionally kept for freshness semantics.
+        self.assertIn("No fresh chart tick; waiting before publishing heartbeat or bars.", source)
+        self.assertIn("lastPublishedTickUtc = lastLiveTickUtc;", source)
+        self.assertIn("lastLiveTickUtc = TimeGMT();", source)
+        self.assertIn("PublishChartBars(false);", source)
 
     def test_v87_ea_has_no_manual_per_symbol_inputs_or_legacy_endpoint(self):
         source = SOURCE.read_text(encoding="utf-8")

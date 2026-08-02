@@ -289,7 +289,7 @@ int OnInit()
          " endpoint=", effectiveFeedBaseURL,
          ". Attach one instance to every chart to publish.");
    EventSetTimer(3);
-   Print("[MT4 FEED] Waiting for the first live chart tick before publishing heartbeat or bars.");
+   Print("[MT4 FEED] Backfill bars publish immediately from History Center; heartbeat/live bars wait for the first live chart tick.");
    return INIT_SUCCEEDED;
 }
 
@@ -301,10 +301,25 @@ void OnDeinit(const int reason)
 void OnTimer()
 {
    datetime utcNow = TimeGMT();
-   // TimeCurrent can retain a weekend/terminal-start timestamp that still
-   // resembles a valid UTC offset.  A heartbeat must always be caused by a
-   // chart tick observed after the EA started; otherwise the Signal Bot could
-   // briefly see a false CONNECTED state from a frozen Broker clock.
+   // BACKFILL branch is independent of the live-tick gate.  MT4's History
+   // Center already holds closed candles even while the market is closed
+   // (weekend) or before the first chart tick after attach, so the 45-day
+   // backfill must publish without requiring a fresh live tick.  Bar
+   // timestamps come from the Broker clock via iTime()/iOpen(), never from
+   // OnTick(), so no fresh tick is needed here.
+   if(backfillPending &&
+      (lastBackfillAttemptAt == 0 || utcNow - lastBackfillAttemptAt >= BACKFILL_RETRY_SECONDS))
+   {
+      lastBackfillAttemptAt = utcNow;
+      backfillPending = !PublishChartBars(true);
+      if(!backfillPending)
+         Print("[MT4 FEED] 45-day chart backfill is complete.");
+   }
+   // HEARTBEAT LIVE branch keeps the deliberate tick gate: TimeCurrent can
+   // retain a weekend/terminal-start timestamp that still resembles a valid
+   // UTC offset.  A heartbeat must always be caused by a chart tick observed
+   // after the EA started; otherwise the Signal Bot could briefly see a false
+   // CONNECTED state from a frozen Broker clock.
    if(lastLiveTickUtc <= lastPublishedTickUtc)
    {
       if(lastClockWarningAt == 0 || utcNow - lastClockWarningAt >= 60)
@@ -316,15 +331,6 @@ void OnTimer()
    }
    if(!PublishHeartbeat()) return;
    lastPublishedTickUtc = lastLiveTickUtc;
-   if(backfillPending &&
-      (lastBackfillAttemptAt == 0 || utcNow - lastBackfillAttemptAt >= BACKFILL_RETRY_SECONDS))
-   {
-      lastBackfillAttemptAt = utcNow;
-      backfillPending = !PublishChartBars(backfillPending);
-      if(!backfillPending)
-         Print("[MT4 FEED] 45-day chart backfill is complete.");
-      return;
-   }
    PublishChartBars(false);
 }
 

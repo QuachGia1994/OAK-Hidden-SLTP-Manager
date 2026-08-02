@@ -101,6 +101,36 @@ class TestMT4FeedServer(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_backfill_bars_alone_keep_feed_disconnected_until_a_heartbeat(self):
+        """Weekend backfill publishes history bars without a live tick, but the
+        health endpoint must stay 'disconnected' (Signal Bot stays blocked from
+        start) until a fresh heartbeat arrives."""
+        payload = {
+            "schema_version": 2,
+            "source_id": "ea-test",
+            "symbol": "XAUUSD",
+            "resolved_symbol": "XAUUSD",
+            "timeframe": "M30",
+            "bars": [self._completed_bar()],
+        }
+        response = self.client.post("/mt4-feed/bars", json=payload)
+        self.assertEqual(response.status_code, 200)
+
+        health = self.client.get("/mt4-feed/health").get_json()
+        self.assertEqual(health["data_state"], "disconnected")
+
+        heartbeat = {
+            "schema_version": 2,
+            "source_id": "ea-test",
+            "broker_time": "2026-08-01T14:00:00",
+            "broker_time_utc": "2026-08-01T11:00:00",
+            "broker_utc_offset": 3,
+            "observed_at_utc": datetime.now(timezone.utc).isoformat(),
+            "last_sequence": 1,
+        }
+        self.assertEqual(self.client.post("/mt4-feed/heartbeat", json=heartbeat).status_code, 200)
+        self.assertEqual(self.client.get("/mt4-feed/health").get_json()["data_state"], "connected")
+
     def test_accepts_prefixed_and_suffixed_future_symbol(self):
         payload = {
             "schema_version": 2,
