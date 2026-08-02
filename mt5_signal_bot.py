@@ -72,6 +72,7 @@ except Exception:
     TELEGRAM_CHAT_ID = ""
     MT5_PATH = ""
     DASHBOARD_URL = ""
+    _cfg = {}
     print("[WARN] config.json not found or invalid.")
 
 SYMBOL = "XAUUSD"
