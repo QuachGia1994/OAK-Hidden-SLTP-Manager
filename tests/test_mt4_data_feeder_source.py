@@ -44,6 +44,24 @@ class MT4DataFeederSourceTests(unittest.TestCase):
         self.assertIn("IsAsciiAlphaNumeric(StringGetCharacter(normalized, end))", source)
         self.assertNotIn("IsGoldAlias", source)
 
+    def test_warmup_tracking_arrays_are_populated_so_chart_open_cannot_spam(self):
+        """OnInit must register every (resolved symbol, timeframe) cell in the
+        openedCharts* arrays; otherwise ChartIndex() always returns -1 and
+        ChartOpen() is re-issued for every cell on every backfill retry."""
+        source = SOURCE.read_text(encoding="utf-8")
+
+        self.assertIn("openedChartsSymbols[comboIndex] = feedSymbolsResolved[s];", source)
+        self.assertIn("openedChartsTimeframes[comboIndex] = feedTimeframes[t];", source)
+        self.assertIn("if(StringLen(feedSymbolsResolved[s]) == 0) continue;", source)
+        # WarmupChart must fail closed for untracked cells and never re-open a
+        # cell that was already opened or that failed less than 60s ago.
+        warmup_start = source.index("void WarmupChart(")
+        warmup = source[warmup_start:]
+        self.assertIn("if(index < 0) return;", warmup)
+        self.assertIn("if(openedChartsDone[index]) return;", warmup)
+        self.assertIn("openedChartsLastAt[index] != 0", warmup)
+        self.assertIn("WARMUP_OPEN_RETRY_SECONDS", warmup)
+
     def test_webrequest_permission_failure_has_an_actionable_no_custom_port_remedy(self):
         source = SOURCE.read_text(encoding="utf-8")
 

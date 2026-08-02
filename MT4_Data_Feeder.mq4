@@ -368,16 +368,20 @@ int ChartIndex(string resolved, int timeframe)
 
 void WarmupChart(string resolved, int timeframe)
 {
+   // Only cells registered in openedCharts* (populated in OnInit) may auto-open.
+   // An untracked cell (e.g. an unresolved symbol) must never open a chart, and
+   // even tracked cells open exactly once, retrying at most every 60s on error.
    int index = ChartIndex(resolved, timeframe);
-   if(index >= 0 && openedChartsDone[index]) return;   // already opened, do not spam
+   if(index < 0) return;
+   if(openedChartsDone[index]) return;   // already opened, do not spam
    datetime utcNow = TimeGMT();
-   if(index >= 0 && openedChartsLastAt[index] != 0 && utcNow - openedChartsLastAt[index] < WARMUP_OPEN_RETRY_SECONDS)
+   if(openedChartsLastAt[index] != 0 && utcNow - openedChartsLastAt[index] < WARMUP_OPEN_RETRY_SECONDS)
       return;                                          // throttle reopen attempts
-   if(index >= 0) openedChartsLastAt[index] = utcNow;
+   openedChartsLastAt[index] = utcNow;
    long chartId = ChartOpen(resolved, timeframe);
    if(chartId > 0)
    {
-      if(index >= 0) openedChartsDone[index] = true;
+      openedChartsDone[index] = true;
       Print("[MT4 FEED] Warmup opened chart id=", LongText(chartId),
             " symbol=", resolved, " timeframe=", TimeframeName(timeframe));
    }
@@ -492,12 +496,31 @@ int OnInit()
    ArrayResize(openedChartsTimeframes, combos);
    ArrayResize(openedChartsDone, combos);
    ArrayResize(openedChartsLastAt, combos);
-   for(int c = 0; c < combos; c++)
+   // Populate every (resolved symbol, timeframe) pair so ChartIndex() can match
+   // a WarmupChart() call.  Without this the arrays stay empty, ChartIndex()
+   // always returns -1, and ChartOpen() would be re-issued for every cell on
+   // every backfill retry (10s) -- flooding the terminal with new symbol tabs.
+   int comboIndex = 0;
+   for(int s = 0; s < feedSymbolCount; s++)
    {
-      openedChartsSymbols[c] = "";
-      openedChartsTimeframes[c] = 0;
-      openedChartsDone[c] = false;
-      openedChartsLastAt[c] = 0;
+      if(StringLen(feedSymbolsResolved[s]) == 0) continue;   // unresolved: never open a chart for it
+      for(int t = 0; t < feedTimeframeCount; t++)
+      {
+         openedChartsSymbols[comboIndex] = feedSymbolsResolved[s];
+         openedChartsTimeframes[comboIndex] = feedTimeframes[t];
+         openedChartsDone[comboIndex] = false;
+         openedChartsLastAt[comboIndex] = 0;
+         comboIndex++;
+      }
+   }
+   // Leftover slots stay empty (unmatchable) so ChartIndex() can never hit them.
+   while(comboIndex < combos)
+   {
+      openedChartsSymbols[comboIndex] = "";
+      openedChartsTimeframes[comboIndex] = 0;
+      openedChartsDone[comboIndex] = false;
+      openedChartsLastAt[comboIndex] = 0;
+      comboIndex++;
    }
 
    Print("[MT4 FEED] Multi-symbol publisher v88 source_id=", effectiveSourceId,
