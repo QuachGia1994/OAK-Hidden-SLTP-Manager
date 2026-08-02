@@ -7,7 +7,7 @@ interface Props {
   brokerTime?: string | null;
   utcIso?: string | null;
   brokerUtcOffset?: number | null;
-  /** Local conversion is shown only when the feed explicitly verified the clock. */
+  /** Local conversion is shown only when market data explicitly verified the clock. */
   brokerClockVerified?: boolean;
   /** Pre-computed local time persisted by the bot (per-date historical offset). */
   localTime?: string | null;

@@ -4,7 +4,7 @@
   "internal_slots": [],
   "rules": {
     "VN": [
-      "Nguồn market-data và đồng hồ Broker duy nhất của Signal Engine là MT4 Feed; MT5 chỉ dùng để thực thi và quản lý lệnh.",
+      "Nguồn market-data và đồng hồ Broker của Signal Engine là MT5 Python API (đọc trực tiếp từ terminal); MT4 Feed chỉ là provider cũ, mặc định tắt.",
       "Tất cả năm cặp dùng chung Entry Time do XAUUSD xác định.",
       "Layer 2 và Layer 3 là Entry Plan: H3, H7, H9, H12 và H14 dùng hai cụm ba nến M30 XAUUSD.",
       "Layer 2 và Layer 3 của H16 dùng H1 XAUUSD: Layer 2 dùng 05:00, 04:00, 03:00; Layer 3 dùng 10:00, 09:00, 08:00.",
@@ -20,16 +20,16 @@
       "Final Inversion: H16 Thứ Ba, Thứ Tư đảo; H16 Thứ Sáu bình thường đảo; H16 Thứ Sáu ngày 3, 4 hoặc 7 KHÔNG đảo; H16 Thứ Năm có Thứ Tư hôm trước rơi ngày 30 hoặc 1 đảo.",
       "Từng slot chỉ đánh giá các cặp thuộc phạm vi riêng (slot-scoped): H3 gồm XAUUSD, GBPUSD, GBPAUD, GBPJPY; H7 gồm XAUUSD, GBPUSD, GBPJPY; H9 gồm XAUUSD, GBPUSD, GBPCAD; H12 gồm XAUUSD, GBPUSD, GBPAUD; H14 gồm XAUUSD, GBPUSD, GBPCAD; H16 gồm cả 5 cặp. XAUUSD và GBPUSD luôn được đánh giá ở mọi slot và LUÔN bằng nhau (bất biến XAUUSD==GBPUSD, vi phạm thì record không publish). Cặp không thuộc slot là NOT_APPLICABLE: không suy D, không có evidence, không có order intent.",
       "Signal Bot không tạo hay sở hữu lịch Auto-Close. Copy Trade Close All thủ công và Auto Closed Opposite hiện có giữ nguyên, độc lập ngoài core Signal.",
-      "Live execution chạy Thứ Hai đến Thứ Sáu; cuối tuần chỉ chạy live khi profile đặt signal_live_weekends=true. Rebuild/backtest chạy 24/7: slot cuối tuần được đánh giá từ bar MT4 Feed đã lưu (READY) hoặc báo WAIT_MT4_DATA/thiếu dữ liệu — không bỏ qua ngày, không mượn nến Thứ Sáu.",
+      "Live execution chạy Thứ Hai đến Thứ Sáu; cuối tuần chỉ chạy live khi profile đặt signal_live_weekends=true. Rebuild/backtest chạy 24/7: slot cuối tuần được đánh giá từ bar market-data đã lưu (READY) hoặc báo WAIT_MT5_DATA/thiếu dữ liệu — không bỏ qua ngày, không mượn nến Thứ Sáu.",
       "D-Direction được tính và công bố độc lập lúc 06:00 GMT+7 mỗi ngày, mỗi ngày history độc lập.",
       "Snapshot D MISSING không được đánh dấu là đã publish; bot retry cho đến khi READY.",
-      "Nguồn market-data duy nhất dùng để tính Signal là MT4 Feed.",
-      "Time Authority và Scheduler phụ thuộc đồng hồ MT4 Feed; Heartbeat phân tách kênh Data và Execution.",
-      "Cài MT4 Feed v87: chạy server trước, đặt FeedBaseURL của MT4_Data_Feeder là http://127.0.0.1/mt4-feed (cổng HTTP mặc định 80), rồi cho phép http://127.0.0.1 trong WebRequest của MT4. Cổng :5001 chỉ giữ cho health/management nội bộ. Gắn EA vào mọi chart cần lưu raw bars; EA tự nhận diện Symbol(), cả tiền tố/hậu tố broker; core Signal v87 vẫn cần XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, GBPCAD; không có SymbolName thủ công.",
-      "Endpoint cũ http://127.0.0.1:5000/mt4_data và EA có các input ServerURL/BrokerName/SymbolName/MagicNumber không phải feed v87."
+"Nguồn market-data dùng để tính Signal là MT5 Python API, đọc completed bars (M30/H1/H4) trực tiếp từ terminal.",
+      "Time Authority và Scheduler phụ thuộc đồng hồ market-data; Heartbeat phân tách kênh Data và Execution.",
+      "Cài đặt: bật MT5 terminal và cài 'pip install MetaTrader5'. Bot tự kết nối terminal, resolve symbol (gồm cả tiền tố/hậu tố broker: +, .a, .i, m, #, ...), preload lịch sử M30/H1/H4, chuẩn hóa timestamp từ UTC sang Broker time. Core Signal v88 vẫn cần XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, GBPCAD.",
+      "Endpoint cũ http://127.0.0.1:5000/mt4_data và EA có input ServerURL/BrokerName/SymbolName/MagicNumber thuộc MT4 Feed cũ (legacy, mặc định tắt)."
     ],
     "EN": [
-      "MT4 Feed is the sole market-data and Broker-clock authority; MT5 is execution and position gateway only.",
+      "The Signal Engine market-data and Broker-clock source is the MT5 Python API (read directly from the terminal); the MT4 Feed is a legacy provider, disabled by default.",
       "All five pairs share the single XAUUSD Entry Plan.",
       "Layers 2 and 3 are the Entry Plan: H3, H7, H9, H12 and H14 use two three-candle XAUUSD M30 groups.",
       "Layers 2 and 3 for H16 use XAUUSD H1: Layer 2 uses 05:00, 04:00, 03:00 and Layer 3 uses 10:00, 09:00, 08:00.",
@@ -45,13 +45,13 @@
       "Final Inversion: H16 Tuesday, Wednesday invert; normal H16 Friday inverts; H16 Friday on day 3, 4, or 7 does NOT invert; H16 Thursday with previous Wed on day 30 or 1 inverts.",
       "Each slot evaluates only its slot-scoped applicable pairs: H3 = XAUUSD, GBPUSD, GBPAUD, GBPJPY; H7 = XAUUSD, GBPUSD, GBPJPY; H9 = XAUUSD, GBPUSD, GBPCAD; H12 = XAUUSD, GBPUSD, GBPAUD; H14 = XAUUSD, GBPUSD, GBPCAD; H16 = all 5 pairs. XAUUSD and GBPUSD are evaluated every slot and ALWAYS equal (XAUUSD==GBPUSD invariant; a violation blocks publication). A pair outside the slot is NOT_APPLICABLE: no D derivation, no evidence, no order intent.",
       "Signal Bot does not create or own an Auto-Close schedule. The existing manual Copy Trade Close All path and existing Auto Closed Opposite path remain unchanged and outside Signal core.",
-      "Live execution runs Monday through Friday; weekend live slots require signal_live_weekends=true in the active profile. Rebuild/backtest runs 24/7: weekend slots are evaluated from the persisted MT4 Feed bars (READY) or report WAIT_MT4_DATA/missing data — never skipped, never filled with Friday candles.",
+      "Live execution runs Monday through Friday; weekend live slots require signal_live_weekends=true in the active profile. Rebuild/backtest runs 24/7: weekend slots are evaluated from the persisted market-data bars (READY) or report WAIT_MT5_DATA/missing data — never silently skipped, never filled with Friday candles.",
       "D-Direction is calculated and published independently at 06:00 GMT+7 daily with per-date history isolation.",
       "MISSING D snapshot is never marked as published; bot retries until READY.",
-      "The sole market-data source for Signal calculation is MT4 Feed.",
-      "Time Authority and Scheduler depend on MT4 Feed clock; Heartbeat separates Data and Execution channels.",
-      "MT4 Feed v87 setup: start the server first, set MT4_Data_Feeder FeedBaseURL to http://127.0.0.1/mt4-feed (default HTTP port 80), and allow http://127.0.0.1 in MT4 WebRequest permissions. Port :5001 remains internal health/management only. Then attach the EA to any chart that should persist raw bars. The EA auto-detects Symbol(), including broker prefixes/suffixes; the v87 Signal core still requires XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD; no manual SymbolName is used.",
-      "The legacy http://127.0.0.1:5000/mt4_data endpoint and an EA with ServerURL/BrokerName/SymbolName/MagicNumber inputs are not the v87 feed."
+      "The sole market-data source for Signal is the MT5 Python API (completed M30/H1/H4 candles read directly from the terminal).",
+      "Time Authority and Scheduler depend on the market-data clock; Heartbeat separates Data and Execution channels.",
+      "Setup: have the MT5 terminal running and 'pip install MetaTrader5'. The bot connects to the terminal, auto-resolves symbols (including broker prefixes/suffixes), preloads M30/H1/H4 history, and normalises timestamps from UTC to Broker time. The Signal core still requires XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.",
+      "The legacy http://127.0.0.1:5000/mt4_data endpoint and an EA with ServerURL/BrokerName/SymbolName/MagicNumber inputs belong to the legacy MT4 Feed (disabled by default)."
     ]
   },
   "startup_summary": "v88: weekend-capable 24/7 rebuild, slot-scoped active pairs, Final Reverse on every applicable pair, XAUUSD==GBPUSD invariant"

@@ -30,6 +30,11 @@ export const MISSING_INPUT_WAIT_REASONS = new Set([
   "D_SNAPSHOT_NOT_PUBLISHED",
   "WRONG_SESSION_DATE",
   "WAIT_MT4_DATA",
+  "WAIT_MT5_DATA",
+  "MT5_SYMBOL_UNAVAILABLE",
+  "MT5_HISTORY_UNAVAILABLE",
+  "MT5_CONNECTION_UNAVAILABLE",
+  "BROKER_OFFSET_UNVERIFIED",
 ]);
 
 export function isMissingInputWaitReason(reason: string | null | undefined): boolean {

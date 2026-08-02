@@ -2789,13 +2789,10 @@ class NativeShell:
         if proc and proc.state() != QT.NotRunning:
             self._append_signal_log(key, f"{card['name']} is already running.")
             return
-        if key == "signal_bot":
-            health = read_mt4_feed_health(timeout=3.0)
-            if not health.feed_connected:
-                state = health.data_state.upper() if health.listener_available else "UNAVAILABLE"
-                self._append_signal_log(key, f"[MT4 FEED] Signal Bot blocked: feed {state}; live heartbeat required.")
-                self._set_signal_running(key, False, status="Blocked")
-                return
+        if key == "mt4_feed_server":
+            self._append_signal_log(key, "[MT5 DATA] MT4 Feed Server is legacy/disabled; enable_legacy_mt4_feed=false to start.")
+            self._set_signal_running(key, False, status="Blocked")
+            return
         profile = self.selected if key == "signal_bot" else ""
         try:
             cmd = build_signal_process_cmd(

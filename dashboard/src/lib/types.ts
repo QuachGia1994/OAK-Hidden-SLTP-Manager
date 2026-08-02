@@ -286,7 +286,7 @@ export interface DDirectionEvidence {
   d_direction: "BUY" | "SELL" | "WAIT";
   d_state: string;
   discovery_rule: string;
-  /** Independent MT4 source symbol for this D snapshot. */
+  /** Independent source symbol for this D snapshot. */
   d_source_symbol?: string;
   source_symbol?: string;
   data_provider?: string;

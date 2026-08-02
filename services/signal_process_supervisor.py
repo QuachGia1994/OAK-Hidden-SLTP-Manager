@@ -184,13 +184,10 @@ class SignalProcessSupervisor:
             return
         if info.get("proc") and info["proc"].poll() is None:
             return
-        if key == "signal_bot":
-            health = read_mt4_feed_health(timeout=3.0)
-            if not health.feed_connected:
-                state = health.data_state.upper() if health.listener_available else "UNAVAILABLE"
-                self._set_running_ui(key, False, status="Blocked")
-                self._log(f"[MT4 FEED] Signal Bot blocked: feed {state}; live heartbeat required")
-                return
+        if key == "mt4_feed_server" and not self._is_mt4_legacy_enabled():
+            self._set_running_ui(key, False, status="Blocked")
+            self._log("[MT5 DATA] MT4 Feed Server is legacy/disabled (enable_legacy_mt4_feed=false)")
+            return
 
         self._kill_orphan_processes(key)
         self._intentional_stop[key] = False
@@ -340,18 +337,22 @@ class SignalProcessSupervisor:
 
             self._ui(_finish)
 
+    def _is_mt4_legacy_enabled(self) -> bool:
+        """MT4 Feed is a hidden experimental provider, disabled by default."""
+        try:
+            import os
+            if os.environ.get("OAK_MARKET_DATA_PROVIDER", "") == "MT4_LEGACY":
+                return True
+            from config import load_config
+            return bool((load_config() or {}).get("enable_legacy_mt4_feed", False))
+        except Exception:
+            return False
+
     def start_all_signals(self, profile: str = "") -> None:
         keys = list(self._signal_procs)
-        feed_connected = True
-        if "mt4_feed_server" in keys:
-            self.start_signal_process("mt4_feed_server", profile)
-            feed_connected = self._wait_for_feed_health()
         for key in keys:
-            if key == "mt4_feed_server":
-                continue
-            if key == "signal_bot" and not feed_connected:
-                self._log("[MT4 FEED] Signal Bot blocked until a live heartbeat is CONNECTED")
-                self._set_running_ui(key, False, status="Blocked")
+            if key == "mt4_feed_server" and not self._is_mt4_legacy_enabled():
+                self._log("[MT5 DATA] MT4 Feed Server is legacy/disabled; skipped by Run All")
                 continue
             self.start_signal_process(key, profile)
             time.sleep(1)

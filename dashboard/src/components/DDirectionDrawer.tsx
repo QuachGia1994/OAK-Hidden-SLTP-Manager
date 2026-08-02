@@ -67,7 +67,7 @@ export function DDirectionDrawer({ symbolData, referenceDirection = "WAIT", open
               </span>
             </div>
             <div className="mt-0.5 font-mono text-xs text-[var(--muted)]">
-              Target: {symbolData.target_date} · Session: {symbolData.session_date || "—"} · {symbolData.data_provider || "MT4"}
+              Target: {symbolData.target_date} · Session: {symbolData.session_date || "—"} · {symbolData.data_provider || "MT5"}
             </div>
           </div>
           <button

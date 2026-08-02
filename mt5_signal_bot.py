@@ -1260,11 +1260,10 @@ def get_candle_by_ts(symbol, timeframe, target_ts, use_mt5_fallback=False):
     if cached is not None and abs(int(cached["time"]) - int(target_ts)) <= 180:
         return cached
 
-    if MARKET_DATA_PROVIDER and getattr(MARKET_DATA_PROVIDER, "name", "") == "MT4":
+    if MARKET_DATA_PROVIDER and hasattr(MARKET_DATA_PROVIDER, "get_exact_bar"):
         try:
             utc_target = datetime.fromtimestamp(target_ts, tz=timezone.utc).replace(tzinfo=None)
-            candidate_dates = (utc_target.date(), utc_target.date() - timedelta(days=1), utc_target.date() + timedelta(days=1))
-            for broker_date in candidate_dates:
+            for broker_date in (utc_target.date(), utc_target.date() - timedelta(days=1), utc_target.date() + timedelta(days=1)):
                 try:
                     offset = MARKET_DATA_PROVIDER.get_broker_utc_offset(broker_date)
                 except TypeError:
@@ -1305,15 +1304,15 @@ def get_candle_by_ts(symbol, timeframe, target_ts, use_mt5_fallback=False):
 
 def get_candle_by_broker_datetime(symbol, timeframe, broker_open_dt, use_mt5_fallback=False):
     """Fetch one candle by Broker open datetime using canonical timestamp encoding."""
-    if MARKET_DATA_PROVIDER and getattr(MARKET_DATA_PROVIDER, "name", "") == "MT4":
-        return MARKET_DATA_PROVIDER.get_exact_bar(symbol, _provider_timeframe(timeframe), broker_open_dt)
+    provider = MARKET_DATA_PROVIDER
+    if provider and hasattr(provider, "get_exact_bar"):
+        return provider.get_exact_bar(symbol, _provider_timeframe(timeframe), broker_open_dt)
     return None
 
 
-
 def _provider_bars_near_timestamp(symbol, timeframe, target_ts, use_mt5_fallback=False):
-    """Load an exact historical window using MARKET_DATA_PROVIDER (MT4 Feed)."""
-    if not MARKET_DATA_PROVIDER or getattr(MARKET_DATA_PROVIDER, "name", "") != "MT4":
+    """Load an exact historical window using the active market-data provider."""
+    if not MARKET_DATA_PROVIDER or not hasattr(MARKET_DATA_PROVIDER, "get_bars"):
         return None
     try:
         utc_target = datetime.fromtimestamp(target_ts, tz=timezone.utc).replace(tzinfo=None)
@@ -1884,6 +1883,11 @@ MISSING_INPUT_WAIT_REASONS = frozenset({
     "D_SNAPSHOT_NOT_PUBLISHED",
     "WRONG_SESSION_DATE",
     "WAIT_MT4_DATA",
+    "WAIT_MT5_DATA",
+    "MT5_SYMBOL_UNAVAILABLE",
+    "MT5_HISTORY_UNAVAILABLE",
+    "MT5_CONNECTION_UNAVAILABLE",
+    "BROKER_OFFSET_UNVERIFIED",
 })
 
 # Completeness of the most recent rebuild, consumed by the push gate so an
@@ -1901,11 +1905,20 @@ _cache = {}
 
 def warm_m30_history(symbols, start_dt, end_dt):
     """Batch-load M30 history for symbols into the in-memory cache."""
-    if MARKET_DATA_PROVIDER and getattr(MARKET_DATA_PROVIDER, "name", "") == "MT4":
-        health = MARKET_DATA_PROVIDER.get_health()
-        if health.fresh or health.degraded or getattr(MARKET_DATA_PROVIDER, "_db_store", None) is not None:
+    provider = MARKET_DATA_PROVIDER
+    provider_name = getattr(provider, "name", "") if provider else ""
+    if provider and hasattr(provider, "get_bars"):
+        try:
+            health = provider.get_health() if hasattr(provider, "get_health") else None
+            if provider.name == "MT4":
+                if hasattr(health, "fresh") and hasattr(health, "degraded"):
+                    fresh = health.fresh or health.degraded
+                else:
+                    fresh = bool(health and (health.get("fresh") or health.get("degraded")))
+                if not (fresh or getattr(provider, "_db_store", None) is not None):
+                    return
             for symbol in symbols:
-                bars = MARKET_DATA_PROVIDER.get_bars(symbol, "M30", start_dt, end_dt)
+                bars = provider.get_bars(symbol, "M30", start_dt, end_dt)
                 if bars:
                     count = 0
                     for bar in bars:
@@ -1913,7 +1926,8 @@ def warm_m30_history(symbols, start_dt, end_dt):
                         if ts > 0:
                             _cache[(symbol, mt5.TIMEFRAME_M30, ts)] = bar
                             count += 1
-                    print(f"  [HISTORY] {symbol} M30 loaded {count} bars from MT4 Feed")
+                    print(f"  [HISTORY] {symbol} M30 loaded {count} bars from {provider.name}")
+        except Exception:
             return
 
     return
@@ -1939,7 +1953,9 @@ def clear_history_cache():
 
 
 D_DIRECTION_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+# XAUUSD shares the GBPUSD D source: both use the GBPUSD H4 20:00 candle.
 D_SOURCE_SYMBOL = {symbol: symbol for symbol in D_DIRECTION_PAIRS}
+D_SOURCE_SYMBOL["XAUUSD"] = "GBPUSD"
 _d_direction_cache = {}
 
 
@@ -1988,34 +2004,48 @@ def _find_cached_d_evidence(provider, canonical_symbol, target_broker_date):
 
 def find_previous_available_broker_session(symbol, target_broker_date, use_mt5_fallback=False):
     """Find the most recent Broker date before target_date that has market data."""
+    provider = MARKET_DATA_PROVIDER
+    if not provider or not hasattr(provider, "get_bars"):
+        return None
     search_start_broker = datetime.combine(target_broker_date - timedelta(days=10), datetime.min.time())
     search_end_broker = datetime.combine(target_broker_date, datetime.min.time())
-
-    if MARKET_DATA_PROVIDER and getattr(MARKET_DATA_PROVIDER, "name", "") == "MT4":
-        bars = MARKET_DATA_PROVIDER.get_bars(symbol, "M30", search_start_broker, search_end_broker)
-        if bars:
-            broker_dates_with_bars = set()
-            for bar in bars:
-                b_dt = bar.get("broker_dt")
-                if b_dt and b_dt.date() < target_broker_date:
-                    broker_dates_with_bars.add(b_dt.date())
-            if broker_dates_with_bars:
-                return max(broker_dates_with_bars)
+    try:
+        bars = provider.get_bars(symbol, "M30", search_start_broker, search_end_broker)
+        if not bars:
+            bars = provider.get_bars(symbol, "H4", search_start_broker, search_end_broker)
+    except Exception:
         return None
-    return None
+    if not bars:
+        return None
+    broker_dates_with_bars = set()
+    for bar in bars:
+        b_dt = bar.get("broker_dt") or bar.get("open_time_broker")
+        if not b_dt:
+            continue
+        if hasattr(b_dt, "date"):
+            d = b_dt.date()
+        else:
+            from datetime import datetime as _dt
+            try:
+                d = _dt.fromisoformat(str(b_dt).replace("Z", "+00:00")).date()
+            except Exception:
+                continue
+        if d < target_broker_date:
+            broker_dates_with_bars.add(d)
+    return max(broker_dates_with_bars) if broker_dates_with_bars else None
 
 
 def load_h4_history_for_d(source_symbol, target_broker_date, broker_offset, use_mt5_fallback=False, market_data_provider=None):
-    """Load H4 bars from MT4 for diagnostics/history; MT5 candle APIs are forbidden."""
+    """Load H4 bars for diagnostics/history from the active market-data provider."""
     provider = market_data_provider or MARKET_DATA_PROVIDER
     broker_start = datetime.combine(target_broker_date - timedelta(days=10), dtime.min)
     broker_end = datetime.combine(target_broker_date, dtime(4, 0))
-    if not provider or getattr(provider, "name", "") != "MT4":
+    if not provider or not hasattr(provider, "get_bars"):
         return []
     try:
         raw_bars = provider.get_bars(source_symbol, "H4", broker_start, broker_end)
     except Exception as exc:
-        print(f"[D-H4] MT4 fetch error for {source_symbol}: {exc}")
+        print(f"[D-H4] fetch error for {source_symbol}: {exc}")
         return []
     result = []
     for bar in raw_bars or []:
@@ -2140,9 +2170,9 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
                     session_offset = provider.get_broker_utc_offset()
             else:
                 session_offset = BROKER_CLOCK.utc_offset_for_date(session_date)
-            if getattr(provider, "name", "") != "MT4":
+            if not hasattr(provider, "get_exact_bar"):
                 candle = None
-            elif hasattr(provider, "get_exact_bar"):
+            elif getattr(provider, "name", "") == "MT4":
                 try:
                     candle = provider.get_exact_bar(source_symbol, "H4", broker_open)
                 except Exception as exc:
@@ -2156,21 +2186,24 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
                     else:
                         raise
             else:
-                candle = next(
-                    (
-                        item for item in provider.get_bars(
-                            source_symbol, "H4", broker_open, broker_open
-                        )
-                        if item.get("broker_dt") == broker_open
-                        or str(item.get("broker_open_at", "")).startswith(broker_open.strftime("%Y-%m-%d %H:%M"))
-                    ),
-                    None,
-                )
+                try:
+                    candle = provider.get_exact_bar(source_symbol, "H4", broker_open)
+                except Exception:
+                    candle = next(
+                        (
+                            item for item in provider.get_bars(
+                                source_symbol, "H4", broker_open, broker_open
+                            )
+                            if item.get("broker_dt") == broker_open
+                            or str(item.get("broker_open_at", "")).startswith(broker_open.strftime("%Y-%m-%d %H:%M"))
+                        ),
+                        None,
+                    )
         except Exception:
             candle = None
 
         if candle is not None and bool(candle.get("is_complete", True)):
-            if getattr(provider, "name", "") == "MT4" or candle.get("broker_dt") == broker_open:
+            if getattr(provider, "name", "") == "MT4" or candle.get("broker_dt") is None or candle.get("broker_dt") == broker_open:
                 print(f"[D-H4] {source_symbol} (resolved {resolved_symbol}): session={session_date}, open={broker_open.strftime('%H:%M')} Broker")
                 return candle, session_date, session_offset, bool(ambiguous_sessions)
 
@@ -2300,11 +2333,12 @@ def classify_session_state(session_date, session_bars, policy):
 
 def find_last_completed_m30_of_session(symbol, session_date):
     """Find the last valid completed M30 candle in a broker session."""
+    provider = MARKET_DATA_PROVIDER
+    if not provider or not hasattr(provider, "get_bars"):
+        return None, "MARKET_DATA_UNAVAILABLE"
     session_start = datetime.combine(session_date, datetime.min.time())
     session_end = datetime.combine(session_date + timedelta(days=1), datetime.min.time())
-    if not MARKET_DATA_PROVIDER or getattr(MARKET_DATA_PROVIDER, "name", "") != "MT4":
-        return None, "MT4_FEED_UNAVAILABLE"
-    raw = MARKET_DATA_PROVIDER.get_bars(symbol, "M30", session_start, session_end)
+    raw = provider.get_bars(symbol, "M30", session_start, session_end)
     session_bars = [(bar.get("broker_dt"), bar) for bar in raw if bar.get("broker_dt") and bar["broker_dt"].date() == session_date]
     if not session_bars:
         return None, "MISSING"
@@ -2961,7 +2995,36 @@ class MT4FeedProvider:
         return value.replace(tzinfo=None) if getattr(value, "tzinfo", None) else value
 
 
-MARKET_DATA_PROVIDER = MT4FeedProvider()
+def _market_data_provider_from_config():
+    """Build the default market-data provider from config/env.
+
+    Default is MT5.  ``OAK_MARKET_DATA_PROVIDER=MT4_LEGACY`` opts into the
+    hidden legacy MT4 Feed provider (developer only; never shown in production
+    UI and never auto-started).
+    """
+    configured = os.environ.get("OAK_MARKET_DATA_PROVIDER", "") or ""
+    if not configured:
+        try:
+            configured = str(_cfg.get("market_data_provider", "MT5") or "MT5").strip()
+        except Exception:
+            configured = "MT5"
+    if configured == "MT4_LEGACY":
+        return MT4FeedProvider()
+    return _build_mt5_provider()
+
+
+def _build_mt5_provider():
+    """Build the default MT5-backed provider (reads directly from the terminal)."""
+    from providers.mt5_market_data_provider import MT5MarketDataProvider
+    conf = {"mt5_path": MT5_PATH, "preload_days": 60}
+    try:
+        provider = MT5MarketDataProvider(mt5_module=mt5, broker_clock=BROKER_CLOCK, conf=conf)
+    except Exception:
+        provider = MT5MarketDataProvider(mt5_module=mt5, broker_clock=BROKER_CLOCK, conf=conf)
+    return provider
+
+
+MARKET_DATA_PROVIDER = _market_data_provider_from_config()
 
 
 def set_market_data_provider(provider):
@@ -3687,7 +3750,15 @@ def _single_pair_wait_reason(symbol, result, d_directions):
         return "D_H4_DOJI"
     if result.get("failure_reason"):
         return result["failure_reason"]
-    return "WAIT_MT4_DATA"
+    return _provider_generic_wait_reason()
+
+
+def _provider_generic_wait_reason():
+    """Provider-aware fallback: MT4 keeps the legacy label, MT5 reports data wait."""
+    provider = MARKET_DATA_PROVIDER
+    if provider and getattr(provider, "name", "") == "MT4":
+        return "WAIT_MT4_DATA"
+    return "WAIT_MT5_DATA"
 
 
 def _compute_pair_wait_reasons(result, d_directions=None):
@@ -3956,6 +4027,9 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
         source_date=source_date,
         extra_fields=extra_fields if extra_fields else None,
     )
+
+    record["market_data_provider"] = getattr(MARKET_DATA_PROVIDER, "name", "MT5")
+    record["market_data_schema_version"] = 1
 
     # WAIT-reason integrity contract: every WAIT pair must carry an explicit
     # reason so no blind/missing-input WAIT is published as completed history.
@@ -4954,6 +5028,19 @@ def main(profile_name=None):
         )
     )
     BROKER_CLOCK.configure_symbols(resolved_clock_symbols)
+
+    import threading as _threading
+    def preload_market_data():
+        if not hasattr(MARKET_DATA_PROVIDER, "preload"):
+            return
+        if getattr(MARKET_DATA_PROVIDER, "name", "") != "MT5":
+            return
+        try:
+            MARKET_DATA_PROVIDER.preload()
+        except Exception as exc:
+            print(f"[MT5 DATA] preload failed: {exc}")
+
+    _threading.Thread(target=preload_market_data, daemon=True).start()
 
     def heartbeat_thread():
         global _broker_clock_error

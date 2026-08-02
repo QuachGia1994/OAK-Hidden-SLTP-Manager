@@ -15,7 +15,7 @@
 
 - MT5 monitor đa hồ sơ, cô lập theo từng profile.
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
-- Signal engine v87: MT4 Feed là nguồn market-data và đồng hồ Broker; MT5 chỉ là cổng thực thi/tài khoản. Một Entry Plan XAUUSD dùng chung cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.
+- Signal engine v88: MT5 Python API là nguồn market-data và đồng hồ Broker (đọc completed candle M30/H1/H4 trực tiếp từ terminal); MT4 Feed chỉ là provider cũ, mặc định tắt. Một Entry Plan XAUUSD dùng chung cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.
 - Telegram bridge, MiMo worker, Copy Trading guardrail và lệnh hẹn giờ an toàn. Lệnh nhanh nhận `<lot> <HH:MM broker> <profile>` và tự đổi sang giờ Windows.
 - Fact Check dùng bằng chứng Google + DuckDuckGo, hỗ trợ OCR và dán ảnh clipboard.
 - NativeQt nhẹ, không WebEngine/Chromium, có theme Dark, Deep Sea và Contrast.
@@ -35,14 +35,17 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 - **Suy direction theo cặp:** XAUUSD và GBPUSD dùng chung Reference Signal của Layer 1. GBPAUD cùng D follow/ngược D reverse; GBPJPY/GBPCAD áp dụng quan hệ ngược lại.
 - **Layer 4 — Final Reverse:** chạy sau khi suy direction nhưng chỉ đảo XAUUSD đúng một lần; GBP pair giữ kết quả Layer 1/D relation.
 - Special Thu/Fri và post-special Monday không suppress slot; chỉ Final Reverse H3/H14/H16 thay đổi theo weekday/date.
-- D-Direction của cả năm symbol lấy độc lập từ H4 mở `20:00` Broker của phiên trước. Thiếu nến hoặc DOJI trả `WAIT`; không fallback sang MT5.
-- MT4 heartbeat là nguồn duy nhất cho Broker Clock và market-data. MT5 mất kết nối vẫn có thể hiển thị/tính lịch; MT4 stale/disconnected thì Signal fail-closed.
+- D-Direction của cả năm symbol lấy độc lập từ H4 mở `20:00` Broker của phiên trước. XAUUSD và GBPUSD dùng chung nguồn H4 20:00 của GBPUSD. Thiếu nến hoặc DOJI trả `WAIT`.
+- MT5 Python API là nguồn cho Broker Clock và market-data. MT5 không kết nối/thiếu history thì Signal fail-closed (`WAIT_MT5_DATA`).
 
-### Cài MT4 Feed v87
+### Cài nguồn market-data MT5 (mặc định)
 
-1. Chạy MT4 Feed Server trước, sau đó đặt input `FeedBaseURL` của `MT4_Data_Feeder.mq4` v87 là `http://127.0.0.1/mt4-feed` (cổng HTTP mặc định 80). Trong MT4, thêm `http://127.0.0.1` vào quyền **WebRequest**. Cổng `:5001` chỉ dùng cho health/management nội bộ.
-2. EA có thể gắn vào **bất kỳ chart nào** để lưu raw bars: tự đọc `Symbol()`, nhận cả tiền tố/hậu tố broker và chuẩn hóa key an toàn; không cấu hình `SymbolName` thủ công. Core Signal v87 vẫn cần XAUUSD (hoặc GOLD), GBPUSD, GBPAUD, GBPJPY và GBPCAD.
-3. Không dùng endpoint cũ `http://127.0.0.1:5000/mt4_data` hay EA có input `ServerURL`, `BrokerName`, `SymbolName`, `MagicNumber`. Đó là feed trước v87 và sẽ làm server ở trạng thái disconnected.
+1. Cài Python package: `pip install MetaTrader5`.
+2. Mở MetaTrader 5 terminal và đăng nhập broker.
+3. Bot tự kết nối terminal, resolve symbol (gồm cả tiền tố/hậu tố broker), preload lịch sử `M30/H1/H4` rồi chuẩn hóa timestamp từ UTC sang Broker time.
+4. Đảm bảo terminal đã tải đủ lịch sử và `Max bars in chart` đủ lớn để có dữ liệu cho D-Direction và Entry Plan.
+
+> MT4 Feed được giữ lại làm provider thử nghiệm (legacy) và **mặc định tắt**. Chỉ bật với `OAK_MARKET_DATA_PROVIDER=MT4_LEGACY`dành cho developer; không hiển thị trong UI production và không tự khởi động.
 
 ## Fact Check AI
 

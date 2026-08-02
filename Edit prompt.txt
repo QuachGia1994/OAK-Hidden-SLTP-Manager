@@ -1,1009 +1,659 @@
-﻿ÄĂ£ kiá»ƒm tra xong `main` má»›i nháº¥t `0c246e2`. Báº£n nĂ y Ä‘Ă£ sá»­a helper H:49 vĂ  rĂºt Entry khá»i tá»«ng dĂ²ng symbol, nhÆ°ng áº£nh cá»§a báº¡n váº«n Ä‘ang hiá»ƒn thá»‹ **record H7 cÅ© chÆ°a Ä‘Æ°á»£c rebuild**. Core hiá»‡n táº¡i Ä‘Ă£ quy Ä‘á»‹nh H:49 láº¥y H1 XAUUSD ngay trÆ°á»›c slot vĂ  Ä‘áº£o chiá»u, nhÆ°ng history rebuild láº¡i loáº¡i toĂ n bá»™ Thá»© Báº£y/Chá»§ Nháº­t.
+Đúng, **quay lại MT5 API là lựa chọn tối ưu hơn cho OAK ở thời điểm này**.
 
-NgoĂ i ra cĂ²n hai bug cáº§n sá»­a cĂ¹ng lĂºc:
+MT4 feed vừa tạo thêm cả một chuỗi phụ thuộc: EA → WebRequest → local server → SQLite → heartbeat → coverage → rebuild. Chỉ một mắt xích thiếu H4/M30/H1 là toàn bộ History thành `WAIT_MT4_DATA`. Trong khi đó MT5 Python API lấy trực tiếp M30, H1 và H4 từ terminal bằng các hàm `copy_rates_*`, trả đủ OHLC và timestamp; dữ liệu thời gian trả về là UTC nên chỉ cần chuẩn hóa đúng Broker time. MT5 vẫn phụ thuộc lượng history đã tải trong terminal và thiết lập “Max bars in chart”, nhưng đơn giản hơn nhiều so với duy trì server feed riêng. ([mql5.com][1])
 
-- Final Reverse trong core hiá»‡n **chá»‰ Ä‘áº£o XAUUSD**, khiáº¿n `GBPUSD = XAUUSD` cĂ³ thá»ƒ bá»‹ phĂ¡ vá»¡ á»Ÿ cĂ¡c má»‘c Ä‘áº£o.
-- Signal Card váº«n hard-code `Signal`, `Entry`, `READY` vĂ  chá»‰ hiá»ƒn thá»‹ Entry Broker dáº¡ng text, khĂ´ng dĂ¹ng láº¡i `BrokerLocalTime`. CĂ¡c status nhÆ° `STALE`, `CONNECTED`, `WAITING` cÅ©ng Ä‘ang hiá»ƒn thá»‹ enum thĂ´.
+Repo hiện tại đã đi khá sâu vào MT4: commit chuyển đổi trước đó tuyên bố MT4 là nguồn market data duy nhất, còn ba commit mới nhất tiếp tục xây multi-symbol EA, coverage matrix và sửa compile cho EA.
 
-## Prompt hoĂ n chá»‰nh cho Agent Local Build
+May là code MT5 cũ không mất. Commit `9bda91d` từng có phần **MT5 symbol resolution, H4 D-Direction và timestamp encoding**. Agent nên lấy lại riêng lớp truy xuất candle từ đó, tuyệt đối không revert toàn bộ commit vì core rule hiện nay đã khác rất xa v84.
+
+## Kiến trúc chốt
+
+* **MT5 API:** Broker Clock, M30, H1, H4, D-Direction, Evidence, live signal và History rebuild.
+* **MT5 execution:** account, position, order và hidden SL/TP như hiện tại.
+* **MT4 feed:** giữ nguyên source code nhưng mặc định tắt, không tự khởi động, không chặn Signal Bot, không hiện trong giao diện chính.
+* Không chạy song song hai nguồn và không tự fallback qua lại. Trộn MT4 với MT5 chỉ sinh ra thêm màn “hai cây nến giống nhau nhưng timestamp khác nhau”, trò vui mà chẳng ai cần.
+
+Dùng nguyên prompt dưới đây cho Agent Local Build.
 
 ```text
-Báº¡n Ä‘ang sá»­a repository:
+TASK: SWITCH OAK MARKET DATA BACK TO MT5 API, PRESERVE MT4 AS HIDDEN LEGACY
 
-https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager
+Repository:
+QuachGia1994/OAK-Hidden-SLTP-Manager
 
-==================================================
-0. Báº®T Äáº¦U
-==================================================
+Fetch và pull main mới nhất trước khi sửa.
 
-Cháº¡y:
+Latest reviewed HEAD:
+18b61aa0895a4e2502d328bea97a6323a2394d20
 
-git fetch origin
-git checkout main
-git pull --ff-only origin main
-git rev-parse HEAD
-git status --short
+MỤC TIÊU
 
-Expected starting HEAD:
+Chuyển nguồn market data mặc định của OAK từ MT4 Feed trở lại MetaTrader 5 Python API.
 
-0c246e275fd9597c9ef7c796071aea2f401e2b9c
+MT5 API phải là nguồn duy nhất cho:
 
-Äá»c vĂ  tuĂ¢n thá»§:
+- Broker Clock
+- M30 candles
+- H1 candles
+- H4 candles
+- Entry-time engine
+- D-Direction
+- Signal Evidence
+- Live signal
+- History rebuild/backtest
 
-- AGENTS.md
-- Google Labs Code design.md
-- engineering/testing/release workflow hiá»‡n hĂ nh.
+MT5 vẫn tiếp tục phụ trách:
 
-KhĂ´ng redesign Dashboard.
-KhĂ´ng khĂ´i phá»¥c Entry Time á»Ÿ tá»«ng symbol row.
-Evidence váº«n chá»‰ dĂ nh cho XAUUSD.
+- account
+- positions
+- orders
+- execution
+- hidden SL/TP
 
-Task nĂ y sá»­a Ä‘á»“ng bá»™:
+Giữ toàn bộ code MT4 Feed hiện có để tham khảo hoặc kích hoạt về sau, nhưng đưa nó vào trạng thái LEGACY/HIDDEN:
 
-1. H7 ngĂ y 2026-07-31 váº«n dĂ¹ng record cÅ© sai.
-2. Rebuild pháº£i há»— trá»£ cáº£ Thá»© Báº£y vĂ  Chá»§ Nháº­t Ä‘á»ƒ backtest dá»¯ liá»‡u 24/7.
-3. Giá»›i háº¡n symbol Ä‘Æ°á»£c tĂ­nh theo tá»«ng slot.
-4. XAUUSD vĂ  GBPUSD luĂ´n cĂ³ cĂ¹ng Signal.
-5. Final Reverse pháº£i Ă¡p dá»¥ng nháº¥t quĂ¡n cho toĂ n bá»™ symbol active.
-6. Entry header pháº£i cĂ³ cáº£ GMT+7 vĂ  Broker.
-7. Signal Card cĂ³ Final Reverse pháº£i cĂ³ viá»n ná»•i dá»… nháº­n biáº¿t.
-8. Viá»‡t hĂ³a toĂ n bá»™ Dashboard khi locale=VN.
+- không xóa source;
+- không tự khởi động;
+- không được dùng trong runtime mặc định;
+- không được chặn Signal Bot;
+- không hiện ở Dashboard Native Qt chính;
+- không fallback tự động từ MT5 sang MT4;
+- không đọc mt4_feed.db trong pipeline MT5.
 
-==================================================
-1. REGRESSION H7 NGĂ€Y 2026-07-31
-==================================================
-
-Record cáº§n sá»­a:
-
-date:
-2026-07-31
-
-slot:
-H7
-
-entry_branch:
-H_49
-
-entry_time:
-07:49 Broker
-
-Nguá»“n Signal báº¯t buá»™c:
-
-XAUUSD H1 má»Ÿ 06:00
-Ä‘Ă³ng 07:00 Broker.
-
-Mapping:
-
-H1 Close > Open:
-candle_direction = TANG
-core_reference_signal = SELL
-
-H1 Close < Open:
-candle_direction = GIAM
-core_reference_signal = BUY
-
-H1 Open == Close:
-WAIT
-
-H7 khĂ´ng cĂ³ Final Reverse.
-
-Do Ä‘Ă³ náº¿u candle 06:00â€“07:00 lĂ  GIáº¢M:
-
-XAUUSD = BUY
-GBPUSD = BUY
-
-KhĂ´ng Ä‘Æ°á»£c tiáº¿p tá»¥c hiá»ƒn thá»‹ SELL.
+Không thay đổi core signal v88.
+Không sửa các rule entry, D relation, applicable pair hoặc Final Reverse trong task này.
+Task này chỉ thay data provider và sửa History rebuild.
 
 ==================================================
-2. KHĂ”NG HARD-CODE BUY CHO NGĂ€Y 31/7
+1. DATA PROVIDER CONFIGURATION
 ==================================================
 
-Pháº£i Ä‘á»c candle tháº­t tá»« MT4 Feed active source:
+Thêm cấu hình rõ ràng:
 
-canonical_symbol = XAUUSD
-timeframe = H1
-broker_open_at = 2026-07-31 06:00:00
+MARKET_DATA_PROVIDER = "MT5"
 
-Log má»™t láº§n khi rebuild:
+Các giá trị hợp lệ:
 
-[H49-H1]
-date=2026-07-31
-slot=H7
-source=XAUUSD H1
-window=06:00->07:00 Broker
-source_id=<active source>
-open=<exact>
-close=<exact>
-direction=GIAM
-reversed_signal=BUY
+- MT5
+- MT4_LEGACY
 
-Náº¿u database cĂ³ nhiá»u source_id:
+Mặc định luôn là MT5.
 
-- chá»‰ dĂ¹ng active source tá»« heartbeat;
-- khĂ´ng LIMIT 1 tĂ¹y Ă½;
-- náº¿u nhiá»u nguá»“n xung Ä‘á»™t vĂ  khĂ´ng xĂ¡c Ä‘á»‹nh Ä‘Æ°á»£c nguá»“n active:
-  fail closed vá»›i AMBIGUOUS_MT4_FEED_SOURCE.
+Có thể override bằng env cho developer:
 
-==================================================
-3. BUMP LOGIC VERSION
-==================================================
+OAK_MARKET_DATA_PROVIDER=MT4_LEGACY
 
-Task nĂ y thay Ä‘á»•i pair applicability vĂ  sá»­a Final Reverse toĂ n bá»™ pairs.
+Nhưng MT4_LEGACY không được xuất hiện trong UI production mặc định.
 
-Bump:
+Không dùng fallback tự động:
 
-SIGNAL_LOGIC_VERSION = 88
-ACTIVE_SIGNAL_LOGIC_VERSION = 88
-MINIMUM_SIGNAL_LOGIC_VERSION = 88
+MT5 lỗi → fail closed với WAIT_MT5_DATA
+Không được âm thầm đọc MT4.
 
-Bump:
+Thêm metadata cho mọi signal/history record:
 
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 11
-SIGNAL_SUMMARY_SCHEMA_VERSION = 4
+market_data_provider: "MT5"
+market_data_schema_version: 1
 
-Update:
-
-signal_rule_contract.json = 88
-
-KhĂ´ng Ä‘á»ƒ Dashboard Æ°u tiĂªn record v87 cÅ©.
+Không cần tăng SIGNAL_LOGIC_VERSION chỉ vì đổi data source.
+Giữ signal logic v88 nếu core rule không thay đổi.
 
 ==================================================
-4. FORCE REBUILD NGĂ€Y 2026-07-31
+2. TẠO MARKET DATA PROVIDER INTERFACE
 ==================================================
 
-Sau khi nĂ¢ng v88:
+Tạo abstraction tối thiểu, tránh nhét thêm if MT4/MT5 khắp mt5_signal_bot.py.
 
-- rebuild D snapshot cáº§n thiáº¿t;
-- rebuild láº§n lÆ°á»£t H3, H7, H9, H12, H14, H16;
-- thay tháº¿ record cĂ¹ng date/hour;
-- khĂ´ng append duplicate;
-- thay tháº¿ evidence XAUUSD cĂ¹ng date/hour/version;
-- clear server history cache;
-- republish compact current/history batches.
+Ví dụ:
 
-Acceptance riĂªng:
+class MarketDataProvider(Protocol):
+    def connect(self, profile_name: str) -> None
+    def get_broker_time(self) -> datetime
+    def resolve_symbol(self, canonical_symbol: str) -> str
+    def get_completed_bars(
+        self,
+        symbol: str,
+        timeframe: str,
+        date_from_utc: datetime,
+        date_to_utc: datetime,
+    ) -> list[Candle]
+    def get_last_completed_bars(
+        self,
+        symbol: str,
+        timeframe: str,
+        count: int,
+        as_of_utc: datetime,
+    ) -> list[Candle]
 
-2026-07-31 H7 H:49
-+ H1 XAUUSD giáº£m
-= XAUUSD BUY
-= GBPUSD BUY.
+Implement:
 
-==================================================
-5. REBUILD Cáº¢ THá»¨ Báº¢Y VĂ€ CHá»¦ NHáº¬T
-==================================================
+providers/mt5_market_data_provider.py
+providers/mt4_legacy_market_data_provider.py
 
-Current code Ä‘ang loáº¡i weekend á»Ÿ ba nÆ¡i:
+MT4 legacy provider có thể wrap code cũ nhưng không được khởi tạo trong mode MT5.
 
-- get_target_hours();
-- rebuild_slot_signal();
-- rebuild_recent_history().
-
-KhĂ´ng tiáº¿p tá»¥c dĂ¹ng cĂ¹ng má»™t calendar policy cho live trading vĂ  backtest.
-
-TĂ¡ch rĂµ:
-
-def get_live_target_hours(...):
-    ...
-
-def get_rebuild_target_hours(..., include_weekends=False):
-    ...
-
-Live máº·c Ä‘á»‹nh:
-
-Mondayâ€“Friday.
-
-Historical/backtest khi:
-
-include_weekends=True
-
-pháº£i tráº£ Ä‘á»§:
-
-H3
-H7
-H9
-H12
-H14
-H16
-
-cho cáº£ báº£y ngĂ y.
+Core signal chỉ gọi MarketDataProvider, không gọi MT4FeedStore trực tiếp.
 
 ==================================================
-6. WEEKEND KHĂ”NG ÄÆ¯á»¢C Báº¬T LIVE EXECUTION Máº¶C Äá»NH
+3. KHÔI PHỤC MT5 CANDLE ADAPTER
 ==================================================
 
-YĂªu cáº§u cá»§a user lĂ  backtest 24/7, khĂ´ng pháº£i tá»± Ä‘á»™ng trade weekend.
+Tham khảo phần MT5 candle/symbol/time encoding trước khi chuyển hẳn sang MT4, đặc biệt commit:
 
-Do Ä‘Ă³:
+9bda91d51c988b07955205ab3721fa7fea7a3958
 
-- rebuild/backtest: cho phĂ©p weekend;
-- live scheduler: giá»¯ Mondayâ€“Friday;
-- chá»‰ báº­t live weekend khi profile cĂ³ explicit config:
+Chỉ lấy lại:
 
-signal_live_weekends = true
+- MT5 symbol resolution;
+- symbol_select;
+- copy_rates_range/copy_rates_from_pos adapter;
+- numpy.void → dict normalization;
+- UTC timestamp normalization;
+- H4 20:00 lookup;
+- Broker/local-time conversion.
 
-Default:
+Không cherry-pick toàn bộ commit.
+Không đưa core logic v84 trở lại.
 
-false.
+MT5 provider phải:
 
-KhĂ´ng thay Ä‘á»•i execution máº·c Ä‘á»‹nh.
+1. initialize đúng terminal của profile đang chọn;
+2. kiểm tra account/server/profile match;
+3. resolve suffix/prefix:
+   XAUUSD
+   GBPUSD
+   GBPAUD
+   GBPJPY
+   GBPCAD;
+4. gọi mt5.symbol_select(resolved_symbol, True);
+5. preload M30, H1 và H4;
+6. bỏ bar index 0 nếu đó là candle đang chạy;
+7. chuyển từng numpy.void sang plain dict trước khi dùng `.get()`;
+8. trả Candle object thống nhất:
+   symbol
+   timeframe
+   open_at_utc
+   close_at_utc
+   open_at_broker
+   close_at_broker
+   open
+   high
+   low
+   close
+   tick_volume
+   is_complete
+   source="MT5".
 
-==================================================
-7. CLI REBUILD
-==================================================
+Không được để lỗi cũ:
 
-ThĂªm CLI rĂµ rĂ ng:
-
-python mt5_signal_bot.py \
-  --profile Vantage \
-  --rebuild-signals \
-  --days 45 \
-  --include-weekends
-
-VĂ  rebuild Ä‘Ăºng má»™t ngĂ y:
-
-python mt5_signal_bot.py \
-  --profile Vantage \
-  --rebuild-date 2026-07-31 \
-  --include-weekends \
-  --force
-
-KhĂ´ng yĂªu cáº§u live MT4 heartbeat náº¿u persisted bars Ä‘Ă£ Ä‘á»§.
-
-Náº¿u live clock unavailable:
-
-dĂ¹ng latest completed persisted Broker datetime lĂ m anchor.
-
-==================================================
-8. WEEKEND DATA POLICY
-==================================================
-
-Äá»‘i vá»›i Saturday/Sunday:
-
-Náº¿u Ä‘á»§ candle MT4:
-
-- tĂ­nh Signal bĂ¬nh thÆ°á»ng;
-- lÆ°u READY.
-
-Náº¿u thiáº¿u candle:
-
-- táº¡o hoáº·c lÆ°u tráº¡ng thĂ¡i WAIT_MT4_DATA;
-- khĂ´ng mÆ°á»£n candle Friday Ä‘á»ƒ giáº£ láº­p M30/H1 weekend;
-- khĂ´ng bá» luĂ´n ngĂ y khá»i history.
-
-D-Direction váº«n tĂ¬m nearest previous completed H4 20:00 theo policy
-hiá»‡n hĂ nh.
-
-Final Reverse Saturday/Sunday:
-
-khĂ´ng Ä‘áº£o vĂ¬ khĂ´ng cĂ³ rule weekend.
+'numpy.void' object has no attribute 'get'
 
 ==================================================
-9. SYMBOL APPLICABILITY THEO SLOT
+4. TIME NORMALIZATION
 ==================================================
 
-Canonical map:
+MT5 rate timestamp phải được coi là UTC.
 
-SLOT_ACTIVE_PAIRS = {
-    3:  ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY"),
-    7:  ("XAUUSD", "GBPUSD", "GBPJPY"),
-    9:  ("XAUUSD", "GBPUSD", "GBPCAD"),
-    12: ("XAUUSD", "GBPUSD", "GBPAUD"),
-    14: ("XAUUSD", "GBPUSD", "GBPCAD"),
-    16: ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"),
-}
+Tất cả request date range phải dùng timezone-aware UTC datetime.
 
-Meaning:
+Không dùng:
 
-GBPJPY:
-chá»‰ H3, H7, H16.
+datetime.fromtimestamp(ts)
 
-GBPAUD:
-chá»‰ H3, H12, H16.
+mà không có timezone.
 
-GBPCAD:
-chá»‰ H9, H14, H16.
+Dùng:
 
-XAUUSD:
-má»i slot.
+datetime.fromtimestamp(ts, tz=timezone.utc)
 
-GBPUSD:
-má»i slot vĂ  luĂ´n báº±ng XAUUSD.
+Sau đó convert sang Broker time bằng BrokerClock đã verify.
 
-==================================================
-10. PURE HELPER CHO ACTIVE PAIRS
-==================================================
+Phải lưu đồng thời:
 
-Táº¡o má»™t source of truth:
+- open_at_utc
+- close_at_utc
+- broker_open_at
+- broker_close_at
+- broker_utc_offset
+- local_time GMT+7
 
-def get_evaluated_pairs_for_hour(hour):
-    return SLOT_ACTIVE_PAIRS.get(int(hour), ())
+Không so sánh candle bằng string HH:MM đơn thuần.
+So sánh datetime đầy đủ gồm date + timezone.
 
-KhĂ´ng giá»¯ docstring cÅ© nĂ³i má»i slot tĂ­nh Ä‘á»§ nÄƒm cáº·p.
+Đối với History qua giai đoạn DST:
 
-Äá»“ng bá»™ map nĂ y sang:
-
-- core evaluation;
-- history rebuild;
-- current rebuild;
-- Telegram;
-- Dashboard;
-- execution scheduling;
-- tests;
-- rule contract.
-
-KhĂ´ng duplicate map trong frontend.
-
-Frontend nháº­n tá»« payload:
-
-applicable_pairs
-
-hoáº·c generated constants cĂ¹ng contract.
+- ưu tiên broker offset history đã lưu;
+- nếu không xác định được offset lịch sử thì fail closed với
+  BROKER_OFFSET_UNVERIFIED;
+- không dùng offset hiện tại để giả định cho toàn bộ lịch sử qua DST boundary.
 
 ==================================================
-11. INACTIVE PAIR KHĂ”NG PHáº¢I WAIT
+5. PRELOAD VÀ CACHE MT5 HISTORY
 ==================================================
 
-Pair khĂ´ng Ă¡p dá»¥ng táº¡i slot khĂ´ng Ä‘Æ°á»£c Ä‘áº·t thĂ nh WAIT vĂ¬ WAIT cĂ³ nghÄ©a lĂ 
-Ä‘ang thiáº¿u dá»¯ liá»‡u hoáº·c chÆ°a resolve.
+Khi Signal Bot khởi động:
 
-Canonical state:
+- load một lần 60 ngày dữ liệu cho 5 symbols;
+- timeframes: M30, H1, H4;
+- cache theo:
+  canonical_symbol + timeframe;
+- sort theo open_at_utc;
+- deduplicate theo:
+  symbol + timeframe + open_at_utc.
 
-direction:
-null
+Khoảng preload đề nghị:
 
-pair_signal_state:
-NOT_APPLICABLE
+- M30: ít nhất 3.000 bars
+- H1: ít nhất 1.500 bars
+- H4: ít nhất 400 bars
 
-execution_state:
-NOT_APPLICABLE
+Không gọi MT5 API lại hàng trăm lần cho từng slot nếu dữ liệu đã nằm trong cache.
 
-KhĂ´ng:
+Thêm log gọn:
 
-- Ä‘á»c D relation;
-- derive Signal;
-- táº¡o order intent;
-- gá»­i Telegram;
-- táº¡o Evidence;
-- tĂ­nh failure_reason WAIT_MT4_DATA.
+[MT5 DATA] XAUUSD M30 loaded=...
+[MT5 DATA] XAUUSD H1 loaded=...
+[MT5 DATA] GBPUSD H4 loaded=...
+[MT5 DATA] Coverage ready: 5 symbols × 3 timeframes
 
-Dashboard chá»‰ render cĂ¡c pair applicable cá»§a slot.
+Nếu terminal chưa tải đủ history:
 
-KhĂ´ng cáº§n hiá»ƒn thá»‹ hĂ ng OFF hoáº·c KhĂ´ng Ă¡p dá»¥ng trong Signal Card.
-
-==================================================
-12. XAUUSD VĂ€ GBPUSD LUĂ”N Báº°NG NHAU
-==================================================
-
-Core:
-
-core["XAUUSD"] = reference_signal
-core["GBPUSD"] = reference_signal
-
-Sau Final Reverse:
-
-final["XAUUSD"] == final["GBPUSD"]
-
-báº¯t buá»™c Ä‘Ăºng á»Ÿ má»i slot.
-
-ThĂªm invariant:
-
-assert final["XAUUSD"] == final["GBPUSD"]
-
-Náº¿u invariant tháº¥t báº¡i:
-
-raise SignalInvariantError
-
-KhĂ´ng publish record sai.
+- retry copy_rates_range một lần;
+- gọi symbol_select;
+- log mt5.last_error();
+- không xóa History cũ;
+- không push snapshot incomplete thay snapshot hợp lệ.
 
 ==================================================
-13. FIX FINAL REVERSE CHá»ˆ Äáº¢O XAUUSD
+6. BROKER CLOCK
 ==================================================
 
-Current core Ä‘ang chá»‰ reverse:
+Trong mode MT5:
 
-final["XAUUSD"]
+Broker Clock phải lấy từ terminal/profile MT5 đang kết nối.
 
-ÄĂ¢y lĂ  sai vá»›i contract slot-level Final Reverse.
+Không gọi:
 
-Canonical:
+- MT4 heartbeat
+- /mt4-feed/health
+- mt4_feed.db
+- mt4_feed_server
 
-if should_reverse:
-    for symbol in applicable_pairs:
-        if core[symbol] in ("BUY", "SELL"):
-            final[symbol] = reverse_signal(core[symbol])
+MT5 data connection và MT5 execution connection có thể dùng chung profile, nhưng trạng thái phải phân biệt:
 
-Pair khĂ´ng applicable khĂ´ng tham gia.
+- MT5 Data READY
+- MT5 Execution READY
+- Broker Clock READY
 
-Final Reverse pháº£i cháº¡y Ä‘Ăºng má»™t láº§n sau khi:
+Signal live chỉ chạy khi:
 
-- reference signal Ä‘Ă£ cĂ³;
-- D relation Ä‘Ă£ derive;
-- active pair map Ä‘Ă£ Ă¡p dá»¥ng.
+MT5 Data READY
+AND Broker Clock READY
 
-KhĂ´ng reverse láº§n hai á»Ÿ frontend/rebuild/Telegram.
+Execution chỉ chạy khi:
 
-==================================================
-14. PAYLOAD FINAL REVERSE
-==================================================
+MT5 Execution READY
+AND signal_execution_enabled=true
 
-Top-level:
-
-final_reverse_applied: true|false
-final_reverse_reason: string|null
-
-Pair-level:
-
-pair_final_reverse_applied = {
-    applicable_symbol: true|false
-}
-
-pair_core_signals:
-...
-
-pair_dirs:
-...
-
-Náº¿u Final Reverse Ă¡p dá»¥ng cho card, má»i applicable BUY/SELL Ä‘á»u Ä‘Æ°á»£c Ä‘áº£o.
+Nếu execution tắt nhưng data đang sẵn sàng, Signal và History vẫn phải tính bình thường.
 
 ==================================================
-15. SIGNAL CARD VIá»€N Ná»”I KHI CĂ“ FINAL REVERSE
+7. D-DIRECTION TỪ MT5 H4
 ==================================================
 
-Náº¿u:
+Giữ nguyên core D-Direction hiện tại.
 
-signal.final_reverse_applied === true
+Nguồn candle:
 
-thĂªm style card:
+- GBPUSD dùng GBPUSD H4;
+- XAUUSD dùng chung D source với GBPUSD;
+- GBPAUD dùng GBPAUD H4;
+- GBPJPY dùng GBPJPY H4;
+- GBPCAD dùng GBPCAD H4.
 
-- viá»n warning/accent rĂµ hÆ¡n;
-- subtle outer ring hoáº·c glow;
-- khĂ´ng dĂ¹ng animation nháº¥p nhĂ¡y;
-- váº«n há»£p dark/light mode;
-- khĂ´ng lĂ m layout thay Ä‘á»•i kĂ­ch thÆ°á»›c.
+Cho mỗi target broker date:
 
-VĂ­ dá»¥ class:
+1. tìm phiên Broker khả dụng gần nhất trước target date;
+2. tìm chính xác candle H4 mở lúc 20:00 Broker;
+3. xác nhận candle đã đóng;
+4. Open < Close = BUY;
+5. Open > Close = SELL;
+6. chỉ DOJI khi Open == Close chính xác theo giá đã normalize digits;
+7. lưu đầy đủ OHLC evidence.
 
-border-[var(--terminal-warning)]/70
-ring-1
-ring-[var(--terminal-warning)]/25
-shadow-[0_0_0_1px_color-mix(...)]
+Regression bắt buộc:
 
-ThĂªm badge nhá» trong header:
+GBPUSD session 2026-07-30
+H4 Broker open 20:00
+O = 1.34646
+C = 1.34639
+D = SELL
 
-VN:
-ÄĂƒ Äáº¢O
+XAUUSD phải dùng chính D source này.
 
-EN:
-REVERSED
-
-Tooltip/title hiá»ƒn thá»‹ lĂ½ do Ä‘Ă£ localization.
-
-KhĂ´ng báº¯t user pháº£i má»Ÿ Evidence má»›i biáº¿t card Ä‘Ă£ Ä‘áº£o.
-
-==================================================
-16. LOCALIZE FINAL REVERSE REASONS
-==================================================
-
-KhĂ´ng hiá»ƒn thá»‹ enum thĂ´:
-
-H14_TUESDAY
-H16_FRIDAY
-H3_WEDNESDAY
-
-Táº¡o formatter:
-
-formatFinalReverseReason(reason, locale)
-
-VĂ­ dá»¥ VN:
-
-H3_WEDNESDAY
-â†’ H3 Ä‘áº£o theo quy táº¯c Thá»© TÆ°
-
-H14_TUESDAY
-â†’ H14 Ä‘áº£o theo quy táº¯c Thá»© Ba
-
-H16_FRIDAY
-â†’ H16 Ä‘áº£o theo quy táº¯c Thá»© SĂ¡u
-
-CĂ¡c exception pháº£i Ä‘Æ°á»£c diá»…n giáº£i rĂµ.
+Không lấy nhầm H4 14:00.
+Không lấy candle của ngày hiện tại.
+Không dùng cùng một snapshot của 30/7 cho mọi ngày History.
 
 ==================================================
-17. ENTRY HEADER CĂ“ GMT+7 VĂ€ BROKER
+8. ENTRY ENGINE TỪ MT5
 ==================================================
 
-Hiá»‡n header chá»‰ render:
+Giữ nguyên core v88:
 
-Entry: 14:11
+H3/H7/H9/H12/H14:
 
-Äá»•i thĂ nh:
-
-VN:
-
-VĂ o lá»‡nh:
-18:11 GMT+7 (14:11 Broker)
-
-EN:
-
-Entry:
-18:11 GMT+7 (14:11 Broker)
-
-DĂ¹ng BrokerLocalTime vá»›i canonical top-level fields:
-
-entry_time
-entry_at_utc
-broker_utc_offset
-broker_clock_verified
-date
-
-KhĂ´ng tĂ­nh local time báº±ng cá»™ng cá»©ng trong React.
-
-Náº¿u entry_at_utc thiáº¿u nhÆ°ng Broker offset verified:
-
-formatter cĂ³ thá»ƒ convert theo helper hiá»‡n hĂ nh.
-
-Náº¿u offset khĂ´ng verified:
-
-chá»‰ hiá»ƒn thá»‹ Broker, khĂ´ng Ä‘oĂ¡n GMT+7.
-
-==================================================
-18. ENTRY CHá»ˆ HIá»‚N THá» Má»˜T Láº¦N
-==================================================
-
-Giá»¯:
-
-Entry á»Ÿ header Signal Card.
-
-KhĂ´ng khĂ´i phá»¥c Entry vĂ o:
-
-- XAUUSD row;
-- GBPUSD row;
-- cĂ¡c GBP row;
-- mobile primary summary;
-- expanded details.
-
-Táº¥t cáº£ applicable pairs dĂ¹ng common Entry XAUUSD.
-
-==================================================
-19. VIá»†T HĂ“A SIGNAL CARD
-==================================================
-
-Khi locale=VN khĂ´ng Ä‘Æ°á»£c hiá»ƒn thá»‹:
-
-Signal:
-Entry:
-READY
-WAIT
-BUY
-SELL
-REVERSED
-Show pair details
-Hide pair details
-
-DĂ¹ng:
-
-Signal / signalTime label:
-PhĂ¡t tĂ­n hiá»‡u
-
-Entry:
-VĂ o lá»‡nh
-
-READY:
-Sáºµn sĂ ng
-
-WAIT:
-Chá»
-
-BUY:
-Mua
-
-SELL:
-BĂ¡n
-
-REVERSED:
-ÄĂ£ Ä‘áº£o
-
-CĂ³ thá»ƒ giá»¯:
-
-XAUUSD
-GBPUSD
-H7
-GMT+7
-Broker
-MT4
-MT5
-
-==================================================
-20. VIá»†T HĂ“A STATUS DASHBOARD
-==================================================
-
-Hiá»‡n status chip Ä‘ang render enum trá»±c tiáº¿p.
-
-ThĂªm formatter:
-
-formatSystemState(state, locale)
-
-VN:
-
-connected:
-ÄĂ£ káº¿t ná»‘i
-
-degraded:
-Suy giáº£m
-
-stale:
-QuĂ¡ háº¡n
-
-disconnected:
-Máº¥t káº¿t ná»‘i
-
-waiting:
-Äang chá»
-
-ready:
-Sáºµn sĂ ng
-
-pending:
-Äang xá»­ lĂ½
-
-TĂªn label VN:
-
-MT4 Feed:
-Dá»¯ liá»‡u MT4
-
-MT5 Execution:
-Thá»±c thi MT5
-
-Broker Clock:
-Äá»“ng há»“ Broker
-
-EN giá»¯ thuáº­t ngá»¯ tiáº¿ng Anh.
-
-KhĂ´ng hiá»‡n STALE / CONNECTED / WAITING trong locale VN.
-
-==================================================
-21. VIá»†T HĂ“A D-DIRECTION PANEL
-==================================================
-
-Khi VN:
-
-BUY â†’ MUA
-SELL â†’ BĂN
-WAIT â†’ CHá»œ
-READY â†’ Sáº´N SĂ€NG
-MISSING â†’ THIáº¾U Dá»® LIá»†U
-
-CĂ¡c label:
-
-Session â†’ PhiĂªn nguá»“n
-Source â†’ Nguá»“n
-Open â†’ Má»Ÿ
-Close â†’ ÄĂ³ng
-Local â†’ Giá» GMT+7
-
-KhĂ´ng Ä‘á»•i tĂªn ká»¹ thuáº­t:
-
-D-Direction
-H4
-Broker
-OHLC
-symbols.
-
-==================================================
-22. Má»˜T I18N SOURCE OF TRUTH
-==================================================
-
-KhĂ´ng thĂªm ternary locale ráº£i rĂ¡c tiáº¿p tá»¥c.
-
-Má»Ÿ rá»™ng há»‡ thá»‘ng i18n hiá»‡n hĂ nh:
-
-getLocaleTexts()
-translations.ts
-
-ThĂªm nhĂ³m:
-
-signalCard
-systemStatus
-directions
-finalReverse
-dDirection
-
-DĂ¹ng formatter chung cho:
-
-- Signal Card;
-- Schedule Pill;
-- D panel;
-- History;
-- Evidence;
-- status chips.
-
-KhĂ´ng cĂ³ hai dictionary BUY/SELL khĂ¡c nhau.
-
-==================================================
-23. H7 NGĂ€Y 31/7 PHáº¢I REBUILD Báº°NG V88
-==================================================
-
-Runtime acceptance:
-
-Query XAUUSD H1:
-
-2026-07-31 06:00â€“07:00 Broker.
-
-Náº¿u:
-
-Close < Open
-
-thĂ¬ record v88 H7:
-
-entry_time = 07:49
-entry_branch = H_49
-core_signal = BUY
-pair_dirs.XAUUSD = BUY
-pair_dirs.GBPUSD = BUY
-final_reverse_applied = false
-
-Applicable pairs H7:
-
-XAUUSD
-GBPUSD
-GBPJPY
-
-KhĂ´ng tĂ­nh:
-
-GBPAUD
-GBPCAD.
-
-GBPJPY Ä‘Æ°á»£c derive theo D relation.
-
-==================================================
-24. SLOT EXPECTATIONS
-==================================================
-
-H3 rows:
-
-XAUUSD
-GBPUSD
-GBPAUD
-GBPJPY
-
-H7 rows:
-
-XAUUSD
-GBPUSD
-GBPJPY
-
-H9 rows:
-
-XAUUSD
-GBPUSD
-GBPCAD
-
-H12 rows:
-
-XAUUSD
-GBPUSD
-GBPAUD
-
-H14 rows:
-
-XAUUSD
-GBPUSD
-GBPCAD
-
-H16 rows:
-
-XAUUSD
-GBPUSD
-GBPAUD
-GBPJPY
-GBPCAD
-
-Telegram cÅ©ng chá»‰ liá»‡t kĂª cĂ¡c rows tÆ°Æ¡ng á»©ng.
-
-==================================================
-25. EXECUTION SAFETY
-==================================================
-
-Chá»‰ schedule order cho applicable pairs.
-
-VĂ­ dá»¥ H7:
-
-khĂ´ng Ä‘Æ°á»£c táº¡o intent GBPAUD hoáº·c GBPCAD.
-
-H14:
-
-khĂ´ng Ä‘Æ°á»£c táº¡o intent GBPAUD hoáº·c GBPJPY.
+- XAUUSD M30 Layer 2;
+- XAUUSD M30 Layer 3 khi cần;
+- BT/SW và entry branches hiện tại giữ nguyên;
+- H3 late entry 04:25 giữ nguyên.
 
 H16:
 
-Ä‘Æ°á»£c táº¡o Ä‘á»§ nÄƒm náº¿u direction READY.
+- XAUUSD H1 Layer 2:
+  05:00, 04:00, 03:00;
+- Layer 2 BT → 16:11;
+- Layer 2 SW → Layer 3;
+- Layer 3:
+  10:00, 09:00, 08:00;
+- Layer 3 BT → 16:49;
+- Layer 3 SW → 17:25.
 
-Restart idempotency giá»¯ nguyĂªn.
+H:49 signal source:
 
-==================================================
-26. BACKWARD COMPATIBILITY
-==================================================
+- phải lấy H1 XAUUSD tại H-1;
+- không dùng D khi branch thực tế là H49.
 
-Records v87 cĂ³ thá»ƒ cĂ³ Ä‘á»§ nÄƒm pair dirs.
-
-Dashboard v88 khĂ´ng Ä‘Æ°á»£c suy active pairs tá»« dá»¯ liá»‡u v87.
-
-Chá»‰ hiá»ƒn thá»‹ records:
-
-logic_version >= 88
-
-cho contract má»›i.
-
-KhĂ´ng giá»¯ fallback v87 náº¿u v88 record cĂ¹ng slot Ä‘ang WAIT do thiáº¿u data,
-trá»« khi resolver policy Ä‘Ă£ Ä‘Æ°á»£c user xĂ¡c nháº­n.
-
-Fail closed hÆ¡n lĂ  hiá»ƒn thá»‹ record semantics cÅ©.
+Entry time vẫn dùng chung từ XAUUSD cho toàn bộ pair rows.
 
 ==================================================
-27. TEST CORE
+9. HISTORY REBUILD
 ==================================================
 
-ThĂªm tests:
+Sửa rebuild_recent_history để dùng MT5 cache trực tiếp.
 
-test_h7_2026_07_31_down_h1_is_buy
-test_h49_uses_previous_completed_xau_h1
-test_xauusd_equals_gbpusd_all_slots
-test_final_reverse_applies_to_all_applicable_pairs
-test_final_reverse_applied_once
-test_inactive_pairs_are_not_applicable
-test_inactive_pairs_do_not_require_d
-test_inactive_pairs_do_not_schedule_orders
+Pipeline mỗi ngày:
 
-Table expected active pairs:
+1. xác định broker date;
+2. build D-Direction snapshot của đúng ngày;
+3. build entry plan của từng slot;
+4. tính applicable pairs;
+5. áp dụng D relation;
+6. áp dụng Final Reverse đúng một lần;
+7. build evidence;
+8. validate record;
+9. atomic merge theo:
+   date + hour + logic_version + market_data_provider.
 
-H3  XAU GBPUSD GBPAUD GBPJPY
-H7  XAU GBPUSD GBPJPY
-H9  XAU GBPUSD GBPCAD
-H12 XAU GBPUSD GBPAUD
-H14 XAU GBPUSD GBPCAD
-H16 all five.
+Không rebuild D snapshot của hôm nay rồi gán vào tất cả ngày cũ.
 
-==================================================
-28. TEST WEEKEND REBUILD
-==================================================
+Không gọi live `get_broker_time()` để thay cho `as_of` của record lịch sử.
 
-Saturday fixture cĂ³ Ä‘á»§ MT4 bars:
+Mỗi target date phải có:
 
-Expected:
-6 records Ä‘Æ°á»£c rebuild.
+target_broker_date
+as_of_broker_datetime
+source_session_date
+broker_utc_offset
+market_data_provider="MT5"
 
-Sunday fixture cĂ³ Ä‘á»§ MT4 bars:
+Nếu một ngày không có thị trường:
 
-Expected:
-6 records Ä‘Æ°á»£c rebuild.
+- bỏ qua với NO_MARKET_SESSION;
+- không tạo WAIT giả;
+- không tính đó là incomplete record.
 
-Weekend thiáº¿u bars:
-
-Expected:
-WAIT_MT4_DATA records hoáº·c documented missing records;
-khĂ´ng silently skip date.
-
-Live scheduler default Saturday:
-
-Expected:
-khĂ´ng execution.
-
-Live scheduler vá»›i signal_live_weekends=true:
-
-Expected:
-cho phĂ©p schedule theo explicit config.
+Thứ Bảy/Chủ Nhật không có FX bars thì không bịa candle.
+Chỉ rebuild weekend khi MT5 thật sự trả bars của instrument đó.
 
 ==================================================
-29. TEST FRONTEND
+10. MIGRATION AN TOÀN
 ==================================================
 
-VN Signal Card:
+Không xóa 198 History records hiện tại trước khi MT5 rebuild thành công.
 
-- khĂ´ng chá»©a Signal:
-- khĂ´ng chá»©a Entry:
-- khĂ´ng chá»©a READY
-- khĂ´ng chá»©a BUY/SELL
-- Entry hiá»ƒn thá»‹ GMT+7 vĂ  Broker;
-- Entry chá»‰ xuáº¥t hiá»‡n má»™t láº§n;
-- card reversed cĂ³ viá»n/ring vĂ  badge ÄĂƒ Äáº¢O.
+Quy trình:
 
-VN status:
+- đọc History hiện tại;
+- rebuild vào staging collection;
+- validate staging;
+- chỉ replace record tương ứng khi candidate hợp lệ;
+- nếu zero valid candidates:
+  ABORT
+  preserve old history;
+- nếu MT5 disconnected:
+  ABORT
+  preserve old history;
+- nếu complete:
+  atomic replace và push dashboard.
 
-- khĂ´ng chá»©a STALE;
-- khĂ´ng chá»©a CONNECTED;
-- khĂ´ng chá»©a WAITING.
+Sau rebuild thành công:
 
-Slot rows:
+- thay các record incomplete `WAIT_MT4_DATA`;
+- remove banner incomplete khi count thực sự bằng 0;
+- giữ legacy records chỉ khi chưa có MT5 replacement.
 
-Ä‘Ăºng active pair map.
+Thay wait reason:
 
-EN:
+WAIT_MT4_DATA
 
-giá»¯ Ä‘Ăºng tiáº¿ng Anh.
+bằng các reason phù hợp:
 
-==================================================
-30. VALIDATION
-==================================================
-
-Python:
-
-python -m compileall -q .
-
-python -m unittest \
-  tests.test_h49_h1_reference -v
-
-python -m unittest \
-  tests.test_h7_2026_07_31_regression -v
-
-python -m unittest \
-  tests.test_slot_pair_applicability_v88 -v
-
-python -m unittest \
-  tests.test_final_reverse_all_active_pairs -v
-
-python -m unittest \
-  tests.test_weekend_history_rebuild -v
-
-python -m unittest \
-  tests.test_weekend_live_execution_gate -v
-
-python -m unittest \
-  tests.test_pair_execution_applicability -v
-
-python -m unittest discover -s tests -v
-
-Dashboard:
-
-cd dashboard
-npm ci
-npx tsc --noEmit
-npm run test:i18n
-npm run build
-
-ThĂªm component tests:
-
-SignalCard localization
-SignalCard common Entry time
-SignalCard reverse highlight
-slot pair row filtering
-system status localization
+WAIT_MT5_DATA
+MT5_SYMBOL_UNAVAILABLE
+MT5_HISTORY_UNAVAILABLE
+MT5_CONNECTION_UNAVAILABLE
+BROKER_OFFSET_UNVERIFIED
+M30_LAYER2_MISSING
+M30_LAYER3_MISSING
+H49_H1_MISSING
+H16_H1_MISSING
+D_H4_MISSING
 
 ==================================================
-31. RUNTIME ACCEPTANCE
+11. ẨN MT4 LEGACY RUNTIME
 ==================================================
 
-1. Pull vĂ  cháº¡y v88.
-2. Rebuild riĂªng 2026-07-31.
-3. H7 pháº£i Ä‘á»c H1 XAUUSD 06:00â€“07:00.
-4. Náº¿u H1 giáº£m, XAUUSD vĂ  GBPUSD pháº£i BUY.
-5. H7 chá»‰ hiá»ƒn thá»‹ XAUUSD, GBPUSD vĂ  GBPJPY.
-6. Entry 07:49 hiá»ƒn thá»‹ má»™t láº§n.
-7. Entry cĂ³ cáº£ GMT+7 vĂ  Broker.
-8. Card cĂ³ reverse pháº£i ná»•i viá»n vĂ  badge ÄĂƒ Äáº¢O.
-9. VN khĂ´ng cĂ²n READY/BUY/SELL/STALE/CONNECTED/WAITING.
-10. Rebuild Thá»© Báº£y/Chá»§ Nháº­t cĂ³ records náº¿u feed Ä‘á»§.
-11. Live execution weekend váº«n táº¯t máº·c Ä‘á»‹nh.
-12. KhĂ´ng táº¡o order cho inactive pairs.
-13. History khĂ´ng cĂ³ duplicate date/hour.
-14. GitHub Actions PASS.
-15. Vercel READY.
-16. Smoke test desktop/mobile.
-17. KhĂ´ng gá»i production-ready náº¿u H7 31/7 chÆ°a Ä‘Æ°á»£c Ä‘á»‘i chiáº¿u vá»›i candle
-    MT4 thá»±c táº¿.
+Không xóa:
 
-Commit suggestion:
+- MT4_Data_Feeder.mq4
+- mt4_feed_server.py
+- repositories/mt4_feed_store.py
+- MT4 tests
+- coverage tools
 
-fix(signal): rebuild weekends and scope active pairs by slot
+Nhưng:
+
+- Native Qt không auto-start MT4 Feed Server;
+- nút “Chạy tất cả” không chạy MT4 Feed Server;
+- MT4 Feed Server không được tính trong “x/y đang chạy”;
+- Dashboard không hiện “Đang chờ MT4 Feed”;
+- Signal Bot không đọc MT4 heartbeat;
+- MT4 stale không ảnh hưởng trạng thái bot;
+- mt4_feed.db không phải runtime dependency.
+
+Đưa setting legacy vào cấu hình developer hoặc Experimental:
+
+enable_legacy_mt4_feed=false
+
+Không hiển thị trong UI production mặc định.
+
+README ghi rõ:
+
+MT4 Feed is retained as an experimental legacy provider and is disabled by default.
+
+==================================================
+12. NATIVE QT UI
+==================================================
+
+Tab Tín hiệu chỉ hiển thị các service cần thiết:
+
+- MT5 Signal Bot
+- MiMo Telegram Bot
+- MiMo Worker
+- Fact Check Worker
+
+Không hiện MT4 Feed Server trong mode MT5.
+
+Status panel:
+
+Market Data: MT5 API
+MT5 Data: READY / DISCONNECTED
+MT5 Execution: READY / DISABLED / DISCONNECTED
+Broker Clock: READY / STALE
+
+Không dùng chữ:
+
+MT4 Feed STALE
+Waiting for MT4 Feed
+WAIT_MT4_DATA
+
+khi provider hiện tại là MT5.
+
+==================================================
+13. DASHBOARD VÀ HISTORY UI
+==================================================
+
+Giữ UI hiện tại.
+
+Sửa nguồn hiển thị:
+
+Nguồn dữ liệu: MT5 API
+
+Evidence XAUUSD phải click được và hiển thị:
+
+- MT5 resolved symbol;
+- timeframe;
+- candle Broker time;
+- candle GMT+7 time;
+- UTC timestamp;
+- OHLC;
+- Layer 2;
+- Layer 3;
+- H1 source nếu H49;
+- final reverse reason.
+
+D-Direction history phải dùng snapshot theo đúng từng target date.
+
+Không để loading vô hạn.
+Không hiển thị WAIT_MT4_DATA.
+
+==================================================
+14. TELEGRAM
+==================================================
+
+Giữ yêu cầu hiện tại:
+
+- gửi signal lúc H:00 nếu entry H:11;
+- gửi signal sau khi Layer 3 đóng tại H:30 nếu entry H:49 hoặc H+1:25;
+- Telegram chỉ gửi directions;
+- không cần gửi entry time;
+- entry time xem trên website;
+- gửi private admin ID hiện tại;
+- không gửi group.
+
+Không thay Auto-Close vì Auto-Close đã bị loại bỏ.
+
+==================================================
+15. TESTS BẮT BUỘC
+==================================================
+
+Thêm tests:
+
+test_default_provider_is_mt5
+test_mt4_legacy_is_disabled_by_default
+test_native_ui_does_not_autostart_mt4_server_in_mt5_mode
+test_mt5_symbol_resolution_for_all_five_symbols
+test_mt5_numpy_rate_is_normalized_to_plain_dict
+test_mt5_rates_use_timezone_aware_utc
+test_mt5_current_open_bar_is_excluded
+test_mt5_history_cache_deduplicates_bars
+test_mt5_history_rebuild_does_not_read_mt4_store
+test_mt5_disconnect_preserves_existing_history
+test_mt5_zero_candidates_preserves_existing_history
+test_d_history_uses_each_target_dates_previous_session
+test_d_h4_2026_07_30_20_00_matches_expected_ohlc
+test_xau_uses_gbpusd_d_source
+test_h7_2026_07_31_h49_uses_xau_h1_h_minus_1
+test_h16_uses_h1_layer2_and_layer3
+test_history_rebuild_replaces_wait_mt4_data_after_success
+test_history_records_include_market_data_provider_mt5
+test_weekend_without_bars_is_no_market_session_not_wait
+test_telegram_signal_does_not_include_entry_time
+test_dashboard_does_not_render_mt4_wait_state_in_mt5_mode
+
+Giữ và chạy toàn bộ tests core v88 hiện có.
+
+==================================================
+16. RUNTIME ACCEPTANCE
+==================================================
+
+Phải thực hiện bằng terminal MT5 thật, không chỉ mock.
+
+1. Start profile Vantage hoặc VantageDemo.
+2. MT5 terminal tự mở nếu chưa mở.
+3. Verify account/server đúng profile.
+4. Load 5 symbols:
+   XAUUSD
+   GBPUSD
+   GBPAUD
+   GBPJPY
+   GBPCAD.
+5. Load M30/H1/H4 tối thiểu 60 ngày.
+6. Log counts cho đủ 15 symbol/timeframe combinations.
+7. Run History rebuild 45 ngày.
+8. Confirm không đọc mt4_feed.db.
+9. Confirm không cần chạy MT4 terminal.
+10. Confirm không cần MT4_Data_Feeder EA.
+11. Confirm incomplete History giảm về 0 đối với ngày có đủ MT5 bars.
+12. Confirm D snapshot của mỗi ngày dùng đúng previous session.
+13. Confirm ngày 2026-07-31:
+    - GBPUSD H4 20:00 session 2026-07-30;
+    - O 1.34646;
+    - C 1.34639;
+    - D SELL.
+14. Confirm H7 2026-07-31 tính lại đúng từ H49 H1 source.
+15. Confirm History dashboard hiển thị đủ signal/local time/evidence.
+16. Restart app và xác nhận History vẫn giữ nguyên.
+17. Stop MT5 and verify bot fail closed nhưng không xóa History.
+18. Start MT5 lại và verify recovery.
+
+==================================================
+17. QUALITY GATES
+==================================================
+
+Sau khi sửa:
+
+- tự review toàn bộ diff;
+- kiểm tra side effects;
+- formatter;
+- lint;
+- typecheck;
+- backend unit tests;
+- integration tests;
+- dashboard tests;
+- dashboard production build;
+- Native Qt smoke test;
+- MT5 real runtime smoke test;
+- git diff --check.
+
+Không gọi production-ready nếu chưa chạy MT5 runtime thật.
+
+Report cuối phải ghi:
+
+- commit SHA;
+- files changed;
+- tests pass/fail;
+- MT5 terminal/profile đã dùng;
+- số bars M30/H1/H4 mỗi symbol;
+- số History records rebuilt;
+- số incomplete trước/sau;
+- D snapshot regression result;
+- H7 31/7 regression result;
+- MT4 legacy xác nhận đã disabled;
+- các giới hạn còn lại.
 ```
 
-## Báº£ng cuá»‘i cĂ¹ng cáº§n khĂ³a
+Điểm quan trọng nhất: **không revert repo về v84**. Chỉ khôi phục **MT5 data adapter từ code cũ**, còn giữ nguyên toàn bộ core v88, UI mới, History safety gate và các rule hiện tại. Như vậy vừa thoát khỏi mớ MT4 feed lòng vòng, vừa không mất công sức sửa signal mấy ngày qua.
 
-```text
-H3  : XAUUSD, GBPUSD, GBPAUD, GBPJPY
-H7  : XAUUSD, GBPUSD, GBPJPY
-H9  : XAUUSD, GBPUSD, GBPCAD
-H12 : XAUUSD, GBPUSD, GBPAUD
-H14 : XAUUSD, GBPUSD, GBPCAD
-H16 : XAUUSD, GBPUSD, GBPAUD, GBPJPY, GBPCAD
-```
-
-Äiá»ƒm dá»… bá»‹ Agent lĂ m sai nháº¥t lĂ  gĂ¡n pair khĂ´ng Ă¡p dá»¥ng thĂ nh `WAIT`. **KhĂ´ng Ă¡p dá»¥ng vĂ  Ä‘ang chá» lĂ  hai tráº¡ng thĂ¡i khĂ¡c nhau.** Pair khĂ´ng thuá»™c slot pháº£i bá»‹ loáº¡i khá»i calculation, Telegram, UI vĂ  execution, chá»© khĂ´ng Ä‘Æ°á»£c biáº¿n thĂ nh má»™t tĂ­n hiá»‡u â€œÄ‘ang lá»—iâ€.
+[1]: https://www.mql5.com/en/docs/python_metatrader5/mt5copyratesfrompos_py?utm_source=chatgpt.com "copy_rates_from_pos - Python Integration - MQL5 Reference"

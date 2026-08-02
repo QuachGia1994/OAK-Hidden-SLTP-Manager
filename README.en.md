@@ -15,7 +15,7 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- Signal engine v87: MT4 Feed is the sole market-data and Broker-clock authority; MT5 is execution/account/position only. One XAUUSD Entry Plan is shared by all five pairs.
+- Signal engine v88: the MT5 Python API is the market-data and Broker-clock source (reads completed M30/H1/H4 candles directly from the terminal); MT4 Feed is a legacy provider, disabled by default. One XAUUSD Entry Plan is shared by all five pairs.
 - Telegram bridge with profile-safe commands and MiMo worker support. Quick orders accept `<lot> <broker HH:MM> <profile>` and convert it to the Windows clock.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
@@ -39,14 +39,17 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 - **Pair derivation:** XAUUSD and GBPUSD share Layer 1's Reference Signal. GBPAUD follows on same D and reverses on opposite D; GBPJPY/GBPCAD apply the inverse relation.
 - **Layer 4 — Final Reverse:** applies only to XAUUSD exactly once after pair derivation; GBP pair directions remain their Layer 1/D-relation outputs.
 - Special Thu/Fri and post-special Monday do not suppress slots; only the H3/H14/H16 Final Reverse changes by weekday/date.
-- D-Direction is independent for all five symbols from the previous-session H4 candle opened at `20:00` Broker. Missing/DOJI data returns `WAIT`; there is no MT5 candle fallback.
-- MT4 heartbeat supplies the Broker Clock. MT5 execution loss only disables execution; stale/disconnected MT4 data fails the Signal closed.
+- D-Direction is independent per symbol from the previous-session H4 candle opened at `20:00` Broker. XAUUSD and GBPUSD share the GBPUSD H4 20:00 D source. Missing/DOJI data returns `WAIT`.
+- The MT5 Python API supplies the Broker Clock and market data. If MT5 is unavailable or data is missing, the Signal fails closed (`WAIT_MT5_DATA`).
 
-### MT4 Feed v87 setup
+### MT5 market-data setup (default)
 
-1. Start the MT4 Feed Server, then configure the v87 `MT4_Data_Feeder.mq4` input `FeedBaseURL` as `http://127.0.0.1/mt4-feed` (default HTTP port 80). Allow `http://127.0.0.1` in MT4 **WebRequest** permissions. Port `:5001` remains local health/management only.
-2. The EA can attach to **any chart** to persist raw bars: it reads `Symbol()`, accepts broker prefixes/suffixes, and normalizes a safe key; do not configure a manual `SymbolName`. The v87 Signal core still requires XAUUSD (or GOLD), GBPUSD, GBPAUD, GBPJPY, and GBPCAD.
-3. Do not use the old `http://127.0.0.1:5000/mt4_data` endpoint or an EA showing `ServerURL`, `BrokerName`, `SymbolName`, and `MagicNumber` inputs. Those belong to the pre-v87 feed and will leave the server disconnected.
+1. Install the Python package: `pip install MetaTrader5`.
+2. Have the MetaTrader 5 terminal running and signed in.
+3. The bot connects to the terminal, auto-resolves symbols (including broker prefixes/suffixes), preloads `M30/H1/H4` history, and normalizes timestamps from UTC to Broker time.
+4. Make sure the terminal has enough history loaded and a large enough **Max bars in chart** to cover D-Direction and the Entry Plan.
+
+> The MT4 Feed is retained as an experimental legacy provider and is disabled by default. Enable it only with `OAK_MARKET_DATA_PROVIDER=MT4_LEGACY` (developer only); it does not appear in production UI and does not auto-start.
 
 ## Fact Check AI
 

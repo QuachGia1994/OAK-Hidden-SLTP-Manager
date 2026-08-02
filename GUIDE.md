@@ -11,9 +11,9 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 
 ## Signal engine
 
-- MT5 execution gateway ghi intent theo khóa idempotency v87; chỉ gửi lệnh khi profile bật `signal_execution_enabled=true` hoặc biến môi trường `SIGNAL_BOT_EXECUTION_ENABLED=true`.
+- MT5 execution gateway ghi intent theo khóa idempotency v88; chỉ gửi lệnh khi profile bật `signal_execution_enabled=true` hoặc biến môi trường `SIGNAL_BOT_EXECUTION_ENABLED=true`.
 
-- MT4 Feed là nguồn market-data và Broker Clock duy nhất; MT5 chỉ dùng cho execution/account/position.
+- MT5 Python API là nguồn market-data và Broker Clock mặc định (đọc completed candle M30/H1/H4 trực tiếp từ terminal); MT4 Feed chỉ là provider cũ, mặc định tắt.
 - Output gồm `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`; cả năm symbol dùng chung Entry Plan XAUUSD nhưng direction riêng theo Reference/D relation.
 - Chạy Thứ 2 đến Thứ 6; cuối tuần tắt toàn bộ slot.
 - Slot active: **H=3, H=7, H=9, H=12, H=14, H=16**; tất cả phát đúng `H:00` Broker.
@@ -21,14 +21,17 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 - **Layer 1 — Reference Signal:** khi Entry Plan chốt nhánh, `H:11` / `(H+1):25` ghép D GBPUSD với Day Mode chung: cùng nhánh giữ D, khác nhánh đảo D. Riêng `H:49` đảo chiều nến H1 XAUUSD đã hoàn tất ngay trước slot.
 - **Suy direction theo cặp:** XAUUSD và GBPUSD dùng chung Reference Signal Layer 1. GBPAUD cùng D follow/ngược D reverse; GBPJPY/GBPCAD cùng D reverse/ngược D follow.
 - **Layer 4 — Final Reverse:** chỉ chạy đúng một lần cho XAUUSD sau bước suy direction theo cặp; GBP pair không bị đảo ở Layer 4.
-- Thiếu nến, OHLC sai hoặc DOJI trả `WAIT`; không dùng MT5 candle fallback.
-- MT4 heartbeat là nguồn Broker Clock; MT4 stale/disconnected thì Signal fail-closed, còn MT5 disconnected chỉ khóa execution.
+- Thiếu nến, OHLC sai hoặc DOJI trả `WAIT` (`WAIT_MT5_DATA` khi MT5 thiếu data); không dùng fallback sang nguồn khác.
+- MT5 Python API là nguồn Broker Clock và market-data; MT5 không kết nối/thiếu data thì Signal fail-closed, MT5 execution mất kết nối chỉ khóa execution.
 
-### Cài MT4 Feed v87
+### Cài nguồn market-data MT5 (mặc định)
 
-1. Chạy MT4 Feed Server trước và đặt input `FeedBaseURL` của `MT4_Data_Feeder.mq4` v87 là `http://127.0.0.1/mt4-feed` (cổng HTTP mặc định 80). Thêm `http://127.0.0.1` vào quyền **WebRequest** của MT4. Cổng `:5001` chỉ dùng cho health/management nội bộ.
-2. EA có thể gắn vào **bất kỳ chart nào** để lưu raw bars: tự đọc `Symbol()`, nhận cả tiền tố/hậu tố broker, và chuẩn hóa key an toàn; không có `SymbolName` để nhập thủ công. Để core Signal v87 hoạt động, vẫn phải gắn ít nhất XAUUSD (hoặc GOLD), GBPUSD, GBPAUD, GBPJPY và GBPCAD.
-3. Endpoint cũ `http://127.0.0.1:5000/mt4_data` và EA có input `ServerURL`, `BrokerName`, `SymbolName`, `MagicNumber` là bản trước v87, cần thay thế.
+1. Cài Python package: `pip install MetaTrader5`.
+2. Bật MT5 terminal và đăng nhập.
+3. Bot tự kết nối terminal, resolve symbol (gồm cả prefix/suffix broker), preload `M30/H1/H4`, và chuyển timestamp từ UTC sang Broker time.
+4. Đảm bảo terminal đã tải đủ lịch sử và **Max bars in chart** đủ lớn để phủ D-Direction và Entry Plan.
+
+> MT4 Feed được giữ làm provider thử nghiệm (legacy) và **mặc định tắt**; chỉ bật bằng `OAK_MARKET_DATA_PROVIDER=MT4_LEGACY` cho developer, không hiển thị trong UI production và không tự khởi động.
 
 ### Ma trận core
 

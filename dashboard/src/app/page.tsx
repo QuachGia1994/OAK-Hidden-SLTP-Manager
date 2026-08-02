@@ -82,7 +82,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const botStatus = brokerClock
     ? t.running
     : publicDataState === "stale" || publicDataState === "disconnected"
-      ? (locale === "EN" ? "Waiting for MT4 Feed" : "Đang chờ MT4 Feed")
+      ? (locale === "EN" ? "Waiting for MT5 market data" : "Đang chờ dữ liệu MT5")
       : (locale === "EN" ? "UNSYNCED" : "CHƯA ĐỒNG BỘ");
 
   return (
@@ -120,7 +120,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label={locale === "EN" ? "System status" : "Trạng thái hệ thống"}>
-        <StatusChip label="MT4 Feed" value={formatSystemState(publicDataState, locale)} healthy={publicDataState === "connected" || publicDataState === "degraded"} />
+        <StatusChip label="MT5 Market Data" value={formatSystemState(publicDataState, locale)} healthy={publicDataState === "connected" || publicDataState === "degraded"} />
         <StatusChip label="MT5 Execution" value={formatSystemState(publicExecutionState, locale)} healthy={publicExecutionState === "connected"} />
         <StatusChip
           label={locale === "EN" ? "Broker Clock" : "Đồng hồ Broker"}

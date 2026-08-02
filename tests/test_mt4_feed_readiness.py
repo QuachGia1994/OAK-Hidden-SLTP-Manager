@@ -41,7 +41,7 @@ class MT4FeedReadinessTests(unittest.TestCase):
 
         self.assertTrue(health.feed_connected)
 
-    def test_start_all_never_launches_signal_bot_when_feed_is_not_connected(self) -> None:
+    def test_start_all_launches_signal_bot_and_skips_disabled_mt4_feed(self) -> None:
         supervisor = SignalProcessSupervisor([])
         supervisor.register_signals({
             "mt4_feed_server": {"name": "Feed"},
@@ -57,39 +57,57 @@ class MT4FeedReadinessTests(unittest.TestCase):
             supervisor.start_all_signals()
 
         started = [call.args[0] for call in supervisor.start_signal_process.call_args_list]
-        self.assertEqual(started, ["mt4_feed_server", "mimo_worker"])
-        supervisor._set_running_ui.assert_called_once_with("signal_bot", False, status="Blocked")
+        self.assertEqual(started, ["signal_bot", "mimo_worker"])
+        self.assertNotIn("mt4_feed_server", started)
 
-    def test_manual_signal_bot_start_is_blocked_when_feed_is_stale(self) -> None:
+    def test_start_all_launches_mt4_feed_server_when_legacy_enabled(self) -> None:
+        supervisor = SignalProcessSupervisor([])
+        supervisor.register_signals({
+            "mt4_feed_server": {"name": "Feed"},
+            "signal_bot": {"name": "Signal Bot"},
+        })
+        supervisor.start_signal_process = MagicMock()
+        supervisor._set_running_ui = MagicMock()
+        supervisor._log = MagicMock()
+
+        with patch("services.signal_process_supervisor.time.sleep"), \
+             patch.object(supervisor, "_is_mt4_legacy_enabled", return_value=True):
+            supervisor.start_all_signals()
+
+        started = [call.args[0] for call in supervisor.start_signal_process.call_args_list]
+        self.assertIn("mt4_feed_server", started)
+        self.assertIn("signal_bot", started)
+
+    def test_manual_signal_bot_start_proceeds_without_mt4_feed(self) -> None:
         supervisor = SignalProcessSupervisor([])
         supervisor.register_signals({"signal_bot": {"name": "Signal Bot", "proc": None}})
         supervisor._set_running_ui = MagicMock()
         supervisor._log = MagicMock()
+        supervisor._kill_orphan_processes = MagicMock()
 
+        mock_proc = MagicMock()
+        mock_proc.pid = 1234
         with patch(
             "services.signal_process_supervisor.read_mt4_feed_health",
             return_value=MT4FeedHealth(True, "stale"),
-        ):
+        ), patch("services.signal_process_supervisor.subprocess.Popen", return_value=mock_proc), \
+             patch("services.signal_process_supervisor.threading.Thread"):
             supervisor.start_signal_process("signal_bot")
 
-        supervisor._set_running_ui.assert_called_once_with("signal_bot", False, status="Blocked")
-        self.assertIn("blocked", supervisor._log.call_args.args[0].lower())
+        self.assertNotIn("blocked", (supervisor._log.call_args.args[0] or "").lower())
+        supervisor._set_running_ui.assert_called_once()
 
-    def test_native_qt_manual_signal_bot_start_is_blocked_when_feed_is_stale(self) -> None:
+    def test_mt4_feed_server_is_disabled_by_default_in_native_qt(self) -> None:
         shell = NativeShell.__new__(NativeShell)
-        shell.signal_cards = {"signal_bot": {"name": "Signal Bot"}}
+        shell.signal_cards = {"mt4_feed_server": {"name": "MT4 Feed"}}
         shell.signal_processes = {}
         shell._append_signal_log = MagicMock()
         shell._set_signal_running = MagicMock()
 
-        with patch(
-            "oak_qt_shell.read_mt4_feed_health",
-            return_value=MT4FeedHealth(True, "stale"),
-        ):
-            NativeShell.start_signal(shell, "signal_bot")
+        NativeShell.start_signal(shell, "mt4_feed_server")
 
-        shell._set_signal_running.assert_called_once_with("signal_bot", False, status="Blocked")
-        self.assertIn("blocked", shell._append_signal_log.call_args.args[1].lower())
+        shell._set_signal_running.assert_called_once_with("mt4_feed_server", False, status="Blocked")
+        self.assertIn("disabled", shell._append_signal_log.call_args.args[1].lower())
 
 
 if __name__ == "__main__":
