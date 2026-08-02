@@ -40,8 +40,6 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
   const signalState = signal.signal_state || "READY";
   const entryState = signal.entry_state || "READY";
   const primaryDirection = signal.pair_dirs?.XAUUSD || signal.signal || "WAIT";
-  const primaryEntryTime = signal.pair_entry_times?.XAUUSD ?? signal.entry_time ?? null;
-  const primaryEntryUtc = signal.pair_entry_at_utc?.XAUUSD ?? signal.entry_at_utc ?? null;
   const primaryDirectionClass =
     primaryDirection === "BUY" || primaryDirection === "Mua"
       ? "border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)]"
@@ -51,7 +49,6 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
   const mobileCopy = locale === "EN"
     ? {
         primary: "Primary signal",
-        entry: "Entry",
         show: "Show pair details",
         hide: "Hide pair details",
         showLabel: `Show ${ACTIVE_SIGNAL_PAIRS.length} pair entries for H${hour}`,
@@ -59,7 +56,6 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
       }
     : {
         primary: "Tín hiệu chính",
-        entry: "Vào lệnh",
         show: "Xem chi tiết các cặp",
         hide: "Ẩn chi tiết các cặp",
         showLabel: `Xem ${ACTIVE_SIGNAL_PAIRS.length} cặp tại H${hour}`,
@@ -124,19 +120,6 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
             </span>
           </div>
         </div>
-        <div className="shrink-0 text-right">
-          <div className="text-[10px] font-mono font-bold uppercase tracking-[0.1em] text-[var(--muted)]">{mobileCopy.entry}</div>
-          <BrokerLocalTime
-            brokerTime={primaryEntryTime}
-            utcIso={primaryEntryUtc}
-            brokerUtcOffset={brokerOffset}
-            brokerClockVerified={brokerClockVerified}
-            date={signal.date}
-            labelLocal="GMT+7"
-            labelBroker="Broker"
-            className="text-[11px]"
-          />
-        </div>
       </div>
 
       <button
@@ -162,8 +145,6 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
       <div id={pairRowsId} className={`space-y-2 font-mono text-xs ${mobileDetailsOpen ? "block" : "hidden"} sm:block`}>
         {ACTIVE_SIGNAL_PAIRS.map((pair) => {
           const dir = signal.pair_dirs?.[pair] || "WAIT";
-          const entryTime = signal.pair_entry_times?.[pair] ?? null;
-          const entryUtc = signal.pair_entry_at_utc?.[pair] ?? null;
           const isClickable = isVIP && EVIDENCE_SIGNAL_PAIRS.has(pair) && hasEvidenceForPair(signal, pair);
           const isLoading = loadingEvidence === pair;
 
@@ -192,43 +173,29 @@ export function SignalCard({ signal, isVIP, onInspect, loadingEvidence }: Signal
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="text-right text-[11px]">
-                  <BrokerLocalTime
-                    brokerTime={entryTime}
-                    utcIso={entryUtc}
-                    brokerUtcOffset={brokerOffset}
-                    brokerClockVerified={brokerClockVerified}
-                    date={signal.date}
-                    labelLocal="GMT+7"
-                    labelBroker="Broker"
-                  />
-                </div>
-
-                {isClickable && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      fetchEvidence(pair);
-                    }}
-                    className="flex min-h-11 min-w-11 items-center justify-center rounded bg-[var(--terminal-accent)]/10 p-2 text-[16px] text-[var(--terminal-accent)] transition-colors hover:bg-[var(--terminal-accent)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]"
-                    aria-label={locale === "EN" ? "View XAUUSD entry evidence" : "Xem bằng chứng Entry XAUUSD"}
-                    title={locale === "EN" ? "View XAUUSD entry evidence" : "Xem bằng chứng Entry XAUUSD"}
-                  >
-                    {isLoading ? (
-                      <span
-                        className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
-                        <path d="M5 19V5m0 14h14M8 16v-4m4 4V8m4 8V5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                      </svg>
-                    )}
-                  </button>
-                )}
-              </div>
+              {isClickable && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetchEvidence(pair);
+                  }}
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded bg-[var(--terminal-accent)]/10 p-2 text-[16px] text-[var(--terminal-accent)] transition-colors hover:bg-[var(--terminal-accent)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]"
+                  aria-label={locale === "EN" ? "View XAUUSD entry evidence" : "Xem bằng chứng Entry XAUUSD"}
+                  title={locale === "EN" ? "View XAUUSD entry evidence" : "Xem bằng chứng Entry XAUUSD"}
+                >
+                  {isLoading ? (
+                    <span
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+                      <path d="M5 19V5m0 14h14M8 16v-4m4 4V8m4 8V5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
           );
         })}

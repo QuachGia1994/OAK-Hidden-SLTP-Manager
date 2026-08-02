@@ -23,8 +23,11 @@ class FixtureProvider:
             "is_complete": True,
         }
 
-    def get_exact_bar(self, symbol, timeframe, opening):
+    def get_exact_bar(self, symbol, timeframe, opening, *, source_id=None):
         return self.bars.get((symbol, timeframe, opening))
+
+    def get_active_source_id(self, max_age_seconds=60):
+        return None
 
 
 def add_m30_layer(provider, slot_dt, directions, layer3=False):

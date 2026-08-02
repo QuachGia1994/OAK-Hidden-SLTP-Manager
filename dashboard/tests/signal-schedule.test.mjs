@@ -245,19 +245,30 @@ test("only XAUUSD opens the shared entry evidence drawer", () => {
   assert.equal(card.includes("View XAUUSD entry evidence"), true);
   assert.equal(card.includes("gbp_entry_time"), false);
   assert.equal(drawer.includes("titleSuffix"), true);
-  assert.equal(drawer.includes("COMMON XAUUSD ENTRY"), true);
+  const translations = fs.readFileSync(new URL("../src/lib/translations.ts", import.meta.url), "utf8");
+  assert.equal(translations.includes("sectionLayers23"), true);
+  assert.equal(translations.includes("COMMON XAUUSD ENTRY"), true);
+  assert.equal(translations.includes("TẦNG 2–3 · ENTRY CHUNG XAUUSD"), true);
 });
 
 test("keeps the primary signal visible while pair details collapse only on mobile", () => {
   const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
   assert.equal(card.includes('const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false)'), true);
   assert.equal(card.includes('const primaryDirection = signal.pair_dirs?.XAUUSD || signal.signal || "WAIT"'), true);
-  assert.equal(card.includes('const primaryEntryTime = signal.pair_entry_times?.XAUUSD ?? signal.entry_time ?? null'), true);
   assert.equal(card.includes('aria-expanded={mobileDetailsOpen}'), true);
   assert.equal(card.includes('aria-controls={pairRowsId}'), true);
   assert.equal(card.includes('id={pairRowsId}'), true);
   assert.equal(card.includes('sm:hidden'), true);
   assert.equal(card.includes('sm:block'), true);
+});
+
+test("entry time is rendered once, in the card header, not per pair or on mobile", () => {
+  const card = fs.readFileSync(new URL("../src/components/SignalCard.tsx", import.meta.url), "utf8");
+  const headerEntry = card.includes("Entry: {signal.entry_time}");
+  assert.equal(headerEntry, true);
+  assert.equal(card.includes("pair_entry_times?.XAUUSD"), false);
+  assert.equal(card.includes("pair_entry_times?.[pair]"), false);
+  assert.equal(card.includes("primaryEntryTime"), false);
 });
 
 test("evidence lookup falls back to embedded startup-rebuild evidence", () => {

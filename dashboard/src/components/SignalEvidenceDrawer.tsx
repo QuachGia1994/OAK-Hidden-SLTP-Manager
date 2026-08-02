@@ -9,11 +9,12 @@ import type {
   XauEntryTimingEvidence,
   M30EvidenceLayer,
   EvidenceCandle,
+  H49H1Evidence,
 } from "@/lib/types";
 import { isSignalEvidenceV3 } from "@/lib/types";
 import { ACTIVE_SIGNAL_LOGIC_VERSION } from "@/lib/signal-display";
 import { useLocale } from "./LocaleProvider";
-import { getT } from "@/lib/translations";
+import { getT, formatDirection, formatBranch } from "@/lib/translations";
 
 const FOCUSABLE_SELECTOR =
   "button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
@@ -181,7 +182,7 @@ function EvidenceContent({
   locale: "VN" | "EN";
 }) {
   if (isSignalEvidenceV3(evidence)) {
-    if (evidence.evidence_schema_version === 9) {
+    if (evidence.evidence_schema_version === 9 || evidence.evidence_schema_version === 10) {
       return <EvidenceV87Content evidence={evidence} symbol={currentSymbol} locale={locale} />;
     }
     return <EvidenceV3Content evidence={evidence} symbol={currentSymbol} locale={locale} />;
@@ -203,31 +204,38 @@ function EvidenceV87Content({
   locale: "VN" | "EN";
 }) {
   const timing = evidence.entry_timing;
-  const entryBranch = evidence.current_entry_branch || evidence.entry_branch || timing?.entry_branch || "—";
+  const t = getT(locale).evidence;
+  const entryBranch = formatBranch(evidence.current_entry_branch || evidence.entry_branch || timing?.entry_branch);
   const referenceSymbol = evidence.reference_d_symbol || "GBPUSD";
   const layer1Source = evidence.base_signal_source === "PREVIOUS_XAU_H1_REVERSED"
-    ? (locale === "EN" ? "Previous completed XAUUSD H1, reversed" : "H1 XAUUSD hoàn tất ngay trước mốc, đảo chiều")
+    ? t.sourcePreviousH1Reversed
     : evidence.base_signal_source === "REFERENCE_D_DAY_MODE"
-    ? (locale === "EN" ? "GBPUSD D + Day Mode / entry branch" : "D GBPUSD + Day Mode / nhánh Entry")
-    : (locale === "EN" ? "Waiting for D / entry branch" : "Chờ D / nhánh Entry");
+    ? t.sourceReferenceDDayMode
+    : t.sourceWaitingForD;
+  const isH49Branch = (evidence.current_entry_branch || evidence.entry_branch || timing?.entry_branch) === "H_49";
+  const h49 = evidence.h49_h1_evidence;
   return (
     <div className="space-y-4 font-mono text-xs">
-      <EvidenceSection title={locale === "EN" ? "LAYERS 2–3 · COMMON XAUUSD ENTRY" : "LAYER 2–3 · ENTRY CHUNG XAUUSD"}>
-        <p>{locale === "EN" ? "Source" : "Nguồn"}: XAUUSD · {timing?.timeframe || "M30"}</p>
-        <p>{locale === "EN" ? "Selected" : "Đã chọn"}: <strong>{evidence.current_entry_time || timing?.entry_time || "WAIT"}</strong> · {entryBranch}</p>
-        <p>{locale === "EN" ? "This XAUUSD entry plan is shared by the signal card." : "Kế hoạch Entry XAUUSD này là nguồn chung của signal card."}</p>
+      {isH49Branch && h49 ? (
+        <H49H1Section h49={h49} locale={locale} />
+      ) : (
+        <EvidenceSection title={t.sectionLayer1}>
+          <p>{t.referenceD}: {referenceSymbol} · <strong>{formatDirection(evidence.reference_d_direction, t)}</strong></p>
+          <p>{t.entryBranch}: {entryBranch}</p>
+          <p>{t.rule}: {layer1Source}</p>
+          <p>{t.layer1Output}: <strong>{formatDirection(evidence.core_signal, t)}</strong></p>
+        </EvidenceSection>
+      )}
+      <EvidenceSection title={t.sectionLayers23}>
+        <p>{t.source}: XAUUSD · {timing?.timeframe || "M30"}</p>
+        <p>{t.selected}: <strong>{evidence.current_entry_time || timing?.entry_time || "WAIT"}</strong> · {entryBranch}</p>
+        <p>{t.sharedPlan}</p>
         {timing?.layer2 && <CandleMiniTable label="LAYER 2" layer={timing.layer2} />}
         {timing?.layer3 && <CandleMiniTable label="LAYER 3" layer={timing.layer3} />}
       </EvidenceSection>
-      <EvidenceSection title={locale === "EN" ? "LAYER 1 · REFERENCE SIGNAL" : "LAYER 1 · TÍN HIỆU THAM CHIẾU"}>
-        <p>{locale === "EN" ? "Reference D" : "D tham chiếu"}: {referenceSymbol} · <strong>{evidence.reference_d_direction || "WAIT"}</strong></p>
-        <p>{locale === "EN" ? "Entry branch" : "Nhánh Entry"}: {entryBranch}</p>
-        <p>{locale === "EN" ? "Rule" : "Quy tắc"}: {layer1Source}</p>
-        <p>{locale === "EN" ? "Layer 1 output" : "Kết quả Layer 1"}: <strong>{evidence.core_signal || "WAIT"}</strong></p>
-      </EvidenceSection>
-      <EvidenceSection title={locale === "EN" ? "LAYER 4 · FINAL REVERSE" : "LAYER 4 · ĐẢO CUỐI"}>
-        <p>Core: {evidence.core_signal || "WAIT"} → Final: <strong>{evidence.final_signal || evidence.direction}</strong></p>
-        <p>{evidence.final_reverse_applied ? `REVERSE · ${evidence.final_reverse_reason || "—"}` : (locale === "EN" ? "No Final Reverse" : "Không đảo Final")}</p>
+      <EvidenceSection title={t.sectionLayer4}>
+        <p>{t.coreToFinal}: <strong>{formatDirection(evidence.final_signal || evidence.direction, t)}</strong></p>
+        <p>{evidence.final_reverse_applied ? `${t.reverse} · ${evidence.final_reverse_reason || "—"}` : t.noFinalReverse}</p>
       </EvidenceSection>
     </div>
   );
@@ -238,6 +246,79 @@ function EvidenceSection({ title, children }: { title: string; children: ReactNo
     <section className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)]/60 p-4 space-y-2">
       <div className="terminal-kicker text-[var(--terminal-accent)]">{title}</div>
       {children}
+    </section>
+  );
+}
+
+function H49H1Section({ h49, locale }: { h49: H49H1Evidence; locale: "VN" | "EN" }) {
+  const t = getT(locale).evidence;
+  const dir = h49.candle_direction || "WAIT";
+  const reversed = h49.reversed_signal || "WAIT";
+  const isUp = dir === "TANG";
+  const isDoji = dir === "DOJI";
+  const color = isDoji
+    ? "var(--terminal-warning)"
+    : isUp
+    ? "var(--terminal-accent)"
+    : "var(--terminal-danger)";
+  const reversedColor = reversed === "BUY"
+    ? "var(--terminal-accent)"
+    : reversed === "SELL"
+    ? "var(--terminal-danger)"
+    : "var(--terminal-warning)";
+  const num = (v: string | number | null | undefined): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const candle = { open: num(h49.open_exact), high: num(h49.high_exact), low: num(h49.low_exact), close: num(h49.close_exact) };
+
+  return (
+    <section className="rounded-xl border border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/[0.05] p-4 space-y-2">
+      <div className="terminal-kicker text-[var(--terminal-accent)]">
+        {t.sectionH49H1}
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <span className="text-[var(--muted)]">{t.h49Window}: </span>
+          <span className="font-bold">{h49.broker_open_at} → {h49.broker_close_at}</span>
+        </div>
+        <div>
+          <span className="text-[var(--muted)]">{t.h49Source}: </span>
+          <span className="font-bold">{h49.source_symbol}</span>
+        </div>
+        <div>
+          <span className="text-[var(--muted)]">{t.h49Direction}: </span>
+          <span className="font-black" style={{ color }}>{formatDirection(dir, t)}</span>
+        </div>
+        <div>
+          <span className="text-[var(--muted)]">{t.h49Reversed}: </span>
+          <span className="font-black" style={{ color: reversedColor }}>{formatDirection(reversed, t)}</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-4 pt-1">
+        <svg width="120" height="100" viewBox="0 0 120 100" className="mx-auto">
+          <line x1="60" y1="15" x2="60" y2="85" stroke={color} strokeWidth="2" />
+          <rect x="42" y={isUp ? 30 : 60} width="36" height="30" fill={isDoji ? "none" : color} stroke={color} strokeWidth="2" />
+          <circle cx="60" cy="30" r="3" fill="var(--foreground)" />
+          <circle cx="60" cy="60" r="3" fill="var(--foreground)" />
+        </svg>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px] font-mono">
+          <span className="text-[var(--muted)]">{t.h49Open}:</span><span className="text-right font-bold">{formatPrice(candle.open)}</span>
+          <span className="text-[var(--muted)]">{t.h49High}:</span><span className="text-right font-bold">{formatPrice(candle.high)}</span>
+          <span className="text-[var(--muted)]">{t.h49Low}:</span><span className="text-right font-bold">{formatPrice(candle.low)}</span>
+          <span className="text-[var(--muted)]">{t.h49Close}:</span><span className="text-right font-bold text-[var(--foreground)]">{formatPrice(candle.close)}</span>
+        </div>
+      </div>
+      {h49.failure_reason && (
+        <p className="text-[var(--terminal-warning)]">
+          {h49.failure_reason === "H49_H1_DOJI"
+            ? t.h49Doji
+            : h49.failure_reason === "H49_H1_MISSING"
+            ? t.h49Missing
+            : h49.failure_reason}
+        </p>
+      )}
     </section>
   );
 }

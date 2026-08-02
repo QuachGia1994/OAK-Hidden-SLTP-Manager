@@ -58,11 +58,30 @@ def classify_three_candle_group(directions: list[str | None]) -> dict[str, Any]:
     return {"group": group, "rule_number": rule, "directions": values}
 
 
-def _bar(provider, symbol: str, timeframe: str, broker_open: datetime, as_of: datetime | None):
-    if as_of is not None and broker_open + _timeframe_delta(timeframe) > as_of:
+def _resolve_active_source_id(provider) -> str | None:
+    """Return the active feed source_id the engine should read bars from.
+
+    Duck-typed so pure fixtures without a heartbeat return ``None``.
+    """
+    getter = getattr(provider, "get_active_source_id", None)
+    if not callable(getter):
         return None
     try:
-        bar = provider.get_exact_bar(symbol, timeframe, broker_open)
+        return getter() or None
+    except Exception:
+        return None
+
+
+def _bar(provider, symbol: str, timeframe: str, broker_open: datetime, as_of: datetime | None, source_id: str | None = None):
+    if as_of is not None and broker_open + _timeframe_delta(timeframe) > as_of:
+        return None
+    if source_id is None:
+        source_id = _resolve_active_source_id(provider)
+    try:
+        if source_id is not None:
+            bar = provider.get_exact_bar(symbol, timeframe, broker_open, source_id=source_id)
+        else:
+            bar = provider.get_exact_bar(symbol, timeframe, broker_open)
     except Exception:
         return None
     if not bar or not bool(bar.get("is_complete", True)):
@@ -187,22 +206,70 @@ def _mode_branch(day_mode):
     return getattr(day_mode, "source_branch", None)
 
 
+def evaluate_h49_reference_signal(slot_dt, provider, *, as_of=None) -> dict[str, Any]:
+    """Resolve the exact H1 XAUUSD candle right before the slot and reverse it.
+
+    Pure helper shared by live evaluation, history rebuild, and the evidence
+    drawer.  The source candle is the completed H1 that closes exactly at
+    ``slot_dt`` (source_open = slot_dt - 1 hour).  It never consults D GBPUSD,
+    Day Mode, or the M30 Layer 2/3 direction.
+    """
+    source_open = slot_dt - timedelta(hours=1)
+    source_close = slot_dt
+    cutoff = as_of if as_of is not None else slot_dt
+    h1 = _bar(provider, "XAUUSD", "H1", source_open, cutoff)
+    if not h1:
+        return {
+            "state": "WAIT",
+            "source_symbol": "XAUUSD",
+            "timeframe": "H1",
+            "broker_open_at": source_open.isoformat(),
+            "broker_close_at": source_close.isoformat(),
+            "source_id": (h1 or {}).get("source_id"),
+            "resolved_symbol": (h1 or {}).get("resolved_mt4_symbol"),
+            "open_exact": None,
+            "high_exact": None,
+            "low_exact": None,
+            "close_exact": None,
+            "candle_direction": None,
+            "reversed_signal": "WAIT",
+            "failure_reason": "H49_H1_MISSING",
+        }
+    direction = candle_direction(h1)
+    reversed_signal = {"TANG": "SELL", "GIAM": "BUY"}.get(direction, "WAIT")
+    return {
+        "state": "READY" if reversed_signal != "WAIT" else "WAIT",
+        "source_symbol": "XAUUSD",
+        "timeframe": "H1",
+        "broker_open_at": h1.get("broker_open_at") or source_open.isoformat(),
+        "broker_close_at": h1.get("broker_close_at") or source_close.isoformat(),
+        "source_id": h1.get("source_id"),
+        "resolved_symbol": h1.get("resolved_mt4_symbol") or h1.get("canonical_symbol"),
+        "open_exact": h1.get("open_exact"),
+        "high_exact": h1.get("high_exact"),
+        "low_exact": h1.get("low_exact"),
+        "close_exact": h1.get("close_exact"),
+        "candle_direction": direction,
+        "reversed_signal": reversed_signal,
+        "failure_reason": None if reversed_signal != "WAIT" else ("H49_H1_DOJI" if direction == "DOJI" else "H49_H1_MISSING"),
+    }
+
+
 def _reference_base(entry, slot_dt, provider, reference_d, day_mode):
     branch = entry.get("entry_branch")
     if entry.get("entry_state") != "READY" or branch not in ("H_11", "H_49", "H_PLUS_1_25"):
-        return "WAIT", day_mode, "ENTRY_PLAN_UNRESOLVED"
+        return "WAIT", day_mode, "ENTRY_PLAN_UNRESOLVED", None
     if branch == "H_49":
-        h1 = _bar(provider, "XAUUSD", "H1", slot_dt - timedelta(hours=1), slot_dt)
-        direction = candle_direction(h1)
-        return ("SELL" if direction == "TANG" else "BUY" if direction == "GIAM" else "WAIT"), day_mode, "PREVIOUS_XAU_H1_REVERSED"
+        h49_ref = evaluate_h49_reference_signal(slot_dt, provider)
+        return h49_ref["reversed_signal"], day_mode, "PREVIOUS_XAU_H1_REVERSED", h49_ref
     mode_branch = _mode_branch(day_mode)
     if mode_branch is None:
         mode_branch = branch if branch in ("H_11", "H_PLUS_1_25") else None
         day_mode = mode_branch
     base = reference_d if reference_d in ("BUY", "SELL") else direction_to_signal(reference_d)
     if base == "WAIT" or mode_branch is None:
-        return "WAIT", day_mode, "REFERENCE_D_UNRESOLVED"
-    return (base if branch == mode_branch else reverse_signal(base)), day_mode, "REFERENCE_D_DAY_MODE"
+        return "WAIT", day_mode, "REFERENCE_D_UNRESOLVED", None
+    return (base if branch == mode_branch else reverse_signal(base)), day_mode, "REFERENCE_D_DAY_MODE", None
 
 
 def _requires_reference_d(symbol: str, entry: dict[str, Any]) -> bool:
@@ -210,10 +277,12 @@ def _requires_reference_d(symbol: str, entry: dict[str, Any]) -> bool:
     return entry.get("entry_branch") != "H_49" or symbol not in ("XAUUSD", "GBPUSD")
 
 
-def _signal_failure_reason(symbol: str, entry: dict[str, Any], d_snapshot: dict[str, dict], final_signal: str) -> str | None:
+def _signal_failure_reason(symbol: str, entry: dict[str, Any], d_snapshot: dict[str, dict], final_signal: str, h49_ref: dict | None = None) -> str | None:
     """Keep diagnostics aligned with each pair's actual fail-closed state."""
     if entry.get("failure_reason"):
         return entry["failure_reason"]
+    if symbol == "XAUUSD" and h49_ref and h49_ref.get("failure_reason"):
+        return h49_ref["failure_reason"]
     reference_d = (d_snapshot.get("GBPUSD") or {}).get("d_direction")
     if _requires_reference_d(symbol, entry) and reference_d not in ("BUY", "SELL"):
         return "WAIT_MT4_DATA"
@@ -252,7 +321,7 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
     """Run entry, reference, D relation, and final reverse exactly once."""
     entry = build_entry_plan(slot_dt, slot_hour, provider, as_of)
     reference_d = (d_snapshot.get("GBPUSD") or {}).get("d_direction")
-    base_signal, next_mode, base_source = _reference_base(entry, slot_dt, provider, reference_d, day_mode)
+    base_signal, next_mode, base_source, h49_ref = _reference_base(entry, slot_dt, provider, reference_d, day_mode)
     # XAUUSD's D candle is independent evidence even though its Signal is
     # locked to the GBPUSD Reference Signal.  Preserve that relation in the
     # payload so the drawer can explain an opposite XAU D without changing
@@ -295,10 +364,11 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
             should_reverse and symbol == "XAUUSD",
             reason,
             base_source,
+            h49_ref,
         )
         for symbol in PAIRS
     }
-    failure_reason = _signal_failure_reason("XAUUSD", entry, d_snapshot, final["XAUUSD"])
+    failure_reason = _signal_failure_reason("XAUUSD", entry, d_snapshot, final["XAUUSD"], h49_ref)
     return {
         "logic_version": 87,
         "signal": final["XAUUSD"],
@@ -334,9 +404,9 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
     }
 
 
-def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, reversed_once, reason, base_source):
-    return {
-        "evidence_schema_version": 9,
+def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, reversed_once, reason, base_source, h49_ref=None):
+    evidence = {
+        "evidence_schema_version": 10,
         "logic_version": 87,
         "date": slot_dt.date().isoformat(),
         "hour": slot_dt.hour,
@@ -358,6 +428,9 @@ def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, revers
         "final_signal": final.get(symbol, "WAIT"),
         "base_signal_source": base_source,
         "failure_reason": _signal_failure_reason(
-            symbol, entry, d_snapshot, final.get(symbol, "WAIT"),
+            symbol, entry, d_snapshot, final.get(symbol, "WAIT"), h49_ref,
         ),
     }
+    if h49_ref and symbol == "XAUUSD":
+        evidence["h49_h1_evidence"] = h49_ref
+    return evidence

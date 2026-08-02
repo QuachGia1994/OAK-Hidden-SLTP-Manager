@@ -27,7 +27,7 @@ class H16GBPJPYTests(unittest.TestCase):
                 "entry_time": "16:49",
                 "entry_state": "READY",
                 "timing": {"timeframe": "H1"},
-                "pair_evidence": {"XAUUSD": {"evidence_schema_version": 9}},
+                "pair_evidence": {"XAUUSD": {"evidence_schema_version": 10}},
                 "pair_entry_times": {"XAUUSD": "16:49"},
                 "pair_entry_states": {"XAUUSD": "READY"},
                 "pair_signal_states": {"XAUUSD": "READY"},

@@ -165,7 +165,7 @@ def get_target_hours(broker_dt=None, weekday=None):
 SIGNAL_LOGIC_VERSION = 87
 ACTIVE_SIGNAL_LOGIC_VERSION = 87
 MINIMUM_SIGNAL_LOGIC_VERSION = 87
-SIGNAL_EVIDENCE_SCHEMA_VERSION = 9
+SIGNAL_EVIDENCE_SCHEMA_VERSION = 10
 LAYER3_CANDLE_GRACE_SECONDS = 90
 D_DIRECTION_SCHEMA_VERSION = 9
 D_PUBLICATION_STATE_SCHEMA_VERSION = 2
@@ -2501,7 +2501,12 @@ class MarketDataProvider(Protocol):
         symbol: str,
         timeframe: str,
         broker_open: datetime,
+        *,
+        source_id: Optional[str] = None,
     ) -> Optional[dict]:
+        ...
+
+    def get_active_source_id(self, max_age_seconds: int = 60) -> Optional[str]:
         ...
 
 
@@ -2664,6 +2669,8 @@ class MT4FeedProvider:
         symbol: str,
         timeframe: str,
         broker_open: datetime,
+        *,
+        source_id: Optional[str] = None,
     ) -> Optional[dict]:
         key = (symbol, self._normalize_timeframe(timeframe))
         if key in self._memory_store:
@@ -2676,9 +2683,28 @@ class MT4FeedProvider:
         if self._db_store is None:
             return None
 
+        if source_id is None:
+            source_id = self.get_active_source_id()
+
         fmt = "%Y-%m-%d %H:%M:%S"
         b_str = broker_open.strftime(fmt) if isinstance(broker_open, datetime) else str(broker_open)
-        return self._db_store.get_exact_bar(symbol, self._normalize_timeframe(timeframe), b_str)
+        return self._db_store.get_exact_bar(symbol, self._normalize_timeframe(timeframe), b_str, source_id=source_id)
+
+    def get_active_source_id(self, max_age_seconds: int = 60) -> Optional[str]:
+        """Return the feed source_id the Signal Engine should read bars from.
+
+        Prefers the freshest verified heartbeat; falls back to the default
+        single-source id only when the store cannot identify a live publisher.
+        """
+        if self._db_store is None:
+            return None
+        getter = getattr(self._db_store, "get_active_source_id", None)
+        if callable(getter):
+            try:
+                return getter(max_age_seconds=max_age_seconds)
+            except Exception:
+                return None
+        return None
 
     @staticmethod
     def _normalize_timeframe(timeframe):
@@ -4011,7 +4037,7 @@ def reconstruct_sent_slots(broker_date, logic_version=None, records=None):
             revision = rec.get("record_revision")
             if (
                 sig in ("BUY", "SELL", "WAIT")
-                and revision in (1, 2)
+                and revision in (1, 2, 3)
                 and rec.get("entry_state") != "PENDING_LAYER3"
             ):
                 valid_sent.add((b_date, slot_hour))
@@ -4178,7 +4204,7 @@ def _process_live_slot(broker_dt, hour):
     alert_record.update({
         "hour": hour,
         "source_date": broker_dt.date().isoformat(),
-        "record_revision": 2,
+        "record_revision": 3,
         "pair_dirs": result.get("pair_dirs") or get_pair_direction(hour, result.get("signal"), broker_dt, full_result=result),
     })
     if should_send_signal_alert(alert_record, signal_alerts_sent):
@@ -4688,7 +4714,7 @@ def evaluate_all_pairs_for_slot(broker_dt, hour, as_of_dt=None, prior_slot_resul
     except Exception:
         broker_offset = None
     result.update({
-        "record_revision": 2 if result.get("signal") in ("BUY", "SELL") and result.get("entry_state") == "READY" else 1,
+        "record_revision": 3 if result.get("signal") in ("BUY", "SELL") and result.get("entry_state") == "READY" else 1,
         "state_updated_at_utc": datetime.now(timezone.utc).isoformat(),
         "entry_at_utc": compute_utc_iso(slot_dt.date(), result.get("entry_time"), broker_offset),
         "broker_utc_offset": broker_offset,

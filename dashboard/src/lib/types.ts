@@ -264,6 +264,23 @@ export interface XauEntryTimingEvidence {
   classification_reason: string;
 }
 
+export interface H49H1Evidence {
+  source_symbol: string;
+  timeframe: string;
+  broker_open_at: string;
+  broker_close_at: string;
+  source_id?: string | null;
+  resolved_symbol?: string | null;
+  open_exact: string;
+  high_exact: string;
+  low_exact: string;
+  close_exact: string;
+  candle_direction: "TANG" | "GIAM" | "DOJI" | "WAIT";
+  reversed_signal: "BUY" | "SELL" | "WAIT";
+  state: "READY" | "WAIT";
+  failure_reason?: string | null;
+}
+
 export interface SignalEvidenceV3 {
   evidence_schema_version: number;
   logic_version: number;
@@ -300,6 +317,7 @@ export interface SignalEvidenceV3 {
   final_reverse_reason?: string | null;
   final_signal?: string;
   failure_reason?: string | null;
+  h49_h1_evidence?: H49H1Evidence | null;
 }
 
 export type SignalEvidenceUnion = SignalEvidenceV3 | SignalEvidence;
@@ -307,7 +325,8 @@ export type SignalEvidenceUnion = SignalEvidenceV3 | SignalEvidence;
 export function isSignalEvidenceV3(ev: unknown): ev is SignalEvidenceV3 {
   if (!ev || typeof ev !== "object") return false;
   const e = ev as Record<string, unknown>;
-  return typeof e["evidence_schema_version"] === "number" && Number(e["evidence_schema_version"]) === 9;
+  return typeof e["evidence_schema_version"] === "number"
+    && (Number(e["evidence_schema_version"]) === 9 || Number(e["evidence_schema_version"]) === 10);
 }
 
 export interface DDirectionSymbolData {

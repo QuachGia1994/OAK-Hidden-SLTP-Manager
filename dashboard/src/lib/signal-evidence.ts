@@ -39,7 +39,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isCurrentXauEvidence(value: unknown, logicVersion: number): value is Record<string, unknown> {
   if (!isRecord(value)) return false;
-  return Number(value.evidence_schema_version) === 9
+  return (Number(value.evidence_schema_version) === 9 || Number(value.evidence_schema_version) === 10)
     && Number(value.logic_version) === logicVersion
     && value.symbol === "XAUUSD";
 }
@@ -93,7 +93,7 @@ export function resolveSignalEvidence(
       date: d,
       hour: h,
       symbol: "XAUUSD",
-      evidence_schema_version: 9,
+      evidence_schema_version: Number(embedded.evidence_schema_version),
     };
   }
 
@@ -106,7 +106,7 @@ export function resolveSignalEvidence(
       date: d,
       hour: h,
       symbol: "XAUUSD",
-      evidence_schema_version: 9,
+      evidence_schema_version: Number(direct.evidence_schema_version),
     };
   }
 

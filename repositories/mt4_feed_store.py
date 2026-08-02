@@ -17,6 +17,11 @@ log = setup_logger("mt4_feed_store")
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mt4_feed.db")
 
 
+class AmbiguousMT4FeedSourceError(Exception):
+    """Raised when an exact bar is published by multiple sources with conflicting OHLC."""
+    pass
+
+
 class MT4FeedStore:
     """SQLite state store for MT4 raw market data & clock heartbeat."""
 
@@ -227,6 +232,35 @@ class MT4FeedStore:
         result = dict(row) if row else None
         self._finish_ephemeral()
         return result
+
+    def get_active_source_id(self, max_age_seconds: int = 60) -> Optional[str]:
+        """Return the source_id of the freshest verified heartbeat.
+
+        A source is active only when its heartbeat is fresh, its clock is
+        verified (a valid broker_utc_offset exists), and its schema matches the
+        current feed contract.  Returns ``None`` when no publisher qualifies.
+        """
+        hb = self.get_latest_heartbeat()
+        if not hb:
+            return None
+        if int(hb.get("schema_version", 0)) != 2:
+            return None
+        if hb.get("broker_utc_offset") is None:
+            return None
+        obs_str = str(hb.get("observed_at_utc") or "")
+        try:
+            if "T" in obs_str:
+                obs_dt = datetime.fromisoformat(obs_str)
+            else:
+                obs_dt = datetime.strptime(obs_str, "%Y-%m-%d %H:%M:%S")
+            if obs_dt.tzinfo is None:
+                obs_dt = obs_dt.replace(tzinfo=timezone.utc)
+            age_sec = (datetime.now(timezone.utc) - obs_dt).total_seconds()
+            if age_sec < 0 or age_sec > max_age_seconds:
+                return None
+        except (TypeError, ValueError):
+            return None
+        return str(hb.get("source_id") or "mt4_ea")
 
     def get_broker_utc_offset(self, broker_date=None, source_id: Optional[str] = None) -> int:
         """Return a verified Broker-date offset from heartbeats or raw bar UTC timestamps."""
@@ -461,26 +495,48 @@ class MT4FeedStore:
         self._finish_ephemeral()
         return []
 
-    def get_exact_bar(self, symbol: str, timeframe: str, broker_open_str: str) -> Optional[Dict[str, Any]]:
-        """Query single exact bar matching symbol, timeframe, and broker_open_at."""
+    def get_exact_bar(self, symbol: str, timeframe: str, broker_open_str: str, *, source_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Query a single exact bar matching symbol, timeframe, and broker_open_at.
+
+        The Signal Engine must pass the active ``source_id`` so the query never
+        selects an arbitrary publisher row.  Without a ``source_id`` the store
+        fails closed when multiple sources disagree on OHLC
+        (``AmbiguousMT4FeedSourceError``); identical rows are still resolved
+        deterministically by ``received_at_utc DESC, source_id ASC``.
+        """
         self._ensure_open()
         tf_str = str(timeframe)
         norm_tf = self._normalize_tf(tf_str)
         broker_open_str = self._format_broker_datetime(self._parse_datetime(broker_open_str, assume_utc=False))
-        cursor = self._conn.execute("""
+        params: List[Any] = [symbol, tf_str, norm_tf, broker_open_str]
+        query = """
             SELECT * FROM mt4_feed_bars
             WHERE canonical_symbol = ? AND (timeframe = ? OR timeframe = ?)
               AND broker_open_at = ?
-            LIMIT 1
-        """, (symbol, tf_str, norm_tf, broker_open_str))
-        row = cursor.fetchone()
-        if row:
-            result = self._format_bar_dict(row)
+        """
+        if source_id:
+            query += " AND source_id = ?"
+            params.append(str(source_id))
+        query += " ORDER BY received_at_utc DESC, source_id ASC"
+        rows = self._conn.execute(query, params).fetchall()
+        if not rows:
             self._finish_ephemeral()
-            return result
-
+            return None
+        if not source_id and len(rows) > 1:
+            distinct_ohlc = {
+                (r["open_exact"], r["high_exact"], r["low_exact"], r["close_exact"])
+                for r in rows
+            }
+            if len(distinct_ohlc) > 1:
+                self._finish_ephemeral()
+                raise AmbiguousMT4FeedSourceError(
+                    f"multiple MT4 feed sources publish conflicting OHLC for "
+                    f"{symbol} {norm_tf} at {broker_open_str}"
+                )
+        row = rows[0]
+        result = self._format_bar_dict(row)
         self._finish_ephemeral()
-        return None
+        return result
 
     def clear(self):
         """Clear feed bars for unit testing."""
