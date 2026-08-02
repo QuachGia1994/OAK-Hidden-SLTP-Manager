@@ -141,14 +141,16 @@ int BackfillBars(int timeframe)
 //+------------------------------------------------------------------+
 string SymbolSetHash()
 {
-   int hash = 2166136261;
+   // FNV-1a 32-bit fingerprint of the feed matrix.  The offset basis does not
+   // fit int32, so the state must be unsigned to avoid the truncation warning.
+   uint hash = 2166136261;
    string seed = FeedSymbols + "|" + FeedTimeframes;
    for(int index = 0; index < StringLen(seed); index++)
    {
-      hash = hash ^ (int)StringGetCharacter(seed, index);
+      hash = hash ^ (uint)StringGetCharacter(seed, index);
       hash = hash * 16777619;
    }
-   return IntegerToString(hash & 0x7FFFFFFF);
+   return IntegerToString((int)(hash & 0x7FFFFFFF));
 }
 
 string BuildSourceId()
