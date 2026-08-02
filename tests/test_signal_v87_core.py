@@ -6,7 +6,7 @@ from domain.signal_v87 import build_entry_plan, evaluate_slot, final_reverse
 
 
 class FixtureProvider:
-    name = "MT4"
+    name = "MT5"
 
     def __init__(self):
         self.bars = {}
@@ -79,12 +79,12 @@ class TestSignalV87Core(unittest.TestCase):
         self.assertEqual(build_entry_plan(slot_dt, 7, provider, slot_dt)["entry_state"], "PENDING_LAYER3")
         self.assertEqual(build_entry_plan(slot_dt, 7, provider, slot_dt + timedelta(minutes=30))["entry_time"], "07:49")
 
-    def test_missing_mt4_layer_is_explicitly_fail_closed(self):
+    def test_missing_market_data_layer_is_explicitly_fail_closed(self):
         provider = FixtureProvider()
         slot_dt = datetime(2026, 8, 3, 7)
         plan = build_entry_plan(slot_dt, 7, provider, slot_dt + timedelta(minutes=30))
         self.assertEqual(plan["entry_state"], "WAIT")
-        self.assertEqual(plan["failure_reason"], "WAIT_MT4_DATA")
+        self.assertEqual(plan["failure_reason"], "WAIT_MT5_DATA")
 
     def test_h7_layer2_doji_or_missing_never_falls_through_to_layer3(self):
         slot_dt = datetime(2026, 8, 3, 7)
@@ -171,7 +171,7 @@ class TestSignalV87Core(unittest.TestCase):
         self.assertEqual(result["pair_signal_states"]["GBPAUD"], "NOT_APPLICABLE")
         self.assertNotIn("GBPAUD", result["pair_evidence"])
         # GBPJPY is applicable at H7 but its D is absent, so it fails closed.
-        self.assertEqual(result["pair_evidence"]["GBPJPY"]["failure_reason"], "WAIT_MT4_DATA")
+        self.assertEqual(result["pair_evidence"]["GBPJPY"]["failure_reason"], "WAIT_MT5_DATA")
 
     def test_h16_final_reverse_changes_every_applicable_pair_once(self):
         provider = FixtureProvider()

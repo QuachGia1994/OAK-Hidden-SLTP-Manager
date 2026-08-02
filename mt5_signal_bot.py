@@ -25,6 +25,7 @@ from repositories.sqlite_store import SQLiteStore
 from secret_store import resolve_telegram_token, migrate_plaintext_tokens
 from telegram_client import telegram_get_me
 from domain.broker_clock import BrokerClock, BrokerClockError
+from providers.health_contract import MarketDataHealth, health_value
 from domain.signal_rules import (
     classify_three_candle_group,
     derive_gbp_signal_from_layer1,
@@ -238,6 +239,7 @@ DISPLAY_SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 EVIDENCE_SIGNAL_PAIRS = ("XAUUSD",)
 ENTRY_TIMING_SYMBOLS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 D_SOURCE_SYMBOL = {symbol: symbol for symbol in SIGNAL_PAIRS}
+D_SOURCE_SYMBOL["XAUUSD"] = "GBPUSD"
 
 
 def get_evaluated_pairs_for_hour(hour):
@@ -316,7 +318,7 @@ def schedule_orders_for_signal(result, broker_dt, hour):
 
 
 def process_pending_execution_orders():
-    """Retry due intents only while MT5 is connected; MT4 remains clock authority."""
+    """Retry due intents only while MT5 execution is connected."""
     if not mt5_ready:
         return []
     try:
@@ -470,9 +472,9 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None, 
         broker_utc_offset=broker_offset,
         broker_observed_at_utc=broker_observed_at_utc,
         preserve_broker_clock=False,
-        data_provider="MT4",
+        data_provider=getattr(MARKET_DATA_PROVIDER, "name", "MT5"),
         data_state=data_state,
-        data_observed_at_utc=feed_health.observed_at_utc if feed_health else "",
+        data_observed_at_utc=health_value(feed_health, "observed_at_utc", ""),
         execution_provider="MT5",
         execution_state="connected" if mt5_connected else "disconnected",
     )
@@ -625,9 +627,9 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None,
         "broker_utc_offset": broker_utc_offset,
         "broker_observed_at_utc": health.observed_at_utc if has_verified_clock and health else "",
         "d_publication_state": pub_state,
-        "data_provider": "MT4",
+        "data_provider": getattr(MARKET_DATA_PROVIDER, "name", "MT5"),
         "data_state": data_state,
-        "data_observed_at_utc": health.observed_at_utc if health else "",
+        "data_observed_at_utc": health_value(health, "observed_at_utc", ""),
         "execution_provider": "MT5",
         "execution_state": "connected" if mt5_ready else "disconnected",
     }
@@ -830,7 +832,7 @@ def _format_signal_record(H, broker_dt, sig, entry_time, pair_dirs, hour_note,
     record["signal_at_utc"] = signal_utc.isoformat() if signal_utc else None
     record["broker_utc_offset"] = broker_offset
     record["broker_clock_verified"] = clock_verified
-    record["broker_timestamp_mode"] = "MT4_FEED"
+    record["broker_timestamp_mode"] = getattr(MARKET_DATA_PROVIDER, "name", "MT5") + "_CLOCK"
     record["signal_time_local"] = (
         _broker_time_to_local(signal_time, broker_offset)
         if broker_offset is not None and clock_verified else None
@@ -1687,7 +1689,8 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
     ver = SIGNAL_LOGIC_VERSION
     mt5_status = "✅ CONNECTED" if mt5_connected else "⚠️ DISCONNECTED"
     feed_health = MARKET_DATA_PROVIDER.get_health() if hasattr(MARKET_DATA_PROVIDER, "get_health") else None
-    feed_state = getattr(feed_health, "state", "disconnected") if feed_health else "disconnected"
+    feed_state = health_value(feed_health, "state", "disconnected")
+    data_provider = getattr(MARKET_DATA_PROVIDER, "name", "MT5")
     broker_time_str = "--:--"
     if broker_dt is not None:
         try:
@@ -1696,7 +1699,7 @@ def build_startup_telegram_message(broker_dt, mt5_connected, rule_contract=None)
             pass
     return (
         f"🤖 OAK SIGNAL BOT ONLINE · v{ver}\n"
-        f"MT4 Feed: {feed_state.upper()} · MT5: {mt5_status}\n"
+        f"Market Data ({data_provider}): {str(feed_state).upper()} · MT5 Execution: {mt5_status}\n"
         f"Broker Clock: {broker_time_str}\n"
         "Slots: H3 · H7 · H9 · H12 · H14 · H16"
     )
@@ -1970,7 +1973,7 @@ def _d_cache_key(
     open_hour=20,
 ):
     """Build the date-aware identity required for one D source candle."""
-    provider_name = getattr(provider, "name", None) or "MT4"
+    provider_name = getattr(provider, "name", None) or "MT5"
 
     def date_text(value):
         return value.isoformat() if hasattr(value, "isoformat") else str(value)
@@ -1988,7 +1991,7 @@ def _d_cache_key(
 
 def _find_cached_d_evidence(provider, canonical_symbol, target_broker_date):
     """Find a ready cache entry without collapsing sessions or symbols."""
-    provider_name = getattr(provider, "name", None) or "MT4"
+    provider_name = getattr(provider, "name", None) or "MT5"
     target_text = target_broker_date.isoformat()
     prefix = (str(provider_name), str(canonical_symbol), "H4", target_text)
     for key, value in list(_d_direction_cache.items()):
@@ -2409,7 +2412,7 @@ def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_d
         "schema_version": D_DIRECTION_SCHEMA_VERSION,
         "symbol": target_symbol,
         "source_symbol": source_symbol,
-        "provider": "MT4",
+        "provider": getattr(MARKET_DATA_PROVIDER, "name", "MT5"),
         "timeframe": "H4",
         "target_date": target_broker_date.isoformat(),
         "session_date": session_date.isoformat() if session_date else None,
@@ -2454,7 +2457,7 @@ def _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, 
         "schema_version": D_DIRECTION_SCHEMA_VERSION,
         "symbol": target_symbol,
         "source_symbol": source_symbol,
-        "provider": "MT4",
+        "provider": getattr(MARKET_DATA_PROVIDER, "name", "MT5"),
         "timeframe": "H4",
         "target_date": target_broker_date.isoformat(),
         "session_date": session_date.isoformat() if session_date else None,
@@ -2521,7 +2524,7 @@ def calculate_d_direction(symbol, target_broker_date, market_data_provider=None)
         # snapshot across history dates.
         legacy_keys = (
             (target_broker_date.isoformat(), symbol),
-            (getattr(provider, "name", "MT4"), target_broker_date.isoformat(), symbol),
+            (getattr(provider, "name", "MT5"), target_broker_date.isoformat(), symbol),
         )
         for legacy_key in legacy_keys:
             cached = _d_direction_cache.get(legacy_key)
@@ -2550,7 +2553,7 @@ def calculate_d_direction(symbol, target_broker_date, market_data_provider=None)
             _d_direction_cache[full_key] = evidence
             # Keep a bounded date-scoped alias for old callers; all new reads
             # prefer the full source-candle identity above.
-            _d_direction_cache[(getattr(provider, "name", "MT4"), target_broker_date.isoformat(), symbol)] = evidence
+            _d_direction_cache[(getattr(provider, "name", "MT5"), target_broker_date.isoformat(), symbol)] = evidence
             _d_direction_cache[(target_broker_date.isoformat(), symbol)] = evidence
     return evidence
 
@@ -2581,7 +2584,7 @@ def calculate_all_d_directions(target_broker_date, market_data_provider=None):
                     evidence.get("session_date"),
                 )
                 _d_direction_cache[full_key] = evidence
-                _d_direction_cache[(getattr(provider, "name", "MT4"), target_broker_date.isoformat(), src)] = evidence
+                _d_direction_cache[(getattr(provider, "name", "MT5"), target_broker_date.isoformat(), src)] = evidence
                 _d_direction_cache[(target_broker_date.isoformat(), src)] = evidence
 
     results = {}
@@ -2605,7 +2608,7 @@ def calculate_all_d_directions(target_broker_date, market_data_provider=None):
                     result.get("session_date"),
                 )
                 _d_direction_cache[full_key] = result
-                _d_direction_cache[(getattr(provider, "name", "MT4"), target_broker_date.isoformat(), symbol)] = result
+                _d_direction_cache[(getattr(provider, "name", "MT5"), target_broker_date.isoformat(), symbol)] = result
                 _d_direction_cache[(target_broker_date.isoformat(), symbol)] = result
     return results
 
@@ -2644,8 +2647,6 @@ SYMBOL_PRICE_DIGITS = {
 }
 
 def get_symbol_price_digits(symbol):
-    # Signal evidence is sourced from MT4 exact-price strings; MT5 is not a
-    # market-data dependency for D-Direction or entry classification.
     return SYMBOL_PRICE_DIGITS.get(symbol, 5)
 
 def get_d_publication_datetime_local(local_date):
@@ -2722,7 +2723,7 @@ def is_d_publication_due(now_utc, local_date):
     return now_utc >= pub_utc
 
 class MarketDataClockError(BrokerClockError):
-    """Raised when MT4 market data clock is unavailable or stale."""
+    """Raised when the market-data provider clock is unavailable or stale."""
     pass
 
 
@@ -3071,7 +3072,7 @@ def build_d_direction_snapshot_for_date(
     except Exception as exc:
         return _build_d_clock_unavailable_snapshot(
             target_local_date_str,
-            getattr(market_data_provider, "name", "MT4"),
+            getattr(market_data_provider, "name", "MT5"),
             str(exc),
         )
 
@@ -3106,7 +3107,7 @@ def build_d_direction_snapshot_for_date(
         symbols_payload[symbol] = {
             "symbol": symbol,
             "source_symbol": source_symbol,
-            "data_provider": getattr(market_data_provider, "name", "MT4"),
+            "data_provider": getattr(market_data_provider, "name", "MT5"),
             "timeframe": "H4",
             "target_date": target_broker_date_obj.isoformat(),
             "session_date": session_date,
@@ -3153,7 +3154,7 @@ def build_d_direction_snapshot_for_date(
         "publication_rule": "DAILY_AT_06_00_LOCAL",
         "state": snapshot_state,
         "snapshot_state": snapshot_state,
-        "data_provider": getattr(market_data_provider, "name", "MT4"),
+        "data_provider": getattr(market_data_provider, "name", "MT5"),
         "symbols": symbols_payload,
     }
 
@@ -3730,7 +3731,7 @@ def _single_pair_wait_reason(symbol, result, d_directions):
     """Explain why one applicable pair resolved to WAIT.
 
     Priority: XAUUSD H49 H1 evidence → entry layers → D candle state →
-    global failure reason → generic WAIT_MT4_DATA.
+    global failure reason → provider generic data wait.
     """
     evidence = result.get("pair_evidence") or {}
     entry = result.get("timing") or result.get("entry_plan") or {}
@@ -4681,13 +4682,31 @@ def try_init_mt5():
     return False
 
 def get_broker_time():
-    """Return Broker wall time from MT4 Feed clock authority (v87). Fail-closed if MT4 Feed clock is stale or unavailable."""
-    if not hasattr(MARKET_DATA_PROVIDER, "get_health"):
-        raise MarketDataClockError("MT4 Feed provider is not configured")
-    health = MARKET_DATA_PROVIDER.get_health()
-    if not health.fresh or not getattr(health, "clock_verified", True):
-        raise MarketDataClockError(f"MT4 feed clock is unavailable/stale (state={getattr(health, 'state', 'stale')})")
-    return MARKET_DATA_PROVIDER.get_broker_now()
+    """Return Broker wall time from the active market-data provider.
+
+    MT5 mode reads the calibrated BrokerClock directly from the connected MT5
+    terminal.  Fail-closed when the provider is unavailable or stale.
+    """
+    provider = MARKET_DATA_PROVIDER
+    if not hasattr(provider, "get_health"):
+        raise MarketDataClockError(f"{getattr(provider, 'name', 'market data')} provider is not configured")
+    health = provider.get_health()
+    fresh = health_value(health, "fresh", False)
+    state = health_value(health, "state", "stale")
+    if not fresh:
+        raise MarketDataClockError(
+            f"{getattr(provider, 'name', 'market data')} market data is unavailable/stale "
+            f"(state={state})"
+        )
+    try:
+        broker_now = provider.get_broker_now()
+    except Exception as exc:
+        raise MarketDataClockError(
+            f"{getattr(provider, 'name', 'market data')} Broker clock unavailable: {exc}"
+        ) from exc
+    if broker_now is None:
+        raise MarketDataClockError("Broker clock returned None")
+    return broker_now
 
 
 _last_broker_clock_log = ("", 0.0)
@@ -4994,23 +5013,33 @@ def _process_live_slot(broker_dt, hour):
 
 def main(profile_name=None):
     global mt5_ready, sent_today, _d_directions_today, _active_profile, _broker_clock_error, _mt5_connection_error, signal_alerts_sent, signal_alerts_pending, _current_day_mode
+    data_provider_name = getattr(MARKET_DATA_PROVIDER, "name", "MT5")
     print("=" * 55)
     print(f"  MT5 Multi-Timeframe Signal Bot v{SIGNAL_LOGIC_VERSION}")
     print(f"  Symbol: {SYMBOL}")
     print(f"  Target Hours: {', '.join(f'H={h}' for h in TARGET_HOURS)}")
-    print("  Broker clock: MT4 Feed heartbeat authority, fail-closed")
+    print(f"  Broker clock: {data_provider_name} market data, fail-closed")
     admin_ok = bool(TELEGRAM_ADMIN_CHAT_ID and resolve_signal_admin_chat_id())
     print(f"  Telegram admin destination: {'yes' if admin_ok else 'no'}")
     print("=" * 55)
 
     _active_profile = resolve_active_profile(profile_name)
+    profile_cfg = load_profile_config(_active_profile)
 
     if try_init_mt5():
         info = mt5.account_info()
         if info:
             print(f"  Balance: ${info.balance:,.2f}")
     else:
-        print("[WARN] MT5 execution is disabled; Signal calculation awaits MT4 Feed.")
+        print("[WARN] MT5 execution is disabled; Signal calculation awaits market data.")
+
+    # Bind the selected profile to the market-data provider so it reuses the
+    # already-connected MT5 session instead of re-initializing a global path.
+    if data_provider_name == "MT5" and hasattr(MARKET_DATA_PROVIDER, "bind_profile"):
+        try:
+            MARKET_DATA_PROVIDER.bind_profile(profile_cfg)
+        except Exception as exc:
+            print(f"[MT5 DATA] bind_profile failed: {exc}")
 
     print("=" * 55)
     print("  Dang chay... Ctrl+C de dung")
@@ -5030,31 +5059,34 @@ def main(profile_name=None):
     )
     BROKER_CLOCK.configure_symbols(resolved_clock_symbols)
 
-    import threading as _threading
-    def preload_market_data():
-        if not hasattr(MARKET_DATA_PROVIDER, "preload"):
-            return
-        if getattr(MARKET_DATA_PROVIDER, "name", "") != "MT5":
-            return
+    # Sequential startup: the first preload must finish before the Broker clock
+    # is consulted, so History is never rebuilt from an empty MT5 cache.
+    if data_provider_name == "MT5" and hasattr(MARKET_DATA_PROVIDER, "preload"):
         try:
-            MARKET_DATA_PROVIDER.preload()
+            preload_result = MARKET_DATA_PROVIDER.preload(
+                symbols=ACTIVE_SIGNAL_PAIRS,
+                timeframes=("M30", "H1", "H4"),
+                days=60,
+            )
+            if getattr(preload_result, "complete", False) is False:
+                print("[MT5 DATA] Coverage incomplete; failing closed and preserving existing History.")
         except Exception as exc:
             print(f"[MT5 DATA] preload failed: {exc}")
-
-    _threading.Thread(target=preload_market_data, daemon=True).start()
 
     def heartbeat_thread():
         global _broker_clock_error
         while True:
             heartbeat_broker_dt = None
-            # MT4 owns both market-data time and the schedule.  MT5 being
-            # offline must not hide a valid Broker clock or stop signal
-            # calculation; it only disables the execution gateway.
+            # MT5 market data owns both the Broker time and the schedule.  MT5
+            # execution being offline must not hide a valid Broker clock or stop
+            # signal calculation; it only disables the execution gateway.
             try:
                 heartbeat_broker_dt = get_broker_time()
                 _broker_clock_error = ""
-            except BrokerClockError as error:
+            except (BrokerClockError, MarketDataClockError) as error:
                 _broker_clock_error = str(error)
+            except Exception as error:
+                _broker_clock_error = f"MT5_PROVIDER_ERROR: {error}"
             try:
                 errors = [error for error in (_broker_clock_error, _mt5_connection_error) if error]
                 publish_heartbeat(
@@ -5076,8 +5108,13 @@ def main(profile_name=None):
         try:
             broker_dt = get_broker_time()
             _broker_clock_error = ""
-        except BrokerClockError as error:
+        except (BrokerClockError, MarketDataClockError) as error:
             _broker_clock_error = str(error)
+            _log_broker_clock_failure(error)
+            time.sleep(5)
+        except Exception as error:
+            traceback.print_exc()
+            _broker_clock_error = f"MT5_PROVIDER_ERROR: {error}"
             _log_broker_clock_failure(error)
             time.sleep(5)
 
@@ -5092,7 +5129,7 @@ def main(profile_name=None):
 
     send_telegram(build_startup_telegram_message(broker_dt, mt5_ready))
 
-    # Rebuild signals_log from the persistent MT4 Feed before pushing.
+    # Rebuild signals_log from the active market-data provider before pushing.
     startup_rebuilt = rebuild_signals_on_startup()
     # Calculate D-Direction for current Broker date
     try:

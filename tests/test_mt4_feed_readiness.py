@@ -1,4 +1,4 @@
-"""The process launcher must require a current MT4 heartbeat, not HTTP 200 alone."""
+"""The process launcher must not block the Signal Bot on the legacy MT4 feed."""
 
 import io
 import json
@@ -49,7 +49,6 @@ class MT4FeedReadinessTests(unittest.TestCase):
             "mimo_worker": {"name": "Worker"},
         })
         supervisor.start_signal_process = MagicMock()
-        supervisor._wait_for_feed_health = MagicMock(return_value=False)
         supervisor._set_running_ui = MagicMock()
         supervisor._log = MagicMock()
 
@@ -87,10 +86,7 @@ class MT4FeedReadinessTests(unittest.TestCase):
 
         mock_proc = MagicMock()
         mock_proc.pid = 1234
-        with patch(
-            "services.signal_process_supervisor.read_mt4_feed_health",
-            return_value=MT4FeedHealth(True, "stale"),
-        ), patch("services.signal_process_supervisor.subprocess.Popen", return_value=mock_proc), \
+        with patch("services.signal_process_supervisor.subprocess.Popen", return_value=mock_proc), \
              patch("services.signal_process_supervisor.threading.Thread"):
             supervisor.start_signal_process("signal_bot")
 

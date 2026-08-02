@@ -1,7 +1,7 @@
-"""Pure v88 signal rules using only the completed MT4 feed bars.
+"""Pure v88 signal rules using only completed market-data bars.
 
 The module deliberately has no MetaTrader import and no wall-clock reads.  The
-caller supplies a Broker-date, a feed provider, and (for live evaluation) an
+caller supplies a Broker-date, a data provider, and (for live evaluation) an
 ``as_of`` cutoff.  This makes history rebuilds deterministic and keeps the
 reference/entry/reverse steps in one auditable pipeline.
 """
@@ -147,28 +147,34 @@ def _layer(provider, symbol: str, timeframe: str, opens: tuple[datetime, ...], a
     }
 
 
+def _provider_wait_reason(provider) -> str:
+    """Legacy MT4 keeps its historical label; MT5 reports a market-data wait."""
+    return "WAIT_MT4_DATA" if getattr(provider, "name", "") == "MT4" else "WAIT_MT5_DATA"
+
+
 def build_entry_plan(slot_dt: datetime, slot_hour: int, provider, as_of: datetime | None = None) -> dict[str, Any]:
     """Resolve the one XAUUSD Entry Plan shared by all five pairs."""
     h = int(slot_hour)
+    wait_reason = _provider_wait_reason(provider)
     if h == 16:
         layer2_opens = tuple(slot_dt.replace(hour=x, minute=0, second=0, microsecond=0) for x in (5, 4, 3))
         layer2 = _layer(provider, "XAUUSD", "H1", layer2_opens, as_of, "LAYER_2")
         if layer2["group"] == "BT":
-            return _entry_result(h, "16:11", "H_11", ("16:11",), layer2, None)
+            return _entry_result(h, "16:11", "H_11", ("16:11",), layer2, None, provider_wait_reason=wait_reason)
         if layer2["group"] != "SW":
-            return _entry_result(h, None, None, (), layer2, None)
+            return _entry_result(h, None, None, (), layer2, None, provider_wait_reason=wait_reason)
         layer3_opens = tuple(slot_dt.replace(hour=x, minute=0, second=0, microsecond=0) for x in (10, 9, 8))
         layer3 = _layer(provider, "XAUUSD", "H1", layer3_opens, as_of, "LAYER_3")
         entry = "16:49" if layer3["group"] == "BT" else "17:25" if layer3["group"] == "SW" else None
         branch = "H_49" if entry == "16:49" else "H_PLUS_1_25" if entry else None
-        return _entry_result(h, entry, branch, ("16:49", "17:25"), layer2, layer3)
+        return _entry_result(h, entry, branch, ("16:49", "17:25"), layer2, layer3, provider_wait_reason=wait_reason)
     layer2_opens = tuple(slot_dt - timedelta(minutes=x) for x in (30, 60, 90))
     layer2 = _layer(provider, "XAUUSD", "M30", layer2_opens, as_of, "LAYER_2")
     if layer2["group"] == "BT":
         entry = f"{h:02d}:11"
-        return _entry_result(h, entry, "H_11", (entry,), layer2, None)
+        return _entry_result(h, entry, "H_11", (entry,), layer2, None, provider_wait_reason=wait_reason)
     if layer2["group"] != "SW":
-        return _entry_result(h, None, None, (), layer2, None)
+        return _entry_result(h, None, None, (), layer2, None, provider_wait_reason=wait_reason)
     layer3_opens = (slot_dt, slot_dt - timedelta(minutes=30), slot_dt - timedelta(minutes=60))
     layer3 = _layer(provider, "XAUUSD", "M30", layer3_opens, as_of, "LAYER_3")
     entry = f"{h:02d}:49" if layer3["group"] == "SW" else ("04:25" if h == 3 else f"{h + 1:02d}:25") if layer3["group"] == "BT" else None
@@ -186,10 +192,11 @@ def build_entry_plan(slot_dt: datetime, slot_hour: int, provider, as_of: datetim
         layer2,
         layer3,
         entry_state="PENDING_LAYER3" if pending else None,
+        provider_wait_reason=wait_reason,
     )
 
 
-def _entry_result(hour, entry, branch, candidates, layer2, layer3, entry_state=None):
+def _entry_result(hour, entry, branch, candidates, layer2, layer3, entry_state=None, provider_wait_reason="WAIT_MT5_DATA"):
     return {
         "symbol": "XAUUSD",
         "slot_hour": hour,
@@ -204,7 +211,7 @@ def _entry_result(hour, entry, branch, candidates, layer2, layer3, entry_state=N
         "timeframe": "H1" if hour == 16 else "M30",
         "source_symbol": "XAUUSD",
         "entry_selection": layer2.get("group") if layer3 is None else layer3.get("group"),
-        "failure_reason": "WAIT_MT4_DATA" if not entry and entry_state != "PENDING_LAYER3" else None,
+        "failure_reason": provider_wait_reason if not entry and entry_state != "PENDING_LAYER3" else None,
     }
 
 
@@ -351,7 +358,7 @@ def _requires_reference_d(symbol: str, entry: dict[str, Any]) -> bool:
     return entry.get("entry_branch") != "H_49" or symbol not in ("XAUUSD", "GBPUSD")
 
 
-def _signal_failure_reason(symbol: str, entry: dict[str, Any], d_snapshot: dict[str, dict], final_signal: str, h49_ref: dict | None = None) -> str | None:
+def _signal_failure_reason(symbol: str, entry: dict[str, Any], d_snapshot: dict[str, dict], final_signal: str, h49_ref: dict | None = None, provider_wait_reason: str = "WAIT_MT5_DATA") -> str | None:
     """Keep diagnostics aligned with each pair's actual fail-closed state."""
     if entry.get("failure_reason"):
         return entry["failure_reason"]
@@ -359,9 +366,9 @@ def _signal_failure_reason(symbol: str, entry: dict[str, Any], d_snapshot: dict[
         return h49_ref["failure_reason"]
     reference_d = (d_snapshot.get("GBPUSD") or {}).get("d_direction")
     if _requires_reference_d(symbol, entry) and reference_d not in ("BUY", "SELL"):
-        return "WAIT_MT4_DATA"
+        return provider_wait_reason
     if final_signal not in ("BUY", "SELL"):
-        return "WAIT_MT4_DATA"
+        return provider_wait_reason
     return None
 
 
@@ -403,6 +410,7 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
     the final payload with ``SignalInvariantError`` on violation.
     """
     entry = build_entry_plan(slot_dt, slot_hour, provider, as_of)
+    provider_wait_reason = _provider_wait_reason(provider)
     reference_d = (d_snapshot.get("GBPUSD") or {}).get("d_direction")
     base_signal, next_mode, base_source, h49_ref = _reference_base(entry, slot_dt, provider, reference_d, day_mode)
     applicable = get_evaluated_pairs_for_hour(int(slot_hour))
@@ -470,10 +478,11 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
             reason,
             base_source,
             h49_ref,
+            provider_wait_reason,
         )
         for symbol in applicable
     }
-    failure_reason = _signal_failure_reason("XAUUSD", entry, d_snapshot, final["XAUUSD"], h49_ref)
+    failure_reason = _signal_failure_reason("XAUUSD", entry, d_snapshot, final["XAUUSD"], h49_ref, provider_wait_reason)
     return {
         "logic_version": 88,
         "signal": final["XAUUSD"],
@@ -533,7 +542,7 @@ def evaluate_slot(slot_dt: datetime, slot_hour: int, provider, d_snapshot: dict[
     }
 
 
-def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, reversed_once, reason, base_source, h49_ref=None):
+def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, reversed_once, reason, base_source, h49_ref=None, provider_wait_reason="WAIT_MT5_DATA"):
     evidence = {
         "evidence_schema_version": 11,
         "logic_version": 88,
@@ -557,7 +566,7 @@ def _evidence(symbol, slot_dt, entry, d_snapshot, relations, core, final, revers
         "final_signal": final.get(symbol, "WAIT"),
         "base_signal_source": base_source,
         "failure_reason": _signal_failure_reason(
-            symbol, entry, d_snapshot, final.get(symbol, "WAIT"), h49_ref,
+            symbol, entry, d_snapshot, final.get(symbol, "WAIT"), h49_ref, provider_wait_reason,
         ),
     }
     if h49_ref and symbol == "XAUUSD":

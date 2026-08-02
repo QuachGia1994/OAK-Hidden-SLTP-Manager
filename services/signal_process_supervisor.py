@@ -11,13 +11,12 @@ import threading
 import subprocess
 from typing import Dict, Any, Callable, Optional
 from oak_logger import setup_logger
-from services.mt4_feed_health import read_mt4_feed_health
 
 log = setup_logger("signal_supervisor")
 
 
 class SignalProcessSupervisor:
-    """Supervises Feed/Signal/worker processes with feed-first startup."""
+    """Supervises Signal/worker processes; the legacy MT4 Feed Server only starts when explicitly enabled."""
 
     def __init__(
         self,
@@ -356,27 +355,6 @@ class SignalProcessSupervisor:
                 continue
             self.start_signal_process(key, profile)
             time.sleep(1)
-
-    def _wait_for_feed_health(self, timeout: float = 15.0) -> bool:
-        """Wait for a live MT4 heartbeat; a listener alone is not feed-ready."""
-        deadline = time.monotonic() + timeout
-        last_state = None
-        while time.monotonic() < deadline:
-            health = read_mt4_feed_health(timeout=3.0)
-            if health.feed_connected:
-                self._log("[MT4 FEED] listener ready; live heartbeat CONNECTED")
-                return True
-            status = (
-                f"listener ready; feed {health.data_state.upper()}"
-                if health.listener_available
-                else "listener unavailable"
-            )
-            if status != last_state:
-                self._log(f"[MT4 FEED] {status}; waiting for live heartbeat")
-                last_state = status
-            time.sleep(0.5)
-        self._log("[MT4 FEED] live heartbeat not CONNECTED; Signal Bot is blocked")
-        return False
 
     def stop_all_signals(self, *, wait: bool = True) -> None:
         for key in list(self._signal_procs.keys()):

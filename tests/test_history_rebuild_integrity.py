@@ -128,7 +128,7 @@ class WaitReasonIntegrityTests(unittest.TestCase):
         missing = {
             "rebuild_state": "READY",
             "pair_signal_states": {"XAUUSD": "WAIT", "GBPUSD": "WAIT", "GBPJPY": "WAIT"},
-            "wait_reasons": {"XAUUSD": "H49_H1_MISSING", "GBPUSD": "D_H4_MISSING", "GBPJPY": "WAIT_MT4_DATA"},
+            "wait_reasons": {"XAUUSD": "H49_H1_MISSING", "GBPUSD": "D_H4_MISSING", "GBPJPY": "WAIT_MT5_DATA"},
         }
         self.assertFalse(mt5_signal_bot._compute_rebuild_complete([missing]))
 
@@ -155,14 +155,14 @@ class WaitReasonIntegrityTests(unittest.TestCase):
             "pair_dirs": {"XAUUSD": "WAIT", "GBPUSD": "WAIT"},
             "pair_signal_states": {"XAUUSD": "WAIT", "GBPUSD": "WAIT"},
             "pair_evidence": {},
-            "failure_reason": "WAIT_MT4_DATA",
+            "failure_reason": "WAIT_MT5_DATA",
             "d_directions": {},
             "timing": {},
         }) as evaluate:
             record, _ = mt5_signal_bot._build_rebuild_record(datetime(2026, 7, 31, 7), 7)
 
         self.assertEqual(evaluate.call_count, 1)
-        self.assertEqual(record["wait_reasons"]["XAUUSD"], "WAIT_MT4_DATA")
+        self.assertEqual(record["wait_reasons"]["XAUUSD"], "WAIT_MT5_DATA")
 
 
 class DSnapshotPublishGateTests(unittest.TestCase):

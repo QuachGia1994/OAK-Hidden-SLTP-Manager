@@ -13,7 +13,11 @@ attribute 'get'`` failure mode is impossible.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from typing import Any
+
+from providers.health_contract import MarketDataHealth
 
 CANONICAL_SYMBOLS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
 SUFFIX_CANDIDATES = ("+", ".a", ".i", "m", ".m", "c", ".c", "#", ".")
@@ -29,6 +33,19 @@ _TIMEFRAME_DELTA = {
     "H1": timedelta(hours=1),
     "H4": timedelta(hours=4),
 }
+
+
+@dataclass
+class PreloadResult:
+    """Result of a provider preload pass (coverage, account, terminal)."""
+
+    attempted: int
+    loaded: int
+    missing: list
+    complete: bool
+    account: int | None
+    server: str
+    terminal_path: str
 
 
 class BrokerClockError(Exception):
@@ -88,13 +105,14 @@ class MT5MarketDataProvider:
     name = "MT5"
 
     def __init__(self, mt5_module=None, broker_clock=None, conf=None):
-        self._conf = conf or {}
+        self._conf = dict(conf or {})
         self._mt5 = mt5_module
         self._clock = broker_clock
         self._symbol_map = {}
         self._cache = {}
         self._connected = False
         self._health_error = ""
+        self._profile_cfg = {}
         self._preload_days = int(self._conf.get("preload_days", 60) or 60)
 
     # ------------------------------------------------------------------ #
@@ -106,8 +124,53 @@ class MT5MarketDataProvider:
             raise BrokerClockError("MT5 python module is not available")
         return self._mt5
 
-    def connect(self) -> bool:
+    def bind_profile(self, profile_cfg):
+        """Attach one selected profile's terminal/login/server to this provider.
+
+        After ``ensure_mt5_profile_connected`` has attached a session, this
+        records the profile so ``connect()`` reuses that session instead of
+        re-initializing a different/global terminal path.
+        """
+        self._profile_cfg = dict(profile_cfg or {})
+        path = str(self._profile_cfg.get("path", "") or "").strip()
+        if path:
+            self._conf["mt5_path"] = path
+        return self
+
+    def _session_matches_profile(self) -> bool:
         mt5 = self.mt5
+        try:
+            tinfo = mt5.terminal_info()
+            account = mt5.account_info()
+            if tinfo is None or account is None:
+                return False
+            expected_login = self._profile_cfg.get("login_id", self._profile_cfg.get("login"))
+            expected_server = self._profile_cfg.get("server", self._profile_cfg.get("broker"))
+            if expected_login not in (None, ""):
+                try:
+                    if int(getattr(account, "login", 0)) != int(expected_login):
+                        return False
+                except (TypeError, ValueError):
+                    return False
+            if expected_server:
+                actual = str(getattr(account, "server", getattr(account, "company", "")))
+                if str(expected_server).lower() not in actual.lower():
+                    return False
+            return True
+        except Exception:
+            return False
+
+    def connect(self, reuse_existing_session=True) -> bool:
+        mt5 = self.mt5
+        if reuse_existing_session:
+            try:
+                if mt5.terminal_info() is not None and mt5.account_info() is not None:
+                    if self._session_matches_profile():
+                        self._connected = True
+                        self._health_error = ""
+                        return True
+            except Exception:
+                pass
         try:
             path = self._conf.get("mt5_path", "") if isinstance(self._conf, dict) else ""
             if path and os.path.exists(path):
@@ -126,6 +189,10 @@ class MT5MarketDataProvider:
                     return False
                 if mt5.account_info() is None:
                     self._health_error = "MT5 account_info() returned None"
+                    self._connected = False
+                    return False
+                if not self._session_matches_profile():
+                    self._health_error = "Connected MT5 terminal does not match selected profile"
                     self._connected = False
                     return False
             except Exception as exc:
@@ -194,27 +261,62 @@ class MT5MarketDataProvider:
                 return False
         return True
 
-    def preload(self, symbols=None, timeframes=("M30", "H1", "H4")) -> None:
+    def preload(self, symbols=None, timeframes=("M30", "H1", "H4"), days=None) -> "PreloadResult":
         if not self._connected:
             self.connect()
         if not self._connected:
             print(f"[MT5 DATA] preload skipped: {self._health_error}")
-            return
+            return PreloadResult(0, 0, [], False, None, "", "")
         symbols = list(symbols or CANONICAL_SYMBOLS)
+        preload_days = int(days or self._preload_days or 60)
         now_utc = datetime.now(timezone.utc)
-        start_utc = now_utc - timedelta(days=self._preload_days)
+        start_utc = now_utc - timedelta(days=preload_days)
+        missing = []
+        loaded_total = 0
         for canonical in symbols:
             resolved = self.resolve_symbol(canonical)
             self._select_symbol(resolved)
             for tf in timeframes:
                 attr = self._timeframe_attr(tf)
                 if attr is None:
+                    missing.append(f"{canonical} {tf}")
                     continue
                 rates = self._copy_rates_range(resolved, attr, start_utc, now_utc)
                 bars = [self._normalize_bar(canonical, resolved, tf, row) for row in (rates or [])]
                 self._store_bars(canonical, tf, bars)
+                loaded_total += len(bars)
                 print(f"[MT5 DATA] {canonical} {tf} loaded={len(bars)}")
-        print(f"[MT5 DATA] Coverage ready: {len(symbols)} symbols x {len(timeframes)} timeframes")
+                if not bars:
+                    missing.append(f"{canonical} {tf}")
+        account = None
+        server = ""
+        terminal_path = ""
+        try:
+            account = self.mt5.account_info()
+            server = str(getattr(account, "server", "") or "")
+            account = getattr(account, "login", None)
+        except Exception:
+            pass
+        try:
+            terminal_path = str(self._conf.get("mt5_path", "") or "")
+        except Exception:
+            pass
+        complete = not missing
+        if complete:
+            print(f"[MT5 DATA] Coverage ready: {len(symbols)} symbols x {len(timeframes)} timeframes")
+        else:
+            print(f"[MT5 DATA] Coverage incomplete ({len(symbols) * len(timeframes) - len(missing)}/{len(symbols) * len(timeframes)}):")
+            for item in missing:
+                print(f"[MT5 DATA]   {item} = 0")
+        return PreloadResult(
+            attempted=len(symbols) * len(timeframes),
+            loaded=loaded_total,
+            missing=missing,
+            complete=complete,
+            account=account,
+            server=server,
+            terminal_path=terminal_path,
+        )
 
     def _copy_rates_range(self, resolved, attr, start_utc, end_utc):
         mt5 = self.mt5
@@ -293,23 +395,25 @@ class MT5MarketDataProvider:
 
     def get_health(self):
         if not self._connected:
-            return {
-                "state": "disconnected",
-                "fresh": False,
-                "degraded": False,
-                "age_seconds": 999.0,
-                "observed_at_utc": self._health_error or "",
-                "clock_verified": self.is_broker_utc_offset_verified(),
-            }
+            return MarketDataHealth(
+                state="disconnected",
+                fresh=False,
+                degraded=False,
+                age_seconds=999.0,
+                observed_at_utc="",
+                clock_verified=self.is_broker_utc_offset_verified(),
+                error=self._health_error,
+            )
         reads = sum(len(v) for v in self._cache.values() if isinstance(v, list))
-        return {
-            "state": "connected" if reads > 0 else "degraded",
-            "fresh": reads > 0,
-            "degraded": self._connected and reads == 0,
-            "age_seconds": 0.0,
-            "observed_at_utc": datetime.now(timezone.utc).isoformat(),
-            "clock_verified": self.is_broker_utc_offset_verified(),
-        }
+        return MarketDataHealth(
+            state="connected" if reads > 0 else "degraded",
+            fresh=reads > 0,
+            degraded=self._connected and reads == 0,
+            age_seconds=0.0,
+            observed_at_utc=datetime.now(timezone.utc).isoformat(),
+            clock_verified=self.is_broker_utc_offset_verified(),
+            error=self._health_error,
+        )
 
     # ------------------------------------------------------------------ #
     # Bar access (Signal engine contract)
@@ -382,7 +486,7 @@ class MT5MarketDataProvider:
             "broker_dt": broker_dt,
             "utc_open_at": utc_open.astimezone(timezone.utc).isoformat() if utc_open else "",
             "is_complete": True,
-            "canonical_symbol": symbol,
+            "canonical_symbol": canonical,
             "resolved_mt4_symbol": resolved,
             "timeframe": tf,
             "source_id": "mt5",

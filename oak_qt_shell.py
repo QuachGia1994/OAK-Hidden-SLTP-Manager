@@ -67,13 +67,32 @@ def apply_window_icon(target: Any) -> None:
         target.setWindowIcon(QT.QIcon(str(icon_path)))
 
 
-SIGNAL_DEFS = (
-    ("mt4_feed_server", "MT4 Feed Server", "#1f538d"),
+BASE_SIGNAL_DEFS = (
     ("signal_bot", "MT5 Signal Bot", "#2fa572"),
     ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
     ("mimo_worker", "MiMo Worker", "#d4a03d"),
     ("factcheck_worker", "Fact Check Worker", "#00bfa5"),
 )
+LEGACY_MT4_SIGNAL_DEF = ("mt4_feed_server", "MT4 Feed Server (Legacy)", "#1f538d")
+
+
+def _legacy_mt4_feed_enabled() -> bool:
+    """The MT4 Feed is a hidden experimental provider, disabled by default."""
+    if os.environ.get("OAK_MARKET_DATA_PROVIDER", "") == "MT4_LEGACY":
+        return True
+    return bool(read_json(SETTINGS_FILE, {}).get("enable_legacy_mt4_feed", False))
+
+
+def get_visible_signal_defs() -> tuple[tuple[str, str, str], ...]:
+    """Signal defs to render, register, and start.
+
+    Production shows the four core services only; the legacy MT4 Feed Server
+    card appears solely when explicitly enabled (settings or env).
+    """
+    defs = list(BASE_SIGNAL_DEFS)
+    if _legacy_mt4_feed_enabled():
+        defs.insert(0, LEGACY_MT4_SIGNAL_DEF)
+    return tuple(defs)
 CONSOLE_NOISE = (
     "this is a development server",
     "do not use it in a production deployment",
@@ -966,7 +985,8 @@ class NativeShell:
         layout.setSpacing(14)
         header = QT.QHBoxLayout()
         header.addWidget(label("Signals", role="section"))
-        self.signal_summary = label(f"0/{len(SIGNAL_DEFS)} running", role="muted")
+        visible_defs = get_visible_signal_defs()
+        self.signal_summary = label(f"0/{len(visible_defs)} running", role="muted")
         header.addWidget(self.signal_summary)
         header.addStretch(1)
         clear_logs = button("Clear logs")
@@ -983,7 +1003,7 @@ class NativeShell:
         grid = QT.QGridLayout()
         grid.setSpacing(12)
         positions = [(0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1), (2, 0, 2)]
-        for index, (key, name, color) in enumerate(SIGNAL_DEFS):
+        for index, (key, name, color) in enumerate(visible_defs):
             row, col, span = positions[index]
             grid.addWidget(self._signal_card(key, name, color), row, col, 1, span)
         layout.addLayout(grid, 1)
@@ -2652,7 +2672,7 @@ class NativeShell:
         self.log("Classic CTk UI launched.")
 
     def start_all_signals(self) -> None:
-        keys = [key for key, _name, _color in SIGNAL_DEFS]
+        keys = [key for key, _name, _color in get_visible_signal_defs()]
         if "mt4_feed_server" in keys:
             self.start_signal("mt4_feed_server")
             self._wait_for_feed_before_signals(keys)
@@ -2682,7 +2702,7 @@ class NativeShell:
         QT.QTimer.singleShot(500, lambda: self._wait_for_feed_before_signals(keys, deadline))
 
     def stop_all_signals(self) -> None:
-        for key, _name, _color in SIGNAL_DEFS:
+        for key, _name, _color in get_visible_signal_defs():
             self.stop_signal(key)
 
     def clear_signal_logs(self) -> None:
@@ -2698,7 +2718,7 @@ class NativeShell:
         self._append_signal_log(key, "Console copied.")
 
     def _refresh_signal_states(self) -> None:
-        for key, _name, _color in SIGNAL_DEFS:
+        for key, _name, _color in get_visible_signal_defs():
             # The Feed Server may be owned by a previous/native shell while
             # its local listener remains healthy.  Its card is therefore
             # refreshed from the health endpoint below, not only QProcess.
@@ -2770,16 +2790,22 @@ class NativeShell:
     def _refresh_signal_summary(self) -> None:
         if self.signal_summary is None:
             return
+        visible_defs = get_visible_signal_defs()
+        visible_keys = {key for key, _name, _color in visible_defs}
         running = sum(
             1
-            for proc in self.signal_processes.values()
-            if proc and proc.state() != QT.NotRunning
+            for key, proc in self.signal_processes.items()
+            if key in visible_keys and proc and proc.state() != QT.NotRunning
         )
         feed_proc = self.signal_processes.get("mt4_feed_server")
         feed_owned_by_shell = bool(feed_proc and feed_proc.state() != QT.NotRunning)
-        if getattr(self, "_feed_listener_available", False) and not feed_owned_by_shell:
+        if (
+            "mt4_feed_server" in visible_keys
+            and getattr(self, "_feed_listener_available", False)
+            and not feed_owned_by_shell
+        ):
             running += 1
-        self.signal_summary.setText(native_format("{running}/{total} running", running=running, total=len(SIGNAL_DEFS)))
+        self.signal_summary.setText(native_format("{running}/{total} running", running=running, total=len(visible_defs)))
 
     def start_signal(self, key: str) -> None:
         card = self.signal_cards.get(key)

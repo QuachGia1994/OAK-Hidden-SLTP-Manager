@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 import unittest
 
+import oak_qt_shell
 from oak_qt_shell import NativeShell, format_feed_card_details
 from services.mt4_feed_health import MT4FeedHealth
 
@@ -92,15 +93,27 @@ class NativeQtFeedCardTests(unittest.TestCase):
         self.assertNotIn("mt4_feed_server", refreshed_keys)
         shell._refresh_feed_card.assert_called_once_with()
 
-    def test_external_listener_counts_once_in_summary(self) -> None:
+    def test_external_listener_not_counted_when_feed_hidden(self) -> None:
         shell = NativeShell.__new__(NativeShell)
         shell.signal_processes = {}
         shell.signal_summary = MagicMock()
         shell._feed_listener_available = True
 
-        NativeShell._refresh_signal_summary(shell)
+        with patch.object(oak_qt_shell, "_legacy_mt4_feed_enabled", return_value=False):
+            NativeShell._refresh_signal_summary(shell)
 
-        self.assertIn("1/", shell.signal_summary.setText.call_args.args[0])
+        self.assertIn("0/4 running", shell.signal_summary.setText.call_args.args[0])
+
+    def test_external_listener_counts_once_when_legacy_feed_visible(self) -> None:
+        shell = NativeShell.__new__(NativeShell)
+        shell.signal_processes = {}
+        shell.signal_summary = MagicMock()
+        shell._feed_listener_available = True
+
+        with patch.object(oak_qt_shell, "_legacy_mt4_feed_enabled", return_value=True):
+            NativeShell._refresh_signal_summary(shell)
+
+        self.assertIn("1/5 running", shell.signal_summary.setText.call_args.args[0])
 
 
 if __name__ == "__main__":

@@ -227,18 +227,18 @@ class VerifySlotInputGateTests(unittest.TestCase):
 
 
 class MissingInputPolicyTests(unittest.TestCase):
-    def test_rebuild_does_not_mark_wait_mt4_data_as_complete(self):
+    def test_rebuild_does_not_mark_wait_mt5_data_as_complete(self):
         wait_record = {
             "rebuild_state": "READY",
             "pair_signal_states": {"XAUUSD": "WAIT", "GBPUSD": "WAIT"},
-            "wait_reasons": {"XAUUSD": "WAIT_MT4_DATA", "GBPUSD": "H49_H1_DOJI"},
+            "wait_reasons": {"XAUUSD": "WAIT_MT5_DATA", "GBPUSD": "H49_H1_DOJI"},
         }
         self.assertFalse(mt5_signal_bot._compute_rebuild_complete([wait_record]))
 
         missing_input_record = {
             "rebuild_state": "MISSING_INPUT",
             "incomplete": True,
-            "missing_inputs": ["WAIT_MT4_DATA"],
+            "missing_inputs": ["WAIT_MT5_DATA"],
             "pair_signal_states": {},
         }
         self.assertFalse(mt5_signal_bot._compute_rebuild_complete([missing_input_record]))
@@ -252,7 +252,7 @@ class MissingInputPolicyTests(unittest.TestCase):
             "pair_dirs": {"XAUUSD": "WAIT", "GBPUSD": "WAIT"},
             "pair_signal_states": {"XAUUSD": "WAIT", "GBPUSD": "WAIT"},
             "pair_evidence": {},
-            "failure_reason": "WAIT_MT4_DATA",
+            "failure_reason": "WAIT_MT5_DATA",
             "d_directions": {},
             "timing": {},
         }):
@@ -260,7 +260,7 @@ class MissingInputPolicyTests(unittest.TestCase):
 
         self.assertEqual(record["rebuild_state"], "MISSING_INPUT")
         self.assertIs(record["incomplete"], True)
-        self.assertIn("WAIT_MT4_DATA", record["missing_inputs"])
+        self.assertIn("WAIT_MT5_DATA", record["missing_inputs"])
 
     def test_d_direction_ui_falls_back_to_signal_record_daily_directions(self):
         # Backend contract for the (deferred) UI fallback: every rebuilt record

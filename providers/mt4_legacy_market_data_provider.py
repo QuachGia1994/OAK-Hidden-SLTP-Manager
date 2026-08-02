@@ -7,6 +7,8 @@ never constructed and its SQLite store is never read.
 """
 from __future__ import annotations
 
+from providers.health_contract import MarketDataHealth
+
 
 class MT4LegacyMarketDataProvider:
     """``MarketDataProvider`` backed by the legacy MT4 Feed server store.
@@ -29,14 +31,14 @@ class MT4LegacyMarketDataProvider:
         return self._feed_store
 
     def get_health(self):
-        return {
-            "state": "disabled",
-            "fresh": False,
-            "degraded": False,
-            "age_seconds": -1.0,
-            "observed_at_utc": "",
-            "clock_verified": False,
-        }
+        return MarketDataHealth(
+            state="disabled",
+            fresh=False,
+            degraded=False,
+            age_seconds=-1.0,
+            observed_at_utc="",
+            clock_verified=False,
+        )
 
     def get_broker_now(self):
         raise RuntimeError("MT4_LEGACY is disabled; the MT5 provider owns the market-data clock")

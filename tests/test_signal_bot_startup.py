@@ -29,6 +29,7 @@ class SignalBotStartupTests(unittest.TestCase):
             patch.object(mt5_signal_bot, "get_broker_time", side_effect=broker_time),
             patch.object(mt5_signal_bot, "_load_state", return_value={"sent_today": set()}),
             patch.object(mt5_signal_bot, "rebuild_signals_on_startup", return_value=0),
+            patch.object(mt5_signal_bot, "calculate_all_d_directions", return_value={}),
             patch.object(mt5_signal_bot, "reconcile_pending_signal_alerts"),
             patch.object(mt5_signal_bot, "push_to_dashboard"),
             patch.object(mt5_signal_bot, "push_state_to_dashboard"),

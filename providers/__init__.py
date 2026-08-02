@@ -10,7 +10,9 @@ The default provider is the MetaTrader 5 Python API
 MT4 Feed server provider is retained only as an opt-in experimental provider
 and is disabled by default.
 """
+from __future__ import annotations
 
+from providers.health_contract import MarketDataHealth, health_value
 from providers.mt5_market_data_provider import MT5MarketDataProvider
 from providers.mt4_legacy_market_data_provider import MT4LegacyMarketDataProvider
 
@@ -18,10 +20,13 @@ MARKET_DATA_PROVIDER_DEFAULT = "MT5"
 MARKET_DATA_PROVIDER_VALUES = ("MT5", "MT4_LEGACY")
 MARKET_DATA_SCHEMA_VERSION = 1
 
+
 __all__ = [
     "MT5MarketDataProvider",
     "MT4LegacyMarketDataProvider",
     "MARKET_DATA_PROVIDER_DEFAULT",
     "MARKET_DATA_PROVIDER_VALUES",
     "MARKET_DATA_SCHEMA_VERSION",
+    "MarketDataHealth",
+    "health_value",
 ]
