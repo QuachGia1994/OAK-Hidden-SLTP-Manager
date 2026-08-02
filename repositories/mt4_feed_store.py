@@ -16,6 +16,11 @@ log = setup_logger("mt4_feed_store")
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mt4_feed.db")
 
+# The v88 multi-symbol feeder is required to publish every symbol x timeframe
+# combination; coverage is incomplete until all of them have completed bars.
+REQUIRED_FEED_SYMBOLS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+REQUIRED_FEED_TIMEFRAMES = ("M30", "H1", "H4")
+
 
 class AmbiguousMT4FeedSourceError(Exception):
     """Raised when an exact bar is published by multiple sources with conflicting OHLC."""
@@ -484,6 +489,124 @@ class MT4FeedStore:
             return {
                 "bars_available": bool(summary),
                 "latest_bar_by_symbol_timeframe": latest_by_symbol_timeframe,
+                "summary": summary,
+            }
+        finally:
+            self._finish_ephemeral()
+
+    def get_feed_coverage(self, days: int = 45) -> Dict[str, Any]:
+        """Report persisted-feed completeness per required symbol/timeframe.
+
+        Unlike ``get_bar_availability`` (which only answers "does *any* bar
+        exist"), this reports the full coverage matrix the history rebuild
+        needs:
+
+        - ``summary``: one row per ``SYMBOL:TIMEFRAME`` with count, oldest and
+          latest Broker timestamps, and ``has_required_45d`` (any completed bar
+          within the window — the rebuild gates still enforce exact candles).
+        - ``missing``: an explicit list of ``{symbol, timeframe, reason, date}``
+          diagnostics for zero-bar cells, weekday sessions lacking an H4 20:00
+          open, and weekday sessions with no M30/H1 bars.
+        - ``missing_dates``: sorted weekday Broker session dates that are
+          missing at least one required bar.
+        - ``coverage_complete``: True only when ``missing`` is empty.
+
+        Only fully elapsed weekdays (before today) are checked, so a live day
+        that has not opened yet is never reported as a gap.
+        """
+        self._ensure_open()
+        try:
+            days = max(1, int(days))
+            cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+            today_date = datetime.now(timezone.utc).date()
+            cutoff = cutoff_date.strftime("%Y-%m-%d")
+
+            rows = self._conn.execute("""
+                SELECT canonical_symbol, timeframe, COUNT(*) AS bar_count,
+                       MIN(broker_open_at) AS oldest_open,
+                       MAX(broker_close_at) AS latest_close
+                FROM mt4_feed_bars
+                WHERE is_complete = 1 AND broker_close_at >= ?
+                GROUP BY canonical_symbol, timeframe
+                ORDER BY canonical_symbol, timeframe
+            """, (cutoff,)).fetchall()
+            summary = {}
+            for row in rows:
+                summary[f"{row['canonical_symbol']}:{row['timeframe']}"] = {
+                    "count": int(row["bar_count"]),
+                    "oldest_open": row["oldest_open"],
+                    "latest_close": row["latest_close"],
+                    "has_required_45d": int(row["bar_count"]) > 0,
+                }
+
+            session_dates = []
+            cursor = cutoff_date
+            while cursor < today_date:
+                if cursor.weekday() < 5:
+                    session_dates.append(cursor.isoformat())
+                cursor += timedelta(days=1)
+
+            missing = []
+            for symbol in REQUIRED_FEED_SYMBOLS:
+                for timeframe in REQUIRED_FEED_TIMEFRAMES:
+                    info = summary.get(f"{symbol}:{timeframe}")
+                    if not info or info["count"] == 0:
+                        missing.append({
+                            "symbol": symbol,
+                            "timeframe": timeframe,
+                            "reason": "NO_BARS",
+                            "date": None,
+                        })
+
+            if session_dates:
+                day_rows = self._conn.execute("""
+                    SELECT canonical_symbol, timeframe,
+                           substr(broker_open_at, 1, 10) AS bar_date,
+                           MAX(substr(broker_open_at, 12, 5)) AS latest_hhmm
+                    FROM mt4_feed_bars
+                    WHERE is_complete = 1
+                      AND broker_open_at >= ? AND broker_open_at < ?
+                      AND (timeframe IN ('M30', '30', 'H1', '60', 'H4', '240'))
+                    GROUP BY canonical_symbol, timeframe, bar_date
+                """, (cutoff, f"{today_date.isoformat()} 23:59:59")).fetchall()
+                by_symbol_date = {}
+                for row in day_rows:
+                    by_symbol_date.setdefault(row["canonical_symbol"], {}).setdefault(
+                        row["bar_date"], {}
+                    )[row["timeframe"]] = row["latest_hhmm"]
+
+                for symbol in REQUIRED_FEED_SYMBOLS:
+                    symbol_dates = by_symbol_date.get(symbol, {})
+                    for day in session_dates:
+                        day_tfs = symbol_dates.get(day, {})
+                        for timeframe in REQUIRED_FEED_TIMEFRAMES:
+                            latest_hhmm = day_tfs.get(timeframe)
+                            if latest_hhmm is None:
+                                missing.append({
+                                    "symbol": symbol,
+                                    "timeframe": timeframe,
+                                    "reason": "NO_BARS_FOR_DATE",
+                                    "date": day,
+                                })
+                            elif timeframe == "H4" and latest_hhmm != "20:00":
+                                missing.append({
+                                    "symbol": symbol,
+                                    "timeframe": timeframe,
+                                    "reason": "NO_H4_20_FOR_SESSION",
+                                    "date": day,
+                                })
+
+            missing_dates = sorted(
+                {str(item["date"]) for item in missing if item.get("date")}
+            )
+            return {
+                "window_days": days,
+                "window_start": cutoff,
+                "required_symbols": list(REQUIRED_FEED_SYMBOLS),
+                "required_timeframes": list(REQUIRED_FEED_TIMEFRAMES),
+                "coverage_complete": not missing,
+                "missing": missing,
+                "missing_dates": missing_dates,
                 "summary": summary,
             }
         finally:

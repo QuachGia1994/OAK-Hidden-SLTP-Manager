@@ -1,14 +1,47 @@
 import os
 import tempfile
 import unittest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from mt4_feed_test_environment import install_isolated_mt4_feed_database
 
 install_isolated_mt4_feed_database()
 
 import mt4_feed_server
-from repositories.mt4_feed_store import MT4FeedStore
+from repositories.mt4_feed_store import (
+    REQUIRED_FEED_SYMBOLS,
+    REQUIRED_FEED_TIMEFRAMES,
+    MT4FeedStore,
+)
+
+
+def _tf_minutes(timeframe):
+    return {"M30": 30, "H1": 60, "H4": 240}[timeframe]
+
+
+def _seed_bar(store, source_id, symbol, timeframe, broker_open_at, ohlc=("1", "1", "1", "1")):
+    opened = datetime.fromisoformat(broker_open_at)
+    store.save_bars(source_id, symbol, symbol, timeframe, [{
+        "broker_open_at": broker_open_at,
+        "broker_close_at": (opened + timedelta(minutes=_tf_minutes(timeframe))).strftime("%Y-%m-%d %H:%M:%S"),
+        "open": ohlc[0], "high": ohlc[1], "low": ohlc[2], "close": ohlc[3],
+        "utc_open_at": "",
+        "tick_volume": 10,
+        "is_complete": True,
+    }])
+
+
+def _seed_full_window(store, source_id, days=45):
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+    today = datetime.now(timezone.utc).date()
+    cursor = cutoff
+    while cursor < today:
+        if cursor.weekday() < 5:
+            for symbol in REQUIRED_FEED_SYMBOLS:
+                for timeframe in REQUIRED_FEED_TIMEFRAMES:
+                    hour = {"M30": "06:30", "H1": "06:00", "H4": "20:00"}[timeframe]
+                    _seed_bar(store, source_id, symbol, timeframe, f"{cursor} {hour}:00")
+        cursor += timedelta(days=1)
 
 
 class TestMT4FeedServer(unittest.TestCase):
@@ -266,6 +299,27 @@ class TestMT4FeedServer(unittest.TestCase):
         returned = health.get_json()["heartbeat"]
         self.assertNotIn("account", returned)
         self.assertNotIn("server", returned)
+
+
+    def test_coverage_endpoint_returns_the_matrix_and_rejects_invalid_days(self):
+        coverage = self.client.get("/mt4-feed/coverage").get_json()
+        self.assertTrue(coverage["ok"])
+        self.assertFalse(coverage["coverage_complete"])
+        self.assertEqual(coverage["required_symbols"], list(REQUIRED_FEED_SYMBOLS))
+        self.assertEqual(coverage["required_timeframes"], list(REQUIRED_FEED_TIMEFRAMES))
+        no_bars = [m for m in coverage["missing"] if m["reason"] == "NO_BARS"]
+        self.assertEqual(len(no_bars), len(REQUIRED_FEED_SYMBOLS) * len(REQUIRED_FEED_TIMEFRAMES))
+
+        self.assertEqual(self.client.get("/mt4-feed/coverage?days=0").status_code, 400)
+        self.assertEqual(self.client.get("/mt4-feed/coverage?days=999").status_code, 400)
+        self.assertEqual(self.client.get("/mt4-feed/coverage?days=abc").status_code, 400)
+
+    def test_coverage_endpoint_reflects_a_seeded_feed_window(self):
+        _seed_full_window(self.store, "ea-test", days=45)
+        coverage = self.client.get("/mt4-feed/coverage?days=45").get_json()
+        self.assertTrue(coverage["ok"])
+        self.assertTrue(coverage["coverage_complete"], coverage["missing"])
+        self.assertEqual(coverage["window_days"], 45)
 
 
 if __name__ == "__main__":

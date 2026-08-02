@@ -187,6 +187,33 @@ def _bar_availability_payload():
     }
 
 
+@app.get("/mt4-feed/coverage")
+def get_coverage():
+    """Return the persisted-feed coverage matrix for the history rebuild.
+
+    ``bars_available`` alone is not enough: a single M30 bar makes it true even
+    when H4 history is entirely missing.  This endpoint reports every required
+    symbol x timeframe cell, the weekday sessions missing an H4 20:00 open, and
+    the exact dates with no M30/H1 bars so the backfill watch worker can decide
+    which dates need a rebuild.
+    """
+    try:
+        raw_days = request.args.get("days", "45")
+        days = int(raw_days)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "days must be an integer"}), 400
+    if days < 1 or days > 365:
+        return jsonify({"ok": False, "error": "days must be between 1 and 365"}), 400
+    try:
+        with feed_store_lock:
+            coverage = feed_store.get_feed_coverage(days=days)
+        return jsonify({"ok": True, **coverage})
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 def _heartbeat_state(data_state: str) -> str:
     """Map the health data_state onto the three-state heartbeat contract."""
     return "connected" if data_state == "connected" else "stale" if data_state in ("degraded", "stale") else "disconnected"

@@ -1874,6 +1874,7 @@ VALID_WAIT_REASONS = frozenset({
 MISSING_INPUT_WAIT_REASONS = frozenset({
     "H49_H1_MISSING",
     "H49_H1_AMBIGUOUS",
+    "H16_H1_MISSING",
     "D_H4_MISSING",
     "D_H4_AMBIGUOUS",
     "M30_LAYER2_MISSING",
@@ -3641,9 +3642,18 @@ def _build_h1_evidence(symbol, h1_candle, h1_dir, slot_dt):
 # REBUILD: tính lại signals_log từ MT5 khi bot khởi động (tránh push data cũ)
 # =====================================================================
 def _entry_layer_missing_reason(entry):
-    """Return the first missing entry layer reason, else the entry failure_reason."""
+    """Return the first missing entry layer reason, else the entry failure_reason.
+
+    H3–H14 entry layers are XAUUSD M30 (``M30_LAYER2/3_MISSING``); H16 entry
+    layers are XAUUSD H1 (``H16_H1_MISSING``).  Both classify the slot as a
+    missing input, never as a valid WAIT conclusion.
+    """
     layers = (entry or {}).get("layers") or {}
-    for layer_name, missing_reason in (("layer2", "M30_LAYER2_MISSING"), ("layer3", "M30_LAYER3_MISSING")):
+    if (entry or {}).get("timeframe") == "H1":
+        missing_reasons = ("H16_H1_MISSING", "H16_H1_MISSING")
+    else:
+        missing_reasons = ("M30_LAYER2_MISSING", "M30_LAYER3_MISSING")
+    for layer_name, missing_reason in (("layer2", missing_reasons[0]), ("layer3", missing_reasons[1])):
         layer = layers.get(layer_name)
         if layer and any(c.get("state") == "MISSING" for c in (layer.get("candles") or [])):
             return missing_reason
@@ -3719,12 +3729,54 @@ def _assert_wait_reasons_present(record):
             )
 
 
+def _missing_inputs_for_record(record):
+    """Return the sorted, de-duplicated missing-input reasons on a record.
+
+    A WAIT pair whose reason is in ``MISSING_INPUT_WAIT_REASONS`` is not a
+    legitimate conclusion: the slot could not be computed because a required
+    input (bar, D candle, clock, or source) was absent.
+    """
+    wait_reasons = record.get("wait_reasons") or {}
+    return sorted({
+        reason for reason in wait_reasons.values()
+        if reason in MISSING_INPUT_WAIT_REASONS
+    })
+
+
+def _apply_rebuild_integrity_state(record, day_d_publishable):
+    """Stamp the rebuild integrity state onto one rebuilt record.
+
+    Priority:
+    - ``MISSING_INPUT`` when any WAIT reason is a missing input (bar / D
+      candle / clock / source) — the slot was not computable, so it is never a
+      valid history conclusion;
+    - ``REBUILD_INCOMPLETE`` when the D snapshot for the session is not
+      publishable;
+    - ``READY`` otherwise.
+    """
+    missing_inputs = _missing_inputs_for_record(record)
+    if missing_inputs:
+        record["rebuild_state"] = "MISSING_INPUT"
+        record["incomplete"] = True
+        record["missing_inputs"] = missing_inputs
+        record["rebuild_state_reason"] = missing_inputs[0]
+    elif not day_d_publishable:
+        record["rebuild_state"] = "REBUILD_INCOMPLETE"
+        record["incomplete"] = True
+        record.setdefault("rebuild_state_reason", "D_SNAPSHOT_NOT_PUBLISHED")
+    else:
+        record["rebuild_state"] = "READY"
+        record["incomplete"] = False
+        record.pop("missing_inputs", None)
+    return record
+
+
 def _compute_rebuild_complete(records):
     """Return True when every rebuilt record satisfies the integrity contract."""
     if not records:
         return False
     for record in records:
-        if record.get("rebuild_state") == "REBUILD_INCOMPLETE":
+        if record.get("rebuild_state") in ("REBUILD_INCOMPLETE", "MISSING_INPUT"):
             return False
         wait_reasons = record.get("wait_reasons") or {}
         pair_signal_states = record.get("pair_signal_states") or {}
@@ -3735,6 +3787,123 @@ def _compute_rebuild_complete(records):
             if reason not in VALID_WAIT_REASONS:
                 return False
     return True
+
+
+def verify_d_direction_inputs(target_date, market_data_provider=None):
+    """Coverage gate for the D-Direction H4 20:00 inputs of one target date.
+
+    Returns a CoverageResult dict:
+    - ``ok``: True only when every active pair's previous-session H4 20:00
+      candle is present and unambiguous;
+    - ``missing``: list of ``{symbol, source_symbol, timeframe, session,
+      open_time, reason}`` diagnostics (``D_H4_MISSING`` / ``D_H4_AMBIGUOUS``);
+    - ``verified``: mapping symbol -> ``{source_symbol, session_date,
+      broker_utc_offset}``.
+
+    The ``source_symbol`` is reported explicitly (from ``D_SOURCE_SYMBOL``) so
+    the operator always sees which H4 series feeds which pair's D-Direction.
+    """
+    provider = market_data_provider or MARKET_DATA_PROVIDER
+    if hasattr(target_date, "date") and callable(getattr(target_date, "date")):
+        try:
+            target_date = target_date.date()
+        except Exception:
+            pass
+    missing = []
+    verified = {}
+    for symbol in D_DIRECTION_PAIRS:
+        if symbol in DISABLED_SIGNAL_PAIRS:
+            continue
+        source_symbol = D_SOURCE_SYMBOL.get(symbol, symbol)
+        try:
+            candle, session_date, broker_offset, ambiguous = (
+                find_previous_session_h4_20_candle(
+                    source_symbol, target_date, market_data_provider=provider
+                )
+            )
+        except Exception:
+            candle, session_date, broker_offset, ambiguous = None, None, None, False
+        if candle is None:
+            missing.append({
+                "symbol": symbol,
+                "source_symbol": source_symbol,
+                "timeframe": "H4",
+                "session": session_date.isoformat() if session_date is not None else None,
+                "open_time": "20:00",
+                "reason": "D_H4_AMBIGUOUS" if ambiguous else "D_H4_MISSING",
+            })
+        else:
+            verified[symbol] = {
+                "source_symbol": source_symbol,
+                "session_date": session_date.isoformat() if session_date is not None else None,
+                "broker_utc_offset": broker_offset,
+            }
+    return {"ok": not missing, "missing": missing, "verified": verified}
+
+
+def _required_slot_candles(target_date, hour):
+    """Return the exact XAUUSD candles the v88 evaluator may need for one slot.
+
+    Mirrors ``build_entry_plan`` + ``evaluate_h49_reference_signal``:
+    - H3–H14: M30 Layer2 (slot−30/60/90), M30 Layer3 (slot, slot−30/60), and
+      the H1 window closing right before the slot for H49 branches
+      (H7→06:00, H9→08:00, H12→11:00, H14→13:00 Broker);
+    - H16: H1 Layer2 (05/04/03) and H1 Layer3 (10/09/08).
+    """
+    hour = int(hour)
+    slot_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=hour)
+    required = []
+    if hour == 16:
+        for opening in (5, 4, 3):
+            required.append(("XAUUSD", "H1", slot_dt.replace(hour=opening, minute=0), "H16_H1_MISSING"))
+        for opening in (10, 9, 8):
+            required.append(("XAUUSD", "H1", slot_dt.replace(hour=opening, minute=0), "H16_H1_MISSING"))
+    else:
+        for minutes in (30, 60, 90):
+            required.append(("XAUUSD", "M30", slot_dt - timedelta(minutes=minutes), "M30_LAYER2_MISSING"))
+        for minutes in (0, 30, 60):
+            required.append(("XAUUSD", "M30", slot_dt - timedelta(minutes=minutes), "M30_LAYER3_MISSING"))
+        h1_window_hour = {7: 6, 9: 8, 12: 11, 14: 13}.get(hour)
+        if h1_window_hour is not None:
+            required.append(("XAUUSD", "H1", slot_dt.replace(hour=h1_window_hour, minute=0), "H49_H1_MISSING"))
+    return required
+
+
+def verify_slot_inputs(target_date, hour, market_data_provider=None):
+    """Coverage gate for one signal slot's required inputs (M30/H1/H4/D).
+
+    Returns a CoverageResult dict with ``ok``, ``missing`` (each entry names
+    symbol/timeframe/exact broker open time/reason), and the nested
+    ``d_direction`` gate result.  A slot is only computable when every candle
+    the entry branch may need is present and the D snapshot for the day is
+    publishable.
+    """
+    provider = market_data_provider or MARKET_DATA_PROVIDER
+    if hasattr(target_date, "date") and callable(getattr(target_date, "date")):
+        try:
+            target_date = target_date.date()
+        except Exception:
+            pass
+    d_gate = verify_d_direction_inputs(target_date, market_data_provider=provider)
+    missing = list(d_gate.get("missing", []))
+    for symbol, timeframe, opening, reason in _required_slot_candles(target_date, hour):
+        try:
+            bar = provider.get_exact_bar(symbol, timeframe, opening)
+        except Exception:
+            bar = None
+        if bar is None or not bool(bar.get("is_complete", True)):
+            missing.append({
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "broker_open_at": opening.isoformat(sep=" "),
+                "reason": reason,
+            })
+    return {
+        "ok": not missing,
+        "hour": int(hour),
+        "missing": missing,
+        "d_direction": d_gate,
+    }
 
 
 def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=None, day_mode=None, d_directions=None):
@@ -3793,6 +3962,16 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     wait_reasons = _compute_pair_wait_reasons(result, d_directions)
     record["wait_reasons"] = wait_reasons
     _assert_wait_reasons_present(record)
+    # MISSING_INPUT policy: a slot that could not be computed because a
+    # required input was absent is never a valid history conclusion.  The
+    # per-slot D snapshot gate (rebuild_recent_history) refines this further
+    # into READY / REBUILD_INCOMPLETE / MISSING_INPUT.
+    _missing = _missing_inputs_for_record(record)
+    if _missing:
+        record["rebuild_state"] = "MISSING_INPUT"
+        record["incomplete"] = True
+        record["missing_inputs"] = _missing
+        record["rebuild_state_reason"] = _missing[0]
 
     record.pop("_day_mode_object", None)
     record.pop("_pair_day_modes_objects", None)
@@ -3821,6 +4000,11 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None, include_weekends=False):
               f" error_type={type(error).__name__}: {error}")
         traceback.print_exc()
         return False
+    # Single-slot path (rebuild_target_dates / backfill watch worker): stamp the
+    # integrity state when _build_rebuild_record did not already flag a missing
+    # input, so a fully computed slot is marked READY for the dashboard.
+    if record.get("rebuild_state") not in ("REBUILD_INCOMPLETE", "MISSING_INPUT"):
+        _apply_rebuild_integrity_state(record, day_d_publishable=True)
 
     date_str = record["date"]
     hour_val = int(record["hour"])
@@ -4012,12 +4196,9 @@ def rebuild_recent_history(days=45, include_weekends=False):
                     record["daily_directions"] = day_d_directions
                     record["d_direction_schema_version"] = D_DIRECTION_SCHEMA_VERSION
                 # D snapshot integrity: never publish a slot as READY/complete
-                # when the D snapshot for its session was not rebuilt/verified.
-                if not day_d_publishable:
-                    record["rebuild_state"] = "REBUILD_INCOMPLETE"
-                    record.setdefault("rebuild_state_reason", "D_SNAPSHOT_NOT_PUBLISHED")
-                else:
-                    record["rebuild_state"] = "READY"
+                # when the D snapshot for its session was not rebuilt/verified,
+                # and stamp MISSING_INPUT when any WAIT is a missing input.
+                _apply_rebuild_integrity_state(record, day_d_publishable)
                 day_results[hour] = record
                 key = (record["date"], int(record["hour"]))
                 candidate_records[key] = record

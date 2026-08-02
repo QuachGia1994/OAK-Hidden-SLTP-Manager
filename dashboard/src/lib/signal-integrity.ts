@@ -20,6 +20,7 @@ export const VALID_WAIT_REASONS = new Set([
 export const MISSING_INPUT_WAIT_REASONS = new Set([
   "H49_H1_MISSING",
   "H49_H1_AMBIGUOUS",
+  "H16_H1_MISSING",
   "D_H4_MISSING",
   "D_H4_AMBIGUOUS",
   "M30_LAYER2_MISSING",
@@ -71,6 +72,7 @@ export function getWaitReasonForPair(
  */
 export function isSignalRecordIncomplete(signal: SignalIntegrityInput): boolean {
   if (signal.rebuild_state === "REBUILD_INCOMPLETE") return true;
+  if (signal.rebuild_state === "MISSING_INPUT") return true;
   const pairs = signal.pair_dirs || {};
   for (const pair of Object.keys(pairs)) {
     const state = signal.pair_signal_states?.[pair];
