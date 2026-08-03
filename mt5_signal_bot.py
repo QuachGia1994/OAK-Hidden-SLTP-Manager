@@ -3491,6 +3491,17 @@ def publish_d_direction_daily(target_local_date=None, force=False):
     ):
         prev_state = metadata.get("snapshot_state", "")
         print(f"  [D-PUBLISH] Date {target_date_str} already published and acknowledged (state={prev_state}), skip.")
+        # Dashboard Redis may have been cleared (e.g. on Vercel redeploy) even
+        # though the local snapshot is ready.  Re-push the verified snapshot so
+        # the History D-Direction tab is never left empty after a restart.
+        if prev_state in ("READY", "PARTIAL"):
+            _existing = _load_d_direction_history_records().get(target_date_str)
+            if _existing:
+                push_result = push_d_direction_snapshot(_existing, force=force)
+                if push_result.acknowledged:
+                    print(f"  [D-PUBLISH] Re-pushed {target_date_str} to dashboard (state={prev_state}) HTTP {push_result.status_code}")
+                else:
+                    print(f"  [D-PUBLISH] Re-push failed for {target_date_str}: {push_result.error}")
         return _load_d_direction_history_records().get(target_date_str)
     elif metadata:
         prev_state = metadata.get("snapshot_state", "NONE")
@@ -4464,6 +4475,11 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
         return 0
 
     print(f"[D-READY] Rebuilding current-day slots: {hours} after D READY")
+    # Ensure today's M30 bars are in the provider cache before evaluating
+    # entry-phase layers.  The main warm_m30_history ran at startup with a
+    # broker_dt that may have been before today's earliest bars completed.
+    _today_warm_start = datetime.combine(target_date, dtime(0, 0, 0))
+    warm_m30_history(["XAUUSD", "GBPUSD", "GBPAUD"], _today_warm_start, broker_dt)
     try:
         day_d_directions = calculate_all_d_directions(target_date)
     except Exception as exc:

@@ -116,6 +116,44 @@ class TestDPushAcknowledgement(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertFalse(result.acknowledged)
 
+    def test_skip_path_repushes_already_ready_snapshot(self):
+        """Fix: when D is already published locally (READY), publish_d_direction_daily
+        still re-pushes the snapshot to the dashboard so a cleared Redis is refilled."""
+        import mt5_signal_bot as bot
+
+        target_date = "2026-07-31"
+        sample = dict(self._sample_snapshot())
+        sample["target_local_date"] = target_date
+        # state READY + acknowledged metadata so the skip gate matches
+        sample["symbols"]["GBPJPY"] = {"d_state": "READY", "d_direction": "SELL"}
+        sample["symbols"]["GBPCAD"] = {"d_state": "READY", "d_direction": "SELL"}
+        sample["symbols"]["XAUUSD"] = {"d_state": "READY", "d_direction": "BUY"}
+
+        metadata = {
+            "schema_version": bot.D_PUBLICATION_STATE_SCHEMA_VERSION,
+            "logic_version": bot.SIGNAL_LOGIC_VERSION,
+            "d_schema_version": bot.D_DIRECTION_SCHEMA_VERSION,
+            "snapshot_state": "READY",
+            "dashboard_acknowledged": True,
+            "active_source_states": {},
+        }
+
+        resp = _make_http_response(200, {"ok": True, "target_local_date": target_date})
+
+        # Mock the local history store to contain the READY snapshot and the
+        # state file to mark it as acknowledged.
+        with patch("mt5_signal_bot._load_d_direction_history_records", return_value={target_date: sample}):
+            with patch("mt5_signal_bot._load_state", return_value={"d_publication_state": {target_date: metadata}}):
+                with patch("mt5_signal_bot.validate_local_ready_snapshot", return_value=True):
+                    with patch("mt5_signal_bot.is_d_publication_complete", return_value=True):
+                        with patch("mt5_signal_bot.DASHBOARD_URL", "http://fake"):
+                            with patch("urllib.request.urlopen", return_value=resp) as mock_urlopen:
+                                result = bot.publish_d_direction_daily(target_date)
+
+        # The skip path must still have called push_d_direction_snapshot (urlopen)
+        self.assertEqual(mock_urlopen.call_count, 1)
+        self.assertEqual(result["target_local_date"], target_date)
+
 
 if __name__ == "__main__":
     unittest.main()
