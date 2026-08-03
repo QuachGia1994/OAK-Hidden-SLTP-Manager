@@ -2528,8 +2528,12 @@ def _compute_d_from_source(target_symbol, source_symbol, target_broker_date, mar
             return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, "AMBIGUOUS_H4_20")
         return _build_d_missing_evidence(target_symbol, source_symbol, target_broker_date, session_date, broker_offset, "MISSING_H4_20")
 
+    # Use the actual candle broker_dt hour, falling back to "???" if unavailable
+    _candle_broker_dt = candle.get("broker_dt")
+    _broker_hour_str = _candle_broker_dt.strftime("%H:%M") if _candle_broker_dt else "???"
+
     ev = _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_date, session_date, candle, broker_offset)
-    print(f"[D-H4] {source_symbol} candidate: {session_date.isoformat()} 20:00 Broker")
+    print(f"[D-H4] {source_symbol} candidate: {session_date.isoformat()} {_broker_hour_str} Broker")
     print(f"[D-H4] Selected session: {session_date.isoformat()}")
     print(f"[D-H4] O={candle['open']} H={candle['high']} L={candle['low']} C={candle['close']}")
     print(f"[D-H4] Direction: {ev['d_direction']}")
@@ -4794,6 +4798,7 @@ def resolve_active_profile(profile_name, profiles_path=None):
 
 
 _current_day_mode = None  # DayMode or None — tracked across live slots
+_last_persisted_signature = {}  # {(date, hour): (signal, entry_state, entry_time, signal_state)}
 
 
 def _stored_signals_for_date(broker_date):
@@ -4915,7 +4920,13 @@ def catchup_due_slots(broker_dt):
 
 
 def _persist_live_result(broker_dt, hour, result):
-    """Persist a live slot result with serialized DayMode (scalar fields only)."""
+    """Persist a live slot result with serialized DayMode (scalar fields only).
+
+    Dashboard push is debounced: push_to_dashboard() only fires when the slot
+    record changed materially (signal/entry_state/entry_time differ from the
+    previous persisted record for the same (date, hour)).  Repeated WAIT
+    retries no longer re-upload the entire signal log every loop tick.
+    """
     pair_dirs = get_pair_direction(hour, result.get("signal", "WAIT"), broker_dt, full_result=result)
     extra_fields = {}
     for field in ENTRY_PLAN_FIELDS:
@@ -4933,6 +4944,19 @@ def _persist_live_result(broker_dt, hour, result):
             else:
                 extra_fields[field] = val
     extra_fields.setdefault("evidence_schema_version", SIGNAL_EVIDENCE_SCHEMA_VERSION)
+
+    # Detect material change vs previously persisted record for this slot.
+    slot_key = (broker_dt.date().isoformat(), int(hour))
+    new_signature = (
+        str(result.get("signal", "WAIT")),
+        str(result.get("entry_state", "")),
+        str(result.get("entry_time", "")),
+        str(result.get("signal_state", "")),
+    )
+    prev_signature = _last_persisted_signature.get(slot_key)
+    changed = prev_signature != new_signature
+    _last_persisted_signature[slot_key] = new_signature
+
     log_signal(
         hour,
         broker_dt,
@@ -4942,7 +4966,8 @@ def _persist_live_result(broker_dt, hour, result):
         get_hour_note(hour, broker_dt=broker_dt),
         extra_fields=extra_fields,
     )
-    push_to_dashboard()
+    if changed:
+        push_to_dashboard()
     push_signal_evidence(broker_dt, hour, result)
     return pair_dirs
 
