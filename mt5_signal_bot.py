@@ -1900,12 +1900,14 @@ def is_slot_ready(broker_dt, hour):
 HISTORY_REBUILD_SCHEMA_VERSION = 2
 
 # WAIT reasons that still complete a rebuilt slot: the candle exists and is
-# directionless (DOJI) or the pair is legitimately out of the slot's scope.
+# directionless (DOJI), the pair is legitimately out of the slot's scope, or
+# the slot's required candles predate the broker's weekly market open.
 VALID_WAIT_REASONS = frozenset({
     "H49_H1_DOJI",
     "D_H4_DOJI",
     "M30_LAYER_DOJI",
     "NOT_APPLICABLE",
+    "MARKET_CLOSED_WEEK_OPEN",
 })
 
 # WAIT reasons that mean the slot cannot be published as complete history: the
@@ -3885,6 +3887,79 @@ def _provider_generic_wait_reason():
     return "WAIT_MT5_DATA"
 
 
+# M30 layer misses that can be a scheduled week-open market closure rather
+# than a data gap (see _reclassify_week_open_market_closed).
+_WEEK_OPEN_M30_REASONS = frozenset({"M30_LAYER2_MISSING", "M30_LAYER3_MISSING"})
+
+MARKET_CLOSED_WEEK_OPEN_REASON = "MARKET_CLOSED_WEEK_OPEN"
+
+
+def _first_m30_bar_open_of_day(target_date, provider=None):
+    """Earliest XAUUSD M30 bar open (Broker time) observed on target_date.
+
+    Returns None when no bar is available at all: an empty day cannot prove a
+    scheduled closure, so callers keep the MISSING classification.
+    """
+    provider = provider or MARKET_DATA_PROVIDER
+    if not provider or not hasattr(provider, "get_bars"):
+        return None
+    day_start = datetime.combine(target_date, dtime.min)
+    day_end = day_start + timedelta(days=1)
+    try:
+        bars = provider.get_bars("XAUUSD", "M30", day_start, day_end)
+    except Exception:
+        return None
+    if not bars and hasattr(provider, "fetch_historical_bars"):
+        try:
+            bars = provider.fetch_historical_bars("XAUUSD", "M30", day_start, day_end)
+        except Exception:
+            bars = []
+    opens = []
+    for bar in bars or []:
+        b_dt = bar.get("broker_dt") or bar.get("open_time_broker")
+        if isinstance(b_dt, str):
+            try:
+                b_dt = datetime.fromisoformat(b_dt)
+            except ValueError:
+                continue
+        if not isinstance(b_dt, datetime):
+            continue
+        b_dt = b_dt.replace(tzinfo=None)
+        if b_dt.date() == target_date:
+            opens.append(b_dt)
+    return min(opens) if opens else None
+
+
+def _reclassify_week_open_market_closed(wait_reasons, broker_dt, hour, provider=None):
+    """Re-tag Monday M30 layer misses that predate the broker's weekly open.
+
+    Brokers whose trading week opens at/after an early slot (e.g. Vantage
+    opens Monday 03:00 Broker = 00:00 UTC) never print the M30 candles that
+    slot's entry layers reference (H3 needs 01:30/02:00/02:30 Broker).  Those
+    misses are a scheduled market closure, not a data gap: re-tag them
+    ``MARKET_CLOSED_WEEK_OPEN`` (a valid WAIT) so the session's history stays
+    completable.  Restricted to Mondays whose first observed M30 bar opens
+    at/after the slot, so genuine mid-week outages keep the MISSING tag.
+    """
+    if not wait_reasons or broker_dt is None:
+        return wait_reasons
+    if not any(reason in _WEEK_OPEN_M30_REASONS for reason in wait_reasons.values()):
+        return wait_reasons
+    try:
+        if broker_dt.weekday() != 0:
+            return wait_reasons
+        slot_dt = datetime.combine(broker_dt.date(), dtime.min).replace(hour=int(hour))
+    except (AttributeError, TypeError, ValueError):
+        return wait_reasons
+    first_open = _first_m30_bar_open_of_day(broker_dt.date(), provider=provider)
+    if first_open is None or first_open < slot_dt:
+        return wait_reasons
+    return {
+        symbol: (MARKET_CLOSED_WEEK_OPEN_REASON if reason in _WEEK_OPEN_M30_REASONS else reason)
+        for symbol, reason in wait_reasons.items()
+    }
+
+
 def _compute_pair_wait_reasons(result, d_directions=None):
     """Return an explicit reason for every WAIT pair on a rebuild result."""
     if d_directions is None:
@@ -4158,6 +4233,7 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     # WAIT-reason integrity contract: every WAIT pair must carry an explicit
     # reason so no blind/missing-input WAIT is published as completed history.
     wait_reasons = _compute_pair_wait_reasons(result, d_directions)
+    wait_reasons = _reclassify_week_open_market_closed(wait_reasons, broker_dt, h)
     record["wait_reasons"] = wait_reasons
     _assert_wait_reasons_present(record)
     # MISSING_INPUT policy: a slot that could not be computed because a

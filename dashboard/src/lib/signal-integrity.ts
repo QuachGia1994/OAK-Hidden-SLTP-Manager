@@ -8,12 +8,14 @@
  * as a fully computed archive, so it surfaces an integrity warning instead.
  */
 
-/** WAIT reasons that still complete a rebuilt slot (directionless candle or out of scope). */
+/** WAIT reasons that still complete a rebuilt slot (directionless candle, out of scope,
+ *  or a slot whose required candles predate the broker's weekly market open). */
 export const VALID_WAIT_REASONS = new Set([
   "H49_H1_DOJI",
   "D_H4_DOJI",
   "M30_LAYER_DOJI",
   "NOT_APPLICABLE",
+  "MARKET_CLOSED_WEEK_OPEN",
 ]);
 
 /** WAIT reasons that mean the slot cannot be published as complete history. */

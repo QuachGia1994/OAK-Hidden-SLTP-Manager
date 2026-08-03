@@ -60,7 +60,7 @@ test("test_local_time_visible_for_rebuilt_history", () => {
 });
 
 test("wait reason taxonomy matches the backend integrity gate", () => {
-  for (const reason of ["H49_H1_DOJI", "D_H4_DOJI", "M30_LAYER_DOJI", "NOT_APPLICABLE"]) {
+  for (const reason of ["H49_H1_DOJI", "D_H4_DOJI", "M30_LAYER_DOJI", "NOT_APPLICABLE", "MARKET_CLOSED_WEEK_OPEN"]) {
     assert.equal(VALID_WAIT_REASONS.has(reason), true, reason);
     assert.equal(isMissingInputWaitReason(reason), false, reason);
   }
