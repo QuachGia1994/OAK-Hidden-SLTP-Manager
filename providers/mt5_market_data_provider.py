@@ -114,7 +114,7 @@ class MT5MarketDataProvider:
         self._connected = False
         self._health_error = ""
         self._profile_cfg = {}
-        self._preload_days = int(os.environ.get("MT5_PRELOAD_DAYS", self._conf.get("preload_days", 14)) or 14)
+        self._preload_days = int(os.environ.get("MT5_PRELOAD_DAYS", self._conf.get("preload_days", 50)) or 50)
         self._last_preload_ok_utc = None
 
     # ------------------------------------------------------------------ #
@@ -476,6 +476,49 @@ class MT5MarketDataProvider:
             if s <= odt <= e:
                 out.append(bar)
         return out
+
+    def fetch_historical_bars(self, symbol, timeframe, start_broker, end_broker, timeout_seconds=None):
+        """Fetch bars for a broker-time window directly from MT5 and cache them.
+
+        The in-memory cache only spans a bounded preload window (``_preload_days``).
+        Historical rebuild / D-Direction lookups may need bars older than that
+        window.  This method calls ``copy_rates_range`` for the exact range and
+        stores the normalized bars into ``self._cache`` so subsequent
+        ``get_bars``/``get_exact_bar`` calls can serve them, then returns the
+        normalized bars covering the requested window.
+        """
+        if not self._connected:
+            self.connect()
+        if not self._connected:
+            return []
+        tf = str(timeframe).upper()
+        attr = self._timeframe_attr(tf)
+        if attr is None:
+            return []
+        resolved = self.resolve_symbol(symbol)
+        self._select_symbol(resolved)
+        timeout = int(timeout_seconds or os.environ.get("MT5_COPY_RATES_TIMEOUT_SECONDS", "15") or 15)
+        s = self._naive(start_broker)
+        e = self._naive(end_broker)
+        # Convert broker-time window to UTC using the broker offset for the start date.
+        # Use a small margin to cover DST edge effects.
+        offset_hours = 0
+        if self._clock is not None:
+            try:
+                if hasattr(self._clock, "utc_offset_for_date"):
+                    offset_hours = int(self._clock.utc_offset_for_date(s.date()))
+                elif hasattr(self._clock, "get_broker_utc_offset"):
+                    offset_hours = int(self._clock.get_broker_utc_offset(s.date()))
+            except Exception:
+                offset_hours = 0
+        # broker_dt = utc + offset -> utc = broker_dt - offset
+        start_utc = s - timedelta(hours=offset_hours) - timedelta(hours=1)
+        end_utc = e - timedelta(hours=offset_hours) + timedelta(hours=25)
+        rates = self._copy_rates_range_with_timeout(resolved, attr, start_utc, end_utc, timeout)
+        rows = rates if rates is not None and len(rates) > 0 else []
+        bars = [self._normalize_bar(symbol, resolved, tf, row) for row in rows]
+        self._store_bars(symbol, tf, bars)
+        return self.get_bars(symbol, tf, s, e)
 
     def get_exact_bar(self, symbol, timeframe, broker_open, *, source_id=None):
         tf = str(timeframe).upper()

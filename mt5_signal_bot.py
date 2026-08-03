@@ -1923,6 +1923,12 @@ def warm_m30_history(symbols, start_dt, end_dt):
                     return
             for symbol in symbols:
                 bars = provider.get_bars(symbol, "M30", start_dt, end_dt)
+                if not bars and hasattr(provider, "fetch_historical_bars"):
+                    try:
+                        provider.fetch_historical_bars(symbol, "M30", start_dt, end_dt)
+                        bars = provider.get_bars(symbol, "M30", start_dt, end_dt)
+                    except Exception:
+                        bars = []
                 if bars:
                     count = 0
                     for bar in bars:
@@ -2040,7 +2046,13 @@ def find_previous_available_broker_session(symbol, target_broker_date, use_mt5_f
 
 
 def load_h4_history_for_d(source_symbol, target_broker_date, broker_offset, use_mt5_fallback=False, market_data_provider=None):
-    """Load H4 bars for diagnostics/history from the active market-data provider."""
+    """Load H4 bars for diagnostics/history from the active market-data provider.
+
+    For the MT5 provider, the bounded preload cache may not reach back as far
+    as historical dates being rebuilt.  If the cache returns no bars for the
+    requested broker window, this falls back to fetching that exact window
+    on-demand directly from MT5 (and caching the result).
+    """
     provider = market_data_provider or MARKET_DATA_PROVIDER
     broker_start = datetime.combine(target_broker_date - timedelta(days=10), dtime.min)
     broker_end = datetime.combine(target_broker_date, dtime(4, 0))
@@ -2050,7 +2062,14 @@ def load_h4_history_for_d(source_symbol, target_broker_date, broker_offset, use_
         raw_bars = provider.get_bars(source_symbol, "H4", broker_start, broker_end)
     except Exception as exc:
         print(f"[D-H4] fetch error for {source_symbol}: {exc}")
-        return []
+        raw_bars = None
+    if not raw_bars and hasattr(provider, "fetch_historical_bars"):
+        try:
+            provider.fetch_historical_bars(source_symbol, "H4", broker_start, broker_end)
+            raw_bars = provider.get_bars(source_symbol, "H4", broker_start, broker_end)
+        except Exception as exc:
+            print(f"[D-H4] on-demand H4 fetch failed for {source_symbol}: {exc}")
+            raw_bars = None
     result = []
     for bar in raw_bars or []:
         opening = bar.get("broker_dt")
@@ -3052,7 +3071,7 @@ def _market_data_provider_from_config():
 def _build_mt5_provider():
     """Build the default MT5-backed provider (reads directly from the terminal)."""
     from providers.mt5_market_data_provider import MT5MarketDataProvider
-    conf = {"mt5_path": MT5_PATH, "preload_days": 14}
+    conf = {"mt5_path": MT5_PATH, "preload_days": 50}
     try:
         provider = MT5MarketDataProvider(mt5_module=mt5, broker_clock=BROKER_CLOCK, conf=conf)
     except Exception:
@@ -5116,8 +5135,9 @@ def main(profile_name=None):
 
     # Sequential startup: the first preload must finish before the Broker clock
     # is consulted, so History is never rebuilt from an empty MT5 cache.  An
-    # initial short window (default 14 days via MT5_PRELOAD_DAYS) keeps startup
-    # responsive; history_rebuild_worker extends coverage in the background.
+    # initial window (default 50 days via MT5_PRELOAD_DAYS) covers the full
+    # rebuild range; history_rebuild_worker / on-demand fetch extends coverage
+    # in the background.
     if data_provider_name == "MT5" and hasattr(MARKET_DATA_PROVIDER, "preload"):
         try:
             preload_result = MARKET_DATA_PROVIDER.preload(

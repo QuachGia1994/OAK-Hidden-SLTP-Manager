@@ -511,5 +511,174 @@ class TestPublishDDirectionSafe(unittest.TestCase):
         self.assertIn("simulated publish failure", log)
 
 
+class TestFetchHistoricalBarsOnDemand(unittest.TestCase):
+    """Fix: fetch_historical_bars() on-demand fetches H4/M30 bars beyond
+    preload window and caches them for get_bars()/get_exact_bar()."""
+
+    def test_fetch_historical_bars_populates_cache_and_returns_window(self):
+        import numpy as np
+        from datetime import datetime, timedelta
+
+        dt = np.dtype([
+            ("time", "<i8"), ("open", "<f8"), ("high", "<f8"),
+            ("low", "<f8"), ("close", "<f8"), ("tick_volume", "<i8"),
+        ])
+        # Two H4 bars: UTC 1722000000 (= 2024-07-26 12:00 UTC) and 1722014400 (= 16:00 UTC)
+        # Broker offset = 3 -> broker times 15:00 and 19:00 on 2024-07-26
+        h4_bars = np.array([
+            (1722000000, 2400.0, 2410.0, 2395.0, 2405.0, 100),
+            (1722014400, 2405.0, 2415.0, 2400.0, 2410.0, 120),
+        ], dtype=dt)
+
+        class _MT5:
+            TIMEFRAME_M30 = 30
+            TIMEFRAME_H1 = 60
+            TIMEFRAME_H4 = 240
+
+            def __init__(self):
+                self.calls = []
+
+            def initialize(self, *a, **kw):
+                return True
+
+            def shutdown(self):
+                return True
+
+            def last_error(self):
+                return ""
+
+            def terminal_info(self):
+                from types import SimpleNamespace
+                return SimpleNamespace(time=0, name="MetaTrader 5")
+
+            def account_info(self):
+                from types import SimpleNamespace
+                return SimpleNamespace(login=88001, server="VantageMarkets-Server", balance=1000.0)
+
+            def symbol_info(self, symbol):
+                from types import SimpleNamespace
+                return SimpleNamespace(name=symbol)
+
+            def symbol_select(self, symbol, enable):
+                return True
+
+            def copy_rates_range(self, symbol, timeframe, start, end):
+                self.calls.append((symbol, timeframe, start, end))
+                # Return bars if the UTC window covers the two bars above
+                # start/end are naive datetime objects (interpreted as UTC by MT5)
+                start_ts = int(start.timestamp()) if hasattr(start, "timestamp") else 0
+                end_ts = int(end.timestamp()) if hasattr(end, "timestamp") else 0
+                if timeframe == 240 and start_ts <= 1722000000 and end_ts >= 1722014400:
+                    return h4_bars
+                return np.array([], dtype=dt)
+
+        fake = _MT5()
+        clock = _FakeClock()
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=clock)
+
+        # Broker window: 2024-07-26 10:00 .. 2024-07-26 22:00 (covers both 15:00 and 19:00 broker bars)
+        broker_start = datetime(2024, 7, 26, 10, 0)
+        broker_end = datetime(2024, 7, 26, 22, 0)
+
+# First call: empty cache -> triggers on-demand fetch
+        bars = provider.fetch_historical_bars("XAUUSD", "H4", broker_start, broker_end)
+        # With offset=7 from _FakeClock: 
+        # - UTC 12:00 = broker 19:00 (within 10:00-22:00 window)
+        # - UTC 16:00 = broker 23:00 (outside window)
+        # So only 1 bar is returned after get_bars filters by [s,e]
+        self.assertEqual(len(bars), 1)
+        # Cache now has the 2 bars (both fetched and stored)
+        cached = provider._cache.get(("XAUUSD", "H4"))
+        self.assertIsNotNone(cached)
+        self.assertEqual(len(cached), 2)
+
+        # Second call: served from cache, still filtered by [s,e] window
+        bars2 = provider.fetch_historical_bars("XAUUSD", "H4", broker_start, broker_end)
+        self.assertEqual(len(bars2), 1)
+
+        # get_bars() also filters by window, so returns 1 bar
+        bars3 = provider.get_bars("XAUUSD", "H4", broker_start, broker_end)
+        self.assertEqual(len(bars3), 1)
+
+
+class TestLoadH4OnDemandFallback(unittest.TestCase):
+    """Fix: load_h4_history_for_d() falls back to on-demand fetch when cache empty."""
+
+    def test_load_h4_triggers_on_demand_fetch(self):
+        import numpy as np
+        from datetime import datetime, timedelta
+        import mt5_signal_bot
+        from mt5_signal_bot import load_h4_history_for_d
+
+        dt = np.dtype([
+            ("time", "<i8"), ("open", "<f8"), ("high", "<f8"),
+            ("low", "<f8"), ("close", "<f8"), ("tick_volume", "<i8"),
+        ])
+        # One H4 bar at UTC 1722000000 (broker 15:00 on 2024-07-26 with offset 3)
+        h4_bars = np.array([
+            (1722000000, 2400.0, 2410.0, 2395.0, 2405.0, 100),
+        ], dtype=dt)
+
+        class _MT5:
+            TIMEFRAME_M30 = 30
+            TIMEFRAME_H1 = 60
+            TIMEFRAME_H4 = 240
+
+            def __init__(self):
+                self.calls = []
+
+            def initialize(self, *a, **kw):
+                return True
+
+            def shutdown(self):
+                return True
+
+            def last_error(self):
+                return ""
+
+            def terminal_info(self):
+                from types import SimpleNamespace
+                return SimpleNamespace(time=0, name="MetaTrader 5")
+
+            def account_info(self):
+                from types import SimpleNamespace
+                return SimpleNamespace(login=88001, server="VantageMarkets-Server", balance=1000.0)
+
+            def symbol_info(self, symbol):
+                from types import SimpleNamespace
+                return SimpleNamespace(name=symbol)
+
+            def symbol_select(self, symbol, enable):
+                return True
+
+            def copy_rates_range(self, symbol, timeframe, start, end):
+                self.calls.append((symbol, timeframe, start, end))
+                start_ts = int(start.timestamp()) if hasattr(start, "timestamp") else 0
+                end_ts = int(end.timestamp()) if hasattr(end, "timestamp") else 0
+                if timeframe == 240 and start_ts <= 1722000000 and end_ts >= 1722000000:
+                    return h4_bars
+                return np.array([], dtype=dt)
+
+        fake = _MT5()
+        clock = _FakeClock()
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=clock)
+
+        # Set as the active provider
+        mt5_signal_bot.set_market_data_provider(provider)
+
+        # load_h4_history_for_d for target 2024-07-26 (requests 10 days back to 2024-07-16 00:00..2024-07-26 04:00)
+        # Our bar is at 2024-07-26 15:00 broker -> outside the 04:00 end window.
+        # Use a target where the bar falls within the requested window.
+        # Target 2024-07-27 -> broker_end = 2024-07-27 04:00. Bar at 2024-07-26 15:00 is within 10-day window.
+        target_date = datetime(2024, 7, 27).date()
+        bars = load_h4_history_for_d("XAUUSD", target_date, None, market_data_provider=provider)
+
+        # Should have fetched on-demand and returned the bar
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(bars[0][1]["open"], 2400.0)
+        # Verify fetch_historical_bars was called (via copy_rates_range)
+        self.assertTrue(any(c[1] == 240 for c in fake.calls))
+
+
 if __name__ == "__main__":
     unittest.main()
