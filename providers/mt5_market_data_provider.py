@@ -406,19 +406,41 @@ class MT5MarketDataProvider:
         raise BrokerClockError("MT5 terminal clock unavailable")
 
     def get_broker_utc_offset(self, broker_date=None, **kwargs) -> int:
-        for getter in ("utc_offset_for_date", "get_broker_utc_offset"):
+        errors: list[Exception] = []
+        for getter in ("utc_offset_for_date", "current_utc_offset", "get_broker_utc_offset"):
             if self._clock is None or not hasattr(self._clock, getter):
                 continue
             try:
                 if getter == "utc_offset_for_date" and broker_date is not None:
                     return int(self._clock.utc_offset_for_date(broker_date))
+                if getter == "current_utc_offset":
+                    # ``current_utc_offset`` carries a cache fallback that
+                    # survives transient calibration / D1 history failures, so
+                    # it can keep serving the live broker offset when
+                    # ``utc_offset_for_date`` raises (intermittent tick stall,
+                    # D1 timeout, side-effect of ``configure_symbols``).
+                    # Only accept the result when the caller asked for the
+                    # current broker day; for historical dates, fall through to
+                    # the legacy getters so we never substitute today's offset
+                    # for a past date (which would cross DST boundaries).
+                    now_utc = datetime.now(timezone.utc)
+                    broker_offset_now = int(self._clock.current_utc_offset(now_utc))
+                    if broker_date is None:
+                        return broker_offset_now
+                    broker_today = (now_utc + timedelta(hours=broker_offset_now)).date()
+                    if broker_today == broker_date:
+                        return broker_offset_now
+                    continue
                 if getter == "get_broker_utc_offset":
                     if broker_date is not None:
                         return int(self._clock.get_broker_utc_offset(broker_date))
                     return int(self._clock.get_broker_utc_offset())
-            except Exception:
+            except Exception as error:
+                errors.append(error)
                 continue
-        raise BrokerClockError("BROKER_OFFSET_UNVERIFIED: no historical offset (DST boundary)")
+        raise BrokerClockError(
+            "BROKER_OFFSET_UNVERIFIED: no historical offset (DST boundary)"
+        ) from (errors[-1] if errors else None)
 
     def is_broker_utc_offset_verified(self, broker_date=None) -> bool:
         if self._clock is None:
@@ -522,14 +544,34 @@ class MT5MarketDataProvider:
 
     def get_exact_bar(self, symbol, timeframe, broker_open, *, source_id=None):
         tf = str(timeframe).upper()
-        store = self._cache.get((symbol, tf))
-        if not store:
-            return None
         target = self._naive(broker_open)
-        for bar in store:
-            open_dt = bar.get("broker_dt")
-            if open_dt is not None and self._naive(open_dt) == target:
-                return bar
+        store = self._cache.get((symbol, tf))
+        if store:
+            for bar in store:
+                open_dt = bar.get("broker_dt")
+                if open_dt is not None and self._naive(open_dt) == target:
+                    return bar
+
+        # Cache miss: attempt a one-shot on-demand fetch for the bar's window.
+        # This repairs bars that completed after the startup preload ran (for
+        # example H3's M30 layer candles that close at 02:30/03:00 Broker while
+        # preload only sampled earlier bars).  The live eval path passes no
+        # ``source_id``; offline rebuild that needs explicit source selection
+        # is left untouched.  Failure is swallowed: callers keep the previous
+        # "MISSING" behavior, but a successful fetch populates the cache so a
+        # retry through ``get_bars``/``get_exact_bar`` finds the bar.
+        if source_id is None and self._connected and hasattr(self, "fetch_historical_bars"):
+            try:
+                tf_delta = _TIMEFRAME_DELTA.get(tf, timedelta(minutes=30))
+                self.fetch_historical_bars(symbol, tf, broker_open, broker_open + tf_delta)
+            except Exception:
+                pass
+            store = self._cache.get((symbol, tf))
+            if store:
+                for bar in store:
+                    open_dt = bar.get("broker_dt")
+                    if open_dt is not None and self._naive(open_dt) == target:
+                        return bar
         return None
 
     def get_active_source_id(self, max_age_seconds: int = 60):

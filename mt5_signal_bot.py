@@ -444,8 +444,8 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None, 
     data_state = getattr(feed_health, "state", "disconnected") if feed_health else "disconnected"
     state = "connected" if mt5_connected else "degraded" if mt5_error else "disconnected"
     broker_offset = None
-    broker_time = ""
-    broker_observed_at_utc = ""
+    broker_time = None
+    broker_observed_at_utc = None
     if broker_dt is not None:
         try:
             try:
@@ -454,8 +454,15 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None, 
                 broker_offset = MARKET_DATA_PROVIDER.get_broker_utc_offset()
         except Exception:
             broker_offset = None
-        broker_time = broker_dt.replace(microsecond=0).isoformat()
-        broker_observed_at_utc = feed_health.observed_at_utc if feed_health else ""
+        if broker_offset is not None:
+            broker_time = broker_dt.replace(microsecond=0).isoformat()
+            broker_observed_at_utc = feed_health.observed_at_utc if feed_health else None
+        # When broker_offset is None (transient calibration/D1 failure) leave
+        # broker_time/broker_observed_at_utc as None so the SQLite store's
+        # ``preserve_broker_clock=True`` branch replays the last good clock
+        # snapshot instead of overwriting it with empty strings; the
+        # dashboard's freshness gate still fails closed when the failure lasts
+        # longer than the 60s tolerance.
     _store.publish_heartbeat(
         profile=profile,
         state=state,
@@ -471,7 +478,7 @@ def publish_heartbeat(profile, mt5_connected, mt5_error="", profiles_path=None, 
         broker_time=broker_time,
         broker_utc_offset=broker_offset,
         broker_observed_at_utc=broker_observed_at_utc,
-        preserve_broker_clock=False,
+        preserve_broker_clock=True,
         data_provider=getattr(MARKET_DATA_PROVIDER, "name", "MT5"),
         data_state=data_state,
         data_observed_at_utc=health_value(feed_health, "observed_at_utc", ""),
@@ -593,6 +600,11 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None,
         [trading_date.isoformat() if hasattr(trading_date, "isoformat") else trading_date, hour]
         for trading_date, hour in (sent_today or set())
     ]
+    # Capture observed_utc as close to the broker_dt sampling moment as possible
+    # so the dashboard's 60s freshness and 90s consistency checks stay inside
+    # tolerance even when the broker offset lookup below blocks for several
+    # seconds (e.g., D1 history fetch).
+    observed_utc_now_iso = datetime.now(timezone.utc).isoformat()
     try:
         try:
             broker_utc_offset = MARKET_DATA_PROVIDER.get_broker_utc_offset(broker_now.date())
@@ -601,6 +613,30 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None,
     except Exception as error:
         print(f"[WARN] Cannot attach Broker clock metadata to state: {error}")
         broker_utc_offset = None
+
+    if broker_utc_offset is None:
+        # Defense-in-depth against intermittent broker offset lookup failures.
+        # Reuse the previously published offset when the existing bot_state.json
+        # is for the same broker date.  This keeps the dashboard from flapping
+        # to "ĐANG CHỜ" / "CHƯA ĐỒNG BỘ" on transient calibration / D1 history
+        # errors.  The bound (same broker date) prevents cross-DST substitution.
+        try:
+            if os.path.exists(_STATE_FILE) and os.path.getsize(_STATE_FILE) > 2:
+                with open(_STATE_FILE, "r", encoding="utf-8") as _fh:
+                    _prior_state = json.load(_fh) or {}
+            else:
+                _prior_state = {}
+        except (OSError, ValueError):
+            _prior_state = {}
+        _prior_offset = _prior_state.get("broker_utc_offset")
+        _prior_date = _prior_state.get("date")
+        if (
+            isinstance(_prior_offset, (int, float))
+            and not isinstance(_prior_offset, bool)
+            and _prior_date == today_str
+        ):
+            broker_utc_offset = int(_prior_offset)
+
     has_verified_clock = broker_utc_offset is not None
 
     existing = _load_state()
@@ -625,7 +661,7 @@ def _save_state(sent_today=None, broker_dt=None, d_published_local_dates=None,
         "signal_alerts_pending": signal_alerts_pending,
         "broker_time": broker_now.replace(microsecond=0).isoformat() if has_verified_clock else "",
         "broker_utc_offset": broker_utc_offset,
-        "broker_observed_at_utc": health.observed_at_utc if has_verified_clock and health else "",
+        "broker_observed_at_utc": observed_utc_now_iso if has_verified_clock else "",
         "d_publication_state": pub_state,
         "data_provider": getattr(MARKET_DATA_PROVIDER, "name", "MT5"),
         "data_state": data_state,
