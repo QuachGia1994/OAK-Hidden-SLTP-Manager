@@ -10,6 +10,7 @@ import {
   MISSING_INPUT_WAIT_REASONS,
   VALID_WAIT_REASONS,
 } from "../src/lib/signal-integrity.ts";
+import { maskSignalForPublic } from "../src/lib/signal-display.ts";
 
 test("test_history_displays_integrity_warning", () => {
   const page = fs.readFileSync(new URL("../src/app/signals/page.tsx", import.meta.url), "utf8");
@@ -105,4 +106,56 @@ test("a WAIT with a missing-input reason marks the history record incomplete", (
   assert.equal(isSignalRecordIncomplete(recordFailure), true);
   assert.equal(getWaitReasonForPair(recordFailure, "XAUUSD"), "H49_H1_AMBIGUOUS");
   assert.equal(countIncompleteSignals([doji, missing, dSnapshot, recordFailure]), 3);
+});
+
+test("pair-level wait_reasons are authoritative over a stale record failure_reason", () => {
+  // (a) Monday week-open record: pair-level MARKET_CLOSED_WEEK_OPEN is a valid
+  // WAIT, so the stale WAIT_MT5_DATA failure_reason must not flag it.
+  const weekOpen = {
+    rebuild_state: "READY",
+    signal_state: "WAIT",
+    entry_state: "WAIT",
+    failure_reason: "WAIT_MT5_DATA",
+    pair_dirs: { XAUUSD: "WAIT", GBPUSD: "WAIT", GBPCAD: "NOT_APPLICABLE" },
+    wait_reasons: {
+      XAUUSD: "MARKET_CLOSED_WEEK_OPEN",
+      GBPUSD: "MARKET_CLOSED_WEEK_OPEN",
+      GBPCAD: "NOT_APPLICABLE",
+    },
+  };
+  assert.equal(isSignalRecordIncomplete(weekOpen), false);
+
+  // (b) Legacy record without pair-level wait_reasons keeps the fallback check.
+  const legacy = {
+    signal_state: "WAIT",
+    failure_reason: "WAIT_MT5_DATA",
+    pair_dirs: { XAUUSD: "WAIT" },
+  };
+  assert.equal(isSignalRecordIncomplete(legacy), true);
+
+  // (c) A genuine missing pair-level reason is still incomplete.
+  const genuineMissing = {
+    rebuild_state: "READY",
+    signal_state: "WAIT",
+    failure_reason: "WAIT_MT5_DATA",
+    pair_dirs: { XAUUSD: "WAIT" },
+    wait_reasons: { XAUUSD: "M30_LAYER3_MISSING" },
+  };
+  assert.equal(isSignalRecordIncomplete(genuineMissing), true);
+});
+
+test("maskSignalForPublic clears integrity fields so masked cards never flag", () => {
+  const masked = maskSignalForPublic({
+    signal_state: "WAIT",
+    failure_reason: "WAIT_MT5_DATA",
+    rebuild_state: "REBUILD_INCOMPLETE",
+    rebuild_state_reason: "D_SNAPSHOT_NOT_PUBLISHED",
+    wait_reasons: { XAUUSD: "WAIT_MT5_DATA" },
+    pair_dirs: { XAUUSD: "BUY", GBPUSD: "SELL" },
+  });
+  assert.equal(masked.failure_reason, null);
+  assert.equal(masked.rebuild_state, null);
+  assert.equal(masked.rebuild_state_reason, null);
+  assert.deepEqual(masked.wait_reasons, {});
+  assert.equal(isSignalRecordIncomplete(masked), false);
 });

@@ -86,7 +86,14 @@ export function isSignalRecordIncomplete(signal: SignalIntegrityInput): boolean 
     if (state !== "WAIT" && pairs[pair] !== "WAIT") continue;
     if (isMissingInputWaitReason(getWaitReasonForPair(signal, pair))) return true;
   }
-  if ((signal.signal_state === "WAIT" || signal.entry_state === "WAIT")
+  // Legacy records (no per-pair wait_reasons) fall back to the record-level
+  // failure_reason.  Once a pair-level wait_reasons map exists it is
+  // authoritative, so the record-level fallback must not re-flag a record
+  // whose pair reasons were all reclassified as valid (e.g. Monday week-open
+  // MARKET_CLOSED_WEEK_OPEN with a stale WAIT_MT5_DATA failure_reason).
+  const waitReasons = signal.wait_reasons || {};
+  if (Object.keys(waitReasons).length === 0
+    && (signal.signal_state === "WAIT" || signal.entry_state === "WAIT")
     && isMissingInputWaitReason(signal.failure_reason)) {
     return true;
   }

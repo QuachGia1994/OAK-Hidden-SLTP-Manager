@@ -4236,6 +4236,16 @@ def _build_rebuild_record(broker_dt, h, *, as_of_dt=None, prior_slot_results=Non
     wait_reasons = _reclassify_week_open_market_closed(wait_reasons, broker_dt, h)
     record["wait_reasons"] = wait_reasons
     _assert_wait_reasons_present(record)
+    # The record-level failure_reason is only a fallback for WAIT pairs without
+    # an explicit per-pair wait_reason.  After reclassification the per-pair
+    # reasons are authoritative: clear a stale missing-input failure_reason
+    # (e.g. WAIT_MT5_DATA on a Monday whose M30 misses were re-tagged
+    # MARKET_CLOSED_WEEK_OPEN) so it can never flag a valid WAIT as missing.
+    if (
+        record.get("failure_reason") in MISSING_INPUT_WAIT_REASONS
+        and not _missing_inputs_for_record(record)
+    ):
+        record["failure_reason"] = None
     # MISSING_INPUT policy: a slot that could not be computed because a
     # required input was absent is never a valid history conclusion.  The
     # per-slot D snapshot gate (rebuild_recent_history) refines this further
