@@ -1907,40 +1907,62 @@ class RebuildIntegrityError(Exception):
 _cache = {}
 
 
+_TIMEFRAME_CACHE_KEY = {
+    "M30": mt5.TIMEFRAME_M30,
+    "H1": mt5.TIMEFRAME_H1,
+    "H4": mt5.TIMEFRAME_H4,
+}
+
+
+def warm_timeframe_history(symbols, timeframe, start_dt, end_dt):
+    """Batch-load history for symbols into the in-memory cache.
+
+    Works for any timeframe (M30, H1, H4).  The provider cache is populated
+    via ``fetch_historical_bars`` on cache miss, and the bot-level ``_cache``
+    is updated so ``get_cached_candle`` can serve historical look-ups.
+    """
+    provider = MARKET_DATA_PROVIDER
+    if not provider or not hasattr(provider, "get_bars"):
+        return
+    tf_upper = str(timeframe).upper()
+    tf_attr = _TIMEFRAME_CACHE_KEY.get(tf_upper)
+    if tf_attr is None:
+        return
+    try:
+        health = provider.get_health() if hasattr(provider, "get_health") else None
+        if getattr(provider, "name", "") == "MT4":
+            if hasattr(health, "fresh") and hasattr(health, "degraded"):
+                fresh = health.fresh or health.degraded
+            else:
+                fresh = bool(health and (health.get("fresh") or health.get("degraded")))
+            if not (fresh or getattr(provider, "_db_store", None) is not None):
+                return
+        for symbol in symbols:
+            bars = provider.get_bars(symbol, tf_upper, start_dt, end_dt)
+            if not bars and hasattr(provider, "fetch_historical_bars"):
+                try:
+                    provider.fetch_historical_bars(symbol, tf_upper, start_dt, end_dt)
+                    bars = provider.get_bars(symbol, tf_upper, start_dt, end_dt)
+                except Exception as exc:
+                    print(f"  [HISTORY] {symbol} {tf_upper} fetch failed: {exc}")
+                    bars = []
+            if bars:
+                count = 0
+                for bar in bars:
+                    ts = bar.get("time", 0)
+                    if ts > 0:
+                        _cache[(symbol, tf_attr, ts)] = bar
+                        count += 1
+                print(f"  [HISTORY] {symbol} {tf_upper} loaded {count} bars from {getattr(provider, 'name', '?')}")
+            else:
+                print(f"  [HISTORY] {symbol} {tf_upper} NO bars in {start_dt}..{end_dt}")
+    except Exception as exc:
+        print(f"  [HISTORY] warm {tf_upper} failed: {exc}")
+
+
 def warm_m30_history(symbols, start_dt, end_dt):
     """Batch-load M30 history for symbols into the in-memory cache."""
-    provider = MARKET_DATA_PROVIDER
-    provider_name = getattr(provider, "name", "") if provider else ""
-    if provider and hasattr(provider, "get_bars"):
-        try:
-            health = provider.get_health() if hasattr(provider, "get_health") else None
-            if provider.name == "MT4":
-                if hasattr(health, "fresh") and hasattr(health, "degraded"):
-                    fresh = health.fresh or health.degraded
-                else:
-                    fresh = bool(health and (health.get("fresh") or health.get("degraded")))
-                if not (fresh or getattr(provider, "_db_store", None) is not None):
-                    return
-            for symbol in symbols:
-                bars = provider.get_bars(symbol, "M30", start_dt, end_dt)
-                if not bars and hasattr(provider, "fetch_historical_bars"):
-                    try:
-                        provider.fetch_historical_bars(symbol, "M30", start_dt, end_dt)
-                        bars = provider.get_bars(symbol, "M30", start_dt, end_dt)
-                    except Exception:
-                        bars = []
-                if bars:
-                    count = 0
-                    for bar in bars:
-                        ts = bar.get("time", 0)
-                        if ts > 0:
-                            _cache[(symbol, mt5.TIMEFRAME_M30, ts)] = bar
-                            count += 1
-                    print(f"  [HISTORY] {symbol} M30 loaded {count} bars from {provider.name}")
-        except Exception:
-            return
-
-    return
+    warm_timeframe_history(symbols, "M30", start_dt, end_dt)
 
 
 def get_cached_candle(symbol, open_dt):
@@ -4281,10 +4303,11 @@ def rebuild_recent_history(days=45, include_weekends=False):
     today = broker_dt.date()
     dates = [today - timedelta(days=i) for i in range(days)]
 
-    # Phase 0: warm M30 history cache
+    # Phase 0: warm M30 + H1 history cache
     oldest = min(d for d in dates if d.weekday() < 5 or include_weekends)
     warm_start = datetime.combine(oldest - timedelta(days=2), datetime.min.time())
-    warm_m30_history(["XAUUSD", "GBPUSD", "GBPAUD"], warm_start, broker_dt)
+    warm_m30_history(ACTIVE_SIGNAL_PAIRS, warm_start, broker_dt)
+    warm_timeframe_history(ACTIVE_SIGNAL_PAIRS, "H1", warm_start, broker_dt)
 
     # Phase A: evaluate all slots in memory
     rebuild_dates = {target_date.isoformat() for target_date in dates
@@ -4475,11 +4498,12 @@ def rebuild_current_day_slots_after_d_ready(broker_dt):
         return 0
 
     print(f"[D-READY] Rebuilding current-day slots: {hours} after D READY")
-    # Ensure today's M30 bars are in the provider cache before evaluating
+    # Ensure today's M30+H1 bars are in the provider cache before evaluating
     # entry-phase layers.  The main warm_m30_history ran at startup with a
     # broker_dt that may have been before today's earliest bars completed.
     _today_warm_start = datetime.combine(target_date, dtime(0, 0, 0))
-    warm_m30_history(["XAUUSD", "GBPUSD", "GBPAUD"], _today_warm_start, broker_dt)
+    warm_m30_history(ACTIVE_SIGNAL_PAIRS, _today_warm_start, broker_dt)
+    warm_timeframe_history(ACTIVE_SIGNAL_PAIRS, "H1", _today_warm_start, broker_dt)
     try:
         day_d_directions = calculate_all_d_directions(target_date)
     except Exception as exc:
@@ -5682,7 +5706,8 @@ def repair_history(target_dates=None, days=45):
 
     oldest = min(dates)
     warm_start = datetime.combine(oldest - timedelta(days=2), datetime.min.time())
-    warm_m30_history(["XAUUSD", "GBPUSD", "GBPAUD"], warm_start, broker_dt)
+    warm_m30_history(ACTIVE_SIGNAL_PAIRS, warm_start, broker_dt)
+    warm_timeframe_history(ACTIVE_SIGNAL_PAIRS, "H1", warm_start, broker_dt)
 
     attempted = 0
     ready_count = 0
