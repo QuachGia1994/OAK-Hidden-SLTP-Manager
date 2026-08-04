@@ -1,12 +1,8 @@
 import { BrowserDateText } from "@/components/BrowserDateText";
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
-import { DDirectionPanel } from "@/components/DDirectionPanel";
-import { SignalCardWithEvidence } from "@/components/SignalCardWithEvidence";
-import { getTodaySignalsResult, getBotState, getEconomicNews, getCurrentDDirectionResult, DataResult } from "@/lib/data";
+import { TradeAuditDashboard } from "@/components/TradeAuditDashboard";
+import { getTodaySignalsResult, getBotState, getEconomicNews, DataResult } from "@/lib/data";
 import { maskSignalForPublic } from "@/lib/signal-display";
-import { selectBestSignalRecord } from "@/lib/signal-resolver";
-import { getSignalLabel, getSignalTime, getSlotTimeValue, getTargetHours } from "@/lib/constants";
-import { brokerTimeToLocal } from "@/lib/broker-time";
 import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 import { formatSystemState } from "@/lib/translations";
 import { getBrokerDateParts } from "@/lib/trading-time";
@@ -24,7 +20,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   let signals: any[] = [];
   let botState: any = null;
   let news: any[] = [];
-  let dDirectionResult: DataResult<any> = { data: null, ok: true };
   const now = new Date();
 
   const params = await searchParams;
@@ -34,11 +29,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const t = getLocaleTexts(locale);
 
   try {
-    [signalsResult, botState, news, dDirectionResult] = await Promise.all([
+    [signalsResult, botState, news] = await Promise.all([
       getTodaySignalsResult(),
       getBotState(),
       getEconomicNews(),
-      getCurrentDDirectionResult(),
     ]);
     signals = signalsResult.data;
   } catch (e) {
@@ -49,35 +43,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const brokerClock = getBrokerDateParts(botState, now);
   const publicDataState = botState?.data_state || (brokerClock ? "connected" : "disconnected");
   const publicExecutionState = botState?.execution_state || "disconnected";
-  const brokerOffset = brokerClock && typeof botState?.broker_utc_offset === "number"
-    ? botState.broker_utc_offset
-    : null;
   if (!isVIP) {
     signals = signals.map(maskSignalForPublic);
     botState = null;
   }
 
   const todayStr = brokerClock?.todayStr ?? "";
-  const hoursToday = brokerClock ? getTargetHours(brokerClock.dayOfWeek, todayStr) : [];
   const todaySignals = brokerClock ? signals.filter((s) => s.date === todayStr) : [];
-
-  const allSlots = hoursToday.map((h) => {
-    const signal = selectBestSignalRecord(todaySignals, todayStr, h);
-    return {
-      date: todayStr,
-      hour: h,
-      ts: 0,
-      signal: "WAIT" as const,
-      pair_dirs: {},
-      entry_prices: {},
-      current_prices: {},
-      signal_time: getSignalTime(h, todayStr),
-      hour_note: null,
-      ...signal,
-    };
-  }).sort(
-    (a, b) => getSlotTimeValue(b.hour, b.signal_time) - getSlotTimeValue(a.hour, a.signal_time),
-  );
 
   const botStatus = brokerClock
     ? t.running
@@ -129,72 +101,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         />
       </section>
 
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="terminal-section-heading text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-            {t.schedule}
-          </h2>
-          <span className={`hidden rounded-lg border px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-[0.16em] sm:inline ${brokerClock ? "terminal-live border-[var(--terminal-accent)]/30 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)]" : "border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/10 text-[var(--terminal-warning)]"}`}>
-            {brokerClock
-              ? locale === "EN" ? "Broker synced" : "Đồng bộ Broker"
-              : locale === "EN" ? "Broker unsynced" : "Broker chưa đồng bộ"}
-          </span>
-        </div>
-        {brokerClock ? (
-          <div className="terminal-schedule lux-scroll -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1.5">
-            {hoursToday.map((h) => {
-              const slotSignal = selectBestSignalRecord(todaySignals, todayStr, h);
-              const sig = slotSignal?.signal || null;
-              return (
-                <SchedulePill
-                  key={h}
-                  hour={h}
-                  brokerDate={todayStr}
-                  signalTime={slotSignal?.signal_time}
-                  signal={sig}
-                  brokerOffset={brokerOffset}
-                  locale={locale}
-                />
-              );
-            })}
-          </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/[0.08] px-4 py-5 text-sm font-semibold text-[var(--terminal-warning)]">
-            {locale === "EN"
-              ? "No active schedule until a fresh Broker clock is received."
-              : "Không kích hoạt lịch cho đến khi nhận được đồng hồ Broker mới."}
-          </p>
-        )}
-      </section>
-
-      {brokerClock && (
-        <DDirectionPanel
-          snapshot={dDirectionResult.data}
-          date={todayStr}
-          locale={locale}
-        />
-      )}
-
-      <section>
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {t.signalToday}
-        </h2>
-        {brokerClock ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {allSlots.map((signal) => (
-              <SignalCardWithEvidence
-                key={`${signal.date}-${signal.hour}`}
-                signal={signal}
-                isVIP={isVIP}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm font-medium text-[var(--muted)]">
-            {locale === "EN" ? "Today’s signals are hidden while the Broker clock is unsynced." : "Ẩn signal hôm nay khi đồng hồ Broker chưa đồng bộ."}
-          </p>
-        )}
-      </section>
+      <TradeAuditDashboard locale={locale} />
 
       {news.length > 0 && (
         <section className="terminal-panel rounded-2xl p-5 sm:p-6">
@@ -299,58 +206,6 @@ function MetricIcon({ name }: { name: "bot" | "signal" | "direction" | "news" })
     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d={paths[name]} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-function SchedulePill({
-  hour,
-  brokerDate,
-  signalTime,
-  signal,
-  brokerOffset,
-  locale,
-}: {
-  hour: number;
-  brokerDate: string;
-  signalTime?: string | null;
-  signal: string | null;
-  brokerOffset: number | null;
-  locale: "VN" | "EN";
-}) {
-  const tone = signal === "BUY" ? "buy" : signal === "SELL" ? "sell" : signal === "WAIT" ? "wait" : (signal === "BT" || signal === "SW") ? "gold" : "idle";
-  const toneClass = {
-    buy: "border-[var(--terminal-accent)]/40 bg-[var(--terminal-accent)]/10 text-[var(--terminal-accent)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-accent)_15%,transparent)]",
-    sell: "border-[var(--terminal-danger)]/40 bg-[var(--terminal-danger)]/10 text-[var(--terminal-danger)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-danger)_15%,transparent)]",
-    wait: "border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]",
-    idle: "border-dashed border-[var(--panel-border)] bg-transparent text-[var(--muted)]/50",
-    gold: "border-dashed border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/10 text-[var(--terminal-warning)] shadow-[0_0_16px_color-mix(in_srgb,var(--terminal-warning)_15%,transparent)]",
-  }[tone];
-
-  const brokerTime = signalTime || getSignalTime(hour, brokerDate);
-  const localTime = brokerOffset !== null ? brokerTimeToLocal(brokerTime, brokerOffset) : null;
-
-  return (
-    <div className={`min-w-[7.35rem] rounded-xl border px-3 py-2 text-center transition-all ${toneClass}`}>
-      {localTime ? (
-        <>
-          <div className="font-mono text-base font-black tabular-nums">
-            {localTime} <span className="text-[9px] uppercase">VN</span>
-          </div>
-          <div className="mt-0.5 font-mono text-[10px] text-[var(--muted)]">
-            {brokerTime} Broker
-          </div>
-        </>
-      ) : (
-        <div className="font-mono text-base font-black tabular-nums">
-          {brokerTime} <span className="text-[9px] uppercase">Broker</span>
-        </div>
-      )}
-      {signal && (
-        <div className="mt-0.5 font-mono text-xs font-bold">
-          {getSignalLabel(signal, locale)}
-        </div>
-      )}
-    </div>
   );
 }
 
