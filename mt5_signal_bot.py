@@ -6089,10 +6089,94 @@ def rebuild_target_dates(target_dates, *, force=False, include_weekends=False):
     return rebuilt
 
 
+def run_audit_service(profile_name: str = "", tick_interval: int = 30,
+                      sample_interval: int = 60) -> None:
+    """Run the account audit service (§2 checkpoint schedule + §7 sampler).
+
+    Account-audit mode uses ONLY account_info / positions_get / history_deals_get
+    (via the trade-audit store stack) and NEVER calls copy_rates_* / candle APIs.
+    This is the runtime entry point for the renamed "MT5 Account Audit Service".
+    """
+    from repositories.trade_audit_store import TradeAuditStore
+    from services.mt5_deal_reconciler import MT5DealReconciler
+    from services.checkpoint_engine import CheckpointEngine
+    from services.equity_sampler import EquitySampler
+    from services.performance_calculator import PerformanceCalculator
+    from services.audit_dashboard_publisher import AuditDashboardPublisher
+    from services.account_audit_service import (
+        AccountAuditService,
+        broker_time_from_mt5,
+        account_info_dict,
+    )
+
+    store = TradeAuditStore(read_only=True)
+    reconciler = MT5DealReconciler(store, mt5)
+    engine = CheckpointEngine(store, reconciler)
+    sampler = EquitySampler(store, interval_seconds=sample_interval)
+    publisher = AuditDashboardPublisher(store, calculator=PerformanceCalculator(store))
+
+    profile_cfg = load_profile_config(resolve_active_profile(profile_name))
+    account_uid = ""
+    broker_name = profile_cfg.get("broker", "")
+    currency = profile_cfg.get("currency", "")
+
+    def broker_time_provider():
+        return broker_time_from_mt5(mt5)
+
+    def account_info_provider():
+        info = mt5.account_info()
+        return account_info_dict(info, profile_name=profile_cfg.get("profile_name", ""),
+                                 broker=broker_name)
+
+    def positions_provider():
+        try:
+            return list(mt5.positions_get() or [])
+        except Exception:
+            return []
+
+    # Stable account identity: login@server (never expose login raw on public UIs).
+    info = mt5.account_info()
+    if info is not None:
+        login = getattr(info, "login", None)
+        server = getattr(info, "server", "") or ""
+        account_uid = f"{login}@{server}" if login is not None else ""
+
+    if not account_uid:
+        print("[AUDIT] MT5 not connected; account audit service cannot start.")
+        return
+
+    service = AccountAuditService(
+        store, account_uid,
+        broker_time_provider=broker_time_provider,
+        account_info_provider=account_info_provider,
+        positions_provider=positions_provider,
+        reconciler=reconciler, engine=engine, sampler=sampler, publisher=publisher,
+        profile_name=profile_cfg.get("profile_name", ""),
+        broker=broker_name, currency=currency,
+        tick_interval_seconds=tick_interval,
+        sample_interval_seconds=sample_interval,
+    )
+    print(f"[AUDIT] Account audit service online for {account_uid} "
+          f"(checkpoints H{','.join(map(str, CHECKPOINT_HOURS))}, "
+          f"tick={tick_interval}s, sample={sample_interval}s)")
+    try:
+        service.run_forever()
+    except KeyboardInterrupt:
+        print("\n[AUDIT] Audit service stopped by user.")
+    finally:
+        store.close()
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--profile", type=str, help="Profile name for heartbeat")
+    parser.add_argument("--audit-service", action="store_true",
+                        help="Run account audit service (checkpoints + equity sampler, no candles)")
+    parser.add_argument("--audit-tick", type=int, default=30,
+                        help="Audit tick interval seconds (default 30)")
+    parser.add_argument("--audit-sample", type=int, default=60,
+                        help="Audit equity sample interval seconds (default 60)")
     parser.add_argument("--diagnose-h4-d", action="store_true",
                         help="Diagnose H4 D-Direction calculation and symbol resolution")
     parser.add_argument("--date", type=str, help="Target date YYYY-MM-DD for diagnosis")
@@ -6148,6 +6232,15 @@ if __name__ == "__main__":
             BROKER_CLOCK.clear_cache()
             try:
                 repair_d_direction_date(args.repair_d_date)
+            finally:
+                mt5.shutdown()
+    elif args.audit_service:
+        if _init_mt5_for_cli(args.profile, "AUDIT"):
+            mt5_ready = True
+            try:
+                run_audit_service(profile_name=args.profile,
+                                  tick_interval=args.audit_tick,
+                                  sample_interval=args.audit_sample)
             finally:
                 mt5.shutdown()
     else:
