@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
 import { ProfilesList } from "../ipc/types";
+import { useLocale } from "../contexts";
 
 /**
  * Phase 5 — Hidden SL/TP + Copy Trading page (§9).
@@ -21,6 +22,7 @@ interface CopyConfig {
 }
 
 export function HiddenSltpCopyPage() {
+  const { locale } = useLocale();
   const [profiles, setProfiles] = useState<string[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [sltp, setSltp] = useState<Record<string, unknown>>({});
@@ -91,15 +93,28 @@ export function HiddenSltpCopyPage() {
     else setCopy((prev) => ({ ...prev, [key]: value }));
   };
 
+  const vn = locale === "VN";
+  const L = {
+    title: vn ? "SL/TP Ẩn & Copy Trading" : "Hidden SL/TP & Copy Trading",
+    hiddenSltp: vn ? "SL/TP Ẩn" : "Hidden SL/TP",
+    copyTrading: vn ? "Copy Trading" : "Copy Trading",
+    profile: vn ? "Hồ sơ" : "Profile",
+    reload: vn ? "Tải lại" : "Reload",
+    save: vn ? "Lưu" : "Save",
+    saving: vn ? "Đang lưu…" : "Saving…",
+    error: "ERROR",
+    saved: vn ? "Đã lưu (chỉ các trường cho phép)." : "Saved (whitelisted fields only).",
+  };
+
   const sltpFields: { key: string; label: string; type?: "text" | "bool" }[] = [
-    { key: "visible_sltp", label: "Visible SL/TP", type: "bool" },
+    { key: "visible_sltp", label: vn ? "SL/TP hiển thị" : "Visible SL/TP", type: "bool" },
     { key: "sl", label: "SL" },
     { key: "tp", label: "TP" },
-    { key: "gold_sl", label: "Gold SL" },
-    { key: "gold_tp", label: "Gold TP" },
-    { key: "use_balance_sltp", label: "Balance SL/TP", type: "bool" },
-    { key: "balance_sl_pct", label: "Balance SL %" },
-    { key: "balance_tp_pct", label: "Balance TP %" },
+    { key: "gold_sl", label: vn ? "Vàng SL" : "Gold SL" },
+    { key: "gold_tp", label: vn ? "Vàng TP" : "Gold TP" },
+    { key: "use_balance_sltp", label: vn ? "SL/TP theo số dư" : "Balance SL/TP", type: "bool" },
+    { key: "balance_sl_pct", label: vn ? "SL số dư %" : "Balance SL %" },
+    { key: "balance_tp_pct", label: vn ? "TP số dư %" : "Balance TP %" },
     { key: "partial_r", label: "Partial R" },
     { key: "partial_pct", label: "Partial %" },
     { key: "auto_be", label: "Auto BE" },
@@ -107,24 +122,24 @@ export function HiddenSltpCopyPage() {
   ];
 
   const copyFields: { key: string; label: string; type?: "text" | "bool" }[] = [
-    { key: "copy_role", label: "Role" },
-    { key: "copy_channel", label: "Channel" },
-    { key: "copy_max_daily_trades", label: "Max Daily Trades" },
-    { key: "copy_max_lot_per_trade", label: "Max Lot/Trade" },
-    { key: "copy_max_exposure", label: "Max Exposure" },
-    { key: "copy_kill_switch", label: "Kill Switch", type: "bool" },
-    { key: "copy_stale_threshold", label: "Stale Threshold (s)" },
-    { key: "copy_ignore_list", label: "Ignore List" },
-    { key: "copy_stealth", label: "Stealth", type: "bool" },
-    { key: "copy_max_one", label: "Max One", type: "bool" },
+    { key: "copy_role", label: vn ? "Vai trò" : "Role" },
+    { key: "copy_channel", label: vn ? "Kênh" : "Channel" },
+    { key: "copy_max_daily_trades", label: vn ? "Số lệnh/ngày tối đa" : "Max Daily Trades" },
+    { key: "copy_max_lot_per_trade", label: vn ? "Lot tối đa/lệnh" : "Max Lot/Trade" },
+    { key: "copy_max_exposure", label: vn ? "Phơi nhiễm tối đa" : "Max Exposure" },
+    { key: "copy_kill_switch", label: vn ? "Kill Switch" : "Kill Switch", type: "bool" },
+    { key: "copy_stale_threshold", label: vn ? "Ngưỡng stale (s)" : "Stale Threshold (s)" },
+    { key: "copy_ignore_list", label: vn ? "Danh sách bỏ qua" : "Ignore List" },
+    { key: "copy_stealth", label: vn ? "Chế độ ẩn" : "Stealth", type: "bool" },
+    { key: "copy_max_one", label: vn ? "Max One" : "Max One", type: "bool" },
   ];
 
   return (
     <div className="content">
-      <h1>Hidden SL/TP &amp; Copy Trading</h1>
+      <h1>{L.title}</h1>
 
       <div className="profile-select">
-        <label>Profile</label>
+        <label>{L.profile}</label>
         <select value={selected} onChange={(e) => setSelected(e.target.value)}>
           {profiles.map((name) => (
             <option key={name} value={name}>
@@ -133,29 +148,29 @@ export function HiddenSltpCopyPage() {
           ))}
         </select>
         <button className="btn" onClick={() => void load(selected)} disabled={loading}>
-          {loading ? "…" : "Reload"}
+          {loading ? "…" : L.reload}
         </button>
         <button className="btn primary" onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? L.saving : L.save}
         </button>
       </div>
 
       {error && (
         <section className="panel error">
-          <span className="badge error">ERROR</span>
+          <span className="badge error">{L.error}</span>
           <p>{error}</p>
         </section>
       )}
-      {savedMsg && <p className="hint">{savedMsg}</p>}
+      {savedMsg && <p className="hint">{L.saved}</p>}
 
       <div className="two-col">
         <section className="panel">
-          <h2>Hidden SL/TP</h2>
+          <h2>{L.hiddenSltp}</h2>
           <FieldGrid fields={sltpFields} values={sltp} onChange={(k, v) => setField("sltp", k, v)} />
         </section>
 
         <section className="panel">
-          <h2>Copy Trading</h2>
+          <h2>{L.copyTrading}</h2>
           <FieldGrid fields={copyFields} values={copy} onChange={(k, v) => setField("copy", k, v)} />
         </section>
       </div>

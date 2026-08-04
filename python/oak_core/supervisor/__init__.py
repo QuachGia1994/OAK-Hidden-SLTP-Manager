@@ -60,6 +60,8 @@ class SupervisorApp:
         self._server.register("services.list", self._on_services_list)
         # Phase 6 — stock screener (local EOD).
         self._server.register("screener.list", self._on_screener_list)
+        self._server.register("screener.update_eod", self._on_screener_update_eod)
+        self._server.register("screener.run_filter", self._on_screener_run_filter)
         # Phase 4/5 — order management (pending / scheduled / close).
         self._server.register("orders.summary", self._on_orders_summary)
         self._server.register("orders.add_scheduled_trade", self._on_add_scheduled_trade)
@@ -220,6 +222,16 @@ class SupervisorApp:
         return {"services": settings_module.services_list()}
 
     def _on_screener_list(self, request) -> dict:
+        limit = int(request.params.get("limit", 10))
+        return {"stocks": self._accounts.screener_list(limit=limit)}
+
+    def _on_screener_update_eod(self, request) -> dict:
+        target_date = str(request.params.get("date", ""))
+        return self._accounts.update_eod(target_date=target_date)
+
+    def _on_screener_run_filter(self, request) -> dict:
+        # Phase 6: local-EOD ranking is handled by the worker; the desktop
+        # triggers a refresh of the top list (mirrors Native Qt "Run advisor").
         limit = int(request.params.get("limit", 10))
         return {"stocks": self._accounts.screener_list(limit=limit)}
 

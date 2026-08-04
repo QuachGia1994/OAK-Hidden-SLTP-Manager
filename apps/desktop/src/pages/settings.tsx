@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
+import { useLocale } from "../contexts";
 
 /**
  * Phase 6 — Settings + Diagnostics page (§9).
@@ -25,6 +26,26 @@ interface ServiceCard {
 }
 
 export function SettingsPage() {
+  const { locale } = useLocale();
+  const vn = locale === "VN";
+  const L = {
+    title: vn ? "Cài đặt" : "Settings",
+    general: vn ? "Chung" : "General",
+    language: vn ? "Ngôn ngữ" : "Language",
+    theme: vn ? "Giao diện" : "Theme",
+    ghostMode: vn ? "Chế độ ẩn" : "Ghost mode",
+    screener: vn ? "Bộ lọc Cổ phiếu" : "Stock Screener",
+    clientId: vn ? "Client ID" : "Client ID",
+    capital: vn ? "Vốn (VND)" : "Capital (VND)",
+    hurdle: vn ? "Hurdle (bps)" : "Hurdle (bps)",
+    services: vn ? "Dịch vụ" : "Services",
+    save: vn ? "Lưu" : "Save",
+    saving: vn ? "Đang lưu…" : "Saving…",
+    reload: vn ? "Tải lại" : "Reload",
+    error: "ERROR",
+    saved: vn ? "Đã lưu (chỉ các trường cho phép)." : "Saved (whitelisted fields only).",
+    noServices: vn ? "Chưa có dịch vụ nào." : "No services reported.",
+  };
   const [settings, setSettings] = useState<SettingsData>({});
   const [services, setServices] = useState<ServiceCard[]>([]);
   const [saving, setSaving] = useState(false);
@@ -69,21 +90,21 @@ export function SettingsPage() {
 
   return (
     <div className="content">
-      <h1>Settings</h1>
+      <h1>{L.title}</h1>
 
       {error && (
         <section className="panel error">
-          <span className="badge error">ERROR</span>
+          <span className="badge error">{L.error}</span>
           <p>{error}</p>
         </section>
       )}
-      {savedMsg && <p className="hint">{savedMsg}</p>}
+      {savedMsg && <p className="hint">{L.saved}</p>}
 
       <section className="panel">
-        <h2>General</h2>
+        <h2>{L.general}</h2>
         <div className="field-grid">
           <label className="field">
-            <span>Language</span>
+            <span>{L.language}</span>
             <select
               value={settings.lang ?? "VN"}
               onChange={(e) => setField("lang", e.target.value)}
@@ -93,7 +114,7 @@ export function SettingsPage() {
             </select>
           </label>
           <label className="field">
-            <span>Theme</span>
+            <span>{L.theme}</span>
             <select
               value={settings.theme ?? "dark"}
               onChange={(e) => setField("theme", e.target.value)}
@@ -104,7 +125,7 @@ export function SettingsPage() {
             </select>
           </label>
           <label className="field bool">
-            <span>Ghost mode</span>
+            <span>{L.ghostMode}</span>
             <input
               type="checkbox"
               checked={Boolean(settings.ghost_mode_active)}
@@ -113,15 +134,15 @@ export function SettingsPage() {
           </label>
         </div>
         <div className="muted small">
-          ntfy_topic: {settings.ntfy_topic ? "configured ✓" : "not set"} (value hidden)
+          ntfy_topic: {settings.ntfy_topic ? (vn ? "đã cấu hình ✓" : "configured ✓") : vn ? "chưa đặt" : "not set"} (value hidden)
         </div>
       </section>
 
       <section className="panel">
-        <h2>Stock Screener</h2>
+        <h2>{L.screener}</h2>
         <div className="field-grid">
           <label className="field">
-            <span>Client ID</span>
+            <span>{L.clientId}</span>
             <input
               type="text"
               value={settings.stock_client_id ?? ""}
@@ -129,7 +150,7 @@ export function SettingsPage() {
             />
           </label>
           <label className="field">
-            <span>Capital (VND)</span>
+            <span>{L.capital}</span>
             <input
               type="text"
               value={settings.stock_capital ?? ""}
@@ -137,7 +158,7 @@ export function SettingsPage() {
             />
           </label>
           <label className="field">
-            <span>Hurdle (bps)</span>
+            <span>{L.hurdle}</span>
             <input
               type="text"
               value={settings.stock_hurdle_bps ?? ""}
@@ -149,26 +170,26 @@ export function SettingsPage() {
 
       <div className="actions">
         <button className="btn primary" onClick={() => void save()} disabled={saving}>
-          {saving ? "Saving…" : "Save"}
+          {saving ? L.saving : L.save}
         </button>
         <button className="btn" onClick={() => void load()}>
-          Reload
+          {L.reload}
         </button>
       </div>
 
       <section className="panel">
-        <h2>Services</h2>
+        <h2>{L.services}</h2>
         <div className="svc-list">
           {services.map((s) => (
             <div key={s.key} className="svc-row">
               <span className="badge neutral">{s.key}</span>
               <span>{s.label}</span>
               <span className={`badge ${s.configured ? "ok" : "warn"}`}>
-                {s.configured ? "CONFIGURED" : "NOT SET"}
+                {s.configured ? (vn ? "ĐÃ CẤU HÌNH" : "CONFIGURED") : vn ? "CHƯA ĐẶT" : "NOT SET"}
               </span>
             </div>
           ))}
-          {services.length === 0 && <p className="muted">No services reported.</p>}
+          {services.length === 0 && <p className="muted">{L.noServices}</p>}
         </div>
       </section>
     </div>

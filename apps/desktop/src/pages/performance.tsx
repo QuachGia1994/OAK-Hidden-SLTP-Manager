@@ -11,12 +11,40 @@ import {
 } from "recharts";
 import { request, IpcError } from "../ipc/bridge";
 import { CurvePoint, PerformanceSummary, ProfilesList, RiskSummary } from "../ipc/types";
+import { useLocale } from "../contexts";
 
 /**
  * Phase 4 — Performance & Risk page (§9).
  * Equity curve + drawdown curve (Recharts) + risk summary.
  */
 export function PerformancePage() {
+  const { locale } = useLocale();
+  const L = {
+    title: locale === "VN" ? "Hiệu suất & Rủi ro" : "Performance & Risk",
+    profile: locale === "VN" ? "Hồ sơ" : "Profile",
+    refresh: locale === "VN" ? "Làm mới" : "Refresh",
+    error: "ERROR",
+    noSamples: locale === "VN"
+      ? "Chưa có mẫu equity — hãy chạy hồ sơ để equity sampler ghi nhận trạng thái tài khoản."
+      : "No equity samples yet — start the profile so the equity sampler records account state.",
+    equityCurve: locale === "VN" ? "Đường Equity" : "Equity Curve",
+    drawdown: locale === "VN" ? "Drawdown" : "Drawdown",
+    performance: locale === "VN" ? "Hiệu suất" : "Performance",
+    risk: locale === "VN" ? "Rủi ro" : "Risk",
+    netProfit: locale === "VN" ? "Lợi nhuận ròng" : "Net Profit",
+    realized: locale === "VN" ? "Lãi/lỗ thực hiện" : "Realized P/L",
+    profitFactor: "Profit Factor",
+    winRate: locale === "VN" ? "Tỷ lệ thắng" : "Win Rate",
+    maxDd: locale === "VN" ? "DD cao nhất" : "Max DD",
+    currentDd: locale === "VN" ? "DD hiện tại" : "Current DD",
+    tradingReturn: locale === "VN" ? "Lợi nhuận GD" : "Trading Return",
+    expectancy: "Expectancy",
+    openPositions: locale === "VN" ? "Vị thế mở" : "Open Positions",
+    consecWins: locale === "VN" ? "Thắng liên tiếp" : "Max Consec. Wins",
+    consecLosses: locale === "VN" ? "Thua liên tiếp" : "Max Consec. Losses",
+    recovery: "Recovery Factor",
+    exposure: locale === "VN" ? "Phơi nhiễm" : "Exposure",
+  };
   const [profiles, setProfiles] = useState<string[]>([]);
   const [selected, setSelected] = useState<string>("");
   const [perf, setPerf] = useState<PerformanceSummary | null>(null);
@@ -72,10 +100,10 @@ export function PerformancePage() {
 
   return (
     <div className="content">
-      <h1>Performance &amp; Risk</h1>
+      <h1>{L.title}</h1>
 
       <div className="profile-select">
-        <label>Profile</label>
+        <label>{L.profile}</label>
         <select value={selected} onChange={(e) => setSelected(e.target.value)}>
           {profiles.map((name) => (
             <option key={name} value={name}>
@@ -84,64 +112,62 @@ export function PerformancePage() {
           ))}
         </select>
         <button className="btn" onClick={() => void load(selected)} disabled={loading}>
-          {loading ? "…" : "Refresh"}
+          {loading ? "…" : L.refresh}
         </button>
       </div>
 
       {error && (
         <section className="panel error">
-          <span className="badge error">ERROR</span>
+          <span className="badge error">{L.error}</span>
           <p>{error}</p>
         </section>
       )}
 
       {!perf?.available && !loading && (
-        <p className="muted">
-          No equity samples yet — start the profile so the equity sampler records account state.
-        </p>
+        <p className="muted">{L.noSamples}</p>
       )}
 
       {equity.length >= 2 && (
         <section className="panel">
-          <h2>Equity Curve</h2>
+          <h2>{L.equityCurve}</h2>
           <EquityChart data={equity} height={220} />
         </section>
       )}
 
       {drawdown.length >= 2 && (
         <section className="panel">
-          <h2>Drawdown</h2>
+          <h2>{L.drawdown}</h2>
           <DrawdownChart data={drawdown} height={160} />
         </section>
       )}
 
       {perf?.available && (
         <section className="panel">
-          <h2>Performance</h2>
+          <h2>{L.performance}</h2>
           <div className="stat-grid">
-            <Stat label="Net Profit" value={money(perf.net_profit)} tone={tone(perf.net_profit)} />
-            <Stat label="Realized P/L" value={money(perf.realized_pl)} />
-            <Stat label="Profit Factor" value={perf.profit_factor != null ? perf.profit_factor.toFixed(2) : "—"} />
-            <Stat label="Win Rate" value={perf.win_rate != null ? `${(perf.win_rate * 100).toFixed(0)}%` : "—"} />
-            <Stat label="Max DD" value={money(perf.max_equity_drawdown)} tone="neg" />
-            <Stat label="Current DD" value={money(perf.current_drawdown)} tone="neg" />
-            <Stat label="Trading Return" value={money(perf.trading_return)} />
-            <Stat label="Expectancy" value={money(perf.expectancy)} />
+            <Stat label={L.netProfit} value={money(perf.net_profit)} tone={tone(perf.net_profit)} />
+            <Stat label={L.realized} value={money(perf.realized_pl)} />
+            <Stat label={L.profitFactor} value={perf.profit_factor != null ? perf.profit_factor.toFixed(2) : "—"} />
+            <Stat label={L.winRate} value={perf.win_rate != null ? `${(perf.win_rate * 100).toFixed(0)}%` : "—"} />
+            <Stat label={L.maxDd} value={money(perf.max_equity_drawdown)} tone="neg" />
+            <Stat label={L.currentDd} value={money(perf.current_drawdown)} tone="neg" />
+            <Stat label={L.tradingReturn} value={money(perf.trading_return)} />
+            <Stat label={L.expectancy} value={money(perf.expectancy)} />
           </div>
           <div className="muted small">
-            Drawdown: {perf.drawdown_source === "EQUITY_SAMPLES" ? "Max Equity Drawdown (continuous samples)" : perf.drawdown_source === "CHECKPOINT" ? "Checkpoint Drawdown" : "—"}
+            {L.drawdown}: {perf.drawdown_source === "EQUITY_SAMPLES" ? (locale === "VN" ? "Max Equity Drawdown (mẫu liên tục)" : "Max Equity Drawdown (continuous samples)") : perf.drawdown_source === "CHECKPOINT" ? (locale === "VN" ? "Checkpoint Drawdown" : "Checkpoint Drawdown") : "—"}
           </div>
         </section>
       )}
 
       {risk?.available && (
         <section className="panel">
-          <h2>Risk</h2>
+          <h2>{L.risk}</h2>
           <div className="stat-grid">
-            <Stat label="Open Positions" value={String(risk.open_position_count)} />
-            <Stat label="Max Consec. Wins" value={String(risk.max_consecutive_wins)} />
-            <Stat label="Max Consec. Losses" value={String(risk.max_consecutive_losses)} />
-            <Stat label="Recovery Factor" value={risk.recovery_factor != null ? risk.recovery_factor.toFixed(2) : "—"} />
+            <Stat label={L.openPositions} value={String(risk.open_position_count)} />
+            <Stat label={L.consecWins} value={String(risk.max_consecutive_wins)} />
+            <Stat label={L.consecLosses} value={String(risk.max_consecutive_losses)} />
+            <Stat label={L.recovery} value={risk.recovery_factor != null ? risk.recovery_factor.toFixed(2) : "—"} />
           </div>
           <div className="exposure">
             {Object.entries(risk.exposure_by_symbol ?? {}).map(([sym, vol]) => (

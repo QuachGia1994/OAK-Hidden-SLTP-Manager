@@ -271,3 +271,29 @@ class AccountQueries:
             return result
         except Exception:
             return []
+
+    def update_eod(self, target_date: str = "") -> dict:
+        """Run the local EOD collector update (mirrors 'Update EOD Data 15:00+').
+
+        Executes ``eod_collector update`` as a subprocess with a timeout.
+        """
+        import subprocess
+        import sys
+        cmd = [sys.executable, "-m", "eod_collector", "update"]
+        if target_date:
+            cmd += ["--date", str(target_date)]
+        try:
+            proc = subprocess.run(
+                cmd, cwd=str(_REPO_ROOT), capture_output=True, text=True,
+                timeout=180,
+            )
+            return {
+                "ok": proc.returncode == 0,
+                "returncode": proc.returncode,
+                "stdout": (proc.stdout or "")[-2000:],
+                "stderr": (proc.stderr or "")[-1000:],
+            }
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "returncode": None, "stdout": "", "stderr": "EOD update timed out (180s)"}
+        except Exception as exc:
+            return {"ok": False, "returncode": None, "stdout": "", "stderr": str(exc)}

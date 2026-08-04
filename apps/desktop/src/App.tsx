@@ -11,6 +11,16 @@ import { ScreenerPage } from "./pages/screener";
 import { OrdersPage } from "./pages/orders";
 import { LocaleProvider, ThemeProvider, useLocale, useTheme } from "./contexts";
 
+// Format an ISO timestamp into a readable locale datetime.
+function fmtIso(v: string, locale: "EN" | "VN"): string {
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return v;
+  return d.toLocaleString(locale === "VN" ? "vi-VN" : "en-GB", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+}
+
 function TopBar() {
   const { locale, setLocale } = useLocale();
   const { cycleTheme } = useTheme();
@@ -129,7 +139,7 @@ function StatusPage() {
             <dt>role</dt>
             <dd>{handshake.role}</dd>
             <dt>started_at</dt>
-            <dd className="mono">{handshake.started_at}</dd>
+            <dd className="mono">{fmtIso(handshake.started_at, locale)}</dd>
           </dl>
         </section>
       )}

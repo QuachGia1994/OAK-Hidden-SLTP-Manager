@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
 
 /**
@@ -24,25 +24,63 @@ interface Stock {
 export function ScreenerPage() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<"eod" | "filter" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await request<{ stocks: Stock[] }>("screener.list", { limit: 30 });
-        if (!cancelled) setStocks(res.stocks ?? []);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await request<{ stocks: Stock[] }>("screener.list", { limit: 30 });
+      setStocks(res.stocks ?? []);
+    } catch (e) {
+      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const runEod = async () => {
+    setBusy("eod");
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await request<{ ok: boolean; stderr: string; stdout: string }>(
+        "screener.update_eod", { date: "" }, 200000,
+      );
+      if (res.ok) {
+        setInfo("Đã cập nhật EOD thành công.");
+      } else {
+        setInfo(`EOD update: ${res.stderr?.slice(-300) || "lỗi"}`);
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runFilter = async () => {
+    setBusy("filter");
+    setError(null);
+    setInfo(null);
+    try {
+      await request("screener.run_filter", { limit: 30 });
+      await load();
+      setInfo("Đã chạy bộ lọc.");
+    } catch (e) {
+      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const shown = filter
     ? stocks.filter((s) => s.symbol.toLowerCase().includes(filter.toLowerCase()))
@@ -59,9 +97,16 @@ export function ScreenerPage() {
           <p>{error}</p>
         </section>
       )}
+      {info && <p className="hint">{info}</p>}
       {loading && <p className="muted">Đang tải dữ liệu EOD…</p>}
 
       <div className="profile-select">
+        <button className="btn primary" onClick={() => void runEod()} disabled={busy !== null}>
+          {busy === "eod" ? "Đang tải EOD…" : "Tải EOD (15:00+)"}
+        </button>
+        <button className="btn" onClick={() => void runFilter()} disabled={busy !== null}>
+          {busy === "filter" ? "Đang chạy…" : "Chạy bộ lọc"}
+        </button>
         <input
           className="search"
           type="text"

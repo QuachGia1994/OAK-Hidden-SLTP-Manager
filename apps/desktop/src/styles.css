@@ -13,14 +13,14 @@
 
 /* Light theme */
 :root[data-theme="light"] {
-  --bg: #f4f6f8;
+  --bg: #eef1f5;
   --panel: #ffffff;
-  --border: #d7dde3;
-  --fg: #1a2330;
-  --muted: #5c6b7a;
-  --accent: #1d8a5f;
-  --danger: #d43a3a;
-  --warn: #b57a08;
+  --border: #c3ccd6;
+  --fg: #141b24;
+  --muted: #4b5a6b;
+  --accent: #147a52;
+  --danger: #c22f2f;
+  --warn: #92610a;
   color-scheme: light;
 }
 
@@ -43,6 +43,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
+  font-size: 14px;
 }
 
 .shell { min-height: 100vh; display: flex; flex-direction: column; }
@@ -56,16 +57,16 @@ body {
 .tag { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.14em; }
 
 .content { max-width: 860px; width: 100%; margin: 0 auto; padding: 20px 16px; }
-.content h1 { font-size: 22px; margin: 0 0 16px; }
+.content h1 { font-size: 24px; margin: 0 0 16px; }
 
 .panel {
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
   padding: 14px 16px; margin-bottom: 14px;
 }
 .panel.error { border-color: var(--danger); }
-.panel h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); margin: 0 0 10px; }
+.panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.16em; color: var(--muted); margin: 0 0 10px; }
 
-.kv { display: grid; grid-template-columns: 120px 1fr; gap: 4px 12px; margin: 0; font-size: 13px; }
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 4px 12px; margin: 0; font-size: 14px; }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; }
 
@@ -139,7 +140,7 @@ body {
 
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
 .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
-.stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 4px; }
+.stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 4px; }
 .stat-value { font-size: 16px; font-weight: 700; }
 
 .equity-positive { color: var(--accent); }
@@ -151,7 +152,7 @@ body {
   gap: 8px; padding: 8px 12px; align-items: center;
 }
 .table-head { background: rgba(139,152,165,.08); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-.trade-row { border-left: 3px solid var(--border); font-size: 13px; }
+.trade-row { border-left: 3px solid var(--border); font-size: 14px; }
 .trade-row.buy { border-left-color: var(--accent); }
 .trade-row.sell { border-left-color: var(--danger); }
 .trade-row + .trade-row { border-top: 1px solid var(--border); }

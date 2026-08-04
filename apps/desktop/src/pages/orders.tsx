@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
+import { useLocale } from "../contexts";
 
 /**
  * Order Management page — "Lệnh chờ xử lý" (§9 Phase 4/5).
@@ -37,6 +38,38 @@ interface OrdersSummary {
 const TYPE_NAMES: Record<number, string> = { 0: "BUY", 1: "SELL" };
 
 export function OrdersPage() {
+  const { locale } = useLocale();
+  const vn = locale === "VN";
+  const L = {
+    title: vn ? "Lệnh chờ xử lý" : "Pending Orders",
+    subtitle: vn
+      ? "Hẹn giờ vào lệnh · đóng lệnh hẹn giờ · partial — thao tác qua worker Python"
+      : "Scheduled entries · scheduled closes · partials — executed by Python workers",
+    addTrade: vn ? "Hẹn giờ vào lệnh" : "Schedule Entry",
+    addClose: vn ? "Đóng lệnh hẹn giờ" : "Schedule Close",
+    symbol: "Symbol",
+    type: "Type",
+    lot: "Lot",
+    time: "Time",
+    date: "Date",
+    sl: "SL",
+    tp: "TP",
+    filter: "Filter",
+    symOptional: vn ? "Symbol (trống = all)" : "Symbol (empty = all)",
+    addTradeBtn: vn ? "Thêm lệnh" : "Add Order",
+    addCloseBtn: vn ? "Thêm lệnh đóng" : "Add Close",
+    tradesTitle: vn ? "Lệnh hẹn giờ" : "Scheduled Trades",
+    closesTitle: vn ? "Đóng lệnh hẹn giờ" : "Scheduled Closes",
+    partialsTitle: vn ? "Partial chờ xử lý" : "Pending Partials",
+    noTrades: vn ? "Chưa có lệnh hẹn giờ." : "No scheduled trades yet.",
+    noCloses: vn ? "Chưa có lệnh đóng hẹn giờ." : "No scheduled closes yet.",
+    savedTrade: vn ? "Đã thêm lệnh hẹn giờ." : "Scheduled order added.",
+    savedClose: vn ? "Đã thêm lệnh đóng hẹn giờ." : "Scheduled close added.",
+    status: vn ? "Trạng thái" : "Status",
+    target: vn ? "Mục tiêu" : "Target",
+    closeVol: vn ? "Vol đóng" : "Close Vol",
+    profile: vn ? "Hồ sơ" : "Profile",
+  };
   const [summary, setSummary] = useState<OrdersSummary>({ scheduled_trades: [], scheduled_closes: [], pending_partials: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,7 +116,7 @@ export function OrdersPage() {
         symbol: nSymbol, order_type: nType, lot: nLot,
         time: nTime, date: nDate || today(), sl: nSl, tp: nTp,
       });
-      setSavedMsg("Đã thêm lệnh hẹn giờ.");
+      setSavedMsg(L.savedTrade);
       await load();
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
@@ -106,7 +139,7 @@ export function OrdersPage() {
       await request("orders.add_scheduled_close", {
         time: cTime, date: cDate || today(), filter: cFilter, sym: cSym,
       });
-      setSavedMsg("Đã thêm lệnh đóng hẹn giờ.");
+      setSavedMsg(L.savedClose);
       await load();
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
@@ -124,10 +157,8 @@ export function OrdersPage() {
 
   return (
     <div className="content">
-      <h1>Lệnh chờ xử lý</h1>
-      <p className="muted small">
-        Hẹn giờ vào lệnh · đóng lệnh hẹn giờ · partial — thao tác qua worker Python
-      </p>
+      <h1>{L.title}</h1>
+      <p className="muted small">{L.subtitle}</p>
 
       {error && (
         <section className="panel error">
@@ -136,80 +167,80 @@ export function OrdersPage() {
         </section>
       )}
       {savedMsg && <p className="hint">{savedMsg}</p>}
-      {loading && <p className="muted">Đang tải…</p>}
+      {loading && <p className="muted">{vn ? "Đang tải…" : "Loading…"}</p>}
 
       <div className="two-col">
         {/* Left: add scheduled trade */}
         <section className="panel">
-          <h2>Hẹn giờ vào lệnh</h2>
+          <h2>{L.addTrade}</h2>
           <div className="field-grid">
-            <label className="field"><span>Symbol</span>
+            <label className="field"><span>{L.symbol}</span>
               <input type="text" value={nSymbol} onChange={(e) => setNSymbol(e.target.value)} />
             </label>
-            <label className="field"><span>Type</span>
+            <label className="field"><span>{L.type}</span>
               <select value={nType} onChange={(e) => setNType(Number(e.target.value))}>
                 <option value={0}>BUY</option>
                 <option value={1}>SELL</option>
               </select>
             </label>
-            <label className="field"><span>Lot</span>
+            <label className="field"><span>{L.lot}</span>
               <input type="text" value={nLot} onChange={(e) => setNLot(e.target.value)} />
             </label>
-            <label className="field"><span>Time</span>
+            <label className="field"><span>{L.time}</span>
               <input type="text" value={nTime} onChange={(e) => setNTime(e.target.value)} placeholder="HH:MM" />
             </label>
-            <label className="field"><span>Date</span>
+            <label className="field"><span>{L.date}</span>
               <input type="text" value={nDate} onChange={(e) => setNDate(e.target.value)} placeholder={today()} />
             </label>
-            <label className="field"><span>SL</span>
+            <label className="field"><span>{L.sl}</span>
               <input type="text" value={nSl} onChange={(e) => setNSl(e.target.value)} />
             </label>
-            <label className="field"><span>TP</span>
+            <label className="field"><span>{L.tp}</span>
               <input type="text" value={nTp} onChange={(e) => setNTp(e.target.value)} />
             </label>
           </div>
           <div className="actions">
-            <button className="btn primary" onClick={() => void addTrade()}>Thêm lệnh</button>
+            <button className="btn primary" onClick={() => void addTrade()}>{L.addTradeBtn}</button>
           </div>
         </section>
 
         {/* Right: add scheduled close */}
         <section className="panel">
-          <h2>Đóng lệnh hẹn giờ</h2>
+          <h2>{L.addClose}</h2>
           <div className="field-grid">
-            <label className="field"><span>Time</span>
+            <label className="field"><span>{L.time}</span>
               <input type="text" value={cTime} onChange={(e) => setCTime(e.target.value)} placeholder="HH:MM" />
             </label>
-            <label className="field"><span>Date</span>
+            <label className="field"><span>{L.date}</span>
               <input type="text" value={cDate} onChange={(e) => setCDate(e.target.value)} placeholder={today()} />
             </label>
-            <label className="field"><span>Filter</span>
+            <label className="field"><span>{L.filter}</span>
               <select value={cFilter} onChange={(e) => setCFilter(e.target.value)}>
                 <option value="all">all</option>
                 <option value="profit">profit</option>
                 <option value="loss">loss</option>
               </select>
             </label>
-            <label className="field"><span>Symbol (trống = all)</span>
+            <label className="field"><span>{L.symOptional}</span>
               <input type="text" value={cSym} onChange={(e) => setCSym(e.target.value)} />
             </label>
           </div>
           <div className="actions">
-            <button className="btn primary" onClick={() => void addClose()}>Thêm lệnh đóng</button>
+            <button className="btn primary" onClick={() => void addClose()}>{L.addCloseBtn}</button>
           </div>
         </section>
       </div>
 
       {/* Scheduled trades list */}
       <section className="panel">
-        <h2>Lệnh hẹn giờ ({summary.scheduled_trades.length})</h2>
+        <h2>{L.tradesTitle} ({summary.scheduled_trades.length})</h2>
         {summary.scheduled_trades.length === 0 ? (
-          <p className="muted">Chưa có lệnh hẹn giờ.</p>
+          <p className="muted">{L.noTrades}</p>
         ) : (
           <div className="table">
             <div className="table-head">
-              <span>Symbol</span><span>Type</span><span>Lot</span>
-              <span>Time</span><span>Date</span><span>SL/TP</span><span>Status</span><span></span>
+              <span>{L.symbol}</span><span>{L.type}</span><span>{L.lot}</span>
+              <span>{L.time}</span><span>{L.date}</span><span>SL/TP</span><span>{L.status}</span><span></span>
             </div>
             {summary.scheduled_trades.map((t) => (
               <div key={t.id} className="trade-row neutral">
@@ -229,13 +260,13 @@ export function OrdersPage() {
 
       {/* Scheduled closes list */}
       <section className="panel">
-        <h2>Đóng lệnh hẹn giờ ({summary.scheduled_closes.length})</h2>
+        <h2>{L.closesTitle} ({summary.scheduled_closes.length})</h2>
         {summary.scheduled_closes.length === 0 ? (
-          <p className="muted">Chưa có lệnh đóng hẹn giờ.</p>
+          <p className="muted">{L.noCloses}</p>
         ) : (
           <div className="table">
             <div className="table-head">
-              <span>Time</span><span>Date</span><span>Filter</span><span>Symbol</span><span></span>
+              <span>{L.time}</span><span>{L.date}</span><span>{L.filter}</span><span>{L.symbol}</span><span></span>
             </div>
             {summary.scheduled_closes.map((c) => (
               <div key={c.id} className="trade-row neutral">
@@ -253,11 +284,11 @@ export function OrdersPage() {
       {/* Pending partials */}
       {summary.pending_partials.length > 0 && (
         <section className="panel">
-          <h2>Partial chờ xử lý ({summary.pending_partials.length})</h2>
+          <h2>{L.partialsTitle} ({summary.pending_partials.length})</h2>
           <div className="table">
             <div className="table-head">
-              <span>Ticket</span><span>Symbol</span><span>Type</span>
-              <span>Target</span><span>Vol đóng</span><span>Profile</span>
+              <span>Ticket</span><span>{L.symbol}</span><span>{L.type}</span>
+              <span>{L.target}</span><span>{L.closeVol}</span><span>{L.profile}</span>
             </div>
             {summary.pending_partials.map((p) => (
               <div key={p.ticket} className="trade-row neutral">
