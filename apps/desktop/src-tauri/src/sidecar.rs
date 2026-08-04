@@ -62,7 +62,7 @@ fn sidecar_command() -> Command {
         // we keep it simple and rely on the configured sidecar name.
         let mut cmd = Command::new(sidecar_bin_path());
         cmd.arg("supervisor");
-        // Data lives next to the installed exe (portable data dir).
+        // Data lives in the OS app-data dir (%APPDATA%\com.oak.sltp.manager).
         if let Some(data_dir) = app_data_dir() {
             cmd.env("OAK_DATA_DIR", data_dir);
         }
@@ -70,13 +70,41 @@ fn sidecar_command() -> Command {
     }
 }
 
-/// Prod data dir: <exe dir>/data — the installed app writes profiles.json
-/// and settings.json there (portable layout, no admin/registry needed).
+/// Prod data dir: OS app-data dir for this app (no admin needed, per-user).
 #[cfg(not(debug_assertions))]
 fn app_data_dir() -> Option<PathBuf> {
-    std::env::current_exe()
-        .ok()
-        .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
+    let base = std::env::var_os("APPDATA")?;
+    Some(PathBuf::from(base).join("com.oak.sltp.manager"))
+}
+
+/// Ensure the app-data dir has profiles.json / settings.json on first run:
+/// seed them from the bundled example templates (no secrets are bundled).
+#[cfg(not(debug_assertions))]
+pub fn ensure_data_files(app: &tauri::AppHandle) {
+    let Some(data_dir) = app_data_dir() else {
+        return;
+    };
+    if std::fs::create_dir_all(&data_dir).is_err() {
+        return;
+    }
+    let resource = tauri::Manager::path(app).resource_dir();
+    let Some(resource) = resource.ok() else {
+        return;
+    };
+    let seeds = [
+        ("resources/oak-data/profiles.example.json", "profiles.json"),
+        ("resources/oak-data/settings.example.json", "settings.json"),
+    ];
+    for (src_rel, dst_name) in seeds {
+        let dst = data_dir.join(dst_name);
+        if dst.exists() {
+            continue;
+        }
+        let src = resource.join(src_rel);
+        if src.is_file() {
+            let _ = std::fs::copy(src, dst);
+        }
+    }
 }
 
 /// Locate a usable python interpreter: repo venv first, then `python` on PATH.

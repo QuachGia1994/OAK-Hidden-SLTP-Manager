@@ -16,6 +16,8 @@ fn main() {
         .manage(SidecarState::default())
         .invoke_handler(tauri::generate_handler![sidecar::sidecar_request])
         .setup(|app| {
+            #[cfg(not(debug_assertions))]
+            sidecar::ensure_data_files(app.handle());
             sidecar::spawn(app.handle());
             Ok(())
         })

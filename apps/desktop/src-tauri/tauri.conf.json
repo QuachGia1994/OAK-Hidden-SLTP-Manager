@@ -27,6 +27,11 @@
     "active": true,
     "targets": ["nsis"],
     "externalBin": ["binaries/oak-core"],
+    "resources": [
+      "resources/oak-data/profiles.example.json",
+      "resources/oak-data/settings.example.json",
+      "resources/oak-data/config.example.toml"
+    ],
     "icon": []
   }
 }
