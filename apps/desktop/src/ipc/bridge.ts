@@ -5,7 +5,7 @@
 // which writes one JSONL request to the sidecar stdin and resolves the
 // matching response channel. Events are forwarded by Rust as Tauri events.
 
-import { invoke } from "@tauri-apps/api/core";
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 /** Error shape returned by the sidecar (§3). */
@@ -49,13 +49,32 @@ const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
 /**
  * Invoke one sidecar method. Returns the `result` payload or throws IpcError
  * with the sidecar error code/message.
+ *
+ * The Rust command `sidecar_request` takes a `Channel<Value>` param that the
+ * sidecar resolves asynchronously (stdout reader thread). We create one
+ * Channel per request and resolve the promise from its onmessage; a timeout
+ * guards against a dead sidecar so the UI never hangs.
  */
 export async function request<T = unknown>(
   method: string,
   params: Record<string, unknown> = {},
+  timeoutMs = 15000,
 ): Promise<T> {
   if (inTauri) {
-    const reply = await invoke<SidecarReply>("sidecar_request", { method, params });
+    const channel = new Channel<SidecarReply>();
+    const reply = await new Promise<SidecarReply>((resolve, reject) => {
+      const timer = window.setTimeout(() => {
+        reject(new IpcError({ code: "SIDECAR_TIMEOUT", message: `sidecar timeout: ${method}` }));
+      }, timeoutMs);
+      channel.onmessage = (msg) => {
+        window.clearTimeout(timer);
+        resolve(msg);
+      };
+      invoke("sidecar_request", { method, params, channel }).catch((e: unknown) => {
+        window.clearTimeout(timer);
+        reject(e instanceof Error ? e : new IpcError({ code: "INVOKE_ERROR", message: String(e) }));
+      });
+    });
     if (!reply.ok) {
       throw new IpcError(reply.error ?? { code: "UNKNOWN_ERROR", message: "unknown sidecar error" });
     }
