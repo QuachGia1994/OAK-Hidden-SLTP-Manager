@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { request, IpcError } from "../ipc/bridge";
 import { CurvePoint, PerformanceSummary, ProfilesList, RiskSummary } from "../ipc/types";
 
 /**
  * Phase 4 — Performance & Risk page (§9).
- * Equity curve + drawdown curve (lightweight SVG, no chart dependency per
- * Edit prompt.txt §6) + risk summary.
+ * Equity curve + drawdown curve (Recharts) + risk summary.
  */
 export function PerformancePage() {
   const [profiles, setProfiles] = useState<string[]>([]);
@@ -95,14 +104,14 @@ export function PerformancePage() {
       {equity.length >= 2 && (
         <section className="panel">
           <h2>Equity Curve</h2>
-          <Sparkline data={equity} valueKey="equity" height={120} />
+          <EquityChart data={equity} height={220} />
         </section>
       )}
 
       {drawdown.length >= 2 && (
         <section className="panel">
           <h2>Drawdown</h2>
-          <Sparkline data={drawdown} valueKey="drawdown" height={90} invert />
+          <DrawdownChart data={drawdown} height={160} />
         </section>
       )}
 
@@ -178,36 +187,94 @@ function Stat({ label, value, tone: t }: { label: string; value: string; tone?: 
   );
 }
 
-/** Minimal SVG sparkline — no chart dependency (Edit prompt.txt §6). */
-function Sparkline({
-  data,
-  valueKey,
-  height,
-  invert = false,
-}: {
-  data: CurvePoint[];
-  valueKey: "equity" | "drawdown";
-  height: number;
-  invert?: boolean;
-}) {
-  const width = 600;
-  const values = data.map((d) => Number(d[valueKey]) || 0);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const step = values.length > 1 ? width / (values.length - 1) : width;
-  const pts = values.map((v, i) => {
-    const x = i * step;
-    // invert (drawdown): draw downward from the max so the curve reads naturally.
-    const y = invert
-      ? height - ((max - v) / span) * (height - 8) - 4
-      : height - ((v - min) / span) * (height - 8) - 4;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-  const color = invert ? "var(--danger)" : "var(--accent)";
+// --------------------------------------------------------------------- //
+// Charts (Recharts)
+// --------------------------------------------------------------------- //
+
+const AXIS = { fill: "var(--muted)", fontSize: 11, fontFamily: "Cascadia Code, Consolas, monospace" };
+const GRID = "rgba(139,152,165,0.12)";
+const TOOLTIP_STYLE: CSSProperties = {
+  background: "var(--panel)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  fontSize: 12,
+  fontFamily: "Cascadia Code, Consolas, monospace",
+  color: "var(--fg)",
+};
+
+function shortTime(t: string | null): string {
+  if (!t) return "";
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) return t;
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Equity + balance line/area chart. */
+function EquityChart({ data, height }: { data: CurvePoint[]; height: number }) {
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="sparkline" aria-hidden="true">
-      <polyline points={pts.join(" ")} fill="none" stroke={color} strokeWidth="2" />
-    </svg>
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey={(p: CurvePoint) => shortTime(p.t)} tick={AXIS} tickLine={false} axisLine={false} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={72} domain={["auto", "auto"]} />
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          labelFormatter={(_, payload) => (payload?.[0]?.payload?.t as string) ?? ""}
+        />
+        <Area
+          type="monotone"
+          dataKey="equity"
+          stroke="var(--accent)"
+          strokeWidth={2}
+          fill="url(#equityFill)"
+          name="Equity"
+        />
+        <Area
+          type="monotone"
+          dataKey="balance"
+          stroke="var(--warn)"
+          strokeWidth={1.5}
+          fill="transparent"
+          name="Balance"
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** Drawdown area chart (negative values, red). */
+function DrawdownChart({ data, height }: { data: CurvePoint[]; height: number }) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 6, right: 12, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id="ddFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--danger)" stopOpacity={0.4} />
+            <stop offset="100%" stopColor="var(--danger)" stopOpacity={0.02} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid stroke={GRID} vertical={false} />
+        <XAxis dataKey={(p: CurvePoint) => shortTime(p.t)} tick={AXIS} tickLine={false} axisLine={false} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} width={72} />
+        <Tooltip
+          contentStyle={TOOLTIP_STYLE}
+          labelFormatter={(_, payload) => (payload?.[0]?.payload?.t as string) ?? ""}
+        />
+        <Area
+          type="monotone"
+          dataKey="drawdown"
+          stroke="var(--danger)"
+          strokeWidth={2}
+          fill="url(#ddFill)"
+          name="Drawdown"
+        />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
