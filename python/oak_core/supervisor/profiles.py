@@ -59,6 +59,70 @@ def public_profile(profile_name: str, config: dict) -> dict:
     return out
 
 
+#: Hidden SL/TP fields editable from the UI (§9 Phase 5).
+_SLTP_KEYS = (
+    "visible_sltp", "sl", "tp", "gold_sl", "gold_tp",
+    "use_balance_sltp", "balance_sl_pct", "balance_tp_pct",
+    "partial_r", "partial_pct", "auto_be", "magic",
+)
+
+#: Copy-trading fields editable from the UI (§9 Phase 5).
+_COPY_KEYS = (
+    "copy_role", "copy_channel", "copy_max_daily_trades",
+    "copy_max_lot_per_trade", "copy_max_exposure", "copy_kill_switch",
+    "copy_stale_threshold", "copy_ignore_list", "copy_stealth",
+    "copy_max_one",
+)
+
+
+def _atomic_write_profiles(profiles: dict) -> None:
+    """Write profiles.json atomically (temp file + replace)."""
+    path = profiles_path()
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(profiles, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
+
+
+def read_sltp(profile_name: str) -> dict:
+    config = load_profiles().get(profile_name, {})
+    return {"profile": profile_name, "exists": bool(config),
+            "sltp": {k: config.get(k) for k in _SLTP_KEYS}}
+
+
+def read_copy(profile_name: str) -> dict:
+    config = load_profiles().get(profile_name, {})
+    return {"profile": profile_name, "exists": bool(config),
+            "copy": {k: config.get(k) for k in _COPY_KEYS}}
+
+
+def update_sltp(profile_name: str, updates: dict) -> dict:
+    """Merge SL/TP updates into profiles.json (only whitelisted keys)."""
+    profiles = load_profiles()
+    if profile_name not in profiles:
+        raise KeyError(profile_name)
+    config = profiles[profile_name]
+    allowed = set(_SLTP_KEYS)
+    for key, value in (updates or {}).items():
+        if key in allowed:
+            config[key] = value
+    _atomic_write_profiles(profiles)
+    return read_sltp(profile_name)
+
+
+def update_copy(profile_name: str, updates: dict) -> dict:
+    """Merge copy-trading updates into profiles.json (whitelisted keys only)."""
+    profiles = load_profiles()
+    if profile_name not in profiles:
+        raise KeyError(profile_name)
+    config = profiles[profile_name]
+    allowed = set(_COPY_KEYS)
+    for key, value in (updates or {}).items():
+        if key in allowed:
+            config[key] = value
+    _atomic_write_profiles(profiles)
+    return read_copy(profile_name)
+
+
 class ProfileManager:
     """Owns profile-worker subprocesses started by the supervisor."""
 
@@ -94,6 +158,21 @@ class ProfileManager:
             "pid": proc.pid,
             "exit_code": poll,
         }
+
+    # ------------------------------------------------------------------ #
+    # Phase 5 — hidden SL/TP + copy config (read/update, whitelisted)
+    # ------------------------------------------------------------------ #
+    def read_sltp(self, profile_name: str) -> dict:
+        return read_sltp(profile_name)
+
+    def read_copy(self, profile_name: str) -> dict:
+        return read_copy(profile_name)
+
+    def update_sltp(self, profile_name: str, updates: dict) -> dict:
+        return update_sltp(profile_name, updates)
+
+    def update_copy(self, profile_name: str, updates: dict) -> dict:
+        return update_copy(profile_name, updates)
 
     # ------------------------------------------------------------------ #
     # Lifecycle

@@ -47,6 +47,11 @@ class SupervisorApp:
         self._server.register("performance.equity_curve", self._on_equity_curve)
         self._server.register("performance.drawdown_curve", self._on_drawdown_curve)
         self._server.register("risk.summary", self._on_risk_summary)
+        # Phase 5 — hidden SL/TP + copy trading config (§9).
+        self._server.register("hidden_sltp.get", self._on_hidden_sltp_get)
+        self._server.register("hidden_sltp.update", self._on_hidden_sltp_update)
+        self._server.register("copy.get", self._on_copy_get)
+        self._server.register("copy.update", self._on_copy_update)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -156,6 +161,35 @@ class SupervisorApp:
         if not profile:
             raise ValueError("profile param required")
         return self._accounts.risk_summary(profile)
+
+    # ------------------------------------------------------------------ #
+    # Phase 5 — hidden SL/TP + copy trading config
+    # ------------------------------------------------------------------ #
+    def _on_hidden_sltp_get(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return self._profiles.read_sltp(profile)
+
+    def _on_hidden_sltp_update(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        updates = request.params.get("updates") or {}
+        if not profile:
+            raise ValueError("profile param required")
+        return self._profiles.update_sltp(profile, updates)
+
+    def _on_copy_get(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return self._profiles.read_copy(profile)
+
+    def _on_copy_update(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        updates = request.params.get("updates") or {}
+        if not profile:
+            raise ValueError("profile param required")
+        return self._profiles.update_copy(profile, updates)
 
     # ------------------------------------------------------------------ #
     # Run

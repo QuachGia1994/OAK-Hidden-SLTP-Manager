@@ -21,6 +21,10 @@ from oak_core.supervisor.profiles import (  # noqa: E402
     ProfileManager,
     load_profiles,
     public_profile,
+    read_sltp,
+    read_copy,
+    update_sltp,
+    update_copy,
 )
 from oak_core.supervisor import SupervisorApp  # noqa: E402
 from oak_core.ipc.server import IpcServer  # noqa: E402
@@ -148,6 +152,68 @@ class TestProfileManager(unittest.TestCase):
         result = mgr.stop_profile("Vantage")
         self.assertFalse(result["stopped"])
         self.assertEqual(result["reason"], "not running")
+
+
+class TestPhase5SltpCopy(unittest.TestCase):
+    """Phase 5 — hidden SL/TP + copy trading config read/update."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="oak-phase5-")
+        self.profiles_file = make_profiles_file(self._tmpdir.name, {
+            "Vantage": {
+                "path": "C:/mt5/terminal64.exe", "visible_sltp": True,
+                "sl": 500, "tp": 10000, "gold_sl": 1000, "gold_tp": 20000,
+                "copy_role": "None", "copy_channel": "copy",
+                "tele_token": "SECRET",
+            },
+        })
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _patch(self):
+        return patch("oak_core.supervisor.profiles.profiles_path",
+                     return_value=Path(self.profiles_file))
+
+    def test_read_sltp_whitelisted(self):
+        with self._patch():
+            result = read_sltp("Vantage")
+        self.assertTrue(result["exists"])
+        self.assertEqual(result["sltp"]["sl"], 500)
+        self.assertEqual(result["sltp"]["tp"], 10000)
+        # Secrets never included.
+        blob = json.dumps(result)
+        self.assertNotIn("SECRET", blob)
+        self.assertNotIn("tele_token", blob)
+
+    def test_update_sltp_ignores_non_whitelisted(self):
+        with self._patch():
+            result = update_sltp("Vantage", {"sl": 600, "hack_field": 999, "tele_token": "LEAK"})
+        self.assertEqual(result["sltp"]["sl"], 600)
+        blob = json.dumps(result)
+        self.assertNotIn("LEAK", blob)
+        self.assertNotIn("hack_field", blob)
+
+    def test_read_copy(self):
+        with self._patch():
+            result = read_copy("Vantage")
+        self.assertEqual(result["copy"]["copy_role"], "None")
+        self.assertEqual(result["copy"]["copy_channel"], "copy")
+
+    def test_update_copy(self):
+        with self._patch():
+            result = update_copy("Vantage", {"copy_role": "FOLLOWER", "copy_channel": "oak-main"})
+        self.assertEqual(result["copy"]["copy_role"], "FOLLOWER")
+        self.assertEqual(result["copy"]["copy_channel"], "oak-main")
+        # Persisted to disk.
+        with self._patch():
+            disk = load_profiles()
+        self.assertEqual(disk["Vantage"]["copy_role"], "FOLLOWER")
+
+    def test_update_unknown_profile_raises(self):
+        with self._patch():
+            with self.assertRaises(KeyError):
+                update_sltp("Ghost", {"sl": 1})
 
 
 class TestSupervisorProfileHandlers(unittest.TestCase):

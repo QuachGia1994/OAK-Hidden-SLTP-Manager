@@ -5,6 +5,7 @@ import { Handshake, Health, LogTail } from "./ipc/types";
 import { ProfilesPage } from "./pages/profiles";
 import { AccountTrackingPage } from "./pages/account-tracking";
 import { PerformancePage } from "./pages/performance";
+import { HiddenSltpCopyPage } from "./pages/hidden-sltp-copy";
 
 // --------------------------------------------------------------------- //
 // Phase 1/2 shell — Status + Profiles pages (§9).
@@ -65,6 +66,9 @@ export function App() {
             <NavLink to="/performance" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
               Performance
             </NavLink>
+            <NavLink to="/sltp-copy" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+              SL/TP · Copy
+            </NavLink>
           </nav>
           <span className="tag">Tauri + React + oak-core</span>
         </header>
@@ -73,6 +77,7 @@ export function App() {
           <Route path="/profiles" element={<ProfilesPage />} />
           <Route path="/accounts" element={<AccountTrackingPage />} />
           <Route path="/performance" element={<PerformancePage />} />
+          <Route path="/sltp-copy" element={<HiddenSltpCopyPage />} />
           <Route
             path="/"
             element={
