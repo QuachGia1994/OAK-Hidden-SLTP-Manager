@@ -9,16 +9,19 @@ integration and the trade-audit stack arrive in later phases.
 from ..ipc.protocol import error_payload
 from ..ipc.server import IpcServer
 from ..version import APP_NAME, APP_VERSION, PROTOCOL_VERSION
+from .profiles import ProfileManager
 
 
 class SupervisorApp:
-    """Handles the Phase-1 control surface of the supervisor sidecar."""
+    """Handles the Phase-1/2 control surface of the supervisor sidecar."""
 
-    def __init__(self, *, server: IpcServer | None = None, started_at=None):
+    def __init__(self, *, server: IpcServer | None = None, started_at=None,
+                 profile_manager: ProfileManager | None = None):
         self._server = server if server is not None else IpcServer()
         from datetime import datetime, timezone
         self._started_at = started_at or datetime.now(timezone.utc).isoformat()
         self._healthy = True
+        self._profiles = profile_manager if profile_manager is not None else ProfileManager()
         self._register()
 
     def _register(self) -> None:
@@ -26,6 +29,11 @@ class SupervisorApp:
         self._server.register("app.health", self._on_health)
         self._server.register("app.shutdown", self._on_shutdown)
         self._server.register("logs.tail", self._on_logs_tail)
+        # Phase 2 — profile supervision (§9).
+        self._server.register("profiles.list", self._on_profiles_list)
+        self._server.register("profile.start", self._on_profile_start)
+        self._server.register("profile.stop", self._on_profile_stop)
+        self._server.register("profile.status", self._on_profile_status)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -43,22 +51,43 @@ class SupervisorApp:
         return {
             "status": "ok" if self._healthy else "degraded",
             "uptime": self._started_at,
-            "workers": [],
+            "workers": list(self._profiles._workers.keys()),
             "protocol": PROTOCOL_VERSION,
         }
 
     def _on_shutdown(self, request) -> dict:
         self._healthy = False
-        # Ask the loop to stop after this response is flushed.
+        self._profiles.stop_all(timeout_seconds=5.0)
         self._server.request_shutdown()
         return {"ack": True}
 
     def _on_logs_tail(self, request) -> dict:
-        # Phase 1: no persisted log ring yet — return empty tail.  The Rust
-        # shell streams stderr directly; this command is a placeholder for the
-        # future in-app log viewer.
         lines = request.params.get("lines", 100)
         return {"lines": [], "truncated": False, "requested": int(lines)}
+
+    # ------------------------------------------------------------------ #
+    # Phase 2 — profile handlers
+    # ------------------------------------------------------------------ #
+    def _on_profiles_list(self, request) -> dict:
+        return self._profiles.list_profiles()
+
+    def _on_profile_start(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        if not name:
+            raise ValueError("profile param required")
+        return self._profiles.start_profile(name)
+
+    def _on_profile_stop(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        if not name:
+            raise ValueError("profile param required")
+        return self._profiles.stop_profile(name)
+
+    def _on_profile_status(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        if not name:
+            raise ValueError("profile param required")
+        return self._profiles.profile_status(name)
 
     # ------------------------------------------------------------------ #
     # Run

@@ -58,3 +58,33 @@ body {
 .badge.ok { background: rgba(47,165,114,.15); color: var(--accent); }
 .badge.warn { background: rgba(245,158,11,.15); color: var(--warn); }
 .badge.error { background: rgba(239,68,68,.15); color: var(--danger); }
+.badge.neutral { background: rgba(139,152,165,.12); color: var(--muted); }
+
+/* nav */
+.nav { display: flex; gap: 4px; }
+.nav-link {
+  color: var(--muted); text-decoration: none; font-size: 12px;
+  padding: 5px 10px; border-radius: 6px; border: 1px solid transparent;
+}
+.nav-link:hover { color: var(--fg); }
+.nav-link.active { color: var(--fg); border-color: var(--border); background: var(--panel); }
+
+/* buttons */
+.btn {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer;
+}
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: rgba(47,165,114,.15); border-color: var(--accent); color: var(--accent); }
+
+/* profiles */
+.profile-list { display: grid; gap: 14px; }
+.profile-card { border-left: 3px solid var(--border); }
+.profile-card.running { border-left-color: var(--accent); }
+.profile-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.profile-head h2 { margin: 0; font-size: 15px; }
+.pid { color: var(--muted); font-size: 11px; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }

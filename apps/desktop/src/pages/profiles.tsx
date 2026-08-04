@@ -1,0 +1,150 @@
+import { useCallback, useEffect, useState } from "react";
+import { request, IpcError } from "../ipc/bridge";
+import { Profile, ProfilesList, ProfileStart, ProfileStop } from "../ipc/types";
+
+/**
+ * Phase 2 — Profiles page (§9).
+ * Lists configured MT5 profiles, starts/stops one profile-worker each, and
+ * shows per-profile status (running/stopped + pid).
+ */
+export function ProfilesPage() {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await request<ProfilesList>("profiles.list");
+      setProfiles(res.profiles ?? []);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const start = async (name: string) => {
+    setBusy(name);
+    setError(null);
+    try {
+      const res = await request<ProfileStart>("profile.start", { profile: name });
+      if (!res.started && res.reason) {
+        setError(`profile.start: ${res.reason}`);
+      }
+      await refresh();
+    } catch (e) {
+      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const stop = async (name: string) => {
+    setBusy(name);
+    setError(null);
+    try {
+      const res = await request<ProfileStop>("profile.stop", { profile: name });
+      if (!res.stopped && res.reason) {
+        setError(`profile.stop: ${res.reason}`);
+      }
+      await refresh();
+    } catch (e) {
+      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="content">
+      <h1>Profiles</h1>
+      {loading && <p className="muted">Loading profiles…</p>}
+      {error && (
+        <section className="panel error">
+          <span className="badge error">ERROR</span>
+          <p>{error}</p>
+        </section>
+      )}
+
+      {!loading && profiles.length === 0 && (
+        <p className="muted">No profiles configured (profiles.json empty).</p>
+      )}
+
+      <div className="profile-list">
+        {profiles.map((p) => (
+          <ProfileCard
+            key={p.profile_name}
+            profile={p}
+            busy={busy === p.profile_name}
+            onStart={() => start(p.profile_name)}
+            onStop={() => stop(p.profile_name)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProfileCard({
+  profile,
+  busy,
+  onStart,
+  onStop,
+}: {
+  profile: Profile;
+  busy: boolean;
+  onStart: () => void;
+  onStop: () => void;
+}) {
+  const running = profile.status === "running";
+  const tone = running ? "ok" : "neutral";
+  const terminalName = profile.path ? profile.path.split(/[\\/]/).pop() : "—";
+
+  return (
+    <section className={`panel profile-card ${running ? "running" : ""}`}>
+      <div className="profile-head">
+        <span className={`badge ${tone}`}>{running ? "RUNNING" : "STOPPED"}</span>
+        <h2 className="mono">{profile.profile_name}</h2>
+        {profile.pid != null && (
+          <span className="mono pid">pid {profile.pid}</span>
+        )}
+      </div>
+
+      <dl className="kv">
+        <dt>Terminal</dt>
+        <dd className="mono truncate" title={profile.path}>
+          {terminalName}
+        </dd>
+        <dt>Visible SL/TP</dt>
+        <dd>{profile.visible_sltp ? "yes" : "no"}</dd>
+        <dt>Magic</dt>
+        <dd className="mono">{String(profile.magic ?? "—")}</dd>
+        <dt>SL / TP</dt>
+        <dd className="mono">
+          {String(profile.sl ?? "—")} / {String(profile.tp ?? "—")}
+        </dd>
+        <dt>Copy role</dt>
+        <dd>{profile.copy_role || "—"}</dd>
+      </dl>
+
+      <div className="actions">
+        <button
+          className={running ? "btn" : "btn primary"}
+          onClick={onStart}
+          disabled={busy || running}
+        >
+          {busy ? "…" : running ? "Running" : "Start"}
+        </button>
+        <button className="btn" onClick={onStop} disabled={busy || !running}>
+          Stop
+        </button>
+      </div>
+    </section>
+  );
+}
