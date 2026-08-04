@@ -8,7 +8,7 @@ import json
 import os
 from pathlib import Path
 
-from .profiles import profiles_path
+from .profiles import _data_root
 
 #: Keys editable from the Settings UI (all non-secret).
 _EDITABLE_KEYS = ("lang", "theme", "ghost_mode_active",
@@ -28,7 +28,7 @@ SERVICES = (
 
 
 def _settings_path() -> Path:
-    return profiles_path().parent / "settings.json"
+    return _data_root() / "settings.json"
 
 
 def load_settings() -> dict:

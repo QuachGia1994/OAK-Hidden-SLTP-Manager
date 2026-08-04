@@ -51,6 +51,8 @@ fn sidecar_command() -> Command {
         // Ensure `python -m oak_core` resolves even when the launcher's
         // working directory differs from the Python package root.
         cmd.env("PYTHONPATH", &python_dir);
+        // Point the sidecar at the data root (profiles.json / settings.json).
+        cmd.env("OAK_DATA_DIR", project_root());
         cmd
     }
     #[cfg(not(debug_assertions))]
@@ -60,8 +62,21 @@ fn sidecar_command() -> Command {
         // we keep it simple and rely on the configured sidecar name.
         let mut cmd = Command::new(sidecar_bin_path());
         cmd.arg("supervisor");
+        // Data lives next to the installed exe (portable data dir).
+        if let Some(data_dir) = app_data_dir() {
+            cmd.env("OAK_DATA_DIR", data_dir);
+        }
         cmd
     }
+}
+
+/// Prod data dir: <exe dir>/data — the installed app writes profiles.json
+/// and settings.json there (portable layout, no admin/registry needed).
+#[cfg(not(debug_assertions))]
+fn app_data_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|p| p.to_path_buf()))
 }
 
 /// Locate a usable python interpreter: repo venv first, then `python` on PATH.

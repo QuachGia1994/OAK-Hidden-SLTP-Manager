@@ -33,11 +33,28 @@ _PUBLIC_KEYS = (
 )
 
 
-def profiles_path() -> Path:
-    """profiles.json lives at the repo root (next to the sidecar package root)."""
+def _data_root() -> Path:
+    """Directory holding profiles.json / settings.json / data/.
+
+    Priority:
+    1. OAK_DATA_DIR env (explicit, used by the Rust shell in prod);
+    2. current working directory if it already contains profiles.json
+       (dev: repo root when launched with that cwd);
+    3. repo root derived from the source layout (dev fallback).
+    """
+    env_dir = os.environ.get("OAK_DATA_DIR", "")
+    if env_dir:
+        return Path(env_dir)
+    cwd = Path.cwd()
+    if (cwd / "profiles.json").is_file():
+        return cwd
     here = Path(__file__).resolve()
-    # python/oak_core/supervisor/__init__.py -> repo root = 4 parents up
-    return here.parents[3] / "profiles.json"
+    return here.parents[3]  # python/oak_core/supervisor -> repo root
+
+
+def profiles_path() -> Path:
+    """profiles.json lives at the data root."""
+    return _data_root() / "profiles.json"
 
 
 def load_profiles() -> dict:

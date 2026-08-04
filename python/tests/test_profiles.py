@@ -302,9 +302,9 @@ class TestPhase6Settings(unittest.TestCase):
         return patch("oak_core.supervisor.settings._settings_path",
                      return_value=self.settings_file)
 
-    def _patch_profiles_path(self):
-        return patch("oak_core.supervisor.settings.profiles_path",
-                     return_value=self.settings_file.parent / "profiles.json")
+    def _patch_data_root(self):
+        return patch("oak_core.supervisor.profiles._data_root",
+                     return_value=Path(self._tmpdir.name))
 
     def test_settings_get_masks_secret_topic(self):
         from oak_core.supervisor.settings import public_settings
@@ -328,7 +328,7 @@ class TestPhase6Settings(unittest.TestCase):
 
     def test_services_list(self):
         from oak_core.supervisor.settings import services_list
-        with self._patch_settings_path(), self._patch_profiles_path():
+        with self._patch_settings_path(), self._patch_data_root():
             services = services_list()
         keys = [s["key"] for s in services]
         self.assertIn("telegram", keys)
