@@ -12,6 +12,7 @@ from ..version import APP_NAME, APP_VERSION, PROTOCOL_VERSION
 from .profiles import ProfileManager
 from .accounts import AccountQueries
 from . import settings as settings_module
+from . import orders as orders_module
 
 
 class SupervisorApp:
@@ -59,6 +60,13 @@ class SupervisorApp:
         self._server.register("services.list", self._on_services_list)
         # Phase 6 — stock screener (local EOD).
         self._server.register("screener.list", self._on_screener_list)
+        # Phase 4/5 — order management (pending / scheduled / close).
+        self._server.register("orders.summary", self._on_orders_summary)
+        self._server.register("orders.add_scheduled_trade", self._on_add_scheduled_trade)
+        self._server.register("orders.delete_scheduled_trade", self._on_delete_scheduled_trade)
+        self._server.register("orders.add_scheduled_close", self._on_add_scheduled_close)
+        self._server.register("orders.delete_scheduled_close", self._on_delete_scheduled_close)
+        self._server.register("orders.clear_scheduled_closes", self._on_clear_scheduled_closes)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -214,6 +222,47 @@ class SupervisorApp:
     def _on_screener_list(self, request) -> dict:
         limit = int(request.params.get("limit", 10))
         return {"stocks": self._accounts.screener_list(limit=limit)}
+
+    # ------------------------------------------------------------------ #
+    # Order management (pending / scheduled / close)
+    # ------------------------------------------------------------------ #
+    def _on_orders_summary(self, request) -> dict:
+        return orders_module.orders_summary()
+
+    def _on_add_scheduled_trade(self, request) -> dict:
+        p = request.params
+        for key in ("symbol", "order_type", "lot", "time", "date"):
+            if key not in p:
+                raise ValueError(f"{key} param required")
+        return orders_module.add_scheduled_trade(
+            symbol=p["symbol"], order_type=int(p["order_type"]), lot=str(p["lot"]),
+            time=str(p["time"]), date=str(p["date"]),
+            sl=str(p.get("sl", "0")), tp=str(p.get("tp", "0")),
+        )
+
+    def _on_delete_scheduled_trade(self, request) -> dict:
+        trade_id = request.params.get("id")
+        if trade_id is None:
+            raise ValueError("id param required")
+        return orders_module.delete_scheduled_trade(int(trade_id))
+
+    def _on_add_scheduled_close(self, request) -> dict:
+        p = request.params
+        if "time" not in p or "date" not in p:
+            raise ValueError("time/date params required")
+        return orders_module.add_scheduled_close(
+            time=str(p["time"]), date=str(p["date"]),
+            filter=str(p.get("filter", "all")), sym=str(p.get("sym", "")),
+        )
+
+    def _on_delete_scheduled_close(self, request) -> dict:
+        rowid = request.params.get("id")
+        if rowid is None:
+            raise ValueError("id param required")
+        return orders_module.delete_scheduled_close(int(rowid))
+
+    def _on_clear_scheduled_closes(self, request) -> dict:
+        return orders_module.clear_scheduled_closes()
 
     # ------------------------------------------------------------------ #
     # Run

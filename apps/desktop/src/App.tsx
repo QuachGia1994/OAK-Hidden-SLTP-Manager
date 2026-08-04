@@ -8,6 +8,7 @@ import { PerformancePage } from "./pages/performance";
 import { HiddenSltpCopyPage } from "./pages/hidden-sltp-copy";
 import { SettingsPage } from "./pages/settings";
 import { ScreenerPage } from "./pages/screener";
+import { OrdersPage } from "./pages/orders";
 import { LocaleProvider, ThemeProvider, useLocale, useTheme } from "./contexts";
 
 function TopBar() {
@@ -37,6 +38,9 @@ function TopBar() {
         </NavLink>
         <NavLink to="/screener" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
           {locale === "VN" ? "Bộ lọc CP" : "Screener"}
+        </NavLink>
+        <NavLink to="/orders" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "Lệnh chờ" : "Orders"}
         </NavLink>
       </nav>
       <div className="topbar-controls">
@@ -166,6 +170,7 @@ export function App() {
               <Route path="/sltp-copy" element={<HiddenSltpCopyPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/screener" element={<ScreenerPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
               <Route path="/" element={<StatusPage />} />
             </Routes>
           </div>
