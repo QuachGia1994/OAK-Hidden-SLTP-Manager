@@ -23,6 +23,7 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from oak_core.supervisor.accounts import AccountQueries  # noqa: E402
+from oak_core.supervisor.accounts import _build_eod_cmd, _parse_eod_progress  # noqa: E402
 
 
 def _make_tmpdir(prefix="oak-screener-"):
@@ -36,49 +37,104 @@ def _make_tmpdir(prefix="oak-screener-"):
     return tmpdir, _cleanup
 
 
-class TestUpdateEodFrozenSubcommand(unittest.TestCase):
-    """Regression: frozen oak-core must invoke ``eod_collector`` as a subcommand,
-    NOT as ``-m eod_collector`` (which causes 'invalid choice')."""
+class TestBuildEodCmd(unittest.TestCase):
+    """_build_eod_cmd produces correct command for frozen vs dev mode."""
 
-    @mock.patch("oak_core.supervisor.accounts.subprocess.run")
-    def test_frozen_uses_eod_collector_subcommand(self, mock_run):
-        fake_proc = mock.Mock(returncode=0, stdout="", stderr="")
-        mock_run.return_value = fake_proc
-
+    def test_build_cmd_frozen(self):
         with mock.patch.dict(os.environ, {"OAK_DATA_DIR": "C:\\fake"}):
-            # Frozen mode
             with mock.patch.object(sys, "frozen", True, create=True):
-                queries = AccountQueries()
-                result = queries.update_eod()
-                self.assertTrue(result["ok"])
-                cmd = mock_run.call_args[1].get("cmd") or mock_run.call_args[0][0]
+                cmd = _build_eod_cmd()
                 self.assertEqual(cmd[0], sys.executable)
                 self.assertEqual(cmd[1], "eod_collector")
                 self.assertEqual(cmd[2], "update")
-                cwd = mock_run.call_args[1].get("cwd", "")
-                self.assertTrue(cwd.endswith("fake") or cwd == "C:\\fake")
 
-            mock_run.reset_mock()
-
-            # Dev mode
+    def test_build_cmd_dev(self):
+        with mock.patch.dict(os.environ, {"OAK_DATA_DIR": "C:\\fake"}):
             with mock.patch.object(sys, "frozen", False, create=True):
-                queries = AccountQueries()
-                result = queries.update_eod()
-                self.assertTrue(result["ok"])
-                cmd = mock_run.call_args[1].get("cmd") or mock_run.call_args[0][0]
+                cmd = _build_eod_cmd()
                 self.assertEqual(cmd[:4],
                                  [sys.executable, "-m", "oak_core", "eod_collector"])
 
-    @mock.patch("oak_core.supervisor.accounts.subprocess.run")
-    def test_update_eod_with_date(self, mock_run):
-        mock_run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+    def test_build_cmd_with_date(self):
         with mock.patch.dict(os.environ, {"OAK_DATA_DIR": "C:\\fake"}):
             with mock.patch.object(sys, "frozen", True, create=True):
-                queries = AccountQueries()
-                result = queries.update_eod(target_date="2026-08-01")
-                cmd = mock_run.call_args[1].get("cmd") or mock_run.call_args[0][0]
-                self.assertIn("--date", cmd)
-                self.assertIn("2026-08-01", cmd)
+                cmd = _build_eod_cmd(target_date="2026-08-01")
+                self.assertEqual(cmd[-2:], ["--date", "2026-08-01"])
+
+
+class TestParseEodProgress(unittest.TestCase):
+    """_parse_eod_progress parses collector stdout lines into progress dicts."""
+
+    def test_progress_line(self):
+        result = _parse_eod_progress("[VPS EOD] 10/637 (5%)")
+        self.assertEqual(result["percent"], 5)
+        self.assertEqual(result["current"], 10)
+        self.assertEqual(result["total"], 637)
+
+    def test_fetching_line(self):
+        result = _parse_eod_progress("[VPS EOD] Fetching 637 symbols for 2026-08-04...")
+        self.assertEqual(result["percent"], 1)
+        self.assertEqual(result["total"], 637)
+        self.assertEqual(result["current"], 0)
+
+    def test_saved_line(self):
+        result = _parse_eod_progress(
+            "[2026-08-04 16:00:00] [INFO] [eod_collector] [VPS UPDATE] Saved 637 records for 2026-08-04"
+        )
+        self.assertEqual(result["percent"], 100)
+
+    def test_random_line_returns_none(self):
+        result = _parse_eod_progress("random noise, no progress here")
+        self.assertIsNone(result)
+
+
+class TestUpdateEodStreamsEvents(unittest.TestCase):
+    """update_eod spawns a background thread, streams progress events, and returns immediately."""
+
+    def test_update_eod_returns_started_and_streams_events(self):
+        import time
+
+        # Fake Popen that yields progress lines then exits
+        class FakePopen:
+            def __init__(self, *args, **kwargs):
+                self.stdout = iter([
+                    "[VPS EOD] Fetching 2 symbols for 2026-08-04...",
+                    "[VPS EOD] 1/2 (50%)",
+                    "[VPS EOD] 2/2 (100%)",
+                ])
+                self.returncode = 0
+
+            def wait(self, timeout=None):
+                return 0
+
+            def kill(self):
+                pass
+
+        events: list = []
+        with mock.patch("oak_core.supervisor.accounts.subprocess.Popen", FakePopen):
+            with mock.patch.dict(os.environ, {"OAK_DATA_DIR": "C:\\fake"}):
+                queries = AccountQueries(emit_event=lambda name, data: events.append((name, data)))
+                res = queries.update_eod(target_date="2026-08-04")
+                self.assertEqual(res, {"started": True})
+
+                # Wait for the background thread to finish (up to 2s)
+                deadline = time.time() + 2
+                while time.time() < deadline:
+                    if any(e[0] == "eod.done" for e in events):
+                        break
+                    time.sleep(0.05)
+
+                # Verify we got progress events with percent 50
+                progress_events = [e for e in events if e[0] == "eod.progress"]
+                self.assertTrue(len(progress_events) > 0, "no eod.progress events emitted")
+                percents = [e[1]["percent"] for e in progress_events]
+                self.assertIn(50, percents)
+
+                # Verify we got an eod.done with ok=True
+                done_events = [e for e in events if e[0] == "eod.done"]
+                self.assertEqual(len(done_events), 1, "expected exactly one eod.done")
+                self.assertTrue(done_events[0][1]["ok"])
+                self.assertEqual(done_events[0][1]["returncode"], 0)
 
 
 class TestRunFilterReadsTempMarketDb(unittest.TestCase):

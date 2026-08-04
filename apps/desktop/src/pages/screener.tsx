@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { request, IpcError } from "../ipc/bridge";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { request, onEvent, IpcError } from "../ipc/bridge";
 import { useLocale } from "../contexts";
 
 /**
@@ -46,12 +46,16 @@ export function ScreenerPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [eodProgress, setEodProgress] = useState<{ percent: number; current: number; total: number } | null>(null);
+  const [eodActive, setEodActive] = useState(false);
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await request<{ stocks: Stock[] }>("screener.list", { limit: 30 });
+      const res = await request<{ stocks: Stock[] }>("screener.list", { limit: 1000 });
       setStocks(res.stocks ?? []);
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
@@ -64,21 +68,44 @@ export function ScreenerPage() {
     void load();
   }, [load]);
 
+  // Subscribe to sidecar events for EOD progress and completion.
+  useEffect(() => {
+    let unsub: (() => void) | undefined;
+    (async () => {
+      unsub = await onEvent((ev) => {
+        if (ev.event === "eod.progress") {
+          const d = ev.data as { percent: number; current: number; total: number };
+          setEodProgress(d);
+        } else if (ev.event === "eod.done") {
+          const d = ev.data as { ok: boolean; stderr?: string; stdout?: string };
+          setEodActive(false);
+          setEodProgress(null);
+          if (d.ok) {
+            setInfo(tRef.current.screenerEodOk);
+          } else {
+            setInfo(tRef.current.screenerEodFailed + " " + (d.stderr || d.stdout || "").slice(-300));
+          }
+          void load();
+        }
+      });
+    })();
+    return () => {
+      if (unsub) unsub();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const runEod = async () => {
     setBusy("eod");
+    setEodActive(true);
+    setEodProgress(null);
     setError(null);
     setInfo(null);
     try {
-      const res = await request<{ ok: boolean; stderr?: string; stdout?: string }>(
-        "screener.update_eod", { date: "" }, 200000,
-      );
-      if (res.ok) {
-        setInfo(t.screenerEodOk);
-      } else {
-        setInfo(t.screenerEodFailed + " " + (res.stderr?.slice(-300) || ""));
-      }
-      await load();
+      await request("screener.update_eod", { date: "" });
+      // completion arrives via eod.done event
     } catch (e) {
+      setEodActive(false);
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
     } finally {
       setBusy(null);
@@ -150,13 +177,28 @@ export function ScreenerPage() {
         <span className="muted small">{t.screenerCount(shown.length)}</span>
       </div>
 
+      {eodActive && (
+        <div className="progress-row">
+          <div className="progress"><div className="progress-fill" style={{ width: `${eodProgress?.percent ?? 0}%` }} /></div>
+          <span className="muted small">
+            {eodProgress ? t.screenerEodProgress({ pct: eodProgress.percent, cur: eodProgress.current, total: eodProgress.total }) : t.screenerLoadingEod}
+          </span>
+        </div>
+      )}
+      {busy === "filter" && (
+        <div className="progress-row">
+          <div className="progress indeterminate"><div className="progress-fill" /></div>
+          <span className="muted small">{t.screenerRunningFilter}</span>
+        </div>
+      )}
+
       {!loading && shown.length === 0 && (
         <p className="muted">{t.screenerNoData}</p>
       )}
 
       {shown.length > 0 && (
         <section className="panel">
-          <div className="table">
+          <div className="table stocks">
             <div className="table-head">
               <span>{t.screenerColSymbol}</span>
               <span>{t.screenerColExchange}</span>

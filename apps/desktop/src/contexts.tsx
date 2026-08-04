@@ -70,9 +70,10 @@ export type Theme = "dark" | "light" | "contrast";
 interface ThemeCtx {
   theme: Theme;
   cycleTheme: () => void;
+  setTheme: (t: Theme) => void;
 }
 
-const ThemeContext = createContext<ThemeCtx>({ theme: "dark", cycleTheme: () => {} });
+const ThemeContext = createContext<ThemeCtx>({ theme: "dark", cycleTheme: () => {}, setTheme: () => {} });
 
 const THEMES: Theme[] = ["dark", "light", "contrast"];
 
@@ -107,8 +108,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setExplicitTheme = useCallback((t: Theme) => {
+    setTheme(t);
+    void request("settings.update", { updates: { theme: t } }).catch(() => {});
+  }, []);
+
   return (
-    <ThemeContext.Provider value={{ theme, cycleTheme }}>{children}</ThemeContext.Provider>
+    <ThemeContext.Provider value={{ theme, cycleTheme, setTheme: setExplicitTheme }}>{children}</ThemeContext.Provider>
   );
 }
 

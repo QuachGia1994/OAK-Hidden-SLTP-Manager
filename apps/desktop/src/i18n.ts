@@ -60,6 +60,7 @@ export interface LocaleText {
   screenerNoData: string;
   screenerEodOk: string;
   screenerEodFailed: string;
+  screenerEodProgress: (p: { pct: number; cur: number; total: number }) => string;
   screenerFilterReady: (p: { n: number; buy: number; sell: number; asOf: string }) => string;
   screenerFilterNoTrade: (p: { scanned: number }) => string;
   screenerColSymbol: string;
@@ -139,6 +140,8 @@ export const LOCALES: Record<Locale, LocaleText> = {
     screenerNoData: "No EOD data \u2014 run EOD update (after 15:00) or check data/market.db.",
     screenerEodOk: "EOD updated successfully.",
     screenerEodFailed: "EOD update failed:",
+    screenerEodProgress: (p: { pct: number; cur: number; total: number }) =>
+      `${p.pct}% \u2014 ${p.cur}/${p.total} symbols`,
     screenerFilterReady: (p: { n: number; buy: number; sell: number; asOf: string }) =>
       `Filter run: ${p.n} recommendations (${p.buy} BUY \u00b7 ${p.sell} SELL) \u2014 date ${p.asOf}`,
     screenerFilterNoTrade: (p: { scanned: number }) =>
@@ -217,6 +220,8 @@ export const LOCALES: Record<Locale, LocaleText> = {
     screenerNoData: "Chưa có dữ liệu EOD — chạy cập nhật EOD (sau 15:00) hoặc kiểm tra data/market.db.",
     screenerEodOk: "Đã cập nhật EOD thành công.",
     screenerEodFailed: "Cập nhật EOD thất bại:",
+    screenerEodProgress: (p: { pct: number; cur: number; total: number }) =>
+      `${p.pct}% \u2014 ${p.cur}/${p.total} mã`,
     screenerFilterReady: (p: { n: number; buy: number; sell: number; asOf: string }) =>
       `Đã chạy bộ lọc: ${p.n} khuyến nghị (${p.buy} BUY · ${p.sell} SELL) — ngày ${p.asOf}`,
     screenerFilterNoTrade: (p: { scanned: number }) =>

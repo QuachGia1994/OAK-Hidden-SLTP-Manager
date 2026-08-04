@@ -7,8 +7,11 @@ These handlers re-use the existing tested trade-audit stack
 business logic.  Public-safe payloads only: no raw tickets, no account uid,
 no credentials (the publisher builders already strip those).
 """
+import re
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 from ..ipc.protocol import error_payload
@@ -29,11 +32,46 @@ def _store():
     return TradeAuditStore(read_only=True)
 
 
+# ------------------------------------------------------------------ #
+# EOD background-thread helpers (pure, testable)
+# ------------------------------------------------------------------ #
+def _build_eod_cmd(target_date: str = "") -> list:
+    """Command for the EOD collector subprocess (dev vs frozen oak-core)."""
+    if getattr(sys, "frozen", False):
+        cmd = [sys.executable, "eod_collector", "update"]
+    else:
+        cmd = [sys.executable, "-m", "oak_core", "eod_collector", "update"]
+    if target_date:
+        cmd += ["--date", str(target_date)]
+    return cmd
+
+
+_PROGRESS_RE = re.compile(r"\[VPS EOD\] (\d+)/(\d+) \((\d+)%\)")
+_TOTAL_RE = re.compile(r"\[VPS EOD\] Fetching (\d+) symbols")
+_SAVED_RE = re.compile(r"(\d+) records", re.IGNORECASE)
+
+
+def _parse_eod_progress(line: str) -> dict | None:
+    """Parse one collector stdout line into {percent,current,total,message} or None."""
+    m = _PROGRESS_RE.search(line)
+    if m:
+        return {"percent": int(m.group(3)), "current": int(m.group(1)),
+                "total": int(m.group(2)), "message": line.strip()}
+    m = _TOTAL_RE.search(line)
+    if m:
+        return {"percent": 1, "current": 0, "total": int(m.group(1)), "message": line.strip()}
+    m = _SAVED_RE.search(line)
+    if m:
+        return {"percent": 100, "current": 0, "total": 0, "message": line.strip()}
+    return None
+
+
 class AccountQueries:
     """Public-safe account / positions / checkpoints / performance queries."""
 
-    def __init__(self, store=None):
+    def __init__(self, store=None, emit_event=None):
         self._store = store
+        self._emit_event = emit_event
 
     def _get_store(self):
         if self._store is None:
@@ -275,31 +313,48 @@ class AccountQueries:
             return []
 
     def update_eod(self, target_date: str = "") -> dict:
-        """Run the local EOD collector update (mirrors 'Update EOD Data 15:00+').
+        """Start the EOD collector in a background thread; stream progress events.
 
-        Executes ``eod_collector update`` as a subprocess with a timeout.
+        Returns immediately with {started: True}.  The thread spawns the collector
+        subprocess, parses its stdout progress markers, emits ``eod.progress``
+        events, and finishes with an ``eod.done`` event (ok + stdout tail).
         """
-        if getattr(sys, "frozen", False):
-            cmd = [sys.executable, "eod_collector", "update"]
-        else:
-            cmd = [sys.executable, "-m", "oak_core", "eod_collector", "update"]
-        if target_date:
-            cmd += ["--date", str(target_date)]
-        try:
-            proc = subprocess.run(
-                cmd, cwd=str(_data_root()), capture_output=True, text=True,
-                timeout=180,
-            )
-            return {
-                "ok": proc.returncode == 0,
-                "returncode": proc.returncode,
-                "stdout": (proc.stdout or "")[-2000:],
-                "stderr": (proc.stderr or "")[-1000:],
-            }
-        except subprocess.TimeoutExpired:
-            return {"ok": False, "returncode": None, "stdout": "", "stderr": "EOD update timed out (180s)"}
-        except Exception as exc:
-            return {"ok": False, "returncode": None, "stdout": "", "stderr": str(exc)}
+        cmd = _build_eod_cmd(target_date)
+        emit = self._emit_event
+        root = str(_data_root())
+
+        def _worker() -> None:
+            proc = None
+            out_lines: list[str] = []
+            try:
+                proc = subprocess.Popen(
+                    cmd, cwd=root, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True, bufsize=1,
+                )
+                deadline = time.time() + 180
+                for line in proc.stdout:
+                    out_lines.append(line)
+                    parsed = _parse_eod_progress(line)
+                    if parsed and emit:
+                        emit("eod.progress", parsed)
+                    if time.time() > deadline:
+                        proc.kill()
+                        break
+                proc.wait(timeout=5)
+            except Exception as exc:  # noqa: BLE001 - report via event
+                if emit:
+                    emit("eod.done", {"ok": False, "returncode": None,
+                                      "stdout": "".join(out_lines)[-2000:],
+                                      "stderr": str(exc)})
+                return
+            if emit:
+                emit("eod.done", {"ok": proc.returncode == 0,
+                                  "returncode": proc.returncode,
+                                  "stdout": "".join(out_lines)[-2000:],
+                                  "stderr": ""})
+
+        threading.Thread(target=_worker, daemon=True, name="eod-update").start()
+        return {"started": True}
 
     def run_filter(self, limit: int = 10) -> dict:
         """Run the local-EOD D1 advisory scan (read-only, no orders).

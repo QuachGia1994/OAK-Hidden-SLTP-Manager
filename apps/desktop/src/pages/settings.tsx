@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
-import { useLocale } from "../contexts";
+import { useLocale, useTheme, type Theme } from "../contexts";
 
 /**
  * Phase 6 — Settings + Diagnostics page (§9).
@@ -23,7 +23,8 @@ interface ServiceCard {
 }
 
 export function SettingsPage() {
-  const { locale } = useLocale();
+  const { locale, setLocale } = useLocale();
+  const { setTheme } = useTheme();
   const vn = locale === "VN";
   const L = {
     title: vn ? "Cài đặt" : "Settings",
@@ -100,7 +101,7 @@ export function SettingsPage() {
             <span>{L.language}</span>
             <select
               value={settings.lang ?? "VN"}
-              onChange={(e) => setField("lang", e.target.value)}
+              onChange={(e) => { setField("lang", e.target.value); setLocale(e.target.value as "EN" | "VN"); }}
             >
               <option value="VN">Tiếng Việt</option>
               <option value="EN">English</option>
@@ -110,7 +111,7 @@ export function SettingsPage() {
             <span>{L.theme}</span>
             <select
               value={settings.theme ?? "dark"}
-              onChange={(e) => setField("theme", e.target.value)}
+              onChange={(e) => { setField("theme", e.target.value); setTheme(e.target.value as Theme); }}
             >
               <option value="dark">Dark</option>
               <option value="light">Light</option>

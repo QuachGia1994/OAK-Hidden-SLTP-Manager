@@ -7,6 +7,7 @@ response lines to stdout, and lets handlers emit events (also on stdout).
 stdout carries ONLY protocol JSONL; human logs go to stderr.
 """
 import sys
+import threading
 import traceback
 from typing import Any, Callable
 
@@ -36,6 +37,7 @@ class IpcServer:
         self._log = log or _default_log(self._stderr)
         self._handlers: dict[str, Handler] = {}
         self._events = SequenceCounter()
+        self._write_lock = threading.Lock()
         self._shutdown_requested = False
 
     # ------------------------------------------------------------------ #
@@ -54,11 +56,12 @@ class IpcServer:
         return seq
 
     def _write_line(self, line: str) -> None:
-        try:
-            self._stdout.write(line + "\n")
-            self._stdout.flush()
-        except (OSError, ValueError) as exc:  # pragma: no cover - broken pipe
-            self._log(f"[ipc] stdout write failed: {exc}")
+        with self._write_lock:
+            try:
+                self._stdout.write(line + "\n")
+                self._stdout.flush()
+            except (OSError, ValueError) as exc:  # pragma: no cover - broken pipe
+                self._log(f"[ipc] stdout write failed: {exc}")
 
     def _respond(self, resp: Response) -> None:
         self._write_line(response_line(resp))

@@ -26,7 +26,7 @@ class SupervisorApp:
         self._started_at = started_at or datetime.now(timezone.utc).isoformat()
         self._healthy = True
         self._profiles = profile_manager if profile_manager is not None else ProfileManager()
-        self._accounts = account_queries if account_queries is not None else AccountQueries()
+        self._accounts = account_queries if account_queries is not None else AccountQueries(emit_event=self._server.emit_event)
         self._register()
 
     def _register(self) -> None:
