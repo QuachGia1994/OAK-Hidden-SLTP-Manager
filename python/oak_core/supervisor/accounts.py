@@ -234,3 +234,40 @@ class AccountQueries:
             "recovery_factor": perf.get("recovery_factor"),
             "open_position_count": len(positions),
         }
+
+    # ------------------------------------------------------------------ #
+    # Stock screener (§9 Phase 6 — local EOD, mirrors web stock-advisor)
+    # ------------------------------------------------------------------ #
+    def screener_list(self, limit: int = 10) -> list:
+        """Latest local EOD rows per symbol — public-safe, read-only."""
+        try:
+            import sqlite3
+            db_path = _REPO_ROOT / "data" / "market.db"
+            if not db_path.is_file():
+                return []
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            conn.row_factory = sqlite3.Row
+            try:
+                rows = conn.execute(
+                    """SELECT date, symbol, exchange, open, high, low, close,
+                              volume, value, foreign_buy_value, foreign_sell_value
+                       FROM eod_prices
+                       WHERE date = (SELECT MAX(date) FROM eod_prices)
+                       ORDER BY symbol
+                       LIMIT ?""",
+                    (limit,),
+                ).fetchall()
+            finally:
+                conn.close()
+            result = []
+            for r in rows:
+                result.append({
+                    "date": r["date"], "symbol": r["symbol"], "exchange": r["exchange"],
+                    "open": r["open"], "high": r["high"], "low": r["low"], "close": r["close"],
+                    "volume": r["volume"], "value": r["value"],
+                    "foreign_buy_value": r["foreign_buy_value"],
+                    "foreign_sell_value": r["foreign_sell_value"],
+                })
+            return result
+        except Exception:
+            return []

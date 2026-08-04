@@ -7,11 +7,62 @@ import { AccountTrackingPage } from "./pages/account-tracking";
 import { PerformancePage } from "./pages/performance";
 import { HiddenSltpCopyPage } from "./pages/hidden-sltp-copy";
 import { SettingsPage } from "./pages/settings";
+import { ScreenerPage } from "./pages/screener";
+import { LocaleProvider, ThemeProvider, useLocale, useTheme } from "./contexts";
 
-// --------------------------------------------------------------------- //
-// Phase 1/2 shell — Status + Profiles pages (§9).
-// --------------------------------------------------------------------- //
-export function App() {
+function TopBar() {
+  const { locale, setLocale } = useLocale();
+  const { cycleTheme } = useTheme();
+  return (
+    <header className="topbar">
+      <span className="brand">⚡ OAK Manager</span>
+      <nav className="nav">
+        <NavLink to="/" end className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "Trạng thái" : "Status"}
+        </NavLink>
+        <NavLink to="/profiles" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "Hồ sơ" : "Profiles"}
+        </NavLink>
+        <NavLink to="/accounts" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "Tài khoản" : "Accounts"}
+        </NavLink>
+        <NavLink to="/performance" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "Hiệu suất" : "Performance"}
+        </NavLink>
+        <NavLink to="/sltp-copy" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "SL/TP · Copy" : "SL/TP · Copy"}
+        </NavLink>
+        <NavLink to="/settings" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "Cài đặt" : "Settings"}
+        </NavLink>
+        <NavLink to="/screener" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+          {locale === "VN" ? "Bộ lọc CP" : "Screener"}
+        </NavLink>
+      </nav>
+      <div className="topbar-controls">
+        <div className="lang-switch">
+          {(["EN", "VN"] as const).map((l) => (
+            <button
+              key={l}
+              className={locale === l ? "lang-opt active" : "lang-opt"}
+              onClick={() => setLocale(l)}
+              title={l === "VN" ? "Tiếng Việt" : "English"}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+        <button className="theme-toggle" onClick={cycleTheme} title="Theme">
+          ◐
+        </button>
+        <span className="tag">Tauri + React + oak-core</span>
+      </div>
+    </header>
+  );
+}
+
+function StatusPage() {
+  const { locale } = useLocale();
   const [handshake, setHandshake] = useState<Handshake | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
@@ -50,97 +101,76 @@ export function App() {
   }, []);
 
   return (
-    <HashRouter>
-      <div className="shell">
-        <header className="topbar">
-          <span className="brand">⚡ OAK Manager</span>
-          <nav className="nav">
-            <NavLink to="/" end className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              Status
-            </NavLink>
-            <NavLink to="/profiles" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              Profiles
-            </NavLink>
-            <NavLink to="/accounts" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              Accounts
-            </NavLink>
-            <NavLink to="/performance" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              Performance
-            </NavLink>
-            <NavLink to="/sltp-copy" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              SL/TP · Copy
-            </NavLink>
-            <NavLink to="/settings" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
-              Settings
-            </NavLink>
-          </nav>
-          <span className="tag">Tauri + React + oak-core</span>
-        </header>
+    <main className="content">
+      <h1>{locale === "VN" ? "Trạng thái Sidecar" : "Sidecar Status"}</h1>
 
-        <Routes>
-          <Route path="/profiles" element={<ProfilesPage />} />
-          <Route path="/accounts" element={<AccountTrackingPage />} />
-          <Route path="/performance" element={<PerformancePage />} />
-          <Route path="/sltp-copy" element={<HiddenSltpCopyPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route
-            path="/"
-            element={
-              <main className="content">
-                <h1>Sidecar Status</h1>
+      {loading && <p className="muted">{locale === "VN" ? "Đang kết nối oak-core…" : "Connecting to oak-core…"}</p>}
+      {error && (
+        <section className="panel error">
+          <span className="badge error">ERROR</span>
+          <p>{error}</p>
+        </section>
+      )}
 
-                {loading && <p className="muted">Connecting to oak-core…</p>}
-                {error && (
-                  <section className="panel error">
-                    <span className="badge error">ERROR</span>
-                    <p>{error}</p>
-                  </section>
-                )}
+      {handshake && (
+        <section className="panel">
+          <h2>{locale === "VN" ? "Bắt tay" : "Handshake"}</h2>
+          <dl className="kv">
+            <dt>app</dt>
+            <dd className="mono">{handshake.app}</dd>
+            <dt>version</dt>
+            <dd className="mono">{handshake.version}</dd>
+            <dt>protocol</dt>
+            <dd className="mono">v{handshake.protocol}</dd>
+            <dt>role</dt>
+            <dd>{handshake.role}</dd>
+            <dt>started_at</dt>
+            <dd className="mono">{handshake.started_at}</dd>
+          </dl>
+        </section>
+      )}
 
-                {handshake && (
-                  <section className="panel">
-                    <h2>Handshake</h2>
-                    <dl className="kv">
-                      <dt>app</dt>
-                      <dd className="mono">{handshake.app}</dd>
-                      <dt>version</dt>
-                      <dd className="mono">{handshake.version}</dd>
-                      <dt>protocol</dt>
-                      <dd className="mono">v{handshake.protocol}</dd>
-                      <dt>role</dt>
-                      <dd>{handshake.role}</dd>
-                      <dt>started_at</dt>
-                      <dd className="mono">{handshake.started_at}</dd>
-                    </dl>
-                    {handshake.__mock && (
-                      <p className="hint">⚠ browser mock — run `npm run tauri dev` for the real sidecar</p>
-                    )}
-                  </section>
-                )}
+      {health && (
+        <section className="panel">
+          <h2>{locale === "VN" ? "Sức khỏe" : "Health"}</h2>
+          <p>
+            <span className={`badge ${health.status === "ok" ? "ok" : "warn"}`}>{health.status}</span>
+            <span className="mono"> workers: {health.workers.length}</span>
+          </p>
+        </section>
+      )}
 
-                {health && (
-                  <section className="panel">
-                    <h2>Health</h2>
-                    <p>
-                      <span className={`badge ${health.status === "ok" ? "ok" : "warn"}`}>{health.status}</span>
-                      <span className="mono"> workers: {health.workers.length}</span>
-                    </p>
-                  </section>
-                )}
+      <section className="panel">
+        <h2>{locale === "VN" ? "Nhật ký Sidecar" : "Sidecar Logs"}</h2>
+        {logs.length === 0 ? (
+          <p className="muted">{locale === "VN" ? "Chưa có dòng nhật ký." : "No log lines yet."}</p>
+        ) : (
+          <pre className="log">{logs.join("\n")}</pre>
+        )}
+      </section>
+    </main>
+  );
+}
 
-                <section className="panel">
-                  <h2>Sidecar Logs</h2>
-                  {logs.length === 0 ? (
-                    <p className="muted">No log lines yet.</p>
-                  ) : (
-                    <pre className="log">{logs.join("\n")}</pre>
-                  )}
-                </section>
-              </main>
-            }
-          />
-        </Routes>
-      </div>
-    </HashRouter>
+export function App() {
+  return (
+    <LocaleProvider>
+      <ThemeProvider>
+        <HashRouter>
+          <div className="shell">
+            <TopBar />
+            <Routes>
+              <Route path="/profiles" element={<ProfilesPage />} />
+              <Route path="/accounts" element={<AccountTrackingPage />} />
+              <Route path="/performance" element={<PerformancePage />} />
+              <Route path="/sltp-copy" element={<HiddenSltpCopyPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/screener" element={<ScreenerPage />} />
+              <Route path="/" element={<StatusPage />} />
+            </Routes>
+          </div>
+        </HashRouter>
+      </ThemeProvider>
+    </LocaleProvider>
   );
 }

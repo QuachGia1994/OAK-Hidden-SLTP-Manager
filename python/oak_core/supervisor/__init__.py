@@ -57,6 +57,8 @@ class SupervisorApp:
         self._server.register("settings.get", self._on_settings_get)
         self._server.register("settings.update", self._on_settings_update)
         self._server.register("services.list", self._on_services_list)
+        # Phase 6 — stock screener (local EOD).
+        self._server.register("screener.list", self._on_screener_list)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -208,6 +210,10 @@ class SupervisorApp:
 
     def _on_services_list(self, request) -> dict:
         return {"services": settings_module.services_list()}
+
+    def _on_screener_list(self, request) -> dict:
+        limit = int(request.params.get("limit", 10))
+        return {"stocks": self._accounts.screener_list(limit=limit)}
 
     # ------------------------------------------------------------------ #
     # Run
