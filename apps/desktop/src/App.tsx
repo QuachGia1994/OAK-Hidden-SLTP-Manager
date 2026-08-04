@@ -3,6 +3,7 @@ import { HashRouter, NavLink, Route, Routes } from "react-router-dom";
 import { onEvent, request, IpcError } from "./ipc/bridge";
 import { Handshake, Health, LogTail } from "./ipc/types";
 import { ProfilesPage } from "./pages/profiles";
+import { AccountTrackingPage } from "./pages/account-tracking";
 
 // --------------------------------------------------------------------- //
 // Phase 1/2 shell — Status + Profiles pages (§9).
@@ -57,12 +58,16 @@ export function App() {
             <NavLink to="/profiles" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
               Profiles
             </NavLink>
+            <NavLink to="/accounts" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+              Accounts
+            </NavLink>
           </nav>
           <span className="tag">Tauri + React + oak-core</span>
         </header>
 
         <Routes>
           <Route path="/profiles" element={<ProfilesPage />} />
+          <Route path="/accounts" element={<AccountTrackingPage />} />
           <Route
             path="/"
             element={

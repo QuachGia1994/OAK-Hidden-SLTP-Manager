@@ -10,18 +10,21 @@ from ..ipc.protocol import error_payload
 from ..ipc.server import IpcServer
 from ..version import APP_NAME, APP_VERSION, PROTOCOL_VERSION
 from .profiles import ProfileManager
+from .accounts import AccountQueries
 
 
 class SupervisorApp:
-    """Handles the Phase-1/2 control surface of the supervisor sidecar."""
+    """Handles the Phase-1/2/3 control surface of the supervisor sidecar."""
 
     def __init__(self, *, server: IpcServer | None = None, started_at=None,
-                 profile_manager: ProfileManager | None = None):
+                 profile_manager: ProfileManager | None = None,
+                 account_queries: AccountQueries | None = None):
         self._server = server if server is not None else IpcServer()
         from datetime import datetime, timezone
         self._started_at = started_at or datetime.now(timezone.utc).isoformat()
         self._healthy = True
         self._profiles = profile_manager if profile_manager is not None else ProfileManager()
+        self._accounts = account_queries if account_queries is not None else AccountQueries()
         self._register()
 
     def _register(self) -> None:
@@ -34,6 +37,12 @@ class SupervisorApp:
         self._server.register("profile.start", self._on_profile_start)
         self._server.register("profile.stop", self._on_profile_stop)
         self._server.register("profile.status", self._on_profile_status)
+        # Phase 3 — account audit queries (§9).
+        self._server.register("account.get", self._on_account_get)
+        self._server.register("positions.list", self._on_positions_list)
+        self._server.register("deals.list", self._on_deals_list)
+        self._server.register("checkpoints.list", self._on_checkpoints_list)
+        self._server.register("performance.summary", self._on_performance_summary)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -88,6 +97,41 @@ class SupervisorApp:
         if not name:
             raise ValueError("profile param required")
         return self._profiles.profile_status(name)
+
+    # ------------------------------------------------------------------ #
+    # Phase 3 — account audit handlers
+    # ------------------------------------------------------------------ #
+    def _on_account_get(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return self._accounts.account_get(profile)
+
+    def _on_positions_list(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return {"positions": self._accounts.positions_list(profile)}
+
+    def _on_deals_list(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        limit = int(request.params.get("limit", 200))
+        if not profile:
+            raise ValueError("profile param required")
+        return {"deals": self._accounts.deals_list(profile, limit=limit)}
+
+    def _on_checkpoints_list(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        limit = int(request.params.get("limit", 30))
+        if not profile:
+            raise ValueError("profile param required")
+        return {"checkpoints": self._accounts.checkpoints_list(profile, limit=limit)}
+
+    def _on_performance_summary(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return self._accounts.performance_summary(profile)
 
     # ------------------------------------------------------------------ #
     # Run

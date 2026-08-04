@@ -88,3 +88,38 @@ body {
 .pid { color: var(--muted); font-size: 11px; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 380px; }
 .actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* ---- account tracking (DESIGN.md tokens) ---- */
+.profile-select { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+.profile-select select {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 7px 10px; font-size: 13px;
+}
+.small { font-size: 11px; margin-top: 8px; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 4px; }
+.stat-value { font-size: 16px; font-weight: 700; }
+
+.equity-positive { color: var(--accent); }
+.equity-negative { color: var(--danger); }
+
+.table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.table-head, .trade-row {
+  display: grid; grid-template-columns: 1fr 80px 70px 110px 1fr;
+  gap: 8px; padding: 8px 12px; align-items: center;
+}
+.table-head { background: rgba(139,152,165,.08); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.trade-row { border-left: 3px solid var(--border); font-size: 13px; }
+.trade-row.buy { border-left-color: var(--accent); }
+.trade-row.sell { border-left-color: var(--danger); }
+.trade-row + .trade-row { border-top: 1px solid var(--border); }
+
+.ckpt-list { display: grid; gap: 6px; }
+.ckpt-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+.checkpoint-badge {
+  font-family: "Cascadia Code", Consolas, monospace; font-size: 11px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 5px;
+  padding: 3px 8px; color: var(--fg);
+}

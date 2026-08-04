@@ -86,3 +86,82 @@ export interface ProfileStop {
   stopped: boolean;
   reason?: string;
 }
+
+// --------------------------------------------------------------------- //
+// Phase 3 — account audit (§9)
+// --------------------------------------------------------------------- //
+
+/** account.get result — latest equity sample from the audit ledger. */
+export interface AccountOverview {
+  profile: string;
+  available: boolean;
+  balance?: number | null;
+  equity?: number | null;
+  margin?: number | null;
+  free_margin?: number | null;
+  margin_level?: number | null;
+  open_profit?: number | null;
+  sampled_at_utc?: string | null;
+}
+
+/** One open position (public-safe). */
+export interface Position {
+  public_trade_id: string;
+  symbol: string;
+  direction: string;
+  volume: number | null;
+  open_price: number | null;
+  open_time_utc: string | null;
+  source_type: string;
+}
+
+/** One trade-ledger deal (public-safe). */
+export interface Deal {
+  public_trade_id: string;
+  symbol: string;
+  deal_type: string;
+  entry_type: string;
+  reason_category: string;
+  volume: number | null;
+  price: number | null;
+  profit: number | null;
+  commission: number | null;
+  swap: number | null;
+  deal_time_utc: string | null;
+}
+
+/** One checkpoint run (public-safe). */
+export interface Checkpoint {
+  broker_date: string;
+  checkpoint_hour: number;
+  interval_start: string | null;
+  interval_end: string | null;
+  captured_at_utc: string | null;
+  capture_mode: string;
+  status: string;
+}
+
+/** performance.summary result (public-safe subset). */
+export interface PerformanceSummary {
+  profile: string;
+  available: boolean;
+  current_balance?: number | null;
+  current_equity?: number | null;
+  net_profit?: number | null;
+  realized_pl?: number | null;
+  unrealized_pl?: number | null;
+  profit_factor?: number | null;
+  win_rate?: number | null;
+  average_win?: number | null;
+  average_loss?: number | null;
+  expectancy?: number | null;
+  max_equity_drawdown?: number | null;
+  current_drawdown?: number | null;
+  drawdown_source?: string | null;
+  trading_return?: number | null;
+  account_growth?: number | null;
+  net_cash_flow?: number | null;
+  total_commission?: number | null;
+  total_swap?: number | null;
+  total_fees?: number | null;
+}
