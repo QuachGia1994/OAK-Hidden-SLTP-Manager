@@ -152,6 +152,12 @@ pub fn spawn(app: &AppHandle) {
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // Hide the sidecar console window (it still has piped stdio for IPC).
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    }
     eprintln!(
         "[oak] spawning sidecar: program={:?} cwd={:?}",
         cmd.get_program(),

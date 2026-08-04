@@ -75,7 +75,7 @@ def services_list() -> list:
     """
     settings = load_settings()
     telegram_configured = bool(settings.get("ntfy_topic")) or bool(
-        (profiles_path().parent / "config.json").exists()
+        (_data_root() / "config.json").exists()
     )
     result = []
     for key, label in SERVICES:
