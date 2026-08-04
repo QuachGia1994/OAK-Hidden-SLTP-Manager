@@ -19,12 +19,14 @@ class NativeQtI18nTests(unittest.TestCase):
         self.assertEqual(native_text("Exact profile match"), "Khớp hồ sơ chính xác")
         self.assertEqual(native_format("Total tasks: {count}", count=3), "Tổng tác vụ: 3")
         self.assertEqual(native_text("VN30 Advisor"), "Bộ lọc Cổ phiếu")
+        self.assertEqual(native_text("Signals"), "Theo dõi tài khoản")
 
     def test_english_and_unknown_values_are_preserved(self) -> None:
         set_native_language("EN")
 
         self.assertEqual(native_text("Dashboard"), "Dashboard")
         self.assertEqual(native_text("VantageDemo"), "VantageDemo")
+        self.assertEqual(native_text("Signals"), "Account Tracking")
 
     def test_template_translation_preserves_runtime_data(self) -> None:
         set_native_language("VN")

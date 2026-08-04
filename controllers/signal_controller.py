@@ -20,7 +20,7 @@ class SignalControllerMixin:
         self.signal_supervisor.register_signals(self.signal_procs)
         self.signal_supervisor.signal_defs = [
             ("mt4_feed_server", "MT4 Feed Server", "#1f538d"),
-            ("signal_bot", "MT5 Signal Bot", "#2fa572"),
+            ("signal_bot", "MT5 Account Audit Service", "#2fa572"),
             ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
             ("mimo_worker", "MiMo Worker", "#d4a03d"),
             ("factcheck_worker", "Fact Check Worker", "#00bfa5"),

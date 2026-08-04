@@ -256,7 +256,7 @@ class SignalProcessSupervisor:
                     if token and chat_id:
                         sys.path.append(root_dir)
                         from telegram_client import telegram_send_message
-                        bot_name = "MT5 Signal Bot" if key == "signal_bot" else "MiMo Telegram Bot"
+                        bot_name = "MT5 Account Audit Service" if key == "signal_bot" else "MiMo Telegram Bot"
                         telegram_send_message(token, chat_id, f"🔴 {bot_name} đã DỪNG (Stopped)")
             except Exception as e:
                 self._log(f"Failed to send stop telegram alert: {e}")

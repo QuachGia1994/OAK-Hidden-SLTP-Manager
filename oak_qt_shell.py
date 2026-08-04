@@ -68,7 +68,7 @@ def apply_window_icon(target: Any) -> None:
 
 
 BASE_SIGNAL_DEFS = (
-    ("signal_bot", "MT5 Signal Bot", "#2fa572"),
+    ("signal_bot", "MT5 Account Audit Service", "#2fa572"),
     ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
     ("mimo_worker", "MiMo Worker", "#d4a03d"),
     ("factcheck_worker", "Fact Check Worker", "#00bfa5"),
@@ -145,10 +145,10 @@ LOG_LEVEL_MARKERS = {
 }
 NATIVE_LANGUAGE = "EN"
 NATIVE_TEXT = {
-    "EN": {},
+    "EN": {"Signals": "Account Tracking"},
     "VN": {
         "Dashboard": "Bảng điều khiển",
-        "Signals": "Tín hiệu",
+        "Signals": "Theo dõi tài khoản",
         "VN30 Advisor": "Bộ lọc Cổ phiếu",
         "Profiles": "Hồ sơ",
         "Copy": "Sao chép",

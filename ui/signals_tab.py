@@ -94,7 +94,7 @@ class SignalsTab(BaseTab):
         panels_frame.grid_rowconfigure(2, weight=1)
 
         signal_defs = [
-            ("signal_bot", "MT5 Signal Bot", "#2fa572"),
+            ("signal_bot", "MT5 Account Audit Service", "#2fa572"),
             ("mt4_feed_server", "MT4 Feed Server", "#1f538d"),
             ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
             ("mimo_worker", "MiMo Worker", "#d4a03d"),
