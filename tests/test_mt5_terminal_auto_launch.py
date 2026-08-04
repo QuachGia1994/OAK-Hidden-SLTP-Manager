@@ -54,8 +54,11 @@ class MT5TerminalAutoLaunchTests(unittest.TestCase):
             self.assertTrue(result.ok)
             self.assertEqual(result.process_id, 42)
             self.assertEqual(result.initialize_attempts, 2)
-            self.assertEqual(processes, [path])
-            self.assertEqual(mt5.initializes[0]["path"], str(path))
+            # Windows 8.3 short-name aliases (RUNNER~1 vs runneradmin) differ
+            # between CI runners and dev machines — compare resolved forms so
+            # the assertion is invariant to short/long path presentation.
+            self.assertEqual([p.resolve() for p in processes], [path.resolve()])
+            self.assertEqual(Path(mt5.initializes[0]["path"]).resolve(), path.resolve())
             self.assertNotIn("portable", mt5.initializes[0])
 
     def test_invalid_path_does_not_initialize(self):
