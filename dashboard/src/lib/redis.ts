@@ -20,6 +20,13 @@ export const KEYS = {
   evidence: "sltp:evidence",
   dDirectionCurrent: "sltp:d_direction:current",
   dDirectionHistory: "sltp:d_direction:history",
+  auditOverview: "sltp:trade-audit:overview",
+  auditPositions: "sltp:trade-audit:positions",
+  auditCheckpoints: "sltp:trade-audit:checkpoints",
+  auditLedger: "sltp:trade-audit:ledger",
+  auditPerformance: "sltp:trade-audit:performance",
+  auditRisk: "sltp:trade-audit:risk",
+  auditInfo: "sltp:trade-audit:audit",
 };
 
 // API auth helper — rejects write requests without valid key.
