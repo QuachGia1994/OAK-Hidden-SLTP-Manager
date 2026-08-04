@@ -24,6 +24,7 @@ from oak_logger import setup_logger
 from repositories.sqlite_store import SQLiteStore
 from secret_store import resolve_telegram_token, migrate_plaintext_tokens
 from telegram_client import telegram_get_me
+from legacy.candle_signal_engine import legacy_candle_signals_enabled
 from domain.broker_clock import BrokerClock, BrokerClockError
 from providers.health_contract import MarketDataHealth, health_value
 from domain.signal_rules import (
@@ -5300,7 +5301,7 @@ def main(profile_name=None):
     # initial window (default 50 days via MT5_PRELOAD_DAYS) covers the full
     # rebuild range; history_rebuild_worker / on-demand fetch extends coverage
     # in the background.
-    if data_provider_name == "MT5" and hasattr(MARKET_DATA_PROVIDER, "preload"):
+    if data_provider_name == "MT5" and hasattr(MARKET_DATA_PROVIDER, "preload") and legacy_candle_signals_enabled():
         try:
             preload_result = MARKET_DATA_PROVIDER.preload(
                 symbols=ACTIVE_SIGNAL_PAIRS,
@@ -5310,6 +5311,8 @@ def main(profile_name=None):
                 print("[MT5 DATA] Coverage incomplete; failing closed and preserving existing History.")
         except Exception as exc:
             print(f"[MT5 DATA] preload failed: {exc}")
+    elif data_provider_name == "MT5":
+        print("[AUDIT MODE] Legacy candle preload disabled (ENABLE_LEGACY_CANDLE_SIGNALS=false).")
 
     def heartbeat_thread():
         global _broker_clock_error
@@ -5368,16 +5371,23 @@ def main(profile_name=None):
     send_telegram(build_startup_telegram_message(broker_dt, mt5_ready))
 
     # Rebuild signals_log from the active market-data provider before pushing.
-    startup_rebuilt = rebuild_signals_on_startup()
+    if legacy_candle_signals_enabled():
+        startup_rebuilt = rebuild_signals_on_startup()
+    else:
+        startup_rebuilt = 0
+        print("[AUDIT MODE] Legacy signal history rebuild disabled (ENABLE_LEGACY_CANDLE_SIGNALS=false).")
     # Calculate D-Direction for current Broker date
-    try:
-        _d_directions_today = calculate_all_d_directions(broker_dt.date())
-        print(f"  [D-DIR] Calculated for {broker_dt.date().isoformat()}")
-        for sym, dd in _d_directions_today.items():
-            print(f"    {sym}: {dd.get('d_direction', 'WAIT')} (session={dd.get('session_date', 'N/A')})")
-    except Exception as error:
+    if legacy_candle_signals_enabled():
+        try:
+            _d_directions_today = calculate_all_d_directions(broker_dt.date())
+            print(f"  [D-DIR] Calculated for {broker_dt.date().isoformat()}")
+            for sym, dd in _d_directions_today.items():
+                print(f"    {sym}: {dd.get('d_direction', 'WAIT')} (session={dd.get('session_date', 'N/A')})")
+        except Exception as error:
+            _d_directions_today = {}
+            print(f"  [D-DIR] Error: {error}")
+    else:
         _d_directions_today = {}
-        print(f"  [D-DIR] Error: {error}")
 
     # Independent Daily 06:00 GMT+7 D-Direction publication check
     try:
