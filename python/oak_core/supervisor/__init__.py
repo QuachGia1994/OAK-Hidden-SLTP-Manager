@@ -230,10 +230,8 @@ class SupervisorApp:
         return self._accounts.update_eod(target_date=target_date)
 
     def _on_screener_run_filter(self, request) -> dict:
-        # Phase 6: local-EOD ranking is handled by the worker; the desktop
-        # triggers a refresh of the top list (mirrors Native Qt "Run advisor").
         limit = int(request.params.get("limit", 10))
-        return {"stocks": self._accounts.screener_list(limit=limit)}
+        return self._accounts.run_filter(limit=limit)
 
     # ------------------------------------------------------------------ #
     # Order management (pending / scheduled / close)

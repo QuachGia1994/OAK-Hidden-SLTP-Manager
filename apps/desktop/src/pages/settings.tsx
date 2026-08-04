@@ -12,9 +12,6 @@ interface SettingsData {
   lang?: string;
   theme?: string;
   ghost_mode_active?: boolean;
-  stock_client_id?: string;
-  stock_capital?: number;
-  stock_hurdle_bps?: number;
   ntfy_topic?: boolean; // presence flag only — never the value
 }
 
@@ -34,10 +31,6 @@ export function SettingsPage() {
     language: vn ? "Ngôn ngữ" : "Language",
     theme: vn ? "Giao diện" : "Theme",
     ghostMode: vn ? "Chế độ ẩn" : "Ghost mode",
-    screener: vn ? "Bộ lọc Cổ phiếu" : "Stock Screener",
-    clientId: vn ? "Client ID" : "Client ID",
-    capital: vn ? "Vốn (VND)" : "Capital (VND)",
-    hurdle: vn ? "Hurdle (bps)" : "Hurdle (bps)",
     services: vn ? "Dịch vụ" : "Services",
     save: vn ? "Lưu" : "Save",
     saving: vn ? "Đang lưu…" : "Saving…",
@@ -135,36 +128,6 @@ export function SettingsPage() {
         </div>
         <div className="muted small">
           ntfy_topic: {settings.ntfy_topic ? (vn ? "đã cấu hình ✓" : "configured ✓") : vn ? "chưa đặt" : "not set"} (value hidden)
-        </div>
-      </section>
-
-      <section className="panel">
-        <h2>{L.screener}</h2>
-        <div className="field-grid">
-          <label className="field">
-            <span>{L.clientId}</span>
-            <input
-              type="text"
-              value={settings.stock_client_id ?? ""}
-              onChange={(e) => setField("stock_client_id", e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>{L.capital}</span>
-            <input
-              type="text"
-              value={settings.stock_capital ?? ""}
-              onChange={(e) => setField("stock_capital", e.target.value)}
-            />
-          </label>
-          <label className="field">
-            <span>{L.hurdle}</span>
-            <input
-              type="text"
-              value={settings.stock_hurdle_bps ?? ""}
-              onChange={(e) => setField("stock_hurdle_bps", e.target.value)}
-            />
-          </label>
         </div>
       </section>
 

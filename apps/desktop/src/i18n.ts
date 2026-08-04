@@ -47,6 +47,37 @@ export interface LocaleText {
   error: string;
   saved: string;
   empty: string;
+  // screener
+  screenerTitle: string;
+  screenerSubtitle: string;
+  screenerLoadEod: string;
+  screenerLoadingEod: string;
+  screenerRunFilter: string;
+  screenerRunningFilter: string;
+  screenerSearchPlaceholder: string;
+  screenerCount: (n: number) => string;
+  screenerLoadingData: string;
+  screenerNoData: string;
+  screenerEodOk: string;
+  screenerEodFailed: string;
+  screenerFilterReady: (p: { n: number; buy: number; sell: number; asOf: string }) => string;
+  screenerFilterNoTrade: (p: { scanned: number }) => string;
+  screenerColSymbol: string;
+  screenerColExchange: string;
+  screenerColOpen: string;
+  screenerColHigh: string;
+  screenerColLow: string;
+  screenerColClose: string;
+  screenerColVolume: string;
+  // profiles
+  terminal: string;
+  visibleSltp: string;
+  magic: string;
+  sltpPair: string;
+  copyRole: string;
+  yes: string;
+  no: string;
+  loadingProfiles: string;
 }
 
 export const LOCALES: Record<Locale, LocaleText> = {
@@ -96,6 +127,37 @@ export const LOCALES: Record<Locale, LocaleText> = {
     error: "ERROR",
     saved: "Saved (whitelisted fields only).",
     empty: "—",
+    screenerTitle: "Stock Screener",
+    screenerSubtitle: "Local EOD \u00b7 data/market.db \u00b7 read-only via sidecar",
+    screenerLoadEod: "Load EOD (15:00+)",
+    screenerLoadingEod: "Loading EOD\u2026",
+    screenerRunFilter: "Run filter",
+    screenerRunningFilter: "Running\u2026",
+    screenerSearchPlaceholder: "Search symbol (e.g. VHM, BVS\u2026)",
+    screenerCount: (n: number) => `${n} symbols`,
+    screenerLoadingData: "Loading EOD data\u2026",
+    screenerNoData: "No EOD data \u2014 run EOD update (after 15:00) or check data/market.db.",
+    screenerEodOk: "EOD updated successfully.",
+    screenerEodFailed: "EOD update failed:",
+    screenerFilterReady: (p: { n: number; buy: number; sell: number; asOf: string }) =>
+      `Filter run: ${p.n} recommendations (${p.buy} BUY \u00b7 ${p.sell} SELL) \u2014 date ${p.asOf}`,
+    screenerFilterNoTrade: (p: { scanned: number }) =>
+      `Filter run: no recommendation (scanned ${p.scanned} symbols)`,
+    screenerColSymbol: "Symbol",
+    screenerColExchange: "Exchange",
+    screenerColOpen: "Open",
+    screenerColHigh: "High",
+    screenerColLow: "Low",
+    screenerColClose: "Close",
+    screenerColVolume: "Vol (m)",
+    terminal: "Terminal",
+    visibleSltp: "Visible SL/TP",
+    magic: "Magic",
+    sltpPair: "SL / TP",
+    copyRole: "Copy role",
+    yes: "yes",
+    no: "no",
+    loadingProfiles: "Loading profiles\u2026",
   },
   VN: {
     navStatus: "Trạng thái",
@@ -143,5 +205,36 @@ export const LOCALES: Record<Locale, LocaleText> = {
     error: "LỖI",
     saved: "Đã lưu (chỉ các trường cho phép).",
     empty: "—",
+    screenerTitle: "Bộ lọc Cổ phiếu",
+    screenerSubtitle: "Dữ liệu EOD nội bộ · data/market.db · đọc qua sidecar (chỉ đọc)",
+    screenerLoadEod: "Tải EOD (15:00+)",
+    screenerLoadingEod: "Đang tải EOD…",
+    screenerRunFilter: "Chạy bộ lọc",
+    screenerRunningFilter: "Đang chạy…",
+    screenerSearchPlaceholder: "Tra cứu mã (VD: VHM, BVS…)",
+    screenerCount: (n: number) => `${n} mã`,
+    screenerLoadingData: "Đang tải dữ liệu EOD…",
+    screenerNoData: "Chưa có dữ liệu EOD — chạy cập nhật EOD (sau 15:00) hoặc kiểm tra data/market.db.",
+    screenerEodOk: "Đã cập nhật EOD thành công.",
+    screenerEodFailed: "Cập nhật EOD thất bại:",
+    screenerFilterReady: (p: { n: number; buy: number; sell: number; asOf: string }) =>
+      `Đã chạy bộ lọc: ${p.n} khuyến nghị (${p.buy} BUY · ${p.sell} SELL) — ngày ${p.asOf}`,
+    screenerFilterNoTrade: (p: { scanned: number }) =>
+      `Đã chạy bộ lọc: không có khuyến nghị (đã quét ${p.scanned} mã)`,
+    screenerColSymbol: "Mã",
+    screenerColExchange: "Sàn",
+    screenerColOpen: "Mở",
+    screenerColHigh: "Cao",
+    screenerColLow: "Thấp",
+    screenerColClose: "Đóng",
+    screenerColVolume: "KL (tr)",
+    terminal: "Terminal",
+    visibleSltp: "SL/TP hiển thị",
+    magic: "Magic",
+    sltpPair: "SL / TP",
+    copyRole: "Vai trò Copy",
+    yes: "có",
+    no: "không",
+    loadingProfiles: "Đang tải hồ sơ…",
   },
 };

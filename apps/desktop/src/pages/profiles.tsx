@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
 import { Profile, ProfilesList, ProfileStart, ProfileStop } from "../ipc/types";
+import { useLocale } from "../contexts";
 
 /**
  * Phase 2 — Profiles page (§9).
@@ -8,6 +9,7 @@ import { Profile, ProfilesList, ProfileStart, ProfileStop } from "../ipc/types";
  * shows per-profile status (running/stopped + pid).
  */
 export function ProfilesPage() {
+  const { t } = useLocale();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,17 +65,17 @@ export function ProfilesPage() {
 
   return (
     <div className="content">
-      <h1>Profiles</h1>
-      {loading && <p className="muted">Loading profiles…</p>}
+      <h1>{t.profilesTitle}</h1>
+      {loading && <p className="muted">{t.loadingProfiles}</p>}
       {error && (
         <section className="panel error">
-          <span className="badge error">ERROR</span>
+          <span className="badge error">{t.error}</span>
           <p>{error}</p>
         </section>
       )}
 
       {!loading && profiles.length === 0 && (
-        <p className="muted">No profiles configured (profiles.json empty).</p>
+        <p className="muted">{t.noProfiles}</p>
       )}
 
       <div className="profile-list">
@@ -102,6 +104,7 @@ function ProfileCard({
   onStart: () => void;
   onStop: () => void;
 }) {
+  const { t } = useLocale();
   const running = profile.status === "running";
   const tone = running ? "ok" : "neutral";
   const terminalName = profile.path ? profile.path.split(/[\\/]/).pop() : "—";
@@ -109,7 +112,7 @@ function ProfileCard({
   return (
     <section className={`panel profile-card ${running ? "running" : ""}`}>
       <div className="profile-head">
-        <span className={`badge ${tone}`}>{running ? "RUNNING" : "STOPPED"}</span>
+        <span className={`badge ${tone}`}>{running ? t.running.toUpperCase() : t.stopped.toUpperCase()}</span>
         <h2 className="mono">{profile.profile_name}</h2>
         {profile.pid != null && (
           <span className="mono pid">pid {profile.pid}</span>
@@ -117,19 +120,19 @@ function ProfileCard({
       </div>
 
       <dl className="kv">
-        <dt>Terminal</dt>
+        <dt>{t.terminal}</dt>
         <dd className="mono truncate" title={profile.path}>
           {terminalName}
         </dd>
-        <dt>Visible SL/TP</dt>
-        <dd>{profile.visible_sltp ? "yes" : "no"}</dd>
-        <dt>Magic</dt>
+        <dt>{t.visibleSltp}</dt>
+        <dd>{profile.visible_sltp ? t.yes : t.no}</dd>
+        <dt>{t.magic}</dt>
         <dd className="mono">{String(profile.magic ?? "—")}</dd>
-        <dt>SL / TP</dt>
+        <dt>{t.sltpPair}</dt>
         <dd className="mono">
           {String(profile.sl ?? "—")} / {String(profile.tp ?? "—")}
         </dd>
-        <dt>Copy role</dt>
+        <dt>{t.copyRole}</dt>
         <dd>{profile.copy_role || "—"}</dd>
       </dl>
 
@@ -139,10 +142,10 @@ function ProfileCard({
           onClick={onStart}
           disabled={busy || running}
         >
-          {busy ? "…" : running ? "Running" : "Start"}
+          {busy ? "…" : running ? t.running : t.start}
         </button>
         <button className="btn" onClick={onStop} disabled={busy || !running}>
-          Stop
+          {t.stop}
         </button>
       </div>
     </section>

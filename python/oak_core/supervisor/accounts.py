@@ -7,10 +7,12 @@ These handlers re-use the existing tested trade-audit stack
 business logic.  Public-safe payloads only: no raw tickets, no account uid,
 no credentials (the publisher builders already strip those).
 """
+import subprocess
 import sys
 from pathlib import Path
 
 from ..ipc.protocol import error_payload
+from .profiles import _data_root
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -242,7 +244,7 @@ class AccountQueries:
         """Latest local EOD rows per symbol — public-safe, read-only."""
         try:
             import sqlite3
-            db_path = _REPO_ROOT / "data" / "market.db"
+            db_path = _data_root() / "data" / "market.db"
             if not db_path.is_file():
                 return []
             conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -277,14 +279,15 @@ class AccountQueries:
 
         Executes ``eod_collector update`` as a subprocess with a timeout.
         """
-        import subprocess
-        import sys
-        cmd = [sys.executable, "-m", "eod_collector", "update"]
+        if getattr(sys, "frozen", False):
+            cmd = [sys.executable, "eod_collector", "update"]
+        else:
+            cmd = [sys.executable, "-m", "oak_core", "eod_collector", "update"]
         if target_date:
             cmd += ["--date", str(target_date)]
         try:
             proc = subprocess.run(
-                cmd, cwd=str(_REPO_ROOT), capture_output=True, text=True,
+                cmd, cwd=str(_data_root()), capture_output=True, text=True,
                 timeout=180,
             )
             return {
@@ -297,3 +300,65 @@ class AccountQueries:
             return {"ok": False, "returncode": None, "stdout": "", "stderr": "EOD update timed out (180s)"}
         except Exception as exc:
             return {"ok": False, "returncode": None, "stdout": "", "stderr": str(exc)}
+
+    def run_filter(self, limit: int = 10) -> dict:
+        """Run the local-EOD D1 advisory scan (read-only, no orders).
+
+        Mirrors vn_stock_advisor.run_advisor using the tested D1 scanner.
+        """
+        try:
+            _ensure_imports()
+            import sqlite3
+            from datetime import datetime, timezone
+            from domain.stock_scanner import ScannerPolicy, scan_d1_linear
+            db_path = _data_root() / "data" / "market.db"
+            if not db_path.is_file():
+                return {"ok": True, "status": "NO_DATA", "as_of_date": "",
+                        "scanned": 0, "buy": 0, "sell": 0, "recommendations": []}
+            as_of = datetime.now(timezone.utc).date()
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            conn.row_factory = sqlite3.Row
+            try:
+                rows = conn.execute(
+                    "SELECT DISTINCT symbol FROM eod_prices ORDER BY symbol"
+                ).fetchall()
+                symbols = [r["symbol"] for r in rows]
+                bars_by_symbol = {}
+                for symbol in symbols:
+                    bars = conn.execute(
+                        "SELECT date, open, high, low, close, volume FROM eod_prices "
+                        "WHERE symbol = ? AND date <= ? ORDER BY date ASC",
+                        (symbol, as_of.isoformat()),
+                    ).fetchall()
+                    bars_by_symbol[symbol] = [dict(b) for b in bars]
+            finally:
+                conn.close()
+            if not bars_by_symbol:
+                return {"ok": True, "status": "NO_DATA", "as_of_date": as_of.isoformat(),
+                        "scanned": 0, "buy": 0, "sell": 0, "recommendations": []}
+            payload = scan_d1_linear(bars_by_symbol, as_of,
+                                     policy=ScannerPolicy(history_window=20), capital=0.0)
+            results = payload.get("results") or []
+            recs = [r for r in results if r.get("rank") and r.get("rank") > 0]
+            buy = sum(1 for r in results
+                      if r.get("direction") == "BUY" and r.get("data_quality") == "OK")
+            sell = sum(1 for r in results
+                       if r.get("direction") == "SELL" and r.get("data_quality") == "OK")
+            return {
+                "ok": True,
+                "status": payload.get("status", "NO_TRADE"),
+                "as_of_date": payload.get("as_of_date", as_of.isoformat()),
+                "scanned": len(results),
+                "buy": buy,
+                "sell": sell,
+                "recommendations": [
+                    {"symbol": r.get("symbol"), "direction": r.get("direction"),
+                     "score": r.get("score"), "latest_close": r.get("latest_close"),
+                     "rank": r.get("rank")}
+                    for r in recs
+                ][:limit],
+            }
+        except Exception as exc:
+            return {"ok": False, "status": "ERROR", "as_of_date": "",
+                    "scanned": 0, "buy": 0, "sell": 0, "recommendations": [],
+                    "error": str(exc)}

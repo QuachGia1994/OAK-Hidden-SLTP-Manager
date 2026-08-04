@@ -21,6 +21,9 @@ def main(argv=None) -> int:
     worker.add_argument("--once", action="store_true",
                         help="Connect, verify, then exit (for tests/diagnostics)")
 
+    eod = sub.add_parser("eod_collector", help="Run Local EOD collector commands (e.g. update --date YYYY-MM-DD)")
+    eod.add_argument("args", nargs=argparse.REMAINDER, help="forwarded to the eod_collector CLI")
+
     args = parser.parse_args(argv)
 
     if args.command == "supervisor":
@@ -32,6 +35,10 @@ def main(argv=None) -> int:
 
     if args.command == "profile-worker":
         return _run_profile_worker(args.profile, once=args.once)
+
+    if args.command == "eod_collector":
+        from eod_collector.cli import main as eod_main
+        return eod_main(args.args)
 
     parser.print_help(sys.stderr)
     return 2

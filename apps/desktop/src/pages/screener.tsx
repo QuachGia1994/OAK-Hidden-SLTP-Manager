@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
+import { useLocale } from "../contexts";
 
 /**
  * Phase 6 — Stock Screener page (§9).
@@ -21,7 +22,24 @@ interface Stock {
   foreign_sell_value: number | null;
 }
 
+interface FilterResult {
+  ok: boolean;
+  status: "READY" | "NO_TRADE" | "NO_DATA";
+  as_of_date: string;
+  scanned: number;
+  buy: number;
+  sell: number;
+  recommendations: Array<{
+    symbol: string;
+    direction: "BUY" | "SELL";
+    score: number;
+    latest_close: number | null;
+    rank: number;
+  }>;
+}
+
 export function ScreenerPage() {
+  const { t } = useLocale();
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"eod" | "filter" | null>(null);
@@ -51,13 +69,13 @@ export function ScreenerPage() {
     setError(null);
     setInfo(null);
     try {
-      const res = await request<{ ok: boolean; stderr: string; stdout: string }>(
+      const res = await request<{ ok: boolean; stderr?: string; stdout?: string }>(
         "screener.update_eod", { date: "" }, 200000,
       );
       if (res.ok) {
-        setInfo("Đã cập nhật EOD thành công.");
+        setInfo(t.screenerEodOk);
       } else {
-        setInfo(`EOD update: ${res.stderr?.slice(-300) || "lỗi"}`);
+        setInfo(t.screenerEodFailed + " " + (res.stderr?.slice(-300) || ""));
       }
       await load();
     } catch (e) {
@@ -72,9 +90,24 @@ export function ScreenerPage() {
     setError(null);
     setInfo(null);
     try {
-      await request("screener.run_filter", { limit: 30 });
+      const res = await request<FilterResult>("screener.run_filter", { limit: 30 });
+      if (res.ok && res.status === "READY") {
+        setInfo(
+          t.screenerFilterReady({
+            n: res.recommendations.length,
+            buy: res.buy,
+            sell: res.sell,
+            asOf: res.as_of_date,
+          }),
+        );
+      } else if (res.ok && res.status === "NO_TRADE") {
+        setInfo(t.screenerFilterNoTrade({ scanned: res.scanned }));
+      } else if (res.ok && res.status === "NO_DATA") {
+        setInfo(t.screenerNoData);
+      } else {
+        setError(String(res));
+      }
       await load();
-      setInfo("Đã chạy bộ lọc.");
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
     } finally {
@@ -88,52 +121,50 @@ export function ScreenerPage() {
 
   return (
     <div className="content">
-      <h1>Bộ lọc Cổ phiếu</h1>
-      <p className="muted small">Local EOD · data/market.db · đọc qua sidecar (read-only)</p>
+      <h1>{t.screenerTitle}</h1>
+      <p className="muted small">{t.screenerSubtitle}</p>
 
       {error && (
         <section className="panel error">
-          <span className="badge error">ERROR</span>
+          <span className="badge error">{t.error}</span>
           <p>{error}</p>
         </section>
       )}
       {info && <p className="hint">{info}</p>}
-      {loading && <p className="muted">Đang tải dữ liệu EOD…</p>}
+      {loading && <p className="muted">{t.screenerLoadingData}</p>}
 
       <div className="profile-select">
         <button className="btn primary" onClick={() => void runEod()} disabled={busy !== null}>
-          {busy === "eod" ? "Đang tải EOD…" : "Tải EOD (15:00+)"}
+          {busy === "eod" ? t.screenerLoadingEod : t.screenerLoadEod}
         </button>
         <button className="btn" onClick={() => void runFilter()} disabled={busy !== null}>
-          {busy === "filter" ? "Đang chạy…" : "Chạy bộ lọc"}
+          {busy === "filter" ? t.screenerRunningFilter : t.screenerRunFilter}
         </button>
         <input
           className="search"
           type="text"
-          placeholder="Tra cứu mã (VD: VHM, BVS…)"
+          placeholder={t.screenerSearchPlaceholder}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
-        <span className="muted small">{shown.length} mã</span>
+        <span className="muted small">{t.screenerCount(shown.length)}</span>
       </div>
 
       {!loading && shown.length === 0 && (
-        <p className="muted">
-          Chưa có dữ liệu EOD — chạy update EOD (sau 15:00) hoặc kiểm tra data/market.db.
-        </p>
+        <p className="muted">{t.screenerNoData}</p>
       )}
 
       {shown.length > 0 && (
         <section className="panel">
           <div className="table">
             <div className="table-head">
-              <span>Mã</span>
-              <span>Sàn</span>
-              <span>Mở</span>
-              <span>Cao</span>
-              <span>Thấp</span>
-              <span>Đóng</span>
-              <span>KL (tr)</span>
+              <span>{t.screenerColSymbol}</span>
+              <span>{t.screenerColExchange}</span>
+              <span>{t.screenerColOpen}</span>
+              <span>{t.screenerColHigh}</span>
+              <span>{t.screenerColLow}</span>
+              <span>{t.screenerColClose}</span>
+              <span>{t.screenerColVolume}</span>
             </div>
             {shown.map((s) => (
               <div key={s.symbol} className="trade-row neutral">
