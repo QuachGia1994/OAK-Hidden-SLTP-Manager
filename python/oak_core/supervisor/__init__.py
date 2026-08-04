@@ -43,6 +43,10 @@ class SupervisorApp:
         self._server.register("deals.list", self._on_deals_list)
         self._server.register("checkpoints.list", self._on_checkpoints_list)
         self._server.register("performance.summary", self._on_performance_summary)
+        # Phase 4 — equity curve / drawdown / risk (§9).
+        self._server.register("performance.equity_curve", self._on_equity_curve)
+        self._server.register("performance.drawdown_curve", self._on_drawdown_curve)
+        self._server.register("risk.summary", self._on_risk_summary)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -132,6 +136,26 @@ class SupervisorApp:
         if not profile:
             raise ValueError("profile param required")
         return self._accounts.performance_summary(profile)
+
+    def _on_equity_curve(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        limit = int(request.params.get("limit", 500))
+        if not profile:
+            raise ValueError("profile param required")
+        return {"curve": self._accounts.equity_curve(profile, limit=limit)}
+
+    def _on_drawdown_curve(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        limit = int(request.params.get("limit", 500))
+        if not profile:
+            raise ValueError("profile param required")
+        return {"curve": self._accounts.drawdown_curve(profile, limit=limit)}
+
+    def _on_risk_summary(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return self._accounts.risk_summary(profile)
 
     # ------------------------------------------------------------------ #
     # Run

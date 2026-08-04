@@ -4,6 +4,7 @@ import { onEvent, request, IpcError } from "./ipc/bridge";
 import { Handshake, Health, LogTail } from "./ipc/types";
 import { ProfilesPage } from "./pages/profiles";
 import { AccountTrackingPage } from "./pages/account-tracking";
+import { PerformancePage } from "./pages/performance";
 
 // --------------------------------------------------------------------- //
 // Phase 1/2 shell — Status + Profiles pages (§9).
@@ -61,6 +62,9 @@ export function App() {
             <NavLink to="/accounts" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
               Accounts
             </NavLink>
+            <NavLink to="/performance" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+              Performance
+            </NavLink>
           </nav>
           <span className="tag">Tauri + React + oak-core</span>
         </header>
@@ -68,6 +72,7 @@ export function App() {
         <Routes>
           <Route path="/profiles" element={<ProfilesPage />} />
           <Route path="/accounts" element={<AccountTrackingPage />} />
+          <Route path="/performance" element={<PerformancePage />} />
           <Route
             path="/"
             element={

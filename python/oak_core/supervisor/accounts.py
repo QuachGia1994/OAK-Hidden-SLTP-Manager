@@ -167,3 +167,70 @@ class AccountQueries:
             "available": True,
             **{k: perf.get(k) for k in keys},
         }
+
+    def equity_curve(self, profile_name: str, limit: int = 500) -> list:
+        """Equity samples as a lightweight curve (time, equity) for charts."""
+        uid = self._uid_for_profile(profile_name)
+        account_id = self._account_id(uid) if uid else None
+        if not account_id:
+            return []
+        samples = self._get_store().list_equity_samples(account_id=account_id, limit=limit)
+        # list_equity_samples returns DESC — reverse to chronological.
+        result = []
+        for s in reversed(samples):
+            result.append({
+                "t": s.get("sampled_at_utc"),
+                "equity": s.get("equity"),
+                "balance": s.get("balance"),
+            })
+        return result
+
+    def drawdown_curve(self, profile_name: str, limit: int = 500) -> list:
+        """Drawdown (peak-to-current) per equity sample, chronological."""
+        uid = self._uid_for_profile(profile_name)
+        account_id = self._account_id(uid) if uid else None
+        if not account_id:
+            return []
+        samples = self._get_store().list_equity_samples(account_id=account_id, limit=limit)
+        peak = None
+        result = []
+        for s in reversed(samples):
+            equity = s.get("equity")
+            if equity is None:
+                continue
+            if peak is None or equity > peak:
+                peak = equity
+            dd = (peak - equity) if peak else 0.0
+            result.append({
+                "t": s.get("sampled_at_utc"),
+                "drawdown": dd,
+                "equity": equity,
+                "peak": peak,
+            })
+        return result
+
+    def risk_summary(self, profile_name: str) -> dict:
+        """Risk metrics from the calculator + open positions."""
+        uid = self._uid_for_profile(profile_name)
+        if not uid:
+            return {"profile": profile_name, "available": False}
+        _ensure_imports()
+        from services.performance_calculator import PerformanceCalculator
+        perf = PerformanceCalculator(self._get_store()).compute(uid)
+        positions = self.positions_list(profile_name)
+        exposure = {}
+        for p in positions:
+            sym = p.get("symbol", "")
+            exposure[sym] = exposure.get(sym, 0.0) + (p.get("volume") or 0.0)
+        return {
+            "profile": profile_name,
+            "available": True,
+            "exposure_by_symbol": exposure,
+            "exposure_by_direction": perf.get("exposure_by_direction", {"BUY": 0.0, "SELL": 0.0}),
+            "max_consecutive_wins": perf.get("max_consecutive_wins", 0),
+            "max_consecutive_losses": perf.get("max_consecutive_losses", 0),
+            "max_balance_drawdown": perf.get("max_balance_drawdown"),
+            "max_equity_drawdown": perf.get("max_equity_drawdown"),
+            "recovery_factor": perf.get("recovery_factor"),
+            "open_position_count": len(positions),
+        }

@@ -165,3 +165,26 @@ export interface PerformanceSummary {
   total_swap?: number | null;
   total_fees?: number | null;
 }
+
+/** One equity/drawdown curve point (Phase 4). */
+export interface CurvePoint {
+  t: string | null;
+  equity?: number | null;
+  balance?: number | null;
+  drawdown?: number | null;
+  peak?: number | null;
+}
+
+/** risk.summary result (Phase 4). */
+export interface RiskSummary {
+  profile: string;
+  available: boolean;
+  exposure_by_symbol: Record<string, number>;
+  exposure_by_direction: { BUY: number; SELL: number };
+  max_consecutive_wins: number;
+  max_consecutive_losses: number;
+  max_balance_drawdown: number | null;
+  max_equity_drawdown: number | null;
+  recovery_factor: number | null;
+  open_position_count: number;
+}

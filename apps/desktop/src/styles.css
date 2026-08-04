@@ -123,3 +123,11 @@ body {
   background: var(--panel); border: 1px solid var(--border); border-radius: 5px;
   padding: 3px 8px; color: var(--fg);
 }
+
+/* ---- performance / risk ---- */
+.sparkline { width: 100%; height: auto; display: block; }
+.exposure { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.exp-chip {
+  border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px;
+  font-size: 12px; background: var(--panel);
+}

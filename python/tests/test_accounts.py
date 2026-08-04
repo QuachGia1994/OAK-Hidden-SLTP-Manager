@@ -39,7 +39,7 @@ def seed_store(db_path: str) -> int:
     })
     store.upsert_position(account_id, {
         "position_id": "5001", "position_ticket": "5001",
-        "symbol": "XAUUSD", "direction": "BUY", "volume": 0.10,
+        "symbol": "XAUUSD", "direction": "BUY", "initial_volume": 0.10,
         "open_price": 2500.0, "open_time_utc": "2026-08-03T20:00:00+00:00",
         "source_type": "LIVE", "public_trade_id": "pub-5001",
     })
@@ -139,6 +139,55 @@ class TestPerformanceSummary(AccountQueriesTestCase):
 
     def test_performance_unknown_profile(self):
         result = self.queries.performance_summary("Ghost")
+        self.assertFalse(result["available"])
+
+
+class TestPhase4CurvesAndRisk(AccountQueriesTestCase):
+    def seed_extra_samples(self):
+        store = self.store
+        # Hours 00, 01, 02, 04 — 03 already exists from seed_store (10100).
+        for idx, equity in enumerate([10000.0, 10500.0, 9800.0, 10200.0]):
+            hour = [0, 1, 2, 4][idx]
+            store.upsert_equity_sample(self.account_id, {
+                "sampled_at_utc": f"2026-08-04T{hour:02d}:00:00+00:00",
+                "sampled_at_broker": f"2026-08-04T{hour:02d}:00:00",
+                "balance": equity, "equity": equity, "margin": 500.0,
+                "free_margin": equity - 500.0, "margin_level": 2000.0,
+                "open_profit": 0.0,
+            })
+
+    def test_equity_curve_chronological(self):
+        self.seed_extra_samples()
+        curve = self.queries.equity_curve("Vantage", limit=100)
+        # 5 samples: 10000, 10500, 9800, 10100(seed 03:00), 10200.
+        self.assertEqual(len(curve), 5)
+        self.assertEqual(curve[0]["equity"], 10000.0)
+        self.assertEqual(curve[-1]["equity"], 10200.0)
+        self.assertEqual(curve[1]["equity"], 10500.0)
+
+    def test_drawdown_curve_peak_logic(self):
+        self.seed_extra_samples()
+        curve = self.queries.drawdown_curve("Vantage", limit=100)
+        # 10000 -> peak 10000 dd 0; 10500 -> peak 10500 dd 0;
+        # 9800 -> peak 10500 dd 700; 10100 -> dd 400; 10200 -> dd 300.
+        dds = [c["drawdown"] for c in curve]
+        self.assertEqual(dds[0], 0.0)
+        self.assertEqual(dds[1], 0.0)
+        self.assertAlmostEqual(dds[2], 700.0)
+        self.assertAlmostEqual(dds[-1], 300.0)
+
+    def test_risk_summary_exposure(self):
+        self.seed_extra_samples()
+        result = self.queries.risk_summary("Vantage")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["exposure_by_symbol"], {"XAUUSD": 0.10})
+        self.assertEqual(result["open_position_count"], 1)
+        self.assertIn("max_equity_drawdown", result)
+        # Direction exposure BUY=0.10 (our seeded position is BUY).
+        self.assertAlmostEqual(result["exposure_by_direction"].get("BUY", 0.0), 0.10)
+
+    def test_risk_unknown_profile(self):
+        result = self.queries.risk_summary("Ghost")
         self.assertFalse(result["available"])
 
 
