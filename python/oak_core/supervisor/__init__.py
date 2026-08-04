@@ -11,6 +11,7 @@ from ..ipc.server import IpcServer
 from ..version import APP_NAME, APP_VERSION, PROTOCOL_VERSION
 from .profiles import ProfileManager
 from .accounts import AccountQueries
+from . import settings as settings_module
 
 
 class SupervisorApp:
@@ -52,6 +53,10 @@ class SupervisorApp:
         self._server.register("hidden_sltp.update", self._on_hidden_sltp_update)
         self._server.register("copy.get", self._on_copy_get)
         self._server.register("copy.update", self._on_copy_update)
+        # Phase 6 — settings + services (§9).
+        self._server.register("settings.get", self._on_settings_get)
+        self._server.register("settings.update", self._on_settings_update)
+        self._server.register("services.list", self._on_services_list)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -190,6 +195,19 @@ class SupervisorApp:
         if not profile:
             raise ValueError("profile param required")
         return self._profiles.update_copy(profile, updates)
+
+    # ------------------------------------------------------------------ #
+    # Phase 6 — settings + services
+    # ------------------------------------------------------------------ #
+    def _on_settings_get(self, request) -> dict:
+        return settings_module.public_settings()
+
+    def _on_settings_update(self, request) -> dict:
+        updates = request.params.get("updates") or {}
+        return settings_module.update_settings(updates)
+
+    def _on_services_list(self, request) -> dict:
+        return {"services": settings_module.services_list()}
 
     # ------------------------------------------------------------------ #
     # Run

@@ -6,6 +6,7 @@ import { ProfilesPage } from "./pages/profiles";
 import { AccountTrackingPage } from "./pages/account-tracking";
 import { PerformancePage } from "./pages/performance";
 import { HiddenSltpCopyPage } from "./pages/hidden-sltp-copy";
+import { SettingsPage } from "./pages/settings";
 
 // --------------------------------------------------------------------- //
 // Phase 1/2 shell — Status + Profiles pages (§9).
@@ -69,6 +70,9 @@ export function App() {
             <NavLink to="/sltp-copy" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
               SL/TP · Copy
             </NavLink>
+            <NavLink to="/settings" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+              Settings
+            </NavLink>
           </nav>
           <span className="tag">Tauri + React + oak-core</span>
         </header>
@@ -78,6 +82,7 @@ export function App() {
           <Route path="/accounts" element={<AccountTrackingPage />} />
           <Route path="/performance" element={<PerformancePage />} />
           <Route path="/sltp-copy" element={<HiddenSltpCopyPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
           <Route
             path="/"
             element={

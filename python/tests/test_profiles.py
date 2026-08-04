@@ -283,5 +283,60 @@ class TestSupervisorProfileHandlers(unittest.TestCase):
             self.assertTrue(responses[0]["result"]["ack"])
 
 
+class TestPhase6Settings(unittest.TestCase):
+    """Phase 6 — settings get/update (whitelisted) + services list."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="oak-phase6-")
+        base = Path(self._tmpdir.name)
+        self.settings_file = base / "settings.json"
+        self.settings_file.write_text(json.dumps({
+            "lang": "VN", "theme": "dark", "ghost_mode_active": True,
+            "ntfy_topic": "secret_topic_xyz", "stock_client_id": "oak-scanner",
+        }), encoding="utf-8")
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _patch_settings_path(self):
+        return patch("oak_core.supervisor.settings._settings_path",
+                     return_value=self.settings_file)
+
+    def _patch_profiles_path(self):
+        return patch("oak_core.supervisor.settings.profiles_path",
+                     return_value=self.settings_file.parent / "profiles.json")
+
+    def test_settings_get_masks_secret_topic(self):
+        from oak_core.supervisor.settings import public_settings
+        with self._patch_settings_path():
+            result = public_settings()
+        self.assertEqual(result["lang"], "VN")
+        self.assertEqual(result["theme"], "dark")
+        # ntfy_topic is a presence flag, never the value.
+        self.assertTrue(result["ntfy_topic"])
+        blob = json.dumps(result)
+        self.assertNotIn("secret_topic_xyz", blob)
+
+    def test_settings_update_whitelisted(self):
+        from oak_core.supervisor.settings import update_settings
+        with self._patch_settings_path():
+            result = update_settings({"lang": "EN", "ntfy_topic": "LEAKED", "hack": 1})
+        self.assertEqual(result["lang"], "EN")
+        blob = json.dumps(result)
+        self.assertNotIn("LEAKED", blob)
+        self.assertNotIn("hack", blob)
+
+    def test_services_list(self):
+        from oak_core.supervisor.settings import services_list
+        with self._patch_settings_path(), self._patch_profiles_path():
+            services = services_list()
+        keys = [s["key"] for s in services]
+        self.assertIn("telegram", keys)
+        self.assertIn("screener", keys)
+        self.assertIn("signal_bot", keys)
+        telegram = next(s for s in services if s["key"] == "telegram")
+        self.assertTrue(telegram["configured"])
+
+
 if __name__ == "__main__":
     unittest.main()
