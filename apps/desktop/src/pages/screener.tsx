@@ -180,15 +180,15 @@ export function ScreenerPage() {
       {eodActive && (
         <div className="progress-row">
           <div className="progress"><div className="progress-fill" style={{ width: `${eodProgress?.percent ?? 0}%` }} /></div>
-          <span className="muted small">
-            {eodProgress ? t.screenerEodProgress({ pct: eodProgress.percent, cur: eodProgress.current, total: eodProgress.total }) : t.screenerLoadingEod}
+          <span className="mono small">
+            {t.screenerEodProgress({ pct: eodProgress?.percent ?? 0, cur: eodProgress?.current ?? 0, total: eodProgress?.total ?? 0 })}
           </span>
         </div>
       )}
       {busy === "filter" && (
         <div className="progress-row">
           <div className="progress indeterminate"><div className="progress-fill" /></div>
-          <span className="muted small">{t.screenerRunningFilter}</span>
+          <span className="mono small">{t.screenerRunningFilter}</span>
         </div>
       )}
 

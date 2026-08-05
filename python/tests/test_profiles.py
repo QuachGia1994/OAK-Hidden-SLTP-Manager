@@ -25,6 +25,7 @@ from oak_core.supervisor.profiles import (  # noqa: E402
     read_copy,
     update_sltp,
     update_copy,
+    add_profile,
 )
 from oak_core.supervisor import SupervisorApp  # noqa: E402
 from oak_core.ipc.server import IpcServer  # noqa: E402
@@ -336,6 +337,129 @@ class TestPhase6Settings(unittest.TestCase):
         self.assertIn("signal_bot", keys)
         telegram = next(s for s in services if s["key"] == "telegram")
         self.assertTrue(telegram["configured"])
+
+
+class TestAddProfile(unittest.TestCase):
+    """Tests for the add_profile function."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="oak-addprof-")
+        # Start with empty profiles.json
+        make_profiles_file(self._tmpdir.name, {})
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _patch_data_root(self):
+        return patch("oak_core.supervisor.profiles._data_root",
+                     return_value=Path(self._tmpdir.name))
+
+    def test_add_profile_creates_and_persists(self):
+        with self._patch_data_root():
+            result = add_profile("NewBroker", path="C:/mt5/terminal64.exe", magic=88001)
+        self.assertEqual(result["profile_name"], "NewBroker")
+        self.assertEqual(result["path"], "C:/mt5/terminal64.exe")
+        self.assertEqual(result["magic"], 88001)
+        self.assertEqual(result["status"], "stopped")
+        self.assertIsNone(result["pid"])
+        self.assertTrue(result["exists"])
+        # Sensitive fields not present
+        self.assertNotIn("tele_token", result)
+        self.assertNotIn("password", result)
+        # Persisted to disk
+        with self._patch_data_root():
+            disk = load_profiles()
+        self.assertIn("NewBroker", disk)
+        self.assertEqual(disk["NewBroker"]["path"], "C:/mt5/terminal64.exe")
+        self.assertEqual(disk["NewBroker"]["magic"], 88001)
+        # No sensitive keys in the stored config either
+        self.assertNotIn("tele_token", disk["NewBroker"])
+
+    def test_add_profile_requires_name(self):
+        with self._patch_data_root():
+            with self.assertRaises(ValueError):
+                add_profile("  ")
+
+    def test_add_profile_duplicate_raises(self):
+        with self._patch_data_root():
+            add_profile("Vantage", path="C:/mt5/terminal64.exe")
+            with self.assertRaises(ValueError):
+                add_profile("Vantage")
+
+
+class TestStartProfileFrozenMode(unittest.TestCase):
+    """Tests for start_profile in frozen vs dev mode."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="oak-frozen-")
+        self.profiles_file = make_profiles_file(self._tmpdir.name, {
+            "Vantage": {"path": "C:/mt5/terminal64.exe", "server": "Vantage-Server", "login_id": 1},
+        })
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _patch_profiles(self):
+        return patch("oak_core.supervisor.profiles.profiles_path",
+                     return_value=Path(self.profiles_file))
+
+    def test_start_profile_frozen_uses_worker_subcommand(self):
+        mgr = ProfileManager(python_executable=sys.executable)
+        fake_proc = type("FakeProc", (), {"pid": 123, "poll": lambda self: None,
+                                           "stderr": iter([])})()
+        with self._patch_profiles(), \
+             patch("oak_core.supervisor.profiles.subprocess.Popen", return_value=fake_proc) as fake_popen, \
+             patch.object(sys, "frozen", True, create=True):
+            result = mgr.start_profile("Vantage")
+        self.assertTrue(result["started"])
+        self.assertEqual(result["pid"], 123)
+        cmd = fake_popen.call_args.args[0]
+        self.assertEqual(cmd[1], "profile-worker")
+        self.assertIn("Vantage", cmd)
+        self.assertIsNone(fake_popen.call_args.kwargs.get("cwd"))
+
+    def test_start_profile_dev_mode_uses_m_flag(self):
+        mgr = ProfileManager(python_executable=sys.executable)
+        fake_proc = type("FakeProc", (), {"pid": 456, "poll": lambda self: None,
+                                           "stderr": iter([])})()
+        with self._patch_profiles(), \
+             patch("oak_core.supervisor.profiles.subprocess.Popen", return_value=fake_proc) as fake_popen, \
+             patch.object(sys, "frozen", False, create=True):
+            result = mgr.start_profile("Vantage")
+        self.assertTrue(result["started"])
+        cmd = fake_popen.call_args.args[0]
+        self.assertEqual(cmd[1:3], ["-m", "oak_core"])
+        cwd = fake_popen.call_args.kwargs.get("cwd")
+        self.assertIsNotNone(cwd)
+        self.assertTrue(cwd.endswith("python"))
+
+
+class TestWorkerLoadProfileDataRoot(unittest.TestCase):
+    """Tests for worker._load_profile honoring OAK_DATA_DIR."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="oak-worker-")
+        # profiles.json with Vantage
+        make_profiles_file(self._tmpdir.name, {
+            "Vantage": {"path": "C:/mt5/terminal64.exe", "login_id": 1},
+        })
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def test_worker_load_profile_uses_data_root(self):
+        from oak_core.worker import _load_profile
+        with patch.dict(os.environ, {"OAK_DATA_DIR": self._tmpdir.name}):
+            result = _load_profile("Vantage")
+        self.assertEqual(result["path"], "C:/mt5/terminal64.exe")
+        self.assertEqual(result["login_id"], 1)
+
+    def test_worker_load_profile_empty_dir_returns_empty(self):
+        from oak_core.worker import _load_profile
+        with tempfile.TemporaryDirectory(prefix="oak-empty-") as empty:
+            with patch.dict(os.environ, {"OAK_DATA_DIR": empty}):
+                result = _load_profile("Vantage")
+        self.assertEqual(result, {})
 
 
 if __name__ == "__main__":

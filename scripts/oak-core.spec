@@ -11,15 +11,18 @@ package dirs are collected as data + hidden imports.
 """
 import os
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all
 
 REPO_ROOT = Path(SPECPATH).parent  # SPECPATH = scripts/ -> repo root
 
 block_cipher = None
 
+_mt5_datas, _mt5_binaries, _mt5_hidden = collect_all("MetaTrader5")
+
 a = Analysis(
     [str(REPO_ROOT / "python" / "oak_core_launcher.py")],
     pathex=[str(REPO_ROOT / "python"), str(REPO_ROOT)],
-    binaries=[],
+    binaries=[] + _mt5_binaries,
     datas=[
         # Worker imports the repo-root packages (repositories/, services/).
         (str(REPO_ROOT / "repositories"), "repositories"),
@@ -28,7 +31,7 @@ a = Analysis(
         (str(REPO_ROOT / "secret_store.py"), "."),
         (str(REPO_ROOT / "oak_logger.py"), "."),
         (str(REPO_ROOT / "eod_collector"), "eod_collector"),
-    ],
+    ] + _mt5_datas,
     hiddenimports=[
         "repositories.trade_audit_store",
         "services.mt5_deal_reconciler",
@@ -53,7 +56,7 @@ a = Analysis(
         "eod_collector.sources.hnx",
         "eod_collector.sources.upcom",
         "eod_collector.sources.vps_market",
-    ],
+    ] + _mt5_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

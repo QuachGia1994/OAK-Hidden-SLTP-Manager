@@ -140,6 +140,27 @@ def update_copy(profile_name: str, updates: dict) -> dict:
     return read_copy(profile_name)
 
 
+def add_profile(profile_name: str, path: str = "", magic: int = -1) -> dict:
+    """Create a NEW profile in profiles.json (whitelisted fields only)."""
+    name = str(profile_name or "").strip()
+    if not name:
+        raise ValueError("profile_name required")
+    profiles = load_profiles()
+    if name in profiles:
+        raise ValueError(f"profile {name} already exists")
+    profiles[name] = {
+        "path": str(path or ""),
+        "mt5_portable": False,
+        "magic": int(magic) if magic not in (None, "") else -1,
+        "visible_sltp": False,
+        "sl": 0,
+        "tp": 0,
+        "copy_role": "None",
+    }
+    _atomic_write_profiles(profiles)
+    return public_profile(name, profiles[name]) | {"status": "stopped", "pid": None}
+
+
 class ProfileManager:
     """Owns profile-worker subprocesses started by the supervisor."""
 
@@ -191,6 +212,9 @@ class ProfileManager:
     def update_copy(self, profile_name: str, updates: dict) -> dict:
         return update_copy(profile_name, updates)
 
+    def add_profile(self, profile_name: str, path: str = "", magic: int = -1) -> dict:
+        return add_profile(profile_name, path=path, magic=magic)
+
     # ------------------------------------------------------------------ #
     # Lifecycle
     # ------------------------------------------------------------------ #
@@ -203,10 +227,16 @@ class ProfileManager:
             if existing is not None and existing.poll() is None:
                 return {"profile": profile_name, "pid": existing.pid, "started": False, "reason": "already running"}
 
-        cmd = [self._python, "-m", "oak_core", "profile-worker", "--profile", profile_name]
+        if getattr(sys, "frozen", False):
+            cmd = [self._python, "profile-worker", "--profile", profile_name]
+            cwd = None
+        else:
+            cmd = [self._python, "-m", "oak_core", "profile-worker", "--profile", profile_name]
+            cwd = str(Path(__file__).resolve().parents[3] / "python")
+
         proc = subprocess.Popen(
             cmd,
-            cwd=str(Path(__file__).resolve().parents[3] / "python"),
+            cwd=cwd,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -215,6 +245,12 @@ class ProfileManager:
         )
         with self._lock:
             self._workers[profile_name] = proc
+
+        def _drain(stream):
+            for line in stream:
+                self._log(f"[worker:{profile_name}] {line.rstrip()}")
+
+        threading.Thread(target=_drain, args=(proc.stderr,), daemon=True, name=f"wlog-{profile_name}").start()
         self._log(f"[profiles] started worker for {profile_name} (pid={proc.pid})")
         return {"profile": profile_name, "pid": proc.pid, "started": True}
 

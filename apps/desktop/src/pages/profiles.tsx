@@ -14,6 +14,13 @@ export function ProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // add-profile form
+  const [newName, setNewName] = useState("");
+  const [newPath, setNewPath] = useState("");
+  const [newMagic, setNewMagic] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,6 +70,36 @@ export function ProfilesPage() {
     }
   };
 
+  const addProfile = async () => {
+    if (!newName.trim()) {
+      setError(t.profileNameRequired);
+      return;
+    }
+    setAdding(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await request("profile.add", {
+        profile_name: newName.trim(),
+        path: newPath.trim(),
+        magic: newMagic ? Number(newMagic) : -1,
+      });
+      setNotice(t.profileAdded);
+      setNewName("");
+      setNewPath("");
+      setNewMagic("");
+      await refresh();
+    } catch (e) {
+      if (e instanceof IpcError && /already exists/i.test(e.message)) {
+        setError(t.profileDuplicate);
+      } else {
+        setError(t.profileAddError + " " + String(e instanceof IpcError ? e.message : e));
+      }
+    } finally {
+      setAdding(false);
+    }
+  };
+
   return (
     <div className="content">
       <h1>{t.profilesTitle}</h1>
@@ -73,6 +110,30 @@ export function ProfilesPage() {
           <p>{error}</p>
         </section>
       )}
+      {notice && <p className="hint">{notice}</p>}
+
+      <section className="panel">
+        <h2>{t.addProfile}</h2>
+        <div className="field-grid">
+          <label className="field">
+            <span>{t.profileName}</span>
+            <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>{t.terminalPath}</span>
+            <input type="text" value={newPath} onChange={(e) => setNewPath(e.target.value)} />
+          </label>
+          <label className="field">
+            <span>{t.magic}</span>
+            <input type="text" value={newMagic} onChange={(e) => setNewMagic(e.target.value)} />
+          </label>
+        </div>
+        <div className="actions">
+          <button className="btn primary" onClick={() => void addProfile()} disabled={adding}>
+            {adding ? "…" : t.createProfile}
+          </button>
+        </div>
+      </section>
 
       {!loading && profiles.length === 0 && (
         <p className="muted">{t.noProfiles}</p>

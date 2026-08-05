@@ -10,6 +10,7 @@ Each worker:
 No candle API, no signal engine — account audit only.
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -27,10 +28,23 @@ def _repo_root() -> Path:
 
 
 def _load_profile(profile_name: str) -> dict:
-    try:
-        data = json.loads((_repo_root() / "profiles.json").read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
+    # Resolve profiles.json: OAK_DATA_DIR first, then cwd, then repo root.
+    env_dir = os.environ.get("OAK_DATA_DIR", "")
+    if env_dir:
+        candidates = [Path(env_dir) / "profiles.json"]
+    else:
+        candidates = []
+        cwd_path = Path.cwd() / "profiles.json"
+        if cwd_path.is_file():
+            candidates.append(cwd_path)
+        candidates.append(_repo_root() / "profiles.json")
+    data = {}
+    for path in candidates:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            break
+        except (OSError, json.JSONDecodeError):
+            continue
     return data.get(profile_name, {}) if isinstance(data, dict) else {}
 
 

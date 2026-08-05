@@ -79,6 +79,15 @@ export interface LocaleText {
   yes: string;
   no: string;
   loadingProfiles: string;
+  // add profile
+  addProfile: string;
+  profileName: string;
+  terminalPath: string;
+  createProfile: string;
+  profileAdded: string;
+  profileNameRequired: string;
+  profileDuplicate: string;
+  profileAddError: string;
 }
 
 export const LOCALES: Record<Locale, LocaleText> = {
@@ -161,6 +170,14 @@ export const LOCALES: Record<Locale, LocaleText> = {
     yes: "yes",
     no: "no",
     loadingProfiles: "Loading profiles\u2026",
+    addProfile: "Add Profile",
+    profileName: "Profile name",
+    terminalPath: "Terminal path",
+    createProfile: "Create profile",
+    profileAdded: "Profile added.",
+    profileNameRequired: "Profile name required.",
+    profileDuplicate: "This profile already exists.",
+    profileAddError: "Cannot add profile:",
   },
   VN: {
     navStatus: "Trạng thái",
@@ -241,5 +258,13 @@ export const LOCALES: Record<Locale, LocaleText> = {
     yes: "có",
     no: "không",
     loadingProfiles: "Đang tải hồ sơ…",
+    addProfile: "Thêm hồ sơ",
+    profileName: "Tên hồ sơ",
+    terminalPath: "Đường dẫn terminal",
+    createProfile: "Tạo hồ sơ",
+    profileAdded: "Đã thêm hồ sơ.",
+    profileNameRequired: "Cần nhập tên hồ sơ.",
+    profileDuplicate: "Hồ sơ này đã tồn tại.",
+    profileAddError: "Không thể thêm hồ sơ:",
   },
 };

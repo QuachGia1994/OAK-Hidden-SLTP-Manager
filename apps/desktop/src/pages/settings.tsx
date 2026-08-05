@@ -39,6 +39,7 @@ export function SettingsPage() {
     error: "ERROR",
     saved: vn ? "Đã lưu (chỉ các trường cho phép)." : "Saved (whitelisted fields only).",
     noServices: vn ? "Chưa có dịch vụ nào." : "No services reported.",
+    serviceHint: vn ? "Các dịch vụ chạy trong ứng dụng OAK Manager chính — shell chỉ hiển thị trạng thái cấu hình." : "These services run inside the main OAK Manager app — this shell only shows their config status.",
   };
   const [settings, setSettings] = useState<SettingsData>({});
   const [services, setServices] = useState<ServiceCard[]>([]);
@@ -143,6 +144,7 @@ export function SettingsPage() {
 
       <section className="panel">
         <h2>{L.services}</h2>
+        <p className="muted small">{L.serviceHint}</p>
         <div className="svc-list">
           {services.map((s) => (
             <div key={s.key} className="svc-row">

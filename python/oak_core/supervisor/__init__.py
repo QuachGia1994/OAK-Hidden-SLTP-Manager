@@ -39,6 +39,7 @@ class SupervisorApp:
         self._server.register("profile.start", self._on_profile_start)
         self._server.register("profile.stop", self._on_profile_stop)
         self._server.register("profile.status", self._on_profile_status)
+        self._server.register("profile.add", self._on_profile_add)
         # Phase 3 — account audit queries (§9).
         self._server.register("account.get", self._on_account_get)
         self._server.register("positions.list", self._on_positions_list)
@@ -123,6 +124,14 @@ class SupervisorApp:
         if not name:
             raise ValueError("profile param required")
         return self._profiles.profile_status(name)
+
+    def _on_profile_add(self, request) -> dict:
+        name = str(request.params.get("profile_name") or "").strip()
+        if not name:
+            raise ValueError("profile_name param required")
+        path = str(request.params.get("path") or "")
+        magic = request.params.get("magic", -1)
+        return self._profiles.add_profile(name, path=path, magic=magic)
 
     # ------------------------------------------------------------------ #
     # Phase 3 — account audit handlers
