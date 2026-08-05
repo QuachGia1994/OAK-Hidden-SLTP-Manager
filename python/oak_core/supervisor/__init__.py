@@ -11,6 +11,7 @@ from ..ipc.server import IpcServer
 from ..version import APP_NAME, APP_VERSION, PROTOCOL_VERSION
 from .profiles import ProfileManager
 from .accounts import AccountQueries
+from .services import ServiceManager
 from . import settings as settings_module
 from . import orders as orders_module
 
@@ -20,13 +21,15 @@ class SupervisorApp:
 
     def __init__(self, *, server: IpcServer | None = None, started_at=None,
                  profile_manager: ProfileManager | None = None,
-                 account_queries: AccountQueries | None = None):
+                 account_queries: AccountQueries | None = None,
+                 services: "ServiceManager" | None = None):
         self._server = server if server is not None else IpcServer()
         from datetime import datetime, timezone
         self._started_at = started_at or datetime.now(timezone.utc).isoformat()
         self._healthy = True
         self._profiles = profile_manager if profile_manager is not None else ProfileManager()
         self._accounts = account_queries if account_queries is not None else AccountQueries(emit_event=self._server.emit_event)
+        self._services = services if services is not None else ServiceManager(emit_event=self._server.emit_event)
         self._register()
 
     def _register(self) -> None:
@@ -59,6 +62,9 @@ class SupervisorApp:
         self._server.register("settings.get", self._on_settings_get)
         self._server.register("settings.update", self._on_settings_update)
         self._server.register("services.list", self._on_services_list)
+        self._server.register("service.start", self._on_service_start)
+        self._server.register("service.stop", self._on_service_stop)
+        self._server.register("service.status", self._on_service_status)
         # Phase 6 — stock screener (local EOD).
         self._server.register("screener.list", self._on_screener_list)
         self._server.register("screener.update_eod", self._on_screener_update_eod)
@@ -94,6 +100,7 @@ class SupervisorApp:
     def _on_shutdown(self, request) -> dict:
         self._healthy = False
         self._profiles.stop_all(timeout_seconds=5.0)
+        self._services.stop_all(timeout_seconds=5.0)
         self._server.request_shutdown()
         return {"ack": True}
 
@@ -228,7 +235,21 @@ class SupervisorApp:
         return settings_module.update_settings(updates)
 
     def _on_services_list(self, request) -> dict:
-        return {"services": settings_module.services_list()}
+        return self._services.list_services()
+
+    def _on_service_start(self, request) -> dict:
+        service = str(request.params.get("service") or "")
+        profile = str(request.params.get("profile") or "")
+        confirm = bool(request.params.get("confirm", False))
+        return self._services.start_service(service, profile=profile, confirm=confirm)
+
+    def _on_service_stop(self, request) -> dict:
+        service = str(request.params.get("service") or "")
+        return self._services.stop_service(service)
+
+    def _on_service_status(self, request) -> dict:
+        service = str(request.params.get("service") or "")
+        return self._services.service_status(service)
 
     def _on_screener_list(self, request) -> dict:
         limit = int(request.params.get("limit", 10))

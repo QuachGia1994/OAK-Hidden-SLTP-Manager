@@ -10,6 +10,7 @@ import { SettingsPage } from "./pages/settings";
 import { ScreenerPage } from "./pages/screener";
 import { OrdersPage } from "./pages/orders";
 import { LocaleProvider, ThemeProvider, useLocale, useTheme } from "./contexts";
+import { EodProvider } from "./contexts/eod";
 
 // Format an ISO timestamp into a readable locale datetime.
 function fmtIso(v: string, locale: "EN" | "VN"): string {
@@ -171,19 +172,21 @@ export function App() {
     <LocaleProvider>
       <ThemeProvider>
         <HashRouter>
-          <div className="shell">
-            <TopBar />
-            <Routes>
-              <Route path="/profiles" element={<ProfilesPage />} />
-              <Route path="/accounts" element={<AccountTrackingPage />} />
-              <Route path="/performance" element={<PerformancePage />} />
-              <Route path="/sltp-copy" element={<HiddenSltpCopyPage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/screener" element={<ScreenerPage />} />
-              <Route path="/orders" element={<OrdersPage />} />
-              <Route path="/" element={<StatusPage />} />
-            </Routes>
-          </div>
+          <EodProvider>
+            <div className="shell">
+              <TopBar />
+              <Routes>
+                <Route path="/profiles" element={<ProfilesPage />} />
+                <Route path="/accounts" element={<AccountTrackingPage />} />
+                <Route path="/performance" element={<PerformancePage />} />
+                <Route path="/sltp-copy" element={<HiddenSltpCopyPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/screener" element={<ScreenerPage />} />
+                <Route path="/orders" element={<OrdersPage />} />
+                <Route path="/" element={<StatusPage />} />
+              </Routes>
+            </div>
+          </EodProvider>
         </HashRouter>
       </ThemeProvider>
     </LocaleProvider>

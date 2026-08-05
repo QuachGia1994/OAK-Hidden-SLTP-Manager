@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { request, onEvent, IpcError } from "../ipc/bridge";
+import { request, IpcError } from "../ipc/bridge";
 import { useLocale } from "../contexts";
+import { useEod } from "../contexts/eod";
 
 /**
  * Phase 6 — Stock Screener page (§9).
@@ -40,16 +41,18 @@ interface FilterResult {
 
 export function ScreenerPage() {
   const { t } = useLocale();
+  const { snapshot, start, reset } = useEod();
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<"eod" | "filter" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-  const [eodProgress, setEodProgress] = useState<{ percent: number; current: number; total: number } | null>(null);
-  const [eodActive, setEodActive] = useState(false);
   const tRef = useRef(t);
   tRef.current = t;
+
+  // Guard to consume eod.done only once per event.
+  const consumed = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -68,44 +71,32 @@ export function ScreenerPage() {
     void load();
   }, [load]);
 
-  // Subscribe to sidecar events for EOD progress and completion.
+  // Consume eod.done exactly once per completion event.
   useEffect(() => {
-    let unsub: (() => void) | undefined;
-    (async () => {
-      unsub = await onEvent((ev) => {
-        if (ev.event === "eod.progress") {
-          const d = ev.data as { percent: number; current: number; total: number };
-          setEodProgress(d);
-        } else if (ev.event === "eod.done") {
-          const d = ev.data as { ok: boolean; stderr?: string; stdout?: string };
-          setEodActive(false);
-          setEodProgress(null);
-          if (d.ok) {
-            setInfo(tRef.current.screenerEodOk);
-          } else {
-            setInfo(tRef.current.screenerEodFailed + " " + (d.stderr || d.stdout || "").slice(-300));
-          }
-          void load();
-        }
-      });
-    })();
-    return () => {
-      if (unsub) unsub();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (snapshot.done && !consumed.current) {
+      consumed.current = true;
+      if (snapshot.ok) {
+        setInfo(tRef.current.screenerEodOk);
+      } else {
+        setInfo(tRef.current.screenerEodFailed + " " + (snapshot.message || "").slice(-300));
+      }
+      void load();
+    }
+    if (!snapshot.done) {
+      consumed.current = false;
+    }
+  }, [snapshot.done, snapshot.ok, snapshot.message, load]);
 
   const runEod = async () => {
     setBusy("eod");
-    setEodActive(true);
-    setEodProgress(null);
     setError(null);
     setInfo(null);
+    start();
     try {
       await request("screener.update_eod", { date: "" });
       // completion arrives via eod.done event
     } catch (e) {
-      setEodActive(false);
+      reset();
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
     } finally {
       setBusy(null);
@@ -161,10 +152,10 @@ export function ScreenerPage() {
       {loading && <p className="muted">{t.screenerLoadingData}</p>}
 
       <div className="profile-select">
-        <button className="btn primary" onClick={() => void runEod()} disabled={busy !== null}>
+        <button className="btn primary" onClick={() => void runEod()} disabled={busy !== null || snapshot.active}>
           {busy === "eod" ? t.screenerLoadingEod : t.screenerLoadEod}
         </button>
-        <button className="btn" onClick={() => void runFilter()} disabled={busy !== null}>
+        <button className="btn" onClick={() => void runFilter()} disabled={busy === "filter" || snapshot.active}>
           {busy === "filter" ? t.screenerRunningFilter : t.screenerRunFilter}
         </button>
         <input
@@ -177,11 +168,17 @@ export function ScreenerPage() {
         <span className="muted small">{t.screenerCount(shown.length)}</span>
       </div>
 
-      {eodActive && (
+      {snapshot.active && (
         <div className="progress-row">
-          <div className="progress"><div className="progress-fill" style={{ width: `${eodProgress?.percent ?? 0}%` }} /></div>
+          <div className={snapshot.percent === 0 && snapshot.current === 0 ? "progress indeterminate" : "progress"}>
+            {snapshot.percent === 0 && snapshot.current === 0 ? (
+              <div className="progress-fill" />
+            ) : (
+              <div className="progress-fill" style={{ width: `${snapshot.percent}%` }} />
+            )}
+          </div>
           <span className="mono small">
-            {t.screenerEodProgress({ pct: eodProgress?.percent ?? 0, cur: eodProgress?.current ?? 0, total: eodProgress?.total ?? 0 })}
+            {t.screenerEodProgress({ pct: snapshot.percent, cur: snapshot.current, total: snapshot.total })}
           </span>
         </div>
       )}

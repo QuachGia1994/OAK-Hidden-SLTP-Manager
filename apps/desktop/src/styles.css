@@ -90,7 +90,9 @@ body {
 .log {
   background: #0a0e13; border: 1px solid var(--border); border-radius: 8px;
   padding: 10px; font-size: 13px; max-height: 260px; overflow: auto; white-space: pre-wrap;
+  color: #f0f6fc;  /* force bright light text on dark background regardless of theme */
 }
+.log ::selection { background: var(--accent); color: #ffffff; }
 .muted { color: var(--muted); }
 .hint { font-size: 13px; color: var(--warn); }
 
