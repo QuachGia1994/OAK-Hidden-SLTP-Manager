@@ -1,5 +1,6 @@
 // -*- coding: utf-8 -*-
 import QtQuick 2.15
+import QmlApi 1.0
 
 Rectangle {
     id: sidebar
@@ -43,6 +44,17 @@ Rectangle {
 
     function sectionLabel(vn, en) {
         return Theme.lang === "VN" ? vn : en;
+    }
+
+    // ── Persist rail prefs to settings.json (parity with oak_qt_shell) ──
+    function cycleThemePersist() {
+        Theme.toggleTheme();
+        ShellApi.settings_update(JSON.stringify({theme: Theme.currentTheme}));
+    }
+
+    function setLangPersist(l) {
+        Theme.setLang(l);
+        ShellApi.settings_update(JSON.stringify({lang: Theme.lang}));
     }
 
     Column {
@@ -369,7 +381,7 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Theme.setLang("EN")
+                        onClicked: sidebar.setLangPersist("EN")
                     }
                 }
 
@@ -391,7 +403,7 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Theme.setLang("VN")
+                        onClicked: sidebar.setLangPersist("VN")
                     }
                 }
 
@@ -412,7 +424,7 @@ Rectangle {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: Theme.toggleTheme()
+                        onClicked: sidebar.cycleThemePersist()
                     }
                     objectName: "themeToggle"
                 }

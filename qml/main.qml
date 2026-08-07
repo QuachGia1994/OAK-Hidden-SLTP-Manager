@@ -14,6 +14,7 @@ Item {
 
     // ── Expose current theme for Python tests ──
     property string currentTheme: Theme.currentTheme
+    property string currentLang: Theme.lang
 
     // ── Background ──
     Rectangle {
@@ -29,6 +30,16 @@ Item {
 
     function getThemePython() {
         return Theme.currentTheme;
+    }
+
+    function toggleThemePersistPython() {
+        sidebar.cycleThemePersist();
+        return true;
+    }
+
+    function setLangPersistPython(l) {
+        sidebar.setLangPersist(l);
+        return true;
     }
 
     function clickNav(name) {
@@ -124,6 +135,15 @@ Item {
             if (comp) {
                 contentStack.replace(comp);
             }
+        }
+    }
+
+    // ── Apply persisted theme/lang from settings.json at boot ──
+    Component.onCompleted: {
+        var r = ShellApi.settings_get();
+        if (r && r.ok && r.result) {
+            if (r.result.theme) Theme.setTheme(r.result.theme);
+            if (r.result.lang === "VN" || r.result.lang === "EN") Theme.setLang(r.result.lang);
         }
     }
 }
