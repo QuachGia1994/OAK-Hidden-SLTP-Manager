@@ -191,11 +191,8 @@ class TestBootAndRender(_Base):
             f"sidebar pixel {sidebar_color} != surface {TOKENS[theme]['surface']} for theme {theme}",
         )
 
-        # Content area: verify initial page is VN30 and bottom pixel is windowBg.
-        # Use (900, 750) — bottom of content area, far below any header — which
-        # stays windowBg for both the current placeholder and the future VN30 page
-        # (its content column is top-aligned with margins, leaving the bottom row
-        # as windowBg).
+        # Content area: verify initial page is VN30 and bottom pixel is surface.
+        # VN30's stocks panel now fills the page, so (900,750) is inside the panel.
         stack = find_qml_object(self.root, "contentStack")
         self.assertIsNotNone(stack, "contentStack not found")
         current_obj = stack.property("currentItem")
@@ -205,8 +202,8 @@ class TestBootAndRender(_Base):
 
         content_color = sample_pixel(img, 900, 750)
         self.assertTrue(
-            pixel_close(content_color, TOKENS[theme]["windowBg"]),
-            f"content pixel {content_color} != windowBg {TOKENS[theme]['windowBg']} for theme {theme}",
+            pixel_close(content_color, TOKENS[theme]["surface"]),
+            f"content pixel {content_color} != surface {TOKENS[theme]['surface']} for theme {theme}",
         )
 
 
@@ -366,6 +363,52 @@ class TestStackClipping(_Base):
             current.property("objectName"), "page_Dashboard",
             f"Expected page_Dashboard after transition, got {current.property('objectName')}",
         )
+
+
+class TestPaletteColorsAreQmlColors(_Base):
+    """test_palette_colors_are_qml_colors"""
+
+    def test_all_palette_tokens_have_numeric_r(self):
+        """Every palette token must have a numeric .r in [0, 1] after
+        switching to each theme, confirming colorFromHex wrapping.
+
+        Uses the VN30 page's `pal` property (which calls
+        DesignTokens.palette(Theme.currentTheme)) to probe color values.
+        """
+        TOKEN_KEYS = [
+            "windowBg", "surface", "border", "text", "muted", "accent",
+            "divider", "navActiveBg", "navActiveLeft", "inputBg",
+        ]
+        THEMES = ["dark", "light", "deep-sea", "contrast"]
+
+        # Navigate to VN30 (initial page)
+        qml_eval(self.widget, self.root, 'clickNav("VN30")')
+        self.app.processEvents()
+        for _ in range(4):
+            self.widget.grab()
+            self.app.processEvents()
+        page = find_qml_object(self.root, "page_VN30")
+        self.assertIsNotNone(page, "page_VN30 not found for palette test")
+
+        for theme_name in THEMES:
+            set_theme(self.widget, self.root, theme_name)
+            # After set_theme, the page's pal binding re-evaluates
+            for token_key in TOKEN_KEYS:
+                with self.subTest(theme=theme_name, token=token_key):
+                    r_val = qml_eval(
+                        self.widget, page,
+                        f"pal.{token_key}.r"
+                    )
+                    # qml_eval already unwraps tuple, but just in case
+                    if isinstance(r_val, tuple):
+                        r_val = r_val[0]
+                    self.assertIsNotNone(
+                        r_val,
+                        f"{theme_name}.{token_key}.r is None/undefined",
+                    )
+                    r_float = float(r_val)
+                    self.assertGreaterEqual(r_float, 0.0, f"{theme_name}.{token_key}.r < 0")
+                    self.assertLessEqual(r_float, 1.0, f"{theme_name}.{token_key}.r > 1")
 
 
 if __name__ == "__main__":

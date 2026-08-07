@@ -481,12 +481,13 @@ Rectangle {
                     }
                     Flickable {
                         anchors.fill: parent
+                        contentWidth: logText.implicitWidth
                         contentHeight: logText.height
                         clip: true
                         visible: root.visibleCount > 0
                         TextEdit {
                             id: logText
-                            width: parent.width
+                            width: Math.max(parent.width, logText.implicitWidth)
                             readOnly: true
                             selectByMouse: true
                             text: root.displayCleared ? "" : root.logLines.join("\n")
@@ -498,6 +499,7 @@ Rectangle {
                         ScrollBar.vertical: ScrollBar {
                             policy: ScrollBar.AsNeeded
                         }
+                        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
                     }
                 }
             }

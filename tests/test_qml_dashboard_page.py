@@ -459,5 +459,17 @@ class TestProfilesEmptyStateVisual(_Base):
         self.assertTrue(bool(empty_text.isVisible()), "profilesEmptyText should be visible with 0 profiles")
 
 
+class TestDashTwoPanelRowFillsPage(_Base):
+    """test_dash_two_panel_row_fills_page"""
+
+    def test_two_panel_row_height_fills_page(self):
+        """dashTwoPanelRow height >= 600 (before fix: 340, after: ~622)."""
+        page = self.pg()
+        row = find_qml_object(page, "dashTwoPanelRow")
+        self.assertIsNotNone(row, "dashTwoPanelRow not found")
+        h = int(row.height())
+        self.assertGreaterEqual(h, 600, f"dashTwoPanelRow height {h} < 600 (expected ~622)")
+
+
 if __name__ == "__main__":
     unittest.main()

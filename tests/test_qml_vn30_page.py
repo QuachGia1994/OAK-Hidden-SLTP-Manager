@@ -320,5 +320,60 @@ class TestVN30ErrorSurface(_Base):
         self.assertEqual(len(widget2.errors()), 0, f"QML errors found: {widget2.errors()}")
 
 
+class TestVN30StockWidthRegression(_Base):
+    """test_vn30_stock_width_regression"""
+
+    def test_stock_columns_fill_row(self):
+        """Stock header row and volume column must extend close to the panel
+        width (within 2px), confirming the responsive column layout works.
+
+        Before the fix, the table ended around 518px with fixed column
+        widths instead of filling the available panel width.
+        """
+        page = self.pg()
+        pump(self.widget)
+
+        # Find the stock header row
+        header_row = find_qml_object(page, "stockHeaderRow")
+        self.assertIsNotNone(header_row, "stockHeaderRow not found")
+        header_w = float(header_row.property("width"))
+        self.assertGreater(header_w, 100, f"stockHeaderRow.width={header_w} too small")
+
+        # Find the volume header text and check its right edge
+        vol_header = find_qml_object(page, "stockVolumeHeader")
+        self.assertIsNotNone(vol_header, "stockVolumeHeader not found")
+        vol_x = float(vol_header.property("x"))
+        vol_w = float(vol_header.property("width"))
+        vol_right = vol_x + vol_w
+        self.assertGreaterEqual(
+            vol_right, header_w - 2,
+            f"stockVolumeHeader right edge {vol_right} < stockHeaderRow.width {header_w} - 2",
+        )
+
+        # Find one stock row delegate and check volume cell
+        stock_rows = []
+        self._collect_by_name(page, "stockRow", stock_rows)
+        self.assertGreater(len(stock_rows), 0, "No stockRow delegates found")
+
+        first_row = stock_rows[0]
+        row_w = float(first_row.property("width"))
+
+        vol_cell = find_qml_object(first_row, "stockVolumeCell")
+        self.assertIsNotNone(vol_cell, "stockVolumeCell not found in first stockRow")
+        vc_x = float(vol_cell.property("x"))
+        vc_w = float(vol_cell.property("width"))
+        vc_right = vc_x + vc_w
+        self.assertGreaterEqual(
+            vc_right, row_w - 2,
+            f"stockVolumeCell right edge {vc_right} < stockRow.width {row_w} - 2",
+        )
+
+    def _collect_by_name(self, item, name, result):
+        if item.objectName() == name:
+            result.append(item)
+        for child in item.childItems():
+            self._collect_by_name(child, name, result)
+
+
 if __name__ == "__main__":
     unittest.main()

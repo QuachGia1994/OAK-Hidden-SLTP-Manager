@@ -363,16 +363,20 @@ Rectangle {
 
         // ── 6. About panel ──
         Rectangle {
+            objectName: "settingsAboutPanel"
             width: parent.width
-            height: 150
+            height: parent.height - 56 - (root.errorText !== "" ? 44 : 0) - (root.savedMsg !== "" ? 18 : 0) - 230 - 28
             radius: 14
             color: root.pal.surface
             border.color: root.pal.border
             border.width: 1
             clip: true
             Column {
-                anchors.fill: parent
-                anchors.margins: 14
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
                 Text {
                     text: root.s("Thông tin / bản build", "About / Build")

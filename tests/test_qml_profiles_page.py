@@ -468,5 +468,101 @@ class TestEmptyState(_Base):
         self.assertEqual(str(selected), "", f"Expected empty selectedName, got '{selected}'")
 
 
+class TestProfilesGeometryRegression(_Base):
+    """test_profiles_geometry_regression"""
+
+    def test_vn_header_actions_no_overflow(self):
+        """Switch to VN language and verify:
+        1. profilesHeader right edge is within parent width
+        2. profilesRefreshBtn is within parent width
+        3. editorHeader right edge is within parent width
+        4. editorStatusBadge is within parent width
+        5. profileActions (Flow) wraps delete button without overflow
+        """
+        page = self.pg()
+
+        # Switch to VN language
+        qml_eval(self.widget, self.root, 'setLangPython("VN")')
+        pump(self.widget)
+
+        # Force reload to get fresh data
+        qml_eval(self.widget, page, "reload()")
+        pump(self.widget)
+
+        # Check profilesHeader
+        profiles_header = find_qml_object(page, "profilesHeader")
+        self.assertIsNotNone(profiles_header, "profilesHeader not found")
+        parent_w = float(qml_eval(self.widget, page, "parent.width"))
+        header_right = float(profiles_header.property("x")) + float(profiles_header.property("width"))
+        self.assertLessEqual(
+            header_right, parent_w + 1,
+            f"profilesHeader right edge {header_right} > parent width {parent_w}",
+        )
+
+        # Check profilesRefreshBtn
+        refresh_btn = find_qml_object(page, "profilesRefreshBtn")
+        self.assertIsNotNone(refresh_btn, "profilesRefreshBtn not found")
+        btn_right = float(refresh_btn.property("x")) + float(refresh_btn.property("width"))
+        self.assertLessEqual(
+            btn_right, parent_w + 1,
+            f"profilesRefreshBtn right edge {btn_right} > parent width {parent_w}",
+        )
+
+        # Check editorHeader
+        editor_header = find_qml_object(page, "editorHeader")
+        self.assertIsNotNone(editor_header, "editorHeader not found")
+        editor_right = float(editor_header.property("x")) + float(editor_header.property("width"))
+        self.assertLessEqual(
+            editor_right, parent_w + 1,
+            f"editorHeader right edge {editor_right} > parent width {parent_w}",
+        )
+
+        # Check editorStatusBadge
+        status_badge = find_qml_object(page, "editorStatusBadge")
+        self.assertIsNotNone(status_badge, "editorStatusBadge not found")
+        badge_right = float(status_badge.property("x")) + float(status_badge.property("width"))
+        self.assertLessEqual(
+            badge_right, parent_w + 1,
+            f"editorStatusBadge right edge {badge_right} > parent width {parent_w}",
+        )
+
+        # Check profileActions (Flow) and all four buttons
+        profile_actions = find_qml_object(page, "profileActions")
+        self.assertIsNotNone(profile_actions, "profileActions not found")
+        actions_w = float(profile_actions.property("width"))
+        actions_h = float(profile_actions.property("height"))
+        self.assertGreater(actions_h, 0, "profileActions.height must be > 0")
+
+        for btn_name in ("profileSaveBtn", "profileDuplicateBtn", "profileAddBtn", "profileDeleteBtn"):
+            with self.subTest(button=btn_name):
+                btn = find_qml_object(page, btn_name)
+                self.assertIsNotNone(btn, f"{btn_name} not found")
+                bx = float(btn.property("x"))
+                by = float(btn.property("y"))
+                bw = float(btn.property("width"))
+                bh = float(btn.property("height"))
+                self.assertGreaterEqual(bx, 0, f"{btn_name}.x={bx} < 0")
+                self.assertGreaterEqual(by, 0, f"{btn_name}.y={by} < 0")
+                self.assertLessEqual(bx + bw, actions_w + 1, f"{btn_name} overflows Flow width")
+                self.assertLessEqual(by + bh, actions_h + 1, f"{btn_name} overflows Flow height")
+
+        # Arm delete and verify still fits
+        qml_eval(self.widget, page, "deleteArmed = true")
+        pump(self.widget)
+
+        for btn_name in ("profileSaveBtn", "profileDuplicateBtn", "profileAddBtn", "profileDeleteBtn"):
+            with self.subTest(button=f"{btn_name}_armed"):
+                btn = find_qml_object(page, btn_name)
+                self.assertIsNotNone(btn, f"{btn_name} not found after arm")
+                bx = float(btn.property("x"))
+                by = float(btn.property("y"))
+                bw = float(btn.property("width"))
+                bh = float(btn.property("height"))
+                self.assertGreaterEqual(bx, 0, f"{btn_name}.x={bx} < 0 when armed")
+                self.assertGreaterEqual(by, 0, f"{btn_name}.y={by} < 0 when armed")
+                self.assertLessEqual(bx + bw, actions_w + 1, f"{btn_name} overflows when armed")
+                self.assertLessEqual(by + bh, actions_h + 1, f"{btn_name} overflows vertically when armed")
+
+
 if __name__ == "__main__":
     unittest.main()

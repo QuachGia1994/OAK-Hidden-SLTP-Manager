@@ -20,6 +20,11 @@ Rectangle {
     property string noticeText: ""
     property string stockCountText: ""
 
+    readonly property real stockTableGap: 8
+    function stockColumnWidth(totalWidth, share) {
+        return Math.max(0, totalWidth - stockTableGap * 6) * share;
+    }
+
     function s(vn, en) { return Theme.lang === "VN" ? vn : en; }
 
     function refreshNow() {
@@ -378,7 +383,13 @@ Rectangle {
         // ── Stocks panel ──
         Rectangle {
             width: parent.width
-            height: 300
+            height: {
+                var errH = root.errorText !== "" ? 36 : 0;
+                var noticeH = root.noticeText !== "" ? 36 : 0;
+                var recH = root.filterResult !== null ? 226 : 0;
+                var vis = 3 + (errH > 0 ? 1 : 0) + (noticeH > 0 ? 1 : 0) + (recH > 0 ? 1 : 0);
+                return parent.height - 44 - errH - noticeH - 28 - recH - 10 * (vis - 1);
+            }
             color: root.pal.surface
             border.color: root.pal.border
             border.width: 1
@@ -399,16 +410,17 @@ Rectangle {
 
                 // Table header
                 Row {
+                    objectName: "stockHeaderRow"
                     width: parent.width
                     spacing: 8
                     height: 20
-                    Text { text: root.s("Mã", "Symbol"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: 60 }
-                    Text { text: root.s("Sàn", "Exchange"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: 50 }
-                    Text { text: root.s("Mở", "Open"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: 70 }
-                    Text { text: root.s("Cao", "High"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: 70 }
-                    Text { text: root.s("Thấp", "Low"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: 70 }
-                    Text { text: root.s("Đóng", "Close"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: 70 }
-                    Text { text: root.s("KL", "Vol"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: 80 }
+                    Text { text: root.s("Mã", "Symbol"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: root.stockColumnWidth(parent.width, 0.12) }
+                    Text { text: root.s("Sàn", "Exchange"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: root.stockColumnWidth(parent.width, 0.11) }
+                    Text { text: root.s("Mở", "Open"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: root.stockColumnWidth(parent.width, 0.13) }
+                    Text { text: root.s("Cao", "High"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: root.stockColumnWidth(parent.width, 0.13) }
+                    Text { text: root.s("Thấp", "Low"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: root.stockColumnWidth(parent.width, 0.13) }
+                    Text { text: root.s("Đóng", "Close"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: root.stockColumnWidth(parent.width, 0.14) }
+                    Text { objectName: "stockVolumeHeader"; text: root.s("KL", "Vol"); font.pixelSize: 11; font.bold: true; color: root.pal.muted; width: root.stockColumnWidth(parent.width, 0.24) }
                 }
 
                 // Empty state
@@ -424,7 +436,7 @@ Rectangle {
                     id: stockListView
                     objectName: "stockView"
                     width: parent.width
-                    height: 250
+                    height: parent.height - 54 - (root.filteredStocks().length === 0 ? 16 : 0)
                     clip: true
                     model: root.filteredStocks()
 
@@ -439,7 +451,7 @@ Rectangle {
                             font.pixelSize: 12
                             font.bold: true
                             color: root.pal.text
-                            width: 60
+                            width: root.stockColumnWidth(parent.width, 0.12)
                             anchors.verticalCenter: parent.verticalCenter
                             elide: Text.ElideRight
                         }
@@ -447,44 +459,45 @@ Rectangle {
                             text: modelData.exchange || ""
                             font.pixelSize: 11
                             color: root.pal.muted
-                            width: 50
+                            width: root.stockColumnWidth(parent.width, 0.11)
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
                             text: modelData.open !== null && modelData.open !== undefined ? Number(modelData.open).toFixed(2) : ""
                             font.pixelSize: 11
                             color: root.pal.text
-                            width: 70
+                            width: root.stockColumnWidth(parent.width, 0.13)
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
                             text: modelData.high !== null && modelData.high !== undefined ? Number(modelData.high).toFixed(2) : ""
                             font.pixelSize: 11
                             color: root.pal.text
-                            width: 70
+                            width: root.stockColumnWidth(parent.width, 0.13)
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
                             text: modelData.low !== null && modelData.low !== undefined ? Number(modelData.low).toFixed(2) : ""
                             font.pixelSize: 11
                             color: root.pal.text
-                            width: 70
+                            width: root.stockColumnWidth(parent.width, 0.13)
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
                             text: modelData.close !== null && modelData.close !== undefined ? Number(modelData.close).toFixed(2) : ""
                             font.pixelSize: 11
                             color: root.pal.text
-                            width: 70
+                            width: root.stockColumnWidth(parent.width, 0.14)
                             anchors.verticalCenter: parent.verticalCenter
                         }
                         Text {
+                            objectName: "stockVolumeCell"
                             text: modelData.volume !== null && modelData.volume !== undefined && modelData.volume > 0
                                 ? Number(modelData.volume).toLocaleString(Qt.locale(), "f", 0)
                                 : "—"
                             font.pixelSize: 11
                             color: root.pal.text
-                            width: 80
+                            width: root.stockColumnWidth(parent.width, 0.24)
                             anchors.verticalCenter: parent.verticalCenter
                         }
                     }

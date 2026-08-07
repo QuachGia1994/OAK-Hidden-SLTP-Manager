@@ -259,33 +259,43 @@ Item {
         spacing: 12
 
         // ── Row 1: Header ──
-        Row {
+        Item {
+            id: profilesHeader
+            objectName: "profilesHeader"
             width: parent.width
             height: 40
-            spacing: 12
 
             Column {
+                anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
+                anchors.right: profilesRefreshBtn.left
+                anchors.rightMargin: 12
                 spacing: 2
                 Text {
                     text: s("HỒ SƠ", "PROFILES")
                     font.pixelSize: 24
                     font.bold: true
                     color: root.pal.text
+                    width: parent.width
+                    elide: Text.ElideRight
                 }
                 Text {
                     text: s("Quản lý profile & trạng thái worker", "Manage profiles & worker status")
                     font.pixelSize: 12
                     color: root.pal.muted
+                    width: parent.width
+                    elide: Text.ElideRight
                 }
             }
 
-            Item { width: parent.width - 88 - 12; height: 1 }
-
             Rectangle {
+                id: profilesRefreshBtn
+                objectName: "profilesRefreshBtn"
                 width: 88
                 height: 30
                 radius: 8
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
                 color: "transparent"
                 border.color: root.pal.border
                 border.width: 1
@@ -604,29 +614,42 @@ Item {
                         spacing: 12
 
                         // Header
-                        Row {
+                        Item {
+                            id: editorHeader
+                            objectName: "editorHeader"
                             width: parent.width
                             height: 36
+
                             Column {
+                                anchors.left: parent.left
                                 anchors.verticalCenter: parent.verticalCenter
+                                anchors.right: editorStatusBadge.left
+                                anchors.rightMargin: 12
                                 spacing: 2
                                 Text {
                                     text: root.selectedName !== "" ? root.selectedName : s("Chưa chọn profile", "No profile selected")
                                     font.pixelSize: 16
                                     font.bold: true
                                     color: root.pal.text
+                                    width: parent.width
+                                    elide: Text.ElideRight
                                 }
                                 Text {
                                     text: root.dirty ? s("Có thay đổi chưa lưu", "Unsaved changes") : s("Thay đổi được lưu vào profiles.json", "Changes are saved to profiles.json")
                                     font.pixelSize: 12
                                     color: root.pal.muted
+                                    width: parent.width
+                                    elide: Text.ElideRight
                                 }
                             }
-                            Item { width: parent.width - 100 - 12; height: 1 }
                             Rectangle {
+                                id: editorStatusBadge
+                                objectName: "editorStatusBadge"
                                 width: 80
                                 height: 24
                                 radius: 12
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
                                 color: root.selectedName === "" ? Qt.rgba(0.5, 0.5, 0.5, 0.2)
                                     : (function() {
                                         for (var i = 0; i < root.profiles.length; i++) {
@@ -661,9 +684,14 @@ Item {
                         }
 
                         // Actions row
-                        Row {
+                        Flow {
+                            id: profileActions
+                            objectName: "profileActions"
+                            width: parent.width
+                            height: implicitHeight
                             spacing: 8
                             Rectangle {
+                                objectName: "profileSaveBtn"
                                 width: saveBtnText.width + 20
                                 height: 28
                                 radius: 8
@@ -685,6 +713,7 @@ Item {
                                 }
                             }
                             Rectangle {
+                                objectName: "profileDuplicateBtn"
                                 width: dupBtnText.width + 20
                                 height: 28
                                 radius: 8
@@ -707,6 +736,7 @@ Item {
                                 }
                             }
                             Rectangle {
+                                objectName: "profileAddBtn"
                                 width: addBtnText.width + 20
                                 height: 28
                                 radius: 8
@@ -729,6 +759,7 @@ Item {
                                 }
                             }
                             Rectangle {
+                                objectName: "profileDeleteBtn"
                                 width: delBtnText.width + 20
                                 height: 28
                                 radius: 8

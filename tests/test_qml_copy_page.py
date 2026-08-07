@@ -442,5 +442,43 @@ class TestCopySaveWithoutProfileGuarded(_Base):
                          f"Expected no new copy writes, got {len(self.fake.copy_writes)} total")
 
 
+class TestCopyFieldGroupsFullWidth(_Base):
+    """test_copy_field_groups_full_width"""
+
+    def test_field_groups_fill_panel(self):
+        """Each named field group in the right panel must span close to the
+        full panel width (panel - 24px margins = panel.width - 24, allow 2px).
+
+        This prevents regression to collapsed-width Columns that caused
+        the Copy Trading form to be too narrow.
+        """
+        GROUP_NAMES = [
+            "copyRoleGroup", "copyChannelGroup", "copyDailyTradesGroup",
+            "copyMaxLotGroup", "copyMaxExposureGroup", "copyStaleGroup",
+            "copyIgnoreListGroup", "copyLotValueGroup",
+        ]
+        page = self.pg()
+        qml_eval(self.widget, page, "refreshNow()")
+        pump(self.widget)
+
+        copy_panel = find_qml_object(page, "copyPanel")
+        self.assertIsNotNone(copy_panel, "copyPanel not found")
+        panel_width = float(copy_panel.property("width"))
+        self.assertGreater(panel_width, 0, "copyPanel.width must be > 0")
+
+        for name in GROUP_NAMES:
+            with self.subTest(group=name):
+                group = find_qml_object(page, name)
+                self.assertIsNotNone(group, f"{name} not found")
+                group_width = float(group.property("width"))
+                # Panel has 12px margins on each side, so group should be
+                # at least panel.width - 26 (24 margins + 2 tolerance)
+                min_width = panel_width - 26
+                self.assertGreaterEqual(
+                    group_width, min_width,
+                    f"{name}.width={group_width} < {min_width} (panel={panel_width})",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

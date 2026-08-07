@@ -378,5 +378,17 @@ class TestSettingsError(_Base):
         self.assertIsNotNone(page_found, "page_Settings should still exist after error")
 
 
+class TestSettingsAboutPanelFillsPage(_Base):
+    """test_settings_about_panel_fills_page"""
+
+    def test_about_panel_height_fills_page(self):
+        """settingsAboutPanel height >= 400 (before fix: 150, after: ~448)."""
+        page = self.pg()
+        panel = find_qml_object(page, "settingsAboutPanel")
+        self.assertIsNotNone(panel, "settingsAboutPanel not found")
+        h = int(panel.height())
+        self.assertGreaterEqual(h, 400, f"settingsAboutPanel height {h} < 400 (expected ~448)")
+
+
 if __name__ == "__main__":
     unittest.main()

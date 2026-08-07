@@ -344,7 +344,8 @@ Rectangle {
                         // sl
                         Column { spacing: 2
                             Text { text: root.s("SL", "SL"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_sl.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_sl.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_sl.text === "" }
                                 TextInput { id: fld_sl; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.sl !== null && root.sltp.sl !== undefined ? String(root.sltp.sl) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.sl = text; root.sltp = s2; }
                                 }
@@ -354,7 +355,8 @@ Rectangle {
                         // tp
                         Column { spacing: 2
                             Text { text: root.s("TP", "TP"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_tp.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_tp.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_tp.text === "" }
                                 TextInput { id: fld_tp; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.tp !== null && root.sltp.tp !== undefined ? String(root.sltp.tp) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.tp = text; root.sltp = s2; }
                                 }
@@ -364,7 +366,8 @@ Rectangle {
                         // gold_sl
                         Column { spacing: 2
                             Text { text: root.s("Gold SL", "Gold SL"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_gold_sl.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_gold_sl.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_gold_sl.text === "" }
                                 TextInput { id: fld_gold_sl; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.gold_sl !== null && root.sltp.gold_sl !== undefined ? String(root.sltp.gold_sl) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.gold_sl = text; root.sltp = s2; }
                                 }
@@ -374,7 +377,8 @@ Rectangle {
                         // gold_tp
                         Column { spacing: 2
                             Text { text: root.s("Gold TP", "Gold TP"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_gold_tp.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_gold_tp.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_gold_tp.text === "" }
                                 TextInput { id: fld_gold_tp; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.gold_tp !== null && root.sltp.gold_tp !== undefined ? String(root.sltp.gold_tp) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.gold_tp = text; root.sltp = s2; }
                                 }
@@ -399,7 +403,8 @@ Rectangle {
                         // balance_sl_pct
                         Column { spacing: 2
                             Text { text: root.s("SL % số dư", "Balance SL %"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_balance_sl_pct.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_balance_sl_pct.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_balance_sl_pct.text === "" }
                                 TextInput { id: fld_balance_sl_pct; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.balance_sl_pct !== null && root.sltp.balance_sl_pct !== undefined ? String(root.sltp.balance_sl_pct) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.balance_sl_pct = text; root.sltp = s2; }
                                 }
@@ -409,7 +414,8 @@ Rectangle {
                         // balance_tp_pct
                         Column { spacing: 2
                             Text { text: root.s("TP % số dư", "Balance TP %"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_balance_tp_pct.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_balance_tp_pct.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_balance_tp_pct.text === "" }
                                 TextInput { id: fld_balance_tp_pct; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.balance_tp_pct !== null && root.sltp.balance_tp_pct !== undefined ? String(root.sltp.balance_tp_pct) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.balance_tp_pct = text; root.sltp = s2; }
                                 }
@@ -419,7 +425,8 @@ Rectangle {
                         // partial_r
                         Column { spacing: 2
                             Text { text: root.s("R chốt 1 phần", "Partial R"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_partial_r.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_partial_r.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_partial_r.text === "" }
                                 TextInput { id: fld_partial_r; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.partial_r !== null && root.sltp.partial_r !== undefined ? String(root.sltp.partial_r) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.partial_r = text; root.sltp = s2; }
                                 }
@@ -429,7 +436,8 @@ Rectangle {
                         // partial_pct
                         Column { spacing: 2
                             Text { text: root.s("% chốt 1 phần", "Partial %"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_partial_pct.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_partial_pct.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_partial_pct.text === "" }
                                 TextInput { id: fld_partial_pct; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.partial_pct !== null && root.sltp.partial_pct !== undefined ? String(root.sltp.partial_pct) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.partial_pct = text; root.sltp = s2; }
                                 }
@@ -454,7 +462,8 @@ Rectangle {
                         // magic
                         Column { spacing: 2
                             Text { text: "Magic"; font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_magic.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: sltpFields.width - 12; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_magic.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_magic.text === "" }
                                 TextInput { id: fld_magic; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.sltp.magic !== null && root.sltp.magic !== undefined ? String(root.sltp.magic) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.sltp) s2[k] = root.sltp[k]; s2.magic = text; root.sltp = s2; }
                                 }
@@ -532,9 +541,13 @@ Rectangle {
                         }
 
                         // copy_role
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyRoleGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Vai trò", "Role"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_role.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_role.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_role.text === "" }
                                 TextInput { id: fld_copy_role; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_role !== null && root.copy.copy_role !== undefined ? String(root.copy.copy_role) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_role = text; root.copy = s2; }
                                 }
@@ -542,9 +555,13 @@ Rectangle {
                         }
 
                         // copy_channel
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyChannelGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Kênh", "Channel"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_channel.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_channel.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_channel.text === "" }
                                 TextInput { id: fld_copy_channel; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_channel !== null && root.copy.copy_channel !== undefined ? String(root.copy.copy_channel) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_channel = text; root.copy = s2; }
                                 }
@@ -552,9 +569,13 @@ Rectangle {
                         }
 
                         // copy_max_daily_trades
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyDailyTradesGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Lệnh/ngày max", "Max daily trades"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_max_daily_trades.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_max_daily_trades.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_max_daily_trades.text === "" }
                                 TextInput { id: fld_copy_max_daily_trades; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_max_daily_trades !== null && root.copy.copy_max_daily_trades !== undefined ? String(root.copy.copy_max_daily_trades) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_max_daily_trades = text; root.copy = s2; }
                                 }
@@ -562,9 +583,13 @@ Rectangle {
                         }
 
                         // copy_max_lot_per_trade
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyMaxLotGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Lot max/lệnh", "Max lot per trade"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_max_lot_per_trade.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_max_lot_per_trade.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_max_lot_per_trade.text === "" }
                                 TextInput { id: fld_copy_max_lot_per_trade; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_max_lot_per_trade !== null && root.copy.copy_max_lot_per_trade !== undefined ? String(root.copy.copy_max_lot_per_trade) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_max_lot_per_trade = text; root.copy = s2; }
                                 }
@@ -572,9 +597,13 @@ Rectangle {
                         }
 
                         // copy_max_exposure
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyMaxExposureGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Exposure max", "Max exposure"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_max_exposure.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_max_exposure.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_max_exposure.text === "" }
                                 TextInput { id: fld_copy_max_exposure; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_max_exposure !== null && root.copy.copy_max_exposure !== undefined ? String(root.copy.copy_max_exposure) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_max_exposure = text; root.copy = s2; }
                                 }
@@ -597,9 +626,13 @@ Rectangle {
                         }
 
                         // copy_stale_threshold
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyStaleGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Stale (phút)", "Stale threshold"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_stale_threshold.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_stale_threshold.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_stale_threshold.text === "" }
                                 TextInput { id: fld_copy_stale_threshold; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_stale_threshold !== null && root.copy.copy_stale_threshold !== undefined ? String(root.copy.copy_stale_threshold) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_stale_threshold = text; root.copy = s2; }
                                 }
@@ -607,9 +640,13 @@ Rectangle {
                         }
 
                         // copy_ignore_list (wider)
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyIgnoreListGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Danh sách bỏ qua", "Ignore list"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_ignore_list.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_ignore_list.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_ignore_list.text === "" }
                                 TextInput { id: fld_copy_ignore_list; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_ignore_list !== null && root.copy.copy_ignore_list !== undefined ? String(root.copy.copy_ignore_list) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_ignore_list = text; root.copy = s2; }
                                 }
@@ -683,9 +720,13 @@ Rectangle {
                         }
 
                         // copy_lot_value
-                        Column { spacing: 2
+                        Column {
+                            objectName: "copyLotValueGroup"
+                            width: parent.width
+                            spacing: 2
                             Text { text: root.s("Lot", "Lot value"); font.pixelSize: 11; color: root.pal.muted }
-                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.windowBg; border.color: fld_copy_lot_value.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                            Rectangle { width: parent.width; height: 26; radius: 4; color: root.pal.inputBg; border.color: fld_copy_lot_value.activeFocus ? root.pal.accent : root.pal.border; border.width: 1
+                                Text { anchors.left: parent.left; anchors.leftMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: root.s("Chưa đặt…", "Enter value…"); font.pixelSize: 12; color: root.pal.muted; visible: fld_copy_lot_value.text === "" }
                                 TextInput { id: fld_copy_lot_value; anchors.fill: parent; anchors.margins: 4; color: root.pal.text; font.pixelSize: 12; selectByMouse: true; text: root.copy.copy_lot_value !== null && root.copy.copy_lot_value !== undefined ? String(root.copy.copy_lot_value) : ""
                                     onTextEdited: { var s2 = {}; for (var k in root.copy) s2[k] = root.copy[k]; s2.copy_lot_value = text; root.copy = s2; }
                                 }

@@ -210,8 +210,9 @@ Rectangle {
 
         // ── 3. Two-panel row ──
         Item {
+            objectName: "dashTwoPanelRow"
             width: parent.width
-            height: 340
+            height: parent.height - 56 - (root.errorText !== "" ? 44 : 0) - 84
             Row {
                 anchors.fill: parent
                 spacing: 12
@@ -435,12 +436,13 @@ Rectangle {
                             Flickable {
                                 id: logFlickable
                                 anchors.fill: parent
+                                contentWidth: logText.implicitWidth
                                 contentHeight: logText.height
                                 clip: true
                                 visible: root.logLines.length > 0
                                 TextEdit {
                                     id: logText
-                                    width: logFlickable.width
+                                    width: Math.max(parent.width, logText.implicitWidth)
                                     readOnly: true
                                     selectByMouse: true
                                     text: root.logLines.join("\n")
@@ -452,6 +454,7 @@ Rectangle {
                                 ScrollBar.vertical: ScrollBar {
                                     policy: ScrollBar.AsNeeded
                                 }
+                                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
                             }
                         }
 
