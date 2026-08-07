@@ -32,6 +32,18 @@ if str(PYTHON_DIR) not in sys.path:
     sys.path.insert(0, str(PYTHON_DIR))
 
 
+def app_icon_path() -> Path | None:
+    """Resolve the bundled app icon in source and frozen PyInstaller modes."""
+    folders = [SOURCE_ROOT]
+    if getattr(sys, "frozen", False):
+        folders.append(Path(sys.executable).resolve().parent)
+    for folder in folders:
+        candidate = folder / "icon.ico"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
 # ── Sensitive key set (defense-in-depth redaction) ──
 def _sensitive_keys():
     from oak_core.supervisor.profiles import _SENSITIVE_KEYS
@@ -500,7 +512,7 @@ def create_engine(profile_manager=None, dashboard_backend=None, shell_backend=No
     or offscreen ``grab()``.
     """
     from PySide6.QtCore import QUrl
-    from PySide6.QtGui import QFont
+    from PySide6.QtGui import QFont, QIcon
     from PySide6.QtQuickWidgets import QQuickWidget
     from PySide6.QtWidgets import QApplication
 
@@ -554,6 +566,11 @@ def create_engine(profile_manager=None, dashboard_backend=None, shell_backend=No
 
     widget.resize(1240, 780)
     widget.setWindowTitle("OAK Manager — Native Qt")
+
+    # Window/taskbar icon (mirrors oak_qt_shell.apply_window_icon).
+    icon_path = app_icon_path()
+    if icon_path is not None:
+        widget.setWindowIcon(QIcon(str(icon_path)))
 
     return app, widget
 

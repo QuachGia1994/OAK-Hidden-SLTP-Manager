@@ -231,9 +231,25 @@ class TestSidebarDividersAllThemes(_Base):
                     )
 
 
+class TestWindowIcon(_Base):
+    """test_window_icon — the QML shell must carry the bundled app icon."""
+
+    def test_icon_resolved_and_applied(self):
+        """icon.ico exists in the repo and create_engine applies it to the window."""
+        from oak_qml_app import app_icon_path
+
+        path = app_icon_path()
+        self.assertIsNotNone(path, "app_icon_path() returned None")
+        self.assertTrue(path.is_file(), f"icon file missing: {path}")
+        icon = self.widget.windowIcon()
+        self.assertFalse(icon.isNull(), "widget.windowIcon() is null (no icon applied)")
+        # The icon must actually carry pixel content (not an empty placeholder).
+        sizes = icon.availableSizes()
+        self.assertTrue(len(sizes) > 0, "icon has no available sizes")
+
+
 class TestNavClickSwitchesPage(_Base):
     """test_nav_click_switches_page"""
-
     def test_click_signals(self):
         """Clicking nav_Signals switches StackView page and highlights nav."""
         # Reset to default theme first
