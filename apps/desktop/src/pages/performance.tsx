@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import type { CSSProperties } from "react";
 import {
   Area,
@@ -17,6 +18,9 @@ import { useLocale } from "../contexts";
  * Phase 4 — Performance & Risk page (§9).
  * Equity curve + drawdown curve (Recharts) + risk summary.
  */
+/** Background refresh cadence for audit series while the page is open. */
+const AUTO_REFRESH_MS = 5000;
+
 export function PerformancePage() {
   const { locale } = useLocale();
   const L = {
@@ -25,8 +29,8 @@ export function PerformancePage() {
     refresh: locale === "VN" ? "Làm mới" : "Refresh",
     error: "ERROR",
     noSamples: locale === "VN"
-      ? "Chưa có mẫu equity — hãy chạy hồ sơ để equity sampler ghi nhận trạng thái tài khoản."
-      : "No equity samples yet — start the profile so the equity sampler records account state.",
+      ? "Chưa có mẫu equity — dữ liệu được ghi bởi MT5 Account Audit Service. Hãy chọn hồ sơ và khởi chạy dịch vụ đó trong tab Tín hiệu."
+      : "No equity samples yet — data is written by the MT5 Account Audit Service. Select the profile and start that service in the Signals tab.",
     equityCurve: locale === "VN" ? "Đường Equity" : "Equity Curve",
     drawdown: locale === "VN" ? "Drawdown" : "Drawdown",
     performance: locale === "VN" ? "Hiệu suất" : "Performance",
@@ -53,6 +57,7 @@ export function PerformancePage() {
   const [drawdown, setDrawdown] = useState<CurvePoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,10 +77,15 @@ export function PerformancePage() {
     };
   }, []);
 
-  const load = useCallback(async (profile: string) => {
-    if (!profile) return;
-    setLoading(true);
-    setError(null);
+  // A silent load keeps the rendered charts and the refresh button untouched
+  // so the periodic refresh never blanks or flickers the page.
+  const load = useCallback(async (profile: string, silent = false) => {
+    if (!profile || inFlight.current) return;
+    inFlight.current = true;
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const [p, r, eq, dd] = await Promise.all([
         request<PerformanceSummary>("performance.summary", { profile }),
@@ -87,15 +97,24 @@ export function PerformancePage() {
       setRisk(r);
       setEquity(eq.curve ?? []);
       setDrawdown(dd.curve ?? []);
+      setError(null);
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
     } finally {
-      setLoading(false);
+      inFlight.current = false;
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load(selected);
+  }, [selected, load]);
+
+  // One interval per mounted profile — cleared on profile change and unmount.
+  useEffect(() => {
+    if (!selected) return;
+    const timer = window.setInterval(() => void load(selected, true), AUTO_REFRESH_MS);
+    return () => window.clearInterval(timer);
   }, [selected, load]);
 
   return (
@@ -124,7 +143,10 @@ export function PerformancePage() {
       )}
 
       {!perf?.available && !loading && (
-        <p className="muted">{L.noSamples}</p>
+        <div className="empty-state page-empty">
+          <p>{L.noSamples}</p>
+          <Link className="btn primary" to="/signals">{locale === "VN" ? "Mở Tín hiệu" : "Open Signals"}</Link>
+        </div>
       )}
 
       {equity.length >= 2 && (

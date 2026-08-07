@@ -45,7 +45,33 @@ class CollectorService:
             logger.info("Date %s is a holiday. Skipping update.", date_str)
             return {}
 
-        return self._collect_via_vps(target_date)
+        return self._collect_latest_session(target_date, max_lookback_days=7)
+
+    def _collect_latest_session(self, target_date: date, max_lookback_days: int = 7) -> dict[str, int]:
+        """Collect the most recent session that actually has VPS data.
+
+        Walks back from target_date (skipping weekends and configured
+        holidays) so a morning run before the market publishes today's
+        data still updates the DB to the newest completed session instead
+        of failing with exit code 2.
+        """
+        for offset in range(max_lookback_days + 1):
+            candidate = target_date - timedelta(days=offset)
+            if candidate.weekday() in (5, 6):
+                continue
+            if candidate.strftime("%Y-%m-%d") in self.config.collector.holidays:
+                continue
+            try:
+                counts = self._collect_via_vps(candidate)
+            except ValidationError:
+                logger.warning("[VPS UPDATE] No data for %s, checking earlier session", candidate.isoformat())
+                continue
+            logger.info("[VPS UPDATE] Saved session %s (%d records)", candidate.isoformat(), sum(counts.values()))
+            print(f"[EOD_COLLECTOR] Updated to session {candidate.isoformat()}", flush=True)
+            return counts
+        raise ValidationError(
+            f"VPS returned no data for any session from {target_date.isoformat()} back {max_lookback_days} days"
+        )
 
     def _collect_via_vps(self, trading_date: date) -> dict[str, int]:
         """Fetch all symbols via VPS API and persist per-exchange into SQLite."""

@@ -19,6 +19,9 @@ from .profiles import _data_root
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
+#: Checkpoint states that still count as an open position.
+_OPEN_STATUSES = ("STILL_OPEN", "PARTIALLY_CLOSED")
+
 
 def _ensure_imports():
     """Import the repo-root Python modules (dev layout). Best-effort."""
@@ -120,19 +123,39 @@ class AccountQueries:
         return {"profile": profile_name, "available": True, "balance": None}
 
     def positions_list(self, profile_name: str) -> list:
-        """Open positions — public-safe (no raw tickets)."""
+        """Open positions at the latest checkpoint — public-safe (no raw tickets).
+
+        The ``positions`` table is append-only and retains historical /
+        reconstructed rows, so the newest checkpoint's position states decide
+        what is still open.  No checkpoint run (or no open state) means nothing
+        is verified as open — never fall back to historical rows.
+        """
         uid = self._uid_for_profile(profile_name)
         account_id = self._account_id(uid) if uid else None
         if not account_id:
             return []
-        positions = self._get_store().list_positions(account_id=account_id)
+        store = self._get_store()
+        runs = store.list_checkpoint_runs(account_id=account_id, limit=1)
+        if not runs:
+            return []
+        open_volumes = {}
+        for state in store.list_checkpoint_position_states(runs[0].get("id")):
+            if state.get("status_at_checkpoint") not in _OPEN_STATUSES:
+                continue
+            open_volumes[str(state.get("position_id") or "")] = state.get("volume")
+        if not open_volumes:
+            return []
         result = []
-        for p in positions:
+        for p in store.list_positions(account_id=account_id):
+            position_id = str(p.get("position_id") or "")
+            if position_id not in open_volumes:
+                continue
+            volume = open_volumes[position_id]
             result.append({
                 "public_trade_id": p.get("public_trade_id") or "",
                 "symbol": p.get("symbol", ""),
                 "direction": p.get("direction", ""),
-                "volume": p.get("initial_volume"),
+                "volume": volume if volume is not None else p.get("initial_volume"),
                 "open_price": p.get("open_price"),
                 "open_time_utc": p.get("open_time_utc"),
                 "source_type": p.get("source_type", ""),

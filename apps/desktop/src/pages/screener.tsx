@@ -39,8 +39,59 @@ interface FilterResult {
   }>;
 }
 
+const SCREENER_STORAGE_KEY = "oak.screener.lastRecommendations";
+
+/** Load last successful recommendations from browser storage, defensively. */
+function loadStoredRecommendations(): FilterResult["recommendations"] {
+  try {
+    const raw = localStorage.getItem(SCREENER_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      localStorage.removeItem(SCREENER_STORAGE_KEY);
+      return [];
+    }
+    const valid = parsed.filter(
+      (r): r is FilterResult["recommendations"][number] =>
+        !!r &&
+        typeof r === "object" &&
+        typeof (r as { symbol?: unknown }).symbol === "string" &&
+        ((r as { direction?: unknown }).direction === "BUY" ||
+          (r as { direction?: unknown }).direction === "SELL") &&
+        typeof (r as { score?: unknown }).score === "number" &&
+        typeof (r as { rank?: unknown }).rank === "number",
+    );
+    if (valid.length === 0) {
+      localStorage.removeItem(SCREENER_STORAGE_KEY);
+    } else if (valid.length !== parsed.length) {
+      localStorage.setItem(SCREENER_STORAGE_KEY, JSON.stringify(valid));
+    }
+    return valid;
+  } catch {
+    try {
+      localStorage.removeItem(SCREENER_STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+    return [];
+  }
+}
+
+/** Persist recommendations; clear storage when a run yields none. */
+function saveRecommendations(recs: FilterResult["recommendations"]): void {
+  try {
+    if (recs.length === 0) {
+      localStorage.removeItem(SCREENER_STORAGE_KEY);
+    } else {
+      localStorage.setItem(SCREENER_STORAGE_KEY, JSON.stringify(recs));
+    }
+  } catch {
+    /* ignore quota/access errors */
+  }
+}
+
 export function ScreenerPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { snapshot, start, reset } = useEod();
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,6 +99,9 @@ export function ScreenerPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [recommendations, setRecommendations] = useState<FilterResult["recommendations"]>(
+    loadStoredRecommendations,
+  );
   const tRef = useRef(t);
   tRef.current = t;
 
@@ -109,6 +163,9 @@ export function ScreenerPage() {
     setInfo(null);
     try {
       const res = await request<FilterResult>("screener.run_filter", { limit: 30 });
+      const recs = res.recommendations ?? [];
+      setRecommendations(recs);
+      saveRecommendations(recs);
       if (res.ok && res.status === "READY") {
         setInfo(
           t.screenerFilterReady({
@@ -141,6 +198,7 @@ export function ScreenerPage() {
     <div className="content">
       <h1>{t.screenerTitle}</h1>
       <p className="muted small">{t.screenerSubtitle}</p>
+      <p className="muted small">{t.screenerAutoEodHint}</p>
 
       {error && (
         <section className="panel error">
@@ -167,6 +225,27 @@ export function ScreenerPage() {
         />
         <span className="muted small">{t.screenerCount(shown.length)}</span>
       </div>
+
+      {recommendations.length > 0 && (
+        <section className="panel advisory-panel">
+          <div className="panel-heading">
+            <h2>{locale === "VN" ? "Kết quả khuyến nghị" : "Advisory result"}</h2>
+            <span className="badge ok">{recommendations.length}</span>
+          </div>
+          <div className="table advisory-table">
+            <div className="table-head"><span>{t.screenerColSymbol}</span><span>{locale === "VN" ? "Hướng" : "Direction"}</span><span>Score</span><span>{t.screenerColClose}</span><span>Rank</span></div>
+            {recommendations.map((recommendation) => (
+              <div className="trade-row neutral" key={`${recommendation.symbol}-${recommendation.rank}`}>
+                <span className="mono bold">{recommendation.symbol}</span>
+                <span className={`badge ${recommendation.direction === "BUY" ? "ok" : "error"}`}>{recommendation.direction}</span>
+                <span className="mono">{recommendation.score.toFixed(2)}</span>
+                <span className="mono">{recommendation.latest_close ?? "—"}</span>
+                <span className="mono">#{recommendation.rank}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {snapshot.active && (
         <div className="progress-row">

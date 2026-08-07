@@ -95,6 +95,24 @@ components:
   metadata:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.text-muted}"
+  trade-row:
+    backgroundColor: "{colors.surface-raised}"
+    borderLeftBuy: "3px solid {colors.accent}"
+    borderLeftSell: "3px solid {colors.danger}"
+    rounded: "{rounded.sm}"
+    padding: "{spacing.md}"
+  checkpoint-badge:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.text-muted}"
+    fontFamily: "Consolas"
+    fontSize: 11px
+    rounded: "{rounded.xs}"
+  equity-positive:
+    textColor: "{colors.accent}"
+    fontFamily: "Consolas"
+  equity-negative:
+    textColor: "{colors.danger}"
+    fontFamily: "Consolas"
 ---
 
 ## Overview
@@ -124,6 +142,8 @@ Panels use `xl`, information rows and buttons use `md`, and tightly grouped cont
 ## Components
 
 Use the tokenized panel, row, button, select-menu, and status styles. Native Qt combo popups must explicitly style both the menu and each option so Windows never falls back to a white system list.
+
+`trade-row` uses `borderLeftBuy` for long positions and `borderLeftSell` for short — apply as a CSS class variant, never inline both simultaneously. `checkpoint-badge` marks H=3/7/9/12/14/16 slots in monospace. `equity-positive` and `equity-negative` are text-only tokens for P&L values.
 
 ## Do's and Don'ts
 

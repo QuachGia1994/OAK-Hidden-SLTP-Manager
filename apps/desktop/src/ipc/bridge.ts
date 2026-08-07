@@ -35,6 +35,12 @@ export interface IpcEvent<T = unknown> {
   data: T;
 }
 
+/** Human-readable stderr/stdout line forwarded by the Rust shell. */
+export interface IpcLogLine {
+  stream: "stdout" | "stderr" | string;
+  line: string;
+}
+
 /** Rust `sidecar_request` reply envelope (JSONL response forwarded verbatim). */
 interface SidecarReply {
   id: string;
@@ -98,6 +104,31 @@ export async function onEvent(cb: (event: IpcEvent) => void): Promise<() => void
   return () => {};
 }
 
+/** Subscribe to raw sidecar log lines for operational consoles. */
+export async function onSidecarLog(cb: (log: IpcLogLine) => void): Promise<() => void> {
+  if (inTauri) {
+    const unlisten = await listen<IpcLogLine>("oak:sidecar:log", (event) => cb(event.payload));
+    return unlisten;
+  }
+  return () => {};
+}
+
+/**
+ * Launch the existing NativeQt/classic shell as a fallback UI. The Rust
+ * command fixes the interpreter and script path — no path/command argument
+ * is accepted from the frontend. Outside Tauri this rejects cleanly so the
+ * button can still render without crashing the dev shell.
+ */
+export async function openClassicUi(): Promise<void> {
+  if (!inTauri) {
+    throw new IpcError({
+      code: "NOT_IN_TAURI",
+      message: "openClassicUi is only available inside the Tauri runtime",
+    });
+  }
+  await invoke("open_classic_ui");
+}
+
 // --------------------------------------------------------------------- //
 // Browser-only mock (dev without Tauri) — clearly labelled, no secrets.
 // --------------------------------------------------------------------- //
@@ -132,6 +163,20 @@ async function mockSidecar(
       };
     case "logs.tail":
       return { ok: true, result: { lines: [], truncated: false, __mock: true } };
+    case "profiles.list":
+      return { ok: true, result: { profiles: [], __mock: true } };
+    case "services.list":
+      return { ok: true, result: { services: [], __mock: true } };
+    case "orders.summary":
+      return { ok: true, result: { scheduled_trades: [], scheduled_closes: [], pending_partials: [], __mock: true } };
+    case "settings.get":
+      return { ok: true, result: { lang: "VN", theme: "dark", ntfy_topic: false, __mock: true } };
+    case "settings.update":
+      return { ok: true, result: { __mock: true } };
+    case "diagnostics.summary":
+      return { ok: true, result: { mode: "vite", python: "—", root_name: "browser mock", profiles: 0, settings: false, latest_log: null, __mock: true } };
+    case "screener.list":
+      return { ok: true, result: { stocks: [], __mock: true } };
     default:
       return {
         ok: false,

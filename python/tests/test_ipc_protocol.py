@@ -6,6 +6,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _python_root = Path(__file__).resolve().parents[1]
 if str(_python_root) not in sys.path:
@@ -164,14 +165,55 @@ class TestIpcServer(unittest.TestCase):
         self.assertEqual(events[0]["event"], "worker.started")
         self.assertEqual(events[0]["sequence"], 1)
 
-    def test_logs_tail_placeholder(self):
+    def test_logs_tail_is_bounded(self):
         server, stdout = self._make_server(
             '{"v":1,"id":"l","method":"logs.tail","params":{"lines":50}}\n'
         )
         SupervisorApp(server=server).run()
         responses = self._responses(stdout)
         self.assertTrue(responses[0]["ok"])
-        self.assertEqual(responses[0]["result"]["lines"], [])
+        result = responses[0]["result"]
+        self.assertLessEqual(len(result["lines"]), 50)
+        self.assertEqual(result["requested"], 50)
+
+
+class TestHealthUptime(unittest.TestCase):
+    def test_uptime_is_dynamic_and_formatted(self):
+        from oak_core import supervisor as sup
+
+        app = SupervisorApp()
+        # Patch the module's monotonic clock so elapsed time is deterministic
+        # and no real sleeping is required.
+        with mock.patch.object(sup, "_monotonic_now",
+                               return_value=app._monotonic_start + 0):
+            first = app._on_health(None)["uptime"]
+        with mock.patch.object(sup, "_monotonic_now",
+                               return_value=app._monotonic_start + 83):
+            second = app._on_health(None)["uptime"]
+        with mock.patch.object(sup, "_monotonic_now",
+                               return_value=app._monotonic_start + 93784):
+            third = app._on_health(None)["uptime"]
+
+        self.assertEqual(first, "00:00:00")
+        self.assertEqual(second, "00:01:23")
+        self.assertEqual(third, "1d 02:03:04")
+        # The value must change over time, not stay static.
+        self.assertNotEqual(first, second)
+        self.assertNotEqual(second, third)
+
+    def test_handshake_started_at_unchanged_and_valid(self):
+        from datetime import datetime
+
+        app = SupervisorApp()
+        handshake = app._on_handshake(None)
+        # The handshake timestamp stays the original ISO value.
+        self.assertEqual(handshake["started_at"], app._started_at)
+        # It must remain a parseable ISO timestamp (not the uptime string).
+        parsed = datetime.fromisoformat(
+            handshake["started_at"].replace("Z", "+00:00")
+        )
+        self.assertIsNotNone(parsed)
+        self.assertNotEqual(app._on_health(None)["uptime"], handshake["started_at"])
 
 
 if __name__ == "__main__":

@@ -114,6 +114,9 @@ def build_signal_process_cmd(key, profile, frozen, executable, script_map=None):
     - frozen + supported key: [executable, "--worker-flag", ("--profile", profile)?]
     - dev + signal_bot: [executable, "-u", script, ("--profile", profile)?]
     - dev + other key: [executable, "-u", script]
+    - signal_bot ALWAYS carries "--audit-service" so every launcher (Qt shell,
+      supervisor, legacy GUI) starts the account audit service, never the live
+      signal loop.
     """
     script_map = script_map or SIGNAL_SCRIPT_MAP
     script = script_map.get(key, "")
@@ -124,11 +127,19 @@ def build_signal_process_cmd(key, profile, frozen, executable, script_map=None):
         cmd = [executable, FROZEN_MODE_FLAGS[key]]
         if key == "signal_bot" and profile:
             cmd.extend(["--profile", profile])
+        if key == "signal_bot":
+            # SAFETY: signal_bot is "MT5 Account Audit Service" — always run the
+            # audit loop (run_audit_service), never the live signal loop (main()).
+            cmd.append("--audit-service")
         return cmd
 
     cmd = [executable, "-u", script]
     if key == "signal_bot" and profile:
         cmd.extend(["--profile", profile])
+    if key == "signal_bot":
+        # SAFETY: signal_bot is "MT5 Account Audit Service" — always run the
+        # audit loop (run_audit_service), never the live signal loop (main()).
+        cmd.append("--audit-service")
     return cmd
 
 

@@ -77,18 +77,18 @@ def run_profile_worker(profile_name: str, *, once: bool = False) -> int:
         print(f"[worker:{profile_name}] terminal path missing/invalid: {terminal_path!r}", file=sys.stderr)
         return 4
 
+    # Import path FIRST: in dev the worker is spawned with cwd=<repo>/python, so
+    # services/ (repo root) is not importable until the repo root is on sys.path.
+    root = str(_repo_root())
+    if root not in sys.path:
+        sys.path.insert(0, root)
+
     try:
         import MetaTrader5 as mt5
         from services.mt5_terminal_service import ensure_mt5_profile_connected
     except ImportError as exc:
         print(f"[worker:{profile_name}] import failed: {exc}", file=sys.stderr)
         return 5
-
-    # Import path: the worker runs from repo root context, so services/ is
-    # importable when the sidecar is bundled; in dev we add the repo root.
-    root = str(_repo_root())
-    if root not in sys.path:
-        sys.path.insert(0, root)
 
     result = ensure_mt5_profile_connected(profile, mt5_module=mt5, timeout_seconds=15)
     if not result.ok:

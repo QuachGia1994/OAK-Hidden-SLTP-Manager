@@ -86,10 +86,12 @@ class MT4FeedReadinessTests(unittest.TestCase):
 
         mock_proc = MagicMock()
         mock_proc.pid = 1234
-        with patch("services.signal_process_supervisor.subprocess.Popen", return_value=mock_proc), \
+        with patch("services.signal_process_supervisor.subprocess.Popen", return_value=mock_proc) as popen_mock, \
              patch("services.signal_process_supervisor.threading.Thread"):
             supervisor.start_signal_process("signal_bot")
 
+        cmd = popen_mock.call_args.args[0]
+        self.assertIn("--audit-service", cmd)  # legacy GUI must start the audit service, never main()
         self.assertNotIn("blocked", (supervisor._log.call_args.args[0] or "").lower())
         supervisor._set_running_ui.assert_called_once()
 

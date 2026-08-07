@@ -342,6 +342,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--worker", action="store_true", help="Run in worker mode")
     parser.add_argument("--signal-bot", action="store_true", help="Run signal bot mode")
+    parser.add_argument("--audit-service", action="store_true", help="Run account audit service (checkpoints + equity sampler, no candles)")
     parser.add_argument("--mt4-feed-server", action="store_true", help="Run MT4 raw feed server mode")
     parser.add_argument("--mimo-bot", action="store_true", help="Run MiMo Telegram bot mode")
     parser.add_argument("--mimo-worker", action="store_true", help="Run MiMo worker mode")
@@ -362,9 +363,13 @@ if __name__ == "__main__":
         import mimo_worker
         mimo_worker.main()
     elif args.signal_bot and args.profile:
-        # Frozen exe: run signal bot directly
+        # Frozen exe: audit service must run the audit loop, never the live
+        # signal loop (main()) which can place orders.
         import mt5_signal_bot
-        mt5_signal_bot.main(profile_name=args.profile)
+        if args.audit_service:
+            mt5_signal_bot.run_audit_service(profile_name=args.profile)
+        else:
+            mt5_signal_bot.main(profile_name=args.profile)
     elif args.worker and args.profile:
         sys.exit(run_worker(args.profile) or 0)
     else:

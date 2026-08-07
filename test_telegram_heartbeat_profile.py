@@ -45,6 +45,78 @@ class TestLoadProfileConfig(unittest.TestCase):
         cfg = load_profile_config("VantageDemo", profiles_path="/nonexistent/profiles.json")
         self.assertEqual(cfg, {})
 
+    def test_reads_oak_data_dir_profiles_when_path_omitted(self):
+        """Packaged builds set OAK_DATA_DIR; the default path must follow it."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            env_path = os.path.join(tmpdir, "profiles.json")
+            with open(env_path, "w", encoding="utf-8") as f:
+                json.dump({"VantageDemo": {"tele_chat": "from-env-root"}}, f)
+
+            with patch.dict(os.environ, {"OAK_DATA_DIR": tmpdir}):
+                self.assertEqual(mt5_signal_bot._default_profiles_path(), env_path)
+                cfg = load_profile_config("VantageDemo")
+                self.assertEqual(cfg.get("tele_chat"), "from-env-root")
+
+                # An explicit path stays authoritative over OAK_DATA_DIR.
+                explicit = self._write_profiles({"VantageDemo": {"tele_chat": "explicit"}})
+                cfg = load_profile_config("VantageDemo", profiles_path=explicit)
+                self.assertEqual(cfg.get("tele_chat"), "explicit")
+
+    def test_default_path_falls_back_to_source_tree(self):
+        """Without OAK_DATA_DIR the dev fallback beside the module is used."""
+        env = dict(os.environ)
+        env.pop("OAK_DATA_DIR", None)
+        with patch.dict(os.environ, env, clear=True):
+            self.assertEqual(
+                mt5_signal_bot._default_profiles_path(),
+                os.path.join(os.path.dirname(os.path.abspath(mt5_signal_bot.__file__)), "profiles.json"),
+            )
+
+
+class TestTokenMigrationTarget(unittest.TestCase):
+    """Token migration must write the same file the profiles were read from."""
+
+    def test_resolve_active_profile_passes_read_path_to_migration(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "profiles.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"VantageDemo": {"tele_token": "__vault__"}}, f)
+
+            with patch.object(mt5_signal_bot, "migrate_plaintext_tokens") as mock_migrate, \
+                 patch.dict(os.environ, {"OAK_DATA_DIR": tmpdir}):
+                resolved = mt5_signal_bot.resolve_active_profile("VantageDemo")
+
+            self.assertEqual(resolved, "VantageDemo")
+            _, kwargs = mock_migrate.call_args
+            self.assertEqual(kwargs["profiles_path"], path)
+
+    def test_migrate_writes_only_the_supplied_file(self):
+        """With a fake keyring, migration vaults the token into the given file."""
+        import secret_store
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "profiles.json")
+            profiles = {"VantageDemo": {"tele_chat": "1", "tele_token": "plain-token"}}
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(profiles, f)
+
+            stored = {}
+
+            class FakeKeyring:
+                def set_password(self, service, identifier, value):
+                    stored[identifier] = value
+
+            with patch.object(secret_store, "_get_keyring", return_value=FakeKeyring()):
+                migrated = secret_store.migrate_plaintext_tokens(profiles, profiles_path=path)
+
+            self.assertEqual(migrated, 1)
+            self.assertEqual(len(stored), 1)
+            self.assertEqual(profiles["VantageDemo"]["tele_token"], "__vault__")
+            with open(path, "r", encoding="utf-8") as f:
+                on_disk = json.load(f)
+            self.assertEqual(on_disk["VantageDemo"]["tele_token"], "__vault__")
+            self.assertEqual(os.listdir(tmpdir), ["profiles.json"])
+
 
 class TestPublishHeartbeatUsesProfileTelegramConfig(unittest.TestCase):
     """publish_heartbeat() must use the running profile's tele_chat/tele_token,

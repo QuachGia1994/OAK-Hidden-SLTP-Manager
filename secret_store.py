@@ -72,8 +72,11 @@ def delete_secret(profile_name, key):
     return False
 
 
-def migrate_plaintext_tokens(profiles):
+def migrate_plaintext_tokens(profiles, profiles_path=None):
     """One-time migration: move tele_token from profiles.json to keyring.
+
+    ``profiles_path`` selects the file the vaulted profiles are written back
+    to; when omitted the source-tree profiles.json is used (dev fallback).
 
     Returns number of migrated tokens.
     """
@@ -97,7 +100,8 @@ def migrate_plaintext_tokens(profiles):
                 log.warning("Migration failed for %s: %s", name, e)
 
     if migrated > 0:
-        profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+        if not profiles_path:
+            profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
         try:
             with open(profiles_path, "w", encoding="utf-8") as f:
                 json.dump(profiles, f, ensure_ascii=False, indent=2)

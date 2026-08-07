@@ -34,6 +34,8 @@ class IpcServer:
         self._stdin = stdin if stdin is not None else sys.stdin
         self._stdout = stdout if stdout is not None else sys.stdout
         self._stderr = stderr if stderr is not None else sys.stderr
+        _configure_utf8(self._stdout)
+        _configure_utf8(self._stderr)
         self._log = log or _default_log(self._stderr)
         self._handlers: dict[str, Handler] = {}
         self._events = SequenceCounter()
@@ -125,3 +127,15 @@ def _default_log(stderr):
             pass
 
     return log
+
+
+def _configure_utf8(stream) -> None:
+    """Keep JSONL protocol output UTF-8 on Windows console/pipe defaults."""
+    reconfigure = getattr(stream, "reconfigure", None)
+    if not callable(reconfigure):
+        return
+    try:
+        reconfigure(encoding="utf-8", errors="replace")
+    except (OSError, ValueError):
+        # Test doubles and already-closed streams may not be reconfigurable.
+        return

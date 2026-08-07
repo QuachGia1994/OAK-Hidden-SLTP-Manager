@@ -5,12 +5,14 @@ Covers the frozen-binary ``invalid choice: 'eod_collector'`` regression and the
 real D1 scanner integration via AccountQueries.run_filter().
 """
 import gc
+import json
 import os
 import shutil
 import sqlite3
 import sys
 import tempfile
 import unittest
+from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -86,6 +88,23 @@ class TestParseEodProgress(unittest.TestCase):
     def test_random_line_returns_none(self):
         result = _parse_eod_progress("random noise, no progress here")
         self.assertIsNone(result)
+
+
+class TestVpsHistorySource(unittest.TestCase):
+    """The VPS lookback path must keep its date arithmetic imported."""
+
+    def test_fetch_history_builds_lookback_window(self):
+        from eod_collector.sources import vps_market
+
+        payload = json.dumps({
+            "s": "ok",
+            "t": [int(datetime(2026, 8, 4, tzinfo=timezone.utc).timestamp())],
+            "o": [100], "h": [105], "l": [99], "c": [103], "v": [1000],
+        })
+        with mock.patch.object(vps_market, "fetch_url", return_value=(payload, 200, {})) as fetch:
+            rows = vps_market.fetch_vps_history("FPT", date(2026, 8, 4), date(2026, 8, 4))
+        self.assertEqual(rows[0]["date"], "2026-08-04")
+        self.assertIn("from=1785196800", fetch.call_args.args[0])
 
 
 class TestUpdateEodStreamsEvents(unittest.TestCase):

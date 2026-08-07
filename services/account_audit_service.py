@@ -33,22 +33,96 @@ CHECKPOINT_HOURS_ORDERED = list(CHECKPOINT_HOURS)
 #: Statuses that count as "already captured" for a checkpoint hour.
 _DONE_STATUSES = frozenset({"COMPLETED", "NO_OPEN_POSITIONS", "PARTIAL_RECONSTRUCTED"})
 
+#: Common gold aliases probed after the requested symbol. Brokers frequently
+#: suffix the tradable symbol (Vantage exposes ``XAUUSD+``), so an exact-only
+#: probe would leave the audit loop permanently at ``NO_BROKER_CLOCK``.
+_GOLD_CLOCK_FALLBACKS = ("XAUUSD+", "XAUUSD.", "GOLD", "GOLD+", "GOLD.")
+
+#: Bounded ``symbols_get`` group patterns used only as a last resort. Kept
+#: narrow so the audit tick never enumerates the broker's whole symbol tree.
+_GOLD_CLOCK_GROUPS = ("*XAUUSD*", "*GOLD*")
+
+
+def _tick_epoch(mt5_module, symbol):
+    """Return a usable epoch from ``symbol_info_tick(symbol)``, else ``None``.
+
+    A zero/negative ``time`` means the symbol exists but has never ticked (not
+    selected in Market Watch); treating it as valid would date the broker clock
+    to 1970 and trigger bogus checkpoints, so it is rejected.
+    """
+    try:
+        tick = mt5_module.symbol_info_tick(symbol)
+    except Exception:  # defensive: never break the audit loop
+        return None
+    if tick is None:
+        return None
+    raw = getattr(tick, "time", None)
+    if raw is None:
+        return None
+    try:
+        epoch = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return epoch if epoch > 0 else None
+
+
+def _discover_gold_symbols(mt5_module):
+    """Return gold symbol names from bounded group probes (never raises)."""
+    symbols_get = getattr(mt5_module, "symbols_get", None)
+    if symbols_get is None:
+        return []
+    names = []
+    for group in _GOLD_CLOCK_GROUPS:
+        try:
+            found = symbols_get(group=group)
+        except Exception:  # defensive: terminal may be down mid-probe
+            continue
+        for item in found or ():
+            name = getattr(item, "name", None)
+            if name:
+                names.append(name)
+    return names
+
+
+def _clock_symbol_candidates(mt5_module, symbol):
+    """Yield deduplicated clock candidates, requested symbol strictly first.
+
+    Lazily evaluated: the ``symbols_get`` discovery probe only runs when the
+    requested symbol and the static aliases all failed to produce a tick.
+    """
+    seen = set()
+    for candidate in (symbol,) + _GOLD_CLOCK_FALLBACKS:
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            yield candidate
+    for name in _discover_gold_symbols(mt5_module):
+        if name not in seen:
+            seen.add(name)
+            yield name
+
 
 def broker_time_from_mt5(mt5_module, symbol="XAUUSD"):
     """Return broker-local naive datetime from an MT5 tick timestamp.
 
     MT5 tick ``time`` is a unix epoch in the broker/server timezone, which is
     exactly the broker clock the checkpoint schedule is defined against.
-    Returns ``None`` when no tick is available (terminal not connected).
+
+    The requested ``symbol`` is probed first; if the broker renames or suffixes
+    its gold symbol the common aliases are tried, then a bounded ``symbols_get``
+    group lookup. Read-only tick API only — never ``copy_rates_*``. Returns
+    ``None`` when no tick is available (terminal not connected).
     """
-    try:
-        tick = mt5_module.symbol_info_tick(symbol)
-    except Exception:  # defensive: never break the audit loop
+    if getattr(mt5_module, "symbol_info_tick", None) is None:
         return None
-    if tick is None or getattr(tick, "time", None) is None:
+    epoch = None
+    for candidate in _clock_symbol_candidates(mt5_module, symbol):
+        epoch = _tick_epoch(mt5_module, candidate)
+        if epoch is not None:
+            break
+    if epoch is None:
         return None
     try:
-        return datetime.fromtimestamp(int(tick.time))
+        return datetime.fromtimestamp(epoch)
     except (TypeError, ValueError, OSError):
         return None
 

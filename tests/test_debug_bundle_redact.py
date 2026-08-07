@@ -5,18 +5,23 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import zipfile
 import io
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
+PYTHON_ROOT = os.path.join(ROOT, "python")
+if PYTHON_ROOT not in sys.path:
+    sys.path.insert(0, PYTHON_ROOT)
 
 from services.debug_bundle_service import (
     build_debug_bundle_bytes,
     redact_json_obj,
     redact_log_text,
 )
+from oak_core.supervisor import diagnostics  # noqa: E402
 
 
 class TestDebugBundleRedact(unittest.TestCase):
@@ -73,6 +78,21 @@ class TestDebugBundleRedact(unittest.TestCase):
                 log_body = zf.read(log_name).decode("utf-8")
                 self.assertNotIn("Alice", log_body)
                 self.assertNotIn("12345", log_body)
+
+
+class TestExportBundleResponse(unittest.TestCase):
+    def test_export_reports_path_and_directory(self):
+        with tempfile.TemporaryDirectory() as td:
+            with unittest.mock.patch.dict(os.environ, {"OAK_DATA_DIR": td}):
+                result = diagnostics.export_bundle()
+
+            expected_dir = os.path.join(td, "dist", "debug-bundles")
+            self.assertTrue(result["exported"])
+            self.assertTrue(result["file_name"].endswith(".zip"))
+            self.assertGreater(result["size_bytes"], 0)
+            self.assertEqual(result["directory"], expected_dir)
+            self.assertEqual(result["path"], os.path.join(expected_dir, result["file_name"]))
+            self.assertTrue(os.path.isfile(result["path"]))
 
 
 if __name__ == "__main__":

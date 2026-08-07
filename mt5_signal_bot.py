@@ -340,6 +340,23 @@ def _check_telegram_api(token):
         return True, result
     return False, result
 
+
+def _default_profiles_path():
+    """Resolve profiles.json so sidecar, worker and audit service agree.
+
+    Precedence:
+    1. ``OAK_DATA_DIR``/profiles.json (data root used by the Tauri shell);
+    2. source-tree profiles.json (dev fallback).
+
+    Resolved on every call: the sidecar and the audit service are separate
+    processes and must not bind to an import-time snapshot.
+    """
+    data_dir = os.environ.get("OAK_DATA_DIR", "")
+    if data_dir:
+        return os.path.join(data_dir, "profiles.json")
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+
+
 def load_profile_config(profile_name, profiles_path=None):
     """Load a single profile's config dict from profiles.json.
 
@@ -349,7 +366,7 @@ def load_profile_config(profile_name, profiles_path=None):
     if not profile_name:
         return {}
     if profiles_path is None:
-        profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+        profiles_path = _default_profiles_path()
     try:
         with open(profiles_path, "r", encoding="utf-8") as f:
             profiles_data = json.load(f)
@@ -4952,15 +4969,16 @@ def resolve_active_profile(profile_name, profiles_path=None):
     falls back to the first available profile.
     """
     if profiles_path is None:
-        profiles_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "profiles.json")
+        profiles_path = _default_profiles_path()
 
     profiles_data = {}
     try:
         with open(profiles_path, "r", encoding="utf-8") as pf:
             profiles_data = json.load(pf)
         if profiles_data:
-            # One-time migration of plaintext tokens to keyring
-            migrate_plaintext_tokens(profiles_data)
+            # One-time migration of plaintext tokens to keyring, written back
+            # to the exact file that was just read.
+            migrate_plaintext_tokens(profiles_data, profiles_path=profiles_path)
     except Exception:
         profiles_data = {}
 
@@ -6099,7 +6117,7 @@ def run_audit_service(profile_name: str = "", tick_interval: int = 30,
     """
     from repositories.trade_audit_store import TradeAuditStore
     from services.mt5_deal_reconciler import MT5DealReconciler
-    from services.checkpoint_engine import CheckpointEngine
+    from services.checkpoint_engine import CheckpointEngine, CHECKPOINT_HOURS
     from services.equity_sampler import EquitySampler
     from services.performance_calculator import PerformanceCalculator
     from services.audit_dashboard_publisher import AuditDashboardPublisher

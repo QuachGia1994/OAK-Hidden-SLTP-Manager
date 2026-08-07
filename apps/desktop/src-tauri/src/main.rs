@@ -14,7 +14,7 @@ use tauri::Manager;
 fn main() {
     tauri::Builder::default()
         .manage(SidecarState::default())
-        .invoke_handler(tauri::generate_handler![sidecar::sidecar_request])
+        .invoke_handler(tauri::generate_handler![sidecar::sidecar_request, sidecar::open_classic_ui])
         .setup(|app| {
             #[cfg(not(debug_assertions))]
             sidecar::ensure_data_files(app.handle());

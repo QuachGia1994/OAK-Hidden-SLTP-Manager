@@ -112,6 +112,61 @@ class TestPositionsList(AccountQueriesTestCase):
     def test_positions_unknown_profile_empty(self):
         self.assertEqual(self.queries.positions_list("Ghost"), [])
 
+    def test_positions_closed_at_latest_checkpoint_excluded(self):
+        # A newer checkpoint marks the position CLOSED — the historical
+        # ``positions`` row must stay, but must not be reported as open.
+        run_id = self.store.upsert_checkpoint_run(
+            self.account_id, "2026-08-04", 4,
+            interval_start="2026-08-04T03:00:00", interval_end="2026-08-04T04:00:00",
+            captured_at_utc="2026-08-04T04:05:00+00:00",
+            capture_mode="NORMAL", status="COMPLETED",
+        )
+        self.store.upsert_checkpoint_position_state(run_id, {
+            "position_id": "5001", "status_at_checkpoint": "CLOSED_MANUAL",
+            "volume": 0.10, "close_price": 2510.0,
+            "close_time_utc": "2026-08-04T03:30:00+00:00",
+            "close_reason": "MANUAL", "capture_mode": "NORMAL",
+        })
+        self.assertEqual(self.queries.positions_list("Vantage"), [])
+        # Historical ledger row untouched.
+        self.assertEqual(len(self.store.list_positions(account_id=self.account_id)), 1)
+
+    def test_positions_partially_closed_uses_state_volume(self):
+        run_id = self.store.upsert_checkpoint_run(
+            self.account_id, "2026-08-04", 5,
+            captured_at_utc="2026-08-04T05:05:00+00:00",
+            capture_mode="NORMAL", status="COMPLETED",
+        )
+        self.store.upsert_checkpoint_position_state(run_id, {
+            "position_id": "5001", "status_at_checkpoint": "PARTIALLY_CLOSED",
+            "volume": 0.04, "current_price": 2510.0, "capture_mode": "NORMAL",
+        })
+        positions = self.queries.positions_list("Vantage")
+        self.assertEqual(len(positions), 1)
+        self.assertAlmostEqual(positions[0]["volume"], 0.04)
+
+    def test_positions_empty_latest_checkpoint(self):
+        # Latest checkpoint exists but records no states at all.
+        self.store.upsert_checkpoint_run(
+            self.account_id, "2026-08-05", 0,
+            captured_at_utc="2026-08-05T00:05:00+00:00",
+            capture_mode="NORMAL", status="COMPLETED",
+        )
+        self.assertEqual(self.queries.positions_list("Vantage"), [])
+
+    def test_positions_without_any_checkpoint_empty(self):
+        account_id = self.store.upsert_account(
+            account_uid="67890@Other-Server", profile_name="Other",
+            broker="Other", server="Other-Server", currency="USD",
+        )
+        self.store.upsert_position(account_id, {
+            "position_id": "7001", "position_ticket": "7001",
+            "symbol": "EURUSD", "direction": "SELL", "initial_volume": 0.20,
+            "open_price": 1.1, "open_time_utc": "2026-08-03T20:00:00+00:00",
+            "source_type": "RECONSTRUCTED", "public_trade_id": "pub-7001",
+        })
+        self.assertEqual(self.queries.positions_list("Other"), [])
+
 
 class TestDealsAndCheckpoints(AccountQueriesTestCase):
     def test_deals_list_trading_only(self):

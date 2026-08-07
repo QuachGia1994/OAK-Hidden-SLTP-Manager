@@ -65,7 +65,7 @@ export function useLocale() {
 // Theme context — dark / light / contrast, persisted to settings.json.
 // --------------------------------------------------------------------- //
 
-export type Theme = "dark" | "light" | "contrast";
+export type Theme = "dark" | "deep-sea" | "light" | "contrast";
 
 interface ThemeCtx {
   theme: Theme;
@@ -75,7 +75,16 @@ interface ThemeCtx {
 
 const ThemeContext = createContext<ThemeCtx>({ theme: "dark", cycleTheme: () => {}, setTheme: () => {} });
 
-const THEMES: Theme[] = ["dark", "light", "contrast"];
+const THEMES: Theme[] = ["dark", "deep-sea", "light", "contrast"];
+
+function normalizeTheme(value: string | undefined): Theme | undefined {
+  const normalized = String(value || "").toLowerCase().replace(/_/g, "-");
+  if (normalized === "dark" || normalized === "deep-sea" || normalized === "light" || normalized === "contrast") {
+    return normalized;
+  }
+  if (normalized === "deep sea" || normalized === "sea") return "deep-sea";
+  return undefined;
+}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>("dark");
@@ -85,7 +94,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     (async () => {
       try {
         const s = await request<{ theme?: string }>("settings.get");
-        const t = s.theme as Theme | undefined;
+        const t = normalizeTheme(s.theme);
         if (!cancelled && t && THEMES.includes(t)) setTheme(t);
       } catch {
         // ignore

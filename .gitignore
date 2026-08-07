@@ -72,3 +72,13 @@ mt4_feed.db-wal
 # Local backup artifacts
 *.bak_*
 *.bak_sched_*
+
+# Agent tooling + dev scratch (not project source)
+.opencode/
+scratch/
+scratch_orig.qml
+
+# Account audit ledger (runtime data, contains account/trade info)
+data/trade_audit.db
+data/trade_audit.db-shm
+data/trade_audit.db-wal

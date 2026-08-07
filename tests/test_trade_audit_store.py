@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _workspace_root = Path(__file__).resolve().parents[1]
 if str(_workspace_root) not in sys.path:
@@ -13,6 +14,7 @@ if str(_workspace_root) not in sys.path:
 
 from repositories.trade_audit_store import (
     TradeAuditStore,
+    _default_db_path,
     position_identity,
     is_same_position,
 )
@@ -155,6 +157,59 @@ class TestAuditChain(TradeAuditStoreTestCase):
         result = self.store.verify_audit_chain(account_id)
         self.assertTrue(result["ok"])
         self.assertEqual(result["events"], 0)
+
+
+class TestDefaultDatabasePath(unittest.TestCase):
+    """The audit writer and the Tauri reader must resolve the SAME ledger file.
+
+    Only temporary directories are used; the real data/trade_audit.db is never
+    opened or created by these tests.
+    """
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory(prefix="robot-sltp-audit-path-")
+        self.addCleanup(self._tmpdir.cleanup)
+
+    def test_explicit_override_wins(self):
+        explicit = os.path.join(self._tmpdir.name, "explicit", "audit.db")
+        with mock.patch.dict(os.environ, {
+            "TRADE_AUDIT_DB_PATH": explicit,
+            "OAK_DATA_DIR": os.path.join(self._tmpdir.name, "ignored"),
+        }):
+            self.assertEqual(_default_db_path(), explicit)
+            store = TradeAuditStore()
+            self.addCleanup(store.close)
+        self.assertEqual(store._db_path, explicit)
+        self.assertTrue(os.path.isfile(explicit))
+
+    def test_oak_data_dir_is_used_when_no_explicit_override(self):
+        data_root = os.path.join(self._tmpdir.name, "oak-data")
+        expected = os.path.join(data_root, "data", "trade_audit.db")
+        with mock.patch.dict(os.environ, {"OAK_DATA_DIR": data_root}):
+            os.environ.pop("TRADE_AUDIT_DB_PATH", None)
+            self.assertEqual(_default_db_path(), expected)
+            store = TradeAuditStore()
+            self.addCleanup(store.close)
+        self.assertEqual(store._db_path, expected)
+        self.assertTrue(os.path.isfile(expected))
+
+    def test_repo_root_fallback_without_env(self):
+        # Path resolution only — constructing a store here would touch real data.
+        with mock.patch.dict(os.environ, {}):
+            os.environ.pop("TRADE_AUDIT_DB_PATH", None)
+            os.environ.pop("OAK_DATA_DIR", None)
+            resolved = Path(_default_db_path())
+        self.assertEqual(resolved, _workspace_root / "data" / "trade_audit.db")
+
+    def test_explicit_db_path_argument_still_wins(self):
+        explicit = os.path.join(self._tmpdir.name, "argument.db")
+        with mock.patch.dict(os.environ, {
+            "TRADE_AUDIT_DB_PATH": os.path.join(self._tmpdir.name, "env.db"),
+            "OAK_DATA_DIR": self._tmpdir.name,
+        }):
+            store = TradeAuditStore(db_path=explicit)
+            self.addCleanup(store.close)
+        self.assertEqual(store._db_path, explicit)
 
 
 if __name__ == "__main__":

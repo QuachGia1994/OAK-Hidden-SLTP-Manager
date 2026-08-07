@@ -388,6 +388,43 @@ pub async fn sidecar_request(
 }
 
 // --------------------------------------------------------------------- //
+// Tauri command — launch the existing NativeQt/classic shell as a fallback
+// UI while the Tauri profile migration is tested. No path/command argument
+// is accepted from the frontend; the script and interpreter are fixed.
+// --------------------------------------------------------------------- //
+
+#[tauri::command]
+pub fn open_classic_ui() -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    {
+        // Dev: launch the repo-root NativeQt entry point with the resolved
+        // project Python, fixed cwd at the project root, no shell, and no
+        // console window on Windows. The child is detached (dropped Child is
+        // not killed by Rust), so it keeps running independently of the shell.
+        let python = resolve_python();
+        let script = project_root().join("oak_qt_shell.py");
+        let mut cmd = Command::new(python);
+        cmd.arg(&script);
+        cmd.current_dir(project_root());
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+        match cmd.spawn() {
+            Ok(_child) => Ok(()),
+            Err(e) => Err(format!("failed to launch NativeQt shell: {e}")),
+        }
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        // Prod: NativeQt is not bundled, so fail clearly rather than guessing
+        // a path or spawning an arbitrary process.
+        Err("NativeQt is not bundled in this build".to_string())
+    }
+}
+
+// --------------------------------------------------------------------- //
 // Tests
 // --------------------------------------------------------------------- //
 #[cfg(test)]

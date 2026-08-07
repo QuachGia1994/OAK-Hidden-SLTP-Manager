@@ -6,6 +6,8 @@ clean shutdown.  No business logic is moved here yet (acceptance #16:
 "Không thay đổi business logic trong Phase 1"); profile workers, MT5
 integration and the trade-audit stack arrive in later phases.
 """
+import time
+
 from ..ipc.protocol import error_payload
 from ..ipc.server import IpcServer
 from ..version import APP_NAME, APP_VERSION, PROTOCOL_VERSION
@@ -14,6 +16,30 @@ from .accounts import AccountQueries
 from .services import ServiceManager
 from . import settings as settings_module
 from . import orders as orders_module
+from . import pending as pending_module
+from . import diagnostics as diagnostics_module
+from . import history as history_module
+from . import news as news_module
+
+
+def _monotonic_now() -> float:
+    """Monotonic clock source — patchable in tests for deterministic uptime."""
+    return time.monotonic()
+
+
+def _format_uptime(elapsed_seconds: float) -> str:
+    """Format an elapsed duration as ``HH:MM:SS`` or ``Nd HH:MM:SS``.
+
+    Uses integer seconds so the value never drifts backwards and is immune
+    to wall-clock adjustments.
+    """
+    total = int(elapsed_seconds)
+    days, rem = divmod(total, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, seconds = divmod(rem, 60)
+    if days > 0:
+        return f"{days}d {hours:02d}:{minutes:02d}:{seconds:02d}"
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 class SupervisorApp:
@@ -26,6 +52,7 @@ class SupervisorApp:
         self._server = server if server is not None else IpcServer()
         from datetime import datetime, timezone
         self._started_at = started_at or datetime.now(timezone.utc).isoformat()
+        self._monotonic_start = _monotonic_now()
         self._healthy = True
         self._profiles = profile_manager if profile_manager is not None else ProfileManager()
         self._accounts = account_queries if account_queries is not None else AccountQueries(emit_event=self._server.emit_event)
@@ -37,12 +64,21 @@ class SupervisorApp:
         self._server.register("app.health", self._on_health)
         self._server.register("app.shutdown", self._on_shutdown)
         self._server.register("logs.tail", self._on_logs_tail)
+        self._server.register("diagnostics.summary", self._on_diagnostics_summary)
+        self._server.register("diagnostics.export_bundle", self._on_diagnostics_export_bundle)
         # Phase 2 — profile supervision (§9).
         self._server.register("profiles.list", self._on_profiles_list)
         self._server.register("profile.start", self._on_profile_start)
         self._server.register("profile.stop", self._on_profile_stop)
         self._server.register("profile.status", self._on_profile_status)
         self._server.register("profile.add", self._on_profile_add)
+        self._server.register("profile.update", self._on_profile_update)
+        self._server.register("profile.duplicate", self._on_profile_duplicate)
+        self._server.register("profile.delete", self._on_profile_delete)
+        # Telegram bot token — write-only; the value never crosses back.
+        self._server.register("profile.secrets.status", self._on_profile_secret_status)
+        self._server.register("profile.secrets.set_token", self._on_profile_secret_set_token)
+        self._server.register("profile.secrets.clear_token", self._on_profile_secret_clear_token)
         # Phase 3 — account audit queries (§9).
         self._server.register("account.get", self._on_account_get)
         self._server.register("positions.list", self._on_positions_list)
@@ -76,6 +112,15 @@ class SupervisorApp:
         self._server.register("orders.add_scheduled_close", self._on_add_scheduled_close)
         self._server.register("orders.delete_scheduled_close", self._on_delete_scheduled_close)
         self._server.register("orders.clear_scheduled_closes", self._on_clear_scheduled_closes)
+        self._server.register("pending.summary", self._on_pending_summary)
+        self._server.register("pending.item.delete", self._on_pending_item_delete)
+        self._server.register("pending.clear_done", self._on_pending_clear_done)
+        # Read-only local history + published rule contract (website parity).
+        # Account-scoped trade history stays on ``deals.list``.
+        self._server.register("history.signals", self._on_history_signals)
+        self._server.register("rules.today", self._on_rules_today)
+        # Read-only local economic-news cache (no fetch, no Redis, no API key).
+        self._server.register("news.local", self._on_news_local)
 
     # ------------------------------------------------------------------ #
     # Handlers (return dict -> ok response; raise -> error response)
@@ -90,10 +135,11 @@ class SupervisorApp:
         }
 
     def _on_health(self, request) -> dict:
+        elapsed = _monotonic_now() - self._monotonic_start
         return {
             "status": "ok" if self._healthy else "degraded",
-            "uptime": self._started_at,
-            "workers": list(self._profiles._workers.keys()),
+            "uptime": _format_uptime(elapsed),
+            "workers": self._profiles.running_workers(),
             "protocol": PROTOCOL_VERSION,
         }
 
@@ -106,7 +152,21 @@ class SupervisorApp:
 
     def _on_logs_tail(self, request) -> dict:
         lines = request.params.get("lines", 100)
-        return {"lines": [], "truncated": False, "requested": int(lines)}
+        return diagnostics_module.tail(
+            lines=int(lines),
+            query=str(request.params.get("query") or ""),
+            level=str(request.params.get("level") or "ALL"),
+        )
+
+    def _on_diagnostics_summary(self, request) -> dict:
+        return diagnostics_module.summary(
+            selected=str(request.params.get("profile") or ""),
+            query=str(request.params.get("query") or ""),
+            level=str(request.params.get("level") or "ALL"),
+        )
+
+    def _on_diagnostics_export_bundle(self, request) -> dict:
+        return diagnostics_module.export_bundle()
 
     # ------------------------------------------------------------------ #
     # Phase 2 — profile handlers
@@ -139,6 +199,49 @@ class SupervisorApp:
         path = str(request.params.get("path") or "")
         magic = request.params.get("magic", -1)
         return self._profiles.add_profile(name, path=path, magic=magic)
+
+    def _on_profile_update(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        updates = request.params.get("updates") or {}
+        if not name:
+            raise ValueError("profile param required")
+        if not isinstance(updates, dict):
+            raise ValueError("updates must be an object")
+        return self._profiles.update_profile(name, updates)
+
+    def _on_profile_duplicate(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        new_name = str(request.params.get("new_name") or "")
+        if not name:
+            raise ValueError("profile param required")
+        return self._profiles.duplicate_profile(name, new_name)
+
+    def _on_profile_delete(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        if not name:
+            raise ValueError("profile param required")
+        return self._profiles.delete_profile(name)
+
+    def _on_profile_secret_status(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        if not name:
+            raise ValueError("profile param required")
+        return self._profiles.secret_status(name)
+
+    def _on_profile_secret_set_token(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        token = str(request.params.get("token") or "")
+        if not name:
+            raise ValueError("profile param required")
+        if not token.strip():
+            raise ValueError("token param required")
+        return self._profiles.set_tele_token(name, token)
+
+    def _on_profile_secret_clear_token(self, request) -> dict:
+        name = str(request.params.get("profile") or "")
+        if not name:
+            raise ValueError("profile param required")
+        return self._profiles.clear_tele_token(name)
 
     # ------------------------------------------------------------------ #
     # Phase 3 — account audit handlers
@@ -303,6 +406,41 @@ class SupervisorApp:
 
     def _on_clear_scheduled_closes(self, request) -> dict:
         return orders_module.clear_scheduled_closes()
+
+    def _on_pending_summary(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return pending_module.summary(profile)
+
+    def _on_pending_item_delete(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        item_id = str(request.params.get("item_id") or "")
+        if not profile or not item_id:
+            raise ValueError("profile and item_id params required")
+        return pending_module.delete_item(profile, item_id)
+
+    def _on_pending_clear_done(self, request) -> dict:
+        profile = str(request.params.get("profile") or "")
+        if not profile:
+            raise ValueError("profile param required")
+        return pending_module.clear_done(profile)
+
+    # ------------------------------------------------------------------ #
+    # Read-only history + rule contract
+    # ------------------------------------------------------------------ #
+    def _on_history_signals(self, request) -> dict:
+        # The limit is clamped inside the module (1..MAX_RECORDS).
+        return history_module.signal_history(
+            limit=request.params.get("limit", history_module.DEFAULT_LIMIT),
+        )
+
+    def _on_rules_today(self, request) -> dict:
+        return history_module.today_rules(locale=request.params.get("locale", "VN"))
+
+    def _on_news_local(self, request) -> dict:
+        # Locale is the only input; the cache path is resolved internally.
+        return news_module.local_news(locale=request.params.get("locale", "VN"))
 
     # ------------------------------------------------------------------ #
     # Run

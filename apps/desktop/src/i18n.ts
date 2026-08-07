@@ -51,6 +51,7 @@ export interface LocaleText {
   screenerTitle: string;
   screenerSubtitle: string;
   screenerLoadEod: string;
+  screenerAutoEodHint: string;
   screenerLoadingEod: string;
   screenerRunFilter: string;
   screenerRunningFilter: string;
@@ -88,6 +89,42 @@ export interface LocaleText {
   profileNameRequired: string;
   profileDuplicate: string;
   profileAddError: string;
+  magicInvalid: string;
+  profileMap: string;
+  profileStoredHint: string;
+  profileSavedHint: string;
+  profileSaved: string;
+  profileDuplicated: string;
+  profileDeleted: string;
+  deleteConfirm: string;
+  deleteAgain: string;
+  addNew: string;
+  duplicate: string;
+  delete: string;
+  selected: string;
+  use: string;
+  noProfileSelected: string;
+  unsavedChanges: string;
+  maskedSecrets: string;
+  secretBoundary: string;
+  // telegram routing + write-only bot token
+  telegramSection: string;
+  teleChat: string;
+  teleAdmin: string;
+  teleToken: string;
+  teleTokenPlaceholder: string;
+  teleTokenSave: string;
+  teleTokenClear: string;
+  teleTokenSaved: string;
+  teleTokenCleared: string;
+  teleTokenClearFailed: string;
+  teleTokenConfigured: string;
+  teleTokenMissing: string;
+  teleTokenRequired: string;
+  teleTokenClearConfirm: string;
+  teleTokenWriteOnly: string;
+  keyringAvailable: string;
+  keyringUnavailable: string;
 }
 
 export const LOCALES: Record<Locale, LocaleText> = {
@@ -140,6 +177,7 @@ export const LOCALES: Record<Locale, LocaleText> = {
     screenerTitle: "Stock Screener",
     screenerSubtitle: "Local EOD \u00b7 data/market.db \u00b7 read-only via sidecar",
     screenerLoadEod: "Load EOD (15:00+)",
+    screenerAutoEodHint: "Auto-update runs once a day, after 15:00 local time.",
     screenerLoadingEod: "Loading EOD\u2026",
     screenerRunFilter: "Run filter",
     screenerRunningFilter: "Running\u2026",
@@ -178,6 +216,41 @@ export const LOCALES: Record<Locale, LocaleText> = {
     profileNameRequired: "Profile name required.",
     profileDuplicate: "This profile already exists.",
     profileAddError: "Cannot add profile:",
+    magicInvalid: "Magic number must be an integer; leave empty for -1.",
+    profileMap: "PROFILE MAP",
+    profileStoredHint: "Non-secret fields are stored through oak-core.",
+    profileSavedHint: "Changes are saved to profiles.json",
+    profileSaved: "Profile saved.",
+    profileDuplicated: "Profile duplicated.",
+    profileDeleted: "Profile deleted.",
+    deleteConfirm: "Click Delete again to remove",
+    deleteAgain: "Delete again",
+    addNew: "Add new",
+    duplicate: "Duplicate",
+    delete: "Delete",
+    selected: "Selected",
+    use: "Use",
+    noProfileSelected: "No profile selected",
+    unsavedChanges: "Unsaved changes — discard them?",
+    maskedSecrets: "MASKED SECRETS",
+    secretBoundary: "Telegram tokens and credentials stay inside oak-core and are never sent to React.",
+    telegramSection: "Telegram",
+    teleChat: "Chat ID",
+    teleAdmin: "Admin chat ID",
+    teleToken: "Bot token",
+    teleTokenPlaceholder: "Paste a new bot token",
+    teleTokenSave: "Save token",
+    teleTokenClear: "Clear token",
+    teleTokenSaved: "Token saved to the Windows keyring.",
+    teleTokenCleared: "Token removed from the Windows keyring.",
+    teleTokenClearFailed: "Could not remove the token from the Windows keyring.",
+    teleTokenConfigured: "Token configured",
+    teleTokenMissing: "No token configured",
+    teleTokenRequired: "Enter a bot token first.",
+    teleTokenClearConfirm: "Remove the Telegram bot token for this profile?",
+    teleTokenWriteOnly: "Write-only: the stored token is never read back into this window.",
+    keyringAvailable: "Windows keyring available",
+    keyringUnavailable: "Windows keyring unavailable — the token cannot be stored securely.",
   },
   VN: {
     navStatus: "Trạng thái",
@@ -228,6 +301,7 @@ export const LOCALES: Record<Locale, LocaleText> = {
     screenerTitle: "Bộ lọc Cổ phiếu",
     screenerSubtitle: "Dữ liệu EOD nội bộ · data/market.db · đọc qua sidecar (chỉ đọc)",
     screenerLoadEod: "Tải EOD (15:00+)",
+    screenerAutoEodHint: "Tự động cập nhật một lần mỗi ngày, sau 15:00 giờ máy.",
     screenerLoadingEod: "Đang tải EOD…",
     screenerRunFilter: "Chạy bộ lọc",
     screenerRunningFilter: "Đang chạy…",
@@ -266,5 +340,40 @@ export const LOCALES: Record<Locale, LocaleText> = {
     profileNameRequired: "Cần nhập tên hồ sơ.",
     profileDuplicate: "Hồ sơ này đã tồn tại.",
     profileAddError: "Không thể thêm hồ sơ:",
+    magicInvalid: "Magic number phải là số nguyên; để trống nếu muốn -1.",
+    profileMap: "DANH SÁCH HỒ SƠ",
+    profileStoredHint: "Trường không nhạy cảm được lưu qua oak-core.",
+    profileSavedHint: "Thay đổi được lưu vào profiles.json",
+    profileSaved: "Đã lưu hồ sơ.",
+    profileDuplicated: "Đã nhân bản hồ sơ.",
+    profileDeleted: "Đã xóa hồ sơ.",
+    deleteConfirm: "Nhấn Xóa lần nữa để xóa",
+    deleteAgain: "Xóa lần nữa",
+    addNew: "Thêm mới",
+    duplicate: "Nhân bản",
+    delete: "Xóa",
+    selected: "Đang chọn",
+    use: "Chọn",
+    noProfileSelected: "Chưa chọn hồ sơ",
+    unsavedChanges: "Thay đổi chưa lưu — bỏ thay đổi?",
+    maskedSecrets: "THÔNG TIN ĐÃ CHE",
+    secretBoundary: "Token Telegram và thông tin xác thực chỉ ở trong oak-core, không gửi sang React.",
+    telegramSection: "Telegram",
+    teleChat: "ID chat",
+    teleAdmin: "ID chat quản trị",
+    teleToken: "Token bot",
+    teleTokenPlaceholder: "Dán token bot mới",
+    teleTokenSave: "Lưu token",
+    teleTokenClear: "Xóa token",
+    teleTokenSaved: "Đã lưu token vào keyring Windows.",
+    teleTokenCleared: "Đã xóa token khỏi keyring Windows.",
+    teleTokenClearFailed: "Không xóa được token khỏi keyring Windows.",
+    teleTokenConfigured: "Đã cấu hình token",
+    teleTokenMissing: "Chưa cấu hình token",
+    teleTokenRequired: "Hãy nhập token bot trước.",
+    teleTokenClearConfirm: "Xóa token bot Telegram của hồ sơ này?",
+    teleTokenWriteOnly: "Chỉ ghi: token đã lưu không bao giờ được đọc ngược về cửa sổ này.",
+    keyringAvailable: "Keyring Windows khả dụng",
+    keyringUnavailable: "Keyring Windows không khả dụng — không thể lưu token an toàn.",
   },
 };

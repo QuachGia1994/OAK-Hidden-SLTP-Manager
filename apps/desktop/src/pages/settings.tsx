@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { request, onEvent, IpcError } from "../ipc/bridge";
+import { request, IpcError } from "../ipc/bridge";
 import { useLocale, useTheme, type Theme } from "../contexts";
 
 /**
  * Phase 6 — Settings + Diagnostics page (§9).
  * Editable settings (whitelisted by the sidecar — secret keys are masked on
- * read and rejected on write) + service status cards.
+ * read and rejected on write). Service lifecycle controls live in Tín hiệu.
  */
 
 interface SettingsData {
@@ -15,18 +15,11 @@ interface SettingsData {
   ntfy_topic?: boolean; // presence flag only — never the value
 }
 
-interface ServiceCard {
-  key: string;
-  label: string;
-  kind: string;
-  configured: boolean;
-  status: string;
-  trading_risk: string;
-  execution_armed: boolean;
-  note?: string;
-  config_note?: string;
-  pid?: number;
-  exit_code?: number;
+function normalizeTheme(value: string | undefined): Theme {
+  const normalized = String(value || "dark").toLowerCase().replace(/_/g, "-");
+  if (normalized === "deep sea" || normalized === "sea") return "deep-sea";
+  if (normalized === "deep-sea" || normalized === "light" || normalized === "contrast") return normalized;
+  return "dark";
 }
 
 export function SettingsPage() {
@@ -39,17 +32,13 @@ export function SettingsPage() {
     language: vn ? "Ngôn ngữ" : "Language",
     theme: vn ? "Giao diện" : "Theme",
     ghostMode: vn ? "Chế độ ẩn" : "Ghost mode",
-    services: vn ? "Dịch vụ" : "Services",
     save: vn ? "Lưu" : "Save",
     saving: vn ? "Đang lưu…" : "Saving…",
     reload: vn ? "Tải lại" : "Reload",
     error: "ERROR",
     saved: vn ? "Đã lưu (chỉ các trường cho phép)." : "Saved (whitelisted fields only).",
-    noServices: vn ? "Chưa có dịch vụ nào." : "No services reported.",
-    serviceHint: vn ? "Mỗi dịch vụ có thể bật/tắt thủ công từ đây (không tự chạy khi mở app). Dịch vụ có rủi ro giao dịch được đánh dấu và yêu cầu xác nhận trước khi bắt đầu." : "Each service can be started/stopped manually here (nothing auto-starts on app open). Trade-risk services are marked and require confirmation before starting.",
   };
   const [settings, setSettings] = useState<SettingsData>({});
-  const [services, setServices] = useState<ServiceCard[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -57,12 +46,8 @@ export function SettingsPage() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [s, svc] = await Promise.all([
-        request<SettingsData>("settings.get"),
-        request<{ services: ServiceCard[] }>("services.list"),
-      ]);
-      setSettings(s ?? {});
-      setServices(svc.services ?? []);
+      const s = await request<SettingsData>("settings.get");
+      setSettings({ ...(s ?? {}), theme: normalizeTheme(s?.theme) });
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
     }
@@ -71,53 +56,6 @@ export function SettingsPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  // Subscribe to live service.state events (normalized to handle both
-  // "service.state" and "service_state" from different builds).
-  useEffect(() => {
-    let cancelled = false;
-    const unsub = onEvent((ev) => {
-      const name = (ev.event || "").replace(/_/g, ".");
-      if (name !== "service.state") return;
-      const payload = ev.data as ServiceCard;
-      if (!payload || !payload.key) return;
-      if (cancelled) return;
-      setServices((prev) =>
-        prev.map((s) => (s.key === payload.key ? { ...s, ...payload } : s)),
-      );
-    });
-    return () => {
-      cancelled = true;
-      unsub.then((fn) => fn());
-    };
-  }, []);
-
-  const startService = async (svc: ServiceCard) => {
-    if (svc.trading_risk === "critical") {
-      const msg = vn
-        ? "Cảnh báo: dịch vụ này có rủi ro giao dịch. Bạn có chắc chắn muốn bắt đầu?"
-        : "Warning: this service has trade risk. Start it?";
-      if (!window.confirm(msg)) return;
-    }
-    try {
-      await request("service.start", {
-        service: svc.key,
-        ...(svc.trading_risk === "critical" ? { confirm: true } : {}),
-      });
-      await load();
-    } catch (e) {
-      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
-    }
-  };
-
-  const stopService = async (svc: ServiceCard) => {
-    try {
-      await request("service.stop", { service: svc.key });
-      await load();
-    } catch (e) {
-      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
-    }
-  };
 
   const save = async () => {
     setSaving(true);
@@ -134,8 +72,19 @@ export function SettingsPage() {
     }
   };
 
+  useEffect(() => {
+    const saveShortcut = () => { void save(); };
+    window.addEventListener("oak:save", saveShortcut);
+    return () => window.removeEventListener("oak:save", saveShortcut);
+  });
+
   const setField = (key: string, value: string | boolean) =>
     setSettings((prev) => ({ ...prev, [key]: value }));
+
+  const resetTheme = () => {
+    setField("theme", "dark");
+    setTheme("dark");
+  };
 
   return (
     <div className="content">
@@ -169,6 +118,7 @@ export function SettingsPage() {
               onChange={(e) => { setField("theme", e.target.value); setTheme(e.target.value as Theme); }}
             >
               <option value="dark">Dark</option>
+              <option value="deep-sea">Deep sea</option>
               <option value="light">Light</option>
               <option value="contrast">Contrast</option>
             </select>
@@ -194,106 +144,32 @@ export function SettingsPage() {
         <button className="btn" onClick={() => void load()}>
           {L.reload}
         </button>
+        <button className="btn" onClick={resetTheme}>
+          {vn ? "Đặt lại giao diện" : "Reset theme"}
+        </button>
       </div>
 
-      <section className="panel">
-        <h2>{L.services}</h2>
-        <p className="muted small">{L.serviceHint}</p>
-        <div className="svc-list">
-          {services.map((s) => {
-            const isRunning = s.status === "running";
-            const isOnDemand = s.kind === "on_demand";
-            const isCritical = s.trading_risk === "critical";
-
-            const statusBadge = (() => {
-              switch (s.status) {
-                case "running":
-                  return (
-                    <span className="badge ok">
-                      {vn ? "ĐANG CHẠY" : "RUNNING"}
-                    </span>
-                  );
-                case "stopped":
-                  return (
-                    <span className="badge muted">
-                      {vn ? "DỪNG" : "STOPPED"}
-                    </span>
-                  );
-                case "exited":
-                  return (
-                    <span className="badge muted">
-                      {vn ? "ĐÃ THOÁT" : "EXITED"}
-                    </span>
-                  );
-                case "crashed":
-                  return (
-                    <span className="badge error">
-                      {vn ? "LỖI" : "CRASHED"}
-                    </span>
-                  );
-                default:
-                  return <span className="badge muted">—</span>;
-              }
-            })();
-
-            return (
-              <div key={s.key} className="svc-row">
-                <span className="badge neutral">{s.key}</span>
-                <span>{s.label}</span>
-                <span className={`badge ${s.configured ? "ok" : "warn"}`}>
-                  {s.configured
-                    ? vn
-                      ? "ĐÃ CẤU HÌNH"
-                      : "CONFIGURED"
-                    : vn
-                      ? "CHƯA ĐẶT"
-                      : "NOT SET"}
-                </span>
-                {statusBadge}
-                {isCritical && (
-                  <span className="badge error">
-                    {vn ? "RỦI RO TRAO ĐỔI" : "TRADE RISK"}
-                  </span>
-                )}
-                {isCritical && s.execution_armed && (
-                  <span className="badge error">
-                    {vn ? "LIVE EXECUTION ARMED" : "LIVE EXECUTION ARMED"}
-                  </span>
-                )}
-                {isOnDemand ? (
-                  <span className="muted small">{s.note}</span>
-                ) : (
-                  <span className="svc-actions">
-                    {isRunning ? (
-                      <button
-                        className="btn danger"
-                        onClick={() => void stopService(s)}
-                      >
-                        {vn ? "Dừng" : "Stop"}
-                      </button>
-                    ) : (
-                      <button
-                        className="btn primary"
-                        disabled={!s.configured}
-                        title={
-                          !s.configured ? (s.config_note ?? "") : undefined
-                        }
-                        onClick={() => void startService(s)}
-                      >
-                        {vn ? "Bắt đầu" : "Start"}
-                      </button>
-                    )}
-                  </span>
-                )}
-                {s.note && !isOnDemand && (
-                  <span className="muted small">{s.note}</span>
-                )}
-              </div>
-            );
-          })}
-          {services.length === 0 && <p className="muted">{L.noServices}</p>}
-        </div>
-      </section>
+      <div className="settings-about-grid">
+        <section className="panel">
+          <h2>{vn ? "Rào chắn build" : "Build guardrails"}</h2>
+          <div className="guardrail-grid single-column">
+            <div className="guardrail-row"><div className="guardrail-head"><strong>Tauri + React</strong><span className="mono equity-positive">LEAN</span></div><p>{vn ? "React không đọc trực tiếp Python, SQLite hoặc secrets." : "React never reads Python, SQLite, or secrets directly."}</p></div>
+            <div className="guardrail-row"><div className="guardrail-head"><strong>oak-core</strong><span className="mono equity-positive">IPC</span></div><p>{vn ? "Business data đi qua Rust sidecar bridge." : "Business data flows through the Rust sidecar bridge."}</p></div>
+            <div className="guardrail-row"><div className="guardrail-head"><strong>{vn ? "Gói phát hành" : "Artifacts"}</strong><span className="mono">Tauri bundle</span></div><p>{vn ? "Installer quản lý artifact; không mở đường dẫn tùy ý từ UI." : "Installer-managed artifacts; the UI cannot open arbitrary paths."}</p></div>
+          </div>
+        </section>
+        <section className="panel">
+          <h2>{vn ? "Thông tin / bản build" : "About / Build"}</h2>
+          <div className="about-list mono">
+            <span>OAK Manager</span>
+            <span>Tauri + React + oak-core</span>
+            <span>License: MIT © 2026 QKP</span>
+            <span>{vn ? "Giao thức" : "Protocol"}: v1</span>
+            <span>{vn ? "Phím tắt" : "Shortcuts"}: Ctrl+1..8 · Ctrl+R/F5 · Ctrl+S · Esc</span>
+            <span className="muted">THIRD_PARTY_NOTICES.md</span>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

@@ -17,14 +17,31 @@ from oak_logger import setup_logger
 
 log = setup_logger("trade_audit")
 
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "..", "data", "trade_audit.db"
-)
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Optional env override for tests / portability.
-_DB_PATH_OVERRIDE = os.environ.get("TRADE_AUDIT_DB_PATH")
-if _DB_PATH_OVERRIDE:
-    DB_PATH = _DB_PATH_OVERRIDE
+
+def _default_db_path():
+    """Resolve the ledger path so writer and reader always agree.
+
+    Precedence:
+    1. ``TRADE_AUDIT_DB_PATH`` (explicit override, tests / portability);
+    2. ``OAK_DATA_DIR``/data/trade_audit.db (data root used by the Tauri shell);
+    3. repo-root data/trade_audit.db (dev fallback).
+
+    Resolved on every construction: the sidecar and the audit service are
+    separate processes and must not bind to an import-time snapshot.
+    """
+    override = os.environ.get("TRADE_AUDIT_DB_PATH", "")
+    if override:
+        return override
+    data_dir = os.environ.get("OAK_DATA_DIR", "")
+    if data_dir:
+        return os.path.join(data_dir, "data", "trade_audit.db")
+    return os.path.join(_REPO_ROOT, "data", "trade_audit.db")
+
+
+#: Import-time value kept for backwards compatibility with existing callers.
+DB_PATH = _default_db_path()
 
 # Tables created by the initial migration (version 1).
 _INITIAL_SCHEMA = """
@@ -275,7 +292,7 @@ class TradeAuditStore:
     """Append-only trade ledger on data/trade_audit.db."""
 
     def __init__(self, db_path=None, read_only=True):
-        self._db_path = db_path or DB_PATH
+        self._db_path = db_path or _default_db_path()
         self._read_only = read_only
         # Ensure parent directory exists.
         parent = os.path.dirname(os.path.abspath(self._db_path))

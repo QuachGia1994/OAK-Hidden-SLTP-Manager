@@ -1,41 +1,31 @@
 import { useCallback, useEffect, useState } from "react";
 import { request, IpcError } from "../ipc/bridge";
 import { useLocale } from "../contexts";
+import type { ProfilesList } from "../ipc/types";
 
 /**
- * Order Management page — "Lệnh chờ xử lý" (§9 Phase 4/5).
- * Mirrors the Native Qt "Chờ xử lý" tab + Telegram order commands:
- * scheduled trades (hẹn giờ vào lệnh), scheduled closes (đóng lệnh hẹn giờ).
- * Execution stays in the Python workers; the desktop only views + schedules.
+ * Order Management page — "Lệnh chờ xử lý".
+ * Shows worker-executed session tasks backed by the File phiên làm việc
+ * workspace (pending.summary). Scheduling is not performed from Tauri;
+ * execution stays in the Python workers.
  */
 
-interface ScheduledTrade {
-  id: number;
-  symbol: string;
-  type: number;
-  lot: string;
-  sl: string;
-  tp: string;
-  time: string;
-  date: string;
+interface LegacyPendingItem {
+  id: string;
+  kind: string;
   status: string;
+  file_name: string;
+  [key: string]: unknown;
 }
 
-interface ScheduledClose {
-  id: number;
-  time: string;
-  date: string;
-  filter: string;
-  sym: string;
+interface LegacyPendingSummary {
+  profile: string;
+  files: { name: string; count: number }[];
+  items: LegacyPendingItem[];
+  total: number;
+  waiting: number;
+  done: number;
 }
-
-interface OrdersSummary {
-  scheduled_trades: ScheduledTrade[];
-  scheduled_closes: ScheduledClose[];
-  pending_partials: { ticket: number; symbol: string; type: string; target_profit: number; close_volume: number; profile: string }[];
-}
-
-const TYPE_NAMES: Record<number, string> = { 0: "BUY", 1: "SELL" };
 
 export function OrdersPage() {
   const { locale } = useLocale();
@@ -43,58 +33,42 @@ export function OrdersPage() {
   const L = {
     title: vn ? "Lệnh chờ xử lý" : "Pending Orders",
     subtitle: vn
-      ? "Hẹn giờ vào lệnh · đóng lệnh hẹn giờ · partial — thao tác qua worker Python"
-      : "Scheduled entries · scheduled closes · partials — executed by Python workers",
-    addTrade: vn ? "Hẹn giờ vào lệnh" : "Schedule Entry",
-    addClose: vn ? "Đóng lệnh hẹn giờ" : "Schedule Close",
-    symbol: "Symbol",
-    type: "Type",
-    lot: "Lot",
-    time: "Time",
-    date: "Date",
-    sl: "SL",
-    tp: "TP",
-    filter: "Filter",
-    symOptional: vn ? "Symbol (trống = all)" : "Symbol (empty = all)",
-    addTradeBtn: vn ? "Thêm lệnh" : "Add Order",
-    addCloseBtn: vn ? "Thêm lệnh đóng" : "Add Close",
-    tradesTitle: vn ? "Lệnh hẹn giờ" : "Scheduled Trades",
-    closesTitle: vn ? "Đóng lệnh hẹn giờ" : "Scheduled Closes",
-    partialsTitle: vn ? "Partial chờ xử lý" : "Pending Partials",
-    noTrades: vn ? "Chưa có lệnh hẹn giờ." : "No scheduled trades yet.",
-    noCloses: vn ? "Chưa có lệnh đóng hẹn giờ." : "No scheduled closes yet.",
-    savedTrade: vn ? "Đã thêm lệnh hẹn giờ." : "Scheduled order added.",
-    savedClose: vn ? "Đã thêm lệnh đóng hẹn giờ." : "Scheduled close added.",
-    status: vn ? "Trạng thái" : "Status",
-    target: vn ? "Mục tiêu" : "Target",
-    closeVol: vn ? "Vol đóng" : "Close Vol",
+      ? "Tác vụ chờ do worker Python thực thi — xem và quản lý file phiên làm việc"
+      : "Worker-executed session tasks — view and manage session files",
     profile: vn ? "Hồ sơ" : "Profile",
   };
-  const [summary, setSummary] = useState<OrdersSummary>({ scheduled_trades: [], scheduled_closes: [], pending_partials: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<string[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState("");
+  const [legacyPending, setLegacyPending] = useState<LegacyPendingSummary | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState("");
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
 
-  // New scheduled trade form
-  const [nSymbol, setNSymbol] = useState("XAUUSD");
-  const [nType, setNType] = useState(0);
-  const [nLot, setNLot] = useState("0.10");
-  const [nTime, setNTime] = useState("09:30");
-  const [nDate, setNDate] = useState("");
-  const [nSl, setNSl] = useState("0");
-  const [nTp, setNTp] = useState("0");
-  // New scheduled close form
-  const [cTime, setCTime] = useState("15:30");
-  const [cDate, setCDate] = useState("");
-  const [cFilter, setCFilter] = useState("all");
-  const [cSym, setCSym] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void request<ProfilesList>("profiles.list").then((res) => {
+      if (cancelled) return;
+      const names = (res.profiles ?? []).map((profile) => profile.profile_name);
+      setProfiles(names);
+      setSelectedProfile((current) => current || names[0] || "");
+    }).catch((e: unknown) => {
+      if (!cancelled) setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    });
+    return () => { cancelled = true; };
+  }, []);
 
-  const load = useCallback(async () => {
+  const loadLegacyPending = useCallback(async (profile: string) => {
+    if (!profile) {
+      setLegacyPending(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    setError(null);
     try {
-      const res = await request<OrdersSummary>("orders.summary");
-      setSummary(res);
+      const result = await request<LegacyPendingSummary>("pending.summary", { profile });
+      setLegacyPending(result);
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
     } finally {
@@ -103,55 +77,54 @@ export function OrdersPage() {
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadLegacyPending(selectedProfile);
+  }, [loadLegacyPending, selectedProfile]);
 
-  const today = () => new Date().toISOString().slice(0, 10);
-
-  const addTrade = async () => {
+  const deletePending = async (item: LegacyPendingItem) => {
+    if (pendingDeleteId !== item.id) {
+      setPendingDeleteId(item.id);
+      setSavedMsg(vn ? "Nhấn Xóa lần nữa để xóa tác vụ này." : "Click Delete again to remove this task.");
+      return;
+    }
+    setPendingAction(item.id);
     setError(null);
-    setSavedMsg(null);
     try {
-      await request("orders.add_scheduled_trade", {
-        symbol: nSymbol, order_type: nType, lot: nLot,
-        time: nTime, date: nDate || today(), sl: nSl, tp: nTp,
-      });
-      setSavedMsg(L.savedTrade);
-      await load();
+      await request("pending.item.delete", { profile: selectedProfile, item_id: item.id });
+      setPendingDeleteId("");
+      setSavedMsg(vn ? "Đã xóa tác vụ chờ." : "Pending task deleted.");
+      await loadLegacyPending(selectedProfile);
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setPendingAction(null);
     }
   };
 
-  const deleteTrade = async (id: number) => {
-    try {
-      await request("orders.delete_scheduled_trade", { id });
-      await load();
-    } catch (e) {
-      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
-    }
-  };
-
-  const addClose = async () => {
+  const clearDonePending = async () => {
+    if (!selectedProfile) return;
+    setPendingAction("clear");
     setError(null);
-    setSavedMsg(null);
     try {
-      await request("orders.add_scheduled_close", {
-        time: cTime, date: cDate || today(), filter: cFilter, sym: cSym,
-      });
-      setSavedMsg(L.savedClose);
-      await load();
+      const result = await request<{ cleared: number }>("pending.clear_done", { profile: selectedProfile });
+      setSavedMsg(vn ? `Đã xóa ${result.cleared} tác vụ hoàn tất.` : `Cleared ${result.cleared} completed task(s).`);
+      setPendingDeleteId("");
+      await loadLegacyPending(selectedProfile);
     } catch (e) {
       setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+    } finally {
+      setPendingAction(null);
     }
   };
 
-  const deleteClose = async (id: number) => {
+  const copyPending = async (item: LegacyPendingItem) => {
     try {
-      await request("orders.delete_scheduled_close", { id });
-      await load();
-    } catch (e) {
-      setError(e instanceof IpcError ? `${e.code}: ${e.message}` : String(e));
+      const copy: Record<string, unknown> = { ...item };
+      delete copy.id;
+      delete copy.file_name;
+      await navigator.clipboard.writeText(JSON.stringify(copy, null, 2));
+      setSavedMsg(vn ? "Đã sao chép tác vụ." : "Pending task copied.");
+    } catch {
+      setSavedMsg(vn ? "Không thể truy cập clipboard." : "Clipboard unavailable.");
     }
   };
 
@@ -169,140 +142,73 @@ export function OrdersPage() {
       {savedMsg && <p className="hint">{savedMsg}</p>}
       {loading && <p className="muted">{vn ? "Đang tải…" : "Loading…"}</p>}
 
-      <div className="two-col">
-        {/* Left: add scheduled trade */}
-        <section className="panel">
-          <h2>{L.addTrade}</h2>
-          <div className="field-grid">
-            <label className="field"><span>{L.symbol}</span>
-              <input type="text" value={nSymbol} onChange={(e) => setNSymbol(e.target.value)} />
-            </label>
-            <label className="field"><span>{L.type}</span>
-              <select value={nType} onChange={(e) => setNType(Number(e.target.value))}>
-                <option value={0}>BUY</option>
-                <option value={1}>SELL</option>
-              </select>
-            </label>
-            <label className="field"><span>{L.lot}</span>
-              <input type="text" value={nLot} onChange={(e) => setNLot(e.target.value)} />
-            </label>
-            <label className="field"><span>{L.time}</span>
-              <input type="text" value={nTime} onChange={(e) => setNTime(e.target.value)} placeholder="HH:MM" />
-            </label>
-            <label className="field"><span>{L.date}</span>
-              <input type="text" value={nDate} onChange={(e) => setNDate(e.target.value)} placeholder={today()} />
-            </label>
-            <label className="field"><span>{L.sl}</span>
-              <input type="text" value={nSl} onChange={(e) => setNSl(e.target.value)} />
-            </label>
-            <label className="field"><span>{L.tp}</span>
-              <input type="text" value={nTp} onChange={(e) => setNTp(e.target.value)} />
-            </label>
+      <section className="panel legacy-pending-panel">
+        <div className="panel-heading">
+          <div><h2>{vn ? "File phiên làm việc" : "Session files"}</h2><p className="muted small">{vn ? "Điều khiển tác vụ chờ theo từng hồ sơ." : "Pending controls are scoped to one profile."}</p></div>
+          <div className="pending-controls">
+            <select value={selectedProfile} onChange={(e) => setSelectedProfile(e.target.value)} aria-label={L.profile}>
+              {profiles.map((name) => <option key={name} value={name}>{name}</option>)}
+              {profiles.length === 0 && <option value="">—</option>}
+            </select>
+            <button type="button" className="btn" onClick={() => void loadLegacyPending(selectedProfile)} disabled={pendingAction !== null}>{vn ? "Làm mới" : "Refresh"}</button>
+            <button type="button" className="btn" onClick={() => void clearDonePending()} disabled={pendingAction !== null || !selectedProfile}>{vn ? "Xóa tác vụ xong" : "Clear done"}</button>
           </div>
-          <div className="actions">
-            <button className="btn primary" onClick={() => void addTrade()}>{L.addTradeBtn}</button>
-          </div>
-        </section>
-
-        {/* Right: add scheduled close */}
-        <section className="panel">
-          <h2>{L.addClose}</h2>
-          <div className="field-grid">
-            <label className="field"><span>{L.time}</span>
-              <input type="text" value={cTime} onChange={(e) => setCTime(e.target.value)} placeholder="HH:MM" />
-            </label>
-            <label className="field"><span>{L.date}</span>
-              <input type="text" value={cDate} onChange={(e) => setCDate(e.target.value)} placeholder={today()} />
-            </label>
-            <label className="field"><span>{L.filter}</span>
-              <select value={cFilter} onChange={(e) => setCFilter(e.target.value)}>
-                <option value="all">all</option>
-                <option value="profit">profit</option>
-                <option value="loss">loss</option>
-              </select>
-            </label>
-            <label className="field"><span>{L.symOptional}</span>
-              <input type="text" value={cSym} onChange={(e) => setCSym(e.target.value)} />
-            </label>
-          </div>
-          <div className="actions">
-            <button className="btn primary" onClick={() => void addClose()}>{L.addCloseBtn}</button>
-          </div>
-        </section>
-      </div>
-
-      {/* Scheduled trades list */}
-      <section className="panel">
-        <h2>{L.tradesTitle} ({summary.scheduled_trades.length})</h2>
-        {summary.scheduled_trades.length === 0 ? (
-          <p className="muted">{L.noTrades}</p>
-        ) : (
-          <div className="table">
-            <div className="table-head">
-              <span>{L.symbol}</span><span>{L.type}</span><span>{L.lot}</span>
-              <span>{L.time}</span><span>{L.date}</span><span>SL/TP</span><span>{L.status}</span><span></span>
+        </div>
+        {legacyPending && (
+          <>
+            <div className="pending-summary-grid">
+              <span><b>{legacyPending.total}</b> {vn ? "tổng" : "total"}</span>
+              <span><b>{legacyPending.waiting}</b> {vn ? "đang chờ" : "waiting"}</span>
+              <span><b>{legacyPending.done}</b> {vn ? "đã xong" : "done"}</span>
+              {legacyPending.files.map((file) => <span key={file.name} className="muted mono">{file.name}: {file.count}</span>)}
             </div>
-            {summary.scheduled_trades.map((t) => (
-              <div key={t.id} className="trade-row neutral">
-                <span className="mono bold">{t.symbol}</span>
-                <span className={`badge ${t.type === 0 ? "ok" : "error"}`}>{TYPE_NAMES[t.type] ?? t.type}</span>
-                <span className="mono">{t.lot}</span>
-                <span className="mono">{t.time}</span>
-                <span className="mono">{t.date}</span>
-                <span className="mono muted">{t.sl}/{t.tp}</span>
-                <span className="badge neutral">{t.status}</span>
-                <button className="btn mini" onClick={() => void deleteTrade(t.id)}>✕</button>
+            {legacyPending.items.length === 0 ? (
+              <div className="empty-state"><p>{vn ? "Không có tác vụ chờ trong file phiên làm việc." : "No pending tasks in the session file."}</p></div>
+            ) : (
+              <div className="pending-item-list">
+                {legacyPending.items.map((item) => (
+                  <div className={`pending-item ${isPendingWaiting(item.status) ? "waiting" : ""}`} key={item.id}>
+                    <div className="pending-item-head">
+                      <strong>{String(item.kind).toUpperCase()} | {String(item.symbol ?? item.sym ?? item.ticket ?? item.id)}</strong>
+                      <span className={`badge ${pendingTone(item.status)}`}>{String(item.status || "waiting")}</span>
+                    </div>
+                    <span className="muted small">{pendingDetail(item)} · {item.file_name}</span>
+                    <div className="actions">
+                      <button type="button" className="btn mini" onClick={() => void copyPending(item)}>{vn ? "Sao chép" : "Copy"}</button>
+                      <button type="button" className="btn mini danger" onClick={() => void deletePending(item)} disabled={pendingAction === item.id}>{pendingAction === item.id ? "…" : pendingDeleteId === item.id ? (vn ? "Xóa lần nữa" : "Delete again") : (vn ? "Xóa" : "Delete")}</button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </section>
-
-      {/* Scheduled closes list */}
-      <section className="panel">
-        <h2>{L.closesTitle} ({summary.scheduled_closes.length})</h2>
-        {summary.scheduled_closes.length === 0 ? (
-          <p className="muted">{L.noCloses}</p>
-        ) : (
-          <div className="table">
-            <div className="table-head">
-              <span>{L.time}</span><span>{L.date}</span><span>{L.filter}</span><span>{L.symbol}</span><span></span>
-            </div>
-            {summary.scheduled_closes.map((c) => (
-              <div key={c.id} className="trade-row neutral">
-                <span className="mono">{c.time}</span>
-                <span className="mono">{c.date}</span>
-                <span className="badge neutral">{c.filter}</span>
-                <span className="mono">{c.sym || "all"}</span>
-                <button className="btn mini" onClick={() => void deleteClose(c.id)}>✕</button>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Pending partials */}
-      {summary.pending_partials.length > 0 && (
-        <section className="panel">
-          <h2>{L.partialsTitle} ({summary.pending_partials.length})</h2>
-          <div className="table">
-            <div className="table-head">
-              <span>Ticket</span><span>{L.symbol}</span><span>{L.type}</span>
-              <span>{L.target}</span><span>{L.closeVol}</span><span>{L.profile}</span>
-            </div>
-            {summary.pending_partials.map((p) => (
-              <div key={p.ticket} className="trade-row neutral">
-                <span className="mono">{p.ticket}</span>
-                <span className="mono bold">{p.symbol}</span>
-                <span>{p.type}</span>
-                <span className="mono">{p.target_profit}</span>
-                <span className="mono">{p.close_volume}</span>
-                <span className="mono muted">{p.profile}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
+}
+
+function isPendingWaiting(status: string): boolean {
+  return !["done", "executed", "closed", "expired", "cancelled", "canceled"].includes(status.toLowerCase());
+}
+
+function pendingTone(status: string): "ok" | "warn" | "error" | "neutral" {
+  const value = status.toLowerCase();
+  if (["waiting", "pending", "ready"].includes(value)) return "ok";
+  if (["error", "failed", "blocked"].includes(value)) return "error";
+  if (["done", "executed", "closed", "expired", "cancelled", "canceled"].includes(value)) return "neutral";
+  return "warn";
+}
+
+function pendingDetail(item: LegacyPendingItem): string {
+  const when = [item.date, item.time].filter(Boolean).join(" ") || String(item.execute_at ?? "—");
+  if (item.filter !== undefined) return `filter=${String(item.filter || "all")} · sym ${String(item.sym || "all")} · ${when}`;
+  return `${pendingOrderType(item.type)} · lot ${String(item.lot ?? "—")} · ${when}`;
+}
+
+function pendingOrderType(value: unknown): string {
+  const normalized = String(value ?? "").toUpperCase();
+  if (normalized === "0" || normalized === "BUY") return "BUY";
+  if (normalized === "1" || normalized === "SELL") return "SELL";
+  return normalized || "—";
 }

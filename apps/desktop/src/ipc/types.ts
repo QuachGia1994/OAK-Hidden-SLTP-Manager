@@ -41,7 +41,12 @@ export interface Profile {
   path?: string;
   mt5_portable?: boolean;
   magic?: string | number;
+  symbol?: string;
+  /** Telegram routing IDs — never the bot token. */
+  tele_chat?: string;
+  tele_admin?: string;
   visible_sltp?: boolean;
+  use_balance_sltp?: boolean;
   partial_r?: string;
   partial_pct?: string;
   auto_be?: string;
@@ -49,12 +54,19 @@ export interface Profile {
   tp?: string | number;
   gold_sl?: string | number;
   gold_tp?: string | number;
+  balance_sl_pct?: string | number;
+  balance_tp_pct?: string | number;
   copy_role?: string;
   copy_channel?: string;
+  copy_lot_mode?: string;
+  copy_lot_value?: string | number;
+  copy_ignore_list?: string;
   copy_max_daily_trades?: string;
   copy_max_lot_per_trade?: string;
   copy_max_exposure?: string;
   copy_kill_switch?: boolean;
+  copy_stealth?: boolean;
+  copy_max_one?: boolean;
   copy_stale_threshold?: string;
   signal_execution_enabled?: boolean;
   signal_lot?: string;
@@ -85,6 +97,21 @@ export interface ProfileStop {
   profile: string;
   stopped: boolean;
   reason?: string;
+}
+
+/**
+ * profile.secrets.status / profile.secrets.set_token result — presence flags
+ * only. The Telegram bot token itself never crosses the IPC boundary.
+ */
+export interface ProfileSecretStatus {
+  profile: string;
+  tele_token_configured: boolean;
+  keyring_available: boolean;
+}
+
+/** profile.secrets.clear_token result. */
+export interface ProfileSecretClear extends ProfileSecretStatus {
+  cleared: boolean;
 }
 
 // --------------------------------------------------------------------- //
@@ -173,6 +200,93 @@ export interface CurvePoint {
   balance?: number | null;
   drawdown?: number | null;
   peak?: number | null;
+}
+
+// --------------------------------------------------------------------- //
+// Read-only local history + published rule contract
+// --------------------------------------------------------------------- //
+
+/**
+ * One archived signal slot from the local signal log — sanitized by oak-core.
+ * Evidence, prices and any unknown raw fields never cross the boundary.
+ */
+export interface SignalHistoryRecord {
+  date: string | null;
+  hour: number | null;
+  signal: string | null;
+  signal_time: string | null;
+  entry_time: string | null;
+  entry_state: string | null;
+  signal_state: string | null;
+  signal_at_utc: string | null;
+  broker_utc_offset: number | null;
+  broker_clock_verified: boolean | null;
+  logic_version: number | null;
+  failure_reason: string | null;
+  pair_dirs: Record<string, string | null>;
+  pair_labels: Record<string, string | null>;
+  pair_entry_states: Record<string, string | null>;
+}
+
+/** history.signals result. */
+export interface SignalHistoryResult {
+  records: SignalHistoryRecord[];
+  /** Provenance marker for the freshness hint — "local_signal_log". */
+  source: string;
+  count: number;
+}
+
+/** rules.today result — the published contract, never a fabricated day. */
+export interface TodayRulesResult {
+  available: boolean;
+  source: string;
+  locale: string;
+  /** Why the payload is empty, e.g. "rule_contract_unavailable". */
+  reason: string | null;
+  logic_version: number | null;
+  public_slots: number[];
+  startup_summary: string;
+  rules: string[];
+  broker_date: string | null;
+  broker_time: string | null;
+  broker_utc_offset: number | null;
+  /** False whenever the bot never stamped a verified broker clock. */
+  broker_clock_verified: boolean;
+}
+
+/**
+ * One economic event from the local news cache — parsed and sanitized by
+ * oak-core. The raw cache line never crosses the boundary.
+ */
+export interface LocalNewsItem {
+  /** Cache day the event belongs to; null when the cache omitted it. */
+  date: string | null;
+  /** Zero-padded HH:MM in the cache's display timezone. */
+  time: string;
+  currency: string;
+  title: string;
+  impact: "high" | "medium" | "low";
+  critical: boolean;
+}
+
+/** news.local result — a local cache read, never a feed fetch. */
+export interface LocalNewsResult {
+  /** False when the cache file is missing or unreadable. */
+  available: boolean;
+  /** Provenance marker — "local_news_cache". */
+  source: string;
+  locale: string;
+  cache_date: string | null;
+  cache_version: number | null;
+  /** Only ever a verified broker stamp; never the workstation date. */
+  broker_date: string | null;
+  broker_clock_verified: boolean;
+  /** null = freshness unknown (no trusted broker day to compare against). */
+  stale: boolean | null;
+  /** Machine-readable notices, e.g. "broker_clock_unverified". */
+  warnings: string[];
+  items: LocalNewsItem[];
+  count: number;
 }
 
 /** risk.summary result (Phase 4). */

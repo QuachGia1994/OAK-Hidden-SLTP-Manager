@@ -28,7 +28,6 @@ from services.stock_advisor_desktop import (
     StockAdvisorDesktopSettings,
     StockAdvisorLaunchPlan,
     build_stock_advisor_launch_plan,
-    render_stock_advisory,
     requires_d1_backfill_file,
 )
 from domain.constants import VERSION as APP_VERSION
@@ -148,21 +147,22 @@ NATIVE_TEXT = {
     "EN": {"Signals": "Account Tracking"},
     "VN": {
         "Dashboard": "Bảng điều khiển",
-        "Signals": "Theo dõi tài khoản",
-        "VN30 Advisor": "Bộ lọc Cổ phiếu",
+        "Signals": "Tín hiệu",
+        "VN30 Advisor": "Bộ lọc CP",
         "Profiles": "Hồ sơ",
         "Copy": "Sao chép",
-        "Pending": "Chờ xử lý",
+        "Pending": "Lệnh chờ",
         "Diagnostics": "Chẩn đoán",
         "Settings": "Cài đặt",
         "ONE-CLICK STOCK FILTER": "BỘ LỌC CỔ PHIẾU BẰNG LOCAL EOD",
         "LOCAL EOD MARKET DATA": "DỮ LIỆU THỊ TRƯỜNG LOCAL EOD",
-        "Deployable capital": "Vốn khả dụng (VND)",
         "Hurdle (bps)": "Chi phí + biên an toàn (bps)",
         "Update EOD Data (15:00+)": "Cập nhật dữ liệu EOD (15h00+)",
         "Run advisor": "Chạy bộ lọc Cổ phiếu",
         "Run VN30 Advisor": "Chạy bộ lọc Cổ phiếu",
         "ADVISORY RESULT": "KẾT QUẢ KHUYẾN NGHỊ",
+        "LOCAL EOD STOCKS": "CỔ PHIẾU LOCAL EOD",
+        "Filter symbols…": "Lọc mã…",
         "Local EOD Database (data/market.db) · Auto-updated after 15:00": "Cơ sở dữ liệu Local EOD (data/market.db) · Tự động cập nhật sau 15h00",
         "Local EOD Mode: No API key or account required.": "Chế độ Local EOD: Không cần API key hay tài khoản.",
         "Updating local EOD data...": "Đang cập nhật dữ liệu EOD...",
@@ -188,7 +188,7 @@ NATIVE_TEXT = {
         "Refresh": "Làm mới",
         "Open classic UI": "Mở giao diện cổ điển",
         "Heartbeat ready": "Heartbeat sẵn sàng",
-        "TRADING COMMAND CENTER": "TRUNG TÂM ĐIỀU HÀNH GIAO DỊCH",
+        "TRADING COMMAND CENTER": "TRUNG TÂM ĐIỀU HÀNH",
         "Native Qt/QSS shell · no WebEngine": "Native Qt/QSS · không WebEngine",
         "Running": "Đang chạy",
         "Stopped": "Đã dừng",
@@ -347,7 +347,7 @@ NATIVE_TEXT = {
         "COPY RISK LIMITS": "GIỚI HẠN RỦI RO COPY",
         "MASKED SECRETS": "THÔNG TIN ĐÃ CHE",
         "Manual refresh": "Đã làm mới",
-        "Live": "Đang theo dõi",
+        "Live": "Trực tuyến",
         "No save target": "Không có nội dung để lưu",
         "Delete guard cleared.": "Đã hủy xác nhận xóa.",
         "Unsaved changes": "Thay đổi chưa lưu",
@@ -355,6 +355,16 @@ NATIVE_TEXT = {
         "Display cleared. Press Refresh to reload logs.": "Đã xóa hiển thị. Nhấn Làm mới để tải lại log.",
         "Selected profile: {profile} · Native Qt/QSS, no Chromium": "Hồ sơ đang chọn: {profile} · Native Qt/QSS, không Chromium",
         "{running}/{total} running": "{running}/{total} đang chạy",
+        "OPERATIONS": "VẬN HÀNH",
+        "ANALYSIS": "PHÂN TÍCH",
+        "LIVE STATUS": "TRẠNG THÁI TRỰC TUYẾN",
+        "running": "đang chạy",
+        "Accounts": "Tài khoản",
+        "Performance": "Hiệu suất",
+        "History": "Lịch sử",
+        "Rules today": "Quy tắc hôm nay",
+        "News": "Tin tức",
+        "Available in the Tauri/Web build": "Có trong bản Tauri/Web",
     },
 }
 
@@ -600,15 +610,17 @@ def format_feed_card_details(
 def load_qt() -> tuple[SimpleNamespace | None, str]:
     """Import only QtCore/QtGui/QtWidgets, never QtWebEngine."""
     try:
-        from PySide6.QtCore import QProcess, QProcessEnvironment, QSize, Qt, QTimer
-        from PySide6.QtGui import QFont, QIcon, QKeySequence, QShortcut
+        from PySide6.QtCore import QEasingCurve, QProcess, QProcessEnvironment, QPropertyAnimation, QSize, Qt, QTimer
+        from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QKeySequence, QShortcut
         from PySide6.QtWidgets import (
             QApplication,
             QCheckBox,
             QComboBox,
             QFrame,
+            QGraphicsOpacityEffect,
             QGridLayout,
             QHBoxLayout,
+            QHeaderView,
             QLabel,
             QLineEdit,
             QMainWindow,
@@ -616,6 +628,8 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
             QPushButton,
             QScrollArea,
             QStackedWidget,
+            QTableWidget,
+            QTableWidgetItem,
             QTextEdit,
             QVBoxLayout,
             QWidget,
@@ -629,106 +643,253 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
 
 
 def app_qss(theme: str = "dark") -> str:
-    """Return the native Qt stylesheet."""
+    """Return the native Qt stylesheet matching the Tauri design tokens."""
     base = """
-    QMainWindow{background:#060908}
-    QWidget{font-family:"Segoe UI";font-size:14px;color:#f4f7f5}
-    QWidget#StockAdvisorControls{background:#090d0c}
-    #Root{background:qradialgradient(cx:.08,cy:.02,radius:1,fx:.08,fy:.02,stop:0 rgba(0,201,145,32),stop:.42 #060908,stop:1 #060908)}
-    QFrame[role="panel"]{background:rgba(13,18,16,224);border:1px solid #25312c;border-radius:22px}
-    QFrame[role="row"]{background:#111816;border:1px solid #26322d;border-radius:14px}
-    QFrame[role="row"][active="true"]{background:#0d241e;border:1px solid #22b98f}
-    QFrame[role="hint"]{background:#0c211b;border:1px solid #1b735d;border-radius:16px}
-    QFrame[role="signal"]{background:#0c1110;border:1px solid #25312c;border-radius:18px}
-    QFrame[role="signal"][state="running"]{border:1px solid #1bb58b;background:#0b211a}
-    QFrame[role="signal"][state="degraded"]{border:1px solid #b7832f;background:#201a0b}
-    QLabel[role="tiny"]{color:#87958f;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-    QLabel[role="muted"]{color:#9aa9a3;font-size:12px}
-    QLabel[role="stockStatus"]{color:#dbe7e1;font-size:12px;font-weight:700;padding:4px 2px}
-    QLabel[role="section"]{font-size:22px;font-weight:900}
-    QLabel[role="title"]{font-size:52px;font-weight:900;letter-spacing:-2px}
-    QLabel[role="value"]{font-family:Consolas;font-size:28px;font-weight:900}
-    QLabel[accent="green"]{color:#20d4a4}QLabel[accent="amber"]{color:#f3b743}QLabel[accent="red"]{color:#ff6670}QLabel[accent="theme"]{color:#20d4a4}
-    QPushButton{background:#151e1a;border:1px solid #2a3932;border-radius:12px;padding:10px 12px;min-width:0;font-weight:800;text-align:left}
-    QPushButton[compact="true"]{padding:9px 10px;text-align:center}
-    QPushButton:hover{background:#1b2823;border:1px solid #3b5147}
-    QPushButton:disabled{background:#0d1210;border:1px solid #1b2722;color:#52615d}
-    QPushButton[primary="true"]:enabled{background:#00c991;color:#04130f;border:0}
-    QPushButton[stockAction="save"]:enabled{background:#2f2610;color:#f8c95d;border:1px solid #c8952f}
-    QPushButton[stockAction="save"]:hover{background:#473814;border:1px solid #f1c45a}
-    QPushButton[active="true"]{background:#00c991;color:#04130f;border:0}
-    QPushButton[intent="positive"]{color:#20d4a4;border:1px solid rgba(32,212,164,110);background:rgba(32,212,164,18)}
-    QPushButton[intent="danger"]{color:#ff6670;border:1px solid rgba(255,102,112,110);background:rgba(255,102,112,18)}
-    QComboBox{background:#101714;color:#f4f7f5;border:1px solid #2a3932;border-radius:12px;padding:10px 12px;font-weight:800;min-height:22px}
-    QComboBox::drop-down{background:#18221e;border:0;border-top-right-radius:12px;border-bottom-right-radius:12px;width:34px}
+    QMainWindow{background:#0b0f14}
+    QWidget{font-family:"Segoe UI";font-size:14px;color:#e6edf3}
+    QWidget#StockAdvisorControls{background:#111820}
+    #Root{background:qradialgradient(cx:.08,cy:.02,radius:1,fx:.08,fy:.02,stop:0 rgba(47,165,114,0.13),stop:.42 #0b0f14,stop:1 #0b0f14)}
+    QFrame[role="panel"]{background:#111820;border:1px solid #1e2937;border-radius:18px}
+    QFrame[role="row"]{background:#0b0f14;border:1px solid #1e2937;border-radius:14px}
+    QFrame[role="row"][active="true"]{border:1px solid #2fa572;background:rgba(47,165,114,.06)}
+    QFrame[role="hint"]{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.38);border-radius:12px}
+    QFrame[role="signal"]{background:#111820;border:1px solid #1e2937;border-radius:14px}
+    QFrame[role="signal"][state="running"]{border:1px solid #2fa572;background:rgba(47,165,114,.06)}
+    QFrame[role="signal"][state="degraded"]{border:1px solid #f59e0b;background:rgba(245,158,11,.07)}
+    QFrame[role="stat"]{background:#0b0f14;border:1px solid #1e2937;border-radius:14px}
+    QLabel[role="tiny"]{color:#8b98a5;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+    QLabel[role="muted"]{color:#8b98a5;font-size:12px}
+    QLabel[role="stockStatus"]{color:#d6dde4;font-size:12px;font-weight:700;padding:4px 2px}
+    QLabel[role="section"]{font-size:20px;font-weight:800}
+    QLabel[role="title"]{font-size:40px;font-weight:800}
+    QLabel[role="value"]{font-family:Consolas;font-size:22px;font-weight:700}
+    QLabel[role="status"]{border-radius:999px;padding:6px 10px;background:rgba(47,165,114,.10);color:#2fa572;font-size:12px;font-weight:700}
+    QLabel[accent="green"]{color:#2fa572}QLabel[accent="amber"]{color:#f59e0b}QLabel[accent="red"]{color:#ef4444}QLabel[accent="theme"]{color:#2fa572}
+    QPushButton{background:#111820;border:1px solid #1e2937;border-radius:8px;padding:7px 14px;color:#e6edf3;font-weight:600;text-align:center}
+    QPushButton:hover{border:1px solid #2fa572}
+    QPushButton:disabled{color:#5b6672;border:1px solid #1e2937;background:#0d1219}
+    QPushButton[primary="true"]:enabled{background:rgba(47,165,114,.15);border:1px solid #2fa572;color:#2fa572}
+    QPushButton[active="true"]{background:rgba(47,165,114,.15);border:1px solid #2fa572;color:#2fa572}
+    QPushButton[compact="true"]{padding:4px 10px}
+    QPushButton[intent="positive"]{color:#2fa572;border:1px solid rgba(47,165,114,.55);background:rgba(47,165,114,.12)}
+    QPushButton[intent="danger"]{color:#ef4444;border:1px solid rgba(239,68,68,.55);background:rgba(239,68,68,.10)}
+    QPushButton[stockAction="save"]:enabled{color:#f59e0b;border:1px solid rgba(245,158,11,.5);background:rgba(245,158,11,.12)}
+    QPushButton[stockAction="save"]:hover{color:#f59e0b;border:1px solid rgba(245,158,11,.7);background:rgba(245,158,11,.18)}
+    QPushButton[role="nav"]{background:transparent;border:1px solid transparent;border-radius:14px;padding:5px 12px;text-align:left;color:#8b98a5;font-size:14px;font-weight:600}
+    QPushButton[role="nav"]:hover{color:#e6edf3;background:#111820}
+    QPushButton[role="nav"][active="true"]{color:#e6edf3;background:#111820;border:1px solid #1e2937;border-left:3px solid #2fa572;font-weight:700}
+    QPushButton[role="nav"]:disabled{color:#525d6a}
+    QPushButton[role="nav"][secondary="true"]{font-size:13px;padding:3px 12px}
+    QFrame[role="divider"]{background:#1e2937;border:none}
+    QPushButton[role="lang"]{background:transparent;border:1px solid #1e2937;color:#8b98a5;padding:5px 11px;border-radius:0}
+    QPushButton[role="lang"]:hover{color:#e6edf3}
+    QPushButton[role="lang"][active="true"]{background:rgba(47,165,114,.15);color:#2fa572}
+    QPushButton[role="prefs"]{background:#111820;border:1px solid #1e2937;border-radius:8px;color:#e6edf3;padding:5px 12px}
+    QPushButton[role="prefs"]:hover{border:1px solid #2fa572}
+    QComboBox{background:#111820;border:1px solid #1e2937;border-radius:8px;padding:7px 10px;color:#e6edf3;min-height:22px}
+    QComboBox::drop-down{background:transparent;border:0;width:26px}
     QComboBox::down-arrow{width:0;height:0}
-    QComboBox QAbstractItemView{background:#09100e;color:#f6fff9;border:1px solid rgba(0,209,154,80);border-radius:12px;padding:6px;selection-background-color:#00c991;selection-color:#04130f;outline:0}
-    QComboBox QAbstractItemView::item{min-height:30px;padding:6px 10px;border-radius:8px;background:#09100e;color:#f6fff9}
-    QComboBox QAbstractItemView::item:selected{background:#00c991;color:#04130f}
-    QLineEdit{background:#101714;border:1px solid #2a3932;border-radius:12px;padding:10px 12px;color:#f4f7f5;font-weight:700}
-    QLineEdit:focus{border:1px solid #20c69b;background:#0d211a}
-    QCheckBox{spacing:10px;font-weight:800;color:#d9e7e1}
-    QCheckBox::indicator{width:20px;height:20px;border-radius:6px;border:1px solid #4a5a53;background:#101714}
-    QCheckBox::indicator:checked{background:#00c991;border:1px solid #00c991}
-    QScrollArea,QTextEdit{background:#090d0c;border:1px solid #23302a;border-radius:16px;padding:8px}
-    QScrollArea > QWidget#qt_scrollarea_viewport{background:#090d0c}
-    QTextEdit[role="mini"]{font-family:Consolas;font-size:12px}
-    QScrollBar:vertical{background:#101714;width:10px;border-radius:5px;margin:4px}
-    QScrollBar::handle:vertical{background:#1b8064;border-radius:5px;min-height:42px}
+    QComboBox QAbstractItemView{background:#0b0f14;border:1px solid #1e2937;border-radius:8px;padding:6px;selection-background-color:rgba(47,165,114,.22);selection-color:#e6edf3;outline:0}
+    QComboBox QAbstractItemView::item{min-height:28px;padding:5px 10px;border-radius:6px;background:#0b0f14;color:#e6edf3}
+    QComboBox QAbstractItemView::item:selected{background:rgba(47,165,114,.22);color:#e6edf3}
+    QLineEdit{background:#111820;border:1px solid #1e2937;border-radius:8px;padding:7px 10px;color:#e6edf3;font-weight:500}
+    QLineEdit:focus{border:1px solid #2fa572;background:#0f141b}
+    QCheckBox{spacing:8px;color:#d6dde4}
+    QCheckBox::indicator{width:18px;height:18px;border-radius:5px;border:1px solid #3a4654;background:#111820}
+    QCheckBox::indicator:checked{background:#2fa572;border:1px solid #2fa572}
+    QScrollArea,QTextEdit{background:#0b0f14;border:1px solid #1e2937;border-radius:8px;padding:8px}
+    QScrollArea > QWidget#qt_scrollarea_viewport{background:#0b0f14}
+    QScrollArea#RailScroll{background:transparent;border:none;padding:0;border-radius:0}
+    QScrollArea#RailScroll > QWidget#qt_scrollarea_viewport{background:transparent}
+    QWidget#RailContent{background:transparent}
+    QTextEdit[role="mini"]{font-family:Consolas;font-size:12px;color:#f0f6fc;background:#0a0e13}
+    QScrollBar:vertical{background:transparent;width:10px;margin:2px}
+    QScrollBar::handle:vertical{background:#3a4654;border-radius:5px;min-height:42px}
+    QScrollBar::handle:vertical:hover{background:#2fa572}
     QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical{height:0;background:transparent}
     QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical{background:transparent}
+    QProgressBar{min-height:8px;border:1px solid #1e2937;border-radius:6px;background:#111820;text-align:center;color:#8b98a5;font-size:11px}
+    QProgressBar::chunk{background:#2fa572;border-radius:6px}
+    QTableWidget,QTableView{background:#0b0f14;border:1px solid #1e2937;border-radius:8px;gridline-color:#1e2937;color:#e6edf3;selection-background-color:rgba(47,165,114,.22);selection-color:#e6edf3;outline:0}
+    QTableWidget::item,QTableView::item{padding:4px 8px;color:#e6edf3}
+    QHeaderView::section{background:#111820;color:#8b98a5;border:none;border-right:1px solid #1e2937;border-bottom:1px solid #1e2937;padding:6px 10px;font-weight:700;font-size:12px}
+    QTableCornerButton::section{background:#111820;border:none}
     """
     normalized = str(theme or "dark").lower().replace("_", "-").strip()
+    if normalized == "light":
+        return base + """
+    QMainWindow{background:#eef1f5}
+    QWidget{color:#141b24}
+    QWidget#StockAdvisorControls{background:#ffffff}
+    #Root{background:rgba(20,122,82,.09)}
+    QFrame[role="panel"]{background:#ffffff;border:1px solid #c3ccd6;border-radius:18px}
+    QFrame[role="row"]{background:#eef1f5;border:1px solid #c3ccd6}
+    QFrame[role="row"][active="true"]{border:1px solid #147a52;background:rgba(20,122,82,.06)}
+    QFrame[role="hint"]{background:rgba(146,97,10,.08);border:1px solid rgba(146,97,10,.35);border-radius:12px}
+    QFrame[role="signal"]{background:#ffffff;border:1px solid #c3ccd6}
+    QFrame[role="signal"][state="running"]{border:1px solid #147a52;background:rgba(20,122,82,.06)}
+    QFrame[role="signal"][state="degraded"]{border:1px solid #92610a;background:rgba(146,97,10,.07)}
+    QFrame[role="stat"]{background:#eef1f5;border:1px solid #c3ccd6}
+    QLabel[role="tiny"]{color:#4b5a6b}
+    QLabel[role="muted"]{color:#4b5a6b}
+    QLabel[role="stockStatus"]{color:#141b24}
+    QLabel[role="section"]{color:#141b24}
+    QLabel[role="title"]{color:#141b24}
+    QLabel[role="value"]{color:#141b24}
+    QLabel[role="status"]{background:rgba(20,122,82,.12);color:#147a52}
+    QLabel[accent="green"]{color:#147a52}QLabel[accent="amber"]{color:#92610a}QLabel[accent="red"]{color:#c22f2f}QLabel[accent="theme"]{color:#147a52}
+    QPushButton{background:#ffffff;border:1px solid #c3ccd6;color:#141b24}
+    QPushButton:hover{border:1px solid #147a52}
+    QPushButton:disabled{color:#98a2ac;border:1px solid #c3ccd6;background:#f4f6f8}
+    QPushButton[primary="true"]:enabled{background:rgba(20,122,82,.12);border:1px solid #147a52;color:#147a52}
+    QPushButton[active="true"]{background:rgba(20,122,82,.12);border:1px solid #147a52;color:#147a52}
+    QPushButton[intent="positive"]{color:#147a52;border:1px solid rgba(20,122,82,.55);background:rgba(20,122,82,.12)}
+    QPushButton[intent="danger"]{color:#c22f2f;border:1px solid rgba(194,47,47,.55);background:rgba(194,47,47,.10)}
+    QPushButton[stockAction="save"]:enabled{color:#92610a;border:1px solid rgba(146,97,10,.5);background:rgba(146,97,10,.12)}
+    QPushButton[role="nav"]{color:#4b5a6b}
+    QPushButton[role="nav"]:hover{color:#141b24;background:#eef1f5}
+    QPushButton[role="nav"][active="true"]{color:#141b24;background:#eef1f5;border:1px solid #c3ccd6;border-left:3px solid #147a52}
+    QPushButton[role="nav"]:disabled{color:#98a2ac}
+    QFrame[role="divider"]{background:#c3ccd6;border:none}
+    QPushButton[role="lang"]{border:1px solid #c3ccd6;color:#4b5a6b}
+    QPushButton[role="lang"]:hover{color:#141b24}
+    QPushButton[role="lang"][active="true"]{background:rgba(20,122,82,.12);color:#147a52}
+    QPushButton[role="prefs"]{background:#ffffff;border:1px solid #c3ccd6;color:#141b24}
+    QPushButton[role="prefs"]:hover{border:1px solid #147a52}
+    QComboBox{background:#ffffff;border:1px solid #c3ccd6;color:#141b24}
+    QComboBox::drop-down{background:transparent}
+    QComboBox QAbstractItemView{background:#ffffff;border:1px solid #c3ccd6;selection-background-color:rgba(20,122,82,.16);selection-color:#141b24}
+    QComboBox QAbstractItemView::item{background:#ffffff;color:#141b24}
+    QComboBox QAbstractItemView::item:selected{background:rgba(20,122,82,.16);color:#141b24}
+    QLineEdit{background:#ffffff;border:1px solid #c3ccd6;color:#141b24}
+    QLineEdit:focus{border:1px solid #147a52;background:#ffffff}
+    QCheckBox{color:#141b24}QCheckBox::indicator{border:1px solid #9aa5b0;background:#ffffff}QCheckBox::indicator:checked{background:#147a52;border:1px solid #147a52}
+    QScrollArea,QTextEdit{background:#eef1f5;border:1px solid #c3ccd6}
+    QScrollArea > QWidget#qt_scrollarea_viewport{background:#eef1f5}
+    QScrollBar::handle:vertical{background:#b9c2cc}QScrollBar::handle:vertical:hover{background:#147a52}
+    QProgressBar{background:#ffffff;border:1px solid #c3ccd6;border-radius:6px;color:#141b24;font-size:11px}
+    QProgressBar::chunk{background:#147a52;border-radius:6px}
+    QTableWidget,QTableView{background:#ffffff;border:1px solid #c3ccd6;border-radius:8px;gridline-color:#c3ccd6;color:#141b24;selection-background-color:rgba(20,122,82,.16);selection-color:#141b24;outline:0}
+    QTableWidget::item,QTableView::item{padding:4px 8px;color:#141b24}
+    QHeaderView::section{background:#eef1f5;color:#4b5a6b;border:none;border-right:1px solid #c3ccd6;border-bottom:1px solid #c3ccd6;padding:6px 10px;font-weight:700;font-size:12px}
+    QTableCornerButton::section{background:#eef1f5;border:none}
+    """
     if normalized in {"deep-sea", "deep sea", "sea"}:
         return base + """
-        QMainWindow{background:#031016}
-        #Root{background:qradialgradient(cx:.12,cy:.08,radius:1,fx:.12,fy:.08,stop:0 rgba(0,194,255,46),stop:.46 #031016,stop:1 #05070b)}
-        QFrame[role="panel"]{background:rgba(6,18,25,220);border:1px solid rgba(104,232,255,38)}
-        QFrame[role="row"][active="true"]{background:#061a22;border:1px solid #18d6ff}
-        QFrame[role="signal"][state="running"]{background:#061a22;border:1px solid #18d6ff}
-        QFrame[role="hint"]{background:#061c25;border:1px solid #177f99}
-        QPushButton[primary="true"]:enabled,QPushButton[active="true"]{background:#18d6ff;color:#021014}
-        QPushButton[intent="positive"]{color:#18d6ff;border:1px solid rgba(24,214,255,110);background:rgba(24,214,255,18)}
-        QLabel[accent="green"],QLabel[accent="theme"]{color:#18d6ff}
-        QComboBox QAbstractItemView{border-color:rgba(24,214,255,100);selection-background-color:#18d6ff;selection-color:#021014}
-        QComboBox QAbstractItemView::item:selected{background:#18d6ff;color:#021014}
-        QScrollBar::handle:vertical{background:rgba(24,214,255,105)}
-        """
+    QMainWindow{background:#031016}
+    QWidget{color:#e8fbff}
+    QWidget#StockAdvisorControls{background:#061219}
+    #Root{background:qradialgradient(cx:.12,cy:.08,radius:1,fx:.12,fy:.08,stop:0 rgba(24,214,255,.12),stop:.46 #031016,stop:1 #031016)}
+    QFrame[role="panel"]{background:#061219;border:1px solid #1b3b45}
+    QFrame[role="row"]{background:#031016;border:1px solid #1b3b45}
+    QFrame[role="row"][active="true"]{border:1px solid #18d6ff;background:rgba(24,214,255,.07)}
+    QFrame[role="hint"]{background:rgba(244,183,64,.08);border:1px solid rgba(244,183,64,.35);border-radius:12px}
+    QFrame[role="signal"]{background:#061219;border:1px solid #1b3b45}
+    QFrame[role="signal"][state="running"]{border:1px solid #18d6ff;background:rgba(24,214,255,.07)}
+    QFrame[role="signal"][state="degraded"]{border:1px solid #f4b740;background:rgba(244,183,64,.08)}
+    QFrame[role="stat"]{background:#031016;border:1px solid #1b3b45}
+    QLabel[role="tiny"]{color:#8caab2}
+    QLabel[role="muted"]{color:#8caab2}
+    QLabel[role="stockStatus"]{color:#e8fbff}
+    QLabel[role="section"]{color:#e8fbff}
+    QLabel[role="title"]{color:#e8fbff}
+    QLabel[role="value"]{color:#e8fbff}
+    QLabel[role="status"]{background:rgba(24,214,255,.12);color:#18d6ff}
+    QLabel[accent="green"]{color:#18d6ff}QLabel[accent="amber"]{color:#f4b740}QLabel[accent="red"]{color:#ff6670}QLabel[accent="theme"]{color:#18d6ff}
+    QPushButton{background:#061219;border:1px solid #1b3b45;color:#e8fbff}
+    QPushButton:hover{border:1px solid #18d6ff}
+    QPushButton:disabled{color:#48656e;border:1px solid #1b3b45;background:#0d1219}
+    QPushButton[primary="true"]:enabled{background:rgba(24,214,255,.14);border:1px solid #18d6ff;color:#18d6ff}
+    QPushButton[active="true"]{background:rgba(24,214,255,.14);border:1px solid #18d6ff;color:#18d6ff}
+    QPushButton[intent="positive"]{color:#18d6ff;border:1px solid rgba(24,214,255,.55);background:rgba(24,214,255,.14)}
+    QPushButton[intent="danger"]{color:#ff6670;border:1px solid rgba(255,102,112,.55);background:rgba(255,102,112,.12)}
+    QPushButton[stockAction="save"]:enabled{color:#f4b740;border:1px solid rgba(244,183,64,.5);background:rgba(244,183,64,.14)}
+    QPushButton[role="nav"]{color:#8caab2}
+    QPushButton[role="nav"]:hover{color:#e8fbff;background:#09232c}
+    QPushButton[role="nav"][active="true"]{color:#e8fbff;background:#09232c;border:1px solid #1b3b45;border-left:3px solid #18d6ff}
+    QPushButton[role="nav"]:disabled{color:#45616b}
+    QFrame[role="divider"]{background:#1b3b45;border:none}
+    QPushButton[role="lang"]{border:1px solid #1b3b45;color:#8caab2}
+    QPushButton[role="lang"]:hover{color:#e8fbff}
+    QPushButton[role="lang"][active="true"]{background:rgba(24,214,255,.14);color:#18d6ff}
+    QPushButton[role="prefs"]{background:#09232c;border:1px solid #1b3b45;color:#e8fbff}
+    QPushButton[role="prefs"]:hover{border:1px solid #18d6ff}
+    QComboBox{background:#061219;border:1px solid #1b3b45;color:#e8fbff}
+    QComboBox::drop-down{background:transparent}
+    QComboBox QAbstractItemView{background:#031016;border:1px solid #1b3b45;selection-background-color:rgba(24,214,255,.18);selection-color:#e8fbff}
+    QComboBox QAbstractItemView::item{background:#031016;color:#e8fbff}
+    QComboBox QAbstractItemView::item:selected{background:rgba(24,214,255,.18);color:#e8fbff}
+    QLineEdit{background:#061219;border:1px solid #1b3b45;color:#e8fbff}
+    QLineEdit:focus{border:1px solid #18d6ff;background:#061a22}
+    QCheckBox{color:#e8fbff}QCheckBox::indicator{border:1px solid #2a5864;background:#061219}QCheckBox::indicator:checked{background:#18d6ff;border:1px solid #18d6ff}
+    QScrollArea,QTextEdit{background:#031016;border:1px solid #1b3b45}
+    QScrollArea > QWidget#qt_scrollarea_viewport{background:#031016}
+    QScrollBar::handle:vertical{background:#1d5d6e}QScrollBar::handle:vertical:hover{background:#18d6ff}
+    QProgressBar{border:1px solid #1b3b45;background:#061219;color:#8caab2}
+    QProgressBar::chunk{background:#18d6ff}
+    QTableWidget,QTableView{background:#031016;border:1px solid #1b3b45;border-radius:8px;gridline-color:#1b3b45;color:#e8fbff;selection-background-color:rgba(24,214,255,.18);selection-color:#e8fbff;outline:0}
+    QTableWidget::item,QTableView::item{padding:4px 8px;color:#e8fbff}
+    QHeaderView::section{background:#061219;color:#8caab2;border:none;border-right:1px solid #1b3b45;border-bottom:1px solid #1b3b45;padding:6px 10px;font-weight:700;font-size:12px}
+    QTableCornerButton::section{background:#061219;border:none}
+    """
     if normalized in {"contrast", "high-contrast", "high contrast"}:
         return base + """
-        QMainWindow{background:#020202}
-        #Root{background:#020202}
-        QWidget{color:#fffaf0}
-        QWidget#StockAdvisorControls{background:#050504}
-        QFrame[role="panel"]{background:#090907;border:1px solid #564c36;border-radius:12px}
-        QFrame[role="row"]{background:#10100d;border:1px solid #463f30;border-radius:10px}
-        QFrame[role="signal"]{background:#070706;border:1px solid #5d5137;border-radius:12px}
-        QFrame[role="row"][active="true"]{background:#1c1507;border:1px solid #d69f27}
-        QFrame[role="signal"][state="running"]{background:#13130e;border:1px solid #e9e4ce}
-        QFrame[role="hint"]{background:#1b1408;border:1px solid #8c6720;border-radius:10px}
-        QLabel[role="tiny"]{color:#ceb98b}
-        QLabel[role="muted"]{color:#e5dcc8}
-        QLabel[role="stockStatus"]{color:#fff0c7}
-        QLabel[accent="green"]{color:#eff5e7}QLabel[accent="amber"]{color:#f1c45a}QLabel[accent="red"]{color:#ff7a6d}QLabel[accent="theme"]{color:#f1c45a}
-        QPushButton{background:#11110e;border:1px solid #66583a;border-radius:8px;color:#fffaf0}
-        QPushButton:hover{background:#211b0f;border:1px solid #efc861}
-        QPushButton:disabled{background:#090907;border:1px solid #2d2a20;color:#777163}
-        QPushButton[intent="positive"]{color:#fffaf0;border:1px solid #a79e80;background:#171711}
-        QPushButton[intent="danger"]{color:#fffaf0;border:1px solid #ff7467;background:#3a1714}
-        QComboBox,QLineEdit{background:#090907;border:1px solid #66583a;border-radius:8px;color:#fffaf0}
-        QComboBox::drop-down{background:#17140d}
-        QComboBox QAbstractItemView,QComboBox QAbstractItemView::item{background:#090907;color:#fffaf0;border-color:#8f7439}
-        QComboBox QAbstractItemView::item:selected{background:#d69f27;color:#120e05}
-        QLineEdit:focus{border:1px solid #e4b64e;background:#141109}
-        QCheckBox{color:#f0eadc}QCheckBox::indicator{background:#090907;border-color:#8c7b57}QCheckBox::indicator:checked{background:#d69f27;border-color:#d69f27}
-        QScrollArea,QTextEdit{background:#050504;border:1px solid #514734;border-radius:10px}
-        QScrollArea > QWidget#qt_scrollarea_viewport{background:#050504}
-        QScrollBar:vertical{background:#11110e}QScrollBar::handle:vertical{background:#9a772f}
-        QPushButton[primary="true"]:enabled{background:#c64339;color:#fffaf6;border:1px solid #ff796e}
-        QPushButton[stockAction="save"]:enabled{background:#d69f27;color:#120e05;border:1px solid #f0c65b}
-        QPushButton[stockAction="save"]:hover{background:#f1c45a;border:1px solid #fff0b0}
-        QPushButton[active="true"]{background:#d69f27;color:#120e05;border:1px solid #f0c65b}
-        """
+    QMainWindow{background:#000000}
+    QWidget{color:#ffffff}
+    QWidget#StockAdvisorControls{background:#0d0d0d}
+    #Root{background:#000000}
+    QFrame[role="panel"]{background:#0d0d0d;border:1px solid #4d4d4d}
+    QFrame[role="row"]{background:#000000;border:1px solid #4d4d4d}
+    QFrame[role="row"][active="true"]{border:1px solid #00e676;background:rgba(0,230,118,.10)}
+    QFrame[role="hint"]{background:rgba(255,171,0,.08);border:1px solid rgba(255,171,0,.4);border-radius:12px}
+    QFrame[role="signal"]{background:#0d0d0d;border:1px solid #4d4d4d}
+    QFrame[role="signal"][state="running"]{border:1px solid #00e676;background:rgba(0,230,118,.10)}
+    QFrame[role="signal"][state="degraded"]{border:1px solid #ffab00;background:rgba(255,171,0,.08)}
+    QFrame[role="stat"]{background:#000000;border:1px solid #4d4d4d}
+    QLabel[role="tiny"]{color:#b3b3b3}
+    QLabel[role="muted"]{color:#b3b3b3}
+    QLabel[role="stockStatus"]{color:#ffffff}
+    QLabel[role="section"]{color:#ffffff}
+    QLabel[role="title"]{color:#ffffff}
+    QLabel[role="value"]{color:#ffffff}
+    QLabel[role="status"]{background:rgba(0,230,118,.14);color:#00e676}
+    QLabel[accent="green"]{color:#00e676}QLabel[accent="amber"]{color:#ffab00}QLabel[accent="red"]{color:#ff5252}QLabel[accent="theme"]{color:#00e676}
+    QPushButton{background:#0d0d0d;border:1px solid #4d4d4d;color:#ffffff}
+    QPushButton:hover{border:1px solid #00e676}
+    QPushButton:disabled{color:#6b6b6b;border:1px solid #4d4d4d;background:#080808}
+    QPushButton[primary="true"]:enabled{background:rgba(0,230,118,.15);border:1px solid #00e676;color:#00e676}
+    QPushButton[active="true"]{background:rgba(0,230,118,.15);border:1px solid #00e676;color:#00e676}
+    QPushButton[intent="positive"]{color:#00e676;border:1px solid rgba(0,230,118,.55);background:rgba(0,230,118,.15)}
+    QPushButton[intent="danger"]{color:#ff5252;border:1px solid rgba(255,82,82,.55);background:rgba(255,82,82,.12)}
+    QPushButton[stockAction="save"]:enabled{color:#ffab00;border:1px solid rgba(255,171,0,.5);background:rgba(255,171,0,.15)}
+    QPushButton[role="nav"]{color:#b3b3b3}
+    QPushButton[role="nav"]:hover{color:#ffffff;background:#0d0d0d}
+    QPushButton[role="nav"][active="true"]{color:#ffffff;background:#0d0d0d;border:1px solid #4d4d4d;border-left:3px solid #00e676}
+    QPushButton[role="nav"]:disabled{color:#5c5c5c}
+    QFrame[role="divider"]{background:#4d4d4d;border:none}
+    QPushButton[role="lang"]{border:1px solid #4d4d4d;color:#b3b3b3}
+    QPushButton[role="lang"]:hover{color:#ffffff}
+    QPushButton[role="lang"][active="true"]{background:rgba(0,230,118,.15);color:#00e676}
+    QPushButton[role="prefs"]{background:#0d0d0d;border:1px solid #4d4d4d;color:#ffffff}
+    QPushButton[role="prefs"]:hover{border:1px solid #00e676}
+    QComboBox{background:#0d0d0d;border:1px solid #4d4d4d;color:#ffffff}
+    QComboBox::drop-down{background:transparent}
+    QComboBox QAbstractItemView{background:#000000;border:1px solid #4d4d4d;selection-background-color:rgba(0,230,118,.2);selection-color:#ffffff}
+    QComboBox QAbstractItemView::item{background:#000000;color:#ffffff}
+    QComboBox QAbstractItemView::item:selected{background:rgba(0,230,118,.2);color:#ffffff}
+    QLineEdit{background:#0d0d0d;border:1px solid #4d4d4d;color:#ffffff}
+    QLineEdit:focus{border:1px solid #00e676;background:#0d0d0d}
+    QCheckBox{color:#ffffff}QCheckBox::indicator{border:1px solid #6e6e6e;background:#0d0d0d}QCheckBox::indicator:checked{background:#00e676;border:1px solid #00e676}
+    QScrollArea,QTextEdit{background:#000000;border:1px solid #4d4d4d}
+    QScrollArea > QWidget#qt_scrollarea_viewport{background:#000000}
+    QScrollBar::handle:vertical{background:#5a5a5a}QScrollBar::handle:vertical:hover{background:#00e676}
+    QProgressBar{border:1px solid #4d4d4d;background:#0d0d0d;color:#b3b3b3}
+    QProgressBar::chunk{background:#00e676}
+    QTableWidget,QTableView{background:#000000;border:1px solid #4d4d4d;border-radius:8px;gridline-color:#4d4d4d;color:#ffffff;selection-background-color:rgba(0,230,118,.2);selection-color:#ffffff;outline:0}
+    QTableWidget::item,QTableView::item{padding:4px 8px;color:#ffffff}
+    QHeaderView::section{background:#0d0d0d;color:#b3b3b3;border:none;border-right:1px solid #4d4d4d;border-bottom:1px solid #4d4d4d;padding:6px 10px;font-weight:700;font-size:12px}
+    QTableCornerButton::section{background:#0d0d0d;border:none}
+    """
     return base
 
 
@@ -747,6 +908,14 @@ def label(text: str, *, role: str = "", accent: str = "") -> Any:
     if accent:
         item.setProperty("accent", accent)
     return item
+
+
+def divider() -> Any:
+    """A 1px horizontal divider line for sidebar section groups."""
+    line = QT.QFrame()
+    line.setProperty("role", "divider")
+    line.setFixedHeight(1)
+    return line
 
 
 def mask_secret(value: Any) -> str:
@@ -792,6 +961,71 @@ def button(text: str, *, primary: bool = False) -> Any:
 QT: SimpleNamespace
 
 
+def advisory_rows_from_payload(payload: object) -> list[tuple[str, str, float, object, int]]:
+    """Extract (symbol, direction, score, latest_close, rank) tuples from a
+    stock_recommendation.json payload, sorted by rank (rank 0 last)."""
+    if not isinstance(payload, dict) or not payload:
+        return []
+    recs = payload.get("recommendations")
+    if not isinstance(recs, list):
+        return []
+    rows: list[tuple[str, str, float, object, int]] = []
+    for r in recs:
+        if not isinstance(r, dict):
+            continue
+        symbol = str(r.get("symbol", ""))
+        direction = str(r.get("direction", ""))
+        if direction not in ("BUY", "SELL") or not symbol:
+            continue
+        score = float(r.get("score", 0.0))
+        latest_close = r.get("latest_close")
+        rank = int(r.get("rank", 0))
+        rows.append((symbol, direction, score, latest_close, rank))
+    rows.sort(key=lambda row: (row[4] if row[4] > 0 else 10**9, row[0]))
+    return rows
+
+
+def load_stock_rows(db_path: Path | None = None, limit: int = 1000) -> list[dict]:
+    """Latest EOD row per symbol from data/market.db (read-only).
+
+    Returns [] if the db is missing.
+    Columns: date, symbol, exchange, open, high, low, close, volume, value,
+    foreign_buy_value, foreign_sell_value.
+    """
+    try:
+        import sqlite3
+        if db_path is None:
+            db_path = ROOT / "data" / "market.db"
+        if not db_path.is_file():
+            return []
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            rows = conn.execute(
+                """SELECT date, symbol, exchange, open, high, low, close,
+                          volume, value, foreign_buy_value, foreign_sell_value
+                   FROM eod_prices
+                   WHERE date = (SELECT MAX(date) FROM eod_prices)
+                   ORDER BY symbol
+                   LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        finally:
+            conn.close()
+        return [
+            {
+                "date": r["date"], "symbol": r["symbol"], "exchange": r["exchange"],
+                "open": r["open"], "high": r["high"], "low": r["low"], "close": r["close"],
+                "volume": r["volume"], "value": r["value"],
+                "foreign_buy_value": r["foreign_buy_value"],
+                "foreign_sell_value": r["foreign_sell_value"],
+            }
+            for r in rows
+        ]
+    except Exception:
+        return []
+
+
 class NativeShell:
     """Small wrapper around the Qt main window."""
 
@@ -809,10 +1043,14 @@ class NativeShell:
         self.stock_process = None
         self.stock_pending_launch = None
         self.stock_process_log: list[str] = []
-        self.stock_fields: dict[str, Any] = {}
+        self._last_auto_eod_date: str | None = None
+        self.stock_result_table = None
+        self.stock_table = None
+        self.stock_count = None
+        self.stock_search = None
         self.stock_run_btn = None
         self.stock_status = None
-        self.stock_result = None
+        self._stock_rows: list[dict] = []
         self.profile_cards_layout = None
         self.profile_detail = None
         self.profile_editor_title = None
@@ -840,6 +1078,14 @@ class NativeShell:
         self.settings_about = None
         self.shortcuts: list[Any] = []
         self.live_status = None
+        self.hero_status = None
+        self.rail_fleet = None
+        self.rail_lang_en = None
+        self.rail_lang_vn = None
+        self.rail_theme_btn = None
+        self.rail_profile_status = None
+        self.rail_profile_toggle = None
+        self.rail_scroll = None
         self.live_timer = None
         self.last_running_signature: tuple[str, ...] = ()
         self.last_diagnostics_report = ""
@@ -868,38 +1114,126 @@ class NativeShell:
 
     def _rail(self) -> Any:
         frame = panel()
-        frame.setFixedWidth(260)
-        layout = QT.QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(12)
-        logo = label("⚡  SLTP.", role="value", accent="green")
-        logo.setContentsMargins(0, 0, 0, 6)
-        layout.addWidget(logo)
+        frame.setFixedWidth(330)
+        self.rail_scroll = QT.QScrollArea()
+        self.rail_scroll.setObjectName("RailScroll")
+        self.rail_scroll.setWidgetResizable(True)
+        self.rail_scroll.setFrameShape(QT.QFrame.Shape.NoFrame)
+        content = QT.QWidget()
+        content.setObjectName("RailContent")
+        layout = QT.QVBoxLayout(content)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(2)
+        # Brand row
+        brand_row = QT.QHBoxLayout()
+        brand_icon = label("⚡", accent="green")
+        brand_icon.setContentsMargins(0, 0, 0, 0)
+        brand_row.addWidget(brand_icon)
+        brand_oak = label("OAK", role="section")
+        brand_oak.setContentsMargins(0, 0, 0, 0)
+        brand_row.addWidget(brand_oak)
+        brand_mgr = label("Manager", role="section")
+        brand_mgr.setContentsMargins(0, 0, 0, 0)
+        brand_row.addWidget(brand_mgr)
+        brand_row.addStretch(1)
+        layout.addLayout(brand_row)
+        # Operations section header
+        layout.addWidget(label("OPERATIONS", role="tiny"))
+        # Nav icons from App.tsx
+        nav_icons = {
+            "Dashboard": "▦",
+            "Signals": "⌁",
+            "VN30 Advisor": "◌",
+            "Profiles": "▣",
+            "Copy": "♧",
+            "Pending": "◷",
+            "Diagnostics": "⌁",
+            "Settings": "⚙",
+        }
         for name in ("Dashboard", "Signals", "VN30 Advisor", "Profiles", "Copy", "Pending", "Diagnostics", "Settings"):
-            nav = button(name)
+            nav = button(f"{nav_icons.get(name, '')}   {native_text(name)}")
+            nav.setProperty("role", "nav")
             nav.clicked.connect(lambda _checked=False, tab=name: self.switch_tab(tab))
             self.nav_buttons[name] = nav
             layout.addWidget(nav)
-        self.profile_combo = QT.QComboBox()
-        self.profile_combo.setMinimumHeight(42)
-        self.profile_combo.currentTextChanged.connect(self._select_profile)
+        # Analysis section header
+        layout.addSpacing(5)
+        layout.addWidget(divider())
+        layout.addSpacing(5)
+        layout.addWidget(label("ANALYSIS", role="tiny"))
+        # Disabled placeholder nav items
+        analysis_placeholders = [
+            ("◎", "Accounts"),
+            ("↗", "Performance"),
+            ("⧗", "History"),
+            ("§", "Rules today"),
+            ("◈", "News"),
+        ]
+        for icon, name in analysis_placeholders:
+            placeholder = button(f"{icon}   {native_text(name)}")
+            placeholder.setProperty("role", "nav")
+            placeholder.setProperty("secondary", "true")
+            placeholder.setEnabled(False)
+            placeholder.setToolTip(native_text("Available in the Tauri/Web build"))
+            layout.addWidget(placeholder)
+        # Footer
+        layout.addStretch(1)
+        # Profile block
+        layout.addSpacing(5)
+        layout.addWidget(divider())
+        layout.addSpacing(5)
         layout.addWidget(label("PROFILE", role="tiny"))
+        self.profile_combo = QT.QComboBox()
+        self.profile_combo.setMinimumHeight(36)
+        self.profile_combo.currentTextChanged.connect(self._select_profile)
         layout.addWidget(self.profile_combo)
-        self.start_btn = button("Start selected", primary=True)
-        self.stop_btn = button("Stop selected")
-        self.refresh_btn = button("Refresh")
-        self.classic_btn = button("Open classic UI")
-        self.start_btn.clicked.connect(self.start_selected)
-        self.stop_btn.clicked.connect(self.stop_selected)
-        self.refresh_btn.clicked.connect(self.refresh)
-        self.classic_btn.clicked.connect(self.open_classic)
-        layout.addWidget(self.start_btn)
-        layout.addWidget(self.stop_btn)
-        layout.addWidget(self.refresh_btn)
-        layout.addWidget(self.classic_btn)
+        # Profile control row: live status + start/stop toggle (Tauri parity)
+        profile_ctl = QT.QHBoxLayout()
+        profile_ctl.setSpacing(8)
+        self.rail_profile_status = label("Stopped", role="muted")
+        self.rail_profile_status.setProperty("accent", "muted")
+        profile_ctl.addWidget(self.rail_profile_status)
+        profile_ctl.addStretch(1)
+        self.rail_profile_toggle = button("Start selected")
+        self.rail_profile_toggle.setProperty("intent", "positive")
+        self.rail_profile_toggle.clicked.connect(self._toggle_selected_profile)
+        profile_ctl.addWidget(self.rail_profile_toggle)
+        layout.addLayout(profile_ctl)
+        # Live status block
+        layout.addSpacing(5)
+        layout.addWidget(divider())
+        layout.addSpacing(5)
+        layout.addWidget(label("LIVE STATUS", role="tiny"))
         self.live_status = label("Heartbeat ready", role="muted")
         layout.addWidget(self.live_status)
-        layout.addStretch(1)
+        # Prefs row: lang switch + theme toggle
+        prefs_row = QT.QHBoxLayout()
+        self.rail_lang_en = button("EN")
+        self.rail_lang_en.setProperty("role", "lang")
+        self.rail_lang_en.clicked.connect(lambda: self.set_rail_lang("EN"))
+        self.rail_lang_vn = button("VN")
+        self.rail_lang_vn.setProperty("role", "lang")
+        self.rail_lang_vn.clicked.connect(lambda: self.set_rail_lang("VN"))
+        current_lang = NATIVE_LANGUAGE
+        self.rail_lang_en.setProperty("active", "true" if current_lang == "EN" else "false")
+        self.rail_lang_vn.setProperty("active", "true" if current_lang == "VN" else "false")
+        prefs_row.addWidget(self.rail_lang_en)
+        prefs_row.addWidget(self.rail_lang_vn)
+        self.rail_theme_btn = button("◐")
+        self.rail_theme_btn.setProperty("role", "prefs")
+        self.rail_theme_btn.setToolTip(f"Theme: {self.settings.get('theme', 'dark')}")
+        self.rail_theme_btn.clicked.connect(self.cycle_rail_theme)
+        prefs_row.addWidget(self.rail_theme_btn)
+        self.classic_btn = button("Classic")
+        self.classic_btn.setProperty("role", "prefs")
+        self.classic_btn.setToolTip(native_text("Open classic UI"))
+        self.classic_btn.clicked.connect(self.open_classic)
+        prefs_row.addWidget(self.classic_btn)
+        layout.addLayout(prefs_row)
+        frame_layout = QT.QVBoxLayout(frame)
+        frame_layout.setContentsMargins(0, 0, 0, 0)
+        frame_layout.addWidget(self.rail_scroll)
+        self.rail_scroll.setWidget(content)
         return frame
 
     def _main(self) -> Any:
@@ -938,6 +1272,8 @@ class NativeShell:
         left_layout.addWidget(label("TRADING COMMAND CENTER", role="tiny"))
         left_layout.addWidget(self.title)
         left_layout.addWidget(self.subtitle)
+        self.hero_status = label("● Live", role="status")
+        left_layout.addWidget(self.hero_status)
         left_layout.addStretch(1)
         layout.addWidget(left, 0, 0, 2, 1, QT.Qt.AlignmentFlag.AlignTop)
         self.stat_profiles = self._stat("Profiles", "0")
@@ -949,8 +1285,10 @@ class NativeShell:
         return frame
 
     def _stat(self, title: str, value: str, accent: str = "") -> dict[str, Any]:
-        frame = panel()
+        frame = QT.QFrame()
+        frame.setProperty("role", "stat")
         layout = QT.QVBoxLayout(frame)
+        layout.setContentsMargins(10, 10, 10, 10)
         value_label = label(value, role="value", accent=accent)
         layout.addWidget(label(title.upper(), role="tiny"))
         layout.addWidget(value_label)
@@ -1013,94 +1351,84 @@ class NativeShell:
         page = QT.QWidget()
         layout = QT.QHBoxLayout(page)
         layout.setSpacing(18)
-        controls = self._stock_advisor_controls()
-        controls.setObjectName("StockAdvisorControls")
-        controls_scroll = QT.QScrollArea()
-        controls_scroll.setFrameShape(QT.QFrame.Shape.NoFrame)
-        controls_scroll.setHorizontalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        controls_scroll.setWidgetResizable(True)
-        controls_scroll.setWidget(controls)
-        self.stock_result = QT.QTextEdit()
-        self.stock_result.setReadOnly(True)
-        self.stock_result.setProperty("role", "mini")
-        self.stock_result.setPlainText(native_text("Press Run Local EOD D1 Scanner to rank symbols using completed local data."))
-        layout.addWidget(self._section("LOCAL EOD MARKET DATA", controls_scroll), 1)
-        layout.addWidget(self._section("ADVISORY RESULT", self.stock_result), 2)
-        return page
 
-    def _stock_advisor_controls(self) -> Any:
-        frame = QT.QWidget()
-        layout = QT.QVBoxLayout(frame)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-        self._build_stock_fields(layout)
-        layout.addLayout(self._stock_advisor_actions())
-        self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
-        self.stock_status.setWordWrap(True)
-        layout.addWidget(self.stock_status)
+        # --- LEFT pane: Advisory Result ---
+        left_widget = QT.QWidget()
+        left_layout = QT.QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(10)
 
-        self.stock_progress_bar = QT.QProgressBar()
-        self.stock_progress_bar.setRange(0, 100)
-        self.stock_progress_bar.setValue(0)
-        self.stock_progress_bar.setTextVisible(True)
-        self.stock_progress_bar.setFormat("Sẵn sàng (0%)")
-        self.stock_progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #3f3f46;
-                border-radius: 6px;
-                background-color: #18181b;
-                text-align: center;
-                color: #f4f4f5;
-                font-weight: bold;
-                font-size: 11px;
-                min-height: 24px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #d97706, stop:1 #10b981);
-                border-radius: 5px;
-            }
-        """)
-        self.stock_progress_bar.setVisible(False)
-        layout.addWidget(self.stock_progress_bar)
-
-        layout.addStretch(1)
-        return frame
-
-    def _build_stock_fields(self, layout: Any) -> None:
-        for title, key in (
-            ("Deployable capital", "capital"),
-        ):
-            field = self._stock_advisor_field(secret=False)
-            self.stock_fields[key] = field
-            layout.addWidget(self._stock_advisor_field_row(title, field))
-
-    def _stock_advisor_field_row(self, title: str, field: Any) -> Any:
-        row = QT.QFrame()
-        row.setProperty("role", "row")
-        row_layout = QT.QVBoxLayout(row)
-        row_layout.setContentsMargins(12, 8, 12, 8)
-        row_layout.setSpacing(4)
-        row_layout.addWidget(label(title, role="tiny"))
-        row_layout.addWidget(field)
-        return row
-
-    def _stock_advisor_actions(self) -> Any:
-        actions = QT.QVBoxLayout()
+        # Action row (HBox with Update EOD + Run Filter buttons)
+        actions_row = QT.QHBoxLayout()
         self.stock_update_eod_btn = button("Update EOD Data (15:00+)")
         self.stock_update_eod_btn.setProperty("stockAction", "update_eod")
         self.stock_run_btn = button("Run Local EOD D1 Scanner", primary=True)
         self.stock_update_eod_btn.clicked.connect(self.update_eod_data)
         self.stock_run_btn.clicked.connect(self.run_stock_advisor)
-        actions.addWidget(self.stock_update_eod_btn)
-        actions.addWidget(self.stock_run_btn)
-        return actions
+        actions_row.addWidget(self.stock_update_eod_btn)
+        actions_row.addWidget(self.stock_run_btn)
+        left_layout.addLayout(actions_row)
 
-    def _stock_advisor_field(self, secret: bool) -> Any:
-        field = QT.QLineEdit()
-        field.setMinimumHeight(40)
-        if secret:
-            field.setEchoMode(QT.QLineEdit.EchoMode.PasswordEchoOnEdit)
-        return field
+        # Advisory result table (5 columns)
+        self.stock_result_table = QT.QTableWidget(0, 5)
+        self.stock_result_table.setEditTriggers(QT.QTableWidget.EditTrigger.NoEditTriggers)
+        self.stock_result_table.setSelectionMode(QT.QTableWidget.SelectionMode.NoSelection)
+        self.stock_result_table.verticalHeader().setVisible(False)
+        self.stock_result_table.setHorizontalHeaderLabels(
+            [native_text("SYMBOL"), native_text("DIRECTION"), native_text("SCORE"),
+             native_text("CLOSE"), native_text("RANK")]
+        )
+        left_layout.addWidget(self.stock_result_table, 1)
+
+        # Progress bar
+        self.stock_progress_bar = QT.QProgressBar()
+        self.stock_progress_bar.setRange(0, 100)
+        self.stock_progress_bar.setValue(0)
+        self.stock_progress_bar.setTextVisible(True)
+        self.stock_progress_bar.setFormat("Sẵn sàng (0%)")
+        self.stock_progress_bar.setVisible(False)
+        left_layout.addWidget(self.stock_progress_bar)
+
+        # Status
+        self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
+        self.stock_status.setWordWrap(True)
+        left_layout.addWidget(self.stock_status)
+
+        layout.addWidget(self._section("ADVISORY RESULT", left_widget), 1)
+
+        # --- RIGHT pane: Local EOD Stocks ---
+        right_widget = QT.QWidget()
+        right_layout = QT.QVBoxLayout(right_widget)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+
+        # Search row
+        search_row = QT.QHBoxLayout()
+        self.stock_search = QT.QLineEdit()
+        self.stock_search.setPlaceholderText(native_text("Filter symbols…"))
+        self.stock_search.textChanged.connect(self._on_stock_search_changed)
+        search_row.addWidget(self.stock_search, 1)
+        self.stock_count = label("", role="muted")
+        search_row.addWidget(self.stock_count)
+        right_layout.addLayout(search_row)
+
+        # Stocks table (7 columns)
+        self.stock_table = QT.QTableWidget(0, 7)
+        self.stock_table.setEditTriggers(QT.QTableWidget.EditTrigger.NoEditTriggers)
+        self.stock_table.setSelectionMode(QT.QTableWidget.SelectionMode.NoSelection)
+        self.stock_table.verticalHeader().setVisible(False)
+        self.stock_table.setHorizontalHeaderLabels(
+            [native_text("SYMBOL"), native_text("EXCHANGE"), native_text("OPEN"),
+             native_text("HIGH"), native_text("LOW"), native_text("CLOSE"),
+             native_text("VOLUME")]
+        )
+        right_layout.addWidget(self.stock_table, 1)
+
+        layout.addWidget(self._section("LOCAL EOD STOCKS", right_widget), 2)
+
+        # Load initial stock rows
+        self._reload_stock_rows()
+        return page
 
     def _profiles_page(self) -> Any:
         page = QT.QWidget()
@@ -1305,7 +1633,7 @@ class NativeShell:
         self.settings_lang_combo.addItems(["EN", "VN"])
         self.settings_lang_combo.setMinimumHeight(42)
         self.settings_theme_combo = QT.QComboBox()
-        self.settings_theme_combo.addItems(["dark", "deep-sea", "contrast"])
+        self.settings_theme_combo.addItems(["dark", "light", "deep-sea", "contrast"])
         self.settings_theme_combo.setMinimumHeight(42)
         controls_layout.addWidget(self._settings_row("Language", "Dashboard language preference.", self.settings_lang_combo))
         controls_layout.addWidget(self._settings_row("Theme", "NativeQt visual skin. Applies instantly after save.", self.settings_theme_combo))
@@ -1472,7 +1800,7 @@ class NativeShell:
     def _start_live_timer(self) -> None:
         self.live_timer = QT.QTimer(self.window)
         self.live_timer.timeout.connect(self._refresh_live_state)
-        self.live_timer.start(1500)
+        self.live_timer.start(1000)
 
     def _select_profile(self, name: str) -> None:
         if not name:
@@ -1486,7 +1814,6 @@ class NativeShell:
         current_tab = self.current_tab
         selected = self.selected
         console_text = self.console.toPlainText() if hasattr(self, "console") else ""
-        stock_text = self.stock_result.toPlainText() if self.stock_result is not None else ""
         signal_logs = {key: card["console"].toPlainText() for key, card in self.signal_cards.items()}
         old_root = self.window.takeCentralWidget()
         if old_root is not None:
@@ -1499,8 +1826,6 @@ class NativeShell:
         for key, text in signal_logs.items():
             if key in self.signal_cards:
                 self.signal_cards[key]["console"].setPlainText(text)
-        if stock_text and self.stock_result is not None:
-            self.stock_result.setPlainText(stock_text)
         self.refresh()
         self.switch_tab(current_tab)
 
@@ -1534,6 +1859,20 @@ class NativeShell:
                 profile=self.selected or "—",
             )
         )
+        # Update rail lang buttons
+        if hasattr(self, "rail_lang_en") and self.rail_lang_en is not None:
+            cur = NATIVE_LANGUAGE
+            self.rail_lang_en.setProperty("active", "true" if cur == "EN" else "false")
+            self.rail_lang_en.style().unpolish(self.rail_lang_en)
+            self.rail_lang_en.style().polish(self.rail_lang_en)
+        if hasattr(self, "rail_lang_vn") and self.rail_lang_vn is not None:
+            cur = NATIVE_LANGUAGE
+            self.rail_lang_vn.setProperty("active", "true" if cur == "VN" else "false")
+            self.rail_lang_vn.style().unpolish(self.rail_lang_vn)
+            self.rail_lang_vn.style().polish(self.rail_lang_vn)
+        # Update theme toggle title
+        if hasattr(self, "rail_theme_btn") and self.rail_theme_btn is not None:
+            self.rail_theme_btn.setToolTip(f"Theme: {self.settings.get('theme', 'dark')}")
 
     def _reload_state_files(self) -> None:
         self.profiles = read_json(PROFILE_FILE, {})
@@ -1543,6 +1882,7 @@ class NativeShell:
         self.selected = next(iter(self.profiles), "")
 
     def _refresh_live_state(self) -> None:
+        self._check_auto_eod_update()
         running = tuple(sorted(self._running_profiles()))
         self.stat_running["value"].setText(str(len(running)))
         self._refresh_profile_controls()
@@ -1560,14 +1900,41 @@ class NativeShell:
             return
         stamp = datetime.now().strftime("%H:%M:%S")
         self.live_status.setText(f"{native_text(prefix)} | {stamp}")
+        if hasattr(self, "hero_status") and self.hero_status is not None:
+            self.hero_status.setText(f"● {native_text(prefix)}")
+            self.hero_status.style().unpolish(self.hero_status)
+            self.hero_status.style().polish(self.hero_status)
 
     def _refresh_profile_controls(self) -> None:
-        running = self._profile_is_running(self.selected)
-        has_profile = bool(self.selected and self.selected in self.profiles)
-        self.start_btn.setEnabled(has_profile and not running)
-        self.stop_btn.setEnabled(has_profile and running)
-        self.start_btn.setText(native_text("Start selected" if not running else "Running"))
-        self.stop_btn.setText(native_text("Stop selected"))
+        """Update the rail profile status + start/stop toggle for the selected profile."""
+        if self.rail_profile_toggle is None or self.rail_profile_status is None:
+            return
+        running = bool(self.selected and self.selected in self._running_profiles())
+        self.rail_profile_toggle.setText(native_text("Stop selected" if running else "Start selected"))
+        self.rail_profile_toggle.setProperty("intent", "danger" if running else "positive")
+        self.rail_profile_toggle.style().unpolish(self.rail_profile_toggle)
+        self.rail_profile_toggle.style().polish(self.rail_profile_toggle)
+        self.rail_profile_status.setText(native_text("Running" if running else "Stopped"))
+        self.rail_profile_status.setProperty("accent", "green" if running else "muted")
+        self.rail_profile_status.style().unpolish(self.rail_profile_status)
+        self.rail_profile_status.style().polish(self.rail_profile_status)
+
+    def _fade_in_page(self, page: Any) -> None:
+        """Apply a subtle 150ms opacity fade-in on the newly shown page."""
+        if page is None:
+            return
+        try:
+            effect = QT.QGraphicsOpacityEffect(page)
+            page.setGraphicsEffect(effect)
+            anim = QT.QPropertyAnimation(effect, b"opacity", self.window)
+            anim.setDuration(150)
+            anim.setStartValue(0.0)
+            anim.setEndValue(1.0)
+            anim.setEasingCurve(QT.QEasingCurve.Type.OutCubic)
+            anim.finished.connect(lambda: page.setGraphicsEffect(None))
+            anim.start(QT.QPropertyAnimation.DeletionPolicy.DeleteWhenStopped)
+        except Exception:
+            page.setGraphicsEffect(None)
 
     def switch_tab(self, tab: str) -> None:
         if tab not in self.tab_pages:
@@ -1575,6 +1942,7 @@ class NativeShell:
         self.current_tab = tab
         self.stack.setCurrentWidget(self.tab_pages[tab])
         self._refresh_nav()
+        self._fade_in_page(self.tab_pages[tab])
 
     def _refresh_nav(self) -> None:
         for name, nav in self.nav_buttons.items():
@@ -2209,20 +2577,10 @@ class NativeShell:
         self.diag_status.style().polish(self.diag_status)
 
     def _refresh_stock_advisor_page(self) -> None:
-        if not self.stock_fields:
+        if getattr(self, "stock_result_table", None) is None:
             return
-        values = {
-            "capital": self.settings.get("stock_capital", 90_000_000),
-        }
-        for key, value in values.items():
-            if key in self.stock_fields:
-                self.stock_fields[key].setText(str(value))
-        output = ROOT / "stock_recommendation.json"
-        if self.stock_process is None and output.exists() and self.stock_result is not None:
-            payload = read_json(output, {})
-            if isinstance(payload, dict) and payload:
-                locale = "VN" if NATIVE_LANGUAGE == "VN" else "EN"
-                self.stock_result.setPlainText(render_stock_advisory(payload, locale=locale))
+        self._render_advisory_table()
+        self._reload_stock_rows()
         self._check_auto_eod_update()
 
     def _check_auto_eod_update(self) -> None:
@@ -2307,6 +2665,7 @@ class NativeShell:
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                 self.stock_progress_bar.setValue(100)
                 self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất ✓ 100%")
+            self._reload_stock_rows()
             if is_auto:
                 auto_msg = "Cập nhật EOD tự động hoàn tất. Đang tự động chạy bộ lọc cổ phiếu..." if NATIVE_LANGUAGE == "VN" else "Auto EOD completed. Running stock scanner..."
                 self._set_stock_status(auto_msg, "amber")
@@ -2319,10 +2678,9 @@ class NativeShell:
                 self.stock_progress_bar.setFormat("Lỗi cập nhật EOD ✗")
 
     def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
-        capital_str = self.stock_fields.get("capital", QT.QLineEdit()).text().strip() or "90000000"
         return StockAdvisorDesktopSettings(
             client_id="oak-stock-scanner",
-            capital=float(capital_str),
+            capital=float(self.settings.get("stock_capital", 90_000_000)),
         )
 
     def save_stock_advisor_settings(self) -> None:
@@ -2380,7 +2738,6 @@ class NativeShell:
         process.errorOccurred.connect(lambda error, p=process: self._stock_advisor_error(error, p))
         self.stock_process = process
         self.stock_process_log = []
-        self.stock_result.clear()
         self._set_stock_status(native_text("Running Local EOD D1 scanner..."), "amber")
         process.start()
 
@@ -2390,7 +2747,6 @@ class NativeShell:
             clean = line.strip()
             if clean:
                 self.stock_process_log.append(clean)
-                self.stock_result.append(clean)
                 match = re.search(r"\[Local EOD(?: D1)?\] (\w+) \((\d+) bars\)", clean)
                 if match and hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                     sym = match.group(1)
@@ -2408,9 +2764,8 @@ class NativeShell:
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                 self.stock_progress_bar.setValue(100)
                 self.stock_progress_bar.setFormat("Hoàn tất quét toàn bộ 3 sàn 100%")
-            payload = read_json(ROOT / "stock_recommendation.json", {})
-            locale = "VN" if NATIVE_LANGUAGE == "VN" else "EN"
-            self.stock_result.setPlainText(render_stock_advisory(payload, locale=locale) if isinstance(payload, dict) else "Invalid result")
+            self._render_advisory_table()
+            self._reload_stock_rows()
             pushed = any(line.endswith("Stock advisor: pushed") for line in self.stock_process_log)
             message = "Advisor completed and dashboard updated." if pushed else "Advisor completed locally; dashboard push needs configuration."
             self._set_stock_status(native_text(message), "green" if pushed else "amber")
@@ -2422,6 +2777,74 @@ class NativeShell:
     def _stock_advisor_error(self, error: Any, process: Any) -> None:
         if self.stock_process is process:
             self._set_stock_status(f"Advisor process error: {error}", "red")
+
+    def _render_advisory_table(self) -> None:
+        """Populate self.stock_result_table from stock_recommendation.json."""
+        if getattr(self, "stock_result_table", None) is None:
+            return
+        tbl = self.stock_result_table
+        if self.stock_process is None:
+            payload = read_json(ROOT / "stock_recommendation.json", {})
+            rows = advisory_rows_from_payload(payload)
+        else:
+            rows = []
+        tbl.setRowCount(len(rows))
+        for i, (symbol, direction, score, close, rank) in enumerate(rows):
+            tbl.setItem(i, 0, QT.QTableWidgetItem(symbol))
+            d_item = QT.QTableWidgetItem(direction)
+            if direction == "BUY":
+                d_item.setForeground(QT.QBrush(QT.QColor("#2fa572")))
+            else:
+                d_item.setForeground(QT.QBrush(QT.QColor("#ef4444")))
+            f = d_item.font()
+            f.setBold(True)
+            d_item.setFont(f)
+            tbl.setItem(i, 1, d_item)
+            tbl.setItem(i, 2, QT.QTableWidgetItem(f"{score:.2f}"))
+            close_txt = f"{float(close):.2f}" if close is not None else "—"
+            tbl.setItem(i, 3, QT.QTableWidgetItem(close_txt))
+            rank_txt = f"#{rank}" if rank > 0 else "—"
+            tbl.setItem(i, 4, QT.QTableWidgetItem(rank_txt))
+        tbl.resizeColumnsToContents()
+        # Stretch last column
+        header = tbl.horizontalHeader()
+        if header is not None and tbl.columnCount() > 4:
+            header.setSectionResizeMode(4, QT.QHeaderView.ResizeMode.Stretch)
+
+    def _reload_stock_rows(self) -> None:
+        """Reload stock table from market.db with current search filter."""
+        if getattr(self, "stock_table", None) is None:
+            return
+        all_rows = load_stock_rows()
+        self._stock_rows = all_rows
+        text = ""
+        if getattr(self, "stock_search", None) is not None:
+            text = self.stock_search.text().strip().lower()
+        if text:
+            shown = [r for r in all_rows if text in str(r.get("symbol", "")).lower()]
+        else:
+            shown = all_rows
+        tbl = self.stock_table
+        tbl.setRowCount(len(shown))
+        for i, r in enumerate(shown):
+            tbl.setItem(i, 0, QT.QTableWidgetItem(str(r.get("symbol", ""))))
+            tbl.setItem(i, 1, QT.QTableWidgetItem(str(r.get("exchange", ""))))
+            for col, key in enumerate(("open", "high", "low", "close"), start=2):
+                val = r.get(key)
+                txt = f"{float(val):.2f}" if val is not None else "—"
+                tbl.setItem(i, col, QT.QTableWidgetItem(txt))
+            vol = r.get("volume")
+            vol_txt = f"{float(vol) / 1e6:.1f}" if vol is not None else "—"
+            tbl.setItem(i, 6, QT.QTableWidgetItem(vol_txt))
+        tbl.resizeColumnsToContents()
+        header = tbl.horizontalHeader()
+        if header is not None and tbl.columnCount() > 6:
+            header.setSectionResizeMode(6, QT.QHeaderView.ResizeMode.Stretch)
+        if getattr(self, "stock_count", None) is not None:
+            self.stock_count.setText(f"{len(shown)} / {len(all_rows)}")
+
+    def _on_stock_search_changed(self, text: str) -> None:
+        self._reload_stock_rows()
 
     def _set_stock_status(self, message: str, accent: str = "muted") -> None:
         if self.stock_status is None:
@@ -2477,12 +2900,75 @@ class NativeShell:
             self._select_combo_value(self.settings_theme_combo, "dark")
         self.save_native_settings()
 
-    def apply_theme(self) -> None:
-        """Apply the current NativeQt QSS theme to the application."""
-        app = QT.QApplication.instance()
-        if app is None:
+    def set_rail_lang(self, lang: str) -> None:
+        """Switch the UI language from the rail segmented switch."""
+        lang = str(lang).upper()
+        if lang not in ("EN", "VN") or lang == NATIVE_LANGUAGE:
             return
-        app.setStyleSheet(app_qss(str(self.settings.get("theme", "dark"))))
+        next_settings = dict(self.settings)
+        next_settings["lang"] = lang
+        write_json_atomic(SETTINGS_FILE, next_settings)
+        self.settings = next_settings
+        set_native_language(lang)
+        self._rebuild_translated_ui()
+
+    def cycle_rail_theme(self) -> None:
+        """Cycle through available themes from the rail theme toggle."""
+        order = ("dark", "light", "deep-sea", "contrast")
+        current = str(self.settings.get("theme", "dark"))
+        next_theme = order[(order.index(current) + 1) % len(order)] if current in order else "dark"
+        next_settings = dict(self.settings)
+        next_settings["theme"] = next_theme
+        write_json_atomic(SETTINGS_FILE, next_settings)
+        self.settings = next_settings
+        self.apply_theme()
+        if self.rail_theme_btn is not None:
+            self.rail_theme_btn.setToolTip(f"Theme: {next_theme}")
+        if getattr(self, "stat_theme", None) is not None:
+            self.stat_theme["value"].setText(str(next_theme))
+
+    def apply_theme(self) -> None:
+        """Apply the current NativeQt QSS theme to the main window subtree.
+
+        Scoped to the window instead of the whole QApplication: Qt re-polishes
+        every widget when the stylesheet changes, and app-wide re-polish
+        measured ~870ms vs ~150ms for the window subtree (offscreen). All shell
+        widgets live inside self.window, so styling is identical.
+        """
+        self.window.setStyleSheet(app_qss(str(self.settings.get("theme", "dark"))))
+
+    def shutdown(self) -> None:
+        """Stop background subprocesses and detach handlers before teardown.
+
+        Prevents RuntimeError("Internal C++ object already deleted") when the
+        window is destroyed while an EOD/stock/monitor subprocess still emits
+        signals (e.g. the user closes the window during an auto EOD update, or
+        a test closes the window). Idempotent; safe to call more than once.
+        """
+        processes: list[Any] = []
+        for attr in ("eod_update_process", "stock_process"):
+            proc = getattr(self, attr, None)
+            if proc is not None:
+                processes.append(proc)
+                setattr(self, attr, None)
+        for mapping in ("monitor_processes", "signal_processes"):
+            mapping_obj = getattr(self, mapping, None) or {}
+            for proc in list(mapping_obj.values()):
+                processes.append(proc)
+            mapping_obj.clear()
+        for proc in processes:
+            try:
+                proc.disconnect()
+            except (RuntimeError, TypeError, AttributeError):
+                pass
+            try:
+                if proc.state() != QT.QProcess.ProcessState.NotRunning:
+                    proc.terminate()
+                    if not proc.waitForFinished(2000):
+                        proc.kill()
+                        proc.waitForFinished(500)
+            except (RuntimeError, TypeError, AttributeError):
+                pass
 
     def _set_settings_status(self, message: str, accent: str = "muted") -> None:
         if self.settings_status is None:
@@ -2597,6 +3083,16 @@ class NativeShell:
     def log(self, message: str) -> None:
         self._append_console_line(message)
         self._refresh_live_state()
+
+    def _toggle_selected_profile(self) -> None:
+        """Start or stop the selected profile from the rail (single toggle button)."""
+        if not self.selected or self.selected not in self.profiles:
+            self.log("Select a valid profile first.")
+            return
+        if self.selected in self._running_profiles():
+            self.stop_selected()
+        else:
+            self.start_selected()
 
     def start_selected(self) -> None:
         self.start_profile(self.selected)
@@ -3023,7 +3519,10 @@ def run_embedded_worker(argv: list[str]) -> int | None:
     if "--signal-bot" in argv:
         import mt5_signal_bot
 
-        mt5_signal_bot.main(profile_name=profile_arg(argv))
+        if "--audit-service" in argv:
+            mt5_signal_bot.run_audit_service(profile_name=profile_arg(argv))
+        else:
+            mt5_signal_bot.main(profile_name=profile_arg(argv))
         return 0
     if "--mt4-feed-server" in argv:
         import mt4_feed_server
@@ -3084,6 +3583,7 @@ def main() -> int:
         QT.QTimer.singleShot(80, app.quit)
 
     shell = NativeShell(ready_callback)
+    app.aboutToQuit.connect(shell.shutdown)
     initial_tab = tab_arg(sys.argv)
     if initial_tab:
         shell.switch_tab(initial_tab)

@@ -168,7 +168,8 @@ class ServiceManager:
         if spec is None:
             return {"key": key, "label": key, "kind": "unknown", "configured": False,
                     "status": "not_supported", "pid": None, "exit_code": None,
-                    "trading_risk": "none", "execution_armed": False, "note": ""}
+                    "trading_risk": "none", "execution_armed": False, "note": "",
+                    "scope": "global"}
         configured, reason = self._configured(spec)
         with self._lock:
             proc = self._procs.get(key)
@@ -182,7 +183,10 @@ class ServiceManager:
                 pid = proc.pid
             else:
                 exit_code = poll
-                status = "crashed" if not self._intentional_stop.get(key) else "exited"
+                # A clean self-termination (for example, a second instance
+                # finding its lock already held) is not a crash.  Only a
+                # non-zero exit without an intentional stop is degraded.
+                status = "exited" if poll == 0 or self._intentional_stop.get(key) else "crashed"
         note = ""
         if spec.kind == "on_demand":
             note = ("Chạy theo yêu cầu (không phải daemon) — dùng nút 'Tải EOD' / "
@@ -193,6 +197,9 @@ class ServiceManager:
             "exit_code": exit_code, "trading_risk": spec.trading_risk,
             "execution_armed": self._execution_armed(spec), "note": note,
             "config_note": reason if not configured else "",
+            # Lifecycle scope so the UI can distinguish per-profile services
+            # (one instance per MT5 profile) from global singletons.
+            "scope": "profile" if spec.needs_profile else "global",
         }
 
     def list_services(self) -> dict:
@@ -250,11 +257,6 @@ class ServiceManager:
         except UnsupportedFrozenProcessError as e:
             return {"started": False, "reason": "not_supported_in_frozen", "detail": str(e)}
 
-        if spec.audit_service:
-            # SAFETY: "MT5 Account Audit Service" must start the audit service,
-            # never the live signal loop (main()) which can place orders.
-            cmd = cmd + ["--audit-service"]
-
         cwd = str(_REPO_ROOT) if not getattr(sys, "frozen", False) else None
         # Force UTF-8 I/O so services that print localized text don't crash on
         # the Windows console codepage (mirrors legacy SignalProcessSupervisor).
@@ -275,8 +277,18 @@ class ServiceManager:
             self._procs[key] = proc
             self._intentional_stop[key] = False
 
+        for stream_name in ("stdout", "stderr"):
+            stream = getattr(proc, stream_name, None)
+            if stream is None:
+                continue
+            threading.Thread(
+                target=self._drain,
+                args=(key, stream),
+                daemon=True,
+                name=f"svclog-{key}-{stream_name}",
+            ).start()
         threading.Thread(
-            target=self._drain, args=(key, proc), daemon=True, name=f"svclog-{key}"
+            target=self._watch, args=(key, proc), daemon=True, name=f"svcwatch-{key}"
         ).start()
         self._log(f"[services] started {key} (pid={proc.pid})")
         self._emit_state(key)
@@ -320,12 +332,23 @@ class ServiceManager:
     # ------------------------------------------------------------------ #
     # Internals
     # ------------------------------------------------------------------ #
-    def _drain(self, key: str, proc: subprocess.Popen) -> None:
+    def _drain(self, key: str, stream) -> None:
         try:
-            for line in proc.stderr:
+            for line in stream:
                 self._log(f"[svc:{key}] {line.rstrip()}")
         except Exception:
             pass
+
+    def _watch(self, key: str, proc: subprocess.Popen) -> None:
+        """Publish an exit state so the desktop reflects crashes live."""
+        try:
+            proc.wait()
+        except Exception:
+            return
+        with self._lock:
+            current = self._procs.get(key)
+        if current is proc:
+            self._emit_state(key)
 
     def _emit_state(self, key: str) -> None:
         if self._emit:

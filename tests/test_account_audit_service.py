@@ -4,6 +4,7 @@
 Verifies §2 (checkpoint schedule), §6 (reconstruction), §7 (sampler isolation)
 and the "no candle API" constraint of the audit runtime.
 """
+import fnmatch
 import os
 import sys
 import tempfile
@@ -41,15 +42,34 @@ def make_account_info(**overrides):
 
 
 class FakeMT5:
-    def __init__(self, tick_time=None, account=None):
+    def __init__(self, tick_time=None, account=None, tick_times=None, symbols=None):
         self.tick_time = tick_time
         self.account = account or SimpleNamespace(**make_account_info())
         self.copy_rates_calls = 0
+        #: Per-symbol tick epochs. When non-empty this takes precedence over
+        #: ``tick_time`` and models a broker where only some symbols tick.
+        self.tick_times = dict(tick_times or {})
+        #: Symbol names visible to ``symbols_get`` group probes.
+        self.symbols = list(symbols or [])
+        self.tick_calls = []
+        self.symbols_get_groups = []
 
     def symbol_info_tick(self, symbol):
+        self.tick_calls.append(symbol)
+        if self.tick_times:
+            epoch = self.tick_times.get(symbol)
+            return None if epoch is None else SimpleNamespace(time=epoch)
         if self.tick_time is None:
             return None
         return SimpleNamespace(time=self.tick_time)
+
+    def symbols_get(self, group=None):
+        self.symbols_get_groups.append(group)
+        return tuple(
+            SimpleNamespace(name=name)
+            for name in self.symbols
+            if group is None or fnmatch.fnmatch(name, group)
+        )
 
     def account_info(self):
         return self.account
@@ -124,8 +144,70 @@ class TestBrokerTimeHelpers(AuditServiceTestCase):
         dt = broker_time_from_mt5(self.mt5)
         self.assertEqual(dt.hour, 7)
         self.assertEqual(dt.date().isoformat(), "2026-08-04")
+        # Exact symbol answered -> no alias/discovery probing at all.
+        self.assertEqual(self.mt5.tick_calls, ["XAUUSD"])
+        self.assertEqual(self.mt5.symbols_get_groups, [])
 
     def test_broker_time_none_when_no_tick(self):
+        self.assertIsNone(broker_time_from_mt5(self.mt5))
+
+    def test_broker_time_recovers_from_suffixed_symbol(self):
+        # Vantage-style broker: plain XAUUSD does not tick, XAUUSD+ does.
+        naive = datetime(2026, 8, 4, 7, 0, 0)
+        self.mt5.tick_times = {"XAUUSD+": int(naive.timestamp())}
+        dt = broker_time_from_mt5(self.mt5)
+        self.assertIsNotNone(dt)
+        self.assertEqual(dt.hour, 7)
+        self.assertEqual(dt.date().isoformat(), "2026-08-04")
+        # The requested symbol must still be attempted first.
+        self.assertEqual(self.mt5.tick_calls[0], "XAUUSD")
+        self.assertEqual(self.mt5.tick_calls[-1], "XAUUSD+")
+
+    def test_broker_time_discovers_symbol_via_bounded_group_probe(self):
+        naive = datetime(2026, 8, 4, 16, 0, 0)
+        self.mt5.tick_times = {"XAUUSD.m": int(naive.timestamp())}
+        self.mt5.symbols = ["EURUSD", "XAUUSD.m"]
+        dt = broker_time_from_mt5(self.mt5)
+        self.assertIsNotNone(dt)
+        self.assertEqual(dt.hour, 16)
+        # Discovery stays bounded to gold groups and never probes EURUSD.
+        self.assertEqual(self.mt5.tick_calls[0], "XAUUSD")
+        self.assertTrue(set(self.mt5.symbols_get_groups).issubset({"*XAUUSD*", "*GOLD*"}))
+        self.assertNotIn("EURUSD", self.mt5.tick_calls)
+
+    def test_broker_time_probes_each_symbol_once(self):
+        # Discovery re-reporting an already-tried alias must not re-probe it.
+        self.mt5.tick_times = {"EURUSD": 1}
+        self.mt5.symbols = ["XAUUSD+", "XAUUSD+"]
+        self.assertIsNone(broker_time_from_mt5(self.mt5))
+        self.assertEqual(self.mt5.tick_calls.count("XAUUSD+"), 1)
+        self.assertEqual(self.mt5.tick_calls.count("XAUUSD"), 1)
+
+    def test_broker_time_none_when_no_gold_symbol_exists(self):
+        self.mt5.tick_times = {"EURUSD": 1}
+        self.mt5.symbols = []
+        self.assertIsNone(broker_time_from_mt5(self.mt5))
+        self.assertIn("*XAUUSD*", self.mt5.symbols_get_groups)
+
+    def test_broker_time_none_when_tick_api_missing(self):
+        self.assertIsNone(broker_time_from_mt5(SimpleNamespace()))
+
+    def test_broker_time_none_when_symbols_get_missing(self):
+        stub = SimpleNamespace(symbol_info_tick=lambda symbol: None)
+        self.assertIsNone(broker_time_from_mt5(stub))
+
+    def test_broker_time_none_when_apis_raise(self):
+        def boom(*a, **k):
+            raise RuntimeError("terminal not connected")
+
+        self.mt5.symbol_info_tick = boom
+        self.mt5.symbols_get = boom
+        self.assertIsNone(broker_time_from_mt5(self.mt5))
+
+    def test_broker_time_rejects_never_ticked_zero_epoch(self):
+        # A symbol present but never ticked reports time=0; using it would
+        # date the broker clock to 1970 and fire bogus checkpoints.
+        self.mt5.tick_times = {"XAUUSD": 0}
         self.assertIsNone(broker_time_from_mt5(self.mt5))
 
     def test_account_info_dict_maps_mt5_fields(self):

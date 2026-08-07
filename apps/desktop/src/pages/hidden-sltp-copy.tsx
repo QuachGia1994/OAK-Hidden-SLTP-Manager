@@ -118,12 +118,13 @@ export function HiddenSltpCopyPage() {
     { key: "partial_r", label: "Partial R" },
     { key: "partial_pct", label: "Partial %" },
     { key: "auto_be", label: "Auto BE" },
-    { key: "magic", label: "Magic" },
   ];
 
   const copyFields: { key: string; label: string; type?: "text" | "bool" }[] = [
     { key: "copy_role", label: vn ? "Vai trò" : "Role" },
     { key: "copy_channel", label: vn ? "Kênh" : "Channel" },
+    { key: "copy_lot_mode", label: vn ? "Chế độ lot" : "Lot mode" },
+    { key: "copy_lot_value", label: vn ? "Giá trị lot" : "Lot value" },
     { key: "copy_max_daily_trades", label: vn ? "Số lệnh/ngày tối đa" : "Max Daily Trades" },
     { key: "copy_max_lot_per_trade", label: vn ? "Lot tối đa/lệnh" : "Max Lot/Trade" },
     { key: "copy_max_exposure", label: vn ? "Phơi nhiễm tối đa" : "Max Exposure" },
@@ -163,6 +164,22 @@ export function HiddenSltpCopyPage() {
       )}
       {savedMsg && <p className="hint">{L.saved}</p>}
 
+      <section className="panel copy-overview">
+        <div className="panel-heading">
+          <h2>{vn ? "Rào chắn an toàn" : "Safety guardrails"}</h2>
+          <span className={`badge ${truthy(copy.copy_kill_switch) ? "error" : "ok"}`}>
+            {truthy(copy.copy_kill_switch) ? (vn ? "NGẮT KHẨN" : "KILL SWITCH ON") : (vn ? "SẴN SÀNG" : "ARMED")}
+          </span>
+        </div>
+        <div className="guardrail-grid">
+          <Guardrail label={vn ? "Khớp hồ sơ" : "Exact profile match"} value={selected || "—"} description={vn ? "Lệnh Telegram luôn giới hạn trong hồ sơ đang chọn." : "Telegram commands stay scoped to the selected profile."} />
+          <Guardrail label={vn ? "Tối đa một mã" : "Max one trade/symbol"} value={truthy(copy.copy_max_one) ? "ON" : "OFF"} description={vn ? "Ngăn chồng lệnh trùng mã khi được bật." : "Blocks duplicate symbol stacking when enabled."} />
+          <Guardrail label={vn ? "Giới hạn ngày / lot / mã" : "Daily / lot / exposure caps"} value={`${copy.copy_max_daily_trades || "20"} / ${copy.copy_max_lot_per_trade || "5"} / ${copy.copy_max_exposure || "10"}`} description={vn ? "Lệnh/ngày · lot/lệnh · lot/mã." : "Trades/day · lot/order · lot/symbol."} />
+          <Guardrail label={vn ? "Copy ẩn" : "Stealth copy"} value={truthy(copy.copy_stealth) ? "ON" : "OFF"} description={vn ? "Giảm log copy trừ khi cần phản hồi." : "Keeps copy execution quiet unless a response is required."} />
+          <Guardrail label={vn ? "Danh sách bỏ qua" : "Ignore list"} value={String(copy.copy_ignore_list || "—")} description={vn ? "Các mã này sẽ không được copy." : "Listed symbols are skipped by copy trading."} />
+        </div>
+      </section>
+
       <div className="two-col">
         <section className="panel">
           <h2>{L.hiddenSltp}</h2>
@@ -174,6 +191,19 @@ export function HiddenSltpCopyPage() {
           <FieldGrid fields={copyFields} values={copy} onChange={(k, v) => setField("copy", k, v)} />
         </section>
       </div>
+    </div>
+  );
+}
+
+function truthy(value: unknown): boolean {
+  return value === true || value === 1 || value === "1" || value === "true" || value === "True";
+}
+
+function Guardrail({ label, value, description }: { label: string; value: string; description: string }) {
+  return (
+    <div className="guardrail-row">
+      <div className="guardrail-head"><strong>{label}</strong><span className="mono">{value}</span></div>
+      <p>{description}</p>
     </div>
   );
 }

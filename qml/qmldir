@@ -1,0 +1,4 @@
+module QmlDesign
+singleton Theme 1.0 Theme.qml
+singleton DesignTokens 1.0 DesignTokens.qml
+Sidebar 1.0 Sidebar.qml
