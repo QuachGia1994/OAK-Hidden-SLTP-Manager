@@ -454,12 +454,28 @@ class QmlShellBridge(QObject):
 # a second time for the same module corrupts subsequent QQuickWidget engines.
 # We register once and use a mutable ref holder so create_engine() can swap
 # the manager underneath.
+#
+# PySide6 resolves each singleton lazily: the factory callback is first
+# invoked when a QML engine first accesses the type, and the result is then
+# cached for that engine. Because the *_ref holders are process-global, an
+# engine that has NOT accessed a singleton yet would resolve to the LATEST
+# engine's bridge if another engine is created in between (tests create many
+# engines in one process). To keep every widget pinned to the bridges it was
+# created with, create_engine() records the mapping engine -> bridge and the
+# factories prefer that pinned bridge over the global ref. Weak refs keep the
+# map from leaking engines once their widgets are destroyed.
+
+import weakref
 
 _bridge_ref: list = [None]  # mutable container captured by the callback
+_bridge_pins: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
 def _bridge_factory(engine):
-    """QML engine callback — returns the current bridge singleton."""
+    """QML engine callback — returns the bridge pinned to *engine* (or the current ref)."""
+    pinned = _bridge_pins.get(engine)
+    if pinned is not None:
+        return pinned
     return _bridge_ref[0]
 
 
@@ -468,20 +484,28 @@ from PySide6.QtQml import qmlRegisterSingletonType as _reg  # noqa: E402
 _reg(QmlProfileBridge, "QmlApi", 1, 0, "Api", _bridge_factory)
 
 _dash_ref: list = [None]
+_dash_pins: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
 def _dash_factory(engine):
-    """QML engine callback — returns the current dashboard bridge singleton."""
+    """QML engine callback — returns the dashboard bridge pinned to *engine* (or the current ref)."""
+    pinned = _dash_pins.get(engine)
+    if pinned is not None:
+        return pinned
     return _dash_ref[0]
 
 
 _reg(QmlDashboardBridge, "QmlApi", 1, 0, "DashApi", _dash_factory)
 
 _shell_ref: list = [None]
+_shell_pins: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
 def _shell_factory(engine):
-    """QML engine callback — returns the current shell bridge singleton."""
+    """QML engine callback — returns the shell bridge pinned to *engine* (or the current ref)."""
+    pinned = _shell_pins.get(engine)
+    if pinned is not None:
+        return pinned
     return _shell_ref[0]
 
 
@@ -553,6 +577,13 @@ def create_engine(profile_manager=None, dashboard_backend=None, shell_backend=No
 
     # ── QML import path (for QmlPages module etc.) ──
     engine = widget.engine()
+
+    # Pin this engine to the bridges it was created with, so its QML singleton
+    # lookups never resolve to a later engine's bridges (multi-engine tests).
+    _bridge_pins[engine] = bridge
+    _dash_pins[engine] = dash
+    _shell_pins[engine] = shell
+
     engine.addImportPath(str(QML_DIR))
 
     # ── Load main.qml ──

@@ -24,6 +24,7 @@ try:
     from PySide6.QtWidgets import QApplication
     from PySide6.QtQuickWidgets import QQuickWidget
     from PySide6.QtQml import QQmlExpression
+    from PySide6.QtTest import QTest
 except ImportError:
     raise unittest.SkipTest("PySide6 not installed")
 
@@ -56,6 +57,9 @@ class FakeManager:
 
     def start_profile(self, name):
         self.calls.append(("start_profile", name))
+        if "start_profile" in self.fail_next:
+            msg = self.fail_next.pop("start_profile")
+            raise RuntimeError(msg)
         p = self.profiles.get(name)
         if p:
             p["status"] = "running"
@@ -469,6 +473,120 @@ class TestDashTwoPanelRowFillsPage(_Base):
         self.assertIsNotNone(row, "dashTwoPanelRow not found")
         h = int(row.height())
         self.assertGreaterEqual(h, 600, f"dashTwoPanelRow height {h} < 600 (expected ~622)")
+
+
+class TestStartAllProfiles(_Base):
+    """test_start_all_profiles"""
+
+    def _arm_and_fire(self):
+        qml_eval(self.widget, self.pg(), "toggleStartAll()")
+        qml_eval(self.widget, self.pg(), "toggleStartAll()")
+        pump(self.widget)
+
+    def test_btn_present_visible_and_fits(self):
+        """startAllBtn exists, visible with profiles, right edge within header row."""
+        page = self.pg()
+        btn = find_qml_object(page, "startAllBtn")
+        self.assertIsNotNone(btn, "startAllBtn not found")
+        self.assertTrue(bool(btn.isVisible()), "startAllBtn should be visible with 2 profiles")
+        parent_w = float(qml_eval(self.widget, page, "parent.width"))
+        btn_right = float(btn.x()) + float(btn.width())
+        self.assertLessEqual(btn_right, parent_w + 1,
+                             f"startAllBtn right edge {btn_right} > parent width {parent_w}")
+        label = find_qml_object(page, "startAllText")
+        self.assertIsNotNone(label, "startAllText not found")
+        self.assertIn(str(label.property("text")), ("Chạy tất cả", "Start All"),
+                      f"unexpected label {label.property('text')}")
+
+    def test_two_step_confirm(self):
+        """First click only arms (no start calls); second click starts idle profiles only."""
+        page = self.pg()
+        # Fresh call baseline: earlier tests in this class (pytest runs unittest
+        # methods alphabetically) may have recorded start_profile calls already.
+        self.fake.calls.clear()
+        qml_eval(self.widget, page, "toggleStartAll()")
+        pump(self.widget)
+        armed = qml_eval(self.widget, page, "startAllArmed")
+        self.assertTrue(bool(armed), "expected armed after first click")
+        start_calls = [c for c in self.fake.calls if isinstance(c, tuple) and c[0] == "start_profile"]
+        self.assertEqual(len(start_calls), 0, "no start call before second click")
+        qml_eval(self.widget, page, "toggleStartAll()")
+        pump(self.widget)
+        start_calls = [c for c in self.fake.calls if isinstance(c, tuple) and c[0] == "start_profile"]
+        names = sorted(c[1] for c in start_calls)
+        self.assertEqual(names, ["B"], f"expected only B started, got {names}")
+        armed = qml_eval(self.widget, page, "startAllArmed")
+        self.assertFalse(bool(armed), "expected disarmed after firing")
+        status_b = qml_eval(self.widget, page, "profileRows[1].status")
+        self.assertEqual(str(status_b), "running", f"expected B running after refresh, got {status_b}")
+
+    def test_disarm_on_timeout(self):
+        """Armed state auto-disarms when the timer fires, without starting anything."""
+        page = self.pg()
+        qml_eval(self.widget, page, "startAllTimeout = 60")
+        qml_eval(self.widget, page, "toggleStartAll()")
+        pump(self.widget)
+        self.assertTrue(bool(qml_eval(self.widget, page, "startAllArmed")), "expected armed")
+        QTest.qWait(200)
+        pump(self.widget)
+        self.assertFalse(bool(qml_eval(self.widget, page, "startAllArmed")), "expected disarmed after timeout")
+        start_calls = [c for c in self.fake.calls if isinstance(c, tuple) and c[0] == "start_profile"]
+        self.assertEqual(len(start_calls), 0, "no start call after timeout")
+        qml_eval(self.widget, page, "startAllTimeout = 2500")
+
+    def test_error_surface_but_others_attempted(self):
+        """When start_profile raises for one profile, errorText is set and remaining idle profiles are still attempted."""
+        page = self.pg()
+        self.fake_backend._profiles_override = [
+            {"profile_name": "A", "path": r"C:\MT5\A", "status": "running"},
+            {"profile_name": "B", "path": r"C:\MT5\B", "status": "stopped"},
+            {"profile_name": "C", "path": r"C:\MT5\C", "status": "stopped"},
+        ]
+        qml_eval(self.widget, page, "refreshNow()")
+        pump(self.widget)
+        self.fake.fail_next["start_profile"] = "boom"
+        self._arm_and_fire()
+        error = qml_eval(self.widget, page, "errorText")
+        self.assertIn("boom", str(error), f"expected 'boom' in errorText, got '{error}'")
+        start_calls = [c for c in self.fake.calls if isinstance(c, tuple) and c[0] == "start_profile"]
+        names = sorted(c[1] for c in start_calls)
+        self.assertEqual(names, ["B", "C"], f"expected B and C attempted, got {names}")
+        self.fake_backend._profiles_override = None
+        # C never exists in FakeManager.profiles (override-only), so guard.
+        c = self.fake.profiles.get("C")
+        if c is not None:
+            c["status"] = "stopped"
+            c["pid"] = None
+        # Drop the stale [A,B,C] overview from the shared page so later tests
+        # in this class (pytest runs unittest methods alphabetically) read the
+        # restored [A,B] state.
+        qml_eval(self.widget, page, "refreshNow()")
+        pump(self.widget)
+
+    def test_empty_hidden_and_noop(self):
+        """With zero profiles the button is hidden and toggleStartAll is a no-op."""
+        empty_fake = FakeManager([])
+        empty_backend = FakeDashboardBackend(
+            empty_fake,
+            profiles=[],
+            services=[],
+            orders={"scheduled_trades": 0, "scheduled_closes": 0, "pending_partials": 0, "total": 0},
+            logs={"lines": [], "truncated": False, "requested": 200, "latest_log": None},
+        )
+        app2, widget2 = create_engine(profile_manager=empty_fake, dashboard_backend=empty_backend)
+        app2.processEvents()
+        root2 = widget2.rootObject()
+        widget2.app = app2
+        click_nav(widget2, root2, "Dashboard")
+        app2.processEvents()
+        page2 = get_page(widget2, root2)
+        btn = find_qml_object(page2, "startAllBtn")
+        self.assertIsNotNone(btn, "startAllBtn not found")
+        self.assertFalse(bool(btn.isVisible()), "startAllBtn should be hidden with 0 profiles")
+        qml_eval(widget2, page2, "toggleStartAll()")
+        pump(widget2)
+        start_calls = [c for c in empty_fake.calls if isinstance(c, tuple) and c[0] == "start_profile"]
+        self.assertEqual(len(start_calls), 0, "toggleStartAll must be a no-op with 0 profiles")
 
 
 if __name__ == "__main__":

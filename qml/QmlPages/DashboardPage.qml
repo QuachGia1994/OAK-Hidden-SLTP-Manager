@@ -26,6 +26,9 @@ Rectangle {
     property var overview: ({})
     property string errorText: ""
     property string busyName: ""
+    property bool startAllArmed: false
+    property bool busyAll: false
+    property int startAllTimeout: 2500
     readonly property int refreshInterval: 2500
 
     property var profileRows: (overview && overview.profiles) || []
@@ -85,12 +88,53 @@ Rectangle {
         }
     }
 
+    function toggleStartAll() {
+        if (busyAll) return;
+        if (profileRows.length === 0) return;
+        if (!startAllArmed) {
+            startAllArmed = true;
+            startAllTimer.restart();
+            return;
+        }
+        startAllTimer.stop();
+        startAllProfiles();
+    }
+
+    function startAllProfiles() {
+        if (profileRows.length === 0) return;
+        busyAll = true;
+        var firstError = "";
+        var started = 0;
+        for (var i = 0; i < profileRows.length; i++) {
+            var row = profileRows[i];
+            if (row.status === "running") continue;
+            var res = Api.start_profile(row.profile_name);
+            if (res && res.ok === true) {
+                started++;
+            } else if (firstError === "") {
+                firstError = (res && res.error) ? res.error : "Lỗi khi chạy profile";
+            }
+        }
+        busyAll = false;
+        startAllArmed = false;
+        refreshNow();
+        errorText = firstError;
+    }
+
     // ── Auto-refresh ──
     Timer {
         interval: root.refreshInterval
         repeat: true
         running: true
         onTriggered: root.refreshNow()
+    }
+
+    Timer {
+        id: startAllTimer
+        interval: root.startAllTimeout
+        running: false
+        repeat: false
+        onTriggered: root.startAllArmed = false
     }
 
     Component.onCompleted: root.refreshNow()
@@ -235,6 +279,7 @@ Rectangle {
                         Row {
                             width: parent.width
                             Text {
+                                id: profileHeaderTitle
                                 text: root.s("Hồ sơ", "Profiles")
                                 font.pixelSize: 15
                                 font.bold: true
@@ -242,11 +287,42 @@ Rectangle {
                             }
                             Item { width: 8; height: 1 }
                             Text {
+                                id: profileHeaderCount
                                 text: root.runningCount + "/" + root.profileTotal + (root.s(" đang chạy", " running"))
                                 font.pixelSize: 11
                                 color: root.pal.muted
                                 font.family: "Consolas"
                                 anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Item {
+                                width: Math.max(6, parent.width - profileHeaderTitle.width - profileHeaderCount.width - startAllBtn.width - 8)
+                                height: 1
+                            }
+                            Rectangle {
+                                id: startAllBtn
+                                objectName: "startAllBtn"
+                                width: 96
+                                height: 26
+                                radius: 8
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: root.profileRows.length > 0
+                                color: root.busyAll ? root.pal.surface : (root.startAllArmed ? root.amber : root.pal.accent)
+                                border.color: root.busyAll ? root.pal.border : "transparent"
+                                border.width: root.busyAll ? 1 : 0
+                                Text {
+                                    id: startAllText
+                                    objectName: "startAllText"
+                                    text: root.busyAll ? "…" : (root.startAllArmed ? root.s("Xác nhận?", "Confirm?") : root.s("Chạy tất cả", "Start All"))
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    color: root.busyAll ? root.pal.muted : "#ffffff"
+                                    anchors.centerIn: parent
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.toggleStartAll()
+                                }
                             }
                         }
 
