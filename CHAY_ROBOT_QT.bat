@@ -6,7 +6,7 @@ echo ==========================================
 echo [CHECK] Starting OAK Native Qt shell...
 echo ==========================================
 
-python --version >nul 2>&1
+where python >nul 2>&1
 if %errorlevel% neq 0 (
     echo [ERROR] Cannot detect 'python' command.
     pause
@@ -21,24 +21,23 @@ if not exist "venv\Scripts\python.exe" (
         pause
         exit /b
     )
+    goto :install_deps
 )
 
 echo [INFO] Checking Native Qt...
-".\venv\Scripts\python.exe" -c "from PySide6.QtWidgets import QApplication" >nul 2>&1
+"%~dp0venv\Scripts\python.exe" -c "from PySide6.QtWidgets import QApplication" >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [INFO] Installing Native Qt libraries once...
-    ".\venv\Scripts\python.exe" -m pip install -r requirements_qt.txt --quiet
+    :install_deps
+    echo [INFO] Installing Native Qt libraries...
+    "%~dp0venv\Scripts\python.exe" -m pip install -r requirements_qt.txt --quiet --disable-pip-version-check
     if %errorlevel% neq 0 (
         echo [ERROR] Cannot install Native Qt requirements.
         pause
         exit /b
     )
 )
-if %errorlevel% equ 0 (
-    echo [OK] Native Qt ready.
-)
 
-start "" ".\venv\Scripts\pythonw.exe" "oak_qt_shell.py"
+echo [OK] Native Qt ready.
+start "" "%~dp0venv\Scripts\pythonw.exe" "oak_qt_shell.py"
 echo [OK] Native Qt shell started.
-timeout /t 3 >nul
 exit
