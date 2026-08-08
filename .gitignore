@@ -1,84 +1,72 @@
+```
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Dependencies
+node_modules/
 venv/
+.venv/
 __pycache__/
+.mypy_cache/
+.pytest_cache/
+.julia/
+zig*/
+target/
+.gradle/
+
+# Build artifacts
 build/
 dist/
-*.spec
-!scripts/oak-core.spec
-upx/
+*.pyc
+*.class
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Compressed files
 *.zip
-*.log
-*.lock
-
-profiles.json
-settings.json
-trades.json
-trades_*.json
-session_state.json
-pending_partials.json
-manual_trends.json
-monday_snapshot.json
-tuesday_snapshot.json
-wednesday_snapshot.json
-thursday_snapshot.json
-friday_snapshot.json
-waiting_*.json
-tele_*.json
-news_cache*.json
-config.json
-.env
-.env*.local
-
-# Runtime data (pushed to Redis, not git)
-bot_state.json
-signals_log.json
-mt4_server_state.json
-broker_clock_cache.json*
-
-# Dashboard
-dashboard/node_modules/
-dashboard/.next/
-dashboard/.env*.local
-dashboard/tsconfig.tsbuildinfo
-
-# Copy trade runtime files
-copy_map_*.json
-ignored_*.json
-scheduled_close_*.json
-
-# MiMo runtime files
-.mimocode/
-mimocode.jsonc
-_mimo_input.txt
-_mimo_output.txt
-mimo_proxy_result.txt
-mimo_proxy_cmd.txt
-d_dir_last_id.txt
-
-.vercel
-.env*
-
-# SQLite runtime
-oak_state.db
-oak_state.db-shm
-oak_state.db-wal
-mt4_feed.db
-mt4_feed.db-shm
-mt4_feed.db-wal
-
-# PXSwift cache
-.pxswift/
-
-# Local backup artifacts
-*.bak_*
-*.bak_sched_*
-
-# Agent tooling + dev scratch (not project source)
-.opencode/
-scratch/
-scratch_orig.qml
-
-# Account audit ledger (runtime data, contains account/trade info)
-data/trade_audit.db
-data/trade_audit.db-shm
-data/trade_audit.db-wal
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
