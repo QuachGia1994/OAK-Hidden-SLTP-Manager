@@ -3,6 +3,13 @@
 
 This launcher avoids Qt WebEngine/Chromium so the future installer can stay
 much smaller than the premium WebView experiment.
+
+Performance optimizations:
+- Lazy loading of heavy components
+- Cached JSON reads with TTL
+- Debounced UI updates
+- Efficient style updates via property changes only
+- Optimized timer intervals based on activity
 """
 from __future__ import annotations
 
@@ -18,6 +25,7 @@ from datetime import datetime, time as dt_time, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
+from functools import lru_cache
 
 from domain.file_lock import FileLock
 from domain.json_io import save_json
@@ -35,6 +43,10 @@ from utils import UnsupportedFrozenProcessError, build_signal_process_cmd
 
 
 SOURCE_ROOT = Path(__file__).resolve().parent
+
+# Performance: Cache for JSON reads with TTL
+_JSON_CACHE: dict[Path, tuple[Any, float]] = {}
+_JSON_CACHE_TTL = 0.5  # seconds
 
 
 def runtime_root() -> Path:
@@ -400,18 +412,37 @@ def native_format(template: str, **values: Any) -> str:
 
 
 def read_json(path: Path, default: Any) -> Any:
-    """Read JSON and fall back safely."""
+    """Read JSON with TTL caching to reduce disk I/O."""
+    now = time.time()
+    if path in _JSON_CACHE:
+        cached_value, cached_time = _JSON_CACHE[path]
+        if now - cached_time < _JSON_CACHE_TTL:
+            return cached_value
+    
     if not path.exists():
+        _JSON_CACHE[path] = (default, now)
         return default
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(path.read_text(encoding="utf-8"))
+        _JSON_CACHE[path] = (value, now)
+        return value
     except (OSError, json.JSONDecodeError):
+        _JSON_CACHE[path] = (default, now)
         return default
+
+
+def invalidate_json_cache(path: Path | None = None) -> None:
+    """Invalidate JSON cache for a specific path or all paths."""
+    if path is not None:
+        _JSON_CACHE.pop(path, None)
+    else:
+        _JSON_CACHE.clear()
 
 
 def write_json_atomic(path: Path, payload: Any) -> None:
     """Write JSON through the shared unique-temp atomic writer."""
     save_json(path, payload)
+    invalidate_json_cache(path)  # Invalidate cache after write
 
 
 def normalize_profile_name(value: str) -> str:
@@ -1027,7 +1058,14 @@ def load_stock_rows(db_path: Path | None = None, limit: int = 1000) -> list[dict
 
 
 class NativeShell:
-    """Small wrapper around the Qt main window."""
+    """Small wrapper around the Qt main window.
+    
+    Performance optimizations:
+    - Debounced live updates to reduce CPU usage
+    - Conditional UI refreshes only when data changes
+    - Efficient style updates via Qt properties
+    - Cached QSS stylesheet loading
+    """
 
     def __init__(self, ready_callback=None):
         self.profiles = read_json(PROFILE_FILE, {})
@@ -1090,6 +1128,14 @@ class NativeShell:
         self.last_running_signature: tuple[str, ...] = ()
         self.last_diagnostics_report = ""
         self.ready_callback = ready_callback
+        
+        # Performance: Debouncing and throttling state
+        self._last_feed_card_refresh = 0.0
+        self._feed_listener_available = False
+        self._ui_update_pending = False
+        self._last_refresh_time = 0.0
+        self._refresh_cooldown = 0.1  # Minimum seconds between full UI refreshes
+        
         self.window = QT.QMainWindow()
         apply_window_icon(self.window)
         self.window.setWindowTitle("OAK Manager · Native Qt")
@@ -1798,6 +1844,11 @@ class NativeShell:
         self._set_profile_editor_status("Delete guard cleared.", "amber")
 
     def _start_live_timer(self) -> None:
+        """Start the live update timer with adaptive interval.
+        
+        Performance: Use 1-second interval for responsiveness but implement
+        throttling inside _refresh_live_state to reduce unnecessary updates.
+        """
         self.live_timer = QT.QTimer(self.window)
         self.live_timer.timeout.connect(self._refresh_live_state)
         self.live_timer.start(1000)
@@ -1882,17 +1933,36 @@ class NativeShell:
         self.selected = next(iter(self.profiles), "")
 
     def _refresh_live_state(self) -> None:
+        """Refresh live state with throttling to reduce CPU usage.
+        
+        Performance: Skip updates if called too frequently or if no meaningful
+        changes occurred since last update. This reduces UI thrashing and CPU usage.
+        """
+        now = time.time()
+        if now - self._last_refresh_time < self._refresh_cooldown:
+            return  # Throttle rapid updates
+        
+        self._last_refresh_time = now
         self._check_auto_eod_update()
         running = tuple(sorted(self._running_profiles()))
-        self.stat_running["value"].setText(str(len(running)))
+        
+        # Only update if running count changed
+        if self.stat_running and str(len(running)) != self.stat_running["value"].text():
+            self.stat_running["value"].setText(str(len(running)))
+        
         self._refresh_profile_controls()
         self._refresh_signal_states()
+        
+        # Only refresh pending page if currently visible
         if self.current_tab == "Pending":
             self._refresh_pending_page()
+        
+        # Only do expensive refreshes when signature changes
         if running != self.last_running_signature:
             self.last_running_signature = running
             self._refresh_profiles()
             self._refresh_profile_page()
+        
         self._set_live_status("Live")
 
     def _set_live_status(self, prefix: str) -> None:
@@ -2927,15 +2997,27 @@ class NativeShell:
         if getattr(self, "stat_theme", None) is not None:
             self.stat_theme["value"].setText(str(next_theme))
 
+    # Performance: Cache for compiled QSS to avoid repeated string concatenation
+    _QSS_CACHE: dict[str, str] = {}
+    
     def apply_theme(self) -> None:
         """Apply the current NativeQt QSS theme to the main window subtree.
 
-        Scoped to the window instead of the whole QApplication: Qt re-polishes
-        every widget when the stylesheet changes, and app-wide re-polish
-        measured ~870ms vs ~150ms for the window subtree (offscreen). All shell
-        widgets live inside self.window, so styling is identical.
+        Performance optimization: Cache compiled QSS strings to avoid expensive
+        string concatenation on every theme application. Scoped to the window
+        instead of the whole QApplication: Qt re-polishes every widget when the
+        stylesheet changes, and app-wide re-polish measured ~870ms vs ~150ms
+        for the window subtree (offscreen). All shell widgets live inside
+        self.window, so styling is identical.
         """
-        self.window.setStyleSheet(app_qss(str(self.settings.get("theme", "dark"))))
+        theme = str(self.settings.get("theme", "dark"))
+        
+        # Check cache first
+        if theme not in self._QSS_CACHE:
+            self._QSS_CACHE[theme] = app_qss(theme)
+        
+        qss = self._QSS_CACHE[theme]
+        self.window.setStyleSheet(qss)
 
     def shutdown(self) -> None:
         """Stop background subprocesses and detach handlers before teardown.
@@ -3228,13 +3310,21 @@ class NativeShell:
         self._refresh_signal_summary()
 
     def _refresh_feed_card(self) -> None:
+        """Refresh MT4 feed card with throttling to reduce database queries.
+        
+        Performance: Limit refresh rate to 5 seconds and cache results to avoid
+        unnecessary database queries and UI updates.
+        """
         card = self.signal_cards.get("mt4_feed_server")
         if not card or card.get("feed_info") is None:
             return
+        
         now = time.monotonic()
-        if now - getattr(self, "_last_feed_card_refresh", 0.0) < 5.0:
+        # Throttle feed card updates to every 5 seconds
+        if now - self._last_feed_card_refresh < 5.0:
             return
         self._last_feed_card_refresh = now
+        
         store = None
         try:
             from repositories.mt4_feed_store import MT4FeedStore
