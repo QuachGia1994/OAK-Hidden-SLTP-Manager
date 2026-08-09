@@ -34,15 +34,14 @@ class TestCommandConstruction(unittest.TestCase):
 
     def test_dev_mode_other_processes(self):
         """Dev mode: other processes use sys.executable -u script.py."""
-        script = "mt4_feed_server.py"
+        script = "mimo_bot.py"
         cmd = [sys.executable, "-u", script]
         self.assertIn("-u", cmd)
-        self.assertIn("mt4_feed_server.py", cmd)
+        self.assertIn("mimo_bot.py", cmd)
 
     def test_frozen_mode_supports_all_native_workers(self):
         """Frozen mode can launch every NativeQt worker through exe flags."""
         expected = {
-            "mt4_feed_server": "--mt4-feed-server",
             "mimo_bot": "--mimo-bot",
             "mimo_worker": "--mimo-worker",
         }

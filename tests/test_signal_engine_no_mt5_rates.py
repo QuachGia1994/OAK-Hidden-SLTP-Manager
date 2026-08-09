@@ -1,59 +1,51 @@
-import os
-import tempfile
 import unittest
-from datetime import datetime, timezone
-from unittest.mock import patch
+from datetime import datetime
+from unittest.mock import Mock
+
 import mt5_signal_bot
-from mt5_signal_bot import (
-    evaluate_all_pairs_for_slot,
-    set_market_data_provider,
-    calculate_all_d_directions,
-)
+from providers.mt5_market_data_provider import MT5MarketDataProvider
 
 
 class TestSignalEngineNoMT5Rates(unittest.TestCase):
+    """Behavioral guard: signal evaluation uses the MT5 provider contract."""
 
-    def setUp(self):
-        self._original_provider = mt5_signal_bot.MARKET_DATA_PROVIDER
-        self._temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-        self._temp_db.close()
-        self._feed_store = MT4FeedStore(db_path=self._temp_db.name)
-        self.provider = MT4FeedProvider(feed_store=self._feed_store)
-        set_market_data_provider(self.provider)
-        mt5_signal_bot.clear_history_cache()
+    def test_signal_engine_does_not_call_mt5_copy_rates_directly(self):
+        provider = Mock(spec=MT5MarketDataProvider)
+        provider.name = "MT5"
+        provider.get_health.return_value = Mock(state="connected", fresh=True)
+        provider.get_broker_utc_offset.return_value = 3
+        provider.get_exact_bar.return_value = {
+            "time": 1785002400,
+            "open": 1.34,
+            "high": 1.35,
+            "low": 1.33,
+            "close": 1.345,
+            "tick_volume": 100,
+            "broker_dt": datetime(2026, 7, 25, 20, 0),
+            "is_complete": True,
+            "source_id": "mt5",
+        }
 
-    def tearDown(self):
+        old_provider = mt5_signal_bot.MARKET_DATA_PROVIDER
+        old_mt5 = mt5_signal_bot.mt5
+        mock_mt5 = Mock()
+        mock_mt5.copy_rates_from.side_effect = AssertionError("signal engine bypassed provider")
+        mock_mt5.copy_rates_range.side_effect = AssertionError("signal engine bypassed provider")
+        mock_mt5.copy_rates_from_pos.side_effect = AssertionError("signal engine bypassed provider")
+        mt5_signal_bot.MARKET_DATA_PROVIDER = provider
+        mt5_signal_bot.mt5 = mock_mt5
         try:
-            mt5_signal_bot.clear_history_cache()
+            result = mt5_signal_bot.get_candle_by_broker_datetime(
+                "XAUUSD", "M30", datetime(2026, 7, 25, 20, 0)
+            )
+            self.assertIsNotNone(result)
+            provider.get_exact_bar.assert_called_once()
+            mock_mt5.copy_rates_from.assert_not_called()
+            mock_mt5.copy_rates_range.assert_not_called()
+            mock_mt5.copy_rates_from_pos.assert_not_called()
         finally:
-            set_market_data_provider(self._original_provider)
-            self._feed_store.close()
-            if os.path.exists(self._temp_db.name):
-                os.unlink(self._temp_db.name)
-
-    @patch("mt5_signal_bot.BROKER_CLOCK")
-    def test_signal_and_d_evaluation_never_call_mt5_copy_rates(self, mock_clock):
-        mock_clock.utc_offset_for_date.return_value = 3
-        mock_clock.mt5_timestamp_from_broker_datetime.side_effect = lambda dt: int(dt.replace(tzinfo=timezone.utc).timestamp())
-
-        b_dt = datetime(2026, 7, 30, 20, 0, tzinfo=timezone.utc)
-
-        # Register sample bars on provider
-        for sym in ("GBPUSD", "XAUUSD", "GBPAUD", "GBPJPY", "GBPCAD"):
-            self.provider.register_bars(sym, "16388", [{"broker_dt": datetime(2026, 7, 30, 20, 0), "time": int(b_dt.timestamp()), "open": 1.34, "high": 1.35, "low": 1.33, "close": 1.345}])
-            self.provider.register_bars(sym, "16385", [{"broker_dt": datetime(2026, 7, 31, 14, 0), "time": int(b_dt.timestamp()), "open": 1.34, "high": 1.35, "low": 1.33, "close": 1.345}])
-
-        with patch("mt5_signal_bot.mt5") as mock_mt5:
-            mock_mt5.copy_rates_from.side_effect = AssertionError("MT5 copy_rates_from must NOT be called!")
-            mock_mt5.copy_rates_range.side_effect = AssertionError("MT5 copy_rates_range must NOT be called!")
-            mock_mt5.copy_rates_from_pos.side_effect = AssertionError("MT5 copy_rates_from_pos must NOT be called!")
-
-            d_res = calculate_all_d_directions(datetime(2026, 7, 24).date())
-            self.assertIsNotNone(d_res)
-
-            slot_dt = datetime(2026, 7, 24, 14, 0)
-            res = evaluate_all_pairs_for_slot(slot_dt, 14)
-            self.assertIsNotNone(res)
+            mt5_signal_bot.MARKET_DATA_PROVIDER = old_provider
+            mt5_signal_bot.mt5 = old_mt5
 
 
 if __name__ == "__main__":

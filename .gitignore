@@ -79,3 +79,6 @@ scratch_orig.qml
 data/trade_audit.db
 data/trade_audit.db-shm
 data/trade_audit.db-wal
+
+# Market data runtime database
+data/*.db
