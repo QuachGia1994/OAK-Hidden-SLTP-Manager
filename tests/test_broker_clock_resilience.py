@@ -27,10 +27,6 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 from providers.mt5_market_data_provider import MT5MarketDataProvider, BrokerClockError
 

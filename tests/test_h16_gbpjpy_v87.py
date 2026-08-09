@@ -1,9 +1,5 @@
 import unittest
 from datetime import datetime
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 from domain.signal_v87 import derive_gbpjpy_signal
 import mt5_signal_bot as bot
 

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """History Rebuild Worker
 
-Automatically refreshes recent history from the persisted MT4 feed whenever
+Automatically refreshes recent history from persisted MT5 market data whenever
 new bars arrive.  The worker is deliberately NOT gated on ``feed_connected``
 or a live heartbeat: an EA backfill (e.g. Sunday, MT5 closed) persists bars
 with no heartbeat, and history must still be rebuilt from those bars.
@@ -59,7 +59,7 @@ def bars_changed_since(store, last_seen: "datetime | None") -> bool:
 
 
 class HistoryRebuildWorker:
-    """Background worker that rebuilds history from persisted MT4 feed bars."""
+    """Background worker that rebuilds history from persisted MT5 market data."""
 
     def __init__(self, store=None, rebuild_fn=None, interval_seconds=None, days=None):
         self._store = store
@@ -77,7 +77,7 @@ class HistoryRebuildWorker:
     @staticmethod
     def _default_rebuild(days):
         import mt5_signal_bot
-        return mt5_signal_bot._run_feed_only_rebuild(days=days)
+        return mt5_signal_bot._run_market_data_rebuild(days=days)
 
     def refresh_bars_seen(self):
         """Re-read the persisted bar watermark so a backfill is not missed."""
@@ -143,13 +143,7 @@ class HistoryRebuildWorker:
 
 
 def start_history_rebuild_worker(store=None) -> HistoryRebuildWorker:
-    """Start the background worker with the given feed store (default MT4FeedStore)."""
-    if store is None:
-        try:
-            from repositories.mt4_feed_store import MT4FeedStore
-            store = MT4FeedStore()
-        except Exception:
-            store = None
+    """Start the background worker with an optional market-data watermark store."""
     worker = HistoryRebuildWorker(store=store)
     worker.start()
     return worker

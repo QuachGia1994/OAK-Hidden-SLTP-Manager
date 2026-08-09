@@ -17,10 +17,10 @@
 - Cập nhật tin tức
 
 ### Tín Hiệu
-- Quản lý các process nền như signal bot, MT4 provider (legacy, mặc định tắt), MIMO bot
+- Quản lý các process nền như Signal Bot (MT5-only), MIMO bot
 - Bắt đầu/dừng từng process riêng lẻ
 - Nguồn market-data MT5 (mặc định): `pip install MetaTrader5`, bật MT5 terminal và đăng nhập. Bot tự kết nối terminal, resolve symbol (gồm cả prefix/suffix broker), preload `M30/H1/H4`, và chuyển từ UTC sang Broker time. Nếu thiếu lịch sử, tăng `Max bars in chart`. Core Signal vẫn cần XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, GBPCAD.
-- MT4 Feed vẫn là provider thử nghiệm (legacy): chỉ bật bằng `OAK_MARKET_DATA_PROVIDER=MT4_LEGACY` rồi khởi động server và EA `MT4_Data_Feeder.mq4` với `FeedBaseURL=http://127.0.0.1/mt4-feed`. Không dùng endpoint cũ `http://127.0.0.1:5000/mt4_data` hay EA có `ServerURL/BrokerName/SymbolName/MagicNumber`.
+- Market-data và Broker Clock của Signal Bot đọc trực tiếp từ MT5 Python API; MT4 Feed/HTTP feeder legacy đã được loại bỏ.
 - Copy Trade **Close All** thủ công và **Auto Closed Opposite** hiện có giữ nguyên; Signal Bot không tạo lịch Auto-Close trùng.
 
 ### Quản lý Profile

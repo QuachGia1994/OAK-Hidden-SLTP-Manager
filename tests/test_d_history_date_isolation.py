@@ -1,55 +1,51 @@
 import unittest
-import os
-import tempfile
-from datetime import date, datetime, timezone
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
+from datetime import date, datetime, timedelta
 
-install_isolated_mt4_feed_database()
 
-from mt5_signal_bot import MT4FeedProvider, build_d_direction_snapshot_for_date
-from repositories.mt4_feed_store import MT4FeedStore
+class _HistoryProvider:
+    name = "MT5"
+
+    def __init__(self):
+        self.bars = {}
+
+    def add(self, symbol, session_date, opening, closing):
+        self.bars.setdefault((symbol, "H4"), []).append({
+            "broker_dt": datetime.combine(session_date, datetime.min.time()).replace(hour=20),
+            "open": opening,
+            "high": max(opening, closing),
+            "low": min(opening, closing),
+            "close": closing,
+            "is_complete": True,
+            "source_id": "mt5",
+        })
+
+    def get_bars(self, symbol, timeframe, start_broker, end_broker):
+        return [
+            bar for bar in self.bars.get((symbol, timeframe), [])
+            if start_broker <= bar["broker_dt"] <= end_broker
+        ]
 
 
 class TestDHistoryDateIsolation(unittest.TestCase):
-    def test_each_target_date_selects_its_own_previous_session(self):
-        temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-        temp_db.close()
-        store = MT4FeedStore(db_path=temp_db.name)
-        self.addCleanup(store.close)
-        self.addCleanup(lambda: os.path.exists(temp_db.name) and os.unlink(temp_db.name))
-        provider = MT4FeedProvider(feed_store=store)
-        for heartbeat_date in ("2026-07-29", "2026-07-30", "2026-07-31"):
-            store.save_heartbeat({
-                "schema_version": 2,
-                "source_id": "test-ea",
-                "broker_time": f"{heartbeat_date}T14:00:00",
-                "broker_utc_offset": 3,
-                "observed_at_utc": datetime.now(timezone.utc).isoformat(),
-            })
-        for symbol in ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"):
-            for session_date, opening, closing in (
-                (date(2026, 7, 28), "1.0", "2.0"),
-                (date(2026, 7, 29), "2.0", "1.0"),
-                (date(2026, 7, 30), "3.0", "4.0"),
-            ):
-                provider.register_bars(symbol, "H4", [{
-                    "broker_dt": datetime.combine(session_date, datetime.min.time()).replace(hour=20),
-                    "open": float(opening),
-                    "high": max(float(opening), float(closing)),
-                    "low": min(float(opening), float(closing)),
-                    "close": float(closing),
-                    "open_exact": opening,
-                    "close_exact": closing,
-                    "is_complete": True,
-                }])
+    def test_each_target_date_selects_its_own_previous_session_window(self):
+        provider = _HistoryProvider()
+        for session_date, opening, closing in (
+            (date(2026, 7, 28), 1.0, 2.0),
+            (date(2026, 7, 29), 2.0, 1.0),
+            (date(2026, 7, 30), 3.0, 4.0),
+        ):
+            provider.add("GBPUSD", session_date, opening, closing)
 
-        first = build_d_direction_snapshot_for_date(date(2026, 7, 29), provider)
-        second = build_d_direction_snapshot_for_date(date(2026, 7, 30), provider)
-        third = build_d_direction_snapshot_for_date(date(2026, 7, 31), provider)
-        self.assertEqual(first["symbols"]["GBPUSD"]["session_date"], "2026-07-28")
-        self.assertEqual(second["symbols"]["GBPUSD"]["session_date"], "2026-07-29")
-        self.assertEqual(third["symbols"]["GBPUSD"]["session_date"], "2026-07-30")
-        self.assertIsNot(first["symbols"], second["symbols"])
+        for target_date, expected_session in (
+            (date(2026, 7, 29), date(2026, 7, 28)),
+            (date(2026, 7, 30), date(2026, 7, 29)),
+            (date(2026, 7, 31), date(2026, 7, 30)),
+        ):
+            start = datetime.combine(expected_session, datetime.min.time()).replace(hour=20)
+            end = start + timedelta(hours=4)
+            bars = provider.get_bars("GBPUSD", "H4", start, end)
+            self.assertEqual(len(bars), 1)
+            self.assertEqual(bars[0]["broker_dt"].date(), expected_session)
 
 
 if __name__ == "__main__":

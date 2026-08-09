@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """History Backfill Watch Worker
 
-Polls ``/mt4-feed/coverage``-equivalent persisted-feed coverage and, whenever
+Polls persisted market-data coverage and, whenever
 coverage improves or becomes complete, automatically rebuilds the previously
 missing dates so no operator button press is required.
 
@@ -64,7 +64,7 @@ class HistoryBackfillWatchWorker:
         import mt5_signal_bot
         if dates:
             return mt5_signal_bot.rebuild_target_dates(dates, include_weekends=True)
-        return mt5_signal_bot._run_feed_only_rebuild(days=days)
+        return mt5_signal_bot._run_market_data_rebuild(days=days)
 
     @staticmethod
     def _default_slot_count(date_str):
@@ -179,13 +179,7 @@ class HistoryBackfillWatchWorker:
 
 
 def start_history_backfill_watch_worker(store=None) -> HistoryBackfillWatchWorker:
-    """Start the background worker with the given feed store (default MT4FeedStore)."""
-    if store is None:
-        try:
-            from repositories.mt4_feed_store import MT4FeedStore
-            store = MT4FeedStore()
-        except Exception:
-            store = None
+    """Start the background worker with an optional coverage store."""
     worker = HistoryBackfillWatchWorker(store=store)
     worker.start()
     return worker

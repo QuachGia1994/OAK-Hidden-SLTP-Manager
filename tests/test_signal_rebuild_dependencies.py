@@ -8,12 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
-from repositories.mt4_feed_store import MT4FeedStore
 
 
 class SignalRebuildDependencyTests(unittest.TestCase):
@@ -103,7 +98,7 @@ class SignalRebuildDependencyTests(unittest.TestCase):
             }, {}
 
         provider = SimpleNamespace(
-            name="MT4",
+            name="MT5",
             get_latest_completed_broker_datetime=lambda **_kwargs: anchor,
         )
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -123,63 +118,43 @@ class SignalRebuildDependencyTests(unittest.TestCase):
         self.assertEqual(rebuilt, len(mt5_signal_bot.ACTIVE_HOURS))
         self.assertEqual(rebuilt_as_of, [anchor] * len(mt5_signal_bot.ACTIVE_HOURS))
 
-    def test_persisted_bars_allow_offline_rebuild_without_a_live_heartbeat(self):
-        """Heartbeat disconnected but mt4_feed.db holds M30/H1/H4 bars for the
-        range, so the history rebuild must still be allowed to run offline."""
+    def test_persisted_mt5_data_allows_offline_rebuild_without_a_live_heartbeat(self):
+        """Persisted MT5 data watermark allows rebuild without a live heartbeat."""
         anchor = datetime(2026, 7, 31, 23, 30)
-        handle, db_path = tempfile.mkstemp(suffix=".db")
-        os.close(handle)
-        store = MT4FeedStore(db_path=db_path)
-        try:
-            for timeframe, count in (("M30", 4), ("H1", 2), ("H4", 1)):
-                minutes = _minutes_of(timeframe)
-                bars = [{
-                    "broker_open_at": (anchor - timedelta(minutes=minutes * (count - i))).strftime("%Y-%m-%d %H:%M:%S"),
-                    "broker_close_at": (anchor - timedelta(minutes=minutes * (count - 1 - i))).strftime("%Y-%m-%d %H:%M:%S"),
-                    "open": "2400.00", "high": "2401.00", "low": "2399.00", "close": "2400.50",
-                    "tick_volume": 10, "is_complete": True,
-                } for i in range(count)]
-                store.save_bars("ea_test", "XAUUSD", "XAUUSD", timeframe, bars)
+        provider = SimpleNamespace(
+            name="MT5",
+            get_latest_completed_broker_datetime=lambda **_kwargs: anchor,
+        )
+        rebuilt_as_of = []
 
-            provider = mt5_signal_bot.MT4FeedProvider(feed_store=store)
-            rebuilt_as_of = []
+        def build_record(broker_dt, hour, **kwargs):
+            rebuilt_as_of.append(kwargs["as_of_dt"])
+            return {
+                "date": broker_dt.date().isoformat(),
+                "hour": hour,
+                "signal": "SELL",
+                "pair_dirs": {"XAUUSD": "SELL", "GBPUSD": "SELL"},
+                "entry_state": "READY",
+                "entry_time": "07:49",
+                "logic_version": mt5_signal_bot.SIGNAL_LOGIC_VERSION,
+            }, {}
 
-            def build_record(broker_dt, hour, **kwargs):
-                rebuilt_as_of.append(kwargs["as_of_dt"])
-                return {
-                    "date": broker_dt.date().isoformat(),
-                    "hour": hour,
-                    "signal": "SELL",
-                    "pair_dirs": {"XAUUSD": "SELL", "GBPUSD": "SELL"},
-                    "entry_state": "READY",
-                    "entry_time": "07:49",
-                    "logic_version": mt5_signal_bot.SIGNAL_LOGIC_VERSION,
-                }, {}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            signal_log = Path(temp_dir) / "signals_log.json"
+            signal_log.write_text("[]", encoding="utf-8")
+            with (
+                patch.object(mt5_signal_bot, "_SIGNALS_LOG", str(signal_log)),
+                patch.object(mt5_signal_bot, "MARKET_DATA_PROVIDER", provider),
+                patch.object(mt5_signal_bot, "get_broker_time", side_effect=mt5_signal_bot.MarketDataClockError("no live heartbeat")),
+                patch.object(mt5_signal_bot, "warm_m30_history"),
+                patch.object(mt5_signal_bot, "calculate_all_d_directions", return_value={}),
+                patch.object(mt5_signal_bot, "is_slot_ready", return_value=True),
+                patch.object(mt5_signal_bot, "_build_rebuild_record", side_effect=build_record),
+            ):
+                rebuilt = mt5_signal_bot.rebuild_recent_history(days=1)
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                signal_log = Path(temp_dir) / "signals_log.json"
-                signal_log.write_text("[]", encoding="utf-8")
-                with (
-                    patch.object(mt5_signal_bot, "_SIGNALS_LOG", str(signal_log)),
-                    patch.object(mt5_signal_bot, "MARKET_DATA_PROVIDER", provider),
-                    patch.object(mt5_signal_bot, "get_broker_time", side_effect=mt5_signal_bot.MarketDataClockError("no live heartbeat")),
-                    patch.object(mt5_signal_bot, "warm_m30_history"),
-                    patch.object(mt5_signal_bot, "calculate_all_d_directions", return_value={}),
-                    patch.object(mt5_signal_bot, "is_slot_ready", return_value=True),
-                    patch.object(mt5_signal_bot, "_build_rebuild_record", side_effect=build_record),
-                ):
-                    rebuilt = mt5_signal_bot.rebuild_recent_history(days=1)
-
-            self.assertEqual(rebuilt, len(mt5_signal_bot.ACTIVE_HOURS))
-            self.assertEqual(rebuilt_as_of, [anchor] * len(mt5_signal_bot.ACTIVE_HOURS))
-        finally:
-            store.close()
-            if os.path.exists(db_path):
-                os.unlink(db_path)
-
-
-def _minutes_of(timeframe):
-    return 30 if timeframe == "M30" else 60 if timeframe == "H1" else 240
+        self.assertEqual(rebuilt, len(mt5_signal_bot.ACTIVE_HOURS))
+        self.assertEqual(rebuilt_as_of, [anchor] * len(mt5_signal_bot.ACTIVE_HOURS))
 
 
 if __name__ == "__main__":

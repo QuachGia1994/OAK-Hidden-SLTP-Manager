@@ -9,10 +9,6 @@ from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 
 class TestDashboardPayloadChunking(unittest.TestCase):
     def _make_record(self, idx, size_kb=5):

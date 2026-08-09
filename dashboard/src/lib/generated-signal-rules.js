@@ -5,7 +5,7 @@ export const INTERNAL_SIGNAL_SLOTS = [];
 
 export const RULES_BY_LOCALE = {
   "VN": [
-    "Nguồn market-data và đồng hồ Broker của Signal Engine là MT5 Python API (đọc trực tiếp từ terminal); MT4 Feed chỉ là provider cũ, mặc định tắt.",
+    "Nguồn market-data và đồng hồ Broker duy nhất của Signal Engine là MT5 Python API (đọc trực tiếp từ terminal).",
     "Tất cả năm cặp dùng chung Entry Time do XAUUSD xác định.",
     "Layer 2 và Layer 3 là Entry Plan: H3, H7, H9, H12 và H14 dùng hai cụm ba nến M30 XAUUSD.",
     "Layer 2 và Layer 3 của H16 dùng H1 XAUUSD: Layer 2 dùng 05:00, 04:00, 03:00; Layer 3 dùng 10:00, 09:00, 08:00.",
@@ -27,10 +27,10 @@ export const RULES_BY_LOCALE = {
     "Nguồn market-data dùng để tính Signal là MT5 Python API, đọc completed bars (M30/H1/H4) trực tiếp từ terminal.",
     "Time Authority và Scheduler phụ thuộc đồng hồ market-data; Heartbeat phân tách kênh Data và Execution.",
     "Cài đặt: bật MT5 terminal và cài 'pip install MetaTrader5'. Bot tự kết nối terminal, resolve symbol (gồm cả tiền tố/hậu tố broker: +, .a, .i, m, #, ...), preload lịch sử M30/H1/H4, chuẩn hóa timestamp từ UTC sang Broker time. Core Signal v88 vẫn cần XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, GBPCAD.",
-    "Endpoint cũ http://127.0.0.1:5000/mt4_data và EA có input ServerURL/BrokerName/SymbolName/MagicNumber thuộc MT4 Feed cũ (legacy, mặc định tắt)."
+    "Không còn hỗ trợ endpoint feeder HTTP hoặc EA market-data legacy; Signal Engine chỉ đọc market-data trực tiếp từ MT5 Python API."
   ],
   "EN": [
-    "The Signal Engine market-data and Broker-clock source is the MT5 Python API (read directly from the terminal); the MT4 Feed is a legacy provider, disabled by default.",
+    "The sole Signal Engine market-data and Broker-clock source is the MT5 Python API, read directly from the terminal.",
     "All five pairs share the single XAUUSD Entry Plan.",
     "Layers 2 and 3 are the Entry Plan: H3, H7, H9, H12 and H14 use two three-candle XAUUSD M30 groups.",
     "Layers 2 and 3 for H16 use XAUUSD H1: Layer 2 uses 05:00, 04:00, 03:00 and Layer 3 uses 10:00, 09:00, 08:00.",
@@ -52,7 +52,7 @@ export const RULES_BY_LOCALE = {
     "The sole market-data source for Signal is the MT5 Python API (completed M30/H1/H4 candles read directly from the terminal).",
     "Time Authority and Scheduler depend on the market-data clock; Heartbeat separates Data and Execution channels.",
     "Setup: have the MT5 terminal running and 'pip install MetaTrader5'. The bot connects to the terminal, auto-resolves symbols (including broker prefixes/suffixes), preloads M30/H1/H4 history, and normalises timestamps from UTC to Broker time. The Signal core still requires XAUUSD/GOLD, GBPUSD, GBPAUD, GBPJPY, and GBPCAD.",
-    "The legacy http://127.0.0.1:5000/mt4_data endpoint and an EA with ServerURL/BrokerName/SymbolName/MagicNumber inputs belong to the legacy MT4 Feed (disabled by default)."
+    "Legacy HTTP feeder endpoints and EA market-data inputs are no longer supported; Signal Engine reads market data directly from the MT5 Python API."
   ]
 };
 

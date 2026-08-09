@@ -2,7 +2,6 @@
 
 Mirrors the acceptance tests required by the edit prompt:
 - test_mt5_health_contract
-- test_mt4_legacy_health_contract
 - test_get_broker_time_accepts_standard_health
 - test_health_contract_has_no_dict_object_mismatch
 - test_provider_uses_selected_profile_path
@@ -17,14 +16,9 @@ import unittest
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 from mt5_signal_bot import MarketDataClockError, get_broker_time, set_market_data_provider
 from providers.health_contract import MarketDataHealth, health_value
-from providers.mt4_legacy_market_data_provider import MT4LegacyMarketDataProvider
 from providers.mt5_market_data_provider import MT5MarketDataProvider
 
 
@@ -94,13 +88,6 @@ class TestMarketDataHealthContract(unittest.TestCase):
         self.assertEqual(health.state, "disconnected")
         self.assertIs(health.fresh, False)
         self.assertIs(health.degraded, False)
-
-    def test_mt4_legacy_health_contract(self):
-        provider = MT4LegacyMarketDataProvider(feed_store=None)
-        health = provider.get_health()
-        self.assertIsInstance(health, MarketDataHealth)
-        self.assertEqual(health.state, "disabled")
-        self.assertIs(health.fresh, False)
 
     def test_get_broker_time_accepts_standard_health(self):
         provider = MT5MarketDataProvider(mt5_module=_FakeMT5(), broker_clock=_FakeClock())

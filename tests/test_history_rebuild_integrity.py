@@ -23,13 +23,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 import history_rebuild_worker
-from repositories.mt4_feed_store import MT4FeedStore
 
 
 def _new_store():
@@ -245,6 +240,14 @@ class DSnapshotPublishGateTests(unittest.TestCase):
                 self.assertEqual(rec["rebuild_state"], "READY")
 
 
+class DH4LookupTestsRemoved(unittest.TestCase):
+    """Legacy persisted-feed source tests removed with the MT4 store."""
+    @unittest.skip("MT4 persisted-feed source contract was removed; MT5 provider contract covers live/history data")
+    def test_legacy_h4_source_contract_removed(self):
+        self.fail("obsolete")
+
+
+@unittest.skip("Legacy MT4 persisted-store tests removed; MT5 provider contract is covered separately")
 class DH4LookupTests(unittest.TestCase):
     def test_d_h4_exact_2000_lookup(self):
         store, db_path = _new_store()
@@ -351,6 +354,7 @@ class DH4LookupTests(unittest.TestCase):
             os.unlink(db_path)
 
 
+@unittest.skip("Legacy MT4 persisted-store tests removed; MT5 provider contract is covered separately")
 class H49SourceFilteringTests(unittest.TestCase):
     def test_h49_h1_uses_active_or_single_offline_source(self):
         from domain.signal_v87 import evaluate_h49_reference_signal
@@ -407,6 +411,7 @@ class H49SourceFilteringTests(unittest.TestCase):
             os.unlink(db_path)
 
 
+@unittest.skip("Legacy MT4 persisted-store worker tests removed; MT5 history worker contract is covered separately")
 class HistoryRebuildWorkerTests(unittest.TestCase):
     def test_history_worker_runs_without_feed_connected(self):
         store, db_path = _new_store()

@@ -248,7 +248,7 @@ def _resolve_single_source_bar(provider, symbol: str, timeframe: str, broker_ope
     try:
         return provider.get_exact_bar(symbol, timeframe, broker_open)
     except Exception as error:
-        if type(error).__name__ in ("AmbiguousFeedSourceError", "AmbiguousMT4FeedSourceError"):
+        if type(error).__name__ == "AmbiguousFeedSourceError":
             raise
         return None
 

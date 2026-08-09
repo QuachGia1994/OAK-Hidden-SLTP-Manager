@@ -13,7 +13,7 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 
 - MT5 execution gateway ghi intent theo khóa idempotency v88; chỉ gửi lệnh khi profile bật `signal_execution_enabled=true` hoặc biến môi trường `SIGNAL_BOT_EXECUTION_ENABLED=true`.
 
-- MT5 Python API là nguồn market-data và Broker Clock mặc định (đọc completed candle M30/H1/H4 trực tiếp từ terminal); MT4 Feed chỉ là provider cũ, mặc định tắt.
+- MT5 Python API là nguồn market-data và Broker Clock duy nhất (đọc completed candle M30/H1/H4 trực tiếp từ terminal).
 - Output gồm `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, `GBPCAD`; cả năm symbol dùng chung Entry Plan XAUUSD nhưng direction riêng theo Reference/D relation.
 - Chạy Thứ 2 đến Thứ 6; cuối tuần tắt toàn bộ slot.
 - Slot active: **H=3, H=7, H=9, H=12, H=14, H=16**; tất cả phát đúng `H:00` Broker.
@@ -31,7 +31,7 @@ OAK Manager là trung tâm điều hành Windows cho MT5 đa hồ sơ: monitor w
 3. Bot tự kết nối terminal, resolve symbol (gồm cả prefix/suffix broker), preload `M30/H1/H4`, và chuyển timestamp từ UTC sang Broker time.
 4. Đảm bảo terminal đã tải đủ lịch sử và **Max bars in chart** đủ lớn để phủ D-Direction và Entry Plan.
 
-> MT4 Feed được giữ làm provider thử nghiệm (legacy) và **mặc định tắt**; chỉ bật bằng `OAK_MARKET_DATA_PROVIDER=MT4_LEGACY` cho developer, không hiển thị trong UI production và không tự khởi động.
+> MT4 Feed/HTTP feeder legacy đã được loại bỏ; Signal Engine chỉ đọc market-data trực tiếp từ MT5 Python API.
 
 ### Ma trận core
 

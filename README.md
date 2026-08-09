@@ -15,7 +15,7 @@
 
 - MT5 monitor đa hồ sơ, cô lập theo từng profile.
 - Hidden SL/TP, Visible SL/TP tùy chọn, auto partial close và auto break-even.
-- Signal engine v88: MT5 Python API là nguồn market-data và đồng hồ Broker (đọc completed candle M30/H1/H4 trực tiếp từ terminal); MT4 Feed chỉ là provider cũ, mặc định tắt. Một Entry Plan XAUUSD dùng chung cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.
+- Signal engine v88: MT5 Python API là nguồn market-data và đồng hồ Broker duy nhất (đọc completed candle M30/H1/H4 trực tiếp từ terminal). Một Entry Plan XAUUSD dùng chung cho XAUUSD, GBPUSD, GBPAUD, GBPJPY và GBPCAD.
 - Telegram bridge, MiMo worker, Copy Trading guardrail và lệnh hẹn giờ an toàn. Lệnh nhanh nhận `<lot> <HH:MM broker> <profile>` và tự đổi sang giờ Windows.
 - Fact Check dùng bằng chứng Google + DuckDuckGo, hỗ trợ OCR và dán ảnh clipboard.
 - NativeQt nhẹ, không WebEngine/Chromium, có theme Dark, Deep Sea và Contrast.
@@ -45,7 +45,7 @@ Dự án đang được duy trì qua [lịch sử phát hành](https://github.co
 3. Bot tự kết nối terminal, resolve symbol (gồm cả tiền tố/hậu tố broker), preload lịch sử `M30/H1/H4` rồi chuẩn hóa timestamp từ UTC sang Broker time.
 4. Đảm bảo terminal đã tải đủ lịch sử và `Max bars in chart` đủ lớn để có dữ liệu cho D-Direction và Entry Plan.
 
-> MT4 Feed được giữ lại làm provider thử nghiệm (legacy) và **mặc định tắt**. Chỉ bật với `OAK_MARKET_DATA_PROVIDER=MT4_LEGACY`dành cho developer; không hiển thị trong UI production và không tự khởi động.
+> MT4 Feed/HTTP feeder legacy đã được loại bỏ. Signal Engine chỉ đọc market-data trực tiếp từ MT5 Python API.
 
 ## Fact Check AI
 

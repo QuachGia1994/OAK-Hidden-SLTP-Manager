@@ -3,18 +3,12 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import patch
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 from mt5_signal_bot import (
     evaluate_all_pairs_for_slot,
-    MT4FeedProvider,
     set_market_data_provider,
     calculate_all_d_directions,
 )
-from repositories.mt4_feed_store import MT4FeedStore
 
 
 class TestSignalEngineNoMT5Rates(unittest.TestCase):

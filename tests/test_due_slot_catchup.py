@@ -3,41 +3,25 @@ import tempfile
 import unittest
 from datetime import datetime, date
 from unittest.mock import patch, MagicMock
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 from mt5_signal_bot import (
     reconstruct_sent_slots,
     catchup_due_slots,
     sent_today,
     set_market_data_provider,
-    MT4FeedProvider,
 )
-from repositories.mt4_feed_store import MT4FeedStore
 
 
 class TestDueSlotCatchup(unittest.TestCase):
 
     def setUp(self):
         self._original_provider = mt5_signal_bot.MARKET_DATA_PROVIDER
-        self._temp_db = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
-        self._temp_db.close()
-        self._feed_store = MT4FeedStore(db_path=self._temp_db.name)
-        self._provider = MT4FeedProvider(feed_store=self._feed_store)
-        set_market_data_provider(self._provider)
         sent_today.clear()
 
     def tearDown(self):
-        try:
-            mt5_signal_bot.clear_history_cache()
-        finally:
-            set_market_data_provider(self._original_provider)
-            self._feed_store.close()
-            if os.path.exists(self._temp_db.name):
-                os.unlink(self._temp_db.name)
-            sent_today.clear()
+        mt5_signal_bot.clear_history_cache()
+        set_market_data_provider(self._original_provider)
+        sent_today.clear()
 
     def test_reconstruct_sent_slots_reads_only_persisted_records(self):
         sample_records = [

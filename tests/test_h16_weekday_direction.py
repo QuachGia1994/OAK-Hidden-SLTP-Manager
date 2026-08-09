@@ -5,10 +5,6 @@ H16 now uses the same Pair Day Mode matrix + new final inversion rules.
 """
 import unittest
 import warnings
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 
 class TestLegacyH16WeekdayDirection(unittest.TestCase):
     """All legacy H16 weekday tests are superseded by v82 rules."""

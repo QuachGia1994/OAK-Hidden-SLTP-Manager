@@ -1,12 +1,14 @@
+"""MT4 comparator/runtime modules are intentionally absent after MT5 migration."""
+import importlib.util
 import unittest
 
-import mt4_mt5_server
 
+class LegacyComparatorRemovalTests(unittest.TestCase):
+    def test_mt4_runtime_module_is_removed(self):
+        self.assertIsNone(importlib.util.find_spec("mt4_mt5_server"))
 
-class LegacyComparatorRemovedTests(unittest.TestCase):
-    def test_stub_does_not_expose_flask_app(self):
-        self.assertFalse(hasattr(mt4_mt5_server, "app"))
-        self.assertEqual(mt4_mt5_server.main(), 0)
+    def test_mt4_feed_store_module_is_removed(self):
+        self.assertIsNone(importlib.util.find_spec("repositories.mt4_feed_store"))
 
 
 if __name__ == "__main__":

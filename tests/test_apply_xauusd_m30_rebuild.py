@@ -2,10 +2,6 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
 import unittest
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 from mt5_signal_bot import calculate_slot_signal, get_pair_direction
 

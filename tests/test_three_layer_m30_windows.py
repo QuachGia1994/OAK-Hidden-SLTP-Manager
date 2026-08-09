@@ -1,9 +1,5 @@
 import unittest
 from datetime import datetime
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 from mt5_signal_bot import get_m30_layer_open_times
 
 class TestThreeLayerM30Windows(unittest.TestCase):

@@ -2189,17 +2189,6 @@ def resolve_mt5_symbol(symbol):
     return symbol
 
 
-def _is_ambiguous_source_error(error) -> bool:
-    """Return whether an exception signals multiple conflicting MT4 feed sources."""
-    name = type(error).__name__
-    if name == "AmbiguousMT4FeedSourceError":
-        return True
-    try:
-        from repositories.mt4_feed_store import AmbiguousMT4FeedSourceError
-        return isinstance(error, AmbiguousMT4FeedSourceError)
-    except Exception:
-        return False
-
 
 def _d_h4_missing_diagnostics(source_symbol, target_broker_date, bars, ambiguous_sessions):
     """Print exact candidate diagnostics when the D-H4 anchor candle is unavailable.
@@ -2826,7 +2815,7 @@ class MarketDataClockError(BrokerClockError):
 @dataclass
 class FeedHealth:
     state: str           # "connected" | "degraded" | "stale" | "disconnected"
-    fresh: bool          # True only while the MT4 heartbeat is live enough to schedule signals
+    fresh: bool          # True only while the MT5 heartbeat is live enough to schedule signals
     degraded: bool
     age_seconds: float
     observed_at_utc: str
@@ -2871,243 +2860,9 @@ class MarketDataProvider(Protocol):
         ...
 
 
-class MT4FeedProvider:
-    """Exclusive market-data provider for Signal engine backed by SQLite MT4FeedStore (v87)."""
-    name: str = "MT4"
-
-    def __init__(self, feed_store=None):
-        try:
-            from repositories.mt4_feed_store import MT4FeedStore
-            self._db_store = feed_store or MT4FeedStore()
-        except Exception:
-            self._db_store = feed_store
-        self._memory_store = {}
-
-    def clear(self):
-        self._memory_store.clear()
-        if hasattr(self._db_store, "clear"):
-            self._db_store.clear()
-
-    def register_bars(self, symbol: str, timeframe: str, bars: list[dict]):
-        key = (symbol, self._normalize_timeframe(timeframe))
-        if key not in self._memory_store:
-            self._memory_store[key] = []
-        for raw in bars:
-            bar = dict(raw)
-            bar.setdefault("canonical_symbol", symbol)
-            bar.setdefault("timeframe", self._normalize_timeframe(timeframe))
-            if "broker_dt" not in bar and bar.get("broker_open_at"):
-                bar["broker_dt"] = self._parse_broker_datetime(bar["broker_open_at"])
-            bar.setdefault("is_complete", True)
-            self._memory_store[key].append(bar)
-
-    def get_health(self) -> FeedHealth:
-        if self._memory_store:
-            return FeedHealth("connected", True, False, 0.0, "", False)
-        if self._db_store is None:
-            return FeedHealth("disconnected", False, False, 999.0, "", False)
-
-        hb = self._db_store.get_latest_heartbeat()
-        if not hb:
-            return FeedHealth("disconnected", False, False, 999.0, "", False)
-
-        obs_str = hb.get("observed_at_utc", "")
-        try:
-            if int(hb.get("schema_version", 0)) != MARKET_DATA_PROVIDER_SCHEMA_VERSION:
-                raise ValueError("unsupported heartbeat schema")
-            self._db_store.get_broker_utc_offset()
-            if "T" in obs_str:
-                obs_dt = datetime.fromisoformat(obs_str)
-            else:
-                obs_dt = datetime.strptime(obs_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-            if obs_dt.tzinfo is None:
-                obs_dt = obs_dt.replace(tzinfo=timezone.utc)
-            now_utc = datetime.now(timezone.utc)
-            age_sec = (now_utc - obs_dt).total_seconds()
-            if age_sec < 0:
-                raise ValueError("heartbeat observed_at_utc is in the future")
-        except Exception:
-            return FeedHealth("degraded", False, True, 999.0, obs_str, False)
-
-        if age_sec <= 15:
-            return FeedHealth("connected", True, False, age_sec, obs_str, True)
-        elif age_sec <= 60:
-            # Historical bars remain readable while the feed is degraded, but
-            # its extrapolated clock is no longer authoritative for a live
-            # signal.  Fail closed instead of scheduling into a stopped MT4.
-            return FeedHealth("degraded", False, True, age_sec, obs_str, True)
-        else:
-            return FeedHealth("stale", False, False, age_sec, obs_str, True)
-
-    def get_broker_now(self) -> datetime:
-        if self._memory_store:
-            # Test helpers do not carry a publisher clock; they are data-only.
-            raise MarketDataClockError("MT4 test bars have no heartbeat clock")
-        if self._db_store is None:
-            raise MarketDataClockError("No MT4 heartbeat recorded in persistent feed store")
-
-        health = self.get_health()
-        if not health.fresh or not health.clock_verified:
-            raise MarketDataClockError(f"MT4 feed clock unavailable (state={health.state})")
-
-        hb = self._db_store.get_latest_heartbeat()
-        if not hb:
-            if self._memory_store:
-                return datetime.now(timezone.utc).replace(tzinfo=None)
-            raise MarketDataClockError("No MT4 heartbeat recorded in persistent feed store")
-
-        b_str = hb.get("broker_time", "")
-        obs_str = hb.get("observed_at_utc", "")
-        try:
-            if "T" in b_str:
-                b_dt = datetime.fromisoformat(b_str)
-            else:
-                b_dt = datetime.strptime(b_str, "%Y-%m-%d %H:%M:%S")
-
-            if "T" in obs_str:
-                obs_dt = datetime.fromisoformat(obs_str)
-            else:
-                obs_dt = datetime.strptime(obs_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
-            if obs_dt.tzinfo is None:
-                obs_dt = obs_dt.replace(tzinfo=timezone.utc)
-
-            now_utc = datetime.now(timezone.utc)
-            elapsed = (now_utc - obs_dt).total_seconds()
-            if elapsed < 0:
-                elapsed = 0.0
-            return b_dt + timedelta(seconds=elapsed)
-        except Exception as e:
-            raise MarketDataClockError(f"Failed to parse MT4 broker clock: {e}")
-
-    def get_broker_utc_offset(self, broker_date=None) -> int:
-        if self._db_store is None:
-            raise MarketDataClockError("No MT4 feed store is available")
-        try:
-            return self._db_store.get_broker_utc_offset(broker_date=broker_date)
-        except Exception as exc:
-            raise MarketDataClockError(f"No verified MT4 Broker offset is available: {exc}") from exc
-
-    def is_broker_utc_offset_verified(self, broker_date=None) -> bool:
-        if self._db_store is None:
-            return False
-        verifier = getattr(self._db_store, "is_broker_utc_offset_verified", None)
-        if not callable(verifier):
-            return False
-        try:
-            return bool(verifier(broker_date))
-        except Exception:
-            return False
-
-    def get_latest_completed_broker_datetime(self, symbol=None, timeframe=None):
-        """Return a persisted completed-bar boundary for offline history maintenance."""
-        if self._db_store is None:
-            return None
-        getter = getattr(self._db_store, "get_latest_completed_broker_datetime", None)
-        if not callable(getter):
-            return None
-        try:
-            return getter(symbol=symbol, timeframe=timeframe)
-        except Exception:
-            return None
-
-    def get_bars(
-        self,
-        symbol: str,
-        timeframe: str,
-        start_broker: datetime,
-        end_broker: datetime,
-    ) -> list[dict]:
-        key = (symbol, self._normalize_timeframe(timeframe))
-        if key in self._memory_store:
-            store = self._memory_store.get(key, [])
-            res = []
-            for bar in store:
-                b_dt = bar.get("broker_dt")
-                if b_dt and self._naive(b_dt) >= self._naive(start_broker) and self._naive(b_dt) <= self._naive(end_broker):
-                    res.append(bar)
-            if res:
-                return res
-
-        if self._db_store is None:
-            return []
-
-        fmt = "%Y-%m-%d %H:%M:%S"
-        s_str = start_broker.strftime(fmt) if isinstance(start_broker, datetime) else str(start_broker)
-        e_str = end_broker.strftime(fmt) if isinstance(end_broker, datetime) else str(end_broker)
-        return self._db_store.get_bars(symbol, self._normalize_timeframe(timeframe), s_str, e_str)
-
-    def get_exact_bar(
-        self,
-        symbol: str,
-        timeframe: str,
-        broker_open: datetime,
-        *,
-        source_id: Optional[str] = None,
-    ) -> Optional[dict]:
-        key = (symbol, self._normalize_timeframe(timeframe))
-        if key in self._memory_store:
-            store = self._memory_store.get(key, [])
-            for bar in store:
-                b_dt = bar.get("broker_dt")
-                if b_dt and self._naive(b_dt) == self._naive(broker_open):
-                    return bar
-
-        if self._db_store is None:
-            return None
-
-        if source_id is None:
-            source_id = self.get_active_source_id()
-
-        fmt = "%Y-%m-%d %H:%M:%S"
-        b_str = broker_open.strftime(fmt) if isinstance(broker_open, datetime) else str(broker_open)
-        return self._db_store.get_exact_bar(symbol, self._normalize_timeframe(timeframe), b_str, source_id=source_id)
-
-    def get_active_source_id(self, max_age_seconds: int = 60) -> Optional[str]:
-        """Return the feed source_id the Signal Engine should read bars from.
-
-        Prefers the freshest verified heartbeat; falls back to the default
-        single-source id only when the store cannot identify a live publisher.
-        """
-        if self._db_store is None:
-            return None
-        getter = getattr(self._db_store, "get_active_source_id", None)
-        if callable(getter):
-            try:
-                return getter(max_age_seconds=max_age_seconds)
-            except Exception:
-                return None
-        return None
-
-    @staticmethod
-    def _normalize_timeframe(timeframe):
-        return {30: "M30", 60: "H1", 240: "H4", 16385: "M30", 16388: "H4", "30": "M30", "60": "H1", "240": "H4", "16385": "M30", "16388": "H4"}.get(timeframe, str(timeframe).upper())
-
-    @staticmethod
-    def _parse_broker_datetime(value):
-        text = str(value).replace("Z", "+00:00")
-        parsed = datetime.fromisoformat(text)
-        return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
-
-    @staticmethod
-    def _naive(value):
-        return value.replace(tzinfo=None) if getattr(value, "tzinfo", None) else value
-
 
 def _market_data_provider_from_config():
-    """Build the default market-data provider from config/env.
-
-    Default is MT5.  ``OAK_MARKET_DATA_PROVIDER=MT4_LEGACY`` opts into the
-    hidden legacy MT4 Feed provider (developer only; never shown in production
-    UI and never auto-started).
-    """
-    configured = os.environ.get("OAK_MARKET_DATA_PROVIDER", "") or ""
-    if not configured:
-        try:
-            configured = str(_cfg.get("market_data_provider", "MT5") or "MT5").strip()
-        except Exception:
-            configured = "MT5"
-    if configured == "MT4_LEGACY":
-        return MT4FeedProvider()
+    """Build the single MT5-backed market-data provider."""
     return _build_mt5_provider()
 
 
@@ -3560,7 +3315,7 @@ def publish_d_direction_daily(target_local_date=None, force=False):
         except TypeError:
             broker_offset = MARKET_DATA_PROVIDER.get_broker_utc_offset()
     except Exception as exc:
-        print(f"  [D-PUBLISH] MT4 Broker offset unavailable; fail closed: {exc}")
+        print(f"  [D-PUBLISH] MT5 Broker offset unavailable; fail closed: {exc}")
         return None
     broker_tz = timezone(timedelta(hours=broker_offset))
     broker_dt = pub_utc.astimezone(broker_tz)
@@ -3596,7 +3351,7 @@ def publish_d_direction_daily(target_local_date=None, force=False):
                 current_offset = MARKET_DATA_PROVIDER.get_broker_utc_offset()
             current_utc = (current_broker - timedelta(hours=current_offset)).replace(tzinfo=timezone.utc)
         except Exception as exc:
-            print(f"  [DAILY-D] MT4 clock degraded during retry: {exc}")
+            print(f"  [DAILY-D] MT5 clock degraded during retry: {exc}")
             break
         if current_utc >= deadline_utc or attempts >= 10:
             print(f"  [DAILY-D] Reached deadline or max attempts ({attempts}), publishing state={snapshot['state']}")
@@ -3863,10 +3618,7 @@ def _single_pair_wait_reason(symbol, result, d_directions):
 
 
 def _provider_generic_wait_reason():
-    """Provider-aware fallback: MT4 keeps the legacy label, MT5 reports data wait."""
-    provider = MARKET_DATA_PROVIDER
-    if provider and getattr(provider, "name", "") == "MT4":
-        return "WAIT_MT4_DATA"
+    """Return the canonical missing-market-data reason for the MT5 provider."""
     return "WAIT_MT5_DATA"
 
 
@@ -4253,7 +4005,7 @@ def rebuild_slot_signal(broker_dt, h, *, as_of_dt=None, include_weekends=False):
     - current-day rebuild: pass ``broker_now`` so Layer 3 resolves when past H:30;
     - historical rebuild: pass a far-future timestamp so all layers resolve.
 
-    ``include_weekends`` allows rebuilding Sat/Sun slots from the persisted MT4
+    ``include_weekends`` allows rebuilding Sat/Sun slots from the persisted MT5
     feed (backtest mode); live execution never runs weekends without an explicit
     ``signal_live_weekends = true`` profile gate.
     """
@@ -4380,7 +4132,7 @@ def _validate_rebuild_candidate(record):
 
 
 def rebuild_recent_history(days=45, include_weekends=False):
-    """Recalculate recent sessions from the persistent MT4 feed.
+    """Recalculate recent sessions from the persistent MT5 market data.
 
     ``include_weekends`` enables 24/7 backtest rebuild: Sat/Sun slots are
     evaluated against the persisted Broker bars instead of being skipped, and
@@ -4389,7 +4141,7 @@ def rebuild_recent_history(days=45, include_weekends=False):
 
     Rebuild is per-record (atomic merge): an old record is only replaced when
     a new candidate for the same (date, hour) passes validation.  If zero
-    valid candidates are produced (e.g., MT4 feed has no bars), the rebuild
+    valid candidates are produced (e.g., MT5 market data has no bars), the rebuild
     aborts and existing history is preserved.
     """
     global _LAST_REBUILD_COMPLETE
@@ -4399,10 +4151,10 @@ def rebuild_recent_history(days=45, include_weekends=False):
         anchor_getter = getattr(MARKET_DATA_PROVIDER, "get_latest_completed_broker_datetime", None)
         broker_dt = anchor_getter(symbol="XAUUSD", timeframe="M30") if callable(anchor_getter) else None
         if broker_dt is None:
-            print(f"  [REBUILD] MT4 clock unavailable, skip: {exc}")
+            print(f"  [REBUILD] MT5 clock unavailable, skip: {exc}")
             return 0
         print(
-            "  [REBUILD] MT4 live clock unavailable; rebuilding only completed persisted history "
+            "  [REBUILD] MT5 live clock unavailable; rebuilding only completed persisted history "
             f"through {broker_dt.strftime('%Y-%m-%d %H:%M')} Broker."
         )
     today = broker_dt.date()
@@ -5810,7 +5562,7 @@ def repair_history(target_dates=None, days=45):
     try:
         broker_dt = get_broker_time()
     except MarketDataClockError as exc:
-        print(f"  [REPAIR] MT4 clock unavailable: {exc}")
+        print(f"  [REPAIR] MT5 clock unavailable: {exc}")
         return 0
     today = broker_dt.date()
 
@@ -6020,9 +5772,9 @@ def _init_mt5_for_cli(profile_name, label):
     return launch.ok
 
 
-def _run_feed_only_rebuild(days=45, include_weekends=False):
-    """Rebuild v88 records from the MT4 Feed without requiring MT5 execution."""
-    print("[REBUILD] MT4 Feed is the only rebuild dependency; MT5 execution is optional.")
+def _run_market_data_rebuild(days=45, include_weekends=False):
+    """Rebuild v88 records from the MT5 market data without requiring MT5 execution."""
+    print("[REBUILD] MT5 market data is the only rebuild dependency; MT5 execution is optional.")
     rebuilt = rebuild_recent_history(days=days, include_weekends=include_weekends)
     if rebuilt > 0:
         # Never push an incomplete rebuild as a complete snapshot: the
@@ -6032,7 +5784,7 @@ def _run_feed_only_rebuild(days=45, include_weekends=False):
 
 
 def rebuild_target_dates(target_dates, *, force=False, include_weekends=False):
-    """Rebuild one or more specific dates from the persisted MT4 feed.
+    """Rebuild one or more specific dates from the persisted MT5 market data.
 
     Each (date, hour) record is replaced in place (never duplicated).  The
     ``force`` flag explicitly allows overwriting an existing record; without it
@@ -6198,7 +5950,7 @@ if __name__ == "__main__":
             finally:
                 mt5.shutdown()
     elif args.rebuild_all or args.rebuild_signals:
-        _run_feed_only_rebuild(args.days, include_weekends=args.include_weekends)
+        _run_market_data_rebuild(args.days, include_weekends=args.include_weekends)
     elif args.rebuild_date:
         rebuild_target_dates(args.rebuild_date, force=args.force, include_weekends=args.include_weekends)
     elif args.rebuild_d_history:

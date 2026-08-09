@@ -1,10 +1,6 @@
 """Exact DOJI detection: open == close exactly → DOJI; 1-point difference → TANG/GIAM."""
 
 import unittest
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 from mt5_signal_bot import exact_candle_direction, _m30_candle_direction
 
 

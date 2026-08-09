@@ -4,10 +4,6 @@ import os
 import tempfile
 from datetime import datetime, time, timezone
 from unittest.mock import patch
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 from mt5_signal_bot import (
     SIGNAL_LOGIC_VERSION,
     _latest_today_news_cache,

@@ -7,10 +7,6 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 
 

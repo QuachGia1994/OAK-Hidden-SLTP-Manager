@@ -1,10 +1,6 @@
 """v87 contract: Signal Bot does not own an automatic position-close schedule."""
 import inspect
 import unittest
-from mt4_feed_test_environment import install_isolated_mt4_feed_database
-
-install_isolated_mt4_feed_database()
-
 import mt5_signal_bot
 
 

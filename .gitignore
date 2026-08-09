@@ -62,9 +62,6 @@ d_dir_last_id.txt
 oak_state.db
 oak_state.db-shm
 oak_state.db-wal
-mt4_feed.db
-mt4_feed.db-shm
-mt4_feed.db-wal
 
 # PXSwift cache
 .pxswift/
