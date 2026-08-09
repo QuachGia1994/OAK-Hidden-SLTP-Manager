@@ -1,9 +1,0 @@
-module QmlPages
-ProfilesPage 1.0 ProfilesPage.qml
-DashboardPage 1.0 DashboardPage.qml
-SignalsPage 1.0 SignalsPage.qml
-VN30Page 1.0 VN30Page.qml
-CopyPage 1.0 CopyPage.qml
-PendingPage 1.0 PendingPage.qml
-DiagnosticsPage 1.0 DiagnosticsPage.qml
-SettingsPage 1.0 SettingsPage.qml

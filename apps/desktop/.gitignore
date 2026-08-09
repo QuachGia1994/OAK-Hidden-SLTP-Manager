@@ -1,8 +1,0 @@
-node_modules/
-dist/
-src-tauri/target/
-src-tauri/gen/
-src-tauri/binaries/
-
-# §10: Cargo.lock MUST be committed for reproducible builds.
-!src-tauri/Cargo.lock
