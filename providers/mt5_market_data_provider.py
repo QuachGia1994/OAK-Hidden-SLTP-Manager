@@ -427,6 +427,13 @@ class MT5MarketDataProvider:
                     broker_offset_now = int(self._clock.current_utc_offset(now_utc))
                     if broker_date is None:
                         return broker_offset_now
+                    # The clock's verification state is authoritative for the
+                    # requested broker date. This preserves the live cached
+                    # offset after a transient historical lookup failure while
+                    # still refusing to substitute today's offset for an
+                    # unverified historical date.
+                    if self.is_broker_utc_offset_verified(broker_date):
+                        return broker_offset_now
                     broker_today = (now_utc + timedelta(hours=broker_offset_now)).date()
                     if broker_today == broker_date:
                         return broker_offset_now
