@@ -40,7 +40,6 @@ HIDDEN_IMPORTS = (
     "telegram_client",
     "domain.monitor_worker",
     "mt5_signal_bot",
-    "mt4_feed_server",
     "services.mt5_terminal_service",
     "mimo_bot",
     "mimo_worker",

@@ -491,7 +491,7 @@ def _process_mimo(chat_id, prompt):
 
         if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
             now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            result = f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- MT4 Feed Server: đang chạy\n- Tất cả hoạt động bình thường."
+            result = f"Trạng thái hệ thống lúc {now}:\n- MT5 Signal Bot: đang chạy\n- Tất cả hoạt động bình thường."
         elif any(w in cmd_lower for w in ["signal", "tin hieu"]):
             result = "Tín hiệu hiện tại: Đang chờ slot kích hoạt tiếp theo."
         elif any(w in cmd_lower for w in ["time", "gio", "thoi gian"]):

@@ -83,7 +83,7 @@ class SQLiteStore:
                 broker_time TEXT DEFAULT '',
                 broker_utc_offset INTEGER,
                 broker_observed_at_utc TEXT DEFAULT '',
-                data_provider TEXT DEFAULT 'MT4',
+                data_provider TEXT DEFAULT 'MT5',
                 data_state TEXT DEFAULT 'disconnected',
                 data_observed_at_utc TEXT DEFAULT '',
                 execution_provider TEXT DEFAULT 'MT5',
@@ -114,7 +114,7 @@ class SQLiteStore:
             ("broker_time", "TEXT DEFAULT ''"),
             ("broker_utc_offset", "INTEGER"),
             ("broker_observed_at_utc", "TEXT DEFAULT ''"),
-            ("data_provider", "TEXT DEFAULT 'MT4'"),
+            ("data_provider", "TEXT DEFAULT 'MT5'"),
             ("data_state", "TEXT DEFAULT 'disconnected'"),
             ("data_observed_at_utc", "TEXT DEFAULT ''"),
             ("execution_provider", "TEXT DEFAULT 'MT5'"),
@@ -282,7 +282,7 @@ class SQLiteStore:
                           telegram_last_check="", telegram_bot_name="",
                           preserve_telegram=False, broker_time=None,
                           broker_utc_offset=None, broker_observed_at_utc=None,
-                          preserve_broker_clock=True, data_provider="MT4",
+                          preserve_broker_clock=True, data_provider="MT5",
                           data_state="disconnected", data_observed_at_utc="",
                           execution_provider="MT5", execution_state="disconnected"):
         """Publish worker heartbeat. Called by worker every ~2s.

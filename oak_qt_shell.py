@@ -29,7 +29,6 @@ from typing import Any, Callable
 from domain.file_lock import FileLock
 from domain.json_io import save_json
 from services.debug_bundle_service import build_debug_bundle_bytes
-from services.mt4_feed_health import read_mt4_feed_health
 from services.stock_advisor_desktop import (
     StockAdvisorDesktopError,
     StockAdvisorDesktopSettings,
@@ -83,26 +82,11 @@ BASE_SIGNAL_DEFS = (
     ("mimo_worker", "MiMo Worker", "#d4a03d"),
     ("factcheck_worker", "Fact Check Worker", "#00bfa5"),
 )
-LEGACY_MT4_SIGNAL_DEF = ("mt4_feed_server", "MT4 Feed Server (Legacy)", "#1f538d")
-
-
-def _legacy_mt4_feed_enabled() -> bool:
-    """The MT4 Feed is a hidden experimental provider, disabled by default."""
-    if os.environ.get("OAK_MARKET_DATA_PROVIDER", "") == "MT4_LEGACY":
-        return True
-    return bool(read_json(SETTINGS_FILE, {}).get("enable_legacy_mt4_feed", False))
 
 
 def get_visible_signal_defs() -> tuple[tuple[str, str, str], ...]:
-    """Signal defs to render, register, and start.
-
-    Production shows the four core services only; the legacy MT4 Feed Server
-    card appears solely when explicitly enabled (settings or env).
-    """
-    defs = list(BASE_SIGNAL_DEFS)
-    if _legacy_mt4_feed_enabled():
-        defs.insert(0, LEGACY_MT4_SIGNAL_DEF)
-    return tuple(defs)
+    """Signal defs to render, register, and start."""
+    return tuple(BASE_SIGNAL_DEFS)
 CONSOLE_NOISE = (
     "this is a development server",
     "do not use it in a production deployment",
@@ -612,31 +596,6 @@ def write_bytes_atomic(path: Path, payload: bytes) -> None:
     temp_path.replace(path)
 
 
-def format_feed_card_details(
-    state: str,
-    age_seconds: int,
-    coverage: dict[str, dict[str, int]],
-) -> tuple[str, str]:
-    """Return a compact card summary and full coverage tooltip."""
-    age = max(0, int(age_seconds))
-    summary = f"Feed: {state} · heartbeat {age}s · {len(coverage)} symbols"
-    xauusd = coverage.get("XAUUSD")
-    if xauusd:
-        summary += (
-            "\nBars XAUUSD M30/H1/H4: "
-            f"{xauusd.get('M30', 0)}/{xauusd.get('H1', 0)}/{xauusd.get('H4', 0)}"
-        )
-    else:
-        summary += "\nBars: awaiting XAUUSD"
-    details = ["Feed coverage:"]
-    for symbol, counts in coverage.items():
-        details.append(
-            f"{symbol} M30:{counts.get('M30', 0)} "
-            f"H1:{counts.get('H1', 0)} H4:{counts.get('H4', 0)}"
-        )
-    return summary, "\n".join(details)
-
-
 def load_qt() -> tuple[SimpleNamespace | None, str]:
     """Import only QtCore/QtGui/QtWidgets, never QtWebEngine."""
     try:
@@ -1085,6 +1044,7 @@ class NativeShell:
         self.stock_table = None
         self.stock_count = None
         self.stock_search = None
+        self._stock_search_timer = None
         self.stock_run_btn = None
         self.stock_status = None
         self._stock_rows: list[dict] = []
@@ -1129,8 +1089,6 @@ class NativeShell:
         self.ready_callback = ready_callback
         
         # Performance: Debouncing and throttling state
-        self._last_feed_card_refresh = 0.0
-        self._feed_listener_available = False
         self._ui_update_pending = False
         self._last_refresh_time = 0.0
         self._refresh_cooldown = 0.1  # Minimum seconds between full UI refreshes
@@ -1754,19 +1712,6 @@ class NativeShell:
         console.setProperty("role", "mini")
         console.document().setMaximumBlockCount(700)
         layout.addLayout(header)
-        feed_info = None
-        if key == "mt4_feed_server":
-            feed_info = QT.QLabel(
-                "Feed: DISCONNECTED · no v87 heartbeat\n"
-                "Attach EA v87 to a chart · HTTP 80"
-            )
-            feed_info.setProperty("role", "muted")
-            feed_info.setWordWrap(True)
-            feed_info.setMaximumHeight(42)
-            feed_info.setToolTip(
-                "Feed status appears here. Full symbol/timeframe coverage is available on hover."
-            )
-            layout.addWidget(feed_info)
         layout.addWidget(console, 1)
         self.signal_cards[key] = {
             "frame": frame,
@@ -1779,7 +1724,6 @@ class NativeShell:
             "copy": copy_log,
             "start": start,
             "stop": stop,
-            "feed_info": feed_info,
         }
         return frame
 
@@ -2031,18 +1975,25 @@ class NativeShell:
         self.profile_combo.blockSignals(False)
 
     def _refresh_profiles(self) -> None:
-        self._clear_profile_rows()
-        running = set(self._running_profiles())
-        if not self.profiles:
-            self.profile_rows_layout.addWidget(
-                self._guardrail_row("No profiles found", "SETUP", "Copy profiles.example.json to profiles.json, then add MT5 profile settings.", "amber")
-            )
+        container = self.profile_rows_layout.parentWidget()
+        if container is not None:
+            container.setUpdatesEnabled(False)
+        try:
+            self._clear_profile_rows()
+            running = set(self._running_profiles())
+            if not self.profiles:
+                self.profile_rows_layout.addWidget(
+                    self._guardrail_row("No profiles found", "SETUP", "Copy profiles.example.json to profiles.json, then add MT5 profile settings.", "amber")
+                )
+                self.profile_rows_layout.addStretch(1)
+                return
+            for name, cfg in self.profiles.items():
+                status = self._profile_status(name, name in running)
+                self.profile_rows_layout.addWidget(self._profile_row(name, cfg, status))
             self.profile_rows_layout.addStretch(1)
-            return
-        for name, cfg in self.profiles.items():
-            status = self._profile_status(name, name in running)
-            self.profile_rows_layout.addWidget(self._profile_row(name, cfg, status))
-        self.profile_rows_layout.addStretch(1)
+        finally:
+            if container is not None:
+                container.setUpdatesEnabled(True)
 
     def _clear_profile_rows(self) -> None:
         while self.profile_rows_layout.count():
@@ -2078,28 +2029,35 @@ class NativeShell:
     def _refresh_profile_page(self) -> None:
         if self.profile_cards_layout is None or self.profile_detail is None:
             return
-        while self.profile_cards_layout.count():
-            item = self.profile_cards_layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
-        if not self.profiles:
-            self.profile_cards_layout.addWidget(
-                self._guardrail_row("No profiles found", "SETUP", "NativeQt keeps real credentials out of the installer. Add profiles.json beside the exe.", "amber")
-            )
+        container = self.profile_cards_layout.parentWidget()
+        if container is not None:
+            container.setUpdatesEnabled(False)
+        try:
+            while self.profile_cards_layout.count():
+                item = self.profile_cards_layout.takeAt(0)
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
+            if not self.profiles:
+                self.profile_cards_layout.addWidget(
+                    self._guardrail_row("No profiles found", "SETUP", "NativeQt keeps real credentials out of the installer. Add profiles.json beside the exe.", "amber")
+                )
+                self.profile_cards_layout.addStretch(1)
+                self.profile_detail.setPlainText(self._profile_detail_text("", {}))
+                self._load_profile_editor("", {}, "IDLE")
+                return
+            running = set(self._running_profiles())
+            for name, cfg in self.profiles.items():
+                status = self._profile_status(name, name in running)
+                self.profile_cards_layout.addWidget(self._profile_card(name, cfg, status))
             self.profile_cards_layout.addStretch(1)
-            self.profile_detail.setPlainText(self._profile_detail_text("", {}))
-            self._load_profile_editor("", {}, "IDLE")
-            return
-        running = set(self._running_profiles())
-        for name, cfg in self.profiles.items():
-            status = self._profile_status(name, name in running)
-            self.profile_cards_layout.addWidget(self._profile_card(name, cfg, status))
-        self.profile_cards_layout.addStretch(1)
-        cfg = self.profiles.get(self.selected, {})
-        status = self._profile_status(self.selected, self.selected in running)
-        self.profile_detail.setPlainText(self._profile_detail_text(self.selected, cfg, status))
-        self._load_profile_editor(self.selected, cfg, status)
+            cfg = self.profiles.get(self.selected, {})
+            status = self._profile_status(self.selected, self.selected in running)
+            self.profile_detail.setPlainText(self._profile_detail_text(self.selected, cfg, status))
+            self._load_profile_editor(self.selected, cfg, status)
+        finally:
+            if container is not None:
+                container.setUpdatesEnabled(True)
 
     def _profile_card(self, name: str, cfg: dict[str, Any], status: str) -> Any:
         row = QT.QFrame()
@@ -2857,35 +2815,54 @@ class NativeShell:
             rows = advisory_rows_from_payload(payload)
         else:
             rows = []
-        tbl.setRowCount(len(rows))
-        for i, (symbol, direction, score, close, rank) in enumerate(rows):
-            tbl.setItem(i, 0, QT.QTableWidgetItem(symbol))
-            d_item = QT.QTableWidgetItem(direction)
-            if direction == "BUY":
-                d_item.setForeground(QT.QBrush(QT.QColor("#2fa572")))
-            else:
-                d_item.setForeground(QT.QBrush(QT.QColor("#ef4444")))
-            f = d_item.font()
-            f.setBold(True)
-            d_item.setFont(f)
-            tbl.setItem(i, 1, d_item)
-            tbl.setItem(i, 2, QT.QTableWidgetItem(f"{score:.2f}"))
-            close_txt = f"{float(close):.2f}" if close is not None else "—"
-            tbl.setItem(i, 3, QT.QTableWidgetItem(close_txt))
-            rank_txt = f"#{rank}" if rank > 0 else "—"
-            tbl.setItem(i, 4, QT.QTableWidgetItem(rank_txt))
-        tbl.resizeColumnsToContents()
-        # Stretch last column
-        header = tbl.horizontalHeader()
-        if header is not None and tbl.columnCount() > 4:
-            header.setSectionResizeMode(4, QT.QHeaderView.ResizeMode.Stretch)
+        tbl.setUpdatesEnabled(False)
+        try:
+            tbl.setRowCount(len(rows))
+            for i, (symbol, direction, score, close, rank) in enumerate(rows):
+                tbl.setItem(i, 0, QT.QTableWidgetItem(symbol))
+                d_item = QT.QTableWidgetItem(direction)
+                if direction == "BUY":
+                    d_item.setForeground(QT.QBrush(QT.QColor("#2fa572")))
+                else:
+                    d_item.setForeground(QT.QBrush(QT.QColor("#ef4444")))
+                f = d_item.font()
+                f.setBold(True)
+                d_item.setFont(f)
+                tbl.setItem(i, 1, d_item)
+                tbl.setItem(i, 2, QT.QTableWidgetItem(f"{score:.2f}"))
+                close_txt = f"{float(close):.2f}" if close is not None else "—"
+                tbl.setItem(i, 3, QT.QTableWidgetItem(close_txt))
+                rank_txt = f"#{rank}" if rank > 0 else "—"
+                tbl.setItem(i, 4, QT.QTableWidgetItem(rank_txt))
+            tbl.resizeColumnsToContents()
+            # Stretch last column
+            header = tbl.horizontalHeader()
+            if header is not None and tbl.columnCount() > 4:
+                header.setSectionResizeMode(4, QT.QHeaderView.ResizeMode.Stretch)
+        finally:
+            tbl.setUpdatesEnabled(True)
 
     def _reload_stock_rows(self) -> None:
-        """Reload stock table from market.db with current search filter."""
+        """Full reload from market.db, then render (tab open / after EOD update).
+
+        Performance: DB query only happens here, not on every search keystroke
+        (see ``_render_stock_table`` / ``_on_stock_search_changed``).
+        """
         if getattr(self, "stock_table", None) is None:
             return
-        all_rows = load_stock_rows()
-        self._stock_rows = all_rows
+        self._stock_rows = load_stock_rows()
+        self._render_stock_table()
+
+    def _render_stock_table(self) -> None:
+        """Render self.stock_table from the cached self._stock_rows + search text.
+
+        Performance: filters the in-memory cache (no DB round trip) and batches
+        the QTableWidgetItem rebuild behind setUpdatesEnabled to avoid a
+        repaint/layout pass per row.
+        """
+        if getattr(self, "stock_table", None) is None:
+            return
+        all_rows = self._stock_rows
         text = ""
         if getattr(self, "stock_search", None) is not None:
             text = self.stock_search.text().strip().lower()
@@ -2894,26 +2871,35 @@ class NativeShell:
         else:
             shown = all_rows
         tbl = self.stock_table
-        tbl.setRowCount(len(shown))
-        for i, r in enumerate(shown):
-            tbl.setItem(i, 0, QT.QTableWidgetItem(str(r.get("symbol", ""))))
-            tbl.setItem(i, 1, QT.QTableWidgetItem(str(r.get("exchange", ""))))
-            for col, key in enumerate(("open", "high", "low", "close"), start=2):
-                val = r.get(key)
-                txt = f"{float(val):.2f}" if val is not None else "—"
-                tbl.setItem(i, col, QT.QTableWidgetItem(txt))
-            vol = r.get("volume")
-            vol_txt = f"{float(vol) / 1e6:.1f}" if vol is not None else "—"
-            tbl.setItem(i, 6, QT.QTableWidgetItem(vol_txt))
-        tbl.resizeColumnsToContents()
-        header = tbl.horizontalHeader()
-        if header is not None and tbl.columnCount() > 6:
-            header.setSectionResizeMode(6, QT.QHeaderView.ResizeMode.Stretch)
+        tbl.setUpdatesEnabled(False)
+        try:
+            tbl.setRowCount(len(shown))
+            for i, r in enumerate(shown):
+                tbl.setItem(i, 0, QT.QTableWidgetItem(str(r.get("symbol", ""))))
+                tbl.setItem(i, 1, QT.QTableWidgetItem(str(r.get("exchange", ""))))
+                for col, key in enumerate(("open", "high", "low", "close"), start=2):
+                    val = r.get(key)
+                    txt = f"{float(val):.2f}" if val is not None else "—"
+                    tbl.setItem(i, col, QT.QTableWidgetItem(txt))
+                vol = r.get("volume")
+                vol_txt = f"{float(vol) / 1e6:.1f}" if vol is not None else "—"
+                tbl.setItem(i, 6, QT.QTableWidgetItem(vol_txt))
+            tbl.resizeColumnsToContents()
+            header = tbl.horizontalHeader()
+            if header is not None and tbl.columnCount() > 6:
+                header.setSectionResizeMode(6, QT.QHeaderView.ResizeMode.Stretch)
+        finally:
+            tbl.setUpdatesEnabled(True)
         if getattr(self, "stock_count", None) is not None:
             self.stock_count.setText(f"{len(shown)} / {len(all_rows)}")
 
     def _on_stock_search_changed(self, text: str) -> None:
-        self._reload_stock_rows()
+        """Debounce live filtering so fast typing doesn't rebuild the table per keystroke."""
+        if self._stock_search_timer is None:
+            self._stock_search_timer = QT.QTimer(self.window)
+            self._stock_search_timer.setSingleShot(True)
+            self._stock_search_timer.timeout.connect(self._render_stock_table)
+        self._stock_search_timer.start(200)
 
     def _set_stock_status(self, message: str, accent: str = "muted") -> None:
         if self.stock_status is None:
@@ -3250,33 +3236,8 @@ class NativeShell:
 
     def start_all_signals(self) -> None:
         keys = [key for key, _name, _color in get_visible_signal_defs()]
-        if "mt4_feed_server" in keys:
-            self.start_signal("mt4_feed_server")
-            self._wait_for_feed_before_signals(keys)
-            return
         for index, key in enumerate(keys):
             QT.QTimer.singleShot(index * 250, lambda k=key: self.start_signal(k))
-
-    def _wait_for_feed_before_signals(self, keys: list[str], deadline: float | None = None) -> None:
-        """Start workers after a live MT4 heartbeat, not HTTP 200 alone."""
-        deadline = deadline or (time.monotonic() + 15.0)
-        health = read_mt4_feed_health(timeout=3.0)
-        ready = health.feed_connected
-        if ready or time.monotonic() >= deadline:
-            if not ready:
-                state = health.data_state.upper() if health.listener_available else "UNAVAILABLE"
-                self._append_signal_log(
-                    "signal_bot",
-                    f"[MT4 FEED] Listener {state}; Signal Bot blocked until a CONNECTED v87 heartbeat via HTTP 80.",
-                )
-            for index, key in enumerate(keys):
-                if key != "mt4_feed_server":
-                    if key == "signal_bot" and not ready:
-                        self._set_signal_running(key, False, status="Blocked")
-                        continue
-                    QT.QTimer.singleShot(index * 250, lambda k=key: self.start_signal(k))
-            return
-        QT.QTimer.singleShot(500, lambda: self._wait_for_feed_before_signals(keys, deadline))
 
     def stop_all_signals(self) -> None:
         for key, _name, _color in get_visible_signal_defs():
@@ -3296,81 +3257,11 @@ class NativeShell:
 
     def _refresh_signal_states(self) -> None:
         for key, _name, _color in get_visible_signal_defs():
-            # The Feed Server may be owned by a previous/native shell while
-            # its local listener remains healthy.  Its card is therefore
-            # refreshed from the health endpoint below, not only QProcess.
-            if key == "mt4_feed_server":
-                continue
             proc = self.signal_processes.get(key)
             running = bool(proc and proc.state() != QT.NotRunning)
             pid = proc.processId() if running else None
             self._set_signal_running(key, running, pid)
-        self._refresh_feed_card()
         self._refresh_signal_summary()
-
-    def _refresh_feed_card(self) -> None:
-        """Refresh MT4 feed card with throttling to reduce database queries.
-        
-        Performance: Limit refresh rate to 5 seconds and cache results to avoid
-        unnecessary database queries and UI updates.
-        """
-        card = self.signal_cards.get("mt4_feed_server")
-        if not card or card.get("feed_info") is None:
-            return
-        
-        now = time.monotonic()
-        # Throttle feed card updates to every 5 seconds
-        if now - self._last_feed_card_refresh < 5.0:
-            return
-        self._last_feed_card_refresh = now
-        
-        store = None
-        try:
-            from repositories.mt4_feed_store import MT4FeedStore
-            store = MT4FeedStore(str(ROOT / "mt4_feed.db"))
-            health = read_mt4_feed_health(timeout=0.5)
-            self._feed_listener_available = health.listener_available
-            if health.listener_available:
-                listener_status = "Running" if health.feed_connected else "Degraded"
-                self._set_signal_running(
-                    "mt4_feed_server",
-                    health.feed_connected,
-                    status=listener_status,
-                    preserve_controls=True,
-                )
-            else:
-                proc = self.signal_processes.get("mt4_feed_server")
-                if not proc or proc.state() == QT.NotRunning:
-                    self._set_signal_running("mt4_feed_server", False)
-            heartbeat = store.get_latest_heartbeat()
-            if not heartbeat:
-                card["feed_info"].setText(
-                    "Feed: DISCONNECTED · no v87 heartbeat\n"
-                    "Attach EA v87 to a chart · HTTP 80"
-                )
-                return
-            observed = datetime.fromisoformat(str(heartbeat.get("observed_at_utc", "")).replace("Z", "+00:00"))
-            age = max(0, int((datetime.now(timezone.utc) - observed).total_seconds()))
-            state = "CONNECTED" if age <= 15 else "DEGRADED" if age <= 60 else "STALE"
-            coverage: dict[str, dict[str, int]] = {}
-            for symbol in ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"):
-                counts: dict[str, int] = {}
-                for timeframe in ("M30", "H1", "H4"):
-                    bars = store.get_bars(symbol, timeframe, "1970-01-01 00:00:00", "2099-12-31 23:59:59")
-                    counts[timeframe] = len(bars)
-                coverage[symbol] = counts
-            summary, tooltip = format_feed_card_details(state, age, coverage)
-            card["feed_info"].setText(summary)
-            card["feed_info"].setToolTip(tooltip)
-        except Exception as error:
-            card["feed_info"].setText(f"Feed: DEGRADED · {error}")
-
-        finally:
-            if store is not None:
-                try:
-                    store.close()
-                except Exception:
-                    pass
 
     def _refresh_signal_summary(self) -> None:
         if self.signal_summary is None:
@@ -3382,14 +3273,6 @@ class NativeShell:
             for key, proc in self.signal_processes.items()
             if key in visible_keys and proc and proc.state() != QT.NotRunning
         )
-        feed_proc = self.signal_processes.get("mt4_feed_server")
-        feed_owned_by_shell = bool(feed_proc and feed_proc.state() != QT.NotRunning)
-        if (
-            "mt4_feed_server" in visible_keys
-            and getattr(self, "_feed_listener_available", False)
-            and not feed_owned_by_shell
-        ):
-            running += 1
         self.signal_summary.setText(native_format("{running}/{total} running", running=running, total=len(visible_defs)))
 
     def start_signal(self, key: str) -> None:
@@ -3399,10 +3282,6 @@ class NativeShell:
         proc = self.signal_processes.get(key)
         if proc and proc.state() != QT.NotRunning:
             self._append_signal_log(key, f"{card['name']} is already running.")
-            return
-        if key == "mt4_feed_server":
-            self._append_signal_log(key, "[MT5 DATA] MT4 Feed Server is legacy/disabled; enable_legacy_mt4_feed=false to start.")
-            self._set_signal_running(key, False, status="Blocked")
             return
         profile = self.selected if key == "signal_bot" else ""
         try:
@@ -3612,11 +3491,6 @@ def run_embedded_worker(argv: list[str]) -> int | None:
             mt5_signal_bot.run_audit_service(profile_name=profile_arg(argv))
         else:
             mt5_signal_bot.main(profile_name=profile_arg(argv))
-        return 0
-    if "--mt4-feed-server" in argv:
-        import mt4_feed_server
-
-        mt4_feed_server.main()
         return 0
     if "--mimo-bot" in argv:
         runpy.run_module("mimo_bot", run_name="__main__")

@@ -84,7 +84,6 @@ def save_json_file(path, data):
 # --- Process command construction ---
 SIGNAL_SCRIPT_MAP = {
     "signal_bot": "mt5_signal_bot.py",
-    "mt4_feed_server": "mt4_feed_server.py",
     "mimo_bot": "mimo_bot.py",
     "mimo_worker": "mimo_worker.py",
     "factcheck_worker": "factcheck_worker.py",
@@ -92,7 +91,6 @@ SIGNAL_SCRIPT_MAP = {
 
 FROZEN_MODE_FLAGS = {
     "signal_bot": "--signal-bot",
-    "mt4_feed_server": "--mt4-feed-server",
     "mimo_bot": "--mimo-bot",
     "mimo_worker": "--mimo-worker",
     "factcheck_worker": "--factcheck-worker",

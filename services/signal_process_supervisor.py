@@ -16,7 +16,7 @@ log = setup_logger("signal_supervisor")
 
 
 class SignalProcessSupervisor:
-    """Supervises Signal/worker processes; the legacy MT4 Feed Server only starts when explicitly enabled."""
+    """Supervises Signal/worker processes launched by the NativeQt/Classic UI."""
 
     def __init__(
         self,
@@ -183,10 +183,6 @@ class SignalProcessSupervisor:
             return
         if info.get("proc") and info["proc"].poll() is None:
             return
-        if key == "mt4_feed_server" and not self._is_mt4_legacy_enabled():
-            self._set_running_ui(key, False, status="Blocked")
-            self._log("[MT5 DATA] MT4 Feed Server is legacy/disabled (enable_legacy_mt4_feed=false)")
-            return
 
         self._kill_orphan_processes(key)
         self._intentional_stop[key] = False
@@ -336,23 +332,9 @@ class SignalProcessSupervisor:
 
             self._ui(_finish)
 
-    def _is_mt4_legacy_enabled(self) -> bool:
-        """MT4 Feed is a hidden experimental provider, disabled by default."""
-        try:
-            import os
-            if os.environ.get("OAK_MARKET_DATA_PROVIDER", "") == "MT4_LEGACY":
-                return True
-            from config import load_config
-            return bool((load_config() or {}).get("enable_legacy_mt4_feed", False))
-        except Exception:
-            return False
-
     def start_all_signals(self, profile: str = "") -> None:
         keys = list(self._signal_procs)
         for key in keys:
-            if key == "mt4_feed_server" and not self._is_mt4_legacy_enabled():
-                self._log("[MT5 DATA] MT4 Feed Server is legacy/disabled; skipped by Run All")
-                continue
             self.start_signal_process(key, profile)
             time.sleep(1)
 

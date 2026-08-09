@@ -467,7 +467,7 @@ class MonitorWorker(threading.Thread):
                             profile=profile_name,
                             state="error",
                             last_error=failure[:200],
-                            data_provider="MT4",
+                            data_provider="MT5",
                             data_state="disconnected",
                             execution_provider="MT5",
                             execution_state="error",

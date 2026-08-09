@@ -612,7 +612,7 @@ class MT5MarketDataProvider:
             "utc_open_at": utc_open.astimezone(timezone.utc).isoformat() if utc_open else "",
             "is_complete": True,
             "canonical_symbol": canonical,
-            "resolved_mt4_symbol": resolved,
+            "resolved_symbol": resolved,
             "timeframe": tf,
             "source_id": "mt5",
         }

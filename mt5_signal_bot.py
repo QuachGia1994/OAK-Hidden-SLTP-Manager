@@ -1299,7 +1299,7 @@ def fmt_hour(h):
     return f"{h:02d}"
 
 def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
-    """Convert Broker wall time to UTC using the MT4 heartbeat offset."""
+    """Convert Broker wall time to UTC using the market data provider's clock offset."""
     target_broker = broker_dt.replace(hour=hour, minute=minute, second=second, microsecond=0)
     try:
         offset = MARKET_DATA_PROVIDER.get_broker_utc_offset(broker_dt.date())
@@ -1308,7 +1308,7 @@ def broker_time_to_ts(broker_dt, hour, minute=0, second=0):
     return int((target_broker - timedelta(hours=offset)).replace(tzinfo=timezone.utc).timestamp())
 
 # =====================================================================
-# MT4 FEED CANDLE HELPER
+# MARKET DATA CANDLE HELPER
 # =====================================================================
 def get_candle_by_ts(symbol, timeframe, target_ts, use_mt5_fallback=False):
     """Lay nến gan nhat voi UTC timestamp. Tra ve dict hoac None."""
@@ -1942,7 +1942,6 @@ MISSING_INPUT_WAIT_REASONS = frozenset({
     "ACTIVE_SOURCE_MISSING",
     "D_SNAPSHOT_NOT_PUBLISHED",
     "WRONG_SESSION_DATE",
-    "WAIT_MT4_DATA",
     "WAIT_MT5_DATA",
     "MT5_SYMBOL_UNAVAILABLE",
     "MT5_HISTORY_UNAVAILABLE",
@@ -1985,14 +1984,6 @@ def warm_timeframe_history(symbols, timeframe, start_dt, end_dt):
     if tf_attr is None:
         return
     try:
-        health = provider.get_health() if hasattr(provider, "get_health") else None
-        if getattr(provider, "name", "") == "MT4":
-            if hasattr(health, "fresh") and hasattr(health, "degraded"):
-                fresh = health.fresh or health.degraded
-            else:
-                fresh = bool(health and (health.get("fresh") or health.get("degraded")))
-            if not (fresh or getattr(provider, "_db_store", None) is not None):
-                return
         for symbol in symbols:
             bars = provider.get_bars(symbol, tf_upper, start_dt, end_dt)
             if not bars and hasattr(provider, "fetch_historical_bars"):
@@ -2297,28 +2288,9 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
             session_date = date.today() - timedelta(days=lookback_days)
         broker_open = datetime.combine(session_date, dtime(anchor_hour, 0))
         try:
-            if getattr(provider, "name", "") == "MT4":
-                try:
-                    session_offset = provider.get_broker_utc_offset(session_date)
-                except TypeError:
-                    session_offset = provider.get_broker_utc_offset()
-            else:
-                session_offset = BROKER_CLOCK.utc_offset_for_date(session_date)
+            session_offset = BROKER_CLOCK.utc_offset_for_date(session_date)
             if not hasattr(provider, "get_exact_bar"):
                 candle = None
-            elif getattr(provider, "name", "") == "MT4":
-                try:
-                    candle = provider.get_exact_bar(source_symbol, "H4", broker_open)
-                except Exception as exc:
-                    if _is_ambiguous_source_error(exc):
-                        ambiguous_sessions.append(session_date)
-                        print(
-                            f"[D-H4] AMBIGUOUS source for {source_symbol} {session_date.isoformat()} {anchor_str} "
-                            f"Broker: {exc}"
-                        )
-                        candle = None
-                    else:
-                        raise
             else:
                 try:
                     candle = provider.get_exact_bar(source_symbol, "H4", broker_open)
@@ -2337,7 +2309,7 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
             candle = None
 
         if candle is not None and bool(candle.get("is_complete", True)):
-            if getattr(provider, "name", "") == "MT4" or candle.get("broker_dt") is None or candle.get("broker_dt") == broker_open:
+            if candle.get("broker_dt") is None or candle.get("broker_dt") == broker_open:
                 print(f"[D-H4] {source_symbol} (resolved {resolved_symbol}): session={session_date}, open={broker_open.strftime('%H:%M')} Broker")
                 return candle, session_date, session_offset, bool(ambiguous_sessions)
 
@@ -2384,13 +2356,7 @@ def find_previous_session_h4_20_candle(source_symbol, target_broker_date, market
                 and is_before_target
                 and broker_open.date() not in ambiguous_dates):
             try:
-                if getattr(provider, "name", "") == "MT4":
-                    try:
-                        candidate_offset = provider.get_broker_utc_offset(broker_open.date())
-                    except TypeError:
-                        candidate_offset = provider.get_broker_utc_offset()
-                else:
-                    candidate_offset = BROKER_CLOCK.utc_offset_for_date(broker_open.date())
+                candidate_offset = BROKER_CLOCK.utc_offset_for_date(broker_open.date())
             except Exception:
                 continue
             candidates.append((broker_open.date(), broker_open, norm, candidate_offset))
@@ -2519,8 +2485,7 @@ def _build_d_direction_evidence_h4(target_symbol, source_symbol, target_broker_d
 
     source_candle_identity = {
         "canonical_symbol": target_symbol,
-        "resolved_symbol": candle.get("resolved_mt4_symbol", source_symbol),
-        "resolved_mt4_symbol": candle.get("resolved_mt4_symbol", source_symbol),
+        "resolved_symbol": candle.get("resolved_symbol", source_symbol),
         "timeframe": "H4",
         "epoch": int(candle.get("time", utc_open.timestamp())),
         "broker_open_at": f"{session_date.isoformat()}T20:00:00{broker_offset_str}",
@@ -2673,7 +2638,7 @@ def calculate_d_direction(symbol, target_broker_date, market_data_provider=None)
                         "WAITING_BROKER_CLOCK"):
         if market_data_provider is None:
             identity = evidence.get("source_candle_identity") or {}
-            resolved = identity.get("resolved_symbol") or identity.get("resolved_mt4_symbol") or source_symbol
+            resolved = identity.get("resolved_symbol") or source_symbol
             full_key = _d_cache_key(
                 provider,
                 symbol,
@@ -2706,7 +2671,7 @@ def calculate_all_d_directions(target_broker_date, market_data_provider=None):
             if market_data_provider is None:
                 evidence = source_results[src]
                 identity = evidence.get("source_candle_identity") or {}
-                resolved = identity.get("resolved_symbol") or identity.get("resolved_mt4_symbol") or src
+                resolved = identity.get("resolved_symbol") or src
                 full_key = _d_cache_key(
                     provider,
                     src,
@@ -2730,7 +2695,7 @@ def calculate_all_d_directions(target_broker_date, market_data_provider=None):
             results[symbol] = result
             if market_data_provider is None:
                 identity = result.get("source_candle_identity") or {}
-                resolved = identity.get("resolved_symbol") or identity.get("resolved_mt4_symbol") or source_symbol
+                resolved = identity.get("resolved_symbol") or source_symbol
                 full_key = _d_cache_key(
                     provider,
                     symbol,

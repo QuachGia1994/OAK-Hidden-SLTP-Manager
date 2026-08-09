@@ -343,7 +343,6 @@ if __name__ == "__main__":
     parser.add_argument("--worker", action="store_true", help="Run in worker mode")
     parser.add_argument("--signal-bot", action="store_true", help="Run signal bot mode")
     parser.add_argument("--audit-service", action="store_true", help="Run account audit service (checkpoints + equity sampler, no candles)")
-    parser.add_argument("--mt4-feed-server", action="store_true", help="Run MT4 raw feed server mode")
     parser.add_argument("--mimo-bot", action="store_true", help="Run MiMo Telegram bot mode")
     parser.add_argument("--mimo-worker", action="store_true", help="Run MiMo worker mode")
     parser.add_argument("--factcheck-worker", action="store_true", help="Run fact-check worker mode")
@@ -353,9 +352,6 @@ if __name__ == "__main__":
     if args.factcheck_worker:
         import factcheck_worker
         factcheck_worker.main()
-    elif args.mt4_feed_server:
-        import mt4_feed_server
-        mt4_feed_server.main()
     elif args.mimo_bot:
         import runpy
         runpy.run_module("mimo_bot", run_name="__main__")

@@ -148,8 +148,8 @@ def _layer(provider, symbol: str, timeframe: str, opens: tuple[datetime, ...], a
 
 
 def _provider_wait_reason(provider) -> str:
-    """Legacy MT4 keeps its historical label; MT5 reports a market-data wait."""
-    return "WAIT_MT4_DATA" if getattr(provider, "name", "") == "MT4" else "WAIT_MT5_DATA"
+    """Market-data wait reason (MT5 is the only provider)."""
+    return "WAIT_MT5_DATA"
 
 
 def build_entry_plan(slot_dt: datetime, slot_hour: int, provider, as_of: datetime | None = None) -> dict[str, Any]:
@@ -241,14 +241,14 @@ def _resolve_single_source_bar(provider, symbol: str, timeframe: str, broker_ope
 
     Offline rebuilds have no live heartbeat, so the engine may still read the
     one persisted source.  When multiple sources publish conflicting OHLC for
-    the same exact bar this raises ``AmbiguousMT4FeedSourceError`` so the caller
+    the same exact bar this raises ``AmbiguousFeedSourceError`` so the caller
     can fail closed with an explicit ``*_AMBIGUOUS`` reason instead of a silent
     ``*_MISSING``.
     """
     try:
         return provider.get_exact_bar(symbol, timeframe, broker_open)
     except Exception as error:
-        if type(error).__name__ == "AmbiguousMT4FeedSourceError":
+        if type(error).__name__ in ("AmbiguousFeedSourceError", "AmbiguousMT4FeedSourceError"):
             raise
         return None
 
@@ -300,7 +300,7 @@ def evaluate_h49_reference_signal(slot_dt, provider, *, as_of=None) -> dict[str,
             "broker_open_at": source_open.isoformat(),
             "broker_close_at": source_close.isoformat(),
             "source_id": (h1 or {}).get("source_id"),
-            "resolved_symbol": (h1 or {}).get("resolved_mt4_symbol"),
+            "resolved_symbol": (h1 or {}).get("resolved_symbol"),
             "open_exact": None,
             "high_exact": None,
             "low_exact": None,
@@ -325,7 +325,7 @@ def evaluate_h49_reference_signal(slot_dt, provider, *, as_of=None) -> dict[str,
         "broker_open_at": h1.get("broker_open_at") or source_open.isoformat(),
         "broker_close_at": h1.get("broker_close_at") or source_close.isoformat(),
         "source_id": h1.get("source_id"),
-        "resolved_symbol": h1.get("resolved_mt4_symbol") or h1.get("canonical_symbol"),
+        "resolved_symbol": h1.get("resolved_symbol") or h1.get("canonical_symbol"),
         "open_exact": h1.get("open_exact"),
         "high_exact": h1.get("high_exact"),
         "low_exact": h1.get("low_exact"),

@@ -95,13 +95,12 @@ class SignalsTab(BaseTab):
 
         signal_defs = [
             ("signal_bot", "MT5 Account Audit Service", "#2fa572"),
-            ("mt4_feed_server", "MT4 Feed Server", "#1f538d"),
             ("mimo_bot", "MiMo Telegram Bot", "#b33dd4"),
             ("mimo_worker", "MiMo Worker", "#d4a03d"),
             ("factcheck_worker", "Fact Check Worker", "#00bfa5"),
         ]
 
-        positions = [(0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1), (2, 0, 2)]
+        positions = [(0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1)]
         self.signal_procs = {}
 
         for idx, (key, name, color) in enumerate(signal_defs):

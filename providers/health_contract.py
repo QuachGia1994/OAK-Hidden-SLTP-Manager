@@ -1,9 +1,8 @@
 """Standardized market-data provider health contract.
 
-Both ``MT5MarketDataProvider`` and ``MT4LegacyMarketDataProvider`` return a
-:class:`MarketDataHealth` from ``get_health()`` so consumers never mix ``dict``
-and attribute access (the historical ``'dict' object has no attribute 'fresh'``
-failure mode).
+``MT5MarketDataProvider`` returns a :class:`MarketDataHealth` from
+``get_health()`` so consumers never mix ``dict`` and attribute access (the
+historical ``'dict' object has no attribute 'fresh'`` failure mode).
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """Deterministic, advisory-only D1 stock scanner.
 
-This module deliberately has no dependency on the Forex signal log, MT4/MT5,
+This module deliberately has no dependency on the Forex signal log, MT5,
 GBP/XAU symbols, or H-slots.  Every result is calculated from completed local
 EOD bars whose date is not later than the requested evaluation date.
 """
