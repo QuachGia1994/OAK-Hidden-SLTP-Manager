@@ -393,22 +393,37 @@ class MT5MarketDataProvider:
     # Broker clock / health
     # ------------------------------------------------------------------ #
     def get_broker_now(self):
-        if self._clock is not None and hasattr(self._clock, "now"):
-            return self._clock.now()
+        """Return Broker wall time only when the terminal has a recent market tick.
+
+        ``terminal_info().time`` can remain frozen while the IPC session is alive,
+        so it is not sufficient evidence for live scheduling. A recent XAUUSD
+        tick is the execution clock liveness oracle; when no recent tick exists,
+        fail closed rather than scheduling from stale broker time.
+        """
         mt5 = self.mt5
-        try:
-            tinfo = mt5.terminal_info()
-            if tinfo is not None and getattr(tinfo, "time", None) is not None:
-                return datetime.fromtimestamp(int(tinfo.time)).replace(tzinfo=None)
-        except Exception:
-            pass
+        max_age = float(os.environ.get("MT5_BROKER_TICK_MAX_AGE_SECONDS", "120") or 120)
+        if max_age < 1:
+            max_age = 1
         try:
             tick = mt5.symbol_info_tick("XAUUSD")
-            if tick is not None and getattr(tick, "time", None) is not None:
-                return datetime.fromtimestamp(int(tick.time)).replace(tzinfo=None)
-        except Exception:
-            pass
-        raise BrokerClockError("MT5 terminal clock unavailable")
+            tick_time = getattr(tick, "time", None) if tick is not None else None
+            if tick_time is None:
+                raise BrokerClockError("MT5 XAUUSD tick unavailable")
+            tick_utc = datetime.fromtimestamp(int(tick_time), tz=timezone.utc)
+            age = (datetime.now(timezone.utc) - tick_utc).total_seconds()
+            if age < -5 or age > max_age:
+                raise BrokerClockError(f"MT5 XAUUSD tick stale (age={age:.1f}s)")
+        except BrokerClockError:
+            raise
+        except Exception as error:
+            raise BrokerClockError(f"MT5 tick clock unavailable: {error}") from error
+
+        if self._clock is not None and hasattr(self._clock, "now"):
+            try:
+                return self._clock.now()
+            except Exception as error:
+                raise BrokerClockError(f"Broker clock unavailable: {error}") from error
+        raise BrokerClockError("Broker clock calibration unavailable")
 
     def get_broker_utc_offset(self, broker_date=None, **kwargs) -> int:
         errors: list[Exception] = []
@@ -478,15 +493,37 @@ class MT5MarketDataProvider:
             )
         now_utc = datetime.now(timezone.utc)
         fresh_age_limit = timedelta(hours=int(os.environ.get("MT5_HEALTH_FRESH_HOURS", "8") or 8))
-        fresh = self._last_preload_ok_utc is not None and (now_utc - self._last_preload_ok_utc) <= fresh_age_limit
+        preload_fresh = self._last_preload_ok_utc is not None and (now_utc - self._last_preload_ok_utc) <= fresh_age_limit
+        session_ok = self._session_matches_profile()
+        tick_fresh = False
+        tick_age = 999.0
+        tick_error = ""
+        try:
+            tick = self.mt5.symbol_info_tick("XAUUSD")
+            tick_time = getattr(tick, "time", None) if tick is not None else None
+            if tick_time is None:
+                tick_error = "MT5 XAUUSD tick unavailable"
+            else:
+                tick_utc = datetime.fromtimestamp(int(tick_time), tz=timezone.utc)
+                tick_age = (now_utc - tick_utc).total_seconds()
+                max_tick_age = float(os.environ.get("MT5_BROKER_TICK_MAX_AGE_SECONDS", "120") or 120)
+                tick_fresh = -5 <= tick_age <= max(1.0, max_tick_age)
+                if not tick_fresh:
+                    tick_error = f"MT5 XAUUSD tick stale (age={tick_age:.1f}s)"
+        except Exception as error:
+            tick_error = f"MT5 tick health error: {error}"
+
+        clock_verified = self.is_broker_utc_offset_verified()
+        fresh = bool(preload_fresh and session_ok and tick_fresh and clock_verified)
+        error = self._health_error or tick_error or ("MT5 profile session mismatch" if not session_ok else "")
         return MarketDataHealth(
-            state="connected" if self._last_preload_ok_utc is not None else "degraded",
+            state="connected" if fresh else "degraded",
             fresh=fresh,
-            degraded=self._connected and (self._last_preload_ok_utc is None or not fresh),
-            age_seconds=0.0,
-            observed_at_utc=datetime.now(timezone.utc).isoformat(),
-            clock_verified=self.is_broker_utc_offset_verified(),
-            error=self._health_error,
+            degraded=not fresh,
+            age_seconds=max(0.0, tick_age),
+            observed_at_utc=now_utc.isoformat(),
+            clock_verified=clock_verified,
+            error=error,
         )
 
     # ------------------------------------------------------------------ #

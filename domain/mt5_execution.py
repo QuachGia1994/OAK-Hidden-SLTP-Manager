@@ -61,7 +61,7 @@ class MT5ExecutionGateway:
     def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=88000,
                  symbol_resolver=None, max_drawdown_pct=6.0, max_volume=0.05,
                  allow_weekends=False, initial_peak_equity=None, risk_state_dir=None,
-                 health_provider=None):
+                 health_provider=None, max_tick_age_seconds=120):
         self.mt5 = mt5_module
         self.store = store
         self.enabled = bool(enabled)
@@ -73,6 +73,7 @@ class MT5ExecutionGateway:
         self.initial_peak_equity = initial_peak_equity
         self.risk_state_dir = risk_state_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.health_provider = health_provider
+        self.max_tick_age_seconds = max(1.0, float(max_tick_age_seconds))
 
     def schedule_signal(self, result, broker_date, slot_hour, now_utc=None):
         """Persist the common-entry intent for each applicable ready pair once."""
@@ -188,6 +189,12 @@ class MT5ExecutionGateway:
             info = self.mt5.symbol_info(symbol)
             if not tick or not info or self.volume <= 0:
                 raise RuntimeError("MT5 symbol tick/info unavailable")
+            tick_time = getattr(tick, "time", None)
+            if tick_time is None:
+                raise RuntimeError("MT5 symbol tick timestamp unavailable")
+            tick_age = (now - datetime.fromtimestamp(int(tick_time), tz=timezone.utc)).total_seconds()
+            if tick_age < -5 or tick_age > self.max_tick_age_seconds:
+                raise RuntimeError(f"MT5 symbol tick stale (age={tick_age:.1f}s)")
             order_type = getattr(self.mt5, "ORDER_TYPE_BUY", 0) if intent["direction"] == "BUY" else getattr(self.mt5, "ORDER_TYPE_SELL", 1)
             price = tick.ask if order_type == getattr(self.mt5, "ORDER_TYPE_BUY", 0) else tick.bid
             request = {

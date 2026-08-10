@@ -46,7 +46,11 @@ class FakeMT5:
         return SimpleNamespace(volume_min=0.01, volume_max=5.0, volume_step=0.01, filling_mode=1)
 
     def symbol_info_tick(self, symbol):
-        return SimpleNamespace(ask=1.2, bid=1.1)
+        return SimpleNamespace(
+            ask=1.2,
+            bid=1.1,
+            time=int(datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc).timestamp()),
+        )
 
     def positions_get(self, symbol=None):
         return []
@@ -61,19 +65,19 @@ class FakeMT5:
         return SimpleNamespace(retcode=self.TRADE_RETCODE_DONE, order=len(self.sent), deal=len(self.sent))
 
 
-def ready_result(entry_at_utc="2026-08-03T06:49:00Z"):
+def ready_result(entry_at_utc="2026-08-03T06:49:00Z", entry_time="09:49"):
     return {
         "logic_version": 88,
         "signal": "BUY",
         "signal_state": "READY",
         "entry_state": "READY",
-        "entry_time": "09:49",
+        "entry_time": entry_time,
         "hour": 9,
         "applicable_pairs": ["XAUUSD", "GBPUSD", "GBPCAD"],
         "pair_dirs": {"XAUUSD": "BUY", "GBPUSD": "BUY", "GBPAUD": None, "GBPJPY": None, "GBPCAD": "BUY"},
         "pair_signal_states": {"XAUUSD": "READY", "GBPUSD": "READY", "GBPAUD": "NOT_APPLICABLE", "GBPJPY": "NOT_APPLICABLE", "GBPCAD": "READY"},
-        "pair_entry_times": {"XAUUSD": "09:49", "GBPUSD": "09:49", "GBPAUD": None, "GBPJPY": None, "GBPCAD": "09:49"},
-        "pair_entry_at_utc": {"XAUUSD": "2026-08-03T06:49:00Z", "GBPUSD": "2026-08-03T06:49:00Z", "GBPCAD": "2026-08-03T06:49:00Z"},
+        "pair_entry_times": {"XAUUSD": entry_time, "GBPUSD": entry_time, "GBPAUD": None, "GBPJPY": None, "GBPCAD": entry_time},
+        "pair_entry_at_utc": {"XAUUSD": entry_at_utc, "GBPUSD": entry_at_utc, "GBPCAD": entry_at_utc},
     }
 
 
@@ -193,6 +197,28 @@ def test_healthy_market_data_allows_entry(tmp_path):
     gateway.process_due(now_utc=now)
     assert len(mt5.sent) == 3
     assert {row["status"] for row in store.rows.values()} == {"EXECUTED"}
+
+
+def test_stale_symbol_tick_fails_closed_before_order_send(tmp_path):
+    store = IntentStore()
+    mt5 = FakeMT5()
+    mt5.symbol_info_tick = lambda symbol: SimpleNamespace(
+        ask=1.2,
+        bid=1.1,
+        time=int((datetime.now(timezone.utc).timestamp()) - 300),
+    )
+    gateway = MT5ExecutionGateway(
+        mt5, store, enabled=True, initial_peak_equity=5000.0,
+        risk_state_dir=str(tmp_path), health_provider=FakeHealthProvider(),
+    )
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    entry_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    entry_time = now.strftime("%H:%M")
+    gateway.schedule_signal(ready_result(entry_at_utc=entry_at, entry_time=entry_time), now.date(), 9, now_utc=now)
+    gateway.process_due(now_utc=now)
+    assert mt5.sent == []
+    assert all(row["status"] == "PENDING" for row in store.rows.values())
+    assert all("stale" in row["last_error"].lower() for row in store.rows.values()), [row["last_error"] for row in store.rows.values()]
 
 
 def test_enabled_gateway_sends_each_common_entry_once(tmp_path):

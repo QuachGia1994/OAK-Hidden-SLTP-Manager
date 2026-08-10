@@ -65,11 +65,17 @@ class _FakeMT5:
     def symbol_select(self, symbol, enable):
         return True
 
+    def symbol_info_tick(self, symbol):
+        return SimpleNamespace(time=int(datetime.now(timezone.utc).timestamp()), bid=1.0, ask=1.0)
+
     def copy_rates_range(self, symbol, timeframe, start, end):
         return []
 
 
 class _FakeClock:
+    def now(self):
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+
     def get_broker_utc_offset(self, broker_date=None):
         return 7
 
@@ -110,6 +116,35 @@ class TestMarketDataHealthContract(unittest.TestCase):
         original = mt5_signal_bot.MARKET_DATA_PROVIDER
         try:
             set_market_data_provider(provider)
+            with self.assertRaises(MarketDataClockError):
+                get_broker_time()
+        finally:
+            set_market_data_provider(original)
+
+    def test_health_fails_closed_when_xau_tick_is_stale(self):
+        fake = _FakeMT5()
+        fake.symbol_info_tick = lambda symbol: SimpleNamespace(
+            time=int((datetime.now(timezone.utc).timestamp()) - 300), bid=1.0, ask=1.0
+        )
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=_FakeClock())
+        provider._connected = True
+        provider._last_preload_ok_utc = datetime.now(timezone.utc)
+        health = provider.get_health()
+        self.assertFalse(health.fresh)
+        self.assertTrue(health.degraded)
+        self.assertIn("stale", health.error)
+
+    def test_broker_time_fails_closed_when_xau_tick_is_stale(self):
+        fake = _FakeMT5()
+        fake.symbol_info_tick = lambda symbol: SimpleNamespace(
+            time=int((datetime.now(timezone.utc).timestamp()) - 300), bid=1.0, ask=1.0
+        )
+        provider = MT5MarketDataProvider(mt5_module=fake, broker_clock=_FakeClock())
+        original = mt5_signal_bot.MARKET_DATA_PROVIDER
+        try:
+            set_market_data_provider(provider)
+            provider._connected = True
+            provider._last_preload_ok_utc = datetime.now(timezone.utc)
             with self.assertRaises(MarketDataClockError):
                 get_broker_time()
         finally:
@@ -477,6 +512,9 @@ class TestHealthAfterClear(unittest.TestCase):
 
             def symbol_select(self, s, e):
                 return True
+
+            def symbol_info_tick(self, symbol):
+                return SimpleNamespace(time=int(datetime.now(timezone.utc).timestamp()), bid=1.0, ask=1.0)
 
             def copy_rates_range(self, s, tf, start, end):
                 return bar
