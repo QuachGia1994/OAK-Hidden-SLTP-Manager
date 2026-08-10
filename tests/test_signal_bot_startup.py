@@ -21,6 +21,7 @@ class SignalBotStartupTests(unittest.TestCase):
 
         with (
             patch.object(mt5_signal_bot, "try_init_mt5", return_value=True),
+            patch.object(mt5_signal_bot, "mt5_ready", True),
             patch.object(mt5_signal_bot, "mt5") as terminal,
             patch.object(mt5_signal_bot, "get_broker_time", side_effect=broker_time),
             patch.object(mt5_signal_bot, "_load_state", return_value={"sent_today": set()}),
@@ -34,6 +35,7 @@ class SignalBotStartupTests(unittest.TestCase):
             patch.object(mt5_signal_bot, "_process_live_slot"),
             patch.object(mt5_signal_bot, "_check_and_rebuild_after_d_ready"),
             patch.object(mt5_signal_bot, "_save_state"),
+            patch.object(mt5_signal_bot.threading, "Thread") as heartbeat_thread,
             patch.object(mt5_signal_bot.MARKET_DATA_PROVIDER, "get_broker_utc_offset", return_value=3),
             patch.object(mt5_signal_bot.MARKET_DATA_PROVIDER, "_compute_offset", return_value=3),
         ):
@@ -49,4 +51,3 @@ class SignalBotStartupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-            patch.object(mt5_signal_bot, "mt5_ready", True),

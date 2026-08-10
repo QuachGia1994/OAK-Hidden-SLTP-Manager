@@ -147,11 +147,28 @@ def _call_initialize(mt5_module: Any, path: Path, profile: Any) -> bool:
         return bool(mt5_module.initialize(str(path)))
 
 
+def _profile_requires_account_identity(profile: Any) -> bool:
+    """Return True when the profile can create live execution side effects."""
+    if not isinstance(profile, dict):
+        return False
+    if str(profile.get("signal_execution_enabled", "")).strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    if str(profile.get("execution_enabled", "")).strip().lower() in {"1", "true", "yes", "on"}:
+        return True
+    copy_role = str(profile.get("copy_role", "")).strip().lower()
+    return copy_role not in {"", "none", "null", "off", "disabled"}
+
+
 def _account_matches(account: Any, profile: Any) -> bool:
     if not isinstance(profile, dict) or account is None:
         return True
     expected_login = profile.get("login_id", profile.get("login"))
     expected_server = profile.get("server", profile.get("broker"))
+    if expected_login in (None, "") and not expected_server:
+        # A profile capable of sending trades must explicitly bind itself to an
+        # account/server.  Path-only matching is insufficient because a single
+        # MT5 terminal can be logged into a different account after restart.
+        return not _profile_requires_account_identity(profile)
     if expected_login not in (None, ""):
         try:
             if int(getattr(account, "login", 0)) != int(expected_login):
@@ -163,6 +180,22 @@ def _account_matches(account: Any, profile: Any) -> bool:
         if str(expected_server).lower() not in actual.lower():
             return False
     return True
+
+
+def validate_mt5_profile_session(mt5_module: Any, profile_config: Any) -> tuple[bool, str]:
+    """Continuously validate the currently attached MT5 session against a profile."""
+    if mt5_module is None:
+        return False, "MT5_MODULE_MISSING"
+    try:
+        terminal_info = mt5_module.terminal_info()
+        account = mt5_module.account_info()
+    except Exception as error:
+        return False, f"MT5_SESSION_QUERY_ERROR:{error}"
+    if terminal_info is None or account is None:
+        return False, "MT5_SESSION_UNAVAILABLE"
+    if not _account_matches(account, profile_config):
+        return False, "ACCOUNT_MISMATCH"
+    return True, "SESSION_OK"
 
 
 def ensure_mt5_profile_connected(
@@ -302,4 +335,5 @@ __all__ = [
     "normalize_terminal_path",
     "discover_terminal_candidates",
     "ensure_mt5_profile_connected",
+    "validate_mt5_profile_session",
 ]

@@ -42,7 +42,10 @@ from domain.signal_v87 import (
     get_evaluated_pairs_for_hour as get_core_evaluated_pairs_for_hour,
 )
 from domain.mt5_execution import MT5ExecutionGateway
-from services.mt5_terminal_service import ensure_mt5_profile_connected
+from services.mt5_terminal_service import (
+    ensure_mt5_profile_connected,
+    validate_mt5_profile_session,
+)
 
 log = setup_logger("signal")
 
@@ -4623,9 +4626,17 @@ def _mt5_profile_config(profile_name=None):
 
 def try_init_mt5():
     global mt5_ready, _mt5_connection_error
-    if mt5_ready:
-        return True
     profile = _mt5_profile_config()
+    if mt5_ready:
+        valid, reason = validate_mt5_profile_session(mt5, profile)
+        if valid:
+            return True
+        mt5_ready = False
+        _mt5_connection_error = reason
+        try:
+            mt5.shutdown()
+        except Exception:
+            pass
     launch = ensure_mt5_profile_connected(profile, mt5_module=mt5, timeout_seconds=60)
     ok = launch.ok
     if ok:
@@ -5181,6 +5192,21 @@ def main(profile_name=None):
         while True:
             if not mt5_ready:
                 try_init_mt5()
+                if not mt5_ready:
+                    time.sleep(5)
+                    continue
+            elif not validate_mt5_profile_session(mt5, _mt5_profile_config())[0]:
+                # A terminal can be logged into another account after a manual
+                # login/reconnect.  Stop all automated execution until the
+                # selected profile is re-established; never trade on a path-only
+                # match.
+                mt5_ready = False
+                _mt5_connection_error = "ACCOUNT_MISMATCH"
+                try:
+                    mt5.shutdown()
+                except Exception:
+                    pass
+                continue
 
             try:
                 broker_dt = get_broker_time()
