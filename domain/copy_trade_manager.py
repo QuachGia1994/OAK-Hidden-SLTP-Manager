@@ -2757,27 +2757,38 @@ class CopyTradeManager:
         tp_points = float(trade.get("tp", 0) or 0)
         profile_name = self.config.get("profile_name", "Unknown")
 
-        try:
-            initial_peak = self.config.get("risk_initial_peak_equity")
-            initial_peak = float(initial_peak) if initial_peak not in (None, "") else None
-        except (TypeError, ValueError):
-            initial_peak = None
-        risk_limit = float(self.config.get("risk_max_volume", self.max_lot_per_trade) or self.max_lot_per_trade)
-        risk = evaluate_mt5_account_risk(
-            mt5,
-            volume=lot,
-            risk_state_dir=_PROJECT_ROOT,
-            initial_peak_equity=initial_peak,
-            config=RiskGateConfig(
-                max_drawdown_pct=float(self.config.get("risk_max_drawdown_pct", 6.0) or 6.0),
-                max_volume=risk_limit,
-            ),
-        )
-        if not risk.allowed:
-            self._notify_scheduled_risk_denial_once(profile_name, trade, risk.reason)
-            return "fail"
-
-        self._clear_scheduled_risk_denial(trade)
+        # Equity/FDD protection is opt-in. When the profile does not enable
+        # balance/equity-based SL/TP and has no explicit risk gate settings,
+        # scheduled entries must preserve the legacy contract: execute at the
+        # requested time instead of being blocked by an unprovisioned HWM.
+        risk_enabled = bool(self.config.get("risk_gate_enabled", False)) or any(
+            self.config.get(key) not in (None, "", False)
+            for key in ("risk_initial_peak_equity", "risk_max_drawdown_pct", "risk_max_volume")
+        ) or bool(self.config.get("use_balance_sltp", False))
+        if risk_enabled:
+            try:
+                initial_peak = self.config.get("risk_initial_peak_equity")
+                initial_peak = float(initial_peak) if initial_peak not in (None, "") else None
+            except (TypeError, ValueError):
+                initial_peak = None
+            risk_limit = float(self.config.get("risk_max_volume", self.max_lot_per_trade) or self.max_lot_per_trade)
+            risk = evaluate_mt5_account_risk(
+                mt5,
+                volume=lot,
+                risk_state_dir=_PROJECT_ROOT,
+                initial_peak_equity=initial_peak,
+                config=RiskGateConfig(
+                    max_drawdown_pct=float(self.config.get("risk_max_drawdown_pct", 6.0) or 6.0),
+                    max_volume=risk_limit,
+                ),
+            )
+            if not risk.allowed:
+                self._notify_scheduled_risk_denial_once(profile_name, trade, risk.reason)
+                return "fail"
+            self._clear_scheduled_risk_denial(trade)
+        else:
+            # Clear stale denial markers left by an earlier risk-enabled run.
+            self._clear_scheduled_risk_denial(trade)
         prep = self._prepare_scheduled_trade(trade, order_type_override=order_type)
         if prep == "skip":
             return "skip"

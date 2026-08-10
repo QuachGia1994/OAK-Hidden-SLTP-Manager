@@ -30,14 +30,26 @@ def test_signal_gateway_uses_live_risk_gate_before_order_send():
     assert source.index("evaluate_mt5_account_risk(") < source.index("self.mt5.order_send(")
 
 
-def test_scheduled_entry_uses_live_risk_gate_before_preparation():
+def test_scheduled_entry_risk_gate_is_opt_in_and_never_blocks_legacy_profiles():
     source = _source("domain/copy_trade_manager.py")
     start = source.index("def _send_scheduled_market_order")
     end = source.index("def _execute_scheduled", start)
     body = source[start:end]
+    assert "risk_gate_enabled" in body
+    assert "use_balance_sltp" in body
     assert "evaluate_mt5_account_risk(" in body
-    assert body.index("evaluate_mt5_account_risk(") < body.index("self._prepare_scheduled_trade(")
-    assert body.index("evaluate_mt5_account_risk(") < body.index("send_order_idempotent(")
+    assert body.index("risk_enabled =") < body.index("evaluate_mt5_account_risk(")
+    assert body.index("risk_enabled =") < body.index("self._prepare_scheduled_trade(")
+    assert body.index("self._prepare_scheduled_trade(") < body.index("send_order_idempotent(")
+
+
+def test_default_profile_does_not_enable_equity_fdd_gate():
+    profile = __import__("json").loads(_source("profiles.json"))["VantageDemo"]
+    assert profile.get("use_balance_sltp") is False
+    assert profile.get("risk_gate_enabled", False) is False
+    assert profile.get("risk_initial_peak_equity") in (None, "")
+    assert profile.get("risk_max_drawdown_pct") in (None, "")
+    assert profile.get("risk_max_volume") in (None, "")
 
 
 def test_copy_entry_uses_live_risk_gate_before_send():
