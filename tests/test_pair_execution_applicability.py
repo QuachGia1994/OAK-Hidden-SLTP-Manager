@@ -29,6 +29,9 @@ class FakeMT5:
     TRADE_RETCODE_DONE = 10009
     TRADE_RETCODE_INVALID_FILL = 10030
 
+    def account_info(self):
+        return SimpleNamespace(balance=5000.0, equity=5000.0)
+
     def symbol_select(self, symbol, selected):
         return True
 
@@ -51,6 +54,7 @@ class FakeMT5:
 def _h7_ready():
     return {
         "logic_version": SIGNAL_LOGIC_VERSION,
+        "signal": "BUY",
         "hour": 7,
         "signal_state": "READY",
         "entry_state": "READY",

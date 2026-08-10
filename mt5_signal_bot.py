@@ -289,6 +289,14 @@ def _get_signal_execution_gateway():
         magic = int(profile_cfg.get("signal_magic", 87000))
     except (TypeError, ValueError):
         magic = 87000
+    try:
+        max_drawdown_pct = float(profile_cfg.get("execution_max_drawdown_pct", 6.0))
+    except (TypeError, ValueError):
+        max_drawdown_pct = 6.0
+    try:
+        max_volume = float(profile_cfg.get("execution_max_volume", 0.05))
+    except (TypeError, ValueError):
+        max_volume = 0.05
     _signal_execution_gateway = MT5ExecutionGateway(
         mt5,
         store,
@@ -296,6 +304,9 @@ def _get_signal_execution_gateway():
         volume=volume,
         magic=magic,
         symbol_resolver=resolve_mt5_symbol,
+        max_drawdown_pct=max_drawdown_pct,
+        max_volume=max_volume,
+        allow_weekends=_as_bool(profile_cfg.get("signal_live_weekends")),
     )
     return _signal_execution_gateway
 

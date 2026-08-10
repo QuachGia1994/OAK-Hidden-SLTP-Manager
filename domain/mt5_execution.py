@@ -12,6 +12,13 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta, timezone
 
+from domain.execution_policy import (
+    ExecutionPolicyConfig,
+    evaluate_execution_intent,
+    evaluate_execution_policy,
+)
+from domain.risk_gate import RiskGateConfig, evaluate_risk_gate
+
 
 SIGNAL_LOGIC_VERSION = 88
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
@@ -42,17 +49,31 @@ def applicable_pairs_for(result):
 class MT5ExecutionGateway:
     """Queue and, when explicitly enabled, execute the slot's applicable intents."""
 
-    def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=88000, symbol_resolver=None):
+    def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=88000,
+                 symbol_resolver=None, max_drawdown_pct=6.0, max_volume=0.05,
+                 allow_weekends=False):
         self.mt5 = mt5_module
         self.store = store
         self.enabled = bool(enabled)
         self.volume = float(volume)
         self.magic = int(magic)
         self.symbol_resolver = symbol_resolver or (lambda symbol: symbol)
+        self.policy_config = ExecutionPolicyConfig(enabled=self.enabled, allow_weekends=allow_weekends)
+        self.risk_config = RiskGateConfig(max_drawdown_pct=float(max_drawdown_pct), max_volume=float(max_volume))
 
     def schedule_signal(self, result, broker_date, slot_hour, now_utc=None):
         """Persist the common-entry intent for each applicable ready pair once."""
-        if not self._is_actionable(result, slot_hour):
+        policy = evaluate_execution_policy(
+            result,
+            slot_hour,
+            now_utc=now_utc,
+            config=ExecutionPolicyConfig(
+                enabled=True,
+                allow_weekends=self.policy_config.allow_weekends,
+                max_entry_age_seconds=self.policy_config.max_entry_age_seconds,
+            ),
+        )
+        if not policy.allowed:
             return []
         date_text = broker_date.isoformat() if hasattr(broker_date, "isoformat") else str(broker_date)
         entries = result.get("pair_entry_times") or {}
@@ -94,7 +115,7 @@ class MT5ExecutionGateway:
         now_iso = _iso(now)
         executed = []
         for intent in self.store.get_due_signal_execution_intents(now_iso):
-            result = self._execute_intent(intent)
+            result = self._execute_intent(intent, now_utc=now)
             if result.get("ok"):
                 executed.append(intent["idempotency_key"])
         return executed
@@ -119,10 +140,28 @@ class MT5ExecutionGateway:
     def _key(date_text, slot_hour, symbol, entry_time, direction):
         return f"{SIGNAL_LOGIC_VERSION}|{date_text}|{int(slot_hour)}|{symbol}|{entry_time}|{direction}"
 
-    def _execute_intent(self, intent):
+    def _execute_intent(self, intent, now_utc=None):
         key = intent["idempotency_key"]
-        now = _utc_now()
+        now = now_utc if isinstance(now_utc, datetime) else _utc_now()
         try:
+            policy = evaluate_execution_intent(
+                intent,
+                now_utc=now,
+                config=self.policy_config,
+            )
+            if not policy.allowed:
+                raise RuntimeError(policy.reason)
+            account = self.mt5.account_info()
+            account_balance = getattr(account, "balance", None) if account is not None else None
+            account_equity = getattr(account, "equity", None) if account is not None else None
+            risk = evaluate_risk_gate(
+                balance=account_balance,
+                equity=account_equity,
+                volume=self.volume,
+                config=self.risk_config,
+            )
+            if not risk.allowed:
+                raise RuntimeError(risk.reason)
             symbol = self.symbol_resolver(intent["symbol"])
             if not self.mt5.symbol_select(symbol, True):
                 raise RuntimeError("symbol is not available")

@@ -29,8 +29,13 @@ class FakeMT5:
     TRADE_RETCODE_DONE = 10009
     TRADE_RETCODE_INVALID_FILL = 10030
 
-    def __init__(self):
+    def __init__(self, balance=5000.0, equity=5000.0):
         self.sent = []
+        self.balance = balance
+        self.equity = equity
+
+    def account_info(self):
+        return SimpleNamespace(balance=self.balance, equity=self.equity)
 
     def symbol_select(self, symbol, selected):
         return True
@@ -52,9 +57,10 @@ class FakeMT5:
         return SimpleNamespace(retcode=self.TRADE_RETCODE_DONE, order=len(self.sent), deal=len(self.sent))
 
 
-def ready_result():
+def ready_result(entry_at_utc="2026-08-03T06:49:00Z"):
     return {
         "logic_version": 88,
+        "signal": "BUY",
         "signal_state": "READY",
         "entry_state": "READY",
         "entry_time": "09:49",
@@ -72,8 +78,9 @@ def test_schedule_is_idempotent_and_disabled_gateway_does_not_send():
     mt5 = FakeMT5()
     gateway = MT5ExecutionGateway(mt5, store, enabled=False)
     result = ready_result()
-    first = gateway.schedule_signal(result, date(2026, 8, 3), 9)
-    second = gateway.schedule_signal(result, date(2026, 8, 3), 9)
+    now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
+    first = gateway.schedule_signal(result, date(2026, 8, 3), 9, now_utc=now)
+    second = gateway.schedule_signal(result, date(2026, 8, 3), 9, now_utc=now)
     assert first == second
     # H9 is slot-scoped: only XAUUSD, GBPUSD, GBPCAD get intents.
     assert len(store.rows) == 3
@@ -81,12 +88,24 @@ def test_schedule_is_idempotent_and_disabled_gateway_does_not_send():
     assert mt5.sent == []
 
 
+def test_risk_gate_blocks_order_when_drawdown_exceeds_limit():
+    store = IntentStore()
+    mt5 = FakeMT5(balance=5000.0, equity=4699.0)
+    gateway = MT5ExecutionGateway(mt5, store, enabled=True)
+    now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
+    gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
+    gateway.process_due(now_utc=now)
+    assert mt5.sent == []
+    assert all(row["status"] == "PENDING" for row in store.rows.values())
+    assert all("DRAWDOWN_LIMIT_EXCEEDED" in row["last_error"] for row in store.rows.values())
+
+
 def test_enabled_gateway_sends_each_common_entry_once():
     store = IntentStore()
     mt5 = FakeMT5()
     gateway = MT5ExecutionGateway(mt5, store, enabled=True)
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
-    gateway.schedule_signal(ready_result(), date(2026, 8, 3), 9, now_utc=now)
+    gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
     gateway.process_due(now_utc=now)
     assert len(mt5.sent) == 3
     assert {request["comment"] for request in mt5.sent}.__len__() == 3
