@@ -140,6 +140,19 @@ def _extract_close_ticket(raw_text: str) -> str:
     return match.group(1) if match else ""
 
 
+def _scheduled_local_datetimes(date_str: str, time_str: str) -> tuple[datetime, datetime]:
+    """Return (requested_local, execution_local) for a Telegram schedule.
+
+    Telegram `/pending ... HH:MM` stores a naive local-machine wall-clock
+    datetime by design. The execution timestamp is exactly 2 seconds earlier;
+    no BrokerClock conversion is involved in this user-facing schedule path.
+    """
+    requested = datetime.strptime(
+        f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S"
+    )
+    return requested, requested - timedelta(seconds=2)
+
+
 def _broker_clock_to_local_datetime(
     broker_clock: str,
     now_utc: datetime | None = None,
@@ -2434,6 +2447,11 @@ class CopyTradeManager:
     def _check_scheduled_trades(self):
         if not self.scheduled_trades and not getattr(self, "_scheduled_close", None): return
 
+        # Telegram scheduled ENTRY times are local-machine wall-clock times.
+        # Keep this path deliberately independent from BrokerClock: the user
+        # enters 20:15 on their machine, so 20:15 local is the requested slot.
+        # The existing 2-second early lead is intentional and preserved to
+        # reduce spread/timing slippage at the boundary.
         now_dt = datetime.now()
         now_time = now_dt.strftime("%H:%M:%S")
         now_date = now_dt.strftime("%Y-%m-%d")
@@ -2471,32 +2489,35 @@ class CopyTradeManager:
                     t_time_norm = t_time # Fallback
 
                 try:
-                    trade_full_dt = datetime.strptime(f"{trade_date} {t_time_norm}", "%Y-%m-%d %H:%M:%S")
-                    # Execute 2s early for better entry price
-                    trade_full_dt -= timedelta(seconds=2)
-                    t_time_norm = trade_full_dt.strftime("%H:%M:%S")
-                except:
-                    trade_full_dt = None
+                    # `scheduled_dt` is the user's LOCAL machine time.  Do not
+                    # convert it through BrokerClock.  `execute_dt` retains the
+                    # established -2s lead, while expiry remains anchored to
+                    # the original requested time (+10m), not the lead time.
+                    scheduled_dt, execute_dt = _scheduled_local_datetimes(
+                        trade_date, t_time_norm
+                    )
+                except Exception:
+                    scheduled_dt = None
+                    execute_dt = None
 
-                # Check if EXPIRED (More than 10 mins late)
-                is_expired = False
-                try:
-                    # Construct full datetime for trade
-                    trade_dt_str = f"{trade_date} {t_time_norm}"
-                    trade_full_dt = datetime.strptime(trade_dt_str, "%Y-%m-%d %H:%M:%S")
-                    
-                    # If trade is in the past by > 10 mins, mark as expired
-                    if (now_dt - trade_full_dt).total_seconds() > 600: # 10 mins
-                        is_expired = True
-                except: pass
+                # Check if EXPIRED (more than 10 minutes after the user's
+                # requested local time).  The -2s execution lead must not move
+                # the expiry boundary.
+                is_expired = bool(
+                    scheduled_dt is not None
+                    and (now_dt - scheduled_dt).total_seconds() > 600
+                )
 
                 if is_expired:
                     self._finalize_scheduled_trade(trade.get("id"), "expired")
                     profile_name = self.config.get("profile_name", "Unknown")
-                    self.notify(f"⚠️ [{profile_name}] Scheduled Order Expired: {trade.get('symbol')} at {t_time_norm} (skipped > 10m late)")
+                    self.notify(
+                        f"⚠️ [{profile_name}] Scheduled Order Expired: "
+                        f"{trade.get('symbol')} at {t_time_norm} (skipped > 10m late)"
+                    )
                     continue
 
-                if trade_date == now_date and t_time_norm > now_time:
+                if execute_dt is not None and now_dt < execute_dt:
                     continue
 
                 # Atomic claim BEFORE execute — only one worker may win
