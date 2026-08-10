@@ -75,4 +75,7 @@ def test_manual_entry_uses_live_risk_gate_before_any_order_send():
     body = source[start:end]
     assert "evaluate_mt5_account_risk(" in body
     assert body.index("evaluate_mt5_account_risk(") < body.index("mt5.order_send(req_c)")
-    assert body.index("evaluate_mt5_account_risk(") < body.index("res = mt5.order_send(req)")
+    assert body.index("evaluate_mt5_account_risk(") < body.index("send_order_idempotent(req,")
+    assert "mt5.order_send(req)" not in body
+    assert "_manual_idempotency_keys" in body
+    assert 'result["status"] == "UNKNOWN"' in body

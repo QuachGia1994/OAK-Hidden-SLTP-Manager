@@ -29,11 +29,12 @@ class FakeMT5:
     TRADE_RETCODE_DONE = 10009
     TRADE_RETCODE_INVALID_FILL = 10030
 
-    def __init__(self, balance=5000.0, equity=5000.0, login=123):
+    def __init__(self, balance=5000.0, equity=5000.0, login=123, mode="done"):
         self.sent = []
         self.balance = balance
         self.equity = equity
         self.login = login
+        self.mode = mode
 
     def account_info(self):
         return SimpleNamespace(balance=self.balance, equity=self.equity, login=self.login)
@@ -55,6 +56,8 @@ class FakeMT5:
 
     def order_send(self, request):
         self.sent.append(request.copy())
+        if self.mode == "unknown":
+            raise TimeoutError("broker response lost")
         return SimpleNamespace(retcode=self.TRADE_RETCODE_DONE, order=len(self.sent), deal=len(self.sent))
 
 
@@ -99,6 +102,20 @@ def test_risk_gate_blocks_order_when_drawdown_exceeds_limit(tmp_path):
     assert mt5.sent == []
     assert all(row["status"] == "PENDING" for row in store.rows.values())
     assert all("DRAWDOWN_LIMIT_EXCEEDED" in row["last_error"] for row in store.rows.values())
+
+
+def test_unknown_broker_outcome_is_terminal_until_reconciled(tmp_path):
+    store = IntentStore()
+    mt5 = FakeMT5(mode="unknown")
+    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path))
+    now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
+    gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
+    gateway.process_due(now_utc=now)
+    assert len(mt5.sent) == 3
+    assert all(row["status"] == "UNKNOWN" for row in store.rows.values())
+    assert all("UNKNOWN broker outcome" in row["last_error"] for row in store.rows.values())
+    assert gateway.process_due(now_utc=now) == []
+    assert len(mt5.sent) == 3
 
 
 def test_enabled_gateway_sends_each_common_entry_once(tmp_path):

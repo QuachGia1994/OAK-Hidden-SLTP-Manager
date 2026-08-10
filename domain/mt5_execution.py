@@ -111,7 +111,7 @@ class MT5ExecutionGateway:
         return keys
 
     def process_due(self, now_utc=None):
-        """Execute due intents; failures remain pending for a one-minute retry."""
+        """Execute due intents; explicit rejections may retry, unknown sends require reconciliation."""
         if not self.enabled:
             return []
         now = now_utc if isinstance(now_utc, datetime) else _utc_now()
@@ -189,7 +189,35 @@ class MT5ExecutionGateway:
                 "type_time": getattr(self.mt5, "ORDER_TIME_GTC", 0),
                 "type_filling": self._filling_mode(info),
             }
-            response = self._send_with_filling_retry(request)
+            try:
+                response = self._send_with_filling_retry(request)
+            except Exception as error:
+                try:
+                    existing = self._find_existing(symbol, comment)
+                except Exception as reconcile_error:
+                    existing = None
+                    reconcile_error_text = f"; reconciliation failed: {reconcile_error}"
+                else:
+                    reconcile_error_text = ""
+                if existing is not None:
+                    self.store.update_signal_execution_intent(
+                        key,
+                        status="EXECUTED",
+                        order_ticket=int(existing),
+                        updated_at_utc=_iso(now),
+                        last_error="",
+                    )
+                    return {"ok": True, "ticket": existing}
+                attempts = int(intent.get("attempts") or 0) + 1
+                self.store.update_signal_execution_intent(
+                    key,
+                    status="UNKNOWN",
+                    attempts=attempts,
+                    next_attempt_at_utc=None,
+                    last_error=f"UNKNOWN broker outcome: {error}{reconcile_error_text}"[:500],
+                    updated_at_utc=_iso(now),
+                )
+                return {"ok": False, "status": "UNKNOWN", "error": str(error)}
             done = getattr(self.mt5, "TRADE_RETCODE_DONE", 10009)
             partial = getattr(self.mt5, "TRADE_RETCODE_DONE_PARTIAL", 10010)
             retcode = getattr(response, "retcode", None)

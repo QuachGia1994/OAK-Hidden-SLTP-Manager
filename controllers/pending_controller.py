@@ -490,6 +490,7 @@ class PendingControllerMixin:
             
             # --- PRE-TRADE RISK GATE ---
             from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
+            from domain.mt5_orders import send_order_idempotent
             from pathlib import Path
             try:
                 initial_peak = self.config.get("risk_initial_peak_equity")
@@ -555,12 +556,27 @@ class PendingControllerMixin:
                         profile_name = self.config.get("profile_name", "Unknown")
                         self.notify(f"🗑️ [{profile_name}] Manual Entry: Auto Removed opposite pending {symbol} (Ticket: {o.ticket})")
 
-            res = mt5.order_send(req)
-            if res.retcode == mt5.TRADE_RETCODE_DONE:
-                 self.lbl_pos_msg.configure(text=f"{T('pos_msg_sent')} #{res.order}", text_color="green")
+            profile_name = self.config.get("profile_name", "Unknown")
+            manual_slot = (profile_name, symbol, int(order_type))
+            pending_manual = getattr(self, "_manual_idempotency_keys", None)
+            if pending_manual is None:
+                pending_manual = self._manual_idempotency_keys = {}
+            idempotency_key = pending_manual.get(manual_slot)
+            if not idempotency_key:
+                idempotency_key = f"manual:{profile_name}:{symbol}:{order_type}:{datetime.now().isoformat(timespec='microseconds')}"
+            result = send_order_idempotent(req, idempotency_key)
+            if result["status"] in ("DONE", "EXISTING"):
+                 pending_manual.pop(manual_slot, None)
+                 ticket = result.get("ticket")
+                 self.lbl_pos_msg.configure(text=f"{T('pos_msg_sent')} #{ticket}", text_color="green")
                  winsound.Beep(1000, 200)
+            elif result["status"] == "UNKNOWN":
+                 pending_manual[manual_slot] = idempotency_key
+                 self.lbl_pos_msg.configure(text=f"{T('log_fail')} UNKNOWN — reconcile before retry", text_color="red")
+                 winsound.Beep(500, 500)
             else:
-                 self.lbl_pos_msg.configure(text=f"{T('log_fail')} {res.retcode}", text_color="red")
+                 pending_manual.pop(manual_slot, None)
+                 self.lbl_pos_msg.configure(text=f"{T('log_fail')} {result.get('error', result['status'])}", text_color="red")
                  winsound.Beep(500, 500)
                  
         except Exception as e:
