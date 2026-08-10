@@ -47,7 +47,7 @@ Dashboard cho phép mở bằng chứng XAUUSD M30 để xem cả hai layer, nh�
 
 - Production: https://oak-hidden-sltp-manager-dun.vercel.app
 - Chuyển ngôn ngữ rõ ràng **EN / VN**. Thời gian tin tức hiển thị theo múi giờ hệ thống người xem, gồm cả DST.
-- Tất cả slot v87 đều là slot hoạt động; không còn suppress theo ngày đặc biệt. Trạng thái `WAIT` chỉ xuất hiện khi dữ liệu MT4 thiếu hoặc DOJI chưa resolve.
+- Tất cả slot v87 đều là slot hoạt động; không còn suppress theo ngày đặc biệt. Trạng thái `WAIT` chỉ xuất hiện khi dữ liệu MT5 thiếu hoặc DOJI chưa resolve.
 - Fact Check hỗ trợ dán text, upload, kéo thả và dán ảnh từ clipboard.
 
 ## Fact Check

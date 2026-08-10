@@ -152,7 +152,6 @@ class TestSignalBotAuditServiceFlag(unittest.TestCase):
         parser.add_argument("--signal-bot", action="store_true")
         parser.add_argument("--audit-service", action="store_true",
                             help="Run account audit service (checkpoints + equity sampler, no candles)")
-        parser.add_argument("--mt4-feed-server", action="store_true")
         parser.add_argument("--mimo-bot", action="store_true")
         parser.add_argument("--mimo-worker", action="store_true")
         parser.add_argument("--factcheck-worker", action="store_true")

@@ -127,7 +127,7 @@ class GetExactBarAutoFetchTests(unittest.TestCase):
             provider, "fetch_historical_bars"
         ) as fetch_mock:
             result = provider.get_exact_bar(
-                "XAUUSD", "M30", datetime(2026, 8, 3, 2, 30), source_id="mt4-feed-1"
+                "XAUUSD", "M30", datetime(2026, 8, 3, 2, 30), source_id="fixture-feed-1"
             )
         self.assertIsNone(result)
         fetch_mock.assert_not_called()

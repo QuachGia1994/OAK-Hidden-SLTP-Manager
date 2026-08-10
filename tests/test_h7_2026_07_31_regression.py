@@ -1,6 +1,6 @@
 """v88 regression: H7 2026-07-31 must branch H_49 / entry 07:49 Broker.
 
-The reversed signal is read from the real MT4 H1 candle 06:00 -> 07:00 Broker
+The reversed signal is read from the fixture H1 candle 06:00 -> 07:00 Broker
 (GIAM -> BUY); it is never hard-coded.  Final Reverse must NOT run at H7.
 """
 import contextlib

@@ -32,7 +32,6 @@ config.json
 # Runtime data (pushed to Redis, not git)
 bot_state.json
 signals_log.json
-mt4_server_state.json
 broker_clock_cache.json*
 
 # Dashboard

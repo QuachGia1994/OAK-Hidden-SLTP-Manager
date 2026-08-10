@@ -67,7 +67,7 @@ You are a security specialist following Strix OWASP patterns from https://github
 - [ ] Redis connections use environment variables
 - [ ] No sensitive data in client-side code
 
-### Flask (mt4_mt5_server.py)
+### Flask / HTTP services
 - [ ] Input validation on all POST endpoints
 - [ ] Rate limiting configured
 - [ ] Error handlers don't expose stack traces

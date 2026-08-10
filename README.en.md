@@ -15,7 +15,7 @@ Related docs:
 
 - Multi-profile MT5 monitor workers with exact profile isolation.
 - Hidden SL/TP, optional Visible SL/TP, auto partial close, and auto break-even.
-- Signal engine v88: the MT5 Python API is the market-data and Broker-clock source (reads completed M30/H1/H4 candles directly from the terminal); MT4 Feed is a legacy provider, disabled by default. One XAUUSD Entry Plan is shared by all five pairs.
+- Signal engine v88: the MT5 Python API is the market-data and Broker-clock source (reads completed M30/H1/H4 candles directly from the terminal). MT5 is the only active market-data provider. One XAUUSD Entry Plan is shared by all five pairs.
 - Telegram bridge with profile-safe commands and MiMo worker support. Quick orders accept `<lot> <broker HH:MM> <profile>` and convert it to the Windows clock.
 - Web dashboard with a simple EN / VN language switch.
 - Fact Check page with DuckDuckGo + Google evidence search, optional GitHub Models AI review, browser OCR, and clipboard image paste.
@@ -49,7 +49,7 @@ Active maintenance is visible through [releases](https://github.com/QuachGia1994
 3. The bot connects to the terminal, auto-resolves symbols (including broker prefixes/suffixes), preloads `M30/H1/H4` history, and normalizes timestamps from UTC to Broker time.
 4. Make sure the terminal has enough history loaded and a large enough **Max bars in chart** to cover D-Direction and the Entry Plan.
 
-> The MT4 Feed is retained as an experimental legacy provider and is disabled by default. Enable it only with `OAK_MARKET_DATA_PROVIDER=MT4_LEGACY` (developer only); it does not appear in production UI and does not auto-start.
+> The legacy MT4 Feed/HTTP feeder has been removed. Signal market data and Broker Clock come directly from the selected MT5 terminal.
 
 ## Fact Check AI
 

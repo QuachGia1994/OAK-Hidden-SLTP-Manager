@@ -69,7 +69,7 @@ test("wait reason taxonomy matches the backend integrity gate", () => {
     "H49_H1_MISSING", "H49_H1_AMBIGUOUS", "D_H4_MISSING", "D_H4_AMBIGUOUS",
     "M30_LAYER2_MISSING", "M30_LAYER3_MISSING", "CLOCK_OFFSET_UNVERIFIED",
     "ACTIVE_SOURCE_MISSING", "D_SNAPSHOT_NOT_PUBLISHED", "WRONG_SESSION_DATE",
-    "WAIT_MT4_DATA",
+    "WAIT_MT5_DATA",
   ]) {
     assert.equal(MISSING_INPUT_WAIT_REASONS.has(reason), true, reason);
     assert.equal(isMissingInputWaitReason(reason), true, reason);

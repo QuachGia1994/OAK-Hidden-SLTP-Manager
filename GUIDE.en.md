@@ -11,7 +11,7 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 
 ## Signal engine
 
-- MT4 Feed is the sole market-data and Broker-clock authority; MT5 is execution/account/position only.
+- The MT5 Python API is the market-data and Broker-clock authority; MT5 also handles execution/account/position state.
 - Outputs: `XAUUSD`, `GBPUSD`, `GBPAUD`, `GBPJPY`, and `GBPCAD`; all five share one XAUUSD Entry Plan while direction remains pair-specific.
 - Trading days: Monday to Friday. Weekend slots are off.
 - Active slots: **H=3, H=7, H=9, H=12, H=14, H=16**; each publishes at Broker `H:00`.
@@ -20,14 +20,15 @@ OAK Manager is a Windows command centre for multi-profile MT5 operations: monito
 - **Pair derivation:** XAUUSD and GBPUSD share Layer 1's Reference Signal. GBPAUD follows on same D and reverses on opposite D; GBPJPY/GBPCAD apply the inverse relation.
 - **Layer 4 — Final Reverse:** applies exactly once to XAUUSD after pair derivation; GBP pair directions are not inverted by Layer 4.
 - D-Direction is independent for all five symbols from the previous-session H4 candle opened at `20:00` Broker. Missing/DOJI data returns `WAIT`; there is no MT5 candle fallback.
-- MT4 heartbeat supplies the Broker Clock. MT5 execution loss only disables execution; stale/disconnected MT4 data fails the Signal closed.
+- MT5 health supplies the Broker Clock and market-data freshness. Stale/disconnected MT5 data fails the Signal closed (`WAIT_MT5_DATA`).
 - The MT5 execution gateway persists v87 idempotency intents; it sends orders only when the profile explicitly sets `signal_execution_enabled=true` (or `SIGNAL_BOT_EXECUTION_ENABLED=true`).
 
-### MT4 Feed v87 setup
+### MT5 market-data setup
 
-1. Start the MT4 Feed Server first and set the v87 `MT4_Data_Feeder.mq4` `FeedBaseURL` input to `http://127.0.0.1/mt4-feed` (default HTTP port 80). Allow `http://127.0.0.1` in MT4 **WebRequest** permissions. Port `:5001` remains local health/management only.
-2. The EA can attach to **any chart** to persist raw bars: it reads `Symbol()`, accepts broker prefixes/suffixes, and normalizes a safe key; no manual `SymbolName` exists. The v87 Signal core still requires XAUUSD (or GOLD), GBPUSD, GBPAUD, GBPJPY, and GBPCAD to be attached.
-3. The legacy `http://127.0.0.1:5000/mt4_data` endpoint and an EA with `ServerURL`, `BrokerName`, `SymbolName`, and `MagicNumber` inputs are pre-v87 and must be replaced.
+1. Install the Python package: `pip install MetaTrader5`.
+2. Have the MetaTrader 5 terminal running and signed in for the selected profile.
+3. The bot connects to the selected terminal, verifies the expected account/server, resolves symbols (including broker prefixes/suffixes), preloads `M30/H1/H4` history, and normalizes timestamps to Broker time.
+4. Make sure the terminal has enough history loaded and a large enough **Max bars in chart** to cover D-Direction and the Entry Plan.
 
 ### Core matrix
 
@@ -42,7 +43,7 @@ The Dashboard opens XAUUSD M30 evidence for both layers, their SW/BT groups, the
 
 - Production: https://oak-hidden-sltp-manager-dun.vercel.app
 - Use the explicit **EN / VN** switch. News times are rendered in the viewer’s local system timezone, including daylight-saving changes.
-- All v87 weekday slots are active, including special and post-special sessions. `WAIT` is reserved for missing MT4 data or unresolved DOJI.
+- All v87 weekday slots are active, including special and post-special sessions. `WAIT` is reserved for missing MT5 data or unresolved DOJI.
 - The Fact Check page accepts pasted text, uploads, drag-and-drop, and clipboard images.
 
 ## Fact Check
