@@ -2439,10 +2439,42 @@ class CopyTradeManager:
                     t["status"] = status
                     t.pop("claimed_by", None)
                     t.pop("claimed_at", None)
+                    if status in ("executed", "skipped", "expired"):
+                        t.pop("next_retry_at", None)
+                        t.pop("last_execution_failure", None)
                     break
             return trades
 
         self._with_scheduled_file_lock(_fin)
+
+    def _schedule_scheduled_retry(self, trade_id, reason, delay=5.0):
+        """Keep a due scheduled entry retryable without a per-tick notification storm."""
+        marker = {"notify": False}
+        now_ts = time.time()
+
+        def _retry(trades):
+            for t in trades:
+                if t.get("id") != trade_id:
+                    continue
+                previous = t.get("last_execution_failure")
+                t["status"] = "waiting"
+                t["next_retry_at"] = now_ts + delay
+                t.pop("claimed_by", None)
+                t.pop("claimed_at", None)
+                if previous != reason:
+                    marker["notify"] = True
+                t["last_execution_failure"] = reason
+                return trades
+            return trades
+
+        self._with_scheduled_file_lock(_retry)
+        return marker["notify"]
+
+    def _scheduled_failure_notify_once(self, trade, message, reason):
+        """Notify one execution failure edge; retries remain silent until reason changes."""
+        trade["last_execution_failure"] = reason
+        if self._schedule_scheduled_retry(trade.get("id"), reason):
+            self.notify(message)
 
     def _check_scheduled_trades(self):
         if not self.scheduled_trades and not getattr(self, "_scheduled_close", None): return
@@ -2468,6 +2500,9 @@ class CopyTradeManager:
                     claimed_at = float(trade.get("claimed_at") or 0)
                     if claimed_at and (time.time() - claimed_at) < 45:
                         continue
+                next_retry_at = float(trade.get("next_retry_at") or 0)
+                if next_retry_at and time.time() < next_retry_at:
+                    continue
                 # Check Date
                 trade_date = trade.get("date", now_date) # Default to today if missing
                 
@@ -2531,8 +2566,13 @@ class CopyTradeManager:
                 elif result == "skip":
                     self._finalize_scheduled_trade(claimed.get("id"), "skipped")
                 else:
-                    # Keep the intent retryable after a rejected/unknown broker outcome.
-                    self._finalize_scheduled_trade(claimed.get("id"), "waiting")
+                    # Keep the intent retryable, but back off between attempts and
+                    # suppress repeated operator notifications for the same failure edge.
+                    self._schedule_scheduled_retry(
+                        claimed.get("id"),
+                        claimed.get("last_execution_failure") or "scheduled_execution_failed",
+                        delay=5.0,
+                    )
 
         # Check scheduled close all (atomic pop under lock to avoid multi-worker double close)
         if hasattr(self, "_scheduled_close") and self._scheduled_close:
@@ -2668,7 +2708,7 @@ class CopyTradeManager:
                         self.notify(f"🔄 [{profile_name}] Auto Closed opposite {symbol} (Ticket: {pos.ticket}) for scheduled {trade.get('id')}")
                         closed_cnt += 1
                     else:
-                        self.notify(f"🛑 [{profile_name}] Scheduled Entry blocked: failed to close opposite {symbol} (Ticket: {pos.ticket})")
+                        self._scheduled_failure_notify_once(trade, f"🛑 [{profile_name}] Scheduled Entry blocked: failed to close opposite {symbol} (Ticket: {pos.ticket})", "close_opposite_failed")
                         return "fail"
 
         if order_type == mt5.ORDER_TYPE_BUY:
@@ -2685,7 +2725,7 @@ class CopyTradeManager:
                     if res_del.retcode == mt5.TRADE_RETCODE_DONE:
                         self.notify(f"🗑️ [{profile_name}] Auto Removed opposite pending {symbol} (Ticket: {o.ticket}) for scheduled {trade.get('id')}")
                     else:
-                        self.notify(f"🛑 [{profile_name}] Scheduled Entry blocked: failed to remove opposite pending {o.ticket}: {res_del.comment}")
+                        self._scheduled_failure_notify_once(trade, f"🛑 [{profile_name}] Scheduled Entry blocked: failed to remove opposite pending {o.ticket}: {res_del.comment}", "remove_opposite_pending_failed")
                         return "fail"
 
         if closed_cnt > 0:
@@ -2821,7 +2861,7 @@ class CopyTradeManager:
             mt5.symbol_select(symbol, True)
             tick = mt5.symbol_info_tick(symbol)
         if not tick:
-            self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: Symbol not found or Market closed")
+            self._scheduled_failure_notify_once(trade, f"❌ [{profile_name}] Failed Scheduled {symbol}: Symbol not found or Market closed", "symbol_or_market_unavailable")
             return "fail"
 
         # Final same-direction guard right before send (close/fill race window)
@@ -2856,7 +2896,7 @@ class CopyTradeManager:
             self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot")
             return "done"
 
-        self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: {result.get('error', 'unknown broker result')}")
+        self._scheduled_failure_notify_once(trade, f"❌ [{profile_name}] Failed Scheduled {symbol}: {result.get('error', 'unknown broker result')}", f"order_send:{result.get('status', 'UNKNOWN')}:{result.get('error', 'unknown')}")
         return "fail"
 
     def _execute_scheduled(self, trade):
