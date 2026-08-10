@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 from domain.execution_policy import (
@@ -23,6 +24,12 @@ from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
 
 SIGNAL_LOGIC_VERSION = 88
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+
+
+@dataclass(frozen=True)
+class ExecutionHealthDecision:
+    allowed: bool
+    reason: str
 
 
 def _utc_now():
@@ -52,7 +59,8 @@ class MT5ExecutionGateway:
 
     def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=88000,
                  symbol_resolver=None, max_drawdown_pct=6.0, max_volume=0.05,
-                 allow_weekends=False, initial_peak_equity=None, risk_state_dir=None):
+                 allow_weekends=False, initial_peak_equity=None, risk_state_dir=None,
+                 health_provider=None):
         self.mt5 = mt5_module
         self.store = store
         self.enabled = bool(enabled)
@@ -63,6 +71,7 @@ class MT5ExecutionGateway:
         self.risk_config = RiskGateConfig(max_drawdown_pct=float(max_drawdown_pct), max_volume=float(max_volume))
         self.initial_peak_equity = initial_peak_equity
         self.risk_state_dir = risk_state_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.health_provider = health_provider
 
     def schedule_signal(self, result, broker_date, slot_hour, now_utc=None):
         """Persist the common-entry intent for each applicable ready pair once."""
@@ -154,6 +163,9 @@ class MT5ExecutionGateway:
             )
             if not policy.allowed:
                 raise RuntimeError(policy.reason)
+            health_decision = self._evaluate_execution_health()
+            if not health_decision.allowed:
+                raise RuntimeError(health_decision.reason)
             risk = evaluate_mt5_account_risk(
                 self.mt5,
                 volume=self.volume,
@@ -233,6 +245,33 @@ class MT5ExecutionGateway:
             retry_at = now + timedelta(minutes=1)
             self.store.update_signal_execution_intent(key, status="PENDING", attempts=attempts, next_attempt_at_utc=_iso(retry_at), last_error=str(error)[:500], updated_at_utc=_iso(now))
             return {"ok": False, "error": str(error)}
+
+    def _evaluate_execution_health(self):
+        """Fail closed when the live market-data provider is stale/degraded.
+
+        The gateway may be constructed without a provider in isolated tests or
+        non-live tooling. Production wiring supplies the active provider, in
+        which case an entry requires connected + fresh market data and a
+        verified broker clock immediately before order submission.
+        """
+        if self.health_provider is None:
+            return ExecutionHealthDecision(True, "HEALTH_CHECK_NOT_CONFIGURED")
+        getter = getattr(self.health_provider, "get_health", None)
+        if not callable(getter):
+            return ExecutionHealthDecision(False, "MARKET_DATA_HEALTH_UNAVAILABLE")
+        try:
+            health = getter()
+        except Exception as error:
+            return ExecutionHealthDecision(False, f"MARKET_DATA_HEALTH_ERROR:{error}")
+        if health is None:
+            return ExecutionHealthDecision(False, "MARKET_DATA_HEALTH_MISSING")
+        if not bool(getattr(health, "fresh", False)):
+            return ExecutionHealthDecision(False, "MARKET_DATA_STALE")
+        if bool(getattr(health, "degraded", True)):
+            return ExecutionHealthDecision(False, "MARKET_DATA_DEGRADED")
+        if not bool(getattr(health, "clock_verified", False)):
+            return ExecutionHealthDecision(False, "BROKER_CLOCK_UNVERIFIED")
+        return ExecutionHealthDecision(True, "HEALTH_OK")
 
     def _find_existing(self, symbol, comment):
         for getter in (self.mt5.positions_get, self.mt5.orders_get):

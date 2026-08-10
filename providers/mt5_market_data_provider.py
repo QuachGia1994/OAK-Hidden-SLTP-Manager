@@ -276,6 +276,11 @@ class MT5MarketDataProvider:
         start_utc = now_utc - timedelta(days=preload_days)
         missing = []
         loaded_total = 0
+        # A new preload pass is the evidence boundary for execution health.
+        # Incomplete coverage must invalidate the previous freshness timestamp;
+        # otherwise a prior successful preload could keep the provider marked
+        # fresh while the current market-data set is incomplete.
+        self._last_preload_ok_utc = None
         print(f"[MT5 DATA] preload starting: connected={self._connected}, symbols={symbols}, timeframes={timeframes}, days={preload_days}")
         for canonical in symbols:
             resolved = self.resolve_symbol(canonical)
@@ -317,7 +322,7 @@ class MT5MarketDataProvider:
         except Exception:
             pass
         complete = not missing
-        if complete or (loaded_total > 0 and len(missing) < len(symbols) * len(timeframes)):
+        if complete:
             self._last_preload_ok_utc = datetime.now(timezone.utc)
         if complete:
             print(f"[MT5 DATA] Coverage ready: {len(symbols)} symbols x {len(timeframes)} timeframes")

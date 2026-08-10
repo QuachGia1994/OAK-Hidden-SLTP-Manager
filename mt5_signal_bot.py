@@ -307,6 +307,7 @@ def _get_signal_execution_gateway():
         max_drawdown_pct=max_drawdown_pct,
         max_volume=max_volume,
         allow_weekends=_as_bool(profile_cfg.get("signal_live_weekends")),
+        health_provider=MARKET_DATA_PROVIDER,
     )
     return _signal_execution_gateway
 

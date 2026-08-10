@@ -8,6 +8,22 @@ def _source(relative):
     return (ROOT / relative).read_text(encoding="utf-8", errors="replace")
 
 
+def test_signal_gateway_uses_live_market_health_gate_before_risk_and_order_send():
+    source = _source("domain/mt5_execution.py")
+    assert "health_provider" in source
+    assert "_evaluate_execution_health()" in source
+    assert source.index("_evaluate_execution_health()") < source.index("evaluate_mt5_account_risk(")
+    assert source.index("evaluate_mt5_account_risk(") < source.index("self.mt5.order_send(")
+
+
+def test_production_signal_gateway_wires_market_data_health_provider():
+    source = _source("mt5_signal_bot.py")
+    start = source.index("_signal_execution_gateway = MT5ExecutionGateway(")
+    end = source.index("    return _signal_execution_gateway", start)
+    body = source[start:end]
+    assert "health_provider=MARKET_DATA_PROVIDER" in body
+
+
 def test_signal_gateway_uses_live_risk_gate_before_order_send():
     source = _source("domain/mt5_execution.py")
     assert "evaluate_mt5_account_risk(" in source

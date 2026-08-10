@@ -118,6 +118,83 @@ def test_unknown_broker_outcome_is_terminal_until_reconciled(tmp_path):
     assert len(mt5.sent) == 3
 
 
+class FakeHealthProvider:
+    def __init__(self, *, fresh=True, degraded=False, clock_verified=True, error=None):
+        self.health = SimpleNamespace(
+            fresh=fresh,
+            degraded=degraded,
+            clock_verified=clock_verified,
+        )
+        self.error = error
+
+    def get_health(self):
+        if self.error:
+            raise self.error
+        return self.health
+
+
+def _gateway_with_health(tmp_path, health):
+    store = IntentStore()
+    mt5 = FakeMT5()
+    gateway = MT5ExecutionGateway(
+        mt5,
+        store,
+        enabled=True,
+        initial_peak_equity=5000.0,
+        risk_state_dir=str(tmp_path),
+        health_provider=health,
+    )
+    now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
+    gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
+    return gateway, store, mt5, now
+
+
+def test_stale_market_data_fails_closed_before_order_send(tmp_path):
+    gateway, store, mt5, now = _gateway_with_health(
+        tmp_path, FakeHealthProvider(fresh=False)
+    )
+    gateway.process_due(now_utc=now)
+    assert mt5.sent == []
+    assert all(row["status"] == "PENDING" for row in store.rows.values())
+    assert all("MARKET_DATA_STALE" in row["last_error"] for row in store.rows.values())
+
+
+def test_degraded_market_data_fails_closed_before_order_send(tmp_path):
+    gateway, store, mt5, now = _gateway_with_health(
+        tmp_path, FakeHealthProvider(fresh=True, degraded=True)
+    )
+    gateway.process_due(now_utc=now)
+    assert mt5.sent == []
+    assert all("MARKET_DATA_DEGRADED" in row["last_error"] for row in store.rows.values())
+
+
+def test_unverified_broker_clock_fails_closed_before_order_send(tmp_path):
+    gateway, store, mt5, now = _gateway_with_health(
+        tmp_path, FakeHealthProvider(fresh=True, clock_verified=False)
+    )
+    gateway.process_due(now_utc=now)
+    assert mt5.sent == []
+    assert all("BROKER_CLOCK_UNVERIFIED" in row["last_error"] for row in store.rows.values())
+
+
+def test_health_provider_error_fails_closed_before_order_send(tmp_path):
+    gateway, store, mt5, now = _gateway_with_health(
+        tmp_path, FakeHealthProvider(error=RuntimeError("health unavailable"))
+    )
+    gateway.process_due(now_utc=now)
+    assert mt5.sent == []
+    assert all("MARKET_DATA_HEALTH_ERROR" in row["last_error"] for row in store.rows.values())
+
+
+def test_healthy_market_data_allows_entry(tmp_path):
+    gateway, store, mt5, now = _gateway_with_health(
+        tmp_path, FakeHealthProvider()
+    )
+    gateway.process_due(now_utc=now)
+    assert len(mt5.sent) == 3
+    assert {row["status"] for row in store.rows.values()} == {"EXECUTED"}
+
+
 def test_enabled_gateway_sends_each_common_entry_once(tmp_path):
     store = IntentStore()
     mt5 = FakeMT5()

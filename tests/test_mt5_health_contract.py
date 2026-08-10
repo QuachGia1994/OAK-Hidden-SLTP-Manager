@@ -429,6 +429,20 @@ class TestHealthAfterClear(unittest.TestCase):
     """Fix A: health must stay fresh after provider.clear() because
     freshness relies on _last_preload_ok_utc, not cache content."""
 
+    def test_incomplete_preload_invalidates_execution_freshness(self):
+        class _IncompleteMT5(_FakeMT5):
+            def copy_rates_range(self, symbol, timeframe, start, end):
+                return []
+
+        provider = MT5MarketDataProvider(mt5_module=_IncompleteMT5(), broker_clock=_FakeClock())
+        provider.bind_profile({"path": "C:/t.exe"})
+        result = provider.preload(symbols=("XAUUSD",), timeframes=("M30",), days=1)
+
+        self.assertFalse(result.complete)
+        health = provider.get_health()
+        self.assertFalse(health.fresh)
+        self.assertTrue(health.degraded)
+
     def test_health_survives_clear(self):
         import numpy as np
 
