@@ -2692,21 +2692,53 @@ class CopyTradeManager:
             return False
 
     def _notify_scheduled_risk_denial_once(self, profile_name, trade, reason):
-        """Notify one scheduled risk denial once per intent/reason edge.
+        """Notify one scheduled risk denial once per persisted intent/reason edge.
 
         The scheduler may safely retry a blocked intent, but a missing or
         transient risk input must not become a per-tick notification storm.
-        A new reason remains observable, and a later successful risk check can
-        proceed normally without changing the fail-closed gate itself.
+        The marker is persisted under the same scheduled-file lock used by the
+        claim/finalize path, so separate worker processes share the throttle.
         """
-        if not hasattr(self, "_risk_denial_notifications"):
-            self._risk_denial_notifications = set()
-        denial_key = f"scheduled:{profile_name}:{trade.get('id')}:{reason}"
-        if denial_key in self._risk_denial_notifications:
-            return False
-        self._risk_denial_notifications.add(denial_key)
-        self.notify(f"🛑 [{profile_name}] Scheduled Entry DENIED: {reason}")
-        return True
+        marker = {"notify": False}
+
+        def mark(trades):
+            for item in trades:
+                if item.get("id") != trade.get("id"):
+                    continue
+                if item.get("last_risk_denial_reason") == reason:
+                    return trades
+                item["last_risk_denial_reason"] = reason
+                item["last_risk_denial_at"] = datetime.now(timezone.utc).isoformat()
+                marker["notify"] = True
+                return trades
+            return trades
+
+        persisted = self._with_scheduled_file_lock(mark)
+        if persisted is None:
+            # Lock failure is itself fail-closed; retain a process-local guard
+            # rather than turning a filesystem contention into notification spam.
+            if not hasattr(self, "_risk_denial_notifications"):
+                self._risk_denial_notifications = set()
+            denial_key = f"scheduled:{profile_name}:{trade.get('id')}:{reason}"
+            if denial_key in self._risk_denial_notifications:
+                return False
+            self._risk_denial_notifications.add(denial_key)
+            marker["notify"] = True
+
+        if marker["notify"]:
+            self.notify(f"🛑 [{profile_name}] Scheduled Entry DENIED: {reason}")
+        return marker["notify"]
+
+    def _clear_scheduled_risk_denial(self, trade):
+        """Clear a persisted risk-denial edge after the risk gate recovers."""
+        def clear(trades):
+            for item in trades:
+                if item.get("id") == trade.get("id"):
+                    item.pop("last_risk_denial_reason", None)
+                    item.pop("last_risk_denial_at", None)
+                    break
+            return trades
+        self._with_scheduled_file_lock(clear)
 
     def _send_scheduled_market_order(self, trade, comment="Scheduled Order", order_type_override=None, idempotency_key=None):
         symbol = trade["symbol"]
@@ -2745,6 +2777,7 @@ class CopyTradeManager:
             self._notify_scheduled_risk_denial_once(profile_name, trade, risk.reason)
             return "fail"
 
+        self._clear_scheduled_risk_denial(trade)
         prep = self._prepare_scheduled_trade(trade, order_type_override=order_type)
         if prep == "skip":
             return "skip"
