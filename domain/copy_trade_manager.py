@@ -31,7 +31,7 @@ from domain.constants import (
 )
 from domain.json_io import load_json, save_json
 from domain.i18n import T, CURRENT_LANG, LANG
-from domain.mt5_orders import get_filling_type, send_order_with_retry
+from domain.mt5_orders import get_filling_type, send_order_idempotent, send_order_with_retry
 from domain.ticket_manager import TicketManager, trades_file_for_profile
 from domain.file_lock import FileLock
 from domain.balance import get_start_day_balance
@@ -2498,11 +2498,14 @@ class CopyTradeManager:
                 if not claimed:
                     continue
 
-                try:
-                    self._execute_scheduled(claimed)
-                finally:
-                    # Always finalize so other workers never re-fire
+                result = self._execute_scheduled(claimed)
+                if result == "done":
                     self._finalize_scheduled_trade(claimed.get("id"), "executed")
+                elif result == "skip":
+                    self._finalize_scheduled_trade(claimed.get("id"), "skipped")
+                else:
+                    # Keep the intent retryable after a rejected/unknown broker outcome.
+                    self._finalize_scheduled_trade(claimed.get("id"), "waiting")
 
         # Check scheduled close all (atomic pop under lock to avoid multi-worker double close)
         if hasattr(self, "_scheduled_close") and self._scheduled_close:
@@ -2680,7 +2683,7 @@ class CopyTradeManager:
         except Exception:
             return False
 
-    def _send_scheduled_market_order(self, trade, comment="Scheduled Order", order_type_override=None):
+    def _send_scheduled_market_order(self, trade, comment="Scheduled Order", order_type_override=None, idempotency_key=None):
         symbol = trade["symbol"]
         raw_type = trade["type"] if order_type_override is None else order_type_override
         try:
@@ -2756,18 +2759,22 @@ class CopyTradeManager:
             "type_filling": get_filling_type(symbol),
         }
 
-        res = send_order_with_retry(request)
-
-        if res.retcode == mt5.TRADE_RETCODE_DONE:
+        key = idempotency_key or f"scheduled:{profile_name}:{trade.get('id')}"
+        result = send_order_idempotent(request, key)
+        if result["status"] in ("DONE", "EXISTING"):
             direction_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
             self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot")
             return "done"
 
-        self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: {res.comment}")
+        self.notify(f"❌ [{profile_name}] Failed Scheduled {symbol}: {result.get('error', 'unknown broker result')}")
         return "fail"
 
     def _execute_scheduled(self, trade):
-        self._send_scheduled_market_order(trade, comment="Scheduled Order")
+        return self._send_scheduled_market_order(
+            trade,
+            comment=f"Scheduled Order {trade.get('id')}",
+            idempotency_key=f"scheduled:{self.config.get('profile_name', 'Unknown')}:{trade.get('id')}",
+        )
 
     def _find_matching_symbol(self, m_symbol):
         """Find corresponding symbol on Slave (handles prefix/suffix)."""
@@ -2955,20 +2962,24 @@ class CopyTradeManager:
         except:
             pass
         
-        res = send_order_with_retry(req)
-        
-        if res.retcode == mt5.TRADE_RETCODE_DONE:
-            # Save Mapping
+        result = send_order_idempotent(
+            req,
+            f"copy:{profile_name}:{m_ticket}",
+        )
+        if result["status"] in ("DONE", "EXISTING"):
+            ticket = result.get("ticket")
             with self.mapping_lock:
-                self.mapping[str(m_ticket)] = res.order # res.order is the ticket
+                self.mapping[str(m_ticket)] = ticket
                 save_json(self.local_map_file, self.mapping)
 
             self._daily_trade_count += 1
             msg = f"[{profile_name}] Copied {symbol} | Vol {lot} | Origin {m_ticket}"
             self.notify(msg)
             winsound.Beep(1000, 100)
+        elif result["status"] == "UNKNOWN":
+            self.notify(f"[{profile_name}] Copy outcome UNKNOWN {symbol} | reconciliation required")
         else:
-            self.notify(f"[{profile_name}] Copy failed {symbol} | {res.comment}")
+            self.notify(f"[{profile_name}] Copy failed {symbol} | {result.get('error', 'order rejected')}")
 
     def _close_copy_trade(self, m_ticket, s_ticket):
         # Check if slave position exists

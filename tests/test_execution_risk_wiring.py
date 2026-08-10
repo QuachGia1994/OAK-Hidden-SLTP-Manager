@@ -21,7 +21,7 @@ def test_scheduled_entry_uses_live_risk_gate_before_preparation():
     body = source[start:end]
     assert "evaluate_mt5_account_risk(" in body
     assert body.index("evaluate_mt5_account_risk(") < body.index("self._prepare_scheduled_trade(")
-    assert body.index("evaluate_mt5_account_risk(") < body.index("send_order_with_retry(")
+    assert body.index("evaluate_mt5_account_risk(") < body.index("send_order_idempotent(")
 
 
 def test_copy_entry_uses_live_risk_gate_before_send():
@@ -30,7 +30,42 @@ def test_copy_entry_uses_live_risk_gate_before_send():
     end = source.index("def _close_copy_trade", start)
     body = source[start:end]
     assert "evaluate_mt5_account_risk(" in body
-    assert body.index("evaluate_mt5_account_risk(") < body.index("send_order_with_retry(")
+    assert body.index("evaluate_mt5_account_risk(") < body.index("send_order_idempotent(")
+
+
+def test_copy_entry_has_stable_idempotency_key():
+    source = _source("domain/copy_trade_manager.py")
+    start = source.index("def _open_copy_trade")
+    end = source.index("def _close_copy_trade", start)
+    body = source[start:end]
+    assert 'f"copy:{profile_name}:{m_ticket}"' in body
+
+
+def test_scheduled_entry_retries_only_after_safe_reconciliation():
+    source = _source("domain/copy_trade_manager.py")
+    start = source.index("def _send_scheduled_market_order")
+    end = source.index("def _execute_scheduled", start)
+    body = source[start:end]
+    assert "send_order_idempotent(" in body
+    assert 'f"scheduled:{profile_name}:{trade.get(\'id\')}"' in body
+
+
+def test_scheduled_failure_does_not_get_marked_executed():
+    source = _source("domain/copy_trade_manager.py")
+    start = source.index("claimed = self._claim_scheduled_trade")
+    end = source.index("# Check scheduled close all", start)
+    body = source[start:end]
+    assert 'result == "done"' in body
+    assert 'result == "skip"' in body
+    assert '"waiting"' in body
+    assert '"executed")' in body
+
+
+def test_idempotent_helper_is_used_for_entry_paths():
+    source = _source("domain/mt5_orders.py")
+    assert "def send_order_idempotent(" in source
+    source_copy = _source("domain/copy_trade_manager.py")
+    assert "send_order_idempotent(" in source_copy
 
 
 def test_manual_entry_uses_live_risk_gate_before_any_order_send():
