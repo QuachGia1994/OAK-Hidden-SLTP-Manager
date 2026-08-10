@@ -45,6 +45,7 @@ dashboard/tsconfig.tsbuildinfo
 copy_map_*.json
 ignored_*.json
 scheduled_close_*.json
+risk_equity_hwm_*.json
 
 # MiMo runtime files
 .mimocode/

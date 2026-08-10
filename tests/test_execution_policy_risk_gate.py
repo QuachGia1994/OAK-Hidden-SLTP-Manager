@@ -85,7 +85,7 @@ def test_risk_gate_rejects_missing_account_snapshot():
 
 def test_risk_gate_rejects_more_than_six_percent_drawdown():
     decision = evaluate_risk_gate(
-        balance=5000, equity=4699, volume=0.01,
+        balance=5000, equity=4699, peak_equity=5000, volume=0.01,
         config=RiskGateConfig(max_drawdown_pct=6.0, max_volume=0.05),
     )
     assert not decision.allowed
@@ -95,7 +95,7 @@ def test_risk_gate_rejects_more_than_six_percent_drawdown():
 
 def test_risk_gate_allows_within_limits():
     decision = evaluate_risk_gate(
-        balance=5000, equity=4800, volume=0.05,
+        balance=5000, equity=4800, peak_equity=5000, volume=0.05,
         config=RiskGateConfig(max_drawdown_pct=6.0, max_volume=0.05),
     )
     assert decision.allowed
@@ -104,7 +104,7 @@ def test_risk_gate_allows_within_limits():
 
 def test_risk_gate_rejects_volume_limit():
     decision = evaluate_risk_gate(
-        balance=5000, equity=5000, volume=0.06,
+        balance=5000, equity=5000, peak_equity=5000, volume=0.06,
         config=RiskGateConfig(max_drawdown_pct=6.0, max_volume=0.05),
     )
     assert not decision.allowed

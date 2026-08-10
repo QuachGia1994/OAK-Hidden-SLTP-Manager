@@ -36,6 +36,7 @@ from domain.ticket_manager import TicketManager, trades_file_for_profile
 from domain.file_lock import FileLock
 from domain.balance import get_start_day_balance
 from domain.broker_clock import BrokerClock
+from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
 
 log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2696,6 +2697,26 @@ class CopyTradeManager:
         tp_points = float(trade.get("tp", 0) or 0)
         profile_name = self.config.get("profile_name", "Unknown")
 
+        try:
+            initial_peak = self.config.get("risk_initial_peak_equity")
+            initial_peak = float(initial_peak) if initial_peak not in (None, "") else None
+        except (TypeError, ValueError):
+            initial_peak = None
+        risk_limit = float(self.config.get("risk_max_volume", self.max_lot_per_trade) or self.max_lot_per_trade)
+        risk = evaluate_mt5_account_risk(
+            mt5,
+            volume=lot,
+            risk_state_dir=_PROJECT_ROOT,
+            initial_peak_equity=initial_peak,
+            config=RiskGateConfig(
+                max_drawdown_pct=float(self.config.get("risk_max_drawdown_pct", 6.0) or 6.0),
+                max_volume=risk_limit,
+            ),
+        )
+        if not risk.allowed:
+            self.notify(f"🛑 [{profile_name}] Scheduled Entry DENIED: {risk.reason}")
+            return "fail"
+
         prep = self._prepare_scheduled_trade(trade, order_type_override=order_type)
         if prep == "skip":
             return "skip"
@@ -2864,6 +2885,26 @@ class CopyTradeManager:
             if lot < sym_info.volume_min: lot = sym_info.volume_min
             
         # Send Order
+        try:
+            initial_peak = self.config.get("risk_initial_peak_equity")
+            initial_peak = float(initial_peak) if initial_peak not in (None, "") else None
+        except (TypeError, ValueError):
+            initial_peak = None
+        risk_limit = float(self.config.get("risk_max_volume", self.max_lot_per_trade) or self.max_lot_per_trade)
+        risk = evaluate_mt5_account_risk(
+            mt5,
+            volume=lot,
+            risk_state_dir=_PROJECT_ROOT,
+            initial_peak_equity=initial_peak,
+            config=RiskGateConfig(
+                max_drawdown_pct=float(self.config.get("risk_max_drawdown_pct", 6.0) or 6.0),
+                max_volume=risk_limit,
+            ),
+        )
+        if not risk.allowed:
+            self.notify(f"🛑 [{profile_name}] Copy Entry DENIED: {risk.reason}")
+            return
+
         tick = mt5.symbol_info_tick(symbol)
         if not tick: return
         

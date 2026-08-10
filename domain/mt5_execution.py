@@ -10,6 +10,7 @@ NOT_APPLICABLE and never produce an intent or an order.
 from __future__ import annotations
 
 import hashlib
+import os
 from datetime import datetime, timedelta, timezone
 
 from domain.execution_policy import (
@@ -17,7 +18,7 @@ from domain.execution_policy import (
     evaluate_execution_intent,
     evaluate_execution_policy,
 )
-from domain.risk_gate import RiskGateConfig, evaluate_risk_gate
+from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
 
 
 SIGNAL_LOGIC_VERSION = 88
@@ -51,7 +52,7 @@ class MT5ExecutionGateway:
 
     def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=88000,
                  symbol_resolver=None, max_drawdown_pct=6.0, max_volume=0.05,
-                 allow_weekends=False):
+                 allow_weekends=False, initial_peak_equity=None, risk_state_dir=None):
         self.mt5 = mt5_module
         self.store = store
         self.enabled = bool(enabled)
@@ -60,6 +61,8 @@ class MT5ExecutionGateway:
         self.symbol_resolver = symbol_resolver or (lambda symbol: symbol)
         self.policy_config = ExecutionPolicyConfig(enabled=self.enabled, allow_weekends=allow_weekends)
         self.risk_config = RiskGateConfig(max_drawdown_pct=float(max_drawdown_pct), max_volume=float(max_volume))
+        self.initial_peak_equity = initial_peak_equity
+        self.risk_state_dir = risk_state_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     def schedule_signal(self, result, broker_date, slot_hour, now_utc=None):
         """Persist the common-entry intent for each applicable ready pair once."""
@@ -151,13 +154,11 @@ class MT5ExecutionGateway:
             )
             if not policy.allowed:
                 raise RuntimeError(policy.reason)
-            account = self.mt5.account_info()
-            account_balance = getattr(account, "balance", None) if account is not None else None
-            account_equity = getattr(account, "equity", None) if account is not None else None
-            risk = evaluate_risk_gate(
-                balance=account_balance,
-                equity=account_equity,
+            risk = evaluate_mt5_account_risk(
+                self.mt5,
                 volume=self.volume,
+                risk_state_dir=self.risk_state_dir,
+                initial_peak_equity=self.initial_peak_equity,
                 config=self.risk_config,
             )
             if not risk.allowed:

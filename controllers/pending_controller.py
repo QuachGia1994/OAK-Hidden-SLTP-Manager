@@ -488,6 +488,29 @@ class PendingControllerMixin:
                 "type_filling": get_filling_type(symbol),
             }
             
+            # --- PRE-TRADE RISK GATE ---
+            from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
+            from pathlib import Path
+            try:
+                initial_peak = self.config.get("risk_initial_peak_equity")
+                initial_peak = float(initial_peak) if initial_peak not in (None, "") else None
+            except (TypeError, ValueError):
+                initial_peak = None
+            risk_limit = float(self.config.get("risk_max_volume", 0.05) or 0.05)
+            risk = evaluate_mt5_account_risk(
+                mt5,
+                volume=vol,
+                risk_state_dir=str(Path(__file__).resolve().parents[1]),
+                initial_peak_equity=initial_peak,
+                config=RiskGateConfig(
+                    max_drawdown_pct=float(self.config.get("risk_max_drawdown_pct", 6.0) or 6.0),
+                    max_volume=risk_limit,
+                ),
+            )
+            if not risk.allowed:
+                self.lbl_pos_msg.configure(text=f"Risk Gate DENIED: {risk.reason}", text_color="red")
+                return
+
             # --- AUTO CLOSE OPPOSITE POSITIONS & PENDING ---
             opp_type = mt5.POSITION_TYPE_SELL if order_type == mt5.ORDER_TYPE_BUY else mt5.POSITION_TYPE_BUY
             positions_c = mt5.positions_get(symbol=symbol)

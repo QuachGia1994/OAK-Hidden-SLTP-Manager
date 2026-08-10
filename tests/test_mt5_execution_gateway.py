@@ -29,13 +29,14 @@ class FakeMT5:
     TRADE_RETCODE_DONE = 10009
     TRADE_RETCODE_INVALID_FILL = 10030
 
-    def __init__(self, balance=5000.0, equity=5000.0):
+    def __init__(self, balance=5000.0, equity=5000.0, login=123):
         self.sent = []
         self.balance = balance
         self.equity = equity
+        self.login = login
 
     def account_info(self):
-        return SimpleNamespace(balance=self.balance, equity=self.equity)
+        return SimpleNamespace(balance=self.balance, equity=self.equity, login=self.login)
 
     def symbol_select(self, symbol, selected):
         return True
@@ -88,10 +89,10 @@ def test_schedule_is_idempotent_and_disabled_gateway_does_not_send():
     assert mt5.sent == []
 
 
-def test_risk_gate_blocks_order_when_drawdown_exceeds_limit():
+def test_risk_gate_blocks_order_when_drawdown_exceeds_limit(tmp_path):
     store = IntentStore()
     mt5 = FakeMT5(balance=5000.0, equity=4699.0)
-    gateway = MT5ExecutionGateway(mt5, store, enabled=True)
+    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path))
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
     gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
     gateway.process_due(now_utc=now)
@@ -100,10 +101,10 @@ def test_risk_gate_blocks_order_when_drawdown_exceeds_limit():
     assert all("DRAWDOWN_LIMIT_EXCEEDED" in row["last_error"] for row in store.rows.values())
 
 
-def test_enabled_gateway_sends_each_common_entry_once():
+def test_enabled_gateway_sends_each_common_entry_once(tmp_path):
     store = IntentStore()
     mt5 = FakeMT5()
-    gateway = MT5ExecutionGateway(mt5, store, enabled=True)
+    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path))
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
     gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
     gateway.process_due(now_utc=now)
