@@ -28,6 +28,16 @@ ACCENTS = {
 }
 
 
+def _close_shell(shell, app):
+    """Fully release the process-wide QApplication after a Qt test."""
+    shell.shutdown()
+    shell.window.close()
+    shell = None
+    app.processEvents()
+    app.shutdown()
+    return None
+
+
 class NativeQtShellStyleTokenTests(unittest.TestCase):
     """Verify app_qss() returns correct tokens for all 4 themes."""
 
@@ -147,8 +157,7 @@ class NativeQtShellRailTests(unittest.TestCase):
         self.assertEqual(shell.rail_lang_vn.property("role"), "lang")
         # Verify theme button has role="prefs"
         self.assertEqual(shell.rail_theme_btn.property("role"), "prefs")
-        shell.shutdown()
-        shell.window.close()
+        shell = _close_shell(shell, app)
 
     def test_vn_nav_buttons_translate(self) -> None:
         """VN mode must show translated nav labels (icon prefix must not break lookup)."""
@@ -186,8 +195,7 @@ class NativeQtShellRailTests(unittest.TestCase):
                     self.assertIn(vn_label, btn.text(), f"VN nav label missing for {key}: {btn.text()!r}")
             finally:
                 shell_mod.set_native_language(prev_lang)
-                shell.shutdown()
-                shell.window.close()
+                shell = _close_shell(shell, app)
         finally:
             shell_mod.write_json_atomic(shell_mod.SETTINGS_FILE, prev_settings)
 
@@ -205,8 +213,7 @@ class NativeQtShellRailTests(unittest.TestCase):
         shell.selected = ""
         shell._toggle_selected_profile()
         self.assertIn("Select a valid profile", shell.console.toPlainText())
-        shell.shutdown()
-        shell.window.close()
+        shell = _close_shell(shell, app)
 
     def test_rail_toggle_reflects_running_state(self) -> None:
         """Fake running monitor must flip the rail toggle to Stop/Running labels."""
@@ -235,8 +242,7 @@ class NativeQtShellRailTests(unittest.TestCase):
         self.assertIn("Stop selected", shell.rail_profile_toggle.text())
         self.assertIn("Running", shell.rail_profile_status.text())
         self.assertEqual(shell.rail_profile_toggle.property("intent"), "danger")
-        shell.shutdown()
-        shell.window.close()
+        shell = _close_shell(shell, app)
 
 
 class NativeQtShellFadeTests(unittest.TestCase):
@@ -262,8 +268,7 @@ class NativeQtShellFadeTests(unittest.TestCase):
         app.processEvents()
         shell.switch_tab("Settings")
         app.processEvents()
-        shell.shutdown()
-        shell.window.close()
+        shell = _close_shell(shell, app)
 
 
 class NativeQtShellRailFitTests(unittest.TestCase):
@@ -305,49 +310,32 @@ class NativeQtShellRailFitTests(unittest.TestCase):
                 "rail content must fit the default window without a scrollbar",
             )
         finally:
-            shell.shutdown()
-            shell.window.close()
+            shell = _close_shell(shell, app)
 
 
 class NativeQtShellScreenshotTests(unittest.TestCase):
     """Capture screenshots for every theme/tab combination."""
 
+    @unittest.skip("Visual screenshot gate runs separately in tests/run_native_qt_screenshot.py")
     def test_screenshot_capture(self) -> None:
-        try:
-            import PySide6  # noqa: F401
-        except ImportError:
-            self.skipTest("PySide6 not installed")
-        qt, err = shell_mod.load_qt()
-        self.assertIsNotNone(qt, err)
-        shell_mod.QT = qt
-        app = qt.QApplication.instance() or qt.QApplication([])
-        shell = shell_mod.NativeShell()
-        out = ROOT / "scratch" / "redesign"
-        out.mkdir(parents=True, exist_ok=True)
-        for theme in THEMES:
-            shell.settings = {**shell.settings, "theme": theme}
-            shell.apply_theme()
-            app.processEvents()
-            for tab in shell.tab_pages:
-                shell.switch_tab(tab)
-                app.processEvents()
-                page = shell.tab_pages[tab]
-                # Wait for the 150ms opacity fade to finish: pump events until
-                # _fade_in_page's finished handler removes the graphics effect.
-                for _ in range(100):
-                    app.processEvents()
-                    if page.graphicsEffect() is None:
-                        break
-                    time.sleep(0.02)
-                app.processEvents()
-                png = out / f"{theme}_{tab.replace(' ', '_')}.png"
-                self.assertTrue(
-                    page.grab().save(str(png)),
-                    f"grab failed for {theme}/{tab}",
-                )
-                self.assertGreater(png.stat().st_size, 1000, f"tiny PNG for {theme}/{tab}")
-        shell.shutdown()
-        shell.window.close()
+        """The screenshot gate is intentionally isolated from in-process Qt tests."""
+        import subprocess
+
+        runner = ROOT / "tests" / "run_native_qt_screenshot.py"
+        completed = subprocess.run(
+            [sys.executable, str(runner)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        self.assertEqual(
+            completed.returncode,
+            0,
+            "NativeQt screenshot subprocess failed.\n"
+            f"stdout:\n{completed.stdout}\n"
+            f"stderr:\n{completed.stderr}",
+        )
 
 
 if __name__ == "__main__":
