@@ -234,6 +234,12 @@ class CopyTradeManager:
         if not isinstance(self._scheduled_close, list):
             self._scheduled_close = []
         self.connected_logged = False
+        # Risk denials can be retried by the scheduler, but operator-facing
+        # notifications must be edge-triggered per intent/reason.  Without
+        # this guard a transient/missing risk input (for example an
+        # unprovisioned equity high-water mark) produces one Telegram/UI line
+        # every scheduler tick while the intent remains safely blocked.
+        self._risk_denial_notifications = set()
 
         # --- IGNORE EXISTING MASTER TRADES ON STARTUP ---
         self.ignored_file = f"ignored_{safe_name}.json"
@@ -2685,6 +2691,23 @@ class CopyTradeManager:
         except Exception:
             return False
 
+    def _notify_scheduled_risk_denial_once(self, profile_name, trade, reason):
+        """Notify one scheduled risk denial once per intent/reason edge.
+
+        The scheduler may safely retry a blocked intent, but a missing or
+        transient risk input must not become a per-tick notification storm.
+        A new reason remains observable, and a later successful risk check can
+        proceed normally without changing the fail-closed gate itself.
+        """
+        if not hasattr(self, "_risk_denial_notifications"):
+            self._risk_denial_notifications = set()
+        denial_key = f"scheduled:{profile_name}:{trade.get('id')}:{reason}"
+        if denial_key in self._risk_denial_notifications:
+            return False
+        self._risk_denial_notifications.add(denial_key)
+        self.notify(f"🛑 [{profile_name}] Scheduled Entry DENIED: {reason}")
+        return True
+
     def _send_scheduled_market_order(self, trade, comment="Scheduled Order", order_type_override=None, idempotency_key=None):
         symbol = trade["symbol"]
         raw_type = trade["type"] if order_type_override is None else order_type_override
@@ -2719,7 +2742,7 @@ class CopyTradeManager:
             ),
         )
         if not risk.allowed:
-            self.notify(f"🛑 [{profile_name}] Scheduled Entry DENIED: {risk.reason}")
+            self._notify_scheduled_risk_denial_once(profile_name, trade, risk.reason)
             return "fail"
 
         prep = self._prepare_scheduled_trade(trade, order_type_override=order_type)
