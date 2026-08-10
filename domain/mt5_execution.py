@@ -24,6 +24,7 @@ from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
 
 SIGNAL_LOGIC_VERSION = 88
 SIGNAL_PAIRS = ("XAUUSD", "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD")
+UNKNOWN_NEXT_ATTEMPT_AT_UTC = "9999-12-31T23:59:59Z"
 
 
 @dataclass(frozen=True)
@@ -225,7 +226,7 @@ class MT5ExecutionGateway:
                     key,
                     status="UNKNOWN",
                     attempts=attempts,
-                    next_attempt_at_utc=None,
+                    next_attempt_at_utc=UNKNOWN_NEXT_ATTEMPT_AT_UTC,
                     last_error=f"UNKNOWN broker outcome: {error}{reconcile_error_text}"[:500],
                     updated_at_utc=_iso(now),
                 )
