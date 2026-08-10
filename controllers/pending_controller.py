@@ -534,7 +534,13 @@ class PendingControllerMixin:
                                 "type_time": mt5.ORDER_TIME_GTC,
                                 "type_filling": get_filling_type(pos.symbol),
                             }
-                            mt5.order_send(req_c)
+                            close_res = mt5.order_send(req_c)
+                            if getattr(close_res, "retcode", None) != mt5.TRADE_RETCODE_DONE:
+                                self.lbl_pos_msg.configure(
+                                    text=f"Risk Gate DENIED: opposite position #{pos.ticket} could not be closed",
+                                    text_color="red",
+                                )
+                                return
                             profile_name = self.config.get("profile_name", "Unknown")
                             self.notify(f"🔄 [{profile_name}] Manual Entry: Auto Closed opposite {symbol} (Ticket: {pos.ticket})")
             
@@ -552,7 +558,13 @@ class PendingControllerMixin:
                             "action": mt5.TRADE_ACTION_REMOVE,
                             "order": o.ticket
                         }
-                        mt5.order_send(request_del)
+                        remove_res = mt5.order_send(request_del)
+                        if getattr(remove_res, "retcode", None) != mt5.TRADE_RETCODE_DONE:
+                            self.lbl_pos_msg.configure(
+                                text=f"Risk Gate DENIED: opposite pending #{o.ticket} could not be removed",
+                                text_color="red",
+                            )
+                            return
                         profile_name = self.config.get("profile_name", "Unknown")
                         self.notify(f"🗑️ [{profile_name}] Manual Entry: Auto Removed opposite pending {symbol} (Ticket: {o.ticket})")
 

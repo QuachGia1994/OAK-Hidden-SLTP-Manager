@@ -2641,7 +2641,8 @@ class CopyTradeManager:
                         self.notify(f"🔄 [{profile_name}] Auto Closed opposite {symbol} (Ticket: {pos.ticket}) for scheduled {trade.get('id')}")
                         closed_cnt += 1
                     else:
-                        self.notify(f"⚠️ [{profile_name}] Failed to close opposite {symbol} (Ticket: {pos.ticket})")
+                        self.notify(f"🛑 [{profile_name}] Scheduled Entry blocked: failed to close opposite {symbol} (Ticket: {pos.ticket})")
+                        return "fail"
 
         if order_type == mt5.ORDER_TYPE_BUY:
             opp_pending_types = [mt5.ORDER_TYPE_SELL_LIMIT, mt5.ORDER_TYPE_SELL_STOP, mt5.ORDER_TYPE_SELL_STOP_LIMIT]
@@ -2657,7 +2658,8 @@ class CopyTradeManager:
                     if res_del.retcode == mt5.TRADE_RETCODE_DONE:
                         self.notify(f"🗑️ [{profile_name}] Auto Removed opposite pending {symbol} (Ticket: {o.ticket}) for scheduled {trade.get('id')}")
                     else:
-                        self.notify(f"⚠️ [{profile_name}] Failed to remove pending {o.ticket}: {res_del.comment}")
+                        self.notify(f"🛑 [{profile_name}] Scheduled Entry blocked: failed to remove opposite pending {o.ticket}: {res_del.comment}")
+                        return "fail"
 
         if closed_cnt > 0:
             for _ in range(20):

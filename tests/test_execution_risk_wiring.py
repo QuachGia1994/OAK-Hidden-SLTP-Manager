@@ -76,6 +76,12 @@ def test_scheduled_failure_does_not_get_marked_executed():
     assert '"waiting"' in body
     assert '"executed")' in body
 
+    prep_start = source.index("def _prepare_scheduled_trade")
+    prep_end = source.index("def _remove_pending_order", prep_start)
+    prep_body = source[prep_start:prep_end]
+    assert 'failed to close opposite' in prep_body
+    assert 'failed to remove opposite pending' in prep_body
+
 
 def test_idempotent_helper_is_used_for_entry_paths():
     source = _source("domain/mt5_orders.py")
@@ -95,3 +101,5 @@ def test_manual_entry_uses_live_risk_gate_before_any_order_send():
     assert "mt5.order_send(req)" not in body
     assert "_manual_idempotency_keys" in body
     assert 'result["status"] == "UNKNOWN"' in body
+    assert "could not be closed" in body
+    assert "could not be removed" in body
