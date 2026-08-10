@@ -131,3 +131,4 @@ class TestNoCopyRatesInAuditMode(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+             patch.object(mt5_signal_bot, "mt5_ready", True), \
