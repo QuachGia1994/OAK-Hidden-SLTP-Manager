@@ -497,6 +497,7 @@ class CopyTradeManager:
             f"partial-close:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{volume}",
             mt5_module=mt5,
             reconcile=reconcile,
+            profile_config=self.config,
         )
         return result["status"] in ("DONE", "EXISTING")
 
@@ -1863,6 +1864,7 @@ class CopyTradeManager:
                     f"modify-position:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{mod_type}:{current_val}",
                     mt5_module=mt5,
                     reconcile=reconcile_position,
+                    profile_config=self.config,
                 )
                 if result["status"] in ("DONE", "EXISTING"):
                     success_this_pos = True
@@ -1931,6 +1933,7 @@ class CopyTradeManager:
                     f"modify-order:{self.config.get('profile_name', 'Unknown')}:{ord.ticket}:{mod_type}:{val}",
                     mt5_module=mt5,
                     reconcile=reconcile_pending,
+                    profile_config=self.config,
                 )
                 if result["status"] in ("DONE", "EXISTING"):
                     count += 1
@@ -1991,6 +1994,7 @@ class CopyTradeManager:
             f"close:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}",
             mt5_module=mt5,
             reconcile=reconcile,
+            profile_config=self.config,
         )
 
         # Update ticket manager for a confirmed close. UNKNOWN remains a
@@ -2791,6 +2795,7 @@ class CopyTradeManager:
                         f"remove-pending:{profile_name}:{o.ticket}",
                         mt5_module=mt5,
                         reconcile=reconcile_removed_pending,
+                        profile_config=self.config,
                     )
                     if result["status"] in ("DONE", "EXISTING"):
                         self.notify(f"🗑️ [{profile_name}] Auto Removed opposite pending {symbol} (Ticket: {o.ticket}) for scheduled {trade.get('id')}")
@@ -2823,6 +2828,7 @@ class CopyTradeManager:
                 f"remove-pending:{self.config.get('profile_name', 'Unknown')}:{ticket}",
                 mt5_module=mt5,
                 reconcile=lambda: ticket if not (mt5.orders_get(ticket=ticket) or []) else None,
+                profile_config=self.config,
             )
             return result["status"] in ("DONE", "EXISTING")
         except Exception:
@@ -3024,7 +3030,7 @@ class CopyTradeManager:
                 return "fail"
 
         key = idempotency_key or f"scheduled:{profile_name}:{trade.get('id')}"
-        result = send_order_idempotent(request, key)
+        result = send_order_idempotent(request, key, profile_config=self.config)
         if result["status"] in ("DONE", "EXISTING"):
             direction_str = "BUY" if order_type == mt5.ORDER_TYPE_BUY else "SELL"
             self.notify(f"✅ [{profile_name}] Executed Scheduled {direction_str} {symbol} {lot} lot")
@@ -3243,6 +3249,7 @@ class CopyTradeManager:
         result = send_order_idempotent(
             req,
             f"copy:{profile_name}:{m_ticket}",
+            profile_config=self.config,
         )
         if result["status"] in ("DONE", "EXISTING"):
             ticket = result.get("ticket")
@@ -3302,6 +3309,7 @@ class CopyTradeManager:
             f"copy-close:{profile_name}:{m_ticket}:{s_ticket}",
             mt5_module=mt5,
             reconcile=reconcile,
+            profile_config=self.config,
         )
 
         if result["status"] in ("DONE", "EXISTING"):

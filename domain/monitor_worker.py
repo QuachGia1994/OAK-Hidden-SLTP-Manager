@@ -248,6 +248,7 @@ class MonitorWorker(threading.Thread):
             f"monitor-close:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{reason}:{volume or pos.volume}",
             mt5_module=mt5,
             reconcile=reconcile_close,
+            profile_config=self.config,
         )
         
         msg = ""
@@ -325,6 +326,7 @@ class MonitorWorker(threading.Thread):
             f"move-be:{profile}:{pos.ticket}:{target_sl}",
             mt5_module=mt5,
             reconcile=reconcile_be,
+            profile_config=self.config,
         )
         response = result.get("response")
         retcode = int(getattr(response, "retcode", -1)) if response is not None else -1
@@ -1130,6 +1132,7 @@ class MonitorWorker(threading.Thread):
                                                         f"visible-sltp:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{final_sl}:{final_tp}",
                                                         mt5_module=mt5,
                                                         reconcile=reconcile_visible_sltp,
+                                                        profile_config=self.config,
                                                     )
                                                     if result["status"] not in ("DONE", "EXISTING"):
                                                         # Unknown/rejected mutations are intentionally not retried blindly.

@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 
 import MetaTrader5 as mt5
 
+from services.mt5_terminal_service import validate_mt5_mutation_session
+
 
 def _default_mutation_store():
     """Lazily open the durable mutation ledger without creating import cycles."""
@@ -89,18 +91,22 @@ def get_filling_type(symbol):
     return mt5.ORDER_FILLING_IOC
 
 
-def send_order_with_retry(request):
-    """Send order, retry with alternate filling modes only on explicit 10030 rejection."""
-    res = mt5.order_send(request)
+def send_order_with_retry(request, *, profile_config=None, mt5_module=None):
+    """Legacy send helper; retain explicit account/path binding and 10030-only retry."""
+    module = mt5_module or mt5
+    session_ok, session_reason = validate_mt5_mutation_session(module, profile_config)
+    if not session_ok:
+        return None
+    res = module.order_send(request)
     if getattr(res, "retcode", None) != 10030:
         return res
-    modes = [mt5.ORDER_FILLING_IOC, mt5.ORDER_FILLING_FOK, mt5.ORDER_FILLING_RETURN]
+    modes = [module.ORDER_FILLING_IOC, module.ORDER_FILLING_FOK, module.ORDER_FILLING_RETURN]
     current_mode = request["type_filling"]
     if current_mode in modes:
         modes.remove(current_mode)
     for mode in modes:
         request["type_filling"] = mode
-        res = mt5.order_send(request)
+        res = module.order_send(request)
         if getattr(res, "retcode", None) != 10030:
             break
     return res
@@ -121,7 +127,7 @@ def _existing_order_by_comment(mt5_module, symbol, comment):
     return None
 
 
-def send_mutation_idempotent(request, idempotency_key, *, mt5_module=None, reconcile=None, mutation_store=None):
+def send_mutation_idempotent(request, idempotency_key, *, mt5_module=None, reconcile=None, mutation_store=None, profile_config=None):
     """Execute one non-entry mutation without blind retry on UNKNOWN.
 
     ``reconcile`` is a caller-supplied broker-state check that returns the
@@ -133,6 +139,14 @@ def send_mutation_idempotent(request, idempotency_key, *, mt5_module=None, recon
     key = str(idempotency_key or "").strip()
     if not key:
         raise ValueError("idempotency_key is required")
+    session_ok, session_reason = validate_mt5_mutation_session(module, profile_config)
+    if not session_ok:
+        return {
+            "status": "REJECTED",
+            "ticket": None,
+            "response": None,
+            "error": f"MUTATION_SESSION_DENIED:{session_reason}",
+        }
     request = dict(request)
     symbol = request.get("symbol")
     reconcile = reconcile or (lambda: None)
@@ -281,12 +295,20 @@ def send_mutation_idempotent(request, idempotency_key, *, mt5_module=None, recon
     }
 
 
-def send_order_idempotent(request, idempotency_key, *, mt5_module=None):
+def send_order_idempotent(request, idempotency_key, *, mt5_module=None, profile_config=None):
     """Send one entry with deterministic reconciliation and no blind unknown-result retry."""
     module = mt5_module or mt5
     key = str(idempotency_key or "").strip()
     if not key:
         raise ValueError("idempotency_key is required")
+    session_ok, session_reason = validate_mt5_mutation_session(module, profile_config)
+    if not session_ok:
+        return {
+            "status": "REJECTED",
+            "ticket": None,
+            "response": None,
+            "error": f"MUTATION_SESSION_DENIED:{session_reason}",
+        }
     comment = "OAK-ID-" + hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
     request = dict(request)
     request["comment"] = comment

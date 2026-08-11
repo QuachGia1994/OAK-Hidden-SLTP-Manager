@@ -13,7 +13,9 @@ class AppController:
 
     def __init__(self, config):
         self._config = config
-        self._mt5 = MT5Service(path=config.get("mt5_path"))
+        profile_config = dict(config)
+        profile_config.setdefault("path", config.get("mt5_path", ""))
+        self._mt5 = MT5Service(path=config.get("mt5_path"), profile_config=profile_config)
         self._telegram = TelegramService(
             token=config.get("telegram_token", ""),
             chat_id=config.get("telegram_chat_id", 0),

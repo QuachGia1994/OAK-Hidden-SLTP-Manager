@@ -547,6 +547,7 @@ class PendingControllerMixin:
                                 f"manual-close-opposite:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}",
                                 mt5_module=mt5,
                                 reconcile=lambda: pos.ticket if not (mt5.positions_get(ticket=pos.ticket) or []) else None,
+                                profile_config=self.config,
                             )
                             if close_result["status"] not in ("DONE", "EXISTING"):
                                 self.lbl_pos_msg.configure(
@@ -576,6 +577,7 @@ class PendingControllerMixin:
                             f"manual-remove-pending:{self.config.get('profile_name', 'Unknown')}:{o.ticket}",
                             mt5_module=mt5,
                             reconcile=lambda: o.ticket if not (mt5.orders_get(ticket=o.ticket) or []) else None,
+                            profile_config=self.config,
                         )
                         if remove_result["status"] not in ("DONE", "EXISTING"):
                             self.lbl_pos_msg.configure(
@@ -594,7 +596,7 @@ class PendingControllerMixin:
             idempotency_key = pending_manual.get(manual_slot)
             if not idempotency_key:
                 idempotency_key = f"manual:{profile_name}:{symbol}:{order_type}:{datetime.now().isoformat(timespec='microseconds')}"
-            result = send_order_idempotent(req, idempotency_key)
+            result = send_order_idempotent(req, idempotency_key, profile_config=self.config)
             if result["status"] in ("DONE", "EXISTING"):
                  pending_manual.pop(manual_slot, None)
                  ticket = result.get("ticket")

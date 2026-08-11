@@ -11,13 +11,17 @@ log = setup_logger("mt5_service")
 class MT5Service:
     """Wraps MT5 operations for connection, positions, and orders."""
 
-    def __init__(self, path=None):
+    def __init__(self, path=None, profile_config=None):
         self._path = path
+        self._profile_config = dict(profile_config or {})
+        if self._path and not self._profile_config.get("path"):
+            self._profile_config["path"] = self._path
         self._connected = False
 
     def connect(self):
         """Initialize MT5 connection."""
-        profile = {"path": self._path or ""}
+        profile = dict(self._profile_config)
+        profile.setdefault("path", self._path or "")
         result = ensure_mt5_profile_connected(profile, mt5_module=mt5)
         ok = result.ok
         if ok:
@@ -95,6 +99,7 @@ class MT5Service:
             f"service-close:{account_key}:{pos.ticket}:{volume or pos.volume}",
             mt5_module=mt5,
             reconcile=lambda: pos.ticket if not (mt5.positions_get(ticket=pos.ticket) or []) else None,
+            profile_config=self._profile_config,
         )
         if result["status"] in ("DONE", "EXISTING"):
             log.info("Closed %s %s volume=%.2f", pos.symbol, "BUY" if pos.type == 0 else "SELL", volume or pos.volume)

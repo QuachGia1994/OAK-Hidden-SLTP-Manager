@@ -159,11 +159,10 @@ class MT5ExecutionGateway:
         key = intent["idempotency_key"]
         now = now_utc if isinstance(now_utc, datetime) else _utc_now()
         try:
-            if self.profile_config:
-                from services.mt5_terminal_service import validate_mt5_profile_session
-                session_ok, session_reason = validate_mt5_profile_session(self.mt5, self.profile_config)
-                if not session_ok:
-                    raise RuntimeError(f"MT5_PROFILE_SESSION:{session_reason}")
+            from services.mt5_terminal_service import validate_mt5_mutation_session
+            session_ok, session_reason = validate_mt5_mutation_session(self.mt5, self.profile_config)
+            if not session_ok:
+                raise RuntimeError(f"MT5_PROFILE_SESSION:{session_reason}")
             policy = evaluate_execution_intent(
                 intent,
                 now_utc=now,

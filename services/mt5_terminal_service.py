@@ -245,11 +245,11 @@ def _account_matches(account: Any, profile: Any) -> bool:
         return True
     expected_login = profile.get("login_id", profile.get("login"))
     expected_server = profile.get("server", profile.get("broker"))
+    requires_identity = _profile_requires_account_identity(profile)
+    if requires_identity and (expected_login in (None, "") or not expected_server):
+        return False
     if expected_login in (None, "") and not expected_server:
-        # A profile capable of sending trades must explicitly bind itself to an
-        # account/server.  Path-only matching is insufficient because a single
-        # MT5 terminal can be logged into a different account after restart.
-        return not _profile_requires_account_identity(profile)
+        return True
     if expected_login not in (None, ""):
         try:
             if int(getattr(account, "login", 0)) != int(expected_login):
@@ -262,6 +262,36 @@ def _account_matches(account: Any, profile: Any) -> bool:
         if actual != expected:
             return False
     return True
+
+
+def validate_mt5_mutation_session(mt5_module: Any, profile_config: Any) -> tuple[bool, str]:
+    """Require an explicit path/login/server binding immediately before mutation."""
+    if not isinstance(profile_config, dict):
+        return False, "MUTATION_PROFILE_REQUIRED"
+    configured_path = normalize_terminal_path(profile_config.get("path"))
+    expected_login = profile_config.get("login_id", profile_config.get("login"))
+    expected_server = profile_config.get("server", profile_config.get("broker"))
+    if configured_path is None:
+        return False, "MUTATION_PATH_REQUIRED"
+    if expected_login in (None, ""):
+        return False, "MUTATION_LOGIN_REQUIRED"
+    if not expected_server:
+        return False, "MUTATION_SERVER_REQUIRED"
+    try:
+        terminal_info = mt5_module.terminal_info()
+        account = mt5_module.account_info()
+    except Exception as error:
+        return False, f"MT5_SESSION_QUERY_ERROR:{error}"
+    if terminal_info is None or account is None:
+        return False, "MT5_SESSION_UNAVAILABLE"
+    observed_path = getattr(terminal_info, "path", None)
+    if not observed_path:
+        return False, "TERMINAL_PATH_UNAVAILABLE"
+    if not _terminal_path_matches(terminal_info, profile_config):
+        return False, "TERMINAL_PATH_MISMATCH"
+    if not _account_matches(account, {**profile_config, "signal_execution_enabled": True}):
+        return False, "ACCOUNT_MISMATCH"
+    return True, "MUTATION_SESSION_OK"
 
 
 def _terminal_path_matches(terminal_info: Any, profile: Any) -> bool:
@@ -456,6 +486,7 @@ __all__ = [
     "discover_terminal_candidates",
     "ensure_mt5_profile_connected",
     "validate_mt5_profile_session",
+    "validate_mt5_mutation_session",
     "recover_mt5_profile_session",
     "profile_session_validation_enabled",
 ]

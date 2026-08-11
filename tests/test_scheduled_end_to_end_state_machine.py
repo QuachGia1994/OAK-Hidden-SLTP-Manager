@@ -81,7 +81,7 @@ def test_full_scheduled_entry_state_machine_executes_once_and_finalizes(tmp_path
     }))
     monkeypatch.setattr("domain.copy_trade_manager.mt5", fake)
 
-    def fake_send(request, key):
+    def fake_send(request, key, **_kwargs):
         result = fake.order_send(request)
         return {"status": "DONE", "ticket": result.order}
 
@@ -128,7 +128,7 @@ def test_scheduled_state_machine_keeps_retryable_failure_and_then_executes(tmp_p
 
     calls = {"n": 0}
 
-    def flaky_send(request, key):
+    def flaky_send(request, key, **_kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
             return {"status": "UNKNOWN", "error": "broker response lost"}
@@ -194,7 +194,7 @@ def test_t_minus_two_session_recovery_retries_without_shifting_requested_schedul
     monkeypatch.setattr("domain.copy_trade_manager.recover_mt5_profile_session", recover_then_fail)
     monkeypatch.setattr(
         "domain.copy_trade_manager.send_order_idempotent",
-        lambda _request, _key: {"status": "DONE", "ticket": 9901},
+        lambda _request, _key, **_kwargs: {"status": "DONE", "ticket": 9901},
     )
 
     manager._check_scheduled_trades()
@@ -261,7 +261,7 @@ def test_t_minus_two_wrong_account_is_terminal_and_not_retryable(tmp_path, monke
     )
     monkeypatch.setattr(
         "domain.copy_trade_manager.send_order_idempotent",
-        lambda _request, _key: {"status": "DONE", "ticket": 9902},
+        lambda _request, _key, **_kwargs: {"status": "DONE", "ticket": 9902},
     )
 
     manager._check_scheduled_trades()
@@ -315,7 +315,7 @@ def test_final_session_fence_blocks_account_switch_after_trade_preparation(tmp_p
     manager._prepare_scheduled_trade = prepare_then_switch
     monkeypatch.setattr(
         "domain.copy_trade_manager.send_order_idempotent",
-        lambda _request, _key: {"status": "DONE", "ticket": 9903},
+        lambda _request, _key, **_kwargs: {"status": "DONE", "ticket": 9903},
     )
 
     result = manager._send_scheduled_market_order(

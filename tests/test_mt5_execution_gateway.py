@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 
 from domain.mt5_execution import MT5ExecutionGateway, SIGNAL_PAIRS
@@ -29,15 +30,20 @@ class FakeMT5:
     TRADE_RETCODE_DONE = 10009
     TRADE_RETCODE_INVALID_FILL = 10030
 
-    def __init__(self, balance=5000.0, equity=5000.0, login=123, mode="done"):
+    def __init__(self, balance=5000.0, equity=5000.0, login=123, mode="done", terminal_path=""):
         self.sent = []
         self.balance = balance
         self.equity = equity
         self.login = login
+        self.server = "Broker-Demo"
+        self.terminal_path = terminal_path
         self.mode = mode
 
+    def terminal_info(self):
+        return SimpleNamespace(path=self.terminal_path)
+
     def account_info(self):
-        return SimpleNamespace(balance=self.balance, equity=self.equity, login=self.login)
+        return SimpleNamespace(balance=self.balance, equity=self.equity, login=self.login, server=self.server)
 
     def symbol_select(self, symbol, selected):
         return True
@@ -81,6 +87,13 @@ def ready_result(entry_at_utc="2026-08-03T06:49:00Z", entry_time="09:49"):
     }
 
 
+def bound_profile(tmp_path, mt5):
+    terminal = Path(tmp_path) / "terminal64.exe"
+    terminal.write_bytes(b"fake")
+    mt5.terminal_path = str(terminal)
+    return {"path": str(terminal), "login_id": mt5.login, "server": mt5.server}
+
+
 def test_schedule_is_idempotent_and_disabled_gateway_does_not_send():
     store = IntentStore()
     mt5 = FakeMT5()
@@ -99,7 +112,8 @@ def test_schedule_is_idempotent_and_disabled_gateway_does_not_send():
 def test_risk_gate_blocks_order_when_drawdown_exceeds_limit(tmp_path):
     store = IntentStore()
     mt5 = FakeMT5(balance=5000.0, equity=4699.0)
-    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path))
+    profile = bound_profile(tmp_path, mt5)
+    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path), profile_config=profile)
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
     gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
     gateway.process_due(now_utc=now)
@@ -111,7 +125,8 @@ def test_risk_gate_blocks_order_when_drawdown_exceeds_limit(tmp_path):
 def test_unknown_broker_outcome_is_terminal_until_reconciled(tmp_path):
     store = IntentStore()
     mt5 = FakeMT5(mode="unknown")
-    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path))
+    profile = bound_profile(tmp_path, mt5)
+    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path), profile_config=profile)
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
     gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
     gateway.process_due(now_utc=now)
@@ -140,6 +155,7 @@ class FakeHealthProvider:
 def _gateway_with_health(tmp_path, health):
     store = IntentStore()
     mt5 = FakeMT5()
+    profile = bound_profile(tmp_path, mt5)
     gateway = MT5ExecutionGateway(
         mt5,
         store,
@@ -147,6 +163,7 @@ def _gateway_with_health(tmp_path, health):
         initial_peak_equity=5000.0,
         risk_state_dir=str(tmp_path),
         health_provider=health,
+        profile_config=profile,
     )
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
     gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
@@ -202,6 +219,7 @@ def test_healthy_market_data_allows_entry(tmp_path):
 def test_stale_symbol_tick_fails_closed_before_order_send(tmp_path):
     store = IntentStore()
     mt5 = FakeMT5()
+    profile = bound_profile(tmp_path, mt5)
     mt5.symbol_info_tick = lambda symbol: SimpleNamespace(
         ask=1.2,
         bid=1.1,
@@ -210,6 +228,7 @@ def test_stale_symbol_tick_fails_closed_before_order_send(tmp_path):
     gateway = MT5ExecutionGateway(
         mt5, store, enabled=True, initial_peak_equity=5000.0,
         risk_state_dir=str(tmp_path), health_provider=FakeHealthProvider(),
+        profile_config=profile,
     )
     now = datetime.now(timezone.utc).replace(microsecond=0)
     entry_at = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -224,7 +243,8 @@ def test_stale_symbol_tick_fails_closed_before_order_send(tmp_path):
 def test_enabled_gateway_sends_each_common_entry_once(tmp_path):
     store = IntentStore()
     mt5 = FakeMT5()
-    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path))
+    profile = bound_profile(tmp_path, mt5)
+    gateway = MT5ExecutionGateway(mt5, store, enabled=True, initial_peak_equity=5000.0, risk_state_dir=str(tmp_path), profile_config=profile)
     now = datetime(2026, 8, 3, 6, 50, tzinfo=timezone.utc)
     gateway.schedule_signal(ready_result(entry_at_utc="2026-08-03T06:49:00Z"), date(2026, 8, 3), 9, now_utc=now)
     gateway.process_due(now_utc=now)
