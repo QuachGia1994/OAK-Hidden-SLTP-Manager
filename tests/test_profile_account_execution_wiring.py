@@ -4,8 +4,10 @@ from types import SimpleNamespace
 from domain.mt5_execution import MT5ExecutionGateway
 from domain.json_io import save_json
 from services.mt5_terminal_service import (
+    MT5LaunchResult,
     ensure_mt5_profile_connected,
     profile_session_validation_enabled,
+    recover_mt5_profile_session,
     validate_mt5_profile_session,
 )
 
@@ -118,9 +120,75 @@ def test_scheduled_manual_and_copy_paths_wire_session_validation():
     scheduled = (ROOT / "domain/copy_trade_manager.py").read_text(encoding="utf-8")
     manual = (ROOT / "controllers/pending_controller.py").read_text(encoding="utf-8")
     assert "profile_session_validation_enabled(self.config)" in scheduled
-    assert scheduled.count("validate_mt5_profile_session(mt5, self.config)") >= 2
+    assert scheduled.count("recover_mt5_profile_session(") >= 2
     assert "profile_session_validation_enabled(self.config)" in manual
     assert "validate_mt5_profile_session(mt5, self.config)" in manual
+
+
+def test_transient_session_loss_reconnects_and_revalidates_exact_identity():
+    mt5 = SessionFakeMT5(login=1001, server="Broker-Live")
+    mt5.initialized = False
+
+    original_terminal_info = mt5.terminal_info
+    original_account_info = mt5.account_info
+    mt5.terminal_info = lambda: original_terminal_info() if mt5.initialized else None
+    mt5.account_info = lambda: original_account_info() if mt5.initialized else None
+    calls = {"n": 0}
+
+    def reconnect(profile_config, **_kwargs):
+        calls["n"] += 1
+        mt5.initialized = True
+        return MT5LaunchResult(True, "", True, 123, 1, None, None, "Connected")
+
+    ok, reason, recovered = recover_mt5_profile_session(
+        mt5,
+        {"login_id": 1001, "server": "Broker-Live", "signal_execution_enabled": True},
+        reconnect_fn=reconnect,
+    )
+
+    assert (ok, reason, recovered) == (True, "SESSION_RECOVERED", True)
+    assert calls["n"] == 1
+
+
+def test_reconnect_to_wrong_account_fails_closed():
+    mt5 = SessionFakeMT5(login=1001, server="Broker-Live")
+    mt5.initialized = False
+
+    original_terminal_info = mt5.terminal_info
+    original_account_info = mt5.account_info
+    mt5.terminal_info = lambda: original_terminal_info() if mt5.initialized else None
+    mt5.account_info = lambda: original_account_info() if mt5.initialized else None
+
+    def reconnect(profile_config, **_kwargs):
+        mt5.initialized = True
+        mt5.login = 2002
+        return MT5LaunchResult(True, "", True, 123, 1, None, None, "Connected")
+
+    ok, reason, recovered = recover_mt5_profile_session(
+        mt5,
+        {"login_id": 1001, "server": "Broker-Live", "signal_execution_enabled": True},
+        reconnect_fn=reconnect,
+    )
+
+    assert (ok, reason, recovered) == (False, "ACCOUNT_MISMATCH", True)
+
+
+def test_identity_mismatch_is_not_reconnectable():
+    mt5 = SessionFakeMT5(login=2002, server="Broker-Live")
+    calls = {"n": 0}
+
+    def reconnect(*_args, **_kwargs):
+        calls["n"] += 1
+        return MT5LaunchResult(True, "", False, None, 1, None, None, "Connected")
+
+    ok, reason, recovered = recover_mt5_profile_session(
+        mt5,
+        {"login_id": 1001, "server": "Broker-Live", "signal_execution_enabled": True},
+        reconnect_fn=reconnect,
+    )
+
+    assert (ok, reason, recovered) == (False, "ACCOUNT_MISMATCH", False)
+    assert calls["n"] == 0
 
 
 def test_execution_gateway_with_bound_profile_stops_before_order_send(tmp_path):

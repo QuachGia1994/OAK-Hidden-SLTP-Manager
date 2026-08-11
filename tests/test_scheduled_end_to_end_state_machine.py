@@ -159,6 +159,174 @@ def test_scheduled_state_machine_keeps_retryable_failure_and_then_executes(tmp_p
     assert fake.sent == 1
 
 
+def test_t_minus_two_session_recovery_retries_without_shifting_requested_schedule(tmp_path, monkeypatch):
+    path = tmp_path / "waiting.json"
+    save_json(str(path), [{
+        "id": 4545,
+        "symbol": "XAUUSD",
+        "type": 0,
+        "lot": "0.01",
+        "sl": "0",
+        "tp": "0",
+        "time": "20:15:00",
+        "date": "2026-08-10",
+        "status": "waiting",
+    }])
+    manager = _manager(path)
+    manager.config["signal_execution_enabled"] = True
+    fake = FakeMT5()
+    now = datetime(2026, 8, 10, 20, 14, 59)
+    monkeypatch.setattr("domain.copy_trade_manager.datetime", type("FrozenDateTime", (), {
+        "now": staticmethod(lambda: now),
+        "strptime": staticmethod(datetime.strptime),
+    }))
+    monkeypatch.setattr("domain.copy_trade_manager.mt5", fake)
+    monkeypatch.setattr("domain.copy_trade_manager.get_filling_type", lambda _symbol: 1)
+    clock = {"epoch": now.timestamp()}
+    monkeypatch.setattr("domain.copy_trade_manager.time.time", lambda: clock["epoch"])
+
+    recovery_calls = {"n": 0}
+
+    def recover_then_fail(*_args, **_kwargs):
+        recovery_calls["n"] += 1
+        return False, "MT5_SESSION_UNAVAILABLE", False
+
+    monkeypatch.setattr("domain.copy_trade_manager.recover_mt5_profile_session", recover_then_fail)
+    monkeypatch.setattr(
+        "domain.copy_trade_manager.send_order_idempotent",
+        lambda _request, _key: {"status": "DONE", "ticket": 9901},
+    )
+
+    manager._check_scheduled_trades()
+    retrying = load_json(str(path), [])[0]
+    assert retrying["status"] == "waiting"
+    assert retrying["last_execution_failure"] == "profile_session:MT5_SESSION_UNAVAILABLE"
+    assert retrying["next_retry_at"] > clock["epoch"]
+    assert recovery_calls["n"] == 1
+    assert fake.sent == 0
+    assert retrying["time"] == "20:15:00"
+    assert retrying["date"] == "2026-08-10"
+
+    retry_epoch = retrying["next_retry_at"] + 0.1
+    retry_now = datetime.fromtimestamp(retry_epoch)
+    clock["epoch"] = retry_epoch
+    monkeypatch.setattr("domain.copy_trade_manager.datetime", type("RetryDateTime", (), {
+        "now": staticmethod(lambda: retry_now),
+        "strptime": staticmethod(datetime.strptime),
+    }))
+
+    def recover_success(*_args, **_kwargs):
+        recovery_calls["n"] += 1
+        return True, "SESSION_RECOVERED", True
+
+    monkeypatch.setattr("domain.copy_trade_manager.recover_mt5_profile_session", recover_success)
+    manager.scheduled_trades = load_json(str(path), [])
+    manager._check_scheduled_trades()
+
+    completed = load_json(str(path), [])[0]
+    assert completed["status"] == "executed"
+    # One recovery attempt on the first pass, then the pre-send session fence
+    # revalidates the recovered session immediately before the broker call.
+    assert recovery_calls["n"] == 3
+    assert completed["time"] == "20:15:00"
+    assert completed["date"] == "2026-08-10"
+
+
+def test_t_minus_two_wrong_account_is_terminal_and_not_retryable(tmp_path, monkeypatch):
+    path = tmp_path / "waiting.json"
+    save_json(str(path), [{
+        "id": 4646,
+        "symbol": "XAUUSD",
+        "type": 0,
+        "lot": "0.01",
+        "sl": "0",
+        "tp": "0",
+        "time": "20:15:00",
+        "date": "2026-08-10",
+        "status": "waiting",
+    }])
+    manager = _manager(path)
+    manager.config["signal_execution_enabled"] = True
+    fake = FakeMT5()
+    now = datetime(2026, 8, 10, 20, 14, 59)
+    monkeypatch.setattr("domain.copy_trade_manager.datetime", type("FrozenDateTime", (), {
+        "now": staticmethod(lambda: now),
+        "strptime": staticmethod(datetime.strptime),
+    }))
+    monkeypatch.setattr("domain.copy_trade_manager.mt5", fake)
+    monkeypatch.setattr("domain.copy_trade_manager.get_filling_type", lambda _symbol: 1)
+    monkeypatch.setattr(
+        "domain.copy_trade_manager.recover_mt5_profile_session",
+        lambda *_args, **_kwargs: (False, "ACCOUNT_MISMATCH", False),
+    )
+    monkeypatch.setattr(
+        "domain.copy_trade_manager.send_order_idempotent",
+        lambda _request, _key: {"status": "DONE", "ticket": 9902},
+    )
+
+    manager._check_scheduled_trades()
+    blocked = load_json(str(path), [])[0]
+    assert blocked["status"] == "skipped"
+    assert "next_retry_at" not in blocked
+    assert fake.sent == 0
+
+
+def test_final_session_fence_blocks_account_switch_after_trade_preparation(tmp_path, monkeypatch):
+    path = tmp_path / "waiting.json"
+    save_json(str(path), [{
+        "id": 4747,
+        "symbol": "XAUUSD",
+        "type": 0,
+        "lot": "0.01",
+        "sl": "0",
+        "tp": "0",
+        "time": "20:15:00",
+        "date": "2026-08-10",
+        "status": "waiting",
+    }])
+    manager = _manager(path)
+    manager.config.update({
+        "signal_execution_enabled": True,
+        "login_id": 1001,
+        "server": "Broker-Live",
+    })
+    fake = FakeMT5()
+    monkeypatch.setattr("domain.copy_trade_manager.mt5", fake)
+    monkeypatch.setattr("domain.copy_trade_manager.get_filling_type", lambda _symbol: 1)
+    monkeypatch.setattr(
+        "domain.copy_trade_manager.recover_mt5_profile_session",
+        lambda *_args, **_kwargs: (
+            False,
+            "ACCOUNT_MISMATCH",
+            False,
+        ) if fake.account_switched else (True, "SESSION_OK", False),
+    )
+
+    original_prepare = manager._prepare_scheduled_trade
+
+    def prepare_then_switch(trade, order_type_override=None):
+        result = original_prepare(trade, order_type_override=order_type_override)
+        if result == "ok":
+            fake.account_switched = True
+            fake.login = 2002
+        return result
+
+    fake.account_switched = False
+    manager._prepare_scheduled_trade = prepare_then_switch
+    monkeypatch.setattr(
+        "domain.copy_trade_manager.send_order_idempotent",
+        lambda _request, _key: {"status": "DONE", "ticket": 9903},
+    )
+
+    result = manager._send_scheduled_market_order(
+        load_json(str(path), [])[0],
+        idempotency_key="scheduled:VantageDemo:4747",
+    )
+
+    assert result == "skip"
+    assert fake.sent == 0
+
+
 def test_local_schedule_contract_remains_machine_local_with_two_second_lead():
     requested, execute = _scheduled_local_datetimes("2026-08-10", "20:15:00")
     assert requested == datetime(2026, 8, 10, 20, 15, 0)

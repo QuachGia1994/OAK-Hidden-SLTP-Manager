@@ -30,6 +30,8 @@ config.json
 .env*.local
 
 # Runtime data (pushed to Redis, not git)
+d_direction_history.json
+stock_recommendation.json
 bot_state.json
 signals_log.json
 broker_clock_cache.json*

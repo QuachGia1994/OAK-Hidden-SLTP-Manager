@@ -37,6 +37,7 @@ from domain.file_lock import FileLock
 from domain.balance import get_start_day_balance
 from domain.broker_clock import BrokerClock
 from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
+from services.mt5_terminal_service import profile_session_validation_enabled, recover_mt5_profile_session
 
 log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -2818,12 +2819,27 @@ class CopyTradeManager:
         tp_points = float(trade.get("tp", 0) or 0)
         profile_name = self.config.get("profile_name", "Unknown")
 
-        from services.mt5_terminal_service import profile_session_validation_enabled, validate_mt5_profile_session
         if profile_session_validation_enabled(self.config):
-            session_ok, session_reason = validate_mt5_profile_session(mt5, self.config)
+            session_ok, session_reason, recovered = recover_mt5_profile_session(
+                mt5,
+                self.config,
+                timeout_seconds=10.0,
+            )
+            if recovered:
+                log.info("[%s] Scheduled MT5 session recovered before execution", profile_name)
         else:
             session_ok, session_reason = True, "SESSION_NOT_CONFIGURED"
         if not session_ok:
+            identity_failure = (
+                session_reason in {"ACCOUNT_MISMATCH", "TERMINAL_PATH_MISMATCH"}
+                or session_reason.startswith("ACCOUNT_MISMATCH:")
+                or session_reason.startswith("TERMINAL_PATH_MISMATCH:")
+            )
+            if identity_failure:
+                self.notify(
+                    f"🛑 [{profile_name}] Scheduled Entry BLOCKED: MT5 profile identity mismatch ({session_reason})"
+                )
+                return "skip"
             self._scheduled_failure_notify_once(
                 trade,
                 f"🛑 [{profile_name}] Scheduled Entry blocked: MT5 profile session invalid ({session_reason})",
@@ -2902,6 +2918,36 @@ class CopyTradeManager:
             "type_filling": get_filling_type(symbol),
         }
 
+        # Final session fence immediately before the broker-facing order call.
+        # The pre-cleanup check prevents mutations on a wrong account; this
+        # second check closes the narrow reconnect/account-switch race window
+        # created while preparing the trade.
+        if profile_session_validation_enabled(self.config):
+            session_ok, session_reason, recovered = recover_mt5_profile_session(
+                mt5,
+                self.config,
+                timeout_seconds=10.0,
+            )
+            if recovered:
+                log.info("[%s] Scheduled MT5 session revalidated/recovered immediately before send", profile_name)
+            if not session_ok:
+                identity_failure = (
+                    session_reason in {"ACCOUNT_MISMATCH", "TERMINAL_PATH_MISMATCH"}
+                    or session_reason.startswith("ACCOUNT_MISMATCH:")
+                    or session_reason.startswith("TERMINAL_PATH_MISMATCH:")
+                )
+                if identity_failure:
+                    self.notify(
+                        f"🛑 [{profile_name}] Scheduled Entry BLOCKED before send: MT5 profile identity mismatch ({session_reason})"
+                    )
+                    return "skip"
+                self._scheduled_failure_notify_once(
+                    trade,
+                    f"🛑 [{profile_name}] Scheduled Entry blocked before send: MT5 session invalid ({session_reason})",
+                    f"profile_session_before_send:{session_reason}",
+                )
+                return "fail"
+
         key = idempotency_key or f"scheduled:{profile_name}:{trade.get('id')}"
         result = send_order_idempotent(request, key)
         if result["status"] in ("DONE", "EXISTING"):
@@ -2962,9 +3008,14 @@ class CopyTradeManager:
         symbol = self._find_matching_symbol(raw_symbol)
         profile_name = self.config.get("profile_name", "Unknown")
 
-        from services.mt5_terminal_service import profile_session_validation_enabled, validate_mt5_profile_session
         if profile_session_validation_enabled(self.config):
-            session_ok, session_reason = validate_mt5_profile_session(mt5, self.config)
+            session_ok, session_reason, recovered = recover_mt5_profile_session(
+                mt5,
+                self.config,
+                timeout_seconds=10.0,
+            )
+            if recovered:
+                log.info("[%s] Copy MT5 session recovered before execution", profile_name)
         else:
             session_ok, session_reason = True, "SESSION_NOT_CONFIGURED"
         if not session_ok:

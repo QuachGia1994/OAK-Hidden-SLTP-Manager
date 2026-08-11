@@ -52,6 +52,16 @@ def test_default_profile_does_not_enable_equity_fdd_gate():
     assert profile.get("risk_max_volume") in (None, "")
 
 
+def test_default_profile_with_fixed_sl_tp_keeps_scheduled_equity_fdd_gate_disabled():
+    profile = __import__("json").loads(_source("profiles.json"))["VantageDemo"]
+    assert profile.get("sl") not in (None, "", 0, "0")
+    assert profile.get("tp") not in (None, "", 0, "0")
+    assert profile.get("gold_sl") not in (None, "", 0, "0")
+    assert profile.get("gold_tp") not in (None, "", 0, "0")
+    assert profile.get("use_balance_sltp") is False
+    assert profile.get("risk_gate_enabled", False) is False
+
+
 def test_copy_entry_uses_live_risk_gate_before_send():
     source = _source("domain/copy_trade_manager.py")
     start = source.index("def _open_copy_trade")
