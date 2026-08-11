@@ -71,7 +71,8 @@ class TestCopySafetyReal(unittest.TestCase):
         mgr, notify = _make_manager(copy_kill_switch=True)
         m_pos = {"symbol": "EURUSD", "type": 0, "volume": 0.1, "price_open": 1.1}
         with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"):
-            mgr._open_copy_trade(12345, m_pos)
+            with patch("domain.copy_trade_manager.profile_session_validation_enabled", return_value=False):
+                mgr._open_copy_trade(12345, m_pos)
         notify.assert_called()
         self.assertTrue(any("Kill switch" in str(c) for c in notify.call_args_list))
 
@@ -85,6 +86,7 @@ class TestCopySafetyReal(unittest.TestCase):
         m_pos = {"symbol": "EURUSD", "type": 0, "volume": 2.0, "price_open": 1.1, "sl": 0, "tp": 0}
         with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"), \
              patch.object(mgr, "_calculate_lot", return_value=2.0), \
+             patch("domain.copy_trade_manager.profile_session_validation_enabled", return_value=False), \
              patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5, \
              patch("OAK_Hidden_SLTP_Manager.os.path.exists", return_value=False):
             mock_mt5.positions_get.return_value = []
@@ -111,7 +113,8 @@ class TestCopySafetyReal(unittest.TestCase):
 
     def test_profile_name_isolated_in_notify(self):
         mgr, notify = _make_manager(profile_name="VantageDemo", copy_kill_switch=True)
-        with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"):
+        with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"), \
+             patch("domain.copy_trade_manager.profile_session_validation_enabled", return_value=False):
             mgr._open_copy_trade(1, {"symbol": "EURUSD", "type": 0, "volume": 0.1})
         msg = str(notify.call_args)
         self.assertIn("VantageDemo", msg)

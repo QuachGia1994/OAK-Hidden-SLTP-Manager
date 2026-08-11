@@ -51,3 +51,42 @@ def test_unknown_intent_is_persistable_and_not_due(tmp_path):
     }
     assert store.get_due_signal_execution_intents("2026-08-10T12:02:00Z") == []
     store.close()
+
+
+def test_mutation_intent_survives_restart_and_unknown_is_terminal(tmp_path):
+    db_path = tmp_path / "state.db"
+    now = "2026-08-10T12:00:00Z"
+    intent = {
+        "idempotency_key": "close:demo:12345:XAUUSD:0.01",
+        "operation": "CLOSE",
+        "profile": "demo",
+        "symbol": "XAUUSD",
+        "target_ticket": 12345,
+        "status": "PENDING",
+        "attempts": 0,
+        "order_ticket": None,
+        "next_attempt_at_utc": now,
+        "last_error": "",
+        "created_at_utc": now,
+        "updated_at_utc": now,
+    }
+
+    store = SQLiteStore(str(db_path))
+    store.upsert_mutation_intent(intent)
+    store.update_mutation_intent(
+        intent["idempotency_key"],
+        status="UNKNOWN",
+        attempts=1,
+        next_attempt_at_utc=UNKNOWN_NEXT_ATTEMPT_AT_UTC,
+        last_error="UNKNOWN broker outcome: response lost",
+        updated_at_utc="2026-08-10T12:01:00Z",
+    )
+    store.close()
+
+    restarted = SQLiteStore(str(db_path))
+    row = restarted.get_mutation_intent(intent["idempotency_key"])
+    assert row["status"] == "UNKNOWN"
+    assert row["attempts"] == 1
+    assert row["next_attempt_at_utc"] == UNKNOWN_NEXT_ATTEMPT_AT_UTC
+    assert row["target_ticket"] == 12345
+    restarted.close()

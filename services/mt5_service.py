@@ -3,6 +3,7 @@
 import MetaTrader5 as mt5
 from oak_logger import setup_logger
 from services.mt5_terminal_service import ensure_mt5_profile_connected
+from domain.mt5_orders import send_mutation_idempotent
 
 log = setup_logger("mt5_service")
 
@@ -87,9 +88,16 @@ class MT5Service:
             "magic": pos.magic,
             "comment": "OAK Close",
         }
-        result = mt5.order_send(req)
-        if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+        account = mt5.account_info()
+        account_key = getattr(account, "login", None) or self._path or "unknown"
+        result = send_mutation_idempotent(
+            req,
+            f"service-close:{account_key}:{pos.ticket}:{volume or pos.volume}",
+            mt5_module=mt5,
+            reconcile=lambda: pos.ticket if not (mt5.positions_get(ticket=pos.ticket) or []) else None,
+        )
+        if result["status"] in ("DONE", "EXISTING"):
             log.info("Closed %s %s volume=%.2f", pos.symbol, "BUY" if pos.type == 0 else "SELL", volume or pos.volume)
         else:
-            log.error("Close failed for %s: %s", pos.symbol, result.comment if result else "No result")
+            log.error("Close failed for %s: %s", pos.symbol, result.get("error", result["status"]))
         return result

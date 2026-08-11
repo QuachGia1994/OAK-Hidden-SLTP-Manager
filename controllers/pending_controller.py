@@ -498,7 +498,7 @@ class PendingControllerMixin:
             
             # --- PRE-TRADE RISK GATE ---
             from domain.risk_gate import RiskGateConfig, evaluate_mt5_account_risk
-            from domain.mt5_orders import send_order_idempotent
+            from domain.mt5_orders import send_mutation_idempotent, send_order_idempotent
             from pathlib import Path
             try:
                 initial_peak = self.config.get("risk_initial_peak_equity")
@@ -542,8 +542,13 @@ class PendingControllerMixin:
                                 "type_time": mt5.ORDER_TIME_GTC,
                                 "type_filling": get_filling_type(pos.symbol),
                             }
-                            close_res = mt5.order_send(req_c)
-                            if getattr(close_res, "retcode", None) != mt5.TRADE_RETCODE_DONE:
+                            close_result = send_mutation_idempotent(
+                                req_c,
+                                f"manual-close-opposite:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}",
+                                mt5_module=mt5,
+                                reconcile=lambda: pos.ticket if not (mt5.positions_get(ticket=pos.ticket) or []) else None,
+                            )
+                            if close_result["status"] not in ("DONE", "EXISTING"):
                                 self.lbl_pos_msg.configure(
                                     text=f"Risk Gate DENIED: opposite position #{pos.ticket} could not be closed",
                                     text_color="red",
@@ -566,8 +571,13 @@ class PendingControllerMixin:
                             "action": mt5.TRADE_ACTION_REMOVE,
                             "order": o.ticket
                         }
-                        remove_res = mt5.order_send(request_del)
-                        if getattr(remove_res, "retcode", None) != mt5.TRADE_RETCODE_DONE:
+                        remove_result = send_mutation_idempotent(
+                            request_del,
+                            f"manual-remove-pending:{self.config.get('profile_name', 'Unknown')}:{o.ticket}",
+                            mt5_module=mt5,
+                            reconcile=lambda: o.ticket if not (mt5.orders_get(ticket=o.ticket) or []) else None,
+                        )
+                        if remove_result["status"] not in ("DONE", "EXISTING"):
                             self.lbl_pos_msg.configure(
                                 text=f"Risk Gate DENIED: opposite pending #{o.ticket} could not be removed",
                                 text_color="red",

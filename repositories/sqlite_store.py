@@ -106,6 +106,20 @@ class SQLiteStore:
                 created_at_utc TEXT NOT NULL,
                 updated_at_utc TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS mutation_intents (
+                idempotency_key TEXT PRIMARY KEY,
+                operation TEXT NOT NULL,
+                profile TEXT NOT NULL DEFAULT '',
+                symbol TEXT NOT NULL,
+                target_ticket INTEGER,
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                order_ticket INTEGER,
+                next_attempt_at_utc TEXT NOT NULL,
+                last_error TEXT DEFAULT '',
+                created_at_utc TEXT NOT NULL,
+                updated_at_utc TEXT NOT NULL
+            );
         """)
         heartbeat_columns = {
             row[1] for row in self._conn.execute("PRAGMA table_info(worker_heartbeat)").fetchall()
@@ -261,6 +275,76 @@ class SQLiteStore:
         assignments = ", ".join(f"{name}=?" for name in payload)
         self._conn.execute(
             f"UPDATE signal_execution_intents SET {assignments} WHERE idempotency_key=?",
+            (*payload.values(), key),
+        )
+        self._conn.commit()
+
+    # --- Broker mutation intents ---
+    def upsert_mutation_intent(self, intent):
+        """Persist one broker mutation before the first broker-side mutation."""
+        fields = (
+            "idempotency_key", "operation", "profile", "symbol", "target_ticket",
+            "status", "attempts", "order_ticket", "next_attempt_at_utc",
+            "last_error", "created_at_utc", "updated_at_utc",
+        )
+        values = tuple(intent.get(field) for field in fields)
+        self._conn.execute(
+            f"INSERT OR IGNORE INTO mutation_intents ({','.join(fields)}) VALUES ({','.join('?' for _ in fields)})",
+            values,
+        )
+        self._conn.commit()
+
+    def get_mutation_intent(self, key):
+        """Return one persisted mutation intent by deterministic idempotency key."""
+        row = self._conn.execute(
+            "SELECT * FROM mutation_intents WHERE idempotency_key=?", (key,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def claim_mutation_intent(self, key, now_utc):
+        """Atomically claim a PENDING mutation so concurrent workers cannot both send."""
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = self._conn.execute(
+                "SELECT * FROM mutation_intents WHERE idempotency_key=?", (key,)
+            ).fetchone()
+            if row is None:
+                self._conn.rollback()
+                return None, False
+            current = dict(row)
+            if current["status"] != "PENDING":
+                self._conn.rollback()
+                return current, False
+            attempts = int(current.get("attempts") or 0) + 1
+            self._conn.execute(
+                "UPDATE mutation_intents SET status='EXECUTING', attempts=?, updated_at_utc=? WHERE idempotency_key=? AND status='PENDING'",
+                (attempts, now_utc, key),
+            )
+            changed = self._conn.execute("SELECT changes()").fetchone()[0]
+            if changed != 1:
+                self._conn.rollback()
+                return current, False
+            self._conn.commit()
+            current["status"] = "EXECUTING"
+            current["attempts"] = attempts
+            current["updated_at_utc"] = now_utc
+            return current, True
+        except Exception:
+            self._conn.rollback()
+            raise
+
+    def update_mutation_intent(self, key, **changes):
+        """Atomically update a whitelisted broker mutation state."""
+        allowed = {
+            "status", "attempts", "order_ticket", "next_attempt_at_utc",
+            "last_error", "updated_at_utc",
+        }
+        payload = {name: value for name, value in changes.items() if name in allowed}
+        if not payload:
+            return
+        assignments = ", ".join(f"{name}=?" for name in payload)
+        self._conn.execute(
+            f"UPDATE mutation_intents SET {assignments} WHERE idempotency_key=?",
             (*payload.values(), key),
         )
         self._conn.commit()

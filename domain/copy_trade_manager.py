@@ -31,7 +31,11 @@ from domain.constants import (
 )
 from domain.json_io import load_json, save_json
 from domain.i18n import T, CURRENT_LANG, LANG
-from domain.mt5_orders import get_filling_type, send_order_idempotent, send_order_with_retry
+from domain.mt5_orders import (
+    get_filling_type,
+    send_mutation_idempotent,
+    send_order_idempotent,
+)
 from domain.ticket_manager import TicketManager, trades_file_for_profile
 from domain.file_lock import FileLock
 from domain.balance import get_start_day_balance
@@ -479,8 +483,22 @@ class CopyTradeManager:
             "type_filling": get_filling_type(pos.symbol),
         }
         
-        res = send_order_with_retry(request)
-        return res.retcode == mt5.TRADE_RETCODE_DONE
+        def reconcile():
+            rows = mt5.positions_get(ticket=pos.ticket) or []
+            if not rows:
+                return pos.ticket
+            current = rows[0]
+            if float(getattr(current, "volume", 0)) < float(pos.volume) - 1e-9:
+                return pos.ticket
+            return None
+
+        result = send_mutation_idempotent(
+            request,
+            f"partial-close:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{volume}",
+            mt5_module=mt5,
+            reconcile=reconcile,
+        )
+        return result["status"] in ("DONE", "EXISTING")
 
     def process(self):
         # Sync scheduled trades from file if changed by GUI
@@ -1829,11 +1847,27 @@ class CopyTradeManager:
                     "tp": round(real_tp, symbol_info.digits)
                 }
                 # Fix for error 10030 or similar: Add missing fields if needed, though SLTP action usually doesn't need them.
-                res = mt5.order_send(req)
-                if res.retcode == mt5.TRADE_RETCODE_DONE:
+                def reconcile_position():
+                    rows = mt5.positions_get(ticket=pos.ticket) or []
+                    if not rows:
+                        return None
+                    current = rows[0]
+                    target_sl = round(real_sl, symbol_info.digits)
+                    target_tp = round(real_tp, symbol_info.digits)
+                    if abs(float(getattr(current, "sl", 0.0)) - target_sl) <= point and abs(float(getattr(current, "tp", 0.0)) - target_tp) <= point:
+                        return pos.ticket
+                    return None
+
+                result = send_mutation_idempotent(
+                    req,
+                    f"modify-position:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{mod_type}:{current_val}",
+                    mt5_module=mt5,
+                    reconcile=reconcile_position,
+                )
+                if result["status"] in ("DONE", "EXISTING"):
                     success_this_pos = True
                 else:
-                    errors.append(f"#{pos.ticket}: {res.comment}")
+                    errors.append(f"#{pos.ticket}: {result.get('error', result['status'])}")
             else:
                 # Real SL/TP already at target, no sync requested, OR sync_real is OFF
                 success_this_pos = True
@@ -1881,12 +1915,28 @@ class CopyTradeManager:
                     "type_time": ord.type_time,
                     "type_filling": ord.type_filling
                 }
-                res = mt5.order_send(req)
-                if res.retcode == mt5.TRADE_RETCODE_DONE:
+                def reconcile_pending():
+                    rows = mt5.orders_get(ticket=ord.ticket) or []
+                    if not rows:
+                        return None
+                    current = rows[0]
+                    target_sl = round(real_sl, symbol_info.digits)
+                    target_tp = round(real_tp, symbol_info.digits)
+                    if abs(float(getattr(current, "sl", 0.0)) - target_sl) <= point and abs(float(getattr(current, "tp", 0.0)) - target_tp) <= point:
+                        return ord.ticket
+                    return None
+
+                result = send_mutation_idempotent(
+                    req,
+                    f"modify-order:{self.config.get('profile_name', 'Unknown')}:{ord.ticket}:{mod_type}:{val}",
+                    mt5_module=mt5,
+                    reconcile=reconcile_pending,
+                )
+                if result["status"] in ("DONE", "EXISTING"):
                     count += 1
                     updated_details.append(f"#{ord.ticket}: {val}")
                 else:
-                    errors.append(f"#{ord.ticket}: {res.comment}")
+                    errors.append(f"#{ord.ticket}: {result.get('error', result['status'])}")
             else:
                 # If sync_real is OFF, we don't modify pending orders on server
                 # (Pending orders don't have a 'hidden' mode in this bot yet, 
@@ -1932,10 +1982,20 @@ class CopyTradeManager:
             "type_filling": get_filling_type(pos.symbol),
         }
         
-        res = send_order_with_retry(request)
-        
-        # Update ticket manager for closed position
-        if res.retcode == mt5.TRADE_RETCODE_DONE:
+        def reconcile():
+            rows = mt5.positions_get(ticket=pos.ticket) or []
+            return pos.ticket if not rows else None
+
+        result = send_mutation_idempotent(
+            request,
+            f"close:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}",
+            mt5_module=mt5,
+            reconcile=reconcile,
+        )
+
+        # Update ticket manager for a confirmed close. UNKNOWN remains a
+        # non-terminal local outcome; the caller must reconcile before retrying.
+        if result["status"] in ("DONE", "EXISTING"):
             self.ticket_manager.update_ticket(pos.ticket, status="closed")
             return True
         return False
@@ -2722,11 +2782,20 @@ class CopyTradeManager:
             for o in pending_orders:
                 if o.type in opp_pending_types:
                     request_del = {"action": mt5.TRADE_ACTION_REMOVE, "order": o.ticket}
-                    res_del = mt5.order_send(request_del)
-                    if res_del.retcode == mt5.TRADE_RETCODE_DONE:
+                    def reconcile_removed_pending():
+                        rows = mt5.orders_get(ticket=o.ticket) or []
+                        return o.ticket if not rows else None
+
+                    result = send_mutation_idempotent(
+                        request_del,
+                        f"remove-pending:{profile_name}:{o.ticket}",
+                        mt5_module=mt5,
+                        reconcile=reconcile_removed_pending,
+                    )
+                    if result["status"] in ("DONE", "EXISTING"):
                         self.notify(f"🗑️ [{profile_name}] Auto Removed opposite pending {symbol} (Ticket: {o.ticket}) for scheduled {trade.get('id')}")
                     else:
-                        self._scheduled_failure_notify_once(trade, f"🛑 [{profile_name}] Scheduled Entry blocked: failed to remove opposite pending {o.ticket}: {res_del.comment}", "remove_opposite_pending_failed")
+                        self._scheduled_failure_notify_once(trade, f"🛑 [{profile_name}] Scheduled Entry blocked: failed to remove opposite pending {o.ticket}: {result.get('error', result['status'])}", "remove_opposite_pending_failed")
                         return "fail"
 
         if closed_cnt > 0:
@@ -2748,8 +2817,14 @@ class CopyTradeManager:
         if not ticket:
             return True
         try:
-            res = mt5.order_send({"action": mt5.TRADE_ACTION_REMOVE, "order": int(ticket)})
-            return res.retcode == mt5.TRADE_RETCODE_DONE
+            ticket = int(ticket)
+            result = send_mutation_idempotent(
+                {"action": mt5.TRADE_ACTION_REMOVE, "order": ticket},
+                f"remove-pending:{self.config.get('profile_name', 'Unknown')}:{ticket}",
+                mt5_module=mt5,
+                reconcile=lambda: ticket if not (mt5.orders_get(ticket=ticket) or []) else None,
+            )
+            return result["status"] in ("DONE", "EXISTING")
         except Exception:
             return False
 
@@ -3218,13 +3293,25 @@ class CopyTradeManager:
             "type_filling": get_filling_type(pos.symbol),
         }
         
-        res = send_order_with_retry(req)
-        
-        if res.retcode == mt5.TRADE_RETCODE_DONE:
+        def reconcile():
+            rows = mt5.positions_get(ticket=pos.ticket) or []
+            return pos.ticket if not rows else None
+
+        result = send_mutation_idempotent(
+            req,
+            f"copy-close:{profile_name}:{m_ticket}:{s_ticket}",
+            mt5_module=mt5,
+            reconcile=reconcile,
+        )
+
+        if result["status"] in ("DONE", "EXISTING"):
             with self.mapping_lock:
-                del self.mapping[str(m_ticket)]
+                self.mapping.pop(str(m_ticket), None)
                 save_json(self.local_map_file, self.mapping)
             msg = f"[{profile_name}] {T('log_copy_close')} {pos.symbol} | {pos.volume}"
             self.notify(msg)
         else:
-            self.notify(f"[{profile_name}] {T('log_copy_err')} Close {s_ticket} | {res.comment}")
+            self.notify(
+                f"[{profile_name}] {T('log_copy_err')} Close {s_ticket} | "
+                f"{result.get('error', result['status'])}"
+            )

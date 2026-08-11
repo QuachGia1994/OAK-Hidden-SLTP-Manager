@@ -24,7 +24,7 @@ from domain.constants import SETTINGS_FILE, _mimo_bot_token, _mimo_bot_chat_id
 from domain.json_io import load_json, save_json
 from domain import i18n as _i18n
 from domain.i18n import T, LANG
-from domain.mt5_orders import get_filling_type, send_order_with_retry
+from domain.mt5_orders import get_filling_type, send_mutation_idempotent
 from domain.ticket_manager import TicketManager
 from domain.ghost_operator import GhostOperator
 from domain.copy_trade_manager import CopyTradeManager
@@ -235,23 +235,37 @@ class MonitorWorker(threading.Thread):
                 self.log(f"❌ {exec_mode} Failed to close {pos.ticket} visualy.")
                 # Fallback to API if ghost failed (maybe it's not blocked anymore)
 
-        res = send_order_with_retry(req)
+        def reconcile_close():
+            rows = mt5.positions_get(ticket=pos.ticket) or []
+            if not rows:
+                return pos.ticket
+            if volume is not None and float(getattr(rows[0], "volume", 0)) < float(pos.volume) - 1e-9:
+                return pos.ticket
+            return None
+
+        result = send_mutation_idempotent(
+            req,
+            f"monitor-close:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{reason}:{volume or pos.volume}",
+            mt5_module=mt5,
+            reconcile=reconcile_close,
+        )
         
         msg = ""
-        if res.retcode == mt5.TRADE_RETCODE_DONE:
+        if result["status"] in ("DONE", "EXISTING"):
             msg = f"✅ {exec_mode} {T('log_closed')} {pos.ticket} | {pos.symbol} | Vol: {volume if volume else pos.volume} | {reason}"
             self.notify(msg)
             winsound.Beep(1000, 200)
         else:
             extra = ""
-            if res.retcode == 10027:
+            if int(getattr(result.get("response"), "retcode", -1)) == 10027:
                 # DETECT ALGO BLOCKED -> TRIGGER GHOST REQUEST
                 print("[GHOST_REQUEST]", flush=True) # Signal main app to show popup
                 if mt5.terminal_info().trade_allowed:
                     extra = "\n" + T("err_api")
                 else:
                     extra = "\n" + T("err_algo")
-            msg = f"❌ {exec_mode} {T('log_fail')} {pos.ticket} | {pos.symbol} | Err {res.retcode}{extra}"
+            error_text = result.get("error", result["status"])
+            msg = f"❌ {exec_mode} {T('log_fail')} {pos.ticket} | {pos.symbol} | {error_text}{extra}"
             self.notify(msg)
             for _ in range(3): winsound.Beep(2000, 200); time.sleep(0.1)
         
@@ -297,14 +311,25 @@ class MonitorWorker(threading.Thread):
         state["attempt_count"] = int(state.get("attempt_count", 0)) + 1
         req = {"action": mt5.TRADE_ACTION_SLTP, "position": pos.ticket, "symbol": pos.symbol,
                "sl": target_sl, "tp": getattr(pos, "tp", 0.0)}
-        try:
-            res = mt5.order_send(req)
-            retcode = int(getattr(res, "retcode", -1))
-        except Exception as error:
-            retcode = -1
-            self._be_log_once(state, f"[BE] {pos.ticket} order_send exception: {error}")
+        def reconcile_be():
+            refreshed = mt5.positions_get(ticket=pos.ticket) or []
+            if not refreshed:
+                return None
+            current = refreshed[0]
+            if abs(float(getattr(current, "sl", 0.0) or 0.0) - target_sl) <= max(1e-8, abs(target_sl) * 1e-7):
+                return pos.ticket
+            return None
+
+        result = send_mutation_idempotent(
+            req,
+            f"move-be:{profile}:{pos.ticket}:{target_sl}",
+            mt5_module=mt5,
+            reconcile=reconcile_be,
+        )
+        response = result.get("response")
+        retcode = int(getattr(response, "retcode", -1)) if response is not None else -1
         state["last_retcode"] = retcode
-        if retcode == getattr(mt5, "TRADE_RETCODE_DONE", 10009):
+        if result["status"] in ("DONE", "EXISTING"):
             self._be_retry_state.pop(key, None)
             self.notify(f"{T('log_move_be_ok')} {pos.ticket} | {pos.symbol} -> {target_sl}")
             return True
@@ -335,6 +360,10 @@ class MonitorWorker(threading.Thread):
         if retcode == 10031:
             state["next_retry_at"] = now + 30.0
             self._be_log_once(state, f"[BE] {pos.ticket} chờ MT5 reconnect.")
+            return False
+        if result["status"] == "UNKNOWN":
+            state["next_retry_at"] = now + min(300.0, 30.0 * (2 ** min(state["attempt_count"], 4)))
+            self._be_log_once(state, f"[BE] {pos.ticket} UNKNOWN; broker state requires reconciliation before retry")
             return False
         state["next_retry_at"] = now + min(300.0, 15.0 * (2 ** min(state["attempt_count"], 4)))
         self._be_log_once(state, f"[BE] {pos.ticket} deferred; Err {retcode}")
@@ -1087,9 +1116,23 @@ class MonitorWorker(threading.Thread):
                                                         "sl": final_sl,
                                                         "tp": final_tp
                                                     }
-                                                    res = mt5.order_send(req)
-                                                    if res.retcode != mt5.TRADE_RETCODE_DONE:
-                                                        # self.log(f"Visible SLTP Sync Error: {res.retcode}")
+                                                    def reconcile_visible_sltp():
+                                                        rows = mt5.positions_get(ticket=pos.ticket) or []
+                                                        if not rows:
+                                                            return None
+                                                        current = rows[0]
+                                                        sl_ok = final_sl <= 0 or abs(float(getattr(current, "sl", 0.0) or 0.0) - final_sl) <= max(1e-8, abs(final_sl) * 1e-7)
+                                                        tp_ok = final_tp <= 0 or abs(float(getattr(current, "tp", 0.0) or 0.0) - final_tp) <= max(1e-8, abs(final_tp) * 1e-7)
+                                                        return pos.ticket if sl_ok and tp_ok else None
+
+                                                    result = send_mutation_idempotent(
+                                                        req,
+                                                        f"visible-sltp:{self.config.get('profile_name', 'Unknown')}:{pos.ticket}:{final_sl}:{final_tp}",
+                                                        mt5_module=mt5,
+                                                        reconcile=reconcile_visible_sltp,
+                                                    )
+                                                    if result["status"] not in ("DONE", "EXISTING"):
+                                                        # Unknown/rejected mutations are intentionally not retried blindly.
                                                         pass
                                         except Exception as e:
                                             # self.log(f"Visible SLTP Sync Exception: {e}")

@@ -195,10 +195,24 @@ def _initialize_and_validate_locked(
             return False, (type(error).__name__, str(error)), "SESSION_QUERY_ERROR"
 
         if terminal_info is None or account is None:
+            try:
+                mt5_module.shutdown()
+            except Exception:
+                pass
             return False, last_error, "SESSION_UNAVAILABLE"
         if not _terminal_path_matches(terminal_info, profile_config):
+            try:
+                mt5_module.shutdown()
+            except Exception:
+                pass
             return False, last_error, "TERMINAL_PATH_MISMATCH"
         if not _account_matches(account, profile_config):
+            # Drop the mismatched IPC session so a later worker cannot trade
+            # against an account that failed the profile identity contract.
+            try:
+                mt5_module.shutdown()
+            except Exception:
+                pass
             return False, last_error, "ACCOUNT_MISMATCH"
         return True, last_error, None
 
