@@ -61,7 +61,7 @@ class MT5ExecutionGateway:
     def __init__(self, mt5_module, store, *, enabled=False, volume=0.01, magic=88000,
                  symbol_resolver=None, max_drawdown_pct=6.0, max_volume=0.05,
                  allow_weekends=False, initial_peak_equity=None, risk_state_dir=None,
-                 health_provider=None, max_tick_age_seconds=120):
+                 health_provider=None, max_tick_age_seconds=120, profile_config=None):
         self.mt5 = mt5_module
         self.store = store
         self.enabled = bool(enabled)
@@ -74,6 +74,7 @@ class MT5ExecutionGateway:
         self.risk_state_dir = risk_state_dir or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.health_provider = health_provider
         self.max_tick_age_seconds = max(1.0, float(max_tick_age_seconds))
+        self.profile_config = dict(profile_config or {})
 
     def schedule_signal(self, result, broker_date, slot_hour, now_utc=None):
         """Persist the common-entry intent for each applicable ready pair once."""
@@ -158,6 +159,11 @@ class MT5ExecutionGateway:
         key = intent["idempotency_key"]
         now = now_utc if isinstance(now_utc, datetime) else _utc_now()
         try:
+            if self.profile_config:
+                from services.mt5_terminal_service import validate_mt5_profile_session
+                session_ok, session_reason = validate_mt5_profile_session(self.mt5, self.profile_config)
+                if not session_ok:
+                    raise RuntimeError(f"MT5_PROFILE_SESSION:{session_reason}")
             policy = evaluate_execution_intent(
                 intent,
                 now_utc=now,

@@ -85,7 +85,7 @@ def test_scheduled_failure_does_not_get_marked_executed():
     body = source[start:end]
     assert 'result == "done"' in body
     assert 'result == "skip"' in body
-    assert '"waiting"' in body
+    assert "_schedule_scheduled_retry(" in body
     assert '"executed")' in body
 
     prep_start = source.index("def _prepare_scheduled_trade")

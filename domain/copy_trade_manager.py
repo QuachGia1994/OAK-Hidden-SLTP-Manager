@@ -2818,6 +2818,19 @@ class CopyTradeManager:
         tp_points = float(trade.get("tp", 0) or 0)
         profile_name = self.config.get("profile_name", "Unknown")
 
+        from services.mt5_terminal_service import profile_session_validation_enabled, validate_mt5_profile_session
+        if profile_session_validation_enabled(self.config):
+            session_ok, session_reason = validate_mt5_profile_session(mt5, self.config)
+        else:
+            session_ok, session_reason = True, "SESSION_NOT_CONFIGURED"
+        if not session_ok:
+            self._scheduled_failure_notify_once(
+                trade,
+                f"🛑 [{profile_name}] Scheduled Entry blocked: MT5 profile session invalid ({session_reason})",
+                f"profile_session:{session_reason}",
+            )
+            return "fail"
+
         # Equity/FDD protection is opt-in. When the profile does not enable
         # balance/equity-based SL/TP and has no explicit risk gate settings,
         # scheduled entries must preserve the legacy contract: execute at the
@@ -2948,6 +2961,15 @@ class CopyTradeManager:
         raw_symbol = m_pos["symbol"]
         symbol = self._find_matching_symbol(raw_symbol)
         profile_name = self.config.get("profile_name", "Unknown")
+
+        from services.mt5_terminal_service import profile_session_validation_enabled, validate_mt5_profile_session
+        if profile_session_validation_enabled(self.config):
+            session_ok, session_reason = validate_mt5_profile_session(mt5, self.config)
+        else:
+            session_ok, session_reason = True, "SESSION_NOT_CONFIGURED"
+        if not session_ok:
+            self.notify(f"🛑 [{profile_name}] Copy Entry DENIED: MT5 profile session invalid ({session_reason})")
+            return
 
         if not symbol:
             self.notify(f"[{profile_name}] Symbol mismatch! Master: {raw_symbol} -> Slave: ???")

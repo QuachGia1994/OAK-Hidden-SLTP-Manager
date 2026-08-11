@@ -159,6 +159,17 @@ def _profile_requires_account_identity(profile: Any) -> bool:
     return copy_role not in {"", "none", "null", "off", "disabled"}
 
 
+def profile_session_validation_enabled(profile: Any) -> bool:
+    """Return True when a caller has a concrete profile/session contract to validate."""
+    if not isinstance(profile, dict):
+        return False
+    keys = (
+        "path", "login_id", "login", "server", "broker",
+        "signal_execution_enabled", "execution_enabled", "copy_role",
+    )
+    return any(profile.get(key) not in (None, "") for key in keys)
+
+
 def _account_matches(account: Any, profile: Any) -> bool:
     if not isinstance(profile, dict) or account is None:
         return True
@@ -176,10 +187,27 @@ def _account_matches(account: Any, profile: Any) -> bool:
         except (TypeError, ValueError):
             return False
     if expected_server:
-        actual = str(getattr(account, "server", getattr(account, "company", "")))
-        if str(expected_server).lower() not in actual.lower():
+        actual = str(getattr(account, "server", getattr(account, "company", ""))).strip().casefold()
+        expected = str(expected_server).strip().casefold()
+        if actual != expected:
             return False
     return True
+
+
+def _terminal_path_matches(terminal_info: Any, profile: Any) -> bool:
+    """Validate the attached terminal executable when MT5 exposes its path."""
+    if not isinstance(profile, dict):
+        return True
+    configured = normalize_terminal_path(profile.get("path"))
+    if configured is None:
+        return True
+    observed_raw = getattr(terminal_info, "path", None)
+    if not observed_raw:
+        return True
+    observed = normalize_terminal_path(observed_raw)
+    if observed is None:
+        return False
+    return observed == configured
 
 
 def validate_mt5_profile_session(mt5_module: Any, profile_config: Any) -> tuple[bool, str]:
@@ -193,6 +221,8 @@ def validate_mt5_profile_session(mt5_module: Any, profile_config: Any) -> tuple[
         return False, f"MT5_SESSION_QUERY_ERROR:{error}"
     if terminal_info is None or account is None:
         return False, "MT5_SESSION_UNAVAILABLE"
+    if not _terminal_path_matches(terminal_info, profile_config):
+        return False, "TERMINAL_PATH_MISMATCH"
     if not _account_matches(account, profile_config):
         return False, "ACCOUNT_MISMATCH"
     return True, "SESSION_OK"
@@ -250,6 +280,16 @@ def ensure_mt5_profile_connected(
             terminal_info = mt5_module.terminal_info()
             account = mt5_module.account_info()
             if terminal_info is not None and account is not None:
+                if not _terminal_path_matches(terminal_info, profile_config):
+                    try:
+                        mt5_module.shutdown()
+                    except Exception:
+                        pass
+                    return MT5LaunchResult(
+                        False, str(terminal_path), False, None,
+                        attempts, last_error, "TERMINAL_PATH_MISMATCH",
+                        "Connected terminal executable does not match profile",
+                    )
                 if not _account_matches(account, profile_config):
                     try:
                         mt5_module.shutdown()
@@ -298,6 +338,16 @@ def ensure_mt5_profile_connected(
                 terminal_info = mt5_module.terminal_info()
                 account = mt5_module.account_info()
                 if terminal_info is not None and account is not None:
+                    if not _terminal_path_matches(terminal_info, profile_config):
+                        try:
+                            mt5_module.shutdown()
+                        except Exception:
+                            pass
+                        return MT5LaunchResult(
+                            False, str(terminal_path), process_started, process_id,
+                            attempts, last_error, "TERMINAL_PATH_MISMATCH",
+                            "Connected terminal executable does not match profile",
+                        )
                     if not _account_matches(account, profile_config):
                         try:
                             mt5_module.shutdown()
@@ -336,4 +386,5 @@ __all__ = [
     "discover_terminal_candidates",
     "ensure_mt5_profile_connected",
     "validate_mt5_profile_session",
+    "profile_session_validation_enabled",
 ]

@@ -437,6 +437,14 @@ class PendingControllerMixin:
              return
 
         try:
+            from services.mt5_terminal_service import profile_session_validation_enabled, validate_mt5_profile_session
+            if profile_session_validation_enabled(self.config):
+                session_ok, session_reason = validate_mt5_profile_session(mt5, self.config)
+            else:
+                session_ok, session_reason = True, "SESSION_NOT_CONFIGURED"
+            if not session_ok:
+                self.lbl_pos_msg.configure(text=f"MT5 Profile Session DENIED: {session_reason}", text_color="red")
+                return
             symbol = self.ent_pos_sym.get().strip().upper()
             try:
                 vol = float(self.val_pos_lot.get())
