@@ -101,7 +101,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         />
       </section>
 
-      <TradeAuditDashboard locale={locale} />
+      {isVIP && <TradeAuditDashboard locale={locale} />}
 
       {news.length > 0 && (
         <section className="terminal-panel rounded-2xl p-5 sm:p-6">

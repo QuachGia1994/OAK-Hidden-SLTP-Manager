@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { redis, KEYS, requireAuth } from "@/lib/redis";
+import { redis, KEYS, requireAuth, canSeeVipData } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!canSeeVipData(request)) return NextResponse.json({ error: "vip_required" }, { status: 403 });
   try {
     const payload = await redis.get(KEYS.auditInfo);
     return NextResponse.json(payload ?? null);
