@@ -41,7 +41,7 @@ class FakeMT5:
         return True
 
     def symbol_info_tick(self, symbol):
-        return SimpleNamespace(time=int(datetime(2026, 8, 3, 7, tzinfo=timezone.utc).timestamp()))
+        return SimpleNamespace(time=int(datetime.now(timezone.utc).timestamp()))
 
     def copy_rates_range(self, symbol, timeframe, start, end):
         return self._rates.get(symbol, [])

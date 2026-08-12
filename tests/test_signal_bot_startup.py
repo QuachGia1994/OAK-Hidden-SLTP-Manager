@@ -12,15 +12,19 @@ class SignalBotStartupTests(unittest.TestCase):
         account = MagicMock(balance=10000.0)
         calls = 0
 
+        class StopStartupSmoke(RuntimeError):
+            pass
+
         def broker_time():
             nonlocal calls
             calls += 1
             if calls > 2:
-                raise KeyboardInterrupt("stop controlled smoke test")
+                raise mt5_signal_bot.BrokerClockError("stop controlled smoke test")
             return broker_dt
 
         with (
             patch.object(mt5_signal_bot, "try_init_mt5", return_value=True),
+            patch.object(mt5_signal_bot, "validate_mt5_profile_session", return_value=(True, "ok")),
             patch.object(mt5_signal_bot, "mt5_ready", True),
             patch.object(mt5_signal_bot, "mt5") as terminal,
             patch.object(mt5_signal_bot, "get_broker_time", side_effect=broker_time),
@@ -35,6 +39,7 @@ class SignalBotStartupTests(unittest.TestCase):
             patch.object(mt5_signal_bot, "_process_live_slot"),
             patch.object(mt5_signal_bot, "_check_and_rebuild_after_d_ready"),
             patch.object(mt5_signal_bot, "_save_state"),
+            patch.object(mt5_signal_bot.time, "sleep", side_effect=StopStartupSmoke),
             patch.object(mt5_signal_bot.threading, "Thread") as heartbeat_thread,
             patch.object(mt5_signal_bot.MARKET_DATA_PROVIDER, "get_broker_utc_offset", return_value=3),
             patch.object(mt5_signal_bot.MARKET_DATA_PROVIDER, "_compute_offset", return_value=3),
