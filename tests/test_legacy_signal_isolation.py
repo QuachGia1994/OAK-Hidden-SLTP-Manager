@@ -80,8 +80,14 @@ class TestLegacySignalHistoryNotMixed(unittest.TestCase):
 
 class TestNoCopyRatesInAuditMode(unittest.TestCase):
     def test_no_mt5_copy_rates_called_in_account_audit_mode(self):
-        """With the legacy flag off, the bot startup must not call preload
-        (the only copy_rates_range caller in the provider)."""
+        """With the legacy flag off, bot startup must not call provider.preload.
+
+        Exercises the real audit-mode preload gate inside ``main()`` (the
+        production path that skips ``MARKET_DATA_PROVIDER.preload`` when
+        ``legacy_candle_signals_enabled()`` is false), then terminates the
+        main loop deterministically without KeyboardInterrupt (which
+        ``main()`` swallows) and without unbounded session-retry spin.
+        """
         import mt5_signal_bot
 
         os.environ.pop(LEGACY_CANDLE_SIGNALS_FLAG, None)
@@ -92,22 +98,25 @@ class TestNoCopyRatesInAuditMode(unittest.TestCase):
 
         broker_dt = datetime(2026, 7, 29, 10)
         account = MagicMock(balance=10000.0)
-        calls = 0
-
-        def broker_time():
-            nonlocal calls
-            calls += 1
-            if calls > 2:
-                raise KeyboardInterrupt("stop controlled smoke test")
-            return broker_dt
-
         preload = MagicMock()
+        preload.name = "MT5"
+        preload.get_broker_utc_offset.return_value = 3
+
+        def stop_after_preload_phase(_seconds=0):
+            # Invoked after the startup preload gate and the first main-loop
+            # tick; ends main() via the generic Exception handler (not KI).
+            raise RuntimeError("stop controlled audit-mode smoke test")
 
         with patch.object(mt5_signal_bot, "MARKET_DATA_PROVIDER", preload), \
              patch.object(mt5_signal_bot, "try_init_mt5", return_value=True), \
              patch.object(mt5_signal_bot, "mt5_ready", True), \
              patch.object(mt5_signal_bot, "mt5") as terminal, \
-             patch.object(mt5_signal_bot, "get_broker_time", side_effect=broker_time), \
+             patch.object(mt5_signal_bot, "get_broker_time", return_value=broker_dt), \
+             patch.object(
+                 mt5_signal_bot,
+                 "validate_mt5_profile_session",
+                 return_value=(True, "ok"),
+             ), \
              patch.object(mt5_signal_bot, "_load_state", return_value={"sent_today": set()}), \
              patch.object(mt5_signal_bot, "rebuild_signals_on_startup", return_value=0), \
              patch.object(mt5_signal_bot, "calculate_all_d_directions", return_value={}), \
@@ -120,15 +129,15 @@ class TestNoCopyRatesInAuditMode(unittest.TestCase):
              patch.object(mt5_signal_bot, "_check_and_rebuild_after_d_ready"), \
              patch.object(mt5_signal_bot, "_save_state"), \
              patch.object(mt5_signal_bot, "publish_d_direction_daily"), \
-             patch.object(mt5_signal_bot.threading, "Thread"):
+             patch.object(mt5_signal_bot, "process_pending_execution_orders"), \
+             patch.object(mt5_signal_bot.threading, "Thread"), \
+             patch.object(mt5_signal_bot.time, "sleep", side_effect=stop_after_preload_phase):
             terminal.account_info.return_value = account
-            preload.get_broker_utc_offset.return_value = 3
-            # data_provider_name == "MT5" is the default; preload must be gated off.
+            # Production gate under test: audit mode must skip preload.
             mt5_signal_bot.main(profile_name="VantageDemo")
 
-        # preload is the copy_rates caller — must never fire in audit mode.
+        # preload is the copy_rates_range caller — must never fire in audit mode.
         preload.preload.assert_not_called()
-        preload.assert_not_called()
 
 
 if __name__ == "__main__":
