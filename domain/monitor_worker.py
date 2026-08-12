@@ -30,7 +30,10 @@ from domain.ghost_operator import GhostOperator
 from domain.copy_trade_manager import CopyTradeManager
 from domain.balance import get_start_day_balance
 from domain.file_lock import FileLock
-from services.mt5_terminal_service import ensure_mt5_profile_connected
+from services.mt5_terminal_service import (
+    bind_live_mt5_account_identity,
+    ensure_mt5_profile_connected,
+)
 
 log = setup_logger("monitor_worker")
 
@@ -526,6 +529,16 @@ class MonitorWorker(threading.Thread):
             algo_msg = ""
             
             if account:
+                # Bind live login/server into the in-memory profile so
+                # send_mutation_idempotent / validate_mt5_mutation_session
+                # receive the same identity this worker just connected to.
+                # Does not invent values and does not overwrite configured ones.
+                bind_live_mt5_account_identity(self.config, account)
+                if getattr(self, "ghost_op", None) is not None and self.config.get("login_id") not in (None, ""):
+                    try:
+                        self.ghost_op.login_id = self.config.get("login_id")
+                    except Exception:
+                        pass
                 connect_msg = f"{T('log_connected')} {account.name} ({account.login}) | Broker: {account.company}"
                 self.log(connect_msg)
                 
@@ -719,6 +732,17 @@ class MonitorWorker(threading.Thread):
                                 self.config, mt5_module=mt5, timeout_seconds=10
                             )
                             if launch.ok:
+                                # Refresh missing identity from the live session after
+                                # reconnect so SL/TP mutations are not stuck unbound
+                                # when the initial account_info() was empty.
+                                acc = mt5.account_info()
+                                if acc:
+                                    bind_live_mt5_account_identity(self.config, acc)
+                                    if getattr(self, "ghost_op", None) is not None and self.config.get("login_id") not in (None, ""):
+                                        try:
+                                            self.ghost_op.login_id = self.config.get("login_id")
+                                        except Exception:
+                                            pass
                                 self.log("✅ Reconnected.")
                             else:
                                 self.log(

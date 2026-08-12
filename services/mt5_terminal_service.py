@@ -264,6 +264,42 @@ def _account_matches(account: Any, profile: Any) -> bool:
     return True
 
 
+
+def bind_live_mt5_account_identity(profile_config: Any, account: Any) -> dict:
+    """Fill missing login_id/server from a live MT5 account_info result.
+
+    Used after a successful profile connection so mutation gateways receive
+    the same verified identity the worker just attached to. Never invents
+    values, never overwrites an already-configured identity field, and never
+    weakens ``validate_mt5_mutation_session``.
+
+    Mutates ``profile_config`` in place when it is a dict and returns it.
+    """
+    if not isinstance(profile_config, dict):
+        return {}
+    if account is None:
+        return profile_config
+
+    existing_login = profile_config.get("login_id", profile_config.get("login"))
+    existing_server = profile_config.get("server", profile_config.get("broker"))
+
+    live_login = getattr(account, "login", None)
+    live_server = getattr(account, "server", None)
+    if live_server in (None, ""):
+        live_server = getattr(account, "company", None)
+
+    if existing_login in (None, "") and live_login not in (None, ""):
+        try:
+            profile_config["login_id"] = int(live_login)
+        except (TypeError, ValueError):
+            pass
+
+    if not existing_server and live_server not in (None, ""):
+        profile_config["server"] = str(live_server).strip()
+
+    return profile_config
+
+
 def validate_mt5_mutation_session(mt5_module: Any, profile_config: Any) -> tuple[bool, str]:
     """Require an explicit path/login/server binding immediately before mutation."""
     if not isinstance(profile_config, dict):
@@ -487,6 +523,7 @@ __all__ = [
     "ensure_mt5_profile_connected",
     "validate_mt5_profile_session",
     "validate_mt5_mutation_session",
+    "bind_live_mt5_account_identity",
     "recover_mt5_profile_session",
     "profile_session_validation_enabled",
 ]
