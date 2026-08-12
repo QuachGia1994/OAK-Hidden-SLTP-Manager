@@ -2066,8 +2066,15 @@ class NativeShell:
         if container is not None:
             container.setUpdatesEnabled(False)
         try:
+            profiles_sig = tuple(sorted((k, repr(v)) for k, v in self.profiles.items()))
+            running_sig = tuple(sorted(self._running_profiles()))
+            sig = (profiles_sig, self.selected, running_sig, NATIVE_LANGUAGE)
+            if getattr(self, "_last_profiles_sig", None) == sig:
+                return
+            self._last_profiles_sig = sig
+
             self._clear_profile_rows()
-            running = set(self._running_profiles())
+            running = set(running_sig)
             if not self.profiles:
                 self.profile_rows_layout.addWidget(
                     self._guardrail_row("No profiles found", "SETUP", "Copy profiles.example.json to profiles.json, then add MT5 profile settings.", "amber")

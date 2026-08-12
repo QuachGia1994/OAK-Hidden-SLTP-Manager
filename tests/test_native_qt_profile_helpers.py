@@ -91,5 +91,33 @@ class TestProfilePageDeferral(unittest.TestCase):
         shell._refresh_profile_page.assert_called_once_with(force=True)
 
 
+class TestSidebarProfilesSignatureCaching(unittest.TestCase):
+    def test_refresh_profiles_skips_rebuilding_when_signature_unchanged(self) -> None:
+        from unittest.mock import MagicMock
+
+        shell = MagicMock(spec=oak_qt_shell.NativeShell)
+        shell.profiles = {"Demo": {"server": "MetaQuotes-Demo"}}
+        shell.selected = "Demo"
+        shell._running_profiles = lambda: []
+        shell.profile_rows_layout = MagicMock()
+        shell.profile_rows_layout.parentWidget = lambda: None
+        shell._clear_profile_rows = MagicMock()
+        shell._profile_status = lambda name, is_run: "IDLE"
+        shell._profile_row = lambda name, cfg, status: DummyWidget()
+
+        # Initial call builds rows
+        oak_qt_shell.NativeShell._refresh_profiles(shell)
+        self.assertEqual(shell._clear_profile_rows.call_count, 1)
+
+        # Repeated call with unchanged state skips rebuilding
+        oak_qt_shell.NativeShell._refresh_profiles(shell)
+        self.assertEqual(shell._clear_profile_rows.call_count, 1)
+
+        # Selection change invalidates signature and rebuilds
+        shell.selected = "Demo2"
+        oak_qt_shell.NativeShell._refresh_profiles(shell)
+        self.assertEqual(shell._clear_profile_rows.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()
