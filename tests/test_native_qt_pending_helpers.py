@@ -116,7 +116,6 @@ class TestNativeQtPendingHelpers(unittest.TestCase):
             self.assertTrue(removed)
             self.assertEqual(oak_qt_shell.read_json(path, []), [added_later])
 
-
     def test_delete_pending_item_refreshes_only_pending_page_and_bypasses_full_shell_refresh(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "scheduled_close_Demo.json"
@@ -172,6 +171,42 @@ class TestNativeQtPendingHelpers(unittest.TestCase):
             shell._refresh_pending_page.assert_called_once()
             shell.refresh.assert_not_called()
             shell.switch_tab.assert_not_called()
+
+    def test_refresh_pending_page_skips_widget_rebuild_on_unchanged_signature(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "scheduled_close_Demo.json"
+            target = {"id": 1, "symbol": "XAUUSD", "status": "waiting"}
+            oak_qt_shell.write_json_atomic(path, [target])
+
+            shell = unittest.mock.MagicMock()
+            shell.selected = "Demo"
+            shell._last_pending_signature = None
+            shell.pending_summary = unittest.mock.MagicMock()
+            shell.pending_items_layout = unittest.mock.MagicMock()
+            shell.pending_items_layout.count.return_value = 0
+            shell._pending_state = lambda p: oak_qt_shell.NativeShell._pending_state(shell, p)
+            shell._is_waiting_status = lambda item: oak_qt_shell.NativeShell._is_waiting_status(shell, item)
+            shell._guardrail_row = lambda *a: None
+            shell._pending_row = lambda *a: None
+
+            with patch.object(oak_qt_shell, "pending_file_specs", return_value=[("scheduled closes", path, "list")]):
+                # Call 1: renders and saves signature
+                oak_qt_shell.NativeShell._refresh_pending_page(shell)
+                first_sig = shell._last_pending_signature
+                self.assertIsNotNone(first_sig)
+
+                # Reset mocks to track call count on second refresh
+                shell.pending_summary.reset_mock()
+                shell.pending_items_layout.reset_mock()
+
+                # Call 2: signature unchanged, force=False -> skips widget rebuild
+                oak_qt_shell.NativeShell._refresh_pending_page(shell, force=False)
+                shell.pending_summary.setPlainText.assert_not_called()
+                shell.pending_items_layout.takeAt.assert_not_called()
+
+                # Call 3: force=True -> bypasses signature cache and rebuilds
+                oak_qt_shell.NativeShell._refresh_pending_page(shell, force=True)
+                shell.pending_summary.setPlainText.assert_called_once()
 
 
 if __name__ == "__main__":

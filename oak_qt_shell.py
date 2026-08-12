@@ -1065,6 +1065,7 @@ class NativeShell:
         self.pending_items_layout = None
         self.pending_action_status = None
         self.pending_delete_key = ""
+        self._last_pending_signature = None
         self.diag_summary = None
         self.diag_log = None
         self.diag_filter = None
@@ -1911,7 +1912,7 @@ class NativeShell:
         self._refresh_profiles()
         self._refresh_profile_page()
         self._refresh_copy_page()
-        self._refresh_pending_page()
+        self._refresh_pending_page(force=True)
         self._refresh_diagnostics_page()
         self._refresh_settings_page()
         self._refresh_stock_advisor_page()
@@ -2443,10 +2444,14 @@ class NativeShell:
         layout.addWidget(desc)
         return row
 
-    def _refresh_pending_page(self) -> None:
+    def _refresh_pending_page(self, force: bool = False) -> None:
         if self.pending_summary is None or self.pending_items_layout is None:
             return
         files, items = self._pending_state(self.selected)
+        sig = (self.selected, tuple(files), tuple(item.get("_pending_identity") for item in items))
+        if not force and getattr(self, "_last_pending_signature", None) == sig:
+            return
+        self._last_pending_signature = sig
         waiting = sum(1 for item in items if self._is_waiting_status(item))
         done = sum(1 for item in items if str(item.get("status") or "").lower() in PENDING_DONE_STATUSES)
         summary = [
@@ -2550,12 +2555,12 @@ class NativeShell:
             return
         if not removed:
             self.pending_delete_key = ""
-            self._refresh_pending_page()
+            self._refresh_pending_page(force=True)
             self._set_pending_status("Pending item was not found on disk.", "amber")
             return
         self.pending_delete_key = ""
         self.log(f"Deleted pending item from {path.name}.")
-        self._refresh_pending_page()
+        self._refresh_pending_page(force=True)
         self._set_pending_status("Pending item deleted.", "green")
 
     def clear_done_pending(self) -> None:
@@ -2575,7 +2580,7 @@ class NativeShell:
             return
         self.pending_delete_key = ""
         self.log(f"Cleared {removed_total} completed pending item(s).")
-        self._refresh_pending_page()
+        self._refresh_pending_page(force=True)
         accent = "green" if removed_total else "amber"
         self._set_pending_status(f"Cleared {removed_total} completed item(s).", accent)
 
