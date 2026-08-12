@@ -5,6 +5,7 @@ All Tkinter widget mutations are marshalled onto the UI thread via
 ``ui_after(callback)`` (typically ``app.after(0, callback)``).
 """
 import os
+import re
 import sys
 import time
 import threading
@@ -13,6 +14,195 @@ from typing import Dict, Any, Callable, Optional
 from oak_logger import setup_logger
 
 log = setup_logger("signal_supervisor")
+
+# ---------------------------------------------------------------------------
+# Single-instance recovery helpers (module-level so they are unit-testable)
+# ---------------------------------------------------------------------------
+# Shared message contract emitted by the managed bots when another instance is
+# already running: ``mimo_bot`` prints "[EXIT] mimo_bot already running
+# (PID N)"; ``mimo_worker`` prints "[WARN] MiMo Worker already running
+# (PID N)". The Vietnamese legacy variant is matched for lock-file fallback.
+_DUPLICATE_PID_RE = re.compile(r"already running \(PID (\d+)\)")
+_DUPLICATE_LINE_RE = re.compile(r"already running|dang chay roi", re.IGNORECASE)
+
+# Lock files are the single-instance source of truth for the managed bots.
+_LOCK_FILE_MAP = {
+    "mimo_bot": "mimo_bot.lock",
+    "mimo_worker": "mimo_worker.lock",
+}
+
+
+def parse_duplicate_instance_pid(line: Optional[str]) -> Optional[int]:
+    """Extract the conflicting PID from a managed bot's duplicate line.
+
+    Returns ``None`` when the line carries no PID (or is not a duplicate
+    message at all).
+    """
+    if not line:
+        return None
+    match = _DUPLICATE_PID_RE.search(line)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None
+
+
+def is_duplicate_instance_line(line: Optional[str]) -> bool:
+    """True when a managed bot reports another instance already running."""
+    return bool(line) and bool(_DUPLICATE_LINE_RE.search(line))
+
+
+def read_lock_file_pid(key: str, root_dir: Optional[str] = None) -> Optional[int]:
+    """Read the managed bot's lock-file PID (source of truth), or None."""
+    lock_name = _LOCK_FILE_MAP.get(key)
+    if not lock_name:
+        return None
+    if root_dir is None:
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    try:
+        with open(os.path.join(root_dir, lock_name), "r", encoding="utf-8") as f:
+            raw = (f.read() or "").strip()
+        pid = int(raw)
+        return pid if pid > 0 else None
+    except (OSError, ValueError):
+        return None
+
+
+def _expected_process_markers(key, script_map=None, frozen_flags=None):
+    """Command-line fragments that identify the managed process for ``key``.
+
+    Dev launchers run ``<script>.py``; frozen builds run the exe with a
+    ``--<mode>`` flag. The conflicting instance may have been launched by
+    either kind of build, so both markers are checked.
+    """
+    if script_map is None or frozen_flags is None:
+        from utils import SIGNAL_SCRIPT_MAP, FROZEN_MODE_FLAGS
+
+        script_map = script_map or SIGNAL_SCRIPT_MAP
+        frozen_flags = frozen_flags or FROZEN_MODE_FLAGS
+    markers = []
+    script = (script_map or {}).get(key)
+    if script:
+        markers.append(script.lower())
+    flag = (frozen_flags or {}).get(key)
+    if flag:
+        markers.append(flag.lower())
+    return markers
+
+
+def _psutil_probe(pid):
+    """Return (alive, cmdline_lower) via psutil; (None, None) if unavailable."""
+    try:
+        import psutil  # type: ignore
+    except Exception:
+        return None, None
+    try:
+        proc = psutil.Process(pid)
+        return True, " ".join(proc.cmdline() or []).lower()
+    except psutil.NoSuchProcess:
+        return False, None
+    except Exception:
+        return None, None
+
+
+def _tasklist_alive(pid):
+    """Windows tasklist liveness probe; None when the probe itself fails."""
+    if os.name != "nt":
+        return None
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        out = (result.stdout or "").strip()
+        if not out or out.lower().startswith("info:"):
+            return False
+        return True
+    except Exception:
+        return None
+
+
+def _powershell_cmdline(pid):
+    """Command line via Get-CimInstance (safer than wmic); None on failure."""
+    if os.name != "nt":
+        return None
+    script = f"(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        cmdline = (result.stdout or "").strip()
+        return cmdline.lower() if cmdline else None
+    except Exception:
+        return None
+
+
+def validate_conflicting_pid(
+    key: str,
+    pid,
+    *,
+    current_proc_pid: Optional[int] = None,
+    script_map: Optional[dict] = None,
+    frozen_flags: Optional[dict] = None,
+):
+    """Validate a conflicting PID against the expected managed process.
+
+    Returns ``(verdict, detail)`` where verdict is one of:
+      "gone"     – no live process with that PID; conflict already resolved
+      "matches"  – live process whose command line names the expected bot;
+                   safe to terminate that exact PID
+      "mismatch" – live process that is NOT the expected bot; never terminate
+      "unknown"  – Windows metadata unavailable; safe termination cannot be
+                   established, so the caller must stop and show the PID
+    """
+    if not isinstance(pid, int) or pid <= 0:
+        return "mismatch", "invalid PID"
+    if pid == os.getpid():
+        return "mismatch", "PID is the supervisor itself"
+    if current_proc_pid is not None and pid == current_proc_pid:
+        return "mismatch", "PID is the current managed process"
+
+    markers = _expected_process_markers(key, script_map, frozen_flags)
+
+    alive, cmdline = _psutil_probe(pid)
+    if alive is None:
+        alive = _tasklist_alive(pid)
+    if alive is False:
+        return "gone", "process no longer exists"
+    if alive is True:
+        if cmdline is None:
+            cmdline = _powershell_cmdline(pid)
+        if cmdline is None:
+            return "unknown", "process metadata unavailable"
+        if markers and any(marker in cmdline for marker in markers):
+            return "matches", "command line matches the expected managed process"
+        return "mismatch", "command line does not match the expected managed process"
+    return "unknown", "process metadata unavailable"
+
+
+def terminate_pid(pid: int) -> None:
+    """Force-terminate exactly one PID (Windows taskkill; POSIX SIGKILL)."""
+    try:
+        if os.name == "nt":
+            subprocess.run(
+                ["taskkill", "/F", "/T", "/PID", str(pid)],
+                capture_output=True,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+                timeout=10,
+            )
+        else:
+            os.kill(pid, 9)
+    except Exception:
+        pass
 
 
 class SignalProcessSupervisor:
@@ -32,6 +222,9 @@ class SignalProcessSupervisor:
         self._threads: Dict[str, threading.Thread] = {}
         self._running_processes: list = []
         self._intentional_stop: Dict[str, bool] = {}
+        # Single-instance recovery: one auto-restart budget per user start.
+        self._auto_restart_attempted: Dict[str, bool] = {}
+        self._last_profile: Dict[str, str] = {}
 
     def set_ui_after(self, ui_after: Callable) -> None:
         """Bind UI scheduler after App is constructed."""
@@ -118,8 +311,14 @@ class SignalProcessSupervisor:
         running: bool,
         pid: Optional[int] = None,
         status: Optional[str] = None,
+        conflict_pid: Optional[int] = None,
     ) -> None:
-        """Update badges. status override: Running | Stopped | Restarting | Crashed."""
+        """Update badges. status override: Running | Stopped | Restarting | Crashed.
+
+        ``conflict_pid`` surfaces a conflicting instance's PID while stopped
+        (single-instance recovery) instead of the usual ``PID: ---`` so the
+        user can terminate that PID manually.
+        """
         info = self._signal_procs.get(key)
         if not info:
             return
@@ -131,6 +330,12 @@ class SignalProcessSupervisor:
             self._safe_configure(info.get("btn_stop"), state="normal")
             self._safe_configure(info.get("lbl_status"), text=label, text_color=color)
         else:
+            if conflict_pid is not None:
+                self._safe_configure(info.get("lbl_pid"), text=f"PID: {conflict_pid} (conflict)")
+                self._safe_configure(info.get("btn_start"), state="normal")
+                self._safe_configure(info.get("btn_stop"), state="disabled")
+                self._safe_configure(info.get("lbl_status"), text="Conflict", text_color="#ff7043")
+                return
             label = status or "Stopped"
             color = "#ef5350" if label == "Crashed" else "#9e9e9e"
             self._safe_configure(info.get("lbl_pid"), text="PID: ---")
@@ -177,7 +382,7 @@ class SignalProcessSupervisor:
         except Exception:
             pass
 
-    def start_signal_process(self, key: str, profile: str = "") -> None:
+    def start_signal_process(self, key: str, profile: str = "", *, _recovery: bool = False) -> None:
         info = self._signal_procs.get(key)
         if not info:
             return
@@ -186,6 +391,12 @@ class SignalProcessSupervisor:
 
         self._kill_orphan_processes(key)
         self._intentional_stop[key] = False
+        # User-initiated starts get a fresh one-shot recovery budget.
+        # Recovery-triggered restarts must NOT reset the budget (loop guard).
+        if not _recovery:
+            self._auto_restart_attempted[key] = False
+        if profile:
+            self._last_profile[key] = profile
         try:
             from utils import build_signal_process_cmd, UnsupportedFrozenProcessError
 
@@ -232,6 +443,8 @@ class SignalProcessSupervisor:
 
     def stop_signal_process(self, key: str, *, wait: bool = True) -> None:
         self._intentional_stop[key] = True
+        # Explicit Stop must never auto-restart via recovery.
+        self._auto_restart_attempted[key] = True
         info = self._signal_procs.get(key)
         if not info or not info.get("proc"):
             # Still reset UI in case of race
@@ -289,11 +502,89 @@ class SignalProcessSupervisor:
             except Exception:
                 pass
 
+    def _try_duplicate_recovery(self, key: str, proc: subprocess.Popen, line: str) -> bool:
+        """Handle a single-instance conflict reported by a managed bot.
+
+        Returns True when this path owns the UI/lifecycle outcome (recovery
+        or manual intervention), so the normal monitor finally-block must
+        not overwrite status.
+        """
+        if self._intentional_stop.get(key):
+            return False
+        if not is_duplicate_instance_line(line):
+            return False
+
+        conflict_pid = parse_duplicate_instance_pid(line)
+        if conflict_pid is None:
+            conflict_pid = read_lock_file_pid(key)
+
+        current_pid = getattr(proc, "pid", None)
+        if conflict_pid is None:
+            self._log(
+                f"Duplicate instance for {key}: no PID in stdout or lock file; "
+                f"manual intervention required"
+            )
+
+            def _manual_no_pid(k=key, p=proc):
+                info2 = self._signal_procs.get(k)
+                if info2 and info2.get("proc") is p:
+                    info2["proc"] = None
+                self._set_running_ui(k, False, status="Conflict")
+
+            self._ui(_manual_no_pid)
+            return True
+
+        verdict, detail = validate_conflicting_pid(
+            key, conflict_pid, current_proc_pid=current_pid
+        )
+        budget_used = bool(self._auto_restart_attempted.get(key))
+
+        if verdict in ("matches", "gone") and not budget_used:
+            self._auto_restart_attempted[key] = True
+            if verdict == "matches":
+                self._log(
+                    f"Duplicate instance for {key}: terminating conflicting "
+                    f"PID {conflict_pid} ({detail}); restarting once"
+                )
+                terminate_pid(conflict_pid)
+                time.sleep(0.3)
+            else:
+                self._log(
+                    f"Duplicate instance for {key}: conflicting PID {conflict_pid} "
+                    f"already gone ({detail}); restarting once"
+                )
+
+            def _recover(k=key, p=proc):
+                info2 = self._signal_procs.get(k)
+                if info2 and info2.get("proc") is p:
+                    info2["proc"] = None
+                self._set_running_ui(k, False, status="Restarting")
+                profile = self._last_profile.get(k, "")
+                self.start_signal_process(k, profile, _recovery=True)
+
+            self._ui(_recover)
+            return True
+
+        self._log(
+            f"Duplicate instance for {key}: PID {conflict_pid} requires "
+            f"manual intervention ({verdict}: {detail})"
+        )
+
+        def _manual(k=key, p=proc, cpid=conflict_pid):
+            info2 = self._signal_procs.get(k)
+            if info2 and info2.get("proc") is p:
+                info2["proc"] = None
+            self._set_running_ui(k, False, conflict_pid=cpid)
+
+        self._ui(_manual)
+        return True
+
     def _monitor_signal_output(self, key: str, proc: subprocess.Popen) -> None:
         """Background reader — never mutates Tk widgets directly."""
         info = self._signal_procs.get(key)
         if not info:
             return
+        recovered = False
         try:
             for line in iter(proc.stdout.readline, ""):
                 if not line:
@@ -307,30 +598,33 @@ class SignalProcessSupervisor:
                     if len(logs) > 500:
                         info["logs"] = logs[-300:]
                     self._append_console_line(key, clean)
+                    if not recovered and is_duplicate_instance_line(clean):
+                        recovered = self._try_duplicate_recovery(key, proc, clean)
         except Exception:
             pass
         finally:
-            intentional = bool(self._intentional_stop.get(key))
-            code = None
-            try:
-                code = proc.poll()
-            except Exception:
+            if not recovered:
+                intentional = bool(self._intentional_stop.get(key))
                 code = None
-            # User Stop / taskkill → Stopped; unexpected non-zero exit → Crashed
-            crashed = (not intentional) and (code not in (None, 0))
+                try:
+                    code = proc.poll()
+                except Exception:
+                    code = None
+                # User Stop / taskkill → Stopped; unexpected non-zero exit → Crashed
+                crashed = (not intentional) and (code not in (None, 0))
 
-            def _finish(k=key, crash=crashed, was_intentional=intentional):
-                info2 = self._signal_procs.get(k)
-                if info2 and info2.get("proc") is proc:
-                    info2["proc"] = None
-                # If stop_signal_process already updated UI, keep Stopped
-                if was_intentional:
-                    self._set_running_ui(k, False, status="Stopped")
-                else:
-                    self._set_running_ui(k, False, status="Crashed" if crash else "Stopped")
-                self._kill_orphan_processes(k)
+                def _finish(k=key, crash=crashed, was_intentional=intentional):
+                    info2 = self._signal_procs.get(k)
+                    if info2 and info2.get("proc") is proc:
+                        info2["proc"] = None
+                    # If stop_signal_process already updated UI, keep Stopped
+                    if was_intentional:
+                        self._set_running_ui(k, False, status="Stopped")
+                    else:
+                        self._set_running_ui(k, False, status="Crashed" if crash else "Stopped")
+                    self._kill_orphan_processes(k)
 
-            self._ui(_finish)
+                self._ui(_finish)
 
     def start_all_signals(self, profile: str = "") -> None:
         keys = list(self._signal_procs)

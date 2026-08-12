@@ -67,7 +67,16 @@ def remove_lock():
 
 def main():
     if not create_lock():
-        print("[WARN] MiMo Worker dang chay roi. Bo qua.")
+        old_pid = None
+        try:
+            with open(LOCK_FILE, "r", encoding="utf-8") as f:
+                old_pid = int((f.read() or "0").strip() or "0")
+        except (OSError, ValueError):
+            old_pid = None
+        if old_pid and old_pid > 0:
+            print(f"[WARN] MiMo Worker already running (PID {old_pid})")
+        else:
+            print("[WARN] MiMo Worker dang chay roi. Bo qua.")
         return
 
     print("=" * 50)
