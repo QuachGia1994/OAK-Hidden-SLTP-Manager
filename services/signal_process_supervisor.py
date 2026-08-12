@@ -213,9 +213,13 @@ class SignalProcessSupervisor:
         signal_defs: list,
         log_callback: Optional[Callable] = None,
         ui_after: Optional[Callable] = None,
+        state_callback: Optional[Callable] = None,
+        output_callback: Optional[Callable] = None,
     ):
         self.signal_defs = signal_defs
         self.log_callback = log_callback
+        self.state_callback = state_callback
+        self.output_callback = output_callback
         # ui_after(fn, *args) must schedule fn on the Tk main thread
         self.ui_after = ui_after
         self._signal_procs: Dict[str, Dict[str, Any]] = {}
@@ -285,6 +289,8 @@ class SignalProcessSupervisor:
     def _append_console_line(self, key: str, line: str) -> None:
         if self._is_noise_line(line):
             return
+        if self.output_callback is not None:
+            self._ui(self.output_callback, key, line)
         info = self._signal_procs.get(key)
         if not info:
             return
@@ -313,12 +319,13 @@ class SignalProcessSupervisor:
         status: Optional[str] = None,
         conflict_pid: Optional[int] = None,
     ) -> None:
-        """Update badges. status override: Running | Stopped | Restarting | Crashed.
+        """Update badges and publish a normalized lifecycle event.
 
-        ``conflict_pid`` surfaces a conflicting instance's PID while stopped
-        (single-instance recovery) instead of the usual ``PID: ---`` so the
-        user can terminate that PID manually.
+        ``conflict_pid`` surfaces a conflicting PID while stopped instead of
+        the usual empty PID, allowing a UI to offer manual intervention.
         """
+        if self.state_callback is not None:
+            self._ui(self.state_callback, key, running, pid, status, conflict_pid)
         info = self._signal_procs.get(key)
         if not info:
             return

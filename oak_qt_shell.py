@@ -1036,6 +1036,8 @@ class NativeShell:
         self.signal_processes: dict[str, Any] = {}
         self.signal_cards: dict[str, dict[str, Any]] = {}
         self.signal_summary = None
+        self.signal_supervisor = None
+        self._signal_supervisor_logs: dict[str, int] = {}
         self.stock_process = None
         self.stock_pending_launch = None
         self.stock_process_log: list[str] = []
@@ -1099,11 +1101,72 @@ class NativeShell:
         self.window.setMinimumSize(1040, 680)
         self.window.resize(1240, 780)
         self._build()
+        self._init_signal_supervisor()
         self._install_shortcuts()
         self.apply_theme()
         self.refresh()
         self._start_live_timer()
         QT.QTimer.singleShot(0, self._ready)
+
+    def _init_signal_supervisor(self) -> None:
+        """Use the shared supervisor lifecycle/recovery engine for NativeQt."""
+        from services.signal_process_supervisor import SignalProcessSupervisor
+
+        defs = list(get_visible_signal_defs())
+        self._signal_supervisor_infos = {
+            key: {"name": name, "proc": None, "logs": []}
+            for key, name, _color in defs
+        }
+        self.signal_supervisor = SignalProcessSupervisor(
+            defs,
+            log_callback=self._on_signal_supervisor_log,
+            ui_after=lambda callback: QT.QTimer.singleShot(0, callback),
+            state_callback=self._on_signal_supervisor_state,
+            output_callback=self._on_signal_supervisor_output,
+        )
+        self.signal_supervisor.register_signals(self._signal_supervisor_infos)
+
+    def _on_signal_supervisor_log(self, message: str) -> None:
+        QT.QTimer.singleShot(0, lambda m=message: self._append_console_line(m))
+
+    def _on_signal_supervisor_output(self, key: str, line: str) -> None:
+        QT.QTimer.singleShot(0, lambda k=key, text=line: self._append_signal_log(k, text))
+
+    def _on_signal_supervisor_state(
+        self, key: str, running: bool, pid: int | None, status: str | None, conflict_pid: int | None
+    ) -> None:
+        QT.QTimer.singleShot(
+            0,
+            lambda: self._apply_signal_supervisor_state(key, running, pid, status, conflict_pid),
+        )
+
+    def _apply_signal_supervisor_state(
+        self, key: str, running: bool, pid: int | None, status: str | None, conflict_pid: int | None
+    ) -> None:
+        card = self.signal_cards.get(key)
+        if not card:
+            return
+        card["status"].setText(native_text(status or ("Running" if running else "Stopped")))
+        card["pid"].setText(
+            f"PID: {pid}" if running and pid else
+            f"PID: {conflict_pid} (conflict)" if conflict_pid else "PID: ---"
+        )
+        card["start"].setEnabled(not running)
+        card["stop"].setEnabled(running)
+        degraded = status in {"Conflict", "Restarting", "Degraded", "Blocked"}
+        card["frame"].setProperty("state", "running" if running else "degraded" if degraded else "stopped")
+        card["status"].setProperty("accent", "green" if running else "amber" if degraded else "")
+        card["dot"].setProperty("accent", "green" if running else "amber" if degraded else "red")
+        for widget_name in ("frame", "dot", "status", "start", "stop", "pid"):
+            widget = card[widget_name]
+            widget.style().unpolish(widget)
+            widget.style().polish(widget)
+        self._refresh_signal_summary()
+
+    def _bind_signal_supervisor_ui(self) -> None:
+        """Rebind the supervisor registry after a NativeQt UI rebuild."""
+        if self.signal_supervisor is not None:
+            self.signal_supervisor.register_signals(self._signal_supervisor_infos)
 
     def _build(self) -> None:
         root = QT.QWidget()
@@ -1815,6 +1878,7 @@ class NativeShell:
         self.nav_buttons = {}
         self.signal_cards = {}
         self._build()
+        self._bind_signal_supervisor_ui()
         self.selected = selected
         self.console.setPlainText(console_text)
         for key, text in signal_logs.items():
@@ -3012,6 +3076,11 @@ class NativeShell:
         signals (e.g. the user closes the window during an auto EOD update, or
         a test closes the window). Idempotent; safe to call more than once.
         """
+        if self.signal_supervisor is not None:
+            try:
+                self.signal_supervisor.cleanup()
+            except Exception:
+                pass
         processes: list[Any] = []
         for attr in ("eod_update_process", "stock_process"):
             proc = getattr(self, attr, None)
@@ -3256,10 +3325,11 @@ class NativeShell:
         self._append_signal_log(key, "Console copied.")
 
     def _refresh_signal_states(self) -> None:
+        infos = getattr(self, "_signal_supervisor_infos", {})
         for key, _name, _color in get_visible_signal_defs():
-            proc = self.signal_processes.get(key)
-            running = bool(proc and proc.state() != QT.NotRunning)
-            pid = proc.processId() if running else None
+            proc = infos.get(key, {}).get("proc")
+            running = bool(proc and proc.poll() is None)
+            pid = proc.pid if running else None
             self._set_signal_running(key, running, pid)
         self._refresh_signal_summary()
 
@@ -3268,46 +3338,21 @@ class NativeShell:
             return
         visible_defs = get_visible_signal_defs()
         visible_keys = {key for key, _name, _color in visible_defs}
+        infos = getattr(self, "_signal_supervisor_infos", {})
         running = sum(
             1
-            for key, proc in self.signal_processes.items()
-            if key in visible_keys and proc and proc.state() != QT.NotRunning
+            for key in visible_keys
+            if (proc := infos.get(key, {}).get("proc")) is not None and proc.poll() is None
         )
         self.signal_summary.setText(native_format("{running}/{total} running", running=running, total=len(visible_defs)))
 
     def start_signal(self, key: str) -> None:
         card = self.signal_cards.get(key)
-        if not card:
+        if not card or self.signal_supervisor is None:
             return
-        proc = self.signal_processes.get(key)
-        if proc and proc.state() != QT.NotRunning:
-            self._append_signal_log(key, f"{card['name']} is already running.")
-            return
-        profile = self.selected if key == "signal_bot" else ""
-        try:
-            cmd = build_signal_process_cmd(
-                key,
-                profile,
-                getattr(sys, "frozen", False),
-                sys.executable,
-            )
-        except UnsupportedFrozenProcessError:
-            self._append_signal_log(key, "Not supported in frozen mode yet.")
-            return
-        proc = QT.QProcess(self.window)
-        proc.setProgram(cmd[0])
-        proc.setArguments(cmd[1:])
-        proc.setWorkingDirectory(str(ROOT))
-        proc.setProcessEnvironment(self._process_environment())
-        proc.setProcessChannelMode(QT.QProcess.ProcessChannelMode.MergedChannels)
-        proc.readyReadStandardOutput.connect(lambda p=proc, k=key: self._read_signal_output(k, p))
-        proc.finished.connect(lambda code, _status, p=proc, k=key: self._signal_done(k, code, p))
-        proc.errorOccurred.connect(lambda error, p=proc, k=key: self._signal_error(k, error, p))
-        self.signal_processes[key] = proc
-        proc.start()
         card["console"].clear()
-        self._set_signal_running(key, True, proc.processId())
-        self._append_signal_log(key, f"Started {card['name']} with command: {' '.join(cmd)}")
+        profile = self.selected if key == "signal_bot" else ""
+        self.signal_supervisor.start_signal_process(key, profile)
 
     def _process_environment(self) -> Any:
         env = QT.QProcessEnvironment.systemEnvironment()
@@ -3316,13 +3361,9 @@ class NativeShell:
         return env
 
     def stop_signal(self, key: str) -> None:
-        proc = self.signal_processes.get(key)
-        if not proc or proc.state() == QT.NotRunning:
-            self._set_signal_running(key, False)
+        if self.signal_supervisor is None:
             return
-        proc.terminate()
-        QT.QTimer.singleShot(2500, lambda p=proc: p.kill() if p.state() != QT.NotRunning else None)
-        self._append_signal_log(key, "Stopping...")
+        self.signal_supervisor.stop_signal_process(key)
 
     def _read_signal_output(self, key: str, proc: Any) -> None:
         data = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
