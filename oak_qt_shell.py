@@ -1066,6 +1066,7 @@ class NativeShell:
         self.pending_action_status = None
         self.pending_delete_key = ""
         self._last_pending_signature = None
+        self._last_stock_advisor_signature = None
         self.diag_summary = None
         self.diag_log = None
         self.diag_filter = None
@@ -2034,7 +2035,7 @@ class NativeShell:
         self.stack.setCurrentWidget(self.tab_pages[tab])
         self._refresh_nav()
         if tab == "Stock Advisor":
-            self._refresh_stock_advisor_page(force=True)
+            self._refresh_stock_advisor_page(force=False)
         self._fade_in_page(self.tab_pages[tab])
 
     def _refresh_nav(self) -> None:
@@ -2688,11 +2689,23 @@ class NativeShell:
         self.diag_status.style().unpolish(self.diag_status)
         self.diag_status.style().polish(self.diag_status)
 
+    def _stock_advisor_signature(self) -> tuple[Any, ...]:
+        db_path = ROOT / "data" / "market.db"
+        rec_path = ROOT / "stock_recommendation.json"
+        db_stat = (db_path.stat().st_mtime_ns, db_path.stat().st_size) if db_path.is_file() else (0, 0)
+        rec_stat = (rec_path.stat().st_mtime_ns, rec_path.stat().st_size) if rec_path.is_file() else (0, 0)
+        search_txt = self.stock_search.text().strip() if hasattr(self, "stock_search") and self.stock_search is not None else ""
+        return (self.selected, db_stat, rec_stat, search_txt)
+
     def _refresh_stock_advisor_page(self, force: bool = False) -> None:
         if getattr(self, "stock_result_table", None) is None:
             return
         if not force and self.current_tab != "Stock Advisor":
             return
+        sig = self._stock_advisor_signature()
+        if not force and getattr(self, "_last_stock_advisor_signature", None) == sig:
+            return
+        self._last_stock_advisor_signature = sig
         self._render_advisory_table()
         self._reload_stock_rows()
         self._check_auto_eod_update()

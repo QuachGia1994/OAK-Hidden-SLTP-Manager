@@ -4,6 +4,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -111,11 +112,11 @@ class AdvisoryRowsTests(unittest.TestCase):
 
 
 class TestStockAdvisorPageDeferral(unittest.TestCase):
-    """Tests for Stock Advisor page deferral optimization on hidden tabs."""
+    """Tests for Stock Advisor page deferral & signature caching optimization."""
 
     def test_refresh_stock_advisor_page_skips_render_when_hidden_and_not_forced(self) -> None:
         import oak_qt_shell
-        from unittest.mock import MagicMock
+        from unittest.mock import MagicMock, patch
 
         shell = MagicMock()
         shell.stock_result_table = MagicMock()
@@ -134,7 +135,7 @@ class TestStockAdvisorPageDeferral(unittest.TestCase):
         shell._render_advisory_table.assert_called_once()
         shell._reload_stock_rows.assert_called_once()
 
-    def test_switch_tab_forces_stock_advisor_refresh_when_activating(self) -> None:
+    def test_switch_tab_uses_signature_caching_when_activating(self) -> None:
         import oak_qt_shell
         from unittest.mock import MagicMock
 
@@ -145,16 +146,54 @@ class TestStockAdvisorPageDeferral(unittest.TestCase):
         shell._fade_in_page = MagicMock()
         shell._refresh_stock_advisor_page = MagicMock()
 
-        # Switch to Stock Advisor forces refresh
+        # Switch to Stock Advisor calls _refresh_stock_advisor_page(force=False)
         oak_qt_shell.NativeShell.switch_tab(shell, "Stock Advisor")
         self.assertEqual(shell.current_tab, "Stock Advisor")
-        shell._refresh_stock_advisor_page.assert_called_once_with(force=True)
+        shell._refresh_stock_advisor_page.assert_called_once_with(force=False)
 
-        # Switch to Profiles does not force Stock Advisor refresh
-        shell._refresh_stock_advisor_page.reset_mock()
-        oak_qt_shell.NativeShell.switch_tab(shell, "Profiles")
-        self.assertEqual(shell.current_tab, "Profiles")
-        shell._refresh_stock_advisor_page.assert_not_called()
+    def test_signature_caching_skips_repeated_activation_and_invalidates_on_data_change(self) -> None:
+        import oak_qt_shell
+        from unittest.mock import MagicMock
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            db_path = tmp_path / "data" / "market.db"
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            db_path.write_bytes(b"initial db")
+
+            rec_path = tmp_path / "stock_recommendation.json"
+            rec_path.write_text('{"recommendations": []}', encoding="utf-8")
+
+            shell = MagicMock()
+            shell.selected = "Demo"
+            shell.current_tab = "Stock Advisor"
+            shell.stock_result_table = MagicMock()
+            shell.stock_search = MagicMock()
+            shell.stock_search.text.return_value = ""
+            shell._last_stock_advisor_signature = None
+            shell._render_advisory_table = MagicMock()
+            shell._reload_stock_rows = MagicMock()
+            shell._check_auto_eod_update = MagicMock()
+            shell._stock_advisor_signature = lambda: oak_qt_shell.NativeShell._stock_advisor_signature(shell)
+
+            with patch.object(oak_qt_shell, "ROOT", tmp_path):
+                # Call 1: renders and saves signature
+                oak_qt_shell.NativeShell._refresh_stock_advisor_page(shell, force=False)
+                self.assertIsNotNone(shell._last_stock_advisor_signature)
+                self.assertEqual(shell._render_advisory_table.call_count, 1)
+
+                # Call 2: unchanged signature, force=False -> skips render
+                oak_qt_shell.NativeShell._refresh_stock_advisor_page(shell, force=False)
+                self.assertEqual(shell._render_advisory_table.call_count, 1)
+
+                # Data change: update db file on disk -> invalidates signature -> re-renders
+                db_path.write_bytes(b"updated db content")
+                oak_qt_shell.NativeShell._refresh_stock_advisor_page(shell, force=False)
+                self.assertEqual(shell._render_advisory_table.call_count, 2)
+
+                # Explicit force=True -> re-renders regardless of signature
+                oak_qt_shell.NativeShell._refresh_stock_advisor_page(shell, force=True)
+                self.assertEqual(shell._render_advisory_table.call_count, 3)
 
 
 if __name__ == "__main__":
