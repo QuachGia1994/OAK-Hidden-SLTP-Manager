@@ -2729,57 +2729,66 @@ class NativeShell:
         process.start()
 
     def _read_eod_update_output(self, process: Any) -> None:
-        data = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace")
-        for line in data.splitlines():
-            clean = line.strip()
-            if not clean or not hasattr(self, "stock_progress_bar") or self.stock_progress_bar is None:
-                continue
-            # New format: [VPS EOD] N/TOTAL (PCT%) — emitted every 10 symbols
-            match_prog = re.search(r"\[VPS EOD\] (\d+)/(\d+) \((\d+)%\)", clean)
-            if match_prog:
-                cur = int(match_prog.group(1))
-                tot = int(match_prog.group(2))
-                pct = int(match_prog.group(3))
-                self.stock_progress_bar.setValue(pct)
-                self.stock_progress_bar.setFormat(f"Đang tải EOD VPS: {cur}/{tot} mã ({pct}%)...")
-                continue
-            # Announce: [VPS EOD] Fetching N symbols for DATE...
-            match_total = re.search(r"\[VPS EOD\] Fetching (\d+) symbols", clean)
-            if match_total:
-                tot = match_total.group(1)
-                self.stock_progress_bar.setValue(1)
-                self.stock_progress_bar.setFormat(f"Đang kết nối VPS API (0/{tot} mã)...")
-                continue
-            # Final save confirmation from logger
-            if ("Saved" in clean or "saved" in clean) and "records" in clean:
-                match = re.search(r"(\d+) records", clean)
-                if match:
-                    cnt = match.group(1)
-                    self.stock_progress_bar.setValue(100)
-                    self.stock_progress_bar.setFormat(f"Đã cập nhật xong {cnt} bản ghi EOD ✓")
+        try:
+            data = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace")
+            for line in data.splitlines():
+                clean = line.strip()
+                if not clean or not hasattr(self, "stock_progress_bar") or self.stock_progress_bar is None:
+                    continue
+                # New format: [VPS EOD] N/TOTAL (PCT%) — emitted every 10 symbols
+                match_prog = re.search(r"\[VPS EOD\] (\d+)/(\d+) \((\d+)%\)", clean)
+                if match_prog:
+                    cur = int(match_prog.group(1))
+                    tot = int(match_prog.group(2))
+                    pct = int(match_prog.group(3))
+                    self.stock_progress_bar.setValue(pct)
+                    self.stock_progress_bar.setFormat(f"Đang tải EOD VPS: {cur}/{tot} mã ({pct}%)...")
+                    continue
+                # Announce: [VPS EOD] Fetching N symbols for DATE...
+                match_total = re.search(r"\[VPS EOD\] Fetching (\d+) symbols", clean)
+                if match_total:
+                    tot = match_total.group(1)
+                    self.stock_progress_bar.setValue(1)
+                    self.stock_progress_bar.setFormat(f"Đang kết nối VPS API (0/{tot} mã)...")
+                    continue
+                # Final save confirmation from logger
+                if ("Saved" in clean or "saved" in clean) and "records" in clean:
+                    match = re.search(r"(\d+) records", clean)
+                    if match:
+                        cnt = match.group(1)
+                        self.stock_progress_bar.setValue(100)
+                        self.stock_progress_bar.setFormat(f"Đã cập nhật xong {cnt} bản ghi EOD ✓")
+        except RuntimeError:
+            # QProcess C++ object already deleted during shutdown/teardown.
+            pass
 
     def _eod_update_done(self, code: int, process: Any, is_auto: bool) -> None:
         if getattr(self, "eod_update_process", None) is process:
             self.eod_update_process = None
-        if hasattr(self, "stock_update_eod_btn"):
-            self.stock_update_eod_btn.setEnabled(True)
-        if code == 0:
-            msg = native_text("EOD data updated successfully.")
-            self._set_stock_status(msg, "green")
-            if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
-                self.stock_progress_bar.setValue(100)
-                self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất ✓ 100%")
-            self._reload_stock_rows()
-            if is_auto:
-                auto_msg = "Cập nhật EOD tự động hoàn tất. Đang tự động chạy bộ lọc cổ phiếu..." if NATIVE_LANGUAGE == "VN" else "Auto EOD completed. Running stock scanner..."
-                self._set_stock_status(auto_msg, "amber")
-                self.append_log(f"[AUTO 15:00+] {auto_msg}")
-                QT.QTimer.singleShot(500, self.run_stock_advisor)
-        else:
-            err_msg = f"Cập nhật EOD thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"EOD update failed (code {code})"
-            self._set_stock_status(err_msg, "red")
-            if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
-                self.stock_progress_bar.setFormat("Lỗi cập nhật EOD ✗")
+        try:
+            if hasattr(self, "stock_update_eod_btn"):
+                self.stock_update_eod_btn.setEnabled(True)
+            if code == 0:
+                msg = native_text("EOD data updated successfully.")
+                self._set_stock_status(msg, "green")
+                if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                    self.stock_progress_bar.setValue(100)
+                    self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất ✓ 100%")
+                self._reload_stock_rows()
+                if is_auto:
+                    auto_msg = "Cập nhật EOD tự động hoàn tất. Đang tự động chạy bộ lọc cổ phiếu..." if NATIVE_LANGUAGE == "VN" else "Auto EOD completed. Running stock scanner..."
+                    self._set_stock_status(auto_msg, "amber")
+                    self.log(f"[AUTO 15:00+] {auto_msg}")
+                    QT.QTimer.singleShot(500, self.run_stock_advisor)
+            else:
+                err_msg = f"Cập nhật EOD thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"EOD update failed (code {code})"
+                self._set_stock_status(err_msg, "red")
+                if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                    self.stock_progress_bar.setFormat("Lỗi cập nhật EOD ✗")
+        except RuntimeError:
+            # Widgets may already be destroyed (app shutdown / UI rebuild while the
+            # EOD process is still finishing) — nothing left to update.
+            pass
 
     def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
         return StockAdvisorDesktopSettings(
