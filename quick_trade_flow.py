@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 import time
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -46,6 +47,7 @@ class QuickTradeSession:
         self.profile_configs: Dict[str, Dict[str, Any]] = {}  # {name: {"symbol": str, "lot": float|None}}
         self.editing_profile: Optional[str] = None
         self.confirm_lock: bool = False
+        self._lock = threading.Lock()
         self.created_at: float = time.time()
         self.last_activity_at: float = time.time()
         self.precheck_report: List[Dict[str, Any]] = []
@@ -170,6 +172,11 @@ def _default_position_closer(profile_name: str, symbol: str, opp_type: str) -> T
             res = mt5.order_send(req)
             if not res or getattr(res, "retcode", -1) != getattr(mt5, "TRADE_RETCODE_DONE", 10009):
                 return False, f"Position close failed retcode={getattr(res, 'retcode', 'ERR')}"
+
+        rem_positions = mt5.positions_get(symbol=symbol) or []
+        rem_opposite = [p for p in rem_positions if ("BUY" if getattr(p, "type", 0) == 0 else "SELL") == opp_type]
+        if rem_opposite:
+            return False, f"Post-close verification failed: {len(rem_opposite)} opposite position(s) still open"
 
         return True, "All opposite positions closed"
     except Exception as e:
@@ -658,10 +665,11 @@ class QuickTradeManager:
 
         # STEP 7 -> PRECHECK -> EXECUTION -> RESULT
         elif data == "qt:confirm":
-            if session.confirm_lock:
-                bot.answer_callback_query(call.id, "⚠️ Lệnh đang được xử lý, không nhấn lặp lại!")
-                return
-            session.confirm_lock = True
+            with session._lock:
+                if session.confirm_lock:
+                    bot.answer_callback_query(call.id, "⚠️ Lệnh đang được xử lý, không nhấn lặp lại!")
+                    return
+                session.confirm_lock = True
             bot.answer_callback_query(call.id, "Đã xác nhận! Đang thực thi...")
 
             # Run Precheck

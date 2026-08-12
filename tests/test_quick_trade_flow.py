@@ -396,11 +396,33 @@ class QuickTradeFlowTests(unittest.TestCase):
             mimo_bot.cmd_pending(msg)
             mock_inject.assert_called_once()
 
-    def test_24_existing_mt5_execution_regression(self):
-        from quick_trade_flow import _default_position_provider, _default_position_closer, _default_order_executor
-        self.assertTrue(callable(_default_position_provider))
-        self.assertTrue(callable(_default_position_closer))
-        self.assertTrue(callable(_default_order_executor))
+    def test_25_concurrent_confirm_lock(self):
+        import threading
+
+        session = self.mgr.start_session(chat_id=100, user_id=1)
+        session.selected_profiles = ["Profile A"]
+        session.profile_configs = {"Profile A": {"symbol": "XAUUSD", "lot": 0.01}}
+        session.state = QuickTradeState.REVIEW
+
+        exec_count = [0]
+
+        def mock_exec(prof, sym, dir, lot, t):
+            time.sleep(0.05)  # Simulate execution latency
+            exec_count[0] += 1
+            return True, "OK", 1001
+
+        self.mgr.order_executor_fn = mock_exec
+
+        threads = []
+        for _ in range(5):
+            t = threading.Thread(target=self.mgr.handle_callback, args=(make_call("qt:confirm", chat_id=100, user_id=1), self.bot))
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        self.assertEqual(exec_count[0], 1, "Concurrent double-clicks MUST NOT trigger duplicate trade executions!")
 
 
 if __name__ == "__main__":
