@@ -2689,6 +2689,8 @@ class NativeShell:
 
     def _check_auto_eod_update(self) -> None:
         """Auto-trigger EOD update after 15:00 local market close on weekdays."""
+        if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("OAK_DISABLE_AUTO_EOD"):
+            return
         now = datetime.now()
         if now.weekday() in (5, 6):  # Weekend
             return
@@ -2697,44 +2699,63 @@ class NativeShell:
         today_str = now.strftime("%Y-%m-%d")
         if getattr(self, "_last_auto_eod_date", None) == today_str:
             return
-        self._last_auto_eod_date = today_str
-        self.update_eod_data(is_auto=True)
+        if self.update_eod_data(is_auto=True):
+            self._last_auto_eod_date = today_str
 
-    def update_eod_data(self, is_auto: bool = False) -> None:
-        """Run python -m eod_collector update in background to fetch latest EOD prices."""
+    def update_eod_data(self, is_auto: bool = False) -> bool:
+        """Run python -m eod_collector update in background to fetch latest EOD prices.
+
+        Returns True if process started successfully, False if already running or failed.
+        """
         if getattr(self, "eod_update_process", None) is not None:
-            return
-        process = QT.QProcess(self.window)
-        process.setProgram(sys.executable)
-        process.setArguments(["-m", "eod_collector", "update"])
-        process.setWorkingDirectory(str(ROOT))
-        process.setProcessChannelMode(QT.QProcess.ProcessChannelMode.MergedChannels)
+            return False
+        try:
+            process = QT.QProcess(self.window)
+            process.setProgram(sys.executable)
+            process.setArguments(["-m", "eod_collector", "update"])
+            process.setWorkingDirectory(str(ROOT))
+            process.setProcessChannelMode(QT.QProcess.ProcessChannelMode.MergedChannels)
 
-        status_msg = native_text("Updating local EOD data...")
-        if is_auto:
-            status_msg = f"[Auto 15:00+] {status_msg}"
-        self._set_stock_status(status_msg, "amber")
-        if hasattr(self, "stock_update_eod_btn"):
-            self.stock_update_eod_btn.setEnabled(False)
+            status_msg = native_text("Updating local EOD data...")
+            if is_auto:
+                status_msg = f"[Auto 15:00+] {status_msg}"
+            self._set_stock_status(status_msg, "amber")
+            if hasattr(self, "stock_update_eod_btn"):
+                try:
+                    self.stock_update_eod_btn.setEnabled(False)
+                except RuntimeError:
+                    pass
 
-        if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
-            self.stock_progress_bar.setRange(0, 100)
-            self.stock_progress_bar.setValue(0)
-            self.stock_progress_bar.setFormat("Đang cập nhật dữ liệu EOD (0%)...")
-            self.stock_progress_bar.setVisible(True)
+            if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
+                try:
+                    self.stock_progress_bar.setRange(0, 100)
+                    self.stock_progress_bar.setValue(0)
+                    self.stock_progress_bar.setFormat("Đang cập nhật dữ liệu EOD (0%)...")
+                    self.stock_progress_bar.setVisible(True)
+                except RuntimeError:
+                    pass
 
-        process.readyReadStandardOutput.connect(lambda p=process: self._read_eod_update_output(p))
-        process.finished.connect(lambda code, _status, p=process: self._eod_update_done(code, p, is_auto))
-        self.eod_update_process = process
-        process.start()
+            process.readyReadStandardOutput.connect(lambda p=process: self._read_eod_update_output(p))
+            process.finished.connect(lambda code, _status, p=process: self._eod_update_done(code, p, is_auto))
+            self.eod_update_process = process
+            process.start()
+            return True
+        except Exception as e:
+            self.log(f"[EOD] Failed to launch update process: {e}")
+            return False
 
     def _read_eod_update_output(self, process: Any) -> None:
+        if getattr(self, "_is_shut_down", False):
+            return
         try:
             data = bytes(process.readAllStandardOutput()).decode("utf-8", errors="replace")
-            for line in data.splitlines():
-                clean = line.strip()
-                if not clean or not hasattr(self, "stock_progress_bar") or self.stock_progress_bar is None:
-                    continue
+        except (RuntimeError, AttributeError):
+            return
+        for line in data.splitlines():
+            clean = line.strip()
+            if not clean or not hasattr(self, "stock_progress_bar") or self.stock_progress_bar is None:
+                continue
+            try:
                 # New format: [VPS EOD] N/TOTAL (PCT%) — emitted every 10 symbols
                 match_prog = re.search(r"\[VPS EOD\] (\d+)/(\d+) \((\d+)%\)", clean)
                 if match_prog:
@@ -2758,37 +2779,53 @@ class NativeShell:
                         cnt = match.group(1)
                         self.stock_progress_bar.setValue(100)
                         self.stock_progress_bar.setFormat(f"Đã cập nhật xong {cnt} bản ghi EOD ✓")
-        except RuntimeError:
-            # QProcess C++ object already deleted during shutdown/teardown.
-            pass
+            except RuntimeError:
+                # QProcess / progress bar C++ object deleted during shutdown/teardown.
+                pass
 
     def _eod_update_done(self, code: int, process: Any, is_auto: bool) -> None:
         if getattr(self, "eod_update_process", None) is process:
             self.eod_update_process = None
-        try:
-            if hasattr(self, "stock_update_eod_btn"):
+        if getattr(self, "_is_shut_down", False):
+            return
+
+        if hasattr(self, "stock_update_eod_btn"):
+            try:
                 self.stock_update_eod_btn.setEnabled(True)
-            if code == 0:
-                msg = native_text("EOD data updated successfully.")
+            except RuntimeError:
+                pass
+
+        if code == 0:
+            msg = native_text("EOD data updated successfully.")
+            try:
                 self._set_stock_status(msg, "green")
                 if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                     self.stock_progress_bar.setValue(100)
                     self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất ✓ 100%")
+            except RuntimeError:
+                pass
+
+            try:
                 self._reload_stock_rows()
-                if is_auto:
-                    auto_msg = "Cập nhật EOD tự động hoàn tất. Đang tự động chạy bộ lọc cổ phiếu..." if NATIVE_LANGUAGE == "VN" else "Auto EOD completed. Running stock scanner..."
+            except Exception as e:
+                self.log(f"[EOD] Error reloading stock rows: {e}")
+
+            if is_auto:
+                auto_msg = "Cập nhật EOD tự động hoàn tất. Đang tự động chạy bộ lọc cổ phiếu..." if NATIVE_LANGUAGE == "VN" else "Auto EOD completed. Running stock scanner..."
+                try:
                     self._set_stock_status(auto_msg, "amber")
-                    self.log(f"[AUTO 15:00+] {auto_msg}")
-                    QT.QTimer.singleShot(500, self.run_stock_advisor)
-            else:
-                err_msg = f"Cập nhật EOD thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"EOD update failed (code {code})"
+                except RuntimeError:
+                    pass
+                self.log(f"[AUTO 15:00+] {auto_msg}")
+                QT.QTimer.singleShot(500, self.run_stock_advisor)
+        else:
+            err_msg = f"Cập nhật EOD thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"EOD update failed (code {code})"
+            try:
                 self._set_stock_status(err_msg, "red")
                 if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                     self.stock_progress_bar.setFormat("Lỗi cập nhật EOD ✗")
-        except RuntimeError:
-            # Widgets may already be destroyed (app shutdown / UI rebuild while the
-            # EOD process is still finishing) — nothing left to update.
-            pass
+            except RuntimeError:
+                pass
 
     def _stock_settings_from_form(self) -> StockAdvisorDesktopSettings:
         return StockAdvisorDesktopSettings(
@@ -3098,6 +3135,7 @@ class NativeShell:
         signals (e.g. the user closes the window during an auto EOD update, or
         a test closes the window). Idempotent; safe to call more than once.
         """
+        self._is_shut_down = True
         if self.signal_supervisor is not None:
             try:
                 self.signal_supervisor.cleanup()
