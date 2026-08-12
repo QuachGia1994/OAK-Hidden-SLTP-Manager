@@ -3,9 +3,14 @@ import { NextResponse } from "next/server";
 import { isFreeVipWeekend } from "./vip-policy";
 export { maskSignalForPublic } from "./signal-display";
 
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || "";
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || "";
+
+export const isRedisConfigured = Boolean(REDIS_URL && REDIS_TOKEN);
+
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || "",
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || "",
+  url: REDIS_URL,
+  token: REDIS_TOKEN,
 });
 
 // Keys

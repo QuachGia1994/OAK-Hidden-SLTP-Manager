@@ -7,6 +7,7 @@ import { detectServerLocaleFromCookie, getLocaleTexts } from "@/lib/i18n";
 import { formatSystemState } from "@/lib/translations";
 import { getBrokerDateParts } from "@/lib/trading-time";
 import { hasVipAccess } from "@/lib/vip";
+import { isRedisConfigured } from "@/lib/redis";
 import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +42,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   }
 
   const brokerClock = getBrokerDateParts(botState, now);
-  const publicDataState = botState?.data_state || (brokerClock ? "connected" : "disconnected");
+  const redisUnavailable = !isRedisConfigured;
+  const publicDataState = redisUnavailable
+    ? "disconnected"
+    : botState?.data_state || (brokerClock ? "connected" : "disconnected");
   const publicExecutionState = botState?.execution_state || "disconnected";
   if (!isVIP) {
     signals = signals.map(maskSignalForPublic);
@@ -51,11 +55,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const todayStr = brokerClock?.todayStr ?? "";
   const todaySignals = brokerClock ? signals.filter((s) => s.date === todayStr) : [];
 
-  const botStatus = brokerClock
-    ? t.running
-    : publicDataState === "stale" || publicDataState === "disconnected"
-      ? (locale === "EN" ? "Waiting for MT5 market data" : "Đang chờ dữ liệu MT5")
-      : (locale === "EN" ? "UNSYNCED" : "CHƯA ĐỒNG BỘ");
+  const botStatus = redisUnavailable
+    ? (locale === "EN" ? "Dashboard data unavailable" : "Không có dữ liệu Dashboard")
+    : brokerClock && (publicDataState === "connected" || publicDataState === "degraded")
+      ? t.running
+      : publicDataState === "stale" || publicDataState === "disconnected"
+        ? (locale === "EN" ? "Waiting for MT5 market data" : "Đang chờ dữ liệu MT5")
+        : (locale === "EN" ? "UNSYNCED" : "CHƯA ĐỒNG BỘ");
 
   return (
     <div className="page-shell terminal-page space-y-5">
@@ -92,7 +98,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label={locale === "EN" ? "System status" : "Trạng thái hệ thống"}>
-        <StatusChip label="MT5 Market Data" value={formatSystemState(publicDataState, locale)} healthy={publicDataState === "connected" || publicDataState === "degraded"} />
+        <StatusChip label="MT5 Market Data" value={redisUnavailable ? (locale === "EN" ? "Data unavailable" : "Mất dữ liệu") : formatSystemState(publicDataState, locale)} healthy={!redisUnavailable && (publicDataState === "connected" || publicDataState === "degraded")} />
         <StatusChip label="MT5 Execution" value={formatSystemState(publicExecutionState, locale)} healthy={publicExecutionState === "connected"} />
         <StatusChip
           label={locale === "EN" ? "Broker Clock" : "Đồng hồ Broker"}
