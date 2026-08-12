@@ -1120,23 +1120,36 @@ class NativeShell:
         self.signal_supervisor = SignalProcessSupervisor(
             defs,
             log_callback=self._on_signal_supervisor_log,
-            ui_after=lambda callback: QT.QTimer.singleShot(0, callback),
+            # Context-aware singleShot: plain singleShot(0, cb) from a worker thread never fires
+            # because the timer is created in the caller's (non-GUI) thread. Use a QObject that
+            # lives on the GUI thread (self.window) as receiver context to marshal the callback.
+            ui_after=lambda callback: QT.QTimer.singleShot(0, self.window, callback),
             state_callback=self._on_signal_supervisor_state,
             output_callback=self._on_signal_supervisor_output,
         )
         self.signal_supervisor.register_signals(self._signal_supervisor_infos)
 
     def _on_signal_supervisor_log(self, message: str) -> None:
-        QT.QTimer.singleShot(0, lambda m=message: self._append_console_line(m))
+        # Context-aware singleShot: plain singleShot(0, cb) from a worker thread never fires
+        # because the timer is created in the caller's (non-GUI) thread. Use a QObject that
+        # lives on the GUI thread (self.window) as receiver context to marshal the callback.
+        QT.QTimer.singleShot(0, self.window, lambda m=message: self._append_console_line(m))
 
     def _on_signal_supervisor_output(self, key: str, line: str) -> None:
-        QT.QTimer.singleShot(0, lambda k=key, text=line: self._append_signal_log(k, text))
+        # Context-aware singleShot: plain singleShot(0, cb) from a worker thread never fires
+        # because the timer is created in the caller's (non-GUI) thread. Use a QObject that
+        # lives on the GUI thread (self.window) as receiver context to marshal the callback.
+        QT.QTimer.singleShot(0, self.window, lambda k=key, text=line: self._append_signal_log(k, text))
 
     def _on_signal_supervisor_state(
         self, key: str, running: bool, pid: int | None, status: str | None, conflict_pid: int | None
     ) -> None:
+        # Context-aware singleShot: plain singleShot(0, cb) from a worker thread never fires
+        # because the timer is created in the caller's (non-GUI) thread. Use a QObject that
+        # lives on the GUI thread (self.window) as receiver context to marshal the callback.
         QT.QTimer.singleShot(
             0,
+            self.window,
             lambda: self._apply_signal_supervisor_state(key, running, pid, status, conflict_pid),
         )
 
