@@ -2504,7 +2504,7 @@ class NativeShell:
         copy_btn.clicked.connect(lambda _checked=False, payload=dict(item): self.copy_pending_item(payload))
         delete_btn = button("Delete")
         delete_btn.setMaximumWidth(96)
-        delete_btn.setStyleSheet("QPushButton{color:#ff6b6b;border-color:rgba(255,107,107,90)}")
+        delete_btn.setProperty("intent", "danger")
         delete_btn.clicked.connect(lambda _checked=False, payload=dict(item): self.delete_pending_item(payload))
         header.addWidget(copy_btn)
         header.addWidget(delete_btn)
@@ -2550,13 +2550,12 @@ class NativeShell:
             return
         if not removed:
             self.pending_delete_key = ""
-            self.refresh()
+            self._refresh_pending_page()
             self._set_pending_status("Pending item was not found on disk.", "amber")
             return
         self.pending_delete_key = ""
         self.log(f"Deleted pending item from {path.name}.")
-        self.refresh()
-        self.switch_tab("Pending")
+        self._refresh_pending_page()
         self._set_pending_status("Pending item deleted.", "green")
 
     def clear_done_pending(self) -> None:
@@ -2576,18 +2575,20 @@ class NativeShell:
             return
         self.pending_delete_key = ""
         self.log(f"Cleared {removed_total} completed pending item(s).")
-        self.refresh()
-        self.switch_tab("Pending")
+        self._refresh_pending_page()
         accent = "green" if removed_total else "amber"
         self._set_pending_status(f"Cleared {removed_total} completed item(s).", accent)
 
     def _set_pending_status(self, message: str, accent: str = "muted") -> None:
-        if self.pending_action_status is None:
+        if getattr(self, "_is_shut_down", False) or self.pending_action_status is None:
             return
-        self.pending_action_status.setText(native_text(message))
-        self.pending_action_status.setProperty("accent", accent)
-        self.pending_action_status.style().unpolish(self.pending_action_status)
-        self.pending_action_status.style().polish(self.pending_action_status)
+        try:
+            self.pending_action_status.setText(native_text(message))
+            self.pending_action_status.setProperty("accent", accent)
+            self.pending_action_status.style().unpolish(self.pending_action_status)
+            self.pending_action_status.style().polish(self.pending_action_status)
+        except RuntimeError:
+            pass
 
     def _is_waiting_status(self, item: dict[str, Any]) -> bool:
         status = str(item.get("status") or "waiting").lower()

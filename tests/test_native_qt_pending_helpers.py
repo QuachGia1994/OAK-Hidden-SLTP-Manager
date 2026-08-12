@@ -117,5 +117,62 @@ class TestNativeQtPendingHelpers(unittest.TestCase):
             self.assertEqual(oak_qt_shell.read_json(path, []), [added_later])
 
 
+    def test_delete_pending_item_refreshes_only_pending_page_and_bypasses_full_shell_refresh(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "scheduled_close_Demo.json"
+            target = {"id": 1, "symbol": "XAUUSD", "status": "waiting"}
+            oak_qt_shell.write_json_atomic(path, [target])
+            item = pending_rows("scheduled closes", path, [target], "list")[0]
+
+            shell = unittest.mock.MagicMock()
+            shell.pending_delete_key = ""
+            shell.selected = "Demo"
+            shell.log = unittest.mock.MagicMock()
+            shell._refresh_pending_page = unittest.mock.MagicMock()
+            shell._set_pending_status = unittest.mock.MagicMock()
+            shell.refresh = unittest.mock.MagicMock()
+            shell.switch_tab = unittest.mock.MagicMock()
+            shell._refresh_stock_advisor_page = unittest.mock.MagicMock()
+
+            # First click: set confirmation guard key
+            oak_qt_shell.NativeShell.delete_pending_item(shell, item)
+            self.assertNotEqual(shell.pending_delete_key, "")
+            shell._refresh_pending_page.assert_not_called()
+            shell.refresh.assert_not_called()
+
+            # Second click: confirm delete
+            oak_qt_shell.NativeShell.delete_pending_item(shell, item)
+
+            self.assertEqual(shell.pending_delete_key, "")
+            self.assertEqual(oak_qt_shell.read_json(path, []), [])
+            # Must call _refresh_pending_page exactly once
+            shell._refresh_pending_page.assert_called_once()
+            # Must NOT call full shell refresh or switch_tab
+            shell.refresh.assert_not_called()
+            shell.switch_tab.assert_not_called()
+            shell._refresh_stock_advisor_page.assert_not_called()
+
+    def test_clear_done_pending_refreshes_only_pending_page(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "pending_tasks_Demo.json"
+            oak_qt_shell.write_json_atomic(path, [{"symbol": "XAUUSD", "status": "executed"}])
+
+            shell = unittest.mock.MagicMock()
+            shell.selected = "Demo"
+            shell.log = unittest.mock.MagicMock()
+            shell._refresh_pending_page = unittest.mock.MagicMock()
+            shell._set_pending_status = unittest.mock.MagicMock()
+            shell.refresh = unittest.mock.MagicMock()
+            shell.switch_tab = unittest.mock.MagicMock()
+
+            with patch.object(oak_qt_shell, "pending_file_specs", return_value=[("tasks", path, "list")]):
+                oak_qt_shell.NativeShell.clear_done_pending(shell)
+
+            self.assertEqual(oak_qt_shell.read_json(path, []), [])
+            shell._refresh_pending_page.assert_called_once()
+            shell.refresh.assert_not_called()
+            shell.switch_tab.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
