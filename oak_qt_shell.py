@@ -2041,6 +2041,7 @@ class NativeShell:
         elif tab == "Profiles":
             self._refresh_profile_page(force=True)
         self.stack.setCurrentWidget(self.tab_pages[tab])
+        self._refresh_nav()
         self._fade_in_page(self.tab_pages[tab])
 
     def _refresh_nav(self) -> None:

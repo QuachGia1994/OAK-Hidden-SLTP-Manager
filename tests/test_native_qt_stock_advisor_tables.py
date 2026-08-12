@@ -168,6 +168,68 @@ class TestStockAdvisorPageDeferral(unittest.TestCase):
         oak_qt_shell.NativeShell.switch_tab(shell, "VN30 Advisor")
         self.assertEqual(order, ["_refresh_stock_advisor_page(force=True)", "setCurrentWidget"])
 
+    def test_switch_tab_heavy_render_timeline_invariants(self) -> None:
+        import oak_qt_shell
+        import time
+        from unittest.mock import MagicMock
+
+        timeline = []
+        profiles_widget = MagicMock()
+        filter_widget = MagicMock()
+        current_w = [profiles_widget]
+
+        shell = MagicMock()
+        shell.tab_pages = {"VN30 Advisor": filter_widget, "Profiles": profiles_widget}
+        shell.stack = MagicMock()
+        shell.stack.currentWidget = lambda: current_w[0]
+
+        def setCurrentWidget_mock(w):
+            timeline.append(("T3_setCurrentWidget", time.perf_counter(), current_w[0] == profiles_widget))
+            current_w[0] = w
+
+        def refresh_stock_advisor_mock(force=False):
+            timeline.append(("T1_render_start", time.perf_counter(), current_w[0] == profiles_widget))
+            # Simulate render workload
+            time.sleep(0.01)
+            timeline.append(("T2_render_complete", time.perf_counter(), current_w[0] == profiles_widget))
+
+        def fade_in_mock(w):
+            timeline.append(("T4_fade_in_started", time.perf_counter(), current_w[0] == filter_widget))
+
+        shell.stack.setCurrentWidget = setCurrentWidget_mock
+        shell._refresh_stock_advisor_page = refresh_stock_advisor_mock
+        shell._refresh_nav = MagicMock()
+        shell._fade_in_page = fade_in_mock
+
+        t0 = time.perf_counter()
+        timeline.append(("T0_switch_tab_entered", t0, current_w[0] == profiles_widget))
+
+        oak_qt_shell.NativeShell.switch_tab(shell, "VN30 Advisor")
+
+        # Assert timeline tags order: T0 <= T1 < T2 <= T3 <= T4
+        tags = [entry[0] for entry in timeline]
+        self.assertEqual(
+            tags,
+            [
+                "T0_switch_tab_entered",
+                "T1_render_start",
+                "T2_render_complete",
+                "T3_setCurrentWidget",
+                "T4_fade_in_started",
+            ],
+        )
+
+        # Assert source page (profiles_widget) remained current throughout [T1, T2)
+        t1_source_visible = timeline[1][2]
+        t2_source_visible = timeline[2][2]
+        t3_source_visible = timeline[3][2]
+        t4_filter_visible = timeline[4][2]
+
+        self.assertTrue(t1_source_visible)
+        self.assertTrue(t2_source_visible)
+        self.assertTrue(t3_source_visible)
+        self.assertTrue(t4_filter_visible)
+
     def test_signature_caching_skips_repeated_activation_and_invalidates_on_data_change(self) -> None:
         import oak_qt_shell
         from unittest.mock import MagicMock
