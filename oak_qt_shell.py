@@ -2036,6 +2036,10 @@ class NativeShell:
         self._refresh_nav()
         if tab == "Stock Advisor":
             self._refresh_stock_advisor_page(force=False)
+        elif tab == "Copy Trading":
+            self._refresh_copy_page(force=True)
+        elif tab == "Diagnostics":
+            self._refresh_diagnostics_page(force=True)
         self._fade_in_page(self.tab_pages[tab])
 
     def _refresh_nav(self) -> None:
@@ -2351,8 +2355,10 @@ class NativeShell:
         self.profile_combo.setCurrentText(name)
         self.refresh()
 
-    def _refresh_copy_page(self) -> None:
+    def _refresh_copy_page(self, force: bool = False) -> None:
         if self.copy_detail is None or self.copy_guardrails_layout is None:
+            return
+        if not force and self.current_tab != "Copy Trading":
             return
         cfg = self.profiles.get(self.selected, {})
         self.copy_detail.setPlainText(self._copy_detail_text(self.selected, cfg))
@@ -2610,8 +2616,10 @@ class NativeShell:
             return "red"
         return "amber"
 
-    def _refresh_diagnostics_page(self) -> None:
+    def _refresh_diagnostics_page(self, force: bool = False) -> None:
         if self.diag_summary is None or self.diag_log is None:
+            return
+        if not force and self.current_tab != "Diagnostics":
             return
         latest_log = self._latest_log_path()
         raw_log = self._tail_text(latest_log, limit=40000)
@@ -2643,7 +2651,7 @@ class NativeShell:
 
     def copy_diagnostics_report(self) -> None:
         """Copy a safe runtime report without secrets."""
-        self._refresh_diagnostics_page()
+        self._refresh_diagnostics_page(force=True)
         text = self.last_diagnostics_report or "No diagnostics report."
         QT.QApplication.clipboard().setText(text)
         self._set_diag_status("Runtime report copied.", "green")
