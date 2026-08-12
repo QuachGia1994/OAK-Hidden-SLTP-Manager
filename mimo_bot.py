@@ -34,6 +34,8 @@ except ImportError:
     print("⚠️ Chưa cài pyTelegramBotAPI. Chạy: pip install pyTelegramBotAPI")
     sys.exit(1)
 
+from quick_trade_flow import quick_trade_manager
+
 # =====================================================================
 # CONFIGURATION - doc tu config.json (gitignored)
 # =====================================================================
@@ -625,6 +627,23 @@ def _parse_quick_order_input(text, signal_hour):
     return lot, f"{hour:02d}:{minute:02d}", profile
 
 
+@bot.message_handler(commands=["quicktrade", "qt"])
+def cmd_quicktrade(message):
+    if not is_admin(message):
+        return
+    session = quick_trade_manager.start_session(message.chat.id, message.from_user.id)
+    msg, kb = quick_trade_manager.render_step_symbol(session)
+    bot.reply_to(message, msg, reply_markup=kb)
+
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("qt:"))
+def handle_quicktrade_callback(call):
+    if not is_admin(call.message):
+        bot.answer_callback_query(call.id, "⚠️ Không có quyền!")
+        return
+    quick_trade_manager.handle_callback(call, bot)
+
+
 @bot.callback_query_handler(func=lambda call: call.data.startswith("sig:"))
 def handle_signal_callback(call):
     """Handle inline keyboard callbacks like sig:BUY:GBPAUD"""
@@ -744,6 +763,8 @@ def cmd_closeall(message):
 @bot.message_handler(func=lambda m: True)
 def handle_all(message):
     if not is_admin(message):
+        return
+    if quick_trade_manager.handle_text_input(message, bot):
         return
     text = message.text.strip()
     if not text:
