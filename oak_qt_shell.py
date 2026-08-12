@@ -2032,8 +2032,6 @@ class NativeShell:
         if tab not in self.tab_pages:
             return
         self.current_tab = tab
-        self.stack.setCurrentWidget(self.tab_pages[tab])
-        self._refresh_nav()
         if tab in ("VN30 Advisor", "Stock Advisor"):
             self._refresh_stock_advisor_page(force=True)
         elif tab in ("Copy Trading", "Copy"):
@@ -2042,6 +2040,7 @@ class NativeShell:
             self._refresh_diagnostics_page(force=True)
         elif tab == "Profiles":
             self._refresh_profile_page(force=True)
+        self.stack.setCurrentWidget(self.tab_pages[tab])
         self._fade_in_page(self.tab_pages[tab])
 
     def _refresh_nav(self) -> None:

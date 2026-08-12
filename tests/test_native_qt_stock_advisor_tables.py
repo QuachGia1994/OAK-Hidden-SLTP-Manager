@@ -151,6 +151,23 @@ class TestStockAdvisorPageDeferral(unittest.TestCase):
         self.assertEqual(shell.current_tab, "VN30 Advisor")
         shell._refresh_stock_advisor_page.assert_called_once_with(force=True)
 
+    def test_switch_tab_atomic_order_of_operations(self) -> None:
+        import oak_qt_shell
+        from unittest.mock import MagicMock
+
+        order = []
+        shell = MagicMock()
+        shell.tab_pages = {"VN30 Advisor": MagicMock(), "Profiles": MagicMock()}
+        shell.stack = MagicMock()
+        shell.stack.setCurrentWidget = lambda w: order.append("setCurrentWidget")
+        shell._refresh_nav = MagicMock()
+        shell._fade_in_page = MagicMock()
+        shell._refresh_stock_advisor_page = lambda force=False: order.append(f"_refresh_stock_advisor_page(force={force})")
+
+        # Switch to VN30 Advisor must refresh page BEFORE setCurrentWidget
+        oak_qt_shell.NativeShell.switch_tab(shell, "VN30 Advisor")
+        self.assertEqual(order, ["_refresh_stock_advisor_page(force=True)", "setCurrentWidget"])
+
     def test_signature_caching_skips_repeated_activation_and_invalidates_on_data_change(self) -> None:
         import oak_qt_shell
         from unittest.mock import MagicMock
