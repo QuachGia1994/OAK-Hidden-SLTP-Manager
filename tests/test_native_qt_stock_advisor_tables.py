@@ -135,21 +135,21 @@ class TestStockAdvisorPageDeferral(unittest.TestCase):
         shell._render_advisory_table.assert_called_once()
         shell._reload_stock_rows.assert_called_once()
 
-    def test_switch_tab_uses_signature_caching_when_activating(self) -> None:
+    def test_switch_tab_forces_stock_advisor_refresh_when_activating(self) -> None:
         import oak_qt_shell
         from unittest.mock import MagicMock
 
         shell = MagicMock()
-        shell.tab_pages = {"Stock Advisor": MagicMock(), "Profiles": MagicMock()}
+        shell.tab_pages = {"VN30 Advisor": MagicMock(), "Stock Advisor": MagicMock(), "Profiles": MagicMock()}
         shell.stack = MagicMock()
         shell._refresh_nav = MagicMock()
         shell._fade_in_page = MagicMock()
         shell._refresh_stock_advisor_page = MagicMock()
 
-        # Switch to Stock Advisor calls _refresh_stock_advisor_page(force=False)
-        oak_qt_shell.NativeShell.switch_tab(shell, "Stock Advisor")
-        self.assertEqual(shell.current_tab, "Stock Advisor")
-        shell._refresh_stock_advisor_page.assert_called_once_with(force=False)
+        # Switch to VN30 Advisor forces refresh
+        oak_qt_shell.NativeShell.switch_tab(shell, "VN30 Advisor")
+        self.assertEqual(shell.current_tab, "VN30 Advisor")
+        shell._refresh_stock_advisor_page.assert_called_once_with(force=True)
 
     def test_signature_caching_skips_repeated_activation_and_invalidates_on_data_change(self) -> None:
         import oak_qt_shell

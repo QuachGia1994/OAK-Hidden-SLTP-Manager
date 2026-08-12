@@ -36,5 +36,60 @@ class TestNativeQtProfileHelpers(unittest.TestCase):
         save_mock.assert_called_once_with(path, payload)
 
 
+class DummyWidget:
+    def setPlainText(self, text: str) -> None:
+        pass
+
+
+class DummyLayout:
+    def count(self) -> int:
+        return 0
+
+    def parentWidget(self) -> unittest.mock.Any:
+        return None
+
+    def addWidget(self, widget: unittest.mock.Any) -> None:
+        pass
+
+    def addStretch(self, stretch: int = 0) -> None:
+        pass
+
+
+class TestProfilePageDeferral(unittest.TestCase):
+    """Tests for Profile page deferral on hidden tabs."""
+
+    def test_refresh_profile_page_skips_when_hidden_unless_forced(self) -> None:
+        from unittest.mock import MagicMock
+
+        shell = MagicMock(spec=oak_qt_shell.NativeShell)
+        shell.profile_cards_layout = DummyLayout()
+        shell.profile_detail = DummyWidget()
+        shell.current_tab = "Pending"
+        shell.profiles = {}
+        shell._running_profiles.return_value = []
+
+        # Without force when hidden: skips layout rebuild
+        oak_qt_shell.NativeShell._refresh_profile_page(shell, force=False)
+        shell._profile_detail_text.assert_not_called()
+
+        # With force=True when hidden: executes layout rebuild
+        oak_qt_shell.NativeShell._refresh_profile_page(shell, force=True)
+        shell._profile_detail_text.assert_called_once()
+
+    def test_switch_tab_forces_refresh_for_profiles(self) -> None:
+        from unittest.mock import MagicMock
+
+        shell = MagicMock(spec=oak_qt_shell.NativeShell)
+        shell.tab_pages = {"Profiles": DummyWidget(), "Pending": DummyWidget()}
+        shell.stack = MagicMock()
+        shell._refresh_nav = MagicMock()
+        shell._fade_in_page = MagicMock()
+        shell._refresh_profile_page = MagicMock()
+
+        # Switch to Profiles
+        oak_qt_shell.NativeShell.switch_tab(shell, "Profiles")
+        shell._refresh_profile_page.assert_called_once_with(force=True)
+
+
 if __name__ == "__main__":
     unittest.main()

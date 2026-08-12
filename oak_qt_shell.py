@@ -2034,12 +2034,14 @@ class NativeShell:
         self.current_tab = tab
         self.stack.setCurrentWidget(self.tab_pages[tab])
         self._refresh_nav()
-        if tab == "Stock Advisor":
-            self._refresh_stock_advisor_page(force=False)
-        elif tab == "Copy Trading":
+        if tab in ("VN30 Advisor", "Stock Advisor"):
+            self._refresh_stock_advisor_page(force=True)
+        elif tab in ("Copy Trading", "Copy"):
             self._refresh_copy_page(force=True)
         elif tab == "Diagnostics":
             self._refresh_diagnostics_page(force=True)
+        elif tab == "Profiles":
+            self._refresh_profile_page(force=True)
         self._fade_in_page(self.tab_pages[tab])
 
     def _refresh_nav(self) -> None:
@@ -2111,8 +2113,10 @@ class NativeShell:
         layout.addWidget(action)
         return row
 
-    def _refresh_profile_page(self) -> None:
+    def _refresh_profile_page(self, force: bool = False) -> None:
         if self.profile_cards_layout is None or self.profile_detail is None:
+            return
+        if not force and self.current_tab != "Profiles":
             return
         container = self.profile_cards_layout.parentWidget()
         if container is not None:
@@ -2708,7 +2712,7 @@ class NativeShell:
     def _refresh_stock_advisor_page(self, force: bool = False) -> None:
         if getattr(self, "stock_result_table", None) is None:
             return
-        if not force and self.current_tab != "Stock Advisor":
+        if not force and self.current_tab not in ("VN30 Advisor", "Stock Advisor"):
             return
         sig = self._stock_advisor_signature()
         if not force and getattr(self, "_last_stock_advisor_signature", None) == sig:
