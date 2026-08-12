@@ -2033,6 +2033,8 @@ class NativeShell:
         self.current_tab = tab
         self.stack.setCurrentWidget(self.tab_pages[tab])
         self._refresh_nav()
+        if tab == "Stock Advisor":
+            self._refresh_stock_advisor_page(force=True)
         self._fade_in_page(self.tab_pages[tab])
 
     def _refresh_nav(self) -> None:
@@ -2686,8 +2688,10 @@ class NativeShell:
         self.diag_status.style().unpolish(self.diag_status)
         self.diag_status.style().polish(self.diag_status)
 
-    def _refresh_stock_advisor_page(self) -> None:
+    def _refresh_stock_advisor_page(self, force: bool = False) -> None:
         if getattr(self, "stock_result_table", None) is None:
+            return
+        if not force and self.current_tab != "Stock Advisor":
             return
         self._render_advisory_table()
         self._reload_stock_rows()

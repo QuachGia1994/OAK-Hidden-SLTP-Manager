@@ -110,5 +110,52 @@ class AdvisoryRowsTests(unittest.TestCase):
         self.assertEqual(rows[1][0], "ZOO")
 
 
+class TestStockAdvisorPageDeferral(unittest.TestCase):
+    """Tests for Stock Advisor page deferral optimization on hidden tabs."""
+
+    def test_refresh_stock_advisor_page_skips_render_when_hidden_and_not_forced(self) -> None:
+        import oak_qt_shell
+        from unittest.mock import MagicMock
+
+        shell = MagicMock()
+        shell.stock_result_table = MagicMock()
+        shell.current_tab = "Profiles"
+        shell._render_advisory_table = MagicMock()
+        shell._reload_stock_rows = MagicMock()
+        shell._check_auto_eod_update = MagicMock()
+
+        # Call without force when hidden: skips rendering
+        oak_qt_shell.NativeShell._refresh_stock_advisor_page(shell, force=False)
+        shell._render_advisory_table.assert_not_called()
+        shell._reload_stock_rows.assert_not_called()
+
+        # Call with force=True when hidden: executes rendering
+        oak_qt_shell.NativeShell._refresh_stock_advisor_page(shell, force=True)
+        shell._render_advisory_table.assert_called_once()
+        shell._reload_stock_rows.assert_called_once()
+
+    def test_switch_tab_forces_stock_advisor_refresh_when_activating(self) -> None:
+        import oak_qt_shell
+        from unittest.mock import MagicMock
+
+        shell = MagicMock()
+        shell.tab_pages = {"Stock Advisor": MagicMock(), "Profiles": MagicMock()}
+        shell.stack = MagicMock()
+        shell._refresh_nav = MagicMock()
+        shell._fade_in_page = MagicMock()
+        shell._refresh_stock_advisor_page = MagicMock()
+
+        # Switch to Stock Advisor forces refresh
+        oak_qt_shell.NativeShell.switch_tab(shell, "Stock Advisor")
+        self.assertEqual(shell.current_tab, "Stock Advisor")
+        shell._refresh_stock_advisor_page.assert_called_once_with(force=True)
+
+        # Switch to Profiles does not force Stock Advisor refresh
+        shell._refresh_stock_advisor_page.reset_mock()
+        oak_qt_shell.NativeShell.switch_tab(shell, "Profiles")
+        self.assertEqual(shell.current_tab, "Profiles")
+        shell._refresh_stock_advisor_page.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
