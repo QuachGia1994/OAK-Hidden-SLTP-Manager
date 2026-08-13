@@ -533,6 +533,28 @@ class QuickTradeManager:
 
         if data == "qt:start":
             session = self.start_session(chat_id, user_id)
+            msg, kb = self.render_step_symbol(session)
+            try:
+                bot.edit_message_text(
+                    chat_id=chat_id,
+                    message_id=call.message.message_id,
+                    text=msg,
+                    reply_markup=kb,
+                    parse_mode="Markdown",
+                )
+                bot.answer_callback_query(call.id)
+            except Exception:
+                try:
+                    bot.send_message(
+                        chat_id=chat_id,
+                        text=msg,
+                        reply_markup=kb,
+                        parse_mode="Markdown",
+                    )
+                    bot.answer_callback_query(call.id)
+                except Exception:
+                    pass
+            return
 
         assert session is not None
         session.touch()

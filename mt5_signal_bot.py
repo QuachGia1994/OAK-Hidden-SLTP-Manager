@@ -762,8 +762,12 @@ def _write_signals_log_atomic(data):
             pass
 
 
-def send_telegram(text: str) -> bool:
-    """Send Telegram messages without allowing Telegram failure to stop the signal bot."""
+def send_telegram(text: str, inline_keyboard=None) -> bool:
+    """Send Telegram messages without allowing Telegram failure to stop the signal bot.
+
+    When inline_keyboard is provided, uses send_telegram_with_keyboard so the same
+    message carries the callback buttons (e.g. Quick Trade on actionable signals).
+    """
     if not text:
         return False
 
@@ -788,13 +792,26 @@ def send_telegram(text: str) -> bool:
         )
         return False
 
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = json.dumps({
-        "chat_id": chat_id,
-        "text": text,
-    }).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
     try:
+        if inline_keyboard is not None:
+            res_body = send_telegram_with_keyboard(
+                token, chat_id, text, inline_keyboard
+            )
+            if isinstance(res_body, dict) and res_body.get("ok") is True:
+                print(
+                    f"[TELEGRAM] Sent private admin notification with keyboard "
+                    f"for profile={profile_name or '<default>'}"
+                )
+                return True
+            print(f"[TELEGRAM] Response ok=False: {res_body}")
+            return False
+
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        payload = json.dumps({
+            "chat_id": chat_id,
+            "text": text,
+        }).encode("utf-8")
+        headers = {"Content-Type": "application/json"}
         req = urllib.request.Request(url, data=payload, headers=headers, method="POST")
         with urllib.request.urlopen(req, timeout=15) as resp:
             if resp.status == 200:
@@ -1844,6 +1861,11 @@ def should_send_signal_alert(record, sent_fingerprints=None):
     return not _sent_same_signal_directions(record, sent_fingerprints)
 
 
+def signal_quick_trade_keyboard():
+    """Inline keyboard for actionable READY BUY/SELL signal alerts only."""
+    return [[{"text": "⚡ QUICK TRADE", "callback_data": "qt:start"}]]
+
+
 def send_signal_alert(record, broker_dt=None):
     """Send a decision alert once and queue transient delivery failures."""
     if broker_dt is not None and _signal_date(record) != broker_dt.date().isoformat():
@@ -1855,7 +1877,8 @@ def send_signal_alert(record, broker_dt=None):
     message = build_signal_telegram_message(record, broker_dt=broker_dt, updated=updated)
     if not message:
         return False
-    if send_telegram(message):
+    # Actionable READY BUY/SELL only reaches here via should_send_signal_alert.
+    if send_telegram(message, inline_keyboard=signal_quick_trade_keyboard()):
         signal_alerts_sent.add(fingerprint)
         signal_alerts_pending.pop(fingerprint, None)
         _save_state(sent_today, broker_dt=broker_dt)
