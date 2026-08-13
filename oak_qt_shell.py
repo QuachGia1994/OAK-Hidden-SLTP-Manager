@@ -357,9 +357,69 @@ NATIVE_TEXT = {
         "Accounts": "Tài khoản",
         "Performance": "Hiệu suất",
         "History": "Lịch sử",
-        "Rules today": "Quy tắc hôm nay",
         "News": "Tin tức",
-        "Available in the Tauri/Web build": "Có trong bản Tauri/Web",
+        "Analysis": "Phân tích",
+        "Account overview": "Tổng quan tài khoản",
+        "Live positions": "Vị thế đang mở",
+        "No account audit data": "Chưa có dữ liệu kiểm toán tài khoản",
+        "No open positions": "Không có vị thế mở",
+        "Performance metrics": "Chỉ số hiệu suất",
+        "Equity curve": "Đường vốn",
+        "Drawdown": "Drawdown",
+        "No performance data": "Chưa có dữ liệu hiệu suất",
+        "History ledger": "Sổ giao dịch",
+        "Checkpoints": "Checkpoint",
+        "No trade history": "Chưa có lịch sử giao dịch",
+        "No checkpoints": "Chưa có checkpoint",
+        "Economic news": "Tin tức kinh tế",
+        "Refresh news": "Làm mới tin tức",
+        "No economic news": "Chưa có tin tức kinh tế",
+        "News unavailable": "Nguồn tin tức chưa khả dụng",
+        "Stale news cache": "Cache tin tức đã cũ",
+        "Broker day": "Ngày broker",
+        "Cache day": "Ngày cache",
+        "Updated": "Cập nhật",
+        "Balance": "Số dư",
+        "Equity": "Vốn",
+        "Margin": "Ký quỹ",
+        "Free margin": "Ký quỹ trống",
+        "Margin level": "Mức ký quỹ",
+        "Floating P/L": "Lãi/lỗ nổi",
+        "Open profit": "Lãi/lỗ đang mở",
+        "Profile": "Hồ sơ",
+        "Symbol": "Symbol",
+        "Direction": "Hướng",
+        "Volume": "Khối lượng",
+        "Open price": "Giá vào",
+        "Source": "Nguồn",
+        "Time": "Thời gian",
+        "Type": "Loại",
+        "Reason": "Lý do",
+        "Profit": "Lãi/lỗ",
+        "Commission": "Phí GD",
+        "Swap": "Swap",
+        "Date": "Ngày",
+        "Hour": "Giờ",
+        "Status": "Trạng thái",
+        "Mode": "Chế độ",
+        "Net profit": "Lợi nhuận ròng",
+        "Realized P/L": "Lãi/lỗ đã chốt",
+        "Profit factor": "Profit factor",
+        "Win rate": "Tỷ lệ thắng",
+        "Average win": "Lãi TB",
+        "Average loss": "Lỗ TB",
+        "Expectancy": "Expectancy",
+        "Max equity drawdown": "Drawdown vốn tối đa",
+        "Current drawdown": "Drawdown hiện tại",
+        "Account growth": "Tăng trưởng tài khoản",
+        "Trading return": "Trading return",
+        "Total commission": "Tổng phí giao dịch",
+        "Total swap": "Tổng swap",
+        "Open positions": "Vị thế mở",
+        "Captured": "Ghi nhận",
+        "High": "Cao",
+        "Medium": "Trung bình",
+        "Low": "Thấp",
     },
 }
 
@@ -664,7 +724,7 @@ def app_qss(theme: str = "dark") -> str:
     QPushButton[intent="danger"]{color:#ef4444;border:1px solid rgba(239,68,68,.55);background:rgba(239,68,68,.10)}
     QPushButton[stockAction="save"]:enabled{color:#f59e0b;border:1px solid rgba(245,158,11,.5);background:rgba(245,158,11,.12)}
     QPushButton[stockAction="save"]:hover{color:#f59e0b;border:1px solid rgba(245,158,11,.7);background:rgba(245,158,11,.18)}
-    QPushButton[role="nav"]{background:transparent;border:1px solid transparent;border-radius:14px;padding:5px 12px;text-align:left;color:#8b98a5;font-size:14px;font-weight:600}
+    QPushButton[role="nav"]{background:transparent;border:1px solid transparent;border-radius:14px;padding:5px 12px;min-height:24px;text-align:left;color:#8b98a5;font-size:14px;font-weight:600}
     QPushButton[role="nav"]:hover{color:#e6edf3;background:#111820}
     QPushButton[role="nav"][active="true"]{color:#e6edf3;background:#111820;border:1px solid #1e2937;border-left:3px solid #2fa572;font-weight:700}
     QPushButton[role="nav"]:disabled{color:#525d6a}
@@ -1098,6 +1158,14 @@ class NativeShell:
         self._startup_ops: dict[str, int] = {}
         self._startup_op_seq: int = 0
         self._is_shut_down: bool = False
+        self.analysis_account_summary = None
+        self.analysis_positions_table = None
+        self.analysis_performance_summary = None
+        self.analysis_equity_table = None
+        self.analysis_history_table = None
+        self.analysis_checkpoint_table = None
+        self.analysis_news_table = None
+        self.analysis_news_status = None
 
         # Performance: Debouncing and throttling state
         self._ui_update_pending = False
@@ -1249,21 +1317,19 @@ class NativeShell:
         layout.addWidget(divider())
         layout.addSpacing(5)
         layout.addWidget(label("ANALYSIS", role="tiny"))
-        # Disabled placeholder nav items
-        analysis_placeholders = [
+        analysis_nav = [
             ("◎", "Accounts"),
             ("↗", "Performance"),
             ("⧗", "History"),
-            ("§", "Rules today"),
             ("◈", "News"),
         ]
-        for icon, name in analysis_placeholders:
-            placeholder = button(f"{icon}   {native_text(name)}")
-            placeholder.setProperty("role", "nav")
-            placeholder.setProperty("secondary", "true")
-            placeholder.setEnabled(False)
-            placeholder.setToolTip(native_text("Available in the Tauri/Web build"))
-            layout.addWidget(placeholder)
+        for icon, name in analysis_nav:
+            nav = button(f"{icon}   {native_text(name)}")
+            nav.setProperty("role", "nav")
+            nav.setProperty("secondary", "true")
+            nav.clicked.connect(lambda _checked=False, tab=name: self.switch_tab(tab))
+            self.nav_buttons[name] = nav
+            layout.addWidget(nav)
         # Footer
         layout.addStretch(1)
         # Profile block
@@ -1339,6 +1405,10 @@ class NativeShell:
             "Pending": self._pending_page(),
             "Diagnostics": self._diagnostics_page(),
             "Settings": self._settings_page(),
+            "Accounts": self._accounts_page(),
+            "Performance": self._performance_page(),
+            "History": self._history_page(),
+            "News": self._news_page(),
         }
         for page in self.tab_pages.values():
             self.stack.addWidget(page)
@@ -1655,6 +1725,323 @@ class NativeShell:
         layout.addWidget(self._section("SCHEDULED TASKS", scroll), 1)
         return page
 
+    def _analysis_table(self, columns: list[str], *, stretch: int | None = None) -> Any:
+        table = QT.QTableWidget(0, len(columns))
+        table.setEditTriggers(QT.QTableWidget.EditTrigger.NoEditTriggers)
+        table.setSelectionBehavior(QT.QTableWidget.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QT.QTableWidget.SelectionMode.SingleSelection)
+        table.verticalHeader().setVisible(False)
+        table.setHorizontalHeaderLabels([native_text(column) for column in columns])
+        header = table.horizontalHeader()
+        if stretch is not None and 0 <= stretch < len(columns):
+            header.setSectionResizeMode(stretch, QT.QHeaderView.ResizeMode.Stretch)
+        return table
+
+    def _analysis_queries(self) -> Any:
+        """Return the tested read-only account audit query surface."""
+        python_root = SOURCE_ROOT / "python"
+        if str(python_root) not in sys.path:
+            sys.path.insert(0, str(python_root))
+        from oak_core.supervisor.accounts import AccountQueries
+        return AccountQueries()
+
+    def _analysis_locale(self) -> str:
+        return str(self.settings.get("lang", NATIVE_LANGUAGE)).upper()
+
+    def _accounts_page(self) -> Any:
+        page = QT.QWidget()
+        layout = QT.QHBoxLayout(page)
+        layout.setSpacing(18)
+
+        left = QT.QWidget()
+        left_layout = QT.QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(10)
+        self.analysis_account_summary = QT.QTextEdit()
+        self.analysis_account_summary.setReadOnly(True)
+        self.analysis_account_summary.setProperty("role", "mini")
+        left_layout.addWidget(self.analysis_account_summary, 1)
+
+        right = QT.QWidget()
+        right_layout = QT.QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+        self.analysis_positions_table = self._analysis_table(
+            ["Symbol", "Direction", "Volume", "Open price", "Source"], stretch=4
+        )
+        right_layout.addWidget(self.analysis_positions_table, 1)
+
+        layout.addWidget(self._section("Account overview", left), 1)
+        layout.addWidget(self._section("Live positions", right), 2)
+        return page
+
+    def _performance_page(self) -> Any:
+        page = QT.QWidget()
+        layout = QT.QHBoxLayout(page)
+        layout.setSpacing(18)
+
+        left = QT.QWidget()
+        left_layout = QT.QVBoxLayout(left)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(10)
+        self.analysis_performance_summary = QT.QTextEdit()
+        self.analysis_performance_summary.setReadOnly(True)
+        self.analysis_performance_summary.setProperty("role", "mini")
+        left_layout.addWidget(self.analysis_performance_summary, 1)
+
+        right = QT.QWidget()
+        right_layout = QT.QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(10)
+        self.analysis_equity_table = self._analysis_table(
+            ["Time", "Equity", "Balance", "Drawdown"], stretch=0
+        )
+        right_layout.addWidget(self.analysis_equity_table, 1)
+
+        layout.addWidget(self._section("Performance metrics", left), 1)
+        layout.addWidget(self._section("Equity curve", right), 2)
+        return page
+
+    def _history_page(self) -> Any:
+        page = QT.QWidget()
+        layout = QT.QHBoxLayout(page)
+        layout.setSpacing(18)
+
+        ledger = QT.QWidget()
+        ledger_layout = QT.QVBoxLayout(ledger)
+        ledger_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_history_table = self._analysis_table(
+            ["Time", "Symbol", "Type", "Reason", "Volume", "Profit", "Commission", "Swap"], stretch=1
+        )
+        ledger_layout.addWidget(self.analysis_history_table, 1)
+
+        checkpoints = QT.QWidget()
+        checkpoints_layout = QT.QVBoxLayout(checkpoints)
+        checkpoints_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_checkpoint_table = self._analysis_table(
+            ["Date", "Hour", "Status", "Mode", "Captured"], stretch=0
+        )
+        checkpoints_layout.addWidget(self.analysis_checkpoint_table, 1)
+
+        layout.addWidget(self._section("History ledger", ledger), 2)
+        layout.addWidget(self._section("Checkpoints", checkpoints), 1)
+        return page
+
+    def _news_page(self) -> Any:
+        page = QT.QWidget()
+        layout = QT.QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        toolbar = QT.QHBoxLayout()
+        toolbar.addWidget(label("Economic news", role="section"))
+        toolbar.addStretch(1)
+        self.analysis_news_status = label("—", role="muted")
+        refresh = button("Refresh news", primary=True)
+        refresh.clicked.connect(self._refresh_news_page)
+        toolbar.addWidget(self.analysis_news_status)
+        toolbar.addWidget(refresh)
+        layout.addLayout(toolbar)
+        self.analysis_news_table = self._analysis_table(
+            ["Time", "Currency", "Impact", "Headline"], stretch=3
+        )
+        layout.addWidget(self.analysis_news_table, 1)
+        return page
+
+    def _set_analysis_table_rows(self, table: Any, rows: list[list[str]]) -> None:
+        table.setUpdatesEnabled(False)
+        try:
+            table.setRowCount(len(rows))
+            for r_index, row in enumerate(rows):
+                for c_index, value in enumerate(row):
+                    table.setItem(r_index, c_index, QT.QTableWidgetItem(str(value)))
+            table.resizeColumnsToContents()
+        finally:
+            table.setUpdatesEnabled(True)
+
+    def _format_analysis_value(self, value: Any, digits: int = 2) -> str:
+        if value is None:
+            return "—"
+        try:
+            return f"{float(value):,.{digits}f}"
+        except (TypeError, ValueError):
+            return str(value)
+
+    def _refresh_analysis_page(self, force: bool = False) -> None:
+        if self.current_tab == "Accounts" and (force or self.analysis_account_summary is not None):
+            self._refresh_accounts_page()
+        elif self.current_tab == "Performance" and (force or self.analysis_performance_summary is not None):
+            self._refresh_performance_page()
+        elif self.current_tab == "History" and (force or self.analysis_history_table is not None):
+            self._refresh_history_page()
+        elif self.current_tab == "News" and (force or self.analysis_news_table is not None):
+            self._refresh_news_page()
+
+    def _refresh_accounts_page(self) -> None:
+        if self.analysis_account_summary is None or self.analysis_positions_table is None:
+            return
+        if not self.selected:
+            self.analysis_account_summary.setPlainText(native_text("No account audit data"))
+            self._set_analysis_table_rows(self.analysis_positions_table, [])
+            return
+        try:
+            queries = self._analysis_queries()
+            account = queries.account_get(self.selected)
+            positions = queries.positions_list(self.selected)
+        except Exception as exc:
+            self.analysis_account_summary.setPlainText(f"{native_text('No account audit data')}\n\n{exc}")
+            self._set_analysis_table_rows(self.analysis_positions_table, [])
+            return
+        if not account.get("available"):
+            self.analysis_account_summary.setPlainText(native_text("No account audit data"))
+        else:
+            fields = [
+                ("Profile", account.get("profile")),
+                ("Balance", self._format_analysis_value(account.get("balance"))),
+                ("Equity", self._format_analysis_value(account.get("equity"))),
+                ("Margin", self._format_analysis_value(account.get("margin"))),
+                ("Free margin", self._format_analysis_value(account.get("free_margin"))),
+                ("Margin level", self._format_analysis_value(account.get("margin_level"))),
+                ("Open profit", self._format_analysis_value(account.get("open_profit"))),
+                ("Updated", account.get("sampled_at_utc") or "—"),
+            ]
+            self.analysis_account_summary.setPlainText(
+                self._format_detail_block("ACCOUNT OVERVIEW", fields)
+            )
+        rows = [
+            [
+                str(p.get("symbol") or "—"),
+                str(p.get("direction") or "—"),
+                self._format_analysis_value(p.get("volume"), 2),
+                self._format_analysis_value(p.get("open_price"), 5),
+                str(p.get("source_type") or "—"),
+            ]
+            for p in positions
+        ]
+        self._set_analysis_table_rows(self.analysis_positions_table, rows)
+
+    def _refresh_performance_page(self) -> None:
+        if self.analysis_performance_summary is None or self.analysis_equity_table is None:
+            return
+        if not self.selected:
+            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
+            self._set_analysis_table_rows(self.analysis_equity_table, [])
+            return
+        try:
+            queries = self._analysis_queries()
+            perf = queries.performance_summary(self.selected)
+            curve = queries.equity_curve(self.selected, limit=200)
+            drawdown = queries.drawdown_curve(self.selected, limit=200)
+        except Exception as exc:
+            self.analysis_performance_summary.setPlainText(f"{native_text('No performance data')}\n\n{exc}")
+            self._set_analysis_table_rows(self.analysis_equity_table, [])
+            return
+        if not perf.get("available"):
+            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
+        else:
+            fields = [
+                ("Profile", perf.get("profile")),
+                ("Net profit", self._format_analysis_value(perf.get("net_profit"))),
+                ("Realized P/L", self._format_analysis_value(perf.get("realized_pl"))),
+                ("Profit factor", self._format_analysis_value(perf.get("profit_factor"))),
+                ("Win rate", f"{float(perf['win_rate']) * 100:.2f}%" if perf.get("win_rate") is not None else "—"),
+                ("Average win", self._format_analysis_value(perf.get("average_win"))),
+                ("Average loss", self._format_analysis_value(perf.get("average_loss"))),
+                ("Expectancy", self._format_analysis_value(perf.get("expectancy"))),
+                ("Max equity drawdown", self._format_analysis_value(perf.get("max_equity_drawdown"))),
+                ("Current drawdown", self._format_analysis_value(perf.get("current_drawdown"))),
+                ("Account growth", self._format_analysis_value(perf.get("account_growth"))),
+                ("Trading return", self._format_analysis_value(perf.get("trading_return"))),
+                ("Total commission", self._format_analysis_value(perf.get("total_commission"))),
+                ("Total swap", self._format_analysis_value(perf.get("total_swap"))),
+            ]
+            self.analysis_performance_summary.setPlainText(
+                self._format_detail_block("PERFORMANCE", fields)
+            )
+        dd_map = {str(item.get("t")): item.get("drawdown") for item in drawdown}
+        rows = [
+            [
+                str(item.get("t") or "—"),
+                self._format_analysis_value(item.get("equity")),
+                self._format_analysis_value(item.get("balance")),
+                self._format_analysis_value(dd_map.get(str(item.get("t")))),
+            ]
+            for item in curve
+        ]
+        self._set_analysis_table_rows(self.analysis_equity_table, rows)
+
+    def _refresh_history_page(self) -> None:
+        if self.analysis_history_table is None or self.analysis_checkpoint_table is None:
+            return
+        if not self.selected:
+            self._set_analysis_table_rows(self.analysis_history_table, [])
+            self._set_analysis_table_rows(self.analysis_checkpoint_table, [])
+            return
+        try:
+            queries = self._analysis_queries()
+            deals = queries.deals_list(self.selected, limit=300)
+            checkpoints = queries.checkpoints_list(self.selected, limit=60)
+        except Exception:
+            deals, checkpoints = [], []
+        deal_rows = [
+            [
+                str(d.get("deal_time_utc") or "—"),
+                str(d.get("symbol") or "—"),
+                str(d.get("deal_type") or "—"),
+                str(d.get("reason_category") or d.get("entry_type") or "—"),
+                self._format_analysis_value(d.get("volume"), 2),
+                self._format_analysis_value(d.get("profit")),
+                self._format_analysis_value(d.get("commission")),
+                self._format_analysis_value(d.get("swap")),
+            ]
+            for d in deals
+        ]
+        checkpoint_rows = [
+            [
+                str(c.get("broker_date") or "—"),
+                str(c.get("checkpoint_hour") or "—"),
+                str(c.get("status") or "—"),
+                str(c.get("capture_mode") or "—"),
+                str(c.get("captured_at_utc") or "—"),
+            ]
+            for c in checkpoints
+        ]
+        self._set_analysis_table_rows(self.analysis_history_table, deal_rows)
+        self._set_analysis_table_rows(self.analysis_checkpoint_table, checkpoint_rows)
+
+    def _refresh_news_page(self) -> None:
+        if self.analysis_news_table is None:
+            return
+        try:
+            python_root = SOURCE_ROOT / "python"
+            if str(python_root) not in sys.path:
+                sys.path.insert(0, str(python_root))
+            from oak_core.supervisor.news import local_news
+            payload = local_news(self._analysis_locale())
+        except Exception as exc:
+            self._set_analysis_table_rows(self.analysis_news_table, [])
+            if self.analysis_news_status is not None:
+                self.analysis_news_status.setText(str(exc))
+            return
+        items = payload.get("items") or []
+        rows = [
+            [
+                str(item.get("time") or "—"),
+                str(item.get("currency") or "—"),
+                str(item.get("impact") or "—").upper(),
+                str(item.get("title") or "—"),
+            ]
+            for item in items
+        ]
+        self._set_analysis_table_rows(self.analysis_news_table, rows)
+        if self.analysis_news_status is not None:
+            cache_date = payload.get("cache_date") or "—"
+            broker_date = payload.get("broker_date") or "—"
+            stale = payload.get("stale")
+            state = "stale" if stale is True else "ready" if payload.get("available") else "unavailable"
+            self.analysis_news_status.setText(
+                f"{native_text('Cache day')}: {cache_date} · {native_text('Broker day')}: {broker_date} · {state} · {len(items)}"
+            )
+
     def _diagnostics_page(self) -> Any:
         page = QT.QWidget()
         layout = QT.QHBoxLayout(page)
@@ -1925,6 +2312,7 @@ class NativeShell:
         self._refresh_settings_page()
         self._refresh_stock_advisor_page()
         self._refresh_signal_states()
+        self._refresh_analysis_page()
         self._refresh_nav()
         running = self._running_profiles()
         self.stat_profiles["value"].setText(str(len(self.profiles)))
@@ -2121,6 +2509,8 @@ class NativeShell:
             self._refresh_diagnostics_page(force=True)
         elif tab == "Profiles":
             self._refresh_profile_page(force=True)
+        elif tab in ("Accounts", "Performance", "History", "News"):
+            self._refresh_analysis_page(force=True)
         self.stack.setCurrentWidget(self.tab_pages[tab])
         self._refresh_nav()
         self._fade_in_page(self.tab_pages[tab])

@@ -137,6 +137,7 @@ class NativeQtShellRailTests(unittest.TestCase):
         expected_keys = {
             "Dashboard", "Signals", "VN30 Advisor", "Profiles",
             "Copy", "Pending", "Diagnostics", "Settings",
+            "Accounts", "Performance", "History", "News",
         }
         self.assertEqual(set(shell.nav_buttons.keys()), expected_keys)
         # Verify new attributes exist
