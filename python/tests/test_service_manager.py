@@ -77,15 +77,29 @@ class TestServiceManager(unittest.TestCase):
 
     def test_mimo_worker_start_stop_lifecycle(self):
         # mimo_worker is the safest service (no network/MT5/secrets).
+        # When a live external instance already holds mimo_worker.lock (common on
+        # developer machines), ServiceManager must refuse a second start rather
+        # than skip the entire test.  On a clean CI runner the start/stop path
+        # is exercised fully.
         mgr = ServiceManager()
         start = mgr.start_service("mimo_worker")
         time.sleep(0.5)
         st = mgr.service_status("mimo_worker")
+
+        if start.get("reason") == "already_running_lock":
+            self.assertFalse(start.get("started"))
+            self.assertEqual(start.get("reason"), "already_running_lock")
+            # Do not stop a process we do not own.
+            return
+
         if st["status"] != "running":
             mgr.stop_service("mimo_worker")
-            self.skipTest(f"mimo_worker did not stay running in this env: {st}")
+            self.fail(
+                f"mimo_worker did not stay running after start: start={start} status={st}"
+            )
         try:
-            self.assertEqual(start["status"], "running")
+            self.assertTrue(start.get("started"))
+            self.assertEqual(start.get("status"), "running")
             self.assertEqual(st["status"], "running")
         finally:
             stop = mgr.stop_service("mimo_worker")

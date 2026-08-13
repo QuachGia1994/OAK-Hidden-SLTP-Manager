@@ -59,7 +59,7 @@ function AdvisorHeader({ advisory, locale, isVIP }: { advisory: StockAdvisory; l
           <h1 className="terminal-title text-2xl font-black tracking-tight sm:text-3xl">
             {locale === "EN" ? "Stock Filter" : "Bộ lọc Cổ phiếu"}
           </h1>
-          <p className="terminal-subtitle mt-1 text-xs text-zinc-400 sm:text-sm">
+          <p className="terminal-subtitle mt-1 text-xs text-[var(--muted)] sm:text-sm">
             {locale === "EN"
               ? "Linear D1 · 25 completed sessions · HOSE, HNX, UPCoM (Cap ≥ 100B VND)"
               : "Tuyến tính D1 · 25 phiên hoàn tất · HOSE, HNX, UPCoM (Vốn hoá ≥ 100 tỷ)"}
@@ -103,7 +103,7 @@ function EvidencePanel({ advisory, locale }: { advisory: StockAdvisory; locale: 
 }
 
 function EvidenceRow({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-4 border-b pb-2"><dt className="text-xs text-zinc-500">{label}</dt><dd className="font-mono text-sm font-bold">{value}</dd></div>;
+  return <div className="flex items-center justify-between gap-4 border-b pb-2"><dt className="text-xs text-[var(--muted)]">{label}</dt><dd className="font-mono text-sm font-bold">{value}</dd></div>;
 }
 
 function HeroStat({ label, value, valueClass = "" }: { label: string; value: string; valueClass?: string }) {
@@ -114,11 +114,11 @@ function LockedRows({ locale, empty = false }: { locale: "VN" | "EN"; empty?: bo
   const text = empty
     ? locale === "EN" ? "No symbol passed every gate." : "Không có mã vượt toàn bộ điều kiện."
     : locale === "EN" ? "VIP access is required to view symbols." : "Cần quyền VIP để xem danh sách mã.";
-  return <div className="p-8 text-center text-sm text-zinc-500">{text}</div>;
+  return <div className="p-8 text-center text-sm text-[var(--muted)]">{text}</div>;
 }
 
 function AdvisorEmpty({ locale }: { locale: "VN" | "EN" }) {
-  return <section className="terminal-panel rounded-xl p-8 text-center text-zinc-500">{locale === "EN" ? "Run VN30 Advisor from the desktop app to publish the first result." : "Chạy Bộ lọc VN30 trên app desktop để xuất kết quả đầu tiên."}</section>;
+  return <section className="terminal-panel rounded-xl p-8 text-center text-[var(--muted)]">{locale === "EN" ? "Run VN30 Advisor from the desktop app to publish the first result." : "Chạy Bộ lọc VN30 trên app desktop để xuất kết quả đầu tiên."}</section>;
 }
 
 function localizeAdvisorStatus(status: string, locale: "VN" | "EN"): string {

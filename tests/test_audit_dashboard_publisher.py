@@ -432,6 +432,9 @@ class TestEmptyAccountBuildsDoNotRaise(AuditDashboardPublisherTestCase):
 
         performance = pub.build_performance(self.account_uid)
         self.assertIsInstance(performance, dict)
+        self.assertIn("win_rate_basis", performance)
+        self.assertIn("trading_return_pct", performance)
+        self.assertIn("account_growth_pct", performance)
 
         risk = pub.build_risk(self.account_uid)
         self.assertIsInstance(risk, dict)

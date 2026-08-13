@@ -195,6 +195,41 @@ def _scheduled_close_parse_local(date_str: str, time_str: str) -> datetime:
     return naive.replace(tzinfo=SCHEDULED_CLOSE_TZ)
 
 
+def _scheduled_close_scope_label(filter_type: str, target_sym: str, target_ticket: str = "") -> str:
+    """Human-readable close scope for Telegram confirmation (never raw enum 'all')."""
+    ticket = (target_ticket or "").strip()
+    if ticket:
+        return f"ticket {ticket}"
+    sym = (target_sym or "").strip()
+    ft = (filter_type or "all").strip().lower()
+    if ft == "profit":
+        scope = "chỉ vị thế lãi"
+    elif ft == "loss":
+        scope = "chỉ vị thế lỗ"
+    else:
+        scope = "toàn bộ vị thế"
+    if sym:
+        return f"{sym} · {scope} của symbol này"
+    return f"{scope} của profile hiện tại"
+
+
+def _scheduled_close_confirm_message(
+    profile_name: str,
+    task_id: int,
+    target_dt: datetime,
+    filter_type: str,
+    target_sym: str,
+    target_ticket: str = "",
+) -> str:
+    """Absolute date/time confirmation; ID last; no raw 'all'."""
+    scope = _scheduled_close_scope_label(filter_type, target_sym, target_ticket)
+    when = target_dt.strftime("%d/%m/%Y %H:%M")
+    return (
+        f"🤖 [{profile_name}] Đã ghi lịch ĐÓNG · {scope} · "
+        f"vào {when} (Asia/Ho_Chi_Minh) · lịch #{task_id}"
+    )
+
+
 def _scheduled_close_resolve_target(
     time_val: str,
     *,
@@ -1403,8 +1438,14 @@ class CopyTradeManager:
                         raise TimeoutError("scheduled close file is busy")
                     new_id = created["id"]
                     self.notify(
-                        f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) "
-                        f"cho {target_sym or 'tất cả'} lúc {time_val} (Asia/Ho_Chi_Minh) rồi nhé!"
+                        _scheduled_close_confirm_message(
+                            profile_name,
+                            new_id,
+                            target_dt,
+                            filter_type,
+                            target_sym,
+                            target_ticket,
+                        )
                     )
                 except Exception:
                     resp = get_natural_response("error", error="Sai định dạng giờ rồi anh ơi!")
@@ -1448,13 +1489,22 @@ class CopyTradeManager:
                             raise TimeoutError("scheduled close file is busy")
                         new_id = created["id"]
                         self.notify(
-                            f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) "
-                            f"cho {target_sym or 'tất cả'} lúc {recovered_time} (Asia/Ho_Chi_Minh) rồi nhé!"
+                            _scheduled_close_confirm_message(
+                                profile_name,
+                                new_id,
+                                target_dt,
+                                filter_type,
+                                target_sym,
+                                target_ticket,
+                            )
                         )
                     except Exception:
                         self.notify(f"❌ [{profile_name}] Không parse được giờ từ tin nhắn, anh thử lại với định dạng HH:MM nhé!")
                 else:
-                    self.notify(f"🤖 [{profile_name}] Đã rõ! Tôi tiến hành ĐÓNG ({filter_type}) {target_sym or 'toàn bộ'} ngay lập tức đây ạ.")
+                    scope = _scheduled_close_scope_label(filter_type, target_sym, target_ticket)
+                    self.notify(
+                        f"🤖 [{profile_name}] Đã rõ! Tôi tiến hành ĐÓNG · {scope} ngay lập tức đây ạ."
+                    )
                     self._execute_close_all(filter_type, target_sym, target_ticket)
 
         # 6. /list [PROFILE]

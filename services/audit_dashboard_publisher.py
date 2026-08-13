@@ -35,10 +35,11 @@ _ENDPOINTS = {
 # Public-safe subset of performance calculator keys.
 _PUBLIC_PERF_KEYS = frozenset({
     "current_balance", "current_equity", "net_profit", "realized_pl",
-    "unrealized_pl", "profit_factor", "win_rate", "average_win",
+    "unrealized_pl", "profit_factor", "win_rate", "closed_trade_count",
+    "winning_trade_count", "losing_trade_count", "win_rate_basis", "average_win",
     "average_loss", "expectancy", "max_equity_drawdown", "current_drawdown",
     "drawdown_source", "total_commission", "total_swap", "total_fees",
-    "trading_return", "account_growth", "net_cash_flow",
+    "trading_return", "trading_return_pct", "account_growth", "account_growth_pct", "net_cash_flow",
 })
 
 # Trading deal types for filtering.

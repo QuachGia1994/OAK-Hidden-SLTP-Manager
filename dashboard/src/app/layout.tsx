@@ -39,7 +39,7 @@ export default async function RootLayout({
           })();
         `}} />
       </head>
-      <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900 dark:bg-[#050806] dark:text-zinc-100">
+      <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         <LocaleProvider initialLocale={locale}>
         <ThemeProvider>
           <Suspense fallback={null}>
@@ -48,8 +48,8 @@ export default async function RootLayout({
           <NavBar />
           <AnnouncementBanner />
           <main className="flex-1 min-h-0">{children}</main>
-          <footer className="border-t border-zinc-200 dark:border-zinc-800 py-2.5 text-center">
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">&copy; 2026 QUACH KIM PHONG</p>
+          <footer className="border-t border-[var(--panel-border)] py-2.5 text-center">
+            <p className="text-[11px] text-[var(--muted)]">&copy; 2026 QUACH KIM PHONG</p>
           </footer>
         </ThemeProvider>
         </LocaleProvider>

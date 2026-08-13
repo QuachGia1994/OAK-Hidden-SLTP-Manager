@@ -252,8 +252,9 @@ class TestPerformanceReports(McpMonitorTestCase):
         self.assertGreaterEqual(result["data_age_seconds"], 0.0)
         self.assertPublicSafe(result)
 
-    def test_unrealized_pl_is_not_invented(self):
-        self.assertIsNone(server.performance_summary("Vantage")["unrealized_pl"])
+    def test_unrealized_pl_comes_from_latest_equity_sample(self):
+        result = server.performance_summary("Vantage")
+        self.assertEqual(result["unrealized_pl"], 100.0)
 
     def test_equity_curve_is_chronological(self):
         result = server.equity_curve("Vantage", limit=10)

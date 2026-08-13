@@ -138,6 +138,48 @@ LOG_LEVEL_MARKERS = {
     "INFO": ("INFO", "[OK]", "START", "CONNECTED", "RUNNING"),
 }
 NATIVE_LANGUAGE = "EN"
+ANALYSIS_KPI_HELP = {
+    "Net P&L": {
+        "EN": "Realized trading P/L from closed positions. It excludes external deposits/withdrawals and is separate from floating P/L.",
+        "VN": "Lãi/lỗ giao dịch đã chốt từ các vị thế đóng. Không tính nộp/rút tiền và tách biệt với lãi/lỗ đang nổi.",
+    },
+    "Trading return": {
+        "EN": "Trading return (%) = (ending balance − starting balance − net external cash flow) / starting balance. It measures trading performance, not cash deposits.",
+        "VN": "Trading return (%) = (số dư cuối − số dư đầu − dòng tiền ngoài ròng) / số dư đầu. Đo hiệu quả giao dịch, không tính tiền nộp/rút.",
+    },
+    "Win rate": {
+        "EN": "Win rate = winning closed positions / (winning + losing closed positions). Entry deals and scratch trades are not counted as wins or losses.",
+        "VN": "Tỷ lệ thắng = vị thế đóng có lãi / (vị thế đóng có lãi + vị thế đóng có lỗ). Deal vào lệnh và lệnh hòa vốn không được tính thắng/thua.",
+    },
+    "Profit factor": {
+        "EN": "Profit factor = gross profit / gross loss across closed positions. Higher than 1 means gross winning P/L exceeds gross losing P/L.",
+        "VN": "Profit factor = tổng lãi gộp / tổng lỗ gộp của các vị thế đóng. Lớn hơn 1 nghĩa là tổng lãi thắng vượt tổng lỗ.",
+    },
+    "Expectancy": {
+        "EN": "Expectancy = (gross profit − gross loss) / decided closed positions. It is the average realized trading outcome per decided position before separate fees.",
+        "VN": "Expectancy = (tổng lãi gộp − tổng lỗ gộp) / số vị thế đóng có kết quả. Đây là kết quả giao dịch trung bình mỗi vị thế, trước các loại phí tách riêng.",
+    },
+    "Current drawdown": {
+        "EN": "Current drawdown = latest equity peak − current equity, using the available equity-sample/checkpoint curve.",
+        "VN": "Drawdown hiện tại = đỉnh vốn gần nhất − vốn hiện tại, tính trên chuỗi mẫu equity/checkpoint hiện có.",
+    },
+    "Max drawdown": {
+        "EN": "Maximum peak-to-trough equity drawdown observed in the available equity samples. Source is shown in the account audit data.",
+        "VN": "Drawdown vốn tối đa từ một đỉnh xuống đáy trong chuỗi equity hiện có. Nguồn dữ liệu được ghi trong kiểm toán tài khoản.",
+    },
+    "Avg win": {
+        "EN": "Average realized profit of winning closed positions only.",
+        "VN": "Lãi trung bình chỉ của các vị thế đóng có kết quả dương.",
+    },
+    "Avg loss": {
+        "EN": "Average absolute loss of losing closed positions only.",
+        "VN": "Mức lỗ trung bình theo trị tuyệt đối, chỉ của các vị thế đóng có kết quả âm.",
+    },
+    "Account growth": {
+        "EN": "Account growth (%) = (ending balance − starting balance) / starting balance. Unlike trading return, it includes net external cash flow.",
+        "VN": "Tăng trưởng tài khoản (%) = (số dư cuối − số dư đầu) / số dư đầu. Khác trading return, chỉ số này bao gồm tác động dòng tiền ngoài ròng.",
+    },
+}
 NATIVE_TEXT = {
     "EN": {"Signals": "Account Tracking"},
     "VN": {
@@ -726,6 +768,7 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
             QMainWindow,
             QProgressBar,
             QPushButton,
+            QMessageBox,
             QScrollArea,
             QStackedWidget,
             QTableWidget,
@@ -760,6 +803,7 @@ def app_qss(theme: str = "dark") -> str:
     QLabel[role="tiny"]{color:#8b98a5;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase}
     QLabel[role="muted"]{color:#8b98a5;font-size:12px}
     QLabel[role="stockStatus"]{color:#d6dde4;font-size:12px;font-weight:700;padding:4px 2px}
+    QLabel[role="progress"]{color:#2fa572;font-size:12px;font-weight:700;padding:2px 2px}
     QLabel[role="section"]{font-size:20px;font-weight:800}
     QLabel[role="title"]{font-size:40px;font-weight:800}
     QLabel[role="value"]{font-family:Consolas;font-size:22px;font-weight:700}
@@ -833,6 +877,7 @@ def app_qss(theme: str = "dark") -> str:
     QLabel[role="tiny"]{color:#4b5a6b}
     QLabel[role="muted"]{color:#4b5a6b}
     QLabel[role="stockStatus"]{color:#141b24}
+    QLabel[role="progress"]{color:#147a52}
     QLabel[role="section"]{color:#141b24}
     QLabel[role="title"]{color:#141b24}
     QLabel[role="value"]{color:#141b24}
@@ -891,6 +936,7 @@ def app_qss(theme: str = "dark") -> str:
     QLabel[role="tiny"]{color:#8caab2}
     QLabel[role="muted"]{color:#8caab2}
     QLabel[role="stockStatus"]{color:#e8fbff}
+    QLabel[role="progress"]{color:#18d6ff}
     QLabel[role="section"]{color:#e8fbff}
     QLabel[role="title"]{color:#e8fbff}
     QLabel[role="value"]{color:#e8fbff}
@@ -949,6 +995,7 @@ def app_qss(theme: str = "dark") -> str:
     QLabel[role="tiny"]{color:#b3b3b3}
     QLabel[role="muted"]{color:#b3b3b3}
     QLabel[role="stockStatus"]{color:#ffffff}
+    QLabel[role="progress"]{color:#00e676}
     QLabel[role="section"]{color:#ffffff}
     QLabel[role="title"]{color:#ffffff}
     QLabel[role="value"]{color:#ffffff}
@@ -1618,10 +1665,13 @@ class NativeShell:
         self.stock_progress_bar = QT.QProgressBar()
         self.stock_progress_bar.setRange(0, 100)
         self.stock_progress_bar.setValue(0)
-        self.stock_progress_bar.setTextVisible(True)
+        self.stock_progress_bar.setTextVisible(False)
         self.stock_progress_bar.setFormat("Sẵn sàng (0%)")
         self.stock_progress_bar.setVisible(False)
         left_layout.addWidget(self.stock_progress_bar)
+        self.stock_progress_label = label("Sẵn sàng (0%)", role="progress")
+        self.stock_progress_label.setWordWrap(True)
+        left_layout.addWidget(self.stock_progress_label)
 
         # Status
         self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
@@ -1866,6 +1916,28 @@ class NativeShell:
         layout = QT.QVBoxLayout(page)
         layout.setSpacing(12)
 
+        period_row = QT.QHBoxLayout()
+        period_row.addWidget(label(
+            "Khoảng thời gian" if NATIVE_LANGUAGE == "VN" else "Period",
+            role="tiny",
+        ))
+        self.analysis_period_combo = QT.QComboBox()
+        self._analysis_period_keys = [
+            ("all", "Toàn bộ lịch sử" if NATIVE_LANGUAGE == "VN" else "All history"),
+            ("1m", "1 tháng gần nhất" if NATIVE_LANGUAGE == "VN" else "Last month"),
+            ("3m", "3 tháng gần nhất" if NATIVE_LANGUAGE == "VN" else "Last 3 months"),
+            ("6m", "6 tháng gần nhất" if NATIVE_LANGUAGE == "VN" else "Last 6 months"),
+            ("1y", "1 năm gần nhất" if NATIVE_LANGUAGE == "VN" else "Last year"),
+        ]
+        for _key, label_text in self._analysis_period_keys:
+            self.analysis_period_combo.addItem(label_text, _key)
+        self.analysis_period_combo.setCurrentIndex(0)
+        self.analysis_period_combo.currentIndexChanged.connect(
+            lambda _i: self._refresh_performance_page()
+        )
+        period_row.addWidget(self.analysis_period_combo, 1)
+        layout.addLayout(period_row)
+
         primary = QT.QWidget()
         self.analysis_kpi_primary_host = primary
         self.analysis_kpi_primary_layout = QT.QGridLayout(primary)
@@ -2035,6 +2107,14 @@ class NativeShell:
         except (TypeError, ValueError):
             return str(value)
 
+    def _format_analysis_percent(self, value: Any, digits: int = 2) -> str:
+        if value is None:
+            return "—"
+        try:
+            return f"{float(value) * 100:.{digits}f}%"
+        except (TypeError, ValueError):
+            return str(value)
+
     def _refresh_analysis_page(self, force: bool = False) -> None:
         if self.current_tab == "Accounts" and (force or self.analysis_account_summary is not None):
             self._refresh_accounts_page()
@@ -2184,12 +2264,33 @@ class NativeShell:
         lay = QT.QVBoxLayout(frame)
         lay.setContentsMargins(12, 10, 12, 10)
         lay.setSpacing(3)
+        title_row = QT.QHBoxLayout()
         title_lbl = label(title, role="tiny")
+        title_lbl.setWordWrap(True)
+        title_lbl.setMinimumHeight(18)
+        title_row.addWidget(title_lbl, 1)
+        if title in ANALYSIS_KPI_HELP:
+            info = QT.QPushButton("?")
+            info.setFixedSize(22, 22)
+            info.setCursor(QT.Qt.CursorShape.PointingHandCursor)
+            info.setStyleSheet("QPushButton{color:#147a52;background:transparent;border:1px solid #a8b7c5;border-radius:11px;font-weight:900;font-size:13px;padding:0} QPushButton:hover{color:#0b5f3c;border-color:#147a52}")
+            info.setToolTip("Explain metric")
+            info.clicked.connect(lambda _checked=False, metric=title: self._show_analysis_kpi_help(metric))
+            title_row.addWidget(info)
+        lay.addLayout(title_row)
         value_lbl = label(value, role="value", accent=accent)
         value_lbl.setTextInteractionFlags(QT.Qt.TextInteractionFlag.TextSelectableByMouse)
-        lay.addWidget(title_lbl)
         lay.addWidget(value_lbl)
         return frame, value_lbl
+
+    def _show_analysis_kpi_help(self, title: str) -> None:
+        """Show a concise, bilingual definition for one performance KPI."""
+        copy = ANALYSIS_KPI_HELP.get(title)
+        if not copy:
+            return
+        message = copy.get(NATIVE_LANGUAGE, copy.get("EN", ""))
+        QMessageBox.information(self.window, native_text(title), message)
+
 
     def _set_analysis_stat_grid(
         self,
@@ -2352,6 +2453,21 @@ class NativeShell:
                 f"latest={self._format_analysis_value(latest_eq)}"
             )
 
+    def _analysis_period_since_utc(self):
+        """Rolling period start from the period combo; None = all history."""
+        combo = getattr(self, "analysis_period_combo", None)
+        if combo is None:
+            return None, "all"
+        key = combo.currentData()
+        if key in (None, "all"):
+            return None, "all"
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        days = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}.get(str(key))
+        if days is None:
+            return None, "all"
+        return now - timedelta(days=days), str(key)
+
     def _refresh_performance_page(self) -> None:
         if self.analysis_performance_summary is None:
             return
@@ -2360,11 +2476,18 @@ class NativeShell:
             self._set_kpi_values([])
             self._render_equity_chart([], [])
             return
+        since_utc, period_key = self._analysis_period_since_utc()
+        period_label = ""
+        combo = getattr(self, "analysis_period_combo", None)
+        if combo is not None:
+            period_label = combo.currentText()
         try:
             queries = self._analysis_queries()
-            perf = queries.performance_summary(self.selected)
-            curve = queries.equity_curve(self.selected, limit=200)
-            drawdown = queries.drawdown_curve(self.selected, limit=200)
+            perf = queries.performance_summary(self.selected, since_utc=since_utc)
+            curve = queries.equity_curve(self.selected, limit=5000 if since_utc else 200, since_utc=since_utc)
+            drawdown = queries.drawdown_curve(self.selected, limit=5000 if since_utc else 200)
+            if since_utc is not None and drawdown:
+                drawdown = [d for d in drawdown if d.get("t") and str(d.get("t")) >= since_utc.isoformat()[:19]]
         except Exception as exc:
             self.analysis_performance_summary.setText(f"{native_text('No performance data')} · {exc}")
             self._set_kpi_values([])
@@ -2384,15 +2507,17 @@ class NativeShell:
             self._set_kpi_values([])
         else:
             latest = curve[-1].get("t") if curve else "—"
+            n_closed = perf.get("closed_trade_count")
             self.analysis_performance_summary.setText(
-                f"{native_text('Profile')}: {perf.get('profile') or self.selected} · "
-                f"{len(curve)} samples · latest {latest} UTC"
+                f"Hồ sơ: {perf.get('profile') or self.selected} · "
+                f"Khoảng thời gian: {period_label or period_key} · "
+                f"n={len(curve)} samples · closed={n_closed} · latest {latest} UTC"
             )
             net_profit = perf.get("net_profit")
             current_dd = perf.get("current_drawdown")
             kpis = [
                 ("Net P&L", self._format_analysis_value(net_profit), "green" if (net_profit or 0) >= 0 else "red"),
-                ("Trading return", self._format_analysis_value(perf.get("trading_return")), ""),
+                ("Trading return", self._format_analysis_percent(perf.get("trading_return_pct")), ""),
                 ("Win rate", _pct(perf.get("win_rate")), ""),
                 ("Profit factor", self._format_analysis_value(perf.get("profit_factor")), ""),
                 ("Expectancy", self._format_analysis_value(perf.get("expectancy")), "green" if (perf.get("expectancy") or 0) >= 0 else "red"),
@@ -2400,7 +2525,7 @@ class NativeShell:
                 ("Max drawdown", self._format_analysis_value(perf.get("max_equity_drawdown")), ""),
                 ("Avg win", self._format_analysis_value(perf.get("average_win")), "green"),
                 ("Avg loss", self._format_analysis_value(perf.get("average_loss")), "red"),
-                ("Account growth", self._format_analysis_value(perf.get("account_growth")), ""),
+                ("Account growth", self._format_analysis_percent(perf.get("account_growth_pct")), ""),
             ]
             self._set_kpi_values(kpis)
 
@@ -2419,19 +2544,28 @@ class NativeShell:
             queries = self._analysis_queries()
             deals = queries.deals_list(self.selected, limit=300)
             checkpoints = queries.checkpoints_list(self.selected, limit=60)
+            performance = queries.performance_summary(self.selected)
         except Exception:
-            deals, checkpoints = [], []
+            deals, checkpoints, performance = [], [], {"available": False}
         self.analysis_history_deals = list(deals)
-        realized = sum(float(d.get("profit") or 0) for d in deals)
-        commission = sum(float(d.get("commission") or 0) for d in deals)
-        swap = sum(float(d.get("swap") or 0) for d in deals)
-        wins = sum(1 for d in deals if float(d.get("profit") or 0) > 0)
+        if performance.get("available"):
+            closed_count = int(performance.get("closed_trade_count") or 0)
+            realized = performance.get("realized_pl")
+            commission = performance.get("total_commission")
+            swap = performance.get("total_swap")
+            win_rate = performance.get("win_rate")
+        else:
+            closed_count = 0
+            realized = None
+            commission = None
+            swap = None
+            win_rate = None
         summary = [
-            ("Closed deals", self._format_analysis_value(len(deals), 0), ""),
-            ("Realized P/L", self._format_analysis_value(realized), "green" if realized >= 0 else "red"),
+            ("Closed trades", self._format_analysis_value(closed_count, 0), ""),
+            ("Realized P/L", self._format_analysis_value(realized), "green" if (realized or 0) >= 0 else "red"),
             ("Total commission", self._format_analysis_value(commission), ""),
             ("Total swap", self._format_analysis_value(swap), ""),
-            ("Win rate", f"{(wins / len(deals) * 100):.2f}%" if deals else "—", ""),
+            ("Win rate", f"{float(win_rate) * 100:.2f}%" if win_rate is not None else "—", ""),
         ]
         self._set_analysis_stat_grid(self.analysis_history_summary_layout, self.analysis_history_summary, summary, columns=5)
         self._refresh_history_filter_options()
@@ -3793,6 +3927,7 @@ class NativeShell:
                     self.stock_progress_bar.setRange(0, 100)
                     self.stock_progress_bar.setValue(0)
                     self.stock_progress_bar.setFormat("Đang cập nhật dữ liệu EOD (0%)...")
+                    self.stock_progress_label.setText("Đang cập nhật dữ liệu EOD (0%)...")
                     self.stock_progress_bar.setVisible(True)
                 except RuntimeError:
                     pass
@@ -3826,6 +3961,7 @@ class NativeShell:
                     pct = int(match_prog.group(3))
                     self.stock_progress_bar.setValue(pct)
                     self.stock_progress_bar.setFormat(f"Đang tải EOD VPS: {cur}/{tot} mã ({pct}%)...")
+                    self.stock_progress_label.setText(f"Đang tải EOD VPS: {cur}/{tot} mã ({pct}%)...")
                     continue
                 # Announce: [VPS EOD] Fetching N symbols for DATE...
                 match_total = re.search(r"\[VPS EOD\] Fetching (\d+) symbols", clean)
@@ -3833,6 +3969,7 @@ class NativeShell:
                     tot = match_total.group(1)
                     self.stock_progress_bar.setValue(1)
                     self.stock_progress_bar.setFormat(f"Đang kết nối VPS API (0/{tot} mã)...")
+                    self.stock_progress_label.setText(f"Đang kết nối VPS API (0/{tot} mã)...")
                     continue
                 # Final save confirmation from logger
                 if ("Saved" in clean or "saved" in clean) and "records" in clean:
@@ -3841,6 +3978,7 @@ class NativeShell:
                         cnt = match.group(1)
                         self.stock_progress_bar.setValue(100)
                         self.stock_progress_bar.setFormat(f"Đã cập nhật xong {cnt} bản ghi EOD ✓")
+                        self.stock_progress_label.setText(f"Đã cập nhật xong {cnt} bản ghi EOD ✓")
             except RuntimeError:
                 # QProcess / progress bar C++ object deleted during shutdown/teardown.
                 pass
@@ -3864,6 +4002,7 @@ class NativeShell:
                 if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                     self.stock_progress_bar.setValue(100)
                     self.stock_progress_bar.setFormat("Cập nhật EOD hoàn tất ✓ 100%")
+                    self.stock_progress_label.setText("Cập nhật EOD hoàn tất ✓ 100%")
             except RuntimeError:
                 pass
 
@@ -3886,6 +4025,7 @@ class NativeShell:
                 self._set_stock_status(err_msg, "red")
                 if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                     self.stock_progress_bar.setFormat("Lỗi cập nhật EOD ✗")
+                    self.stock_progress_label.setText("Lỗi cập nhật EOD ✗")
             except RuntimeError:
                 pass
 
@@ -3944,6 +4084,7 @@ class NativeShell:
             self.stock_progress_bar.setRange(0, 100)
             self.stock_progress_bar.setValue(0)
             self.stock_progress_bar.setFormat("Đang khởi tạo bộ lọc D1 (0%)...")
+            self.stock_progress_label.setText("Đang khởi tạo bộ lọc D1 (0%)...")
             self.stock_progress_bar.setVisible(True)
         process.readyReadStandardOutput.connect(lambda p=process: self._read_stock_advisor_output(p))
         process.finished.connect(lambda code, _status, p=process: self._stock_advisor_done(code, p))
@@ -3966,6 +4107,7 @@ class NativeShell:
                     pct = min(99, max(1, cur))
                     self.stock_progress_bar.setValue(pct)
                     self.stock_progress_bar.setFormat(f"Đang đọc D1 {sym} ({cur} bars)...")
+                    self.stock_progress_label.setText(f"Đang đọc D1 {sym} ({cur} bars)...")
                     self.stock_progress_bar.setVisible(True)
 
     def _stock_advisor_done(self, code: int, process: Any) -> None:
@@ -3976,6 +4118,7 @@ class NativeShell:
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                 self.stock_progress_bar.setValue(100)
                 self.stock_progress_bar.setFormat("Hoàn tất quét toàn bộ 3 sàn 100%")
+                self.stock_progress_label.setText("Hoàn tất quét toàn bộ 3 sàn 100%")
             self._render_advisory_table()
             self._reload_stock_rows()
             pushed = any(line.endswith("Stock advisor: pushed") for line in self.stock_process_log)
@@ -3984,6 +4127,7 @@ class NativeShell:
         else:
             if hasattr(self, "stock_progress_bar") and self.stock_progress_bar is not None:
                 self.stock_progress_bar.setFormat("Lỗi chạy bộ lọc ✗")
+                self.stock_progress_label.setText("Lỗi chạy bộ lọc ✗")
             fail_msg = f"Bộ lọc thất bại (mã lỗi {code})" if NATIVE_LANGUAGE == "VN" else f"Advisor failed with code {code}"
             self._set_stock_status(fail_msg, "red")
     def _stock_advisor_error(self, error: Any, process: Any) -> None:

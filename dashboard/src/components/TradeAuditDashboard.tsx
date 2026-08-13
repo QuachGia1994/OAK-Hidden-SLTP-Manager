@@ -45,6 +45,25 @@ function StatGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{children}</div>;
 }
 
+const KPI_HINTS: Record<string, string> = {
+  "Net P&L": "Realized P/L from closed positions. External deposits/withdrawals and floating P/L are tracked separately.",
+  "Trading return": "Trading return (%) removes net external cash flow from balance change, then divides by starting balance.",
+  "Win rate": "Winning closed positions divided by winning + losing closed positions. Entry deals and scratch trades are excluded.",
+  "Profit factor": "Gross profit divided by gross loss across closed positions. Above 1 means gross wins exceed gross losses.",
+  "Expectancy": "Average realized outcome per decided closed position: (gross profit − gross loss) / decided positions.",
+  "Current drawdown": "Latest equity peak minus current equity on the available equity/checkpoint curve.",
+  "Max drawdown": "Largest peak-to-trough equity drawdown observed in the available curve.",
+  "Avg win": "Average realized profit of winning closed positions.",
+  "Avg loss": "Average absolute loss of losing closed positions.",
+  "Account growth": "Balance growth (%) including net external cash flow; trading return excludes that cash-flow effect.",
+  "Tỷ lệ thắng": "Tỷ lệ thắng = vị thế đóng có lãi / (vị thế đóng có lãi + vị thế đóng có lỗ). Deal vào lệnh và lệnh hòa vốn được loại khỏi mẫu thắng/thua.",
+  "Lãi TB": "Lãi trung bình của các vị thế đóng có kết quả dương.",
+  "Lỗ TB": "Mức lỗ trung bình theo trị tuyệt đối của các vị thế đóng có kết quả âm.",
+  "Hệ số lợi nhuận": "Profit factor = tổng lãi gộp / tổng lỗ gộp của các vị thế đóng.",
+  "Lợi nhuận giao dịch": "Trading return (%) loại dòng tiền ngoài ròng khỏi thay đổi số dư trước khi chia cho số dư đầu.",
+  "Tăng trưởng tài khoản": "Tăng trưởng tài khoản (%) = thay đổi số dư / số dư đầu và bao gồm tác động dòng tiền ngoài.",
+};
+
 function StatCard({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "buy" | "sell" | "warn" | "idle" }) {
   const toneClass = {
     buy: "text-[var(--terminal-accent)]",
@@ -52,11 +71,23 @@ function StatCard({ label, value, hint, tone }: { label: string; value: string; 
     warn: "text-[var(--terminal-warning)]",
     idle: "text-[var(--foreground)]",
   }[tone ?? "idle"];
+  const explanation = hint || KPI_HINTS[label] || Object.entries(KPI_HINTS).find(([key]) => key.toLowerCase() === label.toLowerCase())?.[1];
   return (
     <div className="terminal-panel rounded-xl px-4 py-3">
-      <div className="terminal-kicker mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="terminal-kicker mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">{label}</div>
+        {explanation && (
+          <details className="relative shrink-0">
+            <summary className="grid h-5 w-5 cursor-pointer list-none place-items-center rounded-full border border-[var(--panel-border)] text-[10px] font-black text-[var(--muted)] hover:border-[var(--terminal-accent)] hover:text-[var(--terminal-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]" aria-label={`Explain ${label}`}>
+              i
+            </summary>
+            <div className="absolute right-0 top-7 z-20 w-64 rounded-lg border border-[var(--panel-border)] bg-[var(--surface)] p-3 text-[11px] font-medium leading-5 text-[var(--foreground)] shadow-lg">
+              {explanation}
+            </div>
+          </details>
+        )}
+      </div>
       <div className={`font-mono text-lg font-black tabular-nums ${toneClass}`}>{value}</div>
-      {hint && <div className="mt-0.5 text-[10px] text-[var(--muted)]">{hint}</div>}
     </div>
   );
 }
@@ -395,15 +426,15 @@ function Performance({ data, locale, currency }: { data: unknown; locale: "EN" |
       <StatCard label={locale === "EN" ? "Net Profit" : "Lợi nhuận ròng"} value={fmtCur(d.net_profit, currency)} tone={Number(d.net_profit) >= 0 ? "buy" : "sell"} />
       <StatCard label={locale === "EN" ? "Realized P/L" : "Lãi/lỗ đã thực hiện"} value={fmtCur(d.realized_pl, currency)} tone={Number(d.realized_pl) >= 0 ? "buy" : "sell"} />
       <StatCard label={locale === "EN" ? "Unrealized P/L" : "Lãi/lỗ chưa thực hiện"} value={fmtCur(d.unrealized_pl, currency)} tone={Number(d.unrealized_pl) >= 0 ? "buy" : "sell"} />
-      <StatCard label={locale === "EN" ? "Profit Factor" : "Hệ số lợi nhuận"} value={Number.isFinite(pf) ? fmtDec(pf) : "—"} />
-      <StatCard label={locale === "EN" ? "Win Rate" : "Tỷ lệ thắng"} value={Number.isFinite(wr) ? fmtPct(wr) : "—"} tone={wr > 50 ? "buy" : wr > 0 ? "sell" : "idle"} />
+      <StatCard label={locale === "EN" ? "Profit factor" : "Profit factor"} value={Number.isFinite(pf) ? fmtDec(pf) : "—"} />
+      <StatCard label={locale === "EN" ? "Win rate" : "Tỷ lệ thắng"} value={Number.isFinite(wr) ? fmtPct(wr) : "—"} tone={wr > 0.5 ? "buy" : wr > 0 ? "sell" : "idle"} />
       <StatCard label={locale === "EN" ? "Avg Win" : "Lãi TB"} value={fmtCur(d.average_win, currency)} />
       <StatCard label={locale === "EN" ? "Avg Loss" : "Lỗ TB"} value={fmtCur(d.average_loss, currency)} />
       <StatCard label="Expectancy" value={fmtCur(d.expectancy, currency)} />
       <StatCard label={locale === "EN" ? "Max Drawdown" : "Drawdown cao nhất"} value={fmtCur(d.max_equity_drawdown, currency)} tone="warn" />
       <StatCard label={locale === "EN" ? "Current Drawdown" : "Drawdown hiện tại"} value={fmtCur(d.current_drawdown, currency)} tone="warn" />
-      <StatCard label={locale === "EN" ? "Trading Return" : "Lợi nhuận giao dịch"} value={fmtCur(d.trading_return, currency)} />
-      <StatCard label={locale === "EN" ? "Account Growth" : "Tăng trưởng tài khoản"} value={fmtCur(d.account_growth, currency)} />
+      <StatCard label={locale === "EN" ? "Trading return" : "Trading return"} value={d.trading_return_pct != null ? fmtPct(Number(d.trading_return_pct) * 100) : "—"} />
+      <StatCard label={locale === "EN" ? "Account growth" : "Tăng trưởng tài khoản"} value={d.account_growth_pct != null ? fmtPct(Number(d.account_growth_pct) * 100) : "—"} />
       <StatCard label={locale === "EN" ? "Net Cash Flow" : "Dòng tiền ròng"} value={fmtCur(d.net_cash_flow, currency)} />
       <StatCard label={locale === "EN" ? "Total Commission" : "Tổng phí GD"} value={fmtCur(d.total_commission, currency)} />
       <StatCard label={locale === "EN" ? "Total Swap" : "Tổng swap"} value={fmtCur(d.total_swap, currency)} />

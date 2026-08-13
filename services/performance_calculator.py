@@ -49,7 +49,7 @@ class PerformanceCalculator:
     # ------------------------------------------------------------------ #
     # Public API
     # ------------------------------------------------------------------ #
-    def compute(self, account_uid, initial_balance=None, as_of_utc=None):
+    def compute(self, account_uid, initial_balance=None, as_of_utc=None, since_utc=None):
         """Return a dict with exactly the keys specified in §8 / §9.
 
         Parameters
@@ -59,7 +59,9 @@ class PerformanceCalculator:
             Starting balance for account_growth / trading_return.
             ``None`` → use earliest balance snapshot or 0.0.
         as_of_utc : datetime, optional
-            Cutoff timestamp (currently unused; reserved for future filtering).
+            Upper cutoff (inclusive); deals/samples after this are ignored.
+        since_utc : datetime, optional
+            Lower bound (inclusive); rolling period start. None = all history.
 
         Returns
         -------
@@ -68,7 +70,7 @@ class PerformanceCalculator:
         """
         result = self._empty_result()
         try:
-            self._fill_metrics(result, account_uid, initial_balance, as_of_utc)
+            self._fill_metrics(result, account_uid, initial_balance, as_of_utc, since_utc)
         except Exception as exc:
             log.warning("PerformanceCalculator error (returning defaults): %s", exc)
         return result
@@ -89,6 +91,10 @@ class PerformanceCalculator:
             "gross_loss": None,
             "profit_factor": None,
             "win_rate": None,
+            "closed_trade_count": 0,
+            "winning_trade_count": 0,
+            "losing_trade_count": 0,
+            "win_rate_basis": "CLOSED_POSITIONS",
             "average_win": None,
             "average_loss": None,
             "expectancy": None,
@@ -105,19 +111,38 @@ class PerformanceCalculator:
             "total_swap": 0.0,
             "total_fees": 0.0,
             "account_growth": None,
+            "account_growth_pct": None,
             "trading_return": None,
+            "trading_return_pct": None,
             "net_cash_flow": None,
             "drawdown_source": "NONE",
         }
 
-    def _fill_metrics(self, r, account_uid, initial_balance, as_of_utc):
+    @staticmethod
+    def _in_window(ts, since_utc, as_of_utc):
+        if ts is None:
+            return since_utc is None and as_of_utc is None
+        if since_utc is not None and ts < since_utc:
+            return False
+        if as_of_utc is not None and ts > as_of_utc:
+            return False
+        return True
+
+    def _fill_metrics(self, r, account_uid, initial_balance, as_of_utc, since_utc=None):
         account = self._store.get_account_by_uid(account_uid)
         if account is None:
             return
         account_id = account["id"]
 
-        # --- Deals ---
-        all_deals = self._store.list_deals(account_id=account_id)
+        # --- Deals (optional rolling window on deal_time_utc) ---
+        raw_deals = self._store.list_deals(account_id=account_id)
+        all_deals = []
+        for d in raw_deals:
+            ts = _parse_iso(d.get("deal_time_utc"))
+            if since_utc is not None or as_of_utc is not None:
+                if not self._in_window(ts, since_utc, as_of_utc):
+                    continue
+            all_deals.append(d)
         close_deals = [
             d for d in all_deals
             if d.get("entry_type") in _CLOSE_ENTRY_TYPES
@@ -176,6 +201,9 @@ class PerformanceCalculator:
         losses = sum(1 for v in pos_profits.values() if v < 0)
         decided = wins + losses
 
+        r["closed_trade_count"] = decided
+        r["winning_trade_count"] = wins
+        r["losing_trade_count"] = losses
         if decided > 0:
             r["win_rate"] = wins / decided
         else:
@@ -213,6 +241,11 @@ class PerformanceCalculator:
         equity_samples = list(reversed(
             self._store.list_equity_samples(account_id=account_id)
         ))
+        if since_utc is not None or as_of_utc is not None:
+            equity_samples = [
+                s for s in equity_samples
+                if self._in_window(_parse_iso(s.get("sampled_at_utc")), since_utc, as_of_utc)
+            ]
         snapshots = self._store.list_snapshots(account_id=account_id)
 
         current_balance = 0.0
@@ -224,6 +257,8 @@ class PerformanceCalculator:
             current_equity = _safe_float(latest.get("equity"), None)
             r["current_balance"] = current_balance
             r["current_equity"] = current_equity
+            open_profit = latest.get("open_profit")
+            r["unrealized_pl"] = _safe_float(open_profit, None) if open_profit is not None else None
 
             peak = None
             max_dd = None
@@ -248,6 +283,8 @@ class PerformanceCalculator:
             current_equity = _safe_float(latest_snap.get("equity"), None)
             r["current_balance"] = current_balance
             r["current_equity"] = current_equity
+            open_profit = latest_snap.get("open_profit")
+            r["unrealized_pl"] = _safe_float(open_profit, None) if open_profit is not None else None
 
             peak = None
             max_dd = None
@@ -345,13 +382,20 @@ class PerformanceCalculator:
         # --- Account growth & trading return ---
         ib = initial_balance
         if ib is None:
-            # Use earliest snapshot balance
-            if snapshots:
+            # Prefer the earliest balance-bearing equity sample; fall back to
+            # checkpoint snapshots. This keeps return metrics defined for the
+            # normal live ledger path where equity samples exist without snapshots.
+            if equity_samples:
+                ib = _safe_float(equity_samples[0].get("balance"), 0.0)
+            elif snapshots:
                 ib = _safe_float(snapshots[0].get("balance"), 0.0)
             else:
                 ib = 0.0
         r["account_growth"] = current_balance - ib
         r["trading_return"] = current_balance - ib - net_cf
+        if ib:
+            r["account_growth_pct"] = (current_balance - ib) / ib
+            r["trading_return_pct"] = (current_balance - ib - net_cf) / ib
 
         # --- Net profit ---
         r["net_profit"] = realized_pl if realized_pl != 0 else None

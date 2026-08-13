@@ -231,6 +231,8 @@ class TestCashFlowIsExcludedFromTradingProfit(Phase3AuditServicesTestCase):
         # trading_return = current_balance - initial_balance - net_cash_flow
         # = 10700 - 10000 - 500 = 200 (pure trading profit)
         self.assertAlmostEqual(metrics["trading_return"], 200.0)
+        self.assertAlmostEqual(metrics["trading_return_pct"], 0.02)
+        self.assertAlmostEqual(metrics["account_growth_pct"], 0.07)
         self.assertAlmostEqual(metrics["realized_pl"], 200.0)
         self.assertAlmostEqual(metrics["net_cash_flow"], 500.0)
         self.assertAlmostEqual(metrics["net_deposits"], 500.0)
@@ -354,8 +356,12 @@ class TestProfitFactorWinRateExpectancy(Phase3AuditServicesTestCase):
         self.assertAlmostEqual(m["gross_loss"], 80.0)
         # profit_factor = 350/80 = 4.375
         self.assertAlmostEqual(m["profit_factor"], 4.375)
-        # win_rate = 3/(3+1) = 0.75
+        # win_rate = 3/(3+1) = 0.75, based on decided closed positions.
         self.assertAlmostEqual(m["win_rate"], 0.75)
+        self.assertEqual(m["closed_trade_count"], 4)
+        self.assertEqual(m["winning_trade_count"], 3)
+        self.assertEqual(m["losing_trade_count"], 1)
+        self.assertEqual(m["win_rate_basis"], "CLOSED_POSITIONS")
         # average_win = 350/3
         self.assertAlmostEqual(m["average_win"], 350.0 / 3.0)
         # average_loss = 80/1 = 80
@@ -511,8 +517,9 @@ class TestEmptyAccountMetricsDoNotRaise(Phase3AuditServicesTestCase):
             "max_equity_drawdown", "max_balance_drawdown", "current_drawdown",
             "recovery_factor", "average_holding_time", "exposure_by_symbol",
             "exposure_by_direction", "total_commission", "total_swap",
-            "total_fees", "account_growth", "trading_return", "net_cash_flow",
-            "drawdown_source",
+            "total_fees", "account_growth", "account_growth_pct", "trading_return",
+            "trading_return_pct", "net_cash_flow", "closed_trade_count",
+            "winning_trade_count", "losing_trade_count", "win_rate_basis", "drawdown_source",
         ):
             self.assertIn(key, m)
         self.assertEqual(m["drawdown_source"], "NONE")

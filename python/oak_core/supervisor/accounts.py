@@ -209,20 +209,23 @@ class AccountQueries:
         result.reverse()  # chronological ascending
         return result
 
-    def performance_summary(self, profile_name: str) -> dict:
+    def performance_summary(self, profile_name: str, since_utc=None) -> dict:
         """Performance metrics from the calculator — public-safe subset."""
         uid = self._uid_for_profile(profile_name)
         if not uid:
             return {"profile": profile_name, "available": False}
         _ensure_imports()
         from services.performance_calculator import PerformanceCalculator
-        perf = PerformanceCalculator(self._get_store()).compute(uid)
+        perf = PerformanceCalculator(self._get_store()).compute(
+            uid, since_utc=since_utc
+        )
         keys = (
             "current_balance", "current_equity", "net_profit", "realized_pl",
-            "unrealized_pl", "profit_factor", "win_rate", "average_win",
+            "unrealized_pl", "profit_factor", "win_rate", "closed_trade_count",
+            "winning_trade_count", "losing_trade_count", "win_rate_basis", "average_win",
             "average_loss", "expectancy", "max_equity_drawdown",
-            "current_drawdown", "drawdown_source", "trading_return",
-            "account_growth", "net_cash_flow", "total_commission",
+            "current_drawdown", "drawdown_source", "trading_return", "trading_return_pct",
+            "account_growth", "account_growth_pct", "net_cash_flow", "total_commission",
             "total_swap", "total_fees",
         )
         return {
@@ -231,7 +234,7 @@ class AccountQueries:
             **{k: perf.get(k) for k in keys},
         }
 
-    def equity_curve(self, profile_name: str, limit: int = 500) -> list:
+    def equity_curve(self, profile_name: str, limit: int = 500, since_utc=None) -> list:
         """Equity samples as a lightweight curve (time, equity) for charts."""
         uid = self._uid_for_profile(profile_name)
         account_id = self._account_id(uid) if uid else None
@@ -241,8 +244,20 @@ class AccountQueries:
         # list_equity_samples returns DESC — reverse to chronological.
         result = []
         for s in reversed(samples):
+            t = s.get("sampled_at_utc")
+            if since_utc is not None and t:
+                try:
+                    from datetime import datetime
+                    ts = datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+                    bound = since_utc if since_utc.tzinfo else since_utc.replace(tzinfo=ts.tzinfo)
+                    if ts.tzinfo is None and bound.tzinfo is not None:
+                        ts = ts.replace(tzinfo=bound.tzinfo)
+                    if ts < bound:
+                        continue
+                except (TypeError, ValueError):
+                    pass
             result.append({
-                "t": s.get("sampled_at_utc"),
+                "t": t,
                 "equity": s.get("equity"),
                 "balance": s.get("balance"),
             })

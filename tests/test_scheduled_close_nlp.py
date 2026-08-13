@@ -36,6 +36,13 @@ class ScheduledCloseNlpTests(unittest.TestCase):
             self.assertEqual(scheduled[0]["filter"], "all")
             self.assertEqual(scheduled[0]["sym"], "")
             self.assertEqual(scheduled[0]["ticket"], "")
+            self.assertTrue(manager.notify_messages)
+            conf = manager.notify_messages[-1]
+            self.assertNotIn(", all)", conf)
+            self.assertNotIn("ID:", conf)
+            self.assertIn("lịch #", conf)
+            self.assertIn("profile hiện tại", conf)
+            self.assertRegex(conf, r"\d{2}/\d{2}/\d{4} \d{2}:\d{2}")
 
     def test_close_gold_with_time_targets_xauusd_only(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -50,6 +57,27 @@ class ScheduledCloseNlpTests(unittest.TestCase):
             self.assertEqual(scheduled[0]["sym"], "XAUUSD")
             self.assertEqual(scheduled[0]["ticket"], "")
             self.assertEqual(scheduled[0].get("tz"), "Asia/Ho_Chi_Minh")
+            conf = manager.notify_messages[-1]
+            self.assertIn("XAUUSD", conf)
+            self.assertIn("toàn bộ vị thế của symbol này", conf)
+            self.assertNotIn(", all)", conf)
+            self.assertRegex(conf, r"\d{2}/\d{2}/\d{4} \d{2}:\d{2}")
+
+    def test_gbpcad_plus_past_time_confirms_next_day_absolute_date(self):
+        from datetime import datetime
+        from domain.copy_trade_manager import SCHEDULED_CLOSE_TZ, _scheduled_close_resolve_target
+
+        now = datetime(2026, 8, 13, 19, 33, 0, tzinfo=SCHEDULED_CLOSE_TZ)
+        target = _scheduled_close_resolve_target("02:00", now=now)
+        self.assertEqual(target.strftime("%Y-%m-%d %H:%M"), "2026-08-14 02:00")
+        msg = copy_trade_manager._scheduled_close_confirm_message(
+            "Vantage", 34352, target, "all", "GBPCAD+", ""
+        )
+        self.assertIn("GBPCAD+", msg)
+        self.assertIn("14/08/2026 02:00", msg)
+        self.assertIn("lịch #34352", msg)
+        self.assertNotIn(", all)", msg)
+        self.assertNotIn("all profiles", msg.lower())
 
     def test_close_broker_suffix_symbols_preserved(self):
         cases = [

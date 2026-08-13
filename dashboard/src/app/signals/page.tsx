@@ -44,10 +44,10 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
         <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(19rem,0.8fr)] lg:items-end">
           <div>
             <div className="terminal-kicker mb-3">{locale === "EN" ? "Verified account ledger" : "Sổ giao dịch đã xác thực"}</div>
-            <h1 className="text-4xl font-black tracking-tight text-zinc-950 dark:text-white sm:text-5xl">
+            <h1 className="text-4xl font-black tracking-tight text-[var(--foreground)] sm:text-5xl">
               {locale === "EN" ? "Trade history" : "Lịch sử giao dịch"}
             </h1>
-            <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+            <p className="mt-2 text-sm text-[var(--muted)]">
               {locale === "EN" ? "Verified trade activity from the live account" : "Hoạt động giao dịch đã xác thực từ tài khoản live"}
             </p>
           </div>
@@ -59,6 +59,14 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
             <HistoryStat label={t.vip} value={accessText} />
           </div>
         </div>
+      </section>
+
+      {/* Verified performance summary — uses the same closed-position metric source as Analysis. */}
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <HistoryMetric label={locale === "EN" ? "Closed trades" : "Lệnh đã đóng"} value={String((auditData.performance as Record<string, unknown> | null)?.closed_trade_count ?? "—")} />
+        <HistoryMetric label={locale === "EN" ? "Win rate" : "Tỷ lệ thắng"} value={auditData.performance && (auditData.performance as Record<string, unknown>).win_rate != null ? `${(Number((auditData.performance as Record<string, unknown>).win_rate) * 100).toFixed(2)}%` : "—"} />
+        <HistoryMetric label={locale === "EN" ? "Realized P/L" : "Lãi/lỗ đã chốt"} value={auditData.performance && (auditData.performance as Record<string, unknown>).realized_pl != null ? `${ledgerCurrency} ${Number((auditData.performance as Record<string, unknown>).realized_pl).toFixed(2)}` : "—"} />
+        <HistoryMetric label={locale === "EN" ? "Profit factor" : "Profit factor"} value={auditData.performance && (auditData.performance as Record<string, unknown>).profit_factor != null ? Number((auditData.performance as Record<string, unknown>).profit_factor).toFixed(2) : "—"} />
       </section>
 
       {/* Main content: Trade Ledger */}
@@ -112,6 +120,15 @@ export default async function SignalsPage({ searchParams }: { searchParams: Prom
           <HistoryList signals={visibleSignals} isVIP={isVIP} />
         </div>
       </details>
+    </div>
+  );
+}
+
+function HistoryMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="terminal-stat rounded-xl px-4 py-3">
+      <div className="terminal-kicker mb-1">{label}</div>
+      <div className="terminal-stat-value font-mono text-lg font-black tabular-nums">{value}</div>
     </div>
   );
 }
