@@ -403,7 +403,6 @@ NATIVE_TEXT = {
         "Status": "Trạng thái",
         "Mode": "Chế độ",
         "Net profit": "Lợi nhuận ròng",
-        "Realized P/L": "Lãi/lỗ đã chốt",
         "Profit factor": "Profit factor",
         "Win rate": "Tỷ lệ thắng",
         "Average win": "Lãi TB",
@@ -413,13 +412,23 @@ NATIVE_TEXT = {
         "Current drawdown": "Drawdown hiện tại",
         "Account growth": "Tăng trưởng tài khoản",
         "Trading return": "Trading return",
+        "Open positions": "Vị thế mở",
+        "Closed deals": "Lệnh đã đóng",
+        "Realized P/L": "Lãi/lỗ đã chốt",
         "Total commission": "Tổng phí giao dịch",
         "Total swap": "Tổng swap",
-        "Open positions": "Vị thế mở",
+        "All symbols": "Tất cả symbol",
+        "All types": "Tất cả loại",
+        "All currencies": "Tất cả tiền tệ",
+        "All impact": "Tất cả mức độ",
+        "Search symbol or reason…": "Tìm symbol hoặc lý do…",
+        "Audit checkpoint": "Checkpoint kiểm toán",
+        "samples": "mẫu",
         "Captured": "Ghi nhận",
         "High": "Cao",
         "Medium": "Trung bình",
         "Low": "Thấp",
+        "Total": "Tổng",
     },
 }
 
@@ -646,6 +655,48 @@ def filter_log_text(text: str, query: str = "", level: str = "ALL", max_lines: i
     if max_lines > 0:
         kept = kept[-max_lines:]
     return "\n".join(kept)
+
+
+def filter_analysis_history_deals(
+    deals: list[dict[str, Any]],
+    symbol: str = "All symbols",
+    deal_type: str = "All types",
+    search: str = "",
+) -> list[dict[str, Any]]:
+    """Filter public trade history without mutating the source list."""
+    search_text = str(search or "").strip().lower()
+    result = []
+    for deal in deals:
+        if symbol != "All symbols" and str(deal.get("symbol") or "") != symbol:
+            continue
+        if deal_type != "All types" and str(deal.get("deal_type") or "").upper() != deal_type.upper():
+            continue
+        haystack = " ".join(
+            str(deal.get(key) or "")
+            for key in ("symbol", "reason_category", "entry_type", "deal_type")
+        ).lower()
+        if search_text and search_text not in haystack:
+            continue
+        result.append(deal)
+    return result
+
+
+def filter_analysis_news_items(
+    items: list[dict[str, Any]],
+    currency: str = "All currencies",
+    impact: str = "All impact",
+) -> list[dict[str, Any]]:
+    """Filter cached news items without mutating the source list."""
+    result = []
+    for item in items:
+        item_currency = str(item.get("currency") or "").upper()
+        item_impact = str(item.get("impact") or "").upper()
+        if currency != "All currencies" and item_currency != currency.upper():
+            continue
+        if impact != "All impact" and item_impact != impact.upper():
+            continue
+        result.append(item)
+    return result
 
 
 def write_bytes_atomic(path: Path, payload: bytes) -> None:
@@ -1159,18 +1210,36 @@ class NativeShell:
         self._startup_op_seq: int = 0
         self._is_shut_down: bool = False
         self.analysis_account_summary = None
+        self.analysis_account_stats_host = None
+        self.analysis_account_stats_layout = None
+        self.analysis_account_stats: dict[str, Any] = {}
+        self.analysis_positions_status = None
         self.analysis_positions_table = None
         self.analysis_performance_summary = None
         self.analysis_equity_table = None
         self.analysis_equity_chart = None
         self.analysis_equity_chart_view = None
         self.analysis_equity_status = None
-        self.analysis_kpi_host = None
-        self.analysis_kpi_layout = None
+        self.analysis_kpi_primary_host = None
+        self.analysis_kpi_primary_layout = None
+        self.analysis_kpi_secondary_host = None
+        self.analysis_kpi_secondary_layout = None
         self.analysis_kpi_cards: dict[str, Any] = {}
         self._analysis_chart_types: dict[str, Any] = {}
-        self.analysis_history_table = None
+        self.analysis_history_summary_host = None
+        self.analysis_history_summary_layout = None
+        self.analysis_history_summary: dict[str, Any] = {}
+        self.analysis_history_symbol_filter = None
+        self.analysis_history_type_filter = None
+        self.analysis_history_search = None
+        self.analysis_history_deals: list[dict] = []
         self.analysis_checkpoint_table = None
+        self.analysis_news_summary_host = None
+        self.analysis_news_summary_layout = None
+        self.analysis_news_summary: dict[str, Any] = {}
+        self.analysis_news_currency_filter = None
+        self.analysis_news_impact_filter = None
+        self.analysis_news_items: list[dict] = []
         self.analysis_news_table = None
         self.analysis_news_status = None
 
@@ -1757,50 +1826,68 @@ class NativeShell:
 
     def _accounts_page(self) -> Any:
         page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        layout = QT.QVBoxLayout(page)
+        layout.setSpacing(12)
 
-        left = QT.QWidget()
-        left_layout = QT.QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(10)
-        self.analysis_account_summary = QT.QTextEdit()
-        self.analysis_account_summary.setReadOnly(True)
-        self.analysis_account_summary.setProperty("role", "mini")
-        left_layout.addWidget(self.analysis_account_summary, 1)
+        self.analysis_account_stats_host = QT.QWidget()
+        self.analysis_account_stats_layout = QT.QGridLayout(self.analysis_account_stats_host)
+        self.analysis_account_stats_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_account_stats_layout.setHorizontalSpacing(10)
+        self.analysis_account_stats_layout.setVerticalSpacing(10)
+        self.analysis_account_summary = label("—", role="muted")
+        self.analysis_account_summary.setWordWrap(True)
+        overview = QT.QWidget()
+        overview_layout = QT.QVBoxLayout(overview)
+        overview_layout.setContentsMargins(0, 0, 0, 0)
+        overview_layout.setSpacing(6)
+        overview_layout.addWidget(self.analysis_account_stats_host)
+        overview_layout.addWidget(self.analysis_account_summary)
+        layout.addWidget(self._section("Account overview", overview), 0)
 
-        right = QT.QWidget()
-        right_layout = QT.QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(10)
+        positions = QT.QWidget()
+        positions_layout = QT.QVBoxLayout(positions)
+        positions_layout.setContentsMargins(0, 0, 0, 0)
+        positions_layout.setSpacing(6)
+        header = QT.QHBoxLayout()
+        self.analysis_positions_status = label("—", role="muted")
+        header.addWidget(self.analysis_positions_status)
+        header.addStretch(1)
+        positions_layout.addLayout(header)
         self.analysis_positions_table = self._analysis_table(
-            ["Symbol", "Direction", "Volume", "Open price", "Current", "P/L", "Source"],
+            ["Symbol", "Direction", "Volume", "Entry", "Current", "P/L"],
             stretch=0,
         )
-        right_layout.addWidget(self.analysis_positions_table, 1)
-
-        layout.addWidget(self._section("Account overview", left), 1)
-        layout.addWidget(self._section("Live positions", right), 2)
+        positions_layout.addWidget(self.analysis_positions_table, 1)
+        layout.addWidget(self._section("Live positions", positions), 1)
         return page
 
     def _performance_page(self) -> Any:
         page = QT.QWidget()
         layout = QT.QVBoxLayout(page)
-        layout.setSpacing(14)
+        layout.setSpacing(12)
 
-        self.analysis_kpi_host = QT.QWidget()
-        self.analysis_kpi_layout = QT.QGridLayout(self.analysis_kpi_host)
-        self.analysis_kpi_layout.setContentsMargins(0, 0, 0, 0)
-        self.analysis_kpi_layout.setHorizontalSpacing(10)
-        self.analysis_kpi_layout.setVerticalSpacing(10)
-        self.analysis_kpi_cards: dict[str, Any] = {}
-        layout.addWidget(self._section("Performance metrics", self.analysis_kpi_host), 0)
+        primary = QT.QWidget()
+        self.analysis_kpi_primary_host = primary
+        self.analysis_kpi_primary_layout = QT.QGridLayout(primary)
+        self.analysis_kpi_primary_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_kpi_primary_layout.setHorizontalSpacing(10)
+        self.analysis_kpi_primary_layout.setVerticalSpacing(10)
+        secondary = QT.QWidget()
+        self.analysis_kpi_secondary_host = secondary
+        self.analysis_kpi_secondary_layout = QT.QGridLayout(secondary)
+        self.analysis_kpi_secondary_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_kpi_secondary_layout.setHorizontalSpacing(10)
+        self.analysis_kpi_secondary_layout.setVerticalSpacing(10)
+        metrics = QT.QWidget()
+        metrics_layout = QT.QVBoxLayout(metrics)
+        metrics_layout.setContentsMargins(0, 0, 0, 0)
+        metrics_layout.setSpacing(8)
+        metrics_layout.addWidget(primary)
+        metrics_layout.addWidget(secondary)
+        layout.addWidget(self._section("Performance metrics", metrics), 0)
 
-        # Keep a minimal text summary for accessibility / empty states.
-        self.analysis_performance_summary = QT.QTextEdit()
-        self.analysis_performance_summary.setReadOnly(True)
-        self.analysis_performance_summary.setMaximumHeight(72)
-        self.analysis_performance_summary.setProperty("role", "mini")
+        self.analysis_performance_summary = label("—", role="muted")
+        self.analysis_performance_summary.setWordWrap(True)
         layout.addWidget(self.analysis_performance_summary, 0)
 
         chart_wrap = QT.QWidget()
@@ -1848,12 +1935,33 @@ class NativeShell:
 
     def _history_page(self) -> Any:
         page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        layout = QT.QVBoxLayout(page)
+        layout.setSpacing(10)
+
+        self.analysis_history_summary_host = QT.QWidget()
+        self.analysis_history_summary_layout = QT.QGridLayout(self.analysis_history_summary_host)
+        self.analysis_history_summary_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_history_summary_layout.setHorizontalSpacing(10)
+        self.analysis_history_summary_layout.setVerticalSpacing(10)
+        layout.addWidget(self._section("History summary", self.analysis_history_summary_host), 0)
 
         ledger = QT.QWidget()
         ledger_layout = QT.QVBoxLayout(ledger)
         ledger_layout.setContentsMargins(0, 0, 0, 0)
+        ledger_layout.setSpacing(8)
+        filters = QT.QHBoxLayout()
+        self.analysis_history_search = QT.QLineEdit()
+        self.analysis_history_search.setPlaceholderText(native_text("Search symbol or reason…"))
+        self.analysis_history_symbol_filter = QT.QComboBox()
+        self.analysis_history_type_filter = QT.QComboBox()
+        self.analysis_history_type_filter.addItems([native_text("All types"), "BUY", "SELL"])
+        self.analysis_history_search.textChanged.connect(self._apply_history_filters)
+        self.analysis_history_symbol_filter.currentTextChanged.connect(self._apply_history_filters)
+        self.analysis_history_type_filter.currentTextChanged.connect(self._apply_history_filters)
+        filters.addWidget(self.analysis_history_search, 1)
+        filters.addWidget(self.analysis_history_symbol_filter)
+        filters.addWidget(self.analysis_history_type_filter)
+        ledger_layout.addLayout(filters)
         self.analysis_history_table = self._analysis_table(
             ["Time", "Symbol", "Type", "Reason", "Volume", "Profit", "Commission", "Swap"], stretch=1
         )
@@ -1867,8 +1975,11 @@ class NativeShell:
         )
         checkpoints_layout.addWidget(self.analysis_checkpoint_table, 1)
 
-        layout.addWidget(self._section("History ledger", ledger), 2)
-        layout.addWidget(self._section("Checkpoints", checkpoints), 1)
+        split = QT.QHBoxLayout()
+        split.setSpacing(12)
+        split.addWidget(self._section("History ledger", ledger), 2)
+        split.addWidget(self._section("Checkpoints", checkpoints), 1)
+        layout.addLayout(split, 1)
         return page
 
     def _news_page(self) -> Any:
@@ -1876,8 +1987,22 @@ class NativeShell:
         layout = QT.QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(10)
+
+        self.analysis_news_summary_host = QT.QWidget()
+        self.analysis_news_summary_layout = QT.QGridLayout(self.analysis_news_summary_host)
+        self.analysis_news_summary_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_news_summary_layout.setHorizontalSpacing(10)
+        self.analysis_news_summary_layout.setVerticalSpacing(10)
+        layout.addWidget(self._section("News overview", self.analysis_news_summary_host), 0)
+
         toolbar = QT.QHBoxLayout()
-        toolbar.addWidget(label("Economic news", role="section"))
+        self.analysis_news_currency_filter = QT.QComboBox()
+        self.analysis_news_impact_filter = QT.QComboBox()
+        self.analysis_news_impact_filter.addItems([native_text("All impact"), "HIGH", "MEDIUM", "LOW"])
+        self.analysis_news_currency_filter.currentTextChanged.connect(self._apply_news_filters)
+        self.analysis_news_impact_filter.currentTextChanged.connect(self._apply_news_filters)
+        toolbar.addWidget(self.analysis_news_currency_filter)
+        toolbar.addWidget(self.analysis_news_impact_filter)
         toolbar.addStretch(1)
         self.analysis_news_status = label("—", role="muted")
         refresh = button("Refresh news", primary=True)
@@ -1965,10 +2090,15 @@ class NativeShell:
                     pass
 
     def _refresh_accounts_page(self) -> None:
-        if self.analysis_account_summary is None or self.analysis_positions_table is None:
+        if self.analysis_positions_table is None:
             return
         if not self.selected:
-            self.analysis_account_summary.setPlainText(native_text("No account audit data"))
+            self._set_analysis_stat_grid(
+                getattr(self, "analysis_account_stats_layout", None),
+                getattr(self, "analysis_account_stats", {}),
+                [],
+            )
+            self.analysis_account_summary.setText(native_text("No account audit data"))
             self._set_analysis_table_rows(self.analysis_positions_table, [])
             return
         try:
@@ -1976,29 +2106,51 @@ class NativeShell:
             account = queries.account_get(self.selected)
             audit_positions = queries.positions_list(self.selected)
         except Exception as exc:
-            self.analysis_account_summary.setPlainText(f"{native_text('No account audit data')}\n\n{exc}")
+            self._set_analysis_stat_grid(
+                getattr(self, "analysis_account_stats_layout", None),
+                getattr(self, "analysis_account_stats", {}),
+                [],
+            )
+            self.analysis_account_summary.setText(f"{native_text('No account audit data')} · {exc}")
             self._set_analysis_table_rows(self.analysis_positions_table, [])
             return
+
         if not account.get("available"):
-            self.analysis_account_summary.setPlainText(native_text("No account audit data"))
+            self._set_analysis_stat_grid(
+                getattr(self, "analysis_account_stats_layout", None),
+                getattr(self, "analysis_account_stats", {}),
+                [],
+            )
+            self.analysis_account_summary.setText(native_text("No account audit data"))
         else:
-            fields = [
-                ("Profile", account.get("profile")),
-                ("Balance", self._format_analysis_value(account.get("balance"))),
-                ("Equity", self._format_analysis_value(account.get("equity"))),
-                ("Margin", self._format_analysis_value(account.get("margin"))),
-                ("Free margin", self._format_analysis_value(account.get("free_margin"))),
-                ("Margin level", self._format_analysis_value(account.get("margin_level"))),
-                ("Open profit", self._format_analysis_value(account.get("open_profit"))),
-                ("Updated", account.get("sampled_at_utc") or "—"),
+            open_profit = account.get("open_profit")
+            metrics = [
+                ("Balance", self._format_analysis_value(account.get("balance")), ""),
+                ("Equity", self._format_analysis_value(account.get("equity")), "green"),
+                ("Floating P/L", self._format_analysis_value(open_profit), "green" if (open_profit or 0) >= 0 else "red"),
+                ("Margin level", self._format_analysis_value(account.get("margin_level")), ""),
             ]
-            self.analysis_account_summary.setPlainText(
-                self._format_detail_block("ACCOUNT OVERVIEW", fields)
+            self._set_analysis_stat_grid(
+                getattr(self, "analysis_account_stats_layout", None),
+                getattr(self, "analysis_account_stats", {}),
+                metrics,
+                columns=4,
+            )
+            updated = account.get("sampled_at_utc") or "—"
+            self.analysis_account_summary.setText(
+                f"{native_text('Profile')}: {account.get('profile') or self.selected} · "
+                f"{native_text('Updated')}: {updated} UTC"
             )
 
-        # Prefer live MT5 snapshot when available; fall back to audit checkpoint.
+        # Prefer the live MT5 book. Audit checkpoints remain the read-only fallback.
         live = self._live_mt5_open_positions(self.selected)
         positions = live if live is not None else audit_positions
+        source = "LIVE_MT5" if live is not None else native_text("Audit checkpoint")
+        positions_status = getattr(self, "analysis_positions_status", None)
+        if positions_status is not None:
+            positions_status.setText(
+                f"{len(positions)} {native_text('Open positions').lower()} · {source}"
+            )
         rows = [
             [
                 str(p.get("symbol") or "—"),
@@ -2007,40 +2159,84 @@ class NativeShell:
                 self._format_analysis_value(p.get("open_price"), 5),
                 self._format_analysis_value(p.get("current_price"), 5) if p.get("current_price") is not None else "—",
                 self._format_analysis_value(p.get("profit")) if p.get("profit") is not None else "—",
-                str(p.get("source_type") or "—"),
             ]
             for p in positions
         ]
         self._set_analysis_table_rows(self.analysis_positions_table, rows)
+        for row_index, position in enumerate(positions):
+            direction = str(position.get("direction") or "").upper()
+            profit = position.get("profit")
+            if direction in {"BUY", "SELL"}:
+                self.analysis_positions_table.item(row_index, 1).setForeground(
+                    QT.QColor("#2fa572" if direction == "BUY" else "#e05260")
+                )
+            if profit is not None:
+                try:
+                    self.analysis_positions_table.item(row_index, 5).setForeground(
+                        QT.QColor("#2fa572" if float(profit) >= 0 else "#e05260")
+                    )
+                except (TypeError, ValueError):
+                    pass
 
-    def _kpi_card(self, title: str) -> tuple[Any, Any]:
+    def _analysis_stat_card(self, title: str, value: str = "—", accent: str = "") -> tuple[Any, Any]:
         frame = QT.QFrame()
-        frame.setProperty("role", "card")
+        frame.setProperty("role", "stat")
         lay = QT.QVBoxLayout(frame)
         lay.setContentsMargins(12, 10, 12, 10)
-        lay.setSpacing(4)
+        lay.setSpacing(3)
         title_lbl = label(title, role="tiny")
-        value_lbl = label("—", role="section")
+        value_lbl = label(value, role="value", accent=accent)
+        value_lbl.setTextInteractionFlags(QT.Qt.TextInteractionFlag.TextSelectableByMouse)
         lay.addWidget(title_lbl)
         lay.addWidget(value_lbl)
         return frame, value_lbl
 
-    def _set_kpi_values(self, metrics: list[tuple[str, str]]) -> None:
-        host = getattr(self, "analysis_kpi_host", None)
-        grid = getattr(self, "analysis_kpi_layout", None)
-        if host is None or grid is None:
+    def _set_analysis_stat_grid(
+        self,
+        grid: Any,
+        target: dict[str, Any],
+        metrics: list[tuple[str, str, str]],
+        columns: int = 4,
+    ) -> None:
+        if grid is None:
             return
         while grid.count():
             item = grid.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
-        self.analysis_kpi_cards = {}
-        for index, (title, value) in enumerate(metrics):
-            frame, value_lbl = self._kpi_card(title)
-            value_lbl.setText(value)
-            self.analysis_kpi_cards[title] = value_lbl
-            grid.addWidget(frame, index // 4, index % 4)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        target.clear()
+        for index, (title, value, accent) in enumerate(metrics):
+            frame, value_lbl = self._analysis_stat_card(title, value, accent)
+            target[title] = value_lbl
+            grid.addWidget(frame, index // columns, index % columns)
+
+    def _kpi_card(self, title: str) -> tuple[Any, Any]:
+        return self._analysis_stat_card(title)
+
+    def _set_kpi_values(self, metrics: list[tuple[str, str, str] | tuple[str, str]]) -> None:
+        def normalize(items: list[tuple[str, str, str] | tuple[str, str]]) -> list[tuple[str, str, str]]:
+            return [
+                (item[0], item[1], item[2] if len(item) > 2 else "")
+                for item in items
+            ]
+
+        primary = normalize(metrics[:6])
+        secondary = normalize(metrics[6:])
+        self._set_analysis_stat_grid(
+            getattr(self, "analysis_kpi_primary_layout", None),
+            self.analysis_kpi_cards,
+            primary,
+            columns=3,
+        )
+        secondary_target: dict[str, Any] = {}
+        self._set_analysis_stat_grid(
+            getattr(self, "analysis_kpi_secondary_layout", None),
+            secondary_target,
+            secondary,
+            columns=4,
+        )
+        self.analysis_kpi_cards.update(secondary_target)
 
     def _render_equity_chart(self, curve: list[dict], drawdown: list[dict]) -> None:
         status = getattr(self, "analysis_equity_status", None)
@@ -2160,7 +2356,7 @@ class NativeShell:
         if self.analysis_performance_summary is None:
             return
         if not self.selected:
-            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
+            self.analysis_performance_summary.setText(native_text("No performance data"))
             self._set_kpi_values([])
             self._render_equity_chart([], [])
             return
@@ -2170,7 +2366,7 @@ class NativeShell:
             curve = queries.equity_curve(self.selected, limit=200)
             drawdown = queries.drawdown_curve(self.selected, limit=200)
         except Exception as exc:
-            self.analysis_performance_summary.setPlainText(f"{native_text('No performance data')}\n\n{exc}")
+            self.analysis_performance_summary.setText(f"{native_text('No performance data')} · {exc}")
             self._set_kpi_values([])
             self._render_equity_chart([], [])
             return
@@ -2184,23 +2380,27 @@ class NativeShell:
                 return "—"
 
         if not perf.get("available"):
-            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
+            self.analysis_performance_summary.setText(native_text("No performance data"))
             self._set_kpi_values([])
         else:
-            self.analysis_performance_summary.setPlainText(
-                f"{native_text('Profile')}: {perf.get('profile') or self.selected}"
+            latest = curve[-1].get("t") if curve else "—"
+            self.analysis_performance_summary.setText(
+                f"{native_text('Profile')}: {perf.get('profile') or self.selected} · "
+                f"{len(curve)} samples · latest {latest} UTC"
             )
+            net_profit = perf.get("net_profit")
+            current_dd = perf.get("current_drawdown")
             kpis = [
-                ("Net P&L", self._format_analysis_value(perf.get("net_profit"))),
-                ("Trading return", self._format_analysis_value(perf.get("trading_return"))),
-                ("Win rate", _pct(perf.get("win_rate"))),
-                ("Profit factor", self._format_analysis_value(perf.get("profit_factor"))),
-                ("Expectancy", self._format_analysis_value(perf.get("expectancy"))),
-                ("Max drawdown", self._format_analysis_value(perf.get("max_equity_drawdown"))),
-                ("Current drawdown", self._format_analysis_value(perf.get("current_drawdown"))),
-                ("Avg win", self._format_analysis_value(perf.get("average_win"))),
-                ("Avg loss", self._format_analysis_value(perf.get("average_loss"))),
-                ("Account growth", self._format_analysis_value(perf.get("account_growth"))),
+                ("Net P&L", self._format_analysis_value(net_profit), "green" if (net_profit or 0) >= 0 else "red"),
+                ("Trading return", self._format_analysis_value(perf.get("trading_return")), ""),
+                ("Win rate", _pct(perf.get("win_rate")), ""),
+                ("Profit factor", self._format_analysis_value(perf.get("profit_factor")), ""),
+                ("Expectancy", self._format_analysis_value(perf.get("expectancy")), "green" if (perf.get("expectancy") or 0) >= 0 else "red"),
+                ("Current drawdown", self._format_analysis_value(current_dd), "red" if (current_dd or 0) > 0 else "green"),
+                ("Max drawdown", self._format_analysis_value(perf.get("max_equity_drawdown")), ""),
+                ("Avg win", self._format_analysis_value(perf.get("average_win")), "green"),
+                ("Avg loss", self._format_analysis_value(perf.get("average_loss")), "red"),
+                ("Account growth", self._format_analysis_value(perf.get("account_growth")), ""),
             ]
             self._set_kpi_values(kpis)
 
@@ -2210,6 +2410,8 @@ class NativeShell:
         if self.analysis_history_table is None or self.analysis_checkpoint_table is None:
             return
         if not self.selected:
+            self._set_analysis_stat_grid(self.analysis_history_summary_layout, self.analysis_history_summary, [])
+            self.analysis_history_deals = []
             self._set_analysis_table_rows(self.analysis_history_table, [])
             self._set_analysis_table_rows(self.analysis_checkpoint_table, [])
             return
@@ -2219,19 +2421,21 @@ class NativeShell:
             checkpoints = queries.checkpoints_list(self.selected, limit=60)
         except Exception:
             deals, checkpoints = [], []
-        deal_rows = [
-            [
-                str(d.get("deal_time_utc") or "—"),
-                str(d.get("symbol") or "—"),
-                str(d.get("deal_type") or "—"),
-                str(d.get("reason_category") or d.get("entry_type") or "—"),
-                self._format_analysis_value(d.get("volume"), 2),
-                self._format_analysis_value(d.get("profit")),
-                self._format_analysis_value(d.get("commission")),
-                self._format_analysis_value(d.get("swap")),
-            ]
-            for d in deals
+        self.analysis_history_deals = list(deals)
+        realized = sum(float(d.get("profit") or 0) for d in deals)
+        commission = sum(float(d.get("commission") or 0) for d in deals)
+        swap = sum(float(d.get("swap") or 0) for d in deals)
+        wins = sum(1 for d in deals if float(d.get("profit") or 0) > 0)
+        summary = [
+            ("Closed deals", self._format_analysis_value(len(deals), 0), ""),
+            ("Realized P/L", self._format_analysis_value(realized), "green" if realized >= 0 else "red"),
+            ("Total commission", self._format_analysis_value(commission), ""),
+            ("Total swap", self._format_analysis_value(swap), ""),
+            ("Win rate", f"{(wins / len(deals) * 100):.2f}%" if deals else "—", ""),
         ]
+        self._set_analysis_stat_grid(self.analysis_history_summary_layout, self.analysis_history_summary, summary, columns=5)
+        self._refresh_history_filter_options()
+        self._apply_history_filters()
         checkpoint_rows = [
             [
                 str(c.get("broker_date") or "—"),
@@ -2242,8 +2446,65 @@ class NativeShell:
             ]
             for c in checkpoints
         ]
-        self._set_analysis_table_rows(self.analysis_history_table, deal_rows)
         self._set_analysis_table_rows(self.analysis_checkpoint_table, checkpoint_rows)
+
+    def _refresh_history_filter_options(self) -> None:
+        combo = self.analysis_history_symbol_filter
+        if combo is None:
+            return
+        current = combo.currentText()
+        symbols = sorted({str(d.get("symbol") or "") for d in self.analysis_history_deals if d.get("symbol")})
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(native_text("All symbols"))
+        combo.addItems(symbols)
+        if current in symbols or current == native_text("All symbols"):
+            combo.setCurrentText(current)
+        else:
+            combo.setCurrentIndex(0)
+        combo.blockSignals(False)
+
+    def _apply_history_filters(self, *_args: Any) -> None:
+        if self.analysis_history_table is None:
+            return
+        symbol_text = self.analysis_history_symbol_filter.currentText() if self.analysis_history_symbol_filter else native_text("All symbols")
+        type_text = self.analysis_history_type_filter.currentText() if self.analysis_history_type_filter else native_text("All types")
+        symbol = "All symbols" if symbol_text == native_text("All symbols") else symbol_text
+        deal_type = "All types" if type_text == native_text("All types") else type_text
+        search = (self.analysis_history_search.text() if self.analysis_history_search else "").strip().lower()
+        filtered = filter_analysis_history_deals(
+            self.analysis_history_deals,
+            symbol=symbol,
+            deal_type=deal_type,
+            search=search,
+        )
+        rows = [
+            [
+                str(d.get("deal_time_utc") or "—"),
+                str(d.get("symbol") or "—"),
+                str(d.get("deal_type") or "—"),
+                str(d.get("reason_category") or d.get("entry_type") or "—"),
+                self._format_analysis_value(d.get("volume"), 2),
+                self._format_analysis_value(d.get("profit")),
+                self._format_analysis_value(d.get("commission")),
+                self._format_analysis_value(d.get("swap")),
+            ]
+            for d in filtered
+        ]
+        self._set_analysis_table_rows(self.analysis_history_table, rows)
+        for row_index, deal in enumerate(filtered):
+            deal_type = str(deal.get("deal_type") or "").upper()
+            if deal_type in {"BUY", "SELL"}:
+                self.analysis_history_table.item(row_index, 2).setForeground(
+                    QT.QColor("#2fa572" if deal_type == "BUY" else "#e05260")
+                )
+            try:
+                profit = float(deal.get("profit") or 0)
+                self.analysis_history_table.item(row_index, 5).setForeground(
+                    QT.QColor("#2fa572" if profit >= 0 else "#e05260")
+                )
+            except (TypeError, ValueError):
+                pass
 
     def _refresh_news_page(self) -> None:
         if self.analysis_news_table is None:
@@ -2255,21 +2516,28 @@ class NativeShell:
             from oak_core.supervisor.news import local_news
             payload = local_news(self._analysis_locale())
         except Exception as exc:
+            self.analysis_news_items = []
+            self._set_analysis_stat_grid(self.analysis_news_summary_layout, self.analysis_news_summary, [])
             self._set_analysis_table_rows(self.analysis_news_table, [])
             if self.analysis_news_status is not None:
                 self.analysis_news_status.setText(str(exc))
             return
-        items = payload.get("items") or []
-        rows = [
-            [
-                str(item.get("time") or "—"),
-                str(item.get("currency") or "—"),
-                str(item.get("impact") or "—").upper(),
-                str(item.get("title") or "—"),
-            ]
-            for item in items
+        items = [dict(item) for item in (payload.get("items") or []) if isinstance(item, dict)]
+        self.analysis_news_items = items
+        counts = {"HIGH": 0, "MEDIUM": 0, "LOW": 0}
+        for item in items:
+            impact = str(item.get("impact") or "").upper()
+            if impact in counts:
+                counts[impact] += 1
+        summary = [
+            ("High", str(counts["HIGH"]), "red"),
+            ("Medium", str(counts["MEDIUM"]), "amber"),
+            ("Low", str(counts["LOW"]), "green"),
+            ("Total", str(len(items)), ""),
         ]
-        self._set_analysis_table_rows(self.analysis_news_table, rows)
+        self._set_analysis_stat_grid(self.analysis_news_summary_layout, self.analysis_news_summary, summary, columns=4)
+        self._refresh_news_filter_options()
+        self._apply_news_filters()
         if self.analysis_news_status is not None:
             cache_date = payload.get("cache_date") or "—"
             broker_date = payload.get("broker_date") or "—"
@@ -2278,6 +2546,50 @@ class NativeShell:
             self.analysis_news_status.setText(
                 f"{native_text('Cache day')}: {cache_date} · {native_text('Broker day')}: {broker_date} · {state} · {len(items)}"
             )
+
+    def _refresh_news_filter_options(self) -> None:
+        combo = self.analysis_news_currency_filter
+        if combo is None:
+            return
+        current = combo.currentText()
+        currencies = sorted({str(item.get("currency") or "").upper() for item in self.analysis_news_items if item.get("currency")})
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(native_text("All currencies"))
+        combo.addItems(currencies)
+        if current in currencies or current == native_text("All currencies"):
+            combo.setCurrentText(current)
+        else:
+            combo.setCurrentIndex(0)
+        combo.blockSignals(False)
+
+    def _apply_news_filters(self, *_args: Any) -> None:
+        if self.analysis_news_table is None:
+            return
+        currency_text = self.analysis_news_currency_filter.currentText() if self.analysis_news_currency_filter else native_text("All currencies")
+        impact_text = self.analysis_news_impact_filter.currentText() if self.analysis_news_impact_filter else native_text("All impact")
+        currency = "All currencies" if currency_text == native_text("All currencies") else currency_text
+        impact = "All impact" if impact_text == native_text("All impact") else impact_text
+        filtered = filter_analysis_news_items(
+            self.analysis_news_items,
+            currency=currency,
+            impact=impact,
+        )
+        rows = [
+            [
+                str(item.get("time") or "—"),
+                str(item.get("currency") or "—"),
+                str(item.get("impact") or "—").upper(),
+                str(item.get("title") or "—"),
+            ]
+            for item in filtered
+        ]
+        self._set_analysis_table_rows(self.analysis_news_table, rows)
+        for row_index, item in enumerate(filtered):
+            impact = str(item.get("impact") or "").upper()
+            accent = {"HIGH": "#e05260", "MEDIUM": "#d4a03d", "LOW": "#2fa572"}.get(impact)
+            if accent:
+                self.analysis_news_table.item(row_index, 2).setForeground(QT.QColor(accent))
 
     def _diagnostics_page(self) -> Any:
         page = QT.QWidget()
