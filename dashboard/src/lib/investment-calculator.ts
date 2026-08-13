@@ -29,10 +29,10 @@ export interface InvestmentResult {
 }
 
 export const INVESTMENT_DISCLAIMER_EN =
-  "Results are a simulation based on historical performance and are not a guarantee of future profit.";
+  "This is a mathematical simulation based on an assumed rate, not a forecast or a profit commitment.";
 
 export const INVESTMENT_DISCLAIMER_VN =
-  "Kết quả chỉ là mô phỏng dựa trên hiệu suất lịch sử và không phải cam kết lợi nhuận trong tương lai.";
+  "Đây là mô phỏng toán học dựa trên tỷ lệ giả định, không phải dự báo hoặc cam kết lợi nhuận.";
 
 export function computeInvestment(input: InvestmentInput, locale: "EN" | "VN" = "EN"): InvestmentResult {
   const mode: CalcMode = input.mode === "compound" ? "compound" : "simple";

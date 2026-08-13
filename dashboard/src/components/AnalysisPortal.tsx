@@ -5,9 +5,16 @@ import {
   CalcPeriodKey,
   computeInvestment,
   periodSinceUtc,
-  INVESTMENT_DISCLAIMER_EN,
-  INVESTMENT_DISCLAIMER_VN,
 } from "@/lib/investment-calculator";
+import {
+  CALCULATOR_ILLUSTRATIVE_DISCLAIMER_EN,
+  CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN,
+  COMPOUND_ASSUMPTION_EN,
+  COMPOUND_ASSUMPTION_VN,
+  mailtoContactHref,
+  PUBLIC_INVESTMENT_COMPLIANCE,
+} from "@/lib/compliance";
+import { InvestmentRiskDisclosure } from "@/components/InvestmentRiskDisclosure";
 
 type Locale = "EN" | "VN";
 
@@ -303,9 +310,9 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
         open: "Open positions",
         strategy: "Strategy transparency",
         timeline: "Account timeline",
-        calculator: "Investment Calculator",
-        cta: "Contact Admin",
-        ctaHint: "Interested in this strategy? Reach out to discuss access — no trades are placed from this portal.",
+        calculator: "Investment Scenario Calculator",
+        cta: "Contact administrator",
+        ctaHint: "Contact is for information requests only. Sending an email does not create an investment agreement, and this portal never places trades or collects funds.",
         liveUnavailable: "Live position data unavailable",
         noOpen: "No open positions",
         noTrades: "No trade activity in selected period",
@@ -321,9 +328,9 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
         open: "Vị thế đang mở",
         strategy: "Minh bạch phương pháp",
         timeline: "Dòng thời gian tài khoản",
-        calculator: "Máy tính đầu tư",
-        cta: "Liên hệ Admin",
-        ctaHint: "Quan tâm chiến lược này? Liên hệ để trao đổi — portal này không đặt lệnh.",
+        calculator: "Công cụ mô phỏng vốn",
+        cta: "Liên hệ quản trị",
+        ctaHint: "Liên hệ chỉ để yêu cầu thông tin. Gửi email không tạo hợp đồng đầu tư; portal không đặt lệnh và không thu tiền.",
         liveUnavailable: "Không lấy được dữ liệu vị thế live",
         noOpen: "Không có vị thế mở",
         noTrades: "Không có giao dịch trong kỳ đã chọn",
@@ -564,17 +571,17 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
         </section>
       </div>
 
-      {/* Investment Calculator */}
+      {/* Capital simulation (illustrative only) */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5 sm:p-6">
         <h3 className="mb-1 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.calculator}</h3>
         <p className="mb-4 text-sm text-[var(--muted)]">
           {locale === "VN"
-            ? "Mô phỏng dựa trên trading return lịch sử canonical từ backend."
-            : "Simulation using canonical backend trading return."}
+            ? "Mô phỏng toán học minh họa. Tỷ lệ dùng ở đây là giả định/minh họa từ dữ liệu lịch sử backend — không phải cam kết hoặc dự báo."
+            : "Illustrative mathematical simulation. The rate is an assumed/historical illustration from backend data — not a commitment or forecast."}
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block text-xs font-semibold text-[var(--muted)]">
-            {locale === "VN" ? "Vốn ban đầu" : "Initial investment"}
+            {locale === "VN" ? "Vốn giả định" : "Assumed capital"}
             <input
               type="number"
               min={0}
@@ -591,51 +598,68 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
               onChange={(e) => setCalcMode(e.target.value as "simple" | "compound")}
               className="mt-1 w-full rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--foreground)]"
             >
-              <option value="simple">Simple historical return</option>
-              <option value="compound">Compound / reinvestment</option>
+              <option value="simple">{locale === "VN" ? "Mô phỏng đơn giản" : "Simple illustrative rate"}</option>
+              <option value="compound">{locale === "VN" ? COMPOUND_ASSUMPTION_VN : COMPOUND_ASSUMPTION_EN}</option>
             </select>
           </label>
           <div className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">{locale === "VN" ? "Return lịch sử" : "Historical return used"}</div>
+            <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
+              {locale === "VN" ? "Tỷ lệ minh họa" : "Illustrative rate"}
+            </div>
             <div className="font-mono text-sm font-bold">{histReturn == null ? "—" : fmtPct(histReturn, true)}</div>
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">Initial</div>
+            <div className="text-[10px] uppercase text-[var(--muted)]">{locale === "VN" ? "Vốn giả định" : "Assumed capital"}</div>
             <div className="font-mono font-bold">{fmtCur(calc.initialCapital, currency)}</div>
           </div>
           <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">{locale === "VN" ? "Lợi nhuận mô phỏng" : "Est. profit"}</div>
+            <div className="text-[10px] uppercase text-[var(--muted)]">
+              {locale === "VN" ? "P/L giả định" : "Hypothetical P/L"}
+            </div>
             <div className={`font-mono font-bold ${Number(calc.estimatedProfit) >= 0 ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]"}`}>
               {calc.ok ? fmtCur(calc.estimatedProfit, currency) : "—"}
             </div>
           </div>
           <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">{locale === "VN" ? "Giá trị cuối" : "Final value"}</div>
+            <div className="text-[10px] uppercase text-[var(--muted)]">
+              {locale === "VN" ? "Giá trị cuối giả định" : "Hypothetical ending value"}
+            </div>
             <div className="font-mono font-bold">{calc.ok ? fmtCur(calc.estimatedFinalValue, currency) : "—"}</div>
           </div>
           <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">Return %</div>
+            <div className="text-[10px] uppercase text-[var(--muted)]">
+              {locale === "VN" ? "Tỷ lệ minh họa %" : "Illustrative rate %"}
+            </div>
             <div className="font-mono font-bold">{calc.returnPct == null ? "—" : `${calc.returnPct.toFixed(2)}%`}</div>
           </div>
         </div>
+        {calcMode === "compound" && (
+          <p className="mt-2 text-[12px] text-[var(--muted)]">
+            {locale === "VN" ? COMPOUND_ASSUMPTION_VN : COMPOUND_ASSUMPTION_EN}
+          </p>
+        )}
         {calc.error && <p className="mt-2 text-sm text-[var(--terminal-warning)]">{calc.error}</p>}
         <p className="mt-3 rounded-lg border border-[var(--terminal-warning)]/30 bg-[var(--terminal-warning)]/10 px-3 py-2 text-[12px] leading-5 text-[var(--foreground)]">
-          {locale === "VN" ? INVESTMENT_DISCLAIMER_VN : INVESTMENT_DISCLAIMER_EN}
+          {locale === "VN" ? CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN : CALCULATOR_ILLUSTRATIVE_DISCLAIMER_EN}
         </p>
       </section>
 
-      {/* CTA */}
+      {/* Risk disclosure before CTA */}
+      <InvestmentRiskDisclosure locale={locale} />
+
+      {/* CTA — information only */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-6 text-center">
         <h3 className="text-lg font-bold text-[var(--foreground)]">{t.cta}</h3>
         <p className="mx-auto mt-2 max-w-xl text-sm text-[var(--muted)]">{t.ctaHint}</p>
         <a
-          href="mailto:admin@example.com?subject=Interest%20in%20OAK%20strategy"
+          href={mailtoContactHref()}
           className="mt-4 inline-flex rounded-xl border border-[var(--terminal-accent)] bg-[var(--terminal-accent)]/15 px-5 py-2.5 text-sm font-bold text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/25"
         >
           {t.cta}
         </a>
+        <p className="mt-2 font-mono text-[11px] text-[var(--muted)]">{PUBLIC_INVESTMENT_COMPLIANCE.contactEmail}</p>
       </section>
     </div>
   );
