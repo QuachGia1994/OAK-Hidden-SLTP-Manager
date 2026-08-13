@@ -49,14 +49,17 @@ class ScheduledCloseNlpTests(unittest.TestCase):
             self.assertEqual(scheduled[0]["time"], "21:49:00")
             self.assertEqual(scheduled[0]["sym"], "XAUUSD")
             self.assertEqual(scheduled[0]["ticket"], "")
+            self.assertEqual(scheduled[0].get("tz"), "Asia/Ho_Chi_Minh")
 
-    def test_close_gold_suffix_and_prefix_schedule_xauusd_family(self):
+    def test_close_broker_suffix_symbols_preserved(self):
         cases = [
-            "Đóng lệnh XAUUSD+ lúc 21h49",
-            "Đóng lệnh m.XAUUSD lúc 21h49",
-            "Đóng lệnh XAUUSD.m lúc 21h49",
+            ("Đóng lệnh XAUUSD+ lúc 21h49", "XAUUSD+"),
+            ("Đóng lệnh XAUUSDm lúc 21h49", "XAUUSDM"),
+            ("Đóng lệnh XAUUSD.a lúc 21h49", "XAUUSD.A"),
+            ("Đóng lệnh EURUSDm lúc 21h49", "EURUSDM"),
+            ("Đóng lệnh GOLDm lúc 21h49", "GOLDM"),
         ]
-        for text in cases:
+        for text, expected_sym in cases:
             with self.subTest(text=text), tempfile.TemporaryDirectory() as tmp:
                 path = f"{tmp}/scheduled_close.json"
                 manager = self.make_manager(path)
@@ -65,8 +68,16 @@ class ScheduledCloseNlpTests(unittest.TestCase):
 
                 scheduled = load_json(path, [])
                 self.assertEqual(len(scheduled), 1)
-                self.assertEqual(scheduled[0]["sym"], "XAUUSD")
+                self.assertEqual(scheduled[0]["sym"], expected_sym)
                 self.assertEqual(scheduled[0]["ticket"], "")
+
+    def test_close_gold_without_time_closes_xauusd_plus_immediately(self):
+        close_calls = []
+        manager = self.make_manager("unused.json", close_calls)
+
+        manager._handle_telegram_text("Đóng lệnh XAUUSD+ ngay bây giờ")
+
+        self.assertEqual(close_calls, [("all", "XAUUSD+", "")])
 
     def test_close_ticket_with_time_targets_ticket_only(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -89,11 +100,11 @@ class ScheduledCloseNlpTests(unittest.TestCase):
 
         self.assertEqual(close_calls, [("all", "", "")])
 
-    def test_close_gold_without_time_closes_xauusd_immediately(self):
+    def test_close_bare_xauusd_without_time_closes_immediately(self):
         close_calls = []
         manager = self.make_manager("unused.json", close_calls)
 
-        manager._handle_telegram_text("Đóng lệnh XAUUSD+ ngay bây giờ")
+        manager._handle_telegram_text("Đóng lệnh XAUUSD ngay bây giờ")
 
         self.assertEqual(close_calls, [("all", "XAUUSD", "")])
 

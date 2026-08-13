@@ -10,3 +10,4 @@ keyring
 requests
 packaging
 ssi-sdk==3.0.5
+tzdata

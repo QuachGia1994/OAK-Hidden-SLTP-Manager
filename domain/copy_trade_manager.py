@@ -15,6 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, date, timezone
+from zoneinfo import ZoneInfo
 
 import MetaTrader5 as mt5
 
@@ -47,6 +48,10 @@ log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
 MINIMUM_SIGNAL_LOGIC_VERSION = 87
+# Scheduled Telegram close uses explicit IANA civil time (not OS local, not fixed UTC+7).
+SCHEDULED_CLOSE_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+SCHEDULED_CLOSE_MAX_ATTEMPTS = 5
+SCHEDULED_CLOSE_RETRY_SEC = 30.0
 _BROKER_CLOCK = BrokerClock(
     mt5,
     cache_path=os.path.join(_PROJECT_ROOT, "broker_clock_cache.json"),
@@ -129,13 +134,30 @@ def _plain_command_text(value: str) -> str:
 
 
 def _extract_close_symbol(raw_text: str) -> str:
-    """Extract a close target symbol without treating generic words as symbols."""
-    plain = _plain_command_text(raw_text)
-    if re.search(r"\b(xauusd|xau|gold|vang)\b", plain):
+    """Extract broker close symbol; preserve suffix/prefix tokens end-to-end.
+
+    Canonical form is uppercase. Does **not** collapse ``XAUUSD+`` / ``XAUUSDm``
+    to bare ``XAUUSD``. Returns empty string when no symbol token is present.
+    """
+    text = raw_text or ""
+    upper = text.upper()
+    # Broker-style tokens: FX pairs, metals, optional alphanumeric / . / + suffixes.
+    match = re.search(
+        r"(?<![A-Z0-9])("
+        r"XAUUSD[A-Z0-9.+]*|"
+        r"GOLD[A-Z0-9.+]*|"
+        r"[A-Z]{3}(?:USD|JPY|EUR|GBP|AUD|CAD|CHF|NZD)[A-Z0-9.+]*"
+        r")(?![A-Z0-9])",
+        upper,
+    )
+    if match:
+        return match.group(1).rstrip(",.!;:")
+    # Vietnamese gold alias without broker suffix → canonical metal root only when
+    # the user did not supply a fuller token above.
+    plain = _plain_command_text(text)
+    if re.search(r"\b(vang)\b", plain) and not re.search(r"\b(xau|gold)\b", plain):
         return "XAUUSD"
-    upper = raw_text.upper()
-    match = re.search(r"\b(XAUUSD|[A-Z]{3}(?:USD|JPY|EUR|GBP|AUD|CAD|CHF|NZD)[A-Z+.]*)\b", upper)
-    return match.group(1).rstrip(",.!;:") if match else ""
+    return ""
 
 
 def _extract_close_ticket(raw_text: str) -> str:
@@ -146,16 +168,72 @@ def _extract_close_ticket(raw_text: str) -> str:
 
 
 def _scheduled_local_datetimes(date_str: str, time_str: str) -> tuple[datetime, datetime]:
-    """Return (requested_local, execution_local) for a Telegram schedule.
+    """Return (requested_local, execution_local) for a Telegram **entry** schedule.
 
     Telegram `/pending ... HH:MM` stores a naive local-machine wall-clock
     datetime by design. The execution timestamp is exactly 2 seconds earlier;
     no BrokerClock conversion is involved in this user-facing schedule path.
+    Scheduled **close** uses ``_scheduled_close_*`` helpers with Asia/Ho_Chi_Minh.
     """
     requested = datetime.strptime(
         f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S"
     )
     return requested, requested - timedelta(seconds=2)
+
+
+def _scheduled_close_now() -> datetime:
+    """Timezone-aware 'now' for scheduled Telegram close (Asia/Ho_Chi_Minh)."""
+    return datetime.now(SCHEDULED_CLOSE_TZ)
+
+
+def _scheduled_close_parse_local(date_str: str, time_str: str) -> datetime:
+    """Parse stored civil date/time as Asia/Ho_Chi_Minh (DST-safe IANA zone)."""
+    raw_time = time_str or "00:00:00"
+    if len(str(raw_time).split(":")) == 2:
+        raw_time = f"{raw_time}:00"
+    naive = datetime.strptime(f"{date_str} {raw_time}", "%Y-%m-%d %H:%M:%S")
+    return naive.replace(tzinfo=SCHEDULED_CLOSE_TZ)
+
+
+def _scheduled_close_resolve_target(
+    time_val: str,
+    *,
+    target_date: str = "",
+    now: datetime | None = None,
+) -> datetime:
+    """Resolve HH:MM[:SS] (+ optional date) to an aware Asia/Ho_Chi_Minh datetime.
+
+    Past times roll to the next civil day; weekends are skipped (same as before).
+    """
+    now_vn = now or _scheduled_close_now()
+    if now_vn.tzinfo is None:
+        now_vn = now_vn.replace(tzinfo=SCHEDULED_CLOSE_TZ)
+    else:
+        now_vn = now_vn.astimezone(SCHEDULED_CLOSE_TZ)
+
+    t = time_val or "00:00:00"
+    if len(t.split(":")) == 2:
+        t = f"{t}:00"
+    parsed_t = datetime.strptime(t, "%H:%M:%S").time()
+
+    if target_date:
+        d = datetime.strptime(target_date, "%Y-%m-%d").date()
+        target = datetime(
+            d.year, d.month, d.day,
+            parsed_t.hour, parsed_t.minute, parsed_t.second,
+            tzinfo=SCHEDULED_CLOSE_TZ,
+        )
+    else:
+        target = datetime(
+            now_vn.year, now_vn.month, now_vn.day,
+            parsed_t.hour, parsed_t.minute, parsed_t.second,
+            tzinfo=SCHEDULED_CLOSE_TZ,
+        )
+        if target < now_vn:
+            target += timedelta(days=1)
+    while target.weekday() in (5, 6):
+        target += timedelta(days=1)
+    return target
 
 
 def _broker_clock_to_local_datetime(
@@ -1291,31 +1369,44 @@ class CopyTradeManager:
 
             if time_val:
                 try:
-                    if len(time_val.split(":")) == 2: time_val += ":00"
-                    
-                    if target_date:
-                        target_dt = datetime.strptime(f"{target_date} {time_val}", "%Y-%m-%d %H:%M:%S")
-                    else:
-                        now_dt = datetime.now()
-                        target_dt = datetime.strptime(time_val, "%H:%M:%S").replace(year=now_dt.year, month=now_dt.month, day=now_dt.day)
-                        if target_dt < now_dt:
-                            target_dt += timedelta(days=1)
-                        while target_dt.weekday() in (5, 6):
-                            target_dt += timedelta(days=1)
+                    # Fail-closed: symbol-specific close must resolve a broker symbol.
+                    plain_close = _plain_command_text(raw_text)
+                    wants_symbol = bool(
+                        re.search(
+                            r"\b(xau|gold|vang|[a-z]{6}|[a-z]{3}usd)\b",
+                            plain_close,
+                        )
+                    ) and not target_ticket
+                    if wants_symbol and not (target_sym or "").strip():
+                        self.notify(
+                            f"❌ [{profile_name}] Không nhận diện được symbol để đóng theo lịch — "
+                            f"vui lòng ghi đúng mã broker (vd: XAUUSD+, EURUSDm)."
+                        )
+                        return
+
+                    target_dt = _scheduled_close_resolve_target(
+                        time_val, target_date=target_date
+                    )
+                    time_val = target_dt.strftime("%H:%M:%S")
                     target_date_str = target_dt.strftime("%Y-%m-%d")
 
                     created = self._append_scheduled_close({
                         "time": time_val,
                         "date": target_date_str,
+                        "tz": "Asia/Ho_Chi_Minh",
                         "filter": filter_type,
-                        "sym": target_sym,
+                        "sym": (target_sym or "").strip().upper(),
                         "ticket": target_ticket,
+                        "attempts": 0,
                     })
                     if created is None:
                         raise TimeoutError("scheduled close file is busy")
                     new_id = created["id"]
-                    self.notify(f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) cho {target_sym or 'tất cả'} lúc {time_val} rồi nhé!")
-                except:
+                    self.notify(
+                        f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) "
+                        f"cho {target_sym or 'tất cả'} lúc {time_val} (Asia/Ho_Chi_Minh) rồi nhé!"
+                    )
+                except Exception:
                     resp = get_natural_response("error", error="Sai định dạng giờ rồi anh ơi!")
                     self.notify(f"❌ [{profile_name}] {resp}")
             else:
@@ -1328,30 +1419,37 @@ class CopyTradeManager:
                 if _time_in_text:
                     recovered_time = _time_in_text[0]
                     try:
-                        if len(recovered_time.split(":")) == 2:
-                            recovered_time += ":00"
-                        now_dt = datetime.now()
-                        target_dt = datetime.strptime(recovered_time, "%H:%M:%S").replace(
-                            year=now_dt.year, month=now_dt.month, day=now_dt.day
-                        )
-                        if target_dt < now_dt:
-                            target_dt += timedelta(days=1)
-                        while target_dt.weekday() in (5, 6):
-                            target_dt += timedelta(days=1)
+                        plain_close = _plain_command_text(raw_text)
+                        wants_symbol = bool(
+                            re.search(
+                                r"\b(xau|gold|vang|[a-z]{6}|[a-z]{3}usd)\b",
+                                plain_close,
+                            )
+                        ) and not target_ticket
+                        if wants_symbol and not (target_sym or "").strip():
+                            self.notify(
+                                f"❌ [{profile_name}] Không nhận diện được symbol để đóng theo lịch — "
+                                f"vui lòng ghi đúng mã broker."
+                            )
+                            return
+                        target_dt = _scheduled_close_resolve_target(recovered_time)
+                        recovered_time = target_dt.strftime("%H:%M:%S")
                         target_date_str = target_dt.strftime("%Y-%m-%d")
                         created = self._append_scheduled_close({
                             "time": recovered_time,
                             "date": target_date_str,
+                            "tz": "Asia/Ho_Chi_Minh",
                             "filter": filter_type,
-                            "sym": target_sym,
+                            "sym": (target_sym or "").strip().upper(),
                             "ticket": target_ticket,
+                            "attempts": 0,
                         })
                         if created is None:
                             raise TimeoutError("scheduled close file is busy")
                         new_id = created["id"]
                         self.notify(
                             f"🤖 [{profile_name}] Dạ anh, tôi đã ghi lịch ĐÓNG (ID: {new_id}, {filter_type}) "
-                            f"cho {target_sym or 'tất cả'} lúc {recovered_time} rồi nhé!"
+                            f"cho {target_sym or 'tất cả'} lúc {recovered_time} (Asia/Ho_Chi_Minh) rồi nhé!"
                         )
                     except Exception:
                         self.notify(f"❌ [{profile_name}] Không parse được giờ từ tin nhắn, anh thử lại với định dạng HH:MM nhé!")
@@ -1644,53 +1742,78 @@ class CopyTradeManager:
 
 
     def _execute_close_all(self, filter_type="all", target_sym="", target_ticket=""):
-        positions = mt5.positions_get()
-        if not positions: return
-        
+        """Close matching positions. Returns outcome: done | empty | error.
+
+        When ``target_sym`` is non-empty, matching is **exact** (case-insensitive):
+        ``XAUUSD`` does not match ``XAUUSDm`` and vice versa.
+        """
+        try:
+            positions = mt5.positions_get()
+        except Exception as exc:
+            log.error("positions_get failed during close: %s", exc)
+            return "error"
+        if not positions:
+            return "empty"
+
         magic = int(self.config.get("magic", 0))
         monitored_symbols = [s.strip().upper() for s in self.config.get("symbol", "").split(",") if s.strip()]
-        
+
         count = 0
         target_ticket = str(target_ticket or "").strip()
-        for pos in positions:
-            # 1. Check magic
-            if magic != -1 and pos.magic != magic: continue
-
-            if target_ticket and str(pos.ticket) != target_ticket:
-                continue
-            
-            # 2. Check symbol (monitored)
-            is_monitored = False
-            if not monitored_symbols:
-                is_monitored = True
-            else:
-                pos_sym = pos.symbol.upper()
-                for mon_sym in monitored_symbols:
-                    if mon_sym in pos_sym:
-                        is_monitored = True
-                        break
-            if not is_monitored: continue
-
-            # 3. Check target symbol (filter)
-            if target_sym:
-                target_sym_upper = target_sym.upper()
-                pos_sym_upper = pos.symbol.upper()
-                if target_sym_upper not in pos_sym_upper: continue
-                # Exact match for symbols with suffixes (like + or .)
-                if ("+" in target_sym_upper or "." in target_sym_upper) and target_sym_upper != pos_sym_upper:
+        target_sym_upper = (target_sym or "").strip().upper()
+        try:
+            for pos in positions:
+                # 1. Check magic
+                if magic != -1 and pos.magic != magic:
                     continue
 
-            # 4. Check profit/loss filter
-            if filter_type == "profit" and pos.profit <= 0: continue
-            if filter_type == "loss" and pos.profit >= 0: continue
-            
-            self._direct_close(pos)
-            count += 1
-        
+                if target_ticket and str(pos.ticket) != target_ticket:
+                    continue
+
+                # 2. Check symbol (monitored list) — only when not targeting an explicit symbol/ticket
+                if not target_sym_upper and not target_ticket:
+                    is_monitored = False
+                    if not monitored_symbols:
+                        is_monitored = True
+                    else:
+                        pos_sym = pos.symbol.upper()
+                        for mon_sym in monitored_symbols:
+                            if mon_sym in pos_sym:
+                                is_monitored = True
+                                break
+                    if not is_monitored:
+                        continue
+
+                # 3. Exact broker symbol match when a target is provided
+                if target_sym_upper:
+                    if pos.symbol.upper() != target_sym_upper:
+                        continue
+
+                # 4. Check profit/loss filter
+                if filter_type == "profit" and pos.profit <= 0:
+                    continue
+                if filter_type == "loss" and pos.profit >= 0:
+                    continue
+
+                self._direct_close(pos)
+                count += 1
+        except Exception as exc:
+            log.error(
+                "close execution failed profile=%s sym=%s ticket=%s: %s",
+                self.config.get("profile_name"), target_sym_upper, target_ticket, exc,
+            )
+            return "error"
+
         if count > 0:
-            # self.notify(f"✅ Closed {count} positions ({filter_type}) {target_sym} via Telegram.")
-            resp = get_natural_response("close_all_success", count=count, filter=filter_type, symbol=target_sym or "tất cả")
+            resp = get_natural_response(
+                "close_all_success",
+                count=count,
+                filter=filter_type,
+                symbol=target_sym or "tất cả",
+            )
             self.notify(f"✅ [{self.config.get('profile_name', 'Unknown')}] {resp}")
+            return "done"
+        return "empty"
 
     def _get_account_status(self):
         profile_name = self.config.get("profile_name", "Unknown")
@@ -2639,48 +2762,113 @@ class CopyTradeManager:
                         delay=5.0,
                     )
 
-        # Check scheduled close all (atomic pop under lock to avoid multi-worker double close)
+        # Check scheduled close all (atomic claim; remove only after terminal outcome).
+        # Scheduled close: Asia/Ho_Chi_Minh due check; remove only after terminal outcome.
         if hasattr(self, "_scheduled_close") and self._scheduled_close:
             due_batch = []
+            now_vn = _scheduled_close_now()
 
-            def pop_due(closes):
+            def collect_due(closes):
                 remaining_closes = []
                 for close_info in closes:
                     if isinstance(close_info, dict) and close_info.get("is_auto_daily"):
+                        # Legacy auto-daily rows are dropped (existing behaviour).
                         continue
-                    if isinstance(close_info, dict):
-                        c_time = close_info.get("time", "00:00:00")
-                        c_date = close_info.get("date", now_date)
-                        c_filter = close_info.get("filter", "all")
-                        c_sym = close_info.get("sym", "")
-                        c_ticket = close_info.get("ticket", "")
-                    else:
-                        c_time, c_date = close_info, now_date
-                        c_filter, c_sym, c_ticket = "all", "", ""
-                    if c_date > now_date:
-                        remaining_closes.append(close_info)
-                        continue
-                    c_time_norm = c_time
+                    if not isinstance(close_info, dict):
+                        # Legacy string-only rows: treat as time today in VN zone.
+                        close_info = {
+                            "time": str(close_info),
+                            "date": now_vn.strftime("%Y-%m-%d"),
+                            "filter": "all",
+                            "sym": "",
+                            "ticket": "",
+                            "tz": "Asia/Ho_Chi_Minh",
+                            "id": self._next_scheduled_close_id(closes),
+                        }
+                    c_time = close_info.get("time", "00:00:00")
+                    c_date = close_info.get("date") or now_vn.strftime("%Y-%m-%d")
                     try:
-                        if len(str(c_time).split(":")) == 2:
-                            c_time = f"{c_time}:00"
-                        c_time_norm = datetime.strptime(c_time, "%H:%M:%S").strftime("%H:%M:%S")
+                        target_dt = _scheduled_close_parse_local(c_date, c_time)
                     except Exception:
-                        pass
-                    if c_date == now_date and c_time_norm > now_time:
                         remaining_closes.append(close_info)
                         continue
-                    due_batch.append({"filter": c_filter, "sym": c_sym, "ticket": c_ticket})
+                    next_retry = float(close_info.get("next_retry_at") or 0)
+                    if next_retry and time.time() < next_retry:
+                        remaining_closes.append(close_info)
+                        continue
+                    if target_dt > now_vn:
+                        remaining_closes.append(close_info)
+                        continue
+                    # Another worker already claimed recently — do not double-execute.
+                    if close_info.get("status") == "executing":
+                        claimed_at = float(close_info.get("claimed_at") or 0)
+                        if claimed_at and (time.time() - claimed_at) < 60:
+                            remaining_closes.append(close_info)
+                            continue
+                    # Claim for this worker: mark in-flight without deleting yet.
+                    claim = dict(close_info)
+                    claim["status"] = "executing"
+                    claim["claimed_at"] = time.time()
+                    due_batch.append(claim)
+                    remaining_closes.append(claim)
                 return remaining_closes
 
-            self._with_scheduled_close_file_lock(pop_due)
+            self._with_scheduled_close_file_lock(collect_due)
             profile_name = self.config.get("profile_name", "Unknown")
             for item in due_batch:
+                job_id = item.get("id")
                 self.notify(
                     f"⏰ [{profile_name}] Scheduled Time Reached: "
-                    f"Closing Positions ({item['filter']}) {item['sym'] or item.get('ticket', '')}"
+                    f"Closing Positions ({item.get('filter', 'all')}) "
+                    f"{item.get('sym') or item.get('ticket', '')} "
+                    f"@ {item.get('date')} {item.get('time')} Asia/Ho_Chi_Minh"
                 )
-                self._execute_close_all(item["filter"], item["sym"], item.get("ticket", ""))
+                try:
+                    outcome = self._execute_close_all(
+                        item.get("filter", "all"),
+                        item.get("sym", ""),
+                        item.get("ticket", ""),
+                    )
+                except Exception as exc:
+                    outcome = "error"
+                    log.error(
+                        "scheduled close exception id=%s profile=%s sym=%s: %s",
+                        job_id, profile_name, item.get("sym"), exc,
+                    )
+
+                if outcome in ("done", "empty"):
+                    # Terminal outcomes: remove job (empty = nothing to close is success).
+                    self._remove_scheduled_closes(
+                        lambda t, _id=job_id: isinstance(t, dict) and t.get("id") == _id
+                    )
+                else:
+                    # Transient failure: keep job, bounded retry metadata.
+                    def bump(closes, _id=job_id):
+                        updated = []
+                        for t in closes:
+                            if not (isinstance(t, dict) and t.get("id") == _id):
+                                updated.append(t)
+                                continue
+                            attempts = int(t.get("attempts") or 0) + 1
+                            if attempts >= SCHEDULED_CLOSE_MAX_ATTEMPTS:
+                                log.error(
+                                    "scheduled close giving up id=%s profile=%s sym=%s attempts=%s",
+                                    _id, profile_name, t.get("sym"), attempts,
+                                )
+                                self.notify(
+                                    f"❌ [{profile_name}] Scheduled close ID {_id} failed after "
+                                    f"{attempts} attempts — job removed."
+                                )
+                                continue  # drop
+                            t = dict(t)
+                            t["attempts"] = attempts
+                            t["status"] = "waiting"
+                            t["next_retry_at"] = time.time() + SCHEDULED_CLOSE_RETRY_SEC
+                            t.pop("claimed_at", None)
+                            updated.append(t)
+                        return updated
+
+                    self._with_scheduled_close_file_lock(bump)
 
 
 
