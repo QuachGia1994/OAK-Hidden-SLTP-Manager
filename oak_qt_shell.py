@@ -3561,6 +3561,9 @@ class NativeShell:
         self.startup_phase.pop(profile, None)
         if self.monitor_processes.get(profile) is proc:
             self.monitor_processes.pop(profile, None)
+        # QProcess.kill()/TerminateProcess skips worker ``finally``; reconcile lock here.
+        if reconcile_worker_lock_file(profile):
+            self.log(f"Cleared stale worker lock for {profile}")
         if code:
             self.startup_error[profile] = f"exit {code}"
             self.log(f"Monitor error: {profile} (code {code}); press Start to retry")
@@ -3588,11 +3591,22 @@ class NativeShell:
 
         proc = self.monitor_processes.get(profile)
         if not proc or proc.state() == QT.NotRunning:
-            if not cancelled_startup:
+            # Recover orphan locks left by a prior force-kill (no QProcess handle).
+            if reconcile_worker_lock_file(profile):
+                self.log(f"Cleared stale worker lock for {profile}")
+            elif not cancelled_startup:
                 self.log(f"No live monitor for {profile or 'selected profile'}.")
             return
         proc.terminate()
-        QT.QTimer.singleShot(2500, lambda p=proc: p.kill() if p.state() != QT.NotRunning else None)
+
+        def _force_stop_and_reconcile(p=proc, n=profile):
+            if p.state() != QT.NotRunning:
+                p.kill()
+            # Kill path skips worker finally; reconcile even if finished signal is delayed.
+            if reconcile_worker_lock_file(n):
+                self.log(f"Cleared stale worker lock for {n}")
+
+        QT.QTimer.singleShot(2500, _force_stop_and_reconcile)
         self.log(f"Stopping monitor: {profile}")
 
     def _append_console_line(self, message: str) -> None:
@@ -3767,10 +3781,39 @@ def _pid_is_running(pid: int) -> bool:
     return str(pid) in result
 
 
+def worker_lock_path(profile_name: str) -> Path:
+    """Filesystem path for the single-instance worker lock of ``profile_name``."""
+    safe = re.sub(r"[^\w\-]", "_", profile_name or "unknown")
+    return ROOT / f"worker_{safe}.lock"
+
+
+def reconcile_worker_lock_file(profile_name: str) -> bool:
+    """Remove ``worker_{profile}.lock`` only when it does not protect a live process.
+
+    Used after NativeQt QProcess stop/kill: forced TerminateProcess skips the
+    worker's Python ``finally`` / ``_release_worker_lock``. Idempotent.
+    Never deletes a lock whose recorded PID is still a running process.
+    """
+    lock_path = worker_lock_path(profile_name)
+    if not lock_path.exists():
+        return False
+    try:
+        raw = (lock_path.read_text(encoding="utf-8") or "").strip()
+        old_pid = int(raw or "0")
+    except (OSError, ValueError):
+        old_pid = 0
+    if old_pid and _pid_is_running(old_pid):
+        return False
+    try:
+        lock_path.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
 def _worker_lock(profile_name: str) -> Path | None:
     """Create a best-effort single-instance worker lock."""
-    safe = re.sub(r"[^\w\-]", "_", profile_name or "unknown")
-    lock_path = ROOT / f"worker_{safe}.lock"
+    lock_path = worker_lock_path(profile_name)
     if lock_path.exists():
         try:
             old_pid = int((lock_path.read_text(encoding="utf-8") or "0").strip())
