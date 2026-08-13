@@ -1092,7 +1092,9 @@ class NativeShell:
         self.last_diagnostics_report = ""
         self.ready_callback = ready_callback
         self.starting_profiles: set[str] = set()
-        
+        self.startup_phase: dict[str, str] = {}
+        self.startup_error: dict[str, str] = {}
+
         # Performance: Debouncing and throttling state
         self._ui_update_pending = False
         self._last_refresh_time = 0.0
@@ -2002,15 +2004,54 @@ class NativeShell:
         """Update the rail profile status + start/stop toggle for the selected profile."""
         if self.rail_profile_toggle is None or self.rail_profile_status is None:
             return
-        running = bool(self.selected and self.selected in self._running_profiles())
-        self.rail_profile_toggle.setText(native_text("Stop selected" if running else "Start selected"))
-        self.rail_profile_toggle.setProperty("intent", "danger" if running else "positive")
+        selected = self.selected or ""
+        running = bool(selected and selected in self._running_profiles())
+        starting = bool(selected and selected in self.starting_profiles)
+
+        if running:
+            self.rail_profile_toggle.setText(native_text("Stop selected"))
+            self.rail_profile_toggle.setProperty("intent", "danger")
+            self.rail_profile_toggle.setEnabled(True)
+            self.rail_profile_status.setText(native_text("Running"))
+            self.rail_profile_status.setProperty("accent", "green")
+        elif starting:
+            phase = self.startup_phase.get(selected) or native_text("Starting...")
+            self.rail_profile_toggle.setText(native_text("Starting..."))
+            self.rail_profile_toggle.setProperty("intent", "positive")
+            self.rail_profile_toggle.setEnabled(False)
+            self.rail_profile_status.setText(phase)
+            self.rail_profile_status.setProperty("accent", "amber")
+        else:
+            err = self.startup_error.get(selected)
+            self.rail_profile_toggle.setText(native_text("Start selected"))
+            self.rail_profile_toggle.setProperty("intent", "positive")
+            self.rail_profile_toggle.setEnabled(True)
+            if err:
+                self.rail_profile_status.setText(f"Failed: {err}")
+                self.rail_profile_status.setProperty("accent", "muted")
+            else:
+                self.rail_profile_status.setText(native_text("Stopped"))
+                self.rail_profile_status.setProperty("accent", "muted")
+
         self.rail_profile_toggle.style().unpolish(self.rail_profile_toggle)
         self.rail_profile_toggle.style().polish(self.rail_profile_toggle)
-        self.rail_profile_status.setText(native_text("Running" if running else "Stopped"))
-        self.rail_profile_status.setProperty("accent", "green" if running else "muted")
         self.rail_profile_status.style().unpolish(self.rail_profile_status)
         self.rail_profile_status.style().polish(self.rail_profile_status)
+
+    def _publish_startup_phase(self, profile: str, phase: str) -> None:
+        """Surface one terminal-startup phase in console + rail without wiping STARTING."""
+        self.startup_phase[profile] = phase
+        self.startup_error.pop(profile, None)
+        self._append_console_line(f"[{profile}] {phase}")
+        if profile == self.selected:
+            # Bypass throttled live refresh so intermediate phases paint immediately.
+            self._refresh_profile_controls()
+            try:
+                qt_mod = globals().get("QT")
+                if qt_mod is not None and hasattr(qt_mod, "QApplication"):
+                    qt_mod.QApplication.processEvents()
+            except Exception:
+                pass
 
     def _fade_in_page(self, page: Any) -> None:
         """Apply a subtle 150ms opacity fade-in on the newly shown page."""
@@ -3350,31 +3391,36 @@ class NativeShell:
             return
 
         self.starting_profiles.add(profile)
-        self.log(f"Starting {profile}...")
-        self.log("Checking MT5 terminal...")
+        self.startup_error.pop(profile, None)
+        self._publish_startup_phase(profile, "Starting profile...")
 
         prof_config = self.profiles.get(profile, {})
         from services.mt5_terminal_service import ensure_mt5_profile_connected
 
         def _on_status(msg: str) -> None:
-            self.log(msg)
+            self._publish_startup_phase(profile, msg)
 
         try:
             launch = ensure_mt5_profile_connected(prof_config, status_callback=_on_status)
         except Exception as error:
             self.starting_profiles.discard(profile)
-            msg = f"Failed to start {profile}: {error}"
-            self.log(f"❌ {msg}")
+            self.startup_phase.pop(profile, None)
+            self.startup_error[profile] = str(error)
+            self.log(f"❌ Failed to start {profile}: {error}")
+            self._refresh_profile_controls()
             return
 
         if not launch.ok:
             self.starting_profiles.discard(profile)
-            reason = launch.message or launch.failure_code or "Unknown error"
-            msg = f"Failed to start {profile}: {reason}"
-            self.log(f"❌ {msg}")
+            self.startup_phase.pop(profile, None)
+            reason = launch.failure_code or launch.message or "Unknown error"
+            detail = launch.message or launch.failure_code or "Unknown error"
+            self.startup_error[profile] = reason
+            self.log(f"❌ Failed to start {profile}: {detail}")
+            self._refresh_profile_controls()
             return
 
-        self.log("MT5 terminal ready")
+        self._publish_startup_phase(profile, "MT5 terminal ready")
         self._launch_worker(profile)
 
     def _launch_worker(self, profile: str) -> None:
@@ -3402,20 +3448,29 @@ class NativeShell:
 
     def _worker_started(self, profile: str, proc: Any) -> None:
         self.starting_profiles.discard(profile)
+        self.startup_phase.pop(profile, None)
+        self.startup_error.pop(profile, None)
         self.log(f"Profile {profile} running (PID {proc.processId()})")
+        self._refresh_profile_controls()
 
     def _worker_done(self, profile: str, code: int, proc: Any) -> None:
         self.starting_profiles.discard(profile)
+        self.startup_phase.pop(profile, None)
         if self.monitor_processes.get(profile) is proc:
             self.monitor_processes.pop(profile, None)
         if code:
+            self.startup_error[profile] = f"exit {code}"
             self.log(f"Monitor error: {profile} (code {code}); press Start to retry")
         else:
             self.log(f"Monitor stopped: {profile} (code {code})")
+        self._refresh_profile_controls()
 
     def _worker_error(self, profile: str, error: Any) -> None:
         self.starting_profiles.discard(profile)
+        self.startup_phase.pop(profile, None)
+        self.startup_error[profile] = str(error)
         self.log(f"Monitor error on {profile}: {error}")
+        self._refresh_profile_controls()
 
     def stop_selected(self) -> None:
         self.stop_profile(self.selected)
