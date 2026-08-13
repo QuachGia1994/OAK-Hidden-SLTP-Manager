@@ -425,8 +425,12 @@ def ensure_mt5_profile_connected(
     sleep_fn: Callable[[float], None] = time.sleep,
     monotonic_fn: Callable[[], float] = time.monotonic,
     discover_fn: Callable[[], Iterable[Path]] | None = None,
+    status_callback: Callable[[str], None] | None = None,
 ) -> MT5LaunchResult:
     """Ensure one profile's terminal is running and its MT5 IPC is connected."""
+    if status_callback:
+        status_callback("Checking MT5 terminal...")
+
     if mt5_module is None:
         import MetaTrader5 as mt5_module  # type: ignore
 
@@ -461,6 +465,8 @@ def ensure_mt5_profile_connected(
         lock_timeout_seconds=min(max(float(timeout_seconds), 1.0), 15.0),
     )
     if initialized:
+        if status_callback:
+            status_callback("MT5 terminal ready")
         return MT5LaunchResult(
             True, str(terminal_path), False, None,
             attempts, last_error, None, "Connected",
@@ -474,6 +480,9 @@ def ensure_mt5_profile_connected(
 
     running, process_id = _is_terminal_running(terminal_path)
     if not running:
+        profile_label = profile_config.get("profile_name", profile_config.get("name", "")) if isinstance(profile_config, dict) else ""
+        if status_callback:
+            status_callback(f"Opening MT5 terminal for {profile_label}..." if profile_label else "Opening MT5 terminal...")
         try:
             process = (process_factory or _popen_terminal)(terminal_path)
             process_started = True
@@ -486,8 +495,12 @@ def ensure_mt5_profile_connected(
 
     deadline = monotonic_fn() + max(0.1, float(timeout_seconds))
     backoff = (1.0, 2.0, 3.0, 5.0, 8.0)
+    if status_callback:
+        status_callback("Waiting for MT5 terminal...")
     while attempts < 10 and monotonic_fn() <= deadline:
         attempts += 1
+        if status_callback:
+            status_callback("Verifying account...")
         initialized, last_error, failure_code = _initialize_and_validate_locked(
             mt5_module,
             terminal_path,
@@ -495,6 +508,8 @@ def ensure_mt5_profile_connected(
             lock_timeout_seconds=min(max(float(deadline - monotonic_fn()), 1.0), 15.0),
         )
         if initialized:
+            if status_callback:
+                status_callback("MT5 terminal ready")
             return MT5LaunchResult(
                 True, str(terminal_path), process_started, process_id,
                 attempts, last_error, None, "Connected",

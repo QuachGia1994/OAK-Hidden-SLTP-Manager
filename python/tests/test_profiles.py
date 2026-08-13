@@ -13,6 +13,7 @@ import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from services.mt5_terminal_service import MT5LaunchResult
 
 _python_root = Path(__file__).resolve().parents[1]
 if str(_python_root) not in sys.path:
@@ -106,8 +107,14 @@ class TestProfileManager(unittest.TestCase):
             "Vantage": {"path": "C:/mt5/terminal64.exe", "server": "Vantage-Server", "login_id": 1},
             "Demo": {"path": "C:/mt5/demo64.exe", "server": "Demo-Server", "login_id": 2},
         })
+        self._connect_patcher = patch(
+            "oak_core.supervisor.profiles.ensure_mt5_profile_connected",
+            return_value=MT5LaunchResult(True, "C:/mt5/terminal64.exe", False, None, 1, None, None, "Connected")
+        )
+        self._connect_patcher.start()
 
     def tearDown(self):
+        self._connect_patcher.stop()
         self._tmpdir.cleanup()
 
     def _manager(self):
@@ -755,8 +762,14 @@ class TestStartProfileFrozenMode(unittest.TestCase):
         self.profiles_file = make_profiles_file(self._tmpdir.name, {
             "Vantage": {"path": "C:/mt5/terminal64.exe", "server": "Vantage-Server", "login_id": 1},
         })
+        self._connect_patcher = patch(
+            "oak_core.supervisor.profiles.ensure_mt5_profile_connected",
+            return_value=MT5LaunchResult(True, "C:/mt5/terminal64.exe", False, None, 1, None, None, "Connected")
+        )
+        self._connect_patcher.start()
 
     def tearDown(self):
+        self._connect_patcher.stop()
         self._tmpdir.cleanup()
 
     def _patch_profiles(self):

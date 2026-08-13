@@ -1091,6 +1091,7 @@ class NativeShell:
         self.last_running_signature: tuple[str, ...] = ()
         self.last_diagnostics_report = ""
         self.ready_callback = ready_callback
+        self.starting_profiles: set[str] = set()
         
         # Performance: Debouncing and throttling state
         self._ui_update_pending = False
@@ -3299,6 +3300,8 @@ class NativeShell:
         active = self._profile_is_running(name) if running is None else running
         if active:
             return "RUNNING"
+        if name in self.starting_profiles:
+            return "STARTING"
         try:
             from repositories.sqlite_store import SQLiteStore
             store = SQLiteStore()
@@ -3342,6 +3345,36 @@ class NativeShell:
         if self._profile_is_running(profile):
             self.log(f"{profile} is already running.")
             return
+        if profile in self.starting_profiles:
+            self.log(f"Startup already in progress for {profile}.")
+            return
+
+        self.starting_profiles.add(profile)
+        self.log(f"Starting {profile}...")
+        self.log("Checking MT5 terminal...")
+
+        prof_config = self.profiles.get(profile, {})
+        from services.mt5_terminal_service import ensure_mt5_profile_connected
+
+        def _on_status(msg: str) -> None:
+            self.log(msg)
+
+        try:
+            launch = ensure_mt5_profile_connected(prof_config, status_callback=_on_status)
+        except Exception as error:
+            self.starting_profiles.discard(profile)
+            msg = f"Failed to start {profile}: {error}"
+            self.log(f"❌ {msg}")
+            return
+
+        if not launch.ok:
+            self.starting_profiles.discard(profile)
+            reason = launch.message or launch.failure_code or "Unknown error"
+            msg = f"Failed to start {profile}: {reason}"
+            self.log(f"❌ {msg}")
+            return
+
+        self.log("MT5 terminal ready")
         self._launch_worker(profile)
 
     def _launch_worker(self, profile: str) -> None:
@@ -3360,7 +3393,6 @@ class NativeShell:
         proc.errorOccurred.connect(lambda error, n=profile: self._worker_error(n, error))
         self.monitor_processes[profile] = proc
         proc.start()
-        self.log(f"Starting monitor: {profile}")
 
     def _read_output(self, profile: str, proc: Any) -> None:
         data = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
@@ -3369,9 +3401,11 @@ class NativeShell:
                 self._append_console_line(f"[{profile}] {line.strip()}")
 
     def _worker_started(self, profile: str, proc: Any) -> None:
-        self.log(f"Monitor live: {profile} (PID {proc.processId()})")
+        self.starting_profiles.discard(profile)
+        self.log(f"Profile {profile} running (PID {proc.processId()})")
 
     def _worker_done(self, profile: str, code: int, proc: Any) -> None:
+        self.starting_profiles.discard(profile)
         if self.monitor_processes.get(profile) is proc:
             self.monitor_processes.pop(profile, None)
         if code:
@@ -3380,6 +3414,7 @@ class NativeShell:
             self.log(f"Monitor stopped: {profile} (code {code})")
 
     def _worker_error(self, profile: str, error: Any) -> None:
+        self.starting_profiles.discard(profile)
         self.log(f"Monitor error on {profile}: {error}")
 
     def stop_selected(self) -> None:

@@ -16,6 +16,7 @@ import sys
 import threading
 from pathlib import Path
 
+from services.mt5_terminal_service import ensure_mt5_profile_connected
 from ..ipc.protocol import error_payload
 
 #: Fields that must never cross the IPC boundary to React (§5).
@@ -388,6 +389,7 @@ class ProfileManager:
         self._python = python_executable or sys.executable
         self._log = log or (lambda msg: print(msg, file=sys.stderr))
         self._workers: dict[str, subprocess.Popen] = {}
+        self._starting: set[str] = set()
         self._lock = threading.Lock()
 
     # ------------------------------------------------------------------ #
@@ -497,33 +499,60 @@ class ProfileManager:
             existing = self._workers.get(profile_name)
             if existing is not None and existing.poll() is None:
                 return {"profile": profile_name, "pid": existing.pid, "started": False, "reason": "already running"}
+            if profile_name in self._starting:
+                return {"profile": profile_name, "started": False, "reason": "startup in progress"}
+            self._starting.add(profile_name)
 
-        if getattr(sys, "frozen", False):
-            cmd = [self._python, "profile-worker", "--profile", profile_name]
-            cwd = None
-        else:
-            cmd = [self._python, "-m", "oak_core", "profile-worker", "--profile", profile_name]
-            cwd = str(Path(__file__).resolve().parents[3] / "python")
+        try:
+            self._log(f"[profiles] Starting {profile_name}...")
+            prof_config = profiles[profile_name]
 
-        proc = subprocess.Popen(
-            cmd,
-            cwd=cwd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-        )
-        with self._lock:
-            self._workers[profile_name] = proc
+            def _on_status(msg: str) -> None:
+                self._log(f"[profiles] {profile_name}: {msg}")
 
-        def _drain(stream):
-            for line in stream:
-                self._log(f"[worker:{profile_name}] {line.rstrip()}")
+            launch = ensure_mt5_profile_connected(prof_config, status_callback=_on_status)
+            if not launch.ok:
+                reason = launch.message or launch.failure_code or "TERMINAL_LAUNCH_FAILED"
+                self._log(f"[profiles] Failed to start {profile_name}: {reason}")
+                return {
+                    "profile": profile_name,
+                    "started": False,
+                    "reason": launch.failure_code or "TERMINAL_LAUNCH_FAILED",
+                    "message": launch.message,
+                    "terminal_path": launch.terminal_path,
+                }
 
-        threading.Thread(target=_drain, args=(proc.stderr,), daemon=True, name=f"wlog-{profile_name}").start()
-        self._log(f"[profiles] started worker for {profile_name} (pid={proc.pid})")
-        return {"profile": profile_name, "pid": proc.pid, "started": True}
+            self._log(f"[profiles] MT5 terminal ready for {profile_name}")
+
+            if getattr(sys, "frozen", False):
+                cmd = [self._python, "profile-worker", "--profile", profile_name]
+                cwd = None
+            else:
+                cmd = [self._python, "-m", "oak_core", "profile-worker", "--profile", profile_name]
+                cwd = str(Path(__file__).resolve().parents[3] / "python")
+
+            proc = subprocess.Popen(
+                cmd,
+                cwd=cwd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+            with self._lock:
+                self._workers[profile_name] = proc
+
+            def _drain(stream):
+                for line in stream:
+                    self._log(f"[worker:{profile_name}] {line.rstrip()}")
+
+            threading.Thread(target=_drain, args=(proc.stderr,), daemon=True, name=f"wlog-{profile_name}").start()
+            self._log(f"[profiles] Profile {profile_name} running (pid={proc.pid})")
+            return {"profile": profile_name, "pid": proc.pid, "started": True}
+        finally:
+            with self._lock:
+                self._starting.discard(profile_name)
 
     def stop_profile(self, profile_name: str, timeout_seconds: float = 8.0) -> dict:
         with self._lock:
