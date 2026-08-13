@@ -317,7 +317,6 @@ class NativeQtShellRailFitTests(unittest.TestCase):
 class NativeQtShellScreenshotTests(unittest.TestCase):
     """Capture screenshots for every theme/tab combination."""
 
-    @unittest.skip("Visual screenshot gate runs separately in tests/run_native_qt_screenshot.py")
     def test_screenshot_capture(self) -> None:
         """The screenshot gate is intentionally isolated from in-process Qt tests."""
         import subprocess

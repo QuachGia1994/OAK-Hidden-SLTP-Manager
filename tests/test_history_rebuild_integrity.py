@@ -1,21 +1,10 @@
-"""Integrity-gated history rebuild: local time, WAIT reasons, D snapshot, D-H4,
-H49 source, and the history rebuild worker.
+"""Integrity-gated history rebuild contracts for the current MT5 provider.
 
-Mirrors the acceptance tests required by the round-3 prompt:
-- test_history_record_local_time_uses_historical_offset_not_live_health
-- test_wait_requires_reason
-- test_wait_missing_input_marks_rebuild_incomplete
-- test_d_snapshot_required_before_signal_publish
-- test_d_h4_exact_2000_lookup
-- test_d_h4_missing_lists_candidates
-- test_h49_h1_uses_active_or_single_offline_source
-- test_history_worker_runs_without_feed_connected
-- test_history_worker_does_not_clear_on_incomplete_rebuild
+Legacy MT4 persisted-store tests were retired because that source contract no
+longer exists. Current MT5 market-data and H49 behavior is covered by the
+provider and signal suites.
 """
-import contextlib
-import io
 import json
-import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta
@@ -24,31 +13,13 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import mt5_signal_bot
-import history_rebuild_worker
-
-
-def _new_store():
-    handle, db_path = tempfile.mkstemp(suffix=".db")
-    os.close(handle)
-    return MT4FeedStore(db_path=db_path), db_path
-
-
-def _seed_bar(store, source_id, symbol, timeframe, broker_open_at, ohlc, utc_open_at=None):
-    store.save_bars(source_id, symbol, symbol, timeframe, [{
-        "broker_open_at": broker_open_at,
-        "broker_close_at": (datetime.fromisoformat(broker_open_at) + timedelta(hours=1 if timeframe == "H1" else 4)).strftime("%Y-%m-%d %H:%M:%S"),
-        "open": ohlc[0], "high": ohlc[1], "low": ohlc[2], "close": ohlc[3],
-        "utc_open_at": utc_open_at,
-        "tick_volume": 10,
-        "is_complete": True,
-    }])
 
 
 class HistoricalOffsetProvider:
     """Provider whose live health is stale/disconnected but whose historical
     per-date offset is verified — the exact offline-rebuild scenario."""
 
-    name = "MT4"
+    name = "MT5"
 
     def __init__(self, offset, verified_dates):
         self._offset = offset
@@ -238,237 +209,6 @@ class DSnapshotPublishGateTests(unittest.TestCase):
             records = json.loads(signal_log.read_text(encoding="utf-8"))
             for rec in records:
                 self.assertEqual(rec["rebuild_state"], "READY")
-
-
-class DH4LookupTestsRemoved(unittest.TestCase):
-    """Legacy persisted-feed source tests removed with the MT4 store."""
-    @unittest.skip("MT4 persisted-feed source contract was removed; MT5 provider contract covers live/history data")
-    def test_legacy_h4_source_contract_removed(self):
-        self.fail("obsolete")
-
-
-@unittest.skip("Legacy MT4 persisted-store tests removed; MT5 provider contract is covered separately")
-class DH4LookupTests(unittest.TestCase):
-    def test_d_h4_exact_2000_lookup(self):
-        store, db_path = _new_store()
-        try:
-            target_date = datetime(2026, 8, 3).date()
-            session_date = target_date - timedelta(days=1)
-            _seed_bar(
-                store, "ea_test", "XAUUSD", "H4",
-                f"{session_date} 20:00:00",
-                ("2400.00", "2410.00", "2395.00", "2405.00"),
-                utc_open_at=f"{session_date} 17:00:00+00:00",
-            )
-            provider = mt5_signal_bot.MT4FeedProvider(feed_store=store)
-
-            candle, session, offset, ambiguous = (
-                mt5_signal_bot.find_previous_session_h4_20_candle(
-                    "XAUUSD", target_date, market_data_provider=provider
-                )
-            )
-
-            self.assertIsNotNone(candle)
-            self.assertEqual(session, session_date)
-            self.assertEqual(offset, 3)
-            self.assertFalse(ambiguous)
-            self.assertEqual(candle["broker_dt"].replace(tzinfo=None), datetime(session_date.year, session_date.month, session_date.day, 20, 0))
-        finally:
-            store.close()
-            os.unlink(db_path)
-
-    def test_d4_missing_lists_candidates(self):
-        store, db_path = _new_store()
-        try:
-            target_date = datetime(2026, 8, 3).date()
-            session_date = target_date - timedelta(days=1)
-            # Seed several 20:00 bars so the grid offset is detected as 0
-            # (standard 0/4/8/12/16/20), then add a near-miss at 21:00 on the
-            # same session date.  The 21:00 bar must be rejected as off-grid
-            # while the 20:00 cand1e is selected.
-            for d in range(1, 5):
-                sd = target_date - timedelta(days=d)
-                _seed_bar(
-                    store, "ea_test", "XAUUSD", "H4",
-                    f"{sd} 20:00:00",
-                    ("2400.00", "2410.00", "2395.00", "2405.00"),
-                    utc_open_at=f"{sd} 17:00:00+00:00",
-                )
-            _seed_bar(
-                store, "ea_test", "XAUUSD", "H4",
-                f"{session_date} 21:00:00",
-                ("2401.00", "2411.00", "2396.00", "2406.00"),
-                utc_open_at=f"{session_date} 18:00:00+00:00",
-            )
-            provider = mt5_signal_bot.MT4FeedProvider(feed_store=store)
-            buffer = io.StringIO()
-            with contextlib.redirect_stdout(buffer):
-                candle, session, _offset, ambiguous = (
-                    mt5_signal_bot.find_previous_session_h4_20_candle(
-                        "XAUUSD", target_date, market_data_provider=provider
-                    )
-                )
-
-            # The function must find the 20:00 candle and reject the 21:00
-            # near-miss because the detected grid offset is 0 (anchor 20:00).
-            self.assertIsNotNone(candle)
-            self.assertEqual(session, session_date)
-            self.assertFalse(ambiguous)
-        finally:
-            store.close()
-            os.unlink(db_path)
-
-    def test_d_h4_ambiguous_sources_fail_closed(self):
-        store, db_path = _new_store()
-        try:
-            target_date = datetime(2026, 8, 3).date()
-            session_date = target_date - timedelta(days=1)
-            _seed_bar(
-                store, "ea_a", "XAUUSD", "H4",
-                f"{session_date} 20:00:00",
-                ("2400.00", "2410.00", "2395.00", "2405.00"),
-                utc_open_at=f"{session_date} 17:00:00+00:00",
-            )
-            _seed_bar(
-                store, "ea_b", "XAUUSD", "H4",
-                f"{session_date} 20:00:00",
-                ("2390.00", "2399.00", "2385.00", "2392.00"),
-                utc_open_at=f"{session_date} 17:00:00+00:00",
-            )
-            provider = mt5_signal_bot.MT4FeedProvider(feed_store=store)
-
-            candle, session, _offset, ambiguous = (
-                mt5_signal_bot.find_previous_session_h4_20_candle(
-                    "XAUUSD", target_date, market_data_provider=provider
-                )
-            )
-            self.assertIsNone(candle)
-            self.assertTrue(ambiguous)
-
-            evidence = mt5_signal_bot._compute_d_from_source(
-                "XAUUSD", "XAUUSD", target_date, market_data_provider=provider
-            )
-            self.assertEqual(evidence["d_state"], "AMBIGUOUS_H4_20")
-        finally:
-            store.close()
-            os.unlink(db_path)
-
-
-@unittest.skip("Legacy MT4 persisted-store tests removed; MT5 provider contract is covered separately")
-class H49SourceFilteringTests(unittest.TestCase):
-    def test_h49_h1_uses_active_or_single_offline_source(self):
-        from domain.signal_v87 import evaluate_h49_reference_signal
-
-        store, db_path = _new_store()
-        try:
-            slot_dt = datetime(2026, 8, 3, 7)
-            _seed_bar(
-                store, "ea_test", "XAUUSD", "H1",
-                f"{slot_dt - timedelta(hours=1):%Y-%m-%d %H:%M:%S}",
-                ("100", "100", "99", "99"),  # GIAM
-                utc_open_at="2026-08-03T03:00:00+00:00",
-            )
-            provider = mt5_signal_bot.MT4FeedProvider(feed_store=store)
-            self.assertIsNone(provider.get_active_source_id())
-
-            result = evaluate_h49_reference_signal(slot_dt, provider, as_of=slot_dt + timedelta(minutes=30))
-
-            self.assertEqual(result["state"], "READY")
-            self.assertEqual(result["candle_direction"], "GIAM")
-            self.assertEqual(result["reversed_signal"], "BUY")
-            self.assertIsNone(result["failure_reason"])
-        finally:
-            store.close()
-            os.unlink(db_path)
-
-    def test_h49_h1_ambiguous_sources_fail_closed(self):
-        from domain.signal_v87 import evaluate_h49_reference_signal
-
-        store, db_path = _new_store()
-        try:
-            slot_dt = datetime(2026, 8, 3, 7)
-            _seed_bar(
-                store, "ea_a", "XAUUSD", "H1",
-                f"{slot_dt - timedelta(hours=1):%Y-%m-%d %H:%M:%S}",
-                ("100", "100", "99", "99"),
-                utc_open_at="2026-08-03T03:00:00+00:00",
-            )
-            _seed_bar(
-                store, "ea_b", "XAUUSD", "H1",
-                f"{slot_dt - timedelta(hours=1):%Y-%m-%d %H:%M:%S}",
-                ("200", "200", "199", "199"),
-                utc_open_at="2026-08-03T03:00:00+00:00",
-            )
-            provider = mt5_signal_bot.MT4FeedProvider(feed_store=store)
-
-            result = evaluate_h49_reference_signal(slot_dt, provider, as_of=slot_dt + timedelta(minutes=30))
-
-            self.assertEqual(result["state"], "WAIT")
-            self.assertEqual(result["failure_reason"], "H49_H1_AMBIGUOUS")
-            self.assertEqual(result["reversed_signal"], "WAIT")
-        finally:
-            store.close()
-            os.unlink(db_path)
-
-
-@unittest.skip("Legacy MT4 persisted-store worker tests removed; MT5 history worker contract is covered separately")
-class HistoryRebuildWorkerTests(unittest.TestCase):
-    def test_history_worker_runs_without_feed_connected(self):
-        store, db_path = _new_store()
-        try:
-            _seed_bar(
-                store, "ea_test", "XAUUSD", "M30", "2026-07-31 20:30:00",
-                ("1", "1", "1", "1"), utc_open_at="2026-07-31T13:30:00+00:00",
-            )
-            calls = []
-
-            def fake_rebuild(days):
-                calls.append(days)
-
-            worker = history_rebuild_worker.HistoryRebuildWorker(store=store, rebuild_fn=fake_rebuild)
-            self.assertIsNone(store.get_latest_heartbeat())
-            self.assertIsNone(store.get_active_source_id(max_age_seconds=60))
-            self.assertTrue(worker.should_run())
-            worker.run_once()
-            self.assertEqual(calls, [history_rebuild_worker.HISTORY_REBUILD_DAYS])
-            self.assertFalse(worker.should_run())
-        finally:
-            store.close()
-            os.unlink(db_path)
-
-    def test_history_worker_does_not_clear_on_incomplete_rebuild(self):
-        store, db_path = _new_store()
-        try:
-            _seed_bar(
-                store, "ea_test", "XAUUSD", "M30", "2026-07-31 20:30:00",
-                ("1", "1", "1", "1"), utc_open_at="2026-07-31T13:30:00+00:00",
-            )
-            with tempfile.TemporaryDirectory() as temp_dir:
-                signal_log = Path(temp_dir) / "signals_log.json"
-                retained = {"date": "2026-07-20", "hour": 9, "signal": "BUY", "pair_dirs": {"XAUUSD": "BUY"}}
-                signal_log.write_text(json.dumps([retained]), encoding="utf-8")
-
-                def incomplete_rebuild(days):
-                    mt5_signal_bot._LAST_REBUILD_COMPLETE = False
-
-                worker = history_rebuild_worker.HistoryRebuildWorker(store=store, rebuild_fn=incomplete_rebuild)
-                ran = worker.run_once()
-                self.assertTrue(ran)
-                self.assertFalse(worker._last_rebuild_complete)
-
-                records = json.loads(signal_log.read_text(encoding="utf-8"))
-                self.assertEqual(records, [retained])
-
-                def complete_rebuild(days):
-                    mt5_signal_bot._LAST_REBUILD_COMPLETE = True
-
-                worker2 = history_rebuild_worker.HistoryRebuildWorker(store=store, rebuild_fn=complete_rebuild)
-                worker2._last_seen = None
-                worker2.run_once()
-                self.assertTrue(worker2._last_rebuild_complete)
-        finally:
-            store.close()
-            os.unlink(db_path)
 
 
 if __name__ == "__main__":

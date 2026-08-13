@@ -33,7 +33,7 @@ def _format_uptime(elapsed_seconds: float) -> str:
     Uses integer seconds so the value never drifts backwards and is immune
     to wall-clock adjustments.
     """
-    total = int(elapsed_seconds)
+    total = int(round(elapsed_seconds))
     days, rem = divmod(total, 86400)
     hours, rem = divmod(rem, 3600)
     minutes, seconds = divmod(rem, 60)
