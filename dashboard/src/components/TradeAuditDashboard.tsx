@@ -1,4 +1,5 @@
 import { getTradeAuditAll } from "@/lib/trade-audit";
+import { AnalysisPortal } from "@/components/AnalysisPortal";
 
 interface Props {
   locale: "EN" | "VN";
@@ -110,122 +111,19 @@ function Badge({ children, tone }: { children: React.ReactNode; tone?: "green" |
 
 export async function TradeAuditDashboard({ locale }: Props) {
   const data = await getTradeAuditAll();
-  const cur = (data.overview as Record<string, unknown> | null)?.currency as string | undefined ?? "USD";
-
-  const L = locale === "EN"
-    ? {
-        accountOverview: "Account Overview",
-        livePositions: "Live Positions",
-        checkpointTimeline: "Checkpoint Timeline",
-        tradeLedger: "Trade Ledger",
-        performance: "Performance",
-        risk: "Risk",
-        audit: "Audit",
-        noOpenPositions: "No open positions",
-        noTradeActivity: "No trade activity yet",
-        empty: "No data available",
-        noCheckpoints: "No checkpoints recorded",
-      }
-    : {
-        accountOverview: "Tổng quan tài khoản",
-        livePositions: "Vị thế đang mở",
-        checkpointTimeline: "Dòng thời gian Checkpoint",
-        tradeLedger: "Sổ giao dịch",
-        performance: "Hiệu suất",
-        risk: "Rủi ro",
-        audit: "Kiểm toán",
-        noOpenPositions: "Không có vị thế mở",
-        noTradeActivity: "Chưa có hoạt động giao dịch",
-        empty: "Chưa có dữ liệu",
-        noCheckpoints: "Chưa ghi nhận checkpoint",
-      };
 
   return (
-    <div className="space-y-5">
-      {/* 1 — ACCOUNT OVERVIEW */}
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {L.accountOverview}
-        </h2>
-        {data.overview ? (
-          <AccountOverview data={data.overview} locale={locale} currency={cur} />
-        ) : (
-          <Empty text={L.empty} />
-        )}
-      </section>
-
-      {/* 2 — LIVE POSITIONS */}
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {L.livePositions}
-        </h2>
-        {data.positions ? (
-          <LivePositions data={data.positions} locale={locale} currency={cur} emptyText={L.noOpenPositions} />
-        ) : (
-          <Empty text={L.empty} />
-        )}
-      </section>
-
-      {/* 3 — CHECKPOINT TIMELINE */}
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {L.checkpointTimeline}
-        </h2>
-        {data.checkpoints ? (
-          <CheckpointTimeline data={data.checkpoints} locale={locale} emptyText={L.noCheckpoints} />
-        ) : (
-          <Empty text={L.empty} />
-        )}
-      </section>
-
-      {/* 4 — TRADE LEDGER */}
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {L.tradeLedger}
-        </h2>
-        {data.ledger ? (
-          <TradeLedger data={data.ledger} locale={locale} currency={cur} emptyText={L.noTradeActivity} />
-        ) : (
-          <Empty text={L.empty} />
-        )}
-      </section>
-
-      {/* 5 — PERFORMANCE */}
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {L.performance}
-        </h2>
-        {data.performance ? (
-          <Performance data={data.performance} locale={locale} currency={cur} />
-        ) : (
-          <Empty text={L.empty} />
-        )}
-      </section>
-
-      {/* 6 — RISK */}
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {L.risk}
-        </h2>
-        {data.risk ? (
-          <Risk data={data.risk} locale={locale} currency={cur} />
-        ) : (
-          <Empty text={L.empty} />
-        )}
-      </section>
-
-      {/* 7 — AUDIT */}
-      <section className="terminal-panel rounded-2xl p-5 sm:p-6">
-        <h2 className="terminal-section-heading mb-4 text-xs font-mono font-bold uppercase tracking-[0.22em] text-[var(--muted)]">
-          {L.audit}
-        </h2>
-        {data.audit ? (
-          <Audit data={data.audit} locale={locale} />
-        ) : (
-          <Empty text={L.empty} />
-        )}
-      </section>
-    </div>
+    <AnalysisPortal
+      locale={locale}
+      overview={(data.overview as Record<string, unknown> | null) ?? null}
+      positions={data.positions}
+      checkpoints={data.checkpoints}
+      ledger={data.ledger}
+      performance={(data.performance as Record<string, unknown> | null) ?? null}
+      risk={(data.risk as Record<string, unknown> | null) ?? null}
+      audit={(data.audit as Record<string, unknown> | null) ?? null}
+      equity={data.equity}
+    />
   );
 }
 

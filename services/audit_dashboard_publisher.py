@@ -30,6 +30,7 @@ _ENDPOINTS = {
     "performance":  "/api/trade-audit/performance",
     "risk":         "/api/trade-audit/risk",
     "audit":        "/api/trade-audit/audit",
+    "equity":       "/api/trade-audit/equity",
 }
 
 # Public-safe subset of performance calculator keys.
@@ -176,9 +177,22 @@ class AuditDashboardPublisher:
 
         perf = self._calc.compute(account_uid)
 
+        configured_at = acct.get("created_at_utc") or acct.get("created_at") or None
+        trading_started = None
+        if account_id:
+            deals = self._store.list_deals(account_id=account_id) or []
+            times = [
+                d.get("deal_time_utc") for d in deals
+                if d.get("deal_type") in _TRADING_DEAL_TYPES and d.get("deal_time_utc")
+            ]
+            if times:
+                trading_started = min(times)
+
         return {
             "alias": public_alias_for(acct),
             "broker": acct.get("broker", ""),
+            "platform": acct.get("platform") or "MetaTrader 5",
+            "account_type": acct.get("account_type") or acct.get("type") or "",
             "currency": acct.get("currency", ""),
             "balance": balance,
             "equity": equity,
@@ -188,6 +202,9 @@ class AuditDashboardPublisher:
             "margin_level": margin_level,
             "current_drawdown": perf.get("current_drawdown"),
             "drawdown_source": perf.get("drawdown_source", "NONE"),
+            "configured_at_utc": configured_at,
+            "trading_started_at_utc": trading_started,
+            "closed_trade_count": perf.get("closed_trade_count"),
             "updated_at_utc": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -267,7 +284,28 @@ class AuditDashboardPublisher:
     def build_performance(self, account_uid):
         """Public-safe performance metrics (subset of calculator output)."""
         perf = self._calc.compute(account_uid)
-        return {k: perf.get(k) for k in _PUBLIC_PERF_KEYS if k in perf}
+        out = {k: perf.get(k) for k in _PUBLIC_PERF_KEYS if k in perf}
+        # Explicit period semantics for public portal (all-history canonical push).
+        out["period_key"] = "all"
+        out["period_label"] = "all_history"
+        out["since_utc"] = None
+        return out
+
+    def build_equity(self, account_uid, limit=2000):
+        """Public equity/balance series for charts (no account secrets)."""
+        account_id = self._account_id(account_uid)
+        if not account_id:
+            return []
+        samples = self._store.list_equity_samples(account_id=account_id, limit=limit) or []
+        series = []
+        for s in reversed(samples):  # chronological ascending
+            series.append({
+                "t": s.get("sampled_at_utc"),
+                "equity": s.get("equity"),
+                "balance": s.get("balance"),
+                "floating_pl": s.get("open_profit"),
+            })
+        return series
 
     def build_risk(self, account_uid):
         """Risk metrics from calculator + store."""
@@ -358,6 +396,7 @@ class AuditDashboardPublisher:
             "performance":  self.build_performance(account_uid),
             "risk":         self.build_risk(account_uid),
             "audit":        self.build_audit(account_uid),
+            "equity":       self.build_equity(account_uid),
         }
 
     # ------------------------------------------------------------------ #

@@ -268,7 +268,7 @@ class TestCheckpointsSortedChronologically(AuditDashboardPublisherTestCase):
 
 
 class TestBuildAllContainsAllSections(AuditDashboardPublisherTestCase):
-    """build_all must return a dict with all 7 section keys."""
+    """build_all must return a dict with all public section keys."""
 
     def test_build_all_contains_all_sections(self):
         acct_id = self._create_account()
@@ -277,7 +277,7 @@ class TestBuildAllContainsAllSections(AuditDashboardPublisherTestCase):
 
         self.assertIsInstance(result, dict)
         for key in ("overview", "positions", "checkpoints", "ledger",
-                     "performance", "risk", "audit"):
+                     "performance", "risk", "audit", "equity"):
             self.assertIn(key, result)
         self.assertIsInstance(result["overview"], dict)
         self.assertIsInstance(result["positions"], list)
@@ -286,6 +286,7 @@ class TestBuildAllContainsAllSections(AuditDashboardPublisherTestCase):
         self.assertIsInstance(result["performance"], dict)
         self.assertIsInstance(result["risk"], dict)
         self.assertIsInstance(result["audit"], dict)
+        self.assertIsInstance(result["equity"], list)
 
 
 class TestPushAllWithoutUrlReturnsNotPushed(AuditDashboardPublisherTestCase):
@@ -317,7 +318,7 @@ class TestPushAllWithNoneUrlFallsBackToConfig(AuditDashboardPublisherTestCase):
 
 
 class TestPushAllPostsToEndpointsWithApiKey(AuditDashboardPublisherTestCase):
-    """push_all must POST to all 7 endpoints with X-API-Key header."""
+    """push_all must POST to all public endpoints with X-API-Key header."""
 
     def test_push_all_posts_to_endpoints_with_api_key(self):
         self._create_account()
@@ -345,7 +346,7 @@ class TestPushAllPostsToEndpointsWithApiKey(AuditDashboardPublisherTestCase):
             result = pub.push_all(self.account_uid)
 
         self.assertTrue(result["pushed"])
-        self.assertEqual(len(captured_requests), 7)
+        self.assertEqual(len(captured_requests), 8)
 
         # Verify API key header on every request.
         # NOTE: Python Request.add_header capitalizes the first letter and
@@ -355,9 +356,9 @@ class TestPushAllPostsToEndpointsWithApiKey(AuditDashboardPublisherTestCase):
             self.assertEqual(req.method, "POST")
             self.assertIn("/api/trade-audit/", req.full_url)
 
-        # Verify all 7 endpoint sections returned ok=True.
+        # Verify all public endpoint sections returned ok=True.
         for section in ("overview", "positions", "checkpoints", "ledger",
-                         "performance", "risk", "audit"):
+                         "performance", "risk", "audit", "equity"):
             self.assertTrue(result["results"][section]["ok"],
                             f"Section {section} should be ok=True")
 
@@ -447,7 +448,7 @@ class TestEmptyAccountBuildsDoNotRaise(AuditDashboardPublisherTestCase):
         all_data = pub.build_all(self.account_uid)
         self.assertEqual(set(all_data.keys()),
                          {"overview", "positions", "checkpoints", "ledger",
-                          "performance", "risk", "audit"})
+                          "performance", "risk", "audit", "equity"})
 
         # push_all without url must not raise.
         push_result = pub.push_all(self.account_uid)

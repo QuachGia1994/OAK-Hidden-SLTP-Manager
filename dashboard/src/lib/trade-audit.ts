@@ -8,6 +8,7 @@ export interface TradeAuditPayloads {
   performance: unknown | null;
   risk: unknown | null;
   audit: unknown | null;
+  equity: unknown | null;
 }
 
 export async function getTradeAuditOverview(): Promise<unknown | null> {
@@ -66,8 +67,16 @@ export async function getTradeAuditInfo(): Promise<unknown | null> {
   }
 }
 
+export async function getTradeAuditEquity(): Promise<unknown | null> {
+  try {
+    return (await redis.get(KEYS.auditEquity)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getTradeAuditAll(): Promise<TradeAuditPayloads> {
-  const [overview, positions, checkpoints, ledger, performance, risk, audit] =
+  const [overview, positions, checkpoints, ledger, performance, risk, audit, equity] =
     await Promise.all([
       getTradeAuditOverview(),
       getTradeAuditPositions(),
@@ -76,6 +85,7 @@ export async function getTradeAuditAll(): Promise<TradeAuditPayloads> {
       getTradeAuditPerformance(),
       getTradeAuditRisk(),
       getTradeAuditInfo(),
+      getTradeAuditEquity(),
     ]);
-  return { overview, positions, checkpoints, ledger, performance, risk, audit };
+  return { overview, positions, checkpoints, ledger, performance, risk, audit, equity };
 }

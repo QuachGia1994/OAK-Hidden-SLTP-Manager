@@ -32,6 +32,7 @@ export const KEYS = {
   auditPerformance: "sltp:trade-audit:performance",
   auditRisk: "sltp:trade-audit:risk",
   auditInfo: "sltp:trade-audit:audit",
+  auditEquity: "sltp:trade-audit:equity",
 };
 
 // API auth helper — rejects write requests without valid key.

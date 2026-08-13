@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test:i18n": "node --test \"tests/*.test.mjs\""
+    "test:i18n": "node --experimental-strip-types --test \"tests/*.test.mjs\""
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",
