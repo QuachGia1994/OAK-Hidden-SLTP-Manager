@@ -55,6 +55,9 @@ class ProfileStartupStatusUxTests(unittest.TestCase):
         shell.starting_profiles = set()
         shell.startup_phase = {}
         shell.startup_error = {}
+        shell._startup_ops = {}
+        shell._startup_op_seq = 0
+        shell._is_shut_down = False
         shell.monitor_processes = {}
         shell.rail_profile_status = _FakeLabel("Stopped")
         shell.rail_profile_toggle = _FakeToggle()
@@ -71,6 +74,11 @@ class ProfileStartupStatusUxTests(unittest.TestCase):
         shell._refresh_profile_controls = shell_mod.NativeShell._refresh_profile_controls.__get__(shell)
         shell._publish_startup_phase = shell_mod.NativeShell._publish_startup_phase.__get__(shell)
         shell._profile_is_running = shell_mod.NativeShell._profile_is_running.__get__(shell)
+        shell._ui_after = shell_mod.NativeShell._ui_after.__get__(shell)
+        shell._next_startup_op = shell_mod.NativeShell._next_startup_op.__get__(shell)
+        shell._is_startup_op_current = shell_mod.NativeShell._is_startup_op_current.__get__(shell)
+        shell._invalidate_startup_op = shell_mod.NativeShell._invalidate_startup_op.__get__(shell)
+        shell._finish_terminal_startup = shell_mod.NativeShell._finish_terminal_startup.__get__(shell)
         return shell
 
     def test_refresh_shows_phase_while_starting(self):
@@ -137,7 +145,7 @@ class ProfileStartupStatusUxTests(unittest.TestCase):
         ok = MT5LaunchResult(True, "C:/mt5/terminal64.exe", False, None, 1, None, None, "Connected")
         phases = []
 
-        def capture_phase(profile, phase):
+        def capture_phase(profile, phase, op_id=None):
             phases.append(phase)
             shell.startup_phase[profile] = phase
 

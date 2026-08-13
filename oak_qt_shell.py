@@ -1094,6 +1094,10 @@ class NativeShell:
         self.starting_profiles: set[str] = set()
         self.startup_phase: dict[str, str] = {}
         self.startup_error: dict[str, str] = {}
+        # Per-Start operation identity: stale bg callbacks must not mutate state / launch workers.
+        self._startup_ops: dict[str, int] = {}
+        self._startup_op_seq: int = 0
+        self._is_shut_down: bool = False
 
         # Performance: Debouncing and throttling state
         self._ui_update_pending = False
@@ -2040,6 +2044,8 @@ class NativeShell:
 
     def _ui_after(self, callback: Callable[[], None]) -> None:
         """Run ``callback`` on the Qt GUI thread (or immediately when Qt is unavailable)."""
+        if getattr(self, "_is_shut_down", False):
+            return
         qt_mod = globals().get("QT")
         window = getattr(self, "window", None)
         if qt_mod is not None and window is not None and hasattr(qt_mod, "QTimer"):
@@ -2047,11 +2053,39 @@ class NativeShell:
             return
         callback()
 
-    def _publish_startup_phase(self, profile: str, phase: str) -> None:
+    def _next_startup_op(self, profile: str) -> int:
+        """Allocate a unique operation id for this Start and bind it to ``profile``."""
+        self._startup_op_seq += 1
+        op_id = self._startup_op_seq
+        self._startup_ops[profile] = op_id
+        return op_id
+
+    def _is_startup_op_current(self, profile: str, op_id: int) -> bool:
+        """True only while this op still owns the profile and the shell is alive."""
+        if getattr(self, "_is_shut_down", False):
+            return False
+        return self._startup_ops.get(profile) == op_id
+
+    def _invalidate_startup_op(self, profile: str) -> bool:
+        """Drop any in-flight startup ownership for ``profile``. Returns True if one existed."""
+        had = profile in self._startup_ops or profile in self.starting_profiles
+        self._startup_ops.pop(profile, None)
+        self.starting_profiles.discard(profile)
+        self.startup_phase.pop(profile, None)
+        return had
+
+    def _publish_startup_phase(
+        self, profile: str, phase: str, op_id: int | None = None
+    ) -> None:
         """Surface one terminal-startup phase in console + rail without wiping STARTING.
 
         Must only be called on the Qt GUI thread (or from tests without Qt).
+        When ``op_id`` is provided, stale operations become no-ops.
         """
+        if op_id is not None and not self._is_startup_op_current(profile, op_id):
+            return
+        if getattr(self, "_is_shut_down", False):
+            return
         self.startup_phase[profile] = phase
         self.startup_error.pop(profile, None)
         self._append_console_line(f"[{profile}] {phase}")
@@ -3225,6 +3259,10 @@ class NativeShell:
         a test closes the window). Idempotent; safe to call more than once.
         """
         self._is_shut_down = True
+        # Invalidate every in-flight startup so late _ui_after callbacks are no-ops.
+        self._startup_ops.clear()
+        self.starting_profiles.clear()
+        self.startup_phase.clear()
         if self.signal_supervisor is not None:
             try:
                 self.signal_supervisor.cleanup()
@@ -3395,17 +3433,20 @@ class NativeShell:
             self.log(f"Startup already in progress for {profile}.")
             return
 
-        # Claim the slot on the GUI thread before any background work starts.
+        # Claim the slot + allocate operation identity on the GUI thread first.
+        op_id = self._next_startup_op(profile)
         self.starting_profiles.add(profile)
         self.startup_error.pop(profile, None)
-        self._publish_startup_phase(profile, "Starting profile...")
+        self._publish_startup_phase(profile, "Starting profile...", op_id)
 
         # Snapshot config for the worker thread (no shared mutable profile dict writes).
         prof_config = dict(self.profiles.get(profile, {}) or {})
 
         def _status_from_worker(msg: str) -> None:
             # status_callback may fire off the GUI thread — marshal UI updates.
-            self._ui_after(lambda p=profile, m=msg: self._publish_startup_phase(p, m))
+            self._ui_after(
+                lambda p=profile, m=msg, oid=op_id: self._publish_startup_phase(p, m, oid)
+            )
 
         def _terminal_work() -> None:
             from services.mt5_terminal_service import ensure_mt5_profile_connected
@@ -3416,11 +3457,15 @@ class NativeShell:
                 )
             except Exception as error:
                 self._ui_after(
-                    lambda p=profile, e=error: self._finish_terminal_startup(p, None, e)
+                    lambda p=profile, e=error, oid=op_id: self._finish_terminal_startup(
+                        p, None, e, oid
+                    )
                 )
                 return
             self._ui_after(
-                lambda p=profile, result=launch: self._finish_terminal_startup(p, result, None)
+                lambda p=profile, result=launch, oid=op_id: self._finish_terminal_startup(
+                    p, result, None, oid
+                )
             )
 
         threading.Thread(
@@ -3434,8 +3479,24 @@ class NativeShell:
         profile: str,
         launch: Any,
         error: BaseException | None,
+        op_id: int | None = None,
     ) -> None:
-        """Apply terminal-ensure outcome on the GUI thread; launch worker only on success."""
+        """Apply terminal-ensure outcome on the GUI thread; launch worker only on success.
+
+        When ``op_id`` is set, a mismatch means this startup was superseded (Stop / new Start
+        / teardown). Stale completions must not mutate state or launch a worker.
+        """
+        if op_id is not None and not self._is_startup_op_current(profile, op_id):
+            return
+        if getattr(self, "_is_shut_down", False):
+            self._startup_ops.pop(profile, None)
+            self.starting_profiles.discard(profile)
+            self.startup_phase.pop(profile, None)
+            return
+
+        # Claim completion: drop token so any later status from this op is ignored.
+        self._startup_ops.pop(profile, None)
+
         if error is not None:
             self.starting_profiles.discard(profile)
             self.startup_phase.pop(profile, None)
@@ -3518,9 +3579,17 @@ class NativeShell:
         self.stop_profile(self.selected)
 
     def stop_profile(self, profile: str) -> None:
+        # Invalidate any in-flight startup first so a late ensure cannot launch a worker.
+        cancelled_startup = self._invalidate_startup_op(profile)
+        if cancelled_startup:
+            self.startup_error.pop(profile, None)
+            self.log(f"Cancelled startup for {profile}")
+            self._refresh_profile_controls()
+
         proc = self.monitor_processes.get(profile)
         if not proc or proc.state() == QT.NotRunning:
-            self.log(f"No live monitor for {profile or 'selected profile'}.")
+            if not cancelled_startup:
+                self.log(f"No live monitor for {profile or 'selected profile'}.")
             return
         proc.terminate()
         QT.QTimer.singleShot(2500, lambda p=proc: p.kill() if p.state() != QT.NotRunning else None)
