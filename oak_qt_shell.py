@@ -2038,20 +2038,25 @@ class NativeShell:
         self.rail_profile_status.style().unpolish(self.rail_profile_status)
         self.rail_profile_status.style().polish(self.rail_profile_status)
 
+    def _ui_after(self, callback: Callable[[], None]) -> None:
+        """Run ``callback`` on the Qt GUI thread (or immediately when Qt is unavailable)."""
+        qt_mod = globals().get("QT")
+        window = getattr(self, "window", None)
+        if qt_mod is not None and window is not None and hasattr(qt_mod, "QTimer"):
+            qt_mod.QTimer.singleShot(0, window, callback)
+            return
+        callback()
+
     def _publish_startup_phase(self, profile: str, phase: str) -> None:
-        """Surface one terminal-startup phase in console + rail without wiping STARTING."""
+        """Surface one terminal-startup phase in console + rail without wiping STARTING.
+
+        Must only be called on the Qt GUI thread (or from tests without Qt).
+        """
         self.startup_phase[profile] = phase
         self.startup_error.pop(profile, None)
         self._append_console_line(f"[{profile}] {phase}")
         if profile == self.selected:
-            # Bypass throttled live refresh so intermediate phases paint immediately.
             self._refresh_profile_controls()
-            try:
-                qt_mod = globals().get("QT")
-                if qt_mod is not None and hasattr(qt_mod, "QApplication"):
-                    qt_mod.QApplication.processEvents()
-            except Exception:
-                pass
 
     def _fade_in_page(self, page: Any) -> None:
         """Apply a subtle 150ms opacity fade-in on the newly shown page."""
@@ -3390,19 +3395,48 @@ class NativeShell:
             self.log(f"Startup already in progress for {profile}.")
             return
 
+        # Claim the slot on the GUI thread before any background work starts.
         self.starting_profiles.add(profile)
         self.startup_error.pop(profile, None)
         self._publish_startup_phase(profile, "Starting profile...")
 
-        prof_config = self.profiles.get(profile, {})
-        from services.mt5_terminal_service import ensure_mt5_profile_connected
+        # Snapshot config for the worker thread (no shared mutable profile dict writes).
+        prof_config = dict(self.profiles.get(profile, {}) or {})
 
-        def _on_status(msg: str) -> None:
-            self._publish_startup_phase(profile, msg)
+        def _status_from_worker(msg: str) -> None:
+            # status_callback may fire off the GUI thread — marshal UI updates.
+            self._ui_after(lambda p=profile, m=msg: self._publish_startup_phase(p, m))
 
-        try:
-            launch = ensure_mt5_profile_connected(prof_config, status_callback=_on_status)
-        except Exception as error:
+        def _terminal_work() -> None:
+            from services.mt5_terminal_service import ensure_mt5_profile_connected
+
+            try:
+                launch = ensure_mt5_profile_connected(
+                    prof_config, status_callback=_status_from_worker
+                )
+            except Exception as error:
+                self._ui_after(
+                    lambda p=profile, e=error: self._finish_terminal_startup(p, None, e)
+                )
+                return
+            self._ui_after(
+                lambda p=profile, result=launch: self._finish_terminal_startup(p, result, None)
+            )
+
+        threading.Thread(
+            target=_terminal_work,
+            name=f"mt5-start-{profile}",
+            daemon=True,
+        ).start()
+
+    def _finish_terminal_startup(
+        self,
+        profile: str,
+        launch: Any,
+        error: BaseException | None,
+    ) -> None:
+        """Apply terminal-ensure outcome on the GUI thread; launch worker only on success."""
+        if error is not None:
             self.starting_profiles.discard(profile)
             self.startup_phase.pop(profile, None)
             self.startup_error[profile] = str(error)
@@ -3410,12 +3444,20 @@ class NativeShell:
             self._refresh_profile_controls()
             return
 
-        if not launch.ok:
+        if launch is None or not getattr(launch, "ok", False):
             self.starting_profiles.discard(profile)
             self.startup_phase.pop(profile, None)
-            reason = launch.failure_code or launch.message or "Unknown error"
-            detail = launch.message or launch.failure_code or "Unknown error"
-            self.startup_error[profile] = reason
+            reason = (
+                getattr(launch, "failure_code", None)
+                or getattr(launch, "message", None)
+                or "Unknown error"
+            )
+            detail = (
+                getattr(launch, "message", None)
+                or getattr(launch, "failure_code", None)
+                or "Unknown error"
+            )
+            self.startup_error[profile] = str(reason)
             self.log(f"❌ Failed to start {profile}: {detail}")
             self._refresh_profile_controls()
             return

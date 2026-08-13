@@ -97,6 +97,20 @@ class ProfileStartupStatusUxTests(unittest.TestCase):
         self.assertEqual(shell.rail_profile_status.text(), "Verifying account...")
         self.assertTrue(any("Verifying account" in line for line in shell.console_lines))
 
+    @staticmethod
+    def _immediate_thread_patch():
+        """Run startup worker body inline so unit tests stay deterministic."""
+
+        class _ImmediateThread:
+            def __init__(self, target=None, name=None, daemon=None, args=(), kwargs=None):
+                self._target = target
+
+            def start(self):
+                if self._target:
+                    self._target()
+
+        return patch("oak_qt_shell.threading.Thread", _ImmediateThread)
+
     def test_start_profile_fail_closed_surfaces_code(self):
         import oak_qt_shell as shell_mod
 
@@ -105,7 +119,7 @@ class ProfileStartupStatusUxTests(unittest.TestCase):
         fail = MT5LaunchResult(
             False, "", False, None, 1, None, "ACCOUNT_MISMATCH", "login mismatch"
         )
-        with patch(
+        with self._immediate_thread_patch(), patch(
             "services.mt5_terminal_service.ensure_mt5_profile_connected", return_value=fail
         ), patch.object(shell_mod.NativeShell, "_launch_worker") as launch_worker:
             shell_mod.NativeShell.start_profile(shell, "Vantage")
@@ -128,10 +142,9 @@ class ProfileStartupStatusUxTests(unittest.TestCase):
             shell.startup_phase[profile] = phase
 
         shell._publish_startup_phase = capture_phase
-        with patch(
+        with self._immediate_thread_patch(), patch(
             "services.mt5_terminal_service.ensure_mt5_profile_connected", return_value=ok
         ) as ensure, patch.object(shell_mod.NativeShell, "_launch_worker") as launch_worker:
-            # ensure must receive status_callback
             def _ensure(cfg, status_callback=None, **kw):
                 if status_callback:
                     status_callback("Checking MT5 terminal...")
@@ -143,6 +156,19 @@ class ProfileStartupStatusUxTests(unittest.TestCase):
 
         launch_worker.assert_called_once_with("Vantage")
         self.assertIn("Checking MT5 terminal...", phases)
+
+    def test_duplicate_start_blocked_before_thread(self):
+        import oak_qt_shell as shell_mod
+
+        shell = self._shell_stub()
+        shell.log = MagicMock()
+        shell.starting_profiles.add("Vantage")
+        with self._immediate_thread_patch(), patch(
+            "services.mt5_terminal_service.ensure_mt5_profile_connected"
+        ) as ensure, patch.object(shell_mod.NativeShell, "_launch_worker") as launch_worker:
+            shell_mod.NativeShell.start_profile(shell, "Vantage")
+        ensure.assert_not_called()
+        launch_worker.assert_not_called()
 
 
 if __name__ == "__main__":
