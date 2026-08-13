@@ -1,26 +1,12 @@
-import { NextResponse } from "next/server";
-import { redis, KEYS, requireAuth, canSeeVipData } from "@/lib/redis";
+import { KEYS } from "@/lib/redis";
+import { getAuditSection, postAuditSection } from "@/lib/trade-audit-route";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  if (!canSeeVipData(request)) return NextResponse.json({ error: "vip_required" }, { status: 403 });
-  try {
-    const payload = await redis.get(KEYS.auditPerformance);
-    return NextResponse.json(payload ?? null);
-  } catch {
-    return NextResponse.json(null);
-  }
+  return getAuditSection(request, KEYS.auditPerformance);
 }
 
 export async function POST(request: Request) {
-  const denied = requireAuth(request);
-  if (denied) return denied;
-  try {
-    const body = await request.json();
-    await redis.set(KEYS.auditPerformance, body);
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
-  }
+  return postAuditSection(request, KEYS.auditPerformance);
 }

@@ -12,7 +12,7 @@ import json
 import os
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from oak_logger import setup_logger
@@ -20,6 +20,16 @@ from oak_logger import setup_logger
 log = setup_logger("audit_dashboard_pub")
 
 DEFAULT_PUBLIC_ALIAS = "OAK Trader"
+
+# Public portal period windows (calendar days, UTC lower bound).
+PUBLIC_PERIOD_DAYS = {
+    "all": None,
+    "1w": 7,
+    "1m": 30,
+    "3m": 90,
+    "6m": 180,
+    "1y": 365,
+}
 
 # Relative endpoints for the trade audit dashboard.
 _ENDPOINTS = {
@@ -89,6 +99,32 @@ def public_trade_id(account_uid, position_id, secret):
 def public_alias_for(account):
     """Return the public alias for an account dict, or the default."""
     return account.get("public_alias") or DEFAULT_PUBLIC_ALIAS
+
+
+def public_account_id(account_uid, secret=""):
+    """Stable public-safe account identifier (non-reversible).
+
+    Safe to expose in URLs/Redis namespaces. Never equals the raw internal uid.
+    """
+    canonical = f"account::{account_uid}"
+    if secret:
+        digest = hmac.new(
+            secret.encode("utf-8"), canonical.encode("utf-8"), hashlib.sha256
+        ).hexdigest()
+    else:
+        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return digest[:16]
+
+
+def period_since_utc(period_key, now=None):
+    """UTC lower bound for a public period key; None = all history."""
+    days = PUBLIC_PERIOD_DAYS.get(period_key)
+    if days is None:
+        return None
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    return now - timedelta(days=int(days))
 
 
 # ---------------------------------------------------------------------- #
@@ -281,14 +317,27 @@ class AuditDashboardPublisher:
             })
         return result[:limit]
 
-    def build_performance(self, account_uid):
-        """Public-safe performance metrics (subset of calculator output)."""
-        perf = self._calc.compute(account_uid)
+    def _public_perf_slice(self, account_uid, period_key, now=None):
+        """Canonical performance for one period window (backend-computed)."""
+        since = period_since_utc(period_key, now=now)
+        perf = self._calc.compute(account_uid, since_utc=since)
         out = {k: perf.get(k) for k in _PUBLIC_PERF_KEYS if k in perf}
-        # Explicit period semantics for public portal (all-history canonical push).
-        out["period_key"] = "all"
-        out["period_label"] = "all_history"
-        out["since_utc"] = None
+        out["period_key"] = period_key
+        out["period_label"] = "all_history" if period_key == "all" else period_key
+        out["since_utc"] = since.isoformat() if since is not None else None
+        out["available"] = bool(out.get("closed_trade_count") or out.get("current_equity") is not None)
+        return out
+
+    def build_performance(self, account_uid):
+        """Public-safe performance: all-history plus by_period canonical slices."""
+        now = datetime.now(timezone.utc)
+        by_period = {
+            key: self._public_perf_slice(account_uid, key, now=now)
+            for key in PUBLIC_PERIOD_DAYS
+        }
+        # Top-level remains all-history for backward-compatible consumers.
+        out = dict(by_period["all"])
+        out["by_period"] = by_period
         return out
 
     def build_equity(self, account_uid, limit=2000):
@@ -387,8 +436,12 @@ class AuditDashboardPublisher:
         }
 
     def build_all(self, account_uid):
-        """Build all sections into a single dict."""
+        """Build all sections into a single dict (namespaced by public account id)."""
+        acct = self._account_dict(account_uid)
+        pub_id = public_account_id(account_uid, self._secret)
         return {
+            "public_account_id": pub_id,
+            "alias": public_alias_for(acct),
             "overview":     self.build_overview(account_uid),
             "positions":    self.build_positions(account_uid),
             "checkpoints":  self.build_checkpoints(account_uid),
@@ -421,13 +474,31 @@ class AuditDashboardPublisher:
             headers["X-API-Key"] = self._api_key
 
         payloads = self.build_all(account_uid)
+        pub_id = payloads.get("public_account_id") or public_account_id(account_uid, self._secret)
         results = {}
         all_ok = True
+
+        # Register public account metadata (alias only — no secrets).
+        try:
+            reg_body = json.dumps({
+                "public_account_id": pub_id,
+                "alias": payloads.get("alias") or DEFAULT_PUBLIC_ALIAS,
+            }, ensure_ascii=False).encode("utf-8")
+            reg_url = f"{base}/api/trade-audit/accounts?account={pub_id}"
+            reg_req = urllib.request.Request(
+                reg_url, data=reg_body, headers=headers, method="POST",
+            )
+            with urllib.request.urlopen(reg_req, timeout=15) as resp:
+                results["accounts"] = {"ok": True, "status": resp.status, "error": None}
+        except Exception as exc:
+            results["accounts"] = {"ok": False, "status": None, "error": str(exc)}
+            all_ok = False
 
         for section, endpoint in _ENDPOINTS.items():
             data = payloads.get(section)
             payload_bytes = json.dumps(data, ensure_ascii=False).encode("utf-8")
-            url = f"{base}{endpoint}"
+            # Namespace every section by public account id (multi-profile isolation).
+            url = f"{base}{endpoint}?account={pub_id}"
             try:
                 req = urllib.request.Request(
                     url, data=payload_bytes, headers=headers, method="POST",
@@ -444,4 +515,4 @@ class AuditDashboardPublisher:
                 results[section] = {"ok": False, "status": None, "error": str(exc)}
                 all_ok = False
 
-        return {"pushed": all_ok, "results": results}
+        return {"pushed": all_ok, "results": results, "public_account_id": pub_id}

@@ -33,7 +33,21 @@ export const KEYS = {
   auditRisk: "sltp:trade-audit:risk",
   auditInfo: "sltp:trade-audit:audit",
   auditEquity: "sltp:trade-audit:equity",
+  /** Registry of public account ids → {alias} (no secrets). */
+  auditAccounts: "sltp:trade-audit:accounts",
 };
+
+export { isPublicAccountId, auditKey as auditKeyPure } from "./public-account-id";
+import { isPublicAccountId, auditKey as _auditKeyPure } from "./public-account-id";
+
+/** Namespaced Redis key for multi-profile isolation. Falls back to legacy single-slot key. */
+export function auditKey(section: keyof typeof KEYS | string, accountId?: string | null): string {
+  const base =
+    typeof section === "string" && section.startsWith("sltp:")
+      ? section
+      : (KEYS as Record<string, string>)[section as string] || `sltp:trade-audit:${section}`;
+  return _auditKeyPure(base, accountId);
+}
 
 // API auth helper — rejects write requests without valid key.
 // IMPORTANT: Set DASHBOARD_API_KEY in .env.local for local dev too.

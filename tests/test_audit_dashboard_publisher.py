@@ -277,13 +277,16 @@ class TestBuildAllContainsAllSections(AuditDashboardPublisherTestCase):
 
         self.assertIsInstance(result, dict)
         for key in ("overview", "positions", "checkpoints", "ledger",
-                     "performance", "risk", "audit", "equity"):
+                     "performance", "risk", "audit", "equity",
+                     "public_account_id", "alias"):
             self.assertIn(key, result)
         self.assertIsInstance(result["overview"], dict)
         self.assertIsInstance(result["positions"], list)
         self.assertIsInstance(result["checkpoints"], list)
         self.assertIsInstance(result["ledger"], list)
         self.assertIsInstance(result["performance"], dict)
+        self.assertIn("by_period", result["performance"])
+        self.assertIn("1m", result["performance"]["by_period"])
         self.assertIsInstance(result["risk"], dict)
         self.assertIsInstance(result["audit"], dict)
         self.assertIsInstance(result["equity"], list)
@@ -346,7 +349,8 @@ class TestPushAllPostsToEndpointsWithApiKey(AuditDashboardPublisherTestCase):
             result = pub.push_all(self.account_uid)
 
         self.assertTrue(result["pushed"])
-        self.assertEqual(len(captured_requests), 8)
+        # 8 data sections + accounts registry registration
+        self.assertEqual(len(captured_requests), 9)
 
         # Verify API key header on every request.
         # NOTE: Python Request.add_header capitalizes the first letter and
@@ -355,12 +359,14 @@ class TestPushAllPostsToEndpointsWithApiKey(AuditDashboardPublisherTestCase):
             self.assertEqual(req.get_header("X-api-key"), "my-secret-key")
             self.assertEqual(req.method, "POST")
             self.assertIn("/api/trade-audit/", req.full_url)
+            self.assertIn("account=", req.full_url)
 
         # Verify all public endpoint sections returned ok=True.
         for section in ("overview", "positions", "checkpoints", "ledger",
-                         "performance", "risk", "audit", "equity"):
+                         "performance", "risk", "audit", "equity", "accounts"):
             self.assertTrue(result["results"][section]["ok"],
                             f"Section {section} should be ok=True")
+        self.assertIn("public_account_id", result)
 
 
 class TestPushAllContinuesOnEndpointError(AuditDashboardPublisherTestCase):
@@ -397,11 +403,12 @@ class TestPushAllContinuesOnEndpointError(AuditDashboardPublisherTestCase):
 
         # Overall pushed=False because one endpoint failed.
         self.assertFalse(result["pushed"])
-        # Second endpoint (positions) failed.
-        self.assertFalse(result["results"]["positions"]["ok"])
-        self.assertEqual(result["results"]["positions"]["status"], 500)
+        # Call order: accounts (1), then overview (2 fails), then remaining.
+        self.assertFalse(result["results"]["overview"]["ok"])
+        self.assertEqual(result["results"]["overview"]["status"], 500)
         # Other endpoints succeeded.
-        self.assertTrue(result["results"]["overview"]["ok"])
+        self.assertTrue(result["results"]["accounts"]["ok"])
+        self.assertTrue(result["results"]["positions"]["ok"])
         self.assertTrue(result["results"]["checkpoints"]["ok"])
         self.assertTrue(result["results"]["ledger"]["ok"])
         self.assertTrue(result["results"]["performance"]["ok"])
@@ -446,9 +453,11 @@ class TestEmptyAccountBuildsDoNotRaise(AuditDashboardPublisherTestCase):
 
         # build_all must also not raise.
         all_data = pub.build_all(self.account_uid)
-        self.assertEqual(set(all_data.keys()),
-                         {"overview", "positions", "checkpoints", "ledger",
-                          "performance", "risk", "audit", "equity"})
+        self.assertTrue(
+            {"overview", "positions", "checkpoints", "ledger",
+             "performance", "risk", "audit", "equity",
+             "public_account_id", "alias"}.issubset(set(all_data.keys()))
+        )
 
         # push_all without url must not raise.
         push_result = pub.push_all(self.account_uid)

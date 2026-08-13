@@ -137,7 +137,23 @@ function Empty({ text }: { text: string }) {
   );
 }
 
-function KpiCard({ label, value, tone, locale }: { label: string; value: string; tone?: "pos" | "neg" | "warn" | "idle"; locale: Locale }) {
+function KpiCard({
+  label,
+  value,
+  tone,
+  locale,
+  periodLabel,
+  openHelp,
+  onToggleHelp,
+}: {
+  label: string;
+  value: string;
+  tone?: "pos" | "neg" | "warn" | "idle";
+  locale: Locale;
+  periodLabel?: string;
+  openHelp: boolean;
+  onToggleHelp: () => void;
+}) {
   const help = KPI_HELP[label];
   const toneCls =
     tone === "pos"
@@ -152,17 +168,27 @@ function KpiCard({ label, value, tone, locale }: { label: string; value: string;
       <div className="mb-1 flex items-start justify-between gap-2">
         <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">{label}</div>
         {help && (
-          <details className="relative shrink-0">
-            <summary
-              className="grid h-5 w-5 cursor-pointer list-none place-items-center rounded-full border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[11px] font-black text-[var(--foreground)] hover:border-[var(--terminal-accent)] hover:text-[var(--terminal-accent)]"
+          <div className="relative shrink-0">
+            <button
+              type="button"
+              onClick={onToggleHelp}
+              className="grid h-5 w-5 place-items-center rounded-full border border-[var(--panel-border)] bg-[var(--surface-raised)] text-[11px] font-black text-[var(--foreground)] hover:border-[var(--terminal-accent)] hover:text-[var(--terminal-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]"
               aria-label={`Explain ${label}`}
+              aria-expanded={openHelp}
             >
               ?
-            </summary>
-            <div className="absolute right-0 top-7 z-30 w-72 rounded-lg border border-[var(--panel-border)] bg-[var(--surface)] p-3 text-[12px] font-medium leading-5 text-[var(--foreground)] shadow-xl">
-              {locale === "VN" ? help.vn : help.en}
-            </div>
-          </details>
+            </button>
+            {openHelp && (
+              <div className="absolute right-0 top-7 z-30 w-72 rounded-lg border border-[var(--panel-border)] bg-[var(--surface)] p-3 text-[12px] font-medium leading-5 text-[var(--foreground)] shadow-xl">
+                <p>{locale === "VN" ? help.vn : help.en}</p>
+                {periodLabel && (
+                  <p className="mt-2 text-[11px] text-[var(--muted)]">
+                    {locale === "VN" ? `Kỳ đang chọn: ${periodLabel}` : `Selected period: ${periodLabel}`}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         )}
       </div>
       <div className={`font-mono text-lg font-black tabular-nums ${toneCls}`}>{value}</div>
@@ -248,8 +274,21 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
   const [resultFilter, setResultFilter] = useState("all");
   const [capital, setCapital] = useState("1000");
   const [calcMode, setCalcMode] = useState<"simple" | "compound">("simple");
+  const [openHelpLabel, setOpenHelpLabel] = useState<string | null>(null);
 
   const since = useMemo(() => periodSinceUtc(period), [period]);
+
+  /** Canonical backend period slice when by_period is present. */
+  const periodPerf = useMemo(() => {
+    if (!performance) return null;
+    const by = performance.by_period as Record<string, Record<string, unknown>> | undefined;
+    if (by && by[period]) return by[period];
+    // Without by_period, only all-history is authoritative — do not fake period KPIs.
+    if (period === "all") return performance;
+    return null;
+  }, [performance, period]);
+
+  const periodUiLabel = PERIODS.find((p) => p.key === period)?.[locale === "VN" ? "vn" : "en"] || period;
 
   const equityPoints = useMemo(() => {
     const arr = Array.isArray(equity) ? equity : [];
@@ -280,14 +319,14 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
 
   const periodNote =
     locale === "VN"
-      ? "KPI canonical từ backend (all-history). Bộ lọc kỳ áp dụng cho chart equity và sổ giao dịch theo timestamp."
-      : "Canonical KPIs from backend (all-history). Period filter applies to equity charts and ledger timestamps.";
+      ? "KPI theo kỳ do backend tính (by_period). Equity/history dùng cùng mốc since_utc."
+      : "Period KPIs are backend-computed (by_period). Equity/history use the same since_utc bound.";
 
   const histReturn =
-    performance?.trading_return_pct != null && Number.isFinite(Number(performance.trading_return_pct))
-      ? Number(performance.trading_return_pct)
-      : performance?.trading_return != null && Number.isFinite(Number(performance.trading_return))
-        ? Number(performance.trading_return)
+    periodPerf?.trading_return_pct != null && Number.isFinite(Number(periodPerf.trading_return_pct))
+      ? Number(periodPerf.trading_return_pct)
+      : periodPerf?.trading_return != null && Number.isFinite(Number(periodPerf.trading_return))
+        ? Number(periodPerf.trading_return)
         : null;
 
   const calc = computeInvestment(
@@ -336,8 +375,9 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
         noTrades: "Không có giao dịch trong kỳ đã chọn",
       };
 
-  const net = Number(performance?.net_profit);
-  const wr = Number(performance?.win_rate);
+  const net = Number(periodPerf?.net_profit);
+  const wr = Number(periodPerf?.win_rate);
+  const toggleHelp = (label: string) => setOpenHelpLabel((cur) => (cur === label ? null : label));
 
   return (
     <div className="space-y-6">
@@ -387,22 +427,37 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
       {/* KPIs */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
         <h3 className="mb-4 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.kpis}</h3>
-        {performance ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            <KpiCard label="Net P&L" value={fmtCur(performance.net_profit, currency)} tone={net >= 0 ? "pos" : "neg"} locale={locale} />
-            <KpiCard label="Trading return" value={fmtPct(performance.trading_return_pct ?? performance.trading_return, true)} locale={locale} />
-            <KpiCard label="Win rate" value={fmtPct(wr, true)} tone={wr > 0.5 ? "pos" : wr > 0 ? "neg" : "idle"} locale={locale} />
-            <KpiCard label="Profit factor" value={fmtDec(performance.profit_factor)} locale={locale} />
-            <KpiCard label="Expectancy" value={fmtCur(performance.expectancy, currency)} locale={locale} />
-            <KpiCard label="Max drawdown" value={fmtCur(performance.max_equity_drawdown, currency)} tone="warn" locale={locale} />
-            <KpiCard label="Current drawdown" value={fmtCur(performance.current_drawdown, currency)} tone="warn" locale={locale} />
-            <KpiCard label="Avg win" value={fmtCur(performance.average_win, currency)} tone="pos" locale={locale} />
-            <KpiCard label="Avg loss" value={fmtCur(performance.average_loss, currency)} tone="neg" locale={locale} />
-            <KpiCard label="Account growth" value={fmtPct(performance.account_growth_pct ?? performance.account_growth, true)} locale={locale} />
-            <KpiCard label="Trades" value={String(performance.closed_trade_count ?? "—")} locale={locale} />
-          </div>
+        {!periodPerf ? (
+          <Empty text={locale === "VN" ? "Chưa có đủ dữ liệu trong khoảng thời gian này." : "Insufficient data for this period."} />
         ) : (
-          <Empty text={locale === "VN" ? "Chưa có dữ liệu hiệu suất" : "No performance data"} />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {(
+              [
+                ["Net P&L", fmtCur(periodPerf.net_profit, currency), net >= 0 ? "pos" : "neg"],
+                ["Trading return", fmtPct(periodPerf.trading_return_pct ?? periodPerf.trading_return, true), "idle"],
+                ["Win rate", fmtPct(wr, true), wr > 0.5 ? "pos" : wr > 0 ? "neg" : "idle"],
+                ["Profit factor", fmtDec(periodPerf.profit_factor), "idle"],
+                ["Expectancy", fmtCur(periodPerf.expectancy, currency), "idle"],
+                ["Max drawdown", fmtCur(periodPerf.max_equity_drawdown, currency), "warn"],
+                ["Current drawdown", fmtCur(periodPerf.current_drawdown, currency), "warn"],
+                ["Avg win", fmtCur(periodPerf.average_win, currency), "pos"],
+                ["Avg loss", fmtCur(periodPerf.average_loss, currency), "neg"],
+                ["Account growth", fmtPct(periodPerf.account_growth_pct ?? periodPerf.account_growth, true), "idle"],
+                ["Trades", String(periodPerf.closed_trade_count ?? "—"), "idle"],
+              ] as const
+            ).map(([label, value, tone]) => (
+              <KpiCard
+                key={label}
+                label={label}
+                value={value}
+                tone={tone as "pos" | "neg" | "warn" | "idle"}
+                locale={locale}
+                periodLabel={periodUiLabel}
+                openHelp={openHelpLabel === label}
+                onToggleHelp={() => toggleHelp(label)}
+              />
+            ))}
+          </div>
         )}
       </section>
 
@@ -527,10 +582,25 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
         <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
           <h3 className="mb-3 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.strategy}</h3>
           <div className="grid grid-cols-2 gap-3">
-            <KpiCard label="Trades" value={String(performance?.closed_trade_count ?? "—")} locale={locale} />
-            <KpiCard label="Max drawdown" value={fmtCur(performance?.max_equity_drawdown, currency)} tone="warn" locale={locale} />
-            <KpiCard label="Win rate" value={fmtPct(performance?.win_rate, true)} locale={locale} />
-            <KpiCard label="Profit factor" value={fmtDec(performance?.profit_factor)} locale={locale} />
+            {(
+              [
+                ["Trades", String(periodPerf?.closed_trade_count ?? "—"), "idle"],
+                ["Max drawdown", fmtCur(periodPerf?.max_equity_drawdown, currency), "warn"],
+                ["Win rate", fmtPct(periodPerf?.win_rate, true), "idle"],
+                ["Profit factor", fmtDec(periodPerf?.profit_factor), "idle"],
+              ] as const
+            ).map(([label, value, tone]) => (
+              <KpiCard
+                key={`s-${label}`}
+                label={label}
+                value={value}
+                tone={tone as "idle" | "warn"}
+                locale={locale}
+                periodLabel={periodUiLabel}
+                openHelp={openHelpLabel === `s-${label}`}
+                onToggleHelp={() => toggleHelp(`s-${label}`)}
+              />
+            ))}
           </div>
           {risk?.exposure_by_direction && typeof risk.exposure_by_direction === "object" ? (
             <div className="mt-3 flex flex-wrap gap-2">

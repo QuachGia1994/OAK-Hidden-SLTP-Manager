@@ -1,4 +1,4 @@
-import { redis, KEYS } from "./redis";
+import { redis, KEYS, auditKey, isPublicAccountId } from "./redis";
 
 export interface TradeAuditPayloads {
   overview: unknown | null;
@@ -9,83 +9,86 @@ export interface TradeAuditPayloads {
   risk: unknown | null;
   audit: unknown | null;
   equity: unknown | null;
+  public_account_id?: string | null;
+}
+
+export interface PublicAccountMeta {
+  public_account_id: string;
+  alias: string;
+}
+
+async function getSection(baseKey: string, accountId?: string | null): Promise<unknown | null> {
+  try {
+    const key = auditKey(baseKey, accountId);
+    const val = await redis.get(key);
+    if (val != null) return val;
+    // Legacy single-slot fallback only when no account requested.
+    if (!accountId) return (await redis.get(baseKey)) ?? null;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function listPublicAccounts(): Promise<PublicAccountMeta[]> {
+  try {
+    const registry = (await redis.get(KEYS.auditAccounts)) as PublicAccountMeta[] | null;
+    if (!Array.isArray(registry)) return [];
+    return registry.filter(
+      (e) => e && isPublicAccountId(e.public_account_id) && typeof e.alias === "string",
+    );
+  } catch {
+    return [];
+  }
+}
+
+export async function getTradeAuditAll(accountId?: string | null): Promise<TradeAuditPayloads> {
+  const account = accountId && isPublicAccountId(accountId) ? accountId.toLowerCase() : null;
+  const [overview, positions, checkpoints, ledger, performance, risk, audit, equity] =
+    await Promise.all([
+      getSection(KEYS.auditOverview, account),
+      getSection(KEYS.auditPositions, account),
+      getSection(KEYS.auditCheckpoints, account),
+      getSection(KEYS.auditLedger, account),
+      getSection(KEYS.auditPerformance, account),
+      getSection(KEYS.auditRisk, account),
+      getSection(KEYS.auditInfo, account),
+      getSection(KEYS.auditEquity, account),
+    ]);
+  return {
+    overview,
+    positions,
+    checkpoints,
+    ledger,
+    performance,
+    risk,
+    audit,
+    equity,
+    public_account_id: account,
+  };
 }
 
 export async function getTradeAuditOverview(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditOverview)) ?? null;
-  } catch {
-    return null;
-  }
+  return getSection(KEYS.auditOverview, null);
 }
-
 export async function getTradeAuditPositions(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditPositions)) ?? null;
-  } catch {
-    return null;
-  }
+  return getSection(KEYS.auditPositions, null);
 }
-
 export async function getTradeAuditCheckpoints(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditCheckpoints)) ?? null;
-  } catch {
-    return null;
-  }
+  return getSection(KEYS.auditCheckpoints, null);
 }
-
 export async function getTradeAuditLedger(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditLedger)) ?? null;
-  } catch {
-    return null;
-  }
+  return getSection(KEYS.auditLedger, null);
 }
-
 export async function getTradeAuditPerformance(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditPerformance)) ?? null;
-  } catch {
-    return null;
-  }
+  return getSection(KEYS.auditPerformance, null);
 }
-
 export async function getTradeAuditRisk(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditRisk)) ?? null;
-  } catch {
-    return null;
-  }
+  return getSection(KEYS.auditRisk, null);
 }
-
 export async function getTradeAuditInfo(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditInfo)) ?? null;
-  } catch {
-    return null;
-  }
+  return getSection(KEYS.auditInfo, null);
 }
-
 export async function getTradeAuditEquity(): Promise<unknown | null> {
-  try {
-    return (await redis.get(KEYS.auditEquity)) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export async function getTradeAuditAll(): Promise<TradeAuditPayloads> {
-  const [overview, positions, checkpoints, ledger, performance, risk, audit, equity] =
-    await Promise.all([
-      getTradeAuditOverview(),
-      getTradeAuditPositions(),
-      getTradeAuditCheckpoints(),
-      getTradeAuditLedger(),
-      getTradeAuditPerformance(),
-      getTradeAuditRisk(),
-      getTradeAuditInfo(),
-      getTradeAuditEquity(),
-    ]);
-  return { overview, positions, checkpoints, ledger, performance, risk, audit, equity };
+  return getSection(KEYS.auditEquity, null);
 }
