@@ -3895,17 +3895,25 @@ class NativeShell:
                 self.signal_supervisor.cleanup()
             except Exception:
                 pass
+
+        # Stop profile workers this shell owns before teardown (prevents orphan interpreters).
+        owned_profiles = list((getattr(self, "monitor_processes", None) or {}).keys())
+        for profile in owned_profiles:
+            try:
+                self._stop_owned_monitor(profile, wait_ms=2000)
+            except Exception:
+                pass
+
         processes: list[Any] = []
         for attr in ("eod_update_process", "stock_process"):
             proc = getattr(self, attr, None)
             if proc is not None:
                 processes.append(proc)
                 setattr(self, attr, None)
-        for mapping in ("monitor_processes", "signal_processes"):
-            mapping_obj = getattr(self, mapping, None) or {}
-            for proc in list(mapping_obj.values()):
-                processes.append(proc)
-            mapping_obj.clear()
+        signal_map = getattr(self, "signal_processes", None) or {}
+        for proc in list(signal_map.values()):
+            processes.append(proc)
+        signal_map.clear()
         for proc in processes:
             try:
                 proc.disconnect()
@@ -4208,6 +4216,52 @@ class NativeShell:
     def stop_selected(self) -> None:
         self.stop_profile(self.selected)
 
+    def _stop_owned_monitor(self, profile: str, *, wait_ms: int = 2500) -> None:
+        """Stop a worker QProcess this shell owns and any matching lock-holder interpreter.
+
+        Ownership gate: only profiles present in ``monitor_processes`` are stopped here.
+        Never kills unrelated MT5 terminals or foreign-shell workers.
+        """
+        proc = (getattr(self, "monitor_processes", None) or {}).get(profile)
+        if proc is not None:
+            try:
+                proc.disconnect()
+            except (RuntimeError, TypeError, AttributeError):
+                pass
+            try:
+                if proc.state() != QT.NotRunning:
+                    proc.terminate()
+                    finished = False
+                    try:
+                        finished = bool(proc.waitForFinished(int(wait_ms)))
+                    except (RuntimeError, TypeError, AttributeError):
+                        finished = False
+                    if not finished:
+                        try:
+                            if proc.state() != QT.NotRunning:
+                                proc.kill()
+                                proc.waitForFinished(500)
+                        except (RuntimeError, TypeError, AttributeError):
+                            pass
+            except (RuntimeError, TypeError, AttributeError):
+                pass
+            mapping = getattr(self, "monitor_processes", None) or {}
+            if mapping.get(profile) is proc:
+                mapping.pop(profile, None)
+
+        # QProcess often tracks only the pythonw launcher; the interpreter may still hold the lock.
+        holder = worker_lock_holder_pid(profile)
+        if holder and is_project_profile_worker_pid(holder, profile):
+            force_kill_pid(holder)
+            # Brief settle so tasklist / lock checks see the death.
+            try:
+                time.sleep(0.15)
+            except Exception:
+                pass
+
+        if reconcile_worker_lock_file(profile):
+            self.log(f"Cleared stale worker lock for {profile}")
+
     def stop_profile(self, profile: str) -> None:
         # Invalidate any in-flight startup first so a late ensure cannot launch a worker.
         cancelled_startup = self._invalidate_startup_op(profile)
@@ -4224,17 +4278,10 @@ class NativeShell:
             elif not cancelled_startup:
                 self.log(f"No live monitor for {profile or 'selected profile'}.")
             return
-        proc.terminate()
 
-        def _force_stop_and_reconcile(p=proc, n=profile):
-            if p.state() != QT.NotRunning:
-                p.kill()
-            # Kill path skips worker finally; reconcile even if finished signal is delayed.
-            if reconcile_worker_lock_file(n):
-                self.log(f"Cleared stale worker lock for {n}")
-
-        QT.QTimer.singleShot(2500, _force_stop_and_reconcile)
+        self._stop_owned_monitor(profile, wait_ms=2500)
         self.log(f"Stopping monitor: {profile}")
+        self._refresh_profile_controls()
 
     def _append_console_line(self, message: str) -> None:
         stamp = datetime.now().strftime("%H:%M:%S")
@@ -4435,6 +4482,74 @@ def reconcile_worker_lock_file(profile_name: str) -> bool:
         lock_path.unlink(missing_ok=True)
         return True
     except OSError:
+        return False
+
+
+def worker_lock_holder_pid(profile_name: str) -> int | None:
+    """Return the PID recorded in ``worker_{profile}.lock``, if any."""
+    lock_path = worker_lock_path(profile_name)
+    if not lock_path.exists():
+        return None
+    try:
+        raw = (lock_path.read_text(encoding="utf-8") or "").strip()
+        pid = int(raw or "0")
+        return pid or None
+    except (OSError, ValueError):
+        return None
+
+
+def is_project_profile_worker_pid(pid: int, profile_name: str) -> bool:
+    """True when *pid* is a live project worker for *profile_name* (command-line match)."""
+    if not pid or not _pid_is_running(pid):
+        return False
+    try:
+        if os.name == "nt":
+            import subprocess as _sp
+
+            r = _sp.run(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-Command",
+                    f"(Get-CimInstance Win32_Process -Filter \"ProcessId={int(pid)}\").CommandLine",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=_sp.CREATE_NO_WINDOW if hasattr(_sp, "CREATE_NO_WINDOW") else 0,
+            )
+            cmd = (r.stdout or "").strip()
+        else:
+            cmd = Path(f"/proc/{pid}/cmdline").read_text(errors="replace").replace("\x00", " ")
+    except Exception:
+        return False
+    if not cmd:
+        return False
+    if "OAK_Hidden_SLTP_Manager" not in cmd and "--worker" not in cmd:
+        return False
+    # Require exact profile token to avoid Vantage matching VantageDemo.
+    return bool(re.search(rf"--profile\s+{re.escape(profile_name)}(?:\s|$)", cmd))
+
+
+def force_kill_pid(pid: int) -> bool:
+    """Best-effort terminate a single PID (Windows taskkill /F)."""
+    if not pid:
+        return False
+    try:
+        if os.name == "nt":
+            import subprocess as _sp
+
+            r = _sp.run(
+                ["taskkill", "/F", "/PID", str(int(pid))],
+                capture_output=True,
+                text=True,
+                timeout=8,
+                creationflags=_sp.CREATE_NO_WINDOW if hasattr(_sp, "CREATE_NO_WINDOW") else 0,
+            )
+            return r.returncode == 0 or not _pid_is_running(pid)
+        os.kill(int(pid), 9)
+        return True
+    except Exception:
         return False
 
 
