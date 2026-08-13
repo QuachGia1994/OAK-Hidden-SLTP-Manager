@@ -54,6 +54,14 @@ class MonitorWorker(threading.Thread):
         self._telegram_backoff_until = 0.0
         self._telegram_degraded_logged = False
 
+        # --- PROFILE-SCOPED ACCOUNT AUDIT ---
+        # Analysis performance/history is sourced from the trade-audit ledger.
+        # Keep one audit service bound to this worker's already-connected MT5
+        # session so every started profile continuously hydrates its own ledger.
+        self._audit_service = None
+        self._audit_store = None
+        self._last_audit_tick = 0.0
+
         # --- INTEGRATE REMINDER SERVICE ---
         from secret_store import resolve_telegram_token
         raw_token = self.config.get("tele_token", "")
@@ -404,6 +412,115 @@ class MonitorWorker(threading.Thread):
         except Exception as error:
             return None, f"không đọc được constraint ({error})"
 
+    def _init_account_audit(self, account):
+        """Bind the profile-scoped audit service to this worker's MT5 session.
+
+        The audit service is read-only with respect to MT5: it uses account_info,
+        positions_get and history_deals_get for the ledger, and never sends orders.
+        This makes Analysis data available for every profile that is actually run,
+        instead of depending on a separately launched audit process for one profile.
+        """
+        try:
+            from repositories.trade_audit_store import TradeAuditStore
+            from services.mt5_deal_reconciler import MT5DealReconciler
+            from services.checkpoint_engine import CheckpointEngine
+            from services.equity_sampler import EquitySampler
+            from services.performance_calculator import PerformanceCalculator
+            from services.audit_dashboard_publisher import AuditDashboardPublisher
+            from services.account_audit_service import (
+                AccountAuditService,
+                broker_time_from_mt5,
+                account_info_dict,
+            )
+
+            profile_name = str(self.config.get("profile_name", "") or "")
+            broker_name = str(self.config.get("broker", "") or getattr(account, "company", "") or "")
+            currency = str(self.config.get("currency", "") or getattr(account, "currency", "") or "")
+            login = getattr(account, "login", None)
+            server = str(getattr(account, "server", "") or "")
+            account_uid = f"{login}@{server}" if login is not None and server else ""
+            if not profile_name or not account_uid:
+                return False
+
+            self._audit_store = TradeAuditStore(read_only=True)
+            reconciler = MT5DealReconciler(self._audit_store, mt5)
+            engine = CheckpointEngine(self._audit_store, reconciler)
+            sampler = EquitySampler(self._audit_store, interval_seconds=60)
+            publisher = AuditDashboardPublisher(
+                self._audit_store,
+                calculator=PerformanceCalculator(self._audit_store),
+            )
+
+            def broker_time_provider():
+                return broker_time_from_mt5(mt5)
+
+            def account_info_provider():
+                info = mt5.account_info()
+                return account_info_dict(
+                    info,
+                    profile_name=profile_name,
+                    broker=broker_name,
+                )
+
+            def positions_provider():
+                try:
+                    return list(mt5.positions_get() or [])
+                except Exception:
+                    return []
+
+            self._audit_service = AccountAuditService(
+                self._audit_store,
+                account_uid,
+                broker_time_provider=broker_time_provider,
+                account_info_provider=account_info_provider,
+                positions_provider=positions_provider,
+                reconciler=reconciler,
+                engine=engine,
+                sampler=sampler,
+                publisher=publisher,
+                profile_name=profile_name,
+                broker=broker_name,
+                currency=currency,
+                tick_interval_seconds=30,
+                sample_interval_seconds=60,
+            )
+            self._last_audit_tick = 0.0
+            self.log(f"[AUDIT] Profile={profile_name} account={account_uid} bound")
+            return True
+        except Exception as exc:
+            self._audit_service = None
+            if self._audit_store is not None:
+                try:
+                    self._audit_store.close()
+                except Exception:
+                    pass
+            self._audit_store = None
+            self.log(f"[AUDIT] Profile={self.config.get('profile_name', '')} unavailable: {exc}")
+            return False
+
+    def _tick_account_audit(self):
+        """Hydrate this profile's audit ledger without affecting trading execution."""
+        if self._audit_service is None:
+            return
+        now = time.monotonic()
+        if now - self._last_audit_tick < 5.0:
+            return
+        self._last_audit_tick = now
+        try:
+            self._audit_service.tick()
+        except Exception as exc:
+            self.log(f"[AUDIT] tick failed for {self.config.get('profile_name', '')}: {exc}")
+
+    def _close_account_audit(self):
+        """Release the profile's audit store on worker shutdown."""
+        self._audit_service = None
+        if self._audit_store is not None:
+            try:
+                self._audit_store.close()
+            except Exception:
+                pass
+            self._audit_store = None
+
     def run(self):
         try:
             self.log("Worker thread started...") # Debug log
@@ -548,6 +665,11 @@ class MonitorWorker(threading.Thread):
                 if not terminal.trade_allowed:
                     self.notify(T("err_algo"))
                     winsound.Beep(2000, 1000)
+
+            # Bind the audit ledger only after this profile's MT5 session is
+            # verified. This is deliberately profile-scoped and read-only.
+            if account:
+                self._init_account_audit(account)
 
             start_msg = T("log_monitor_start")
             self.log(start_msg)
@@ -723,6 +845,10 @@ class MonitorWorker(threading.Thread):
                         except Exception:
                             pass
 
+                    # Keep this profile's Analysis audit ledger hydrated from
+                    # the same verified MT5 session. No order API is called here.
+                    self._tick_account_audit()
+
                     # Auto Reconnect MT5 (Every 10s if needed)
                     if time.time() - last_reconnect_check > 10.0:
                         last_reconnect_check = time.time()
@@ -738,6 +864,8 @@ class MonitorWorker(threading.Thread):
                                 acc = mt5.account_info()
                                 if acc:
                                     bind_live_mt5_account_identity(self.config, acc)
+                                    if self._audit_service is None:
+                                        self._init_account_audit(acc)
                                     if getattr(self, "ghost_op", None) is not None and self.config.get("login_id") not in (None, ""):
                                         try:
                                             self.ghost_op.login_id = self.config.get("login_id")
@@ -1209,5 +1337,6 @@ class MonitorWorker(threading.Thread):
             self.log(f"Runtime Error: {e}")
             self.send_telegram(f"⚠️ Runtime Error: {e}")
         finally:
+            self._close_account_audit()
             mt5.shutdown()
             self.log(T("log_monitor_stop"))
