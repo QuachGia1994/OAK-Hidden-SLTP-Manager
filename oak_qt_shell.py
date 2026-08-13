@@ -1162,6 +1162,13 @@ class NativeShell:
         self.analysis_positions_table = None
         self.analysis_performance_summary = None
         self.analysis_equity_table = None
+        self.analysis_equity_chart = None
+        self.analysis_equity_chart_view = None
+        self.analysis_equity_status = None
+        self.analysis_kpi_host = None
+        self.analysis_kpi_layout = None
+        self.analysis_kpi_cards: dict[str, Any] = {}
+        self._analysis_chart_types: dict[str, Any] = {}
         self.analysis_history_table = None
         self.analysis_checkpoint_table = None
         self.analysis_news_table = None
@@ -1767,7 +1774,8 @@ class NativeShell:
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(10)
         self.analysis_positions_table = self._analysis_table(
-            ["Symbol", "Direction", "Volume", "Open price", "Source"], stretch=4
+            ["Symbol", "Direction", "Volume", "Open price", "Current", "P/L", "Source"],
+            stretch=0,
         )
         right_layout.addWidget(self.analysis_positions_table, 1)
 
@@ -1777,29 +1785,65 @@ class NativeShell:
 
     def _performance_page(self) -> Any:
         page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        layout = QT.QVBoxLayout(page)
+        layout.setSpacing(14)
 
-        left = QT.QWidget()
-        left_layout = QT.QVBoxLayout(left)
-        left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(10)
+        self.analysis_kpi_host = QT.QWidget()
+        self.analysis_kpi_layout = QT.QGridLayout(self.analysis_kpi_host)
+        self.analysis_kpi_layout.setContentsMargins(0, 0, 0, 0)
+        self.analysis_kpi_layout.setHorizontalSpacing(10)
+        self.analysis_kpi_layout.setVerticalSpacing(10)
+        self.analysis_kpi_cards: dict[str, Any] = {}
+        layout.addWidget(self._section("Performance metrics", self.analysis_kpi_host), 0)
+
+        # Keep a minimal text summary for accessibility / empty states.
         self.analysis_performance_summary = QT.QTextEdit()
         self.analysis_performance_summary.setReadOnly(True)
+        self.analysis_performance_summary.setMaximumHeight(72)
         self.analysis_performance_summary.setProperty("role", "mini")
-        left_layout.addWidget(self.analysis_performance_summary, 1)
+        layout.addWidget(self.analysis_performance_summary, 0)
 
-        right = QT.QWidget()
-        right_layout = QT.QVBoxLayout(right)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(10)
-        self.analysis_equity_table = self._analysis_table(
-            ["Time", "Equity", "Balance", "Drawdown"], stretch=0
-        )
-        right_layout.addWidget(self.analysis_equity_table, 1)
+        chart_wrap = QT.QWidget()
+        chart_layout = QT.QVBoxLayout(chart_wrap)
+        chart_layout.setContentsMargins(0, 0, 0, 0)
+        chart_layout.setSpacing(6)
+        self.analysis_equity_status = label("—", role="muted")
+        chart_layout.addWidget(self.analysis_equity_status)
+        self.analysis_equity_chart_view = None
+        self.analysis_equity_chart = None
+        try:
+            from PySide6.QtCharts import QChart, QChartView, QLineSeries, QValueAxis, QDateTimeAxis
+            from PySide6.QtCore import QDateTime
 
-        layout.addWidget(self._section("Performance metrics", left), 1)
-        layout.addWidget(self._section("Equity curve", right), 2)
+            self.analysis_equity_chart = QChart()
+            self.analysis_equity_chart.legend().setVisible(True)
+            self.analysis_equity_chart.setAnimationOptions(QChart.AnimationOption.NoAnimation)
+            self.analysis_equity_chart_view = QChartView(self.analysis_equity_chart)
+            self.analysis_equity_chart_view.setMinimumHeight(260)
+            chart_layout.addWidget(self.analysis_equity_chart_view, 1)
+            self._analysis_chart_types = {
+                "QChart": QChart,
+                "QLineSeries": QLineSeries,
+                "QValueAxis": QValueAxis,
+                "QDateTimeAxis": QDateTimeAxis,
+                "QDateTime": QDateTime,
+            }
+        except Exception:
+            self._analysis_chart_types = {}
+            self.analysis_equity_table = self._analysis_table(
+                ["Time", "Equity", "Balance", "Drawdown"], stretch=0
+            )
+            chart_layout.addWidget(self.analysis_equity_table, 1)
+
+        # Hidden/fallback table always available for tests / no-chart builds.
+        if self.analysis_equity_chart_view is not None:
+            self.analysis_equity_table = self._analysis_table(
+                ["Time", "Equity", "Balance", "Drawdown"], stretch=0
+            )
+            self.analysis_equity_table.setMaximumHeight(0)
+            self.analysis_equity_table.hide()
+
+        layout.addWidget(self._section("Equity curve", chart_wrap), 1)
         return page
 
     def _history_page(self) -> Any:
@@ -1876,6 +1920,50 @@ class NativeShell:
         elif self.current_tab == "News" and (force or self.analysis_news_table is not None):
             self._refresh_news_page()
 
+    def _live_mt5_open_positions(self, profile: str) -> list[dict] | None:
+        """Best-effort live open positions from the profile terminal (read-only).
+
+        Returns ``None`` when the terminal cannot be queried. Broker symbols are
+        preserved exactly (including suffixes such as ``+``).
+        """
+        profiles = read_json(PROFILE_FILE, {})
+        path = str((profiles.get(profile) or {}).get("path") or "").strip()
+        if not path:
+            return None
+        try:
+            import MetaTrader5 as mt5
+        except Exception:
+            return None
+        attached = False
+        try:
+            attached = bool(mt5.initialize(path=path))
+            if not attached:
+                return None
+            positions = mt5.positions_get()
+            if positions is None:
+                return []
+            rows: list[dict] = []
+            for pos in positions:
+                direction = "BUY" if int(getattr(pos, "type", -1)) == 0 else "SELL"
+                rows.append({
+                    "symbol": str(getattr(pos, "symbol", "") or ""),
+                    "direction": direction,
+                    "volume": float(getattr(pos, "volume", 0) or 0),
+                    "open_price": float(getattr(pos, "price_open", 0) or 0),
+                    "current_price": float(getattr(pos, "price_current", 0) or 0),
+                    "profit": float(getattr(pos, "profit", 0) or 0),
+                    "source_type": "LIVE_MT5",
+                })
+            return rows
+        except Exception:
+            return None
+        finally:
+            if attached:
+                try:
+                    mt5.shutdown()
+                except Exception:
+                    pass
+
     def _refresh_accounts_page(self) -> None:
         if self.analysis_account_summary is None or self.analysis_positions_table is None:
             return
@@ -1886,7 +1974,7 @@ class NativeShell:
         try:
             queries = self._analysis_queries()
             account = queries.account_get(self.selected)
-            positions = queries.positions_list(self.selected)
+            audit_positions = queries.positions_list(self.selected)
         except Exception as exc:
             self.analysis_account_summary.setPlainText(f"{native_text('No account audit data')}\n\n{exc}")
             self._set_analysis_table_rows(self.analysis_positions_table, [])
@@ -1907,56 +1995,57 @@ class NativeShell:
             self.analysis_account_summary.setPlainText(
                 self._format_detail_block("ACCOUNT OVERVIEW", fields)
             )
+
+        # Prefer live MT5 snapshot when available; fall back to audit checkpoint.
+        live = self._live_mt5_open_positions(self.selected)
+        positions = live if live is not None else audit_positions
         rows = [
             [
                 str(p.get("symbol") or "—"),
                 str(p.get("direction") or "—"),
                 self._format_analysis_value(p.get("volume"), 2),
                 self._format_analysis_value(p.get("open_price"), 5),
+                self._format_analysis_value(p.get("current_price"), 5) if p.get("current_price") is not None else "—",
+                self._format_analysis_value(p.get("profit")) if p.get("profit") is not None else "—",
                 str(p.get("source_type") or "—"),
             ]
             for p in positions
         ]
         self._set_analysis_table_rows(self.analysis_positions_table, rows)
 
-    def _refresh_performance_page(self) -> None:
-        if self.analysis_performance_summary is None or self.analysis_equity_table is None:
+    def _kpi_card(self, title: str) -> tuple[Any, Any]:
+        frame = QT.QFrame()
+        frame.setProperty("role", "card")
+        lay = QT.QVBoxLayout(frame)
+        lay.setContentsMargins(12, 10, 12, 10)
+        lay.setSpacing(4)
+        title_lbl = label(title, role="tiny")
+        value_lbl = label("—", role="section")
+        lay.addWidget(title_lbl)
+        lay.addWidget(value_lbl)
+        return frame, value_lbl
+
+    def _set_kpi_values(self, metrics: list[tuple[str, str]]) -> None:
+        host = getattr(self, "analysis_kpi_host", None)
+        grid = getattr(self, "analysis_kpi_layout", None)
+        if host is None or grid is None:
             return
-        if not self.selected:
-            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
-            self._set_analysis_table_rows(self.analysis_equity_table, [])
-            return
-        try:
-            queries = self._analysis_queries()
-            perf = queries.performance_summary(self.selected)
-            curve = queries.equity_curve(self.selected, limit=200)
-            drawdown = queries.drawdown_curve(self.selected, limit=200)
-        except Exception as exc:
-            self.analysis_performance_summary.setPlainText(f"{native_text('No performance data')}\n\n{exc}")
-            self._set_analysis_table_rows(self.analysis_equity_table, [])
-            return
-        if not perf.get("available"):
-            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
-        else:
-            fields = [
-                ("Profile", perf.get("profile")),
-                ("Net profit", self._format_analysis_value(perf.get("net_profit"))),
-                ("Realized P/L", self._format_analysis_value(perf.get("realized_pl"))),
-                ("Profit factor", self._format_analysis_value(perf.get("profit_factor"))),
-                ("Win rate", f"{float(perf['win_rate']) * 100:.2f}%" if perf.get("win_rate") is not None else "—"),
-                ("Average win", self._format_analysis_value(perf.get("average_win"))),
-                ("Average loss", self._format_analysis_value(perf.get("average_loss"))),
-                ("Expectancy", self._format_analysis_value(perf.get("expectancy"))),
-                ("Max equity drawdown", self._format_analysis_value(perf.get("max_equity_drawdown"))),
-                ("Current drawdown", self._format_analysis_value(perf.get("current_drawdown"))),
-                ("Account growth", self._format_analysis_value(perf.get("account_growth"))),
-                ("Trading return", self._format_analysis_value(perf.get("trading_return"))),
-                ("Total commission", self._format_analysis_value(perf.get("total_commission"))),
-                ("Total swap", self._format_analysis_value(perf.get("total_swap"))),
-            ]
-            self.analysis_performance_summary.setPlainText(
-                self._format_detail_block("PERFORMANCE", fields)
-            )
+        while grid.count():
+            item = grid.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self.analysis_kpi_cards = {}
+        for index, (title, value) in enumerate(metrics):
+            frame, value_lbl = self._kpi_card(title)
+            value_lbl.setText(value)
+            self.analysis_kpi_cards[title] = value_lbl
+            grid.addWidget(frame, index // 4, index % 4)
+
+    def _render_equity_chart(self, curve: list[dict], drawdown: list[dict]) -> None:
+        status = getattr(self, "analysis_equity_status", None)
+        chart = getattr(self, "analysis_equity_chart", None)
+        types = getattr(self, "_analysis_chart_types", {}) or {}
         dd_map = {str(item.get("t")): item.get("drawdown") for item in drawdown}
         rows = [
             [
@@ -1967,7 +2056,155 @@ class NativeShell:
             ]
             for item in curve
         ]
-        self._set_analysis_table_rows(self.analysis_equity_table, rows)
+        if self.analysis_equity_table is not None:
+            self._set_analysis_table_rows(self.analysis_equity_table, rows)
+
+        if chart is None or not types:
+            if status is not None:
+                status.setText(native_text("Equity curve") if curve else native_text("No performance data"))
+            return
+
+        chart.removeAllSeries()
+        for axis in list(chart.axes()):
+            chart.removeAxis(axis)
+
+        if len(curve) < 1:
+            if status is not None:
+                status.setText(native_text("No performance data"))
+            return
+
+        QLineSeries = types["QLineSeries"]
+        QValueAxis = types["QValueAxis"]
+        QDateTimeAxis = types["QDateTimeAxis"]
+        QDateTime = types["QDateTime"]
+
+        equity_series = QLineSeries()
+        equity_series.setName("Equity")
+        balance_series = QLineSeries()
+        balance_series.setName("Balance")
+        dd_series = QLineSeries()
+        dd_series.setName("Drawdown")
+
+        has_balance = False
+        has_dd = False
+        ymin, ymax = None, None
+        for item in curve:
+            t_raw = item.get("t")
+            if not t_raw:
+                continue
+            try:
+                dt = QDateTime.fromString(str(t_raw)[:19].replace("T", " "), "yyyy-MM-dd HH:mm:ss")
+                if not dt.isValid():
+                    dt = QDateTime.fromString(str(t_raw), QT.Qt.DateFormat.ISODate)
+                if not dt.isValid():
+                    continue
+                ms = dt.toMSecsSinceEpoch()
+            except Exception:
+                continue
+            eq = item.get("equity")
+            bal = item.get("balance")
+            dd = dd_map.get(str(t_raw))
+            if eq is not None:
+                equity_series.append(ms, float(eq))
+                ymin = float(eq) if ymin is None else min(ymin, float(eq))
+                ymax = float(eq) if ymax is None else max(ymax, float(eq))
+            if bal is not None:
+                has_balance = True
+                balance_series.append(ms, float(bal))
+                ymin = float(bal) if ymin is None else min(ymin, float(bal))
+                ymax = float(bal) if ymax is None else max(ymax, float(bal))
+            if dd is not None:
+                has_dd = True
+                dd_series.append(ms, float(dd))
+
+        chart.addSeries(equity_series)
+        if has_balance:
+            chart.addSeries(balance_series)
+        if has_dd:
+            chart.addSeries(dd_series)
+
+        axis_x = QDateTimeAxis()
+        axis_x.setFormat("MM-dd HH:mm")
+        axis_x.setTitleText("Time (UTC)")
+        chart.addAxis(axis_x, QT.Qt.AlignmentFlag.AlignBottom)
+        equity_series.attachAxis(axis_x)
+        if has_balance:
+            balance_series.attachAxis(axis_x)
+        if has_dd:
+            dd_series.attachAxis(axis_x)
+
+        axis_y = QValueAxis()
+        if ymin is not None and ymax is not None and ymin != ymax:
+            pad = max(abs(ymax - ymin) * 0.08, 0.01)
+            axis_y.setRange(ymin - pad, ymax + pad)
+        axis_y.setTitleText("Value")
+        chart.addAxis(axis_y, QT.Qt.AlignmentFlag.AlignLeft)
+        equity_series.attachAxis(axis_y)
+        if has_balance:
+            balance_series.attachAxis(axis_y)
+
+        if has_dd:
+            axis_dd = QValueAxis()
+            axis_dd.setTitleText("Drawdown")
+            chart.addAxis(axis_dd, QT.Qt.AlignmentFlag.AlignRight)
+            dd_series.attachAxis(axis_dd)
+
+        latest_eq = curve[-1].get("equity") if curve else None
+        if status is not None:
+            status.setText(
+                f"{native_text('Equity curve')} · n={len(curve)} · "
+                f"latest={self._format_analysis_value(latest_eq)}"
+            )
+
+    def _refresh_performance_page(self) -> None:
+        if self.analysis_performance_summary is None:
+            return
+        if not self.selected:
+            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
+            self._set_kpi_values([])
+            self._render_equity_chart([], [])
+            return
+        try:
+            queries = self._analysis_queries()
+            perf = queries.performance_summary(self.selected)
+            curve = queries.equity_curve(self.selected, limit=200)
+            drawdown = queries.drawdown_curve(self.selected, limit=200)
+        except Exception as exc:
+            self.analysis_performance_summary.setPlainText(f"{native_text('No performance data')}\n\n{exc}")
+            self._set_kpi_values([])
+            self._render_equity_chart([], [])
+            return
+
+        def _pct(value: Any) -> str:
+            if value is None:
+                return "—"
+            try:
+                return f"{float(value) * 100:.2f}%"
+            except (TypeError, ValueError):
+                return "—"
+
+        if not perf.get("available"):
+            self.analysis_performance_summary.setPlainText(native_text("No performance data"))
+            self._set_kpi_values([])
+        else:
+            self.analysis_performance_summary.setPlainText(
+                f"{native_text('Profile')}: {perf.get('profile') or self.selected}"
+            )
+            kpis = [
+                ("Net P&L", self._format_analysis_value(perf.get("net_profit"))),
+                ("Trading return", self._format_analysis_value(perf.get("trading_return"))),
+                ("Win rate", _pct(perf.get("win_rate"))),
+                ("Profit factor", self._format_analysis_value(perf.get("profit_factor"))),
+                ("Expectancy", self._format_analysis_value(perf.get("expectancy"))),
+                ("Max drawdown", self._format_analysis_value(perf.get("max_equity_drawdown"))),
+                ("Current drawdown", self._format_analysis_value(perf.get("current_drawdown"))),
+                ("Avg win", self._format_analysis_value(perf.get("average_win"))),
+                ("Avg loss", self._format_analysis_value(perf.get("average_loss"))),
+                ("Account growth", self._format_analysis_value(perf.get("account_growth"))),
+            ]
+            self._set_kpi_values(kpis)
+
+        self._render_equity_chart(curve, drawdown)
 
     def _refresh_history_page(self) -> None:
         if self.analysis_history_table is None or self.analysis_checkpoint_table is None:
