@@ -117,6 +117,53 @@ class TestValidateConflictingPid(unittest.TestCase):
         self.assertEqual(verdict, "unknown")
 
 
+class TestOrphanReconciliation(unittest.TestCase):
+    def _make_supervisor(self):
+        sup = SignalProcessSupervisor(signal_defs=[])
+        sup.ui_after = lambda fn: fn()
+        return sup
+
+    def test_live_locked_instance_is_never_force_killed(self):
+        sup = self._make_supervisor()
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "mimo_worker.lock"
+            lock.write_text("4242", encoding="utf-8")
+            with patch(
+                "services.signal_process_supervisor.os.path.dirname",
+                side_effect=[tmp, tmp],
+            ):
+                with patch(
+                    "services.signal_process_supervisor.read_lock_file_pid",
+                    return_value=4242,
+                ), patch(
+                    "services.signal_process_supervisor.validate_conflicting_pid",
+                    return_value=("matches", "managed process is alive"),
+                ), patch(
+                    "services.signal_process_supervisor.terminate_pid"
+                ) as terminate:
+                    sup._kill_orphan_processes("mimo_worker")
+            terminate.assert_not_called()
+            self.assertTrue(lock.exists())
+
+    def test_dead_locked_instance_is_reconciled(self):
+        sup = self._make_supervisor()
+        with tempfile.TemporaryDirectory() as tmp:
+            lock = Path(tmp) / "mimo_worker.lock"
+            lock.write_text("4242", encoding="utf-8")
+            with patch(
+                "services.signal_process_supervisor.read_lock_file_pid",
+                return_value=4242,
+            ), patch(
+                "services.signal_process_supervisor.validate_conflicting_pid",
+                return_value=("gone", "process no longer exists"),
+            ), patch(
+                "services.signal_process_supervisor.os.path.dirname",
+                return_value=tmp,
+            ):
+                sup._kill_orphan_processes("mimo_worker")
+            self.assertFalse(lock.exists())
+
+
 class TestRecoveryDecisions(unittest.TestCase):
     def _make_supervisor(self):
         sup = SignalProcessSupervisor(signal_defs=[])

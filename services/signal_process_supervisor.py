@@ -351,43 +351,40 @@ class SignalProcessSupervisor:
             self._safe_configure(info.get("lbl_status"), text=label, text_color=color)
 
     def _kill_orphan_processes(self, key: str) -> None:
+        """Reconcile stale managed locks without killing foreign processes.
+
+        The previous implementation scanned all Python processes with WMIC and
+        force-killed every command line matching the script. That could terminate
+        a valid instance owned by another NativeQt shell. Single-instance recovery
+        already has the safer lock-PID + command-line identity path, so cleanup
+        must never widen beyond the recorded lock holder.
+        """
         if os.name != "nt":
             return
-        script_map = {
-            "mimo_bot": "mimo_bot.py",
-            "mimo_worker": "mimo_worker.py",
-            "factcheck_worker": "factcheck_worker.py",
-        }
-        script = script_map.get(key)
-        if not script:
+        lock_pid = read_lock_file_pid(key)
+        if not lock_pid:
             return
-        try:
-            result = subprocess.run(
-                [
-                    "wmic",
-                    "process",
-                    "where",
-                    f"CommandLine like '%{script}%' and (Name='python.exe' or Name='pythonw.exe')",
-                    "get",
-                    "ProcessId",
-                ],
-                capture_output=True,
-                text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-            for line in result.stdout.strip().split("\n"):
-                line = line.strip()
-                if line.isdigit():
-                    pid = int(line)
-                    if pid != os.getpid():
-                        subprocess.run(
-                            ["taskkill", "/F", "/T", "/PID", str(pid)],
-                            capture_output=True,
-                            creationflags=subprocess.CREATE_NO_WINDOW,
-                        )
-                        self._log(f"Killed orphan process: {script} (PID: {pid})")
-        except Exception:
-            pass
+        verdict, detail = validate_conflicting_pid(key, lock_pid)
+        if verdict == "gone":
+            lock_name = _LOCK_FILE_MAP.get(key)
+            if not lock_name:
+                return
+            root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            lock_path = os.path.join(root_dir, lock_name)
+            try:
+                if os.path.exists(lock_path):
+                    os.remove(lock_path)
+                    self._log(f"Cleared stale lock: {lock_name} (PID {lock_pid})")
+            except OSError as exc:
+                self._log(f"Could not clear stale lock {lock_name}: {exc}")
+            return
+        if verdict == "matches":
+            self._log(f"Managed {key} instance is alive (PID {lock_pid}); leaving it untouched")
+            return
+        if verdict == "mismatch":
+            self._log(f"Lock PID {lock_pid} for {key} does not match the managed process; no kill performed")
+            return
+        self._log(f"Could not safely reconcile {key} lock PID {lock_pid}: {detail}")
 
     def start_signal_process(self, key: str, profile: str = "", *, _recovery: bool = False) -> None:
         info = self._signal_procs.get(key)
