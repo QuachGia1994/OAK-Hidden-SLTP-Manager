@@ -244,8 +244,41 @@ class AuditDashboardPublisher:
             "updated_at_utc": datetime.now(timezone.utc).isoformat(),
         }
 
+    def _latest_checkpoint_mark(self, account_id, position_id):
+        """Best-effort live mark from newest checkpoint state for a position."""
+        if not account_id or not position_id:
+            return None
+        runs = self._store.list_checkpoint_runs(account_id=account_id, limit=5) or []
+        for run in runs:  # newest first (DESC)
+            run_id = run.get("id")
+            if run_id is None:
+                continue
+            states = self._store.list_checkpoint_position_states(run_id) if hasattr(
+                self._store, "list_checkpoint_position_states"
+            ) else []
+            if not states and hasattr(self._store, "list_checkpoint_states"):
+                states = self._store.list_checkpoint_states(run_id) or []
+            for st in states or []:
+                if str(st.get("position_id") or "") != str(position_id):
+                    continue
+                fp = st.get("floating_profit")
+                cp = st.get("current_price")
+                if fp is not None or cp is not None:
+                    return {
+                        "floating_profit": fp,
+                        "current_price": cp,
+                        "mark_source": "CHECKPOINT",
+                        "mark_time_utc": run.get("captured_at_utc"),
+                    }
+        return None
+
     def build_positions(self, account_uid):
-        """Live positions — public-safe, no raw identity leakage."""
+        """Live positions — public-safe, no raw identity leakage.
+
+        Floating P&L contract:
+        - If a trustworthy mark exists → publish floating_profit + current_price.
+        - If unavailable → floating_available=False and nulls (never invent 0).
+        """
         account_id = self._account_id(account_uid)
         if not account_id:
             return []
@@ -253,16 +286,33 @@ class AuditDashboardPublisher:
         positions = self._store.list_positions(account_id=account_id)
         result = []
         for p in positions:
+            mark = self._latest_checkpoint_mark(account_id, p.get("position_id", ""))
+            if mark and (mark.get("floating_profit") is not None or mark.get("current_price") is not None):
+                floating = mark.get("floating_profit")
+                current = mark.get("current_price")
+                available = True
+                mark_source = mark.get("mark_source")
+                mark_time = mark.get("mark_time_utc")
+            else:
+                floating = None
+                current = None
+                available = False
+                mark_source = None
+                mark_time = None
             result.append({
                 "public_trade_id": self._ptid(account_uid, p.get("position_id", "")),
                 "symbol": p.get("symbol", ""),
                 "direction": p.get("direction", ""),
                 "volume": p.get("initial_volume"),
                 "open_price": p.get("open_price"),
+                "current_price": current,
                 "open_time_utc": p.get("open_time_utc"),
                 "sl": None,
                 "tp": None,
-                "floating_profit": None,
+                "floating_profit": floating,
+                "floating_available": available,
+                "mark_source": mark_source,
+                "mark_time_utc": mark_time,
                 "source_type": p.get("source_type", ""),
             })
         return result

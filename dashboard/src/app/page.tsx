@@ -16,7 +16,7 @@ function formatNewsDisplayTime(item: { time?: string; local_time?: string }) {
   return item.local_time || item.time || "";
 }
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ vip?: string }> }) {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ vip?: string; account?: string }> }) {
   let signalsResult: DataResult<any[]> = { data: [], ok: true };
   let signals: any[] = [];
   let botState: any = null;
@@ -107,7 +107,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         />
       </section>
 
-      {isVIP && <TradeAuditDashboard locale={locale} />}
+      {isVIP && <TradeAuditDashboard locale={locale} accountId={params.account ?? null} />}
 
       {news.length > 0 && (
         <section className="terminal-panel rounded-2xl p-5 sm:p-6">

@@ -1,8 +1,10 @@
-import { getTradeAuditAll } from "@/lib/trade-audit";
+import { getTradeAuditAll, listPublicAccounts } from "@/lib/trade-audit";
+import { isPublicAccountId } from "@/lib/public-account-id";
 import { AnalysisPortal } from "@/components/AnalysisPortal";
 
 interface Props {
   locale: "EN" | "VN";
+  accountId?: string | null;
 }
 
 /* ── tiny helpers ─────────────────────────────────────────────── */
@@ -109,8 +111,20 @@ function Badge({ children, tone }: { children: React.ReactNode; tone?: "green" |
 
 /* ── main component ───────────────────────────────────────────── */
 
-export async function TradeAuditDashboard({ locale }: Props) {
-  const data = await getTradeAuditAll();
+export async function TradeAuditDashboard({ locale, accountId = null }: Props) {
+  const accounts = await listPublicAccounts();
+  const requested = accountId && isPublicAccountId(accountId) ? accountId.toLowerCase() : null;
+  const invalidRequest = Boolean(accountId) && !requested;
+
+  // Prefer explicit account; otherwise first registered public account (no cross-leak).
+  const selected =
+    requested ||
+    (accounts[0]?.public_account_id ? accounts[0].public_account_id.toLowerCase() : null);
+
+  const data = selected ? await getTradeAuditAll(selected) : await getTradeAuditAll(null);
+  const accountMissing =
+    invalidRequest ||
+    (Boolean(requested) && data.overview == null && data.performance == null);
 
   return (
     <AnalysisPortal
@@ -123,6 +137,9 @@ export async function TradeAuditDashboard({ locale }: Props) {
       risk={(data.risk as Record<string, unknown> | null) ?? null}
       audit={(data.audit as Record<string, unknown> | null) ?? null}
       equity={data.equity}
+      accounts={accounts}
+      selectedAccountId={selected}
+      accountMissing={accountMissing}
     />
   );
 }

@@ -18,6 +18,11 @@ import { InvestmentRiskDisclosure } from "@/components/InvestmentRiskDisclosure"
 
 type Locale = "EN" | "VN";
 
+interface PublicAccountOption {
+  public_account_id: string;
+  alias: string;
+}
+
 interface PortalProps {
   locale: Locale;
   overview: Record<string, unknown> | null;
@@ -28,6 +33,9 @@ interface PortalProps {
   risk: Record<string, unknown> | null;
   audit: Record<string, unknown> | null;
   equity: unknown;
+  accounts?: PublicAccountOption[];
+  selectedAccountId?: string | null;
+  accountMissing?: boolean;
 }
 
 const PERIODS: { key: CalcPeriodKey; en: string; vn: string }[] = [
@@ -266,7 +274,20 @@ function DrawdownChart({ points, locale }: { points: { t: string; equity: number
   );
 }
 
-export function AnalysisPortal({ locale, overview, positions, checkpoints, ledger, performance, risk, audit, equity }: PortalProps) {
+export function AnalysisPortal({
+  locale,
+  overview,
+  positions,
+  checkpoints,
+  ledger,
+  performance,
+  risk,
+  audit,
+  equity,
+  accounts = [],
+  selectedAccountId = null,
+  accountMissing = false,
+}: PortalProps) {
   const currency = String(overview?.currency || "USD");
   const [period, setPeriod] = useState<CalcPeriodKey>("all");
   const [symbolFilter, setSymbolFilter] = useState("");
@@ -379,6 +400,21 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
   const wr = Number(periodPerf?.win_rate);
   const toggleHelp = (label: string) => setOpenHelpLabel((cur) => (cur === label ? null : label));
 
+  if (accountMissing) {
+    return (
+      <div className="rounded-2xl border border-dashed border-[var(--panel-border)] bg-[var(--surface)] p-8 text-center">
+        <p className="text-sm font-semibold text-[var(--foreground)]">
+          {locale === "VN" ? "Không tìm thấy tài khoản công khai này." : "Public account not found."}
+        </p>
+        <p className="mt-2 text-xs text-[var(--muted)]">
+          {locale === "VN"
+            ? "Mã tài khoản không hợp lệ hoặc chưa được publish. Không fallback sang tài khoản khác."
+            : "Invalid or unpublished account id. No silent fallback to another account."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Hero */}
@@ -388,6 +424,39 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
           {String(overview?.alias || "OAK Trader")}
         </h2>
         <p className="mt-1 text-sm text-[var(--muted)]">{t.subtitle}</p>
+        {accounts.length > 0 && (
+          <div className="mt-4">
+            <label className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+              {locale === "VN" ? "Tài khoản công khai" : "Public account"}
+              <select
+                className="mt-1 w-full max-w-md rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]"
+                value={selectedAccountId || ""}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (!id) return;
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("account", id);
+                  window.location.assign(url.toString());
+                }}
+                aria-label={locale === "VN" ? "Chọn tài khoản công khai" : "Select public account"}
+              >
+                {!selectedAccountId && (
+                  <option value="" disabled>
+                    {locale === "VN" ? "Chọn tài khoản…" : "Select account…"}
+                  </option>
+                )}
+                {accounts.map((a) => (
+                  <option key={a.public_account_id} value={a.public_account_id}>
+                    {a.alias}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedAccountId && (
+              <p className="mt-1 font-mono text-[10px] text-[var(--muted)]">id: {selectedAccountId}</p>
+            )}
+          </div>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
           {["broker", "platform", "account_type", "currency"].map((k) =>
             overview?.[k] ? (
@@ -489,12 +558,14 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
                   <th className="px-3 py-2">Dir</th>
                   <th className="px-3 py-2">Vol</th>
                   <th className="px-3 py-2">Entry</th>
+                  <th className="px-3 py-2">Current</th>
                   <th className="px-3 py-2">Floating</th>
                   <th className="px-3 py-2">Opened</th>
                 </tr>
               </thead>
               <tbody>
                 {posList.map((p, i) => {
+                  const available = p.floating_available === true;
                   const fp = Number(p.floating_profit);
                   return (
                     <tr key={String(p.public_trade_id ?? i)} className="border-b border-[var(--panel-border)]/40">
@@ -502,8 +573,19 @@ export function AnalysisPortal({ locale, overview, positions, checkpoints, ledge
                       <td className="px-3 py-2 font-mono text-xs">{String(p.direction ?? "—")}</td>
                       <td className="px-3 py-2 font-mono text-xs">{String(p.volume ?? "—")}</td>
                       <td className="px-3 py-2 font-mono text-xs">{String(p.open_price ?? "—")}</td>
-                      <td className={`px-3 py-2 font-mono text-xs font-bold ${Number.isFinite(fp) ? (fp >= 0 ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]") : "text-[var(--muted)]"}`}>
-                        {Number.isFinite(fp) ? fmtCur(fp, currency) : "—"}
+                      <td className="px-3 py-2 font-mono text-xs text-[var(--muted)]">
+                        {p.current_price != null && Number.isFinite(Number(p.current_price))
+                          ? String(p.current_price)
+                          : locale === "VN"
+                            ? "Chưa có giá"
+                            : "Price n/a"}
+                      </td>
+                      <td className={`px-3 py-2 font-mono text-xs font-bold ${available && Number.isFinite(fp) ? (fp >= 0 ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]") : "text-[var(--muted)]"}`}>
+                        {available && Number.isFinite(fp)
+                          ? fmtCur(fp, currency)
+                          : locale === "VN"
+                            ? "Chưa có dữ liệu P&L thả nổi"
+                            : "Floating P&L unavailable"}
                       </td>
                       <td className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]">{fmtTime(p.open_time_utc)}</td>
                     </tr>
