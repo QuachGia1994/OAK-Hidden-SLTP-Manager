@@ -109,7 +109,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       {/* Public Analysis Portal: read-only transparency for all visitors.
           VIP only controls signal unmasking / execution-status visibility above. */}
-      <TradeAuditDashboard locale={locale} accountId={params.account ?? null} />
+      <TradeAuditDashboard locale={locale} accountId={params.account ?? null} isVIP={isVIP} />
 
       {news.length > 0 && (
         <section className="terminal-panel rounded-2xl p-5 sm:p-6">

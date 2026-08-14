@@ -43,6 +43,7 @@ interface PortalProps {
   accounts?: PublicAccountOption[];
   selectedAccountId?: string | null;
   accountMissing?: boolean;
+  isVIP?: boolean;
 }
 
 const PERIODS: { key: CalcPeriodKey; en: string; vn: string }[] = [
@@ -309,6 +310,7 @@ export function AnalysisPortal({
   accounts = [],
   selectedAccountId = null,
   accountMissing = false,
+  isVIP = false,
 }: PortalProps) {
   const liveMeta = (live || overview || {}) as Record<string, unknown>;
   const sourceStatus = String(liveMeta.source_status || overview?.source_status || "UNAVAILABLE");
@@ -442,6 +444,7 @@ export function AnalysisPortal({
         drawdown: "Drawdown",
         history: "Trade history",
         open: "Open positions",
+        vipOpenHint: "Open-position details are available to VIP viewers.",
         strategy: "Strategy transparency",
         timeline: "Account timeline",
         calculator: "Investment Scenario Calculator",
@@ -460,6 +463,7 @@ export function AnalysisPortal({
         drawdown: "Drawdown",
         history: "Lịch sử giao dịch",
         open: "Vị thế đang mở",
+        vipOpenHint: "Chi tiết vị thế đang mở chỉ dành cho người xem VIP.",
         strategy: "Minh bạch phương pháp",
         timeline: "Dòng thời gian tài khoản",
         calculator: "Công cụ mô phỏng vốn",
@@ -669,10 +673,24 @@ export function AnalysisPortal({
         </section>
       </div>
 
-      {/* Open positions */}
+      {/* Open positions — VIP only */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
-        <h3 className="mb-3 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.open}</h3>
-        {positions == null ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.open}</h3>
+          {!isVIP && (
+            <span className="rounded-md border border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/10 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-[var(--terminal-warning)]">
+              VIP
+            </span>
+          )}
+        </div>
+        {!isVIP ? (
+          <div className="rounded-xl border border-dashed border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-7 text-center">
+            <p className="text-sm font-semibold text-[var(--foreground)]">{t.vipOpenHint}</p>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              {locale === "VN" ? "Thông tin hiệu suất và lịch sử đã đóng vẫn được công khai." : "Performance analytics and closed history remain public."}
+            </p>
+          </div>
+        ) : positions == null ? (
           <Empty text={t.liveUnavailable} />
         ) : posList.length === 0 ? (
           <Empty text={t.noOpen} />

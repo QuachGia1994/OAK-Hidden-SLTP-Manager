@@ -5,6 +5,7 @@ import { AnalysisPortal } from "@/components/AnalysisPortal";
 interface Props {
   locale: "EN" | "VN";
   accountId?: string | null;
+  isVIP?: boolean;
 }
 
 /* ── tiny helpers ─────────────────────────────────────────────── */
@@ -111,7 +112,7 @@ function Badge({ children, tone }: { children: React.ReactNode; tone?: "green" |
 
 /* ── main component ───────────────────────────────────────────── */
 
-export async function TradeAuditDashboard({ locale, accountId = null }: Props) {
+export async function TradeAuditDashboard({ locale, accountId = null, isVIP = false }: Props) {
   const accounts = await listPublicAccounts();
   const requested = accountId && isPublicAccountId(accountId) ? accountId.toLowerCase() : null;
   const invalidRequest = Boolean(accountId) && !requested;
@@ -141,6 +142,7 @@ export async function TradeAuditDashboard({ locale, accountId = null }: Props) {
       accounts={accounts}
       selectedAccountId={selected}
       accountMissing={accountMissing}
+      isVIP={isVIP}
     />
   );
 }
