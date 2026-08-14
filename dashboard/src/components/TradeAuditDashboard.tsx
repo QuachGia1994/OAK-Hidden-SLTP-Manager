@@ -137,6 +137,7 @@ export async function TradeAuditDashboard({ locale, accountId = null }: Props) {
       risk={(data.risk as Record<string, unknown> | null) ?? null}
       audit={(data.audit as Record<string, unknown> | null) ?? null}
       equity={data.equity}
+      live={(data.live as Record<string, unknown> | null) ?? null}
       accounts={accounts}
       selectedAccountId={selected}
       accountMissing={accountMissing}

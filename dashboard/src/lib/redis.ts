@@ -33,6 +33,7 @@ export const KEYS = {
   auditRisk: "sltp:trade-audit:risk",
   auditInfo: "sltp:trade-audit:audit",
   auditEquity: "sltp:trade-audit:equity",
+  auditLive: "sltp:trade-audit:live",
   /** Registry of public account ids → {alias} (no secrets). */
   auditAccounts: "sltp:trade-audit:accounts",
 };

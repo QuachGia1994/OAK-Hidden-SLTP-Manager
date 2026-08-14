@@ -277,7 +277,7 @@ class TestBuildAllContainsAllSections(AuditDashboardPublisherTestCase):
 
         self.assertIsInstance(result, dict)
         for key in ("overview", "positions", "checkpoints", "ledger",
-                     "performance", "risk", "audit", "equity",
+                     "performance", "risk", "audit", "equity", "live",
                      "public_account_id", "alias"):
             self.assertIn(key, result)
         self.assertIsInstance(result["overview"], dict)
@@ -349,8 +349,8 @@ class TestPushAllPostsToEndpointsWithApiKey(AuditDashboardPublisherTestCase):
             result = pub.push_all(self.account_uid)
 
         self.assertTrue(result["pushed"])
-        # 8 data sections + accounts registry registration
-        self.assertEqual(len(captured_requests), 9)
+        # 9 data sections (incl. live) + accounts registry registration
+        self.assertEqual(len(captured_requests), 10)
 
         # Verify API key header on every request.
         # NOTE: Python Request.add_header capitalizes the first letter and
@@ -363,7 +363,7 @@ class TestPushAllPostsToEndpointsWithApiKey(AuditDashboardPublisherTestCase):
 
         # Verify all public endpoint sections returned ok=True.
         for section in ("overview", "positions", "checkpoints", "ledger",
-                         "performance", "risk", "audit", "equity", "accounts"):
+                         "performance", "risk", "audit", "equity", "live", "accounts"):
             self.assertTrue(result["results"][section]["ok"],
                             f"Section {section} should be ok=True")
         self.assertIn("public_account_id", result)
@@ -455,7 +455,7 @@ class TestEmptyAccountBuildsDoNotRaise(AuditDashboardPublisherTestCase):
         all_data = pub.build_all(self.account_uid)
         self.assertTrue(
             {"overview", "positions", "checkpoints", "ledger",
-             "performance", "risk", "audit", "equity",
+             "performance", "risk", "audit", "equity", "live",
              "public_account_id", "alias"}.issubset(set(all_data.keys()))
         )
 

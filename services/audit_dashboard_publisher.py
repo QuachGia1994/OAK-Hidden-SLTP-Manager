@@ -16,6 +16,15 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from oak_logger import setup_logger
+from services.public_freshness import (
+    SOURCE_CHECKPOINT,
+    SOURCE_EQUITY_SAMPLE,
+    SOURCE_MT5_LIVE,
+    SOURCE_NONE,
+    SOURCE_STORE,
+    build_freshness_envelope,
+    parse_utc,
+)
 
 log = setup_logger("audit_dashboard_pub")
 
@@ -41,6 +50,7 @@ _ENDPOINTS = {
     "risk":         "/api/trade-audit/risk",
     "audit":        "/api/trade-audit/audit",
     "equity":       "/api/trade-audit/equity",
+    "live":         "/api/trade-audit/live",
 }
 
 # Public-safe subset of performance calculator keys.
@@ -224,6 +234,21 @@ class AuditDashboardPublisher:
             if times:
                 trading_started = min(times)
 
+        observed = None
+        source = SOURCE_NONE
+        if samples:
+            observed = samples[0].get("sampled_at_utc")
+            source = SOURCE_EQUITY_SAMPLE
+        elif snapshots:
+            observed = snapshots[-1].get("captured_at_utc") or snapshots[-1].get("snapshot_at_utc")
+            source = SOURCE_STORE
+        published = datetime.now(timezone.utc)
+        freshness = build_freshness_envelope(
+            observed_at_utc=observed,
+            published_at_utc=published,
+            source=source,
+            now_utc=published,
+        )
         return {
             "alias": public_alias_for(acct),
             "broker": acct.get("broker", ""),
@@ -241,7 +266,8 @@ class AuditDashboardPublisher:
             "configured_at_utc": configured_at,
             "trading_started_at_utc": trading_started,
             "closed_trade_count": perf.get("closed_trade_count"),
-            "updated_at_utc": datetime.now(timezone.utc).isoformat(),
+            "updated_at_utc": published.isoformat(),
+            **freshness,
         }
 
     def _latest_checkpoint_mark(self, account_id, position_id):
@@ -485,10 +511,112 @@ class AuditDashboardPublisher:
             "reconciliation_status": "OK" if reconciled_utc else "NOT_RECONCILED",
         }
 
+    def build_positions_from_observation(self, account_uid, positions, observed_at_utc=None):
+        """Public positions from a live MT5 observation (not store lag).
+
+        Each raw position dict may include: symbol, direction/type, volume,
+        price_open/open_price, price_current/current_price, profit, ticket/position_id.
+        Never invents floating 0 when profit is missing.
+        """
+        observed = parse_utc(observed_at_utc) or datetime.now(timezone.utc)
+        result = []
+        for p in positions or []:
+            if not isinstance(p, dict):
+                # MT5 namedtuple / object
+                p = {
+                    "symbol": getattr(p, "symbol", ""),
+                    "direction": getattr(p, "type", None),
+                    "volume": getattr(p, "volume", None),
+                    "open_price": getattr(p, "price_open", None),
+                    "current_price": getattr(p, "price_current", None),
+                    "profit": getattr(p, "profit", None),
+                    "position_id": getattr(p, "ticket", getattr(p, "identifier", "")),
+                    "time": getattr(p, "time", None),
+                }
+            pid = str(p.get("position_id") or p.get("ticket") or p.get("identifier") or "")
+            direction = p.get("direction") or p.get("type") or ""
+            if direction in (0, "0"):
+                direction = "BUY"
+            elif direction in (1, "1"):
+                direction = "SELL"
+            else:
+                direction = str(direction).upper()
+            cur = p.get("current_price", p.get("price_current"))
+            fp = p.get("floating_profit", p.get("profit"))
+            available = fp is not None or cur is not None
+            result.append({
+                "public_trade_id": self._ptid(account_uid, pid),
+                "symbol": p.get("symbol", ""),
+                "direction": direction,
+                "volume": p.get("volume", p.get("initial_volume")),
+                "open_price": p.get("open_price", p.get("price_open")),
+                "current_price": cur,
+                "open_time_utc": p.get("open_time_utc"),
+                "sl": p.get("sl"),
+                "tp": p.get("tp"),
+                "floating_profit": fp if available else None,
+                "floating_available": bool(available and fp is not None),
+                "mark_source": SOURCE_MT5_LIVE if available else None,
+                "mark_time_utc": observed.isoformat() if available else None,
+                "observed_at_utc": observed.isoformat(),
+                "source_type": "LIVE",
+            })
+        return result
+
+    def build_live(self, account_uid, account_info=None, positions=None, observed_at_utc=None):
+        """Realtime transparency envelope for the public portal.
+
+        When *account_info* is provided, metrics are taken from the live
+        observation; otherwise falls back to store equity samples (may be STALE).
+        Closed-trade performance is intentionally NOT included here.
+        """
+        published = datetime.now(timezone.utc)
+        observed = parse_utc(observed_at_utc) or published
+        acct = self._account_dict(account_uid)
+
+        if account_info:
+            balance = account_info.get("balance")
+            equity = account_info.get("equity")
+            floating = account_info.get("open_profit", account_info.get("profit"))
+            source = SOURCE_MT5_LIVE
+            pos_list = self.build_positions_from_observation(
+                account_uid, positions or [], observed_at_utc=observed,
+            )
+        else:
+            overview = self.build_overview(account_uid)
+            balance = overview.get("balance")
+            equity = overview.get("equity")
+            floating = overview.get("floating_pl")
+            source = overview.get("source") or SOURCE_STORE
+            observed = parse_utc(overview.get("observed_at_utc")) or observed
+            pos_list = self.build_positions(account_uid)
+
+        freshness = build_freshness_envelope(
+            observed_at_utc=observed,
+            published_at_utc=published,
+            source=source,
+            now_utc=published,
+        )
+        return {
+            "public_account_id": public_account_id(account_uid, self._secret),
+            "alias": public_alias_for(acct),
+            "balance": balance,
+            "equity": equity,
+            "floating_profit": floating,
+            "positions_count": len(pos_list),
+            "open_positions": pos_list,
+            "realized_performance_note": (
+                "Closed-trade KPIs are period-scoped historical metrics; "
+                "floating P&L is separate and does not alter win-rate."
+            ),
+            **freshness,
+        }
+
     def build_all(self, account_uid):
         """Build all sections into a single dict (namespaced by public account id)."""
         acct = self._account_dict(account_uid)
         pub_id = public_account_id(account_uid, self._secret)
+        live = self.build_live(account_uid)
         return {
             "public_account_id": pub_id,
             "alias": public_alias_for(acct),
@@ -500,6 +628,73 @@ class AuditDashboardPublisher:
             "risk":         self.build_risk(account_uid),
             "audit":        self.build_audit(account_uid),
             "equity":       self.build_equity(account_uid),
+            "live":         live,
+        }
+
+    def push_live(self, account_uid, account_info=None, positions=None, observed_at_utc=None):
+        """Lightweight push of live overview+positions+live envelope.
+
+        On HTTP failure: does not clear prior Redis values (server retains last good).
+        """
+        if not self._dashboard_url:
+            return {"pushed": False, "reason": "no dashboard url", "results": {}}
+
+        published = datetime.now(timezone.utc)
+        observed = parse_utc(observed_at_utc) or published
+        live = self.build_live(
+            account_uid,
+            account_info=account_info,
+            positions=positions,
+            observed_at_utc=observed,
+        )
+        # Align overview metrics with live observation when available.
+        overview = self.build_overview(account_uid)
+        if account_info:
+            overview["balance"] = account_info.get("balance")
+            overview["equity"] = account_info.get("equity")
+            overview["floating_pl"] = account_info.get("open_profit", account_info.get("profit"))
+            overview["margin"] = account_info.get("margin")
+            overview["free_margin"] = account_info.get("free_margin")
+            overview["margin_level"] = account_info.get("margin_level")
+            overview.update(build_freshness_envelope(
+                observed_at_utc=observed,
+                published_at_utc=published,
+                source=SOURCE_MT5_LIVE,
+                now_utc=published,
+            ))
+            overview["updated_at_utc"] = published.isoformat()
+        positions_payload = live.get("open_positions") or []
+
+        pub_id = live.get("public_account_id") or public_account_id(account_uid, self._secret)
+        base = self._dashboard_url.rstrip("/")
+        headers = {"Content-Type": "application/json"}
+        if self._api_key:
+            headers["X-API-Key"] = self._api_key
+
+        results = {}
+        all_ok = True
+        for section, data in (
+            ("live", live),
+            ("overview", overview),
+            ("positions", positions_payload),
+        ):
+            endpoint = _ENDPOINTS[section]
+            url = f"{base}{endpoint}?account={pub_id}"
+            try:
+                body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+                req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    results[section] = {"ok": True, "status": resp.status, "error": None}
+            except Exception as exc:
+                results[section] = {"ok": False, "status": None, "error": str(exc)}
+                all_ok = False
+        return {
+            "pushed": all_ok,
+            "results": results,
+            "public_account_id": pub_id,
+            "observed_at_utc": live.get("observed_at_utc"),
+            "published_at_utc": live.get("published_at_utc"),
+            "source_status": live.get("source_status"),
         }
 
     # ------------------------------------------------------------------ #

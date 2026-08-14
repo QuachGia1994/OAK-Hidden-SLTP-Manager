@@ -33,6 +33,7 @@ interface PortalProps {
   risk: Record<string, unknown> | null;
   audit: Record<string, unknown> | null;
   equity: unknown;
+  live?: Record<string, unknown> | null;
   accounts?: PublicAccountOption[];
   selectedAccountId?: string | null;
   accountMissing?: boolean;
@@ -284,10 +285,49 @@ export function AnalysisPortal({
   risk,
   audit,
   equity,
+  live = null,
   accounts = [],
   selectedAccountId = null,
   accountMissing = false,
 }: PortalProps) {
+  const liveMeta = (live || overview || {}) as Record<string, unknown>;
+  const sourceStatus = String(liveMeta.source_status || overview?.source_status || "UNAVAILABLE");
+  const dataAge =
+    liveMeta.data_age_seconds != null && Number.isFinite(Number(liveMeta.data_age_seconds))
+      ? Number(liveMeta.data_age_seconds)
+      : overview?.data_age_seconds != null && Number.isFinite(Number(overview.data_age_seconds))
+        ? Number(overview.data_age_seconds)
+        : null;
+  const observedAt = String(liveMeta.observed_at_utc || overview?.observed_at_utc || "");
+  const publishedAt = String(liveMeta.published_at_utc || overview?.published_at_utc || overview?.updated_at_utc || "");
+  const liveEquity =
+    liveMeta.equity != null && Number.isFinite(Number(liveMeta.equity)) ? Number(liveMeta.equity) : null;
+  const liveFloating =
+    liveMeta.floating_profit != null && Number.isFinite(Number(liveMeta.floating_profit))
+      ? Number(liveMeta.floating_profit)
+      : null;
+  const freshnessLabel =
+    sourceStatus === "LIVE"
+      ? locale === "VN"
+        ? "LIVE"
+        : "LIVE"
+      : sourceStatus === "DEGRADED"
+        ? "DEGRADED"
+        : sourceStatus === "STALE"
+          ? "STALE"
+          : "UNAVAILABLE";
+  const ageLabel =
+    dataAge == null
+      ? locale === "VN"
+        ? "Không có mốc quan sát"
+        : "No observation timestamp"
+      : dataAge < 60
+        ? locale === "VN"
+          ? `Cập nhật ${dataAge} giây trước`
+          : `Updated ${dataAge}s ago`
+        : locale === "VN"
+          ? `Cập nhật ${Math.round(dataAge / 60)} phút trước`
+          : `Updated ${Math.round(dataAge / 60)}m ago`;
   const currency = String(overview?.currency || "USD");
   const [period, setPeriod] = useState<CalcPeriodKey>("all");
   const [symbolFilter, setSymbolFilter] = useState("");
@@ -424,6 +464,45 @@ export function AnalysisPortal({
           {String(overview?.alias || "OAK Trader")}
         </h2>
         <p className="mt-1 text-sm text-[var(--muted)]">{t.subtitle}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span
+            className={`rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold tracking-wide ${
+              sourceStatus === "LIVE"
+                ? "border-[var(--terminal-accent)]/40 text-[var(--terminal-accent)]"
+                : sourceStatus === "DEGRADED"
+                  ? "border-[var(--terminal-warning)]/40 text-[var(--terminal-warning)]"
+                  : "border-[var(--panel-border)] text-[var(--muted)]"
+            }`}
+          >
+            {freshnessLabel}
+          </span>
+          <span className="text-xs font-medium text-[var(--muted)]">{ageLabel}</span>
+          {observedAt ? (
+            <span className="font-mono text-[10px] text-[var(--muted)]">obs {fmtTime(observedAt)}</span>
+          ) : null}
+          {publishedAt ? (
+            <span className="font-mono text-[10px] text-[var(--muted)]">pub {fmtTime(publishedAt)}</span>
+          ) : null}
+          {liveEquity != null ? (
+            <span className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[11px]">
+              Equity {fmtCur(liveEquity, currency)}
+            </span>
+          ) : null}
+          {liveFloating != null ? (
+            <span className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[11px]">
+              Floating {fmtCur(liveFloating, currency)}
+            </span>
+          ) : (
+            <span className="rounded-md border border-dashed border-[var(--panel-border)] px-2 py-1 text-[11px] text-[var(--muted)]">
+              {locale === "VN" ? "Chưa có dữ liệu P&L thả nổi (live)" : "Live floating P&L unavailable"}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 text-[11px] leading-5 text-[var(--muted)]">
+          {locale === "VN"
+            ? "KPI hiệu suất là realized (vị thế đã đóng). Floating P&L hiển thị riêng và không làm thay đổi win-rate."
+            : "Performance KPIs are realized (closed trades). Floating P&L is shown separately and does not change win rate."}
+        </p>
         {accounts.length > 0 && (
           <div className="mt-4">
             <label className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">

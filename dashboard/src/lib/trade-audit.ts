@@ -9,6 +9,7 @@ export interface TradeAuditPayloads {
   risk: unknown | null;
   audit: unknown | null;
   equity: unknown | null;
+  live: unknown | null;
   public_account_id?: string | null;
 }
 
@@ -44,7 +45,7 @@ export async function listPublicAccounts(): Promise<PublicAccountMeta[]> {
 
 export async function getTradeAuditAll(accountId?: string | null): Promise<TradeAuditPayloads> {
   const account = accountId && isPublicAccountId(accountId) ? accountId.toLowerCase() : null;
-  const [overview, positions, checkpoints, ledger, performance, risk, audit, equity] =
+  const [overview, positions, checkpoints, ledger, performance, risk, audit, equity, live] =
     await Promise.all([
       getSection(KEYS.auditOverview, account),
       getSection(KEYS.auditPositions, account),
@@ -54,6 +55,7 @@ export async function getTradeAuditAll(accountId?: string | null): Promise<Trade
       getSection(KEYS.auditRisk, account),
       getSection(KEYS.auditInfo, account),
       getSection(KEYS.auditEquity, account),
+      getSection(KEYS.auditLive, account),
     ]);
   return {
     overview,
@@ -64,6 +66,7 @@ export async function getTradeAuditAll(accountId?: string | null): Promise<Trade
     risk,
     audit,
     equity,
+    live,
     public_account_id: account,
   };
 }

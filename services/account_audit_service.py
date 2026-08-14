@@ -254,11 +254,19 @@ class AccountAuditService:
         except Exception as exc:  # pragma: no cover - isolation per §7
             log.warning("Equity sampler failure (will continue): %s", exc)
 
+        # Public transparency live push (read-only metrics + positions).
+        live_push = None
+        try:
+            live_push = self._push_live_observation(account_info, now_utc)
+        except Exception as exc:  # pragma: no cover - never break audit loop
+            log.warning("Live dashboard push failed: %s", exc)
+
         return {
             "status": "OK",
             "checkpoints_run": checkpoints_run,
             "reconstructed": reconstructed,
             "samples": samples,
+            "live_push": live_push,
         }
 
     # ------------------------------------------------------------------ #
@@ -304,6 +312,20 @@ class AccountAuditService:
             )
         except Exception as exc:  # pragma: no cover - never break the audit loop
             log.warning("Checkpoint %s H%02d failed: %s", broker_date.isoformat(), hour, exc)
+
+    def _push_live_observation(self, account_info, now_utc):
+        """Publish MT5 observation to public portal (no execution side effects)."""
+        if self.publisher is None:
+            return {"pushed": False, "reason": "no publisher"}
+        if not hasattr(self.publisher, "push_live"):
+            return {"pushed": False, "reason": "publisher lacks push_live"}
+        positions = self._positions()
+        return self.publisher.push_live(
+            self.account_uid,
+            account_info=account_info,
+            positions=positions,
+            observed_at_utc=now_utc,
+        )
 
     def _after_checkpoint(self, result):
         """Push public dashboard payloads after a checkpoint (§2 step 8)."""
