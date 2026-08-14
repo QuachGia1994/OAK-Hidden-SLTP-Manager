@@ -394,10 +394,24 @@ class AuditDashboardPublisher:
         return result[:limit]
 
     def _public_perf_slice(self, account_uid, period_key, now=None):
-        """Canonical performance for one period window (backend-computed)."""
+        """Canonical performance for one period window (backend-computed).
+
+        Public Net P&L is *realized* closed-trade profit only. Floating/unrealized
+        must never substitute into net_profit on the investor portal.
+        """
         since = period_since_utc(period_key, now=now)
         perf = self._calc.compute(account_uid, since_utc=since)
         out = {k: perf.get(k) for k in _PUBLIC_PERF_KEYS if k in perf}
+        realized = perf.get("realized_pl")
+        closed_n = int(perf.get("closed_trade_count") or 0)
+        if closed_n > 0:
+            # Realized closed-trade profit only (0 is a valid result).
+            out["net_profit"] = realized if realized is not None else perf.get("net_profit")
+        else:
+            # No closed trades → explicit null (never substitute floating/unrealized).
+            out["net_profit"] = None
+        out["realized_pl"] = realized
+        out["unrealized_pl"] = perf.get("unrealized_pl")
         out["period_key"] = period_key
         out["period_label"] = "all_history" if period_key == "all" else period_key
         out["since_utc"] = since.isoformat() if since is not None else None

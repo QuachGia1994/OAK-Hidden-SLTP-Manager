@@ -188,10 +188,10 @@ function KpiCard({
               ?
             </button>
             {openHelp && (
-              <div className="absolute right-0 top-7 z-30 w-72 rounded-lg border border-[var(--panel-border)] bg-[var(--surface)] p-3 text-[12px] font-medium leading-5 text-[var(--foreground)] shadow-xl">
-                <p>{locale === "VN" ? help.vn : help.en}</p>
+              <div className="absolute right-0 top-7 z-30 w-72 rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3 text-[12px] font-medium leading-5 text-[var(--foreground)] shadow-xl ring-1 ring-[var(--panel-border)]">
+                <p className="text-[var(--foreground)]">{locale === "VN" ? help.vn : help.en}</p>
                 {periodLabel && (
-                  <p className="mt-2 text-[11px] text-[var(--muted)]">
+                  <p className="mt-2 text-[11px] font-semibold text-[var(--foreground)]/80">
                     {locale === "VN" ? `Kỳ đang chọn: ${periodLabel}` : `Selected period: ${periodLabel}`}
                   </p>
                 )}
@@ -383,11 +383,13 @@ export function AnalysisPortal({
       ? "KPI theo kỳ do backend tính (by_period). Equity/history dùng cùng mốc since_utc."
       : "Period KPIs are backend-computed (by_period). Equity/history use the same since_utc bound.";
 
+  // Backend trading_return / trading_return_pct are decimal ratios (0.08 = +8%).
+  // Prefer trading_return; never pass a percentage-scaled value into the calculator.
   const histReturn =
-    periodPerf?.trading_return_pct != null && Number.isFinite(Number(periodPerf.trading_return_pct))
-      ? Number(periodPerf.trading_return_pct)
-      : periodPerf?.trading_return != null && Number.isFinite(Number(periodPerf.trading_return))
-        ? Number(periodPerf.trading_return)
+    periodPerf?.trading_return != null && Number.isFinite(Number(periodPerf.trading_return))
+      ? Number(periodPerf.trading_return)
+      : periodPerf?.trading_return_pct != null && Number.isFinite(Number(periodPerf.trading_return_pct))
+        ? Number(periodPerf.trading_return_pct)
         : null;
 
   const calc = computeInvestment(
@@ -395,7 +397,19 @@ export function AnalysisPortal({
     locale,
   );
 
-  const posList = Array.isArray(positions) ? (positions as Record<string, unknown>[]) : [];
+  // Prefer live observation positions when the live envelope is present.
+  // Empty live list with a known source is authoritative (do not fall back to stale store).
+  const livePositions = Array.isArray(liveMeta.open_positions)
+    ? (liveMeta.open_positions as Record<string, unknown>[])
+    : null;
+  const trustLivePositions =
+    livePositions != null &&
+    (String(liveMeta.source || "") === "MT5_LIVE" || liveMeta.positions_count != null);
+  const posList = trustLivePositions
+    ? livePositions!
+    : Array.isArray(positions)
+      ? (positions as Record<string, unknown>[])
+      : [];
   const cps = Array.isArray(checkpoints) ? (checkpoints as Record<string, unknown>[]) : [];
 
   const t = locale === "EN"
