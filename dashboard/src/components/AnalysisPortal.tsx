@@ -11,8 +11,14 @@ import {
   CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN,
   COMPOUND_ASSUMPTION_EN,
   COMPOUND_ASSUMPTION_VN,
-  mailtoContactHref,
+  FX_CHALLENGES_EN,
+  FX_CHALLENGES_VN,
+  FX_OPPORTUNITIES_EN,
+  FX_OPPORTUNITIES_VN,
   PUBLIC_INVESTMENT_COMPLIANCE,
+  PUBLIC_LICENSE_DISCLOSURE_EN,
+  PUBLIC_LICENSE_DISCLOSURE_VN,
+  mailtoContactHref,
 } from "@/lib/compliance";
 import { InvestmentRiskDisclosure } from "@/components/InvestmentRiskDisclosure";
 
@@ -128,6 +134,20 @@ function fmtTime(v: unknown): string {
   } catch {
     return v;
   }
+}
+
+function accountStatusLabel(status: unknown, locale: Locale): string {
+  const value = String(status || "UNKNOWN").toUpperCase();
+  if (value === "LIVE") return locale === "VN" ? "TÀI KHOẢN LIVE" : "LIVE ACCOUNT";
+  if (value === "DEMO") return locale === "VN" ? "TÀI KHOẢN DEMO" : "DEMO ACCOUNT";
+  return locale === "VN" ? "CHƯA XÁC ĐỊNH" : "UNVERIFIED";
+}
+
+function accountStatusClass(status: unknown): string {
+  const value = String(status || "UNKNOWN").toUpperCase();
+  if (value === "LIVE") return "border-[var(--terminal-accent)]/60 bg-[var(--terminal-accent)]/15 text-[var(--terminal-accent)]";
+  if (value === "DEMO") return "border-[var(--terminal-warning)]/60 bg-[var(--terminal-warning)]/15 text-[var(--terminal-warning)]";
+  return "border-[var(--panel-border)] bg-[var(--surface-raised)] text-[var(--muted)]";
 }
 
 function inPeriod(iso: unknown, since: Date | null): boolean {
@@ -479,6 +499,20 @@ export function AnalysisPortal({
         </h2>
         <p className="mt-1 text-sm text-[var(--muted)]">{t.subtitle}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span
+            className={`rounded-md border px-3 py-1.5 font-mono text-[11px] font-black tracking-wide ${accountStatusClass(overview?.account_status)}`}
+          >
+            {accountStatusLabel(overview?.account_status, locale)}
+          </span>
+          {overview?.account_model ? (
+            <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 font-mono text-[11px] font-black tracking-wide text-[var(--foreground)]">
+              {locale === "VN" ? "MÔ HÌNH" : "MODEL"}: {String(overview.account_model)}
+            </span>
+          ) : (
+            <span className="rounded-md border border-dashed border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]">
+              {locale === "VN" ? "Mô hình tài khoản chưa công bố" : "Account model not disclosed"}
+            </span>
+          )}
           <span
             className={`rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold tracking-wide ${
               sourceStatus === "LIVE"
@@ -891,8 +925,52 @@ export function AnalysisPortal({
         </p>
       </section>
 
-      {/* Risk disclosure before CTA */}
+      {/* Risk, licensing, opportunities and challenges */}
       <InvestmentRiskDisclosure locale={locale} />
+
+      <footer className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5 sm:p-6" aria-label={locale === "VN" ? "Thông tin pháp lý và rủi ro" : "Legal and risk information"}>
+        <div className="grid gap-5 lg:grid-cols-3">
+          <section>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+              {locale === "VN" ? "Giấy phép & phạm vi" : "Licensing & scope"}
+            </h3>
+            <p className="mt-2 text-[12px] leading-5 text-[var(--foreground)]">
+              {locale === "VN" ? PUBLIC_LICENSE_DISCLOSURE_VN : PUBLIC_LICENSE_DISCLOSURE_EN}
+            </p>
+            {String(overview?.regulatory_status || "NOT_CLAIMED") !== "NOT_CLAIMED" && (
+              <div className="mt-3 space-y-1 font-mono text-[10px] text-[var(--muted)]">
+                <div>Status: {String(overview?.regulatory_status)}</div>
+                {overview?.license_jurisdiction ? <div>Jurisdiction: {String(overview.license_jurisdiction)}</div> : null}
+                {overview?.license_authority ? <div>Authority: {String(overview.license_authority)}</div> : null}
+                {overview?.license_number ? <div>License: {String(overview.license_number)}</div> : null}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+              {locale === "VN" ? "Cơ hội" : "Opportunities"}
+            </h3>
+            <ul className="mt-2 space-y-2 text-[12px] leading-5 text-[var(--foreground)]">
+              {(locale === "VN" ? FX_OPPORTUNITIES_VN : FX_OPPORTUNITIES_EN).map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+          </section>
+
+          <section>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
+              {locale === "VN" ? "Thách thức & rủi ro FX" : "FX challenges & risks"}
+            </h3>
+            <ul className="mt-2 space-y-2 text-[12px] leading-5 text-[var(--foreground)]">
+              {(locale === "VN" ? FX_CHALLENGES_VN : FX_CHALLENGES_EN).map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+          </section>
+        </div>
+        <div className="mt-5 border-t border-[var(--panel-border)] pt-4 text-[10px] leading-5 text-[var(--muted)]">
+          {locale === "VN"
+            ? "Đòn bẩy không làm giảm rủi ro. Nó làm tăng quy mô phơi nhiễm so với vốn thực có. Hãy kiểm tra loại tài khoản, điều kiện broker, quy định áp dụng và khả năng chịu lỗ trước khi ra quyết định."
+            : "Leverage does not reduce risk. It increases exposure relative to available capital. Check account type, broker conditions, applicable regulation, and loss capacity before making a decision."}
+        </div>
+      </footer>
 
       {/* CTA — information only */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-6 text-center">

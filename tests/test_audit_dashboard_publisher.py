@@ -416,6 +416,34 @@ class TestPushAllContinuesOnEndpointError(AuditDashboardPublisherTestCase):
         self.assertTrue(result["results"]["audit"]["ok"])
 
 
+class TestPublicAccountStatusAndModel(AuditDashboardPublisherTestCase):
+    """Public labels require explicit metadata and never infer account model."""
+
+    def test_status_and_explicit_model_are_public_safe(self):
+        acct_id = self._create_account()
+        self.store._conn.execute(
+            "UPDATE accounts SET account_type=? WHERE id=?",
+            ("REAL", acct_id),
+        )
+        self.store._conn.commit()
+        pub = AuditDashboardPublisher(self.store, secret="s3cret")
+        overview = pub.build_overview(self.account_uid)
+        self.assertEqual(overview["account_status"], "LIVE")
+        self.assertEqual(overview["account_model"], "")
+
+    def test_demo_and_explicit_ecn_model(self):
+        acct_id = self._create_account()
+        self.store._conn.execute(
+            "UPDATE accounts SET account_type=? WHERE id=?",
+            ("DEMO", acct_id),
+        )
+        self.store._conn.commit()
+        pub = AuditDashboardPublisher(self.store, secret="s3cret")
+        self.assertEqual(pub._public_account_status({"account_type": "DEMO"}), "DEMO")
+        self.assertEqual(pub._public_account_model({"account_model": "ECN"}), "ECN")
+        self.assertEqual(pub._public_account_model({"broker": "Example", "server": "Example-ECN"}), "")
+
+
 class TestEmptyAccountBuildsDoNotRaise(AuditDashboardPublisherTestCase):
     """Fresh account with no data → all builders return empty/default, no exception."""
 

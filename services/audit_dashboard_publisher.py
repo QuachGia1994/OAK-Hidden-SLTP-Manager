@@ -185,6 +185,65 @@ class AuditDashboardPublisher:
         """Public trade id shorthand."""
         return public_trade_id(account_uid, position_id, self._secret)
 
+    @staticmethod
+    def _public_account_status(acct):
+        """Normalize only explicit REAL/LIVE/DEMO metadata; unknown stays UNKNOWN.
+
+        Never infer LIVE/DEMO from profile/broker/server naming.
+        Never treat ECN/STANDARD/CENT/MINI as account status.
+        """
+        if not isinstance(acct, dict):
+            return "UNKNOWN"
+
+        # 1) Explicit account_status wins.
+        if acct.get("account_status") not in (None, ""):
+            raw = str(acct.get("account_status")).strip().upper()
+        # 2) Explicit is_demo flag.
+        elif acct.get("is_demo") is not None and acct.get("is_demo") != "":
+            flag = acct.get("is_demo")
+            if flag in (True, 1, "1", "true", "TRUE", "yes", "YES"):
+                return "DEMO"
+            if flag in (False, 0, "0", "false", "FALSE", "no", "NO"):
+                return "LIVE"
+            return "UNKNOWN"
+        # 3) MT5 trade_mode: 0=DEMO, 1=CONTEST, 2=REAL.
+        elif acct.get("trade_mode") is not None and acct.get("trade_mode") != "":
+            try:
+                tm = int(acct.get("trade_mode"))
+            except (TypeError, ValueError):
+                tm = None
+            if tm == 0:
+                return "DEMO"
+            if tm == 2:
+                return "LIVE"
+            return "UNKNOWN"
+        else:
+            # account_type only when it is an explicit status token — not a model name.
+            raw = str(acct.get("account_type") or acct.get("type") or "").strip().upper()
+
+        if raw in {"DEMO", "DEMO ACCOUNT", "SIM", "SIMULATED"}:
+            return "DEMO"
+        if raw in {"REAL", "LIVE", "LIVE ACCOUNT"}:
+            return "LIVE"
+        return "UNKNOWN"
+
+    @staticmethod
+    def _public_account_model(acct):
+        """Return an explicitly stored account model; never infer from broker/server/name."""
+        if not isinstance(acct, dict):
+            return ""
+        value = (
+            acct.get("account_model")
+            or acct.get("account_class")
+            or acct.get("account_subtype")
+            or ""
+        )
+        text = str(value).strip().upper()
+        # Guard: status tokens are not models.
+        if text in {"DEMO", "REAL", "LIVE", "UNKNOWN", "SIM", "SIMULATED"}:
+            return ""
+        return text
+
     # ------------------------------------------------------------------ #
     # Builder methods
     # ------------------------------------------------------------------ #
@@ -254,6 +313,14 @@ class AuditDashboardPublisher:
             "broker": acct.get("broker", ""),
             "platform": acct.get("platform") or "MetaTrader 5",
             "account_type": acct.get("account_type") or acct.get("type") or "",
+            # Explicit broker/account metadata only. Never infer ECN/Standard/CENT/MINI
+            # from broker/server naming because that would turn an unknown fact into a claim.
+            "account_status": self._public_account_status(acct),
+            "account_model": self._public_account_model(acct),
+            "regulatory_status": acct.get("regulatory_status") or "NOT_CLAIMED",
+            "license_jurisdiction": acct.get("license_jurisdiction") or "",
+            "license_authority": acct.get("license_authority") or "",
+            "license_number": acct.get("license_number") or "",
             "currency": acct.get("currency", ""),
             "balance": balance,
             "equity": equity,
