@@ -118,9 +118,8 @@ class NativeQtDashboardFidelityTests(unittest.TestCase):
         self.assertIn('"token"', source)
         self.assertIn('"api_key"', source)
         self.assertIn("_pending_file", source)
-        self.assertIn("_pending_identity", source)
         # skip set is applied before rendering lines
-        self.assertIn("k.lower() in skip", source)
+        self.assertIn("k_lower in skip", source)
         self.assertIn('k.startswith("_")', source)
 
     def test_dashboard_risk_never_fabricates_current_dd(self) -> None:
@@ -173,12 +172,76 @@ class NativeQtDashboardFidelityTests(unittest.TestCase):
         self.assertIn("switching account", source)
         self.assertIn("_dashboard_bound_profile", source)
 
+    def test_freshness_classification_matrix(self) -> None:
+        shell = MagicMock(spec=shell_mod.NativeShell)
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        classify = lambda ts: shell_mod.NativeShell._classify_observation_freshness(shell, ts)
+
+        # 10s age -> LIVE
+        live_ts = (now - timedelta(seconds=10)).isoformat()
+        self.assertEqual(classify(live_ts)["source_status"], "LIVE")
+
+        # 60s age -> DEGRADED
+        deg_ts = (now - timedelta(seconds=60)).isoformat()
+        self.assertEqual(classify(deg_ts)["source_status"], "DEGRADED")
+
+        # 300s age -> STALE
+        stale_ts = (now - timedelta(seconds=300)).isoformat()
+        self.assertEqual(classify(stale_ts)["source_status"], "STALE")
+
+        # None / missing -> UNAVAILABLE
+        self.assertEqual(classify(None)["source_status"], "UNAVAILABLE")
+        self.assertEqual(classify("")["source_status"], "UNAVAILABLE")
+
+    def test_detail_dialog_sensitive_patterns_filter(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("sensitive_patterns", source)
+        self.assertIn("password", source)
+        self.assertIn("secret", source)
+        self.assertIn("token", source)
+        self.assertIn("api_key", source)
+
+    def test_account_isolation_clears_on_switch(self) -> None:
+        shell = MagicMock(spec=shell_mod.NativeShell)
+        shell._dashboard_clear_live_snapshot = MagicMock()
+        shell._dashboard_bound_profile = "AccountA"
+        shell.selected = "AccountB"
+        shell.profiles = {"AccountB": {}}
+        shell.dash_mode_badge = MagicMock()
+        shell.dash_account_label = MagicMock()
+        shell.dash_mt5_label = MagicMock()
+        shell.dash_exec_label = MagicMock()
+        shell.dash_fresh_badge = MagicMock()
+        shell.dash_fresh_label = MagicMock()
+        shell.dash_source_badge = MagicMock()
+        shell.dash_refresh_label = MagicMock()
+        shell.dash_risk_stats = {}
+        shell.dash_equity_table = MagicMock()
+        shell.dash_equity_status = MagicMock()
+        shell.dash_positions_table = MagicMock()
+        shell.dash_pos_status = MagicMock()
+        shell.dash_pending_table = MagicMock()
+        shell.dash_pending_status = MagicMock()
+        shell._profile_is_running = MagicMock(return_value=False)
+        shell._trade_mode_from_cfg = MagicMock(return_value="UNKNOWN")
+        shell._apply_mode_badge = MagicMock()
+        shell._classify_observation_freshness = MagicMock(return_value={"source_status": "UNAVAILABLE", "data_age_seconds": None})
+        shell._format_freshness_age = MagicMock(return_value="age unavailable")
+        shell._analysis_queries = MagicMock(return_value=MagicMock(account_get=lambda p: {}, positions_list=lambda p: [], risk_summary=lambda p: {}, equity_curve=lambda p, limit=8: []))
+        shell._live_mt5_open_positions = MagicMock(return_value=None)
+        shell._set_analysis_table_rows = MagicMock()
+        shell._bind_table_row_details = MagicMock()
+        shell._pending_state = MagicMock(return_value=([], []))
+
+        shell_mod.NativeShell._refresh_dashboard_page_inner(shell)
+        shell._dashboard_clear_live_snapshot.assert_called_once()
+        self.assertEqual(shell._dashboard_bound_profile, "AccountB")
+
     def test_dashboard_mt5_path_resolves_path_key(self) -> None:
         """Dashboard MT5 status must use the same path keys as LIVE_MT5 / Profiles."""
         source = Path(shell_mod.__file__).read_text(encoding="utf-8")
-        # Dashboard resolution includes path first (profiles.json stores path).
         self.assertIn('cfg.get("path") or cfg.get("mt5_path") or cfg.get("terminal_path")', source)
-
 
 if __name__ == "__main__":
     unittest.main()

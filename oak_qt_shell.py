@@ -2417,10 +2417,16 @@ class NativeShell:
             "_pending_file", "_pending_key", "_pending_identity", "_pending_shape",
             "_pending_index",
         }
+        sensitive_patterns = ("password", "secret", "token", "api_key", "tele_admin", "credential", "private", "passcode", "auth")
         lines: list[str] = []
         for key, value in payload.items():
             k = str(key)
-            if k.startswith("_") or k.lower() in skip:
+            k_lower = k.lower()
+            if (
+                k.startswith("_")
+                or k_lower in skip
+                or any(sub in k_lower for sub in sensitive_patterns)
+            ):
                 continue
             if value is None or value == "":
                 text = "unavailable"
