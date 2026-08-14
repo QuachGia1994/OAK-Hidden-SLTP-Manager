@@ -13,11 +13,11 @@ export function NavBar() {
   const t = getLocaleTexts(locale);
 
   const links = [
-    { href: "/", label: t.dashboard, mobile: t.dashboard },
+    { href: "/", label: locale === "EN" ? "Overview" : "Tổng quan", mobile: locale === "EN" ? "Home" : "Tổng quan" },
     { href: "/signals", label: locale === "EN" ? "History" : "Lịch sử", mobile: locale === "EN" ? "History" : "Lịch sử" },
+    { href: "/simulator", label: locale === "EN" ? "Simulation" : "Mô phỏng", mobile: locale === "EN" ? "Sim" : "Mô phỏng" },
     { href: "/stock-advisor", label: locale === "EN" ? "Stock Filter" : "Bộ lọc Cổ phiếu", mobile: locale === "EN" ? "Stocks" : "Cổ phiếu" },
     { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực tin tức", mobile: locale === "EN" ? "Check" : "Xác thực" },
-    { href: "/rules", label: t.rules, mobile: locale === "EN" ? "Rules" : "Quy tắc" },
   ];
 
   const changeLocale = (item: "EN" | "VN") => {

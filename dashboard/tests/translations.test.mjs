@@ -86,10 +86,12 @@ test("DDirectionPanel localizes direction badges and session label", () => {
   assert.equal(panel.includes("formatSystemState"), true);
 });
 
-test("full dashboard status chips route through formatSystemState", () => {
+test("dashboard no longer renders retired command-center status chips", () => {
   const page = fs.readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
-  assert.equal(page.includes("formatSystemState(publicDataState, locale)"), true);
-  assert.equal(page.includes("formatSystemState(publicExecutionState, locale)"), true);
+  for (const retired of ["MT5 Market Data", "MT5 Execution", "Đồng hồ Broker", "Tin tức", "BỘ LỌC CỔ PHIẾU"]) {
+    assert.equal(page.includes(retired), false, retired);
+  }
+  assert.equal(page.includes("<TradeAuditDashboard"), true);
 });
 
 test("v88 record fields exist in shared types", () => {

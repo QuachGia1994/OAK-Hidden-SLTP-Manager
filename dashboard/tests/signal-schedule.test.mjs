@@ -210,14 +210,12 @@ test("public signal masking removes entries, groups, and evidence", () => {
   assert.equal(masked.pair_evidence, undefined);
 });
 
-test("public SSR uses the same complete signal mask as the API", () => {
-  const page = fs.readFileSync(new URL("../src/app/page.tsx", import.meta.url), "utf8");
+test("public history route is now an account-scoped trade ledger", () => {
   const history = fs.readFileSync(new URL("../src/app/signals/page.tsx", import.meta.url), "utf8");
-  const data = fs.readFileSync(new URL("../src/lib/data.ts", import.meta.url), "utf8");
-  assert.equal(page.includes('import { maskSignalForPublic } from "@/lib/signal-display"'), true);
-  assert.equal(page.includes("signals = signals.map(maskSignalForPublic)"), true);
-  assert.equal(history.includes("maskSignalForPublic"), true);
-  assert.equal(data.includes("export function maskSignal("), false);
+  assert.equal(history.includes("listPublicAccounts"), true);
+  assert.equal(history.includes("getTradeAuditAll"), true);
+  assert.equal(history.includes("<TradeLedger"), true);
+  assert.equal(history.includes("maskSignalForPublic"), false);
 });
 
 test("does not re-filter already validated history after VIP masking", () => {

@@ -1,16 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CalcPeriodKey, periodSinceUtc } from "@/lib/investment-calculator";
 import {
-  CalcPeriodKey,
-  computeInvestment,
-  periodSinceUtc,
-} from "@/lib/investment-calculator";
-import {
-  CALCULATOR_ILLUSTRATIVE_DISCLAIMER_EN,
-  CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN,
-  COMPOUND_ASSUMPTION_EN,
-  COMPOUND_ASSUMPTION_VN,
   FX_CHALLENGES_EN,
   FX_CHALLENGES_VN,
   FX_OPPORTUNITIES_EN,
@@ -18,9 +10,14 @@ import {
   PUBLIC_INVESTMENT_COMPLIANCE,
   PUBLIC_LICENSE_DISCLOSURE_EN,
   PUBLIC_LICENSE_DISCLOSURE_VN,
+  RISK_DISCLOSURE_EN,
+  RISK_DISCLOSURE_VN,
   mailtoContactHref,
 } from "@/lib/compliance";
-import { InvestmentRiskDisclosure } from "@/components/InvestmentRiskDisclosure";
+import Link from "next/link";
+import { ExpandableRow } from "@/components/ExpandableRow";
+import { PublicAccountSelector } from "@/components/PublicAccountSelector";
+import { TradeLedger } from "@/components/TradeLedger";
 
 type Locale = "EN" | "VN";
 
@@ -34,9 +31,8 @@ interface PortalProps {
   overview: Record<string, unknown> | null;
   positions: unknown;
   checkpoints: unknown;
-  ledger: unknown;
+  ledger?: unknown;
   performance: Record<string, unknown> | null;
-  risk: Record<string, unknown> | null;
   audit: Record<string, unknown> | null;
   equity: unknown;
   live?: Record<string, unknown> | null;
@@ -209,7 +205,7 @@ function KpiCard({
               ?
             </button>
             {openHelp && (
-              <div className="absolute right-0 top-7 z-30 w-72 rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3 text-[12px] font-medium leading-5 text-[var(--foreground)] shadow-xl ring-1 ring-[var(--panel-border)]">
+              <div className="fixed inset-x-4 bottom-4 z-50 mx-auto w-auto max-w-md rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3 text-[12px] font-medium leading-5 text-[var(--foreground)] shadow-2xl ring-1 ring-[var(--panel-border)] sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-7 sm:w-72">
                 <p className="text-[var(--foreground)]">{locale === "VN" ? help.vn : help.en}</p>
                 {periodLabel && (
                   <p className="mt-2 text-[11px] font-semibold text-[var(--foreground)]/80">
@@ -222,6 +218,15 @@ function KpiCard({
         )}
       </div>
       <div className={`font-mono text-lg font-black tabular-nums ${toneCls}`}>{value}</div>
+    </div>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] p-2">
+      <dt className="text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--muted)]">{label}</dt>
+      <dd className="mt-1 break-words font-mono text-[10px] font-semibold text-[var(--foreground)]">{value}</dd>
     </div>
   );
 }
@@ -301,9 +306,8 @@ export function AnalysisPortal({
   overview,
   positions,
   checkpoints,
-  ledger,
+  ledger = null,
   performance,
-  risk,
   audit,
   equity,
   live = null,
@@ -352,12 +356,8 @@ export function AnalysisPortal({
           : `Updated ${Math.round(dataAge / 60)}m ago`;
   const currency = String(overview?.currency || "USD");
   const [period, setPeriod] = useState<CalcPeriodKey>("all");
-  const [symbolFilter, setSymbolFilter] = useState("");
-  const [dirFilter, setDirFilter] = useState("all");
-  const [resultFilter, setResultFilter] = useState("all");
-  const [capital, setCapital] = useState("1000");
-  const [calcMode, setCalcMode] = useState<"simple" | "compound">("simple");
   const [openHelpLabel, setOpenHelpLabel] = useState<string | null>(null);
+  const [openPositionId, setOpenPositionId] = useState<string | null>(null);
 
   const since = useMemo(() => periodSinceUtc(period), [period]);
 
@@ -384,40 +384,10 @@ export function AnalysisPortal({
       }));
   }, [equity, since]);
 
-  const ledgerRows = useMemo(() => {
-    const arr = Array.isArray(ledger) ? (ledger as Record<string, unknown>[]) : [];
-    return arr.filter((e) => {
-      if (!inPeriod(e.deal_time_utc, since)) return false;
-      const sym = String(e.symbol || "");
-      if (symbolFilter && !sym.toLowerCase().includes(symbolFilter.toLowerCase())) return false;
-      const dir = String(e.deal_type || "").toUpperCase();
-      if (dirFilter === "BUY" && !dir.includes("BUY")) return false;
-      if (dirFilter === "SELL" && !dir.includes("SELL")) return false;
-      const profit = Number(e.profit);
-      if (resultFilter === "win" && !(Number.isFinite(profit) && profit > 0)) return false;
-      if (resultFilter === "loss" && !(Number.isFinite(profit) && profit < 0)) return false;
-      return true;
-    });
-  }, [ledger, since, symbolFilter, dirFilter, resultFilter]);
-
   const periodNote =
     locale === "VN"
       ? "KPI theo kỳ do backend tính (by_period). Equity/history dùng cùng mốc since_utc."
       : "Period KPIs are backend-computed (by_period). Equity/history use the same since_utc bound.";
-
-  // Backend trading_return / trading_return_pct are decimal ratios (0.08 = +8%).
-  // Prefer trading_return; never pass a percentage-scaled value into the calculator.
-  const histReturn =
-    periodPerf?.trading_return != null && Number.isFinite(Number(periodPerf.trading_return))
-      ? Number(periodPerf.trading_return)
-      : periodPerf?.trading_return_pct != null && Number.isFinite(Number(periodPerf.trading_return_pct))
-        ? Number(periodPerf.trading_return_pct)
-        : null;
-
-  const calc = computeInvestment(
-    { initialCapital: Number(capital), historicalReturn: histReturn, mode: calcMode, compoundPeriods: 1 },
-    locale,
-  );
 
   // Prefer live observation positions when the live envelope is present.
   // Empty live list with a known source is authoritative (do not fall back to stale store).
@@ -442,12 +412,10 @@ export function AnalysisPortal({
         kpis: "Performance",
         equity: "Equity curve",
         drawdown: "Drawdown",
-        history: "Trade history",
         open: "Open positions",
+        history: "Trade history",
         vipOpenHint: "Open-position details are available to VIP viewers.",
-        strategy: "Strategy transparency",
         timeline: "Account timeline",
-        calculator: "Investment Scenario Calculator",
         cta: "Contact administrator",
         ctaHint: "Contact is for information requests only. Sending an email does not create an investment agreement, and this portal never places trades or collects funds.",
         liveUnavailable: "Live position data unavailable",
@@ -461,12 +429,10 @@ export function AnalysisPortal({
         kpis: "Hiệu suất",
         equity: "Đường equity",
         drawdown: "Drawdown",
-        history: "Lịch sử giao dịch",
         open: "Vị thế đang mở",
+        history: "Lịch sử giao dịch",
         vipOpenHint: "Chi tiết vị thế đang mở chỉ dành cho người xem VIP.",
-        strategy: "Minh bạch phương pháp",
         timeline: "Dòng thời gian tài khoản",
-        calculator: "Công cụ mô phỏng vốn",
         cta: "Liên hệ quản trị",
         ctaHint: "Liên hệ chỉ để yêu cầu thông tin. Gửi email không tạo hợp đồng đầu tư; portal không đặt lệnh và không thu tiền.",
         liveUnavailable: "Không lấy được dữ liệu vị thế live",
@@ -495,111 +461,63 @@ export function AnalysisPortal({
 
   return (
     <div className="space-y-6">
-      {/* Hero */}
-      <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5 sm:p-7">
+      {/* Hero — compact hierarchy for mobile */}
+      <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-4 sm:p-6">
         <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">{t.hero}</div>
-        <h2 className="mt-1 text-2xl font-black tracking-tight text-[var(--foreground)] sm:text-3xl">
-          {String(overview?.alias || "OAK Trader")}
-        </h2>
-        <p className="mt-1 text-sm text-[var(--muted)]">{t.subtitle}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span
-            className={`rounded-md border px-3 py-1.5 font-mono text-[11px] font-black tracking-wide ${accountStatusClass(overview?.account_status)}`}
-          >
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-2xl font-black tracking-tight text-[var(--foreground)] sm:text-3xl">
+              {String(overview?.alias || "OAK Trader")}
+            </h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">{t.subtitle}</p>
+          </div>
+          <span className={`rounded-lg border px-3 py-2 font-mono text-xs font-black tracking-wide ${accountStatusClass(overview?.account_status)}`}>
             {accountStatusLabel(overview?.account_status, locale)}
           </span>
-          {overview?.account_model ? (
-            <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 font-mono text-[11px] font-black tracking-wide text-[var(--foreground)]">
-              {locale === "VN" ? "MÔ HÌNH" : "MODEL"}: {String(overview.account_model)}
-            </span>
-          ) : (
-            <span className="rounded-md border border-dashed border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]">
-              {locale === "VN" ? "Mô hình tài khoản chưa công bố" : "Account model not disclosed"}
-            </span>
-          )}
-          <span
-            className={`rounded-md border px-2.5 py-1 font-mono text-[11px] font-bold tracking-wide ${
-              sourceStatus === "LIVE"
-                ? "border-[var(--terminal-accent)]/40 text-[var(--terminal-accent)]"
-                : sourceStatus === "DEGRADED"
-                  ? "border-[var(--terminal-warning)]/40 text-[var(--terminal-warning)]"
-                  : "border-[var(--panel-border)] text-[var(--muted)]"
-            }`}
-          >
-            {freshnessLabel}
-          </span>
-          <span className="text-xs font-medium text-[var(--muted)]">{ageLabel}</span>
-          {observedAt ? (
-            <span className="font-mono text-[10px] text-[var(--muted)]">obs {fmtTime(observedAt)}</span>
-          ) : null}
-          {publishedAt ? (
-            <span className="font-mono text-[10px] text-[var(--muted)]">pub {fmtTime(publishedAt)}</span>
-          ) : null}
-          {liveEquity != null ? (
-            <span className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[11px]">
-              Equity {fmtCur(liveEquity, currency)}
-            </span>
-          ) : null}
-          {liveFloating != null ? (
-            <span className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[11px]">
-              Floating {fmtCur(liveFloating, currency)}
-            </span>
-          ) : (
-            <span className="rounded-md border border-dashed border-[var(--panel-border)] px-2 py-1 text-[11px] text-[var(--muted)]">
-              {locale === "VN" ? "Chưa có dữ liệu P&L thả nổi (live)" : "Live floating P&L unavailable"}
-            </span>
-          )}
         </div>
-        <p className="mt-2 text-[11px] leading-5 text-[var(--muted)]">
-          {locale === "VN"
-            ? "KPI hiệu suất là realized (vị thế đã đóng). Floating P&L hiển thị riêng và không làm thay đổi win-rate."
-            : "Performance KPIs are realized (closed trades). Floating P&L is shown separately and does not change win rate."}
-        </p>
+
+        <div className="mt-3 text-[12px] text-[var(--muted)]">
+          {overview?.account_model
+            ? (locale === "VN" ? `Mô hình: ${String(overview.account_model)}` : `Model: ${String(overview.account_model)}`)
+            : (locale === "VN" ? "Mô hình tài khoản chưa công bố" : "Account model not disclosed")}
+          {overview?.broker ? ` · ${String(overview.broker)}` : ""}
+          {overview?.currency ? ` · ${String(overview.currency)}` : ""}
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">{locale === "VN" ? "Dữ liệu" : "Data"}</div>
+            <div className="mt-1 font-mono text-sm font-black text-[var(--foreground)]">{freshnessLabel}</div>
+            <div className="mt-0.5 text-[11px] text-[var(--muted)]">{ageLabel}</div>
+          </div>
+          <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Equity</div>
+            <div className="mt-1 font-mono text-sm font-black text-[var(--foreground)]">{liveEquity != null ? fmtCur(liveEquity, currency) : "—"}</div>
+          </div>
+          <div className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--muted)]">Floating P&L</div>
+            <div className="mt-1 font-mono text-sm font-black text-[var(--foreground)]">
+              {liveFloating != null ? fmtCur(liveFloating, currency) : (locale === "VN" ? "Chưa có dữ liệu" : "Unavailable")}
+            </div>
+          </div>
+        </div>
+
+        {(observedAt || publishedAt) && (
+          <p className="mt-2 font-mono text-[10px] leading-4 text-[var(--muted)]">
+            {observedAt ? `obs ${fmtTime(observedAt)}` : ""}
+            {observedAt && publishedAt ? " · " : ""}
+            {publishedAt ? `pub ${fmtTime(publishedAt)}` : ""}
+          </p>
+        )}
+
         {accounts.length > 0 && (
-          <div className="mt-4">
-            <label className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
+          <div className="mt-4 max-w-md">
+            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
               {locale === "VN" ? "Tài khoản công khai" : "Public account"}
-              <select
-                className="mt-1 w-full max-w-md rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 text-sm font-medium text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]"
-                value={selectedAccountId || ""}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  if (!id) return;
-                  const url = new URL(window.location.href);
-                  url.searchParams.set("account", id);
-                  window.location.assign(url.toString());
-                }}
-                aria-label={locale === "VN" ? "Chọn tài khoản công khai" : "Select public account"}
-              >
-                {!selectedAccountId && (
-                  <option value="" disabled>
-                    {locale === "VN" ? "Chọn tài khoản…" : "Select account…"}
-                  </option>
-                )}
-                {accounts.map((a) => (
-                  <option key={a.public_account_id} value={a.public_account_id}>
-                    {a.alias}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {selectedAccountId && (
-              <p className="mt-1 font-mono text-[10px] text-[var(--muted)]">id: {selectedAccountId}</p>
-            )}
+            </div>
+            <PublicAccountSelector locale={locale} accounts={accounts} selectedAccountId={selectedAccountId} />
           </div>
         )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          {["broker", "platform", "account_type", "currency"].map((k) =>
-            overview?.[k] ? (
-              <span key={k} className="rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] px-2.5 py-1 font-mono text-[11px] text-[var(--foreground)]">
-                {String(overview[k])}
-              </span>
-            ) : null,
-          )}
-          <span className="rounded-md border border-[var(--panel-border)] bg-[var(--surface-raised)] px-2.5 py-1 text-[11px] text-[var(--muted)]">
-            {locale === "VN" ? "Cập nhật" : "Updated"}: {fmtTime(overview?.updated_at_utc)}
-          </span>
-        </div>
       </section>
 
       {/* Period selector */}
@@ -673,331 +591,152 @@ export function AnalysisPortal({
         </section>
       </div>
 
-      {/* Open positions — VIP only */}
+            {/* Open positions — public preview */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.open}</h3>
-          {!isVIP && (
-            <span className="rounded-md border border-[var(--terminal-warning)]/40 bg-[var(--terminal-warning)]/10 px-2.5 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-[var(--terminal-warning)]">
-              VIP
-            </span>
-          )}
-        </div>
-        {!isVIP ? (
-          <div className="rounded-xl border border-dashed border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-7 text-center">
-            <p className="text-sm font-semibold text-[var(--foreground)]">{t.vipOpenHint}</p>
+          <div>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.open}</h3>
             <p className="mt-1 text-[11px] text-[var(--muted)]">
-              {locale === "VN" ? "Thông tin hiệu suất và lịch sử đã đóng vẫn được công khai." : "Performance analytics and closed history remain public."}
+              {locale === "VN"
+                ? (isVIP ? "Tối đa 10 vị thế. Mở dòng để xem chi tiết." : "Xem trước tối đa 3 vị thế. Mở dòng để xem chi tiết.")
+                : (isVIP ? "Up to 10 positions. Expand a row for details." : "Preview up to 3 positions. Expand a row for details.")}
             </p>
           </div>
-        ) : positions == null ? (
+        </div>
+        {positions == null ? (
           <Empty text={t.liveUnavailable} />
         ) : posList.length === 0 ? (
           <Empty text={t.noOpen} />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-[var(--panel-border)] text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                  <th className="px-3 py-2">Symbol</th>
-                  <th className="px-3 py-2">Dir</th>
-                  <th className="px-3 py-2">Vol</th>
-                  <th className="px-3 py-2">Entry</th>
-                  <th className="px-3 py-2">Current</th>
-                  <th className="px-3 py-2">Floating</th>
-                  <th className="px-3 py-2">Opened</th>
-                </tr>
-              </thead>
-              <tbody>
-                {posList.map((p, i) => {
-                  const available = p.floating_available === true;
-                  const fp = Number(p.floating_profit);
-                  return (
-                    <tr key={String(p.public_trade_id ?? i)} className="border-b border-[var(--panel-border)]/40">
-                      <td className="px-3 py-2 font-mono text-xs font-bold">{String(p.symbol ?? "—")}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{String(p.direction ?? "—")}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{String(p.volume ?? "—")}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{String(p.open_price ?? "—")}</td>
-                      <td className="px-3 py-2 font-mono text-xs text-[var(--muted)]">
-                        {p.current_price != null && Number.isFinite(Number(p.current_price))
-                          ? String(p.current_price)
-                          : locale === "VN"
-                            ? "Chưa có giá"
-                            : "Price n/a"}
-                      </td>
-                      <td className={`px-3 py-2 font-mono text-xs font-bold ${available && Number.isFinite(fp) ? (fp >= 0 ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]") : "text-[var(--muted)]"}`}>
-                        {available && Number.isFinite(fp)
-                          ? fmtCur(fp, currency)
-                          : locale === "VN"
-                            ? "Chưa có dữ liệu P&L thả nổi"
-                            : "Floating P&L unavailable"}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]">{fmtTime(p.open_time_utc)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="space-y-2">
+            {posList.slice(0, isVIP ? 10 : 3).map((p, i) => {
+              const id = String(p.public_trade_id ?? i);
+              const available = p.floating_available === true;
+              const fp = Number(p.floating_profit);
+              return (
+                <ExpandableRow
+                  key={id}
+                  id={id}
+                  open={openPositionId === id}
+                  onToggle={(value) => setOpenPositionId((current) => current === value ? null : value)}
+                  ariaLabel={locale === "VN" ? `Mở chi tiết vị thế ${String(p.symbol ?? i + 1)}` : `Open ${String(p.symbol ?? i + 1)} position details`}
+                  summary={(
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono text-sm font-black text-[var(--foreground)]">{String(p.symbol ?? "—")}</span>
+                          <span className="rounded-md border border-[var(--panel-border)] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[var(--muted)]">{String(p.direction ?? "—")}</span>
+                          <span className="font-mono text-[10px] text-[var(--muted)]">{String(p.volume ?? "—")}</span>
+                        </div>
+                        <div className="mt-1 font-mono text-[10px] text-[var(--muted)]">{locale === "VN" ? "Giá vào" : "Entry"} {String(p.open_price ?? "—")} · {fmtTime(p.open_time_utc)}</div>
+                      </div>
+                      <span className={`font-mono text-xs font-black tabular-nums ${available && Number.isFinite(fp) ? (fp >= 0 ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]") : "text-[var(--muted)]"}`}>
+                        {available && Number.isFinite(fp) ? fmtCur(fp, currency) : locale === "VN" ? "P&L chưa có" : "P&L n/a"}
+                      </span>
+                    </div>
+                  )}
+                  details={(
+                    <dl className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+                      <Detail label="ID" value={id} />
+                      <Detail label="Symbol" value={String(p.symbol ?? "—")} />
+                      <Detail label={locale === "VN" ? "Hướng" : "Direction"} value={String(p.direction ?? "—")} />
+                      <Detail label="Volume" value={String(p.volume ?? "—")} />
+                      <Detail label={locale === "VN" ? "Giá vào" : "Entry"} value={String(p.open_price ?? "—")} />
+                      <Detail label={locale === "VN" ? "Giá hiện tại" : "Current"} value={p.current_price != null && Number.isFinite(Number(p.current_price)) ? String(p.current_price) : locale === "VN" ? "Chưa có giá" : "Price n/a"} />
+                      <Detail label="Floating P&L" value={available && Number.isFinite(fp) ? fmtCur(fp, currency) : locale === "VN" ? "Chưa có dữ liệu P&L thả nổi" : "Floating P&L unavailable"} />
+                      <Detail label={locale === "VN" ? "Thời gian mở" : "Opened"} value={fmtTime(p.open_time_utc)} />
+                    </dl>
+                  )}
+                />
+              );
+            })}
+            {posList.length > (isVIP ? 10 : 3) && (
+              <p className="pt-1 text-[11px] text-[var(--muted)]">
+                {locale === "VN"
+                  ? `Chỉ hiển thị ${isVIP ? 10 : 3} vị thế gần nhất trong tổng ${posList.length}.`
+                  : `Showing ${isVIP ? 10 : 3} of ${posList.length} positions.`}
+              </p>
+            )}
           </div>
         )}
       </section>
 
-      {/* History */}
+      {/* History preview → full list on /signals */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
-        <h3 className="mb-3 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.history}</h3>
-        <div className="mb-3 flex flex-wrap gap-2">
-          <input
-            value={symbolFilter}
-            onChange={(e) => setSymbolFilter(e.target.value)}
-            placeholder={locale === "VN" ? "Lọc symbol…" : "Filter symbol…"}
-            className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted)]"
-          />
-          <select value={dirFilter} onChange={(e) => setDirFilter(e.target.value)} className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 text-sm text-[var(--foreground)]">
-            <option value="all">All dirs</option>
-            <option value="BUY">BUY</option>
-            <option value="SELL">SELL</option>
-          </select>
-          <select value={resultFilter} onChange={(e) => setResultFilter(e.target.value)} className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 text-sm text-[var(--foreground)]">
-            <option value="all">All results</option>
-            <option value="win">Win</option>
-            <option value="loss">Loss</option>
-          </select>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.history}</h3>
+          <Link
+            href={selectedAccountId ? `/signals?account=${encodeURIComponent(selectedAccountId)}` : "/signals"}
+            className="inline-flex min-h-10 items-center rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-1.5 text-xs font-bold text-[var(--foreground)] hover:border-[var(--terminal-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]"
+          >
+            {locale === "VN" ? "Xem lịch sử" : "View history"}
+          </Link>
         </div>
-        {ledgerRows.length === 0 ? (
-          <Empty text={t.noTrades} />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-[var(--panel-border)] text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-                  <th className="px-3 py-2">Time</th>
-                  <th className="px-3 py-2">Symbol</th>
-                  <th className="px-3 py-2">Type</th>
-                  <th className="px-3 py-2">Vol</th>
-                  <th className="px-3 py-2">Price</th>
-                  <th className="px-3 py-2">P&L</th>
-                  <th className="px-3 py-2">Comm</th>
-                  <th className="px-3 py-2">Swap</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ledgerRows.slice(0, 200).map((e, i) => {
-                  const profit = Number(e.profit);
-                  return (
-                    <tr key={String(e.public_trade_id ?? i)} className="border-b border-[var(--panel-border)]/40">
-                      <td className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]">{fmtTime(e.deal_time_utc)}</td>
-                      <td className="px-3 py-2 font-mono text-xs font-bold">{String(e.symbol ?? "—")}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{String(e.deal_type ?? "—")}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{String(e.volume ?? "—")}</td>
-                      <td className="px-3 py-2 font-mono text-xs">{String(e.price ?? "—")}</td>
-                      <td className={`px-3 py-2 font-mono text-xs font-bold ${profit >= 0 ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]"}`}>
-                        {fmtCur(profit, currency)}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]">{fmtCur(e.commission, currency)}</td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-[var(--muted)]">{fmtCur(e.swap, currency)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <TradeLedger
+          data={ledger}
+          locale={locale}
+          currency={currency}
+          emptyText={locale === "VN" ? "Chưa có giao dịch đã đóng" : "No closed trades yet"}
+          maxRows={3}
+        />
       </section>
 
-      {/* Strategy + Timeline */}
-      <div className="grid gap-5 lg:grid-cols-2">
-        <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
-          <h3 className="mb-3 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.strategy}</h3>
-          <div className="grid grid-cols-2 gap-3">
-            {(
-              [
-                ["Trades", String(periodPerf?.closed_trade_count ?? "—"), "idle"],
-                ["Max drawdown", fmtCur(periodPerf?.max_equity_drawdown, currency), "warn"],
-                ["Win rate", fmtPct(periodPerf?.win_rate, true), "idle"],
-                ["Profit factor", fmtDec(periodPerf?.profit_factor), "idle"],
-              ] as const
-            ).map(([label, value, tone]) => (
-              <KpiCard
-                key={`s-${label}`}
-                label={label}
-                value={value}
-                tone={tone as "idle" | "warn"}
-                locale={locale}
-                periodLabel={periodUiLabel}
-                openHelp={openHelpLabel === `s-${label}`}
-                onToggleHelp={() => toggleHelp(`s-${label}`)}
-              />
-            ))}
-          </div>
-          {risk?.exposure_by_direction && typeof risk.exposure_by_direction === "object" ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {Object.entries(risk.exposure_by_direction as Record<string, unknown>).map(([k, v]) => (
-                <span key={k} className="rounded-md border border-[var(--panel-border)] px-2 py-1 font-mono text-[11px]">
-                  {k}: {fmtCur(v)}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <p className="mt-3 text-[11px] leading-5 text-[var(--muted)]">
-            {locale === "VN"
-              ? "Chỉ hiển thị metric public-safe từ backend. Không lộ implementation strategy."
-              : "Only public-safe backend metrics are shown. Strategy implementation details are not exposed."}
-          </p>
-        </section>
-
-        <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
-          <h3 className="mb-3 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.timeline}</h3>
-          <ol className="space-y-3 border-l border-[var(--panel-border)] pl-4">
-            <li>
-              <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Cấu hình account" : "Account configured"}</div>
-              <div className="font-mono text-[11px] text-[var(--muted)]">{fmtTime(overview?.configured_at_utc)}</div>
-            </li>
-            <li>
-              <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Bắt đầu giao dịch" : "Trading started"}</div>
-              <div className="font-mono text-[11px] text-[var(--muted)]">{fmtTime(overview?.trading_started_at_utc)}</div>
-            </li>
-            <li>
-              <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Checkpoint gần nhất" : "Latest checkpoint"}</div>
-              <div className="font-mono text-[11px] text-[var(--muted)]">{fmtTime(audit?.last_checkpoint_at_utc)}</div>
-            </li>
-            <li>
-              <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Hiện tại" : "Current"}</div>
-              <div className="font-mono text-[11px] text-[var(--muted)]">{fmtTime(overview?.updated_at_utc)} · checkpoints: {cps.length}</div>
-            </li>
-          </ol>
-        </section>
-      </div>
-
-      {/* Capital simulation (illustrative only) */}
-      <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5 sm:p-6">
-        <h3 className="mb-1 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.calculator}</h3>
-        <p className="mb-4 text-sm text-[var(--muted)]">
-          {locale === "VN"
-            ? "Mô phỏng toán học minh họa. Tỷ lệ dùng ở đây là giả định/minh họa từ dữ liệu lịch sử backend — không phải cam kết hoặc dự báo."
-            : "Illustrative mathematical simulation. The rate is an assumed/historical illustration from backend data — not a commitment or forecast."}
-        </p>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="block text-xs font-semibold text-[var(--muted)]">
-            {locale === "VN" ? "Vốn giả định" : "Assumed capital"}
-            <input
-              type="number"
-              min={0}
-              step="100"
-              value={capital}
-              onChange={(e) => setCapital(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 font-mono text-sm text-[var(--foreground)]"
-            />
-          </label>
-          <label className="block text-xs font-semibold text-[var(--muted)]">
-            Mode
-            <select
-              value={calcMode}
-              onChange={(e) => setCalcMode(e.target.value as "simple" | "compound")}
-              className="mt-1 w-full rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--foreground)]"
-            >
-              <option value="simple">{locale === "VN" ? "Mô phỏng đơn giản" : "Simple illustrative rate"}</option>
-              <option value="compound">{locale === "VN" ? COMPOUND_ASSUMPTION_VN : COMPOUND_ASSUMPTION_EN}</option>
-            </select>
-          </label>
-          <div className="rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2">
-            <div className="text-[10px] uppercase tracking-wider text-[var(--muted)]">
-              {locale === "VN" ? "Tỷ lệ minh họa" : "Illustrative rate"}
-            </div>
-            <div className="font-mono text-sm font-bold">{histReturn == null ? "—" : fmtPct(histReturn, true)}</div>
-          </div>
-        </div>
-        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">{locale === "VN" ? "Vốn giả định" : "Assumed capital"}</div>
-            <div className="font-mono font-bold">{fmtCur(calc.initialCapital, currency)}</div>
-          </div>
-          <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">
-              {locale === "VN" ? "P/L giả định" : "Hypothetical P/L"}
-            </div>
-            <div className={`font-mono font-bold ${Number(calc.estimatedProfit) >= 0 ? "text-[var(--terminal-accent)]" : "text-[var(--terminal-danger)]"}`}>
-              {calc.ok ? fmtCur(calc.estimatedProfit, currency) : "—"}
-            </div>
-          </div>
-          <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">
-              {locale === "VN" ? "Giá trị cuối giả định" : "Hypothetical ending value"}
-            </div>
-            <div className="font-mono font-bold">{calc.ok ? fmtCur(calc.estimatedFinalValue, currency) : "—"}</div>
-          </div>
-          <div className="rounded-xl border border-[var(--panel-border)] p-3">
-            <div className="text-[10px] uppercase text-[var(--muted)]">
-              {locale === "VN" ? "Tỷ lệ minh họa %" : "Illustrative rate %"}
-            </div>
-            <div className="font-mono font-bold">{calc.returnPct == null ? "—" : `${calc.returnPct.toFixed(2)}%`}</div>
-          </div>
-        </div>
-        {calcMode === "compound" && (
-          <p className="mt-2 text-[12px] text-[var(--muted)]">
-            {locale === "VN" ? COMPOUND_ASSUMPTION_VN : COMPOUND_ASSUMPTION_EN}
-          </p>
-        )}
-        {calc.error && <p className="mt-2 text-sm text-[var(--terminal-warning)]">{calc.error}</p>}
-        <p className="mt-3 rounded-lg border border-[var(--terminal-warning)]/30 bg-[var(--terminal-warning)]/10 px-3 py-2 text-[12px] leading-5 text-[var(--foreground)]">
-          {locale === "VN" ? CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN : CALCULATOR_ILLUSTRATIVE_DISCLAIMER_EN}
-        </p>
+      {/* Account timeline */}
+      <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5">
+        <h3 className="mb-3 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[var(--muted)]">{t.timeline}</h3>
+        <ol className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <li className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3">
+            <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Cấu hình account" : "Account configured"}</div>
+            <div className="mt-1 font-mono text-[11px] text-[var(--muted)]">{fmtTime(overview?.configured_at_utc)}</div>
+          </li>
+          <li className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3">
+            <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Bắt đầu giao dịch" : "Trading started"}</div>
+            <div className="mt-1 font-mono text-[11px] text-[var(--muted)]">{fmtTime(overview?.trading_started_at_utc)}</div>
+          </li>
+          <li className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3">
+            <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Checkpoint gần nhất" : "Latest checkpoint"}</div>
+            <div className="mt-1 font-mono text-[11px] text-[var(--muted)]">{fmtTime(audit?.last_checkpoint_at_utc)}</div>
+          </li>
+          <li className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-3">
+            <div className="text-xs font-semibold text-[var(--foreground)]">{locale === "VN" ? "Hiện tại" : "Current"}</div>
+            <div className="mt-1 font-mono text-[11px] text-[var(--muted)]">{fmtTime(overview?.updated_at_utc)} · {cps.length} checkpoints</div>
+          </li>
+        </ol>
       </section>
 
       {/* Risk, licensing, opportunities and challenges */}
-      <InvestmentRiskDisclosure locale={locale} />
-
-      <footer className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5 sm:p-6" aria-label={locale === "VN" ? "Thông tin pháp lý và rủi ro" : "Legal and risk information"}>
-        <div className="grid gap-5 lg:grid-cols-3">
-          <section>
-            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              {locale === "VN" ? "Giấy phép & phạm vi" : "Licensing & scope"}
-            </h3>
-            <p className="mt-2 text-[12px] leading-5 text-[var(--foreground)]">
+      <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-5 sm:p-6">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">{locale === "VN" ? "Công bố rủi ro & giấy phép" : "Risk disclosure & licensing"}</h3>
+            <ul className="mt-3 space-y-2 text-[12px] leading-5 text-[var(--foreground)]">
+              {(locale === "VN" ? RISK_DISCLOSURE_VN : RISK_DISCLOSURE_EN).slice(0, 6).map((item) => <li key={item}>• {item}</li>)}
+            </ul>
+            <p className="mt-4 rounded-lg border border-[var(--panel-border)] bg-[var(--surface-raised)] px-3 py-2 text-[11px] leading-5 text-[var(--muted)]">
               {locale === "VN" ? PUBLIC_LICENSE_DISCLOSURE_VN : PUBLIC_LICENSE_DISCLOSURE_EN}
             </p>
-            {String(overview?.regulatory_status || "NOT_CLAIMED") !== "NOT_CLAIMED" && (
-              <div className="mt-3 space-y-1 font-mono text-[10px] text-[var(--muted)]">
-                <div>Status: {String(overview?.regulatory_status)}</div>
-                {overview?.license_jurisdiction ? <div>Jurisdiction: {String(overview.license_jurisdiction)}</div> : null}
-                {overview?.license_authority ? <div>Authority: {String(overview.license_authority)}</div> : null}
-                {overview?.license_number ? <div>License: {String(overview.license_number)}</div> : null}
-              </div>
-            )}
-          </section>
-
-          <section>
-            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              {locale === "VN" ? "Cơ hội" : "Opportunities"}
-            </h3>
-            <ul className="mt-2 space-y-2 text-[12px] leading-5 text-[var(--foreground)]">
+          </div>
+          <div>
+            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">{locale === "VN" ? "Cơ hội" : "Opportunities"}</h3>
+            <ul className="mt-3 space-y-2 text-[12px] leading-5 text-[var(--foreground)]">
               {(locale === "VN" ? FX_OPPORTUNITIES_VN : FX_OPPORTUNITIES_EN).map((item) => <li key={item}>• {item}</li>)}
             </ul>
-          </section>
-
-          <section>
-            <h3 className="text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">
-              {locale === "VN" ? "Thách thức & rủi ro FX" : "FX challenges & risks"}
-            </h3>
-            <ul className="mt-2 space-y-2 text-[12px] leading-5 text-[var(--foreground)]">
+            <h3 className="mt-5 text-xs font-mono font-bold uppercase tracking-[0.18em] text-[var(--muted)]">{locale === "VN" ? "Thách thức & rủi ro FX" : "FX challenges & risks"}</h3>
+            <ul className="mt-3 space-y-2 text-[12px] leading-5 text-[var(--foreground)]">
               {(locale === "VN" ? FX_CHALLENGES_VN : FX_CHALLENGES_EN).map((item) => <li key={item}>• {item}</li>)}
             </ul>
-          </section>
+          </div>
         </div>
         <div className="mt-5 border-t border-[var(--panel-border)] pt-4 text-[10px] leading-5 text-[var(--muted)]">
-          {locale === "VN"
-            ? "Đòn bẩy không làm giảm rủi ro. Nó làm tăng quy mô phơi nhiễm so với vốn thực có. Hãy kiểm tra loại tài khoản, điều kiện broker, quy định áp dụng và khả năng chịu lỗ trước khi ra quyết định."
-            : "Leverage does not reduce risk. It increases exposure relative to available capital. Check account type, broker conditions, applicable regulation, and loss capacity before making a decision."}
+          {locale === "VN" ? "Đòn bẩy không làm giảm rủi ro. Nó làm tăng quy mô phơi nhiễm so với vốn thực có. Hãy kiểm tra loại tài khoản, điều kiện broker, quy định áp dụng và khả năng chịu lỗ trước khi ra quyết định." : "Leverage does not reduce risk. It increases exposure relative to available capital. Check account type, broker conditions, applicable regulation, and loss capacity before making a decision."}
         </div>
-      </footer>
+      </section>
 
       {/* CTA — information only */}
       <section className="rounded-2xl border border-[var(--panel-border)] bg-[var(--surface)] p-6 text-center">
         <h3 className="text-lg font-bold text-[var(--foreground)]">{t.cta}</h3>
         <p className="mx-auto mt-2 max-w-xl text-sm text-[var(--muted)]">{t.ctaHint}</p>
-        <a
-          href={mailtoContactHref()}
-          className="mt-4 inline-flex rounded-xl border border-[var(--terminal-accent)] bg-[var(--terminal-accent)]/15 px-5 py-2.5 text-sm font-bold text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/25"
-        >
+        <a href={mailtoContactHref()} className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-[var(--terminal-accent)] bg-[var(--terminal-accent)]/15 px-5 py-2.5 text-sm font-bold text-[var(--terminal-accent)] hover:bg-[var(--terminal-accent)]/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--terminal-accent)]">
           {t.cta}
         </a>
         <p className="mt-2 font-mono text-[11px] text-[var(--muted)]">{PUBLIC_INVESTMENT_COMPLIANCE.contactEmail}</p>

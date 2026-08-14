@@ -135,7 +135,6 @@ export async function TradeAuditDashboard({ locale, accountId = null, isVIP = fa
       checkpoints={data.checkpoints}
       ledger={data.ledger}
       performance={(data.performance as Record<string, unknown> | null) ?? null}
-      risk={(data.risk as Record<string, unknown> | null) ?? null}
       audit={(data.audit as Record<string, unknown> | null) ?? null}
       equity={data.equity}
       live={(data.live as Record<string, unknown> | null) ?? null}

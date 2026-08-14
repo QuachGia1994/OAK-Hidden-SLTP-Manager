@@ -12,17 +12,13 @@ import {
 } from "../src/lib/signal-integrity.ts";
 import { maskSignalForPublic } from "../src/lib/signal-display.ts";
 
-test("test_history_displays_integrity_warning", () => {
+test("history page is a compact trade-ledger surface", () => {
   const page = fs.readFileSync(new URL("../src/app/signals/page.tsx", import.meta.url), "utf8");
-  const day = fs.readFileSync(new URL("../src/components/CollapsibleDay.tsx", import.meta.url), "utf8");
-  assert.equal(page.includes("countIncompleteSignals"), true);
-  assert.equal(page.includes("History rebuild is incomplete"), true);
-  assert.equal(page.includes("History rebuild chưa toàn vẹn"), true);
-  assert.equal(page.includes("INCOMPLETE"), true);
-  assert.equal(page.includes("CHƯA TOÀN VẸN"), true);
-  assert.equal(day.includes("isSignalRecordIncomplete"), true);
-  assert.equal(day.includes("Incomplete rebuild"), true);
-  assert.equal(day.includes("Rebuild chưa toàn vẹn"), true);
+  const ledger = fs.readFileSync(new URL("../src/components/TradeLedger.tsx", import.meta.url), "utf8");
+  assert.equal(page.includes("<TradeLedger"), true);
+  assert.equal(page.includes("maxRows={10}"), true);
+  assert.equal(ledger.includes("Showing the latest"), true);
+  assert.equal(ledger.includes("ExpandableRow"), true);
 });
 
 test("test_d_snapshot_missing_not_loading_forever", () => {

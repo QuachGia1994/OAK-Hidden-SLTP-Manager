@@ -43,10 +43,10 @@ test("compliance contract flags are information-only", () => {
 
 test("no placeholder email in public analysis surfaces", () => {
   const portal = readSrc("src/components/AnalysisPortal.tsx");
-  const disclosure = readSrc("src/components/InvestmentRiskDisclosure.tsx");
+  const simulator = readSrc("src/components/InvestmentSimulator.tsx");
   // UI surfaces must never show the placeholder. compliance.ts may mention it only
   // inside the detector helper assertPublicComplianceSafe.
-  for (const src of [portal, disclosure]) {
+  for (const src of [portal, simulator]) {
     assert.ok(!src.includes("admin@example.com"), "placeholder email must be removed from UI");
   }
   assert.equal(PUBLIC_INVESTMENT_COMPLIANCE.contactEmail, "kim.phong619@gmail.com");
@@ -74,9 +74,9 @@ test("calculator illustrative disclaimer required", () => {
   assert.ok(CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN.includes("mô phỏng"));
   assert.ok(CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN.includes("không phải"));
   assert.ok(CALCULATOR_ILLUSTRATIVE_DISCLAIMER_EN.toLowerCase().includes("simulation"));
-  const portal = readSrc("src/components/AnalysisPortal.tsx");
-  assert.ok(portal.includes("CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN"));
-  assert.ok(portal.includes("CALCULATOR_ILLUSTRATIVE_DISCLAIMER_EN"));
+  const simulator = readSrc("src/components/InvestmentSimulator.tsx");
+  assert.ok(simulator.includes("CALCULATOR_ILLUSTRATIVE_DISCLAIMER_VN"));
+  assert.ok(simulator.includes("CALCULATOR_ILLUSTRATIVE_DISCLAIMER_EN"));
 });
 
 test("no guaranteed-return claims in portal copy", () => {
