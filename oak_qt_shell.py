@@ -2519,12 +2519,58 @@ class NativeShell:
                 except Exception:
                     pass
 
+    def _dashboard_clear_live_snapshot(self) -> None:
+        """Clear live KPIs/tables when switching profiles so A never paints under B."""
+        for key in ("equity", "balance", "floating", "cur_dd", "max_dd", "margin"):
+            slot = (getattr(self, "dash_risk_stats", {}) or {}).get(key)
+            if slot and slot.get("value") is not None:
+                slot["value"].setText("unavailable")
+        if getattr(self, "dash_positions_table", None) is not None:
+            self._set_analysis_table_rows(self.dash_positions_table, [])
+            self._bind_table_row_details(self.dash_positions_table, [], title="Open position")
+        if getattr(self, "dash_pos_status", None) is not None:
+            self.dash_pos_status.setText("positions unavailable · switching account")
+        if getattr(self, "dash_pending_table", None) is not None:
+            self._set_analysis_table_rows(self.dash_pending_table, [])
+            self._bind_table_row_details(self.dash_pending_table, [], title="Pending task")
+        if getattr(self, "dash_pending_status", None) is not None:
+            self.dash_pending_status.setText("pending unavailable · switching account")
+        if getattr(self, "dash_equity_table", None) is not None:
+            self._set_analysis_table_rows(self.dash_equity_table, [])
+        if getattr(self, "dash_fresh_badge", None) is not None:
+            self._apply_mode_badge(self.dash_fresh_badge, "UNAVAILABLE")
+        if getattr(self, "dash_source_badge", None) is not None:
+            self.dash_source_badge.setProperty("mode", "UNAVAILABLE")
+            self.dash_source_badge.setText("UNAVAILABLE")
+            style = self.dash_source_badge.style()
+            if style is not None:
+                style.unpolish(self.dash_source_badge)
+                style.polish(self.dash_source_badge)
+        if getattr(self, "dash_fresh_label", None) is not None:
+            self.dash_fresh_label.setText("Observed unavailable · switching account")
+
     def _refresh_dashboard_page(self) -> None:
         """Populate trading-workstation dashboard from existing audit/live contracts."""
         if not getattr(self, "dash_mode_badge", None):
             return
+        try:
+            self._refresh_dashboard_page_inner()
+        except Exception as exc:
+            # One failed cycle must not kill subsequent timer ticks.
+            try:
+                self.log(f"Dashboard refresh error: {exc}")
+            except Exception:
+                pass
 
+    def _refresh_dashboard_page_inner(self) -> None:
+        """Inner dashboard refresh — exceptions are caught by the outer wrapper."""
         profile = self.selected or "—"
+        # Profile switch isolation: never leave previous account KPIs visible under a new alias.
+        last = getattr(self, "_dashboard_bound_profile", None)
+        if last is not None and last != self.selected:
+            self._dashboard_clear_live_snapshot()
+        self._dashboard_bound_profile = self.selected
+
         running = self._profile_is_running(profile) if self.selected else False
         cfg = self.profiles.get(self.selected, {}) if self.selected else {}
 
@@ -2653,13 +2699,24 @@ class NativeShell:
             + (f" · {len(eq_rows)} points" if eq_rows else " · no samples")
         )
 
-        # Open positions preview
+        # Open positions preview — distinguish true zero from query/MT5 failure.
         live = self._live_mt5_open_positions(self.selected) if self.selected else None
-        positions = live if live is not None else audit_positions
-        source = "LIVE_MT5" if live is not None else native_text("Audit checkpoint")
+        audit_ok = queries is not None
+        if live is not None:
+            positions = live
+            source = "LIVE_MT5"
+            positions_known = True
+        elif audit_ok and isinstance(audit_positions, list):
+            positions = audit_positions
+            source = native_text("Audit checkpoint")
+            positions_known = True
+        else:
+            positions = []
+            source = "unavailable"
+            positions_known = False
         total_float = 0.0
         float_ok = True
-        preview = positions[:6] if isinstance(positions, list) else []
+        preview = positions[:6] if positions_known else []
         pos_rows = []
         pos_payloads: list[dict[str, Any]] = []
         for p in preview:
@@ -2677,22 +2734,24 @@ class NativeShell:
                 str(p.get("symbol") or "—"),
                 str(p.get("direction") or "—"),
                 self._format_analysis_value(p.get("volume"), 2),
-                self._format_analysis_value(profit) if profit is not None else "—",
+                self._format_analysis_value(profit) if profit is not None else "unavailable",
             ])
             detail = dict(p)
             detail.setdefault("source", source)
+            detail.setdefault("freshness", fresh_status)
             pos_payloads.append(detail)
         self._set_analysis_table_rows(self.dash_positions_table, pos_rows)
         self._bind_table_row_details(self.dash_positions_table, pos_payloads, title="Open position")
-        open_count = len(positions) if isinstance(positions, list) else None
-        if open_count is None:
-            self.dash_pos_status.setText(f"positions unavailable · {source}")
-        elif open_count == 0:
-            self.dash_pos_status.setText(f"0 open · no positions · {source}")
+        if not positions_known:
+            self.dash_pos_status.setText(f"positions unavailable · source unknown")
         else:
-            agg = self._format_analysis_value(total_float) if float_ok and preview else "unavailable"
-            more = f" · +{open_count - len(preview)} more" if open_count > len(preview) else ""
-            self.dash_pos_status.setText(f"{open_count} open · float {agg} · {source}{more}")
+            open_count = len(positions)
+            if open_count == 0:
+                self.dash_pos_status.setText(f"0 open · no positions · {source}")
+            else:
+                agg = self._format_analysis_value(total_float) if float_ok and preview else "unavailable"
+                more = f" · +{open_count - len(preview)} more" if open_count > len(preview) else ""
+                self.dash_pos_status.setText(f"{open_count} open · float {agg} · {source}{more}")
 
         # Pending preview
         try:
@@ -3851,7 +3910,13 @@ class NativeShell:
             interval = float(getattr(self, "_dashboard_live_interval", 3.0) or 3.0)
             if now - float(getattr(self, "_last_dashboard_live", 0.0) or 0.0) >= interval:
                 self._last_dashboard_live = now
-                self._refresh_dashboard_page()
+                try:
+                    self._refresh_dashboard_page()
+                except Exception as exc:
+                    try:
+                        self.log(f"Dashboard timer refresh error: {exc}")
+                    except Exception:
+                        pass
         
         # Only do expensive refreshes when signature changes
         if running != self.last_running_signature:

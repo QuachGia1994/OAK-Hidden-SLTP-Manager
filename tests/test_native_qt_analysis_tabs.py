@@ -155,6 +155,24 @@ class NativeQtDashboardFidelityTests(unittest.TestCase):
         self.assertIn('elif tab == "Dashboard":', source)
         self.assertIn("self._refresh_dashboard_page()", source)
 
+    def test_dashboard_query_failure_not_zero_positions(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("positions_known", source)
+        self.assertIn("positions unavailable · source unknown", source)
+        self.assertIn("audit_ok = queries is not None", source)
+
+    def test_dashboard_refresh_exception_is_isolated(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("_refresh_dashboard_page_inner", source)
+        self.assertIn("Dashboard refresh error", source)
+        self.assertIn("Dashboard timer refresh error", source)
+
+    def test_dashboard_profile_switch_clears_snapshot(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("_dashboard_clear_live_snapshot", source)
+        self.assertIn("switching account", source)
+        self.assertIn("_dashboard_bound_profile", source)
+
 
 if __name__ == "__main__":
     unittest.main()
