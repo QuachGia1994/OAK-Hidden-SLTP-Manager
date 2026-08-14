@@ -758,6 +758,7 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
             QApplication,
             QCheckBox,
             QComboBox,
+            QDialog,
             QFrame,
             QGraphicsOpacityEffect,
             QGridLayout,
@@ -1242,6 +1243,8 @@ class NativeShell:
         self.pending_delete_key = ""
         self._last_pending_signature = None
         self._last_stock_advisor_signature = None
+        self._table_detail_payloads: dict[int, list[dict[str, Any]]] = {}
+        self._table_detail_titles: dict[int, str] = {}
         self.diag_summary = None
         self.diag_log = None
         self.diag_filter = None
@@ -2354,6 +2357,77 @@ class NativeShell:
         finally:
             table.setUpdatesEnabled(True)
 
+    def _bind_table_row_details(
+        self,
+        table: Any,
+        payloads: list[dict[str, Any]],
+        *,
+        title: str,
+    ) -> None:
+        """Attach row payloads for double-click detail without inventing fields."""
+        if table is None:
+            return
+        key = id(table)
+        self._table_detail_payloads[key] = list(payloads)
+        self._table_detail_titles[key] = title
+        if not getattr(table, "_oak_detail_bound", False):
+            table.cellDoubleClicked.connect(
+                lambda row, _col, t=table: self._on_table_row_detail(t, row)
+            )
+            table.setToolTip(native_text("Double-click a row for details"))
+            table._oak_detail_bound = True
+
+    def _on_table_row_detail(self, table: Any, row: int) -> None:
+        key = id(table)
+        payloads = self._table_detail_payloads.get(key) or []
+        if row < 0 or row >= len(payloads):
+            return
+        payload = payloads[row]
+        if not isinstance(payload, dict):
+            return
+        title = self._table_detail_titles.get(key) or native_text("Detail")
+        self._show_row_detail_dialog(title, payload)
+
+    def _show_row_detail_dialog(self, title: str, payload: dict[str, Any]) -> None:
+        """Compact read-only detail dialog — close/back explicit, no navigation break."""
+        # Public-safe fields only; skip internal keys and credentials.
+        skip = {
+            "ticket", "deal", "order", "comment", "magic", "login", "password",
+            "token", "secret", "api_key", "_pending_file", "_pending_key",
+            "_pending_identity", "_pending_shape", "_pending_index",
+        }
+        lines: list[str] = []
+        for key, value in payload.items():
+            k = str(key)
+            if k.startswith("_") or k.lower() in skip:
+                continue
+            if value is None or value == "":
+                text = "unavailable"
+            else:
+                text = str(value)
+            lines.append(f"{k}: {text}")
+        if not lines:
+            lines = [native_text("No detail fields available")]
+        dialog = QT.QDialog(self.window)
+        dialog.setWindowTitle(native_text(title))
+        dialog.setModal(True)
+        dialog.resize(420, 360)
+        lay = QT.QVBoxLayout(dialog)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+        body = QT.QTextEdit()
+        body.setReadOnly(True)
+        body.setProperty("role", "mini")
+        body.setPlainText("\n".join(lines))
+        lay.addWidget(body, 1)
+        close_btn = button(native_text("Close"), primary=True)
+        close_btn.clicked.connect(dialog.accept)
+        row = QT.QHBoxLayout()
+        row.addStretch(1)
+        row.addWidget(close_btn)
+        lay.addLayout(row)
+        dialog.exec()
+
     def _format_analysis_value(self, value: Any, digits: int = 2) -> str:
         if value is None:
             return "—"
@@ -2535,6 +2609,7 @@ class NativeShell:
         float_ok = True
         preview = positions[:6] if isinstance(positions, list) else []
         pos_rows = []
+        pos_payloads: list[dict[str, Any]] = []
         for p in preview:
             if not isinstance(p, dict):
                 continue
@@ -2552,11 +2627,20 @@ class NativeShell:
                 self._format_analysis_value(p.get("volume"), 2),
                 self._format_analysis_value(profit) if profit is not None else "—",
             ])
+            detail = dict(p)
+            detail.setdefault("source", source)
+            pos_payloads.append(detail)
         self._set_analysis_table_rows(self.dash_positions_table, pos_rows)
-        agg = self._format_analysis_value(total_float) if float_ok and preview else "—"
-        self.dash_pos_status.setText(
-            f"{len(positions) if isinstance(positions, list) else 0} open · float {agg} · {source}"
-        )
+        self._bind_table_row_details(self.dash_positions_table, pos_payloads, title="Open position")
+        open_count = len(positions) if isinstance(positions, list) else None
+        if open_count is None:
+            self.dash_pos_status.setText(f"positions unavailable · {source}")
+        elif open_count == 0:
+            self.dash_pos_status.setText(f"0 open · no positions · {source}")
+        else:
+            agg = self._format_analysis_value(total_float) if float_ok and preview else "unavailable"
+            more = f" · +{open_count - len(preview)} more" if open_count > len(preview) else ""
+            self.dash_pos_status.setText(f"{open_count} open · float {agg} · {source}{more}")
 
         # Pending preview
         try:
@@ -2564,6 +2648,7 @@ class NativeShell:
         except Exception:
             counts, items = [], []
         pend_rows = []
+        pend_payloads: list[dict[str, Any]] = []
         for item in (items or [])[:5]:
             if not isinstance(item, dict):
                 continue
@@ -2572,9 +2657,15 @@ class NativeShell:
                 order_type_name(item.get("type") or item.get("order_type")),
                 str(item.get("status") or "—"),
             ])
+            pend_payloads.append(dict(item))
         self._set_analysis_table_rows(self.dash_pending_table, pend_rows)
+        self._bind_table_row_details(self.dash_pending_table, pend_payloads, title="Pending task")
         total_pending = sum(c for _k, c in counts) if counts else len(items or [])
-        self.dash_pending_status.setText(f"{total_pending} pending")
+        if total_pending == 0:
+            self.dash_pending_status.setText("0 pending · none scheduled")
+        else:
+            more = f" · +{total_pending - len(pend_rows)} more" if total_pending > len(pend_rows) else ""
+            self.dash_pending_status.setText(f"{total_pending} pending{more}")
 
     def _refresh_accounts_page(self) -> None:
         if self.analysis_positions_table is None:
@@ -2655,9 +2746,16 @@ class NativeShell:
         source = "LIVE_MT5" if live is not None else native_text("Audit checkpoint")
         positions_status = getattr(self, "analysis_positions_status", None)
         if positions_status is not None:
-            positions_status.setText(
-                f"{len(positions)} {native_text('Open positions').lower()} · {source}"
-            )
+            if not isinstance(positions, list):
+                positions_status.setText(f"positions unavailable · {source}")
+            elif not positions:
+                positions_status.setText(f"0 {native_text('Open positions').lower()} · none · {source}")
+            else:
+                positions_status.setText(
+                    f"{len(positions)} {native_text('Open positions').lower()} · {source} · "
+                    f"{native_text('Double-click a row for details')}"
+                )
+        safe_positions = positions if isinstance(positions, list) else []
         rows = [
             [
                 str(p.get("symbol") or "—"),
@@ -2667,19 +2765,28 @@ class NativeShell:
                 self._format_analysis_value(p.get("current_price"), 5) if p.get("current_price") is not None else "—",
                 self._format_analysis_value(p.get("profit")) if p.get("profit") is not None else "—",
             ]
-            for p in positions
+            for p in safe_positions
+            if isinstance(p, dict)
+        ]
+        pos_payloads = [
+            {**dict(p), "source": source}
+            for p in safe_positions
+            if isinstance(p, dict)
         ]
         self._set_analysis_table_rows(self.analysis_positions_table, rows)
-        for row_index, position in enumerate(positions):
+        self._bind_table_row_details(self.analysis_positions_table, pos_payloads, title="Open position")
+        for row_index, position in enumerate(pos_payloads):
             direction = str(position.get("direction") or "").upper()
             profit = position.get("profit")
-            if direction in {"BUY", "SELL"}:
-                self.analysis_positions_table.item(row_index, 1).setForeground(
+            item_dir = self.analysis_positions_table.item(row_index, 1)
+            item_pl = self.analysis_positions_table.item(row_index, 5)
+            if item_dir is not None and direction in {"BUY", "SELL"}:
+                item_dir.setForeground(
                     QT.QColor("#2fa572" if direction == "BUY" else "#e05260")
                 )
-            if profit is not None:
+            if item_pl is not None and profit is not None:
                 try:
-                    self.analysis_positions_table.item(row_index, 5).setForeground(
+                    item_pl.setForeground(
                         QT.QColor("#2fa572" if float(profit) >= 0 else "#e05260")
                     )
                 except (TypeError, ValueError):
@@ -3005,17 +3112,43 @@ class NativeShell:
             swap = performance.get("total_swap")
             win_rate = performance.get("win_rate")
         else:
-            closed_count = 0
+            closed_count = None
             realized = None
             commission = None
             swap = None
             win_rate = None
+        realized_accent = ""
+        if realized is not None:
+            try:
+                realized_accent = "green" if float(realized) >= 0 else "red"
+            except (TypeError, ValueError):
+                realized_accent = ""
         summary = [
-            ("Closed trades", self._format_analysis_value(closed_count, 0), ""),
-            ("Realized P/L", self._format_analysis_value(realized), "green" if (realized or 0) >= 0 else "red"),
-            ("Total commission", self._format_analysis_value(commission), ""),
-            ("Total swap", self._format_analysis_value(swap), ""),
-            ("Win rate", f"{float(win_rate) * 100:.2f}%" if win_rate is not None else "—", ""),
+            (
+                "Closed trades",
+                self._format_analysis_value(closed_count, 0) if closed_count is not None else "unavailable",
+                "",
+            ),
+            (
+                "Realized P/L",
+                self._format_analysis_value(realized) if realized is not None else "unavailable",
+                realized_accent,
+            ),
+            (
+                "Total commission",
+                self._format_analysis_value(commission) if commission is not None else "unavailable",
+                "",
+            ),
+            (
+                "Total swap",
+                self._format_analysis_value(swap) if swap is not None else "unavailable",
+                "",
+            ),
+            (
+                "Win rate",
+                f"{float(win_rate) * 100:.2f}%" if win_rate is not None else "unavailable",
+                "",
+            ),
         ]
         self._set_analysis_stat_grid(self.analysis_history_summary_layout, self.analysis_history_summary, summary, columns=5)
         self._refresh_history_filter_options()
@@ -3076,15 +3209,33 @@ class NativeShell:
             for d in filtered
         ]
         self._set_analysis_table_rows(self.analysis_history_table, rows)
+        self._bind_table_row_details(
+            self.analysis_history_table,
+            [dict(d) for d in filtered if isinstance(d, dict)],
+            title="Closed deal",
+        )
+        if getattr(self, "history_status_label", None) is not None:
+            if not filtered:
+                self.history_status_label.setText(
+                    native_text("No closed deals for current filters · profile-scoped")
+                )
+            else:
+                self.history_status_label.setText(
+                    f"{len(filtered)} deals · {native_text('Double-click a row for details')}"
+                )
         for row_index, deal in enumerate(filtered):
             deal_type = str(deal.get("deal_type") or "").upper()
-            if deal_type in {"BUY", "SELL"}:
-                self.analysis_history_table.item(row_index, 2).setForeground(
+            item_type = self.analysis_history_table.item(row_index, 2)
+            item_pl = self.analysis_history_table.item(row_index, 5)
+            if item_type is not None and deal_type in {"BUY", "SELL"}:
+                item_type.setForeground(
                     QT.QColor("#2fa572" if deal_type == "BUY" else "#e05260")
                 )
+            if item_pl is None or deal.get("profit") is None:
+                continue
             try:
-                profit = float(deal.get("profit") or 0)
-                self.analysis_history_table.item(row_index, 5).setForeground(
+                profit = float(deal.get("profit"))
+                item_pl.setForeground(
                     QT.QColor("#2fa572" if profit >= 0 else "#e05260")
                 )
             except (TypeError, ValueError):

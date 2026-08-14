@@ -46,6 +46,7 @@ class NativeQtAnalysisNavigationTests(unittest.TestCase):
         shell._format_analysis_value = lambda value, digits=2: str(value)
         shell._set_analysis_stat_grid = MagicMock()
         shell._set_analysis_table_rows = MagicMock()
+        shell._bind_table_row_details = MagicMock()
         shell._live_mt5_open_positions = MagicMock(return_value=None)
         shell._analysis_queries.return_value = fake
         shell_mod.NativeShell._refresh_accounts_page(shell)
@@ -57,6 +58,15 @@ class NativeQtAnalysisPageBuildTests(unittest.TestCase):
     def test_analysis_page_methods_exist(self) -> None:
         for name in ("_accounts_page", "_performance_page", "_history_page", "_news_page", "_refresh_analysis_page"):
             self.assertTrue(hasattr(shell_mod.NativeShell, name), name)
+
+    def test_row_detail_helpers_exist_and_skip_secrets(self) -> None:
+        for name in ("_bind_table_row_details", "_on_table_row_detail", "_show_row_detail_dialog"):
+            self.assertTrue(hasattr(shell_mod.NativeShell, name), name)
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn('"ticket"', source)
+        self.assertIn('"password"', source)
+        self.assertIn("_table_detail_payloads", source)
+        self.assertIn("cellDoubleClicked", source)
 
 
 if __name__ == "__main__":
