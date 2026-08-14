@@ -173,6 +173,12 @@ class NativeQtDashboardFidelityTests(unittest.TestCase):
         self.assertIn("switching account", source)
         self.assertIn("_dashboard_bound_profile", source)
 
+    def test_dashboard_mt5_path_resolves_path_key(self) -> None:
+        """Dashboard MT5 status must use the same path keys as LIVE_MT5 / Profiles."""
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        # Dashboard resolution includes path first (profiles.json stores path).
+        self.assertIn('cfg.get("path") or cfg.get("mt5_path") or cfg.get("terminal_path")', source)
+
 
 if __name__ == "__main__":
     unittest.main()

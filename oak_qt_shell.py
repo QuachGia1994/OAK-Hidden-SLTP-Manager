@@ -2482,7 +2482,10 @@ class NativeShell:
         preserved exactly (including suffixes such as ``+``).
         """
         profiles = read_json(PROFILE_FILE, {})
-        path = str((profiles.get(profile) or {}).get("path") or "").strip()
+        cfg = profiles.get(profile) or {}
+        path = str(
+            cfg.get("path") or cfg.get("mt5_path") or cfg.get("terminal_path") or ""
+        ).strip()
         if not path:
             return None
         try:
@@ -2579,7 +2582,10 @@ class NativeShell:
         self._apply_mode_badge(self.dash_mode_badge, mode)
         self.dash_account_label.setText(str(profile))
 
-        mt5_path = str(cfg.get("mt5_path") or cfg.get("terminal_path") or "").strip()
+        # Same resolution order as Profiles page / LIVE_MT5 helper (path first).
+        mt5_path = str(
+            cfg.get("path") or cfg.get("mt5_path") or cfg.get("terminal_path") or ""
+        ).strip()
         self.dash_mt5_label.setText(
             "MT5 path set" if mt5_path else "MT5 path unset"
         )
