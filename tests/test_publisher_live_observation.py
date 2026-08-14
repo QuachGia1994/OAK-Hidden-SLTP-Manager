@@ -32,7 +32,8 @@ class TestPublisherLiveObservation(unittest.TestCase):
 
     def test_live_observation_marks_mt5_source(self):
         pub = AuditDashboardPublisher(self.store, secret="s")
-        now = datetime(2026, 8, 14, 7, 30, 0, tzinfo=timezone.utc)
+        # Use wall-clock now so freshness threshold remains LIVE under any run time.
+        now = datetime.now(timezone.utc)
         live = pub.build_live(
             self.uid,
             account_info={

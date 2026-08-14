@@ -1778,26 +1778,39 @@ class NativeShell:
         return self._workstation_scroll(content)
 
     def _stock_advisor_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        content = QT.QWidget()
+        root = QT.QVBoxLayout(content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+
+        self.stock_mode_badge = label("LOCAL", role="status")
+        self.stock_status = label("Local EOD Database · informational scanner", role="muted")
+        self.stock_update_eod_btn = button("Update EOD Data (15:00+)")
+        self.stock_update_eod_btn.setProperty("stockAction", "update_eod")
+        self.stock_update_eod_btn.setProperty("compact", "true")
+        self.stock_run_btn = button("Run Local EOD D1 Scanner", primary=True)
+        self.stock_run_btn.setProperty("compact", "true")
+        self.stock_update_eod_btn.clicked.connect(self.update_eod_data)
+        self.stock_run_btn.clicked.connect(self.run_stock_advisor)
+        root.addWidget(
+            self._status_strip(
+                label("VN30 ADVISOR", role="section"),
+                self.stock_mode_badge,
+                "|",
+                self.stock_status,
+                self.stock_update_eod_btn,
+                self.stock_run_btn,
+            )
+        )
+
+        body = QT.QHBoxLayout()
+        body.setSpacing(12)
 
         # --- LEFT pane: Advisory Result ---
         left_widget = QT.QWidget()
         left_layout = QT.QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
-
-        # Action row (HBox with Update EOD + Run Filter buttons)
-        actions_row = QT.QHBoxLayout()
-        self.stock_update_eod_btn = button("Update EOD Data (15:00+)")
-        self.stock_update_eod_btn.setProperty("stockAction", "update_eod")
-        self.stock_run_btn = button("Run Local EOD D1 Scanner", primary=True)
-        self.stock_update_eod_btn.clicked.connect(self.update_eod_data)
-        self.stock_run_btn.clicked.connect(self.run_stock_advisor)
-        actions_row.addWidget(self.stock_update_eod_btn)
-        actions_row.addWidget(self.stock_run_btn)
-        left_layout.addLayout(actions_row)
 
         # Advisory result table (5 columns)
         self.stock_result_table = QT.QTableWidget(0, 5)
@@ -1822,12 +1835,7 @@ class NativeShell:
         self.stock_progress_label.setWordWrap(True)
         left_layout.addWidget(self.stock_progress_label)
 
-        # Status
-        self.stock_status = label("Local EOD Database (data/market.db) · Auto-updated after 15:00", role="stockStatus")
-        self.stock_status.setWordWrap(True)
-        left_layout.addWidget(self.stock_status)
-
-        layout.addWidget(self._section("ADVISORY RESULT", left_widget), 1)
+        body.addWidget(self._section("ADVISORY RESULT", left_widget), 1)
 
         # --- RIGHT pane: Local EOD Stocks ---
         right_widget = QT.QWidget()
@@ -1855,13 +1863,16 @@ class NativeShell:
              native_text("HIGH"), native_text("LOW"), native_text("CLOSE"),
              native_text("VOLUME")]
         )
+        self.stock_table.setMinimumHeight(220)
         right_layout.addWidget(self.stock_table, 1)
 
-        layout.addWidget(self._section("LOCAL EOD STOCKS", right_widget), 2)
+        body.addWidget(self._section("LOCAL EOD STOCKS", right_widget), 2)
+        root.addLayout(body, 1)
+        root.addStretch(0)
 
         # Load initial stock rows
         self._reload_stock_rows()
-        return page
+        return self._workstation_scroll(content)
 
     def _profiles_page(self) -> Any:
         content = QT.QWidget()
@@ -1963,13 +1974,33 @@ class NativeShell:
         return frame
 
     def _copy_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        content = QT.QWidget()
+        root = QT.QVBoxLayout(content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+
+        self.copy_mode_badge = label("UNKNOWN", role="status")
+        self.copy_role_label = label("Role —", role="muted")
+        self.copy_worker_label = label("Worker —", role="muted")
+        self.copy_status_label = label("Copy controls are profile-scoped.", role="muted")
+        root.addWidget(
+            self._status_strip(
+                label("COPY", role="section"),
+                self.copy_mode_badge,
+                self.copy_role_label,
+                "|",
+                self.copy_worker_label,
+                self.copy_status_label,
+            )
+        )
+
+        body = QT.QHBoxLayout()
+        body.setSpacing(12)
 
         self.copy_detail = QT.QTextEdit()
         self.copy_detail.setReadOnly(True)
         self.copy_detail.setProperty("role", "mini")
+        self.copy_detail.setMinimumHeight(180)
 
         guardrails = QT.QWidget()
         guardrails.setStyleSheet("background: transparent;")
@@ -1977,9 +2008,11 @@ class NativeShell:
         self.copy_guardrails_layout.setContentsMargins(0, 0, 0, 0)
         self.copy_guardrails_layout.setSpacing(10)
 
-        layout.addWidget(self._section("COPY SETTINGS", self.copy_detail), 1)
-        layout.addWidget(self._section("SAFETY GUARDRAILS", guardrails), 1)
-        return page
+        body.addWidget(self._section("COPY SETTINGS", self.copy_detail), 1)
+        body.addWidget(self._section("SAFETY GUARDRAILS", guardrails), 1)
+        root.addLayout(body, 1)
+        root.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _pending_page(self) -> Any:
         content = QT.QWidget()
@@ -2262,38 +2295,45 @@ class NativeShell:
         return self._workstation_scroll(content)
 
     def _news_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QVBoxLayout(page)
+        content = QT.QWidget()
+        layout = QT.QVBoxLayout(content)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
+
+        self.analysis_news_status = label("Informational only · no trade signal", role="muted")
+        self.analysis_news_currency_filter = QT.QComboBox()
+        self.analysis_news_impact_filter = QT.QComboBox()
+        self.analysis_news_impact_filter.addItems([native_text("All impact"), "HIGH", "MEDIUM", "LOW"])
+        self.analysis_news_currency_filter.currentTextChanged.connect(self._apply_news_filters)
+        self.analysis_news_impact_filter.currentTextChanged.connect(self._apply_news_filters)
+        refresh = button("Refresh news", primary=True)
+        refresh.setProperty("compact", "true")
+        refresh.clicked.connect(self._refresh_news_page)
+        layout.addWidget(
+            self._status_strip(
+                label("NEWS", role="section"),
+                self.analysis_news_currency_filter,
+                self.analysis_news_impact_filter,
+                "|",
+                self.analysis_news_status,
+                refresh,
+            )
+        )
 
         self.analysis_news_summary_host = QT.QWidget()
         self.analysis_news_summary_layout = QT.QGridLayout(self.analysis_news_summary_host)
         self.analysis_news_summary_layout.setContentsMargins(0, 0, 0, 0)
         self.analysis_news_summary_layout.setHorizontalSpacing(10)
         self.analysis_news_summary_layout.setVerticalSpacing(10)
-        layout.addWidget(self._section("News overview", self.analysis_news_summary_host), 0)
+        layout.addWidget(self._section("NEWS OVERVIEW", self.analysis_news_summary_host), 0)
 
-        toolbar = QT.QHBoxLayout()
-        self.analysis_news_currency_filter = QT.QComboBox()
-        self.analysis_news_impact_filter = QT.QComboBox()
-        self.analysis_news_impact_filter.addItems([native_text("All impact"), "HIGH", "MEDIUM", "LOW"])
-        self.analysis_news_currency_filter.currentTextChanged.connect(self._apply_news_filters)
-        self.analysis_news_impact_filter.currentTextChanged.connect(self._apply_news_filters)
-        toolbar.addWidget(self.analysis_news_currency_filter)
-        toolbar.addWidget(self.analysis_news_impact_filter)
-        toolbar.addStretch(1)
-        self.analysis_news_status = label("—", role="muted")
-        refresh = button("Refresh news", primary=True)
-        refresh.clicked.connect(self._refresh_news_page)
-        toolbar.addWidget(self.analysis_news_status)
-        toolbar.addWidget(refresh)
-        layout.addLayout(toolbar)
         self.analysis_news_table = self._analysis_table(
             ["Time", "Currency", "Impact", "Headline"], stretch=3
         )
-        layout.addWidget(self.analysis_news_table, 1)
-        return page
+        self.analysis_news_table.setMinimumHeight(220)
+        layout.addWidget(self._section("HEADLINES", self.analysis_news_table), 1)
+        layout.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _set_analysis_table_rows(self, table: Any, rows: list[list[str]]) -> None:
         table.setUpdatesEnabled(False)
@@ -3125,9 +3165,33 @@ class NativeShell:
                 self.analysis_news_table.item(row_index, 2).setForeground(QT.QColor(accent))
 
     def _diagnostics_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        content = QT.QWidget()
+        root = QT.QVBoxLayout(content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+
+        self.diag_health_badge = label("READY", role="status")
+        self.diag_status = label("Diagnostics export is redacted by default.", role="muted")
+        refresh = button("Refresh")
+        export_btn = button("Export bundle")
+        refresh.setProperty("compact", "true")
+        export_btn.setProperty("compact", "true")
+        refresh.clicked.connect(self.refresh)
+        export_btn.clicked.connect(self.export_debug_bundle)
+        root.addWidget(
+            self._status_strip(
+                label("DIAGNOSTICS", role="section"),
+                self.diag_health_badge,
+                "|",
+                self.diag_status,
+                refresh,
+                export_btn,
+            )
+        )
+
+        body = QT.QHBoxLayout()
+        body.setSpacing(12)
+
         left = QT.QWidget()
         left_layout = QT.QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
@@ -3137,10 +3201,8 @@ class NativeShell:
         actions.setVerticalSpacing(8)
         for index, (text, handler) in enumerate(
             (
-                ("Refresh", self.refresh),
                 ("Copy report", self.copy_diagnostics_report),
                 ("Copy visible", self.copy_visible_log),
-                ("Export bundle", self.export_debug_bundle),
                 ("App folder", self.open_app_folder),
                 ("Log folder", self.open_log_folder),
             )
@@ -3158,28 +3220,58 @@ class NativeShell:
         self.diag_level.addItems(["ALL", "INFO", "WARN", "ERROR"])
         self.diag_level.currentTextChanged.connect(lambda _text: self._refresh_diagnostics_page())
         clear_display = button("Clear display")
+        clear_display.setProperty("compact", "true")
         clear_display.clicked.connect(self.clear_diagnostics_display)
         filters.addWidget(self.diag_filter, 1)
         filters.addWidget(self.diag_level)
         filters.addWidget(clear_display)
         left_layout.addLayout(filters)
-        self.diag_status = label("Diagnostics export is redacted by default.", role="muted")
-        left_layout.addWidget(self.diag_status)
         self.diag_summary = QT.QTextEdit()
         self.diag_summary.setReadOnly(True)
         self.diag_summary.setProperty("role", "mini")
+        self.diag_summary.setMinimumHeight(160)
         left_layout.addWidget(self.diag_summary, 1)
+
         self.diag_log = QT.QTextEdit()
         self.diag_log.setReadOnly(True)
         self.diag_log.setProperty("role", "mini")
-        layout.addWidget(self._section("RUNTIME CHECK", left), 1)
-        layout.addWidget(self._section("LATEST LOG", self.diag_log), 1)
-        return page
+        self.diag_log.setMinimumHeight(220)
+
+        body.addWidget(self._section("RUNTIME CHECK", left), 1)
+        body.addWidget(self._section("LATEST LOG", self.diag_log), 1)
+        root.addLayout(body, 1)
+        root.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _settings_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        content = QT.QWidget()
+        root = QT.QVBoxLayout(content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+
+        self.settings_status = label("Settings are stored in settings.json.", role="muted")
+        save = button("Save settings", primary=True)
+        reset = button("Reset theme")
+        artifacts = button("Open artifacts")
+        save.setProperty("compact", "true")
+        reset.setProperty("compact", "true")
+        artifacts.setProperty("compact", "true")
+        save.clicked.connect(self.save_native_settings)
+        reset.clicked.connect(self.reset_native_theme)
+        artifacts.clicked.connect(lambda: self._open_folder(ROOT / "dist"))
+        root.addWidget(
+            self._status_strip(
+                label("SETTINGS", role="section"),
+                "|",
+                self.settings_status,
+                save,
+                reset,
+                artifacts,
+            )
+        )
+
+        body = QT.QHBoxLayout()
+        body.setSpacing(12)
 
         controls = QT.QWidget()
         controls_layout = QT.QVBoxLayout(controls)
@@ -3194,20 +3286,6 @@ class NativeShell:
         self.settings_theme_combo.setMinimumHeight(42)
         controls_layout.addWidget(self._settings_row("Language", "Dashboard language preference.", self.settings_lang_combo))
         controls_layout.addWidget(self._settings_row("Theme", "NativeQt visual skin. Applies instantly after save.", self.settings_theme_combo))
-
-        actions = QT.QHBoxLayout()
-        save = button("Save settings", primary=True)
-        reset = button("Reset theme")
-        artifacts = button("Open artifacts")
-        save.clicked.connect(self.save_native_settings)
-        reset.clicked.connect(self.reset_native_theme)
-        artifacts.clicked.connect(lambda: self._open_folder(ROOT / "dist"))
-        actions.addWidget(save)
-        actions.addWidget(reset)
-        actions.addWidget(artifacts)
-        controls_layout.addLayout(actions)
-        self.settings_status = label("Settings are stored in settings.json.", role="muted")
-        controls_layout.addWidget(self.settings_status)
         controls_layout.addWidget(self._guardrail_row("NativeQt", "LEAN", "Qt Widgets + QSS only; no Chromium/WebEngine payload.", "green"))
         controls_layout.addWidget(self._guardrail_row("Installer", "SMALL", "Current NativeQt installer stays around 40 MB.", "amber"))
         controls_layout.addStretch(1)
@@ -3215,9 +3293,13 @@ class NativeShell:
         self.settings_about = QT.QTextEdit()
         self.settings_about.setReadOnly(True)
         self.settings_about.setProperty("role", "mini")
-        layout.addWidget(self._section("SETTINGS", controls), 1)
-        layout.addWidget(self._section("ABOUT / BUILD", self.settings_about), 1)
-        return page
+        self.settings_about.setMinimumHeight(180)
+
+        body.addWidget(self._section("PREFERENCES", controls), 1)
+        body.addWidget(self._section("ABOUT / BUILD", self.settings_about), 1)
+        root.addLayout(body, 1)
+        root.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _settings_row(self, title: str, hint: str, field: Any) -> Any:
         row = QT.QFrame()
@@ -3782,7 +3864,8 @@ class NativeShell:
         header = QT.QHBoxLayout()
         header.addWidget(label(name, role="section" if name == self.selected else ""))
         mode = self._trade_mode_from_cfg(cfg)
-        header.addWidget(label(mode, role="status"))
+        mode_lbl = label(mode, role="status")
+        header.addWidget(mode_lbl)
         header.addStretch(1)
         select = button("Selected" if name == self.selected else "Use", primary=name == self.selected)
         select.setFixedWidth(96)
@@ -3988,9 +4071,19 @@ class NativeShell:
     def _refresh_copy_page(self, force: bool = False) -> None:
         if self.copy_detail is None or self.copy_guardrails_layout is None:
             return
-        if not force and self.current_tab != "Copy Trading":
+        if not force and self.current_tab not in ("Copy", "Copy Trading"):
             return
         cfg = self.profiles.get(self.selected, {})
+        mode = self._trade_mode_from_cfg(cfg)
+        running = self._profile_is_running(self.selected) if self.selected else False
+        if getattr(self, "copy_mode_badge", None) is not None:
+            self.copy_mode_badge.setText(mode)
+            self.copy_role_label.setText(f"Role {cfg.get('copy_role') or 'None'}")
+            self.copy_worker_label.setText("Worker RUNNING" if running else "Worker STOPPED")
+            kill_on = bool(cfg.get("copy_kill_switch"))
+            self.copy_status_label.setText(
+                "Kill switch ON · new entries blocked" if kill_on else "Copy ready · profile-scoped"
+            )
         self.copy_detail.setPlainText(self._copy_detail_text(self.selected, cfg))
         while self.copy_guardrails_layout.count():
             item = self.copy_guardrails_layout.takeAt(0)
@@ -4279,6 +4372,13 @@ class NativeShell:
         self.last_diagnostics_report = "\n".join(summary)
         self.diag_summary.setPlainText(self.last_diagnostics_report)
         self.diag_log.setPlainText(visible_log if latest_log else native_text("No log file found."))
+        if getattr(self, "diag_health_badge", None) is not None:
+            if not latest_log:
+                self.diag_health_badge.setText("UNAVAILABLE")
+            elif level == "ERROR" and visible_line_count:
+                self.diag_health_badge.setText("DEGRADED")
+            else:
+                self.diag_health_badge.setText("READY")
         self._set_diag_status("Diagnostics export is redacted by default.", "muted")
 
     def copy_diagnostics_report(self) -> None:
