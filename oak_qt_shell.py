@@ -770,6 +770,7 @@ def load_qt() -> tuple[SimpleNamespace | None, str]:
             QPushButton,
             QMessageBox,
             QScrollArea,
+            QSizePolicy,
             QStackedWidget,
             QTableWidget,
             QTableWidgetItem,
@@ -1550,7 +1551,7 @@ class NativeShell:
         left_layout.setSpacing(4)
         self.title = label("OAK Manager", role="title")
         self.subtitle = label("Native Qt/QSS shell · no WebEngine")
-        left_layout.addWidget(label("TRADING COMMAND CENTER", role="tiny"))
+        left_layout.addWidget(label("TRADING WORKSTATION", role="tiny"))
         left_layout.addWidget(self.title)
         left_layout.addWidget(self.subtitle)
         self.hero_status = label("● Live", role="status")
@@ -1576,25 +1577,162 @@ class NativeShell:
         return {"frame": frame, "value": value_label}
 
     def _dashboard_page(self) -> Any:
-        layout = QT.QHBoxLayout()
-        layout.setSpacing(18)
+        """Trading workstation dashboard — account health, risk, equity, positions, pending, activity."""
+        page = QT.QWidget()
+        page_layout = QT.QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
+
+        content = QT.QWidget()
+        content.setMinimumWidth(720)
+        content.setSizePolicy(
+            QT.QSizePolicy.Policy.Expanding,
+            QT.QSizePolicy.Policy.MinimumExpanding,
+        )
+        root = QT.QVBoxLayout(content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+
+        # --- Account / System Health ---
+        health = panel()
+        health_lay = QT.QHBoxLayout(health)
+        health_lay.setContentsMargins(16, 12, 16, 12)
+        health_lay.setSpacing(14)
+        self.dash_mode_badge = label("UNKNOWN", role="status")
+        self.dash_account_label = label("—", role="section")
+        self.dash_mt5_label = label("MT5 —", role="muted")
+        self.dash_fresh_label = label("Updated —", role="muted")
+        self.dash_exec_label = label("Execution —", role="muted")
+        health_lay.addWidget(self.dash_mode_badge)
+        health_lay.addWidget(self.dash_account_label)
+        health_lay.addStretch(1)
+        health_lay.addWidget(self.dash_mt5_label)
+        health_lay.addWidget(self.dash_exec_label)
+        health_lay.addWidget(self.dash_fresh_label)
+        root.addWidget(health)
+
+        # --- Risk metrics (higher visual weight) ---
+        risk_host = QT.QWidget()
+        risk_grid = QT.QGridLayout(risk_host)
+        risk_grid.setContentsMargins(0, 0, 0, 0)
+        risk_grid.setHorizontalSpacing(10)
+        risk_grid.setVerticalSpacing(10)
+        self.dash_risk_stats: dict[str, Any] = {}
+        risk_keys = [
+            ("equity", "Equity", "green"),
+            ("balance", "Balance", ""),
+            ("floating", "Floating P/L", ""),
+            ("cur_dd", "Current DD", "amber"),
+            ("max_dd", "Max DD", "red"),
+            ("margin", "Margin level", ""),
+        ]
+        for idx, (key, title, accent) in enumerate(risk_keys):
+            frame, value_lbl = self._analysis_stat_card(title, "—", accent)
+            self.dash_risk_stats[key] = {"frame": frame, "value": value_lbl}
+            risk_grid.addWidget(frame, 0, idx)
+        root.addWidget(self._section("RISK", risk_host))
+
+        # --- Center: equity summary + positions / pending ---
+        mid = QT.QHBoxLayout()
+        mid.setSpacing(12)
+
+        # Equity / chart summary panel
+        equity_wrap = QT.QWidget()
+        equity_lay = QT.QVBoxLayout(equity_wrap)
+        equity_lay.setContentsMargins(0, 0, 0, 0)
+        equity_lay.setSpacing(8)
+        self.dash_equity_status = label("Equity curve uses closed-history samples. Live equity shown in Risk.", role="muted")
+        self.dash_equity_status.setWordWrap(True)
+        equity_lay.addWidget(self.dash_equity_status)
+        self.dash_equity_table = self._analysis_table(
+            ["Time", "Equity", "Balance", "Drawdown"], stretch=0
+        )
+        self.dash_equity_table.setMinimumHeight(160)
+        self.dash_equity_table.setMaximumHeight(220)
+        equity_lay.addWidget(self.dash_equity_table, 1)
+        mid.addWidget(self._section("EQUITY / DRAWDOWN", equity_wrap), 2)
+
+        # Open positions preview (compact, max ~6 rows visual)
+        pos_wrap = QT.QWidget()
+        pos_lay = QT.QVBoxLayout(pos_wrap)
+        pos_lay.setContentsMargins(0, 0, 0, 0)
+        pos_lay.setSpacing(6)
+        pos_hdr = QT.QHBoxLayout()
+        self.dash_pos_status = label("0 open · —", role="muted")
+        pos_hdr.addWidget(self.dash_pos_status)
+        pos_hdr.addStretch(1)
+        pos_more = button("Accounts")
+        pos_more.setProperty("compact", "true")
+        pos_more.clicked.connect(lambda: self.switch_tab("Accounts"))
+        pos_hdr.addWidget(pos_more)
+        pos_lay.addLayout(pos_hdr)
+        self.dash_positions_table = self._analysis_table(
+            ["Symbol", "Dir", "Vol", "P/L"], stretch=0
+        )
+        self.dash_positions_table.setMinimumHeight(160)
+        self.dash_positions_table.setMaximumHeight(220)
+        pos_lay.addWidget(self.dash_positions_table, 1)
+        mid.addWidget(self._section("OPEN POSITIONS", pos_wrap), 1)
+
+        root.addLayout(mid)
+
+        # --- Bottom: pending + profiles + live console ---
+        bottom = QT.QHBoxLayout()
+        bottom.setSpacing(12)
+
+        pending_wrap = QT.QWidget()
+        pending_lay = QT.QVBoxLayout(pending_wrap)
+        pending_lay.setContentsMargins(0, 0, 0, 0)
+        pending_lay.setSpacing(6)
+        pend_hdr = QT.QHBoxLayout()
+        self.dash_pending_status = label("0 pending", role="muted")
+        pend_hdr.addWidget(self.dash_pending_status)
+        pend_hdr.addStretch(1)
+        pend_more = button("Pending")
+        pend_more.setProperty("compact", "true")
+        pend_more.clicked.connect(lambda: self.switch_tab("Pending"))
+        pend_hdr.addWidget(pend_more)
+        pending_lay.addLayout(pend_hdr)
+        self.dash_pending_table = self._analysis_table(
+            ["Symbol", "Type", "Status"], stretch=0
+        )
+        self.dash_pending_table.setMinimumHeight(120)
+        self.dash_pending_table.setMaximumHeight(160)
+        pending_lay.addWidget(self.dash_pending_table, 1)
+        bottom.addWidget(self._section("PENDING ORDERS", pending_wrap), 1)
+
+        # Profiles list (kept for existing _refresh_profiles consumers)
         self.profile_rows = QT.QWidget()
         self.profile_rows.setObjectName("ProfileRows")
         self.profile_rows.setStyleSheet("background: transparent;")
         self.profile_rows_layout = QT.QVBoxLayout(self.profile_rows)
-        self.profile_rows_layout.setSpacing(10)
+        self.profile_rows_layout.setSpacing(8)
         self.profile_rows_layout.setContentsMargins(0, 0, 0, 0)
         self.profile_scroll = QT.QScrollArea()
         self.profile_scroll.setWidgetResizable(True)
+        self.profile_scroll.setMaximumHeight(160)
         self.profile_scroll.viewport().setStyleSheet("background: transparent;")
         self.profile_scroll.setWidget(self.profile_rows)
+        bottom.addWidget(self._section("PROFILES", self.profile_scroll), 1)
+
         self.console = QT.QTextEdit()
         self.console.setReadOnly(True)
         self.console.document().setMaximumBlockCount(1200)
-        layout.addWidget(self._section("PROFILES", self.profile_scroll), 1)
-        layout.addWidget(self._section("LIVE CONSOLE", self.console), 1)
-        page = QT.QWidget()
-        page.setLayout(layout)
+        self.console.setMaximumHeight(160)
+        self.console.setProperty("role", "mini")
+        bottom.addWidget(self._section("RECENT ACTIVITY", self.console), 1)
+
+        root.addLayout(bottom)
+        root.addStretch(0)
+
+        scroll = QT.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QT.QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.viewport().setStyleSheet("background: transparent;")
+        scroll.setWidget(content)
+        page_layout.addWidget(scroll, 1)
         return page
 
     def _signals_page(self) -> Any:
@@ -2168,6 +2306,164 @@ class NativeShell:
                     mt5.shutdown()
                 except Exception:
                     pass
+
+    def _refresh_dashboard_page(self) -> None:
+        """Populate trading-workstation dashboard from existing audit/live contracts."""
+        if not getattr(self, "dash_mode_badge", None):
+            return
+
+        profile = self.selected or "—"
+        running = self._profile_is_running(profile) if self.selected else False
+        cfg = self.profiles.get(self.selected, {}) if self.selected else {}
+
+        # Mode: only trust explicit trade_mode / account_mode fields — never invent from name.
+        mode_raw = str(cfg.get("trade_mode") or cfg.get("account_mode") or "").strip().upper()
+        if mode_raw in {"LIVE", "REAL"}:
+            mode = "LIVE"
+        elif mode_raw in {"DEMO", "PRACTICE"}:
+            mode = "DEMO"
+        else:
+            mode = "UNKNOWN"
+        self.dash_mode_badge.setText(mode)
+        self.dash_account_label.setText(str(profile))
+
+        mt5_path = str(cfg.get("mt5_path") or cfg.get("terminal_path") or "").strip()
+        self.dash_mt5_label.setText(
+            "MT5 path set" if mt5_path else "MT5 path unset"
+        )
+        self.dash_exec_label.setText(
+            "Worker RUNNING" if running else "Worker STOPPED"
+        )
+
+        account: dict[str, Any] = {}
+        audit_positions: list = []
+        queries = None
+        try:
+            queries = self._analysis_queries()
+            account = queries.account_get(self.selected) if self.selected else {}
+            audit_positions = queries.positions_list(self.selected) if self.selected else []
+        except Exception:
+            account = {}
+            audit_positions = []
+            queries = None
+
+        available = bool(account.get("available"))
+        updated = account.get("sampled_at_utc") or "—"
+        self.dash_fresh_label.setText(f"Updated {updated}")
+
+        def _set_risk(key: str, value: Any, accent: str = "") -> None:
+            slot = self.dash_risk_stats.get(key)
+            if not slot:
+                return
+            # Never invent 0 for missing risk fields.
+            text = self._format_analysis_value(value) if value is not None else "unavailable"
+            slot["value"].setText(text)
+            if accent:
+                slot["value"].setProperty("accent", accent)
+                slot["value"].style().unpolish(slot["value"])
+                slot["value"].style().polish(slot["value"])
+
+        open_profit = account.get("open_profit") if available else None
+        float_accent = ""
+        if open_profit is not None:
+            try:
+                float_accent = "green" if float(open_profit) >= 0 else "red"
+            except (TypeError, ValueError):
+                float_accent = ""
+
+        risk: dict[str, Any] = {}
+        try:
+            if queries is not None and self.selected:
+                risk = queries.risk_summary(self.selected)
+        except Exception:
+            risk = {}
+        risk_ok = bool(risk.get("available"))
+
+        _set_risk("equity", account.get("equity") if available else None, "green")
+        _set_risk("balance", account.get("balance") if available else None, "")
+        _set_risk("floating", open_profit, float_accent)
+        # Current DD not always in contract — show unavailable rather than inventing 0.
+        _set_risk("cur_dd", None, "amber")
+        _set_risk(
+            "max_dd",
+            risk.get("max_equity_drawdown") if risk_ok else None,
+            "red",
+        )
+        _set_risk("margin", account.get("margin_level") if available else None, "")
+
+        # Equity curve preview (historical only — no fabricated live points)
+        try:
+            if queries is None:
+                queries = self._analysis_queries()
+            curve = queries.equity_curve(self.selected, limit=8) if self.selected else []
+        except Exception:
+            curve = []
+        if not isinstance(curve, list):
+            curve = []
+        eq_rows = []
+        for point in curve[-8:]:
+            if not isinstance(point, dict):
+                continue
+            eq_rows.append([
+                str(point.get("t") or point.get("time_utc") or point.get("sampled_at_utc") or "—"),
+                self._format_analysis_value(point.get("equity")),
+                self._format_analysis_value(point.get("balance")),
+                self._format_analysis_value(point.get("drawdown")),
+            ])
+        self._set_analysis_table_rows(self.dash_equity_table, eq_rows)
+        self.dash_equity_status.setText(
+            native_text("Equity curve uses closed-history samples. Live equity shown in Risk.")
+            + (f" · {len(eq_rows)} points" if eq_rows else " · no samples")
+        )
+
+        # Open positions preview
+        live = self._live_mt5_open_positions(self.selected) if self.selected else None
+        positions = live if live is not None else audit_positions
+        source = "LIVE_MT5" if live is not None else native_text("Audit checkpoint")
+        total_float = 0.0
+        float_ok = True
+        preview = positions[:6] if isinstance(positions, list) else []
+        pos_rows = []
+        for p in preview:
+            if not isinstance(p, dict):
+                continue
+            profit = p.get("profit")
+            if profit is not None:
+                try:
+                    total_float += float(profit)
+                except (TypeError, ValueError):
+                    float_ok = False
+            else:
+                float_ok = False
+            pos_rows.append([
+                str(p.get("symbol") or "—"),
+                str(p.get("direction") or "—"),
+                self._format_analysis_value(p.get("volume"), 2),
+                self._format_analysis_value(profit) if profit is not None else "—",
+            ])
+        self._set_analysis_table_rows(self.dash_positions_table, pos_rows)
+        agg = self._format_analysis_value(total_float) if float_ok and preview else "—"
+        self.dash_pos_status.setText(
+            f"{len(positions) if isinstance(positions, list) else 0} open · float {agg} · {source}"
+        )
+
+        # Pending preview
+        try:
+            counts, items = self._pending_state(self.selected) if self.selected else ([], [])
+        except Exception:
+            counts, items = [], []
+        pend_rows = []
+        for item in (items or [])[:5]:
+            if not isinstance(item, dict):
+                continue
+            pend_rows.append([
+                str(item.get("symbol") or "—"),
+                order_type_name(item.get("type") or item.get("order_type")),
+                str(item.get("status") or "—"),
+            ])
+        self._set_analysis_table_rows(self.dash_pending_table, pend_rows)
+        total_pending = sum(c for _k, c in counts) if counts else len(items or [])
+        self.dash_pending_status.setText(f"{total_pending} pending")
 
     def _refresh_accounts_page(self) -> None:
         if self.analysis_positions_table is None:
@@ -2996,6 +3292,7 @@ class NativeShell:
         self._refresh_stock_advisor_page()
         self._refresh_signal_states()
         self._refresh_analysis_page()
+        self._refresh_dashboard_page()
         self._refresh_nav()
         running = self._running_profiles()
         self.stat_profiles["value"].setText(str(len(self.profiles)))
@@ -3056,6 +3353,8 @@ class NativeShell:
         # Only refresh pending page if currently visible
         if self.current_tab == "Pending":
             self._refresh_pending_page()
+        if self.current_tab == "Dashboard":
+            self._refresh_dashboard_page()
         
         # Only do expensive refreshes when signature changes
         if running != self.last_running_signature:
