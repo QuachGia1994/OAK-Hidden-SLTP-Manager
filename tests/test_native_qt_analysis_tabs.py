@@ -243,5 +243,14 @@ class NativeQtDashboardFidelityTests(unittest.TestCase):
         source = Path(shell_mod.__file__).read_text(encoding="utf-8")
         self.assertIn('cfg.get("path") or cfg.get("mt5_path") or cfg.get("terminal_path")', source)
 
+    def test_kpi_help_uses_qt_message_box(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("QT.QMessageBox.information", source)
+
+    def test_news_table_binds_row_details(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn('self._bind_table_row_details(\n            self.analysis_news_table', source)
+
+
 if __name__ == "__main__":
     unittest.main()

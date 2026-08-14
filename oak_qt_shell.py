@@ -2955,7 +2955,8 @@ class NativeShell:
         if not copy:
             return
         message = copy.get(NATIVE_LANGUAGE, copy.get("EN", ""))
-        QMessageBox.information(self.window, native_text(title), message)
+        if getattr(QT, "QMessageBox", None) is not None:
+            QT.QMessageBox.information(self.window, native_text(title), message)
 
 
     def _set_analysis_stat_grid(
@@ -3452,6 +3453,11 @@ class NativeShell:
             for item in filtered
         ]
         self._set_analysis_table_rows(self.analysis_news_table, rows)
+        self._bind_table_row_details(
+            self.analysis_news_table,
+            [dict(item) for item in filtered if isinstance(item, dict)],
+            title="Economic news",
+        )
         for row_index, item in enumerate(filtered):
             impact = str(item.get("impact") or "").upper()
             accent = {"HIGH": "#e05260", "MEDIUM": "#d4a03d", "LOW": "#2fa572"}.get(impact)
