@@ -34,10 +34,19 @@ class NativeQtAnalysisNavigationTests(unittest.TestCase):
         fake.positions_list.return_value = []
         shell = MagicMock(spec=shell_mod.NativeShell)
         shell.selected = "Vantage"
+        shell.profiles = {"Vantage": {}}
+        shell.accounts_mode_badge = MagicMock()
         shell.analysis_account_summary = MagicMock()
         shell.analysis_positions_table = MagicMock()
+        shell.analysis_positions_status = MagicMock()
+        shell.analysis_account_stats_layout = None
+        shell.analysis_account_stats = {}
+        shell._trade_mode_from_cfg = lambda cfg: "UNKNOWN"
         shell._format_detail_block = lambda title, fields: title
         shell._format_analysis_value = lambda value, digits=2: str(value)
+        shell._set_analysis_stat_grid = MagicMock()
+        shell._set_analysis_table_rows = MagicMock()
+        shell._live_mt5_open_positions = MagicMock(return_value=None)
         shell._analysis_queries.return_value = fake
         shell_mod.NativeShell._refresh_accounts_page(shell)
         fake.account_get.assert_called_once_with("Vantage")

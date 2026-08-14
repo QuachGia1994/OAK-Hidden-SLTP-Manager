@@ -1736,35 +1736,46 @@ class NativeShell:
         return page
 
     def _signals_page(self) -> Any:
-        frame = panel()
-        layout = QT.QVBoxLayout(frame)
-        layout.setContentsMargins(18, 18, 18, 18)
-        layout.setSpacing(14)
-        header = QT.QHBoxLayout()
-        header.addWidget(label("Signals", role="section"))
+        content = QT.QWidget()
+        layout = QT.QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
         visible_defs = get_visible_signal_defs()
-        self.signal_summary = label(f"0/{len(visible_defs)} running", role="muted")
-        header.addWidget(self.signal_summary)
-        header.addStretch(1)
+        self.signal_summary = label(f"0/{len(visible_defs)} running", role="status")
+        self.signal_fresh_label = label("Supervisor idle", role="muted")
         clear_logs = button("Clear logs")
         start_all = button("Start all", primary=True)
         stop_all = button("Stop all")
+        clear_logs.setProperty("compact", "true")
+        start_all.setProperty("compact", "true")
+        stop_all.setProperty("compact", "true")
         clear_logs.clicked.connect(self.clear_signal_logs)
         start_all.clicked.connect(self.start_all_signals)
         stop_all.clicked.connect(self.stop_all_signals)
-        header.addWidget(clear_logs)
-        header.addWidget(start_all)
-        header.addWidget(stop_all)
-        layout.addLayout(header)
+        layout.addWidget(
+            self._status_strip(
+                label("SIGNALS", role="section"),
+                self.signal_summary,
+                "|",
+                self.signal_fresh_label,
+                clear_logs,
+                start_all,
+                stop_all,
+            )
+        )
 
-        grid = QT.QGridLayout()
+        grid_host = QT.QWidget()
+        grid = QT.QGridLayout(grid_host)
+        grid.setContentsMargins(0, 0, 0, 0)
         grid.setSpacing(12)
         positions = [(0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1), (2, 0, 2)]
         for index, (key, name, color) in enumerate(visible_defs):
-            row, col, span = positions[index]
+            row, col, span = positions[index] if index < len(positions) else (2 + index // 2, index % 2, 1)
             grid.addWidget(self._signal_card(key, name, color), row, col, 1, span)
-        layout.addLayout(grid, 1)
-        return frame
+        layout.addWidget(self._section("SIGNAL FEEDS", grid_host), 1)
+        layout.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _stock_advisor_page(self) -> Any:
         page = QT.QWidget()
@@ -1853,9 +1864,28 @@ class NativeShell:
         return page
 
     def _profiles_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        content = QT.QWidget()
+        root = QT.QVBoxLayout(content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+
+        self.profiles_mode_badge = label("UNKNOWN", role="status")
+        self.profiles_worker_label = label("Worker —", role="muted")
+        self.profiles_mt5_label = label("MT5 —", role="muted")
+        self.profiles_count_label = label("0 profiles", role="muted")
+        root.addWidget(
+            self._status_strip(
+                label("PROFILES", role="section"),
+                self.profiles_mode_badge,
+                self.profiles_count_label,
+                "|",
+                self.profiles_worker_label,
+                self.profiles_mt5_label,
+            )
+        )
+
+        body = QT.QHBoxLayout()
+        body.setSpacing(12)
 
         cards = QT.QWidget()
         cards.setStyleSheet("background: transparent;")
@@ -1869,9 +1899,11 @@ class NativeShell:
         scroll.viewport().setStyleSheet("background: transparent;")
         scroll.setWidget(cards)
 
-        layout.addWidget(self._section("PROFILE MAP", scroll), 1)
-        layout.addWidget(self._section("PROFILE EDITOR", self._profile_editor()), 1)
-        return page
+        body.addWidget(self._section("PROFILE MAP", scroll), 1)
+        body.addWidget(self._section("PROFILE EDITOR", self._profile_editor()), 1)
+        root.addLayout(body, 1)
+        root.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _profile_editor(self) -> Any:
         frame = QT.QWidget()
@@ -1950,27 +1982,41 @@ class NativeShell:
         return page
 
     def _pending_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QHBoxLayout(page)
-        layout.setSpacing(18)
+        content = QT.QWidget()
+        root = QT.QVBoxLayout(content)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(12)
+
+        self.pending_count_badge = label("0 pending", role="status")
+        self.pending_action_status = label("Pending controls are profile-scoped.", role="muted")
+        refresh = button("Refresh")
+        clear_done = button("Clear done")
+        refresh.setProperty("compact", "true")
+        clear_done.setProperty("compact", "true")
+        refresh.clicked.connect(self.refresh)
+        clear_done.clicked.connect(self.clear_done_pending)
+        root.addWidget(
+            self._status_strip(
+                label("PENDING", role="section"),
+                self.pending_count_badge,
+                "|",
+                self.pending_action_status,
+                refresh,
+                clear_done,
+            )
+        )
+
+        body = QT.QHBoxLayout()
+        body.setSpacing(12)
 
         left = QT.QWidget()
         left_layout = QT.QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(10)
-        actions = QT.QHBoxLayout()
-        refresh = button("Refresh")
-        clear_done = button("Clear done")
-        refresh.clicked.connect(self.refresh)
-        clear_done.clicked.connect(self.clear_done_pending)
-        actions.addWidget(refresh)
-        actions.addWidget(clear_done)
-        left_layout.addLayout(actions)
-        self.pending_action_status = label("Pending controls are profile-scoped.", role="muted")
-        left_layout.addWidget(self.pending_action_status)
         self.pending_summary = QT.QTextEdit()
         self.pending_summary.setReadOnly(True)
         self.pending_summary.setProperty("role", "mini")
+        self.pending_summary.setMinimumHeight(160)
         left_layout.addWidget(self.pending_summary, 1)
 
         items = QT.QWidget()
@@ -1985,9 +2031,11 @@ class NativeShell:
         scroll.viewport().setStyleSheet("background: transparent;")
         scroll.setWidget(items)
 
-        layout.addWidget(self._section("SESSION FILES", left), 1)
-        layout.addWidget(self._section("SCHEDULED TASKS", scroll), 1)
-        return page
+        body.addWidget(self._section("SESSION FILES", left), 1)
+        body.addWidget(self._section("SCHEDULED TASKS", scroll), 1)
+        root.addLayout(body, 1)
+        root.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _analysis_table(self, columns: list[str], *, stretch: int | None = None) -> Any:
         table = QT.QTableWidget(0, len(columns))
@@ -2013,24 +2061,29 @@ class NativeShell:
         return str(self.settings.get("lang", NATIVE_LANGUAGE)).upper()
 
     def _accounts_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QVBoxLayout(page)
+        content = QT.QWidget()
+        layout = QT.QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
+
+        self.accounts_mode_badge = label("UNKNOWN", role="status")
+        self.analysis_account_summary = label("—", role="muted")
+        self.analysis_account_summary.setWordWrap(True)
+        layout.addWidget(
+            self._status_strip(
+                label("ACCOUNTS", role="section"),
+                self.accounts_mode_badge,
+                "|",
+                self.analysis_account_summary,
+            )
+        )
 
         self.analysis_account_stats_host = QT.QWidget()
         self.analysis_account_stats_layout = QT.QGridLayout(self.analysis_account_stats_host)
         self.analysis_account_stats_layout.setContentsMargins(0, 0, 0, 0)
         self.analysis_account_stats_layout.setHorizontalSpacing(10)
         self.analysis_account_stats_layout.setVerticalSpacing(10)
-        self.analysis_account_summary = label("—", role="muted")
-        self.analysis_account_summary.setWordWrap(True)
-        overview = QT.QWidget()
-        overview_layout = QT.QVBoxLayout(overview)
-        overview_layout.setContentsMargins(0, 0, 0, 0)
-        overview_layout.setSpacing(6)
-        overview_layout.addWidget(self.analysis_account_stats_host)
-        overview_layout.addWidget(self.analysis_account_summary)
-        layout.addWidget(self._section("Account overview", overview), 0)
+        layout.addWidget(self._section("ACCOUNT RISK", self.analysis_account_stats_host), 0)
 
         positions = QT.QWidget()
         positions_layout = QT.QVBoxLayout(positions)
@@ -2045,20 +2098,18 @@ class NativeShell:
             ["Symbol", "Direction", "Volume", "Entry", "Current", "P/L"],
             stretch=0,
         )
+        self.analysis_positions_table.setMinimumHeight(180)
         positions_layout.addWidget(self.analysis_positions_table, 1)
-        layout.addWidget(self._section("Live positions", positions), 1)
-        return page
+        layout.addWidget(self._section("OPEN POSITIONS", positions), 1)
+        layout.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _performance_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QVBoxLayout(page)
+        content = QT.QWidget()
+        layout = QT.QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        period_row = QT.QHBoxLayout()
-        period_row.addWidget(label(
-            "Khoảng thời gian" if NATIVE_LANGUAGE == "VN" else "Period",
-            role="tiny",
-        ))
         self.analysis_period_combo = QT.QComboBox()
         self._analysis_period_keys = [
             ("all", "Toàn bộ lịch sử" if NATIVE_LANGUAGE == "VN" else "All history"),
@@ -2073,8 +2124,16 @@ class NativeShell:
         self.analysis_period_combo.currentIndexChanged.connect(
             lambda _i: self._refresh_performance_page()
         )
-        period_row.addWidget(self.analysis_period_combo, 1)
-        layout.addLayout(period_row)
+        self.analysis_performance_summary = label("—", role="muted")
+        self.analysis_performance_summary.setWordWrap(True)
+        layout.addWidget(
+            self._status_strip(
+                label("PERFORMANCE", role="section"),
+                self.analysis_period_combo,
+                "|",
+                self.analysis_performance_summary,
+            )
+        )
 
         primary = QT.QWidget()
         self.analysis_kpi_primary_host = primary
@@ -2094,11 +2153,7 @@ class NativeShell:
         metrics_layout.setSpacing(8)
         metrics_layout.addWidget(primary)
         metrics_layout.addWidget(secondary)
-        layout.addWidget(self._section("Performance metrics", metrics), 0)
-
-        self.analysis_performance_summary = label("—", role="muted")
-        self.analysis_performance_summary.setWordWrap(True)
-        layout.addWidget(self.analysis_performance_summary, 0)
+        layout.addWidget(self._section("PERFORMANCE METRICS", metrics), 0)
 
         chart_wrap = QT.QWidget()
         chart_layout = QT.QVBoxLayout(chart_wrap)
@@ -2140,20 +2195,31 @@ class NativeShell:
             self.analysis_equity_table.setMaximumHeight(0)
             self.analysis_equity_table.hide()
 
-        layout.addWidget(self._section("Equity curve", chart_wrap), 1)
-        return page
+        layout.addWidget(self._section("EQUITY CURVE", chart_wrap), 1)
+        layout.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _history_page(self) -> Any:
-        page = QT.QWidget()
-        layout = QT.QVBoxLayout(page)
-        layout.setSpacing(10)
+        content = QT.QWidget()
+        layout = QT.QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(12)
+
+        self.history_status_label = label("Closed-trade ledger · profile-scoped", role="muted")
+        layout.addWidget(
+            self._status_strip(
+                label("HISTORY", role="section"),
+                "|",
+                self.history_status_label,
+            )
+        )
 
         self.analysis_history_summary_host = QT.QWidget()
         self.analysis_history_summary_layout = QT.QGridLayout(self.analysis_history_summary_host)
         self.analysis_history_summary_layout.setContentsMargins(0, 0, 0, 0)
         self.analysis_history_summary_layout.setHorizontalSpacing(10)
         self.analysis_history_summary_layout.setVerticalSpacing(10)
-        layout.addWidget(self._section("History summary", self.analysis_history_summary_host), 0)
+        layout.addWidget(self._section("HISTORY SUMMARY", self.analysis_history_summary_host), 0)
 
         ledger = QT.QWidget()
         ledger_layout = QT.QVBoxLayout(ledger)
@@ -2175,6 +2241,7 @@ class NativeShell:
         self.analysis_history_table = self._analysis_table(
             ["Time", "Symbol", "Type", "Reason", "Volume", "Profit", "Commission", "Swap"], stretch=1
         )
+        self.analysis_history_table.setMinimumHeight(180)
         ledger_layout.addWidget(self.analysis_history_table, 1)
 
         checkpoints = QT.QWidget()
@@ -2183,14 +2250,16 @@ class NativeShell:
         self.analysis_checkpoint_table = self._analysis_table(
             ["Date", "Hour", "Status", "Mode", "Captured"], stretch=0
         )
+        self.analysis_checkpoint_table.setMinimumHeight(180)
         checkpoints_layout.addWidget(self.analysis_checkpoint_table, 1)
 
         split = QT.QHBoxLayout()
         split.setSpacing(12)
-        split.addWidget(self._section("History ledger", ledger), 2)
-        split.addWidget(self._section("Checkpoints", checkpoints), 1)
+        split.addWidget(self._section("HISTORY LEDGER", ledger), 2)
+        split.addWidget(self._section("CHECKPOINTS", checkpoints), 1)
         layout.addLayout(split, 1)
-        return page
+        layout.addStretch(0)
+        return self._workstation_scroll(content)
 
     def _news_page(self) -> Any:
         page = QT.QWidget()
@@ -2317,13 +2386,7 @@ class NativeShell:
         cfg = self.profiles.get(self.selected, {}) if self.selected else {}
 
         # Mode: only trust explicit trade_mode / account_mode fields — never invent from name.
-        mode_raw = str(cfg.get("trade_mode") or cfg.get("account_mode") or "").strip().upper()
-        if mode_raw in {"LIVE", "REAL"}:
-            mode = "LIVE"
-        elif mode_raw in {"DEMO", "PRACTICE"}:
-            mode = "DEMO"
-        else:
-            mode = "UNKNOWN"
+        mode = self._trade_mode_from_cfg(cfg)
         self.dash_mode_badge.setText(mode)
         self.dash_account_label.setText(str(profile))
 
@@ -2491,6 +2554,11 @@ class NativeShell:
             self._set_analysis_table_rows(self.analysis_positions_table, [])
             return
 
+        cfg = self.profiles.get(self.selected, {}) if self.selected else {}
+        mode = self._trade_mode_from_cfg(cfg)
+        if getattr(self, "accounts_mode_badge", None) is not None:
+            self.accounts_mode_badge.setText(mode)
+
         if not account.get("available"):
             self._set_analysis_stat_grid(
                 getattr(self, "analysis_account_stats_layout", None),
@@ -2500,11 +2568,27 @@ class NativeShell:
             self.analysis_account_summary.setText(native_text("No account audit data"))
         else:
             open_profit = account.get("open_profit")
+            float_accent = ""
+            if open_profit is not None:
+                try:
+                    float_accent = "green" if float(open_profit) >= 0 else "red"
+                except (TypeError, ValueError):
+                    float_accent = ""
             metrics = [
                 ("Balance", self._format_analysis_value(account.get("balance")), ""),
                 ("Equity", self._format_analysis_value(account.get("equity")), "green"),
-                ("Floating P/L", self._format_analysis_value(open_profit), "green" if (open_profit or 0) >= 0 else "red"),
-                ("Margin level", self._format_analysis_value(account.get("margin_level")), ""),
+                (
+                    "Floating P/L",
+                    self._format_analysis_value(open_profit) if open_profit is not None else "unavailable",
+                    float_accent,
+                ),
+                (
+                    "Margin level",
+                    self._format_analysis_value(account.get("margin_level"))
+                    if account.get("margin_level") is not None
+                    else "unavailable",
+                    "",
+                ),
             ]
             self._set_analysis_stat_grid(
                 getattr(self, "analysis_account_stats_layout", None),
@@ -2811,13 +2895,32 @@ class NativeShell:
             )
             net_profit = perf.get("net_profit")
             current_dd = perf.get("current_drawdown")
+            def _signed_accent(value: Any, *, positive_is_green: bool = True) -> str:
+                if value is None:
+                    return ""
+                try:
+                    num = float(value)
+                except (TypeError, ValueError):
+                    return ""
+                if positive_is_green:
+                    return "green" if num >= 0 else "red"
+                return "red" if num > 0 else "green"
+
             kpis = [
-                ("Net P&L", self._format_analysis_value(net_profit), "green" if (net_profit or 0) >= 0 else "red"),
+                ("Net P&L", self._format_analysis_value(net_profit) if net_profit is not None else "unavailable", _signed_accent(net_profit)),
                 ("Trading return", self._format_analysis_percent(perf.get("trading_return_pct")), ""),
                 ("Win rate", _pct(perf.get("win_rate")), ""),
                 ("Profit factor", self._format_analysis_value(perf.get("profit_factor")), ""),
-                ("Expectancy", self._format_analysis_value(perf.get("expectancy")), "green" if (perf.get("expectancy") or 0) >= 0 else "red"),
-                ("Current drawdown", self._format_analysis_value(current_dd), "red" if (current_dd or 0) > 0 else "green"),
+                (
+                    "Expectancy",
+                    self._format_analysis_value(perf.get("expectancy")) if perf.get("expectancy") is not None else "unavailable",
+                    _signed_accent(perf.get("expectancy")),
+                ),
+                (
+                    "Current drawdown",
+                    self._format_analysis_value(current_dd) if current_dd is not None else "unavailable",
+                    _signed_accent(current_dd, positive_is_green=False),
+                ),
                 ("Max drawdown", self._format_analysis_value(perf.get("max_equity_drawdown")), ""),
                 ("Avg win", self._format_analysis_value(perf.get("average_win")), "green"),
                 ("Avg loss", self._format_analysis_value(perf.get("average_loss")), "red"),
@@ -3200,6 +3303,53 @@ class NativeShell:
         layout.addWidget(label(title, role="tiny"))
         layout.addWidget(content, 1)
         return frame
+
+    def _trade_mode_from_cfg(self, cfg: dict[str, Any] | None) -> str:
+        """LIVE/DEMO/UNKNOWN from explicit config only — never invent from profile name."""
+        cfg = cfg or {}
+        mode_raw = str(cfg.get("trade_mode") or cfg.get("account_mode") or "").strip().upper()
+        if mode_raw in {"LIVE", "REAL"}:
+            return "LIVE"
+        if mode_raw in {"DEMO", "PRACTICE"}:
+            return "DEMO"
+        return "UNKNOWN"
+
+    def _workstation_scroll(self, content: Any) -> Any:
+        """Wrap tab body in scroll + min-width so narrow resize never collapses."""
+        if isinstance(content, QT.QWidget):
+            content.setMinimumWidth(720)
+            content.setSizePolicy(
+                QT.QSizePolicy.Policy.Expanding,
+                QT.QSizePolicy.Policy.MinimumExpanding,
+            )
+        page = QT.QWidget()
+        page_layout = QT.QVBoxLayout(page)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(0)
+        scroll = QT.QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QT.QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.viewport().setStyleSheet("background: transparent;")
+        scroll.setWidget(content)
+        page_layout.addWidget(scroll, 1)
+        return page
+
+    def _status_strip(self, *widgets: Any) -> Any:
+        """Horizontal health/status strip matching dashboard workstation density."""
+        host = panel()
+        lay = QT.QHBoxLayout(host)
+        lay.setContentsMargins(16, 12, 16, 12)
+        lay.setSpacing(14)
+        for i, w in enumerate(widgets):
+            if w is None:
+                continue
+            if isinstance(w, str) and w == "|":
+                lay.addStretch(1)
+                continue
+            lay.addWidget(w)
+        return host
 
     def _ready(self) -> None:
         if callable(self.ready_callback):
@@ -3594,6 +3744,11 @@ class NativeShell:
                 self.profile_cards_layout.addStretch(1)
                 self.profile_detail.setPlainText(self._profile_detail_text("", {}))
                 self._load_profile_editor("", {}, "IDLE")
+                if getattr(self, "profiles_count_label", None) is not None:
+                    self.profiles_count_label.setText("0 profiles")
+                    self.profiles_mode_badge.setText("UNKNOWN")
+                    self.profiles_worker_label.setText("Worker —")
+                    self.profiles_mt5_label.setText("MT5 —")
                 return
             running = set(self._running_profiles())
             for name, cfg in self.profiles.items():
@@ -3604,6 +3759,14 @@ class NativeShell:
             status = self._profile_status(self.selected, self.selected in running)
             self.profile_detail.setPlainText(self._profile_detail_text(self.selected, cfg, status))
             self._load_profile_editor(self.selected, cfg, status)
+            if getattr(self, "profiles_count_label", None) is not None:
+                self.profiles_count_label.setText(f"{len(self.profiles)} profiles")
+                self.profiles_mode_badge.setText(self._trade_mode_from_cfg(cfg))
+                self.profiles_worker_label.setText(
+                    f"Worker {status}" if self.selected else "Worker —"
+                )
+                mt5_path = str(cfg.get("path") or cfg.get("mt5_path") or cfg.get("terminal_path") or "").strip()
+                self.profiles_mt5_label.setText("MT5 path set" if mt5_path else "MT5 path unset")
         finally:
             if container is not None:
                 container.setUpdatesEnabled(True)
@@ -3618,6 +3781,8 @@ class NativeShell:
         layout.setContentsMargins(14, 12, 14, 12)
         header = QT.QHBoxLayout()
         header.addWidget(label(name, role="section" if name == self.selected else ""))
+        mode = self._trade_mode_from_cfg(cfg)
+        header.addWidget(label(mode, role="status"))
         header.addStretch(1)
         select = button("Selected" if name == self.selected else "Use", primary=name == self.selected)
         select.setFixedWidth(96)
@@ -3646,6 +3811,7 @@ class NativeShell:
         profile_fields = [
             ("Profile", name),
             ("Status", status),
+            ("Mode", self._trade_mode_from_cfg(cfg)),
             ("Terminal", cfg.get("path") or "—"),
             ("Magic", cfg.get("magic", "—")),
             ("Visible SL/TP", yes_no(cfg.get("visible_sltp"))),
@@ -3927,6 +4093,8 @@ class NativeShell:
         self._last_pending_signature = sig
         waiting = sum(1 for item in items if self._is_waiting_status(item))
         done = sum(1 for item in items if str(item.get("status") or "").lower() in PENDING_DONE_STATUSES)
+        if getattr(self, "pending_count_badge", None) is not None:
+            self.pending_count_badge.setText(f"{len(items)} pending · {waiting} waiting")
         summary = [
             native_text("PENDING CONTROL"),
             native_format("Profile: {profile}", profile=self.selected or "—"),
@@ -5091,6 +5259,10 @@ class NativeShell:
             if (proc := infos.get(key, {}).get("proc")) is not None and proc.poll() is None
         )
         self.signal_summary.setText(native_format("{running}/{total} running", running=running, total=len(visible_defs)))
+        if getattr(self, "signal_fresh_label", None) is not None:
+            self.signal_fresh_label.setText(
+                native_format("{running} active · {total} feeds", running=running, total=len(visible_defs))
+            )
 
     def start_signal(self, key: str) -> None:
         card = self.signal_cards.get(key)
