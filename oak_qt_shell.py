@@ -809,6 +809,14 @@ def app_qss(theme: str = "dark") -> str:
     QLabel[role="title"]{font-size:40px;font-weight:800}
     QLabel[role="value"]{font-family:Consolas;font-size:22px;font-weight:700}
     QLabel[role="status"]{border-radius:999px;padding:6px 10px;background:rgba(47,165,114,.10);color:#2fa572;font-size:12px;font-weight:700}
+    QLabel[role="status"][mode="LIVE"]{background:rgba(47,165,114,.14);color:#2fa572;border:1px solid rgba(47,165,114,.45)}
+    QLabel[role="status"][mode="DEMO"]{background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.45)}
+    QLabel[role="status"][mode="UNKNOWN"]{background:rgba(139,152,165,.12);color:#8b98a5;border:1px solid rgba(139,152,165,.35)}
+    QLabel[role="status"][mode="READY"]{background:rgba(47,165,114,.12);color:#2fa572;border:1px solid rgba(47,165,114,.40)}
+    QLabel[role="status"][mode="DEGRADED"]{background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.45)}
+    QLabel[role="status"][mode="UNAVAILABLE"]{background:rgba(239,68,68,.10);color:#ef4444;border:1px solid rgba(239,68,68,.40)}
+    QLabel[role="status"][mode="STALE"]{background:rgba(245,158,11,.10);color:#f59e0b;border:1px solid rgba(245,158,11,.35)}
+    QToolTip{background:#111820;color:#e6edf3;border:1px solid #1e2937;padding:8px 10px;border-radius:8px;font-size:12px}
     QLabel[accent="green"]{color:#2fa572}QLabel[accent="amber"]{color:#f59e0b}QLabel[accent="red"]{color:#ef4444}QLabel[accent="theme"]{color:#2fa572}
     QPushButton{background:#111820;border:1px solid #1e2937;border-radius:8px;padding:7px 14px;color:#e6edf3;font-weight:600;text-align:center}
     QPushButton:hover{border:1px solid #2fa572}
@@ -883,6 +891,14 @@ def app_qss(theme: str = "dark") -> str:
     QLabel[role="title"]{color:#141b24}
     QLabel[role="value"]{color:#141b24}
     QLabel[role="status"]{background:rgba(20,122,82,.12);color:#147a52}
+    QLabel[role="status"][mode="LIVE"]{background:rgba(20,122,82,.14);color:#147a52;border:1px solid rgba(20,122,82,.45)}
+    QLabel[role="status"][mode="DEMO"]{background:rgba(146,97,10,.12);color:#92610a;border:1px solid rgba(146,97,10,.45)}
+    QLabel[role="status"][mode="UNKNOWN"]{background:rgba(75,90,107,.12);color:#4b5a6b;border:1px solid rgba(75,90,107,.35)}
+    QLabel[role="status"][mode="READY"]{background:rgba(20,122,82,.12);color:#147a52;border:1px solid rgba(20,122,82,.40)}
+    QLabel[role="status"][mode="DEGRADED"]{background:rgba(146,97,10,.12);color:#92610a;border:1px solid rgba(146,97,10,.45)}
+    QLabel[role="status"][mode="UNAVAILABLE"]{background:rgba(194,47,47,.10);color:#c22f2f;border:1px solid rgba(194,47,47,.40)}
+    QLabel[role="status"][mode="STALE"]{background:rgba(146,97,10,.10);color:#92610a;border:1px solid rgba(146,97,10,.35)}
+    QToolTip{background:#ffffff;color:#141b24;border:1px solid #c3ccd6;padding:8px 10px;border-radius:8px;font-size:12px}
     QLabel[accent="green"]{color:#147a52}QLabel[accent="amber"]{color:#92610a}QLabel[accent="red"]{color:#c22f2f}QLabel[accent="theme"]{color:#147a52}
     QPushButton{background:#ffffff;border:1px solid #c3ccd6;color:#141b24}
     QPushButton:hover{border:1px solid #147a52}
@@ -1578,38 +1594,28 @@ class NativeShell:
 
     def _dashboard_page(self) -> Any:
         """Trading workstation dashboard — account health, risk, equity, positions, pending, activity."""
-        page = QT.QWidget()
-        page_layout = QT.QVBoxLayout(page)
-        page_layout.setContentsMargins(0, 0, 0, 0)
-        page_layout.setSpacing(0)
-
         content = QT.QWidget()
-        content.setMinimumWidth(720)
-        content.setSizePolicy(
-            QT.QSizePolicy.Policy.Expanding,
-            QT.QSizePolicy.Policy.MinimumExpanding,
-        )
         root = QT.QVBoxLayout(content)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(12)
 
-        # --- Account / System Health ---
-        health = panel()
-        health_lay = QT.QHBoxLayout(health)
-        health_lay.setContentsMargins(16, 12, 16, 12)
-        health_lay.setSpacing(14)
+        # --- Account / System Health (shared status-strip density) ---
         self.dash_mode_badge = label("UNKNOWN", role="status")
+        self.dash_mode_badge.setProperty("mode", "UNKNOWN")
         self.dash_account_label = label("—", role="section")
         self.dash_mt5_label = label("MT5 —", role="muted")
         self.dash_fresh_label = label("Updated —", role="muted")
         self.dash_exec_label = label("Execution —", role="muted")
-        health_lay.addWidget(self.dash_mode_badge)
-        health_lay.addWidget(self.dash_account_label)
-        health_lay.addStretch(1)
-        health_lay.addWidget(self.dash_mt5_label)
-        health_lay.addWidget(self.dash_exec_label)
-        health_lay.addWidget(self.dash_fresh_label)
-        root.addWidget(health)
+        root.addWidget(
+            self._status_strip(
+                self.dash_mode_badge,
+                self.dash_account_label,
+                "|",
+                self.dash_mt5_label,
+                self.dash_exec_label,
+                self.dash_fresh_label,
+            )
+        )
 
         # --- Risk metrics (higher visual weight) ---
         risk_host = QT.QWidget()
@@ -1658,7 +1664,7 @@ class NativeShell:
         pos_lay.setContentsMargins(0, 0, 0, 0)
         pos_lay.setSpacing(6)
         pos_hdr = QT.QHBoxLayout()
-        self.dash_pos_status = label("0 open · —", role="muted")
+        self.dash_pos_status = label("— open · —", role="muted")
         pos_hdr.addWidget(self.dash_pos_status)
         pos_hdr.addStretch(1)
         pos_more = button("Accounts")
@@ -1685,7 +1691,7 @@ class NativeShell:
         pending_lay.setContentsMargins(0, 0, 0, 0)
         pending_lay.setSpacing(6)
         pend_hdr = QT.QHBoxLayout()
-        self.dash_pending_status = label("0 pending", role="muted")
+        self.dash_pending_status = label("— pending", role="muted")
         pend_hdr.addWidget(self.dash_pending_status)
         pend_hdr.addStretch(1)
         pend_more = button("Pending")
@@ -1724,16 +1730,7 @@ class NativeShell:
 
         root.addLayout(bottom)
         root.addStretch(0)
-
-        scroll = QT.QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QT.QFrame.Shape.NoFrame)
-        scroll.setHorizontalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.setVerticalScrollBarPolicy(QT.Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll.viewport().setStyleSheet("background: transparent;")
-        scroll.setWidget(content)
-        page_layout.addWidget(scroll, 1)
-        return page
+        return self._workstation_scroll(content)
 
     def _signals_page(self) -> Any:
         content = QT.QWidget()
@@ -1980,6 +1977,7 @@ class NativeShell:
         root.setSpacing(12)
 
         self.copy_mode_badge = label("UNKNOWN", role="status")
+        self.copy_mode_badge.setProperty("mode", "UNKNOWN")
         self.copy_role_label = label("Role —", role="muted")
         self.copy_worker_label = label("Worker —", role="muted")
         self.copy_status_label = label("Copy controls are profile-scoped.", role="muted")
@@ -2020,7 +2018,9 @@ class NativeShell:
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(12)
 
-        self.pending_count_badge = label("0 pending", role="status")
+        self.pending_mode_badge = label("UNKNOWN", role="status")
+        self.pending_mode_badge.setProperty("mode", "UNKNOWN")
+        self.pending_count_badge = label("— pending", role="status")
         self.pending_action_status = label("Pending controls are profile-scoped.", role="muted")
         refresh = button("Refresh")
         clear_done = button("Clear done")
@@ -2031,6 +2031,7 @@ class NativeShell:
         root.addWidget(
             self._status_strip(
                 label("PENDING", role="section"),
+                self.pending_mode_badge,
                 self.pending_count_badge,
                 "|",
                 self.pending_action_status,
@@ -2100,6 +2101,7 @@ class NativeShell:
         layout.setSpacing(12)
 
         self.accounts_mode_badge = label("UNKNOWN", role="status")
+        self.accounts_mode_badge.setProperty("mode", "UNKNOWN")
         self.analysis_account_summary = label("—", role="muted")
         self.analysis_account_summary.setWordWrap(True)
         layout.addWidget(
@@ -2157,11 +2159,14 @@ class NativeShell:
         self.analysis_period_combo.currentIndexChanged.connect(
             lambda _i: self._refresh_performance_page()
         )
+        self.performance_mode_badge = label("UNKNOWN", role="status")
+        self.performance_mode_badge.setProperty("mode", "UNKNOWN")
         self.analysis_performance_summary = label("—", role="muted")
         self.analysis_performance_summary.setWordWrap(True)
         layout.addWidget(
             self._status_strip(
                 label("PERFORMANCE", role="section"),
+                self.performance_mode_badge,
                 self.analysis_period_combo,
                 "|",
                 self.analysis_performance_summary,
@@ -2238,10 +2243,13 @@ class NativeShell:
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
+        self.history_mode_badge = label("UNKNOWN", role="status")
+        self.history_mode_badge.setProperty("mode", "UNKNOWN")
         self.history_status_label = label("Closed-trade ledger · profile-scoped", role="muted")
         layout.addWidget(
             self._status_strip(
                 label("HISTORY", role="section"),
+                self.history_mode_badge,
                 "|",
                 self.history_status_label,
             )
@@ -2427,7 +2435,7 @@ class NativeShell:
 
         # Mode: only trust explicit trade_mode / account_mode fields — never invent from name.
         mode = self._trade_mode_from_cfg(cfg)
-        self.dash_mode_badge.setText(mode)
+        self._apply_mode_badge(self.dash_mode_badge, mode)
         self.dash_account_label.setText(str(profile))
 
         mt5_path = str(cfg.get("mt5_path") or cfg.get("terminal_path") or "").strip()
@@ -2596,8 +2604,7 @@ class NativeShell:
 
         cfg = self.profiles.get(self.selected, {}) if self.selected else {}
         mode = self._trade_mode_from_cfg(cfg)
-        if getattr(self, "accounts_mode_badge", None) is not None:
-            self.accounts_mode_badge.setText(mode)
+        self._apply_mode_badge(getattr(self, "accounts_mode_badge", None), mode)
 
         if not account.get("available"):
             self._set_analysis_stat_grid(
@@ -2693,7 +2700,7 @@ class NativeShell:
             info = QT.QPushButton("?")
             info.setFixedSize(22, 22)
             info.setCursor(QT.Qt.CursorShape.PointingHandCursor)
-            info.setStyleSheet("QPushButton{color:#147a52;background:transparent;border:1px solid #a8b7c5;border-radius:11px;font-weight:900;font-size:13px;padding:0} QPushButton:hover{color:#0b5f3c;border-color:#147a52}")
+            info.setStyleSheet("QPushButton{color:#2fa572;background:transparent;border:1px solid #3a4654;border-radius:11px;font-weight:900;font-size:13px;padding:0} QPushButton:hover{color:#00C991;border-color:#2fa572}")
             info.setToolTip("Explain metric")
             info.clicked.connect(lambda _checked=False, metric=title: self._show_analysis_kpi_help(metric))
             title_row.addWidget(info)
@@ -2891,6 +2898,8 @@ class NativeShell:
     def _refresh_performance_page(self) -> None:
         if self.analysis_performance_summary is None:
             return
+        cfg = self.profiles.get(self.selected, {}) if self.selected else {}
+        self._apply_mode_badge(getattr(self, "performance_mode_badge", None), self._trade_mode_from_cfg(cfg))
         if not self.selected:
             self.analysis_performance_summary.setText(native_text("No performance data"))
             self._set_kpi_values([])
@@ -2973,6 +2982,8 @@ class NativeShell:
     def _refresh_history_page(self) -> None:
         if self.analysis_history_table is None or self.analysis_checkpoint_table is None:
             return
+        cfg = self.profiles.get(self.selected, {}) if self.selected else {}
+        self._apply_mode_badge(getattr(self, "history_mode_badge", None), self._trade_mode_from_cfg(cfg))
         if not self.selected:
             self._set_analysis_stat_grid(self.analysis_history_summary_layout, self.analysis_history_summary, [])
             self.analysis_history_deals = []
@@ -3395,6 +3406,18 @@ class NativeShell:
         if mode_raw in {"DEMO", "PRACTICE"}:
             return "DEMO"
         return "UNKNOWN"
+
+    def _apply_mode_badge(self, widget: Any, mode: str) -> None:
+        """Set badge text + QSS mode property for LIVE/DEMO/UNKNOWN/READY/DEGRADED/UNAVAILABLE/STALE."""
+        if widget is None:
+            return
+        text = str(mode or "UNKNOWN").strip().upper() or "UNKNOWN"
+        widget.setText(text)
+        widget.setProperty("mode", text)
+        style = widget.style()
+        if style is not None:
+            style.unpolish(widget)
+            style.polish(widget)
 
     def _workstation_scroll(self, content: Any) -> Any:
         """Wrap tab body in scroll + min-width so narrow resize never collapses."""
@@ -3828,7 +3851,7 @@ class NativeShell:
                 self._load_profile_editor("", {}, "IDLE")
                 if getattr(self, "profiles_count_label", None) is not None:
                     self.profiles_count_label.setText("0 profiles")
-                    self.profiles_mode_badge.setText("UNKNOWN")
+                    self._apply_mode_badge(self.profiles_mode_badge, "UNKNOWN")
                     self.profiles_worker_label.setText("Worker —")
                     self.profiles_mt5_label.setText("MT5 —")
                 return
@@ -3843,7 +3866,7 @@ class NativeShell:
             self._load_profile_editor(self.selected, cfg, status)
             if getattr(self, "profiles_count_label", None) is not None:
                 self.profiles_count_label.setText(f"{len(self.profiles)} profiles")
-                self.profiles_mode_badge.setText(self._trade_mode_from_cfg(cfg))
+                self._apply_mode_badge(self.profiles_mode_badge, self._trade_mode_from_cfg(cfg))
                 self.profiles_worker_label.setText(
                     f"Worker {status}" if self.selected else "Worker —"
                 )
@@ -3865,6 +3888,7 @@ class NativeShell:
         header.addWidget(label(name, role="section" if name == self.selected else ""))
         mode = self._trade_mode_from_cfg(cfg)
         mode_lbl = label(mode, role="status")
+        mode_lbl.setProperty("mode", mode)
         header.addWidget(mode_lbl)
         header.addStretch(1)
         select = button("Selected" if name == self.selected else "Use", primary=name == self.selected)
@@ -4077,7 +4101,7 @@ class NativeShell:
         mode = self._trade_mode_from_cfg(cfg)
         running = self._profile_is_running(self.selected) if self.selected else False
         if getattr(self, "copy_mode_badge", None) is not None:
-            self.copy_mode_badge.setText(mode)
+            self._apply_mode_badge(self.copy_mode_badge, mode)
             self.copy_role_label.setText(f"Role {cfg.get('copy_role') or 'None'}")
             self.copy_worker_label.setText("Worker RUNNING" if running else "Worker STOPPED")
             kill_on = bool(cfg.get("copy_kill_switch"))
@@ -4184,6 +4208,8 @@ class NativeShell:
         if not force and getattr(self, "_last_pending_signature", None) == sig:
             return
         self._last_pending_signature = sig
+        cfg = self.profiles.get(self.selected, {}) if self.selected else {}
+        self._apply_mode_badge(getattr(self, "pending_mode_badge", None), self._trade_mode_from_cfg(cfg))
         waiting = sum(1 for item in items if self._is_waiting_status(item))
         done = sum(1 for item in items if str(item.get("status") or "").lower() in PENDING_DONE_STATUSES)
         if getattr(self, "pending_count_badge", None) is not None:
@@ -4374,11 +4400,11 @@ class NativeShell:
         self.diag_log.setPlainText(visible_log if latest_log else native_text("No log file found."))
         if getattr(self, "diag_health_badge", None) is not None:
             if not latest_log:
-                self.diag_health_badge.setText("UNAVAILABLE")
+                self._apply_mode_badge(self.diag_health_badge, "UNAVAILABLE")
             elif level == "ERROR" and visible_line_count:
-                self.diag_health_badge.setText("DEGRADED")
+                self._apply_mode_badge(self.diag_health_badge, "DEGRADED")
             else:
-                self.diag_health_badge.setText("READY")
+                self._apply_mode_badge(self.diag_health_badge, "READY")
         self._set_diag_status("Diagnostics export is redacted by default.", "muted")
 
     def copy_diagnostics_report(self) -> None:
