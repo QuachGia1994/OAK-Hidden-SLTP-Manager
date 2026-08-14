@@ -10,8 +10,8 @@ import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "SLTP Dashboard",
-  description: "Trading signals dashboard",
+  title: "OAK Analysis — Account Transparency",
+  description: "Public read-only account transparency and historical performance analytics",
 };
 
 export default async function RootLayout({
