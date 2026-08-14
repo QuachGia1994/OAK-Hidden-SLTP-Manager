@@ -85,5 +85,61 @@ class NativeQtAnalysisPageBuildTests(unittest.TestCase):
         self.assertIn("HEALTH", source)
 
 
+class NativeQtDashboardFidelityTests(unittest.TestCase):
+    """Data-fidelity contracts for Dashboard mode / risk / positions / detail."""
+
+    def test_trade_mode_only_from_explicit_metadata(self) -> None:
+        shell = MagicMock(spec=shell_mod.NativeShell)
+        fn = lambda cfg: shell_mod.NativeShell._trade_mode_from_cfg(shell, cfg)
+        self.assertEqual(fn({"trade_mode": "LIVE"}), "LIVE")
+        self.assertEqual(fn({"account_mode": "REAL"}), "LIVE")
+        self.assertEqual(fn({"trade_mode": "DEMO"}), "DEMO")
+        self.assertEqual(fn({"account_mode": "PRACTICE"}), "DEMO")
+        # Missing metadata → UNKNOWN
+        self.assertEqual(fn({}), "UNKNOWN")
+        self.assertEqual(fn(None), "UNKNOWN")
+        # Misleading profile names must NEVER invent mode
+        self.assertEqual(fn({"name": "VantageDemo"}), "UNKNOWN")
+        self.assertEqual(fn({"profile": "ICMarkets Live"}), "UNKNOWN")
+        self.assertEqual(
+            fn({"name": "VantageDemo", "trade_mode": "LIVE"}), "LIVE"
+        )
+
+    def test_format_analysis_value_none_not_zero(self) -> None:
+        shell = MagicMock(spec=shell_mod.NativeShell)
+        out = shell_mod.NativeShell._format_analysis_value(shell, None)
+        self.assertEqual(out, "—")
+        self.assertNotEqual(out, "0")
+        self.assertNotEqual(out, "0.00")
+
+    def test_detail_dialog_skips_secrets_and_pending_meta(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn('"password"', source)
+        self.assertIn('"token"', source)
+        self.assertIn('"api_key"', source)
+        self.assertIn("_pending_file", source)
+        self.assertIn("_pending_identity", source)
+        # skip set is applied before rendering lines
+        self.assertIn("k.lower() in skip", source)
+        self.assertIn('k.startswith("_")', source)
+
+    def test_dashboard_risk_never_fabricates_current_dd(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn('_set_risk("cur_dd", None', source)
+        self.assertIn("unavailable", source)
+        self.assertIn("Never invent 0 for missing risk fields", source)
+
+    def test_dashboard_prefers_live_mt5_positions(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("_live_mt5_open_positions", source)
+        self.assertIn('source = "LIVE_MT5"', source)
+        self.assertIn("positions = live if live is not None else audit_positions", source)
+
+    def test_positions_aggregate_null_profit_is_unavailable(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("float_ok = False", source)
+        self.assertIn('agg = self._format_analysis_value(total_float) if float_ok', source)
+
+
 if __name__ == "__main__":
     unittest.main()
