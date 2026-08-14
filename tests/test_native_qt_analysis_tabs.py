@@ -47,6 +47,12 @@ class NativeQtAnalysisNavigationTests(unittest.TestCase):
         shell._set_analysis_stat_grid = MagicMock()
         shell._set_analysis_table_rows = MagicMock()
         shell._bind_table_row_details = MagicMock()
+        shell._classify_observation_freshness = lambda _ts: {
+            "source_status": "LIVE",
+            "data_age_seconds": 5,
+            "observed_at_utc": "2026-08-14T12:00:00+00:00",
+        }
+        shell._format_freshness_age = lambda age: f"age {age}s"
         shell._live_mt5_open_positions = MagicMock(return_value=None)
         shell._analysis_queries.return_value = fake
         shell_mod.NativeShell._refresh_accounts_page(shell)
@@ -67,6 +73,16 @@ class NativeQtAnalysisPageBuildTests(unittest.TestCase):
         self.assertIn('"password"', source)
         self.assertIn("_table_detail_payloads", source)
         self.assertIn("cellDoubleClicked", source)
+
+    def test_freshness_helpers_and_dashboard_throttle_exist(self) -> None:
+        for name in ("_classify_observation_freshness", "_format_freshness_age"):
+            self.assertTrue(hasattr(shell_mod.NativeShell, name), name)
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("dash_fresh_badge", source)
+        self.assertIn("_dashboard_live_interval", source)
+        self.assertIn("classify_freshness", source)
+        self.assertIn("RISK / CAPITAL", source)
+        self.assertIn("HEALTH", source)
 
 
 if __name__ == "__main__":

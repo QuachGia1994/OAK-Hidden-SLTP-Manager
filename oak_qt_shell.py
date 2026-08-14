@@ -866,6 +866,8 @@ def app_qss(theme: str = "dark") -> str:
     QProgressBar::chunk{background:#2fa572;border-radius:6px}
     QTableWidget,QTableView{background:#0b0f14;border:1px solid #1e2937;border-radius:8px;gridline-color:#1e2937;color:#e6edf3;selection-background-color:rgba(47,165,114,.22);selection-color:#e6edf3;outline:0}
     QTableWidget::item,QTableView::item{padding:4px 8px;color:#e6edf3}
+    QTableWidget::item:hover,QTableView::item:hover{background:rgba(47,165,114,.10)}
+    QTableWidget::item:selected,QTableView::item:selected{background:rgba(47,165,114,.22);color:#e6edf3}
     QHeaderView::section{background:#111820;color:#8b98a5;border:none;border-right:1px solid #1e2937;border-bottom:1px solid #1e2937;padding:6px 10px;font-weight:700;font-size:12px}
     QTableCornerButton::section{background:#111820;border:none}
     """
@@ -933,6 +935,8 @@ def app_qss(theme: str = "dark") -> str:
     QProgressBar{background:#ffffff;border:1px solid #c3ccd6;border-radius:6px;color:#141b24;font-size:11px}
     QProgressBar::chunk{background:#147a52;border-radius:6px}
     QTableWidget,QTableView{background:#ffffff;border:1px solid #c3ccd6;border-radius:8px;gridline-color:#c3ccd6;color:#141b24;selection-background-color:rgba(20,122,82,.16);selection-color:#141b24;outline:0}
+    QTableWidget::item:hover,QTableView::item:hover{background:rgba(20,122,82,.08)}
+    QTableWidget::item:selected,QTableView::item:selected{background:rgba(20,122,82,.16);color:#141b24}
     QTableWidget::item,QTableView::item{padding:4px 8px;color:#141b24}
     QHeaderView::section{background:#eef1f5;color:#4b5a6b;border:none;border-right:1px solid #c3ccd6;border-bottom:1px solid #c3ccd6;padding:6px 10px;font-weight:700;font-size:12px}
     QTableCornerButton::section{background:#eef1f5;border:none}
@@ -1314,6 +1318,8 @@ class NativeShell:
         self._ui_update_pending = False
         self._last_refresh_time = 0.0
         self._refresh_cooldown = 0.1  # Minimum seconds between full UI refreshes
+        self._dashboard_live_interval = 3.0  # Dashboard audit/MT5 queries throttle
+        self._last_dashboard_live = 0.0
         
         self.window = QT.QMainWindow()
         apply_window_icon(self.window)
@@ -1600,18 +1606,22 @@ class NativeShell:
         content = QT.QWidget()
         root = QT.QVBoxLayout(content)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(12)
+        root.setSpacing(8)
 
-        # --- Account / System Health (shared status-strip density) ---
+        # --- HEALTH: account identity + mode + freshness (primary answers) ---
         self.dash_mode_badge = label("UNKNOWN", role="status")
         self.dash_mode_badge.setProperty("mode", "UNKNOWN")
+        self.dash_fresh_badge = label("UNAVAILABLE", role="status")
+        self.dash_fresh_badge.setProperty("mode", "UNAVAILABLE")
         self.dash_account_label = label("—", role="section")
         self.dash_mt5_label = label("MT5 —", role="muted")
-        self.dash_fresh_label = label("Updated —", role="muted")
-        self.dash_exec_label = label("Execution —", role="muted")
+        self.dash_fresh_label = label("Observed —", role="muted")
+        self.dash_exec_label = label("Worker —", role="muted")
         root.addWidget(
             self._status_strip(
+                label("HEALTH", role="section"),
                 self.dash_mode_badge,
+                self.dash_fresh_badge,
                 self.dash_account_label,
                 "|",
                 self.dash_mt5_label,
@@ -1620,12 +1630,12 @@ class NativeShell:
             )
         )
 
-        # --- Risk metrics (higher visual weight) ---
+        # --- RISK / CAPITAL (2x3 grid — readable at 1280 without horizontal squeeze) ---
         risk_host = QT.QWidget()
         risk_grid = QT.QGridLayout(risk_host)
         risk_grid.setContentsMargins(0, 0, 0, 0)
-        risk_grid.setHorizontalSpacing(10)
-        risk_grid.setVerticalSpacing(10)
+        risk_grid.setHorizontalSpacing(8)
+        risk_grid.setVerticalSpacing(8)
         self.dash_risk_stats: dict[str, Any] = {}
         risk_keys = [
             ("equity", "Equity", "green"),
@@ -1636,14 +1646,14 @@ class NativeShell:
             ("margin", "Margin level", ""),
         ]
         for idx, (key, title, accent) in enumerate(risk_keys):
-            frame, value_lbl = self._analysis_stat_card(title, "—", accent)
+            frame, value_lbl = self._analysis_stat_card(title, "unavailable", accent)
             self.dash_risk_stats[key] = {"frame": frame, "value": value_lbl}
-            risk_grid.addWidget(frame, 0, idx)
-        root.addWidget(self._section("RISK", risk_host))
+            risk_grid.addWidget(frame, idx // 3, idx % 3)
+        root.addWidget(self._section("RISK / CAPITAL", risk_host))
 
-        # --- Center: equity summary + positions / pending ---
+        # --- Center: equity summary + positions ---
         mid = QT.QHBoxLayout()
-        mid.setSpacing(12)
+        mid.setSpacing(8)
 
         # Equity / chart summary panel
         equity_wrap = QT.QWidget()
@@ -1656,8 +1666,8 @@ class NativeShell:
         self.dash_equity_table = self._analysis_table(
             ["Time", "Equity", "Balance", "Drawdown"], stretch=0
         )
-        self.dash_equity_table.setMinimumHeight(160)
-        self.dash_equity_table.setMaximumHeight(220)
+        self.dash_equity_table.setMinimumHeight(120)
+        self.dash_equity_table.setMaximumHeight(180)
         equity_lay.addWidget(self.dash_equity_table, 1)
         mid.addWidget(self._section("EQUITY / DRAWDOWN", equity_wrap), 2)
 
@@ -1678,8 +1688,8 @@ class NativeShell:
         self.dash_positions_table = self._analysis_table(
             ["Symbol", "Dir", "Vol", "P/L"], stretch=0
         )
-        self.dash_positions_table.setMinimumHeight(160)
-        self.dash_positions_table.setMaximumHeight(220)
+        self.dash_positions_table.setMinimumHeight(120)
+        self.dash_positions_table.setMaximumHeight(180)
         pos_lay.addWidget(self.dash_positions_table, 1)
         mid.addWidget(self._section("OPEN POSITIONS", pos_wrap), 1)
 
@@ -1687,7 +1697,7 @@ class NativeShell:
 
         # --- Bottom: pending + profiles + live console ---
         bottom = QT.QHBoxLayout()
-        bottom.setSpacing(12)
+        bottom.setSpacing(8)
 
         pending_wrap = QT.QWidget()
         pending_lay = QT.QVBoxLayout(pending_wrap)
@@ -1705,8 +1715,8 @@ class NativeShell:
         self.dash_pending_table = self._analysis_table(
             ["Symbol", "Type", "Status"], stretch=0
         )
-        self.dash_pending_table.setMinimumHeight(120)
-        self.dash_pending_table.setMaximumHeight(160)
+        self.dash_pending_table.setMinimumHeight(100)
+        self.dash_pending_table.setMaximumHeight(140)
         pending_lay.addWidget(self.dash_pending_table, 1)
         bottom.addWidget(self._section("PENDING ORDERS", pending_wrap), 1)
 
@@ -1719,7 +1729,7 @@ class NativeShell:
         self.profile_rows_layout.setContentsMargins(0, 0, 0, 0)
         self.profile_scroll = QT.QScrollArea()
         self.profile_scroll.setWidgetResizable(True)
-        self.profile_scroll.setMaximumHeight(160)
+        self.profile_scroll.setMaximumHeight(130)
         self.profile_scroll.viewport().setStyleSheet("background: transparent;")
         self.profile_scroll.setWidget(self.profile_rows)
         bottom.addWidget(self._section("PROFILES", self.profile_scroll), 1)
@@ -1727,7 +1737,7 @@ class NativeShell:
         self.console = QT.QTextEdit()
         self.console.setReadOnly(True)
         self.console.document().setMaximumBlockCount(1200)
-        self.console.setMaximumHeight(160)
+        self.console.setMaximumHeight(130)
         self.console.setProperty("role", "mini")
         bottom.addWidget(self._section("RECENT ACTIVITY", self.console), 1)
 
@@ -2375,6 +2385,10 @@ class NativeShell:
                 lambda row, _col, t=table: self._on_table_row_detail(t, row)
             )
             table.setToolTip(native_text("Double-click a row for details"))
+            try:
+                table.setCursor(QT.Qt.CursorShape.PointingHandCursor)
+            except Exception:
+                pass
             table._oak_detail_bound = True
 
     def _on_table_row_detail(self, table: Any, row: int) -> None:
@@ -2393,8 +2407,10 @@ class NativeShell:
         # Public-safe fields only; skip internal keys and credentials.
         skip = {
             "ticket", "deal", "order", "comment", "magic", "login", "password",
-            "token", "secret", "api_key", "_pending_file", "_pending_key",
-            "_pending_identity", "_pending_shape", "_pending_index",
+            "token", "secret", "api_key", "tele_token", "tele_chat", "tele_admin",
+            "path", "mt5_path", "terminal_path",
+            "_pending_file", "_pending_key", "_pending_identity", "_pending_shape",
+            "_pending_index",
         }
         lines: list[str] = []
         for key, value in payload.items():
@@ -2533,8 +2549,15 @@ class NativeShell:
             queries = None
 
         available = bool(account.get("available"))
-        updated = account.get("sampled_at_utc") or "—"
-        self.dash_fresh_label.setText(f"Updated {updated}")
+        observed = account.get("sampled_at_utc") if available else None
+        fresh_meta = self._classify_observation_freshness(observed)
+        fresh_status = str(fresh_meta.get("source_status") or "UNAVAILABLE")
+        self._apply_mode_badge(getattr(self, "dash_fresh_badge", None), fresh_status)
+        age_txt = self._format_freshness_age(fresh_meta.get("data_age_seconds"))
+        if observed:
+            self.dash_fresh_label.setText(f"Observed {observed} · {age_txt}")
+        else:
+            self.dash_fresh_label.setText("Observed unavailable · no sample")
 
         def _set_risk(key: str, value: Any, accent: str = "") -> None:
             slot = self.dash_risk_stats.get(key)
@@ -2734,11 +2757,20 @@ class NativeShell:
                 metrics,
                 columns=4,
             )
-            updated = account.get("sampled_at_utc") or "—"
-            self.analysis_account_summary.setText(
-                f"{native_text('Profile')}: {account.get('profile') or self.selected} · "
-                f"{native_text('Updated')}: {updated} UTC"
-            )
+            updated = account.get("sampled_at_utc")
+            fresh_meta = self._classify_observation_freshness(updated)
+            fresh_status = str(fresh_meta.get("source_status") or "UNAVAILABLE")
+            age_txt = self._format_freshness_age(fresh_meta.get("data_age_seconds"))
+            if updated:
+                self.analysis_account_summary.setText(
+                    f"{native_text('Profile')}: {account.get('profile') or self.selected} · "
+                    f"{fresh_status} · {age_txt} · observed {updated} UTC"
+                )
+            else:
+                self.analysis_account_summary.setText(
+                    f"{native_text('Profile')}: {account.get('profile') or self.selected} · "
+                    f"UNAVAILABLE · observed unavailable"
+                )
 
         # Prefer the live MT5 book. Audit checkpoints remain the read-only fallback.
         live = self._live_mt5_open_positions(self.selected)
@@ -3570,6 +3602,32 @@ class NativeShell:
             style.unpolish(widget)
             style.polish(widget)
 
+    def _classify_observation_freshness(self, observed_at_utc: Any) -> dict[str, Any]:
+        """Reuse public freshness thresholds — never invent timestamps."""
+        try:
+            from services.public_freshness import classify_freshness
+
+            return classify_freshness(observed_at_utc)
+        except Exception:
+            return {
+                "source_status": "UNAVAILABLE",
+                "observed_at_utc": None,
+                "data_age_seconds": None,
+            }
+
+    def _format_freshness_age(self, age_seconds: Any) -> str:
+        if age_seconds is None:
+            return "age unavailable"
+        try:
+            age = int(age_seconds)
+        except (TypeError, ValueError):
+            return "age unavailable"
+        if age < 60:
+            return f"age {age}s"
+        if age < 3600:
+            return f"age {age // 60}m"
+        return f"age {age // 3600}h"
+
     def _workstation_scroll(self, content: Any) -> Any:
         """Wrap tab body in scroll + min-width so narrow resize never collapses."""
         if isinstance(content, QT.QWidget):
@@ -3759,8 +3817,12 @@ class NativeShell:
         # Only refresh pending page if currently visible
         if self.current_tab == "Pending":
             self._refresh_pending_page()
+        # Dashboard audit/MT5 path is heavier — throttle below live timer tick.
         if self.current_tab == "Dashboard":
-            self._refresh_dashboard_page()
+            interval = float(getattr(self, "_dashboard_live_interval", 3.0) or 3.0)
+            if now - float(getattr(self, "_last_dashboard_live", 0.0) or 0.0) >= interval:
+                self._last_dashboard_live = now
+                self._refresh_dashboard_page()
         
         # Only do expensive refreshes when signature changes
         if running != self.last_running_signature:
