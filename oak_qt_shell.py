@@ -1613,20 +1613,25 @@ class NativeShell:
         self.dash_mode_badge.setProperty("mode", "UNKNOWN")
         self.dash_fresh_badge = label("UNAVAILABLE", role="status")
         self.dash_fresh_badge.setProperty("mode", "UNAVAILABLE")
+        self.dash_source_badge = label("SOURCE —", role="status")
+        self.dash_source_badge.setProperty("mode", "UNAVAILABLE")
         self.dash_account_label = label("—", role="section")
         self.dash_mt5_label = label("MT5 —", role="muted")
         self.dash_fresh_label = label("Observed —", role="muted")
         self.dash_exec_label = label("Worker —", role="muted")
+        self.dash_refresh_label = label("Refresh —", role="muted")
         root.addWidget(
             self._status_strip(
                 label("HEALTH", role="section"),
                 self.dash_mode_badge,
                 self.dash_fresh_badge,
+                self.dash_source_badge,
                 self.dash_account_label,
                 "|",
                 self.dash_mt5_label,
                 self.dash_exec_label,
                 self.dash_fresh_label,
+                self.dash_refresh_label,
             )
         )
 
@@ -2558,6 +2563,30 @@ class NativeShell:
             self.dash_fresh_label.setText(f"Observed {observed} · {age_txt}")
         else:
             self.dash_fresh_label.setText("Observed unavailable · no sample")
+
+        # Account/risk provenance is audit-store (never invent LIVE_MT5 for equity).
+        # Positions may independently report LIVE_MT5 below — keep badges separate.
+        if available and observed:
+            acct_source = "AUDIT"
+            source_mode = fresh_status if fresh_status in {"LIVE", "DEGRADED"} else "DEGRADED"
+        elif available:
+            acct_source = "AUDIT"
+            source_mode = "DEGRADED"
+        else:
+            acct_source = "UNAVAILABLE"
+            source_mode = "UNAVAILABLE"
+        if getattr(self, "dash_source_badge", None) is not None:
+            # Color via QSS mode property; keep label text as provenance (AUDIT/UNAVAILABLE).
+            self.dash_source_badge.setProperty("mode", source_mode)
+            self.dash_source_badge.setText(acct_source)
+            style = self.dash_source_badge.style()
+            if style is not None:
+                style.unpolish(self.dash_source_badge)
+                style.polish(self.dash_source_badge)
+        if getattr(self, "dash_refresh_label", None) is not None:
+            self.dash_refresh_label.setText(
+                f"Refresh {datetime.now(timezone.utc).strftime('%H:%M:%S')}Z"
+            )
 
         def _set_risk(key: str, value: Any, accent: str = "") -> None:
             slot = self.dash_risk_stats.get(key)
@@ -3961,6 +3990,10 @@ class NativeShell:
             self._refresh_profile_page(force=True)
         elif tab in ("Accounts", "Performance", "History", "News"):
             self._refresh_analysis_page(force=True)
+        elif tab == "Dashboard":
+            # Entering Dashboard must re-sample observability badges (mode/fresh/source).
+            self._refresh_dashboard_page()
+            self._last_dashboard_live = time.time()
         self.stack.setCurrentWidget(self.tab_pages[tab])
         self._refresh_nav()
         self._fade_in_page(self.tab_pages[tab])

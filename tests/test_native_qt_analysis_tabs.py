@@ -140,6 +140,21 @@ class NativeQtDashboardFidelityTests(unittest.TestCase):
         self.assertIn("float_ok = False", source)
         self.assertIn('agg = self._format_analysis_value(total_float) if float_ok', source)
 
+    def test_dashboard_observability_source_and_refresh_labels(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn("dash_source_badge", source)
+        self.assertIn("dash_refresh_label", source)
+        self.assertIn('acct_source = "AUDIT"', source)
+        self.assertIn('acct_source = "UNAVAILABLE"', source)
+        # Mode and freshness remain separate badges from data source.
+        self.assertIn("dash_mode_badge", source)
+        self.assertIn("dash_fresh_badge", source)
+
+    def test_switch_tab_dashboard_refreshes_observability(self) -> None:
+        source = Path(shell_mod.__file__).read_text(encoding="utf-8")
+        self.assertIn('elif tab == "Dashboard":', source)
+        self.assertIn("self._refresh_dashboard_page()", source)
+
 
 if __name__ == "__main__":
     unittest.main()
