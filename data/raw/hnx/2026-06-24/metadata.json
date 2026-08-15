@@ -1,9 +1,0 @@
-{
-  "source_url": "https://apipubks.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=SHS&type=stock&resolution=D",
-  "downloaded_at": "2026-07-24T06:56:15.856880+00:00",
-  "status_code": 200,
-  "content_type": "application/json",
-  "sha256": "a837c166018e15fe2e66f19cc68528481e81ce95da8e06b83557d1462c1ef2ee",
-  "exchange": "HNX",
-  "trading_date": "2026-06-24"
-}

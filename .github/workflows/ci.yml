@@ -7,7 +7,7 @@ on:
     branches: [main, master]
 
 jobs:
-  test:
+  verify:
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -18,53 +18,44 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install core dependencies
+      - name: Install Python runtime
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          if (Test-Path requirements.txt) {
-            pip install -r requirements.txt
-          }
-          if (Test-Path requirements-dev.txt) {
-            pip install -r requirements-dev.txt
-          }
-          pip install customtkinter
-        shell: pwsh
+          pip install -r requirements.txt
 
-      - name: Install optional MetaTrader5
-        run: pip install MetaTrader5
+      - name: Compile Python runtime
         shell: pwsh
-        continue-on-error: true
+        run: |
+          python -m py_compile worker_runtime.py mimo_bot.py factcheck_worker.py
+          python -m compileall -q domain repositories services robot-sltp-pro
+      - name: Python tests
+        shell: pwsh
+        run: python -m unittest discover -s tests -p "test_*.py" -v
 
-      - name: Compile all modules
-        run: python -m compileall -q .
+      - name: Tauri bridge tests
         shell: pwsh
-
-      - name: Unit tests
-        run: python -m unittest discover -s tests -v
-        shell: pwsh
-
-      - name: oak-core sidecar tests
-        run: python -m unittest discover -s python/tests -v
-        shell: pwsh
+        run: python robot-sltp-pro/test_backend_bridge.py
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: dashboard/package-lock.json
+          cache-dependency-path: |
+            dashboard/package-lock.json
+            robot-sltp-pro/package-lock.json
 
-      - name: Install dashboard dependencies
-        run: npm ci
-        working-directory: dashboard
+      - name: Build remote web
         shell: pwsh
+        working-directory: dashboard
+        run: |
+          npm ci
+          npm run build
 
-      - name: Dashboard i18n tests
-        run: npm run test:i18n
-        working-directory: dashboard
+      - name: Build Tauri frontend
         shell: pwsh
-
-      - name: Build dashboard
-        run: npm run build
-        working-directory: dashboard
-        shell: pwsh
+        working-directory: robot-sltp-pro
+        run: |
+          npm ci
+          npm run build

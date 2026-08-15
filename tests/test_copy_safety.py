@@ -13,7 +13,7 @@ if ROOT not in sys.path:
 
 
 def _make_manager(**overrides):
-    from OAK_Hidden_SLTP_Manager import CopyTradeManager
+    from domain.copy_trade_manager import CopyTradeManager
 
     config = {
         "profile_name": "TestProfile",
@@ -44,7 +44,7 @@ class TestCopySafetyReal(unittest.TestCase):
 
     def test_kill_switch_off_allows_when_limits_ok(self):
         mgr, _ = _make_manager(copy_kill_switch=False)
-        with patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5:
+        with patch("domain.copy_trade_manager.mt5") as mock_mt5:
             mock_mt5.terminal_info.return_value = None
             result = mgr.test_safety_rules(symbol="EURUSD", lot=0.1, type="BUY")
         self.assertTrue(result["allowed"], result)
@@ -53,7 +53,7 @@ class TestCopySafetyReal(unittest.TestCase):
         mgr, _ = _make_manager(copy_max_daily_trades=3, copy_kill_switch=False)
         mgr._daily_trade_date = date.today()
         mgr._daily_trade_count = 3
-        with patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5:
+        with patch("domain.copy_trade_manager.mt5") as mock_mt5:
             mock_mt5.terminal_info.return_value = None
             result = mgr.test_safety_rules(symbol="XAUUSD", lot=0.01, type="BUY")
         self.assertFalse(result["allowed"])
@@ -61,7 +61,7 @@ class TestCopySafetyReal(unittest.TestCase):
 
     def test_max_lot_flagged_in_test_safety_rules(self):
         mgr, _ = _make_manager(copy_max_lot_per_trade=1.0, copy_kill_switch=False)
-        with patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5:
+        with patch("domain.copy_trade_manager.mt5") as mock_mt5:
             mock_mt5.terminal_info.return_value = None
             result = mgr.test_safety_rules(symbol="EURUSD", lot=5.0, type="BUY")
         self.assertFalse(result["allowed"])
@@ -87,8 +87,8 @@ class TestCopySafetyReal(unittest.TestCase):
         with patch.object(mgr, "_find_matching_symbol", return_value="EURUSD"), \
              patch.object(mgr, "_calculate_lot", return_value=2.0), \
              patch("domain.copy_trade_manager.profile_session_validation_enabled", return_value=False), \
-             patch("OAK_Hidden_SLTP_Manager.mt5") as mock_mt5, \
-             patch("OAK_Hidden_SLTP_Manager.os.path.exists", return_value=False):
+             patch("domain.copy_trade_manager.mt5") as mock_mt5, \
+             patch("domain.copy_trade_manager.os.path.exists", return_value=False):
             mock_mt5.positions_get.return_value = []
             mock_info = MagicMock()
             mock_info.volume_min = 0.01

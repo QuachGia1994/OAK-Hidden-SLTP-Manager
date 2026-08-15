@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { FactCheckResult as FactCheckResultType } from "@/lib/types";
+import type { FactCheckRequest, FactCheckResult as FactCheckResultType } from "@/lib/factcheck/types";
 import { useLocale } from "@/components/LocaleProvider";
 import { FactCheckHero } from "@/components/factcheck/FactCheckHero";
 import { FactCheckInput } from "@/components/factcheck/FactCheckInput";
@@ -24,13 +24,24 @@ export default function FactCheckPage() {
       const res = await fetch("/api/factcheck", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: text.trim() }),
+        body: JSON.stringify({ text: text.trim(), locale }),
       });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const queued = await res.json() as { id?: string };
+      if (!queued.id) throw new Error("FactCheck request id missing");
+
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, attempt === 0 ? 250 : 2000));
+        const statusRes = await fetch(`/api/factcheck?id=${encodeURIComponent(queued.id)}`, { cache: "no-store" });
+        if (!statusRes.ok) throw new Error(`HTTP ${statusRes.status}`);
+        const item = await statusRes.json() as FactCheckRequest | null;
+        if (item?.status === "done" && item.result) {
+          setResult(item.result);
+          return;
+        }
+        if (item?.status === "error") throw new Error("FactCheck worker failed");
       }
-      const data = await res.json();
-      setResult(data);
+      throw new Error("FactCheck timeout");
     } catch (err) {
       console.error("FactCheck request error:", err);
       setError(err instanceof Error ? err.message : "FactCheck failed");

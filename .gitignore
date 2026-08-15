@@ -1,86 +1,67 @@
-venv/
+# Python / test caches
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest-basetemp/
+venv/
+
+# Build outputs
 build/
 dist/
 *.spec
-!scripts/oak-core.spec
-upx/
-
 *.zip
 *.log
-*.lock
+*.json.lock
 
-profiles.json
-settings.json
-trades.json
-trades_*.json
-session_state.json
-pending_partials.json
-manual_trends.json
-monday_snapshot.json
-tuesday_snapshot.json
-wednesday_snapshot.json
-thursday_snapshot.json
-friday_snapshot.json
-waiting_*.json
-tele_*.json
-news_cache*.json
-config.json
+# Node / Next / Tauri outputs
+**/node_modules/
+dashboard/.next/
+dashboard/tsconfig.tsbuildinfo
+robot-sltp-pro/dist/
+robot-sltp-pro/src-tauri/target/
+robot-sltp-pro/.vite/
+
+# Local deployment/tool metadata
+.vercel/
+.agents/
+.mimocode/
+.opencode/
+.pxswift/
+scratch/
+
+# Secrets / machine-local config
 .env
 .env*.local
-
-# Runtime data (pushed to Redis, not git)
-d_direction_history.json
-stock_recommendation.json
-bot_state.json
-signals_log.json
+config.json
+profiles.json
+settings.json
+# Trading runtime state
+oak_state.db*
 broker_clock_cache.json*
-
-# Dashboard
-dashboard/node_modules/
-dashboard/.next/
-dashboard/.env*.local
-dashboard/tsconfig.tsbuildinfo
-
-# Copy trade runtime files
+trades*.json
+waiting_*.json
+scheduled_close_*.json
+pending_partials*.json
+session_state.json
+risk_equity_hwm_*.json
 copy_map_*.json
 ignored_*.json
-scheduled_close_*.json
-risk_equity_hwm_*.json
+tele_*.json
+mimo_*.json
+mimo_bot.lock
+worker_*.lock
 
-# MiMo runtime files
-.mimocode/
-mimocode.jsonc
-_mimo_input.txt
-_mimo_output.txt
-mimo_proxy_result.txt
-mimo_proxy_cmd.txt
-d_dir_last_id.txt
+# Tauri local runtime cache
+robot-sltp-pro/pattern5_cache.json
+robot-sltp-pro/scheduled_close_*.json
+robot-sltp-pro/__pycache__/
 
-.vercel
-.env*
-
-# SQLite runtime
-oak_state.db
-oak_state.db-shm
-oak_state.db-wal
-
-# PXSwift cache
-.pxswift/
-
-# Local backup artifacts
+# Local binaries / OS debris
+terminal64.exe
+.DS_Store
 *.bak_*
 *.bak_sched_*
 
-# Agent tooling + dev scratch (not project source)
-.opencode/
-scratch/
-scratch_orig.qml
-
-# Account audit ledger (runtime data, contains account/trade info)
-data/trade_audit.db
-data/trade_audit.db-shm
-data/trade_audit.db-wal
-
-# Market data runtime database
-data/*.db
+# Removed legacy runtime folders may be recreated by stale processes/tests
+data/
+logs/

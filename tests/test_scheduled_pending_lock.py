@@ -5,20 +5,20 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Minimal import path without launching GUI
-import OAK_Hidden_SLTP_Manager as oak
+from domain.copy_trade_manager import CopyTradeManager
+from domain.json_io import load_json, save_json
 
 
 class TestScheduledPendingLock(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.path = os.path.join(self.tmp.name, "waiting_test.json")
-        self.cm = object.__new__(oak.CopyTradeManager)
+        self.cm = object.__new__(CopyTradeManager)
         self.cm.config = {"profile_name": "VantageDemo"}
         self.cm.scheduled_file = self.path
         self.cm.scheduled_trades = []
         self.cm.notify = MagicMock()
-        oak.save_json(self.path, [])
+        save_json(self.path, [])
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -66,11 +66,11 @@ class TestScheduledPendingLock(unittest.TestCase):
         self.assertEqual(len(r2), 1)  # no second same-direction waiting
 
     def test_claim_prevents_double_execute(self):
-        oak.save_json(
+        save_json(
             self.path,
             [{"id": 42, "status": "waiting", "symbol": "XAUUSD+", "type": 0, "lot": "0.01", "time": "10:00:00", "date": "2026-07-09"}],
         )
-        self.cm.scheduled_trades = oak.load_json(self.path, [])
+        self.cm.scheduled_trades = load_json(self.path, [])
         c1 = self.cm._claim_scheduled_trade(42)
         self.assertIsNotNone(c1)
         self.assertEqual(c1["status"], "executing")

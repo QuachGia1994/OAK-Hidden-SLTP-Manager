@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""OAK trading domain layer (lazy re-exports)."""
+"""ROBOT SLTP Pro trading domain layer (lazy re-exports)."""
 from __future__ import annotations
 
 from domain.constants import (  # noqa: F401
@@ -33,10 +33,6 @@ def __getattr__(name: str):
         from domain.balance import get_start_day_balance
 
         return get_start_day_balance
-    if name in {"GhostOperator", "show_ghost_consent", "GHOST_LIB_AVAILABLE"}:
-        from domain import ghost_operator
-
-        return getattr(ghost_operator, name)
     if name == "CopyTradeManager":
         from domain.copy_trade_manager import CopyTradeManager
 
@@ -65,9 +61,6 @@ __all__ = [
     "TicketManager",
     "FileLock",
     "get_start_day_balance",
-    "GhostOperator",
-    "show_ghost_consent",
-    "GHOST_LIB_AVAILABLE",
     "CopyTradeManager",
     "MonitorWorker",
     "_mimo_bot_token",

@@ -1,9 +1,0 @@
-{
-  "source_url": "https://apipubks.tcbs.com.vn/stock-insight/v1/stock/bars-long-term?ticker=FPT&type=stock&resolution=D",
-  "downloaded_at": "2026-07-24T06:44:30.193469+00:00",
-  "status_code": 200,
-  "content_type": "application/json",
-  "sha256": "b4f412bd3a9d95bff79224373162e8f13c15ea2af2533752949be35b9ec6f7fb",
-  "exchange": "HOSE",
-  "trading_date": "2025-11-25"
-}

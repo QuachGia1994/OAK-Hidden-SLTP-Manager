@@ -19,7 +19,6 @@ from zoneinfo import ZoneInfo
 
 import MetaTrader5 as mt5
 
-import oak_trading_reminders
 from oak_response_dict import get_random_response
 from oak_logger import setup_logger
 
@@ -46,8 +45,6 @@ from services.mt5_terminal_service import profile_session_validation_enabled, re
 
 log = setup_logger("copy_trade")
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ACTIVE_SIGNAL_SLOTS = frozenset({3, 7, 9, 12, 14, 16})
-MINIMUM_SIGNAL_LOGIC_VERSION = 87
 # Scheduled Telegram close uses explicit IANA civil time (not OS local, not fixed UTC+7).
 SCHEDULED_CLOSE_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 SCHEDULED_CLOSE_MAX_ATTEMPTS = 5
@@ -57,57 +54,6 @@ _BROKER_CLOCK = BrokerClock(
     cache_path=os.path.join(_PROJECT_ROOT, "broker_clock_cache.json"),
 )
 
-
-def _is_current_signal_record(record):
-    """Accept only XAUUSD records from the current signal contract."""
-    if not isinstance(record, dict):
-        return False
-    try:
-        hour = int(record.get("hour"))
-        logic_version = int(record.get("logic_version"))
-        date.fromisoformat(record.get("date"))
-    except (TypeError, ValueError):
-        return False
-    pair_dirs = record.get("pair_dirs")
-    return (
-        hour in ACTIVE_SIGNAL_SLOTS
-        and logic_version == MINIMUM_SIGNAL_LOGIC_VERSION
-        and isinstance(pair_dirs, dict)
-        and pair_dirs.get("XAUUSD") in ("BUY", "SELL")
-    )
-
-
-def _select_current_signal_rows(log_rows, target_date=None):
-    """Return the latest current-contract record per slot for one date."""
-    valid_rows = [row for row in (log_rows or []) if _is_current_signal_record(row)]
-    selected_date = target_date or max(
-        (row.get("date") for row in valid_rows if row.get("date")),
-        default=None,
-    )
-    by_hour = {}
-    for row in valid_rows:
-        if row.get("date") == selected_date:
-            by_hour[int(row["hour"])] = row
-    return selected_date, by_hour
-
-
-def _format_current_signal_row(hour, payload):
-    """Render Broker publication/entry clocks supplied by the signal record."""
-    direction = payload["pair_dirs"]["XAUUSD"]
-    signal_time = payload.get("signal_time") or "--:--"
-    entry_time = payload.get("entry_time") or "--:--"
-    return (
-        f"H={hour:02d} | phát {signal_time} Broker | "
-        f"vào {entry_time} Broker → *XAUUSD:{direction}*"
-    )
-
-
-def _signal_state_paths():
-    """Resolve shared signal state beside the application entry points."""
-    return (
-        os.path.join(_PROJECT_ROOT, "bot_state.json"),
-        os.path.join(_PROJECT_ROOT, "signals_log.json"),
-    )
 
 def get_natural_response(category, **kwargs):
     try:
@@ -725,46 +671,6 @@ class CopyTradeManager:
         except Exception as e:
             print(f"[MiMo] Send error: {e}")
 
-    def _process_mimo_cmd(self, prompt):
-        """Process /mimo command in background thread"""
-        try:
-            cmd_lower = prompt.lower().strip()
-            if any(w in cmd_lower for w in ["status", "trang thai", "tinh trang"]):
-                now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-                result = f"Trạng thái hệ thống lúc {now}:\n- OAK Manager: đang chạy\n- MT5 Signal Bot: đang chạy\n- Tất cả hoạt động bình thường."
-            elif any(w in cmd_lower for w in ["signal", "tin hieu"]):
-                result = "Tín hiệu hiện tại: Đang chờ slot kích hoạt tiếp theo."
-            elif any(w in cmd_lower for w in ["time", "gio", "thoi gian"]):
-                now = datetime.now()
-                result = f"Giờ local: {now.strftime('%H:%M:%S')}\nNgày: {now.strftime('%d/%m/%Y')}"
-            elif any(w in cmd_lower for w in ["help", "giup", "huong dan"]):
-                result = "Các lệnh: status, signal, time, help"
-            else:
-                result = f"Đã nhận: '{prompt}'"
-            self._send_mimo_response(f"✅ *Kết quả MiMo:*\n```\n{result}\n```")
-        except Exception as e:
-            self._send_mimo_response(f"❌ Lỗi: {str(e)}")
-
-    def _run_scan_cmd(self):
-        """Scan project files in background thread"""
-        try:
-            project_dir = os.path.dirname(os.path.abspath(__file__))
-            py_files = []
-            for f in os.listdir(project_dir):
-                if f.endswith(".py"):
-                    size = os.path.getsize(os.path.join(project_dir, f))
-                    py_files.append(f"{f} ({size:,} bytes)")
-            json_files = [f for f in os.listdir(project_dir) if f.endswith(".json") and not f.startswith(("_", "."))]
-            lines = ["📂 *QUÉT DỰ ÁN:*\n", f"🐍 Python files ({len(py_files)}):"]
-            for f in py_files[:15]:
-                lines.append(f"  • {f}")
-            lines.append(f"\n📦 JSON files ({len(json_files)}):")
-            for f in json_files[:10]:
-                lines.append(f"  • {f}")
-            self._send_mimo_response("\n".join(lines))
-        except Exception as e:
-            self._send_mimo_response(f"❌ Lỗi quét: {str(e)}")
-
     def _handle_telegram_text(self, text):
         """Parse and execute Enhanced Telegram commands (Support both Syntax and Natural Language)"""
         raw_text = text.strip()
@@ -777,176 +683,7 @@ class CopyTradeManager:
         profile_name = self.config.get("profile_name", "Unknown")
         profile_lower = profile_name.lower()
 
-        # --- MiMo Bot Commands (merged from mimo_bot.py) ---
-        if cmd[0] == "/myid":
-            self._send_mimo_response(f"Chat ID: `{_mimo_bot_chat_id}`")
-            return
-        if cmd[0] == "/mimo":
-            prompt = raw_text.replace("/mimo", "").strip()
-            if not prompt:
-                self._send_mimo_response("Dùng: `/mimo <yêu cầu>`")
-                return
-            self._send_mimo_response(f"⏳ Đang gửi lệnh MiMo...\n📝 `{prompt}`")
-            threading.Thread(target=self._process_mimo_cmd, args=(prompt,), daemon=True).start()
-            return
-        if cmd[0] == "/code":
-            args = raw_text.replace("/code", "").strip()
-            if not args:
-                self._send_mimo_response("Dùng: `/code <file> <read|edit>`")
-                return
-            parts = args.split(None, 1)
-            if len(parts) < 2:
-                self._send_mimo_response("Dùng: `/code oak_response_dict.py read`")
-                return
-            filename, action = parts
-            if ".." in filename or "/" in filename or "\\" in filename:
-                self._send_mimo_response("❌ Tên file không hợp lệ!")
-                return
-            filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.path.basename(filename))
-            if action.lower() == "read":
-                if not os.path.exists(filepath):
-                    self._send_mimo_response(f"❌ File không tồn tại: `{filename}`")
-                    return
-                try:
-                    with open(filepath, "r", encoding="utf-8") as f:
-                        content = f.read()
-                    if len(content) > 3500:
-                        content = content[:3500] + "\n\n...[Cắt bớt]..."
-                    self._send_mimo_response(f"📄 *{filename}:*\n```\n{content}\n```")
-                except Exception as e:
-                    self._send_mimo_response(f"❌ Lỗi đọc file: {str(e)}")
-            else:
-                self._send_mimo_response("Chỉ hỗ trợ: `read`")
-            return
-        if cmd[0] == "/scan":
-            self._send_mimo_response("⏳ Đang quét dự án...")
-            threading.Thread(target=self._run_scan_cmd, daemon=True).start()
-            return
-        if cmd[0] in ("/profiles", "/profile"):
-            config = load_json(CONFIG_FILE)
-            if not config:
-                self._send_mimo_response("❌ Không tìm thấy profiles.json")
-                return
-            lines = ["📋 *DANH SÁCH PROFILE:*\n"]
-            for name, p in config.items():
-                ok = "✅" if os.path.exists(p.get("path", "")) else "❌"
-                lines.append(f"• *{name}* {ok} SL:{p.get('sl','?')} TP:{p.get('tp','?')}")
-            self._send_mimo_response("\n".join(lines))
-            return
-        if cmd[0] == "/mt5":
-            args = raw_text.replace("/mt5", "").strip()
-            if not args:
-                self._send_mimo_response("Dùng: `/mt5 <profile>`")
-                return
-            config = load_json(CONFIG_FILE)
-            pname = None
-            for name in config:
-                if name.lower() == args.lower():
-                    pname = name
-                    break
-            if not pname:
-                self._send_mimo_response(f"❌ Không tìm thấy: `{args}`")
-                return
-            p = config[pname]
-            path = p.get("path", "")
-            if not path or not os.path.exists(path):
-                self._send_mimo_response(f"❌ Đường dẫn không tồn tại: `{path}`")
-                return
-            try:
-                if not mt5.initialize(path=path):
-                    self._send_mimo_response(f"❌ MT5 connect failed: {pname}")
-                    return
-                acc = mt5.account_info()
-                if acc:
-                    msg = (
-                        f"🏦 *{pname} - MT5*\n\n"
-                        f"• Server: `{acc.server}`\n"
-                        f"• Login: `{acc.login}`\n"
-                        f"• Balance: {acc.balance:,.2f} {acc.currency}\n"
-                        f"• Equity: {acc.equity:,.2f}\n"
-                        f"• Margin: {acc.margin:,.2f}"
-                    )
-                    self._send_mimo_response(msg)
-                else:
-                    self._send_mimo_response(f"❌ Không lấy được info: {pname}")
-                mt5.shutdown()
-            except Exception as e:
-                self._send_mimo_response(f"❌ Lỗi MT5: {str(e)}")
-            return
-        if cmd[0] in ("/positions", "/position"):
-            positions = mt5.positions_get()
-            if not positions:
-                self._send_mimo_response(f"📋 [{profile_name}] Không có lệnh nào đang mở.")
-                return
-            lines = [f"📋 [{profile_name}] *VỊ THẾ ĐANG MỞ:*\n"]
-            for pos in positions:
-                typ = "BUY" if pos.type == mt5.POSITION_TYPE_BUY else "SELL"
-                pnl = pos.profit + pos.swap + getattr(pos, "commission", 0)
-                icon = "🟢" if pnl >= 0 else "🔴"
-                lines.append(f"{icon} {pos.symbol} {typ} {pos.volume} lot | PnL: {pnl:+.2f}")
-            self._send_mimo_response("\n".join(lines))
-            return
-        if cmd[0] in ("/signal", "/tinhieu", "/tin_hieu"):
-            try:
-                state_path, log_path = _signal_state_paths()
-                state = load_json(state_path, {})
-                log_rows = load_json(log_path, [])
-                target_date = state.get("date") if isinstance(state, dict) else None
-                today, by_hour = _select_current_signal_rows(log_rows, target_date)
-                if not today:
-                    self._send_mimo_response("📡 Chưa có tín hiệu hôm nay (`bot_state` / `signals_log`).")
-                    return
-                lines = [
-                    f"📡 *TÍN HIỆU HÔM NAY* ({today})",
-                    "",
-                ]
-                if not by_hour:
-                    lines.append("(Chưa có slot nào được ghi nhận trong signals_log)")
-                else:
-                    for h in sorted(by_hour.keys()):
-                        payload = by_hour[h] or {}
-                        lines.append(_format_current_signal_row(h, payload))
-                self._send_mimo_response("\n".join(lines))
-            except Exception as e:
-                self._send_mimo_response(f"❌ Lỗi /signal: {e}")
-            return
-        if cmd[0] == "/reply":
-            # Already handled by inbox injection, just acknowledge
-            return
-
-        # --- NLP PnL Logic ---
-        symbol_match = re.search(r"([A-Z]{2,12}(?:\+)?(?:\.[a-zA-Z0-9]+)?)", text.upper())
-        price_match = re.search(r"(\d+(?:\.\d+)?)", text)
-        
-        is_pnl_trigger = any(t in text_lower for t in ["tính", "pnl", "lãi", "lỗ", "dự báo", "chạm", "mức", "dự đoán"])
-        
-        if is_pnl_trigger and symbol_match and price_match:
-            symbol = symbol_match.group(1)
-            try:
-                target_price = float(price_match.group(1))
-                if not symbol.isdigit():
-                    # Identify profile if mentioned
-                    requested_profile = None
-                    potential_profiles = ["vantage", "th5ers", "exness", "icmarkets", "fbs", "xm", "pepperstone"]
-                    for p in potential_profiles:
-                        if p in text_lower:
-                            requested_profile = p
-                            break
-                    if not requested_profile:
-                        requested_profile = profile_name
-                    
-                    import oak_trading_reminders
-                    reminder = oak_trading_reminders.OakTradingReminder(
-                        token=self.config.get("tele_token", ""),
-                        chat_id=self.config.get("tele_chat", "")
-                    )
-                    result_msg = reminder.get_projected_pnl(symbol, target_price, requested_profile)
-                    self.notify(result_msg)
-                    return # Exit early after handling PnL
-            except Exception as e:
-                print(f"PnL NLP Error: {e}")
-
-        # Define symbol_map globally for NLP
+        # Minimal remote command surface: trading/scheduling only.
         symbol_map = {"vàng": "XAUUSD", "gold": "XAUUSD", "gu": "GBPUSD", "eu": "EURUSD", "uj": "USDJPY"}
 
         # Profile gate (exact match only — typos like VantageDemi must NOT broadcast)

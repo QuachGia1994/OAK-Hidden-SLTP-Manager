@@ -1,0 +1,8 @@
+node_modules/
+dist/
+src-tauri/target/
+__pycache__/
+pattern5_cache.json
+scheduled_close_*.json
+*.log
+.DS_Store

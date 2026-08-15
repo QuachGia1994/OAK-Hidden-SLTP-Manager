@@ -1,6 +1,6 @@
 "use client";
 
-import type { FactCheckResult as FactCheckResultType } from "@/lib/types";
+import type { FactCheckResult as FactCheckResultType } from "@/lib/factcheck/types";
 import { TEXT } from "@/lib/factcheck/locale-copy";
 import { getScoreColor, getVerdictBadgeClass } from "@/lib/factcheck/scoring-display";
 

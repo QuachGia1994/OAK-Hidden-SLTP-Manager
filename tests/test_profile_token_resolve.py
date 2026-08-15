@@ -10,7 +10,7 @@ from unittest.mock import patch
 class TestLooksLikeProfileToken(unittest.TestCase):
     def setUp(self):
         # Minimal stand-in using real methods from a stripped object
-        from OAK_Hidden_SLTP_Manager import CopyTradeManager
+        from domain.copy_trade_manager import CopyTradeManager
 
         self.cm = object.__new__(CopyTradeManager)
         self.cm.config = {"profile_name": "VantageDemo"}

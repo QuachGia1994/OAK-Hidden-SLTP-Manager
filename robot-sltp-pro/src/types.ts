@@ -1,0 +1,10 @@
+export type NavKey = 'overview' | 'profiles' | 'sltp' | 'telegram' | 'netting' | 'pattern5';
+export type PositionSide = 'BUY' | 'SELL';
+export type Profile = { name: string; server: string; equity: number; balance: number; drawdown: number; openTrades: number; status: 'LIVE' | 'DEMO' | 'OFFLINE'; pathConfigured?: boolean; telegramConfigured?: boolean; autoBeR?: number; partialR?: string; visibleSltp?: boolean; slPoints?: number; tpPoints?: number; copyRole?: string };
+export type Position = { ticket: number; symbol: string; side: PositionSide; lots: number; profit: number; openPrice?: number; currentPrice?: number; sl?: number; tp?: number };
+export type Activity = { time: string; text: string; tone: 'green' | 'cyan' | 'amber' | 'red' };
+export type PendingTask = { id: number; kind: 'telegram' | 'netting'; status: string; symbol?: string; side?: string; lot?: number; date?: string; time?: string; scope?: string; canDelete: boolean };
+export type PatternCell = { group: 'Sw' | 'Bt'; signal: 'BUY' | 'SELL'; label: string; pattern: number; mirrored: boolean } | '';
+export type Pattern5Table = { base: string; symbol: string | null; error?: string; days?: Array<{ name: string; date: string; display: string }>; rows?: Record<string, PatternCell[]>; detail?: Record<string, string[]> };
+export type Pattern5Payload = { profile: string; weekStart: string; blocks: number[]; tables: Pattern5Table[]; cacheHit?: boolean };
+export type RuntimeHealth = { profile: string; telegram: { configured: boolean; running: boolean; pid: number }; worker: { running: boolean; pid: number }; remoteReady: boolean; started?: string[]; issues?: string[] };

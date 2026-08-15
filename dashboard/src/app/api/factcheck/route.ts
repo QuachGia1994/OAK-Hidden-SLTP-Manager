@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { redis, KEYS, requireAuth, requireBrowserOrApiAuth } from "@/lib/redis";
-import type { FactCheckRequest } from "@/lib/types";
+import { FACTCHECK_KEY, redis, requireAuth, requireBrowserOrApiAuth } from "@/lib/redis-core";
+import type { FactCheckRequest } from "@/lib/factcheck/types";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   try {
     const status = searchParams.get("status");
 
-    const data = (await redis.get(KEYS.factcheck)) as FactCheckRequest[] | null;
+    const data = (await redis.get(FACTCHECK_KEY)) as FactCheckRequest[] | null;
     const items = data || [];
 
     if (id) {
@@ -73,10 +73,10 @@ export async function POST(request: Request) {
       created_at: Date.now(),
     };
 
-    const data = (await redis.get(KEYS.factcheck)) as FactCheckRequest[] | null;
+    const data = (await redis.get(FACTCHECK_KEY)) as FactCheckRequest[] | null;
     const items = data || [];
     items.push(item);
-    await redis.set(KEYS.factcheck, items.slice(-200));
+    await redis.set(FACTCHECK_KEY, items.slice(-200));
 
     return NextResponse.json({ ok: true, id });
   } catch (e) {
@@ -95,7 +95,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const data = (await redis.get(KEYS.factcheck)) as FactCheckRequest[] | null;
+    const data = (await redis.get(FACTCHECK_KEY)) as FactCheckRequest[] | null;
     const items = data || [];
     const idx = items.findIndex((i) => i.id === id);
     if (idx === -1) {
@@ -112,7 +112,7 @@ export async function PATCH(request: Request) {
       next.result = body.result;
     }
     items[idx] = next;
-    await redis.set(KEYS.factcheck, items.slice(-200));
+    await redis.set(FACTCHECK_KEY, items.slice(-200));
 
     return NextResponse.json({ ok: true });
   } catch (e) {

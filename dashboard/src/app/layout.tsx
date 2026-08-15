@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { NavBar } from "@/components/NavBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { VipGuard } from "@/components/VipGuard";
 import { LocaleProvider } from "@/components/LocaleProvider";
-import { Suspense } from "react";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
@@ -41,9 +39,6 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
         <LocaleProvider initialLocale={locale}>
         <ThemeProvider>
-          <Suspense fallback={null}>
-            <VipGuard />
-          </Suspense>
           <NavBar />
           <main className="flex-1 min-h-0">{children}</main>
           <footer className="border-t border-[var(--panel-border)] py-2.5 text-center">

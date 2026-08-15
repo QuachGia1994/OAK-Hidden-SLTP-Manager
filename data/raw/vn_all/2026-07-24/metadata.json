@@ -1,9 +1,0 @@
-{
-  "source_url": "https://histdatafeed.vps.com.vn/tradingview/history",
-  "downloaded_at": "2026-07-24T07:26:54.544061+00:00",
-  "status_code": 204,
-  "content_type": "application/json",
-  "sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "exchange": "VN_ALL",
-  "trading_date": "2026-07-24"
-}

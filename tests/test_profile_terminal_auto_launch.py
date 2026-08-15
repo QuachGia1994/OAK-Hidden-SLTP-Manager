@@ -241,33 +241,6 @@ class ProfileTerminalAutoLaunchTests(unittest.TestCase):
         res2 = ensure_mt5_profile_connected(valid_profile, timeout_seconds=1, mt5_module=fake_mt5, discover_fn=lambda: [])
         self.assertTrue(res2.ok)
 
-    def test_profile_manager_concurrency_and_retry(self):
-        """Test ProfileManager prevents duplicate concurrent startups and allows clean retries."""
-        import json
-        from oak_core.supervisor.profiles import ProfileManager
-        with tempfile.TemporaryDirectory(prefix="oak-concur-") as tmp:
-            pfile = Path(tmp) / "profiles.json"
-            pfile.write_text(json.dumps({
-                "Vantage": {"path": str(self.terminal_exe), "login_id": 123456, "server": "Broker-Live"},
-            }), encoding="utf-8")
-            mgr = ProfileManager()
-            fake_mt5 = FakeMT5(str(self.terminal_exe))
-
-            with patch("oak_core.supervisor.profiles.profiles_path", return_value=pfile), \
-                 patch("oak_core.supervisor.profiles.subprocess.Popen") as fake_popen:
-                fake_proc = fake_popen.return_value
-                fake_proc.pid = 888
-                fake_proc.poll.return_value = None
-
-                with patch("services.mt5_terminal_service._initialize_and_validate_locked", return_value=(True, None, None)):
-                    res = mgr.start_profile("Vantage")
-                    self.assertTrue(res["started"])
-
-                    # Sequential start on running profile reports already running
-                    res2 = mgr.start_profile("Vantage")
-                    self.assertFalse(res2["started"])
-                    self.assertEqual(res2["reason"], "already running")
-
 
 if __name__ == "__main__":
     unittest.main()

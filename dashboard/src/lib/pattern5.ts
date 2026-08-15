@@ -1,6 +1,6 @@
 import "server-only";
 
-import { redis } from "./redis";
+import { redis } from "./redis-core";
 
 export type Pattern5Signal = {
   group: "Sw" | "Bt";

@@ -15,10 +15,8 @@ from datetime import datetime, timedelta
 
 import MetaTrader5 as mt5
 
-import oak_trading_reminders
 from oak_logger import setup_logger
-from repositories.sqlite_store import SQLiteStore
-from utils import compute_telegram_backoff
+from domain.telegram_backoff import compute_telegram_backoff
 
 from domain.constants import SETTINGS_FILE, _mimo_bot_token, _mimo_bot_chat_id
 from domain.json_io import load_json, save_json
@@ -26,7 +24,6 @@ from domain import i18n as _i18n
 from domain.i18n import T, LANG
 from domain.mt5_orders import get_filling_type, send_mutation_idempotent
 from domain.ticket_manager import TicketManager
-from domain.ghost_operator import GhostOperator
 from domain.copy_trade_manager import CopyTradeManager
 from domain.balance import get_start_day_balance
 from domain.file_lock import FileLock
@@ -46,35 +43,11 @@ class MonitorWorker(threading.Thread):
         self.daemon = True
         self._be_retry_state = {}
         self.launch_failed = False
-        self.ghost_op = GhostOperator(self.config.get("login_id"))
-        self.ghost_mode_active = False
 
-        # --- Telegram backoff/circuit breaker state (avoid log-spamming on 502s etc.) ---
+        # Telegram backoff/circuit breaker state.
         self._telegram_fail_count = 0
         self._telegram_backoff_until = 0.0
         self._telegram_degraded_logged = False
-
-        # --- PROFILE-SCOPED ACCOUNT AUDIT ---
-        # Analysis performance/history is sourced from the trade-audit ledger.
-        # Keep one audit service bound to this worker's already-connected MT5
-        # session so every started profile continuously hydrates its own ledger.
-        self._audit_service = None
-        self._audit_store = None
-        self._last_audit_tick = 0.0
-
-        # --- INTEGRATE REMINDER SERVICE ---
-        from secret_store import resolve_telegram_token
-        raw_token = self.config.get("tele_token", "")
-        profile_name = self.config.get("profile_name", "")
-        token = resolve_telegram_token(profile_name, raw_token, global_fallback=_mimo_bot_token)
-        chat_id = self.config.get("tele_chat", "")
-        if token and chat_id:
-            try:
-                oak_trading_reminders.set_credentials(token, chat_id)
-                self.reminder_thread = oak_trading_reminders.start_reminder_thread()
-                self.log("✅ News Briefing Service Started.")
-            except Exception as e:
-                self.log(f"⚠️ Reminder Service Error: {e}")
 
     def _clear_be_retry_state_for_tickets(self, tickets):
         """Forget retry state once a monitored position is no longer open."""
@@ -228,23 +201,6 @@ class MonitorWorker(threading.Thread):
         }
         
         exec_mode = "[API]"
-        if self.ghost_mode_active:
-            # --- GHOST MODE EXECUTION ---
-            exec_mode = "[GHOST]"
-            self.log(f"👻 GHOST OPERATOR: Executing Close {pos.ticket} ({reason})")
-            if self.ghost_op.execute_close(pos.ticket, pos.symbol, volume):
-                # Verify position actually closed
-                time.sleep(0.5)
-                verify = mt5.positions_get(ticket=pos.ticket)
-                if not verify:
-                    msg = f"✅ {exec_mode} {T('log_closed')} {pos.ticket} | {pos.symbol} | {reason}"
-                    self.notify(msg)
-                    return
-                else:
-                    self.log(f"❌ {exec_mode} Close {pos.ticket} failed - position still exists")
-            else:
-                self.log(f"❌ {exec_mode} Failed to close {pos.ticket} visualy.")
-                # Fallback to API if ghost failed (maybe it's not blocked anymore)
 
         def reconcile_close():
             rows = mt5.positions_get(ticket=pos.ticket) or []
@@ -268,16 +224,8 @@ class MonitorWorker(threading.Thread):
             self.notify(msg)
             winsound.Beep(1000, 200)
         else:
-            extra = ""
-            if int(getattr(result.get("response"), "retcode", -1)) == 10027:
-                # DETECT ALGO BLOCKED -> TRIGGER GHOST REQUEST
-                print("[GHOST_REQUEST]", flush=True) # Signal main app to show popup
-                if mt5.terminal_info().trade_allowed:
-                    extra = "\n" + T("err_api")
-                else:
-                    extra = "\n" + T("err_algo")
             error_text = result.get("error", result["status"])
-            msg = f"❌ {exec_mode} {T('log_fail')} {pos.ticket} | {pos.symbol} | {error_text}{extra}"
+            msg = f"❌ {exec_mode} {T('log_fail')} {pos.ticket} | {pos.symbol} | {error_text}"
             self.notify(msg)
             for _ in range(3): winsound.Beep(2000, 200); time.sleep(0.1)
         
@@ -412,115 +360,6 @@ class MonitorWorker(threading.Thread):
         except Exception as error:
             return None, f"không đọc được constraint ({error})"
 
-    def _init_account_audit(self, account):
-        """Bind the profile-scoped audit service to this worker's MT5 session.
-
-        The audit service is read-only with respect to MT5: it uses account_info,
-        positions_get and history_deals_get for the ledger, and never sends orders.
-        This makes Analysis data available for every profile that is actually run,
-        instead of depending on a separately launched audit process for one profile.
-        """
-        try:
-            from repositories.trade_audit_store import TradeAuditStore
-            from services.mt5_deal_reconciler import MT5DealReconciler
-            from services.checkpoint_engine import CheckpointEngine
-            from services.equity_sampler import EquitySampler
-            from services.performance_calculator import PerformanceCalculator
-            from services.audit_dashboard_publisher import AuditDashboardPublisher
-            from services.account_audit_service import (
-                AccountAuditService,
-                broker_time_from_mt5,
-                account_info_dict,
-            )
-
-            profile_name = str(self.config.get("profile_name", "") or "")
-            broker_name = str(self.config.get("broker", "") or getattr(account, "company", "") or "")
-            currency = str(self.config.get("currency", "") or getattr(account, "currency", "") or "")
-            login = getattr(account, "login", None)
-            server = str(getattr(account, "server", "") or "")
-            account_uid = f"{login}@{server}" if login is not None and server else ""
-            if not profile_name or not account_uid:
-                return False
-
-            self._audit_store = TradeAuditStore(read_only=True)
-            reconciler = MT5DealReconciler(self._audit_store, mt5)
-            engine = CheckpointEngine(self._audit_store, reconciler)
-            sampler = EquitySampler(self._audit_store, interval_seconds=60)
-            publisher = AuditDashboardPublisher(
-                self._audit_store,
-                calculator=PerformanceCalculator(self._audit_store),
-            )
-
-            def broker_time_provider():
-                return broker_time_from_mt5(mt5)
-
-            def account_info_provider():
-                info = mt5.account_info()
-                return account_info_dict(
-                    info,
-                    profile_name=profile_name,
-                    broker=broker_name,
-                )
-
-            def positions_provider():
-                try:
-                    return list(mt5.positions_get() or [])
-                except Exception:
-                    return []
-
-            self._audit_service = AccountAuditService(
-                self._audit_store,
-                account_uid,
-                broker_time_provider=broker_time_provider,
-                account_info_provider=account_info_provider,
-                positions_provider=positions_provider,
-                reconciler=reconciler,
-                engine=engine,
-                sampler=sampler,
-                publisher=publisher,
-                profile_name=profile_name,
-                broker=broker_name,
-                currency=currency,
-                tick_interval_seconds=30,
-                sample_interval_seconds=60,
-            )
-            self._last_audit_tick = 0.0
-            self.log(f"[AUDIT] Profile={profile_name} account={account_uid} bound")
-            return True
-        except Exception as exc:
-            self._audit_service = None
-            if self._audit_store is not None:
-                try:
-                    self._audit_store.close()
-                except Exception:
-                    pass
-            self._audit_store = None
-            self.log(f"[AUDIT] Profile={self.config.get('profile_name', '')} unavailable: {exc}")
-            return False
-
-    def _tick_account_audit(self):
-        """Hydrate this profile's audit ledger without affecting trading execution."""
-        if self._audit_service is None:
-            return
-        now = time.monotonic()
-        if now - self._last_audit_tick < 5.0:
-            return
-        self._last_audit_tick = now
-        try:
-            self._audit_service.tick()
-        except Exception as exc:
-            self.log(f"[AUDIT] tick failed for {self.config.get('profile_name', '')}: {exc}")
-
-    def _close_account_audit(self):
-        """Release the profile's audit store on worker shutdown."""
-        self._audit_service = None
-        if self._audit_store is not None:
-            try:
-                self._audit_store.close()
-            except Exception:
-                pass
-            self._audit_store = None
-
     def run(self):
         try:
             self.log("Worker thread started...") # Debug log
@@ -596,14 +435,6 @@ class MonitorWorker(threading.Thread):
             if symbol_str:
                 monitored_symbols = [s.strip().upper() for s in symbol_str.split(",") if s.strip()]
 
-            # Create the heartbeat publisher before launching MT5.  A failed
-            # launch must still be visible to NativeQt/dashboard instead of
-            # looking like a worker that never started.
-            try:
-                _hb_store = SQLiteStore()
-            except Exception:
-                _hb_store = None
-
             # Shared launcher: validate, start and connect exactly one terminal
             # for this profile worker.  Do not let the MT5 package silently
             # attach to another profile when a configured path is stale.
@@ -612,26 +443,11 @@ class MonitorWorker(threading.Thread):
                 self.launch_failed = True
                 profile_name = self.config.get("profile_name", "") or "default"
                 failure = f"{launch.failure_code or 'IPC_FAILED'}: {launch.message}"
-                if _hb_store is not None:
-                    try:
-                        _hb_store.publish_heartbeat(
-                            profile=profile_name,
-                            state="error",
-                            last_error=failure[:200],
-                            data_provider="MT5",
-                            data_state="disconnected",
-                            execution_provider="MT5",
-                            execution_state="error",
-                        )
-                    except Exception as heartbeat_error:
-                        self.log(f"[MT5-LAUNCH] heartbeat publish failed: {heartbeat_error}")
                 self.notify(
                     f"[MT5-LAUNCH] Profile={profile_name} "
                     f"status={launch.failure_code or 'IPC_FAILED'} path={launch.terminal_path} "
-                    f"message={launch.message}"
+                    f"message={failure}"
                 )
-                if _hb_store is not None:
-                    _hb_store.close()
                 return
             self.log(
                 f"[MT5-LAUNCH] Profile={self.config.get('profile_name', 'unknown')} "
@@ -651,11 +467,6 @@ class MonitorWorker(threading.Thread):
                 # receive the same identity this worker just connected to.
                 # Does not invent values and does not overwrite configured ones.
                 bind_live_mt5_account_identity(self.config, account)
-                if getattr(self, "ghost_op", None) is not None and self.config.get("login_id") not in (None, ""):
-                    try:
-                        self.ghost_op.login_id = self.config.get("login_id")
-                    except Exception:
-                        pass
                 connect_msg = f"{T('log_connected')} {account.name} ({account.login}) | Broker: {account.company}"
                 self.log(connect_msg)
                 
@@ -665,11 +476,6 @@ class MonitorWorker(threading.Thread):
                 if not terminal.trade_allowed:
                     self.notify(T("err_algo"))
                     winsound.Beep(2000, 1000)
-
-            # Bind the audit ledger only after this profile's MT5 session is
-            # verified. This is deliberately profile-scoped and read-only.
-            if account:
-                self._init_account_audit(account)
 
             start_msg = T("log_monitor_start")
             self.log(start_msg)
@@ -728,13 +534,6 @@ class MonitorWorker(threading.Thread):
 
             last_lang_check = 0
             last_reconnect_check = 0
-            last_heartbeat = 0.0
-            last_tg_check = 0.0
-            tg_api_ok = False
-            tg_bot_name = ""
-            tg_last_check = ""
-            tg_fail_streak = 0
-            tg_ok_since = 0.0  # last successful getMe monotonic time
             # TRACKING: Initialize known tickets for closure detection
             self.known_tickets = set()
             first_run = True
@@ -743,111 +542,6 @@ class MonitorWorker(threading.Thread):
                 try:
                     # Loop throttling to save CPU
                     time.sleep(0.2)
-
-                    # Heartbeat for Dashboard Account/status bar (every ~2s)
-                    if _hb_store is not None and (time.time() - last_heartbeat) >= 2.0:
-                        last_heartbeat = time.time()
-                        try:
-                            term = mt5.terminal_info()
-                            acc = mt5.account_info() if term else None
-                            profile_name = self.config.get("profile_name", "") or "default"
-                            tg_token = resolve_telegram_token(
-                                profile_name,
-                                self.config.get("tele_token", ""),
-                                global_fallback=_mimo_bot_token,
-                            )
-                            tg_chat = self.config.get("tele_chat", "") or ""
-                            tg_configured = bool(tg_token and tg_chat)
-
-                            # Probe Telegram getMe on first beat, then every 45s
-                            # (avoid hammering API every 2s)
-                            need_tg_probe = bool(tg_token) and (
-                                last_tg_check == 0.0 or (time.time() - last_tg_check) >= 45.0
-                            )
-                            if need_tg_probe:
-                                last_tg_check = time.time()
-                                try:
-                                    from telegram_client import telegram_get_me
-                                    ok, result = telegram_get_me(tg_token, retries=1, timeout=7.0)
-                                    if ok:
-                                        tg_fail_streak = 0
-                                        tg_api_ok = True
-                                        tg_bot_name = str(result or "")
-                                        tg_ok_since = time.time()
-                                        from datetime import datetime, timezone
-                                        tg_last_check = datetime.now(timezone.utc).isoformat()
-                                    else:
-                                        tg_fail_streak += 1
-                                        # Keep last-known-good for 90s / need 2 consecutive fails
-                                        hold = (time.time() - tg_ok_since) < 90.0 if tg_ok_since else False
-                                        if tg_fail_streak < 2 or hold:
-                                            # stay Online with last bot name if we had one
-                                            if tg_bot_name and tg_api_ok:
-                                                pass
-                                            elif tg_bot_name:
-                                                tg_api_ok = True
-                                            else:
-                                                prev = _hb_store.get_heartbeat(profile_name) if _hb_store else None
-                                                if prev and prev.get("telegram_api_ok") and prev.get("telegram_bot_name"):
-                                                    tg_api_ok = True
-                                                    tg_bot_name = prev.get("telegram_bot_name") or ""
-                                                else:
-                                                    tg_api_ok = False
-                                                    tg_bot_name = str(result or "network_error")
-                                        else:
-                                            tg_api_ok = False
-                                            tg_bot_name = str(result or "network_error")
-                                except Exception as tg_e:
-                                    tg_fail_streak += 1
-                                    if tg_fail_streak < 2 and tg_bot_name:
-                                        tg_api_ok = True
-                                    else:
-                                        tg_api_ok = False
-                                        tg_bot_name = f"network_error:{tg_e}"[:80]
-                            elif not tg_token:
-                                tg_api_ok = False
-                                tg_bot_name = ""
-
-                            # Between probes keep prior TG fields
-                            preserve = (not need_tg_probe) and tg_configured
-
-                            if term and acc:
-                                _hb_store.publish_heartbeat(
-                                    profile=profile_name,
-                                    state="connected",
-                                    server=getattr(acc, "server", "") or "",
-                                    login=int(getattr(acc, "login", 0) or 0),
-                                    balance=float(getattr(acc, "balance", 0) or 0),
-                                    equity=float(getattr(acc, "equity", 0) or 0),
-                                    last_error="",
-                                    telegram_configured=tg_configured,
-                                    telegram_api_ok=tg_api_ok,
-                                    telegram_last_check=tg_last_check,
-                                    telegram_bot_name=tg_bot_name,
-                                    preserve_telegram=preserve,
-                                )
-                            else:
-                                err = ""
-                                try:
-                                    err = str(mt5.last_error())
-                                except Exception:
-                                    err = "MT5 disconnected"
-                                _hb_store.publish_heartbeat(
-                                    profile=profile_name,
-                                    state="disconnected",
-                                    last_error=err[:200],
-                                    telegram_configured=tg_configured,
-                                    telegram_api_ok=tg_api_ok,
-                                    telegram_last_check=tg_last_check,
-                                    telegram_bot_name=tg_bot_name,
-                                    preserve_telegram=preserve,
-                                )
-                        except Exception:
-                            pass
-
-                    # Keep this profile's Analysis audit ledger hydrated from
-                    # the same verified MT5 session. No order API is called here.
-                    self._tick_account_audit()
 
                     # Auto Reconnect MT5 (Every 10s if needed)
                     if time.time() - last_reconnect_check > 10.0:
@@ -864,13 +558,6 @@ class MonitorWorker(threading.Thread):
                                 acc = mt5.account_info()
                                 if acc:
                                     bind_live_mt5_account_identity(self.config, acc)
-                                    if self._audit_service is None:
-                                        self._init_account_audit(acc)
-                                    if getattr(self, "ghost_op", None) is not None and self.config.get("login_id") not in (None, ""):
-                                        try:
-                                            self.ghost_op.login_id = self.config.get("login_id")
-                                        except Exception:
-                                            pass
                                 self.log("✅ Reconnected.")
                             else:
                                 self.log(
@@ -888,9 +575,6 @@ class MonitorWorker(threading.Thread):
                                     new_lang = st.get("lang", _i18n.CURRENT_LANG)
                                     if new_lang != _i18n.CURRENT_LANG:
                                         _i18n.CURRENT_LANG = new_lang
-
-                                    # Update Ghost Mode status
-                                    self.ghost_mode_active = st.get("ghost_mode_active", False)
                         except Exception as e:
                             log.warning("CopyTrade state parse error: %s", e)
 
