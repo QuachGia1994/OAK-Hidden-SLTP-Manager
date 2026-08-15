@@ -7,8 +7,12 @@ import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "SLTP Remote — Engine 5 Pattern",
-  description: "Mobile-first remote monitoring for Pattern5 and news fact checking.",
+  title: "ROBOT SLTP Pro — Engine 5 Pattern",
+  description: "Mobile-first remote monitoring for Pattern5 and AI fact checking.",
+  icons: {
+    icon: "/favicon.ico?v=robot-sltp-pro-20260815",
+    shortcut: "/favicon.ico?v=robot-sltp-pro-20260815",
+  },
 };
 
 export default async function RootLayout({

@@ -31,7 +31,7 @@ const UI_COPY = {
     pendingTelegram: 'LỆNH CHỜ XỬ LÝ', pendingNetting: 'LỊCH ĐÓNG ĐANG CHỜ', loading: 'Đang tải…', noPending: 'Không có lệnh chờ.', deletePending: 'Xoá lệnh chờ', executing: 'Task đang thực thi',
     profileMonitoring: 'Theo dõi Profile', profileMonitoringHint: 'Chọn profile MT5 để xem equity, balance, drawdown và vị thế đang mở theo thời gian thực.', addProfile: 'Thêm Profile MT5', openTradesLabel: 'lệnh mở',
     addProfileHint: 'Chỉ lưu cấu hình profile. Telegram token không nhập tại đây.', profileName: 'Tên Profile', terminalPath: 'Đường dẫn terminal64.exe', saveProfileHint: 'Sau khi lưu, chọn profile để app tự đọc MT5 snapshot. Token Telegram tiếp tục lấy từ vault hiện hữu.', cancel: 'Hủy', saveProfile: 'Lưu Profile', close: 'Đóng',
-    saveSltp: 'Lưu cấu hình SLTP vào backend', enabled: 'Bật tự động', footerTagline: 'an toàn hơn, thông minh hơn',
+    saveSltp: 'Lưu cấu hình SLTP vào backend', enabled: 'Bật tự động', footerTagline: 'an toàn hơn, thông minh hơn', weekLabel: 'Tuần', weekdayNames: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6'],
     patternHint: 'ngày giao dịch trước · lookback 4 nến H4 mới → cũ · base = cây #4: Sw đảo chiều base, Bt giữ chiều base.', reverseHint: 'Reverse cuối: H3 T2/T5 + T6 theo chu kỳ tháng · H7 T3/T6 · H9 T5/T6 · H12 trừ T4 · H14 tất cả.', evidenceClickHint: 'Mẹo: Click trực tiếp vào dòng Pattern (dòng 4) trong từng ô để xem chart 4 nến và dữ liệu OHLC làm bằng chứng.', evidenceTitle: 'Bằng chứng 4 nến H4', evidenceHint: 'Chart trái → phải = cũ → mới · OHLC lấy trực tiếp từ 4 nến lookback.', refresh: 'Làm mới MT5', refreshing: 'Đang tính…', patternEmpty: 'Chưa có dữ liệu Pattern5. Nhấn Làm mới MT5.', patternLoading: 'Đang đọc H4/D1 broker-time, phân nhóm Sw/Bt và tính Reverse Signal…'
   },
   en: {
@@ -49,7 +49,7 @@ const UI_COPY = {
     pendingTelegram: 'PENDING ORDERS', pendingNetting: 'PENDING CLOSE SCHEDULE', loading: 'Loading…', noPending: 'No pending tasks.', deletePending: 'Delete pending task', executing: 'Task is executing',
     profileMonitoring: 'Profile monitoring', profileMonitoringHint: 'Select an MT5 profile to inspect equity, balance, drawdown and open positions in real time.', addProfile: 'Add MT5 Profile', openTradesLabel: 'open trades',
     addProfileHint: 'Save profile configuration only. Telegram token is not entered here.', profileName: 'Profile name', terminalPath: 'terminal64.exe path', saveProfileHint: 'After saving, select the profile and the app will read its MT5 snapshot. Telegram token remains in the existing vault.', cancel: 'Cancel', saveProfile: 'Save Profile', close: 'Close',
-    saveSltp: 'Save SLTP configuration', enabled: 'Enable automation', footerTagline: 'safer, smarter',
+    saveSltp: 'Save SLTP configuration', enabled: 'Enable automation', footerTagline: 'safer, smarter', weekLabel: 'Week', weekdayNames: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
     patternHint: 'previous trading day · look back 4 H4 candles newest → oldest · base = candle #4: Sw reverses base, Bt follows base.', reverseHint: 'Final Reverse: H3 Mon/Thu + monthly Fri cycle · H7 Tue/Fri · H9 Thu/Fri · H12 except Wed · H14 all days.', evidenceClickHint: 'Tip: Click the Pattern line inside any populated cell to view the 4-candle chart and OHLC evidence.', evidenceTitle: '4-candle H4 evidence', evidenceHint: 'Chart left → right = oldest → newest · OHLC comes directly from the four lookback candles.', refresh: 'Refresh MT5', refreshing: 'Calculating…', patternEmpty: 'No Pattern5 data yet. Press Refresh MT5.', patternLoading: 'Reading broker-time H4/D1, grouping Sw/Bt and calculating Reverse Signal…'
   }
 } as const;
@@ -57,6 +57,13 @@ const UI_COPY = {
 type UiCopy = (typeof UI_COPY)[AppLanguage];
 const THEME_OPTIONS: AppTheme[] = ['dark', 'deep-sea', 'light', 'amber'];
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
+function localizedPatternDayName(dateValue: string, fallback: string, ui: UiCopy) {
+  const parsed = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  const weekday = parsed.getUTCDay();
+  return weekday >= 1 && weekday <= 5 ? ui.weekdayNames[weekday - 1] : fallback;
+}
 
 function App() {
   const [active, setActive] = useState<NavKey>('overview');
@@ -436,7 +443,7 @@ function Pattern5Panel({ data, loading, mt5Connected, onRefresh, ui }: { data: P
 function Pattern5TableView({ table, blocks, ui }: { table: Pattern5Payload['tables'][number]; blocks: number[]; ui: UiCopy }) {
   const [selection, setSelection] = useState<PatternEvidenceSelection | null>(null);
   if (table.error) return <div className="pattern5-error"><b>{table.base}</b> · {table.error}</div>;
-  return <div className="pattern5-card"><div className="pattern5-heading"><strong>{table.base}</strong><span>{table.symbol && table.symbol !== table.base ? `→ ${table.symbol}` : table.symbol}</span><em>Week {table.days?.[0]?.date.slice(0, 7)}</em></div><div className="pattern5-scroll"><table className="pattern5-table"><thead><tr><th>Block</th>{table.days?.map((day) => <th key={day.date}>{day.name}<small>{day.display}</small></th>)}</tr></thead><tbody>{blocks.map((block) => <tr key={block}><th>H{block}</th>{table.rows?.[String(block)]?.map((cell, index) => { const detail = table.detail?.[String(block)]?.[index] || ''; const day = table.days?.[index]; return <td key={`${block}-${index}`} className={typeof cell !== 'string' && cell?.reversed ? 'pattern5-reversed' : ''} title={detail}>{typeof cell === 'string' || !cell ? <span className="pattern5-muted">—</span> : <>{cell.reversed && <span className="pattern5-reverse-badge">REV</span>}<b>{cell.group}</b><small className={cell.signal === 'BUY' ? 'buy' : 'sell'}>{cell.signal}</small><span className="pattern5-base-signal">Base {cell.baseSignal}</span><button className="pattern5-evidence-trigger" onClick={() => setSelection({ title: `${table.base} · H${block} · ${day?.display || ''}`, detail, cell })}>{cell.pattern}</button></>}</td>; })}</tr>)}</tbody></table></div>{selection && <PatternEvidenceModal selection={selection} onClose={() => setSelection(null)} ui={ui} />}</div>;
+  return <div className="pattern5-card"><div className="pattern5-heading"><strong>{table.base}</strong><span>{table.symbol && table.symbol !== table.base ? `→ ${table.symbol}` : table.symbol}</span><em>{ui.weekLabel} {table.days?.[0]?.date.slice(0, 7)}</em></div><div className="pattern5-scroll"><table className="pattern5-table"><thead><tr><th>Block</th>{table.days?.map((day) => <th key={day.date}>{localizedPatternDayName(day.date, day.name, ui)}<small>{day.display}</small></th>)}</tr></thead><tbody>{blocks.map((block) => <tr key={block}><th>H{block}</th>{table.rows?.[String(block)]?.map((cell, index) => { const detail = table.detail?.[String(block)]?.[index] || ''; const day = table.days?.[index]; return <td key={`${block}-${index}`} className={typeof cell !== 'string' && cell?.reversed ? 'pattern5-reversed' : ''} title={detail}>{typeof cell === 'string' || !cell ? <span className="pattern5-muted">—</span> : <>{cell.reversed && <span className="pattern5-reverse-badge">REV</span>}<b>{cell.group}</b><small className={cell.signal === 'BUY' ? 'buy' : 'sell'}>{cell.signal}</small><span className="pattern5-base-signal">Base {cell.baseSignal}</span><button className="pattern5-evidence-trigger" onClick={() => setSelection({ title: `${table.base} · H${block} · ${day?.display || ''}`, detail, cell })}>{cell.pattern}</button></>}</td>; })}</tr>)}</tbody></table></div>{selection && <PatternEvidenceModal selection={selection} onClose={() => setSelection(null)} ui={ui} />}</div>;
 }
 
 export default App;

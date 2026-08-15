@@ -5,6 +5,18 @@ import type { Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } f
 
 type Locale = "EN" | "VN";
 
+const WEEKDAY_NAMES: Record<Locale, string[]> = {
+  EN: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+  VN: ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"],
+};
+
+function localizedDayName(dateValue: string, fallback: string, locale: Locale) {
+  const parsed = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  const weekday = parsed.getUTCDay();
+  return weekday >= 1 && weekday <= 5 ? WEEKDAY_NAMES[locale][weekday - 1] : fallback;
+}
+
 function ictToday() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
@@ -43,7 +55,7 @@ function Cell({ signal, detail, onEvidence }: { signal: Pattern5Signal | ""; det
   return <div className="pattern5-web-cell" title={detail || undefined}>{signal.reversed && <span className="pattern5-web-reverse-badge">REV</span>}<span className="pattern5-web-group">{signal.group}</span><b data-side={signal.signal}>{signal.signal}</b><span className="pattern5-web-base">Base {signal.baseSignal}</span><button className="pattern5-web-pattern" onClick={() => onEvidence(signal)}>{signal.pattern}</button></div>;
 }
 
-function PairTable({ table, blocks, today, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; onEvidence: (selection: EvidenceSelection) => void }) {
+function PairTable({ table, blocks, today, locale, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; locale: Locale; onEvidence: (selection: EvidenceSelection) => void }) {
   if (table.error) {
     return <section className="pattern5-web-card"><div className="pattern5-web-error"><b>{table.base}</b><span>{table.error}</span></div></section>;
   }
@@ -58,7 +70,7 @@ function PairTable({ table, blocks, today, onEvidence }: { table: Pattern5Table;
         <table className="pattern5-web-table">          <thead>
             <tr>
               <th className="pattern5-web-sticky">Block</th>
-              {days.map((day) => <th key={day.date} data-today={day.date === today}><span>{day.name}</span><small>{day.display}</small></th>)}
+              {days.map((day) => <th key={day.date} data-today={day.date === today}><span>{localizedDayName(day.date, day.name, locale)}</span><small>{day.display}</small></th>)}
             </tr>
           </thead>
           <tbody>
@@ -107,7 +119,7 @@ export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; 
         <div className="pattern5-web-empty-state">{text.empty}</div>
       ) : (
         <div className="pattern5-web-grid">
-          {data.tables.map((table) => <PairTable key={table.base} table={table} blocks={data.blocks} today={today} onEvidence={setSelection} />)}
+          {data.tables.map((table) => <PairTable key={table.base} table={table} blocks={data.blocks} today={today} locale={locale} onEvidence={setSelection} />)}
         </div>
       )}
       {selection && <EvidenceModal selection={selection} locale={locale} onClose={() => setSelection(null)} />}

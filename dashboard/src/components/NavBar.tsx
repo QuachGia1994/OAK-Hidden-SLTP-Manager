@@ -23,14 +23,12 @@ export function NavBar() {
   return (
     <nav className="terminal-nav sticky top-0 z-50 border-b backdrop-blur-xl">
       <div className="nav-shell terminal-nav-layout">
-        <Link href="/engine" className="group flex items-center gap-2.5 shrink-0" aria-label="SLTP Engine 5 Pattern">
-          <span className="terminal-brand-mark relative inline-flex h-8 w-8 items-center justify-center rounded-lg border">
-            <svg className="h-5 w-5 transition-transform duration-200 group-hover:rotate-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M14.8 3 6 12h5.1L9.2 21 18 10h-5.1L14.8 3Z" fill="currentColor" />
-            </svg>
+        <Link href="/engine" className="group flex items-center gap-2.5 shrink-0" aria-label="ROBOT SLTP Pro · Engine 5 Pattern">
+          <span className="terminal-brand-mark relative inline-flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg border">
+            <img src="/favicon.ico?v=robot-sltp-pro-20260815" alt="" className="h-7 w-7 object-contain" aria-hidden="true" />
           </span>
           <span className="font-mono text-base font-black tracking-tight text-[var(--foreground)]">
-            SLTP<span className="terminal-accent-text">.</span>
+            <span className="hidden sm:inline">ROBOT </span>SLTP <span className="terminal-accent-text">Pro</span>
           </span>
         </Link>
 
