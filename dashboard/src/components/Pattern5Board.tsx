@@ -89,7 +89,7 @@ export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; 
   const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const text = locale === "EN"
     ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt, then apply the H/day Reverse Signal matrix · auto refresh every 20 seconds", clickHint: "Tip: Click the Pattern line inside any populated cell to open the 4-candle chart and OHLC evidence.", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
-    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt rồi áp ma trận Reverse Signal theo H/thứ · tự làm mới mỗi 20 giây", clickHint: "Mẹo: Click trực tiếp vào dòng Pattern trong từng ô để mở chart 4 nến và dữ liệu OHLC làm bằng chứng.", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
+    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt rồi áp ma trận Reverse Signal theo H/thứ · tự làm mới mỗi 20 giây", clickHint: "Mẹo: Click trực tiếp vào dòng Pattern (dòng 4) trong từng ô để xem chart 4 nến và dữ liệu OHLC làm bằng chứng.", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
 
   return (
     <div className="pattern5-web-screen">
