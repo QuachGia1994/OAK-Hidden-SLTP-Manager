@@ -4,14 +4,13 @@ import { NavBar } from "@/components/NavBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { VipGuard } from "@/components/VipGuard";
 import { LocaleProvider } from "@/components/LocaleProvider";
-import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { Suspense } from "react";
 import { headers } from "next/headers";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
 export const metadata: Metadata = {
-  title: "OAK Analysis — Account Transparency",
-  description: "Public read-only account transparency and historical performance analytics",
+  title: "SLTP Remote — Engine 5 Pattern",
+  description: "Mobile-first remote monitoring for Pattern5 and news fact checking.",
 };
 
 export default async function RootLayout({
@@ -46,7 +45,6 @@ export default async function RootLayout({
             <VipGuard />
           </Suspense>
           <NavBar />
-          <AnnouncementBanner />
           <main className="flex-1 min-h-0">{children}</main>
           <footer className="border-t border-[var(--panel-border)] py-2.5 text-center">
             <p className="text-[11px] text-[var(--muted)]">&copy; 2026 QUACH KIM PHONG</p>
