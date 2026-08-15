@@ -12,6 +12,9 @@
   --terminal-accent-strong: #006b4d;
   --terminal-warning: #946000;
   --terminal-danger: #b82d3e;
+  --reverse-bg: #fff0c7;
+  --reverse-border: #b86b00;
+  --reverse-text: #5f3700;
   --terminal-shadow: 0 1px 0 rgba(14, 26, 20, 0.08);
 }
 
@@ -27,6 +30,9 @@
   --terminal-accent-strong: #00d19a;
   --terminal-warning: #f4b740;
   --terminal-danger: #ff5364;
+  --reverse-bg: rgba(139, 92, 246, .18);
+  --reverse-border: #9f7aea;
+  --reverse-text: #ddd0ff;
   --terminal-shadow: 0 1px 0 rgba(246, 255, 249, 0.06);
 }
 
@@ -41,6 +47,9 @@
   --terminal-accent-strong: #efc861;
   --terminal-warning: #f1c45a;
   --terminal-danger: #ff7a6d;
+  --reverse-bg: rgba(255, 91, 64, .16);
+  --reverse-border: #ff8b69;
+  --reverse-text: #ffd8cc;
   --terminal-shadow: 0 1px 0 rgba(255, 255, 240, 0.06);
 }
 
@@ -683,3 +692,33 @@ body {
   .pattern5-web-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pattern5-web-table { min-width: 39rem; }
 }
+
+/* Pattern5 Reverse Signal + OHLC evidence */
+.pattern5-web-table td[data-reversed="true"] { position: relative; background: var(--reverse-bg); box-shadow: inset 0 0 0 1px var(--reverse-border); }
+.pattern5-web-reverse-badge { position: absolute; top: .3rem; right: .35rem; padding: .1rem .28rem; border: 1px solid var(--reverse-border); border-radius: 999px; color: var(--reverse-text); background: color-mix(in srgb, var(--reverse-bg) 78%, var(--surface)); font: 900 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.pattern5-web-base { color: var(--muted); font: 700 .58rem "Cascadia Mono", Consolas, monospace; }
+.pattern5-web-pattern { padding: .08rem .28rem; border: 0; border-bottom: 1px dashed color-mix(in srgb, var(--terminal-accent) 68%, transparent); color: var(--terminal-accent); background: transparent; font: 800 .7rem "Cascadia Mono", Consolas, monospace; cursor: pointer; }
+.pattern5-web-pattern:hover { color: var(--foreground); border-bottom-color: var(--foreground); }
+.pattern5-web-modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem; background: rgba(0,0,0,.72); backdrop-filter: blur(8px); }
+.pattern5-web-modal { width: min(48rem, 96vw); max-height: 92vh; overflow: auto; padding: 1rem; border: 1px solid var(--panel-border); border-radius: .9rem; background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.35); }
+.pattern5-web-modal header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: .8rem; border-bottom: 1px solid var(--panel-border); }
+.pattern5-web-modal header b, .pattern5-web-modal header small { display: block; }
+.pattern5-web-modal header b { font-size: 1rem; }
+.pattern5-web-modal header small { margin-top: .25rem; color: var(--muted); font-size: .72rem; }
+.pattern5-web-modal header button { width: 2rem; height: 2rem; border: 1px solid var(--panel-border); border-radius: .5rem; color: var(--foreground); background: var(--surface-raised); font-size: 1.2rem; }
+.pattern5-web-modal-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .5rem; margin: .9rem 0; }
+.pattern5-web-modal-summary span { padding: .6rem .65rem; border: 1px solid var(--panel-border); border-radius: .55rem; color: var(--muted); background: var(--surface-raised); font: 700 .7rem "Cascadia Mono", Consolas, monospace; }
+.pattern5-web-modal-summary span[data-reversed="true"] { color: var(--reverse-text); border-color: var(--reverse-border); background: var(--reverse-bg); }
+.pattern5-web-modal-summary b { color: var(--foreground); }
+.pattern5-web-chart { width: 100%; height: auto; display: block; border: 1px solid var(--panel-border); border-radius: .7rem; background: var(--surface-raised); }
+.pattern5-web-candle line { stroke-width: 2; }
+.pattern5-web-candle rect { stroke-width: 1.5; }
+.pattern5-web-candle.up line, .pattern5-web-candle.up rect { stroke: var(--terminal-accent); fill: color-mix(in srgb, var(--terminal-accent) 36%, transparent); }
+.pattern5-web-candle.down line, .pattern5-web-candle.down rect { stroke: var(--terminal-danger); fill: color-mix(in srgb, var(--terminal-danger) 36%, transparent); }
+.pattern5-web-candle text { fill: var(--muted); font: 12px "Cascadia Mono", Consolas, monospace; }
+.pattern5-web-ohlc { margin-top: .75rem; overflow: hidden; border: 1px solid var(--panel-border); border-radius: .65rem; }
+.pattern5-web-ohlc-head, .pattern5-web-ohlc-row { display: grid; grid-template-columns: .7fr repeat(4,1fr); gap: .4rem; align-items: center; padding: .55rem .6rem; }
+.pattern5-web-ohlc-head { color: var(--muted); background: var(--surface-raised); font-size: .62rem; font-weight: 800; }
+.pattern5-web-ohlc-row { border-top: 1px solid var(--panel-border); color: var(--foreground); font: 700 .68rem "Cascadia Mono", Consolas, monospace; }
+.pattern5-web-ohlc-row b { color: var(--terminal-accent); }
+.pattern5-web-modal-detail { margin-top: .65rem; color: var(--muted); font: 700 .66rem "Cascadia Mono", Consolas, monospace; }

@@ -1,4 +1,7 @@
-import type { Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
+"use client";
+
+import { useState } from "react";
+import type { Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
 
 type Locale = "EN" | "VN";
 
@@ -23,18 +26,24 @@ function formatPublished(value: string | undefined, locale: Locale) {
     minute: "2-digit",
   });
 }
-function Cell({ signal, detail }: { signal: Pattern5Signal | ""; detail?: string }) {
-  if (!signal) return <span className="pattern5-web-empty">—</span>;
-  return (
-    <div className="pattern5-web-cell" title={detail || undefined}>
-      <span className="pattern5-web-group">{signal.group}</span>
-      <b data-side={signal.signal}>{signal.signal}</b>
-      <small>{signal.pattern}</small>
-    </div>
-  );
+type EvidenceSelection = { title: string; detail?: string; signal: Pattern5Signal };
+
+function candleDecimals(value: number) { return Math.abs(value) >= 100 ? 3 : 5; }
+function CandleChart({ candles }: { candles: Pattern5Candle[] }) {
+  if (!candles.length) return null;
+  const high = Math.max(...candles.map((item) => item.high));
+  const low = Math.min(...candles.map((item) => item.low));
+  const span = high - low || 1;
+  const y = (price: number) => 16 + ((high - price) / span) * 128;
+  return <svg className="pattern5-web-chart" viewBox="0 0 360 180" role="img" aria-label="4 H4 candles oldest to newest">{candles.map((candle, index) => { const x = 48 + index * 88; const openY = y(candle.open); const closeY = y(candle.close); const bodyY = Math.min(openY, closeY); const bodyHeight = Math.max(3, Math.abs(openY - closeY)); const side = candle.close >= candle.open ? "up" : "down"; return <g key={`${candle.time}-${index}`} className={`pattern5-web-candle ${side}`}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} /><rect x={x - 13} y={bodyY} width="26" height={bodyHeight} rx="2" /><text x={x} y="168" textAnchor="middle">#{index + 1}</text></g>; })}</svg>;
 }
 
-function PairTable({ table, blocks, today }: { table: Pattern5Table; blocks: number[]; today: string }) {
+function Cell({ signal, detail, onEvidence }: { signal: Pattern5Signal | ""; detail?: string; onEvidence: (signal: Pattern5Signal) => void }) {
+  if (!signal) return <span className="pattern5-web-empty">—</span>;
+  return <div className="pattern5-web-cell" title={detail || undefined}>{signal.reversed && <span className="pattern5-web-reverse-badge">REV</span>}<span className="pattern5-web-group">{signal.group}</span><b data-side={signal.signal}>{signal.signal}</b><span className="pattern5-web-base">Base {signal.baseSignal}</span><button className="pattern5-web-pattern" onClick={() => onEvidence(signal)}>{signal.pattern}</button></div>;
+}
+
+function PairTable({ table, blocks, today, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; onEvidence: (selection: EvidenceSelection) => void }) {
   if (table.error) {
     return <section className="pattern5-web-card"><div className="pattern5-web-error"><b>{table.base}</b><span>{table.error}</span></div></section>;
   }
@@ -57,8 +66,8 @@ function PairTable({ table, blocks, today }: { table: Pattern5Table; blocks: num
               <tr key={block}>
                 <th className="pattern5-web-sticky">H{block}</th>
                 {(table.rows?.[String(block)] ?? []).map((signal, index) => (
-                  <td key={`${block}-${index}`} data-today={days[index]?.date === today}>
-                    <Cell signal={signal} detail={table.detail?.[String(block)]?.[index]} />
+                  <td key={`${block}-${index}`} data-today={days[index]?.date === today} data-reversed={signal && signal.reversed ? "true" : undefined}>
+                    <Cell signal={signal} detail={table.detail?.[String(block)]?.[index]} onEvidence={(value) => onEvidence({ title: `${table.base} · H${block} · ${days[index]?.display ?? ""}`, detail: table.detail?.[String(block)]?.[index], signal: value })} />
                   </td>
                 ))}
               </tr>
@@ -70,11 +79,17 @@ function PairTable({ table, blocks, today }: { table: Pattern5Table; blocks: num
   );
 }
 
+function EvidenceModal({ selection, locale, onClose }: { selection: EvidenceSelection; locale: Locale; onClose: () => void }) {
+  const hint = locale === "EN" ? "Left → right = oldest → newest · direct OHLC from the four lookback candles" : "Trái → phải = cũ → mới · OHLC trực tiếp từ 4 nến lookback";
+  return <div className="pattern5-web-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="pattern5-web-modal"><header><div><b>{selection.title}</b><small>{hint}</small></div><button onClick={onClose} aria-label="Close">×</button></header><div className="pattern5-web-modal-summary"><span>Base <b>{selection.signal.baseSignal}</b></span><span data-reversed={selection.signal.reversed ? "true" : undefined}>{selection.signal.reversed ? "REVERSE" : "NORMAL"} → <b>{selection.signal.signal}</b></span><span>{selection.signal.group} · {selection.signal.pattern}</span></div><CandleChart candles={selection.signal.evidence} /><div className="pattern5-web-ohlc"><div className="pattern5-web-ohlc-head"><span>Candle</span><span>Open</span><span>High</span><span>Low</span><span>Close</span></div>{selection.signal.evidence.map((candle, index) => { const digits = candleDecimals(candle.close); return <div className="pattern5-web-ohlc-row" key={`${candle.time}-${index}`}><b>#{index + 1}</b><span>{candle.open.toFixed(digits)}</span><span>{candle.high.toFixed(digits)}</span><span>{candle.low.toFixed(digits)}</span><span>{candle.close.toFixed(digits)}</span></div>; })}</div>{selection.detail && <div className="pattern5-web-modal-detail">{selection.detail}</div>}</section></div>;
+}
+
 export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; locale: Locale }) {
   const today = ictToday();
+  const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const text = locale === "EN"
-    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Look back 4 H4 candles · keep 3–4 candle Sw/Bt patterns · candle #4 is base: Sw reverses, Bt follows · auto refresh every 20 seconds", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
-    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Lookback 4 nến H4 · giữ pattern Sw/Bt 3–4 cây · cây #4 là base: Sw đảo, Bt giữ chiều · tự làm mới mỗi 20 giây", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
+    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt, then apply the H/day Reverse Signal matrix · tap Pattern for 4-candle OHLC evidence · auto refresh every 20 seconds", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
+    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt rồi áp ma trận Reverse Signal theo H/thứ · chạm Pattern để xem chart + OHLC 4 nến · tự làm mới mỗi 20 giây", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
 
   return (
     <div className="pattern5-web-screen">
@@ -91,9 +106,10 @@ export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; 
         <div className="pattern5-web-empty-state">{text.empty}</div>
       ) : (
         <div className="pattern5-web-grid">
-          {data.tables.map((table) => <PairTable key={table.base} table={table} blocks={data.blocks} today={today} />)}
+          {data.tables.map((table) => <PairTable key={table.base} table={table} blocks={data.blocks} today={today} onEvidence={setSelection} />)}
         </div>
       )}
+      {selection && <EvidenceModal selection={selection} locale={locale} onClose={() => setSelection(null)} />}
     </div>
   );
 }

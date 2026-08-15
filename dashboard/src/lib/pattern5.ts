@@ -2,11 +2,24 @@ import "server-only";
 
 import { redis } from "./redis-core";
 
+export type Pattern5Candle = {
+  index: number;
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  direction: "T" | "G";
+};
+
 export type Pattern5Signal = {
   group: "Sw" | "Bt";
+  baseSignal: "BUY" | "SELL";
   signal: "BUY" | "SELL";
+  reversed: boolean;
   label: string;
   pattern: string;
+  evidence: Pattern5Candle[];
 };
 
 export type Pattern5Day = {

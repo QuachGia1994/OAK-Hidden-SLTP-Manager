@@ -28,7 +28,15 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 3
+CACHE_SCHEMA = 4
+
+
+def flip_signal(signal: str) -> str:
+    if signal == "BUY":
+        return "SELL"
+    if signal == "SELL":
+        return "BUY"
+    raise ValueError(f"Unknown signal: {signal}")
 
 
 def signal_from_base(directions: list[str], group: str) -> str:
@@ -44,6 +52,41 @@ def signal_from_base(directions: list[str], group: str) -> str:
     else:
         raise ValueError(f"Unknown Pattern5 group: {group}")
     return "BUY" if direction == T else "SELL"
+
+
+def _first_weekday_day(day: date, weekday: int) -> int:
+    first = day.replace(day=1)
+    return 1 + ((weekday - first.weekday()) % 7)
+
+
+def _h3_thursday_reverse(day: date) -> bool:
+    cursor = day.replace(day=1)
+    while cursor <= day:
+        if cursor.weekday() == 3 and (cursor - timedelta(days=1)).day in {30, 1}:
+            return False
+        cursor += timedelta(days=1)
+    return True
+
+
+def should_reverse_signal(block: int, day: date) -> bool:
+    weekday = day.weekday()
+    if block == 3:
+        if weekday == 0:
+            return True
+        if weekday == 3:
+            return _h3_thursday_reverse(day)
+        if weekday == 4:
+            return _first_weekday_day(day, 4) in {3, 4, 7}
+        return False
+    if block == 7:
+        return weekday in {0, 1, 4}
+    if block == 9:
+        return weekday in {3, 4}
+    if block == 12:
+        return weekday != 2
+    if block == 14:
+        return weekday <= 4
+    return False
 
 
 def pattern_text(pattern_id: int, directions: list[str]) -> str:
@@ -109,45 +152,67 @@ def prev_trading_day(day: date) -> date:
     return day - timedelta(days=3) if day.weekday() == 0 else day - timedelta(days=1)
 
 
-def look4(symbol: str, anchor: int) -> list[str] | None:
+def look4(symbol: str, anchor: int) -> tuple[list[str], list[dict[str, float | int | str]]] | None:
     rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_H4, anchor - 10 * 86400, anchor + 4 * 3600)
     if rates is None:
         return None
     candidates = [rate for rate in rates if int(rate["time"]) < anchor]
     if len(candidates) < 4:
         return None
-    return [T if float(rate["close"]) > float(rate["open"]) else G for rate in reversed(candidates[-4:])]
+    chronological = candidates[-4:]
+    evidence = []
+    for index, rate in enumerate(chronological, start=1):
+        open_price = float(rate["open"])
+        close_price = float(rate["close"])
+        evidence.append({
+            "index": index,
+            "time": int(rate["time"]),
+            "open": open_price,
+            "high": float(rate["high"]),
+            "low": float(rate["low"]),
+            "close": close_price,
+            "direction": T if close_price > open_price else G,
+        })
+    directions = [str(candle["direction"]) for candle in reversed(evidence)]
+    return directions, evidence
 
 
 def monday_of(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
 
-def build_table(symbol: str, week_start: date | None = None) -> tuple[list[date], dict[int, list[str]], dict[int, list[str]]]:
+def build_table(symbol: str, week_start: date | None = None) -> tuple[list[date], dict[int, list[Any]], dict[int, list[str]]]:
     week = week_start or monday_of(date.today())
     days = [week + timedelta(days=index) for index in range(5)]
     offset = broker_day_offset(symbol)
-    rows = {hour: [""] * 5 for hour in BLOCKS}
+    rows: dict[int, list[Any]] = {hour: [""] * 5 for hour in BLOCKS}
     detail = {hour: [""] * 5 for hour in BLOCKS}
     for day_index, day in enumerate(days):
         lookback_day = prev_trading_day(day)
         for hour in BLOCKS:
-            directions = look4(symbol, anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset))
-            if not directions:
+            lookback = look4(symbol, anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset))
+            if not lookback:
                 continue
+            directions, evidence = lookback
             pattern_id, _mirrored = classify5(directions)
             if pattern_id is None:
                 continue
             group = GROUP[pattern_id]
-            signal = signal_from_base(directions, group)
+            base_signal = signal_from_base(directions, group)
+            reversed_signal = should_reverse_signal(hour, day)
+            signal = flip_signal(base_signal) if reversed_signal else base_signal
             sequence = pattern_text(pattern_id, directions)
             rows[hour][day_index] = {
                 "group": group,
+                "baseSignal": base_signal,
                 "signal": signal,
+                "reversed": reversed_signal,
                 "label": f"{group} ({'Tăng' if signal == 'BUY' else 'Giảm'})",
                 "pattern": sequence,
+                "evidence": evidence,
             }
-            detail[hour][day_index] = f"{group} · {signal} · {sequence}"
+            reverse_text = "Reverse" if reversed_signal else "Normal"
+            detail[hour][day_index] = f"{group} · Base {base_signal} · {reverse_text} → {signal} · {sequence}"
     return days, rows, detail
 
 

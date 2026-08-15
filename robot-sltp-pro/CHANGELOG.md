@@ -16,3 +16,4 @@
 - Pinned MT5 and Telegram connection status to the bottom-left desktop rail across all tabs.
 - Expanded Telegram Order into a multiline command workspace for longer command batches.
 - Pattern5 signal rule now uses lookback candle #4 as the base: Sw reverses the base direction, while Bt follows it; 3–4 candle pattern classification is unchanged.
+- Added the second-stage Reverse Signal calendar matrix, highlighted reverse cells, and clickable 4-candle OHLC evidence charts in both Tauri and the remote web monitor.
