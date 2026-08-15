@@ -5,7 +5,6 @@ const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || "";
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || "";
 const API_KEY = process.env.DASHBOARD_API_KEY || "";
 
-export const FACTCHECK_KEY = "sltp:factcheck";
 export const redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
 
 function safeEqual(left: string, right: string): boolean {

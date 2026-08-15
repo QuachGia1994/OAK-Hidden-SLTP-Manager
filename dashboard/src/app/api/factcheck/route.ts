@@ -1,121 +1,92 @@
 import { NextResponse } from "next/server";
-import { FACTCHECK_KEY, redis, requireAuth, requireBrowserOrApiAuth } from "@/lib/redis-core";
-import type { FactCheckRequest } from "@/lib/factcheck/types";
+import { redis, requireBrowserOrApiAuth } from "@/lib/redis-core";
+import { GeminiHttpError, FACTCHECK_MODEL, runGeminiFactCheck } from "@/lib/factcheck/gemini";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+const PER_MINUTE_LIMIT = Number(process.env.FACTCHECK_PER_MINUTE_LIMIT || 5);
+const DAILY_LIMIT = Number(process.env.FACTCHECK_DAILY_LIMIT || 200);
+
+function clientKey(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for") || "unknown";
+  return forwarded.split(",")[0].trim().replace(/[^a-zA-Z0-9:._-]/g, "_");
+}
+
+async function enforceRateLimit(request: Request): Promise<NextResponse | null> {
+  const minuteBucket = Math.floor(Date.now() / 60000);
+  const minuteKey = `sltp:factcheck:rate:${clientKey(request)}:${minuteBucket}`;
+  const minuteCount = await redis.incr(minuteKey);
+  if (minuteCount === 1) await redis.expire(minuteKey, 90);
+  if (minuteCount > PER_MINUTE_LIMIT) {
+    return NextResponse.json({ ok: false, error: "rate limit exceeded", code: "RATE_LIMITED" }, { status: 429 });
+  }
+
+  const day = new Date().toISOString().slice(0, 10);
+  const dailyKey = `sltp:factcheck:daily:${day}`;
+  const dailyCount = await redis.incr(dailyKey);
+  if (dailyCount === 1) await redis.expire(dailyKey, 172800);
+  if (dailyCount > DAILY_LIMIT) {
+    return NextResponse.json({ ok: false, error: "daily AI quota guard reached", code: "DAILY_LIMIT" }, { status: 429 });
+  }
+  return null;
+}
+
+function geminiFailure(error: unknown): NextResponse {
+  if (error instanceof GeminiHttpError) {
+    if (error.status === 429) {
+      return NextResponse.json({ ok: false, error: "Gemini free quota exhausted. Try again later.", code: "AI_QUOTA_EXHAUSTED" }, { status: 429 });
+    }
+    if (error.status === 400 || error.status === 401 || error.status === 403) {
+      return NextResponse.json({ ok: false, error: "Gemini server credential or request configuration is invalid.", code: "AI_CONFIGURATION_ERROR" }, { status: 503 });
+    }
+    return NextResponse.json({ ok: false, error: "Gemini fact-check service failed.", code: "AI_UPSTREAM_ERROR" }, { status: 502 });
+  }
+  const isTimeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
+  return NextResponse.json(
+    { ok: false, error: isTimeout ? "Gemini fact-check timed out." : "Gemini fact-check failed.", code: isTimeout ? "AI_TIMEOUT" : "AI_RESPONSE_ERROR" },
+    { status: 502 },
+  );
+}
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const id = searchParams.get("id");
-  const denied = id ? requireBrowserOrApiAuth(request) : requireAuth(request);
+  const denied = requireBrowserOrApiAuth(request);
   if (denied) return denied;
-  try {
-    const status = searchParams.get("status");
-
-    const data = (await redis.get(FACTCHECK_KEY)) as FactCheckRequest[] | null;
-    const items = data || [];
-
-    if (id) {
-      const item = items.find((i) => i.id === id);
-      return NextResponse.json(item || null);
-    }
-
-    if (status) {
-      return NextResponse.json(items.filter((i) => i.status === status));
-    }
-
-    return NextResponse.json(items.slice(-50));
-  } catch {
-    return NextResponse.json([]);
-  }
+  return NextResponse.json({
+    ok: true,
+    provider: "gemini",
+    model: FACTCHECK_MODEL,
+    configured: Boolean(process.env.GEMINI_API_KEY),
+    architecture: "vercel-direct-google-search-grounding",
+  });
 }
 
 export async function POST(request: Request) {
   const denied = requireBrowserOrApiAuth(request);
   if (denied) return denied;
-  try {
-    const body = await request.json();
-    const text = body.text?.trim();
-    if (!text) {
-      return NextResponse.json({ ok: false, error: "text is required" }, { status: 400 });
-    }
-    if (text.length > 12000) {
-      return NextResponse.json({ ok: false, error: "text is too long" }, { status: 413 });
-    }
-    const locale = body.locale === "EN" ? "EN" : body.locale === "VN" ? "VN" : undefined;
-    const outputLanguage =
-      body.output_language === "English" || body.output_language === "Vietnamese"
-        ? body.output_language
-        : locale === "EN"
-          ? "English"
-          : locale === "VN"
-            ? "Vietnamese"
-            : undefined;
 
-    const forwarded = request.headers.get("x-forwarded-for") || "unknown";
-    const clientKey = forwarded.split(",")[0].trim().replace(/[^a-zA-Z0-9:._-]/g, "_");
-    const bucket = Math.floor(Date.now() / 60000);
-    const rateKey = `sltp:factcheck:rate:${clientKey}:${bucket}`;
-    const requestCount = await redis.incr(rateKey);
-    if (requestCount === 1) await redis.expire(rateKey, 90);
-    if (requestCount > 10) {
-      return NextResponse.json({ ok: false, error: "rate limit exceeded" }, { status: 429 });
-    }
-
-    const id = crypto.randomUUID();
-    const item: FactCheckRequest = {
-      id,
-      text,
-      image_url: body.image_url || undefined,
-      locale,
-      output_language: outputLanguage,
-      status: "pending",
-      created_at: Date.now(),
-    };
-
-    const data = (await redis.get(FACTCHECK_KEY)) as FactCheckRequest[] | null;
-    const items = data || [];
-    items.push(item);
-    await redis.set(FACTCHECK_KEY, items.slice(-200));
-
-    return NextResponse.json({ ok: true, id });
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+  const apiKey = process.env.GEMINI_API_KEY || "";
+  if (!apiKey) {
+    return NextResponse.json(
+      { ok: false, error: "GEMINI_API_KEY is not configured on the server.", code: "GEMINI_API_KEY_REQUIRED", stop_gate: "GEMINI_API_KEY" },
+      { status: 503 },
+    );
   }
-}
 
-export async function PATCH(request: Request) {
-  const denied = requireAuth(request);
-  if (denied) return denied;
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-    if (!id) {
-      return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
-    }
-
     const body = await request.json();
-    const data = (await redis.get(FACTCHECK_KEY)) as FactCheckRequest[] | null;
-    const items = data || [];
-    const idx = items.findIndex((i) => i.id === id);
-    if (idx === -1) {
-      return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
-    }
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    if (!text) return NextResponse.json({ ok: false, error: "text is required" }, { status: 400 });
+    if (text.length > 12000) return NextResponse.json({ ok: false, error: "text is too long" }, { status: 413 });
 
-    // Whitelist only worker-owned fields (prevent mass-assignment of id/text/created_at)
-    const allowedStatus = new Set(["pending", "processing", "done", "error"]);
-    const next = { ...items[idx] };
-    if (typeof body.status === "string" && allowedStatus.has(body.status)) {
-      next.status = body.status;
-    }
-    if (body.result !== undefined) {
-      next.result = body.result;
-    }
-    items[idx] = next;
-    await redis.set(FACTCHECK_KEY, items.slice(-200));
+    const limited = await enforceRateLimit(request);
+    if (limited) return limited;
 
-    return NextResponse.json({ ok: true });
-  } catch (e) {
-    return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
+    const outputLanguage = body.locale === "EN" ? "English" : "Vietnamese";
+    const result = await runGeminiFactCheck(text, outputLanguage, apiKey);
+    return NextResponse.json({ ok: true, result });
+  } catch (error) {
+    console.error("Gemini FactCheck failed:", error instanceof Error ? error.message : String(error));
+    return geminiFailure(error);
   }
 }

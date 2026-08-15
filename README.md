@@ -24,12 +24,12 @@ Runtime Python chính:
 
 ## Remote web
 
-Production: `https://oak-hidden-sltp-manager-dun.vercel.app/`
+Production: `https://www.oakgatekeeper.uk/`
 
 Routes duy trì:
 - `/engine` — Pattern5 remote monitor, refresh 20 giây.
-- `/factcheck` — Fact Check + OCR.
-- `/api/factcheck` — queue API cho `factcheck_worker.py`.
+- `/factcheck` — AI Fact Check + OCR.
+- `/api/factcheck` — Vercel server gọi trực tiếp Gemini + Google Search grounding; không cần PC worker.
 - `/` — redirect sang `/engine`.
 
 ## Cài Python

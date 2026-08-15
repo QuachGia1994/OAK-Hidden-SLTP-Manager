@@ -533,7 +533,7 @@ body {
   border: 1px solid transparent;
 }
 
-.verdict-tag[data-verdict="credible"] {
+.verdict-tag[data-verdict="supported"] {
   color: var(--terminal-accent);
   background: color-mix(in srgb, var(--terminal-accent) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--terminal-accent) 35%, transparent);
@@ -545,13 +545,13 @@ body {
   border-color: color-mix(in srgb, var(--terminal-warning) 35%, transparent);
 }
 
-.verdict-tag[data-verdict="unreliable"] {
+.verdict-tag[data-verdict="contradicted"] {
   color: var(--terminal-danger);
   background: color-mix(in srgb, var(--terminal-danger) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--terminal-danger) 35%, transparent);
 }
 
-.verdict-tag[data-verdict="unverifiable"] {
+.verdict-tag[data-verdict="insufficient"] {
   color: var(--muted);
   background: color-mix(in srgb, var(--muted) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--muted) 35%, transparent);
