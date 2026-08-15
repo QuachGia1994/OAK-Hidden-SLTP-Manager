@@ -28,16 +28,22 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 2
+CACHE_SCHEMA = 3
 
 
-def signal_from_two(directions: list[str]) -> str:
-    """Derive signal only from candle 1 (newest) and candle 2."""
-    if len(directions) < 2:
-        raise ValueError("Need at least two candle directions")
-    first, second = directions[0], directions[1]
-    base = first if first == second else (G if first == T else T)
-    return "BUY" if base == T else "SELL"
+def signal_from_base(directions: list[str], group: str) -> str:
+    """Derive signal from candle 4 (oldest lookback candle) and Sw/Bt group."""
+    if len(directions) < 4:
+        raise ValueError("Need all four lookback candle directions")
+    base = directions[3]
+    normalized_group = group.casefold()
+    if normalized_group == "sw":
+        direction = G if base == T else T
+    elif normalized_group == "bt":
+        direction = base
+    else:
+        raise ValueError(f"Unknown Pattern5 group: {group}")
+    return "BUY" if direction == T else "SELL"
 
 
 def pattern_text(pattern_id: int, directions: list[str]) -> str:
@@ -132,15 +138,16 @@ def build_table(symbol: str, week_start: date | None = None) -> tuple[list[date]
             pattern_id, _mirrored = classify5(directions)
             if pattern_id is None:
                 continue
-            signal = signal_from_two(directions)
+            group = GROUP[pattern_id]
+            signal = signal_from_base(directions, group)
             sequence = pattern_text(pattern_id, directions)
             rows[hour][day_index] = {
-                "group": GROUP[pattern_id],
+                "group": group,
                 "signal": signal,
-                "label": f"{GROUP[pattern_id]} ({'Tăng' if signal == 'BUY' else 'Giảm'})",
+                "label": f"{group} ({'Tăng' if signal == 'BUY' else 'Giảm'})",
                 "pattern": sequence,
             }
-            detail[hour][day_index] = f"{GROUP[pattern_id]} · {signal} · {sequence}"
+            detail[hour][day_index] = f"{group} · {signal} · {sequence}"
     return days, rows, detail
 
 

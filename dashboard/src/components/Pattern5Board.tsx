@@ -73,8 +73,8 @@ function PairTable({ table, blocks, today }: { table: Pattern5Table; blocks: num
 export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; locale: Locale }) {
   const today = ictToday();
   const text = locale === "EN"
-    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Sw/Bt keeps the 3–4 candle pattern · BUY/SELL uses candles 1–2 only · auto refresh every 20 seconds", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
-    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Sw/Bt giữ mẫu 3–4 cây · BUY/SELL chỉ xét cây 1–2 · tự làm mới mỗi 20 giây", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
+    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Look back 4 H4 candles · keep 3–4 candle Sw/Bt patterns · candle #4 is base: Sw reverses, Bt follows · auto refresh every 20 seconds", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
+    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Lookback 4 nến H4 · giữ pattern Sw/Bt 3–4 cây · cây #4 là base: Sw đảo, Bt giữ chiều · tự làm mới mỗi 20 giây", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
 
   return (
     <div className="pattern5-web-screen">

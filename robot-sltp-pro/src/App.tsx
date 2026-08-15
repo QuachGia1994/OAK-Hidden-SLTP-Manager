@@ -32,7 +32,7 @@ const UI_COPY = {
     profileMonitoring: 'Theo dõi Profile', profileMonitoringHint: 'Chọn profile MT5 để xem equity, balance, drawdown và vị thế đang mở theo thời gian thực.', addProfile: 'Thêm Profile MT5', openTradesLabel: 'lệnh mở',
     addProfileHint: 'Chỉ lưu cấu hình profile. Telegram token không nhập tại đây.', profileName: 'Tên Profile', terminalPath: 'Đường dẫn terminal64.exe', saveProfileHint: 'Sau khi lưu, chọn profile để app tự đọc MT5 snapshot. Token Telegram tiếp tục lấy từ vault hiện hữu.', cancel: 'Hủy', saveProfile: 'Lưu Profile', close: 'Đóng',
     saveSltp: 'Lưu cấu hình SLTP vào backend', enabled: 'Bật tự động', footerTagline: 'an toàn hơn, thông minh hơn',
-    patternHint: 'ngày giao dịch trước · 4 nến H4 mới → cũ · signal chỉ xét cây 1–2: cùng chiều theo cây 1, ngược chiều đảo cây 1.', refresh: 'Làm mới MT5', refreshing: 'Đang tính…', patternEmpty: 'Chưa có dữ liệu Pattern5. Nhấn Làm mới MT5.', patternLoading: 'Đang đọc H4/D1 broker-time, phân nhóm Sw/Bt và tính signal 2 cây…'
+    patternHint: 'ngày giao dịch trước · lookback 4 nến H4 mới → cũ · base = cây #4: Sw đảo chiều base, Bt giữ chiều base.', refresh: 'Làm mới MT5', refreshing: 'Đang tính…', patternEmpty: 'Chưa có dữ liệu Pattern5. Nhấn Làm mới MT5.', patternLoading: 'Đang đọc H4/D1 broker-time, phân nhóm Sw/Bt và tính signal theo cây base #4…'
   },
   en: {
     nav: { overview: 'Overview', profiles: 'Profile Monitor', sltp: 'Auto SLTP', telegram: 'Telegram Order', netting: 'Netting Scheduler', pattern5: 'Pattern5 Engine' },
@@ -50,7 +50,7 @@ const UI_COPY = {
     profileMonitoring: 'Profile monitoring', profileMonitoringHint: 'Select an MT5 profile to inspect equity, balance, drawdown and open positions in real time.', addProfile: 'Add MT5 Profile', openTradesLabel: 'open trades',
     addProfileHint: 'Save profile configuration only. Telegram token is not entered here.', profileName: 'Profile name', terminalPath: 'terminal64.exe path', saveProfileHint: 'After saving, select the profile and the app will read its MT5 snapshot. Telegram token remains in the existing vault.', cancel: 'Cancel', saveProfile: 'Save Profile', close: 'Close',
     saveSltp: 'Save SLTP configuration', enabled: 'Enable automation', footerTagline: 'safer, smarter',
-    patternHint: 'previous trading day · 4 H4 candles newest → oldest · signal uses candles 1–2 only: same direction follows candle 1, opposite direction reverses candle 1.', refresh: 'Refresh MT5', refreshing: 'Calculating…', patternEmpty: 'No Pattern5 data yet. Press Refresh MT5.', patternLoading: 'Reading broker-time H4/D1, grouping Sw/Bt and calculating the 2-candle signal…'
+    patternHint: 'previous trading day · look back 4 H4 candles newest → oldest · base = candle #4: Sw reverses base, Bt follows base.', refresh: 'Refresh MT5', refreshing: 'Calculating…', patternEmpty: 'No Pattern5 data yet. Press Refresh MT5.', patternLoading: 'Reading broker-time H4/D1, grouping Sw/Bt and calculating signal from base candle #4…'
   }
 } as const;
 
