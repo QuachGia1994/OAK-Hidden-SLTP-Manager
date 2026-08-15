@@ -1,8 +1,13 @@
 export type FactCheckVerdict = "supported" | "contradicted" | "mixed" | "insufficient";
 
 export interface FactCheckSource {
+  id: number;
   title: string;
   url: string;
+  snippet?: string;
+  publisher?: string;
+  published_at?: string;
+  search_engine?: "google_news" | "wikipedia";
 }
 
 export interface FactCheckClaim {
@@ -10,6 +15,7 @@ export interface FactCheckClaim {
   verdict: FactCheckVerdict;
   confidence: number;
   explanation: string;
+  source_ids: number[];
 }
 
 export interface FactCheckResult {

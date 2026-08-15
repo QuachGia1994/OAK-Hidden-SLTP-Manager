@@ -5,7 +5,7 @@ Next.js web companion for ROBOT SLTP Pro.
 Production surface:
 - `/engine` — mobile Pattern5 monitor backed by Upstash.
 - `/factcheck` — Gemini AI fact-check UI with browser OCR.
-- `/api/factcheck` — direct Vercel → Gemini 2.5 Flash-Lite + Google Search grounding.
+- `/api/factcheck` — Vercel thu thập live web evidence rồi Gemini 3.5 Flash-Lite đánh giá theo nguồn.
 - `/` — redirects to `/engine`.
 
 Runtime data:
@@ -15,7 +15,7 @@ Runtime data:
 
 Required production environment:
 - `GEMINI_API_KEY` — Google AI Studio server credential.
-- `FACTCHECK_MODEL` — optional, defaults to `gemini-2.5-flash-lite`.
+- `FACTCHECK_MODEL` — optional, defaults to `gemini-3.5-flash-lite`.
 - `FACTCHECK_PER_MINUTE_LIMIT` — optional, defaults to `5` per IP.
 - `FACTCHECK_DAILY_LIMIT` — optional, defaults to `200` site-wide.
 

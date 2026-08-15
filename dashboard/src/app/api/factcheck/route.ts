@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     provider: "gemini",
     model: FACTCHECK_MODEL,
     configured: Boolean(process.env.GEMINI_API_KEY),
-    architecture: "vercel-direct-google-search-grounding",
+    architecture: "vercel-live-web-evidence-gemini",
   });
 }
 
@@ -82,8 +82,9 @@ export async function POST(request: Request) {
     const limited = await enforceRateLimit(request);
     if (limited) return limited;
 
-    const outputLanguage = body.locale === "EN" ? "English" : "Vietnamese";
-    const result = await runGeminiFactCheck(text, outputLanguage, apiKey);
+    const locale = body.locale === "EN" ? "EN" : "VN";
+    const outputLanguage = locale === "EN" ? "English" : "Vietnamese";
+    const result = await runGeminiFactCheck(text, outputLanguage, locale, apiKey);
     return NextResponse.json({ ok: true, result });
   } catch (error) {
     console.error("Gemini FactCheck failed:", error instanceof Error ? error.message : String(error));

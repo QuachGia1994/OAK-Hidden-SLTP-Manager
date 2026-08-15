@@ -15,7 +15,7 @@ export function FactCheckResult({ result, locale }: { result: FactCheckResultTyp
           <div>
             <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--muted)]">{t.result}</div>
             <h2 className="mt-1 text-xl font-bold text-[var(--foreground)]">{t.resultTitle}</h2>
-            <div className="mt-2 text-xs text-[var(--muted)]">{t.model}: {result.model} · Google Search grounding</div>
+            <div className="mt-2 text-xs text-[var(--muted)]">{t.model}: {result.model} · Live web evidence</div>
           </div>
           <span className={`rounded-lg border px-3 py-1 text-xs font-mono font-bold uppercase ${getVerdictBadgeClass(result.verdict)}`}>
             {verdictLabel}
@@ -50,6 +50,11 @@ export function FactCheckResult({ result, locale }: { result: FactCheckResultTyp
                 </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">{claim.explanation}</p>
+              {claim.source_ids.length > 0 && (
+                <div className="mt-2 text-[10px] font-mono text-[var(--terminal-accent)]">
+                  SOURCES: {claim.source_ids.map((id) => `#${id}`).join(", ")}
+                </div>
+              )}
             </article>
           ))}
         </div>
@@ -70,8 +75,14 @@ export function FactCheckResult({ result, locale }: { result: FactCheckResultTyp
                 rel="noopener noreferrer"
                 className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-4 transition-colors hover:border-[var(--terminal-accent)]/40"
               >
-                <span className="text-[10px] font-mono text-[var(--terminal-accent)]">SOURCE {index + 1}</span>
+                <span className="text-[10px] font-mono text-[var(--terminal-accent)]">SOURCE #{source.id}</span>
                 <div className="mt-1 text-sm font-semibold text-[var(--foreground)]">{source.title}</div>
+                {(source.publisher || source.published_at) && (
+                  <div className="mt-1 text-[10px] text-[var(--muted)]">
+                    {[source.publisher, source.published_at].filter(Boolean).join(" · ")}
+                  </div>
+                )}
+                {source.snippet && <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-[var(--muted)]">{source.snippet}</p>}
               </a>
             ))}
           </div>

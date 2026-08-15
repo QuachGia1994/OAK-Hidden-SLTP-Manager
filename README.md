@@ -29,7 +29,7 @@ Production: `https://www.oakgatekeeper.uk/`
 Routes duy trì:
 - `/engine` — Pattern5 remote monitor, refresh 20 giây.
 - `/factcheck` — AI Fact Check + OCR.
-- `/api/factcheck` — Vercel server gọi trực tiếp Gemini + Google Search grounding; không cần PC worker.
+- `/api/factcheck` — Vercel thu thập live web evidence rồi Gemini 3.5 Flash-Lite đánh giá; không cần PC worker.
 - `/` — redirect sang `/engine`.
 
 ## Cài Python
