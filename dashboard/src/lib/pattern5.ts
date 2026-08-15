@@ -6,8 +6,7 @@ export type Pattern5Signal = {
   group: "Sw" | "Bt";
   signal: "BUY" | "SELL";
   label: string;
-  pattern: number;
-  mirrored: boolean;
+  pattern: string;
 };
 
 export type Pattern5Day = {

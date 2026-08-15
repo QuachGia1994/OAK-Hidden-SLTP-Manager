@@ -29,7 +29,7 @@ function Cell({ signal, detail }: { signal: Pattern5Signal | ""; detail?: string
     <div className="pattern5-web-cell" title={detail || undefined}>
       <span className="pattern5-web-group">{signal.group}</span>
       <b data-side={signal.signal}>{signal.signal}</b>
-      <small>Pat{signal.pattern}{signal.mirrored ? "*" : ""}</small>
+      <small>{signal.pattern}</small>
     </div>
   );
 }
@@ -73,8 +73,8 @@ function PairTable({ table, blocks, today }: { table: Pattern5Table; blocks: num
 export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; locale: Locale }) {
   const today = ictToday();
   const text = locale === "EN"
-    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Broker-time H4 classification · auto refresh every 20 seconds", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
-    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Phân loại H4 theo giờ broker · tự làm mới mỗi 20 giây", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
+    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Sw/Bt keeps the 3–4 candle pattern · BUY/SELL uses candles 1–2 only · auto refresh every 20 seconds", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
+    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Sw/Bt giữ mẫu 3–4 cây · BUY/SELL chỉ xét cây 1–2 · tự làm mới mỗi 20 giây", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
 
   return (
     <div className="pattern5-web-screen">

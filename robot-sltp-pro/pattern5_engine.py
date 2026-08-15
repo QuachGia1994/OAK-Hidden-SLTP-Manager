@@ -28,14 +28,21 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-SIG_A = {1: "BUY", 2: "BUY", 3: "SELL", 4: "BUY", 5: "SELL"}
+CACHE_SCHEMA = 2
 
 
-def sig_for(pattern: int, hour: int) -> str:
-    signal = SIG_A[pattern]
-    if hour in (9, 14):
-        signal = "SELL" if signal == "BUY" else "BUY"
-    return signal
+def signal_from_two(directions: list[str]) -> str:
+    """Derive signal only from candle 1 (newest) and candle 2."""
+    if len(directions) < 2:
+        raise ValueError("Need at least two candle directions")
+    first, second = directions[0], directions[1]
+    base = first if first == second else (G if first == T else T)
+    return "BUY" if base == T else "SELL"
+
+
+def pattern_text(pattern_id: int, directions: list[str]) -> str:
+    length = 4 if pattern_id == 5 else 3
+    return " ".join(directions[:length])
 
 
 def classify5(directions: list[str]) -> tuple[int | None, bool]:
@@ -122,23 +129,23 @@ def build_table(symbol: str, week_start: date | None = None) -> tuple[list[date]
             directions = look4(symbol, anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset))
             if not directions:
                 continue
-            pattern, mirrored = classify5(directions)
-            if pattern is None:
+            pattern_id, _mirrored = classify5(directions)
+            if pattern_id is None:
                 continue
-            signal = sig_for(pattern, hour)
+            signal = signal_from_two(directions)
+            sequence = pattern_text(pattern_id, directions)
             rows[hour][day_index] = {
-                "group": GROUP[pattern],
+                "group": GROUP[pattern_id],
                 "signal": signal,
-                "label": f"{GROUP[pattern]} ({'Tăng' if signal == 'BUY' else 'Giảm'})",
-                "pattern": pattern,
-                "mirrored": mirrored,
+                "label": f"{GROUP[pattern_id]} ({'Tăng' if signal == 'BUY' else 'Giảm'})",
+                "pattern": sequence,
             }
-            detail[hour][day_index] = f"Pat{pattern}{'*' if mirrored else ''} {''.join(directions)}"
+            detail[hour][day_index] = f"{GROUP[pattern_id]} · {signal} · {sequence}"
     return days, rows, detail
 
 
 def _cache_key(profile: str, week_start: str) -> str:
-    return f"{profile}|{week_start}"
+    return f"v{CACHE_SCHEMA}|{profile}|{week_start}"
 
 
 def _load_cache() -> dict[str, Any]:
