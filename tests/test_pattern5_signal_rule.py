@@ -27,7 +27,7 @@ class Pattern5SignalRuleTests(unittest.TestCase):
 
     def test_reverse_matrix_for_h7_h9_h12_h14(self):
         week = [date(2026, 8, 10 + offset) for offset in range(5)]
-        self.assertEqual([should_reverse_signal(7, day) for day in week], [True, True, False, False, True])
+        self.assertEqual([should_reverse_signal(7, day) for day in week], [False, True, False, False, True])
         self.assertEqual([should_reverse_signal(9, day) for day in week], [False, False, False, True, True])
         self.assertEqual([should_reverse_signal(12, day) for day in week], [True, True, False, True, True])
         self.assertEqual([should_reverse_signal(14, day) for day in week], [True, True, True, True, True])

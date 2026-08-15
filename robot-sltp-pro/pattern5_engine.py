@@ -28,7 +28,7 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 4
+CACHE_SCHEMA = 5
 
 
 def flip_signal(signal: str) -> str:
@@ -79,7 +79,7 @@ def should_reverse_signal(block: int, day: date) -> bool:
             return _first_weekday_day(day, 4) in {3, 4, 7}
         return False
     if block == 7:
-        return weekday in {0, 1, 4}
+        return weekday in {1, 4}
     if block == 9:
         return weekday in {3, 4}
     if block == 12:
