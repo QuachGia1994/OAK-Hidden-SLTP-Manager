@@ -132,8 +132,23 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
     }
   };
 
+  const logout = async () => {
+    if (loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/vip", { method: "DELETE" });
+      const payload = await response.json() as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "VIP logout failed");
+      window.location.reload();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "VIP logout failed");
+      setLoading(false);
+    }
+  };
+
   if (access.mode === "vip") {
-    return <div className="pattern5-vip-banner" data-mode="vip"><span>◆</span><div><b>VIP UNLOCKED</b><small>{isEn ? "BUY/SELL signals are unlocked." : "Tín hiệu BUY/SELL đã được mở khóa."}</small></div></div>;
+    return <div className="pattern5-vip-banner" data-mode="vip"><span>◆</span><div><b>VIP UNLOCKED</b><small>{isEn ? "BUY/SELL signals are unlocked." : "Tín hiệu BUY/SELL đã được mở khóa."}</small></div><button disabled={loading} onClick={() => void logout()}>{loading ? (isEn ? "Logging out…" : "Đang thoát…") : (isEn ? "Exit VIP" : "Thoát VIP")}</button></div>;
   }
   if (access.mode === "weekend") {
     return <div className="pattern5-vip-banner" data-mode="weekend"><span>◇</span><div><b>{isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE"}</b><small>{isEn ? "Saturday & Sunday: BUY/SELL signals are free." : "Thứ 7 & Chủ nhật: BUY/SELL được mở miễn phí."}</small></div></div>;
