@@ -4,6 +4,13 @@ import { useState } from "react";
 import type { Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
 
 type Locale = "EN" | "VN";
+type VipAccessView = {
+  unlocked: boolean;
+  weekendFree: boolean;
+  vipAuthenticated: boolean;
+  weekday: string;
+  mode: "vip" | "weekend" | "locked";
+};
 
 const WEEKDAY_NAMES: Record<Locale, string[]> = {
   EN: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
@@ -52,7 +59,8 @@ function CandleChart({ candles }: { candles: Pattern5Candle[] }) {
 
 function Cell({ signal, detail, onEvidence }: { signal: Pattern5Signal | ""; detail?: string; onEvidence: (signal: Pattern5Signal) => void }) {
   if (!signal) return <span className="pattern5-web-empty">—</span>;
-  return <div className="pattern5-web-cell" title={detail || undefined}>{signal.reversed && <span className="pattern5-web-reverse-badge">REV</span>}<span className="pattern5-web-group">{signal.group}</span><b data-side={signal.signal}>{signal.signal}</b><span className="pattern5-web-base">Base {signal.baseSignal}</span><button className="pattern5-web-pattern" onClick={() => onEvidence(signal)}>{signal.pattern}</button></div>;
+  const locked = Boolean(signal.locked || !signal.signal || !signal.baseSignal);
+  return <div className="pattern5-web-cell" title={detail || undefined} data-vip-locked={locked ? "true" : undefined}>{!locked && signal.reversed && <span className="pattern5-web-reverse-badge">REV</span>}<span className="pattern5-web-group">{signal.group}</span>{locked ? <span className="pattern5-web-vip-signal">VIP LOCKED</span> : <b data-side={signal.signal || undefined}>{signal.signal}</b>}<span className="pattern5-web-base">{locked ? "Base •••" : `Base ${signal.baseSignal}`}</span><button className="pattern5-web-pattern" onClick={() => onEvidence(signal)}>{signal.pattern}</button></div>;
 }
 
 function PairTable({ table, blocks, today, locale, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; locale: Locale; onEvidence: (selection: EvidenceSelection) => void }) {
@@ -93,10 +101,62 @@ function PairTable({ table, blocks, today, locale, onEvidence }: { table: Patter
 
 function EvidenceModal({ selection, locale, onClose }: { selection: EvidenceSelection; locale: Locale; onClose: () => void }) {
   const hint = locale === "EN" ? "Left → right = oldest → newest · direct OHLC from the four lookback candles" : "Trái → phải = cũ → mới · OHLC trực tiếp từ 4 nến lookback";
-  return <div className="pattern5-web-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="pattern5-web-modal"><header><div><b>{selection.title}</b><small>{hint}</small></div><button onClick={onClose} aria-label="Close">×</button></header><div className="pattern5-web-modal-summary"><span>Base <b>{selection.signal.baseSignal}</b></span><span data-reversed={selection.signal.reversed ? "true" : undefined}>{selection.signal.reversed ? "REVERSE" : "NORMAL"} → <b>{selection.signal.signal}</b></span><span>{selection.signal.group} · {selection.signal.pattern}</span></div><CandleChart candles={selection.signal.evidence} /><div className="pattern5-web-ohlc"><div className="pattern5-web-ohlc-head"><span>Candle</span><span>Open</span><span>High</span><span>Low</span><span>Close</span></div>{selection.signal.evidence.map((candle, index) => { const digits = candleDecimals(candle.close); return <div className="pattern5-web-ohlc-row" key={`${candle.time}-${index}`}><b>#{index + 1}</b><span>{candle.open.toFixed(digits)}</span><span>{candle.high.toFixed(digits)}</span><span>{candle.low.toFixed(digits)}</span><span>{candle.close.toFixed(digits)}</span></div>; })}</div>{selection.detail && <div className="pattern5-web-modal-detail">{selection.detail}</div>}</section></div>;
+  const locked = Boolean(selection.signal.locked || !selection.signal.signal || !selection.signal.baseSignal);
+  return <div className="pattern5-web-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="pattern5-web-modal"><header><div><b>{selection.title}</b><small>{hint}</small></div><button onClick={onClose} aria-label="Close">×</button></header><div className="pattern5-web-modal-summary"><span>Base <b>{locked ? "•••" : selection.signal.baseSignal}</b></span><span data-reversed={!locked && selection.signal.reversed ? "true" : undefined}>{locked ? "VIP LOCKED" : <>{selection.signal.reversed ? "REVERSE" : "NORMAL"} → <b>{selection.signal.signal}</b></>}</span><span>{selection.signal.group} · {selection.signal.pattern}</span></div><CandleChart candles={selection.signal.evidence} /><div className="pattern5-web-ohlc"><div className="pattern5-web-ohlc-head"><span>Candle</span><span>Open</span><span>High</span><span>Low</span><span>Close</span></div>{selection.signal.evidence.map((candle, index) => { const digits = candleDecimals(candle.close); return <div className="pattern5-web-ohlc-row" key={`${candle.time}-${index}`}><b>#{index + 1}</b><span>{candle.open.toFixed(digits)}</span><span>{candle.high.toFixed(digits)}</span><span>{candle.low.toFixed(digits)}</span><span>{candle.close.toFixed(digits)}</span></div>; })}</div>{selection.detail && <div className="pattern5-web-modal-detail">{selection.detail}</div>}</section></div>;
 }
 
-export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; locale: Locale }) {
+function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const isEn = locale === "EN";
+
+  const unlock = async () => {
+    if (!token.trim() || loading) return;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/vip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: token.trim() }),
+      });
+      const payload = await response.json() as { ok?: boolean; error?: string };
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "VIP unlock failed");
+      window.location.reload();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "VIP unlock failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (access.mode === "vip") {
+    return <div className="pattern5-vip-banner" data-mode="vip"><span>◆</span><div><b>VIP UNLOCKED</b><small>{isEn ? "BUY/SELL signals are unlocked." : "Tín hiệu BUY/SELL đã được mở khóa."}</small></div></div>;
+  }
+  if (access.mode === "weekend") {
+    return <div className="pattern5-vip-banner" data-mode="weekend"><span>◇</span><div><b>{isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE"}</b><small>{isEn ? "Saturday & Sunday: BUY/SELL signals are free." : "Thứ 7 & Chủ nhật: BUY/SELL được mở miễn phí."}</small></div></div>;
+  }
+
+  return <>
+    <div className="pattern5-vip-banner" data-mode="locked">
+      <span>◆</span>
+      <div><b>VIP LOCKED</b><small>{isEn ? "Monday–Friday: unlock VIP to view BUY/SELL signals." : "Thứ 2–Thứ 6: mở VIP để xem tín hiệu BUY/SELL."}</small></div>
+      <button onClick={() => setOpen(true)}>{isEn ? "Unlock VIP" : "Mở VIP"}</button>
+    </div>
+    {open && <div className="pattern5-web-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
+      <section className="pattern5-vip-modal">
+        <header><div><b>VIP UNLOCK</b><small>{isEn ? "Enter your VIP access code." : "Nhập mã truy cập VIP."}</small></div><button onClick={() => setOpen(false)} aria-label="Close">×</button></header>
+        <label><span>{isEn ? "VIP access code" : "Mã VIP"}</span><input type="password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void unlock()} autoFocus /></label>
+        {error && <p>{error}</p>}
+        <button className="pattern5-vip-submit" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading ? (isEn ? "Unlocking…" : "Đang mở…") : "VIP UNLOCK"}</button>
+      </section>
+    </div>}
+  </>;
+}
+
+export function Pattern5Board({ data, locale, access }: { data: Pattern5Payload | null; locale: Locale; access: VipAccessView }) {
   const today = ictToday();
   const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const text = locale === "EN"
@@ -113,6 +173,7 @@ export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; 
         </div>
         {data && <div className="pattern5-web-meta"><span><small>Profile</small><b>{data.profile}</b></span><span><small>{text.week}</small><b>{data.weekStart}</b></span><span><small>{text.updated}</small><b>{formatPublished(data.publishedAt, locale)}</b></span></div>}
       </header>
+      <VipGate access={access} locale={locale} />
       <div className="pattern5-web-click-hint">{text.clickHint}</div>
 
       {!data ? (

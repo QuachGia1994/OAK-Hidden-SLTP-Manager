@@ -732,3 +732,37 @@ body {
   font: 700 .76rem "Cascadia Mono", Consolas, monospace;
   line-height: 1.45;
 }
+
+
+/* Pattern5 VIP access gate */
+.pattern5-vip-banner { display: flex; align-items: center; gap: .75rem; padding: .75rem .85rem; border: 1px solid var(--panel-border); border-radius: .75rem; background: var(--surface); box-shadow: var(--terminal-shadow); }
+.pattern5-vip-banner > span { display: grid; width: 2rem; height: 2rem; place-items: center; flex: 0 0 auto; border-radius: .55rem; font-size: 1rem; }
+.pattern5-vip-banner > div { min-width: 0; flex: 1 1 auto; }
+.pattern5-vip-banner b, .pattern5-vip-banner small { display: block; }
+.pattern5-vip-banner b { font: 900 .78rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.pattern5-vip-banner small { margin-top: .12rem; color: var(--muted); font-size: .7rem; line-height: 1.4; }
+.pattern5-vip-banner button { flex: 0 0 auto; padding: .5rem .7rem; border: 1px solid currentColor; border-radius: .55rem; font: 800 .68rem "Cascadia Mono", Consolas, monospace; }
+.pattern5-vip-banner[data-mode="vip"] { border-color: color-mix(in srgb, var(--terminal-accent) 55%, var(--panel-border)); background: color-mix(in srgb, var(--terminal-accent) 8%, var(--surface)); }
+.pattern5-vip-banner[data-mode="vip"] > span, .pattern5-vip-banner[data-mode="vip"] b { color: var(--terminal-accent); }
+.pattern5-vip-banner[data-mode="weekend"] { border-color: color-mix(in srgb, var(--terminal-warning) 55%, var(--panel-border)); background: color-mix(in srgb, var(--terminal-warning) 8%, var(--surface)); }
+.pattern5-vip-banner[data-mode="weekend"] > span, .pattern5-vip-banner[data-mode="weekend"] b { color: var(--terminal-warning); }
+.pattern5-vip-banner[data-mode="locked"] { border-color: color-mix(in srgb, var(--terminal-danger) 46%, var(--panel-border)); background: color-mix(in srgb, var(--terminal-danger) 7%, var(--surface)); }
+.pattern5-vip-banner[data-mode="locked"] > span, .pattern5-vip-banner[data-mode="locked"] b, .pattern5-vip-banner[data-mode="locked"] button { color: var(--terminal-danger); }
+.pattern5-web-cell[data-vip-locked="true"] { opacity: .82; }
+.pattern5-web-vip-signal { padding: .18rem .34rem; border: 1px solid color-mix(in srgb, var(--terminal-warning) 50%, var(--panel-border)); border-radius: .35rem; color: var(--terminal-warning); background: color-mix(in srgb, var(--terminal-warning) 8%, transparent); font: 900 .64rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
+.pattern5-vip-modal { width: min(26rem, 94vw); padding: 1rem; border: 1px solid var(--panel-border); border-radius: .9rem; background: var(--surface); box-shadow: 0 24px 70px rgba(0,0,0,.4); }
+.pattern5-vip-modal header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding-bottom: .8rem; border-bottom: 1px solid var(--panel-border); }
+.pattern5-vip-modal header b, .pattern5-vip-modal header small { display: block; }
+.pattern5-vip-modal header small { margin-top: .2rem; color: var(--muted); font-size: .72rem; }
+.pattern5-vip-modal header button { width: 2rem; height: 2rem; border: 1px solid var(--panel-border); border-radius: .5rem; background: var(--surface-raised); font-size: 1.15rem; }
+.pattern5-vip-modal label { display: grid; gap: .35rem; margin-top: .9rem; color: var(--muted); font-size: .72rem; }
+.pattern5-vip-modal input { width: 100%; padding: .72rem .75rem; border: 1px solid var(--panel-border); border-radius: .55rem; color: var(--foreground); background: var(--surface-raised); font: 700 .8rem "Cascadia Mono", Consolas, monospace; outline: none; }
+.pattern5-vip-modal input:focus { border-color: var(--terminal-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--terminal-accent) 16%, transparent); }
+.pattern5-vip-modal p { margin-top: .55rem; color: var(--terminal-danger); font-size: .72rem; }
+.pattern5-vip-submit { width: 100%; margin-top: .8rem; padding: .7rem .8rem; border: 1px solid color-mix(in srgb, var(--terminal-accent) 62%, var(--panel-border)); border-radius: .55rem; color: var(--terminal-accent); background: color-mix(in srgb, var(--terminal-accent) 9%, var(--surface)); font: 900 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; }
+.pattern5-vip-submit:disabled { opacity: .45; cursor: not-allowed; }
+
+@media (max-width: 639px) {
+  .pattern5-vip-banner { align-items: flex-start; flex-wrap: wrap; }
+  .pattern5-vip-banner button { width: 100%; }
+}

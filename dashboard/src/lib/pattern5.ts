@@ -14,12 +14,13 @@ export type Pattern5Candle = {
 
 export type Pattern5Signal = {
   group: "Sw" | "Bt";
-  baseSignal: "BUY" | "SELL";
-  signal: "BUY" | "SELL";
+  baseSignal: "BUY" | "SELL" | null;
+  signal: "BUY" | "SELL" | null;
   reversed: boolean;
   label: string;
   pattern: string;
   evidence: Pattern5Candle[];
+  locked?: boolean;
 };
 
 export type Pattern5Day = {

@@ -1,0 +1,83 @@
+import "server-only";
+
+import { createHmac, timingSafeEqual } from "node:crypto";
+import type { Pattern5Payload } from "@/lib/pattern5";
+
+export const VIP_COOKIE = "sltp_vip_access";
+const VIP_PURPOSE = "oakgatekeeper-vip-v1";
+
+export type VipAccessState = {
+  unlocked: boolean;
+  weekendFree: boolean;
+  vipAuthenticated: boolean;
+  weekday: string;
+  mode: "vip" | "weekend" | "locked";
+};
+
+function signedValue(secret: string): string {
+  return createHmac("sha256", secret).update(VIP_PURPOSE).digest("hex");
+}
+
+function cookieValue(cookieHeader: string, name: string): string {
+  const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${name}=([^;]+)`));
+  return match?.[1] ? decodeURIComponent(match[1]) : "";
+}
+
+export function createVipCookieValue(secret: string): string {
+  return signedValue(secret);
+}
+
+export function isValidVipCookie(cookieHeader: string, secret: string): boolean {
+  if (!secret) return false;
+  const actual = cookieValue(cookieHeader, VIP_COOKIE);
+  const expected = signedValue(secret);
+  if (actual.length !== expected.length) return false;
+  return timingSafeEqual(Buffer.from(actual), Buffer.from(expected));
+}
+
+export function vietnamWeekday(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    weekday: "short",
+  }).format(now);
+}
+
+export function getVipAccessState(cookieHeader: string, now = new Date()): VipAccessState {
+  const weekday = vietnamWeekday(now);
+  const weekendFree = weekday === "Sat" || weekday === "Sun";
+  const secret = process.env.VIP_TOKEN || "";
+  const vipAuthenticated = isValidVipCookie(cookieHeader, secret);
+  const unlocked = weekendFree || vipAuthenticated;
+  return {
+    unlocked,
+    weekendFree,
+    vipAuthenticated,
+    weekday,
+    mode: vipAuthenticated ? "vip" : weekendFree ? "weekend" : "locked",
+  };
+}
+
+export function redactPattern5Signals(payload: Pattern5Payload | null): Pattern5Payload | null {
+  if (!payload) return null;
+  return {
+    ...payload,
+    tables: payload.tables.map((table) => ({
+      ...table,
+      detail: table.detail
+        ? Object.fromEntries(Object.entries(table.detail).map(([block, items]) => [block, items.map((item) => item ? "VIP signal locked" : "")]))
+        : undefined,
+      rows: table.rows
+        ? Object.fromEntries(Object.entries(table.rows).map(([block, items]) => [
+            block,
+            items.map((item) => item === "" ? "" : {
+              ...item,
+              signal: null,
+              baseSignal: null,
+              label: "VIP locked",
+              locked: true,
+            }),
+          ]))
+        : undefined,
+    })),
+  };
+}
