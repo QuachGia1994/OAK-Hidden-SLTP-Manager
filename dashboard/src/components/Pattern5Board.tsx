@@ -88,8 +88,8 @@ export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; 
   const today = ictToday();
   const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const text = locale === "EN"
-    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt, then apply the H/day Reverse Signal matrix · tap Pattern for 4-candle OHLC evidence · auto refresh every 20 seconds", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
-    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt rồi áp ma trận Reverse Signal theo H/thứ · chạm Pattern để xem chart + OHLC 4 nến · tự làm mới mỗi 20 giây", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
+    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt, then apply the H/day Reverse Signal matrix · auto refresh every 20 seconds", clickHint: "Tip: Click the Pattern line inside any populated cell to open the 4-candle chart and OHLC evidence.", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
+    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt rồi áp ma trận Reverse Signal theo H/thứ · tự làm mới mỗi 20 giây", clickHint: "Mẹo: Click trực tiếp vào dòng Pattern trong từng ô để mở chart 4 nến và dữ liệu OHLC làm bằng chứng.", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
 
   return (
     <div className="pattern5-web-screen">
@@ -101,6 +101,7 @@ export function Pattern5Board({ data, locale }: { data: Pattern5Payload | null; 
         </div>
         {data && <div className="pattern5-web-meta"><span><small>Profile</small><b>{data.profile}</b></span><span><small>{text.week}</small><b>{data.weekStart}</b></span><span><small>{text.updated}</small><b>{formatPublished(data.publishedAt, locale)}</b></span></div>}
       </header>
+      <div className="pattern5-web-click-hint">{text.clickHint}</div>
 
       {!data ? (
         <div className="pattern5-web-empty-state">{text.empty}</div>

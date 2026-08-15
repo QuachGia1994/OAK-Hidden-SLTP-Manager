@@ -230,6 +230,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .pattern5-table td { min-width:144px; vertical-align:middle; }.pattern5-table td b,.pattern5-table td small,.pattern5-table td em { display:block; }.pattern5-table td b { font-size:18px; }.pattern5-table td small { margin-top:3px; color:var(--text); font-size:16px; font-weight:750; }.pattern5-table td em { margin-top:4px; color:var(--muted); font:16px "SFMono-Regular",Consolas,monospace; font-style:normal; }
 .pattern5-table .buy { color:var(--green); }.pattern5-table .sell { color:var(--red); }.pattern5-muted { color:var(--muted); font-size:16px; }.pattern5-table tr:last-child th,.pattern5-table tr:last-child td { border-bottom:0; }
 .pattern5-rule-stack { display:grid; gap:5px; min-width:0; }
+.pattern5-click-hint { flex:0 0 auto; display:flex; align-items:center; gap:8px; margin-top:10px; padding:9px 12px; border:1px dashed color-mix(in srgb,var(--cyan) 42%,var(--border)); border-radius:9px; color:color-mix(in srgb,var(--text) 86%,var(--cyan)); background:color-mix(in srgb,var(--cyan-soft) 70%,transparent); font-size:13px; font-weight:700; }
+.pattern5-click-hint svg { flex:0 0 auto; color:var(--cyan); }
 .pattern5-reversed { position:relative; background:var(--reverse-bg); box-shadow:inset 0 0 0 1px var(--reverse-border); }
 .pattern5-reverse-badge { position:absolute; top:6px; right:7px; padding:2px 5px; border:1px solid var(--reverse-border); border-radius:999px; color:var(--reverse-text); background:color-mix(in srgb,var(--reverse-bg) 76%,var(--surface)); font-size:10px; font-weight:900; letter-spacing:.08em; }
 .pattern5-base-signal { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:700; }

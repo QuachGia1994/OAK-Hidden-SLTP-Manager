@@ -722,3 +722,13 @@ body {
 .pattern5-web-ohlc-row { border-top: 1px solid var(--panel-border); color: var(--foreground); font: 700 .68rem "Cascadia Mono", Consolas, monospace; }
 .pattern5-web-ohlc-row b { color: var(--terminal-accent); }
 .pattern5-web-modal-detail { margin-top: .65rem; color: var(--muted); font: 700 .66rem "Cascadia Mono", Consolas, monospace; }
+
+.pattern5-web-click-hint {
+  padding: .72rem .85rem;
+  border: 1px dashed color-mix(in srgb, var(--terminal-accent) 45%, var(--panel-border));
+  border-radius: .72rem;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface));
+  font: 700 .76rem "Cascadia Mono", Consolas, monospace;
+  line-height: 1.45;
+}

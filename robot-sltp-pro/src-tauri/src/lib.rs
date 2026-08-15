@@ -2,6 +2,8 @@ use serde::Serialize;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{atomic::{AtomicU64, Ordering}, Mutex, OnceLock};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 struct BackendWorker {
     child: Child,
@@ -21,12 +23,16 @@ fn spawn_backend() -> Result<BackendWorker, String> {
         .parent()
         .ok_or_else(|| "Cannot resolve application root".to_string())?
         .join("backend_bridge.py");
-    let mut child = Command::new("python")
+    let mut command = Command::new("python");
+    command
         .arg(&bridge)
         .arg("--server")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let mut child = command
         .spawn()
         .map_err(|error| format!("backend process failed: {error}"))?;
     let stdin = child.stdin.take().ok_or_else(|| "backend stdin unavailable".to_string())?;
