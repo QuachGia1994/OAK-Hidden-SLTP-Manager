@@ -7,7 +7,12 @@ import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
+const ACTIVE_PAIRS = new Set(["GBPUSD", "EURUSD", "EURAUD", "EURJPY", "EURCAD"]);
 const EUR_REFERENCE = new Set(["EURUSD", "EURAUD", "EURJPY", "EURCAD"]);
+
+function filterActivePairs(payload: Pattern5Payload | null) {
+  return payload ? { ...payload, tables: payload.tables.filter((table) => ACTIVE_PAIRS.has(table.base)) } : null;
+}
 
 function mergeEurReference(primary: Pattern5Payload | null, reference: Pattern5Payload | null) {
   if (!primary || !reference || primary.weekStart !== reference.weekStart) return primary;
@@ -31,7 +36,7 @@ export default async function EnginePage() {
     getLatestPattern5(),
     getPattern5Profile(referenceProfile),
   ]);
-  const rawData = mergeEurReference(primary, reference);
+  const rawData = mergeEurReference(filterActivePairs(primary), filterActivePairs(reference));
   const data = access.unlocked ? rawData : redactPattern5Signals(rawData);
 
   return (

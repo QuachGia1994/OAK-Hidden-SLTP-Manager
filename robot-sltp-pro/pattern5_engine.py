@@ -11,7 +11,7 @@ from typing import Any
 import MetaTrader5 as mt5
 
 WATCHLIST = [
-    "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD",
+    "GBPUSD",
     "EURUSD", "EURAUD", "EURJPY", "EURCAD",
 ]
 CACHE_PATH = Path(__file__).resolve().parent / "pattern5_cache.json"
@@ -31,7 +31,7 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 6
+CACHE_SCHEMA = 7
 
 
 def flip_signal(signal: str) -> str:
