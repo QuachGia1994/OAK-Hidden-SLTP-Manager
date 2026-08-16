@@ -7,7 +7,7 @@ from unittest.mock import patch
 APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
 
-from pattern5_engine import WATCHLIST, classify5, flip_signal, look4, pattern_text, should_reverse_signal, signal_from_base
+from pattern5_engine import WATCHLIST, build_table, classify5, flip_signal, look4, pattern_text, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
@@ -67,6 +67,24 @@ class Pattern5SignalRuleTests(unittest.TestCase):
         self.assertTrue(should_reverse_signal(3, date(2026, 8, 28)))
         self.assertFalse(should_reverse_signal(3, date(2026, 5, 1)))
         self.assertFalse(should_reverse_signal(3, date(2026, 5, 29)))
+
+    def test_current_week_does_not_calculate_future_days(self):
+        evidence = [
+            {"index": 1, "time": 100, "open": 1.0, "high": 1.2, "low": 0.9, "close": 1.1, "direction": "T"},
+            {"index": 2, "time": 200, "open": 1.1, "high": 1.2, "low": 1.0, "close": 1.0, "direction": "G"},
+            {"index": 3, "time": 300, "open": 1.0, "high": 1.3, "low": 0.9, "close": 1.2, "direction": "T"},
+            {"index": 4, "time": 400, "open": 1.2, "high": 1.3, "low": 1.0, "close": 1.1, "direction": "G"},
+        ]
+        lookback = (["G", "T", "G", "T"], evidence)
+        with patch("pattern5_engine.broker_day_offset", return_value=0), \
+             patch("pattern5_engine.look4", return_value=lookback) as mocked_look4:
+            _days, rows, detail = build_table("GBPUSD", date(2026, 8, 17), as_of=date(2026, 8, 17))
+
+        self.assertEqual(mocked_look4.call_count, 5)
+        for block in rows:
+            self.assertNotEqual(rows[block][0], "")
+            self.assertEqual(rows[block][1:], ["", "", "", ""])
+            self.assertEqual(detail[block][1:], ["", "", "", ""])
 
     def test_reverse_flips_final_signal_only_once(self):
         self.assertEqual(flip_signal("BUY"), "SELL")

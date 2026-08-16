@@ -19,6 +19,11 @@ const WEEKDAY_NAMES: Record<Locale, string[]> = {
   VN: ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"],
 };
 
+const ACCESS_WEEKDAY_LABELS: Record<Locale, Record<string, string>> = {
+  EN: { Mon: "Mon", Tue: "Tue", Wed: "Wed", Thu: "Thu", Fri: "Fri", Sat: "Sat", Sun: "Sun" },
+  VN: { Mon: "T2", Tue: "T3", Wed: "T4", Thu: "T5", Fri: "T6", Sat: "T7", Sun: "CN" },
+};
+
 function localizedDayName(dateValue: string, fallback: string, locale: Locale) {
   const parsed = new Date(`${dateValue}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return fallback;
@@ -50,6 +55,42 @@ function formatPublished(value: string | undefined, locale: Locale) {
 
 function candleDecimals(value: number) {
   return Math.abs(value) >= 100 ? 3 : 5;
+}
+
+function previousTradingDate(dateValue: string): Date | null {
+  const parsed = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const daysBack = parsed.getUTCDay() === 1 ? 3 : 1;
+  parsed.setUTCDate(parsed.getUTCDate() - daysBack);
+  return parsed;
+}
+
+function h14HistoryReference(table: Pattern5Table, locale: Locale) {
+  const signals = table.rows?.["14"] ?? [];
+  const days = table.days ?? [];
+  for (let index = Math.min(signals.length, days.length) - 1; index >= 0; index -= 1) {
+    const signal = signals[index];
+    const day = days[index];
+    if (!signal || !day) continue;
+    const sourceDate = previousTradingDate(day.date);
+    if (!sourceDate) continue;
+    const dateLabel = sourceDate.toLocaleDateString(locale === "EN" ? "en-GB" : "vi-VN", {
+      timeZone: "UTC",
+      day: "2-digit",
+      month: "2-digit",
+    });
+    const weekday = sourceDate.getUTCDay();
+    const weekdayLabel = locale === "VN"
+      ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][weekday]
+      : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday];
+    return {
+      group: signal.group,
+      pattern: signal.pattern,
+      dateLabel,
+      weekdayLabel,
+    };
+  }
+  return null;
 }
 
 function CandleChart({ candles }: { candles: Pattern5Candle[] }) {
@@ -139,6 +180,7 @@ function PairTable({ table, blocks, today, locale, onEvidence }: {
   }
 
   const days = table.days ?? [];
+  const h14Reference = h14HistoryReference(table, locale);
   return (
     <section className="oak-pair-card">
       <header className="oak-pair-header">
@@ -154,6 +196,16 @@ function PairTable({ table, blocks, today, locale, onEvidence }: {
         </div>
         <div className="oak-pair-blocks"><b>{blocks.length}</b><span>BLOCKS</span></div>
       </header>
+
+      {h14Reference && (
+        <div className="oak-h14-history">
+          <span>{locale === "EN" ? "H14 HISTORY" : "H14 LỊCH SỬ"}</span>
+          <b>{h14Reference.weekdayLabel} {h14Reference.dateLabel}</b>
+          <i>→</i>
+          <strong>{h14Reference.group}</strong>
+          <small>{h14Reference.pattern}</small>
+        </div>
+      )}
 
       <div className="oak-table-scroll lux-scroll">
         <table className="oak-signal-table">
@@ -316,7 +368,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
           <p>{modeCopy.detail}</p>
         </div>
         <div className="oak-access-state">
-          <span>{access.weekday}</span>
+          <span>{ACCESS_WEEKDAY_LABELS[locale][access.weekday] ?? access.weekday}</span>
           <i />
         </div>
         {access.mode === "vip" && (

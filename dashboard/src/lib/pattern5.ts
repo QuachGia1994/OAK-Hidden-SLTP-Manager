@@ -49,6 +49,41 @@ export type Pattern5Payload = {
 
 const LATEST_KEY = "robot-sltp:public:pattern5:latest";
 
+function vietnamDateKey(now = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+export function maskFuturePattern5(payload: Pattern5Payload | null, today = vietnamDateKey()): Pattern5Payload | null {
+  if (!payload) return null;
+  return {
+    ...payload,
+    tables: payload.tables.map((table) => {
+      const days = table.days ?? [];
+      const isFutureIndex = (index: number) => Boolean(days[index]?.date && days[index]!.date > today);
+      return {
+        ...table,
+        rows: table.rows
+          ? Object.fromEntries(Object.entries(table.rows).map(([block, items]) => [
+              block,
+              items.map((item, index) => isFutureIndex(index) ? "" : item),
+            ]))
+          : undefined,
+        detail: table.detail
+          ? Object.fromEntries(Object.entries(table.detail).map(([block, items]) => [
+              block,
+              items.map((item, index) => isFutureIndex(index) ? "" : item),
+            ]))
+          : undefined,
+      };
+    }),
+  };
+}
+
 function parsePayload(raw: unknown): Pattern5Payload | null {
   if (!raw) return null;
   try {

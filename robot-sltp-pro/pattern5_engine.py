@@ -4,9 +4,10 @@ import json
 import os
 import re
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import MetaTrader5 as mt5
 
@@ -28,7 +29,8 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 8
+CACHE_SCHEMA = 9
+VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 def flip_signal(signal: str) -> str:
@@ -191,13 +193,24 @@ def monday_of(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
 
-def build_table(symbol: str, week_start: date | None = None) -> tuple[list[date], dict[int, list[Any]], dict[int, list[str]]]:
-    week = week_start or monday_of(date.today())
+def vietnam_today() -> date:
+    return datetime.now(VIETNAM_TZ).date()
+
+
+def build_table(
+    symbol: str,
+    week_start: date | None = None,
+    as_of: date | None = None,
+) -> tuple[list[date], dict[int, list[Any]], dict[int, list[str]]]:
+    current_day = as_of or vietnam_today()
+    week = week_start or monday_of(current_day)
     days = [week + timedelta(days=index) for index in range(5)]
     offset = broker_day_offset(symbol)
     rows: dict[int, list[Any]] = {hour: [""] * 5 for hour in BLOCKS}
     detail = {hour: [""] * 5 for hour in BLOCKS}
     for day_index, day in enumerate(days):
+        if day > current_day:
+            continue
         lookback_day = prev_trading_day(day)
         for hour in BLOCKS:
             lookback = look4(symbol, anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset))
@@ -246,7 +259,7 @@ def _save_cache(cache: dict[str, Any]) -> None:
 
 
 def render_profile_cached(profile: str, selected: list[str] | None = None, week_start: str | None = None, force: bool = False) -> dict[str, Any]:
-    resolved_week = week_start or monday_of(date.today()).isoformat()
+    resolved_week = week_start or monday_of(vietnam_today()).isoformat()
     key = _cache_key(profile, resolved_week)
     cache = _load_cache()
     cached = cache.get(key)
@@ -288,7 +301,7 @@ def render_profile(profile: str, selected: list[str] | None = None, week_start: 
             })
         return {
             "profile": profile,
-            "weekStart": (monday or monday_of(date.today())).isoformat(),
+            "weekStart": (monday or monday_of(vietnam_today())).isoformat(),
             "blocks": BLOCKS,
             "tables": tables,
         }

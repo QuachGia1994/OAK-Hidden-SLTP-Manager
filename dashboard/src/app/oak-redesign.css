@@ -577,6 +577,24 @@ body.oak-body {
 .oak-pair-blocks { display: flex; align-items: baseline; gap: .35rem; color: var(--muted); }
 .oak-pair-blocks b { color: var(--terminal-accent); font: 900 1rem "Cascadia Mono", Consolas, monospace; }
 .oak-pair-blocks span { font: 800 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; }
+.oak-h14-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  min-height: 2.35rem;
+  padding: .48rem 1rem;
+  border-bottom: 1px solid var(--panel-border);
+  color: var(--muted);
+  background: color-mix(in srgb, var(--terminal-accent) 3.5%, var(--surface-raised));
+  font: 760 .56rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .04em;
+}
+.oak-h14-history > span { color: var(--muted); font-weight: 850; letter-spacing: .1em; }
+.oak-h14-history > b { color: var(--foreground); font-weight: 850; }
+.oak-h14-history > i { color: var(--muted); font-style: normal; }
+.oak-h14-history > strong { color: var(--terminal-accent); font-size: .7rem; font-weight: 950; }
+.oak-h14-history > small { margin-left: auto; color: var(--terminal-accent); font-size: .55rem; font-weight: 800; }
 
 .oak-table-scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
 .oak-signal-table { width: 100%; min-width: 41rem; border-collapse: separate; border-spacing: 0; table-layout: fixed; }

@@ -1,7 +1,7 @@
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { Pattern5Board } from "@/components/Pattern5Board";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
-import { getLatestPattern5, getPattern5Profile, type Pattern5Payload } from "@/lib/pattern5";
+import { getLatestPattern5, getPattern5Profile, maskFuturePattern5, type Pattern5Payload } from "@/lib/pattern5";
 import { getVipAccessState, redactPattern5Signals } from "@/lib/vip";
 import { headers } from "next/headers";
 
@@ -36,7 +36,8 @@ export default async function EnginePage() {
     getLatestPattern5(),
     getPattern5Profile(referenceProfile),
   ]);
-  const rawData = mergeEurReference(filterActivePairs(primary), filterActivePairs(reference));
+  const mergedData = mergeEurReference(filterActivePairs(primary), filterActivePairs(reference));
+  const rawData = maskFuturePattern5(mergedData);
   const data = access.unlocked ? rawData : redactPattern5Signals(rawData);
 
   return (
