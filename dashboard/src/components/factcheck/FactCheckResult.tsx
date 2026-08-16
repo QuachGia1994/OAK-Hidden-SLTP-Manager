@@ -2,100 +2,106 @@
 
 import type { FactCheckResult as FactCheckResultType } from "@/lib/factcheck/types";
 import { TEXT } from "@/lib/factcheck/locale-copy";
-import { getScoreColor, getVerdictBadgeClass } from "@/lib/factcheck/scoring-display";
 
 export function FactCheckResult({ result, locale }: { result: FactCheckResultType; locale: "VN" | "EN" }) {
   const t = TEXT[locale];
   const verdictLabel = t.verdictLabels[result.verdict];
+  const confidence = Math.max(0, Math.min(100, result.confidence));
 
   return (
-    <div className="space-y-4">
-      <section className="fact-panel rounded-2xl p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--muted)]">{t.result}</div>
-            <h2 className="mt-1 text-xl font-bold text-[var(--foreground)]">{t.resultTitle}</h2>
-            <div className="mt-2 text-xs text-[var(--muted)]">{t.model}: {result.model} · Live web evidence</div>
+    <div className="oak-fact-results">
+      <section className="oak-verdict-panel" data-verdict={result.verdict}>
+        <div className="oak-verdict-copy">
+          <span className="oak-eyebrow">{t.result} / AI EVIDENCE RESULT</span>
+          <div className="oak-verdict-title-row">
+            <h2>{t.resultTitle}</h2>
+            <span className="oak-verdict-badge" data-verdict={result.verdict}>{verdictLabel}</span>
           </div>
-          <span className={`rounded-lg border px-3 py-1 text-xs font-mono font-bold uppercase ${getVerdictBadgeClass(result.verdict)}`}>
-            {verdictLabel}
-          </span>
+          <p className="oak-model-line">{t.model}: <b>{result.model}</b> · LIVE WEB EVIDENCE</p>
+
+          <div className="oak-summary-card">
+            <small>{t.summaryTitle}</small>
+            <p>{result.summary}</p>
+          </div>
         </div>
 
-        <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row">
-          <div className="relative flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-4 border-[var(--panel-border)] bg-[var(--surface-raised)]">
-            <div className="text-center">
-              <span className={`block font-mono text-3xl font-black ${getScoreColor(result.confidence)}`}>{result.confidence}</span>
-              <small className="text-[9px] font-mono uppercase text-[var(--muted)]">{t.confidence}</small>
-            </div>
+        <div className="oak-confidence-block">
+          <div
+            className="oak-confidence-ring"
+            style={{ background: `conic-gradient(var(--oak-verdict-color) ${confidence * 3.6}deg, color-mix(in srgb, var(--panel-border) 78%, transparent) 0deg)` }}
+          >
+            <div><b>{confidence}</b><span>%</span><small>{t.confidence}</small></div>
           </div>
-          <div className="w-full flex-1">
-            <div className="fact-result-surface rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] px-4 py-3.5">
-              <div className="text-[10px] font-mono uppercase tracking-[0.24em] text-[var(--muted)]">{t.summaryTitle}</div>
-              <p className="mt-2 text-sm leading-relaxed text-[var(--foreground)]">{result.summary}</p>
-            </div>
+          <div className="oak-result-metrics">
+            <article><b>{result.claims.length}</b><span>{t.claims}</span></article>
+            <article><b>{result.sources.length}</b><span>{t.sources}</span></article>
           </div>
         </div>
       </section>
 
-      <section className="fact-panel rounded-2xl p-6">
-        <h3 className="text-sm font-bold text-[var(--foreground)]">{t.claims}</h3>
-        <div className="mt-4 space-y-3">
+      <section className="oak-claims-panel">
+        <header className="oak-section-head">
+          <div><span className="oak-eyebrow">CLAIM BREAKDOWN</span><h3>{t.claims}</h3></div>
+          <span>{String(result.claims.length).padStart(2, "0")}</span>
+        </header>
+        <div className="oak-claims-list">
           {result.claims.map((claim, index) => (
-            <article key={`${claim.claim}-${index}`} className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <b className="max-w-3xl text-sm text-[var(--foreground)]">{claim.claim}</b>
-                <span className={`rounded-md border px-2 py-1 text-[10px] font-mono font-bold uppercase ${getVerdictBadgeClass(claim.verdict)}`}>
-                  {t.verdictLabels[claim.verdict]} · {claim.confidence}%
-                </span>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-[var(--muted)]">{claim.explanation}</p>
-              {claim.source_ids.length > 0 && (
-                <div className="mt-2 text-[10px] font-mono text-[var(--terminal-accent)]">
-                  SOURCES: {claim.source_ids.map((id) => `#${id}`).join(", ")}
+            <article key={`${claim.claim}-${index}`} className="oak-claim-row" data-verdict={claim.verdict}>
+              <div className="oak-claim-index">{String(index + 1).padStart(2, "0")}</div>
+              <div className="oak-claim-body">
+                <div className="oak-claim-heading">
+                  <b>{claim.claim}</b>
+                  <span className="oak-verdict-badge" data-verdict={claim.verdict}>{t.verdictLabels[claim.verdict]} · {claim.confidence}%</span>
                 </div>
-              )}
+                <p>{claim.explanation}</p>
+                {claim.source_ids.length > 0 && (
+                  <div className="oak-claim-sources">
+                    <small>SOURCES</small>
+                    {claim.source_ids.map((id) => <span key={id}>#{id}</span>)}
+                  </div>
+                )}
+              </div>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="fact-panel rounded-2xl p-6">
-        <div className="flex items-center justify-between gap-4">
-          <h3 className="text-sm font-bold text-[var(--foreground)]">{t.sources}</h3>
-          <span className="text-xs font-mono text-[var(--muted)]">{result.sources.length}</span>
-        </div>
+      <section className="oak-sources-panel">
+        <header className="oak-section-head">
+          <div><span className="oak-eyebrow">TRACEABLE EVIDENCE</span><h3>{t.sources}</h3></div>
+          <span>{String(result.sources.length).padStart(2, "0")}</span>
+        </header>
+
         {result.sources.length ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="oak-source-grid">
             {result.sources.map((source, index) => (
               <a
                 key={`${source.url}-${index}`}
                 href={source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-xl border border-[var(--panel-border)] bg-[var(--surface-raised)] p-4 transition-colors hover:border-[var(--terminal-accent)]/40"
+                className="oak-source-card"
               >
-                <span className="text-[10px] font-mono text-[var(--terminal-accent)]">SOURCE #{source.id}</span>
-                <div className="mt-1 text-sm font-semibold text-[var(--foreground)]">{source.title}</div>
+                <div className="oak-source-topline">
+                  <span>SOURCE #{source.id}</span>
+                  <i>↗</i>
+                </div>
+                <h4>{source.title}</h4>
                 {(source.publisher || source.published_at) && (
-                  <div className="mt-1 text-[10px] text-[var(--muted)]">
-                    {[source.publisher, source.published_at].filter(Boolean).join(" · ")}
-                  </div>
+                  <div className="oak-source-meta">{[source.publisher, source.published_at].filter(Boolean).join(" · ")}</div>
                 )}
-                {source.snippet && <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-[var(--muted)]">{source.snippet}</p>}
+                {source.snippet && <p>{source.snippet}</p>}
               </a>
             ))}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-[var(--muted)]">{t.noSourcesFound}</p>
+          <div className="oak-empty-state"><span>∅</span><p>{t.noSourcesFound}</p></div>
         )}
 
         {result.search_queries.length > 0 && (
-          <div className="mt-5">
-            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--muted)]">{t.searchQueries}</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {result.search_queries.map((query) => <span key={query} className="rounded-md border border-[var(--panel-border)] px-2 py-1 text-[10px] text-[var(--muted)]">{query}</span>)}
-            </div>
+          <div className="oak-query-strip">
+            <small>{t.searchQueries}</small>
+            <div>{result.search_queries.map((query) => <span key={query}>{query}</span>)}</div>
           </div>
         )}
       </section>

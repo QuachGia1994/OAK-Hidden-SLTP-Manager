@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
 
 type Locale = "EN" | "VN";
@@ -11,6 +11,8 @@ type VipAccessView = {
   weekday: string;
   mode: "vip" | "weekend" | "locked";
 };
+
+type EvidenceSelection = { title: string; detail?: string; signal: Pattern5Signal };
 
 const WEEKDAY_NAMES: Record<Locale, string[]> = {
   EN: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
@@ -34,7 +36,7 @@ function ictToday() {
 }
 
 function formatPublished(value: string | undefined, locale: Locale) {
-  if (!value) return locale === "EN" ? "Waiting for publisher" : "Đang chờ dữ liệu mới";
+  if (!value) return locale === "EN" ? "Awaiting feed" : "Đang chờ feed";
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString(locale === "EN" ? "en-GB" : "vi-VN", {
@@ -45,49 +47,146 @@ function formatPublished(value: string | undefined, locale: Locale) {
     minute: "2-digit",
   });
 }
-type EvidenceSelection = { title: string; detail?: string; signal: Pattern5Signal };
 
-function candleDecimals(value: number) { return Math.abs(value) >= 100 ? 3 : 5; }
+function candleDecimals(value: number) {
+  return Math.abs(value) >= 100 ? 3 : 5;
+}
+
 function CandleChart({ candles }: { candles: Pattern5Candle[] }) {
   if (!candles.length) return null;
   const high = Math.max(...candles.map((item) => item.high));
   const low = Math.min(...candles.map((item) => item.low));
   const span = high - low || 1;
-  const y = (price: number) => 16 + ((high - price) / span) * 128;
-  return <svg className="pattern5-web-chart" viewBox="0 0 360 180" role="img" aria-label="4 H4 candles oldest to newest">{candles.map((candle, index) => { const x = 48 + index * 88; const openY = y(candle.open); const closeY = y(candle.close); const bodyY = Math.min(openY, closeY); const bodyHeight = Math.max(3, Math.abs(openY - closeY)); const side = candle.close >= candle.open ? "up" : "down"; return <g key={`${candle.time}-${index}`} className={`pattern5-web-candle ${side}`}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} /><rect x={x - 13} y={bodyY} width="26" height={bodyHeight} rx="2" /><text x={x} y="168" textAnchor="middle">#{index + 1}</text></g>; })}</svg>;
+  const y = (price: number) => 20 + ((high - price) / span) * 124;
+
+  return (
+    <svg className="oak-candle-chart" viewBox="0 0 420 190" role="img" aria-label="4 H4 candles oldest to newest">
+      <defs>
+        <linearGradient id="chartFade" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="currentColor" stopOpacity="0.08" />
+          <stop offset="1" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0, 1, 2, 3].map((line) => <line key={line} className="oak-chart-gridline" x1="18" x2="402" y1={34 + line * 38} y2={34 + line * 38} />)}
+      {candles.map((candle, index) => {
+        const x = 78 + index * 88;
+        const openY = y(candle.open);
+        const closeY = y(candle.close);
+        const bodyY = Math.min(openY, closeY);
+        const bodyHeight = Math.max(4, Math.abs(openY - closeY));
+        const side = candle.close >= candle.open ? "up" : "down";
+        return (
+          <g key={`${candle.time}-${index}`} className={`oak-candle ${side}`}>
+            <line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} />
+            <rect x={x - 14} y={bodyY} width="28" height={bodyHeight} rx="3" />
+            <text x={x} y="174" textAnchor="middle">#{index + 1}</text>
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
-function Cell({ signal, detail, onEvidence }: { signal: Pattern5Signal | ""; detail?: string; onEvidence: (signal: Pattern5Signal) => void }) {
-  if (!signal) return <span className="pattern5-web-empty">—</span>;
+function Cell({ signal, detail, onEvidence }: {
+  signal: Pattern5Signal | "";
+  detail?: string;
+  onEvidence: (signal: Pattern5Signal) => void;
+}) {
+  if (!signal) return <span className="oak-signal-empty">—</span>;
   const locked = Boolean(signal.locked || !signal.signal || !signal.baseSignal);
-  return <div className="pattern5-web-cell" title={detail || undefined} data-vip-locked={locked ? "true" : undefined}>{!locked && signal.reversed && <span className="pattern5-web-reverse-badge">REV</span>}<span className="pattern5-web-group">{signal.group}</span>{locked ? <span className="pattern5-web-vip-signal">VIP LOCKED</span> : <b data-side={signal.signal || undefined}>{signal.signal}</b>}<span className="pattern5-web-base">{locked ? "Base •••" : `Base ${signal.baseSignal}`}</span><button className="pattern5-web-pattern" onClick={() => onEvidence(signal)}>{signal.pattern}</button></div>;
+
+  return (
+    <div
+      className="oak-signal-cell"
+      title={detail || undefined}
+      data-vip-locked={locked ? "true" : undefined}
+      data-side={locked ? "LOCKED" : signal.signal || undefined}
+      data-reversed={!locked && signal.reversed ? "true" : undefined}
+    >
+      <div className="oak-signal-topline">
+        <span className="oak-signal-group">{signal.group}</span>
+        {!locked && signal.reversed && <span className="oak-reverse-chip">REV</span>}
+      </div>
+      {locked ? (
+        <span className="oak-vip-mask"><i /> VIP</span>
+      ) : (
+        <b className="oak-signal-side">{signal.signal}</b>
+      )}
+      <div className="oak-signal-footer">
+        <span>{locked ? "BASE •••" : `BASE ${signal.baseSignal}`}</span>
+        <button type="button" onClick={() => onEvidence(signal)} aria-label={`Open evidence ${signal.pattern}`}>
+          {signal.pattern}
+        </button>
+      </div>
+    </div>
+  );
 }
 
-function PairTable({ table, blocks, today, locale, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; locale: Locale; onEvidence: (selection: EvidenceSelection) => void }) {
+function PairTable({ table, blocks, today, locale, onEvidence }: {
+  table: Pattern5Table;
+  blocks: number[];
+  today: string;
+  locale: Locale;
+  onEvidence: (selection: EvidenceSelection) => void;
+}) {
   if (table.error) {
-    return <section className="pattern5-web-card"><div className="pattern5-web-error"><b>{table.base}</b><span>{table.error}</span></div></section>;
+    return (
+      <section className="oak-pair-card oak-pair-error">
+        <strong>{table.base}</strong>
+        <span>{table.error}</span>
+      </section>
+    );
   }
+
   const days = table.days ?? [];
   return (
-    <section className="pattern5-web-card">
-      <div className="pattern5-web-pair-head">
-        <div><strong>{table.base}</strong>{table.symbol && table.symbol !== table.base && <span>→ {table.symbol}</span>}{table.sourceProfile && <span>REF · {table.sourceProfile}</span>}</div>
-        <span>{blocks.length} blocks</span>
-      </div>
-      <div className="pattern5-web-scroll lux-scroll">
-        <table className="pattern5-web-table">          <thead>
+    <section className="oak-pair-card">
+      <header className="oak-pair-header">
+        <div className="oak-pair-identity">
+          <span className="oak-pair-beacon" aria-hidden="true"><i /></span>
+          <div>
+            <div className="oak-pair-name-row">
+              <strong>{table.base}</strong>
+              {table.symbol && table.symbol !== table.base && <span>→ {table.symbol}</span>}
+            </div>
+            <small>{table.sourceProfile ? `REFERENCE · ${table.sourceProfile}` : "ENGINE 5 · PATTERN MATRIX"}</small>
+          </div>
+        </div>
+        <div className="oak-pair-blocks"><b>{blocks.length}</b><span>BLOCKS</span></div>
+      </header>
+
+      <div className="oak-table-scroll lux-scroll">
+        <table className="oak-signal-table">
+          <thead>
             <tr>
-              <th className="pattern5-web-sticky">Block</th>
-              {days.map((day) => <th key={day.date} data-today={day.date === today}><span>{localizedDayName(day.date, day.name, locale)}</span><small>{day.display}</small></th>)}
+              <th className="oak-table-sticky"><span>H</span></th>
+              {days.map((day) => (
+                <th key={day.date} data-today={day.date === today ? "true" : undefined}>
+                  <span>{localizedDayName(day.date, day.name, locale)}</span>
+                  <small>{day.display}</small>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {blocks.map((block) => (
               <tr key={block}>
-                <th className="pattern5-web-sticky">H{block}</th>
+                <th className="oak-table-sticky"><b>{String(block).padStart(2, "0")}</b></th>
                 {(table.rows?.[String(block)] ?? []).map((signal, index) => (
-                  <td key={`${block}-${index}`} data-today={days[index]?.date === today} data-reversed={signal && signal.reversed ? "true" : undefined}>
-                    <Cell signal={signal} detail={table.detail?.[String(block)]?.[index]} onEvidence={(value) => onEvidence({ title: `${table.base} · H${block} · ${days[index]?.display ?? ""}`, detail: table.detail?.[String(block)]?.[index], signal: value })} />
+                  <td
+                    key={`${block}-${index}`}
+                    data-today={days[index]?.date === today ? "true" : undefined}
+                    data-reversed={signal && signal.reversed ? "true" : undefined}
+                  >
+                    <Cell
+                      signal={signal}
+                      detail={table.detail?.[String(block)]?.[index]}
+                      onEvidence={(value) => onEvidence({
+                        title: `${table.base} · H${block} · ${days[index]?.display ?? ""}`,
+                        detail: table.detail?.[String(block)]?.[index],
+                        signal: value,
+                      })}
+                    />
                   </td>
                 ))}
               </tr>
@@ -99,10 +198,64 @@ function PairTable({ table, blocks, today, locale, onEvidence }: { table: Patter
   );
 }
 
-function EvidenceModal({ selection, locale, onClose }: { selection: EvidenceSelection; locale: Locale; onClose: () => void }) {
-  const hint = locale === "EN" ? "Left → right = oldest → newest · direct OHLC from the four lookback candles" : "Trái → phải = cũ → mới · OHLC trực tiếp từ 4 nến lookback";
+function EvidenceModal({ selection, locale, onClose }: {
+  selection: EvidenceSelection;
+  locale: Locale;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  const hint = locale === "EN"
+    ? "Oldest → newest · direct OHLC from the 4 H4 lookback candles"
+    : "Cũ → mới · OHLC trực tiếp từ 4 nến H4 lookback";
   const locked = Boolean(selection.signal.locked || !selection.signal.signal || !selection.signal.baseSignal);
-  return <div className="pattern5-web-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="pattern5-web-modal"><header><div><b>{selection.title}</b><small>{hint}</small></div><button onClick={onClose} aria-label="Close">×</button></header><div className="pattern5-web-modal-summary"><span>Base <b>{locked ? "•••" : selection.signal.baseSignal}</b></span><span data-reversed={!locked && selection.signal.reversed ? "true" : undefined}>{locked ? "VIP LOCKED" : <>{selection.signal.reversed ? "REVERSE" : "NORMAL"} → <b>{selection.signal.signal}</b></>}</span><span>{selection.signal.group} · {selection.signal.pattern}</span></div><CandleChart candles={selection.signal.evidence} /><div className="pattern5-web-ohlc"><div className="pattern5-web-ohlc-head"><span>Candle</span><span>Open</span><span>High</span><span>Low</span><span>Close</span></div>{selection.signal.evidence.map((candle, index) => { const digits = candleDecimals(candle.close); return <div className="pattern5-web-ohlc-row" key={`${candle.time}-${index}`}><b>#{index + 1}</b><span>{candle.open.toFixed(digits)}</span><span>{candle.high.toFixed(digits)}</span><span>{candle.low.toFixed(digits)}</span><span>{candle.close.toFixed(digits)}</span></div>; })}</div>{selection.detail && <div className="pattern5-web-modal-detail">{selection.detail}</div>}</section></div>;
+
+  return (
+    <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className="oak-evidence-modal" role="dialog" aria-modal="true" aria-label={selection.title}>
+        <header className="oak-modal-header">
+          <div>
+            <span className="oak-eyebrow">EVIDENCE / 04 CANDLES</span>
+            <h2>{selection.title}</h2>
+            <p>{hint}</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close">×</button>
+        </header>
+
+        <div className="oak-evidence-summary">
+          <article><small>BASE</small><b>{locked ? "•••" : selection.signal.baseSignal}</b></article>
+          <article data-state={!locked && selection.signal.reversed ? "reverse" : "normal"}>
+            <small>{locked ? "ACCESS" : selection.signal.reversed ? "REVERSE" : "NORMAL"}</small>
+            <b>{locked ? "VIP" : selection.signal.signal}</b>
+          </article>
+          <article><small>CLASS</small><b>{selection.signal.group}</b><span>{selection.signal.pattern}</span></article>
+        </div>
+
+        <div className="oak-chart-shell"><CandleChart candles={selection.signal.evidence} /></div>
+
+        <div className="oak-ohlc-table">
+          <div className="oak-ohlc-head"><span>#</span><span>OPEN</span><span>HIGH</span><span>LOW</span><span>CLOSE</span></div>
+          {selection.signal.evidence.map((candle, index) => {
+            const digits = candleDecimals(candle.close);
+            return (
+              <div className="oak-ohlc-row" key={`${candle.time}-${index}`}>
+                <b>{String(index + 1).padStart(2, "0")}</b>
+                <span>{candle.open.toFixed(digits)}</span>
+                <span>{candle.high.toFixed(digits)}</span>
+                <span>{candle.low.toFixed(digits)}</span>
+                <span>{candle.close.toFixed(digits)}</span>
+              </div>
+            );
+          })}
+        </div>
+        {selection.detail && <p className="oak-evidence-detail">{selection.detail}</p>}
+      </section>
+    </div>
+  );
 }
 
 function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) {
@@ -147,57 +300,135 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
     }
   };
 
-  if (access.mode === "vip") {
-    return <div className="pattern5-vip-banner" data-mode="vip"><span>◆</span><div><b>VIP UNLOCKED</b><small>{isEn ? "BUY/SELL signals are unlocked." : "Tín hiệu BUY/SELL đã được mở khóa."}</small></div><button disabled={loading} onClick={() => void logout()}>{loading ? (isEn ? "Logging out…" : "Đang thoát…") : (isEn ? "Exit VIP" : "Thoát VIP")}</button></div>;
-  }
-  if (access.mode === "weekend") {
-    return <div className="pattern5-vip-banner" data-mode="weekend"><span>◇</span><div><b>{isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE"}</b><small>{isEn ? "Saturday & Sunday: BUY/SELL signals are free." : "Thứ 7 & Chủ nhật: BUY/SELL được mở miễn phí."}</small></div></div>;
-  }
+  const modeCopy = access.mode === "vip"
+    ? { title: "VIP UNLOCKED", detail: isEn ? "Full BUY/SELL signal layer is active." : "Đã mở toàn bộ lớp tín hiệu BUY/SELL.", action: isEn ? "Exit VIP" : "Thoát VIP" }
+    : access.mode === "weekend"
+      ? { title: isEn ? "FREE WEEKEND" : "CUỐI TUẦN FREE", detail: isEn ? "Saturday & Sunday signals are open." : "Thứ 7 & Chủ nhật mở tín hiệu miễn phí.", action: "" }
+      : { title: "VIP LOCKED", detail: isEn ? "Monday–Friday signals require VIP access." : "Thứ 2–Thứ 6 cần VIP để xem BUY/SELL.", action: isEn ? "Unlock" : "Mở VIP" };
 
-  return <>
-    <div className="pattern5-vip-banner" data-mode="locked">
-      <span>◆</span>
-      <div><b>VIP LOCKED</b><small>{isEn ? "Monday–Friday: unlock VIP to view BUY/SELL signals." : "Thứ 2–Thứ 6: mở VIP để xem tín hiệu BUY/SELL."}</small></div>
-      <button onClick={() => setOpen(true)}>{isEn ? "Unlock VIP" : "Mở VIP"}</button>
-    </div>
-    {open && <div className="pattern5-web-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
-      <section className="pattern5-vip-modal">
-        <header><div><b>VIP UNLOCK</b><small>{isEn ? "Enter your VIP access code." : "Nhập mã truy cập VIP."}</small></div><button onClick={() => setOpen(false)} aria-label="Close">×</button></header>
-        <label><span>{isEn ? "VIP access code" : "Mã VIP"}</span><input type="password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void unlock()} autoFocus /></label>
-        {error && <p>{error}</p>}
-        <button className="pattern5-vip-submit" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading ? (isEn ? "Unlocking…" : "Đang mở…") : "VIP UNLOCK"}</button>
+  return (
+    <>
+      <section className="oak-access-panel" data-mode={access.mode}>
+        <div className="oak-access-symbol"><span>{access.mode === "vip" ? "◆" : access.mode === "weekend" ? "◇" : "◈"}</span><i /></div>
+        <div className="oak-access-copy">
+          <small>ACCESS LAYER</small>
+          <b>{modeCopy.title}</b>
+          <p>{modeCopy.detail}</p>
+        </div>
+        <div className="oak-access-state">
+          <span>{access.weekday}</span>
+          <i />
+        </div>
+        {access.mode === "vip" && (
+          <button type="button" disabled={loading} onClick={() => void logout()}>{loading ? "…" : modeCopy.action}</button>
+        )}
+        {access.mode === "locked" && (
+          <button type="button" onClick={() => setOpen(true)}>{modeCopy.action}</button>
+        )}
       </section>
-    </div>}
-  </>;
+
+      {open && (
+        <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
+          <section className="oak-vip-modal" role="dialog" aria-modal="true" aria-label="VIP Unlock">
+            <header className="oak-modal-header">
+              <div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal weekday signals." : "Nhập mã truy cập để mở tín hiệu ngày thường."}</p></div>
+              <button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button>
+            </header>
+            <label className="oak-vip-field">
+              <span>{isEn ? "ACCESS CODE" : "MÃ VIP"}</span>
+              <input
+                type="password"
+                value={token}
+                onChange={(event) => setToken(event.target.value)}
+                onKeyDown={(event) => event.key === "Enter" && void unlock()}
+                autoFocus
+                autoComplete="current-password"
+              />
+            </label>
+            {error && <p className="oak-form-error">{error}</p>}
+            <button className="oak-primary-action" type="button" disabled={loading || !token.trim()} onClick={() => void unlock()}>
+              <span>{loading ? (isEn ? "UNLOCKING" : "ĐANG MỞ") : "UNLOCK SIGNALS"}</span><i>→</i>
+            </button>
+          </section>
+        </div>
+      )}
+    </>
+  );
 }
 
-export function Pattern5Board({ data, locale, access }: { data: Pattern5Payload | null; locale: Locale; access: VipAccessView }) {
+export function Pattern5Board({ data, locale, access }: {
+  data: Pattern5Payload | null;
+  locale: Locale;
+  access: VipAccessView;
+}) {
   const today = ictToday();
   const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const text = locale === "EN"
-    ? { kicker: "REMOTE MONITOR", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt, then apply the H/day Reverse Signal matrix · auto refresh every 20 seconds", clickHint: "Tip: Click the Pattern line inside any populated cell to open the 4-candle chart and OHLC evidence.", empty: "No Pattern5 feed has been published yet.", week: "Week", updated: "Updated" }
-    : { kicker: "GIÁM SÁT TỪ XA", title: "Engine 5 Pattern", subtitle: "Base #4 + Sw/Bt rồi áp ma trận Reverse Signal theo H/thứ · tự làm mới mỗi 20 giây", clickHint: "Mẹo: Click trực tiếp vào dòng Pattern (dòng 4) trong từng ô để xem chart 4 nến và dữ liệu OHLC làm bằng chứng.", empty: "Chưa có feed Pattern5 được publish.", week: "Tuần", updated: "Cập nhật" };
+    ? {
+        eyebrow: "MARKET INTELLIGENCE / ENGINE 05",
+        title: "Pattern Matrix",
+        subtitle: "Base #4 + Sw/Bt · H/day reverse layer · server feed refresh every 20 seconds",
+        hint: "Open any pattern code to inspect the four H4 candles and raw OHLC evidence.",
+        empty: "No Pattern5 feed has been published yet.",
+        week: "WEEK",
+        updated: "UPDATED",
+      }
+    : {
+        eyebrow: "MARKET INTELLIGENCE / ENGINE 05",
+        title: "Pattern Matrix",
+        subtitle: "Base #4 + Sw/Bt · lớp Reverse theo H/thứ · feed server tự làm mới mỗi 20 giây",
+        hint: "Mở mã Pattern trong từng ô để xem 4 nến H4 và dữ liệu OHLC gốc.",
+        empty: "Chưa có feed Pattern5 được publish.",
+        week: "TUẦN",
+        updated: "CẬP NHẬT",
+      };
 
   return (
-    <div className="pattern5-web-screen">
-      <header className="pattern5-web-hero">
-        <div>
-          <p className="terminal-kicker">{text.kicker}</p>
-          <h1>{text.title}</h1>
+    <div className="oak-engine-screen">
+      <section className="oak-engine-command">
+        <div className="oak-engine-heading">
+          <span className="oak-eyebrow">{text.eyebrow}</span>
+          <div className="oak-engine-title-row">
+            <h1>{text.title}</h1>
+            <span className="oak-engine-version">E5</span>
+          </div>
           <p>{text.subtitle}</p>
         </div>
-        {data && <div className="pattern5-web-meta"><span><small>Profile</small><b>{data.profile}</b></span><span><small>{text.week}</small><b>{data.weekStart}</b></span><span><small>{text.updated}</small><b>{formatPublished(data.publishedAt, locale)}</b></span></div>}
-      </header>
+
+        {data && (
+          <div className="oak-engine-metadata">
+            <article><small>PROFILE</small><b>{data.profile}</b></article>
+            <article><small>{text.week}</small><b>{data.weekStart}</b></article>
+            <article><small>{text.updated}</small><b>{formatPublished(data.publishedAt, locale)}</b></article>
+          </div>
+        )}
+      </section>
+
       <VipGate access={access} locale={locale} />
-      <div className="pattern5-web-click-hint">{text.clickHint}</div>
+
+      <div className="oak-evidence-hint">
+        <span>04</span>
+        <p>{text.hint}</p>
+        <i aria-hidden="true">↗</i>
+      </div>
 
       {!data ? (
-        <div className="pattern5-web-empty-state">{text.empty}</div>
+        <div className="oak-empty-state"><span>∅</span><p>{text.empty}</p></div>
       ) : (
-        <div className="pattern5-web-grid">
-          {data.tables.map((table) => <PairTable key={table.base} table={table} blocks={data.blocks} today={today} locale={locale} onEvidence={setSelection} />)}
+        <div className="oak-pair-grid">
+          {data.tables.map((table) => (
+            <PairTable
+              key={table.base}
+              table={table}
+              blocks={data.blocks}
+              today={today}
+              locale={locale}
+              onEvidence={setSelection}
+            />
+          ))}
         </div>
       )}
+
       {selection && <EvidenceModal selection={selection} locale={locale} onClose={() => setSelection(null)} />}
     </div>
   );

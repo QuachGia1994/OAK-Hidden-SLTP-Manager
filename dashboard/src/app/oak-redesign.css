@@ -1,0 +1,1161 @@
+/* OAK Gatekeeper — 2026 institutional motion redesign */
+
+:root {
+  --background: #f3f5f1;
+  --foreground: #0c1712;
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-raised: rgba(247, 250, 247, 0.94);
+  --panel-border: rgba(12, 23, 18, 0.13);
+  --muted: #56645d;
+  --terminal-accent: #00865d;
+  --terminal-accent-strong: #006f4d;
+  --terminal-danger: #c83d50;
+  --terminal-warning: #a56d0b;
+  --reverse-bg: rgba(116, 79, 180, 0.09);
+  --reverse-border: rgba(116, 79, 180, 0.45);
+  --reverse-text: #65419f;
+  --oak-glow: rgba(0, 134, 93, 0.16);
+  --oak-panel: rgba(255, 255, 255, 0.78);
+  --oak-panel-solid: #ffffff;
+  --oak-ink-soft: rgba(12, 23, 18, 0.58);
+  --oak-shadow: 0 18px 55px rgba(20, 35, 27, 0.08), 0 1px 0 rgba(255,255,255,.9) inset;
+}
+
+.dark {
+  --background: #050806;
+  --foreground: #f1f7f3;
+  --surface: rgba(12, 18, 15, 0.88);
+  --surface-raised: rgba(17, 25, 21, 0.92);
+  --panel-border: rgba(217, 236, 225, 0.105);
+  --muted: #8f9e96;
+  --terminal-accent: #25e6a4;
+  --terminal-accent-strong: #5af2ba;
+  --terminal-danger: #ff6576;
+  --terminal-warning: #f5bd56;
+  --reverse-bg: rgba(149, 105, 245, 0.12);
+  --reverse-border: rgba(168, 133, 247, 0.48);
+  --reverse-text: #c8afff;
+  --oak-glow: rgba(37, 230, 164, 0.13);
+  --oak-panel: rgba(9, 14, 12, 0.78);
+  --oak-panel-solid: #0b100e;
+  --oak-ink-soft: rgba(241, 247, 243, 0.48);
+  --oak-shadow: 0 24px 70px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255,255,255,.035) inset;
+}
+
+.contrast {
+  --background: #030303;
+  --foreground: #fff8e6;
+  --surface: rgba(12, 11, 8, 0.9);
+  --surface-raised: rgba(19, 17, 12, 0.94);
+  --panel-border: rgba(239, 200, 97, 0.17);
+  --muted: #b8a77c;
+  --terminal-accent: #efc861;
+  --terminal-accent-strong: #ffe09a;
+  --terminal-danger: #ff766c;
+  --terminal-warning: #f4c559;
+  --oak-glow: rgba(239, 200, 97, 0.13);
+  --oak-panel: rgba(11, 10, 7, 0.82);
+  --oak-panel-solid: #0b0a07;
+}
+
+html { scroll-behavior: smooth; }
+body.oak-body {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.oak-main { position: relative; z-index: 1; }
+
+.oak-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.oak-ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--terminal-accent) 7%, transparent), transparent 40%),
+    linear-gradient(180deg, transparent 0 68%, color-mix(in srgb, var(--background) 90%, transparent));
+}
+
+.oak-ambient-orb {
+  position: absolute;
+  width: min(42rem, 62vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(95px);
+  opacity: .55;
+  will-change: transform;
+}
+
+.oak-ambient-orb-a {
+  top: -26rem;
+  left: -10rem;
+  background: color-mix(in srgb, var(--terminal-accent) 30%, transparent);
+  animation: oak-orb-a 26s ease-in-out infinite alternate;
+}
+
+.oak-ambient-orb-b {
+  right: -24rem;
+  top: 18vh;
+  background: color-mix(in srgb, var(--terminal-accent) 15%, #577aee 14%);
+  animation: oak-orb-b 32s ease-in-out infinite alternate;
+}
+
+.oak-ambient-grid {
+  position: absolute;
+  inset: 0;
+  opacity: .2;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--panel-border) 45%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--panel-border) 45%, transparent) 1px, transparent 1px);
+  background-size: 68px 68px;
+  mask-image: linear-gradient(to bottom, black, transparent 80%);
+  animation: oak-grid-drift 36s linear infinite;
+}
+
+.oak-ambient-scan {
+  position: absolute;
+  inset: -30% 0 auto;
+  height: 22%;
+  opacity: .12;
+  background: linear-gradient(180deg, transparent, var(--terminal-accent), transparent);
+  filter: blur(36px);
+  animation: oak-scan 14s ease-in-out infinite;
+}
+
+.page-shell,
+.nav-shell { max-width: 1500px; }
+.page-shell { padding-top: clamp(1rem, 2vw, 1.6rem); padding-bottom: 3rem; }
+
+/* Navigation */
+.oak-nav {
+  border-bottom: 1px solid color-mix(in srgb, var(--panel-border) 75%, transparent);
+  background: color-mix(in srgb, var(--background) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(145%);
+  -webkit-backdrop-filter: blur(24px) saturate(145%);
+  box-shadow: 0 10px 38px rgba(0,0,0,.05);
+}
+
+.oak-nav::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--terminal-accent) 58%, transparent), transparent);
+  opacity: .35;
+}
+
+.oak-nav-layout {
+  min-height: 4.5rem;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.oak-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: .7rem;
+  min-width: 0;
+}
+
+.oak-brand-icon {
+  position: relative;
+  display: grid;
+  width: 2.55rem;
+  height: 2.55rem;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 42%, var(--panel-border));
+  border-radius: .8rem;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--terminal-accent) 12%, var(--surface)), var(--surface));
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--terminal-accent) 4%, transparent);
+  overflow: hidden;
+  transition: transform .45s cubic-bezier(.2,.8,.2,1), box-shadow .45s ease;
+}
+
+.oak-brand:hover .oak-brand-icon {
+  transform: rotate(-4deg) scale(1.04);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--terminal-accent) 7%, transparent), 0 10px 30px var(--oak-glow);
+}
+
+.oak-brand-icon img { width: 2rem; height: 2rem; object-fit: contain; }
+.oak-brand-icon i {
+  position: absolute;
+  inset: auto -50% -70% 10%;
+  height: 120%;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.26), transparent 70%);
+  transform: rotate(20deg);
+  animation: oak-logo-sheen 7s ease-in-out infinite;
+}
+
+.oak-brand-copy { display: grid; line-height: 1; }
+.oak-brand-copy small {
+  color: var(--muted);
+  font: 800 .54rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .22em;
+}
+.oak-brand-copy strong {
+  margin-top: .28rem;
+  font: 900 .92rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: -.035em;
+  white-space: nowrap;
+}
+.oak-brand-copy b { color: var(--terminal-accent); }
+
+.oak-nav-tabs {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  min-width: 0;
+}
+
+.oak-nav-link {
+  position: relative;
+  display: inline-flex;
+  min-height: 2.65rem;
+  align-items: center;
+  gap: .45rem;
+  padding: .6rem .85rem;
+  border-radius: .8rem;
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 750;
+  transition: color .28s ease, background-color .28s ease, transform .28s cubic-bezier(.2,.8,.2,1);
+}
+
+.oak-nav-link:hover {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  transform: translateY(-1px);
+}
+
+.oak-nav-link[data-active="true"] {
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface));
+}
+
+.oak-nav-icon { width: 1rem; height: 1rem; color: currentColor; }
+.oak-nav-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.oak-nav-link[data-active="true"] .oak-nav-icon { color: var(--terminal-accent); }
+.oak-nav-underline {
+  position: absolute;
+  inset: auto .9rem .28rem;
+  height: 1px;
+  border-radius: 999px;
+  background: var(--terminal-accent);
+  transform: scaleX(0);
+  opacity: 0;
+  transition: transform .34s cubic-bezier(.2,.8,.2,1), opacity .34s ease;
+}
+.oak-nav-link[data-active="true"] .oak-nav-underline { transform: scaleX(1); opacity: 1; }
+
+.oak-nav-controls { display: flex; align-items: center; gap: .5rem; }
+.oak-locale-switch {
+  display: inline-flex;
+  padding: .22rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .72rem;
+  background: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+}
+.oak-locale-switch button {
+  min-width: 2.25rem;
+  height: 2rem;
+  border-radius: .52rem;
+  color: var(--muted);
+  font: 850 .62rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  transition: color .24s ease, background-color .24s ease, box-shadow .24s ease;
+}
+.oak-locale-switch button[data-active="true"] {
+  color: #03110c;
+  background: var(--terminal-accent);
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--terminal-accent) 22%, transparent);
+}
+.oak-theme-toggle {
+  display: grid;
+  width: 2.45rem;
+  height: 2.45rem;
+  place-items: center;
+  border: 1px solid var(--panel-border);
+  border-radius: .72rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface-raised) 75%, transparent);
+  transition: transform .35s cubic-bezier(.2,.8,.2,1), color .25s ease, border-color .25s ease;
+}
+.oak-theme-toggle:hover { transform: rotate(12deg); color: var(--terminal-accent); border-color: color-mix(in srgb, var(--terminal-accent) 42%, var(--panel-border)); }
+.oak-theme-glyph { font-size: 1rem; line-height: 1; }
+
+/* Shared motion primitives */
+.oak-eyebrow {
+  color: var(--terminal-accent);
+  font: 850 .62rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .19em;
+  text-transform: uppercase;
+}
+
+.oak-primary-action {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: .7rem;
+  padding: .7rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 68%, var(--panel-border));
+  border-radius: .75rem;
+  color: #03130d;
+  background: var(--terminal-accent);
+  font: 900 .7rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--terminal-accent) 16%, transparent);
+  transition: transform .36s cubic-bezier(.2,.8,.2,1), box-shadow .36s ease, opacity .24s ease;
+}
+.oak-primary-action::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,.35), transparent 75%);
+  transform: translateX(-130%);
+  transition: transform .7s cubic-bezier(.2,.8,.2,1);
+}
+.oak-primary-action:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 18px 40px color-mix(in srgb, var(--terminal-accent) 24%, transparent); }
+.oak-primary-action:hover:not(:disabled)::before { transform: translateX(130%); }
+.oak-primary-action:active:not(:disabled) { transform: translateY(0) scale(.985); }
+.oak-primary-action:disabled { opacity: .4; cursor: not-allowed; }
+.oak-primary-action i { font-style: normal; font-size: 1rem; transition: transform .28s ease; }
+.oak-primary-action:hover i { transform: translateX(3px); }
+
+.oak-empty-state {
+  display: flex;
+  min-height: 8rem;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  border: 1px dashed var(--panel-border);
+  border-radius: 1rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+.oak-empty-state > span { color: var(--terminal-accent); font: 900 1.25rem "Cascadia Mono", Consolas, monospace; }
+
+/* Engine 5 */
+.oak-engine-screen {
+  display: grid;
+  gap: 1rem;
+  animation: oak-page-enter .8s cubic-bezier(.16,1,.3,1) both;
+}
+
+.oak-engine-command {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 1.2rem;
+  padding: clamp(1.15rem, 2.2vw, 1.65rem);
+  border: 1px solid var(--panel-border);
+  border-radius: 1.2rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-raised) 68%, transparent));
+  box-shadow: var(--oak-shadow);
+  backdrop-filter: blur(18px);
+}
+
+.oak-engine-command::before {
+  content: "";
+  position: absolute;
+  width: 22rem;
+  height: 22rem;
+  top: -17rem;
+  right: 8%;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 17%, transparent);
+  box-shadow: 0 0 0 45px color-mix(in srgb, var(--terminal-accent) 2.5%, transparent), 0 0 0 90px color-mix(in srgb, var(--terminal-accent) 1.5%, transparent);
+  animation: oak-breathe 6s ease-in-out infinite alternate;
+}
+
+.oak-engine-command::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--terminal-accent) 18% 55%, transparent);
+  animation: oak-line-sweep 4.8s ease-in-out infinite;
+}
+
+.oak-engine-heading { position: relative; z-index: 1; }
+.oak-engine-title-row { display: flex; align-items: center; gap: .75rem; margin-top: .45rem; }
+.oak-engine-heading h1 {
+  font-size: clamp(2rem, 6vw, 4rem);
+  font-weight: 900;
+  letter-spacing: -.065em;
+  line-height: .92;
+}
+.oak-engine-version {
+  display: inline-grid;
+  min-width: 2.3rem;
+  height: 1.55rem;
+  place-items: center;
+  padding: 0 .45rem;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 46%, var(--panel-border));
+  border-radius: .45rem;
+  color: var(--terminal-accent);
+  background: color-mix(in srgb, var(--terminal-accent) 8%, var(--surface));
+  font: 900 .62rem "Cascadia Mono", Consolas, monospace;
+}
+.oak-engine-heading > p {
+  max-width: 52rem;
+  margin-top: .65rem;
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.55;
+}
+
+.oak-engine-metadata {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap: .55rem;
+}
+.oak-engine-metadata article {
+  min-width: 0;
+  padding: .75rem .8rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .8rem;
+  background: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+  transition: transform .32s cubic-bezier(.2,.8,.2,1), border-color .3s ease, background-color .3s ease;
+}
+.oak-engine-metadata article:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--terminal-accent) 38%, var(--panel-border));
+  background: color-mix(in srgb, var(--terminal-accent) 5%, var(--surface-raised));
+}
+.oak-engine-metadata small,
+.oak-engine-metadata b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oak-engine-metadata small { color: var(--muted); font: 850 .54rem "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; }
+.oak-engine-metadata b { margin-top: .27rem; font: 850 .72rem "Cascadia Mono", Consolas, monospace; }
+
+.oak-access-panel {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto auto;
+  align-items: center;
+  gap: .8rem;
+  padding: .8rem .9rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  box-shadow: 0 10px 40px rgba(0,0,0,.07);
+  animation: oak-panel-enter .7s .08s cubic-bezier(.16,1,.3,1) both;
+}
+.oak-access-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: var(--oak-access-color);
+  box-shadow: 0 0 18px var(--oak-access-color);
+}
+.oak-access-panel[data-mode="vip"] { --oak-access-color: var(--terminal-accent); }
+.oak-access-panel[data-mode="weekend"] { --oak-access-color: var(--terminal-warning); }
+.oak-access-panel[data-mode="locked"] { --oak-access-color: var(--terminal-danger); }
+.oak-access-symbol {
+  position: relative;
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--oak-access-color) 38%, var(--panel-border));
+  border-radius: .78rem;
+  color: var(--oak-access-color);
+  background: color-mix(in srgb, var(--oak-access-color) 7%, var(--surface-raised));
+}
+.oak-access-symbol span { position: relative; z-index: 1; }
+.oak-access-symbol i {
+  position: absolute;
+  inset: 5px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: .2;
+  animation: oak-spin 10s linear infinite;
+}
+.oak-access-copy { min-width: 0; }
+.oak-access-copy small { color: var(--muted); font: 800 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .14em; }
+.oak-access-copy b { display: block; margin-top: .1rem; color: var(--oak-access-color); font: 900 .75rem "Cascadia Mono", Consolas, monospace; letter-spacing: .07em; }
+.oak-access-copy p { margin-top: .1rem; color: var(--muted); font-size: .67rem; }
+.oak-access-state { display: flex; align-items: center; gap: .45rem; color: var(--muted); font: 800 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-access-state i { width: .42rem; height: .42rem; border-radius: 50%; background: var(--oak-access-color); box-shadow: 0 0 0 4px color-mix(in srgb, var(--oak-access-color) 10%, transparent); animation: oak-status-pulse 2s ease-in-out infinite; }
+.oak-access-panel > button {
+  min-height: 2.35rem;
+  padding: .5rem .72rem;
+  border: 1px solid color-mix(in srgb, var(--oak-access-color) 48%, var(--panel-border));
+  border-radius: .65rem;
+  color: var(--oak-access-color);
+  background: color-mix(in srgb, var(--oak-access-color) 7%, var(--surface));
+  font: 850 .62rem "Cascadia Mono", Consolas, monospace;
+  transition: transform .28s ease, background-color .28s ease;
+}
+.oak-access-panel > button:hover:not(:disabled) { transform: translateY(-1px); background: color-mix(in srgb, var(--oak-access-color) 12%, var(--surface)); }
+
+.oak-evidence-hint {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: .75rem;
+  padding: .72rem .85rem;
+  border: 1px dashed color-mix(in srgb, var(--terminal-accent) 28%, var(--panel-border));
+  border-radius: .85rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--terminal-accent) 3.5%, var(--surface));
+  font-size: .7rem;
+  animation: oak-panel-enter .7s .14s cubic-bezier(.16,1,.3,1) both;
+}
+.oak-evidence-hint > span { color: var(--terminal-accent); font: 900 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-evidence-hint > i { color: var(--terminal-accent); font-style: normal; transition: transform .3s ease; }
+.oak-evidence-hint:hover > i { transform: translate(2px,-2px); }
+
+.oak-pair-grid { display: grid; gap: 1rem; }
+.oak-pair-card {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: 1.05rem;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--oak-shadow);
+  backdrop-filter: blur(16px);
+  animation: oak-panel-enter .75s cubic-bezier(.16,1,.3,1) both;
+  transition: transform .42s cubic-bezier(.2,.8,.2,1), border-color .35s ease, box-shadow .35s ease;
+}
+.oak-pair-card:nth-child(2) { animation-delay: .08s; }
+.oak-pair-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--terminal-accent) 28%, var(--panel-border));
+  box-shadow: 0 28px 80px rgba(0,0,0,.16), 0 0 50px color-mix(in srgb, var(--terminal-accent) 4%, transparent);
+}
+.oak-pair-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .9rem 1rem;
+  border-bottom: 1px solid var(--panel-border);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--surface-raised) 85%, transparent), transparent);
+}
+.oak-pair-identity { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.oak-pair-beacon {
+  position: relative;
+  display: grid;
+  width: 2.05rem;
+  height: 2.05rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 35%, var(--panel-border));
+  border-radius: 50%;
+}
+.oak-pair-beacon::before { content: ""; width: .42rem; height: .42rem; border-radius: 50%; background: var(--terminal-accent); box-shadow: 0 0 14px var(--terminal-accent); }
+.oak-pair-beacon i { position: absolute; inset: 4px; border: 1px solid color-mix(in srgb, var(--terminal-accent) 28%, transparent); border-radius: 50%; animation: oak-beacon 2.8s ease-out infinite; }
+.oak-pair-name-row { display: flex; align-items: baseline; gap: .5rem; }
+.oak-pair-name-row strong { font: 900 1.08rem "Cascadia Mono", Consolas, monospace; letter-spacing: -.04em; }
+.oak-pair-name-row span { color: var(--muted); font: 750 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-pair-identity small { display: block; margin-top: .16rem; color: var(--muted); font: 750 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-pair-blocks { display: flex; align-items: baseline; gap: .35rem; color: var(--muted); }
+.oak-pair-blocks b { color: var(--terminal-accent); font: 900 1rem "Cascadia Mono", Consolas, monospace; }
+.oak-pair-blocks span { font: 800 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; }
+
+.oak-table-scroll { overflow-x: auto; max-width: 100%; -webkit-overflow-scrolling: touch; }
+.oak-signal-table { width: 100%; min-width: 41rem; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.oak-signal-table th,
+.oak-signal-table td { width: 7rem; border-right: 1px solid var(--panel-border); border-bottom: 1px solid var(--panel-border); }
+.oak-signal-table tr:last-child th,
+.oak-signal-table tr:last-child td { border-bottom: 0; }
+.oak-signal-table th:last-child,
+.oak-signal-table td:last-child { border-right: 0; }
+.oak-signal-table thead th {
+  height: 3.45rem;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
+  font-size: .68rem;
+  font-weight: 800;
+}
+.oak-signal-table thead th span,
+.oak-signal-table thead th small { display: block; }
+.oak-signal-table thead th small { margin-top: .14rem; font: 700 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-signal-table [data-today="true"] { background: color-mix(in srgb, var(--terminal-accent) 5%, var(--surface)); }
+.oak-signal-table thead [data-today="true"] { color: var(--foreground); box-shadow: inset 0 -2px 0 var(--terminal-accent); }
+.oak-table-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  width: 3.6rem !important;
+  color: var(--terminal-accent) !important;
+  background: color-mix(in srgb, var(--surface-raised) 98%, transparent) !important;
+  box-shadow: 1px 0 0 var(--panel-border);
+}
+.oak-table-sticky b { font: 900 .82rem "Cascadia Mono", Consolas, monospace; }
+
+.oak-signal-cell {
+  position: relative;
+  display: grid;
+  min-height: 5.65rem;
+  align-content: center;
+  gap: .5rem;
+  padding: .65rem .7rem;
+  overflow: hidden;
+  transition: background-color .28s ease, transform .28s cubic-bezier(.2,.8,.2,1);
+  animation: oak-cell-enter .55s cubic-bezier(.16,1,.3,1) both;
+}
+.oak-signal-table tbody tr:nth-child(1) .oak-signal-cell { animation-delay: .06s; }
+.oak-signal-table tbody tr:nth-child(2) .oak-signal-cell { animation-delay: .1s; }
+.oak-signal-table tbody tr:nth-child(3) .oak-signal-cell { animation-delay: .14s; }
+.oak-signal-table tbody tr:nth-child(4) .oak-signal-cell { animation-delay: .18s; }
+.oak-signal-table tbody tr:nth-child(5) .oak-signal-cell { animation-delay: .22s; }
+.oak-signal-cell::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: transparent;
+  transition: background-color .28s ease, box-shadow .28s ease;
+}
+.oak-signal-cell[data-side="BUY"]::before { background: var(--terminal-accent); box-shadow: 0 0 14px color-mix(in srgb, var(--terminal-accent) 38%, transparent); }
+.oak-signal-cell[data-side="SELL"]::before { background: var(--terminal-danger); box-shadow: 0 0 14px color-mix(in srgb, var(--terminal-danger) 35%, transparent); }
+.oak-signal-cell:hover { background: color-mix(in srgb, var(--surface-raised) 90%, transparent); }
+.oak-signal-cell[data-reversed="true"] { background: var(--reverse-bg); }
+.oak-signal-topline { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.oak-signal-group { color: var(--muted); font: 850 .6rem "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; }
+.oak-reverse-chip {
+  padding: .12rem .3rem;
+  border: 1px solid var(--reverse-border);
+  border-radius: 999px;
+  color: var(--reverse-text);
+  background: color-mix(in srgb, var(--reverse-bg) 72%, var(--surface));
+  font: 900 .48rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  animation: oak-soft-pulse 2.4s ease-in-out infinite;
+}
+.oak-signal-side { font: 950 1.08rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
+.oak-signal-cell[data-side="BUY"] .oak-signal-side { color: var(--terminal-accent); text-shadow: 0 0 20px color-mix(in srgb, var(--terminal-accent) 18%, transparent); }
+.oak-signal-cell[data-side="SELL"] .oak-signal-side { color: var(--terminal-danger); text-shadow: 0 0 20px color-mix(in srgb, var(--terminal-danger) 16%, transparent); }
+.oak-signal-footer { display: flex; align-items: center; justify-content: space-between; gap: .4rem; }
+.oak-signal-footer > span { color: var(--muted); font: 750 .48rem "Cascadia Mono", Consolas, monospace; }
+.oak-signal-footer button {
+  max-width: 4.8rem;
+  overflow: hidden;
+  padding: .16rem .28rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--terminal-accent) 55%, transparent);
+  color: var(--terminal-accent);
+  background: transparent;
+  font: 850 .56rem "Cascadia Mono", Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color .24s ease, border-color .24s ease, transform .24s ease;
+}
+.oak-signal-footer button:hover { color: var(--foreground); border-color: var(--foreground); transform: translateY(-1px); }
+.oak-vip-mask { display: inline-flex; align-items: center; gap: .4rem; color: var(--terminal-warning); font: 900 .65rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.oak-vip-mask i { width: 1.5rem; height: .42rem; border-radius: 999px; background: linear-gradient(90deg, transparent, var(--terminal-warning), transparent); background-size: 200% 100%; opacity: .7; animation: oak-shimmer 2s linear infinite; }
+.oak-signal-empty { display: grid; min-height: 5.65rem; place-items: center; color: color-mix(in srgb, var(--muted) 55%, transparent); }
+.oak-pair-error { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; color: var(--muted); }
+.oak-pair-error strong { color: var(--terminal-danger); }
+
+/* Modal system */
+.oak-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0,0,0,.68);
+  backdrop-filter: blur(14px) saturate(125%);
+  animation: oak-backdrop-enter .25s ease both;
+}
+.oak-evidence-modal,
+.oak-vip-modal {
+  width: min(51rem, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 20%, var(--panel-border));
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--oak-panel-solid) 96%, transparent);
+  box-shadow: 0 38px 120px rgba(0,0,0,.52), 0 0 80px color-mix(in srgb, var(--terminal-accent) 5%, transparent);
+  animation: oak-modal-enter .48s cubic-bezier(.16,1,.3,1) both;
+}
+.oak-vip-modal { width: min(27rem, 94vw); padding: 1rem; }
+.oak-evidence-modal { padding: 1rem; }
+.oak-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .2rem .1rem .9rem;
+  border-bottom: 1px solid var(--panel-border);
+}
+.oak-modal-header h2 { margin-top: .25rem; font-size: 1.05rem; font-weight: 850; letter-spacing: -.02em; }
+.oak-modal-header p { margin-top: .25rem; color: var(--muted); font-size: .65rem; line-height: 1.45; }
+.oak-modal-header > button {
+  display: grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--panel-border);
+  border-radius: .65rem;
+  color: var(--muted);
+  background: var(--surface-raised);
+  font-size: 1.15rem;
+  transition: transform .3s ease, color .25s ease, border-color .25s ease;
+}
+.oak-modal-header > button:hover { transform: rotate(90deg); color: var(--foreground); border-color: color-mix(in srgb, var(--terminal-accent) 40%, var(--panel-border)); }
+.oak-evidence-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .55rem; margin: .9rem 0; }
+.oak-evidence-summary article {
+  padding: .65rem .72rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .72rem;
+  background: var(--surface-raised);
+}
+.oak-evidence-summary small { display: block; color: var(--muted); font: 800 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-evidence-summary b { display: inline-block; margin-top: .24rem; color: var(--foreground); font: 900 .76rem "Cascadia Mono", Consolas, monospace; }
+.oak-evidence-summary span { margin-left: .35rem; color: var(--muted); font: 700 .6rem "Cascadia Mono", Consolas, monospace; }
+.oak-evidence-summary article[data-state="reverse"] { border-color: var(--reverse-border); background: var(--reverse-bg); }
+.oak-chart-shell { padding: .55rem; border: 1px solid var(--panel-border); border-radius: .85rem; background: linear-gradient(180deg, var(--surface-raised), color-mix(in srgb, var(--surface) 80%, transparent)); overflow: hidden; }
+.oak-candle-chart { width: 100%; height: auto; display: block; color: var(--terminal-accent); }
+.oak-chart-gridline { stroke: var(--panel-border); stroke-width: 1; stroke-dasharray: 2 7; }
+.oak-candle line { stroke-width: 2; }
+.oak-candle rect { stroke-width: 1.5; }
+.oak-candle.up line, .oak-candle.up rect { stroke: var(--terminal-accent); fill: color-mix(in srgb, var(--terminal-accent) 28%, transparent); }
+.oak-candle.down line, .oak-candle.down rect { stroke: var(--terminal-danger); fill: color-mix(in srgb, var(--terminal-danger) 25%, transparent); }
+.oak-candle text { fill: var(--muted); font: 11px "Cascadia Mono", Consolas, monospace; }
+.oak-candle { transform-origin: center 145px; animation: oak-candle-grow .55s cubic-bezier(.16,1,.3,1) both; }
+.oak-candle:nth-of-type(6) { animation-delay: .08s; }
+.oak-candle:nth-of-type(7) { animation-delay: .14s; }
+.oak-candle:nth-of-type(8) { animation-delay: .2s; }
+.oak-candle:nth-of-type(9) { animation-delay: .26s; }
+.oak-ohlc-table { margin-top: .75rem; overflow: hidden; border: 1px solid var(--panel-border); border-radius: .8rem; }
+.oak-ohlc-head,
+.oak-ohlc-row { display: grid; grid-template-columns: .55fr repeat(4,1fr); gap: .4rem; align-items: center; padding: .55rem .65rem; }
+.oak-ohlc-head { color: var(--muted); background: var(--surface-raised); font: 850 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .07em; }
+.oak-ohlc-row { border-top: 1px solid var(--panel-border); font: 750 .61rem "Cascadia Mono", Consolas, monospace; transition: background-color .25s ease; }
+.oak-ohlc-row:hover { background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface)); }
+.oak-ohlc-row b { color: var(--terminal-accent); }
+.oak-evidence-detail { margin-top: .7rem; color: var(--muted); font: 700 .6rem "Cascadia Mono", Consolas, monospace; line-height: 1.55; }
+.oak-vip-field { display: grid; gap: .4rem; margin-top: .9rem; }
+.oak-vip-field span { color: var(--muted); font: 850 .55rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
+.oak-vip-field input {
+  width: 100%;
+  height: 3rem;
+  padding: 0 .8rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .75rem;
+  color: var(--foreground);
+  background: var(--surface-raised);
+  font: 750 .8rem "Cascadia Mono", Consolas, monospace;
+  outline: none;
+  transition: border-color .25s ease, box-shadow .25s ease;
+}
+.oak-vip-field input:focus { border-color: color-mix(in srgb, var(--terminal-accent) 60%, var(--panel-border)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--terminal-accent) 9%, transparent); }
+.oak-vip-modal .oak-primary-action { width: 100%; margin-top: .75rem; }
+.oak-form-error { margin-top: .6rem; color: var(--terminal-danger); font-size: .68rem; line-height: 1.45; }
+
+/* Fact Check */
+.oak-fact-screen {
+  display: grid;
+  gap: 1rem;
+  animation: oak-page-enter .8s cubic-bezier(.16,1,.3,1) both;
+}
+.oak-fact-workbench { display: grid; gap: 1rem; }
+.oak-fact-hero,
+.oak-fact-input-panel,
+.oak-verdict-panel,
+.oak-claims-panel,
+.oak-sources-panel {
+  border: 1px solid var(--panel-border);
+  border-radius: 1.15rem;
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  box-shadow: var(--oak-shadow);
+  backdrop-filter: blur(18px);
+}
+.oak-fact-hero { position: relative; overflow: hidden; padding: clamp(1.2rem, 2.5vw, 1.8rem); }
+.oak-fact-hero::before {
+  content: "";
+  position: absolute;
+  width: 26rem;
+  height: 26rem;
+  left: -18rem;
+  bottom: -18rem;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 12%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 55px color-mix(in srgb, var(--terminal-accent) 2.5%, transparent), 0 0 0 110px color-mix(in srgb, var(--terminal-accent) 1.4%, transparent);
+}
+.oak-fact-hero-main { position: relative; z-index: 1; min-height: 15rem; display: flex; flex-direction: column; justify-content: flex-end; }
+.oak-fact-hero-main h1 { max-width: 38rem; margin-top: .45rem; font-size: clamp(2rem, 6vw, 4.2rem); font-weight: 920; letter-spacing: -.065em; line-height: .92; }
+.oak-fact-hero-main > p { max-width: 38rem; margin-top: .75rem; color: var(--muted); font-size: .8rem; line-height: 1.6; }
+.oak-fact-live { display: inline-flex; width: fit-content; align-items: center; gap: .45rem; margin-top: 1rem; padding: .35rem .55rem; border: 1px solid color-mix(in srgb, var(--terminal-accent) 22%, var(--panel-border)); border-radius: 999px; color: var(--muted); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface)); font: 750 .55rem "Cascadia Mono", Consolas, monospace; }
+.oak-fact-live i { width: .42rem; height: .42rem; border-radius: 50%; background: var(--terminal-accent); box-shadow: 0 0 10px var(--terminal-accent); animation: oak-status-pulse 2s ease-in-out infinite; }
+.oak-fact-orbit {
+  position: absolute;
+  top: .6rem;
+  right: .6rem;
+  width: 8.2rem;
+  height: 8.2rem;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 20%, var(--panel-border));
+  border-radius: 50%;
+  opacity: .65;
+  animation: oak-spin 20s linear infinite;
+}
+.oak-fact-orbit::before,
+.oak-fact-orbit::after { content: ""; position: absolute; border: 1px solid color-mix(in srgb, var(--terminal-accent) 16%, var(--panel-border)); border-radius: 50%; }
+.oak-fact-orbit::before { inset: 1.15rem; }
+.oak-fact-orbit::after { inset: 2.5rem; }
+.oak-fact-orbit i { position: absolute; width: .5rem; height: .5rem; border-radius: 50%; background: var(--terminal-accent); box-shadow: 0 0 14px var(--terminal-accent); }
+.oak-fact-orbit i:first-child { top: -.25rem; left: 50%; }
+.oak-fact-orbit i:nth-child(2) { bottom: 1.2rem; right: .45rem; }
+.oak-fact-orbit span { position: absolute; inset: 0; display: grid; place-items: center; color: var(--terminal-accent); font: 900 .72rem "Cascadia Mono", Consolas, monospace; animation: oak-spin-reverse 20s linear infinite; }
+.oak-fact-process { position: relative; z-index: 1; display: grid; gap: .45rem; margin-top: 1rem; }
+.oak-fact-process article {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  gap: .7rem;
+  padding: .65rem .72rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .72rem;
+  background: color-mix(in srgb, var(--surface-raised) 76%, transparent);
+  transition: transform .32s cubic-bezier(.2,.8,.2,1), border-color .28s ease, background-color .28s ease;
+}
+.oak-fact-process article:hover { transform: translateX(3px); border-color: color-mix(in srgb, var(--terminal-accent) 28%, var(--panel-border)); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised)); }
+.oak-fact-process article > span { color: var(--terminal-accent); font: 900 .56rem "Cascadia Mono", Consolas, monospace; }
+.oak-fact-process b { display: block; font-size: .7rem; }
+.oak-fact-process p { margin-top: .12rem; color: var(--muted); font-size: .61rem; line-height: 1.45; }
+.oak-fact-process article > i { color: var(--muted); font-style: normal; transition: transform .3s ease, color .3s ease; }
+.oak-fact-process article:hover > i { color: var(--terminal-accent); transform: translate(2px,-2px); }
+
+.oak-fact-input-panel { position: relative; overflow: hidden; padding: clamp(1rem, 2vw, 1.35rem); animation: oak-panel-enter .75s .08s cubic-bezier(.16,1,.3,1) both; }
+.oak-fact-input-panel::after {
+  content: "";
+  position: absolute;
+  inset: auto -20% -5rem auto;
+  width: 16rem;
+  height: 10rem;
+  background: radial-gradient(circle, color-mix(in srgb, var(--terminal-accent) 9%, transparent), transparent 68%);
+  pointer-events: none;
+}
+.oak-fact-input-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
+.oak-fact-input-header h2 { margin-top: .26rem; font-size: 1rem; font-weight: 850; }
+.oak-char-meter { color: var(--muted); font: 750 .55rem "Cascadia Mono", Consolas, monospace; }
+.oak-claim-editor {
+  position: relative;
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0,1fr);
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: .85rem;
+  background: color-mix(in srgb, var(--surface-raised) 84%, transparent);
+  transition: border-color .28s ease, box-shadow .28s ease, transform .28s ease;
+}
+.oak-claim-editor:focus-within,
+.oak-claim-editor[data-dragging="true"] { border-color: color-mix(in srgb, var(--terminal-accent) 52%, var(--panel-border)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--terminal-accent) 7%, transparent), 0 18px 44px rgba(0,0,0,.08); }
+.oak-claim-editor[data-dragging="true"] { transform: scale(.995); }
+.oak-editor-rail { display: grid; align-content: start; gap: 1.05rem; padding: 1rem .35rem; border-right: 1px solid var(--panel-border); color: color-mix(in srgb, var(--muted) 58%, transparent); background: color-mix(in srgb, var(--surface-raised) 92%, transparent); text-align: center; font: 700 .46rem "Cascadia Mono", Consolas, monospace; }
+.oak-claim-editor textarea { width: 100%; min-height: 13.3rem; resize: vertical; padding: .9rem 1rem; border: 0; outline: 0; color: var(--foreground); background: transparent; font-size: .82rem; line-height: 1.65; }
+.oak-claim-editor textarea::placeholder { color: color-mix(in srgb, var(--muted) 72%, transparent); }
+.oak-ocr-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: .6rem; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); color: var(--terminal-accent); }
+.oak-ocr-overlay b { font: 850 .65rem "Cascadia Mono", Consolas, monospace; }
+.oak-ocr-spinner,
+.oak-button-spinner { width: .8rem; height: .8rem; border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor; border-radius: 50%; animation: oak-spin 1s linear infinite; }
+.oak-fact-actions { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: stretch; gap: .65rem; margin-top: .7rem; }
+.oak-upload-action {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: .65rem;
+  padding: .58rem .7rem;
+  border: 1px dashed var(--panel-border);
+  border-radius: .75rem;
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  text-align: left;
+  transition: border-color .28s ease, background-color .28s ease, transform .28s ease;
+}
+.oak-upload-action:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--terminal-accent) 38%, var(--panel-border)); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised)); }
+.oak-upload-action svg { grid-row: 1 / 3; width: 1.1rem; height: 1.1rem; fill: none; stroke: var(--terminal-accent); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.oak-upload-action span { font-size: .68rem; font-weight: 800; }
+.oak-upload-action small { color: var(--muted); font-size: .55rem; }
+.oak-fact-submit { min-width: 9.5rem; }
+
+.oak-global-error { display: flex; align-items: center; gap: .65rem; padding: .8rem .9rem; border: 1px solid color-mix(in srgb, var(--terminal-danger) 38%, var(--panel-border)); border-radius: .85rem; color: var(--terminal-danger); background: color-mix(in srgb, var(--terminal-danger) 6%, var(--surface)); animation: oak-shake-in .45s ease both; }
+.oak-global-error > span { display: grid; width: 1.6rem; height: 1.6rem; place-items: center; border: 1px solid currentColor; border-radius: 50%; font-weight: 900; }
+.oak-global-error p { font-size: .7rem; font-weight: 700; }
+
+.oak-fact-results { display: grid; gap: 1rem; margin-top: .15rem; animation: oak-page-enter .7s cubic-bezier(.16,1,.3,1) both; }
+.oak-verdict-panel { --oak-verdict-color: var(--muted); display: grid; gap: 1rem; padding: clamp(1rem, 2vw, 1.35rem); }
+.oak-verdict-panel[data-verdict="supported"] { --oak-verdict-color: var(--terminal-accent); }
+.oak-verdict-panel[data-verdict="contradicted"] { --oak-verdict-color: var(--terminal-danger); }
+.oak-verdict-panel[data-verdict="mixed"] { --oak-verdict-color: var(--terminal-warning); }
+.oak-verdict-copy { min-width: 0; }
+.oak-verdict-title-row { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin-top: .35rem; }
+.oak-verdict-title-row h2 { font-size: clamp(1.45rem, 3vw, 2.2rem); font-weight: 900; letter-spacing: -.045em; }
+.oak-verdict-badge { display: inline-flex; align-items: center; min-height: 1.75rem; padding: .28rem .55rem; border: 1px solid currentColor; border-radius: 999px; font: 900 .54rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-verdict-badge[data-verdict="supported"] { color: var(--terminal-accent); background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface)); }
+.oak-verdict-badge[data-verdict="contradicted"] { color: var(--terminal-danger); background: color-mix(in srgb, var(--terminal-danger) 7%, var(--surface)); }
+.oak-verdict-badge[data-verdict="mixed"] { color: var(--terminal-warning); background: color-mix(in srgb, var(--terminal-warning) 7%, var(--surface)); }
+.oak-verdict-badge[data-verdict="insufficient"] { color: var(--muted); background: var(--surface-raised); }
+.oak-model-line { margin-top: .35rem; color: var(--muted); font: 650 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-model-line b { color: var(--foreground); }
+.oak-summary-card { margin-top: .85rem; padding: .8rem .9rem; border-left: 2px solid var(--oak-verdict-color); background: color-mix(in srgb, var(--oak-verdict-color) 4%, var(--surface-raised)); }
+.oak-summary-card small { color: var(--muted); font: 850 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-summary-card p { margin-top: .35rem; font-size: .78rem; line-height: 1.65; }
+.oak-confidence-block { display: flex; align-items: center; gap: 1rem; }
+.oak-confidence-ring { display: grid; width: 8.8rem; height: 8.8rem; place-items: center; flex: 0 0 auto; border-radius: 50%; box-shadow: 0 0 40px color-mix(in srgb, var(--oak-verdict-color) 8%, transparent); animation: oak-ring-enter .8s .1s cubic-bezier(.16,1,.3,1) both; }
+.oak-confidence-ring > div { display: grid; width: calc(100% - .55rem); height: calc(100% - .55rem); place-content: center; border-radius: 50%; background: var(--oak-panel-solid); text-align: center; }
+.oak-confidence-ring b { color: var(--oak-verdict-color); font: 950 2rem "Cascadia Mono", Consolas, monospace; line-height: 1; }
+.oak-confidence-ring > div > span { margin-left: .15rem; color: var(--muted); font: 750 .65rem "Cascadia Mono", Consolas, monospace; }
+.oak-confidence-ring small { display: block; margin-top: .25rem; color: var(--muted); font: 750 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.oak-result-metrics { display: grid; gap: .45rem; flex: 1; }
+.oak-result-metrics article { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; padding: .58rem .65rem; border-bottom: 1px solid var(--panel-border); }
+.oak-result-metrics b { color: var(--oak-verdict-color); font: 900 1rem "Cascadia Mono", Consolas, monospace; }
+.oak-result-metrics span { color: var(--muted); font-size: .6rem; }
+
+.oak-claims-panel,
+.oak-sources-panel { overflow: hidden; }
+.oak-section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 1rem; border-bottom: 1px solid var(--panel-border); background: color-mix(in srgb, var(--surface-raised) 70%, transparent); }
+.oak-section-head h3 { margin-top: .18rem; font-size: .95rem; font-weight: 850; }
+.oak-section-head > span { color: var(--terminal-accent); font: 900 .72rem "Cascadia Mono", Consolas, monospace; }
+.oak-claims-list { display: grid; }
+.oak-claim-row { --oak-claim-color: var(--muted); display: grid; grid-template-columns: 3rem minmax(0,1fr); border-bottom: 1px solid var(--panel-border); transition: background-color .28s ease; animation: oak-row-enter .55s cubic-bezier(.16,1,.3,1) both; }
+.oak-claim-row:last-child { border-bottom: 0; }
+.oak-claim-row[data-verdict="supported"] { --oak-claim-color: var(--terminal-accent); }
+.oak-claim-row[data-verdict="contradicted"] { --oak-claim-color: var(--terminal-danger); }
+.oak-claim-row[data-verdict="mixed"] { --oak-claim-color: var(--terminal-warning); }
+.oak-claim-row:hover { background: color-mix(in srgb, var(--oak-claim-color) 3.5%, var(--surface)); }
+.oak-claim-index { display: grid; place-items: center; border-right: 1px solid var(--panel-border); color: var(--oak-claim-color); font: 900 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-claim-body { padding: .85rem .9rem; }
+.oak-claim-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: .65rem; }
+.oak-claim-heading > b { max-width: 54rem; font-size: .75rem; line-height: 1.45; }
+.oak-claim-body > p { margin-top: .45rem; color: var(--muted); font-size: .67rem; line-height: 1.6; }
+.oak-claim-sources { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .55rem; }
+.oak-claim-sources small { color: var(--muted); font: 800 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.oak-claim-sources span { padding: .15rem .3rem; border: 1px solid color-mix(in srgb, var(--oak-claim-color) 28%, var(--panel-border)); border-radius: .35rem; color: var(--oak-claim-color); font: 800 .5rem "Cascadia Mono", Consolas, monospace; }
+.oak-source-grid { display: grid; gap: .65rem; padding: .85rem; }
+.oak-source-card { position: relative; overflow: hidden; padding: .85rem; border: 1px solid var(--panel-border); border-radius: .8rem; background: var(--surface-raised); transition: transform .35s cubic-bezier(.2,.8,.2,1), border-color .3s ease, box-shadow .3s ease; animation: oak-row-enter .55s cubic-bezier(.16,1,.3,1) both; }
+.oak-source-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 2px; background: var(--terminal-accent); opacity: .55; }
+.oak-source-card:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--terminal-accent) 30%, var(--panel-border)); box-shadow: 0 15px 35px rgba(0,0,0,.1); }
+.oak-source-topline { display: flex; align-items: center; justify-content: space-between; gap: .5rem; color: var(--terminal-accent); font: 850 .52rem "Cascadia Mono", Consolas, monospace; letter-spacing: .07em; }
+.oak-source-topline i { font-style: normal; transition: transform .3s ease; }
+.oak-source-card:hover .oak-source-topline i { transform: translate(2px,-2px); }
+.oak-source-card h4 { margin-top: .45rem; font-size: .74rem; font-weight: 800; line-height: 1.45; }
+.oak-source-meta { margin-top: .28rem; color: var(--muted); font-size: .55rem; }
+.oak-source-card > p { margin-top: .5rem; color: var(--muted); font-size: .64rem; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.oak-query-strip { padding: .8rem .9rem; border-top: 1px solid var(--panel-border); background: color-mix(in srgb, var(--surface-raised) 64%, transparent); }
+.oak-query-strip > small { color: var(--muted); font: 850 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
+.oak-query-strip > div { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem; }
+.oak-query-strip span { padding: .24rem .4rem; border: 1px solid var(--panel-border); border-radius: .45rem; color: var(--muted); background: var(--surface); font-size: .55rem; }
+
+/* Tarot — same OAK language, intentionally more atmospheric */
+.tarot-screen { gap: 1rem; animation: oak-page-enter .8s cubic-bezier(.16,1,.3,1) both; }
+.tarot-hero,
+.tarot-result,
+.tarot-placeholder {
+  border-radius: 1.15rem !important;
+  border-color: var(--panel-border) !important;
+  background: color-mix(in srgb, var(--surface) 90%, transparent) !important;
+  box-shadow: var(--oak-shadow) !important;
+  backdrop-filter: blur(18px);
+}
+.tarot-hero { position: relative; overflow: hidden; gap: 1.2rem; padding: clamp(1.15rem,2.4vw,1.65rem) !important; }
+.tarot-hero::before {
+  content: "";
+  position: absolute;
+  top: -14rem;
+  left: -10rem;
+  width: 26rem;
+  height: 26rem;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 12%, transparent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 58px color-mix(in srgb, var(--terminal-accent) 2.4%, transparent), 0 0 0 116px color-mix(in srgb, var(--terminal-accent) 1.2%, transparent);
+  animation: oak-breathe 8s ease-in-out infinite alternate;
+}
+.tarot-hero::after { height: 1px !important; background: linear-gradient(90deg, transparent, var(--terminal-accent), transparent) !important; animation: oak-line-sweep 5s ease-in-out infinite; }
+.tarot-hero-copy { position: relative; z-index: 1; }
+.tarot-hero-copy h1 { max-width: 48rem; font-size: clamp(2.5rem,9vw,6rem) !important; letter-spacing: -.075em !important; line-height: .88 !important; }
+.tarot-hero-copy > p:last-child { max-width: 38rem; color: var(--muted); font-size: .8rem !important; }
+.tarot-form { position: relative; z-index: 1; gap: .65rem !important; padding: 1rem !important; border-radius: .95rem !important; background: color-mix(in srgb, var(--surface-raised) 82%, transparent) !important; box-shadow: 0 18px 50px rgba(0,0,0,.08); }
+.tarot-form textarea { border-radius: .78rem !important; background: color-mix(in srgb, var(--surface) 92%, transparent) !important; transition: transform .3s ease, border-color .28s ease, box-shadow .28s ease !important; }
+.tarot-form textarea:focus { transform: translateY(-1px); box-shadow: 0 0 0 4px color-mix(in srgb, var(--terminal-accent) 7%, transparent) !important; }
+.tarot-spread-options button { position: relative; overflow: hidden; border-radius: .78rem !important; transition: transform .34s cubic-bezier(.2,.8,.2,1), border-color .28s ease, background-color .28s ease !important; }
+.tarot-spread-options button:hover { transform: translateY(-2px); }
+.tarot-spread-options button[aria-pressed="true"] { box-shadow: 0 10px 30px color-mix(in srgb, var(--terminal-accent) 6%, transparent); }
+.tarot-draw-button { position: relative; overflow: hidden; min-height: 3.1rem !important; border-radius: .75rem !important; box-shadow: 0 14px 34px color-mix(in srgb, var(--terminal-accent) 14%, transparent); transition: transform .38s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease !important; }
+.tarot-draw-button::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,.32), transparent 75%); transform: translateX(-130%); transition: transform .75s cubic-bezier(.2,.8,.2,1); }
+.tarot-draw-button:hover:not(:disabled) { transform: translateY(-3px) scale(1.005) !important; box-shadow: 0 20px 45px color-mix(in srgb, var(--terminal-accent) 22%, transparent); }
+.tarot-draw-button:hover:not(:disabled)::after { transform: translateX(130%); }
+.tarot-placeholder { min-height: 18rem; align-content: center; }
+.tarot-card-back { position: relative; border-radius: .85rem !important; background: linear-gradient(145deg, color-mix(in srgb, var(--terminal-accent) 8%, var(--surface)), var(--surface-raised)) !important; box-shadow: 0 18px 45px rgba(0,0,0,.12), inset 0 0 0 .3rem var(--surface), inset 0 0 0 calc(.3rem + 1px) color-mix(in srgb, var(--terminal-accent) 25%, var(--panel-border)) !important; animation: oak-tarot-float 4.8s ease-in-out infinite alternate; }
+.tarot-card-back:nth-child(2) { animation-delay: -.9s; }
+.tarot-card-back:nth-child(3) { animation-delay: -1.8s; }
+.tarot-card-back::before { content: ""; position: absolute; inset: 12%; border: 1px solid color-mix(in srgb, var(--terminal-accent) 22%, transparent); transform: rotate(45deg); }
+.tarot-card-loading { animation: oak-tarot-shuffle 1.25s cubic-bezier(.2,.8,.2,1) infinite alternate !important; }
+.tarot-result { padding: clamp(1rem,2vw,1.35rem) !important; animation: oak-panel-enter .7s cubic-bezier(.16,1,.3,1) both; }
+.tarot-result > header button { border-radius: .65rem !important; transition: transform .3s ease, border-color .3s ease !important; }
+.tarot-result > header button:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--terminal-accent) 38%, var(--panel-border)); }
+.tarot-card { border-radius: .9rem !important; background: color-mix(in srgb, var(--surface-raised) 84%, transparent) !important; box-shadow: 0 16px 45px rgba(0,0,0,.08); animation: oak-tarot-card-enter .7s cubic-bezier(.16,1,.3,1) both; transition: transform .48s cubic-bezier(.2,.8,.2,1), box-shadow .4s ease, border-color .35s ease; }
+.tarot-card:nth-child(2) { animation-delay: .1s; }
+.tarot-card:nth-child(3) { animation-delay: .2s; }
+.tarot-card:hover { transform: translateY(-7px) rotateX(1.5deg); border-color: color-mix(in srgb, var(--terminal-accent) 30%, var(--panel-border)); box-shadow: 0 30px 70px rgba(0,0,0,.18), 0 0 50px color-mix(in srgb, var(--terminal-accent) 5%, transparent); }
+.tarot-card-face { border-radius: .82rem !important; background: linear-gradient(145deg, color-mix(in srgb, var(--terminal-accent) 8%, var(--surface)), var(--surface)) !important; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+.tarot-card:hover .tarot-card-face { transform: scale(1.012); }
+.tarot-card-art { transition: transform .65s cubic-bezier(.2,.8,.2,1), filter .4s ease !important; }
+.tarot-card:hover .tarot-card-art { filter: contrast(1.03) saturate(1.04); }
+.tarot-reading > section { border-radius: .85rem !important; background: color-mix(in srgb, var(--surface-raised) 78%, transparent) !important; transition: transform .35s ease, border-color .35s ease; }
+.tarot-reading > section:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--terminal-accent) 25%, var(--panel-border)); }
+.tarot-insights article { border-radius: 0 .65rem .65rem 0; transition: transform .3s ease, background-color .3s ease; }
+.tarot-insights article:hover { transform: translateX(3px); background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface)); }
+.tarot-reflection { background: color-mix(in srgb, var(--terminal-accent) 5%, var(--surface)) !important; }
+
+/* Footer */
+.oak-footer {
+  position: relative;
+  z-index: 1;
+  margin-top: auto;
+  border-top: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--background) 78%, transparent);
+  backdrop-filter: blur(18px);
+}
+.oak-footer-inner { display: flex; min-height: 3.2rem; align-items: center; justify-content: space-between; gap: 1rem; color: var(--muted); font: 750 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .11em; }
+.oak-footer-inner span:first-child { color: var(--terminal-accent); }
+
+/* Scrollbars */
+.lux-scroll,
+.oak-evidence-modal { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--terminal-accent) 38%, transparent) transparent; }
+.lux-scroll::-webkit-scrollbar,
+.oak-evidence-modal::-webkit-scrollbar { width: 6px; height: 6px; }
+.lux-scroll::-webkit-scrollbar-thumb,
+.oak-evidence-modal::-webkit-scrollbar-thumb { border-radius: 999px; background: color-mix(in srgb, var(--terminal-accent) 38%, transparent); }
+
+/* Responsive */
+@media (min-width: 760px) {
+  .oak-engine-command { grid-template-columns: minmax(0,1fr) minmax(28rem,.72fr); align-items: end; }
+  .oak-verdict-panel { grid-template-columns: minmax(0,1fr) 16rem; align-items: center; }
+  .oak-source-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+@media (min-width: 1050px) {
+  .oak-pair-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .oak-signal-table { min-width: 38rem; }
+  .oak-fact-workbench { grid-template-columns: minmax(0,1.08fr) minmax(25rem,.92fr); align-items: stretch; }
+  .oak-fact-hero { order: 1; }
+  .oak-fact-input-panel { order: 2; }
+  .oak-fact-hero-main { min-height: 19rem; }
+  .oak-fact-process { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .oak-fact-process article { grid-template-columns: auto minmax(0,1fr); align-items: start; }
+  .oak-fact-process article > i { display: none; }
+}
+
+@media (max-width: 759px) {
+  .page-shell { padding-inline: .85rem; }
+  .oak-nav-layout { min-height: 4rem; grid-template-columns: minmax(0,1fr) auto; row-gap: .5rem; padding-top: .45rem; padding-bottom: .55rem; }
+  .oak-brand-copy small { display: none; }
+  .oak-brand-copy strong { font-size: .78rem; }
+  .oak-brand-icon { width: 2.25rem; height: 2.25rem; border-radius: .7rem; }
+  .oak-brand-icon img { width: 1.75rem; height: 1.75rem; }
+  .oak-nav-tabs { grid-row: 2; grid-column: 1 / -1; width: 100%; justify-self: stretch; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .35rem; }
+  .oak-nav-link { justify-content: center; min-width: 0; min-height: 2.5rem; padding: .5rem .35rem; font-size: .67rem; }
+  .oak-nav-icon { width: .9rem; height: .9rem; }
+  .oak-locale-switch button { min-width: 2rem; }
+  .oak-engine-command { padding: 1rem; }
+  .oak-engine-heading h1 { font-size: 2.35rem; }
+  .oak-engine-metadata { grid-template-columns: 1fr 1fr; }
+  .oak-engine-metadata article:last-child { grid-column: 1 / -1; }
+  .oak-access-panel { grid-template-columns: auto minmax(0,1fr) auto; }
+  .oak-access-state { display: none; }
+  .oak-access-panel > button { grid-column: 1 / -1; width: 100%; }
+  .oak-signal-table { min-width: 38.5rem; }
+  .oak-signal-table th, .oak-signal-table td { width: 6.6rem; }
+  .oak-signal-cell { min-height: 5.35rem; padding: .58rem .6rem; }
+  .oak-evidence-summary { grid-template-columns: 1fr 1fr; }
+  .oak-evidence-summary article:last-child { grid-column: 1 / -1; }
+  .oak-ohlc-head, .oak-ohlc-row { font-size: .54rem; padding: .5rem .45rem; gap: .25rem; }
+  .oak-fact-workbench { display: flex; flex-direction: column; }
+  .oak-fact-input-panel { order: 1; }
+  .oak-fact-hero { order: 2; }
+  .oak-fact-hero-main { min-height: 13rem; }
+  .oak-fact-orbit { width: 6rem; height: 6rem; opacity: .45; }
+  .oak-fact-actions { grid-template-columns: 1fr; }
+  .oak-fact-submit { width: 100%; }
+  .oak-confidence-block { flex-direction: column; align-items: stretch; }
+  .oak-confidence-ring { margin-inline: auto; }
+  .oak-claim-row { grid-template-columns: 2.4rem minmax(0,1fr); }
+  .oak-claim-heading { display: grid; }
+  .oak-source-grid { grid-template-columns: 1fr; }
+  .oak-footer-inner { justify-content: center; text-align: center; }
+  .oak-footer-inner span:first-child,
+  .oak-footer-inner span:last-child { display: none; }
+  .tarot-hero-copy h1 { font-size: clamp(2.7rem,15vw,4.5rem) !important; }
+}
+
+@media (max-width: 420px) {
+  .oak-brand-copy strong { font-size: .7rem; }
+  .oak-locale-switch { display: none; }
+  .oak-engine-metadata { grid-template-columns: 1fr; }
+  .oak-engine-metadata article:last-child { grid-column: auto; }
+  .oak-evidence-hint { grid-template-columns: auto 1fr; }
+  .oak-evidence-hint > i { display: none; }
+  .oak-pair-header { padding: .8rem; }
+  .oak-pair-blocks { display: none; }
+}
+
+/* Motion */
+@keyframes oak-orb-a { from { transform: translate3d(-4%,0,0) scale(.95); } to { transform: translate3d(24%,18%,0) scale(1.12); } }
+@keyframes oak-orb-b { from { transform: translate3d(0,-8%,0) scale(1); } to { transform: translate3d(-28%,22%,0) scale(.9); } }
+@keyframes oak-grid-drift { from { background-position: 0 0,0 0; } to { background-position: 68px 68px,68px 68px; } }
+@keyframes oak-scan { 0%,100% { transform: translateY(-160%); opacity: 0; } 35% { opacity: .1; } 60% { transform: translateY(620%); opacity: .04; } 61%,99% { opacity: 0; } }
+@keyframes oak-logo-sheen { 0%,70% { transform: translateX(-140%) rotate(20deg); } 86%,100% { transform: translateX(220%) rotate(20deg); } }
+@keyframes oak-page-enter { from { opacity: 0; transform: translateY(14px); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes oak-panel-enter { from { opacity: 0; transform: translateY(18px) scale(.992); } to { opacity: 1; transform: none; } }
+@keyframes oak-cell-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes oak-row-enter { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+@keyframes oak-breathe { from { transform: scale(.94); opacity: .55; } to { transform: scale(1.07); opacity: .9; } }
+@keyframes oak-line-sweep { 0%,100% { transform: translateX(-55%); opacity: .15; } 50% { transform: translateX(55%); opacity: .7; } }
+@keyframes oak-spin { to { transform: rotate(360deg); } }
+@keyframes oak-spin-reverse { to { transform: rotate(-360deg); } }
+@keyframes oak-status-pulse { 0%,100% { transform: scale(.86); opacity: .62; } 50% { transform: scale(1.12); opacity: 1; } }
+@keyframes oak-beacon { 0% { transform: scale(.65); opacity: .65; } 75%,100% { transform: scale(1.4); opacity: 0; } }
+@keyframes oak-soft-pulse { 0%,100% { opacity: .72; } 50% { opacity: 1; } }
+@keyframes oak-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes oak-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
+@keyframes oak-modal-enter { from { opacity: 0; transform: translateY(24px) scale(.97); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes oak-candle-grow { from { opacity: 0; transform: scaleY(.2); } to { opacity: 1; transform: scaleY(1); } }
+@keyframes oak-ring-enter { from { opacity: 0; transform: scale(.75) rotate(-55deg); } to { opacity: 1; transform: none; } }
+@keyframes oak-shake-in { 0% { opacity: 0; transform: translateX(-8px); } 40% { transform: translateX(4px); } 70% { transform: translateX(-2px); } 100% { opacity: 1; transform: none; } }
+@keyframes oak-tarot-float { from { transform: translateY(0) rotate(-.3deg); } to { transform: translateY(-8px) rotate(.5deg); } }
+@keyframes oak-tarot-shuffle { from { transform: translateX(-5px) rotate(-2deg) scale(.98); opacity: .68; } to { transform: translateX(5px) rotate(2deg) scale(1.01); opacity: 1; } }
+@keyframes oak-tarot-card-enter { from { opacity: 0; transform: translateY(32px) rotateY(8deg) scale(.96); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+@media print {
+  .oak-ambient, .oak-nav, .oak-footer { display: none !important; }
+  .oak-pair-card, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel { box-shadow: none !important; backdrop-filter: none !important; }
+}
