@@ -71,7 +71,7 @@ function PairTable({ table, blocks, today, locale, onEvidence }: { table: Patter
   return (
     <section className="pattern5-web-card">
       <div className="pattern5-web-pair-head">
-        <div><strong>{table.base}</strong>{table.symbol && table.symbol !== table.base && <span>→ {table.symbol}</span>}</div>
+        <div><strong>{table.base}</strong>{table.symbol && table.symbol !== table.base && <span>→ {table.symbol}</span>}{table.sourceProfile && <span>REF · {table.sourceProfile}</span>}</div>
         <span>{blocks.length} blocks</span>
       </div>
       <div className="pattern5-web-scroll lux-scroll">

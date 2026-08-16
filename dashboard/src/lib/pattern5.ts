@@ -32,6 +32,7 @@ export type Pattern5Day = {
 export type Pattern5Table = {
   base: string;
   symbol: string | null;
+  sourceProfile?: string;
   error?: string;
   days?: Pattern5Day[];
   rows?: Record<string, Array<Pattern5Signal | "">>;
@@ -62,6 +63,16 @@ function parsePayload(raw: unknown): Pattern5Payload | null {
     return null;
   }
 }
+export async function getPattern5Profile(profile: string): Promise<Pattern5Payload | null> {
+  if (!profile.trim()) return null;
+  try {
+    return parsePayload(await redis.get(`robot-sltp:public:pattern5:${profile.trim()}`));
+  } catch (error) {
+    console.error("[PATTERN5 PROFILE READ FAILED]", profile, error);
+    return null;
+  }
+}
+
 export async function getLatestPattern5(): Promise<Pattern5Payload | null> {
   const keys = [
     LATEST_KEY,

@@ -16,6 +16,7 @@ Runtime data:
 Required production environment:
 - `GEMINI_API_KEY` — Google AI Studio server credential.
 - `VIP_TOKEN` — server-only code for weekday Pattern5 BUY/SELL unlock; Saturday/Sunday are free in `Asia/Ho_Chi_Minh`.
+- `PATTERN5_REFERENCE_PROFILE` — optional EUR reference source when the primary feed has not published EUR tables yet; defaults to `VantageDemo`.
 - `FACTCHECK_MODEL` — optional, defaults to `gemini-3.5-flash-lite`.
 - `FACTCHECK_PER_MINUTE_LIMIT` — optional, defaults to `5` per IP.
 - `FACTCHECK_DAILY_LIMIT` — optional, defaults to `200` site-wide.

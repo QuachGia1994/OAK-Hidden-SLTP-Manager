@@ -10,7 +10,10 @@ from typing import Any
 
 import MetaTrader5 as mt5
 
-WATCHLIST = ["GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD"]
+WATCHLIST = [
+    "GBPUSD", "GBPAUD", "GBPJPY", "GBPCAD",
+    "EURUSD", "EURAUD", "EURJPY", "EURCAD",
+]
 CACHE_PATH = Path(__file__).resolve().parent / "pattern5_cache.json"
 CACHE_MAX_AGE_SECONDS = 300
 T, G = "T", "G"
@@ -28,7 +31,7 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 5
+CACHE_SCHEMA = 6
 
 
 def flip_signal(signal: str) -> str:
@@ -152,8 +155,18 @@ def prev_trading_day(day: date) -> date:
     return day - timedelta(days=3) if day.weekday() == 0 else day - timedelta(days=1)
 
 
+def _h4_range_with_warmup(symbol: str, start: int, end: int):
+    rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_H4, start, end)
+    if rates is not None and len(rates) >= 4:
+        return rates
+    mt5.symbol_select(symbol, True)
+    mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H4, 0, 64)
+    time.sleep(0.05)
+    return mt5.copy_rates_range(symbol, mt5.TIMEFRAME_H4, start, end)
+
+
 def look4(symbol: str, anchor: int) -> tuple[list[str], list[dict[str, float | int | str]]] | None:
-    rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_H4, anchor - 10 * 86400, anchor + 4 * 3600)
+    rates = _h4_range_with_warmup(symbol, anchor - 10 * 86400, anchor + 4 * 3600)
     if rates is None:
         return None
     candidates = [rate for rate in rates if int(rate["time"]) < anchor]

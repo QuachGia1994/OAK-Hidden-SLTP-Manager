@@ -1,11 +1,22 @@
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
 import { Pattern5Board } from "@/components/Pattern5Board";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
-import { getLatestPattern5 } from "@/lib/pattern5";
+import { getLatestPattern5, getPattern5Profile, type Pattern5Payload } from "@/lib/pattern5";
 import { getVipAccessState, redactPattern5Signals } from "@/lib/vip";
 import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
+
+const EUR_REFERENCE = new Set(["EURUSD", "EURAUD", "EURJPY", "EURCAD"]);
+
+function mergeEurReference(primary: Pattern5Payload | null, reference: Pattern5Payload | null) {
+  if (!primary || !reference || primary.weekStart !== reference.weekStart) return primary;
+  const existing = new Set(primary.tables.map((table) => table.base));
+  const extras = reference.tables
+    .filter((table) => EUR_REFERENCE.has(table.base) && !existing.has(table.base))
+    .map((table) => ({ ...table, sourceProfile: reference.profile }));
+  return extras.length ? { ...primary, tables: [...primary.tables, ...extras] } : primary;
+}
 
 export default async function EnginePage() {
   const headerList = await headers();
@@ -15,7 +26,12 @@ export default async function EnginePage() {
   );
   const cookieHeader = headerList.get("cookie") || "";
   const access = getVipAccessState(cookieHeader);
-  const rawData = await getLatestPattern5();
+  const referenceProfile = process.env.PATTERN5_REFERENCE_PROFILE || "VantageDemo";
+  const [primary, reference] = await Promise.all([
+    getLatestPattern5(),
+    getPattern5Profile(referenceProfile),
+  ]);
+  const rawData = mergeEurReference(primary, reference);
   const data = access.unlocked ? rawData : redactPattern5Signals(rawData);
 
   return (
