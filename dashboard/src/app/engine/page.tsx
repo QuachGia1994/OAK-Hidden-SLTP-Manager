@@ -7,8 +7,8 @@ import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
-const ACTIVE_PAIRS = new Set(["GBPUSD", "EURUSD", "EURAUD", "EURJPY", "EURCAD"]);
-const EUR_REFERENCE = new Set(["EURUSD", "EURAUD", "EURJPY", "EURCAD"]);
+const ACTIVE_PAIRS = new Set(["GBPUSD", "EURUSD"]);
+const EUR_REFERENCE = new Set(["EURUSD"]);
 
 function filterActivePairs(payload: Pattern5Payload | null) {
   return payload ? { ...payload, tables: payload.tables.filter((table) => ACTIVE_PAIRS.has(table.base)) } : null;

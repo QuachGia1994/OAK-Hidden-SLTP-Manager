@@ -11,11 +11,8 @@ from pattern5_engine import WATCHLIST, classify5, flip_signal, look4, pattern_te
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
-    def test_watchlist_keeps_gbpusd_and_eur_reference_pairs(self):
-        self.assertEqual(WATCHLIST, [
-            "GBPUSD",
-            "EURUSD", "EURAUD", "EURJPY", "EURCAD",
-        ])
+    def test_watchlist_keeps_only_gbpusd_and_eurusd(self):
+        self.assertEqual(WATCHLIST, ["GBPUSD", "EURUSD"])
 
     def test_look4_warms_history_and_retries_once(self):
         rates = [
