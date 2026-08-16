@@ -50,11 +50,14 @@ const suits: Array<{ id: TarotSuit; name: LocalizedText; symbol: string }> = [
   { id: "pentacles", name: { EN: "Pentacles", VN: "Tiền" }, symbol: "◆" },
 ];
 
+const artworkPath = (id: string) => `/tarot/rider-waite-smith/${id}.webp`;
+
 const majorDeck: TarotCardDefinition[] = majorCards.map(([id, englishName, vietnameseName, symbol]) => ({
   id: `major-${id}`,
   name: { EN: englishName, VN: vietnameseName },
   arcana: "major",
   symbol,
+  artwork: artworkPath(`major-${id}`),
 }));
 
 const minorDeck: TarotCardDefinition[] = suits.flatMap((suit) => ranks.map((rank) => ({
@@ -67,6 +70,7 @@ const minorDeck: TarotCardDefinition[] = suits.flatMap((suit) => ranks.map((rank
   suit: suit.id,
   rank: rank.name,
   symbol: suit.symbol,
+  artwork: artworkPath(`${suit.id}-${rank.id}`),
 })));
 
 export const TAROT_CARDS: readonly TarotCardDefinition[] = [...majorDeck, ...minorDeck];

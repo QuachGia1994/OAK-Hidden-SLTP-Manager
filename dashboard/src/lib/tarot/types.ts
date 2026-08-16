@@ -19,6 +19,7 @@ export interface TarotCardDefinition {
   suit?: TarotSuit;
   rank?: LocalizedText;
   symbol: string;
+  artwork: string;
 }
 
 export interface TarotCardDraw extends TarotCardDefinition {

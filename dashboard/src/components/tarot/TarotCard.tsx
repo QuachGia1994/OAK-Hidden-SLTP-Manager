@@ -26,12 +26,15 @@ export function TarotCard({
       </div>
       <div className="tarot-card-face">
         <div className="tarot-card-frame">
-          <span className="tarot-card-corner">{card.symbol}</span>
           <div className="tarot-card-art" data-reversed={card.orientation === "reversed"}>
-            <span aria-hidden="true">{card.symbol}</span>
-            <small>{card.arcana === "major" ? card.symbol : card.rank?.[locale]}</small>
+            <img
+              src={card.artwork}
+              alt={`${card.name[locale]} — ${orientation}`}
+              loading="lazy"
+              width={420}
+              height={630}
+            />
           </div>
-          <span className="tarot-card-corner tarot-card-corner-bottom">{card.symbol}</span>
         </div>
       </div>
       <div className="tarot-card-caption">
