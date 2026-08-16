@@ -1,36 +1,16 @@
 import { NextResponse } from "next/server";
-import { redis, requireBrowserOrApiAuth } from "@/lib/redis-core";
+import { requireBrowserOrApiAuth } from "@/lib/redis-core";
+import { enforceServerRateLimit, readPositiveLimit } from "@/lib/server-rate-limit";
 import { GeminiHttpError, FACTCHECK_MODEL, runGeminiFactCheck } from "@/lib/factcheck/gemini";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const PER_MINUTE_LIMIT = Number(process.env.FACTCHECK_PER_MINUTE_LIMIT || 5);
-const DAILY_LIMIT = Number(process.env.FACTCHECK_DAILY_LIMIT || 200);
-
-function clientKey(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for") || "unknown";
-  return forwarded.split(",")[0].trim().replace(/[^a-zA-Z0-9:._-]/g, "_");
-}
-
-async function enforceRateLimit(request: Request): Promise<NextResponse | null> {
-  const minuteBucket = Math.floor(Date.now() / 60000);
-  const minuteKey = `sltp:factcheck:rate:${clientKey(request)}:${minuteBucket}`;
-  const minuteCount = await redis.incr(minuteKey);
-  if (minuteCount === 1) await redis.expire(minuteKey, 90);
-  if (minuteCount > PER_MINUTE_LIMIT) {
-    return NextResponse.json({ ok: false, error: "rate limit exceeded", code: "RATE_LIMITED" }, { status: 429 });
-  }
-
-  const day = new Date().toISOString().slice(0, 10);
-  const dailyKey = `sltp:factcheck:daily:${day}`;
-  const dailyCount = await redis.incr(dailyKey);
-  if (dailyCount === 1) await redis.expire(dailyKey, 172800);
-  if (dailyCount > DAILY_LIMIT) {
-    return NextResponse.json({ ok: false, error: "daily AI quota guard reached", code: "DAILY_LIMIT" }, { status: 429 });
-  }
-  return null;
-}
+const RATE_LIMIT_POLICY = {
+  namespace: "sltp:factcheck",
+  perMinute: readPositiveLimit(process.env.FACTCHECK_PER_MINUTE_LIMIT, 5),
+  perDay: readPositiveLimit(process.env.FACTCHECK_DAILY_LIMIT, 200),
+};
 
 function geminiFailure(error: unknown): NextResponse {
   if (error instanceof GeminiHttpError) {
@@ -79,8 +59,16 @@ export async function POST(request: Request) {
     if (!text) return NextResponse.json({ ok: false, error: "text is required" }, { status: 400 });
     if (text.length > 12000) return NextResponse.json({ ok: false, error: "text is too long" }, { status: 413 });
 
-    const limited = await enforceRateLimit(request);
-    if (limited) return limited;
+    const limited = await enforceServerRateLimit(request, RATE_LIMIT_POLICY);
+    if (limited) {
+      const payload = limited.scope === "minute"
+        ? { ok: false, error: "rate limit exceeded", code: "RATE_LIMITED" }
+        : { ok: false, error: "daily AI quota guard reached", code: "DAILY_LIMIT" };
+      return NextResponse.json(payload, {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfterSeconds) },
+      });
+    }
 
     const locale = body.locale === "EN" ? "EN" : "VN";
     const outputLanguage = locale === "EN" ? "English" : "Vietnamese";

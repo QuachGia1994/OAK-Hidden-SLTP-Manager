@@ -13,6 +13,7 @@ export function NavBar() {
   const links = [
     { href: "/engine", label: "Engine 5 Pattern", mobile: "Engine" },
     { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực tin tức", mobile: locale === "EN" ? "Check" : "Xác thực" },
+    { href: "/tarot", label: "Tarot", mobile: "Tarot" },
   ];
 
   const changeLocale = (item: "EN" | "VN") => {

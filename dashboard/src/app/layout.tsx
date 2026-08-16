@@ -8,7 +8,7 @@ import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "ROBOT SLTP Pro — Engine 5 Pattern",
-  description: "Mobile-first remote monitoring for Pattern5 and AI fact checking.",
+  description: "Pattern5 monitoring, AI fact checking, and reflective Tarot readings.",
   icons: {
     icon: "/favicon.ico?v=robot-sltp-pro-20260815",
     shortcut: "/favicon.ico?v=robot-sltp-pro-20260815",
