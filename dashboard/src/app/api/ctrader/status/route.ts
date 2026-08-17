@@ -31,7 +31,6 @@ export async function GET(request: Request) {
     provider: "ctrader-open-api",
     broker,
     environment,
-    scope: "accounts",
     productionSource: "mt5",
     shadowOnly: true,
     parityRequired: true,
