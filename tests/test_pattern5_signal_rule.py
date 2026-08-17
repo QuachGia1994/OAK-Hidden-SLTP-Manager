@@ -9,7 +9,7 @@ from unittest.mock import mock_open, patch
 APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
 
-from pattern5_engine import WATCHLIST, build_table, classify5, flip_signal, look4, pattern_text, render_profile, should_reverse_signal, signal_from_base
+from pattern5_engine import WATCHLIST, build_h14_reference, build_table, classify5, flip_signal, look4, pattern_text, render_profile, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
@@ -87,6 +87,23 @@ class Pattern5SignalRuleTests(unittest.TestCase):
             self.assertNotEqual(rows[block][0], "")
             self.assertEqual(rows[block][1:], ["", "", "", ""])
             self.assertEqual(detail[block][1:], ["", "", "", ""])
+
+    def test_h14_reference_uses_previous_day_h14_cell_not_current_cell(self):
+        days = [date(2026, 8, 17 + offset) for offset in range(5)]
+        rows = {14: [
+            {"group": "Sw", "pattern": "T T T"},
+            {"group": "Bt", "pattern": "G G T"},
+            "", "", "",
+        ]}
+
+        reference = build_h14_reference("EURUSD", days, rows)
+
+        self.assertEqual(reference, {
+            "date": "2026-08-17",
+            "display": "17/08",
+            "group": "Sw",
+            "pattern": "T T T",
+        })
 
     def test_render_profile_never_launches_closed_terminal(self):
         profiles = {"Vantage": {"path": "C:/Broker/terminal64.exe"}}

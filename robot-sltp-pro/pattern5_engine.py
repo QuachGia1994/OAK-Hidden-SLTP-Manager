@@ -32,7 +32,7 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 10
+CACHE_SCHEMA = 11
 VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
@@ -210,6 +210,44 @@ def vietnam_today() -> date:
     return datetime.now(VIETNAM_TZ).date()
 
 
+def build_signal_cell(
+    symbol: str,
+    day: date,
+    hour: int,
+    offset: int,
+    provider: MarketDataProvider | None = None,
+) -> tuple[Any, str]:
+    lookback_day = prev_trading_day(day)
+    lookback = look4(
+        symbol,
+        anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset),
+        provider=provider,
+    )
+    if not lookback:
+        return "", ""
+    directions, evidence = lookback
+    pattern_id, _mirrored = classify5(directions)
+    if pattern_id is None:
+        return "", ""
+    group = GROUP[pattern_id]
+    base_signal = signal_from_base(directions, group)
+    reversed_signal = should_reverse_signal(hour, day)
+    signal = flip_signal(base_signal) if reversed_signal else base_signal
+    sequence = pattern_text(pattern_id, directions)
+    cell = {
+        "group": group,
+        "baseSignal": base_signal,
+        "signal": signal,
+        "reversed": reversed_signal,
+        "label": f"{group} ({'Tăng' if signal == 'BUY' else 'Giảm'})",
+        "pattern": sequence,
+        "evidence": evidence,
+    }
+    reverse_text = "Reverse" if reversed_signal else "Normal"
+    detail = f"{group} · Base {base_signal} · {reverse_text} → {signal} · {sequence}"
+    return cell, detail
+
+
 def build_table(
     symbol: str,
     week_start: date | None = None,
@@ -225,36 +263,42 @@ def build_table(
     for day_index, day in enumerate(days):
         if day > current_day:
             continue
-        lookback_day = prev_trading_day(day)
         for hour in BLOCKS:
-            lookback = look4(
-                symbol,
-                anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset),
-                provider=provider,
-            )
-            if not lookback:
-                continue
-            directions, evidence = lookback
-            pattern_id, _mirrored = classify5(directions)
-            if pattern_id is None:
-                continue
-            group = GROUP[pattern_id]
-            base_signal = signal_from_base(directions, group)
-            reversed_signal = should_reverse_signal(hour, day)
-            signal = flip_signal(base_signal) if reversed_signal else base_signal
-            sequence = pattern_text(pattern_id, directions)
-            rows[hour][day_index] = {
-                "group": group,
-                "baseSignal": base_signal,
-                "signal": signal,
-                "reversed": reversed_signal,
-                "label": f"{group} ({'Tăng' if signal == 'BUY' else 'Giảm'})",
-                "pattern": sequence,
-                "evidence": evidence,
-            }
-            reverse_text = "Reverse" if reversed_signal else "Normal"
-            detail[hour][day_index] = f"{group} · Base {base_signal} · {reverse_text} → {signal} · {sequence}"
+            cell, cell_detail = build_signal_cell(symbol, day, hour, offset, provider=provider)
+            rows[hour][day_index] = cell
+            detail[hour][day_index] = cell_detail
     return days, rows, detail
+
+
+def build_h14_reference(
+    symbol: str,
+    days: list[date],
+    rows: dict[int, list[Any]],
+    provider: MarketDataProvider | None = None,
+) -> dict[str, str] | None:
+    signals = rows.get(14, [])
+    latest_index = next((index for index in range(min(len(days), len(signals)) - 1, -1, -1) if signals[index]), -1)
+    if latest_index < 0:
+        return None
+    reference_day = prev_trading_day(days[latest_index])
+    reference_cell: Any = ""
+    try:
+        reference_index = days.index(reference_day)
+    except ValueError:
+        reference_index = -1
+    if reference_index >= 0:
+        reference_cell = signals[reference_index]
+    else:
+        offset = broker_day_offset(symbol, provider=provider)
+        reference_cell, _detail = build_signal_cell(symbol, reference_day, 14, offset, provider=provider)
+    if not reference_cell:
+        return None
+    return {
+        "date": reference_day.isoformat(),
+        "display": reference_day.strftime("%d/%m"),
+        "group": str(reference_cell["group"]),
+        "pattern": str(reference_cell["pattern"]),
+    }
 
 
 def _cache_key(profile: str, week_start: str) -> str:
@@ -309,9 +353,11 @@ def render_profile_with_provider(
             tables.append({"base": base, "symbol": None, "error": "KHONG TIM THAY SYMBOL BROKER"})
             continue
         days, rows, detail = build_table(symbol, monday, provider=provider)
+        h14_reference = build_h14_reference(symbol, days, rows, provider=provider)
         tables.append({
             "base": base,
             "symbol": symbol,
+            "h14Reference": h14_reference,
             "days": [
                 {
                     "name": DAY_NAMES[index],

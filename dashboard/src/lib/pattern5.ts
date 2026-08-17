@@ -29,6 +29,13 @@ export type Pattern5Day = {
   display: string;
 };
 
+export type Pattern5Reference = {
+  date: string;
+  display: string;
+  group: "Sw" | "Bt";
+  pattern: string;
+};
+
 export type Pattern5Table = {
   base: string;
   symbol: string | null;
@@ -37,6 +44,7 @@ export type Pattern5Table = {
   days?: Pattern5Day[];
   rows?: Record<string, Array<Pattern5Signal | "">>;
   detail?: Record<string, string[]>;
+  h14Reference?: Pattern5Reference;
 };
 export type Pattern5Payload = {
   profile: string;

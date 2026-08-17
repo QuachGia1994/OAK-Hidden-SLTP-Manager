@@ -72,16 +72,29 @@ function previousTradingDate(dateValue: string): Date | null {
 function h14HistoryReference(table: Pattern5Table, locale: Locale) {
   const signals = table.rows?.["14"] ?? [];
   const days = table.days ?? [];
+  const explicit = table.h14Reference;
+  if (explicit) {
+    const parsed = new Date(`${explicit.date}T00:00:00Z`);
+    const weekday = parsed.getUTCDay();
+    return {
+      group: explicit.group,
+      pattern: explicit.pattern,
+      dateLabel: explicit.display,
+      weekdayLabel: locale === "VN" ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][weekday] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday],
+    };
+  }
   for (let index = Math.min(signals.length, days.length) - 1; index >= 0; index -= 1) {
-    const signal = signals[index];
-    const day = days[index];
-    if (!signal || !day) continue;
-    const sourceDate = previousTradingDate(day.date);
+    if (!signals[index] || !days[index]) continue;
+    const sourceDate = previousTradingDate(days[index].date);
     if (!sourceDate) continue;
+    const sourceIso = sourceDate.toISOString().slice(0, 10);
+    const sourceIndex = days.findIndex((day) => day.date === sourceIso);
+    const sourceSignal = sourceIndex >= 0 ? signals[sourceIndex] : "";
+    if (!sourceSignal) return null;
     const weekday = sourceDate.getUTCDay();
     return {
-      group: signal.group,
-      pattern: signal.pattern,
+      group: sourceSignal.group,
+      pattern: sourceSignal.pattern,
       dateLabel: sourceDate.toLocaleDateString(locale === "EN" ? "en-GB" : "vi-VN", { timeZone: "UTC", day: "2-digit", month: "2-digit" }),
       weekdayLabel: locale === "VN" ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][weekday] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday],
     };
