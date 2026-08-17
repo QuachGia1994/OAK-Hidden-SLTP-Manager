@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
 
 type Locale = "EN" | "VN";
@@ -199,16 +199,51 @@ function MobileSignalWorkspace({ table, blocks, today, locale, onEvidence }: { t
   );
 }
 
-function EvidenceModal({ selection, locale, onClose }: { selection: EvidenceSelection; locale: Locale; onClose: () => void }) {
+function useDialogFocusTrap(open: boolean, onClose: () => void) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => event.key === "Escape" && onClose();
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+    if (!open || !dialogRef.current) return;
+    const dialog = dialogRef.current;
+    const previous = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"));
+    const focusInitial = window.requestAnimationFrame(() => (dialog.querySelector<HTMLElement>("[autofocus]") ?? focusable()[0])?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    dialog.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusInitial);
+      dialog.removeEventListener("keydown", handleKeyDown);
+      previous?.focus();
+    };
+  }, [open]);
+  return dialogRef;
+}
+
+function EvidenceModal({ selection, locale, onClose }: { selection: EvidenceSelection; locale: Locale; onClose: () => void }) {
+  const dialogRef = useDialogFocusTrap(true, onClose);
   const locked = Boolean(selection.signal.locked || !selection.signal.signal || !selection.signal.baseSignal);
   return (
     <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section className="oak-evidence-modal" role="dialog" aria-modal="true" aria-label={selection.title}>
+      <section ref={dialogRef} className="oak-evidence-modal" role="dialog" aria-modal="true" aria-label={selection.title}>
         <header className="oak-modal-header"><div><span className="oak-eyebrow">EVIDENCE / 04 CANDLES</span><h2>{selection.title}</h2><p>{locale === "EN" ? "Oldest → newest · direct OHLC from the 4 H4 lookback candles" : "Cũ → mới · OHLC trực tiếp từ 4 nến H4 lookback"}</p></div><button type="button" onClick={onClose} aria-label="Close">×</button></header>
         <div className="oak-evidence-summary"><article><small>BASE</small><b>{locked ? "•••" : selection.signal.baseSignal}</b></article><article data-state={!locked && selection.signal.reversed ? "reverse" : "normal"}><small>{locked ? "ACCESS" : selection.signal.reversed ? "REVERSE" : "NORMAL"}</small><b>{locked ? "VIP" : selection.signal.signal}</b></article><article><small>CLASS</small><b>{selection.signal.group}</b><span>{selection.signal.pattern}</span></article></div>
         <div className="oak-chart-shell"><CandleChart candles={selection.signal.evidence} /></div>
@@ -225,6 +260,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const isEn = locale === "EN";
+  const vipDialogRef = useDialogFocusTrap(open, () => setOpen(false));
   const unlock = async () => {
     if (!token.trim() || loading) return;
     setLoading(true); setError("");
@@ -253,7 +289,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
       : { title: "VIP LOCKED", detail: isEn ? "Weekday BUY/SELL is masked" : "BUY/SELL ngày thường đang ẩn", action: isEn ? "Unlock" : "Mở VIP" };
   return <>
     <section className="oak-access-panel" data-mode={access.mode}><div className="oak-access-symbol"><span>{access.mode === "vip" ? "◆" : access.mode === "weekend" ? "◇" : "◈"}</span></div><div className="oak-access-copy"><small>ACCESS</small><b>{modeCopy.title}</b><p>{modeCopy.detail}</p></div><div className="oak-access-state"><span>{ACCESS_WEEKDAY_LABELS[locale][access.weekday] ?? access.weekday}</span><i /></div>{access.mode === "vip" && <button type="button" disabled={loading} onClick={() => void logout()}>{loading ? "…" : modeCopy.action}</button>}{access.mode === "locked" && <button type="button" onClick={() => setOpen(true)}>{modeCopy.action}</button>}</section>
-    {open && <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}><section className="oak-vip-modal" role="dialog" aria-modal="true" aria-label="VIP Unlock"><header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal weekday signals." : "Nhập mã truy cập để mở tín hiệu ngày thường."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header><label className="oak-vip-field"><span>{isEn ? "ACCESS CODE" : "MÃ VIP"}</span><input type="password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void unlock()} autoFocus autoComplete="current-password" /></label>{error && <p className="oak-form-error">{error}</p>}<button className="oak-primary-action" type="button" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading ? (isEn ? "UNLOCKING" : "ĐANG MỞ") : "UNLOCK SIGNALS"}</button></section></div>}
+    {open && <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}><section ref={vipDialogRef} className="oak-vip-modal" role="dialog" aria-modal="true" aria-label="VIP Unlock"><header className="oak-modal-header"><div><span className="oak-eyebrow">PRIVATE ACCESS</span><h2>VIP UNLOCK</h2><p>{isEn ? "Enter your access code to reveal weekday signals." : "Nhập mã truy cập để mở tín hiệu ngày thường."}</p></div><button type="button" onClick={() => setOpen(false)} aria-label="Close">×</button></header><label className="oak-vip-field"><span>{isEn ? "ACCESS CODE" : "MÃ VIP"}</span><input type="password" value={token} onChange={(event) => setToken(event.target.value)} onKeyDown={(event) => event.key === "Enter" && void unlock()} autoFocus autoComplete="current-password" /></label>{error && <p className="oak-form-error">{error}</p>}<button className="oak-primary-action" type="button" disabled={loading || !token.trim()} onClick={() => void unlock()}>{loading ? (isEn ? "UNLOCKING" : "ĐANG MỞ") : "UNLOCK SIGNALS"}</button></section></div>}
   </>;
 }
 

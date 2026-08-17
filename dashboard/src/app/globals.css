@@ -14,6 +14,7 @@
   --oak-signal-sell: #d92d20;
   --oak-status-warning: #a15c07;
   --oak-status-danger: #b42318;
+  --oak-status-online: #07875f;
   --oak-access-vip: #9a6700;
   --oak-reverse-bg: #f1ebff;
   --oak-reverse-border: #7f56d9;
@@ -58,6 +59,7 @@
   --oak-signal-sell: #ff6b6b;
   --oak-status-warning: #f5b942;
   --oak-status-danger: #ff5d5d;
+  --oak-status-online: #12b76a;
   --oak-access-vip: #f4c15d;
   --oak-reverse-bg: rgba(127, 86, 217, .16);
   --oak-reverse-border: #9e77ed;
@@ -80,6 +82,7 @@
   --oak-signal-sell: #ff7d73;
   --oak-status-warning: #f6c85f;
   --oak-status-danger: #ff756c;
+  --oak-status-online: #67d8a5;
   --oak-access-vip: #ffd166;
   --oak-reverse-bg: rgba(140, 90, 220, .2);
   --oak-reverse-border: #b692f6;
@@ -111,6 +114,11 @@ body {
 }
 
 ::selection { background: color-mix(in srgb, var(--terminal-accent) 28%, transparent); }
+
+:where(a, button, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--oak-accent-command);
+  outline-offset: 2px;
+}
 
 .page-shell,
 .nav-shell {

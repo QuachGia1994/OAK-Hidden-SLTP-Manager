@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useLocale } from "./LocaleProvider";
 
@@ -28,6 +28,8 @@ export function NavBar() {
   const { locale, mode, setLocaleMode } = useLocale();
   const [toolsOpen, setToolsOpen] = useState(false);
   const toolsRef = useRef<HTMLDivElement>(null);
+  const toolsButtonRef = useRef<HTMLButtonElement>(null);
+  const toolsMenuRef = useRef<HTMLDivElement>(null);
 
   const tools = [
     { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực", detail: locale === "EN" ? "Evidence lab" : "Phòng lab bằng chứng", icon: <CheckIcon /> },
@@ -45,7 +47,11 @@ export function NavBar() {
     const onPointerDown = (event: PointerEvent) => {
       if (toolsRef.current && !toolsRef.current.contains(event.target as Node)) setToolsOpen(false);
     };
-    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setToolsOpen(false);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setToolsOpen(false);
+      toolsButtonRef.current?.focus();
+    };
     window.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown);
     return () => {
@@ -57,6 +63,31 @@ export function NavBar() {
   const changeLocale = (item: "EN" | "VN") => {
     setLocaleMode(item);
     window.setTimeout(() => window.location.reload(), 0);
+  };
+
+  const focusToolItem = (index: number) => {
+    const items = Array.from(toolsMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? []);
+    if (!items.length) return;
+    items[(index + items.length) % items.length]?.focus();
+  };
+
+  const handleToolsTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    setToolsOpen(true);
+    window.requestAnimationFrame(() => focusToolItem(event.key === "ArrowDown" ? 0 : -1));
+  };
+
+  const handleToolsMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(toolsMenuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? []);
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      focusToolItem(current + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      focusToolItem(event.key === "Home" ? 0 : -1);
+    }
   };
 
   return (
@@ -85,19 +116,26 @@ export function NavBar() {
           <div className="oak-tools" ref={toolsRef}>
             <span className="oak-nav-section-label">TOOLS</span>
             <button
+              ref={toolsButtonRef}
               type="button"
               className="oak-nav-link oak-tools-trigger"
               data-active={toolsActive ? "true" : undefined}
               aria-haspopup="menu"
               aria-expanded={toolsOpen}
-              onClick={() => setToolsOpen((open) => !open)}
+              aria-controls="oak-tools-menu"
+              onKeyDown={handleToolsTriggerKeyDown}
+              onClick={() => {
+                const opening = !toolsOpen;
+                setToolsOpen(opening);
+                if (opening) window.requestAnimationFrame(() => focusToolItem(0));
+              }}
             >
               <span className="oak-nav-icon"><ToolsIcon /></span>
               <span>{locale === "EN" ? "Labs" : "Công cụ"}</span>
               <i aria-hidden="true">⌄</i>
             </button>
             {toolsOpen && (
-              <div className="oak-tools-menu" role="menu">
+              <div id="oak-tools-menu" ref={toolsMenuRef} className="oak-tools-menu" role="menu" onKeyDown={handleToolsMenuKeyDown}>
                 <header><small>OAK LABS</small><b>{locale === "EN" ? "Secondary tools" : "Công cụ phụ trợ"}</b></header>
                 {tools.map((item) => (
                   <Link key={item.href} href={item.href} role="menuitem" data-active={pathname === item.href ? "true" : undefined}>
