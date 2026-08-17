@@ -435,20 +435,47 @@ class MonitorWorker(threading.Thread):
             if symbol_str:
                 monitored_symbols = [s.strip().upper() for s in symbol_str.split(",") if s.strip()]
 
-            # Shared launcher: validate, start and connect exactly one terminal
-            # for this profile worker.  Do not let the MT5 package silently
-            # attach to another profile when a configured path is stale.
-            launch = ensure_mt5_profile_connected(self.config, mt5_module=mt5)
-            if not launch.ok:
-                self.launch_failed = True
-                profile_name = self.config.get("profile_name", "") or "default"
-                failure = f"{launch.failure_code or 'IPC_FAILED'}: {launch.message}"
-                self.notify(
-                    f"[MT5-LAUNCH] Profile={profile_name} "
-                    f"status={launch.failure_code or 'IPC_FAILED'} path={launch.terminal_path} "
-                    f"message={failure}"
+            # Attach only to a terminal the user has already opened. Selecting
+            # a profile or keeping the worker alive must never launch MT5.
+            # Stay resident while the terminal is closed so a later manual
+            # open can be attached without restarting the OAK runtime.
+            profile_name = self.config.get("profile_name", "") or "default"
+            launch = ensure_mt5_profile_connected(
+                self.config,
+                mt5_module=mt5,
+                timeout_seconds=5,
+                allow_process_start=False,
+            )
+            waiting_logged = False
+            fatal_launch_codes = {
+                "TERMINAL_PATH_NOT_FOUND",
+                "TERMINAL_PATH_MISMATCH",
+                "ACCOUNT_MISMATCH",
+            }
+            while not launch.ok and not self.stop_event.is_set():
+                if launch.failure_code in fatal_launch_codes:
+                    self.launch_failed = True
+                    failure = f"{launch.failure_code or 'IPC_FAILED'}: {launch.message}"
+                    self.notify(
+                        f"[MT5-ATTACH] Profile={profile_name} "
+                        f"status={launch.failure_code or 'IPC_FAILED'} path={launch.terminal_path} "
+                        f"message={failure}"
+                    )
+                    return
+                if not waiting_logged:
+                    self.log(
+                        f"[MT5-ATTACH] Profile={profile_name} waiting for manual terminal open"
+                    )
+                    waiting_logged = True
+                self.stop_event.wait(2.0)
+                if self.stop_event.is_set():
+                    return
+                launch = ensure_mt5_profile_connected(
+                    self.config,
+                    mt5_module=mt5,
+                    timeout_seconds=5,
+                    allow_process_start=False,
                 )
-                return
             self.log(
                 f"[MT5-LAUNCH] Profile={self.config.get('profile_name', 'unknown')} "
                 f"CONNECTED path={launch.terminal_path} attempts={launch.initialize_attempts}"
@@ -549,7 +576,10 @@ class MonitorWorker(threading.Thread):
                         if not mt5.terminal_info():
                             self.log("⚠️ Connection lost. Attempting reconnect...")
                             launch = ensure_mt5_profile_connected(
-                                self.config, mt5_module=mt5, timeout_seconds=10
+                                self.config,
+                                mt5_module=mt5,
+                                timeout_seconds=10,
+                                allow_process_start=False,
                             )
                             if launch.ok:
                                 # Refresh missing identity from the live session after
@@ -562,8 +592,9 @@ class MonitorWorker(threading.Thread):
                             else:
                                 self.log(
                                     f"⚠️ Still disconnected ({launch.failure_code}); "
-                                    "will retry with backoff."
+                                    "waiting for manual MT5 open."
                                 )
+                                continue
 
                     # Check Language Change (Every 2s)
                     if time.time() - last_lang_check > 2.0:

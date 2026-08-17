@@ -18,11 +18,15 @@ class MT5Service:
             self._profile_config["path"] = self._path
         self._connected = False
 
-    def connect(self):
-        """Initialize MT5 connection."""
+    def connect(self, *, allow_process_start=True):
+        """Initialize MT5 connection, optionally without launching a terminal."""
         profile = dict(self._profile_config)
         profile.setdefault("path", self._path or "")
-        result = ensure_mt5_profile_connected(profile, mt5_module=mt5)
+        result = ensure_mt5_profile_connected(
+            profile,
+            mt5_module=mt5,
+            allow_process_start=allow_process_start,
+        )
         ok = result.ok
         if ok:
             self._connected = True

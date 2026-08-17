@@ -72,6 +72,58 @@ class MT5TerminalAutoLaunchTests(unittest.TestCase):
         self.assertEqual(result.failure_code, "TERMINAL_PATH_NOT_FOUND")
         self.assertEqual(mt5.initializes, [])
 
+    def test_attach_only_does_not_start_closed_terminal(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "terminal64.exe"
+            path.write_bytes(b"fake")
+            mt5 = FakeMT5()
+            launches = []
+
+            result = ensure_mt5_profile_connected(
+                {"path": str(path), "login_id": 123, "server": "Vantage"},
+                mt5_module=mt5,
+                process_factory=lambda candidate: launches.append(candidate),
+                running_check_fn=lambda _candidate: (False, None),
+                allow_process_start=False,
+            )
+
+            self.assertFalse(result.ok)
+            self.assertEqual(result.failure_code, "TERMINAL_NOT_RUNNING")
+            self.assertEqual(mt5.initializes, [])
+            self.assertEqual(launches, [])
+
+    def test_attach_only_connects_to_terminal_that_is_already_running(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "terminal64.exe"
+            path.write_bytes(b"fake")
+
+            class AlreadyConnectedMT5(FakeMT5):
+                def initialize(self, **kwargs):
+                    self.initializes.append(kwargs)
+                    self.calls += 1
+                    return True
+
+                def terminal_info(self):
+                    return object()
+
+                def account_info(self):
+                    return SimpleNamespace(login=123, server="Vantage")
+
+            mt5 = AlreadyConnectedMT5()
+            launches = []
+            result = ensure_mt5_profile_connected(
+                {"path": str(path), "login_id": 123, "server": "Vantage"},
+                mt5_module=mt5,
+                process_factory=lambda candidate: launches.append(candidate),
+                running_check_fn=lambda _candidate: (True, 77),
+                allow_process_start=False,
+            )
+
+            self.assertTrue(result.ok)
+            self.assertFalse(result.process_started)
+            self.assertEqual(result.initialize_attempts, 1)
+            self.assertEqual(launches, [])
+
     def test_attaches_before_launching_when_process_inspection_is_unavailable(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "terminal64.exe"

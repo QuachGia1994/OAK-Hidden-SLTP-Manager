@@ -278,8 +278,8 @@ def cmd_snapshot(payload):
     if not isinstance(cfg, dict):
         raise RuntimeError(f"Unknown profile: {name}")
     service = MT5Service(profile_config={**cfg, "profile_name": name})
-    if not service.connect():
-        raise RuntimeError(f"MT5 connection failed for profile {name}")
+    if not service.connect(allow_process_start=False):
+        raise RuntimeError(f"MT5 terminal is not running or cannot be attached for profile {name}")
     try:
         account = service.account_info() or {}
         positions = service.positions_get()

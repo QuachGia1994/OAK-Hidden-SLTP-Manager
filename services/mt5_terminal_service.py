@@ -401,12 +401,20 @@ def recover_mt5_profile_session(
     if not retryable:
         return False, reason, False
 
-    launcher = reconnect_fn or ensure_mt5_profile_connected
-    result = launcher(
-        profile_config,
-        mt5_module=mt5_module,
-        timeout_seconds=timeout_seconds,
-    )
+    if reconnect_fn is None:
+        result = ensure_mt5_profile_connected(
+            profile_config,
+            mt5_module=mt5_module,
+            timeout_seconds=timeout_seconds,
+            allow_process_start=False,
+        )
+    else:
+        # Test/custom reconnect hooks retain their existing call contract.
+        result = reconnect_fn(
+            profile_config,
+            mt5_module=mt5_module,
+            timeout_seconds=timeout_seconds,
+        )
     if not result.ok:
         return False, str(result.failure_code or reason), False
 
@@ -426,6 +434,8 @@ def ensure_mt5_profile_connected(
     monotonic_fn: Callable[[], float] = time.monotonic,
     discover_fn: Callable[[], Iterable[Path]] | None = None,
     status_callback: Callable[[str], None] | None = None,
+    allow_process_start: bool = True,
+    running_check_fn: Callable[[Path], tuple[bool, int | None]] | None = None,
 ) -> MT5LaunchResult:
     """Ensure one profile's terminal is running and its MT5 IPC is connected."""
     if status_callback:
@@ -454,6 +464,19 @@ def ensure_mt5_profile_connected(
     process_id: int | None = None
     attempts = 1
     last_error: tuple | None = None
+    running_check = running_check_fn or _is_terminal_running
+
+    # Read-only/background consumers must respect a terminal that the user
+    # intentionally closed.  MetaTrader5.initialize(path=...) can itself start
+    # the executable, so check the process before initialize when launch is
+    # forbidden.
+    if not allow_process_start:
+        running, process_id = running_check(terminal_path)
+        if not running:
+            return MT5LaunchResult(
+                False, str(terminal_path), False, None, 0, None,
+                "TERMINAL_NOT_RUNNING", "MT5 terminal is not running",
+            )
 
     # A terminal can already be running even when optional process inspection
     # is unavailable. Attach first, but serialize initialize + identity
@@ -478,7 +501,12 @@ def ensure_mt5_profile_connected(
             "Connected terminal/session does not match profile",
         )
 
-    running, process_id = _is_terminal_running(terminal_path)
+    running, process_id = running_check(terminal_path)
+    if not running and not allow_process_start:
+        return MT5LaunchResult(
+            False, str(terminal_path), False, None, attempts, last_error,
+            "TERMINAL_NOT_RUNNING", "MT5 terminal is not running",
+        )
     if not running:
         profile_label = profile_config.get("profile_name", profile_config.get("name", "")) if isinstance(profile_config, dict) else ""
         if status_callback:
