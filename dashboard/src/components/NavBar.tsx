@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "./ThemeProvider";
 import { useLocale } from "./LocaleProvider";
 
@@ -17,18 +18,41 @@ function TarotIcon() {
 function DiscoverIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3M3 12h3m12 0h3" /><path d="m12 7 1.4 3.6L17 12l-3.6 1.4L12 17l-1.4-3.6L7 12l3.6-1.4L12 7Z" /></svg>;
 }
+function ToolsIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M9 18h6" /></svg>;
+}
 
 export function NavBar() {
   const pathname = usePathname();
   const { theme, cycleTheme } = useTheme();
   const { locale, mode, setLocaleMode } = useLocale();
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsRef = useRef<HTMLDivElement>(null);
 
-  const links = [
-    { href: "/engine", label: "Engine 5", mobile: "Engine", icon: <EngineIcon /> },
-    { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực", mobile: locale === "EN" ? "Check" : "Xác thực", icon: <CheckIcon /> },
-    { href: "/tarot", label: "Tarot", mobile: "Tarot", icon: <TarotIcon /> },
-    { href: "/discover", label: locale === "EN" ? "Discover" : "Khám phá", mobile: locale === "EN" ? "Discover" : "Khám phá", icon: <DiscoverIcon /> },
+  const tools = [
+    { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực", detail: locale === "EN" ? "Evidence lab" : "Phòng lab bằng chứng", icon: <CheckIcon /> },
+    { href: "/tarot", label: "Tarot", detail: locale === "EN" ? "Reflection" : "Chiêm nghiệm", icon: <TarotIcon /> },
+    { href: "/discover", label: locale === "EN" ? "Discover" : "Khám phá", detail: locale === "EN" ? "Playground" : "Giải trí", icon: <DiscoverIcon /> },
   ];
+  const toolsActive = tools.some((item) => pathname === item.href);
+
+  useEffect(() => {
+    setToolsOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!toolsOpen) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (toolsRef.current && !toolsRef.current.contains(event.target as Node)) setToolsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && setToolsOpen(false);
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [toolsOpen]);
 
   const changeLocale = (item: "EN" | "VN") => {
     setLocaleMode(item);
@@ -38,60 +62,62 @@ export function NavBar() {
   return (
     <nav className="oak-nav sticky top-0 z-50">
       <div className="nav-shell oak-nav-layout">
-        <Link href="/engine" className="oak-brand" aria-label="ROBOT SLTP Pro · OAK Gatekeeper">
-          <span className="oak-brand-icon">
-            <img src="/favicon.ico?v=robot-sltp-pro-20260815" alt="" aria-hidden="true" />
-            <i />
-          </span>
+        <Link href="/engine" className="oak-brand" aria-label="OAK Gatekeeper · ROBOT SLTP Pro">
+          <span className="oak-brand-icon"><img src="/favicon.ico?v=robot-sltp-pro-20260815" alt="" aria-hidden="true" /></span>
           <span className="oak-brand-copy">
             <small>OAK GATEKEEPER</small>
             <strong>ROBOT SLTP <b>PRO</b></strong>
           </span>
         </Link>
 
-        <div className="oak-nav-tabs" role="navigation" aria-label="Primary">
-          {links.map((link) => {
-            const active = pathname === link.href;
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                aria-label={link.label}
-                aria-current={active ? "page" : undefined}
-                className="oak-nav-link"
-                data-active={active ? "true" : undefined}
-              >
-                <span className="oak-nav-icon">{link.icon}</span>
-                <span className="hidden sm:inline">{link.label}</span>
-                <span className="sm:hidden">{link.mobile}</span>
-                <i className="oak-nav-underline" />
-              </Link>
-            );
-          })}
+        <div className="oak-nav-workspace" aria-label="Product navigation">
+          <span className="oak-nav-section-label">TRADING</span>
+          <Link
+            href="/engine"
+            aria-current={pathname === "/engine" ? "page" : undefined}
+            className="oak-nav-link oak-nav-link-primary"
+            data-active={pathname === "/engine" ? "true" : undefined}
+          >
+            <span className="oak-nav-icon"><EngineIcon /></span>
+            <span>Engine 5</span>
+          </Link>
+
+          <div className="oak-tools" ref={toolsRef}>
+            <span className="oak-nav-section-label">TOOLS</span>
+            <button
+              type="button"
+              className="oak-nav-link oak-tools-trigger"
+              data-active={toolsActive ? "true" : undefined}
+              aria-haspopup="menu"
+              aria-expanded={toolsOpen}
+              onClick={() => setToolsOpen((open) => !open)}
+            >
+              <span className="oak-nav-icon"><ToolsIcon /></span>
+              <span>{locale === "EN" ? "Labs" : "Công cụ"}</span>
+              <i aria-hidden="true">⌄</i>
+            </button>
+            {toolsOpen && (
+              <div className="oak-tools-menu" role="menu">
+                <header><small>OAK LABS</small><b>{locale === "EN" ? "Secondary tools" : "Công cụ phụ trợ"}</b></header>
+                {tools.map((item) => (
+                  <Link key={item.href} href={item.href} role="menuitem" data-active={pathname === item.href ? "true" : undefined}>
+                    <span className="oak-nav-icon">{item.icon}</span>
+                    <span><b>{item.label}</b><small>{item.detail}</small></span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="oak-nav-controls">
           <div className="oak-locale-switch" aria-label="Language">
             {(["EN", "VN"] as const).map((item) => (
-              <button
-                key={item}
-                onClick={() => changeLocale(item)}
-                aria-pressed={mode === item}
-                data-active={mode === item ? "true" : undefined}
-              >
-                {item}
-              </button>
+              <button key={item} onClick={() => changeLocale(item)} aria-pressed={mode === item} data-active={mode === item ? "true" : undefined}>{item}</button>
             ))}
           </div>
-          <button
-            onClick={cycleTheme}
-            className="oak-theme-toggle"
-            aria-label={`Theme: ${theme}`}
-            title={`Theme: ${theme}`}
-          >
-            <span className="oak-theme-glyph" data-theme={theme}>
-              {theme === "dark" ? "◐" : theme === "contrast" ? "◒" : "☼"}
-            </span>
+          <button onClick={cycleTheme} className="oak-theme-toggle" aria-label={`Theme: ${theme}`} title={`Theme: ${theme}`}>
+            <span className="oak-theme-glyph" data-theme={theme}>{theme === "dark" ? "◐" : theme === "contrast" ? "◒" : "☼"}</span>
           </button>
         </div>
       </div>

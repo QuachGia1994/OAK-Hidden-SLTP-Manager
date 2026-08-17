@@ -9,7 +9,7 @@ import { detectServerLocaleFromCookie } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   title: "ROBOT SLTP Pro — OAK Gatekeeper",
-  description: "Engine 5 market signals, evidence-first fact checking, and reflective Tarot readings.",
+  description: "OAK Gatekeeper trading command system for Engine 5 market signals, broker-aligned evidence, and private signal access.",
   icons: {
     icon: "/favicon.ico?v=robot-sltp-pro-20260815",
     shortcut: "/favicon.ico?v=robot-sltp-pro-20260815",
@@ -46,12 +46,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         `}} />
       </head>
       <body className="oak-body min-h-full flex flex-col bg-[var(--background)] text-[var(--foreground)]">
-        <div className="oak-ambient" aria-hidden="true">
-          <span className="oak-ambient-orb oak-ambient-orb-a" />
-          <span className="oak-ambient-orb oak-ambient-orb-b" />
-          <span className="oak-ambient-grid" />
-          <span className="oak-ambient-scan" />
-        </div>
         <LocaleProvider initialLocale={locale}>
           <ThemeProvider>
             <NavBar />

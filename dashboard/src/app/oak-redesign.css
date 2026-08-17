@@ -1,61 +1,12 @@
 /* OAK Gatekeeper — 2026 institutional motion redesign */
 
+/* Palette and semantic tokens live in globals.css. This file owns component composition only. */
 :root {
-  --background: #f3f5f1;
-  --foreground: #0c1712;
-  --surface: rgba(255, 255, 255, 0.86);
-  --surface-raised: rgba(247, 250, 247, 0.94);
-  --panel-border: rgba(12, 23, 18, 0.13);
-  --muted: #56645d;
-  --terminal-accent: #00865d;
-  --terminal-accent-strong: #006f4d;
-  --terminal-danger: #c83d50;
-  --terminal-warning: #a56d0b;
-  --reverse-bg: rgba(116, 79, 180, 0.09);
-  --reverse-border: rgba(116, 79, 180, 0.45);
-  --reverse-text: #65419f;
-  --oak-glow: rgba(0, 134, 93, 0.16);
-  --oak-panel: rgba(255, 255, 255, 0.78);
-  --oak-panel-solid: #ffffff;
-  --oak-ink-soft: rgba(12, 23, 18, 0.58);
-  --oak-shadow: 0 18px 55px rgba(20, 35, 27, 0.08), 0 1px 0 rgba(255,255,255,.9) inset;
-}
-
-.dark {
-  --background: #050806;
-  --foreground: #f1f7f3;
-  --surface: rgba(12, 18, 15, 0.88);
-  --surface-raised: rgba(17, 25, 21, 0.92);
-  --panel-border: rgba(217, 236, 225, 0.105);
-  --muted: #8f9e96;
-  --terminal-accent: #25e6a4;
-  --terminal-accent-strong: #5af2ba;
-  --terminal-danger: #ff6576;
-  --terminal-warning: #f5bd56;
-  --reverse-bg: rgba(149, 105, 245, 0.12);
-  --reverse-border: rgba(168, 133, 247, 0.48);
-  --reverse-text: #c8afff;
-  --oak-glow: rgba(37, 230, 164, 0.13);
-  --oak-panel: rgba(9, 14, 12, 0.78);
-  --oak-panel-solid: #0b100e;
-  --oak-ink-soft: rgba(241, 247, 243, 0.48);
-  --oak-shadow: 0 24px 70px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255,255,255,.035) inset;
-}
-
-.contrast {
-  --background: #030303;
-  --foreground: #fff8e6;
-  --surface: rgba(12, 11, 8, 0.9);
-  --surface-raised: rgba(19, 17, 12, 0.94);
-  --panel-border: rgba(239, 200, 97, 0.17);
-  --muted: #b8a77c;
-  --terminal-accent: #efc861;
-  --terminal-accent-strong: #ffe09a;
-  --terminal-danger: #ff766c;
-  --terminal-warning: #f4c559;
-  --oak-glow: rgba(239, 200, 97, 0.13);
-  --oak-panel: rgba(11, 10, 7, 0.82);
-  --oak-panel-solid: #0b0a07;
+  --oak-panel: var(--oak-bg-surface);
+  --oak-panel-solid: var(--oak-bg-surface);
+  --oak-ink-soft: var(--oak-fg-muted);
+  --oak-shadow: var(--oak-shadow-2);
+  --oak-glow: color-mix(in srgb, var(--oak-accent-command) 12%, transparent);
 }
 
 html { scroll-behavior: smooth; }
@@ -68,69 +19,6 @@ body.oak-body {
 }
 
 .oak-main { position: relative; z-index: 1; }
-
-.oak-ambient {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  overflow: hidden;
-  pointer-events: none;
-}
-
-.oak-ambient::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 50% -10%, color-mix(in srgb, var(--terminal-accent) 7%, transparent), transparent 40%),
-    linear-gradient(180deg, transparent 0 68%, color-mix(in srgb, var(--background) 90%, transparent));
-}
-
-.oak-ambient-orb {
-  position: absolute;
-  width: min(42rem, 62vw);
-  aspect-ratio: 1;
-  border-radius: 50%;
-  filter: blur(95px);
-  opacity: .55;
-  will-change: transform;
-}
-
-.oak-ambient-orb-a {
-  top: -26rem;
-  left: -10rem;
-  background: color-mix(in srgb, var(--terminal-accent) 30%, transparent);
-  animation: oak-orb-a 26s ease-in-out infinite alternate;
-}
-
-.oak-ambient-orb-b {
-  right: -24rem;
-  top: 18vh;
-  background: color-mix(in srgb, var(--terminal-accent) 15%, #577aee 14%);
-  animation: oak-orb-b 32s ease-in-out infinite alternate;
-}
-
-.oak-ambient-grid {
-  position: absolute;
-  inset: 0;
-  opacity: .2;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--panel-border) 45%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--panel-border) 45%, transparent) 1px, transparent 1px);
-  background-size: 68px 68px;
-  mask-image: linear-gradient(to bottom, black, transparent 80%);
-  animation: oak-grid-drift 36s linear infinite;
-}
-
-.oak-ambient-scan {
-  position: absolute;
-  inset: -30% 0 auto;
-  height: 22%;
-  opacity: .12;
-  background: linear-gradient(180deg, transparent, var(--terminal-accent), transparent);
-  filter: blur(36px);
-  animation: oak-scan 14s ease-in-out infinite;
-}
 
 .page-shell,
 .nav-shell { max-width: 1500px; }
@@ -1409,4 +1297,310 @@ body.oak-body {
 @media print {
   .oak-ambient, .oak-nav, .oak-footer { display: none !important; }
   .oak-pair-card, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel { box-shadow: none !important; backdrop-filter: none !important; }
+}
+
+/* Unified OAK trading command checkpoint — dense, semantic, platform-aware. */
+body.oak-body {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--oak-accent-command) 2.5%, transparent), transparent 15rem),
+    var(--oak-bg-canvas);
+}
+
+.oak-nav {
+  position: sticky;
+  border-bottom: 1px solid var(--oak-border-subtle);
+  background: color-mix(in srgb, var(--oak-bg-canvas) 96%, transparent);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.oak-nav::after { display: none; }
+.oak-nav-layout { min-height: 3.75rem; gap: .85rem; }
+.oak-brand { gap: .6rem; }
+.oak-brand-icon {
+  width: 2.15rem;
+  height: 2.15rem;
+  border-color: var(--oak-border-subtle);
+  border-radius: var(--oak-radius-sm);
+  background: var(--oak-bg-raised);
+  box-shadow: none;
+  transition: border-color var(--oak-motion-base) var(--oak-ease);
+}
+.oak-brand:hover .oak-brand-icon { transform: none; border-color: var(--oak-accent-command); box-shadow: none; }
+.oak-brand-icon img { width: 1.7rem; height: 1.7rem; }
+.oak-brand-copy small { color: var(--oak-fg-muted); font-size: .48rem; letter-spacing: .18em; }
+.oak-brand-copy strong { margin-top: .22rem; font-size: .82rem; }
+.oak-brand-copy b { color: var(--oak-accent-command); }
+
+.oak-nav-workspace { justify-self: center; display: flex; align-items: center; gap: .35rem; }
+.oak-nav-section-label { margin-left: .35rem; color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; }
+.oak-nav-link {
+  min-height: 2.35rem;
+  padding: .45rem .7rem;
+  border: 1px solid transparent;
+  border-radius: var(--oak-radius-sm);
+  color: var(--oak-fg-muted);
+  font-size: .78rem;
+  transition: color var(--oak-motion-fast) ease, background-color var(--oak-motion-fast) ease, border-color var(--oak-motion-fast) ease;
+}
+.oak-nav-link:hover { transform: none; color: var(--oak-fg-primary); background: var(--oak-bg-raised); }
+.oak-nav-link-primary[data-active="true"] {
+  color: var(--oak-fg-primary);
+  border-color: color-mix(in srgb, var(--oak-accent-command) 45%, var(--oak-border-subtle));
+  background: color-mix(in srgb, var(--oak-accent-command) 9%, var(--oak-bg-surface));
+}
+.oak-nav-link[data-active="true"] .oak-nav-icon { color: var(--oak-accent-command); }
+.oak-tools { position: relative; display: flex; align-items: center; gap: .25rem; }
+.oak-tools-trigger i { margin-left: .15rem; color: var(--oak-fg-muted); font-style: normal; }
+.oak-tools-menu {
+  position: absolute;
+  top: calc(100% + .55rem);
+  right: 0;
+  z-index: 80;
+  width: 17rem;
+  overflow: hidden;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-md);
+  background: var(--oak-bg-surface);
+  box-shadow: var(--oak-shadow-2);
+}
+.oak-tools-menu header { padding: .7rem .8rem; border-bottom: 1px solid var(--oak-border-subtle); }
+.oak-tools-menu header small, .oak-tools-menu header b { display: block; }
+.oak-tools-menu header small { color: var(--oak-accent-command); font: 800 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .12em; }
+.oak-tools-menu header b { margin-top: .18rem; font-size: .72rem; }
+.oak-tools-menu > a { display: grid; grid-template-columns: 1.6rem 1fr; gap: .55rem; align-items: center; padding: .65rem .8rem; color: var(--oak-fg-primary); border-bottom: 1px solid var(--oak-border-subtle); }
+.oak-tools-menu > a:last-child { border-bottom: 0; }
+.oak-tools-menu > a:hover, .oak-tools-menu > a[data-active="true"] { background: var(--oak-bg-raised); }
+.oak-tools-menu > a > span:last-child b, .oak-tools-menu > a > span:last-child small { display: block; }
+.oak-tools-menu > a > span:last-child b { font-size: .72rem; }
+.oak-tools-menu > a > span:last-child small { margin-top: .12rem; color: var(--oak-fg-muted); font-size: .58rem; }
+.oak-locale-switch, .oak-theme-toggle { border-color: var(--oak-border-subtle); background: var(--oak-bg-raised); }
+.oak-locale-switch button[data-active="true"] { color: #fff; background: var(--oak-accent-command); box-shadow: none; }
+.oak-theme-toggle:hover { transform: none; color: var(--oak-accent-command); border-color: var(--oak-accent-command); }
+
+.oak-engine-screen { gap: .7rem; animation: none; }
+.oak-command-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4.4rem;
+  padding: .7rem .9rem;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-md);
+  background: var(--oak-bg-surface);
+  box-shadow: var(--oak-shadow-1);
+}
+.oak-command-title { min-width: 0; }
+.oak-command-title > div { display: flex; align-items: baseline; gap: .6rem; margin-top: .18rem; }
+.oak-command-title h1 { font-size: 1.15rem; font-weight: 900; letter-spacing: -.035em; }
+.oak-command-title b { color: var(--oak-fg-muted); font: 750 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-command-meta { display: flex; align-items: stretch; gap: .35rem; min-width: 0; }
+.oak-command-meta > span { min-width: 7.2rem; padding: .45rem .55rem; border-left: 1px solid var(--oak-border-subtle); }
+.oak-command-meta small, .oak-command-meta b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oak-command-meta small { color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.oak-command-meta b { margin-top: .16rem; font: 800 .62rem "Cascadia Mono", Consolas, monospace; }
+.oak-eyebrow { color: var(--oak-accent-command); font-size: .5rem; letter-spacing: .15em; }
+
+.oak-access-panel {
+  min-height: 3.8rem;
+  padding: .55rem .7rem;
+  border-radius: var(--oak-radius-md);
+  border-color: var(--oak-border-subtle);
+  background: var(--oak-bg-surface);
+  box-shadow: var(--oak-shadow-1);
+  animation: none;
+}
+.oak-access-panel::after { box-shadow: none; }
+.oak-access-panel[data-mode="vip"] { --oak-access-color: var(--oak-access-vip); }
+.oak-access-panel[data-mode="weekend"] { --oak-access-color: var(--oak-status-warning); }
+.oak-access-panel[data-mode="locked"] { --oak-access-color: var(--oak-status-danger); }
+.oak-access-symbol { width: 2rem; height: 2rem; border-radius: var(--oak-radius-sm); }
+.oak-access-symbol i, .oak-access-state i { animation: none; box-shadow: none; }
+.oak-access-copy small { font-size: .44rem; }
+.oak-access-copy b { font-size: .64rem; }
+.oak-access-copy p { font-size: .58rem; }
+.oak-access-panel > button { min-height: 2rem; padding: .35rem .6rem; }
+
+.oak-pair-grid { gap: .7rem; }
+.oak-pair-card {
+  border-color: var(--oak-border-subtle);
+  border-radius: var(--oak-radius-md);
+  background: var(--oak-bg-surface);
+  box-shadow: var(--oak-shadow-1);
+  backdrop-filter: none;
+  animation: none;
+  transition: border-color var(--oak-motion-fast) ease;
+}
+.oak-pair-card:hover { transform: none; border-color: var(--oak-border-strong); box-shadow: var(--oak-shadow-1); }
+.oak-pair-header { min-height: 3rem; padding: .55rem .7rem; background: var(--oak-bg-raised); }
+.oak-pair-beacon { width: 1.45rem; height: 1.45rem; border-radius: var(--oak-radius-sm); border-color: var(--oak-border-subtle); }
+.oak-pair-beacon::before { width: .35rem; height: .35rem; background: var(--oak-accent-command); box-shadow: none; }
+.oak-pair-beacon i { display: none; }
+.oak-pair-name-row strong { font-size: .92rem; }
+.oak-pair-identity small { font-size: .46rem; }
+.oak-pair-blocks b { color: var(--oak-accent-command); font-size: .82rem; }
+.oak-signal-table { min-width: 38rem; }
+.oak-signal-table thead th { height: 2.8rem; background: var(--oak-bg-raised); }
+.oak-table-sticky { color: var(--oak-accent-command) !important; background: var(--oak-bg-raised) !important; }
+.oak-signal-cell { min-height: 4.6rem; gap: .28rem; padding: .48rem .55rem; animation: none; transition: background-color var(--oak-motion-fast) ease; }
+.oak-signal-cell::before { box-shadow: none !important; }
+.oak-signal-cell[data-side="BUY"]::before { background: var(--oak-signal-buy); }
+.oak-signal-cell[data-side="SELL"]::before { background: var(--oak-signal-sell); }
+.oak-signal-cell[data-side="BUY"] .oak-signal-side { color: var(--oak-signal-buy); text-shadow: none; }
+.oak-signal-cell[data-side="SELL"] .oak-signal-side { color: var(--oak-signal-sell); text-shadow: none; }
+.oak-signal-cell[data-reversed="true"] { background: var(--oak-reverse-bg); }
+.oak-signal-side { font-size: .95rem; }
+.oak-reverse-chip { animation: none; color: var(--oak-reverse-text); border-color: var(--oak-reverse-border); background: var(--oak-reverse-bg); }
+.oak-vip-mask { color: var(--oak-access-vip); animation: none; }
+.oak-vip-mask i { display: none; }
+.oak-signal-footer button { color: var(--oak-accent-command); border-color: color-mix(in srgb, var(--oak-accent-command) 55%, transparent); }
+.oak-pair-reference { display: flex; align-items: center; gap: .5rem; min-height: 2rem; padding: .35rem .7rem; border-top: 1px solid var(--oak-border-subtle); color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 700 .48rem "Cascadia Mono", Consolas, monospace; }
+.oak-pair-reference > span { letter-spacing: .08em; }
+.oak-pair-reference > strong { color: var(--oak-accent-command); }
+.oak-pair-reference > small { margin-left: auto; }
+
+.oak-current-strip {
+  display: grid;
+  grid-template-columns: minmax(12rem,.55fr) minmax(0,1.45fr);
+  gap: .7rem;
+  align-items: center;
+  padding: .65rem .75rem;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-md);
+  background: var(--oak-bg-surface);
+}
+.oak-current-strip > div:first-child p { margin-top: .2rem; color: var(--oak-fg-muted); font-size: .58rem; line-height: 1.4; }
+.oak-current-pairs { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .45rem; }
+.oak-current-pairs article { display: flex; align-items: center; gap: .45rem; min-width: 0; padding: .45rem .55rem; border-left: 1px solid var(--oak-border-subtle); }
+.oak-current-pairs header { min-width: 6.8rem; margin-right: auto; }
+.oak-current-pairs header b, .oak-current-pairs header small { display: block; }
+.oak-current-pairs header b { font: 900 .68rem "Cascadia Mono", Consolas, monospace; }
+.oak-current-pairs header small { margin-top: .12rem; color: var(--oak-fg-muted); font-size: .48rem; }
+.oak-current-pairs article > span { white-space: nowrap; font: 800 .5rem "Cascadia Mono", Consolas, monospace; }
+.oak-current-pairs article > span b { font-size: .68rem; }
+.oak-current-pairs [data-tone="buy"] { color: var(--oak-signal-buy); }
+.oak-current-pairs [data-tone="sell"] { color: var(--oak-signal-sell); }
+.oak-current-pairs [data-tone="reverse"] { color: var(--oak-reverse-text); }
+.oak-current-pairs [data-tone="vip"] { color: var(--oak-access-vip); }
+
+.oak-mobile-workspace, .oak-mobile-weekly { display: none; }
+
+.oak-engine-skeleton { pointer-events: none; }
+.oak-skeleton-copy { display: grid; gap: .35rem; width: 12rem; }
+.oak-skeleton-copy span, .oak-skeleton-copy b, .oak-command-meta > span:empty, .oak-skeleton-access > span, .oak-skeleton-access b, .oak-skeleton-access i, .oak-skeleton-grid header, .oak-skeleton-grid section > div {
+  display: block;
+  border-radius: var(--oak-radius-sm);
+  background: color-mix(in srgb, var(--oak-fg-muted) 12%, var(--oak-bg-raised));
+}
+.oak-skeleton-copy span { width: 5.5rem; height: .45rem; }
+.oak-skeleton-copy b { width: 10rem; height: 1.1rem; }
+.oak-engine-skeleton .oak-command-meta > span { min-height: 2.2rem; }
+.oak-skeleton-access { display: grid; grid-template-columns: 2rem 1fr; align-items: center; gap: .6rem; min-height: 3.8rem; padding: .55rem .7rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
+.oak-skeleton-access > span { width: 2rem; height: 2rem; }
+.oak-skeleton-access div { display: grid; gap: .25rem; }
+.oak-skeleton-access b { width: 8rem; height: .65rem; }
+.oak-skeleton-access i { width: 12rem; max-width: 70%; height: .45rem; }
+.oak-skeleton-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .7rem; }
+.oak-skeleton-grid section { overflow: hidden; min-height: 18rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
+.oak-skeleton-grid header { height: 3rem; border-radius: 0; }
+.oak-skeleton-grid section > div { height: 12rem; margin: 1rem; }
+.oak-engine-error { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 1rem; min-height: 10rem; padding: 1rem; border: 1px solid color-mix(in srgb, var(--oak-status-danger) 38%, var(--oak-border-subtle)); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); }
+.oak-engine-error > span { display: grid; width: 2.4rem; height: 2.4rem; place-items: center; border-radius: var(--oak-radius-sm); color: var(--oak-status-danger); background: color-mix(in srgb, var(--oak-status-danger) 9%, var(--oak-bg-raised)); font-weight: 900; }
+.oak-engine-error small { color: var(--oak-status-danger); font: 800 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-engine-error h1 { margin-top: .18rem; font-size: 1rem; }
+.oak-engine-error p { margin-top: .2rem; color: var(--oak-fg-muted); font-size: .65rem; }
+.oak-engine-error button { min-height: 2.2rem; padding: .4rem .7rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font-weight: 800; }
+.oak-engine-error button:hover { border-color: var(--oak-accent-command); color: var(--oak-accent-command); }
+
+.oak-modal-backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; animation: none; }
+.oak-evidence-modal, .oak-vip-modal { border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); animation: none; }
+.oak-candle { animation: none; }
+.oak-candle.up line, .oak-candle.up rect { stroke: var(--oak-signal-buy); fill: color-mix(in srgb, var(--oak-signal-buy) 24%, transparent); }
+.oak-candle.down line, .oak-candle.down rect { stroke: var(--oak-signal-sell); fill: color-mix(in srgb, var(--oak-signal-sell) 22%, transparent); }
+.oak-ohlc-row b { color: var(--oak-accent-command); }
+.oak-primary-action { color: #fff; background: var(--oak-accent-command); border-color: var(--oak-accent-command); box-shadow: none; }
+.oak-primary-action::before { display: none; }
+.oak-primary-action:hover:not(:disabled) { transform: none; background: var(--oak-accent-command-strong); box-shadow: none; }
+
+/* Labs inherit the command system but stay visually secondary. */
+.oak-fact-screen, .tarot-screen, .discover-screen, .oak-fact-results, .oak-fact-input-panel, .discover-card, .tarot-result { animation: none !important; }
+.oak-fact-hero, .oak-fact-input-panel, .oak-verdict-panel, .oak-claims-panel, .oak-sources-panel, .tarot-hero, .tarot-result, .tarot-placeholder, .discover-hero, .discover-card {
+  border-radius: var(--oak-radius-lg) !important;
+  background: var(--oak-bg-surface) !important;
+  box-shadow: var(--oak-shadow-1) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.oak-fact-orbit, .oak-fact-hero::before, .tarot-hero::before, .discover-hero::after { display: none; }
+.oak-fact-hero-main { min-height: 9.5rem; }
+.oak-fact-hero-main h1 { max-width: 36rem; font-size: clamp(1.8rem,4vw,2.7rem); line-height: 1; letter-spacing: -.05em; }
+.oak-fact-live i, .tarot-card-back, .oracle-ring i, .discover-streak > span, .discover-reveal > span { animation: none !important; }
+.tarot-hero-copy h1 { font-size: clamp(2rem,5vw,3.25rem) !important; line-height: .96 !important; }
+.discover-hero h1 { font-size: clamp(2rem,5vw,3.25rem); line-height: .96; }
+.tarot-card:hover, .discover-reveal:hover, .discover-jump a:hover, .oak-source-card:hover { transform: none; }
+
+@media (max-width: 759px) {
+  .page-shell { padding-inline: .65rem; padding-top: .65rem; }
+  .oak-nav-layout { min-height: 3.55rem; grid-template-columns: minmax(0,1fr) auto; padding-block: .35rem; }
+  .oak-brand-copy small { display: none; }
+  .oak-brand-copy strong { font-size: .72rem; }
+  .oak-nav-workspace { grid-row: 2; grid-column: 1 / -1; justify-self: stretch; display: grid; grid-template-columns: auto minmax(0,1fr) auto minmax(0,1fr); gap: .25rem; width: 100%; }
+  .oak-nav-section-label { margin: 0; align-self: center; font-size: .4rem; }
+  .oak-nav-link { justify-content: center; min-height: 2.55rem; }
+  .oak-tools { display: contents; }
+  .oak-tools-trigger { width: 100%; }
+  .oak-tools-menu { top: auto; left: .65rem; right: .65rem; width: auto; position: fixed; margin-top: 7rem; }
+  .oak-locale-switch { display: none; }
+  .oak-command-strip { align-items: flex-start; flex-direction: column; min-height: 0; padding: .6rem .7rem; }
+  .oak-skeleton-grid { grid-template-columns: 1fr; }
+  .oak-engine-error { grid-template-columns: auto 1fr; }
+  .oak-engine-error > button { grid-column: 1 / -1; width: 100%; }
+  .oak-command-title > div { gap: .45rem; }
+  .oak-command-title h1 { font-size: 1rem; }
+  .oak-command-meta { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: .25rem; }
+  .oak-command-meta > span { min-width: 0; padding: .35rem .45rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
+  .oak-command-meta > span:last-child { grid-column: 1 / -1; }
+  .oak-access-panel { grid-template-columns: auto minmax(0,1fr) auto; }
+  .oak-access-state { display: none; }
+  .oak-access-panel > button { grid-column: auto; width: auto; }
+  .oak-desktop-matrix, .oak-current-strip { display: none; }
+  .oak-mobile-workspace { display: block; overflow: hidden; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
+  .oak-mobile-workspace-head { display: grid; gap: .55rem; padding: .65rem .7rem; border-bottom: 1px solid var(--oak-border-subtle); background: var(--oak-bg-raised); }
+  .oak-mobile-workspace-head > div:first-child b { display: block; margin-top: .18rem; font: 800 .65rem "Cascadia Mono", Consolas, monospace; }
+  .oak-pair-switcher { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .3rem; }
+  .oak-pair-switcher button { min-height: 2.35rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-muted); background: var(--oak-bg-surface); font: 850 .67rem "Cascadia Mono", Consolas, monospace; }
+  .oak-pair-switcher button[data-active="true"] { color: var(--oak-fg-primary); border-color: var(--oak-accent-command); background: color-mix(in srgb, var(--oak-accent-command) 9%, var(--oak-bg-surface)); }
+  .oak-mobile-signal-list { display: grid; }
+  .oak-mobile-signal-row { width: 100%; display: grid; grid-template-columns: 2.6rem minmax(0,1fr) 4rem 3.2rem 1rem; align-items: center; gap: .45rem; min-height: 3.8rem; padding: .5rem .65rem; border: 0; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-primary); background: transparent; text-align: left; }
+  .oak-mobile-signal-row:last-child { border-bottom: 0; }
+  .oak-mobile-signal-row[data-side="BUY"] { box-shadow: inset 2px 0 0 var(--oak-signal-buy); }
+  .oak-mobile-signal-row[data-side="SELL"] { box-shadow: inset 2px 0 0 var(--oak-signal-sell); }
+  .oak-mobile-signal-row[data-reversed="true"] { background: var(--oak-reverse-bg); }
+  .oak-mobile-h { color: var(--oak-accent-command); font: 900 .68rem "Cascadia Mono", Consolas, monospace; }
+  .oak-mobile-class b, .oak-mobile-class small { display: block; }
+  .oak-mobile-class b { font-size: .62rem; }
+  .oak-mobile-class small { margin-top: .1rem; color: var(--oak-fg-muted); font: 700 .5rem "Cascadia Mono", Consolas, monospace; }
+  .oak-mobile-signal-row > strong { justify-self: start; font: 950 .82rem "Cascadia Mono", Consolas, monospace; }
+  .oak-mobile-signal-row[data-side="BUY"] > strong { color: var(--oak-signal-buy); }
+  .oak-mobile-signal-row[data-side="SELL"] > strong { color: var(--oak-signal-sell); }
+  .oak-mobile-signal-row[data-side="LOCKED"] > strong { color: var(--oak-access-vip); }
+  .oak-mobile-state { color: var(--oak-fg-muted); font: 800 .48rem "Cascadia Mono", Consolas, monospace; }
+  .oak-mobile-signal-row[data-reversed="true"] .oak-mobile-state { color: var(--oak-reverse-text); }
+  .oak-mobile-signal-row > i { justify-self: end; color: var(--oak-fg-muted); font-style: normal; font-size: 1rem; }
+  .oak-mobile-signal-row[data-empty="true"] { grid-template-columns: 2.6rem 1fr; color: var(--oak-fg-muted); }
+  .oak-mobile-weekly { display: block; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-md); background: var(--oak-bg-surface); }
+  .oak-mobile-weekly summary { display: flex; align-items: center; justify-content: space-between; min-height: 2.8rem; padding: .55rem .7rem; cursor: pointer; color: var(--oak-fg-muted); font-size: .67rem; font-weight: 800; list-style: none; }
+  .oak-mobile-weekly summary::-webkit-details-marker { display: none; }
+  .oak-mobile-weekly[open] summary { border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-fg-primary); }
+  .oak-mobile-weekly-body { display: grid; gap: .55rem; padding: .55rem; }
+  .oak-mobile-weekly .oak-pair-card { border-radius: var(--oak-radius-sm); }
+  .oak-mobile-weekly .oak-signal-table { min-width: 38rem; }
+  .oak-fact-hero-main { min-height: 7rem; }
+  .oak-fact-hero-main h1 { font-size: 1.8rem; }
+  .tarot-hero-copy h1, .discover-hero h1 { font-size: 2.2rem !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

@@ -2,55 +2,92 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f2f5f2;
-  --foreground: #0e1a14;
-  --surface: #ffffff;
-  --surface-raised: #f4f8f5;
-  --panel-border: rgba(14, 26, 20, 0.22);
-  --muted: #33443c;
-  --terminal-accent: #007a57;
-  --terminal-accent-strong: #006b4d;
-  --terminal-warning: #946000;
-  --terminal-danger: #b82d3e;
-  --reverse-bg: #fff0c7;
-  --reverse-border: #b86b00;
-  --reverse-text: #5f3700;
-  --terminal-shadow: 0 1px 0 rgba(14, 26, 20, 0.08);
+  /* OAK semantic design system — single web token authority. */
+  --oak-bg-canvas: #f4f6f8;
+  --oak-bg-surface: #ffffff;
+  --oak-bg-raised: #f7f8fa;
+  --oak-fg-primary: #101828;
+  --oak-fg-muted: #667085;
+  --oak-accent-command: #1677ff;
+  --oak-accent-command-strong: #0958d9;
+  --oak-signal-buy: #07875f;
+  --oak-signal-sell: #d92d20;
+  --oak-status-warning: #a15c07;
+  --oak-status-danger: #b42318;
+  --oak-access-vip: #9a6700;
+  --oak-reverse-bg: #f1ebff;
+  --oak-reverse-border: #7f56d9;
+  --oak-reverse-text: #53389e;
+  --oak-border-subtle: #d0d5dd;
+  --oak-border-strong: #98a2b3;
+  --oak-shadow-1: 0 1px 2px rgba(16, 24, 40, .05);
+  --oak-shadow-2: 0 8px 24px rgba(16, 24, 40, .08);
+  --oak-radius-sm: .5rem;
+  --oak-radius-md: .7rem;
+  --oak-radius-lg: .9rem;
+  --oak-motion-fast: 120ms;
+  --oak-motion-base: 180ms;
+  --oak-ease: cubic-bezier(.2,.8,.2,1);
+
+  /* Compatibility aliases for existing secondary-tool components. */
+  --background: var(--oak-bg-canvas);
+  --foreground: var(--oak-fg-primary);
+  --surface: var(--oak-bg-surface);
+  --surface-raised: var(--oak-bg-raised);
+  --panel-border: var(--oak-border-subtle);
+  --muted: var(--oak-fg-muted);
+  --terminal-accent: var(--oak-accent-command);
+  --terminal-accent-strong: var(--oak-accent-command-strong);
+  --terminal-warning: var(--oak-status-warning);
+  --terminal-danger: var(--oak-status-danger);
+  --reverse-bg: var(--oak-reverse-bg);
+  --reverse-border: var(--oak-reverse-border);
+  --reverse-text: var(--oak-reverse-text);
+  --terminal-shadow: var(--oak-shadow-1);
 }
 
 .dark {
-  --background: #050806;
-  --foreground: #f6fff9;
-  --surface: #0d1412;
-  --surface-raised: #101615;
-  --panel-border: rgba(246, 255, 249, 0.12);
-  /* Readable secondary text on dark surfaces (disabled ≠ unreadable). */
-  --muted: #b7c4be;
-  --terminal-accent: #00c991;
-  --terminal-accent-strong: #00d19a;
-  --terminal-warning: #f4b740;
-  --terminal-danger: #ff5364;
-  --reverse-bg: rgba(139, 92, 246, .18);
-  --reverse-border: #9f7aea;
-  --reverse-text: #ddd0ff;
-  --terminal-shadow: 0 1px 0 rgba(246, 255, 249, 0.06);
+  --oak-bg-canvas: #080c12;
+  --oak-bg-surface: #0e141d;
+  --oak-bg-raised: #131b26;
+  --oak-fg-primary: #f2f4f7;
+  --oak-fg-muted: #98a2b3;
+  --oak-accent-command: #4d9fff;
+  --oak-accent-command-strong: #69b1ff;
+  --oak-signal-buy: #20c997;
+  --oak-signal-sell: #ff6b6b;
+  --oak-status-warning: #f5b942;
+  --oak-status-danger: #ff5d5d;
+  --oak-access-vip: #f4c15d;
+  --oak-reverse-bg: rgba(127, 86, 217, .16);
+  --oak-reverse-border: #9e77ed;
+  --oak-reverse-text: #d6bbfb;
+  --oak-border-subtle: #263241;
+  --oak-border-strong: #475467;
+  --oak-shadow-1: 0 1px 2px rgba(0, 0, 0, .3);
+  --oak-shadow-2: 0 12px 32px rgba(0, 0, 0, .28);
 }
 
 .contrast {
-  --background: #020202;
-  --foreground: #fffaf0;
-  --surface: #090907;
-  --surface-raised: #10100d;
-  --panel-border: #564c36;
-  --muted: #ceb98b;
-  --terminal-accent: #d69f27;
-  --terminal-accent-strong: #efc861;
-  --terminal-warning: #f1c45a;
-  --terminal-danger: #ff7a6d;
-  --reverse-bg: rgba(255, 91, 64, .16);
-  --reverse-border: #ff8b69;
-  --reverse-text: #ffd8cc;
-  --terminal-shadow: 0 1px 0 rgba(255, 255, 240, 0.06);
+  --oak-bg-canvas: #050504;
+  --oak-bg-surface: #0d0c09;
+  --oak-bg-raised: #17140c;
+  --oak-fg-primary: #fff8e7;
+  --oak-fg-muted: #c9b98f;
+  --oak-accent-command: #f0b429;
+  --oak-accent-command-strong: #ffd166;
+  --oak-signal-buy: #67d8a5;
+  --oak-signal-sell: #ff7d73;
+  --oak-status-warning: #f6c85f;
+  --oak-status-danger: #ff756c;
+  --oak-access-vip: #ffd166;
+  --oak-reverse-bg: rgba(140, 90, 220, .2);
+  --oak-reverse-border: #b692f6;
+  --oak-reverse-text: #e9d7fe;
+  --oak-border-subtle: #51472f;
+  --oak-border-strong: #7a6940;
+  --oak-shadow-1: 0 1px 2px rgba(0, 0, 0, .45);
+  --oak-shadow-2: 0 12px 32px rgba(0, 0, 0, .4);
 }
 
 @theme inline {
