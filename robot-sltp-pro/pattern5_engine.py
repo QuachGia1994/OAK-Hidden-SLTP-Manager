@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 import MetaTrader5 as mt5
 
 from market_data_provider import MT5MarketDataProvider, MarketDataProvider
+from services.mt5_terminal_service import ensure_mt5_profile_connected
 
 WATCHLIST = ["GBPUSD", "EURUSD"]
 CACHE_PATH = Path(__file__).resolve().parent / "pattern5_cache.json"
@@ -336,9 +337,20 @@ def render_profile(profile: str, selected: list[str] | None = None, week_start: 
     cfg = raw.get(profile)
     if not isinstance(cfg, dict):
         raise RuntimeError(f"Unknown profile: {profile}")
-    initialized_here = mt5.terminal_info() is None
-    if initialized_here and not mt5.initialize(path=cfg.get("path") or None, portable=bool(cfg.get("mt5_portable", False))):
-        raise RuntimeError(f"MT5 init fail: {mt5.last_error()}")
+
+    # Pattern5 is a passive/read-only consumer. Selecting a profile, periodic
+    # publishing, or refreshing Pattern5 must never launch a terminal that the
+    # user intentionally closed. MetaTrader5.initialize(path=...) can itself
+    # start terminal64.exe, so always go through the attach-only guard first.
+    connection = ensure_mt5_profile_connected(
+        {**cfg, "profile_name": profile},
+        mt5_module=mt5,
+        timeout_seconds=5,
+        allow_process_start=False,
+    )
+    if not connection.ok:
+        code = connection.failure_code or "MT5_ATTACH_FAILED"
+        raise RuntimeError(f"MT5 attach only [{code}]: {connection.message}")
     try:
         return render_profile_with_provider(
             profile,
@@ -347,5 +359,4 @@ def render_profile(profile: str, selected: list[str] | None = None, week_start: 
             week_start=week_start,
         )
     finally:
-        if initialized_here:
-            mt5.shutdown()
+        mt5.shutdown()

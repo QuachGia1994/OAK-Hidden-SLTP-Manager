@@ -1,13 +1,15 @@
+import json
 import sys
 import unittest
 from datetime import date
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import mock_open, patch
 
 APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
 
-from pattern5_engine import WATCHLIST, build_table, classify5, flip_signal, look4, pattern_text, should_reverse_signal, signal_from_base
+from pattern5_engine import WATCHLIST, build_table, classify5, flip_signal, look4, pattern_text, render_profile, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
@@ -85,6 +87,24 @@ class Pattern5SignalRuleTests(unittest.TestCase):
             self.assertNotEqual(rows[block][0], "")
             self.assertEqual(rows[block][1:], ["", "", "", ""])
             self.assertEqual(detail[block][1:], ["", "", "", ""])
+
+    def test_render_profile_never_launches_closed_terminal(self):
+        profiles = {"Vantage": {"path": "C:/Broker/terminal64.exe"}}
+        attach_result = SimpleNamespace(
+            ok=False,
+            failure_code="TERMINAL_NOT_RUNNING",
+            message="MT5 terminal is not running",
+        )
+        with patch("builtins.open", mock_open(read_data=json.dumps(profiles))), \
+             patch("pattern5_engine.ensure_mt5_profile_connected", return_value=attach_result) as ensure_connected, \
+             patch("pattern5_engine.render_profile_with_provider") as render_with_provider, \
+             patch("pattern5_engine.mt5.shutdown") as shutdown:
+            with self.assertRaisesRegex(RuntimeError, "TERMINAL_NOT_RUNNING"):
+                render_profile("Vantage")
+
+        self.assertFalse(ensure_connected.call_args.kwargs["allow_process_start"])
+        render_with_provider.assert_not_called()
+        shutdown.assert_not_called()
 
     def test_reverse_flips_final_signal_only_once(self):
         self.assertEqual(flip_signal("BUY"), "SELL")

@@ -134,17 +134,17 @@ function App() {
   }, [selectedProfile?.name]);
 
   useEffect(() => {
-    if (!selectedProfile) return;
+    if (!selectedProfile || !mt5Connected) return;
     void publishPattern5(selectedProfile.name);
     const timer = window.setInterval(() => void publishPattern5(selectedProfile.name), 60000);
     return () => window.clearInterval(timer);
-  }, [selectedProfile?.name]);
+  }, [selectedProfile?.name, mt5Connected]);
 
   useEffect(() => {
-    if (!selectedProfile) return;
+    if (!selectedProfile || !mt5Connected) return;
     void refreshPattern5(selectedProfile.name, false);
     return undefined;
-  }, [selectedProfile?.name]);
+  }, [selectedProfile?.name, mt5Connected]);
 
   useEffect(() => {
     localStorage.setItem('robot-sltp-show-equity', showEquity ? '1' : '0');
@@ -199,6 +199,9 @@ function App() {
       const data = JSON.parse(raw) as { profile: Profile };
       const profile = { ...data.profile, equity: 0, balance: 0, drawdown: 0, openTrades: 0, status: 'OFFLINE' as const };
       setProfiles((items) => [...items, profile]);
+      setMt5Connected(false);
+      setPositions([]);
+      setPattern5(null);
       setSelectedProfile(profile);
       setShowAddProfile(false);
       setNewProfile({ name: '', path: '', server: '', sl: '500', tp: '10000', autoBeR: '2', partialR: '2', partialPct: '50', teleChat: '' });
@@ -366,11 +369,11 @@ function App() {
       </aside>
 
       <main className="main-content">
-        <div className="page-heading"><div><div className="eyebrow">{shellTitle}</div><h1>ROBOT SLTP Pro</h1><p>{ui.heading}</p></div><div className="heading-actions"><label className="profile-quick"><UserRound size={15} /><select value={selectedProfile.name} onChange={(event) => { const next = uniqueProfiles.find((profile) => profile.name === event.target.value); if (next) { setSelectedProfile(next); addActivity(`${ui.profileMonitoring}: ${next.name}`, 'cyan'); } }} aria-label={ui.profileMonitoring}>{uniqueProfiles.map((profile) => <option key={profile.name.toLowerCase()} value={profile.name}>{profile.name}</option>)}</select></label><button className="visibility-button" onClick={() => setShowEquity((visible) => !visible)} aria-label={showEquity ? ui.hideEquity : ui.showEquity}>{showEquity ? <EyeOff size={16} /> : <Eye size={16} />} {showEquity ? ui.hideEquity : ui.showEquity}</button></div></div>
+        <div className="page-heading"><div><div className="eyebrow">{shellTitle}</div><h1>ROBOT SLTP Pro</h1><p>{ui.heading}</p></div><div className="heading-actions"><label className="profile-quick"><UserRound size={15} /><select value={selectedProfile.name} onChange={(event) => { const next = uniqueProfiles.find((profile) => profile.name === event.target.value); if (next) { setMt5Connected(false); setPositions([]); setPattern5(null); setSelectedProfile(next); addActivity(`${ui.profileMonitoring}: ${next.name}`, 'cyan'); } }} aria-label={ui.profileMonitoring}>{uniqueProfiles.map((profile) => <option key={profile.name.toLowerCase()} value={profile.name}>{profile.name}</option>)}</select></label><button className="visibility-button" onClick={() => setShowEquity((visible) => !visible)} aria-label={showEquity ? ui.hideEquity : ui.showEquity}>{showEquity ? <EyeOff size={16} /> : <Eye size={16} />} {showEquity ? ui.hideEquity : ui.showEquity}</button></div></div>
 
         {backendError && <div className="error-banner" role="alert">{backendError}</div>}
         {active === 'overview' && <Overview {...{ positions, autoSltp, setAutoSltp, beR, setBeR, tpR, setTpR, selectedProfile, telegramCommand, setTelegramCommand, sendTelegram, runtimeHealth, nettingTime, setNettingTime, nettingMode, setNettingMode, nettingSymbol, setNettingSymbol, nettingEnabled, setNettingEnabled, scheduleNetting, activity, totalProfit, addActivity, showEquity, pendingTasks, pendingLoading, deletePendingTask, ui }} openProfileDetails={() => setActive('profiles')} />}
-        {active === 'profiles' && <Profiles profiles={uniqueProfiles} selectedProfile={selectedProfile} runtimeHealth={runtimeHealth} setSelectedProfile={(profile) => { setSelectedProfile(profile); addActivity(`${ui.profileMonitoring}: ${profile.name}`, 'cyan'); }} onAdd={() => setShowAddProfile(true)} ui={ui} />}
+        {active === 'profiles' && <Profiles profiles={uniqueProfiles} selectedProfile={selectedProfile} runtimeHealth={runtimeHealth} setSelectedProfile={(profile) => { setMt5Connected(false); setPositions([]); setPattern5(null); setSelectedProfile(profile); addActivity(`${ui.profileMonitoring}: ${profile.name}`, 'cyan'); }} onAdd={() => setShowAddProfile(true)} ui={ui} />}
         {showAddProfile && <AddProfileModal value={newProfile} setValue={setNewProfile} onClose={() => setShowAddProfile(false)} onSave={addProfile} ui={ui} />}
         {active === 'sltp' && <SltpSettings {...{ selectedProfile, autoSltp, setAutoSltp, beR, setBeR, tpR, setTpR, addActivity, saveSltp, ui }} />}
         {active === 'telegram' && <TelegramPanel {...{ telegramCommand, setTelegramCommand, sendTelegram, runtimeHealth, addActivity, pendingTasks, pendingLoading, deletePendingTask, ui }} />}
