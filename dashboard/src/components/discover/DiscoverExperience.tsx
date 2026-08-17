@@ -225,7 +225,7 @@ export function DiscoverExperience() {
           {oracleResult && <div className="oracle-result"><span className="oracle-ring"><i /><b>{oracleResult.answer}</b></span><p>{oracleResult.detail}</p><small>“{oracleResult.question}”</small></div>}
         </section>
 
-        <section id="mood" className="discover-card discover-mood">
+        <section id="mood" className="discover-card">
           <FeatureHeader index="04" title={copy.mood.title} subtitle={copy.mood.subtitle} glyph="LOCAL CHECK-IN" />
           <div className="mood-picker">{copy.mood.labels.map((label, index) => <button type="button" key={label} data-active={moodScore === index + 1 ? "true" : undefined} onClick={() => setMoodScore(index + 1)}><b>{index + 1}</b><span>{label}</span></button>)}</div>
           <div className="mood-note"><input value={moodNote} onChange={(event) => setMoodNote(event.target.value)} placeholder={copy.mood.note} maxLength={240} /><button type="button" onClick={saveMood}>{copy.mood.save}</button></div>

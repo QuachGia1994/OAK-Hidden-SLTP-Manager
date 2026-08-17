@@ -13,7 +13,6 @@ export function FactCheckHero({ locale }: { locale: "VN" | "EN" }) {
   return (
     <section className="oak-fact-hero">
       <div className="oak-fact-hero-main">
-        <div className="oak-fact-orbit" aria-hidden="true"><i /><i /><span>AI</span></div>
         <span className="oak-eyebrow">EVIDENCE INTELLIGENCE / GEMINI</span>
         <h1>{t.title}</h1>
         <p>{t.subtitle}</p>
