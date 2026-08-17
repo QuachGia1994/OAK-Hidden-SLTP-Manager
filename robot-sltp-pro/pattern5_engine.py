@@ -11,6 +11,8 @@ from zoneinfo import ZoneInfo
 
 import MetaTrader5 as mt5
 
+from market_data_provider import MT5MarketDataProvider, MarketDataProvider
+
 WATCHLIST = ["GBPUSD", "EURUSD"]
 CACHE_PATH = Path(__file__).resolve().parent / "pattern5_cache.json"
 CACHE_MAX_AGE_SECONDS = 300
@@ -29,7 +31,7 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 9
+CACHE_SCHEMA = 10
 VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
@@ -139,11 +141,9 @@ def resolve_symbol(base: str, names: list[str]) -> str | None:
     return best
 
 
-def broker_day_offset(symbol: str) -> int:
-    rates = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_D1, 0, 2)
-    if rates is None or len(rates) < 1:
-        raise RuntimeError(f"Khong lay duoc D1 cua {symbol}")
-    return int(rates[0]["time"]) % 86400
+def broker_day_offset(symbol: str, provider: MarketDataProvider | None = None) -> int:
+    source = provider or MT5MarketDataProvider(mt5)
+    return source.broker_day_offset(symbol)
 
 
 def anchor_epoch(day: date, hour: int, offset: int) -> int:
@@ -154,34 +154,46 @@ def prev_trading_day(day: date) -> date:
     return day - timedelta(days=3) if day.weekday() == 0 else day - timedelta(days=1)
 
 
-def _h4_range_with_warmup(symbol: str, start: int, end: int):
-    rates = mt5.copy_rates_range(symbol, mt5.TIMEFRAME_H4, start, end)
-    if rates is not None and len(rates) >= 4:
+def _h4_range_with_warmup(
+    symbol: str,
+    start: int,
+    end: int,
+    provider: MarketDataProvider | None = None,
+):
+    source = provider or MT5MarketDataProvider(mt5)
+    rates = source.h4_range(symbol, start, end)
+    if len(rates) >= 4:
         return rates
-    mt5.symbol_select(symbol, True)
-    mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_H4, 0, 64)
+    source.warm_h4(symbol)
     time.sleep(0.05)
-    return mt5.copy_rates_range(symbol, mt5.TIMEFRAME_H4, start, end)
+    return source.h4_range(symbol, start, end)
 
 
-def look4(symbol: str, anchor: int) -> tuple[list[str], list[dict[str, float | int | str]]] | None:
-    rates = _h4_range_with_warmup(symbol, anchor - 10 * 86400, anchor + 4 * 3600)
-    if rates is None:
-        return None
-    candidates = [rate for rate in rates if int(rate["time"]) < anchor]
+def look4(
+    symbol: str,
+    anchor: int,
+    provider: MarketDataProvider | None = None,
+) -> tuple[list[str], list[dict[str, float | int | str]]] | None:
+    rates = _h4_range_with_warmup(
+        symbol,
+        anchor - 10 * 86400,
+        anchor + 4 * 3600,
+        provider=provider,
+    )
+    candidates = [rate for rate in rates if int(rate.time) < anchor]
     if len(candidates) < 4:
         return None
     chronological = candidates[-4:]
     evidence = []
     for index, rate in enumerate(chronological, start=1):
-        open_price = float(rate["open"])
-        close_price = float(rate["close"])
+        open_price = float(rate.open)
+        close_price = float(rate.close)
         evidence.append({
             "index": index,
-            "time": int(rate["time"]),
+            "time": int(rate.time),
             "open": open_price,
-            "high": float(rate["high"]),
-            "low": float(rate["low"]),
+            "high": float(rate.high),
+            "low": float(rate.low),
             "close": close_price,
             "direction": T if close_price > open_price else G,
         })
@@ -201,11 +213,12 @@ def build_table(
     symbol: str,
     week_start: date | None = None,
     as_of: date | None = None,
+    provider: MarketDataProvider | None = None,
 ) -> tuple[list[date], dict[int, list[Any]], dict[int, list[str]]]:
     current_day = as_of or vietnam_today()
     week = week_start or monday_of(current_day)
     days = [week + timedelta(days=index) for index in range(5)]
-    offset = broker_day_offset(symbol)
+    offset = broker_day_offset(symbol, provider=provider)
     rows: dict[int, list[Any]] = {hour: [""] * 5 for hour in BLOCKS}
     detail = {hour: [""] * 5 for hour in BLOCKS}
     for day_index, day in enumerate(days):
@@ -213,7 +226,11 @@ def build_table(
             continue
         lookback_day = prev_trading_day(day)
         for hour in BLOCKS:
-            lookback = look4(symbol, anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset))
+            lookback = look4(
+                symbol,
+                anchor_epoch(lookback_day, ANCHOR_HOUR[hour], offset),
+                provider=provider,
+            )
             if not lookback:
                 continue
             directions, evidence = lookback
@@ -273,6 +290,47 @@ def render_profile_cached(profile: str, selected: list[str] | None = None, week_
     return {**result, "cacheHit": False}
 
 
+def render_profile_with_provider(
+    profile: str,
+    provider: MarketDataProvider,
+    selected: list[str] | None = None,
+    week_start: str | None = None,
+) -> dict[str, Any]:
+    """Render Engine5 using any provider that preserves broker candle boundaries."""
+
+    names = list(provider.symbols())
+    monday = date.fromisoformat(week_start) if week_start else None
+    instruments = selected or WATCHLIST
+    tables = []
+    for base in instruments:
+        symbol = resolve_symbol(base, names)
+        if symbol is None:
+            tables.append({"base": base, "symbol": None, "error": "KHONG TIM THAY SYMBOL BROKER"})
+            continue
+        days, rows, detail = build_table(symbol, monday, provider=provider)
+        tables.append({
+            "base": base,
+            "symbol": symbol,
+            "days": [
+                {
+                    "name": DAY_NAMES[index],
+                    "date": days[index].isoformat(),
+                    "display": days[index].strftime("%d/%m"),
+                }
+                for index in range(5)
+            ],
+            "rows": {str(hour): rows[hour] for hour in BLOCKS},
+            "detail": {str(hour): detail[hour] for hour in BLOCKS},
+        })
+    return {
+        "profile": profile,
+        "dataProvider": provider.provider_id,
+        "weekStart": (monday or monday_of(vietnam_today())).isoformat(),
+        "blocks": BLOCKS,
+        "tables": tables,
+    }
+
+
 def render_profile(profile: str, selected: list[str] | None = None, week_start: str | None = None) -> dict[str, Any]:
     raw = __import__("json").loads(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "profiles.json", encoding="utf-8").read())
     cfg = raw.get(profile)
@@ -282,29 +340,12 @@ def render_profile(profile: str, selected: list[str] | None = None, week_start: 
     if initialized_here and not mt5.initialize(path=cfg.get("path") or None, portable=bool(cfg.get("mt5_portable", False))):
         raise RuntimeError(f"MT5 init fail: {mt5.last_error()}")
     try:
-        names = [symbol.name for symbol in (mt5.symbols_get() or [])]
-        monday = date.fromisoformat(week_start) if week_start else None
-        instruments = selected or WATCHLIST
-        tables = []
-        for base in instruments:
-            symbol = resolve_symbol(base, names)
-            if symbol is None:
-                tables.append({"base": base, "symbol": None, "error": "KHONG TIM THAY SYMBOL BROKER"})
-                continue
-            days, rows, detail = build_table(symbol, monday)
-            tables.append({
-                "base": base,
-                "symbol": symbol,
-                "days": [{"name": DAY_NAMES[index], "date": days[index].isoformat(), "display": days[index].strftime("%d/%m")} for index in range(5)],
-                "rows": {str(hour): rows[hour] for hour in BLOCKS},
-                "detail": {str(hour): detail[hour] for hour in BLOCKS},
-            })
-        return {
-            "profile": profile,
-            "weekStart": (monday or monday_of(vietnam_today())).isoformat(),
-            "blocks": BLOCKS,
-            "tables": tables,
-        }
+        return render_profile_with_provider(
+            profile,
+            MT5MarketDataProvider(mt5),
+            selected=selected,
+            week_start=week_start,
+        )
     finally:
         if initialized_here:
             mt5.shutdown()

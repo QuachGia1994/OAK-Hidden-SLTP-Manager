@@ -347,6 +347,22 @@ def cmd_telegram_send(payload):
     return {"queued": True, "profile": profile, "text": scoped_text, "updateId": update["update_id"]}
 
 
+def cmd_cloud_market_data_status(_payload):
+    from ctrader_cloud_config import CTraderCloudConfig
+
+    return {
+        "engineCore": "provider-v1",
+        "productionSource": "mt5",
+        "icMarkets": CTraderCloudConfig.from_env().status(),
+        "vantage": {
+            "provider": "mt5-baseline",
+            "configured": True,
+            "cloudCandidate": "pending-official-api",
+        },
+        "parityRequired": True,
+    }
+
+
 def cmd_pattern5(payload):
     from pattern5_engine import render_profile_cached
     profile = str(payload.get("profile") or "")
@@ -495,6 +511,7 @@ COMMANDS = {
     "schedule_netting": cmd_schedule_netting,
     "pending_tasks": cmd_pending_tasks,
     "pending_delete": cmd_pending_delete,
+    "cloud_market_data_status": cmd_cloud_market_data_status,
     "pattern5": cmd_pattern5,
     "pattern5_publish": cmd_pattern5_publish,
 }

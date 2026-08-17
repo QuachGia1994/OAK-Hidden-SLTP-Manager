@@ -21,6 +21,9 @@ Runtime Python chính:
 - `domain/` — SL/TP, scheduled orders, risk/idempotency và MT5 session guardrails.
 - `robot-sltp-pro/pattern5_engine.py` — Pattern5 H4.
 - `robot-sltp-pro/publish_pattern5_site.py` — publish Pattern5 lên Upstash.
+- `robot-sltp-pro/market_data_provider.py` — provider contract tách Engine5 khỏi MT5.
+- `robot-sltp-pro/market_data_parity.py` — fail-closed parity gate cho nguồn dữ liệu cloud.
+- `docs/ENGINECORE_CLOUD_MIGRATION.md` — kế hoạch chuyển market data/Telegram/execution lên cloud.
 
 ## Remote web
 
