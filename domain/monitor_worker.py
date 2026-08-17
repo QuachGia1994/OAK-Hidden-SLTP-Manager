@@ -18,7 +18,7 @@ import MetaTrader5 as mt5
 from oak_logger import setup_logger
 from domain.telegram_backoff import compute_telegram_backoff
 
-from domain.constants import SETTINGS_FILE, _mimo_bot_token, _mimo_bot_chat_id
+from domain.constants import SETTINGS_FILE, _oak_enginecore_token, _oak_enginecore_chat_id
 from domain.json_io import load_json, save_json
 from domain import i18n as _i18n
 from domain.i18n import T, LANG
@@ -72,8 +72,8 @@ class MonitorWorker(threading.Thread):
     def send_telegram(self, message):
         from secret_store import resolve_telegram_token
         profile_name = self.config.get("profile_name", "")
-        token = resolve_telegram_token(profile_name, self.config.get("tele_token", ""), global_fallback=_mimo_bot_token)
-        chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
+        token = resolve_telegram_token(profile_name, self.config.get("tele_token", ""), global_fallback=_oak_enginecore_token)
+        chat_id = str(_oak_enginecore_chat_id) if _oak_enginecore_chat_id else self.config.get("tele_chat", "")
         if not token or not chat_id: return
 
         if time.time() < self._telegram_backoff_until:
@@ -485,7 +485,7 @@ class MonitorWorker(threading.Thread):
             tele_token_resolved = resolve_telegram_token(
                 self.config.get("profile_name", ""),
                 self.config.get("tele_token", ""),
-                global_fallback=_mimo_bot_token
+                global_fallback=_oak_enginecore_token
             )
             tele_status = "ON" if (tele_token_resolved and self.config.get("tele_chat", "")) else "OFF"
             config_log = (

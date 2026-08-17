@@ -26,8 +26,8 @@ from domain.constants import (
     CONFIG_FILE,
     SESSION_RECOVERY_FILE,
     PENDING_PARTIALS_FILE,
-    _mimo_bot_token,
-    _mimo_bot_chat_id,
+    _oak_enginecore_token,
+    _oak_enginecore_chat_id,
 )
 from domain.json_io import load_json, save_json
 from domain.i18n import T, CURRENT_LANG, LANG
@@ -583,12 +583,12 @@ class CopyTradeManager:
             self._process_slave()
 
 
-    def _is_mimo_bot_running(self):
-        """Check if mimo_bot.py process is running to avoid Telegram polling conflict"""
+    def _is_oak_enginecore_running(self):
+        """Check if OAK EngineCore Telegram receiver is running."""
         try:
             result = subprocess.run(
                 ["wmic", "process", "where",
-                 "CommandLine like '%mimo_bot.py%' and Name='python.exe'",
+                 "CommandLine like '%oak_enginecore.py%' and Name='python.exe'",
                  "get", "ProcessId"],
                 capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW
             )
@@ -600,8 +600,8 @@ class CopyTradeManager:
         return False
 
     def _check_telegram_commands(self):
-        """Check for remote commands via shared inbox (mimo_bot.py is the sole Telegram poller)."""
-        chat_id = str(_mimo_bot_chat_id) if _mimo_bot_chat_id else self.config.get("tele_chat", "")
+        """Check remote commands from the OAK EngineCore shared Telegram inbox."""
+        chat_id = str(_oak_enginecore_chat_id) if _oak_enginecore_chat_id else self.config.get("tele_chat", "")
         if not chat_id: return
 
         if not hasattr(self, "_last_tele_check"): self._last_tele_check = 0
@@ -654,10 +654,10 @@ class CopyTradeManager:
         except Exception as e:
             log.warning("Telegram inbox processing error: %s", e)
 
-    def _send_mimo_response(self, text):
-        """Send response via MiMo bot token (single Telegram bot)"""
-        token = _mimo_bot_token
-        chat_id = _mimo_bot_chat_id
+    def _send_enginecore_response(self, text):
+        """Send response via the OAK EngineCore Telegram bot."""
+        token = _oak_enginecore_token
+        chat_id = _oak_enginecore_chat_id
         if not token or not chat_id: return
         try:
             clean = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", text)
@@ -669,7 +669,7 @@ class CopyTradeManager:
             req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=15)
         except Exception as e:
-            print(f"[MiMo] Send error: {e}")
+            print(f"[OAK EngineCore] Send error: {e}")
 
     def _handle_telegram_text(self, text):
         """Parse and execute Enhanced Telegram commands (Support both Syntax and Natural Language)"""

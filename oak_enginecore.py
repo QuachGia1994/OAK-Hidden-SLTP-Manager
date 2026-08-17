@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT / "config.json"
 PROFILES_FILE = ROOT / "profiles.json"
 INBOX_FILE = ROOT / "tele_inbox.json"
-LOCK_FILE = ROOT / "mimo_bot.lock"
+LOCK_FILE = ROOT / "oak_enginecore.lock"
 
 
 def _load_json(path: Path, default):
@@ -189,7 +189,7 @@ def main() -> int:
     if not _acquire_lock():
         return 0
     _drop_webhook()
-    print(f"[TG] Receiver ready · PID {os.getpid()}", flush=True)
+    print(f"[OAK EngineCore] Telegram receiver ready · PID {os.getpid()}", flush=True)
     failures = 0
     try:
         while True:

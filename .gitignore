@@ -48,6 +48,7 @@ copy_map_*.json
 ignored_*.json
 tele_*.json
 mimo_*.json
+oak_enginecore.lock
 mimo_bot.lock
 worker_*.lock
 

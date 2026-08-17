@@ -17,7 +17,7 @@ Nếu chưa có release executable, launcher tự gọi `BUILD_ROBOT_TAURI.bat`.
 
 Runtime Python chính:
 - `worker_runtime.py` — worker MT5 theo profile.
-- `mimo_bot.py` — Telegram receiver → `tele_inbox.json`.
+- `oak_enginecore.py` — OAK EngineCore Telegram receiver → `tele_inbox.json`.
 - `domain/` — SL/TP, scheduled orders, risk/idempotency và MT5 session guardrails.
 - `robot-sltp-pro/pattern5_engine.py` — Pattern5 H4.
 - `robot-sltp-pro/publish_pattern5_site.py` — publish Pattern5 lên Upstash.

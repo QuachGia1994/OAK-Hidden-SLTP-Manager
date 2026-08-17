@@ -10,8 +10,8 @@ from domain.constants import (  # noqa: F401
     SETTINGS_FILE,
     TRADES_FILE,
     SESSION_RECOVERY_FILE,
-    _mimo_bot_token,
-    _mimo_bot_chat_id,
+    _oak_enginecore_token,
+    _oak_enginecore_chat_id,
 )
 from domain.json_io import load_json, save_json, resource_path  # noqa: F401
 from domain.i18n import LANG, CURRENT_LANG, T  # noqa: F401
@@ -63,6 +63,6 @@ __all__ = [
     "get_start_day_balance",
     "CopyTradeManager",
     "MonitorWorker",
-    "_mimo_bot_token",
-    "_mimo_bot_chat_id",
+    "_oak_enginecore_token",
+    "_oak_enginecore_chat_id",
 ]

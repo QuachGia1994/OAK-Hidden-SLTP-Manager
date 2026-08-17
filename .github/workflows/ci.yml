@@ -27,7 +27,7 @@ jobs:
       - name: Compile Python runtime
         shell: pwsh
         run: |
-          python -m py_compile worker_runtime.py mimo_bot.py
+          python -m py_compile worker_runtime.py oak_enginecore.py
           python -m compileall -q domain repositories services robot-sltp-pro
       - name: Python tests
         shell: pwsh

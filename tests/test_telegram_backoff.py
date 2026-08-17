@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Tests for compute_telegram_backoff(), the shared circuit-breaker tiering
-used by mimo_bot.py's polling loop and MonitorWorker.send_telegram() to stop
+used by oak_enginecore.py's polling loop and MonitorWorker.send_telegram() to stop
 spamming the log on repeated Telegram failures (e.g. HTTP 502)."""
 import unittest
 

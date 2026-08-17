@@ -79,13 +79,22 @@ def _cmdline_profile_exact(command_line, profile):
 
 def _runtime_health(profile):
     safe_name = re.sub(r"[^\w\-]", "_", profile or "unknown")
-    telegram_pid = _lock_pid(BACKEND_ROOT / "mimo_bot.lock")
+    telegram_pid = _lock_pid(BACKEND_ROOT / "oak_enginecore.lock")
     telegram_cmd = _process_commandline(telegram_pid)
     telegram_running = bool(
         telegram_pid
         and telegram_cmd
-        and ("mimo_bot.py" in telegram_cmd or "--mimo-bot" in telegram_cmd)
+        and "oak_enginecore.py" in telegram_cmd
     )
+    if not telegram_running:
+        # Migration guard: an already-running pre-rename receiver must remain
+        # authoritative until it exits, otherwise two Telegram pollers can race.
+        legacy_pid = _lock_pid(BACKEND_ROOT / "mimo_bot.lock")
+        legacy_cmd = _process_commandline(legacy_pid)
+        if legacy_pid and legacy_cmd and "mimo_bot.py" in legacy_cmd:
+            telegram_pid = legacy_pid
+            telegram_cmd = legacy_cmd
+            telegram_running = True
 
     worker_pid = _lock_pid(BACKEND_ROOT / f"worker_{safe_name}.lock")
     worker_cmd = _process_commandline(worker_pid)
@@ -143,7 +152,7 @@ def cmd_runtime_ensure(payload):
     requested = []
     issues = []
     if before["telegram"]["configured"] and not before["telegram"]["running"]:
-        _spawn_detached([sys.executable, str(BACKEND_ROOT / "mimo_bot.py")])
+        _spawn_detached([sys.executable, str(BACKEND_ROOT / "oak_enginecore.py")])
         requested.append("telegram")
     elif not before["telegram"]["configured"]:
         issues.append("Telegram token/chat is not configured in config.json")
