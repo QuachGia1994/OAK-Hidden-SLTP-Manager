@@ -1,57 +1,134 @@
-# ROBOT SLTP Pro
+# ROBOT SLTP Pro / OAK Gatekeeper
 
-ROBOT SLTP Pro hiện chỉ còn hai sản phẩm được duy trì:
+ROBOT SLTP Pro là hệ thống trading command gồm hai surface đang được duy trì chung một visual/semantic system:
 
-1. **Tauri desktop** (`robot-sltp-pro/`) — vận hành MT5 theo profile, SL/TP, break-even, Telegram Order, Netting và Pattern5.
-2. **Remote web** (`dashboard/`) — chỉ có Engine 5 Pattern và Xác thực tin tức, tối ưu theo dõi từ mobile.
+1. **Desktop Tauri v4** (`robot-sltp-pro/`) — workstation cho MT5 profile monitoring, vị thế, SL/TP + break-even, Telegram Order, Netting scheduler và Engine 5 Pattern Matrix.
+2. **OAK Gatekeeper Web** (`dashboard/`) — web command shell tại `https://www.oakgatekeeper.uk` với Engine 5 là workspace chính; Fact Check, Tarot và Discover nằm trong Tools / Labs.
 
-Các UI CustomTkinter/NativeQt, Signal Bot v87/v88, Stock Advisor, audit dashboard, MCP servers và stack EOD cũ đã được loại khỏi codebase.
+Các UI CustomTkinter/NativeQt, Signal Bot legacy, Stock Advisor, audit dashboard và stack EOD cũ không còn là sản phẩm được duy trì.
 
-## Chạy Tauri
+## Latest release — v4.0.0
+
+Release page: https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest
+
+Windows artifacts:
+
+- [ROBOT SLTP Pro v4.0.0 Setup EXE](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT%20SLTP%20Pro_4.0.0_x64-setup.exe)
+- [ROBOT SLTP Pro v4.0.0 MSI](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT%20SLTP%20Pro_4.0.0_x64_en-US.msi)
+
+> Desktop v4 hiện là workstation runtime cho máy đã cấu hình Python/MT5 và các file cấu hình local cần thiết. Secrets, `profiles.json`, runtime DB/JSON và broker credentials không được đóng gói vào GitHub Release.
+
+## Desktop Tauri
+
+Chạy bản release local:
 
 ```bat
 CHAY_ROBOT_TAURI.bat
 ```
 
-Nếu chưa có release executable, launcher tự gọi `BUILD_ROBOT_TAURI.bat`. Build script tự chạy `npm ci` khi thiếu `node_modules`.
+Build installer mới:
 
-Runtime Python chính:
+```bat
+BUILD_ROBOT_TAURI.bat
+```
+
+Runtime chính:
+
+- `robot-sltp-pro/backend_bridge.py` — bridge Tauri ↔ Python runtime.
 - `worker_runtime.py` — worker MT5 theo profile.
-- `oak_enginecore.py` — OAK EngineCore Telegram receiver → `tele_inbox.json`.
-- `domain/` — SL/TP, scheduled orders, risk/idempotency và MT5 session guardrails.
-- `robot-sltp-pro/pattern5_engine.py` — Pattern5 H4.
-- `robot-sltp-pro/publish_pattern5_site.py` — publish Pattern5 lên Upstash.
-- `robot-sltp-pro/market_data_provider.py` — provider contract tách Engine5 khỏi MT5.
-- `robot-sltp-pro/ctrader_market_data.py` + `ctrader_snapshot_cli.py` — IC Markets cTrader Open API shadow collector.
-- `robot-sltp-pro/mt5_snapshot_cli.py` + `market_data_parity.py` — MT5 baseline + fail-closed candle parity.
-- `docs/ENGINECORE_CLOUD_MIGRATION.md` — OAuth, token vault và kế hoạch market data/Telegram/execution cloud.
+- `oak_enginecore.py` — OAK EngineCore Telegram receiver.
+- `domain/`, `repositories/`, `services/` — SL/TP, scheduled orders, risk/idempotency, MT5 guardrails.
+- `robot-sltp-pro/pattern5_engine.py` — Engine 5 / Pattern Matrix cho GBPUSD và EURUSD.
+- `robot-sltp-pro/publish_pattern5_site.py` — publish feed Engine 5 lên Upstash.
 
-## Remote web
+Desktop v4 không tự mở lại MT5 chỉ vì user đổi profile hoặc refresh Pattern5. Pattern5 chạy attach-only và fail-closed nếu terminal đã bị tắt thủ công.
 
-Production: `https://www.oakgatekeeper.uk/`
+## OAK Gatekeeper Web
 
-Routes duy trì:
-- `/engine` — Pattern5 remote monitor, refresh 20 giây.
-- `/factcheck` — AI Fact Check + OCR.
-- `/api/factcheck` — Vercel thu thập live web evidence rồi Gemini 3.5 Flash-Lite đánh giá; không cần PC worker.
-- `/api/ctrader/oauth` — admin-only cTrader OAuth onboarding; token lưu encrypted trong Upstash.
-- `/api/ctrader/status` — trạng thái migration an toàn, không trả secrets.
-- `/api/ctrader/session` — service-to-service cTrader access session; yêu cầu `DASHBOARD_API_KEY`.
-- `/` — redirect sang `/engine`.
+Production: https://www.oakgatekeeper.uk
 
-## Cài Python
+Product hierarchy:
+
+- **Trading**
+  - `/engine` — Engine 5 / Pattern Matrix, GBPUSD + EURUSD, current-day mobile workspace, weekly matrix, evidence 4 H4 candles, VIP masking.
+- **Tools / Labs**
+  - `/factcheck` — live evidence + Gemini Fact Check.
+  - `/tarot` — Tarot 78-card experience.
+  - `/discover` — OAK Daily, Dream AI, Yes/No Oracle, Mood Check, Compatibility.
+
+Important APIs:
+
+- `/api/factcheck` — web evidence + Gemini review, không cần PC worker.
+- `/api/tarot` — server Tarot reading.
+- `/api/discover` — server AI endpoints cho Discover.
+- `/api/vip` — weekday VIP entitlement.
+- `/api/ctrader/oauth` — admin-only cTrader OAuth onboarding.
+- `/api/ctrader/status` — safe cTrader migration status, không trả secrets.
+- `/api/ctrader/session` — private service-to-service cTrader session.
+
+Web và desktop dùng cùng semantic roles: command accent, BUY, SELL, warning, danger, VIP, reverse, surface/border/radius/motion; implementation vẫn tối ưu riêng cho từng platform.
+
+## Engine 5 hiện tại
+
+- Pairs: `GBPUSD`, `EURUSD`.
+- Blocks: `H3`, `H7`, `H9`, `H12`, `H14`.
+- Future day trong tuần hiện tại không được tính sớm.
+- H14 historical reference dùng đúng H14 của ngày giao dịch tham chiếu; không tái dùng classification của cell ngày hiện tại.
+- Cache schema hiện tại: `v11`.
+- Production market-data source vẫn là MT5 cho tới khi cTrader parity gate pass.
+
+## cTrader / cloud migration
+
+Repository đã có:
+
+- `market_data_provider.py` — provider abstraction.
+- `ctrader_market_data.py` + `ctrader_snapshot_cli.py` — IC Markets cTrader H1 → MT5-aligned H4 shadow collector.
+- `mt5_snapshot_cli.py` + `market_data_parity.py` — MT5 baseline + fail-closed parity.
+- Vercel OAuth/token vault control plane với AES-256-GCM.
+
+Hiện Vercel credentials/control-plane đã được cấu hình và redeploy. Production Engine 5 vẫn `MT5`; cTrader chỉ là shadow candidate. Spotware app phải ở trạng thái **Active** trước khi OAuth/account discovery/parity thật được chạy.
+
+Chi tiết: [`docs/ENGINECORE_CLOUD_MIGRATION.md`](docs/ENGINECORE_CLOUD_MIGRATION.md)
+
+## Cài dependencies
+
+Python:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Kiểm chứng
+Web/Desktop JS:
 
 ```bash
-python -m unittest discover -s tests -p "test_*.py" -v
+npm --prefix dashboard ci
+npm --prefix robot-sltp-pro ci
+```
+
+## Verification
+
+Local release gates hiện dùng:
+
+```bash
+python -m pytest -q
 python robot-sltp-pro/test_backend_bridge.py
 npm --prefix dashboard run build
+npm --prefix dashboard run test:tarot
 npm --prefix robot-sltp-pro run build
 ```
 
-> Trading runtime là hệ thống fail-closed. Không đưa MT5 credentials/token hoặc runtime DB/JSON vào Git.
+Full Python baseline tại v4.0.0: **208 passed + 17 subtests**.
+
+GitHub Actions workflow: `.github/workflows/ci.yml`.
+
+## Security / fail-closed rules
+
+- Không commit MT5 credentials, Telegram token, VIP token, cTrader access/refresh token hoặc vault key.
+- Không log plaintext OAuth refresh tokens.
+- Market-data candidate không được cut-over nếu timestamp/OHLC/broker-day parity fail.
+- Trading OAuth scope chưa được bật trong cloud migration phase hiện tại.
+- Đổi profile/refresh Pattern5 không được tự launch terminal mà user đã tắt.
+
+## Release notes
+
+Xem [`CHANGELOG.md`](CHANGELOG.md) cho v4.0.0 và lịch sử migration từ dòng v3 legacy.

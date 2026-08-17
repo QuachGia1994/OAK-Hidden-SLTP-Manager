@@ -193,16 +193,31 @@ For execution adapters, preserve the current safety properties:
 
 Trading OAuth scope is a separate future gate. The initial cTrader onboarding uses `accounts` scope only and cannot place trades.
 
-## STOP GATE
+## Current status / STOP GATE — 2026-08-18
 
-All repository work required before live IC Markets cTrader authentication is complete.
+Repository and Vercel control-plane preparation are complete for the read-only market-data phase.
 
-The remaining blocker is external to the repository:
+Current state:
 
-1. create a cTrader Open API application;
-2. wait for Spotware approval;
-3. register `https://www.oakgatekeeper.uk/api/ctrader/oauth` as a redirect URI;
-4. provide the approved `client_id` and `client_secret` as Vercel server secrets;
-5. authorise an IC Markets **demo** cTrader account with `accounts` scope.
+- cTrader Open API application created and submitted to Spotware;
+- redirect URI registered as `https://www.oakgatekeeper.uk/api/ctrader/oauth`;
+- Vercel cTrader client configuration and encrypted vault configuration are present and redeployed;
+- production status route confirms the app/vault layer is configured without exposing secrets;
+- requested OAuth scope remains `accounts` only;
+- no cTrader account has been authorised/discovered yet;
+- production Engine 5 source remains MT5 and cloud data remains shadow-only.
 
-Only after those external items exist can the first real cTrader H4 snapshot and MT5-vs-cTrader parity report be produced. Until then production stays on MT5.
+The remaining blocker is **Spotware application activation/KYC**. The portal must move the application from Submitted to Active before the OAuth/token/account-discovery flow can run.
+
+After the application becomes Active:
+
+1. rotate any onboarding credential that may have been exposed during setup and update Vercel directly;
+2. authorise the IC Markets **demo** cTrader account with `accounts` scope;
+3. run account discovery and set the verified `ctidTraderAccountId`;
+4. export the MT5 baseline snapshot;
+5. collect cTrader H1 and reconstruct MT5-aligned H4;
+6. run multi-day timestamp/OHLC parity;
+7. compare Engine 5 group/base/reverse/final signals;
+8. keep production on MT5 unless every parity gate passes.
+
+Trading scope/order execution remains a separate later gate and is intentionally not enabled by this phase.

@@ -52,7 +52,7 @@ pub mod commands {
 
     #[tauri::command]
     pub fn runtime_status() -> RuntimeStatus {
-        RuntimeStatus { app: "ROBOT SLTP Pro", version: "0.1.0", engine: "Tauri 2 + React" }
+        RuntimeStatus { app: "ROBOT SLTP Pro", version: "4.0.0", engine: "Tauri 2 + React" }
     }
 
     #[tauri::command]
