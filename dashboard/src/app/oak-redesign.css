@@ -1232,14 +1232,17 @@ body.oak-body {
 
 /* Android performance profile — preserve the OAK look while reducing scroll-time compositing. */
 .oak-android {
-  --oak-shadow: 0 8px 24px rgba(0, 0, 0, .12), 0 1px 0 rgba(255,255,255,.025) inset;
+  --oak-shadow: 0 5px 16px rgba(0, 0, 0, .1), 0 1px 0 rgba(255,255,255,.02) inset;
+  scroll-behavior: auto;
 }
 .oak-android .oak-ambient { display: none; }
 .oak-android .oak-nav {
-  background: color-mix(in srgb, var(--background) 96%, var(--surface));
+  position: static !important;
+  top: auto !important;
+  background: color-mix(in srgb, var(--background) 98%, var(--surface));
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  box-shadow: 0 4px 14px rgba(0,0,0,.08);
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
 }
 .oak-android .oak-engine-command,
 .oak-android .oak-pair-card,
@@ -1297,22 +1300,73 @@ body.oak-body {
 .oak-android .oak-fact-results,
 .oak-android .oak-claim-row,
 .oak-android .oak-source-card {
-  animation-duration: .28s;
-  animation-timing-function: ease-out;
+  animation: none;
 }
-.oak-android .discover-card,
-.oak-android .oak-source-card,
-.oak-android .oak-claim-row,
-.oak-android .tarot-reading > section {
+.oak-android .oak-engine-command,
+.oak-android .oak-access-panel,
+.oak-android .oak-evidence-hint,
+.oak-android .oak-pair-card,
+.oak-android .oak-fact-hero,
+.oak-android .oak-fact-input-panel,
+.oak-android .oak-verdict-panel,
+.oak-android .oak-claims-panel,
+.oak-android .oak-sources-panel,
+.oak-android .tarot-hero,
+.oak-android .tarot-placeholder,
+.oak-android .tarot-result,
+.oak-android .tarot-reading > section,
+.oak-android .discover-hero,
+.oak-android .discover-jump,
+.oak-android .discover-card {
   content-visibility: auto;
-  contain-intrinsic-size: auto 320px;
+  contain: layout paint style;
+  contain-intrinsic-size: auto 360px;
+}
+.oak-android .oak-pair-card { contain-intrinsic-size: auto 620px; }
+.oak-android .tarot-result { contain-intrinsic-size: auto 900px; }
+.oak-android .discover-card { contain-intrinsic-size: auto 420px; }
+.oak-android .oak-claims-panel,
+.oak-android .oak-sources-panel { contain-intrinsic-size: auto 520px; }
+.oak-android .oak-table-scroll {
+  contain: layout paint style;
+  overscroll-behavior-inline: contain;
+  scroll-behavior: auto;
+}
+.oak-android .oak-table-sticky {
+  position: static;
+  left: auto;
+  box-shadow: none;
+}
+.oak-android .oak-signal-cell,
+.oak-android .oak-signal-cell::before,
+.oak-android .oak-signal-footer button,
+.oak-android .oak-nav-link,
+.oak-android .oak-theme-toggle {
+  transition: none;
+}
+.oak-android .oak-signal-cell[data-side="BUY"] .oak-signal-side,
+.oak-android .oak-signal-cell[data-side="SELL"] .oak-signal-side {
+  text-shadow: none;
+}
+.oak-android .oak-signal-cell[data-side="BUY"]::before,
+.oak-android .oak-signal-cell[data-side="SELL"]::before {
+  box-shadow: none;
+}
+.oak-android .oak-pair-beacon::before,
+.oak-android .oak-fact-live i {
+  box-shadow: none;
 }
 .oak-android .oak-pair-card:hover,
 .oak-android .tarot-card:hover,
 .oak-android .oak-source-card:hover,
 .oak-android .discover-jump a:hover,
 .oak-android .discover-reveal:hover,
-.oak-android .mood-picker button:hover {
+.oak-android .mood-picker button:hover,
+.oak-android .oak-nav-link:hover,
+.oak-android .oak-engine-metadata article:hover,
+.oak-android .oak-fact-process article:hover,
+.oak-android .tarot-reading > section:hover,
+.oak-android .tarot-insights article:hover {
   transform: none;
 }
 
