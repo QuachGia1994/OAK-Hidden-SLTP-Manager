@@ -1230,6 +1230,92 @@ body.oak-body {
   .oak-pair-blocks { display: none; }
 }
 
+/* Android performance profile — preserve the OAK look while reducing scroll-time compositing. */
+.oak-android {
+  --oak-shadow: 0 8px 24px rgba(0, 0, 0, .12), 0 1px 0 rgba(255,255,255,.025) inset;
+}
+.oak-android .oak-ambient { display: none; }
+.oak-android .oak-nav {
+  background: color-mix(in srgb, var(--background) 96%, var(--surface));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: 0 4px 14px rgba(0,0,0,.08);
+}
+.oak-android .oak-engine-command,
+.oak-android .oak-pair-card,
+.oak-android .oak-fact-hero,
+.oak-android .oak-fact-input-panel,
+.oak-android .oak-verdict-panel,
+.oak-android .oak-claims-panel,
+.oak-android .oak-sources-panel,
+.oak-android .tarot-hero,
+.oak-android .tarot-result,
+.oak-android .tarot-placeholder,
+.oak-android .oak-footer {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.oak-android .oak-modal-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(0,0,0,.76);
+}
+.oak-android .oak-evidence-modal,
+.oak-android .oak-vip-modal {
+  box-shadow: 0 18px 48px rgba(0,0,0,.42);
+}
+.oak-android .oak-brand-icon i,
+.oak-android .oak-engine-command::before,
+.oak-android .oak-engine-command::after,
+.oak-android .oak-access-symbol i,
+.oak-android .oak-access-state i,
+.oak-android .oak-pair-beacon i,
+.oak-android .oak-reverse-chip,
+.oak-android .oak-vip-mask i,
+.oak-android .oak-fact-live i,
+.oak-android .oak-fact-orbit,
+.oak-android .oak-fact-orbit span,
+.oak-android .tarot-hero::before,
+.oak-android .tarot-hero::after,
+.oak-android .tarot-card-back,
+.oak-android .discover-hero::after,
+.oak-android .discover-streak > span,
+.oak-android .discover-reveal > span,
+.oak-android .oracle-ring i {
+  animation: none !important;
+}
+.oak-android .oak-engine-screen,
+.oak-android .oak-fact-screen,
+.oak-android .tarot-screen,
+.oak-android .discover-screen,
+.oak-android .oak-pair-card,
+.oak-android .discover-card,
+.oak-android .tarot-result,
+.oak-android .oak-fact-input-panel,
+.oak-android .oak-access-panel,
+.oak-android .oak-evidence-hint,
+.oak-android .oak-fact-results,
+.oak-android .oak-claim-row,
+.oak-android .oak-source-card {
+  animation-duration: .28s;
+  animation-timing-function: ease-out;
+}
+.oak-android .discover-card,
+.oak-android .oak-source-card,
+.oak-android .oak-claim-row,
+.oak-android .tarot-reading > section {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+.oak-android .oak-pair-card:hover,
+.oak-android .tarot-card:hover,
+.oak-android .oak-source-card:hover,
+.oak-android .discover-jump a:hover,
+.oak-android .discover-reveal:hover,
+.oak-android .mood-picker button:hover {
+  transform: none;
+}
+
 /* Motion */
 @keyframes oak-orb-a { from { transform: translate3d(-4%,0,0) scale(.95); } to { transform: translate3d(24%,18%,0) scale(1.12); } }
 @keyframes oak-orb-b { from { transform: translate3d(0,-8%,0) scale(1); } to { transform: translate3d(-28%,22%,0) scale(.9); } }

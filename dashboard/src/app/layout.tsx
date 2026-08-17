@@ -33,9 +33,13 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <script dangerouslySetInnerHTML={{ __html: `
           (function() {
             try {
+              var root = document.documentElement;
               var t = localStorage.getItem('theme');
               if (t === 'dark' || t === 'light' || t === 'contrast') {
-                document.documentElement.className = t + (t === 'contrast' ? ' dark ' : ' ') + document.documentElement.className.replace(/\\b(dark|light|contrast)\\b/g, '').trim();
+                root.className = t + (t === 'contrast' ? ' dark ' : ' ') + root.className.replace(/\\b(dark|light|contrast)\\b/g, '').trim();
+              }
+              if (/Android/i.test(navigator.userAgent || '')) {
+                root.classList.add('oak-android');
               }
             } catch(e) {}
           })();
