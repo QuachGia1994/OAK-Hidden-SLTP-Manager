@@ -108,7 +108,7 @@ class ProfileTerminalAutoLaunchTests(unittest.TestCase):
         )
 
         self.assertTrue(res.ok)
-        self.assertEqual(res.terminal_path, str(vantage_exe))
+        self.assertTrue(os.path.samefile(res.terminal_path, vantage_exe))
 
     def test_scenario_C_terminal_path_not_found(self):
         """Scenario C: Terminal path not found -> clean failure, profile NOT started."""
@@ -204,8 +204,8 @@ class ProfileTerminalAutoLaunchTests(unittest.TestCase):
 
         res_A = ensure_mt5_profile_connected(prof_A, mt5_module=fake_A, discover_fn=lambda: [])
         self.assertTrue(res_A.ok)
-        self.assertEqual(res_A.terminal_path, str(path_A))
-        self.assertNotEqual(res_A.terminal_path, str(path_B))
+        self.assertTrue(os.path.samefile(res_A.terminal_path, path_A))
+        self.assertFalse(os.path.samefile(res_A.terminal_path, path_B))
 
     def test_status_callback_progress_reporting(self):
         """Verify status_callback reports lifecycle transition steps."""

@@ -18,11 +18,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Python runtime
+      - name: Install Python runtime and test tools
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.txt pytest
 
       - name: Compile Python runtime
         shell: pwsh
@@ -31,7 +31,7 @@ jobs:
           python -m compileall -q domain repositories services robot-sltp-pro
       - name: Python tests
         shell: pwsh
-        run: python -m unittest discover -s tests -p "test_*.py" -v
+        run: python -m pytest tests -q
 
       - name: Tauri bridge tests
         shell: pwsh
