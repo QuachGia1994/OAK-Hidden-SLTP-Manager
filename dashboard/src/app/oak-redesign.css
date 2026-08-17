@@ -996,8 +996,6 @@ font-size: clamp(2rem,5vw,3.25rem); line-height: .96;
   scroll-behavior: auto;
 }
 .oak-android .oak-table-sticky {
-  position: static;
-  left: auto;
   box-shadow: none;
 }
 .oak-android .oak-signal-cell,
@@ -1036,8 +1034,6 @@ font-size: clamp(2rem,5vw,3.25rem); line-height: .96;
 @keyframes oak-panel-enter { from { opacity: 0; transform: translateY(18px) scale(.992); } to { opacity: 1; transform: none; } }
 @keyframes oak-row-enter { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
 @keyframes oak-spin { to { transform: rotate(360deg); } }
-@keyframes oak-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
-@keyframes oak-modal-enter { from { opacity: 0; transform: translateY(24px) scale(.97); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
 @keyframes oak-ring-enter { from { opacity: 0; transform: scale(.75) rotate(-55deg); } to { opacity: 1; transform: none; } }
 @keyframes oak-shake-in { 0% { opacity: 0; transform: translateX(-8px); } 40% { transform: translateX(4px); } 70% { transform: translateX(-2px); } 100% { opacity: 1; transform: none; } }
 @keyframes oak-tarot-card-enter { from { opacity: 0; transform: translateY(32px) rotateY(8deg) scale(.96); filter: blur(5px); } to { opacity: 1; transform: none; filter: blur(0); } }
@@ -1200,7 +1196,7 @@ font-size: .72rem;
   .oak-brand-icon { width: 2.25rem; height: 2.25rem; border-radius: .7rem; }
   .oak-nav-link { min-width: 0; padding: .58rem .22rem; font-size: .82rem; font-weight: 800;
 
-justify-content: center; min-height: 2.55rem;
+justify-content: center; min-height: 2.75rem;
 }
   .oak-nav-icon { width: 1rem; height: 1rem; }
   .oak-locale-switch button { min-width: 2rem; }
@@ -1243,7 +1239,7 @@ min-height: 7rem;
   .oak-nav-section-label { margin: 0; align-self: center; font-size: .4rem; }
   .oak-tools { display: contents; }
   .oak-tools-trigger { width: 100%; }
-  .oak-tools-menu { position: fixed; top: calc(env(safe-area-inset-top) + 7rem); left: .65rem; right: .65rem; width: auto; max-height: min(20rem, calc(100dvh - 8rem)); overflow-y: auto; }
+  .oak-tools-menu { position: fixed; top: calc(env(safe-area-inset-top) + 7rem); left: .65rem; right: .65rem; width: auto; max-height: min(20rem, calc(100dvh - env(safe-area-inset-top) - 8rem)); overflow-y: auto; overscroll-behavior: contain; }
   .oak-locale-switch { display: none; }
   .oak-command-strip { align-items: flex-start; flex-direction: column; min-height: 0; padding: .6rem .7rem; }
   .oak-skeleton-grid { grid-template-columns: 1fr; }

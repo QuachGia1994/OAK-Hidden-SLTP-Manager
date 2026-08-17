@@ -207,6 +207,8 @@ function useDialogFocusTrap(open: boolean, onClose: () => void) {
     if (!open || !dialogRef.current) return;
     const dialog = dialogRef.current;
     const previous = document.activeElement as HTMLElement | null;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])"));
     const focusInitial = window.requestAnimationFrame(() => (dialog.querySelector<HTMLElement>("[autofocus]") ?? focusable()[0])?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -232,6 +234,7 @@ function useDialogFocusTrap(open: boolean, onClose: () => void) {
     return () => {
       window.cancelAnimationFrame(focusInitial);
       dialog.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
       previous?.focus();
     };
   }, [open]);
