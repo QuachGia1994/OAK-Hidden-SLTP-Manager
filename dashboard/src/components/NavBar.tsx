@@ -14,6 +14,9 @@ function CheckIcon() {
 function TarotIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2" /><path d="m12 8 .8 2.2L15 11l-2.2.8L12 14l-.8-2.2L9 11l2.2-.8L12 8Z" /></svg>;
 }
+function DiscoverIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3M3 12h3m12 0h3" /><path d="m12 7 1.4 3.6L17 12l-3.6 1.4L12 17l-1.4-3.6L7 12l3.6-1.4L12 7Z" /></svg>;
+}
 
 export function NavBar() {
   const pathname = usePathname();
@@ -24,6 +27,7 @@ export function NavBar() {
     { href: "/engine", label: "Engine 5", mobile: "Engine", icon: <EngineIcon /> },
     { href: "/factcheck", label: locale === "EN" ? "Fact Check" : "Xác thực", mobile: locale === "EN" ? "Check" : "Xác thực", icon: <CheckIcon /> },
     { href: "/tarot", label: "Tarot", mobile: "Tarot", icon: <TarotIcon /> },
+    { href: "/discover", label: locale === "EN" ? "Discover" : "Khám phá", mobile: locale === "EN" ? "Discover" : "Khám phá", icon: <DiscoverIcon /> },
   ];
 
   const changeLocale = (item: "EN" | "VN") => {
