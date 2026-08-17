@@ -16,7 +16,7 @@ Windows artifacts:
 - [ROBOT SLTP Pro v4.0.0 Setup EXE](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT.SLTP.Pro_4.0.0_x64-setup.exe)
 - [ROBOT SLTP Pro v4.0.0 MSI](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT.SLTP.Pro_4.0.0_x64_en-US.msi)
 
-> Desktop v4 hiện là workstation runtime cho máy đã cấu hình Python/MT5 và các file cấu hình local cần thiết. Secrets, `profiles.json`, runtime DB/JSON và broker credentials không được đóng gói vào GitHub Release.
+> Desktop v4 hiện là **workstation build**, chưa phải clean-machine standalone installer. Tauri bridge vẫn dựa vào Python/source runtime layout của project, nên bundle này phù hợp cho máy đã có project/runtime, Python/MT5 và cấu hình local tương ứng. Secrets, `profiles.json`, runtime DB/JSON và broker credentials không được đóng gói vào GitHub Release.
 
 ## Desktop Tauri
 

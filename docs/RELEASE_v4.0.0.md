@@ -31,7 +31,7 @@ v4.0.0 is the first release of the current Tauri + OAK Gatekeeper architecture. 
 - `ROBOT.SLTP.Pro_4.0.0_x64-setup.exe`
 - `ROBOT.SLTP.Pro_4.0.0_x64_en-US.msi`
 
-Desktop v4 is a configured trading workstation, not a credential-bearing standalone broker appliance. Python/MT5 and local runtime configuration remain prerequisites; secrets and broker credentials are intentionally excluded from release assets.
+Desktop v4 is a configured **workstation build**, not yet a clean-machine standalone installer. The Tauri bridge still depends on the project Python/source runtime layout; Python/MT5 and local runtime configuration remain prerequisites. Secrets and broker credentials are intentionally excluded from release assets.
 
 ## Cloud migration status
 
