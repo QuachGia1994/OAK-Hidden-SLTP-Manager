@@ -2,7 +2,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
@@ -41,6 +41,38 @@ class CTraderCloudConfigTests(unittest.TestCase):
             status = CTraderCloudConfig.from_env().status()
         self.assertFalse(status["configured"])
         self.assertIn("OAK_CTRADER_ACCOUNT_ID", status["missing"])
+
+    def test_from_mapping_accepts_control_plane_shape(self):
+        config = CTraderCloudConfig.from_mapping({
+            "clientId": "client",
+            "clientSecret": "secret",
+            "accessToken": "access",
+            "accountId": 987,
+            "environment": "demo",
+            "broker": "ICMarkets",
+        })
+        self.assertEqual(config.account_id, 987)
+        self.assertEqual(config.environment, "demo")
+        self.assertEqual(config.missing_for_market_data(), ())
+
+    def test_control_plane_uses_api_key_header_and_never_needs_refresh_token(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.__exit__.return_value = False
+        response.read.return_value = (
+            b'{"ok":true,"clientId":"client","clientSecret":"secret",'
+            b'"accessToken":"access","accountId":123,"environment":"demo",'
+            b'"broker":"ICMarkets"}'
+        )
+        with patch("ctrader_cloud_config.urlopen", return_value=response) as mocked:
+            config = CTraderCloudConfig.from_control_plane(
+                "https://www.oakgatekeeper.uk/api/ctrader/session",
+                "dashboard-key",
+            )
+        request = mocked.call_args.args[0]
+        self.assertEqual(request.get_header("X-api-key"), "dashboard-key")
+        self.assertEqual(config.access_token, "access")
+        self.assertEqual(config.refresh_token, "")
 
     def test_authorization_url_uses_accounts_or_trading_scope(self):
         read_url = authorization_url("client", "https://example.com/callback")

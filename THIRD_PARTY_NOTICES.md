@@ -22,6 +22,15 @@ The application can integrate with the MetaTrader5 Python package and the
 MetaTrader terminal. MetaQuotes, MetaTrader and their marks belong to their
 respective owners. OAK Manager is not affiliated with MetaQuotes.
 
+## cTrader Open API Python SDK
+
+The optional IC Markets cloud-data adapter uses Spotware's `ctrader-open-api`
+Python SDK. The upstream OpenApiPy project is distributed under the MIT
+License. cTrader and Spotware marks belong to their respective owners; OAK is
+not affiliated with Spotware.
+
+- https://github.com/spotware/OpenApiPy
+
 ## Distribution check
 
 This notice is an attribution aid, not legal advice. For every release, retain

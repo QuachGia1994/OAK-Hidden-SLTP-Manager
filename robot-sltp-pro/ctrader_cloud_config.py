@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,23 +25,49 @@ class CTraderCloudConfig:
 
     @classmethod
     def from_env(cls) -> "CTraderCloudConfig":
-        raw_account = (os.environ.get("OAK_CTRADER_ACCOUNT_ID") or "").strip()
+        return cls.from_mapping({
+            "clientId": os.environ.get("OAK_CTRADER_CLIENT_ID") or "",
+            "clientSecret": os.environ.get("OAK_CTRADER_CLIENT_SECRET") or "",
+            "accessToken": os.environ.get("OAK_CTRADER_ACCESS_TOKEN") or "",
+            "refreshToken": os.environ.get("OAK_CTRADER_REFRESH_TOKEN") or "",
+            "accountId": os.environ.get("OAK_CTRADER_ACCOUNT_ID") or "",
+            "environment": os.environ.get("OAK_CTRADER_ENV") or "demo",
+            "broker": os.environ.get("OAK_CTRADER_BROKER") or "ICMarkets",
+        })
+
+    @classmethod
+    def from_mapping(cls, payload: dict[str, object]) -> "CTraderCloudConfig":
         try:
-            account_id = int(raw_account or 0)
-        except ValueError:
+            account_id = int(payload.get("accountId") or 0)
+        except (TypeError, ValueError):
             account_id = 0
-        environment = (os.environ.get("OAK_CTRADER_ENV") or "demo").strip().lower()
+        environment = str(payload.get("environment") or "demo").strip().lower()
         if environment not in {"demo", "live"}:
             environment = "demo"
         return cls(
-            client_id=(os.environ.get("OAK_CTRADER_CLIENT_ID") or "").strip(),
-            client_secret=(os.environ.get("OAK_CTRADER_CLIENT_SECRET") or "").strip(),
-            access_token=(os.environ.get("OAK_CTRADER_ACCESS_TOKEN") or "").strip(),
-            refresh_token=(os.environ.get("OAK_CTRADER_REFRESH_TOKEN") or "").strip(),
+            client_id=str(payload.get("clientId") or "").strip(),
+            client_secret=str(payload.get("clientSecret") or "").strip(),
+            access_token=str(payload.get("accessToken") or "").strip(),
+            refresh_token=str(payload.get("refreshToken") or "").strip(),
             account_id=account_id,
             environment=environment,
-            broker=(os.environ.get("OAK_CTRADER_BROKER") or "ICMarkets").strip() or "ICMarkets",
+            broker=str(payload.get("broker") or "ICMarkets").strip() or "ICMarkets",
         )
+
+    @classmethod
+    def from_control_plane(cls, url: str, api_key: str, timeout: float = 10.0) -> "CTraderCloudConfig":
+        if not url or not api_key:
+            raise RuntimeError("cTrader control-plane URL and DASHBOARD_API_KEY are required")
+        request = Request(
+            url,
+            headers={"x-api-key": api_key, "Accept": "application/json"},
+            method="GET",
+        )
+        with urlopen(request, timeout=timeout) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        if not isinstance(payload, dict) or not payload.get("ok"):
+            raise RuntimeError("cTrader control-plane session request failed")
+        return cls.from_mapping(payload)
 
     def missing_for_market_data(self) -> tuple[str, ...]:
         missing: list[str] = []

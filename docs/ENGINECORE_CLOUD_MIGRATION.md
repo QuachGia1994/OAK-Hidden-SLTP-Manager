@@ -4,6 +4,8 @@
 
 Move Engine5 market data, Telegram distribution, and eventually order/SL/TP management off the local PC without changing Pattern5 semantics.
 
+Production remains MT5 until every cloud-data gate below passes. The migration is deliberately shadow-first and fail-closed.
+
 ## Non-negotiable parity rule
 
 Engine5 depends on broker H4 candle boundaries. A cloud provider is not allowed to drive production merely because its prices look similar.
@@ -13,7 +15,7 @@ Before cutover, for GBPUSD and EURUSD it must pass:
 1. exact broker-day offset parity;
 2. exact H4 open timestamps;
 3. OHLC within configured quote tolerance;
-4. identical Pattern5 group (`Sw`/`Bt`), base signal, reverse flag and final signal for the shadow window.
+4. therefore identical Pattern5 group (`Sw`/`Bt`), base signal, reverse flag and final signal for the shadow window.
 
 Any mismatch is fail-closed: MT5 remains the production source.
 
@@ -29,7 +31,7 @@ Any mismatch is fail-closed: MT5 remains the production source.
 `MT5MarketDataProvider` is the compatibility baseline.
 `SnapshotMarketDataProvider` is the deterministic cloud/replay contract.
 
-`pattern5_engine.render_profile_with_provider()` can now run Pattern5 without initializing MT5 when a non-MT5 provider is supplied.
+`pattern5_engine.render_profile_with_provider()` can run Pattern5 without initializing MT5 when a non-MT5 provider is supplied.
 
 ## Parity gate
 
@@ -38,30 +40,126 @@ Any mismatch is fail-closed: MT5 remains the production source.
 
 A candidate source must remain shadow-only until the parity gate passes.
 
-## IC Markets path
+## IC Markets cloud path: cTrader Open API
 
-Primary cloud candidate: cTrader Open API.
+The implementation uses the official Spotware Python SDK in an isolated one-shot process. Twisted is not embedded into the long-lived Tauri/MT5 worker.
 
-Environment variables reserved for the adapter:
+Files:
+
+- `ctrader_market_data.py` — canonical symbol mapping, cTrader trendbar conversion, exact account fencing and one-shot collector.
+- `ctrader_snapshot_cli.py` — fetch IC Markets cTrader H1 and write an MT5-boundary H4 snapshot.
+- `ctrader_accounts_cli.py` — list authorised cTrader account IDs safely after OAuth.
+- `mt5_snapshot_cli.py` — export the IC Markets/Vantage MT5 baseline for parity.
+- `ctrader_cloud_config.py` — direct-env or Vercel control-plane session config.
+
+The official SDK dependency is pinned in `requirements.txt` as `ctrader-open-api==0.9.2`.
+
+### cTrader bar conversion and MT5 boundary reconstruction
+
+The collector uses the Open API H1 trendbar fields directly:
+
+- candle open time = `utcTimestampInMinutes * 60`;
+- low = `low / 100000`;
+- open/high/close = `(low + delta*) / 100000`, rounded to cTrader symbol digits.
+
+Raw cTrader H4 is **not** used as the parity candidate. IC MetaTrader charts use a New-York-close server clock: UTC+2 in US standard time and UTC+3 while New York is on daylight saving time. cTrader trendbar timestamps are UTC, so direct platform H4 boundaries are not assumed to match.
+
+OAK therefore fetches cTrader H1 and reconstructs H4 on the IC MetaTrader boundary:
+
+- winter broker midnight: 22:00 UTC;
+- summer broker midnight: 21:00 UTC;
+- H4 starts satisfy `(utc_epoch + mt5_server_offset) % 14400 == 0`;
+- each output H4 requires four consecutive H1 candles;
+- open = first H1 open, high = max H1 high, low = min H1 low, close = fourth H1 close;
+- incomplete or DST-crossing four-hour groups are skipped rather than fabricated.
+
+The offset is calculated with the `America/New_York` IANA timezone, so US DST transitions are not hard-coded by calendar date. The resulting broker-day offset is then compared against the current IC MT5 baseline before Engine5 cutover.
+
+## OAuth and token vault on Vercel
+
+Production callback URI:
+
+`https://www.oakgatekeeper.uk/api/ctrader/oauth`
+
+The first migration stage requests only cTrader OAuth scope `accounts`. Trading scope is intentionally not requested yet.
+
+Server routes:
+
+- `POST /api/ctrader/oauth` — requires `x-api-key: DASHBOARD_API_KEY`; creates a one-time 10-minute onboarding ticket.
+- `GET /api/ctrader/oauth?ticket=...` — consumes the one-time ticket and redirects to the cTrader authorisation screen.
+- `GET /api/ctrader/oauth?code=...` — exchanges the short-lived authorisation code and stores tokens.
+- `GET /api/ctrader/status` — safe readiness/status only; never exposes credentials/token/account ID.
+- `GET /api/ctrader/session` — service-to-service only, requires `x-api-key`; returns a short-lived current access session to a cloud collector and never returns the refresh token.
+- `GET /api/ctrader/session?discovery=1` — same private endpoint but allows account discovery before an account ID is selected.
+
+### Vault security
+
+The access/refresh token payload is encrypted with AES-256-GCM before it is written to Upstash Redis.
+
+Encryption material:
+
+1. `OAK_CTRADER_VAULT_KEY` when configured; otherwise
+2. `DASHBOARD_API_KEY` is domain-separated with SHA-256 for the vault key.
+
+No plaintext access token, refresh token or client secret is written to public Redis, browser JS, Git, `profiles.json` or status responses.
+
+The Vercel vault refreshes the cTrader access token before expiry. The refresh token stays inside the encrypted server vault.
+
+## Required cTrader application settings
+
+Create/approve one cTrader Open API application and set this redirect URI in the Open API portal:
+
+`https://www.oakgatekeeper.uk/api/ctrader/oauth`
+
+Production server environment variables:
 
 - `OAK_CTRADER_CLIENT_ID`
 - `OAK_CTRADER_CLIENT_SECRET`
-- `OAK_CTRADER_ACCESS_TOKEN`
-- `OAK_CTRADER_REFRESH_TOKEN`
-- `OAK_CTRADER_ACCOUNT_ID`
-- `OAK_CTRADER_ENV=demo|live`
+- `OAK_CTRADER_REDIRECT_URI=https://www.oakgatekeeper.uk/api/ctrader/oauth`
+- `OAK_CTRADER_ENV=demo` for the first parity phase
 - `OAK_CTRADER_BROKER=ICMarkets`
+- `OAK_CTRADER_ACCOUNT_ID=<ctidTraderAccountId>` after discovery
+- optional `OAK_CTRADER_VAULT_KEY=<high-entropy secret>`
 
-Secrets must stay in the server secret store/environment; never in `profiles.json`, Git, browser JS or public Redis.
+A remote collector can avoid storing broker tokens by using:
 
-Development sequence:
+- `OAK_CTRADER_SESSION_URL=https://www.oakgatekeeper.uk/api/ctrader/session`
+- `DASHBOARD_API_KEY=<server-to-server key>`
 
-1. Register/approve an Open API application.
-2. OAuth with `accounts` scope first.
-3. Pull IC Markets H4 trendbars in shadow mode.
-4. Compare against the current IC Markets MT5 feed for GBPUSD/EURUSD.
-5. Require a multi-day clean parity window before switching Engine5 market data.
-6. Only after data cutover, request/use `trading` scope for cloud order management.
+The collector receives the current access token in memory only. Token refresh remains on Vercel.
+
+## Account discovery after OAuth
+
+The OAuth token authorises one or more cTrader accounts but does not replace `ctidTraderAccountId` in protocol requests.
+
+After OAuth, run the account discovery collector against the private control-plane session. It prints only:
+
+- `accountId`
+- UI trader login
+- demo/live environment
+- broker display name
+
+Select the IC Markets demo account and set its `accountId` as `OAK_CTRADER_ACCOUNT_ID`. Market-data collection fails closed if account ID, environment or broker does not match.
+
+## Shadow parity commands
+
+### 1. Export current IC Markets MT5 baseline
+
+This is the only step that still needs the local/VPS MT5 terminal during migration:
+
+`python robot-sltp-pro/mt5_snapshot_cli.py --profile ICMarkets --days 21 --output ic_mt5.json`
+
+### 2. Fetch IC Markets cTrader candidate
+
+Using direct credentials or the Vercel session endpoint:
+
+`python robot-sltp-pro/ctrader_snapshot_cli.py --days 21 --output ic_ctrader.json`
+
+### 3. Run fail-closed parity
+
+`python robot-sltp-pro/market_data_parity_cli.py ic_mt5.json ic_ctrader.json`
+
+The candidate is not allowed to publish production Engine5 until the agreed multi-day shadow window is clean.
 
 ## Vantage path
 
@@ -69,7 +167,7 @@ Keep Vantage MT5 as baseline until a broker-supported programmable API is confir
 
 The provider abstraction allows a future official Vantage adapter without changing Pattern5 core.
 
-## Execution migration
+## Execution migration after market-data parity
 
 Market-data independence and execution independence are separate gates.
 
@@ -93,6 +191,18 @@ For execution adapters, preserve the current safety properties:
 - server-side secret storage;
 - audit trail for every mutation.
 
-## Stop gate for the next stage
+Trading OAuth scope is a separate future gate. The initial cTrader onboarding uses `accounts` scope only and cannot place trades.
 
-IC Markets cTrader live integration cannot be exercised until the Open API application credentials and an authorised cTrader account are available. Until then, production remains MT5 and the cloud provider stays shadow-only.
+## STOP GATE
+
+All repository work required before live IC Markets cTrader authentication is complete.
+
+The remaining blocker is external to the repository:
+
+1. create a cTrader Open API application;
+2. wait for Spotware approval;
+3. register `https://www.oakgatekeeper.uk/api/ctrader/oauth` as a redirect URI;
+4. provide the approved `client_id` and `client_secret` as Vercel server secrets;
+5. authorise an IC Markets **demo** cTrader account with `accounts` scope.
+
+Only after those external items exist can the first real cTrader H4 snapshot and MT5-vs-cTrader parity report be produced. Until then production stays on MT5.

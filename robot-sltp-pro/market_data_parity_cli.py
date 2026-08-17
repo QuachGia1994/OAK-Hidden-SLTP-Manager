@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 from market_data_parity import compare_provider_range
@@ -20,13 +21,22 @@ def main() -> int:
     parser.add_argument("baseline", type=Path)
     parser.add_argument("candidate", type=Path)
     parser.add_argument("--symbol", action="append", dest="symbols")
-    parser.add_argument("--start", type=int, required=True, help="Unix epoch seconds")
-    parser.add_argument("--end", type=int, required=True, help="Unix epoch seconds")
+    parser.add_argument("--start", type=int, default=0, help="Unix epoch seconds (default: snapshot start)")
+    parser.add_argument(
+        "--end",
+        type=int,
+        default=0,
+        help="Unix epoch seconds (default: now minus four hours, excluding a possibly open H4 bar)",
+    )
     parser.add_argument("--tolerance", type=float, default=1e-5)
     args = parser.parse_args()
 
     baseline = load_provider(args.baseline)
     candidate = load_provider(args.candidate)
+    end_epoch = args.end if args.end > 0 else int(time.time()) - 4 * 3600
+    start_epoch = max(0, args.start)
+    if end_epoch <= start_epoch:
+        raise ValueError("Parity end must be after start")
     symbols = args.symbols or sorted(set(baseline.symbols()) & set(candidate.symbols()))
     reports = {}
     ok = True
@@ -35,8 +45,8 @@ def main() -> int:
             baseline,
             candidate,
             symbol,
-            args.start,
-            args.end,
+            start_epoch,
+            end_epoch,
             price_tolerance=args.tolerance,
         )
         reports[symbol] = report.as_dict()

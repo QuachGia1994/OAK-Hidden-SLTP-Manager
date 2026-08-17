@@ -350,10 +350,14 @@ def cmd_telegram_send(payload):
 def cmd_cloud_market_data_status(_payload):
     from ctrader_cloud_config import CTraderCloudConfig
 
+    ic_status = CTraderCloudConfig.from_env().status()
+    ic_status["controlPlaneConfigured"] = bool(
+        os.environ.get("OAK_CTRADER_SESSION_URL") and os.environ.get("DASHBOARD_API_KEY")
+    )
     return {
         "engineCore": "provider-v1",
         "productionSource": "mt5",
-        "icMarkets": CTraderCloudConfig.from_env().status(),
+        "icMarkets": ic_status,
         "vantage": {
             "provider": "mt5-baseline",
             "configured": True,

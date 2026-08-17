@@ -22,8 +22,9 @@ Runtime Python chính:
 - `robot-sltp-pro/pattern5_engine.py` — Pattern5 H4.
 - `robot-sltp-pro/publish_pattern5_site.py` — publish Pattern5 lên Upstash.
 - `robot-sltp-pro/market_data_provider.py` — provider contract tách Engine5 khỏi MT5.
-- `robot-sltp-pro/market_data_parity.py` — fail-closed parity gate cho nguồn dữ liệu cloud.
-- `docs/ENGINECORE_CLOUD_MIGRATION.md` — kế hoạch chuyển market data/Telegram/execution lên cloud.
+- `robot-sltp-pro/ctrader_market_data.py` + `ctrader_snapshot_cli.py` — IC Markets cTrader Open API shadow collector.
+- `robot-sltp-pro/mt5_snapshot_cli.py` + `market_data_parity.py` — MT5 baseline + fail-closed candle parity.
+- `docs/ENGINECORE_CLOUD_MIGRATION.md` — OAuth, token vault và kế hoạch market data/Telegram/execution cloud.
 
 ## Remote web
 
@@ -33,6 +34,9 @@ Routes duy trì:
 - `/engine` — Pattern5 remote monitor, refresh 20 giây.
 - `/factcheck` — AI Fact Check + OCR.
 - `/api/factcheck` — Vercel thu thập live web evidence rồi Gemini 3.5 Flash-Lite đánh giá; không cần PC worker.
+- `/api/ctrader/oauth` — admin-only cTrader OAuth onboarding; token lưu encrypted trong Upstash.
+- `/api/ctrader/status` — trạng thái migration an toàn, không trả secrets.
+- `/api/ctrader/session` — service-to-service cTrader access session; yêu cầu `DASHBOARD_API_KEY`.
 - `/` — redirect sang `/engine`.
 
 ## Cài Python

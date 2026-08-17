@@ -48,6 +48,10 @@ copy_map_*.json
 ignored_*.json
 tele_*.json
 mimo_*.json
+ic_mt5.json
+ic_ctrader.json
+market_data_snapshot*.json
+*_market_snapshot.json
 oak_enginecore.lock
 mimo_bot.lock
 worker_*.lock
