@@ -282,7 +282,9 @@ def cmd_snapshot(payload):
         raise RuntimeError(f"MT5 connection failed for profile {name}")
     try:
         account = service.account_info() or {}
-        positions = service.positions_get() or []
+        positions = service.positions_get()
+        if positions is None:
+            raise RuntimeError(f"MT5 positions_get failed for {name}: {service.last_error()}")
         return {
             "profile": safe_profile(name, cfg),
             "account": {

@@ -60,8 +60,18 @@ class MT5Service:
         return None
 
     def positions_get(self, symbol=None):
-        """Get open positions, optionally filtered by symbol."""
-        return mt5.positions_get(symbol=symbol)
+        """Get open positions, optionally filtered by symbol.
+
+        MetaTrader5 rejects ``symbol=None`` as an explicit filter. Call the
+        no-argument form when the caller wants all open positions.
+        """
+        if symbol:
+            return mt5.positions_get(symbol=symbol)
+        return mt5.positions_get()
+
+    def last_error(self):
+        """Return the latest MetaTrader5 API error tuple."""
+        return mt5.last_error()
 
     def symbol_info_tick(self, symbol):
         """Get latest tick for a symbol."""
