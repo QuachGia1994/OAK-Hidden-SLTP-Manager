@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import sys
@@ -7,9 +8,10 @@ from urllib.request import Request, urlopen
 
 APP = Path(__file__).resolve().parent
 ROOT = APP.parent
-PROFILE = os.environ.get("ROBOT_PATTERN5_PROFILE", "VantageDemo")
+DEFAULT_PROFILE = os.environ.get("ROBOT_PATTERN5_PROFILE", "VantageDemo")
 KEY_PREFIX = "robot-sltp:public:pattern5:"
 
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(APP))
 from pattern5_engine import render_profile_cached
 
@@ -52,5 +54,13 @@ def publish_profile(profile, force=False):
     return feed
 
 
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Publish one explicit Pattern5 profile to the public Upstash feed")
+    parser.add_argument("--profile", default=DEFAULT_PROFILE, help="profile name to publish")
+    parser.add_argument("--force", action="store_true", help="recompute instead of using a fresh local cache entry")
+    return parser.parse_args(argv)
+
+
 if __name__ == "__main__":
-    publish_profile(PROFILE)
+    args = parse_args()
+    publish_profile(args.profile, force=args.force)

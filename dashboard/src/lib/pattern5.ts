@@ -58,6 +58,7 @@ export type Pattern5Payload = {
   publishedAt?: string;
 };
 
+export const PATTERN5_PUBLIC_SCHEMA = 13;
 const LATEST_KEY = "robot-sltp:public:pattern5:latest";
 
 function vietnamDateKey(now = new Date()): string {
@@ -104,8 +105,8 @@ function parsePayload(raw: unknown, source: string): Pattern5Payload | null {
       return null;
     }
     const payload = value as Partial<Pattern5Payload>;
-    if (!Number.isInteger(payload.schemaVersion) || !payload.profile || !payload.weekStart || !Array.isArray(payload.blocks) || !Array.isArray(payload.tables)) {
-      console.error("[PATTERN5 INVALID PAYLOAD]", source, "missing schema or required fields");
+    if (payload.schemaVersion !== PATTERN5_PUBLIC_SCHEMA || !payload.profile || !payload.weekStart || !Array.isArray(payload.blocks) || !Array.isArray(payload.tables)) {
+      console.error("[PATTERN5 INVALID PAYLOAD]", source, `expected schema ${PATTERN5_PUBLIC_SCHEMA}, received ${String(payload.schemaVersion)}`);
       return null;
     }
     return payload as Pattern5Payload;

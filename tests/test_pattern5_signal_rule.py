@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -11,6 +12,7 @@ APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
 
 import pattern5_engine
+import publish_pattern5_site
 from pattern5_engine import PATTERN_GROUP, PUBLIC_FEED_SCHEMA, WATCHLIST, build_h14_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, render_profile_with_provider, should_reverse_signal, signal_from_base
 
 
@@ -73,6 +75,25 @@ class Pattern5SignalRuleTests(unittest.TestCase):
         provider = SimpleNamespace(provider_id="fixture", symbols=lambda: [], broker_day_offset=lambda _symbol: 0)
         payload = render_profile_with_provider("Fixture", provider, selected=["GBPUSD"])
         self.assertEqual(payload["schemaVersion"], PUBLIC_FEED_SCHEMA)
+
+    def test_publisher_cli_can_explicitly_target_profile_and_force_recompute(self):
+        args = publish_pattern5_site.parse_args(["--profile", "Vantage", "--force"])
+        self.assertEqual(args.profile, "Vantage")
+        self.assertTrue(args.force)
+
+    def test_publisher_script_bootstraps_repo_import_path(self):
+        script = APP / "publish_pattern5_site.py"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            completed = subprocess.run(
+                [sys.executable, str(script), "--help"],
+                cwd=temp_dir,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertIn("--profile", completed.stdout)
 
     def test_pattern_classifier_still_uses_three_or_four_candles(self):
         self.assertEqual(classify5(["T", "T", "T", "G"])[0], 1)
