@@ -1,4 +1,4 @@
-/* Fact Check share + public result */
+/* Fact Check share + public result + URL input */
 .oak-share-bar {
   margin-top: .95rem;
   padding-top: .75rem;
@@ -6,17 +6,8 @@
   display: grid;
   gap: .55rem;
 }
-.oak-share-heading {
-  display: grid;
-  gap: .18rem;
-}
-.oak-share-heading b {
-  color: var(--foreground);
-  font: 850 .72rem "Cascadia Mono", Consolas, monospace;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-}
-.oak-share-heading span {
+.oak-share-notice {
+  margin: 0;
   color: var(--muted);
   font-size: .68rem;
   line-height: 1.4;
@@ -46,17 +37,9 @@
   background: var(--surface-raised);
   color: var(--foreground);
 }
-.oak-share-primary:hover:not(:disabled),
-.oak-share-secondary:hover:not(:disabled) {
+.oak-share-primary:hover,
+.oak-share-secondary:hover {
   filter: brightness(1.08);
-}
-.oak-share-primary:disabled,
-.oak-share-secondary:disabled {
-  cursor: not-allowed;
-  opacity: .48;
-}
-.oak-share-bar[data-ready="false"] {
-  border-top-color: color-mix(in srgb, var(--oak-status-warning) 38%, var(--panel-border));
 }
 .oak-share-primary:focus-visible,
 .oak-share-secondary:focus-visible {
@@ -76,6 +59,42 @@
   font: 750 .55rem "Cascadia Mono", Consolas, monospace;
   letter-spacing: .08em;
   text-transform: uppercase;
+}
+.oak-url-chip {
+  display: inline-flex;
+  flex-direction: column;
+  gap: .15rem;
+  margin-top: .55rem;
+  padding: .45rem .7rem;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 28%, var(--panel-border));
+  border-radius: .7rem;
+  background: color-mix(in srgb, var(--terminal-accent) 6%, var(--surface));
+}
+.oak-url-chip b {
+  font-size: .78rem;
+  color: var(--terminal-accent);
+}
+.oak-source-article {
+  margin-top: .65rem;
+  padding: .65rem .75rem;
+  border-left: 2px solid var(--terminal-accent);
+  background: color-mix(in srgb, var(--terminal-accent) 5%, var(--surface-raised));
+  display: grid;
+  gap: .2rem;
+}
+.oak-source-article small {
+  color: var(--muted);
+  font: 750 .55rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.oak-source-article b {
+  font-size: .92rem;
+  line-height: 1.35;
+}
+.oak-source-article span {
+  color: var(--muted);
+  font-size: .72rem;
 }
 .oak-fact-public .oak-verdict-title-row h1 {
   margin: 0;

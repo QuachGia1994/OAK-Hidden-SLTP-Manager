@@ -2,14 +2,13 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import { redis } from "@/lib/redis-core";
-import type { FactCheckResult, ShareLookup, SharedFactCheck } from "./types";
+import type { FactCheckResult, FactCheckSourceDocument, ShareLookup, SharedFactCheck } from "./types";
 import { SHARED_FACTCHECK_SCHEMA } from "./types";
 import { isValidShareId, publicSharePath } from "./share-id";
 
 export { isValidShareId, publicSharePath };
 
 const KEY_PREFIX = "oak:factcheck:share:";
-/** 30 days — enough for social distribution without indefinite storage. */
 export const SHARE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 function shareKey(id: string): string {
@@ -29,7 +28,20 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
-/** Strip anything that must never land in public Redis. */
+function sanitizeSourceDocument(doc: FactCheckSourceDocument | undefined): FactCheckSourceDocument | undefined {
+  if (!doc || typeof doc !== "object") return undefined;
+  const url = String(doc.url || "");
+  const finalUrl = String(doc.finalUrl || url);
+  if (!isHttpUrl(url) && !isHttpUrl(finalUrl)) return undefined;
+  return {
+    url: isHttpUrl(url) ? url.slice(0, 2000) : finalUrl.slice(0, 2000),
+    finalUrl: isHttpUrl(finalUrl) ? finalUrl.slice(0, 2000) : url.slice(0, 2000),
+    title: String(doc.title || "").slice(0, 300),
+    publisher: doc.publisher ? String(doc.publisher).slice(0, 120) : undefined,
+    publishedAt: doc.publishedAt ? String(doc.publishedAt).slice(0, 80) : undefined,
+  };
+}
+
 export function sanitizeResultForShare(result: FactCheckResult): FactCheckResult {
   return {
     claim: String(result.claim || "").slice(0, 12000),
@@ -61,6 +73,8 @@ export function sanitizeResultForShare(result: FactCheckResult): FactCheckResult
     grounded: Boolean(result.grounded),
     checkedAt: result.checkedAt || new Date().toISOString(),
     locale: result.locale === "EN" ? "EN" : "VN",
+    inputKind: result.inputKind === "url" ? "url" : "text",
+    sourceDocument: sanitizeSourceDocument(result.sourceDocument),
   };
 }
 
@@ -69,12 +83,36 @@ function parseRecord(raw: unknown): SharedFactCheck | null {
   try {
     const value = typeof raw === "string" ? JSON.parse(raw) : raw;
     if (!value || typeof value !== "object") return null;
-    const record = value as Partial<SharedFactCheck>;
-    if (record.schemaVersion !== SHARED_FACTCHECK_SCHEMA) return null;
+    const record = value as {
+      schemaVersion?: number;
+      id?: string;
+      result?: FactCheckResult;
+      createdAt?: string;
+      expiresAt?: string;
+    };
+    // Accept schema 1 (legacy) and schema 2
+    if (record.schemaVersion !== 1 && record.schemaVersion !== SHARED_FACTCHECK_SCHEMA) return null;
     if (typeof record.id !== "string" || !isValidShareId(record.id)) return null;
     if (!record.result || typeof record.result !== "object") return null;
     if (typeof record.createdAt !== "string" || typeof record.expiresAt !== "string") return null;
-    const result = sanitizeResultForShare(record.result as FactCheckResult);
+    const incoming = record.result as Partial<FactCheckResult>;
+    const result = sanitizeResultForShare({
+      claim: incoming.claim || "",
+      normalizedClaim: incoming.normalizedClaim || incoming.claim || "",
+      verdict: incoming.verdict || "insufficient",
+      confidence: incoming.confidence ?? 0,
+      summary: incoming.summary || "",
+      claims: incoming.claims || [],
+      sources: incoming.sources || [],
+      search_queries: incoming.search_queries || [],
+      model: incoming.model || "",
+      provider: "gemini",
+      grounded: Boolean(incoming.grounded),
+      checkedAt: incoming.checkedAt || record.createdAt,
+      locale: incoming.locale === "EN" ? "EN" : "VN",
+      inputKind: incoming.inputKind === "url" ? "url" : "text",
+      sourceDocument: incoming.sourceDocument,
+    });
     return {
       schemaVersion: SHARED_FACTCHECK_SCHEMA,
       id: record.id,

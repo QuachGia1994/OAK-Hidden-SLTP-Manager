@@ -1,7 +1,8 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
 import { TEXT } from "@/lib/factcheck/locale-copy";
+import { detectInputKind, extractHostnameLabel } from "@/lib/factcheck/input-detect";
 import { useImageOcr } from "@/hooks/useImageOcr";
 
 export function FactCheckInput({
@@ -22,6 +23,9 @@ export function FactCheckInput({
   const { processImage, ocrLoading, ocrError } = useImageOcr();
   const [dragging, setDragging] = useState(false);
 
+  const urlHost = useMemo(() => extractHostnameLabel(text), [text]);
+  const isUrl = detectInputKind(text) === "url";
+
   const processFile = async (file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) return;
     const detected = await processImage(file);
@@ -37,6 +41,10 @@ export function FactCheckInput({
     setDragging(false);
     await processFile(e.dataTransfer.files?.[0]);
   };
+
+  const loadingLabel = loading
+    ? (isUrl ? t.readingUrl : t.submitting)
+    : t.submit;
 
   return (
     <section className="oak-fact-input-panel">
@@ -73,6 +81,13 @@ export function FactCheckInput({
         )}
       </div>
 
+      {isUrl && urlHost && (
+        <div className="oak-url-chip" role="status">
+          <span className="oak-eyebrow">{t.urlDetected}</span>
+          <b>{urlHost}</b>
+        </div>
+      )}
+
       {ocrError && <p className="oak-form-error">{ocrError}</p>}
 
       <div className="oak-fact-actions">
@@ -89,7 +104,7 @@ export function FactCheckInput({
           onClick={onSubmit}
           disabled={loading || ocrLoading || !text.trim()}
         >
-          {loading ? <><span className="oak-button-spinner" /> <b>{t.submitting}</b></> : <><b>{t.submit}</b><i>→</i></>}
+          {loading ? <><span className="oak-button-spinner" /> <b>{loadingLabel}</b></> : <><b>{t.submit}</b><i>→</i></>}
         </button>
       </div>
     </section>

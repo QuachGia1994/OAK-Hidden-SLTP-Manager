@@ -3,7 +3,6 @@ import type { FactCheckResult } from "@/lib/factcheck/types";
 import { TEXT } from "@/lib/factcheck/locale-copy";
 import { formatCheckedAt, verdictLabel } from "@/lib/factcheck/presentation";
 
-/** Server-friendly public result view — same verdict presentation as interactive result. */
 export function FactCheckPublicView({
   result,
   locale,
@@ -19,6 +18,7 @@ export function FactCheckPublicView({
   const label = verdictLabel(result.verdict, locale);
   const confidence = Math.max(0, Math.min(100, result.confidence));
   const claimText = result.claim || result.claims[0]?.claim || "";
+  const doc = result.sourceDocument;
 
   return (
     <div className="oak-fact-results oak-fact-public">
@@ -29,7 +29,14 @@ export function FactCheckPublicView({
             <h1>{label}</h1>
             <span className="oak-verdict-badge" data-verdict={result.verdict}>{confidence}%</span>
           </div>
-          {claimText && (
+          {doc && (
+            <div className="oak-source-article">
+              <small>{t.sourceArticle}</small>
+              <b>{doc.title}</b>
+              <span>{doc.publisher || ""}</span>
+            </div>
+          )}
+          {claimText && !doc && (
             <p className="oak-claim-lead"><small>{t.claimLabel}</small>{claimText}</p>
           )}
           <p className="oak-model-line">

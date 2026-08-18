@@ -18,6 +18,7 @@ export function FactCheckResult({
   const label = verdictLabel(result.verdict, locale);
   const confidence = Math.max(0, Math.min(100, result.confidence));
   const claimText = result.claim || result.claims[0]?.claim || "";
+  const doc = result.sourceDocument;
 
   return (
     <div className="oak-fact-results">
@@ -28,7 +29,16 @@ export function FactCheckResult({
             <h2>{t.resultTitle}</h2>
             <span className="oak-verdict-badge" data-verdict={result.verdict}>{label}</span>
           </div>
-          {claimText && (
+
+          {doc && (
+            <div className="oak-source-article">
+              <small>{t.sourceArticle}</small>
+              <b>{doc.title}</b>
+              <span>{[doc.publisher, (() => { try { return new URL(doc.finalUrl || doc.url).hostname.replace(/^www\./, ""); } catch { return ""; } })()].filter(Boolean).join(" · ")}</span>
+            </div>
+          )}
+
+          {claimText && !doc && (
             <p className="oak-claim-lead"><small>{t.claimLabel}</small>{claimText}</p>
           )}
           <p className="oak-model-line">
@@ -44,7 +54,7 @@ export function FactCheckResult({
           <FactCheckShareActions
             shareId={shareId}
             locale={locale}
-            claimPreview={claimText || result.summary}
+            claimPreview={doc?.title || claimText || result.summary}
           />
         </div>
 

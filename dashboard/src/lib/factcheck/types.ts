@@ -1,5 +1,7 @@
 export type FactCheckVerdict = "supported" | "contradicted" | "mixed" | "insufficient";
 
+export type FactCheckInputKind = "text" | "url";
+
 export interface FactCheckSource {
   id: number;
   title: string;
@@ -18,9 +20,18 @@ export interface FactCheckClaim {
   source_ids: number[];
 }
 
+/** Subject article metadata when input was a URL (not independent evidence). */
+export interface FactCheckSourceDocument {
+  url: string;
+  finalUrl: string;
+  title: string;
+  publisher?: string;
+  publishedAt?: string;
+}
+
 /** Canonical normalized Fact Check result (provider output after domain cleaning). */
 export interface FactCheckResult {
-  /** Original user claim text (bounded). */
+  /** Original user claim text or article title context (bounded). */
   claim: string;
   /** Deterministic normalized form for display/cache keys. */
   normalizedClaim: string;
@@ -35,9 +46,12 @@ export interface FactCheckResult {
   grounded: boolean;
   checkedAt: string;
   locale: "VN" | "EN";
+  inputKind: FactCheckInputKind;
+  sourceDocument?: FactCheckSourceDocument;
 }
 
-export const SHARED_FACTCHECK_SCHEMA = 1 as const;
+/** Bumped when optional sourceDocument is part of the public contract. */
+export const SHARED_FACTCHECK_SCHEMA = 2 as const;
 
 /** Persisted public share record — normalized result only, no secrets. */
 export interface SharedFactCheck {
