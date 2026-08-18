@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./oak-redesign.css";
+import "./factcheck-share.css";
 import { NavBar } from "@/components/NavBar";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { LocaleProvider } from "@/components/LocaleProvider";

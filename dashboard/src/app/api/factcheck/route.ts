@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireBrowserOrApiAuth } from "@/lib/redis-core";
 import { enforceServerRateLimit, readPositiveLimit } from "@/lib/server-rate-limit";
 import { GeminiHttpError, FACTCHECK_MODEL, runGeminiFactCheck } from "@/lib/factcheck/gemini";
+import { createSharedFactCheck, publicSharePath } from "@/lib/factcheck/share-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -37,7 +38,7 @@ export async function GET(request: Request) {
     provider: "gemini",
     model: FACTCHECK_MODEL,
     configured: Boolean(process.env.GEMINI_API_KEY),
-    architecture: "vercel-live-web-evidence-gemini",
+    architecture: "vercel-live-web-evidence-gemini-shareable",
   });
 }
 
@@ -73,7 +74,20 @@ export async function POST(request: Request) {
     const locale = body.locale === "EN" ? "EN" : "VN";
     const outputLanguage = locale === "EN" ? "English" : "Vietnamese";
     const result = await runGeminiFactCheck(text, outputLanguage, locale, apiKey);
-    return NextResponse.json({ ok: true, result });
+
+    // Persist only successful normalized results for public share (no provider re-call later).
+    let shareId: string | null = null;
+    let sharePath: string | null = null;
+    try {
+      const shared = await createSharedFactCheck(result);
+      shareId = shared.id;
+      sharePath = publicSharePath(shared.id);
+    } catch (persistError) {
+      console.error("FactCheck share persist failed:", persistError instanceof Error ? persistError.message : String(persistError));
+      // Fact check still succeeds; share is best-effort so UI can degrade to copy-unavailable.
+    }
+
+    return NextResponse.json({ ok: true, result, shareId, sharePath });
   } catch (error) {
     console.error("Gemini FactCheck failed:", error instanceof Error ? error.message : String(error));
     return geminiFailure(error);

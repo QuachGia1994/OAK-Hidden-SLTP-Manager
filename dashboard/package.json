@@ -7,6 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "test:tarot": "node --experimental-strip-types --test src/lib/tarot/tarot.test.ts",
+    "test:factcheck": "node --experimental-strip-types --test src/lib/factcheck/share.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/tarot/tarot.test.ts src/lib/factcheck/share.test.ts",
     "start": "next start"
   },
   "dependencies": {

@@ -1,0 +1,123 @@
+/* Fact Check share + public result */
+.oak-share-bar {
+  margin-top: .95rem;
+  padding-top: .75rem;
+  border-top: 1px solid color-mix(in srgb, var(--panel-border) 80%, transparent);
+  display: grid;
+  gap: .55rem;
+}
+.oak-share-notice {
+  margin: 0;
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.4;
+}
+.oak-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+.oak-share-primary,
+.oak-share-secondary {
+  min-height: 2.5rem;
+  min-width: 7.5rem;
+  padding: .55rem 1rem;
+  border-radius: .7rem;
+  font: 800 .72rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+.oak-share-primary {
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 40%, var(--panel-border));
+  background: color-mix(in srgb, var(--terminal-accent) 14%, var(--surface));
+  color: var(--terminal-accent);
+}
+.oak-share-secondary {
+  border: 1px solid var(--panel-border);
+  background: var(--surface-raised);
+  color: var(--foreground);
+}
+.oak-share-primary:hover,
+.oak-share-secondary:hover {
+  filter: brightness(1.08);
+}
+.oak-share-primary:focus-visible,
+.oak-share-secondary:focus-visible {
+  outline: 2px solid var(--terminal-accent);
+  outline-offset: 2px;
+}
+.oak-claim-lead {
+  margin: .55rem 0 0;
+  color: var(--foreground);
+  font-size: .88rem;
+  line-height: 1.45;
+}
+.oak-claim-lead small {
+  display: block;
+  margin-bottom: .2rem;
+  color: var(--muted);
+  font: 750 .55rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.oak-fact-public .oak-verdict-title-row h1 {
+  margin: 0;
+  font-size: clamp(1.5rem, 3.4vw, 2.35rem);
+  font-weight: 900;
+  letter-spacing: -.04em;
+}
+.oak-limitations-panel {
+  padding: .85rem 1rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .85rem;
+  background: var(--surface);
+}
+.oak-limitations-panel small {
+  color: var(--muted);
+  font: 750 .55rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.oak-limitations-panel p {
+  margin: .35rem 0 0;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.oak-public-cta {
+  display: grid;
+  gap: .65rem;
+  justify-items: start;
+  margin-top: .25rem;
+}
+.oak-fact-public-state {
+  max-width: 34rem;
+  margin: 2rem auto;
+  padding: 1.4rem;
+  border: 1px solid var(--panel-border);
+  border-radius: 1rem;
+  background: var(--surface);
+  display: grid;
+  gap: .75rem;
+}
+.oak-fact-public-state h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 850;
+}
+.oak-fact-public-state p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .85rem;
+  line-height: 1.5;
+}
+@media (max-width: 640px) {
+  .oak-share-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .oak-share-primary,
+  .oak-share-secondary {
+    width: 100%;
+  }
+}

@@ -1,4 +1,5 @@
 import { searchEvidence } from "@/lib/factcheck/evidence-search";
+import { normalizeClaim } from "@/lib/factcheck/normalize";
 import type { FactCheckClaim, FactCheckResult, FactCheckSource, FactCheckVerdict } from "@/lib/factcheck/types";
 
 const VERDICTS = new Set<FactCheckVerdict>(["supported", "contradicted", "mixed", "insufficient"]);
@@ -114,6 +115,21 @@ function parseAssessment(payload: GeminiResponse, sources: FactCheckSource[]) {
   };
 }
 
+function withClaimMeta(
+  partial: Omit<FactCheckResult, "claim" | "normalizedClaim" | "checkedAt" | "locale">,
+  text: string,
+  locale: "VN" | "EN",
+): FactCheckResult {
+  const claim = normalizeClaim(text);
+  return {
+    ...partial,
+    claim,
+    normalizedClaim: claim,
+    checkedAt: new Date().toISOString(),
+    locale,
+  };
+}
+
 export async function runGeminiFactCheck(
   text: string,
   outputLanguage: "Vietnamese" | "English",
@@ -122,13 +138,19 @@ export async function runGeminiFactCheck(
 ): Promise<FactCheckResult> {
   const evidence = await searchEvidence(text, locale);
   if (!evidence.sources.length) {
-    return {
+    return withClaimMeta({
       verdict: "insufficient",
       confidence: 0,
-      summary: outputLanguage === "Vietnamese" ? "Không tìm thấy bằng chứng web trực tiếp để AI đánh giá." : "No live web evidence was found for AI assessment.",
-      claims: [], sources: [], search_queries: evidence.queries,
-      model: FACTCHECK_MODEL, provider: "gemini", grounded: false,
-    };
+      summary: outputLanguage === "Vietnamese"
+        ? "Không tìm thấy bằng chứng web trực tiếp để AI đánh giá."
+        : "No live web evidence was found for AI assessment.",
+      claims: [],
+      sources: [],
+      search_queries: evidence.queries,
+      model: FACTCHECK_MODEL,
+      provider: "gemini",
+      grounded: false,
+    }, text, locale);
   }
 
   const response = await fetch(GEMINI_ENDPOINT, {
@@ -144,7 +166,7 @@ export async function runGeminiFactCheck(
   const cited = new Set(assessment.claims.flatMap((claim) => claim.source_ids));
   const sources = evidence.sources.filter((source) => cited.has(source.id));
   const grounded = sources.length > 0;
-  return {
+  return withClaimMeta({
     ...assessment,
     verdict: grounded ? assessment.verdict : "insufficient",
     confidence: grounded ? assessment.confidence : Math.min(assessment.confidence, 40),
@@ -153,7 +175,7 @@ export async function runGeminiFactCheck(
     model: FACTCHECK_MODEL,
     provider: "gemini",
     grounded,
-  };
+  }, text, locale);
 }
 
 export class GeminiHttpError extends Error {

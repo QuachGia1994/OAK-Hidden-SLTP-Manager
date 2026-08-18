@@ -2,11 +2,22 @@
 
 import type { FactCheckResult as FactCheckResultType } from "@/lib/factcheck/types";
 import { TEXT } from "@/lib/factcheck/locale-copy";
+import { formatCheckedAt, verdictLabel } from "@/lib/factcheck/presentation";
+import { FactCheckShareActions } from "./FactCheckShareActions";
 
-export function FactCheckResult({ result, locale }: { result: FactCheckResultType; locale: "VN" | "EN" }) {
+export function FactCheckResult({
+  result,
+  locale,
+  shareId = null,
+}: {
+  result: FactCheckResultType;
+  locale: "VN" | "EN";
+  shareId?: string | null;
+}) {
   const t = TEXT[locale];
-  const verdictLabel = t.verdictLabels[result.verdict];
+  const label = verdictLabel(result.verdict, locale);
   const confidence = Math.max(0, Math.min(100, result.confidence));
+  const claimText = result.claim || result.claims[0]?.claim || "";
 
   return (
     <div className="oak-fact-results">
@@ -15,14 +26,26 @@ export function FactCheckResult({ result, locale }: { result: FactCheckResultTyp
           <span className="oak-eyebrow">{t.result} / AI EVIDENCE RESULT</span>
           <div className="oak-verdict-title-row">
             <h2>{t.resultTitle}</h2>
-            <span className="oak-verdict-badge" data-verdict={result.verdict}>{verdictLabel}</span>
+            <span className="oak-verdict-badge" data-verdict={result.verdict}>{label}</span>
           </div>
-          <p className="oak-model-line">{t.model}: <b>{result.model}</b> · LIVE WEB EVIDENCE</p>
+          {claimText && (
+            <p className="oak-claim-lead"><small>{t.claimLabel}</small>{claimText}</p>
+          )}
+          <p className="oak-model-line">
+            {t.model}: <b>{result.model}</b> · LIVE WEB EVIDENCE
+            {result.checkedAt ? <> · {t.checkedAt}: <b>{formatCheckedAt(result.checkedAt, locale)}</b></> : null}
+          </p>
 
           <div className="oak-summary-card">
             <small>{t.summaryTitle}</small>
             <p>{result.summary}</p>
           </div>
+
+          <FactCheckShareActions
+            shareId={shareId}
+            locale={locale}
+            claimPreview={claimText || result.summary}
+          />
         </div>
 
         <div className="oak-confidence-block">
@@ -51,7 +74,9 @@ export function FactCheckResult({ result, locale }: { result: FactCheckResultTyp
               <div className="oak-claim-body">
                 <div className="oak-claim-heading">
                   <b>{claim.claim}</b>
-                  <span className="oak-verdict-badge" data-verdict={claim.verdict}>{t.verdictLabels[claim.verdict]} · {claim.confidence}%</span>
+                  <span className="oak-verdict-badge" data-verdict={claim.verdict}>
+                    {verdictLabel(claim.verdict, locale)} · {claim.confidence}%
+                  </span>
                 </div>
                 <p>{claim.explanation}</p>
                 {claim.source_ids.length > 0 && (
