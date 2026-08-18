@@ -115,16 +115,8 @@ async function readBodyLimited(response: IncomingMessage, maxBytes: number): Pro
   return Buffer.concat(chunks, total).toString("utf8");
 }
 
-/**
- * One network hop with DNS pinning: validate DNS records, then force the socket
- * lookup to one already-approved address. This closes the validate-then-fetch
- * DNS rebinding window while preserving Host/SNI for the original hostname.
- */
-async function requestHop(url: URL, signal: AbortSignal): Promise<HopResponse> {
-  const addresses = await resolvePublicAddresses(url.hostname);
-  const selected = addresses[0];
+function requestPinnedAddress(url: URL, selected: ResolvedAddress, signal: AbortSignal): Promise<HopResponse> {
   const requestImpl = url.protocol === "https:" ? httpsRequest : httpRequest;
-
   return new Promise<HopResponse>((resolve, reject) => {
     const request = requestImpl(url, {
       method: "GET",
@@ -151,6 +143,26 @@ async function requestHop(url: URL, signal: AbortSignal): Promise<HopResponse> {
     });
     request.end();
   });
+}
+
+/**
+ * One network hop with DNS pinning. Every resolved address is validated first,
+ * then sockets are tried against those approved addresses only. This preserves
+ * DNS-rebinding protection while tolerating environments without IPv6 egress.
+ */
+async function requestHop(url: URL, signal: AbortSignal): Promise<HopResponse> {
+  const addresses = await resolvePublicAddresses(url.hostname);
+  let lastError: UrlIngestError | null = null;
+  for (const address of addresses) {
+    if (signal.aborted) throw new UrlIngestError("URL_FETCH_TIMEOUT");
+    try {
+      return await requestPinnedAddress(url, address, signal);
+    } catch (error) {
+      if (error instanceof UrlIngestError && error.code === "URL_FETCH_TIMEOUT") throw error;
+      lastError = error instanceof UrlIngestError ? error : new UrlIngestError("URL_FETCH_FAILED");
+    }
+  }
+  throw lastError || new UrlIngestError("URL_FETCH_FAILED");
 }
 
 /** Safe URL → article document. Subject page is never independent evidence. */
