@@ -6,8 +6,17 @@
   display: grid;
   gap: .55rem;
 }
-.oak-share-notice {
-  margin: 0;
+.oak-share-heading {
+  display: grid;
+  gap: .18rem;
+}
+.oak-share-heading b {
+  color: var(--foreground);
+  font: 850 .72rem "Cascadia Mono", Consolas, monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.oak-share-heading span {
   color: var(--muted);
   font-size: .68rem;
   line-height: 1.4;
@@ -37,9 +46,17 @@
   background: var(--surface-raised);
   color: var(--foreground);
 }
-.oak-share-primary:hover,
-.oak-share-secondary:hover {
+.oak-share-primary:hover:not(:disabled),
+.oak-share-secondary:hover:not(:disabled) {
   filter: brightness(1.08);
+}
+.oak-share-primary:disabled,
+.oak-share-secondary:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+.oak-share-bar[data-ready="false"] {
+  border-top-color: color-mix(in srgb, var(--oak-status-warning) 38%, var(--panel-border));
 }
 .oak-share-primary:focus-visible,
 .oak-share-secondary:focus-visible {

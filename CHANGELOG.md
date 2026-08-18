@@ -8,6 +8,7 @@
 - Existing Pattern 5 base-signal behavior is preserved internally for `Sr` until a separate Sr signal rule is explicitly defined.
 - Pattern5 public feeds now carry an explicit schema marker; the dashboard rejects legacy pre-schema payloads instead of rendering stale classification data after an Engine5 contract change.
 - Canonical Engine5 blocks remapped to `H3/H6/H9/H12/H15`; H6 keeps the former H7 anchor/reverse behavior, H15 keeps the former H14 anchor/reverse/reference behavior, and cache/public-feed schema is bumped to `v14`.
+- Fact Check Share actions are now fail-visible: every completed result renders the Share bar; results without a current `shareId` show an explicit unavailable state instead of silently hiding the controls.
 
 ## v4.1.0 — 2026-08-18
 

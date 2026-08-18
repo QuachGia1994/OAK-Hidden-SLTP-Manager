@@ -59,18 +59,19 @@ export function FactCheckShareActions({
     await copyLink();
   }, [shareUrl, shareId, claimPreview, locale, copyLink]);
 
-  if (!shareId || !shareUrl) {
-    return null;
-  }
+  const ready = Boolean(shareId && shareUrl);
 
   return (
-    <div className="oak-share-bar" role="group" aria-label={t.share}>
-      <p className="oak-share-notice">{t.sharePublicNotice}</p>
+    <div className="oak-share-bar" role="group" aria-label={t.share} data-ready={ready ? "true" : "false"}>
+      <div className="oak-share-heading">
+        <b>{t.shareThis}</b>
+        <span>{ready ? t.sharePublicNotice : t.shareUnavailable}</span>
+      </div>
       <div className="oak-share-actions">
-        <button type="button" className="oak-share-primary" onClick={onShare}>
+        <button type="button" className="oak-share-primary" onClick={onShare} disabled={!ready}>
           <b>{t.share}</b>
         </button>
-        <button type="button" className="oak-share-secondary" onClick={copyLink}>
+        <button type="button" className="oak-share-secondary" onClick={copyLink} disabled={!ready}>
           <b>{status === "copied" ? t.copied : status === "failed" ? t.copyFailed : t.copyLink}</b>
         </button>
       </div>
