@@ -35,6 +35,7 @@ CLASSES = {
 PATTERN_GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sr"}
 BASE_SIGNAL_BEHAVIOR = {"Sw": "reverse", "Bt": "follow", "Sr": "reverse"}
 CACHE_SCHEMA = 13
+PUBLIC_FEED_SCHEMA = 13
 VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 LOGGER = logging.getLogger(__name__)
 
@@ -377,6 +378,7 @@ def render_profile_with_provider(
             "detail": {str(hour): detail[hour] for hour in BLOCKS},
         })
     return {
+        "schemaVersion": PUBLIC_FEED_SCHEMA,
         "profile": profile,
         "dataProvider": provider.provider_id,
         "weekStart": (monday or monday_of(vietnam_today())).isoformat(),

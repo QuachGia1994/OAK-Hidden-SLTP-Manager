@@ -76,7 +76,7 @@ Web và desktop dùng cùng semantic roles: command accent, BUY, SELL, warning, 
 - H14 historical reference dùng đúng H14 của ngày giao dịch tham chiếu; không tái dùng classification của cell ngày hiện tại.
 - Classification hiện có ba nhóm `Sr`, `Sw`, `Bt`; `T G T G` và `G T G T` thuộc `Sr`.
 - Matrix cell trên desktop/web hiện tạm chỉ hiển thị `group + pattern`; signal/base/reverse vẫn thuộc Engine5 payload/evidence layer.
-- Cache schema hiện tại: `v13`; cache key bao gồm profile, tuần và thứ tự symbol được yêu cầu.
+- Cache schema hiện tại: `v13`; public feed also carries `schemaVersion`, and the dashboard rejects legacy feeds that predate the schema contract instead of rendering stale classifications.
 - Production market-data source vẫn là MT5 cho tới khi cTrader parity gate pass.
 
 ## cTrader / cloud migration

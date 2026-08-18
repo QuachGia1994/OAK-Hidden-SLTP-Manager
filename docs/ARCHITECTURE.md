@@ -36,8 +36,8 @@ Transport types mirror canonical payloads in TypeScript, but they do not calcula
 2. `pattern5_engine.py` resolves broker symbols and reads H4 data through `MarketDataProvider`.
 3. `pattern5_engine.py` alone calculates classification, Sr/Sw/Bt, base signal, reverse, final signal and `h14Reference`. Pattern 5's alternating four-candle sequences (`T G T G` / `G T G T`) are classified as `Sr`; the existing base-signal behavior is preserved internally while cell presentation is classification-only.
 4. Local cache `robot-sltp-pro/pattern5_cache.json` is keyed by schema, profile, week and requested symbol sequence. Cache corruption is observable and recomputed; it is not authoritative trading state.
-5. Publisher writes raw Engine 5 payload to Upstash (`robot-sltp:public:pattern5:*`).
-6. Next server reads the feed through `dashboard/src/lib/pattern5.ts`.
+5. Publisher writes raw Engine 5 payload plus `schemaVersion` to Upstash (`robot-sltp:public:pattern5:*`).
+6. Next server reads the feed through `dashboard/src/lib/pattern5.ts` and rejects legacy payloads that do not carry the schema marker; it never repairs or reclassifies stale data in the browser.
 7. `dashboard/src/lib/vip.ts` applies access redaction on the server. It does not recalculate signals.
 8. `Pattern5Board.tsx` renders the supplied payload. Matrix/mobile cells currently show only `group + pattern`; BUY/SELL/base/reverse remain backend payload/evidence concerns and are not recomputed in the browser. H14 reference is formatted from backend-provided `h14Reference`; the browser does not reconstruct previous-trading-day logic.
 

@@ -11,7 +11,7 @@ APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
 
 import pattern5_engine
-from pattern5_engine import PATTERN_GROUP, WATCHLIST, build_h14_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, should_reverse_signal, signal_from_base
+from pattern5_engine import PATTERN_GROUP, PUBLIC_FEED_SCHEMA, WATCHLIST, build_h14_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, render_profile_with_provider, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
@@ -68,6 +68,11 @@ class Pattern5SignalRuleTests(unittest.TestCase):
         self.assertEqual(cell["pattern"], "T G T G")
         self.assertEqual(cell["signal"], "BUY")
         self.assertIn("Sr", detail)
+
+    def test_rendered_feed_carries_public_schema(self):
+        provider = SimpleNamespace(provider_id="fixture", symbols=lambda: [], broker_day_offset=lambda _symbol: 0)
+        payload = render_profile_with_provider("Fixture", provider, selected=["GBPUSD"])
+        self.assertEqual(payload["schemaVersion"], PUBLIC_FEED_SCHEMA)
 
     def test_pattern_classifier_still_uses_three_or_four_candles(self):
         self.assertEqual(classify5(["T", "T", "T", "G"])[0], 1)

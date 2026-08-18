@@ -49,6 +49,7 @@ export type Pattern5Table = {
   h14Reference?: Pattern5Reference;
 };
 export type Pattern5Payload = {
+  schemaVersion: number;
   profile: string;
   weekStart: string;
   blocks: number[];
@@ -103,8 +104,8 @@ function parsePayload(raw: unknown, source: string): Pattern5Payload | null {
       return null;
     }
     const payload = value as Partial<Pattern5Payload>;
-    if (!payload.profile || !payload.weekStart || !Array.isArray(payload.blocks) || !Array.isArray(payload.tables)) {
-      console.error("[PATTERN5 INVALID PAYLOAD]", source, "missing required fields");
+    if (!Number.isInteger(payload.schemaVersion) || !payload.profile || !payload.weekStart || !Array.isArray(payload.blocks) || !Array.isArray(payload.tables)) {
+      console.error("[PATTERN5 INVALID PAYLOAD]", source, "missing schema or required fields");
       return null;
     }
     return payload as Pattern5Payload;
