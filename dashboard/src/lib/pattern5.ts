@@ -46,7 +46,7 @@ export type Pattern5Table = {
   days?: Pattern5Day[];
   rows?: Record<string, Array<Pattern5Signal | "">>;
   detail?: Record<string, string[]>;
-  h14Reference?: Pattern5Reference;
+  h15Reference?: Pattern5Reference;
 };
 export type Pattern5Payload = {
   schemaVersion: number;
@@ -58,7 +58,7 @@ export type Pattern5Payload = {
   publishedAt?: string;
 };
 
-export const PATTERN5_PUBLIC_SCHEMA = 13;
+export const PATTERN5_PUBLIC_SCHEMA = 14;
 const LATEST_KEY = "robot-sltp:public:pattern5:latest";
 
 function vietnamDateKey(now = new Date()): string {

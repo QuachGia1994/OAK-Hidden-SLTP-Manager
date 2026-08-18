@@ -14,7 +14,7 @@ Legacy NativeQt/CustomTkinter and old signal-manager surfaces are not maintained
 
 | Concern | Canonical owner | Consumers |
 | --- | --- | --- |
-| Engine 5 lookback/classification/Sr-Sw-Bt/base/reverse/final signal/H14 reference | `robot-sltp-pro/pattern5_engine.py` | Tauri, publisher, web feed |
+| Engine 5 lookback/classification/Sr-Sw-Bt/base/reverse/final signal/H15 reference | `robot-sltp-pro/pattern5_engine.py` | Tauri, publisher, web feed |
 | Engine 5 market-data interface | `robot-sltp-pro/market_data_provider.py` | Pattern5 engine, parity tools |
 | MT5 launch/attach policy | `services/mt5_terminal_service.py` / `services/mt5_service.py` | worker, snapshot, Pattern5 |
 | Desktop Python command protocol | `robot-sltp-pro/backend_bridge.py::COMMANDS` | `src/backend-client.ts` adapter |
@@ -34,12 +34,12 @@ Transport types mirror canonical payloads in TypeScript, but they do not calcula
 
 1. Desktop/manual publisher requests Engine 5 through `backend_bridge.py` or `publish_pattern5_site.py`.
 2. `pattern5_engine.py` resolves broker symbols and reads H4 data through `MarketDataProvider`.
-3. `pattern5_engine.py` alone calculates classification, Sr/Sw/Bt, base signal, reverse, final signal and `h14Reference`. Pattern 5's alternating four-candle sequences (`T G T G` / `G T G T`) are classified as `Sr`; the existing base-signal behavior is preserved internally while cell presentation is classification-only.
+3. `pattern5_engine.py` alone owns the canonical block set `H3/H6/H9/H12/H15`, preserves the existing anchor/lookback slots (`4/8/12/16/20`), and calculates classification, Sr/Sw/Bt, base signal, reverse, final signal and `h15Reference`. Pattern 5's alternating four-candle sequences (`T G T G` / `G T G T`) are classified as `Sr`; the existing base-signal behavior is preserved internally while cell presentation is classification-only.
 4. Local cache `robot-sltp-pro/pattern5_cache.json` is keyed by schema, profile, week and requested symbol sequence. Cache corruption is observable and recomputed; it is not authoritative trading state.
 5. Publisher writes raw Engine 5 payload plus `schemaVersion` to Upstash (`robot-sltp:public:pattern5:*`).
 6. Next server reads the feed through `dashboard/src/lib/pattern5.ts` and rejects legacy payloads that do not carry the schema marker; it never repairs or reclassifies stale data in the browser.
 7. `dashboard/src/lib/vip.ts` applies access redaction on the server. It does not recalculate signals.
-8. `Pattern5Board.tsx` renders the supplied payload. Matrix/mobile cells currently show only `group + pattern`; BUY/SELL/base/reverse remain backend payload/evidence concerns and are not recomputed in the browser. H14 reference is formatted from backend-provided `h14Reference`; the browser does not reconstruct previous-trading-day logic.
+8. `Pattern5Board.tsx` renders the supplied payload. Matrix/mobile cells currently show only `group + pattern`; BUY/SELL/base/reverse remain backend payload/evidence concerns and are not recomputed in the browser. H15 reference is formatted from backend-provided `h15Reference`; the browser does not reconstruct previous-trading-day logic.
 
 Failure behavior: missing/malformed feed produces no actionable web signal; MT5/data failures fail closed; future days are blanked server-side before render.
 

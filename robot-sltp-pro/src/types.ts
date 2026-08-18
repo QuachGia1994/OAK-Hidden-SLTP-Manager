@@ -8,6 +8,6 @@ export type PatternCandle = { index: number; time: number; open: number; high: n
 export type PatternGroup = 'Sr' | 'Sw' | 'Bt';
 export type PatternCell = { group: PatternGroup; baseSignal: 'BUY' | 'SELL'; signal: 'BUY' | 'SELL'; reversed: boolean; label: string; pattern: string; evidence: PatternCandle[] } | '';
 export type Pattern5Reference = { date: string; display: string; group: PatternGroup; pattern: string };
-export type Pattern5Table = { base: string; symbol: string | null; error?: string; days?: Array<{ name: string; date: string; display: string }>; rows?: Record<string, PatternCell[]>; detail?: Record<string, string[]>; h14Reference?: Pattern5Reference };
+export type Pattern5Table = { base: string; symbol: string | null; error?: string; days?: Array<{ name: string; date: string; display: string }>; rows?: Record<string, PatternCell[]>; detail?: Record<string, string[]>; h15Reference?: Pattern5Reference };
 export type Pattern5Payload = { profile: string; weekStart: string; blocks: number[]; tables: Pattern5Table[]; cacheHit?: boolean };
 export type RuntimeHealth = { profile: string; telegram: { configured: boolean; running: boolean; pid: number }; worker: { running: boolean; pid: number }; remoteReady: boolean; started?: string[]; issues?: string[] };

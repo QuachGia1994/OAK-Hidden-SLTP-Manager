@@ -62,8 +62,8 @@ function candleDecimals(value: number) {
   return Math.abs(value) >= 100 ? 3 : 5;
 }
 
-function formatH14Reference(table: Pattern5Table, locale: Locale) {
-  const reference = table.h14Reference;
+function formatH15Reference(table: Pattern5Table, locale: Locale) {
+  const reference = table.h15Reference;
   if (!reference) return null;
   const parsed = new Date(`${reference.date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return null;
@@ -143,7 +143,7 @@ function Cell({ signal, onEvidence }: { signal: Pattern5Signal | ""; onEvidence:
 function PairTable({ table, blocks, today, locale, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; locale: Locale; onEvidence: (selection: EvidenceSelection) => void }) {
   if (table.error) return <section className="oak-pair-card oak-pair-error"><strong>{table.base}</strong><span>{table.error}</span></section>;
   const days = table.days ?? [];
-  const h14Reference = formatH14Reference(table, locale);
+  const h15Reference = formatH15Reference(table, locale);
   return (
     <section className="oak-pair-card">
       <header className="oak-pair-header">
@@ -156,7 +156,7 @@ function PairTable({ table, blocks, today, locale, onEvidence }: { table: Patter
           <tbody>{blocks.map((block) => <tr key={block}><th className="oak-table-sticky"><b>{String(block).padStart(2, "0")}</b></th>{(table.rows?.[String(block)] ?? []).map((signal, index) => <td key={`${block}-${index}`} data-today={days[index]?.date === today ? "true" : undefined}><Cell signal={signal} onEvidence={(value) => onEvidence({ title: `${table.base} · H${block} · ${days[index]?.display ?? ""}`, detail: table.detail?.[String(block)]?.[index], signal: value })} /></td>)}</tr>)}</tbody>
         </table>
       </div>
-      {h14Reference && <footer className="oak-pair-reference"><span>{locale === "EN" ? "H14 REFERENCE" : "H14 THAM CHIẾU"}</span><b>{h14Reference.weekdayLabel} {h14Reference.dateLabel}</b><strong>{h14Reference.group}</strong><small>{h14Reference.pattern}</small></footer>}
+      {h15Reference && <footer className="oak-pair-reference"><span>{locale === "EN" ? "H15 REFERENCE" : "H15 THAM CHIẾU"}</span><b>{h15Reference.weekdayLabel} {h15Reference.dateLabel}</b><strong>{h15Reference.group}</strong><small>{h15Reference.pattern}</small></footer>}
     </section>
   );
 }

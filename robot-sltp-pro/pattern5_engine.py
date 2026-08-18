@@ -19,8 +19,8 @@ WATCHLIST = ["GBPUSD", "EURUSD"]
 CACHE_PATH = Path(__file__).resolve().parent / "pattern5_cache.json"
 CACHE_MAX_AGE_SECONDS = 300
 T, G = "T", "G"
-ANCHOR_HOUR = {3: 4, 7: 8, 9: 12, 12: 16, 14: 20}
-BLOCKS = [3, 7, 9, 12, 14]
+ANCHOR_HOUR = {3: 4, 6: 8, 9: 12, 12: 16, 15: 20}
+BLOCKS = [3, 6, 9, 12, 15]
 DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"]
 DAY0 = date(1970, 1, 1)
 CURRENCY = {"USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "XAU", "XAG"}
@@ -34,8 +34,8 @@ CLASSES = {
 }
 PATTERN_GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sr"}
 BASE_SIGNAL_BEHAVIOR = {"Sw": "reverse", "Bt": "follow", "Sr": "reverse"}
-CACHE_SCHEMA = 13
-PUBLIC_FEED_SCHEMA = 13
+CACHE_SCHEMA = 14
+PUBLIC_FEED_SCHEMA = 14
 VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 LOGGER = logging.getLogger(__name__)
 
@@ -88,13 +88,13 @@ def should_reverse_signal(block: int, day: date) -> bool:
         if weekday == 4:
             return _first_weekday_day(day, 4) in {3, 4, 7}
         return False
-    if block == 7:
+    if block == 6:
         return weekday in {1, 4}
     if block == 9:
         return weekday in {3, 4}
     if block == 12:
         return weekday != 2
-    if block == 14:
+    if block == 15:
         return weekday <= 4
     return False
 
@@ -275,13 +275,13 @@ def build_table(
     return days, rows, detail
 
 
-def build_h14_reference(
+def build_h15_reference(
     symbol: str,
     days: list[date],
     rows: dict[int, list[Any]],
     provider: MarketDataProvider | None = None,
 ) -> dict[str, str] | None:
-    signals = rows.get(14, [])
+    signals = rows.get(15, [])
     latest_index = next((index for index in range(min(len(days), len(signals)) - 1, -1, -1) if signals[index]), -1)
     if latest_index < 0:
         return None
@@ -295,7 +295,7 @@ def build_h14_reference(
         reference_cell = signals[reference_index]
     else:
         offset = broker_day_offset(symbol, provider=provider)
-        reference_cell, _detail = build_signal_cell(symbol, reference_day, 14, offset, provider=provider)
+        reference_cell, _detail = build_signal_cell(symbol, reference_day, 15, offset, provider=provider)
     if not reference_cell:
         return None
     return {
@@ -361,11 +361,11 @@ def render_profile_with_provider(
             tables.append({"base": base, "symbol": None, "error": "KHONG TIM THAY SYMBOL BROKER"})
             continue
         days, rows, detail = build_table(symbol, monday, provider=provider)
-        h14_reference = build_h14_reference(symbol, days, rows, provider=provider)
+        h15_reference = build_h15_reference(symbol, days, rows, provider=provider)
         tables.append({
             "base": base,
             "symbol": symbol,
-            "h14Reference": h14_reference,
+            "h15Reference": h15_reference,
             "days": [
                 {
                     "name": DAY_NAMES[index],

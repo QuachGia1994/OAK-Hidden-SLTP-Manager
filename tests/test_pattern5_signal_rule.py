@@ -13,7 +13,7 @@ sys.path.insert(0, str(APP))
 
 import pattern5_engine
 import publish_pattern5_site
-from pattern5_engine import PATTERN_GROUP, PUBLIC_FEED_SCHEMA, WATCHLIST, build_h14_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, render_profile_with_provider, should_reverse_signal, signal_from_base
+from pattern5_engine import ANCHOR_HOUR, BLOCKS, PATTERN_GROUP, PUBLIC_FEED_SCHEMA, WATCHLIST, build_h15_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, render_profile_with_provider, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
@@ -64,7 +64,7 @@ class Pattern5SignalRuleTests(unittest.TestCase):
         ]
         with patch("pattern5_engine.look4", return_value=(directions, evidence)), \
              patch("pattern5_engine.should_reverse_signal", return_value=False):
-            cell, detail = build_signal_cell("EURUSD", date(2026, 8, 18), 14, 0)
+            cell, detail = build_signal_cell("EURUSD", date(2026, 8, 18), 15, 0)
 
         self.assertEqual(cell["group"], "Sr")
         self.assertEqual(cell["pattern"], "T G T G")
@@ -102,12 +102,16 @@ class Pattern5SignalRuleTests(unittest.TestCase):
         self.assertEqual(pattern_text(1, ["T", "T", "T", "G"]), "T T T")
         self.assertEqual(pattern_text(5, ["T", "G", "T", "G"]), "T G T G")
 
-    def test_reverse_matrix_for_h7_h9_h12_h14(self):
+    def test_block_remap_preserves_existing_anchor_slots(self):
+        self.assertEqual(BLOCKS, [3, 6, 9, 12, 15])
+        self.assertEqual(ANCHOR_HOUR, {3: 4, 6: 8, 9: 12, 12: 16, 15: 20})
+
+    def test_reverse_matrix_for_h6_h9_h12_h15(self):
         week = [date(2026, 8, 10 + offset) for offset in range(5)]
-        self.assertEqual([should_reverse_signal(7, day) for day in week], [False, True, False, False, True])
+        self.assertEqual([should_reverse_signal(6, day) for day in week], [False, True, False, False, True])
         self.assertEqual([should_reverse_signal(9, day) for day in week], [False, False, False, True, True])
         self.assertEqual([should_reverse_signal(12, day) for day in week], [True, True, False, True, True])
-        self.assertEqual([should_reverse_signal(14, day) for day in week], [True, True, True, True, True])
+        self.assertEqual([should_reverse_signal(15, day) for day in week], [True, True, True, True, True])
 
     def test_h3_monday_and_thursday_month_exception(self):
         self.assertTrue(should_reverse_signal(3, date(2026, 8, 10)))
@@ -142,15 +146,15 @@ class Pattern5SignalRuleTests(unittest.TestCase):
             self.assertEqual(rows[block][1:], ["", "", "", ""])
             self.assertEqual(detail[block][1:], ["", "", "", ""])
 
-    def test_h14_reference_uses_previous_day_h14_cell_not_current_cell(self):
+    def test_h15_reference_uses_previous_day_h15_cell_not_current_cell(self):
         days = [date(2026, 8, 17 + offset) for offset in range(5)]
-        rows = {14: [
+        rows = {15: [
             {"group": "Sw", "pattern": "T T T"},
             {"group": "Bt", "pattern": "G G T"},
             "", "", "",
         ]}
 
-        reference = build_h14_reference("EURUSD", days, rows)
+        reference = build_h15_reference("EURUSD", days, rows)
 
         self.assertEqual(reference, {
             "date": "2026-08-17",
@@ -165,7 +169,7 @@ class Pattern5SignalRuleTests(unittest.TestCase):
              patch("pattern5_engine.render_profile", side_effect=lambda profile, selected=None, week_start=None: {
                  "profile": profile,
                  "weekStart": week_start,
-                 "blocks": [14],
+                 "blocks": [15],
                  "tables": [{"base": symbol} for symbol in (selected or WATCHLIST)],
              }) as render:
             gbp = render_profile_cached("Vantage", selected=["GBPUSD"], week_start="2026-08-17")
