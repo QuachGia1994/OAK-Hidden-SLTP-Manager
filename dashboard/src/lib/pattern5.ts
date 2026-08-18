@@ -12,8 +12,10 @@ export type Pattern5Candle = {
   direction: "T" | "G";
 };
 
+export type Pattern5Group = "Sr" | "Sw" | "Bt";
+
 export type Pattern5Signal = {
-  group: "Sw" | "Bt";
+  group: Pattern5Group;
   baseSignal: "BUY" | "SELL" | null;
   signal: "BUY" | "SELL" | null;
   reversed: boolean;
@@ -32,7 +34,7 @@ export type Pattern5Day = {
 export type Pattern5Reference = {
   date: string;
   display: string;
-  group: "Sw" | "Bt";
+  group: Pattern5Group;
   pattern: string;
 };
 

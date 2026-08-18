@@ -15,7 +15,7 @@ Before cutover, for GBPUSD and EURUSD it must pass:
 1. exact broker-day offset parity;
 2. exact H4 open timestamps;
 3. OHLC within configured quote tolerance;
-4. therefore identical Pattern5 group (`Sw`/`Bt`), base signal, reverse flag and final signal for the shadow window.
+4. therefore identical Pattern5 group (`Sr`/`Sw`/`Bt`), base signal, reverse flag and final signal for the shadow window.
 
 Any mismatch is fail-closed: MT5 remains the production source.
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Engine5 Pattern 5 (`T G T G` / `G T G T`) is now classified as the third canonical group `Sr`; `Sw` and `Bt` mappings for patterns 1–4 are unchanged.
+- Pattern5 cache schema bumped to `v13` so cached `Sw` Pattern 5 cells cannot survive the classification contract change.
+- Desktop and web matrix/mobile cells temporarily render classification only (`group + pattern`); BUY/SELL, base and reverse remain available in the backend/evidence contract rather than the scan cell.
+- Existing Pattern 5 base-signal behavior is preserved internally for `Sr` until a separate Sr signal rule is explicitly defined.
+
 ## v4.1.0 — 2026-08-18
 
 Engineering-hardening release focused on explicit ownership, fail-closed state transitions and traceable runtime boundaries.

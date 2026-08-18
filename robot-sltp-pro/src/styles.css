@@ -499,20 +499,8 @@ font-size: 11px;
 color: var(--oak-accent-command);
 }
 .pattern5-table td { min-width:118px; vertical-align:middle; }.pattern5-table td b,.pattern5-table td small,.pattern5-table td em { display:block; }.pattern5-table td b { font-size:11px; }.pattern5-table td small { margin-top:3px; color:var(--text); font-size:14px; font-weight:850; }.pattern5-table td em { margin-top:4px; color:var(--muted); font:11px "SFMono-Regular",Consolas,monospace; font-style:normal; }
-.pattern5-table .buy {
-
-color: var(--oak-signal-buy);
-}.pattern5-table .sell {
-
-color: var(--oak-signal-sell);
-}.pattern5-muted { color:var(--muted); font-size:12px; }.pattern5-table tr:last-child th,.pattern5-table tr:last-child td { border-bottom:0; }
+.pattern5-muted { color:var(--muted); font-size:12px; }.pattern5-table tr:last-child th,.pattern5-table tr:last-child td { border-bottom:0; }
 .pattern5-rule-stack { display:grid; gap:5px; min-width:0; }
-.pattern5-reversed { position:relative;
-
-background: var(--oak-reverse-bg); box-shadow: inset 0 0 0 1px var(--oak-reverse-border);
-}
-.pattern5-reverse-badge { position:absolute; top:6px; right:7px; padding:2px 5px; border:1px solid var(--reverse-border); border-radius:999px; color:var(--reverse-text); background:color-mix(in srgb,var(--reverse-bg) 76%,var(--surface)); font-size:10px; font-weight:900; letter-spacing:.08em; }
-.pattern5-base-signal { display:block; margin-top:3px; color:var(--muted); font-size:11px; font-weight:700; }
 .pattern5-evidence-trigger { min-height:28px; margin-top:4px; padding:4px 7px; border:0; border-bottom:1px dashed color-mix(in srgb,var(--cyan) 62%,transparent); background:transparent; font:11px "SFMono-Regular",Consolas,monospace;
 
 color: var(--oak-accent-command); border-bottom-color: color-mix(in srgb, var(--oak-accent-command) 58%, transparent);

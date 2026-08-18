@@ -32,8 +32,9 @@ CLASSES = {
     4: ((T, G, T), (G, T, G)),
     5: ((T, G, T, G), (G, T, G, T)),
 }
-GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 12
+PATTERN_GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sr"}
+BASE_SIGNAL_BEHAVIOR = {"Sw": "reverse", "Bt": "follow", "Sr": "reverse"}
+CACHE_SCHEMA = 13
 VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 LOGGER = logging.getLogger(__name__)
 
@@ -47,14 +48,15 @@ def flip_signal(signal: str) -> str:
 
 
 def signal_from_base(directions: list[str], group: str) -> str:
-    """Derive signal from candle 4 (oldest lookback candle) and Sw/Bt group."""
+    """Derive the existing base signal behavior for a canonical Pattern5 group."""
     if len(directions) < 4:
         raise ValueError("Need all four lookback candle directions")
     base = directions[3]
-    normalized_group = group.casefold()
-    if normalized_group == "sw":
+    canonical_group = str(group).strip().title()
+    behavior = BASE_SIGNAL_BEHAVIOR.get(canonical_group)
+    if behavior == "reverse":
         direction = G if base == T else T
-    elif normalized_group == "bt":
+    elif behavior == "follow":
         direction = base
     else:
         raise ValueError(f"Unknown Pattern5 group: {group}")
@@ -231,7 +233,7 @@ def build_signal_cell(
     pattern_id, _mirrored = classify5(directions)
     if pattern_id is None:
         return "", ""
-    group = GROUP[pattern_id]
+    group = PATTERN_GROUP[pattern_id]
     base_signal = signal_from_base(directions, group)
     reversed_signal = should_reverse_signal(hour, day)
     signal = flip_signal(base_signal) if reversed_signal else base_signal

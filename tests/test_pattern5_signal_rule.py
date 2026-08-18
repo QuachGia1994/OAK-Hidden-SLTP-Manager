@@ -11,7 +11,7 @@ APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
 
 import pattern5_engine
-from pattern5_engine import WATCHLIST, build_h14_reference, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, should_reverse_signal, signal_from_base
+from pattern5_engine import PATTERN_GROUP, WATCHLIST, build_h14_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
@@ -42,6 +42,32 @@ class Pattern5SignalRuleTests(unittest.TestCase):
     def test_bt_follows_base_candle_four(self):
         self.assertEqual(signal_from_base(["G", "G", "T", "T"], "Bt"), "BUY")
         self.assertEqual(signal_from_base(["G", "G", "T", "G"], "Bt"), "SELL")
+
+    def test_sr_owns_both_four_candle_alternating_patterns(self):
+        for directions in (["T", "G", "T", "G"], ["G", "T", "G", "T"]):
+            pattern_id, _mirrored = classify5(directions)
+            self.assertEqual(pattern_id, 5)
+            self.assertEqual(PATTERN_GROUP[pattern_id], "Sr")
+            self.assertEqual(pattern_text(pattern_id, directions), " ".join(directions))
+
+    def test_sr_preserves_existing_pattern5_base_signal_behavior(self):
+        self.assertEqual(signal_from_base(["T", "G", "T", "G"], "Sr"), "BUY")
+        self.assertEqual(signal_from_base(["G", "T", "G", "T"], "Sr"), "SELL")
+
+    def test_signal_cell_publishes_sr_for_alternating_pattern(self):
+        directions = ["T", "G", "T", "G"]
+        evidence = [
+            {"index": index + 1, "time": 100 + index, "open": 1.0, "high": 1.2, "low": 0.8, "close": 1.1, "direction": direction}
+            for index, direction in enumerate(reversed(directions))
+        ]
+        with patch("pattern5_engine.look4", return_value=(directions, evidence)), \
+             patch("pattern5_engine.should_reverse_signal", return_value=False):
+            cell, detail = build_signal_cell("EURUSD", date(2026, 8, 18), 14, 0)
+
+        self.assertEqual(cell["group"], "Sr")
+        self.assertEqual(cell["pattern"], "T G T G")
+        self.assertEqual(cell["signal"], "BUY")
+        self.assertIn("Sr", detail)
 
     def test_pattern_classifier_still_uses_three_or_four_candles(self):
         self.assertEqual(classify5(["T", "T", "T", "G"])[0], 1)

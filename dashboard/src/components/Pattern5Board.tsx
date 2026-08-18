@@ -130,14 +130,12 @@ function CandleChart({ candles }: { candles: Pattern5Candle[] }) {
   );
 }
 
-function Cell({ signal, detail, onEvidence }: { signal: Pattern5Signal | ""; detail?: string; onEvidence: (signal: Pattern5Signal) => void }) {
+function Cell({ signal, onEvidence }: { signal: Pattern5Signal | ""; onEvidence: (signal: Pattern5Signal) => void }) {
   if (!signal) return <span className="oak-signal-empty">—</span>;
-  const locked = Boolean(signal.locked || !signal.signal || !signal.baseSignal);
   return (
-    <div className="oak-signal-cell" title={detail || undefined} data-vip-locked={locked ? "true" : undefined} data-side={locked ? "LOCKED" : signal.signal || undefined} data-reversed={!locked && signal.reversed ? "true" : undefined}>
-      <div className="oak-signal-topline"><span className="oak-signal-group">{signal.group}</span>{!locked && signal.reversed && <span className="oak-reverse-chip">REV</span>}</div>
-      {locked ? <span className="oak-vip-mask">VIP</span> : <b className="oak-signal-side">{signal.signal}</b>}
-      <div className="oak-signal-footer"><span>{locked ? "BASE •••" : `BASE ${signal.baseSignal}`}</span><button type="button" onClick={() => onEvidence(signal)} aria-label={`Open evidence ${signal.pattern}`}>{signal.pattern}</button></div>
+    <div className="oak-signal-cell">
+      <span className="oak-signal-group">{signal.group}</span>
+      <button className="oak-signal-pattern" type="button" onClick={() => onEvidence(signal)} aria-label={`Open evidence ${signal.pattern}`}>{signal.pattern}</button>
     </div>
   );
 }
@@ -155,7 +153,7 @@ function PairTable({ table, blocks, today, locale, onEvidence }: { table: Patter
       <div className="oak-table-scroll lux-scroll">
         <table className="oak-signal-table">
           <thead><tr><th className="oak-table-sticky"><span>H</span></th>{days.map((day) => <th key={day.date} data-today={day.date === today ? "true" : undefined}><span>{localizedDayName(day.date, day.name, locale)}</span><small>{day.display}</small></th>)}</tr></thead>
-          <tbody>{blocks.map((block) => <tr key={block}><th className="oak-table-sticky"><b>{String(block).padStart(2, "0")}</b></th>{(table.rows?.[String(block)] ?? []).map((signal, index) => <td key={`${block}-${index}`} data-today={days[index]?.date === today ? "true" : undefined} data-reversed={signal && signal.reversed ? "true" : undefined}><Cell signal={signal} detail={table.detail?.[String(block)]?.[index]} onEvidence={(value) => onEvidence({ title: `${table.base} · H${block} · ${days[index]?.display ?? ""}`, detail: table.detail?.[String(block)]?.[index], signal: value })} /></td>)}</tr>)}</tbody>
+          <tbody>{blocks.map((block) => <tr key={block}><th className="oak-table-sticky"><b>{String(block).padStart(2, "0")}</b></th>{(table.rows?.[String(block)] ?? []).map((signal, index) => <td key={`${block}-${index}`} data-today={days[index]?.date === today ? "true" : undefined}><Cell signal={signal} onEvidence={(value) => onEvidence({ title: `${table.base} · H${block} · ${days[index]?.display ?? ""}`, detail: table.detail?.[String(block)]?.[index], signal: value })} /></td>)}</tr>)}</tbody>
         </table>
       </div>
       {h14Reference && <footer className="oak-pair-reference"><span>{locale === "EN" ? "H14 REFERENCE" : "H14 THAM CHIẾU"}</span><b>{h14Reference.weekdayLabel} {h14Reference.dateLabel}</b><strong>{h14Reference.group}</strong><small>{h14Reference.pattern}</small></footer>}
@@ -171,13 +169,10 @@ function MobileSignalWorkspace({ table, blocks, today, locale, onEvidence }: { t
       {blocks.map((block) => {
         const signal = table.rows?.[String(block)]?.[day.index] ?? "";
         if (!signal) return <div className="oak-mobile-signal-row" key={block} data-empty="true"><b>H{block}</b><span>—</span></div>;
-        const locked = Boolean(signal.locked || !signal.signal || !signal.baseSignal);
         return (
-          <button key={block} type="button" className="oak-mobile-signal-row" data-side={locked ? "LOCKED" : signal.signal || undefined} data-reversed={!locked && signal.reversed ? "true" : undefined} onClick={() => onEvidence({ title: `${table.base} · H${block} · ${day.display}`, detail: table.detail?.[String(block)]?.[day.index], signal })}>
+          <button key={block} type="button" className="oak-mobile-signal-row" onClick={() => onEvidence({ title: `${table.base} · H${block} · ${day.display}`, detail: table.detail?.[String(block)]?.[day.index], signal })}>
             <span className="oak-mobile-h">H{block}</span>
             <span className="oak-mobile-class"><b>{signal.group}</b><small>{signal.pattern}</small></span>
-            <strong>{locked ? "VIP" : signal.signal}</strong>
-            <span className="oak-mobile-state">{!locked && signal.reversed ? "REV" : locked ? "LOCK" : `BASE ${signal.baseSignal}`}</span>
             <i aria-hidden="true">›</i>
           </button>
         );
