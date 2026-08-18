@@ -5,7 +5,7 @@ import unittest
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import mock_open, patch
+from unittest.mock import patch
 
 APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
@@ -132,7 +132,7 @@ class Pattern5SignalRuleTests(unittest.TestCase):
             failure_code="TERMINAL_NOT_RUNNING",
             message="MT5 terminal is not running",
         )
-        with patch("builtins.open", mock_open(read_data=json.dumps(profiles))), \
+        with patch.object(Path, "read_text", return_value=json.dumps(profiles)), \
              patch("pattern5_engine.ensure_mt5_profile_connected", return_value=attach_result) as ensure_connected, \
              patch("pattern5_engine.render_profile_with_provider") as render_with_provider, \
              patch("pattern5_engine.mt5.shutdown") as shutdown:
