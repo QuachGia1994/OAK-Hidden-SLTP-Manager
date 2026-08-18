@@ -1,3 +1,5 @@
+import type { ImageAuthenticityResult } from "./media-types";
+
 export type FactCheckVerdict = "supported" | "contradicted" | "mixed" | "insufficient";
 
 export type FactCheckInputKind = "text" | "url";
@@ -50,14 +52,18 @@ export interface FactCheckResult {
   sourceDocument?: FactCheckSourceDocument;
 }
 
-/** Bumped when optional sourceDocument is part of the public contract. */
-export const SHARED_FACTCHECK_SCHEMA = 2 as const;
+/** Schema 3 adds a discriminated media-authenticity result while keeping legacy claim shares readable. */
+export const SHARED_FACTCHECK_SCHEMA = 3 as const;
 
-/** Persisted public share record — normalized result only, no secrets. */
+export type SharedResultKind = "claim" | "media_authenticity";
+export type SharedFactCheckResult = FactCheckResult | ImageAuthenticityResult;
+
+/** Persisted public share record — normalized result only, never raw uploaded image bytes. */
 export interface SharedFactCheck {
   schemaVersion: typeof SHARED_FACTCHECK_SCHEMA;
   id: string;
-  result: FactCheckResult;
+  resultKind: SharedResultKind;
+  result: SharedFactCheckResult;
   createdAt: string;
   expiresAt: string;
 }

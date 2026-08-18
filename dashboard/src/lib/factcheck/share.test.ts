@@ -95,8 +95,8 @@ test("sanitize drops javascript: source URLs", () => {
   assert.equal(clean.sources.length, 0);
 });
 
-test("shared schema version is pinned at 2", () => {
-  assert.equal(SHARED_FACTCHECK_SCHEMA, 2);
+test("shared schema version is pinned at 3", () => {
+  assert.equal(SHARED_FACTCHECK_SCHEMA, 3);
 });
 
 test("truncateClaim keeps text as text", () => {

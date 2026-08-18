@@ -25,6 +25,11 @@ Legacy NativeQt/CustomTkinter and old signal-manager surfaces are not maintained
 | Web Pattern5 transport parsing/future masking | `dashboard/src/lib/pattern5.ts` | `/engine` |
 | Web weekday VIP redaction | `dashboard/src/lib/vip.ts` | `/engine` server page |
 | Web rendering/evidence interaction | `dashboard/src/components/Pattern5Board.tsx` | browser |
+| Fact Check claim/URL result domain | `dashboard/src/lib/factcheck/types.ts` + `gemini.ts` | `/api/factcheck`, result/public UI |
+| Fact Check URL network boundary | `dashboard/src/lib/factcheck/ssrf.ts` + `url-ingestion.ts` | `/api/factcheck` |
+| Fact Check media domain/provider | `dashboard/src/lib/factcheck/media-types.ts` + `media-gemini.ts` | `/api/factcheck/media`, media result/public UI |
+| Fact Check media validation/privacy | `dashboard/src/lib/factcheck/media-validate.ts` + `media-metadata.ts` + `media-sanitize.ts` | media API, share store |
+| Fact Check public persistence | `dashboard/src/lib/factcheck/share-store.ts` | claim + media public routes |
 | Desktop visual tokens | `robot-sltp-pro/src/styles.css` | Tauri UI |
 | Web visual tokens | `dashboard/src/app/globals.css` | Gatekeeper routes |
 
@@ -82,6 +87,17 @@ The bridge is serialized intentionally because the Python/MT5 runtime is statefu
 `dashboard/src/lib/pattern5.ts` reads transport data. `dashboard/src/lib/vip.ts` owns entitlement and signal redaction. Client components never receive unredacted weekday BUY/SELL values when access is locked.
 
 Fact Check, Tarot and Discover are secondary Tools/Labs routes and do not own trading semantics.
+
+## Fact Check flow
+
+Fact Check has two result domains that share one distribution layer rather than one god object:
+
+- Claim verification: `Text → evidence search → Gemini → FactCheckResult`; image OCR feeds extracted text into this same claim path. A pure public URL first passes `ssrf.ts` / `url-ingestion.ts`, then article extraction, and converges on the claim pipeline. The subject article is excluded from independent corroborating evidence.
+- Image Authenticity: `Image → media validation → metadata/provenance observations → Gemini multimodal → ImageAuthenticityResult`. The browser only chooses intent and transports the file; verdict rules and normalization stay server/domain-side.
+
+Image Authenticity currently accepts JPEG/PNG/WEBP direct uploads up to 4 MB, with bounded dimensions/pixels before provider invocation. `FACTCHECK_MEDIA_MODEL` is the single model selector and defaults to `gemini-3.6-flash`. EXIF/software and C2PA marker observations are evidence signals only: missing EXIF does not imply AI generation, editor metadata does not prove deceptive manipulation, and C2PA is `present_unverified` unless a future cryptographic verifier explicitly owns that transition. Raw image bytes, GPS and device identifiers are not stored in the public share record.
+
+`share-store.ts` owns the 30-day Redis snapshot contract. Schema `v3` discriminates `claim` vs `media_authenticity`; legacy schema 1/2 claim records are read compatibly. `/factcheck/[id]` is read-only and renders the stored normalized result without re-running Gemini, URL ingestion, OCR or media analysis.
 
 ## Verification map
 

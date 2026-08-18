@@ -147,6 +147,72 @@
   font-size: .85rem;
   line-height: 1.5;
 }
+/* Image authenticity intent + report */
+.oak-image-intent {
+  display: grid;
+  gap: .65rem;
+  margin-top: .7rem;
+  padding: .7rem;
+  border: 1px solid color-mix(in srgb, var(--terminal-accent) 28%, var(--panel-border));
+  border-radius: .8rem;
+  background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised));
+}
+.oak-image-intent-copy { min-width: 0; display: grid; gap: .18rem; }
+.oak-image-intent-copy b { overflow: hidden; color: var(--foreground); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.oak-image-intent-copy small { color: var(--muted); font-size: .58rem; line-height: 1.45; }
+.oak-image-intent-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; }
+.oak-image-intent-actions button {
+  min-height: 2.6rem;
+  padding: .5rem .7rem;
+  border: 1px solid var(--panel-border);
+  border-radius: .65rem;
+  color: var(--foreground);
+  background: var(--surface);
+  font: 800 .61rem "Cascadia Mono", Consolas, monospace;
+  line-height: 1.3;
+}
+.oak-image-intent-actions .oak-image-auth-action {
+  border-color: color-mix(in srgb, var(--terminal-accent) 52%, var(--panel-border));
+  color: var(--terminal-accent);
+  background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface));
+}
+.oak-image-intent-actions button:disabled { opacity: .45; cursor: not-allowed; }
+
+.oak-media-results { --oak-media-color: var(--muted); }
+.oak-media-verdict[data-media-verdict="provenance_verified"] { --oak-verdict-color: var(--oak-signal-buy); }
+.oak-media-verdict[data-media-verdict="likely_ai_generated"] { --oak-verdict-color: #9e77ed; }
+.oak-media-verdict[data-media-verdict="likely_manipulated"] { --oak-verdict-color: var(--terminal-warning); }
+.oak-media-verdict[data-media-verdict="no_material_manipulation_detected"] { --oak-verdict-color: var(--terminal-accent); }
+.oak-media-verdict[data-media-verdict="inconclusive"] { --oak-verdict-color: var(--muted); }
+.oak-media-verdict-badge[data-media-verdict="provenance_verified"] { color: var(--oak-signal-buy); }
+.oak-media-verdict-badge[data-media-verdict="likely_ai_generated"] { color: #b692f6; }
+.oak-media-verdict-badge[data-media-verdict="likely_manipulated"] { color: var(--terminal-warning); }
+.oak-media-verdict-badge[data-media-verdict="no_material_manipulation_detected"] { color: var(--terminal-accent); }
+.oak-media-verdict-badge[data-media-verdict="inconclusive"] { color: var(--muted); }
+.oak-media-confidence-note { margin-top: .55rem; color: var(--muted); font-size: .62rem; line-height: 1.5; }
+.oak-media-section {
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+  border-radius: .9rem;
+  background: var(--surface);
+}
+.oak-media-provenance { display: grid; gap: .35rem; padding: .85rem .95rem; }
+.oak-media-provenance b { color: var(--terminal-accent); font: 850 .62rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
+.oak-media-provenance[data-status="present_unverified"] b { color: var(--terminal-warning); }
+.oak-media-provenance p { color: var(--muted); font-size: .68rem; line-height: 1.55; }
+.oak-media-signals { display: grid; gap: .55rem; padding: .75rem; }
+.oak-media-signals article { padding: .75rem .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }
+.oak-media-signals article > div { display: flex; justify-content: space-between; gap: .5rem; color: var(--terminal-accent); font: 800 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .08em; }
+.oak-media-signals article > div small { color: var(--muted); }
+.oak-media-signals article > b { display: block; margin-top: .35rem; font-size: .72rem; }
+.oak-media-signals article > p { margin-top: .3rem; color: var(--muted); font-size: .65rem; line-height: 1.55; }
+.oak-media-technical { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .5rem; padding: .75rem; }
+.oak-media-technical article { min-width: 0; padding: .65rem .7rem; border: 1px solid var(--panel-border); border-radius: .65rem; background: var(--surface-raised); }
+.oak-media-technical small, .oak-media-technical b { display: block; }
+.oak-media-technical small { color: var(--muted); font: 750 .48rem "Cascadia Mono", Consolas, monospace; letter-spacing: .07em; }
+.oak-media-technical b { margin-top: .25rem; overflow-wrap: anywhere; font-size: .68rem; }
+.oak-media-limitations { display: grid; gap: .35rem; margin: .45rem 0 0; padding-left: 1rem; color: var(--muted); font-size: .68rem; line-height: 1.5; }
+
 @media (max-width: 640px) {
   .oak-share-actions {
     display: grid;
@@ -156,4 +222,6 @@
   .oak-share-secondary {
     width: 100%;
   }
+  .oak-image-intent-actions,
+  .oak-media-technical { grid-template-columns: 1fr; }
 }

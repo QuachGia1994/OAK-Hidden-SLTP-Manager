@@ -52,13 +52,14 @@ Product hierarchy:
 - **Trading**
   - `/engine` — Engine 5 / Pattern Matrix, GBPUSD + EURUSD, current-day mobile workspace, weekly matrix, evidence 4 H4 candles, VIP masking.
 - **Tools / Labs**
-  - `/factcheck` — live evidence + Gemini Fact Check.
+  - `/factcheck` — Fact Check cho Text, Image OCR, URL article và Image Authenticity (metadata/provenance observations + Gemini multimodal).
   - `/tarot` — Tarot 78-card experience.
   - `/discover` — OAK Daily, Dream AI, Yes/No Oracle, Mood Check, Compatibility.
 
 Important APIs:
 
-- `/api/factcheck` — web evidence + Gemini review, không cần PC worker.
+- `/api/factcheck` — Text/URL web evidence + Gemini review, không cần PC worker.
+- `/api/factcheck/media` — Image Authenticity cho JPEG/PNG/WEBP ≤4 MB; validate server-side, không persist raw image, dùng `FACTCHECK_MEDIA_MODEL` (default `gemini-3.6-flash`). C2PA hiện chỉ phát hiện marker, chưa xác minh chữ ký mật mã.
 - `/api/tarot` — server Tarot reading.
 - `/api/discover` — server AI endpoints cho Discover.
 - `/api/vip` — weekday VIP entitlement.

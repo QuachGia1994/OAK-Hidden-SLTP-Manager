@@ -2,6 +2,25 @@
 
 All notable changes to the dashboard are recorded here.
 
+## Unreleased
+
+### Added
+
+- Fact Check Image Authenticity as a separate media domain: upload → bounded image validation → metadata/provenance observations → Gemini 3.6 Flash multimodal assessment → normalized evidence-calibrated verdict → existing share/public-result loop.
+- Dual image intent in `/factcheck`: OCR claim extraction remains available while JPEG/PNG/WEBP images can explicitly run authenticity analysis.
+- Shared Fact Check schema `v3` discriminates `claim` and `media_authenticity` results while retaining schema 1/2 claim-share reads.
+
+### Security / privacy
+
+- Direct authenticity uploads are capped at 4 MB to remain below the Vercel Function request-body boundary; dimensions and pixel count are bounded before model invocation.
+- Raw uploaded image bytes, GPS and device identifiers are never persisted in Redis/public shares; public records contain only bounded technical facts and the normalized report.
+- C2PA/Content Credentials support is marker-presence only (`present_unverified`), not cryptographic verification. Missing provenance or EXIF never implies AI generation, and editor tags are weak observations rather than manipulation proof.
+
+### Changed
+
+- Media model SSoT is `FACTCHECK_MEDIA_MODEL`, defaulting to `gemini-3.6-flash`; text/URL Fact Check keeps its existing model owner.
+- Image-authenticity verdicts are evidence-calibrated (`provenance_verified`, `likely_ai_generated`, `likely_manipulated`, `no_material_manipulation_detected`, `inconclusive`); confidence is evidence strength, not an AI-generation probability.
+
 ## [0.3.1] - 2026-08-18
 
 ### Added

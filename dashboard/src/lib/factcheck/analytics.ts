@@ -6,7 +6,10 @@ export type FactCheckAnalyticsEvent =
   | "factcheck_share_clicked"
   | "factcheck_link_copied"
   | "factcheck_shared_result_viewed"
-  | "factcheck_shared_result_cta_clicked";
+  | "factcheck_shared_result_cta_clicked"
+  | "factcheck_media_started"
+  | "factcheck_media_completed"
+  | "factcheck_media_failed";
 
 export function trackFactCheckEvent(
   event: FactCheckAnalyticsEvent,
