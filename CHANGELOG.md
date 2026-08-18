@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.1.0 — 2026-08-18
+
+Engineering-hardening release focused on explicit ownership, fail-closed state transitions and traceable runtime boundaries.
+
+### Architecture / source of truth
+
+- Added `docs/ARCHITECTURE.md` with canonical owners, end-to-end flow maps, persistence/failure paths and rule-change entry points.
+- Engine 5/H14 semantics are backend-only; the web no longer reconstructs previous-trading-day H14 logic.
+- Pattern5 cache schema bumped to `v12`; cache identity now includes profile, week and requested symbol sequence.
+- New-profile SL/TP/BE/partial defaults are owned by `backend_bridge.py::PROFILE_CREATE_DEFAULTS` and supplied to the desktop UI instead of duplicated there.
+- Desktop raw Tauri/Python calls are centralized in typed `src/backend-client.ts`.
+- Runtime version displayed by React now comes from Cargo package metadata.
+
+### Desktop lifecycle / state correctness
+
+- Selecting a profile is observation-only: it clears stale live state and attaches to an already-running MT5 terminal without starting worker/Telegram processes.
+- Added explicit **Start Runtime** action as the only desktop boundary that requests worker/Telegram process startup.
+- Profile-scoped async responses are fenced; results from a previously selected profile cannot overwrite the active profile.
+- Offline live metrics now show unavailable state instead of synthetic `$0.00`, `0%` or an empty-position claim.
+- Removed hardcoded Telegram BUY/SELL `0.10` quick actions; live commands require explicit user input.
+- Replaced WMIC runtime inspection with one Windows PowerShell/CIM batch lookup and surfaced inspection failures.
+- Malformed config, lock and pending-state files now fail visibly instead of becoming false offline/empty states.
+
+### Verification
+
+- Added behavior coverage for Pattern5 cache selection, H14 historical reference, runtime observation-vs-start lifecycle, backend-owned profile defaults and malformed runtime state.
+- Added release metadata consistency tests across npm, Tauri and Cargo versions.
+- Independent spec-correctness review: no material findings.
+- Independent repository/architecture review: no material findings.
+
 ## v4.0.0 — 2026-08-18
 
 Major architecture and product reset from the legacy v3 NativeQt/signal-manager line to the current OAK trading command system.

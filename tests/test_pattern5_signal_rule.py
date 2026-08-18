@@ -1,5 +1,6 @@
 import json
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -9,7 +10,8 @@ from unittest.mock import mock_open, patch
 APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
 sys.path.insert(0, str(APP))
 
-from pattern5_engine import WATCHLIST, build_h14_reference, build_table, classify5, flip_signal, look4, pattern_text, render_profile, should_reverse_signal, signal_from_base
+import pattern5_engine
+from pattern5_engine import WATCHLIST, build_h14_reference, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
@@ -104,6 +106,24 @@ class Pattern5SignalRuleTests(unittest.TestCase):
             "group": "Sw",
             "pattern": "T T T",
         })
+
+    def test_pattern5_cache_is_scoped_to_requested_symbol_sequence(self):
+        with tempfile.TemporaryDirectory() as temp_dir, \
+             patch.object(pattern5_engine, "CACHE_PATH", Path(temp_dir) / "pattern5_cache.json"), \
+             patch("pattern5_engine.render_profile", side_effect=lambda profile, selected=None, week_start=None: {
+                 "profile": profile,
+                 "weekStart": week_start,
+                 "blocks": [14],
+                 "tables": [{"base": symbol} for symbol in (selected or WATCHLIST)],
+             }) as render:
+            gbp = render_profile_cached("Vantage", selected=["GBPUSD"], week_start="2026-08-17")
+            eur = render_profile_cached("Vantage", selected=["EURUSD"], week_start="2026-08-17")
+            eur_cached = render_profile_cached("Vantage", selected=["EURUSD"], week_start="2026-08-17")
+
+        self.assertEqual([table["base"] for table in gbp["tables"]], ["GBPUSD"])
+        self.assertEqual([table["base"] for table in eur["tables"]], ["EURUSD"])
+        self.assertTrue(eur_cached["cacheHit"])
+        self.assertEqual(render.call_count, 2)
 
     def test_render_profile_never_launches_closed_terminal(self):
         profiles = {"Vantage": {"path": "C:/Broker/terminal64.exe"}}

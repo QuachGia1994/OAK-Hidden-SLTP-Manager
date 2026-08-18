@@ -62,44 +62,18 @@ function candleDecimals(value: number) {
   return Math.abs(value) >= 100 ? 3 : 5;
 }
 
-function previousTradingDate(dateValue: string): Date | null {
-  const parsed = new Date(`${dateValue}T00:00:00Z`);
+function formatH14Reference(table: Pattern5Table, locale: Locale) {
+  const reference = table.h14Reference;
+  if (!reference) return null;
+  const parsed = new Date(`${reference.date}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return null;
-  parsed.setUTCDate(parsed.getUTCDate() - (parsed.getUTCDay() === 1 ? 3 : 1));
-  return parsed;
-}
-
-function h14HistoryReference(table: Pattern5Table, locale: Locale) {
-  const signals = table.rows?.["14"] ?? [];
-  const days = table.days ?? [];
-  const explicit = table.h14Reference;
-  if (explicit) {
-    const parsed = new Date(`${explicit.date}T00:00:00Z`);
-    const weekday = parsed.getUTCDay();
-    return {
-      group: explicit.group,
-      pattern: explicit.pattern,
-      dateLabel: explicit.display,
-      weekdayLabel: locale === "VN" ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][weekday] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday],
-    };
-  }
-  for (let index = Math.min(signals.length, days.length) - 1; index >= 0; index -= 1) {
-    if (!signals[index] || !days[index]) continue;
-    const sourceDate = previousTradingDate(days[index].date);
-    if (!sourceDate) continue;
-    const sourceIso = sourceDate.toISOString().slice(0, 10);
-    const sourceIndex = days.findIndex((day) => day.date === sourceIso);
-    const sourceSignal = sourceIndex >= 0 ? signals[sourceIndex] : "";
-    if (!sourceSignal) return null;
-    const weekday = sourceDate.getUTCDay();
-    return {
-      group: sourceSignal.group,
-      pattern: sourceSignal.pattern,
-      dateLabel: sourceDate.toLocaleDateString(locale === "EN" ? "en-GB" : "vi-VN", { timeZone: "UTC", day: "2-digit", month: "2-digit" }),
-      weekdayLabel: locale === "VN" ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][weekday] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday],
-    };
-  }
-  return null;
+  const weekday = parsed.getUTCDay();
+  return {
+    group: reference.group,
+    pattern: reference.pattern,
+    dateLabel: reference.display,
+    weekdayLabel: locale === "VN" ? ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][weekday] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][weekday],
+  };
 }
 
 function resolveActionableDay(table: Pattern5Table, blocks: number[], today: string, locale: Locale): DayState | null {
@@ -171,7 +145,7 @@ function Cell({ signal, detail, onEvidence }: { signal: Pattern5Signal | ""; det
 function PairTable({ table, blocks, today, locale, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; locale: Locale; onEvidence: (selection: EvidenceSelection) => void }) {
   if (table.error) return <section className="oak-pair-card oak-pair-error"><strong>{table.base}</strong><span>{table.error}</span></section>;
   const days = table.days ?? [];
-  const h14Reference = h14HistoryReference(table, locale);
+  const h14Reference = formatH14Reference(table, locale);
   return (
     <section className="oak-pair-card">
       <header className="oak-pair-header">

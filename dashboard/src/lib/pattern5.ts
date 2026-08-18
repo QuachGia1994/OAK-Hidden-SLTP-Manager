@@ -92,24 +92,30 @@ export function maskFuturePattern5(payload: Pattern5Payload | null, today = viet
   };
 }
 
-function parsePayload(raw: unknown): Pattern5Payload | null {
+function parsePayload(raw: unknown, source: string): Pattern5Payload | null {
   if (!raw) return null;
   try {
     const value = typeof raw === "string" ? JSON.parse(raw) : raw;
-    if (!value || typeof value !== "object") return null;
+    if (!value || typeof value !== "object") {
+      console.error("[PATTERN5 INVALID PAYLOAD]", source, "not an object");
+      return null;
+    }
     const payload = value as Partial<Pattern5Payload>;
     if (!payload.profile || !payload.weekStart || !Array.isArray(payload.blocks) || !Array.isArray(payload.tables)) {
+      console.error("[PATTERN5 INVALID PAYLOAD]", source, "missing required fields");
       return null;
     }
     return payload as Pattern5Payload;
-  } catch {
+  } catch (error) {
+    console.error("[PATTERN5 INVALID PAYLOAD]", source, error instanceof Error ? error.message : String(error));
     return null;
   }
 }
 export async function getPattern5Profile(profile: string): Promise<Pattern5Payload | null> {
   if (!profile.trim()) return null;
   try {
-    return parsePayload(await redis.get(`robot-sltp:public:pattern5:${profile.trim()}`));
+    const key = `robot-sltp:public:pattern5:${profile.trim()}`;
+    return parsePayload(await redis.get(key), key);
   } catch (error) {
     console.error("[PATTERN5 PROFILE READ FAILED]", profile, error);
     return null;
@@ -128,7 +134,7 @@ export async function getLatestPattern5(): Promise<Pattern5Payload | null> {
 
   for (const key of keys) {
     try {
-      const payload = parsePayload(await redis.get(key));
+      const payload = parsePayload(await redis.get(key), key);
       if (payload) return payload;
     } catch (error) {
       console.error("[PATTERN5 READ FAILED]", key, error);

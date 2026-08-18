@@ -7,14 +7,14 @@ ROBOT SLTP Pro là hệ thống trading command gồm hai surface đang được
 
 Các UI CustomTkinter/NativeQt, Signal Bot legacy, Stock Advisor, audit dashboard và stack EOD cũ không còn là sản phẩm được duy trì.
 
-## Latest release — v4.0.0
+## Latest release — v4.1.0
 
 Release page: https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest
 
 Windows artifacts:
 
-- [ROBOT SLTP Pro v4.0.0 Setup EXE](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT.SLTP.Pro_4.0.0_x64-setup.exe)
-- [ROBOT SLTP Pro v4.0.0 MSI](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT.SLTP.Pro_4.0.0_x64_en-US.msi)
+- [ROBOT SLTP Pro v4.1.0 Setup EXE](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT.SLTP.Pro_4.1.0_x64-setup.exe)
+- [ROBOT SLTP Pro v4.1.0 MSI](https://github.com/QuachGia1994/OAK-Hidden-SLTP-Manager/releases/latest/download/ROBOT.SLTP.Pro_4.1.0_x64_en-US.msi)
 
 > Desktop v4 hiện là **workstation build**, chưa phải clean-machine standalone installer. Tauri bridge vẫn dựa vào Python/source runtime layout của project, nên bundle này phù hợp cho máy đã có project/runtime, Python/MT5 và cấu hình local tương ứng. Secrets, `profiles.json`, runtime DB/JSON và broker credentials không được đóng gói vào GitHub Release.
 
@@ -41,7 +41,7 @@ Runtime chính:
 - `robot-sltp-pro/pattern5_engine.py` — Engine 5 / Pattern Matrix cho GBPUSD và EURUSD.
 - `robot-sltp-pro/publish_pattern5_site.py` — publish feed Engine 5 lên Upstash.
 
-Desktop v4 không tự mở lại MT5 chỉ vì user đổi profile hoặc refresh Pattern5. Pattern5 chạy attach-only và fail-closed nếu terminal đã bị tắt thủ công.
+Desktop v4 không tự mở lại MT5 chỉ vì user đổi profile hoặc refresh Pattern5. Chọn profile chỉ quan sát snapshot/runtime đang tồn tại; khởi động `worker_runtime.py` / Telegram receiver cần thao tác **Start Runtime** rõ ràng từ user. Pattern5 và snapshot MT5 chạy attach-only, fail-closed nếu terminal đã bị tắt thủ công.
 
 ## OAK Gatekeeper Web
 
@@ -74,7 +74,7 @@ Web và desktop dùng cùng semantic roles: command accent, BUY, SELL, warning, 
 - Blocks: `H3`, `H7`, `H9`, `H12`, `H14`.
 - Future day trong tuần hiện tại không được tính sớm.
 - H14 historical reference dùng đúng H14 của ngày giao dịch tham chiếu; không tái dùng classification của cell ngày hiện tại.
-- Cache schema hiện tại: `v11`.
+- Cache schema hiện tại: `v12`; cache key bao gồm profile, tuần và thứ tự symbol được yêu cầu.
 - Production market-data source vẫn là MT5 cho tới khi cTrader parity gate pass.
 
 ## cTrader / cloud migration
@@ -88,7 +88,9 @@ Repository đã có:
 
 Hiện Vercel credentials/control-plane đã được cấu hình và redeploy. Production Engine 5 vẫn `MT5`; cTrader chỉ là shadow candidate. Spotware app phải ở trạng thái **Active** trước khi OAuth/account discovery/parity thật được chạy.
 
-Chi tiết: [`docs/ENGINECORE_CLOUD_MIGRATION.md`](docs/ENGINECORE_CLOUD_MIGRATION.md)
+Chi tiết cloud migration: [`docs/ENGINECORE_CLOUD_MIGRATION.md`](docs/ENGINECORE_CLOUD_MIGRATION.md)
+
+Architecture/ownership map cho engineer mới: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 
 ## Cài dependencies
 
@@ -117,7 +119,7 @@ npm --prefix dashboard run test:tarot
 npm --prefix robot-sltp-pro run build
 ```
 
-Full Python baseline tại v4.0.0: **208 passed + 17 subtests**.
+Python/bridge/release-metadata behavior được kiểm bằng CI; xem `.github/workflows/ci.yml` và `docs/ARCHITECTURE.md` cho test ownership.
 
 GitHub Actions workflow: `.github/workflows/ci.yml`.
 
@@ -131,4 +133,4 @@ GitHub Actions workflow: `.github/workflows/ci.yml`.
 
 ## Release notes
 
-Xem [`CHANGELOG.md`](CHANGELOG.md) cho v4.0.0 và lịch sử migration từ dòng v3 legacy.
+Xem [`CHANGELOG.md`](CHANGELOG.md) cho v4.1.0 và lịch sử migration từ dòng v3 legacy.

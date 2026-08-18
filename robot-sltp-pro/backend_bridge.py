@@ -13,6 +13,18 @@ BACKEND_ROOT = APP_ROOT.parent
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+PROFILE_CREATE_DEFAULTS = {
+    "name": "",
+    "path": "",
+    "server": "",
+    "sl": "500",
+    "tp": "10000",
+    "autoBeR": "2",
+    "partialR": "2",
+    "partialPct": "50",
+    "teleChat": "",
+}
+
 
 def load_profiles():
     return json.loads((BACKEND_ROOT / "profiles.json").read_text(encoding="utf-8"))
@@ -24,36 +36,64 @@ def _load_global_config():
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, json.JSONDecodeError):
-        return {}
-    return data if isinstance(data, dict) else {}
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"Cannot read config.json: {type(error).__name__}") from error
+    if not isinstance(data, dict):
+        raise RuntimeError("config.json must contain a JSON object")
+    return data
 
 
 def _lock_pid(path):
-    try:
-        return int((Path(path).read_text(encoding="utf-8") or "0").strip() or "0")
-    except (OSError, TypeError, ValueError):
+    lock_path = Path(path)
+    if not lock_path.exists():
         return 0
+    try:
+        return int((lock_path.read_text(encoding="utf-8") or "0").strip() or "0")
+    except (OSError, TypeError, ValueError) as error:
+        raise RuntimeError(f"Invalid runtime lock file: {lock_path.name}") from error
 
 
-def _process_commandline(pid):
-    if os.name != "nt" or pid <= 0:
-        return ""
+def _process_commandlines(pids):
+    valid_pids = sorted({int(pid) for pid in pids if int(pid or 0) > 0})
+    if os.name != "nt" or not valid_pids:
+        return {}, None
+    process_filter = " OR ".join(f"ProcessId = {pid}" for pid in valid_pids)
+    script = (
+        f"$rows = Get-CimInstance Win32_Process -Filter '{process_filter}' | "
+        "Select-Object ProcessId,CommandLine; @($rows) | ConvertTo-Json -Compress"
+    )
     try:
         result = subprocess.run(
-            ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine", "/FORMAT:LIST"],
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
             capture_output=True,
             text=True,
-            timeout=3,
+            timeout=5,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
-    except (OSError, subprocess.SubprocessError):
-        return ""
-    for raw in (result.stdout or "").splitlines():
-        line = raw.strip()
-        if line.lower().startswith("commandline="):
-            return line.split("=", 1)[1].strip()
-    return ""
+    except (OSError, subprocess.SubprocessError) as error:
+        return {}, f"Process inspection unavailable: {type(error).__name__}"
+    if result.returncode != 0:
+        return {}, f"Process inspection failed with exit code {result.returncode}"
+    raw = (result.stdout or "").strip()
+    if not raw:
+        return {}, None
+    try:
+        decoded = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}, "Process inspection returned invalid JSON"
+    rows = decoded if isinstance(decoded, list) else [decoded]
+    commands = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        try:
+            pid = int(row.get("ProcessId") or 0)
+        except (TypeError, ValueError):
+            continue
+        command_line = str(row.get("CommandLine") or "").strip()
+        if pid > 0 and command_line:
+            commands[pid] = command_line
+    return commands, None
 
 
 def _cmdline_profile_exact(command_line, profile):
@@ -80,24 +120,21 @@ def _cmdline_profile_exact(command_line, profile):
 def _runtime_health(profile):
     safe_name = re.sub(r"[^\w\-]", "_", profile or "unknown")
     telegram_pid = _lock_pid(BACKEND_ROOT / "oak_enginecore.lock")
-    telegram_cmd = _process_commandline(telegram_pid)
-    telegram_running = bool(
-        telegram_pid
-        and telegram_cmd
-        and "oak_enginecore.py" in telegram_cmd
-    )
+    legacy_pid = _lock_pid(BACKEND_ROOT / "mimo_bot.lock")
+    worker_pid = _lock_pid(BACKEND_ROOT / f"worker_{safe_name}.lock")
+    commands, inspection_issue = _process_commandlines([telegram_pid, legacy_pid, worker_pid])
+
+    telegram_cmd = commands.get(telegram_pid, "")
+    telegram_running = bool(telegram_pid and "oak_enginecore.py" in telegram_cmd)
     if not telegram_running:
         # Migration guard: an already-running pre-rename receiver must remain
         # authoritative until it exits, otherwise two Telegram pollers can race.
-        legacy_pid = _lock_pid(BACKEND_ROOT / "mimo_bot.lock")
-        legacy_cmd = _process_commandline(legacy_pid)
-        if legacy_pid and legacy_cmd and "mimo_bot.py" in legacy_cmd:
+        legacy_cmd = commands.get(legacy_pid, "")
+        if legacy_pid and "mimo_bot.py" in legacy_cmd:
             telegram_pid = legacy_pid
-            telegram_cmd = legacy_cmd
             telegram_running = True
 
-    worker_pid = _lock_pid(BACKEND_ROOT / f"worker_{safe_name}.lock")
-    worker_cmd = _process_commandline(worker_pid)
+    worker_cmd = commands.get(worker_pid, "")
     worker_running = bool(
         worker_pid
         and worker_cmd
@@ -112,6 +149,7 @@ def _runtime_health(profile):
         "telegram": {"configured": telegram_configured, "running": telegram_running, "pid": telegram_pid if telegram_running else 0},
         "worker": {"running": worker_running, "pid": worker_pid if worker_running else 0},
         "remoteReady": bool(telegram_configured and telegram_running and worker_running),
+        "issues": [inspection_issue] if inspection_issue else [],
     }
 
 
@@ -150,7 +188,7 @@ def cmd_runtime_ensure(payload):
 
     before = _runtime_health(profile)
     requested = []
-    issues = []
+    issues = list(before.get("issues") or [])
     if before["telegram"]["configured"] and not before["telegram"]["running"]:
         _spawn_detached([sys.executable, str(BACKEND_ROOT / "oak_enginecore.py")])
         requested.append("telegram")
@@ -185,7 +223,7 @@ def cmd_runtime_ensure(payload):
         else:
             issues.append(f"Profile worker failed to start: {profile}")
     health["started"] = started
-    health["issues"] = issues
+    health["issues"] = list(dict.fromkeys([*(health.get("issues") or []), *issues]))
     return health
 
 
@@ -215,7 +253,7 @@ def cmd_profiles(_payload):
             continue
         seen.add(key)
         profiles.append(profile)
-    return {"profiles": profiles}
+    return {"profiles": profiles, "profileDefaults": dict(PROFILE_CREATE_DEFAULTS)}
 
 
 def cmd_profile_add(payload):
@@ -236,15 +274,15 @@ def cmd_profile_add(payload):
         "mt5_portable": False,
         "magic": "0",
         "symbol": "",
-        "sl": str(payload.get("sl") or "500"),
-        "tp": str(payload.get("tp") or "10000"),
+        "sl": str(payload.get("sl") or PROFILE_CREATE_DEFAULTS["sl"]),
+        "tp": str(payload.get("tp") or PROFILE_CREATE_DEFAULTS["tp"]),
         "gold_sl": "1000",
         "gold_tp": "20000",
         "balance_sl_pct": "",
         "balance_tp_pct": "",
-        "partial_r": str(payload.get("partialR") or "2"),
-        "partial_pct": str(payload.get("partialPct") or "50"),
-        "auto_be": str(payload.get("autoBeR") or "2"),
+        "partial_r": str(payload.get("partialR") or PROFILE_CREATE_DEFAULTS["partialR"]),
+        "partial_pct": str(payload.get("partialPct") or PROFILE_CREATE_DEFAULTS["partialPct"]),
+        "auto_be": str(payload.get("autoBeR") or PROFILE_CREATE_DEFAULTS["autoBeR"]),
         "tele_token": "__vault__",
         "tele_chat": str(payload.get("teleChat") or ""),
         "copy_role": "None",
@@ -425,11 +463,17 @@ def _pending_manager(profile):
     manager.scheduled_file = str(BACKEND_ROOT / Path(manager.scheduled_file).name)
     manager.scheduled_close_file = str(BACKEND_ROOT / Path(manager.scheduled_close_file).name)
     for attr, path in (("scheduled_trades", manager.scheduled_file), ("_scheduled_close", manager.scheduled_close_file)):
-        try:
-            data = json.loads(Path(path).read_text(encoding="utf-8")) if Path(path).exists() else []
-        except (OSError, ValueError, json.JSONDecodeError):
+        state_path = Path(path)
+        if not state_path.exists():
             data = []
-        setattr(manager, attr, data if isinstance(data, list) else [])
+        else:
+            try:
+                data = json.loads(state_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError, json.JSONDecodeError) as error:
+                raise RuntimeError(f"Cannot read pending state: {state_path.name}") from error
+            if not isinstance(data, list):
+                raise RuntimeError(f"Pending state must be a JSON array: {state_path.name}")
+        setattr(manager, attr, data)
     return manager
 
 

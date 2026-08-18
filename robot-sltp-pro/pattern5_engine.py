@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -32,8 +33,9 @@ CLASSES = {
     5: ((T, G, T, G), (G, T, G, T)),
 }
 GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sw"}
-CACHE_SCHEMA = 11
+CACHE_SCHEMA = 12
 VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
+LOGGER = logging.getLogger(__name__)
 
 
 def flip_signal(signal: str) -> str:
@@ -301,8 +303,10 @@ def build_h14_reference(
     }
 
 
-def _cache_key(profile: str, week_start: str) -> str:
-    return f"v{CACHE_SCHEMA}|{profile}|{week_start}"
+def _cache_key(profile: str, week_start: str, selected: list[str] | None = None) -> str:
+    instruments = selected or WATCHLIST
+    selection_key = ",".join(str(item).strip().upper() for item in instruments if str(item).strip())
+    return f"v{CACHE_SCHEMA}|{profile}|{week_start}|{selection_key}"
 
 
 def _load_cache() -> dict[str, Any]:
@@ -310,7 +314,8 @@ def _load_cache() -> dict[str, Any]:
         return {}
     try:
         return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, json.JSONDecodeError) as error:
+        LOGGER.warning("Pattern5 cache ignored because it could not be read: %s", error)
         return {}
 
 
@@ -322,7 +327,7 @@ def _save_cache(cache: dict[str, Any]) -> None:
 
 def render_profile_cached(profile: str, selected: list[str] | None = None, week_start: str | None = None, force: bool = False) -> dict[str, Any]:
     resolved_week = week_start or monday_of(vietnam_today()).isoformat()
-    key = _cache_key(profile, resolved_week)
+    key = _cache_key(profile, resolved_week, selected)
     cache = _load_cache()
     cached = cache.get(key)
     if not force and isinstance(cached, dict) and (time.time() - float(cached.get("generatedAtEpoch", 0))) < CACHE_MAX_AGE_SECONDS:
@@ -379,7 +384,7 @@ def render_profile_with_provider(
 
 
 def render_profile(profile: str, selected: list[str] | None = None, week_start: str | None = None) -> dict[str, Any]:
-    raw = __import__("json").loads(open(__import__("pathlib").Path(__file__).resolve().parent.parent / "profiles.json", encoding="utf-8").read())
+    raw = json.loads((Path(__file__).resolve().parent.parent / "profiles.json").read_text(encoding="utf-8"))
     cfg = raw.get(profile)
     if not isinstance(cfg, dict):
         raise RuntimeError(f"Unknown profile: {profile}")

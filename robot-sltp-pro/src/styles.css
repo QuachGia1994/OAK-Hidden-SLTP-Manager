@@ -101,7 +101,7 @@ min-height: 64px;
   box-shadow: none;
   backdrop-filter: none;
 }
-.brand-block, .top-status, .panel-title, .telegram-status, .quick-actions, .netting-row, .panel-toggle-row, .footer-bar > div, .status-line { display: flex; align-items: center; }
+.brand-block, .top-status, .panel-title, .telegram-status, .netting-row, .panel-toggle-row, .footer-bar > div, .status-line { display: flex; align-items: center; }
 .brand-block {
 
 gap: 10px;
@@ -373,7 +373,6 @@ color: inherit;
 .telegram-status { display: grid; grid-template-columns: 8px max-content minmax(0, 1fr); align-items: center; gap: 9px; margin: 10px 0; color: var(--text); font-size: 11px; font-weight: 700; }
 .telegram-status small { min-width: 0; overflow: hidden; color: var(--muted); font-size: 9px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
 .telegram-input-wrap { display: flex; align-items: flex-start; gap: 9px; min-height: 46px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); }.telegram-input-wrap svg { flex: 0 0 auto; margin-top: 3px; color: var(--cyan); }.telegram-input-wrap textarea { min-width: 0; flex: 1; min-height: 110px; resize: vertical; color: var(--text); border: 0; outline: 0; background: transparent; font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; line-height: 1.55; }.telegram-input-wrap textarea::placeholder { color: var(--muted); }.telegram-panel-compact .telegram-input-wrap textarea { min-height: 96px; }
-.quick-actions { gap: 8px; margin: 11px 0; }.quick-actions button { height: 32px; flex: 1; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface-2); font-size: 11px; font-weight: 700; }.quick-actions button:hover { border-color: color-mix(in srgb, var(--cyan) 45%, var(--border)); color: var(--cyan); }
 .primary-button { width: 100%; min-height: 40px; display: inline-flex; justify-content: center; align-items: center; gap: 8px; margin-top: 11px; border: 1px solid color-mix(in srgb, var(--green) 52%, var(--border)); border-radius: 8px; font-size: 12px; font-weight: 800;
 
 border-color: color-mix(in srgb, var(--oak-accent-command) 52%, var(--oak-border)); color: var(--oak-fg-primary); background: var(--oak-accent-soft); box-shadow: none; transition: border-color var(--oak-motion-fast), background var(--oak-motion-fast);
@@ -414,14 +413,17 @@ min-height: 34px;
 
 border-color: color-mix(in srgb, var(--oak-accent-command) 48%, var(--oak-border)); background: var(--oak-accent-soft);
 }.choice-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; color: var(--cyan); background: var(--cyan-soft); }.profile-choice b { display: block; font-size: 13px; }.profile-choice small { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.profile-actions .primary-button { width: auto; margin-top: 0; padding: 0 16px; }
 .add-profile-button { width: auto; padding: 0 16px; }
+.runtime-start-button { width: auto; margin: 0 0 10px; display: inline-flex; align-items: center; gap: 7px; color: var(--oak-fg-primary); border-color: var(--oak-border); background: var(--oak-bg-raised); }
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 24px; background: rgba(1, 7, 14, .72);
 
 backdrop-filter: none;
 }
 .profile-modal { width: min(720px, 100%); border: 1px solid color-mix(in srgb, var(--cyan) 28%, var(--border)); border-radius: 16px; padding: 18px; background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--shadow); }
 .modal-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:14px; border-bottom:1px solid var(--border); }.modal-head b { display:block; font-size:17px; }.modal-head small { display:block; margin-top:4px; color:var(--muted); font-size:11px; }.modal-head button { width:34px; height:34px; display:grid; place-items:center; border:1px solid var(--border); border-radius:8px; color:var(--muted); background:var(--surface-2); }
-.modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }.modal-field { display:grid; gap:6px; }.modal-field span { color:var(--muted); font-size:11px; }.modal-field input { width:100%; height:40px; padding:0 11px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface-2); outline:0; }.modal-field input:focus { border-color:color-mix(in srgb, var(--cyan) 55%, var(--border)); }.modal-note { margin-top:14px; padding:10px 12px; border:1px solid color-mix(in srgb, var(--amber) 22%, var(--border)); border-radius:8px; color:var(--muted); background:color-mix(in srgb, var(--amber) 6%, transparent); font-size:10px; }.modal-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:16px; }.modal-actions .primary-button { width:auto; padding:0 16px; margin:0; }.secondary-button { min-height:40px; padding:0 16px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface-2); font-size:12px; font-weight:700; }
+.modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:16px; }.modal-field { display:grid; gap:6px; }.modal-field span { color:var(--muted); font-size:11px; }.modal-field input { width:100%; height:40px; padding:0 11px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface-2); outline:0; }.modal-field input:focus { border-color:color-mix(in srgb, var(--cyan) 55%, var(--border)); }.modal-note { margin-top:14px; padding:10px 12px; border:1px solid color-mix(in srgb, var(--amber) 22%, var(--border)); border-radius:8px; color:var(--muted); background:color-mix(in srgb, var(--amber) 6%, transparent); font-size:10px; }.modal-actions { display:flex; justify-content:flex-end; gap:9px; margin-top:16px; }.modal-actions .primary-button { width:auto; padding:0 16px; margin:0; }.secondary-button { min-height:40px; padding:0 16px; border:1px solid var(--border); border-radius:8px; color:var(--text); background:var(--surface-2); font-size:12px; font-weight:700; }.secondary-button:disabled { cursor:not-allowed; opacity:.45; }
 .footer-bar { display: grid; grid-template-columns: repeat(4, max-content) 1fr; align-items: center; border-top: 1px solid var(--border); color: var(--muted); font-size: 10px;
 
 min-height: 30px; gap: 12px; margin-top: 9px; padding-top: 8px; border-color: var(--oak-border);
