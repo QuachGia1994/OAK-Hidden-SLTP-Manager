@@ -7,7 +7,7 @@ import { request as httpsRequest } from "node:https";
 import type { Readable } from "node:stream";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 import { extractArticle } from "./article-extract";
-import { areResolvedAddressesPublic, isBlockedHostname, isBlockedIpLiteral, validatePublicHttpUrl, validatePublicRedirect } from "./ssrf";
+import { areResolvedAddressesPublic, isBlockedHostname, isBlockedIpLiteral, pinnedLookupResult, validatePublicHttpUrl, validatePublicRedirect } from "./ssrf";
 
 export type UrlIngestErrorCode =
   | "INVALID_URL"
@@ -115,6 +115,24 @@ async function readBodyLimited(response: IncomingMessage, maxBytes: number): Pro
   return Buffer.concat(chunks, total).toString("utf8");
 }
 
+type LookupOptionsLike = { all?: boolean } | number | undefined;
+type LookupCallbackLike = (
+  error: NodeJS.ErrnoException | null,
+  address: string | Array<{ address: string; family: number }>,
+  family?: number,
+) => void;
+
+export function createPinnedLookup(selected: ResolvedAddress) {
+  return (_hostname: string, options: LookupOptionsLike, callback: LookupCallbackLike) => {
+    const result = pinnedLookupResult(selected, typeof options === "object" && Boolean(options?.all));
+    if (Array.isArray(result)) {
+      callback(null, result);
+      return;
+    }
+    callback(null, result.address, result.family);
+  };
+}
+
 function requestPinnedAddress(url: URL, selected: ResolvedAddress, signal: AbortSignal): Promise<HopResponse> {
   const requestImpl = url.protocol === "https:" ? httpsRequest : httpRequest;
   return new Promise<HopResponse>((resolve, reject) => {
@@ -127,9 +145,7 @@ function requestPinnedAddress(url: URL, selected: ResolvedAddress, signal: Abort
         "Accept-Language": "en-US,en;q=0.8,vi;q=0.5",
         "Accept-Encoding": "gzip, deflate, br",
       },
-      lookup: ((_hostname: string, _options: unknown, callback: (error: NodeJS.ErrnoException | null, address: string, family: number) => void) => {
-        callback(null, selected.address, selected.family);
-      }) as never,
+      lookup: createPinnedLookup(selected) as never,
     }, (response) => {
       resolve({ status: response.statusCode || 0, headers: response.headers, response });
     });

@@ -6,6 +6,7 @@ import {
   isBlockedHostname,
   isBlockedIpv4,
   isBlockedIpv6,
+  pinnedLookupResult,
   validatePublicHttpUrl,
   validatePublicRedirect,
 } from "./ssrf.ts";
@@ -50,6 +51,12 @@ test("DNS validation rejects any private answer and accepts public-only answers"
   assert.equal(areResolvedAddressesPublic([{ address: "2606:2800:220:1:248:1893:25c8:1946" }]), true);
   assert.equal(areResolvedAddressesPublic([{ address: "93.184.216.34" }, { address: "127.0.0.1" }]), false);
   assert.equal(areResolvedAddressesPublic([]), false);
+});
+
+test("DNS pinning preserves Node lookup callback shape for all=true", () => {
+  const selected = { address: "93.184.216.34", family: 4 };
+  assert.deepEqual(pinnedLookupResult(selected, false), selected);
+  assert.deepEqual(pinnedLookupResult(selected, true), [selected]);
 });
 
 test("redirect validation blocks public to private or credentialed targets", () => {

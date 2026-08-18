@@ -111,6 +111,13 @@ export function areResolvedAddressesPublic(records: Array<{ address: string }>):
   return records.length > 0 && records.every((record) => !isBlockedIpLiteral(record.address));
 }
 
+export type PinnedAddress = { address: string; family: number };
+
+/** Node lookup callbacks use a different result shape when options.all is true. */
+export function pinnedLookupResult(selected: PinnedAddress, all: boolean): PinnedAddress | PinnedAddress[] {
+  return all ? [{ ...selected }] : { ...selected };
+}
+
 export function validatePublicHttpUrl(raw: string): UrlSchemeResult {
   let url: URL;
   try {

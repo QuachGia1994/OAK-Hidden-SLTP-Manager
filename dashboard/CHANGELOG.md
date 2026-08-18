@@ -17,6 +17,7 @@ All notable changes to the dashboard are recorded here.
 - Canonical pipeline: Text | Image OCR | URL → same Gemini + evidence path.
 - Evidence search excludes subject article URL and uses title-bounded queries for long articles.
 - Shared schema version bumped to 2 (optional `sourceDocument`); schema 1 shares still readable.
+- DNS-pinned URL fetch now supports Node/Vercel `lookup({ all: true })` callback shape, fixing production-wide `URL_FETCH_FAILED` without weakening SSRF pinning.
 
 ### Security
 
