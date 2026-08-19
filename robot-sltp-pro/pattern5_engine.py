@@ -15,7 +15,7 @@ import MetaTrader5 as mt5
 from market_data_provider import MT5MarketDataProvider, MarketDataProvider
 from services.mt5_terminal_service import ensure_mt5_profile_connected
 
-SYMBOL_SCOPE_PATH = Path(__file__).resolve().parent.parent / "engine5-symbols.json"
+SYMBOL_SCOPE_PATH = Path(__file__).resolve().parent.parent / "dashboard" / "engine5-symbols.json"
 
 
 def _load_symbol_scope() -> dict[str, list[str]]:

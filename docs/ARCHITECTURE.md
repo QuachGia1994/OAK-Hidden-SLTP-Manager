@@ -14,7 +14,7 @@ Legacy NativeQt/CustomTkinter and old signal-manager surfaces are not maintained
 
 | Concern | Canonical owner | Consumers |
 | --- | --- | --- |
-| Engine 5 active symbol scope | `engine5-symbols.json` | Pattern5 engine, publisher, Tauri payload, web reader |
+| Engine 5 active symbol scope | `dashboard/engine5-symbols.json` | Pattern5 engine, publisher, Tauri payload, web reader |
 | Engine 5 lookback/classification/Sr-Sw-Bt/base/reverse/final signal/H15 reference | `robot-sltp-pro/pattern5_engine.py` | Tauri, publisher, web feed |
 | Engine 5 market-data interface | `robot-sltp-pro/market_data_provider.py` | Pattern5 engine, parity tools |
 | MT5 launch/attach policy | `services/mt5_terminal_service.py` / `services/mt5_service.py` | worker, snapshot, Pattern5 |
@@ -44,13 +44,13 @@ Transport types mirror canonical payloads in TypeScript, but they do not calcula
 
 ## Engine 5 flow
 
-1. `engine5-symbols.json` owns the active/inactive product scope. Current active scope is `GBPUSD`; `EURUSD` is temporarily disabled but remains available for explicit historical/regression calls.
+1. `dashboard/engine5-symbols.json` owns the active/inactive product scope. Current active scope is `GBPUSD`; `EURUSD` is temporarily disabled but remains available for explicit historical/regression calls.
 2. Desktop/manual publisher requests Engine 5 through `backend_bridge.py` or `publish_pattern5_site.py`; default calculation/publishing derives from that shared active scope.
 3. `pattern5_engine.py` resolves broker symbols and reads H4 data through `MarketDataProvider`.
 4. `pattern5_engine.py` alone owns the canonical block set `H3/H6/H9/H12/H15`, preserves the existing anchor/lookback slots (`4/8/12/16/20`), and calculates classification, Sr/Sw/Bt, base signal, reverse, final signal and `h15Reference`. Pattern 5's alternating four-candle sequences (`T G T G` / `G T G T`) are classified as `Sr`; the existing base-signal behavior is preserved internally while cell presentation is classification-only.
 5. Local cache `robot-sltp-pro/pattern5_cache.json` is keyed by schema, profile, week and requested symbol sequence. Cache corruption is observable and recomputed; it is not authoritative trading state.
 6. Publisher writes the current active Engine 5 payload plus `schemaVersion` and `activeSymbols` to Upstash (`robot-sltp:public:pattern5:*`). Existing EURUSD historical/cache records are not purged by activation changes.
-7. Next server reads the feed through `dashboard/src/lib/pattern5.ts`, filters tables against the same `engine5-symbols.json` scope, and therefore suppresses EURUSD even when a legacy current snapshot still contains it. It never repairs or reclassifies stale data in the browser.
+7. Next server reads the feed through `dashboard/src/lib/pattern5.ts`, filters tables against the same `dashboard/engine5-symbols.json` scope, and therefore suppresses EURUSD even when a legacy current snapshot still contains it. It never repairs or reclassifies stale data in the browser.
 8. `dashboard/src/lib/vip.ts` applies access redaction on the server. It does not recalculate signals.
 9. `Pattern5Board.tsx` renders the supplied payload. Matrix/mobile cells currently show only `group + pattern`; BUY/SELL/base/reverse remain backend payload/evidence concerns and are not recomputed in the browser. H15 reference is formatted from backend-provided `h15Reference`; the browser does not reconstruct previous-trading-day logic.
 
