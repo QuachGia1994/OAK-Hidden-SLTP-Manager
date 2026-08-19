@@ -118,19 +118,21 @@ class Engine5AlertRuleTests(unittest.TestCase):
         self.assertNotIn("2026-08-20", h15_states)
         self.assertFalse(any(item["block"] in {6, 9, 12, 15} for item in today_alerts))
 
-    def test_current_day_does_not_calculate_future_h12_or_h15(self):
+    def test_current_day_precomputes_full_matrix_but_alerts_remain_time_gated(self):
         calls = []
         def fake_cell(_symbol, day_value, hour, _offset, provider=None):
             calls.append((day_value, hour))
             return cell("Sw"), "Sw"
-        now = datetime(2026, 8, 19, 10, 0, tzinfo=e.VIETNAM_TZ)
+        now = datetime(2026, 8, 19, 5, 43, tzinfo=e.VIETNAM_TZ)
         with patch("pattern5_engine.vietnam_now", return_value=now), patch("pattern5_engine.broker_day_offset", return_value=0), patch("pattern5_engine.build_signal_cell", side_effect=fake_cell):
-            _days, out_rows, _detail = e.build_table("GBPUSD", date(2026, 8, 17))
-        self.assertIn((date(2026, 8, 19), 9), calls)
-        self.assertNotIn((date(2026, 8, 19), 12), calls)
-        self.assertNotIn((date(2026, 8, 19), 15), calls)
-        self.assertEqual(out_rows[12][2], "")
-        self.assertEqual(out_rows[15][2], "")
+            days, out_rows, _detail = e.build_table("GBPUSD", date(2026, 8, 17))
+            h15_states, alerts = e.build_operational_state("GBPUSD", days, out_rows)
+        for block in e.BLOCKS:
+            self.assertIn((date(2026, 8, 19), block), calls)
+            self.assertNotEqual(out_rows[block][2], "")
+        self.assertTrue(h15_states["2026-08-19"]["active"])
+        self.assertEqual([item["code"] for item in alerts["2026-08-19"]], ["h3_reverse_signal"])
+        self.assertFalse(any(item["block"] in {6, 9, 12, 15} for item in alerts["2026-08-19"]))
 
 
 if __name__ == "__main__":

@@ -372,16 +372,13 @@ def build_table(
     for day_index, day in enumerate(days):
         if day > current_day:
             continue
-        current_day_hour_limit = now.hour if as_of is None and day == current_day else 23
         for hour in CORE_BLOCKS:
-            if hour > current_day_hour_limit:
-                continue
             cell, cell_detail = build_signal_cell(symbol, day, hour, offset, provider=provider)
             rows[hour][day_index] = cell
             detail[hour][day_index] = cell_detail
         h12 = rows[12][day_index]
         h15_active = bool(h12 and str(h12.get("group") or "") in H15_ACTIVATION_GROUPS)
-        if h15_active and H15_BLOCK <= current_day_hour_limit:
+        if h15_active:
             cell, cell_detail = build_signal_cell(symbol, day, H15_BLOCK, offset, provider=provider)
             rows[H15_BLOCK][day_index] = cell
             detail[H15_BLOCK][day_index] = cell_detail
@@ -406,9 +403,7 @@ def build_operational_state(symbol: str, days: list[date], rows: dict[int, list[
                 "calculated": bool(rows.get(H15_BLOCK, [""] * len(days))[index]),
                 "activationReason": f"h12_{group.lower()}" if h15_active else "h12_bt",
             }
-        eligible = set(CORE_BLOCKS if day < now.date() else [block for block in CORE_BLOCKS if block <= now.hour])
-        if h15_known:
-            eligible.add(H15_BLOCK)
+        eligible = set(BLOCKS if day < now.date() else [block for block in BLOCKS if block <= now.hour])
         alerts[day.isoformat()] = evaluate_alert_state(symbol, day, rows, index, h15_active, eligible_blocks=eligible)
     return h15_states, alerts
 
