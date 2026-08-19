@@ -6,6 +6,7 @@ import { buildDeterministicMediaFindings, extractPrivateImageMetadata } from "@/
 import { FACTCHECK_MEDIA_MODEL, GeminiMediaHttpError, runGeminiMediaAuthenticity } from "@/lib/factcheck/media-gemini";
 import { collectMediaForensics } from "@/lib/factcheck/media-forensics-client";
 import { fuseMediaEvidence } from "@/lib/factcheck/media-evidence-fusion";
+import { specialistDetectorAgreement } from "@/lib/factcheck/specialist-detector";
 import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "@/lib/factcheck/media-validate";
 
 export const dynamic = "force-dynamic";
@@ -98,7 +99,11 @@ export async function POST(request: Request) {
       deterministicSignals,
       privatePromptMetadata: findings.privatePromptMetadata,
       specialistDetectorEvidence: forensics.specialistDetectors,
-      evidenceAgreementContext: { runtimeStatus: forensics.runtimeStatus },
+      evidenceAgreementContext: {
+        runtimeStatus: forensics.runtimeStatus,
+        detectorAgreement: specialistDetectorAgreement(forensics.specialistDetectors),
+        forensicsLatencyMs: forensics.latencyMs,
+      },
       locale,
       apiKey,
     });

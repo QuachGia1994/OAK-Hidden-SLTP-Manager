@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { buildDeterministicMediaFindings, extractPrivateImageMetadata } from "./media-metadata.ts";
 import { sanitizeMediaResultForShare } from "./media-sanitize.ts";
@@ -6,7 +7,7 @@ import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "./me
 import { mediaVerdictLabel } from "./media-presentation.ts";
 import { normalizeMediaAssessment } from "./media-gemini.ts";
 import { calibrateUniversalFakeDetect } from "./detector-calibration.ts";
-import { universalFakeDetectAdapter } from "./specialist-detector.ts";
+import { specialistDetectorAgreement, universalFakeDetectAdapter } from "./specialist-detector.ts";
 import { fuseMediaEvidence } from "./media-evidence-fusion.ts";
 import type { ImageAuthenticityResult } from "./media-types.ts";
 
@@ -310,4 +311,74 @@ test("public sanitizer downgrades impossible verified provenance", () => {
   const impossible = sanitizeMediaResultForShare(dirty);
   assert.equal(impossible.provenance.status, "present_unverified");
   assert.equal(impossible.verdict, "inconclusive");
+});
+
+test("Detect AI Image is explicit in EN/VN while OCR intent remains separate", () => {
+  const source = readFileSync(new URL("./locale-copy.ts", import.meta.url), "utf8");
+  assert.match(source, /imageAuthenticity: "Detect AI Image"/);
+  assert.match(source, /imageAuthenticity: "Phát hiện ảnh AI"/);
+  assert.match(source, /imageClaims: "Check claims in image"/);
+  assert.match(source, /imageClaims: "Kiểm tra nội dung trong ảnh"/);
+});
+
+test("multi-detector agreement distinguishes aligned, mixed and insufficient", () => {
+  const synthetic = { detectorId: "a", version: "1", status: "ok" as const, classification: "synthetic_signal" as const, strength: "moderate" as const, calibrationVersion: "1" };
+  const synthetic2 = { ...synthetic, detectorId: "b" };
+  const real = { ...synthetic, detectorId: "b", classification: "real_signal" as const };
+  const unavailable = { ...synthetic, detectorId: "b", status: "unavailable" as const, classification: "uncertain" as const };
+  assert.equal(specialistDetectorAgreement([synthetic, synthetic2]), "aligned");
+  assert.equal(specialistDetectorAgreement([synthetic, real]), "mixed");
+  assert.equal(specialistDetectorAgreement([synthetic, unavailable]), "insufficient");
+  assert.equal(specialistDetectorAgreement([unavailable]), "insufficient");
+});
+
+test("weak-only evidence cannot produce a strong AI verdict", () => {
+  const base = {
+    ...sampleMediaResult(),
+    verdict: "likely_ai_generated" as const,
+    confidence: 82,
+    signals: [{ source: "visual" as const, kind: "artifact", label: "Artifact", finding: "weak artifact", strength: "weak" as const }],
+  };
+  const fused = fuseMediaEvidence({
+    base,
+    provenance: base.provenance,
+    specialistDetectors: [{ detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "ok", classification: "synthetic_signal", strength: "weak", calibrationVersion: "oak-univfd-upstream-threshold-v1" }],
+    deterministicSignals: [],
+    locale: "EN",
+  });
+  assert.equal(fused.verdict, "inconclusive");
+  assert.ok(fused.confidence <= 40);
+});
+
+test("both specialist detectors unavailable makes visual-only AI conclusion inconclusive", () => {
+  const base = {
+    ...sampleMediaResult(),
+    verdict: "likely_ai_generated" as const,
+    confidence: 80,
+    signals: [{ source: "visual" as const, kind: "artifact", label: "Artifact", finding: "visible artifact", strength: "strong" as const }],
+  };
+  const fused = fuseMediaEvidence({
+    base,
+    provenance: base.provenance,
+    specialistDetectors: [
+      { detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "unavailable", classification: "uncertain", strength: "weak", calibrationVersion: "v1" },
+      { detectorId: "safe", version: "candidate", status: "unavailable", classification: "uncertain", strength: "weak", calibrationVersion: "candidate" },
+    ],
+    deterministicSignals: [],
+    locale: "EN",
+  });
+  assert.equal(fused.verdict, "inconclusive");
+  assert.ok(fused.confidence <= 45);
+});
+
+test("untrusted or invalid provenance never receives trusted precedence", () => {
+  for (const provenance of [
+    { status: "present_unverified" as const, standard: "c2pa" as const, trustChain: "not_configured" as const, note: "untrusted" },
+    { status: "invalid" as const, standard: "c2pa" as const, trustChain: "failed" as const, note: "invalid" },
+  ]) {
+    const base = { ...sampleMediaResult(), verdict: "provenance_verified" as const, confidence: 99 };
+    const fused = fuseMediaEvidence({ base, provenance, specialistDetectors: [], deterministicSignals: [], locale: "EN" });
+    assert.equal(fused.verdict, "inconclusive");
+    assert.ok(fused.confidence <= 40);
+  }
 });

@@ -1,4 +1,4 @@
-import { VERDICT_LABELS } from "./presentation";
+import { VERDICT_LABELS } from "./presentation.ts";
 
 export const TEXT = {
   VN: {
@@ -24,10 +24,10 @@ export const TEXT = {
     dragDrop: "Kéo thả ảnh vào đây hoặc bấm để chọn",
     imageSelected: "Ảnh đã chọn",
     imageClaims: "Kiểm tra nội dung trong ảnh",
-    imageAuthenticity: "Kiểm tra tính xác thực của ảnh",
-    imageAuthenticityHint: "Phân tích provenance, metadata và dấu hiệu hình ảnh. Không trả phần trăm AI giả lập.",
+    imageAuthenticity: "Phát hiện ảnh AI",
+    imageAuthenticityHint: "Phát hiện dấu hiệu ảnh AI, chỉnh sửa/compositing và provenance. Không trả phần trăm AI giả lập.",
     imageUnsupportedClient: "Kiểm tra tính xác thực hỗ trợ JPEG, PNG hoặc WEBP dưới 4 MB; OCR vẫn hỗ trợ các ảnh khác mà trình duyệt đọc được.",
-    mediaAnalyzing: "Đang phân tích tính xác thực của ảnh...",
+    mediaAnalyzing: "Đang phát hiện dấu hiệu ảnh AI...",
     submit: "Xác thực bằng AI",
     submitting: "AI đang tìm và đối chiếu nguồn...",
     result: "AI Evidence Result",
@@ -83,10 +83,10 @@ export const TEXT = {
     dragDrop: "Drop an image here or click to choose",
     imageSelected: "Image selected",
     imageClaims: "Check claims in image",
-    imageAuthenticity: "Check image authenticity",
-    imageAuthenticityHint: "Analyze provenance, metadata, and visual signals. No simulated AI percentage.",
+    imageAuthenticity: "Detect AI Image",
+    imageAuthenticityHint: "Detect AI-generation, manipulation/compositing, and provenance signals. No simulated AI percentage.",
     imageUnsupportedClient: "Authenticity analysis supports JPEG, PNG, or WEBP under 4 MB; OCR can still use other browser-readable images.",
-    mediaAnalyzing: "Analyzing image authenticity...",
+    mediaAnalyzing: "Detecting AI-image signals...",
     submit: "Verify with AI",
     submitting: "AI is searching and checking evidence...",
     result: "AI Evidence Result",

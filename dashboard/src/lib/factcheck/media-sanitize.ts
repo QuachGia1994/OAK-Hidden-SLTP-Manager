@@ -79,6 +79,7 @@ export function sanitizeMediaResultForShare(result: ImageAuthenticityResult): Im
       claimGenerator: result.provenance?.claimGenerator ? cleanText(result.provenance.claimGenerator, 160) : undefined,
       digitalSourceTypes: (result.provenance?.digitalSourceTypes || []).slice(0, 8).map((item) => cleanText(item, 220)).filter(Boolean),
       validationStatusCount: Number.isFinite(Number(result.provenance?.validationStatusCount)) ? Math.max(0, Math.min(100, Math.round(Number(result.provenance?.validationStatusCount)))) : undefined,
+      verifierVersion: result.provenance?.verifierVersion ? cleanText(result.provenance.verifierVersion, 100) : undefined,
     },
     specialistDetectors: (result.specialistDetectors || []).slice(0, 4).map((detector) => ({
       detectorId: cleanText(detector.detectorId, 80),

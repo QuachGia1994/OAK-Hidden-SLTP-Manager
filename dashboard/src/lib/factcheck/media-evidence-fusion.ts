@@ -105,10 +105,26 @@ export function fuseMediaEvidence(args: {
   }
 
   const detectorAvailable = args.specialistDetectors.some((item) => item.status === "ok");
+  const materialVisualSignal = args.base.signals.some((signal) => signal.source === "visual" && signal.strength !== "weak");
+  const materialDetectorSignal = args.specialistDetectors.some((item) => item.status === "ok" && item.classification !== "uncertain" && item.strength !== "weak");
   if (!detectorAvailable) {
     limitations.push(args.locale === "VN"
-      ? "Specialist detector không khả dụng; kết luận không bao gồm tín hiệu UniversalFakeDetect."
-      : "The specialist detector was unavailable; this assessment does not include a UniversalFakeDetect signal.");
+      ? "Specialist detector không khả dụng; kết luận không bao gồm tín hiệu detector chuyên biệt live."
+      : "No specialist detector was available; this assessment does not include live specialist-detector evidence.");
+    if (!isTrustedVerified(args.provenance) && (verdict === "likely_ai_generated" || verdict === "likely_manipulated")) {
+      verdict = "inconclusive";
+      confidence = Math.min(confidence, 45);
+      limitations.push(args.locale === "VN"
+        ? "Không có provenance đáng tin hoặc specialist detector live; quan sát thị giác đơn lẻ không đủ cho kết luận AI/chỉnh sửa mạnh."
+        : "Without trusted provenance or a live specialist detector, visual analysis alone is insufficient for a strong AI/manipulation conclusion.");
+    }
+  }
+  if (!isTrustedVerified(args.provenance) && !materialVisualSignal && !materialDetectorSignal && verdict !== "provenance_verified") {
+    verdict = "inconclusive";
+    confidence = Math.min(confidence, 40);
+    limitations.push(args.locale === "VN"
+      ? "Bằng chứng còn lại chỉ ở mức yếu; kết luận được giữ ở CHƯA ĐỦ BẰNG CHỨNG."
+      : "The remaining evidence is weak-only, so the final verdict stays INCONCLUSIVE.");
   }
 
   if (args.provenance.status === "invalid") {

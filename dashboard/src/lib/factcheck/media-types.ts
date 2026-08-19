@@ -35,6 +35,7 @@ export interface ImageProvenanceSummary {
   claimGenerator?: string;
   digitalSourceTypes?: string[];
   validationStatusCount?: number;
+  verifierVersion?: string;
 }
 
 export type SpecialistDetectorStatus = "ok" | "unavailable" | "failed";

@@ -12,13 +12,7 @@ export interface SpecialistDetector {
   analyze(input: SpecialistDetectorInput): Promise<SpecialistDetectorSummary>;
 }
 
-/** Provider-response normalizer used when a shared forensics transport batches provenance + detector work. */
-export interface SpecialistDetectorAdapter<TRaw> {
-  readonly detectorId: string;
-  normalize(raw: TRaw | undefined, locale: "VN" | "EN"): SpecialistDetectorSummary;
-}
-
-export interface RawUniversalFakeDetectResult {
+export interface RawSpecialistDetectorResult {
   detector_id?: string;
   version?: string;
   status?: string;
@@ -26,11 +20,17 @@ export interface RawUniversalFakeDetectResult {
   reason?: string;
 }
 
+/** Provider-response normalizer used when a shared forensics transport batches provenance + detector work. */
+export interface SpecialistDetectorAdapter {
+  readonly detectorId: string;
+  normalize(raw: RawSpecialistDetectorResult | undefined, locale: "VN" | "EN"): SpecialistDetectorSummary;
+}
+
 function cleanText(value: unknown, max: number): string {
   return String(value || "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
-export const universalFakeDetectAdapter: SpecialistDetectorAdapter<RawUniversalFakeDetectResult> = {
+export const universalFakeDetectAdapter: SpecialistDetectorAdapter = {
   detectorId: "universalfakedetect",
   normalize(raw, locale) {
     const fallbackNote = locale === "VN"
@@ -79,3 +79,31 @@ export const universalFakeDetectAdapter: SpecialistDetectorAdapter<RawUniversalF
     };
   },
 };
+
+export const SPECIALIST_DETECTOR_REGISTRY: Readonly<Record<string, SpecialistDetectorAdapter>> = Object.freeze({
+  universalfakedetect: universalFakeDetectAdapter,
+});
+
+export const DEFAULT_SPECIALIST_DETECTOR_IDS = Object.freeze(["universalfakedetect"] as const);
+
+export function normalizeSpecialistDetectorResults(
+  rawResults: RawSpecialistDetectorResult[] | undefined,
+  locale: "VN" | "EN",
+  enabledIds: readonly string[] = DEFAULT_SPECIALIST_DETECTOR_IDS,
+): SpecialistDetectorSummary[] {
+  const raws = Array.isArray(rawResults) ? rawResults : [];
+  return enabledIds.flatMap((id) => {
+    const adapter = SPECIALIST_DETECTOR_REGISTRY[id];
+    if (!adapter) return [];
+    const raw = raws.find((item) => cleanText(item.detector_id, 80).toLowerCase() === id);
+    return [adapter.normalize(raw, locale)];
+  });
+}
+
+export function specialistDetectorAgreement(detectors: SpecialistDetectorSummary[]): "aligned" | "mixed" | "insufficient" {
+  const directions = detectors
+    .filter((item) => item.status === "ok" && item.classification !== "uncertain")
+    .map((item) => item.classification);
+  if (directions.length < 2) return "insufficient";
+  return new Set(directions).size === 1 ? "aligned" : "mixed";
+}

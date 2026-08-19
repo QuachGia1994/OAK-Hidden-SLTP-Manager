@@ -7,30 +7,49 @@ import os
 import sys
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any
+from importlib import metadata as importlib_metadata
+from typing import Any, Callable
 
 MAX_BYTES = int(os.getenv("OAK_FORENSICS_MAX_BYTES", "4000000"))
 MAX_DIMENSION = int(os.getenv("OAK_FORENSICS_MAX_DIMENSION", "12000"))
 MAX_PIXELS = int(os.getenv("OAK_FORENSICS_MAX_PIXELS", "40000000"))
 MAX_CONCURRENT = max(1, int(os.getenv("OAK_FORENSICS_MAX_CONCURRENT", "2")))
+DETECTOR_TIMEOUT_SECONDS = max(0.1, float(os.getenv("OAK_FORENSICS_DETECTOR_TIMEOUT_SECONDS", "5")))
+C2PA_TIMEOUT_SECONDS = max(0.1, float(os.getenv("OAK_FORENSICS_C2PA_TIMEOUT_SECONDS", "3")))
 TOKEN = os.getenv("OAK_FORENSICS_TOKEN", "")
 UNIVFD_REPO = os.getenv("UNIVFD_REPO", "")
 UNIVFD_CKPT = os.getenv("UNIVFD_CKPT", "")
 PORT = int(os.getenv("PORT", "8787"))
 C2PA_TRUST_ANCHORS_PEM = os.getenv("C2PA_TRUST_ANCHORS_PEM", "")
 C2PA_TRUST_CONFIG = os.getenv("C2PA_TRUST_CONFIG", "")
+ENABLED_DETECTOR_IDS = tuple(
+    item.strip().lower()
+    for item in os.getenv("OAK_FORENSICS_DETECTORS", "universalfakedetect").split(",")
+    if item.strip()
+)
 
 _model = None
 _transform = None
 _model_error: str | None = None
+_model_loaded_at: float | None = None
 _model_lock = threading.Lock()
 _capacity = threading.BoundedSemaphore(MAX_CONCURRENT)
+_inference_capacity = threading.BoundedSemaphore(MAX_CONCURRENT)
+_c2pa_capacity = threading.BoundedSemaphore(MAX_CONCURRENT)
+_analysis_pool = ThreadPoolExecutor(max_workers=max(4, MAX_CONCURRENT * 3), thread_name_prefix="oak-forensics")
+
+
+def _package_version(name: str) -> str:
+    try:
+        return importlib_metadata.version(name)
+    except importlib_metadata.PackageNotFoundError:
+        return "unavailable"
 
 
 def _load_univfd() -> None:
-    global _model, _transform, _model_error
+    global _model, _transform, _model_error, _model_loaded_at
     if _model is not None or _model_error is not None:
         return
     with _model_lock:
@@ -60,6 +79,7 @@ def _load_univfd() -> None:
                     std=[0.26862954, 0.26130258, 0.27577711],
                 ),
             ])
+            _model_loaded_at = time.time()
         except Exception as exc:
             _model_error = f"load_failed:{type(exc).__name__}"
 
@@ -94,7 +114,6 @@ def _validate_image(image_bytes: bytes, mime: str) -> tuple[int, int]:
             if width <= 0 or height <= 0 or width > MAX_DIMENSION or height > MAX_DIMENSION or width * height > MAX_PIXELS:
                 raise ValueError("unsafe_dimensions")
             image.verify()
-        # Force a full decode after verify() so truncated/corrupt payloads do not reach model inference.
         with Image.open(io.BytesIO(image_bytes)) as image:
             image.load()
     except (UnidentifiedImageError, OSError) as exc:
@@ -111,6 +130,13 @@ def _detect_univfd(image_bytes: bytes) -> dict[str, Any]:
             "status": "unavailable",
             "reason": _model_error or "runtime_not_configured",
         }
+    if not _inference_capacity.acquire(blocking=False):
+        return {
+            "detector_id": "universalfakedetect",
+            "version": "cvpr2023-clip-vitl14",
+            "status": "failed",
+            "reason": "detector_busy",
+        }
     try:
         import torch
         from PIL import Image
@@ -118,6 +144,7 @@ def _detect_univfd(image_bytes: bytes) -> dict[str, Any]:
         model, device = _model
         with Image.open(io.BytesIO(image_bytes)) as image:
             tensor = _transform(image.convert("RGB")).unsqueeze(0).to(device)
+        started = time.monotonic()
         with torch.no_grad():
             score = float(model(tensor).sigmoid().flatten()[0].item())
         return {
@@ -125,6 +152,7 @@ def _detect_univfd(image_bytes: bytes) -> dict[str, Any]:
             "version": "cvpr2023-clip-vitl14",
             "status": "ok",
             "raw_score": max(0.0, min(1.0, score)),
+            "latency_ms": int((time.monotonic() - started) * 1000),
         }
     except Exception as exc:
         return {
@@ -133,10 +161,13 @@ def _detect_univfd(image_bytes: bytes) -> dict[str, Any]:
             "status": "failed",
             "reason": f"inference_failed:{type(exc).__name__}",
         }
+    finally:
+        _inference_capacity.release()
 
 
 def _c2pa(image_bytes: bytes, mime: str) -> dict[str, Any]:
     marker = b"c2pa" in image_bytes[:2_000_000].lower() or b"content credentials" in image_bytes[:2_000_000].lower()
+    verifier_version = _package_version("c2pa-python")
     try:
         from c2pa import Context, Reader
 
@@ -160,15 +191,13 @@ def _c2pa(image_bytes: bytes, mime: str) -> dict[str, Any]:
         active_id = parsed.get("active_manifest")
         manifests = parsed.get("manifests") or {}
         if not active_id or active_id not in manifests:
-            return {"state": "not_detected", "standard": "c2pa", "trust_chain": "not_applicable"}
+            return {"state": "not_detected", "standard": "c2pa", "trust_chain": "not_applicable", "verifier_version": verifier_version}
 
         active = manifests.get(active_id) or {}
         validation = reader.get_validation_state()
         validation_results = reader.get_validation_results()
         state_name = str(validation or "").strip().lower()
 
-        # c2pa-python explicitly documents that validation_state can be Invalid without loaded trust settings.
-        # Therefore lack of configured trust is never labeled as an invalid signature/manifest.
         if not trust_configured:
             state = "present_unverified"
             trust_chain = "not_configured"
@@ -207,6 +236,7 @@ def _c2pa(image_bytes: bytes, mime: str) -> dict[str, Any]:
             "claim_generator": str(active.get("claim_generator") or "")[:160],
             "digital_source_types": source_types[:8],
             "validation_status_count": min(100, len(validation_results or [])),
+            "verifier_version": verifier_version,
         }
         if reason:
             result["reason"] = reason
@@ -216,32 +246,82 @@ def _c2pa(image_bytes: bytes, mime: str) -> dict[str, Any]:
             "state": "present_unverified" if marker else "verification_error",
             "standard": "c2pa" if marker else None,
             "trust_chain": "unknown",
+            "verifier_version": verifier_version,
             "reason": f"c2pa_reader:{type(exc).__name__}",
         }
+
+
+def _c2pa_bounded(image_bytes: bytes, mime: str) -> dict[str, Any]:
+    if not _c2pa_capacity.acquire(blocking=False):
+        return {
+            "state": "verification_error",
+            "standard": "c2pa",
+            "trust_chain": "unknown",
+            "verifier_version": _package_version("c2pa-python"),
+            "reason": "c2pa_busy",
+        }
+    try:
+        return _c2pa(image_bytes, mime)
+    finally:
+        _c2pa_capacity.release()
+
+
+DetectorFunction = Callable[[bytes], dict[str, Any]]
+DETECTOR_REGISTRY: dict[str, DetectorFunction] = {
+    "universalfakedetect": _detect_univfd,
+}
+
+
+def _enabled_detector_functions() -> list[tuple[str, DetectorFunction]]:
+    return [(detector_id, DETECTOR_REGISTRY[detector_id]) for detector_id in ENABLED_DETECTOR_IDS if detector_id in DETECTOR_REGISTRY]
 
 
 def analyze(image_bytes: bytes, mime: str) -> dict[str, Any]:
     started = time.monotonic()
     width, height = _validate_image(image_bytes, mime)
-    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="oak-forensics") as pool:
-        c2pa_future = pool.submit(_c2pa, image_bytes, mime)
-        detector_future = pool.submit(_detect_univfd, image_bytes)
-        c2pa_result = c2pa_future.result()
-        detector_result = detector_future.result()
+    c2pa_future = _analysis_pool.submit(_c2pa_bounded, image_bytes, mime)
+    detector_futures = [
+        (detector_id, _analysis_pool.submit(detector_fn, image_bytes))
+        for detector_id, detector_fn in _enabled_detector_functions()
+    ]
+
+    try:
+        c2pa_result = c2pa_future.result(timeout=C2PA_TIMEOUT_SECONDS)
+    except FutureTimeoutError:
+        c2pa_result = {
+            "state": "verification_error",
+            "standard": "c2pa",
+            "trust_chain": "unknown",
+            "verifier_version": _package_version("c2pa-python"),
+            "reason": "c2pa_timeout",
+        }
+
+    detector_results: list[dict[str, Any]] = []
+    for detector_id, future in detector_futures:
+        try:
+            detector_results.append(future.result(timeout=DETECTOR_TIMEOUT_SECONDS))
+        except FutureTimeoutError:
+            detector_results.append({
+                "detector_id": detector_id,
+                "version": "unknown",
+                "status": "failed",
+                "reason": "detector_timeout",
+            })
+
     return {
         "ok": True,
+        "schema_version": 2,
         "technical": {"width": width, "height": height},
         "c2pa": c2pa_result,
-        "detectors": [detector_result],
+        "detectors": detector_results,
         "latency_ms": int((time.monotonic() - started) * 1000),
     }
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "OAKMediaForensics/2.0"
+    server_version = "OAKMediaForensics/3.0"
 
     def log_message(self, fmt: str, *args: Any) -> None:
-        # Never log request bodies, image bytes, model scores, manifests, or authorization values.
         sys.stderr.write("[media-forensics] " + (fmt % args) + "\n")
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
@@ -256,19 +336,33 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self.path == "/health":
             _load_univfd()
+            active = []
+            for detector_id in ENABLED_DETECTOR_IDS:
+                if detector_id == "universalfakedetect":
+                    active.append({"id": detector_id, "status": "ready" if _model is not None else "unavailable"})
+                elif detector_id in DETECTOR_REGISTRY:
+                    active.append({"id": detector_id, "status": "configured"})
             self._json(200, {
                 "ok": True,
-                "detector": "ready" if _model is not None else "unavailable",
+                "runtime": "ready" if active and all(item["status"] == "ready" for item in active) else "degraded",
+                "detectors": active,
                 "c2pa": "c2pa-python",
                 "max_concurrent": MAX_CONCURRENT,
             })
             return
         if self.path == "/version":
+            model_device = _model[1] if _model is not None else "unavailable"
             self._json(200, {
                 "service": "oak-media-forensics",
-                "version": "2",
-                "detector": "universalfakedetect/cvpr2023-clip-vitl14",
+                "version": "3",
+                "schema_version": 2,
+                "detectors": ["universalfakedetect/cvpr2023-clip-vitl14"],
+                "enabled_detectors": list(ENABLED_DETECTOR_IDS),
+                "model_device": model_device,
+                "c2pa_python": _package_version("c2pa-python"),
                 "calibration_contract": "upstream-0.5-class-boundary/no-probability",
+                "detector_timeout_seconds": DETECTOR_TIMEOUT_SECONDS,
+                "c2pa_timeout_seconds": C2PA_TIMEOUT_SECONDS,
             })
             return
         self._json(404, {"ok": False})

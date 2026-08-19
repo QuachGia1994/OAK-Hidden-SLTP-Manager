@@ -7,8 +7,8 @@ import { FactCheckShareActions } from "./FactCheckShareActions";
 
 const COPY = {
   VN: {
-    eyebrow: "IMAGE AUTHENTICITY",
-    title: "Đánh giá tính xác thực của ảnh",
+    eyebrow: "PHÁT HIỆN ẢNH AI",
+    title: "Phát hiện ảnh AI",
     provenance: "Provenance",
     detectors: "Detector chuyên biệt",
     visual: "Phân tích hình ảnh",
@@ -27,8 +27,8 @@ const COPY = {
     confidenceNote: "Kết quả không hiển thị phần trăm AI. Confidence nội bộ chỉ dùng để giới hạn độ mạnh kết luận.",
   },
   EN: {
-    eyebrow: "IMAGE AUTHENTICITY",
-    title: "Image authenticity assessment",
+    eyebrow: "AI IMAGE DETECTION",
+    title: "Detect AI Image",
     provenance: "Provenance",
     detectors: "Specialist detectors",
     visual: "Visual analysis",

@@ -6,9 +6,9 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
-- Media Forensics v2: provider-neutral specialist-detector boundary, explicit UniversalFakeDetect class-boundary calibration semantics, deterministic evidence-fusion policy, and an isolated `services/media-forensics/` service path combining official `c2pa-python` verification with UniversalFakeDetect.
+- Media Forensics v3: provider-neutral specialist-detector registry, explicit UniversalFakeDetect class-boundary calibration semantics, bounded C2PA/detector timeout/concurrency policy, deterministic evidence fusion, and an isolated `services/media-forensics/` service path combining official `c2pa-python` verification with UniversalFakeDetect.
 - Fact Check Image Authenticity as a separate media domain: upload → bounded image validation → metadata/provenance observations → Gemini 3.6 Flash multimodal assessment → normalized evidence-calibrated verdict → existing share/public-result loop.
-- Dual image intent in `/factcheck`: OCR claim extraction remains available while JPEG/PNG/WEBP images can explicitly run authenticity analysis.
+- Dual image intent in `/factcheck`: **Check claims in image / Kiểm tra nội dung trong ảnh** remains the OCR→Text path, while **Detect AI Image / Phát hiện ảnh AI** explicitly enters the media-authenticity path.
 - Shared Fact Check schema `v3` discriminates `claim` and `media_authenticity` results while retaining schema 1/2 claim-share reads.
 
 ### Security / privacy
@@ -18,12 +18,12 @@ All notable changes to the dashboard are recorded here.
 - C2PA/Content Credentials becomes cryptographically verifiable only through the external forensics service with explicit trust anchors; absent runtime activation, marker presence remains `present_unverified`. Missing provenance or EXIF never implies AI generation, and editor tags are weak observations rather than manipulation proof.
 - UniversalFakeDetect raw sigmoid scores remain server-internal and are never rendered as an “AI probability”. Until a controlled OAK calibration set exists, the upstream 0.5 class boundary produces weak directional evidence only; unknown versions/invalid scores become `uncertain`. Material detector/Gemini disagreement lowers the final verdict to `inconclusive` unless any trusted verified C2PA provenance is authoritative.
 - The forensics sidecar performs its own full image decode, terminal-container checks and bounded concurrency. It accepts authenticated bytes only and does not log/persist image bodies, raw detector scores or manifests.
-- Specialist detector integration is implemented but the repository does not activate a remote GPU runtime; production remains explicitly degraded until `FACTCHECK_FORENSICS_URL` and `FACTCHECK_FORENSICS_TOKEN` target a healthy configured service.
+- Specialist detector deployment is reproducible with a pinned Python dependency lock and runtime health/version/inference contract, but current production has no remote forensics URL/token or GPU host. Status remains **SPECIALIST DETECTOR READY — REMOTE RUNTIME BLOCKED BY INFRASTRUCTURE** until controlled live inference proves activation.
 
 ### Changed
 
 - Media model SSoT is `FACTCHECK_MEDIA_MODEL`, defaulting to `gemini-3.6-flash`; text/URL Fact Check keeps its existing model owner.
-- Image-authenticity verdicts are evidence-calibrated (`provenance_verified`, `likely_ai_generated`, `likely_manipulated`, `no_material_manipulation_detected`, `inconclusive`); confidence is evidence strength, not an AI-generation probability.
+- Image-authenticity verdicts are evidence-calibrated (`provenance_verified`, `likely_ai_generated`, `likely_manipulated`, `no_material_manipulation_detected`, `inconclusive`); confidence is evidence strength, not an AI-generation probability. Visual-only/weak-only AI conclusions now downgrade to `inconclusive` without trusted provenance or live specialist support.
 
 ## [0.3.1] - 2026-08-18
 

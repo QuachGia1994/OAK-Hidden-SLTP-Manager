@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (lookup.record.resultKind === "media_authenticity") {
     const result = lookup.record.result as ImageAuthenticityResult;
     const title = buildMediaOgTitle(result.verdict, result.locale);
-    const description = buildMediaOgDescription(result.summary);
+    const description = buildMediaOgDescription(result.summary, result.locale);
     return {
       title: `${title} | OAK Gatekeeper`,
       description,

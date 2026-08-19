@@ -10,7 +10,8 @@ Bounded sidecar for Fact Check Image Authenticity. It stays outside Vercel/Next 
 - Max request bytes defaults to 4,000,000; max dimension 12,000; max decoded pixels 40,000,000.
 - Pillow performs format, dimension, verify and full-decode checks before C2PA/model work; terminal container boundaries reject trailing polyglot payloads.
 - Work is bounded by `OAK_FORENSICS_MAX_CONCURRENT` (default 2). Excess work receives `FORENSICS_BUSY` instead of building an unbounded GPU queue.
-- C2PA and UniversalFakeDetect execute concurrently after validation.
+- C2PA and enabled specialist detectors execute concurrently after validation through a canonical detector registry.
+- `OAK_FORENSICS_DETECTOR_TIMEOUT_SECONDS` defaults to 5 seconds and `OAK_FORENSICS_C2PA_TIMEOUT_SECONDS` defaults to 3 seconds. Timed-out work returns an explicit failure state; bounded semaphores prevent it from creating an unbounded inference queue.
 - The service never writes user image bytes to disk and does not log request bodies, model scores, manifests or authorization values.
 - The endpoint accepts bytes only. It has no arbitrary-URL fetch path.
 
@@ -44,8 +45,12 @@ If the checkout/checkpoint/model runtime is missing, the service stays healthy a
 
 ## Deployment state
 
-Repository integration does not imply a remote GPU deployment. OAK production activates this service only when both `FACTCHECK_FORENSICS_URL` and `FACTCHECK_FORENSICS_TOKEN` are configured on the dashboard deployment. Until then Image Authenticity continues with local validation/metadata + Gemini and explicitly records provenance/detector runtime limitations.
+Repository integration does not imply a remote GPU deployment. OAK production activates this service only when both `FACTCHECK_FORENSICS_URL` and `FACTCHECK_FORENSICS_TOKEN` point to a healthy service whose `/health`, `/version`, and controlled `/v1/detect/image` inference prove the configured model is loaded.
 
-**SPECIALIST DETECTOR IMPLEMENTED — RUNTIME NOT ACTIVATED** unless those deployment settings point to a healthy service with the configured upstream model/checkpoint.
+The deployment image now installs `requirements.lock` for a reproducible Python 3.11 dependency set. Model checkout/weights remain external deployment assets and are never committed with user data.
 
-SPAI remains an evaluation-only candidate. SIDA/manipulation localization is deferred until a real localizer runtime is implemented and verified; OAK does not generate synthetic heatmaps.
+Current environment audit on 2026-08-19 found no Docker CLI, no NVIDIA runtime, no remote forensics URL/token, and no available GPU-host deployment credential in the repository/runtime configuration. The official UniversalFakeDetect repository/checkpoint can be staged locally, but source checkout alone is not activation.
+
+**SPECIALIST DETECTOR READY — REMOTE RUNTIME BLOCKED BY INFRASTRUCTURE** until a bounded host is provisioned and production environment variables target a successful controlled inference.
+
+SAFE is the leading second-detector evaluation candidate but is not registered for production because no controlled OAK bake-off currently demonstrates complementary value. AIDE/AI-GenBench/MediaEval/IAPL/PROBE/SIDA remain research or evaluation references under the license gate in `docs/FACTCHECK_MEDIA_DETECTORS.md`. SIDA/manipulation localization is deferred until a real localizer runs; OAK never generates synthetic heatmaps.

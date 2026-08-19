@@ -2,8 +2,10 @@ import base64
 import json
 import sys
 import threading
+import time
 import types
 import unittest
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 from unittest.mock import patch
@@ -57,6 +59,12 @@ class MediaForensicsTests(unittest.TestCase):
     def fake_c2pa_module(self):
         return types.SimpleNamespace(Context=FakeContext, Reader=ReaderFactory)
 
+    def start_server(self):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server, thread
+
     def test_validates_real_png_and_rejects_trailing_polyglot(self):
         self.assertEqual(app._validate_image(PNG_1X1, "image/png"), (1, 1))
         with self.assertRaises(ValueError):
@@ -102,10 +110,20 @@ class MediaForensicsTests(unittest.TestCase):
         self.assertEqual(result["status"], "unavailable")
         self.assertNotIn("raw_score", result)
 
+    def test_detector_timeout_is_explicit_and_bounded(self):
+        def slow_detector(_image):
+            time.sleep(0.08)
+            return {"detector_id": "slow", "version": "1", "status": "ok", "raw_score": 0.9}
+
+        with patch.object(app, "DETECTOR_REGISTRY", {"slow": slow_detector}), patch.object(app, "ENABLED_DETECTOR_IDS", ("slow",)), patch.object(app, "DETECTOR_TIMEOUT_SECONDS", 0.01), patch.object(app, "_c2pa", lambda *_: {"state": "not_detected", "trust_chain": "not_applicable"}):
+            started = time.monotonic()
+            result = app.analyze(PNG_1X1, "image/png")
+        self.assertLess(time.monotonic() - started, 0.25)
+        self.assertEqual(result["detectors"][0]["status"], "failed")
+        self.assertEqual(result["detectors"][0]["reason"], "detector_timeout")
+
     def test_health_and_version_startup_smoke(self):
-        server = ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+        server, thread = self.start_server()
         try:
             host, port = server.server_address
             with urllib.request.urlopen(f"http://{host}:{port}/health", timeout=2) as response:
@@ -113,9 +131,83 @@ class MediaForensicsTests(unittest.TestCase):
             with urllib.request.urlopen(f"http://{host}:{port}/version", timeout=2) as response:
                 version = json.load(response)
             self.assertTrue(health["ok"])
-            self.assertIn(health["detector"], {"ready", "unavailable"})
+            self.assertIn(health["runtime"], {"ready", "degraded"})
             self.assertEqual(version["service"], "oak-media-forensics")
+            self.assertEqual(version["version"], "3")
         finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_http_auth_rejects_missing_token_and_accepts_controlled_request(self):
+        server, thread = self.start_server()
+        try:
+            host, port = server.server_address
+            url = f"http://{host}:{port}/v1/detect/image"
+            unauthorized = urllib.request.Request(url, data=PNG_1X1, headers={"Content-Type": "image/png"}, method="POST")
+            with patch.object(app, "TOKEN", "test-secret"):
+                with self.assertRaises(urllib.error.HTTPError) as denied:
+                    urllib.request.urlopen(unauthorized, timeout=2)
+                self.assertEqual(denied.exception.code, 401)
+
+                controlled = {
+                    "ok": True,
+                    "schema_version": 2,
+                    "technical": {"width": 1, "height": 1},
+                    "c2pa": {"state": "not_detected", "trust_chain": "not_applicable"},
+                    "detectors": [{"detector_id": "universalfakedetect", "version": "cvpr2023-clip-vitl14", "status": "unavailable", "reason": "runtime_not_configured"}],
+                    "latency_ms": 1,
+                }
+                authorized = urllib.request.Request(url, data=PNG_1X1, headers={"Content-Type": "image/png", "Authorization": "Bearer test-secret"}, method="POST")
+                with patch.object(app, "analyze", lambda *_: controlled):
+                    with urllib.request.urlopen(authorized, timeout=2) as response:
+                        payload = json.load(response)
+                self.assertTrue(payload["ok"])
+                self.assertEqual(payload["schema_version"], 2)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def test_request_concurrency_is_fail_fast(self):
+        server, thread = self.start_server()
+        started = threading.Event()
+        release = threading.Event()
+        first_done = threading.Event()
+        result_holder = []
+
+        def blocking_analyze(*_):
+            started.set()
+            release.wait(timeout=2)
+            return {"ok": True, "schema_version": 2, "technical": {"width": 1, "height": 1}, "c2pa": {}, "detectors": [], "latency_ms": 1}
+
+        try:
+            host, port = server.server_address
+            url = f"http://{host}:{port}/v1/detect/image"
+            headers = {"Content-Type": "image/png", "Authorization": "Bearer test-secret"}
+
+            def first_request():
+                try:
+                    req = urllib.request.Request(url, data=PNG_1X1, headers=headers, method="POST")
+                    with urllib.request.urlopen(req, timeout=3) as response:
+                        result_holder.append(response.status)
+                finally:
+                    first_done.set()
+
+            with patch.object(app, "TOKEN", "test-secret"), patch.object(app, "_capacity", threading.BoundedSemaphore(1)), patch.object(app, "analyze", blocking_analyze):
+                worker = threading.Thread(target=first_request, daemon=True)
+                worker.start()
+                self.assertTrue(started.wait(timeout=1))
+                second = urllib.request.Request(url, data=PNG_1X1, headers=headers, method="POST")
+                with self.assertRaises(urllib.error.HTTPError) as busy:
+                    urllib.request.urlopen(second, timeout=2)
+                self.assertEqual(busy.exception.code, 503)
+                release.set()
+                self.assertTrue(first_done.wait(timeout=2))
+                worker.join(timeout=2)
+                self.assertEqual(result_holder, [200])
+        finally:
+            release.set()
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)

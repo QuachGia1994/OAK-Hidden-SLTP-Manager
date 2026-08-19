@@ -1,6 +1,10 @@
 import "server-only";
 
-import { universalFakeDetectAdapter, type RawUniversalFakeDetectResult } from "./specialist-detector";
+import {
+  DEFAULT_SPECIALIST_DETECTOR_IDS,
+  normalizeSpecialistDetectorResults,
+  type RawSpecialistDetectorResult,
+} from "./specialist-detector";
 import type {
   ImageAuthenticitySignal,
   ImageProvenanceSummary,
@@ -16,9 +20,10 @@ interface RawForensicsResponse {
     claim_generator?: string;
     digital_source_types?: string[];
     validation_status_count?: number;
+    verifier_version?: string;
     reason?: string;
   };
-  detectors?: RawUniversalFakeDetectResult[];
+  detectors?: RawSpecialistDetectorResult[];
 }
 
 export interface MediaForensicsEvidence {
@@ -26,6 +31,7 @@ export interface MediaForensicsEvidence {
   specialistDetectors: SpecialistDetectorSummary[];
   signals: ImageAuthenticitySignal[];
   runtimeStatus: "active" | "unavailable" | "failed";
+  latencyMs?: number;
 }
 
 const C2PA_STATES = new Set<ImageProvenanceSummary["status"]>([
@@ -66,8 +72,6 @@ function normalizeProvenance(raw: RawForensicsResponse["c2pa"], markerPresent: b
   const trustChain = TRUST_STATES.has(String(raw?.trust_chain) as ImageProvenanceSummary["trustChain"])
     ? String(raw?.trust_chain) as ImageProvenanceSummary["trustChain"]
     : (status === "verified" ? "trusted" : status === "not_detected" ? "not_applicable" : "unknown");
-
-  // Never allow an untrusted/unknown chain to surface as verified even if a hostile or buggy service says so.
   const safeStatus: ImageProvenanceSummary["status"] = status === "verified" && trustChain !== "trusted"
     ? "present_unverified"
     : status;
@@ -96,23 +100,30 @@ function normalizeProvenance(raw: RawForensicsResponse["c2pa"], markerPresent: b
     validationStatusCount: Number.isFinite(Number(raw?.validation_status_count))
       ? Math.max(0, Math.min(100, Math.round(Number(raw?.validation_status_count))))
       : undefined,
+    verifierVersion: raw?.verifier_version ? safeText(raw.verifier_version, 100) : undefined,
   };
+}
+
+function detectorLabel(detectorId: string): string {
+  if (detectorId === "universalfakedetect") return "UniversalFakeDetect";
+  return detectorId.replaceAll("_", " ");
 }
 
 function detectorSignal(detector: SpecialistDetectorSummary, locale: "VN" | "EN"): ImageAuthenticitySignal | null {
   if (detector.status !== "ok" || detector.classification === "uncertain") return null;
   const synthetic = detector.classification === "synthetic_signal";
+  const label = detectorLabel(detector.detectorId);
   return {
     source: "specialist_detector",
-    kind: "universalfakedetect_clip",
-    label: "UniversalFakeDetect",
+    kind: `${detector.detectorId}_classification`,
+    label,
     finding: locale === "VN"
       ? synthetic
-        ? "Detector chuyên biệt nghiêng về lớp ảnh tổng hợp. Đây là tín hiệu yếu theo ngưỡng upstream, không phải xác suất ảnh do AI tạo."
-        : "Detector chuyên biệt nghiêng về lớp ảnh thật. Đây là tín hiệu yếu theo ngưỡng upstream, không phải chứng minh nguồn gốc."
+        ? `${label} nghiêng về lớp ảnh tổng hợp. Đây là tín hiệu đã calibration theo contract của detector, không phải xác suất ảnh do AI tạo.`
+        : `${label} nghiêng về lớp ảnh thật. Đây là tín hiệu detector, không phải chứng minh nguồn gốc.`
       : synthetic
-        ? "The specialist detector leans toward its synthetic class. This is a weak upstream-threshold signal, not an AI-generation probability."
-        : "The specialist detector leans toward its real-image class. This is a weak upstream-threshold signal, not proof of origin.",
+        ? `${label} leans toward its synthetic class. This is calibrated detector evidence, not an AI-generation probability.`
+        : `${label} leans toward its real-image class. This is detector evidence, not proof of origin.`,
     strength: detector.strength,
   };
 }
@@ -126,17 +137,19 @@ export async function collectMediaForensics(args: {
   const baseUrl = (process.env.FACTCHECK_FORENSICS_URL || "").replace(/\/$/, "");
   const token = process.env.FACTCHECK_FORENSICS_TOKEN || "";
   if (!baseUrl || !token) {
+    const detectors = normalizeSpecialistDetectorResults(undefined, args.locale);
     return {
       provenance: localFallbackProvenance(args.markerPresent, args.locale, "unavailable"),
-      specialistDetectors: [{
-        ...universalFakeDetectAdapter.normalize(undefined, args.locale),
+      specialistDetectors: detectors.map((detector) => ({
+        ...detector,
         note: args.locale === "VN" ? "Runtime detector chưa được kích hoạt." : "The specialist detector runtime is not activated.",
-      }],
+      })),
       signals: [],
       runtimeStatus: "unavailable",
     };
   }
 
+  const started = performance.now();
   try {
     const response = await fetch(`${baseUrl}/v1/detect/image`, {
       method: "POST",
@@ -150,26 +163,31 @@ export async function collectMediaForensics(args: {
     });
     if (!response.ok) throw new Error(`forensics HTTP ${response.status}`);
     const payload = await response.json() as RawForensicsResponse;
-    if (!payload.ok) throw new Error("forensics response not ok");
-    const rawDetector = (payload.detectors || []).find((item) => String(item.detector_id || "").toLowerCase() === "universalfakedetect");
-    const detector = universalFakeDetectAdapter.normalize(rawDetector, args.locale);
-    const signal = detectorSignal(detector, args.locale);
+    if (!payload || payload.ok !== true || !Array.isArray(payload.detectors)) throw new Error("forensics malformed response");
+    const detectors = normalizeSpecialistDetectorResults(payload.detectors, args.locale, DEFAULT_SPECIALIST_DETECTOR_IDS);
+    const signals = detectors.flatMap((detector) => {
+      const signal = detectorSignal(detector, args.locale);
+      return signal ? [signal] : [];
+    });
     return {
       provenance: normalizeProvenance(payload.c2pa, args.markerPresent, args.locale),
-      specialistDetectors: [detector],
-      signals: signal ? [signal] : [],
+      specialistDetectors: detectors,
+      signals,
       runtimeStatus: "active",
+      latencyMs: Math.round(performance.now() - started),
     };
   } catch (error) {
     const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     const note = args.locale === "VN"
       ? (timeout ? "Detector/forensics vượt quá giới hạn 6 giây." : "Dịch vụ detector/forensics thất bại trong lần kiểm tra này.")
       : (timeout ? "The detector/forensics service exceeded its 6-second budget." : "The detector/forensics service failed for this analysis.");
+    const detectors = normalizeSpecialistDetectorResults(undefined, args.locale);
     return {
       provenance: localFallbackProvenance(args.markerPresent, args.locale, "failed"),
-      specialistDetectors: [{ ...universalFakeDetectAdapter.normalize(undefined, args.locale), status: "failed", note }],
+      specialistDetectors: detectors.map((detector) => ({ ...detector, status: "failed", note })),
       signals: [],
       runtimeStatus: "failed",
+      latencyMs: Math.round(performance.now() - started),
     };
   }
 }

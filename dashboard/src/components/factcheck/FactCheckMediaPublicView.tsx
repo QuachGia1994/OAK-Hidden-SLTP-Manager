@@ -10,13 +10,13 @@ export function FactCheckMediaPublicView({ result }: { result: ImageAuthenticity
   const technicalSignals = result.signals.filter((signal) => signal.source !== "visual" && signal.source !== "specialist_detector" && signal.source !== "provenance");
   const t = locale === "VN"
     ? {
-        eyebrow: "OAK Image Authenticity", provenance: "Provenance", detectors: "Detector chuyên biệt", visual: "Phân tích hình ảnh",
+        eyebrow: "PHÁT HIỆN ẢNH AI", provenance: "Provenance", detectors: "Detector chuyên biệt", visual: "Phân tích hình ảnh",
         agreement: "Mức đồng thuận bằng chứng", limitations: "Giới hạn", technical: "Thông tin kỹ thuật", technicalSignals: "Tín hiệu kỹ thuật",
         checkAnother: "Kiểm tra một ảnh khác", public: "Liên kết chia sẻ là công khai.", noVisual: "Không có quan sát thị giác cụ thể đủ mạnh để hiển thị.",
         noTechnicalSignals: "Không có tín hiệu metadata/container bổ sung.", noProbability: "Không hiển thị phần trăm AI; đây là báo cáo bằng chứng, không phải máy đo xác suất AI.",
       }
     : {
-        eyebrow: "OAK Image Authenticity", provenance: "Provenance", detectors: "Specialist detectors", visual: "Visual analysis",
+        eyebrow: "AI IMAGE DETECTION", provenance: "Provenance", detectors: "Specialist detectors", visual: "Visual analysis",
         agreement: "Evidence agreement", limitations: "Limitations", technical: "Technical details", technicalSignals: "Technical signals",
         checkAnother: "Check another image", public: "Shared links are public.", noVisual: "No specific visual observations were strong enough to display.",
         noTechnicalSignals: "No additional metadata/container signals were recorded.", noProbability: "No AI percentage is displayed; this is an evidence report, not an AI-probability meter.",

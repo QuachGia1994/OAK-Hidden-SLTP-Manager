@@ -64,7 +64,7 @@ export default function FactCheckPage() {
     setShareId(null);
     setResult(null);
     setMediaResult(null);
-    trackFactCheckEvent("factcheck_media_started", { bytes: file.size });
+    trackFactCheckEvent("factcheck_ai_image_started", { bytes: file.size });
     try {
       const form = new FormData();
       form.set("image", file);
@@ -82,7 +82,7 @@ export default function FactCheckPage() {
       }
       setMediaResult(payload.result);
       setShareId(typeof payload.shareId === "string" ? payload.shareId : null);
-      trackFactCheckEvent("factcheck_media_completed", {
+      trackFactCheckEvent("factcheck_ai_image_completed", {
         verdict: payload.result.verdict,
         shareId: payload.shareId || undefined,
       });
@@ -91,7 +91,7 @@ export default function FactCheckPage() {
       setError(err instanceof Error ? err.message : "Image authenticity analysis failed");
       setMediaResult(null);
       setShareId(null);
-      trackFactCheckEvent("factcheck_media_failed");
+      trackFactCheckEvent("factcheck_ai_image_failed");
     } finally {
       setMediaLoading(false);
     }
