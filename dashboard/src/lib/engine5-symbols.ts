@@ -1,18 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
-const cwd = process.cwd();
-const scopePath = [
-  resolve(cwd, "engine5-symbols.json"),
-  resolve(cwd, "dashboard", "engine5-symbols.json"),
-].find(existsSync);
-
-if (!scopePath) throw new Error("Engine5 symbol scope configuration is missing");
-
-const engine5SymbolScope = JSON.parse(readFileSync(scopePath, "utf8")) as {
-  active?: unknown[];
-  temporarilyDisabled?: unknown[];
-};
+import engine5SymbolScope from "../../engine5-symbols.json" with { type: "json" };
 
 export const ENGINE5_ACTIVE_SYMBOLS = Object.freeze(
   (engine5SymbolScope.active || []).map((symbol) => String(symbol).trim().toUpperCase()).filter(Boolean),
