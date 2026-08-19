@@ -131,12 +131,14 @@ export function buildDeterministicMediaFindings(
     ? {
         status: "present_unverified",
         standard: "c2pa",
+        trustChain: "not_configured",
         note: locale === "VN"
           ? "Tìm thấy marker liên quan C2PA/Content Credentials, nhưng stage này chưa xác minh chữ ký mật mã."
           : "A C2PA/Content Credentials marker was found, but this stage does not cryptographically verify its signature.",
       }
     : {
         status: "not_detected",
+        trustChain: "not_applicable",
         note: locale === "VN"
           ? "Không phát hiện marker provenance đã hỗ trợ. Việc không có marker không chứng minh ảnh do AI tạo."
           : "No supported provenance marker was detected. Absence of a marker does not prove AI generation.",

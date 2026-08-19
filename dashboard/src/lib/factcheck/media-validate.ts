@@ -87,6 +87,57 @@ function webpDimensions(buffer: Buffer): { width: number; height: number } | nul
   return null;
 }
 
+function hasValidPngContainer(buffer: Buffer): boolean {
+  if (buffer.length < 45) return false;
+  let offset = 8;
+  let sawIhdr = false;
+  let sawIdat = false;
+  while (offset + 12 <= buffer.length) {
+    const length = buffer.readUInt32BE(offset);
+    if (length > MAX_IMAGE_BYTES || offset + 12 + length > buffer.length) return false;
+    const type = buffer.toString("ascii", offset + 4, offset + 8);
+    if (!sawIhdr && type !== "IHDR") return false;
+    if (type === "IHDR") sawIhdr = length === 13;
+    if (type === "IDAT") sawIdat = true;
+    offset += 12 + length;
+    if (type === "IEND") return length === 0 && sawIhdr && sawIdat && offset === buffer.length;
+  }
+  return false;
+}
+
+function hasValidJpegContainer(buffer: Buffer): boolean {
+  if (buffer.length < 20 || buffer[0] !== 0xff || buffer[1] !== 0xd8 || buffer[buffer.length - 2] !== 0xff || buffer[buffer.length - 1] !== 0xd9) return false;
+  let offset = 2;
+  while (offset + 1 < buffer.length) {
+    if (buffer[offset] !== 0xff) return false;
+    while (offset < buffer.length && buffer[offset] === 0xff) offset += 1;
+    const marker = buffer[offset++];
+    if (marker === 0xd9) return offset === buffer.length;
+    if (marker === 0xda) return true; // entropy stream is bounded by the required terminal EOI checked above
+    if (marker >= 0xd0 && marker <= 0xd7) continue;
+    if (offset + 2 > buffer.length) return false;
+    const length = buffer.readUInt16BE(offset);
+    if (length < 2 || offset + length > buffer.length) return false;
+    offset += length;
+  }
+  return false;
+}
+
+function hasValidWebpContainer(buffer: Buffer): boolean {
+  if (buffer.length < 20 || buffer.toString("ascii", 0, 4) !== "RIFF" || buffer.toString("ascii", 8, 12) !== "WEBP") return false;
+  if (buffer.readUInt32LE(4) + 8 !== buffer.length) return false;
+  let offset = 12;
+  let chunks = 0;
+  while (offset + 8 <= buffer.length) {
+    const length = buffer.readUInt32LE(offset + 4);
+    const padded = length + (length % 2);
+    if (offset + 8 + padded > buffer.length) return false;
+    chunks += 1;
+    offset += 8 + padded;
+  }
+  return chunks > 0 && offset === buffer.length;
+}
+
 function detectFormat(buffer: Buffer): { format: ImagePublicTechnicalFacts["format"]; mime: string; dimensions: { width: number; height: number } | null } | null {
   if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
     return { format: "png", mime: "image/png", dimensions: pngDimensions(buffer) };
@@ -108,7 +159,12 @@ export function validateImageBuffer(buffer: Buffer): ValidatedImage {
 
   const detected = detectFormat(buffer);
   if (!detected) throw new MediaValidationError("IMAGE_UNSUPPORTED_FORMAT");
-  if (!detected.dimensions) throw new MediaValidationError("IMAGE_DECODE_FAILED");
+  const structurallyValid = detected.format === "png"
+    ? hasValidPngContainer(buffer)
+    : detected.format === "jpeg"
+      ? hasValidJpegContainer(buffer)
+      : hasValidWebpContainer(buffer);
+  if (!structurallyValid || !detected.dimensions) throw new MediaValidationError("IMAGE_DECODE_FAILED");
 
   const { width, height } = detected.dimensions;
   if (width > MAX_IMAGE_DIMENSION || height > MAX_IMAGE_DIMENSION || width * height > MAX_IMAGE_PIXELS) {

@@ -27,8 +27,14 @@ Legacy NativeQt/CustomTkinter and old signal-manager surfaces are not maintained
 | Web rendering/evidence interaction | `dashboard/src/components/Pattern5Board.tsx` | browser |
 | Fact Check claim/URL result domain | `dashboard/src/lib/factcheck/types.ts` + `gemini.ts` | `/api/factcheck`, result/public UI |
 | Fact Check URL network boundary | `dashboard/src/lib/factcheck/ssrf.ts` + `url-ingestion.ts` | `/api/factcheck` |
-| Fact Check media domain/provider | `dashboard/src/lib/factcheck/media-types.ts` + `media-gemini.ts` | `/api/factcheck/media`, media result/public UI |
-| Fact Check media validation/privacy | `dashboard/src/lib/factcheck/media-validate.ts` + `media-metadata.ts` + `media-sanitize.ts` | media API, share store |
+| Fact Check media domain/result contract | `dashboard/src/lib/factcheck/media-types.ts` | media API, fusion, result/public UI |
+| Fact Check media validation/container safety | `dashboard/src/lib/factcheck/media-validate.ts` | `/api/factcheck/media` |
+| Fact Check media metadata | `dashboard/src/lib/factcheck/media-metadata.ts` | media API, Gemini evidence |
+| Fact Check media provenance + specialist transport | `dashboard/src/lib/factcheck/media-forensics-client.ts` + `services/media-forensics/` | media API |
+| Fact Check specialist normalization/calibration | `dashboard/src/lib/factcheck/specialist-detector.ts` + `detector-calibration.ts` | forensics client, fusion |
+| Fact Check media Gemini reasoning | `dashboard/src/lib/factcheck/media-gemini.ts` | media API |
+| Fact Check deterministic media policy/final normalization | `dashboard/src/lib/factcheck/media-evidence-fusion.ts` | media API |
+| Fact Check media public sanitization | `dashboard/src/lib/factcheck/media-sanitize.ts` | share store |
 | Fact Check public persistence | `dashboard/src/lib/factcheck/share-store.ts` | claim + media public routes |
 | Desktop visual tokens | `robot-sltp-pro/src/styles.css` | Tauri UI |
 | Web visual tokens | `dashboard/src/app/globals.css` | Gatekeeper routes |
@@ -93,9 +99,13 @@ Fact Check, Tarot and Discover are secondary Tools/Labs routes and do not own tr
 Fact Check has two result domains that share one distribution layer rather than one god object:
 
 - Claim verification: `Text → evidence search → Gemini → FactCheckResult`; image OCR feeds extracted text into this same claim path. A pure public URL first passes `ssrf.ts` / `url-ingestion.ts`, then article extraction, and converges on the claim pipeline. The subject article is excluded from independent corroborating evidence.
-- Image Authenticity: `Image → media validation → metadata/provenance observations → Gemini multimodal → ImageAuthenticityResult`. The browser only chooses intent and transports the file; verdict rules and normalization stay server/domain-side.
+- Image Authenticity: `Image → validation/container bounds → deterministic metadata → C2PA + specialist detector → detector calibration → Gemini multimodal evidence reasoning → deterministic evidence fusion → ImageAuthenticityResult`. The browser only chooses intent and transports the file; forensic policy and normalization stay server/domain-side.
 
-Image Authenticity currently accepts JPEG/PNG/WEBP direct uploads up to 4 MB, with bounded dimensions/pixels before provider invocation. `FACTCHECK_MEDIA_MODEL` is the single model selector and defaults to `gemini-3.6-flash`. EXIF/software and C2PA marker observations are evidence signals only: missing EXIF does not imply AI generation, editor metadata does not prove deceptive manipulation, and C2PA is `present_unverified` unless a future cryptographic verifier explicitly owns that transition. Raw image bytes, GPS and device identifiers are not stored in the public share record.
+Image Authenticity accepts JPEG/PNG/WEBP direct uploads up to 4 MB, with byte-signature/container/dimension/pixel bounds before provider invocation. `FACTCHECK_MEDIA_MODEL` is the single Gemini selector and defaults to `gemini-3.6-flash`; it is the reasoning layer, not the policy owner. `media-forensics-client.ts` owns the optional server-to-server boundary to `services/media-forensics/`, which uses maintained official `c2pa-python` plus the upstream UniversalFakeDetect CLIP ViT-L/14 path outside Vercel. The sidecar performs its own Pillow decode safety checks and bounded concurrency, accepts authenticated bytes only, and does not persist or log user images.
+
+C2PA may become `verified` only when an explicit trust chain is configured and the SDK reports trusted validation. A readable manifest without trust settings is `present_unverified/not_configured`, never `invalid` merely because the trust store is absent. Only bounded provenance facts cross the boundary; full manifests and identity material do not. `detector-calibration.ts` owns UniversalFakeDetect interpretation: the upstream 0.5 class boundary yields weak directional evidence only, never a probability; unknown versions/invalid scores become `uncertain`. `media-evidence-fusion.ts` owns final precedence: verified/trusted provenance cannot be overridden by Gemini or detector output; material detector-vs-visual disagreement becomes `inconclusive` when no verified provenance exists. If the sidecar is not configured or fails within its six-second client budget, analysis continues with explicit provenance/detector limitations rather than fabricated evidence.
+
+Raw image bytes, GPS/device identifiers, full C2PA manifests, detector scores and service secrets are not stored in Redis/public shares. `share-store.ts` persists the sanitized snapshot only; `/factcheck/[id]` and its OG route read that snapshot and never rerun OCR, C2PA, detector or Gemini. SPAI remains evaluation-only; manipulation localization/SIDA is deferred until a real verified runtime exists, so no heatmap is fabricated.
 
 `share-store.ts` owns the 30-day Redis snapshot contract. Schema `v3` discriminates `claim` vs `media_authenticity`; legacy schema 1/2 claim records are read compatibly. `/factcheck/[id]` is read-only and renders the stored normalized result without re-running Gemini, URL ingestion, OCR or media analysis.
 

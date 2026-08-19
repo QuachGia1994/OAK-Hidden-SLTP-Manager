@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Regression/evaluation categories for OAK Media Authenticity. Expected category is not an expected detector verdict.",
+  "datasets": [
+    {
+      "category": "real_camera_photo",
+      "source": "local_or_licensed",
+      "notes": "Ordinary camera capture with metadata when available."
+    },
+    {
+      "category": "real_social_recompressed",
+      "source": "derived_fixture",
+      "notes": "Real photo after social-media style resize/recompression."
+    },
+    {
+      "category": "real_screenshot",
+      "source": "derived_fixture",
+      "notes": "Screenshot of a real image; metadata may be absent."
+    },
+    {
+      "category": "edited_real_photo",
+      "source": "derived_fixture",
+      "notes": "Benign edit/resave to exercise manipulation-vs-editor semantics."
+    },
+    {
+      "category": "ai_generated",
+      "source": "licensed_or_self_generated",
+      "notes": "Known synthetic image with generator provenance recorded outside the detector output."
+    },
+    {
+      "category": "ai_recompressed",
+      "source": "derived_fixture",
+      "notes": "Known synthetic image after JPEG/resize recompression."
+    },
+    {
+      "category": "ai_screenshot",
+      "source": "derived_fixture",
+      "notes": "Screenshot of known synthetic imagery."
+    },
+    {
+      "category": "metadata_stripped_real",
+      "source": "derived_fixture",
+      "notes": "Real image with metadata intentionally stripped."
+    },
+    {
+      "category": "metadata_stripped_ai",
+      "source": "derived_fixture",
+      "notes": "Synthetic image with metadata intentionally stripped."
+    }
+  ],
+  "cases": [],
+  "caseContract": {
+    "id": "stable local identifier",
+    "category": "one of the categories above",
+    "file": "relative path to a local/licensed fixture not committed with large datasets",
+    "locale": "EN or VN"
+  },
+  "externalBenchmarks": {
+    "GenImage": "Reference only; do not commit dataset blobs.",
+    "RAID": "Reference only; use for robustness evaluation when locally available.",
+    "SPAI": "Evaluation-only candidate; not production-active in this stage."
+  }
+}

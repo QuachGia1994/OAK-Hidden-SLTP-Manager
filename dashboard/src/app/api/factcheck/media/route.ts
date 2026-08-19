@@ -4,6 +4,8 @@ import { enforceServerRateLimit, readPositiveLimit } from "@/lib/server-rate-lim
 import { createSharedMediaResult, publicSharePath } from "@/lib/factcheck/share-store";
 import { buildDeterministicMediaFindings, extractPrivateImageMetadata } from "@/lib/factcheck/media-metadata";
 import { FACTCHECK_MEDIA_MODEL, GeminiMediaHttpError, runGeminiMediaAuthenticity } from "@/lib/factcheck/media-gemini";
+import { collectMediaForensics } from "@/lib/factcheck/media-forensics-client";
+import { fuseMediaEvidence } from "@/lib/factcheck/media-evidence-fusion";
 import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "@/lib/factcheck/media-validate";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +43,8 @@ export async function GET(request: Request) {
     formats: ["jpeg", "png", "webp"],
     maxImageBytes: MAX_IMAGE_BYTES,
     rawImagePersistence: false,
-    c2pa: "presence_only_not_cryptographically_verified",
+    c2pa: process.env.FACTCHECK_FORENSICS_URL && process.env.FACTCHECK_FORENSICS_TOKEN ? "forensics_service_verification" : "runtime_not_activated",
+    specialistDetector: process.env.FACTCHECK_FORENSICS_URL && process.env.FACTCHECK_FORENSICS_TOKEN ? "universalfakedetect_configured" : "unavailable",
   });
 }
 
@@ -76,16 +79,35 @@ export async function POST(request: Request) {
     const validated = validateImageBuffer(buffer);
     const privateMetadata = extractPrivateImageMetadata(buffer);
     const findings = buildDeterministicMediaFindings(validated.technical, privateMetadata, locale);
+    const forensics = await collectMediaForensics({
+      buffer: validated.buffer,
+      mime: validated.technical.mime,
+      markerPresent: privateMetadata.c2paMarkerPresent,
+      locale,
+    });
+    const deterministicSignals = [
+      ...findings.signals.filter((signal) => signal.source !== "provenance"),
+      ...forensics.signals,
+    ];
 
-    const result = await runGeminiMediaAuthenticity({
+    const base = await runGeminiMediaAuthenticity({
       buffer: validated.buffer,
       mime: validated.technical.mime,
       technical: findings.technical,
-      provenance: findings.provenance,
-      deterministicSignals: findings.signals,
+      provenance: forensics.provenance,
+      deterministicSignals,
       privatePromptMetadata: findings.privatePromptMetadata,
+      specialistDetectorEvidence: forensics.specialistDetectors,
+      evidenceAgreementContext: { runtimeStatus: forensics.runtimeStatus },
       locale,
       apiKey,
+    });
+    const result = fuseMediaEvidence({
+      base,
+      provenance: forensics.provenance,
+      specialistDetectors: forensics.specialistDetectors,
+      deterministicSignals,
+      locale,
     });
 
     let shareId: string | null = null;

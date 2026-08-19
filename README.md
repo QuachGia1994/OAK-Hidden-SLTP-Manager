@@ -52,14 +52,14 @@ Product hierarchy:
 - **Trading**
   - `/engine` — Engine 5 / Pattern Matrix, GBPUSD + EURUSD, current-day mobile workspace, weekly matrix, evidence 4 H4 candles, VIP masking.
 - **Tools / Labs**
-  - `/factcheck` — Fact Check cho Text, Image OCR, URL article và Image Authenticity (metadata/provenance observations + Gemini multimodal).
+  - `/factcheck` — Fact Check cho Text, Image OCR, URL article và Image Authenticity (bounded validation + metadata + optional C2PA/UniversalFakeDetect sidecar + Gemini multimodal + deterministic evidence fusion).
   - `/tarot` — Tarot 78-card experience.
   - `/discover` — OAK Daily, Dream AI, Yes/No Oracle, Mood Check, Compatibility.
 
 Important APIs:
 
 - `/api/factcheck` — Text/URL web evidence + Gemini review, không cần PC worker.
-- `/api/factcheck/media` — Image Authenticity cho JPEG/PNG/WEBP ≤4 MB; validate server-side, không persist raw image, dùng `FACTCHECK_MEDIA_MODEL` (default `gemini-3.6-flash`). C2PA hiện chỉ phát hiện marker, chưa xác minh chữ ký mật mã.
+- `/api/factcheck/media` — Image Authenticity cho JPEG/PNG/WEBP ≤4 MB; validate server-side, không persist raw image, dùng `FACTCHECK_MEDIA_MODEL` (default `gemini-3.6-flash`). Media Forensics v2 có C2PA/UniversalFakeDetect adapter qua service riêng; production chỉ kích hoạt khi `FACTCHECK_FORENSICS_URL` + `FACTCHECK_FORENSICS_TOKEN` được cấu hình. Nếu runtime chưa được kích hoạt, provenance/detector trả degraded state rõ ràng thay vì evidence giả. UniversalFakeDetect dùng ngưỡng class upstream 0.5 như tín hiệu yếu, không hiển thị score hay “AI probability”; verified C2PA chỉ tồn tại khi trust chain cấu hình và SDK trả trusted.
 - `/api/tarot` — server Tarot reading.
 - `/api/discover` — server AI endpoints cho Discover.
 - `/api/vip` — weekday VIP entitlement.

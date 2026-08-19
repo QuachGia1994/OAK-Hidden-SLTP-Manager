@@ -62,6 +62,8 @@ function systemPrompt(locale: "VN" | "EN"): string {
     "Visual artifacts alone rarely prove AI generation or editing. Ordinary resizing, screenshots, filters and JPEG recompression can create similar artifacts.",
     "Absence of EXIF does not imply AI generation. An editor software tag does not prove deceptive manipulation.",
     "Do not claim cryptographic provenance unless the server explicitly says provenance status is verified.",
+    "Cryptographically verified provenance outranks visual intuition. A specialist detector score is a model-space signal, never a probability of truth.",
+    "Specialist detectors can fail on unseen generators, screenshots, crops, recompression, and adversarial transformations.",
     "Use likely_ai_generated only when multiple material visual signals are mutually consistent with generation and alternatives are less plausible.",
     "Use likely_manipulated only for material compositing/editing indicators, not routine color correction or recompression.",
     "Use no_material_manipulation_detected only to mean no material manipulation was detected in this inspection; it does not prove the image is original.",
@@ -168,6 +170,8 @@ export function normalizeMediaAssessment(
     limitations: [...new Set(limitations)].slice(0, 8),
     technical: context.technical,
     provenance: context.provenance,
+    specialistDetectors: [],
+    evidenceAgreement: "insufficient",
     model: FACTCHECK_MEDIA_MODEL,
     provider: "gemini",
     checkedAt: new Date().toISOString(),
@@ -182,6 +186,8 @@ export async function runGeminiMediaAuthenticity(args: {
   provenance: ImageProvenanceSummary;
   deterministicSignals: ImageAuthenticitySignal[];
   privatePromptMetadata: Record<string, string | boolean | number | undefined>;
+  specialistDetectorEvidence?: unknown;
+  evidenceAgreementContext?: unknown;
   locale: "VN" | "EN";
   apiKey: string;
 }): Promise<ImageAuthenticityResult> {
@@ -190,6 +196,8 @@ export async function runGeminiMediaAuthenticity(args: {
     private_metadata_for_assessment_only: args.privatePromptMetadata,
     provenance: args.provenance,
     deterministic_signals: args.deterministicSignals,
+    specialist_detector_evidence: args.specialistDetectorEvidence || [],
+    evidence_agreement_context: args.evidenceAgreementContext || "not_available",
   };
 
   const body = {

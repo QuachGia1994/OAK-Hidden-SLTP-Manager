@@ -5,8 +5,9 @@ export type ImageAuthenticityVerdict =
   | "no_material_manipulation_detected"
   | "inconclusive";
 
-export type ImageAuthenticitySignalSource = "metadata" | "provenance" | "visual" | "container";
+export type ImageAuthenticitySignalSource = "metadata" | "provenance" | "visual" | "container" | "specialist_detector";
 export type ImageAuthenticitySignalStrength = "weak" | "moderate" | "strong";
+export type EvidenceAgreement = "aligned" | "mixed" | "insufficient";
 
 export interface ImageAuthenticitySignal {
   source: ImageAuthenticitySignalSource;
@@ -27,9 +28,26 @@ export interface ImagePublicTechnicalFacts {
 }
 
 export interface ImageProvenanceSummary {
-  status: "verified" | "present_unverified" | "not_detected" | "unsupported";
+  status: "verified" | "invalid" | "present_unverified" | "not_detected" | "unsupported" | "verification_error";
   standard?: "c2pa";
+  trustChain: "trusted" | "not_configured" | "failed" | "not_applicable" | "unknown";
   note: string;
+  claimGenerator?: string;
+  digitalSourceTypes?: string[];
+  validationStatusCount?: number;
+}
+
+export type SpecialistDetectorStatus = "ok" | "unavailable" | "failed";
+export type SpecialistDetectorClassification = "synthetic_signal" | "real_signal" | "uncertain";
+
+export interface SpecialistDetectorSummary {
+  detectorId: string;
+  version: string;
+  status: SpecialistDetectorStatus;
+  classification: SpecialistDetectorClassification;
+  strength: ImageAuthenticitySignalStrength;
+  calibrationVersion: string;
+  note?: string;
 }
 
 export interface ImageAuthenticityResult {
@@ -41,6 +59,8 @@ export interface ImageAuthenticityResult {
   limitations: string[];
   technical: ImagePublicTechnicalFacts;
   provenance: ImageProvenanceSummary;
+  specialistDetectors: SpecialistDetectorSummary[];
+  evidenceAgreement: EvidenceAgreement;
   model: string;
   provider: "gemini";
   checkedAt: string;

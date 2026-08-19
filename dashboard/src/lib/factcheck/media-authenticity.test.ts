@@ -5,12 +5,13 @@ import { sanitizeMediaResultForShare } from "./media-sanitize.ts";
 import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "./media-validate.ts";
 import { mediaVerdictLabel } from "./media-presentation.ts";
 import { normalizeMediaAssessment } from "./media-gemini.ts";
+import { calibrateUniversalFakeDetect } from "./detector-calibration.ts";
+import { universalFakeDetectAdapter } from "./specialist-detector.ts";
+import { fuseMediaEvidence } from "./media-evidence-fusion.ts";
 import type { ImageAuthenticityResult } from "./media-types.ts";
 
 function pngHeader(width = 1, height = 1): Buffer {
-  const buffer = Buffer.alloc(24);
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(buffer, 0);
-  buffer.write("IHDR", 12, "ascii");
+  const buffer = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
   buffer.writeUInt32BE(width, 16);
   buffer.writeUInt32BE(height, 20);
   return buffer;
@@ -52,7 +53,9 @@ const sampleMediaResult = (): ImageAuthenticityResult => ({
     software: undefined,
     cameraMetadataPresent: false,
   },
-  provenance: { status: "not_detected", note: "No marker." },
+  provenance: { status: "not_detected", trustChain: "not_applicable", note: "No marker." },
+  specialistDetectors: [],
+  evidenceAgreement: "insufficient",
   model: "gemini-3.6-flash",
   provider: "gemini",
   checkedAt: "2026-08-19T00:00:00.000Z",
@@ -84,6 +87,18 @@ test("image validation rejects unsafe pixel dimensions", () => {
   );
 });
 
+test("image validation rejects malformed/trailing polyglot containers", () => {
+  const png = pngHeader(1, 1);
+  assert.throws(
+    () => validateImageBuffer(png.subarray(0, png.length - 8)),
+    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DECODE_FAILED",
+  );
+  assert.throws(
+    () => validateImageBuffer(Buffer.concat([png, Buffer.from("<script>alert(1)</script>")])),
+    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DECODE_FAILED",
+  );
+});
+
 test("authenticity validation rejects GIF while OCR remains a separate browser flow", () => {
   const gif = Buffer.concat([Buffer.from("GIF89a", "ascii"), Buffer.from([1, 0, 1, 0]), Buffer.alloc(16)]);
   assert.throws(
@@ -95,7 +110,9 @@ test("authenticity validation rejects GIF while OCR remains a separate browser f
 test("absence of EXIF produces no AI-generation signal", () => {
   const buffer = pngHeader(10, 10);
   const meta = extractPrivateImageMetadata(buffer);
-  const findings = buildDeterministicMediaFindings(validateImageBuffer(buffer).technical, meta, "EN");
+  const findings = buildDeterministicMediaFindings({
+    format: "png", mime: "image/png", width: 20, height: 20, bytes: buffer.length, cameraMetadataPresent: false,
+  }, meta, "EN");
   assert.equal(meta.software, undefined);
   assert.equal(findings.signals.some((signal) => signal.kind === "generator_software_tag"), false);
   assert.equal(findings.provenance.status, "not_detected");
@@ -123,7 +140,9 @@ test("generator software metadata is evidence but remains non-cryptographic", ()
 test("C2PA marker is presence-only, never promoted to verified", () => {
   const buffer = Buffer.concat([pngHeader(20, 20), Buffer.from("random c2pa content credentials marker")]);
   const meta = extractPrivateImageMetadata(buffer);
-  const findings = buildDeterministicMediaFindings(validateImageBuffer(buffer).technical, meta, "EN");
+  const findings = buildDeterministicMediaFindings({
+    format: "png", mime: "image/png", width: 20, height: 20, bytes: buffer.length, cameraMetadataPresent: false,
+  }, meta, "EN");
   assert.equal(meta.c2paMarkerPresent, true);
   assert.equal(findings.provenance.status, "present_unverified");
   assert.equal(findings.signals.some((signal) => signal.kind === "c2pa_marker_present"), true);
@@ -140,6 +159,10 @@ test("public media sanitizer bounds fields and contains no raw/private metadata 
   assert.ok((clean.technical.software || "").length <= 120);
   assert.equal("buffer" in (clean as unknown as Record<string, unknown>), false);
   assert.equal("gps" in (clean.technical as unknown as Record<string, unknown>), false);
+  const detectorWithRaw = { ...dirty.specialistDetectors[0], rawScore: 0.999 } as unknown as Record<string, unknown>;
+  dirty.specialistDetectors = [detectorWithRaw as unknown as ImageAuthenticityResult["specialistDetectors"][number]];
+  const detectorClean = sanitizeMediaResultForShare(dirty).specialistDetectors[0] as unknown as Record<string, unknown>;
+  assert.equal("rawScore" in detectorClean, false);
 });
 
 test("media presentation has explicit inconclusive wording", () => {
@@ -172,7 +195,7 @@ test("unverified C2PA can never become provenance_verified", () => {
     limitations: [],
   }, {
     technical: sampleMediaResult().technical,
-    provenance: { status: "present_unverified", standard: "c2pa", note: "marker only" },
+    provenance: { status: "present_unverified", standard: "c2pa", trustChain: "not_configured", note: "marker only" },
     deterministicSignals: [],
     locale: "EN",
   });
@@ -202,12 +225,89 @@ test("media normalizer clamps confidence and bounds visual signals", () => {
   assert.ok(result.signals.length <= 10);
 });
 
+test("UniversalFakeDetect calibration never exposes raw score as probability", () => {
+  assert.deepEqual(calibrateUniversalFakeDetect(0.9, "cvpr2023-clip-vitl14"), {
+    classification: "synthetic_signal", strength: "weak", calibrationVersion: "oak-univfd-upstream-threshold-v1",
+  });
+  assert.equal(calibrateUniversalFakeDetect(0.1, "cvpr2023-clip-vitl14").classification, "real_signal");
+  assert.equal(calibrateUniversalFakeDetect(0.500001, "cvpr2023-clip-vitl14").classification, "synthetic_signal");
+  assert.equal(calibrateUniversalFakeDetect(0.499999, "cvpr2023-clip-vitl14").classification, "real_signal");
+  assert.equal(calibrateUniversalFakeDetect(0.5, "cvpr2023-clip-vitl14").classification, "uncertain");
+  assert.equal(calibrateUniversalFakeDetect(2, "cvpr2023-clip-vitl14").classification, "uncertain");
+  assert.equal(calibrateUniversalFakeDetect(0.9, "unknown-v1").classification, "uncertain");
+});
+
+test("specialist adapter represents unavailable, failed and version mismatch without fabricated direction", () => {
+  assert.equal(universalFakeDetectAdapter.normalize(undefined, "EN").status, "unavailable");
+  assert.equal(universalFakeDetectAdapter.normalize({ status: "failed", version: "cvpr2023-clip-vitl14", reason: "oom" }, "EN").status, "failed");
+  const mismatched = universalFakeDetectAdapter.normalize({ status: "ok", version: "unknown-v9", raw_score: 0.99 }, "EN");
+  assert.equal(mismatched.classification, "uncertain");
+  assert.equal(mismatched.strength, "weak");
+});
+
+test("fusion makes any trusted verified provenance authoritative over Gemini", () => {
+  const base = { ...sampleMediaResult(), verdict: "likely_ai_generated" as const, confidence: 88 };
+  const fused = fuseMediaEvidence({
+    base,
+    provenance: {
+      status: "verified",
+      standard: "c2pa",
+      trustChain: "trusted",
+      note: "verified",
+      digitalSourceTypes: ["http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture"],
+    },
+    specialistDetectors: [],
+    deterministicSignals: [],
+    locale: "EN",
+  });
+  assert.equal(fused.verdict, "provenance_verified");
+  assert.match(fused.summary, /C2PA provenance is cryptographically verified/);
+});
+
+test("fusion makes verified algorithmic provenance authoritative", () => {
+  const base = { ...sampleMediaResult(), verdict: "no_material_manipulation_detected" as const, confidence: 70 };
+  const fused = fuseMediaEvidence({
+    base,
+    provenance: {
+      status: "verified",
+      standard: "c2pa",
+      trustChain: "trusted",
+      note: "verified",
+      digitalSourceTypes: ["http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"],
+    },
+    specialistDetectors: [],
+    deterministicSignals: [],
+    locale: "EN",
+  });
+  assert.equal(fused.verdict, "provenance_verified");
+  assert.ok(fused.confidence >= 90);
+});
+
+test("fusion downgrades detector versus visual disagreement", () => {
+  const base = { ...sampleMediaResult(), verdict: "no_material_manipulation_detected" as const, confidence: 80 };
+  const fused = fuseMediaEvidence({
+    base,
+    provenance: base.provenance,
+    specialistDetectors: [{ detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "ok", classification: "synthetic_signal", strength: "weak", calibrationVersion: "oak-univfd-upstream-threshold-v1" }],
+    deterministicSignals: [],
+    locale: "EN",
+  });
+  assert.equal(fused.evidenceAgreement, "mixed");
+  assert.equal(fused.verdict, "inconclusive");
+  assert.ok(fused.confidence <= 55);
+});
+
 test("public sanitizer downgrades impossible verified provenance", () => {
   const dirty = sampleMediaResult();
   dirty.verdict = "provenance_verified";
   dirty.confidence = 97;
-  dirty.provenance = { status: "present_unverified", standard: "c2pa", note: "marker only" };
+  dirty.provenance = { status: "present_unverified", standard: "c2pa", trustChain: "not_configured", note: "marker only" };
   const clean = sanitizeMediaResultForShare(dirty);
   assert.equal(clean.verdict, "inconclusive");
   assert.ok(clean.confidence <= 40);
+
+  dirty.provenance = { status: "verified", standard: "c2pa", trustChain: "failed", note: "hostile impossible state" };
+  const impossible = sanitizeMediaResultForShare(dirty);
+  assert.equal(impossible.provenance.status, "present_unverified");
+  assert.equal(impossible.verdict, "inconclusive");
 });

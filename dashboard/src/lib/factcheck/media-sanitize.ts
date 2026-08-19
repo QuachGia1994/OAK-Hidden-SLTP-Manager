@@ -7,7 +7,7 @@ const MEDIA_VERDICTS = new Set([
   "no_material_manipulation_detected",
   "inconclusive",
 ]);
-const MEDIA_SOURCES = new Set(["metadata", "provenance", "visual", "container"]);
+const MEDIA_SOURCES = new Set(["metadata", "provenance", "visual", "container", "specialist_detector"]);
 const MEDIA_STRENGTHS = new Set(["weak", "moderate", "strong"]);
 
 function cleanText(value: unknown, max: number): string {
@@ -38,11 +38,19 @@ export function sanitizeMediaResultForShare(result: ImageAuthenticityResult): Im
   const format = ["jpeg", "png", "webp"].includes(result.technical?.format)
     ? result.technical.format
     : "jpeg";
-  const provenanceStatus = ["verified", "present_unverified", "not_detected", "unsupported"].includes(result.provenance?.status)
+  let provenanceStatus = ["verified", "invalid", "present_unverified", "not_detected", "unsupported", "verification_error"].includes(result.provenance?.status)
     ? result.provenance.status
     : "unsupported";
+  const trustChain = result.provenance?.trustChain === "trusted"
+    || result.provenance?.trustChain === "not_configured"
+    || result.provenance?.trustChain === "failed"
+    || result.provenance?.trustChain === "not_applicable"
+    || result.provenance?.trustChain === "unknown"
+    ? result.provenance.trustChain
+    : "unknown";
+  if (provenanceStatus === "verified" && trustChain !== "trusted") provenanceStatus = "present_unverified";
   let confidence = Math.max(0, Math.min(100, Math.round(Number(result.confidence) || 0)));
-  if (verdict === "provenance_verified" && provenanceStatus !== "verified") {
+  if (verdict === "provenance_verified" && (provenanceStatus !== "verified" || trustChain !== "trusted")) {
     verdict = "inconclusive";
     confidence = Math.min(confidence, 40);
   }
@@ -66,8 +74,22 @@ export function sanitizeMediaResultForShare(result: ImageAuthenticityResult): Im
     provenance: {
       status: provenanceStatus,
       standard: result.provenance?.standard === "c2pa" ? "c2pa" : undefined,
+      trustChain,
       note: cleanText(result.provenance?.note, 600),
+      claimGenerator: result.provenance?.claimGenerator ? cleanText(result.provenance.claimGenerator, 160) : undefined,
+      digitalSourceTypes: (result.provenance?.digitalSourceTypes || []).slice(0, 8).map((item) => cleanText(item, 220)).filter(Boolean),
+      validationStatusCount: Number.isFinite(Number(result.provenance?.validationStatusCount)) ? Math.max(0, Math.min(100, Math.round(Number(result.provenance?.validationStatusCount)))) : undefined,
     },
+    specialistDetectors: (result.specialistDetectors || []).slice(0, 4).map((detector) => ({
+      detectorId: cleanText(detector.detectorId, 80),
+      version: cleanText(detector.version, 100),
+      status: detector.status === "ok" || detector.status === "failed" ? detector.status : "unavailable",
+      classification: detector.classification === "synthetic_signal" || detector.classification === "real_signal" ? detector.classification : "uncertain",
+      strength: detector.strength === "moderate" || detector.strength === "strong" ? detector.strength : "weak",
+      calibrationVersion: cleanText(detector.calibrationVersion, 100),
+      note: detector.note ? cleanText(detector.note, 280) : undefined,
+    })),
+    evidenceAgreement: result.evidenceAgreement === "aligned" || result.evidenceAgreement === "mixed" ? result.evidenceAgreement : "insufficient",
     model: cleanText(result.model, 80),
     provider: "gemini",
     checkedAt: result.checkedAt || new Date().toISOString(),

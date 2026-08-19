@@ -1,0 +1,5 @@
+c2pa-python==0.37.4
+Pillow>=10.4,<12
+torch>=2.2
+torchvision>=0.17
+numpy>=1.26
