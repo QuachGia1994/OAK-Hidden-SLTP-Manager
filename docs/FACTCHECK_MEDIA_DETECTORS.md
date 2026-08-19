@@ -30,3 +30,5 @@ Status: **SynthID verification unavailable through current public integration.**
 ## Runtime truth
 
 The repository contains a reproducible, authenticated sidecar contract and a registry-backed UniversalFakeDetect adapter. A detector is only called `active` after `/health`, `/version`, and a controlled `/v1/detect/image` inference prove that the model is loaded on the deployed runtime. Source integration alone is never treated as runtime activation.
+
+As of 2026-08-19, UniversalFakeDetect is active on the user's Windows i9-9900K CPU runtime behind a dedicated Cloudflare Tunnel. Production introspection reports the forensics service healthy, specialist detector active, and `specialistDevice=cpu`. This is an operational CPU host, not a GPU deployment; PC/tunnel outages must remain an explicit degraded mode.

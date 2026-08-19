@@ -49,8 +49,8 @@ Repository integration does not imply a remote GPU deployment. OAK production ac
 
 The deployment image now installs `requirements.lock` for a reproducible Python 3.11 dependency set. Model checkout/weights remain external deployment assets and are never committed with user data.
 
-Current environment audit on 2026-08-19 found no Docker CLI, no NVIDIA runtime, no remote forensics URL/token, and no available GPU-host deployment credential in the repository/runtime configuration. The official UniversalFakeDetect repository/checkpoint can be staged locally, but source checkout alone is not activation.
+Current production runtime on 2026-08-19 is a Windows i9-9900K CPU host exposed only through a dedicated Cloudflare Tunnel. UniversalFakeDetect loads from the official upstream checkout/checkpoint outside Git and `/version` reports `model_device=cpu`. Production Vercel is wired with `FACTCHECK_FORENSICS_URL` + `FACTCHECK_FORENSICS_TOKEN`; `/health` and controlled authenticated `/v1/detect/image` inference have passed through the public tunnel. No GPU acceleration is claimed.
 
-**SPECIALIST DETECTOR READY — REMOTE RUNTIME BLOCKED BY INFRASTRUCTURE** until a bounded host is provisioned and production environment variables target a successful controlled inference.
+Operational defaults for this host are `OAK_FORENSICS_MAX_CONCURRENT=1` and a 4 second detector timeout, based on measured warm CPU p95 around 1.25 seconds. If the PC/tunnel is unavailable, dashboard media analysis degrades explicitly instead of fabricating specialist evidence.
 
 SAFE is the leading second-detector evaluation candidate but is not registered for production because no controlled OAK bake-off currently demonstrates complementary value. AIDE/AI-GenBench/MediaEval/IAPL/PROBE/SIDA remain research or evaluation references under the license gate in `docs/FACTCHECK_MEDIA_DETECTORS.md`. SIDA/manipulation localization is deferred until a real localizer runs; OAK never generates synthetic heatmaps.

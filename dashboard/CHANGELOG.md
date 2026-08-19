@@ -24,6 +24,8 @@ All notable changes to the dashboard are recorded here.
 
 - Media model SSoT is `FACTCHECK_MEDIA_MODEL`, defaulting to `gemini-3.6-flash`; text/URL Fact Check keeps its existing model owner.
 - Image-authenticity verdicts are evidence-calibrated (`provenance_verified`, `likely_ai_generated`, `likely_manipulated`, `no_material_manipulation_detected`, `inconclusive`); confidence is evidence strength, not an AI-generation probability. Visual-only/weak-only AI conclusions now downgrade to `inconclusive` without trusted provenance or live specialist support.
+- Media request daily rate limits are now isolated per client instead of sharing one global daily bucket across the whole site; the per-minute client isolation remains unchanged.
+- UniversalFakeDetect is now live on the Windows i9-9900K CPU sidecar behind Cloudflare Tunnel; production introspection only reports `active` after `/health` and `/version` succeed.
 
 ## [0.3.1] - 2026-08-18
 
