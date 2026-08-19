@@ -104,6 +104,18 @@ class MediaForensicsTests(unittest.TestCase):
         self.assertEqual(present["state"], "present_unverified")
         self.assertEqual(absent["state"], "verification_error")
 
+    def test_sdk_manifest_not_found_maps_to_not_detected(self):
+        manifest_not_found = type("_C2paManifestNotFound", (Exception,), {})
+        missing = types.SimpleNamespace(
+            Context=FakeContext,
+            Reader=lambda *args, **kwargs: (_ for _ in ()).throw(manifest_not_found("no manifest")),
+        )
+        with patch.dict(sys.modules, {"c2pa": missing}):
+            result = app._c2pa(PNG_1X1, "image/png")
+        self.assertEqual(result["state"], "not_detected")
+        self.assertEqual(result["trust_chain"], "not_applicable")
+        self.assertNotIn("reason", result)
+
     def test_detector_runtime_missing_is_explicit_unavailable(self):
         with patch.object(app, "UNIVFD_REPO", ""), patch.object(app, "UNIVFD_CKPT", ""), patch.object(app, "_model", None), patch.object(app, "_transform", None), patch.object(app, "_model_error", None):
             result = app._detect_univfd(PNG_1X1)

@@ -248,12 +248,20 @@ def _c2pa(image_bytes: bytes, mime: str) -> dict[str, Any]:
             result["reason"] = reason
         return result
     except Exception as exc:
+        error_name = type(exc).__name__
+        if "ManifestNotFound" in error_name:
+            return {
+                "state": "not_detected",
+                "standard": "c2pa",
+                "trust_chain": "not_applicable",
+                "verifier_version": verifier_version,
+            }
         return {
             "state": "present_unverified" if marker else "verification_error",
             "standard": "c2pa" if marker else None,
             "trust_chain": "unknown",
             "verifier_version": verifier_version,
-            "reason": f"c2pa_reader:{type(exc).__name__}",
+            "reason": f"c2pa_reader:{error_name}",
         }
 
 
