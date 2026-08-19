@@ -3,3 +3,7 @@ Pillow>=10.4,<12
 torch>=2.2
 torchvision>=0.17
 numpy>=1.26
+ftfy>=6.3,<7
+regex>=2025.0
+tqdm>=4.66,<5
+setuptools>=70,<81

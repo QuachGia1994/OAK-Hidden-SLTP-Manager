@@ -110,6 +110,23 @@ class MediaForensicsTests(unittest.TestCase):
         self.assertEqual(result["status"], "unavailable")
         self.assertNotIn("raw_score", result)
 
+    def test_windows_runtime_defaults_to_loopback_cpu(self):
+        self.assertEqual(app.HOST, "127.0.0.1")
+        self.assertEqual(app.DEVICE, "cpu")
+
+    def test_version_reports_cpu_when_model_is_loaded_on_cpu(self):
+        server, thread = self.start_server()
+        try:
+            host, port = server.server_address
+            with patch.object(app, "_model", (object(), "cpu")):
+                with urllib.request.urlopen(f"http://{host}:{port}/version", timeout=2) as response:
+                    version = json.load(response)
+            self.assertEqual(version["model_device"], "cpu")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
     def test_detector_timeout_is_explicit_and_bounded(self):
         def slow_detector(_image):
             time.sleep(0.08)

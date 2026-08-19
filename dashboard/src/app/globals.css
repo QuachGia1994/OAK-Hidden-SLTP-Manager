@@ -157,6 +157,46 @@ body {
   .nav-shell { padding-inline: 1.5rem; }
 }
 
+/* Fact Check share — semantic separation between heading, public notice, and actions. */
+.oak-share-bar {
+  display: grid;
+  gap: .75rem;
+  min-width: 0;
+  margin-top: .9rem;
+}
+.oak-share-heading {
+  display: grid;
+  gap: .2rem;
+  min-width: 0;
+}
+.oak-share-heading > b,
+.oak-share-heading > span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.oak-share-heading > span {
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+.oak-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .55rem;
+  min-width: 0;
+}
+.oak-share-actions button {
+  min-width: 0;
+  max-width: 100%;
+}
+@media (max-width: 480px) {
+  .oak-share-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .oak-share-actions button { width: 100%; }
+}
 
 /* Tarot reflection */
 .tarot-screen { display: grid; gap: 1rem; }

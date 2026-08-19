@@ -34,9 +34,46 @@ function mediaFailure(code: string, locale: "VN" | "EN", status: number): NextRe
   return NextResponse.json({ ok: false, code, error: messages[locale] }, { status });
 }
 
+async function probeForensicsRuntime(): Promise<{
+  configured: boolean;
+  healthy: boolean;
+  detector: "active" | "configured_unavailable" | "unavailable";
+  c2pa: "active" | "configured_unavailable" | "runtime_not_activated";
+  modelDevice?: string;
+}> {
+  const baseUrl = (process.env.FACTCHECK_FORENSICS_URL || "").replace(/\/$/, "");
+  const token = process.env.FACTCHECK_FORENSICS_TOKEN || "";
+  if (!baseUrl || !token) {
+    return { configured: false, healthy: false, detector: "unavailable", c2pa: "runtime_not_activated" };
+  }
+  try {
+    const [healthResponse, versionResponse] = await Promise.all([
+      fetch(`${baseUrl}/health`, { cache: "no-store", signal: AbortSignal.timeout(3_500) }),
+      fetch(`${baseUrl}/version`, { cache: "no-store", signal: AbortSignal.timeout(3_500) }),
+    ]);
+    if (!healthResponse.ok || !versionResponse.ok) {
+      return { configured: true, healthy: false, detector: "configured_unavailable", c2pa: "configured_unavailable" };
+    }
+    const health = await healthResponse.json() as { runtime?: string; detectors?: Array<{ id?: string; status?: string }> };
+    const version = await versionResponse.json() as { model_device?: string };
+    const detectorReady = health.runtime === "ready"
+      && (health.detectors || []).some((item) => item.id === "universalfakedetect" && item.status === "ready");
+    return {
+      configured: true,
+      healthy: true,
+      detector: detectorReady ? "active" : "configured_unavailable",
+      c2pa: "active",
+      modelDevice: typeof version.model_device === "string" ? version.model_device : undefined,
+    };
+  } catch {
+    return { configured: true, healthy: false, detector: "configured_unavailable", c2pa: "configured_unavailable" };
+  }
+}
+
 export async function GET(request: Request) {
   const denied = requireBrowserOrApiAuth(request);
   if (denied) return denied;
+  const forensics = await probeForensicsRuntime();
   return NextResponse.json({
     ok: true,
     model: FACTCHECK_MEDIA_MODEL,
@@ -44,8 +81,11 @@ export async function GET(request: Request) {
     formats: ["jpeg", "png", "webp"],
     maxImageBytes: MAX_IMAGE_BYTES,
     rawImagePersistence: false,
-    c2pa: process.env.FACTCHECK_FORENSICS_URL && process.env.FACTCHECK_FORENSICS_TOKEN ? "forensics_service_verification" : "runtime_not_activated",
-    specialistDetector: process.env.FACTCHECK_FORENSICS_URL && process.env.FACTCHECK_FORENSICS_TOKEN ? "universalfakedetect_configured" : "unavailable",
+    forensicsConfigured: forensics.configured,
+    forensicsHealthy: forensics.healthy,
+    c2pa: forensics.c2pa,
+    specialistDetector: forensics.detector,
+    specialistDevice: forensics.modelDevice,
   });
 }
 

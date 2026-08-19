@@ -22,6 +22,8 @@ TOKEN = os.getenv("OAK_FORENSICS_TOKEN", "")
 UNIVFD_REPO = os.getenv("UNIVFD_REPO", "")
 UNIVFD_CKPT = os.getenv("UNIVFD_CKPT", "")
 PORT = int(os.getenv("PORT", "8787"))
+HOST = os.getenv("OAK_FORENSICS_HOST", "127.0.0.1")
+DEVICE = os.getenv("OAK_FORENSICS_DEVICE", "cpu").strip().lower()
 C2PA_TRUST_ANCHORS_PEM = os.getenv("C2PA_TRUST_ANCHORS_PEM", "")
 C2PA_TRUST_CONFIG = os.getenv("C2PA_TRUST_CONFIG", "")
 ENABLED_DETECTOR_IDS = tuple(
@@ -68,7 +70,11 @@ def _load_univfd() -> None:
             state_dict = torch.load(UNIVFD_CKPT, map_location="cpu", weights_only=True)
             model.fc.load_state_dict(state_dict)
             model.eval()
-            device = "cuda" if torch.cuda.is_available() else "cpu"
+            if DEVICE not in {"cpu", "cuda"}:
+                raise RuntimeError("unsupported_device")
+            if DEVICE == "cuda" and not torch.cuda.is_available():
+                raise RuntimeError("cuda_requested_but_unavailable")
+            device = DEVICE
             model.to(device)
             _model = (model, device)
             _transform = transforms.Compose([
@@ -331,7 +337,10 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            return
 
     def do_GET(self) -> None:
         if self.path == "/health":
@@ -406,7 +415,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
 
 
 if __name__ == "__main__":

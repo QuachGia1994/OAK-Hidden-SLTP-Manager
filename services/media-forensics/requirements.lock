@@ -3,3 +3,7 @@ Pillow==11.3.0
 torch==2.2.1
 torchvision==0.17.1
 numpy==1.26.4
+ftfy==6.3.1
+regex==2026.7.19
+tqdm==4.70.0
+setuptools==80.9.0

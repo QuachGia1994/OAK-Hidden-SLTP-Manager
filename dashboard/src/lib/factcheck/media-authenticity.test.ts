@@ -321,6 +321,14 @@ test("Detect AI Image is explicit in EN/VN while OCR intent remains separate", (
   assert.match(source, /imageClaims: "Kiểm tra nội dung trong ảnh"/);
 });
 
+test("share heading and public notice use structural layout instead of whitespace copy hacks", () => {
+  const css = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
+  const component = readFileSync(new URL("../../components/factcheck/FactCheckShareActions.tsx", import.meta.url), "utf8");
+  assert.match(component, /className="oak-share-heading"/);
+  assert.match(css, /\.oak-share-heading\s*\{[\s\S]*?display:\s*grid;[\s\S]*?gap:/);
+  assert.match(css, /\.oak-share-heading > b,[\s\S]*?\.oak-share-heading > span[\s\S]*?display:\s*block;/);
+});
+
 test("multi-detector agreement distinguishes aligned, mixed and insufficient", () => {
   const synthetic = { detectorId: "a", version: "1", status: "ok" as const, classification: "synthetic_signal" as const, strength: "moderate" as const, calibrationVersion: "1" };
   const synthetic2 = { ...synthetic, detectorId: "b" };
