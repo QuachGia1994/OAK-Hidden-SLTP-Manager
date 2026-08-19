@@ -32,6 +32,18 @@ export type Pattern5Day = {
   display: string;
 };
 
+export type Engine5AlertCode = "h3_reverse_signal" | "h3_normal_signal" | "sr_entry_at_11" | "consecutive_sr_stop" | "h15_armed" | "h15_inactive";
+export type Engine5Alert = {
+  id: string;
+  code: Engine5AlertCode;
+  block: number;
+  severity: "info" | "action" | "warning" | "stop";
+  actionable: boolean;
+  entryTime?: string;
+  causedByBlocks?: number[];
+};
+export type H15State = { active: boolean; calculated: boolean; activationReason: string };
+
 export type Pattern5Reference = {
   date: string;
   display: string;
@@ -48,6 +60,8 @@ export type Pattern5Table = {
   rows?: Record<string, Array<Pattern5Signal | "">>;
   detail?: Record<string, string[]>;
   h15Reference?: Pattern5Reference;
+  h15State?: Record<string, H15State>;
+  alerts?: Record<string, Engine5Alert[]>;
 };
 export type Pattern5Payload = {
   schemaVersion: number;
@@ -60,7 +74,7 @@ export type Pattern5Payload = {
   publishedAt?: string;
 };
 
-export const PATTERN5_PUBLIC_SCHEMA = 14;
+export const PATTERN5_PUBLIC_SCHEMA = 15;
 const LATEST_KEY = "robot-sltp:public:pattern5:latest";
 
 export function filterActivePattern5(payload: Pattern5Payload | null): Pattern5Payload | null {
@@ -88,6 +102,7 @@ export function maskFuturePattern5(payload: Pattern5Payload | null, today = viet
     tables: payload.tables.map((table) => {
       const days = table.days ?? [];
       const isFutureIndex = (index: number) => Boolean(days[index]?.date && days[index]!.date > today);
+      const futureDates = new Set(days.filter((day) => day.date > today).map((day) => day.date));
       return {
         ...table,
         rows: table.rows
@@ -101,6 +116,12 @@ export function maskFuturePattern5(payload: Pattern5Payload | null, today = viet
               block,
               items.map((item, index) => isFutureIndex(index) ? "" : item),
             ]))
+          : undefined,
+        alerts: table.alerts
+          ? Object.fromEntries(Object.entries(table.alerts).filter(([date]) => !futureDates.has(date)))
+          : undefined,
+        h15State: table.h15State
+          ? Object.fromEntries(Object.entries(table.h15State).filter(([date]) => !futureDates.has(date)))
           : undefined,
       };
     }),

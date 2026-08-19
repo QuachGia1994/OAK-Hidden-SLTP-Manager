@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity as ActivityIcon, Bot, CalendarClock, Check, CircleDot, Clock3, Eye, EyeOff, Home, Languages, Palette, Paperclip, Plus, Radio, Save, Send, Settings2, Target, Trash2, TrendingUp, UserRound, Wifi, X } from 'lucide-react';
 import { desktopBackend, type ProfileDraft } from './backend-client';
-import type { Activity, NavKey, Pattern5Payload, PatternCandle, PatternCell, PendingTask, Position, Profile, RuntimeHealth } from './types';
+import type { Activity, Engine5Alert, NavKey, Pattern5Payload, PatternCandle, PatternCell, PendingTask, Position, Profile, RuntimeHealth } from './types';
 
 const fallbackProfiles: Profile[] = [];
 
@@ -56,6 +56,10 @@ const UI_COPY = {
 } as const;
 
 type UiCopy = (typeof UI_COPY)[AppLanguage];
+const ENGINE5_ALERT_COPY: Record<AppLanguage, Record<Engine5Alert['code'], string>> = {
+  vi: { h3_reverse_signal: 'Đảo ngược tín hiệu', h3_normal_signal: 'Tín hiệu bình thường', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'NGƯNG GIAO DỊCH', h15_armed: 'H15 kích hoạt bởi H12', h15_inactive: 'H15 không kích hoạt' },
+  en: { h3_reverse_signal: 'Reverse signal', h3_normal_signal: 'Normal signal', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'STOP TRADING', h15_armed: 'H15 activated by H12', h15_inactive: 'H15 inactive' }
+};
 const THEME_OPTIONS: AppTheme[] = ['dark', 'deep-sea', 'light', 'amber'];
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
@@ -434,7 +438,7 @@ function App() {
         {active === 'sltp' && <SltpSettings {...{ selectedProfile, autoSltp, setAutoSltp, beR, setBeR, tpR, setTpR, saveSltp, ui }} />}
         {active === 'telegram' && <TelegramPanel {...{ telegramCommand, setTelegramCommand, sendTelegram, runtimeHealth, runtimeStarting, startRuntime, pendingTasks, pendingLoading, deletePendingTask, ui }} />}
         {active === 'netting' && <NettingPanel {...{ positions, nettingTime, setNettingTime, nettingMode, setNettingMode, nettingSymbol, setNettingSymbol, nettingEnabled, setNettingEnabled, scheduleNetting, pendingTasks, pendingLoading, deletePendingTask, ui }} />}
-        {active === 'pattern5' && <Pattern5Panel data={pattern5} loading={pattern5Loading} mt5Connected={mt5Connected} onRefresh={() => selectedProfile && refreshPattern5(selectedProfile.name, true)} ui={ui} />}
+        {active === 'pattern5' && <Pattern5Panel data={pattern5} loading={pattern5Loading} mt5Connected={mt5Connected} onRefresh={() => selectedProfile && refreshPattern5(selectedProfile.name, true)} ui={ui} language={language} />}
 
         <footer className="footer-bar"><div><Wifi size={17} /><span>MT5</span><b className={mt5Connected ? 'status-ok' : 'status-bad'}>{mt5Connected ? ui.connected : ui.offline}</b></div><div><Radio size={17} /><span>Server</span><b>{selectedProfile.server || '—'}</b></div><div><ActivityIcon size={17} /><span>{ui.worker}</span><b className={runtimeHealth?.worker.running ? 'status-ok' : 'status-bad'}>{runtimeHealth?.worker.running ? ui.connected : ui.offline}</b></div><div><Send size={17} /><span>Telegram</span><b className={runtimeHealth?.telegram.running ? 'status-ok' : 'status-bad'}>{runtimeHealth?.telegram.running ? ui.connected : ui.offline}</b></div><div className="footer-copy">OAK Gatekeeper · <strong>ROBOT SLTP PRO</strong></div></footer>
       </main>
@@ -620,9 +624,19 @@ function PatternEvidenceModal({ selection, onClose, ui }: { selection: PatternEv
   return <div className="modal-backdrop pattern5-evidence-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={dialogRef} className="pattern5-evidence-modal" role="dialog" aria-modal="true" aria-label={`${ui.evidenceTitle} · ${selection.title}`}><div className="modal-head"><div><b>{ui.evidenceTitle} · {selection.title}</b><small>{ui.evidenceHint}</small></div><button onClick={onClose} aria-label={ui.close}><X size={18} /></button></div><div className="pattern5-evidence-summary"><span>Base <b>{selection.cell.baseSignal}</b></span><span className={selection.cell.reversed ? 'reverse-on' : ''}>{selection.cell.reversed ? 'REVERSE' : 'NORMAL'} → <b>{selection.cell.signal}</b></span><span>{selection.cell.group} · {selection.cell.pattern}</span></div><CandleEvidenceChart candles={selection.cell.evidence} /><div className="pattern5-ohlc-grid"><div className="pattern5-ohlc-head"><span>Candle</span><span>Open</span><span>High</span><span>Low</span><span>Close</span></div>{selection.cell.evidence.map((candle, index) => { const digits = candleDecimals(candle.close); return <div className="pattern5-ohlc-row" key={`${candle.time}-${index}`}><b>#{index + 1}</b><span>{candle.open.toFixed(digits)}</span><span>{candle.high.toFixed(digits)}</span><span>{candle.low.toFixed(digits)}</span><span>{candle.close.toFixed(digits)}</span></div>; })}</div><div className="pattern5-evidence-detail">{selection.detail}</div></section></div>;
 }
 
-function Pattern5Panel({ data, loading, mt5Connected, onRefresh, ui }: { data: Pattern5Payload | null; loading: boolean; mt5Connected: boolean; onRefresh: () => void; ui: UiCopy }) {
+function DesktopAlertState({ data, language }: { data: Pattern5Payload; language: AppLanguage }) {
+  const table = data.tables[0];
+  if (!table?.alerts) return null;
+  const day = Object.keys(table.alerts).sort().at(-1);
+  if (!day) return null;
+  const alerts = table.alerts[day] ?? [];
+  const dayIndex = table.days?.findIndex((item) => item.date === day) ?? -1;
+  return <div className="pattern5-alerts"><div className="pattern5-alerts-head"><b>{language === 'vi' ? 'CẢNH BÁO' : 'ALERTS'}</b><span>{table.base} · {day}</span></div>{data.blocks.map((block) => { const primary = alerts.find((item) => item.block === block); const signal = dayIndex >= 0 ? table.rows?.[String(block)]?.[dayIndex] : ''; return <div className="pattern5-alert-row" key={block} data-severity={primary?.severity || 'info'}><b>H{block}</b><span>{signal && typeof signal !== 'string' ? `${signal.group} · ${signal.pattern}` : '—'}</span><strong>{primary ? ENGINE5_ALERT_COPY[language][primary.code] : (language === 'vi' ? 'Theo dõi' : 'Watch')}</strong><em>{primary?.entryTime || '—'}</em></div>; })}</div>;
+}
+
+function Pattern5Panel({ data, loading, mt5Connected, onRefresh, ui, language }: { data: Pattern5Payload | null; loading: boolean; mt5Connected: boolean; onRefresh: () => void; ui: UiCopy; language: AppLanguage }) {
   const scope = data ? `${data.tables.map((table) => table.base).join(' · ')} · ${data.blocks.map((block) => `H${block}`).join(' / ')}` : 'ENGINE 5';
-  return <div className="feature-layout single pattern5-layout"><Panel title="ENGINE 5 · PATTERN MATRIX" icon={<ActivityIcon size={20} />} className="pattern5-panel"><div className="pattern5-toolbar"><div className="pattern5-command-copy"><b>H4 BROKER-TIME</b><span>{scope}</span></div><span className={`pattern5-status ${mt5Connected ? 'connected' : 'offline'}`}><span className="dot" /> MT5 {mt5Connected ? ui.connected : ui.offline}</span><button className="primary-button pattern5-refresh" onClick={onRefresh} disabled={loading}><Radio size={17} /> {loading ? ui.refreshing : ui.refresh}</button></div><details className="pattern5-rules"><summary>{ui.evidenceClickHint}</summary><div className="pattern5-rule-stack"><div><b>Lookback:</b> {ui.patternHint}</div><div><b>Reverse:</b> {ui.reverseHint}</div></div></details><div className="pattern5-content">{!data && !loading && <div className="pattern5-empty">{ui.patternEmpty}</div>}{loading && <div className="pattern5-empty">{ui.patternLoading}</div>}{data?.tables.map((table) => <Pattern5TableView key={table.base} table={table} blocks={data.blocks} ui={ui} />)}</div></Panel></div>;
+  return <div className="feature-layout single pattern5-layout"><Panel title="ENGINE 5 · PATTERN MATRIX" icon={<ActivityIcon size={20} />} className="pattern5-panel"><div className="pattern5-toolbar"><div className="pattern5-command-copy"><b>H4 BROKER-TIME</b><span>{scope}</span></div><span className={`pattern5-status ${mt5Connected ? 'connected' : 'offline'}`}><span className="dot" /> MT5 {mt5Connected ? ui.connected : ui.offline}</span><button className="primary-button pattern5-refresh" onClick={onRefresh} disabled={loading}><Radio size={17} /> {loading ? ui.refreshing : ui.refresh}</button></div><details className="pattern5-rules"><summary>{ui.evidenceClickHint}</summary><div className="pattern5-rule-stack"><div><b>Lookback:</b> {ui.patternHint}</div><div><b>Reverse:</b> {ui.reverseHint}</div></div></details>{data && <DesktopAlertState data={data} language={language} />}<div className="pattern5-content">{!data && !loading && <div className="pattern5-empty">{ui.patternEmpty}</div>}{loading && <div className="pattern5-empty">{ui.patternLoading}</div>}{data?.tables.map((table) => <Pattern5TableView key={table.base} table={table} blocks={data.blocks} ui={ui} />)}</div></Panel></div>;
 }
 
 function Pattern5TableView({ table, blocks, ui }: { table: Pattern5Payload['tables'][number]; blocks: number[]; ui: UiCopy }) {

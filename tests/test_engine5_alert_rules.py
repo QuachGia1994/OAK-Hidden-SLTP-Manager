@@ -1,0 +1,125 @@
+import sys
+import unittest
+from datetime import date, datetime
+from pathlib import Path
+from unittest.mock import patch
+
+APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
+sys.path.insert(0, str(APP))
+
+import pattern5_engine as e
+
+
+def cell(group: str):
+    return {"group": group, "pattern": "T G T G", "signal": "BUY", "baseSignal": "SELL", "reversed": False, "evidence": []}
+
+
+def rows(groups):
+    result = {block: [""] * 5 for block in e.BLOCKS}
+    for block, group in groups.items():
+        result[block][0] = cell(group)
+    return result
+
+
+class Engine5AlertRuleTests(unittest.TestCase):
+    def test_h3_asset_policy_is_explicit_and_unknown_is_unconfigured(self):
+        self.assertEqual(e.h3_asset_policy("GBPUSD"), "reverse")
+        self.assertEqual(e.h3_asset_policy("AUDUSD"), "reverse")
+        self.assertEqual(e.h3_asset_policy("USDCAD"), "reverse")
+        self.assertEqual(e.h3_asset_policy("USDJPY"), "normal")
+        self.assertEqual(e.h3_asset_policy("XAUUSD"), "normal")
+        self.assertIsNone(e.h3_asset_policy("EURUSD"))
+        for symbol, code in (("GBPUSD", "h3_reverse_signal"), ("AUDUSD", "h3_reverse_signal"), ("USDCAD", "h3_reverse_signal"), ("USDJPY", "h3_normal_signal"), ("XAUUSD", "h3_normal_signal")):
+            alerts = e.evaluate_alert_state(symbol, date(2026, 8, 19), rows({3: "Bt"}), 0, False, eligible_blocks={3})
+            self.assertEqual([a["code"] for a in alerts], [code])
+
+    def test_sr_entry_reminder_derives_block_hour_plus_minute_11(self):
+        expected = {3: "03:11", 6: "06:11", 9: "09:11", 12: "12:11", 15: "15:11"}
+        for block, entry_time in expected.items():
+            groups = {candidate: "Bt" for candidate in e.BLOCKS}
+            groups[block] = "Sr"
+            alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), rows(groups), 0, True)
+            entry = [a for a in alerts if a["code"] == "sr_entry_at_11" and a["block"] == block]
+            self.assertEqual([a["entryTime"] for a in entry], [entry_time])
+
+    def test_h3_h6_consecutive_sr_stops_h9_and_later_not_second_sr(self):
+        data = rows({3: "Sr", 6: "Sr", 9: "Bt", 12: "Sw", 15: "Bt"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
+        stop_blocks = [a["block"] for a in alerts if a["code"] == "consecutive_sr_stop"]
+        entry_blocks = [a["block"] for a in alerts if a["code"] == "sr_entry_at_11"]
+        self.assertEqual(entry_blocks, [3, 6])
+        self.assertEqual(stop_blocks, [9, 12, 15])
+
+    def test_non_consecutive_sr_does_not_latch_stop(self):
+        data = rows({3: "Sr", 6: "Bt", 9: "Sr", 12: "Sw", 15: "Bt"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
+        self.assertFalse(any(a["code"] == "consecutive_sr_stop" for a in alerts))
+
+    def test_h6_h9_consecutive_sr_stops_h12_onward(self):
+        data = rows({3: "Bt", 6: "Sr", 9: "Sr", 12: "Bt", 15: "Bt"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
+        self.assertEqual([a["block"] for a in alerts if a["code"] == "consecutive_sr_stop"], [12, 15])
+
+    def test_h9_h12_sr_arms_h15_but_stop_precedence_wins_operationally(self):
+        data = rows({3: "Bt", 6: "Sw", 9: "Sr", 12: "Sr", 15: "Sr"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
+        h12 = [a for a in alerts if a["block"] == 12]
+        h15 = [a for a in alerts if a["block"] == 15]
+        self.assertTrue(any(a["code"] == "h15_armed" for a in h12))
+        self.assertTrue(any(a["code"] == "sr_entry_at_11" for a in h12))
+        self.assertEqual(h15[0]["code"], "consecutive_sr_stop")
+        self.assertFalse(any(a["code"] == "sr_entry_at_11" for a in h15))
+
+    def test_daily_replay_resets_stop_latch(self):
+        stopped = e.evaluate_alert_state("GBPUSD", date(2026, 8, 18), rows({3: "Sr", 6: "Sr", 9: "Bt"}), 0, False)
+        fresh = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), rows({3: "Bt", 6: "Sw"}), 0, False)
+        self.assertTrue(any(a["code"] == "consecutive_sr_stop" for a in stopped))
+        self.assertFalse(any(a["code"] == "consecutive_sr_stop" for a in fresh))
+
+    def test_h15_inactive_is_typed_state_not_fake_signal(self):
+        data = rows({3: "Bt", 6: "Sw", 9: "Bt", 12: "Bt"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, False)
+        h15 = [a for a in alerts if a["block"] == 15]
+        self.assertEqual([a["code"] for a in h15], ["h15_inactive"])
+        self.assertEqual(data[15][0], "")
+
+    def test_stop_precedence_overrides_h15_inactive(self):
+        data = rows({3: "Sr", 6: "Sr", 9: "Bt", 12: "Bt"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, False)
+        h15 = [a for a in alerts if a["block"] == 15]
+        self.assertEqual([a["code"] for a in h15], ["consecutive_sr_stop"])
+
+    def test_h15_gate_only_calculates_for_h12_sw_or_sr(self):
+        for h12_group, expected in (("Sw", True), ("Sr", True), ("Bt", False)):
+            calls = []
+            def fake_cell(_symbol, _day, hour, _offset, provider=None):
+                calls.append(hour)
+                group = h12_group if hour == 12 else "Bt"
+                return cell(group), group
+            with patch("pattern5_engine.broker_day_offset", return_value=0), patch("pattern5_engine.build_signal_cell", side_effect=fake_cell):
+                _days, out_rows, _detail = e.build_table("GBPUSD", date(2026, 8, 17), as_of=date(2026, 8, 17))
+            self.assertEqual(15 in calls, expected)
+            self.assertEqual(bool(out_rows[15][0]), expected)
+
+    def test_future_eligible_blocks_emit_no_alerts(self):
+        data = rows({3: "Sr", 6: "Sr", 9: "Bt", 12: "Bt"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, False, eligible_blocks={3, 6})
+        self.assertFalse(any(a["block"] in {9, 12, 15} for a in alerts))
+
+    def test_current_day_does_not_calculate_future_h12_or_h15(self):
+        calls = []
+        def fake_cell(_symbol, day_value, hour, _offset, provider=None):
+            calls.append((day_value, hour))
+            return cell("Sw"), "Sw"
+        now = datetime(2026, 8, 19, 10, 0, tzinfo=e.VIETNAM_TZ)
+        with patch("pattern5_engine.vietnam_now", return_value=now), patch("pattern5_engine.broker_day_offset", return_value=0), patch("pattern5_engine.build_signal_cell", side_effect=fake_cell):
+            _days, out_rows, _detail = e.build_table("GBPUSD", date(2026, 8, 17))
+        self.assertIn((date(2026, 8, 19), 9), calls)
+        self.assertNotIn((date(2026, 8, 19), 12), calls)
+        self.assertNotIn((date(2026, 8, 19), 15), calls)
+        self.assertEqual(out_rows[12][2], "")
+        self.assertEqual(out_rows[15][2], "")
+
+
+if __name__ == "__main__":
+    unittest.main()

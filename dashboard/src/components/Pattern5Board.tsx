@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
+import type { Engine5Alert, Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
 
 type Locale = "EN" | "VN";
 type VipAccessView = {
@@ -108,6 +108,55 @@ function summarizeSignals(table: Pattern5Table, blocks: number[], dayIndex: numb
   return { buy, sell, reverse, locked };
 }
 
+const ALERT_COPY: Record<Locale, Record<Engine5Alert["code"], string>> = {
+  EN: {
+    h3_reverse_signal: "Reverse signal",
+    h3_normal_signal: "Normal signal",
+    sr_entry_at_11: "Entry",
+    consecutive_sr_stop: "STOP TRADING",
+    h15_armed: "H15 activated by H12",
+    h15_inactive: "H15 inactive",
+  },
+  VN: {
+    h3_reverse_signal: "Đảo ngược tín hiệu",
+    h3_normal_signal: "Tín hiệu bình thường",
+    sr_entry_at_11: "Entry",
+    consecutive_sr_stop: "NGƯNG GIAO DỊCH",
+    h15_armed: "H15 được kích hoạt bởi H12",
+    h15_inactive: "H15 không kích hoạt",
+  },
+};
+
+function AlertTable({ table, day, blocks, locale }: { table: Pattern5Table; day: DayState | null; blocks: number[]; locale: Locale }) {
+  if (!day) return null;
+  const alerts = table.alerts?.[day.date] ?? [];
+  const byBlock = new Map<number, Engine5Alert[]>();
+  for (const alert of alerts) byBlock.set(alert.block, [...(byBlock.get(alert.block) ?? []), alert]);
+  const copy = locale === "EN"
+    ? { title: "Alerts", block: "Block", state: "Group / Pattern", policy: "Policy", timing: "Timing", status: "Status", none: "Watch" }
+    : { title: "Cảnh báo", block: "Block", state: "Nhóm / Pattern", policy: "Chính sách", timing: "Thời điểm", status: "Trạng thái", none: "Theo dõi" };
+  return <section className="oak-alert-panel" aria-label={copy.title}>
+    <header><span className="oak-eyebrow">ENGINE5 ALERTS</span><b>{copy.title}</b><small>{table.base} · {day.label} {day.display}</small></header>
+    <div className="oak-alert-table" role="table">
+      <div className="oak-alert-row oak-alert-head" role="row"><span>{copy.block}</span><span>{copy.state}</span><span>{copy.policy}</span><span>{copy.timing}</span><span>{copy.status}</span></div>
+      {blocks.map((block) => {
+        const signal = table.rows?.[String(block)]?.[day.index] ?? "";
+        const blockAlerts = byBlock.get(block) ?? [];
+        const primary = blockAlerts[0];
+        const policy = blockAlerts.find((item) => item.code === "h3_reverse_signal" || item.code === "h3_normal_signal" || item.code === "h15_armed" || item.code === "h15_inactive");
+        const timing = blockAlerts.find((item) => item.entryTime)?.entryTime;
+        return <div className="oak-alert-row" role="row" key={block} data-severity={primary?.severity ?? "info"}>
+          <b>H{block}</b>
+          <span>{signal ? <><strong>{signal.group}</strong><small>{signal.pattern}</small></> : "—"}</span>
+          <span>{policy ? ALERT_COPY[locale][policy.code] : "—"}</span>
+          <span>{timing ?? "—"}</span>
+          <strong>{primary ? ALERT_COPY[locale][primary.code] : copy.none}</strong>
+        </div>;
+      })}
+    </div>
+  </section>;
+}
+
 function CandleChart({ candles }: { candles: Pattern5Candle[] }) {
   if (!candles.length) return null;
   const high = Math.max(...candles.map((item) => item.high));
@@ -143,7 +192,7 @@ function Cell({ signal, onEvidence }: { signal: Pattern5Signal | ""; onEvidence:
 function PairTable({ table, blocks, today, locale, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; locale: Locale; onEvidence: (selection: EvidenceSelection) => void }) {
   if (table.error) return <section className="oak-pair-card oak-pair-error"><strong>{table.base}</strong><span>{table.error}</span></section>;
   const days = table.days ?? [];
-  const h15Reference = formatH15Reference(table, locale);
+  const h15Reference = table.h15State?.[today]?.active === false ? null : formatH15Reference(table, locale);
   return (
     <section className="oak-pair-card">
       <header className="oak-pair-header">
@@ -314,6 +363,8 @@ export function Pattern5Board({ data, locale, access }: { data: Pattern5Payload 
         <div className="oak-mobile-workspace-head"><div><span className="oak-eyebrow">{copy.current}</span>{activeDay && <b>{activeDay.label} · {activeDay.display}</b>}</div><div className="oak-pair-switcher">{tables.map((table) => <button key={table.base} type="button" data-active={table.base === activeTable?.base ? "true" : undefined} onClick={() => setSelectedPair(table.base)}>{table.base}</button>)}</div></div>
         {activeTable && <MobileSignalWorkspace table={activeTable} blocks={data.blocks} today={today} locale={locale} onEvidence={setSelection} />}
       </section>
+
+      {activeTable && <AlertTable table={activeTable} day={activeDay} blocks={data.blocks} locale={locale} />}
 
       <div className="oak-desktop-matrix"><div className="oak-pair-grid">{tables.map((table) => <PairTable key={table.base} table={table} blocks={data.blocks} today={today} locale={locale} onEvidence={setSelection} />)}</div></div>
 

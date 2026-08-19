@@ -531,6 +531,13 @@ color: var(--oak-accent-command); border-bottom-color: color-mix(in srgb, var(--
 .pattern5-rules[open] summary { border-bottom: 1px solid var(--oak-border-soft); color: var(--oak-fg-primary); }
 .pattern5-rules .pattern5-rule-stack { padding: 7px 9px; color: var(--oak-fg-muted); font-size: 10px; }
 .pattern5-rules .pattern5-rule-stack b { color: var(--oak-fg-primary); }
+.pattern5-alerts { flex: 0 0 auto; margin: 0 0 7px; border: 1px solid var(--oak-border); border-radius: var(--oak-radius-sm); overflow: hidden; }
+.pattern5-alerts-head { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-bottom: 1px solid var(--oak-border); background: var(--oak-bg-raised); font-size: 10px; }
+.pattern5-alerts-head b { color: var(--oak-fg-primary); }.pattern5-alerts-head span { margin-left: auto; color: var(--oak-fg-muted); }
+.pattern5-alert-row { display: grid; grid-template-columns: 48px minmax(120px,1fr) minmax(150px,1fr) 70px; gap: 8px; align-items: center; min-height: 30px; padding: 5px 9px; border-top: 1px solid var(--oak-border-soft); font-size: 10px; }
+.pattern5-alert-row:first-of-type { border-top: 0; }
+.pattern5-alert-row > b { color: var(--oak-accent-command); }.pattern5-alert-row > span { color: var(--oak-fg-muted); }.pattern5-alert-row > em { color: var(--oak-fg-muted); font-style: normal; font-family: "SFMono-Regular", Consolas, monospace; }
+.pattern5-alert-row[data-severity="action"] > strong { color: var(--oak-accent-command); }.pattern5-alert-row[data-severity="warning"] > strong { color: var(--oak-warning); }.pattern5-alert-row[data-severity="stop"] { border-left: 3px solid var(--oak-danger); background: color-mix(in srgb, var(--oak-danger) 8%, var(--oak-bg-surface)); }.pattern5-alert-row[data-severity="stop"] > strong { color: var(--oak-danger); font-weight: 900; }
 .pattern5-table thead th, .pattern5-table tbody th { background: var(--oak-bg-raised); }
 .pattern5-evidence-modal, .profile-modal { border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow); }
 .pattern5-candle.up line, .pattern5-candle.up rect { stroke: var(--oak-signal-buy); fill: color-mix(in srgb, var(--oak-signal-buy) 28%, transparent); }

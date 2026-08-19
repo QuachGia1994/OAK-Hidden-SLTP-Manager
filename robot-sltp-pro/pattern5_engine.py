@@ -16,6 +16,7 @@ from market_data_provider import MT5MarketDataProvider, MarketDataProvider
 from services.mt5_terminal_service import ensure_mt5_profile_connected
 
 SYMBOL_SCOPE_PATH = Path(__file__).resolve().parent.parent / "dashboard" / "engine5-symbols.json"
+ALERT_RULES_PATH = Path(__file__).resolve().parent.parent / "dashboard" / "engine5-alert-rules.json"
 
 
 def _load_symbol_scope() -> dict[str, list[str]]:
@@ -33,11 +34,19 @@ ENGINE5_SYMBOL_SCOPE = _load_symbol_scope()
 ENGINE5_ACTIVE_SYMBOLS = ENGINE5_SYMBOL_SCOPE["active"]
 ENGINE5_TEMPORARILY_DISABLED_SYMBOLS = ENGINE5_SYMBOL_SCOPE["temporarilyDisabled"]
 WATCHLIST = ENGINE5_ACTIVE_SYMBOLS
+ALERT_RULES = json.loads(ALERT_RULES_PATH.read_text(encoding="utf-8"))
+H3_ASSET_DIRECTION_POLICY = {str(key).upper(): str(value).lower() for key, value in ALERT_RULES["h3AssetDirectionPolicy"].items()}
+ENTRY_REMINDER_MINUTE = int(ALERT_RULES["entryReminderMinute"])
+CONSECUTIVE_SR_STOP_COUNT = int(ALERT_RULES["consecutiveSrStopCount"])
+H15_ACTIVATION_GROUPS = {str(item) for item in ALERT_RULES["h15ActivationGroups"]}
+ALERT_PRECEDENCE = {str(code): index for index, code in enumerate(ALERT_RULES["precedence"])}
+CORE_BLOCKS = [int(item) for item in ALERT_RULES["coreBlocks"]]
+H15_BLOCK = int(ALERT_RULES["conditionalBlock"])
+BLOCKS = [*CORE_BLOCKS, H15_BLOCK]
 CACHE_PATH = Path(__file__).resolve().parent / "pattern5_cache.json"
 CACHE_MAX_AGE_SECONDS = 300
 T, G = "T", "G"
 ANCHOR_HOUR = {3: 4, 6: 8, 9: 12, 12: 16, 15: 20}
-BLOCKS = [3, 6, 9, 12, 15]
 DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6"]
 DAY0 = date(1970, 1, 1)
 CURRENCY = {"USD", "EUR", "GBP", "JPY", "AUD", "CAD", "CHF", "NZD", "XAU", "XAG"}
@@ -51,8 +60,8 @@ CLASSES = {
 }
 PATTERN_GROUP = {1: "Sw", 2: "Sw", 3: "Bt", 4: "Bt", 5: "Sr"}
 BASE_SIGNAL_BEHAVIOR = {"Sw": "reverse", "Bt": "follow", "Sr": "reverse"}
-CACHE_SCHEMA = 14
-PUBLIC_FEED_SCHEMA = 14
+CACHE_SCHEMA = 15
+PUBLIC_FEED_SCHEMA = 15
 VIETNAM_TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 LOGGER = logging.getLogger(__name__)
 
@@ -228,8 +237,85 @@ def monday_of(day: date) -> date:
     return day - timedelta(days=day.weekday())
 
 
+def vietnam_now() -> datetime:
+    return datetime.now(VIETNAM_TZ)
+
+
 def vietnam_today() -> date:
-    return datetime.now(VIETNAM_TZ).date()
+    return vietnam_now().date()
+
+
+def h3_asset_policy(symbol: str) -> str | None:
+    core = _core(symbol)
+    matches = [asset for asset in H3_ASSET_DIRECTION_POLICY if asset in core]
+    if len(matches) != 1:
+        return None
+    return H3_ASSET_DIRECTION_POLICY[matches[0]]
+
+
+def _alert_id(day: date, symbol: str, block: int, code: str) -> str:
+    return f"{day.isoformat()}:{_core(symbol)}:H{block}:{code}"
+
+
+def _alert(day: date, symbol: str, block: int, code: str, severity: str, actionable: bool, **extra: Any) -> dict[str, Any]:
+    return {"id": _alert_id(day, symbol, block, code), "code": code, "block": block, "severity": severity, "actionable": actionable, **extra}
+
+
+def evaluate_alert_state(
+    symbol: str,
+    day: date,
+    rows: dict[int, list[Any]],
+    day_index: int,
+    h15_active: bool,
+    eligible_blocks: set[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Pure replay of advisory Engine5 alerts for one trading day."""
+    alerts: list[dict[str, Any]] = []
+    previous_group: str | None = None
+    previous_block: int | None = None
+    consecutive_sr = 0
+    stop_latched = False
+    stop_cause: list[int] = []
+    allowed = eligible_blocks if eligible_blocks is not None else set(BLOCKS)
+    for block in BLOCKS:
+        if block not in allowed:
+            continue
+        if stop_latched:
+            alerts.append(_alert(day, symbol, block, "consecutive_sr_stop", "stop", False, causedByBlocks=list(stop_cause)))
+            continue
+        if block == H15_BLOCK and not h15_active:
+            alerts.append(_alert(day, symbol, block, "h15_inactive", "info", False))
+            continue
+        cell = rows.get(block, [""] * 5)[day_index]
+        if not cell:
+            continue
+        group = str(cell.get("group") or "")
+        block_alerts: list[dict[str, Any]] = []
+        if group == "Sr":
+            block_alerts.append(_alert(day, symbol, block, "sr_entry_at_11", "action", True, entryTime=f"{block:02d}:{ENTRY_REMINDER_MINUTE:02d}"))
+        if block == 3:
+            policy = h3_asset_policy(symbol)
+            if policy == "reverse":
+                block_alerts.append(_alert(day, symbol, block, "h3_reverse_signal", "warning", True))
+            elif policy == "normal":
+                block_alerts.append(_alert(day, symbol, block, "h3_normal_signal", "info", True))
+        if block == 12 and h15_active:
+            block_alerts.append(_alert(day, symbol, block, "h15_armed", "info", False, causedByBlocks=[12]))
+        block_alerts.sort(key=lambda item: ALERT_PRECEDENCE.get(str(item["code"]), 999))
+        alerts.extend(block_alerts)
+
+        if group == "Sr" and previous_group == "Sr":
+            consecutive_sr += 1
+            if consecutive_sr >= CONSECUTIVE_SR_STOP_COUNT:
+                stop_latched = True
+                stop_cause = [int(previous_block or block), block]
+        elif group == "Sr":
+            consecutive_sr = 1
+        else:
+            consecutive_sr = 0
+        previous_group = group
+        previous_block = block
+    return alerts
 
 
 def build_signal_cell(
@@ -276,7 +362,8 @@ def build_table(
     as_of: date | None = None,
     provider: MarketDataProvider | None = None,
 ) -> tuple[list[date], dict[int, list[Any]], dict[int, list[str]]]:
-    current_day = as_of or vietnam_today()
+    now = vietnam_now()
+    current_day = as_of or now.date()
     week = week_start or monday_of(current_day)
     days = [week + timedelta(days=index) for index in range(5)]
     offset = broker_day_offset(symbol, provider=provider)
@@ -285,11 +372,42 @@ def build_table(
     for day_index, day in enumerate(days):
         if day > current_day:
             continue
-        for hour in BLOCKS:
+        current_day_hour_limit = now.hour if as_of is None and day == current_day else 23
+        for hour in CORE_BLOCKS:
+            if hour > current_day_hour_limit:
+                continue
             cell, cell_detail = build_signal_cell(symbol, day, hour, offset, provider=provider)
             rows[hour][day_index] = cell
             detail[hour][day_index] = cell_detail
+        h12 = rows[12][day_index]
+        h15_active = bool(h12 and str(h12.get("group") or "") in H15_ACTIVATION_GROUPS)
+        if h15_active and H15_BLOCK <= current_day_hour_limit:
+            cell, cell_detail = build_signal_cell(symbol, day, H15_BLOCK, offset, provider=provider)
+            rows[H15_BLOCK][day_index] = cell
+            detail[H15_BLOCK][day_index] = cell_detail
     return days, rows, detail
+
+
+def build_operational_state(symbol: str, days: list[date], rows: dict[int, list[Any]]) -> tuple[dict[str, Any], dict[str, list[dict[str, Any]]]]:
+    now = vietnam_now()
+    h15_states: dict[str, Any] = {}
+    alerts: dict[str, list[dict[str, Any]]] = {}
+    for index, day in enumerate(days):
+        if day > now.date():
+            continue
+        h12 = rows.get(12, [""] * len(days))[index]
+        if not h12:
+            continue
+        group = str(h12.get("group") or "")
+        active = group in H15_ACTIVATION_GROUPS
+        h15_states[day.isoformat()] = {
+            "active": active,
+            "calculated": bool(rows.get(H15_BLOCK, [""] * len(days))[index]),
+            "activationReason": f"h12_{group.lower()}" if active else "h12_bt",
+        }
+        eligible = set(BLOCKS if day < now.date() else [block for block in BLOCKS if block <= now.hour or block == H15_BLOCK])
+        alerts[day.isoformat()] = evaluate_alert_state(symbol, day, rows, index, active, eligible_blocks=eligible)
+    return h15_states, alerts
 
 
 def build_h15_reference(
@@ -312,7 +430,9 @@ def build_h15_reference(
         reference_cell = signals[reference_index]
     else:
         offset = broker_day_offset(symbol, provider=provider)
-        reference_cell, _detail = build_signal_cell(symbol, reference_day, 15, offset, provider=provider)
+        h12_cell, _h12_detail = build_signal_cell(symbol, reference_day, 12, offset, provider=provider)
+        if h12_cell and str(h12_cell.get("group") or "") in H15_ACTIVATION_GROUPS:
+            reference_cell, _detail = build_signal_cell(symbol, reference_day, H15_BLOCK, offset, provider=provider)
     if not reference_cell:
         return None
     return {
@@ -378,11 +498,14 @@ def render_profile_with_provider(
             tables.append({"base": base, "symbol": None, "error": "KHONG TIM THAY SYMBOL BROKER"})
             continue
         days, rows, detail = build_table(symbol, monday, provider=provider)
+        h15_states, alerts = build_operational_state(symbol, days, rows)
         h15_reference = build_h15_reference(symbol, days, rows, provider=provider)
         tables.append({
             "base": base,
             "symbol": symbol,
             "h15Reference": h15_reference,
+            "h15State": h15_states,
+            "alerts": alerts,
             "days": [
                 {
                     "name": DAY_NAMES[index],
