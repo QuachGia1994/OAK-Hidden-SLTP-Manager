@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ENGINE5_ACTIVE_SYMBOLS, filterActiveEngine5Tables } from "./engine5-symbols";
 import { redis } from "./redis-core";
 
 export type Pattern5Candle = {
@@ -50,6 +51,7 @@ export type Pattern5Table = {
 };
 export type Pattern5Payload = {
   schemaVersion: number;
+  activeSymbols?: string[];
   profile: string;
   weekStart: string;
   blocks: number[];
@@ -60,6 +62,15 @@ export type Pattern5Payload = {
 
 export const PATTERN5_PUBLIC_SCHEMA = 14;
 const LATEST_KEY = "robot-sltp:public:pattern5:latest";
+
+export function filterActivePattern5(payload: Pattern5Payload | null): Pattern5Payload | null {
+  if (!payload) return null;
+  return {
+    ...payload,
+    activeSymbols: [...ENGINE5_ACTIVE_SYMBOLS],
+    tables: filterActiveEngine5Tables(payload.tables),
+  };
+}
 
 function vietnamDateKey(now = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", {

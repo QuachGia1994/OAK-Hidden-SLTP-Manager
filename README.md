@@ -38,7 +38,7 @@ Runtime chính:
 - `worker_runtime.py` — worker MT5 theo profile.
 - `oak_enginecore.py` — OAK EngineCore Telegram receiver.
 - `domain/`, `repositories/`, `services/` — SL/TP, scheduled orders, risk/idempotency, MT5 guardrails.
-- `robot-sltp-pro/pattern5_engine.py` — Engine 5 / Pattern Matrix cho GBPUSD và EURUSD.
+- `robot-sltp-pro/pattern5_engine.py` — Engine 5 / Pattern Matrix; active scope hiện là GBPUSD, còn EURUSD được giữ cho historical/regression compatibility.
 - `robot-sltp-pro/publish_pattern5_site.py` — publish feed Engine 5 lên Upstash.
 
 Desktop v4 không tự mở lại MT5 chỉ vì user đổi profile hoặc refresh Pattern5. Chọn profile chỉ quan sát snapshot/runtime đang tồn tại; khởi động `worker_runtime.py` / Telegram receiver cần thao tác **Start Runtime** rõ ràng từ user. Pattern5 và snapshot MT5 chạy attach-only, fail-closed nếu terminal đã bị tắt thủ công.
@@ -50,7 +50,7 @@ Production: https://www.oakgatekeeper.uk
 Product hierarchy:
 
 - **Trading**
-  - `/engine` — Engine 5 / Pattern Matrix, GBPUSD + EURUSD, current-day mobile workspace, weekly matrix, evidence 4 H4 candles, VIP masking.
+  - `/engine` — Engine 5 / Pattern Matrix cho active instrument GBPUSD, current-day mobile workspace, weekly matrix, evidence 4 H4 candles, VIP masking.
 - **Tools / Labs**
   - `/factcheck` — Fact Check cho Text, URL, Image OCR và **Phát hiện ảnh AI / Detect AI Image**. Image upload có hai intent tách biệt: kiểm tra claim bằng OCR hoặc Media Authenticity (bounded validation + metadata + optional C2PA/specialist sidecar + Gemini multimodal + deterministic evidence fusion).
   - `/tarot` — Tarot 78-card experience.
@@ -71,7 +71,8 @@ Web và desktop dùng cùng semantic roles: command accent, BUY, SELL, warning, 
 
 ## Engine 5 hiện tại
 
-- Pairs: `GBPUSD`, `EURUSD`.
+- Current active Engine5 instrument: `GBPUSD`.
+- `EURUSD`: temporarily disabled from active publishing/UI; historical data and generic calculation support are retained for audit/regression/future re-enable.
 - Blocks: `H3`, `H6`, `H9`, `H12`, `H15`.
 - Future day trong tuần hiện tại không được tính sớm.
 - H15 historical reference dùng đúng H15 của ngày giao dịch tham chiếu; không tái dùng classification của cell ngày hiện tại.

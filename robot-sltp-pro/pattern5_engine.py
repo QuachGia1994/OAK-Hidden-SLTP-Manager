@@ -15,7 +15,24 @@ import MetaTrader5 as mt5
 from market_data_provider import MT5MarketDataProvider, MarketDataProvider
 from services.mt5_terminal_service import ensure_mt5_profile_connected
 
-WATCHLIST = ["GBPUSD", "EURUSD"]
+SYMBOL_SCOPE_PATH = Path(__file__).resolve().parent.parent / "engine5-symbols.json"
+
+
+def _load_symbol_scope() -> dict[str, list[str]]:
+    raw = json.loads(SYMBOL_SCOPE_PATH.read_text(encoding="utf-8"))
+    active = [str(item).strip().upper() for item in raw.get("active", []) if str(item).strip()]
+    disabled = [str(item).strip().upper() for item in raw.get("temporarilyDisabled", []) if str(item).strip()]
+    if not active:
+        raise RuntimeError("Engine5 active symbol scope is empty")
+    if set(active) & set(disabled):
+        raise RuntimeError("Engine5 symbol cannot be both active and temporarily disabled")
+    return {"active": active, "temporarilyDisabled": disabled}
+
+
+ENGINE5_SYMBOL_SCOPE = _load_symbol_scope()
+ENGINE5_ACTIVE_SYMBOLS = ENGINE5_SYMBOL_SCOPE["active"]
+ENGINE5_TEMPORARILY_DISABLED_SYMBOLS = ENGINE5_SYMBOL_SCOPE["temporarilyDisabled"]
+WATCHLIST = ENGINE5_ACTIVE_SYMBOLS
 CACHE_PATH = Path(__file__).resolve().parent / "pattern5_cache.json"
 CACHE_MAX_AGE_SECONDS = 300
 T, G = "T", "G"
@@ -379,6 +396,7 @@ def render_profile_with_provider(
         })
     return {
         "schemaVersion": PUBLIC_FEED_SCHEMA,
+        "activeSymbols": list(ENGINE5_ACTIVE_SYMBOLS),
         "profile": profile,
         "dataProvider": provider.provider_id,
         "weekStart": (monday or monday_of(vietnam_today())).isoformat(),

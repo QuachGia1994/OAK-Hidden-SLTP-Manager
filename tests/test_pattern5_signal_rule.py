@@ -13,12 +13,28 @@ sys.path.insert(0, str(APP))
 
 import pattern5_engine
 import publish_pattern5_site
-from pattern5_engine import ANCHOR_HOUR, BLOCKS, PATTERN_GROUP, PUBLIC_FEED_SCHEMA, WATCHLIST, build_h15_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, render_profile_with_provider, should_reverse_signal, signal_from_base
+from pattern5_engine import ANCHOR_HOUR, BLOCKS, ENGINE5_ACTIVE_SYMBOLS, ENGINE5_TEMPORARILY_DISABLED_SYMBOLS, PATTERN_GROUP, PUBLIC_FEED_SCHEMA, WATCHLIST, build_h15_reference, build_signal_cell, build_table, classify5, flip_signal, look4, pattern_text, render_profile, render_profile_cached, render_profile_with_provider, should_reverse_signal, signal_from_base
 
 
 class Pattern5SignalRuleTests(unittest.TestCase):
-    def test_watchlist_keeps_only_gbpusd_and_eurusd(self):
-        self.assertEqual(WATCHLIST, ["GBPUSD", "EURUSD"])
+    def test_active_symbol_scope_is_gbpusd_only_and_eurusd_is_retained_as_disabled(self):
+        self.assertEqual(ENGINE5_ACTIVE_SYMBOLS, ["GBPUSD"])
+        self.assertEqual(WATCHLIST, ["GBPUSD"])
+        self.assertEqual(ENGINE5_TEMPORARILY_DISABLED_SYMBOLS, ["EURUSD"])
+
+    def test_default_render_uses_active_scope_but_explicit_eurusd_remains_supported(self):
+        provider = SimpleNamespace(
+            provider_id="fixture",
+            symbols=lambda: ["GBPUSD", "EURUSD"],
+            broker_day_offset=lambda _symbol: 0,
+        )
+        with patch("pattern5_engine.build_table", return_value=([date(2026, 8, 17)] * 5, {block: [""] * 5 for block in BLOCKS}, {block: [""] * 5 for block in BLOCKS})), \
+             patch("pattern5_engine.build_h15_reference", return_value=None):
+            active = render_profile_with_provider("Fixture", provider)
+            historical = render_profile_with_provider("Fixture", provider, selected=["EURUSD"])
+        self.assertEqual(active["activeSymbols"], ["GBPUSD"])
+        self.assertEqual([table["base"] for table in active["tables"]], ["GBPUSD"])
+        self.assertEqual([table["base"] for table in historical["tables"]], ["EURUSD"])
 
     def test_look4_warms_history_and_retries_once(self):
         rates = [
