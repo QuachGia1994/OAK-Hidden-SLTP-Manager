@@ -106,6 +106,18 @@ class Engine5AlertRuleTests(unittest.TestCase):
         alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, False, eligible_blocks={3, 6})
         self.assertFalse(any(a["block"] in {9, 12, 15} for a in alerts))
 
+    def test_operational_state_emits_available_h3_alert_before_h12_and_defers_h15_state(self):
+        days = [date(2026, 8, 17) + e.timedelta(days=index) for index in range(5)]
+        data = {block: [""] * 5 for block in e.BLOCKS}
+        data[3][3] = cell("Bt")
+        now = datetime(2026, 8, 20, 5, 22, tzinfo=e.VIETNAM_TZ)
+        with patch("pattern5_engine.vietnam_now", return_value=now):
+            h15_states, alerts = e.build_operational_state("GBPUSD", days, data)
+        today_alerts = alerts.get("2026-08-20", [])
+        self.assertEqual([item["code"] for item in today_alerts], ["h3_reverse_signal"])
+        self.assertNotIn("2026-08-20", h15_states)
+        self.assertFalse(any(item["block"] in {6, 9, 12, 15} for item in today_alerts))
+
     def test_current_day_does_not_calculate_future_h12_or_h15(self):
         calls = []
         def fake_cell(_symbol, day_value, hour, _offset, provider=None):

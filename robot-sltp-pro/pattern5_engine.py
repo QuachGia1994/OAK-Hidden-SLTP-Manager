@@ -396,17 +396,20 @@ def build_operational_state(symbol: str, days: list[date], rows: dict[int, list[
         if day > now.date():
             continue
         h12 = rows.get(12, [""] * len(days))[index]
-        if not h12:
-            continue
-        group = str(h12.get("group") or "")
-        active = group in H15_ACTIVATION_GROUPS
-        h15_states[day.isoformat()] = {
-            "active": active,
-            "calculated": bool(rows.get(H15_BLOCK, [""] * len(days))[index]),
-            "activationReason": f"h12_{group.lower()}" if active else "h12_bt",
-        }
-        eligible = set(BLOCKS if day < now.date() else [block for block in BLOCKS if block <= now.hour or block == H15_BLOCK])
-        alerts[day.isoformat()] = evaluate_alert_state(symbol, day, rows, index, active, eligible_blocks=eligible)
+        h15_known = bool(h12)
+        h15_active = False
+        if h15_known:
+            group = str(h12.get("group") or "")
+            h15_active = group in H15_ACTIVATION_GROUPS
+            h15_states[day.isoformat()] = {
+                "active": h15_active,
+                "calculated": bool(rows.get(H15_BLOCK, [""] * len(days))[index]),
+                "activationReason": f"h12_{group.lower()}" if h15_active else "h12_bt",
+            }
+        eligible = set(CORE_BLOCKS if day < now.date() else [block for block in CORE_BLOCKS if block <= now.hour])
+        if h15_known:
+            eligible.add(H15_BLOCK)
+        alerts[day.isoformat()] = evaluate_alert_state(symbol, day, rows, index, h15_active, eligible_blocks=eligible)
     return h15_states, alerts
 
 

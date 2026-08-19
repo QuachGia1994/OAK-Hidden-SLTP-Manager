@@ -18,3 +18,4 @@
 - Pattern5 base-signal behavior uses lookback candle #4: Sw reverses the base direction, Bt follows it, and Sr currently preserves the former Pattern 5 reverse-base behavior. Pattern 5 alternating sequences (`T G T G` / `G T G T`) are classified as Sr.
 - Added the second-stage Reverse Signal calendar matrix, highlighted reverse cells, and clickable 4-candle OHLC evidence charts in both Tauri and the remote web monitor.
 - Added an explicit Pattern evidence hint and suppressed the Windows console window for the Tauri Python backend bridge.
+- Fixed Engine5 alert replay so current-day H3/H6/H9 alerts are emitted as soon as those blocks are available; H15 state remains deferred until H12 determines its conditional gate.
