@@ -9,8 +9,12 @@ import type {
 const ALGORITHMIC_MEDIA = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
 const DIGITAL_CAPTURE = "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture";
 
+function isTrustedVerified(provenance: ImageProvenanceSummary): boolean {
+  return provenance.status === "verified" && provenance.trustChain === "trusted";
+}
+
 function provenanceDirection(provenance: ImageProvenanceSummary): "synthetic" | "real" | "none" {
-  if (provenance.status !== "verified") return "none";
+  if (!isTrustedVerified(provenance)) return "none";
   const sourceTypes = provenance.digitalSourceTypes || [];
   if (sourceTypes.some((value) => value === ALGORITHMIC_MEDIA || value.endsWith("/trainedAlgorithmicMedia"))) return "synthetic";
   if (sourceTypes.some((value) => value === DIGITAL_CAPTURE || value.endsWith("/digitalCapture"))) return "real";
@@ -72,7 +76,7 @@ export function fuseMediaEvidence(args: {
   const limitations = [...args.base.limitations];
 
   // Cryptographically verified provenance is authoritative regardless of visual/detector direction.
-  if (args.provenance.status === "verified" && args.provenance.trustChain === "trusted") {
+  if (isTrustedVerified(args.provenance)) {
     verdict = "provenance_verified";
     confidence = Math.max(confidence, 90);
     summary = verifiedSummary(args.provenance, args.locale);
@@ -89,7 +93,7 @@ export function fuseMediaEvidence(args: {
       : "The provider proposed provenance_verified without server-verified trusted provenance; the result was downgraded to inconclusive.";
   }
 
-  if (agreement === "mixed" && args.provenance.status !== "verified") {
+  if (agreement === "mixed" && !isTrustedVerified(args.provenance)) {
     verdict = "inconclusive";
     confidence = Math.min(confidence, 55);
     summary = args.locale === "VN"

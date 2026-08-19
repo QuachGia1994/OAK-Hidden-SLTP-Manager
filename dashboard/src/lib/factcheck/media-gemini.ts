@@ -144,7 +144,7 @@ export function normalizeMediaAssessment(
   let confidence = cleanConfidence(raw.confidence);
   const visualSignals = cleanVisualSignals(raw.visual_signals);
 
-  if (verdict === "provenance_verified" && context.provenance.status !== "verified") {
+  if (verdict === "provenance_verified" && (context.provenance.status !== "verified" || context.provenance.trustChain !== "trusted")) {
     verdict = "inconclusive";
     confidence = Math.min(confidence, 40);
   }
