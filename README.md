@@ -73,16 +73,16 @@ Web và desktop dùng cùng semantic roles: command accent, BUY, SELL, warning, 
 
 - Current active Engine5 instrument: `GBPUSD`.
 - `EURUSD`: temporarily disabled from active publishing/UI; historical data and generic calculation support are retained for audit/regression/future re-enable.
-- Core blocks: `H3`, `H6`, `H9`, `H12`. `H15` is conditional: H12=`Sw`/`Sr` activates H15; H12=`Bt` leaves H15 inactive and uncalculated.
+- Core blocks: `H3`, `H6`, `H9`, `H12`, `H15`. H15 is calculated independently like the other blocks and no longer depends on H12 group.
 - Alert-rule SSoT: `dashboard/engine5-alert-rules.json`.
 - H3 asset reminder policy: GBP/AUD/CAD reverse; JPY/XAU normal. Current active table is still GBPUSD only.
 - Every actionable `Sr` gets an entry reminder at `H:11`; two consecutive `Sr` blocks latch `STOP` for subsequent blocks in the same trading day, with daily reset.
-- Alert precedence: STOP → H15 inactive → Sr entry → H3 reverse/normal → informational state. Alerts are advisory only; no automatic order execution is attached.
+- Alert precedence: STOP → Sr entry → H3 reverse/normal → informational state. Alerts are advisory only; no automatic order execution is attached.
 - Future day/block state is not emitted early.
-- H15 historical reference is only derived from H15 rows that were actually calculated under the gate.
+- H15 historical reference is derived directly from the independently calculated H15 row for the reference day.
 - Classification remains `Sr`, `Sw`, `Bt`; `T G T G` and `G T G T` belong to `Sr`.
 - Web and desktop render typed alert state from the Engine5 payload; React does not recompute trading rules.
-- Cache/public-feed schema hiện tại: `v15`; dashboard rejects stale v14 unconditional-H15 payloads.
+- Cache/public-feed schema hiện tại: `v16`; dashboard rejects stale v15 conditional-H15 payloads.
 - Production market-data source vẫn là MT5 cho tới khi cTrader parity gate pass.
 
 ## cTrader / cloud migration

@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::{atomic::{AtomicU64, Ordering}, Mutex, OnceLock};
+use std::sync::{atomic::{AtomicBool, AtomicU64, Ordering}, Mutex, OnceLock};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
@@ -13,16 +13,21 @@ struct BackendWorker {
 
 static BACKEND_WORKER: OnceLock<Mutex<Option<BackendWorker>>> = OnceLock::new();
 static REQUEST_SEQ: AtomicU64 = AtomicU64::new(1);
+static APP_CLEANUP_STARTED: AtomicBool = AtomicBool::new(false);
 
 fn backend_worker() -> &'static Mutex<Option<BackendWorker>> {
     BACKEND_WORKER.get_or_init(|| Mutex::new(None))
 }
 
-fn spawn_backend() -> Result<BackendWorker, String> {
-    let bridge = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+fn backend_bridge_path() -> Result<std::path::PathBuf, String> {
+    Ok(std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .ok_or_else(|| "Cannot resolve application root".to_string())?
-        .join("backend_bridge.py");
+        .join("backend_bridge.py"))
+}
+
+fn spawn_backend() -> Result<BackendWorker, String> {
+    let bridge = backend_bridge_path()?;
     let mut command = Command::new("python");
     command
         .arg(&bridge)
@@ -38,6 +43,55 @@ fn spawn_backend() -> Result<BackendWorker, String> {
     let stdin = child.stdin.take().ok_or_else(|| "backend stdin unavailable".to_string())?;
     let stdout = child.stdout.take().ok_or_else(|| "backend stdout unavailable".to_string())?;
     Ok(BackendWorker { child, stdin, stdout: BufReader::new(stdout) })
+}
+
+fn stop_runtime_workers() {
+    let Ok(bridge) = backend_bridge_path() else {
+        return;
+    };
+    let mut command = Command::new("python");
+    command
+        .arg(&bridge)
+        .arg("runtime_stop_all")
+        .arg("{}")
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let _ = command.status();
+}
+
+fn shutdown_backend_bridge() {
+    let Ok(mut guard) = backend_worker().lock() else {
+        return;
+    };
+    let Some(mut worker) = guard.take() else {
+        return;
+    };
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &worker.child.id().to_string(), "/T", "/F"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .creation_flags(0x08000000)
+            .status();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = worker.child.kill();
+    }
+    let _ = worker.child.wait();
+}
+
+fn cleanup_app_runtime() {
+    if APP_CLEANUP_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    stop_runtime_workers();
+    shutdown_backend_bridge();
 }
 
 pub mod commands {
@@ -96,8 +150,14 @@ pub mod commands {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![commands::runtime_status, commands::backend_call])
-        .run(tauri::generate_context!())
-        .expect("error while running ROBOT SLTP Pro");
+        .build(tauri::generate_context!())
+        .expect("error while building ROBOT SLTP Pro");
+
+    app.run(|_app_handle, event| {
+        if matches!(event, tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit) {
+            cleanup_app_runtime();
+        }
+    });
 }

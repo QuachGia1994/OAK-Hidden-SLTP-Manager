@@ -143,7 +143,7 @@ function Cell({ signal, onEvidence }: { signal: Pattern5Signal | ""; onEvidence:
 function PairTable({ table, blocks, today, locale, onEvidence }: { table: Pattern5Table; blocks: number[]; today: string; locale: Locale; onEvidence: (selection: EvidenceSelection) => void }) {
   if (table.error) return <section className="oak-pair-card oak-pair-error"><strong>{table.base}</strong><span>{table.error}</span></section>;
   const days = table.days ?? [];
-  const h15Reference = table.h15State?.[today]?.active === false ? null : formatH15Reference(table, locale);
+  const h15Reference = formatH15Reference(table, locale);
   return (
     <section className="oak-pair-card">
       <header className="oak-pair-header">

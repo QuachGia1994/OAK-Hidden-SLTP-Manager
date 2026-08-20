@@ -7,12 +7,16 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from domain.file_lock import FileLock
+import domain.xau_h1_pattern_scanner as scanner_module
 from domain.xau_h1_pattern_scanner import (
     MultiSymbolH1PatternScanner,
     find_h1_pattern_matches,
+    pattern5_block_for_h1_slot,
+    resolve_canonical_gbpusd_group,
     resolve_symbol_variant,
     resolve_target_symbols,
     resolve_xauusd_symbol,
+    signal_from_gbpusd_h1_base,
 )
 
 
@@ -71,7 +75,19 @@ def rates_for(day: int, directions: str, start_hour: int = 1):
     return [rate(day, start_hour + index, direction) for index, direction in enumerate(directions)]
 
 
-def scanner(tmp_path: Path, mt5, clock, sent, lock_factory=AllowLock, profile="Vantage", notify=None):
+def scanner(
+    tmp_path: Path,
+    mt5,
+    clock,
+    sent,
+    lock_factory=AllowLock,
+    profile="Vantage",
+    notify=None,
+    group_resolver=None,
+):
+    kwargs = {}
+    if group_resolver is not None:
+        kwargs["pattern5_group_resolver"] = group_resolver
     return MultiSymbolH1PatternScanner(
         mt5,
         notify=notify or (lambda message: sent.append(message) or True),
@@ -81,6 +97,7 @@ def scanner(tmp_path: Path, mt5, clock, sent, lock_factory=AllowLock, profile="V
         owner_lock_path=tmp_path / "owner.lock",
         clock_factory=lambda **_kwargs: clock,
         lock_factory=lock_factory,
+        **kwargs,
     )
 
 
@@ -122,6 +139,58 @@ def test_resolver_accepts_suffixes_for_all_targets_and_rejects_prefixes():
     assert resolve_symbol_variant("GBPUSD", symbols) is None
 
 
+def test_h1_slot_maps_to_expected_pattern5_block():
+    expected = {
+        3: 3, 4: 3, 5: 3,
+        6: 6, 7: 6, 8: 6,
+        9: 9, 10: 9, 11: 9,
+        12: 12, 13: 12, 14: 12,
+        15: 15, 16: 15, 17: 15,
+    }
+    assert {hour: pattern5_block_for_h1_slot(hour) for hour in expected} == expected
+
+
+def test_gbpusd_h1_signal_reverses_sw_sr_and_follows_bt():
+    assert signal_from_gbpusd_h1_base("T", "Sw") == "SELL"
+    assert signal_from_gbpusd_h1_base("G", "Sw") == "BUY"
+    assert signal_from_gbpusd_h1_base("T", "Sr") == "SELL"
+    assert signal_from_gbpusd_h1_base("G", "Sr") == "BUY"
+    assert signal_from_gbpusd_h1_base("T", "Bt") == "BUY"
+    assert signal_from_gbpusd_h1_base("G", "Bt") == "SELL"
+
+
+def test_canonical_gbpusd_group_reuses_pattern5_and_h15_is_independent(monkeypatch):
+    calls = []
+
+    class FakeProvider:
+        def __init__(self, mt5_module):
+            self.mt5_module = mt5_module
+
+    def build_signal_cell(_symbol, _day, block, _offset, provider=None):
+        calls.append((block, provider))
+        if block == 12:
+            return {"group": "Bt"}, ""
+        return {"group": "Sr"}, ""
+
+    fake_pattern5 = SimpleNamespace(
+        broker_day_offset=lambda _symbol, provider=None: 123,
+        build_signal_cell=build_signal_cell,
+    )
+    fake_provider_module = SimpleNamespace(MT5MarketDataProvider=FakeProvider)
+
+    def fake_import(name):
+        if name == "pattern5_engine":
+            return fake_pattern5
+        if name == "market_data_provider":
+            return fake_provider_module
+        raise AssertionError(name)
+
+    monkeypatch.setattr(scanner_module.importlib, "import_module", fake_import)
+    assert resolve_canonical_gbpusd_group(object(), "GBPUSD+", datetime(2026, 8, 20).date(), 6) == "Sr"
+    assert resolve_canonical_gbpusd_group(object(), "GBPUSD+", datetime(2026, 8, 20).date(), 15) == "Sr"
+    assert [block for block, _provider in calls] == [6, 15]
+
+
 def test_h4_ignores_h1_and_uses_only_h3_h2_backward():
     clock = FakeClock(datetime(2026, 8, 20, 4, 30))
     rows = [rate(20, 1, "G"), rate(20, 2, "G"), rate(20, 3, "T"), rate(20, 4, "G")]
@@ -157,6 +226,83 @@ def test_fx_starts_at_h3_with_h2_h1_while_xau_waits_for_h4():
     )
     assert [(item.slot_hour, item.pattern_text, item.bar_range_text) for item in fx_matches] == [(3, "T G", "H02→H01")]
     assert xau_matches == []
+
+
+def test_telegram_adds_gbpusd_h1_signal_from_first_backward_base_and_block_group(tmp_path):
+    symbols = [
+        SimpleNamespace(name="XAUUSD+", visible=True),
+        SimpleNamespace(name="GBPUSD+", visible=True),
+    ]
+    mt5 = FakeMT5(
+        {
+            "XAUUSD+": rates_for(20, "TGTTG"),  # XAU matches H04 and H06.
+            "GBPUSD+": rates_for(20, "GGTTG"),  # H03=T, H05=G.
+        },
+        symbols,
+    )
+    groups = {3: "Sw", 6: "Bt"}
+    calls = []
+
+    def group_resolver(_mt5, symbol, broker_day, block_hour):
+        calls.append((symbol, broker_day.isoformat(), block_hour))
+        return groups[block_hour]
+
+    sent = []
+    subject = scanner(
+        tmp_path,
+        mt5,
+        FakeClock(datetime(2026, 8, 20, 7, 5)),
+        sent,
+        group_resolver=group_resolver,
+    )
+    try:
+        assert subject.scan_once() == 2
+        assert subject.gbpusd_symbol == "GBPUSD+"
+        assert "Signal GBPUSD H1: SELL | Base H03=T | Block H03=Sw (đảo)" in sent[0]
+        assert "Signal GBPUSD H1: SELL | Base H05=G | Block H06=Bt (giữ nguyên)" in sent[1]
+        assert "CẨN THẬN" in sent[1]
+        assert calls == [
+            ("GBPUSD+", "2026-08-20", 3),
+            ("GBPUSD+", "2026-08-20", 6),
+        ]
+        state = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+        alerts = state["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"]
+        assert alerts[0]["gbpusdH1Signal"] == "SELL"
+        assert alerts[0]["gbpusdBaseHour"] == 3
+        assert alerts[0]["gbpusdGroup"] == "Sw"
+        assert alerts[1]["gbpusdH1Signal"] == "SELL"
+        assert alerts[1]["gbpusdBaseHour"] == 5
+        assert alerts[1]["gbpusdGroup"] == "Bt"
+    finally:
+        subject.close()
+
+
+def test_missing_canonical_group_keeps_original_alert_with_na_signal(tmp_path):
+    symbols = [
+        SimpleNamespace(name="XAUUSD+", visible=True),
+        SimpleNamespace(name="GBPUSD+", visible=True),
+    ]
+    mt5 = FakeMT5(
+        {
+            "XAUUSD+": rates_for(20, "GGT", start_hour=14),  # H17=TGG.
+            "GBPUSD+": rates_for(20, "GGT", start_hour=14),
+        },
+        symbols,
+    )
+    sent = []
+    subject = scanner(
+        tmp_path,
+        mt5,
+        FakeClock(datetime(2026, 8, 20, 17, 30)),
+        sent,
+        group_resolver=lambda _mt5, _symbol, _day, _block: None,
+    )
+    try:
+        assert subject.scan_once() == 1
+        assert "Mốc scan: H17" in sent[0]
+        assert "Signal GBPUSD H1: N/A | Base H16 | Block H15" in sent[0]
+    finally:
+        subject.close()
 
 
 def test_scanner_scans_all_five_target_symbols_with_suffixes(tmp_path):

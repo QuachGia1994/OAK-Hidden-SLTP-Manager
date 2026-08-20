@@ -26,6 +26,26 @@ def _safe_profile_name(profile: str) -> str:
     return re.sub(r"[^\w\-]", "_", profile or "unknown")
 
 
+def _stop_request_path(profile: str) -> Path:
+    return ROOT / f"worker_{_safe_profile_name(profile)}.stop"
+
+
+def _consume_stop_request(profile: str) -> bool:
+    """Consume a stop request only when it targets this exact worker PID."""
+    path = _stop_request_path(profile)
+    if not path.exists():
+        return False
+    try:
+        requested_pid = int((path.read_text(encoding="utf-8") or "0").strip() or "0")
+    except (OSError, ValueError):
+        requested_pid = 0
+    try:
+        path.unlink()
+    except OSError:
+        pass
+    return requested_pid == os.getpid()
+
+
 def _pid_is_live_python(pid: int) -> bool:
     if pid <= 0:
         return False
@@ -104,6 +124,11 @@ def _load_language() -> None:
 
 def run_worker(profile: str) -> int:
     lock_path, lock_fd = _acquire_worker_lock(profile)
+    stop_path = _stop_request_path(profile)
+    try:
+        stop_path.unlink()
+    except OSError:
+        pass
     stop_event = threading.Event()
 
     def log(message: str) -> None:
@@ -124,6 +149,10 @@ def run_worker(profile: str) -> int:
         worker.start()
         while worker.is_alive():
             try:
+                if _consume_stop_request(profile):
+                    log("Stop requested by runtime controller...")
+                    stop_event.set()
+                    break
                 time.sleep(0.5)
             except KeyboardInterrupt:
                 stop_event.set()

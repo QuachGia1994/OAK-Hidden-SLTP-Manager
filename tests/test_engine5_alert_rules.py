@@ -68,12 +68,11 @@ class Engine5AlertRuleTests(unittest.TestCase):
         alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
         self.assertEqual([a["block"] for a in alerts if a["code"] == "consecutive_sr_stop"], [12, 15])
 
-    def test_h9_h12_sr_arms_h15_but_stop_precedence_wins_operationally(self):
+    def test_h9_h12_consecutive_sr_stops_independent_h15_operationally(self):
         data = rows({3: "Bt", 6: "Sw", 9: "Sr", 12: "Sr", 15: "Sr"})
         alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
         h12 = [a for a in alerts if a["block"] == 12]
         h15 = [a for a in alerts if a["block"] == 15]
-        self.assertTrue(any(a["code"] == "h15_armed" for a in h12))
         self.assertTrue(any(a["code"] == "sr_entry_at_11" for a in h12))
         self.assertEqual(h15[0]["code"], "consecutive_sr_stop")
         self.assertFalse(any(a["code"] == "sr_entry_at_11" for a in h15))
@@ -84,21 +83,21 @@ class Engine5AlertRuleTests(unittest.TestCase):
         self.assertTrue(any(a["code"] == "consecutive_sr_stop" for a in stopped))
         self.assertFalse(any(a["code"] == "consecutive_sr_stop" for a in fresh))
 
-    def test_h15_inactive_is_typed_state_not_fake_signal(self):
-        data = rows({3: "Bt", 6: "Sw", 9: "Bt", 12: "Bt"})
+    def test_h15_is_independent_and_has_no_inactive_alert(self):
+        data = rows({3: "Bt", 6: "Sw", 9: "Bt", 12: "Bt", 15: "Bt"})
         alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, False)
         h15 = [a for a in alerts if a["block"] == 15]
-        self.assertEqual([a["code"] for a in h15], ["h15_inactive"])
-        self.assertEqual(data[15][0], "")
+        self.assertEqual(h15, [])
+        self.assertNotEqual(data[15][0], "")
 
-    def test_stop_precedence_overrides_h15_inactive(self):
-        data = rows({3: "Sr", 6: "Sr", 9: "Bt", 12: "Bt"})
+    def test_stop_precedence_still_overrides_independent_h15(self):
+        data = rows({3: "Sr", 6: "Sr", 9: "Bt", 12: "Bt", 15: "Bt"})
         alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, False)
         h15 = [a for a in alerts if a["block"] == 15]
         self.assertEqual([a["code"] for a in h15], ["consecutive_sr_stop"])
 
-    def test_h15_gate_only_calculates_for_h12_sw_or_sr(self):
-        for h12_group, expected in (("Sw", True), ("Sr", True), ("Bt", False)):
+    def test_h15_always_calculates_independently_of_h12_group(self):
+        for h12_group in ("Sw", "Sr", "Bt"):
             calls = []
             def fake_cell(_symbol, _day, hour, _offset, provider=None):
                 calls.append(hour)
@@ -106,15 +105,15 @@ class Engine5AlertRuleTests(unittest.TestCase):
                 return cell(group), group
             with patch("pattern5_engine.broker_day_offset", return_value=0), patch("pattern5_engine.build_signal_cell", side_effect=fake_cell):
                 _days, out_rows, _detail = e.build_table("GBPUSD", date(2026, 8, 17), as_of=date(2026, 8, 17))
-            self.assertEqual(15 in calls, expected)
-            self.assertEqual(bool(out_rows[15][0]), expected)
+            self.assertIn(15, calls)
+            self.assertTrue(bool(out_rows[15][0]))
 
     def test_future_eligible_blocks_emit_no_alerts(self):
         data = rows({3: "Sr", 6: "Sr", 9: "Bt", 12: "Bt"})
         alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, False, eligible_blocks={3, 6})
         self.assertFalse(any(a["block"] in {9, 12, 15} for a in alerts))
 
-    def test_operational_state_emits_available_h3_alert_before_h12_and_defers_h15_state(self):
+    def test_operational_state_marks_h15_independent_before_h15_hour(self):
         days = [date(2026, 8, 17) + e.timedelta(days=index) for index in range(5)]
         data = {block: [""] * 5 for block in e.BLOCKS}
         data[3][3] = cell("Bt")
@@ -123,7 +122,7 @@ class Engine5AlertRuleTests(unittest.TestCase):
             h15_states, alerts = e.build_operational_state("GBPUSD", days, data)
         today_alerts = alerts.get("2026-08-20", [])
         self.assertEqual([item["code"] for item in today_alerts], ["h3_reverse_signal"])
-        self.assertNotIn("2026-08-20", h15_states)
+        self.assertEqual(h15_states["2026-08-20"], {"active": True, "calculated": False, "activationReason": "independent"})
         self.assertFalse(any(item["block"] in {6, 9, 12, 15} for item in today_alerts))
 
     def test_current_day_precomputes_full_matrix_but_alerts_remain_time_gated(self):

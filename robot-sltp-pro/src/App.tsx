@@ -57,8 +57,8 @@ const UI_COPY = {
 
 type UiCopy = (typeof UI_COPY)[AppLanguage];
 const ENGINE5_ALERT_COPY: Record<AppLanguage, Record<Engine5Alert['code'], string>> = {
-  vi: { h3_reverse_signal: 'Đảo ngược tín hiệu', h3_normal_signal: 'Tín hiệu bình thường', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'NGƯNG GIAO DỊCH', h15_armed: 'H15 kích hoạt bởi H12', h15_inactive: 'H15 không kích hoạt' },
-  en: { h3_reverse_signal: 'Reverse signal', h3_normal_signal: 'Normal signal', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'STOP TRADING', h15_armed: 'H15 activated by H12', h15_inactive: 'H15 inactive' }
+  vi: { h3_reverse_signal: 'Đảo ngược tín hiệu', h3_normal_signal: 'Tín hiệu bình thường', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'NGƯNG GIAO DỊCH' },
+  en: { h3_reverse_signal: 'Reverse signal', h3_normal_signal: 'Normal signal', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'STOP TRADING' }
 };
 const THEME_OPTIONS: AppTheme[] = ['dark', 'deep-sea', 'light', 'amber'];
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });

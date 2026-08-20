@@ -32,7 +32,7 @@ export type Pattern5Day = {
   display: string;
 };
 
-export type Engine5AlertCode = "h3_reverse_signal" | "h3_normal_signal" | "sr_entry_at_11" | "consecutive_sr_stop" | "h15_armed" | "h15_inactive";
+export type Engine5AlertCode = "h3_reverse_signal" | "h3_normal_signal" | "sr_entry_at_11" | "consecutive_sr_stop";
 export type Engine5Alert = {
   id: string;
   code: Engine5AlertCode;
@@ -74,7 +74,7 @@ export type Pattern5Payload = {
   publishedAt?: string;
 };
 
-export const PATTERN5_PUBLIC_SCHEMA = 15;
+export const PATTERN5_PUBLIC_SCHEMA = 16;
 const LATEST_KEY = "robot-sltp:public:pattern5:latest";
 
 export function filterActivePattern5(payload: Pattern5Payload | null): Pattern5Payload | null {

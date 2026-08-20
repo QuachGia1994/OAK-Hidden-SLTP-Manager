@@ -56,6 +56,33 @@ class BackendBridgeTests(unittest.TestCase):
         self.assertEqual(args[-1], 'Vantage')
         self.assertEqual(result['started'], ['worker'])
 
+    def test_runtime_stop_all_requests_graceful_worker_stop(self):
+        with patch.object(backend_bridge, 'load_profiles', return_value={'Vantage': {}}), \
+             patch.object(backend_bridge, '_worker_process', side_effect=[(101, None), (0, None), (0, None)]), \
+             patch.object(backend_bridge, '_request_worker_stop') as request_stop, \
+             patch.object(backend_bridge, '_force_stop_worker') as force_stop:
+            result = backend_bridge.cmd_runtime_stop_all({})
+
+        request_stop.assert_called_once_with('Vantage', 101)
+        force_stop.assert_not_called()
+        self.assertEqual(result['requested'], ['Vantage'])
+        self.assertEqual(result['stopped'], ['Vantage'])
+        self.assertEqual(result['forced'], [])
+        self.assertEqual(result['stillRunning'], [])
+
+    def test_runtime_stop_all_force_stops_straggler_after_grace_period(self):
+        with patch.object(backend_bridge, 'load_profiles', return_value={'Vantage': {}}), \
+             patch.object(backend_bridge, '_worker_process', side_effect=[(101, None), (0, None)]), \
+             patch.object(backend_bridge, '_request_worker_stop'), \
+             patch.object(backend_bridge, '_force_stop_worker', return_value=True) as force_stop, \
+             patch.object(backend_bridge.time, 'monotonic', side_effect=[0.0, 7.0]), \
+             patch.object(backend_bridge.time, 'sleep'):
+            result = backend_bridge.cmd_runtime_stop_all({})
+
+        force_stop.assert_called_once_with('Vantage', 101)
+        self.assertEqual(result['forced'], ['Vantage'])
+        self.assertEqual(result['stillRunning'], [])
+
     def test_profile_create_defaults_are_owned_by_backend(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

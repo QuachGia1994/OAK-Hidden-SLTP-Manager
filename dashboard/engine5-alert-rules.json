@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "h3AssetDirectionPolicy": {
     "GBP": "reverse",
     "AUD": "reverse",
@@ -9,16 +9,12 @@
   },
   "entryReminderMinute": 11,
   "consecutiveSrStopCount": 2,
-  "h15ActivationGroups": ["Sw", "Sr"],
-  "coreBlocks": [3, 6, 9, 12],
-  "conditionalBlock": 15,
+  "coreBlocks": [3, 6, 9, 12, 15],
   "precedence": [
     "consecutive_sr_stop",
-    "h15_inactive",
     "sr_entry_at_11",
     "h3_reverse_signal",
     "h3_normal_signal",
-    "h15_armed",
     "informational"
   ]
 }

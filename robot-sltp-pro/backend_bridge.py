@@ -2,6 +2,7 @@ import json
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -51,6 +52,11 @@ def _lock_pid(path):
         return int((lock_path.read_text(encoding="utf-8") or "0").strip() or "0")
     except (OSError, TypeError, ValueError) as error:
         raise RuntimeError(f"Invalid runtime lock file: {lock_path.name}") from error
+
+
+def _worker_stop_path(profile):
+    safe_name = re.sub(r"[^\w\-]", "_", profile or "unknown")
+    return BACKEND_ROOT / f"worker_{safe_name}.stop"
 
 
 def _process_commandlines(pids):
@@ -115,6 +121,51 @@ def _cmdline_profile_exact(command_line, profile):
             value = token.split("=", 1)[1].strip().strip('"').strip("'")
             return value == target
     return False
+
+
+def _worker_process(profile):
+    safe_name = re.sub(r"[^\w\-]", "_", profile or "unknown")
+    pid = _lock_pid(BACKEND_ROOT / f"worker_{safe_name}.lock")
+    if not pid:
+        return 0, None
+    commands, inspection_issue = _process_commandlines([pid])
+    if inspection_issue:
+        return 0, inspection_issue
+    command_line = commands.get(pid, "")
+    running = bool(
+        command_line
+        and "worker_runtime.py" in command_line
+        and "--worker" in command_line
+        and _cmdline_profile_exact(command_line, profile)
+    )
+    return (pid if running else 0), None
+
+
+def _request_worker_stop(profile, pid):
+    path = _worker_stop_path(profile)
+    path.write_text(str(int(pid)), encoding="utf-8")
+    return path
+
+
+def _force_stop_worker(profile, pid):
+    live_pid, issue = _worker_process(profile)
+    if issue:
+        raise RuntimeError(issue)
+    if live_pid != int(pid):
+        return False
+    if os.name == "nt":
+        result = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Cannot force-stop worker {profile} PID {pid}: {(result.stderr or result.stdout or '').strip()}")
+        return True
+    os.kill(int(pid), signal.SIGTERM)
+    return True
 
 
 def _runtime_health(profile):
@@ -225,6 +276,84 @@ def cmd_runtime_ensure(payload):
     health["started"] = started
     health["issues"] = list(dict.fromkeys([*(health.get("issues") or []), *issues]))
     return health
+
+
+def cmd_runtime_stop_all(_payload):
+    """Gracefully stop all configured profile workers, then force-stop stragglers."""
+    profiles = list(load_profiles())
+    requested = {}
+    stopped = []
+    forced = []
+    issues = []
+
+    for profile in profiles:
+        try:
+            pid, issue = _worker_process(profile)
+        except RuntimeError as error:
+            issues.append(str(error))
+            continue
+        if issue:
+            issues.append(issue)
+            continue
+        if not pid:
+            continue
+        try:
+            _request_worker_stop(profile, pid)
+            requested[profile] = pid
+        except OSError as error:
+            issues.append(f"Cannot request worker stop for {profile}: {type(error).__name__}")
+
+    deadline = time.monotonic() + 6.0
+    pending = dict(requested)
+    while pending and time.monotonic() < deadline:
+        for profile, pid in list(pending.items()):
+            try:
+                live_pid, issue = _worker_process(profile)
+            except RuntimeError as error:
+                issues.append(str(error))
+                pending.pop(profile, None)
+                continue
+            if issue:
+                issues.append(issue)
+                pending.pop(profile, None)
+            elif live_pid != pid:
+                stopped.append(profile)
+                pending.pop(profile, None)
+        if pending:
+            time.sleep(0.1)
+
+    for profile, pid in list(pending.items()):
+        try:
+            if _force_stop_worker(profile, pid):
+                forced.append(profile)
+            else:
+                stopped.append(profile)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as error:
+            issues.append(str(error))
+
+    if forced:
+        time.sleep(0.2)
+    still_running = []
+    for profile, pid in requested.items():
+        try:
+            live_pid, issue = _worker_process(profile)
+        except RuntimeError as error:
+            issues.append(str(error))
+            continue
+        if issue:
+            issues.append(issue)
+        elif live_pid == pid:
+            still_running.append(profile)
+        elif profile not in stopped and profile not in forced:
+            stopped.append(profile)
+
+    return {
+        "requested": list(requested),
+        "stopped": stopped,
+        "forced": forced,
+        "stillRunning": still_running,
+        "issues": list(dict.fromkeys(issues)),
+    }
 
 
 def safe_profile(name, cfg):
@@ -555,6 +684,7 @@ COMMANDS = {
     "profile_add": cmd_profile_add,
     "runtime_health": cmd_runtime_health,
     "runtime_ensure": cmd_runtime_ensure,
+    "runtime_stop_all": cmd_runtime_stop_all,
     "snapshot": cmd_snapshot,
     "sltp_save": cmd_sltp_save,
     "telegram_send": cmd_telegram_send,
