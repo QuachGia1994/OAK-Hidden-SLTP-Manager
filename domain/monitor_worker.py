@@ -27,6 +27,7 @@ from domain.ticket_manager import TicketManager
 from domain.copy_trade_manager import CopyTradeManager
 from domain.balance import get_start_day_balance
 from domain.file_lock import FileLock
+from domain.xau_h1_pattern_scanner import XauH1PatternScanner
 from services.mt5_terminal_service import (
     bind_live_mt5_account_identity,
     ensure_mt5_profile_connected,
@@ -48,6 +49,7 @@ class MonitorWorker(threading.Thread):
         self._telegram_fail_count = 0
         self._telegram_backoff_until = 0.0
         self._telegram_degraded_logged = False
+        self.xau_h1_scanner = None
 
     def _clear_be_retry_state_for_tickets(self, tickets):
         """Forget retry state once a monitored position is no longer open."""
@@ -74,12 +76,13 @@ class MonitorWorker(threading.Thread):
         profile_name = self.config.get("profile_name", "")
         token = resolve_telegram_token(profile_name, self.config.get("tele_token", ""), global_fallback=_oak_enginecore_token)
         chat_id = str(_oak_enginecore_chat_id) if _oak_enginecore_chat_id else self.config.get("tele_chat", "")
-        if not token or not chat_id: return
+        if not token or not chat_id:
+            return False
 
         if time.time() < self._telegram_backoff_until:
             # Still cooling down from recent repeated failures; skip silently
             # so a Telegram outage doesn't spam the log every call.
-            return
+            return False
 
         # Strip color tags for Telegram (they don't support custom HTML tags like <c=...>)
         clean_message = re.sub(r"<c=#[A-Fa-f0-9]{6}>", "", message)
@@ -125,7 +128,7 @@ class MonitorWorker(threading.Thread):
                                 duplicate = True
                             filtered.append(item)
                     if duplicate:
-                        return
+                        return False
                 else:
                     filtered = []
                     now_ts = time.time()
@@ -167,6 +170,7 @@ class MonitorWorker(threading.Thread):
                             os.remove(lock_file)
                         except:
                             pass
+            return True
         except Exception as e:
             self._telegram_fail_count += 1
             count = self._telegram_fail_count
@@ -181,6 +185,7 @@ class MonitorWorker(threading.Thread):
                 self.log(f"Telegram Error: {e} (lỗi liên tiếp #{count}, nghỉ {sleep_s}s)")
             else:
                 self.log(f"Telegram Error: {e} (retry sau {sleep_s}s)")
+            return False
 
     def close_position(self, pos, reason, volume=None):
         tick = mt5.symbol_info_tick(pos.symbol)
@@ -555,12 +560,22 @@ class MonitorWorker(threading.Thread):
             # Construct full telegram message
             full_tele_msg = f"{connect_msg}\n{algo_msg}\n{start_msg}\n{config_log}"
             self.send_telegram(full_tele_msg)
+
+            # XAU H1 scanner is passive/read-only. Across all profile workers,
+            # exactly one process owns the scanner lock at any point in time.
+            self.xau_h1_scanner = XauH1PatternScanner(
+                mt5,
+                notify=self.send_telegram,
+                log=self.log,
+                profile_name=profile_name,
+            )
             
             if copy_role != "none":
                 self.log(T("log_copy_start").format(role=copy_role.upper()))
 
             last_lang_check = 0
             last_reconnect_check = 0
+            last_xau_h1_scan_check = 0
             # TRACKING: Initialize known tickets for closure detection
             self.known_tickets = set()
             first_run = True
@@ -595,6 +610,12 @@ class MonitorWorker(threading.Thread):
                                     "waiting for manual MT5 open."
                                 )
                                 continue
+
+                    # Passive XAUUSD H1 scan: H04 uses H03→H02 (TG/GT), then
+                    # H05-H17 uses the three latest closed H1s (TGG/GTT).
+                    if time.time() - last_xau_h1_scan_check > 15.0:
+                        last_xau_h1_scan_check = time.time()
+                        self.xau_h1_scanner.scan_once()
 
                     # Check Language Change (Every 2s)
                     if time.time() - last_lang_check > 2.0:
@@ -1052,6 +1073,8 @@ class MonitorWorker(threading.Thread):
             self.log(f"Runtime Error: {e}")
             self.send_telegram(f"⚠️ Runtime Error: {e}")
         finally:
+            if self.xau_h1_scanner is not None:
+                self.xau_h1_scanner.close()
             self._close_account_audit()
             mt5.shutdown()
             self.log(T("log_monitor_stop"))

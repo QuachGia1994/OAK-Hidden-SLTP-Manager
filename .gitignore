@@ -56,6 +56,8 @@ oak_enginecore.lock
 oak_enginecore.singleton.lock
 mimo_bot.lock
 worker_*.lock
+xau_h1_pattern_alert_state.json
+xau_h1_pattern_scanner.lock
 .mt5_profile_connection.lock
 
 # Tauri local runtime cache
