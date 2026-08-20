@@ -88,9 +88,11 @@ def scanner(
     profile="Vantage",
     notify=None,
     group_resolver=None,
+    publish_state=None,
 ):
     kwargs = {
-        "pattern5_group_resolver": group_resolver or (lambda _mt5, _symbol, _day, _block: "Bt")
+        "pattern5_group_resolver": group_resolver or (lambda _mt5, _symbol, _day, _block: "Bt"),
+        "publish_state": publish_state,
     }
     return MultiSymbolH1PatternScanner(
         mt5,
@@ -528,6 +530,10 @@ def test_existing_delivered_first_match_is_classified_without_replay_then_later_
         assert symbol_state["firstSignalHour"] == 4
         assert [item["slotHour"] for item in symbol_state["alerts"]] == [4, 6]
         assert symbol_state["alerts"][0]["dayType"] == "SW"
+        assert "entryTime" not in symbol_state["alerts"][0]
+        assert "entryTime" not in symbol_state["alerts"][1]
+        assert symbol_state["alerts"][1]["gbpusdH1Signal"] == "SELL"
+        assert symbol_state["alerts"][1]["symbolH1Signal"] == "BUY"  # SW reverses GBPUSD SELL.
     finally:
         subject.close()
 
@@ -562,6 +568,106 @@ def test_legacy_xau_state_migrates_without_replay_and_new_symbol_starts_at_one(t
         assert saved["version"] == 2
         assert len(saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"]) == 1
         assert len(saved["days"]["2026-08-20"]["symbols"]["EURUSD"]["alerts"]) == 1
+    finally:
+        subject.close()
+
+
+def test_public_feed_callback_runs_on_state_change_but_not_unchanged_rescan(tmp_path):
+    rows = rates_for(20, "TGT")
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
+    published = []
+    subject = scanner(
+        tmp_path,
+        FakeMT5({"XAUUSDm": rows, "GBPUSD+": rows}, symbols),
+        FakeClock(datetime(2026, 8, 20, 4, 5)),
+        [],
+        publish_state=lambda state, profile: published.append((json.loads(json.dumps(state)), profile)),
+    )
+    try:
+        assert subject.scan_once() == 1
+        assert len(published) == 1
+        assert published[0][1] == "Vantage"
+        alert = published[0][0]["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"][0]
+        assert alert["symbolH1Signal"] == "BUY"
+        assert "entryTime" not in alert
+        assert subject.scan_once() == 0
+        assert len(published) == 1
+    finally:
+        subject.close()
+
+
+def test_public_feed_failure_does_not_rollback_telegram_or_state_and_is_backed_off(tmp_path):
+    rows = rates_for(20, "TGT")
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
+    sent = []
+    publish_attempts = []
+
+    def fail_publish(_state, _profile):
+        publish_attempts.append(1)
+        raise RuntimeError("offline")
+
+    subject = scanner(
+        tmp_path,
+        FakeMT5({"XAUUSDm": rows, "GBPUSD+": rows}, symbols),
+        FakeClock(datetime(2026, 8, 20, 4, 5)),
+        sent,
+        publish_state=fail_publish,
+    )
+    try:
+        assert subject.scan_once() == 1
+        assert len(sent) == 1
+        assert len(publish_attempts) == 1
+        saved = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+        assert "entryTime" not in saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"][0]
+        assert subject.scan_once() == 0
+        assert len(publish_attempts) == 1
+    finally:
+        subject.close()
+
+
+def test_scanner_after_h17_republishes_persisted_state_without_h1_history(tmp_path):
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps({
+            "version": 2,
+            "days": {
+                "2026-08-20": {
+                    "symbols": {
+                        "XAUUSD": {
+                            "dayType": "SW",
+                            "firstSignalHour": 4,
+                            "alerts": [{
+                                "slotHour": 4,
+                                "pattern": "T G",
+                                "bars": ["2026-08-20T03:00", "2026-08-20T02:00"],
+                                "symbol": "XAUUSDm",
+                                "profile": "Vantage",
+                                "symbolH1Signal": "BUY",
+                                "dayType": "SW",
+                                "gbpusdH1Signal": "BUY",
+                            }],
+                        }
+                    }
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
+    mt5 = FakeMT5({}, symbols)
+    published = []
+    subject = scanner(
+        tmp_path,
+        mt5,
+        FakeClock(datetime(2026, 8, 20, 18, 5)),
+        [],
+        publish_state=lambda state, profile: published.append((json.loads(json.dumps(state)), profile)),
+    )
+    try:
+        assert subject.scan_once() == 0
+        assert len(published) == 1
+        assert published[0][1] == "Vantage"
+        assert mt5.rate_calls == []
     finally:
         subject.close()
 

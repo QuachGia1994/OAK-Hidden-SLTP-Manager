@@ -27,6 +27,7 @@ from domain.ticket_manager import TicketManager
 from domain.copy_trade_manager import CopyTradeManager
 from domain.balance import get_start_day_balance
 from domain.file_lock import FileLock
+from domain.h1_signal_public_feed import publish_h1_signal_state
 from domain.xau_h1_pattern_scanner import MultiSymbolH1PatternScanner
 from services.mt5_terminal_service import (
     bind_live_mt5_account_identity,
@@ -568,6 +569,7 @@ class MonitorWorker(threading.Thread):
                 notify=self.send_telegram,
                 log=self.log,
                 profile_name=profile_name,
+                publish_state=publish_h1_signal_state,
             )
             
             if copy_role != "none":

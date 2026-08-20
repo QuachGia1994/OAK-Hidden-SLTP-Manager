@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 import importlib
+import json
 from pathlib import Path
 import sys
 from typing import Any, Callable, Iterable
@@ -274,6 +275,7 @@ class MultiSymbolH1PatternScanner:
         clock_factory: Callable[..., Any] = BrokerClock,
         lock_factory: Callable[..., Any] = FileLock,
         pattern5_group_resolver: Callable[[Any, str, date, int], str | None] = resolve_canonical_gbpusd_group,
+        publish_state: Callable[[dict[str, Any], str], Any] | None = None,
     ) -> None:
         self._mt5 = mt5_module
         self._notify = notify
@@ -284,6 +286,9 @@ class MultiSymbolH1PatternScanner:
         self._clock_factory = clock_factory
         self._lock_factory = lock_factory
         self._pattern5_group_resolver = pattern5_group_resolver
+        self._publish_state = publish_state
+        self._last_published_signature: str | None = None
+        self._publish_retry_after = 0.0
         self._owner_context: Any | None = None
         self._owner_guard: Any | None = None
         self._clock: Any | None = None
@@ -435,6 +440,26 @@ class MultiSymbolH1PatternScanner:
             state["days"] = {key: value for key, value in days.items() if key in keep}
         save_json(str(self._state_path), state)
 
+    def _publish_state_if_changed(self, state: dict[str, Any]) -> None:
+        if self._publish_state is None:
+            return
+        import time
+
+        now = time.time()
+        if now < self._publish_retry_after:
+            return
+        signature = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        if signature == self._last_published_signature:
+            return
+        try:
+            self._publish_state(state, self._profile_name)
+        except Exception as error:
+            self._publish_retry_after = now + 300.0
+            self._log_issue_once("h1-public-feed", f"[H1-SCAN] Public H1 feed publish lỗi: {error}", now_epoch=now)
+            return
+        self._publish_retry_after = 0.0
+        self._last_published_signature = signature
+
     def _pattern5_group(self, broker_day: date, block_hour: int) -> str | None:
         if not self._gbpusd_symbol:
             return None
@@ -546,6 +571,47 @@ class MultiSymbolH1PatternScanner:
             return "SELL"
         return None
 
+    def _enrich_existing_alerts(
+        self,
+        alerts: list[dict[str, Any]],
+        day_type: str,
+        first_signal_hour: int | None,
+        broker_day: date,
+        gbp_candles: dict[int, tuple[datetime, str]],
+    ) -> bool:
+        """Backfill canonical web/detail fields without replaying Telegram alerts."""
+        if day_type not in {"SW", "BT"} or first_signal_hour is None:
+            return False
+        changed = False
+        for alert in sorted(alerts, key=lambda item: int(item["slotHour"])):
+            if "entryTime" in alert:
+                alert.pop("entryTime", None)
+                changed = True
+            slot_hour = int(alert["slotHour"])
+            gbp_context = self._gbpusd_signal_context(slot_hour, broker_day, gbp_candles)
+            if not gbp_context.signal:
+                continue
+            if slot_hour == first_signal_hour:
+                symbol_signal = self._stored_symbol_signal(alert)
+            else:
+                symbol_signal = signal_from_gbpusd_day_type(gbp_context.signal, day_type)
+            if not symbol_signal:
+                continue
+            canonical = {
+                "symbolH1Signal": symbol_signal,
+                "dayType": day_type,
+                "gbpusdH1Signal": gbp_context.signal,
+                "gbpusdBaseHour": gbp_context.base_hour,
+                "gbpusdBaseDirection": gbp_context.base_direction or "",
+                "gbpusdBlockHour": gbp_context.block_hour,
+                "gbpusdGroup": gbp_context.group or "",
+            }
+            for key, value in canonical.items():
+                if alert.get(key) != value:
+                    alert[key] = value
+                    changed = True
+        return changed
+
     def scan_once(self) -> int:
         """Scan current broker day across target symbols; return Telegram sends."""
         try:
@@ -554,6 +620,12 @@ class MultiSymbolH1PatternScanner:
             assert self._clock is not None
             broker_now = self._clock.now()
             if broker_now.hour < EARLIEST_SCAN_HOUR or broker_now.hour > LAST_SCAN_HOUR:
+                try:
+                    state = self._load_state()
+                except (JsonStateError, OSError, ValueError) as error:
+                    self._log_issue_once("state", f"[H1-SCAN] State lỗi, dừng alert để tránh replay: {error}")
+                    return 0
+                self._publish_state_if_changed(state)
                 return 0
 
             try:
@@ -648,6 +720,16 @@ class MultiSymbolH1PatternScanner:
                     first_alert.setdefault("gbpusdH1Signal", stored_gbp_signal)
                     self._save_state(state)
 
+                if self._enrich_existing_alerts(
+                    alerts,
+                    day_type,
+                    first_signal_hour,
+                    broker_now.date(),
+                    gbp_candles,
+                ):
+                    self._save_state(state)
+                    self._publish_state_if_changed(state)
+
                 last_slot = max((int(item["slotHour"]) for item in alerts), default=first_scan_hour - 1)
                 pending = [match for match in matches if match.slot_hour > last_slot]
                 for match in pending:
@@ -692,6 +774,7 @@ class MultiSymbolH1PatternScanner:
                             f"telegram:{base}",
                             f"[H1-SCAN] {base} match H{match.slot_hour:02d} đang chờ Telegram gửi thành công.",
                         )
+                        self._publish_state_if_changed(state)
                         return sent
                     record = {
                         "slotHour": match.slot_hour,
@@ -714,12 +797,14 @@ class MultiSymbolH1PatternScanner:
                         symbol_state["symbolH1Signal"] = symbol_signal
                         symbol_state["gbpusdH1Signal"] = gbpusd_signal.signal
                     self._save_state(state)
+                    self._publish_state_if_changed(state)
                     kind = "first" if is_first_signal else "later"
                     self._log(
                         f"[H1-SCAN] {base} đã gửi {kind} alert: H{match.slot_hour:02d} "
                         f"{match.pattern_text} · day={day_type}"
                     )
                     sent += 1
+            self._publish_state_if_changed(state)
             return sent
         except BrokerClockError as error:
             self._log_issue_once("clock", f"[H1-SCAN] Chưa xác định được giờ broker an toàn: {error}")

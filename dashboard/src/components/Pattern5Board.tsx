@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { H1SignalBoard } from "@/components/H1SignalBoard";
+import type { H1SignalPayload } from "@/lib/h1-signals";
 import type { Pattern5Candle, Pattern5Payload, Pattern5Signal, Pattern5Table } from "@/lib/pattern5";
 
 type Locale = "EN" | "VN";
@@ -278,7 +280,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
   </>;
 }
 
-export function Pattern5Board({ data, locale, access }: { data: Pattern5Payload | null; locale: Locale; access: VipAccessView }) {
+export function Pattern5Board({ data, h1Data, locale, access }: { data: Pattern5Payload | null; h1Data: H1SignalPayload | null; locale: Locale; access: VipAccessView }) {
   const today = ictToday();
   const [selection, setSelection] = useState<EvidenceSelection | null>(null);
   const [selectedPair, setSelectedPair] = useState("");
@@ -308,6 +310,7 @@ export function Pattern5Board({ data, locale, access }: { data: Pattern5Payload 
     </header>
 
     <VipGate access={access} locale={locale} />
+    <H1SignalBoard data={h1Data} locale={locale} unlocked={access.unlocked} />
 
     {!data ? <div className="oak-empty-state"><span>∅</span><p>{copy.noFeed}</p></div> : <>
       <section className="oak-mobile-workspace">

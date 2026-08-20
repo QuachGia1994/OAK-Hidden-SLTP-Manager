@@ -428,6 +428,68 @@ min-height: 4.6rem; gap: .36rem; padding: .48rem .55rem; animation: none; transi
 .oak-pair-error { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; color: var(--muted); }
 .oak-pair-error strong { color: var(--terminal-danger); }
 
+/* H1 intraday signal matrix */
+.oak-h1-board {
+  overflow: hidden;
+  border: 1px solid var(--oak-border-subtle);
+  border-radius: var(--oak-radius-md);
+  background: var(--oak-bg-surface);
+  box-shadow: var(--oak-shadow-1);
+}
+.oak-h1-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .7rem .8rem;
+  border-bottom: 1px solid var(--oak-border-subtle);
+  background: var(--oak-bg-raised);
+}
+.oak-h1-board-head h2 { margin-top: .16rem; font-size: .92rem; font-weight: 900; letter-spacing: -.025em; }
+.oak-h1-board-head p { margin-top: .16rem; color: var(--oak-fg-muted); font-size: .6rem; }
+.oak-h1-meta { display: flex; align-items: center; gap: .5rem; }
+.oak-h1-meta span { display: grid; gap: .12rem; min-width: 6rem; padding: .35rem .48rem; border-left: 1px solid var(--oak-border-subtle); }
+.oak-h1-meta small { color: var(--oak-fg-muted); font: 800 .44rem "Cascadia Mono", Consolas, monospace; letter-spacing: .1em; }
+.oak-h1-meta b { font: 850 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-locked { padding: .48rem .75rem; border-bottom: 1px solid var(--oak-border-subtle); color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 6%, var(--oak-bg-surface)); font: 800 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-empty { min-height: 5.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem; }
+.oak-h1-empty h2 { margin-top: .15rem; font-size: .9rem; font-weight: 900; }
+.oak-h1-empty p { color: var(--oak-fg-muted); font-size: .7rem; }
+.oak-h1-table-scroll { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.oak-h1-table { width: 100%; min-width: 79rem; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.oak-h1-table th, .oak-h1-table td { width: 4.8rem; border-right: 1px solid var(--oak-border-subtle); border-bottom: 1px solid var(--oak-border-subtle); }
+.oak-h1-table th:last-child, .oak-h1-table td:last-child { border-right: 0; }
+.oak-h1-table tbody tr:last-child th, .oak-h1-table tbody tr:last-child td { border-bottom: 0; }
+.oak-h1-table thead th { height: 2.15rem; color: var(--oak-fg-muted); background: var(--oak-bg-raised); font: 850 .55rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-symbol-sticky { position: sticky; left: 0; z-index: 4; width: 7rem !important; min-width: 7rem; padding-inline: .65rem; text-align: left; background: var(--oak-bg-raised) !important; box-shadow: 1px 0 0 var(--oak-border-subtle); }
+.oak-h1-table tbody .oak-h1-symbol-sticky b { color: var(--oak-fg-primary); font: 900 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-cell-empty { display: grid; min-height: 3.7rem; place-items: center; color: color-mix(in srgb, var(--oak-fg-muted) 45%, transparent); font-size: .7rem; }
+.oak-h1-signal-button { display: grid; width: 100%; min-height: 3.7rem; place-content: center; padding: .35rem; text-align: center; transition: background-color var(--oak-motion-fast) ease; }
+.oak-h1-signal-button b { font: 950 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
+.oak-h1-signal-button[data-side="buy"] { background: color-mix(in srgb, var(--oak-signal-buy) 7%, var(--oak-bg-surface)); }
+.oak-h1-signal-button[data-side="sell"] { background: color-mix(in srgb, var(--oak-signal-sell) 7%, var(--oak-bg-surface)); }
+.oak-h1-signal-button[data-side="buy"] b { color: var(--oak-signal-buy); }
+.oak-h1-signal-button[data-side="sell"] b { color: var(--oak-signal-sell); }
+.oak-h1-signal-button:hover { background: var(--oak-bg-raised); }
+.oak-h1-detail-modal { box-sizing: border-box; width: min(43rem, 100%); max-width: 100%; max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)); padding: 1rem; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); }
+.oak-h1-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin-top: .8rem; }
+.oak-h1-detail-grid > div { min-width: 0; padding: .6rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); background: var(--oak-bg-raised); }
+.oak-h1-detail-grid small { display: block; color: var(--oak-fg-muted); font: 800 .46rem "Cascadia Mono", Consolas, monospace; letter-spacing: .09em; }
+.oak-h1-detail-grid b { display: block; margin-top: .22rem; overflow-wrap: anywhere; font: 850 .65rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-explain { display: grid; gap: .48rem; margin-top: .7rem; }
+.oak-h1-explain p { display: grid; grid-template-columns: minmax(8.5rem, .55fr) minmax(0, 1.45fr); gap: .75rem; align-items: baseline; padding: .6rem .7rem; border-left: 2px solid var(--oak-accent-command); background: var(--oak-bg-raised); }
+.oak-h1-explain span { color: var(--oak-fg-muted); font-size: .62rem; }
+.oak-h1-explain b { min-width: 0; overflow-wrap: anywhere; font: 850 .66rem "Cascadia Mono", Consolas, monospace; }
+.oak-h1-explain b[data-side="buy"] { color: var(--oak-signal-buy); }
+.oak-h1-explain b[data-side="sell"] { color: var(--oak-signal-sell); }
+@media (max-width: 720px) {
+  .oak-h1-board-head { align-items: flex-start; flex-direction: column; }
+  .oak-h1-meta { width: 100%; }
+  .oak-h1-meta span { flex: 1; }
+  .oak-h1-detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .oak-h1-explain p { grid-template-columns: 1fr; gap: .2rem; }
+}
+
 /* Modal system */
 .oak-modal-backdrop {
   position: fixed;
@@ -447,7 +509,8 @@ min-height: 4.6rem; gap: .36rem; padding: .48rem .55rem; animation: none; transi
 backdrop-filter: none; -webkit-backdrop-filter: none; animation: none;
 }
 .oak-evidence-modal,
-.oak-vip-modal {
+.oak-vip-modal,
+.oak-h1-detail-modal {
   box-sizing: border-box;
   width: min(51rem, 100%);
   max-width: 100%;
@@ -462,8 +525,10 @@ border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shad
 }
 .oak-vip-modal { width: min(27rem, 100%); padding: 1rem; }
 .oak-evidence-modal { padding: 1rem; }
+.oak-h1-detail-modal { width: min(43rem, 100%); padding: 1rem; }
 .oak-evidence-modal > *,
-.oak-vip-modal > * { min-width: 0; max-width: 100%; }
+.oak-vip-modal > *,
+.oak-h1-detail-modal > * { min-width: 0; max-width: 100%; }
 .oak-modal-header {
   display: flex;
   align-items: flex-start;

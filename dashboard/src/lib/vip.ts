@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import type { H1SignalPayload } from "@/lib/h1-signals";
 import type { Pattern5Payload } from "@/lib/pattern5";
 
 export const VIP_COOKIE = "sltp_vip_access";
@@ -54,6 +55,22 @@ export function getVipAccessState(cookieHeader: string, now = new Date()): VipAc
     vipAuthenticated,
     weekday,
     mode: vipAuthenticated ? "vip" : weekendFree ? "weekend" : "locked",
+  };
+}
+
+export function redactH1Signals(payload: H1SignalPayload | null): H1SignalPayload | null {
+  if (!payload) return null;
+  return {
+    ...payload,
+    days: Object.fromEntries(Object.entries(payload.days).map(([date, day]) => [
+      date,
+      {
+        symbols: Object.fromEntries(Object.entries(day.symbols).map(([base, symbol]) => [
+          base,
+          { ...symbol, dayType: null, firstSignalHour: null, alerts: [] },
+        ])),
+      },
+    ])),
   };
 }
 

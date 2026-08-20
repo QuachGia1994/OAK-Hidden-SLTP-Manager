@@ -1,0 +1,135 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import type { H1SignalAlert, H1SignalPayload, H1SymbolDay } from "@/lib/h1-signals";
+
+type Locale = "EN" | "VN";
+type Selection = { base: string; date: string; state: H1SymbolDay; alert: H1SignalAlert };
+
+function formatPublished(value: string, locale: Locale) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString(locale === "EN" ? "en-GB" : "vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function barsLabel(values: string[]) {
+  return values.map((value) => {
+    const match = value.match(/T(\d{2}):/);
+    return match ? `H${match[1]}` : value;
+  }).join("→");
+}
+
+function useDialogFocus(onClose: () => void) {
+  const ref = useRef<HTMLElement | null>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTarget = dialog.querySelector<HTMLElement>("button");
+    focusTarget?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+    };
+    dialog.addEventListener("keydown", onKeyDown);
+    return () => {
+      dialog.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = oldOverflow;
+      previous?.focus();
+    };
+  }, []);
+  return ref;
+}
+
+function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
+  const ref = useDialogFocus(onClose);
+  const { base, date, state, alert } = selection;
+  const isFirst = alert.slotHour === state.firstSignalHour;
+  const behavior = alert.gbpusdGroup === "Sw" || alert.gbpusdGroup === "Sr"
+    ? (locale === "EN" ? "reverse" : "đảo")
+    : (locale === "EN" ? "follow" : "giữ nguyên");
+  const relation = alert.dayType === "SW"
+    ? (locale === "EN" ? "same direction on first signal" : "cùng chiều ở tín hiệu đầu ngày")
+    : (locale === "EN" ? "opposite direction on first signal" : "ngược chiều ở tín hiệu đầu ngày");
+  const gbpDetail = alert.gbpusdSignal
+    ? `${alert.gbpusdSignal}${alert.gbpusdBaseHour !== null ? ` · Base H${String(alert.gbpusdBaseHour).padStart(2, "0")}=${alert.gbpusdBaseDirection || "—"}` : ""}${alert.gbpusdBlockHour !== null ? ` · Block H${String(alert.gbpusdBlockHour).padStart(2, "0")}=${alert.gbpusdGroup || "—"} (${behavior})` : ""}`
+    : "—";
+
+  return (
+    <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section ref={ref} className="oak-h1-detail-modal" role="dialog" aria-modal="true" aria-label={`${base} H1 detail`}>
+        <header className="oak-modal-header">
+          <div><span className="oak-eyebrow">H1 SIGNAL DETAIL</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{isFirst ? (locale === "EN" ? "First signal of broker day" : "Tín hiệu H1 đầu ngày broker") : (locale === "EN" ? "Later intraday pattern" : "Pattern H1 tiếp theo trong ngày")}</p></div>
+          <button type="button" onClick={onClose} aria-label="Close">×</button>
+        </header>
+        <div className="oak-h1-detail-grid">
+          <div><small>SYMBOL</small><b>{alert.symbol || base}</b></div>
+          <div><small>PROFILE</small><b>{alert.profile}</b></div>
+          <div><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date}</b></div>
+          <div><small>SCAN</small><b>H{String(alert.slotHour).padStart(2, "0")}</b></div>
+          <div><small>{locale === "EN" ? "CANDLES NEW→OLD" : "NẾN MỚI→CŨ"}</small><b>{barsLabel(alert.bars) || "—"}</b></div>
+          <div><small>PATTERN</small><b>{alert.pattern || "—"}</b></div>
+        </div>
+        <div className="oak-h1-explain">
+          {isFirst ? <>
+            <p><span>Signal GBPUSD H1</span><b>{gbpDetail}</b></p>
+            <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
+            <p><span>{locale === "EN" ? "Day classification" : "Phân loại ngày"}</span><b>{alert.dayType} · {relation}</b></p>
+          </> : <>
+            <p><span>Signal GBPUSD H1</span><b>{gbpDetail}</b></p>
+            <p><span>{locale === "EN" ? "Day classification" : "Phân loại ngày"}</span><b>{alert.dayType} · first H{String(state.firstSignalHour ?? 0).padStart(2, "0")}</b></p>
+            <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
+          </>}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayload | null; locale: Locale; unlocked: boolean }) {
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const dates = data ? Object.keys(data.days).sort() : [];
+  const date = dates.at(-1) ?? "";
+  const day = date && data ? data.days[date] : undefined;
+  const copy = locale === "EN"
+    ? { title: "H1 Intraday Signals", sub: "Delivered scanner signals · tap BUY/SELL for Telegram detail", awaiting: "Awaiting H1 live feed", locked: "VIP weekday signals are locked" }
+    : { title: "Tín hiệu H1 trong ngày", sub: "Tín hiệu scanner đã gửi · chạm BUY/SELL để xem chi tiết như Telegram", awaiting: "Đang chờ feed H1 live", locked: "Tín hiệu H1 ngày thường đang khóa VIP" };
+
+  if (!data) return <section className="oak-h1-board oak-h1-empty"><div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2></div><p>{copy.awaiting}</p></section>;
+
+  return (
+    <>
+      <section className="oak-h1-board">
+        <header className="oak-h1-board-head">
+          <div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2><p>{copy.sub}</p></div>
+          <div className="oak-h1-meta"><span><small>BROKER DAY</small><b>{date || "—"}</b></span><span><small>UPDATED</small><b>{formatPublished(data.publishedAt, locale)}</b></span></div>
+        </header>
+        {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
+        <div className="oak-h1-table-scroll lux-scroll">
+          <table className="oak-h1-table">
+            <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => <th key={hour}>H{String(hour).padStart(2, "0")}</th>)}</tr></thead>
+            <tbody>{data.symbols.map((base) => {
+              const symbolState = day?.symbols?.[base];
+              const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
+              return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
+                const alert = byHour.get(hour);
+                if (!alert?.signal || !symbolState) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
+                return <td key={hour}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, state: symbolState, alert })}><b>{alert.signal}</b></button></td>;
+              })}</tr>;
+            })}</tbody>
+          </table>
+        </div>
+      </section>
+      {selection && <DetailModal selection={selection} locale={locale} onClose={() => setSelection(null)} />}
+    </>
+  );
+}
