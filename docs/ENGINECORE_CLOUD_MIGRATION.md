@@ -40,40 +40,36 @@ Any mismatch is fail-closed: MT5 remains the production source.
 
 A candidate source must remain shadow-only until the parity gate passes.
 
-## IC Markets cloud path: cTrader Open API
+## IC Markets cTrader path: H1 scanner parity only
+
+The cTrader integration now has a deliberately narrower job: read-only H1 parity for the passive scanner. It is not an Engine5 H4 cutover candidate. Engine5 remains MT5-backed.
 
 The implementation uses the official Spotware Python SDK in an isolated one-shot process. Twisted is not embedded into the long-lived Tauri/MT5 worker.
 
 Files:
 
-- `ctrader_market_data.py` — canonical symbol mapping, cTrader trendbar conversion, exact account fencing and one-shot collector.
-- `ctrader_snapshot_cli.py` — fetch IC Markets cTrader H1 and write an MT5-boundary H4 snapshot.
+- `ctrader_market_data.py` — canonical symbol mapping, cTrader trendbar conversion and exact account fencing retained for compatibility.
+- `ctrader_h1_market_data.py` — direct H1 collector for scanner parity; no H4 reconstruction.
+- `h1_market_data.py` — current-broker-day H1 snapshot + scanner-semantic parity contract.
+- `ctrader_snapshot_cli.py` — fetch the current closed cTrader H1 snapshot.
+- `mt5_h1_snapshot_cli.py` — attach-only MT5 closed-H1 baseline snapshot.
+- `h1_market_data_parity_cli.py` — compare H1 timestamps and T/G direction; OHLC differences are diagnostic only.
 - `ctrader_accounts_cli.py` — list authorised cTrader account IDs safely after OAuth.
-- `mt5_snapshot_cli.py` — export the IC Markets/Vantage MT5 baseline for parity.
 - `ctrader_cloud_config.py` — direct-env or Vercel control-plane session config.
 
 The official SDK dependency is pinned in `requirements.txt` as `ctrader-open-api==0.9.2`.
 
-### cTrader bar conversion and MT5 boundary reconstruction
+### H1 normalization
 
-The collector uses the Open API H1 trendbar fields directly:
+The collector uses Open API H1 trendbar fields directly:
 
 - candle open time = `utcTimestampInMinutes * 60`;
 - low = `low / 100000`;
 - open/high/close = `(low + delta*) / 100000`, rounded to cTrader symbol digits.
 
-Raw cTrader H4 is **not** used as the parity candidate. IC MetaTrader charts use a New-York-close server clock: UTC+2 in US standard time and UTC+3 while New York is on daylight saving time. cTrader trendbar timestamps are UTC, so direct platform H4 boundaries are not assumed to match.
+For parity only, cTrader UTC H1 opening times are normalized into the same IC Markets MT5 server-wall timestamp encoding (UTC+2 standard / UTC+3 during New-York DST). The candle remains H1; it is never aggregated into H4.
 
-OAK therefore fetches cTrader H1 and reconstructs H4 on the IC MetaTrader boundary:
-
-- winter broker midnight: 22:00 UTC;
-- summer broker midnight: 21:00 UTC;
-- H4 starts satisfy `(utc_epoch + mt5_server_offset) % 14400 == 0`;
-- each output H4 requires four consecutive H1 candles;
-- open = first H1 open, high = max H1 high, low = min H1 low, close = fourth H1 close;
-- incomplete or DST-crossing four-hour groups are skipped rather than fabricated.
-
-The offset is calculated with the `America/New_York` IANA timezone, so US DST transitions are not hard-coded by calendar date. The resulting broker-day offset is then compared against the current IC MT5 baseline before Engine5 cutover.
+The parity pass/fail rule is intentionally aligned with the scanner: every closed H1 slot for the selected broker day must exist on both sides and its direction must match (`T` when close > open, otherwise `G`). OHLC deltas are still reported for diagnostics but do not decide scanner parity because the scanner does not consume the exact price values.
 
 ## OAuth and token vault on Vercel
 
@@ -141,25 +137,25 @@ After OAuth, run the account discovery collector against the private control-pla
 
 Select the IC Markets demo account and set its `accountId` as `OAK_CTRADER_ACCOUNT_ID`. Market-data collection fails closed if account ID, environment or broker does not match.
 
-## Shadow parity commands
+## H1 scanner parity commands
 
-### 1. Export current IC Markets MT5 baseline
+### 1. Export current IC Markets MT5 H1 baseline
 
-This is the only step that still needs the local/VPS MT5 terminal during migration:
+This is attach-only and will not start a terminal:
 
-`python robot-sltp-pro/mt5_snapshot_cli.py --profile ICMarkets --days 21 --output ic_mt5.json`
+`python robot-sltp-pro/mt5_h1_snapshot_cli.py --profile ICMarkets --output ic_mt5_h1.json`
 
-### 2. Fetch IC Markets cTrader candidate
+### 2. Fetch IC Markets cTrader H1 candidate
 
 Using direct credentials or the Vercel session endpoint:
 
-`python robot-sltp-pro/ctrader_snapshot_cli.py --days 21 --output ic_ctrader.json`
+`python robot-sltp-pro/ctrader_snapshot_cli.py --days 2 --output ic_ctrader_h1.json`
 
-### 3. Run fail-closed parity
+### 3. Compare scanner semantics
 
-`python robot-sltp-pro/market_data_parity_cli.py ic_mt5.json ic_ctrader.json`
+`python robot-sltp-pro/h1_market_data_parity_cli.py ic_mt5_h1.json ic_ctrader_h1.json`
 
-The candidate is not allowed to publish production Engine5 until the agreed multi-day shadow window is clean.
+A PASS means the closed H1 slot set and T/G direction match for the broker day. This parity does not authorize Engine5 market-data cutover or trading execution.
 
 ## Vantage path
 
@@ -193,31 +189,20 @@ For execution adapters, preserve the current safety properties:
 
 Trading OAuth scope is a separate future gate. The initial cTrader onboarding uses `accounts` scope only and cannot place trades.
 
-## Current status / STOP GATE — 2026-08-18
+## Current status — 2026-08-21
 
-Repository and Vercel control-plane preparation are complete for the read-only market-data phase.
+The cTrader application is Active and the read-only OAuth/control-plane path is operational.
 
 Current state:
 
-- cTrader Open API application created and submitted to Spotware;
-- redirect URI registered as `https://www.oakgatekeeper.uk/api/ctrader/oauth`;
-- Vercel cTrader client configuration and encrypted vault configuration are present and redeployed;
-- production status route confirms the app/vault layer is configured without exposing secrets;
-- requested OAuth scope remains `accounts` only;
-- no cTrader account has been authorised/discovered yet;
-- production Engine 5 source remains MT5 and cloud data remains shadow-only.
+- production OAuth is authorised with `accounts` scope only;
+- the encrypted Vercel/Upstash vault is readable and refresh-capable;
+- an IC Markets live account with `NO_TRADING` account access is selected for shadow market-data reads;
+- cTrader remains read-only/shadow-only and has no trading OAuth scope;
+- production Engine5 remains MT5-backed;
+- cTrader is used only for current-broker-day H1 scanner parity;
+- the parity contract compares broker-wall H01..H16 slot presence and T/G direction for `GBPUSD`, `XAUUSD`, `EURUSD`, `AUDUSD`, `USDCAD`, and `USDJPY`; OHLC deltas are diagnostic only.
 
-The remaining blocker is **Spotware application activation/KYC**. The portal must move the application from Submitted to Active before the OAuth/token/account-discovery flow can run.
+On 2026-08-21 the current broker-day H1 scanner parity passed direction/timestamp parity for all six symbols available at the test time. This does not authorize Engine5 cutover or execution.
 
-After the application becomes Active:
-
-1. rotate any onboarding credential that may have been exposed during setup and update Vercel directly;
-2. authorise the IC Markets **demo** cTrader account with `accounts` scope;
-3. run account discovery and set the verified `ctidTraderAccountId`;
-4. export the MT5 baseline snapshot;
-5. collect cTrader H1 and reconstruct MT5-aligned H4;
-6. run multi-day timestamp/OHLC parity;
-7. compare Engine 5 group/base/reverse/final signals;
-8. keep production on MT5 unless every parity gate passes.
-
-Trading scope/order execution remains a separate later gate and is intentionally not enabled by this phase.
+Trading scope/order execution remains a separate future gate and is intentionally not enabled.

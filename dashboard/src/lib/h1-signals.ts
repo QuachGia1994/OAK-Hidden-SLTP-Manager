@@ -3,26 +3,22 @@ import "server-only";
 import { redis } from "./redis-core";
 
 export type H1SignalSide = "BUY" | "SELL";
-export type H1DayType = "SW" | "BT";
+export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Alternating" | "sw6CombinedPure";
 
 export type H1SignalAlert = {
   slotHour: number;
   pattern: string;
+  patternKind: H1PatternKind;
   bars: string[];
   symbol: string;
   profile: string;
   signal: H1SignalSide | null;
-  dayType: H1DayType | null;
   gbpusdSignal: H1SignalSide | null;
   gbpusdBaseHour: number | null;
   gbpusdBaseDirection: "T" | "G" | "";
-  gbpusdBlockHour: number | null;
-  gbpusdGroup: "Sw" | "Sr" | "Bt" | "";
 };
 
 export type H1SymbolDay = {
-  dayType: H1DayType | null;
-  firstSignalHour: number | null;
   alerts: H1SignalAlert[];
 };
 
@@ -39,7 +35,7 @@ export type H1SignalPayload = {
   days: Record<string, H1SignalDay>;
 };
 
-export const H1_SIGNAL_PUBLIC_SCHEMA = 1;
+export const H1_SIGNAL_PUBLIC_SCHEMA = 2;
 const LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 
 function vietnamDateKey(now = new Date()): string {

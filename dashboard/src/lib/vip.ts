@@ -67,7 +67,7 @@ export function redactH1Signals(payload: H1SignalPayload | null): H1SignalPayloa
       {
         symbols: Object.fromEntries(Object.entries(day.symbols).map(([base, symbol]) => [
           base,
-          { ...symbol, dayType: null, firstSignalHour: null, alerts: [] },
+          { ...symbol, alerts: [] },
         ])),
       },
     ])),

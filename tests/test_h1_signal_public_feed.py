@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 
 import domain.h1_signal_public_feed as feed_module
 from domain.h1_signal_public_feed import PUBLIC_SCHEMA, build_public_h1_feed, publish_h1_signal_state
@@ -15,28 +14,24 @@ def sample_state():
             "2026-08-20": {
                 "symbols": {
                     "AUDUSD": {
-                        "dayType": "SW",
-                        "firstSignalHour": 3,
                         "alerts": [
                             {
                                 "slotHour": 16,
                                 "pattern": "T G G",
+                                "patternKind": "sw3Pure",
                                 "bars": ["2026-08-20T15:00", "2026-08-20T14:00", "2026-08-20T13:00"],
                                 "symbol": "AUDUSD+",
                                 "profile": "Vantage",
-                                "symbolH1Signal": "BUY",
-                                "dayType": "SW",
+                                "symbolH1Signal": "SELL",
                                 "gbpusdH1Signal": "SELL",
                                 "gbpusdBaseHour": 15,
                                 "gbpusdBaseDirection": "T",
-                                "gbpusdBlockHour": 15,
-                                "gbpusdGroup": "Sw",
                             },
                             {
                                 "slotHour": 17,
-                                "pattern": "G T T",
-                                "dayType": "SW",
-                                # Missing final symbol signal must fail closed from the web feed.
+                                "pattern": "G T G",
+                                "patternKind": "sw3Alternating",
+                                # Missing final symbol signal must fail closed from web feed.
                             },
                         ],
                     }
@@ -48,28 +43,24 @@ def sample_state():
 
 def test_build_public_h1_feed_normalizes_complete_alerts_and_skips_incomplete_rows():
     feed = build_public_h1_feed(sample_state(), "Vantage", published_at="2026-08-20T13:20:00+00:00")
-    assert feed["schemaVersion"] == PUBLIC_SCHEMA == 1
+    assert feed["schemaVersion"] == PUBLIC_SCHEMA == 2
     assert feed["profile"] == "Vantage"
     assert feed["hours"] == list(range(3, 18))
     assert feed["symbols"] == ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"]
     aud = feed["days"]["2026-08-20"]["symbols"]["AUDUSD"]
-    assert aud["dayType"] == "SW"
-    assert aud["firstSignalHour"] == 3
+    assert set(aud) == {"alerts"}
     assert len(aud["alerts"]) == 1
-    alert = aud["alerts"][0]
-    assert alert == {
+    assert aud["alerts"][0] == {
         "slotHour": 16,
         "pattern": "T G G",
+        "patternKind": "sw3Pure",
         "bars": ["2026-08-20T15:00", "2026-08-20T14:00", "2026-08-20T13:00"],
         "symbol": "AUDUSD+",
         "profile": "Vantage",
-        "signal": "BUY",
-        "dayType": "SW",
+        "signal": "SELL",
         "gbpusdSignal": "SELL",
         "gbpusdBaseHour": 15,
         "gbpusdBaseDirection": "T",
-        "gbpusdBlockHour": 15,
-        "gbpusdGroup": "Sw",
     }
 
 
@@ -95,7 +86,7 @@ def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
     monkeypatch.setattr(feed_module, "urlopen", fake_urlopen)
 
     feed = publish_h1_signal_state(sample_state(), "Vantage")
-    assert feed["schemaVersion"] == 1
+    assert feed["schemaVersion"] == 2
     assert len(requests) == 2
     commands = [json.loads(request.data.decode("utf-8")) for request, _timeout in requests]
     assert commands[0][0:2] == ["SET", "robot-sltp:public:h1-signals:Vantage"]
@@ -103,5 +94,7 @@ def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
     assert all(timeout == 5 for _request, timeout in requests)
     encoded_feed = json.loads(commands[0][2])
     alert = encoded_feed["days"]["2026-08-20"]["symbols"]["AUDUSD"]["alerts"][0]
-    assert alert["signal"] == "BUY"
+    assert alert["signal"] == "SELL"
+    assert alert["patternKind"] == "sw3Pure"
+    assert "dayType" not in alert
     assert "entryTime" not in alert

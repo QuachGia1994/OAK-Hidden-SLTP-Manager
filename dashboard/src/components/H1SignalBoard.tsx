@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { H1SignalAlert, H1SignalPayload, H1SymbolDay } from "@/lib/h1-signals";
+import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
-type Selection = { base: string; date: string; state: H1SymbolDay; alert: H1SignalAlert };
+type Selection = { base: string; date: string; alert: H1SignalAlert };
 
 function formatPublished(value: string, locale: Locale) {
   const parsed = new Date(value);
@@ -23,6 +23,22 @@ function barsLabel(values: string[]) {
     const match = value.match(/T(\d{2}):/);
     return match ? `H${match[1]}` : value;
   }).join("→");
+}
+
+function patternLabel(kind: H1PatternKind, locale: Locale) {
+  const labels: Record<H1PatternKind, { EN: string; VN: string }> = {
+    sw2: { EN: "SW 2-candle", VN: "SW 2 cây" },
+    sw3Pure: { EN: "SW pure 3-candle", VN: "SW 3 cây thuần" },
+    sw3Alternating: { EN: "SW alternating 3-candle", VN: "SW 3 cây xen kẽ" },
+    sw6CombinedPure: { EN: "SW combined 2×3 pure", VN: "SW ghép 2×3 cây thuần" },
+  };
+  return labels[kind][locale];
+}
+
+function targetBehavior(kind: H1PatternKind, locale: Locale) {
+  const follow = kind === "sw3Pure";
+  if (locale === "EN") return follow ? "follow GBPUSD H1" : "reverse GBPUSD H1";
+  return follow ? "giữ nguyên GBPUSD H1" : "đảo GBPUSD H1";
 }
 
 function useDialogFocus(onClose: () => void) {
@@ -52,23 +68,16 @@ function useDialogFocus(onClose: () => void) {
 
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocus(onClose);
-  const { base, date, state, alert } = selection;
-  const isFirst = alert.slotHour === state.firstSignalHour;
-  const behavior = alert.gbpusdGroup === "Sw" || alert.gbpusdGroup === "Sr"
-    ? (locale === "EN" ? "reverse" : "đảo")
-    : (locale === "EN" ? "follow" : "giữ nguyên");
-  const relation = alert.dayType === "SW"
-    ? (locale === "EN" ? "same direction on first signal" : "cùng chiều ở tín hiệu đầu ngày")
-    : (locale === "EN" ? "opposite direction on first signal" : "ngược chiều ở tín hiệu đầu ngày");
+  const { base, date, alert } = selection;
   const gbpDetail = alert.gbpusdSignal
-    ? `${alert.gbpusdSignal}${alert.gbpusdBaseHour !== null ? ` · Base H${String(alert.gbpusdBaseHour).padStart(2, "0")}=${alert.gbpusdBaseDirection || "—"}` : ""}${alert.gbpusdBlockHour !== null ? ` · Block H${String(alert.gbpusdBlockHour).padStart(2, "0")}=${alert.gbpusdGroup || "—"} (${behavior})` : ""}`
+    ? `${alert.gbpusdSignal}${alert.gbpusdBaseHour !== null ? ` · Base H${String(alert.gbpusdBaseHour).padStart(2, "0")}=${alert.gbpusdBaseDirection || "—"}` : ""}`
     : "—";
 
   return (
     <div className="oak-modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section ref={ref} className="oak-h1-detail-modal" role="dialog" aria-modal="true" aria-label={`${base} H1 detail`}>
         <header className="oak-modal-header">
-          <div><span className="oak-eyebrow">H1 SIGNAL DETAIL</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{isFirst ? (locale === "EN" ? "First signal of broker day" : "Tín hiệu H1 đầu ngày broker") : (locale === "EN" ? "Later intraday pattern" : "Pattern H1 tiếp theo trong ngày")}</p></div>
+          <div><span className="oak-eyebrow">H1 SIGNAL DETAIL</span><h2>{base} · H{String(alert.slotHour).padStart(2, "0")}</h2><p>{locale === "EN" ? "Intraday scanner pattern" : "Pattern scanner H1 trong ngày"}</p></div>
           <button type="button" onClick={onClose} aria-label="Close">×</button>
         </header>
         <div className="oak-h1-detail-grid">
@@ -80,15 +89,10 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <div><small>PATTERN</small><b>{alert.pattern || "—"}</b></div>
         </div>
         <div className="oak-h1-explain">
-          {isFirst ? <>
-            <p><span>Signal GBPUSD H1</span><b>{gbpDetail}</b></p>
-            <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
-            <p><span>{locale === "EN" ? "Day classification" : "Phân loại ngày"}</span><b>{alert.dayType} · {relation}</b></p>
-          </> : <>
-            <p><span>Signal GBPUSD H1</span><b>{gbpDetail}</b></p>
-            <p><span>{locale === "EN" ? "Day classification" : "Phân loại ngày"}</span><b>{alert.dayType} · first H{String(state.firstSignalHour ?? 0).padStart(2, "0")}</b></p>
-            <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
-          </>}
+          <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
+          <p><span>Signal GBPUSD H1</span><b>{gbpDetail}</b></p>
+          <p><span>{locale === "EN" ? `Signal ${base} logic` : `Logic Signal ${base}`}</span><b>{targetBehavior(alert.patternKind, locale)}</b></p>
+          <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>
     </div>
@@ -122,8 +126,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
               return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
-                if (!alert?.signal || !symbolState) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, state: symbolState, alert })}><b>{alert.signal}</b></button></td>;
+                if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
+                return <td key={hour}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}><b>{alert.signal}</b></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

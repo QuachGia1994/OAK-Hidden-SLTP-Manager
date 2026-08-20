@@ -10,9 +10,10 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLIC_SCHEMA = 1
+PUBLIC_SCHEMA = 2
 KEY_PREFIX = "robot-sltp:public:h1-signals:"
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
+PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Alternating", "sw6CombinedPure"}
 
 
 def _load_dotenv() -> None:
@@ -49,12 +50,6 @@ def build_public_h1_feed(
             symbol_state = symbols.get(base)
             if not isinstance(symbol_state, dict):
                 continue
-            day_type = str(symbol_state.get("dayType") or "").strip().upper()
-            if day_type not in {"SW", "BT"}:
-                day_type = ""
-            first_signal_hour = symbol_state.get("firstSignalHour")
-            if not isinstance(first_signal_hour, int):
-                first_signal_hour = None
 
             public_alerts = []
             alerts = symbol_state.get("alerts")
@@ -64,31 +59,25 @@ def build_public_h1_feed(
                     key=lambda row: int(row["slotHour"]),
                 ):
                     signal = str(alert.get("symbolH1Signal") or "").strip().upper()
-                    alert_day_type = str(alert.get("dayType") or day_type).strip().upper()
                     gbp_signal = str(alert.get("gbpusdH1Signal") or "").strip().upper()
-                    if signal not in {"BUY", "SELL"} or alert_day_type not in {"SW", "BT"}:
-                        # Fail closed for legacy/incomplete rows. The scanner enriches
-                        # these rows before publication when market data is available.
+                    pattern_kind = str(alert.get("patternKind") or "").strip()
+                    if signal not in {"BUY", "SELL"} or pattern_kind not in PATTERN_KINDS:
+                        # Fail closed for incomplete legacy rows. Scanner normalizes
+                        # them before publication whenever enough market data exists.
                         continue
                     public_alerts.append({
                         "slotHour": int(alert["slotHour"]),
                         "pattern": str(alert.get("pattern") or ""),
+                        "patternKind": pattern_kind,
                         "bars": [str(value) for value in (alert.get("bars") or []) if isinstance(value, str)],
                         "symbol": str(alert.get("symbol") or base),
                         "profile": str(alert.get("profile") or profile),
                         "signal": signal,
-                        "dayType": alert_day_type,
                         "gbpusdSignal": gbp_signal if gbp_signal in {"BUY", "SELL"} else "",
                         "gbpusdBaseHour": alert.get("gbpusdBaseHour") if isinstance(alert.get("gbpusdBaseHour"), int) else None,
                         "gbpusdBaseDirection": str(alert.get("gbpusdBaseDirection") or "").strip().upper(),
-                        "gbpusdBlockHour": alert.get("gbpusdBlockHour") if isinstance(alert.get("gbpusdBlockHour"), int) else None,
-                        "gbpusdGroup": str(alert.get("gbpusdGroup") or "").strip().title(),
                     })
-            public_symbols[base] = {
-                "dayType": day_type or None,
-                "firstSignalHour": first_signal_hour,
-                "alerts": public_alerts,
-            }
+            public_symbols[base] = {"alerts": public_alerts}
         public_days[str(day_key)] = {"symbols": public_symbols}
 
     return {
