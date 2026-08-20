@@ -83,10 +83,16 @@ export async function saveCTraderTokens(record: CTraderTokenRecord): Promise<voi
   await redis.set(VAULT_KEY, encrypt(record));
 }
 
+function serializeVaultEnvelope(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") return JSON.stringify(value);
+  throw new Error("Invalid cTrader vault value");
+}
+
 export async function loadCTraderTokens(): Promise<CTraderTokenRecord | null> {
-  const value = await redis.get<string>(VAULT_KEY);
+  const value = await redis.get<unknown>(VAULT_KEY);
   if (!value) return null;
-  const serialized = String(value);
+  const serialized = serializeVaultEnvelope(value);
   const dedicated = process.env.OAK_CTRADER_VAULT_KEY || "";
   if (dedicated) {
     try {

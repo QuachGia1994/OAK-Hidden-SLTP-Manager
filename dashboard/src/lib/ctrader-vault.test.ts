@@ -19,6 +19,14 @@ test("legacy API-key ciphertext is read only for one-way migration", () => {
   assert.doesNotMatch(source, /createCipheriv\([^\n]*DASHBOARD_API_KEY/);
 });
 
+test("Upstash auto-deserialized vault envelopes are serialized back before decrypt", () => {
+  assert.match(source, /function serializeVaultEnvelope\(value: unknown\): string/);
+  assert.match(source, /typeof value === "string"/);
+  assert.match(source, /JSON\.stringify\(value\)/);
+  assert.match(source, /const serialized = serializeVaultEnvelope\(value\)/);
+  assert.doesNotMatch(source, /const serialized = String\(value\)/);
+});
+
 test("cTrader status exposes dedicated vault-key readiness without the key value", () => {
   assert.match(statusSource, /vaultKeyConfigured: Boolean\(process\.env\.OAK_CTRADER_VAULT_KEY\)/);
   assert.doesNotMatch(statusSource, /OAK_CTRADER_VAULT_KEY\s*[,}]/);
