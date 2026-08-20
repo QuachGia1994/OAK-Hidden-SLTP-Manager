@@ -90,7 +90,7 @@ Server routes:
 - `GET /api/ctrader/oauth?code=...` — exchanges the short-lived authorisation code and stores tokens.
 - `GET /api/ctrader/status` — safe readiness/status only, including `vaultKeyConfigured`; never exposes credentials/token/account ID or vault material.
 - `GET /api/ctrader/session` — service-to-service only, requires `x-api-key`; returns a short-lived current access session to a cloud collector and never returns the refresh token.
-- `GET /api/ctrader/session?discovery=1` — same private endpoint but allows account discovery before an account ID is selected.
+- `GET /api/ctrader/session?discovery=1` — same private endpoint but allows account discovery before an account ID is selected. It accepts the normal `x-api-key` auth or a short-lived one-time `x-ctrader-session-ticket` bootstrap header that is consumed atomically; the refresh token is never returned.
 
 ### Vault security
 

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const source = readFileSync(new URL("./ctrader-vault.ts", import.meta.url), "utf8");
 const statusSource = readFileSync(new URL("../app/api/ctrader/status/route.ts", import.meta.url), "utf8");
+const sessionSource = readFileSync(new URL("../app/api/ctrader/session/route.ts", import.meta.url), "utf8");
 
 test("cTrader vault requires a dedicated encryption key", () => {
   const vaultMaterial = source.match(/function vaultMaterial\(\): string \{([\s\S]*?)\n\}/)?.[1] || "";
@@ -25,6 +26,15 @@ test("Upstash auto-deserialized vault envelopes are serialized back before decry
   assert.match(source, /JSON\.stringify\(value\)/);
   assert.match(source, /const serialized = serializeVaultEnvelope\(value\)/);
   assert.doesNotMatch(source, /const serialized = String\(value\)/);
+});
+
+test("cTrader discovery bootstrap accepts only a one-time header ticket", () => {
+  assert.match(sessionSource, /DISCOVERY_TICKET_HEADER = "x-ctrader-session-ticket"/);
+  assert.match(sessionSource, /DISCOVERY_TICKET_PREFIX = "oak:ctrader:session-ticket:"/);
+  assert.match(sessionSource, /if \(!discovery\) return denied/);
+  assert.match(sessionSource, /redis\.getdel<string>\(key\)/);
+  assert.doesNotMatch(sessionSource, /searchParams\.get\("ticket"\)/);
+  assert.doesNotMatch(sessionSource, /refreshToken:/);
 });
 
 test("cTrader status exposes dedicated vault-key readiness without the key value", () => {
