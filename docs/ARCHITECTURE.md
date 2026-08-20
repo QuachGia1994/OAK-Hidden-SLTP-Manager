@@ -18,6 +18,7 @@ Legacy NativeQt/CustomTkinter and old signal-manager surfaces are not maintained
 | Engine 5 alert-rule policy | `dashboard/engine5-alert-rules.json` | Pattern5 engine alert state machine |
 | Engine 5 lookback/classification/Sr-Sw-Bt/base/reverse/final signal/H15 lifecycle/reference | `robot-sltp-pro/pattern5_engine.py` | Tauri, publisher, web feed |
 | Engine 5 market-data interface | `robot-sltp-pro/market_data_provider.py` | Pattern5 engine, parity tools |
+| Passive H1 Telegram pattern scanner | `domain/xau_h1_pattern_scanner.py` | `MonitorWorker`; XAUUSD/EURUSD/AUDUSD/USDCAD/USDJPY broker-suffix variants |
 | MT5 launch/attach policy | `services/mt5_terminal_service.py` / `services/mt5_service.py` | worker, snapshot, Pattern5 |
 | Desktop Python command protocol | `robot-sltp-pro/backend_bridge.py::COMMANDS` | `src/backend-client.ts` adapter |
 | Desktop selected-profile state | `robot-sltp-pro/src/App.tsx::activateProfile` | desktop panels/pollers |
@@ -70,8 +71,9 @@ Change `robot-sltp-pro/pattern5_engine.py` and behavior tests in `tests/test_pat
 3. Snapshot polling calls `desktopBackend.snapshot(profile)`; Python uses `MT5Service.connect(allow_process_start=False)`. Selecting a profile therefore observes an already-running terminal and never launches MT5.
 4. Runtime-health polling is observation-only. It does not spawn worker/Telegram processes.
 5. Starting `worker_runtime.py` / `oak_enginecore.py` requires the explicit **Start Runtime** user action, which calls `runtime_ensure`.
-6. Async responses are applied only when their captured profile still equals `activeProfileNameRef.current`, preventing old-profile responses from overwriting new-profile state.
-7. Live equity/positions are unavailable (`—`) while no valid MT5 snapshot exists; persisted SLTP/profile configuration remains visible.
+6. One worker process owns the passive H1 Telegram scanner through the existing OS-backed scanner lock. It resolves XAUUSD/EURUSD/AUDUSD/USDCAD/USDJPY suffix variants. XAU starts at broker H04 using H03→H02; EUR/AUD/CAD/JPY start at H03 using H02→H01. Later slots use the three latest closed H1 candles newest→oldest through H17. Delivery state is persisted per broker day/base symbol, and alert numbers 2/4/6/... add a caution reminder without a daily alert quota. It does not execute orders or alter Engine5 active-symbol scope.
+7. Async responses are applied only when their captured profile still equals `activeProfileNameRef.current`, preventing old-profile responses from overwriting new-profile state.
+8. Live equity/positions are unavailable (`—`) while no valid MT5 snapshot exists; persisted SLTP/profile configuration remains visible.
 
 Persistence:
 - profile config: `profiles.json`;

@@ -1,14 +1,17 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
 from domain.file_lock import FileLock
 from domain.xau_h1_pattern_scanner import (
-    XauH1PatternScanner,
+    MultiSymbolH1PatternScanner,
     find_h1_pattern_matches,
+    resolve_symbol_variant,
+    resolve_target_symbols,
     resolve_xauusd_symbol,
 )
 
@@ -39,8 +42,8 @@ class FakeClock:
 class FakeMT5:
     TIMEFRAME_H1 = 60
 
-    def __init__(self, rates, symbols=None):
-        self.rates = rates
+    def __init__(self, rates_by_symbol=None, symbols=None):
+        self.rates_by_symbol = rates_by_symbol or {}
         self.symbol_rows = symbols or [SimpleNamespace(name="XAUUSDm", visible=True)]
         self.selected = []
         self.rate_calls = []
@@ -54,7 +57,7 @@ class FakeMT5:
 
     def copy_rates_from_pos(self, symbol, timeframe, start_pos, count):
         self.rate_calls.append((symbol, timeframe, start_pos, count))
-        return self.rates
+        return self.rates_by_symbol.get(symbol, [])
 
 
 def rate(day: int, hour: int, direction: str):
@@ -68,10 +71,10 @@ def rates_for(day: int, directions: str, start_hour: int = 1):
     return [rate(day, start_hour + index, direction) for index, direction in enumerate(directions)]
 
 
-def scanner(tmp_path: Path, mt5, clock, sent, lock_factory=AllowLock, profile="Vantage"):
-    return XauH1PatternScanner(
+def scanner(tmp_path: Path, mt5, clock, sent, lock_factory=AllowLock, profile="Vantage", notify=None):
+    return MultiSymbolH1PatternScanner(
         mt5,
-        notify=lambda message: sent.append(message) or True,
+        notify=notify or (lambda message: sent.append(message) or True),
         log=lambda _message: None,
         profile_name=profile,
         state_path=tmp_path / "state.json",
@@ -81,16 +84,42 @@ def scanner(tmp_path: Path, mt5, clock, sent, lock_factory=AllowLock, profile="V
     )
 
 
-def test_resolve_xauusd_symbol_accepts_suffixes_and_prefers_visible_contract():
-    symbols = [
-        SimpleNamespace(name="EURUSD", visible=True),
-        SimpleNamespace(name="XAUUSD.pro", visible=True),
+def target_symbols():
+    return [
         SimpleNamespace(name="XAUUSDm", visible=True),
-        SimpleNamespace(name="XAUUSD", visible=False),
+        SimpleNamespace(name="EURUSD+", visible=True),
+        SimpleNamespace(name="AUDUSD.a", visible=True),
+        SimpleNamespace(name="USDCAD.pro", visible=True),
+        SimpleNamespace(name="USDJPYraw", visible=True),
     ]
+
+
+def target_h4_rates(day=20):
+    rows = rates_for(day, "TGT")  # H03→H02 = TG
+    return {
+        "XAUUSDm": rows,
+        "EURUSD+": rows,
+        "AUDUSD.a": rows,
+        "USDCAD.pro": rows,
+        "USDJPYraw": rows,
+    }
+
+
+def test_resolver_accepts_suffixes_for_all_targets_and_rejects_prefixes():
+    symbols = target_symbols() + [
+        SimpleNamespace(name="mXAUUSD", visible=True),
+        SimpleNamespace(name="EURUSD", visible=False),
+    ]
+    assert resolve_symbol_variant("XAUUSD", symbols) == "XAUUSDm"
     assert resolve_xauusd_symbol(symbols) == "XAUUSDm"
-    assert resolve_xauusd_symbol([SimpleNamespace(name="XAUUSD+", visible=True)]) == "XAUUSD+"
-    assert resolve_xauusd_symbol([SimpleNamespace(name="mXAUUSD", visible=True)]) is None
+    assert resolve_target_symbols(symbols) == {
+        "XAUUSD": "XAUUSDm",
+        "EURUSD": "EURUSD+",
+        "AUDUSD": "AUDUSD.a",
+        "USDCAD": "USDCAD.pro",
+        "USDJPY": "USDJPYraw",
+    }
+    assert resolve_symbol_variant("GBPUSD", symbols) is None
 
 
 def test_h4_ignores_h1_and_uses_only_h3_h2_backward():
@@ -99,8 +128,7 @@ def test_h4_ignores_h1_and_uses_only_h3_h2_backward():
     matches = find_h1_pattern_matches(rows, clock.now(), clock.broker_datetime_from_mt5_timestamp)
     assert [(item.slot_hour, item.pattern_text, item.bar_range_text) for item in matches] == [(4, "T G", "H03→H02")]
 
-    # H1 is explicitly noise at H4; changing it must not affect the result.
-    rows[0] = rate(20, 1, "T")
+    rows[0] = rate(20, 1, "T")  # H1 is noise at H4.
     matches = find_h1_pattern_matches(rows, clock.now(), clock.broker_datetime_from_mt5_timestamp)
     assert [(item.slot_hour, item.pattern_text) for item in matches] == [(4, "T G")]
 
@@ -112,58 +140,175 @@ def test_h5_plus_uses_three_most_recent_closed_h1_in_backward_order():
     assert [(item.slot_hour, item.pattern_text, item.bar_range_text) for item in matches] == [(5, "T G G", "H04→H03→H02")]
 
 
-def test_scanner_sends_first_and_second_later_match_only(tmp_path):
-    rows = rates_for(20, "TGTTG")  # H04=TG, H06=GTT in newest→oldest order
-    mt5 = FakeMT5(rows)
-    clock = FakeClock(datetime(2026, 8, 20, 7, 15))
+def test_fx_starts_at_h3_with_h2_h1_while_xau_waits_for_h4():
+    clock = FakeClock(datetime(2026, 8, 20, 3, 10))
+    rows = [rate(20, 1, "G"), rate(20, 2, "T"), rate(20, 3, "G")]
+    fx_matches = find_h1_pattern_matches(
+        rows,
+        clock.now(),
+        clock.broker_datetime_from_mt5_timestamp,
+        first_scan_hour=3,
+    )
+    xau_matches = find_h1_pattern_matches(
+        rows,
+        clock.now(),
+        clock.broker_datetime_from_mt5_timestamp,
+        first_scan_hour=4,
+    )
+    assert [(item.slot_hour, item.pattern_text, item.bar_range_text) for item in fx_matches] == [(3, "T G", "H02→H01")]
+    assert xau_matches == []
+
+
+def test_scanner_scans_all_five_target_symbols_with_suffixes(tmp_path):
+    mt5 = FakeMT5(target_h4_rates(), target_symbols())
     sent = []
-    subject = scanner(tmp_path, mt5, clock, sent)
+    subject = scanner(tmp_path, mt5, FakeClock(datetime(2026, 8, 20, 4, 5)), sent)
     try:
-        assert subject.scan_once() == 2
-        assert len(sent) == 2
-        assert "PATTERN 1/2" in sent[0] and "Mốc scan: H04" in sent[0] and "Pattern: T G" in sent[0]
-        assert "PATTERN 2/2" in sent[1] and "Mốc scan: H06" in sent[1] and "Pattern: G T T" in sent[1]
-        assert subject.scan_once() == 0
-        assert len(sent) == 2
+        assert subject.scan_once() == 5
+        assert len(sent) == 5
+        assert subject.symbols == {
+            "XAUUSD": "XAUUSDm",
+            "EURUSD": "EURUSD+",
+            "AUDUSD": "AUDUSD.a",
+            "USDCAD": "USDCAD.pro",
+            "USDJPY": "USDJPYraw",
+        }
+        for base in ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"):
+            assert any(f"🔔 {base} H1 PATTERN #1" in message for message in sent)
+        assert any("XAUUSD H1 PATTERN #1" in message and "Mốc scan: H04" in message for message in sent)
+        for base in ("EURUSD", "AUDUSD", "USDCAD", "USDJPY"):
+            assert any(f"{base} H1 PATTERN #1" in message and "Mốc scan: H03" in message for message in sent)
     finally:
         subject.close()
 
 
-def test_state_survives_restart_and_daily_quota_resets(tmp_path):
-    day20 = rates_for(20, "TGTTG")
+def test_alerts_are_unlimited_and_every_even_number_has_caution(tmp_path):
+    # Matches at H04, H06, H08, H10, H12, H14.
+    rows = rates_for(20, "TTGGTTGGTTGGT")
+    mt5 = FakeMT5({"XAUUSDm": rows}, [SimpleNamespace(name="XAUUSDm", visible=True)])
     sent = []
-    first = scanner(tmp_path, FakeMT5(day20), FakeClock(datetime(2026, 8, 20, 7, 0)), sent)
+    subject = scanner(tmp_path, mt5, FakeClock(datetime(2026, 8, 20, 15, 5)), sent)
+    try:
+        assert subject.scan_once() == 6
+        assert len(sent) == 6
+        for number, message in enumerate(sent, start=1):
+            assert f"PATTERN #{number}" in message
+            if number % 2 == 0:
+                assert f"⚠️ CẨN THẬN: Đây là cảnh báo lần {number}" in message
+            else:
+                assert "⚠️ CẨN THẬN" not in message
+        assert subject.scan_once() == 0
+        assert len(sent) == 6
+    finally:
+        subject.close()
+
+
+def test_alert_numbering_is_independent_per_symbol(tmp_path):
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="EURUSD+", visible=True)]
+    rates = {"XAUUSDm": rates_for(20, "TGT"), "EURUSD+": rates_for(20, "TGT")}
+    sent = []
+    subject = scanner(tmp_path, FakeMT5(rates, symbols), FakeClock(datetime(2026, 8, 20, 4, 5)), sent)
+    try:
+        assert subject.scan_once() == 2
+        assert "XAUUSD H1 PATTERN #1" in sent[0]
+        assert "EURUSD H1 PATTERN #1" in sent[1]
+        assert all("CẨN THẬN" not in message for message in sent)
+    finally:
+        subject.close()
+
+
+def test_state_survives_restart_and_only_later_slots_are_sent(tmp_path):
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True)]
+    rows = rates_for(20, "TTGGTTG")  # H04, H06, H08 matches.
+    sent = []
+    first = scanner(
+        tmp_path,
+        FakeMT5({"XAUUSDm": rows}, symbols),
+        FakeClock(datetime(2026, 8, 20, 7, 0)),
+        sent,
+    )
     assert first.scan_once() == 2
     first.close()
 
-    restarted = scanner(tmp_path, FakeMT5(day20), FakeClock(datetime(2026, 8, 20, 8, 0)), sent)
-    assert restarted.scan_once() == 0
-    restarted.close()
-
-    day21 = rates_for(21, "TGT")
-    next_day = scanner(tmp_path, FakeMT5(day21), FakeClock(datetime(2026, 8, 21, 4, 5)), sent)
+    restarted = scanner(
+        tmp_path,
+        FakeMT5({"XAUUSDm": rows}, symbols),
+        FakeClock(datetime(2026, 8, 20, 9, 0)),
+        sent,
+    )
     try:
-        assert next_day.scan_once() == 1
-        assert "Ngày broker: 2026-08-21" in sent[-1]
-        assert "PATTERN 1/2" in sent[-1]
+        assert restarted.scan_once() == 1
+        assert "PATTERN #3" in sent[-1]
+        assert "Mốc scan: H08" in sent[-1]
     finally:
-        next_day.close()
+        restarted.close()
+
+
+def test_alert_number_resets_on_new_broker_day(tmp_path):
+    symbols = [SimpleNamespace(name="EURUSD+", visible=True)]
+    sent = []
+    day20 = scanner(
+        tmp_path,
+        FakeMT5({"EURUSD+": rates_for(20, "TTGGTTG")}, symbols),
+        FakeClock(datetime(2026, 8, 20, 9, 0)),
+        sent,
+    )
+    assert day20.scan_once() == 3
+    day20.close()
+
+    day21 = scanner(
+        tmp_path,
+        FakeMT5({"EURUSD+": rates_for(21, "TGT")}, symbols),
+        FakeClock(datetime(2026, 8, 21, 4, 5)),
+        sent,
+    )
+    try:
+        assert day21.scan_once() == 1
+        assert "EURUSD H1 PATTERN #1" in sent[-1]
+        assert "Ngày broker: 2026-08-21" in sent[-1]
+    finally:
+        day21.close()
+
+
+def test_legacy_xau_state_migrates_without_replay_and_new_symbol_starts_at_one(tmp_path):
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps({
+            "version": 1,
+            "days": {
+                "2026-08-20": {
+                    "alerts": [{"slotHour": 4, "pattern": "T G", "bars": [], "symbol": "XAUUSDm", "profile": "Vantage"}]
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="EURUSD+", visible=True)]
+    rates = {"XAUUSDm": rates_for(20, "TGT"), "EURUSD+": rates_for(20, "TGT")}
+    sent = []
+    subject = scanner(tmp_path, FakeMT5(rates, symbols), FakeClock(datetime(2026, 8, 20, 4, 5)), sent)
+    try:
+        assert subject.scan_once() == 1
+        assert len(sent) == 1
+        assert "EURUSD H1 PATTERN #1" in sent[0]
+        saved = json.loads(state_path.read_text(encoding="utf-8"))
+        assert saved["version"] == 2
+        assert len(saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"]) == 1
+        assert len(saved["days"]["2026-08-20"]["symbols"]["EURUSD"]["alerts"]) == 1
+    finally:
+        subject.close()
 
 
 def test_failed_telegram_does_not_advance_persistent_state(tmp_path):
     rows = rates_for(20, "TGT")
-    mt5 = FakeMT5(rows)
-    clock = FakeClock(datetime(2026, 8, 20, 4, 5))
+    mt5 = FakeMT5({"XAUUSDm": rows}, [SimpleNamespace(name="XAUUSDm", visible=True)])
     attempts = []
-    subject = XauH1PatternScanner(
+    subject = scanner(
+        tmp_path,
         mt5,
+        FakeClock(datetime(2026, 8, 20, 4, 5)),
+        [],
         notify=lambda message: attempts.append(message) and False,
-        log=lambda _message: None,
-        profile_name="Vantage",
-        state_path=tmp_path / "state.json",
-        owner_lock_path=tmp_path / "owner.lock",
-        clock_factory=lambda **_kwargs: clock,
-        lock_factory=AllowLock,
     )
     try:
         assert subject.scan_once() == 0
@@ -172,7 +317,12 @@ def test_failed_telegram_does_not_advance_persistent_state(tmp_path):
         subject.close()
 
     sent = []
-    retry = scanner(tmp_path, FakeMT5(rows), clock, sent)
+    retry = scanner(
+        tmp_path,
+        FakeMT5({"XAUUSDm": rows}, [SimpleNamespace(name="XAUUSDm", visible=True)]),
+        FakeClock(datetime(2026, 8, 20, 4, 5)),
+        sent,
+    )
     try:
         assert retry.scan_once() == 1
         assert len(sent) == 1
@@ -180,13 +330,13 @@ def test_failed_telegram_does_not_advance_persistent_state(tmp_path):
         retry.close()
 
 
-def test_corrupt_state_fails_closed_without_telegram(tmp_path):
+def test_corrupt_state_fails_closed_for_all_symbols_without_telegram(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text("{broken", encoding="utf-8")
     sent = []
     subject = scanner(
         tmp_path,
-        FakeMT5(rates_for(20, "TGT")),
+        FakeMT5(target_h4_rates(), target_symbols()),
         FakeClock(datetime(2026, 8, 20, 4, 5)),
         sent,
     )
@@ -200,11 +350,12 @@ def test_corrupt_state_fails_closed_without_telegram(tmp_path):
 
 def test_real_owner_lock_prevents_second_worker_and_state_prevents_replay_after_failover(tmp_path):
     rows = rates_for(20, "TGT")
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True)]
     clock = FakeClock(datetime(2026, 8, 20, 4, 5))
     sent_a = []
     sent_b = []
-    first = scanner(tmp_path, FakeMT5(rows), clock, sent_a, lock_factory=FileLock, profile="Vantage")
-    second = scanner(tmp_path, FakeMT5(rows), clock, sent_b, lock_factory=FileLock, profile="ICMarkets")
+    first = scanner(tmp_path, FakeMT5({"XAUUSDm": rows}, symbols), clock, sent_a, lock_factory=FileLock, profile="Vantage")
+    second = scanner(tmp_path, FakeMT5({"XAUUSDm": rows}, symbols), clock, sent_b, lock_factory=FileLock, profile="ICMarkets")
     try:
         assert first.scan_once() == 1
         assert first.is_owner
@@ -228,8 +379,8 @@ def test_h17_is_last_eligible_scan_slot():
     assert [(item.slot_hour, item.pattern_text, item.bar_range_text) for item in matches] == [(17, "T G G", "H16→H15→H14")]
 
 
-def test_scanner_stops_after_h17_even_when_daily_alerts_are_missing(tmp_path):
-    mt5 = FakeMT5(rates_for(20, "TGT"))
+def test_scanner_stops_after_h17_even_with_no_prior_alerts(tmp_path):
+    mt5 = FakeMT5(target_h4_rates(), target_symbols())
     sent = []
     subject = scanner(tmp_path, mt5, FakeClock(datetime(2026, 8, 20, 18, 1)), sent)
     try:

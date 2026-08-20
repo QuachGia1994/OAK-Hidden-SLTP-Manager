@@ -27,7 +27,7 @@ from domain.ticket_manager import TicketManager
 from domain.copy_trade_manager import CopyTradeManager
 from domain.balance import get_start_day_balance
 from domain.file_lock import FileLock
-from domain.xau_h1_pattern_scanner import XauH1PatternScanner
+from domain.xau_h1_pattern_scanner import MultiSymbolH1PatternScanner
 from services.mt5_terminal_service import (
     bind_live_mt5_account_identity,
     ensure_mt5_profile_connected,
@@ -49,7 +49,7 @@ class MonitorWorker(threading.Thread):
         self._telegram_fail_count = 0
         self._telegram_backoff_until = 0.0
         self._telegram_degraded_logged = False
-        self.xau_h1_scanner = None
+        self.h1_pattern_scanner = None
 
     def _clear_be_retry_state_for_tickets(self, tickets):
         """Forget retry state once a monitored position is no longer open."""
@@ -561,9 +561,9 @@ class MonitorWorker(threading.Thread):
             full_tele_msg = f"{connect_msg}\n{algo_msg}\n{start_msg}\n{config_log}"
             self.send_telegram(full_tele_msg)
 
-            # XAU H1 scanner is passive/read-only. Across all profile workers,
-            # exactly one process owns the scanner lock at any point in time.
-            self.xau_h1_scanner = XauH1PatternScanner(
+            # Multi-symbol H1 scanner is passive/read-only. Across all profile
+            # workers, exactly one process owns the scanner lock at any point.
+            self.h1_pattern_scanner = MultiSymbolH1PatternScanner(
                 mt5,
                 notify=self.send_telegram,
                 log=self.log,
@@ -575,7 +575,7 @@ class MonitorWorker(threading.Thread):
 
             last_lang_check = 0
             last_reconnect_check = 0
-            last_xau_h1_scan_check = 0
+            last_h1_pattern_scan_check = 0
             # TRACKING: Initialize known tickets for closure detection
             self.known_tickets = set()
             first_run = True
@@ -611,11 +611,11 @@ class MonitorWorker(threading.Thread):
                                 )
                                 continue
 
-                    # Passive XAUUSD H1 scan: H04 uses H03→H02 (TG/GT), then
-                    # H05-H17 uses the three latest closed H1s (TGG/GTT).
-                    if time.time() - last_xau_h1_scan_check > 15.0:
-                        last_xau_h1_scan_check = time.time()
-                        self.xau_h1_scanner.scan_once()
+                    # Passive multi-symbol H1 scan: XAU starts H04 with H03→H02;
+                    # EUR/AUD/CAD/JPY start H03 with H02→H01, then use 3 H1s.
+                    if time.time() - last_h1_pattern_scan_check > 15.0:
+                        last_h1_pattern_scan_check = time.time()
+                        self.h1_pattern_scanner.scan_once()
 
                     # Check Language Change (Every 2s)
                     if time.time() - last_lang_check > 2.0:
@@ -1073,8 +1073,8 @@ class MonitorWorker(threading.Thread):
             self.log(f"Runtime Error: {e}")
             self.send_telegram(f"⚠️ Runtime Error: {e}")
         finally:
-            if self.xau_h1_scanner is not None:
-                self.xau_h1_scanner.close()
+            if self.h1_pattern_scanner is not None:
+                self.h1_pattern_scanner.close()
             self._close_account_audit()
             mt5.shutdown()
             self.log(T("log_monitor_stop"))
