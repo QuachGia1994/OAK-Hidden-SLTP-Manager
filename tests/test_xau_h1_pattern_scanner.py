@@ -9,14 +9,18 @@ from types import SimpleNamespace
 from domain.file_lock import FileLock
 import domain.xau_h1_pattern_scanner as scanner_module
 from domain.xau_h1_pattern_scanner import (
+    H1PatternMatch,
     MultiSymbolH1PatternScanner,
+    classify_symbol_day,
     find_h1_pattern_matches,
     pattern5_block_for_h1_slot,
     resolve_canonical_gbpusd_group,
     resolve_symbol_variant,
     resolve_target_symbols,
     resolve_xauusd_symbol,
+    signal_from_gbpusd_day_type,
     signal_from_gbpusd_h1_base,
+    signal_from_h1_match,
 )
 
 
@@ -85,9 +89,9 @@ def scanner(
     notify=None,
     group_resolver=None,
 ):
-    kwargs = {}
-    if group_resolver is not None:
-        kwargs["pattern5_group_resolver"] = group_resolver
+    kwargs = {
+        "pattern5_group_resolver": group_resolver or (lambda _mt5, _symbol, _day, _block: "Bt")
+    }
     return MultiSymbolH1PatternScanner(
         mt5,
         notify=notify or (lambda message: sent.append(message) or True),
@@ -108,6 +112,7 @@ def target_symbols():
         SimpleNamespace(name="AUDUSD.a", visible=True),
         SimpleNamespace(name="USDCAD.pro", visible=True),
         SimpleNamespace(name="USDJPYraw", visible=True),
+        SimpleNamespace(name="GBPUSD+", visible=True),
     ]
 
 
@@ -119,6 +124,7 @@ def target_h4_rates(day=20):
         "AUDUSD.a": rows,
         "USDCAD.pro": rows,
         "USDJPYraw": rows,
+        "GBPUSD+": rows,
     }
 
 
@@ -136,7 +142,7 @@ def test_resolver_accepts_suffixes_for_all_targets_and_rejects_prefixes():
         "USDCAD": "USDCAD.pro",
         "USDJPY": "USDJPYraw",
     }
-    assert resolve_symbol_variant("GBPUSD", symbols) is None
+    assert resolve_symbol_variant("GBPUSD", symbols) == "GBPUSD+"
 
 
 def test_h1_slot_maps_to_expected_pattern5_block():
@@ -157,6 +163,24 @@ def test_gbpusd_h1_signal_reverses_sw_sr_and_follows_bt():
     assert signal_from_gbpusd_h1_base("G", "Sr") == "BUY"
     assert signal_from_gbpusd_h1_base("T", "Bt") == "BUY"
     assert signal_from_gbpusd_h1_base("G", "Bt") == "SELL"
+
+
+def test_first_symbol_h1_signal_maps_newest_pattern_candle_and_classifies_day():
+    buy_match = H1PatternMatch(4, ("T", "G"), ())
+    sell_match = H1PatternMatch(3, ("G", "T"), ())
+    assert signal_from_h1_match(buy_match) == "BUY"
+    assert signal_from_h1_match(sell_match) == "SELL"
+    assert classify_symbol_day("BUY", "BUY") == "SW"
+    assert classify_symbol_day("SELL", "SELL") == "SW"
+    assert classify_symbol_day("BUY", "SELL") == "BT"
+    assert classify_symbol_day("SELL", "BUY") == "BT"
+
+
+def test_later_symbol_signal_is_derived_from_gbpusd_and_locked_day_type():
+    assert signal_from_gbpusd_day_type("BUY", "SW") == "SELL"
+    assert signal_from_gbpusd_day_type("SELL", "SW") == "BUY"
+    assert signal_from_gbpusd_day_type("BUY", "BT") == "BUY"
+    assert signal_from_gbpusd_day_type("SELL", "BT") == "SELL"
 
 
 def test_canonical_gbpusd_group_reuses_pattern5_and_h15_is_independent(monkeypatch):
@@ -228,24 +252,23 @@ def test_fx_starts_at_h3_with_h2_h1_while_xau_waits_for_h4():
     assert xau_matches == []
 
 
-def test_telegram_adds_gbpusd_h1_signal_from_first_backward_base_and_block_group(tmp_path):
+def test_first_alert_compares_symbol_h1_with_gbpusd_and_classifies_bt(tmp_path):
     symbols = [
         SimpleNamespace(name="XAUUSD+", visible=True),
         SimpleNamespace(name="GBPUSD+", visible=True),
     ]
     mt5 = FakeMT5(
         {
-            "XAUUSD+": rates_for(20, "TGTTG"),  # XAU matches H04 and H06.
-            "GBPUSD+": rates_for(20, "GGTTG"),  # H03=T, H05=G.
+            "XAUUSD+": rates_for(20, "TGTTG"),  # XAU matches H04 and H06; first signal BUY.
+            "GBPUSD+": rates_for(20, "GGTTG"),  # H03=T; Sw reverses GBPUSD to SELL.
         },
         symbols,
     )
-    groups = {3: "Sw", 6: "Bt"}
     calls = []
 
     def group_resolver(_mt5, symbol, broker_day, block_hour):
         calls.append((symbol, broker_day.isoformat(), block_hour))
-        return groups[block_hour]
+        return "Sw"
 
     sent = []
     subject = scanner(
@@ -258,26 +281,40 @@ def test_telegram_adds_gbpusd_h1_signal_from_first_backward_base_and_block_group
     try:
         assert subject.scan_once() == 2
         assert subject.gbpusd_symbol == "GBPUSD+"
+        assert len(sent) == 2
+        assert "XAUUSD H1 FIRST SIGNAL" in sent[0]
+        assert "Signal XAUUSD H1: BUY" in sent[0]
         assert "Signal GBPUSD H1: SELL | Base H03=T | Block H03=Sw (đảo)" in sent[0]
-        assert "Signal GBPUSD H1: SELL | Base H05=G | Block H06=Bt (giữ nguyên)" in sent[1]
-        assert "CẨN THẬN" in sent[1]
+        assert "Phân loại ngày: BT (ngược chiều GBPUSD H1)" in sent[0]
+        assert "XAUUSD H1 PATTERN" in sent[1]
+        assert "Mốc scan: H06" in sent[1]
+        assert "Signal GBPUSD H1: BUY | Base H05=G | Block H06=Sw (đảo)" in sent[1]
+        assert "Phân loại ngày: BT (đã khóa từ first signal H04)" in sent[1]
+        assert "Signal XAUUSD H1: BUY" in sent[1]  # BT follows GBPUSD; raw XAU pattern is GTT/SELL.
+        assert all("CẨN THẬN" not in message for message in sent)
+        assert all("#2" not in message for message in sent)
         assert calls == [
             ("GBPUSD+", "2026-08-20", 3),
             ("GBPUSD+", "2026-08-20", 6),
         ]
         state = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
-        alerts = state["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"]
+        symbol_state = state["days"]["2026-08-20"]["symbols"]["XAUUSD"]
+        alerts = symbol_state["alerts"]
+        assert len(alerts) == 2
+        assert alerts[0]["symbolH1Signal"] == "BUY"
         assert alerts[0]["gbpusdH1Signal"] == "SELL"
-        assert alerts[0]["gbpusdBaseHour"] == 3
-        assert alerts[0]["gbpusdGroup"] == "Sw"
-        assert alerts[1]["gbpusdH1Signal"] == "SELL"
-        assert alerts[1]["gbpusdBaseHour"] == 5
-        assert alerts[1]["gbpusdGroup"] == "Bt"
+        assert alerts[0]["dayType"] == "BT"
+        assert alerts[1]["dayType"] == "BT"
+        assert alerts[1]["symbolH1Signal"] == "BUY"
+        assert alerts[1]["gbpusdH1Signal"] == "BUY"
+        assert symbol_state["dayType"] == "BT"
+        assert symbol_state["firstSignalHour"] == 4
+        assert subject.scan_once() == 0
     finally:
         subject.close()
 
 
-def test_missing_canonical_group_keeps_original_alert_with_na_signal(tmp_path):
+def test_missing_gbpusd_reference_keeps_first_match_pending_without_alert(tmp_path):
     symbols = [
         SimpleNamespace(name="XAUUSD+", visible=True),
         SimpleNamespace(name="GBPUSD+", visible=True),
@@ -298,14 +335,14 @@ def test_missing_canonical_group_keeps_original_alert_with_na_signal(tmp_path):
         group_resolver=lambda _mt5, _symbol, _day, _block: None,
     )
     try:
-        assert subject.scan_once() == 1
-        assert "Mốc scan: H17" in sent[0]
-        assert "Signal GBPUSD H1: N/A | Base H16 | Block H15" in sent[0]
+        assert subject.scan_once() == 0
+        assert sent == []
+        assert not (tmp_path / "state.json").exists()
     finally:
         subject.close()
 
 
-def test_scanner_scans_all_five_target_symbols_with_suffixes(tmp_path):
+def test_scanner_scans_all_five_target_symbols_with_suffixes_and_classifies_sw(tmp_path):
     mt5 = FakeMT5(target_h4_rates(), target_symbols())
     sent = []
     subject = scanner(tmp_path, mt5, FakeClock(datetime(2026, 8, 20, 4, 5)), sent)
@@ -320,100 +357,179 @@ def test_scanner_scans_all_five_target_symbols_with_suffixes(tmp_path):
             "USDJPY": "USDJPYraw",
         }
         for base in ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"):
-            assert any(f"🔔 {base} H1 PATTERN #1" in message for message in sent)
-        assert any("XAUUSD H1 PATTERN #1" in message and "Mốc scan: H04" in message for message in sent)
+            assert any(f"🔔 {base} H1 FIRST SIGNAL" in message for message in sent)
+            assert any(f"Signal {base} H1:" in message and "Phân loại ngày: SW" in message for message in sent)
+        assert any("XAUUSD H1 FIRST SIGNAL" in message and "Mốc scan: H04" in message for message in sent)
         for base in ("EURUSD", "AUDUSD", "USDCAD", "USDJPY"):
-            assert any(f"{base} H1 PATTERN #1" in message and "Mốc scan: H03" in message for message in sent)
+            assert any(f"{base} H1 FIRST SIGNAL" in message and "Mốc scan: H03" in message for message in sent)
     finally:
         subject.close()
 
 
-def test_alerts_are_unlimited_and_every_even_number_has_caution(tmp_path):
-    # Matches at H04, H06, H08, H10, H12, H14.
+def test_first_match_locks_day_but_all_later_patterns_still_notify_without_numbering(tmp_path):
+    # XAU matches at H04, H06, H08, H10, H12, H14. All notify; only H04 classifies the day.
     rows = rates_for(20, "TTGGTTGGTTGGT")
-    mt5 = FakeMT5({"XAUUSDm": rows}, [SimpleNamespace(name="XAUUSDm", visible=True)])
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
+    mt5 = FakeMT5({"XAUUSDm": rows, "GBPUSD+": rows}, symbols)
     sent = []
     subject = scanner(tmp_path, mt5, FakeClock(datetime(2026, 8, 20, 15, 5)), sent)
     try:
         assert subject.scan_once() == 6
         assert len(sent) == 6
-        for number, message in enumerate(sent, start=1):
-            assert f"PATTERN #{number}" in message
-            if number % 2 == 0:
-                assert f"⚠️ CẨN THẬN: Đây là cảnh báo lần {number}" in message
-            else:
-                assert "⚠️ CẨN THẬN" not in message
+        assert "H1 FIRST SIGNAL" in sent[0]
+        assert "Mốc scan: H04" in sent[0]
+        assert all("H1 PATTERN" in message for message in sent[1:])
+        assert all("Phân loại ngày: SW (đã khóa từ first signal H04)" in message for message in sent[1:])
+        # SW reverses each later GBPUSD H1 signal; the target pattern only triggers the alert.
+        for message in sent[1:]:
+            gbp_signal = "BUY" if "Signal GBPUSD H1: BUY" in message else "SELL"
+            expected_target = "SELL" if gbp_signal == "BUY" else "BUY"
+            assert f"Signal XAUUSD H1: {expected_target}" in message
+        assert all("CẨN THẬN" not in message for message in sent)
+        assert all("PATTERN #" not in message for message in sent)
         assert subject.scan_once() == 0
-        assert len(sent) == 6
+        state = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+        symbol_state = state["days"]["2026-08-20"]["symbols"]["XAUUSD"]
+        alerts = symbol_state["alerts"]
+        assert [alert["slotHour"] for alert in alerts] == [4, 6, 8, 10, 12, 14]
+        assert {alert["dayType"] for alert in alerts} == {"SW"}
+        assert symbol_state["firstSignalHour"] == 4
     finally:
         subject.close()
 
 
-def test_alert_numbering_is_independent_per_symbol(tmp_path):
-    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="EURUSD+", visible=True)]
-    rates = {"XAUUSDm": rates_for(20, "TGT"), "EURUSD+": rates_for(20, "TGT")}
+def test_first_signal_classification_is_independent_per_symbol(tmp_path):
+    symbols = [
+        SimpleNamespace(name="XAUUSDm", visible=True),
+        SimpleNamespace(name="EURUSD+", visible=True),
+        SimpleNamespace(name="GBPUSD+", visible=True),
+    ]
+    rates = {
+        "XAUUSDm": rates_for(20, "TGT"),
+        "EURUSD+": rates_for(20, "TGT"),
+        "GBPUSD+": rates_for(20, "TGT"),
+    }
     sent = []
     subject = scanner(tmp_path, FakeMT5(rates, symbols), FakeClock(datetime(2026, 8, 20, 4, 5)), sent)
     try:
         assert subject.scan_once() == 2
-        assert "XAUUSD H1 PATTERN #1" in sent[0]
-        assert "EURUSD H1 PATTERN #1" in sent[1]
-        assert all("CẨN THẬN" not in message for message in sent)
+        assert any("XAUUSD H1 FIRST SIGNAL" in message for message in sent)
+        assert any("EURUSD H1 FIRST SIGNAL" in message for message in sent)
+        assert all("Phân loại ngày: SW" in message for message in sent)
+        assert subject.scan_once() == 0
     finally:
         subject.close()
 
 
-def test_state_survives_restart_and_only_later_slots_are_sent(tmp_path):
-    symbols = [SimpleNamespace(name="XAUUSDm", visible=True)]
+def test_state_survives_restart_and_only_new_later_matches_are_sent(tmp_path):
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
     rows = rates_for(20, "TTGGTTG")  # H04, H06, H08 matches.
     sent = []
     first = scanner(
         tmp_path,
-        FakeMT5({"XAUUSDm": rows}, symbols),
+        FakeMT5({"XAUUSDm": rows, "GBPUSD+": rows}, symbols),
         FakeClock(datetime(2026, 8, 20, 7, 0)),
         sent,
     )
     assert first.scan_once() == 2
+    assert "Mốc scan: H04" in sent[0]
+    assert "Mốc scan: H06" in sent[1]
     first.close()
 
     restarted = scanner(
         tmp_path,
-        FakeMT5({"XAUUSDm": rows}, symbols),
+        FakeMT5({"XAUUSDm": rows, "GBPUSD+": rows}, symbols),
         FakeClock(datetime(2026, 8, 20, 9, 0)),
         sent,
     )
     try:
         assert restarted.scan_once() == 1
-        assert "PATTERN #3" in sent[-1]
+        assert len(sent) == 3
+        assert "XAUUSD H1 PATTERN" in sent[-1]
         assert "Mốc scan: H08" in sent[-1]
+        assert "đã khóa từ first signal H04" in sent[-1]
     finally:
         restarted.close()
 
 
-def test_alert_number_resets_on_new_broker_day(tmp_path):
-    symbols = [SimpleNamespace(name="EURUSD+", visible=True)]
+def test_first_signal_alert_resets_on_new_broker_day(tmp_path):
+    symbols = [SimpleNamespace(name="EURUSD+", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
     sent = []
+    day20_rates = rates_for(20, "TTGGTTG")
     day20 = scanner(
         tmp_path,
-        FakeMT5({"EURUSD+": rates_for(20, "TTGGTTG")}, symbols),
+        FakeMT5({"EURUSD+": day20_rates, "GBPUSD+": day20_rates}, symbols),
         FakeClock(datetime(2026, 8, 20, 9, 0)),
         sent,
     )
     assert day20.scan_once() == 3
     day20.close()
 
+    day21_rates = rates_for(21, "TGT")
     day21 = scanner(
         tmp_path,
-        FakeMT5({"EURUSD+": rates_for(21, "TGT")}, symbols),
+        FakeMT5({"EURUSD+": day21_rates, "GBPUSD+": day21_rates}, symbols),
         FakeClock(datetime(2026, 8, 21, 4, 5)),
         sent,
     )
     try:
         assert day21.scan_once() == 1
-        assert "EURUSD H1 PATTERN #1" in sent[-1]
+        assert len(sent) == 4
+        assert "EURUSD H1 FIRST SIGNAL" in sent[-1]
         assert "Ngày broker: 2026-08-21" in sent[-1]
     finally:
         day21.close()
+
+
+def test_existing_delivered_first_match_is_classified_without_replay_then_later_match_notifies(tmp_path):
+    state_path = tmp_path / "state.json"
+    state_path.write_text(
+        json.dumps({
+            "version": 2,
+            "days": {
+                "2026-08-20": {
+                    "symbols": {
+                        "XAUUSD": {
+                            "alerts": [{
+                                "slotHour": 4,
+                                "pattern": "T G",
+                                "bars": [],
+                                "symbol": "XAUUSD+",
+                                "profile": "Vantage",
+                            }]
+                        }
+                    }
+                }
+            },
+        }),
+        encoding="utf-8",
+    )
+    symbols = [
+        SimpleNamespace(name="XAUUSD+", visible=True),
+        SimpleNamespace(name="GBPUSD+", visible=True),
+    ]
+    rows = rates_for(20, "TGTTG")  # XAU H04 + H06 matches; GBP Bt gives H04 BUY.
+    sent = []
+    subject = scanner(
+        tmp_path,
+        FakeMT5({"XAUUSD+": rows, "GBPUSD+": rows}, symbols),
+        FakeClock(datetime(2026, 8, 20, 7, 5)),
+        sent,
+    )
+    try:
+        assert subject.scan_once() == 1
+        assert len(sent) == 1
+        assert "XAUUSD H1 PATTERN" in sent[0]
+        assert "Mốc scan: H06" in sent[0]
+        assert "Phân loại ngày: SW (đã khóa từ first signal H04)" in sent[0]
+        saved = json.loads(state_path.read_text(encoding="utf-8"))
+        symbol_state = saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]
+        assert symbol_state["dayType"] == "SW"
+        assert symbol_state["firstSignalHour"] == 4
+        assert [item["slotHour"] for item in symbol_state["alerts"]] == [4, 6]
+        assert symbol_state["alerts"][0]["dayType"] == "SW"
+    finally:
+        subject.close()
 
 
 def test_legacy_xau_state_migrates_without_replay_and_new_symbol_starts_at_one(tmp_path):
@@ -429,14 +545,19 @@ def test_legacy_xau_state_migrates_without_replay_and_new_symbol_starts_at_one(t
         }),
         encoding="utf-8",
     )
-    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="EURUSD+", visible=True)]
-    rates = {"XAUUSDm": rates_for(20, "TGT"), "EURUSD+": rates_for(20, "TGT")}
+    symbols = [
+        SimpleNamespace(name="XAUUSDm", visible=True),
+        SimpleNamespace(name="EURUSD+", visible=True),
+        SimpleNamespace(name="GBPUSD+", visible=True),
+    ]
+    rows = rates_for(20, "TGT")
+    rates = {"XAUUSDm": rows, "EURUSD+": rows, "GBPUSD+": rows}
     sent = []
     subject = scanner(tmp_path, FakeMT5(rates, symbols), FakeClock(datetime(2026, 8, 20, 4, 5)), sent)
     try:
         assert subject.scan_once() == 1
         assert len(sent) == 1
-        assert "EURUSD H1 PATTERN #1" in sent[0]
+        assert "EURUSD H1 FIRST SIGNAL" in sent[0]
         saved = json.loads(state_path.read_text(encoding="utf-8"))
         assert saved["version"] == 2
         assert len(saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"]) == 1
@@ -447,7 +568,8 @@ def test_legacy_xau_state_migrates_without_replay_and_new_symbol_starts_at_one(t
 
 def test_failed_telegram_does_not_advance_persistent_state(tmp_path):
     rows = rates_for(20, "TGT")
-    mt5 = FakeMT5({"XAUUSDm": rows}, [SimpleNamespace(name="XAUUSDm", visible=True)])
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
+    mt5 = FakeMT5({"XAUUSDm": rows, "GBPUSD+": rows}, symbols)
     attempts = []
     subject = scanner(
         tmp_path,
@@ -465,7 +587,7 @@ def test_failed_telegram_does_not_advance_persistent_state(tmp_path):
     sent = []
     retry = scanner(
         tmp_path,
-        FakeMT5({"XAUUSDm": rows}, [SimpleNamespace(name="XAUUSDm", visible=True)]),
+        FakeMT5({"XAUUSDm": rows, "GBPUSD+": rows}, symbols),
         FakeClock(datetime(2026, 8, 20, 4, 5)),
         sent,
     )
@@ -496,12 +618,13 @@ def test_corrupt_state_fails_closed_for_all_symbols_without_telegram(tmp_path):
 
 def test_real_owner_lock_prevents_second_worker_and_state_prevents_replay_after_failover(tmp_path):
     rows = rates_for(20, "TGT")
-    symbols = [SimpleNamespace(name="XAUUSDm", visible=True)]
+    symbols = [SimpleNamespace(name="XAUUSDm", visible=True), SimpleNamespace(name="GBPUSD+", visible=True)]
+    rates = {"XAUUSDm": rows, "GBPUSD+": rows}
     clock = FakeClock(datetime(2026, 8, 20, 4, 5))
     sent_a = []
     sent_b = []
-    first = scanner(tmp_path, FakeMT5({"XAUUSDm": rows}, symbols), clock, sent_a, lock_factory=FileLock, profile="Vantage")
-    second = scanner(tmp_path, FakeMT5({"XAUUSDm": rows}, symbols), clock, sent_b, lock_factory=FileLock, profile="ICMarkets")
+    first = scanner(tmp_path, FakeMT5(rates, symbols), clock, sent_a, lock_factory=FileLock, profile="Vantage")
+    second = scanner(tmp_path, FakeMT5(rates, symbols), clock, sent_b, lock_factory=FileLock, profile="ICMarkets")
     try:
         assert first.scan_once() == 1
         assert first.is_owner
