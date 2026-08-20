@@ -32,18 +32,22 @@ type TokenResponse = {
 };
 
 function vaultMaterial(): string {
-  const value = process.env.OAK_CTRADER_VAULT_KEY || process.env.DASHBOARD_API_KEY || "";
-  if (!value) throw new Error("OAK_CTRADER_VAULT_KEY or DASHBOARD_API_KEY is required for cTrader vault encryption");
+  const value = process.env.OAK_CTRADER_VAULT_KEY || "";
+  if (!value) throw new Error("OAK_CTRADER_VAULT_KEY is required for cTrader vault encryption");
   return value;
 }
 
-function encryptionKey(): Buffer {
-  return createHash("sha256").update("oak-ctrader-vault-v1\0").update(vaultMaterial()).digest();
+function encryptionKey(material: string): Buffer {
+  return createHash("sha256").update("oak-ctrader-vault-v1\0").update(material).digest();
+}
+
+function legacyVaultMaterial(): string {
+  return process.env.DASHBOARD_API_KEY || "";
 }
 
 function encrypt(record: CTraderTokenRecord): string {
   const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(vaultMaterial()), iv);
   const ciphertext = Buffer.concat([
     cipher.update(JSON.stringify(record), "utf8"),
     cipher.final(),
@@ -57,14 +61,14 @@ function encrypt(record: CTraderTokenRecord): string {
   return JSON.stringify(envelope);
 }
 
-function decrypt(value: string): CTraderTokenRecord {
+function decryptWithMaterial(value: string, material: string): CTraderTokenRecord {
   const envelope = JSON.parse(value) as VaultEnvelope;
   if (envelope.v !== 1 || !envelope.iv || !envelope.tag || !envelope.data) {
     throw new Error("Invalid cTrader vault envelope");
   }
   const decipher = createDecipheriv(
     "aes-256-gcm",
-    encryptionKey(),
+    encryptionKey(material),
     Buffer.from(envelope.iv, "base64url"),
   );
   decipher.setAuthTag(Buffer.from(envelope.tag, "base64url"));
@@ -82,7 +86,26 @@ export async function saveCTraderTokens(record: CTraderTokenRecord): Promise<voi
 export async function loadCTraderTokens(): Promise<CTraderTokenRecord | null> {
   const value = await redis.get<string>(VAULT_KEY);
   if (!value) return null;
-  return decrypt(String(value));
+  const serialized = String(value);
+  const dedicated = process.env.OAK_CTRADER_VAULT_KEY || "";
+  if (dedicated) {
+    try {
+      return decryptWithMaterial(serialized, dedicated);
+    } catch (dedicatedError) {
+      // Backward compatibility only: records written before the dedicated-key
+      // requirement may have used DASHBOARD_API_KEY. Migrate immediately on
+      // the first successful read; new writes never use the API auth key.
+      const legacy = legacyVaultMaterial();
+      if (!legacy || legacy === dedicated) throw dedicatedError;
+      const record = decryptWithMaterial(serialized, legacy);
+      await redis.set(VAULT_KEY, encrypt(record));
+      return record;
+    }
+  }
+
+  const legacy = legacyVaultMaterial();
+  if (!legacy) throw new Error("OAK_CTRADER_VAULT_KEY is required for cTrader vault decryption");
+  return decryptWithMaterial(serialized, legacy);
 }
 
 function tokenClientConfig() {

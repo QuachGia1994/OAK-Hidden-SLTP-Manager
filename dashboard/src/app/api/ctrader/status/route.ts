@@ -35,6 +35,7 @@ export async function GET(request: Request) {
     shadowOnly: true,
     parityRequired: true,
     appConfigured: Boolean(clientId && clientSecret),
+    vaultKeyConfigured: Boolean(process.env.OAK_CTRADER_VAULT_KEY),
     accountConfigured: accountId > 0,
     redirectUri,
     vaultReadable,

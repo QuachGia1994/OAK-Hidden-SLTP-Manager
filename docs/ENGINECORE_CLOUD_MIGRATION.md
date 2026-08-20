@@ -88,7 +88,7 @@ Server routes:
 - `POST /api/ctrader/oauth` — requires `x-api-key: DASHBOARD_API_KEY`; creates a one-time 10-minute onboarding ticket.
 - `GET /api/ctrader/oauth?ticket=...` — consumes the one-time ticket and redirects to the cTrader authorisation screen.
 - `GET /api/ctrader/oauth?code=...` — exchanges the short-lived authorisation code and stores tokens.
-- `GET /api/ctrader/status` — safe readiness/status only; never exposes credentials/token/account ID.
+- `GET /api/ctrader/status` — safe readiness/status only, including `vaultKeyConfigured`; never exposes credentials/token/account ID or vault material.
 - `GET /api/ctrader/session` — service-to-service only, requires `x-api-key`; returns a short-lived current access session to a cloud collector and never returns the refresh token.
 - `GET /api/ctrader/session?discovery=1` — same private endpoint but allows account discovery before an account ID is selected.
 
@@ -98,8 +98,8 @@ The access/refresh token payload is encrypted with AES-256-GCM before it is writ
 
 Encryption material:
 
-1. `OAK_CTRADER_VAULT_KEY` when configured; otherwise
-2. `DASHBOARD_API_KEY` is domain-separated with SHA-256 for the vault key.
+- `OAK_CTRADER_VAULT_KEY` is mandatory for every new/updated vault write and must be an independent high-entropy secret.
+- `DASHBOARD_API_KEY` is authentication material, not a write key. It is accepted only to decrypt a legacy vault record created before the dedicated-key requirement; when the dedicated key is present that record is immediately re-encrypted with `OAK_CTRADER_VAULT_KEY`.
 
 No plaintext access token, refresh token or client secret is written to public Redis, browser JS, Git, `profiles.json` or status responses.
 
@@ -119,7 +119,7 @@ Production server environment variables:
 - `OAK_CTRADER_ENV=demo` for the first parity phase
 - `OAK_CTRADER_BROKER=ICMarkets`
 - `OAK_CTRADER_ACCOUNT_ID=<ctidTraderAccountId>` after discovery
-- optional `OAK_CTRADER_VAULT_KEY=<high-entropy secret>`
+- `OAK_CTRADER_VAULT_KEY=<independent high-entropy secret>`
 
 A remote collector can avoid storing broker tokens by using:
 

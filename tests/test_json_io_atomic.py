@@ -2,10 +2,15 @@
 
 import json
 import os
+import sys
 import tempfile
 import threading
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 from domain import json_io
 
@@ -31,6 +36,24 @@ class AtomicJsonPersistenceTests(unittest.TestCase):
             self.assertEqual(len(attempts), 3)
             with open(target, "r", encoding="utf-8") as saved_file:
                 self.assertEqual(json.load(saved_file), [{"id": 42}])
+
+    def test_corrupt_existing_json_raises_and_preserves_original_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            target = os.path.join(temporary_directory, "waiting_demo.json")
+            corrupt = b'{"id": 42'
+            with open(target, "wb") as output_file:
+                output_file.write(corrupt)
+
+            with self.assertRaises(json_io.JsonStateError):
+                json_io.load_json(target, [])
+
+            with open(target, "rb") as input_file:
+                self.assertEqual(input_file.read(), corrupt)
+
+    def test_missing_json_still_returns_caller_default(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            target = os.path.join(temporary_directory, "missing.json")
+            self.assertEqual(json_io.load_json(target, []), [])
 
     def test_concurrent_writers_use_distinct_temporary_files(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

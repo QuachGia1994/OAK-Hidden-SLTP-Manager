@@ -4,7 +4,9 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-APP = Path(__file__).resolve().parents[1] / "robot-sltp-pro"
+ROOT = Path(__file__).resolve().parents[1]
+APP = ROOT / "robot-sltp-pro"
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(APP))
 
 import pattern5_engine as e
@@ -53,6 +55,12 @@ class Engine5AlertRuleTests(unittest.TestCase):
     def test_non_consecutive_sr_does_not_latch_stop(self):
         data = rows({3: "Sr", 6: "Bt", 9: "Sr", 12: "Sw", 15: "Bt"})
         alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
+        self.assertFalse(any(a["code"] == "consecutive_sr_stop" for a in alerts))
+
+    def test_missing_block_breaks_consecutive_sr_chain(self):
+        data = rows({3: "Sr", 9: "Sr", 12: "Sw", 15: "Bt"})
+        alerts = e.evaluate_alert_state("GBPUSD", date(2026, 8, 19), data, 0, True)
+        self.assertEqual([a["block"] for a in alerts if a["code"] == "sr_entry_at_11"], [3, 9])
         self.assertFalse(any(a["code"] == "consecutive_sr_stop" for a in alerts))
 
     def test_h6_h9_consecutive_sr_stops_h12_onward(self):

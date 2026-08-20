@@ -6,7 +6,6 @@ Trading, scheduling, profile scoping and MT5 mutations remain inside the worker.
 """
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import sys
@@ -20,6 +19,8 @@ except ImportError:
     print("[ERROR] pyTelegramBotAPI is required", file=sys.stderr)
     raise SystemExit(2)
 
+from domain.file_lock import FileLock
+from domain.json_io import load_json
 from domain.telegram_backoff import compute_telegram_backoff
 from domain.telegram_inbox import append_inbox_update
 
@@ -27,14 +28,13 @@ ROOT = Path(__file__).resolve().parent
 CONFIG_FILE = ROOT / "config.json"
 PROFILES_FILE = ROOT / "profiles.json"
 INBOX_FILE = ROOT / "tele_inbox.json"
-LOCK_FILE = ROOT / "oak_enginecore.lock"
+PID_FILE = ROOT / "oak_enginecore.lock"
+LOCK_FILE = ROOT / "oak_enginecore.singleton.lock"
+_RECEIVER_LOCK: FileLock | None = None
 
 
 def _load_json(path: Path, default):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, json.JSONDecodeError):
-        return default
+    return load_json(path, default)
 
 
 def _config() -> tuple[str, int]:
@@ -47,7 +47,11 @@ def _config() -> tuple[str, int]:
     return token, admin_id
 
 
-BOT_TOKEN, ADMIN_CHAT_ID = _config()
+try:
+    BOT_TOKEN, ADMIN_CHAT_ID = _config()
+except (OSError, ValueError) as exc:
+    print(f"[ERROR] Cannot read config.json: {type(exc).__name__}", file=sys.stderr)
+    raise SystemExit(2) from exc
 if not BOT_TOKEN:
     print("[ERROR] Missing telegram_token in config.json", file=sys.stderr)
     raise SystemExit(2)
@@ -146,32 +150,43 @@ def _pid_is_live(pid: int) -> bool:
 
 
 def _acquire_lock() -> bool:
-    if LOCK_FILE.exists():
+    global _RECEIVER_LOCK
+    # Migration guard for a receiver started before the OS-lock implementation.
+    if PID_FILE.exists():
         try:
-            old_pid = int(LOCK_FILE.read_text(encoding="utf-8").strip() or "0")
+            old_pid = int(PID_FILE.read_text(encoding="utf-8").strip() or "0")
         except (OSError, ValueError):
             old_pid = 0
         if old_pid != os.getpid() and _pid_is_live(old_pid):
             print(f"[EXIT] Telegram receiver already running (PID {old_pid})")
             return False
-        try:
-            LOCK_FILE.unlink()
-        except OSError:
-            pass
+
+    guard = FileLock(str(LOCK_FILE), timeout=0.0)
+    acquired = guard.__enter__()
+    if acquired is None:
+        print("[EXIT] Telegram receiver already running or lock unavailable")
+        return False
     try:
-        LOCK_FILE.write_text(str(os.getpid()), encoding="utf-8")
-        return True
+        PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
     except OSError as exc:
-        print(f"[WARN] Cannot create receiver lock: {exc}")
-        return True
+        acquired.__exit__(None, None, None)
+        print(f"[ERROR] Cannot write receiver PID file: {exc}", file=sys.stderr)
+        return False
+    _RECEIVER_LOCK = acquired
+    return True
 
 
 def _release_lock() -> None:
+    global _RECEIVER_LOCK
+    guard = _RECEIVER_LOCK
+    _RECEIVER_LOCK = None
     try:
-        if LOCK_FILE.exists() and LOCK_FILE.read_text(encoding="utf-8").strip() == str(os.getpid()):
-            LOCK_FILE.unlink()
+        if PID_FILE.exists() and PID_FILE.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            PID_FILE.unlink()
     except OSError:
         pass
+    if guard is not None:
+        guard.__exit__(None, None, None)
 
 
 def _drop_webhook() -> None:

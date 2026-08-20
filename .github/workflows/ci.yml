@@ -46,11 +46,12 @@ jobs:
             dashboard/package-lock.json
             robot-sltp-pro/package-lock.json
 
-      - name: Build remote web
+      - name: Test and build remote web
         shell: pwsh
         working-directory: dashboard
         run: |
           npm ci
+          npm run test
           npm run build
 
       - name: Build Tauri frontend
@@ -59,3 +60,10 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Compile Tauri Rust backend
+        shell: pwsh
+        run: cargo check --locked --manifest-path robot-sltp-pro/src-tauri/Cargo.toml

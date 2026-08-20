@@ -288,6 +288,11 @@ def evaluate_alert_state(
             continue
         cell = rows.get(block, [""] * 5)[day_index]
         if not cell:
+            # A missing eligible block breaks chronological Sr adjacency. Do not
+            # carry an earlier Sr across an unavailable/uncalculated data gap.
+            previous_group = None
+            previous_block = None
+            consecutive_sr = 0
             continue
         group = str(cell.get("group") or "")
         block_alerts: list[dict[str, Any]] = []

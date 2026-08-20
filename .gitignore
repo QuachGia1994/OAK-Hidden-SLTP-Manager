@@ -53,8 +53,10 @@ ic_ctrader.json
 market_data_snapshot*.json
 *_market_snapshot.json
 oak_enginecore.lock
+oak_enginecore.singleton.lock
 mimo_bot.lock
 worker_*.lock
+.mt5_profile_connection.lock
 
 # Tauri local runtime cache
 robot-sltp-pro/pattern5_cache.json

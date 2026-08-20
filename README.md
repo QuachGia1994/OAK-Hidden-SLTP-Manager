@@ -122,9 +122,10 @@ Local release gates hiện dùng:
 ```bash
 python -m pytest -q
 python robot-sltp-pro/test_backend_bridge.py
+npm --prefix dashboard run test
 npm --prefix dashboard run build
-npm --prefix dashboard run test:tarot
 npm --prefix robot-sltp-pro run build
+cargo check --locked --manifest-path robot-sltp-pro/src-tauri/Cargo.toml
 ```
 
 Python/bridge/release-metadata behavior được kiểm bằng CI; xem `.github/workflows/ci.yml` và `docs/ARCHITECTURE.md` cho test ownership.

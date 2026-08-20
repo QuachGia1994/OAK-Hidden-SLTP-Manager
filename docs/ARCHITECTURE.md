@@ -77,7 +77,7 @@ Persistence:
 - profile config: `profiles.json`;
 - global Telegram config: `config.json`;
 - pending entry/close state: domain-managed scheduled JSON files;
-- process ownership observation: lock files plus Windows process command line.
+- process ownership observation: PID marker files plus Windows process command line; cross-process mutable-state/singleton exclusion uses OS-backed `FileLock` and never infers ownership from lock-file age.
 
 Failure behavior:
 - malformed config/lock/pending JSON is surfaced as an error; it is not converted to an empty/offline state;
@@ -120,8 +120,10 @@ Raw image bytes, GPS/device identifiers, full C2PA manifests, detector scores an
 - Provider/market-data contract: `tests/test_market_data_provider.py`, parity tests.
 - Desktop bridge/lifecycle: `robot-sltp-pro/test_backend_bridge.py`.
 - Release version consistency: `tests/test_release_metadata.py`.
+- Web behavior/security gate: `npm --prefix dashboard run test`.
 - Web production/type gate: `npm --prefix dashboard run build`.
 - Desktop TypeScript/Vite gate: `npm --prefix robot-sltp-pro run build`.
+- Tauri Rust compile gate: `cargo check --locked --manifest-path robot-sltp-pro/src-tauri/Cargo.toml`.
 - Repository CI: `.github/workflows/ci.yml`.
 
 Before changing a rule or transition, start from the canonical owner in the table above, then follow its explicit consumers. Do not patch equivalent logic into a UI component.

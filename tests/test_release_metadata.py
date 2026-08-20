@@ -20,10 +20,10 @@ class ReleaseMetadataTests(unittest.TestCase):
             cargo_lock = tomllib.load(handle)
         cargo_lock_version = next(item["version"] for item in cargo_lock["package"] if item["name"] == "robot-sltp-pro")
 
+        self.assertEqual(tauri["version"], "../package.json")
         versions = {
             "npm": package["version"],
             "npm_lock": package_lock["packages"][""]["version"],
-            "tauri": tauri["version"],
             "cargo": cargo["package"]["version"],
             "cargo_lock": cargo_lock_version,
         }

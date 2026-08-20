@@ -1,7 +1,7 @@
 import time
 
 from domain.copy_trade_manager import CopyTradeManager
-from domain.json_io import load_json, save_json
+from domain.json_io import JsonStateError, load_json, save_json
 
 
 def _manager(path):
@@ -53,6 +53,24 @@ def test_fresh_scheduled_claim_is_not_stolen(tmp_path):
 
     other = _manager(path)
     assert other._claim_scheduled_trade(12345, stale_executing_sec=45) is None
+
+
+def test_corrupt_scheduled_state_fails_closed_without_overwrite(tmp_path):
+    path = tmp_path / "waiting.json"
+    corrupt = '[{"id": 12345'
+    path.write_text(corrupt, encoding="utf-8")
+    manager = object.__new__(CopyTradeManager)
+    manager.scheduled_file = str(path)
+    manager.scheduled_trades = []
+
+    try:
+        manager._with_scheduled_file_lock(lambda trades: trades)
+    except JsonStateError:
+        pass
+    else:
+        raise AssertionError("corrupt scheduled state must fail closed")
+
+    assert path.read_text(encoding="utf-8") == corrupt
 
 
 def test_scheduled_finalize_persists_terminal_state(tmp_path):

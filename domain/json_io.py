@@ -9,6 +9,15 @@ import tempfile
 import time
 
 
+class JsonStateError(ValueError):
+    """Existing JSON state is present but malformed and must not be replaced."""
+
+    def __init__(self, file, error):
+        self.file = os.fspath(file)
+        self.error = error
+        super().__init__(f"Corrupt JSON state {self.file}: {error}")
+
+
 def resource_path(relative_path):
     """Absolute path to resource (dev + PyInstaller)."""
     try:
@@ -25,9 +34,8 @@ def load_json(file, default=None):
         try:
             with open(file, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except json.JSONDecodeError as e:
-            print(f"[WARN] Corrupt JSON {file}: {e}")
-            return default
+        except json.JSONDecodeError as error:
+            raise JsonStateError(file, error) from error
     return default
 
 
