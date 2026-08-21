@@ -71,6 +71,30 @@ For parity only, cTrader UTC H1 opening times are normalized into the same IC Ma
 
 The parity pass/fail rule is intentionally aligned with the scanner: every closed H1 slot for the selected broker day must exist on both sides and its direction must match (`T` when close > open, otherwise `G`). OHLC deltas are still reported for diagnostics but do not decide scanner parity because the scanner does not consume the exact price values.
 
+### Cloud H1 scanner runtime
+
+The scanner can run without the local PC. `.github/workflows/h1-cloud-scanner.yml` is an hourly scheduler only; it requests a short-lived GitHub Actions OIDC token and calls the private Vercel route `POST /api/h1-scanner/run`. cTrader credentials, refresh/access tokens, Telegram credentials and Upstash credentials remain server-side on Vercel, and no scanner secret is stored in GitHub.
+
+`dashboard/src/lib/ctrader-json.ts` connects directly to Spotware's JSON/WebSocket endpoint on port 5036, authenticates the application/account, resolves the six H1 symbols and fetches current broker-day H1 trendbars. It never requests an order/execution payload. `dashboard/src/lib/h1-cloud-scanner.ts` owns the cloud copy of the four scanner pattern classes and schema-2 state/public-feed normalization.
+
+Each invocation is short-lived and fail-closed:
+
+- Redis `NX/EX` lock prevents overlapping runs;
+- cloud state seeds once from the existing schema-2 public H1 feed so locally delivered slots are not replayed during cutover;
+- Telegram must acknowledge a send before that alert is appended to state;
+- state is persisted immediately after each successful Telegram send;
+- the public H1 feed is republished from cloud state after a successful run;
+- `OAK_H1_CLOUD_SCANNER_ENABLED` defaults off; enable it only after local workers have been stopped;
+- missed/delayed hourly triggers catch up all undelivered pattern slots up to H17 for the current broker day.
+
+Additional Vercel-only scanner environment variables:
+
+- `OAK_H1_CLOUD_SCANNER_ENABLED=0|1`;
+- `OAK_H1_TELEGRAM_TOKEN=<bot token>`;
+- `OAK_H1_TELEGRAM_CHAT_ID=<destination chat>`.
+
+Scheduled requests are authorized by GitHub OIDC claims: audience `oak-h1-cloud-scanner`, the exact repository, `refs/heads/main`, and the exact `h1-cloud-scanner.yml` workflow ref. `DASHBOARD_API_KEY` remains available only for explicit manual/admin invocations.
+
 ## OAuth and token vault on Vercel
 
 Production callback URI:
@@ -112,7 +136,7 @@ Production server environment variables:
 - `OAK_CTRADER_CLIENT_ID`
 - `OAK_CTRADER_CLIENT_SECRET`
 - `OAK_CTRADER_REDIRECT_URI=https://www.oakgatekeeper.uk/api/ctrader/oauth`
-- `OAK_CTRADER_ENV=demo` for the first parity phase
+- `OAK_CTRADER_ENV=live` for the currently selected IC Markets read-only account
 - `OAK_CTRADER_BROKER=ICMarkets`
 - `OAK_CTRADER_ACCOUNT_ID=<ctidTraderAccountId>` after discovery
 - `OAK_CTRADER_VAULT_KEY=<independent high-entropy secret>`
@@ -135,7 +159,7 @@ After OAuth, run the account discovery collector against the private control-pla
 - demo/live environment
 - broker display name
 
-Select the IC Markets demo account and set its `accountId` as `OAK_CTRADER_ACCOUNT_ID`. Market-data collection fails closed if account ID, environment or broker does not match.
+Select the intended IC Markets account and set its `accountId` as `OAK_CTRADER_ACCOUNT_ID`. The current scanner-only deployment uses the verified IC Markets live account with `NO_TRADING` account access. Market-data collection fails closed if account ID or environment does not match.
 
 ## H1 scanner parity commands
 
@@ -200,7 +224,8 @@ Current state:
 - an IC Markets live account with `NO_TRADING` account access is selected for shadow market-data reads;
 - cTrader remains read-only/shadow-only and has no trading OAuth scope;
 - production Engine5 remains MT5-backed;
-- cTrader is used only for current-broker-day H1 scanner parity;
+- cTrader H1 parity has passed for the six scanner symbols and is now the prepared source for the cloud scanner path;
+- the cloud route and hourly GitHub scheduler are implemented but remain disabled until release/cutover secrets are installed and the local workers are stopped;
 - the parity contract compares broker-wall H01..H16 slot presence and T/G direction for `GBPUSD`, `XAUUSD`, `EURUSD`, `AUDUSD`, `USDCAD`, and `USDJPY`; OHLC deltas are diagnostic only.
 
 On 2026-08-21 the current broker-day H1 scanner parity passed direction/timestamp parity for all six symbols available at the test time. This does not authorize Engine5 cutover or execution.

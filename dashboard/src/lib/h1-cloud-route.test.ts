@@ -1,0 +1,51 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const route = readFileSync(new URL("../app/api/h1-scanner/run/route.ts", import.meta.url), "utf8");
+const client = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
+const workflow = readFileSync(new URL("../../../.github/workflows/h1-cloud-scanner.yml", import.meta.url), "utf8");
+const oidc = readFileSync(new URL("./github-oidc.ts", import.meta.url), "utf8");
+
+test("cloud scanner route is private, disabled by default, and singleton locked", () => {
+  assert.match(route, /verifyH1ScannerGitHubOidc/);
+  assert.match(route, /requireAuth/);
+  assert.match(route, /Authorization|authorization/);
+  assert.match(route, /OAK_H1_CLOUD_SCANNER_ENABLED === "1"/);
+  assert.match(route, /H1_CLOUD_LOCK_KEY/);
+  assert.match(route, /nx: true, ex: LOCK_SECONDS/);
+});
+
+test("cloud scanner seeds from existing public feed and persists only after Telegram success", () => {
+  assert.match(route, /seedCloudStateFromPublic/);
+  assert.match(route, /await sendTelegram/);
+  assert.match(route, /symbolState\.alerts\.push\(alert\)/);
+  assert.match(route, /await saveState\(state\)/);
+  assert.ok(route.indexOf("await sendTelegram") < route.indexOf("symbolState.alerts.push(alert)"));
+});
+
+test("cTrader cloud reader uses JSON WebSocket H1 and enforces accounts-only scope", () => {
+  assert.match(client, /wss:\/\/\$\{host\}:5036/);
+  assert.match(client, /GET_TRENDBARS_REQ: 2137/);
+  assert.match(client, /period: H1_PERIOD/);
+  assert.match(client, /session\.scope !== "accounts"/);
+  assert.doesNotMatch(client, /ORDER_CREATE|NEW_ORDER|execution/i);
+});
+
+test("GitHub OIDC verifier fences scanner trigger to repo main and exact workflow", () => {
+  assert.match(oidc, /oak-h1-cloud-scanner/);
+  assert.match(oidc, /claims\.repository !== repository/);
+  assert.match(oidc, /claims\.ref !== "refs\/heads\/main"/);
+  assert.match(oidc, /claims\.workflow_ref !== expectedWorkflow/);
+  assert.match(oidc, /schedule.*workflow_dispatch|workflow_dispatch.*schedule/s);
+});
+
+test("GitHub scheduler uses short-lived OIDC and calls the private route hourly without scanner secrets", () => {
+  assert.match(workflow, /cron: "7 \* \* \* \*"/);
+  assert.match(workflow, /id-token: write/);
+  assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_URL/);
+  assert.match(workflow, /audience=oak-h1-cloud-scanner/);
+  assert.match(workflow, /Authorization: Bearer \$OIDC_TOKEN/);
+  assert.match(workflow, /https:\/\/www\.oakgatekeeper\.uk\/api\/h1-scanner\/run/);
+  assert.doesNotMatch(workflow, /secrets\.|CTRADER_CLIENT_SECRET|ACCESS_TOKEN|UPSTASH|TELEGRAM_TOKEN/);
+});
