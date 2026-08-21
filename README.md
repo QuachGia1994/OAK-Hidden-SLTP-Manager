@@ -11,7 +11,7 @@ ROBOT SLTP now treats cloud H1 scanning and Telegram command/control as the main
 2. **Desktop Tauri** (`robot-sltp-pro/`) — fallback/local workstation for MT5 profile observation, SLTP configuration, local pending-task management and runtime diagnostics. It is no longer required for the production H1 scanner or Telegram webhook.
 3. **Python runtime** (`domain/`, `services/`, root scripts) — local fallback worker and MT5 utilities. Local scanner ownership is fallback-only while cloud scanner is primary.
 
-## H1 scanner v3
+## H1 scanner v6
 
 Cloud profile: `cTrader IcMarkets`.
 
@@ -37,7 +37,7 @@ At one slot, the longest exact match wins: 4-candle before 3-candle before 2-can
 
 Production flow:
 
-`GitHub Actions H:00 → Vercel /api/h1-scanner/run → cTrader JSON/WebSocket H1 → scanner v3 → Telegram + Upstash → /engine`
+`GitHub Actions H:00 → Vercel /api/h1-scanner/run → cTrader JSON/WebSocket H1 → scanner v6 → Telegram + Upstash → /engine`
 
 The route retries briefly after H:00 if cTrader has not finalized the just-closed H1 candle yet. Redis state/lock prevents replay and overlapping cloud scans.
 
@@ -102,4 +102,4 @@ cargo check --locked --manifest-path robot-sltp-pro/src-tauri/Cargo.toml
 - Missing/ambiguous market data fails closed.
 - Desktop MT5 observation is attach-only unless the user explicitly starts local runtime.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/ENGINECORE_CLOUD_MIGRATION.md`](docs/ENGINECORE_CLOUD_MIGRATION.md) for the maintained ownership map and cloud H1 details.
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the maintained ownership map and cloud H1 details.
