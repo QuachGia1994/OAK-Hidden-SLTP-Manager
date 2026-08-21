@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-- Reworked the maintained scanner to H1 cloud v7 on cTrader ICMarkets: SW2 `TG/GT` keeps the H1 base, pure SW3 `TGG/GTT` and normal SW3 `TTT/GGG` reverse it, while 4+ same-direction runs are skipped.
+- H1 scanner/feed deployments now self-warm after the matching Vercel production deployment succeeds, preventing `/engine` from showing an empty waiting state between a scanner deploy and the next hourly run.
+- Reworked the maintained scanner to H1 cloud v7 on cTrader ICMarkets: SW2 `TG/GT`, pure SW3 `TGG/GTT` and normal SW3 `TTT/GGG` remain the only source classes, while 4+ same-direction runs are skipped. XAUUSD uses AUDUSD source + GBPUSD base; EURUSD/AUDUSD use GBPUSD source + own base; USDCAD/USDJPY now use their own source + GBPUSD base. XAU/EUR/AUD keep SW2 and reverse SW3, while CAD/JPY reverse SW2 and keep both SW3 classes.
 - Pure SW3 pairs exactly two slots apart now suppress the second slot and reset scanning from the next slot; accepted pure SW3 cells/Telegram alerts keep the `/!\\` marker and target-side post-check logic is removed.
-- H1 scheduled cloud runs now start GitHub Actions at minute `58` and wait inside the runner for the exact H:00 boundary, reducing top-of-hour scheduler queue delay while preserving OIDC authentication and catch-up behavior.
+- H1 timing is now Cloudflare-primary: a SQLite Durable Object Alarm owns the next H:00 boundary, Cloudflare Cron `:10/:30/:50` acts as watchdog/catch-up, and GitHub `:10/:30/:50` prewarmed runners remain tertiary fallback behind the same Redis singleton lock. The Vercel scanner waits roughly 17.5 seconds for the just-closed cTrader H1 candle, while Worker→Vercel auth uses a dedicated Cloudflare Secret with only its SHA-256 stored in Upstash.
 - Engine5 Pattern 5 (`T G T G` / `G T G T`) is now classified as the third canonical group `Sr`; `Sw` and `Bt` mappings for patterns 1–4 are unchanged.
 - Pattern5 cache schema bumped to `v13` so cached `Sw` Pattern 5 cells cannot survive the classification contract change.
 - Desktop and web matrix/mobile cells temporarily render classification only (`group + pattern`); BUY/SELL, base and reverse remain available in the backend/evidence contract rather than the scan cell.

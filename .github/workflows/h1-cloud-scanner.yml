@@ -2,36 +2,69 @@ name: H1 Cloud Scanner
 
 on:
   schedule:
-    # Avoid GitHub's top-of-hour congestion. Start at :58, wait inside the
-    # runner, then call Vercel on the next H:00 boundary.
-    - cron: "58 * * * *"
+    - cron: "10 * * * *"
+    - cron: "30 * * * *"
+    - cron: "50 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h1-cloud-scanner.yml"
+      - "dashboard/src/app/api/h1-scanner/**"
+      - "dashboard/src/lib/github-oidc.ts"
+      - "dashboard/src/lib/h1-cloud-scanner.ts"
+      - "dashboard/src/lib/h1-signals.ts"
   workflow_dispatch:
 
 permissions:
   contents: read
+  statuses: read
   id-token: write
-
-concurrency:
-  group: h1-cloud-scanner
-  cancel-in-progress: false
 
 jobs:
   run-scanner:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 60
     steps:
+      - name: Wait for Vercel deployment
+        if: github.event_name == 'push'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in {1..60}; do
+            status_json="$(curl --fail-with-body --silent --show-error \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status")"
+            vercel_state="$(python3 -c 'import json,sys; data=json.load(sys.stdin); print(next((row.get("state", "") for row in data.get("statuses", []) if row.get("context") == "Vercel"), ""))' <<<"$status_json")"
+            if [[ "$vercel_state" == "success" ]]; then
+              exit 0
+            fi
+            if [[ "$vercel_state" == "failure" || "$vercel_state" == "error" ]]; then
+              echo "Vercel deployment failed for ${GITHUB_SHA}." >&2
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for Vercel deployment of ${GITHUB_SHA}." >&2
+          exit 1
+
       - name: Wait for H:00 boundary
         if: github.event_name == 'schedule'
         shell: bash
+        env:
+          SCHEDULE_EXPR: ${{ github.event.schedule }}
         run: |
           now="$(date -u +%s)"
           minute="$(date -u +%M)"
-          if (( 10#$minute >= 58 )); then
-            target="$(( (now / 3600 + 1) * 3600 ))"
-            delay="$(( target - now ))"
-            if (( delay > 0 && delay <= 180 )); then
-              sleep "$delay"
-            fi
+          scheduled_minute="${SCHEDULE_EXPR%% *}"
+          if (( 10#$minute < 10#$scheduled_minute )); then
+            exit 0
+          fi
+          target="$(( (now / 3600 + 1) * 3600 ))"
+          delay="$(( target - now ))"
+          if (( delay > 0 && delay <= 3600 )); then
+            sleep "$delay"
           fi
 
       - name: Request GitHub OIDC token

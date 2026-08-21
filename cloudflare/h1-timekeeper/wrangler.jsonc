@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "oak-h1-timekeeper",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-21",
+  "workers_dev": true,
+  "secrets": {
+    "required": ["H1_SCANNER_TOKEN"]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "H1_TIMEKEEPER",
+        "class_name": "H1Timekeeper"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["H1Timekeeper"]
+    }
+  ],
+  "triggers": {
+    "crons": ["10 * * * *", "30 * * * *", "50 * * * *"]
+  }
+}

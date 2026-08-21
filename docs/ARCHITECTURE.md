@@ -14,7 +14,8 @@ This document describes the maintained production surfaces after retiring the En
 | --- | --- | --- |
 | H1 scanner v7 pattern/signal semantics | `dashboard/src/lib/h1-cloud-scanner.ts` | cloud scanner route, tests |
 | Cloud H1 market-data transport | `dashboard/src/lib/ctrader-json.ts` | `/api/h1-scanner/run`, read-only account status |
-| Cloud scanner orchestration/state/Telegram publication | `dashboard/src/app/api/h1-scanner/run/route.ts` | GitHub H:00 scheduler |
+| Cloud scanner orchestration/state/Telegram publication | `dashboard/src/app/api/h1-scanner/run/route.ts` | Cloudflare timekeeper + GitHub fallback |
+| H1 primary timekeeper | `cloudflare/h1-timekeeper/src/index.js` | Cloudflare Durable Object Alarm + watchdog Cron |
 | Public H1 transport contract | `dashboard/src/lib/h1-signals.ts` | `/engine` server page and H1 UI |
 | H1 web rendering/detail | `dashboard/src/components/H1EngineBoard.tsx`, `H1SignalBoard.tsx` | browser |
 | VIP H1 redaction | `dashboard/src/lib/vip.ts` | `/engine` server page |
@@ -35,10 +36,12 @@ The production scanner is cloud-primary and operates only on H1 data for the cur
 
 ### Pattern sources
 
-Only two charts are pattern scanners:
+Pattern-source mapping is target-specific:
 
-- `AUDUSD` → pattern source for `XAUUSD` output.
-- `GBPUSD` → pattern source for `EURUSD`, `AUDUSD`, `USDCAD`, `USDJPY` outputs.
+- `AUDUSD` → pattern source for `XAUUSD`.
+- `GBPUSD` → pattern source for `EURUSD` and `AUDUSD`.
+- `USDCAD` → its own pattern source.
+- `USDJPY` → its own pattern source.
 
 The output target set remains:
 
@@ -61,16 +64,15 @@ At slot `Hn`, all bases are the first closed backward candle `H(n-1)` from the s
 - XAUUSD: pattern = AUDUSD; base = GBPUSD.
 - EURUSD: pattern = GBPUSD; base = EURUSD.
 - AUDUSD: pattern = GBPUSD; base = AUDUSD.
-- USDCAD: pattern = GBPUSD; base = USDCAD.
-- USDJPY: pattern = GBPUSD; base = USDJPY.
+- USDCAD: pattern = USDCAD; base = GBPUSD.
+- USDJPY: pattern = USDJPY; base = GBPUSD.
 
 Base direction: `T → BUY`, `G → SELL`.
 
 Source transform:
 
-- `sw2`: keep base.
-- `sw3Pure`: reverse base.
-- `sw3Normal`: reverse base.
+- XAUUSD/EURUSD/AUDUSD: `sw2` keeps base; `sw3Pure` and `sw3Normal` reverse base.
+- USDCAD/USDJPY: `sw2` reverses base; `sw3Pure` and `sw3Normal` keep base.
 
 There is no target-side post-check. Every accepted `sw3Pure` alert is marked `/!\\` in Telegram and the web cell. If another `sw3Pure` appears exactly two slots after the previous accepted pure, that second slot is skipped completely and pure tracking resets from the next slot. Example: H04 + H06 pure => H06 is omitted and scanning starts fresh from H07; H06 + H08 pure => H08 is omitted and scanning starts fresh from H09.
 
@@ -79,10 +81,14 @@ No day classification, Pattern5 group, H4 block, previous-day fallback, or cross
 ### Time and replay behavior
 
 - Eligible scan slots: H03 through H17.
-- GitHub scheduled trigger starts at minute `58`, waits inside the runner until the next exact `H:00` boundary, then requests OIDC and calls the private Vercel route. This avoids GitHub's normal top-of-hour scheduler congestion while keeping GitHub as a secret-free trigger.
-- If GitHub itself starts the scheduled job after the boundary, the route catch-up logic runs immediately; GitHub Actions is therefore best-effort timing rather than a hard real-time clock.
-- Vercel retries briefly when the just-closed H1 candle is not yet visible from cTrader.
-- Redis NX/EX lock prevents overlapping cloud invocations.
+- Cloudflare Worker `oak-h1-timekeeper` is the primary clock. One SQLite Durable Object keeps a single alarm armed for the next exact top-of-hour boundary, calls the private Vercel scanner route from `alarm()`, and arms the next boundary only after a successful scanner outcome.
+- `already-running`, `awaiting-closed-h1`, `disabled`, non-2xx and malformed scanner responses are treated as failures by the Durable Object so Cloudflare alarm retry semantics stay active instead of silently advancing the clock.
+- Cloudflare Cron watchdogs at minutes `10`, `30`, and `50` check the current boundary. If that boundary has no recorded successful scanner call, the watchdog catches it up immediately and then re-arms the next H:00 alarm.
+- GitHub starts redundant pre-boundary runners at minutes `10`, `30`, and `50` only as tertiary fallback. Each runner that starts before the boundary waits until the next H:00 and calls the same private route; Redis locking makes concurrent calls idempotent.
+- H1-related pushes to `main` also trigger the GitHub workflow. The push run waits until GitHub reports the Vercel deployment for that exact commit as `success`, then calls the scanner once to warm the public feed immediately.
+- Vercel retries for roughly 17.5 seconds when the just-closed H1 candle is not yet visible from cTrader.
+- Cloudflare uses a dedicated random timekeeper bearer. The Worker stores the plaintext only as a Cloudflare Secret; Vercel compares its SHA-256 against a value stored in Upstash.
+- Redis NX/EX lock prevents overlapping Cloudflare, GitHub or manual scanner invocations.
 - Cloud state schema is v7. Older public feeds are not reinterpreted; pre-cutover slots are suppressed through the current broker hour to prevent replay under changed semantics, and current-day web history is rebuilt from current H1 data without resending Telegram alerts.
 - Telegram must acknowledge a new signal before the alert is persisted.
 - Public Upstash H1 feed is schema v7; skipped paired-pure slots never enter state/feed/Telegram/web.

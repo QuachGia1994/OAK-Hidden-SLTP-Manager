@@ -55,7 +55,7 @@ export function validateH1ScannerGitHubClaims(
   if (claims.iat && claims.iat > now + 30) return false;
   if (claims.repository !== repository) return false;
   if (claims.ref !== "refs/heads/main") return false;
-  if (claims.event_name !== "schedule" && claims.event_name !== "workflow_dispatch") return false;
+  if (claims.event_name !== "schedule" && claims.event_name !== "workflow_dispatch" && claims.event_name !== "push") return false;
   const expectedWorkflow = `${repository}/${WORKFLOW_PATH}@refs/heads/main`;
   if (claims.workflow_ref !== expectedWorkflow) return false;
   return true;

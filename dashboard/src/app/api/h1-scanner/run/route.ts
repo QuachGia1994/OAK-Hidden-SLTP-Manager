@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis, requireAuth } from "@/lib/redis-core";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
@@ -32,8 +32,10 @@ export const runtime = "nodejs";
 const PUBLIC_PROFILE_KEY = `robot-sltp:public:h1-signals:${H1_CLOUD_PROFILE}`;
 const RUN_TICKET_HEADER = "x-h1-run-ticket";
 const RUN_TICKET_PREFIX = "oak:h1:run-ticket:";
+const CF_TIMEKEEPER_TOKEN_HASH_KEY = "robot-sltp:cloud:h1-scanner:cf-timekeeper:sha256";
+const CF_TIMEKEEPER_HEADER = "x-h1-timekeeper-key";
 const LOCK_SECONDS = 90;
-const FINALIZE_RETRY_ATTEMPTS = 4;
+const FINALIZE_RETRY_ATTEMPTS = 8;
 const FINALIZE_RETRY_DELAY_MS = 2_500;
 
 type RunSummary = {
@@ -46,12 +48,26 @@ type RunSummary = {
   signal: string;
 };
 
+function safeHexEqual(left: string, right: string): boolean {
+  if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) return false;
+  return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
+}
+
 async function authorize(request: Request): Promise<NextResponse | null> {
   // Existing server-to-server API auth remains available for manual/admin runs.
   const apiDenied = requireAuth(request);
   if (!apiDenied) return null;
 
-  // Scheduled runs use GitHub Actions OIDC; no scanner secret is stored in GitHub.
+  // Cloudflare primary timekeeper uses a dedicated bearer known only to the
+  // Worker. Vercel stores only its SHA-256 in Upstash, never the plaintext.
+  const cfToken = request.headers.get(CF_TIMEKEEPER_HEADER) || "";
+  if (/^[A-Za-z0-9_-]{40,120}$/.test(cfToken)) {
+    const expectedHash = await redis.get<string>(CF_TIMEKEEPER_TOKEN_HASH_KEY);
+    const actualHash = createHash("sha256").update(cfToken).digest("hex");
+    if (typeof expectedHash === "string" && safeHexEqual(actualHash, expectedHash)) return null;
+  }
+
+  // Scheduled fallback runs use GitHub Actions OIDC; no scanner secret is stored in GitHub.
   const header = request.headers.get("authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (token && await verifyH1ScannerGitHubOidc(token)) return null;
@@ -121,8 +137,6 @@ function delay(ms: number) {
 }
 
 function requiredBasesForBrokerHour(_hour: number) {
-  // Pattern detection reads only AUDUSD/GBPUSD. XAUUSD uses GBPUSD as its H1
-  // base; the other four targets use their own H1 base candle.
   return ["GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY"] as const;
 }
 
