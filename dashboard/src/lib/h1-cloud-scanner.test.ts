@@ -27,16 +27,45 @@ function bars(sequenceOldestToNewest: string, startHour = 1, date = "2026-08-21"
   });
 }
 
-test("only pure SW3 reverses the H1 base signal", () => {
-  for (const kind of ["sw2", "sw3Alternating", "sw4Alternating"] as const) {
-    assert.equal(signalFromPatternBase("BUY", kind), "BUY");
-    assert.equal(signalFromPatternBase("SELL", kind), "SELL");
-  }
-  assert.equal(signalFromPatternBase("BUY", "sw3Pure"), "SELL");
-  assert.equal(signalFromPatternBase("SELL", "sw3Pure"), "BUY");
+test("source scanner has exactly SW2, pure SW3 and normal SW3", () => {
+  const sw2 = findH1PatternMatches(bars("GT"), 3).filter((item) => item.slotHour === 3);
+  const pureTgg = findH1PatternMatches(bars("GGT"), 4).filter((item) => item.slotHour === 4);
+  const pureGtt = findH1PatternMatches(bars("TTG"), 4).filter((item) => item.slotHour === 4);
+  const normalT = findH1PatternMatches(bars("TTT"), 4).filter((item) => item.slotHour === 4);
+  const normalG = findH1PatternMatches(bars("GGG"), 4).filter((item) => item.slotHour === 4);
+  assert.deepEqual(sw2.map((item) => [item.pattern.join(""), item.patternKind]), [["TG", "sw2"]]);
+  assert.deepEqual(pureTgg.map((item) => [item.pattern.join(""), item.patternKind]), [["TGG", "sw3Pure"]]);
+  assert.deepEqual(pureGtt.map((item) => [item.pattern.join(""), item.patternKind]), [["GTT", "sw3Pure"]]);
+  assert.deepEqual(normalT.map((item) => [item.pattern.join(""), item.patternKind]), [["TTT", "sw3Normal"]]);
+  assert.deepEqual(normalG.map((item) => [item.pattern.join(""), item.patternKind]), [["GGG", "sw3Normal"]]);
+  assert.equal(findH1PatternMatches(bars("TGT"), 4).some((item) => item.slotHour === 4), false);
+  assert.equal(findH1PatternMatches(bars("GTG"), 4).some((item) => item.slotHour === 4), false);
 });
 
-test("pattern scanners are AUDUSD for XAU and GBPUSD for every other target", () => {
+test("SW2 remains the opening H03 class only", () => {
+  const matches = findH1PatternMatches(bars("GGT"), 4);
+  assert.equal(matches.some((item) => item.slotHour === 4 && item.patternKind === "sw2"), false);
+});
+
+test("normal SW3 guard skips a slot once the same-direction run reaches four or more", () => {
+  const t4 = findH1PatternMatches(bars("TTTT"), 5).filter((item) => item.slotHour === 5);
+  const g4 = findH1PatternMatches(bars("GGGG"), 5).filter((item) => item.slotHour === 5);
+  const t5 = findH1PatternMatches(bars("TTTTT"), 6).filter((item) => item.slotHour === 6);
+  assert.deepEqual(t4, []);
+  assert.deepEqual(g4, []);
+  assert.deepEqual(t5, []);
+});
+
+test("SW2 keeps base while both three-candle classes reverse base", () => {
+  assert.equal(signalFromPatternBase("BUY", "sw2"), "BUY");
+  assert.equal(signalFromPatternBase("SELL", "sw2"), "SELL");
+  for (const kind of ["sw3Pure", "sw3Normal"] as const) {
+    assert.equal(signalFromPatternBase("BUY", kind), "SELL");
+    assert.equal(signalFromPatternBase("SELL", kind), "BUY");
+  }
+});
+
+test("pattern scanners remain AUDUSD for XAU and GBPUSD for every other target", () => {
   assert.equal(scannerBaseForTarget("XAUUSD"), "AUDUSD");
   assert.equal(baseSymbolForTarget("XAUUSD"), "GBPUSD");
   for (const base of ["EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
@@ -45,52 +74,21 @@ test("pattern scanners are AUDUSD for XAU and GBPUSD for every other target", ()
   }
 });
 
-test("SW2 is H03-only from H02 + H01", () => {
-  const h3 = findH1PatternMatches(bars("GT"), 3);
-  assert.deepEqual(h3.map((item) => [item.slotHour, item.pattern.join(""), item.patternKind]), [
-    [3, "TG", "sw2"],
+test("pure SW3 exactly two slots after an accepted pure is skipped and tracking resets", () => {
+  const h4H6 = findH1PatternMatches(bars("GGTTG"), 6).filter((item) => item.patternKind === "sw3Pure");
+  assert.deepEqual(h4H6.map((item) => [item.slotHour, item.pattern.join("")]), [[4, "TGG"]]);
+
+  const reset = findH1PatternMatches(bars("GGTTGGT"), 8).filter((item) => item.patternKind === "sw3Pure");
+  assert.deepEqual(reset.map((item) => [item.slotHour, item.pattern.join("")]), [
+    [4, "TGG"],
+    [8, "TGG"],
   ]);
-  const h4 = findH1PatternMatches(bars("GGT"), 4);
-  assert.equal(h4.some((item) => item.slotHour === 4 && item.patternKind === "sw2"), false);
+
+  const h6H8 = findH1PatternMatches(bars("GGTTG", 3), 8).filter((item) => item.patternKind === "sw3Pure");
+  assert.deepEqual(h6H8.map((item) => [item.slotHour, item.pattern.join("")]), [[6, "TGG"]]);
 });
 
-test("pure SW3 is only TGG or GTT", () => {
-  const tgg = findH1PatternMatches(bars("GGT"), 4).filter((item) => item.slotHour === 4);
-  const gtt = findH1PatternMatches(bars("TTG"), 4).filter((item) => item.slotHour === 4);
-  assert.deepEqual(tgg.map((item) => [item.pattern.join(""), item.patternKind]), [["TGG", "sw3Pure"]]);
-  assert.deepEqual(gtt.map((item) => [item.pattern.join(""), item.patternKind]), [["GTT", "sw3Pure"]]);
-});
-
-test("alternating SW3 emits TGT or GTG", () => {
-  const matches = findH1PatternMatches(bars("TGT"), 4).filter((item) => item.slotHour === 4);
-  assert.deepEqual(matches.map((item) => [item.pattern.join(""), item.patternKind]), [["TGT", "sw3Alternating"]]);
-});
-
-test("alternating SW4 emits TGTG or GTGT and wins at the current slot", () => {
-  const t = findH1PatternMatches(bars("GTGT"), 5).filter((item) => item.slotHour === 5);
-  const g = findH1PatternMatches(bars("TGTG"), 5).filter((item) => item.slotHour === 5);
-  assert.deepEqual(t.map((item) => [item.pattern.join(""), item.patternKind]), [["TGTG", "sw4Alternating"]]);
-  assert.deepEqual(g.map((item) => [item.pattern.join(""), item.patternKind]), [["GTGT", "sw4Alternating"]]);
-});
-
-test("XAU signal uses AUDUSD scanner plus GBPUSD H1 base", () => {
-  const match = findH1PatternMatches(bars("TGT"), 4).find((item) => item.slotHour === 4)!;
-  const alert = buildStoredAlert({
-    base: "XAUUSD",
-    brokerSymbol: "XAU/USD",
-    scannerBase: "AUDUSD",
-    scannerSymbol: "AUD/USD",
-    match,
-    baseSymbol: "GBPUSD",
-    baseBar: bars("T", 3)[0],
-  });
-  assert.equal(alert.patternKind, "sw3Alternating");
-  assert.equal(alert.baseH1Signal, "BUY");
-  assert.equal(alert.symbolH1Signal, "BUY");
-  assert.match(buildTelegramMessage("XAUUSD", "2026-08-21", alert), /giữ nguyên GBPUSD H1/);
-});
-
-test("XAU pure SW3 reverses GBPUSD H1 base", () => {
+test("accepted pure SW3 Telegram marks /!\\ with no repeat warning metadata", () => {
   const match = findH1PatternMatches(bars("GGT"), 4).find((item) => item.slotHour === 4)!;
   const alert = buildStoredAlert({
     base: "XAUUSD",
@@ -104,10 +102,14 @@ test("XAU pure SW3 reverses GBPUSD H1 base", () => {
   assert.equal(alert.patternKind, "sw3Pure");
   assert.equal(alert.baseH1Signal, "BUY");
   assert.equal(alert.symbolH1Signal, "SELL");
+  const message = buildTelegramMessage("XAUUSD", "2026-08-21", alert);
+  assert.match(message, /\/!\\ SW 3 cây thuần/);
+  assert.match(message, /Signal XAUUSD H1: SELL/);
+  assert.doesNotMatch(message, /đã xuất hiện|vẫn tính signal|Hậu kiểm|post-check/i);
 });
 
-test("other symbols use GBPUSD scanner plus their own H1 base", () => {
-  const match = findH1PatternMatches(bars("GTGT"), 5).find((item) => item.slotHour === 5)!;
+test("normal SW3 reverses the target base with no post-check metadata", () => {
+  const match = findH1PatternMatches(bars("TTT"), 4).find((item) => item.slotHour === 4)!;
   const alert = buildStoredAlert({
     base: "EURUSD",
     brokerSymbol: "EURUSD",
@@ -115,44 +117,37 @@ test("other symbols use GBPUSD scanner plus their own H1 base", () => {
     scannerSymbol: "GBPUSD",
     match,
     baseSymbol: "EURUSD",
-    baseBar: bars("G", 4)[0],
+    baseBar: bars("G", 3)[0],
   });
-  assert.equal(alert.patternKind, "sw4Alternating");
+  assert.equal(alert.patternKind, "sw3Normal");
   assert.equal(alert.baseH1Signal, "SELL");
-  assert.equal(alert.symbolH1Signal, "SELL");
-  const message = buildTelegramMessage("EURUSD", "2026-08-21", alert);
-  assert.match(message, /Scanner pattern: GBPUSD/);
-  assert.match(message, /Base H1: EURUSD H04=G → SELL/);
-  assert.match(message, /Logic: giữ nguyên EURUSD H1/);
-  assert.doesNotMatch(message, /Signal GBPUSD H1:/);
+  assert.equal(alert.symbolH1Signal, "BUY");
+  assert.equal("previousPureSlot" in alert, false);
 });
 
-test("suppressed migration slots are backfilled for web history without removing replay suppression", () => {
+test("suppressed migration slots backfill v7 history without replay state loss", () => {
   const state = emptyCloudState();
   state.days["2026-08-21"] = {
-    suppressedThroughHour: 5,
+    suppressedThroughHour: 6,
     symbols: Object.fromEntries(["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"].map((base) => [base, { alerts: [] }])),
   };
   const market = {
-    GBPUSD: { displayName: "GBPUSD", bars: bars("GTGT", 1) },
-    XAUUSD: { displayName: "XAUUSD", bars: bars("TTTT", 1) },
-    EURUSD: { displayName: "EURUSD", bars: bars("GGGG", 1) },
-    AUDUSD: { displayName: "AUDUSD", bars: bars("GTGT", 1) },
-    USDCAD: { displayName: "USDCAD", bars: bars("TTTT", 1) },
-    USDJPY: { displayName: "USDJPY", bars: bars("GGGG", 1) },
+    GBPUSD: { displayName: "GBPUSD", bars: bars("GGTTG", 1) },
+    XAUUSD: { displayName: "XAUUSD", bars: bars("TTTTT", 1) },
+    EURUSD: { displayName: "EURUSD", bars: bars("GGGTT", 1) },
+    AUDUSD: { displayName: "AUDUSD", bars: bars("GGTTG", 1) },
+    USDCAD: { displayName: "USDCAD", bars: bars("TTTGG", 1) },
+    USDJPY: { displayName: "USDJPY", bars: bars("GGGTT", 1) },
   } as const;
-
   const added = backfillSuppressedHistory(state, "2026-08-21", market);
   assert.ok(added > 0);
-  assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
-  assert.ok((state.days["2026-08-21"].symbols.XAUUSD?.alerts.length || 0) > 0);
-  assert.ok((state.days["2026-08-21"].symbols.EURUSD?.alerts.length || 0) > 0);
+  assert.equal(state.days["2026-08-21"].suppressedThroughHour, 6);
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older feeds suppress pre-cutover slots instead of replaying obsolete semantics", () => {
+test("older public schemas start a fresh suppressed v7 state instead of replaying obsolete semantics", () => {
   const legacy = {
-    schemaVersion: 5,
+    schemaVersion: 6,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-08-21T00:00:00Z",
     hours: [3, 4, 5],
@@ -160,14 +155,13 @@ test("older feeds suppress pre-cutover slots instead of replaying obsolete seman
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 6);
+  assert.equal(state.version, 7);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
-  assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
 
-test("public feed v6 contains only scanner/base/final-signal semantics", () => {
+test("public feed v7 contains accepted pure signals without repeat metadata", () => {
   const state = emptyCloudState();
-  const match = findH1PatternMatches(bars("GT"), 3)[0];
+  const match = findH1PatternMatches(bars("GGT"), 4).find((item) => item.slotHour === 4)!;
   const alert = buildStoredAlert({
     base: "XAUUSD",
     brokerSymbol: "XAUUSD",
@@ -175,17 +169,15 @@ test("public feed v6 contains only scanner/base/final-signal semantics", () => {
     scannerSymbol: "AUDUSD",
     match,
     baseSymbol: "GBPUSD",
-    baseBar: bars("T", 2)[0],
+    baseBar: bars("T", 3)[0],
   });
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
-  assert.equal(feed.schemaVersion, 6);
-  assert.equal(feed.profile, "cTrader IcMarkets");
+  assert.equal(feed.schemaVersion, 7);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
-  assert.equal(row?.scannerBase, "AUDUSD");
-  assert.equal(row?.baseSymbol, "GBPUSD");
-  assert.equal(row?.baseSignal, "BUY");
-  assert.equal(row?.signal, "BUY");
-  assert.equal("targetPattern" in (row || {}), false);
-  assert.equal("warningKind" in (row || {}), false);
+  assert.equal(row?.patternKind, "sw3Pure");
+  assert.equal(row?.signal, "SELL");
+  assert.equal("previousPureSlot" in (row || {}), false);
+  assert.equal("postCheckApplied" in (row || {}), false);
+  assert.equal("sourceSignal" in (row || {}), false);
 });

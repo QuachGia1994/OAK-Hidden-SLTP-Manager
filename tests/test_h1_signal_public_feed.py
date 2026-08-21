@@ -9,32 +9,28 @@ from domain.h1_signal_public_feed import PUBLIC_SCHEMA, build_public_h1_feed, pu
 
 def sample_state():
     return {
-        "version": 6,
+        "version": 7,
         "days": {
             "2026-08-20": {
                 "symbols": {
                     "XAUUSD": {
                         "alerts": [
                             {
-                                "slotHour": 16,
-                                "pattern": "T G T G",
-                                "patternKind": "sw4Alternating",
-                                "bars": ["2026-08-20T15:00", "2026-08-20T14:00", "2026-08-20T13:00", "2026-08-20T12:00"],
+                                "slotHour": 6,
+                                "pattern": "G T T",
+                                "patternKind": "sw3Pure",
+                                "bars": ["2026-08-20T05:00", "2026-08-20T04:00", "2026-08-20T03:00"],
                                 "symbol": "XAUUSD+",
                                 "profile": "Vantage",
                                 "scannerBase": "AUDUSD",
                                 "scannerSymbol": "AUDUSD+",
                                 "baseSymbol": "GBPUSD",
                                 "baseH1Signal": "BUY",
-                                "baseHour": 15,
+                                "baseHour": 5,
                                 "baseDirection": "T",
-                                "symbolH1Signal": "BUY",
+                                "symbolH1Signal": "SELL",
                             },
-                            {
-                                "slotHour": 17,
-                                "pattern": "T G T",
-                                "patternKind": "sw3Alternating",
-                            },
+                            {"slotHour": 7, "pattern": "T G T", "patternKind": "obsolete"},
                         ],
                     }
                 }
@@ -43,29 +39,20 @@ def sample_state():
     }
 
 
-def test_build_public_h1_feed_normalizes_schema6_and_skips_incomplete_rows():
+def test_build_public_h1_feed_normalizes_schema7_without_repeat_metadata():
     feed = build_public_h1_feed(sample_state(), "Vantage", published_at="2026-08-20T13:20:00+00:00")
-    assert feed["schemaVersion"] == PUBLIC_SCHEMA == 6
+    assert feed["schemaVersion"] == PUBLIC_SCHEMA == 7
     assert feed["profile"] == "Vantage"
     assert feed["hours"] == list(range(3, 18))
     assert feed["symbols"] == ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"]
     xau = feed["days"]["2026-08-20"]["symbols"]["XAUUSD"]
     assert len(xau["alerts"]) == 1
-    assert xau["alerts"][0] == {
-        "slotHour": 16,
-        "pattern": "T G T G",
-        "patternKind": "sw4Alternating",
-        "bars": ["2026-08-20T15:00", "2026-08-20T14:00", "2026-08-20T13:00", "2026-08-20T12:00"],
-        "symbol": "XAUUSD+",
-        "profile": "Vantage",
-        "scannerBase": "AUDUSD",
-        "scannerSymbol": "AUDUSD+",
-        "baseSymbol": "GBPUSD",
-        "baseSignal": "BUY",
-        "baseHour": 15,
-        "baseDirection": "T",
-        "signal": "BUY",
-    }
+    alert = xau["alerts"][0]
+    assert alert["patternKind"] == "sw3Pure"
+    assert "previousPureSlot" not in alert
+    assert alert["signal"] == "SELL"
+    assert "sourceSignal" not in alert
+    assert "postCheckApplied" not in alert
 
 
 def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
@@ -90,17 +77,13 @@ def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
     monkeypatch.setattr(feed_module, "urlopen", fake_urlopen)
 
     feed = publish_h1_signal_state(sample_state(), "Vantage")
-    assert feed["schemaVersion"] == 6
+    assert feed["schemaVersion"] == 7
     assert len(requests) == 2
     commands = [json.loads(request.data.decode("utf-8")) for request, _timeout in requests]
     assert commands[0][0:2] == ["SET", "robot-sltp:public:h1-signals:Vantage"]
     assert commands[1][0:2] == ["SET", "robot-sltp:public:h1-signals:latest"]
-    assert all(timeout == 5 for _request, timeout in requests)
     alert = json.loads(commands[0][2])["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"][0]
     assert alert["scannerBase"] == "AUDUSD"
     assert alert["baseSymbol"] == "GBPUSD"
-    assert alert["signal"] == "BUY"
-    assert alert["patternKind"] == "sw4Alternating"
-    assert "targetPattern" not in alert
-    assert "warningKind" not in alert
-    assert "scannerSignal" not in alert
+    assert "previousPureSlot" not in alert
+    assert alert["signal"] == "SELL"

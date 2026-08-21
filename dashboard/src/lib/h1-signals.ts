@@ -3,7 +3,7 @@ import "server-only";
 import { redis } from "./redis-core";
 
 export type H1SignalSide = "BUY" | "SELL";
-export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Alternating" | "sw4Alternating";
+export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
 export type H1ScannerBase = "AUDUSD" | "GBPUSD";
 
 export type H1SignalAlert = {
@@ -39,7 +39,7 @@ export type H1SignalPayload = {
   days: Record<string, H1SignalDay>;
 };
 
-export const H1_SIGNAL_PUBLIC_SCHEMA = 6;
+export const H1_SIGNAL_PUBLIC_SCHEMA = 7;
 const LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 
 function vietnamDateKey(now = new Date()): string {

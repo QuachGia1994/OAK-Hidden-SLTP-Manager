@@ -2,7 +2,9 @@ name: H1 Cloud Scanner
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    # Avoid GitHub's top-of-hour congestion. Start at :58, wait inside the
+    # runner, then call Vercel on the next H:00 boundary.
+    - cron: "58 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -16,8 +18,22 @@ concurrency:
 jobs:
   run-scanner:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 6
     steps:
+      - name: Wait for H:00 boundary
+        if: github.event_name == 'schedule'
+        shell: bash
+        run: |
+          now="$(date -u +%s)"
+          minute="$(date -u +%M)"
+          if (( 10#$minute >= 58 )); then
+            target="$(( (now / 3600 + 1) * 3600 ))"
+            delay="$(( target - now ))"
+            if (( delay > 0 && delay <= 180 )); then
+              sleep "$delay"
+            fi
+          fi
+
       - name: Request GitHub OIDC token
         id: oidc
         shell: bash

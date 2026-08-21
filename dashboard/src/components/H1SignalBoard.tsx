@@ -28,15 +28,14 @@ function barsLabel(values: string[]) {
 function patternLabel(kind: H1PatternKind, locale: Locale) {
   const labels: Record<H1PatternKind, { EN: string; VN: string }> = {
     sw2: { EN: "SW 2-candle", VN: "SW 2 cây" },
-    sw3Pure: { EN: "SW pure 3-candle", VN: "SW 3 cây thuần" },
-    sw3Alternating: { EN: "SW alternating 3-candle", VN: "SW 3 cây xen kẽ" },
-    sw4Alternating: { EN: "SW alternating 4-candle", VN: "SW 4 cây xen kẽ" },
+    sw3Pure: { EN: "/!\\ SW pure 3-candle", VN: "/!\\ SW 3 cây thuần" },
+    sw3Normal: { EN: "SW normal 3-candle", VN: "SW 3 cây thường" },
   };
   return labels[kind][locale];
 }
 
 function targetBehavior(kind: H1PatternKind, baseSymbol: string, locale: Locale) {
-  const follow = kind !== "sw3Pure";
+  const follow = kind === "sw2";
   if (locale === "EN") return follow ? `follow ${baseSymbol} H1` : `reverse ${baseSymbol} H1`;
   return follow ? `giữ nguyên ${baseSymbol} H1` : `đảo ${baseSymbol} H1`;
 }
@@ -93,7 +92,7 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
           <p><span>{locale === "EN" ? "Pattern source" : "Nguồn scanner"}</span><b>{alert.scannerBase}</b></p>
           <p><span>Base H1 · {alert.baseSymbol}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? `Scanner ${base} logic` : `Logic scanner ${base}`}</span><b>{targetBehavior(alert.patternKind, alert.baseSymbol, locale)}</b></p>
+          <p><span>{locale === "EN" ? `Source ${base} logic` : `Logic nguồn ${base}`}</span><b>{targetBehavior(alert.patternKind, alert.baseSymbol, locale)}</b></p>
           <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>
@@ -129,7 +128,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
-                return <td key={hour}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}><b>{alert.signal}</b></button></td>;
+                const pure = alert.patternKind === "sw3Pure";
+                return <td key={hour}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}>{pure && <span className="oak-h1-warning-mark">/!\</span>}<b>{alert.signal}</b></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

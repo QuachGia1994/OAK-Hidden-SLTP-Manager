@@ -1,7 +1,7 @@
-export const H1_CLOUD_STATE_VERSION = 6;
-export const H1_PUBLIC_SCHEMA = 6;
+export const H1_CLOUD_STATE_VERSION = 7;
+export const H1_PUBLIC_SCHEMA = 7;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v6";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v7";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 
@@ -13,7 +13,7 @@ export type H1Base = typeof H1_ALL_BASES[number];
 export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
-export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Alternating" | "sw4Alternating";
+export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
 
 export type H1DirectionBar = {
   hour: number;
@@ -46,7 +46,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 6;
+  version: 7;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
@@ -54,7 +54,7 @@ export type H1CloudState = {
 };
 
 export type H1PublicFeed = {
-  schemaVersion: 6;
+  schemaVersion: 7;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -80,13 +80,11 @@ export type H1PublicFeed = {
 
 const TWO_CANDLE_SW = new Set(["TG", "GT"]);
 const PURE_SW_3 = new Set(["TGG", "GTT"]);
-const ALTERNATING_SW_3 = new Set(["TGT", "GTG"]);
-const ALTERNATING_SW_4 = new Set(["TGTG", "GTGT"]);
+const NORMAL_SW_3 = new Set(["TTT", "GGG"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
   sw2: "SW 2 cây",
   sw3Pure: "SW 3 cây thuần",
-  sw3Alternating: "SW 3 cây xen kẽ",
-  sw4Alternating: "SW 4 cây xen kẽ",
+  sw3Normal: "SW 3 cây thường",
 };
 
 export function signalFromDirection(direction: H1Direction): H1Signal {
@@ -102,7 +100,7 @@ export function baseSymbolForTarget(base: H1TargetBase): H1Base {
 }
 
 export function patternFollowsBase(patternKind: H1PatternKind): boolean {
-  return patternKind !== "sw3Pure";
+  return patternKind === "sw2";
 }
 
 export function signalFromPatternBase(baseSignal: H1Signal, patternKind: H1PatternKind): H1Signal {
@@ -121,42 +119,36 @@ export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number)
   for (const bar of bars) byHour.set(bar.hour, bar);
   const matches: H1PatternMatch[] = [];
   const lastSlot = Math.min(brokerHour, 17);
+  let previousAcceptedPureSlot: number | null = null;
 
   for (let slotHour = 3; slotHour <= lastSlot; slotHour += 1) {
-    if (slotHour >= 5) {
-      const rows4 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3, slotHour - 4]);
-      if (rows4) {
-        const pattern = rows4.map((row) => row.direction) as H1Direction[];
-        if (ALTERNATING_SW_4.has(pattern.join(""))) {
-          matches.push({ slotHour, pattern, bars: rows4, patternKind: "sw4Alternating" });
-          continue;
-        }
+    if (slotHour === 3) {
+      const rows2 = rowsForHours(byHour, [2, 1]);
+      if (!rows2) continue;
+      const pattern = rows2.map((row) => row.direction) as H1Direction[];
+      if (TWO_CANDLE_SW.has(pattern.join(""))) {
+        matches.push({ slotHour, pattern, bars: rows2, patternKind: "sw2" });
       }
+      continue;
     }
 
-    if (slotHour >= 4) {
-      const rows3 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3]);
-      if (rows3) {
-        const pattern = rows3.map((row) => row.direction) as H1Direction[];
-        const text = pattern.join("");
-        if (PURE_SW_3.has(text)) {
-          matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Pure" });
-          continue;
-        }
-        if (ALTERNATING_SW_3.has(text)) {
-          matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Alternating" });
-          continue;
-        }
+    const rows3 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3]);
+    if (!rows3) continue;
+    const pattern = rows3.map((row) => row.direction) as H1Direction[];
+    const text = pattern.join("");
+    if (PURE_SW_3.has(text)) {
+      if (previousAcceptedPureSlot !== null && slotHour - previousAcceptedPureSlot === 2) {
+        previousAcceptedPureSlot = null;
+        continue;
       }
+      matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Pure" });
+      previousAcceptedPureSlot = slotHour;
+      continue;
     }
-
-    if (slotHour !== 3) continue;
-    const rows2 = rowsForHours(byHour, [2, 1]);
-    if (!rows2) continue;
-    const pattern = rows2.map((row) => row.direction) as H1Direction[];
-    if (TWO_CANDLE_SW.has(pattern.join(""))) {
-      matches.push({ slotHour, pattern, bars: rows2, patternKind: "sw2" });
-    }
+    if (!NORMAL_SW_3.has(text)) continue;
+    const older = byHour.get(slotHour - 4);
+    if (older?.direction === pattern[0]) continue;
+    matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Normal" });
   }
   return matches;
 }
@@ -195,20 +187,22 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     const match = value.match(/T(\d{2}):/);
     return match ? `H${match[1]}` : value;
   }).join("→");
-  return [
+  const pureLabel = alert.patternKind === "sw3Pure" ? `/!\\ ${PATTERN_LABELS[alert.patternKind]}` : PATTERN_LABELS[alert.patternKind];
+  const rows = [
     `🔔 ${base} H1 PATTERN`,
     `• Symbol: ${alert.symbol}`,
     `• Profile: ${H1_CLOUD_PROFILE}`,
     `• Ngày broker: ${brokerDate}`,
     `• Mốc scan: H${String(alert.slotHour).padStart(2, "0")}`,
     `• Scanner pattern: ${alert.scannerBase} (${alert.scannerSymbol})`,
-    `• Nến xét (mới→cũ): ${barHours}`,
-    `• Pattern scanner: ${alert.pattern}`,
-    `• Nhóm scanner: ${PATTERN_LABELS[alert.patternKind]}`,
+    `• Nến xét nguồn (mới→cũ): ${barHours}`,
+    `• Pattern nguồn: ${alert.pattern}`,
+    `• Nhóm nguồn: ${pureLabel}`,
     `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• Logic: ${behavior}`,
-    `• Signal ${base} H1: ${alert.symbolH1Signal}`,
-  ].join("\n");
+    `• Logic nguồn: ${behavior}`,
+  ];
+  rows.push(`• Signal ${base} H1: ${alert.symbolH1Signal}`);
+  return rows.join("\n");
 }
 
 export function emptyCloudState(): H1CloudState {
@@ -224,7 +218,7 @@ function isScannerBase(value: unknown): value is H1ScannerBase {
 }
 
 function isPatternKind(value: unknown): value is H1PatternKind {
-  return value === "sw2" || value === "sw3Pure" || value === "sw3Alternating" || value === "sw4Alternating";
+  return value === "sw2" || value === "sw3Pure" || value === "sw3Normal";
 }
 
 function isSignal(value: unknown): value is H1Signal {
@@ -267,7 +261,7 @@ export function parseCloudState(raw: unknown): H1CloudState {
   return state as H1CloudState;
 }
 
-function parseV6PublicFeed(raw: unknown): H1CloudState | null {
+function parseCurrentPublicFeed(raw: unknown): H1CloudState | null {
   if (!raw) return null;
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (!value || typeof value !== "object") return null;
@@ -312,8 +306,8 @@ function parseV6PublicFeed(raw: unknown): H1CloudState | null {
 }
 
 export function seedCloudStateFromPublic(raw: unknown, brokerDate: string, suppressThroughHour: number): H1CloudState {
-  const v6 = parseV6PublicFeed(raw);
-  if (v6) return v6;
+  const current = parseCurrentPublicFeed(raw);
+  if (current) return current;
 
   const state = emptyCloudState();
   state.days[brokerDate] = {

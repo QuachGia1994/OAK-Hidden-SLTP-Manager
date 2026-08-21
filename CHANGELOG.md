@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reworked the maintained scanner to H1 cloud v7 on cTrader ICMarkets: SW2 `TG/GT` keeps the H1 base, pure SW3 `TGG/GTT` and normal SW3 `TTT/GGG` reverse it, while 4+ same-direction runs are skipped.
+- Pure SW3 pairs exactly two slots apart now suppress the second slot and reset scanning from the next slot; accepted pure SW3 cells/Telegram alerts keep the `/!\\` marker and target-side post-check logic is removed.
+- H1 scheduled cloud runs now start GitHub Actions at minute `58` and wait inside the runner for the exact H:00 boundary, reducing top-of-hour scheduler queue delay while preserving OIDC authentication and catch-up behavior.
 - Engine5 Pattern 5 (`T G T G` / `G T G T`) is now classified as the third canonical group `Sr`; `Sw` and `Bt` mappings for patterns 1–4 are unchanged.
 - Pattern5 cache schema bumped to `v13` so cached `Sw` Pattern 5 cells cannot survive the classification contract change.
 - Desktop and web matrix/mobile cells temporarily render classification only (`group + pattern`); BUY/SELL, base and reverse remain available in the backend/evidence contract rather than the scan cell.

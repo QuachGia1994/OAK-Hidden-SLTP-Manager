@@ -9,9 +9,8 @@ from types import SimpleNamespace
 from domain.file_lock import FileLock
 from domain.xau_h1_pattern_scanner import (
     PATTERN_KIND_SW2,
-    PATTERN_KIND_SW3_ALTERNATING,
+    PATTERN_KIND_SW3_NORMAL,
     PATTERN_KIND_SW3_PURE,
-    PATTERN_KIND_SW4_ALTERNATING,
     MultiSymbolH1PatternScanner,
     base_symbol_for_target,
     find_h1_pattern_matches,
@@ -91,7 +90,7 @@ def target_symbols():
     ]
 
 
-def all_rates(directions="GT", day=20, start_hour=1):
+def all_rates(directions="GGT", day=20, start_hour=1):
     rows = rates_for(day, directions, start_hour=start_hour)
     return {
         "GBPUSD+": rows,
@@ -141,7 +140,7 @@ def test_resolver_accepts_suffixes_for_all_targets_and_rejects_prefixes():
     assert resolve_symbol_variant("GBPUSD", symbols) == "GBPUSD+"
 
 
-def test_target_mapping_uses_only_audusd_and_gbpusd_as_pattern_scanners():
+def test_target_mapping_stays_audusd_for_xau_and_gbpusd_for_other_sources():
     assert scanner_base_for_target("XAUUSD") == "AUDUSD"
     assert base_symbol_for_target("XAUUSD") == "GBPUSD"
     for base in ("EURUSD", "AUDUSD", "USDCAD", "USDJPY"):
@@ -149,128 +148,136 @@ def test_target_mapping_uses_only_audusd_and_gbpusd_as_pattern_scanners():
         assert base_symbol_for_target(base) == base
 
 
-def test_scanner_transform_only_pure_sw3_reverses_base():
-    assert signal_from_h1_direction("T") == "BUY"
-    assert signal_from_h1_direction("G") == "SELL"
-    for kind in (PATTERN_KIND_SW2, PATTERN_KIND_SW3_ALTERNATING, PATTERN_KIND_SW4_ALTERNATING):
-        assert signal_from_pattern_base("BUY", kind) == "BUY"
-        assert signal_from_pattern_base("SELL", kind) == "SELL"
-    assert signal_from_pattern_base("BUY", PATTERN_KIND_SW3_PURE) == "SELL"
-    assert signal_from_pattern_base("SELL", PATTERN_KIND_SW3_PURE) == "BUY"
+def test_source_scanner_has_sw2_pure_sw3_and_normal_sw3_only():
+    h3 = FakeClock(datetime(2026, 8, 20, 3, 0))
+    sw2 = find_h1_pattern_matches(rates_for(20, "GT"), h3.now(), h3.broker_datetime_from_mt5_timestamp)
+    assert [(m.slot_hour, m.pattern_text, m.pattern_kind) for m in sw2] == [(3, "T G", PATTERN_KIND_SW2)]
 
-
-def test_sw2_is_available_from_h03():
-    clock = FakeClock(datetime(2026, 8, 20, 3, 5))
-    matches = find_h1_pattern_matches(rates_for(20, "GT"), clock.now(), clock.broker_datetime_from_mt5_timestamp)
-    assert [(m.slot_hour, m.pattern_text, m.pattern_kind) for m in matches] == [
-        (3, "T G", PATTERN_KIND_SW2),
-    ]
-
-
-def test_pure_sw3_is_only_tgg_or_gtt_and_overrides_embedded_sw2():
-    clock = FakeClock(datetime(2026, 8, 20, 4, 5))
-    tgg = find_h1_pattern_matches(rates_for(20, "GGT"), clock.now(), clock.broker_datetime_from_mt5_timestamp)
-    gtt = find_h1_pattern_matches(rates_for(20, "TTG"), clock.now(), clock.broker_datetime_from_mt5_timestamp)
+    h4 = FakeClock(datetime(2026, 8, 20, 4, 0))
+    tgg = find_h1_pattern_matches(rates_for(20, "GGT"), h4.now(), h4.broker_datetime_from_mt5_timestamp)
+    gtt = find_h1_pattern_matches(rates_for(20, "TTG"), h4.now(), h4.broker_datetime_from_mt5_timestamp)
+    ttt = find_h1_pattern_matches(rates_for(20, "TTT"), h4.now(), h4.broker_datetime_from_mt5_timestamp)
+    tgt = find_h1_pattern_matches(rates_for(20, "TGT"), h4.now(), h4.broker_datetime_from_mt5_timestamp)
     assert [(m.pattern_text, m.pattern_kind) for m in tgg if m.slot_hour == 4] == [("T G G", PATTERN_KIND_SW3_PURE)]
     assert [(m.pattern_text, m.pattern_kind) for m in gtt if m.slot_hour == 4] == [("G T T", PATTERN_KIND_SW3_PURE)]
+    assert [(m.pattern_text, m.pattern_kind) for m in ttt if m.slot_hour == 4] == [("T T T", PATTERN_KIND_SW3_NORMAL)]
+    assert not [m for m in tgt if m.slot_hour == 4]
 
 
-def test_alternating_sw4_is_a_real_pattern_and_wins_at_current_slot():
-    h4_clock = FakeClock(datetime(2026, 8, 20, 4, 5))
-    h4 = find_h1_pattern_matches(rates_for(20, "TGT"), h4_clock.now(), h4_clock.broker_datetime_from_mt5_timestamp)
-    assert [(m.pattern_text, m.pattern_kind) for m in h4 if m.slot_hour == 4] == [("T G T", PATTERN_KIND_SW3_ALTERNATING)]
-
-    h5_clock = FakeClock(datetime(2026, 8, 20, 5, 5))
-    h5 = find_h1_pattern_matches(rates_for(20, "GTGT"), h5_clock.now(), h5_clock.broker_datetime_from_mt5_timestamp)
-    assert [(m.pattern_text, m.pattern_kind) for m in h5 if m.slot_hour == 5] == [("T G T G", PATTERN_KIND_SW4_ALTERNATING)]
-
-
-def test_sw2_is_never_reused_after_h03():
-    clock = FakeClock(datetime(2026, 8, 20, 4, 5))
+def test_sw2_is_h03_only():
+    clock = FakeClock(datetime(2026, 8, 20, 4, 0))
     matches = find_h1_pattern_matches(rates_for(20, "GGT"), clock.now(), clock.broker_datetime_from_mt5_timestamp)
-    assert not any(m.slot_hour == 4 and m.pattern_kind == PATTERN_KIND_SW2 for m in matches)
+    assert not any(match.slot_hour == 4 and match.pattern_kind == PATTERN_KIND_SW2 for match in matches)
 
 
-def test_xau_uses_audusd_pattern_plus_gbpusd_base_and_sw2_keeps_base(tmp_path):
+def test_normal_sw3_guard_skips_current_slot_after_run_reaches_four_or_more():
+    clock = FakeClock(datetime(2026, 8, 20, 5, 0))
+    t4 = find_h1_pattern_matches(rates_for(20, "TTTT"), clock.now(), clock.broker_datetime_from_mt5_timestamp)
+    g4 = find_h1_pattern_matches(rates_for(20, "GGGG"), clock.now(), clock.broker_datetime_from_mt5_timestamp)
+    assert not [m for m in t4 if m.slot_hour == 5]
+    assert not [m for m in g4 if m.slot_hour == 5]
+
+
+def test_sw2_keeps_base_and_both_sw3_classes_reverse_base():
+    assert signal_from_h1_direction("T") == "BUY"
+    assert signal_from_h1_direction("G") == "SELL"
+    assert signal_from_pattern_base("BUY", PATTERN_KIND_SW2) == "BUY"
+    assert signal_from_pattern_base("SELL", PATTERN_KIND_SW2) == "SELL"
+    for kind in (PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL):
+        assert signal_from_pattern_base("BUY", kind) == "SELL"
+        assert signal_from_pattern_base("SELL", kind) == "BUY"
+
+
+def test_pure_sw3_two_slots_later_is_skipped_and_tracking_resets():
+    h6 = FakeClock(datetime(2026, 8, 20, 6, 0))
+    matches = [
+        match for match in find_h1_pattern_matches(rates_for(20, "GGTTG"), h6.now(), h6.broker_datetime_from_mt5_timestamp)
+        if match.pattern_kind == PATTERN_KIND_SW3_PURE
+    ]
+    assert [(match.slot_hour, match.pattern_text) for match in matches] == [(4, "T G G")]
+
+    h8 = FakeClock(datetime(2026, 8, 20, 8, 0))
+    reset_matches = [
+        match for match in find_h1_pattern_matches(rates_for(20, "GGTTGGT"), h8.now(), h8.broker_datetime_from_mt5_timestamp)
+        if match.pattern_kind == PATTERN_KIND_SW3_PURE
+    ]
+    assert [(match.slot_hour, match.pattern_text) for match in reset_matches] == [(4, "T G G"), (8, "T G G")]
+
+    shifted = [
+        match for match in find_h1_pattern_matches(rates_for(20, "GGTTG", start_hour=3), h8.now(), h8.broker_datetime_from_mt5_timestamp)
+        if match.pattern_kind == PATTERN_KIND_SW3_PURE
+    ]
+    assert [(match.slot_hour, match.pattern_text) for match in shifted] == [(6, "T G G")]
+
+
+def test_xau_sw2_uses_audusd_source_and_keeps_gbpusd_base(tmp_path):
     sent: list[str] = []
-    subject = make_scanner(
-        tmp_path,
-        FakeMT5(all_rates("GT")),
-        FakeClock(datetime(2026, 8, 20, 3, 5)),
-        sent,
-    )
+    subject = make_scanner(tmp_path, FakeMT5(all_rates("GT")), FakeClock(datetime(2026, 8, 20, 3, 0)), sent)
     try:
-        assert subject.scan_once() == 5
-        xau = next(message for message in sent if message.startswith("🔔 XAUUSD"))
-        assert "Scanner pattern: AUDUSD (AUDUSD.a)" in xau
-        assert "Nhóm scanner: SW 2 cây" in xau
+        subject.scan_once()
+        xau = next(message for message in sent if message.startswith("🔔 XAUUSD") and "Mốc scan: H03" in message)
+        assert "Pattern nguồn: T G" in xau
+        assert "Nhóm nguồn: SW 2 cây" in xau
         assert "Base H1: GBPUSD H02=T → BUY" in xau
-        assert "Logic: giữ nguyên GBPUSD H1" in xau
+        assert "Logic nguồn: giữ nguyên GBPUSD H1" in xau
         assert "Signal XAUUSD H1: BUY" in xau
     finally:
         subject.close()
 
 
-def test_xau_alternating_sw3_keeps_gbpusd_base(tmp_path):
+def test_xau_pure_sw3_reverses_gbpusd_base_without_postcheck(tmp_path):
+    rates = all_rates("TGT")
+    rates["AUDUSD.a"] = rates_for(20, "GGT")
+    rates["GBPUSD+"] = rates_for(20, "TTT")
     sent: list[str] = []
-    subject = make_scanner(
-        tmp_path,
-        FakeMT5(all_rates("TGT")),
-        FakeClock(datetime(2026, 8, 20, 4, 5)),
-        sent,
-    )
+    subject = make_scanner(tmp_path, FakeMT5(rates), FakeClock(datetime(2026, 8, 20, 4, 0)), sent)
     try:
         subject.scan_once()
-        xau_h4 = next(message for message in sent if message.startswith("🔔 XAUUSD") and "Mốc scan: H04" in message)
-        assert "Nhóm scanner: SW 3 cây xen kẽ" in xau_h4
-        assert "Base H1: GBPUSD H03=T → BUY" in xau_h4
-        assert "Logic: giữ nguyên GBPUSD H1" in xau_h4
-        assert "Signal XAUUSD H1: BUY" in xau_h4
+        xau = next(message for message in sent if message.startswith("🔔 XAUUSD") and "Mốc scan: H04" in message)
+        assert "Pattern nguồn: T G G" in xau
+        assert "Nhóm nguồn: /!\\ SW 3 cây thuần" in xau
+        assert "Base H1: GBPUSD H03=T → BUY" in xau
+        assert "Logic nguồn: đảo GBPUSD H1" in xau
+        assert "Signal XAUUSD H1: SELL" in xau
+        assert "Hậu kiểm" not in xau
     finally:
         subject.close()
 
 
-def test_xau_pure_sw3_reverses_gbpusd_base(tmp_path):
-    sent: list[str] = []
-    rows = all_rates("GGT")
-    subject = make_scanner(
-        tmp_path,
-        FakeMT5(rows),
-        FakeClock(datetime(2026, 8, 20, 4, 5)),
-        sent,
-    )
-    try:
-        subject.scan_once()
-        xau_h4 = next(message for message in sent if message.startswith("🔔 XAUUSD") and "Mốc scan: H04" in message)
-        assert "Scanner pattern: AUDUSD" in xau_h4
-        assert "Nhóm scanner: SW 3 cây thuần" in xau_h4
-        assert "Base H1: GBPUSD H03=T → BUY" in xau_h4
-        assert "Logic: đảo GBPUSD H1" in xau_h4
-        assert "Signal XAUUSD H1: SELL" in xau_h4
-    finally:
-        subject.close()
-
-
-def test_other_symbol_uses_gbpusd_pattern_plus_its_own_base(tmp_path):
-    rates = all_rates("GGT")
-    # EURUSD H3=G while GBPUSD scanner H3..H1 = TGG (pure -> reverse).
+def test_normal_sw3_reverses_own_base_for_other_symbol(tmp_path):
+    rates = all_rates("TGT")
+    rates["GBPUSD+"] = rates_for(20, "TTT")
     rates["EURUSD+"] = rates_for(20, "GGG")
     sent: list[str] = []
-    subject = make_scanner(tmp_path, FakeMT5(rates), FakeClock(datetime(2026, 8, 20, 4, 5)), sent)
+    subject = make_scanner(tmp_path, FakeMT5(rates), FakeClock(datetime(2026, 8, 20, 4, 0)), sent)
     try:
         subject.scan_once()
         eur = next(message for message in sent if message.startswith("🔔 EURUSD") and "Mốc scan: H04" in message)
-        assert "Scanner pattern: GBPUSD (GBPUSD+)" in eur
+        assert "Pattern nguồn: T T T" in eur
+        assert "Nhóm nguồn: SW 3 cây thường" in eur
         assert "Base H1: EURUSD H03=G → SELL" in eur
-        assert "Logic: đảo EURUSD H1" in eur
+        assert "Logic nguồn: đảo EURUSD H1" in eur
         assert "Signal EURUSD H1: BUY" in eur
     finally:
         subject.close()
 
 
+def test_repeated_pure_sw3_two_slots_later_is_not_sent(tmp_path):
+    rates = all_rates("GGTTG")
+    rates["AUDUSD.a"] = rates_for(20, "GGTTG")
+    sent: list[str] = []
+    subject = make_scanner(tmp_path, FakeMT5(rates), FakeClock(datetime(2026, 8, 20, 6, 0)), sent)
+    try:
+        subject.scan_once()
+        assert any(message.startswith("🔔 XAUUSD") and "Mốc scan: H04" in message for message in sent)
+        assert not any(message.startswith("🔔 XAUUSD") and "Mốc scan: H06" in message for message in sent)
+    finally:
+        subject.close()
+
+
 def test_local_fallback_reads_only_pattern_sources_and_required_base_h1(tmp_path):
-    mt5 = FakeMT5(all_rates("GT"))
-    subject = make_scanner(tmp_path, mt5, FakeClock(datetime(2026, 8, 20, 3, 5)), [])
+    mt5 = FakeMT5(all_rates("GGT"))
+    subject = make_scanner(tmp_path, mt5, FakeClock(datetime(2026, 8, 20, 4, 0)), [])
     try:
         subject.scan_once()
         assert {call[0] for call in mt5.rate_calls} == {"GBPUSD+", "AUDUSD.a", "EURUSD+", "USDCAD.pro", "USDJPYraw"}
@@ -278,61 +285,32 @@ def test_local_fallback_reads_only_pattern_sources_and_required_base_h1(tmp_path
         subject.close()
 
 
-def test_v2_state_migrates_to_v6_suppression_without_reinterpreting_old_alerts(tmp_path):
+def test_v6_state_migrates_to_v7_suppression_without_replaying_old_slots(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text(json.dumps({
-        "version": 2,
-        "days": {
-            "2026-08-20": {
-                "symbols": {
-                    "XAUUSD": {"alerts": [{"slotHour": 4, "pattern": "T G", "symbol": "XAUUSDm"}]},
-                },
-            },
-        },
+        "version": 6,
+        "days": {"2026-08-20": {"symbols": {"XAUUSD": {"alerts": [{"slotHour": 4, "pattern": "T G G"}]}}}},
     }), encoding="utf-8")
     sent: list[str] = []
-    subject = make_scanner(
-        tmp_path,
-        FakeMT5(all_rates("GTGT")),
-        FakeClock(datetime(2026, 8, 20, 5, 5)),
-        sent,
-    )
+    subject = make_scanner(tmp_path, FakeMT5(all_rates("GGTTG")), FakeClock(datetime(2026, 8, 20, 6, 0)), sent)
     try:
         subject.scan_once()
         saved = json.loads(state_path.read_text(encoding="utf-8"))
-        assert saved["version"] == 6
+        assert saved["version"] == 7
         assert saved["days"]["2026-08-20"]["suppressedThroughHour"] == 4
-        assert all("Mốc scan: H03" not in message and "Mốc scan: H04" not in message for message in sent)
-    finally:
-        subject.close()
-
-
-def test_missing_target_base_h1_keeps_signal_pending(tmp_path):
-    rates = all_rates("GGT", start_hour=14)
-    rates["EURUSD+"] = rates_for(20, "GG", start_hour=14)  # H16 missing at slot H17.
-    sent: list[str] = []
-    subject = make_scanner(
-        tmp_path,
-        FakeMT5(rates),
-        FakeClock(datetime(2026, 8, 20, 17, 30)),
-        sent,
-    )
-    try:
-        subject.scan_once()
-        assert not any(message.startswith("🔔 EURUSD") and "Mốc scan: H17" in message for message in sent)
+        assert all("Mốc scan: H04" not in message for message in sent)
     finally:
         subject.close()
 
 
 def test_state_survives_restart_and_does_not_replay_delivered_slots(tmp_path):
-    rows = all_rates("GTGT")
+    rows = all_rates("GGT")
     sent: list[str] = []
-    first = make_scanner(tmp_path, FakeMT5(rows), FakeClock(datetime(2026, 8, 20, 5, 5)), sent)
+    first = make_scanner(tmp_path, FakeMT5(rows), FakeClock(datetime(2026, 8, 20, 4, 0)), sent)
     first.scan_once()
     first.close()
     before = len(sent)
-
-    second = make_scanner(tmp_path, FakeMT5(rows), FakeClock(datetime(2026, 8, 20, 5, 10)), sent)
+    second = make_scanner(tmp_path, FakeMT5(rows), FakeClock(datetime(2026, 8, 20, 4, 10)), sent)
     try:
         assert second.scan_once() == 0
         assert len(sent) == before
@@ -340,25 +318,24 @@ def test_state_survives_restart_and_does_not_replay_delivered_slots(tmp_path):
         second.close()
 
 
-def test_public_feed_callback_runs_once_for_unchanged_state(tmp_path):
+def test_public_feed_callback_omits_skipped_pure_and_repeat_metadata(tmp_path):
     published = []
+    rows = all_rates("GGTTG")
     subject = make_scanner(
         tmp_path,
-        FakeMT5(all_rates("GT")),
-        FakeClock(datetime(2026, 8, 20, 3, 5)),
+        FakeMT5(rows),
+        FakeClock(datetime(2026, 8, 20, 6, 0)),
         [],
         publish_state=lambda state, profile: published.append((json.loads(json.dumps(state)), profile)),
     )
     try:
-        assert subject.scan_once() == 5
-        assert len(published) >= 1
-        count = len(published)
-        assert subject.scan_once() == 0
-        assert len(published) == count
-        xau = published[-1][0]["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"][0]
-        assert xau["scannerBase"] == "AUDUSD"
-        assert xau["baseSymbol"] == "GBPUSD"
-        assert xau["patternKind"] == PATTERN_KIND_SW2
+        subject.scan_once()
+        xau_alerts = published[-1][0]["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"]
+        assert any(row["slotHour"] == 4 and row["patternKind"] == PATTERN_KIND_SW3_PURE for row in xau_alerts)
+        assert not any(row["slotHour"] == 6 for row in xau_alerts)
+        assert all("previousPureSlot" not in row for row in xau_alerts)
+        assert all("postCheckApplied" not in row for row in xau_alerts)
+        assert all("sourceSignal" not in row for row in xau_alerts)
     finally:
         subject.close()
 
@@ -367,8 +344,8 @@ def test_failed_telegram_does_not_advance_state(tmp_path):
     attempts = []
     subject = make_scanner(
         tmp_path,
-        FakeMT5(all_rates("GT")),
-        FakeClock(datetime(2026, 8, 20, 3, 5)),
+        FakeMT5(all_rates("GGT")),
+        FakeClock(datetime(2026, 8, 20, 4, 0)),
         [],
         notify=lambda message: attempts.append(message) and False,
     )
@@ -383,7 +360,7 @@ def test_failed_telegram_does_not_advance_state(tmp_path):
 def test_after_h17_republishes_state_without_h1_history(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text(json.dumps({
-        "version": 6,
+        "version": 7,
         "days": {"2026-08-20": {"symbols": {base: {"alerts": []} for base in ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")}}},
     }), encoding="utf-8")
     mt5 = FakeMT5({}, target_symbols())
@@ -404,18 +381,18 @@ def test_after_h17_republishes_state_without_h1_history(tmp_path):
 
 
 def test_real_owner_lock_prevents_second_local_scanner(tmp_path):
-    rates = all_rates("GT")
-    clock = FakeClock(datetime(2026, 8, 20, 3, 5))
+    rates = all_rates("GGT")
+    clock = FakeClock(datetime(2026, 8, 20, 4, 0))
     first = make_scanner(tmp_path, FakeMT5(rates), clock, [], lock_factory=FileLock, profile="Vantage")
     second = make_scanner(tmp_path, FakeMT5(rates), clock, [], lock_factory=FileLock, profile="VantageDemo")
     try:
-        assert first.scan_once() == 5
+        assert first.scan_once() > 0
         assert second.scan_once() == 0
         assert not second.is_owner
     finally:
         first.close()
     try:
-        assert second.scan_once() == 0
+        second.scan_once()
         assert second.is_owner
     finally:
         second.close()

@@ -10,10 +10,10 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLIC_SCHEMA = 6
+PUBLIC_SCHEMA = 7
 KEY_PREFIX = "robot-sltp:public:h1-signals:"
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
-PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Alternating", "sw4Alternating"}
+PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Normal"}
 SCANNER_BASES = {"AUDUSD", "GBPUSD"}
 
 
@@ -34,8 +34,8 @@ def build_public_h1_feed(
     *,
     published_at: str | None = None,
 ) -> dict[str, Any]:
-    """Normalize persisted fallback state into public scanner schema v6."""
-    if not isinstance(state, dict) or state.get("version") != 6 or not isinstance(state.get("days"), dict):
+    """Normalize persisted fallback state into public scanner schema v7."""
+    if not isinstance(state, dict) or state.get("version") != 7 or not isinstance(state.get("days"), dict):
         raise ValueError("Invalid H1 scanner state")
 
     public_days: dict[str, Any] = {}

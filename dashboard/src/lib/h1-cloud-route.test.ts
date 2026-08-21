@@ -56,8 +56,10 @@ test("GitHub OIDC verifier fences scanner trigger to repo main and exact workflo
   assert.match(oidc, /schedule.*workflow_dispatch|workflow_dispatch.*schedule/s);
 });
 
-test("GitHub scheduler triggers at H:00 and scanner retries briefly for the closed H1 candle", () => {
-  assert.match(workflow, /cron: "0 \* \* \* \*"/);
+test("GitHub scheduler avoids top-of-hour queueing and calls scanner at the H:00 boundary", () => {
+  assert.match(workflow, /cron: "58 \* \* \* \*"/);
+  assert.match(workflow, /Wait for H:00 boundary/);
+  assert.match(workflow, /sleep "\$delay"/);
   assert.match(route, /FINALIZE_RETRY_ATTEMPTS = 4/);
   assert.match(route, /FINALIZE_RETRY_DELAY_MS = 2_500/);
   assert.match(route, /marketReadyForSlot/);
@@ -66,6 +68,7 @@ test("GitHub scheduler triggers at H:00 and scanner retries briefly for the clos
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_URL/);
   assert.match(workflow, /audience=oak-h1-cloud-scanner/);
+  assert.ok(workflow.indexOf("Wait for H:00 boundary") < workflow.indexOf("Request GitHub OIDC token"));
   assert.match(workflow, /Authorization: Bearer \$OIDC_TOKEN/);
   assert.match(workflow, /https:\/\/www\.oakgatekeeper\.uk\/api\/h1-scanner\/run/);
   assert.doesNotMatch(workflow, /secrets\.|CTRADER_CLIENT_SECRET|ACCESS_TOKEN|UPSTASH|TELEGRAM_TOKEN/);

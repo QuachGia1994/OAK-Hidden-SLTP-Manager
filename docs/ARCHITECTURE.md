@@ -12,7 +12,7 @@ This document describes the maintained production surfaces after retiring the En
 
 | Concern | Canonical owner | Consumers |
 | --- | --- | --- |
-| H1 scanner v6 pattern/signal semantics | `dashboard/src/lib/h1-cloud-scanner.ts` | cloud scanner route, tests |
+| H1 scanner v7 pattern/signal semantics | `dashboard/src/lib/h1-cloud-scanner.ts` | cloud scanner route, tests |
 | Cloud H1 market-data transport | `dashboard/src/lib/ctrader-json.ts` | `/api/h1-scanner/run`, read-only account status |
 | Cloud scanner orchestration/state/Telegram publication | `dashboard/src/app/api/h1-scanner/run/route.ts` | GitHub H:00 scheduler |
 | Public H1 transport contract | `dashboard/src/lib/h1-signals.ts` | `/engine` server page and H1 UI |
@@ -29,7 +29,7 @@ This document describes the maintained production surfaces after retiring the En
 | MT5 attach/start safety | `services/mt5_service.py`, `services/mt5_terminal_service.py` | local observation/fallback runtime |
 | H1 parity | `robot-sltp-pro/h1_market_data.py` + H1 snapshot CLIs | migration/regression only |
 
-## H1 scanner v6
+## H1 scanner v7
 
 The production scanner is cloud-primary and operates only on H1 data for the current broker day.
 
@@ -46,14 +46,13 @@ The output target set remains:
 
 ### Pattern classes
 
-Patterns are read newest → oldest at scanner slot `Hn`:
+Patterns are read newest → oldest at scanner slot `Hn`. Exactly three source classes exist:
 
-- `TG` / `GT` → `sw2` / SW 2 cây, opening class only at H03 using H02→H01.
+- `TG` / `GT` → `sw2` / SW 2 cây, opening class at H03 only using H02→H01.
 - `TGG` / `GTT` → `sw3Pure` / SW 3 cây thuần.
-- `TGT` / `GTG` → `sw3Alternating` / SW 3 cây xen kẽ.
-- `TGTG` / `GTGT` → `sw4Alternating` / SW 4 cây xen kẽ. This four-candle class has precedence over its embedded 3-candle alternating suffix at the same slot.
+- `TTT` / `GGG` → `sw3Normal` / SW 3 cây thường.
 
-At one slot the scanner checks the exact 4-candle alternating class first, then exact 3-candle classes, then the H03-only 2-candle class.
+`sw3Normal` is valid only for an exact three-candle run at the current slot. If the immediately older H1 candle has the same direction, the run is already four candles or longer (`TTTT…` / `GGGG…`) and that current slot is guarded/skipped. `TGT/GTG` and `TGTG/GTGT` are not scanner source patterns.
 
 ### Base H1 and signal transform
 
@@ -67,33 +66,35 @@ At slot `Hn`, all bases are the first closed backward candle `H(n-1)` from the s
 
 Base direction: `T → BUY`, `G → SELL`.
 
-Transform:
+Source transform:
 
 - `sw2`: keep base.
 - `sw3Pure`: reverse base.
-- `sw3Alternating`: keep base.
-- `sw4Alternating`: keep base.
+- `sw3Normal`: reverse base.
+
+There is no target-side post-check. Every accepted `sw3Pure` alert is marked `/!\\` in Telegram and the web cell. If another `sw3Pure` appears exactly two slots after the previous accepted pure, that second slot is skipped completely and pure tracking resets from the next slot. Example: H04 + H06 pure => H06 is omitted and scanning starts fresh from H07; H06 + H08 pure => H08 is omitted and scanning starts fresh from H09.
 
 No day classification, Pattern5 group, H4 block, previous-day fallback, or cross-timeframe fallback exists in this scanner.
 
 ### Time and replay behavior
 
 - Eligible scan slots: H03 through H17.
-- GitHub scheduler targets minute `00` every hour.
+- GitHub scheduled trigger starts at minute `58`, waits inside the runner until the next exact `H:00` boundary, then requests OIDC and calls the private Vercel route. This avoids GitHub's normal top-of-hour scheduler congestion while keeping GitHub as a secret-free trigger.
+- If GitHub itself starts the scheduled job after the boundary, the route catch-up logic runs immediately; GitHub Actions is therefore best-effort timing rather than a hard real-time clock.
 - Vercel retries briefly when the just-closed H1 candle is not yet visible from cTrader.
 - Redis NX/EX lock prevents overlapping cloud invocations.
-- Cloud state schema is v6. Older public feeds are not reinterpreted; pre-cutover slots are suppressed through the current broker hour to prevent replay under changed semantics.
-- Telegram must acknowledge a signal before the alert is persisted.
-- Public Upstash H1 feed is schema v6.
+- Cloud state schema is v7. Older public feeds are not reinterpreted; pre-cutover slots are suppressed through the current broker hour to prevent replay under changed semantics, and current-day web history is rebuilt from current H1 data without resending Telegram alerts.
+- Telegram must acknowledge a new signal before the alert is persisted.
+- Public Upstash H1 feed is schema v7; skipped paired-pure slots never enter state/feed/Telegram/web.
 - There is no target-side post-check, STOP-H17 overlay, day classification, Pattern5 block, or H4 dependency.
 
-The local Python fallback mirrors the same v6 source/base transform and reads target H1 only when that target is the required base candle.
+The local Python fallback mirrors the same v7 source/base transform and paired-pure reset semantics.
 
 ## `/engine` web flow
 
 `/engine` is H1-only:
 
-1. Server reads the latest H1 schema-v6 feed from Upstash.
+1. Server reads the latest H1 schema-v7 feed from Upstash.
 2. Future broker days are masked.
 3. Weekday VIP redaction is applied server-side.
 4. `H1EngineBoard` displays cloud profile metadata (`cTrader IcMarkets`).

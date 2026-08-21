@@ -345,8 +345,6 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-signal-button { position: relative; display: grid; width: 100%; min-height: 3.7rem; place-content: center; padding: .35rem; text-align: center; transition: background-color var(--oak-motion-fast) ease; }
 .oak-h1-signal-button b { font: 950 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
 .oak-h1-warning-mark { position: absolute; top: .25rem; right: .3rem; color: var(--oak-status-warning); font-size: .6rem; line-height: 1; }
-.oak-h1-signal-button[data-warning="true"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-status-warning) 38%, transparent); }
-.oak-h1-explain p[data-warning="true"] { border-color: color-mix(in srgb, var(--oak-status-warning) 42%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-warning) 7%, var(--oak-bg-raised)); }
 .oak-h1-signal-button[data-side="buy"] { background: color-mix(in srgb, var(--oak-signal-buy) 7%, var(--oak-bg-surface)); }
 .oak-h1-signal-button[data-side="sell"] { background: color-mix(in srgb, var(--oak-signal-sell) 7%, var(--oak-bg-surface)); }
 .oak-h1-signal-button[data-side="buy"] b { color: var(--oak-signal-buy); }

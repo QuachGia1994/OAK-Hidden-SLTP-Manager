@@ -26,34 +26,26 @@ TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
 SCANNER_BASES = ("AUDUSD", "GBPUSD")
 REQUIRED_HISTORY_BASES = ("GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY")
 
-PURE_SW_3_PATTERNS = {("T", "G", "G"), ("G", "T", "T")}
 TWO_CANDLE_SW_PATTERNS = {("T", "G"), ("G", "T")}
-ALTERNATING_SW_3_PATTERNS = {("T", "G", "T"), ("G", "T", "G")}
-ALTERNATING_SW_4_PATTERNS = {("T", "G", "T", "G"), ("G", "T", "G", "T")}
+PURE_SW_3_PATTERNS = {("T", "G", "G"), ("G", "T", "T")}
+NORMAL_SW_3_PATTERNS = {("T", "T", "T"), ("G", "G", "G")}
 
 PATTERN_KIND_SW2 = "sw2"
 PATTERN_KIND_SW3_PURE = "sw3Pure"
-PATTERN_KIND_SW3_ALTERNATING = "sw3Alternating"
-PATTERN_KIND_SW4_ALTERNATING = "sw4Alternating"
-PATTERN_KINDS = {
-    PATTERN_KIND_SW2,
-    PATTERN_KIND_SW3_PURE,
-    PATTERN_KIND_SW3_ALTERNATING,
-    PATTERN_KIND_SW4_ALTERNATING,
-}
+PATTERN_KIND_SW3_NORMAL = "sw3Normal"
+PATTERN_KINDS = {PATTERN_KIND_SW2, PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL}
 PATTERN_LABELS = {
     PATTERN_KIND_SW2: "SW 2 cây",
     PATTERN_KIND_SW3_PURE: "SW 3 cây thuần",
-    PATTERN_KIND_SW3_ALTERNATING: "SW 3 cây xen kẽ",
-    PATTERN_KIND_SW4_ALTERNATING: "SW 4 cây xen kẽ",
+    PATTERN_KIND_SW3_NORMAL: "SW 3 cây thường",
 }
-FOLLOW_BASE_PATTERN_KINDS = {PATTERN_KIND_SW2, PATTERN_KIND_SW3_ALTERNATING, PATTERN_KIND_SW4_ALTERNATING}
-REVERSE_BASE_PATTERN_KINDS = {PATTERN_KIND_SW3_PURE}
+FOLLOW_BASE_PATTERN_KINDS = {PATTERN_KIND_SW2}
+REVERSE_BASE_PATTERN_KINDS = {PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL}
 
 EARLIEST_SCAN_HOUR = 3
 LAST_SCAN_HOUR = 17
 HISTORY_BARS = 32
-STATE_VERSION = 6
+STATE_VERSION = 7
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,55 +204,49 @@ def _matches_from_candles(
 ) -> list[H1PatternMatch]:
     matches: list[H1PatternMatch] = []
     last_slot = min(int(broker_hour), LAST_SCAN_HOUR)
+    previous_accepted_pure_slot: int | None = None
     for slot_hour in range(EARLIEST_SCAN_HOUR, last_slot + 1):
-        if slot_hour >= 5:
-            rows4 = _rows_for_hours(candles, tuple(slot_hour - offset for offset in range(1, 5)))
-            if rows4:
-                pattern4 = tuple(direction for _opened, direction in rows4)
-                if pattern4 in ALTERNATING_SW_4_PATTERNS:
-                    matches.append(H1PatternMatch(
-                        slot_hour,
-                        pattern4,
-                        tuple(opened for opened, _direction in rows4),
-                        PATTERN_KIND_SW4_ALTERNATING,
-                    ))
-                    continue
-
-        if slot_hour >= 4:
-            rows3 = _rows_for_hours(candles, tuple(slot_hour - offset for offset in range(1, 4)))
-            if rows3:
-                pattern3 = tuple(direction for _opened, direction in rows3)
-                if pattern3 in PURE_SW_3_PATTERNS:
-                    matches.append(H1PatternMatch(
-                        slot_hour,
-                        pattern3,
-                        tuple(opened for opened, _direction in rows3),
-                        PATTERN_KIND_SW3_PURE,
-                    ))
-                    continue
-                if pattern3 in ALTERNATING_SW_3_PATTERNS:
-                    matches.append(H1PatternMatch(
-                        slot_hour,
-                        pattern3,
-                        tuple(opened for opened, _direction in rows3),
-                        PATTERN_KIND_SW3_ALTERNATING,
-                    ))
-                    continue
-
-        # Two-candle source is the opening H03 class only: H02 → H01.
-        if slot_hour != EARLIEST_SCAN_HOUR:
+        if slot_hour == EARLIEST_SCAN_HOUR:
+            rows2 = _rows_for_hours(candles, (2, 1))
+            if not rows2:
+                continue
+            pattern2 = tuple(direction for _opened, direction in rows2)
+            if pattern2 in TWO_CANDLE_SW_PATTERNS:
+                matches.append(H1PatternMatch(
+                    slot_hour,
+                    pattern2,
+                    tuple(opened for opened, _direction in rows2),
+                    PATTERN_KIND_SW2,
+                ))
             continue
-        rows2 = _rows_for_hours(candles, (2, 1))
-        if not rows2:
+
+        rows3 = _rows_for_hours(candles, tuple(slot_hour - offset for offset in range(1, 4)))
+        if not rows3:
             continue
-        pattern2 = tuple(direction for _opened, direction in rows2)
-        if pattern2 in TWO_CANDLE_SW_PATTERNS:
+        pattern3 = tuple(direction for _opened, direction in rows3)
+        if pattern3 in PURE_SW_3_PATTERNS:
+            if previous_accepted_pure_slot is not None and slot_hour - previous_accepted_pure_slot == 2:
+                previous_accepted_pure_slot = None
+                continue
             matches.append(H1PatternMatch(
                 slot_hour,
-                pattern2,
-                tuple(opened for opened, _direction in rows2),
-                PATTERN_KIND_SW2,
+                pattern3,
+                tuple(opened for opened, _direction in rows3),
+                PATTERN_KIND_SW3_PURE,
             ))
+            previous_accepted_pure_slot = slot_hour
+            continue
+        if pattern3 not in NORMAL_SW_3_PATTERNS:
+            continue
+        older = candles.get(slot_hour - 4)
+        if older is not None and older[1] == pattern3[0]:
+            continue
+        matches.append(H1PatternMatch(
+            slot_hour,
+            pattern3,
+            tuple(opened for opened, _direction in rows3),
+            PATTERN_KIND_SW3_NORMAL,
+        ))
     return matches
 
 
@@ -287,15 +273,13 @@ def pattern_kind_from_text(pattern_text: str) -> str | None:
         return PATTERN_KIND_SW2
     if pattern in PURE_SW_3_PATTERNS:
         return PATTERN_KIND_SW3_PURE
-    if pattern in ALTERNATING_SW_3_PATTERNS:
-        return PATTERN_KIND_SW3_ALTERNATING
-    if pattern in ALTERNATING_SW_4_PATTERNS:
-        return PATTERN_KIND_SW4_ALTERNATING
+    if pattern in NORMAL_SW_3_PATTERNS:
+        return PATTERN_KIND_SW3_NORMAL
     return None
 
 
 class MultiSymbolH1PatternScanner:
-    """One-owner MT5 fallback mirroring cloud scanner v6 semantics."""
+    """One-owner MT5 fallback mirroring cloud scanner v7 semantics."""
 
     def __init__(
         self,
@@ -409,7 +393,7 @@ class MultiSymbolH1PatternScanner:
         rendered = ", ".join(f"{base}={symbol}" for base, symbol in selected.items())
         self._log(
             f"[H1-SCAN] fallback owner={self._profile_name} · {rendered} · GBPUSD={gbpusd_symbol} · "
-            "patternSources=AUDUSD,GBPUSD · H03-H17 · emit=SW2,SW3-pure,SW3-alt,SW4-alt"
+            "patternSources=AUDUSD,GBPUSD · H03-H17 · emit=SW2,SW3-pure,SW3-normal · no-post-check"
         )
         return True
 
@@ -461,7 +445,7 @@ class MultiSymbolH1PatternScanner:
         state = load_json(str(self._state_path), self._empty_state())
         if not isinstance(state, dict):
             raise ValueError(f"Invalid H1 scanner state: {self._state_path}")
-        if state.get("version") in {1, 2, 3, 4, 5}:
+        if state.get("version") in {1, 2, 3, 4, 5, 6}:
             state = self._migrate_legacy_state(state)
             # Persist migration immediately so a restart cannot reload obsolete
             # pattern semantics and repeat the migration decision.
@@ -527,20 +511,22 @@ class MultiSymbolH1PatternScanner:
             if pattern_follows_base(match.pattern_kind)
             else f"đảo {base_context.base_symbol} H1"
         )
-        return "\n".join([
+        pattern_label = f"/!\\ {match.pattern_label}" if match.pattern_kind == PATTERN_KIND_SW3_PURE else match.pattern_label
+        rows = [
             f"🔔 {base} H1 PATTERN",
             f"• Symbol: {broker_symbol}",
             f"• Profile: {profile_name}",
             f"• Ngày broker: {broker_day}",
             f"• Mốc scan: H{match.slot_hour:02d}",
             f"• Scanner pattern: {scanner_base} ({scanner_symbol})",
-            f"• Nến xét (mới→cũ): {match.bar_range_text}",
-            f"• Pattern scanner: {match.pattern_text}",
-            f"• Nhóm scanner: {match.pattern_label}",
+            f"• Nến xét nguồn (mới→cũ): {match.bar_range_text}",
+            f"• Pattern nguồn: {match.pattern_text}",
+            f"• Nhóm nguồn: {pattern_label}",
             base_context.telegram_line,
-            f"• Logic: {behavior}",
-            f"• Signal {base} H1: {symbol_signal}",
-        ])
+            f"• Logic nguồn: {behavior}",
+        ]
+        rows.append(f"• Signal {base} H1: {symbol_signal}")
+        return "\n".join(rows)
 
     def scan_once(self) -> int:
         try:
@@ -564,8 +550,6 @@ class MultiSymbolH1PatternScanner:
                 self._log_issue_once("timeframe", "[H1-SCAN] MT5 không có TIMEFRAME_H1.")
                 return 0
 
-            # Read only the two pattern sources plus the H1 base charts needed
-            # to derive final target signals. XAUUSD itself is not a pattern/base source.
             broker_symbols: dict[str, str] = {base: symbol for base, symbol in self._symbols.items() if base in REQUIRED_HISTORY_BASES}
             if self._gbpusd_symbol:
                 broker_symbols["GBPUSD"] = self._gbpusd_symbol
