@@ -1,9 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis, requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
 import { TELEGRAM_CLOUD_PROFILE } from "@/lib/telegram-cloud-domain";
-import { appendTelegramAudit, listCloudIntents, markDueNotification } from "@/lib/telegram-cloud-store";
+import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/telegram-cloud-runner";
+import { appendTelegramAudit, listCloudIntents, listDueScheduledIntents, markDueNotification } from "@/lib/telegram-cloud-store";
 import { verifyTelegramCloudGitHubOidc } from "@/lib/telegram-cloud-oidc";
 
 export const dynamic = "force-dynamic";
@@ -11,10 +12,25 @@ export const runtime = "nodejs";
 
 const LOCK_KEY = "oak:telegram:cloud:tick-lock";
 const LOCK_SECONDS = 90;
+const CF_TICK_HASH_KEY = "oak:telegram:cloud:cf-tick:sha256";
+const CF_TICK_HEADER = "x-telegram-timekeeper-key";
+
+function safeHexEqual(left: string, right: string): boolean {
+  if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) return false;
+  return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
+}
 
 async function authorize(request: Request): Promise<NextResponse | null> {
   const apiDenied = requireAuth(request);
   if (!apiDenied) return null;
+
+  const cfToken = request.headers.get(CF_TICK_HEADER) || "";
+  if (/^[A-Za-z0-9_-]{40,120}$/.test(cfToken)) {
+    const expectedHash = await redis.get<string>(CF_TICK_HASH_KEY);
+    const actualHash = createHash("sha256").update(cfToken).digest("hex");
+    if (typeof expectedHash === "string" && safeHexEqual(actualHash, expectedHash)) return null;
+  }
+
   const header = request.headers.get("authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (token && await verifyTelegramCloudGitHubOidc(token)) return null;
@@ -56,24 +72,33 @@ export async function POST(request: Request) {
 
   try {
     const now = Date.now();
-    const due = (await listCloudIntents())
-      .filter((task) => task.dueAt !== null && task.dueAt <= now && !task.dueNotifiedAt)
-      .slice(0, 50);
-    let notified = 0;
+    const due = (await listDueScheduledIntents(now)).slice(0, 50);
+    let executed = 0;
     for (const task of due) {
-      const action = task.kind === "entry" ? "ENTRY" : task.kind === "close" ? "CLOSE" : "MODIFY";
+      const finished = await runCloudIntentExecution(task.id, now);
+      if (!finished) continue;
       await sendTelegram(config.telegramToken, config.telegramChatId, [
         `⏰ ${TELEGRAM_CLOUD_PROFILE} · intent #${task.id} đã tới giờ`,
-        `• Loại: ${action}`,
+        renderCloudExecutionResult(finished),
+      ].join("\n"));
+      executed += 1;
+    }
+
+    const unapprovedDue = (await listCloudIntents())
+      .filter((task) => task.status === "approval_required" && task.dueAt !== null && task.dueAt <= now && !task.dueNotifiedAt)
+      .slice(0, 20);
+    let reminded = 0;
+    for (const task of unapprovedDue) {
+      await sendTelegram(config.telegramToken, config.telegramChatId, [
+        `⚠️ ${TELEGRAM_CLOUD_PROFILE} · intent #${task.id} đã tới giờ nhưng chưa được xác nhận`,
         `• Mốc: ${task.dueText}`,
-        `• Trạng thái: ${task.status}`,
-        "• Broker execution: chưa tự động; intent vẫn chờ approval/execution stage.",
+        `• Dùng /approve ${task.id} để execute ngay; cloud không tự vượt bước xác nhận.`,
       ].join("\n"));
       await markDueNotification(task, now);
-      notified += 1;
+      reminded += 1;
     }
-    await appendTelegramAudit({ action: "due_tick", dueCount: due.length, notified });
-    return NextResponse.json({ ok: true, enabled: true, notified });
+    await appendTelegramAudit({ action: "due_tick", scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded });
+    return NextResponse.json({ ok: true, enabled: true, executed, reminded });
   } catch (error) {
     console.error("[TELEGRAM CLOUD TICK]", error instanceof Error ? error.message : String(error));
     return NextResponse.json({ ok: false, error: "Telegram cloud tick failed." }, { status: 502 });

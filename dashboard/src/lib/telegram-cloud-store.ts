@@ -1,8 +1,12 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { redis } from "@/lib/redis-core";
 import {
   TELEGRAM_CLOUD_PROFILE,
+  approvedStatusForDueAt,
+  canCancelCloudIntentStatus,
+  isDueScheduledIntent,
   type CloudIntent,
   type CloudIntentKind,
 } from "@/lib/telegram-cloud-domain";
@@ -12,6 +16,10 @@ const TASK_SEQ_KEY = "oak:telegram:cloud:task-seq:v1";
 const AUDIT_KEY = "oak:telegram:cloud:audit:v1";
 const UPDATE_PREFIX = "oak:telegram:cloud:update:";
 const INTENT_BY_UPDATE_PREFIX = "oak:telegram:cloud:intent-by-update:";
+const EXECUTION_LOCK_PREFIX = "oak:telegram:cloud:execute:";
+const EXECUTION_LOCK_SECONDS = 120;
+
+const ACTIVE_STATUSES = new Set(["approval_required", "scheduled", "approved", "executing", "failed", "uncertain"]);
 
 function parseIntent(raw: unknown): CloudIntent | null {
   try {
@@ -55,6 +63,8 @@ export async function createCloudIntent(args: {
   dueAt: number | null;
   dueText: string;
   payload: CloudIntent["payload"];
+  targetAccountIds: number[];
+  protectionPlan?: CloudIntent["protectionPlan"];
   sourceUpdateId?: number;
 }): Promise<CloudIntent> {
   if (Number.isInteger(args.sourceUpdateId) && Number(args.sourceUpdateId) > 0) {
@@ -77,6 +87,8 @@ export async function createCloudIntent(args: {
     sourceUpdateId: args.sourceUpdateId,
     dueAt: args.dueAt,
     dueText: args.dueText,
+    targetAccountIds: [...new Set(args.targetAccountIds.filter((value) => Number.isInteger(value) && value > 0))],
+    protectionPlan: args.protectionPlan,
     payload: args.payload,
   };
   await redis.hset(TASKS_KEY, { [String(id)]: JSON.stringify(task) });
@@ -93,7 +105,7 @@ export async function listCloudIntents(): Promise<CloudIntent[]> {
   return Object.values(rows)
     .map(parseIntent)
     .filter((value): value is CloudIntent => Boolean(value))
-    .filter((task) => task.status === "approval_required")
+    .filter((task) => ACTIVE_STATUSES.has(task.status))
     .sort((left, right) => {
       const leftDue = left.dueAt ?? left.createdAt;
       const rightDue = right.dueAt ?? right.createdAt;
@@ -108,7 +120,7 @@ export async function getCloudIntent(id: number): Promise<CloudIntent | null> {
 
 export async function cancelCloudIntent(id: number): Promise<boolean> {
   const task = await getCloudIntent(id);
-  if (!task || task.status !== "approval_required") return false;
+  if (!task || !canCancelCloudIntentStatus(task.status)) return false;
   task.status = "cancelled";
   await redis.hset(TASKS_KEY, { [String(id)]: JSON.stringify(task) });
   await appendTelegramAudit({ action: "intent_cancelled", taskId: id, kind: task.kind });
@@ -116,7 +128,7 @@ export async function cancelCloudIntent(id: number): Promise<boolean> {
 }
 
 export async function cancelAllCloudIntents(): Promise<number> {
-  const tasks = await listCloudIntents();
+  const tasks = (await listCloudIntents()).filter((task) => canCancelCloudIntentStatus(task.status));
   if (!tasks.length) return 0;
   const values: Record<string, string> = {};
   for (const task of tasks) {
@@ -132,4 +144,75 @@ export async function markDueNotification(task: CloudIntent, nowMs = Date.now())
   task.dueNotifiedAt = nowMs;
   await redis.hset(TASKS_KEY, { [String(task.id)]: JSON.stringify(task) });
   await appendTelegramAudit({ action: "intent_due_notified", taskId: task.id, kind: task.kind });
+}
+
+export async function approveCloudIntent(id: number, nowMs = Date.now()): Promise<CloudIntent | null> {
+  const task = await getCloudIntent(id);
+  if (!task || task.status !== "approval_required") return null;
+  task.approvedAt = nowMs;
+  task.status = approvedStatusForDueAt(task.dueAt, nowMs);
+  await redis.hset(TASKS_KEY, { [String(task.id)]: JSON.stringify(task) });
+  await appendTelegramAudit({ action: "intent_approved", taskId: task.id, kind: task.kind, status: task.status, dueAt: task.dueAt });
+  return task;
+}
+
+export async function claimCloudIntentExecution(id: number, nowMs = Date.now()): Promise<{ task: CloudIntent; lockToken: string } | null> {
+  const lockToken = randomUUID();
+  const lockKey = `${EXECUTION_LOCK_PREFIX}${id}`;
+  const claimed = await redis.set(lockKey, lockToken, { nx: true, ex: EXECUTION_LOCK_SECONDS });
+  if (claimed !== "OK") return null;
+  const task = await getCloudIntent(id);
+  const executable = task && (task.status === "approved" || isDueScheduledIntent(task, nowMs));
+  if (!task || !executable) {
+    await redis.del(lockKey);
+    return null;
+  }
+  task.status = "executing";
+  task.executionStartedAt = nowMs;
+  task.executionError = undefined;
+  await redis.hset(TASKS_KEY, { [String(task.id)]: JSON.stringify(task) });
+  await appendTelegramAudit({ action: "intent_execution_claimed", taskId: task.id, kind: task.kind, targetAccountIds: task.targetAccountIds });
+  return { task, lockToken };
+}
+
+async function releaseExecutionLock(id: number, lockToken: string): Promise<void> {
+  const key = `${EXECUTION_LOCK_PREFIX}${id}`;
+  try {
+    const current = await redis.get<string>(key);
+    if (current === lockToken) await redis.del(key);
+  } catch {
+    // TTL is the final lock safety net.
+  }
+}
+
+export async function finishCloudIntentExecution(args: {
+  task: CloudIntent;
+  lockToken: string;
+  status: "executed" | "partial" | "failed" | "uncertain";
+  results?: CloudIntent["executionResults"];
+  error?: string;
+  nowMs?: number;
+}): Promise<CloudIntent> {
+  const task = await getCloudIntent(args.task.id) || args.task;
+  task.status = args.status;
+  task.executionFinishedAt = args.nowMs ?? Date.now();
+  task.executionResults = args.results;
+  task.executionError = args.error ? String(args.error).slice(0, 500) : undefined;
+  await redis.hset(TASKS_KEY, { [String(task.id)]: JSON.stringify(task) });
+  await appendTelegramAudit({
+    action: "intent_execution_finished",
+    taskId: task.id,
+    kind: task.kind,
+    status: task.status,
+    results: task.executionResults,
+    error: task.executionError,
+  });
+  await releaseExecutionLock(task.id, args.lockToken);
+  return task;
+}
+
+export async function listDueScheduledIntents(nowMs = Date.now()): Promise<CloudIntent[]> {
+  return (await listCloudIntents())
+    .filter((task) => isDueScheduledIntent(task, nowMs))
+    .sort((left, right) => Number(left.dueAt) - Number(right.dueAt) || left.id - right.id);
 }

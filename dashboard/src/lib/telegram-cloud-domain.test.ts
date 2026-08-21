@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  approvedStatusForDueAt,
+  canCancelCloudIntentStatus,
+  isDueScheduledIntent,
   parseCloudTelegramCommand,
   renderHelp,
   resolveVietnamDueAt,
@@ -37,7 +40,7 @@ test("desktop-style Buy command accepts HHhMM and legacy Vantage profile alias",
   assert.equal(parsed.payload.symbol, "GBPUSD+");
   assert.equal(parsed.payload.lot, 0.01);
   assert.equal(parsed.payload.legacyProfile, "Vantage");
-  assert.equal(parsed.payload.executionMode, "approval_required");
+  assert.equal(parsed.payload.executionMode, "confirm_required");
   assert.equal(parsed.dueText, "2026-08-21 14:55:00 Asia/Ho_Chi_Minh");
 });
 
@@ -60,14 +63,46 @@ test("close and delete management commands stay cloud-control only", () => {
   if (close.type === "intent") {
     assert.equal(close.kind, "close");
     assert.equal(close.payload.scope, "XAUUSD");
-    assert.equal(close.payload.executionMode, "approval_required");
+    assert.equal(close.payload.executionMode, "confirm_required");
   }
   assert.deepEqual(parseCloudTelegramCommand("/del all"), { type: "delete", all: true });
   assert.deepEqual(parseCloudTelegramCommand("/del 42"), { type: "delete", all: false, id: 42 });
 });
 
-test("help makes execution boundary explicit", () => {
+test("manual entry requires one explicit confirm and accepts explicit account label", () => {
+  const parsed = parseCloudTelegramCommand("/buy XAUUSD 0.1 500 2000 @main");
+  assert.equal(parsed.type, "intent");
+  if (parsed.type !== "intent") return;
+  assert.equal(parsed.dueAt, null);
+  assert.equal(parsed.dueText, "ngay khi xác nhận");
+  assert.equal(parsed.payload.executionMode, "confirm_required");
+  assert.equal(parsed.payload.legacyProfile, "main");
+  assert.equal(parsed.payload.sl, 500);
+  assert.equal(parsed.payload.tp, 2000);
+});
+
+test("approve command is the explicit broker mutation boundary", () => {
+  assert.deepEqual(parseCloudTelegramCommand("/approve 42"), { type: "approve", id: 42 });
+  assert.deepEqual(parseCloudTelegramCommand("approve 7"), { type: "approve", id: 7 });
+});
+
+test("confirmation state machine arms future intents and executes due ones only", () => {
+  const now = Date.UTC(2026, 7, 21, 7, 0, 0);
+  assert.equal(approvedStatusForDueAt(null, now), "approved");
+  assert.equal(approvedStatusForDueAt(now - 1, now), "approved");
+  assert.equal(approvedStatusForDueAt(now + 60_000, now), "scheduled");
+  assert.equal(isDueScheduledIntent({ status: "scheduled", dueAt: now }, now), true);
+  assert.equal(isDueScheduledIntent({ status: "scheduled", dueAt: now + 1 }, now), false);
+  assert.equal(isDueScheduledIntent({ status: "approval_required", dueAt: now }, now), false);
+  assert.equal(canCancelCloudIntentStatus("scheduled"), true);
+  assert.equal(canCancelCloudIntentStatus("executing"), false);
+  assert.equal(canCancelCloudIntentStatus("executed"), false);
+});
+
+test("help explains approve-once then scheduled auto execution", () => {
   const help = renderHelp();
-  assert.match(help, /approval_required/);
-  assert.match(help, /không tự đặt\/đóng\/sửa lệnh live/);
+  assert.match(help, /\/approve ID/);
+  assert.match(help, /approve trước/);
+  assert.match(help, /SL\/TP mặc định/);
+  assert.doesNotMatch(help, /approval_required/);
 });

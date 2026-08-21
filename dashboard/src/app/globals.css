@@ -284,3 +284,34 @@ body {
   .tarot-spinner, .tarot-card-loading { animation: none; }
   .tarot-card-art, .tarot-draw-button { transition: none; }
 }
+
+/* cTrader multi-account control */
+.oak-account-panel { display: grid; gap: 1rem; }
+.oak-account-panel > header h1 { margin-top: .3rem; font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 900; letter-spacing: -.035em; }
+.oak-account-panel > header p { max-width: 52rem; margin-top: .45rem; color: var(--oak-fg-muted); font-size: .86rem; line-height: 1.6; }
+.oak-account-panel > header small { color: var(--oak-accent-command); font: 800 .66rem "Cascadia Mono", Consolas, monospace; letter-spacing: .14em; }
+.oak-account-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-1); }
+.oak-account-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.oak-account-actions button, .oak-account-card button, .oak-account-login button { min-height: 2.5rem; padding: .55rem .8rem; border: 1px solid var(--oak-border-strong); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font-size: .76rem; font-weight: 800; }
+.oak-account-actions button:first-child, .oak-account-card footer button, .oak-account-login button { color: var(--oak-bg-surface); border-color: var(--oak-accent-command); background: var(--oak-accent-command); }
+.oak-account-actions button:disabled, .oak-account-card button:disabled, .oak-account-login button:disabled { opacity: .5; cursor: not-allowed; }
+.oak-account-status { display: flex; flex-wrap: wrap; gap: .5rem; }
+.oak-account-status span { padding: .45rem .65rem; border: 1px solid var(--oak-border-subtle); border-radius: 999px; color: var(--oak-fg-muted); background: var(--oak-bg-surface); font: 700 .68rem "Cascadia Mono", Consolas, monospace; }
+.oak-account-status b { color: var(--oak-fg-primary); }
+.oak-account-warning, .oak-account-error, .oak-account-empty { padding: .75rem .85rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-md); font-size: .78rem; line-height: 1.5; }
+.oak-account-warning { color: var(--oak-status-warning); border-color: color-mix(in srgb, var(--oak-status-warning) 40%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-warning) 7%, var(--oak-bg-surface)); }
+.oak-account-error { color: var(--oak-status-danger); border-color: color-mix(in srgb, var(--oak-status-danger) 40%, var(--oak-border-subtle)); background: color-mix(in srgb, var(--oak-status-danger) 7%, var(--oak-bg-surface)); }
+.oak-account-empty { color: var(--oak-fg-muted); background: var(--oak-bg-surface); }
+.oak-account-list { display: grid; gap: .75rem; }
+.oak-account-card { display: grid; gap: .85rem; padding: .9rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-1); }
+.oak-account-card > header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.oak-account-card > header div { display: grid; gap: .2rem; }
+.oak-account-card > header b { font-size: .9rem; }
+.oak-account-card > header span { color: var(--oak-fg-muted); font: 700 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-account-card > header label { display: flex; align-items: center; gap: .45rem; font-size: .75rem; font-weight: 800; }
+.oak-account-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .65rem; }
+.oak-account-fields label, .oak-account-login label { display: grid; gap: .3rem; color: var(--oak-fg-muted); font: 700 .67rem "Cascadia Mono", Consolas, monospace; }
+.oak-account-fields input, .oak-account-login input { min-height: 2.35rem; width: 100%; padding: .45rem .6rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-sm); color: var(--oak-fg-primary); background: var(--oak-bg-raised); font: 700 .76rem "Cascadia Mono", Consolas, monospace; }
+.oak-account-card footer { display: flex; justify-content: flex-end; }
+.oak-account-login { max-width: 34rem; margin-inline: auto; padding: 1rem; border: 1px solid var(--oak-border-subtle); border-radius: var(--oak-radius-lg); background: var(--oak-bg-surface); box-shadow: var(--oak-shadow-2); }
+.oak-account-login form { display: grid; gap: .65rem; }

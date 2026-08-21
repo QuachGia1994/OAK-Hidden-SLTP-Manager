@@ -1,8 +1,8 @@
 export const TELEGRAM_CLOUD_PROFILE = "cTrader IcMarkets";
-export const TELEGRAM_CLOUD_EXECUTION_MODE = "approval_required" as const;
+export const TELEGRAM_CLOUD_EXECUTION_MODE = "confirm_required" as const;
 
 export type CloudIntentKind = "entry" | "close" | "modify";
-export type CloudIntentStatus = "approval_required" | "cancelled" | "expired";
+export type CloudIntentStatus = "approval_required" | "scheduled" | "approved" | "executing" | "executed" | "partial" | "failed" | "uncertain" | "cancelled" | "expired";
 
 export type CloudIntent = {
   id: number;
@@ -17,8 +17,27 @@ export type CloudIntent = {
   dueAt: number | null;
   dueText: string;
   dueNotifiedAt?: number;
+  approvedAt?: number;
+  executionStartedAt?: number;
+  executionFinishedAt?: number;
+  executionResults?: Array<{ accountId: number; label: string; ok: boolean; uncertain?: boolean; action: string; detail: string; brokerRef?: string }>;
+  executionError?: string;
+  targetAccountIds: number[];
+  protectionPlan?: Record<string, { label: string; slPoints: number; tpPoints: number }>;
   payload: Record<string, string | number | boolean | null>;
 };
+
+export function approvedStatusForDueAt(dueAt: number | null, nowMs: number): "approved" | "scheduled" {
+  return dueAt !== null && dueAt > nowMs ? "scheduled" : "approved";
+}
+
+export function canCancelCloudIntentStatus(status: CloudIntentStatus): boolean {
+  return status === "approval_required" || status === "scheduled" || status === "approved";
+}
+
+export function isDueScheduledIntent(task: Pick<CloudIntent, "status" | "dueAt">, nowMs: number): boolean {
+  return task.status === "scheduled" && task.dueAt !== null && task.dueAt <= nowMs;
+}
 
 export type ParsedCloudCommand =
   | { type: "help" }
@@ -27,6 +46,7 @@ export type ParsedCloudCommand =
   | { type: "profiles" }
   | { type: "positions" }
   | { type: "pending" }
+  | { type: "approve"; id: number }
   | { type: "delete"; all: boolean; id?: number }
   | { type: "intent"; kind: CloudIntentKind; dueAt: number | null; dueText: string; payload: CloudIntent["payload"] }
   | { type: "unknown"; reason: string };
@@ -89,7 +109,7 @@ export function resolveVietnamDueAt(dateText: string | null, timeText: string, n
 }
 
 function parseDateAndTime(tokens: string[], nowMs: number): { dueAt: number | null; dueText: string; consumed: number } {
-  if (!tokens.length) return { dueAt: null, dueText: "ngay khi được duyệt", consumed: 0 };
+  if (!tokens.length) return { dueAt: null, dueText: "ngay khi xác nhận", consumed: 0 };
   if (validDateText(tokens[0]) && tokens[1] && validTimeText(tokens[1])) {
     const resolved = resolveVietnamDueAt(tokens[0], tokens[1], nowMs);
     return { ...resolved, consumed: 2 };
@@ -98,7 +118,7 @@ function parseDateAndTime(tokens: string[], nowMs: number): { dueAt: number | nu
     const resolved = resolveVietnamDueAt(null, tokens[0], nowMs);
     return { ...resolved, consumed: 1 };
   }
-  return { dueAt: null, dueText: "ngay khi được duyệt", consumed: 0 };
+  return { dueAt: null, dueText: "ngay khi xác nhận", consumed: 0 };
 }
 
 function canonicalSymbol(value: string): string {
@@ -108,13 +128,15 @@ function canonicalSymbol(value: string): string {
 }
 
 const LEGACY_PROFILE_ALIASES = new Set(["vantage", "vantagedemo", "darwinex", "th5ers"]);
-const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "buy", "sell", "close", "closeall", "modify", "del"]);
+const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "approve", "buy", "sell", "close", "closeall", "modify", "del"]);
 
 function splitLegacyProfile(tokens: string[]): { tokens: string[]; legacyProfile: string } {
   if (!tokens.length) return { tokens, legacyProfile: "" };
   const last = String(tokens.at(-1) || "").trim();
-  if (!LEGACY_PROFILE_ALIASES.has(last.toLowerCase())) return { tokens, legacyProfile: "" };
-  return { tokens: tokens.slice(0, -1), legacyProfile: last };
+  const explicit = last.startsWith("@") && last.length > 1;
+  const legacy = LEGACY_PROFILE_ALIASES.has(last.toLowerCase());
+  if (!explicit && !legacy) return { tokens, legacyProfile: "" };
+  return { tokens: tokens.slice(0, -1), legacyProfile: explicit ? last.slice(1) : last };
 }
 
 export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): ParsedCloudCommand {
@@ -157,6 +179,13 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
       dueText: when.dueText,
       payload: { side: side.toUpperCase(), symbol, lot, sl, tp, legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
+  }
+  if (command === "/approve") {
+    const id = Number.parseInt(String(args[0] || ""), 10);
+    if (!Number.isInteger(id) || id <= 0 || args.length !== 1) {
+      return { type: "unknown", reason: "Cú pháp: /approve ID" };
+    }
+    return { type: "approve", id };
   }
   if (command === "/buy" || command === "/sell") {
     const scoped = splitLegacyProfile(args);
@@ -220,7 +249,7 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
       type: "intent",
       kind: "modify",
       dueAt: null,
-      dueText: "ngay khi được duyệt",
+      dueText: "ngay khi xác nhận",
       payload: { field: field.toUpperCase(), symbol, value, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
   }
@@ -239,16 +268,17 @@ export function renderHelp(): string {
     "☁️ cTrader IcMarkets Cloud Control",
     "• /status — trạng thái cloud/cTrader",
     "• /profiles — profile cloud hiện tại",
-    "• /positions — vị thế cTrader read-only",
-    "• /pending — danh sách intent đang chờ",
+    "• /positions — vị thế cTrader hiện tại",
+    "• /pending — danh sách lệnh đang chờ/đang chạy",
     "• /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP]",
-    "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP]",
-    "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP]",
+    "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
+    "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
+    "• /approve ID — xác nhận broker mutation một lần; lệnh hẹn giờ sẽ tự chạy khi đến mốc",
     "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL]",
     "• Cú pháp desktop cũ vẫn nhận: Buy GBPUSD+ 0.01 14h55 Vantage",
     "• /modify sl|tp SYMBOL VALUE",
     "• /del ID | /del all",
     "",
-    "Các lệnh tác động broker chỉ được lưu dưới dạng approval_required; cloud hiện không tự đặt/đóng/sửa lệnh live.",
+    "Lệnh tác động broker cần /approve ID một lần. Có thể approve trước lệnh hẹn giờ; tới mốc cloud tự chạy, không hỏi lại. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account trước khi xác nhận.",
   ].join("\n");
 }

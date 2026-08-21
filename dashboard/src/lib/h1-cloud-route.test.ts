@@ -45,13 +45,12 @@ test("cloud scanner seeds from existing public feed and persists only after Tele
   assert.ok(route.indexOf("await sendTelegram") < route.indexOf("symbolState.alerts.push(alert)"));
 });
 
-test("cTrader cloud scanner stays accounts-only and never calls broker mutation", () => {
+test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {
   assert.match(client, /wss:\/\/\$\{host\}:5036/);
   assert.match(client, /GET_TRENDBARS_REQ: 2137/);
   assert.match(client, /period: H1_PERIOD/);
-  assert.match(client, /session\.scope !== "accounts"/);
-  assert.doesNotMatch(client, /CLOSE_POSITION|NEW_ORDER|ORDER_CREATE|AMEND_POSITION/i);
-  assert.doesNotMatch(route, /closeCTraderPositionIds|CLOSE_POSITION_REQ|NEW_ORDER/);
+  assert.match(client, /session\.scope !== "accounts" && session\.scope !== "trading"/);
+  assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
 test("GitHub OIDC verifier fences scanner trigger to repo main, exact workflow, and allowed events", () => {
@@ -67,7 +66,8 @@ test("GitHub OIDC verifier fences scanner trigger to repo main, exact workflow, 
 test("Cloudflare Durable Object is primary H:00 timekeeper with retry-aware watchdogs", () => {
   assert.match(timekeeperConfig, /"name": "H1_TIMEKEEPER"/);
   assert.match(timekeeperConfig, /"new_sqlite_classes": \["H1Timekeeper"\]/);
-  assert.match(timekeeperConfig, /"required": \["H1_SCANNER_TOKEN"\]/);
+  assert.match(timekeeperConfig, /"required": \["H1_SCANNER_TOKEN", "TELEGRAM_TICK_TOKEN"\]/);
+  assert.match(timekeeperConfig, /"\* \* \* \* \*"/);
   assert.match(timekeeperConfig, /"10 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"30 \* \* \* \*"/);
   assert.match(timekeeperConfig, /"50 \* \* \* \*"/);
@@ -89,7 +89,7 @@ test("GitHub scheduler is tertiary fallback and warms feed after scanner-related
   assert.match(workflow, /branches:\s*\[main\]/);
   assert.match(workflow, /Wait for Vercel deployment/);
   assert.match(workflow, /commits\/\$\{GITHUB_SHA\}\/status/);
-  assert.match(workflow, /context.*Vercel|Vercel.*context/s);
+  assert.match(workflow, /context[\s\S]*Vercel|Vercel[\s\S]*context/);
   assert.match(workflow, /Wait for H:00 boundary/);
   assert.match(workflow, /github\.event\.schedule/);
   assert.match(workflow, /scheduled_minute/);

@@ -9,6 +9,9 @@ import { useLocale } from "./LocaleProvider";
 function EngineIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18V9m5 9V5m5 13v-7m5 7V3" /></svg>;
 }
+function AccountIcon() {
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" /><path d="M5 20c.8-4 3.1-6 7-6s6.2 2 7 6" /></svg>;
+}
 function CheckIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 4.5 6v5.6c0 4.4 3.1 7.8 7.5 9.4 4.4-1.6 7.5-5 7.5-9.4V6L12 3Z" /><path d="m8.5 12 2.2 2.2 4.8-5" /></svg>;
 }
@@ -110,7 +113,16 @@ export function NavBar() {
             data-active={pathname === "/engine" ? "true" : undefined}
           >
             <span className="oak-nav-icon"><EngineIcon /></span>
-            <span>Engine 5</span>
+            <span>H1 Signals</span>
+          </Link>
+          <Link
+            href="/accounts"
+            aria-current={pathname === "/accounts" ? "page" : undefined}
+            className="oak-nav-link"
+            data-active={pathname === "/accounts" ? "true" : undefined}
+          >
+            <span className="oak-nav-icon"><AccountIcon /></span>
+            <span>Accounts</span>
           </Link>
 
           <div className="oak-tools" ref={toolsRef}>

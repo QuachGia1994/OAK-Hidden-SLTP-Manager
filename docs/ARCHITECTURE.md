@@ -20,10 +20,12 @@ This document describes the maintained production surfaces after retiring the En
 | H1 web rendering/detail | `dashboard/src/components/H1EngineBoard.tsx`, `H1SignalBoard.tsx` | browser |
 | VIP H1 redaction | `dashboard/src/lib/vip.ts` | `/engine` server page |
 | Telegram cloud command parsing | `dashboard/src/lib/telegram-cloud-domain.ts` | Telegram webhook |
-| Telegram cloud intent/audit/idempotency store | `dashboard/src/lib/telegram-cloud-store.ts` | webhook, due tick |
+| Telegram cloud intent/audit/idempotency store | `dashboard/src/lib/telegram-cloud-store.ts` | webhook, due tick, confirm-gated execution |
 | Telegram cloud webhook | `dashboard/src/app/api/telegram/webhook/route.ts` | Telegram Bot API |
-| Telegram due-intent notification | `dashboard/src/app/api/telegram/tick/route.ts` | GitHub OIDC scheduler |
-| cTrader OAuth/token vault | `dashboard/src/app/api/ctrader/*`, `dashboard/src/lib/ctrader-vault.ts` | scanner, read-only Telegram status/positions |
+| Telegram due scheduler | `dashboard/src/app/api/telegram/tick/route.ts` | Cloudflare minute clock + GitHub OIDC fallback |
+| cTrader OAuth/token vault | `dashboard/src/app/api/ctrader/*`, `dashboard/src/lib/ctrader-vault.ts` | scanner, account manager, Telegram status/positions |
+| cTrader managed accounts + default protection | `dashboard/src/lib/ctrader-accounts.ts`, `/accounts` | Telegram targeting, admin web UI |
+| Confirm-gated cTrader execution | `dashboard/src/lib/telegram-cloud-execution.ts`, `ctrader-json.ts` | `/approve ID`, pre-approved scheduled intents |
 | Local fallback H1 scanner | `domain/xau_h1_pattern_scanner.py` | `MonitorWorker` when explicitly run locally |
 | Local fallback H1 public publisher | `domain/h1_signal_public_feed.py` | Upstash H1 feed |
 | Desktop IPC/runtime | `robot-sltp-pro/backend_bridge.py`, `src/backend-client.ts` | Tauri UI |
@@ -117,9 +119,13 @@ Cloud webhook is the primary receiver. The webhook validates:
 - exact configured admin chat ID;
 - Redis `update_id` idempotency.
 
-Maintained management/read commands include `/status`, `/profiles`, `/positions`, `/pending`, `/del ID`, `/del all`, plus intent capture for entry/close/modify requests.
+Maintained management/read commands include `/status`, `/profiles`, `/positions`, `/pending`, `/del ID`, `/del all`, plus intent capture for entry/close/modify requests and the explicit broker boundary `/approve ID`.
 
-cTrader remains OAuth scope `accounts` and the selected account remains read-only. Broker-mutating intents are not automatically executed by the maintained cloud path. Due scheduler notifications are authenticated by GitHub OIDC and do not mutate broker state.
+`/accounts` is an admin-only web account manager backed by a signed HttpOnly session. cTrader OAuth can be reconnected with `trading` scope and the account list is discovered from both live and demo Open API environments. The dashboard stores only managed-account metadata/configuration in Upstash: label, enable state, environment and default FX/gold SL/TP point distances. OAuth tokens remain encrypted in the server-side cTrader vault; broker credentials/tokens are never exposed to the browser.
+
+Every broker-mutating Telegram command still starts as `approval_required`. Target account IDs and per-account SL/TP distances are snapshotted into the intent before approval. `/approve ID` is required exactly once: an immediate intent executes after that confirmation; a future intent becomes `scheduled` and may execute only after its due time. Unapproved due intents are only reminded, never sent to the broker. Redis update idempotency plus a per-intent execution lock prevent webhook/tick retries from duplicating the same intent execution. Broker transport errors after submission are marked `uncertain` and are not automatically retried.
+
+Cloudflare calls the Telegram due tick every minute with a dedicated hashed bearer, while the existing GitHub OIDC workflow remains fallback. This minute clock can execute only intents that have already crossed the explicit `/approve` boundary.
 
 `oak_enginecore.py` is fallback-only. It calls Telegram `getWebhookInfo` before acquiring its local singleton lock and exits when the cloud webhook is active; it never deletes/steals the cloud webhook merely because desktop is opened.
 

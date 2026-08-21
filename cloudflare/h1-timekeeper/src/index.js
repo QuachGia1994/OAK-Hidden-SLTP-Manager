@@ -1,5 +1,7 @@
 const HOUR_MS = 60 * 60 * 1000;
 const SCANNER_URL = "https://www.oakgatekeeper.uk/api/h1-scanner/run";
+const TELEGRAM_TICK_URL = "https://www.oakgatekeeper.uk/api/telegram/tick";
+const TELEGRAM_CRON = "* * * * *";
 const INTERNAL_NAME = "primary";
 const RETRYABLE_SKIPS = new Set(["already-running", "awaiting-closed-h1", "disabled"]);
 
@@ -168,12 +170,30 @@ function primaryStub(env) {
   return env.H1_TIMEKEEPER.get(id);
 }
 
+async function runTelegramTick(env) {
+  const response = await fetch(TELEGRAM_TICK_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-telegram-timekeeper-key": env.TELEGRAM_TICK_TOKEN,
+    },
+    body: "{}",
+  });
+  if (!response.ok) throw new Error(`Telegram tick failed (${response.status})`);
+  const payload = await response.json().catch(() => null);
+  if (!payload || payload.ok !== true) throw new Error("Telegram tick returned invalid payload");
+}
+
 export default {
   async fetch(request, env) {
     return primaryStub(env).fetch(request);
   },
 
-  async scheduled(_controller, env) {
+  async scheduled(controller, env) {
+    if (controller.cron === TELEGRAM_CRON) {
+      await runTelegramTick(env);
+      return;
+    }
     const response = await primaryStub(env).fetch(new Request("https://internal/watchdog", {
       method: "POST",
       headers: { authorization: `Bearer ${env.H1_SCANNER_TOKEN}` },

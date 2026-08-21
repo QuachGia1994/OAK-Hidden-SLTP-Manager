@@ -9,6 +9,7 @@ const store = readFileSync(new URL("./telegram-cloud-store.ts", import.meta.url)
 const oidc = readFileSync(new URL("./telegram-cloud-oidc.ts", import.meta.url), "utf8");
 const ctrader = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
 const workflow = readFileSync(new URL("../../../.github/workflows/telegram-cloud-control.yml", import.meta.url), "utf8");
+const timekeeper = readFileSync(new URL("../../../cloudflare/h1-timekeeper/src/index.js", import.meta.url), "utf8");
 
 test("Telegram webhook is secret-fenced, chat-fenced and retry-idempotent", () => {
   assert.match(webhook, /x-telegram-bot-api-secret-token/);
@@ -28,28 +29,40 @@ test("Telegram webhook bootstrap is one-time authorized and never returns the se
   assert.match(setup, /secret_token: secret/);
   assert.match(setup, /drop_pending_updates: false/);
   assert.ok(setup.indexOf("saveH1CloudConfig(saved)") < setup.indexOf("installWebhook(current.telegramToken, secret)"));
-  assert.match(setup, /webhookUrl: WEBHOOK_URL,\s*\.\.\.safeH1CloudConfigStatus\(saved\)/s);
-  assert.doesNotMatch(setup, /webhookUrl: WEBHOOK_URL,\s*telegramWebhookSecret:/s);
+  assert.match(setup, /webhookUrl: WEBHOOK_URL,[\s\S]*\.\.\.safeH1CloudConfigStatus\(saved\)/);
+  assert.doesNotMatch(setup, /webhookUrl: WEBHOOK_URL,[\s\S]*telegramWebhookSecret:/);
 });
 
-test("cloud receiver supports management/read-only commands without broker mutation", () => {
-  assert.match(webhook, /listCloudIntents/);
-  assert.match(webhook, /cancelAllCloudIntents/);
-  assert.match(webhook, /fetchCTraderAccountReadSnapshot/);
-  assert.match(ctrader, /RECONCILE_REQ: 2124/);
-  assert.doesNotMatch(webhook, /NEW_ORDER|ORDER_CREATE|amend|close position|execution request/i);
-  assert.doesNotMatch(ctrader, /NEW_ORDER_REQ|CLOSE_POSITION_REQ|AMEND_POSITION_SLTP_REQ/);
+test("cloud receiver requires explicit approve before broker mutation", () => {
+  assert.match(webhook, /command\.type === "approve"/);
+  assert.match(webhook, /approveCloudIntent/);
+  assert.match(webhook, /runCloudIntentExecution/);
+  assert.match(store, /claimCloudIntentExecution/);
+  assert.match(webhook, /targetAccountIds/);
+  assert.match(ctrader, /NEW_ORDER_REQ: 2106/);
+  assert.match(ctrader, /AMEND_POSITION_SLTP_REQ: 2110/);
+  assert.match(ctrader, /CLOSE_POSITION_REQ: 2111/);
+  assert.match(ctrader, /relativeStopLoss/);
+  assert.match(ctrader, /relativeTakeProfit/);
 });
 
-test("due scheduler only notifies approval-required intents", () => {
-  assert.match(tick, /task\.dueAt !== null/);
-  assert.match(tick, /!task\.dueNotifiedAt/);
-  assert.match(tick, /markDueNotification/);
-  assert.match(tick, /Broker execution: chưa tự động/);
+test("due scheduler executes only pre-approved scheduled intents", () => {
+  assert.match(tick, /listDueScheduledIntents/);
+  assert.match(tick, /runCloudIntentExecution/);
+  assert.match(store, /isDueScheduledIntent\(task, nowMs\)/);
+  assert.match(store, /listDueScheduledIntents/);
+  assert.match(tick, /renderCloudExecutionResult/);
   assert.match(tick, /nx: true, ex: LOCK_SECONDS/);
+  assert.doesNotMatch(tick, /Broker execution: chưa tự động/);
 });
 
-test("Telegram due scheduler uses repo/main/workflow-fenced GitHub OIDC and no repository secrets", () => {
+test("Telegram due scheduler uses Cloudflare minute clock with GitHub OIDC fallback", () => {
+  assert.match(tick, /x-telegram-timekeeper-key/);
+  assert.match(tick, /CF_TICK_HASH_KEY/);
+  assert.match(tick, /createHash\("sha256"\)/);
+  assert.match(timekeeper, /TELEGRAM_CRON = "\* \* \* \* \*"/);
+  assert.match(timekeeper, /x-telegram-timekeeper-key/);
+  assert.match(timekeeper, /TELEGRAM_TICK_TOKEN/);
   assert.match(oidc, /oak-telegram-cloud-control/);
   assert.match(oidc, /refs\/heads\/main/);
   assert.match(oidc, /telegram-cloud-control\.yml/);

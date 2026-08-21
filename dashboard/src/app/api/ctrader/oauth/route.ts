@@ -1,7 +1,10 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { redis, requireAuth } from "@/lib/redis-core";
+import { redis } from "@/lib/redis-core";
+import { requireAdminOrApiAuth } from "@/lib/admin-auth";
 import { exchangeAuthorizationCode } from "@/lib/ctrader-vault";
+import { fetchCTraderGrantedAccounts } from "@/lib/ctrader-json";
+import { syncManagedCTraderAccounts } from "@/lib/ctrader-accounts";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +25,7 @@ function grantUrl(clientId: string, redirectUri: string): string {
   const url = new URL("https://id.ctrader.com/my/settings/openapi/grantingaccess/");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("scope", "accounts");
+  url.searchParams.set("scope", "trading");
   url.searchParams.set("product", "web");
   return url.toString();
 }
@@ -45,7 +48,7 @@ function clearIntent(response: NextResponse) {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = requireAuth(request);
+  const denied = requireAdminOrApiAuth(request);
   if (denied) return denied;
 
   const { clientId, clientSecret } = clientConfig();
@@ -62,7 +65,7 @@ export async function POST(request: NextRequest) {
     ok: true,
     authorizeUrl: new URL(`/api/ctrader/oauth?ticket=${encodeURIComponent(ticket)}`, request.url).toString(),
     expiresIn: SETUP_TTL_SECONDS,
-    scope: "accounts",
+    scope: "trading",
   });
   applySensitiveResponseHeaders(response);
   return response;
@@ -84,8 +87,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: "Missing or expired cTrader OAuth intent." }, { status: 401 });
     }
     try {
-      await exchangeAuthorizationCode(code, redirectUri);
-      const destination = new URL("/engine?ctrader=connected", request.url);
+      const token = await exchangeAuthorizationCode(code, redirectUri, "trading");
+      let syncStatus = "ok";
+      try {
+        const granted = await fetchCTraderGrantedAccounts({ clientId, clientSecret, accessToken: token.accessToken });
+        await syncManagedCTraderAccounts(granted.accounts);
+      } catch {
+        syncStatus = "failed";
+      }
+      const destination = new URL(`/accounts?ctrader=connected&sync=${syncStatus}`, request.url);
       const response = NextResponse.redirect(destination);
       clearIntent(response);
       return response;

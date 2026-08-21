@@ -134,7 +134,7 @@ async function exchangeToken(params: URLSearchParams, method: "GET" | "POST"): P
   return payload;
 }
 
-export async function exchangeAuthorizationCode(code: string, redirectUri: string): Promise<CTraderTokenRecord> {
+export async function exchangeAuthorizationCode(code: string, redirectUri: string, scope: "accounts" | "trading" = "accounts"): Promise<CTraderTokenRecord> {
   const { clientId, clientSecret } = tokenClientConfig();
   const payload = await exchangeToken(new URLSearchParams({
     grant_type: "authorization_code",
@@ -150,7 +150,7 @@ export async function exchangeAuthorizationCode(code: string, redirectUri: strin
     refreshToken: payload.refreshToken,
     tokenType: payload.tokenType || "bearer",
     expiresAt: now + Math.max(60, Number(payload.expiresIn || 0)) * 1000,
-    scope: "accounts",
+    scope,
     savedAt: now,
   };
   await saveCTraderTokens(record);

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { fetchCTraderAccountReadSnapshot, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
+import { defaultProtectionPoints, listManagedCTraderAccounts, resolveEnabledAccountTargets, type CTraderManagedAccount } from "@/lib/ctrader-accounts";
+import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/telegram-cloud-runner";
 import {
   TELEGRAM_CLOUD_EXECUTION_MODE,
   TELEGRAM_CLOUD_PROFILE,
@@ -13,6 +15,7 @@ import {
 import {
   acquireTelegramUpdate,
   appendTelegramAudit,
+  approveCloudIntent,
   cancelAllCloudIntents,
   cancelCloudIntent,
   completeTelegramUpdate,
@@ -57,6 +60,21 @@ function sessionConfig(token: Awaited<ReturnType<typeof getFreshCTraderTokens>>)
     accountId,
     environment,
     broker: process.env.OAK_CTRADER_BROKER || "ICMarkets",
+    scope: token.scope,
+  };
+}
+
+function managedSessionConfig(token: NonNullable<Awaited<ReturnType<typeof getFreshCTraderTokens>>>, account: CTraderManagedAccount): CTraderScannerSession {
+  const clientId = process.env.OAK_CTRADER_CLIENT_ID || "";
+  const clientSecret = process.env.OAK_CTRADER_CLIENT_SECRET || "";
+  if (!clientId || !clientSecret) throw new Error("cTrader application credentials are incomplete");
+  return {
+    clientId,
+    clientSecret,
+    accessToken: token.accessToken,
+    accountId: account.accountId,
+    environment: account.environment,
+    broker: account.broker,
     scope: token.scope,
   };
 }
@@ -106,7 +124,11 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
   const command = parseCloudTelegramCommand(text);
   if (command.type === "help") return renderHelp();
   if (command.type === "myid") return `Chat ID: ${chatId}`;
-  if (command.type === "profiles") return `📋 Profiles\n• ${TELEGRAM_CLOUD_PROFILE} · cloud primary · cTrader read-only`;
+  if (command.type === "profiles") {
+    const accounts = await listManagedCTraderAccounts();
+    const rows = accounts.map((item) => `• ${item.enabled ? "ON" : "OFF"} · @${item.label} · ${item.broker} · ${item.environment} · login ${item.traderLogin || "—"}`);
+    return [`📋 cTrader Accounts · ${accounts.length}`, ...(rows.length ? rows : ["• Chưa sync account. Mở /accounts trên web để kết nối."])].join("\n");
+  }
   if (command.type === "pending") return renderPending(await listCloudIntents());
   if (command.type === "delete") {
     if (command.all) {
@@ -114,7 +136,22 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
       return `🗑️ Đã hủy ${count} intent cloud đang chờ.`;
     }
     const ok = await cancelCloudIntent(command.id || 0);
-    return ok ? `🗑️ Đã hủy intent #${command.id}.` : `⚠️ Không tìm thấy intent #${command.id} đang chờ.`;
+    return ok ? `🗑️ Đã hủy intent #${command.id}.` : `⚠️ Không tìm thấy intent #${command.id} có thể hủy.`;
+  }
+  if (command.type === "approve") {
+    const approved = await approveCloudIntent(command.id);
+    if (!approved) return `⚠️ Intent #${command.id} không tồn tại hoặc không còn chờ xác nhận.`;
+    if (approved.status === "scheduled") {
+      return [
+        `✅ Intent #${approved.id} đã được xác nhận và arm.`,
+        `• Mốc: ${approved.dueText}`,
+        `• Accounts: ${approved.targetAccountIds.join(", ")}`,
+        "• Đến giờ cloud sẽ tự execute, không hỏi lại.",
+      ].join("\n");
+    }
+    const finished = await runCloudIntentExecution(approved.id);
+    if (!finished) return `⏳ Intent #${approved.id} đang được worker khác execute.`;
+    return renderCloudExecutionResult(finished);
   }
   if (command.type === "status") {
     const config = await loadH1CloudConfig();
@@ -134,27 +171,65 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
       `• cTrader OAuth: ${fresh ? "authorized" : "unavailable"}`,
       `• OAuth scope: ${fresh?.scope || "—"}`,
       `• Execution mode: ${TELEGRAM_CLOUD_EXECUTION_MODE}`,
-      `• Pending intents: ${pending.length}`,
+      `• Pending tasks: ${pending.length}`,
     ].join("\n");
   }
   if (command.type === "positions") {
     try {
       const fresh = await getFreshCTraderTokens();
-      const snapshot = await fetchCTraderAccountReadSnapshot(sessionConfig(fresh));
-      const rows = snapshot.positions.slice(0, 20).map((item) =>
-        `• #${item.positionId} · ${item.side} ${item.symbol} · volumeRaw ${item.volumeRaw}${item.price !== null ? ` · price ${item.price}` : ""}`,
-      );
-      return [
-        `📊 ${TELEGRAM_CLOUD_PROFILE} · cTrader read-only`,
-        `• Positions: ${snapshot.positionCount}`,
-        `• Pending broker orders: ${snapshot.orderCount}`,
-        ...(rows.length ? rows : ["• Không có vị thế mở."]),
-      ].join("\n");
+      if (!fresh) throw new Error("cTrader OAuth unavailable");
+      const managed = (await listManagedCTraderAccounts()).filter((item) => item.enabled).slice(0, 12);
+      if (!managed.length) {
+        const snapshot = await fetchCTraderAccountReadSnapshot(sessionConfig(fresh));
+        const rows = snapshot.positions.slice(0, 20).map((item) =>
+          `• #${item.positionId} · ${item.side} ${item.symbol} · volumeRaw ${item.volumeRaw}${item.price !== null ? ` · price ${item.price}` : ""}`,
+        );
+        return [
+          `📊 ${TELEGRAM_CLOUD_PROFILE} · legacy account · snapshot`,
+          `• Positions: ${snapshot.positionCount}`,
+          `• Pending broker orders: ${snapshot.orderCount}`,
+          ...(rows.length ? rows : ["• Không có vị thế mở."]),
+        ].join("\n");
+      }
+      const rows: string[] = [`📊 ${TELEGRAM_CLOUD_PROFILE} · ${managed.length} account · snapshot`];
+      for (const account of managed) {
+        try {
+          const snapshot = await fetchCTraderAccountReadSnapshot(managedSessionConfig(fresh, account));
+          rows.push(`• @${account.label}: ${snapshot.positionCount} position · ${snapshot.orderCount} pending order`);
+        } catch {
+          rows.push(`• @${account.label}: unavailable`);
+        }
+      }
+      return rows.join("\n");
     } catch {
       return `⚠️ ${TELEGRAM_CLOUD_PROFILE}: chưa đọc được trạng thái cTrader lúc này.`;
     }
   }
   if (command.type === "intent") {
+    const accounts = await listManagedCTraderAccounts();
+    const alias = String(command.payload.legacyProfile || "");
+    const targets = resolveEnabledAccountTargets(accounts, alias);
+    if (!targets.length) {
+      return alias
+        ? `⚠️ Không có account đã bật khớp @${alias}. Mở /accounts trên web để cấu hình.`
+        : "⚠️ Chưa có account cTrader nào được bật. Mở /accounts trên web để kết nối/bật account.";
+    }
+    let protectionPlan: CloudIntent["protectionPlan"] | undefined;
+    if (command.kind === "entry") {
+      const symbol = String(command.payload.symbol || "");
+      const explicitSl = Number(command.payload.sl || 0);
+      const explicitTp = Number(command.payload.tp || 0);
+      protectionPlan = {};
+      for (const account of targets) {
+        const defaults = defaultProtectionPoints(account, symbol);
+        const slPoints = explicitSl > 0 ? explicitSl : defaults.sl;
+        const tpPoints = explicitTp > 0 ? explicitTp : defaults.tp;
+        if (!Number.isFinite(slPoints) || slPoints <= 0 || !Number.isFinite(tpPoints) || tpPoints <= 0) {
+          return `⚠️ @${account.label}: SL/TP mặc định chưa hợp lệ; sửa tại /accounts trước khi tạo intent.`;
+        }
+        protectionPlan[String(account.accountId)] = { label: account.label, slPoints, tpPoints };
+      }
+    }
     const task = await createCloudIntent({
       kind: command.kind,
       chatId,
@@ -162,15 +237,21 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
       dueAt: command.dueAt,
       dueText: command.dueText,
       payload: command.payload,
+      targetAccountIds: targets.map((item) => item.accountId),
+      protectionPlan,
       sourceUpdateId: updateId,
     });
-    await appendTelegramAudit({ action: "command_intent_accepted", taskId: task.id, rawText: text });
+    await appendTelegramAudit({ action: "command_intent_accepted", taskId: task.id, rawText: text, targetAccountIds: task.targetAccountIds });
+    const protectionRows = Object.values(task.protectionPlan || {}).map((item) => `• @${item.label}: SL ${item.slPoints}pt · TP ${item.tpPoints}pt`);
     return [
       `✅ Đã lưu intent #${task.id} · ${TELEGRAM_CLOUD_PROFILE}`,
       `• Loại: ${task.kind}`,
       `• Thời điểm: ${task.dueText}`,
+      `• Accounts: ${targets.map((item) => `@${item.label}`).join(", ")}`,
+      ...protectionRows,
       `• Trạng thái: ${task.status}`,
-      "• Broker execution: disabled until explicit approval/execution stage is implemented.",
+      `• Xác nhận: /approve ${task.id}`,
+      task.dueAt !== null ? "• Có thể approve trước; đến giờ cloud tự execute." : "• Sau /approve, cloud execute ngay một lần.",
     ].join("\n");
   }
   await appendTelegramAudit({ action: "command_rejected", rawText: text, reason: command.reason });

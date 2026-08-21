@@ -5,7 +5,7 @@
   "compatibility_date": "2026-08-21",
   "workers_dev": true,
   "secrets": {
-    "required": ["H1_SCANNER_TOKEN"]
+    "required": ["H1_SCANNER_TOKEN", "TELEGRAM_TICK_TOKEN"]
   },
   "durable_objects": {
     "bindings": [
@@ -22,6 +22,6 @@
     }
   ],
   "triggers": {
-    "crons": ["10 * * * *", "30 * * * *", "50 * * * *"]
+    "crons": ["* * * * *", "10 * * * *", "30 * * * *", "50 * * * *"]
   }
 }
