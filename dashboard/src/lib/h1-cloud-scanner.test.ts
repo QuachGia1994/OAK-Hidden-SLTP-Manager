@@ -119,6 +119,11 @@ test("other symbols use GBPUSD scanner plus their own H1 base", () => {
   assert.equal(alert.patternKind, "sw4Alternating");
   assert.equal(alert.baseH1Signal, "SELL");
   assert.equal(alert.symbolH1Signal, "SELL");
+  const message = buildTelegramMessage("EURUSD", "2026-08-21", alert);
+  assert.match(message, /Scanner pattern: GBPUSD/);
+  assert.match(message, /Base H1: EURUSD H04=G → SELL/);
+  assert.match(message, /Logic: giữ nguyên EURUSD H1/);
+  assert.doesNotMatch(message, /Signal GBPUSD H1:/);
 });
 
 test("older feeds suppress pre-cutover slots instead of replaying obsolete semantics", () => {

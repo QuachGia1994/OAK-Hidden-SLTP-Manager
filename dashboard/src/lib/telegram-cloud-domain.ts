@@ -48,8 +48,15 @@ function validDateText(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function normalizeTimeText(value: string): string {
+  const raw = String(value || "").trim();
+  const legacy = raw.match(/^(\d{1,2})[hH](\d{2})(?:[mM](\d{2}))?$/);
+  if (!legacy) return raw;
+  return `${legacy[1]}:${legacy[2]}${legacy[3] ? `:${legacy[3]}` : ""}`;
+}
+
 function validTimeText(value: string): boolean {
-  const match = value.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  const match = normalizeTimeText(value).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
   if (!match) return false;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
@@ -58,9 +65,10 @@ function validTimeText(value: string): boolean {
 }
 
 export function resolveVietnamDueAt(dateText: string | null, timeText: string, nowMs = Date.now()): { dueAt: number; dueText: string } {
-  if (!validTimeText(timeText)) throw new Error("Giờ không hợp lệ; dùng HH:MM hoặc HH:MM:SS");
+  if (!validTimeText(timeText)) throw new Error("Giờ không hợp lệ; dùng HH:MM, HH:MM:SS hoặc HHhMM");
   const now = vietnamDateParts(nowMs);
-  const normalizedTime = timeText.length === 5 ? `${timeText}:00` : timeText;
+  const canonicalTime = normalizeTimeText(timeText);
+  const normalizedTime = canonicalTime.length === 5 ? `${canonicalTime}:00` : canonicalTime;
   const [hh, mm, ss] = normalizedTime.split(":").map(Number);
 
   let year = now.year;
@@ -99,11 +107,22 @@ function canonicalSymbol(value: string): string {
   return upper;
 }
 
+const LEGACY_PROFILE_ALIASES = new Set(["vantage", "vantagedemo", "darwinex", "th5ers"]);
+const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "buy", "sell", "close", "closeall", "modify", "del"]);
+
+function splitLegacyProfile(tokens: string[]): { tokens: string[]; legacyProfile: string } {
+  if (!tokens.length) return { tokens, legacyProfile: "" };
+  const last = String(tokens.at(-1) || "").trim();
+  if (!LEGACY_PROFILE_ALIASES.has(last.toLowerCase())) return { tokens, legacyProfile: "" };
+  return { tokens: tokens.slice(0, -1), legacyProfile: last };
+}
+
 export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): ParsedCloudCommand {
   const raw = String(text || "").trim();
   if (!raw) return { type: "unknown", reason: "Lệnh trống" };
   const tokens = raw.split(/\s+/);
-  const command = tokens[0].toLowerCase().split("@")[0];
+  const rawCommand = tokens[0].toLowerCase().split("@")[0];
+  const command = rawCommand.startsWith("/") || !PLAIN_COMMANDS.has(rawCommand) ? rawCommand : `/${rawCommand}`;
   const args = tokens.slice(1);
 
   if (command === "/start" || command === "/help") return { type: "help" };
@@ -113,17 +132,19 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
   if (command === "/positions") return { type: "positions" };
   if (command === "/pending") {
     if (!args.length) return { type: "pending" };
-    const side = String(args[0] || "").toLowerCase();
-    const symbol = canonicalSymbol(args[1] || "");
-    const lot = Number(args[2]);
+    const scoped = splitLegacyProfile(args);
+    const commandArgs = scoped.tokens;
+    const side = String(commandArgs[0] || "").toLowerCase();
+    const symbol = canonicalSymbol(commandArgs[1] || "");
+    const lot = Number(commandArgs[2]);
     if (!(["buy", "sell"].includes(side)) || !symbol || !Number.isFinite(lot) || lot <= 0) {
       return { type: "unknown", reason: "Cú pháp: /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP]" };
     }
-    const when = parseDateAndTime(args.slice(3), nowMs);
+    const when = parseDateAndTime(commandArgs.slice(3), nowMs);
     if (when.consumed === 0 || when.dueAt === null) {
       return { type: "unknown", reason: "Cú pháp: /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP]" };
     }
-    const tail = args.slice(3 + when.consumed);
+    const tail = commandArgs.slice(3 + when.consumed);
     const sl = tail[0] !== undefined ? Number(tail[0]) : 0;
     const tp = tail[1] !== undefined ? Number(tail[1]) : 0;
     if ((tail[0] !== undefined && !Number.isFinite(sl)) || (tail[1] !== undefined && !Number.isFinite(tp))) {
@@ -134,40 +155,58 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
       kind: "entry",
       dueAt: when.dueAt,
       dueText: when.dueText,
-      payload: { side: side.toUpperCase(), symbol, lot, sl, tp, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
+      payload: { side: side.toUpperCase(), symbol, lot, sl, tp, legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
   }
   if (command === "/buy" || command === "/sell") {
-    const symbol = canonicalSymbol(args[0] || "");
-    const lot = Number(args[1]);
+    const scoped = splitLegacyProfile(args);
+    const commandArgs = scoped.tokens;
+    const symbol = canonicalSymbol(commandArgs[0] || "");
+    const lot = Number(commandArgs[1]);
     if (!symbol || !Number.isFinite(lot) || lot <= 0) {
-      return { type: "unknown", reason: `Cú pháp: ${command} SYMBOL LOT [SL] [TP]` };
+      return { type: "unknown", reason: `Cú pháp: ${command} SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [PROFILE]` };
     }
-    const sl = args[2] !== undefined ? Number(args[2]) : 0;
-    const tp = args[3] !== undefined ? Number(args[3]) : 0;
+    const when = parseDateAndTime(commandArgs.slice(2), nowMs);
+    const tail = commandArgs.slice(2 + when.consumed);
+    if (tail.length > 2) {
+      return { type: "unknown", reason: `Cú pháp: ${command} SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [PROFILE]` };
+    }
+    const sl = tail[0] !== undefined ? Number(tail[0]) : 0;
+    const tp = tail[1] !== undefined ? Number(tail[1]) : 0;
     if (!Number.isFinite(sl) || !Number.isFinite(tp)) return { type: "unknown", reason: "SL/TP phải là số" };
     return {
       type: "intent",
       kind: "entry",
-      dueAt: null,
-      dueText: "ngay khi được duyệt",
-      payload: { side: command === "/buy" ? "BUY" : "SELL", symbol, lot, sl, tp, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
+      dueAt: when.dueAt,
+      dueText: when.dueText,
+      payload: { side: command === "/buy" ? "BUY" : "SELL", symbol, lot, sl, tp, legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
   }
   if (command === "/closeall" || command === "/close") {
-    const when = parseDateAndTime(args, nowMs);
-    const remainder = args.slice(when.consumed);
-    if (remainder.length > 1) {
-      return { type: "unknown", reason: "Cú pháp: /closeall [YYYY-MM-DD] [HH:MM] [SYMBOL]" };
+    const scoped = splitLegacyProfile(args);
+    const commandArgs = scoped.tokens;
+    let when = parseDateAndTime(commandArgs, nowMs);
+    let remainder = commandArgs.slice(when.consumed);
+    let symbol = "";
+    if (when.consumed === 0 && commandArgs[0]) {
+      const leadingSymbol = canonicalSymbol(commandArgs[0]);
+      if (leadingSymbol) {
+        symbol = leadingSymbol;
+        when = parseDateAndTime(commandArgs.slice(1), nowMs);
+        remainder = commandArgs.slice(1 + when.consumed);
+      }
     }
-    const symbol = remainder[0] ? canonicalSymbol(remainder[0]) : "";
+    if (remainder.length > (symbol ? 0 : 1)) {
+      return { type: "unknown", reason: "Cú pháp: /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL] [PROFILE]" };
+    }
+    if (!symbol && remainder[0]) symbol = canonicalSymbol(remainder[0]);
     if (remainder[0] && !symbol) return { type: "unknown", reason: "Symbol đóng không hợp lệ" };
     return {
       type: "intent",
       kind: "close",
       dueAt: when.dueAt,
       dueText: when.dueText,
-      payload: { scope: symbol || "ALL", executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
+      payload: { scope: symbol || "ALL", legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
   }
   if (command === "/modify") {
@@ -203,9 +242,10 @@ export function renderHelp(): string {
     "• /positions — vị thế cTrader read-only",
     "• /pending — danh sách intent đang chờ",
     "• /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP]",
-    "• /buy SYMBOL LOT [SL] [TP]",
-    "• /sell SYMBOL LOT [SL] [TP]",
-    "• /closeall [YYYY-MM-DD] [HH:MM] [SYMBOL]",
+    "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP]",
+    "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP]",
+    "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL]",
+    "• Cú pháp desktop cũ vẫn nhận: Buy GBPUSD+ 0.01 14h55 Vantage",
     "• /modify sl|tp SYMBOL VALUE",
     "• /del ID | /del all",
     "",

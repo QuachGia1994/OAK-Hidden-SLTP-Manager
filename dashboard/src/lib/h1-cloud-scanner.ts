@@ -281,10 +281,11 @@ function parseV6PublicFeed(raw: unknown): H1CloudState | null {
       if (!isTargetBase(base) || !source || !Array.isArray(source.alerts)) continue;
       const alerts: H1StoredAlert[] = [];
       for (const row of source.alerts) {
+        const baseHour = row?.baseHour;
         if (
           !row || !Number.isInteger(row.slotHour) || !isPatternKind(row.patternKind) || !isSignal(row.signal)
           || !isScannerBase(row.scannerBase) || !isSignal(row.baseSignal) || !isDirection(row.baseDirection)
-          || !Number.isInteger(row.baseHour)
+          || typeof baseHour !== "number" || !Number.isInteger(baseHour)
         ) continue;
         alerts.push({
           slotHour: row.slotHour,
@@ -297,7 +298,7 @@ function parseV6PublicFeed(raw: unknown): H1CloudState | null {
           scannerSymbol: String(row.scannerSymbol || row.scannerBase),
           baseSymbol: String(row.baseSymbol || baseSymbolForTarget(base)),
           baseH1Signal: row.baseSignal,
-          baseHour: row.baseHour,
+          baseHour,
           baseDirection: row.baseDirection,
           symbolH1Signal: row.signal,
         });
