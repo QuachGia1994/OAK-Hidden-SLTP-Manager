@@ -84,14 +84,10 @@ Each invocation is short-lived and fail-closed:
 - Telegram must acknowledge a send before that alert is appended to state;
 - state is persisted immediately after each successful Telegram send;
 - the public H1 feed is republished from cloud state after a successful run;
-- `OAK_H1_CLOUD_SCANNER_ENABLED` defaults off; enable it only after local workers have been stopped;
+- encrypted cloud config defaults to `enabled=false`; enable it only after local workers have been stopped;
 - missed/delayed hourly triggers catch up all undelivered pattern slots up to H17 for the current broker day.
 
-Additional Vercel-only scanner environment variables:
-
-- `OAK_H1_CLOUD_SCANNER_ENABLED=0|1`;
-- `OAK_H1_TELEGRAM_TOKEN=<bot token>`;
-- `OAK_H1_TELEGRAM_CHAT_ID=<destination chat>`.
+Cloud scanner runtime configuration is not stored as plaintext environment variables. During cutover, a one-time Upstash bootstrap ticket authorizes `/api/h1-scanner/setup`; that route encrypts `{enabled, Telegram token, Telegram chat ID}` with AES-256-GCM using the existing `OAK_CTRADER_VAULT_KEY` (with a separate H1 domain separator) before writing it to Upstash. One-time run tickets similarly authorize dry-run/cutover verification and are consumed atomically with `GETDEL`.
 
 Scheduled requests are authorized by GitHub OIDC claims: audience `oak-h1-cloud-scanner`, the exact repository, `refs/heads/main`, and the exact `h1-cloud-scanner.yml` workflow ref. `DASHBOARD_API_KEY` remains available only for explicit manual/admin invocations.
 

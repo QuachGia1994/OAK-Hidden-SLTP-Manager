@@ -6,18 +6,33 @@ const route = readFileSync(new URL("../app/api/h1-scanner/run/route.ts", import.
 const client = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
 const workflow = readFileSync(new URL("../../../.github/workflows/h1-cloud-scanner.yml", import.meta.url), "utf8");
 const oidc = readFileSync(new URL("./github-oidc.ts", import.meta.url), "utf8");
+const setupRoute = readFileSync(new URL("../app/api/h1-scanner/setup/route.ts", import.meta.url), "utf8");
+const cloudConfig = readFileSync(new URL("./h1-cloud-config.ts", import.meta.url), "utf8");
 
 test("cloud scanner route is private, disabled by default, and singleton locked", () => {
   assert.match(route, /verifyH1ScannerGitHubOidc/);
   assert.match(route, /requireAuth/);
   assert.match(route, /Authorization|authorization/);
-  assert.match(route, /OAK_H1_CLOUD_SCANNER_ENABLED === "1"/);
+  assert.match(route, /loadH1CloudConfig/);
+  assert.match(route, /Boolean\(cloudConfig\?\.enabled\)/);
   assert.match(route, /H1_CLOUD_LOCK_KEY/);
   assert.match(route, /nx: true, ex: LOCK_SECONDS/);
 });
 
+test("cloud scanner setup uses one-time tickets and encrypted server-side Telegram config", () => {
+  assert.match(setupRoute, /x-h1-bootstrap-ticket/);
+  assert.match(setupRoute, /getdel/);
+  assert.match(setupRoute, /saveH1CloudConfig/);
+  assert.match(cloudConfig, /aes-256-gcm/);
+  assert.match(cloudConfig, /OAK_CTRADER_VAULT_KEY/);
+  assert.doesNotMatch(cloudConfig, /DASHBOARD_API_KEY/);
+  assert.match(setupRoute, /NextResponse\.json\(\{ ok: true, \.\.\.safeH1CloudConfigStatus\(saved\) \}/);
+});
+
 test("cloud scanner seeds from existing public feed and persists only after Telegram success", () => {
   assert.match(route, /seedCloudStateFromPublic/);
+  assert.match(route, /x-h1-run-ticket/);
+  assert.match(route, /getdel/);
   assert.match(route, /await sendTelegram/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
   assert.match(route, /await saveState\(state\)/);

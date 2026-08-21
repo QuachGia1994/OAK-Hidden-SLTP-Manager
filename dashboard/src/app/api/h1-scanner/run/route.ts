@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis, requireAuth } from "@/lib/redis-core";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
+import { loadH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
 import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
 import { brokerWallParts, fetchCurrentBrokerDayH1, type CTraderScannerSession } from "@/lib/ctrader-json";
 import {
@@ -26,6 +27,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const PUBLIC_PROFILE_KEY = `robot-sltp:public:h1-signals:${H1_CLOUD_PROFILE}`;
+const RUN_TICKET_HEADER = "x-h1-run-ticket";
+const RUN_TICKET_PREFIX = "oak:h1:run-ticket:";
 const LOCK_SECONDS = 90;
 
 type RunSummary = {
@@ -45,6 +48,14 @@ async function authorize(request: Request): Promise<NextResponse | null> {
   const header = request.headers.get("authorization") || "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (token && await verifyH1ScannerGitHubOidc(token)) return null;
+
+  // One-time local bootstrap ticket for dry-run/cutover verification. It is
+  // consumed atomically and cannot become a standing service credential.
+  const ticket = request.headers.get(RUN_TICKET_HEADER) || "";
+  if (/^[A-Za-z0-9_-]{40,80}$/.test(ticket)) {
+    const consumed = await redis.getdel<string>(`${RUN_TICKET_PREFIX}${ticket}`);
+    if (consumed) return null;
+  }
   return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 }
 
@@ -68,14 +79,11 @@ async function publishState(state: H1CloudState): Promise<void> {
   ]);
 }
 
-async function sendTelegram(message: string): Promise<void> {
-  const token = process.env.OAK_H1_TELEGRAM_TOKEN || "";
-  const chatId = process.env.OAK_H1_TELEGRAM_CHAT_ID || "";
-  if (!token || !chatId) throw new Error("H1 cloud Telegram is not configured");
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+async function sendTelegram(message: string, config: H1CloudConfig): Promise<void> {
+  const response = await fetch(`https://api.telegram.org/bot${config.telegramToken}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text: message }),
+    body: JSON.stringify({ chat_id: config.telegramChatId, text: message }),
     cache: "no-store",
   });
   const payload = await response.json().catch(() => ({})) as { ok?: boolean; description?: string };
@@ -126,7 +134,8 @@ export async function POST(request: Request) {
 
   const url = new URL(request.url);
   const dryRun = url.searchParams.get("dryRun") === "1";
-  const enabled = process.env.OAK_H1_CLOUD_SCANNER_ENABLED === "1";
+  const cloudConfig = await loadH1CloudConfig();
+  const enabled = Boolean(cloudConfig?.enabled);
   if (!enabled && !dryRun) {
     return NextResponse.json({ ok: true, enabled: false, skipped: "disabled" }, { headers: { "Cache-Control": "no-store" } });
   }
@@ -183,7 +192,8 @@ export async function POST(request: Request) {
         });
         if (dryRun) continue;
 
-        await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert));
+        if (!cloudConfig) throw new Error("H1 cloud scanner config is unavailable");
+        await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
         delivered.add(alert.slotHour);
