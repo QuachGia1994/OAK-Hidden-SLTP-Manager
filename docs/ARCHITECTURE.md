@@ -30,18 +30,16 @@ This document describes the maintained production surfaces after retiring the En
 | MT5 attach/start safety | `services/mt5_service.py`, `services/mt5_terminal_service.py` | local observation/fallback runtime |
 | H1 parity | `robot-sltp-pro/h1_market_data.py` + H1 snapshot CLIs | migration/regression only |
 
-## H1 scanner v7
+## H1 scanner rule v2
 
 The production scanner is cloud-primary and operates only on H1 data for the current broker day.
 
 ### Pattern sources
 
-Pattern-source mapping is target-specific:
+Pattern-source mapping:
 
 - `AUDUSD` → pattern source for `XAUUSD`.
-- `GBPUSD` → pattern source for `EURUSD` and `AUDUSD`.
-- `USDCAD` → its own pattern source.
-- `USDJPY` → its own pattern source.
+- `GBPUSD` → pattern source for `EURUSD`, `AUDUSD`, `USDCAD`, and `USDJPY`.
 
 The output target set remains:
 
@@ -64,15 +62,18 @@ At slot `Hn`, all bases are the first closed backward candle `H(n-1)` from the s
 - XAUUSD: pattern = AUDUSD; base = GBPUSD.
 - EURUSD: pattern = GBPUSD; base = EURUSD.
 - AUDUSD: pattern = GBPUSD; base = AUDUSD.
-- USDCAD: pattern = USDCAD; base = GBPUSD.
-- USDJPY: pattern = USDJPY; base = GBPUSD.
+- USDCAD: pattern = GBPUSD; base = USDCAD.
+- USDJPY: pattern = GBPUSD; base = USDJPY.
 
 Base direction: `T → BUY`, `G → SELL`.
 
-Source transform:
+All three pattern classes keep the base signal unchanged. A separate broker-calendar post-signal layer may invert the result:
 
-- XAUUSD/EURUSD/AUDUSD: `sw2` keeps base; `sw3Pure` and `sw3Normal` reverse base.
-- USDCAD/USDJPY: `sw2` reverses base; `sw3Pure` and `sw3Normal` keep base.
+- Monday: H03, H04, H09-H11, H12-H14 invert.
+- Tuesday: H03, H04, H09-H11 invert.
+- Wednesday: H03, H04, H12-H14 invert.
+- Thursday: normally no inversion. The monthly flag is recalculated at the Thursday immediately before the first Friday whose day-of-month is 1-7; that Thursday cycle inverts only when its previous Wednesday is day 30 or 1, and the flag carries weekly until the next recalculation.
+- Friday: the monthly flag is recalculated on the first Friday whose day-of-month is 1-7; it inverts when that anchor Friday is day 3, 4, or 7, and the flag carries weekly until the next recalculation.
 
 There is no target-side post-check. Every accepted `sw3Pure` alert is marked `/!\\` in Telegram and the web cell. If another `sw3Pure` appears exactly two slots after the previous accepted pure, that second slot is skipped completely and pure tracking resets from the next slot. Example: H04 + H06 pure => H06 is omitted and scanning starts fresh from H07; H06 + H08 pure => H08 is omitted and scanning starts fresh from H09.
 
@@ -89,12 +90,12 @@ No day classification, Pattern5 group, H4 block, previous-day fallback, or cross
 - Vercel retries for roughly 17.5 seconds when the just-closed H1 candle is not yet visible from cTrader.
 - Cloudflare uses a dedicated random timekeeper bearer. The Worker stores the plaintext only as a Cloudflare Secret; Vercel compares its SHA-256 against a value stored in Upstash.
 - Redis NX/EX lock prevents overlapping Cloudflare, GitHub or manual scanner invocations.
-- Cloud state schema is v7. Older public feeds are not reinterpreted; pre-cutover slots are suppressed through the current broker hour to prevent replay under changed semantics, and current-day web history is rebuilt from current H1 data without resending Telegram alerts.
+- Cloud state schema is v8. Public transport remains schema v7 with `signalRuleVersion=2`; older rule payloads are not reinterpreted. Pre-cutover slots are suppressed through the current broker hour to prevent replay, and current-day web history is rebuilt from current H1 data without resending Telegram alerts.
 - Telegram must acknowledge a new signal before the alert is persisted.
 - Public Upstash H1 feed is schema v7; skipped paired-pure slots never enter state/feed/Telegram/web.
 - There is no target-side post-check, STOP-H17 overlay, day classification, Pattern5 block, or H4 dependency.
 
-The local Python fallback mirrors the same v7 source/base transform and paired-pure reset semantics.
+The local Python fallback mirrors the same rule-v2 source/base, calendar post-signal, guard and paired-pure reset semantics.
 
 ## `/engine` web flow
 

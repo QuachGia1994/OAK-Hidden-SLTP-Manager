@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,9 +14,11 @@ from domain.xau_h1_pattern_scanner import (
     MultiSymbolH1PatternScanner,
     base_symbol_for_target,
     find_h1_pattern_matches,
+    post_signal_decision,
     resolve_symbol_variant,
     resolve_target_symbols,
     scanner_base_for_target,
+    signal_from_base_after_calendar,
     signal_from_h1_direction,
     signal_from_pattern_base,
 )
@@ -140,15 +142,12 @@ def test_resolver_accepts_suffixes_for_all_targets_and_rejects_prefixes():
     assert resolve_symbol_variant("GBPUSD", symbols) == "GBPUSD+"
 
 
-def test_target_mapping_uses_own_source_plus_gbpusd_base_for_cad_jpy():
+def test_target_mapping_is_audusd_plus_gbpusd_for_xau_and_gbpusd_plus_own_base_for_others():
     assert scanner_base_for_target("XAUUSD") == "AUDUSD"
     assert base_symbol_for_target("XAUUSD") == "GBPUSD"
-    for base in ("EURUSD", "AUDUSD"):
+    for base in ("EURUSD", "AUDUSD", "USDCAD", "USDJPY"):
         assert scanner_base_for_target(base) == "GBPUSD"
         assert base_symbol_for_target(base) == base
-    for base in ("USDCAD", "USDJPY"):
-        assert scanner_base_for_target(base) == base
-        assert base_symbol_for_target(base) == "GBPUSD"
 
 
 def test_source_scanner_has_sw2_pure_sw3_and_normal_sw3_only():
@@ -181,21 +180,35 @@ def test_normal_sw3_guard_skips_current_slot_after_run_reaches_four_or_more():
     assert not [m for m in g4 if m.slot_hour == 5]
 
 
-def test_xau_eur_aud_keep_sw2_reverse_sw3_while_cad_jpy_reverse_sw2_follow_sw3():
+def test_every_pattern_keeps_base_before_calendar_post_signal():
     assert signal_from_h1_direction("T") == "BUY"
     assert signal_from_h1_direction("G") == "SELL"
-    for base in ("XAUUSD", "EURUSD", "AUDUSD"):
-        assert signal_from_pattern_base(base, "BUY", PATTERN_KIND_SW2) == "BUY"
-        assert signal_from_pattern_base(base, "SELL", PATTERN_KIND_SW2) == "SELL"
-        for kind in (PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL):
-            assert signal_from_pattern_base(base, "BUY", kind) == "SELL"
-            assert signal_from_pattern_base(base, "SELL", kind) == "BUY"
-    for base in ("USDCAD", "USDJPY"):
-        assert signal_from_pattern_base(base, "BUY", PATTERN_KIND_SW2) == "SELL"
-        assert signal_from_pattern_base(base, "SELL", PATTERN_KIND_SW2) == "BUY"
-        for kind in (PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL):
-            assert signal_from_pattern_base(base, "BUY", kind) == "BUY"
-            assert signal_from_pattern_base(base, "SELL", kind) == "SELL"
+    for kind in (PATTERN_KIND_SW2, PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL):
+        assert signal_from_pattern_base("BUY", kind) == "BUY"
+        assert signal_from_pattern_base("SELL", kind) == "SELL"
+
+
+def test_calendar_post_signal_weekday_blocks_and_monthly_cycles():
+    monday = date(2026, 8, 17)
+    for slot in (3, 4, 9, 10, 11, 12, 13, 14):
+        assert post_signal_decision(monday, slot) == (True, "mon-block")
+    assert post_signal_decision(monday, 8) == (False, "none")
+    tuesday = date(2026, 8, 18)
+    for slot in (3, 4, 9, 10, 11):
+        assert post_signal_decision(tuesday, slot) == (True, "tue-block")
+    assert post_signal_decision(tuesday, 12) == (False, "none")
+    wednesday = date(2026, 8, 19)
+    for slot in (3, 4, 12, 13, 14):
+        assert post_signal_decision(wednesday, slot) == (True, "wed-block")
+    assert post_signal_decision(wednesday, 9) == (False, "none")
+    assert post_signal_decision(date(2026, 7, 2), 8) == (True, "thu-cycle")
+    assert post_signal_decision(date(2026, 7, 30), 14) == (True, "thu-cycle")
+    assert post_signal_decision(date(2026, 8, 6), 8) == (False, "none")
+    assert post_signal_decision(date(2026, 10, 1), 8) == (True, "thu-cycle")
+    assert post_signal_decision(date(2026, 5, 1), 8) == (False, "none")
+    assert post_signal_decision(date(2026, 8, 7), 8) == (True, "fri-cycle")
+    assert post_signal_decision(date(2026, 8, 21), 14) == (True, "fri-cycle")
+    assert signal_from_base_after_calendar("BUY", date(2026, 8, 21), 14) == "SELL"
 
 
 def test_pure_sw3_two_slots_later_is_skipped_and_tracking_resets():
@@ -229,13 +242,14 @@ def test_xau_sw2_uses_audusd_source_and_keeps_gbpusd_base(tmp_path):
         assert "Pattern nguồn: T G" in xau
         assert "Nhóm nguồn: SW 2 cây" in xau
         assert "Base H1: GBPUSD H02=T → BUY" in xau
-        assert "Logic nguồn: giữ nguyên GBPUSD H1" in xau
+        assert "Logic pattern: giữ nguyên GBPUSD H1" in xau
+        assert "Hậu signal: không đảo" in xau
         assert "Signal XAUUSD H1: BUY" in xau
     finally:
         subject.close()
 
 
-def test_xau_pure_sw3_reverses_gbpusd_base_without_postcheck(tmp_path):
+def test_xau_pure_sw3_keeps_gbpusd_base_then_applies_calendar_post_signal(tmp_path):
     rates = all_rates("TGT")
     rates["AUDUSD.a"] = rates_for(20, "GGT")
     rates["GBPUSD+"] = rates_for(20, "TTT")
@@ -247,14 +261,15 @@ def test_xau_pure_sw3_reverses_gbpusd_base_without_postcheck(tmp_path):
         assert "Pattern nguồn: T G G" in xau
         assert "Nhóm nguồn: /!\\ SW 3 cây thuần" in xau
         assert "Base H1: GBPUSD H03=T → BUY" in xau
-        assert "Logic nguồn: đảo GBPUSD H1" in xau
-        assert "Signal XAUUSD H1: SELL" in xau
+        assert "Logic pattern: giữ nguyên GBPUSD H1" in xau
+        assert "Hậu signal: không đảo" in xau
+        assert "Signal XAUUSD H1: BUY" in xau
         assert "Hậu kiểm" not in xau
     finally:
         subject.close()
 
 
-def test_normal_sw3_reverses_own_base_for_other_symbol(tmp_path):
+def test_normal_sw3_keeps_own_base_before_calendar_post_signal(tmp_path):
     rates = all_rates("TGT")
     rates["GBPUSD+"] = rates_for(20, "TTT")
     rates["EURUSD+"] = rates_for(20, "GGG")
@@ -266,26 +281,27 @@ def test_normal_sw3_reverses_own_base_for_other_symbol(tmp_path):
         assert "Pattern nguồn: T T T" in eur
         assert "Nhóm nguồn: SW 3 cây thường" in eur
         assert "Base H1: EURUSD H03=G → SELL" in eur
-        assert "Logic nguồn: đảo EURUSD H1" in eur
-        assert "Signal EURUSD H1: BUY" in eur
+        assert "Logic pattern: giữ nguyên EURUSD H1" in eur
+        assert "Hậu signal: không đảo" in eur
+        assert "Signal EURUSD H1: SELL" in eur
     finally:
         subject.close()
 
 
-def test_usdcad_uses_own_source_gbpusd_base_and_target_specific_direction_rules(tmp_path):
+def test_usdcad_uses_gbpusd_source_and_own_h1_base(tmp_path):
     rates = all_rates("TGT")
-    rates["USDCAD.pro"] = rates_for(20, "GGT")
-    rates["GBPUSD+"] = rates_for(20, "TTT")
+    rates["GBPUSD+"] = rates_for(20, "GGT")
+    rates["USDCAD.pro"] = rates_for(20, "GGG")
     sent: list[str] = []
     subject = make_scanner(tmp_path, FakeMT5(rates), FakeClock(datetime(2026, 8, 20, 4, 0)), sent)
     try:
         subject.scan_once()
         cad = next(message for message in sent if message.startswith("🔔 USDCAD") and "Mốc scan: H04" in message)
-        assert "Scanner pattern: USDCAD (USDCAD.pro)" in cad
+        assert "Scanner pattern: GBPUSD (GBPUSD+)" in cad
         assert "Pattern nguồn: T G G" in cad
-        assert "Base H1: GBPUSD H03=T → BUY" in cad
-        assert "Logic nguồn: giữ nguyên GBPUSD H1" in cad
-        assert "Signal USDCAD H1: BUY" in cad
+        assert "Base H1: USDCAD H03=G → SELL" in cad
+        assert "Logic pattern: giữ nguyên USDCAD H1" in cad
+        assert "Signal USDCAD H1: SELL" in cad
     finally:
         subject.close()
 
@@ -313,10 +329,10 @@ def test_local_fallback_reads_only_pattern_sources_and_required_base_h1(tmp_path
         subject.close()
 
 
-def test_v6_state_migrates_to_v7_suppression_without_replaying_old_slots(tmp_path):
+def test_v7_state_migrates_to_v8_suppression_without_replaying_old_slots(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text(json.dumps({
-        "version": 6,
+        "version": 7,
         "days": {"2026-08-20": {"symbols": {"XAUUSD": {"alerts": [{"slotHour": 4, "pattern": "T G G"}]}}}},
     }), encoding="utf-8")
     sent: list[str] = []
@@ -324,7 +340,7 @@ def test_v6_state_migrates_to_v7_suppression_without_replaying_old_slots(tmp_pat
     try:
         subject.scan_once()
         saved = json.loads(state_path.read_text(encoding="utf-8"))
-        assert saved["version"] == 7
+        assert saved["version"] == 8
         assert saved["days"]["2026-08-20"]["suppressedThroughHour"] == 4
         assert all("Mốc scan: H04" not in message for message in sent)
     finally:

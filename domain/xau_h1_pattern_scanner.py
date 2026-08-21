@@ -6,7 +6,7 @@ Pattern detection uses AUDUSD for XAUUSD, GBPUSD for EURUSD/AUDUSD, and each tar
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -20,7 +20,7 @@ DEFAULT_STATE_PATH = ROOT / "xau_h1_pattern_alert_state.json"
 DEFAULT_OWNER_LOCK_PATH = ROOT / "xau_h1_pattern_scanner.lock"
 
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
-SCANNER_BASES = ("AUDUSD", "GBPUSD", "USDCAD", "USDJPY")
+SCANNER_BASES = ("AUDUSD", "GBPUSD")
 REQUIRED_HISTORY_BASES = ("GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY")
 
 TWO_CANDLE_SW_PATTERNS = {("T", "G"), ("G", "T")}
@@ -36,12 +36,20 @@ PATTERN_LABELS = {
     PATTERN_KIND_SW3_PURE: "SW 3 cây thuần",
     PATTERN_KIND_SW3_NORMAL: "SW 3 cây thường",
 }
-INVERTED_PATTERN_TARGETS = {"USDCAD", "USDJPY"}
+POST_SIGNAL_RULE_NONE = "none"
+POST_SIGNAL_RULE_MON = "mon-block"
+POST_SIGNAL_RULE_TUE = "tue-block"
+POST_SIGNAL_RULE_WED = "wed-block"
+POST_SIGNAL_RULE_THU = "thu-cycle"
+POST_SIGNAL_RULE_FRI = "fri-cycle"
+MONDAY_INVERT_SLOTS = {3, 4, 9, 10, 11, 12, 13, 14}
+TUESDAY_INVERT_SLOTS = {3, 4, 9, 10, 11}
+WEDNESDAY_INVERT_SLOTS = {3, 4, 12, 13, 14}
 
 EARLIEST_SCAN_HOUR = 3
 LAST_SCAN_HOUR = 17
 HISTORY_BARS = 32
-STATE_VERSION = 7
+STATE_VERSION = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,41 +100,69 @@ def signal_from_h1_direction(direction: str) -> str:
     raise ValueError(f"Unknown H1 direction: {direction}")
 
 
-def pattern_follows_base(base: str, pattern_kind: str) -> bool:
-    canonical = str(base or "").upper()
-    if pattern_kind not in PATTERN_KINDS:
-        raise ValueError(f"Unknown H1 pattern kind: {pattern_kind}")
-    if canonical in INVERTED_PATTERN_TARGETS:
-        return pattern_kind != PATTERN_KIND_SW2
-    return pattern_kind == PATTERN_KIND_SW2
-
-
-def signal_from_pattern_base(base: str, base_signal: str, pattern_kind: str) -> str:
+def signal_from_pattern_base(base_signal: str, pattern_kind: str) -> str:
     signal = str(base_signal or "").strip().upper()
     if signal not in {"BUY", "SELL"}:
         raise ValueError("H1 base signal must be BUY or SELL")
-    if pattern_follows_base(base, pattern_kind):
-        return signal
-    return "SELL" if signal == "BUY" else "BUY"
+    if pattern_kind not in PATTERN_KINDS:
+        raise ValueError(f"Unknown H1 pattern kind: {pattern_kind}")
+    return signal
+
+
+def _thursday_cycle_inverted(broker_day: date) -> bool:
+    cursor = broker_day
+    for _index in range(6):
+        friday = cursor + timedelta(days=1)
+        if friday.day <= 7:
+            previous_wednesday = (cursor - timedelta(days=1)).day
+            return previous_wednesday in {30, 1}
+        cursor -= timedelta(days=7)
+    return False
+
+
+def _friday_cycle_inverted(broker_day: date) -> bool:
+    cursor = broker_day
+    for _index in range(6):
+        if cursor.day <= 7:
+            return cursor.day in {3, 4, 7}
+        cursor -= timedelta(days=7)
+    return False
+
+
+def post_signal_decision(broker_day: date, slot_hour: int) -> tuple[bool, str]:
+    weekday = broker_day.weekday()
+    if weekday == 0 and slot_hour in MONDAY_INVERT_SLOTS:
+        return True, POST_SIGNAL_RULE_MON
+    if weekday == 1 and slot_hour in TUESDAY_INVERT_SLOTS:
+        return True, POST_SIGNAL_RULE_TUE
+    if weekday == 2 and slot_hour in WEDNESDAY_INVERT_SLOTS:
+        return True, POST_SIGNAL_RULE_WED
+    if weekday == 3 and _thursday_cycle_inverted(broker_day):
+        return True, POST_SIGNAL_RULE_THU
+    if weekday == 4 and _friday_cycle_inverted(broker_day):
+        return True, POST_SIGNAL_RULE_FRI
+    return False, POST_SIGNAL_RULE_NONE
+
+
+def signal_from_base_after_calendar(base_signal: str, broker_day: date, slot_hour: int) -> str:
+    signal = str(base_signal or "").strip().upper()
+    if signal not in {"BUY", "SELL"}:
+        raise ValueError("H1 base signal must be BUY or SELL")
+    inverted, _rule = post_signal_decision(broker_day, slot_hour)
+    return ("SELL" if signal == "BUY" else "BUY") if inverted else signal
 
 
 def signal_from_gbpusd_pattern(gbpusd_signal: str, pattern_kind: str) -> str:
-    """Legacy XAUUSD alias kept for compatibility with older callers."""
-    return signal_from_pattern_base("XAUUSD", gbpusd_signal, pattern_kind)
+    return signal_from_pattern_base(gbpusd_signal, pattern_kind)
 
 
 def scanner_base_for_target(base: str) -> str:
-    canonical = str(base or "").upper()
-    if canonical == "XAUUSD":
-        return "AUDUSD"
-    if canonical in INVERTED_PATTERN_TARGETS:
-        return canonical
-    return "GBPUSD"
+    return "AUDUSD" if str(base or "").upper() == "XAUUSD" else "GBPUSD"
 
 
 def base_symbol_for_target(base: str) -> str:
     canonical = str(base or "").upper()
-    return "GBPUSD" if canonical in {"XAUUSD", *INVERTED_PATTERN_TARGETS} else canonical
+    return "GBPUSD" if canonical == "XAUUSD" else canonical
 
 
 def resolve_symbol_variant(base: str, symbols: Iterable[Any]) -> str | None:
@@ -395,7 +431,7 @@ class MultiSymbolH1PatternScanner:
         rendered = ", ".join(f"{base}={symbol}" for base, symbol in selected.items())
         self._log(
             f"[H1-SCAN] fallback owner={self._profile_name} · {rendered} · GBPUSD={gbpusd_symbol} · "
-            "patternSources=XAU:AUDUSD,EUR/AUD:GBPUSD,CAD/JPY:self · H03-H17 · emit=SW2,SW3-pure,SW3-normal · no-post-check"
+            "patternSources=XAU:AUDUSD,others:GBPUSD · H03-H17 · emit=SW2,SW3-pure,SW3-normal · calendar-post-signal"
         )
         return True
 
@@ -447,7 +483,7 @@ class MultiSymbolH1PatternScanner:
         state = load_json(str(self._state_path), self._empty_state())
         if not isinstance(state, dict):
             raise ValueError(f"Invalid H1 scanner state: {self._state_path}")
-        if state.get("version") in {1, 2, 3, 4, 5, 6}:
+        if state.get("version") in {1, 2, 3, 4, 5, 6, 7}:
             state = self._migrate_legacy_state(state)
             # Persist migration immediately so a restart cannot reload obsolete
             # pattern semantics and repeat the migration decision.
@@ -508,11 +544,15 @@ class MultiSymbolH1PatternScanner:
         symbol_signal: str,
         profile_name: str,
     ) -> str:
-        behavior = (
-            f"giữ nguyên {base_context.base_symbol} H1"
-            if pattern_follows_base(base, match.pattern_kind)
-            else f"đảo {base_context.base_symbol} H1"
-        )
+        inverted, post_rule = post_signal_decision(date.fromisoformat(broker_day), match.slot_hour)
+        post_labels = {
+            POST_SIGNAL_RULE_NONE: "không đảo",
+            POST_SIGNAL_RULE_MON: "đảo theo block Thứ 2",
+            POST_SIGNAL_RULE_TUE: "đảo theo block Thứ 3",
+            POST_SIGNAL_RULE_WED: "đảo theo block Thứ 4",
+            POST_SIGNAL_RULE_THU: "đảo theo chu kỳ Thứ 5 special",
+            POST_SIGNAL_RULE_FRI: "đảo theo chu kỳ Thứ 6 special",
+        }
         pattern_label = f"/!\\ {match.pattern_label}" if match.pattern_kind == PATTERN_KIND_SW3_PURE else match.pattern_label
         rows = [
             f"🔔 {base} H1 PATTERN",
@@ -525,7 +565,8 @@ class MultiSymbolH1PatternScanner:
             f"• Pattern nguồn: {match.pattern_text}",
             f"• Nhóm nguồn: {pattern_label}",
             base_context.telegram_line,
-            f"• Logic nguồn: {behavior}",
+            f"• Logic pattern: giữ nguyên {base_context.base_symbol} H1",
+            f"• Hậu signal: {post_labels[post_rule]}",
         ]
         rows.append(f"• Signal {base} H1: {symbol_signal}")
         return "\n".join(rows)
@@ -625,7 +666,9 @@ class MultiSymbolH1PatternScanner:
                         base_direction=direction,
                         signal=signal_from_h1_direction(direction),
                     )
-                    symbol_signal = signal_from_pattern_base(base, base_context.signal, match.pattern_kind)
+                    pattern_signal = signal_from_pattern_base(base_context.signal, match.pattern_kind)
+                    post_inverted, post_rule = post_signal_decision(broker_now.date(), match.slot_hour)
+                    symbol_signal = signal_from_base_after_calendar(pattern_signal, broker_now.date(), match.slot_hour)
                     message = self._message(
                         base,
                         broker_symbol,
@@ -659,6 +702,8 @@ class MultiSymbolH1PatternScanner:
                         "baseHour": base_context.base_hour,
                         "baseDirection": base_context.base_direction or "",
                         "symbolH1Signal": symbol_signal,
+                        "postSignalInverted": post_inverted,
+                        "postSignalRule": post_rule,
                     })
                     alerts.sort(key=lambda item: int(item.get("slotHour", 0)))
                     delivered.add(match.slot_hour)

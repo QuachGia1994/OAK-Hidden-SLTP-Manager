@@ -8,8 +8,10 @@ import {
   buildTelegramMessage,
   emptyCloudState,
   findH1PatternMatches,
+  postSignalDecision,
   scannerBaseForTarget,
   seedCloudStateFromPublic,
+  signalFromBaseAfterCalendar,
   signalFromPatternBase,
   type H1Direction,
   type H1DirectionBar,
@@ -56,64 +58,50 @@ test("normal SW3 guard skips a slot once the same-direction run reaches four or 
   assert.deepEqual(t5, []);
 });
 
-test("XAU/EUR/AUD keep SW2 and reverse SW3 while CAD/JPY reverse SW2 and follow SW3", () => {
-  for (const base of ["XAUUSD", "EURUSD", "AUDUSD"] as const) {
-    assert.equal(signalFromPatternBase(base, "BUY", "sw2"), "BUY");
-    assert.equal(signalFromPatternBase(base, "SELL", "sw2"), "SELL");
-    for (const kind of ["sw3Pure", "sw3Normal"] as const) {
-      assert.equal(signalFromPatternBase(base, "BUY", kind), "SELL");
-      assert.equal(signalFromPatternBase(base, "SELL", kind), "BUY");
-    }
+test("every pattern keeps the H1 base before calendar post-signal rules", () => {
+  for (const kind of ["sw2", "sw3Pure", "sw3Normal"] as const) {
+    assert.equal(signalFromPatternBase("BUY", kind), "BUY");
+    assert.equal(signalFromPatternBase("SELL", kind), "SELL");
   }
-  for (const base of ["USDCAD", "USDJPY"] as const) {
-    assert.equal(signalFromPatternBase(base, "BUY", "sw2"), "SELL");
-    assert.equal(signalFromPatternBase(base, "SELL", "sw2"), "BUY");
-    for (const kind of ["sw3Pure", "sw3Normal"] as const) {
-      assert.equal(signalFromPatternBase(base, "BUY", kind), "BUY");
-      assert.equal(signalFromPatternBase(base, "SELL", kind), "SELL");
-    }
+  for (const slot of [5, 6, 7, 8, 15, 16, 17]) {
+    assert.equal(signalFromBaseAfterCalendar("BUY", "2026-08-17", slot), "BUY");
+    assert.equal(signalFromBaseAfterCalendar("SELL", "2026-08-17", slot), "SELL");
   }
 });
 
-test("target scanner/base mapping uses own source plus GBPUSD base for CAD and JPY", () => {
+test("target scanner/base mapping is AUDUSD+GBPUSD for XAU and GBPUSD+own-base for every other symbol", () => {
   assert.equal(scannerBaseForTarget("XAUUSD"), "AUDUSD");
   assert.equal(baseSymbolForTarget("XAUUSD"), "GBPUSD");
-  for (const base of ["EURUSD", "AUDUSD"] as const) {
+  for (const base of ["EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
     assert.equal(scannerBaseForTarget(base), "GBPUSD");
     assert.equal(baseSymbolForTarget(base), base);
   }
-  for (const base of ["USDCAD", "USDJPY"] as const) {
-    assert.equal(scannerBaseForTarget(base), base);
-    assert.equal(baseSymbolForTarget(base), "GBPUSD");
-  }
 });
 
-test("USDCAD own-source SW2 reverses GBPUSD base and SW3 follows it", () => {
-  const sw2Match = findH1PatternMatches(bars("GT"), 3).find((item) => item.slotHour === 3)!;
-  const sw2 = buildStoredAlert({
-    base: "USDCAD",
-    brokerSymbol: "USDCAD",
-    scannerBase: "USDCAD",
-    scannerSymbol: "USDCAD",
-    match: sw2Match,
-    baseSymbol: "GBPUSD",
-    baseBar: bars("T", 2)[0],
-  });
-  assert.equal(sw2.baseH1Signal, "BUY");
-  assert.equal(sw2.symbolH1Signal, "SELL");
+test("Monday Tuesday Wednesday post-signal blocks invert only their configured slots", () => {
+  for (const slot of [3, 4, 9, 10, 11, 12, 13, 14]) assert.equal(postSignalDecision("2026-08-17", slot).inverted, true);
+  for (const slot of [5, 6, 7, 8, 15, 16, 17]) assert.equal(postSignalDecision("2026-08-17", slot).inverted, false);
+  for (const slot of [3, 4, 9, 10, 11]) assert.equal(postSignalDecision("2026-08-18", slot).inverted, true);
+  for (const slot of [5, 8, 12, 13, 14, 17]) assert.equal(postSignalDecision("2026-08-18", slot).inverted, false);
+  for (const slot of [3, 4, 12, 13, 14]) assert.equal(postSignalDecision("2026-08-19", slot).inverted, true);
+  for (const slot of [5, 8, 9, 10, 11, 15, 17]) assert.equal(postSignalDecision("2026-08-19", slot).inverted, false);
+});
 
-  const pureMatch = findH1PatternMatches(bars("GGT"), 4).find((item) => item.slotHour === 4)!;
-  const pure = buildStoredAlert({
-    base: "USDCAD",
-    brokerSymbol: "USDCAD",
-    scannerBase: "USDCAD",
-    scannerSymbol: "USDCAD",
-    match: pureMatch,
-    baseSymbol: "GBPUSD",
-    baseBar: bars("T", 3)[0],
-  });
-  assert.equal(pure.baseH1Signal, "BUY");
-  assert.equal(pure.symbolH1Signal, "BUY");
+test("Thursday special cycle recalculates at the Thursday before the first-week Friday", () => {
+  assert.deepEqual(postSignalDecision("2026-07-02", 8), { inverted: true, rule: "thu-cycle" });
+  assert.deepEqual(postSignalDecision("2026-07-30", 14), { inverted: true, rule: "thu-cycle" });
+  assert.deepEqual(postSignalDecision("2026-08-06", 8), { inverted: false, rule: "none" });
+  assert.deepEqual(postSignalDecision("2026-08-13", 14), { inverted: false, rule: "none" });
+  assert.deepEqual(postSignalDecision("2026-10-01", 8), { inverted: true, rule: "thu-cycle" });
+  assert.deepEqual(postSignalDecision("2026-10-08", 14), { inverted: true, rule: "thu-cycle" });
+});
+
+test("Friday special cycle uses first Friday day 3 4 or 7 and carries weekly until recalculation", () => {
+  assert.deepEqual(postSignalDecision("2026-05-01", 8), { inverted: false, rule: "none" });
+  assert.deepEqual(postSignalDecision("2026-05-08", 14), { inverted: false, rule: "none" });
+  assert.deepEqual(postSignalDecision("2026-08-07", 8), { inverted: true, rule: "fri-cycle" });
+  assert.deepEqual(postSignalDecision("2026-08-21", 14), { inverted: true, rule: "fri-cycle" });
+  assert.deepEqual(postSignalDecision("2026-09-04", 8), { inverted: true, rule: "fri-cycle" });
 });
 
 test("pure SW3 exactly two slots after an accepted pure is skipped and tracking resets", () => {
@@ -144,13 +132,16 @@ test("accepted pure SW3 Telegram marks /!\\ with no repeat warning metadata", ()
   assert.equal(alert.patternKind, "sw3Pure");
   assert.equal(alert.baseH1Signal, "BUY");
   assert.equal(alert.symbolH1Signal, "SELL");
+  assert.equal(alert.postSignalRule, "fri-cycle");
   const message = buildTelegramMessage("XAUUSD", "2026-08-21", alert);
   assert.match(message, /\/!\\ SW 3 cây thuần/);
+  assert.match(message, /Logic pattern: giữ nguyên GBPUSD H1/);
+  assert.match(message, /Hậu signal: đảo theo chu kỳ Thứ 6 special/);
   assert.match(message, /Signal XAUUSD H1: SELL/);
   assert.doesNotMatch(message, /đã xuất hiện|vẫn tính signal|Hậu kiểm|post-check/i);
 });
 
-test("normal SW3 reverses the target base with no post-check metadata", () => {
+test("normal SW3 keeps the base then calendar post-signal decides the final side", () => {
   const match = findH1PatternMatches(bars("TTT"), 4).find((item) => item.slotHour === 4)!;
   const alert = buildStoredAlert({
     base: "EURUSD",
@@ -163,6 +154,7 @@ test("normal SW3 reverses the target base with no post-check metadata", () => {
   });
   assert.equal(alert.patternKind, "sw3Normal");
   assert.equal(alert.baseH1Signal, "SELL");
+  assert.equal(alert.postSignalRule, "fri-cycle");
   assert.equal(alert.symbolH1Signal, "BUY");
   assert.equal("previousPureSlot" in alert, false);
 });
@@ -197,7 +189,7 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 7);
+  assert.equal(state.version, 8);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
@@ -216,6 +208,7 @@ test("public feed v7 contains accepted pure signals without repeat metadata", ()
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
+  assert.equal(feed.signalRuleVersion, 2);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");
   assert.equal(row?.signal, "SELL");

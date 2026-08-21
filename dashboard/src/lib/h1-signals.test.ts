@@ -10,8 +10,8 @@ const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx"
 
 test("H1 web feed has independent schema-7 Upstash contract", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 7/);
-  assert.match(readerSource, /USDCAD/);
-  assert.match(readerSource, /USDJPY/);
+  assert.match(readerSource, /postSignalInverted/);
+  assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /sw2/);
@@ -35,11 +35,12 @@ test("engine web surface is H1-only and profiles from cTrader feed", () => {
   assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
 });
 
-test("H1 detail renders the three source classes without repeat or post-check logic", () => {
+test("H1 detail renders pattern keep-base plus calendar post-signal evidence", () => {
   assert.match(boardSource, /Nguồn scanner|Pattern source/);
   assert.match(boardSource, /Base H1 · \{alert\.baseSymbol\}/);
   assert.match(boardSource, /Nhóm pattern/);
-  assert.match(boardSource, /Logic nguồn/);
+  assert.match(boardSource, /Logic pattern/);
+  assert.match(boardSource, /Hậu signal/);
   assert.match(boardSource, /Signal \{base\} H1/);
   assert.match(boardSource, /sw2/);
   assert.match(boardSource, /sw3Pure/);

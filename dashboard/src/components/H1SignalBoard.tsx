@@ -34,10 +34,18 @@ function patternLabel(kind: H1PatternKind, locale: Locale) {
   return labels[kind][locale];
 }
 
-function targetBehavior(kind: H1PatternKind, baseSymbol: string, locale: Locale) {
-  const follow = kind === "sw2";
-  if (locale === "EN") return follow ? `follow ${baseSymbol} H1` : `reverse ${baseSymbol} H1`;
-  return follow ? `giữ nguyên ${baseSymbol} H1` : `đảo ${baseSymbol} H1`;
+function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolean | undefined, locale: Locale) {
+  if (!rule) return "—";
+  const labels = {
+    none: { EN: "no inversion", VN: "không đảo" },
+    "mon-block": { EN: "reverse by Monday block", VN: "đảo theo block Thứ 2" },
+    "tue-block": { EN: "reverse by Tuesday block", VN: "đảo theo block Thứ 3" },
+    "wed-block": { EN: "reverse by Wednesday block", VN: "đảo theo block Thứ 4" },
+    "thu-cycle": { EN: "reverse by Thursday special cycle", VN: "đảo theo chu kỳ Thứ 5 special" },
+    "fri-cycle": { EN: "reverse by Friday special cycle", VN: "đảo theo chu kỳ Thứ 6 special" },
+  } as const;
+  if (!inverted && rule === "none") return labels.none[locale];
+  return labels[rule][locale];
 }
 
 function useDialogFocus(onClose: () => void) {
@@ -92,7 +100,8 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
           <p><span>{locale === "EN" ? "Pattern source" : "Nguồn scanner"}</span><b>{alert.scannerBase}</b></p>
           <p><span>Base H1 · {alert.baseSymbol}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? `Source ${base} logic` : `Logic nguồn ${base}`}</span><b>{targetBehavior(alert.patternKind, alert.baseSymbol, locale)}</b></p>
+          <p><span>{locale === "EN" ? "Pattern logic" : "Logic pattern"}</span><b>{locale === "EN" ? `follow ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}</b></p>
+          <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
           <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>

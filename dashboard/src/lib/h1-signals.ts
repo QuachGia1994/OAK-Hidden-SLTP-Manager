@@ -4,7 +4,8 @@ import { redis } from "./redis-core";
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1ScannerBase = "AUDUSD" | "GBPUSD" | "USDCAD" | "USDJPY";
+export type H1ScannerBase = "AUDUSD" | "GBPUSD";
+export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1SignalAlert = {
   slotHour: number;
@@ -20,6 +21,8 @@ export type H1SignalAlert = {
   baseHour: number | null;
   baseDirection: "T" | "G" | "";
   signal: H1SignalSide | null;
+  postSignalInverted?: boolean;
+  postSignalRule?: H1PostSignalRule;
 };
 
 export type H1SymbolDay = {
@@ -32,6 +35,7 @@ export type H1SignalDay = {
 
 export type H1SignalPayload = {
   schemaVersion: number;
+  signalRuleVersion?: number;
   profile: string;
   publishedAt: string;
   hours: number[];

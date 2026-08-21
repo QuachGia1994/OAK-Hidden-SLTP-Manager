@@ -9,7 +9,7 @@ from domain.h1_signal_public_feed import PUBLIC_SCHEMA, build_public_h1_feed, pu
 
 def sample_state():
     return {
-        "version": 7,
+        "version": 8,
         "days": {
             "2026-08-20": {
                 "symbols": {
@@ -28,7 +28,9 @@ def sample_state():
                                 "baseH1Signal": "BUY",
                                 "baseHour": 5,
                                 "baseDirection": "T",
-                                "symbolH1Signal": "SELL",
+                                "symbolH1Signal": "BUY",
+                                "postSignalInverted": False,
+                                "postSignalRule": "none",
                             },
                             {"slotHour": 7, "pattern": "T G T", "patternKind": "obsolete"},
                         ],
@@ -42,6 +44,7 @@ def sample_state():
 def test_build_public_h1_feed_normalizes_schema7_without_repeat_metadata():
     feed = build_public_h1_feed(sample_state(), "Vantage", published_at="2026-08-20T13:20:00+00:00")
     assert feed["schemaVersion"] == PUBLIC_SCHEMA == 7
+    assert feed["signalRuleVersion"] == 2
     assert feed["profile"] == "Vantage"
     assert feed["hours"] == list(range(3, 18))
     assert feed["symbols"] == ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"]
@@ -50,7 +53,9 @@ def test_build_public_h1_feed_normalizes_schema7_without_repeat_metadata():
     alert = xau["alerts"][0]
     assert alert["patternKind"] == "sw3Pure"
     assert "previousPureSlot" not in alert
-    assert alert["signal"] == "SELL"
+    assert alert["signal"] == "BUY"
+    assert alert["postSignalInverted"] is False
+    assert alert["postSignalRule"] == "none"
     assert "sourceSignal" not in alert
     assert "postCheckApplied" not in alert
 
@@ -78,6 +83,7 @@ def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
 
     feed = publish_h1_signal_state(sample_state(), "Vantage")
     assert feed["schemaVersion"] == 7
+    assert feed["signalRuleVersion"] == 2
     assert len(requests) == 2
     commands = [json.loads(request.data.decode("utf-8")) for request, _timeout in requests]
     assert commands[0][0:2] == ["SET", "robot-sltp:public:h1-signals:Vantage"]
@@ -86,4 +92,5 @@ def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
     assert alert["scannerBase"] == "AUDUSD"
     assert alert["baseSymbol"] == "GBPUSD"
     assert "previousPureSlot" not in alert
-    assert alert["signal"] == "SELL"
+    assert alert["signal"] == "BUY"
+    assert alert["postSignalRule"] == "none"

@@ -14,7 +14,9 @@ PUBLIC_SCHEMA = 7
 KEY_PREFIX = "robot-sltp:public:h1-signals:"
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
 PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Normal"}
-SCANNER_BASES = {"AUDUSD", "GBPUSD", "USDCAD", "USDJPY"}
+SCANNER_BASES = {"AUDUSD", "GBPUSD"}
+POST_SIGNAL_RULES = {"none", "mon-block", "tue-block", "wed-block", "thu-cycle", "fri-cycle"}
+SIGNAL_RULE_VERSION = 2
 
 
 def _load_dotenv() -> None:
@@ -35,7 +37,7 @@ def build_public_h1_feed(
     published_at: str | None = None,
 ) -> dict[str, Any]:
     """Normalize persisted fallback state into public scanner schema v7."""
-    if not isinstance(state, dict) or state.get("version") != 7 or not isinstance(state.get("days"), dict):
+    if not isinstance(state, dict) or state.get("version") != 8 or not isinstance(state.get("days"), dict):
         raise ValueError("Invalid H1 scanner state")
 
     public_days: dict[str, Any] = {}
@@ -66,6 +68,8 @@ def build_public_h1_feed(
                     scanner_base = str(alert.get("scannerBase") or "").strip().upper()
                     base_symbol = str(alert.get("baseSymbol") or "").strip().upper()
                     base_hour = alert.get("baseHour")
+                    post_signal_rule = str(alert.get("postSignalRule") or "").strip()
+                    post_signal_inverted = alert.get("postSignalInverted")
                     if (
                         signal not in {"BUY", "SELL"}
                         or base_signal not in {"BUY", "SELL"}
@@ -74,6 +78,8 @@ def build_public_h1_feed(
                         or scanner_base not in SCANNER_BASES
                         or not base_symbol
                         or not isinstance(base_hour, int)
+                        or post_signal_rule not in POST_SIGNAL_RULES
+                        or not isinstance(post_signal_inverted, bool)
                     ):
                         continue
                     public_alerts.append({
@@ -90,12 +96,15 @@ def build_public_h1_feed(
                         "baseHour": base_hour,
                         "baseDirection": base_direction,
                         "signal": signal,
+                        "postSignalInverted": post_signal_inverted,
+                        "postSignalRule": post_signal_rule,
                     })
             public_symbols[base] = {"alerts": public_alerts}
         public_days[str(day_key)] = {"symbols": public_symbols}
 
     return {
         "schemaVersion": PUBLIC_SCHEMA,
+        "signalRuleVersion": SIGNAL_RULE_VERSION,
         "profile": str(profile or "unknown"),
         "publishedAt": published_at or datetime.now(timezone.utc).isoformat(),
         "hours": list(range(3, 18)),
