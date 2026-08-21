@@ -30,6 +30,8 @@ const PUBLIC_PROFILE_KEY = `robot-sltp:public:h1-signals:${H1_CLOUD_PROFILE}`;
 const RUN_TICKET_HEADER = "x-h1-run-ticket";
 const RUN_TICKET_PREFIX = "oak:h1:run-ticket:";
 const LOCK_SECONDS = 90;
+const FINALIZE_RETRY_ATTEMPTS = 4;
+const FINALIZE_RETRY_DELAY_MS = 2_500;
 
 type RunSummary = {
   base: string;
@@ -106,6 +108,35 @@ async function releaseLock(token: string): Promise<void> {
   }
 }
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function requiredBasesForBrokerHour(hour: number) {
+  return hour === 3
+    ? (["GBPUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const)
+    : (["GBPUSD", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const);
+}
+
+function marketReadyForSlot(
+  market: Awaited<ReturnType<typeof fetchCurrentBrokerDayH1>>,
+  brokerHour: number,
+) {
+  const expectedClosedHour = brokerHour - 1;
+  return requiredBasesForBrokerHour(brokerHour).every((base) =>
+    market.symbols[base].bars.some((bar) => bar.hour === expectedClosedHour),
+  );
+}
+
+async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, brokerHour: number) {
+  let market = await fetchCurrentBrokerDayH1(session, nowMs);
+  for (let attempt = 1; attempt < FINALIZE_RETRY_ATTEMPTS && !marketReadyForSlot(market, brokerHour); attempt += 1) {
+    await delay(FINALIZE_RETRY_DELAY_MS);
+    market = await fetchCurrentBrokerDayH1(session, Date.now());
+  }
+  return market;
+}
+
 function sessionConfig(token: Awaited<ReturnType<typeof getFreshCTraderTokens>>): CTraderScannerSession {
   if (!token) throw new Error("cTrader account has not been authorised");
   const clientId = process.env.OAK_CTRADER_CLIENT_ID || "";
@@ -142,12 +173,16 @@ export async function POST(request: Request) {
 
   const nowMs = Date.now();
   const wall = brokerWallParts(nowMs);
-  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < 3) {
+  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < 3 || wall.hour > 17) {
     return NextResponse.json({
       ok: true,
       enabled,
       dryRun,
-      skipped: wall.weekday === 0 || wall.weekday === 6 ? "broker-weekend" : "before-first-slot",
+      skipped: wall.weekday === 0 || wall.weekday === 6
+        ? "broker-weekend"
+        : wall.hour < 3
+          ? "before-first-slot"
+          : "after-last-slot",
       brokerDate: wall.dateKey,
       brokerHour: wall.hour,
     }, { headers: { "Cache-Control": "no-store" } });
@@ -161,7 +196,19 @@ export async function POST(request: Request) {
   try {
     const { state, source } = await loadState();
     const tokens = await getFreshCTraderTokens();
-    const market = await fetchCurrentBrokerDayH1(sessionConfig(tokens), nowMs);
+    const session = sessionConfig(tokens);
+    const market = await fetchReadyMarket(session, nowMs, wall.hour);
+    if (!marketReadyForSlot(market, wall.hour)) {
+      return NextResponse.json({
+        ok: true,
+        enabled,
+        dryRun,
+        skipped: "awaiting-closed-h1",
+        brokerDate: market.brokerDate,
+        brokerHour: market.brokerHour,
+        brokerMinute: market.brokerMinute,
+      }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    }
     const gbpByHour = new Map(market.symbols.GBPUSD.bars.map((bar) => [bar.hour, bar]));
     const pending: RunSummary[] = [];
     let sent = 0;

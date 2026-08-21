@@ -1,8 +1,8 @@
-name: H1 Cloud Scanner
+name: Telegram Cloud Control
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -10,11 +10,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: h1-cloud-scanner
+  group: telegram-cloud-control
   cancel-in-progress: false
 
 jobs:
-  run-scanner:
+  due-tick:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -24,12 +24,12 @@ jobs:
         run: |
           token_json="$(curl --fail-with-body --silent --show-error \
             -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=oak-h1-cloud-scanner")"
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=oak-telegram-cloud-control")"
           token="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$token_json")"
           test -n "$token"
           echo "token=$token" >> "$GITHUB_OUTPUT"
 
-      - name: Trigger private scanner route
+      - name: Trigger due-intent tick
         env:
           OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
         run: |
@@ -38,4 +38,4 @@ jobs:
             -X POST \
             -H "Authorization: Bearer $OIDC_TOKEN" \
             -H "Content-Type: application/json" \
-            https://www.oakgatekeeper.uk/api/h1-scanner/run
+            https://www.oakgatekeeper.uk/api/telegram/tick

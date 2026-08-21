@@ -25,6 +25,15 @@ class TelegramReceiverLockTests(unittest.TestCase):
         self.assertIn("_pid_is_live(old_pid)", acquire)
         self.assertIn("Telegram receiver already running", acquire)
 
+    def test_cloud_webhook_ownership_is_not_stolen_by_desktop_fallback(self):
+        self.assertIn("def _active_webhook_url() -> str:", SOURCE)
+        self.assertIn("getWebhookInfo", SOURCE)
+        self.assertNotIn("deleteWebhook", SOURCE)
+        main = SOURCE.split("def main() -> int:", 1)[1].split('if __name__ == "__main__":', 1)[0]
+        self.assertIn("webhook_url = _active_webhook_url()", main)
+        self.assertIn("Telegram cloud webhook active", main)
+        self.assertLess(main.index("_active_webhook_url()"), main.index("_acquire_lock()"))
+
 
 if __name__ == "__main__":
     unittest.main()

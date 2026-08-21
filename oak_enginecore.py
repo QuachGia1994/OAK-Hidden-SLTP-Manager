@@ -6,6 +6,7 @@ Trading, scheduling, profile scoping and MT5 mutations remain inside the worker.
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -189,21 +190,32 @@ def _release_lock() -> None:
         guard.__exit__(None, None, None)
 
 
-def _drop_webhook() -> None:
+def _active_webhook_url() -> str:
+    """Return the configured Telegram webhook URL, if any.
+
+    Cloud webhook ownership is authoritative. The desktop fallback receiver must
+    never delete or steal an active webhook merely because the app was opened.
+    """
     try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/deleteWebhook?drop_pending_updates=false"
-        urllib.request.urlopen(url, timeout=10).read()
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/getWebhookInfo"
+        payload = json.loads(urllib.request.urlopen(url, timeout=10).read().decode("utf-8"))
+        if payload.get("ok") and isinstance(payload.get("result"), dict):
+            return str(payload["result"].get("url") or "").strip()
     except Exception as exc:
-        print(f"[WARN] deleteWebhook failed: {exc}")
+        print(f"[WARN] getWebhookInfo failed: {exc}")
+    return ""
 
 
 def main() -> int:
     if not ADMIN_CHAT_ID:
         print("[ERROR] Missing telegram_chat_id in config.json", file=sys.stderr)
         return 2
+    webhook_url = _active_webhook_url()
+    if webhook_url:
+        print(f"[EXIT] Telegram cloud webhook active: {webhook_url}", flush=True)
+        return 0
     if not _acquire_lock():
         return 0
-    _drop_webhook()
     print(f"[OAK EngineCore] Telegram receiver ready · PID {os.getpid()}", flush=True)
     failures = 0
     try:

@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 const readerSource = readFileSync(new URL("./h1-signals.ts", import.meta.url), "utf8");
 const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
+const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
+const engineBoardSource = readFileSync(new URL("../components/Pattern5Board.tsx", import.meta.url), "utf8");
 
 test("H1 web feed has an independent versioned Upstash contract", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 2/);
@@ -20,6 +22,13 @@ test("H1 cells render only the published BUY\/SELL signal", () => {
   assert.match(boardSource, /data\.hours\.map/);
   assert.doesNotMatch(boardSource, /entryTime|ENTRY|minute\s*=\s*49|minute\s*=\s*11/);
   assert.doesNotMatch(readerSource, /entryTime/);
+});
+
+test("engine web surface is H1-only and profiles from cTrader feed", () => {
+  assert.doesNotMatch(enginePageSource, /getLatestPattern5|filterActivePattern5|maskFuturePattern5|redactPattern5Signals/);
+  assert.doesNotMatch(engineBoardSource, /Pattern5Payload|Pattern5Table|H4|ENGINE 05|Pattern Matrix|Trạng thái tín hiệu hiện tại/);
+  assert.match(engineBoardSource, /h1Data\?\.profile \|\| "cTrader IcMarkets"/);
+  assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
 });
 
 test("H1 detail uses pattern-local signal rule and has no day classification", () => {

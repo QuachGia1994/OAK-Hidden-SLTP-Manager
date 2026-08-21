@@ -16,6 +16,7 @@ type SetupBody = {
   enabled?: boolean;
   telegramToken?: string;
   telegramChatId?: string;
+  telegramWebhookSecret?: string;
 };
 
 async function authorize(request: Request): Promise<NextResponse | null> {
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
     const current = await loadH1CloudConfig();
     const telegramToken = String(body.telegramToken ?? current?.telegramToken ?? "").trim();
     const telegramChatId = String(body.telegramChatId ?? current?.telegramChatId ?? "").trim();
+    const telegramWebhookSecret = String(body.telegramWebhookSecret ?? current?.telegramWebhookSecret ?? "").trim();
     const enabled = typeof body.enabled === "boolean" ? body.enabled : Boolean(current?.enabled);
 
     if (telegramToken.length < 20 || telegramToken.length > 256 || !telegramToken.includes(":")) {
@@ -44,8 +46,11 @@ export async function POST(request: Request) {
     if (!/^-?\d{4,32}$/.test(telegramChatId)) {
       return NextResponse.json({ ok: false, error: "Invalid Telegram chat ID." }, { status: 400 });
     }
+    if (telegramWebhookSecret && !/^[A-Za-z0-9_-]{32,128}$/.test(telegramWebhookSecret)) {
+      return NextResponse.json({ ok: false, error: "Invalid Telegram webhook secret." }, { status: 400 });
+    }
 
-    const saved = { enabled, telegramToken, telegramChatId, savedAt: Date.now() };
+    const saved = { enabled, telegramToken, telegramChatId, telegramWebhookSecret, savedAt: Date.now() };
     await saveH1CloudConfig(saved);
     return NextResponse.json({ ok: true, ...safeH1CloudConfigStatus(saved) }, {
       headers: { "Cache-Control": "no-store, max-age=0" },

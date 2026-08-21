@@ -55,8 +55,13 @@ test("GitHub OIDC verifier fences scanner trigger to repo main and exact workflo
   assert.match(oidc, /schedule.*workflow_dispatch|workflow_dispatch.*schedule/s);
 });
 
-test("GitHub scheduler uses short-lived OIDC and calls the private route hourly without scanner secrets", () => {
-  assert.match(workflow, /cron: "7 \* \* \* \*"/);
+test("GitHub scheduler triggers at H:00 and scanner retries briefly for the closed H1 candle", () => {
+  assert.match(workflow, /cron: "0 \* \* \* \*"/);
+  assert.match(route, /FINALIZE_RETRY_ATTEMPTS = 4/);
+  assert.match(route, /FINALIZE_RETRY_DELAY_MS = 2_500/);
+  assert.match(route, /marketReadyForSlot/);
+  assert.match(route, /awaiting-closed-h1/);
+  assert.match(route, /after-last-slot/);
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /ACTIONS_ID_TOKEN_REQUEST_URL/);
   assert.match(workflow, /audience=oak-h1-cloud-scanner/);

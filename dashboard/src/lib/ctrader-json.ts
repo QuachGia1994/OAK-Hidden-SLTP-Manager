@@ -10,6 +10,8 @@ const PAYLOAD = {
   ACCOUNT_AUTH_RES: 2103,
   SYMBOLS_LIST_REQ: 2114,
   SYMBOLS_LIST_RES: 2115,
+  RECONCILE_REQ: 2124,
+  RECONCILE_RES: 2125,
   GET_TRENDBARS_REQ: 2137,
   GET_TRENDBARS_RES: 2138,
   ERROR_RES: 2142,
@@ -198,6 +200,65 @@ function normalizeTrendbars(rows: unknown[], brokerDate: string, brokerHour: num
     });
   }
   return [...byHour.values()].sort((left, right) => left.hour - right.hour);
+}
+
+export async function fetchCTraderAccountReadSnapshot(
+  session: CTraderScannerSession,
+): Promise<{
+  positionCount: number;
+  orderCount: number;
+  positions: Array<{ positionId: number; symbol: string; side: "BUY" | "SELL" | "UNKNOWN"; volumeRaw: number; price: number | null }>;
+}> {
+  if (session.scope !== "accounts") {
+    throw new Error(`cTrader read snapshot requires accounts-only OAuth scope; got ${session.scope}`);
+  }
+  const host = session.environment === "live" ? "live.ctraderapi.com" : "demo.ctraderapi.com";
+  const socket = await CTraderJsonSocket.connect(`wss://${host}:5036`);
+  try {
+    await socket.request(PAYLOAD.APPLICATION_AUTH_REQ, PAYLOAD.APPLICATION_AUTH_RES, {
+      clientId: session.clientId,
+      clientSecret: session.clientSecret,
+    });
+    await socket.request(PAYLOAD.ACCOUNT_AUTH_REQ, PAYLOAD.ACCOUNT_AUTH_RES, {
+      ctidTraderAccountId: session.accountId,
+      accessToken: session.accessToken,
+    });
+    const symbolsPayload = await socket.request(PAYLOAD.SYMBOLS_LIST_REQ, PAYLOAD.SYMBOLS_LIST_RES, {
+      ctidTraderAccountId: session.accountId,
+      includeArchivedSymbols: false,
+    });
+    const symbolNames = new Map<number, string>();
+    for (const raw of Array.isArray(symbolsPayload.symbol) ? symbolsPayload.symbol : []) {
+      if (!raw || typeof raw !== "object") continue;
+      const row = raw as Record<string, unknown>;
+      const symbolId = Number(row.symbolId || 0);
+      if (Number.isInteger(symbolId) && symbolId > 0) symbolNames.set(symbolId, String(row.symbolName || symbolId));
+    }
+    const reconcile = await socket.request(PAYLOAD.RECONCILE_REQ, PAYLOAD.RECONCILE_RES, {
+      ctidTraderAccountId: session.accountId,
+    });
+    const rawPositions = Array.isArray(reconcile.position) ? reconcile.position : [];
+    const positions = rawPositions.map((raw) => {
+      const row = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      const tradeData = row.tradeData && typeof row.tradeData === "object" ? row.tradeData as Record<string, unknown> : {};
+      const symbolId = Number(tradeData.symbolId || 0);
+      const tradeSide = Number(tradeData.tradeSide || 0);
+      return {
+        positionId: Number(row.positionId || 0),
+        symbol: symbolNames.get(symbolId) || String(symbolId || "?"),
+        side: tradeSide === 1 ? "BUY" as const : tradeSide === 2 ? "SELL" as const : "UNKNOWN" as const,
+        volumeRaw: Number(tradeData.volume || 0),
+        price: Number.isFinite(Number(row.price)) ? Number(row.price) : null,
+      };
+    });
+    return {
+      positionCount: positions.length,
+      orderCount: Array.isArray(reconcile.order) ? reconcile.order.length : 0,
+      positions,
+    };
+  } finally {
+    socket.close();
+  }
 }
 
 export async function fetchCurrentBrokerDayH1(

@@ -12,6 +12,8 @@ export type H1CloudConfig = {
   enabled: boolean;
   telegramToken: string;
   telegramChatId: string;
+  telegramWebhookSecret?: string;
+  telegramControlEnabled?: boolean;
   savedAt: number;
 };
 
@@ -66,6 +68,12 @@ function decryptConfig(value: unknown): H1CloudConfig {
   ) {
     throw new Error("Invalid H1 cloud config payload");
   }
+  if (parsed.telegramWebhookSecret !== undefined && typeof parsed.telegramWebhookSecret !== "string") {
+    throw new Error("Invalid H1 cloud Telegram webhook secret");
+  }
+  if (parsed.telegramControlEnabled !== undefined && typeof parsed.telegramControlEnabled !== "boolean") {
+    throw new Error("Invalid Telegram cloud-control flag");
+  }
   return parsed as H1CloudConfig;
 }
 
@@ -82,6 +90,8 @@ export function safeH1CloudConfigStatus(record: H1CloudConfig | null) {
   return {
     configured: Boolean(record?.telegramToken && record?.telegramChatId),
     enabled: Boolean(record?.enabled),
+    webhookConfigured: Boolean(record?.telegramWebhookSecret),
+    telegramControlEnabled: Boolean(record?.telegramControlEnabled),
     savedAt: record?.savedAt || 0,
   };
 }
