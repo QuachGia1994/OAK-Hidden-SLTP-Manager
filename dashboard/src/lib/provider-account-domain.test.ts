@@ -7,6 +7,9 @@ import {
   normalizeMt5Registration,
   normalizePositivePoints,
   parseCTraderProviderAccountId,
+  providerProtectionPoints,
+  resolveEnabledProviderTargets,
+  type ProviderAccountSummary,
 } from "./provider-account-domain.ts";
 
 const panelSource = readFileSync(new URL("../components/ProviderAccountsPanel.tsx", import.meta.url), "utf8");
@@ -46,6 +49,19 @@ test("protection points and labels fail closed", () => {
   ], " main ", "mt5:a"));
 });
 
+test("provider routing selects explicit bridge profiles and otherwise fans out to enabled accounts", () => {
+  const accounts: ProviderAccountSummary[] = [
+    { id: "ctrader:11", provider: "ctrader", broker: "ICMarkets", environment: "live", externalAccountId: "11", traderLogin: 101, label: "cTrader Main", enabled: true, isDefault: false, connectionMode: "oauth", bridgeProfile: null, fxSlPoints: 500, fxTpPoints: 10000, goldSlPoints: 1000, goldTpPoints: 20000, updatedAt: 1 },
+    { id: "mt5:abcdefgh", provider: "mt5", broker: "Vantage", environment: "live", externalAccountId: "202", traderLogin: 202, label: "MT5 Main", enabled: true, isDefault: false, connectionMode: "bridge", bridgeProfile: "Vantage", fxSlPoints: 600, fxTpPoints: 12000, goldSlPoints: 1200, goldTpPoints: 22000, updatedAt: 1 },
+  ];
+  assert.deepEqual(resolveEnabledProviderTargets(accounts).map((item) => item.id), ["ctrader:11", "mt5:abcdefgh"]);
+  assert.deepEqual(resolveEnabledProviderTargets(accounts, "Vantage").map((item) => item.id), ["mt5:abcdefgh"]);
+  const ambiguous = accounts.map((item) => ({ ...item, externalAccountId: "202" }));
+  assert.deepEqual(resolveEnabledProviderTargets(ambiguous, "202"), []);
+  assert.deepEqual(providerProtectionPoints(accounts[1], "XAUUSD"), { sl: 1200, tp: 22000 });
+  assert.deepEqual(providerProtectionPoints(accounts[1], "GBPUSD"), { sl: 600, tp: 12000 });
+});
+
 test("multi-provider web control plane is admin-only and does not expose broker secrets", () => {
   assert.match(routeSource, /requireAdminOrApiAuth/);
   assert.match(routeSource, /sync-ctrader/);
@@ -54,7 +70,7 @@ test("multi-provider web control plane is admin-only and does not expose broker 
   assert.match(storeSource, /oak:provider-accounts:default:v1/);
   assert.match(panelSource, /Connect cTrader/);
   assert.match(panelSource, /Add MT5 account/);
-  assert.match(panelSource, /Metadata only/);
+  assert.match(panelSource, /outbound bridge/);
   assert.doesNotMatch(panelSource, /name="password"|name="accessToken"|name="refreshToken"|clientSecret/);
   assert.doesNotMatch(routeSource, /password\s*:/i);
 });

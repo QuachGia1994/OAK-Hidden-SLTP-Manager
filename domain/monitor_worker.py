@@ -23,6 +23,7 @@ from domain.json_io import load_json, save_json
 from domain import i18n as _i18n
 from domain.i18n import T, LANG
 from domain.mt5_orders import get_filling_type, send_mutation_idempotent
+from domain.mt5_cloud_bridge import MT5CloudBridge, execute_mt5_bridge_task
 from domain.ticket_manager import TicketManager
 from domain.copy_trade_manager import CopyTradeManager
 from domain.balance import get_start_day_balance
@@ -51,6 +52,7 @@ class MonitorWorker(threading.Thread):
         self._telegram_backoff_until = 0.0
         self._telegram_degraded_logged = False
         self.h1_pattern_scanner = None
+        self.mt5_cloud_bridge = None
 
     def _clear_be_retry_state_for_tickets(self, tickets):
         """Forget retry state once a monitored position is no longer open."""
@@ -500,6 +502,13 @@ class MonitorWorker(threading.Thread):
                 # receive the same identity this worker just connected to.
                 # Does not invent values and does not overwrite configured ones.
                 bind_live_mt5_account_identity(self.config, account)
+                self.mt5_cloud_bridge = MT5CloudBridge(
+                    self.config,
+                    login=int(getattr(account, "login", 0) or 0),
+                    server=str(getattr(account, "server", getattr(account, "company", "")) or ""),
+                    log_callback=self.log,
+                )
+                self.mt5_cloud_bridge.start()
                 connect_msg = f"{T('log_connected')} {account.name} ({account.login}) | Broker: {account.company}"
                 self.log(connect_msg)
                 
@@ -631,6 +640,19 @@ class MonitorWorker(threading.Thread):
                                         _i18n.CURRENT_LANG = new_lang
                         except Exception as e:
                             log.warning("CopyTrade state parse error: %s", e)
+
+                    if self.mt5_cloud_bridge is not None:
+                        bridge_task = self.mt5_cloud_bridge.next_task()
+                        if bridge_task is not None:
+                            try:
+                                bridge_result = execute_mt5_bridge_task(bridge_task, self.config, mt5_module=mt5)
+                            except Exception as bridge_error:
+                                bridge_result = {
+                                    "ok": False,
+                                    "action": str(bridge_task.get("action") or "unknown"),
+                                    "detail": f"MT5 bridge execution failed: {bridge_error}",
+                                }
+                            self.mt5_cloud_bridge.complete(bridge_task, bridge_result)
 
                     # Process Copy Trade
                     self.copy_manager.process()
@@ -1075,6 +1097,8 @@ class MonitorWorker(threading.Thread):
             self.log(f"Runtime Error: {e}")
             self.send_telegram(f"⚠️ Runtime Error: {e}")
         finally:
+            if self.mt5_cloud_bridge is not None:
+                self.mt5_cloud_bridge.stop()
             if self.h1_pattern_scanner is not None:
                 self.h1_pattern_scanner.close()
             self._close_account_audit()

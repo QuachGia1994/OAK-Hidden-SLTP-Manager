@@ -7,6 +7,7 @@ import {
   approvedStatusForDueAt,
   canCancelCloudIntentStatus,
   isDueScheduledIntent,
+  normalizeProviderAccountId,
   type CloudIntent,
   type CloudIntentKind,
 } from "@/lib/telegram-cloud-domain";
@@ -25,9 +26,17 @@ function parseIntent(raw: unknown): CloudIntent | null {
   try {
     const value = typeof raw === "string" ? JSON.parse(raw) : raw;
     if (!value || typeof value !== "object") return null;
-    const task = value as Partial<CloudIntent>;
+    const source = value as Record<string, unknown>;
+    const task = source as Partial<CloudIntent>;
     if (!Number.isInteger(task.id) || !task.kind || !task.status || typeof task.createdAt !== "number") return null;
-    return task as CloudIntent;
+    const targetAccountIds = Array.isArray(source.targetAccountIds)
+      ? [...new Set(source.targetAccountIds.map(normalizeProviderAccountId).filter(Boolean))]
+      : [];
+    const sourcePlan = source.protectionPlan && typeof source.protectionPlan === "object" ? source.protectionPlan as Record<string, { label: string; slPoints: number; tpPoints: number }> : undefined;
+    const protectionPlan = sourcePlan
+      ? Object.fromEntries(Object.entries(sourcePlan).map(([key, plan]) => [normalizeProviderAccountId(key), plan]).filter(([key]) => Boolean(key)))
+      : undefined;
+    return { ...task, profile: TELEGRAM_CLOUD_PROFILE, targetAccountIds, protectionPlan } as CloudIntent;
   } catch {
     return null;
   }
@@ -63,7 +72,7 @@ export async function createCloudIntent(args: {
   dueAt: number | null;
   dueText: string;
   payload: CloudIntent["payload"];
-  targetAccountIds: number[];
+  targetAccountIds: string[];
   protectionPlan?: CloudIntent["protectionPlan"];
   sourceUpdateId?: number;
 }): Promise<CloudIntent> {
@@ -87,7 +96,7 @@ export async function createCloudIntent(args: {
     sourceUpdateId: args.sourceUpdateId,
     dueAt: args.dueAt,
     dueText: args.dueText,
-    targetAccountIds: [...new Set(args.targetAccountIds.filter((value) => Number.isInteger(value) && value > 0))],
+    targetAccountIds: [...new Set(args.targetAccountIds.map(normalizeProviderAccountId).filter(Boolean))],
     protectionPlan: args.protectionPlan,
     payload: args.payload,
   };

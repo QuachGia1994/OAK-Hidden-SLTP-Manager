@@ -81,6 +81,17 @@ test("manual entry requires one explicit confirm and accepts explicit account la
   assert.equal(parsed.payload.tp, 2000);
 });
 
+test("modify accepts an explicit provider account alias", () => {
+  const parsed = parseCloudTelegramCommand("/modify sl GBPUSD 1.0975 @Vantage");
+  assert.equal(parsed.type, "intent");
+  if (parsed.type !== "intent") return;
+  assert.equal(parsed.kind, "modify");
+  assert.equal(parsed.payload.field, "SL");
+  assert.equal(parsed.payload.symbol, "GBPUSD");
+  assert.equal(parsed.payload.value, 1.0975);
+  assert.equal(parsed.payload.legacyProfile, "Vantage");
+});
+
 test("approve command is the explicit broker mutation boundary", () => {
   assert.deepEqual(parseCloudTelegramCommand("/approve 42"), { type: "approve", id: 42 });
   assert.deepEqual(parseCloudTelegramCommand("approve 7"), { type: "approve", id: 7 });

@@ -9,7 +9,10 @@ import {
   type CTraderScannerSession,
 } from "@/lib/ctrader-json";
 import { listManagedCTraderAccounts, type CTraderManagedAccount } from "@/lib/ctrader-accounts";
-import type { CloudIntent } from "@/lib/telegram-cloud-domain";
+import { executeMt5BridgeAction } from "@/lib/mt5-bridge";
+import { listProviderAccounts } from "@/lib/provider-accounts";
+import { parseCTraderProviderAccountId, type ProviderAccountSummary } from "@/lib/provider-account-domain";
+import type { CloudExecutionResult, CloudIntent } from "@/lib/telegram-cloud-domain";
 
 export type CloudExecutionOutcome = {
   status: "executed" | "partial" | "failed" | "uncertain";
@@ -52,19 +55,19 @@ function requireNumber(value: unknown, name: string): number {
   return number;
 }
 
-function preflight(task: CloudIntent, accounts: CTraderManagedAccount[]) {
+function preflight(task: CloudIntent, accounts: ProviderAccountSummary[]): ProviderAccountSummary[] {
   if (!task.targetAccountIds.length) throw new Error("Intent has no target account");
-  const byId = new Map(accounts.map((item) => [item.accountId, item]));
-  const targets = task.targetAccountIds.map((id) => byId.get(id)).filter((item): item is CTraderManagedAccount => Boolean(item));
+  const byId = new Map(accounts.map((account) => [account.id, account]));
+  const targets = task.targetAccountIds.map((id) => byId.get(id)).filter((account): account is ProviderAccountSummary => Boolean(account));
   if (targets.length !== task.targetAccountIds.length) throw new Error("One or more target accounts are no longer managed");
-  if (targets.some((item) => !item.enabled)) throw new Error("One or more target accounts are disabled");
+  if (targets.some((account) => !account.enabled)) throw new Error("One or more target accounts are disabled");
   if (task.kind === "entry") {
     requireNumber(task.payload.lot, "Lot");
     const symbol = String(task.payload.symbol || "").trim();
     const side = String(task.payload.side || "").toUpperCase();
     if (!symbol || (side !== "BUY" && side !== "SELL")) throw new Error("Entry intent is incomplete");
     for (const account of targets) {
-      const protection = task.protectionPlan?.[String(account.accountId)];
+      const protection = task.protectionPlan?.[account.id];
       if (!protection) throw new Error(`Missing SL/TP snapshot for @${account.label}`);
       requireNumber(protection.slPoints, "SL points");
       requireNumber(protection.tpPoints, "TP points");
@@ -73,11 +76,12 @@ function preflight(task: CloudIntent, accounts: CTraderManagedAccount[]) {
   return targets;
 }
 
-async function executeForAccount(task: CloudIntent, account: CTraderManagedAccount, session: CTraderScannerSession) {
+async function executeCTraderForAccount(task: CloudIntent, account: CTraderManagedAccount, session: CTraderScannerSession): Promise<CTraderMutationResult[]> {
   if (task.kind === "entry") {
-    const protection = task.protectionPlan?.[String(account.accountId)];
+    const accountId = `ctrader:${account.accountId}`;
+    const protection = task.protectionPlan?.[accountId];
     if (!protection) throw new Error(`Missing SL/TP snapshot for @${account.label}`);
-    const result = await placeCTraderMarketOrder({
+    return [await placeCTraderMarketOrder({
       session,
       symbol: String(task.payload.symbol || ""),
       side: String(task.payload.side || "").toUpperCase() as "BUY" | "SELL",
@@ -86,8 +90,7 @@ async function executeForAccount(task: CloudIntent, account: CTraderManagedAccou
       tpPoints: protection.tpPoints,
       clientOrderId: `oak-tg-${task.id}-${account.accountId}`,
       label: `OAK TG #${task.id}`,
-    });
-    return [result];
+    })];
   }
   if (task.kind === "close") {
     const scope = String(task.payload.scope || "ALL").toUpperCase();
@@ -103,29 +106,66 @@ async function executeForAccount(task: CloudIntent, account: CTraderManagedAccou
   });
 }
 
-export async function executeClaimedCloudIntent(task: CloudIntent): Promise<CloudExecutionOutcome> {
-  const token = await getFreshCTraderTokens();
-  if (!token) throw new Error("cTrader OAuth is not connected");
-  if (token.scope !== "trading") throw new Error("cTrader trading permission is required; reconnect from /accounts");
-  const targets = preflight(task, await listManagedCTraderAccounts());
-  const results: NonNullable<CloudIntent["executionResults"]> = [];
+function failed(account: ProviderAccountSummary, action: string, detail: string): CloudExecutionResult {
+  return { accountId: account.id, label: account.label, ok: false, action, detail };
+}
 
-  for (const account of targets) {
+export async function executeClaimedCloudIntent(task: CloudIntent): Promise<CloudExecutionOutcome> {
+  const providers = await listProviderAccounts();
+  const targets = preflight(task, providers);
+  const cTraderAccounts = new Map((await listManagedCTraderAccounts()).map((account) => [account.accountId, account]));
+  const results: CloudExecutionResult[] = [];
+  let token: Awaited<ReturnType<typeof getFreshCTraderTokens>> | undefined;
+
+  for (const provider of targets) {
+    if (provider.provider === "mt5") {
+      results.push(await executeMt5BridgeAction({
+        intentId: task.id,
+        account: provider,
+        action: task.kind,
+        payload: task.payload,
+        protection: task.kind === "entry" ? task.protectionPlan?.[provider.id] : undefined,
+      }));
+      continue;
+    }
+
+    const cTraderAccountId = parseCTraderProviderAccountId(provider.id);
+    const account = cTraderAccountId === null ? undefined : cTraderAccounts.get(cTraderAccountId);
+    if (!account) {
+      results.push(failed(provider, task.kind, "cTrader account is no longer managed"));
+      continue;
+    }
+    if (token === undefined) {
+      try {
+        token = await getFreshCTraderTokens();
+      } catch {
+        token = null;
+      }
+    }
+    if (!token) {
+      results.push(failed(provider, task.kind, "cTrader OAuth is not connected"));
+      continue;
+    }
+    if (token.scope !== "trading") {
+      results.push(failed(provider, task.kind, "cTrader trading permission is required; reconnect from /accounts"));
+      continue;
+    }
+
     try {
-      const rows = await executeForAccount(task, account, sessionFor(account, token));
+      const rows = await executeCTraderForAccount(task, account, sessionFor(account, token));
       const noMatchingPosition = task.kind !== "entry" && rows.length === 0;
       results.push({
-        accountId: account.accountId,
-        label: account.label,
+        accountId: provider.id,
+        label: provider.label,
         ok: true,
         action: task.kind,
-        detail: noMatchingPosition ? "No matching open position" : rows.map((item) => `${item.symbol} ${item.detail}`).join("; "),
+        detail: noMatchingPosition ? "No matching open position" : rows.map((row) => `${row.symbol} ${row.detail}`).join("; "),
         brokerRef: brokerRef(rows),
       });
     } catch (error) {
       results.push({
-        accountId: account.accountId,
-        label: account.label,
+        accountId: provider.id,
+        label: provider.label,
         ok: false,
         uncertain: true,
         action: task.kind,
@@ -134,9 +174,9 @@ export async function executeClaimedCloudIntent(task: CloudIntent): Promise<Clou
     }
   }
 
-  const successCount = results.filter((item) => item.ok).length;
-  const uncertainCount = results.filter((item) => item.uncertain).length;
-  if (successCount === results.length) return { status: "executed", results };
+  const successCount = results.filter((result) => result.ok).length;
+  const uncertainCount = results.filter((result) => result.uncertain).length;
+  if (results.length > 0 && successCount === results.length) return { status: "executed", results };
   if (successCount > 0) return { status: "partial", results, error: "Some target accounts did not confirm execution" };
   if (uncertainCount > 0) return { status: "uncertain", results, error: "Broker execution could not be confirmed; automatic retry is disabled" };
   return { status: "failed", results, error: "Broker execution failed" };

@@ -152,11 +152,17 @@ export async function updateManagedMt5Account(id: string, patch: Partial<Pick<Ma
   if (!current) throw new Error(`Unknown MT5 account: ${id}`);
   const label = patch.label === undefined ? current.label : normalizeAccountLabel(patch.label, `${current.broker} ${current.login}`);
   await ensureUniqueLabel(label, id);
+  const bridgeProfile = patch.bridgeProfile === undefined ? current.bridgeProfile : String(patch.bridgeProfile || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  const enabled = patch.enabled === undefined ? current.enabled : patch.enabled === true;
+  if (enabled && !bridgeProfile) throw new Error("MT5 bridge profile is required before enabling the account");
+  if (enabled && accounts.some((item) => item.id !== id && item.enabled && item.bridgeProfile.trim().toLowerCase() === bridgeProfile.toLowerCase())) {
+    throw new Error(`MT5 bridge profile is already assigned: ${bridgeProfile}`);
+  }
   const next: ManagedMt5Account = {
     ...current,
     label,
-    enabled: patch.enabled === undefined ? current.enabled : patch.enabled === true,
-    bridgeProfile: patch.bridgeProfile === undefined ? current.bridgeProfile : String(patch.bridgeProfile || "").trim().replace(/\s+/g, " ").slice(0, 120),
+    enabled,
+    bridgeProfile,
     fxSlPoints: normalizePositivePoints(patch.fxSlPoints, current.fxSlPoints),
     fxTpPoints: normalizePositivePoints(patch.fxTpPoints, current.fxTpPoints),
     goldSlPoints: normalizePositivePoints(patch.goldSlPoints, current.goldSlPoints),

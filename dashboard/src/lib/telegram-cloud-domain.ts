@@ -1,8 +1,9 @@
-export const TELEGRAM_CLOUD_PROFILE = "cTrader IcMarkets";
+export const TELEGRAM_CLOUD_PROFILE = "OAK Multi-Provider Cloud";
 export const TELEGRAM_CLOUD_EXECUTION_MODE = "confirm_required" as const;
 
 export type CloudIntentKind = "entry" | "close" | "modify";
 export type CloudIntentStatus = "approval_required" | "scheduled" | "approved" | "executing" | "executed" | "partial" | "failed" | "uncertain" | "cancelled" | "expired";
+export type CloudExecutionResult = { accountId: string; label: string; ok: boolean; uncertain?: boolean; action: string; detail: string; brokerRef?: string };
 
 export type CloudIntent = {
   id: number;
@@ -20,12 +21,21 @@ export type CloudIntent = {
   approvedAt?: number;
   executionStartedAt?: number;
   executionFinishedAt?: number;
-  executionResults?: Array<{ accountId: number; label: string; ok: boolean; uncertain?: boolean; action: string; detail: string; brokerRef?: string }>;
+  executionResults?: CloudExecutionResult[];
   executionError?: string;
-  targetAccountIds: number[];
+  targetAccountIds: string[];
   protectionPlan?: Record<string, { label: string; slPoints: number; tpPoints: number }>;
   payload: Record<string, string | number | boolean | null>;
 };
+
+export function normalizeProviderAccountId(value: unknown): string {
+  if (typeof value === "number" && Number.isSafeInteger(value) && value > 0) return `ctrader:${value}`;
+  const text = String(value ?? "").trim();
+  if (/^\d+$/.test(text) && Number(text) > 0) return `ctrader:${text}`;
+  if (/^ctrader:\d+$/.test(text)) return text;
+  if (/^mt5:[A-Za-z0-9_-]{8,80}$/.test(text)) return text;
+  return "";
+}
 
 export function approvedStatusForDueAt(dueAt: number | null, nowMs: number): "approved" | "scheduled" {
   return dueAt !== null && dueAt > nowMs ? "scheduled" : "approved";
@@ -239,18 +249,20 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
     };
   }
   if (command === "/modify") {
-    const field = String(args[0] || "").toLowerCase();
-    const symbol = canonicalSymbol(args[1] || "");
-    const value = Number(args[2]);
-    if (!(["sl", "tp"].includes(field)) || !symbol || !Number.isFinite(value)) {
-      return { type: "unknown", reason: "Cú pháp: /modify sl|tp SYMBOL VALUE" };
+    const scoped = splitLegacyProfile(args);
+    const commandArgs = scoped.tokens;
+    const field = String(commandArgs[0] || "").toLowerCase();
+    const symbol = canonicalSymbol(commandArgs[1] || "");
+    const value = Number(commandArgs[2]);
+    if (!(["sl", "tp"].includes(field)) || !symbol || !Number.isFinite(value) || commandArgs.length !== 3) {
+      return { type: "unknown", reason: "Cú pháp: /modify sl|tp SYMBOL VALUE [PROFILE]" };
     }
     return {
       type: "intent",
       kind: "modify",
       dueAt: null,
       dueText: "ngay khi xác nhận",
-      payload: { field: field.toUpperCase(), symbol, value, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
+      payload: { field: field.toUpperCase(), symbol, value, legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
   }
   if (command === "/del") {
@@ -265,18 +277,18 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
 
 export function renderHelp(): string {
   return [
-    "☁️ cTrader IcMarkets Cloud Control",
-    "• /status — trạng thái cloud/cTrader",
-    "• /profiles — profile cloud hiện tại",
-    "• /positions — vị thế cTrader hiện tại",
+    "☁️ OAK Multi-Provider Cloud Control",
+    "• /status — trạng thái cloud/provider",
+    "• /profiles — các account cTrader/MT5 đã đăng ký",
+    "• /positions — vị thế trên các account đang bật",
     "• /pending — danh sách lệnh đang chờ/đang chạy",
-    "• /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP]",
+    "• /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP] [@ACCOUNT]",
     "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
     "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
     "• /approve ID — xác nhận broker mutation một lần; lệnh hẹn giờ sẽ tự chạy khi đến mốc",
-    "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL]",
+    "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL] [@ACCOUNT]",
     "• Cú pháp desktop cũ vẫn nhận: Buy GBPUSD+ 0.01 14h55 Vantage",
-    "• /modify sl|tp SYMBOL VALUE",
+    "• /modify sl|tp SYMBOL VALUE [@ACCOUNT]",
     "• /del ID | /del all",
     "",
     "Lệnh tác động broker cần /approve ID một lần. Có thể approve trước lệnh hẹn giờ; tới mốc cloud tự chạy, không hỏi lại. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account trước khi xác nhận.",

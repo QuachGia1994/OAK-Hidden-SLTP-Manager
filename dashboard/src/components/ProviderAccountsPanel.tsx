@@ -19,13 +19,15 @@ type Account = {
   fxTpPoints: number;
   goldSlPoints: number;
   goldTpPoints: number;
+  bridgeOnline?: boolean;
+  bridgeLastSeenAt?: number | null;
 };
 
 type AccountPayload = {
   ok: boolean;
   providers: {
     ctrader: { connected: boolean; scope: "accounts" | "trading" | null };
-    mt5: { connected: boolean; mode: "bridge-metadata" };
+    mt5: { connected: boolean; mode: "outbound-bridge" };
   };
   defaultAccountId: string;
   accounts: Account[];
@@ -207,7 +209,7 @@ export function ProviderAccountsPanel() {
   return (
     <section className="oak-account-panel">
       <header className="oak-account-head">
-        <div><small>CLOUD / MULTI-PROVIDER</small><h1>Provider Account Manager</h1><p>cTrader dùng OAuth server-side. MT5 trên web chỉ đăng ký account/profile metadata; terminal/password vẫn nằm ở bridge riêng, không lưu trong browser hay public payload.</p></div>
+        <div><small>CLOUD / MULTI-PROVIDER</small><h1>Provider Account Manager</h1><p>cTrader dùng OAuth server-side. MT5 dùng outbound bridge từ worker đang giữ terminal/profile; password vẫn ở local và không được đưa vào browser hay public payload.</p></div>
         <div className="oak-account-actions">
           <button type="button" onClick={connectCTrader} disabled={Boolean(busy)}>{payload?.providers.ctrader.connected ? "Reconnect cTrader" : "Connect cTrader"}</button>
           <button type="button" onClick={syncCTrader} disabled={Boolean(busy) || !payload?.providers.ctrader.connected}>{busy === "sync-ctrader" ? "Syncing…" : "Sync cTrader"}</button>
@@ -217,7 +219,7 @@ export function ProviderAccountsPanel() {
       <div className="oak-account-status">
         <span>cTrader <b>{payload?.providers.ctrader.connected ? "CONNECTED" : "OFF"}</b></span>
         <span>Scope <b>{payload?.providers.ctrader.scope || "—"}</b></span>
-        <span>MT5 <b>BRIDGE REGISTRY</b></span>
+        <span>MT5 <b>{payload?.providers.mt5.connected ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}</b></span>
         <span>Enabled <b>{enabled}/{accounts.length}</b></span>
       </div>
 
@@ -239,7 +241,7 @@ export function ProviderAccountsPanel() {
         {accounts.map((account) => (
           <form key={account.id} className="oak-account-card" onSubmit={(event) => saveAccount(event, account)}>
             <header>
-              <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}</span></div>
+              <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}{account.provider === "mt5" ? ` · ${account.bridgeOnline ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}` : ""}</span></div>
               <label><input name="enabled" type="checkbox" defaultChecked={account.enabled} /> Enable control</label>
             </header>
             <div className="oak-account-fields">

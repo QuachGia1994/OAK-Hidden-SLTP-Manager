@@ -83,3 +83,27 @@ export function assertUniqueProviderLabels(accounts: Array<Pick<ProviderAccountS
     throw new Error(`Duplicate account label: ${label}`);
   }
 }
+
+export function resolveEnabledProviderTargets(accounts: ProviderAccountSummary[], alias = ""): ProviderAccountSummary[] {
+  const enabled = accounts.filter((account) => account.enabled);
+  const needle = String(alias || "").trim().toLowerCase();
+  if (!needle) return enabled;
+  const exact = enabled.filter((account) =>
+    account.id.toLowerCase() === needle
+    || account.label.trim().toLowerCase() === needle
+    || account.externalAccountId.toLowerCase() === needle
+    || String(account.bridgeProfile || "").trim().toLowerCase() === needle,
+  );
+  if (exact.length === 1) return exact;
+  if (exact.length > 1) return [];
+  const broker = enabled.filter((account) => account.broker.trim().toLowerCase() === needle);
+  if (broker.length === 1) return broker;
+  if (["vantage", "vantagedemo", "darwinex", "th5ers"].includes(needle)) return enabled.length === 1 ? enabled : [];
+  return [];
+}
+
+export function providerProtectionPoints(account: Pick<ProviderAccountSummary, "fxSlPoints" | "fxTpPoints" | "goldSlPoints" | "goldTpPoints">, symbol: string): { sl: number; tp: number } {
+  return /XAU|GOLD/i.test(symbol)
+    ? { sl: account.goldSlPoints, tp: account.goldTpPoints }
+    : { sl: account.fxSlPoints, tp: account.fxTpPoints };
+}

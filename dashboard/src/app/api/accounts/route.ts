@@ -3,6 +3,7 @@ import { requireAdminOrApiAuth } from "@/lib/admin-auth";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { fetchCTraderGrantedAccounts } from "@/lib/ctrader-json";
 import { syncManagedCTraderAccounts } from "@/lib/ctrader-accounts";
+import { getMt5BridgeHeartbeat } from "@/lib/mt5-bridge";
 import {
   clearDefaultProviderAccount,
   createManagedMt5Account,
@@ -30,14 +31,20 @@ async function responsePayload() {
   } catch {
     token = null;
   }
+  const accounts = await listProviderAccounts();
+  const accountsWithStatus = await Promise.all(accounts.map(async (account) => {
+    if (account.provider !== "mt5" || !account.bridgeProfile) return { ...account, bridgeOnline: false };
+    const heartbeat = await getMt5BridgeHeartbeat(account.bridgeProfile);
+    return { ...account, bridgeOnline: heartbeat?.login === account.traderLogin, bridgeLastSeenAt: heartbeat?.at || null };
+  }));
   return {
     ok: true,
     providers: {
       ctrader: { connected: Boolean(token), scope: token?.scope || null },
-      mt5: { connected: true, mode: "bridge-metadata" as const },
+      mt5: { connected: accountsWithStatus.some((account) => account.provider === "mt5" && account.bridgeOnline), mode: "outbound-bridge" as const },
     },
     defaultAccountId: await getDefaultProviderAccountId(),
-    accounts: await listProviderAccounts(),
+    accounts: accountsWithStatus,
   };
 }
 

@@ -1,5 +1,7 @@
 # ROBOT SLTP / OAK Gatekeeper Architecture
 
+> updated 2026-08-21 · v4.1.0
+
 This document describes the maintained production surfaces after retiring the Engine5/Pattern5 H4 stack.
 
 ## Product surfaces
@@ -24,9 +26,11 @@ This document describes the maintained production surfaces after retiring the En
 | Telegram cloud webhook | `dashboard/src/app/api/telegram/webhook/route.ts` | Telegram Bot API |
 | Telegram due scheduler | `dashboard/src/app/api/telegram/tick/route.ts` | Cloudflare minute clock + GitHub OIDC fallback |
 | cTrader OAuth/token vault | `dashboard/src/app/api/ctrader/*`, `dashboard/src/lib/ctrader-vault.ts` | scanner, account manager, Telegram status/positions |
-| Provider account registry | `dashboard/src/lib/provider-accounts.ts`, `provider-account-domain.ts`, `/api/accounts`, `/accounts` | admin web UI, Telegram `/profiles`, future provider routing |
+| Provider account registry | `dashboard/src/lib/provider-accounts.ts`, `provider-account-domain.ts`, `/api/accounts`, `/accounts` | admin web UI, Telegram `/profiles`, provider execution routing |
 | cTrader managed accounts + default protection | `dashboard/src/lib/ctrader-accounts.ts` | cTrader discovery/targeting, provider registry adapter |
-| Confirm-gated cTrader execution | `dashboard/src/lib/telegram-cloud-execution.ts`, `ctrader-json.ts` | `/approve ID`, pre-approved scheduled intents |
+| Multi-provider execution router | `dashboard/src/lib/telegram-cloud-execution.ts` | `/approve ID`, pre-approved scheduled intents |
+| cTrader mutation adapter | `dashboard/src/lib/ctrader-json.ts` | provider execution router |
+| MT5 outbound mailbox bridge | `dashboard/src/lib/mt5-bridge.ts`, `domain/mt5_cloud_bridge.py`, `domain/monitor_worker.py` | provider execution router, `/positions`, active local MT5 profile worker |
 | Local fallback H1 scanner | `domain/xau_h1_pattern_scanner.py` | `MonitorWorker` when explicitly run locally |
 | Local fallback H1 public publisher | `domain/h1_signal_public_feed.py` | Upstash H1 feed |
 | Desktop IPC/runtime | `robot-sltp-pro/backend_bridge.py`, `src/backend-client.ts` | Tauri UI |
@@ -124,9 +128,11 @@ Maintained management/read commands include `/status`, `/profiles`, `/positions`
 
 `/accounts` is an admin-only multi-provider web account manager backed by a signed HttpOnly session. cTrader OAuth can be reconnected and live/demo accounts are discovered through Open API; those accounts retain per-account FX/gold SL/TP defaults. MT5 accounts are represented separately as bridge metadata containing broker, login, environment, label and optional local bridge-profile name. No MT5 broker password is accepted by this web route. OAuth access/refresh tokens, cTrader client secrets, vault material and broker passwords remain server/local-only and are never returned to browser JavaScript.
 
-The unified provider registry assigns explicit IDs (`ctrader:<accountId>` or generated `mt5:<id>`), enable state and an optional default account. Telegram `/profiles` renders this unified registry. cTrader execution still resolves through the existing cTrader managed-account adapter; registering an MT5 account does not silently turn on cloud MT5 execution.
+The unified provider registry assigns explicit IDs (`ctrader:<accountId>` or generated `mt5:<id>`), enable state and an optional default account. Telegram `/profiles` renders this unified registry. A command with no account alias targets all enabled provider accounts; an explicit alias must resolve to exactly one account or the command fails closed rather than fanning out ambiguously.
 
-Every broker-mutating Telegram command still starts as `approval_required`. Target account IDs and per-account SL/TP distances are snapshotted into the intent before approval. `/approve ID` is required exactly once: an immediate intent executes after that confirmation; a future intent becomes `scheduled` and may execute only after its due time. Unapproved due intents are only reminded, never sent to the broker. Redis update idempotency plus a per-intent execution lock prevent webhook/tick retries from duplicating the same intent execution. Broker transport errors after submission are marked `uncertain` and are not automatically retried.
+cTrader mutations stay server-side through the existing Open API adapter. MT5 uses an outbound-only Upstash mailbox: each active `MonitorWorker` publishes a short-lived heartbeat bound to its local bridge profile and live MT5 login, claims only that profile's queued tasks, and executes the broker call on the same worker thread that owns the verified MT5 session. The cloud never receives an MT5 password and no inbound port/VPS is required. Entry uses `send_order_idempotent`; close/modify use the durable `send_mutation_idempotent` ledger. A cloud timeout may cancel only an unclaimed task; once the local worker has claimed it, timeout becomes `uncertain` and the same task is never automatically replayed.
+
+Every broker-mutating Telegram command still starts as `approval_required`. Provider account IDs and per-account SL/TP distances are snapshotted into the intent before approval. `/approve ID` is required exactly once: an immediate intent executes after that confirmation; a future intent becomes `scheduled` and may execute only after its due time. Unapproved due intents are only reminded, never sent to the broker. Redis update idempotency plus a per-intent execution lock prevent webhook/tick retries from duplicating the same intent execution. Legacy stored numeric cTrader target IDs are normalized to `ctrader:<id>` when read so pre-existing pending intents remain valid.
 
 Cloudflare calls the Telegram due tick every minute with a dedicated hashed bearer, while the existing GitHub OIDC workflow remains fallback. This minute clock can execute only intents that have already crossed the explicit `/approve` boundary.
 
@@ -137,6 +143,7 @@ Cloudflare calls the Telegram due tick every minute with a dedicated hashed bear
 The desktop no longer contains Engine5/Pattern5 UI or commands. It remains useful for:
 
 - observing configured MT5 profiles;
+- servicing the outbound cloud mailbox for an enabled MT5 provider account while its profile worker and terminal are already running;
 - inspecting account/position snapshots from an already-running terminal;
 - local SLTP configuration and legacy local pending-task administration;
 - explicit local runtime start/stop and diagnostics.
@@ -160,6 +167,8 @@ Pass/fail is broker-day H1 slot presence plus T/G direction. OHLC difference is 
 - Telegram send failure → state is not advanced.
 - Corrupt local state → fallback scanner fails closed.
 - cTrader token/account mismatch → cloud read fails closed.
+- MT5 bridge offline or heartbeat login mismatch → task is rejected before enqueue/execution.
+- MT5 task claimed but final broker outcome not returned before timeout → cloud marks it uncertain and does not replay it automatically.
 - Cloud webhook active → local Telegram receiver exits instead of racing it.
 
 ## Verification ownership
