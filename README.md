@@ -1,5 +1,9 @@
 # ROBOT SLTP Pro / OAK Gatekeeper
 
+Latest release — v4.1.0
+
+Windows installer: `ROBOT.SLTP.Pro_4.1.0_x64-setup.exe`
+
 ROBOT SLTP now treats cloud H1 scanning and Telegram command/control as the maintained trading surfaces. The old Engine5/Pattern5 H4 stack has been retired from runtime, web, desktop, tests and publishing.
 
 ## Maintained surfaces
