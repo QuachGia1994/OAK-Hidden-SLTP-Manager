@@ -24,7 +24,8 @@ This document describes the maintained production surfaces after retiring the En
 | Telegram cloud webhook | `dashboard/src/app/api/telegram/webhook/route.ts` | Telegram Bot API |
 | Telegram due scheduler | `dashboard/src/app/api/telegram/tick/route.ts` | Cloudflare minute clock + GitHub OIDC fallback |
 | cTrader OAuth/token vault | `dashboard/src/app/api/ctrader/*`, `dashboard/src/lib/ctrader-vault.ts` | scanner, account manager, Telegram status/positions |
-| cTrader managed accounts + default protection | `dashboard/src/lib/ctrader-accounts.ts`, `/accounts` | Telegram targeting, admin web UI |
+| Provider account registry | `dashboard/src/lib/provider-accounts.ts`, `provider-account-domain.ts`, `/api/accounts`, `/accounts` | admin web UI, Telegram `/profiles`, future provider routing |
+| cTrader managed accounts + default protection | `dashboard/src/lib/ctrader-accounts.ts` | cTrader discovery/targeting, provider registry adapter |
 | Confirm-gated cTrader execution | `dashboard/src/lib/telegram-cloud-execution.ts`, `ctrader-json.ts` | `/approve ID`, pre-approved scheduled intents |
 | Local fallback H1 scanner | `domain/xau_h1_pattern_scanner.py` | `MonitorWorker` when explicitly run locally |
 | Local fallback H1 public publisher | `domain/h1_signal_public_feed.py` | Upstash H1 feed |
@@ -121,7 +122,9 @@ Cloud webhook is the primary receiver. The webhook validates:
 
 Maintained management/read commands include `/status`, `/profiles`, `/positions`, `/pending`, `/del ID`, `/del all`, plus intent capture for entry/close/modify requests and the explicit broker boundary `/approve ID`.
 
-`/accounts` is an admin-only web account manager backed by a signed HttpOnly session. cTrader OAuth can be reconnected with `trading` scope and the account list is discovered from both live and demo Open API environments. The dashboard stores only managed-account metadata/configuration in Upstash: label, enable state, environment and default FX/gold SL/TP point distances. OAuth tokens remain encrypted in the server-side cTrader vault; broker credentials/tokens are never exposed to the browser.
+`/accounts` is an admin-only multi-provider web account manager backed by a signed HttpOnly session. cTrader OAuth can be reconnected and live/demo accounts are discovered through Open API; those accounts retain per-account FX/gold SL/TP defaults. MT5 accounts are represented separately as bridge metadata containing broker, login, environment, label and optional local bridge-profile name. No MT5 broker password is accepted by this web route. OAuth access/refresh tokens, cTrader client secrets, vault material and broker passwords remain server/local-only and are never returned to browser JavaScript.
+
+The unified provider registry assigns explicit IDs (`ctrader:<accountId>` or generated `mt5:<id>`), enable state and an optional default account. Telegram `/profiles` renders this unified registry. cTrader execution still resolves through the existing cTrader managed-account adapter; registering an MT5 account does not silently turn on cloud MT5 execution.
 
 Every broker-mutating Telegram command still starts as `approval_required`. Target account IDs and per-account SL/TP distances are snapshotted into the intent before approval. `/approve ID` is required exactly once: an immediate intent executes after that confirmation; a future intent becomes `scheduled` and may execute only after its due time. Unapproved due intents are only reminded, never sent to the broker. Redis update idempotency plus a per-intent execution lock prevent webhook/tick retries from duplicating the same intent execution. Broker transport errors after submission are marked `uncertain` and are not automatically retried.
 

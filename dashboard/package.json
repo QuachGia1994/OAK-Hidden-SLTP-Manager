@@ -8,7 +8,7 @@
     "build": "next build",
     "test:tarot": "node --test src/lib/tarot/tarot.test.ts",
     "test:factcheck": "node --test src/lib/server-rate-limit.test.ts src/lib/factcheck/share.test.ts src/lib/factcheck/url-ingestion.test.ts src/lib/factcheck/media-authenticity.test.ts",
-    "test": "node --test src/lib/h1-signals.test.ts src/lib/h1-cloud-scanner.test.ts src/lib/h1-cloud-route.test.ts src/lib/telegram-cloud-domain.test.ts src/lib/telegram-cloud-route.test.ts src/lib/ctrader-execution.test.ts src/lib/ctrader-vault.test.ts src/lib/server-rate-limit.test.ts src/lib/tarot/tarot.test.ts src/lib/factcheck/share.test.ts src/lib/factcheck/url-ingestion.test.ts src/lib/factcheck/media-authenticity.test.ts",
+    "test": "node --test src/lib/h1-signals.test.ts src/lib/h1-cloud-scanner.test.ts src/lib/h1-cloud-route.test.ts src/lib/telegram-cloud-domain.test.ts src/lib/telegram-cloud-route.test.ts src/lib/provider-account-domain.test.ts src/lib/ctrader-execution.test.ts src/lib/ctrader-vault.test.ts src/lib/server-rate-limit.test.ts src/lib/tarot/tarot.test.ts src/lib/factcheck/share.test.ts src/lib/factcheck/url-ingestion.test.ts src/lib/factcheck/media-authenticity.test.ts",
     "start": "next start"
   },
   "dependencies": {

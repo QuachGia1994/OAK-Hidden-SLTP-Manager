@@ -4,6 +4,7 @@ import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { fetchCTraderAccountReadSnapshot, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
 import { defaultProtectionPoints, listManagedCTraderAccounts, resolveEnabledAccountTargets, type CTraderManagedAccount } from "@/lib/ctrader-accounts";
+import { listProviderAccounts } from "@/lib/provider-accounts";
 import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/telegram-cloud-runner";
 import {
   TELEGRAM_CLOUD_EXECUTION_MODE,
@@ -125,9 +126,9 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
   if (command.type === "help") return renderHelp();
   if (command.type === "myid") return `Chat ID: ${chatId}`;
   if (command.type === "profiles") {
-    const accounts = await listManagedCTraderAccounts();
-    const rows = accounts.map((item) => `• ${item.enabled ? "ON" : "OFF"} · @${item.label} · ${item.broker} · ${item.environment} · login ${item.traderLogin || "—"}`);
-    return [`📋 cTrader Accounts · ${accounts.length}`, ...(rows.length ? rows : ["• Chưa sync account. Mở /accounts trên web để kết nối."])].join("\n");
+    const accounts = await listProviderAccounts();
+    const rows = accounts.map((item) => `• ${item.isDefault ? "★" : item.enabled ? "ON" : "OFF"} · @${item.label} · ${item.provider.toUpperCase()} · ${item.broker} · ${item.environment} · #${item.externalAccountId}`);
+    return [`📋 Provider Accounts · ${accounts.length}`, ...(rows.length ? rows : ["• Chưa có account. Mở /accounts trên web để đăng ký/kết nối."])].join("\n");
   }
   if (command.type === "pending") return renderPending(await listCloudIntents());
   if (command.type === "delete") {
