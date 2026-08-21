@@ -56,22 +56,64 @@ test("normal SW3 guard skips a slot once the same-direction run reaches four or 
   assert.deepEqual(t5, []);
 });
 
-test("SW2 keeps base while both three-candle classes reverse base", () => {
-  assert.equal(signalFromPatternBase("BUY", "sw2"), "BUY");
-  assert.equal(signalFromPatternBase("SELL", "sw2"), "SELL");
-  for (const kind of ["sw3Pure", "sw3Normal"] as const) {
-    assert.equal(signalFromPatternBase("BUY", kind), "SELL");
-    assert.equal(signalFromPatternBase("SELL", kind), "BUY");
+test("XAU/EUR/AUD keep SW2 and reverse SW3 while CAD/JPY reverse SW2 and follow SW3", () => {
+  for (const base of ["XAUUSD", "EURUSD", "AUDUSD"] as const) {
+    assert.equal(signalFromPatternBase(base, "BUY", "sw2"), "BUY");
+    assert.equal(signalFromPatternBase(base, "SELL", "sw2"), "SELL");
+    for (const kind of ["sw3Pure", "sw3Normal"] as const) {
+      assert.equal(signalFromPatternBase(base, "BUY", kind), "SELL");
+      assert.equal(signalFromPatternBase(base, "SELL", kind), "BUY");
+    }
+  }
+  for (const base of ["USDCAD", "USDJPY"] as const) {
+    assert.equal(signalFromPatternBase(base, "BUY", "sw2"), "SELL");
+    assert.equal(signalFromPatternBase(base, "SELL", "sw2"), "BUY");
+    for (const kind of ["sw3Pure", "sw3Normal"] as const) {
+      assert.equal(signalFromPatternBase(base, "BUY", kind), "BUY");
+      assert.equal(signalFromPatternBase(base, "SELL", kind), "SELL");
+    }
   }
 });
 
-test("pattern scanners remain AUDUSD for XAU and GBPUSD for every other target", () => {
+test("target scanner/base mapping uses own source plus GBPUSD base for CAD and JPY", () => {
   assert.equal(scannerBaseForTarget("XAUUSD"), "AUDUSD");
   assert.equal(baseSymbolForTarget("XAUUSD"), "GBPUSD");
-  for (const base of ["EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+  for (const base of ["EURUSD", "AUDUSD"] as const) {
     assert.equal(scannerBaseForTarget(base), "GBPUSD");
     assert.equal(baseSymbolForTarget(base), base);
   }
+  for (const base of ["USDCAD", "USDJPY"] as const) {
+    assert.equal(scannerBaseForTarget(base), base);
+    assert.equal(baseSymbolForTarget(base), "GBPUSD");
+  }
+});
+
+test("USDCAD own-source SW2 reverses GBPUSD base and SW3 follows it", () => {
+  const sw2Match = findH1PatternMatches(bars("GT"), 3).find((item) => item.slotHour === 3)!;
+  const sw2 = buildStoredAlert({
+    base: "USDCAD",
+    brokerSymbol: "USDCAD",
+    scannerBase: "USDCAD",
+    scannerSymbol: "USDCAD",
+    match: sw2Match,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 2)[0],
+  });
+  assert.equal(sw2.baseH1Signal, "BUY");
+  assert.equal(sw2.symbolH1Signal, "SELL");
+
+  const pureMatch = findH1PatternMatches(bars("GGT"), 4).find((item) => item.slotHour === 4)!;
+  const pure = buildStoredAlert({
+    base: "USDCAD",
+    brokerSymbol: "USDCAD",
+    scannerBase: "USDCAD",
+    scannerSymbol: "USDCAD",
+    match: pureMatch,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 3)[0],
+  });
+  assert.equal(pure.baseH1Signal, "BUY");
+  assert.equal(pure.symbolH1Signal, "BUY");
 });
 
 test("pure SW3 exactly two slots after an accepted pure is skipped and tracking resets", () => {

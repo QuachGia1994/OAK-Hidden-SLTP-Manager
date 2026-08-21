@@ -1,10 +1,7 @@
 # -*- coding: utf-8 -*-
 """Passive H1 fallback scanner mirroring the cTrader cloud scanner.
 
-Pattern detection is intentionally limited to AUDUSD and GBPUSD. Target signals
-are derived from those scanner patterns plus the target-specific closed H1 base
-candle from the current broker day only. Exactly one local MonitorWorker may own
-this fallback scanner through the existing OS-backed lock.
+Pattern detection uses AUDUSD for XAUUSD, GBPUSD for EURUSD/AUDUSD, and each target itself for USDCAD/USDJPY. Target signals combine that source pattern with the configured closed H1 base candle from the current broker day only. Exactly one local MonitorWorker may own this fallback scanner through the existing OS-backed lock.
 """
 from __future__ import annotations
 
@@ -23,7 +20,7 @@ DEFAULT_STATE_PATH = ROOT / "xau_h1_pattern_alert_state.json"
 DEFAULT_OWNER_LOCK_PATH = ROOT / "xau_h1_pattern_scanner.lock"
 
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
-SCANNER_BASES = ("AUDUSD", "GBPUSD")
+SCANNER_BASES = ("AUDUSD", "GBPUSD", "USDCAD", "USDJPY")
 REQUIRED_HISTORY_BASES = ("GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY")
 
 TWO_CANDLE_SW_PATTERNS = {("T", "G"), ("G", "T")}
@@ -39,8 +36,7 @@ PATTERN_LABELS = {
     PATTERN_KIND_SW3_PURE: "SW 3 cây thuần",
     PATTERN_KIND_SW3_NORMAL: "SW 3 cây thường",
 }
-FOLLOW_BASE_PATTERN_KINDS = {PATTERN_KIND_SW2}
-REVERSE_BASE_PATTERN_KINDS = {PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL}
+INVERTED_PATTERN_TARGETS = {"USDCAD", "USDJPY"}
 
 EARLIEST_SCAN_HOUR = 3
 LAST_SCAN_HOUR = 17
@@ -96,35 +92,41 @@ def signal_from_h1_direction(direction: str) -> str:
     raise ValueError(f"Unknown H1 direction: {direction}")
 
 
-def pattern_follows_base(pattern_kind: str) -> bool:
-    if pattern_kind in FOLLOW_BASE_PATTERN_KINDS:
-        return True
-    if pattern_kind in REVERSE_BASE_PATTERN_KINDS:
-        return False
-    raise ValueError(f"Unknown H1 pattern kind: {pattern_kind}")
+def pattern_follows_base(base: str, pattern_kind: str) -> bool:
+    canonical = str(base or "").upper()
+    if pattern_kind not in PATTERN_KINDS:
+        raise ValueError(f"Unknown H1 pattern kind: {pattern_kind}")
+    if canonical in INVERTED_PATTERN_TARGETS:
+        return pattern_kind != PATTERN_KIND_SW2
+    return pattern_kind == PATTERN_KIND_SW2
 
 
-def signal_from_pattern_base(base_signal: str, pattern_kind: str) -> str:
+def signal_from_pattern_base(base: str, base_signal: str, pattern_kind: str) -> str:
     signal = str(base_signal or "").strip().upper()
     if signal not in {"BUY", "SELL"}:
         raise ValueError("H1 base signal must be BUY or SELL")
-    if pattern_follows_base(pattern_kind):
+    if pattern_follows_base(base, pattern_kind):
         return signal
     return "SELL" if signal == "BUY" else "BUY"
 
 
 def signal_from_gbpusd_pattern(gbpusd_signal: str, pattern_kind: str) -> str:
-    """Backward-compatible alias; current semantics are generic base-signal semantics."""
-    return signal_from_pattern_base(gbpusd_signal, pattern_kind)
+    """Legacy XAUUSD alias kept for compatibility with older callers."""
+    return signal_from_pattern_base("XAUUSD", gbpusd_signal, pattern_kind)
 
 
 def scanner_base_for_target(base: str) -> str:
-    return "AUDUSD" if str(base).upper() == "XAUUSD" else "GBPUSD"
+    canonical = str(base or "").upper()
+    if canonical == "XAUUSD":
+        return "AUDUSD"
+    if canonical in INVERTED_PATTERN_TARGETS:
+        return canonical
+    return "GBPUSD"
 
 
 def base_symbol_for_target(base: str) -> str:
     canonical = str(base or "").upper()
-    return "GBPUSD" if canonical == "XAUUSD" else canonical
+    return "GBPUSD" if canonical in {"XAUUSD", *INVERTED_PATTERN_TARGETS} else canonical
 
 
 def resolve_symbol_variant(base: str, symbols: Iterable[Any]) -> str | None:
@@ -393,7 +395,7 @@ class MultiSymbolH1PatternScanner:
         rendered = ", ".join(f"{base}={symbol}" for base, symbol in selected.items())
         self._log(
             f"[H1-SCAN] fallback owner={self._profile_name} · {rendered} · GBPUSD={gbpusd_symbol} · "
-            "patternSources=AUDUSD,GBPUSD · H03-H17 · emit=SW2,SW3-pure,SW3-normal · no-post-check"
+            "patternSources=XAU:AUDUSD,EUR/AUD:GBPUSD,CAD/JPY:self · H03-H17 · emit=SW2,SW3-pure,SW3-normal · no-post-check"
         )
         return True
 
@@ -508,7 +510,7 @@ class MultiSymbolH1PatternScanner:
     ) -> str:
         behavior = (
             f"giữ nguyên {base_context.base_symbol} H1"
-            if pattern_follows_base(match.pattern_kind)
+            if pattern_follows_base(base, match.pattern_kind)
             else f"đảo {base_context.base_symbol} H1"
         )
         pattern_label = f"/!\\ {match.pattern_label}" if match.pattern_kind == PATTERN_KIND_SW3_PURE else match.pattern_label
@@ -591,7 +593,7 @@ class MultiSymbolH1PatternScanner:
                 if not broker_symbol:
                     continue
                 scanner_base = scanner_base_for_target(base)
-                scanner_symbol = self._gbpusd_symbol if scanner_base == "GBPUSD" else self._symbols.get("AUDUSD")
+                scanner_symbol = self._gbpusd_symbol if scanner_base == "GBPUSD" else self._symbols.get(scanner_base)
                 base_symbol = base_symbol_for_target(base)
                 base_candles = candles_by_base.get(base_symbol, {})
                 matches = source_matches.get(scanner_base, [])
@@ -623,7 +625,7 @@ class MultiSymbolH1PatternScanner:
                         base_direction=direction,
                         signal=signal_from_h1_direction(direction),
                     )
-                    symbol_signal = signal_from_pattern_base(base_context.signal, match.pattern_kind)
+                    symbol_signal = signal_from_pattern_base(base, base_context.signal, match.pattern_kind)
                     message = self._message(
                         base,
                         broker_symbol,

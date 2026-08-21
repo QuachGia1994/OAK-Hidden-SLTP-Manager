@@ -14,7 +14,7 @@ PUBLIC_SCHEMA = 7
 KEY_PREFIX = "robot-sltp:public:h1-signals:"
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
 PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Normal"}
-SCANNER_BASES = {"AUDUSD", "GBPUSD"}
+SCANNER_BASES = {"AUDUSD", "GBPUSD", "USDCAD", "USDJPY"}
 
 
 def _load_dotenv() -> None:

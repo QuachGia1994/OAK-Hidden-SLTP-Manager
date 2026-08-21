@@ -10,6 +10,8 @@ const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx"
 
 test("H1 web feed has independent schema-7 Upstash contract", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 7/);
+  assert.match(readerSource, /USDCAD/);
+  assert.match(readerSource, /USDJPY/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /sw2/);

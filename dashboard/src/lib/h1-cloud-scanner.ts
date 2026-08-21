@@ -7,7 +7,7 @@ export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 
 export const H1_TARGET_BASES = ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 export const H1_ALL_BASES = ["GBPUSD", ...H1_TARGET_BASES] as const;
-export const H1_SCANNER_BASES = ["AUDUSD", "GBPUSD"] as const;
+export const H1_SCANNER_BASES = ["AUDUSD", "GBPUSD", "USDCAD", "USDJPY"] as const;
 export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
 export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
@@ -92,19 +92,23 @@ export function signalFromDirection(direction: H1Direction): H1Signal {
 }
 
 export function scannerBaseForTarget(base: H1TargetBase): H1ScannerBase {
-  return base === "XAUUSD" ? "AUDUSD" : "GBPUSD";
+  if (base === "XAUUSD") return "AUDUSD";
+  if (base === "USDCAD" || base === "USDJPY") return base;
+  return "GBPUSD";
 }
 
 export function baseSymbolForTarget(base: H1TargetBase): H1Base {
-  return base === "XAUUSD" ? "GBPUSD" : base;
+  if (base === "XAUUSD" || base === "USDCAD" || base === "USDJPY") return "GBPUSD";
+  return base;
 }
 
-export function patternFollowsBase(patternKind: H1PatternKind): boolean {
+export function patternFollowsBase(base: H1TargetBase, patternKind: H1PatternKind): boolean {
+  if (base === "USDCAD" || base === "USDJPY") return patternKind !== "sw2";
   return patternKind === "sw2";
 }
 
-export function signalFromPatternBase(baseSignal: H1Signal, patternKind: H1PatternKind): H1Signal {
-  if (patternFollowsBase(patternKind)) return baseSignal;
+export function signalFromPatternBase(base: H1TargetBase, baseSignal: H1Signal, patternKind: H1PatternKind): H1Signal {
+  if (patternFollowsBase(base, patternKind)) return baseSignal;
   return baseSignal === "BUY" ? "SELL" : "BUY";
 }
 
@@ -163,7 +167,7 @@ export function buildStoredAlert(args: {
   baseBar: H1DirectionBar;
 }): H1StoredAlert {
   const baseSignal = signalFromDirection(args.baseBar.direction);
-  const finalSignal = signalFromPatternBase(baseSignal, args.match.patternKind);
+  const finalSignal = signalFromPatternBase(args.base, baseSignal, args.match.patternKind);
   return {
     slotHour: args.match.slotHour,
     pattern: args.match.pattern.join(" "),
@@ -182,7 +186,7 @@ export function buildStoredAlert(args: {
 }
 
 export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, alert: H1StoredAlert): string {
-  const behavior = patternFollowsBase(alert.patternKind) ? `giữ nguyên ${alert.baseSymbol} H1` : `đảo ${alert.baseSymbol} H1`;
+  const behavior = patternFollowsBase(base, alert.patternKind) ? `giữ nguyên ${alert.baseSymbol} H1` : `đảo ${alert.baseSymbol} H1`;
   const barHours = alert.bars.map((value) => {
     const match = value.match(/T(\d{2}):/);
     return match ? `H${match[1]}` : value;
@@ -214,7 +218,7 @@ function isTargetBase(value: string): value is H1TargetBase {
 }
 
 function isScannerBase(value: unknown): value is H1ScannerBase {
-  return value === "AUDUSD" || value === "GBPUSD";
+  return (H1_SCANNER_BASES as readonly unknown[]).includes(value);
 }
 
 function isPatternKind(value: unknown): value is H1PatternKind {

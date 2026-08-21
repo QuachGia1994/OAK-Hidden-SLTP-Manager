@@ -4,7 +4,7 @@ import { redis } from "./redis-core";
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1ScannerBase = "AUDUSD" | "GBPUSD";
+export type H1ScannerBase = "AUDUSD" | "GBPUSD" | "USDCAD" | "USDJPY";
 
 export type H1SignalAlert = {
   slotHour: number;

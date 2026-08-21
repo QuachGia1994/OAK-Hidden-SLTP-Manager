@@ -140,12 +140,15 @@ def test_resolver_accepts_suffixes_for_all_targets_and_rejects_prefixes():
     assert resolve_symbol_variant("GBPUSD", symbols) == "GBPUSD+"
 
 
-def test_target_mapping_stays_audusd_for_xau_and_gbpusd_for_other_sources():
+def test_target_mapping_uses_own_source_plus_gbpusd_base_for_cad_jpy():
     assert scanner_base_for_target("XAUUSD") == "AUDUSD"
     assert base_symbol_for_target("XAUUSD") == "GBPUSD"
-    for base in ("EURUSD", "AUDUSD", "USDCAD", "USDJPY"):
+    for base in ("EURUSD", "AUDUSD"):
         assert scanner_base_for_target(base) == "GBPUSD"
         assert base_symbol_for_target(base) == base
+    for base in ("USDCAD", "USDJPY"):
+        assert scanner_base_for_target(base) == base
+        assert base_symbol_for_target(base) == "GBPUSD"
 
 
 def test_source_scanner_has_sw2_pure_sw3_and_normal_sw3_only():
@@ -178,14 +181,21 @@ def test_normal_sw3_guard_skips_current_slot_after_run_reaches_four_or_more():
     assert not [m for m in g4 if m.slot_hour == 5]
 
 
-def test_sw2_keeps_base_and_both_sw3_classes_reverse_base():
+def test_xau_eur_aud_keep_sw2_reverse_sw3_while_cad_jpy_reverse_sw2_follow_sw3():
     assert signal_from_h1_direction("T") == "BUY"
     assert signal_from_h1_direction("G") == "SELL"
-    assert signal_from_pattern_base("BUY", PATTERN_KIND_SW2) == "BUY"
-    assert signal_from_pattern_base("SELL", PATTERN_KIND_SW2) == "SELL"
-    for kind in (PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL):
-        assert signal_from_pattern_base("BUY", kind) == "SELL"
-        assert signal_from_pattern_base("SELL", kind) == "BUY"
+    for base in ("XAUUSD", "EURUSD", "AUDUSD"):
+        assert signal_from_pattern_base(base, "BUY", PATTERN_KIND_SW2) == "BUY"
+        assert signal_from_pattern_base(base, "SELL", PATTERN_KIND_SW2) == "SELL"
+        for kind in (PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL):
+            assert signal_from_pattern_base(base, "BUY", kind) == "SELL"
+            assert signal_from_pattern_base(base, "SELL", kind) == "BUY"
+    for base in ("USDCAD", "USDJPY"):
+        assert signal_from_pattern_base(base, "BUY", PATTERN_KIND_SW2) == "SELL"
+        assert signal_from_pattern_base(base, "SELL", PATTERN_KIND_SW2) == "BUY"
+        for kind in (PATTERN_KIND_SW3_PURE, PATTERN_KIND_SW3_NORMAL):
+            assert signal_from_pattern_base(base, "BUY", kind) == "BUY"
+            assert signal_from_pattern_base(base, "SELL", kind) == "SELL"
 
 
 def test_pure_sw3_two_slots_later_is_skipped_and_tracking_resets():
@@ -258,6 +268,24 @@ def test_normal_sw3_reverses_own_base_for_other_symbol(tmp_path):
         assert "Base H1: EURUSD H03=G → SELL" in eur
         assert "Logic nguồn: đảo EURUSD H1" in eur
         assert "Signal EURUSD H1: BUY" in eur
+    finally:
+        subject.close()
+
+
+def test_usdcad_uses_own_source_gbpusd_base_and_target_specific_direction_rules(tmp_path):
+    rates = all_rates("TGT")
+    rates["USDCAD.pro"] = rates_for(20, "GGT")
+    rates["GBPUSD+"] = rates_for(20, "TTT")
+    sent: list[str] = []
+    subject = make_scanner(tmp_path, FakeMT5(rates), FakeClock(datetime(2026, 8, 20, 4, 0)), sent)
+    try:
+        subject.scan_once()
+        cad = next(message for message in sent if message.startswith("🔔 USDCAD") and "Mốc scan: H04" in message)
+        assert "Scanner pattern: USDCAD (USDCAD.pro)" in cad
+        assert "Pattern nguồn: T G G" in cad
+        assert "Base H1: GBPUSD H03=T → BUY" in cad
+        assert "Logic nguồn: giữ nguyên GBPUSD H1" in cad
+        assert "Signal USDCAD H1: BUY" in cad
     finally:
         subject.close()
 
