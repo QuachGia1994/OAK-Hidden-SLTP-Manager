@@ -89,6 +89,10 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
 }
 
 function renderIntent(task: CloudIntent): string {
+  if (task.kind === "partial") {
+    const target = task.payload.ticket ? `#${task.payload.ticket}` : String(task.payload.symbol || "?");
+    return `#${task.id} · PARTIAL ${target} · ${String(task.payload.mode || "").toUpperCase()} ${task.payload.threshold} · close ${task.payload.volume} lot · ${task.status}`;
+  }
   const side = String(task.payload.side || task.payload.scope || task.payload.field || task.kind).toUpperCase();
   const symbol = String(task.payload.symbol || "");
   const lot = task.payload.lot !== undefined ? ` · lot ${task.payload.lot}` : "";
@@ -148,9 +152,13 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
     } catch {
       fresh = null;
     }
-    const mt5Accounts = (await listProviderAccounts()).filter((account) => account.provider === "mt5" && account.enabled && account.bridgeProfile);
+    const providerAccounts = await listProviderAccounts();
+    const mt5Accounts = providerAccounts.filter((account) => account.provider === "mt5" && account.enabled && account.bridgeProfile);
+    const cTraderManagers = providerAccounts.filter((account) => account.provider === "ctrader" && account.enabled && account.manager?.managerEnabled).length;
     const mt5Heartbeats = await Promise.all(mt5Accounts.map(async (account) => ({ account, heartbeat: await getMt5BridgeHeartbeat(account.bridgeProfile || "") })));
-    const mt5Online = mt5Heartbeats.filter(({ account, heartbeat }) => heartbeat?.login === account.traderLogin).length;
+    const mt5OnlineRows = mt5Heartbeats.filter(({ account, heartbeat }) => heartbeat?.login === account.traderLogin);
+    const mt5Online = mt5OnlineRows.length;
+    const mt5EaOnline = mt5OnlineRows.filter(({ heartbeat }) => heartbeat?.runtime === "mql5-ea").length;
     return [
       `☁️ ${TELEGRAM_CLOUD_PROFILE}`,
       `• Scanner cloud: ${config?.enabled ? "ON" : "OFF"}`,
@@ -158,7 +166,8 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
       `• Telegram webhook: ${webhookActive ? "ACTIVE" : config?.telegramWebhookSecret ? "configured / inactive" : "not configured"}`,
       `• cTrader OAuth: ${fresh ? "authorized" : "unavailable"}`,
       `• OAuth scope: ${fresh?.scope || "—"}`,
-      `• MT5 bridge: ${mt5Online}/${mt5Accounts.length} online`,
+      `• cTrader Auto Manager: ${cTraderManagers} account · 1-minute watchdog`,
+      `• MT5 bridge: ${mt5Online}/${mt5Accounts.length} online · OAK EA ${mt5EaOnline} · legacy ${mt5Online - mt5EaOnline}`,
       `• Execution mode: ${TELEGRAM_CLOUD_EXECUTION_MODE}`,
       `• Pending tasks: ${pending.length}`,
     ].join("\n");
@@ -214,6 +223,9 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
         ? `⚠️ Không có provider account đã bật khớp @${alias}. Mở /accounts trên web để cấu hình.`
         : "⚠️ Chưa có provider account nào được bật. Mở /accounts trên web để kết nối/bật account.";
     }
+    if (command.kind === "partial" && targets.length !== 1) {
+      return "⚠️ /partial chỉ arm trên đúng 1 provider account; hãy chỉ rõ [@ACCOUNT].";
+    }
     let protectionPlan: CloudIntent["protectionPlan"] | undefined;
     if (command.kind === "entry") {
       const symbol = String(command.payload.symbol || "");
@@ -243,12 +255,19 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
     });
     await appendTelegramAudit({ action: "command_intent_accepted", taskId: task.id, rawText: text, targetAccountIds: task.targetAccountIds });
     const protectionRows = Object.values(task.protectionPlan || {}).map((item) => `• @${item.label}: SL ${item.slPoints}pt · TP ${item.tpPoints}pt`);
+    const partialTrigger = task.kind === "partial"
+      ? (task.payload.mode === "profit" ? `profit >= ${task.payload.threshold}` : `price target ${task.payload.threshold}`)
+      : "";
+    const intentRows = task.kind === "partial"
+      ? [`• Rule: ${task.payload.ticket ? `ticket #${task.payload.ticket}` : task.payload.symbol} · ${partialTrigger} · close ${task.payload.volume} lot`]
+      : [];
     return [
       `✅ Đã lưu intent #${task.id} · ${TELEGRAM_CLOUD_PROFILE}`,
       `• Loại: ${task.kind}`,
       `• Thời điểm: ${task.dueText}`,
       `• Accounts: ${targets.map((item) => `@${item.label}`).join(", ")}`,
       ...protectionRows,
+      ...intentRows,
       `• Trạng thái: ${task.status}`,
       `• Xác nhận: /approve ${task.id}`,
       task.dueAt !== null ? "• Có thể approve trước; đến giờ cloud tự execute." : "• Sau /approve, cloud execute ngay một lần.",

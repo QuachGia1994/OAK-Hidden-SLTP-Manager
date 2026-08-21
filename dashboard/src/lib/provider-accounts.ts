@@ -99,6 +99,7 @@ export async function listProviderAccounts(): Promise<ProviderAccountSummary[]> 
       fxTpPoints: account.fxTpPoints,
       goldSlPoints: account.goldSlPoints,
       goldTpPoints: account.goldTpPoints,
+      manager: account.manager,
       updatedAt: account.updatedAt,
     })),
     ...mt5.map((account) => ({
@@ -117,6 +118,7 @@ export async function listProviderAccounts(): Promise<ProviderAccountSummary[]> 
       fxTpPoints: account.fxTpPoints,
       goldSlPoints: account.goldSlPoints,
       goldTpPoints: account.goldTpPoints,
+      manager: null,
       updatedAt: account.updatedAt,
     })),
   ];
@@ -182,6 +184,7 @@ export async function updateProviderAccount(id: string, patch: {
   fxTpPoints?: number;
   goldSlPoints?: number;
   goldTpPoints?: number;
+  manager?: import("@/lib/ctrader-manager-domain").CTraderManagerSettings;
 }): Promise<ProviderAccountSummary> {
   const cTraderAccountId = parseCTraderProviderAccountId(id);
   if (cTraderAccountId !== null) {
@@ -194,6 +197,7 @@ export async function updateProviderAccount(id: string, patch: {
       fxTpPoints: patch.fxTpPoints,
       goldSlPoints: patch.goldSlPoints,
       goldTpPoints: patch.goldTpPoints,
+      manager: patch.manager,
     });
     if (patch.enabled === false && await getDefaultProviderAccountId() === id) await redis.del(DEFAULT_ACCOUNT_KEY);
   } else if (id.startsWith("mt5:")) {

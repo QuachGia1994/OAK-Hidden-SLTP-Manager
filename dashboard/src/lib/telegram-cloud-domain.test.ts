@@ -92,6 +92,33 @@ test("modify accepts an explicit provider account alias", () => {
   assert.equal(parsed.payload.legacyProfile, "Vantage");
 });
 
+test("partial rule parses ticket or symbol and requires explicit positive trigger data", () => {
+  const ticket = parseCloudTelegramCommand("/partial 123456 profit 200 0.02 @Vantage");
+  assert.equal(ticket.type, "intent");
+  if (ticket.type === "intent") {
+    assert.equal(ticket.kind, "partial");
+    assert.equal(ticket.payload.ticket, 123456);
+    assert.equal(ticket.payload.symbol, null);
+    assert.equal(ticket.payload.mode, "profit");
+    assert.equal(ticket.payload.threshold, 200);
+    assert.equal(ticket.payload.volume, 0.02);
+    assert.equal(ticket.payload.legacyProfile, "Vantage");
+  }
+
+  const price = parseCloudTelegramCommand("partial XAUUSD price 3456.7 0.01 @gold");
+  assert.equal(price.type, "intent");
+  if (price.type === "intent") {
+    assert.equal(price.kind, "partial");
+    assert.equal(price.payload.ticket, null);
+    assert.equal(price.payload.symbol, "XAUUSD");
+    assert.equal(price.payload.mode, "price");
+    assert.equal(price.payload.threshold, 3456.7);
+  }
+
+  assert.equal(parseCloudTelegramCommand("/partial XAUUSD profit -1 0.01").type, "unknown");
+  assert.equal(parseCloudTelegramCommand("/partial XAUUSD foo 100 0.01").type, "unknown");
+});
+
 test("approve command is the explicit broker mutation boundary", () => {
   assert.deepEqual(parseCloudTelegramCommand("/approve 42"), { type: "approve", id: 42 });
   assert.deepEqual(parseCloudTelegramCommand("approve 7"), { type: "approve", id: 7 });
@@ -115,5 +142,6 @@ test("help explains approve-once then scheduled auto execution", () => {
   assert.match(help, /\/approve ID/);
   assert.match(help, /approve trước/);
   assert.match(help, /SL\/TP mặc định/);
+  assert.match(help, /\/partial TICKET\|SYMBOL/);
   assert.doesNotMatch(help, /approval_required/);
 });

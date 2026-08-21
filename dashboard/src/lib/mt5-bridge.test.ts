@@ -7,6 +7,7 @@ const bridge = readFileSync(new URL("./mt5-bridge.ts", import.meta.url), "utf8")
 const localBridge = readFileSync(new URL("../../../domain/mt5_cloud_bridge.py", import.meta.url), "utf8");
 const monitorWorker = readFileSync(new URL("../../../domain/monitor_worker.py", import.meta.url), "utf8");
 const execution = readFileSync(new URL("./telegram-cloud-execution.ts", import.meta.url), "utf8");
+const ea = readFileSync(new URL("../../../mt5/OAK_Cloud_Manager_EA.mq5", import.meta.url), "utf8");
 
 test("legacy cTrader target ids migrate to namespaced provider ids", () => {
   assert.equal(normalizeProviderAccountId(12345), "ctrader:12345");
@@ -40,4 +41,22 @@ test("cloud execution routes both cTrader and MT5 without globally requiring cTr
   assert.match(execution, /closeCTraderPositions/);
   assert.match(execution, /amendCTraderPositionProtection/);
   assert.ok(execution.indexOf("provider.provider === \"mt5\"") < execution.indexOf("getFreshCTraderTokens()"));
+});
+
+test("dynamic partial is routed only to the OAK MQL5 EA runtime", () => {
+  assert.match(bridge, /args\.action === "partial" && heartbeat\.runtime !== "mql5-ea"/);
+  assert.match(localBridge, /"runtime": "python-worker"/);
+  assert.match(ea, /\\"runtime\\":\\"mql5-ea\\"/);
+  assert.match(ea, /if\(action=="partial"\) return ExecutePartialTask\(task\)/);
+  assert.match(ea, /StateSet\(id,"pp_armed",1\.0\)/);
+});
+
+test("OAK MQL5 EA keeps cloud keys and one-shot mutation boundary compatible", () => {
+  assert.match(ea, /oak:mt5:bridge:task:v1:/);
+  assert.match(ea, /oak:mt5:bridge:queue:v1:/);
+  assert.match(ea, /oak:mt5:bridge:arbiter:v1:/);
+  assert.match(ea, /oak:mt5:bridge:heartbeat:v1:/);
+  assert.match(ea, /RedisSet\(ArbiterKey\(task_id\),claim_token,OAK_TASK_TTL,true,claim_result\)/);
+  assert.match(ea, /No automatic retry if the result is/);
+  assert.doesNotMatch(ea, /PositionClosePartial/);
 });

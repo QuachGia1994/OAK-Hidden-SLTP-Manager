@@ -35,7 +35,13 @@ async function responsePayload() {
   const accountsWithStatus = await Promise.all(accounts.map(async (account) => {
     if (account.provider !== "mt5" || !account.bridgeProfile) return { ...account, bridgeOnline: false };
     const heartbeat = await getMt5BridgeHeartbeat(account.bridgeProfile);
-    return { ...account, bridgeOnline: heartbeat?.login === account.traderLogin, bridgeLastSeenAt: heartbeat?.at || null };
+    return {
+      ...account,
+      bridgeOnline: heartbeat?.login === account.traderLogin,
+      bridgeLastSeenAt: heartbeat?.at || null,
+      bridgeRuntime: heartbeat?.runtime || null,
+      bridgeVersion: heartbeat?.version || null,
+    };
   }));
   return {
     ok: true,
@@ -103,6 +109,9 @@ export async function PATCH(request: Request) {
       fxTpPoints: body?.fxTpPoints === undefined ? undefined : Number(body.fxTpPoints),
       goldSlPoints: body?.goldSlPoints === undefined ? undefined : Number(body.goldSlPoints),
       goldTpPoints: body?.goldTpPoints === undefined ? undefined : Number(body.goldTpPoints),
+      manager: body?.manager && typeof body.manager === "object"
+        ? body.manager as import("@/lib/ctrader-manager-domain").CTraderManagerSettings
+        : undefined,
     });
     if (body?.makeDefault === true && account.enabled) await setDefaultProviderAccount(id);
     else if (body?.makeDefault === false) await clearDefaultProviderAccount(id);

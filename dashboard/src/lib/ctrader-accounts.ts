@@ -1,6 +1,11 @@
 import "server-only";
 
 import { redis } from "@/lib/redis-core";
+import {
+  DEFAULT_CTRADER_MANAGER_SETTINGS,
+  normalizeCTraderManagerSettings,
+  type CTraderManagerSettings,
+} from "@/lib/ctrader-manager-domain";
 
 const ACCOUNTS_KEY = "oak:ctrader:managed-accounts:v1";
 
@@ -15,6 +20,7 @@ export type CTraderManagedAccount = {
   fxTpPoints: number;
   goldSlPoints: number;
   goldTpPoints: number;
+  manager: CTraderManagerSettings;
   discoveredAt: number;
   updatedAt: number;
 };
@@ -35,6 +41,7 @@ function defaults(source: CTraderGrantedAccount, enabled: boolean, now: number):
     fxTpPoints: 10000,
     goldSlPoints: 1000,
     goldTpPoints: 20000,
+    manager: { ...DEFAULT_CTRADER_MANAGER_SETTINGS },
     discoveredAt: now,
     updatedAt: now,
   };
@@ -58,6 +65,7 @@ function parseAccount(raw: unknown): CTraderManagedAccount | null {
       fxTpPoints: Math.max(0, Number(row.fxTpPoints || 10000)),
       goldSlPoints: Math.max(0, Number(row.goldSlPoints || 1000)),
       goldTpPoints: Math.max(0, Number(row.goldTpPoints || 20000)),
+      manager: normalizeCTraderManagerSettings((row as { manager?: Partial<CTraderManagerSettings> }).manager),
       discoveredAt: Number(row.discoveredAt || Date.now()),
       updatedAt: Number(row.updatedAt || Date.now()),
     };
@@ -91,7 +99,7 @@ export async function syncManagedCTraderAccounts(granted: CTraderGrantedAccount[
   return listManagedCTraderAccounts();
 }
 
-export async function updateManagedCTraderAccount(accountId: number, patch: Partial<Pick<CTraderManagedAccount, "label" | "enabled" | "fxSlPoints" | "fxTpPoints" | "goldSlPoints" | "goldTpPoints">>): Promise<CTraderManagedAccount> {
+export async function updateManagedCTraderAccount(accountId: number, patch: Partial<Pick<CTraderManagedAccount, "label" | "enabled" | "fxSlPoints" | "fxTpPoints" | "goldSlPoints" | "goldTpPoints" | "manager">>): Promise<CTraderManagedAccount> {
   const accounts = await listManagedCTraderAccounts();
   const current = accounts.find((item) => item.accountId === accountId);
   if (!current) throw new Error(`Unknown cTrader account: ${accountId}`);
@@ -103,6 +111,7 @@ export async function updateManagedCTraderAccount(accountId: number, patch: Part
     fxTpPoints: patch.fxTpPoints === undefined ? current.fxTpPoints : Math.max(0, Number(patch.fxTpPoints)),
     goldSlPoints: patch.goldSlPoints === undefined ? current.goldSlPoints : Math.max(0, Number(patch.goldSlPoints)),
     goldTpPoints: patch.goldTpPoints === undefined ? current.goldTpPoints : Math.max(0, Number(patch.goldTpPoints)),
+    manager: patch.manager === undefined ? current.manager : normalizeCTraderManagerSettings(patch.manager, current.manager),
     updatedAt: Date.now(),
   };
   for (const value of [next.fxSlPoints, next.fxTpPoints, next.goldSlPoints, next.goldTpPoints]) {

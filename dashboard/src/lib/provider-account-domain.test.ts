@@ -51,8 +51,8 @@ test("protection points and labels fail closed", () => {
 
 test("provider routing selects explicit bridge profiles and otherwise fans out to enabled accounts", () => {
   const accounts: ProviderAccountSummary[] = [
-    { id: "ctrader:11", provider: "ctrader", broker: "ICMarkets", environment: "live", externalAccountId: "11", traderLogin: 101, label: "cTrader Main", enabled: true, isDefault: false, connectionMode: "oauth", bridgeProfile: null, fxSlPoints: 500, fxTpPoints: 10000, goldSlPoints: 1000, goldTpPoints: 20000, updatedAt: 1 },
-    { id: "mt5:abcdefgh", provider: "mt5", broker: "Vantage", environment: "live", externalAccountId: "202", traderLogin: 202, label: "MT5 Main", enabled: true, isDefault: false, connectionMode: "bridge", bridgeProfile: "Vantage", fxSlPoints: 600, fxTpPoints: 12000, goldSlPoints: 1200, goldTpPoints: 22000, updatedAt: 1 },
+    { id: "ctrader:11", provider: "ctrader", broker: "ICMarkets", environment: "live", externalAccountId: "11", traderLogin: 101, label: "cTrader Main", enabled: true, isDefault: false, connectionMode: "oauth", bridgeProfile: null, fxSlPoints: 500, fxTpPoints: 10000, goldSlPoints: 1000, goldTpPoints: 20000, manager: null, updatedAt: 1 },
+    { id: "mt5:abcdefgh", provider: "mt5", broker: "Vantage", environment: "live", externalAccountId: "202", traderLogin: 202, label: "MT5 Main", enabled: true, isDefault: false, connectionMode: "bridge", bridgeProfile: "Vantage", fxSlPoints: 600, fxTpPoints: 12000, goldSlPoints: 1200, goldTpPoints: 22000, manager: null, updatedAt: 1 },
   ];
   assert.deepEqual(resolveEnabledProviderTargets(accounts).map((item) => item.id), ["ctrader:11", "mt5:abcdefgh"]);
   assert.deepEqual(resolveEnabledProviderTargets(accounts, "Vantage").map((item) => item.id), ["mt5:abcdefgh"]);
@@ -70,7 +70,9 @@ test("multi-provider web control plane is admin-only and does not expose broker 
   assert.match(storeSource, /oak:provider-accounts:default:v1/);
   assert.match(panelSource, /Connect cTrader/);
   assert.match(panelSource, /Add MT5 account/);
-  assert.match(panelSource, /outbound bridge/);
+  assert.match(panelSource, /OAK MQL5 EA/);
+  assert.match(panelSource, /Python worker chỉ còn là bridge legacy/);
+  assert.match(routeSource, /bridgeRuntime/);
   assert.doesNotMatch(panelSource, /name="password"|name="accessToken"|name="refreshToken"|clientSecret/);
   assert.doesNotMatch(routeSource, /password\s*:/i);
 });

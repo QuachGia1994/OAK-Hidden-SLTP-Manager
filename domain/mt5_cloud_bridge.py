@@ -477,6 +477,8 @@ class MT5CloudBridge:
             "profile": self.profile,
             "login": self.login,
             "server": self.server,
+            "runtime": "python-worker",
+            "version": "1",
             "at": int(time.time() * 1000),
         }, ensure_ascii=False, separators=(",", ":"))
         self.client.command("SET", _heartbeat_key(self.profile), heartbeat, "EX", HEARTBEAT_TTL_SECONDS)

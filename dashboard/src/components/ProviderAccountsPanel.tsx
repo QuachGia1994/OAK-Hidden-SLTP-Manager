@@ -19,8 +19,24 @@ type Account = {
   fxTpPoints: number;
   goldSlPoints: number;
   goldTpPoints: number;
+  manager: {
+    managerEnabled: boolean;
+    autoAttachSlTp: boolean;
+    netCloseOpposite: boolean;
+    netSkipSameDirection: boolean;
+    netRemoveOppositePending: boolean;
+    breakEvenAtR: number;
+    breakEvenOffsetPoints: number;
+    closeAtR: number;
+    partialRLevels: number[];
+    partialPercents: number[];
+    maxLotPerTrade: number;
+    maxExposurePerSymbol: number;
+  } | null;
   bridgeOnline?: boolean;
   bridgeLastSeenAt?: number | null;
+  bridgeRuntime?: "python-worker" | "mql5-ea" | null;
+  bridgeVersion?: string | null;
 };
 
 type AccountPayload = {
@@ -160,6 +176,20 @@ export function ProviderAccountsPanel() {
           fxTpPoints: Number(form.get("fxTpPoints")),
           goldSlPoints: Number(form.get("goldSlPoints")),
           goldTpPoints: Number(form.get("goldTpPoints")),
+          manager: account.provider === "ctrader" ? {
+            managerEnabled: form.get("managerEnabled") === "on",
+            autoAttachSlTp: form.get("autoAttachSlTp") === "on",
+            netCloseOpposite: form.get("netCloseOpposite") === "on",
+            netSkipSameDirection: form.get("netSkipSameDirection") === "on",
+            netRemoveOppositePending: form.get("netRemoveOppositePending") === "on",
+            breakEvenAtR: Number(form.get("breakEvenAtR")),
+            breakEvenOffsetPoints: Number(form.get("breakEvenOffsetPoints")),
+            closeAtR: Number(form.get("closeAtR")),
+            partialRLevels: String(form.get("partialRLevels") || ""),
+            partialPercents: String(form.get("partialPercents") || ""),
+            maxLotPerTrade: Number(form.get("maxLotPerTrade")),
+            maxExposurePerSymbol: Number(form.get("maxExposurePerSymbol")),
+          } : undefined,
         }),
       });
       const body = await response.json().catch(() => null) as { payload?: AccountPayload; error?: string } | null;
@@ -209,7 +239,7 @@ export function ProviderAccountsPanel() {
   return (
     <section className="oak-account-panel">
       <header className="oak-account-head">
-        <div><small>CLOUD / MULTI-PROVIDER</small><h1>Provider Account Manager</h1><p>cTrader dùng OAuth server-side. MT5 dùng outbound bridge từ worker đang giữ terminal/profile; password vẫn ở local và không được đưa vào browser hay public payload.</p></div>
+        <div><small>CLOUD / MULTI-PROVIDER</small><h1>Provider Account Manager</h1><p>cTrader dùng OAuth trading + cloud minute watchdog cho Auto Manager. MT5 ưu tiên OAK MQL5 EA gắn trực tiếp vào terminal; Python worker chỉ còn là bridge legacy. Broker password/token không được đưa vào browser/public payload.</p></div>
         <div className="oak-account-actions">
           <button type="button" onClick={connectCTrader} disabled={Boolean(busy)}>{payload?.providers.ctrader.connected ? "Reconnect cTrader" : "Connect cTrader"}</button>
           <button type="button" onClick={syncCTrader} disabled={Boolean(busy) || !payload?.providers.ctrader.connected}>{busy === "sync-ctrader" ? "Syncing…" : "Sync cTrader"}</button>
@@ -241,7 +271,7 @@ export function ProviderAccountsPanel() {
         {accounts.map((account) => (
           <form key={account.id} className="oak-account-card" onSubmit={(event) => saveAccount(event, account)}>
             <header>
-              <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}{account.provider === "mt5" ? ` · ${account.bridgeOnline ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}` : ""}</span></div>
+              <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}{account.provider === "mt5" ? ` · ${account.bridgeOnline ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}${account.bridgeRuntime ? ` · ${account.bridgeRuntime === "mql5-ea" ? "OAK EA" : "PYTHON LEGACY"}` : ""}` : ""}</span></div>
               <label><input name="enabled" type="checkbox" defaultChecked={account.enabled} /> Enable control</label>
             </header>
             <div className="oak-account-fields">
@@ -251,6 +281,20 @@ export function ProviderAccountsPanel() {
               <label>FX TP points<input name="fxTpPoints" type="number" min="1" step="1" defaultValue={account.fxTpPoints} /></label>
               <label>Gold SL points<input name="goldSlPoints" type="number" min="1" step="1" defaultValue={account.goldSlPoints} /></label>
               <label>Gold TP points<input name="goldTpPoints" type="number" min="1" step="1" defaultValue={account.goldTpPoints} /></label>
+              {account.provider === "ctrader" && account.manager && <>
+                <label><input name="managerEnabled" type="checkbox" defaultChecked={account.manager.managerEnabled} /> cTrader Auto Manager</label>
+                <label><input name="autoAttachSlTp" type="checkbox" defaultChecked={account.manager.autoAttachSlTp} /> Auto attach missing SL/TP</label>
+                <label><input name="netSkipSameDirection" type="checkbox" defaultChecked={account.manager.netSkipSameDirection} /> Net: skip same direction</label>
+                <label><input name="netCloseOpposite" type="checkbox" defaultChecked={account.manager.netCloseOpposite} /> Net: close opposite</label>
+                <label><input name="netRemoveOppositePending" type="checkbox" defaultChecked={account.manager.netRemoveOppositePending} /> Net: remove opposite pending</label>
+                <label>BE at R<input name="breakEvenAtR" type="number" min="0" step="0.1" defaultValue={account.manager.breakEvenAtR} /></label>
+                <label>BE offset points<input name="breakEvenOffsetPoints" type="number" min="0" step="1" defaultValue={account.manager.breakEvenOffsetPoints} /></label>
+                <label>Full close at R<input name="closeAtR" type="number" min="0" step="0.1" defaultValue={account.manager.closeAtR} /></label>
+                <label>Partial R levels<input name="partialRLevels" defaultValue={account.manager.partialRLevels.join(",")} placeholder="1,2" /></label>
+                <label>Partial %<input name="partialPercents" defaultValue={account.manager.partialPercents.join(",")} placeholder="50 or 50,25" /></label>
+                <label>Max lot / entry<input name="maxLotPerTrade" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxLotPerTrade} /></label>
+                <label>Max exposure / symbol<input name="maxExposurePerSymbol" type="number" min="0.01" step="0.01" defaultValue={account.manager.maxExposurePerSymbol} /></label>
+              </>}
               <label><input name="makeDefault" type="checkbox" defaultChecked={account.isDefault} disabled={!account.enabled} /> Default account</label>
             </div>
             <footer>

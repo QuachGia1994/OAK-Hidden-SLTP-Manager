@@ -2,6 +2,7 @@ import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis, requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
+import { runCTraderAccountManager } from "@/lib/ctrader-account-manager";
 import { TELEGRAM_CLOUD_PROFILE } from "@/lib/telegram-cloud-domain";
 import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/telegram-cloud-runner";
 import { appendTelegramAudit, listCloudIntents, listDueScheduledIntents, markDueNotification } from "@/lib/telegram-cloud-store";
@@ -65,13 +66,16 @@ export async function POST(request: Request) {
   const denied = await authorize(request);
   if (denied) return denied;
   const config = await loadH1CloudConfig();
-  if (!config?.telegramControlEnabled) return NextResponse.json({ ok: true, enabled: false, notified: 0 });
 
   const lock = randomUUID();
   if (!await acquireLock(lock)) return NextResponse.json({ ok: true, enabled: true, skipped: "already-running", notified: 0 });
 
   try {
     const now = Date.now();
+    const ctraderManager = await runCTraderAccountManager(now);
+    if (!config?.telegramControlEnabled) {
+      return NextResponse.json({ ok: true, enabled: false, notified: 0, ctraderManager });
+    }
     const due = (await listDueScheduledIntents(now)).slice(0, 50);
     let executed = 0;
     for (const task of due) {
@@ -97,8 +101,8 @@ export async function POST(request: Request) {
       await markDueNotification(task, now);
       reminded += 1;
     }
-    await appendTelegramAudit({ action: "due_tick", scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded });
-    return NextResponse.json({ ok: true, enabled: true, executed, reminded });
+    await appendTelegramAudit({ action: "due_tick", scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded, ctraderManager });
+    return NextResponse.json({ ok: true, enabled: true, executed, reminded, ctraderManager });
   } catch (error) {
     console.error("[TELEGRAM CLOUD TICK]", error instanceof Error ? error.message : String(error));
     return NextResponse.json({ ok: false, error: "Telegram cloud tick failed." }, { status: 502 });

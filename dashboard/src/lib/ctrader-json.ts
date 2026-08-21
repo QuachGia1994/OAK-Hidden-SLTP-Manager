@@ -10,6 +10,7 @@ const PAYLOAD = {
   ACCOUNT_AUTH_REQ: 2102,
   ACCOUNT_AUTH_RES: 2103,
   NEW_ORDER_REQ: 2106,
+  CANCEL_ORDER_REQ: 2108,
   AMEND_POSITION_SLTP_REQ: 2110,
   CLOSE_POSITION_REQ: 2111,
   SYMBOLS_LIST_REQ: 2114,
@@ -19,12 +20,17 @@ const PAYLOAD = {
   RECONCILE_REQ: 2124,
   RECONCILE_RES: 2125,
   EXECUTION_EVENT: 2126,
+  SUBSCRIBE_SPOTS_REQ: 2127,
+  SUBSCRIBE_SPOTS_RES: 2128,
+  SPOT_EVENT: 2131,
   ORDER_ERROR_EVENT: 2132,
   GET_TRENDBARS_REQ: 2137,
   GET_TRENDBARS_RES: 2138,
   ERROR_RES: 2142,
   GET_ACCOUNTS_BY_ACCESS_TOKEN_REQ: 2149,
   GET_ACCOUNTS_BY_ACCESS_TOKEN_RES: 2150,
+  GET_POSITION_UNREALIZED_PNL_REQ: 2187,
+  GET_POSITION_UNREALIZED_PNL_RES: 2188,
 } as const;
 
 const H1_PERIOD = 9;
@@ -54,6 +60,14 @@ type PendingRequest = {
   terminal?: (payload: Record<string, unknown>) => boolean;
 };
 
+type PendingEvent = {
+  payloadType: number;
+  predicate?: (payload: Record<string, unknown>) => boolean;
+  resolve: (payload: Record<string, unknown>) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -69,6 +83,8 @@ async function dataToText(data: unknown): Promise<string> {
 class CTraderJsonSocket {
   private ws: WebSocket;
   private pending = new Map<string, PendingRequest>();
+  private pendingEvents = new Set<PendingEvent>();
+  private recentEvents: JsonEnvelope[] = [];
   private closed = false;
 
   private constructor(ws: WebSocket) {
@@ -104,6 +120,18 @@ class CTraderJsonSocket {
     } catch {
       return;
     }
+    if (Number.isInteger(envelope.payloadType)) {
+      this.recentEvents.push(envelope);
+      if (this.recentEvents.length > 80) this.recentEvents.splice(0, this.recentEvents.length - 80);
+      for (const waiter of [...this.pendingEvents]) {
+        if (envelope.payloadType !== waiter.payloadType) continue;
+        const payload = envelope.payload || {};
+        if (waiter.predicate && !waiter.predicate(payload)) continue;
+        this.pendingEvents.delete(waiter);
+        clearTimeout(waiter.timer);
+        waiter.resolve(payload);
+      }
+    }
     const clientMsgId = envelope.clientMsgId || "";
     if (!clientMsgId) return;
     const pending = this.pending.get(clientMsgId);
@@ -132,10 +160,33 @@ class CTraderJsonSocket {
       pending.reject(error);
     }
     this.pending.clear();
+    for (const pending of this.pendingEvents) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pendingEvents.clear();
   }
 
   request(payloadType: number, expectedType: number, payload: Record<string, unknown>, timeoutMs = 9_000) {
     return this.requestUntil(payloadType, expectedType, payload, undefined, timeoutMs);
+  }
+
+  waitForEvent(payloadType: number, predicate?: (payload: Record<string, unknown>) => boolean, timeoutMs = 5_000) {
+    const cached = [...this.recentEvents].reverse().find((event) => event.payloadType === payloadType && (!predicate || predicate(event.payload || {})));
+    if (cached) return Promise.resolve(cached.payload || {});
+    if (this.closed || this.ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error("cTrader WebSocket is not open"));
+    return new Promise<Record<string, unknown>>((resolve, reject) => {
+      const waiter = {} as PendingEvent;
+      waiter.payloadType = payloadType;
+      waiter.predicate = predicate;
+      waiter.resolve = resolve;
+      waiter.reject = reject;
+      waiter.timer = setTimeout(() => {
+        this.pendingEvents.delete(waiter);
+        reject(new Error(`cTrader event timeout (${payloadType})`));
+      }, timeoutMs);
+      this.pendingEvents.add(waiter);
+    });
   }
 
   requestUntil(
@@ -235,7 +286,7 @@ export type CTraderSymbolMeta = {
 };
 
 export type CTraderMutationResult = {
-  action: "entry" | "close" | "modify";
+  action: "entry" | "close" | "modify" | "cancel" | "partial";
   symbol: string;
   positionId: number | null;
   orderId: number | null;
@@ -375,6 +426,246 @@ async function reconcileWithSymbols(socket: CTraderJsonSocket, accountId: number
   }
   const reconcile = await socket.request(PAYLOAD.RECONCILE_REQ, PAYLOAD.RECONCILE_RES, { ctidTraderAccountId: accountId });
   return { reconcile, symbolNames };
+}
+
+export type CTraderManagementPosition = {
+  positionId: number;
+  symbol: string;
+  symbolId: number;
+  side: "BUY" | "SELL";
+  volumeRaw: number;
+  lotSize: number;
+  minVolume: number;
+  maxVolume: number;
+  stepVolume: number;
+  digits: number;
+  openPrice: number;
+  currentPrice: number | null;
+  stopLoss: number;
+  takeProfit: number;
+  netProfit: number | null;
+  label: string;
+  lastUpdateAt: number;
+};
+
+export type CTraderManagementOrder = {
+  orderId: number;
+  symbol: string;
+  symbolId: number;
+  side: "BUY" | "SELL";
+  volumeRaw: number;
+  orderType: number;
+  orderStatus: number;
+};
+
+export type CTraderManagementSnapshot = {
+  positions: CTraderManagementPosition[];
+  orders: CTraderManagementOrder[];
+};
+
+async function fullSymbolMetaMap(socket: CTraderJsonSocket, accountId: number, symbolIds: number[], names: Map<number, string>): Promise<Map<number, CTraderSymbolMeta>> {
+  const unique = [...new Set(symbolIds.filter((id) => Number.isSafeInteger(id) && id > 0))];
+  const output = new Map<number, CTraderSymbolMeta>();
+  if (!unique.length) return output;
+  const full = await socket.request(PAYLOAD.SYMBOL_BY_ID_REQ, PAYLOAD.SYMBOL_BY_ID_RES, {
+    ctidTraderAccountId: accountId,
+    symbolId: unique,
+  });
+  for (const raw of Array.isArray(full.symbol) ? full.symbol : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const symbolId = Number(row.symbolId || 0);
+    const lotSize = Number(row.lotSize || 0);
+    const minVolume = Number(row.minVolume || 0);
+    const maxVolume = Number(row.maxVolume || 0);
+    const stepVolume = Number(row.stepVolume || 0);
+    const digits = Number(row.digits);
+    if (!Number.isSafeInteger(symbolId) || symbolId <= 0 || !Number.isFinite(lotSize) || lotSize <= 0 || !Number.isFinite(minVolume) || minVolume <= 0 || !Number.isFinite(stepVolume) || stepVolume <= 0 || !Number.isInteger(digits) || digits < 0) continue;
+    output.set(symbolId, {
+      symbolId,
+      displayName: names.get(symbolId) || String(symbolId),
+      digits,
+      lotSize: Math.trunc(lotSize),
+      minVolume: Math.trunc(minVolume),
+      maxVolume: Math.trunc(maxVolume),
+      stepVolume: Math.trunc(stepVolume),
+    });
+  }
+  return output;
+}
+
+export async function fetchCTraderManagementSnapshot(session: CTraderScannerSession): Promise<CTraderManagementSnapshot> {
+  requireTradingScope(session);
+  const socket = await authorizeAccountSocket(session);
+  try {
+    const { reconcile, symbolNames } = await reconcileWithSymbols(socket, session.accountId);
+    const rawPositions = (Array.isArray(reconcile.position) ? reconcile.position : []).filter((raw): raw is Record<string, unknown> => Boolean(raw && typeof raw === "object"));
+    const rawOrders = (Array.isArray(reconcile.order) ? reconcile.order : []).filter((raw): raw is Record<string, unknown> => Boolean(raw && typeof raw === "object"));
+    const symbolIds = [...rawPositions, ...rawOrders].map((row) => {
+      const tradeData = row.tradeData && typeof row.tradeData === "object" ? row.tradeData as Record<string, unknown> : {};
+      return Number(tradeData.symbolId || 0);
+    });
+    const metas = await fullSymbolMetaMap(socket, session.accountId, symbolIds, symbolNames);
+
+    let pnlPayload: Record<string, unknown> = {};
+    try {
+      pnlPayload = await socket.request(PAYLOAD.GET_POSITION_UNREALIZED_PNL_REQ, PAYLOAD.GET_POSITION_UNREALIZED_PNL_RES, {
+        ctidTraderAccountId: session.accountId,
+      });
+    } catch {
+      pnlPayload = {};
+    }
+    const moneyDigits = Number.isInteger(Number(pnlPayload.moneyDigits)) ? Number(pnlPayload.moneyDigits) : 2;
+    const moneyScale = 10 ** Math.max(0, Math.min(12, moneyDigits));
+    const pnlByPosition = new Map<number, number>();
+    for (const raw of Array.isArray(pnlPayload.positionUnrealizedPnL) ? pnlPayload.positionUnrealizedPnL : []) {
+      if (!raw || typeof raw !== "object") continue;
+      const row = raw as Record<string, unknown>;
+      const id = Number(row.positionId || 0);
+      const rawPnl = Number(row.netUnrealizedPnL);
+      if (Number.isSafeInteger(id) && id > 0 && Number.isFinite(rawPnl)) pnlByPosition.set(id, rawPnl / moneyScale);
+    }
+
+    const quoteBySymbol = new Map<number, { bid: number | null; ask: number | null }>();
+    const quoteIds = [...new Set(symbolIds.filter((id) => metas.has(id)))];
+    if (quoteIds.length) {
+      try {
+        await socket.request(PAYLOAD.SUBSCRIBE_SPOTS_REQ, PAYLOAD.SUBSCRIBE_SPOTS_RES, {
+          ctidTraderAccountId: session.accountId,
+          symbolId: quoteIds,
+          subscribeToSpotTimestamp: true,
+        });
+        await Promise.all(quoteIds.map(async (symbolId) => {
+          try {
+            const event = await socket.waitForEvent(PAYLOAD.SPOT_EVENT, (row) => Number(row.symbolId || 0) === symbolId, 3_500);
+            const bidRaw = Number(event.bid);
+            const askRaw = Number(event.ask);
+            quoteBySymbol.set(symbolId, {
+              bid: Number.isFinite(bidRaw) && bidRaw > 0 ? bidRaw / 100_000 : null,
+              ask: Number.isFinite(askRaw) && askRaw > 0 ? askRaw / 100_000 : null,
+            });
+          } catch {
+            quoteBySymbol.set(symbolId, { bid: null, ask: null });
+          }
+        }));
+      } catch {
+        // Protection repair can still run without quotes; R/price rules fail closed for this cycle.
+      }
+    }
+
+    const positions: CTraderManagementPosition[] = [];
+    for (const row of rawPositions) {
+      const tradeData = row.tradeData && typeof row.tradeData === "object" ? row.tradeData as Record<string, unknown> : {};
+      const positionId = Number(row.positionId || 0);
+      const symbolId = Number(tradeData.symbolId || 0);
+      const meta = metas.get(symbolId);
+      const side = Number(tradeData.tradeSide || 0) === 1 ? "BUY" as const : Number(tradeData.tradeSide || 0) === 2 ? "SELL" as const : null;
+      const volumeRaw = Number(tradeData.volume || 0);
+      const openPrice = Number(row.price || 0);
+      if (!meta || !side || !Number.isSafeInteger(positionId) || positionId <= 0 || !Number.isSafeInteger(volumeRaw) || volumeRaw <= 0 || !Number.isFinite(openPrice) || openPrice <= 0) continue;
+      const quote = quoteBySymbol.get(symbolId);
+      positions.push({
+        positionId,
+        symbol: meta.displayName,
+        symbolId,
+        side,
+        volumeRaw,
+        lotSize: meta.lotSize,
+        minVolume: meta.minVolume,
+        maxVolume: meta.maxVolume,
+        stepVolume: meta.stepVolume,
+        digits: meta.digits,
+        openPrice,
+        currentPrice: side === "BUY" ? quote?.bid ?? null : quote?.ask ?? null,
+        stopLoss: Number(row.stopLoss || 0),
+        takeProfit: Number(row.takeProfit || 0),
+        netProfit: pnlByPosition.get(positionId) ?? null,
+        label: String(tradeData.label || ""),
+        lastUpdateAt: Number(row.utcLastUpdateTimestamp || 0),
+      });
+    }
+
+    const orders: CTraderManagementOrder[] = [];
+    for (const row of rawOrders) {
+      const tradeData = row.tradeData && typeof row.tradeData === "object" ? row.tradeData as Record<string, unknown> : {};
+      const orderId = Number(row.orderId || 0);
+      const symbolId = Number(tradeData.symbolId || 0);
+      const meta = metas.get(symbolId);
+      const side = Number(tradeData.tradeSide || 0) === 1 ? "BUY" as const : Number(tradeData.tradeSide || 0) === 2 ? "SELL" as const : null;
+      const volumeRaw = Number(tradeData.volume || 0);
+      if (!meta || !side || !Number.isSafeInteger(orderId) || orderId <= 0 || !Number.isSafeInteger(volumeRaw) || volumeRaw <= 0) continue;
+      orders.push({ orderId, symbol: meta.displayName, symbolId, side, volumeRaw, orderType: Number(row.orderType || 0), orderStatus: Number(row.orderStatus || 0) });
+    }
+    return { positions, orders };
+  } finally {
+    socket.close();
+  }
+}
+
+export async function closeCTraderPositionVolume(args: {
+  session: CTraderScannerSession;
+  positionId: number;
+  volumeRaw: number;
+  symbol: string;
+}): Promise<CTraderMutationResult> {
+  requireTradingScope(args.session);
+  if (!Number.isSafeInteger(args.positionId) || args.positionId <= 0 || !Number.isSafeInteger(args.volumeRaw) || args.volumeRaw <= 0) throw new Error("Invalid cTrader close target");
+  const socket = await authorizeAccountSocket(args.session);
+  try {
+    const payload = await socket.requestUntil(PAYLOAD.CLOSE_POSITION_REQ, PAYLOAD.EXECUTION_EVENT, {
+      ctidTraderAccountId: args.session.accountId,
+      positionId: args.positionId,
+      volume: args.volumeRaw,
+    }, (event) => executionTerminal(event, [3, 7]), 20_000);
+    return executionResult("close", args.symbol, payload);
+  } finally {
+    socket.close();
+  }
+}
+
+export async function amendCTraderPositionProtectionById(args: {
+  session: CTraderScannerSession;
+  positionId: number;
+  symbol: string;
+  stopLoss: number;
+  takeProfit: number;
+}): Promise<CTraderMutationResult> {
+  requireTradingScope(args.session);
+  if (!Number.isSafeInteger(args.positionId) || args.positionId <= 0) throw new Error("Invalid cTrader position ID");
+  if ((!Number.isFinite(args.stopLoss) || args.stopLoss < 0) || (!Number.isFinite(args.takeProfit) || args.takeProfit < 0)) throw new Error("Invalid cTrader protection price");
+  const socket = await authorizeAccountSocket(args.session);
+  try {
+    const payload = await socket.requestUntil(PAYLOAD.AMEND_POSITION_SLTP_REQ, PAYLOAD.EXECUTION_EVENT, {
+      ctidTraderAccountId: args.session.accountId,
+      positionId: args.positionId,
+      ...(args.stopLoss > 0 ? { stopLoss: args.stopLoss } : {}),
+      ...(args.takeProfit > 0 ? { takeProfit: args.takeProfit } : {}),
+    }, (event) => executionTerminal(event, [3, 4, 7]), 20_000);
+    return executionResult("modify", args.symbol, payload);
+  } finally {
+    socket.close();
+  }
+}
+
+export async function cancelCTraderPendingOrder(args: {
+  session: CTraderScannerSession;
+  orderId: number;
+  symbol: string;
+}): Promise<CTraderMutationResult> {
+  requireTradingScope(args.session);
+  if (!Number.isSafeInteger(args.orderId) || args.orderId <= 0) throw new Error("Invalid cTrader order ID");
+  const socket = await authorizeAccountSocket(args.session);
+  try {
+    const payload = await socket.requestUntil(PAYLOAD.CANCEL_ORDER_REQ, PAYLOAD.EXECUTION_EVENT, {
+      ctidTraderAccountId: args.session.accountId,
+      orderId: args.orderId,
+    }, (event) => executionTerminal(event, [5, 7, 8]), 20_000);
+    const executionType = Number(payload.executionType || 0);
+    if (executionType === 7 || executionType === 8) throw new Error(String(payload.errorCode || "cTrader cancel rejected"));
+    return { action: "cancel", symbol: args.symbol, positionId: null, orderId: args.orderId, dealId: null, detail: `executionType=${executionType}` };
+  } finally {
+    socket.close();
+  }
 }
 
 export async function closeCTraderPositions(args: {

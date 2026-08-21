@@ -1,3 +1,5 @@
+import type { CTraderManagerSettings } from "@/lib/ctrader-manager-domain";
+
 export type ProviderKind = "ctrader" | "mt5";
 export type ProviderEnvironment = "live" | "demo";
 
@@ -17,6 +19,7 @@ export type ProviderAccountSummary = {
   fxTpPoints: number;
   goldSlPoints: number;
   goldTpPoints: number;
+  manager: CTraderManagerSettings | null;
   updatedAt: number;
 };
 

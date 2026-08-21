@@ -1,6 +1,6 @@
 # ROBOT SLTP / OAK Gatekeeper Architecture
 
-> updated 2026-08-21 · v4.1.0
+> updated 2026-08-22 · v4.1.0
 
 This document describes the maintained production surfaces after retiring the Engine5/Pattern5 H4 stack.
 
@@ -9,6 +9,7 @@ This document describes the maintained production surfaces after retiring the En
 - `dashboard/`: Next.js cloud control plane and web UI.
 - `robot-sltp-pro/`: Tauri desktop fallback/diagnostic workstation.
 - `domain/`, `services/`, root Python: local fallback runtime and MT5 utilities.
+- `mt5/`: app-free OAK MQL5 EA runtime for MT5 execution/account management.
 
 ## Ownership map
 
@@ -28,9 +29,10 @@ This document describes the maintained production surfaces after retiring the En
 | cTrader OAuth/token vault | `dashboard/src/app/api/ctrader/*`, `dashboard/src/lib/ctrader-vault.ts` | scanner, account manager, Telegram status/positions |
 | Provider account registry | `dashboard/src/lib/provider-accounts.ts`, `provider-account-domain.ts`, `/api/accounts`, `/accounts` | admin web UI, Telegram `/profiles`, provider execution routing |
 | cTrader managed accounts + default protection | `dashboard/src/lib/ctrader-accounts.ts` | cTrader discovery/targeting, provider registry adapter |
+| cTrader cloud Auto Manager | `dashboard/src/lib/ctrader-account-manager.ts`, `ctrader-manager-domain.ts` | minute tick, entry netting, SL/TP repair, BE/R/partial management |
 | Multi-provider execution router | `dashboard/src/lib/telegram-cloud-execution.ts` | `/approve ID`, pre-approved scheduled intents |
-| cTrader mutation adapter | `dashboard/src/lib/ctrader-json.ts` | provider execution router |
-| MT5 outbound mailbox bridge | `dashboard/src/lib/mt5-bridge.ts`, `domain/mt5_cloud_bridge.py`, `domain/monitor_worker.py` | provider execution router, `/positions`, active local MT5 profile worker |
+| cTrader mutation/read adapter | `dashboard/src/lib/ctrader-json.ts` | provider execution router, cTrader Auto Manager |
+| MT5 outbound mailbox bridge | `dashboard/src/lib/mt5-bridge.ts`, `mt5/OAK_Cloud_Manager_EA.mq5` (primary app-free runtime), `domain/mt5_cloud_bridge.py` + `domain/monitor_worker.py` (legacy fallback) | provider execution router, `/positions`, attached MT5 terminal |
 | Local fallback H1 scanner | `domain/xau_h1_pattern_scanner.py` | `MonitorWorker` when explicitly run locally |
 | Local fallback H1 public publisher | `domain/h1_signal_public_feed.py` | Upstash H1 feed |
 | Desktop IPC/runtime | `robot-sltp-pro/backend_bridge.py`, `src/backend-client.ts` | Tauri UI |
@@ -124,17 +126,19 @@ Cloud webhook is the primary receiver. The webhook validates:
 - exact configured admin chat ID;
 - Redis `update_id` idempotency.
 
-Maintained management/read commands include `/status`, `/profiles`, `/positions`, `/pending`, `/del ID`, `/del all`, plus intent capture for entry/close/modify requests and the explicit broker boundary `/approve ID`.
+Maintained management/read commands include `/status`, `/profiles`, `/positions`, `/pending`, `/del ID`, `/del all`, plus intent capture for entry/close/modify requests, provider-scoped dynamic `/partial` rules for cTrader Auto Manager or MT5 OAK EA, and the explicit broker boundary `/approve ID`.
 
-`/accounts` is an admin-only multi-provider web account manager backed by a signed HttpOnly session. cTrader OAuth can be reconnected and live/demo accounts are discovered through Open API; those accounts retain per-account FX/gold SL/TP defaults. MT5 accounts are represented separately as bridge metadata containing broker, login, environment, label and optional local bridge-profile name. No MT5 broker password is accepted by this web route. OAuth access/refresh tokens, cTrader client secrets, vault material and broker passwords remain server/local-only and are never returned to browser JavaScript.
+`/accounts` is an admin-only multi-provider web account manager backed by a signed HttpOnly session. cTrader OAuth can be reconnected and live/demo accounts are discovered through Open API; those accounts retain per-account FX/gold SL/TP defaults and an explicit opt-in Auto Manager configuration (auto SL/TP repair, entry netting, BE at R, close at R, R partials, max lot/exposure). MT5 accounts are represented separately as bridge metadata containing broker, login, environment, label and optional local bridge-profile name. No MT5 broker password is accepted by this web route. OAuth access/refresh tokens, cTrader client secrets, vault material and broker passwords remain server/local-only and are never returned to browser JavaScript.
 
 The unified provider registry assigns explicit IDs (`ctrader:<accountId>` or generated `mt5:<id>`), enable state and an optional default account. Telegram `/profiles` renders this unified registry. A command with no account alias targets all enabled provider accounts; an explicit alias must resolve to exactly one account or the command fails closed rather than fanning out ambiguously.
 
-cTrader mutations stay server-side through the existing Open API adapter. MT5 uses an outbound-only Upstash mailbox: each active `MonitorWorker` publishes a short-lived heartbeat bound to its local bridge profile and live MT5 login, claims only that profile's queued tasks, and executes the broker call on the same worker thread that owns the verified MT5 session. The cloud never receives an MT5 password and no inbound port/VPS is required. Entry uses `send_order_idempotent`; close/modify use the durable `send_mutation_idempotent` ledger. A cloud timeout may cancel only an unclaimed task; once the local worker has claimed it, timeout becomes `uncertain` and the same task is never automatically replayed.
+cTrader mutations stay server-side through Open API. When a cTrader account's Auto Manager is enabled, the existing authenticated minute tick opens a fresh trading session, reads reconcile state plus backend-computed unrealized P&L and first live spot quotes, then evaluates automatic SL/TP repair, break-even at R, full close at R, configured R partials, and cloud-armed partial close by floating profit or directional target price. Cloud entries use the same manager settings for same-direction suppression, opposite-position close, opposite-pending cancellation, and max lot/exposure guards before the new market order. Per-position initial risk/original volume and dynamic rules live in Redis; every broker mutation has a per-position ledger. A running/uncertain mutation is reconciled on the next fresh snapshot and is never blindly replayed if the desired result cannot be proven. Auto Manager defaults OFF for existing/newly discovered cTrader accounts, so deployment alone cannot start managing live positions.
+
+MT5 uses an outbound-only Upstash mailbox with two mutually compatible runtimes. The primary app-free path is `mt5/OAK_Cloud_Manager_EA.mq5`: an EA attached directly to the broker terminal publishes a short-lived `mql5-ea` heartbeat bound to `bridgeProfile` + live login, claims the same Redis arbiter key, and executes entry/close/modify/positions without the desktop app or Python worker. It also manages manual/mobile positions with automatic SL/TP, entry netting, break-even at R, full close at configured R, R partials, and cloud-armed partial close by floating profit or price. The previous `MonitorWorker`/Python bridge remains a legacy fallback and publishes `runtime=python-worker`; MT5 dynamic `/partial` fails closed unless the heartbeat runtime is `mql5-ea`. The cloud never receives an MT5 broker password and no inbound port is required. A cloud timeout may cancel only an unclaimed task; once either runtime has claimed it, timeout becomes `uncertain` and the same task is never automatically replayed.
 
 Every broker-mutating Telegram command still starts as `approval_required`. Provider account IDs and per-account SL/TP distances are snapshotted into the intent before approval. `/approve ID` is required exactly once: an immediate intent executes after that confirmation; a future intent becomes `scheduled` and may execute only after its due time. Unapproved due intents are only reminded, never sent to the broker. Redis update idempotency plus a per-intent execution lock prevent webhook/tick retries from duplicating the same intent execution. Legacy stored numeric cTrader target IDs are normalized to `ctrader:<id>` when read so pre-existing pending intents remain valid.
 
-Cloudflare calls the Telegram due tick every minute with a dedicated hashed bearer, while the existing GitHub OIDC workflow remains fallback. This minute clock can execute only intents that have already crossed the explicit `/approve` boundary.
+Cloudflare calls the Telegram due tick every minute with a dedicated hashed bearer, while the existing GitHub OIDC workflow remains fallback. The same tick evaluates enabled cTrader Auto Manager accounts even if Telegram control is disabled; scheduled broker intents still execute only after crossing the explicit `/approve` boundary. cTrader BE/R/price/profit rules therefore have minute-level evaluation granularity, while already-attached cTrader SL/TP remains broker-native between cloud ticks.
 
 `oak_enginecore.py` is fallback-only. It calls Telegram `getWebhookInfo` before acquiring its local singleton lock and exits when the cloud webhook is active; it never deletes/steals the cloud webhook merely because desktop is opened.
 
@@ -143,7 +147,7 @@ Cloudflare calls the Telegram due tick every minute with a dedicated hashed bear
 The desktop no longer contains Engine5/Pattern5 UI or commands. It remains useful for:
 
 - observing configured MT5 profiles;
-- servicing the outbound cloud mailbox for an enabled MT5 provider account while its profile worker and terminal are already running;
+- legacy fallback servicing of the outbound cloud mailbox when an OAK MQL5 EA is not attached;
 - inspecting account/position snapshots from an already-running terminal;
 - local SLTP configuration and legacy local pending-task administration;
 - explicit local runtime start/stop and diagnostics.
@@ -167,7 +171,11 @@ Pass/fail is broker-day H1 slot presence plus T/G direction. OHLC difference is 
 - Telegram send failure → state is not advanced.
 - Corrupt local state → fallback scanner fails closed.
 - cTrader token/account mismatch → cloud read fails closed.
+- cTrader Auto Manager disabled → no automatic management mutations; deployment alone is inert for that account.
+- cTrader manager mutation returns an ambiguous outcome → ledger becomes `uncertain`; the next tick may reconcile a proven result but cannot blindly repeat the mutation.
+- cTrader live quote/P&L unavailable for a cycle → R/profit/price-triggered actions are skipped fail-closed; SL/TP repair may still proceed from reconcile state.
 - MT5 bridge offline or heartbeat login mismatch → task is rejected before enqueue/execution.
+- MT5 dynamic `/partial` sent to anything except an `mql5-ea` heartbeat → rejected before enqueue.
 - MT5 task claimed but final broker outcome not returned before timeout → cloud marks it uncertain and does not replay it automatically.
 - Cloud webhook active → local Telegram receiver exits instead of racing it.
 
@@ -176,5 +184,7 @@ Pass/fail is broker-day H1 slot presence plus T/G direction. OHLC difference is 
 - Scanner semantics: `dashboard/src/lib/h1-cloud-scanner.test.ts`, `tests/test_xau_h1_pattern_scanner.py`.
 - Public H1 contract: `dashboard/src/lib/h1-signals.test.ts`, `tests/test_h1_signal_public_feed.py`.
 - Telegram cloud control: `dashboard/src/lib/telegram-cloud-domain.test.ts`, `telegram-cloud-route.test.ts`.
+- MT5 EA/cloud mailbox contract: `dashboard/src/lib/mt5-bridge.test.ts`, `tests/test_oak_mt5_ea_contract.py`, `tests/test_mt5_cloud_bridge.py`.
+- cTrader Auto Manager: `dashboard/src/lib/ctrader-manager-domain.test.ts`, `ctrader-execution.test.ts`, `provider-account-domain.test.ts`.
 - cTrader H1/parity: `tests/test_h1_market_data.py` and snapshot/parity CLIs.
 - Desktop bridge/runtime lifecycle: `robot-sltp-pro/test_backend_bridge.py`, runtime lifecycle tests.

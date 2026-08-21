@@ -19,6 +19,8 @@ export type Mt5BridgeHeartbeat = {
   profile: string;
   login: number;
   server: string;
+  runtime?: "python-worker" | "mql5-ea";
+  version?: string;
   at: number;
 };
 
@@ -182,6 +184,9 @@ export async function executeMt5BridgeAction(args: {
   if (!heartbeat) return offlineResult(args.account, args.action, "MT5 bridge profile is offline");
   if (heartbeat.login !== args.account.traderLogin) {
     return offlineResult(args.account, args.action, `MT5 bridge login mismatch: local ${heartbeat.login}, expected ${args.account.traderLogin}`);
+  }
+  if (args.action === "partial" && heartbeat.runtime !== "mql5-ea") {
+    return offlineResult(args.account, args.action, "Dynamic partial requires the OAK MQL5 EA runtime on this MT5 account");
   }
 
   const final = await waitForTask(await enqueueTask(args), args.waitMs);

@@ -1,7 +1,7 @@
 export const TELEGRAM_CLOUD_PROFILE = "OAK Multi-Provider Cloud";
 export const TELEGRAM_CLOUD_EXECUTION_MODE = "confirm_required" as const;
 
-export type CloudIntentKind = "entry" | "close" | "modify";
+export type CloudIntentKind = "entry" | "close" | "modify" | "partial";
 export type CloudIntentStatus = "approval_required" | "scheduled" | "approved" | "executing" | "executed" | "partial" | "failed" | "uncertain" | "cancelled" | "expired";
 export type CloudExecutionResult = { accountId: string; label: string; ok: boolean; uncertain?: boolean; action: string; detail: string; brokerRef?: string };
 
@@ -138,7 +138,7 @@ function canonicalSymbol(value: string): string {
 }
 
 const LEGACY_PROFILE_ALIASES = new Set(["vantage", "vantagedemo", "darwinex", "th5ers"]);
-const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "approve", "buy", "sell", "close", "closeall", "modify", "del"]);
+const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "approve", "buy", "sell", "close", "closeall", "modify", "partial", "del"]);
 
 function splitLegacyProfile(tokens: string[]): { tokens: string[]; legacyProfile: string } {
   if (!tokens.length) return { tokens, legacyProfile: "" };
@@ -265,6 +265,38 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
       payload: { field: field.toUpperCase(), symbol, value, legacyProfile: scoped.legacyProfile || null, executionMode: TELEGRAM_CLOUD_EXECUTION_MODE },
     };
   }
+  if (command === "/partial") {
+    const scoped = splitLegacyProfile(args);
+    const commandArgs = scoped.tokens;
+    if (commandArgs.length !== 4) {
+      return { type: "unknown", reason: "Cú pháp: /partial TICKET|SYMBOL profit|price TARGET CLOSE_VOLUME [@ACCOUNT]" };
+    }
+    const rawTarget = String(commandArgs[0] || "").trim();
+    const numericTicket = /^\d+$/.test(rawTarget) ? Number(rawTarget) : 0;
+    const ticket = Number.isSafeInteger(numericTicket) && numericTicket > 0 ? numericTicket : null;
+    const symbol = ticket === null ? canonicalSymbol(rawTarget) : "";
+    const mode = String(commandArgs[1] || "").toLowerCase();
+    const threshold = Number(commandArgs[2]);
+    const volume = Number(commandArgs[3]);
+    if ((!ticket && !symbol) || !(["profit", "price"].includes(mode)) || !Number.isFinite(threshold) || threshold <= 0 || !Number.isFinite(volume) || volume <= 0) {
+      return { type: "unknown", reason: "Cú pháp: /partial TICKET|SYMBOL profit|price TARGET CLOSE_VOLUME [@ACCOUNT]" };
+    }
+    return {
+      type: "intent",
+      kind: "partial",
+      dueAt: null,
+      dueText: "ngay khi xác nhận",
+      payload: {
+        ticket,
+        symbol: symbol || null,
+        mode,
+        threshold,
+        volume,
+        legacyProfile: scoped.legacyProfile || null,
+        executionMode: TELEGRAM_CLOUD_EXECUTION_MODE,
+      },
+    };
+  }
   if (command === "/del") {
     const target = String(args[0] || "").toLowerCase();
     if (target === "all") return { type: "delete", all: true };
@@ -289,6 +321,7 @@ export function renderHelp(): string {
     "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL] [@ACCOUNT]",
     "• Cú pháp desktop cũ vẫn nhận: Buy GBPUSD+ 0.01 14h55 Vantage",
     "• /modify sl|tp SYMBOL VALUE [@ACCOUNT]",
+    "• /partial TICKET|SYMBOL profit|price TARGET CLOSE_VOLUME [@ACCOUNT] — cTrader Auto Manager / MT5 OAK EA",
     "• /del ID | /del all",
     "",
     "Lệnh tác động broker cần /approve ID một lần. Có thể approve trước lệnh hẹn giờ; tới mốc cloud tự chạy, không hỏi lại. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account trước khi xác nhận.",

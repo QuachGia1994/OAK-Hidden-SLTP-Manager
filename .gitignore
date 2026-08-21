@@ -68,6 +68,8 @@ robot-sltp-pro/__pycache__/
 
 # Local binaries / OS debris
 terminal64.exe
+mt5/*.set
+mt5/*.ex5
 .DS_Store
 *.bak_*
 *.bak_sched_*
