@@ -11,6 +11,7 @@ import {
   H1_CLOUD_STATE_KEY,
   H1_PUBLIC_LATEST_KEY,
   H1_TARGET_BASES,
+  backfillSuppressedHistory,
   baseSymbolForTarget,
   buildPublicFeed,
   buildStoredAlert,
@@ -221,7 +222,7 @@ export async function POST(request: Request) {
     ) as Record<string, Map<number, (typeof market.symbols)[keyof typeof market.symbols]["bars"][number]>>;
     const pending: RunSummary[] = [];
     let sent = 0;
-    let changed = false;
+    let changed = backfillSuppressedHistory(state, market.brokerDate, market.symbols) > 0;
 
     for (const base of H1_TARGET_BASES) {
       const scannerBase = scannerBaseForTarget(base);
@@ -270,7 +271,7 @@ export async function POST(request: Request) {
     }
 
     if (!dryRun) {
-      if (!changed && source === "public-seed") await saveState(state);
+      if (changed || source === "public-seed") await saveState(state);
       await publishState(state);
     }
 

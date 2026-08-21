@@ -376,3 +376,45 @@ export function ensureSymbolDay(state: H1CloudState, brokerDate: string, base: H
   const symbol = day.symbols[base] ||= { alerts: [] };
   return { day, symbol };
 }
+
+export function backfillSuppressedHistory(
+  state: H1CloudState,
+  brokerDate: string,
+  market: Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>,
+): number {
+  const day = state.days[brokerDate];
+  const suppressedThrough = Number(day?.suppressedThroughHour || 0);
+  if (!day || suppressedThrough < 3) return 0;
+
+  const byBaseHour = Object.fromEntries(
+    Object.entries(market).map(([base, item]) => [base, new Map(item.bars.map((bar) => [bar.hour, bar]))]),
+  ) as Record<H1Base, Map<number, H1DirectionBar>>;
+  let added = 0;
+
+  for (const base of H1_TARGET_BASES) {
+    const scannerBase = scannerBaseForTarget(base);
+    const baseSymbol = baseSymbolForTarget(base);
+    const matches = findH1PatternMatches(market[scannerBase].bars, suppressedThrough);
+    const { symbol } = ensureSymbolDay(state, brokerDate, base);
+    const delivered = new Set(symbol.alerts.map((alert) => alert.slotHour));
+
+    for (const match of matches) {
+      if (match.slotHour > suppressedThrough || delivered.has(match.slotHour)) continue;
+      const baseBar = byBaseHour[baseSymbol].get(match.slotHour - 1);
+      if (!baseBar) continue;
+      symbol.alerts.push(buildStoredAlert({
+        base,
+        brokerSymbol: market[base].displayName || base,
+        scannerBase,
+        scannerSymbol: market[scannerBase].displayName || scannerBase,
+        match,
+        baseSymbol,
+        baseBar,
+      }));
+      delivered.add(match.slotHour);
+      added += 1;
+    }
+    symbol.alerts.sort((left, right) => left.slotHour - right.slotHour);
+  }
+  return added;
+}

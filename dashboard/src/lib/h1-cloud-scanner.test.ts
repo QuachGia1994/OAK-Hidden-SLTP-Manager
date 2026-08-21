@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  backfillSuppressedHistory,
   baseSymbolForTarget,
   buildPublicFeed,
   buildStoredAlert,
@@ -124,6 +125,29 @@ test("other symbols use GBPUSD scanner plus their own H1 base", () => {
   assert.match(message, /Base H1: EURUSD H04=G → SELL/);
   assert.match(message, /Logic: giữ nguyên EURUSD H1/);
   assert.doesNotMatch(message, /Signal GBPUSD H1:/);
+});
+
+test("suppressed migration slots are backfilled for web history without removing replay suppression", () => {
+  const state = emptyCloudState();
+  state.days["2026-08-21"] = {
+    suppressedThroughHour: 5,
+    symbols: Object.fromEntries(["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"].map((base) => [base, { alerts: [] }])),
+  };
+  const market = {
+    GBPUSD: { displayName: "GBPUSD", bars: bars("GTGT", 1) },
+    XAUUSD: { displayName: "XAUUSD", bars: bars("TTTT", 1) },
+    EURUSD: { displayName: "EURUSD", bars: bars("GGGG", 1) },
+    AUDUSD: { displayName: "AUDUSD", bars: bars("GTGT", 1) },
+    USDCAD: { displayName: "USDCAD", bars: bars("TTTT", 1) },
+    USDJPY: { displayName: "USDJPY", bars: bars("GGGG", 1) },
+  } as const;
+
+  const added = backfillSuppressedHistory(state, "2026-08-21", market);
+  assert.ok(added > 0);
+  assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
+  assert.ok((state.days["2026-08-21"].symbols.XAUUSD?.alerts.length || 0) > 0);
+  assert.ok((state.days["2026-08-21"].symbols.EURUSD?.alerts.length || 0) > 0);
+  assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
 test("older feeds suppress pre-cutover slots instead of replaying obsolete semantics", () => {
