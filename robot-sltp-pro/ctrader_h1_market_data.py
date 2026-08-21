@@ -1,21 +1,87 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any, Iterable, Sequence
 
 from ctrader_cloud_config import CTraderCloudConfig
-from ctrader_market_data import (
-    _extract_message,
-    canonical_symbol_name,
-    choose_authorized_account,
-    resolve_light_symbols,
-    trendbar_to_candle,
-)
 from h1_market_data import build_h1_snapshot_payload, icmarkets_server_wall_epoch
 from market_data_provider import Candle
 
 
-H1_PARITY_SYMBOLS = ("GBPUSD", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
+H1_PARITY_SYMBOLS = ("GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY")
+
+
+def canonical_symbol_name(value: str) -> str:
+    return re.sub(r"[^A-Za-z]", "", value or "").upper()
+
+
+def trendbar_to_candle(trendbar: Any, digits: int) -> Candle:
+    low_relative = int(getattr(trendbar, "low", 0) or 0)
+    scale = 100000.0
+    low = round(low_relative / scale, digits)
+    open_price = round((low_relative + int(getattr(trendbar, "deltaOpen", 0) or 0)) / scale, digits)
+    high = round((low_relative + int(getattr(trendbar, "deltaHigh", 0) or 0)) / scale, digits)
+    close = round((low_relative + int(getattr(trendbar, "deltaClose", 0) or 0)) / scale, digits)
+    timestamp = int(getattr(trendbar, "utcTimestampInMinutes", 0) or 0) * 60
+    if timestamp <= 0:
+        raise ValueError("cTrader trendbar is missing utcTimestampInMinutes")
+    return Candle(time=timestamp, open=open_price, high=high, low=low, close=close)
+
+
+def choose_authorized_account(
+    accounts: Iterable[Any],
+    *,
+    account_id: int,
+    environment: str,
+    broker_hint: str = "ICMarkets",
+) -> Any:
+    rows = tuple(accounts)
+    if account_id <= 0:
+        raise RuntimeError("OAK_CTRADER_ACCOUNT_ID is required; auto-picking an account is disabled")
+    chosen = next(
+        (row for row in rows if int(getattr(row, "ctidTraderAccountId", 0) or 0) == account_id),
+        None,
+    )
+    if chosen is None:
+        raise RuntimeError(f"cTrader account {account_id} is not authorised for this access token")
+    expected_live = environment == "live"
+    actual_live = bool(getattr(chosen, "isLive", False))
+    if actual_live != expected_live:
+        raise RuntimeError(
+            f"cTrader account environment mismatch: expected {environment}, "
+            f"account is {'live' if actual_live else 'demo'}"
+        )
+    broker_title = str(getattr(chosen, "brokerTitleShort", "") or "")
+    hint = canonical_symbol_name(broker_hint)
+    normalized_broker = canonical_symbol_name(broker_title)
+    if hint and broker_title and hint not in normalized_broker and normalized_broker not in hint:
+        raise RuntimeError(
+            f"cTrader broker mismatch: expected {broker_hint!r}, authorised account reports {broker_title!r}"
+        )
+    return chosen
+
+
+def resolve_light_symbols(light_symbols: Iterable[Any], requested: Sequence[str]) -> dict[str, Any]:
+    by_name = {
+        canonical_symbol_name(str(getattr(row, "symbolName", "") or "")): row
+        for row in light_symbols
+    }
+    resolved: dict[str, Any] = {}
+    for base in requested:
+        key = canonical_symbol_name(base)
+        row = by_name.get(key)
+        if row is None:
+            raise RuntimeError(f"cTrader symbol not found: {base}")
+        resolved[key] = row
+    return resolved
+
+
+def _extract_message(protobuf: Any, message: Any) -> Any:
+    try:
+        return protobuf.extract(message)
+    except Exception:
+        return message
 
 
 @dataclass(frozen=True, slots=True)

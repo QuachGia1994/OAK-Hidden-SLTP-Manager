@@ -11,12 +11,14 @@ import {
   H1_CLOUD_STATE_KEY,
   H1_PUBLIC_LATEST_KEY,
   H1_TARGET_BASES,
+  baseSymbolForTarget,
   buildPublicFeed,
   buildStoredAlert,
   buildTelegramMessage,
   ensureSymbolDay,
   findH1PatternMatches,
   parseCloudState,
+  scannerBaseForTarget,
   seedCloudStateFromPublic,
   trimCloudState,
   type H1CloudState,
@@ -37,8 +39,10 @@ type RunSummary = {
   base: string;
   slotHour: number;
   patternKind: string;
+  scannerBase: string;
+  baseSymbol: string;
+  baseSignal: string;
   signal: string;
-  gbpusdSignal: string;
 };
 
 async function authorize(request: Request): Promise<NextResponse | null> {
@@ -61,11 +65,14 @@ async function authorize(request: Request): Promise<NextResponse | null> {
   return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 }
 
-async function loadState(): Promise<{ state: H1CloudState; source: "cloud" | "public-seed" }> {
+async function loadState(
+  brokerDate: string,
+  brokerHour: number,
+): Promise<{ state: H1CloudState; source: "cloud" | "public-seed" }> {
   const existing = await redis.get<unknown>(H1_CLOUD_STATE_KEY);
   if (existing) return { state: parseCloudState(existing), source: "cloud" };
   const publicFeed = await redis.get<unknown>(H1_PUBLIC_LATEST_KEY);
-  return { state: seedCloudStateFromPublic(publicFeed), source: "public-seed" };
+  return { state: seedCloudStateFromPublic(publicFeed, brokerDate, brokerHour), source: "public-seed" };
 }
 
 async function saveState(state: H1CloudState): Promise<void> {
@@ -112,10 +119,10 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function requiredBasesForBrokerHour(hour: number) {
-  return hour === 3
-    ? (["GBPUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const)
-    : (["GBPUSD", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const);
+function requiredBasesForBrokerHour(_hour: number) {
+  // Pattern detection reads only AUDUSD/GBPUSD. XAUUSD uses GBPUSD as its H1
+  // base; the other four targets use their own H1 base candle.
+  return ["GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY"] as const;
 }
 
 function marketReadyForSlot(
@@ -194,7 +201,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { state, source } = await loadState();
     const tokens = await getFreshCTraderTokens();
     const session = sessionConfig(tokens);
     const market = await fetchReadyMarket(session, nowMs, wall.hour);
@@ -209,33 +215,44 @@ export async function POST(request: Request) {
         brokerMinute: market.brokerMinute,
       }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
-    const gbpByHour = new Map(market.symbols.GBPUSD.bars.map((bar) => [bar.hour, bar]));
+    const { state, source } = await loadState(market.brokerDate, market.brokerHour);
+    const byBaseHour = Object.fromEntries(
+      Object.entries(market.symbols).map(([base, item]) => [base, new Map(item.bars.map((bar) => [bar.hour, bar]))]),
+    ) as Record<string, Map<number, (typeof market.symbols)[keyof typeof market.symbols]["bars"][number]>>;
     const pending: RunSummary[] = [];
     let sent = 0;
     let changed = false;
 
     for (const base of H1_TARGET_BASES) {
-      const firstScanHour = base === "XAUUSD" ? 4 : 3;
-      const matches = findH1PatternMatches(market.symbols[base].bars, market.brokerHour, firstScanHour);
-      const symbolState = ensureSymbolDay(state, market.brokerDate, base);
+      const scannerBase = scannerBaseForTarget(base);
+      const baseSymbol = baseSymbolForTarget(base);
+      const matches = findH1PatternMatches(market.symbols[scannerBase].bars, market.brokerHour);
+      const { day, symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
       const delivered = deliveredSlots(symbolState.alerts);
+      const suppressedThrough = Number(day.suppressedThroughHour || 0);
+      for (let hour = 3; hour <= suppressedThrough; hour += 1) delivered.add(hour);
 
       for (const match of matches) {
         if (delivered.has(match.slotHour)) continue;
-        const gbpBase = gbpByHour.get(match.slotHour - 1);
-        if (!gbpBase) break;
+        const baseBar = byBaseHour[baseSymbol]?.get(match.slotHour - 1);
+        if (!baseBar) break;
         const alert = buildStoredAlert({
           base,
           brokerSymbol: market.symbols[base].displayName || base,
+          scannerBase,
+          scannerSymbol: market.symbols[scannerBase].displayName || scannerBase,
           match,
-          gbpBase,
+          baseSymbol,
+          baseBar,
         });
         pending.push({
           base,
           slotHour: alert.slotHour,
           patternKind: alert.patternKind,
+          scannerBase: alert.scannerBase,
+          baseSymbol: alert.baseSymbol,
+          baseSignal: alert.baseH1Signal,
           signal: alert.symbolH1Signal,
-          gbpusdSignal: alert.gbpusdH1Signal,
         });
         if (dryRun) continue;
 

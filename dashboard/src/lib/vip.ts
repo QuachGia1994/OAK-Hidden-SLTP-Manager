@@ -2,7 +2,6 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { H1SignalPayload } from "@/lib/h1-signals";
-import type { Pattern5Payload } from "@/lib/pattern5";
 
 export const VIP_COOKIE = "sltp_vip_access";
 const VIP_PURPOSE = "oakgatekeeper-vip-v1";
@@ -74,27 +73,3 @@ export function redactH1Signals(payload: H1SignalPayload | null): H1SignalPayloa
   };
 }
 
-export function redactPattern5Signals(payload: Pattern5Payload | null): Pattern5Payload | null {
-  if (!payload) return null;
-  return {
-    ...payload,
-    tables: payload.tables.map((table) => ({
-      ...table,
-      detail: table.detail
-        ? Object.fromEntries(Object.entries(table.detail).map(([block, items]) => [block, items.map((item) => item ? "VIP signal locked" : "")]))
-        : undefined,
-      rows: table.rows
-        ? Object.fromEntries(Object.entries(table.rows).map(([block, items]) => [
-            block,
-            items.map((item) => item === "" ? "" : {
-              ...item,
-              signal: null,
-              baseSignal: null,
-              label: "VIP locked",
-              locked: true,
-            }),
-          ]))
-        : undefined,
-    })),
-  };
-}

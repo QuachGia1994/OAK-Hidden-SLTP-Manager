@@ -39,12 +39,13 @@ test("cloud scanner seeds from existing public feed and persists only after Tele
   assert.ok(route.indexOf("await sendTelegram") < route.indexOf("symbolState.alerts.push(alert)"));
 });
 
-test("cTrader cloud reader uses JSON WebSocket H1 and enforces accounts-only scope", () => {
+test("cTrader cloud scanner stays accounts-only and never calls broker mutation", () => {
   assert.match(client, /wss:\/\/\$\{host\}:5036/);
   assert.match(client, /GET_TRENDBARS_REQ: 2137/);
   assert.match(client, /period: H1_PERIOD/);
   assert.match(client, /session\.scope !== "accounts"/);
-  assert.doesNotMatch(client, /ORDER_CREATE|NEW_ORDER|execution/i);
+  assert.doesNotMatch(client, /CLOSE_POSITION|NEW_ORDER|ORDER_CREATE|AMEND_POSITION/i);
+  assert.doesNotMatch(route, /closeCTraderPositionIds|CLOSE_POSITION_REQ|NEW_ORDER/);
 });
 
 test("GitHub OIDC verifier fences scanner trigger to repo main and exact workflow", () => {

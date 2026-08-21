@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Activity as ActivityIcon, Bot, CalendarClock, Check, CircleDot, Clock3, Eye, EyeOff, Home, Languages, Palette, Paperclip, Plus, Radio, Save, Send, Settings2, Target, Trash2, TrendingUp, UserRound, Wifi, X } from 'lucide-react';
 import { desktopBackend, type ProfileDraft } from './backend-client';
-import type { Activity, Engine5Alert, NavKey, Pattern5Payload, PatternCandle, PatternCell, PendingTask, Position, Profile, RuntimeHealth } from './types';
+import type { Activity, NavKey, PendingTask, Position, Profile, RuntimeHealth } from './types';
 
 const fallbackProfiles: Profile[] = [];
 
@@ -13,18 +13,18 @@ type AppTheme = 'dark' | 'deep-sea' | 'light' | 'amber';
 
 const navItems: Array<{ key: NavKey; icon: typeof Home }> = [
   { key: 'overview', icon: Home }, { key: 'profiles', icon: UserRound }, { key: 'sltp', icon: Target },
-  { key: 'telegram', icon: Send }, { key: 'netting', icon: CalendarClock }, { key: 'pattern5', icon: ActivityIcon }
+  { key: 'telegram', icon: Send }, { key: 'netting', icon: CalendarClock }
 ];
 
 const UI_COPY = {
   vi: {
-    nav: { overview: 'Tổng quan', profiles: 'Theo dõi Profile', sltp: 'SLTP Tự động', telegram: 'Telegram Order', netting: 'Hẹn giờ Netting', pattern5: 'Pattern5 Engine' },
+    nav: { overview: 'Tổng quan', profiles: 'Theo dõi Profile', sltp: 'SLTP Tự động', telegram: 'Telegram Order', netting: 'Hẹn giờ Netting' },
     center: 'Giám sát trung tâm', settings: 'Cài đặt', language: 'Ngôn ngữ', appearance: 'Giao diện', vietnamese: 'Tiếng Việt', english: 'English',
     themeNames: { dark: 'Dark', 'deep-sea': 'Deep-Sea', light: 'Light', amber: 'Amber Contrast' },
     themeHints: { dark: 'Đen xanh tiêu chuẩn', 'deep-sea': 'Xanh biển sâu, cyan lạnh', light: 'Sáng sạch, tương phản dịu', amber: 'Đen + vàng hổ phách tương phản cao' },
     connected: 'Đã kết nối', offline: 'Ngoại tuyến', version: 'Phiên bản', hideEquity: 'Ẩn Equity', showEquity: 'Hiện Equity',
     remoteReady: 'Điều khiển từ xa sẵn sàng', remoteOffline: 'Điều khiển từ xa chưa sẵn sàng', startRuntime: 'Khởi động Runtime', startingRuntime: 'Đang khởi động…', telegramReceiver: 'Telegram Receiver', worker: 'Worker', pid: 'PID',
-    heading: 'Profile · SL/TP tự động · Telegram Order · Netting · Pattern5.', loadingBackend: 'Đang kết nối backend…', loadingBackendHint: 'Đọc profiles.json và kiểm tra MT5 runtime.',
+    heading: 'Profile · SL/TP tự động · Telegram Order · Netting.', loadingBackend: 'Đang kết nối backend…', loadingBackendHint: 'Đọc profiles.json và kiểm tra MT5 runtime.',
     sltpTitle: 'SLTP TỰ ĐỘNG', engine: 'Động cơ SL/TP', beTrigger: 'R:R kích hoạt BE', takeProfit: 'Chốt lời theo R:R', watching: 'Đang theo dõi và tự động xử lý SL/TP theo R:R...', appliedSltp: 'CẤU HÌNH ĐANG ÁP DỤNG', slPoints: 'SL points', tpPoints: 'TP points', tpRatio: 'TP theo R:R',
     profileTitle: 'THEO DÕI PROFILE', stable: 'Ổn định', profileDetail: 'Xem chi tiết profile', openTradesMetric: 'Lệnh đang mở', openPositions: 'VỊ THẾ ĐANG MỞ', noPositions: 'Không có vị thế đang mở.', positionsUnavailable: 'Chưa có snapshot MT5 hợp lệ.', totalPL: 'Tổng P/L', activity: 'NHẬT KÝ HOẠT ĐỘNG',
     telegramTitle: 'ĐẶT LỆNH QUA TELEGRAM', telegramPlaceholder: 'Mỗi dòng một lệnh Telegram', sendReal: 'Gửi lệnh thật',
@@ -32,17 +32,16 @@ const UI_COPY = {
     pendingTelegram: 'LỆNH CHỜ XỬ LÝ', pendingNetting: 'LỊCH ĐÓNG ĐANG CHỜ', loading: 'Đang tải…', noPending: 'Không có lệnh chờ.', deletePending: 'Xoá lệnh chờ', executing: 'Task đang thực thi',
     profileMonitoring: 'Theo dõi Profile', profileMonitoringHint: 'Chọn profile MT5 để xem equity, balance, drawdown và vị thế đang mở theo thời gian thực.', addProfile: 'Thêm Profile MT5', openTradesLabel: 'lệnh mở',
     addProfileHint: 'Chỉ lưu cấu hình profile. Telegram token không nhập tại đây.', profileName: 'Tên Profile', terminalPath: 'Đường dẫn terminal64.exe', saveProfileHint: 'Sau khi lưu, chọn profile để app tự đọc MT5 snapshot. Token Telegram tiếp tục lấy từ vault hiện hữu.', cancel: 'Hủy', saveProfile: 'Lưu Profile', close: 'Đóng',
-    saveSltp: 'Lưu cấu hình SLTP vào backend', enabled: 'Bật tự động', footerTagline: 'an toàn hơn, thông minh hơn', weekLabel: 'Tuần', weekdayNames: ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6'],
-    patternHint: 'Engine 5 backend là nguồn duy nhất tính lookback, phân loại và base signal; desktop chỉ hiển thị payload đã tính.', reverseHint: 'Reverse được quyết định tại Engine 5 backend; UI không tái tạo lịch reverse.', evidenceClickHint: 'Chọn Pattern trong ô để xem 4 nến H4 và OHLC làm bằng chứng.', evidenceTitle: 'Bằng chứng 4 nến H4', evidenceHint: 'Chart trái → phải = cũ → mới · OHLC lấy trực tiếp từ payload bằng chứng.', refresh: 'Làm mới MT5', refreshing: 'Đang tính…', patternEmpty: 'Chưa có dữ liệu Pattern5. Nhấn Làm mới MT5.', patternLoading: 'Đang đọc H4 broker-time và tính Engine 5…'
+    saveSltp: 'Lưu cấu hình SLTP vào backend', enabled: 'Bật tự động', footerTagline: 'an toàn hơn, thông minh hơn'
   },
   en: {
-    nav: { overview: 'Overview', profiles: 'Profile Monitor', sltp: 'Auto SLTP', telegram: 'Telegram Order', netting: 'Netting Scheduler', pattern5: 'Pattern5 Engine' },
+    nav: { overview: 'Overview', profiles: 'Profile Monitor', sltp: 'Auto SLTP', telegram: 'Telegram Order', netting: 'Netting Scheduler' },
     center: 'Central monitoring', settings: 'Settings', language: 'Language', appearance: 'Appearance', vietnamese: 'Vietnamese', english: 'English',
     themeNames: { dark: 'Dark', 'deep-sea': 'Deep-Sea', light: 'Light', amber: 'Amber Contrast' },
     themeHints: { dark: 'Standard dark teal', 'deep-sea': 'Deep navy with cool cyan', light: 'Clean light, softer contrast', amber: 'Black + high-contrast amber' },
     connected: 'Connected', offline: 'Offline', version: 'Version', hideEquity: 'Hide Equity', showEquity: 'Show Equity',
     remoteReady: 'Remote control ready', remoteOffline: 'Remote control not ready', startRuntime: 'Start Runtime', startingRuntime: 'Starting…', telegramReceiver: 'Telegram Receiver', worker: 'Worker', pid: 'PID',
-    heading: 'Profile · Automatic SL/TP · Telegram Order · Netting · Pattern5.', loadingBackend: 'Connecting to backend…', loadingBackendHint: 'Reading profiles.json and checking MT5 runtime.',
+    heading: 'Profile · Automatic SL/TP · Telegram Order · Netting.', loadingBackend: 'Connecting to backend…', loadingBackendHint: 'Reading profiles.json and checking MT5 runtime.',
     sltpTitle: 'AUTOMATIC SLTP', engine: 'SL/TP engine', beTrigger: 'BE activation R:R', takeProfit: 'Take profit R:R', watching: 'Monitoring and automatically handling SL/TP by R:R...', appliedSltp: 'APPLIED CONFIGURATION', slPoints: 'SL points', tpPoints: 'TP points', tpRatio: 'TP R:R',
     profileTitle: 'PROFILE MONITOR', stable: 'Stable', profileDetail: 'View profile details', openTradesMetric: 'Open Trades', openPositions: 'OPEN POSITIONS', noPositions: 'No open positions.', positionsUnavailable: 'No valid MT5 snapshot is available.', totalPL: 'Total P/L', activity: 'ACTIVITY LOG',
     telegramTitle: 'TELEGRAM ORDER', telegramPlaceholder: 'One Telegram command per line', sendReal: 'Send live order',
@@ -50,25 +49,13 @@ const UI_COPY = {
     pendingTelegram: 'PENDING ORDERS', pendingNetting: 'PENDING CLOSE SCHEDULE', loading: 'Loading…', noPending: 'No pending tasks.', deletePending: 'Delete pending task', executing: 'Task is executing',
     profileMonitoring: 'Profile monitoring', profileMonitoringHint: 'Select an MT5 profile to inspect equity, balance, drawdown and open positions in real time.', addProfile: 'Add MT5 Profile', openTradesLabel: 'open trades',
     addProfileHint: 'Save profile configuration only. Telegram token is not entered here.', profileName: 'Profile name', terminalPath: 'terminal64.exe path', saveProfileHint: 'After saving, select the profile and the app will read its MT5 snapshot. Telegram token remains in the existing vault.', cancel: 'Cancel', saveProfile: 'Save Profile', close: 'Close',
-    saveSltp: 'Save SLTP configuration', enabled: 'Enable automation', footerTagline: 'safer, smarter', weekLabel: 'Week', weekdayNames: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-    patternHint: 'The Engine 5 backend is the sole owner of lookback, classification and base-signal calculation; desktop renders the computed payload only.', reverseHint: 'Reverse is decided by the Engine 5 backend; the UI does not recreate the reverse calendar.', evidenceClickHint: 'Select a Pattern value to inspect the four H4 candles and raw OHLC evidence.', evidenceTitle: '4-candle H4 evidence', evidenceHint: 'Chart left → right = oldest → newest · OHLC comes directly from the evidence payload.', refresh: 'Refresh MT5', refreshing: 'Calculating…', patternEmpty: 'No Pattern5 data yet. Press Refresh MT5.', patternLoading: 'Reading broker-time H4 and calculating Engine 5…'
+    saveSltp: 'Save SLTP configuration', enabled: 'Enable automation', footerTagline: 'safer, smarter'
   }
 } as const;
 
 type UiCopy = (typeof UI_COPY)[AppLanguage];
-const ENGINE5_ALERT_COPY: Record<AppLanguage, Record<Engine5Alert['code'], string>> = {
-  vi: { h3_reverse_signal: 'Đảo ngược tín hiệu', h3_normal_signal: 'Tín hiệu bình thường', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'NGƯNG GIAO DỊCH' },
-  en: { h3_reverse_signal: 'Reverse signal', h3_normal_signal: 'Normal signal', sr_entry_at_11: 'ENTRY', consecutive_sr_stop: 'STOP TRADING' }
-};
 const THEME_OPTIONS: AppTheme[] = ['dark', 'deep-sea', 'light', 'amber'];
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
-
-function localizedPatternDayName(dateValue: string, fallback: string, ui: UiCopy) {
-  const parsed = new Date(`${dateValue}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return fallback;
-  const weekday = parsed.getUTCDay();
-  return weekday >= 1 && weekday <= 5 ? ui.weekdayNames[weekday - 1] : fallback;
-}
 
 function App() {
   const [active, setActive] = useState<NavKey>('overview');
@@ -86,8 +73,6 @@ function App() {
   const [nettingEnabled, setNettingEnabled] = useState(true);
   const [activity, setActivity] = useState<Activity[]>(initialActivity);
   const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealth | null>(null);
-  const [pattern5, setPattern5] = useState<Pattern5Payload | null>(null);
-  const [pattern5Loading, setPattern5Loading] = useState(false);
   const [showAddProfile, setShowAddProfile] = useState(false);
   const [profileDefaults, setProfileDefaults] = useState<ProfileDraft>(emptyProfileDraft);
   const [newProfile, setNewProfile] = useState<ProfileDraft>(emptyProfileDraft);
@@ -138,7 +123,6 @@ function App() {
     setRuntimeStarting(false);
     setMt5Connected(false);
     setPositions([]);
-    setPattern5(null);
     setRuntimeHealth(null);
     setPendingTasks([]);
     setAutoSltp(Boolean(profile.visibleSltp));
@@ -177,18 +161,6 @@ function App() {
     return () => window.clearInterval(timer);
   }, [selectedProfile?.name]);
 
-  useEffect(() => {
-    if (!selectedProfile || !mt5Connected) return;
-    void publishPattern5(selectedProfile.name);
-    const timer = window.setInterval(() => void publishPattern5(selectedProfile.name), 60000);
-    return () => window.clearInterval(timer);
-  }, [selectedProfile?.name, mt5Connected]);
-
-  useEffect(() => {
-    if (!selectedProfile || !mt5Connected) return;
-    void refreshPattern5(selectedProfile.name, false);
-    return undefined;
-  }, [selectedProfile?.name, mt5Connected]);
 
   useEffect(() => {
     localStorage.setItem('robot-sltp-show-equity', showEquity ? '1' : '0');
@@ -233,15 +205,6 @@ function App() {
       setBackendError(`Runtime start failed: ${String(error)}`);
     } finally {
       if (activeProfileNameRef.current === profileName) setRuntimeStarting(false);
-    }
-  };
-
-  const publishPattern5 = async (profileName: string) => {
-    try {
-      await desktopBackend.publishPattern5(profileName);
-      if (activeProfileNameRef.current === profileName) setBackendError('');
-    } catch (error) {
-      if (activeProfileNameRef.current === profileName) setBackendError(`Pattern5 public publish failed: ${String(error)}`);
     }
   };
 
@@ -375,20 +338,6 @@ function App() {
     }
   };
 
-  const refreshPattern5 = async (profileName: string, force = false) => {
-    if (activeProfileNameRef.current === profileName) setPattern5Loading(true);
-    try {
-      const data = await desktopBackend.pattern5(profileName, force);
-      if (activeProfileNameRef.current !== profileName) return;
-      setPattern5(data);
-      setBackendError('');
-    } catch (error) {
-      if (activeProfileNameRef.current === profileName) setBackendError(String(error));
-    } finally {
-      if (activeProfileNameRef.current === profileName) setPattern5Loading(false);
-    }
-  };
-
   const saveSltp = async () => {
     if (!selectedProfile) return;
     const profileName = selectedProfile.name;
@@ -438,7 +387,6 @@ function App() {
         {active === 'sltp' && <SltpSettings {...{ selectedProfile, autoSltp, setAutoSltp, beR, setBeR, tpR, setTpR, saveSltp, ui }} />}
         {active === 'telegram' && <TelegramPanel {...{ telegramCommand, setTelegramCommand, sendTelegram, runtimeHealth, runtimeStarting, startRuntime, pendingTasks, pendingLoading, deletePendingTask, ui }} />}
         {active === 'netting' && <NettingPanel {...{ positions, nettingTime, setNettingTime, nettingMode, setNettingMode, nettingSymbol, setNettingSymbol, nettingEnabled, setNettingEnabled, scheduleNetting, pendingTasks, pendingLoading, deletePendingTask, ui }} />}
-        {active === 'pattern5' && <Pattern5Panel data={pattern5} loading={pattern5Loading} mt5Connected={mt5Connected} onRefresh={() => selectedProfile && refreshPattern5(selectedProfile.name, true)} ui={ui} language={language} />}
 
         <footer className="footer-bar"><div><Wifi size={17} /><span>MT5</span><b className={mt5Connected ? 'status-ok' : 'status-bad'}>{mt5Connected ? ui.connected : ui.offline}</b></div><div><Radio size={17} /><span>Server</span><b>{selectedProfile.server || '—'}</b></div><div><ActivityIcon size={17} /><span>{ui.worker}</span><b className={runtimeHealth?.worker.running ? 'status-ok' : 'status-bad'}>{runtimeHealth?.worker.running ? ui.connected : ui.offline}</b></div><div><Send size={17} /><span>Telegram</span><b className={runtimeHealth?.telegram.running ? 'status-ok' : 'status-bad'}>{runtimeHealth?.telegram.running ? ui.connected : ui.offline}</b></div><div className="footer-copy">OAK Gatekeeper · <strong>ROBOT SLTP PRO</strong></div></footer>
       </main>
@@ -604,45 +552,6 @@ function NettingPanel(props: NettingPanelProps) {
   const ui: UiCopy = props.ui;
   const symbols = Array.from(new Set((props.positions || []).map((position: Position) => position.symbol))) as string[];
   return <Panel title={ui.nettingTitle} icon={<CalendarClock size={20} />} className={props.compact ? 'netting-panel netting-panel-compact' : 'netting-panel'}><div className="netting-row"><span>{ui.autoClose}</span><button className={`switch ${props.nettingEnabled ? 'on' : ''}`} onClick={() => props.setNettingEnabled(!props.nettingEnabled)}>{props.nettingEnabled ? 'ON' : 'OFF'}<span /></button></div><SettingRow label={ui.time}><span className="time-input-wrap"><input type="time" value={props.nettingTime} onChange={(e) => props.setNettingTime(e.target.value)} /><Clock3 size={18} aria-hidden="true" /></span></SettingRow><SettingRow label={ui.mode}><select value={props.nettingMode} onChange={(e) => props.setNettingMode(e.target.value as 'all' | 'symbol')}><option value="all">{ui.allPositions}</option><option value="symbol">{ui.perSymbol}</option></select></SettingRow>{props.nettingMode === 'symbol' && <SettingRow label="Symbol"><select value={props.nettingSymbol} onChange={(e) => props.setNettingSymbol(e.target.value)}><option value="">{ui.chooseSymbol}</option>{symbols.map((symbol) => <option key={symbol} value={symbol}>{symbol}</option>)}</select></SettingRow>}<button className="primary-button" disabled={props.nettingMode === 'symbol' && !props.nettingSymbol} onClick={props.scheduleNetting}><CalendarClock size={17} /> {ui.scheduleClose}</button>{!props.compact && <PendingQueue tasks={props.pendingTasks || []} kind="netting" loading={props.pendingLoading} onDelete={props.deletePendingTask} ui={ui} />}</Panel>;
-}
-
-type FilledPatternCell = Exclude<PatternCell, ''>;
-type PatternEvidenceSelection = { title: string; detail: string; cell: FilledPatternCell };
-
-function candleDecimals(value: number) { return Math.abs(value) >= 100 ? 3 : 5; }
-function CandleEvidenceChart({ candles }: { candles: PatternCandle[] }) {
-  if (!candles.length) return null;
-  const high = Math.max(...candles.map((item) => item.high));
-  const low = Math.min(...candles.map((item) => item.low));
-  const span = high - low || 1;
-  const y = (price: number) => 16 + ((high - price) / span) * 128;
-  return <svg className="pattern5-candle-chart" viewBox="0 0 360 180" role="img" aria-label="4 H4 candles oldest to newest">{candles.map((candle, index) => { const x = 48 + index * 88; const openY = y(candle.open); const closeY = y(candle.close); const bodyY = Math.min(openY, closeY); const bodyHeight = Math.max(3, Math.abs(openY - closeY)); const side = candle.close >= candle.open ? 'up' : 'down'; return <g key={`${candle.time}-${index}`} className={`pattern5-candle ${side}`}><line x1={x} x2={x} y1={y(candle.high)} y2={y(candle.low)} /><rect x={x - 13} y={bodyY} width="26" height={bodyHeight} rx="2" /><text x={x} y="168" textAnchor="middle">#{index + 1}</text></g>; })}</svg>;
-}
-
-function PatternEvidenceModal({ selection, onClose, ui }: { selection: PatternEvidenceSelection; onClose: () => void; ui: UiCopy }) {
-  const dialogRef = useDialogFocusTrap(true, onClose);
-  return <div className="modal-backdrop pattern5-evidence-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={dialogRef} className="pattern5-evidence-modal" role="dialog" aria-modal="true" aria-label={`${ui.evidenceTitle} · ${selection.title}`}><div className="modal-head"><div><b>{ui.evidenceTitle} · {selection.title}</b><small>{ui.evidenceHint}</small></div><button onClick={onClose} aria-label={ui.close}><X size={18} /></button></div><div className="pattern5-evidence-summary"><span>Base <b>{selection.cell.baseSignal}</b></span><span className={selection.cell.reversed ? 'reverse-on' : ''}>{selection.cell.reversed ? 'REVERSE' : 'NORMAL'} → <b>{selection.cell.signal}</b></span><span>{selection.cell.group} · {selection.cell.pattern}</span></div><CandleEvidenceChart candles={selection.cell.evidence} /><div className="pattern5-ohlc-grid"><div className="pattern5-ohlc-head"><span>Candle</span><span>Open</span><span>High</span><span>Low</span><span>Close</span></div>{selection.cell.evidence.map((candle, index) => { const digits = candleDecimals(candle.close); return <div className="pattern5-ohlc-row" key={`${candle.time}-${index}`}><b>#{index + 1}</b><span>{candle.open.toFixed(digits)}</span><span>{candle.high.toFixed(digits)}</span><span>{candle.low.toFixed(digits)}</span><span>{candle.close.toFixed(digits)}</span></div>; })}</div><div className="pattern5-evidence-detail">{selection.detail}</div></section></div>;
-}
-
-function DesktopAlertState({ data, language }: { data: Pattern5Payload; language: AppLanguage }) {
-  const table = data.tables[0];
-  if (!table?.alerts) return null;
-  const day = Object.keys(table.alerts).sort().at(-1);
-  if (!day) return null;
-  const alerts = table.alerts[day] ?? [];
-  const dayIndex = table.days?.findIndex((item) => item.date === day) ?? -1;
-  return <div className="pattern5-alerts"><div className="pattern5-alerts-head"><b>{language === 'vi' ? 'CẢNH BÁO' : 'ALERTS'}</b><span>{table.base} · {day}</span></div>{data.blocks.map((block) => { const primary = alerts.find((item) => item.block === block); const signal = dayIndex >= 0 ? table.rows?.[String(block)]?.[dayIndex] : ''; return <div className="pattern5-alert-row" key={block} data-severity={primary?.severity || 'info'}><b>H{block}</b><span>{signal && typeof signal !== 'string' ? `${signal.group} · ${signal.pattern}` : '—'}</span><strong>{primary ? ENGINE5_ALERT_COPY[language][primary.code] : (language === 'vi' ? 'Theo dõi' : 'Watch')}</strong><em>{primary?.entryTime || '—'}</em></div>; })}</div>;
-}
-
-function Pattern5Panel({ data, loading, mt5Connected, onRefresh, ui, language }: { data: Pattern5Payload | null; loading: boolean; mt5Connected: boolean; onRefresh: () => void; ui: UiCopy; language: AppLanguage }) {
-  const scope = data ? `${data.tables.map((table) => table.base).join(' · ')} · ${data.blocks.map((block) => `H${block}`).join(' / ')}` : 'ENGINE 5';
-  return <div className="feature-layout single pattern5-layout"><Panel title="ENGINE 5 · PATTERN MATRIX" icon={<ActivityIcon size={20} />} className="pattern5-panel"><div className="pattern5-toolbar"><div className="pattern5-command-copy"><b>H4 BROKER-TIME</b><span>{scope}</span></div><span className={`pattern5-status ${mt5Connected ? 'connected' : 'offline'}`}><span className="dot" /> MT5 {mt5Connected ? ui.connected : ui.offline}</span><button className="primary-button pattern5-refresh" onClick={onRefresh} disabled={loading}><Radio size={17} /> {loading ? ui.refreshing : ui.refresh}</button></div><details className="pattern5-rules"><summary>{ui.evidenceClickHint}</summary><div className="pattern5-rule-stack"><div><b>Lookback:</b> {ui.patternHint}</div><div><b>Reverse:</b> {ui.reverseHint}</div></div></details>{data && <DesktopAlertState data={data} language={language} />}<div className="pattern5-content">{!data && !loading && <div className="pattern5-empty">{ui.patternEmpty}</div>}{loading && <div className="pattern5-empty">{ui.patternLoading}</div>}{data?.tables.map((table) => <Pattern5TableView key={table.base} table={table} blocks={data.blocks} ui={ui} />)}</div></Panel></div>;
-}
-
-function Pattern5TableView({ table, blocks, ui }: { table: Pattern5Payload['tables'][number]; blocks: number[]; ui: UiCopy }) {
-  const [selection, setSelection] = useState<PatternEvidenceSelection | null>(null);
-  if (table.error) return <div className="pattern5-error"><b>{table.base}</b> · {table.error}</div>;
-  return <div className="pattern5-card"><div className="pattern5-heading"><strong>{table.base}</strong><span>{table.symbol && table.symbol !== table.base ? `→ ${table.symbol}` : table.symbol}</span><em>{ui.weekLabel} {table.days?.[0]?.date.slice(0, 7)}</em></div><div className="pattern5-scroll"><table className="pattern5-table"><thead><tr><th>Block</th>{table.days?.map((day) => <th key={day.date}>{localizedPatternDayName(day.date, day.name, ui)}<small>{day.display}</small></th>)}</tr></thead><tbody>{blocks.map((block) => <tr key={block}><th>H{block}</th>{table.rows?.[String(block)]?.map((cell, index) => { const detail = table.detail?.[String(block)]?.[index] || ''; const day = table.days?.[index]; return <td key={`${block}-${index}`}>{typeof cell === 'string' || !cell ? <span className="pattern5-muted">—</span> : <><b>{cell.group}</b><button className="pattern5-evidence-trigger" onClick={() => setSelection({ title: `${table.base} · H${block} · ${day?.display || ''}`, detail, cell })}>{cell.pattern}</button></>}</td>; })}</tr>)}</tbody></table></div>{selection && <PatternEvidenceModal selection={selection} onClose={() => setSelection(null)} ui={ui} />}</div>;
 }
 
 export default App;

@@ -6,22 +6,22 @@ const readerSource = readFileSync(new URL("./h1-signals.ts", import.meta.url), "
 const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
-const engineBoardSource = readFileSync(new URL("../components/Pattern5Board.tsx", import.meta.url), "utf8");
+const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
 
-test("H1 web feed has an independent versioned Upstash contract", () => {
-  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 2/);
+test("H1 web feed has independent schema-6 Upstash contract", () => {
+  assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 6/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
   assert.match(readerSource, /sw3Alternating/);
-  assert.match(readerSource, /sw6CombinedPure/);
+  assert.match(readerSource, /sw4Alternating/);
+  assert.doesNotMatch(readerSource, /targetPattern|warningKind|stopH17Warning|scannerSignal/);
 });
 
 test("H1 cells render only the published BUY\/SELL signal", () => {
   assert.match(boardSource, /oak-h1-signal-button/);
   assert.match(boardSource, /<b>\{alert\.signal\}<\/b>/);
   assert.match(boardSource, /data\.hours\.map/);
-  assert.doesNotMatch(boardSource, /entryTime|ENTRY|minute\s*=\s*49|minute\s*=\s*11/);
-  assert.doesNotMatch(readerSource, /entryTime/);
+  assert.doesNotMatch(boardSource, /entryTime|warningKind|oak-h1-warning-mark|targetPattern|STOP H17/);
 });
 
 test("engine web surface is H1-only and profiles from cTrader feed", () => {
@@ -31,15 +31,15 @@ test("engine web surface is H1-only and profiles from cTrader feed", () => {
   assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
 });
 
-test("H1 detail uses pattern-local signal rule and has no day classification", () => {
-  assert.match(boardSource, /Signal GBPUSD H1/);
+test("H1 detail renders scanner source, base H1 and four scanner classes only", () => {
+  assert.match(boardSource, /Nguồn scanner|Pattern source/);
+  assert.match(boardSource, /Base H1 · \{alert\.baseSymbol\}/);
   assert.match(boardSource, /Nhóm pattern/);
-  assert.match(boardSource, /Logic Signal/);
+  assert.match(boardSource, /Logic scanner/);
   assert.match(boardSource, /Signal \{base\} H1/);
-  assert.match(boardSource, /alert\.pattern/);
-  assert.match(boardSource, /barsLabel\(alert\.bars\)/);
-  assert.doesNotMatch(boardSource, /Phân loại ngày|Day classification|firstSignalHour|dayType|gbpusdGroup|gbpusdBlockHour/);
-  assert.doesNotMatch(readerSource, /firstSignalHour|dayType|gbpusdGroup|gbpusdBlockHour/);
+  assert.match(boardSource, /alert\.scannerBase/);
+  assert.match(boardSource, /sw4Alternating/);
+  assert.doesNotMatch(boardSource, /targetPattern|warningKind|stopH17Warning|scannerSignal|Phân loại ngày|Day classification/);
   assert.match(vipSource, /redactH1Signals/);
   assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);
 });

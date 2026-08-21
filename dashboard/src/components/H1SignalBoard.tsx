@@ -30,15 +30,15 @@ function patternLabel(kind: H1PatternKind, locale: Locale) {
     sw2: { EN: "SW 2-candle", VN: "SW 2 cây" },
     sw3Pure: { EN: "SW pure 3-candle", VN: "SW 3 cây thuần" },
     sw3Alternating: { EN: "SW alternating 3-candle", VN: "SW 3 cây xen kẽ" },
-    sw6CombinedPure: { EN: "SW combined 2×3 pure", VN: "SW ghép 2×3 cây thuần" },
+    sw4Alternating: { EN: "SW alternating 4-candle", VN: "SW 4 cây xen kẽ" },
   };
   return labels[kind][locale];
 }
 
-function targetBehavior(kind: H1PatternKind, locale: Locale) {
-  const follow = kind === "sw3Pure";
-  if (locale === "EN") return follow ? "follow GBPUSD H1" : "reverse GBPUSD H1";
-  return follow ? "giữ nguyên GBPUSD H1" : "đảo GBPUSD H1";
+function targetBehavior(kind: H1PatternKind, baseSymbol: string, locale: Locale) {
+  const follow = kind !== "sw3Pure";
+  if (locale === "EN") return follow ? `follow ${baseSymbol} H1` : `reverse ${baseSymbol} H1`;
+  return follow ? `giữ nguyên ${baseSymbol} H1` : `đảo ${baseSymbol} H1`;
 }
 
 function useDialogFocus(onClose: () => void) {
@@ -69,8 +69,8 @@ function useDialogFocus(onClose: () => void) {
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocus(onClose);
   const { base, date, alert } = selection;
-  const gbpDetail = alert.gbpusdSignal
-    ? `${alert.gbpusdSignal}${alert.gbpusdBaseHour !== null ? ` · Base H${String(alert.gbpusdBaseHour).padStart(2, "0")}=${alert.gbpusdBaseDirection || "—"}` : ""}`
+  const baseDetail = alert.baseSignal
+    ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
 
   return (
@@ -86,12 +86,14 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <div><small>{locale === "EN" ? "BROKER DAY" : "NGÀY BROKER"}</small><b>{date}</b></div>
           <div><small>SCAN</small><b>H{String(alert.slotHour).padStart(2, "0")}</b></div>
           <div><small>{locale === "EN" ? "CANDLES NEW→OLD" : "NẾN MỚI→CŨ"}</small><b>{barsLabel(alert.bars) || "—"}</b></div>
+          <div><small>{locale === "EN" ? "PATTERN SCANNER" : "SCANNER PATTERN"}</small><b>{alert.scannerBase}</b></div>
           <div><small>PATTERN</small><b>{alert.pattern || "—"}</b></div>
         </div>
         <div className="oak-h1-explain">
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
-          <p><span>Signal GBPUSD H1</span><b>{gbpDetail}</b></p>
-          <p><span>{locale === "EN" ? `Signal ${base} logic` : `Logic Signal ${base}`}</span><b>{targetBehavior(alert.patternKind, locale)}</b></p>
+          <p><span>{locale === "EN" ? "Pattern source" : "Nguồn scanner"}</span><b>{alert.scannerBase}</b></p>
+          <p><span>Base H1 · {alert.baseSymbol}</span><b>{baseDetail}</b></p>
+          <p><span>{locale === "EN" ? `Scanner ${base} logic` : `Logic scanner ${base}`}</span><b>{targetBehavior(alert.patternKind, alert.baseSymbol, locale)}</b></p>
           <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>

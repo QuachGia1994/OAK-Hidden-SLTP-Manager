@@ -516,46 +516,6 @@ def cmd_telegram_send(payload):
     return {"queued": True, "profile": profile, "text": scoped_text, "updateId": update["update_id"]}
 
 
-def cmd_cloud_market_data_status(_payload):
-    from ctrader_cloud_config import CTraderCloudConfig
-
-    ic_status = CTraderCloudConfig.from_env().status()
-    ic_status["controlPlaneConfigured"] = bool(
-        os.environ.get("OAK_CTRADER_SESSION_URL") and os.environ.get("DASHBOARD_API_KEY")
-    )
-    return {
-        "engineCore": "provider-v1",
-        "productionSource": "mt5",
-        "icMarkets": ic_status,
-        "vantage": {
-            "provider": "mt5-baseline",
-            "configured": True,
-            "cloudCandidate": "pending-official-api",
-        },
-        "parityRequired": True,
-    }
-
-
-def cmd_pattern5(payload):
-    from pattern5_engine import render_profile_cached
-    profile = str(payload.get("profile") or "")
-    selected = payload.get("symbols")
-    week_start = payload.get("weekStart")
-    force = bool(payload.get("force", False))
-    if selected is not None and not isinstance(selected, list):
-        raise RuntimeError("symbols must be a list")
-    return render_profile_cached(profile, selected=selected, week_start=week_start, force=force)
-
-
-def cmd_pattern5_publish(payload):
-    from publish_pattern5_site import publish_profile
-    profile = str(payload.get("profile") or "")
-    force = bool(payload.get("force", False))
-    if not profile:
-        raise RuntimeError("Pattern5 profile is required")
-    return {"published": True, **publish_profile(profile, force=force)}
-
-
 def cmd_schedule_netting(payload):
     from domain.copy_trade_manager import _scheduled_close_resolve_target
 
@@ -691,9 +651,6 @@ COMMANDS = {
     "schedule_netting": cmd_schedule_netting,
     "pending_tasks": cmd_pending_tasks,
     "pending_delete": cmd_pending_delete,
-    "cloud_market_data_status": cmd_cloud_market_data_status,
-    "pattern5": cmd_pattern5,
-    "pattern5_publish": cmd_pattern5_publish,
 }
 
 

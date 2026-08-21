@@ -19,7 +19,7 @@ from market_data_provider import Candle
 from services.mt5_service import MT5Service
 
 
-DEFAULT_SYMBOLS = ("GBPUSD", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
+DEFAULT_SYMBOLS = ("GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY")
 
 
 def parse_args() -> argparse.Namespace:

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Publish normalized H1 scanner state to the public Upstash feed."""
+"""Publish normalized H1 fallback-scanner state to the public Upstash feed."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -10,10 +10,11 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLIC_SCHEMA = 2
+PUBLIC_SCHEMA = 6
 KEY_PREFIX = "robot-sltp:public:h1-signals:"
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
-PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Alternating", "sw6CombinedPure"}
+PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Alternating", "sw4Alternating"}
+SCANNER_BASES = {"AUDUSD", "GBPUSD"}
 
 
 def _load_dotenv() -> None:
@@ -33,8 +34,8 @@ def build_public_h1_feed(
     *,
     published_at: str | None = None,
 ) -> dict[str, Any]:
-    """Normalize persisted scanner state into the web transport contract."""
-    if not isinstance(state, dict) or state.get("version") != 2 or not isinstance(state.get("days"), dict):
+    """Normalize persisted fallback state into public scanner schema v6."""
+    if not isinstance(state, dict) or state.get("version") != 6 or not isinstance(state.get("days"), dict):
         raise ValueError("Invalid H1 scanner state")
 
     public_days: dict[str, Any] = {}
@@ -50,20 +51,30 @@ def build_public_h1_feed(
             symbol_state = symbols.get(base)
             if not isinstance(symbol_state, dict):
                 continue
-
             public_alerts = []
             alerts = symbol_state.get("alerts")
             if isinstance(alerts, list):
-                for alert in sorted(
+                rows = sorted(
                     (row for row in alerts if isinstance(row, dict) and isinstance(row.get("slotHour"), int)),
                     key=lambda row: int(row["slotHour"]),
-                ):
+                )
+                for alert in rows:
                     signal = str(alert.get("symbolH1Signal") or "").strip().upper()
-                    gbp_signal = str(alert.get("gbpusdH1Signal") or "").strip().upper()
+                    base_signal = str(alert.get("baseH1Signal") or "").strip().upper()
+                    base_direction = str(alert.get("baseDirection") or "").strip().upper()
                     pattern_kind = str(alert.get("patternKind") or "").strip()
-                    if signal not in {"BUY", "SELL"} or pattern_kind not in PATTERN_KINDS:
-                        # Fail closed for incomplete legacy rows. Scanner normalizes
-                        # them before publication whenever enough market data exists.
+                    scanner_base = str(alert.get("scannerBase") or "").strip().upper()
+                    base_symbol = str(alert.get("baseSymbol") or "").strip().upper()
+                    base_hour = alert.get("baseHour")
+                    if (
+                        signal not in {"BUY", "SELL"}
+                        or base_signal not in {"BUY", "SELL"}
+                        or base_direction not in {"T", "G"}
+                        or pattern_kind not in PATTERN_KINDS
+                        or scanner_base not in SCANNER_BASES
+                        or not base_symbol
+                        or not isinstance(base_hour, int)
+                    ):
                         continue
                     public_alerts.append({
                         "slotHour": int(alert["slotHour"]),
@@ -72,10 +83,13 @@ def build_public_h1_feed(
                         "bars": [str(value) for value in (alert.get("bars") or []) if isinstance(value, str)],
                         "symbol": str(alert.get("symbol") or base),
                         "profile": str(alert.get("profile") or profile),
+                        "scannerBase": scanner_base,
+                        "scannerSymbol": str(alert.get("scannerSymbol") or scanner_base),
+                        "baseSymbol": base_symbol,
+                        "baseSignal": base_signal,
+                        "baseHour": base_hour,
+                        "baseDirection": base_direction,
                         "signal": signal,
-                        "gbpusdSignal": gbp_signal if gbp_signal in {"BUY", "SELL"} else "",
-                        "gbpusdBaseHour": alert.get("gbpusdBaseHour") if isinstance(alert.get("gbpusdBaseHour"), int) else None,
-                        "gbpusdBaseDirection": str(alert.get("gbpusdBaseDirection") or "").strip().upper(),
                     })
             public_symbols[base] = {"alerts": public_alerts}
         public_days[str(day_key)] = {"symbols": public_symbols}

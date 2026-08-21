@@ -1,12 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  baseSymbolForTarget,
   buildPublicFeed,
   buildStoredAlert,
+  buildTelegramMessage,
   emptyCloudState,
   findH1PatternMatches,
+  scannerBaseForTarget,
   seedCloudStateFromPublic,
-  signalFromGbpPattern,
+  signalFromPatternBase,
   type H1Direction,
   type H1DirectionBar,
 } from "./h1-cloud-scanner.ts";
@@ -23,99 +26,137 @@ function bars(sequenceOldestToNewest: string, startHour = 1, date = "2026-08-21"
   });
 }
 
-test("H1 pattern-local signal rule follows only pure SW3 and reverses the other three classes", () => {
-  assert.equal(signalFromGbpPattern("BUY", "sw3Pure"), "BUY");
-  assert.equal(signalFromGbpPattern("SELL", "sw3Pure"), "SELL");
-  for (const kind of ["sw2", "sw3Alternating", "sw6CombinedPure"] as const) {
-    assert.equal(signalFromGbpPattern("BUY", kind), "SELL");
-    assert.equal(signalFromGbpPattern("SELL", kind), "BUY");
+test("only pure SW3 reverses the H1 base signal", () => {
+  for (const kind of ["sw2", "sw3Alternating", "sw4Alternating"] as const) {
+    assert.equal(signalFromPatternBase("BUY", kind), "BUY");
+    assert.equal(signalFromPatternBase("SELL", kind), "SELL");
+  }
+  assert.equal(signalFromPatternBase("BUY", "sw3Pure"), "SELL");
+  assert.equal(signalFromPatternBase("SELL", "sw3Pure"), "BUY");
+});
+
+test("pattern scanners are AUDUSD for XAU and GBPUSD for every other target", () => {
+  assert.equal(scannerBaseForTarget("XAUUSD"), "AUDUSD");
+  assert.equal(baseSymbolForTarget("XAUUSD"), "GBPUSD");
+  for (const base of ["EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+    assert.equal(scannerBaseForTarget(base), "GBPUSD");
+    assert.equal(baseSymbolForTarget(base), base);
   }
 });
 
-test("XAU H04 matches only TG/GT two-candle class", () => {
-  const matches = findH1PatternMatches(bars("TGT"), 4, 4);
-  assert.deepEqual(matches.map((item) => [item.slotHour, item.pattern.join(""), item.patternKind]), [
-    [4, "TG", "sw2"],
+test("SW2 is H03-only from H02 + H01", () => {
+  const h3 = findH1PatternMatches(bars("GT"), 3);
+  assert.deepEqual(h3.map((item) => [item.slotHour, item.pattern.join(""), item.patternKind]), [
+    [3, "TG", "sw2"],
   ]);
+  const h4 = findH1PatternMatches(bars("GGT"), 4);
+  assert.equal(h4.some((item) => item.slotHour === 4 && item.patternKind === "sw2"), false);
 });
 
-test("FX H03 starts with two-candle class and later pure SW3 follows", () => {
-  const matches = findH1PatternMatches(bars("TGGT"), 5, 3);
-  assert.ok(matches.some((item) => item.slotHour === 3 && item.patternKind === "sw2"));
-  assert.ok(matches.some((item) => item.slotHour === 5 && item.pattern.join("") === "TGG" && item.patternKind === "sw3Pure"));
+test("pure SW3 is only TGG or GTT", () => {
+  const tgg = findH1PatternMatches(bars("GGT"), 4).filter((item) => item.slotHour === 4);
+  const gtt = findH1PatternMatches(bars("TTG"), 4).filter((item) => item.slotHour === 4);
+  assert.deepEqual(tgg.map((item) => [item.pattern.join(""), item.patternKind]), [["TGG", "sw3Pure"]]);
+  assert.deepEqual(gtt.map((item) => [item.pattern.join(""), item.patternKind]), [["GTT", "sw3Pure"]]);
 });
 
-test("exact alternating SW3 is accepted but TGTG/GTGT four-candle continuation is rejected", () => {
-  const accepted = findH1PatternMatches(bars("TTGT"), 5, 4);
-  assert.ok(accepted.some((item) => item.slotHour === 5 && item.pattern.join("") === "TGT" && item.patternKind === "sw3Alternating"));
-
-  const rejected = findH1PatternMatches(bars("GTGT"), 5, 4);
-  assert.ok(!rejected.some((item) => item.slotHour === 5 && item.patternKind === "sw3Alternating"));
+test("alternating SW3 emits TGT or GTG", () => {
+  const matches = findH1PatternMatches(bars("TGT"), 4).filter((item) => item.slotHour === 4);
+  assert.deepEqual(matches.map((item) => [item.pattern.join(""), item.patternKind]), [["TGT", "sw3Alternating"]]);
 });
 
-test("combined two pure SW3 groups wins over embedded newest SW3", () => {
-  const matches = findH1PatternMatches(bars("TTTGGGT"), 8, 4);
-  const h8 = matches.filter((item) => item.slotHour === 8);
-  assert.equal(h8.length, 1);
-  assert.equal(h8[0].pattern.join(""), "TGGGTT");
-  assert.equal(h8[0].patternKind, "sw6CombinedPure");
+test("alternating SW4 emits TGTG or GTGT and wins at the current slot", () => {
+  const t = findH1PatternMatches(bars("GTGT"), 5).filter((item) => item.slotHour === 5);
+  const g = findH1PatternMatches(bars("TGTG"), 5).filter((item) => item.slotHour === 5);
+  assert.deepEqual(t.map((item) => [item.pattern.join(""), item.patternKind]), [["TGTG", "sw4Alternating"]]);
+  assert.deepEqual(g.map((item) => [item.pattern.join(""), item.patternKind]), [["GTGT", "sw4Alternating"]]);
 });
 
-test("stored alert uses GBPUSD H(n-1) and the pattern-local signal rule", () => {
-  const match = findH1PatternMatches(bars("TGT"), 4, 4)[0];
-  const gbpBase: H1DirectionBar = {
-    hour: 3,
-    brokerDate: "2026-08-21",
-    brokerTime: "2026-08-21T03:00",
-    direction: "T",
-  };
-  const alert = buildStoredAlert({ base: "XAUUSD", brokerSymbol: "XAU/USD", match, gbpBase });
-  assert.equal(alert.gbpusdBaseHour, 3);
-  assert.equal(alert.gbpusdH1Signal, "BUY");
+test("XAU signal uses AUDUSD scanner plus GBPUSD H1 base", () => {
+  const match = findH1PatternMatches(bars("TGT"), 4).find((item) => item.slotHour === 4)!;
+  const alert = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAU/USD",
+    scannerBase: "AUDUSD",
+    scannerSymbol: "AUD/USD",
+    match,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 3)[0],
+  });
+  assert.equal(alert.patternKind, "sw3Alternating");
+  assert.equal(alert.baseH1Signal, "BUY");
+  assert.equal(alert.symbolH1Signal, "BUY");
+  assert.match(buildTelegramMessage("XAUUSD", "2026-08-21", alert), /giữ nguyên GBPUSD H1/);
+});
+
+test("XAU pure SW3 reverses GBPUSD H1 base", () => {
+  const match = findH1PatternMatches(bars("GGT"), 4).find((item) => item.slotHour === 4)!;
+  const alert = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "AUDUSD",
+    scannerSymbol: "AUDUSD",
+    match,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 3)[0],
+  });
+  assert.equal(alert.patternKind, "sw3Pure");
+  assert.equal(alert.baseH1Signal, "BUY");
   assert.equal(alert.symbolH1Signal, "SELL");
-  assert.equal(alert.patternKind, "sw2");
 });
 
-test("cloud state seeds from schema-2 public feed to prevent Telegram replay during cutover", () => {
-  const source = {
-    schemaVersion: 2,
-    profile: "Vantage",
+test("other symbols use GBPUSD scanner plus their own H1 base", () => {
+  const match = findH1PatternMatches(bars("GTGT"), 5).find((item) => item.slotHour === 5)!;
+  const alert = buildStoredAlert({
+    base: "EURUSD",
+    brokerSymbol: "EURUSD",
+    scannerBase: "GBPUSD",
+    scannerSymbol: "GBPUSD",
+    match,
+    baseSymbol: "EURUSD",
+    baseBar: bars("G", 4)[0],
+  });
+  assert.equal(alert.patternKind, "sw4Alternating");
+  assert.equal(alert.baseH1Signal, "SELL");
+  assert.equal(alert.symbolH1Signal, "SELL");
+});
+
+test("older feeds suppress pre-cutover slots instead of replaying obsolete semantics", () => {
+  const legacy = {
+    schemaVersion: 5,
+    profile: "cTrader IcMarkets",
     publishedAt: "2026-08-21T00:00:00Z",
-    hours: [3, 4],
+    hours: [3, 4, 5],
     symbols: ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"],
-    days: {
-      "2026-08-21": {
-        symbols: {
-          USDCAD: {
-            alerts: [{
-              slotHour: 3,
-              pattern: "G T",
-              patternKind: "sw2",
-              bars: ["2026-08-21T02:00", "2026-08-21T01:00"],
-              symbol: "USDCAD+",
-              profile: "Vantage",
-              signal: "SELL",
-              gbpusdSignal: "BUY",
-              gbpusdBaseHour: 2,
-              gbpusdBaseDirection: "T",
-            }],
-          },
-        },
-      },
-    },
+    days: {},
   };
-  const state = seedCloudStateFromPublic(source);
-  assert.equal(state.days["2026-08-21"].symbols.USDCAD?.alerts[0].slotHour, 3);
-  assert.equal(state.days["2026-08-21"].symbols.USDCAD?.alerts[0].symbolH1Signal, "SELL");
-  assert.equal(state.days["2026-08-21"].symbols.USDCAD?.alerts[0].profile, "cTrader IcMarkets");
+  const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
+  assert.equal(state.version, 6);
+  assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
+  assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
 
-test("public feed emitted by cloud keeps the existing schema-2 web contract", () => {
+test("public feed v6 contains only scanner/base/final-signal semantics", () => {
   const state = emptyCloudState();
-  state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [] } } };
+  const match = findH1PatternMatches(bars("GT"), 3)[0];
+  const alert = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "AUDUSD",
+    scannerSymbol: "AUDUSD",
+    match,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 2)[0],
+  });
+  state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
-  assert.equal(feed.schemaVersion, 2);
+  assert.equal(feed.schemaVersion, 6);
   assert.equal(feed.profile, "cTrader IcMarkets");
-  assert.deepEqual(feed.symbols, ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"]);
-  assert.deepEqual(feed.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
+  const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
+  assert.equal(row?.scannerBase, "AUDUSD");
+  assert.equal(row?.baseSymbol, "GBPUSD");
+  assert.equal(row?.baseSignal, "BUY");
+  assert.equal(row?.signal, "BUY");
+  assert.equal("targetPattern" in (row || {}), false);
+  assert.equal("warningKind" in (row || {}), false);
 });

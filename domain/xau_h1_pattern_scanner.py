@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Passive multi-symbol H1 pattern scanner with Telegram delivery state.
+"""Passive H1 fallback scanner mirroring the cTrader cloud scanner.
 
-The scanner is independent from Engine5's active-symbol scope. Exactly one
-MonitorWorker owns it across profile worker processes. The legacy XAU state and
-lock paths are intentionally retained for rolling compatibility and replay
-protection.
+Pattern detection is intentionally limited to AUDUSD and GBPUSD. Target signals
+are derived from those scanner patterns plus the target-specific closed H1 base
+candle from the current broker day only. Exactly one local MonitorWorker may own
+this fallback scanner through the existing OS-backed lock.
 """
 from __future__ import annotations
 
@@ -21,7 +21,10 @@ from domain.json_io import JsonStateError, load_json, save_json
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_STATE_PATH = ROOT / "xau_h1_pattern_alert_state.json"
 DEFAULT_OWNER_LOCK_PATH = ROOT / "xau_h1_pattern_scanner.lock"
+
 TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
+SCANNER_BASES = ("AUDUSD", "GBPUSD")
+REQUIRED_HISTORY_BASES = ("GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY")
 
 PURE_SW_3_PATTERNS = {("T", "G", "G"), ("G", "T", "T")}
 TWO_CANDLE_SW_PATTERNS = {("T", "G"), ("G", "T")}
@@ -31,32 +34,26 @@ ALTERNATING_SW_4_PATTERNS = {("T", "G", "T", "G"), ("G", "T", "G", "T")}
 PATTERN_KIND_SW2 = "sw2"
 PATTERN_KIND_SW3_PURE = "sw3Pure"
 PATTERN_KIND_SW3_ALTERNATING = "sw3Alternating"
-PATTERN_KIND_SW6_COMBINED = "sw6CombinedPure"
+PATTERN_KIND_SW4_ALTERNATING = "sw4Alternating"
 PATTERN_KINDS = {
     PATTERN_KIND_SW2,
     PATTERN_KIND_SW3_PURE,
     PATTERN_KIND_SW3_ALTERNATING,
-    PATTERN_KIND_SW6_COMBINED,
+    PATTERN_KIND_SW4_ALTERNATING,
 }
 PATTERN_LABELS = {
     PATTERN_KIND_SW2: "SW 2 cây",
     PATTERN_KIND_SW3_PURE: "SW 3 cây thuần",
     PATTERN_KIND_SW3_ALTERNATING: "SW 3 cây xen kẽ",
-    PATTERN_KIND_SW6_COMBINED: "SW ghép 2×3 cây thuần",
+    PATTERN_KIND_SW4_ALTERNATING: "SW 4 cây xen kẽ",
 }
-REVERSE_TARGET_PATTERN_KINDS = {
-    PATTERN_KIND_SW2,
-    PATTERN_KIND_SW3_ALTERNATING,
-    PATTERN_KIND_SW6_COMBINED,
-}
-FOLLOW_TARGET_PATTERN_KINDS = {PATTERN_KIND_SW3_PURE}
+FOLLOW_BASE_PATTERN_KINDS = {PATTERN_KIND_SW2, PATTERN_KIND_SW3_ALTERNATING, PATTERN_KIND_SW4_ALTERNATING}
+REVERSE_BASE_PATTERN_KINDS = {PATTERN_KIND_SW3_PURE}
 
-XAU_FIRST_SCAN_HOUR = 4
-FX_FIRST_SCAN_HOUR = 3
-EARLIEST_SCAN_HOUR = min(XAU_FIRST_SCAN_HOUR, FX_FIRST_SCAN_HOUR)
+EARLIEST_SCAN_HOUR = 3
 LAST_SCAN_HOUR = 17
 HISTORY_BARS = 32
-STATE_VERSION = 2
+STATE_VERSION = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,7 +61,7 @@ class H1PatternMatch:
     slot_hour: int
     pattern: tuple[str, ...]
     bar_times: tuple[datetime, ...]
-    pattern_kind: str = PATTERN_KIND_SW3_PURE
+    pattern_kind: str
 
     @property
     def pattern_text(self) -> str:
@@ -80,7 +77,8 @@ class H1PatternMatch:
 
 
 @dataclass(frozen=True, slots=True)
-class GbpUsdH1SignalContext:
+class H1BaseSignalContext:
+    base_symbol: str
     base_hour: int
     base_direction: str | None
     signal: str | None
@@ -89,9 +87,12 @@ class GbpUsdH1SignalContext:
     @property
     def telegram_line(self) -> str:
         if self.signal and self.base_direction:
-            return f"• Signal GBPUSD H1: {self.signal} | Base H{self.base_hour:02d}={self.base_direction}"
+            return (
+                f"• Base H1: {self.base_symbol} H{self.base_hour:02d}="
+                f"{self.base_direction} → {self.signal}"
+            )
         reason = self.unavailable_reason or "chưa đủ dữ liệu"
-        return f"• Signal GBPUSD H1: N/A | Base H{self.base_hour:02d} ({reason})"
+        return f"• Base H1: {self.base_symbol} H{self.base_hour:02d} N/A ({reason})"
 
 
 def signal_from_h1_direction(direction: str) -> str:
@@ -101,6 +102,37 @@ def signal_from_h1_direction(direction: str) -> str:
     if canonical == "G":
         return "SELL"
     raise ValueError(f"Unknown H1 direction: {direction}")
+
+
+def pattern_follows_base(pattern_kind: str) -> bool:
+    if pattern_kind in FOLLOW_BASE_PATTERN_KINDS:
+        return True
+    if pattern_kind in REVERSE_BASE_PATTERN_KINDS:
+        return False
+    raise ValueError(f"Unknown H1 pattern kind: {pattern_kind}")
+
+
+def signal_from_pattern_base(base_signal: str, pattern_kind: str) -> str:
+    signal = str(base_signal or "").strip().upper()
+    if signal not in {"BUY", "SELL"}:
+        raise ValueError("H1 base signal must be BUY or SELL")
+    if pattern_follows_base(pattern_kind):
+        return signal
+    return "SELL" if signal == "BUY" else "BUY"
+
+
+def signal_from_gbpusd_pattern(gbpusd_signal: str, pattern_kind: str) -> str:
+    """Backward-compatible alias; current semantics are generic base-signal semantics."""
+    return signal_from_pattern_base(gbpusd_signal, pattern_kind)
+
+
+def scanner_base_for_target(base: str) -> str:
+    return "AUDUSD" if str(base).upper() == "XAUUSD" else "GBPUSD"
+
+
+def base_symbol_for_target(base: str) -> str:
+    canonical = str(base or "").upper()
+    return "GBPUSD" if canonical == "XAUUSD" else canonical
 
 
 def resolve_symbol_variant(base: str, symbols: Iterable[Any]) -> str | None:
@@ -134,7 +166,6 @@ def resolve_target_symbols(symbols: Iterable[Any]) -> dict[str, str]:
 
 
 def resolve_xauusd_symbol(symbols: Iterable[Any]) -> str | None:
-    """Backward-compatible helper retained for existing callers/tests."""
     return resolve_symbol_variant("XAUUSD", symbols)
 
 
@@ -150,7 +181,6 @@ def closed_h1_directions_by_hour(
     broker_now: datetime,
     decode_time: Callable[[int], datetime],
 ) -> dict[int, tuple[datetime, str]]:
-    """Index fully closed H1 candles from the current broker day by opening hour."""
     current_hour = broker_now.replace(minute=0, second=0, microsecond=0)
     candles: dict[int, tuple[datetime, str]] = {}
     for rate in rates:
@@ -176,82 +206,79 @@ def _rows_for_hours(
     return [item for item in selected if item is not None]
 
 
+def _matches_from_candles(
+    candles: dict[int, tuple[datetime, str]],
+    broker_hour: int,
+) -> list[H1PatternMatch]:
+    matches: list[H1PatternMatch] = []
+    last_slot = min(int(broker_hour), LAST_SCAN_HOUR)
+    for slot_hour in range(EARLIEST_SCAN_HOUR, last_slot + 1):
+        if slot_hour >= 5:
+            rows4 = _rows_for_hours(candles, tuple(slot_hour - offset for offset in range(1, 5)))
+            if rows4:
+                pattern4 = tuple(direction for _opened, direction in rows4)
+                if pattern4 in ALTERNATING_SW_4_PATTERNS:
+                    matches.append(H1PatternMatch(
+                        slot_hour,
+                        pattern4,
+                        tuple(opened for opened, _direction in rows4),
+                        PATTERN_KIND_SW4_ALTERNATING,
+                    ))
+                    continue
+
+        if slot_hour >= 4:
+            rows3 = _rows_for_hours(candles, tuple(slot_hour - offset for offset in range(1, 4)))
+            if rows3:
+                pattern3 = tuple(direction for _opened, direction in rows3)
+                if pattern3 in PURE_SW_3_PATTERNS:
+                    matches.append(H1PatternMatch(
+                        slot_hour,
+                        pattern3,
+                        tuple(opened for opened, _direction in rows3),
+                        PATTERN_KIND_SW3_PURE,
+                    ))
+                    continue
+                if pattern3 in ALTERNATING_SW_3_PATTERNS:
+                    matches.append(H1PatternMatch(
+                        slot_hour,
+                        pattern3,
+                        tuple(opened for opened, _direction in rows3),
+                        PATTERN_KIND_SW3_ALTERNATING,
+                    ))
+                    continue
+
+        # Two-candle source is the opening H03 class only: H02 → H01.
+        if slot_hour != EARLIEST_SCAN_HOUR:
+            continue
+        rows2 = _rows_for_hours(candles, (2, 1))
+        if not rows2:
+            continue
+        pattern2 = tuple(direction for _opened, direction in rows2)
+        if pattern2 in TWO_CANDLE_SW_PATTERNS:
+            matches.append(H1PatternMatch(
+                slot_hour,
+                pattern2,
+                tuple(opened for opened, _direction in rows2),
+                PATTERN_KIND_SW2,
+            ))
+    return matches
+
+
 def find_h1_pattern_matches(
     rates: Iterable[Any],
     broker_now: datetime,
     decode_time: Callable[[int], datetime],
-    first_scan_hour: int = XAU_FIRST_SCAN_HOUR,
+    first_scan_hour: int = EARLIEST_SCAN_HOUR,
 ) -> list[H1PatternMatch]:
-    """Find the four supported H1 pattern classes newest→oldest.
-
-    First slot matches TG/GT. Later slots match TGG/GTT, exact TGT/GTG (but
-    reject TGTG/GTGT), or six candles made from two non-overlapping TGG/GTT
-    groups. Combined-six has precedence over its embedded latest-three match.
-    """
+    """Find current H1 source patterns newest→oldest on AUDUSD/GBPUSD."""
     if broker_now.tzinfo is not None:
         raise ValueError("broker_now must be a naive broker-wall datetime")
-    if first_scan_hour not in (FX_FIRST_SCAN_HOUR, XAU_FIRST_SCAN_HOUR):
-        raise ValueError("first_scan_hour must be H03 or H04")
-    if broker_now.hour < first_scan_hour or broker_now.hour > LAST_SCAN_HOUR:
+    if int(first_scan_hour) != EARLIEST_SCAN_HOUR:
+        raise ValueError("H1 scanner starts at H03")
+    if broker_now.hour < EARLIEST_SCAN_HOUR or broker_now.hour > LAST_SCAN_HOUR:
         return []
-
     candles = closed_h1_directions_by_hour(rates, broker_now, decode_time)
-    matches: list[H1PatternMatch] = []
-    for slot_hour in range(first_scan_hour, min(broker_now.hour, LAST_SCAN_HOUR) + 1):
-        if slot_hour == first_scan_hour:
-            rows = _rows_for_hours(candles, (slot_hour - 1, slot_hour - 2))
-            if not rows:
-                continue
-            pattern = tuple(direction for _opened, direction in rows)
-            if pattern in TWO_CANDLE_SW_PATTERNS:
-                matches.append(H1PatternMatch(
-                    slot_hour,
-                    pattern,
-                    tuple(opened for opened, _direction in rows),
-                    PATTERN_KIND_SW2,
-                ))
-            continue
-
-        # H08 for XAU and H07 for FX are the earliest six-candle slots.
-        if slot_hour >= first_scan_hour + 4:
-            six_hours = tuple(slot_hour - offset for offset in range(1, 7))
-            six_rows = _rows_for_hours(candles, six_hours)
-            if six_rows:
-                six_pattern = tuple(direction for _opened, direction in six_rows)
-                if six_pattern[:3] in PURE_SW_3_PATTERNS and six_pattern[3:] in PURE_SW_3_PATTERNS:
-                    matches.append(H1PatternMatch(
-                        slot_hour,
-                        six_pattern,
-                        tuple(opened for opened, _direction in six_rows),
-                        PATTERN_KIND_SW6_COMBINED,
-                    ))
-                    continue
-
-        rows = _rows_for_hours(candles, (slot_hour - 1, slot_hour - 2, slot_hour - 3))
-        if not rows:
-            continue
-        pattern = tuple(direction for _opened, direction in rows)
-        if pattern in PURE_SW_3_PATTERNS:
-            matches.append(H1PatternMatch(
-                slot_hour,
-                pattern,
-                tuple(opened for opened, _direction in rows),
-                PATTERN_KIND_SW3_PURE,
-            ))
-            continue
-        if pattern not in ALTERNATING_SW_3_PATTERNS:
-            continue
-
-        older = candles.get(slot_hour - 4)
-        if older is not None and (*pattern, older[1]) in ALTERNATING_SW_4_PATTERNS:
-            continue
-        matches.append(H1PatternMatch(
-            slot_hour,
-            pattern,
-            tuple(opened for opened, _direction in rows),
-            PATTERN_KIND_SW3_ALTERNATING,
-        ))
-    return matches
+    return _matches_from_candles(candles, broker_now.hour)
 
 
 def pattern_kind_from_text(pattern_text: str) -> str | None:
@@ -262,25 +289,13 @@ def pattern_kind_from_text(pattern_text: str) -> str | None:
         return PATTERN_KIND_SW3_PURE
     if pattern in ALTERNATING_SW_3_PATTERNS:
         return PATTERN_KIND_SW3_ALTERNATING
-    if len(pattern) == 6 and pattern[:3] in PURE_SW_3_PATTERNS and pattern[3:] in PURE_SW_3_PATTERNS:
-        return PATTERN_KIND_SW6_COMBINED
+    if pattern in ALTERNATING_SW_4_PATTERNS:
+        return PATTERN_KIND_SW4_ALTERNATING
     return None
 
 
-def signal_from_gbpusd_pattern(gbpusd_signal: str, pattern_kind: str) -> str:
-    """Derive target H1 signal solely from GBPUSD H1 + matched pattern class."""
-    signal = str(gbpusd_signal or "").strip().upper()
-    if signal not in {"BUY", "SELL"}:
-        raise ValueError("GBPUSD H1 signal must be BUY or SELL")
-    if pattern_kind in FOLLOW_TARGET_PATTERN_KINDS:
-        return signal
-    if pattern_kind in REVERSE_TARGET_PATTERN_KINDS:
-        return "SELL" if signal == "BUY" else "BUY"
-    raise ValueError(f"Unknown H1 pattern kind: {pattern_kind}")
-
-
 class MultiSymbolH1PatternScanner:
-    """One-owner H1 scanner using only current-day H1 charts."""
+    """One-owner MT5 fallback mirroring cloud scanner v6 semantics."""
 
     def __init__(
         self,
@@ -356,30 +371,27 @@ class MultiSymbolH1PatternScanner:
                 selected[base] = symbol
             except Exception as error:
                 self._log_issue_once(f"select:{base}", f"[H1-SCAN] Không select được {symbol}: {error}")
-        if not selected:
-            self._log_issue_once("targets", "[H1-SCAN] Không tìm thấy/select được symbol mục tiêu hoặc biến thể hậu tố.")
-            return False
 
         gbpusd_symbol = resolve_symbol_variant("GBPUSD", available)
         if gbpusd_symbol:
             try:
                 if self._mt5.symbol_select(gbpusd_symbol, True) is False:
-                    self._log_issue_once("select:GBPUSD", f"[H1-SCAN] Không select được GBPUSD reference {gbpusd_symbol}.")
                     gbpusd_symbol = None
-            except Exception as error:
-                self._log_issue_once("select:GBPUSD", f"[H1-SCAN] Không select được GBPUSD reference {gbpusd_symbol}: {error}")
+            except Exception:
                 gbpusd_symbol = None
-        else:
-            self._log_issue_once("GBPUSD", "[H1-SCAN] Không tìm thấy GBPUSD hoặc biến thể hậu tố.")
+        if not selected or not gbpusd_symbol or "AUDUSD" not in selected:
+            self._log_issue_once(
+                "required-symbols",
+                "[H1-SCAN] Thiếu target/AUDUSD/GBPUSD broker symbol; fallback scanner dừng fail-closed.",
+            )
+            return False
 
         owner_context = self._lock_factory(str(self._owner_lock_path), timeout=0.0)
         owner_guard = owner_context.__enter__()
         if owner_guard is None:
             return False
         try:
-            clock_symbols = list(selected.values())
-            if gbpusd_symbol and gbpusd_symbol not in clock_symbols:
-                clock_symbols.append(gbpusd_symbol)
+            clock_symbols = list(dict.fromkeys([*selected.values(), gbpusd_symbol]))
             clock = self._clock_factory(
                 mt5_module=self._mt5,
                 symbols=tuple(clock_symbols),
@@ -396,9 +408,8 @@ class MultiSymbolH1PatternScanner:
         self._gbpusd_symbol = gbpusd_symbol
         rendered = ", ".join(f"{base}={symbol}" for base, symbol in selected.items())
         self._log(
-            f"[H1-SCAN] Scanner owner={self._profile_name} · {rendered} · GBPUSD-ref={gbpusd_symbol or 'N/A'} · "
-            "H1 current-day only · XAU H04-H17; FX H03-H17 · "
-            "patterns=SW2, SW3-pure, SW3-alternating, SW6-combined"
+            f"[H1-SCAN] fallback owner={self._profile_name} · {rendered} · GBPUSD={gbpusd_symbol} · "
+            "patternSources=AUDUSD,GBPUSD · H03-H17 · emit=SW2,SW3-pure,SW3-alt,SW4-alt"
         )
         return True
 
@@ -415,29 +426,54 @@ class MultiSymbolH1PatternScanner:
                 raise ValueError(f"Invalid H1 scanner alert row: {state_path}")
         return alerts
 
-    def _migrate_v1_state(self, state: dict[str, Any]) -> dict[str, Any]:
+    def _migrate_legacy_state(self, state: dict[str, Any]) -> dict[str, Any]:
         days = state.get("days")
         if not isinstance(days, dict):
             raise ValueError(f"Invalid H1 scanner legacy state: {self._state_path}")
         migrated = self._empty_state()
         for day_key, day_state in days.items():
             if not isinstance(day_key, str) or not isinstance(day_state, dict):
-                raise ValueError(f"Invalid H1 scanner legacy day state: {self._state_path}")
-            alerts = self._validate_alerts(day_state.get("alerts", []), self._state_path)
-            migrated["days"][day_key] = {"symbols": {"XAUUSD": {"alerts": list(alerts)}}}
+                continue
+            max_slot = 0
+            if state.get("version") == 1:
+                alerts = day_state.get("alerts", [])
+                if isinstance(alerts, list):
+                    max_slot = max((int(row.get("slotHour", 0)) for row in alerts if isinstance(row, dict)), default=0)
+            else:
+                symbols = day_state.get("symbols", {})
+                if isinstance(symbols, dict):
+                    for symbol_state in symbols.values():
+                        if not isinstance(symbol_state, dict):
+                            continue
+                        alerts = symbol_state.get("alerts", [])
+                        if isinstance(alerts, list):
+                            max_slot = max(
+                                max_slot,
+                                max((int(row.get("slotHour", 0)) for row in alerts if isinstance(row, dict)), default=0),
+                            )
+            migrated["days"][day_key] = {
+                "suppressedThroughHour": max(EARLIEST_SCAN_HOUR - 1, min(LAST_SCAN_HOUR, max_slot)),
+                "symbols": {base: {"alerts": []} for base in TARGET_BASES},
+            }
         return migrated
 
     def _load_state(self) -> dict[str, Any]:
         state = load_json(str(self._state_path), self._empty_state())
         if not isinstance(state, dict):
             raise ValueError(f"Invalid H1 scanner state: {self._state_path}")
-        if state.get("version") == 1:
-            state = self._migrate_v1_state(state)
+        if state.get("version") in {1, 2, 3, 4, 5}:
+            state = self._migrate_legacy_state(state)
+            # Persist migration immediately so a restart cannot reload obsolete
+            # pattern semantics and repeat the migration decision.
+            self._save_state(state)
         if state.get("version") != STATE_VERSION or not isinstance(state.get("days"), dict):
             raise ValueError(f"Invalid H1 scanner state: {self._state_path}")
         for day_key, day_state in state["days"].items():
             if not isinstance(day_key, str) or not isinstance(day_state, dict):
                 raise ValueError(f"Invalid H1 scanner day state: {self._state_path}")
+            suppressed = day_state.get("suppressedThroughHour")
+            if suppressed is not None and not isinstance(suppressed, int):
+                raise ValueError(f"Invalid H1 scanner suppression state: {self._state_path}")
             symbols = day_state.get("symbols", {})
             if not isinstance(symbols, dict):
                 raise ValueError(f"Invalid H1 scanner symbol state: {self._state_path}")
@@ -446,46 +482,6 @@ class MultiSymbolH1PatternScanner:
                     raise ValueError(f"Invalid H1 scanner symbol row: {self._state_path}")
                 self._validate_alerts(symbol_state.get("alerts", []), self._state_path)
         return state
-
-    @staticmethod
-    def _normalize_legacy_state(state: dict[str, Any]) -> bool:
-        changed = False
-        for day_state in state.get("days", {}).values():
-            if not isinstance(day_state, dict):
-                continue
-            symbols = day_state.get("symbols", {})
-            if not isinstance(symbols, dict):
-                continue
-            for symbol_state in symbols.values():
-                if not isinstance(symbol_state, dict):
-                    continue
-                for key in ("dayType", "firstSignalHour", "symbolH1Signal", "gbpusdH1Signal"):
-                    if key in symbol_state:
-                        symbol_state.pop(key, None)
-                        changed = True
-                alerts = symbol_state.get("alerts", [])
-                if not isinstance(alerts, list):
-                    continue
-                for alert in alerts:
-                    if not isinstance(alert, dict):
-                        continue
-                    for key in ("dayType", "entryTime", "gbpusdBlockHour", "gbpusdGroup"):
-                        if key in alert:
-                            alert.pop(key, None)
-                            changed = True
-                    kind = str(alert.get("patternKind") or "").strip()
-                    if kind not in PATTERN_KINDS:
-                        kind = pattern_kind_from_text(str(alert.get("pattern") or "")) or ""
-                        if kind:
-                            alert["patternKind"] = kind
-                            changed = True
-                    gbp_signal = str(alert.get("gbpusdH1Signal") or "").strip().upper()
-                    if kind in PATTERN_KINDS and gbp_signal in {"BUY", "SELL"}:
-                        target_signal = signal_from_gbpusd_pattern(gbp_signal, kind)
-                        if alert.get("symbolH1Signal") != target_signal:
-                            alert["symbolH1Signal"] = target_signal
-                            changed = True
-        return changed
 
     def _save_state(self, state: dict[str, Any]) -> None:
         days = state.get("days", {})
@@ -514,102 +510,39 @@ class MultiSymbolH1PatternScanner:
         self._publish_retry_after = 0.0
         self._last_published_signature = signature
 
-    def _gbpusd_signal_context(
-        self,
-        slot_hour: int,
-        gbp_candles: dict[int, tuple[datetime, str]],
-    ) -> GbpUsdH1SignalContext:
-        base_hour = int(slot_hour) - 1
-        if not self._gbpusd_symbol:
-            return GbpUsdH1SignalContext(base_hour, None, None, "không có GBPUSD broker")
-        base_row = gbp_candles.get(base_hour)
-        if base_row is None:
-            return GbpUsdH1SignalContext(base_hour, None, None, f"thiếu GBPUSD H{base_hour:02d} đã đóng")
-        _opened, direction = base_row
-        return GbpUsdH1SignalContext(base_hour, direction, signal_from_h1_direction(direction))
-
+    @staticmethod
     def _message(
-        self,
         base: str,
         broker_symbol: str,
+        scanner_base: str,
+        scanner_symbol: str,
         match: H1PatternMatch,
         broker_day: str,
+        base_context: H1BaseSignalContext,
         symbol_signal: str,
-        gbpusd_signal: GbpUsdH1SignalContext,
+        profile_name: str,
     ) -> str:
-        behavior = "giữ nguyên GBPUSD H1" if match.pattern_kind in FOLLOW_TARGET_PATTERN_KINDS else "đảo GBPUSD H1"
-        return (
-            f"🔔 {base} H1 PATTERN\n"
-            f"• Symbol: {broker_symbol}\n"
-            f"• Profile: {self._profile_name}\n"
-            f"• Ngày broker: {broker_day}\n"
-            f"• Mốc scan: H{match.slot_hour:02d}\n"
-            f"• Nến xét (mới→cũ): {match.bar_range_text}\n"
-            f"• Pattern: {match.pattern_text}\n"
-            f"• Nhóm pattern: {match.pattern_label}\n"
-            f"{gbpusd_signal.telegram_line}\n"
-            f"• Logic Signal {base}: {behavior}\n"
-            f"• Signal {base} H1: {symbol_signal}"
+        behavior = (
+            f"giữ nguyên {base_context.base_symbol} H1"
+            if pattern_follows_base(match.pattern_kind)
+            else f"đảo {base_context.base_symbol} H1"
         )
-
-    def _enrich_existing_alerts(
-        self,
-        alerts: list[dict[str, Any]],
-        current_matches: dict[int, H1PatternMatch],
-        gbp_candles: dict[int, tuple[datetime, str]],
-    ) -> bool:
-        """Backfill current H1-only fields without replaying delivered Telegram alerts."""
-        changed = False
-        for alert in alerts:
-            if not isinstance(alert, dict) or not isinstance(alert.get("slotHour"), int):
-                continue
-            slot_hour = int(alert["slotHour"])
-            for key in ("dayType", "entryTime", "gbpusdBlockHour", "gbpusdGroup"):
-                if key in alert:
-                    alert.pop(key, None)
-                    changed = True
-
-            current = current_matches.get(slot_hour)
-            if current is not None:
-                canonical_pattern = current.pattern_text
-                canonical_bars = [value.isoformat(timespec="minutes") for value in current.bar_times]
-                if alert.get("pattern") != canonical_pattern:
-                    alert["pattern"] = canonical_pattern
-                    changed = True
-                if alert.get("bars") != canonical_bars:
-                    alert["bars"] = canonical_bars
-                    changed = True
-                if alert.get("patternKind") != current.pattern_kind:
-                    alert["patternKind"] = current.pattern_kind
-                    changed = True
-
-            pattern_kind = str(alert.get("patternKind") or "").strip()
-            if pattern_kind not in PATTERN_KINDS:
-                pattern_kind = pattern_kind_from_text(str(alert.get("pattern") or "")) or ""
-                if pattern_kind:
-                    alert["patternKind"] = pattern_kind
-                    changed = True
-            if pattern_kind not in PATTERN_KINDS:
-                continue
-
-            gbp_context = self._gbpusd_signal_context(slot_hour, gbp_candles)
-            if not gbp_context.signal:
-                continue
-            canonical = {
-                "symbolH1Signal": signal_from_gbpusd_pattern(gbp_context.signal, pattern_kind),
-                "gbpusdH1Signal": gbp_context.signal,
-                "gbpusdBaseHour": gbp_context.base_hour,
-                "gbpusdBaseDirection": gbp_context.base_direction or "",
-            }
-            for key, value in canonical.items():
-                if alert.get(key) != value:
-                    alert[key] = value
-                    changed = True
-        alerts.sort(key=lambda item: int(item.get("slotHour", 0)))
-        return changed
+        return "\n".join([
+            f"🔔 {base} H1 PATTERN",
+            f"• Symbol: {broker_symbol}",
+            f"• Profile: {profile_name}",
+            f"• Ngày broker: {broker_day}",
+            f"• Mốc scan: H{match.slot_hour:02d}",
+            f"• Scanner pattern: {scanner_base} ({scanner_symbol})",
+            f"• Nến xét (mới→cũ): {match.bar_range_text}",
+            f"• Pattern scanner: {match.pattern_text}",
+            f"• Nhóm scanner: {match.pattern_label}",
+            base_context.telegram_line,
+            f"• Logic: {behavior}",
+            f"• Signal {base} H1: {symbol_signal}",
+        ])
 
     def scan_once(self) -> int:
-        """Scan current broker day across target symbols; return Telegram sends."""
         try:
             if not self._ensure_owner():
                 return 0
@@ -621,8 +554,6 @@ class MultiSymbolH1PatternScanner:
             except (JsonStateError, OSError, ValueError) as error:
                 self._log_issue_once("state", f"[H1-SCAN] State lỗi, dừng alert để tránh replay: {error}")
                 return 0
-            if self._normalize_legacy_state(state):
-                self._save_state(state)
 
             if broker_now.hour < EARLIEST_SCAN_HOUR or broker_now.hour > LAST_SCAN_HOUR:
                 self._publish_state_if_changed(state)
@@ -633,84 +564,97 @@ class MultiSymbolH1PatternScanner:
                 self._log_issue_once("timeframe", "[H1-SCAN] MT5 không có TIMEFRAME_H1.")
                 return 0
 
-            day_key = broker_now.date().isoformat()
-            day_state = state["days"].setdefault(day_key, {"symbols": {}})
-            symbol_states = day_state.setdefault("symbols", {})
-            sent = 0
-
-            gbp_candles: dict[int, tuple[datetime, str]] = {}
+            # Read only the two pattern sources plus the H1 base charts needed
+            # to derive final target signals. XAUUSD itself is not a pattern/base source.
+            broker_symbols: dict[str, str] = {base: symbol for base, symbol in self._symbols.items() if base in REQUIRED_HISTORY_BASES}
             if self._gbpusd_symbol:
-                try:
-                    gbp_rates = self._mt5.copy_rates_from_pos(self._gbpusd_symbol, timeframe, 1, HISTORY_BARS)
-                except Exception as error:
-                    self._log_issue_once("rates:GBPUSD", f"[H1-SCAN] Không lấy được H1 của {self._gbpusd_symbol}: {error}")
-                    gbp_rates = None
-                if gbp_rates is not None:
-                    try:
-                        gbp_candles = closed_h1_directions_by_hour(
-                            gbp_rates,
-                            broker_now,
-                            self._clock.broker_datetime_from_mt5_timestamp,
-                        )
-                    except Exception as error:
-                        self._log_issue_once("rates:GBPUSD:decode", f"[H1-SCAN] H1 GBPUSD reference lỗi: {error}")
-                else:
-                    self._log_issue_once("rates:GBPUSD", f"[H1-SCAN] Không lấy được H1 đã đóng của {self._gbpusd_symbol}.")
+                broker_symbols["GBPUSD"] = self._gbpusd_symbol
 
-            for base, broker_symbol in self._symbols.items():
-                first_scan_hour = XAU_FIRST_SCAN_HOUR if base == "XAUUSD" else FX_FIRST_SCAN_HOUR
-                if broker_now.hour < first_scan_hour:
+            candles_by_base: dict[str, dict[int, tuple[datetime, str]]] = {}
+            for base in REQUIRED_HISTORY_BASES:
+                broker_symbol = broker_symbols.get(base)
+                if not broker_symbol:
                     continue
-
-                symbol_state = symbol_states.setdefault(base, {"alerts": []})
-                alerts = symbol_state.setdefault("alerts", [])
                 try:
                     rates = self._mt5.copy_rates_from_pos(broker_symbol, timeframe, 1, HISTORY_BARS)
                 except Exception as error:
                     self._log_issue_once(f"rates:{base}", f"[H1-SCAN] Không lấy được H1 của {broker_symbol}: {error}")
                     continue
                 if rates is None:
-                    self._log_issue_once(f"rates:{base}", f"[H1-SCAN] Không lấy được H1 đã đóng của {broker_symbol}.")
                     continue
+                try:
+                    candles_by_base[base] = closed_h1_directions_by_hour(
+                        rates,
+                        broker_now,
+                        self._clock.broker_datetime_from_mt5_timestamp,
+                    )
+                except Exception as error:
+                    self._log_issue_once(f"rates:{base}:decode", f"[H1-SCAN] Decode H1 {base} lỗi: {error}")
 
-                matches = find_h1_pattern_matches(
-                    rates,
-                    broker_now,
-                    self._clock.broker_datetime_from_mt5_timestamp,
-                    first_scan_hour=first_scan_hour,
-                )
-                by_slot = {match.slot_hour: match for match in matches}
-                if self._enrich_existing_alerts(alerts, by_slot, gbp_candles):
-                    self._save_state(state)
-                    self._publish_state_if_changed(state)
+            source_matches = {
+                base: _matches_from_candles(candles_by_base.get(base, {}), broker_now.hour)
+                for base in SCANNER_BASES
+            }
 
-                delivered_slots = {
-                    int(item["slotHour"])
-                    for item in alerts
-                    if isinstance(item, dict) and isinstance(item.get("slotHour"), int)
+            day_key = broker_now.date().isoformat()
+            day_state = state["days"].setdefault(day_key, {"symbols": {}})
+            symbol_states = day_state.setdefault("symbols", {})
+            suppressed_through = int(day_state.get("suppressedThroughHour") or 0)
+            sent = 0
+
+            for base in TARGET_BASES:
+                broker_symbol = self._symbols.get(base)
+                if not broker_symbol:
+                    continue
+                scanner_base = scanner_base_for_target(base)
+                scanner_symbol = self._gbpusd_symbol if scanner_base == "GBPUSD" else self._symbols.get("AUDUSD")
+                base_symbol = base_symbol_for_target(base)
+                base_candles = candles_by_base.get(base_symbol, {})
+                matches = source_matches.get(scanner_base, [])
+
+                symbol_state = symbol_states.setdefault(base, {"alerts": []})
+                alerts = symbol_state.setdefault("alerts", [])
+                delivered = {
+                    int(row["slotHour"])
+                    for row in alerts
+                    if isinstance(row, dict) and isinstance(row.get("slotHour"), int)
                 }
-                pending = [match for match in matches if match.slot_hour not in delivered_slots]
-                for match in pending:
-                    gbpusd_signal = self._gbpusd_signal_context(match.slot_hour, gbp_candles)
-                    if not gbpusd_signal.signal:
+                for hour in range(EARLIEST_SCAN_HOUR, suppressed_through + 1):
+                    delivered.add(hour)
+
+                for match in matches:
+                    if match.slot_hour in delivered:
+                        continue
+                    base_row = base_candles.get(match.slot_hour - 1)
+                    if base_row is None:
                         self._log_issue_once(
-                            f"gbp-signal:{base}:{match.slot_hour}",
-                            f"[H1-SCAN] {base} match H{match.slot_hour:02d} đang chờ GBPUSD H{match.slot_hour - 1:02d} đóng.",
+                            f"base:{base}:{match.slot_hour}",
+                            f"[H1-SCAN] {base} H{match.slot_hour:02d} chờ {base_symbol} H{match.slot_hour - 1:02d} đóng.",
                         )
                         break
-
-                    symbol_signal = signal_from_gbpusd_pattern(gbpusd_signal.signal, match.pattern_kind)
-                    if not bool(self._notify(self._message(
+                    opened, direction = base_row
+                    base_context = H1BaseSignalContext(
+                        base_symbol=base_symbol,
+                        base_hour=opened.hour,
+                        base_direction=direction,
+                        signal=signal_from_h1_direction(direction),
+                    )
+                    symbol_signal = signal_from_pattern_base(base_context.signal, match.pattern_kind)
+                    message = self._message(
                         base,
                         broker_symbol,
+                        scanner_base,
+                        scanner_symbol or scanner_base,
                         match,
                         day_key,
+                        base_context,
                         symbol_signal,
-                        gbpusd_signal,
-                    ))):
+                        self._profile_name,
+                    )
+                    if not bool(self._notify(message)):
                         self._log_issue_once(
                             f"telegram:{base}",
-                            f"[H1-SCAN] {base} match H{match.slot_hour:02d} đang chờ Telegram gửi thành công.",
+                            f"[H1-SCAN] {base} H{match.slot_hour:02d} đang chờ Telegram gửi thành công.",
                         )
                         self._publish_state_if_changed(state)
                         return sent
@@ -722,17 +666,21 @@ class MultiSymbolH1PatternScanner:
                         "bars": [value.isoformat(timespec="minutes") for value in match.bar_times],
                         "symbol": broker_symbol,
                         "profile": self._profile_name,
+                        "scannerBase": scanner_base,
+                        "scannerSymbol": scanner_symbol or scanner_base,
+                        "baseSymbol": base_symbol,
+                        "baseH1Signal": base_context.signal,
+                        "baseHour": base_context.base_hour,
+                        "baseDirection": base_context.base_direction or "",
                         "symbolH1Signal": symbol_signal,
-                        "gbpusdH1Signal": gbpusd_signal.signal,
-                        "gbpusdBaseHour": gbpusd_signal.base_hour,
-                        "gbpusdBaseDirection": gbpusd_signal.base_direction or "",
                     })
                     alerts.sort(key=lambda item: int(item.get("slotHour", 0)))
+                    delivered.add(match.slot_hour)
                     self._save_state(state)
                     self._publish_state_if_changed(state)
                     self._log(
-                        f"[H1-SCAN] {base} đã gửi H{match.slot_hour:02d} {match.pattern_text} · "
-                        f"{match.pattern_kind} · GBPUSD={gbpusd_signal.signal} · target={symbol_signal}"
+                        f"[H1-SCAN] {base} H{match.slot_hour:02d} · scanner={scanner_base} · "
+                        f"{match.pattern_kind} · base={base_symbol}:{base_context.signal} · signal={symbol_signal}"
                     )
                     sent += 1
 

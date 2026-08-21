@@ -1,5 +1,5 @@
 import { DashboardAutoRefresh } from "@/components/DashboardAutoRefresh";
-import { Pattern5Board } from "@/components/Pattern5Board";
+import { H1EngineBoard } from "@/components/H1EngineBoard";
 import { detectServerLocaleFromCookie } from "@/lib/i18n";
 import { getLatestH1Signals, maskFutureH1Signals } from "@/lib/h1-signals";
 import { getVipAccessState, redactH1Signals } from "@/lib/vip";
@@ -21,7 +21,7 @@ export default async function EnginePage() {
   return (
     <div className="page-shell terminal-page">
       <DashboardAutoRefresh />
-      <Pattern5Board h1Data={h1Data} locale={locale} access={access} />
+      <H1EngineBoard h1Data={h1Data} locale={locale} access={access} />
     </div>
   );
 }

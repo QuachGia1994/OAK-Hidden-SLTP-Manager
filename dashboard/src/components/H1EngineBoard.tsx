@@ -126,7 +126,7 @@ function VipGate({ access, locale }: { access: VipAccessView; locale: Locale }) 
   </>;
 }
 
-export function Pattern5Board({ h1Data, locale, access }: { h1Data: H1SignalPayload | null; locale: Locale; access: VipAccessView }) {
+export function H1EngineBoard({ h1Data, locale, access }: { h1Data: H1SignalPayload | null; locale: Locale; access: VipAccessView }) {
   const dates = h1Data ? Object.keys(h1Data.days).sort() : [];
   const brokerDay = dates.at(-1) ?? "—";
   const profile = h1Data?.profile || "cTrader IcMarkets";

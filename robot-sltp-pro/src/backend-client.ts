@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Pattern5Payload, PendingTask, Position, Profile, RuntimeHealth } from './types';
+import type { PendingTask, Position, Profile, RuntimeHealth } from './types';
 
 export type ProfileDraft = {
   name: string;
@@ -69,6 +69,4 @@ export const desktopBackend = {
     beR,
     tpR,
   }),
-  pattern5: (profile: string, force = false) => pythonCommand<Pattern5Payload>('pattern5', { profile, force }),
-  publishPattern5: (profile: string) => pythonCommand<Pattern5Payload & { published: boolean }>('pattern5_publish', { profile }),
 };
