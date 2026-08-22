@@ -6,6 +6,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
+- Added an admin-authenticated `/api/mobile/h1` JSON adapter for the native OAK Gatekeeper app. It reuses the normalized H1 feed/cooldown logic, masks future slots, returns no server credentials, and lets Android/iOS share the same Vercel source of truth as `/engine`.
 - Media Forensics v3: provider-neutral specialist-detector registry, explicit UniversalFakeDetect class-boundary calibration semantics, bounded C2PA/detector timeout/concurrency policy, deterministic evidence fusion, and an isolated `services/media-forensics/` service path combining official `c2pa-python` verification with UniversalFakeDetect.
 - Fact Check Image Authenticity as a separate media domain: upload → bounded image validation → metadata/provenance observations → Gemini 3.6 Flash multimodal assessment → normalized evidence-calibrated verdict → existing share/public-result loop.
 - Dual image intent in `/factcheck`: **Check claims in image / Kiểm tra nội dung trong ảnh** remains the OCR→Text path, while **Detect AI Image / Phát hiện ảnh AI** explicitly enters the media-authenticity path.

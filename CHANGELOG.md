@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added `mobile/` as an Expo SDK 57 / React Native 0.86 native OAK Gatekeeper shell for Android and iOS: liquid-glass bottom navigation, H1 timeline with `⚠ PURE` and `BLOCK / NOT TRADE`, native signal detail sheets, separated cTrader/MT5 account controls, SecureStore admin API-key handling, and a Vercel-backed `/api/mobile/h1` adapter. GitHub Actions now verifies Android/iOS Metro bundles, builds an Android debug APK on API 36, and builds an unsigned iOS Simulator app on `macos-26`/Xcode 26.x without embedding server secrets.
 - H1 pure-pair UI now labels active pure cells with `⚠ PURE`, and scanner state reconciles stale delivered rows before skip so H12 pure + H15 pure is corrected to H15 `BLOCK / NOT TRADE`; normal SW inside the cooldown stays actionable.
 - `/accounts` now separates cTrader and MT5 into dedicated provider tabs while preserving the existing cloud account API contract.
 - Repository runtime surface trimmed to web + MQL5 EA only: removed the legacy desktop/Tauri app, local Python broker worker/fallback scanner, root Python utilities/tests and obsolete runtime configs. The maintained production code is now `dashboard/`, `cloudflare/`, the optional web `services/media-forensics/` sidecar and `mt5/OAK_Cloud_Manager_EA.mq5`.

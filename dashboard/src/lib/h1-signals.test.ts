@@ -8,6 +8,7 @@ const redesignCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
+const mobileH1RouteSource = readFileSync(new URL("../app/api/mobile/h1/route.ts", import.meta.url), "utf8");
 
 test("H1 web feed has independent schema-7 Upstash contract", () => {
   assert.match(readerSource, /H1_SIGNAL_PUBLIC_SCHEMA = 7/);
@@ -41,6 +42,14 @@ test("H1 cells render tradable BUY/SELL and explicit pure-cooldown BLOCK cells",
   assert.match(boardSource, /NOT TRADE/);
   assert.match(boardSource, /blockedSlots/);
   assert.doesNotMatch(boardSource, /data-warning|repeatedPure|previousPureSlot|entryTime|postCheckApplied|sourceSignal|targetPattern|STOP H17/);
+});
+
+test("mobile H1 adapter preserves admin auth and normalized cloud feed semantics", () => {
+  assert.match(mobileH1RouteSource, /requireAdminOrApiAuth/);
+  assert.match(mobileH1RouteSource, /getLatestH1Signals/);
+  assert.match(mobileH1RouteSource, /maskFutureH1Signals/);
+  assert.match(mobileH1RouteSource, /Cache-Control.*no-store/);
+  assert.doesNotMatch(mobileH1RouteSource, /UPSTASH|CTRADER_CLIENT_SECRET|DASHBOARD_API_KEY/);
 });
 
 test("engine web surface is H1-only and profiles from cTrader feed", () => {

@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "OAK Gatekeeper",
+    "slug": "oak-gatekeeper-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "oakgatekeeper",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "uk.oakgatekeeper.mobile"
+    },
+    "android": {
+      "package": "uk.oakgatekeeper.mobile",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiBase": "https://www.oakgatekeeper.uk"
+    }
+  }
+}

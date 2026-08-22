@@ -1,0 +1,196 @@
+name: Mobile Build
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "mobile/**"
+      - "dashboard/src/app/api/mobile/**"
+      - "dashboard/src/lib/h1-signals.ts"
+      - "dashboard/src/lib/h1-signals.test.ts"
+      - ".github/workflows/mobile-build.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "mobile/**"
+      - "dashboard/src/app/api/mobile/**"
+      - "dashboard/src/lib/h1-signals.ts"
+      - "dashboard/src/lib/h1-signals.test.ts"
+      - ".github/workflows/mobile-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CI: "1"
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  verify-mobile:
+    name: Verify mobile bundle
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck mobile
+        working-directory: mobile
+        run: pnpm typecheck
+
+      - name: Bundle Android JavaScript
+        working-directory: mobile
+        run: pnpm bundle:android
+
+      - name: Bundle iOS JavaScript
+        working-directory: mobile
+        run: pnpm bundle:ios
+
+  build-android:
+    name: Build Android APK
+    needs: verify-mobile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Android native project
+        working-directory: mobile
+        run: pnpm exec expo prebuild --platform android --clean --no-install
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OAK-Gatekeeper-Android-debug
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  build-ios:
+    name: Build iOS Simulator app
+    needs: verify-mobile
+    runs-on: macos-26
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.14.0"
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate iOS native project
+        working-directory: mobile
+        run: pnpm exec expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: pod install
+
+      - name: Build unsigned iOS Simulator app
+        working-directory: mobile/ios
+        shell: bash
+        run: |
+          WORKSPACE=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          if [ -z "$WORKSPACE" ]; then
+            echo "No Xcode workspace generated" >&2
+            exit 1
+          fi
+          SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" | python3 -c 'import json,sys; d=json.load(sys.stdin); s=d.get("workspace",{}).get("schemes",[]); print(next((x for x in s if not x.startswith("Pods-")), ""))')
+          if [ -z "$SCHEME" ]; then
+            echo "No app scheme found" >&2
+            exit 1
+          fi
+          xcodebuild \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          APP_PATH=$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
+          if [ -z "$APP_PATH" ]; then
+            echo "No iOS Simulator app produced" >&2
+            exit 1
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" ../OAK-Gatekeeper-iOS-Simulator.zip
+
+      - name: Upload iOS Simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: OAK-Gatekeeper-iOS-Simulator
+          path: mobile/OAK-Gatekeeper-iOS-Simulator.zip
+          if-no-files-found: error
+          retention-days: 14
