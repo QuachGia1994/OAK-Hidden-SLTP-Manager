@@ -8,62 +8,25 @@ on:
 
 jobs:
   verify:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Python runtime and test tools
-        shell: pwsh
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt pytest
-
-      - name: Compile Python runtime
-        shell: pwsh
-        run: |
-          python -m py_compile worker_runtime.py oak_enginecore.py
-          python -m compileall -q domain repositories services robot-sltp-pro
-      - name: Python tests
-        shell: pwsh
-        run: python -m pytest tests -q
-
-      - name: Tauri bridge tests
-        shell: pwsh
-        run: python robot-sltp-pro/test_backend_bridge.py
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
-          cache-dependency-path: |
-            dashboard/package-lock.json
-            robot-sltp-pro/package-lock.json
+          cache-dependency-path: dashboard/package-lock.json
 
-      - name: Test and build remote web
-        shell: pwsh
+      - name: Test and build web
         working-directory: dashboard
         run: |
           npm ci
           npm run test
           npm run build
 
-      - name: Build Tauri frontend
-        shell: pwsh
-        working-directory: robot-sltp-pro
-        run: |
-          npm ci
-          npm run build
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Compile Tauri Rust backend
-        shell: pwsh
-        run: cargo check --locked --manifest-path robot-sltp-pro/src-tauri/Cargo.toml
+      - name: Test Cloudflare H1 timekeeper
+        working-directory: cloudflare/h1-timekeeper
+        run: npm test

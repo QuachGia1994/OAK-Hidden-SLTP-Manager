@@ -22,6 +22,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- H1 blocked pure slots now fill the entire matrix cell with a stronger warning background/border, making `BLOCK / NOT TRADE` visually distinct instead of tinting only the inner button/span.
 - H1 pure cooldown now blocks only repeated pure SW3 matches inside the next three slots; normal SW3 signals remain actionable, and the web marks only an actually blocked pure slot as `BLOCK / NOT TRADE`.
 - Media model SSoT is `FACTCHECK_MEDIA_MODEL`, defaulting to `gemini-3.6-flash`; text/URL Fact Check keeps its existing model owner.
 - Image-authenticity verdicts are evidence-calibrated (`provenance_verified`, `likely_ai_generated`, `likely_manipulated`, `no_material_manipulation_detected`, `inconclusive`); confidence is evidence strength, not an AI-generation probability. Visual-only/weak-only AI conclusions now downgrade to `inconclusive` without trusted provenance or live specialist support.

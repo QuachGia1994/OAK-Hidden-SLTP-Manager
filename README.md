@@ -1,109 +1,55 @@
-# ROBOT SLTP Pro / OAK Gatekeeper
+# ROBOT SLTP / OAK Gatekeeper
 
-Latest release — v4.1.0
+Production repository for the OAK web control plane and the standalone MT5 EA.
 
-Windows installer: `ROBOT.SLTP.Pro_4.1.0_x64-setup.exe`
+The repository was intentionally trimmed on 2026-08-22 to remove the legacy desktop/Tauri application, local Python worker/fallback runtime, local H1 scanner, root Python test suite, and obsolete runtime utilities.
 
-ROBOT SLTP now treats cloud H1 scanning and Telegram command/control as the maintained trading surfaces. The old Engine5/Pattern5 H4 stack has been retired from runtime, web, desktop, tests and publishing.
+## Production surfaces
 
-## Maintained surfaces
+- `dashboard/` — Next.js web/control plane deployed on Vercel. Owns `/engine`, `/accounts`, Telegram cloud control, cTrader integration, H1 cloud scanner, Fact Check, Tarot, Redis state and the MT5 outbound mailbox.
+- `cloudflare/h1-timekeeper/` — Cloudflare Durable Object/Cron timekeeper for H1 scanner triggering.
+- `services/media-forensics/` — optional web-side media-forensics service used by Fact Check when configured.
+- `mt5/OAK_Cloud_Manager_EA.mq5` — standalone MQL5 execution/account-management runtime attached directly to each controlled MT5 terminal.
+- `.github/workflows/` — web CI plus H1/Telegram cloud fallback schedulers.
 
-1. **OAK Gatekeeper Web** (`dashboard/`) — production web shell at `https://www.oakgatekeeper.uk`.
-   - `/engine`: current-broker-day H1 scanner signals only.
-   - cTrader OAuth/token vault and read-only account/session APIs.
-   - Telegram cloud webhook/control APIs.
-2. **Desktop Tauri** (`robot-sltp-pro/`) — fallback/local workstation for MT5 profile observation, SLTP configuration, local pending-task management and runtime diagnostics. It is no longer required for the production H1 scanner or Telegram webhook.
-3. **Python runtime** (`domain/`, `services/`, root scripts) — local fallback worker and MT5 utilities. Local scanner ownership is fallback-only while cloud scanner is primary.
+## Runtime flow
 
-## H1 scanner v6
+```text
+Telegram / web schedule
+        |
+        v
+Vercel control plane -> Upstash mailbox -> OAK_Cloud_Manager_EA -> MT5 broker
 
-Cloud profile: `cTrader IcMarkets`.
-
-The scanner reads only closed H1 candles from the current broker day, H03 through H17. Pattern detection uses exactly two source charts:
-
-- `AUDUSD` pattern source for `XAUUSD` output.
-- `GBPUSD` pattern source for `EURUSD`, `AUDUSD`, `USDCAD`, `USDJPY` outputs.
-
-At scanner slot `Hn`, the base candle is always the closed `H(n-1)` candle:
-
-- `XAUUSD`: base = `GBPUSD H(n-1)`.
-- Other outputs: base = that target symbol's own `H(n-1)`.
-- `T` (close > open) → BUY; `G` → SELL.
-
-Pattern groups, newest → oldest:
-
-- `TG` / `GT` → `SW 2 cây` → keep the base signal.
-- `TGG` / `GTT` → `SW 3 cây thuần` → reverse the base signal.
-- `TGT` / `GTG` → `SW 3 cây xen kẽ` → keep the base signal.
-- `TGTG` / `GTGT` → `SW 4 cây xen kẽ` → keep the base signal.
-
-At one slot, the longest exact match wins: 4-candle before 3-candle before 2-candle. Missing source/base H1 data fails closed; there is no previous-day or other-timeframe fallback.
-
-Production flow:
-
-`GitHub Actions H:00 → Vercel /api/h1-scanner/run → cTrader JSON/WebSocket H1 → scanner v6 → Telegram + Upstash → /engine`
-
-The route retries briefly after H:00 if cTrader has not finalized the just-closed H1 candle yet. Redis state/lock prevents replay and overlapping cloud scans.
-
-## Telegram cloud control
-
-Production webhook:
-
-`https://www.oakgatekeeper.uk/api/telegram/webhook`
-
-Maintained cloud commands include status/profile/position inspection, pending-intent management and `/del ID` / `/del all`. Telegram update IDs are idempotently claimed in Upstash. The desktop receiver checks Telegram `getWebhookInfo` and exits when cloud webhook ownership is active, so opening the desktop does not steal the bot.
-
-cTrader OAuth remains `accounts` scope and broker access is read-only. Cloud Telegram intents that would mutate broker state remain fail-closed/approval-required; no automatic order/open/close/SLTP mutation is part of the maintained cloud path.
-
-## H1 parity utilities
-
-The retained parity stack is H1-only:
-
-- `robot-sltp-pro/ctrader_h1_market_data.py`
-- `robot-sltp-pro/ctrader_snapshot_cli.py`
-- `robot-sltp-pro/mt5_h1_snapshot_cli.py`
-- `robot-sltp-pro/h1_market_data.py`
-- `robot-sltp-pro/h1_market_data_parity_cli.py`
-
-Parity compares broker-day H1 timestamps and T/G direction. OHLC differences are diagnostic only because scanner semantics consume candle direction, not exact prices.
-
-## Build and verification
-
-Python:
-
-```bash
-pip install -r requirements.txt
-python -m pytest tests -q
-python robot-sltp-pro/test_backend_bridge.py
+cTrader H1 market data -> Vercel H1 scanner -> Upstash public feed -> /engine + Telegram
+                         ^
+                         |
+              Cloudflare H1 timekeeper
 ```
 
-Web:
+There is no maintained desktop/Tauri runtime and no local Python broker worker in this repository. MT5 execution is owned by the EA; cloud orchestration is owned by the web control plane.
+
+## Web development
 
 ```bash
-npm --prefix dashboard ci
-npm --prefix dashboard run test
-npm --prefix dashboard run build
+cd dashboard
+npm ci
+npm test
+npm run build
 ```
 
-Desktop frontend:
+Cloudflare timekeeper tests:
 
 ```bash
-npm --prefix robot-sltp-pro ci
-npm --prefix robot-sltp-pro run build
+cd cloudflare/h1-timekeeper
+npm test
 ```
 
-Rust/Tauri:
+Vercel project configuration lives in `dashboard/vercel.json` and the local `.vercel/` link metadata.
 
-```bash
-cargo check --locked --manifest-path robot-sltp-pro/src-tauri/Cargo.toml
-```
+## MT5 EA
 
-## Security boundaries
+See `mt5/README.md` for installation, WebRequest permission, account binding and Upstash bridge configuration. The EA source of truth is:
 
-- Never commit MT5, Telegram, cTrader or VIP credentials/tokens.
-- cTrader refresh/access tokens remain encrypted server-side with AES-256-GCM.
-- H1 scanner cloud stays on `accounts` OAuth scope.
-- Missing/ambiguous market data fails closed.
-- Desktop MT5 observation is attach-only unless the user explicitly starts local runtime.
+`mt5/OAK_Cloud_Manager_EA.mq5`
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the maintained ownership map and cloud H1 details.
+Never commit populated MT5 `.set` files, Upstash tokens, broker credentials or Vercel secrets.

@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const readerSource = readFileSync(new URL("./h1-signals.ts", import.meta.url), "utf8");
 const boardSource = readFileSync(new URL("../components/H1SignalBoard.tsx", import.meta.url), "utf8");
+const redesignCss = readFileSync(new URL("../app/oak-redesign.css", import.meta.url), "utf8");
 const vipSource = readFileSync(new URL("./vip.ts", import.meta.url), "utf8");
 const enginePageSource = readFileSync(new URL("../app/engine/page.tsx", import.meta.url), "utf8");
 const engineBoardSource = readFileSync(new URL("../components/H1EngineBoard.tsx", import.meta.url), "utf8");
@@ -25,7 +26,11 @@ test("H1 cells render tradable BUY/SELL and explicit pure-cooldown BLOCK cells",
   assert.match(boardSource, /<b>\{alert\.signal\}<\/b>/);
   assert.match(boardSource, /oak-h1-warning-mark/);
   assert.match(boardSource, /\/!\\/);
+  assert.match(boardSource, /oak-h1-cell-blocked/);
   assert.match(boardSource, /oak-h1-blocked-cell/);
+  assert.match(boardSource, /data-trade-state="blocked"/);
+  assert.match(redesignCss, /\.oak-h1-cell-blocked \{[^}]*background:[^}]*oak-status-warning/);
+  assert.match(redesignCss, /\.oak-h1-cell-blocked \{[^}]*box-shadow:[^}]*oak-status-warning/);
   assert.match(boardSource, /BLOCK/);
   assert.match(boardSource, /NOT TRADE/);
   assert.match(boardSource, /blockedSlots/);

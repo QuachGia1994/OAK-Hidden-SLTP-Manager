@@ -97,7 +97,7 @@ export function NavBar() {
     <nav className="oak-nav sticky top-0 z-50">
       <div className="nav-shell oak-nav-layout">
         <Link href="/engine" className="oak-brand" aria-label="OAK Gatekeeper · ROBOT SLTP Pro">
-          <span className="oak-brand-icon"><img src="/favicon.ico?v=robot-sltp-pro-20260815" alt="" aria-hidden="true" /></span>
+          <span className="oak-brand-icon"><img src="/favicon.ico?v=oak-gatekeeper-20260822" alt="" aria-hidden="true" /></span>
           <span className="oak-brand-copy">
             <small>OAK GATEKEEPER</small>
             <strong>ROBOT SLTP <b>PRO</b></strong>

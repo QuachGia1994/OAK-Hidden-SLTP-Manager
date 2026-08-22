@@ -12,8 +12,8 @@ export const metadata: Metadata = {
   title: "ROBOT SLTP Pro — OAK Gatekeeper",
   description: "OAK Gatekeeper trading command system for Engine 5 market signals, broker-aligned evidence, and private signal access.",
   icons: {
-    icon: "/favicon.ico?v=robot-sltp-pro-20260815",
-    shortcut: "/favicon.ico?v=robot-sltp-pro-20260815",
+    icon: "/favicon.ico?v=oak-gatekeeper-20260822",
+    shortcut: "/favicon.ico?v=oak-gatekeeper-20260822",
   },
 };
 

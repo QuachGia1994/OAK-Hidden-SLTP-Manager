@@ -140,8 +140,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
                 const alert = byHour.get(hour);
                 const blocked = blockedSlots.has(hour) || alert?.tradeAllowed === false;
                 if (blocked) {
-                  if (!alert) return <td key={hour}><span className="oak-h1-blocked-cell"><b>BLOCK</b><small>NOT TRADE</small></span></td>;
-                  return <td key={hour}><button className="oak-h1-blocked-cell" type="button" onClick={() => setSelection({ base, date, alert })}><b>BLOCK</b><small>NOT TRADE</small></button></td>;
+                  if (!alert) return <td key={hour} className="oak-h1-cell-blocked" data-trade-state="blocked"><span className="oak-h1-blocked-cell"><b>BLOCK</b><small>NOT TRADE</small></span></td>;
+                  return <td key={hour} className="oak-h1-cell-blocked" data-trade-state="blocked"><button className="oak-h1-blocked-cell" type="button" onClick={() => setSelection({ base, date, alert })}><b>BLOCK</b><small>NOT TRADE</small></button></td>;
                 }
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
                 const pure = alert.patternKind === "sw3Pure";

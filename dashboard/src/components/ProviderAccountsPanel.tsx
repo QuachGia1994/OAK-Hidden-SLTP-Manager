@@ -35,7 +35,7 @@ type Account = {
   } | null;
   bridgeOnline?: boolean;
   bridgeLastSeenAt?: number | null;
-  bridgeRuntime?: "python-worker" | "mql5-ea" | null;
+  bridgeRuntime?: "mql5-ea" | null;
   bridgeVersion?: string | null;
 };
 
@@ -271,7 +271,7 @@ export function ProviderAccountsPanel() {
         {accounts.map((account) => (
           <form key={account.id} className="oak-account-card" onSubmit={(event) => saveAccount(event, account)}>
             <header>
-              <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}{account.provider === "mt5" ? ` · ${account.bridgeOnline ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}${account.bridgeRuntime ? ` · ${account.bridgeRuntime === "mql5-ea" ? "OAK EA" : "PYTHON LEGACY"}` : ""}` : ""}</span></div>
+              <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}{account.provider === "mt5" ? ` · ${account.bridgeOnline ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}${account.bridgeRuntime ? " · OAK EA" : ""}` : ""}</span></div>
               <label><input name="enabled" type="checkbox" defaultChecked={account.enabled} /> Enable control</label>
             </header>
             <div className="oak-account-fields">

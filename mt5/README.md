@@ -1,6 +1,6 @@
 # OAK Cloud Manager EA
 
-`OAK_Cloud_Manager_EA.mq5` is the app-free MT5 execution/runtime for ROBOT SLTP. Attach one EA instance to one chart in each MT5 terminal/account that should be controlled. The desktop ROBOT SLTP app and Python `MonitorWorker` are not required for that account while this EA is active.
+`OAK_Cloud_Manager_EA.mq5` is the standalone MT5 execution/runtime for ROBOT SLTP. Attach one EA instance to one chart in each MT5 terminal/account that should be controlled. MT5 execution is owned by this EA; there is no maintained desktop/Python broker worker in the repository.
 
 ## Runtime flow
 
@@ -28,7 +28,7 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
   - `/partial XAUUSD price 3456.70 0.01 @Vantage` arms the only matching XAUUSD position to close `0.01` lots when the directional target price is reached. If multiple positions match the symbol, use a ticket.
 - Per-position management state persists in MT5 terminal Global Variables using `POSITION_IDENTIFIER`, so initial risk/R state survives EA reloads and netting ticket replacement.
 - Account identity binding: if `InpExpectedLogin` does not match the live MT5 login, EA initialization fails.
-- Cloud task arbitration uses the same Redis claim key as the Python bridge, preventing both runtimes from executing the same cloud task.
+- Cloud task arbitration uses the same Redis claim key as the web control plane so a cloud task has one durable execution owner.
 
 ## Install
 
@@ -48,7 +48,7 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
 
 `InpUpstashRestToken` is a secret. Never commit it, paste it into screenshots, or save/share a populated `.set` file. The repo ignores MT5 `.set` and compiled `.ex5` files. A dedicated Upstash database/token for broker execution is preferable to reusing a database that contains unrelated application state.
 
-The EA validates both `bridgeProfile` and the live MT5 login before executing a cloud task. Dynamic `/partial` commands are accepted by the cloud only when the heartbeat identifies the runtime as `mql5-ea`; the legacy Python bridge remains compatible with entry/close/modify/positions but cannot silently consume EA-only partial rules.
+The EA validates both `bridgeProfile` and the live MT5 login before executing a cloud task. Dynamic `/partial` commands are accepted by the cloud only when the heartbeat identifies the runtime as `mql5-ea`.
 
 ## Management semantics
 

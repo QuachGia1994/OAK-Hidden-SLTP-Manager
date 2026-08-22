@@ -1,25 +1,17 @@
-# Python / test caches
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.pytest-basetemp/
-venv/
-
-# Build outputs
-build/
-dist/
-*.spec
-*.zip
-*.log
-*.json.lock
-
-# Node / Next / Tauri outputs
+# Node / web build outputs
 **/node_modules/
 dashboard/.next/
 dashboard/tsconfig.tsbuildinfo
-robot-sltp-pro/dist/
-robot-sltp-pro/src-tauri/target/
-robot-sltp-pro/.vite/
+build/
+dist/
+*.zip
+*.log
+
+# Optional Python web-service caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+venv/
 
 # Local deployment/tool metadata
 .vercel/
@@ -33,47 +25,11 @@ scratch/
 .env
 .env*.local
 config.json
-profiles.json
-settings.json
-# Trading runtime state
-oak_state.db*
-broker_clock_cache.json*
-trades*.json
-waiting_*.json
-scheduled_close_*.json
-pending_partials*.json
-session_state.json
-risk_equity_hwm_*.json
-copy_map_*.json
-ignored_*.json
-tele_*.json
-mimo_*.json
-ic_mt5.json
-ic_ctrader.json
-market_data_snapshot*.json
-*_market_snapshot.json
-oak_enginecore.lock
-oak_enginecore.singleton.lock
-mimo_bot.lock
-worker_*.lock
-worker_*.stop
-xau_h1_pattern_alert_state.json
-xau_h1_pattern_scanner.lock
-.mt5_profile_connection.lock
 
-# Tauri local runtime cache
-robot-sltp-pro/pattern5_cache.json
-robot-sltp-pro/scheduled_close_*.json
-robot-sltp-pro/__pycache__/
-
-# Local binaries / OS debris
-terminal64.exe
+# MT5 local artifacts
 mt5/*.set
 mt5/*.ex5
+
+# OS/editor debris
 .DS_Store
 *.bak_*
-*.bak_sched_*
-
-# Removed legacy runtime folders may be recreated by stale processes/tests
-data/
-logs/
