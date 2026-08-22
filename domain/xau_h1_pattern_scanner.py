@@ -49,7 +49,7 @@ WEDNESDAY_INVERT_SLOTS = {3, 4, 12, 13, 14}
 EARLIEST_SCAN_HOUR = 3
 LAST_SCAN_HOUR = 17
 HISTORY_BARS = 32
-STATE_VERSION = 9
+STATE_VERSION = 10
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,12 +248,6 @@ def _matches_from_candles(
     for slot_hour in range(EARLIEST_SCAN_HOUR, last_slot + 1):
         if active_pure_slot is not None and slot_hour > active_pure_slot + 3:
             active_pure_slot = None
-        blocked_by_pure_slot = (
-            active_pure_slot
-            if active_pure_slot is not None and active_pure_slot < slot_hour <= active_pure_slot + 3
-            else None
-        )
-        trade_allowed = blocked_by_pure_slot is None
 
         if slot_hour == EARLIEST_SCAN_HOUR:
             rows2 = _rows_for_hours(candles, (2, 1))
@@ -266,8 +260,8 @@ def _matches_from_candles(
                     pattern2,
                     tuple(opened for opened, _direction in rows2),
                     PATTERN_KIND_SW2,
-                    trade_allowed,
-                    blocked_by_pure_slot,
+                    True,
+                    None,
                 ))
             continue
 
@@ -276,6 +270,12 @@ def _matches_from_candles(
             continue
         pattern3 = tuple(direction for _opened, direction in rows3)
         if pattern3 in PURE_SW_3_PATTERNS:
+            blocked_by_pure_slot = (
+                active_pure_slot
+                if active_pure_slot is not None and active_pure_slot < slot_hour <= active_pure_slot + 3
+                else None
+            )
+            trade_allowed = blocked_by_pure_slot is None
             matches.append(H1PatternMatch(
                 slot_hour,
                 pattern3,
@@ -297,21 +297,19 @@ def _matches_from_candles(
             pattern3,
             tuple(opened for opened, _direction in rows3),
             PATTERN_KIND_SW3_NORMAL,
-            trade_allowed,
-            blocked_by_pure_slot,
+            True,
+            None,
         ))
     return matches
 
 
 def pure_cooldown_slots(matches: Iterable[H1PatternMatch], broker_hour: int) -> list[int]:
     _ = broker_hour
-    blocked: set[int] = set()
-    for match in matches:
-        if match.pattern_kind != PATTERN_KIND_SW3_PURE or not match.trade_allowed:
-            continue
-        for hour in range(match.slot_hour + 1, min(match.slot_hour + 3, LAST_SCAN_HOUR) + 1):
-            blocked.add(hour)
-    return sorted(blocked)
+    return sorted(
+        match.slot_hour
+        for match in matches
+        if match.pattern_kind == PATTERN_KIND_SW3_PURE and not match.trade_allowed
+    )
 
 
 def find_h1_pattern_matches(
@@ -505,14 +503,57 @@ class MultiSymbolH1PatternScanner:
             }
         return migrated
 
+    @staticmethod
+    def _normalize_v9_symbol_state(symbol_state: dict[str, Any]) -> None:
+        alerts = symbol_state.get("alerts", [])
+        if not isinstance(alerts, list):
+            return
+        active_pure_slot: int | None = None
+        blocked_slots: list[int] = []
+        for alert in sorted((row for row in alerts if isinstance(row, dict)), key=lambda row: int(row.get("slotHour", 0))):
+            slot_hour = alert.get("slotHour")
+            if not isinstance(slot_hour, int):
+                continue
+            if active_pure_slot is not None and slot_hour > active_pure_slot + 3:
+                active_pure_slot = None
+            if alert.get("patternKind") != PATTERN_KIND_SW3_PURE:
+                alert["tradeAllowed"] = True
+                alert["blockedByPureSlot"] = None
+                continue
+            blocked_by = active_pure_slot if active_pure_slot is not None and active_pure_slot < slot_hour <= active_pure_slot + 3 else None
+            alert["blockedByPureSlot"] = blocked_by
+            alert["tradeAllowed"] = blocked_by is None
+            if blocked_by is None:
+                active_pure_slot = slot_hour
+            else:
+                blocked_slots.append(slot_hour)
+        symbol_state["blockedSlots"] = blocked_slots
+
+    def _migrate_v9_state(self, state: dict[str, Any]) -> dict[str, Any]:
+        days = state.get("days", {})
+        if not isinstance(days, dict):
+            raise ValueError(f"Invalid H1 scanner v9 state: {self._state_path}")
+        state["version"] = STATE_VERSION
+        for day_state in days.values():
+            if not isinstance(day_state, dict):
+                continue
+            symbols = day_state.get("symbols", {})
+            if not isinstance(symbols, dict):
+                continue
+            for symbol_state in symbols.values():
+                if isinstance(symbol_state, dict):
+                    self._normalize_v9_symbol_state(symbol_state)
+        return state
+
     def _load_state(self) -> dict[str, Any]:
         state = load_json(str(self._state_path), self._empty_state())
         if not isinstance(state, dict):
             raise ValueError(f"Invalid H1 scanner state: {self._state_path}")
         if state.get("version") in {1, 2, 3, 4, 5, 6, 7, 8}:
             state = self._migrate_legacy_state(state)
-            # Persist migration immediately so a restart cannot reload obsolete
-            # pattern semantics and repeat the migration decision.
+            self._save_state(state)
+        elif state.get("version") == 9:
+            state = self._migrate_v9_state(state)
             self._save_state(state)
         if state.get("version") != STATE_VERSION or not isinstance(state.get("days"), dict):
             raise ValueError(f"Invalid H1 scanner state: {self._state_path}")
@@ -740,9 +781,8 @@ class MultiSymbolH1PatternScanner:
                     })
                     alerts.sort(key=lambda item: int(item.get("slotHour", 0)))
                     delivered.add(match.slot_hour)
-                    if match.pattern_kind == PATTERN_KIND_SW3_PURE and match.trade_allowed:
-                        for hour in range(match.slot_hour + 1, min(match.slot_hour + 3, LAST_SCAN_HOUR) + 1):
-                            blocked_slots.add(hour)
+                    if match.pattern_kind == PATTERN_KIND_SW3_PURE and not match.trade_allowed:
+                        blocked_slots.add(match.slot_hour)
                         symbol_state["blockedSlots"] = sorted(blocked_slots)
                     self._save_state(state)
                     self._publish_state_if_changed(state)

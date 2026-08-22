@@ -39,7 +39,7 @@ This document describes the maintained production surfaces after retiring the En
 | MT5 attach/start safety | `services/mt5_service.py`, `services/mt5_terminal_service.py` | local observation/fallback runtime |
 | H1 parity | `robot-sltp-pro/h1_market_data.py` + H1 snapshot CLIs | migration/regression only |
 
-## H1 scanner rule v3
+## H1 scanner rule v4
 
 The production scanner is cloud-primary and operates only on H1 data for the current broker day.
 
@@ -84,7 +84,7 @@ All three pattern classes keep the base signal unchanged. A separate broker-cale
 - Thursday: normally no inversion. The monthly flag is recalculated at the Thursday immediately before the first Friday whose day-of-month is 1-7; that Thursday cycle inverts only when its previous Wednesday is day 30 or 1, and the flag carries weekly until the next recalculation.
 - Friday: the monthly flag is recalculated on the first Friday whose day-of-month is 1-7; it inverts when that anchor Friday is day 3, 4, or 7, and the flag carries weekly until the next recalculation.
 
-There is no target-side post-check. Every tradeable `sw3Pure` alert is marked `/!\\` and starts a three-slot cooldown. The next three eligible slots are still scanned and their pattern/base/calendar result is still calculated, but the web renders those slots as `BLOCK / NOT TRADE` and no actionable Telegram alert is sent. A `sw3Pure` found inside that cooldown remains calculated/recorded as blocked and does not extend the cooldown. Trading eligibility resumes at H(n+4). Example: H12 pure => H13/H14/H15 are BLOCK; H16 is active again.
+There is no target-side post-check. Every tradeable `sw3Pure` alert is marked `/!\\` and starts a three-slot pure-only cooldown. H(n+1)..H(n+3) continue scanning normally: `sw3Normal` remains actionable with its usual base/calendar signal, while only `sw3Pure` found inside that window is calculated/recorded as `BLOCK / NOT TRADE` and does not emit Telegram. A blocked pure does not extend the window. Example: H12 pure + H14 normal + H15 pure => H14 ACTIVE, H15 BLOCK; pure is eligible again from H16.
 
 No day classification, Pattern5 group, H4 block, previous-day fallback, or cross-timeframe fallback exists in this scanner.
 
@@ -99,12 +99,12 @@ No day classification, Pattern5 group, H4 block, previous-day fallback, or cross
 - Vercel retries for roughly 17.5 seconds when the just-closed H1 candle is not yet visible from cTrader.
 - Cloudflare uses a dedicated random timekeeper bearer. The Worker stores the plaintext only as a Cloudflare Secret; Vercel compares its SHA-256 against a value stored in Upstash.
 - Redis NX/EX lock prevents overlapping Cloudflare, GitHub or manual scanner invocations.
-- Cloud state schema is v9. Public transport remains schema v7 with `signalRuleVersion=3`. Existing rule-v2 schema-v7 feeds are accepted only as migration input, converted to v9 state, and their historical tradeable pure alerts derive the new three-slot block metadata so a weekend deployment does not blank/reset the next live H03 slot.
-- Telegram must acknowledge an actionable BUY/SELL signal before it is persisted. Cooldown rows are non-actionable and persist silently so the web can show BLOCK without sending a trade alert.
-- Public Upstash H1 feed remains schema v7 and now carries `tradeAllowed`, `blockedByPureSlot`, and per-symbol `blockedSlots`; calculated patterns inside cooldown remain visible as BLOCK evidence.
+- Cloud state schema is v10. Public transport remains schema v7 with `signalRuleVersion=4`. Existing rule-v2/rule-v3 schema-v7 feeds are accepted only as migration input and normalized so legacy generic cooldown slots cannot keep SW3-normal rows blocked after cutover.
+- Telegram must acknowledge an actionable BUY/SELL signal before it is persisted. Only blocked `sw3Pure` rows are non-actionable and persist silently; SW3-normal rows inside a pure window still send normally.
+- Public Upstash H1 feed remains schema v7 and carries `tradeAllowed`, `blockedByPureSlot`, and per-symbol `blockedSlots`; `blockedSlots` now contains only slots where a pure pattern was actually blocked, never the whole potential three-slot window.
 - There is no target-side post-check, STOP-H17 overlay, day classification, Pattern5 block, or H4 dependency.
 
-The local Python fallback mirrors the same rule-v3 source/base, calendar post-signal, exact-three guard, and three-slot pure cooldown semantics.
+The local Python fallback mirrors the same rule-v4 source/base, calendar post-signal, exact-three guard, and pure-only three-slot cooldown semantics.
 
 ## `/engine` web flow
 

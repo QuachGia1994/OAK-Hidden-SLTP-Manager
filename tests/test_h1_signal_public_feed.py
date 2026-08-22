@@ -9,12 +9,12 @@ from domain.h1_signal_public_feed import PUBLIC_SCHEMA, build_public_h1_feed, pu
 
 def sample_state():
     return {
-        "version": 9,
+        "version": 10,
         "days": {
             "2026-08-20": {
                 "symbols": {
                     "XAUUSD": {
-                        "blockedSlots": [7, 8, 9],
+                        "blockedSlots": [],
                         "alerts": [
                             {
                                 "slotHour": 6,
@@ -47,7 +47,7 @@ def sample_state():
 def test_build_public_h1_feed_normalizes_schema7_without_repeat_metadata():
     feed = build_public_h1_feed(sample_state(), "Vantage", published_at="2026-08-20T13:20:00+00:00")
     assert feed["schemaVersion"] == PUBLIC_SCHEMA == 7
-    assert feed["signalRuleVersion"] == 3
+    assert feed["signalRuleVersion"] == 4
     assert feed["profile"] == "Vantage"
     assert feed["hours"] == list(range(3, 18))
     assert feed["symbols"] == ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"]
@@ -61,7 +61,7 @@ def test_build_public_h1_feed_normalizes_schema7_without_repeat_metadata():
     assert alert["postSignalRule"] == "none"
     assert alert["tradeAllowed"] is True
     assert alert["blockedByPureSlot"] is None
-    assert xau["blockedSlots"] == [7, 8, 9]
+    assert xau["blockedSlots"] == []
     assert "sourceSignal" not in alert
     assert "postCheckApplied" not in alert
 
@@ -89,7 +89,7 @@ def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
 
     feed = publish_h1_signal_state(sample_state(), "Vantage")
     assert feed["schemaVersion"] == 7
-    assert feed["signalRuleVersion"] == 3
+    assert feed["signalRuleVersion"] == 4
     assert len(requests) == 2
     commands = [json.loads(request.data.decode("utf-8")) for request, _timeout in requests]
     assert commands[0][0:2] == ["SET", "robot-sltp:public:h1-signals:Vantage"]
@@ -104,4 +104,4 @@ def test_publish_h1_signal_state_writes_profile_and_latest_keys(monkeypatch):
     assert alert["postSignalRule"] == "none"
     assert alert["tradeAllowed"] is True
     assert alert["blockedByPureSlot"] is None
-    assert xau["blockedSlots"] == [7, 8, 9]
+    assert xau["blockedSlots"] == []

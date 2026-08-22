@@ -212,7 +212,7 @@ def test_calendar_post_signal_weekday_blocks_and_monthly_cycles():
     assert signal_from_base_after_calendar("BUY", date(2026, 8, 21), 14) == "SELL"
 
 
-def test_pure_sw3_blocks_next_three_slots_but_blocked_pure_still_calculates_without_extending_cooldown():
+def test_pure_cooldown_blocks_only_pure_matches_while_normal_sw_remains_tradable():
     h8 = FakeClock(datetime(2026, 8, 20, 8, 0))
     matches = find_h1_pattern_matches(rates_for(20, "GGTTGGT"), h8.now(), h8.broker_datetime_from_mt5_timestamp)
     pure = [match for match in matches if match.pattern_kind == PATTERN_KIND_SW3_PURE]
@@ -224,19 +224,23 @@ def test_pure_sw3_blocks_next_three_slots_but_blocked_pure_still_calculates_with
         (6, "G T T", False, 4),
         (8, "T G G", True, None),
     ]
-    assert pure_cooldown_slots(matches, h8.now().hour) == [5, 6, 7, 9, 10, 11]
-
-    h15 = FakeClock(datetime(2026, 8, 20, 15, 0))
-    through_h15 = find_h1_pattern_matches(rates_for(20, "GGTTGGT", start_hour=9), h15.now(), h15.broker_datetime_from_mt5_timestamp)
-    assert pure_cooldown_slots(through_h15, h15.now().hour) == [13, 14, 15]
+    assert pure_cooldown_slots(matches, h8.now().hour) == [6]
 
     h16 = FakeClock(datetime(2026, 8, 20, 16, 0))
     shifted = find_h1_pattern_matches(rates_for(20, "GGTTGGT", start_hour=9), h16.now(), h16.broker_datetime_from_mt5_timestamp)
-    assert pure_cooldown_slots(shifted, h16.now().hour) == [13, 14, 15, 17]
+    assert pure_cooldown_slots(shifted, h16.now().hour) == [14]
     h14_pure = next(match for match in shifted if match.slot_hour == 14 and match.pattern_kind == PATTERN_KIND_SW3_PURE)
     h16_pure = next(match for match in shifted if match.slot_hour == 16 and match.pattern_kind == PATTERN_KIND_SW3_PURE)
     assert (h14_pure.trade_allowed, h14_pure.blocked_by_pure_slot) == (False, 12)
     assert (h16_pure.trade_allowed, h16_pure.blocked_by_pure_slot) == (True, None)
+
+    h15 = FakeClock(datetime(2026, 8, 20, 15, 0))
+    normal_window = find_h1_pattern_matches(rates_for(20, "GGTTTG", start_hour=9), h15.now(), h15.broker_datetime_from_mt5_timestamp)
+    h14_normal = next(match for match in normal_window if match.slot_hour == 14 and match.pattern_kind == PATTERN_KIND_SW3_NORMAL)
+    h15_pure = next(match for match in normal_window if match.slot_hour == 15 and match.pattern_kind == PATTERN_KIND_SW3_PURE)
+    assert (h14_normal.trade_allowed, h14_normal.blocked_by_pure_slot) == (True, None)
+    assert (h15_pure.trade_allowed, h15_pure.blocked_by_pure_slot) == (False, 12)
+    assert pure_cooldown_slots(normal_window, h15.now().hour) == [15]
 
 
 def test_xau_sw2_uses_audusd_source_and_keeps_gbpusd_base(tmp_path):
@@ -327,7 +331,30 @@ def test_pure_inside_cooldown_is_calculated_and_published_block_but_not_sent_to_
         assert h6["patternKind"] == PATTERN_KIND_SW3_PURE
         assert h6["tradeAllowed"] is False
         assert h6["blockedByPureSlot"] == 4
-        assert xau["blockedSlots"] == [5, 6, 7]
+        assert xau["blockedSlots"] == [6]
+    finally:
+        subject.close()
+
+
+def test_normal_sw_inside_pure_window_is_sent_while_later_pure_is_blocked(tmp_path):
+    rates = all_rates("GGTTTG", start_hour=9)
+    rates["AUDUSD.a"] = rates_for(20, "GGTTTG", start_hour=9)
+    sent: list[str] = []
+    subject = make_scanner(tmp_path, FakeMT5(rates), FakeClock(datetime(2026, 8, 20, 15, 0)), sent)
+    try:
+        subject.scan_once()
+        assert any(message.startswith("🔔 XAUUSD") and "Mốc scan: H12" in message for message in sent)
+        assert any(message.startswith("🔔 XAUUSD") and "Mốc scan: H14" in message for message in sent)
+        assert not any(message.startswith("🔔 XAUUSD") and "Mốc scan: H15" in message for message in sent)
+        saved = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+        xau = saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]
+        h14 = next(row for row in xau["alerts"] if row["slotHour"] == 14)
+        h15 = next(row for row in xau["alerts"] if row["slotHour"] == 15)
+        assert h14["patternKind"] == PATTERN_KIND_SW3_NORMAL
+        assert (h14["tradeAllowed"], h14["blockedByPureSlot"]) == (True, None)
+        assert h15["patternKind"] == PATTERN_KIND_SW3_PURE
+        assert (h15["tradeAllowed"], h15["blockedByPureSlot"]) == (False, 12)
+        assert xau["blockedSlots"] == [15]
     finally:
         subject.close()
 
@@ -342,7 +369,7 @@ def test_local_fallback_reads_only_pattern_sources_and_required_base_h1(tmp_path
         subject.close()
 
 
-def test_v7_state_migrates_to_v9_suppression_without_replaying_old_slots(tmp_path):
+def test_v7_state_migrates_to_v10_suppression_without_replaying_old_slots(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text(json.dumps({
         "version": 7,
@@ -353,9 +380,43 @@ def test_v7_state_migrates_to_v9_suppression_without_replaying_old_slots(tmp_pat
     try:
         subject.scan_once()
         saved = json.loads(state_path.read_text(encoding="utf-8"))
-        assert saved["version"] == 9
+        assert saved["version"] == 10
         assert saved["days"]["2026-08-20"]["suppressedThroughHour"] == 4
         assert all("Mốc scan: H04" not in message for message in sent)
+    finally:
+        subject.close()
+
+
+def test_v9_state_migrates_to_v10_and_unblocks_normal_sw_rows(tmp_path):
+    state_path = tmp_path / "state.json"
+    state_path.write_text(json.dumps({
+        "version": 9,
+        "days": {
+            "2026-08-20": {
+                "symbols": {
+                    "XAUUSD": {
+                        "alerts": [
+                            {"slotHour": 12, "patternKind": PATTERN_KIND_SW3_PURE, "tradeAllowed": True, "blockedByPureSlot": None},
+                            {"slotHour": 14, "patternKind": PATTERN_KIND_SW3_NORMAL, "tradeAllowed": False, "blockedByPureSlot": 12},
+                            {"slotHour": 15, "patternKind": PATTERN_KIND_SW3_PURE, "tradeAllowed": False, "blockedByPureSlot": 12},
+                        ],
+                        "blockedSlots": [13, 14, 15],
+                    },
+                },
+            },
+        },
+    }), encoding="utf-8")
+    subject = make_scanner(tmp_path, FakeMT5(all_rates("GGTTTG", start_hour=9)), FakeClock(datetime(2026, 8, 20, 18, 0)), [])
+    try:
+        subject.scan_once()
+        saved = json.loads(state_path.read_text(encoding="utf-8"))
+        xau = saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]
+        h14 = next(row for row in xau["alerts"] if row["slotHour"] == 14)
+        h15 = next(row for row in xau["alerts"] if row["slotHour"] == 15)
+        assert saved["version"] == 10
+        assert (h14["tradeAllowed"], h14["blockedByPureSlot"]) == (True, None)
+        assert (h15["tradeAllowed"], h15["blockedByPureSlot"]) == (False, 12)
+        assert xau["blockedSlots"] == [15]
     finally:
         subject.close()
 
@@ -394,7 +455,7 @@ def test_public_feed_callback_keeps_blocked_pure_and_three_slot_cooldown_metadat
         assert h4["patternKind"] == PATTERN_KIND_SW3_PURE and h4["tradeAllowed"] is True
         assert h6["patternKind"] == PATTERN_KIND_SW3_PURE and h6["tradeAllowed"] is False
         assert h6["blockedByPureSlot"] == 4
-        assert xau["blockedSlots"] == [5, 6, 7]
+        assert xau["blockedSlots"] == [6]
         assert all("previousPureSlot" not in row for row in xau_alerts)
         assert all("postCheckApplied" not in row for row in xau_alerts)
         assert all("sourceSignal" not in row for row in xau_alerts)

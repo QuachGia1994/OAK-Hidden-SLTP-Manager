@@ -45,6 +45,9 @@ def test_ea_has_no_known_conversion_signature_mismatches():
     assert 'CharArrayToString(result' not in EA
     assert 'Utf8ToHttpBytes' in EA
     assert 'HttpBytesToUtf8' in EA
+    assert 'const char &input[]' not in EA
+    assert 'ShortToString(8)' in EA
+    assert 'ShortToString(12)' in EA
 
 
 def test_ea_retries_result_upload_without_replaying_broker_mutation():

@@ -16,7 +16,7 @@ TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
 PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Normal"}
 SCANNER_BASES = {"AUDUSD", "GBPUSD"}
 POST_SIGNAL_RULES = {"none", "mon-block", "tue-block", "wed-block", "thu-cycle", "fri-cycle"}
-SIGNAL_RULE_VERSION = 3
+SIGNAL_RULE_VERSION = 4
 
 
 def _load_dotenv() -> None:
@@ -37,7 +37,7 @@ def build_public_h1_feed(
     published_at: str | None = None,
 ) -> dict[str, Any]:
     """Normalize persisted fallback state into public scanner schema v7."""
-    if not isinstance(state, dict) or state.get("version") != 9 or not isinstance(state.get("days"), dict):
+    if not isinstance(state, dict) or state.get("version") != 10 or not isinstance(state.get("days"), dict):
         raise ValueError("Invalid H1 scanner state")
 
     public_days: dict[str, Any] = {}

@@ -114,8 +114,8 @@ string JsonUnescape(string value)
       if(c == 'n') out += "\n";
       else if(c == 'r') out += "\r";
       else if(c == 't') out += "\t";
-      else if(c == 'b') out += "\b";
-      else if(c == 'f') out += "\f";
+      else if(c == 'b') out += ShortToString(8);
+      else if(c == 'f') out += ShortToString(12);
       else out += ShortToString(c);
    }
    if(esc) out += "\\";
@@ -256,12 +256,12 @@ void Utf8ToHttpBytes(const string text, char &out[])
    for(int i=0;i<size;i++) out[i]=(char)bytes[i];
 }
 
-string HttpBytesToUtf8(const char &input[])
+string HttpBytesToUtf8(const char &data[])
 {
-   int size=ArraySize(input);
+   int size=ArraySize(data);
    uchar bytes[];
    ArrayResize(bytes,size);
-   for(int i=0;i<size;i++) bytes[i]=(uchar)input[i];
+   for(int i=0;i<size;i++) bytes[i]=(uchar)data[i];
    return CharArrayToString(bytes,0,size,CP_UTF8);
 }
 

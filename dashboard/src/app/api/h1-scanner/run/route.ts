@@ -284,7 +284,7 @@ export async function POST(request: Request) {
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
         delivered.add(alert.slotHour);
-        if (alert.patternKind === "sw3Pure" && alert.tradeAllowed) {
+        if (alert.patternKind === "sw3Pure" && !alert.tradeAllowed) {
           const blocked = new Set(symbolState.blockedSlots);
           for (const hour of pureCooldownSlots([match], market.brokerHour)) blocked.add(hour);
           symbolState.blockedSlots = [...blocked].sort((left, right) => left - right);
