@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed unsigned iOS IPA CI app-scheme discovery: the workflow now derives `OAKGatekeeper` from the generated `.xcworkspace` instead of accidentally selecting a CocoaPods scheme such as `EXConstants`.
 - Added `mobile/` as an Expo SDK 57 / React Native 0.86 native OAK Gatekeeper shell for Android and iOS: liquid-glass bottom navigation with minimize-on-scroll across all four tabs, H1 timeline with `⚠ PURE` and `BLOCK / NOT TRADE`, native signal detail sheets, separated cTrader/MT5 account controls, SecureStore admin API-key handling, and a Vercel-backed `/api/mobile/h1` adapter. GitHub Actions now verifies Android/iOS Metro bundles, builds an Android debug APK on API 36, and builds an unsigned `iphoneos` Release `.ipa` on `macos-26`/Xcode 26.x for third-party signing without embedding server secrets.
 - H1 pure-pair UI now labels active pure cells with `⚠ PURE`, and scanner state reconciles stale delivered rows before skip so H12 pure + H15 pure is corrected to H15 `BLOCK / NOT TRADE`; normal SW inside the cooldown stays actionable.
 - `/accounts` now separates cTrader and MT5 into dedicated provider tabs while preserving the existing cloud account API contract.

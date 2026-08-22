@@ -167,9 +167,15 @@ jobs:
             echo "No Xcode workspace generated" >&2
             exit 1
           fi
-          SCHEME=$(xcodebuild -list -json -workspace "$WORKSPACE" | python3 -c 'import json,sys; d=json.load(sys.stdin); s=d.get("workspace",{}).get("schemes",[]); print(next((x for x in s if not x.startswith("Pods-")), ""))')
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
           if [ -z "$SCHEME" ]; then
-            echo "No app scheme found" >&2
+            echo "Unable to derive app scheme from workspace: $WORKSPACE" >&2
+            exit 1
+          fi
+          echo "Building app scheme: $SCHEME"
+          if ! xcodebuild -list -json -workspace "$WORKSPACE" | python3 -c 'import json,sys; expected=sys.argv[1]; d=json.load(sys.stdin); schemes=d.get("workspace",{}).get("schemes",[]); sys.exit(0 if expected in schemes else 1)' "$SCHEME"; then
+            echo "Expected app scheme $SCHEME is not present in $WORKSPACE" >&2
+            xcodebuild -list -workspace "$WORKSPACE"
             exit 1
           fi
           xcodebuild \
