@@ -224,6 +224,47 @@ export function pureCooldownSlots(matches: H1PatternMatch[], _brokerHour: number
     .sort((left, right) => left - right);
 }
 
+type H1PureCooldownAlertState = {
+  slotHour: number;
+  patternKind: H1PatternKind;
+  tradeAllowed?: boolean;
+  blockedByPureSlot?: number | null;
+};
+
+export function reconcilePureCooldownState<T extends H1PureCooldownAlertState>(symbolState: { alerts: T[]; blockedSlots: number[] }): boolean {
+  const alerts = [...symbolState.alerts].sort((left, right) => left.slotHour - right.slotHour);
+  let activePureSlot: number | null = null;
+  let changed = false;
+  const blockedSlots: number[] = [];
+
+  for (const alert of alerts) {
+    if (activePureSlot !== null && alert.slotHour > activePureSlot + 3) activePureSlot = null;
+    let tradeAllowed = true;
+    let blockedByPureSlot: number | null = null;
+    if (alert.patternKind === "sw3Pure") {
+      blockedByPureSlot = activePureSlot !== null && alert.slotHour > activePureSlot && alert.slotHour <= activePureSlot + 3
+        ? activePureSlot
+        : null;
+      tradeAllowed = blockedByPureSlot === null;
+      if (tradeAllowed) activePureSlot = alert.slotHour;
+      else blockedSlots.push(alert.slotHour);
+    }
+    if (alert.tradeAllowed !== tradeAllowed || alert.blockedByPureSlot !== blockedByPureSlot) {
+      alert.tradeAllowed = tradeAllowed;
+      alert.blockedByPureSlot = blockedByPureSlot;
+      changed = true;
+    }
+  }
+
+  const normalizedBlocked = [...new Set(blockedSlots)].sort((left, right) => left - right);
+  const currentBlocked = [...new Set(symbolState.blockedSlots)].sort((left, right) => left - right);
+  if (normalizedBlocked.length !== currentBlocked.length || normalizedBlocked.some((hour, index) => hour !== currentBlocked[index])) {
+    symbolState.blockedSlots = normalizedBlocked;
+    changed = true;
+  }
+  return changed;
+}
+
 export function buildStoredAlert(args: {
   base: H1TargetBase;
   brokerSymbol: string;

@@ -10,6 +10,7 @@ import {
   findH1PatternMatches,
   postSignalDecision,
   pureCooldownSlots,
+  reconcilePureCooldownState,
   scannerBaseForTarget,
   seedCloudStateFromPublic,
   signalFromBaseAfterCalendar,
@@ -128,6 +129,35 @@ test("pure cooldown blocks only pure matches while normal SW remains tradable", 
   assert.deepEqual([h14Normal?.tradeAllowed, h14Normal?.blockedByPureSlot], [true, null]);
   assert.deepEqual([h15Pure?.tradeAllowed, h15Pure?.blockedByPureSlot], [false, 12]);
   assert.deepEqual(pureCooldownSlots(normalInsideWindow, 15), [15]);
+});
+
+test("stored H12-H15 rows reconcile stale pure cooldown state before delivered-slot skip", () => {
+  const matches = findH1PatternMatches(bars("GGTTTG", 9), 15).filter((item) => [12, 14, 15].includes(item.slotHour));
+  const alerts = matches.map((match) => buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "AUDUSD",
+    scannerSymbol: "AUDUSD",
+    match,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", match.slotHour - 1)[0],
+  }));
+  const h14 = alerts.find((alert) => alert.slotHour === 14)!;
+  const h15 = alerts.find((alert) => alert.slotHour === 15)!;
+  h14.tradeAllowed = false;
+  h14.blockedByPureSlot = 12;
+  h15.tradeAllowed = true;
+  h15.blockedByPureSlot = null;
+  const symbolState = { alerts, blockedSlots: [13, 14, 15] };
+
+  assert.equal(reconcilePureCooldownState(symbolState), true);
+  assert.deepEqual(alerts.map((alert) => [alert.slotHour, alert.patternKind, alert.tradeAllowed, alert.blockedByPureSlot]), [
+    [12, "sw3Pure", true, null],
+    [14, "sw3Normal", true, null],
+    [15, "sw3Pure", false, 12],
+  ]);
+  assert.deepEqual(symbolState.blockedSlots, [15]);
+  assert.equal(reconcilePureCooldownState(symbolState), false);
 });
 
 test("accepted pure SW3 Telegram marks /!\\ with no repeat warning metadata", () => {

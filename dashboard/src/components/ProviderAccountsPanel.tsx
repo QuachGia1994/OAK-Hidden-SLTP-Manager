@@ -52,6 +52,7 @@ type AccountPayload = {
 export function ProviderAccountsPanel() {
   const [state, setState] = useState<"loading" | "locked" | "ready">("loading");
   const [payload, setPayload] = useState<AccountPayload | null>(null);
+  const [providerTab, setProviderTab] = useState<Provider>("ctrader");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -235,27 +236,43 @@ export function ProviderAccountsPanel() {
   }
 
   const accounts = payload?.accounts || [];
-  const enabled = accounts.filter((item) => item.enabled).length;
+  const cTraderAccounts = accounts.filter((item) => item.provider === "ctrader");
+  const mt5Accounts = accounts.filter((item) => item.provider === "mt5");
+  const activeAccounts = providerTab === "ctrader" ? cTraderAccounts : mt5Accounts;
+  const enabled = activeAccounts.filter((item) => item.enabled).length;
   return (
     <section className="oak-account-panel">
       <header className="oak-account-head">
-        <div><small>CLOUD / MULTI-PROVIDER</small><h1>Provider Account Manager</h1><p>cTrader dùng OAuth trading + cloud minute watchdog cho Auto Manager. MT5 ưu tiên OAK MQL5 EA gắn trực tiếp vào terminal; Python worker chỉ còn là bridge legacy. Broker password/token không được đưa vào browser/public payload.</p></div>
-        <div className="oak-account-actions">
+        <div>
+          <small>CLOUD / {providerTab === "ctrader" ? "CTRADER" : "MT5"}</small>
+          <h1>Provider Account Manager</h1>
+          <p>{providerTab === "ctrader" ? "cTrader dùng OAuth trading + cloud minute watchdog cho Auto Manager." : "MT5 dùng OAK MQL5 EA gắn trực tiếp vào terminal và Upstash outbound bridge; broker password/token không đi qua browser."}</p>
+        </div>
+        {providerTab === "ctrader" && <div className="oak-account-actions">
           <button type="button" onClick={connectCTrader} disabled={Boolean(busy)}>{payload?.providers.ctrader.connected ? "Reconnect cTrader" : "Connect cTrader"}</button>
           <button type="button" onClick={syncCTrader} disabled={Boolean(busy) || !payload?.providers.ctrader.connected}>{busy === "sync-ctrader" ? "Syncing…" : "Sync cTrader"}</button>
-        </div>
+        </div>}
       </header>
 
+      <div className="oak-account-tabs" role="tablist" aria-label="Provider account type">
+        <button type="button" role="tab" aria-selected={providerTab === "ctrader"} data-active={providerTab === "ctrader"} onClick={() => setProviderTab("ctrader")}>cTrader <span>{cTraderAccounts.length}</span></button>
+        <button type="button" role="tab" aria-selected={providerTab === "mt5"} data-active={providerTab === "mt5"} onClick={() => setProviderTab("mt5")}>MT5 <span>{mt5Accounts.length}</span></button>
+      </div>
+
       <div className="oak-account-status">
-        <span>cTrader <b>{payload?.providers.ctrader.connected ? "CONNECTED" : "OFF"}</b></span>
-        <span>Scope <b>{payload?.providers.ctrader.scope || "—"}</b></span>
-        <span>MT5 <b>{payload?.providers.mt5.connected ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}</b></span>
-        <span>Enabled <b>{enabled}/{accounts.length}</b></span>
+        {providerTab === "ctrader" ? <>
+          <span>cTrader <b>{payload?.providers.ctrader.connected ? "CONNECTED" : "OFF"}</b></span>
+          <span>Scope <b>{payload?.providers.ctrader.scope || "—"}</b></span>
+        </> : <>
+          <span>MT5 <b>{payload?.providers.mt5.connected ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}</b></span>
+          <span>Runtime <b>OAK EA</b></span>
+        </>}
+        <span>Enabled <b>{enabled}/{activeAccounts.length}</b></span>
       </div>
 
       {error && <p className="oak-account-error">{error}</p>}
 
-      <form className="oak-account-card" onSubmit={createMt5}>
+      {providerTab === "mt5" && <form className="oak-account-card" onSubmit={createMt5}>
         <header><div><b>Add MT5 account</b><span>Metadata only · no broker password stored</span></div></header>
         <div className="oak-account-fields">
           <label>Broker<input name="broker" placeholder="Vantage / ICMarkets / Darwinex" required /></label>
@@ -265,10 +282,10 @@ export function ProviderAccountsPanel() {
           <label>Bridge profile<input name="bridgeProfile" placeholder="Vantage" /></label>
         </div>
         <footer><button type="submit" disabled={busy === "create-mt5"}>{busy === "create-mt5" ? "Adding…" : "Add MT5 account"}</button></footer>
-      </form>
+      </form>}
 
-      <div className="oak-account-list">
-        {accounts.map((account) => (
+      <div className="oak-account-list" role="tabpanel" aria-label={`${providerTab} accounts`}>
+        {activeAccounts.map((account) => (
           <form key={account.id} className="oak-account-card" onSubmit={(event) => saveAccount(event, account)}>
             <header>
               <div><b>{account.label}</b><span>{account.provider.toUpperCase()} · {account.broker} · {account.environment.toUpperCase()} · #{account.externalAccountId}{account.provider === "mt5" ? ` · ${account.bridgeOnline ? "BRIDGE ONLINE" : "BRIDGE OFFLINE"}${account.bridgeRuntime ? " · OAK EA" : ""}` : ""}</span></div>
@@ -303,7 +320,7 @@ export function ProviderAccountsPanel() {
             </footer>
           </form>
         ))}
-        {!accounts.length && <p className="oak-account-empty">Chưa có account. Connect/sync cTrader hoặc thêm MT5 account ở form phía trên.</p>}
+        {!activeAccounts.length && <p className="oak-account-empty">{providerTab === "ctrader" ? "Chưa có cTrader account. Connect/sync cTrader để tải danh sách account." : "Chưa có MT5 account. Thêm account ở form phía trên rồi gắn OAK EA vào terminal."}</p>}
       </div>
     </section>
   );

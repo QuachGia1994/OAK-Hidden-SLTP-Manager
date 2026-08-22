@@ -344,12 +344,13 @@ min-height: 2rem; padding: .35rem .6rem;
 .oak-h1-cell-empty { display: grid; min-height: 3.7rem; place-items: center; color: color-mix(in srgb, var(--oak-fg-muted) 45%, transparent); font-size: .7rem; }
 .oak-h1-signal-button { position: relative; display: grid; width: 100%; min-height: 3.7rem; place-content: center; padding: .35rem; text-align: center; transition: background-color var(--oak-motion-fast) ease; }
 .oak-h1-signal-button b { font: 950 .72rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
+.oak-h1-cell-pure { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-status-warning) 52%, transparent); }
 .oak-h1-cell-blocked { background: color-mix(in srgb, var(--oak-status-warning) 24%, var(--oak-bg-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--oak-status-warning) 72%, transparent); }
-.oak-h1-blocked-cell { display: grid; width: 100%; min-height: 3.7rem; place-content: center; gap: .12rem; padding: .35rem; color: var(--oak-status-warning); background: transparent; text-align: center; }
+.oak-h1-blocked-cell { position: relative; display: grid; width: 100%; min-height: 3.7rem; place-content: center; gap: .12rem; padding: .35rem; color: var(--oak-status-warning); background: transparent; text-align: center; }
 .oak-h1-blocked-cell b { font: 950 .66rem "Cascadia Mono", Consolas, monospace; letter-spacing: .04em; }
 .oak-h1-blocked-cell small { color: color-mix(in srgb, var(--oak-status-warning) 72%, var(--oak-fg-primary)); font: 800 .44rem "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; }
 .oak-h1-cell-blocked:has(button:hover) { background: color-mix(in srgb, var(--oak-status-warning) 32%, var(--oak-bg-raised)); }
-.oak-h1-warning-mark { position: absolute; top: .25rem; right: .3rem; color: var(--oak-status-warning); font-size: .6rem; line-height: 1; }
+.oak-h1-pure-badge { position: absolute; top: .2rem; right: .24rem; padding: .08rem .18rem; border: 1px solid color-mix(in srgb, var(--oak-status-warning) 48%, transparent); border-radius: .22rem; color: var(--oak-status-warning); background: color-mix(in srgb, var(--oak-status-warning) 10%, var(--oak-bg-surface)); font: 900 .42rem "Cascadia Mono", Consolas, monospace; letter-spacing: .03em; line-height: 1.2; white-space: nowrap; }
 .oak-h1-signal-button[data-side="buy"] { background: color-mix(in srgb, var(--oak-signal-buy) 7%, var(--oak-bg-surface)); }
 .oak-h1-signal-button[data-side="sell"] { background: color-mix(in srgb, var(--oak-signal-sell) 7%, var(--oak-bg-surface)); }
 .oak-h1-signal-button[data-side="buy"] b { color: var(--oak-signal-buy); }

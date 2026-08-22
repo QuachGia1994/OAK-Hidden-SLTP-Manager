@@ -28,7 +28,7 @@ function barsLabel(values: string[]) {
 function patternLabel(kind: H1PatternKind, locale: Locale) {
   const labels: Record<H1PatternKind, { EN: string; VN: string }> = {
     sw2: { EN: "SW 2-candle", VN: "SW 2 cây" },
-    sw3Pure: { EN: "/!\\ SW pure 3-candle", VN: "/!\\ SW 3 cây thuần" },
+    sw3Pure: { EN: "⚠ SW pure 3-candle", VN: "⚠ SW 3 cây thuần" },
     sw3Normal: { EN: "SW normal 3-candle", VN: "SW 3 cây thường" },
   };
   return labels[kind][locale];
@@ -139,13 +139,13 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
                 const blocked = blockedSlots.has(hour) || alert?.tradeAllowed === false;
+                const pure = alert?.patternKind === "sw3Pure";
                 if (blocked) {
                   if (!alert) return <td key={hour} className="oak-h1-cell-blocked" data-trade-state="blocked"><span className="oak-h1-blocked-cell"><b>BLOCK</b><small>NOT TRADE</small></span></td>;
-                  return <td key={hour} className="oak-h1-cell-blocked" data-trade-state="blocked"><button className="oak-h1-blocked-cell" type="button" onClick={() => setSelection({ base, date, alert })}><b>BLOCK</b><small>NOT TRADE</small></button></td>;
+                  return <td key={hour} className="oak-h1-cell-blocked oak-h1-cell-pure" data-trade-state="blocked" data-pattern-kind="pure"><button className="oak-h1-blocked-cell" type="button" onClick={() => setSelection({ base, date, alert })}><span className="oak-h1-pure-badge">⚠ PURE</span><b>BLOCK</b><small>NOT TRADE</small></button></td>;
                 }
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
-                const pure = alert.patternKind === "sw3Pure";
-                return <td key={hour}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}>{pure && <span className="oak-h1-warning-mark">/!\</span>}<b>{alert.signal}</b></button></td>;
+                return <td key={hour} className={pure ? "oak-h1-cell-pure" : undefined} data-pattern-kind={pure ? "pure" : undefined}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}>{pure && <span className="oak-h1-pure-badge">⚠ PURE</span>}<b>{alert.signal}</b></button></td>;
               })}</tr>;
             })}</tbody>
           </table>

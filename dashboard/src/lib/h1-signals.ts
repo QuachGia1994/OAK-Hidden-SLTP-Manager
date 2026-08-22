@@ -1,6 +1,7 @@
 import "server-only";
 
 import { redis } from "./redis-core";
+import { reconcilePureCooldownState } from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
@@ -83,6 +84,27 @@ function parsePayload(raw: unknown, source: string): H1SignalPayload | null {
   }
 }
 
+export function normalizePureCooldownPayload(payload: H1SignalPayload | null): H1SignalPayload | null {
+  if (!payload) return null;
+  return {
+    ...payload,
+    days: Object.fromEntries(Object.entries(payload.days).map(([date, day]) => [
+      date,
+      {
+        ...day,
+        symbols: Object.fromEntries(Object.entries(day.symbols).map(([base, source]) => {
+          const state = {
+            alerts: source.alerts.map((alert) => ({ ...alert })),
+            blockedSlots: [...(source.blockedSlots || [])],
+          };
+          reconcilePureCooldownState(state);
+          return [base, state];
+        })),
+      },
+    ])),
+  };
+}
+
 export function maskFutureH1Signals(payload: H1SignalPayload | null, today = vietnamDateKey()): H1SignalPayload | null {
   if (!payload) return null;
   return {
@@ -93,7 +115,7 @@ export function maskFutureH1Signals(payload: H1SignalPayload | null, today = vie
 
 export async function getLatestH1Signals(): Promise<H1SignalPayload | null> {
   try {
-    return parsePayload(await redis.get(LATEST_KEY), LATEST_KEY);
+    return normalizePureCooldownPayload(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY));
   } catch (error) {
     console.error("[H1 SIGNAL READ FAILED]", error);
     return null;

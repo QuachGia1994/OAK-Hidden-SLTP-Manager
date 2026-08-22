@@ -15,6 +15,9 @@ test("H1 web feed has independent schema-7 Upstash contract", () => {
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
+  assert.match(readerSource, /normalizePureCooldownPayload/);
+  assert.match(readerSource, /reconcilePureCooldownState\(state\)/);
+  assert.match(readerSource, /normalizePureCooldownPayload\(parsePayload/);
   assert.match(readerSource, /sw2/);
   assert.match(readerSource, /sw3Pure/);
   assert.match(readerSource, /sw3Normal/);
@@ -24,13 +27,16 @@ test("H1 web feed has independent schema-7 Upstash contract", () => {
 test("H1 cells render tradable BUY/SELL and explicit pure-cooldown BLOCK cells", () => {
   assert.match(boardSource, /oak-h1-signal-button/);
   assert.match(boardSource, /<b>\{alert\.signal\}<\/b>/);
-  assert.match(boardSource, /oak-h1-warning-mark/);
-  assert.match(boardSource, /\/!\\/);
+  assert.match(boardSource, /oak-h1-pure-badge/);
+  assert.match(boardSource, /⚠ PURE/);
+  assert.match(boardSource, /data-pattern-kind=\{pure \? "pure" : undefined\}/);
   assert.match(boardSource, /oak-h1-cell-blocked/);
   assert.match(boardSource, /oak-h1-blocked-cell/);
   assert.match(boardSource, /data-trade-state="blocked"/);
   assert.match(redesignCss, /\.oak-h1-cell-blocked \{[^}]*background:[^}]*oak-status-warning/);
   assert.match(redesignCss, /\.oak-h1-cell-blocked \{[^}]*box-shadow:[^}]*oak-status-warning/);
+  assert.match(redesignCss, /\.oak-h1-cell-pure \{[^}]*box-shadow:[^}]*oak-status-warning/);
+  assert.match(redesignCss, /\.oak-h1-pure-badge \{[^}]*oak-status-warning/);
   assert.match(boardSource, /BLOCK/);
   assert.match(boardSource, /NOT TRADE/);
   assert.match(boardSource, /blockedSlots/);

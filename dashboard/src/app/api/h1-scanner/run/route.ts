@@ -20,6 +20,7 @@ import {
   findH1PatternMatches,
   parseCloudState,
   pureCooldownSlots,
+  reconcilePureCooldownState,
   scannerBaseForTarget,
   seedCloudStateFromPublic,
   trimCloudState,
@@ -246,6 +247,7 @@ export async function POST(request: Request) {
       const baseSymbol = baseSymbolForTarget(base);
       const matches = findH1PatternMatches(market.symbols[scannerBase].bars, market.brokerHour);
       const { day, symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
+      if (reconcilePureCooldownState(symbolState)) changed = true;
       const delivered = deliveredSlots(symbolState.alerts);
       const suppressedThrough = Number(day.suppressedThroughHour || 0);
       for (let hour = 3; hour <= suppressedThrough; hour += 1) delivered.add(hour);

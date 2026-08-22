@@ -22,6 +22,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- H1 pure cells now show an explicit `⚠ PURE` badge; stale delivered H12-H15 rows are reconciled before the delivered-slot skip so H12 pure + H15 pure is corrected to H15 `BLOCK / NOT TRADE`, while normal SW remains actionable.
+- `/accounts` now separates cTrader and MT5 into dedicated tabs; each tab shows only its provider actions/forms/accounts while keeping the same server-side account API contract.
 - H1 blocked pure slots now fill the entire matrix cell with a stronger warning background/border, making `BLOCK / NOT TRADE` visually distinct instead of tinting only the inner button/span.
 - H1 pure cooldown now blocks only repeated pure SW3 matches inside the next three slots; normal SW3 signals remain actionable, and the web marks only an actually blocked pure slot as `BLOCK / NOT TRADE`.
 - Media model SSoT is `FACTCHECK_MEDIA_MODEL`, defaulting to `gemini-3.6-flash`; text/URL Fact Check keeps its existing model owner.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- H1 pure-pair UI now labels active pure cells with `⚠ PURE`, and scanner state reconciles stale delivered rows before skip so H12 pure + H15 pure is corrected to H15 `BLOCK / NOT TRADE`; normal SW inside the cooldown stays actionable.
+- `/accounts` now separates cTrader and MT5 into dedicated provider tabs while preserving the existing cloud account API contract.
 - Repository runtime surface trimmed to web + MQL5 EA only: removed the legacy desktop/Tauri app, local Python broker worker/fallback scanner, root Python utilities/tests and obsolete runtime configs. The maintained production code is now `dashboard/`, `cloudflare/`, the optional web `services/media-forensics/` sidecar and `mt5/OAK_Cloud_Manager_EA.mq5`.
 - H1 scanner/feed deployments now self-warm after the matching Vercel production deployment succeeds, preventing `/engine` from showing an empty waiting state between a scanner deploy and the next hourly run.
 - H1 signal rule v4 keeps the existing source/base/calendar transform unchanged while moving cloud/local state to v10 and public `signalRuleVersion=4`; schema-v7 rule-v2/rule-v3 feeds remain migration input so a cutover does not blank or replay the current day.

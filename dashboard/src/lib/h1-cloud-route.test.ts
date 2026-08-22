@@ -43,6 +43,8 @@ test("cloud scanner gates actionable alerts on Telegram while persisting cooldow
   assert.match(route, /await sendTelegram/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
   assert.match(route, /pureCooldownSlots/);
+  assert.match(route, /reconcilePureCooldownState/);
+  assert.ok(route.indexOf("reconcilePureCooldownState(symbolState)") < route.indexOf("deliveredSlots(symbolState.alerts)"));
   assert.match(route, /alert\.patternKind === "sw3Pure" && !alert\.tradeAllowed/);
   assert.match(route, /symbolState\.blockedSlots/);
   assert.match(route, /await saveState\(state\)/);

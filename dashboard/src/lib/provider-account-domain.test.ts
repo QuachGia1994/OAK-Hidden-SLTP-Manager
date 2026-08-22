@@ -13,6 +13,7 @@ import {
 } from "./provider-account-domain.ts";
 
 const panelSource = readFileSync(new URL("../components/ProviderAccountsPanel.tsx", import.meta.url), "utf8");
+const globalsCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
 const routeSource = readFileSync(new URL("../app/api/accounts/route.ts", import.meta.url), "utf8");
 const storeSource = readFileSync(new URL("./provider-accounts.ts", import.meta.url), "utf8");
 
@@ -70,8 +71,17 @@ test("multi-provider web control plane is admin-only and does not expose broker 
   assert.match(storeSource, /oak:provider-accounts:default:v1/);
   assert.match(panelSource, /Connect cTrader/);
   assert.match(panelSource, /Add MT5 account/);
-  assert.match(panelSource, /OAK MQL5 EA/);
-  assert.match(panelSource, /Python worker chỉ còn là bridge legacy/);
+  assert.match(panelSource, /useState<Provider>\("ctrader"\)/);
+  assert.match(panelSource, /role="tablist"/);
+  assert.match(panelSource, /setProviderTab\("ctrader"\)/);
+  assert.match(panelSource, /setProviderTab\("mt5"\)/);
+  assert.match(panelSource, /accounts\.filter\(\(item\) => item\.provider === "ctrader"\)/);
+  assert.match(panelSource, /accounts\.filter\(\(item\) => item\.provider === "mt5"\)/);
+  assert.match(panelSource, /providerTab === "mt5" && <form className="oak-account-card" onSubmit=\{createMt5\}>/);
+  assert.match(panelSource, /Runtime <b>OAK EA<\/b>/);
+  assert.match(globalsCss, /\.oak-account-tabs \{/);
+  assert.match(globalsCss, /\.oak-account-tabs button\[data-active="true"\]/);
+  assert.doesNotMatch(panelSource, /Python worker|PYTHON LEGACY/);
   assert.match(routeSource, /bridgeRuntime/);
   assert.doesNotMatch(panelSource, /name="password"|name="accessToken"|name="refreshToken"|clientSecret/);
   assert.doesNotMatch(routeSource, /password\s*:/i);
