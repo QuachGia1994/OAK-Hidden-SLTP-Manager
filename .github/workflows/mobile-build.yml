@@ -125,7 +125,7 @@ jobs:
           retention-days: 14
 
   build-ios:
-    name: Build iOS Simulator app
+    name: Build unsigned iOS IPA
     needs: verify-mobile
     runs-on: macos-26
     steps:
@@ -157,10 +157,11 @@ jobs:
         working-directory: mobile/ios
         run: pod install
 
-      - name: Build unsigned iOS Simulator app
+      - name: Build unsigned iPhoneOS app and package IPA
         working-directory: mobile/ios
         shell: bash
         run: |
+          set -euo pipefail
           WORKSPACE=$(find . -maxdepth 1 -name '*.xcworkspace' -print -quit)
           if [ -z "$WORKSPACE" ]; then
             echo "No Xcode workspace generated" >&2
@@ -174,23 +175,35 @@ jobs:
           xcodebuild \
             -workspace "$WORKSPACE" \
             -scheme "$SCHEME" \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -destination 'generic/platform=iOS Simulator' \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            DEVELOPMENT_TEAM='' \
             build
-          APP_PATH=$(find build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)
+          APP_PATH=$(find build/Build/Products/Release-iphoneos -maxdepth 1 -name '*.app' -print -quit)
           if [ -z "$APP_PATH" ]; then
-            echo "No iOS Simulator app produced" >&2
+            echo "No unsigned iPhoneOS app produced" >&2
             exit 1
           fi
-          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" ../OAK-Gatekeeper-iOS-Simulator.zip
+          rm -rf ipa-payload
+          mkdir -p ipa-payload/Payload
+          ditto "$APP_PATH" "ipa-payload/Payload/$(basename "$APP_PATH")"
+          find ipa-payload/Payload -type d -name '_CodeSignature' -prune -exec rm -rf {} +
+          find ipa-payload/Payload -name 'embedded.mobileprovision' -delete
+          (
+            cd ipa-payload
+            /usr/bin/zip -qry ../OAK-Gatekeeper-unsigned.ipa Payload
+          )
+          test -s OAK-Gatekeeper-unsigned.ipa
 
-      - name: Upload iOS Simulator app
+      - name: Upload unsigned iOS IPA
         uses: actions/upload-artifact@v4
         with:
-          name: OAK-Gatekeeper-iOS-Simulator
-          path: mobile/OAK-Gatekeeper-iOS-Simulator.zip
+          name: OAK-Gatekeeper-iOS-unsigned
+          path: mobile/ios/OAK-Gatekeeper-unsigned.ipa
           if-no-files-found: error
           retention-days: 14

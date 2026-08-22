@@ -2,6 +2,8 @@
 
 Native mobile shell for OAK Gatekeeper using Expo SDK 57, React Native 0.86, Expo Router and `expo-glass-tabs`.
 
+The bottom glass navigation bar is wrapped by `TabBarMinimizeProvider`; all four main tabs use `useMinimizeOnScroll()` through the shared `OakScreen`, so the bar minimizes while scrolling down and restores when scrolling back up.
+
 ## Runtime contract
 
 - Backend SSoT: `https://www.oakgatekeeper.uk` on Vercel.
@@ -29,6 +31,6 @@ pnpm android
 
 1. TypeScript plus Android/iOS Metro bundle verification.
 2. Android native prebuild + Gradle debug APK build.
-3. iOS native prebuild + CocoaPods + unsigned iOS Simulator `.app` build, zipped as an artifact.
+3. iOS native prebuild + CocoaPods + unsigned `iphoneos` Release build, stripped of signing payload and packaged as `OAK-Gatekeeper-unsigned.ipa`.
 
-The Android debug APK is installable on Android devices with sideloading enabled. The iOS Simulator artifact verifies the native iOS build without Apple signing credentials; a physical-device/TestFlight IPA requires Apple certificates/provisioning and should be added later as encrypted GitHub secrets.
+The Android debug APK is installable on Android devices with sideloading enabled. The iOS artifact is intentionally unsigned and is meant to be re-signed by a third-party signing service or your own certificate/provisioning workflow before installation on a physical iPhone.

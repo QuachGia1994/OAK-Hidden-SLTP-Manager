@@ -49,7 +49,7 @@ Vercel project configuration lives in `dashboard/vercel.json` and the local `.ve
 
 ## Mobile development
 
-See `mobile/README.md`. The native shell uses pnpm and Expo prebuild; generated `android/` and `ios/` projects are intentionally ignored and recreated in GitHub Actions. The workflow publishes an Android debug APK and an unsigned iOS Simulator app artifact when mobile code changes.
+See `mobile/README.md`. The native shell uses pnpm and Expo prebuild; generated `android/` and `ios/` projects are intentionally ignored and recreated in GitHub Actions. The workflow publishes an Android debug APK and an unsigned `iphoneos` `.ipa` intended for third-party re-signing when mobile code changes.
 
 ## MT5 EA
 
