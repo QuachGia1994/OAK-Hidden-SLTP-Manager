@@ -13,10 +13,10 @@
 
 input group "OAK Cloud Bridge"
 input bool   InpBridgeEnabled              = true;
-input string InpBridgeProfile              = "";       // Must match /accounts bridgeProfile
-input long   InpExpectedLogin              = 0;        // Required for cloud bridge; 0 disables cloud bridge
-input string InpUpstashRestUrl             = "";       // Local secret; never commit a populated .set
-input string InpUpstashRestToken           = "";       // Local secret; never commit a populated .set
+input string InpBridgeProfile              = "";       // Bridge profile
+input long   InpExpectedLogin              = 0;        // MT5 account login
+input string InpUpstashRestUrl             = "";       // Upstash REST URL
+input string InpUpstashRestToken           = "";       // Upstash REST token
 input int    InpHttpTimeoutMs              = 1200;
 input int    InpPollSeconds                = 1;
 
