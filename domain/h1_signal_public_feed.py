@@ -16,7 +16,7 @@ TARGET_BASES = ("XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY")
 PATTERN_KINDS = {"sw2", "sw3Pure", "sw3Normal"}
 SCANNER_BASES = {"AUDUSD", "GBPUSD"}
 POST_SIGNAL_RULES = {"none", "mon-block", "tue-block", "wed-block", "thu-cycle", "fri-cycle"}
-SIGNAL_RULE_VERSION = 2
+SIGNAL_RULE_VERSION = 3
 
 
 def _load_dotenv() -> None:
@@ -37,7 +37,7 @@ def build_public_h1_feed(
     published_at: str | None = None,
 ) -> dict[str, Any]:
     """Normalize persisted fallback state into public scanner schema v7."""
-    if not isinstance(state, dict) or state.get("version") != 8 or not isinstance(state.get("days"), dict):
+    if not isinstance(state, dict) or state.get("version") != 9 or not isinstance(state.get("days"), dict):
         raise ValueError("Invalid H1 scanner state")
 
     public_days: dict[str, Any] = {}
@@ -98,8 +98,16 @@ def build_public_h1_feed(
                         "signal": signal,
                         "postSignalInverted": post_signal_inverted,
                         "postSignalRule": post_signal_rule,
+                        "tradeAllowed": alert.get("tradeAllowed") is not False,
+                        "blockedByPureSlot": alert.get("blockedByPureSlot") if isinstance(alert.get("blockedByPureSlot"), int) else None,
                     })
-            public_symbols[base] = {"alerts": public_alerts}
+            blocked_slots = symbol_state.get("blockedSlots", [])
+            if not isinstance(blocked_slots, list):
+                blocked_slots = []
+            public_symbols[base] = {
+                "alerts": public_alerts,
+                "blockedSlots": sorted({int(hour) for hour in blocked_slots if isinstance(hour, int) and 3 <= hour <= 17}),
+            }
         public_days[str(day_key)] = {"symbols": public_symbols}
 
     return {

@@ -19,6 +19,7 @@ import {
   ensureSymbolDay,
   findH1PatternMatches,
   parseCloudState,
+  pureCooldownSlots,
   scannerBaseForTarget,
   seedCloudStateFromPublic,
   trimCloudState,
@@ -46,6 +47,8 @@ type RunSummary = {
   baseSymbol: string;
   baseSignal: string;
   signal: string;
+  tradeAllowed: boolean;
+  blockedByPureSlot: number | null;
 };
 
 function safeHexEqual(left: string, right: string): boolean {
@@ -268,18 +271,27 @@ export async function POST(request: Request) {
           baseSymbol: alert.baseSymbol,
           baseSignal: alert.baseH1Signal,
           signal: alert.symbolH1Signal,
+          tradeAllowed: alert.tradeAllowed,
+          blockedByPureSlot: alert.blockedByPureSlot,
         });
         if (dryRun) continue;
 
-        if (!cloudConfig) throw new Error("H1 cloud scanner config is unavailable");
-        await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
+        if (alert.tradeAllowed) {
+          if (!cloudConfig) throw new Error("H1 cloud scanner config is unavailable");
+          await sendTelegram(buildTelegramMessage(base, market.brokerDate, alert), cloudConfig);
+          sent += 1;
+        }
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
         delivered.add(alert.slotHour);
-        sent += 1;
+        if (alert.patternKind === "sw3Pure" && alert.tradeAllowed) {
+          const blocked = new Set(symbolState.blockedSlots);
+          for (const hour of pureCooldownSlots([match], market.brokerHour)) blocked.add(hour);
+          symbolState.blockedSlots = [...blocked].sort((left, right) => left - right);
+        }
         changed = true;
-        // Persist immediately after Telegram success to minimize replay risk if
-        // a later symbol/network request fails in the same invocation.
+        // Persist immediately after an actionable Telegram success, or after a
+        // silent BLOCK row is recorded, so retries cannot reinterpret the slot.
         await saveState(state);
       }
     }

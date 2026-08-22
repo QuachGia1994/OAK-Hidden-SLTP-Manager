@@ -49,7 +49,7 @@ WEDNESDAY_INVERT_SLOTS = {3, 4, 12, 13, 14}
 EARLIEST_SCAN_HOUR = 3
 LAST_SCAN_HOUR = 17
 HISTORY_BARS = 32
-STATE_VERSION = 8
+STATE_VERSION = 9
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +58,8 @@ class H1PatternMatch:
     pattern: tuple[str, ...]
     bar_times: tuple[datetime, ...]
     pattern_kind: str
+    trade_allowed: bool = True
+    blocked_by_pure_slot: int | None = None
 
     @property
     def pattern_text(self) -> str:
@@ -242,8 +244,17 @@ def _matches_from_candles(
 ) -> list[H1PatternMatch]:
     matches: list[H1PatternMatch] = []
     last_slot = min(int(broker_hour), LAST_SCAN_HOUR)
-    previous_accepted_pure_slot: int | None = None
+    active_pure_slot: int | None = None
     for slot_hour in range(EARLIEST_SCAN_HOUR, last_slot + 1):
+        if active_pure_slot is not None and slot_hour > active_pure_slot + 3:
+            active_pure_slot = None
+        blocked_by_pure_slot = (
+            active_pure_slot
+            if active_pure_slot is not None and active_pure_slot < slot_hour <= active_pure_slot + 3
+            else None
+        )
+        trade_allowed = blocked_by_pure_slot is None
+
         if slot_hour == EARLIEST_SCAN_HOUR:
             rows2 = _rows_for_hours(candles, (2, 1))
             if not rows2:
@@ -255,6 +266,8 @@ def _matches_from_candles(
                     pattern2,
                     tuple(opened for opened, _direction in rows2),
                     PATTERN_KIND_SW2,
+                    trade_allowed,
+                    blocked_by_pure_slot,
                 ))
             continue
 
@@ -263,16 +276,16 @@ def _matches_from_candles(
             continue
         pattern3 = tuple(direction for _opened, direction in rows3)
         if pattern3 in PURE_SW_3_PATTERNS:
-            if previous_accepted_pure_slot is not None and slot_hour - previous_accepted_pure_slot == 2:
-                previous_accepted_pure_slot = None
-                continue
             matches.append(H1PatternMatch(
                 slot_hour,
                 pattern3,
                 tuple(opened for opened, _direction in rows3),
                 PATTERN_KIND_SW3_PURE,
+                trade_allowed,
+                blocked_by_pure_slot,
             ))
-            previous_accepted_pure_slot = slot_hour
+            if trade_allowed:
+                active_pure_slot = slot_hour
             continue
         if pattern3 not in NORMAL_SW_3_PATTERNS:
             continue
@@ -284,8 +297,21 @@ def _matches_from_candles(
             pattern3,
             tuple(opened for opened, _direction in rows3),
             PATTERN_KIND_SW3_NORMAL,
+            trade_allowed,
+            blocked_by_pure_slot,
         ))
     return matches
+
+
+def pure_cooldown_slots(matches: Iterable[H1PatternMatch], broker_hour: int) -> list[int]:
+    _ = broker_hour
+    blocked: set[int] = set()
+    for match in matches:
+        if match.pattern_kind != PATTERN_KIND_SW3_PURE or not match.trade_allowed:
+            continue
+        for hour in range(match.slot_hour + 1, min(match.slot_hour + 3, LAST_SCAN_HOUR) + 1):
+            blocked.add(hour)
+    return sorted(blocked)
 
 
 def find_h1_pattern_matches(
@@ -475,7 +501,7 @@ class MultiSymbolH1PatternScanner:
                             )
             migrated["days"][day_key] = {
                 "suppressedThroughHour": max(EARLIEST_SCAN_HOUR - 1, min(LAST_SCAN_HOUR, max_slot)),
-                "symbols": {base: {"alerts": []} for base in TARGET_BASES},
+                "symbols": {base: {"alerts": [], "blockedSlots": []} for base in TARGET_BASES},
             }
         return migrated
 
@@ -483,7 +509,7 @@ class MultiSymbolH1PatternScanner:
         state = load_json(str(self._state_path), self._empty_state())
         if not isinstance(state, dict):
             raise ValueError(f"Invalid H1 scanner state: {self._state_path}")
-        if state.get("version") in {1, 2, 3, 4, 5, 6, 7}:
+        if state.get("version") in {1, 2, 3, 4, 5, 6, 7, 8}:
             state = self._migrate_legacy_state(state)
             # Persist migration immediately so a restart cannot reload obsolete
             # pattern semantics and repeat the migration decision.
@@ -503,6 +529,9 @@ class MultiSymbolH1PatternScanner:
                 if base not in TARGET_BASES or not isinstance(symbol_state, dict):
                     raise ValueError(f"Invalid H1 scanner symbol row: {self._state_path}")
                 self._validate_alerts(symbol_state.get("alerts", []), self._state_path)
+                blocked_slots = symbol_state.get("blockedSlots", [])
+                if not isinstance(blocked_slots, list) or any(not isinstance(hour, int) or hour < EARLIEST_SCAN_HOUR or hour > LAST_SCAN_HOUR for hour in blocked_slots):
+                    raise ValueError(f"Invalid H1 scanner blocked slots: {self._state_path}")
         return state
 
     def _save_state(self, state: dict[str, Any]) -> None:
@@ -639,8 +668,9 @@ class MultiSymbolH1PatternScanner:
                 base_candles = candles_by_base.get(base_symbol, {})
                 matches = source_matches.get(scanner_base, [])
 
-                symbol_state = symbol_states.setdefault(base, {"alerts": []})
+                symbol_state = symbol_states.setdefault(base, {"alerts": [], "blockedSlots": []})
                 alerts = symbol_state.setdefault("alerts", [])
+                blocked_slots = {int(hour) for hour in symbol_state.setdefault("blockedSlots", []) if isinstance(hour, int)}
                 delivered = {
                     int(row["slotHour"])
                     for row in alerts
@@ -669,24 +699,25 @@ class MultiSymbolH1PatternScanner:
                     pattern_signal = signal_from_pattern_base(base_context.signal, match.pattern_kind)
                     post_inverted, post_rule = post_signal_decision(broker_now.date(), match.slot_hour)
                     symbol_signal = signal_from_base_after_calendar(pattern_signal, broker_now.date(), match.slot_hour)
-                    message = self._message(
-                        base,
-                        broker_symbol,
-                        scanner_base,
-                        scanner_symbol or scanner_base,
-                        match,
-                        day_key,
-                        base_context,
-                        symbol_signal,
-                        self._profile_name,
-                    )
-                    if not bool(self._notify(message)):
-                        self._log_issue_once(
-                            f"telegram:{base}",
-                            f"[H1-SCAN] {base} H{match.slot_hour:02d} đang chờ Telegram gửi thành công.",
+                    if match.trade_allowed:
+                        message = self._message(
+                            base,
+                            broker_symbol,
+                            scanner_base,
+                            scanner_symbol or scanner_base,
+                            match,
+                            day_key,
+                            base_context,
+                            symbol_signal,
+                            self._profile_name,
                         )
-                        self._publish_state_if_changed(state)
-                        return sent
+                        if not bool(self._notify(message)):
+                            self._log_issue_once(
+                                f"telegram:{base}",
+                                f"[H1-SCAN] {base} H{match.slot_hour:02d} đang chờ Telegram gửi thành công.",
+                            )
+                            self._publish_state_if_changed(state)
+                            return sent
 
                     alerts.append({
                         "slotHour": match.slot_hour,
@@ -704,16 +735,24 @@ class MultiSymbolH1PatternScanner:
                         "symbolH1Signal": symbol_signal,
                         "postSignalInverted": post_inverted,
                         "postSignalRule": post_rule,
+                        "tradeAllowed": match.trade_allowed,
+                        "blockedByPureSlot": match.blocked_by_pure_slot,
                     })
                     alerts.sort(key=lambda item: int(item.get("slotHour", 0)))
                     delivered.add(match.slot_hour)
+                    if match.pattern_kind == PATTERN_KIND_SW3_PURE and match.trade_allowed:
+                        for hour in range(match.slot_hour + 1, min(match.slot_hour + 3, LAST_SCAN_HOUR) + 1):
+                            blocked_slots.add(hour)
+                        symbol_state["blockedSlots"] = sorted(blocked_slots)
                     self._save_state(state)
                     self._publish_state_if_changed(state)
                     self._log(
                         f"[H1-SCAN] {base} H{match.slot_hour:02d} · scanner={scanner_base} · "
-                        f"{match.pattern_kind} · base={base_symbol}:{base_context.signal} · signal={symbol_signal}"
+                        f"{match.pattern_kind} · base={base_symbol}:{base_context.signal} · signal={symbol_signal} · "
+                        f"trade={'ACTIVE' if match.trade_allowed else 'BLOCK'}"
                     )
-                    sent += 1
+                    if match.trade_allowed:
+                        sent += 1
 
             self._publish_state_if_changed(state)
             return sent

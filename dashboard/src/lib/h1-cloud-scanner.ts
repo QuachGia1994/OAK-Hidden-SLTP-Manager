@@ -1,8 +1,8 @@
-export const H1_CLOUD_STATE_VERSION = 8;
+export const H1_CLOUD_STATE_VERSION = 9;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 2;
+export const H1_SIGNAL_RULE_VERSION = 3;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v8";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v9";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 
@@ -29,6 +29,8 @@ export type H1PatternMatch = {
   pattern: H1Direction[];
   patternKind: H1PatternKind;
   bars: H1DirectionBar[];
+  tradeAllowed: boolean;
+  blockedByPureSlot: number | null;
 };
 
 export type H1StoredAlert = {
@@ -47,19 +49,21 @@ export type H1StoredAlert = {
   symbolH1Signal: H1Signal;
   postSignalInverted: boolean;
   postSignalRule: H1PostSignalRule;
+  tradeAllowed: boolean;
+  blockedByPureSlot: number | null;
 };
 
 export type H1CloudState = {
-  version: 8;
+  version: 9;
   days: Record<string, {
     suppressedThroughHour?: number;
-    symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>>;
+    symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
   }>;
 };
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 2;
+  signalRuleVersion: 2 | 3;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -81,7 +85,9 @@ export type H1PublicFeed = {
       signal: H1Signal;
       postSignalInverted: boolean;
       postSignalRule: H1PostSignalRule;
-    }> }>>;
+      tradeAllowed: boolean;
+      blockedByPureSlot: number | null;
+    }>; blockedSlots: number[] }>>;
   }>;
 };
 
@@ -175,15 +181,21 @@ export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number)
   for (const bar of bars) byHour.set(bar.hour, bar);
   const matches: H1PatternMatch[] = [];
   const lastSlot = Math.min(brokerHour, 17);
-  let previousAcceptedPureSlot: number | null = null;
+  let activePureSlot: number | null = null;
 
   for (let slotHour = 3; slotHour <= lastSlot; slotHour += 1) {
+    if (activePureSlot !== null && slotHour > activePureSlot + 3) activePureSlot = null;
+    const blockedByPureSlot = activePureSlot !== null && slotHour > activePureSlot && slotHour <= activePureSlot + 3
+      ? activePureSlot
+      : null;
+    const tradeAllowed = blockedByPureSlot === null;
+
     if (slotHour === 3) {
       const rows2 = rowsForHours(byHour, [2, 1]);
       if (!rows2) continue;
       const pattern = rows2.map((row) => row.direction) as H1Direction[];
       if (TWO_CANDLE_SW.has(pattern.join(""))) {
-        matches.push({ slotHour, pattern, bars: rows2, patternKind: "sw2" });
+        matches.push({ slotHour, pattern, bars: rows2, patternKind: "sw2", tradeAllowed, blockedByPureSlot });
       }
       continue;
     }
@@ -193,20 +205,25 @@ export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number)
     const pattern = rows3.map((row) => row.direction) as H1Direction[];
     const text = pattern.join("");
     if (PURE_SW_3.has(text)) {
-      if (previousAcceptedPureSlot !== null && slotHour - previousAcceptedPureSlot === 2) {
-        previousAcceptedPureSlot = null;
-        continue;
-      }
-      matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Pure" });
-      previousAcceptedPureSlot = slotHour;
+      matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Pure", tradeAllowed, blockedByPureSlot });
+      if (tradeAllowed) activePureSlot = slotHour;
       continue;
     }
     if (!NORMAL_SW_3.has(text)) continue;
     const older = byHour.get(slotHour - 4);
     if (older?.direction === pattern[0]) continue;
-    matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Normal" });
+    matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Normal", tradeAllowed, blockedByPureSlot });
   }
   return matches;
+}
+
+export function pureCooldownSlots(matches: H1PatternMatch[], _brokerHour: number): number[] {
+  const blocked = new Set<number>();
+  for (const match of matches) {
+    if (match.patternKind !== "sw3Pure" || !match.tradeAllowed) continue;
+    for (let hour = match.slotHour + 1; hour <= Math.min(match.slotHour + 3, 17); hour += 1) blocked.add(hour);
+  }
+  return [...blocked].sort((left, right) => left - right);
 }
 
 export function buildStoredAlert(args: {
@@ -238,6 +255,8 @@ export function buildStoredAlert(args: {
     symbolH1Signal: finalSignal,
     postSignalInverted: postSignal.inverted,
     postSignalRule: postSignal.rule,
+    tradeAllowed: args.match.tradeAllowed,
+    blockedByPureSlot: args.match.blockedByPureSlot,
   };
 }
 
@@ -269,7 +288,12 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Logic pattern: giữ nguyên ${alert.baseSymbol} H1`,
     `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`,
   ];
-  rows.push(`• Signal ${base} H1: ${alert.symbolH1Signal}`);
+  if (!alert.tradeAllowed) {
+    rows.push(`• Trạng thái: BLOCK / NOT TRADE · cooldown từ H${String(alert.blockedByPureSlot || 0).padStart(2, "0")}`);
+    rows.push(`• Signal tính toán ${base} H1: ${alert.symbolH1Signal}`);
+  } else {
+    rows.push(`• Signal ${base} H1: ${alert.symbolH1Signal}`);
+  }
   return rows.join("\n");
 }
 
@@ -316,14 +340,19 @@ export function parseCloudState(raw: unknown): H1CloudState {
       throw new Error("Invalid H1 cloud suppression state");
     }
     for (const [base, symbolState] of Object.entries(day.symbols)) {
-      if (!isTargetBase(base) || !symbolState || !Array.isArray(symbolState.alerts)) {
+      if (!isTargetBase(base) || !symbolState || !Array.isArray(symbolState.alerts) || !Array.isArray(symbolState.blockedSlots)) {
         throw new Error("Invalid H1 cloud symbol state");
+      }
+      if (symbolState.blockedSlots.some((hour) => !Number.isInteger(hour) || hour < 3 || hour > 17)) {
+        throw new Error("Invalid H1 cloud blocked slots");
       }
       for (const alert of symbolState.alerts) {
         if (
           !Number.isInteger(alert.slotHour) || !isPatternKind(alert.patternKind) || !isSignal(alert.symbolH1Signal)
           || !isScannerBase(alert.scannerBase) || !isSignal(alert.baseH1Signal) || !isDirection(alert.baseDirection)
           || !Number.isInteger(alert.baseHour) || typeof alert.postSignalInverted !== "boolean" || !isPostSignalRule(alert.postSignalRule)
+          || typeof alert.tradeAllowed !== "boolean"
+          || (alert.blockedByPureSlot !== null && !Number.isInteger(alert.blockedByPureSlot))
         ) {
           throw new Error("Invalid H1 cloud alert state");
         }
@@ -338,11 +367,16 @@ function parseCurrentPublicFeed(raw: unknown): H1CloudState | null {
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (!value || typeof value !== "object") return null;
   const feed = value as Partial<H1PublicFeed>;
-  if (feed.schemaVersion !== H1_PUBLIC_SCHEMA || feed.signalRuleVersion !== H1_SIGNAL_RULE_VERSION || !feed.days || typeof feed.days !== "object") return null;
+  if (
+    feed.schemaVersion !== H1_PUBLIC_SCHEMA
+    || (feed.signalRuleVersion !== 2 && feed.signalRuleVersion !== H1_SIGNAL_RULE_VERSION)
+    || !feed.days
+    || typeof feed.days !== "object"
+  ) return null;
   const state = emptyCloudState();
   for (const [dateKey, day] of Object.entries(feed.days)) {
     if (!day || typeof day !== "object" || !day.symbols || typeof day.symbols !== "object") continue;
-    const symbolStates: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[] }>> = {};
+    const symbolStates: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>> = {};
     for (const [base, source] of Object.entries(day.symbols)) {
       if (!isTargetBase(base) || !source || !Array.isArray(source.alerts)) continue;
       const alerts: H1StoredAlert[] = [];
@@ -370,10 +404,19 @@ function parseCurrentPublicFeed(raw: unknown): H1CloudState | null {
           symbolH1Signal: row.signal,
           postSignalInverted: Boolean(row.postSignalInverted),
           postSignalRule: row.postSignalRule,
+          tradeAllowed: row.tradeAllowed !== false,
+          blockedByPureSlot: Number.isInteger(row.blockedByPureSlot) ? Number(row.blockedByPureSlot) : null,
         });
       }
       alerts.sort((left, right) => left.slotHour - right.slotHour);
-      symbolStates[base] = { alerts };
+      const blocked = new Set<number>(Array.isArray(source.blockedSlots)
+        ? source.blockedSlots.filter((hour): hour is number => Number.isInteger(hour) && hour >= 3 && hour <= 17)
+        : []);
+      for (const alert of alerts) {
+        if (alert.patternKind !== "sw3Pure" || !alert.tradeAllowed) continue;
+        for (let hour = alert.slotHour + 1; hour <= Math.min(alert.slotHour + 3, 17); hour += 1) blocked.add(hour);
+      }
+      symbolStates[base] = { alerts, blockedSlots: [...blocked].sort((left, right) => left - right) };
     }
     state.days[dateKey] = { symbols: symbolStates };
   }
@@ -387,7 +430,7 @@ export function seedCloudStateFromPublic(raw: unknown, brokerDate: string, suppr
   const state = emptyCloudState();
   state.days[brokerDate] = {
     suppressedThroughHour: Math.max(2, Math.min(17, Math.trunc(suppressThroughHour))),
-    symbols: Object.fromEntries(H1_TARGET_BASES.map((base) => [base, { alerts: [] }])) as H1CloudState["days"][string]["symbols"],
+    symbols: Object.fromEntries(H1_TARGET_BASES.map((base) => [base, { alerts: [], blockedSlots: [] }])) as H1CloudState["days"][string]["symbols"],
   };
   return state;
 }
@@ -427,7 +470,10 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
             signal: alert.symbolH1Signal,
             postSignalInverted: alert.postSignalInverted,
             postSignalRule: alert.postSignalRule,
+            tradeAllowed: alert.tradeAllowed,
+            blockedByPureSlot: alert.blockedByPureSlot,
           })),
+        blockedSlots: [...new Set(source.blockedSlots)].sort((left, right) => left - right),
       };
     }
     days[dateKey] = { symbols };
@@ -445,7 +491,7 @@ export function buildPublicFeed(state: H1CloudState, publishedAt = new Date().to
 
 export function ensureSymbolDay(state: H1CloudState, brokerDate: string, base: H1TargetBase) {
   const day = state.days[brokerDate] ||= { symbols: {} };
-  const symbol = day.symbols[base] ||= { alerts: [] };
+  const symbol = day.symbols[base] ||= { alerts: [], blockedSlots: [] };
   return { day, symbol };
 }
 
@@ -468,6 +514,9 @@ export function backfillSuppressedHistory(
     const baseSymbol = baseSymbolForTarget(base);
     const matches = findH1PatternMatches(market[scannerBase].bars, suppressedThrough);
     const { symbol } = ensureSymbolDay(state, brokerDate, base);
+    const blocked = new Set(symbol.blockedSlots);
+    for (const hour of pureCooldownSlots(matches, suppressedThrough)) blocked.add(hour);
+    symbol.blockedSlots = [...blocked].sort((left, right) => left - right);
     const delivered = new Set(symbol.alerts.map((alert) => alert.slotHour));
 
     for (const match of matches) {

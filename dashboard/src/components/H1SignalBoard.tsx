@@ -102,7 +102,8 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <p><span>Base H1 · {alert.baseSymbol}</span><b>{baseDetail}</b></p>
           <p><span>{locale === "EN" ? "Pattern logic" : "Logic pattern"}</span><b>{locale === "EN" ? `follow ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
-          <p><span>Signal {base} H1</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
+          <p><span>{locale === "EN" ? "Trade state" : "Trạng thái trade"}</span><b data-trade-state={alert.tradeAllowed === false ? "blocked" : "active"}>{alert.tradeAllowed === false ? `BLOCK / NOT TRADE · H${String(alert.blockedByPureSlot || 0).padStart(2, "0")}` : "ACTIVE"}</b></p>
+          <p><span>{locale === "EN" ? `Calculated ${base} H1` : `Signal tính toán ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>
     </div>
@@ -115,8 +116,8 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
   const date = dates.at(-1) ?? "";
   const day = date && data ? data.days[date] : undefined;
   const copy = locale === "EN"
-    ? { title: "H1 Intraday Signals", sub: "Delivered scanner signals · tap BUY/SELL for Telegram detail", awaiting: "Awaiting H1 live feed", locked: "VIP weekday signals are locked" }
-    : { title: "Tín hiệu H1 trong ngày", sub: "Tín hiệu scanner đã gửi · chạm BUY/SELL để xem chi tiết như Telegram", awaiting: "Đang chờ feed H1 live", locked: "Tín hiệu H1 ngày thường đang khóa VIP" };
+    ? { title: "H1 Intraday Signals", sub: "Scanner result · BUY/SELL is tradable, BLOCK is calculated but not traded", awaiting: "Awaiting H1 live feed", locked: "VIP weekday signals are locked" }
+    : { title: "Tín hiệu H1 trong ngày", sub: "Kết quả scanner · BUY/SELL được trade, BLOCK vẫn tính nhưng không trade", awaiting: "Đang chờ feed H1 live", locked: "Tín hiệu H1 ngày thường đang khóa VIP" };
 
   if (!data) return <section className="oak-h1-board oak-h1-empty"><div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2></div><p>{copy.awaiting}</p></section>;
 
@@ -134,8 +135,14 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
             <tbody>{data.symbols.map((base) => {
               const symbolState = day?.symbols?.[base];
               const byHour = new Map((symbolState?.alerts ?? []).map((alert) => [alert.slotHour, alert]));
+              const blockedSlots = new Set(symbolState?.blockedSlots ?? []);
               return <tr key={base}><th className="oak-h1-symbol-sticky"><b>{base}</b></th>{data.hours.map((hour) => {
                 const alert = byHour.get(hour);
+                const blocked = blockedSlots.has(hour) || alert?.tradeAllowed === false;
+                if (blocked) {
+                  if (!alert) return <td key={hour}><span className="oak-h1-blocked-cell"><b>BLOCK</b><small>NOT TRADE</small></span></td>;
+                  return <td key={hour}><button className="oak-h1-blocked-cell" type="button" onClick={() => setSelection({ base, date, alert })}><b>BLOCK</b><small>NOT TRADE</small></button></td>;
+                }
                 if (!alert?.signal) return <td key={hour}><span className="oak-h1-cell-empty">—</span></td>;
                 const pure = alert.patternKind === "sw3Pure";
                 return <td key={hour}><button className="oak-h1-signal-button" type="button" data-side={alert.signal.toLowerCase()} onClick={() => setSelection({ base, date, alert })}>{pure && <span className="oak-h1-warning-mark">/!\</span>}<b>{alert.signal}</b></button></td>;

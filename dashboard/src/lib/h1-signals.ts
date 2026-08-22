@@ -23,10 +23,13 @@ export type H1SignalAlert = {
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
+  tradeAllowed?: boolean;
+  blockedByPureSlot?: number | null;
 };
 
 export type H1SymbolDay = {
   alerts: H1SignalAlert[];
+  blockedSlots?: number[];
 };
 
 export type H1SignalDay = {

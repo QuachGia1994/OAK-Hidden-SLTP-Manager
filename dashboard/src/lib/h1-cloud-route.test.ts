@@ -35,14 +35,17 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
   assert.match(setupRoute, /NextResponse\.json\(\{ ok: true, \.\.\.safeH1CloudConfigStatus\(saved\) \}/);
 });
 
-test("cloud scanner seeds from existing public feed and persists only after Telegram success", () => {
+test("cloud scanner gates actionable alerts on Telegram while persisting cooldown BLOCK rows silently", () => {
   assert.match(route, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
   assert.match(route, /getdel/);
+  assert.match(route, /if \(alert\.tradeAllowed\)/);
   assert.match(route, /await sendTelegram/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
+  assert.match(route, /pureCooldownSlots/);
+  assert.match(route, /symbolState\.blockedSlots/);
   assert.match(route, /await saveState\(state\)/);
-  assert.ok(route.indexOf("await sendTelegram") < route.indexOf("symbolState.alerts.push(alert)"));
+  assert.ok(route.indexOf("if (alert.tradeAllowed)") < route.indexOf("symbolState.alerts.push(alert)"));
 });
 
 test("cTrader cloud scanner remains read-only even when shared OAuth has trading scope", () => {

@@ -20,11 +20,15 @@ test("H1 web feed has independent schema-7 Upstash contract", () => {
   assert.doesNotMatch(readerSource, /previousPureSlot|postCheckApplied|sourceSignal|sw3Alternating|sw4Alternating|stopH17Warning|scannerSignal/);
 });
 
-test("H1 cells render BUY/SELL plus the pure-SW marker only", () => {
+test("H1 cells render tradable BUY/SELL and explicit pure-cooldown BLOCK cells", () => {
   assert.match(boardSource, /oak-h1-signal-button/);
   assert.match(boardSource, /<b>\{alert\.signal\}<\/b>/);
   assert.match(boardSource, /oak-h1-warning-mark/);
   assert.match(boardSource, /\/!\\/);
+  assert.match(boardSource, /oak-h1-blocked-cell/);
+  assert.match(boardSource, /BLOCK/);
+  assert.match(boardSource, /NOT TRADE/);
+  assert.match(boardSource, /blockedSlots/);
   assert.doesNotMatch(boardSource, /data-warning|repeatedPure|previousPureSlot|entryTime|postCheckApplied|sourceSignal|targetPattern|STOP H17/);
 });
 
@@ -41,11 +45,12 @@ test("H1 detail renders pattern keep-base plus calendar post-signal evidence", (
   assert.match(boardSource, /Nhóm pattern/);
   assert.match(boardSource, /Logic pattern/);
   assert.match(boardSource, /Hậu signal/);
-  assert.match(boardSource, /Signal \{base\} H1/);
+  assert.match(boardSource, /Signal tính toán \$\{base\} H1|Calculated \$\{base\} H1/);
+  assert.match(boardSource, /Trạng thái trade|Trade state/);
   assert.match(boardSource, /sw2/);
   assert.match(boardSource, /sw3Pure/);
   assert.match(boardSource, /sw3Normal/);
   assert.doesNotMatch(boardSource, /Cảnh báo SW thuần lặp|previousPureSlot|repeatedPure|post-check|hậu kiểm|postCheckApplied|sourceSignal|sw3Alternating|sw4Alternating|warningKind|stopH17Warning|scannerSignal|Phân loại ngày|Day classification/i);
   assert.match(vipSource, /redactH1Signals/);
-  assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\] \}/);
+  assert.match(vipSource, /\{ \.\.\.symbol, alerts: \[\], blockedSlots: \[\] \}/);
 });

@@ -15,6 +15,7 @@ from domain.xau_h1_pattern_scanner import (
     base_symbol_for_target,
     find_h1_pattern_matches,
     post_signal_decision,
+    pure_cooldown_slots,
     resolve_symbol_variant,
     resolve_target_symbols,
     scanner_base_for_target,
@@ -211,26 +212,31 @@ def test_calendar_post_signal_weekday_blocks_and_monthly_cycles():
     assert signal_from_base_after_calendar("BUY", date(2026, 8, 21), 14) == "SELL"
 
 
-def test_pure_sw3_two_slots_later_is_skipped_and_tracking_resets():
-    h6 = FakeClock(datetime(2026, 8, 20, 6, 0))
-    matches = [
-        match for match in find_h1_pattern_matches(rates_for(20, "GGTTG"), h6.now(), h6.broker_datetime_from_mt5_timestamp)
-        if match.pattern_kind == PATTERN_KIND_SW3_PURE
-    ]
-    assert [(match.slot_hour, match.pattern_text) for match in matches] == [(4, "T G G")]
-
+def test_pure_sw3_blocks_next_three_slots_but_blocked_pure_still_calculates_without_extending_cooldown():
     h8 = FakeClock(datetime(2026, 8, 20, 8, 0))
-    reset_matches = [
-        match for match in find_h1_pattern_matches(rates_for(20, "GGTTGGT"), h8.now(), h8.broker_datetime_from_mt5_timestamp)
-        if match.pattern_kind == PATTERN_KIND_SW3_PURE
+    matches = find_h1_pattern_matches(rates_for(20, "GGTTGGT"), h8.now(), h8.broker_datetime_from_mt5_timestamp)
+    pure = [match for match in matches if match.pattern_kind == PATTERN_KIND_SW3_PURE]
+    assert [
+        (match.slot_hour, match.pattern_text, match.trade_allowed, match.blocked_by_pure_slot)
+        for match in pure
+    ] == [
+        (4, "T G G", True, None),
+        (6, "G T T", False, 4),
+        (8, "T G G", True, None),
     ]
-    assert [(match.slot_hour, match.pattern_text) for match in reset_matches] == [(4, "T G G"), (8, "T G G")]
+    assert pure_cooldown_slots(matches, h8.now().hour) == [5, 6, 7, 9, 10, 11]
 
-    shifted = [
-        match for match in find_h1_pattern_matches(rates_for(20, "GGTTG", start_hour=3), h8.now(), h8.broker_datetime_from_mt5_timestamp)
-        if match.pattern_kind == PATTERN_KIND_SW3_PURE
-    ]
-    assert [(match.slot_hour, match.pattern_text) for match in shifted] == [(6, "T G G")]
+    h15 = FakeClock(datetime(2026, 8, 20, 15, 0))
+    through_h15 = find_h1_pattern_matches(rates_for(20, "GGTTGGT", start_hour=9), h15.now(), h15.broker_datetime_from_mt5_timestamp)
+    assert pure_cooldown_slots(through_h15, h15.now().hour) == [13, 14, 15]
+
+    h16 = FakeClock(datetime(2026, 8, 20, 16, 0))
+    shifted = find_h1_pattern_matches(rates_for(20, "GGTTGGT", start_hour=9), h16.now(), h16.broker_datetime_from_mt5_timestamp)
+    assert pure_cooldown_slots(shifted, h16.now().hour) == [13, 14, 15, 17]
+    h14_pure = next(match for match in shifted if match.slot_hour == 14 and match.pattern_kind == PATTERN_KIND_SW3_PURE)
+    h16_pure = next(match for match in shifted if match.slot_hour == 16 and match.pattern_kind == PATTERN_KIND_SW3_PURE)
+    assert (h14_pure.trade_allowed, h14_pure.blocked_by_pure_slot) == (False, 12)
+    assert (h16_pure.trade_allowed, h16_pure.blocked_by_pure_slot) == (True, None)
 
 
 def test_xau_sw2_uses_audusd_source_and_keeps_gbpusd_base(tmp_path):
@@ -306,7 +312,7 @@ def test_usdcad_uses_gbpusd_source_and_own_h1_base(tmp_path):
         subject.close()
 
 
-def test_repeated_pure_sw3_two_slots_later_is_not_sent(tmp_path):
+def test_pure_inside_cooldown_is_calculated_and_published_block_but_not_sent_to_telegram(tmp_path):
     rates = all_rates("GGTTG")
     rates["AUDUSD.a"] = rates_for(20, "GGTTG")
     sent: list[str] = []
@@ -315,6 +321,13 @@ def test_repeated_pure_sw3_two_slots_later_is_not_sent(tmp_path):
         subject.scan_once()
         assert any(message.startswith("🔔 XAUUSD") and "Mốc scan: H04" in message for message in sent)
         assert not any(message.startswith("🔔 XAUUSD") and "Mốc scan: H06" in message for message in sent)
+        saved = json.loads((tmp_path / "state.json").read_text(encoding="utf-8"))
+        xau = saved["days"]["2026-08-20"]["symbols"]["XAUUSD"]
+        h6 = next(row for row in xau["alerts"] if row["slotHour"] == 6)
+        assert h6["patternKind"] == PATTERN_KIND_SW3_PURE
+        assert h6["tradeAllowed"] is False
+        assert h6["blockedByPureSlot"] == 4
+        assert xau["blockedSlots"] == [5, 6, 7]
     finally:
         subject.close()
 
@@ -329,7 +342,7 @@ def test_local_fallback_reads_only_pattern_sources_and_required_base_h1(tmp_path
         subject.close()
 
 
-def test_v7_state_migrates_to_v8_suppression_without_replaying_old_slots(tmp_path):
+def test_v7_state_migrates_to_v9_suppression_without_replaying_old_slots(tmp_path):
     state_path = tmp_path / "state.json"
     state_path.write_text(json.dumps({
         "version": 7,
@@ -340,7 +353,7 @@ def test_v7_state_migrates_to_v8_suppression_without_replaying_old_slots(tmp_pat
     try:
         subject.scan_once()
         saved = json.loads(state_path.read_text(encoding="utf-8"))
-        assert saved["version"] == 8
+        assert saved["version"] == 9
         assert saved["days"]["2026-08-20"]["suppressedThroughHour"] == 4
         assert all("Mốc scan: H04" not in message for message in sent)
     finally:
@@ -362,7 +375,7 @@ def test_state_survives_restart_and_does_not_replay_delivered_slots(tmp_path):
         second.close()
 
 
-def test_public_feed_callback_omits_skipped_pure_and_repeat_metadata(tmp_path):
+def test_public_feed_callback_keeps_blocked_pure_and_three_slot_cooldown_metadata(tmp_path):
     published = []
     rows = all_rates("GGTTG")
     subject = make_scanner(
@@ -374,9 +387,14 @@ def test_public_feed_callback_omits_skipped_pure_and_repeat_metadata(tmp_path):
     )
     try:
         subject.scan_once()
-        xau_alerts = published[-1][0]["days"]["2026-08-20"]["symbols"]["XAUUSD"]["alerts"]
-        assert any(row["slotHour"] == 4 and row["patternKind"] == PATTERN_KIND_SW3_PURE for row in xau_alerts)
-        assert not any(row["slotHour"] == 6 for row in xau_alerts)
+        xau = published[-1][0]["days"]["2026-08-20"]["symbols"]["XAUUSD"]
+        xau_alerts = xau["alerts"]
+        h4 = next(row for row in xau_alerts if row["slotHour"] == 4)
+        h6 = next(row for row in xau_alerts if row["slotHour"] == 6)
+        assert h4["patternKind"] == PATTERN_KIND_SW3_PURE and h4["tradeAllowed"] is True
+        assert h6["patternKind"] == PATTERN_KIND_SW3_PURE and h6["tradeAllowed"] is False
+        assert h6["blockedByPureSlot"] == 4
+        assert xau["blockedSlots"] == [5, 6, 7]
         assert all("previousPureSlot" not in row for row in xau_alerts)
         assert all("postCheckApplied" not in row for row in xau_alerts)
         assert all("sourceSignal" not in row for row in xau_alerts)
