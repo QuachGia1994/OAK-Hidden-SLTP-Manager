@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  H1_HISTORY_RETENTION_CALENDAR_DAYS,
   backfillSuppressedHistory,
   baseSymbolForTarget,
   buildPublicFeed,
@@ -15,6 +16,7 @@ import {
   seedCloudStateFromPublic,
   signalFromBaseAfterCalendar,
   signalFromPatternBase,
+  trimCloudState,
   type H1Direction,
   type H1DirectionBar,
 } from "./h1-cloud-scanner.ts";
@@ -30,6 +32,21 @@ function bars(sequenceOldestToNewest: string, startHour = 1, date = "2026-08-21"
     };
   });
 }
+
+test("history retention keeps the inclusive 90-calendar-day boundary and removes the prior day", () => {
+  assert.equal(H1_HISTORY_RETENTION_CALENDAR_DAYS, 90);
+  const state = emptyCloudState();
+  for (const date of ["2026-05-25", "2026-05-26", "2026-08-21", "2026-08-23"]) state.days[date] = { symbols: {} };
+  trimCloudState(state);
+  assert.deepEqual(Object.keys(state.days).sort(), ["2026-05-26", "2026-08-21", "2026-08-23"]);
+});
+
+test("history retention counts calendar days rather than stored trading-day keys", () => {
+  const state = emptyCloudState();
+  for (const date of ["2026-05-25", "2026-05-26", "2026-06-01", "2026-07-15", "2026-08-23"]) state.days[date] = { symbols: {} };
+  trimCloudState(state);
+  assert.deepEqual(Object.keys(state.days).sort(), ["2026-05-26", "2026-06-01", "2026-07-15", "2026-08-23"]);
+});
 
 test("source scanner has exactly SW2, pure SW3 and normal SW3", () => {
   const sw2 = findH1PatternMatches(bars("GT"), 3).filter((item) => item.slotHour === 3);

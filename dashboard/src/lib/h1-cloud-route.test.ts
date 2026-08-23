@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const route = readFileSync(new URL("../app/api/h1-scanner/run/route.ts", import.meta.url), "utf8");
+const backfillRoute = readFileSync(new URL("../app/api/h1-scanner/backfill/route.ts", import.meta.url), "utf8");
+const cloudStore = readFileSync(new URL("./h1-cloud-store.ts", import.meta.url), "utf8");
 const client = readFileSync(new URL("./ctrader-json.ts", import.meta.url), "utf8");
 const workflow = readFileSync(new URL("../../../.github/workflows/h1-cloud-scanner.yml", import.meta.url), "utf8");
 const oidc = readFileSync(new URL("./github-oidc.ts", import.meta.url), "utf8");
@@ -21,8 +23,10 @@ test("cloud scanner route is private, disabled by default, and singleton locked"
   assert.match(route, /timingSafeEqual/);
   assert.match(route, /loadH1CloudConfig/);
   assert.match(route, /Boolean\(cloudConfig\?\.enabled\)/);
-  assert.match(route, /H1_CLOUD_LOCK_KEY/);
-  assert.match(route, /nx: true, ex: LOCK_SECONDS/);
+  assert.match(route, /acquireH1CloudLock/);
+  assert.match(route, /releaseH1CloudLock/);
+  assert.match(cloudStore, /H1_CLOUD_LOCK_KEY/);
+  assert.match(cloudStore, /nx: true, ex: H1_CLOUD_LOCK_SECONDS/);
 });
 
 test("cloud scanner setup uses one-time tickets and encrypted server-side Telegram config", () => {
@@ -36,7 +40,8 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
 });
 
 test("cloud scanner gates actionable alerts on Telegram while persisting cooldown BLOCK rows silently", () => {
-  assert.match(route, /seedCloudStateFromPublic/);
+  assert.match(route, /loadH1CloudState/);
+  assert.match(cloudStore, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
   assert.match(route, /getdel/);
   assert.match(route, /if \(alert\.tradeAllowed\)/);
@@ -47,7 +52,7 @@ test("cloud scanner gates actionable alerts on Telegram while persisting cooldow
   assert.ok(route.indexOf("reconcilePureCooldownState(symbolState)") < route.indexOf("deliveredSlots(symbolState.alerts)"));
   assert.match(route, /alert\.patternKind === "sw3Pure" && !alert\.tradeAllowed/);
   assert.match(route, /symbolState\.blockedSlots/);
-  assert.match(route, /await saveState\(state\)/);
+  assert.match(route, /await saveH1CloudState\(state\)/);
   assert.ok(route.indexOf("if (alert.tradeAllowed)") < route.indexOf("symbolState.alerts.push(alert)"));
 });
 
@@ -57,6 +62,30 @@ test("cTrader cloud scanner remains read-only even when shared OAuth has trading
   assert.match(client, /period: H1_PERIOD/);
   assert.match(client, /session\.scope !== "accounts" && session\.scope !== "trading"/);
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
+});
+
+test("manual H1 history backfill is admin/API-only, singleton locked and has no Telegram or trading mutation path", () => {
+  assert.match(backfillRoute, /requireAdminOrApiAuth/);
+  assert.match(backfillRoute, /H1_HISTORY_RETENTION_CALENDAR_DAYS/);
+  assert.match(backfillRoute, /acquireH1CloudLock/);
+  assert.match(backfillRoute, /releaseH1CloudLock/);
+  assert.match(backfillRoute, /fetchHistoricalBrokerH1/);
+  assert.match(backfillRoute, /reconstructHistoricalDays/);
+  assert.match(backfillRoute, /mergeHistoricalBackfill/);
+  assert.match(backfillRoute, /addedAlerts > 0 \|\| merged\.addedDays > 0/);
+  assert.doesNotMatch(backfillRoute, /verifyH1ScannerGitHubOidc|x-h1-timekeeper-key|x-h1-run-ticket|sendTelegram|buildTelegramMessage/);
+  assert.doesNotMatch(backfillRoute, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
+});
+
+test("historical cTrader H1 reads are sequential, throttled and bounded with hasMore pagination", () => {
+  assert.match(client, /HISTORICAL_REQUEST_DELAY_MS = 260/);
+  assert.match(client, /HISTORICAL_CHUNK_MS = 14 \* 86_400_000/);
+  assert.match(client, /HISTORICAL_MAX_PAGES_PER_CHUNK = 3/);
+  assert.match(client, /HISTORICAL_MAX_REQUESTS = 150/);
+  assert.match(client, /count: HISTORICAL_PAGE_COUNT/);
+  assert.match(client, /trendPayload\.hasMore !== true/);
+  assert.match(client, /await throttle\(\)/);
+  assert.doesNotMatch(client, /Promise\.all\([^)]*GET_TRENDBARS_REQ/);
 });
 
 test("GitHub OIDC verifier fences scanner trigger to repo main, exact workflow, and allowed events", () => {

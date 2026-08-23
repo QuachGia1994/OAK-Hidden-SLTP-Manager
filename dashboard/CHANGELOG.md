@@ -6,6 +6,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
+- Added an admin/API-authenticated `/api/h1-scanner/backfill` endpoint that reconstructs the fixed 90-calendar-day cTrader H1 window with the existing signal-rule v4, shares the live scanner lock, skips the current broker day, reports provider coverage and never sends Telegram messages or broker mutations.
+- Added broker-date history controls to `/engine`: localized All/Mon-Fri weekday filters, newest-first broker-date chips, retained-window coverage and deterministic selected-date fallback while reusing the existing H03-H17 matrix/detail view.
 - Added an admin-authenticated `/api/mobile/h1` JSON adapter for the native OAK Gatekeeper app. It reuses the normalized H1 feed/cooldown logic, masks future slots, returns no server credentials, and lets Android/iOS share the same Vercel source of truth as `/engine`.
 - Media Forensics v3: provider-neutral specialist-detector registry, explicit UniversalFakeDetect class-boundary calibration semantics, bounded C2PA/detector timeout/concurrency policy, deterministic evidence fusion, and an isolated `services/media-forensics/` service path combining official `c2pa-python` verification with UniversalFakeDetect.
 - Fact Check Image Authenticity V4 as a separate media domain: upload → bounded image validation → independent Gemini and optional forensics branches → orthogonal origin / AI-generation / editing-compositing / completeness assessments → shared live/public evidence report.
@@ -23,6 +25,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- H1 cloud state retention now uses one 90-calendar-day SSoT cutoff relative to the newest valid broker-date key instead of counting stored trading-day keys. Historical cTrader reads are DST-aware, sequentially throttled and bounded/paginated; public schema 7, cloud state v10, signal-rule v4, VIP all-date redaction and mobile latest-day behavior remain compatible.
 - Image Authenticity client handling accepts `image/jpg`, `image/pjpeg`, and extension-only JPEG/PNG/WEBP selections while leaving server magic-byte validation authoritative; oversized and unsupported client errors are distinct, selected images render a local preview with change/remove controls, and upload disclosure/loading status remain explicit. Gemini visual analysis and the optional forensics sidecar run concurrently with bounded provider timeouts inside the 60s route budget.
 - Media analysis now uses four orthogonal normalized assessments: origin (`verified_algorithmic` / `verified_capture` / `verified_other` / unverified states), AI-generation evidence, editing/compositing evidence, and analysis completeness. `likely_ai_generated + likely_manipulated` and `verified_capture + likely_manipulated` are compatible facts; `no_material_edit_detected` remains a valid editing observation without proving non-AI or real origin.
 - Gemini and forensics return explicit branch Result/status values. One branch failure preserves material evidence from the other; Gemini failure plus trusted C2PA can return a useful partial result; sidecar outage is an expected degraded state; and no branch with material evidence returns retryable `MEDIA_ANALYSIS_UNAVAILABLE` before any share record is created.

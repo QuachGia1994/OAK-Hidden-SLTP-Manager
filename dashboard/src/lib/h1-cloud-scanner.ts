@@ -1,3 +1,5 @@
+import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
+
 export const H1_CLOUD_STATE_VERSION = 10;
 export const H1_PUBLIC_SCHEMA = 7;
 export const H1_SIGNAL_RULE_VERSION = 4;
@@ -5,6 +7,7 @@ export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
 export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v10";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
+export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
 
 export const H1_TARGET_BASES = ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 export const H1_ALL_BASES = ["GBPUSD", ...H1_TARGET_BASES] as const;
@@ -116,14 +119,6 @@ const MONDAY_INVERT_SLOTS = new Set([3, 4, 9, 10, 11, 12, 13, 14]);
 const TUESDAY_INVERT_SLOTS = new Set([3, 4, 9, 10, 11]);
 const WEDNESDAY_INVERT_SLOTS = new Set([3, 4, 12, 13, 14]);
 
-function parseBrokerDate(dateKey: string): Date {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
-  if (!match) throw new Error(`Invalid broker date: ${dateKey}`);
-  const value = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12));
-  if (value.toISOString().slice(0, 10) !== dateKey) throw new Error(`Invalid broker date: ${dateKey}`);
-  return value;
-}
-
 function addUtcDays(value: Date, days: number): Date {
   return new Date(value.getTime() + days * 86_400_000);
 }
@@ -152,7 +147,7 @@ function fridayCycleInverted(value: Date): boolean {
 }
 
 export function postSignalDecision(brokerDate: string, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
-  const value = parseBrokerDate(brokerDate);
+  const value = parseBrokerDateKeyUtc(brokerDate);
   const weekday = value.getUTCDay();
   if (weekday === 1 && MONDAY_INVERT_SLOTS.has(slotHour)) return { inverted: true, rule: "mon-block" };
   if (weekday === 2 && TUESDAY_INVERT_SLOTS.has(slotHour)) return { inverted: true, rule: "tue-block" };
@@ -371,8 +366,8 @@ export function parseCloudState(raw: unknown): H1CloudState {
   if (state.version !== H1_CLOUD_STATE_VERSION || !state.days || typeof state.days !== "object") {
     throw new Error("Invalid H1 cloud state schema");
   }
-  for (const day of Object.values(state.days)) {
-    if (!day || typeof day !== "object" || !day.symbols || typeof day.symbols !== "object") {
+  for (const [dateKey, day] of Object.entries(state.days)) {
+    if (!isValidBrokerDateKey(dateKey) || !day || typeof day !== "object" || !day.symbols || typeof day.symbols !== "object") {
       throw new Error("Invalid H1 cloud day state");
     }
     if (day.suppressedThroughHour !== undefined && !Number.isInteger(day.suppressedThroughHour)) {
@@ -401,7 +396,7 @@ export function parseCloudState(raw: unknown): H1CloudState {
   return state as H1CloudState;
 }
 
-function parseCurrentPublicFeed(raw: unknown): H1CloudState | null {
+export function parsePublicFeedCloudState(raw: unknown): H1CloudState | null {
   if (!raw) return null;
   const value = typeof raw === "string" ? JSON.parse(raw) : raw;
   if (!value || typeof value !== "object") return null;
@@ -414,7 +409,7 @@ function parseCurrentPublicFeed(raw: unknown): H1CloudState | null {
   ) return null;
   const state = emptyCloudState();
   for (const [dateKey, day] of Object.entries(feed.days)) {
-    if (!day || typeof day !== "object" || !day.symbols || typeof day.symbols !== "object") continue;
+    if (!isValidBrokerDateKey(dateKey) || !day || typeof day !== "object" || !day.symbols || typeof day.symbols !== "object") continue;
     const symbolStates: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>> = {};
     for (const [base, source] of Object.entries(day.symbols)) {
       if (!isTargetBase(base) || !source || !Array.isArray(source.alerts)) continue;
@@ -472,7 +467,7 @@ function parseCurrentPublicFeed(raw: unknown): H1CloudState | null {
 }
 
 export function seedCloudStateFromPublic(raw: unknown, brokerDate: string, suppressThroughHour: number): H1CloudState {
-  const current = parseCurrentPublicFeed(raw);
+  const current = parsePublicFeedCloudState(raw);
   if (current) return current;
 
   const state = emptyCloudState();
@@ -483,11 +478,15 @@ export function seedCloudStateFromPublic(raw: unknown, brokerDate: string, suppr
   return state;
 }
 
-export function trimCloudState(state: H1CloudState, keepDays = 14): H1CloudState {
-  const keys = Object.keys(state.days).sort();
-  if (keys.length <= keepDays) return state;
-  const keep = new Set(keys.slice(-keepDays));
-  state.days = Object.fromEntries(Object.entries(state.days).filter(([key]) => keep.has(key)));
+export function trimCloudState(state: H1CloudState): H1CloudState {
+  const validKeys = Object.keys(state.days).filter(isValidBrokerDateKey).sort();
+  const newest = validKeys.at(-1);
+  if (!newest) {
+    state.days = {};
+    return state;
+  }
+  const cutoff = addBrokerCalendarDays(newest, -(H1_HISTORY_RETENTION_CALENDAR_DAYS - 1));
+  state.days = Object.fromEntries(validKeys.filter((key) => key >= cutoff).map((key) => [key, state.days[key]]));
   return state;
 }
 

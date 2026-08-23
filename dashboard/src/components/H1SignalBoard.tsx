@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { historyDatesForWeekday, selectHistoryDate, type H1HistoryWeekdayFilter } from "@/lib/h1-history-navigation";
 import type { H1PatternKind, H1SignalAlert, H1SignalPayload } from "@/lib/h1-signals";
 
 type Locale = "EN" | "VN";
@@ -110,14 +111,59 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
   );
 }
 
+const HISTORY_FILTERS: H1HistoryWeekdayFilter[] = ["all", "mon", "tue", "wed", "thu", "fri"];
+
 export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayload | null; locale: Locale; unlocked: boolean }) {
   const [selection, setSelection] = useState<Selection | null>(null);
-  const dates = data ? Object.keys(data.days).sort() : [];
-  const date = dates.at(-1) ?? "";
+  const [weekdayFilter, setWeekdayFilter] = useState<H1HistoryWeekdayFilter>("all");
+  const [selectedDate, setSelectedDate] = useState(() => data ? selectHistoryDate(data.days, "all", "") : "");
+  const allDates = data ? historyDatesForWeekday(data.days, "all") : [];
+  const matchingDates = data ? historyDatesForWeekday(data.days, weekdayFilter) : [];
+  const date = data ? selectHistoryDate(data.days, weekdayFilter, selectedDate) : "";
   const day = date && data ? data.days[date] : undefined;
+  const earliestDate = allDates.at(-1) || "";
+  const latestDate = allDates[0] || "";
   const copy = locale === "EN"
-    ? { title: "H1 Intraday Signals", sub: "Scanner result · BUY/SELL is tradable, BLOCK is calculated but not traded", awaiting: "Awaiting H1 live feed", locked: "VIP weekday signals are locked" }
-    : { title: "Tín hiệu H1 trong ngày", sub: "Kết quả scanner · BUY/SELL được trade, BLOCK vẫn tính nhưng không trade", awaiting: "Đang chờ feed H1 live", locked: "Tín hiệu H1 ngày thường đang khóa VIP" };
+    ? {
+        title: "H1 Intraday Signals",
+        sub: "Scanner result · BUY/SELL is tradable, BLOCK is calculated but not traded",
+        awaiting: "Awaiting H1 live feed",
+        locked: "VIP weekday signals are locked",
+        weekdayGroup: "Filter by weekday",
+        dateGroup: "Broker date",
+        noMatch: "No retained broker dates match this weekday.",
+        coverage: `${allDates.length} trading days · ${earliestDate || "—"} → ${latestDate || "—"}`,
+        filters: { all: "All", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri" } as const,
+      }
+    : {
+        title: "Tín hiệu H1 trong ngày",
+        sub: "Kết quả scanner · BUY/SELL được trade, BLOCK vẫn tính nhưng không trade",
+        awaiting: "Đang chờ feed H1 live",
+        locked: "Tín hiệu H1 ngày thường đang khóa VIP",
+        weekdayGroup: "Lọc theo thứ",
+        dateGroup: "Ngày broker",
+        noMatch: "Không có ngày broker trong khoảng lưu trữ khớp bộ lọc này.",
+        coverage: `${allDates.length} ngày giao dịch · ${earliestDate || "—"} → ${latestDate || "—"}`,
+        filters: { all: "Tất cả", mon: "T2", tue: "T3", wed: "T4", thu: "T5", fri: "T6" } as const,
+      };
+
+  useEffect(() => {
+    if (selectedDate === date) return;
+    setSelectedDate(date);
+    setSelection(null);
+  }, [date, selectedDate]);
+
+  const chooseWeekday = (filter: H1HistoryWeekdayFilter) => {
+    setWeekdayFilter(filter);
+    setSelectedDate(data ? selectHistoryDate(data.days, filter, "") : "");
+    setSelection(null);
+  };
+
+  const chooseDate = (nextDate: string) => {
+    if (nextDate === selectedDate) return;
+    setSelectedDate(nextDate);
+    setSelection(null);
+  };
 
   if (!data) return <section className="oak-h1-board oak-h1-empty"><div><span className="oak-eyebrow">H1 / LIVE</span><h2>{copy.title}</h2></div><p>{copy.awaiting}</p></section>;
 
@@ -129,7 +175,26 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
           <div className="oak-h1-meta"><span><small>BROKER DAY</small><b>{date || "—"}</b></span><span><small>UPDATED</small><b>{formatPublished(data.publishedAt, locale)}</b></span></div>
         </header>
         {!unlocked && <div className="oak-h1-locked">{copy.locked}</div>}
-        <div className="oak-h1-table-scroll lux-scroll">
+        <div className="oak-h1-history">
+          <div className="oak-h1-history-row">
+            <span className="oak-h1-history-label">{copy.weekdayGroup}</span>
+            <div className="oak-h1-history-options" role="group" aria-label={copy.weekdayGroup}>
+              {HISTORY_FILTERS.map((filter) => (
+                <button key={filter} type="button" className="oak-h1-history-chip" aria-pressed={weekdayFilter === filter} onClick={() => chooseWeekday(filter)}>{copy.filters[filter]}</button>
+              ))}
+            </div>
+          </div>
+          <div className="oak-h1-history-row">
+            <span className="oak-h1-history-label">{copy.dateGroup}</span>
+            <div className="oak-h1-history-dates lux-scroll" role="group" aria-label={copy.dateGroup}>
+              {matchingDates.map((brokerDate) => (
+                <button key={brokerDate} type="button" className="oak-h1-history-chip" aria-pressed={date === brokerDate} onClick={() => chooseDate(brokerDate)}>{brokerDate}</button>
+              ))}
+            </div>
+          </div>
+          <p className="oak-h1-history-coverage">{copy.coverage}</p>
+        </div>
+        {!date ? <div className="oak-empty-state oak-h1-history-empty"><span>∅</span><p>{copy.noMatch}</p></div> : <div className="oak-h1-table-scroll lux-scroll">
           <table className="oak-h1-table">
             <thead><tr><th className="oak-h1-symbol-sticky">SYMBOL</th>{data.hours.map((hour) => <th key={hour}>H{String(hour).padStart(2, "0")}</th>)}</tr></thead>
             <tbody>{data.symbols.map((base) => {
@@ -149,7 +214,7 @@ export function H1SignalBoard({ data, locale, unlocked }: { data: H1SignalPayloa
               })}</tr>;
             })}</tbody>
           </table>
-        </div>
+        </div>}
       </section>
       {selection && <DetailModal selection={selection} locale={locale} onClose={() => setSelection(null)} />}
     </>

@@ -1,0 +1,101 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { createRequire, registerHooks } from "node:module";
+import { dirname, extname, resolve as resolvePath } from "node:path";
+import test from "node:test";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const dashboardRoot = process.cwd();
+const repoRoot = resolvePath(dashboardRoot, "..");
+const srcRoot = resolvePath(dashboardRoot, "src");
+const require = createRequire(pathToFileURL(resolvePath(dashboardRoot, "package.json")));
+const ts = require("typescript");
+const React = require("react");
+const { renderToStaticMarkup } = require("react-dom/server");
+
+function resolveCandidate(base) {
+  for (const candidate of [base, `${base}.ts`, `${base}.tsx`, `${base}.js`, resolvePath(base, "index.ts"), resolvePath(base, "index.tsx")]) {
+    if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+  }
+  return null;
+}
+
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") return { url: "data:text/javascript,export{}", shortCircuit: true };
+    if (specifier.startsWith("@/")) {
+      const found = resolveCandidate(resolvePath(srcRoot, specifier.slice(2)));
+      if (found) return { url: pathToFileURL(found).href, shortCircuit: true };
+    }
+    if ((specifier.startsWith("./") || specifier.startsWith("../")) && context.parentURL?.startsWith("file:")) {
+      const found = resolveCandidate(resolvePath(dirname(fileURLToPath(context.parentURL)), specifier));
+      if (found) return { url: pathToFileURL(found).href, shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+  load(url, context, nextLoad) {
+    if (url.startsWith("file:") && [".ts", ".tsx"].includes(extname(fileURLToPath(url)))) {
+      const source = readFileSync(fileURLToPath(url), "utf8");
+      const output = ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+      return { format: "module", source: output, shortCircuit: true };
+    }
+    return nextLoad(url, context);
+  },
+});
+
+const { H1SignalBoard } = await import(pathToFileURL(resolvePath(srcRoot, "components/H1SignalBoard.tsx")).href);
+const { redactH1Signals } = await import(pathToFileURL(resolvePath(srcRoot, "lib/vip.ts")).href);
+const { normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
+const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
+
+function alert(slotHour, signal = "BUY") {
+  return { slotHour, pattern: "T G G", patternKind: "sw3Pure", bars: [], symbol: "XAUUSD", profile: "cTrader IcMarkets", scannerBase: "AUDUSD", scannerSymbol: "AUDUSD", baseSymbol: "GBPUSD", baseSignal: "BUY", baseHour: slotHour - 1, baseDirection: "T", signal, postSignalInverted: false, postSignalRule: "none", tradeAllowed: true, blockedByPureSlot: null };
+}
+
+function payload() {
+  const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
+  return {
+    schemaVersion: 7,
+    signalRuleVersion: 4,
+    profile: "cTrader IcMarkets",
+    publishedAt: "2026-02-03T12:00:00.000Z",
+    hours: [3, 4],
+    symbols: ["XAUUSD"],
+    days: Object.fromEntries(dates.map((date, index) => [date, { symbols: { XAUUSD: { alerts: [alert(3, index % 2 ? "SELL" : "BUY")], blockedSlots: [] } } }])),
+  };
+}
+
+function render(locale) {
+  return renderToStaticMarkup(React.createElement(H1SignalBoard, { data: payload(), locale, unlocked: true }));
+}
+
+test("H1 history controls render localized weekday labels, newest date and coverage without raw filter enums", () => {
+  const en = render("EN");
+  const vn = render("VN");
+  for (const label of ["All", "Mon", "Tue", "Wed", "Thu", "Fri"]) assert.match(en, new RegExp(`>${label}<`));
+  for (const label of ["Tất cả", "T2", "T3", "T4", "T5", "T6"]) assert.match(vn, new RegExp(`>${label}<`));
+  assert.match(en, /7 trading days/);
+  assert.match(vn, /7 ngày giao dịch/);
+  assert.match(en, /2025-12-29.*2026-02-03/);
+  assert.match(en, /aria-pressed="true"[^>]*>All</);
+  assert.ok(en.indexOf("2026-02-03") < en.indexOf("2026-01-05"));
+  for (const raw of ["weekday_all", "weekday_mon", "weekday_tue", "weekday_wed", "weekday_thu", "weekday_fri"]) assert.equal(en.includes(raw) || vn.includes(raw), false);
+});
+
+test("historical cTrader trendbars use DST-aware broker dates and hours", () => {
+  const minute = (iso) => Math.trunc(new Date(iso).getTime() / 60_000);
+  const rows = normalizeHistoricalTrendbars([
+    { utcTimestampInMinutes: minute("2026-01-14T23:00:00Z"), deltaOpen: 0, deltaClose: 1 },
+    { utcTimestampInMinutes: minute("2026-07-14T22:00:00Z"), deltaOpen: 1, deltaClose: 0 },
+  ]);
+  assert.deepEqual(rows.map((row) => [row.brokerDate, row.hour, row.direction]), [["2026-01-15", 1, "T"], ["2026-07-15", 1, "G"]]);
+});
+
+test("VIP redaction masks every historical date while mobile still reads only the latest date", () => {
+  const data = payload();
+  const redacted = redactH1Signals(data);
+  assert.ok(redacted);
+  for (const day of Object.values(redacted.days)) assert.deepEqual(day.symbols.XAUUSD.alerts, []);
+  assert.equal(latestH1Date(data), "2026-02-03");
+  assert.equal(alertsForSymbol(data, "XAUUSD")[0]?.signal, data.days["2026-02-03"].symbols.XAUUSD.alerts[0].signal);
+});

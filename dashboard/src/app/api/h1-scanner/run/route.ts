@@ -1,42 +1,32 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { redis, requireAuth } from "@/lib/redis-core";
-import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { loadH1CloudConfig, type H1CloudConfig } from "@/lib/h1-cloud-config";
 import { verifyH1ScannerGitHubOidc } from "@/lib/github-oidc";
 import { brokerWallParts, fetchCurrentBrokerDayH1, type CTraderScannerSession } from "@/lib/ctrader-json";
+import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
+import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
-  H1_CLOUD_LOCK_KEY,
-  H1_CLOUD_PROFILE,
-  H1_CLOUD_STATE_KEY,
-  H1_PUBLIC_LATEST_KEY,
   H1_TARGET_BASES,
   backfillSuppressedHistory,
   baseSymbolForTarget,
-  buildPublicFeed,
   buildStoredAlert,
   buildTelegramMessage,
   ensureSymbolDay,
   findH1PatternMatches,
-  parseCloudState,
   pureCooldownSlots,
   reconcilePureCooldownState,
   scannerBaseForTarget,
-  seedCloudStateFromPublic,
-  trimCloudState,
-  type H1CloudState,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const PUBLIC_PROFILE_KEY = `robot-sltp:public:h1-signals:${H1_CLOUD_PROFILE}`;
 const RUN_TICKET_HEADER = "x-h1-run-ticket";
 const RUN_TICKET_PREFIX = "oak:h1:run-ticket:";
 const CF_TIMEKEEPER_TOKEN_HASH_KEY = "robot-sltp:cloud:h1-scanner:cf-timekeeper:sha256";
 const CF_TIMEKEEPER_HEADER = "x-h1-timekeeper-key";
-const LOCK_SECONDS = 90;
 const FINALIZE_RETRY_ATTEMPTS = 8;
 const FINALIZE_RETRY_DELAY_MS = 2_500;
 
@@ -86,29 +76,6 @@ async function authorize(request: Request): Promise<NextResponse | null> {
   return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 }
 
-async function loadState(
-  brokerDate: string,
-  brokerHour: number,
-): Promise<{ state: H1CloudState; source: "cloud" | "public-seed" }> {
-  const existing = await redis.get<unknown>(H1_CLOUD_STATE_KEY);
-  if (existing) return { state: parseCloudState(existing), source: "cloud" };
-  const publicFeed = await redis.get<unknown>(H1_PUBLIC_LATEST_KEY);
-  return { state: seedCloudStateFromPublic(publicFeed, brokerDate, brokerHour), source: "public-seed" };
-}
-
-async function saveState(state: H1CloudState): Promise<void> {
-  trimCloudState(state, 14);
-  await redis.set(H1_CLOUD_STATE_KEY, state);
-}
-
-async function publishState(state: H1CloudState): Promise<void> {
-  const feed = buildPublicFeed(state);
-  await Promise.all([
-    redis.set(PUBLIC_PROFILE_KEY, feed),
-    redis.set(H1_PUBLIC_LATEST_KEY, feed),
-  ]);
-}
-
 async function sendTelegram(message: string, config: H1CloudConfig): Promise<void> {
   const response = await fetch(`https://api.telegram.org/bot${config.telegramToken}/sendMessage`, {
     method: "POST",
@@ -119,20 +86,6 @@ async function sendTelegram(message: string, config: H1CloudConfig): Promise<voi
   const payload = await response.json().catch(() => ({})) as { ok?: boolean; description?: string };
   if (!response.ok || payload.ok !== true) {
     throw new Error(payload.description || `Telegram send failed (${response.status})`);
-  }
-}
-
-async function acquireLock(token: string): Promise<boolean> {
-  const result = await redis.set(H1_CLOUD_LOCK_KEY, token, { nx: true, ex: LOCK_SECONDS });
-  return result === "OK";
-}
-
-async function releaseLock(token: string): Promise<void> {
-  try {
-    const current = await redis.get<string>(H1_CLOUD_LOCK_KEY);
-    if (current === token) await redis.del(H1_CLOUD_LOCK_KEY);
-  } catch {
-    // TTL is the final safety net. Never mask the scanner result on unlock failure.
   }
 }
 
@@ -161,24 +114,6 @@ async function fetchReadyMarket(session: CTraderScannerSession, nowMs: number, b
     market = await fetchCurrentBrokerDayH1(session, Date.now());
   }
   return market;
-}
-
-function sessionConfig(token: Awaited<ReturnType<typeof getFreshCTraderTokens>>): CTraderScannerSession {
-  if (!token) throw new Error("cTrader account has not been authorised");
-  const clientId = process.env.OAK_CTRADER_CLIENT_ID || "";
-  const clientSecret = process.env.OAK_CTRADER_CLIENT_SECRET || "";
-  const accountId = Number.parseInt(process.env.OAK_CTRADER_ACCOUNT_ID || "", 10) || 0;
-  if (!clientId || !clientSecret || accountId <= 0) throw new Error("cTrader application/account configuration is incomplete");
-  const environment = (process.env.OAK_CTRADER_ENV || "demo").toLowerCase() === "live" ? "live" : "demo";
-  return {
-    clientId,
-    clientSecret,
-    accessToken: token.accessToken,
-    accountId,
-    environment,
-    broker: process.env.OAK_CTRADER_BROKER || "ICMarkets",
-    scope: token.scope,
-  };
 }
 
 function deliveredSlots(alerts: H1StoredAlert[]): Set<number> {
@@ -214,14 +149,13 @@ export async function POST(request: Request) {
     }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  const lockToken = randomUUID();
-  if (!await acquireLock(lockToken)) {
+  const lockToken = await acquireH1CloudLock();
+  if (!lockToken) {
     return NextResponse.json({ ok: true, enabled, dryRun, skipped: "already-running" }, { headers: { "Cache-Control": "no-store" } });
   }
 
   try {
-    const tokens = await getFreshCTraderTokens();
-    const session = sessionConfig(tokens);
+    const session = await loadH1CTraderSession();
     const market = await fetchReadyMarket(session, nowMs, wall.hour);
     if (!marketReadyForSlot(market, wall.hour)) {
       return NextResponse.json({
@@ -234,7 +168,7 @@ export async function POST(request: Request) {
         brokerMinute: market.brokerMinute,
       }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
-    const { state, source } = await loadState(market.brokerDate, market.brokerHour);
+    const { state, source } = await loadH1CloudState(market.brokerDate, market.brokerHour);
     const byBaseHour = Object.fromEntries(
       Object.entries(market.symbols).map(([base, item]) => [base, new Map(item.bars.map((bar) => [bar.hour, bar]))]),
     ) as Record<string, Map<number, (typeof market.symbols)[keyof typeof market.symbols]["bars"][number]>>;
@@ -294,13 +228,13 @@ export async function POST(request: Request) {
         changed = true;
         // Persist immediately after an actionable Telegram success, or after a
         // silent BLOCK row is recorded, so retries cannot reinterpret the slot.
-        await saveState(state);
+        await saveH1CloudState(state);
       }
     }
 
     if (!dryRun) {
-      if (changed || source === "public-seed") await saveState(state);
-      await publishState(state);
+      if (changed || source === "public-seed") await saveH1CloudState(state);
+      await publishH1CloudState(state);
     }
 
     return NextResponse.json({
@@ -322,6 +256,6 @@ export async function POST(request: Request) {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
   } finally {
-    await releaseLock(lockToken);
+    await releaseH1CloudLock(lockToken);
   }
 }

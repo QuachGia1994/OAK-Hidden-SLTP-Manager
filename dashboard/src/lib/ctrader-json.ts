@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import type { H1Base, H1Direction, H1DirectionBar } from "@/lib/h1-cloud-scanner";
+import { H1_ALL_BASES, type H1Base, type H1Direction, type H1DirectionBar } from "@/lib/h1-cloud-scanner";
 import { lotsToProtocolVolume, mt5PointsToCTraderRelative } from "@/lib/ctrader-execution-domain";
 
 const PAYLOAD = {
@@ -35,6 +35,11 @@ const PAYLOAD = {
 
 const H1_PERIOD = 9;
 const HISTORICAL_REQUEST_DELAY_MS = 260;
+const HISTORICAL_PAGE_COUNT = 500;
+const HISTORICAL_CHUNK_MS = 14 * 86_400_000;
+const HISTORICAL_MAX_PAGES_PER_CHUNK = 3;
+const HISTORICAL_MAX_REQUESTS = 150;
+const HISTORICAL_MAX_RANGE_MS = 92 * 86_400_000;
 
 export type CTraderScannerSession = {
   clientId: string;
@@ -256,23 +261,26 @@ function directionFromTrendbar(row: Record<string, unknown>): H1Direction {
   return closeDelta > openDelta ? "T" : "G";
 }
 
-function normalizeTrendbars(rows: unknown[], brokerDate: string, brokerHour: number): H1DirectionBar[] {
-  const byHour = new Map<number, H1DirectionBar>();
+export function normalizeHistoricalTrendbars(rows: unknown[]): H1DirectionBar[] {
+  const byDateHour = new Map<string, H1DirectionBar>();
   for (const source of rows) {
     if (!source || typeof source !== "object") continue;
     const row = source as Record<string, unknown>;
     const minutes = Number(row.utcTimestampInMinutes || 0);
     if (!Number.isFinite(minutes) || minutes <= 0) continue;
     const parts = brokerWallParts(minutes * 60_000);
-    if (parts.dateKey !== brokerDate || parts.hour >= brokerHour) continue;
-    byHour.set(parts.hour, {
+    byDateHour.set(`${parts.dateKey}:${parts.hour}`, {
       hour: parts.hour,
       brokerDate: parts.dateKey,
       brokerTime: parts.brokerTime,
       direction: directionFromTrendbar(row),
     });
   }
-  return [...byHour.values()].sort((left, right) => left.hour - right.hour);
+  return [...byDateHour.values()].sort((left, right) => left.brokerDate.localeCompare(right.brokerDate) || left.hour - right.hour);
+}
+
+function normalizeTrendbars(rows: unknown[], brokerDate: string, brokerHour: number): H1DirectionBar[] {
+  return normalizeHistoricalTrendbars(rows).filter((bar) => bar.brokerDate === brokerDate && bar.hour < brokerHour);
 }
 
 export type CTraderSymbolMeta = {
@@ -318,6 +326,28 @@ async function authorizeAccountSocket(session: CTraderScannerSession): Promise<C
     socket.close();
     throw error;
   }
+}
+
+async function resolveH1ScannerSymbols(socket: CTraderJsonSocket, accountId: number): Promise<Map<H1Base, { symbolId: number; displayName: string }>> {
+  const symbolPayload = await socket.request(PAYLOAD.SYMBOLS_LIST_REQ, PAYLOAD.SYMBOLS_LIST_RES, {
+    ctidTraderAccountId: accountId,
+    includeArchivedSymbols: false,
+  });
+  const requested = new Map<H1Base, { symbolId: number; displayName: string }>();
+  for (const raw of Array.isArray(symbolPayload.symbol) ? symbolPayload.symbol : []) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const displayName = String(row.symbolName || "");
+    const canonical = canonicalSymbolName(displayName) as H1Base;
+    if (!(H1_ALL_BASES as readonly string[]).includes(canonical)) continue;
+    const symbolId = Number(row.symbolId || 0);
+    if (!Number.isInteger(symbolId) || symbolId <= 0 || requested.has(canonical)) continue;
+    requested.set(canonical, { symbolId, displayName });
+  }
+  for (const base of H1_ALL_BASES) {
+    if (!requested.has(base)) throw new Error(`cTrader symbol not found: ${base}`);
+  }
+  return requested;
 }
 
 async function resolveSymbolMeta(socket: CTraderJsonSocket, accountId: number, requestedSymbol: string): Promise<CTraderSymbolMeta> {
@@ -861,41 +891,13 @@ export async function fetchCurrentBrokerDayH1(
     throw new Error("cTrader account ID is not configured");
   }
   const current = brokerWallParts(nowMs);
-  const host = session.environment === "live" ? "live.ctraderapi.com" : "demo.ctraderapi.com";
-  const socket = await CTraderJsonSocket.connect(`wss://${host}:5036`);
+  const socket = await authorizeAccountSocket(session);
   try {
-    await socket.request(PAYLOAD.APPLICATION_AUTH_REQ, PAYLOAD.APPLICATION_AUTH_RES, {
-      clientId: session.clientId,
-      clientSecret: session.clientSecret,
-    });
-    await socket.request(PAYLOAD.ACCOUNT_AUTH_REQ, PAYLOAD.ACCOUNT_AUTH_RES, {
-      ctidTraderAccountId: session.accountId,
-      accessToken: session.accessToken,
-    });
-    const symbolPayload = await socket.request(PAYLOAD.SYMBOLS_LIST_REQ, PAYLOAD.SYMBOLS_LIST_RES, {
-      ctidTraderAccountId: session.accountId,
-      includeArchivedSymbols: false,
-    });
-    const lightRows = Array.isArray(symbolPayload.symbol) ? symbolPayload.symbol : [];
-    const requested = new Map<H1Base, { symbolId: number; displayName: string }>();
-    for (const raw of lightRows) {
-      if (!raw || typeof raw !== "object") continue;
-      const row = raw as Record<string, unknown>;
-      const displayName = String(row.symbolName || "");
-      const canonical = canonicalSymbolName(displayName) as H1Base;
-      if (!["GBPUSD", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"].includes(canonical)) continue;
-      const symbolId = Number(row.symbolId || 0);
-      if (!Number.isInteger(symbolId) || symbolId <= 0) continue;
-      if (!requested.has(canonical)) requested.set(canonical, { symbolId, displayName });
-    }
-    for (const base of ["GBPUSD", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as H1Base[]) {
-      if (!requested.has(base)) throw new Error(`cTrader symbol not found: ${base}`);
-    }
-
+    const requested = await resolveH1ScannerSymbols(socket, session.accountId);
     const fromTimestamp = Math.max(0, nowMs - 36 * 3600_000);
     const output = {} as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
     let historicalIndex = 0;
-    for (const base of ["GBPUSD", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as H1Base[]) {
+    for (const base of H1_ALL_BASES) {
       if (historicalIndex > 0) await delay(HISTORICAL_REQUEST_DELAY_MS);
       historicalIndex += 1;
       const meta = requested.get(base)!;
@@ -918,6 +920,73 @@ export async function fetchCurrentBrokerDayH1(
       brokerMinute: current.minute,
       brokerWeekday: current.weekday,
       symbols: output,
+    };
+  } finally {
+    socket.close();
+  }
+}
+
+export async function fetchHistoricalBrokerH1(
+  session: CTraderScannerSession,
+  fromTimestamp: number,
+  toTimestamp: number,
+): Promise<{ symbols: Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>; requestCount: number }> {
+  if (session.scope !== "accounts" && session.scope !== "trading") throw new Error(`Unsupported cTrader OAuth scope: ${session.scope}`);
+  if (!Number.isInteger(session.accountId) || session.accountId <= 0) throw new Error("cTrader account ID is not configured");
+  if (!Number.isFinite(fromTimestamp) || !Number.isFinite(toTimestamp) || fromTimestamp <= 0 || toTimestamp <= fromTimestamp || toTimestamp - fromTimestamp > HISTORICAL_MAX_RANGE_MS) {
+    throw new Error("Invalid bounded cTrader H1 history range");
+  }
+
+  const socket = await authorizeAccountSocket(session);
+  try {
+    const requested = await resolveH1ScannerSymbols(socket, session.accountId);
+    const rawByBase = Object.fromEntries(H1_ALL_BASES.map((base) => [base, [] as unknown[]])) as Record<H1Base, unknown[]>;
+    let requestCount = 0;
+    let lastHistoricalRequestAt = 0;
+    const throttle = async () => {
+      const wait = HISTORICAL_REQUEST_DELAY_MS - (Date.now() - lastHistoricalRequestAt);
+      if (wait > 0) await delay(wait);
+      lastHistoricalRequestAt = Date.now();
+    };
+
+    for (const base of H1_ALL_BASES) {
+      const meta = requested.get(base)!;
+      for (let chunkFrom = fromTimestamp; chunkFrom < toTimestamp; chunkFrom += HISTORICAL_CHUNK_MS) {
+        const chunkTo = Math.min(toTimestamp, chunkFrom + HISTORICAL_CHUNK_MS - 1);
+        let pageTo = chunkTo;
+        for (let page = 0; page < HISTORICAL_MAX_PAGES_PER_CHUNK && pageTo >= chunkFrom; page += 1) {
+          if (requestCount >= HISTORICAL_MAX_REQUESTS) throw new Error("cTrader H1 history request budget exceeded");
+          await throttle();
+          requestCount += 1;
+          const trendPayload = await socket.request(PAYLOAD.GET_TRENDBARS_REQ, PAYLOAD.GET_TRENDBARS_RES, {
+            ctidTraderAccountId: session.accountId,
+            symbolId: meta.symbolId,
+            period: H1_PERIOD,
+            fromTimestamp: chunkFrom,
+            toTimestamp: pageTo,
+            count: HISTORICAL_PAGE_COUNT,
+          });
+          const rows = Array.isArray(trendPayload.trendbar) ? trendPayload.trendbar : [];
+          rawByBase[base].push(...rows);
+          if (trendPayload.hasMore !== true) break;
+          const oldestTimestamp = rows.reduce((oldest, raw) => {
+            if (!raw || typeof raw !== "object") return oldest;
+            const minutes = Number((raw as Record<string, unknown>).utcTimestampInMinutes || 0);
+            const timestamp = Number.isFinite(minutes) && minutes > 0 ? minutes * 60_000 : Number.POSITIVE_INFINITY;
+            return Math.min(oldest, timestamp);
+          }, Number.POSITIVE_INFINITY);
+          if (!Number.isFinite(oldestTimestamp) || oldestTimestamp <= chunkFrom || oldestTimestamp >= pageTo) break;
+          pageTo = oldestTimestamp - 1;
+        }
+      }
+    }
+
+    return {
+      symbols: Object.fromEntries(H1_ALL_BASES.map((base) => {
+        const meta = requested.get(base)!;
+        return [base, { displayName: meta.displayName || base, bars: normalizeHistoricalTrendbars(rawByBase[base]) }];
+      })) as Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>,
+      requestCount,
     };
   } finally {
     socket.close();
