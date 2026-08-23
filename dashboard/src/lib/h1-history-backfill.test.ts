@@ -13,7 +13,7 @@ function bars(sequenceOldestToNewest: string, date: string, startHour = 1): H1Di
 function marketForDates(...dates: string[]) {
   const sequences: Record<H1Base, string> = {
     GBPUSD: "GGTGGT",
-    XAUUSD: "TTTTTT",
+    XAUUSD: "TTGGTT",
     EURUSD: "GGGTTT",
     AUDUSD: "GGTGGT",
     USDCAD: "TTTGGG",
@@ -31,7 +31,7 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   assert.equal(history["2026-08-22"], undefined);
 
   const scannerBars = marketForDates("2026-08-21").XAUUSD.bars;
-  const liveMatch = findH1PatternMatches(scannerBars, 18).find((item) => item.slotHour === 4)!;
+  const liveMatch = findH1PatternMatches(scannerBars, 18).find((item) => item.slotHour === 6)!;
   const liveExpected = buildStoredAlert({
     base: "XAUUSD",
     brokerSymbol: "XAUUSD",
@@ -39,9 +39,9 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     scannerSymbol: "XAUUSD",
     match: liveMatch,
     baseSymbol: "GBPUSD",
-    baseBar: marketForDates("2026-08-21").GBPUSD.bars.find((bar) => bar.hour === 3)!,
+    baseBar: marketForDates("2026-08-21").GBPUSD.bars.find((bar) => bar.hour === 5)!,
   });
-  const historical = history["2026-08-21"].symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 4);
+  const historical = history["2026-08-21"].symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 6);
   assert.deepEqual(historical, liveExpected);
 });
 

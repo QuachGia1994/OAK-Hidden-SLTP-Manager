@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   H1_HISTORY_RETENTION_CALENDAR_DAYS,
   H1_POST_SIGNAL_ACTIVE_WEEKDAYS,
+  H1_SCAN_END_HOUR,
+  H1_SCAN_START_HOUR,
   backfillSuppressedHistory,
   baseSymbolForTarget,
   buildPublicFeed,
@@ -50,24 +52,23 @@ test("history retention counts calendar days rather than stored trading-day keys
   assert.deepEqual(Object.keys(state.days).sort(), ["2026-05-26", "2026-06-01", "2026-07-15", "2026-08-23"]);
 });
 
-test("source scanner has exactly SW2, pure SW3 and normal SW3", () => {
-  const sw2 = findH1PatternMatches(bars("GT"), 3).filter((item) => item.slotHour === 3);
-  const pureTgg = findH1PatternMatches(bars("GGT"), 4).filter((item) => item.slotHour === 4);
-  const pureGtt = findH1PatternMatches(bars("TTG"), 4).filter((item) => item.slotHour === 4);
-  const normalT = findH1PatternMatches(bars("TTT"), 4).filter((item) => item.slotHour === 4);
-  const normalG = findH1PatternMatches(bars("GGG"), 4).filter((item) => item.slotHour === 4);
-  assert.deepEqual(sw2.map((item) => [item.pattern.join(""), item.patternKind]), [["TG", "sw2"]]);
+test("scanner emits only H06-H16 and keeps SW3 pattern semantics inside the active window", () => {
+  assert.equal(H1_SCAN_START_HOUR, 6);
+  assert.equal(H1_SCAN_END_HOUR, 16);
+
+  const pureTgg = findH1PatternMatches(bars("GGT", 3), 18).filter((item) => item.slotHour === 6);
+  const pureGtt = findH1PatternMatches(bars("TTG", 3), 18).filter((item) => item.slotHour === 6);
+  const normalT = findH1PatternMatches(bars("TTT", 3), 18).filter((item) => item.slotHour === 6);
+  const normalG = findH1PatternMatches(bars("GGG", 3), 18).filter((item) => item.slotHour === 6);
   assert.deepEqual(pureTgg.map((item) => [item.pattern.join(""), item.patternKind]), [["TGG", "sw3Pure"]]);
   assert.deepEqual(pureGtt.map((item) => [item.pattern.join(""), item.patternKind]), [["GTT", "sw3Pure"]]);
   assert.deepEqual(normalT.map((item) => [item.pattern.join(""), item.patternKind]), [["TTT", "sw3Normal"]]);
   assert.deepEqual(normalG.map((item) => [item.pattern.join(""), item.patternKind]), [["GGG", "sw3Normal"]]);
-  assert.equal(findH1PatternMatches(bars("TGT"), 4).some((item) => item.slotHour === 4), false);
-  assert.equal(findH1PatternMatches(bars("GTG"), 4).some((item) => item.slotHour === 4), false);
-});
 
-test("SW2 remains the opening H03 class only", () => {
-  const matches = findH1PatternMatches(bars("GGT"), 4);
-  assert.equal(matches.some((item) => item.slotHour === 4 && item.patternKind === "sw2"), false);
+  assert.equal(findH1PatternMatches(bars("GGT", 2), 18).some((item) => item.slotHour === 5), false);
+  assert.equal(findH1PatternMatches(bars("GGT", 13), 18).some((item) => item.slotHour === 16), true);
+  assert.equal(findH1PatternMatches(bars("GGT", 14), 18).some((item) => item.slotHour === 17), false);
+  assert.equal(findH1PatternMatches(bars("GT", 1), 18).some((item) => item.patternKind === "sw2"), false);
 });
 
 test("normal SW3 guard skips a slot once the same-direction run reaches four or more", () => {
@@ -144,11 +145,10 @@ test("pure cooldown blocks only pure matches while normal SW remains tradable", 
   const matches = findH1PatternMatches(bars("GGTTGGT"), 8);
   const pure = matches.filter((item) => item.patternKind === "sw3Pure");
   assert.deepEqual(pure.map((item) => [item.slotHour, item.pattern.join(""), item.tradeAllowed, item.blockedByPureSlot]), [
-    [4, "TGG", true, null],
-    [6, "GTT", false, 4],
-    [8, "TGG", true, null],
+    [6, "GTT", true, null],
+    [8, "TGG", false, 6],
   ]);
-  assert.deepEqual(pureCooldownSlots(matches, 8), [6]);
+  assert.deepEqual(pureCooldownSlots(matches, 8), [8]);
 
   const h12PureWindow = findH1PatternMatches(bars("GGTTGGT", 9), 16);
   assert.deepEqual(pureCooldownSlots(h12PureWindow, 16), [14]);
@@ -195,7 +195,7 @@ test("stored H12-H15 rows reconcile stale pure cooldown state before delivered-s
 });
 
 test("accepted pure SW3 Telegram marks /!\\ with no repeat warning metadata", () => {
-  const match = findH1PatternMatches(bars("GGT"), 4).find((item) => item.slotHour === 4)!;
+  const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
     base: "XAUUSD",
     brokerSymbol: "XAUUSD",
@@ -203,7 +203,7 @@ test("accepted pure SW3 Telegram marks /!\\ with no repeat warning metadata", ()
     scannerSymbol: "XAUUSD",
     match,
     baseSymbol: "GBPUSD",
-    baseBar: bars("T", 3)[0],
+    baseBar: bars("T", 5)[0],
   });
   assert.equal(alert.patternKind, "sw3Pure");
   assert.equal(alert.baseH1Signal, "BUY");
@@ -218,7 +218,7 @@ test("accepted pure SW3 Telegram marks /!\\ with no repeat warning metadata", ()
 });
 
 test("normal SW3 keeps the base before active Friday post-signal inversion", () => {
-  const match = findH1PatternMatches(bars("TTT"), 4).find((item) => item.slotHour === 4)!;
+  const match = findH1PatternMatches(bars("TTT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
     base: "EURUSD",
     brokerSymbol: "EURUSD",
@@ -226,7 +226,7 @@ test("normal SW3 keeps the base before active Friday post-signal inversion", () 
     scannerSymbol: "GBPUSD",
     match,
     baseSymbol: "EURUSD",
-    baseBar: bars("G", 3)[0],
+    baseBar: bars("G", 5)[0],
   });
   assert.equal(alert.patternKind, "sw3Normal");
   assert.equal(alert.baseH1Signal, "SELL");
@@ -364,7 +364,7 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
 
 test("public feed v7 carries pure cooldown trade metadata without changing transport schema", () => {
   const state = emptyCloudState();
-  const match = findH1PatternMatches(bars("GGT"), 4).find((item) => item.slotHour === 4)!;
+  const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
     base: "XAUUSD",
     brokerSymbol: "XAUUSD",
@@ -372,12 +372,13 @@ test("public feed v7 carries pure cooldown trade metadata without changing trans
     scannerSymbol: "XAUUSD",
     match,
     baseSymbol: "GBPUSD",
-    baseBar: bars("T", 3)[0],
+    baseBar: bars("T", 5)[0],
   });
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
   assert.equal(feed.signalRuleVersion, 4);
+  assert.deepEqual(feed.hours, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");
   assert.equal(row?.signal, "SELL");
