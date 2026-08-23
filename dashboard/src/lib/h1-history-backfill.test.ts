@@ -30,13 +30,13 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   assert.ok(history["2026-08-21"]);
   assert.equal(history["2026-08-22"], undefined);
 
-  const scannerBars = marketForDates("2026-08-21").AUDUSD.bars;
+  const scannerBars = marketForDates("2026-08-21").XAUUSD.bars;
   const liveMatch = findH1PatternMatches(scannerBars, 18).find((item) => item.slotHour === 4)!;
   const liveExpected = buildStoredAlert({
     base: "XAUUSD",
     brokerSymbol: "XAUUSD",
-    scannerBase: "AUDUSD",
-    scannerSymbol: "AUDUSD",
+    scannerBase: "XAUUSD",
+    scannerSymbol: "XAUUSD",
     match: liveMatch,
     baseSymbol: "GBPUSD",
     baseBar: marketForDates("2026-08-21").GBPUSD.bars.find((bar) => bar.hour === 3)!,

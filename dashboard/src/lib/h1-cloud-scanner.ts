@@ -8,13 +8,14 @@ export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v10";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
-// TEMP TEST SWITCH: keep the configured post-signal rules intact but bypass
-// calendar inversion in the active scanner path until this flag is re-enabled.
-export const H1_POST_SIGNAL_ENABLED = false;
+// Active post-signal calendar rules are intentionally limited to Thursday/Friday.
+// The configured Mon-Wed rules remain available below but are bypassed in production.
+export const H1_POST_SIGNAL_ACTIVE_WEEKDAYS = [4, 5] as const;
 
 export const H1_TARGET_BASES = ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 export const H1_ALL_BASES = ["GBPUSD", ...H1_TARGET_BASES] as const;
-export const H1_SCANNER_BASES = ["AUDUSD", "GBPUSD"] as const;
+// AUDUSD remains accepted for persisted schema-7 history written by older rule versions.
+export const H1_SCANNER_BASES = ["XAUUSD", "AUDUSD", "GBPUSD"] as const;
 export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
 export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
@@ -111,7 +112,7 @@ export function signalFromDirection(direction: H1Direction): H1Signal {
 }
 
 export function scannerBaseForTarget(base: H1TargetBase): H1ScannerBase {
-  return base === "XAUUSD" ? "AUDUSD" : "GBPUSD";
+  return base === "XAUUSD" ? "XAUUSD" : "GBPUSD";
 }
 
 export function baseSymbolForTarget(base: H1TargetBase): H1Base {
@@ -165,7 +166,10 @@ export function configuredPostSignalDecision(brokerDate: string, slotHour: numbe
 
 export function postSignalDecision(brokerDate: string, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
   const value = parseBrokerDateKeyUtc(brokerDate);
-  if (!H1_POST_SIGNAL_ENABLED) return { inverted: false, rule: "none" };
+  const weekday = value.getUTCDay();
+  if (!(H1_POST_SIGNAL_ACTIVE_WEEKDAYS as readonly number[]).includes(weekday)) {
+    return { inverted: false, rule: "none" };
+  }
   return configuredPostSignalDecisionFromDate(value, slotHour);
 }
 
