@@ -1,12 +1,10 @@
 "use client";
 
-import { ChangeEvent, DragEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useMemo, useRef, useState } from "react";
 import { TEXT } from "@/lib/factcheck/locale-copy";
 import { detectInputKind, extractHostnameLabel } from "@/lib/factcheck/input-detect";
+import { mediaClientStatus, normalizeClientImageMime } from "@/lib/factcheck/media-client";
 import { useImageOcr } from "@/hooks/useImageOcr";
-
-const MEDIA_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const MEDIA_MAX_IMAGE_BYTES = 4_000_000;
 
 export function FactCheckInput({
   text,
@@ -31,26 +29,41 @@ export function FactCheckInput({
   const [dragging, setDragging] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
 
   const urlHost = useMemo(() => extractHostnameLabel(text), [text]);
   const isUrl = detectInputKind(text) === "url";
   const busy = loading || mediaLoading || ocrLoading;
-  const mediaSupported = Boolean(
-    selectedImage
-    && MEDIA_IMAGE_TYPES.has(selectedImage.type)
-    && selectedImage.size > 0
-    && selectedImage.size <= MEDIA_MAX_IMAGE_BYTES,
-  );
+  const selectedMediaStatus = selectedImage ? mediaClientStatus(selectedImage) : "unsupported";
+  const mediaSupported = Boolean(selectedImage && selectedMediaStatus === "supported");
+
+  useEffect(() => {
+    if (!selectedImage) {
+      setPreviewUrl("");
+      return;
+    }
+    const url = URL.createObjectURL(selectedImage);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [selectedImage]);
 
   const selectFile = (file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith("image/") || file.size <= 0) {
+    const declaredImage = file.type.toLowerCase().startsWith("image/");
+    const normalizedMime = normalizeClientImageMime(file);
+    if ((!declaredImage && !normalizedMime) || file.size <= 0) {
       setSelectedImage(null);
       setImageError(t.imageUnsupportedClient);
       return;
     }
-    setImageError(null);
+
+    const status = mediaClientStatus(file);
     setSelectedImage(file);
+    setImageError(status === "too_large"
+      ? t.imageTooLargeClient
+      : status === "unsupported"
+        ? t.imageUnsupportedClient
+        : null);
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -117,10 +130,19 @@ export function FactCheckInput({
 
       {selectedImage && (
         <div className="oak-image-intent" role="group" aria-label={t.imageSelected}>
-          <div className="oak-image-intent-copy">
-            <span className="oak-eyebrow">{t.imageSelected}</span>
-            <b title={selectedImage.name}>{selectedImage.name}</b>
-            <small>{(selectedImage.size / 1024).toFixed(0)} KB · {mediaSupported ? t.imageAuthenticityHint : t.imageUnsupportedClient}</small>
+          <div className="oak-image-intent-summary">
+            {previewUrl ? <img className="oak-image-intent-preview" src={previewUrl} alt="" /> : null}
+            <div className="oak-image-intent-copy">
+              <span className="oak-eyebrow">{t.imageSelected}</span>
+              <b title={selectedImage.name}>{selectedImage.name}</b>
+              <small>
+                {(selectedImage.size / 1024).toFixed(0)} KB · {selectedMediaStatus === "too_large"
+                  ? t.imageTooLargeClient
+                  : mediaSupported
+                    ? t.imageAuthenticityHint
+                    : t.imageUnsupportedClient}
+              </small>
+            </div>
           </div>
           <div className="oak-image-intent-actions">
             <button type="button" onClick={runImageOcr} disabled={busy}>{t.imageClaims}</button>

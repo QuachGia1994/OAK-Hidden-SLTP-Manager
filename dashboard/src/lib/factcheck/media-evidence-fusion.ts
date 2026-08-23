@@ -30,8 +30,9 @@ function detectorDirection(detectors: SpecialistDetectorSummary[]): "synthetic" 
   return [...directions][0] as "synthetic" | "real";
 }
 
-function visualDirection(result: ImageAuthenticityResult): "synthetic" | "real" | "none" {
+function visualDirection(result: ImageAuthenticityResult): "synthetic" | "manipulated" | "real" | "none" {
   if (result.verdict === "likely_ai_generated") return "synthetic";
+  if (result.verdict === "likely_manipulated") return "manipulated";
   if (result.verdict === "no_material_manipulation_detected") return "real";
   return "none";
 }

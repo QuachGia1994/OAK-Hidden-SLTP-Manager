@@ -157,6 +157,8 @@
   border-radius: .8rem;
   background: color-mix(in srgb, var(--terminal-accent) 4%, var(--surface-raised));
 }
+.oak-image-intent-summary { display: grid; grid-template-columns: 4.5rem minmax(0,1fr); gap: .7rem; align-items: center; }
+.oak-image-intent-preview { width: 4.5rem; height: 4.5rem; object-fit: cover; border: 1px solid var(--panel-border); border-radius: .65rem; background: var(--surface); }
 .oak-image-intent-copy { min-width: 0; display: grid; gap: .18rem; }
 .oak-image-intent-copy b { overflow: hidden; color: var(--foreground); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
 .oak-image-intent-copy small { color: var(--muted); font-size: .58rem; line-height: 1.45; }

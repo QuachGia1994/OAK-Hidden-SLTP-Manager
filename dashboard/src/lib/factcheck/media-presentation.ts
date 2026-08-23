@@ -43,11 +43,11 @@ export function mediaSocialVerdict(verdict: ImageAuthenticityVerdict, locale: "V
 }
 
 export function buildMediaOgTitle(verdict: ImageAuthenticityVerdict, locale: "VN" | "EN"): string {
-  const feature = locale === "VN" ? "OAK Phát hiện ảnh AI" : "OAK AI Image Detection";
+  const feature = locale === "VN" ? "OAK Xác thực ảnh" : "OAK Image Authenticity";
   return `${mediaSocialVerdict(verdict, locale)} — ${feature}`;
 }
 
 export function buildMediaOgDescription(summary: string, locale: "VN" | "EN" = "EN"): string {
-  const feature = locale === "VN" ? "OAK Phát hiện ảnh AI" : "OAK AI Image Detection";
+  const feature = locale === "VN" ? "OAK Xác thực ảnh" : "OAK Image Authenticity";
   return `${feature}: ${summary.replace(/\s+/g, " ").trim().slice(0, 155)}`;
 }

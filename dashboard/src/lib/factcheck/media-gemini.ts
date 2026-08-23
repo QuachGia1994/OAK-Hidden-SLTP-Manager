@@ -222,7 +222,7 @@ export async function runGeminiMediaAuthenticity(args: {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": args.apiKey },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(45_000),
+    signal: AbortSignal.timeout(55_000),
   });
   const payload = await response.json() as GeminiMediaResponse;
   if (!response.ok) throw new GeminiMediaHttpError(response.status, payload.error?.message || `Gemini media HTTP ${response.status}`);

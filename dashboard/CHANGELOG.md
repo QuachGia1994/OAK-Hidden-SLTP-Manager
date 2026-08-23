@@ -23,6 +23,8 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Image Authenticity client handling now accepts `image/jpg`, `image/pjpeg`, and extension-only JPEG/PNG/WEBP selections while leaving server magic-byte validation authoritative; oversized and unsupported client errors are distinct, selected images render a local preview thumbnail, and Gemini media timeout is 55s within the 60s route budget.
+- Image Authenticity wording is evidence-based (`Check image authenticity` / `Xác thực ảnh`) across input, result/public views and OG metadata instead of binary `Detect AI Image`; `likely_manipulated` is now an explicit evidence-agreement direction so detector-vs-visual disagreement becomes `mixed` and downgrades to `inconclusive` without trusted provenance.
 - H1 pure cells now show an explicit `⚠ PURE` badge; stale delivered H12-H15 rows are reconciled before the delivered-slot skip so H12 pure + H15 pure is corrected to H15 `BLOCK / NOT TRADE`, while normal SW remains actionable.
 - `/accounts` now separates cTrader and MT5 into dedicated tabs; each tab shows only its provider actions/forms/accounts while keeping the same server-side account API contract.
 - H1 blocked pure slots now fill the entire matrix cell with a stronger warning background/border, making `BLOCK / NOT TRADE` visually distinct instead of tinting only the inner button/span.

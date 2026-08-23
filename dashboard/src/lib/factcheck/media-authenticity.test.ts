@@ -4,7 +4,8 @@ import test from "node:test";
 import { buildDeterministicMediaFindings, extractPrivateImageMetadata } from "./media-metadata.ts";
 import { sanitizeMediaResultForShare } from "./media-sanitize.ts";
 import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "./media-validate.ts";
-import { mediaVerdictLabel } from "./media-presentation.ts";
+import { buildMediaOgTitle, mediaVerdictLabel } from "./media-presentation.ts";
+import { MEDIA_CLIENT_MAX_IMAGE_BYTES, mediaClientStatus, normalizeClientImageMime } from "./media-client.ts";
 import { normalizeMediaAssessment } from "./media-gemini.ts";
 import { calibrateUniversalFakeDetect } from "./detector-calibration.ts";
 import { specialistDetectorAgreement, universalFakeDetectAdapter } from "./specialist-detector.ts";
@@ -171,6 +172,18 @@ test("media presentation has explicit inconclusive wording", () => {
   assert.equal(mediaVerdictLabel("likely_ai_generated", "VN"), "Có khả năng do AI tạo");
 });
 
+test("client authenticity MIME normalization accepts mobile aliases and extension-only files", () => {
+  assert.equal(normalizeClientImageMime({ name: "capture.jpg", type: "image/jpg" }), "image/jpeg");
+  assert.equal(normalizeClientImageMime({ name: "capture.jpeg", type: "image/pjpeg" }), "image/jpeg");
+  assert.equal(normalizeClientImageMime({ name: "PHOTO.JPEG", type: "" }), "image/jpeg");
+  assert.equal(normalizeClientImageMime({ name: "scan.png", type: "" }), "image/png");
+  assert.equal(normalizeClientImageMime({ name: "render.webp", type: "" }), "image/webp");
+  assert.equal(normalizeClientImageMime({ name: "renamed.jpg", type: "image/gif" }), null);
+  assert.equal(mediaClientStatus({ name: "capture.jpg", type: "", size: 1024 }), "supported");
+  assert.equal(mediaClientStatus({ name: "capture.jpg", type: "", size: MEDIA_CLIENT_MAX_IMAGE_BYTES + 1 }), "too_large");
+  assert.equal(mediaClientStatus({ name: "capture.gif", type: "image/gif", size: 1024 }), "unsupported");
+});
+
 test("media normalizer rejects unknown verdicts and weak no-signal AI claims", () => {
   const context = {
     technical: sampleMediaResult().technical,
@@ -298,6 +311,25 @@ test("fusion downgrades detector versus visual disagreement", () => {
   assert.ok(fused.confidence <= 55);
 });
 
+test("fusion treats likely_manipulated as its own visual direction", () => {
+  const base = {
+    ...sampleMediaResult(),
+    verdict: "likely_manipulated" as const,
+    confidence: 78,
+    signals: [{ source: "visual" as const, kind: "composite_boundary", label: "Composite boundary", finding: "Material compositing cues are visible.", strength: "moderate" as const }],
+  };
+  const fused = fuseMediaEvidence({
+    base,
+    provenance: base.provenance,
+    specialistDetectors: [{ detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "ok", classification: "synthetic_signal", strength: "moderate", calibrationVersion: "oak-univfd-upstream-threshold-v1" }],
+    deterministicSignals: [],
+    locale: "EN",
+  });
+  assert.equal(fused.evidenceAgreement, "mixed");
+  assert.equal(fused.verdict, "inconclusive");
+  assert.ok(fused.confidence <= 55);
+});
+
 test("public sanitizer downgrades impossible verified provenance", () => {
   const dirty = sampleMediaResult();
   dirty.verdict = "provenance_verified";
@@ -313,12 +345,40 @@ test("public sanitizer downgrades impossible verified provenance", () => {
   assert.equal(impossible.verdict, "inconclusive");
 });
 
-test("Detect AI Image is explicit in EN/VN while OCR intent remains separate", () => {
+test("Image Authenticity wording stays evidence-based while OCR intent remains separate", () => {
   const source = readFileSync(new URL("./locale-copy.ts", import.meta.url), "utf8");
-  assert.match(source, /imageAuthenticity: "Detect AI Image"/);
-  assert.match(source, /imageAuthenticity: "Phát hiện ảnh AI"/);
+  const resultSource = readFileSync(new URL("../../components/factcheck/FactCheckMediaResult.tsx", import.meta.url), "utf8");
+  const publicSource = readFileSync(new URL("../../components/factcheck/FactCheckMediaPublicView.tsx", import.meta.url), "utf8");
+  assert.match(source, /imageAuthenticity: "Check image authenticity"/);
+  assert.match(source, /imageAuthenticity: "Xác thực ảnh"/);
+  assert.match(source, /imageTooLargeClient:/);
+  assert.match(source, /imageUnsupportedClient:/);
   assert.match(source, /imageClaims: "Check claims in image"/);
   assert.match(source, /imageClaims: "Kiểm tra nội dung trong ảnh"/);
+  assert.doesNotMatch(source, /Detect AI Image/);
+  assert.doesNotMatch(resultSource, /Detect AI Image|AI IMAGE DETECTION/);
+  assert.doesNotMatch(publicSource, /AI IMAGE DETECTION|PHÁT HIỆN ẢNH AI/);
+  assert.equal(buildMediaOgTitle("inconclusive", "EN"), "INCONCLUSIVE — OAK Image Authenticity");
+  assert.equal(buildMediaOgTitle("inconclusive", "VN"), "CHƯA ĐỦ BẰNG CHỨNG — OAK Xác thực ảnh");
+});
+
+test("selected image UX renders a blob preview and distinguishes client failure reasons", () => {
+  const component = readFileSync(new URL("../../components/factcheck/FactCheckInput.tsx", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../../app/factcheck-share.css", import.meta.url), "utf8");
+  assert.match(component, /URL\.createObjectURL\(selectedImage\)/);
+  assert.match(component, /URL\.revokeObjectURL\(url\)/);
+  assert.match(component, /className="oak-image-intent-preview"/);
+  assert.match(component, /selectedMediaStatus === "too_large"/);
+  assert.match(component, /t\.imageTooLargeClient/);
+  assert.match(component, /t\.imageUnsupportedClient/);
+  assert.match(css, /\.oak-image-intent-preview\s*\{/);
+});
+
+test("Gemini media timeout keeps five seconds of route budget", () => {
+  const gemini = readFileSync(new URL("./media-gemini.ts", import.meta.url), "utf8");
+  const route = readFileSync(new URL("../../app/api/factcheck/media/route.ts", import.meta.url), "utf8");
+  assert.match(gemini, /AbortSignal\.timeout\(55_000\)/);
+  assert.match(route, /export const maxDuration = 60;/);
 });
 
 test("share heading and public notice use structural layout instead of whitespace copy hacks", () => {

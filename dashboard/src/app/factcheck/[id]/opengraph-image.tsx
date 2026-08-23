@@ -46,7 +46,7 @@ export default async function OgImage({ params }: Props) {
       color = MEDIA_COLOR[result.verdict] || MEDIA_COLOR.inconclusive;
       badge = mediaSocialVerdict(result.verdict, locale);
       headline = truncateClaim(result.summary || "Image authenticity assessment", 110);
-      product = "OAK GATEKEEPER · IMAGE AUTHENTICITY";
+      product = locale === "VN" ? "OAK GATEKEEPER · XÁC THỰC ẢNH" : "OAK GATEKEEPER · IMAGE AUTHENTICITY";
     } else if (lookup.status === "ok") {
       const result = lookup.record.result as FactCheckResult;
       locale = result.locale;
