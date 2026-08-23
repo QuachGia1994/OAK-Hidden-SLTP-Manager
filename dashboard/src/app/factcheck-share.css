@@ -162,6 +162,12 @@
 .oak-image-intent-copy { min-width: 0; display: grid; gap: .18rem; }
 .oak-image-intent-copy b { overflow: hidden; color: var(--foreground); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
 .oak-image-intent-copy small { color: var(--muted); font-size: .58rem; line-height: 1.45; }
+.oak-image-selection-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .25rem; }
+.oak-image-selection-actions button { padding: .2rem .4rem; border: 0; background: transparent; color: var(--terminal-accent); font: 750 .55rem "Cascadia Mono", Consolas, monospace; cursor: pointer; }
+.oak-image-selection-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.oak-image-selection-actions button:focus-visible { outline: 2px solid var(--terminal-accent); outline-offset: 2px; }
+.oak-image-auth-disclosure, .oak-image-analysis-status { margin: 0; color: var(--muted); font-size: .6rem; line-height: 1.5; }
+.oak-image-analysis-status { color: var(--terminal-accent); }
 .oak-image-intent-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .5rem; }
 .oak-image-intent-actions button {
   min-height: 2.6rem;
@@ -179,19 +185,40 @@
   background: color-mix(in srgb, var(--terminal-accent) 7%, var(--surface));
 }
 .oak-image-intent-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.oak-image-intent-actions button:focus-visible { outline: 2px solid var(--terminal-accent); outline-offset: 2px; }
 
 .oak-media-results { --oak-media-color: var(--muted); }
-.oak-media-verdict[data-media-verdict="provenance_verified"] { --oak-verdict-color: var(--oak-signal-buy); }
-.oak-media-verdict[data-media-verdict="likely_ai_generated"] { --oak-verdict-color: #9e77ed; }
-.oak-media-verdict[data-media-verdict="likely_manipulated"] { --oak-verdict-color: var(--terminal-warning); }
-.oak-media-verdict[data-media-verdict="no_material_manipulation_detected"] { --oak-verdict-color: var(--terminal-accent); }
-.oak-media-verdict[data-media-verdict="inconclusive"] { --oak-verdict-color: var(--muted); }
-.oak-media-verdict-badge[data-media-verdict="provenance_verified"] { color: var(--oak-signal-buy); }
-.oak-media-verdict-badge[data-media-verdict="likely_ai_generated"] { color: #b692f6; }
-.oak-media-verdict-badge[data-media-verdict="likely_manipulated"] { color: var(--terminal-warning); }
-.oak-media-verdict-badge[data-media-verdict="no_material_manipulation_detected"] { color: var(--terminal-accent); }
-.oak-media-verdict-badge[data-media-verdict="inconclusive"] { color: var(--muted); }
+.oak-media-evidence-report { display: grid; gap: .75rem; }
+.oak-media-verdict[data-media-tone="verified"] { --oak-verdict-color: var(--oak-signal-buy); }
+.oak-media-verdict[data-media-tone="attention"] { --oak-verdict-color: var(--terminal-accent); }
+.oak-media-verdict[data-media-tone="warning"] { --oak-verdict-color: var(--terminal-warning); }
+.oak-media-verdict[data-media-tone="neutral"] { --oak-verdict-color: var(--muted); }
+.oak-media-verdict-badge[data-media-tone="verified"] { color: var(--oak-signal-buy); }
+.oak-media-verdict-badge[data-media-tone="attention"] { color: var(--terminal-accent); }
+.oak-media-verdict-badge[data-media-tone="warning"] { color: var(--terminal-warning); }
+.oak-media-verdict-badge[data-media-tone="neutral"] { color: var(--muted); }
 .oak-media-confidence-note { margin-top: .55rem; color: var(--muted); font-size: .62rem; line-height: 1.5; }
+.oak-media-assessment-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .55rem; padding: .75rem; }
+.oak-media-assessment-card { display: grid; gap: .35rem; min-width: 0; padding: .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }
+.oak-media-assessment-card small { color: var(--muted); font: 750 .5rem "Cascadia Mono", Consolas, monospace; letter-spacing: .06em; text-transform: uppercase; }
+.oak-media-assessment-card b { font-size: .72rem; line-height: 1.45; }
+.oak-media-assessment-card span { color: var(--muted); font-size: .58rem; }
+.oak-media-assessment-card[data-media-tone="verified"] { border-color: color-mix(in srgb, var(--oak-signal-buy) 38%, var(--panel-border)); }
+.oak-media-assessment-card[data-media-tone="attention"] { border-color: color-mix(in srgb, var(--terminal-accent) 38%, var(--panel-border)); }
+.oak-media-assessment-card[data-media-tone="warning"] { border-color: color-mix(in srgb, var(--terminal-warning) 44%, var(--panel-border)); }
+.oak-media-status-panel { display: grid; gap: .45rem; padding: .8rem .95rem; border: 1px solid color-mix(in srgb, var(--terminal-warning) 32%, var(--panel-border)); border-radius: .85rem; background: color-mix(in srgb, var(--terminal-warning) 4%, var(--surface)); }
+.oak-media-status-panel > div { display: flex; justify-content: space-between; gap: .75rem; }
+.oak-media-status-panel small, .oak-media-status-panel b { font: 750 .58rem "Cascadia Mono", Consolas, monospace; }
+.oak-media-status-panel small { color: var(--muted); }
+.oak-media-status-panel p, .oak-media-status-panel ul { margin: 0; color: var(--muted); font-size: .65rem; line-height: 1.5; }
+.oak-media-status-panel ul { padding-left: 1rem; }
+.oak-media-next-action { margin-top: .65rem; padding-top: .65rem; border-top: 1px solid var(--panel-border); }
+.oak-media-next-action b { color: var(--foreground); font-size: .68rem; }
+.oak-media-next-action p { margin: .25rem 0 0; }
+.oak-media-advanced { border: 1px solid var(--panel-border); border-radius: .85rem; background: var(--surface); overflow: hidden; }
+.oak-media-advanced > summary { padding: .8rem .95rem; color: var(--foreground); font: 800 .62rem "Cascadia Mono", Consolas, monospace; cursor: pointer; }
+.oak-media-advanced > summary:focus-visible { outline: 2px solid var(--terminal-accent); outline-offset: -3px; }
+.oak-media-advanced-body { display: grid; gap: .65rem; padding: 0 .75rem .75rem; }
 .oak-media-section {
   overflow: hidden;
   border: 1px solid var(--panel-border);
@@ -200,7 +227,6 @@
 }
 .oak-media-provenance { display: grid; gap: .35rem; padding: .85rem .95rem; }
 .oak-media-provenance b { color: var(--terminal-accent); font: 850 .62rem "Cascadia Mono", Consolas, monospace; letter-spacing: .05em; }
-.oak-media-provenance[data-status="present_unverified"] b { color: var(--terminal-warning); }
 .oak-media-provenance p { color: var(--muted); font-size: .68rem; line-height: 1.55; }
 .oak-media-signals { display: grid; gap: .55rem; padding: .75rem; }
 .oak-media-signals article { padding: .75rem .8rem; border: 1px solid var(--panel-border); border-radius: .72rem; background: var(--surface-raised); }
@@ -225,5 +251,7 @@
     width: 100%;
   }
   .oak-image-intent-actions,
+  .oak-media-assessment-grid,
   .oak-media-technical { grid-template-columns: 1fr; }
+  .oak-media-status-panel > div { display: grid; gap: .25rem; }
 }

@@ -78,12 +78,15 @@ export default function FactCheckPage() {
       };
       if (!res.ok) throw new Error(payload.error || payload.code || `HTTP ${res.status}`);
       if (!payload.result || payload.result.kind !== "media_authenticity") {
-        throw new Error("Gemini returned no image-authenticity result");
+        throw new Error("No image-authenticity result was returned");
       }
       setMediaResult(payload.result);
       setShareId(typeof payload.shareId === "string" ? payload.shareId : null);
       trackFactCheckEvent("factcheck_ai_image_completed", {
-        verdict: payload.result.verdict,
+        origin: payload.result.assessments.origin.status,
+        generation: payload.result.assessments.generation.status,
+        manipulation: payload.result.assessments.manipulation.status,
+        completeness: payload.result.assessments.completeness,
         shareId: payload.shareId || undefined,
       });
     } catch (err) {

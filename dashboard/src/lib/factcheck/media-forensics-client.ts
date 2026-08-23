@@ -8,6 +8,7 @@ import {
 import type {
   ImageAuthenticitySignal,
   ImageProvenanceSummary,
+  MediaBranchResult,
   SpecialistDetectorSummary,
 } from "./media-types";
 
@@ -133,19 +134,25 @@ export async function collectMediaForensics(args: {
   mime: string;
   markerPresent: boolean;
   locale: "VN" | "EN";
-}): Promise<MediaForensicsEvidence> {
+}): Promise<MediaBranchResult<MediaForensicsEvidence>> {
   const baseUrl = (process.env.FACTCHECK_FORENSICS_URL || "").replace(/\/$/, "");
   const token = process.env.FACTCHECK_FORENSICS_TOKEN || "";
   if (!baseUrl || !token) {
     const detectors = normalizeSpecialistDetectorResults(undefined, args.locale);
     return {
-      provenance: localFallbackProvenance(args.markerPresent, args.locale, "unavailable"),
-      specialistDetectors: detectors.map((detector) => ({
-        ...detector,
-        note: args.locale === "VN" ? "Runtime detector chưa được kích hoạt." : "The specialist detector runtime is not activated.",
-      })),
-      signals: [],
-      runtimeStatus: "unavailable",
+      ok: false,
+      status: "unavailable",
+      code: "FORENSICS_NOT_CONFIGURED",
+      retryable: true,
+      data: {
+        provenance: localFallbackProvenance(args.markerPresent, args.locale, "unavailable"),
+        specialistDetectors: detectors.map((detector) => ({
+          ...detector,
+          note: args.locale === "VN" ? "Runtime detector chưa được kích hoạt." : "The specialist detector runtime is not activated.",
+        })),
+        signals: [],
+        runtimeStatus: "unavailable",
+      },
     };
   }
 
@@ -170,11 +177,15 @@ export async function collectMediaForensics(args: {
       return signal ? [signal] : [];
     });
     return {
-      provenance: normalizeProvenance(payload.c2pa, args.markerPresent, args.locale),
-      specialistDetectors: detectors,
-      signals,
-      runtimeStatus: "active",
-      latencyMs: Math.round(performance.now() - started),
+      ok: true,
+      status: "available",
+      data: {
+        provenance: normalizeProvenance(payload.c2pa, args.markerPresent, args.locale),
+        specialistDetectors: detectors,
+        signals,
+        runtimeStatus: "active",
+        latencyMs: Math.round(performance.now() - started),
+      },
     };
   } catch (error) {
     const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
@@ -183,11 +194,17 @@ export async function collectMediaForensics(args: {
       : (timeout ? "The detector/forensics service exceeded its 6-second budget." : "The detector/forensics service failed for this analysis.");
     const detectors = normalizeSpecialistDetectorResults(undefined, args.locale);
     return {
-      provenance: localFallbackProvenance(args.markerPresent, args.locale, "failed"),
-      specialistDetectors: detectors.map((detector) => ({ ...detector, status: "failed", note })),
-      signals: [],
-      runtimeStatus: "failed",
-      latencyMs: Math.round(performance.now() - started),
+      ok: false,
+      status: "failed",
+      code: timeout ? "FORENSICS_TIMEOUT" : "FORENSICS_FAILED",
+      retryable: true,
+      data: {
+        provenance: localFallbackProvenance(args.markerPresent, args.locale, "failed"),
+        specialistDetectors: detectors.map((detector) => ({ ...detector, status: "failed", note })),
+        signals: [],
+        runtimeStatus: "failed",
+        latencyMs: Math.round(performance.now() - started),
+      },
     };
   }
 }

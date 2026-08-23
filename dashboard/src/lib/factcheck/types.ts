@@ -52,21 +52,23 @@ export interface FactCheckResult {
   sourceDocument?: FactCheckSourceDocument;
 }
 
-/** Schema 3 adds a discriminated media-authenticity result while keeping legacy claim shares readable. */
-export const SHARED_FACTCHECK_SCHEMA = 3 as const;
+/** Schema 4 stores orthogonal media-authenticity assessments while keeping legacy claim and media shares readable. */
+export const SHARED_FACTCHECK_SCHEMA = 4 as const;
 
 export type SharedResultKind = "claim" | "media_authenticity";
 export type SharedFactCheckResult = FactCheckResult | ImageAuthenticityResult;
 
-/** Persisted public share record — normalized result only, never raw uploaded image bytes. */
-export interface SharedFactCheck {
+interface SharedFactCheckBase {
   schemaVersion: typeof SHARED_FACTCHECK_SCHEMA;
   id: string;
-  resultKind: SharedResultKind;
-  result: SharedFactCheckResult;
   createdAt: string;
   expiresAt: string;
 }
+
+/** Persisted public share record — normalized result only, never raw uploaded image bytes. */
+export type SharedFactCheck =
+  | (SharedFactCheckBase & { resultKind: "claim"; result: FactCheckResult })
+  | (SharedFactCheckBase & { resultKind: "media_authenticity"; result: ImageAuthenticityResult });
 
 export type ShareLookupStatus = "ok" | "not_found" | "expired" | "malformed";
 

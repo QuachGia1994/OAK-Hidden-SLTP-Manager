@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { getSharedFactCheck } from "@/lib/factcheck/share-store";
 import { isValidShareId } from "@/lib/factcheck/share-id";
 import { socialVerdict } from "@/lib/factcheck/presentation";
-import { mediaSocialVerdict } from "@/lib/factcheck/media-presentation";
+import { buildMediaPresentation } from "@/lib/factcheck/media-presentation";
 import { truncateClaim } from "@/lib/factcheck/normalize";
 import type { FactCheckResult } from "@/lib/factcheck/types";
 import type { ImageAuthenticityResult } from "@/lib/factcheck/media-types";
@@ -17,14 +17,6 @@ const CLAIM_COLOR: Record<string, string> = {
   contradicted: "#FF5C5C",
   mixed: "#F0B429",
   insufficient: "#9AA4B2",
-};
-
-const MEDIA_COLOR: Record<string, string> = {
-  provenance_verified: "#3DDC97",
-  likely_ai_generated: "#B692F6",
-  likely_manipulated: "#F0B429",
-  no_material_manipulation_detected: "#69B1FF",
-  inconclusive: "#9AA4B2",
 };
 
 export default async function OgImage({ params }: Props) {
@@ -43,9 +35,10 @@ export default async function OgImage({ params }: Props) {
       const result = lookup.record.result as ImageAuthenticityResult;
       locale = result.locale;
       checked = result.checkedAt?.slice(0, 10) || "";
-      color = MEDIA_COLOR[result.verdict] || MEDIA_COLOR.inconclusive;
-      badge = mediaSocialVerdict(result.verdict, locale);
-      headline = truncateClaim(result.summary || "Image authenticity assessment", 110);
+      const presentation = buildMediaPresentation(result, locale);
+      color = CLAIM_COLOR[presentation.ogTone] || CLAIM_COLOR.insufficient;
+      badge = presentation.badge;
+      headline = truncateClaim(presentation.headline, 110);
       product = locale === "VN" ? "OAK GATEKEEPER · XÁC THỰC ẢNH" : "OAK GATEKEEPER · IMAGE AUTHENTICITY";
     } else if (lookup.status === "ok") {
       const result = lookup.record.result as FactCheckResult;

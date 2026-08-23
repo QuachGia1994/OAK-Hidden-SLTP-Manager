@@ -32,8 +32,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   if (lookup.record.resultKind === "media_authenticity") {
     const result = lookup.record.result as ImageAuthenticityResult;
-    const title = buildMediaOgTitle(result.verdict, result.locale);
-    const description = buildMediaOgDescription(result.summary, result.locale);
+    const title = buildMediaOgTitle(result, result.locale);
+    const description = buildMediaOgDescription(result, result.locale);
     return {
       title: `${title} | OAK Gatekeeper`,
       description,
@@ -47,7 +47,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
         locale: result.locale === "VN" ? "vi_VN" : "en_GB",
       },
       twitter: { card: "summary_large_image", title, description },
-      robots: { index: true, follow: true },
+      robots: { index: false, follow: false },
     };
   }
 

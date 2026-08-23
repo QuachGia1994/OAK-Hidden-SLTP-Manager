@@ -1,13 +1,38 @@
-export type ImageAuthenticityVerdict =
-  | "provenance_verified"
-  | "likely_ai_generated"
-  | "likely_manipulated"
-  | "no_material_manipulation_detected"
-  | "inconclusive";
-
 export type ImageAuthenticitySignalSource = "metadata" | "provenance" | "visual" | "container" | "specialist_detector";
 export type ImageAuthenticitySignalStrength = "weak" | "moderate" | "strong";
-export type EvidenceAgreement = "aligned" | "mixed" | "insufficient";
+
+export type ImageOriginAssessmentStatus = "verified_algorithmic" | "verified_capture" | "verified_other" | "unverified" | "invalid" | "unavailable";
+export type ImageGenerationAssessmentStatus = "likely_ai_generated" | "no_reliable_ai_signal" | "inconclusive";
+export type ImageManipulationAssessmentStatus = "likely_manipulated" | "no_material_edit_detected" | "inconclusive";
+export type ImageAnalysisCompleteness = "complete" | "partial" | "unavailable";
+export type ImageEvidenceSourceStatus = "available" | "unavailable" | "failed";
+
+export interface ImageOriginAssessment {
+  status: ImageOriginAssessmentStatus;
+  strength: ImageAuthenticitySignalStrength;
+}
+
+export interface ImageGenerationAssessment {
+  status: ImageGenerationAssessmentStatus;
+  strength: ImageAuthenticitySignalStrength;
+}
+
+export interface ImageManipulationAssessment {
+  status: ImageManipulationAssessmentStatus;
+  strength: ImageAuthenticitySignalStrength;
+}
+
+export interface ImageAuthenticityAssessments {
+  origin: ImageOriginAssessment;
+  generation: ImageGenerationAssessment;
+  manipulation: ImageManipulationAssessment;
+  completeness: ImageAnalysisCompleteness;
+}
+
+export interface ImageEvidenceSources {
+  gemini: ImageEvidenceSourceStatus;
+  forensics: ImageEvidenceSourceStatus;
+}
 
 export interface ImageAuthenticitySignal {
   source: ImageAuthenticitySignalSource;
@@ -51,19 +76,27 @@ export interface SpecialistDetectorSummary {
   note?: string;
 }
 
+export interface ImageModelAssessment {
+  generation: ImageGenerationAssessment;
+  manipulation: ImageManipulationAssessment;
+  signals: ImageAuthenticitySignal[];
+  limitations: string[];
+}
+
+export type MediaBranchResult<T> =
+  | { ok: true; status: "available"; data: T }
+  | { ok: false; status: "unavailable" | "failed"; code: string; retryable: boolean; data?: T };
+
 export interface ImageAuthenticityResult {
   kind: "media_authenticity";
-  verdict: ImageAuthenticityVerdict;
-  confidence: number;
-  summary: string;
+  assessments: ImageAuthenticityAssessments;
+  evidenceSources: ImageEvidenceSources;
   signals: ImageAuthenticitySignal[];
   limitations: string[];
   technical: ImagePublicTechnicalFacts;
   provenance: ImageProvenanceSummary;
   specialistDetectors: SpecialistDetectorSummary[];
-  evidenceAgreement: EvidenceAgreement;
   model: string;
-  provider: "gemini";
   checkedAt: string;
   locale: "VN" | "EN";
 }

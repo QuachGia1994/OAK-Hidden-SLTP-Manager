@@ -3,10 +3,9 @@ import { requireBrowserOrApiAuth } from "@/lib/redis-core";
 import { enforceServerRateLimit, readPositiveLimit } from "@/lib/server-rate-limit";
 import { createSharedMediaResult, publicSharePath } from "@/lib/factcheck/share-store";
 import { buildDeterministicMediaFindings, extractPrivateImageMetadata } from "@/lib/factcheck/media-metadata";
-import { FACTCHECK_MEDIA_MODEL, GeminiMediaHttpError, runGeminiMediaAuthenticity } from "@/lib/factcheck/media-gemini";
+import { persistSuccessfulMediaAnalysis, runMediaAnalysis } from "@/lib/factcheck/media-analysis";
+import { FACTCHECK_MEDIA_MODEL, runGeminiMediaAuthenticity } from "@/lib/factcheck/media-gemini";
 import { collectMediaForensics } from "@/lib/factcheck/media-forensics-client";
-import { fuseMediaEvidence } from "@/lib/factcheck/media-evidence-fusion";
-import { specialistDetectorAgreement } from "@/lib/factcheck/specialist-detector";
 import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "@/lib/factcheck/media-validate";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +26,12 @@ const MEDIA_ERROR_MESSAGES: Record<string, { EN: string; VN: string }> = {
   MEDIA_MODEL_CONFIGURATION_ERROR: { EN: "The media analysis model is not configured correctly.", VN: "Model phân tích ảnh chưa được cấu hình đúng." },
   MEDIA_MODEL_TIMEOUT: { EN: "Image analysis timed out. Try again later.", VN: "Phân tích ảnh đã hết thời gian. Hãy thử lại sau." },
   MEDIA_MODEL_FAILED: { EN: "Image authenticity analysis failed.", VN: "Phân tích tính xác thực của ảnh thất bại." },
+  MEDIA_ANALYSIS_FAILED: { EN: "Image evidence analysis failed. Try again later.", VN: "Phân tích bằng chứng ảnh thất bại. Hãy thử lại sau." },
 };
 
-function mediaFailure(code: string, locale: "VN" | "EN", status: number): NextResponse {
-  const messages = MEDIA_ERROR_MESSAGES[code] || MEDIA_ERROR_MESSAGES.MEDIA_MODEL_FAILED;
-  return NextResponse.json({ ok: false, code, error: messages[locale] }, { status });
+function mediaFailure(code: string, locale: "VN" | "EN", status: number, retryable = false): NextResponse {
+  const messages = MEDIA_ERROR_MESSAGES[code] || MEDIA_ERROR_MESSAGES.MEDIA_ANALYSIS_FAILED;
+  return NextResponse.json({ ok: false, code, error: messages[locale], retryable }, { status });
 }
 
 async function probeForensicsRuntime(): Promise<{
@@ -94,8 +94,6 @@ export async function POST(request: Request) {
   if (denied) return denied;
 
   const apiKey = process.env.GEMINI_API_KEY || "";
-  if (!apiKey) return mediaFailure("MEDIA_MODEL_CONFIGURATION_ERROR", "EN", 503);
-
   let locale: "VN" | "EN" = "VN";
   try {
     const limited = await enforceServerRateLimit(request, RATE_LIMIT_POLICY);
@@ -120,63 +118,49 @@ export async function POST(request: Request) {
     const validated = validateImageBuffer(buffer);
     const privateMetadata = extractPrivateImageMetadata(buffer);
     const findings = buildDeterministicMediaFindings(validated.technical, privateMetadata, locale);
-    const forensics = await collectMediaForensics({
-      buffer: validated.buffer,
-      mime: validated.technical.mime,
-      markerPresent: privateMetadata.c2paMarkerPresent,
-      locale,
-    });
-    const deterministicSignals = [
-      ...findings.signals.filter((signal) => signal.source !== "provenance"),
-      ...forensics.signals,
-    ];
-
-    const base = await runGeminiMediaAuthenticity({
-      buffer: validated.buffer,
-      mime: validated.technical.mime,
+    const geminiSignals = findings.signals.filter((signal) => signal.source !== "provenance");
+    const analysis = await runMediaAnalysis({
+      gemini: () => runGeminiMediaAuthenticity({
+        buffer: validated.buffer,
+        mime: validated.technical.mime,
+        technical: findings.technical,
+        deterministicSignals: geminiSignals,
+        privatePromptMetadata: findings.privatePromptMetadata,
+        locale,
+        apiKey,
+      }),
+      forensics: () => collectMediaForensics({
+        buffer: validated.buffer,
+        mime: validated.technical.mime,
+        markerPresent: privateMetadata.c2paMarkerPresent,
+        locale,
+      }),
       technical: findings.technical,
-      provenance: forensics.provenance,
-      deterministicSignals,
-      privatePromptMetadata: findings.privatePromptMetadata,
-      specialistDetectorEvidence: forensics.specialistDetectors,
-      evidenceAgreementContext: {
-        runtimeStatus: forensics.runtimeStatus,
-        detectorAgreement: specialistDetectorAgreement(forensics.specialistDetectors),
-        forensicsLatencyMs: forensics.latencyMs,
-      },
-      locale,
-      apiKey,
-    });
-    const result = fuseMediaEvidence({
-      base,
-      provenance: forensics.provenance,
-      specialistDetectors: forensics.specialistDetectors,
-      deterministicSignals,
+      localProvenance: findings.provenance,
+      deterministicSignals: findings.signals,
+      model: FACTCHECK_MEDIA_MODEL,
       locale,
     });
-
-    let shareId: string | null = null;
-    let sharePath: string | null = null;
+    let shared: Awaited<ReturnType<typeof createSharedMediaResult>> | null = null;
     try {
-      const shared = await createSharedMediaResult(result);
-      shareId = shared.id;
-      sharePath = publicSharePath(shared.id);
+      shared = await persistSuccessfulMediaAnalysis(analysis, createSharedMediaResult);
     } catch (error) {
-      console.error("FactCheck media share persist failed:", error instanceof Error ? error.message : String(error));
+      console.error("[FACTCHECK MEDIA SHARE]", { status: "failed", code: "SHARE_PERSIST_FAILED", errorClass: error instanceof Error ? error.name : "UnknownError" });
     }
+
+    if (!analysis.ok) {
+      return NextResponse.json({ ok: false, code: analysis.code, error: analysis.error, retryable: analysis.retryable }, { status: analysis.status });
+    }
+    const result = analysis.result;
+    const shareId = shared?.id || null;
+    const sharePath = shared ? publicSharePath(shared.id) : null;
 
     return NextResponse.json({ ok: true, result, shareId, sharePath });
   } catch (error) {
     if (error instanceof MediaValidationError) {
       return mediaFailure(error.code, locale, error.code === "IMAGE_TOO_LARGE" ? 413 : 400);
     }
-    if (error instanceof GeminiMediaHttpError) {
-      if (error.status === 429) return mediaFailure("MEDIA_MODEL_FAILED", locale, 429);
-      if ([400, 401, 403, 404].includes(error.status)) return mediaFailure("MEDIA_MODEL_CONFIGURATION_ERROR", locale, 503);
-      return mediaFailure("MEDIA_MODEL_FAILED", locale, 502);
-    }
-    const timeout = error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
-    console.error("FactCheck media failed:", error instanceof Error ? error.message : String(error));
-    return mediaFailure(timeout ? "MEDIA_MODEL_TIMEOUT" : "MEDIA_MODEL_FAILED", locale, 502);
+    console.error("[FACTCHECK MEDIA ROUTE]", { status: "failed", code: "MEDIA_ANALYSIS_FAILED", errorClass: error instanceof Error ? error.name : "UnknownError" });
+    return mediaFailure("MEDIA_ANALYSIS_FAILED", locale, 502, true);
   }
 }

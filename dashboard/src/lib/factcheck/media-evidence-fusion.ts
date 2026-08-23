@@ -1,148 +1,156 @@
+import { deriveOriginAssessment } from "./media-provenance.ts";
 import type {
-  EvidenceAgreement,
+  ImageAnalysisCompleteness,
   ImageAuthenticityResult,
   ImageAuthenticitySignal,
+  ImageAuthenticitySignalStrength,
+  ImageEvidenceSources,
+  ImageGenerationAssessment,
+  ImageModelAssessment,
+  ImageManipulationAssessment,
   ImageProvenanceSummary,
+  ImagePublicTechnicalFacts,
   SpecialistDetectorSummary,
-} from "./media-types";
+} from "./media-types.ts";
 
-const ALGORITHMIC_MEDIA = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
-const DIGITAL_CAPTURE = "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture";
+const STRENGTH_RANK: Record<ImageAuthenticitySignalStrength, number> = { weak: 0, moderate: 1, strong: 2 };
 
-function isTrustedVerified(provenance: ImageProvenanceSummary): boolean {
-  return provenance.status === "verified" && provenance.trustChain === "trusted";
+function stronger(a: ImageAuthenticitySignalStrength, b: ImageAuthenticitySignalStrength): ImageAuthenticitySignalStrength {
+  return STRENGTH_RANK[a] >= STRENGTH_RANK[b] ? a : b;
 }
 
-function provenanceDirection(provenance: ImageProvenanceSummary): "synthetic" | "real" | "none" {
-  if (!isTrustedVerified(provenance)) return "none";
-  const sourceTypes = provenance.digitalSourceTypes || [];
-  if (sourceTypes.some((value) => value === ALGORITHMIC_MEDIA || value.endsWith("/trainedAlgorithmicMedia"))) return "synthetic";
-  if (sourceTypes.some((value) => value === DIGITAL_CAPTURE || value.endsWith("/digitalCapture"))) return "real";
-  return "none";
+function detectorGenerationEvidence(detectors: SpecialistDetectorSummary[]): {
+  direction: "synthetic" | "real" | "mixed" | "none";
+  strength: ImageAuthenticitySignalStrength;
+} {
+  const usable = detectors.filter((item) => item.status === "ok" && item.classification !== "uncertain");
+  if (!usable.length) return { direction: "none", strength: "weak" };
+  const directions = new Set(usable.map((item) => item.classification === "synthetic_signal" ? "synthetic" : "real"));
+  const strength = usable.reduce<ImageAuthenticitySignalStrength>((current, item) => stronger(current, item.strength), "weak");
+  return { direction: directions.size > 1 ? "mixed" : [...directions][0] as "synthetic" | "real", strength };
 }
 
-function detectorDirection(detectors: SpecialistDetectorSummary[]): "synthetic" | "real" | "none" | "mixed" {
-  const directions = new Set(detectors
-    .filter((item) => item.status === "ok" && item.classification !== "uncertain")
-    .map((item) => item.classification === "synthetic_signal" ? "synthetic" : "real"));
-  if (directions.size === 0) return "none";
-  if (directions.size > 1) return "mixed";
-  return [...directions][0] as "synthetic" | "real";
-}
+function fuseGeneration(model: ImageModelAssessment | null, detectors: SpecialistDetectorSummary[], provenance: ImageProvenanceSummary): ImageGenerationAssessment {
+  const origin = deriveOriginAssessment(provenance);
+  if (origin.status === "verified_algorithmic") return { status: "likely_ai_generated", strength: "strong" };
 
-function visualDirection(result: ImageAuthenticityResult): "synthetic" | "manipulated" | "real" | "none" {
-  if (result.verdict === "likely_ai_generated") return "synthetic";
-  if (result.verdict === "likely_manipulated") return "manipulated";
-  if (result.verdict === "no_material_manipulation_detected") return "real";
-  return "none";
-}
+  const detector = detectorGenerationEvidence(detectors);
+  if (!model) return { status: "inconclusive", strength: detector.strength };
+  if (detector.direction === "mixed") return { status: "inconclusive", strength: stronger(model.generation.strength, detector.strength) };
 
-export function evidenceAgreement(
-  result: ImageAuthenticityResult,
-  detectors: SpecialistDetectorSummary[],
-  provenance?: ImageProvenanceSummary,
-): EvidenceAgreement {
-  const detector = detectorDirection(detectors);
-  const visual = visualDirection(result);
-  const provenanceSignal = provenance ? provenanceDirection(provenance) : "none";
-  const directions = [detector, visual, provenanceSignal].filter((value) => value !== "none");
-  if (detector === "mixed") return "mixed";
-  if (directions.length < 2) return "insufficient";
-  return new Set(directions).size === 1 ? "aligned" : "mixed";
-}
-
-function verifiedSummary(provenance: ImageProvenanceSummary, locale: "VN" | "EN"): string {
-  const direction = provenanceDirection(provenance);
-  if (locale === "VN") {
-    if (direction === "synthetic") return "C2PA provenance đã được xác minh bằng trust chain và khai báo nguồn kỹ thuật số là trained algorithmic media. Detector/nhận định thị giác không được phép ghi đè provenance này.";
-    if (direction === "real") return "C2PA provenance đã được xác minh bằng trust chain và khai báo nguồn kỹ thuật số là digital capture. Detector/nhận định thị giác không được phép ghi đè provenance này.";
-    return "C2PA provenance đã được xác minh bằng trust chain. Kết quả này xác minh provenance đã ký; nó không tự chứng minh mọi nội dung trong ảnh là đúng sự thật.";
+  if (model.generation.status === "likely_ai_generated") {
+    if (detector.direction !== "synthetic") {
+      return { status: "inconclusive", strength: stronger(model.generation.strength, detector.strength) };
+    }
+    return { status: "likely_ai_generated", strength: stronger(model.generation.strength, detector.strength) };
   }
-  if (direction === "synthetic") return "C2PA provenance is cryptographically verified against the configured trust chain and declares trained algorithmic media. Detector and visual guesses cannot override that provenance.";
-  if (direction === "real") return "C2PA provenance is cryptographically verified against the configured trust chain and declares digital capture. Detector and visual guesses cannot override that provenance.";
-  return "C2PA provenance is cryptographically verified against the configured trust chain. This verifies signed provenance; it does not by itself prove every depicted claim is true.";
+
+  if (model.generation.status === "no_reliable_ai_signal") {
+    if (detector.direction === "synthetic") {
+      return { status: "inconclusive", strength: stronger(model.generation.strength, detector.strength) };
+    }
+    return { status: "no_reliable_ai_signal", strength: stronger(model.generation.strength, detector.strength) };
+  }
+
+  return { status: "inconclusive", strength: stronger(model.generation.strength, detector.strength) };
+}
+
+function fuseManipulation(model: ImageModelAssessment | null): ImageManipulationAssessment {
+  if (!model) return { status: "inconclusive", strength: "weak" };
+  if (model.manipulation.status === "likely_manipulated" && model.manipulation.strength === "weak") {
+    return { status: "inconclusive", strength: "weak" };
+  }
+  return model.manipulation;
+}
+
+function completenessFromSources(sources: ImageEvidenceSources): ImageAnalysisCompleteness {
+  const available = Number(sources.gemini === "available") + Number(sources.forensics === "available");
+  if (available === 2) return "complete";
+  if (available === 1) return "partial";
+  return "unavailable";
+}
+
+function unavailableLimitations(sources: ImageEvidenceSources, locale: "VN" | "EN"): string[] {
+  const limitations: string[] = [];
+  if (sources.gemini !== "available") {
+    limitations.push(locale === "VN"
+      ? "Nhánh phân tích thị giác Gemini không khả dụng trong lần kiểm tra này; kết quả chỉ dùng các lớp bằng chứng còn lại."
+      : "The Gemini visual-analysis branch was unavailable for this check; the result uses only the remaining evidence layers.");
+  }
+  if (sources.forensics !== "available") {
+    limitations.push(locale === "VN"
+      ? "Dịch vụ forensics riêng không khả dụng trong lần kiểm tra này; C2PA và detector chuyên biệt có thể thiếu."
+      : "The private forensics service was unavailable for this check; C2PA and specialist-detector evidence may be missing.");
+  }
+  return limitations;
+}
+
+function mergeSignals(deterministicSignals: ImageAuthenticitySignal[], model: ImageModelAssessment | null): ImageAuthenticitySignal[] {
+  const seen = new Set<string>();
+  return [...deterministicSignals, ...(model?.signals || [])].filter((signal) => {
+    const key = `${signal.source}:${signal.kind}:${signal.label}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 18);
+}
+
+export function hasMaterialForensicsEvidence(args: {
+  provenance: ImageProvenanceSummary;
+  specialistDetectors: SpecialistDetectorSummary[];
+  signals: ImageAuthenticitySignal[];
+}): boolean {
+  if (["verified", "invalid", "present_unverified"].includes(args.provenance.status)) return true;
+  if (args.specialistDetectors.some((item) => item.status === "ok" && item.classification !== "uncertain")) return true;
+  return args.signals.some((signal) => signal.source === "specialist_detector" || signal.source === "provenance");
 }
 
 export function fuseMediaEvidence(args: {
-  base: ImageAuthenticityResult;
+  modelAssessment: ImageModelAssessment | null;
   provenance: ImageProvenanceSummary;
   specialistDetectors: SpecialistDetectorSummary[];
   deterministicSignals: ImageAuthenticitySignal[];
+  technical: ImagePublicTechnicalFacts;
+  evidenceSources: ImageEvidenceSources;
+  model: string;
   locale: "VN" | "EN";
+  checkedAt?: string;
 }): ImageAuthenticityResult {
-  let verdict = args.base.verdict;
-  let confidence = args.base.confidence;
-  let summary = args.base.summary;
-  const agreement = evidenceAgreement(args.base, args.specialistDetectors, args.provenance);
-  const limitations = [...args.base.limitations];
+  const origin = deriveOriginAssessment(args.provenance);
+  const generation = fuseGeneration(args.modelAssessment, args.specialistDetectors, args.provenance);
+  const manipulation = fuseManipulation(args.modelAssessment);
+  const limitations = [
+    ...(args.modelAssessment?.limitations || []),
+    ...unavailableLimitations(args.evidenceSources, args.locale),
+  ];
 
-  // Cryptographically verified provenance is authoritative regardless of visual/detector direction.
-  if (isTrustedVerified(args.provenance)) {
-    verdict = "provenance_verified";
-    confidence = Math.max(confidence, 90);
-    summary = verifiedSummary(args.provenance, args.locale);
-    if (agreement === "mixed") {
-      limitations.push(args.locale === "VN"
-        ? "Một hoặc nhiều tín hiệu detector/thị giác không đồng thuận với provenance đã xác minh; provenance vẫn được ưu tiên."
-        : "One or more detector/visual signals disagree with verified provenance; verified provenance remains authoritative.");
-    }
-  } else if (verdict === "provenance_verified") {
-    verdict = "inconclusive";
-    confidence = Math.min(confidence, 40);
-    summary = args.locale === "VN"
-      ? "Provider đề xuất provenance_verified nhưng server không có provenance với trust chain đã xác minh; kết quả đã được hạ về chưa đủ bằng chứng."
-      : "The provider proposed provenance_verified without server-verified trusted provenance; the result was downgraded to inconclusive.";
-  }
-
-  if (agreement === "mixed" && !isTrustedVerified(args.provenance)) {
-    verdict = "inconclusive";
-    confidence = Math.min(confidence, 55);
-    summary = args.locale === "VN"
-      ? "Các lớp bằng chứng chuyên biệt và thị giác không đồng thuận đủ để đưa ra kết luận đáng tin cậy."
-      : "Specialist and visual evidence disagree materially, so the available evidence does not support a reliable conclusion.";
+  if (generation.status === "inconclusive" && args.modelAssessment?.generation.status === "likely_ai_generated") {
     limitations.push(args.locale === "VN"
-      ? "Detector chuyên biệt và phân tích hình ảnh không đồng thuận; kết luận được hạ về INCONCLUSIVE."
-      : "The specialist detector and visual analysis disagree; the verdict is reduced to INCONCLUSIVE.");
+      ? "Tín hiệu AI từ phân tích thị giác chưa có specialist evidence cùng hướng đủ để giữ kết luận AI mạnh."
+      : "The visual AI signal lacks sufficient same-axis specialist support for a strong AI-generation conclusion.");
   }
-
-  const detectorAvailable = args.specialistDetectors.some((item) => item.status === "ok");
-  const materialVisualSignal = args.base.signals.some((signal) => signal.source === "visual" && signal.strength !== "weak");
-  const materialDetectorSignal = args.specialistDetectors.some((item) => item.status === "ok" && item.classification !== "uncertain" && item.strength !== "weak");
-  if (!detectorAvailable) {
-    limitations.push(args.locale === "VN"
-      ? "Specialist detector không khả dụng; kết luận không bao gồm tín hiệu detector chuyên biệt live."
-      : "No specialist detector was available; this assessment does not include live specialist-detector evidence.");
-    if (!isTrustedVerified(args.provenance) && (verdict === "likely_ai_generated" || verdict === "likely_manipulated")) {
-      verdict = "inconclusive";
-      confidence = Math.min(confidence, 45);
-      limitations.push(args.locale === "VN"
-        ? "Không có provenance đáng tin hoặc specialist detector live; quan sát thị giác đơn lẻ không đủ cho kết luận AI/chỉnh sửa mạnh."
-        : "Without trusted provenance or a live specialist detector, visual analysis alone is insufficient for a strong AI/manipulation conclusion.");
-    }
-  }
-  if (!isTrustedVerified(args.provenance) && !materialVisualSignal && !materialDetectorSignal && verdict !== "provenance_verified") {
-    verdict = "inconclusive";
-    confidence = Math.min(confidence, 40);
-    limitations.push(args.locale === "VN"
-      ? "Bằng chứng còn lại chỉ ở mức yếu; kết luận được giữ ở CHƯA ĐỦ BẰNG CHỨNG."
-      : "The remaining evidence is weak-only, so the final verdict stays INCONCLUSIVE.");
-  }
-
   if (args.provenance.status === "invalid") {
     limitations.push(args.locale === "VN"
-      ? "C2PA manifest không vượt qua xác minh với trust chain đã cấu hình và không được dùng như provenance đáng tin."
-      : "The C2PA manifest failed verification against the configured trust chain and is not treated as trustworthy provenance.");
+      ? "C2PA manifest không vượt qua xác minh trust chain và không được dùng như provenance đáng tin."
+      : "The C2PA manifest failed trust-chain verification and is not treated as trusted provenance.");
   }
 
   return {
-    ...args.base,
-    verdict,
-    summary,
-    confidence: Math.max(0, Math.min(100, Math.round(confidence))),
-    signals: [...args.deterministicSignals, ...args.base.signals.filter((signal) => !args.deterministicSignals.some((fixed) => fixed.kind === signal.kind))].slice(0, 18),
+    kind: "media_authenticity",
+    assessments: {
+      origin,
+      generation,
+      manipulation,
+      completeness: completenessFromSources(args.evidenceSources),
+    },
+    evidenceSources: args.evidenceSources,
+    signals: mergeSignals(args.deterministicSignals, args.modelAssessment),
+    limitations: [...new Set(limitations)].slice(0, 10),
+    technical: args.technical,
     provenance: args.provenance,
     specialistDetectors: args.specialistDetectors.slice(0, 4),
-    evidenceAgreement: agreement,
-    limitations: [...new Set(limitations)].slice(0, 10),
+    model: args.model,
+    checkedAt: args.checkedAt || new Date().toISOString(),
+    locale: args.locale,
   };
 }

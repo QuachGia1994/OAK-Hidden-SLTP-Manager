@@ -70,6 +70,12 @@ export function FactCheckInput({
     selectFile(e.target.files?.[0]);
   };
 
+  const clearSelectedImage = () => {
+    setSelectedImage(null);
+    setImageError(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragging(false);
@@ -129,7 +135,7 @@ export function FactCheckInput({
       )}
 
       {selectedImage && (
-        <div className="oak-image-intent" role="group" aria-label={t.imageSelected}>
+        <div className="oak-image-intent" role="group" aria-label={t.imageSelected} aria-busy={mediaLoading}>
           <div className="oak-image-intent-summary">
             {previewUrl ? <img className="oak-image-intent-preview" src={previewUrl} alt="" /> : null}
             <div className="oak-image-intent-copy">
@@ -142,8 +148,14 @@ export function FactCheckInput({
                     ? t.imageAuthenticityHint
                     : t.imageUnsupportedClient}
               </small>
+              <div className="oak-image-selection-actions">
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>{t.imageChange}</button>
+                <button type="button" onClick={clearSelectedImage} disabled={busy}>{t.imageRemove}</button>
+              </div>
             </div>
           </div>
+          <p className="oak-image-auth-disclosure">{t.imageAuthenticityDisclosure}</p>
+          {mediaLoading ? <p className="oak-image-analysis-status" role="status" aria-live="polite">{t.mediaAnalyzing}</p> : null}
           <div className="oak-image-intent-actions">
             <button type="button" onClick={runImageOcr} disabled={busy}>{t.imageClaims}</button>
             <button type="button" className="oak-image-auth-action" onClick={() => onMediaSubmit(selectedImage)} disabled={busy || !mediaSupported}>

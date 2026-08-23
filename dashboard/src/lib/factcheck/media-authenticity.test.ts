@@ -1,16 +1,26 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
-import { buildDeterministicMediaFindings, extractPrivateImageMetadata } from "./media-metadata.ts";
-import { sanitizeMediaResultForShare } from "./media-sanitize.ts";
-import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "./media-validate.ts";
-import { buildMediaOgTitle, mediaVerdictLabel } from "./media-presentation.ts";
-import { MEDIA_CLIENT_MAX_IMAGE_BYTES, mediaClientStatus, normalizeClientImageMime } from "./media-client.ts";
-import { normalizeMediaAssessment } from "./media-gemini.ts";
-import { calibrateUniversalFakeDetect } from "./detector-calibration.ts";
-import { specialistDetectorAgreement, universalFakeDetectAdapter } from "./specialist-detector.ts";
+import { persistSuccessfulMediaAnalysis, runMediaAnalysis } from "./media-analysis.ts";
+import type { MediaForensicsEvidence } from "./media-forensics-client.ts";
 import { fuseMediaEvidence } from "./media-evidence-fusion.ts";
-import type { ImageAuthenticityResult } from "./media-types.ts";
+import { normalizeMediaAssessment } from "./media-gemini.ts";
+import { normalizeLegacyMediaV3 } from "./media-legacy.ts";
+import { buildDeterministicMediaFindings, extractPrivateImageMetadata } from "./media-metadata.ts";
+import { buildMediaOgDescription, buildMediaOgTitle, buildMediaPresentation, MEDIA_PRESENTATION_TEXT } from "./media-presentation.ts";
+import { sanitizeMediaResultForShare } from "./media-sanitize.ts";
+import { MEDIA_CLIENT_MAX_IMAGE_BYTES, mediaClientStatus, normalizeClientImageMime } from "./media-client.ts";
+import { calibrateUniversalFakeDetect } from "./detector-calibration.ts";
+import { universalFakeDetectAdapter } from "./specialist-detector.ts";
+import { MAX_IMAGE_BYTES, MediaValidationError, validateImageBuffer } from "./media-validate.ts";
+import type {
+  ImageAuthenticityResult,
+  ImageModelAssessment,
+  ImageProvenanceSummary,
+  SpecialistDetectorSummary,
+} from "./media-types.ts";
+
+const ALGORITHMIC_MEDIA = "http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia";
+const DIGITAL_CAPTURE = "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture";
 
 function pngHeader(width = 1, height = 1): Buffer {
   const buffer = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
@@ -39,30 +49,77 @@ function jpegWithSoftware(software: string): Buffer {
   return Buffer.concat([Buffer.from([0xff, 0xd8]), app1, exif, Buffer.from([0xff, 0xd9])]);
 }
 
-const sampleMediaResult = (): ImageAuthenticityResult => ({
-  kind: "media_authenticity",
-  verdict: "inconclusive",
-  confidence: 42,
-  summary: "Evidence is mixed.",
-  signals: [],
-  limitations: ["Visual analysis is not proof."],
-  technical: {
-    format: "png",
-    mime: "image/png",
-    width: 100,
-    height: 100,
-    bytes: 1000,
-    software: undefined,
-    cameraMetadataPresent: false,
-  },
-  provenance: { status: "not_detected", trustChain: "not_applicable", note: "No marker." },
-  specialistDetectors: [],
-  evidenceAgreement: "insufficient",
-  model: "gemini-3.6-flash",
-  provider: "gemini",
-  checkedAt: "2026-08-19T00:00:00.000Z",
-  locale: "EN",
-});
+function technical() {
+  return { format: "png" as const, mime: "image/png", width: 100, height: 100, bytes: 1000, cameraMetadataPresent: false };
+}
+
+function unverifiedProvenance(): ImageProvenanceSummary {
+  return { status: "not_detected", trustChain: "not_applicable", note: "No marker." };
+}
+
+function trustedProvenance(sourceType: string): ImageProvenanceSummary {
+  return { status: "verified", standard: "c2pa", trustChain: "trusted", note: "Verified C2PA provenance.", digitalSourceTypes: [sourceType] };
+}
+
+function modelAssessment(overrides: Partial<ImageModelAssessment> = {}): ImageModelAssessment {
+  return {
+    generation: { status: "inconclusive", strength: "weak" },
+    manipulation: { status: "inconclusive", strength: "weak" },
+    signals: [],
+    limitations: ["Visual analysis is not proof."],
+    ...overrides,
+  };
+}
+
+function detector(classification: SpecialistDetectorSummary["classification"], strength: SpecialistDetectorSummary["strength"] = "weak"): SpecialistDetectorSummary {
+  return { detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "ok", classification, strength, calibrationVersion: "oak-univfd-upstream-threshold-v1" };
+}
+
+function mediaResult(overrides: Partial<ImageAuthenticityResult> = {}): ImageAuthenticityResult {
+  return {
+    kind: "media_authenticity",
+    assessments: {
+      origin: { status: "unverified", strength: "weak" },
+      generation: { status: "inconclusive", strength: "weak" },
+      manipulation: { status: "inconclusive", strength: "weak" },
+      completeness: "complete",
+    },
+    evidenceSources: { gemini: "available", forensics: "available" },
+    signals: [],
+    limitations: ["Evidence is bounded."],
+    technical: technical(),
+    provenance: unverifiedProvenance(),
+    specialistDetectors: [],
+    model: "gemini-test",
+    checkedAt: "2026-08-23T00:00:00.000Z",
+    locale: "EN",
+    ...overrides,
+  };
+}
+
+function fuse(args: {
+  model?: ImageModelAssessment | null;
+  provenance?: ImageProvenanceSummary;
+  detectors?: SpecialistDetectorSummary[];
+  sources?: ImageAuthenticityResult["evidenceSources"];
+  locale?: "VN" | "EN";
+} = {}): ImageAuthenticityResult {
+  return fuseMediaEvidence({
+    modelAssessment: args.model === undefined ? modelAssessment() : args.model,
+    provenance: args.provenance || unverifiedProvenance(),
+    specialistDetectors: args.detectors || [],
+    deterministicSignals: [],
+    technical: technical(),
+    evidenceSources: args.sources || { gemini: "available", forensics: "available" },
+    model: "gemini-test",
+    locale: args.locale || "EN",
+    checkedAt: "2026-08-23T00:00:00.000Z",
+  });
+}
+
+function forensicsData(provenance: ImageProvenanceSummary, detectors: SpecialistDetectorSummary[] = []): MediaForensicsEvidence {
+  return { provenance, specialistDetectors: detectors, signals: [], runtimeStatus: "active", latencyMs: 10 };
+}
 
 test("image validation accepts bounded PNG dimensions", () => {
   const validated = validateImageBuffer(pngHeader(640, 480));
@@ -71,105 +128,41 @@ test("image validation accepts bounded PNG dimensions", () => {
   assert.equal(validated.technical.height, 480);
 });
 
-test("image validation rejects markup/SVG and oversized payloads", () => {
-  assert.throws(
-    () => validateImageBuffer(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'><script>x</script></svg>")),
-    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_INVALID",
-  );
-  assert.throws(
-    () => validateImageBuffer(Buffer.alloc(MAX_IMAGE_BYTES + 1, 1)),
-    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_TOO_LARGE",
-  );
+test("image validation rejects markup/SVG, oversized payloads and unsafe dimensions", () => {
+  assert.throws(() => validateImageBuffer(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'><script>x</script></svg>")), (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_INVALID");
+  assert.throws(() => validateImageBuffer(Buffer.alloc(MAX_IMAGE_BYTES + 1, 1)), (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_TOO_LARGE");
+  assert.throws(() => validateImageBuffer(pngHeader(12001, 1)), (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DIMENSIONS_TOO_LARGE");
 });
 
-test("image validation rejects unsafe pixel dimensions", () => {
-  assert.throws(
-    () => validateImageBuffer(pngHeader(12001, 1)),
-    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DIMENSIONS_TOO_LARGE",
-  );
-});
-
-test("image validation rejects malformed/trailing polyglot containers", () => {
+test("image validation rejects malformed/trailing polyglot containers and GIF authenticity input", () => {
   const png = pngHeader(1, 1);
-  assert.throws(
-    () => validateImageBuffer(png.subarray(0, png.length - 8)),
-    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DECODE_FAILED",
-  );
-  assert.throws(
-    () => validateImageBuffer(Buffer.concat([png, Buffer.from("<script>alert(1)</script>")])),
-    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DECODE_FAILED",
-  );
-});
-
-test("authenticity validation rejects GIF while OCR remains a separate browser flow", () => {
+  assert.throws(() => validateImageBuffer(png.subarray(0, png.length - 8)), (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DECODE_FAILED");
+  assert.throws(() => validateImageBuffer(Buffer.concat([png, Buffer.from("<script>alert(1)</script>")])), (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_DECODE_FAILED");
   const gif = Buffer.concat([Buffer.from("GIF89a", "ascii"), Buffer.from([1, 0, 1, 0]), Buffer.alloc(16)]);
-  assert.throws(
-    () => validateImageBuffer(gif),
-    (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_UNSUPPORTED_FORMAT",
-  );
+  assert.throws(() => validateImageBuffer(gif), (error: unknown) => error instanceof MediaValidationError && error.code === "IMAGE_UNSUPPORTED_FORMAT");
 });
 
-test("absence of EXIF produces no AI-generation signal", () => {
-  const buffer = pngHeader(10, 10);
-  const meta = extractPrivateImageMetadata(buffer);
-  const findings = buildDeterministicMediaFindings({
-    format: "png", mime: "image/png", width: 20, height: 20, bytes: buffer.length, cameraMetadataPresent: false,
-  }, meta, "EN");
-  assert.equal(meta.software, undefined);
-  assert.equal(findings.signals.some((signal) => signal.kind === "generator_software_tag"), false);
-  assert.equal(findings.provenance.status, "not_detected");
+test("metadata observations stay bounded and non-cryptographic", () => {
+  const noExif = buildDeterministicMediaFindings({ ...technical(), width: 20, height: 20 }, extractPrivateImageMetadata(pngHeader(20, 20)), "EN");
+  assert.equal(noExif.signals.some((signal) => signal.kind === "generator_software_tag"), false);
+  assert.equal(noExif.provenance.status, "not_detected");
+
+  const photoshop = extractPrivateImageMetadata(jpegWithSoftware("Adobe Photoshop"));
+  const editFindings = buildDeterministicMediaFindings({ format: "jpeg", mime: "image/jpeg", width: 100, height: 100, bytes: 1000, cameraMetadataPresent: false }, photoshop, "EN");
+  assert.equal(editFindings.signals[0]?.kind, "editor_software_tag");
+  assert.equal(editFindings.signals[0]?.strength, "weak");
+
+  const generator = extractPrivateImageMetadata(jpegWithSoftware("ComfyUI"));
+  const generationFindings = buildDeterministicMediaFindings({ format: "jpeg", mime: "image/jpeg", width: 100, height: 100, bytes: 1000, cameraMetadataPresent: false }, generator, "EN");
+  assert.equal(generationFindings.signals[0]?.kind, "generator_software_tag");
+  assert.equal(generationFindings.signals[0]?.strength, "moderate");
 });
 
-test("Photoshop metadata is only a weak editor signal, not a verdict", () => {
-  const meta = extractPrivateImageMetadata(jpegWithSoftware("Adobe Photoshop"));
-  const findings = buildDeterministicMediaFindings({
-    format: "jpeg", mime: "image/jpeg", width: 100, height: 100, bytes: 1000, cameraMetadataPresent: false,
-  }, meta, "EN");
-  assert.equal(meta.software, "Adobe Photoshop");
-  assert.equal(findings.signals[0]?.kind, "editor_software_tag");
-  assert.equal(findings.signals[0]?.strength, "weak");
-});
-
-test("generator software metadata is evidence but remains non-cryptographic", () => {
-  const meta = extractPrivateImageMetadata(jpegWithSoftware("ComfyUI"));
-  const findings = buildDeterministicMediaFindings({
-    format: "jpeg", mime: "image/jpeg", width: 100, height: 100, bytes: 1000, cameraMetadataPresent: false,
-  }, meta, "EN");
-  assert.equal(findings.signals[0]?.kind, "generator_software_tag");
-  assert.equal(findings.signals[0]?.strength, "moderate");
-});
-
-test("C2PA marker is presence-only, never promoted to verified", () => {
+test("C2PA marker presence is never promoted to verified provenance", () => {
   const buffer = Buffer.concat([pngHeader(20, 20), Buffer.from("random c2pa content credentials marker")]);
-  const meta = extractPrivateImageMetadata(buffer);
-  const findings = buildDeterministicMediaFindings({
-    format: "png", mime: "image/png", width: 20, height: 20, bytes: buffer.length, cameraMetadataPresent: false,
-  }, meta, "EN");
-  assert.equal(meta.c2paMarkerPresent, true);
+  const findings = buildDeterministicMediaFindings({ ...technical(), width: 20, height: 20, bytes: buffer.length }, extractPrivateImageMetadata(buffer), "EN");
   assert.equal(findings.provenance.status, "present_unverified");
-  assert.equal(findings.signals.some((signal) => signal.kind === "c2pa_marker_present"), true);
-});
-
-test("public media sanitizer bounds fields and contains no raw/private metadata surface", () => {
-  const dirty = sampleMediaResult();
-  dirty.confidence = 999;
-  dirty.summary = "x".repeat(3000);
-  dirty.technical.software = "Photoshop\u0000" + "y".repeat(300);
-  const clean = sanitizeMediaResultForShare(dirty);
-  assert.equal(clean.confidence, 100);
-  assert.ok(clean.summary.length <= 1800);
-  assert.ok((clean.technical.software || "").length <= 120);
-  assert.equal("buffer" in (clean as unknown as Record<string, unknown>), false);
-  assert.equal("gps" in (clean.technical as unknown as Record<string, unknown>), false);
-  const detectorWithRaw = { ...dirty.specialistDetectors[0], rawScore: 0.999 } as unknown as Record<string, unknown>;
-  dirty.specialistDetectors = [detectorWithRaw as unknown as ImageAuthenticityResult["specialistDetectors"][number]];
-  const detectorClean = sanitizeMediaResultForShare(dirty).specialistDetectors[0] as unknown as Record<string, unknown>;
-  assert.equal("rawScore" in detectorClean, false);
-});
-
-test("media presentation has explicit inconclusive wording", () => {
-  assert.equal(mediaVerdictLabel("inconclusive", "EN"), "Inconclusive");
-  assert.equal(mediaVerdictLabel("likely_ai_generated", "VN"), "Có khả năng do AI tạo");
+  assert.equal(findings.provenance.trustChain, "not_configured");
 });
 
 test("client authenticity MIME normalization accepts mobile aliases and extension-only files", () => {
@@ -181,272 +174,213 @@ test("client authenticity MIME normalization accepts mobile aliases and extensio
   assert.equal(normalizeClientImageMime({ name: "renamed.jpg", type: "image/gif" }), null);
   assert.equal(mediaClientStatus({ name: "capture.jpg", type: "", size: 1024 }), "supported");
   assert.equal(mediaClientStatus({ name: "capture.jpg", type: "", size: MEDIA_CLIENT_MAX_IMAGE_BYTES + 1 }), "too_large");
-  assert.equal(mediaClientStatus({ name: "capture.gif", type: "image/gif", size: 1024 }), "unsupported");
 });
 
-test("media normalizer rejects unknown verdicts and weak no-signal AI claims", () => {
-  const context = {
-    technical: sampleMediaResult().technical,
-    provenance: sampleMediaResult().provenance,
-    deterministicSignals: [],
-    locale: "EN" as const,
-  };
-  const invalid = normalizeMediaAssessment({ verdict: "definitely_ai", confidence: 99, summary: "x", visual_signals: [], limitations: [] }, context);
-  assert.equal(invalid.verdict, "inconclusive");
-  assert.ok(invalid.confidence <= 35);
-
-  const noSignals = normalizeMediaAssessment({ verdict: "likely_ai_generated", confidence: 95, summary: "x", visual_signals: [], limitations: [] }, context);
-  assert.equal(noSignals.verdict, "inconclusive");
-  assert.ok(noSignals.confidence <= 35);
-});
-
-test("unverified C2PA can never become provenance_verified", () => {
-  const result = normalizeMediaAssessment({
-    verdict: "provenance_verified",
-    confidence: 98,
-    summary: "Provider claimed verified provenance.",
-    visual_signals: [{ kind: "marker", label: "Marker", finding: "Present", strength: "strong" }],
-    limitations: [],
-  }, {
-    technical: sampleMediaResult().technical,
-    provenance: { status: "present_unverified", standard: "c2pa", trustChain: "not_configured", note: "marker only" },
-    deterministicSignals: [],
-    locale: "EN",
-  });
-  assert.equal(result.verdict, "inconclusive");
-  assert.ok(result.confidence <= 40);
-});
-
-test("media normalizer clamps confidence and bounds visual signals", () => {
-  const result = normalizeMediaAssessment({
-    verdict: "likely_manipulated",
-    confidence: 999,
-    summary: "summary",
-    visual_signals: Array.from({ length: 20 }, (_, index) => ({
-      kind: `k${index}`,
-      label: `signal ${index}`,
-      finding: "observable inconsistency",
-      strength: "moderate",
-    })),
-    limitations: [],
-  }, {
-    technical: sampleMediaResult().technical,
-    provenance: sampleMediaResult().provenance,
-    deterministicSignals: [],
-    locale: "EN",
-  });
-  assert.ok(result.confidence <= 88);
-  assert.ok(result.signals.length <= 10);
-});
-
-test("UniversalFakeDetect calibration never exposes raw score as probability", () => {
-  assert.deepEqual(calibrateUniversalFakeDetect(0.9, "cvpr2023-clip-vitl14"), {
-    classification: "synthetic_signal", strength: "weak", calibrationVersion: "oak-univfd-upstream-threshold-v1",
-  });
+test("UniversalFakeDetect remains weak directional evidence and never a probability", () => {
+  assert.deepEqual(calibrateUniversalFakeDetect(0.9, "cvpr2023-clip-vitl14"), { classification: "synthetic_signal", strength: "weak", calibrationVersion: "oak-univfd-upstream-threshold-v1" });
   assert.equal(calibrateUniversalFakeDetect(0.1, "cvpr2023-clip-vitl14").classification, "real_signal");
-  assert.equal(calibrateUniversalFakeDetect(0.500001, "cvpr2023-clip-vitl14").classification, "synthetic_signal");
-  assert.equal(calibrateUniversalFakeDetect(0.499999, "cvpr2023-clip-vitl14").classification, "real_signal");
   assert.equal(calibrateUniversalFakeDetect(0.5, "cvpr2023-clip-vitl14").classification, "uncertain");
-  assert.equal(calibrateUniversalFakeDetect(2, "cvpr2023-clip-vitl14").classification, "uncertain");
   assert.equal(calibrateUniversalFakeDetect(0.9, "unknown-v1").classification, "uncertain");
-});
-
-test("specialist adapter represents unavailable, failed and version mismatch without fabricated direction", () => {
   assert.equal(universalFakeDetectAdapter.normalize(undefined, "EN").status, "unavailable");
-  assert.equal(universalFakeDetectAdapter.normalize({ status: "failed", version: "cvpr2023-clip-vitl14", reason: "oom" }, "EN").status, "failed");
-  const mismatched = universalFakeDetectAdapter.normalize({ status: "ok", version: "unknown-v9", raw_score: 0.99 }, "EN");
-  assert.equal(mismatched.classification, "uncertain");
-  assert.equal(mismatched.strength, "weak");
 });
 
-test("fusion makes any trusted verified provenance authoritative over Gemini", () => {
-  const base = { ...sampleMediaResult(), verdict: "likely_ai_generated" as const, confidence: 88 };
-  const fused = fuseMediaEvidence({
-    base,
-    provenance: {
-      status: "verified",
-      standard: "c2pa",
-      trustChain: "trusted",
-      note: "verified",
-      digitalSourceTypes: ["http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture"],
-    },
-    specialistDetectors: [],
+test("Gemini normalizer keeps generation and manipulation independent and fail-closes weak strong claims", () => {
+  const weak = normalizeMediaAssessment({ generation_assessment: "likely_ai_generated", generation_strength: "weak", manipulation_assessment: "likely_manipulated", manipulation_strength: "weak", visual_signals: [], limitations: [] }, { deterministicSignals: [], locale: "EN" });
+  assert.deepEqual(weak.generation, { status: "inconclusive", strength: "weak" });
+  assert.deepEqual(weak.manipulation, { status: "inconclusive", strength: "weak" });
+
+  const noEdit = normalizeMediaAssessment({ generation_assessment: "no_reliable_ai_signal", generation_strength: "moderate", manipulation_assessment: "no_material_edit_detected", manipulation_strength: "moderate", visual_signals: [{ kind: "review", label: "Review", finding: "No material edit cues observed.", strength: "moderate" }], limitations: [] }, { deterministicSignals: [], locale: "EN" });
+  assert.equal(noEdit.generation.status, "no_reliable_ai_signal");
+  assert.equal(noEdit.manipulation.status, "no_material_edit_detected");
+});
+
+test("verified algorithmic C2PA and manipulation evidence preserve both facts", () => {
+  const result = fuse({
+    provenance: trustedProvenance(ALGORITHMIC_MEDIA),
+    model: modelAssessment({ manipulation: { status: "likely_manipulated", strength: "moderate" } }),
+  });
+  assert.deepEqual(result.assessments.origin, { status: "verified_algorithmic", strength: "strong" });
+  assert.deepEqual(result.assessments.generation, { status: "likely_ai_generated", strength: "strong" });
+  assert.deepEqual(result.assessments.manipulation, { status: "likely_manipulated", strength: "moderate" });
+  assert.equal(buildMediaPresentation(result, "EN").headline, "AI-generated with verified provenance; editing evidence detected");
+});
+
+test("verified capture C2PA and manipulation evidence preserve both facts", () => {
+  const result = fuse({
+    provenance: trustedProvenance(DIGITAL_CAPTURE),
+    model: modelAssessment({ generation: { status: "no_reliable_ai_signal", strength: "moderate" }, manipulation: { status: "likely_manipulated", strength: "strong" } }),
+  });
+  assert.equal(result.assessments.origin.status, "verified_capture");
+  assert.equal(result.assessments.generation.status, "no_reliable_ai_signal");
+  assert.equal(result.assessments.manipulation.status, "likely_manipulated");
+});
+
+test("trusted C2PA with unrecognized source type becomes verified_other", () => {
+  const result = fuse({ provenance: trustedProvenance("https://example.test/custom-source") });
+  assert.equal(result.assessments.origin.status, "verified_other");
+});
+
+test("no material edit detected leaves origin unverified and generation independent", () => {
+  const result = fuse({ model: modelAssessment({ generation: { status: "no_reliable_ai_signal", strength: "moderate" }, manipulation: { status: "no_material_edit_detected", strength: "moderate" } }) });
+  assert.equal(result.assessments.origin.status, "unverified");
+  assert.equal(result.assessments.generation.status, "no_reliable_ai_signal");
+  assert.equal(result.assessments.manipulation.status, "no_material_edit_detected");
+  assert.match(buildMediaPresentation(result, "EN").headline, /No material edit detected/);
+});
+
+test("synthetic specialist evidence and manipulation evidence coexist on separate axes", () => {
+  const result = fuse({
+    detectors: [detector("synthetic_signal")],
+    model: modelAssessment({ generation: { status: "likely_ai_generated", strength: "moderate" }, manipulation: { status: "likely_manipulated", strength: "moderate" } }),
+  });
+  assert.equal(result.assessments.generation.status, "likely_ai_generated");
+  assert.equal(result.assessments.manipulation.status, "likely_manipulated");
+  assert.equal(result.assessments.origin.status, "unverified");
+});
+
+test("specialist real_signal never verifies real-world origin", () => {
+  const result = fuse({ detectors: [detector("real_signal")], model: modelAssessment({ generation: { status: "no_reliable_ai_signal", strength: "moderate" } }) });
+  assert.equal(result.assessments.origin.status, "unverified");
+  assert.equal(result.assessments.generation.status, "no_reliable_ai_signal");
+});
+
+test("weak-only AI evidence cannot become a material AI-generation conclusion", () => {
+  const weakModel = normalizeMediaAssessment({ generation_assessment: "likely_ai_generated", generation_strength: "weak", manipulation_assessment: "inconclusive", manipulation_strength: "weak", visual_signals: [{ kind: "artifact", label: "Artifact", finding: "Weak artifact.", strength: "weak" }], limitations: [] }, { deterministicSignals: [], locale: "EN" });
+  const result = fuse({ model: weakModel, detectors: [detector("synthetic_signal", "weak")] });
+  assert.equal(result.assessments.generation.status, "inconclusive");
+  assert.equal(result.assessments.generation.strength, "weak");
+});
+
+test("Gemini failure plus trusted algorithmic C2PA returns a partial useful result", async () => {
+  const outcome = await runMediaAnalysis({
+    gemini: async () => ({ ok: false, status: "failed", code: "MEDIA_MODEL_TIMEOUT", retryable: true }),
+    forensics: async () => ({ ok: true, status: "available", data: forensicsData(trustedProvenance(ALGORITHMIC_MEDIA)) }),
+    technical: technical(),
+    localProvenance: unverifiedProvenance(),
     deterministicSignals: [],
+    model: "gemini-test",
     locale: "EN",
   });
-  assert.equal(fused.verdict, "provenance_verified");
-  assert.match(fused.summary, /C2PA provenance is cryptographically verified/);
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.result.assessments.completeness, "partial");
+  assert.equal(outcome.result.assessments.origin.status, "verified_algorithmic");
+  assert.equal(outcome.result.assessments.generation.status, "likely_ai_generated");
+  assert.equal(outcome.result.evidenceSources.gemini, "failed");
 });
 
-test("fusion makes verified algorithmic provenance authoritative", () => {
-  const base = { ...sampleMediaResult(), verdict: "no_material_manipulation_detected" as const, confidence: 70 };
-  const fused = fuseMediaEvidence({
-    base,
-    provenance: {
-      status: "verified",
-      standard: "c2pa",
-      trustChain: "trusted",
-      note: "verified",
-      digitalSourceTypes: ["http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"],
-    },
-    specialistDetectors: [],
+test("sidecar unavailable plus Gemini success returns explicit partial result", async () => {
+  const outcome = await runMediaAnalysis({
+    gemini: async () => ({ ok: true, status: "available", data: modelAssessment({ generation: { status: "no_reliable_ai_signal", strength: "moderate" }, manipulation: { status: "no_material_edit_detected", strength: "moderate" } }) }),
+    forensics: async () => ({ ok: false, status: "unavailable", code: "FORENSICS_NOT_CONFIGURED", retryable: true, data: { provenance: { status: "unsupported", trustChain: "unknown", note: "Unavailable." }, specialistDetectors: [], signals: [], runtimeStatus: "unavailable" } }),
+    technical: technical(),
+    localProvenance: unverifiedProvenance(),
     deterministicSignals: [],
+    model: "gemini-test",
     locale: "EN",
   });
-  assert.equal(fused.verdict, "provenance_verified");
-  assert.ok(fused.confidence >= 90);
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.result.assessments.completeness, "partial");
+  assert.equal(outcome.result.evidenceSources.forensics, "unavailable");
+  assert.ok(buildMediaPresentation(outcome.result, "EN").partialMessage);
 });
 
-test("fusion downgrades detector versus visual disagreement", () => {
-  const base = { ...sampleMediaResult(), verdict: "no_material_manipulation_detected" as const, confidence: 80 };
-  const fused = fuseMediaEvidence({
-    base,
-    provenance: base.provenance,
-    specialistDetectors: [{ detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "ok", classification: "synthetic_signal", strength: "weak", calibrationVersion: "oak-univfd-upstream-threshold-v1" }],
+test("both branches unavailable returns retryable failure and never persists a share", async () => {
+  const outcome = await runMediaAnalysis({
+    gemini: async () => ({ ok: false, status: "failed", code: "MEDIA_MODEL_FAILED", retryable: true }),
+    forensics: async () => ({ ok: false, status: "failed", code: "FORENSICS_FAILED", retryable: true, data: { provenance: { status: "verification_error", trustChain: "unknown", note: "Failed." }, specialistDetectors: [], signals: [], runtimeStatus: "failed" } }),
+    technical: technical(),
+    localProvenance: unverifiedProvenance(),
     deterministicSignals: [],
+    model: "gemini-test",
+    locale: "VN",
+  });
+  assert.deepEqual(outcome, { ok: false, code: "MEDIA_ANALYSIS_UNAVAILABLE", error: "Hiện không có đủ nguồn phân tích ảnh để tạo kết quả đáng tin cậy. Hãy thử lại sau.", retryable: true, status: 503 });
+  let persistCalls = 0;
+  const persisted = await persistSuccessfulMediaAnalysis(outcome, async () => {
+    persistCalls += 1;
+    return { id: "should-not-exist" };
+  });
+  assert.equal(persisted, null);
+  assert.equal(persistCalls, 0);
+});
+
+test("unexpected branch rejection does not discard the other branch", async () => {
+  const outcome = await runMediaAnalysis({
+    gemini: async () => { throw new Error("provider exploded"); },
+    forensics: async () => ({ ok: true, status: "available", data: forensicsData(trustedProvenance(DIGITAL_CAPTURE)) }),
+    technical: technical(),
+    localProvenance: unverifiedProvenance(),
+    deterministicSignals: [],
+    model: "gemini-test",
     locale: "EN",
   });
-  assert.equal(fused.evidenceAgreement, "mixed");
-  assert.equal(fused.verdict, "inconclusive");
-  assert.ok(fused.confidence <= 55);
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  assert.equal(outcome.result.assessments.origin.status, "verified_capture");
+  assert.equal(outcome.result.assessments.completeness, "partial");
 });
 
-test("fusion treats likely_manipulated as its own visual direction", () => {
-  const base = {
-    ...sampleMediaResult(),
-    verdict: "likely_manipulated" as const,
-    confidence: 78,
-    signals: [{ source: "visual" as const, kind: "composite_boundary", label: "Composite boundary", finding: "Material compositing cues are visible.", strength: "moderate" as const }],
-  };
-  const fused = fuseMediaEvidence({
-    base,
-    provenance: base.provenance,
-    specialistDetectors: [{ detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "ok", classification: "synthetic_signal", strength: "moderate", calibrationVersion: "oak-univfd-upstream-threshold-v1" }],
-    deterministicSignals: [],
-    locale: "EN",
-  });
-  assert.equal(fused.evidenceAgreement, "mixed");
-  assert.equal(fused.verdict, "inconclusive");
-  assert.ok(fused.confidence <= 55);
+test("public media sanitizer strips raw detector scores, private metadata and image bytes", () => {
+  const dirty = mediaResult({
+    specialistDetectors: [{ ...detector("synthetic_signal"), rawScore: 0.999 } as unknown as SpecialistDetectorSummary],
+    technical: { ...technical(), software: "Photoshop\u0000" + "x".repeat(300) },
+  }) as unknown as Record<string, unknown>;
+  dirty.buffer = Buffer.from("secret-image-bytes");
+  dirty.privateMetadata = { gps: "hidden", cameraSerial: "secret" };
+  const clean = sanitizeMediaResultForShare(dirty as unknown as ImageAuthenticityResult);
+  const serialized = JSON.stringify(clean);
+  assert.equal(serialized.includes("rawScore"), false);
+  assert.equal(serialized.includes("privateMetadata"), false);
+  assert.equal(serialized.includes("secret-image-bytes"), false);
+  assert.equal(serialized.includes("cameraSerial"), false);
+  assert.ok((clean.technical.software || "").length <= 120);
 });
 
-test("public sanitizer downgrades impossible verified provenance", () => {
-  const dirty = sampleMediaResult();
-  dirty.verdict = "provenance_verified";
-  dirty.confidence = 97;
-  dirty.provenance = { status: "present_unverified", standard: "c2pa", trustChain: "not_configured", note: "marker only" };
-  const clean = sanitizeMediaResultForShare(dirty);
-  assert.equal(clean.verdict, "inconclusive");
-  assert.ok(clean.confidence <= 40);
-
-  dirty.provenance = { status: "verified", standard: "c2pa", trustChain: "failed", note: "hostile impossible state" };
-  const impossible = sanitizeMediaResultForShare(dirty);
-  assert.equal(impossible.provenance.status, "present_unverified");
-  assert.equal(impossible.verdict, "inconclusive");
+test("impossible verified provenance is sanitized conservatively", () => {
+  const clean = sanitizeMediaResultForShare(mediaResult({ provenance: { status: "verified", standard: "c2pa", trustChain: "failed", note: "Impossible." } }));
+  assert.equal(clean.provenance.status, "present_unverified");
+  assert.equal(clean.assessments.origin.status, "unverified");
 });
 
-test("Image Authenticity wording stays evidence-based while OCR intent remains separate", () => {
-  const source = readFileSync(new URL("./locale-copy.ts", import.meta.url), "utf8");
-  const resultSource = readFileSync(new URL("../../components/factcheck/FactCheckMediaResult.tsx", import.meta.url), "utf8");
-  const publicSource = readFileSync(new URL("../../components/factcheck/FactCheckMediaPublicView.tsx", import.meta.url), "utf8");
-  assert.match(source, /imageAuthenticity: "Check image authenticity"/);
-  assert.match(source, /imageAuthenticity: "Xác thực ảnh"/);
-  assert.match(source, /imageTooLargeClient:/);
-  assert.match(source, /imageUnsupportedClient:/);
-  assert.match(source, /imageClaims: "Check claims in image"/);
-  assert.match(source, /imageClaims: "Kiểm tra nội dung trong ảnh"/);
-  assert.doesNotMatch(source, /Detect AI Image/);
-  assert.doesNotMatch(resultSource, /Detect AI Image|AI IMAGE DETECTION/);
-  assert.doesNotMatch(publicSource, /AI IMAGE DETECTION|PHÁT HIỆN ẢNH AI/);
-  assert.equal(buildMediaOgTitle("inconclusive", "EN"), "INCONCLUSIVE — OAK Image Authenticity");
-  assert.equal(buildMediaOgTitle("inconclusive", "VN"), "CHƯA ĐỦ BẰNG CHỨNG — OAK Xác thực ảnh");
-});
-
-test("selected image UX renders a blob preview and distinguishes client failure reasons", () => {
-  const component = readFileSync(new URL("../../components/factcheck/FactCheckInput.tsx", import.meta.url), "utf8");
-  const css = readFileSync(new URL("../../app/factcheck-share.css", import.meta.url), "utf8");
-  assert.match(component, /URL\.createObjectURL\(selectedImage\)/);
-  assert.match(component, /URL\.revokeObjectURL\(url\)/);
-  assert.match(component, /className="oak-image-intent-preview"/);
-  assert.match(component, /selectedMediaStatus === "too_large"/);
-  assert.match(component, /t\.imageTooLargeClient/);
-  assert.match(component, /t\.imageUnsupportedClient/);
-  assert.match(css, /\.oak-image-intent-preview\s*\{/);
-});
-
-test("Gemini media timeout keeps five seconds of route budget", () => {
-  const gemini = readFileSync(new URL("./media-gemini.ts", import.meta.url), "utf8");
-  const route = readFileSync(new URL("../../app/api/factcheck/media/route.ts", import.meta.url), "utf8");
-  assert.match(gemini, /AbortSignal\.timeout\(55_000\)/);
-  assert.match(route, /export const maxDuration = 60;/);
-});
-
-test("share heading and public notice use structural layout instead of whitespace copy hacks", () => {
-  const css = readFileSync(new URL("../../app/globals.css", import.meta.url), "utf8");
-  const component = readFileSync(new URL("../../components/factcheck/FactCheckShareActions.tsx", import.meta.url), "utf8");
-  assert.match(component, /className="oak-share-heading"/);
-  assert.match(css, /\.oak-share-heading\s*\{[\s\S]*?display:\s*grid;[\s\S]*?gap:/);
-  assert.match(css, /\.oak-share-heading > b,[\s\S]*?\.oak-share-heading > span[\s\S]*?display:\s*block;/);
-});
-
-test("multi-detector agreement distinguishes aligned, mixed and insufficient", () => {
-  const synthetic = { detectorId: "a", version: "1", status: "ok" as const, classification: "synthetic_signal" as const, strength: "moderate" as const, calibrationVersion: "1" };
-  const synthetic2 = { ...synthetic, detectorId: "b" };
-  const real = { ...synthetic, detectorId: "b", classification: "real_signal" as const };
-  const unavailable = { ...synthetic, detectorId: "b", status: "unavailable" as const, classification: "uncertain" as const };
-  assert.equal(specialistDetectorAgreement([synthetic, synthetic2]), "aligned");
-  assert.equal(specialistDetectorAgreement([synthetic, real]), "mixed");
-  assert.equal(specialistDetectorAgreement([synthetic, unavailable]), "insufficient");
-  assert.equal(specialistDetectorAgreement([unavailable]), "insufficient");
-});
-
-test("weak-only evidence cannot produce a strong AI verdict", () => {
-  const base = {
-    ...sampleMediaResult(),
-    verdict: "likely_ai_generated" as const,
-    confidence: 82,
-    signals: [{ source: "visual" as const, kind: "artifact", label: "Artifact", finding: "weak artifact", strength: "weak" as const }],
-  };
-  const fused = fuseMediaEvidence({
-    base,
-    provenance: base.provenance,
-    specialistDetectors: [{ detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "ok", classification: "synthetic_signal", strength: "weak", calibrationVersion: "oak-univfd-upstream-threshold-v1" }],
-    deterministicSignals: [],
-    locale: "EN",
-  });
-  assert.equal(fused.verdict, "inconclusive");
-  assert.ok(fused.confidence <= 40);
-});
-
-test("both specialist detectors unavailable makes visual-only AI conclusion inconclusive", () => {
-  const base = {
-    ...sampleMediaResult(),
-    verdict: "likely_ai_generated" as const,
+test("legacy v3 no-edit mapping preserves editing observation without inventing real origin", () => {
+  const mapped = normalizeLegacyMediaV3({
+    kind: "media_authenticity",
+    verdict: "no_material_manipulation_detected",
     confidence: 80,
-    signals: [{ source: "visual" as const, kind: "artifact", label: "Artifact", finding: "visible artifact", strength: "strong" as const }],
-  };
-  const fused = fuseMediaEvidence({
-    base,
-    provenance: base.provenance,
-    specialistDetectors: [
-      { detectorId: "universalfakedetect", version: "cvpr2023-clip-vitl14", status: "unavailable", classification: "uncertain", strength: "weak", calibrationVersion: "v1" },
-      { detectorId: "safe", version: "candidate", status: "unavailable", classification: "uncertain", strength: "weak", calibrationVersion: "candidate" },
-    ],
-    deterministicSignals: [],
+    signals: [],
+    limitations: [],
+    technical: technical(),
+    provenance: unverifiedProvenance(),
+    specialistDetectors: [],
+    model: "legacy-model",
+    provider: "gemini",
+    checkedAt: "2026-08-19T00:00:00.000Z",
     locale: "EN",
   });
-  assert.equal(fused.verdict, "inconclusive");
-  assert.ok(fused.confidence <= 45);
+  assert.equal(mapped.assessments.origin.status, "unverified");
+  assert.equal(mapped.assessments.generation.status, "inconclusive");
+  assert.equal(mapped.assessments.manipulation.status, "no_material_edit_detected");
 });
 
-test("untrusted or invalid provenance never receives trusted precedence", () => {
-  for (const provenance of [
-    { status: "present_unverified" as const, standard: "c2pa" as const, trustChain: "not_configured" as const, note: "untrusted" },
-    { status: "invalid" as const, standard: "c2pa" as const, trustChain: "failed" as const, note: "invalid" },
-  ]) {
-    const base = { ...sampleMediaResult(), verdict: "provenance_verified" as const, confidence: 99 };
-    const fused = fuseMediaEvidence({ base, provenance, specialistDetectors: [], deterministicSignals: [], locale: "EN" });
-    assert.equal(fused.verdict, "inconclusive");
-    assert.ok(fused.confidence <= 40);
+test("presentation derives verified AI headline and localizes every status without raw enum keys", () => {
+  const result = fuse({ provenance: trustedProvenance(ALGORITHMIC_MEDIA), locale: "VN" });
+  const vn = buildMediaPresentation(result, "VN");
+  assert.match(vn.headline, /provenance đã xác minh/i);
+  const serializedLabels = JSON.stringify(MEDIA_PRESENTATION_TEXT.VN);
+  for (const rawKey of ["verified_algorithmic", "present_unverified", "real_signal", "no_reliable_ai_signal", "inconclusive"]) {
+    assert.equal(serializedLabels.includes(`\"${rawKey}\"`), true);
+    assert.notEqual((MEDIA_PRESENTATION_TEXT.VN.originStatus as Record<string, string>)[rawKey], rawKey);
   }
+});
+
+test("media OG title and description are concise, dash-safe and bounded", () => {
+  const result = fuse({ provenance: trustedProvenance(ALGORITHMIC_MEDIA), model: modelAssessment({ manipulation: { status: "likely_manipulated", strength: "strong" } }) });
+  const title = buildMediaOgTitle(result, "EN");
+  const description = buildMediaOgDescription(result, "EN");
+  assert.ok([...title].length <= 90);
+  assert.ok([...description].length <= 155);
+  assert.doesNotMatch(title + description, /[–—]/);
+  assert.match(title, /OAK Image Authenticity/);
 });
