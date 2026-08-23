@@ -8,6 +8,9 @@ export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v10";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
+// TEMP TEST SWITCH: keep the configured post-signal rules intact but bypass
+// calendar inversion in the active scanner path until this flag is re-enabled.
+export const H1_POST_SIGNAL_ENABLED = false;
 
 export const H1_TARGET_BASES = ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 export const H1_ALL_BASES = ["GBPUSD", ...H1_TARGET_BASES] as const;
@@ -146,8 +149,7 @@ function fridayCycleInverted(value: Date): boolean {
   return false;
 }
 
-export function postSignalDecision(brokerDate: string, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
-  const value = parseBrokerDateKeyUtc(brokerDate);
+function configuredPostSignalDecisionFromDate(value: Date, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
   const weekday = value.getUTCDay();
   if (weekday === 1 && MONDAY_INVERT_SLOTS.has(slotHour)) return { inverted: true, rule: "mon-block" };
   if (weekday === 2 && TUESDAY_INVERT_SLOTS.has(slotHour)) return { inverted: true, rule: "tue-block" };
@@ -155,6 +157,16 @@ export function postSignalDecision(brokerDate: string, slotHour: number): { inve
   if (weekday === 4 && thursdayCycleInverted(value)) return { inverted: true, rule: "thu-cycle" };
   if (weekday === 5 && fridayCycleInverted(value)) return { inverted: true, rule: "fri-cycle" };
   return { inverted: false, rule: "none" };
+}
+
+export function configuredPostSignalDecision(brokerDate: string, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
+  return configuredPostSignalDecisionFromDate(parseBrokerDateKeyUtc(brokerDate), slotHour);
+}
+
+export function postSignalDecision(brokerDate: string, slotHour: number): { inverted: boolean; rule: H1PostSignalRule } {
+  const value = parseBrokerDateKeyUtc(brokerDate);
+  if (!H1_POST_SIGNAL_ENABLED) return { inverted: false, rule: "none" };
+  return configuredPostSignalDecisionFromDate(value, slotHour);
 }
 
 export function signalFromPatternBase(baseSignal: H1Signal, _patternKind: H1PatternKind): H1Signal {
