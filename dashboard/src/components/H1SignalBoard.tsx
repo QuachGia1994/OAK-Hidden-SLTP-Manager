@@ -29,8 +29,8 @@ function barsLabel(values: string[]) {
 function patternLabel(kind: H1PatternKind, locale: Locale) {
   const labels: Record<H1PatternKind, { EN: string; VN: string }> = {
     sw2: { EN: "SW 2-candle", VN: "SW 2 cây" },
-    sw3Pure: { EN: "⚠ SW pure 3-candle", VN: "⚠ SW 3 cây thuần" },
-    sw3Normal: { EN: "SW normal 3-candle", VN: "SW 3 cây thường" },
+    sw3Pure: { EN: "Pattern 1 · TGG / GTT", VN: "Pattern 1 · TGG / GTT" },
+    sw3Normal: { EN: "Pattern 2 · TTT / GGG", VN: "Pattern 2 · TTT / GGG" },
   };
   return labels[kind][locale];
 }
@@ -47,6 +47,14 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
   } as const;
   if (!inverted && rule === "none") return labels.none[locale];
   return labels[rule][locale];
+}
+
+function allowTradeLookbackLabel(alert: H1SignalAlert, locale: Locale) {
+  const pattern = alert.lookbackPattern ? alert.lookbackPattern.split("").join(" ") : "—";
+  if (alert.lookbackAction === "block-pattern1") return locale === "EN" ? `Pattern 1 (${pattern}) → BLOCK` : `Pattern 1 (${pattern}) → BLOCK`;
+  if (alert.lookbackAction === "block-pattern2") return locale === "EN" ? `Pattern 2 (${pattern}) → BLOCK` : `Pattern 2 (${pattern}) → BLOCK`;
+  if (alert.lookbackAction === "invert-pattern3") return locale === "EN" ? `Pattern 3 (${pattern}) → reverse once` : `Pattern 3 (${pattern}) → đảo 1 lần`;
+  return locale === "EN" ? "no effect" : "không tác động";
 }
 
 function useDialogFocus(onClose: () => void) {
@@ -102,8 +110,9 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <p><span>{locale === "EN" ? "Pattern source" : "Nguồn scanner"}</span><b>{alert.scannerBase}</b></p>
           <p><span>Base H1 · {alert.baseSymbol}</span><b>{baseDetail}</b></p>
           <p><span>{locale === "EN" ? "Pattern logic" : "Logic pattern"}</span><b>{locale === "EN" ? `follow ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}</b></p>
+          <p><span>AllowTrade lookback</span><b>{allowTradeLookbackLabel(alert, locale)}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
-          <p><span>{locale === "EN" ? "Trade state" : "Trạng thái trade"}</span><b data-trade-state={alert.tradeAllowed === false ? "blocked" : "active"}>{alert.tradeAllowed === false ? `BLOCK / NOT TRADE · H${String(alert.blockedByPureSlot || 0).padStart(2, "0")}` : "ACTIVE"}</b></p>
+          <p><span>{locale === "EN" ? "Trade state" : "Trạng thái trade"}</span><b data-trade-state={alert.tradeAllowed === false ? "blocked" : "active"}>{alert.tradeAllowed === false ? "BLOCK / NOT TRADE" : "ACTIVE"}</b></p>
           <p><span>{locale === "EN" ? `Calculated ${base} H1` : `Signal tính toán ${base} H1`}</span><b data-side={alert.signal?.toLowerCase()}>{alert.signal}</b></p>
         </div>
       </section>

@@ -39,7 +39,7 @@ test("cloud scanner setup uses one-time tickets and encrypted server-side Telegr
   assert.match(setupRoute, /NextResponse\.json\(\{ ok: true, \.\.\.safeH1CloudConfigStatus\(saved\) \}/);
 });
 
-test("cloud scanner gates actionable alerts on Telegram while persisting cooldown BLOCK rows silently", () => {
+test("cloud scanner gates actionable alerts on Telegram while persisting allowTrade BLOCK rows silently", () => {
   assert.match(route, /loadH1CloudState/);
   assert.match(cloudStore, /seedCloudStateFromPublic/);
   assert.match(route, /x-h1-run-ticket/);
@@ -47,10 +47,10 @@ test("cloud scanner gates actionable alerts on Telegram while persisting cooldow
   assert.match(route, /if \(alert\.tradeAllowed\)/);
   assert.match(route, /await sendTelegram/);
   assert.match(route, /symbolState\.alerts\.push\(alert\)/);
-  assert.match(route, /pureCooldownSlots/);
-  assert.match(route, /reconcilePureCooldownState/);
-  assert.ok(route.indexOf("reconcilePureCooldownState(symbolState)") < route.indexOf("deliveredSlots(symbolState.alerts)"));
-  assert.match(route, /alert\.patternKind === "sw3Pure" && !alert\.tradeAllowed/);
+  assert.match(route, /blockedTradeSlots/);
+  assert.match(route, /reconcileTradeState/);
+  assert.ok(route.indexOf("reconcileTradeState(symbolState)") < route.indexOf("deliveredSlots(symbolState.alerts)"));
+  assert.match(route, /if \(!alert\.tradeAllowed\)/);
   assert.match(route, /symbolState\.blockedSlots/);
   assert.match(route, /await saveH1CloudState\(state\)/);
   assert.ok(route.indexOf("if (alert.tradeAllowed)") < route.indexOf("symbolState.alerts.push(alert)"));

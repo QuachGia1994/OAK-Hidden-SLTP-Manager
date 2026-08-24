@@ -49,14 +49,14 @@ const { normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(
 const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
 
 function alert(slotHour, signal = "BUY") {
-  return { slotHour, pattern: "T G G", patternKind: "sw3Pure", bars: [], symbol: "XAUUSD", profile: "cTrader IcMarkets", scannerBase: "AUDUSD", scannerSymbol: "AUDUSD", baseSymbol: "GBPUSD", baseSignal: "BUY", baseHour: slotHour - 1, baseDirection: "T", signal, postSignalInverted: false, postSignalRule: "none", tradeAllowed: true, blockedByPureSlot: null };
+  return { slotHour, pattern: "T G G", patternKind: "sw3Pure", bars: [], symbol: "XAUUSD", profile: "cTrader IcMarkets", scannerBase: "XAUUSD", scannerSymbol: "XAUUSD", baseSymbol: "GBPUSD", baseSignal: "BUY", baseHour: slotHour - 1, baseDirection: "T", signal, postSignalInverted: false, postSignalRule: "none", lookbackPattern: null, lookbackAction: "none", tradeAllowed: true };
 }
 
 function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
     schemaVersion: 7,
-    signalRuleVersion: 4,
+    signalRuleVersion: 5,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 4],

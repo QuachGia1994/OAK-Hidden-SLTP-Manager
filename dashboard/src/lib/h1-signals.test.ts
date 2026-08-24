@@ -16,16 +16,17 @@ test("H1 web feed has independent schema-7 Upstash contract", () => {
   assert.match(readerSource, /postSignalRule/);
   assert.match(readerSource, /robot-sltp:public:h1-signals:latest/);
   assert.match(readerSource, /payload\.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA/);
-  assert.match(readerSource, /normalizePureCooldownPayload/);
-  assert.match(readerSource, /reconcilePureCooldownState\(state\)/);
-  assert.match(readerSource, /normalizePureCooldownPayload\(parsePayload/);
+  assert.match(readerSource, /normalizeTradeStatePayload/);
+  assert.match(readerSource, /reconcileTradeState\(state\)/);
+  assert.match(readerSource, /normalizeTradeStatePayload\(parsePayload/);
+  assert.match(readerSource, /payload\.signalRuleVersion !== H1_SIGNAL_RULE_VERSION/);
   assert.match(readerSource, /sw2/);
   assert.match(readerSource, /sw3Pure/);
   assert.match(readerSource, /sw3Normal/);
   assert.doesNotMatch(readerSource, /previousPureSlot|postCheckApplied|sourceSignal|sw3Alternating|sw4Alternating|stopH17Warning|scannerSignal/);
 });
 
-test("H1 cells render tradable BUY/SELL and explicit pure-cooldown BLOCK cells", () => {
+test("H1 cells render tradable BUY/SELL and explicit allowTrade BLOCK cells", () => {
   assert.match(boardSource, /oak-h1-signal-button/);
   assert.match(boardSource, /<b>\{alert\.signal\}<\/b>/);
   assert.match(boardSource, /oak-h1-pure-badge/);
@@ -64,6 +65,7 @@ test("H1 detail renders pattern keep-base plus calendar post-signal evidence", (
   assert.match(boardSource, /Base H1 · \{alert\.baseSymbol\}/);
   assert.match(boardSource, /Nhóm pattern/);
   assert.match(boardSource, /Logic pattern/);
+  assert.match(boardSource, /AllowTrade lookback/);
   assert.match(boardSource, /Hậu signal/);
   assert.match(boardSource, /Signal tính toán \$\{base\} H1|Calculated \$\{base\} H1/);
   assert.match(boardSource, /Trạng thái trade|Trade state/);

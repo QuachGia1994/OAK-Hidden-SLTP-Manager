@@ -4,7 +4,7 @@ import {
   baseSymbolForTarget,
   buildStoredAlert,
   findH1PatternMatches,
-  reconcilePureCooldownState,
+  reconcileTradeState,
   scannerBaseForTarget,
   type H1Base,
   type H1CloudState,
@@ -51,9 +51,9 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
       });
       const symbolState = {
         alerts,
-        blockedSlots: alerts.filter((alert) => alert.patternKind === "sw3Pure" && !alert.tradeAllowed).map((alert) => alert.slotHour),
+        blockedSlots: alerts.filter((alert) => !alert.tradeAllowed).map((alert) => alert.slotHour),
       };
-      reconcilePureCooldownState(symbolState);
+      reconcileTradeState(symbolState);
       symbols[base] = symbolState;
     }
     output[date] = { symbols };
@@ -94,7 +94,7 @@ export function mergeHistoricalBackfill(state: H1CloudState, reconstructed: H1Hi
         if (existingSlots.has(alert.slotHour)) continue;
         target.alerts.push({ ...alert, bars: [...alert.bars] });
         existingSlots.add(alert.slotHour);
-        if (alert.patternKind === "sw3Pure" && !alert.tradeAllowed) blocked.add(alert.slotHour);
+        if (!alert.tradeAllowed) blocked.add(alert.slotHour);
         addedAlerts += 1;
       }
       target.alerts.sort((left, right) => left.slotHour - right.slotHour);

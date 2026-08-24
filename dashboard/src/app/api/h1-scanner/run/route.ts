@@ -10,12 +10,12 @@ import {
   H1_TARGET_BASES,
   backfillSuppressedHistory,
   baseSymbolForTarget,
+  blockedTradeSlots,
   buildStoredAlert,
   buildTelegramMessage,
   ensureSymbolDay,
   findH1PatternMatches,
-  pureCooldownSlots,
-  reconcilePureCooldownState,
+  reconcileTradeState,
   scannerBaseForTarget,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
@@ -39,7 +39,8 @@ type RunSummary = {
   baseSignal: string;
   signal: string;
   tradeAllowed: boolean;
-  blockedByPureSlot: number | null;
+  lookbackPattern: string | null;
+  lookbackAction: string;
 };
 
 function safeHexEqual(left: string, right: string): boolean {
@@ -181,7 +182,7 @@ export async function POST(request: Request) {
       const baseSymbol = baseSymbolForTarget(base);
       const matches = findH1PatternMatches(market.symbols[scannerBase].bars, market.brokerHour);
       const { day, symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
-      if (reconcilePureCooldownState(symbolState)) changed = true;
+      if (reconcileTradeState(symbolState)) changed = true;
       const delivered = deliveredSlots(symbolState.alerts);
       const suppressedThrough = Number(day.suppressedThroughHour || 0);
       for (let hour = 3; hour <= suppressedThrough; hour += 1) delivered.add(hour);
@@ -208,7 +209,8 @@ export async function POST(request: Request) {
           baseSignal: alert.baseH1Signal,
           signal: alert.symbolH1Signal,
           tradeAllowed: alert.tradeAllowed,
-          blockedByPureSlot: alert.blockedByPureSlot,
+          lookbackPattern: alert.lookbackPattern,
+          lookbackAction: alert.lookbackAction,
         });
         if (dryRun) continue;
 
@@ -220,9 +222,9 @@ export async function POST(request: Request) {
         symbolState.alerts.push(alert);
         symbolState.alerts.sort((left, right) => left.slotHour - right.slotHour);
         delivered.add(alert.slotHour);
-        if (alert.patternKind === "sw3Pure" && !alert.tradeAllowed) {
+        if (!alert.tradeAllowed) {
           const blocked = new Set(symbolState.blockedSlots);
-          for (const hour of pureCooldownSlots([match], market.brokerHour)) blocked.add(hour);
+          for (const hour of blockedTradeSlots([match])) blocked.add(hour);
           symbolState.blockedSlots = [...blocked].sort((left, right) => left - right);
         }
         changed = true;

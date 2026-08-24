@@ -8,7 +8,7 @@ export type H1SignalAlert = {
   bars: string[];
   symbol: string;
   profile: string;
-  scannerBase: "AUDUSD" | "GBPUSD";
+  scannerBase: "XAUUSD" | "AUDUSD" | "GBPUSD";
   scannerSymbol: string;
   baseSymbol: string;
   baseSignal: H1SignalSide | null;
@@ -17,8 +17,9 @@ export type H1SignalAlert = {
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
+  lookbackPattern?: string | null;
+  lookbackAction?: "none" | "block-pattern1" | "block-pattern2" | "invert-pattern3";
   tradeAllowed?: boolean;
-  blockedByPureSlot?: number | null;
 };
 
 export type H1SignalPayload = {

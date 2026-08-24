@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { GlassCard, Metric, OakScreen, Pill, SectionTitle } from "@/components/ui";
-import { alertsForSymbol, latestH1Date } from "@/lib/h1";
+import { alertsForSymbol, allowTradeDetail, latestH1Date } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import type { H1SignalAlert } from "@/lib/types";
 import { useOakData } from "@/state/data";
@@ -51,7 +51,7 @@ function SignalRow({ symbol, hour, alert }: { symbol: string; hour: number; aler
               <Text style={[styles.signal, { color: blocked ? theme.warning : signalColor }]}>{blocked ? "BLOCK" : alert.signal || "—"}</Text>
             </View>
             <Text style={[styles.pattern, { color: theme.muted }]}>{alert.pattern.replaceAll(" ", " · ")} · scanner {alert.scannerBase}</Text>
-            {blocked ? <Text style={[styles.cooldown, { color: theme.warning }]}>Cooldown from H{String(alert.blockedByPureSlot || 0).padStart(2, "0")} · calculated {alert.signal}</Text> : null}
+            {blocked ? <Text style={[styles.cooldown, { color: theme.warning }]}>{allowTradeDetail(alert)} · calculated {alert.signal}</Text> : null}
           </>
         )}
       </View>
@@ -77,7 +77,7 @@ export default function EngineScreen() {
     <OakScreen
       eyebrow="OAK / H1 CLOUD"
       title="Engine"
-      subtitle="Native H1 command view. Pure-pair state and cooldown are normalized by the Vercel backend before rendering."
+      subtitle="Native H1 command view. Pattern state and allowTrade lookback are normalized by the Vercel backend before rendering."
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.accent} />}
     >
       <GlassCard>

@@ -3,7 +3,7 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { OakScreen, Pill, SectionTitle } from "@/components/ui";
-import { latestH1Date, recentAlerts } from "@/lib/h1";
+import { allowTradeDetail, latestH1Date, recentAlerts } from "@/lib/h1";
 import { radius, spacing, useOakTheme } from "@/lib/theme";
 import { useOakData } from "@/state/data";
 
@@ -80,7 +80,7 @@ export default function AlertsScreen() {
                 <Pill label={blocked ? "NOT TRADE" : "ACTIVE"} tone={blocked ? "warning" : "online"} />
               </View>
               <Text style={[styles.meta, { color: theme.muted }]}>{alert.pattern.replaceAll(" ", " · ")} · {alert.scannerBase} → base {alert.baseSymbol}</Text>
-              {blocked ? <Text style={[styles.blockedBy, { color: theme.warning }]}>Cooldown from H{String(alert.blockedByPureSlot || 0).padStart(2, "0")} · calculated {alert.signal}</Text> : null}
+              {blocked ? <Text style={[styles.blockedBy, { color: theme.warning }]}>{allowTradeDetail(alert)} · calculated {alert.signal}</Text> : null}
             </Pressable>
           );
         })}

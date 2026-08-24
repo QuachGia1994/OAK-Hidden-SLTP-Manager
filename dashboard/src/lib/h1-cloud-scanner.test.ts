@@ -14,8 +14,7 @@ import {
   emptyCloudState,
   findH1PatternMatches,
   postSignalDecision,
-  pureCooldownSlots,
-  reconcilePureCooldownState,
+  reconcileTradeState,
   scannerBaseForTarget,
   seedCloudStateFromPublic,
   signalFromBaseAfterCalendar,
@@ -141,57 +140,58 @@ test("configured Friday special cycle remains intact behind the test bypass", ()
   assert.deepEqual(configuredPostSignalDecision("2026-09-04", 8), { inverted: true, rule: "fri-cycle" });
 });
 
-test("pure cooldown blocks only pure matches while normal SW remains tradable", () => {
-  const matches = findH1PatternMatches(bars("GGTTGGT"), 8);
-  const pure = matches.filter((item) => item.patternKind === "sw3Pure");
-  assert.deepEqual(pure.map((item) => [item.slotHour, item.pattern.join(""), item.tradeAllowed, item.blockedByPureSlot]), [
-    [6, "GTT", true, null],
-    [8, "TGG", false, 6],
-  ]);
-  assert.deepEqual(pureCooldownSlots(matches, 8), [8]);
+test("Pattern 1 uses the non-overlapping three-candle lookback from H8 onward", () => {
+  const blockedByPattern1 = findH1PatternMatches(bars("GGTGGT", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([blockedByPattern1.pattern.join(""), blockedByPattern1.lookbackPattern, blockedByPattern1.lookbackAction, blockedByPattern1.tradeAllowed], ["TGG", "TGG", "block-pattern1", false]);
 
-  const h12PureWindow = findH1PatternMatches(bars("GGTTGGT", 9), 16);
-  assert.deepEqual(pureCooldownSlots(h12PureWindow, 16), [14]);
-  const h14Pure = h12PureWindow.find((item) => item.slotHour === 14 && item.patternKind === "sw3Pure");
-  const h16Pure = h12PureWindow.find((item) => item.slotHour === 16 && item.patternKind === "sw3Pure");
-  assert.deepEqual([h14Pure?.tradeAllowed, h14Pure?.blockedByPureSlot], [false, 12]);
-  assert.deepEqual([h16Pure?.tradeAllowed, h16Pure?.blockedByPureSlot], [true, null]);
+  const blockedByPattern2 = findH1PatternMatches(bars("TTTGGT", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([blockedByPattern2.lookbackPattern, blockedByPattern2.lookbackAction, blockedByPattern2.tradeAllowed], ["TTT", "block-pattern2", false]);
 
-  const normalInsideWindow = findH1PatternMatches(bars("GGTTTG", 9), 15);
-  const h14Normal = normalInsideWindow.find((item) => item.slotHour === 14 && item.patternKind === "sw3Normal");
-  const h15Pure = normalInsideWindow.find((item) => item.slotHour === 15 && item.patternKind === "sw3Pure");
-  assert.deepEqual([h14Normal?.tradeAllowed, h14Normal?.blockedByPureSlot], [true, null]);
-  assert.deepEqual([h15Pure?.tradeAllowed, h15Pure?.blockedByPureSlot], [false, 12]);
-  assert.deepEqual(pureCooldownSlots(normalInsideWindow, 15), [15]);
+  const invertedByPattern3 = findH1PatternMatches(bars("GTGGGT", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([invertedByPattern3.lookbackPattern, invertedByPattern3.lookbackAction, invertedByPattern3.tradeAllowed], ["GTG", "invert-pattern3", true]);
+
+  const beforeH8 = findH1PatternMatches(bars("TTTGGT", 1), 7).find((item) => item.slotHour === 7)!;
+  assert.deepEqual([beforeH8.lookbackPattern, beforeH8.lookbackAction, beforeH8.tradeAllowed], [null, "none", true]);
 });
 
-test("stored H12-H15 rows reconcile stale pure cooldown state before delivered-slot skip", () => {
-  const matches = findH1PatternMatches(bars("GGTTTG", 9), 15).filter((item) => [12, 14, 15].includes(item.slotHour));
-  const alerts = matches.map((match) => buildStoredAlert({
+test("Pattern 2 is strongest and bypasses allowTrade lookback", () => {
+  const match = findH1PatternMatches(bars("TTGTTT", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([match.pattern.join(""), match.patternKind, match.lookbackPattern, match.lookbackAction, match.tradeAllowed], ["TTT", "sw3Normal", null, "none", true]);
+});
+
+test("Pattern 3 lookback inversion is independent from post-signal inversion", () => {
+  const match = findH1PatternMatches(bars("GTGGGT", 2, "2026-08-21"), 8).find((item) => item.slotHour === 8)!;
+  const alert = buildStoredAlert({
     base: "XAUUSD",
     brokerSymbol: "XAUUSD",
     scannerBase: "XAUUSD",
     scannerSymbol: "XAUUSD",
     match,
     baseSymbol: "GBPUSD",
-    baseBar: bars("T", match.slotHour - 1)[0],
-  }));
-  const h14 = alerts.find((alert) => alert.slotHour === 14)!;
-  const h15 = alerts.find((alert) => alert.slotHour === 15)!;
-  h14.tradeAllowed = false;
-  h14.blockedByPureSlot = 12;
-  h15.tradeAllowed = true;
-  h15.blockedByPureSlot = null;
-  const symbolState = { alerts, blockedSlots: [13, 14, 15] };
+    baseBar: bars("T", 7, "2026-08-21")[0],
+  });
+  assert.equal(alert.baseH1Signal, "BUY");
+  assert.equal(alert.lookbackAction, "invert-pattern3");
+  assert.equal(alert.postSignalRule, "fri-cycle");
+  assert.equal(alert.symbolH1Signal, "BUY");
+});
 
-  assert.equal(reconcilePureCooldownState(symbolState), true);
-  assert.deepEqual(alerts.map((alert) => [alert.slotHour, alert.patternKind, alert.tradeAllowed, alert.blockedByPureSlot]), [
-    [12, "sw3Pure", true, null],
-    [14, "sw3Normal", true, null],
-    [15, "sw3Pure", false, 12],
-  ]);
-  assert.deepEqual(symbolState.blockedSlots, [15]);
-  assert.equal(reconcilePureCooldownState(symbolState), false);
+test("stored rows reconcile blockedSlots from allowTrade state", () => {
+  const blockedMatch = findH1PatternMatches(bars("GGTGGT", 2), 8).find((item) => item.slotHour === 8)!;
+  const allowedMatch = findH1PatternMatches(bars("TTGTTT", 2), 8).find((item) => item.slotHour === 8)!;
+  const alerts = [blockedMatch, allowedMatch].map((match, index) => buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "XAUUSD",
+    scannerSymbol: "XAUUSD",
+    match: { ...match, slotHour: 8 + index },
+    baseSymbol: "GBPUSD",
+    baseBar: bars("T", 7 + index)[0],
+  }));
+  const symbolState = { alerts, blockedSlots: [6, 7] };
+  assert.equal(reconcileTradeState(symbolState), true);
+  assert.deepEqual(symbolState.blockedSlots, [8]);
+  assert.equal(reconcileTradeState(symbolState), false);
 });
 
 test("accepted pure SW3 Telegram marks /!\\ with no repeat warning metadata", () => {
@@ -255,7 +255,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("rule-v2 schema7 feed migrates to v10 without inventing blocked slots", () => {
+test("older signal-rule feeds start a fresh v11 state instead of carrying stale allowTrade semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -290,62 +290,9 @@ test("rule-v2 schema7 feed migrates to v10 without inventing blocked slots", () 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 10);
-  assert.equal(state.days["2026-08-21"].suppressedThroughHour, undefined);
-  assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.blockedSlots, []);
-  assert.equal(state.days["2026-08-21"].symbols.XAUUSD?.alerts[0]?.tradeAllowed, true);
-});
-
-test("rule-v3 feed migration removes generic cooldown blocks and restores normal SW trading", () => {
-  const row = (slotHour: number, pattern: string, patternKind: "sw3Pure" | "sw3Normal", tradeAllowed: boolean, blockedByPureSlot: number | null) => ({
-    slotHour,
-    pattern,
-    patternKind,
-    bars: [],
-    symbol: "XAUUSD",
-    profile: "cTrader IcMarkets",
-    scannerBase: "AUDUSD" as const,
-    scannerSymbol: "AUDUSD",
-    baseSymbol: "GBPUSD",
-    baseSignal: "BUY" as const,
-    baseHour: slotHour - 1,
-    baseDirection: "T" as const,
-    signal: "BUY" as const,
-    postSignalInverted: false,
-    postSignalRule: "none" as const,
-    tradeAllowed,
-    blockedByPureSlot,
-  });
-  const legacyV3 = {
-    schemaVersion: 7,
-    signalRuleVersion: 3,
-    profile: "cTrader IcMarkets",
-    publishedAt: "2026-08-21T00:00:00Z",
-    hours: Array.from({ length: 15 }, (_, index) => index + 3),
-    symbols: ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"],
-    days: {
-      "2026-08-21": {
-        symbols: {
-          XAUUSD: {
-            alerts: [
-              row(12, "T G G", "sw3Pure", true, null),
-              row(14, "T T T", "sw3Normal", false, 12),
-              row(15, "G T T", "sw3Pure", false, 12),
-            ],
-            blockedSlots: [13, 14, 15],
-          },
-        },
-      },
-    },
-  };
-  const state = seedCloudStateFromPublic(legacyV3, "2026-08-21", 15);
-  const xau = state.days["2026-08-21"].symbols.XAUUSD;
-  const h14 = xau?.alerts.find((alert) => alert.slotHour === 14);
-  const h15 = xau?.alerts.find((alert) => alert.slotHour === 15);
-  assert.equal(state.version, 10);
-  assert.deepEqual([h14?.tradeAllowed, h14?.blockedByPureSlot], [true, null]);
-  assert.deepEqual([h15?.tradeAllowed, h15?.blockedByPureSlot], [false, 12]);
-  assert.deepEqual(xau?.blockedSlots, [15]);
+  assert.equal(state.version, 11);
+  assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
+  assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
 
 test("older public schemas start a fresh suppressed v7 state instead of replaying obsolete semantics", () => {
@@ -358,11 +305,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 10);
+  assert.equal(state.version, 11);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 carries pure cooldown trade metadata without changing transport schema", () => {
+test("public feed v7 carries allowTrade lookback metadata under signal rule v5", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -377,14 +324,16 @@ test("public feed v7 carries pure cooldown trade metadata without changing trans
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 4);
+  assert.equal(feed.signalRuleVersion, 5);
   assert.deepEqual(feed.hours, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");
   assert.equal(row?.signal, "SELL");
   assert.equal(row?.tradeAllowed, true);
-  assert.equal(row?.blockedByPureSlot, null);
+  assert.equal(row?.lookbackPattern, null);
+  assert.equal(row?.lookbackAction, "none");
   assert.deepEqual(feed.days["2026-08-21"].symbols.XAUUSD?.blockedSlots, []);
+  assert.equal("blockedByPureSlot" in (row || {}), false);
   assert.equal("previousPureSlot" in (row || {}), false);
   assert.equal("postCheckApplied" in (row || {}), false);
   assert.equal("sourceSignal" in (row || {}), false);

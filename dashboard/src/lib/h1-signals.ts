@@ -1,11 +1,11 @@
 import "server-only";
 
 import { redis } from "./redis-core";
-import { reconcilePureCooldownState } from "./h1-cloud-scanner";
+import { H1_SIGNAL_RULE_VERSION, reconcileTradeState, type H1LookbackAction } from "./h1-cloud-scanner";
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1ScannerBase = "AUDUSD" | "GBPUSD";
+export type H1ScannerBase = "XAUUSD" | "AUDUSD" | "GBPUSD";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1SignalAlert = {
@@ -24,8 +24,9 @@ export type H1SignalAlert = {
   signal: H1SignalSide | null;
   postSignalInverted?: boolean;
   postSignalRule?: H1PostSignalRule;
+  lookbackPattern?: string | null;
+  lookbackAction?: H1LookbackAction;
   tradeAllowed?: boolean;
-  blockedByPureSlot?: number | null;
 };
 
 export type H1SymbolDay = {
@@ -67,6 +68,7 @@ function parsePayload(raw: unknown, source: string): H1SignalPayload | null {
     const payload = value as Partial<H1SignalPayload>;
     if (
       payload.schemaVersion !== H1_SIGNAL_PUBLIC_SCHEMA
+      || payload.signalRuleVersion !== H1_SIGNAL_RULE_VERSION
       || !payload.profile
       || !payload.publishedAt
       || !Array.isArray(payload.hours)
@@ -84,7 +86,7 @@ function parsePayload(raw: unknown, source: string): H1SignalPayload | null {
   }
 }
 
-export function normalizePureCooldownPayload(payload: H1SignalPayload | null): H1SignalPayload | null {
+export function normalizeTradeStatePayload(payload: H1SignalPayload | null): H1SignalPayload | null {
   if (!payload) return null;
   return {
     ...payload,
@@ -97,7 +99,7 @@ export function normalizePureCooldownPayload(payload: H1SignalPayload | null): H
             alerts: source.alerts.map((alert) => ({ ...alert })),
             blockedSlots: [...(source.blockedSlots || [])],
           };
-          reconcilePureCooldownState(state);
+          reconcileTradeState(state);
           return [base, state];
         })),
       },
@@ -115,7 +117,7 @@ export function maskFutureH1Signals(payload: H1SignalPayload | null, today = vie
 
 export async function getLatestH1Signals(): Promise<H1SignalPayload | null> {
   try {
-    return normalizePureCooldownPayload(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY));
+    return normalizeTradeStatePayload(parsePayload(await redis.get(LATEST_KEY), LATEST_KEY));
   } catch (error) {
     console.error("[H1 SIGNAL READ FAILED]", error);
     return null;
