@@ -66,3 +66,14 @@ test("MT5 EA bounds Upstash polling while local management remains tick-driven",
   assert.match(bridge, /DEFAULT_WAIT_MS = 20_000/);
   assert.match(bridge, /POLL_MS = 750/);
 });
+
+test("MT5 entry waits for symbol synchronization before using a broker tick", () => {
+  assert.match(ea, /bool WaitForUsableTick\(/);
+  assert.match(ea, /SymbolSelect\(symbol,true\)/);
+  assert.match(ea, /SymbolIsSynchronized\(symbol\)/);
+  assert.match(ea, /timeout_ms=2500/);
+  assert.match(ea, /Sleep\(50\)/);
+  assert.match(ea, /tick\.bid>0 && tick\.ask>0/);
+  assert.match(ea, /if\(!WaitForUsableTick\(symbol,tick,detail\)\) return false/);
+  assert.match(ea, /tick unavailable after sync wait/);
+});

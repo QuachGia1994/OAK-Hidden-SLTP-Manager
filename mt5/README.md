@@ -30,6 +30,7 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
 - Account identity binding: if `InpExpectedLogin` does not match the live MT5 login, EA initialization fails.
 - Cloud task arbitration uses the same Redis claim key as the web control plane so a cloud task has one durable execution owner.
 - Upstash traffic is bounded: local position management stays tick-driven, while the cloud mailbox is checked every 10 seconds by default (runtime-clamped to 10–15 seconds). Heartbeat refresh and queue peek share one atomic Redis command, avoiding the previous 1-second idle polling load.
+- Cloud market entry waits up to 2.5 seconds for the selected symbol to synchronize and expose a positive bid/ask tick before building the broker request. This handles Market Watch warm-up races without retrying any broker mutation.
 
 ## Install
 

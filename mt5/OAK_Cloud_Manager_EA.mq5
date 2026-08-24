@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.01"
+#property version   "1.02"
 #property description "OAK cloud bridge + standalone MT5 account manager"
 
 // OAK Cloud Manager EA
@@ -53,7 +53,7 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
 #define OAK_HEARTBEAT_TTL     45
-#define OAK_EA_VERSION        "1.01"
+#define OAK_EA_VERSION        "1.02"
 
 string g_profile = "";
 long   g_login = 0;
@@ -716,6 +716,41 @@ bool EntryCommentExists(const string symbol, const string comment, ulong &ticket
    return false;
 }
 
+bool WaitForUsableTick(const string symbol, MqlTick &tick, string &detail)
+{
+   ResetLastError();
+   if(!SymbolSelect(symbol,true))
+   {
+      detail=StringFormat("symbol select failed: %s err=%d",symbol,GetLastError());
+      return false;
+   }
+
+   const ulong started=GetTickCount64();
+   const ulong timeout_ms=2500;
+   bool synchronized=false;
+   int last_error=0;
+   while(GetTickCount64()-started<=timeout_ms)
+   {
+      synchronized=SymbolIsSynchronized(symbol);
+      ResetLastError();
+      if(synchronized && SymbolInfoTick(symbol,tick) && tick.bid>0 && tick.ask>0)
+      {
+         detail="";
+         return true;
+      }
+      last_error=GetLastError();
+      Sleep(50);
+   }
+
+   detail=StringFormat(
+      "tick unavailable after sync wait: %s synchronized=%s err=%d",
+      symbol,
+      synchronized ? "yes" : "no",
+      last_error
+   );
+   return false;
+}
+
 bool SendMarketEntry(const string symbol, bool buy, double lots, double sl_points, double tp_points, const string comment, ulong &broker_ref, string &detail)
 {
    if(lots<=0) { detail="lot must be positive"; return false; }
@@ -744,7 +779,7 @@ bool SendMarketEntry(const string symbol, bool buy, double lots, double sl_point
    string net_detail="";
    if(!PreEntryNet(symbol,buy,net_detail)) { detail=net_detail; return false; }
    MqlTick tick;
-   if(!SymbolInfoTick(symbol,tick)) { detail="tick unavailable"; return false; }
+   if(!WaitForUsableTick(symbol,tick,detail)) return false;
    double point=SymbolInfoDouble(symbol,SYMBOL_POINT);
    int digits=(int)SymbolInfoInteger(symbol,SYMBOL_DIGITS);
    double price=(buy?tick.ask:tick.bid);
