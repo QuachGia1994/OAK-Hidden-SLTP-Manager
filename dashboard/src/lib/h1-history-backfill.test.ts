@@ -69,20 +69,9 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   });
   assert.deepEqual(history["2026-08-21"].symbols.EURUSD?.alerts.find((alert) => alert.slotHour === 3), eurH3Expected);
 
-  const fxH5Market = marketForDates("2026-08-21");
-  fxH5Market.GBPUSD.bars = bars("GTTT", "2026-08-21");
-  const fxH5History = reconstructHistoricalDays(fxH5Market);
-  const eurH5Match = findH1PatternMatchesForTarget("EURUSD", fxH5Market.GBPUSD.bars, 5).find((item) => item.slotHour === 5)!;
-  const eurH5Expected = buildStoredAlert({
-    base: "EURUSD",
-    brokerSymbol: "EURUSD",
-    scannerBase: "GBPUSD",
-    scannerSymbol: "GBPUSD",
-    match: eurH5Match,
-    baseSymbol: "EURUSD",
-    baseBar: fxH5Market.EURUSD.bars.find((bar) => bar.hour === 4)!,
-  });
-  assert.deepEqual(fxH5History["2026-08-21"].symbols.EURUSD?.alerts.find((alert) => alert.slotHour === 5), eurH5Expected);
+  for (const symbol of ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+    assert.equal(history["2026-08-21"].symbols[symbol]?.alerts.some((alert) => alert.slotHour === 5), false);
+  }
 });
 
 test("backfill merge is idempotent, preserves existing rows and never overwrites current live day", () => {
