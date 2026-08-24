@@ -1,5 +1,5 @@
 #property strict
-#property version   "1.00"
+#property version   "1.01"
 #property description "OAK cloud bridge + standalone MT5 account manager"
 
 // OAK Cloud Manager EA
@@ -18,7 +18,8 @@ input long   InpExpectedLogin              = 0;        // MT5 account login
 input string InpUpstashRestUrl             = "";       // Upstash REST URL
 input string InpUpstashRestToken           = "";       // Upstash REST token
 input int    InpHttpTimeoutMs              = 1200;
-input int    InpPollSeconds                = 1;
+input int    InpPollSeconds                = 1;         // Local manager timer; OnTick remains primary
+input int    InpCloudPollSeconds           = 10;        // Upstash queue poll; runtime clamps to 10..15s
 
 input group "Execution"
 input long   InpTradeMagic                 = 0;
@@ -51,14 +52,15 @@ input string InpPartialPercents            = "50";      // 1 pct = current-volum
 #define OAK_ARBITER_PREFIX    "oak:mt5:bridge:arbiter:v1:"
 #define OAK_HEARTBEAT_PREFIX  "oak:mt5:bridge:heartbeat:v1:"
 #define OAK_TASK_TTL          604800
-#define OAK_HEARTBEAT_TTL     15
-#define OAK_EA_VERSION        "1.00"
+#define OAK_HEARTBEAT_TTL     45
+#define OAK_EA_VERSION        "1.01"
 
 string g_profile = "";
 long   g_login = 0;
 string g_server = "";
 bool   g_bridge_ready = false;
 datetime g_last_heartbeat = 0;
+datetime g_last_cloud_poll = 0;
 double g_partial_r[];
 double g_partial_pct[];
 string g_pending_final_id = "";
@@ -363,6 +365,22 @@ void RedisLRemOne(const string key, const string value)
 {
    string args[]; ArrayResize(args,4); args[0]="LREM"; args[1]=key; args[2]="1"; args[3]=value;
    string ignored=""; RedisCommand(args,ignored);
+}
+
+bool RedisHeartbeatAndPeekQueue(const string heartbeat, string &task_id)
+{
+   // One EVAL replaces a separate heartbeat SET plus queue LINDEX. Upstash
+   // treats the Lua invocation as one Redis command while keeping both actions
+   // atomic from other clients' perspective.
+   string script="redis.call('SET',KEYS[1],ARGV[1],'EX',ARGV[2]); return redis.call('LINDEX',KEYS[2],0)";
+   string args[]; ArrayResize(args,7);
+   args[0]="EVAL"; args[1]=script; args[2]="2";
+   args[3]=HeartbeatKey(); args[4]=QueueKey();
+   args[5]=heartbeat; args[6]=IntegerToString(OAK_HEARTBEAT_TTL);
+   string raw="";
+   if(!RedisCommand(args,raw)) return false;
+   task_id=(raw=="null" ? "" : RedisResultString(raw));
+   return true;
 }
 
 // -----------------------------------------------------------------------------
@@ -1107,28 +1125,39 @@ void FlushPendingFinalTask()
    }
 }
 
-void PublishHeartbeat()
+string HeartbeatJson()
 {
-   if(!g_bridge_ready) return;
-   string heartbeat="{\"profile\":"+JsonQuote(g_profile)
+   return "{\"profile\":"+JsonQuote(g_profile)
       +",\"login\":"+IntegerToString(g_login)
       +",\"server\":"+JsonQuote(g_server)
       +",\"runtime\":\"mql5-ea\""
       +",\"version\":"+JsonQuote(OAK_EA_VERSION)
       +",\"at\":"+IntegerToString(NowMs())+"}";
+}
+
+void PublishHeartbeat()
+{
+   if(!g_bridge_ready) return;
    string server="";
-   if(RedisSet(HeartbeatKey(),heartbeat,OAK_HEARTBEAT_TTL,false,server)) g_last_heartbeat=TimeCurrent();
+   if(RedisSet(HeartbeatKey(),HeartbeatJson(),OAK_HEARTBEAT_TTL,false,server)) g_last_heartbeat=TimeCurrent();
 }
 
 void PollCloudOnce()
 {
    if(!g_bridge_ready) return;
-   if(g_last_heartbeat==0 || (TimeCurrent()-g_last_heartbeat)>=5) PublishHeartbeat();
-   FlushPendingFinalTask();
-   if(g_pending_final_id!="") return;
+   datetime now=TimeCurrent();
+   int requested=(InpCloudPollSeconds>0 ? InpCloudPollSeconds : 10);
+   int interval=(requested<10 ? 10 : (requested>15 ? 15 : requested));
+   if(g_last_cloud_poll!=0 && (now-g_last_cloud_poll)<interval) return;
+   // Set before network I/O so an outage cannot turn the 1s local timer into a
+   // Redis retry storm. Local position management continues independently.
+   g_last_cloud_poll=now;
 
    string task_id="";
-   if(!RedisLIndex0(QueueKey(),task_id) || task_id=="") return;
+   if(!RedisHeartbeatAndPeekQueue(HeartbeatJson(),task_id)) return;
+   g_last_heartbeat=now;
+   FlushPendingFinalTask();
+   if(g_pending_final_id!="" || task_id=="") return;
    string claim_token="ea:"+ProfileKey()+":"+IntegerToString((long)GetTickCount64());
    string claim_result="";
    if(!RedisSet(ArbiterKey(task_id),claim_token,OAK_TASK_TTL,true,claim_result)) return;

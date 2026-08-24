@@ -1,11 +1,11 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { redis, requireAuth } from "@/lib/redis-core";
+import { redis, releaseOwnedRedisLock, requireAuth } from "@/lib/redis-core";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
 import { runCTraderAccountManager } from "@/lib/ctrader-account-manager";
-import { TELEGRAM_CLOUD_PROFILE } from "@/lib/telegram-cloud-domain";
+import { TELEGRAM_CLOUD_PROFILE, isDueScheduledIntent } from "@/lib/telegram-cloud-domain";
 import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/telegram-cloud-runner";
-import { appendTelegramAudit, listCloudIntents, listDueScheduledIntents, markDueNotification } from "@/lib/telegram-cloud-store";
+import { appendTelegramAudit, listCloudIntents, markDueNotification } from "@/lib/telegram-cloud-store";
 import { verifyTelegramCloudGitHubOidc } from "@/lib/telegram-cloud-oidc";
 
 export const dynamic = "force-dynamic";
@@ -55,8 +55,7 @@ async function acquireLock(value: string): Promise<boolean> {
 
 async function releaseLock(value: string): Promise<void> {
   try {
-    const current = await redis.get<string>(LOCK_KEY);
-    if (current === value) await redis.del(LOCK_KEY);
+    await releaseOwnedRedisLock(LOCK_KEY, value);
   } catch {
     // TTL is the safety net.
   }
@@ -76,7 +75,8 @@ export async function POST(request: Request) {
     if (!config?.telegramControlEnabled) {
       return NextResponse.json({ ok: true, enabled: false, notified: 0, ctraderManager });
     }
-    const due = (await listDueScheduledIntents(now)).slice(0, 50);
+    const tasks = await listCloudIntents();
+    const due = tasks.filter((task) => isDueScheduledIntent(task, now)).slice(0, 50);
     let executed = 0;
     for (const task of due) {
       const finished = await runCloudIntentExecution(task.id, now);
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
       executed += 1;
     }
 
-    const unapprovedDue = (await listCloudIntents())
+    const unapprovedDue = tasks
       .filter((task) => task.status === "approval_required" && task.dueAt !== null && task.dueAt <= now && !task.dueNotifiedAt)
       .slice(0, 20);
     let reminded = 0;
@@ -101,7 +101,10 @@ export async function POST(request: Request) {
       await markDueNotification(task, now);
       reminded += 1;
     }
-    await appendTelegramAudit({ action: "due_tick", scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded, ctraderManager });
+    const managerActivity = ctraderManager.mutations > 0 || ctraderManager.uncertain > 0 || ctraderManager.errors.length > 0;
+    if (due.length > 0 || unapprovedDue.length > 0 || executed > 0 || reminded > 0 || managerActivity) {
+      await appendTelegramAudit({ action: "due_tick", scheduledDue: due.length, executed, unapprovedDue: unapprovedDue.length, reminded, ctraderManager });
+    }
     return NextResponse.json({ ok: true, enabled: true, executed, reminded, ctraderManager });
   } catch (error) {
     console.error("[TELEGRAM CLOUD TICK]", error instanceof Error ? error.message : String(error));

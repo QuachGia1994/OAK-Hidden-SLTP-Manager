@@ -6,6 +6,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Added
 
+- Redis command-efficiency pass for the cloud runtime: MT5 bridge wait timing now matches EA v1.01's bounded 10–15 second cloud poll, Telegram minute tick reads pending intents once and suppresses idle audit writes, audit trimming and owned-lock release use atomic Lua single-command helpers, H1 dual-feed publish uses `MSET`, and cTrader manager avoids unchanged per-position state writes while refreshing persisted state every 12 hours.
 - Telegram Cloud accepts up to 10 commands in one message, one non-empty line per command, and tracks intent idempotency per line within the same Telegram update. Batch `/approve ID [ID ...]` and `/del ID [ID ...]` are supported while preserving single-ID behavior and `/del all`.
 - Added an admin/API-authenticated `/api/h1-scanner/backfill` endpoint that reconstructs the fixed 90-calendar-day cTrader H1 window with the current signal rule, shares the live scanner lock, skips the current broker day, reports provider coverage and never sends Telegram messages or broker mutations.
 - Added broker-date history controls to `/engine`: localized All/Mon-Fri weekday filters, newest-first broker-date chips, retained-window coverage and deterministic selected-date fallback while reusing the existing H03-H17 matrix/detail view.

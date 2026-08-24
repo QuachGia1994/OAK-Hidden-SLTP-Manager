@@ -76,3 +76,10 @@ test("minute cloud tick runs cTrader Auto Manager and UI exposes explicit opt-in
   assert.match(panelSource, /Partial R levels/);
   assert.match(panelSource, /Max exposure \/ symbol/);
 });
+
+test("cTrader manager avoids unchanged per-position Redis writes and releases locks atomically", () => {
+  assert.match(managerSource, /STATE_REFRESH_MS = 12 \* 60 \* 60 \* 1000/);
+  assert.match(managerSource, /saveStateIfChanged/);
+  assert.match(managerSource, /stateFingerprint\(state\) !== initialFingerprint/);
+  assert.match(managerSource, /releaseOwnedRedisLock\(lockKey\(accountId\), token\)/);
+});

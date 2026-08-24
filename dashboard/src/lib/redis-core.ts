@@ -7,6 +7,29 @@ const API_KEY = process.env.DASHBOARD_API_KEY || "";
 
 export const redis = new Redis({ url: REDIS_URL, token: REDIS_TOKEN });
 
+const RELEASE_OWNED_LOCK_SCRIPT = `
+local current = redis.call("GET", KEYS[1])
+if current == ARGV[1] then
+  return redis.call("DEL", KEYS[1])
+end
+return 0
+`;
+
+const PUSH_TRIMMED_LIST_SCRIPT = `
+redis.call("LPUSH", KEYS[1], ARGV[1])
+redis.call("LTRIM", KEYS[1], 0, tonumber(ARGV[2]) - 1)
+return 1
+`;
+
+export async function releaseOwnedRedisLock(key: string, token: string): Promise<void> {
+  await redis.eval(RELEASE_OWNED_LOCK_SCRIPT, [key], [token]);
+}
+
+export async function pushTrimmedRedisList(key: string, value: string, maxEntries: number): Promise<void> {
+  const limit = Math.max(1, Math.trunc(maxEntries));
+  await redis.eval(PUSH_TRIMMED_LIST_SCRIPT, [key], [value, String(limit)]);
+}
+
 function safeEqual(left: string, right: string): boolean {
   if (left.length !== right.length) return false;
   let diff = 0;

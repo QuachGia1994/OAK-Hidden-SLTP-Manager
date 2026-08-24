@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { redis } from "./redis-core";
+import { redis, releaseOwnedRedisLock } from "./redis-core";
 import {
   H1_CLOUD_LOCK_KEY,
   H1_CLOUD_PROFILE,
@@ -46,10 +46,10 @@ export async function saveH1CloudState(state: H1CloudState): Promise<void> {
 export async function publishH1CloudState(state: H1CloudState): Promise<void> {
   parseCloudState(state);
   const feed = buildPublicFeed(state);
-  await Promise.all([
-    redis.set(PUBLIC_PROFILE_KEY, feed),
-    redis.set(H1_PUBLIC_LATEST_KEY, feed),
-  ]);
+  await redis.mset({
+    [PUBLIC_PROFILE_KEY]: feed,
+    [H1_PUBLIC_LATEST_KEY]: feed,
+  });
 }
 
 export async function acquireH1CloudLock(): Promise<string | null> {
@@ -60,8 +60,7 @@ export async function acquireH1CloudLock(): Promise<string | null> {
 
 export async function releaseH1CloudLock(token: string): Promise<void> {
   try {
-    const current = await redis.get<string>(H1_CLOUD_LOCK_KEY);
-    if (current === token) await redis.del(H1_CLOUD_LOCK_KEY);
+    await releaseOwnedRedisLock(H1_CLOUD_LOCK_KEY, token);
   } catch {
     // Lock TTL is the final safety net; release failure must not mask the scanner/backfill result.
   }

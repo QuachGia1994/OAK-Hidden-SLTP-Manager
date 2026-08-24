@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Reduced Upstash Redis command pressure without changing trading/approval semantics. MT5 EA v1.01 keeps local SL/TP/BE/R management tick-driven but throttles cloud mailbox polling to 10–15 seconds, combines heartbeat refresh + queue peek into one Lua Redis command, and the web bridge extends task wait windows accordingly. Telegram minute ticks now read the intent hash once, skip no-op audit writes, and use atomic one-command lock release; Telegram audit trim is one Lua command; H1 publish uses `MSET`; cTrader manager writes position state only when changed or after a 12-hour TTL refresh and releases account locks atomically.
 - Telegram Cloud now accepts up to 10 commands in one Telegram message, one command per non-empty line, with per-line idempotency under the same Telegram update. `/approve ID [ID ...]` and `/del ID [ID ...]` now support batch intent IDs while preserving single-ID syntax, `/del all`, explicit approval, scheduling, execution locks and retry safety.
 - Fixed Telegram cloud scheduling for single-digit hours such as `9h00` and `9:00`; missing seconds now default to zero instead of producing an invalid `NaN` due time.
 - Extended the H1 cloud scanner/feed to retain 90 calendar days of broker history, added an admin/API-authenticated cTrader historical backfill that reconstructs missing dates with the current signal rule without Telegram/trading side effects, and added weekday/date history navigation to `/engine` while preserving schema 7, VIP redaction and mobile latest-day behavior.

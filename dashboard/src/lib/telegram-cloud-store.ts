@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { redis } from "@/lib/redis-core";
+import { pushTrimmedRedisList, redis, releaseOwnedRedisLock } from "@/lib/redis-core";
 import {
   TELEGRAM_CLOUD_PROFILE,
   approvedStatusForDueAt,
@@ -61,8 +61,7 @@ export async function releaseTelegramUpdate(updateId: number): Promise<void> {
 
 export async function appendTelegramAudit(event: Record<string, unknown>): Promise<void> {
   const row = JSON.stringify({ ...event, at: Date.now(), profile: TELEGRAM_CLOUD_PROFILE });
-  await redis.lpush(AUDIT_KEY, row);
-  await redis.ltrim(AUDIT_KEY, 0, 199);
+  await pushTrimmedRedisList(AUDIT_KEY, row, 200);
 }
 
 export async function createCloudIntent(args: {
@@ -189,10 +188,8 @@ export async function claimCloudIntentExecution(id: number, nowMs = Date.now()):
 }
 
 async function releaseExecutionLock(id: number, lockToken: string): Promise<void> {
-  const key = `${EXECUTION_LOCK_PREFIX}${id}`;
   try {
-    const current = await redis.get<string>(key);
-    if (current === lockToken) await redis.del(key);
+    await releaseOwnedRedisLock(`${EXECUTION_LOCK_PREFIX}${id}`, lockToken);
   } catch {
     // TTL is the final lock safety net.
   }

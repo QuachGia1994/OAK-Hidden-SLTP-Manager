@@ -204,7 +204,7 @@ async function handleCommand(text: string, chatId: string, updateId: number, sou
     const rows: string[] = [`📊 ${TELEGRAM_CLOUD_PROFILE} · ${providers.length} account · snapshot`];
     for (const account of providers) {
       if (account.provider === "mt5") {
-        const result = await executeMt5BridgeAction({ intentId: null, account, action: "positions", payload: {}, waitMs: 5_000 });
+        const result = await executeMt5BridgeAction({ intentId: null, account, action: "positions", payload: {}, waitMs: 20_000 });
         if (!result.ok) {
           rows.push(`• @${account.label} · MT5: ${result.detail}`);
           continue;

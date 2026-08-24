@@ -29,6 +29,7 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
 - Per-position management state persists in MT5 terminal Global Variables using `POSITION_IDENTIFIER`, so initial risk/R state survives EA reloads and netting ticket replacement.
 - Account identity binding: if `InpExpectedLogin` does not match the live MT5 login, EA initialization fails.
 - Cloud task arbitration uses the same Redis claim key as the web control plane so a cloud task has one durable execution owner.
+- Upstash traffic is bounded: local position management stays tick-driven, while the cloud mailbox is checked every 10 seconds by default (runtime-clamped to 10–15 seconds). Heartbeat refresh and queue peek share one atomic Redis command, avoiding the previous 1-second idle polling load.
 
 ## Install
 
@@ -40,6 +41,7 @@ If the terminal/PC is offline at the due time, the bridge heartbeat expires and 
    - `InpBridgeProfile` = the MT5 account's `bridgeProfile` shown/configured in `/accounts`.
    - `InpExpectedLogin` = exact MT5 login number.
    - `InpUpstashRestUrl` and `InpUpstashRestToken` = the same bridge Redis REST credentials as the cloud control plane.
+   - `InpCloudPollSeconds` = keep `10` for the normal balance of command usage and cloud execution latency. The runtime clamps this value to 10–15 seconds; `InpPollSeconds` remains the local manager timer and does not control Redis queue frequency.
    - SL/TP, netting, BE/R and exposure guards as required.
 6. Keep **Algo Trading** enabled. `/accounts` and `/status` should show the bridge online after the EA heartbeat appears.
 7. Verify with `/positions @ACCOUNT` before approving any live broker mutation.

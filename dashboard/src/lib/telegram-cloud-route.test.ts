@@ -23,6 +23,8 @@ test("Telegram webhook is secret-fenced, chat-fenced and retry-idempotent", () =
   assert.match(webhook, /TELEGRAM_MULTI_COMMAND_LIMIT/);
   assert.match(store, /INTENT_BY_UPDATE_PREFIX/);
   assert.match(store, /sourceCommandIndex > 0/);
+  assert.match(store, /pushTrimmedRedisList\(AUDIT_KEY, row, 200\)/);
+  assert.doesNotMatch(store, /redis\.ltrim\(AUDIT_KEY/);
 });
 
 test("Telegram webhook bootstrap is one-time authorized and never returns the secret", () => {
@@ -52,13 +54,19 @@ test("cloud receiver requires explicit approve before broker mutation", () => {
   assert.match(ctrader, /relativeTakeProfit/);
 });
 
-test("due scheduler executes only pre-approved scheduled intents", () => {
-  assert.match(tick, /listDueScheduledIntents/);
+test("due scheduler executes only pre-approved scheduled intents with one task-list read per tick", () => {
+  assert.match(tick, /const tasks = await listCloudIntents\(\)/);
+  assert.equal((tick.match(/listCloudIntents\(\)/g) || []).length, 1);
+  assert.doesNotMatch(tick, /listDueScheduledIntents/);
+  assert.match(tick, /isDueScheduledIntent\(task, now\)/);
   assert.match(tick, /runCloudIntentExecution/);
   assert.match(store, /isDueScheduledIntent\(task, nowMs\)/);
   assert.match(store, /listDueScheduledIntents/);
   assert.match(tick, /renderCloudExecutionResult/);
   assert.match(tick, /nx: true, ex: LOCK_SECONDS/);
+  assert.match(tick, /releaseOwnedRedisLock\(LOCK_KEY, value\)/);
+  assert.match(tick, /managerActivity/);
+  assert.match(tick, /if \(due\.length > 0 \|\| unapprovedDue\.length > 0/);
   assert.doesNotMatch(tick, /Broker execution: chưa tự động/);
 });
 

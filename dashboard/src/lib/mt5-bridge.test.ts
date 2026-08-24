@@ -55,3 +55,14 @@ test("OAK MQL5 EA keeps cloud keys, compile-safe helpers and clear bridge inputs
   assert.match(ea, /\/\/ Upstash REST URL/);
   assert.match(ea, /\/\/ Upstash REST token/);
 });
+
+test("MT5 EA bounds Upstash polling while local management remains tick-driven", () => {
+  assert.match(ea, /InpCloudPollSeconds\s*= 10/);
+  assert.match(ea, /requested<10 \? 10 : \(requested>15 \? 15 : requested\)/);
+  assert.match(ea, /RedisHeartbeatAndPeekQueue/);
+  assert.match(ea, /args\[0\]="EVAL"/);
+  assert.match(ea, /redis\.call\('SET',KEYS\[1\],ARGV\[1\],'EX',ARGV\[2\]\); return redis\.call\('LINDEX',KEYS\[2\],0\)/);
+  assert.match(ea, /void OnTick\(\)[\s\S]*ManageAccount\(\)/);
+  assert.match(bridge, /DEFAULT_WAIT_MS = 20_000/);
+  assert.match(bridge, /POLL_MS = 750/);
+});

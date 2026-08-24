@@ -1,7 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { redis } from "@/lib/redis-core";
+import { redis, releaseOwnedRedisLock } from "@/lib/redis-core";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { listManagedCTraderAccounts, type CTraderManagedAccount } from "@/lib/ctrader-accounts";
 import { lotsToProtocolVolume } from "@/lib/ctrader-execution-domain";
@@ -26,6 +26,7 @@ const STATE_PREFIX = "oak:ctrader:manager:position:v1:";
 const MUTATION_PREFIX = "oak:ctrader:manager:mutation:v1:";
 const LOCK_PREFIX = "oak:ctrader:manager:lock:v1:";
 const STATE_TTL_SECONDS = 45 * 24 * 3600;
+const STATE_REFRESH_MS = 12 * 60 * 60 * 1000;
 const MUTATION_TTL_SECONDS = 45 * 24 * 3600;
 const LOCK_SECONDS = 55;
 
@@ -144,6 +145,22 @@ async function saveState(state: PositionManagerState): Promise<void> {
   await redis.set(stateKey(state.accountId, state.positionId), JSON.stringify(state), { ex: STATE_TTL_SECONDS });
 }
 
+function stateFingerprint(state: PositionManagerState): string {
+  return JSON.stringify({
+    initialRiskPoints: state.initialRiskPoints,
+    originalVolumeRaw: state.originalVolumeRaw,
+    rPartialMask: state.rPartialMask,
+    beDone: state.beDone,
+    dynamicPartial: state.dynamicPartial || null,
+  });
+}
+
+async function saveStateIfChanged(state: PositionManagerState, initialFingerprint: string): Promise<void> {
+  const changed = stateFingerprint(state) !== initialFingerprint;
+  const refreshDue = Date.now() - state.updatedAt >= STATE_REFRESH_MS;
+  if (changed || refreshDue) await saveState(state);
+}
+
 async function loadLedger(key: string): Promise<MutationLedger | null> {
   return parseJson<MutationLedger>(await redis.get<unknown>(key));
 }
@@ -227,6 +244,7 @@ async function guardedCloseMutation(args: {
 async function managePosition(account: CTraderManagedAccount, session: CTraderScannerSession, position: CTraderManagementPosition): Promise<{ mutations: number; uncertain: number }> {
   const settings = account.manager;
   const state = await loadState(account, position);
+  const initialStateFingerprint = stateFingerprint(state);
   let mutations = 0;
   let uncertain = 0;
   const defaults = defaultProtection(account, position.symbol);
@@ -245,7 +263,7 @@ async function managePosition(account: CTraderManagedAccount, session: CTraderSc
   if (r !== null && settings.closeAtR > 0 && r >= settings.closeAtR) {
     const outcome = await guardedCloseMutation({ account, session, position, actionKey: `close-r:${settings.closeAtR}`, volumeRaw: position.volumeRaw });
     if (outcome === "done") mutations += 1; else uncertain += 1;
-    await saveState(state);
+    await saveStateIfChanged(state, initialStateFingerprint);
     return { mutations, uncertain };
   }
 
@@ -310,7 +328,7 @@ async function managePosition(account: CTraderManagedAccount, session: CTraderSc
     }
   }
 
-  await saveState(state);
+  await saveStateIfChanged(state, initialStateFingerprint);
   return { mutations, uncertain };
 }
 
@@ -321,7 +339,7 @@ async function acquireAccountLock(accountId: number): Promise<string | null> {
 
 async function releaseAccountLock(accountId: number, token: string): Promise<void> {
   try {
-    if (await redis.get<string>(lockKey(accountId)) === token) await redis.del(lockKey(accountId));
+    await releaseOwnedRedisLock(lockKey(accountId), token);
   } catch {
     // TTL is the safety net.
   }

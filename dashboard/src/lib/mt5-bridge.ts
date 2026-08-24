@@ -10,8 +10,8 @@ const QUEUE_PREFIX = "oak:mt5:bridge:queue:v1:";
 const ARBITER_PREFIX = "oak:mt5:bridge:arbiter:v1:";
 const HEARTBEAT_PREFIX = "oak:mt5:bridge:heartbeat:v1:";
 const TASK_TTL_SECONDS = 7 * 24 * 3600;
-const DEFAULT_WAIT_MS = 8_000;
-const POLL_MS = 250;
+const DEFAULT_WAIT_MS = 20_000;
+const POLL_MS = 750;
 
 export type Mt5BridgeAction = CloudIntentKind | "positions";
 
