@@ -51,9 +51,11 @@ function postSignalLabel(rule: H1SignalAlert["postSignalRule"], inverted: boolea
 
 function allowTradeLookbackLabel(alert: H1SignalAlert, locale: Locale) {
   const pattern = alert.lookbackPattern ? alert.lookbackPattern.split("").join(" ") : "—";
+  if (alert.lookbackAction === "block-pair") return locale === "EN" ? `Pair ${pattern} → BLOCK` : `Cặp ${pattern} → BLOCK`;
   if (alert.lookbackAction === "block-pattern1") return locale === "EN" ? `Pattern 1 (${pattern}) → BLOCK` : `Pattern 1 (${pattern}) → BLOCK`;
   if (alert.lookbackAction === "block-pattern2") return locale === "EN" ? `Pattern 2 (${pattern}) → BLOCK` : `Pattern 2 (${pattern}) → BLOCK`;
   if (alert.lookbackAction === "invert-pattern3") return locale === "EN" ? `Pattern 3 (${pattern}) → reverse once` : `Pattern 3 (${pattern}) → đảo 1 lần`;
+  if (alert.lookbackPattern?.length === 2) return locale === "EN" ? `Pair ${pattern} → normal` : `Cặp ${pattern} → bình thường`;
   return locale === "EN" ? "no effect" : "không tác động";
 }
 

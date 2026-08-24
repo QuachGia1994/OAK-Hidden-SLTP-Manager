@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 13;
+export const H1_CLOUD_STATE_VERSION = 14;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 7;
+export const H1_SIGNAL_RULE_VERSION = 8;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v13";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v14";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -29,7 +29,7 @@ export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1LookbackAction = "none" | "block-pattern1" | "block-pattern2" | "invert-pattern3";
+export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "invert-pattern3";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1DirectionBar = {
@@ -71,7 +71,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 13;
+  version: 14;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -80,7 +80,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 7;
+  signalRuleVersion: 8;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -112,6 +112,7 @@ export type H1PublicFeed = {
 const PURE_SW_3 = new Set(["TGG", "GTT"]);
 const NORMAL_SW_3 = new Set(["TTT", "GGG"]);
 const ALTERNATING_SW_3 = new Set(["GTG", "TGT"]);
+const BLOCK_PAIR_2 = new Set(["TG", "GT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
   sw2: "SW 2 cây",
   sw3Pure: "SW 3 cây thuần",
@@ -234,6 +235,17 @@ function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch
   };
 }
 
+function targetPairGate(base: H1TargetBase, byHour: Map<number, H1DirectionBar>, slotHour: number): { pattern: string | null; action: H1LookbackAction } {
+  const hours = base === "XAUUSD"
+    ? (slotHour === 7 ? [3, 2] : null)
+    : (slotHour === 6 ? [2, 1] : null);
+  if (!hours) return { pattern: null, action: "none" };
+  const rows = rowsForHours(byHour, hours);
+  if (!rows) return { pattern: null, action: "none" };
+  const pattern = rows.map((row) => row.direction).join("");
+  return { pattern, action: BLOCK_PAIR_2.has(pattern) ? "block-pair" : "none" };
+}
+
 export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
   const matches: H1PatternMatch[] = [];
   const earlySlot: 3 | 4 = base === "XAUUSD" ? 4 : 3;
@@ -241,7 +253,17 @@ export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1Direct
     const early = twoCandleMatch(bars, earlySlot);
     if (early) matches.push(early);
   }
-  matches.push(...findH1PatternMatches(bars, brokerHour));
+  const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
+  matches.push(...findH1PatternMatches(bars, brokerHour).map((match) => {
+    const gate = targetPairGate(base, byHour, match.slotHour);
+    if (gate.pattern === null) return match;
+    return {
+      ...match,
+      lookbackPattern: gate.pattern,
+      lookbackAction: gate.action,
+      tradeAllowed: !gate.action.startsWith("block-"),
+    };
+  }));
   return matches.sort((left, right) => left.slotHour - right.slotHour);
 }
 
@@ -349,11 +371,15 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
   const pureLabel = alert.patternKind === "sw3Pure" ? `/!\\ ${PATTERN_LABELS[alert.patternKind]}` : PATTERN_LABELS[alert.patternKind];
   const lookbackLabel = alert.lookbackAction === "invert-pattern3"
     ? `Pattern 3 (${alert.lookbackPattern?.split("").join(" ")}) → đảo signal 1 lần`
-    : alert.lookbackAction === "block-pattern1"
-      ? `Pattern 1 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-      : alert.lookbackAction === "block-pattern2"
-        ? `Pattern 2 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-        : "không tác động";
+    : alert.lookbackAction === "block-pair"
+      ? `Cặp ${alert.lookbackPattern?.split("").join(" ")} → BLOCK`
+      : alert.lookbackAction === "block-pattern1"
+        ? `Pattern 1 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
+        : alert.lookbackAction === "block-pattern2"
+          ? `Pattern 2 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
+          : alert.lookbackPattern?.length === 2
+            ? `Cặp ${alert.lookbackPattern.split("").join(" ")} → bình thường`
+            : "không tác động";
   const rows = [
     `🔔 ${base} H1 PATTERN`,
     `• Symbol: ${alert.symbol}`,
@@ -395,7 +421,7 @@ function isPatternKind(value: unknown): value is H1PatternKind {
 }
 
 function isLookbackAction(value: unknown): value is H1LookbackAction {
-  return value === "none" || value === "block-pattern1" || value === "block-pattern2" || value === "invert-pattern3";
+  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "invert-pattern3";
 }
 
 function isSignal(value: unknown): value is H1Signal {

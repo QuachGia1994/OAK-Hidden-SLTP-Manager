@@ -18,7 +18,7 @@ export type H1SignalAlert = {
   postSignalInverted?: boolean;
   postSignalRule?: "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
   lookbackPattern?: string | null;
-  lookbackAction?: "none" | "block-pattern1" | "block-pattern2" | "invert-pattern3";
+  lookbackAction?: "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "invert-pattern3";
   tradeAllowed?: boolean;
 };
 
