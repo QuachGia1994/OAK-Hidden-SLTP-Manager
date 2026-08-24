@@ -205,6 +205,18 @@ test("Pattern 2 accepts exactly three same-direction candles and skips runs of f
   }
 });
 
+test("only the first scanner Pattern 2 of the broker day can trade while Pattern 1 remains active", () => {
+  const matches = findH1PatternMatchesForTarget("GBPUSD", bars("GGTTTTGGG", 1), 10);
+  const first = matches.find((item) => item.slotHour === 6)!;
+  const later = matches.find((item) => item.slotHour === 10)!;
+
+  assert.deepEqual([first.pattern.join(""), first.patternKind, first.lookbackAction, first.tradeAllowed], ["TTT", "sw3Normal", "none", true]);
+  assert.deepEqual([later.pattern.join(""), later.patternKind, later.lookbackPattern, later.lookbackAction, later.tradeAllowed], ["GGG", "sw3Normal", "GGG", "block-repeat-pattern2", false]);
+
+  const pattern1AfterPattern2 = findH1PatternMatchesForTarget("GBPUSD", bars("GGTTTG", 1), 7).find((item) => item.slotHour === 7)!;
+  assert.deepEqual([pattern1AfterPattern2.pattern.join(""), pattern1AfterPattern2.patternKind, pattern1AfterPattern2.lookbackAction, pattern1AfterPattern2.tradeAllowed], ["GTT", "sw3Pure", "none", true]);
+});
+
 test("GBPUSD AUDUSD USDCAD and USDJPY invert configured base while XAUUSD keeps base before later layers", () => {
   for (const base of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
     assert.equal(signalFromTargetBase(base, "BUY"), "SELL");
@@ -223,10 +235,10 @@ test("GBPUSD AUDUSD USDCAD and USDJPY invert configured base while XAUUSD keeps 
 });
 
 test("target scanner/base mapping follows the five-symbol signal loop", () => {
-  assert.equal(H1_CLOUD_STATE_VERSION, 19);
-  assert.equal(H1_SIGNAL_RULE_VERSION, 13);
+  assert.equal(H1_CLOUD_STATE_VERSION, 20);
+  assert.equal(H1_SIGNAL_RULE_VERSION, 14);
   assert.deepEqual(H1_TARGET_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
-  assert.deepEqual(H1_ALL_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"]);
+  assert.deepEqual(H1_ALL_BASES, ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY", "NZDUSD"]);
 
   assert.equal(scannerBaseForTarget("XAUUSD"), "XAUUSD");
   assert.equal(baseSymbolForTarget("XAUUSD"), "GBPUSD");
@@ -234,8 +246,8 @@ test("target scanner/base mapping follows the five-symbol signal loop", () => {
   assert.equal(scannerBaseForTarget("GBPUSD"), "GBPUSD");
   assert.equal(baseSymbolForTarget("GBPUSD"), "GBPUSD");
 
-  assert.equal(scannerBaseForTarget("AUDUSD"), "GBPUSD");
-  assert.equal(baseSymbolForTarget("AUDUSD"), "GBPUSD");
+  assert.equal(scannerBaseForTarget("AUDUSD"), "AUDUSD");
+  assert.equal(baseSymbolForTarget("AUDUSD"), "NZDUSD");
 
   assert.equal(scannerBaseForTarget("USDCAD"), "USDCAD");
   assert.equal(baseSymbolForTarget("USDCAD"), "USDJPY");
@@ -407,6 +419,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
     AUDUSD: { displayName: "AUDUSD", bars: bars("GGTTG", 1) },
     USDCAD: { displayName: "USDCAD", bars: bars("TTTGG", 1) },
     USDJPY: { displayName: "USDJPY", bars: bars("GGGTT", 1) },
+    NZDUSD: { displayName: "NZDUSD", bars: bars("TGGTT", 1) },
   } as const;
   const added = backfillSuppressedHistory(state, "2026-08-21", market);
   assert.ok(added > 0);
@@ -414,7 +427,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older signal-rule feeds start a fresh v19 state instead of carrying stale H4/base semantics", () => {
+test("older signal-rule feeds start a fresh v20 state instead of carrying stale H4/base semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -449,7 +462,7 @@ test("older signal-rule feeds start a fresh v19 state instead of carrying stale 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 19);
+  assert.equal(state.version, 20);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
   assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
@@ -464,11 +477,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 19);
+  assert.equal(state.version, 20);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 excludes H5 under signal rule v13", () => {
+test("public feed v7 excludes H5 under signal rule v14", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -483,7 +496,7 @@ test("public feed v7 excludes H5 under signal rule v13", () => {
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 13);
+  assert.equal(feed.signalRuleVersion, 14);
   assert.deepEqual(feed.hours, [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");

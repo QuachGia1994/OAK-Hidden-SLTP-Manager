@@ -17,6 +17,7 @@ function marketForDates(...dates: string[]) {
     AUDUSD: "GGTGGT",
     USDCAD: "TTTGGG",
     USDJPY: "GGGTTT",
+    NZDUSD: "TGGTTG",
   };
   return Object.fromEntries((Object.keys(sequences) as H1Base[]).map((base) => [base, {
     displayName: base,
@@ -67,6 +68,18 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     baseBar: market.GBPUSD.bars.find((bar) => bar.hour === 2)!,
   });
   assert.deepEqual(history["2026-08-21"].symbols.GBPUSD?.alerts.find((alert) => alert.slotHour === 3), gbpH3Expected);
+
+  const audH3Match = findH1PatternMatchesForTarget("AUDUSD", market.AUDUSD.bars, 3).find((item) => item.slotHour === 3)!;
+  const audH3Expected = buildStoredAlert({
+    base: "AUDUSD",
+    brokerSymbol: "AUDUSD",
+    scannerBase: "AUDUSD",
+    scannerSymbol: "AUDUSD",
+    match: audH3Match,
+    baseSymbol: "NZDUSD",
+    baseBar: market.NZDUSD.bars.find((bar) => bar.hour === 2)!,
+  });
+  assert.deepEqual(history["2026-08-21"].symbols.AUDUSD?.alerts.find((alert) => alert.slotHour === 3), audH3Expected);
 
   const jpyH3Match = findH1PatternMatchesForTarget("USDJPY", market.USDJPY.bars, 3).find((item) => item.slotHour === 3)!;
   const jpyH3Expected = buildStoredAlert({

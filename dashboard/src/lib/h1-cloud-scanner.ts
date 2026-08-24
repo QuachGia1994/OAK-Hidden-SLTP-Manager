@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 19;
+export const H1_CLOUD_STATE_VERSION = 20;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 13;
+export const H1_SIGNAL_RULE_VERSION = 14;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v19";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v20";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -20,15 +20,15 @@ export const H1_SCAN_HOURS = [3, 4, ...Array.from(
 export const H1_POST_SIGNAL_ACTIVE_WEEKDAYS = [4, 5] as const;
 
 export const H1_TARGET_BASES = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
-export const H1_ALL_BASES = [...H1_TARGET_BASES] as const;
-export const H1_SCANNER_BASES = ["XAUUSD", "GBPUSD", "USDCAD", "USDJPY"] as const;
+export const H1_ALL_BASES = [...H1_TARGET_BASES, "NZDUSD"] as const;
+export const H1_SCANNER_BASES = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
 export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
 export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
 export type H1Direction = "T" | "G";
 export type H1Signal = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "invert-pattern3";
+export type H1LookbackAction = "none" | "block-pair" | "block-pattern1" | "block-pattern2" | "block-repeat-pattern2" | "invert-pattern3";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1DirectionBar = {
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 19;
+  version: 20;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 13;
+  signalRuleVersion: 14;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -123,14 +123,15 @@ export function signalFromDirection(direction: H1Direction): H1Signal {
 }
 
 export function scannerBaseForTarget(base: H1TargetBase): H1ScannerBase {
-  if (base === "XAUUSD" || base === "USDCAD" || base === "USDJPY") return base;
+  if (base === "XAUUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY") return base;
   return "GBPUSD";
 }
 
 export function baseSymbolForTarget(base: H1TargetBase): H1Base {
   if (base === "XAUUSD") return "GBPUSD";
+  if (base === "AUDUSD") return "NZDUSD";
   if (base === "USDCAD") return "USDJPY";
-  if (base === "AUDUSD" || base === "GBPUSD") return "GBPUSD";
+  if (base === "GBPUSD") return "GBPUSD";
   return "XAUUSD";
 }
 
@@ -303,7 +304,23 @@ export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1Direct
       tradeAllowed: !gate.action.startsWith("block-"),
     };
   }));
-  return matches.sort((left, right) => left.slotHour - right.slotHour);
+
+  let pattern2Seen = false;
+  return matches
+    .sort((left, right) => left.slotHour - right.slotHour)
+    .map((match) => {
+      if (match.patternKind !== "sw3Normal") return match;
+      if (!pattern2Seen) {
+        pattern2Seen = true;
+        return match;
+      }
+      return {
+        ...match,
+        lookbackPattern: match.pattern.join(""),
+        lookbackAction: "block-repeat-pattern2" as const,
+        tradeAllowed: false,
+      };
+    });
 }
 
 export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
@@ -398,7 +415,9 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
         ? `Pattern 1 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
         : alert.lookbackAction === "block-pattern2"
           ? `Pattern 2 (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
-          : alert.lookbackPattern?.length === 2
+          : alert.lookbackAction === "block-repeat-pattern2"
+            ? `Pattern 2 lặp trong ngày (${alert.lookbackPattern?.split("").join(" ")}) → BLOCK`
+            : alert.lookbackPattern?.length === 2
             ? `Cặp ${alert.lookbackPattern.split("").join(" ")} → bình thường`
             : "không tác động";
   const rows = [
@@ -442,7 +461,7 @@ function isPatternKind(value: unknown): value is H1PatternKind {
 }
 
 function isLookbackAction(value: unknown): value is H1LookbackAction {
-  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "invert-pattern3";
+  return value === "none" || value === "block-pair" || value === "block-pattern1" || value === "block-pattern2" || value === "block-repeat-pattern2" || value === "invert-pattern3";
 }
 
 function isSignal(value: unknown): value is H1Signal {

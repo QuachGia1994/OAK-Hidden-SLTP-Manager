@@ -70,6 +70,8 @@ test("H1 detail renders target base polarity plus calendar post-signal evidence"
   assert.doesNotMatch(boardSource, /base === "EURUSD"/);
   assert.match(boardSource, /đảo ngược/);
   assert.match(boardSource, /AllowTrade lookback/);
+  assert.match(boardSource, /block-repeat-pattern2/);
+  assert.match(boardSource, /Pattern 2 lặp trong ngày/);
   assert.match(boardSource, /Hậu signal/);
   assert.match(boardSource, /Signal tính toán \$\{base\} H1|Calculated \$\{base\} H1/);
   assert.match(boardSource, /Trạng thái trade|Trade state/);

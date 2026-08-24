@@ -67,7 +67,7 @@ test("cTrader cloud scanner remains read-only even when shared OAuth has trading
 test("live route scans H3, XAU-only H4 and H06-H16 while H5 is inactive", () => {
   assert.match(route, /H1_SCAN_HOURS\.includes\(wall\.hour\)/);
   assert.match(route, /"inactive-slot"/);
-  assert.match(route, /hour === 3[\s\S]*GBPUSD[\s\S]*USDJPY[\s\S]*XAUUSD[\s\S]*AUDUSD[\s\S]*USDCAD/);
+  assert.match(route, /hour === 3[\s\S]*GBPUSD[\s\S]*USDJPY[\s\S]*XAUUSD[\s\S]*AUDUSD[\s\S]*USDCAD[\s\S]*NZDUSD/);
   assert.doesNotMatch(route, /hour === 3[^\n]*EURUSD/);
   assert.match(route, /hour === 4[\s\S]*XAUUSD[\s\S]*GBPUSD/);
   assert.match(route, /market\.brokerHour === 4 && base !== "XAUUSD"/);
