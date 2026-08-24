@@ -66,6 +66,8 @@ test("H1 detail renders target base polarity plus calendar post-signal evidence"
   assert.match(boardSource, /Nhóm pattern/);
   assert.match(boardSource, /Logic base/);
   assert.match(boardSource, /baseInverted/);
+  assert.match(boardSource, /base === "GBPUSD"[\s\S]*base === "AUDUSD"[\s\S]*base === "USDCAD"[\s\S]*base === "USDJPY"/);
+  assert.doesNotMatch(boardSource, /base === "EURUSD"/);
   assert.match(boardSource, /đảo ngược/);
   assert.match(boardSource, /AllowTrade lookback/);
   assert.match(boardSource, /Hậu signal/);

@@ -87,7 +87,7 @@ function useDialogFocus(onClose: () => void) {
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocus(onClose);
   const { base, date, alert } = selection;
-  const baseInverted = base === "EURUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY";
+  const baseInverted = base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY";
   const baseDetail = alert.baseSignal
     ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";

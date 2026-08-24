@@ -14,7 +14,6 @@ function marketForDates(...dates: string[]) {
   const sequences: Record<H1Base, string> = {
     GBPUSD: "GGTGGT",
     XAUUSD: "TTGGTT",
-    EURUSD: "GGGTTT",
     AUDUSD: "GGTGGT",
     USDCAD: "TTTGGG",
     USDJPY: "GGGTTT",
@@ -57,17 +56,17 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   });
   assert.deepEqual(history["2026-08-21"].symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 4), xauH4Expected);
 
-  const eurH3Match = findH1PatternMatchesForTarget("EURUSD", market.GBPUSD.bars, 3).find((item) => item.slotHour === 3)!;
-  const eurH3Expected = buildStoredAlert({
-    base: "EURUSD",
-    brokerSymbol: "EURUSD",
+  const gbpH3Match = findH1PatternMatchesForTarget("GBPUSD", market.GBPUSD.bars, 3).find((item) => item.slotHour === 3)!;
+  const gbpH3Expected = buildStoredAlert({
+    base: "GBPUSD",
+    brokerSymbol: "GBPUSD",
     scannerBase: "GBPUSD",
     scannerSymbol: "GBPUSD",
-    match: eurH3Match,
-    baseSymbol: "EURUSD",
-    baseBar: market.EURUSD.bars.find((bar) => bar.hour === 2)!,
+    match: gbpH3Match,
+    baseSymbol: "GBPUSD",
+    baseBar: market.GBPUSD.bars.find((bar) => bar.hour === 2)!,
   });
-  assert.deepEqual(history["2026-08-21"].symbols.EURUSD?.alerts.find((alert) => alert.slotHour === 3), eurH3Expected);
+  assert.deepEqual(history["2026-08-21"].symbols.GBPUSD?.alerts.find((alert) => alert.slotHour === 3), gbpH3Expected);
 
   const jpyH3Match = findH1PatternMatchesForTarget("USDJPY", market.USDJPY.bars, 3).find((item) => item.slotHour === 3)!;
   const jpyH3Expected = buildStoredAlert({
@@ -81,10 +80,10 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   });
   assert.deepEqual(history["2026-08-21"].symbols.USDJPY?.alerts.find((alert) => alert.slotHour === 3), jpyH3Expected);
 
-  for (const symbol of ["EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+  for (const symbol of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
     assert.equal(history["2026-08-21"].symbols[symbol]?.alerts.some((alert) => alert.slotHour === 4), false);
   }
-  for (const symbol of ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+  for (const symbol of ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
     assert.equal(history["2026-08-21"].symbols[symbol]?.alerts.some((alert) => alert.slotHour === 5), false);
   }
 });

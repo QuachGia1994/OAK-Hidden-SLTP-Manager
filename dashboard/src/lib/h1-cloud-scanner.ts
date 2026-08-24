@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 18;
+export const H1_CLOUD_STATE_VERSION = 19;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 12;
+export const H1_SIGNAL_RULE_VERSION = 13;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v18";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v19";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -19,10 +19,9 @@ export const H1_SCAN_HOURS = [3, 4, ...Array.from(
 // The configured Mon-Wed rules remain available below but are bypassed in production.
 export const H1_POST_SIGNAL_ACTIVE_WEEKDAYS = [4, 5] as const;
 
-export const H1_TARGET_BASES = ["XAUUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
-export const H1_ALL_BASES = ["GBPUSD", ...H1_TARGET_BASES] as const;
-// AUDUSD remains accepted for persisted schema-7 history written by older rule versions.
-export const H1_SCANNER_BASES = ["XAUUSD", "USDJPY", "AUDUSD", "GBPUSD"] as const;
+export const H1_TARGET_BASES = ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const;
+export const H1_ALL_BASES = [...H1_TARGET_BASES] as const;
+export const H1_SCANNER_BASES = ["XAUUSD", "GBPUSD", "USDCAD", "USDJPY"] as const;
 export type H1TargetBase = typeof H1_TARGET_BASES[number];
 export type H1Base = typeof H1_ALL_BASES[number];
 export type H1ScannerBase = typeof H1_SCANNER_BASES[number];
@@ -71,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 18;
+  version: 19;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -80,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 12;
+  signalRuleVersion: 13;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -124,14 +123,15 @@ export function signalFromDirection(direction: H1Direction): H1Signal {
 }
 
 export function scannerBaseForTarget(base: H1TargetBase): H1ScannerBase {
-  if (base === "XAUUSD" || base === "USDJPY") return base;
+  if (base === "XAUUSD" || base === "USDCAD" || base === "USDJPY") return base;
   return "GBPUSD";
 }
 
 export function baseSymbolForTarget(base: H1TargetBase): H1Base {
   if (base === "XAUUSD") return "GBPUSD";
-  if (base === "USDJPY") return "XAUUSD";
-  return base;
+  if (base === "USDCAD") return "USDJPY";
+  if (base === "AUDUSD" || base === "GBPUSD") return "GBPUSD";
+  return "XAUUSD";
 }
 
 const MONDAY_INVERT_SLOTS = new Set([3, 4, 9, 10, 11, 12, 13, 14]);
@@ -193,7 +193,7 @@ export function signalFromPatternBase(baseSignal: H1Signal, _patternKind: H1Patt
 }
 
 export function signalFromTargetBase(base: H1TargetBase, baseSignal: H1Signal): H1Signal {
-  if (base === "EURUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY") {
+  if (base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY") {
     return baseSignal === "BUY" ? "SELL" : "BUY";
   }
   return baseSignal;
@@ -412,7 +412,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Pattern nguồn: ${alert.pattern}`,
     `• Nhóm nguồn: ${pureLabel}`,
     `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• Logic base: ${base === "EURUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
+    `• Logic base: ${base === "GBPUSD" || base === "AUDUSD" || base === "USDCAD" || base === "USDJPY" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
     `• AllowTrade lookback: ${lookbackLabel}`,
     `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`,
   ];
