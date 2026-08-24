@@ -8,7 +8,7 @@ export type H1SignalAlert = {
   bars: string[];
   symbol: string;
   profile: string;
-  scannerBase: "XAUUSD" | "AUDUSD" | "GBPUSD";
+  scannerBase: "XAUUSD" | "USDJPY" | "AUDUSD" | "GBPUSD";
   scannerSymbol: string;
   baseSymbol: string;
   baseSignal: H1SignalSide | null;

@@ -100,7 +100,7 @@ function delay(ms: number) {
 }
 
 function requiredBasesForBrokerHour(hour: number): readonly H1Base[] {
-  if (hour === 3) return ["GBPUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"];
+  if (hour === 3) return ["GBPUSD", "USDJPY", "XAUUSD", "EURUSD", "AUDUSD", "USDCAD"];
   if (hour === 4) return ["XAUUSD", "GBPUSD"];
   return H1_ALL_BASES;
 }
@@ -190,6 +190,7 @@ export async function POST(request: Request) {
     let changed = backfillSuppressedHistory(state, market.brokerDate, market.symbols) > 0;
 
     for (const base of H1_TARGET_BASES) {
+      if (market.brokerHour === 4 && base !== "XAUUSD") continue;
       const scannerBase = scannerBaseForTarget(base);
       const baseSymbol = baseSymbolForTarget(base);
       const matches = findH1PatternMatchesForTarget(base, market.symbols[scannerBase].bars, market.brokerHour);

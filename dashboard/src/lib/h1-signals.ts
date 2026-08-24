@@ -5,7 +5,7 @@ import { H1_SIGNAL_RULE_VERSION, reconcileTradeState, type H1LookbackAction } fr
 
 export type H1SignalSide = "BUY" | "SELL";
 export type H1PatternKind = "sw2" | "sw3Pure" | "sw3Normal";
-export type H1ScannerBase = "XAUUSD" | "AUDUSD" | "GBPUSD";
+export type H1ScannerBase = "XAUUSD" | "USDJPY" | "AUDUSD" | "GBPUSD";
 export type H1PostSignalRule = "none" | "mon-block" | "tue-block" | "wed-block" | "thu-cycle" | "fri-cycle";
 
 export type H1SignalAlert = {

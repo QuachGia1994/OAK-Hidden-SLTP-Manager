@@ -27,7 +27,7 @@ export default function SignalDetailScreen() {
   const hour = Number(params.hour || 0);
   const alert = findAlert(h1, symbol, hour);
   const date = latestH1Date(h1);
-  const baseInverted = symbol === "EURUSD" || symbol === "AUDUSD" || symbol === "USDCAD";
+  const baseInverted = symbol === "EURUSD" || symbol === "AUDUSD" || symbol === "USDCAD" || symbol === "USDJPY";
 
   return (
     <LinearGradient colors={[theme.canvas, theme.raised]} style={styles.flex}>
