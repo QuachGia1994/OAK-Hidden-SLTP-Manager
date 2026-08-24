@@ -1,17 +1,17 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 14;
+export const H1_CLOUD_STATE_VERSION = 15;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 8;
+export const H1_SIGNAL_RULE_VERSION = 9;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v14";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v15";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
 export const H1_FIRST_SCAN_HOUR = 3;
 export const H1_SCAN_START_HOUR = 6;
 export const H1_SCAN_END_HOUR = 16;
-export const H1_SCAN_HOURS = [3, 4, ...Array.from(
+export const H1_SCAN_HOURS = [3, 4, 5, ...Array.from(
   { length: H1_SCAN_END_HOUR - H1_SCAN_START_HOUR + 1 },
   (_, index) => H1_SCAN_START_HOUR + index,
 )];
@@ -71,7 +71,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 14;
+  version: 15;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -80,7 +80,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 8;
+  signalRuleVersion: 9;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -237,13 +237,36 @@ function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch
 
 function targetPairGate(base: H1TargetBase, byHour: Map<number, H1DirectionBar>, slotHour: number): { pattern: string | null; action: H1LookbackAction } {
   const hours = base === "XAUUSD"
-    ? (slotHour === 7 ? [3, 2] : null)
-    : (slotHour === 6 ? [2, 1] : null);
+    ? (slotHour === 6 || slotHour === 7 ? [3, 2] : null)
+    : (slotHour === 5 || slotHour === 6 ? [2, 1] : null);
   if (!hours) return { pattern: null, action: "none" };
   const rows = rowsForHours(byHour, hours);
   if (!rows) return { pattern: null, action: "none" };
   const pattern = rows.map((row) => row.direction).join("");
   return { pattern, action: BLOCK_PAIR_2.has(pattern) ? "block-pair" : "none" };
+}
+
+function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number): H1PatternMatch | null {
+  const rows3 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3]);
+  if (!rows3) return null;
+  const pattern = rows3.map((row) => row.direction) as H1Direction[];
+  const text = pattern.join("");
+  if (PURE_SW_3.has(text)) {
+    const lookback = allowTradeLookback(byHour, slotHour, "sw3Pure");
+    return {
+      slotHour,
+      pattern,
+      bars: rows3,
+      patternKind: "sw3Pure",
+      lookbackPattern: lookback.pattern,
+      lookbackAction: lookback.action,
+      tradeAllowed: !lookback.action.startsWith("block-"),
+    };
+  }
+  if (!NORMAL_SW_3.has(text)) return null;
+  const older = byHour.get(slotHour - 4);
+  if (older?.direction === pattern[0]) return null;
+  return { slotHour, pattern, bars: rows3, patternKind: "sw3Normal", lookbackPattern: null, lookbackAction: "none", tradeAllowed: true };
 }
 
 export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
@@ -254,7 +277,12 @@ export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1Direct
     if (early) matches.push(early);
   }
   const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
-  matches.push(...findH1PatternMatches(bars, brokerHour).map((match) => {
+  const mainMatches = findH1PatternMatches(bars, brokerHour);
+  if (base !== "XAUUSD" && brokerHour >= 5) {
+    const h5 = mainPatternMatch(byHour, 5);
+    if (h5) mainMatches.unshift(h5);
+  }
+  matches.push(...mainMatches.map((match) => {
     const gate = targetPairGate(base, byHour, match.slotHour);
     if (gate.pattern === null) return match;
     return {
@@ -275,27 +303,8 @@ export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number)
   const lastSlot = Math.min(brokerHour, H1_SCAN_END_HOUR);
 
   for (let slotHour = H1_SCAN_START_HOUR; slotHour <= lastSlot; slotHour += 1) {
-    const rows3 = rowsForHours(byHour, [slotHour - 1, slotHour - 2, slotHour - 3]);
-    if (!rows3) continue;
-    const pattern = rows3.map((row) => row.direction) as H1Direction[];
-    const text = pattern.join("");
-    if (PURE_SW_3.has(text)) {
-      const lookback = allowTradeLookback(byHour, slotHour, "sw3Pure");
-      matches.push({
-        slotHour,
-        pattern,
-        bars: rows3,
-        patternKind: "sw3Pure",
-        lookbackPattern: lookback.pattern,
-        lookbackAction: lookback.action,
-        tradeAllowed: !lookback.action.startsWith("block-"),
-      });
-      continue;
-    }
-    if (!NORMAL_SW_3.has(text)) continue;
-    const older = byHour.get(slotHour - 4);
-    if (older?.direction === pattern[0]) continue;
-    matches.push({ slotHour, pattern, bars: rows3, patternKind: "sw3Normal", lookbackPattern: null, lookbackAction: "none", tradeAllowed: true });
+    const match = mainPatternMatch(byHour, slotHour);
+    if (match) matches.push(match);
   }
   return matches;
 }

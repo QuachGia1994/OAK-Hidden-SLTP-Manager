@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildStoredAlert, emptyCloudState, findH1PatternMatches, findH1PatternMatchesForTarget, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
+import { buildStoredAlert, emptyCloudState, findH1PatternMatchesForTarget, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
 
 function bars(sequenceOldestToNewest: string, date: string, startHour = 1): H1DirectionBar[] {
@@ -31,7 +31,7 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   assert.equal(history["2026-08-22"], undefined);
 
   const scannerBars = marketForDates("2026-08-21").XAUUSD.bars;
-  const liveMatch = findH1PatternMatches(scannerBars, 18).find((item) => item.slotHour === 6)!;
+  const liveMatch = findH1PatternMatchesForTarget("XAUUSD", scannerBars, 18).find((item) => item.slotHour === 6)!;
   const liveExpected = buildStoredAlert({
     base: "XAUUSD",
     brokerSymbol: "XAUUSD",
@@ -68,6 +68,21 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
     baseBar: market.EURUSD.bars.find((bar) => bar.hour === 2)!,
   });
   assert.deepEqual(history["2026-08-21"].symbols.EURUSD?.alerts.find((alert) => alert.slotHour === 3), eurH3Expected);
+
+  const fxH5Market = marketForDates("2026-08-21");
+  fxH5Market.GBPUSD.bars = bars("GTTT", "2026-08-21");
+  const fxH5History = reconstructHistoricalDays(fxH5Market);
+  const eurH5Match = findH1PatternMatchesForTarget("EURUSD", fxH5Market.GBPUSD.bars, 5).find((item) => item.slotHour === 5)!;
+  const eurH5Expected = buildStoredAlert({
+    base: "EURUSD",
+    brokerSymbol: "EURUSD",
+    scannerBase: "GBPUSD",
+    scannerSymbol: "GBPUSD",
+    match: eurH5Match,
+    baseSymbol: "EURUSD",
+    baseBar: fxH5Market.EURUSD.bars.find((bar) => bar.hour === 4)!,
+  });
+  assert.deepEqual(fxH5History["2026-08-21"].symbols.EURUSD?.alerts.find((alert) => alert.slotHour === 5), eurH5Expected);
 });
 
 test("backfill merge is idempotent, preserves existing rows and never overwrites current live day", () => {
