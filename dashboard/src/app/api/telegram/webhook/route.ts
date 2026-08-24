@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { getFreshCTraderTokens } from "@/lib/ctrader-vault";
 import { fetchCTraderAccountReadSnapshot, type CTraderScannerSession } from "@/lib/ctrader-json";
 import { loadH1CloudConfig } from "@/lib/h1-cloud-config";
+import { parseNeoTechCheckCallback, parseNeoTechCheckCommand } from "@/lib/neotech-compliance-domain";
+import { getNeoTechTelegramPage } from "@/lib/neotech-compliance-telegram";
 import { listManagedCTraderAccounts, type CTraderManagedAccount } from "@/lib/ctrader-accounts";
 import { executeMt5BridgeAction, getMt5BridgeHeartbeat } from "@/lib/mt5-bridge";
 import { listProviderAccounts } from "@/lib/provider-accounts";
@@ -48,6 +50,13 @@ type TelegramUpdate = {
     date?: number;
     text?: string;
     chat?: { id?: number | string };
+    from?: { id?: number | string };
+  };
+  callback_query?: {
+    id?: string;
+    data?: string;
+    from?: { id?: number | string };
+    message?: { message_id?: number; chat?: { id?: number | string } };
   };
 };
 
@@ -88,6 +97,27 @@ async function sendTelegram(token: string, chatId: string, text: string): Promis
   if (!response.ok || payload.ok !== true) {
     throw new Error(payload.description || `Telegram send failed (${response.status})`);
   }
+}
+
+async function sendNeoTechTelegram(token: string, chatId: string, text: string, replyMarkup?: Record<string, unknown>): Promise<void> {
+  const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML", disable_web_page_preview: true, reply_markup: replyMarkup }),
+    cache: "no-store",
+  });
+  const payload = await response.json().catch(() => ({})) as { ok?: boolean; description?: string };
+  if (!response.ok || payload.ok !== true) throw new Error(payload.description || `Telegram compliance send failed (${response.status})`);
+}
+
+async function answerTelegramCallback(token: string, callbackQueryId: string): Promise<void> {
+  if (!callbackQueryId) return;
+  await fetch(`https://api.telegram.org/bot${token}/answerCallbackQuery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ callback_query_id: callbackQueryId }),
+    cache: "no-store",
+  }).catch(() => undefined);
 }
 
 function renderIntent(task: CloudIntent): string {
@@ -308,10 +338,13 @@ export async function POST(request: Request) {
   const update = await request.json().catch(() => null) as TelegramUpdate | null;
   const updateId = Number(update?.update_id || 0);
   const message = update?.message;
-  const chatId = String(message?.chat?.id ?? "");
+  const callback = update?.callback_query;
+  const chatId = String(message?.chat?.id ?? callback?.message?.chat?.id ?? "");
+  const userId = String(message?.from?.id ?? callback?.from?.id ?? "");
   const text = String(message?.text || "").trim();
+  const callbackData = String(callback?.data || "").trim();
   if (!Number.isInteger(updateId) || updateId <= 0) return NextResponse.json({ ok: true, ignored: "invalid-update" });
-  if (!chatId || !text) return NextResponse.json({ ok: true, ignored: "non-text" });
+  if (!chatId || (!text && !callbackData)) return NextResponse.json({ ok: true, ignored: "unsupported-update" });
 
   const claim = await acquireTelegramUpdate(updateId);
   if (claim === "done") return NextResponse.json({ ok: true, duplicate: true });
@@ -320,6 +353,20 @@ export async function POST(request: Request) {
   }
 
   try {
+    const neoTechCommand = callbackData ? parseNeoTechCheckCallback(callbackData) : parseNeoTechCheckCommand(text);
+    if (neoTechCommand) {
+      const page = await getNeoTechTelegramPage(neoTechCommand, chatId, userId);
+      await sendNeoTechTelegram(config.telegramToken, chatId, page.text, page.replyMarkup);
+      if (callback?.id) await answerTelegramCallback(config.telegramToken, callback.id);
+      await appendTelegramAudit({ action: "neotech_check", updateId, chatId, userId, profileSlug: neoTechCommand.slug, view: neoTechCommand.view, page: neoTechCommand.page });
+      await completeTelegramUpdate(updateId);
+      return NextResponse.json({ ok: true });
+    }
+    if (callbackData) {
+      if (callback?.id) await answerTelegramCallback(config.telegramToken, callback.id);
+      await completeTelegramUpdate(updateId);
+      return NextResponse.json({ ok: true, ignored: "unknown-callback" });
+    }
     if (chatId !== config.telegramChatId) {
       await appendTelegramAudit({ action: "unauthorized_chat", updateId, chatId });
       await completeTelegramUpdate(updateId);

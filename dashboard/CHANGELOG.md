@@ -2,10 +2,11 @@
 
 All notable changes to the dashboard are recorded here.
 
-## Unreleased
+## [0.4.0] - 2026-08-24
 
 ### Added
 
+- Added NeoTech compliance report ingestion and Telegram `/check @profile` rendering. The backend authenticates scoped uploads, validates schema/account binding and canonical raw-body hashes, stores immutable reports with bounded audit metadata, and renders stored MQL5 conclusions without reimplementing NeoTech formulas in TypeScript.
 - MT5 EA v1.02 now waits for symbol synchronization and a positive bid/ask tick for up to 2.5 seconds before cloud market entry. This removes the observed `tick unavailable` race when a symbol has just been selected into Market Watch while preserving the existing one-shot broker mutation boundary.
 - Redis command-efficiency pass for the cloud runtime: MT5 bridge wait timing now matches EA v1.01's bounded 10–15 second cloud poll, Telegram minute tick reads pending intents once and suppresses idle audit writes, audit trimming and owned-lock release use atomic Lua single-command helpers, H1 dual-feed publish uses `MSET`, and cTrader manager avoids unchanged per-position state writes while refreshing persisted state every 12 hours.
 - Telegram Cloud accepts up to 10 commands in one message, one non-empty line per command, and tracks intent idempotency per line within the same Telegram update. Batch `/approve ID [ID ...]` and `/del ID [ID ...]` are supported while preserving single-ID behavior and `/del all`.
