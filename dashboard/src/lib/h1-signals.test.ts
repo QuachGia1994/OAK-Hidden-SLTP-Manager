@@ -60,11 +60,13 @@ test("engine web surface is H1-only and profiles from cTrader feed", () => {
   assert.match(engineBoardSource, /TRADING \/ H1 CLOUD/);
 });
 
-test("H1 detail renders pattern keep-base plus calendar post-signal evidence", () => {
+test("H1 detail renders target base polarity plus calendar post-signal evidence", () => {
   assert.match(boardSource, /Nguồn scanner|Pattern source/);
   assert.match(boardSource, /Base H1 · \{alert\.baseSymbol\}/);
   assert.match(boardSource, /Nhóm pattern/);
-  assert.match(boardSource, /Logic pattern/);
+  assert.match(boardSource, /Logic base/);
+  assert.match(boardSource, /baseInverted/);
+  assert.match(boardSource, /đảo ngược/);
   assert.match(boardSource, /AllowTrade lookback/);
   assert.match(boardSource, /Hậu signal/);
   assert.match(boardSource, /Signal tính toán \$\{base\} H1|Calculated \$\{base\} H1/);

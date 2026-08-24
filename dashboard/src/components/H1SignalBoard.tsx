@@ -87,6 +87,7 @@ function useDialogFocus(onClose: () => void) {
 function DetailModal({ selection, locale, onClose }: { selection: Selection; locale: Locale; onClose: () => void }) {
   const ref = useDialogFocus(onClose);
   const { base, date, alert } = selection;
+  const baseInverted = base === "EURUSD" || base === "AUDUSD" || base === "USDCAD";
   const baseDetail = alert.baseSignal
     ? `${alert.baseSignal}${alert.baseHour !== null ? ` · H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection || "—"}` : ""}`
     : "—";
@@ -111,7 +112,7 @@ function DetailModal({ selection, locale, onClose }: { selection: Selection; loc
           <p><span>{locale === "EN" ? "Pattern group" : "Nhóm pattern"}</span><b>{patternLabel(alert.patternKind, locale)}</b></p>
           <p><span>{locale === "EN" ? "Pattern source" : "Nguồn scanner"}</span><b>{alert.scannerBase}</b></p>
           <p><span>Base H1 · {alert.baseSymbol}</span><b>{baseDetail}</b></p>
-          <p><span>{locale === "EN" ? "Pattern logic" : "Logic pattern"}</span><b>{locale === "EN" ? `follow ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}</b></p>
+          <p><span>{locale === "EN" ? "Base logic" : "Logic base"}</span><b>{locale === "EN" ? `${baseInverted ? "reverse" : "follow"} ${alert.baseSymbol} H1` : `${baseInverted ? "đảo ngược" : "giữ nguyên"} ${alert.baseSymbol} H1`}</b></p>
           <p><span>AllowTrade lookback</span><b>{allowTradeLookbackLabel(alert, locale)}</b></p>
           <p><span>{locale === "EN" ? "Post-signal" : "Hậu signal"}</span><b>{postSignalLabel(alert.postSignalRule, alert.postSignalInverted, locale)}</b></p>
           <p><span>{locale === "EN" ? "Trade state" : "Trạng thái trade"}</span><b data-trade-state={alert.tradeAllowed === false ? "blocked" : "active"}>{alert.tradeAllowed === false ? "BLOCK / NOT TRADE" : "ACTIVE"}</b></p>

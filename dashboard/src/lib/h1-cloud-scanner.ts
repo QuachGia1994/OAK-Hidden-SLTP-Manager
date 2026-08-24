@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 15;
+export const H1_CLOUD_STATE_VERSION = 16;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 9;
+export const H1_SIGNAL_RULE_VERSION = 10;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v15";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v16";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -71,7 +71,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 15;
+  version: 16;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -80,7 +80,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 9;
+  signalRuleVersion: 10;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -186,6 +186,13 @@ export function postSignalDecision(brokerDate: string, slotHour: number): { inve
 }
 
 export function signalFromPatternBase(baseSignal: H1Signal, _patternKind: H1PatternKind): H1Signal {
+  return baseSignal;
+}
+
+export function signalFromTargetBase(base: H1TargetBase, baseSignal: H1Signal): H1Signal {
+  if (base === "EURUSD" || base === "AUDUSD" || base === "USDCAD") {
+    return baseSignal === "BUY" ? "SELL" : "BUY";
+  }
   return baseSignal;
 }
 
@@ -336,7 +343,8 @@ export function buildStoredAlert(args: {
   baseBar: H1DirectionBar;
 }): H1StoredAlert {
   const baseSignal = signalFromDirection(args.baseBar.direction);
-  const patternSignal = signalFromPatternBase(baseSignal, args.match.patternKind);
+  const targetBaseSignal = signalFromTargetBase(args.base, baseSignal);
+  const patternSignal = signalFromPatternBase(targetBaseSignal, args.match.patternKind);
   const allowTradeSignal = args.match.lookbackAction === "invert-pattern3"
     ? (patternSignal === "BUY" ? "SELL" : "BUY")
     : patternSignal;
@@ -400,7 +408,7 @@ export function buildTelegramMessage(base: H1TargetBase, brokerDate: string, ale
     `• Pattern nguồn: ${alert.pattern}`,
     `• Nhóm nguồn: ${pureLabel}`,
     `• Base H1: ${alert.baseSymbol} H${String(alert.baseHour).padStart(2, "0")}=${alert.baseDirection} → ${alert.baseH1Signal}`,
-    `• Logic pattern: giữ nguyên ${alert.baseSymbol} H1`,
+    `• Logic base: ${base === "EURUSD" || base === "AUDUSD" || base === "USDCAD" ? `đảo ngược ${alert.baseSymbol} H1` : `giữ nguyên ${alert.baseSymbol} H1`}`,
     `• AllowTrade lookback: ${lookbackLabel}`,
     `• Hậu signal: ${postSignalLabels[alert.postSignalRule]}`,
   ];

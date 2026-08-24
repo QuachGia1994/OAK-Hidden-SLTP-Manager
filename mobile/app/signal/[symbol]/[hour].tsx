@@ -27,6 +27,7 @@ export default function SignalDetailScreen() {
   const hour = Number(params.hour || 0);
   const alert = findAlert(h1, symbol, hour);
   const date = latestH1Date(h1);
+  const baseInverted = symbol === "EURUSD" || symbol === "AUDUSD" || symbol === "USDCAD";
 
   return (
     <LinearGradient colors={[theme.canvas, theme.raised]} style={styles.flex}>
@@ -68,6 +69,7 @@ export default function SignalDetailScreen() {
                 <Row label="Scanner" value={`${alert.scannerBase} · ${alert.scannerSymbol}`} />
                 <Row label="Base H1" value={`${alert.baseSymbol} · H${String(alert.baseHour || 0).padStart(2, "0")} · ${alert.baseDirection || "—"}`} />
                 <Row label="Base signal" value={alert.baseSignal || "—"} tone={alert.baseSignal === "SELL" ? "sell" : "buy"} />
+                <Row label="Base logic" value={`${baseInverted ? "Reverse" : "Follow"} ${alert.baseSymbol} H1`} />
                 <Row label="AllowTrade lookback" value={allowTradeDetail(alert)} tone={alert.tradeAllowed === false ? "warning" : undefined} />
                 <Row label="Post-signal" value={alert.postSignalRule || "none"} />
                 <Row label="Final signal" value={alert.signal || "—"} tone={alert.signal === "SELL" ? "sell" : "buy"} />
