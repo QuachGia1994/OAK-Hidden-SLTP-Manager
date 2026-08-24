@@ -25,6 +25,7 @@ All notable changes to the dashboard are recorded here.
 
 ### Changed
 
+- Telegram cloud schedules now accept single-digit `H:MM` / `HhMM` hours without producing an invalid due time; omitted seconds default to `00`.
 - H1 cloud state retention now uses one 90-calendar-day SSoT cutoff relative to the newest valid broker-date key instead of counting stored trading-day keys. Historical cTrader reads are DST-aware, sequentially throttled and bounded/paginated; public schema 7, cloud state v10, signal-rule v4, VIP all-date redaction and mobile latest-day behavior remain compatible.
 - Image Authenticity client handling accepts `image/jpg`, `image/pjpeg`, and extension-only JPEG/PNG/WEBP selections while leaving server magic-byte validation authoritative; oversized and unsupported client errors are distinct, selected images render a local preview with change/remove controls, and upload disclosure/loading status remain explicit. Gemini visual analysis and the optional forensics sidecar run concurrently with bounded provider timeouts inside the 60s route budget.
 - Media analysis now uses four orthogonal normalized assessments: origin (`verified_algorithmic` / `verified_capture` / `verified_other` / unverified states), AI-generation evidence, editing/compositing evidence, and analysis completeness. `likely_ai_generated + likely_manipulated` and `verified_capture + likely_manipulated` are compatible facts; `no_material_edit_detected` remains a valid editing observation without proving non-AI or real origin.

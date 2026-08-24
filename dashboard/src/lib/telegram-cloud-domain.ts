@@ -98,8 +98,8 @@ export function resolveVietnamDueAt(dateText: string | null, timeText: string, n
   if (!validTimeText(timeText)) throw new Error("Giờ không hợp lệ; dùng HH:MM, HH:MM:SS hoặc HHhMM");
   const now = vietnamDateParts(nowMs);
   const canonicalTime = normalizeTimeText(timeText);
-  const normalizedTime = canonicalTime.length === 5 ? `${canonicalTime}:00` : canonicalTime;
-  const [hh, mm, ss] = normalizedTime.split(":").map(Number);
+  const [hh, mm, parsedSecond] = canonicalTime.split(":").map(Number);
+  const ss = parsedSecond ?? 0;
 
   let year = now.year;
   let month = now.month;

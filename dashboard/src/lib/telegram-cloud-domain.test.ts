@@ -30,6 +30,19 @@ test("past clock-only schedule rolls to next Vietnam civil day", () => {
   assert.equal(due.dueText, "2026-08-22 21:30:00 Asia/Ho_Chi_Minh");
 });
 
+test("single-digit scheduled hour never produces NaN due time", () => {
+  const now = Date.UTC(2026, 7, 23, 22, 31, 0); // 05:31 VN on 2026-08-24
+  for (const clock of ["9h00", "9:00"]) {
+    const parsed = parseCloudTelegramCommand(`Buy XAUUSD 0.01 ${clock} 1000 20000 @FXCE`, now);
+    assert.equal(parsed.type, "intent");
+    if (parsed.type !== "intent") continue;
+    assert.equal(parsed.dueAt, Date.UTC(2026, 7, 24, 2, 0, 0));
+    assert.equal(parsed.dueText, "2026-08-24 09:00:00 Asia/Ho_Chi_Minh");
+    assert.equal(Number.isFinite(parsed.dueAt), true);
+    assert.doesNotMatch(parsed.dueText, /NaN/);
+  }
+});
+
 test("desktop-style Buy command accepts HHhMM and legacy Vantage profile alias", () => {
   const now = Date.UTC(2026, 7, 21, 6, 15, 0); // 13:15 VN
   const parsed = parseCloudTelegramCommand("Buy GBPUSD+ 0.01 14h55 Vantage", now);
