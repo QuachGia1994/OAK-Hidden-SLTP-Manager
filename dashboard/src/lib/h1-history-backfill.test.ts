@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildStoredAlert, emptyCloudState, findH1PatternMatches, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
+import { buildStoredAlert, emptyCloudState, findH1PatternMatches, findH1PatternMatchesForTarget, type H1Base, type H1Direction, type H1DirectionBar } from "./h1-cloud-scanner.ts";
 import { mergeHistoricalBackfill, reconstructHistoricalDays } from "./h1-history-backfill.ts";
 
 function bars(sequenceOldestToNewest: string, date: string, startHour = 1): H1DirectionBar[] {
@@ -43,6 +43,31 @@ test("historical reconstruction reuses live pattern/base/calendar rules and skip
   });
   const historical = history["2026-08-21"].symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 6);
   assert.deepEqual(historical, liveExpected);
+
+  const market = marketForDates("2026-08-21");
+  const xauH4Match = findH1PatternMatchesForTarget("XAUUSD", market.XAUUSD.bars, 4).find((item) => item.slotHour === 4)!;
+  const xauH4Expected = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "XAUUSD",
+    scannerSymbol: "XAUUSD",
+    match: xauH4Match,
+    baseSymbol: "GBPUSD",
+    baseBar: market.GBPUSD.bars.find((bar) => bar.hour === 3)!,
+  });
+  assert.deepEqual(history["2026-08-21"].symbols.XAUUSD?.alerts.find((alert) => alert.slotHour === 4), xauH4Expected);
+
+  const eurH3Match = findH1PatternMatchesForTarget("EURUSD", market.GBPUSD.bars, 3).find((item) => item.slotHour === 3)!;
+  const eurH3Expected = buildStoredAlert({
+    base: "EURUSD",
+    brokerSymbol: "EURUSD",
+    scannerBase: "GBPUSD",
+    scannerSymbol: "GBPUSD",
+    match: eurH3Match,
+    baseSymbol: "EURUSD",
+    baseBar: market.EURUSD.bars.find((bar) => bar.hour === 2)!,
+  });
+  assert.deepEqual(history["2026-08-21"].symbols.EURUSD?.alerts.find((alert) => alert.slotHour === 3), eurH3Expected);
 });
 
 test("backfill merge is idempotent, preserves existing rows and never overwrites current live day", () => {

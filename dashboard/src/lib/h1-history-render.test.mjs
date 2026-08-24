@@ -45,7 +45,7 @@ registerHooks({
 
 const { H1SignalBoard } = await import(pathToFileURL(resolvePath(srcRoot, "components/H1SignalBoard.tsx")).href);
 const { redactH1Signals } = await import(pathToFileURL(resolvePath(srcRoot, "lib/vip.ts")).href);
-const { normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
+const { brokerWallParts, icMarketsServerOffsetSeconds, normalizeHistoricalTrendbars } = await import(pathToFileURL(resolvePath(srcRoot, "lib/ctrader-json.ts")).href);
 const { latestH1Date, alertsForSymbol } = await import(pathToFileURL(resolvePath(repoRoot, "mobile/src/lib/h1.ts")).href);
 
 function alert(slotHour, signal = "BUY") {
@@ -56,7 +56,7 @@ function payload() {
   const dates = ["2025-12-29", "2025-12-30", "2025-12-31", "2026-01-01", "2026-01-02", "2026-01-05", "2026-02-03"];
   return {
     schemaVersion: 7,
-    signalRuleVersion: 6,
+    signalRuleVersion: 7,
     profile: "cTrader IcMarkets",
     publishedAt: "2026-02-03T12:00:00.000Z",
     hours: [3, 4],
@@ -89,6 +89,15 @@ test("historical cTrader trendbars use DST-aware broker dates and hours", () => 
     { utcTimestampInMinutes: minute("2026-07-14T22:00:00Z"), deltaOpen: 1, deltaClose: 0 },
   ]);
   assert.deepEqual(rows.map((row) => [row.brokerDate, row.hour, row.direction]), [["2026-01-15", 1, "T"], ["2026-07-15", 1, "G"]]);
+});
+
+test("IC Markets broker wall clock switches UTC+2 and UTC+3 exactly with US DST", () => {
+  const offsetHours = (iso) => icMarketsServerOffsetSeconds(Date.parse(iso)) / 3600;
+  assert.equal(offsetHours("2026-03-08T06:59:59Z"), 2);
+  assert.equal(offsetHours("2026-03-08T07:00:00Z"), 3);
+  assert.equal(offsetHours("2026-11-01T05:59:59Z"), 3);
+  assert.equal(offsetHours("2026-11-01T06:00:00Z"), 2);
+  assert.equal(brokerWallParts(Date.parse("2026-08-24T05:00:00Z")).utcOffsetHours, 3);
 });
 
 test("VIP redaction masks every historical date while mobile still reads only the latest date", () => {

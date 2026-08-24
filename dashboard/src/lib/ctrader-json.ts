@@ -230,16 +230,21 @@ function parseGmtOffsetSeconds(value: string): number {
 }
 
 export function icMarketsServerOffsetSeconds(epochMs: number): number {
+  // IC Markets aligns its trading-server day to the 5pm New York close.
+  // That means UTC+2 while New York is UTC-5 and UTC+3 while it is UTC-4.
   const zoneName = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     timeZoneName: "shortOffset",
   }).formatToParts(new Date(epochMs)).find((part) => part.type === "timeZoneName")?.value;
   if (!zoneName) throw new Error("Unable to resolve America/New_York offset");
-  return parseGmtOffsetSeconds(zoneName) + 7 * 3600;
+  const offsetSeconds = parseGmtOffsetSeconds(zoneName) + 7 * 3600;
+  if (offsetSeconds !== 2 * 3600 && offsetSeconds !== 3 * 3600) throw new Error("Unexpected IC Markets server UTC offset");
+  return offsetSeconds;
 }
 
 export function brokerWallParts(epochMs: number) {
-  const shifted = new Date(epochMs + icMarketsServerOffsetSeconds(epochMs) * 1000);
+  const utcOffsetSeconds = icMarketsServerOffsetSeconds(epochMs);
+  const shifted = new Date(epochMs + utcOffsetSeconds * 1000);
   const year = shifted.getUTCFullYear();
   const month = shifted.getUTCMonth() + 1;
   const day = shifted.getUTCDate();
@@ -248,7 +253,7 @@ export function brokerWallParts(epochMs: number) {
   const weekday = shifted.getUTCDay();
   const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   const brokerTime = `${dateKey}T${String(hour).padStart(2, "0")}:00`;
-  return { dateKey, hour, minute, weekday, brokerTime };
+  return { dateKey, hour, minute, weekday, brokerTime, utcOffsetSeconds, utcOffsetHours: utcOffsetSeconds / 3600 };
 }
 
 function canonicalSymbolName(value: string): string {
@@ -882,6 +887,7 @@ export async function fetchCurrentBrokerDayH1(
   brokerHour: number;
   brokerMinute: number;
   brokerWeekday: number;
+  brokerUtcOffsetHours: number;
   symbols: Record<H1Base, { displayName: string; bars: H1DirectionBar[] }>;
 }> {
   if (session.scope !== "accounts" && session.scope !== "trading") {
@@ -919,6 +925,7 @@ export async function fetchCurrentBrokerDayH1(
       brokerHour: current.hour,
       brokerMinute: current.minute,
       brokerWeekday: current.weekday,
+      brokerUtcOffsetHours: current.utcOffsetHours,
       symbols: output,
     };
   } finally {

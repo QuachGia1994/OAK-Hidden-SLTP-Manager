@@ -7,6 +7,10 @@ import { brokerWallParts, fetchCurrentBrokerDayH1, type CTraderScannerSession } 
 import { loadH1CTraderSession } from "@/lib/h1-ctrader-session";
 import { acquireH1CloudLock, loadH1CloudState, publishH1CloudState, releaseH1CloudLock, saveH1CloudState } from "@/lib/h1-cloud-store";
 import {
+  H1_ALL_BASES,
+  H1_FIRST_SCAN_HOUR,
+  H1_SCAN_END_HOUR,
+  H1_SCAN_HOURS,
   H1_TARGET_BASES,
   backfillSuppressedHistory,
   baseSymbolForTarget,
@@ -14,9 +18,10 @@ import {
   buildStoredAlert,
   buildTelegramMessage,
   ensureSymbolDay,
-  findH1PatternMatches,
+  findH1PatternMatchesForTarget,
   reconcileTradeState,
   scannerBaseForTarget,
+  type H1Base,
   type H1StoredAlert,
 } from "@/lib/h1-cloud-scanner";
 
@@ -94,8 +99,10 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function requiredBasesForBrokerHour(_hour: number) {
-  return ["GBPUSD", "AUDUSD", "EURUSD", "USDCAD", "USDJPY"] as const;
+function requiredBasesForBrokerHour(hour: number): readonly H1Base[] {
+  if (hour === 3) return ["GBPUSD", "EURUSD", "AUDUSD", "USDCAD", "USDJPY"];
+  if (hour === 4) return ["XAUUSD", "GBPUSD"];
+  return H1_ALL_BASES;
 }
 
 function marketReadyForSlot(
@@ -135,18 +142,22 @@ export async function POST(request: Request) {
 
   const nowMs = Date.now();
   const wall = brokerWallParts(nowMs);
-  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < 3 || wall.hour > 17) {
+  const activeSlot = H1_SCAN_HOURS.includes(wall.hour);
+  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < H1_FIRST_SCAN_HOUR || wall.hour > H1_SCAN_END_HOUR || !activeSlot) {
     return NextResponse.json({
       ok: true,
       enabled,
       dryRun,
       skipped: wall.weekday === 0 || wall.weekday === 6
         ? "broker-weekend"
-        : wall.hour < 3
+        : wall.hour < H1_FIRST_SCAN_HOUR
           ? "before-first-slot"
-          : "after-last-slot",
+          : wall.hour > H1_SCAN_END_HOUR
+            ? "after-last-slot"
+            : "inactive-slot",
       brokerDate: wall.dateKey,
       brokerHour: wall.hour,
+      brokerUtcOffsetHours: wall.utcOffsetHours,
     }, { headers: { "Cache-Control": "no-store" } });
   }
 
@@ -167,6 +178,7 @@ export async function POST(request: Request) {
         brokerDate: market.brokerDate,
         brokerHour: market.brokerHour,
         brokerMinute: market.brokerMinute,
+        brokerUtcOffsetHours: market.brokerUtcOffsetHours,
       }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
     const { state, source } = await loadH1CloudState(market.brokerDate, market.brokerHour);
@@ -180,7 +192,7 @@ export async function POST(request: Request) {
     for (const base of H1_TARGET_BASES) {
       const scannerBase = scannerBaseForTarget(base);
       const baseSymbol = baseSymbolForTarget(base);
-      const matches = findH1PatternMatches(market.symbols[scannerBase].bars, market.brokerHour);
+      const matches = findH1PatternMatchesForTarget(base, market.symbols[scannerBase].bars, market.brokerHour);
       const { day, symbol: symbolState } = ensureSymbolDay(state, market.brokerDate, base);
       if (reconcileTradeState(symbolState)) changed = true;
       const delivered = deliveredSlots(symbolState.alerts);
@@ -247,6 +259,7 @@ export async function POST(request: Request) {
       brokerDate: market.brokerDate,
       brokerHour: market.brokerHour,
       brokerMinute: market.brokerMinute,
+      brokerUtcOffsetHours: market.brokerUtcOffsetHours,
       sent,
       pending,
       h1Counts: Object.fromEntries(Object.entries(market.symbols).map(([base, item]) => [base, item.bars.length])),

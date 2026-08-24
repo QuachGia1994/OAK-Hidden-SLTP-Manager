@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  H1_FIRST_SCAN_HOUR,
   H1_HISTORY_RETENTION_CALENDAR_DAYS,
   H1_POST_SIGNAL_ACTIVE_WEEKDAYS,
   H1_SCAN_END_HOUR,
+  H1_SCAN_HOURS,
   H1_SCAN_START_HOUR,
   backfillSuppressedHistory,
   baseSymbolForTarget,
@@ -13,6 +15,7 @@ import {
   configuredPostSignalDecision,
   emptyCloudState,
   findH1PatternMatches,
+  findH1PatternMatchesForTarget,
   postSignalDecision,
   reconcileTradeState,
   scannerBaseForTarget,
@@ -51,9 +54,11 @@ test("history retention counts calendar days rather than stored trading-day keys
   assert.deepEqual(Object.keys(state.days).sort(), ["2026-05-26", "2026-06-01", "2026-07-15", "2026-08-23"]);
 });
 
-test("scanner emits only H06-H16 and keeps SW3 pattern semantics inside the active window", () => {
+test("scanner exposes only H3 H4 and H06-H16 active slots while keeping SW3 semantics in the main window", () => {
+  assert.equal(H1_FIRST_SCAN_HOUR, 3);
   assert.equal(H1_SCAN_START_HOUR, 6);
   assert.equal(H1_SCAN_END_HOUR, 16);
+  assert.deepEqual(H1_SCAN_HOURS, [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
 
   const pureTgg = findH1PatternMatches(bars("GGT", 3), 18).filter((item) => item.slotHour === 6);
   const pureGtt = findH1PatternMatches(bars("TTG", 3), 18).filter((item) => item.slotHour === 6);
@@ -68,6 +73,61 @@ test("scanner emits only H06-H16 and keeps SW3 pattern semantics inside the acti
   assert.equal(findH1PatternMatches(bars("GGT", 13), 18).some((item) => item.slotHour === 16), true);
   assert.equal(findH1PatternMatches(bars("GGT", 14), 18).some((item) => item.slotHour === 17), false);
   assert.equal(findH1PatternMatches(bars("GT", 1), 18).some((item) => item.patternKind === "sw2"), false);
+});
+
+test("two-candle patterns are exclusive to H3 FX and H4 XAUUSD", () => {
+  for (const sequence of ["GT", "TG", "TT", "GG"]) {
+    const fx = findH1PatternMatchesForTarget("EURUSD", bars(sequence, 1), 3);
+    assert.deepEqual(fx.map((item) => [item.slotHour, item.pattern.join(""), item.patternKind]), [[3, [...sequence].reverse().join(""), "sw2"]]);
+
+    const xauBeforeH4 = findH1PatternMatchesForTarget("XAUUSD", bars(sequence, 2), 3);
+    assert.equal(xauBeforeH4.some((item) => item.patternKind === "sw2"), false);
+
+    const xau = findH1PatternMatchesForTarget("XAUUSD", bars(sequence, 2), 4);
+    assert.deepEqual(xau.map((item) => [item.slotHour, item.pattern.join(""), item.patternKind]), [[4, [...sequence].reverse().join(""), "sw2"]]);
+  }
+
+  const fxAtH4 = findH1PatternMatchesForTarget("USDJPY", bars("GTG", 1), 4);
+  assert.deepEqual(fxAtH4.filter((item) => item.patternKind === "sw2").map((item) => item.slotHour), [3]);
+});
+
+test("H3 FX and H4 XAUUSD keep their own configured base before Thursday Friday post-signal", () => {
+  const fxMatch = findH1PatternMatchesForTarget("EURUSD", bars("GT", 1, "2026-07-02"), 3).find((item) => item.slotHour === 3)!;
+  const fx = buildStoredAlert({
+    base: "EURUSD",
+    brokerSymbol: "EURUSD",
+    scannerBase: "GBPUSD",
+    scannerSymbol: "GBPUSD",
+    match: fxMatch,
+    baseSymbol: "EURUSD",
+    baseBar: bars("T", 2, "2026-07-02")[0],
+  });
+  assert.deepEqual([fx.patternKind, fx.baseSymbol, fx.baseH1Signal, fx.postSignalRule, fx.symbolH1Signal], ["sw2", "EURUSD", "BUY", "thu-cycle", "SELL"]);
+  assert.equal(fx.lookbackAction, "none");
+
+  const xauMatch = findH1PatternMatchesForTarget("XAUUSD", bars("GT", 2, "2026-08-21"), 4).find((item) => item.slotHour === 4)!;
+  const xau = buildStoredAlert({
+    base: "XAUUSD",
+    brokerSymbol: "XAUUSD",
+    scannerBase: "XAUUSD",
+    scannerSymbol: "XAUUSD",
+    match: xauMatch,
+    baseSymbol: "GBPUSD",
+    baseBar: bars("G", 3, "2026-08-21")[0],
+  });
+  assert.deepEqual([xau.patternKind, xau.baseSymbol, xau.baseH1Signal, xau.postSignalRule, xau.symbolH1Signal], ["sw2", "GBPUSD", "SELL", "fri-cycle", "BUY"]);
+  assert.equal(xau.lookbackAction, "none");
+
+  const monday = buildStoredAlert({
+    base: "EURUSD",
+    brokerSymbol: "EURUSD",
+    scannerBase: "GBPUSD",
+    scannerSymbol: "GBPUSD",
+    match: findH1PatternMatchesForTarget("EURUSD", bars("GT", 1, "2026-08-17"), 3).find((item) => item.slotHour === 3)!,
+    baseSymbol: "EURUSD",
+    baseBar: bars("T", 2, "2026-08-17")[0],
+  });
+  assert.deepEqual([monday.postSignalRule, monday.baseH1Signal, monday.symbolH1Signal], ["none", "BUY", "BUY"]);
 });
 
 test("normal SW3 guard skips a slot once the same-direction run reaches four or more", () => {
@@ -263,7 +323,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older signal-rule feeds start a fresh v12 state instead of carrying stale allowTrade semantics", () => {
+test("older signal-rule feeds start a fresh v13 state instead of carrying stale allowTrade semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -298,7 +358,7 @@ test("older signal-rule feeds start a fresh v12 state instead of carrying stale 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 12);
+  assert.equal(state.version, 13);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
   assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
@@ -313,11 +373,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 12);
+  assert.equal(state.version, 13);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 carries allowTrade lookback metadata under signal rule v6", () => {
+test("public feed v7 carries H3 H4 plus allowTrade metadata under signal rule v7", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -332,8 +392,8 @@ test("public feed v7 carries allowTrade lookback metadata under signal rule v6",
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 6);
-  assert.deepEqual(feed.hours, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
+  assert.equal(feed.signalRuleVersion, 7);
+  assert.deepEqual(feed.hours, [3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");
   assert.equal(row?.signal, "SELL");

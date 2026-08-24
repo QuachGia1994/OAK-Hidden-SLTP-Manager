@@ -1,19 +1,20 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 12;
+export const H1_CLOUD_STATE_VERSION = 13;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 6;
+export const H1_SIGNAL_RULE_VERSION = 7;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v12";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v13";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
+export const H1_FIRST_SCAN_HOUR = 3;
 export const H1_SCAN_START_HOUR = 6;
 export const H1_SCAN_END_HOUR = 16;
-export const H1_SCAN_HOURS = Array.from(
+export const H1_SCAN_HOURS = [3, 4, ...Array.from(
   { length: H1_SCAN_END_HOUR - H1_SCAN_START_HOUR + 1 },
   (_, index) => H1_SCAN_START_HOUR + index,
-);
+)];
 // Active post-signal calendar rules are intentionally limited to Thursday/Friday.
 // The configured Mon-Wed rules remain available below but are bypassed in production.
 export const H1_POST_SIGNAL_ACTIVE_WEEKDAYS = [4, 5] as const;
@@ -70,7 +71,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 12;
+  version: 13;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +80,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 6;
+  signalRuleVersion: 7;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -216,6 +217,32 @@ function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: numbe
   if (!fallbackRows) return { pattern: primaryPattern, action: "none" };
   const fallbackPattern = fallbackRows.map((row) => row.direction).join("");
   return { pattern: fallbackPattern, action: lookbackActionForPattern(fallbackPattern) };
+}
+
+function twoCandleMatch(bars: H1DirectionBar[], slotHour: 3 | 4): H1PatternMatch | null {
+  const byHour = new Map(bars.map((bar) => [bar.hour, bar]));
+  const rows = rowsForHours(byHour, [slotHour - 1, slotHour - 2]);
+  if (!rows) return null;
+  return {
+    slotHour,
+    pattern: rows.map((row) => row.direction) as H1Direction[],
+    patternKind: "sw2",
+    bars: rows,
+    lookbackPattern: null,
+    lookbackAction: "none",
+    tradeAllowed: true,
+  };
+}
+
+export function findH1PatternMatchesForTarget(base: H1TargetBase, bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
+  const matches: H1PatternMatch[] = [];
+  const earlySlot: 3 | 4 = base === "XAUUSD" ? 4 : 3;
+  if (brokerHour >= earlySlot) {
+    const early = twoCandleMatch(bars, earlySlot);
+    if (early) matches.push(early);
+  }
+  matches.push(...findH1PatternMatches(bars, brokerHour));
+  return matches.sort((left, right) => left.slotHour - right.slotHour);
 }
 
 export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
@@ -482,7 +509,7 @@ export function seedCloudStateFromPublic(raw: unknown, brokerDate: string, suppr
 
   const state = emptyCloudState();
   state.days[brokerDate] = {
-    suppressedThroughHour: Math.max(H1_SCAN_START_HOUR - 1, Math.min(H1_SCAN_END_HOUR, Math.trunc(suppressThroughHour))),
+    suppressedThroughHour: Math.max(H1_FIRST_SCAN_HOUR - 1, Math.min(H1_SCAN_END_HOUR, Math.trunc(suppressThroughHour))),
     symbols: Object.fromEntries(H1_TARGET_BASES.map((base) => [base, { alerts: [], blockedSlots: [] }])) as H1CloudState["days"][string]["symbols"],
   };
   return state;
@@ -560,7 +587,7 @@ export function backfillSuppressedHistory(
 ): number {
   const day = state.days[brokerDate];
   const suppressedThrough = Number(day?.suppressedThroughHour || 0);
-  if (!day || suppressedThrough < H1_SCAN_START_HOUR) return 0;
+  if (!day || suppressedThrough < H1_FIRST_SCAN_HOUR) return 0;
 
   const byBaseHour = Object.fromEntries(
     Object.entries(market).map(([base, item]) => [base, new Map(item.bars.map((bar) => [bar.hour, bar]))]),
@@ -570,7 +597,7 @@ export function backfillSuppressedHistory(
   for (const base of H1_TARGET_BASES) {
     const scannerBase = scannerBaseForTarget(base);
     const baseSymbol = baseSymbolForTarget(base);
-    const matches = findH1PatternMatches(market[scannerBase].bars, suppressedThrough);
+    const matches = findH1PatternMatchesForTarget(base, market[scannerBase].bars, suppressedThrough);
     const { symbol } = ensureSymbolDay(state, brokerDate, base);
     const blocked = new Set(symbol.blockedSlots);
     for (const hour of blockedTradeSlots(matches)) blocked.add(hour);

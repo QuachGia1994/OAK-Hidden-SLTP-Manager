@@ -3,7 +3,7 @@ import {
   H1_TARGET_BASES,
   baseSymbolForTarget,
   buildStoredAlert,
-  findH1PatternMatches,
+  findH1PatternMatchesForTarget,
   reconcileTradeState,
   scannerBaseForTarget,
   type H1Base,
@@ -36,7 +36,7 @@ export function reconstructHistoricalDays(market: H1HistoricalMarket): H1Histori
       const scannerBase = scannerBaseForTarget(base);
       const baseSymbol = baseSymbolForTarget(base);
       const baseByHour = new Map(perBase[baseSymbol].map((bar) => [bar.hour, bar]));
-      const alerts = findH1PatternMatches(perBase[scannerBase], 18).flatMap((match) => {
+      const alerts = findH1PatternMatchesForTarget(base, perBase[scannerBase], 18).flatMap((match) => {
         const baseBar = baseByHour.get(match.slotHour - 1);
         if (!baseBar) return [];
         return [buildStoredAlert({

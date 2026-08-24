@@ -64,6 +64,16 @@ test("cTrader cloud scanner remains read-only even when shared OAuth has trading
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
+test("live route scans only H3 H4 and H06-H16 with slot-specific readiness", () => {
+  assert.match(route, /H1_SCAN_HOURS\.includes\(wall\.hour\)/);
+  assert.match(route, /"inactive-slot"/);
+  assert.match(route, /hour === 3[\s\S]*GBPUSD[\s\S]*EURUSD[\s\S]*AUDUSD[\s\S]*USDCAD[\s\S]*USDJPY/);
+  assert.match(route, /hour === 4[\s\S]*XAUUSD[\s\S]*GBPUSD/);
+  assert.match(route, /return H1_ALL_BASES/);
+  assert.match(route, /findH1PatternMatchesForTarget/);
+  assert.match(route, /brokerUtcOffsetHours/);
+});
+
 test("manual H1 history backfill is admin/API-only, singleton locked and has no Telegram or trading mutation path", () => {
   assert.match(backfillRoute, /requireAdminOrApiAuth/);
   assert.match(backfillRoute, /H1_HISTORY_RETENTION_CALENDAR_DAYS/);
