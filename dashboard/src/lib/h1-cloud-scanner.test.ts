@@ -140,7 +140,7 @@ test("configured Friday special cycle remains intact behind the test bypass", ()
   assert.deepEqual(configuredPostSignalDecision("2026-09-04", 8), { inverted: true, rule: "fri-cycle" });
 });
 
-test("Pattern 1 uses the non-overlapping three-candle lookback from H8 onward", () => {
+test("Pattern 1 uses the primary non-overlapping three-candle lookback from H8 onward", () => {
   const blockedByPattern1 = findH1PatternMatches(bars("GGTGGT", 2), 8).find((item) => item.slotHour === 8)!;
   assert.deepEqual([blockedByPattern1.pattern.join(""), blockedByPattern1.lookbackPattern, blockedByPattern1.lookbackAction, blockedByPattern1.tradeAllowed], ["TGG", "TGG", "block-pattern1", false]);
 
@@ -152,6 +152,14 @@ test("Pattern 1 uses the non-overlapping three-candle lookback from H8 onward", 
 
   const beforeH8 = findH1PatternMatches(bars("TTTGGT", 1), 7).find((item) => item.slotHour === 7)!;
   assert.deepEqual([beforeH8.lookbackPattern, beforeH8.lookbackAction, beforeH8.tradeAllowed], [null, "none", true]);
+});
+
+test("Pattern 1 falls back one candle toward the scanner window when the primary lookback is not Pattern 1 2 or 3", () => {
+  const fallbackPattern1 = findH1PatternMatches(bars("GTTGGT", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([fallbackPattern1.pattern.join(""), fallbackPattern1.lookbackPattern, fallbackPattern1.lookbackAction, fallbackPattern1.tradeAllowed], ["TGG", "GTT", "block-pattern1", false]);
+
+  const fallbackPattern2 = findH1PatternMatches(bars("GTTTTG", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([fallbackPattern2.pattern.join(""), fallbackPattern2.lookbackPattern, fallbackPattern2.lookbackAction, fallbackPattern2.tradeAllowed], ["GTT", "TTT", "block-pattern2", false]);
 });
 
 test("Pattern 2 is strongest and bypasses allowTrade lookback", () => {
@@ -255,7 +263,7 @@ test("suppressed migration slots backfill v7 history without replay state loss",
   assert.equal(backfillSuppressedHistory(state, "2026-08-21", market), 0);
 });
 
-test("older signal-rule feeds start a fresh v11 state instead of carrying stale allowTrade semantics", () => {
+test("older signal-rule feeds start a fresh v12 state instead of carrying stale allowTrade semantics", () => {
   const legacyV2 = {
     schemaVersion: 7,
     signalRuleVersion: 2,
@@ -290,7 +298,7 @@ test("older signal-rule feeds start a fresh v11 state instead of carrying stale 
     },
   };
   const state = seedCloudStateFromPublic(legacyV2, "2026-08-21", 7);
-  assert.equal(state.version, 11);
+  assert.equal(state.version, 12);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 7);
   assert.deepEqual(state.days["2026-08-21"].symbols.XAUUSD?.alerts, []);
 });
@@ -305,11 +313,11 @@ test("older public schemas start a fresh suppressed v7 state instead of replayin
     days: {},
   };
   const state = seedCloudStateFromPublic(legacy, "2026-08-21", 5);
-  assert.equal(state.version, 11);
+  assert.equal(state.version, 12);
   assert.equal(state.days["2026-08-21"].suppressedThroughHour, 5);
 });
 
-test("public feed v7 carries allowTrade lookback metadata under signal rule v5", () => {
+test("public feed v7 carries allowTrade lookback metadata under signal rule v6", () => {
   const state = emptyCloudState();
   const match = findH1PatternMatches(bars("GGT", 3), 6).find((item) => item.slotHour === 6)!;
   const alert = buildStoredAlert({
@@ -324,7 +332,7 @@ test("public feed v7 carries allowTrade lookback metadata under signal rule v5",
   state.days["2026-08-21"] = { symbols: { XAUUSD: { alerts: [alert], blockedSlots: [] } } };
   const feed = buildPublicFeed(state, "2026-08-21T00:00:00Z");
   assert.equal(feed.schemaVersion, 7);
-  assert.equal(feed.signalRuleVersion, 5);
+  assert.equal(feed.signalRuleVersion, 6);
   assert.deepEqual(feed.hours, [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
   const row = feed.days["2026-08-21"].symbols.XAUUSD?.alerts[0];
   assert.equal(row?.patternKind, "sw3Pure");

@@ -1,10 +1,10 @@
 import { addBrokerCalendarDays, isValidBrokerDateKey, parseBrokerDateKeyUtc } from "./h1-broker-date.ts";
 
-export const H1_CLOUD_STATE_VERSION = 11;
+export const H1_CLOUD_STATE_VERSION = 12;
 export const H1_PUBLIC_SCHEMA = 7;
-export const H1_SIGNAL_RULE_VERSION = 5;
+export const H1_SIGNAL_RULE_VERSION = 6;
 export const H1_PUBLIC_LATEST_KEY = "robot-sltp:public:h1-signals:latest";
-export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v11";
+export const H1_CLOUD_STATE_KEY = "robot-sltp:cloud:h1-scanner:state:v12";
 export const H1_CLOUD_LOCK_KEY = "robot-sltp:cloud:h1-scanner:lock";
 export const H1_CLOUD_PROFILE = "cTrader IcMarkets";
 export const H1_HISTORY_RETENTION_CALENDAR_DAYS = 90;
@@ -70,7 +70,7 @@ export type H1StoredAlert = {
 };
 
 export type H1CloudState = {
-  version: 11;
+  version: 12;
   days: Record<string, {
     suppressedThroughHour?: number;
     symbols: Partial<Record<H1TargetBase, { alerts: H1StoredAlert[]; blockedSlots: number[] }>>;
@@ -79,7 +79,7 @@ export type H1CloudState = {
 
 export type H1PublicFeed = {
   schemaVersion: 7;
-  signalRuleVersion: 5;
+  signalRuleVersion: 6;
   profile: string;
   publishedAt: string;
   hours: number[];
@@ -196,15 +196,26 @@ function rowsForHours(byHour: Map<number, H1DirectionBar>, hours: number[]): H1D
   return rows.every(Boolean) ? rows as H1DirectionBar[] : null;
 }
 
+function lookbackActionForPattern(pattern: string): H1LookbackAction {
+  if (PURE_SW_3.has(pattern)) return "block-pattern1";
+  if (NORMAL_SW_3.has(pattern)) return "block-pattern2";
+  if (ALTERNATING_SW_3.has(pattern)) return "invert-pattern3";
+  return "none";
+}
+
 function allowTradeLookback(byHour: Map<number, H1DirectionBar>, slotHour: number, patternKind: H1PatternKind): { pattern: string | null; action: H1LookbackAction } {
   if (slotHour < 8 || patternKind !== "sw3Pure") return { pattern: null, action: "none" };
-  const rows = rowsForHours(byHour, [slotHour - 4, slotHour - 5, slotHour - 6]);
-  if (!rows) return { pattern: null, action: "none" };
-  const pattern = rows.map((row) => row.direction).join("");
-  if (PURE_SW_3.has(pattern)) return { pattern, action: "block-pattern1" };
-  if (NORMAL_SW_3.has(pattern)) return { pattern, action: "block-pattern2" };
-  if (ALTERNATING_SW_3.has(pattern)) return { pattern, action: "invert-pattern3" };
-  return { pattern, action: "none" };
+
+  const primaryRows = rowsForHours(byHour, [slotHour - 4, slotHour - 5, slotHour - 6]);
+  if (!primaryRows) return { pattern: null, action: "none" };
+  const primaryPattern = primaryRows.map((row) => row.direction).join("");
+  const primaryAction = lookbackActionForPattern(primaryPattern);
+  if (primaryAction !== "none") return { pattern: primaryPattern, action: primaryAction };
+
+  const fallbackRows = rowsForHours(byHour, [slotHour - 3, slotHour - 4, slotHour - 5]);
+  if (!fallbackRows) return { pattern: primaryPattern, action: "none" };
+  const fallbackPattern = fallbackRows.map((row) => row.direction).join("");
+  return { pattern: fallbackPattern, action: lookbackActionForPattern(fallbackPattern) };
 }
 
 export function findH1PatternMatches(bars: H1DirectionBar[], brokerHour: number): H1PatternMatch[] {
