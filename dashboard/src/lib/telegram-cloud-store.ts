@@ -75,9 +75,14 @@ export async function createCloudIntent(args: {
   targetAccountIds: string[];
   protectionPlan?: CloudIntent["protectionPlan"];
   sourceUpdateId?: number;
+  sourceCommandIndex?: number;
 }): Promise<CloudIntent> {
-  if (Number.isInteger(args.sourceUpdateId) && Number(args.sourceUpdateId) > 0) {
-    const existingId = Number(await redis.get<number | string>(`${INTENT_BY_UPDATE_PREFIX}${args.sourceUpdateId}`));
+  const sourceCommandIndex = Number.isInteger(args.sourceCommandIndex) && Number(args.sourceCommandIndex) >= 0 ? Number(args.sourceCommandIndex) : 0;
+  const sourceKey = Number.isInteger(args.sourceUpdateId) && Number(args.sourceUpdateId) > 0
+    ? `${INTENT_BY_UPDATE_PREFIX}${args.sourceUpdateId}${sourceCommandIndex > 0 ? `:${sourceCommandIndex}` : ""}`
+    : "";
+  if (sourceKey) {
+    const existingId = Number(await redis.get<number | string>(sourceKey));
     if (Number.isInteger(existingId) && existingId > 0) {
       const existing = await getCloudIntent(existingId);
       if (existing) return existing;
@@ -94,6 +99,7 @@ export async function createCloudIntent(args: {
     rawText: args.rawText,
     createdAt: Date.now(),
     sourceUpdateId: args.sourceUpdateId,
+    sourceCommandIndex,
     dueAt: args.dueAt,
     dueText: args.dueText,
     targetAccountIds: [...new Set(args.targetAccountIds.map(normalizeProviderAccountId).filter(Boolean))],
@@ -101,10 +107,8 @@ export async function createCloudIntent(args: {
     payload: args.payload,
   };
   await redis.hset(TASKS_KEY, { [String(id)]: JSON.stringify(task) });
-  if (Number.isInteger(args.sourceUpdateId) && Number(args.sourceUpdateId) > 0) {
-    await redis.set(`${INTENT_BY_UPDATE_PREFIX}${args.sourceUpdateId}`, String(id), { ex: 7 * 24 * 3600 });
-  }
-  await appendTelegramAudit({ action: "intent_created", taskId: id, kind: args.kind, dueAt: args.dueAt, sourceUpdateId: args.sourceUpdateId });
+  if (sourceKey) await redis.set(sourceKey, String(id), { ex: 7 * 24 * 3600 });
+  await appendTelegramAudit({ action: "intent_created", taskId: id, kind: args.kind, dueAt: args.dueAt, sourceUpdateId: args.sourceUpdateId, sourceCommandIndex });
   return task;
 }
 

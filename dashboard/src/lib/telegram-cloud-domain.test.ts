@@ -7,6 +7,7 @@ import {
   parseCloudTelegramCommand,
   renderHelp,
   resolveVietnamDueAt,
+  splitCloudTelegramCommands,
 } from "./telegram-cloud-domain.ts";
 
 test("scheduled entry parses Vietnam civil time deterministically", () => {
@@ -67,7 +68,7 @@ test("plain legacy control commands do not require slash prefixes", () => {
     assert.equal(close.payload.legacyProfile, "Vantage");
     assert.equal(close.dueText, "2026-08-21 15:30:00 Asia/Ho_Chi_Minh");
   }
-  assert.deepEqual(parseCloudTelegramCommand("del all"), { type: "delete", all: true });
+  assert.deepEqual(parseCloudTelegramCommand("del all"), { type: "delete", all: true, ids: [] });
 });
 
 test("close and delete management commands stay cloud-control only", () => {
@@ -78,8 +79,10 @@ test("close and delete management commands stay cloud-control only", () => {
     assert.equal(close.payload.scope, "XAUUSD");
     assert.equal(close.payload.executionMode, "confirm_required");
   }
-  assert.deepEqual(parseCloudTelegramCommand("/del all"), { type: "delete", all: true });
-  assert.deepEqual(parseCloudTelegramCommand("/del 42"), { type: "delete", all: false, id: 42 });
+  assert.deepEqual(parseCloudTelegramCommand("/del all"), { type: "delete", all: true, ids: [] });
+  assert.deepEqual(parseCloudTelegramCommand("/del 42"), { type: "delete", all: false, ids: [42] });
+  assert.deepEqual(parseCloudTelegramCommand("/del 5 6 7 8"), { type: "delete", all: false, ids: [5, 6, 7, 8] });
+  assert.equal(parseCloudTelegramCommand("/del all 5").type, "unknown");
 });
 
 test("manual entry requires one explicit confirm and accepts explicit account label", () => {
@@ -132,9 +135,22 @@ test("partial rule parses ticket or symbol and requires explicit positive trigge
   assert.equal(parseCloudTelegramCommand("/partial XAUUSD foo 100 0.01").type, "unknown");
 });
 
-test("approve command is the explicit broker mutation boundary", () => {
-  assert.deepEqual(parseCloudTelegramCommand("/approve 42"), { type: "approve", id: 42 });
-  assert.deepEqual(parseCloudTelegramCommand("approve 7"), { type: "approve", id: 7 });
+test("approve command is the explicit broker mutation boundary and supports batches", () => {
+  assert.deepEqual(parseCloudTelegramCommand("/approve 42"), { type: "approve", ids: [42] });
+  assert.deepEqual(parseCloudTelegramCommand("approve 7"), { type: "approve", ids: [7] });
+  assert.deepEqual(parseCloudTelegramCommand("/approve 5 6 7 8 9"), { type: "approve", ids: [5, 6, 7, 8, 9] });
+  assert.deepEqual(parseCloudTelegramCommand("/approve 5 5 6"), { type: "approve", ids: [5, 6] });
+  assert.equal(parseCloudTelegramCommand("/approve 5 x 7").type, "unknown");
+});
+
+test("one Telegram message can carry multiple commands one per line", () => {
+  const lines = splitCloudTelegramCommands("Buy GBPUSD 0.01 16h05 @FXCE\nBUY AUDUSD 0.01 16h05 @FXCE\nSELL USDCAD 0.01 16h05 @FXCE\n\n");
+  assert.deepEqual(lines, [
+    "Buy GBPUSD 0.01 16h05 @FXCE",
+    "BUY AUDUSD 0.01 16h05 @FXCE",
+    "SELL USDCAD 0.01 16h05 @FXCE",
+  ]);
+  for (const line of lines) assert.equal(parseCloudTelegramCommand(line).type, "intent");
 });
 
 test("confirmation state machine arms future intents and executes due ones only", () => {

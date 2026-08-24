@@ -15,6 +15,7 @@ export type CloudIntent = {
   rawText: string;
   createdAt: number;
   sourceUpdateId?: number;
+  sourceCommandIndex?: number;
   dueAt: number | null;
   dueText: string;
   dueNotifiedAt?: number;
@@ -56,8 +57,8 @@ export type ParsedCloudCommand =
   | { type: "profiles" }
   | { type: "positions" }
   | { type: "pending" }
-  | { type: "approve"; id: number }
-  | { type: "delete"; all: boolean; id?: number }
+  | { type: "approve"; ids: number[] }
+  | { type: "delete"; all: boolean; ids: number[] }
   | { type: "intent"; kind: CloudIntentKind; dueAt: number | null; dueText: string; payload: CloudIntent["payload"] }
   | { type: "unknown"; reason: string };
 
@@ -139,6 +140,21 @@ function canonicalSymbol(value: string): string {
 
 const LEGACY_PROFILE_ALIASES = new Set(["vantage", "vantagedemo", "darwinex", "th5ers"]);
 const PLAIN_COMMANDS = new Set(["start", "help", "myid", "status", "profiles", "positions", "pending", "approve", "buy", "sell", "close", "closeall", "modify", "partial", "del"]);
+export const TELEGRAM_MULTI_COMMAND_LIMIT = 10;
+
+function parsePositiveIntentIds(values: string[]): number[] | null {
+  if (!values.length || values.some((value) => !/^\d+$/.test(value))) return null;
+  const ids = values.map((value) => Number(value));
+  if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) return null;
+  return [...new Set(ids)];
+}
+
+export function splitCloudTelegramCommands(text: string): string[] {
+  return String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
 
 function splitLegacyProfile(tokens: string[]): { tokens: string[]; legacyProfile: string } {
   if (!tokens.length) return { tokens, legacyProfile: "" };
@@ -191,11 +207,9 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
     };
   }
   if (command === "/approve") {
-    const id = Number.parseInt(String(args[0] || ""), 10);
-    if (!Number.isInteger(id) || id <= 0 || args.length !== 1) {
-      return { type: "unknown", reason: "Cú pháp: /approve ID" };
-    }
-    return { type: "approve", id };
+    const ids = parsePositiveIntentIds(args);
+    if (!ids) return { type: "unknown", reason: "Cú pháp: /approve ID [ID ...]" };
+    return { type: "approve", ids };
   }
   if (command === "/buy" || command === "/sell") {
     const scoped = splitLegacyProfile(args);
@@ -299,10 +313,10 @@ export function parseCloudTelegramCommand(text: string, nowMs = Date.now()): Par
   }
   if (command === "/del") {
     const target = String(args[0] || "").toLowerCase();
-    if (target === "all") return { type: "delete", all: true };
-    const id = Number.parseInt(target, 10);
-    if (Number.isInteger(id) && id > 0) return { type: "delete", all: false, id };
-    return { type: "unknown", reason: "Cú pháp: /del all hoặc /del ID" };
+    if (target === "all" && args.length === 1) return { type: "delete", all: true, ids: [] };
+    const ids = parsePositiveIntentIds(args);
+    if (ids) return { type: "delete", all: false, ids };
+    return { type: "unknown", reason: "Cú pháp: /del all hoặc /del ID [ID ...]" };
   }
   return { type: "unknown", reason: "Lệnh chưa hỗ trợ trên cloud; dùng /help" };
 }
@@ -317,13 +331,14 @@ export function renderHelp(): string {
     "• /pending buy|sell SYMBOL LOT [YYYY-MM-DD] HH:MM [SL] [TP] [@ACCOUNT]",
     "• /buy SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
     "• /sell SYMBOL LOT [HH:MM|HHhMM] [SL] [TP] [@ACCOUNT]",
-    "• /approve ID — xác nhận broker mutation một lần; lệnh hẹn giờ sẽ tự chạy khi đến mốc",
+    "• /approve ID [ID ...] — xác nhận một hoặc nhiều intent; lệnh hẹn giờ sẽ tự chạy khi đến mốc",
     "• /closeall [YYYY-MM-DD] [HH:MM|HHhMM] [SYMBOL] [@ACCOUNT]",
     "• Cú pháp desktop cũ vẫn nhận: Buy GBPUSD+ 0.01 14h55 Vantage",
     "• /modify sl|tp SYMBOL VALUE [@ACCOUNT]",
     "• /partial TICKET|SYMBOL profit|price TARGET CLOSE_VOLUME [@ACCOUNT] — cTrader Auto Manager / MT5 OAK EA",
-    "• /del ID | /del all",
+    "• /del ID [ID ...] | /del all",
+    "• Có thể gửi nhiều lệnh trong cùng một tin nhắn, mỗi dòng một lệnh (tối đa 10 dòng).",
     "",
-    "Lệnh tác động broker cần /approve ID một lần. Có thể approve trước lệnh hẹn giờ; tới mốc cloud tự chạy, không hỏi lại. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account trước khi xác nhận.",
+    "Lệnh tác động broker cần /approve ID một lần. Có thể approve nhiều ID cùng lúc và approve trước lệnh hẹn giờ; tới mốc cloud tự chạy, không hỏi lại. Nếu bỏ SL/TP, cloud snapshot SL/TP mặc định theo từng account trước khi xác nhận.",
   ].join("\n");
 }

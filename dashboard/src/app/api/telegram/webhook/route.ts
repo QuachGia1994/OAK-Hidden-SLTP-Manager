@@ -11,8 +11,10 @@ import { renderCloudExecutionResult, runCloudIntentExecution } from "@/lib/teleg
 import {
   TELEGRAM_CLOUD_EXECUTION_MODE,
   TELEGRAM_CLOUD_PROFILE,
+  TELEGRAM_MULTI_COMMAND_LIMIT,
   parseCloudTelegramCommand,
   renderHelp,
+  splitCloudTelegramCommands,
   type CloudIntent,
 } from "@/lib/telegram-cloud-domain";
 import {
@@ -109,7 +111,23 @@ function renderPending(tasks: CloudIntent[]): string {
   ].join("\n");
 }
 
-async function handleCommand(text: string, chatId: string, updateId: number): Promise<string> {
+async function approveIntentAndRender(id: number): Promise<string> {
+  const approved = await approveCloudIntent(id);
+  if (!approved) return `⚠️ Intent #${id} không tồn tại hoặc không còn chờ xác nhận.`;
+  if (approved.status === "scheduled") {
+    return [
+      `✅ Intent #${approved.id} đã được xác nhận và arm.`,
+      `• Mốc: ${approved.dueText}`,
+      `• Accounts: ${approved.targetAccountIds.join(", ")}`,
+      "• Đến giờ cloud sẽ tự execute, không hỏi lại.",
+    ].join("\n");
+  }
+  const finished = await runCloudIntentExecution(approved.id);
+  if (!finished) return `⏳ Intent #${approved.id} đang được worker khác execute.`;
+  return renderCloudExecutionResult(finished);
+}
+
+async function handleCommand(text: string, chatId: string, updateId: number, sourceCommandIndex = 0): Promise<string> {
   const command = parseCloudTelegramCommand(text);
   if (command.type === "help") return renderHelp();
   if (command.type === "myid") return `Chat ID: ${chatId}`;
@@ -124,23 +142,22 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
       const count = await cancelAllCloudIntents();
       return `🗑️ Đã hủy ${count} intent cloud đang chờ.`;
     }
-    const ok = await cancelCloudIntent(command.id || 0);
-    return ok ? `🗑️ Đã hủy intent #${command.id}.` : `⚠️ Không tìm thấy intent #${command.id} có thể hủy.`;
+    if (command.ids.length === 1) {
+      const id = command.ids[0];
+      const ok = await cancelCloudIntent(id);
+      return ok ? `🗑️ Đã hủy intent #${id}.` : `⚠️ Không tìm thấy intent #${id} có thể hủy.`;
+    }
+    const rows: string[] = [];
+    for (const id of command.ids) {
+      const ok = await cancelCloudIntent(id);
+      rows.push(`• #${id}: ${ok ? "đã hủy" : "không tìm thấy/không thể hủy"}`);
+    }
+    return [`🗑️ Batch delete · ${command.ids.length} intent`, ...rows].join("\n");
   }
   if (command.type === "approve") {
-    const approved = await approveCloudIntent(command.id);
-    if (!approved) return `⚠️ Intent #${command.id} không tồn tại hoặc không còn chờ xác nhận.`;
-    if (approved.status === "scheduled") {
-      return [
-        `✅ Intent #${approved.id} đã được xác nhận và arm.`,
-        `• Mốc: ${approved.dueText}`,
-        `• Accounts: ${approved.targetAccountIds.join(", ")}`,
-        "• Đến giờ cloud sẽ tự execute, không hỏi lại.",
-      ].join("\n");
-    }
-    const finished = await runCloudIntentExecution(approved.id);
-    if (!finished) return `⏳ Intent #${approved.id} đang được worker khác execute.`;
-    return renderCloudExecutionResult(finished);
+    const rows: string[] = [];
+    for (const id of command.ids) rows.push(await approveIntentAndRender(id));
+    return rows.join("\n\n");
   }
   if (command.type === "status") {
     const config = await loadH1CloudConfig();
@@ -252,6 +269,7 @@ async function handleCommand(text: string, chatId: string, updateId: number): Pr
       targetAccountIds: targets.map((item) => item.id),
       protectionPlan,
       sourceUpdateId: updateId,
+      sourceCommandIndex,
     });
     await appendTelegramAudit({ action: "command_intent_accepted", taskId: task.id, rawText: text, targetAccountIds: task.targetAccountIds });
     const protectionRows = Object.values(task.protectionPlan || {}).map((item) => `• @${item.label}: SL ${item.slPoints}pt · TP ${item.tpPoints}pt`);
@@ -308,8 +326,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, ignored: "unauthorized-chat" });
     }
 
-    const response = await handleCommand(text, chatId, updateId);
-    await sendTelegram(config.telegramToken, chatId, response);
+    const commandLines = splitCloudTelegramCommands(text);
+    if (commandLines.length > TELEGRAM_MULTI_COMMAND_LIMIT) {
+      await sendTelegram(config.telegramToken, chatId, `⚠️ Một tin nhắn tối đa ${TELEGRAM_MULTI_COMMAND_LIMIT} lệnh, mỗi dòng một lệnh.`);
+      await completeTelegramUpdate(updateId);
+      return NextResponse.json({ ok: true, ignored: "too-many-command-lines" });
+    }
+    const responses: string[] = [];
+    for (let index = 0; index < commandLines.length; index += 1) {
+      responses.push(await handleCommand(commandLines[index], chatId, updateId, index));
+    }
+    await sendTelegram(config.telegramToken, chatId, responses.join("\n\n"));
     await appendTelegramAudit({ action: "command_processed", updateId, chatId, rawText: text });
     await completeTelegramUpdate(updateId);
     return NextResponse.json({ ok: true });

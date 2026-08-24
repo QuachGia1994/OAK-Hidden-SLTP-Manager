@@ -18,7 +18,11 @@ test("Telegram webhook is secret-fenced, chat-fenced and retry-idempotent", () =
   assert.match(webhook, /completeTelegramUpdate/);
   assert.match(webhook, /releaseTelegramUpdate/);
   assert.match(webhook, /sourceUpdateId: updateId/);
+  assert.match(webhook, /sourceCommandIndex/);
+  assert.match(webhook, /splitCloudTelegramCommands/);
+  assert.match(webhook, /TELEGRAM_MULTI_COMMAND_LIMIT/);
   assert.match(store, /INTENT_BY_UPDATE_PREFIX/);
+  assert.match(store, /sourceCommandIndex > 0/);
 });
 
 test("Telegram webhook bootstrap is one-time authorized and never returns the secret", () => {
@@ -35,7 +39,9 @@ test("Telegram webhook bootstrap is one-time authorized and never returns the se
 
 test("cloud receiver requires explicit approve before broker mutation", () => {
   assert.match(webhook, /command\.type === "approve"/);
+  assert.match(webhook, /for \(const id of command\.ids\)/);
   assert.match(webhook, /approveCloudIntent/);
+  assert.match(webhook, /Batch delete/);
   assert.match(webhook, /runCloudIntentExecution/);
   assert.match(store, /claimCloudIntentExecution/);
   assert.match(webhook, /targetAccountIds/);

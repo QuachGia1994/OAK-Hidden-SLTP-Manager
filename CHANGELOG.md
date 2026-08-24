@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Telegram Cloud now accepts up to 10 commands in one Telegram message, one command per non-empty line, with per-line idempotency under the same Telegram update. `/approve ID [ID ...]` and `/del ID [ID ...]` now support batch intent IDs while preserving single-ID syntax, `/del all`, explicit approval, scheduling, execution locks and retry safety.
 - Fixed Telegram cloud scheduling for single-digit hours such as `9h00` and `9:00`; missing seconds now default to zero instead of producing an invalid `NaN` due time.
 - Extended the H1 cloud scanner/feed to retain 90 calendar days of broker history, added an admin/API-authenticated cTrader historical backfill that reconstructs missing dates with the current signal rule without Telegram/trading side effects, and added weekday/date history navigation to `/engine` while preserving schema 7, VIP redaction and mobile latest-day behavior.
 - Reworked Fact Check Image Authenticity V4 around four orthogonal public assessments: cryptographically verified origin, AI-generation evidence, editing/compositing evidence, and analysis completeness. Trusted C2PA algorithmic/capture/other source types remain distinct; specialist `real_signal` never verifies real-world origin; AI-generation and manipulation facts may coexist; and `no_material_edit_detected` never means non-AI or real origin.
