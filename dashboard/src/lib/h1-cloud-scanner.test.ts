@@ -189,13 +189,16 @@ test("FX H6 and XAUUSD H6 H7 pair gates block TG GT and keep TT GG normal", () =
   assert.deepEqual([fxH7.lookbackPattern, fxH7.lookbackAction, fxH7.tradeAllowed], [null, "none", true]);
 });
 
-test("normal SW3 guard skips a slot once the same-direction run reaches four or more", () => {
-  const t4 = findH1PatternMatches(bars("TTTT"), 5).filter((item) => item.slotHour === 5);
-  const g4 = findH1PatternMatches(bars("GGGG"), 5).filter((item) => item.slotHour === 5);
-  const t5 = findH1PatternMatches(bars("TTTTT"), 6).filter((item) => item.slotHour === 6);
-  assert.deepEqual(t4, []);
-  assert.deepEqual(g4, []);
-  assert.deepEqual(t5, []);
+test("Pattern 2 accepts exactly three same-direction candles and skips runs of four or more", () => {
+  for (const direction of ["T", "G"] as const) {
+    const exact = findH1PatternMatches(bars(direction.repeat(3), 3), 6).filter((item) => item.slotHour === 6);
+    assert.deepEqual(exact.map((item) => [item.pattern.join(""), item.patternKind]), [[direction.repeat(3), "sw3Normal"]]);
+
+    const run4 = findH1PatternMatches(bars(direction.repeat(4), 2), 6).filter((item) => item.slotHour === 6);
+    const run5 = findH1PatternMatches(bars(direction.repeat(5), 1), 6).filter((item) => item.slotHour === 6);
+    assert.deepEqual(run4, []);
+    assert.deepEqual(run5, []);
+  }
 });
 
 test("EURUSD AUDUSD USDCAD and USDJPY invert configured base while XAUUSD keeps base before later layers", () => {
@@ -271,8 +274,11 @@ test("Pattern 1 uses the primary non-overlapping three-candle lookback from H8 o
   const blockedByPattern1 = findH1PatternMatches(bars("GGTGGT", 2), 8).find((item) => item.slotHour === 8)!;
   assert.deepEqual([blockedByPattern1.pattern.join(""), blockedByPattern1.lookbackPattern, blockedByPattern1.lookbackAction, blockedByPattern1.tradeAllowed], ["TGG", "TGG", "block-pattern1", false]);
 
-  const blockedByPattern2 = findH1PatternMatches(bars("TTTGGT", 2), 8).find((item) => item.slotHour === 8)!;
-  assert.deepEqual([blockedByPattern2.lookbackPattern, blockedByPattern2.lookbackAction, blockedByPattern2.tradeAllowed], ["TTT", "block-pattern2", false]);
+  const blockedByPattern2T = findH1PatternMatches(bars("TTTGGT", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([blockedByPattern2T.lookbackPattern, blockedByPattern2T.lookbackAction, blockedByPattern2T.tradeAllowed], ["TTT", "block-pattern2", false]);
+
+  const blockedByPattern2G = findH1PatternMatches(bars("GGGTTG", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([blockedByPattern2G.lookbackPattern, blockedByPattern2G.lookbackAction, blockedByPattern2G.tradeAllowed], ["GGG", "block-pattern2", false]);
 
   const invertedByPattern3 = findH1PatternMatches(bars("GTGGGT", 2), 8).find((item) => item.slotHour === 8)!;
   assert.deepEqual([invertedByPattern3.lookbackPattern, invertedByPattern3.lookbackAction, invertedByPattern3.tradeAllowed], ["GTG", "invert-pattern3", true]);
@@ -285,8 +291,11 @@ test("Pattern 1 falls back one candle toward the scanner window when the primary
   const fallbackPattern1 = findH1PatternMatches(bars("GTTGGT", 2), 8).find((item) => item.slotHour === 8)!;
   assert.deepEqual([fallbackPattern1.pattern.join(""), fallbackPattern1.lookbackPattern, fallbackPattern1.lookbackAction, fallbackPattern1.tradeAllowed], ["TGG", "GTT", "block-pattern1", false]);
 
-  const fallbackPattern2 = findH1PatternMatches(bars("GTTTTG", 2), 8).find((item) => item.slotHour === 8)!;
-  assert.deepEqual([fallbackPattern2.pattern.join(""), fallbackPattern2.lookbackPattern, fallbackPattern2.lookbackAction, fallbackPattern2.tradeAllowed], ["GTT", "TTT", "block-pattern2", false]);
+  const fallbackPattern2T = findH1PatternMatches(bars("GTTTTG", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([fallbackPattern2T.pattern.join(""), fallbackPattern2T.lookbackPattern, fallbackPattern2T.lookbackAction, fallbackPattern2T.tradeAllowed], ["GTT", "TTT", "block-pattern2", false]);
+
+  const fallbackPattern2G = findH1PatternMatches(bars("TGGGGT", 2), 8).find((item) => item.slotHour === 8)!;
+  assert.deepEqual([fallbackPattern2G.pattern.join(""), fallbackPattern2G.lookbackPattern, fallbackPattern2G.lookbackAction, fallbackPattern2G.tradeAllowed], ["TGG", "GGG", "block-pattern2", false]);
 });
 
 test("Pattern 2 is strongest and bypasses allowTrade lookback", () => {

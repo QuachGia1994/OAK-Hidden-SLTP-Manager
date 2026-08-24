@@ -110,7 +110,7 @@ export type H1PublicFeed = {
 };
 
 const PURE_SW_3 = new Set(["TGG", "GTT"]);
-const NORMAL_SW_3 = new Set(["TTT", "GGG"]);
+const PATTERN_2_TRIPLES = new Set(["TTT", "GGG"]);
 const ALTERNATING_SW_3 = new Set(["GTG", "TGT"]);
 const BLOCK_PAIR_2 = new Set(["TG", "GT"]);
 const PATTERN_LABELS: Record<H1PatternKind, string> = {
@@ -208,9 +208,13 @@ function rowsForHours(byHour: Map<number, H1DirectionBar>, hours: number[]): H1D
   return rows.every(Boolean) ? rows as H1DirectionBar[] : null;
 }
 
+function isPattern2Triple(pattern: string): boolean {
+  return PATTERN_2_TRIPLES.has(pattern);
+}
+
 function lookbackActionForPattern(pattern: string): H1LookbackAction {
   if (PURE_SW_3.has(pattern)) return "block-pattern1";
-  if (NORMAL_SW_3.has(pattern)) return "block-pattern2";
+  if (isPattern2Triple(pattern)) return "block-pattern2";
   if (ALTERNATING_SW_3.has(pattern)) return "invert-pattern3";
   return "none";
 }
@@ -273,7 +277,7 @@ function mainPatternMatch(byHour: Map<number, H1DirectionBar>, slotHour: number)
       tradeAllowed: !lookback.action.startsWith("block-"),
     };
   }
-  if (!NORMAL_SW_3.has(text)) return null;
+  if (!isPattern2Triple(text)) return null;
   const older = byHour.get(slotHour - 4);
   if (older?.direction === pattern[0]) return null;
   return { slotHour, pattern, bars: rows3, patternKind: "sw3Normal", lookbackPattern: null, lookbackAction: "none", tradeAllowed: true };
