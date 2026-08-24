@@ -67,57 +67,32 @@ The PC may be shut down on weekends if no MT5 cloud work is expected. While the 
 
 ## NeoTech compliance EA — independent, read-only
 
-`OAK_NeoTech_Compliance_EA.mq5` is a separate MQL5 EA for technical/advisory NeoTech compliance review and is isolated from all trading/execution/scanner/failover surfaces. MQL5 (`OAK_NeoTech_Compliance_EA.mq5` plus `neotech/`) is the only source of truth for compliance formulas and criterion conclusions; the dashboard only authenticates/validates report structure, stores immutable reports/audit and renders `/check` through the existing Telegram bot/webhook. This project does not claim official NeoTech approval.
+`OAK_NeoTech_Compliance_EA.mq5` is a standalone MQL5 auditor. It reads the attached account's MT5 history, evaluates the NeoTech criteria and answers Telegram directly through the Bot API; no dashboard, Redis, webhook service or Vercel deployment is required. MQL5 (`OAK_NeoTech_Compliance_EA.mq5` plus `neotech/`) remains the only source of truth for formulas and conclusions. This project does not claim official NeoTech approval.
 
-The compliance surface is read-only with respect to the broker. It reads account/order/deal/position/price history, samples current balance/equity, persists bounded local evidence/checkpoints and may upload JSON by `WebRequest`. It contains no order send, trade class, close/modify/delete or other broker-mutation path. `OnTradeTransaction` records bounded prospective evidence/dirty state only; historical FDD reconstruction and network upload are timer-owned.
+The compliance surface is broker-read-only. It reads account/order/deal/position/price history, samples balance/equity and stores bounded evidence/checkpoints in MT5 `FILE_COMMON`. It has no order-send, trade-class, close, modify or delete path. `OnTradeTransaction` only records prospective evidence and marks the cached report dirty.
 
 ### Install and bind the account
 
-1. Open the intended MT5 account and MetaEditor. Compile `OAK_NeoTech_Compliance_EA.mq5` together with `neotech/NeoTechComplianceCore.mqh` and `neotech/NeoTechComplianceJson.mqh`; require zero compiler errors and warnings.
-2. Attach the compliance EA to one chart in the intended account. It does not need or use Algo Trading permission to mutate trades because no trade-mutation code exists.
-3. Set `InpExpectedLogin` to the exact current MT5 login. Initialization fails if it is zero or does not match the attached account.
-4. Set `InpProfileSlug` to the backend opaque profile slug (`[a-z0-9_-]`, 6–32 chars) and `InpIngestKey` to that profile's secret ingest key. Do not put the raw login in the slug.
-5. Add `https://www.oakgatekeeper.uk` to **Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL** when uploads are enabled. `InpIngestUrl` defaults to `https://www.oakgatekeeper.uk/api/neotech/compliance/report`; HTTPS is mandatory.
-6. For Gold C6 distance, set `InpGoldPipSizeOverride` when the broker's Gold pip convention has been independently verified. If the pip size cannot be established, a short Gold signal cannot become a confirmed no-SL/TP violation from missing distance evidence.
-7. Optional manual pauses use `InpManualPausePeriods` as server-local `YYYY-MM-DD/YYYY-MM-DD;...`. A pause that intersects a deficient completed week changes that week to `NOT_VERIFIABLE`; it does not silently remove the week.
+1. Compile `OAK_NeoTech_Compliance_EA.mq5` in MetaEditor together with the two `neotech/*.mqh` includes; require zero errors and zero warnings.
+2. In MT5, add exactly `https://api.telegram.org` to **Tools -> Options -> Expert Advisors -> Allow WebRequest for listed URL**.
+3. Attach one compliance EA instance to one chart on the intended account. Set `InpExpectedLogin` to that account's exact MT5 login; initialization fails closed on zero or mismatch.
+4. Set `InpProfileSlug` to an opaque 6–32 character slug matching `[a-z0-9_-]`, for example `oakdemo`. Do not use the raw login as the slug.
+5. Set `InpTelegramBotToken`, `InpTelegramAllowedChatIds` and `InpTelegramAllowedUserIds`. Both ACL lists are required and each incoming command must match both its chat ID and sender user ID. Values accept comma, space or semicolon separators.
+6. Keep `InpTelegramDeleteWebhookOnInit=false` unless this bot is deliberately being moved from webhook delivery to this EA's `getUpdates` polling. If Telegram reports an active webhook, the EA blocks polling and never deletes it without this explicit opt-in.
+7. `InpTelegramPollSeconds` controls the timer (1–300 seconds), `InpTelegramPageSize` controls rows per page (1–20), and `InpTelegramSendOnChange` optionally sends a changed summary to every allowed chat.
+8. For Gold C6 distance, set `InpGoldPipSizeOverride` only after verifying the broker's Gold pip convention. Optional manual pauses use server-local `YYYY-MM-DD/YYYY-MM-DD;...` in `InpManualPausePeriods`.
 
-The EA derives a non-public account fingerprint as SHA-256 of `login|broker-company|server`. The report contains the fingerprint and a masked account ID, never the raw login. Backend configuration must register the same expected fingerprint, so a valid profile key cannot upload another MT5 account's report under that profile.
+The bot token is a runtime secret. Never commit it, log it, include it in screenshots or share a populated `.set` file. The account fingerprint is SHA-256 over `login|broker-company|server`; Telegram/report output uses the fingerprint and masked account identity, not the raw login, broker, server or token.
 
-Example server profile configuration (placeholders only):
+### Direct Telegram commands
 
-```json
-[
-  {
-    "slug": "oakdemo",
-    "accountFingerprint": "<64-hex-sha256>",
-    "ingestKeySha256": "<64-hex-sha256-of-ingest-key>",
-    "public": false,
-    "ownerTelegramUserId": "<telegram-user-id>",
-    "allowedChatIds": [],
-    "allowedUserIds": []
-  }
-]
-```
+- `/check @profile` — summary page 1.
+- `/check @profile 2` — summary page 2.
+- `/check @profile C5` — one criterion; any valid C1–C9 or E1–E5 token is accepted.
+- `/check @profile violations 2` — violations page 2.
+- In groups, Telegram's addressed form is accepted, for example `/check@NeoTechAuditBot @profile C5`.
 
-Set this JSON in `NEOTECH_COMPLIANCE_PROFILES_JSON`. `NEOTECH_COMPLIANCE_STALE_SECONDS` optionally changes Telegram stale-report labeling (minimum accepted value 300 seconds; default 36 hours). Keep the plaintext ingest key only in the MT5 input/runtime secret location; backend configuration stores its SHA-256, not the plaintext key.
-
-### Report authentication and immutable storage
-
-Each upload carries the profile slug, ingest key, UTC request timestamp, one-time nonce and `Idempotency-Key`. Schema v2 deliberately has no self-declared `reportHash` field. The EA computes SHA-256 over the exact UTF-8 JSON request body and sends that 64-hex digest as `Idempotency-Key`; the backend independently hashes the exact raw body and rejects a mismatch before immutable storage. The server-computed payload hash is the immutable report key. Replay nonces, wrong scoped keys, account-fingerprint mismatches, malformed/inconsistent nested reports and far-future `generatedAtUtc` values fail closed.
-
-Backend schema validation checks report shape and internal consistency (criterion IDs, totals, occurrence/evidence counts, chronological ranges, bounded percentages and account/profile binding). It does not recompute C1–C9 formulas. Redis compliance audit is bounded; it does not grow without limit.
-
-### `/check` through the existing Telegram bot
-
-No second bot is created. The existing cloud webhook routes only the NeoTech `/check` command/callback to the stored compliance report:
-
-- `/check @profile` — summary.
-- `/check @profile violations` — confirmed HARD evidence plus RISK/unknown evidence.
-- `/check @profile c1`, `c5`, `c6` — criterion detail.
-- `/check @profile weeks` and `/check @profile months` — readable Vietnamese period detail.
-- Append a page number when needed, for example `/check @profile c5 2`; callback buttons use the same deterministic pagination contract.
-
-Private profiles require owner/user/chat ACL; public profiles may be viewed without that private ACL. Telegram output never exposes the raw MT5 login or ingest key. Detail pages include server-local time, UTC offset/normalized UTC, Vietnam time, symbol, position/order/deal tickets, measured value, threshold, reason, evidence source/confidence and HARD versus RISK. Oversized evidence is split losslessly below the Telegram message limit rather than truncated.
+Reply buttons use the same deterministic callback paging contract. Telegram output includes criterion totals and, where evidence exists, the date/time, symbol, ticket identifiers, measured value, threshold and reason. Oversized detail is split below the message budget rather than silently truncated.
 
 ### PASS, FAIL and incomplete evidence
 
@@ -135,14 +110,16 @@ Historical work is resumable/checkpointed in bounded `FILE_COMMON` state. Timer 
 
 MT5/NeoTech server-local timestamps are carried separately from UTC. The report records server-local text, the configured NeoTech server UTC offset (UTC+2 November–March, UTC+3 April–October under this ruleset), normalized UTC where available, and Vietnam time (UTC+7). `generatedAtUtc` comes from `TimeGMT()`. Weeks, 30-day months, program start, history ranges and evidence retain their server-time basis instead of being mislabeled as UTC.
 
-### Offline queue, cadence and removal
+### Local state, polling and removal
 
-The timer defaults to 15 seconds. A changed/daily report is written to a bounded local pending file; failed/offline HTTPS uploads remain queued and retry on later timers. FDD and prospective extrema checkpoints are also local, so reconstruction resumes rather than restarting from the beginning. Telegram stale labeling makes old stored reports visible as stale instead of inventing fresh data.
+The timer defaults to 15 seconds. Report cache, Telegram update offset, last-notified hash, FDD reconstruction and prospective SL/TP/extrema checkpoints use a `FILE_COMMON` namespace derived from the profile slug plus account fingerprint. A restart resumes the saved polling offset and reconstruction instead of replaying acknowledged updates or rescanning the whole horizon.
 
-To remove the compliance auditor, detach `OAK_NeoTech_Compliance_EA`, remove its compiled/source files from the terminal if desired, remove the NeoTech WebRequest allowlist entry when unused, delete the profile from `NEOTECH_COMPLIANCE_PROFILES_JSON`, and optionally delete that profile's `OAKNeoTechCompliance` files from MT5 `FILE_COMMON`. Removal does not require changing any trading/execution/scanner/failover component.
+Telegram `getUpdates` uses `timeout=0`; failures use bounded exponential backoff. A cached report remains available while history refresh/reconstruction continues, but Telegram cannot answer while MT5 or this EA is stopped. Only one consumer should own a bot's updates.
+
+To remove the auditor, detach `OAK_NeoTech_Compliance_EA`, remove its source/compiled files if desired, remove the `https://api.telegram.org` allowlist entry when unused, and optionally delete that profile/account namespace under `OAKNeoTechCompliance` from MT5 `FILE_COMMON`. No trading, dashboard or Vercel component needs changing.
 
 ### Synthetic verification and troubleshooting
 
-Compile `tests/NeoTechComplianceSyntheticTests.mq5` with the same `neotech/` includes, then execute it as an MT5 script in a demo/non-trading context. A successful run ends with the exact line `[NEOTECH SYNTHETIC] TOTAL=38 PASS=38 FAIL=0 RESULT=PASS`; failures print fixture name plus expected/actual. Compilation success alone is not a runtime PASS.
+Compile `tests/NeoTechComplianceSyntheticTests.mq5` with the same `neotech/` includes, then execute it as an MT5 script in an isolated demo/non-trading terminal. It never calls the real Telegram API. A successful run ends with the exact line `[NEOTECH SYNTHETIC] TOTAL=49 PASS=49 FAIL=0 RESULT=PASS`; failures print fixture name plus expected/actual. Compilation alone is not a runtime PASS.
 
-If initialization fails, first verify `InpExpectedLogin`, profile slug and account fingerprint registration. If upload stays queued, verify HTTPS, WebRequest allowlist, profile ingest key and server environment variables. `DATA_GAP` in FDD means required price/conversion evidence was missing; `NOT_VERIFIABLE` on historical C6 usually means the EA did not continuously observe that trade's SL/TP lifecycle. None of these statuses should be converted manually into PASS.
+If initialization fails, verify the login binding, slug, token, both ACL lists and input ranges. If polling is blocked, inspect `getWebhookInfo`: either keep the existing webhook owner or deliberately opt in once to `deleteWebhook`. For HTTP failures, verify the Telegram WebRequest allowlist and network access. `DATA_GAP` in FDD means required price/conversion evidence is missing; `NOT_VERIFIABLE` on historical C6 usually means the EA did not continuously observe that trade's SL/TP lifecycle. Never convert either status manually into PASS.

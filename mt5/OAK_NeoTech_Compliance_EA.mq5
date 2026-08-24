@@ -1,17 +1,22 @@
 #property strict
-#property version   "1.00"
-#property description "OAK read-only NeoTech compliance auditor. Never sends, modifies or closes trades."
+#property version   "1.01"
+#property description "OAK read-only NeoTech compliance auditor with direct Telegram reporting. Never sends, modifies or closes trades."
 
 #include "neotech\\NeoTechComplianceCore.mqh"
 #include "neotech\\NeoTechComplianceJson.mqh"
 
 input group "Compliance identity"
-input string InpProfileSlug                 = ""; // Opaque backend profile slug, never an MT5 login
+input string InpProfileSlug                 = ""; // Opaque profile slug, never an MT5 login
 input long   InpExpectedLogin               = 0;  // Required hard binding; EA init fails if current MT5 login differs
-input string InpIngestUrl                   = "https://www.oakgatekeeper.uk/api/neotech/compliance/report";
-input string InpIngestKey                   = ""; // Secret entered in terminal; never commit it
-input bool   InpUploadEnabled               = true;
-input int    InpHttpTimeoutMs               = 5000;
+
+input group "Telegram transport"
+input string InpTelegramBotToken            = ""; // Secret entered in terminal; never commit or log it
+input string InpTelegramAllowedChatIds      = ""; // Comma/space/semicolon separated Telegram chat IDs
+input string InpTelegramAllowedUserIds      = ""; // Comma/space/semicolon separated Telegram user IDs
+input int    InpTelegramPollSeconds         = 15;
+input bool   InpTelegramDeleteWebhookOnInit = false;
+input bool   InpTelegramSendOnChange        = false;
+input int    InpTelegramPageSize            = 6;
 
 input group "Audit policy"
 input double InpGoldPipSizeOverride         = 0.0; // Required for Gold C6 when broker convention is not externally verified
@@ -20,9 +25,11 @@ input int    InpHistoryLookbackDays         = 370; // required compliance covera
 input int    InpReconstructionChunkMinutes  = 60;
 input int    InpReconstructionSliceSeconds  = 30;
 input int    InpReconstructionBudgetMs      = 250;
-input int    InpTimerSeconds                = 15;
 
 #define NT_LOCAL_DIR "OAKNeoTechCompliance\\"
+#define NT_TELEGRAM_API_BASE "https://api.telegram.org"
+#define NT_TELEGRAM_HTTP_TIMEOUT_MS 5000
+#define NT_TELEGRAM_MESSAGE_BUDGET 3800
 #define NT_RECON_MAX_TICKS_PER_SYMBOL_SLICE 50000
 #define NT_RECON_MAX_EVENTS_PER_SLICE       120000
 #define NT_SLTP_JOURNAL_MAX_ROWS            256
@@ -154,6 +161,13 @@ long g_last_deals=-1;
 long g_last_orders=-1;
 long g_last_reconcile_day=0;
 string g_last_report_hash="";
+string g_cached_report_json="";
+long g_telegram_next_update_id=0;
+bool g_telegram_polling_enabled=false;
+bool g_telegram_webhook_blocked=false;
+int g_telegram_failure_count=0;
+long g_telegram_next_attempt=0;
+string g_telegram_last_notified_hash="";
 NTProspectiveExtrema g_exact;
 NTFddJobState g_fdd_job;
 NTSltpJournalRow g_sltp_journal[];
@@ -194,34 +208,49 @@ string NTProfileKey()
    return NTLower(NTTrim(InpProfileSlug));
   }
 
-string NTPendingPath()
-  {
-   return NT_LOCAL_DIR+"pending_"+NTProfileKey()+".json";
-  }
-
-string NTExtremaPath()
-  {
-   return NT_LOCAL_DIR+"extrema_"+NTProfileKey()+".csv";
-  }
-
-string NTFddStatePath()
-  {
-   return NT_LOCAL_DIR+"fdd_"+NTProfileKey()+".csv";
-  }
-
-string NTSltpJournalPath()
-  {
-   return NT_LOCAL_DIR+"sltp_"+NTProfileKey()+".csv";
-  }
-
 string NTAccountFingerprint()
   {
    return NTSha256Hex(IntegerToString((long)AccountInfoInteger(ACCOUNT_LOGIN))+"|"+AccountInfoString(ACCOUNT_COMPANY)+"|"+AccountInfoString(ACCOUNT_SERVER));
   }
 
+string NTStateKey()
+  {
+   return NTProfileKey()+"_"+NTAccountFingerprint();
+  }
+
+string NTReportPath()
+  {
+   return NT_LOCAL_DIR+"report_"+NTStateKey()+".json";
+  }
+
+string NTTelegramOffsetPath()
+  {
+   return NT_LOCAL_DIR+"telegram_offset_"+NTStateKey()+".txt";
+  }
+
+string NTTelegramNotifyPath()
+  {
+   return NT_LOCAL_DIR+"telegram_notify_"+NTStateKey()+".txt";
+  }
+
+string NTExtremaPath()
+  {
+   return NT_LOCAL_DIR+"extrema_"+NTStateKey()+".csv";
+  }
+
+string NTFddStatePath()
+  {
+   return NT_LOCAL_DIR+"fdd_"+NTStateKey()+".csv";
+  }
+
+string NTSltpJournalPath()
+  {
+   return NT_LOCAL_DIR+"sltp_"+NTStateKey()+".csv";
+  }
+
 bool NTWriteCommonText(const string path,const string text)
   {
-   int handle=FileOpen(path,FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   int handle=FileOpen(path,FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON,0,CP_UTF8);
    if(handle==INVALID_HANDLE)
      {
       PrintFormat("[NEOTECH] FileOpen write failed path=%s err=%d",path,GetLastError());
@@ -236,7 +265,7 @@ bool NTWriteCommonText(const string path,const string text)
 bool NTReadCommonText(const string path,string &text)
   {
    text="";
-   int handle=FileOpen(path,FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   int handle=FileOpen(path,FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON,0,CP_UTF8);
    if(handle==INVALID_HANDLE) return false;
    while(!FileIsEnding(handle)) text+=FileReadString(handle);
    FileClose(handle);
@@ -1608,51 +1637,519 @@ string NTBuildReport(string &report_hash)
    return report_hash=="" ? "" : core;
   }
 
-string NTNonce()
+bool NTTelegramHasConfiguredId(const string specification)
   {
-   const ulong micros=GetMicrosecondCount();
-   return StringFormat("nt-%I64u-%I64d",micros,(long)TimeLocal());
+   string normalized=specification;
+   StringReplace(normalized,";",",");
+   StringReplace(normalized,"\n",",");
+   StringReplace(normalized,"\r",",");
+   StringReplace(normalized,"\t",",");
+   StringReplace(normalized," ",",");
+   string parts[];
+   const int count=StringSplit(normalized,',',parts);
+   for(int i=0;i<count;i++) if(NTIsSignedIntegerText(NTTrim(parts[i]))) return true;
+   return false;
   }
 
-bool NTQueueReport(const string report,const string hash)
+void NTTelegramLoadLocalState()
   {
-   if(report=="" || hash=="") return false;
-   if(!NTWriteCommonText(NTPendingPath(),report)) return false;
-   g_last_report_hash=hash;
+   string text="";
+   if(NTReadCommonText(NTTelegramOffsetPath(),text) && NTIsSignedIntegerText(NTTrim(text)))
+     {
+      const long value=StringToInteger(NTTrim(text));
+      if(value>=0) g_telegram_next_update_id=value;
+     }
+   text="";
+   if(NTReadCommonText(NTTelegramNotifyPath(),text)) g_telegram_last_notified_hash=NTTrim(text);
+   g_cached_report_json="";
+   if(NTReadCommonText(NTReportPath(),g_cached_report_json) && g_cached_report_json!="")
+      g_last_report_hash=NTSha256Hex(g_cached_report_json);
+  }
+
+bool NTTelegramPersistOffset(const long processed_update_id)
+  {
+   const long next=NTTelegramNextOffset(g_telegram_next_update_id,processed_update_id);
+   if(next==g_telegram_next_update_id) return true;
+   if(!NTWriteCommonText(NTTelegramOffsetPath(),IntegerToString(next)))
+     {
+      Print("[NEOTECH] Telegram update handled but offset persistence failed; polling paused to avoid unsafe replay advancement.");
+      g_telegram_polling_enabled=false;
+      return false;
+     }
+   g_telegram_next_update_id=next;
    return true;
   }
 
-void NTUploadQueued()
+int NTTelegramBackoffSeconds()
   {
-   if(!InpUploadEnabled || NTTrim(InpIngestKey)=="" || NTTrim(InpIngestUrl)=="") return;
-   if(StringFind(NTLower(InpIngestUrl),"https://")!=0)
-     {
-      Print("[NEOTECH] Upload blocked: HTTPS is required");
-      return;
-     }
-   string report="";
-   if(!NTReadCommonText(NTPendingPath(),report) || report=="") return;
-   const string hash=NTSha256Hex(report);
-   const string nonce=NTNonce();
-   const long timestamp=(long)TimeGMT();
-   string headers="Content-Type: application/json\r\n"
-      +"X-OAK-Compliance-Profile: "+NTProfileKey()+"\r\n"
-      +"X-OAK-Compliance-Key: "+InpIngestKey+"\r\n"
-      +"X-OAK-Compliance-Timestamp: "+IntegerToString(timestamp)+"\r\n"
-      +"X-OAK-Compliance-Nonce: "+nonce+"\r\n"
-      +"Idempotency-Key: "+hash+"\r\n";
+   int delay=5;
+   const int steps=MathMin(5,MathMax(0,g_telegram_failure_count-1));
+   for(int i=0;i<steps;i++) delay*=2;
+   return MathMin(300,delay);
+  }
+
+void NTTelegramRecordFailure(const string method,const int http_code,const int terminal_error)
+  {
+   g_telegram_failure_count++;
+   const int delay=NTTelegramBackoffSeconds();
+   g_telegram_next_attempt=(long)TimeLocal()+delay;
+   if(http_code<0 && terminal_error==4014)
+      PrintFormat("[NEOTECH] Telegram %s blocked by MT5 WebRequest policy (err=%d). Add https://api.telegram.org to Tools > Options > Expert Advisors > Allow WebRequest for listed URL; retry in %d seconds.",method,terminal_error,delay);
+   else
+      PrintFormat("[NEOTECH] Telegram %s failed HTTP=%d err=%d; retry in %d seconds.",method,http_code,terminal_error,delay);
+  }
+
+void NTTelegramRecordSuccess()
+  {
+   g_telegram_failure_count=0;
+   g_telegram_next_attempt=0;
+  }
+
+bool NTTelegramBackoffActive()
+  {
+   return g_telegram_next_attempt>(long)TimeLocal();
+  }
+
+bool NTTelegramApiCall(const string method,const string fields,string &response_text,int &http_code)
+  {
+   response_text="";
+   http_code=-1;
+   if(NTTrim(InpTelegramBotToken)=="" || NTTelegramBackoffActive()) return false;
+   const string url=NT_TELEGRAM_API_BASE+"/bot"+InpTelegramBotToken+"/"+method;
+   const string headers="Content-Type: application/x-www-form-urlencoded\r\n";
    char body[],response[];
-   StringToCharArray(report,body,0,StringLen(report),CP_UTF8);
+   if(fields!="")
+     {
+      StringToCharArray(fields,body,0,-1,CP_UTF8);
+      if(ArraySize(body)>0 && body[ArraySize(body)-1]==0) ArrayResize(body,ArraySize(body)-1);
+     }
+   else ArrayResize(body,0);
    string response_headers="";
    ResetLastError();
-   const int code=WebRequest("POST",InpIngestUrl,headers,InpHttpTimeoutMs,body,response,response_headers);
-   if(code>=200 && code<300)
+   http_code=WebRequest("POST",url,headers,NT_TELEGRAM_HTTP_TIMEOUT_MS,body,response,response_headers);
+   const int terminal_error=GetLastError();
+   if(ArraySize(response)>0) response_text=CharArrayToString(response,0,-1,CP_UTF8);
+   if(http_code!=200 || !NTTelegramApiOk(response_text))
      {
-      NTDeleteCommon(NTPendingPath());
-      PrintFormat("[NEOTECH] Compliance report uploaded hash=%s HTTP=%d",g_last_report_hash,code);
+      NTTelegramRecordFailure(method,http_code,terminal_error);
+      return false;
+     }
+   NTTelegramRecordSuccess();
+   return true;
+  }
+
+bool NTTelegramConfigurePolling()
+  {
+   if(g_telegram_webhook_blocked) return false;
+   string response="";
+   int http_code=-1;
+   if(!NTTelegramApiCall("getWebhookInfo","",response,http_code)) return false;
+   NTTelegramWebhookAction action=NTTelegramWebhookDecision(response,InpTelegramDeleteWebhookOnInit);
+   if(action==NT_TG_WEBHOOK_ERROR)
+     {
+      NTTelegramRecordFailure("getWebhookInfo-parse",http_code,0);
+      return false;
+     }
+   if(action==NT_TG_WEBHOOK_BLOCK)
+     {
+      g_telegram_polling_enabled=false;
+      g_telegram_webhook_blocked=true;
+      Print("[NEOTECH] Telegram polling disabled: getWebhookInfo reports an active webhook. InpTelegramDeleteWebhookOnInit=false preserves it. To let this EA poll, set InpTelegramDeleteWebhookOnInit=true and reinitialize, or delete the webhook externally; this EA will not delete it automatically.");
+      return false;
+     }
+   if(action==NT_TG_WEBHOOK_DELETE)
+     {
+      if(!NTTelegramApiCall("deleteWebhook","drop_pending_updates=false",response,http_code)) return false;
+      if(!NTTelegramApiCall("getWebhookInfo","",response,http_code)) return false;
+      if(NTTelegramWebhookDecision(response,false)!=NT_TG_WEBHOOK_READY)
+        {
+         NTTelegramRecordFailure("getWebhookInfo-confirm",http_code,0);
+         Print("[NEOTECH] Telegram webhook deletion was requested but webhook state is not empty; polling remains disabled.");
+         return false;
+        }
+      Print("[NEOTECH] Telegram webhook deleted with drop_pending_updates=false and confirmed empty; polling enabled.");
+     }
+   g_telegram_polling_enabled=true;
+   return true;
+  }
+
+string NTTelegramJsonRaw(const string json,const string key)
+  {
+   string raw="";
+   NTJsonReadRawValue(json,key,raw);
+   return raw;
+  }
+
+void NTTelegramCriterionTotals(const string report,int &pass_count,int &fail_count,int &in_progress_count,int &not_verifiable_count,int &data_gap_count,int &reconstructed_count)
+  {
+   pass_count=0;
+   fail_count=0;
+   in_progress_count=0;
+   not_verifiable_count=0;
+   data_gap_count=0;
+   reconstructed_count=0;
+   string criteria_json="";
+   string criteria[];
+   if(!NTJsonGetArray(report,"criteria",criteria_json)) return;
+   NTJsonArrayObjects(criteria_json,criteria);
+   for(int i=0;i<ArraySize(criteria);i++)
+     {
+      string status="";
+      if(!NTJsonGetString(criteria[i],"status",status)) continue;
+      if(status=="PASS") pass_count++;
+      else if(status=="FAIL") fail_count++;
+      else if(status=="IN_PROGRESS") in_progress_count++;
+      else if(status=="NOT_VERIFIABLE") not_verifiable_count++;
+      else if(status=="DATA_GAP") data_gap_count++;
+      else if(status=="RECONSTRUCTED") reconstructed_count++;
+     }
+  }
+
+string NTTelegramSafeText(const string text)
+  {
+   return NTTelegramRedact(text,
+      IntegerToString((long)AccountInfoInteger(ACCOUNT_LOGIN)),
+      AccountInfoString(ACCOUNT_COMPANY),
+      AccountInfoString(ACCOUNT_SERVER),
+      InpTelegramBotToken);
+  }
+
+string NTTelegramSummaryHeader(const string report)
+  {
+   string account="",masked="unknown";
+   if(NTJsonGetObject(report,"account",account)) NTJsonGetString(account,"maskedId",masked);
+
+   string coverage="";
+   long requested_start=0,requested_end=0;
+   double coverage_pct=0.0;
+   if(NTJsonGetObject(report,"historyCoverage",coverage))
+     {
+      NTJsonGetLong(coverage,"requestedStartServerEpoch",requested_start);
+      NTJsonGetLong(coverage,"requestedEndServerEpoch",requested_end);
+      NTJsonGetDouble(coverage,"coveragePct",coverage_pct);
+     }
+
+   int pass_count=0,fail_count=0,in_progress_count=0,not_verifiable_count=0,data_gap_count=0,reconstructed_count=0;
+   NTTelegramCriterionTotals(report,pass_count,fail_count,in_progress_count,not_verifiable_count,data_gap_count,reconstructed_count);
+
+   string summary="",current_month="",fdd="";
+   long hard_count=0,candidate_count=0,c5=0,c6=0;
+   string risk="UNKNOWN";
+   double fdd_floating=0.0,fdd_peak=0.0,fdd_tick=0.0,fdd_bar=0.0;
+   string fdd_method="unknown",fdd_status="NOT_VERIFIABLE";
+   if(NTJsonGetObject(report,"summary",summary))
+     {
+      NTJsonGetLong(summary,"hardViolationCount",hard_count);
+      NTJsonGetLong(summary,"candidateCount",candidate_count);
+      if(NTJsonGetObject(summary,"currentMonth",current_month))
+        {
+         NTJsonGetLong(current_month,"c5",c5);
+         NTJsonGetLong(current_month,"c6",c6);
+         NTJsonGetString(current_month,"risk",risk);
+        }
+      if(NTJsonGetObject(summary,"fdd",fdd))
+        {
+         NTJsonGetDouble(fdd,"maxFloatingLossPct",fdd_floating);
+         NTJsonGetDouble(fdd,"maxPeakToTroughPct",fdd_peak);
+         NTJsonGetDouble(fdd,"tickCoveragePct",fdd_tick);
+         NTJsonGetDouble(fdd,"barCoveragePct",fdd_bar);
+         NTJsonGetString(fdd,"method",fdd_method);
+         NTJsonGetString(fdd,"status",fdd_status);
+        }
+     }
+
+   string history_text="n/a";
+   if(requested_start>0 && requested_end>0) history_text=NTDateTimeText(requested_start)+" -> "+NTDateTimeText(requested_end)+" (server time)";
+   string text="NeoTech compliance @"+NTProfileKey();
+   text+="\nAccount: "+masked;
+   text+="\nHistory: "+history_text;
+   text+="\nCoverage: "+DoubleToString(coverage_pct,1)+"%";
+   text+="\nCriteria: PASS="+IntegerToString(pass_count)+" FAIL="+IntegerToString(fail_count)+" IN_PROGRESS="+IntegerToString(in_progress_count)+" NOT_VERIFIABLE="+IntegerToString(not_verifiable_count)+" DATA_GAP="+IntegerToString(data_gap_count);
+   if(reconstructed_count>0) text+=" RECONSTRUCTED="+IntegerToString(reconstructed_count);
+   text+="\nViolations: confirmed="+IntegerToString(hard_count)+" candidates="+IntegerToString(candidate_count);
+   text+="\nCurrent month: C5="+IntegerToString(c5)+" C6="+IntegerToString(c6)+" eliminationRisk="+risk;
+   text+="\nFDD: floating="+DoubleToString(fdd_floating,3)+"% peakToTrough="+DoubleToString(fdd_peak,3)+"% status="+fdd_status;
+   text+="\nFDD method/coverage: "+fdd_method+"; ticks="+DoubleToString(fdd_tick,1)+"% M1="+DoubleToString(fdd_bar,1)+"%";
+   return NTTelegramSafeText(text);
+  }
+
+string NTTelegramCriterionItem(const string criterion)
+  {
+   string id="?",status="?",summary="";
+   NTJsonGetString(criterion,"id",id);
+   NTJsonGetString(criterion,"status",status);
+   NTJsonGetString(criterion,"summaryVi",summary);
+   return NTTelegramSafeText(id+" · "+status+(summary!=""?"\n"+summary:""));
+  }
+
+string NTTelegramEvidenceItem(const string event_json,const bool candidate)
+  {
+   string criterion="?",status="?",reason="?",explanation="",server_time="n/a",utc_time="n/a",symbol="n/a",measured="n/a",threshold="n/a";
+   NTJsonGetString(event_json,"criterionId",criterion);
+   NTJsonGetString(event_json,"status",status);
+   NTJsonGetString(event_json,"reasonCode",reason);
+   NTJsonGetString(event_json,"explanationVi",explanation);
+   NTJsonGetString(event_json,"serverTime",server_time);
+   NTJsonGetString(event_json,"utcTime",utc_time);
+   NTJsonGetString(event_json,"canonicalSymbol",symbol);
+   NTJsonGetString(event_json,"measuredValue",measured);
+   NTJsonGetString(event_json,"threshold",threshold);
+   const string positions=NTTelegramJsonRaw(event_json,"positionIds");
+   const string orders=NTTelegramJsonRaw(event_json,"orderTickets");
+   const string deals=NTTelegramJsonRaw(event_json,"dealTickets");
+   string text=(candidate?"CANDIDATE ":"VIOLATION ")+criterion+" · "+status+" · "+reason;
+   text+="\nServer: "+server_time+" | UTC: "+utc_time;
+   text+="\nSymbol: "+symbol;
+   if(explanation!="") text+="\nReason: "+explanation;
+   text+="\nMeasured: "+measured+" | Threshold: "+threshold;
+   text+="\nPosition: "+(positions!=""?positions:"[]")+" | Order: "+(orders!=""?orders:"[]")+" | Deal: "+(deals!=""?deals:"[]");
+   return NTTelegramSafeText(text);
+  }
+
+void NTTelegramAppendItem(string &items[],const string item)
+  {
+   const int n=ArraySize(items);
+   ArrayResize(items,n+1);
+   items[n]=item;
+  }
+
+void NTTelegramAppendEvidenceItems(const string report,const string array_key,const string criterion_filter,const bool candidate,string &items[])
+  {
+   string array_json="";
+   string events[];
+   if(!NTJsonGetArray(report,array_key,array_json)) return;
+   NTJsonArrayObjects(array_json,events);
+   for(int i=0;i<ArraySize(events);i++)
+     {
+      string criterion="";
+      if(!NTJsonGetString(events[i],"criterionId",criterion)) continue;
+      if(criterion_filter!="" && !NTTelegramCriterionMatches(criterion,criterion_filter)) continue;
+      NTTelegramAppendItem(items,NTTelegramEvidenceItem(events[i],candidate));
+     }
+  }
+
+int NTTelegramBuildReportPages(const string report,const NTTelegramCheckCommand &command,string &pages[])
+  {
+   ArrayResize(pages,0);
+   if(report=="") return 0;
+   string items[];
+   ArrayResize(items,0);
+
+   if(command.view==NT_TG_VIEW_VIOLATIONS)
+     {
+      NTTelegramAppendEvidenceItems(report,"hardViolations","",false,items);
+      NTTelegramAppendEvidenceItems(report,"candidates","",true,items);
+      if(ArraySize(items)==0) NTTelegramAppendItem(items,"No confirmed violations or candidates in the current report.");
      }
    else
-      PrintFormat("[NEOTECH] Upload queued for retry HTTP=%d err=%d",code,GetLastError());
+     {
+      string criteria_json="";
+      string criteria[];
+      if(NTJsonGetArray(report,"criteria",criteria_json)) NTJsonArrayObjects(criteria_json,criteria);
+      for(int i=0;i<ArraySize(criteria);i++)
+        {
+         string id="";
+         if(!NTJsonGetString(criteria[i],"id",id)) continue;
+         if(command.view==NT_TG_VIEW_CRITERION && !NTTelegramCriterionMatches(id,command.criterion)) continue;
+         NTTelegramAppendItem(items,NTTelegramCriterionItem(criteria[i]));
+        }
+      if(command.view==NT_TG_VIEW_CRITERION)
+        {
+         NTTelegramAppendEvidenceItems(report,"hardViolations",command.criterion,false,items);
+         NTTelegramAppendEvidenceItems(report,"candidates",command.criterion,true,items);
+         if(ArraySize(items)==0) NTTelegramAppendItem(items,"Criterion not found in the current report.");
+        }
+     }
+
+   const string header=NTTelegramSummaryHeader(report);
+   NTTelegramPaginateItems(header,items,MathMax(1,InpTelegramPageSize),NT_TELEGRAM_MESSAGE_BUDGET,pages);
+   const int total=ArraySize(pages);
+   for(int i=0;i<total;i++) pages[i]+="\n\nPage "+IntegerToString(i+1)+"/"+IntegerToString(total);
+   return total;
+  }
+
+string NTTelegramInlineKeyboard(const NTTelegramCheckCommand &command,const int current_page,const int total_pages)
+  {
+   if(total_pages<=1) return "";
+   string buttons="";
+   if(current_page>1)
+     {
+      const string data=NTTelegramCallbackData(NTProfileKey(),command.view,command.criterion,current_page-1);
+      buttons+="{\"text\":\"Prev\",\"callback_data\":"+NTJsonQuote(data)+"}";
+     }
+   if(current_page<total_pages)
+     {
+      if(buttons!="") buttons+=",";
+      const string data=NTTelegramCallbackData(NTProfileKey(),command.view,command.criterion,current_page+1);
+      buttons+="{\"text\":\"Next\",\"callback_data\":"+NTJsonQuote(data)+"}";
+     }
+   if(buttons=="") return "";
+   return "{\"inline_keyboard\":[["+buttons+"]]}";
+  }
+
+bool NTTelegramSendMessage(const long chat_id,const string text,const string reply_markup="")
+  {
+   if(text=="" || StringLen(text)>4096) return false;
+   string fields="chat_id="+NTUrlEncodeUtf8(IntegerToString(chat_id))+"&text="+NTUrlEncodeUtf8(text);
+   if(reply_markup!="") fields+="&reply_markup="+NTUrlEncodeUtf8(reply_markup);
+   string response="";
+   int http_code=-1;
+   return NTTelegramApiCall("sendMessage",fields,response,http_code);
+  }
+
+bool NTTelegramAnswerCallback(const string callback_id,const string text="")
+  {
+   if(callback_id=="") return false;
+   string fields="callback_query_id="+NTUrlEncodeUtf8(callback_id);
+   if(text!="") fields+="&text="+NTUrlEncodeUtf8(text);
+   string response="";
+   int http_code=-1;
+   return NTTelegramApiCall("answerCallbackQuery",fields,response,http_code);
+  }
+
+bool NTTelegramSendReport(const long chat_id,NTTelegramCheckCommand &command)
+  {
+   if(g_cached_report_json=="") return false;
+   string pages[];
+   const int total=NTTelegramBuildReportPages(g_cached_report_json,command,pages);
+   if(total<=0) return false;
+   int page=command.page;
+   if(page<1) page=1;
+   if(page>total) page=total;
+   const string keyboard=NTTelegramInlineKeyboard(command,page,total);
+   return NTTelegramSendMessage(chat_id,pages[page-1],keyboard);
+  }
+
+bool NTTelegramHandleMessage(const string update_json)
+  {
+   string message="";
+   if(!NTJsonGetObject(update_json,"message",message)) return true;
+   string text="";
+   if(!NTJsonGetString(message,"text",text)) return true;
+   const string lowered=NTLower(NTTrim(text));
+   if(StringFind(lowered,"/check")!=0) return true;
+
+   string chat="",from="";
+   long chat_id=0,user_id=0;
+   if(!NTJsonGetObject(message,"chat",chat) || !NTJsonGetLong(chat,"id",chat_id)) return true;
+   if(!NTJsonGetObject(message,"from",from) || !NTJsonGetLong(from,"id",user_id)) return true;
+   if(!NTTelegramAclAllowed(InpTelegramAllowedChatIds,InpTelegramAllowedUserIds,chat_id,user_id)) return true;
+
+   NTTelegramCheckCommand command;
+   if(!NTTelegramParseCheckCommand(text,NTProfileKey(),command)) return true;
+   if(!command.slug_matches) return true;
+   return NTTelegramSendReport(chat_id,command);
+  }
+
+bool NTTelegramHandleCallback(const string update_json)
+  {
+   string callback="";
+   if(!NTJsonGetObject(update_json,"callback_query",callback)) return true;
+   string callback_id="",data="";
+   NTJsonGetString(callback,"id",callback_id);
+   if(!NTJsonGetString(callback,"data",data)) return true;
+   NTTelegramCheckCommand command;
+   if(!NTTelegramParseCallbackData(data,NTProfileKey(),command) || !command.slug_matches) return true;
+
+   string from="",message="",chat="";
+   long user_id=0,chat_id=0;
+   if(!NTJsonGetObject(callback,"from",from) || !NTJsonGetLong(from,"id",user_id)) return true;
+   if(!NTJsonGetObject(callback,"message",message) || !NTJsonGetObject(message,"chat",chat) || !NTJsonGetLong(chat,"id",chat_id)) return true;
+   if(!NTTelegramAclAllowed(InpTelegramAllowedChatIds,InpTelegramAllowedUserIds,chat_id,user_id))
+     {
+      NTTelegramAnswerCallback(callback_id,"Unauthorized");
+      return true;
+     }
+
+   if(!NTTelegramSendReport(chat_id,command)) return false;
+   if(!NTTelegramAnswerCallback(callback_id,"Page updated"))
+      Print("[NEOTECH] Telegram callback page was delivered but answerCallbackQuery failed; update will not be replayed to avoid duplicate account reports.");
+   return true;
+  }
+
+bool NTTelegramHandleUpdate(const string update_json)
+  {
+   string object="";
+   if(NTJsonGetObject(update_json,"callback_query",object)) return NTTelegramHandleCallback(update_json);
+   if(NTJsonGetObject(update_json,"message",object)) return NTTelegramHandleMessage(update_json);
+   return true;
+  }
+
+void NTTelegramPollUpdates()
+  {
+   if(!g_telegram_polling_enabled || NTTelegramBackoffActive()) return;
+   const string allowed_updates="[\"message\",\"callback_query\"]";
+   string fields="offset="+NTUrlEncodeUtf8(IntegerToString(g_telegram_next_update_id))
+      +"&limit=20&timeout=0&allowed_updates="+NTUrlEncodeUtf8(allowed_updates);
+   string response="";
+   int http_code=-1;
+   if(!NTTelegramApiCall("getUpdates",fields,response,http_code)) return;
+   string result="";
+   string updates[];
+   if(!NTJsonGetArray(response,"result",result))
+     {
+      NTTelegramRecordFailure("getUpdates-parse",http_code,0);
+      return;
+     }
+   NTJsonArrayObjects(result,updates);
+   for(int i=0;i<ArraySize(updates);i++)
+     {
+      long update_id=-1;
+      if(!NTJsonGetLong(updates[i],"update_id",update_id) || update_id<0) continue;
+      if(!NTTelegramUpdateProcessable(update_id,g_telegram_next_update_id)) continue;
+      if(!NTTelegramHandleUpdate(updates[i])) return;
+      if(!NTTelegramPersistOffset(update_id)) return;
+     }
+  }
+
+int NTTelegramAllowedChats(long &ids[])
+  {
+   ArrayResize(ids,0);
+   string normalized=InpTelegramAllowedChatIds;
+   StringReplace(normalized,";",",");
+   StringReplace(normalized,"\n",",");
+   StringReplace(normalized,"\r",",");
+   StringReplace(normalized,"\t",",");
+   StringReplace(normalized," ",",");
+   string parts[];
+   const int count=StringSplit(normalized,',',parts);
+   for(int i=0;i<count;i++)
+     {
+      const string part=NTTrim(parts[i]);
+      if(!NTIsSignedIntegerText(part)) continue;
+      const long id=StringToInteger(part);
+      bool duplicate=false;
+      for(int j=0;j<ArraySize(ids);j++) if(ids[j]==id) { duplicate=true; break; }
+      if(duplicate) continue;
+      const int n=ArraySize(ids);
+      ArrayResize(ids,n+1);
+      ids[n]=id;
+     }
+   return ArraySize(ids);
+  }
+
+void NTTelegramMaybeSendOnChange()
+  {
+   if(!InpTelegramSendOnChange || g_cached_report_json=="" || g_last_report_hash=="" || g_last_report_hash==g_telegram_last_notified_hash || NTTelegramBackoffActive()) return;
+   long chats[];
+   if(NTTelegramAllowedChats(chats)<=0) return;
+   NTTelegramCheckCommand command;
+   command.slug_matches=true;
+   command.view=NT_TG_VIEW_SUMMARY;
+   command.page=1;
+   command.criterion="";
+   for(int i=0;i<ArraySize(chats);i++)
+      if(!NTTelegramSendReport(chats[i],command)) return;
+   if(NTWriteCommonText(NTTelegramNotifyPath(),g_last_report_hash)) g_telegram_last_notified_hash=g_last_report_hash;
+  }
+
+bool NTCacheReport(const string report,const string hash)
+  {
+   if(report=="" || hash=="") return false;
+   if(!NTWriteCommonText(NTReportPath(),report)) return false;
+   g_cached_report_json=report;
+   g_last_report_hash=hash;
+   return true;
   }
 
 void NTRefreshReportIfNeeded()
@@ -1668,10 +2165,10 @@ void NTRefreshReportIfNeeded()
    const string report=NTBuildReport(hash);
    if(report=="" || hash=="")
      {
-      Print("[NEOTECH] Report generation failed; nothing uploaded");
+      Print("[NEOTECH] Report generation failed; local cache unchanged.");
       return;
      }
-   if(hash!=g_last_report_hash || daily) NTQueueReport(report,hash);
+   if(hash!=g_last_report_hash || daily) NTCacheReport(report,hash);
    g_history_dirty=false;
    g_last_reconcile_day=today;
   }
@@ -1695,14 +2192,25 @@ int OnInit()
       Print("[NEOTECH] Account fingerprint generation failed; initialization stopped.");
       return INIT_FAILED;
      }
-   if(InpUploadEnabled && NTTrim(InpIngestKey)=="") Print("[NEOTECH] Upload enabled but InpIngestKey is empty; reports remain queued locally until configured.");
+   if(NTTrim(InpTelegramBotToken)=="" || !NTTelegramHasConfiguredId(InpTelegramAllowedChatIds) || !NTTelegramHasConfiguredId(InpTelegramAllowedUserIds))
+     {
+      Print("[NEOTECH] Telegram token, allowed chat IDs and allowed user IDs are required; no values are hard-coded.");
+      return INIT_PARAMETERS_INCORRECT;
+     }
+   if(InpTelegramPollSeconds<1 || InpTelegramPollSeconds>300 || InpTelegramPageSize<1 || InpTelegramPageSize>20)
+     {
+      Print("[NEOTECH] InpTelegramPollSeconds must be 1..300 and InpTelegramPageSize must be 1..20.");
+      return INIT_PARAMETERS_INCORRECT;
+     }
    FolderCreate(NT_LOCAL_DIR,FILE_COMMON);
+   NTTelegramLoadLocalState();
    NTLoadProspectiveExtrema();
    NTLoadSltpJournal();
    NTLoadFddJob();
-   const int timer=MathMax(5,InpTimerSeconds);
-   if(!EventSetTimer(timer)) return INIT_FAILED;
-   PrintFormat("[NEOTECH] Read-only compliance auditor initialized profile=@%s ruleset=%s",profile,NT_RULESET_ID);
+   NTRefreshReportIfNeeded();
+   NTTelegramConfigurePolling();
+   if(!EventSetTimer(InpTelegramPollSeconds)) return INIT_FAILED;
+   PrintFormat("[NEOTECH] Read-only direct-Telegram compliance auditor initialized profile=@%s ruleset=%s polling=%s",profile,NT_RULESET_ID,g_telegram_polling_enabled?"enabled":"disabled");
    return INIT_SUCCEEDED;
   }
 
@@ -1733,7 +2241,10 @@ void OnTimer()
      }
    NTAdvanceCachedFdd();
    NTRefreshReportIfNeeded();
-   NTUploadQueued();
+   if(!g_telegram_polling_enabled && !g_telegram_webhook_blocked && !NTTelegramBackoffActive()) NTTelegramConfigurePolling();
+   if(!g_telegram_polling_enabled) return;
+   NTTelegramPollUpdates();
+   NTTelegramMaybeSendOnChange();
   }
 
 void OnTradeTransaction(const MqlTradeTransaction &trans,const MqlTradeRequest &request,const MqlTradeResult &result)

@@ -1,5 +1,4 @@
 #property strict
-#property script_show_inputs
 
 #include "..\\neotech\\NeoTechComplianceCore.mqh"
 #include "..\\neotech\\NeoTechComplianceJson.mqh"
@@ -428,6 +427,81 @@ void Fixture44_ServerUtcVietnamTime()
    NTCheck("44 server/UTC/Vietnam conversion summer-winter",NTServerUtcOffsetMinutes(winter)==120 && NTServerUtcOffsetMinutes(summer)==180 && NTServerUtcOffsetMinutes(winter_again)==120 && NTVietnamSecondsFromNeoTechServer(winter)-winter==5L*3600L && NTVietnamSecondsFromNeoTechServer(summer)-summer==4L*3600L && NTVietnamSecondsFromNeoTechServer(winter_again)-winter_again==5L*3600L);
   }
 
+void Fixture45_TelegramCheckSyntaxes()
+  {
+   NTTelegramCheckCommand a,b,c,d;
+   const bool ok=NTTelegramParseCheckCommand("/check @oakdemo","oakdemo",a)
+      && NTTelegramParseCheckCommand("/check @oakdemo 2","oakdemo",b)
+      && NTTelegramParseCheckCommand("/check @oakdemo C5","oakdemo",c)
+      && NTTelegramParseCheckCommand("/check @oakdemo violations 2","oakdemo",d);
+   NTCheck("45 Telegram parses four /check syntaxes",ok && a.slug_matches && a.view==NT_TG_VIEW_SUMMARY && a.page==1 && b.view==NT_TG_VIEW_SUMMARY && b.page==2 && c.view==NT_TG_VIEW_CRITERION && c.criterion=="C5" && c.page==1 && d.view==NT_TG_VIEW_VIOLATIONS && d.page==2);
+  }
+
+void Fixture46_TelegramGroupCommand()
+  {
+   NTTelegramCheckCommand cmd;
+   NTCheck("46 group /check@BotUsername is accepted",NTTelegramParseCheckCommand("/check@NeoTechAuditBot @oakdemo C5","oakdemo",cmd) && cmd.slug_matches && cmd.view==NT_TG_VIEW_CRITERION && cmd.criterion=="C5");
+  }
+
+void Fixture47_TelegramSlugMismatch()
+  {
+   NTTelegramCheckCommand cmd;
+   NTCheck("47 Telegram slug mismatch is recognized but not authorized for profile",NTTelegramParseCheckCommand("/check @other 2","oakdemo",cmd) && !cmd.slug_matches);
+  }
+
+void Fixture48_TelegramAcl()
+  {
+   NTCheck("48 Telegram ACL requires both chat and user",NTTelegramAclAllowed("-100123,55","77,88",-100123,77) && !NTTelegramAclAllowed("-100123,55","77,88",-100999,77) && !NTTelegramAclAllowed("-100123,55","77,88",-100123,99));
+  }
+
+void Fixture49_TelegramReplayOffset()
+  {
+   NTCheck("49 Telegram replay offset is monotonic",!NTTelegramUpdateProcessable(99,100) && NTTelegramUpdateProcessable(100,100) && NTTelegramNextOffset(100,100)==101 && NTTelegramNextOffset(105,100)==105);
+  }
+
+void Fixture50_TelegramJsonResponse()
+  {
+   const string success="{\"ok\":true,\"result\":[]}";
+   const string error="{\"ok\":false,\"error_code\":409,\"description\":\"Conflict\"}";
+   NTCheck("50 Telegram JSON success and error are distinguished",NTTelegramApiOk(success) && !NTTelegramApiOk(error));
+  }
+
+void Fixture51_TelegramUtf8UrlEncoding()
+  {
+   NTCheck("51 UTF-8 form encoding is byte-correct",NTUrlEncodeUtf8("Xin chào ✓")=="Xin%20ch%C3%A0o%20%E2%9C%93");
+  }
+
+void Fixture52_TelegramPaginationLimit()
+  {
+   string chunk="";
+   for(int i=0;i<1300;i++) chunk+="x";
+   string items[]; ArrayResize(items,7);
+   for(int i=0;i<ArraySize(items);i++) items[i]=IntegerToString(i+1)+" "+chunk;
+   string pages[];
+   const int count=NTTelegramPaginateItems("NeoTech synthetic",items,3,3800,pages);
+   bool bounded=(count>1);
+   for(int i=0;i<ArraySize(pages);i++) if(StringLen(pages[i])>3800) bounded=false;
+   NTCheck("52 Telegram pagination stays below message budget",bounded);
+  }
+
+void Fixture53_TelegramC5Filter()
+  {
+   NTCheck("53 criterion filter isolates C5",NTTelegramCriterionMatches("C5","c5") && !NTTelegramCriterionMatches("C6","c5") && NTTelegramCriterionMatches("C5","C5"));
+  }
+
+void Fixture54_TelegramWebhookConflict()
+  {
+   const string empty="{\"ok\":true,\"result\":{\"url\":\"\"}}";
+   const string occupied="{\"ok\":true,\"result\":{\"url\":\"https://example.invalid/hook\"}}";
+   NTCheck("54 webhook conflict never deletes without opt-in",NTTelegramWebhookDecision(empty,false)==NT_TG_WEBHOOK_READY && NTTelegramWebhookDecision(occupied,false)==NT_TG_WEBHOOK_BLOCK && NTTelegramWebhookDecision(occupied,true)==NT_TG_WEBHOOK_DELETE);
+  }
+
+void Fixture55_TelegramRedaction()
+  {
+   const string safe=NTTelegramRedact("login=12345678 broker=Neo Broker server=Neo-Live token=secret-token","12345678","Neo Broker","Neo-Live","secret-token");
+   NTCheck("55 Telegram output redacts sensitive account and bot data",StringFind(safe,"12345678")<0 && StringFind(safe,"Neo Broker")<0 && StringFind(safe,"Neo-Live")<0 && StringFind(safe,"secret-token")<0);
+  }
+
 void OnStart()
   {
    Fixture01_PartialClosesOneSignal();
@@ -468,6 +542,17 @@ void OnStart()
    Fixture39_AdditionalEntryExactEvidence();
    Fixture40_ProspectiveCompleteC6Fail();
    Fixture44_ServerUtcVietnamTime();
+   Fixture45_TelegramCheckSyntaxes();
+   Fixture46_TelegramGroupCommand();
+   Fixture47_TelegramSlugMismatch();
+   Fixture48_TelegramAcl();
+   Fixture49_TelegramReplayOffset();
+   Fixture50_TelegramJsonResponse();
+   Fixture51_TelegramUtf8UrlEncoding();
+   Fixture52_TelegramPaginationLimit();
+   Fixture53_TelegramC5Filter();
+   Fixture54_TelegramWebhookConflict();
+   Fixture55_TelegramRedaction();
    for(int i=0;i<ArraySize(g_failed_names);i++) PrintFormat("[NEOTECH SYNTHETIC] FAILURE fixture=%s expected=%s actual=%s",g_failed_names[i],g_failed_expected[i],g_failed_actual[i]);
    PrintFormat("[NEOTECH SYNTHETIC] TOTAL=%d PASS=%d FAIL=%d RESULT=%s",g_total,g_pass,g_fail,g_fail==0?"PASS":"FAIL");
   }
