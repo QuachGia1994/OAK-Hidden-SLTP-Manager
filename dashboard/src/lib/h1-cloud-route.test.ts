@@ -64,8 +64,11 @@ test("cTrader cloud scanner remains read-only even when shared OAuth has trading
   assert.doesNotMatch(route, /placeCTraderMarketOrder|closeCTraderPositions|amendCTraderPositionProtection|NEW_ORDER_REQ|CLOSE_POSITION_REQ/);
 });
 
-test("live route scans H3, XAU-only H4 and H06-H16 while H5 is inactive", () => {
+test("live route scans H3, XAU-only H4 and H06-H16 while H5 remains recovery-only", () => {
   assert.match(route, /H1_SCAN_HOURS\.includes\(wall\.hour\)/);
+  assert.match(route, /const recoveryOnly = !activeSlot[\s\S]*wall\.hour === 5/);
+  assert.match(route, /if \(recoveryOnly\)[\s\S]*backfillSuppressedHistory|backfillSuppressedHistory[\s\S]*if \(recoveryOnly\)/);
+  assert.match(route, /recoveredCurrentDay: changed/);
   assert.match(route, /"inactive-slot"/);
   assert.match(route, /hour === 3[\s\S]*GBPUSD[\s\S]*USDJPY[\s\S]*XAUUSD[\s\S]*AUDUSD[\s\S]*USDCAD[\s\S]*NZDUSD/);
   assert.doesNotMatch(route, /hour === 3[^\n]*EURUSD/);

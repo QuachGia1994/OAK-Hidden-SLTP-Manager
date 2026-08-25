@@ -449,6 +449,31 @@ test("fresh H4 state backfills FX H3 while keeping H4 exclusive to XAUUSD", () =
   assert.ok(state.days["2026-08-25"].symbols.XAUUSD?.alerts.some((alert) => alert.slotHour === 4));
 });
 
+test("fresh H5 recovery restores prior H3 H4 slots without creating an H5 signal", () => {
+  const state = emptyCloudState();
+  state.days["2026-08-25"] = {
+    suppressedThroughHour: 5,
+    symbols: Object.fromEntries(["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"].map((base) => [base, { alerts: [], blockedSlots: [] }])),
+  };
+  const market = {
+    GBPUSD: { displayName: "GBPUSD", bars: bars("GTGG", 1, "2026-08-25") },
+    XAUUSD: { displayName: "XAUUSD", bars: bars("TGTT", 1, "2026-08-25") },
+    AUDUSD: { displayName: "AUDUSD", bars: bars("GGTG", 1, "2026-08-25") },
+    USDCAD: { displayName: "USDCAD", bars: bars("TGGT", 1, "2026-08-25") },
+    USDJPY: { displayName: "USDJPY", bars: bars("GTGT", 1, "2026-08-25") },
+    NZDUSD: { displayName: "NZDUSD", bars: bars("TGTG", 1, "2026-08-25") },
+  } as const;
+
+  assert.equal(backfillSuppressedHistory(state, "2026-08-25", market), 5);
+  for (const base of ["GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+    assert.ok(state.days["2026-08-25"].symbols[base]?.alerts.some((alert) => alert.slotHour === 3));
+  }
+  assert.ok(state.days["2026-08-25"].symbols.XAUUSD?.alerts.some((alert) => alert.slotHour === 4));
+  for (const base of ["XAUUSD", "GBPUSD", "AUDUSD", "USDCAD", "USDJPY"] as const) {
+    assert.equal(state.days["2026-08-25"].symbols[base]?.alerts.some((alert) => alert.slotHour === 5), false);
+  }
+});
+
 test("suppressed migration slots backfill v7 history without replay state loss", () => {
   const state = emptyCloudState();
   state.days["2026-08-21"] = {

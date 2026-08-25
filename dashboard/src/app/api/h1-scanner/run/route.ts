@@ -143,7 +143,8 @@ export async function POST(request: Request) {
   const nowMs = Date.now();
   const wall = brokerWallParts(nowMs);
   const activeSlot = H1_SCAN_HOURS.includes(wall.hour);
-  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < H1_FIRST_SCAN_HOUR || wall.hour > H1_SCAN_END_HOUR || !activeSlot) {
+  const recoveryOnly = !activeSlot && wall.weekday !== 0 && wall.weekday !== 6 && wall.hour === 5;
+  if (wall.weekday === 0 || wall.weekday === 6 || wall.hour < H1_FIRST_SCAN_HOUR || wall.hour > H1_SCAN_END_HOUR || (!activeSlot && !recoveryOnly)) {
     return NextResponse.json({
       ok: true,
       enabled,
@@ -182,12 +183,32 @@ export async function POST(request: Request) {
       }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
     const { state, source } = await loadH1CloudState(market.brokerDate, market.brokerHour);
+    let changed = backfillSuppressedHistory(state, market.brokerDate, market.symbols) > 0;
+    if (recoveryOnly) {
+      if (!dryRun) {
+        if (changed || source === "public-seed") await saveH1CloudState(state);
+        await publishH1CloudState(state);
+      }
+      return NextResponse.json({
+        ok: true,
+        enabled,
+        dryRun,
+        skipped: "inactive-slot",
+        recoveryOnly: true,
+        recoveredCurrentDay: changed,
+        stateSource: source,
+        brokerDate: market.brokerDate,
+        brokerHour: market.brokerHour,
+        brokerMinute: market.brokerMinute,
+        brokerUtcOffsetHours: market.brokerUtcOffsetHours,
+      }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    }
+
     const byBaseHour = Object.fromEntries(
       Object.entries(market.symbols).map(([base, item]) => [base, new Map(item.bars.map((bar) => [bar.hour, bar]))]),
     ) as Record<string, Map<number, (typeof market.symbols)[keyof typeof market.symbols]["bars"][number]>>;
     const pending: RunSummary[] = [];
     let sent = 0;
-    let changed = backfillSuppressedHistory(state, market.brokerDate, market.symbols) > 0;
 
     for (const base of H1_TARGET_BASES) {
       if (market.brokerHour === 4 && base !== "XAUUSD") continue;
